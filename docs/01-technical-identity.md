@@ -9,7 +9,7 @@
 | **Objetivo** | Consolidar a identidade técnica permanente do Project Mimikyu. |
 | **Escopo** | Tecnologias, convenções e definições técnicas adotadas pelo projeto. |
 | **Dependências** | `00-project-charter.md` |
-| **Documentos Relacionados** | `docs/adr/ADR-001-*.md`, `docs/adr/ADR-002-*.md` |
+| **Documentos Relacionados** | `docs/adr/ADR-001-environment-foundation.md`, `docs/adr/ADR-002-infrastructure-region.md` |
 
 ---
 
