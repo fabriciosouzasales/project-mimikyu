@@ -21,8 +21,6 @@ Standards definem regras permanentes e verificáveis de implementação, nomencl
 
 # Catalog
 
-Nenhum Standard foi formalizado até esta versão.
-
 |Standard|Título|Status|
 |-|-|-|
 |STD-001|STD-001-database-standards|Aprovado|
