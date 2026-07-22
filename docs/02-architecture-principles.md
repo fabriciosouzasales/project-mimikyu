@@ -81,6 +81,14 @@ Os conceitos editoriais do domínio devem possuir identidade única e independen
 
 Idiomas, traduções e distribuições internacionais não alteram a identidade conceitual de um elemento do catálogo.
 
+
+
+\### AP-012 — Business Identity over Representation
+
+A identidade conceitual das entidades do domínio deve ser independente de sua representação física ou regional.
+
+Características como idioma, distribuição ou impressão pertencem à representação do exemplar e não alteram a identidade editorial do catálogo.
+
 \---
 
 # Revision History

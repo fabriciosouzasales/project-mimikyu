@@ -150,7 +150,117 @@ A característica "especial" pertence ao Set e não altera sua posição na hier
 
 ## Card Set
 
-*Documentação pendente.*
+### O que é?
+
+Um **Card Set (Set)** representa uma publicação editorial oficial pertencente a uma **Expansion (Expansão), também pode ser denominada apenas de Set. Na modelagem de dados sera tratado como Card_Set**.
+
+Ele é composto por um conjunto organizado de **Cards (Cartas)** e possui identidade própria dentro de um **Game (Jogo)**.
+
+O Set representa uma única publicação oficial do catálogo, independentemente dos idiomas em que seja distribuído.
+
+---
+
+### O que não é?
+
+Um Set não representa:
+
+- uma Card;
+- uma Expansion;
+- uma tradução específica;
+- um produto comercial.
+
+Também não é duplicado por idioma.
+
+---
+
+### Qual problema resolve?
+
+Organiza editorialmente um conjunto oficial de Cards pertencentes a uma Expansion.
+
+Define a identidade oficial utilizada pelo catálogo do sistema.
+
+---
+
+### Características
+
+Conceitualmente um Set possui:
+
+- código editorial;
+- nome;
+- classificação editorial;
+- ordem cronológica;
+- Expansion à qual pertence;
+- quantidade oficial de cartas do conjunto base;
+- quantidade oficial total de cartas publicadas.
+
+---
+
+### Relacionamentos
+
+```text
+Game
+ 1
+ │
+ └── N Expansion
+
+Expansion
+ 1
+ │
+ └── N Set
+
+Set
+ 1
+ │
+ └── N Card
+```
+
+---
+
+### Idioma
+
+O idioma não faz parte da identidade do Set.
+
+O catálogo considera uma única publicação oficial, independentemente de existirem versões em inglês ou português.
+
+O idioma pertence ao exemplar físico do usuário (Inventory Item).
+
+### Classificação Editorial
+
+Todo Set possui uma classificação editorial.
+
+Inicialmente são reconhecidos dois tipos:
+
+- Regular Set;
+- Special Set.
+
+Podendo ser ampliado como exemplo: "ENERGY", "PROMO"
+
+A classificação não altera a natureza da entidade.
+
+Um Set Especial continua sendo um Set.
+
+A classificação editorial é uma característica do Set e não justifica a criação de entidades distintas.
+
+### Código Editorial
+
+O código do Set representa um identificador de negócio.
+
+Ele deve ser tratado como texto e nunca como um valor numérico.
+
+Exemplos válidos:
+
+- ME1
+- ME2
+- ME2.5
+- SV09
+
+O código editorial não define:
+
+- ordem cronológica;
+- classificação editorial;
+- identidade técnica.
+
+Essas características são independentes.
 
 ---
 

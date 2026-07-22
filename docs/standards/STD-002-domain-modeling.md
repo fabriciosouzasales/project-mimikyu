@@ -46,3 +46,14 @@ Nenhum conceito deverá ser introduzido sem responder claramente essas três per
 - evita entidades artificiais;
 - facilita evolução do domínio;
 - melhora a comunicação entre arquitetura e implementação.
+
+## Business Identity vs Technical Identity
+
+Durante a modelagem do domínio deve-se distinguir explicitamente:
+
+- identidade de negócio;
+- identidade técnica.
+
+Identificadores técnicos (UUID) nunca substituem identificadores de negócio utilizados pelo domínio.
+
+Da mesma forma, códigos de negócio nunca devem ser utilizados como chave técnica.
