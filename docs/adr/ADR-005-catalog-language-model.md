@@ -54,6 +54,8 @@ Catálogos japoneses permanecem fora do escopo atual.
 
 Caso diferenças editoriais relevantes entre idiomas precisem ser representadas futuramente, poderá ser introduzido um conceito subordinado (por exemplo, Set Release), preservando a identidade do Set.
 
+> **Nota (ADR-007):** essa evolução futura foi resolvida — não ao nível do Set, mas ao nível da Card, por meio da entidade Card Translation. Ver `ADR-007-card-translation-model.md` para a decisão completa. Este texto é preservado sem alteração como registro histórico da decisão original.
+
 ---
 
 # Related Documents
@@ -69,3 +71,4 @@ Caso diferenças editoriais relevantes entre idiomas precisem ser representadas 
 |---------|-----------|
 | 1.0 | Registro da decisão sobre o modelo de idioma do catálogo. |
 | 1.1 | Padronização do cabeçalho (campos ADR, Título, Decisores, Documentos Relacionados) e correção de caminhos relativos em Related Documents. |
+| 1.2 | Adicionada nota de referência cruzada apontando para ADR-007, que resolveu a evolução futura prevista nesta ADR. Nenhum conteúdo original foi alterado. |

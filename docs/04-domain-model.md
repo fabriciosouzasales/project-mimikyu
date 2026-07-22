@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -25,16 +25,17 @@ Este documento não contém SQL nem detalhes físicos de implementação.
 
 # Core Concepts
 
-Os seguintes conceitos compõem o núcleo do domínio do sistema.
+Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados conforme a hierarquia editorial principal e as responsabilidades definidas em ADR-006.
 
-- Collection
+- Game
 - Expansion
-- Card Set
+- Set
 - Card
+- Card Translation
 - Card Variant
 - Inventory Item
 - Storage Location
-- Game
+- Collection
 - User Collection
 
 ---
@@ -328,8 +329,10 @@ Exemplo:
 ```text
 Set: ME1 — Megaevolução
 Card: Charizard ex
-Número: 187
+Número: 187/132
 ```
+
+Nesse exemplo, `187` é o número oficial da Card e `132` é a quantidade oficial do conjunto base do Set (ver "Duas Métricas de Contagem do Catálogo", abaixo). Como `187` está acima do conjunto base, essa Card é uma posição independente, e não uma variante de uma Card de número menor.
 
 Essa Card existe no catálogo independentemente:
 
@@ -377,14 +380,24 @@ Ela permite responder, entre outras, às seguintes perguntas:
 
 Uma Card representa uma única posição catalográfica dentro de um Set.
 
+Conceitualmente, a identidade de negócio de uma Card é formada por:
+
+```text
+Set + Número da Card
+```
+
 Exemplo:
 
 ```text
 Charizard ex
-187/188
+187/132
 ```
 
 Mesmo que essa Card exista em diferentes idiomas, formas de impressão ou exemplares físicos, ela permanece uma única Card no catálogo.
+
+O denominador exibido junto ao número (`132`, no exemplo) representa a quantidade oficial do conjunto base do Set ao qual a Card pertence — é uma característica do Set, não da Card, e não precisa ser armazenada de forma redundante em cada Card. Duas Cards do mesmo Set compartilham o mesmo denominador.
+
+Uma mesma numeração (Set + Número) associada a Sets diferentes representa Cards distintas. Por exemplo, `125/094` no Set `PFL` e `125/094` em outro Set não são a mesma Card.
 
 ---
 
@@ -438,9 +451,153 @@ Formas de impressão, idiomas, condições físicas, certificações e exemplare
 
 ---
 
+### Duas Métricas de Contagem do Catálogo
+
+O catálogo precisa responder a duas perguntas distintas, que não devem ser confundidas:
+
+**1. Quantidade oficial de Cards**
+
+Responde: *quantas posições numeradas existem em um Set?*
+
+É a contagem das posições catalográficas (Cards) de um Set, do número `001` até o último número oficialmente publicado — incluindo posições acima do conjunto base.
+
+Exemplo: o Set ME1 possui `188` Cards, numeradas de `001/132` até `188/132`.
+
+**2. Quantidade de Printing Variants colecionáveis**
+
+Responde: *quantas versões oficiais distintas podem ser colecionadas?*
+
+Essa quantidade pode ser superior à quantidade de Cards, pois uma mesma Card pode possuir mais de uma forma oficial de impressão (ver Card Variant, abaixo). Essa contagem deve ser obtida somando as variantes efetivamente catalogadas para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem a mesma quantidade de variantes.
+
+Essas duas métricas atendem a propósitos diferentes do produto: a primeira mede a completude do catálogo editorial (quais posições existem); a segunda mede a completude colecionável (quantos itens distintos um colecionador pode efetivamente possuir).
+
+---
+
+## Card Translation (Tradução da Carta)
+
+### O que é?
+
+Representa o conteúdo editorial de uma Card em um idioma específico: nome traduzido e demais textos oficiais que variam por idioma.
+
+Exemplo:
+
+```text
+Card: Laboratórios Lysandre / Lysandre Labs
+Set: sm6, Número: 092
+
+Card Translation (Portuguese): Laboratórios Lysandre
+Card Translation (English): Lysandre Labs
+```
+
+Ambas as traduções pertencem à mesma Card, que ocupa uma única posição catalográfica (`092/094`).
+
+---
+
+### O que não é?
+
+Uma Card Translation não representa:
+
+- uma nova Card;
+- uma nova posição catalográfica;
+- uma Card Variant;
+- o idioma de um exemplar físico pertencente a um usuário.
+
+O nome traduzido de uma Card não cria uma nova posição no catálogo — apenas muda sua representação linguística.
+
+---
+
+### Qual problema resolve?
+
+Permite que o catálogo conheça oficialmente o conteúdo editorial de uma Card em mais de um idioma, sem duplicar a identidade da Card e sem depender do idioma de exemplares pertencentes a usuários.
+
+Sem esse conceito, o sistema não teria onde registrar, por exemplo, que uma Card se chama "Laboratórios Lysandre" em português e "Lysandre Labs" em inglês — ambos nomes oficiais da mesma posição catalográfica.
+
+---
+
+### Diferença entre Tradução Editorial e Idioma do Exemplar
+
+Existem duas categorias distintas de informação linguística no domínio:
+
+**Tradução editorial** — pertence ao catálogo (Card Translation). Pode variar entre idiomas:
+
+- nome da carta;
+- texto de regras;
+- ataques;
+- habilidades;
+- descrições;
+- eventualmente, nomes de categorias.
+
+**Idioma do exemplar físico** — pertence ao patrimônio do usuário (Inventory Item). Indica qual versão linguística impressa o usuário efetivamente possui.
+
+O catálogo conhece os nomes oficiais em todos os idiomas suportados, independentemente de qualquer usuário possuir um exemplar em determinado idioma.
+
+---
+
+### Características Conceituais
+
+Conceitualmente, uma Card Translation:
+
+- pertence obrigatoriamente a uma única Card;
+- está associada a um idioma;
+- possui conteúdo editorial traduzido correspondente àquele idioma.
+
+A estrutura definitiva desses campos será avaliada durante a modelagem lógica.
+
+---
+
+### Relacionamentos
+
+```text
+Card
+ 1
+ │
+ └── N Card Translation
+```
+
+Cada Card pode possuir uma Card Translation por idioma suportado pelo catálogo.
+
+---
+
 ## Card Variant
 
-*Documentação pendente.*
+### O que é?
+
+Representa uma forma oficial de impressão (printing) associada a uma Card, contribuindo para a métrica de "Quantidade de Printing Variants colecionáveis" descrita acima. Durante a modelagem histórica deste conceito, ele também foi referido informalmente como "Printing Variant".
+
+---
+
+### O que não é?
+
+*Documentação pendente — ver questão em aberto abaixo.*
+
+---
+
+### Qual problema resolve?
+
+Permite representar que uma mesma posição catalográfica pode ser publicada oficialmente em mais de uma forma de impressão (por exemplo, Normal, Holo, Full Art, Illustration Rare, Rainbow Rare).
+
+---
+
+### ⚠️ Questão em Aberto — Identidade de Card Variant
+
+A discussão histórica que originou este documento chegou a um ponto de decisão que **ainda não foi concluído** nos registros recebidos até o momento.
+
+Foi apresentado o seguinte exemplo:
+
+```text
+Mega Charizard X ex — 125/094 — Full Art
+Mega Charizard X ex — 125/094 — Rainbow Rare
+```
+
+Apesar de compartilharem o mesmo Set e o mesmo número (`125/094`), essas duas impressões foram indicadas como **Cards distintas**, não como variantes uma da outra — em contraste com o caso de tradução (mesma Card em português e inglês), que foi confirmado como a mesma Card.
+
+Isso sugere que a regra de identidade "Set + Número da Card" (ver "Identidade", na seção Card, e ADR-004) pode não ser suficiente, isoladamente, para diferenciar todas as formas de impressão de uma Card — a forma de impressão poderia participar da identidade em determinados casos.
+
+A justificativa completa e a conclusão dessa discussão **não foram recebidas** nos anexos processados até este ciclo. Portanto:
+
+- nenhuma regra definitiva sobre a identidade de Card Variant deve ser assumida;
+- a fronteira entre "Card Variant" e "Card independente" permanece em aberto;
+- este documento será atualizado assim que a continuação da discussão for recebida e analisada.
 
 ---
 
@@ -468,3 +625,4 @@ Formas de impressão, idiomas, condições físicas, certificações e exemplare
 |---------|-----------|
 | 1.0 | Estrutura inicial do modelo conceitual. |
 | 1.1 | Padronização do cabeçalho (Arquivo, Escopo, Dependências, Documentos Relacionados) para consistência com os demais documentos centrais. |
+| 1.2 | Correção do exemplo de numeração da Card (denominador deve ser a quantidade do conjunto base, não o total de Cards). Adição de "Duas Métricas de Contagem do Catálogo", da entidade Card Translation, e de conteúdo parcial de Card Variant com questão de identidade sinalizada como em aberto. Correção da lista de Core Concepts ("Card Set" → "Set", reordenada pela hierarquia editorial). |
