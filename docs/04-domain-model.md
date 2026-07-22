@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -467,7 +467,7 @@ Exemplo: o Set ME1 possui `188` Cards, numeradas de `001/132` até `188/132`.
 
 Responde: *quantas versões oficiais distintas podem ser colecionadas?*
 
-Essa quantidade pode ser superior à quantidade de Cards, pois uma mesma Card pode possuir mais de uma forma oficial de impressão (ver Card Variant, abaixo). Essa contagem deve ser obtida somando as variantes efetivamente catalogadas para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem a mesma quantidade de variantes.
+Essa quantidade pode ser superior à quantidade de Cards, pois uma mesma Card pode possuir mais de um acabamento físico oficial — uma Card Variant (ver abaixo). Essa contagem deve ser obtida somando as variantes efetivamente catalogadas para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem a mesma quantidade de variantes. Na prática, esse número tende a ser bem mais próximo da quantidade de Cards do que se imaginava inicialmente, já que formas de impressão como Full Art ou Rainbow Rare já contam como Cards independentes, e não como Card Variants (ver "Resolução da Questão de Identidade" na seção Card Variant).
 
 Essas duas métricas atendem a propósitos diferentes do produto: a primeira mede a completude do catálogo editorial (quais posições existem); a segunda mede a completude colecionável (quantos itens distintos um colecionador pode efetivamente possuir).
 
@@ -562,42 +562,93 @@ Cada Card pode possuir uma Card Translation por idioma suportado pelo catálogo.
 
 ### O que é?
 
-Representa uma forma oficial de impressão (printing) associada a uma Card, contribuindo para a métrica de "Quantidade de Printing Variants colecionáveis" descrita acima. Durante a modelagem histórica deste conceito, ele também foi referido informalmente como "Printing Variant".
+Representa uma diferença física de acabamento (finish) entre exemplares de uma mesma Card — mesma posição catalográfica, mesma arte, mesma raridade, mesmo registro editorial.
+
+Exemplos de Card Variant:
+
+- Standard;
+- Reverse Holo;
+- Cosmos Holo;
+- Mirror.
+
+Durante a modelagem, este conceito também foi referido informalmente como "Printing Variant" e, posteriormente, como hipótese de renomeação, "Finish Variant" — o nome canônico adotado permanece **Card Variant**, alinhado ao schema físico já existente (`card_variant`, `card_variant_type`).
 
 ---
 
 ### O que não é?
 
-*Documentação pendente — ver questão em aberto abaixo.*
+Uma Card Variant **não** representa:
+
+- uma nova posição catalográfica;
+- uma Card diferente;
+- uma diferença de idioma (ver Card Translation);
+- um exemplar físico específico do usuário (ver Inventory Item).
+
+Importante: cartas como **Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow não são Card Variants.** Elas possuem número, arte, textura e raridade próprios, e por isso são **Cards independentes** dentro do Set — regidas normalmente pela regra de identidade "Set + Número da Card" (ADR-004), sem necessidade de tratamento especial.
 
 ---
 
 ### Qual problema resolve?
 
-Permite representar que uma mesma posição catalográfica pode ser publicada oficialmente em mais de uma forma de impressão (por exemplo, Normal, Holo, Full Art, Illustration Rare, Rainbow Rare).
+Permite representar que uma mesma posição catalográfica pode ter sido impressa oficialmente em mais de um acabamento físico, sem tratar cada acabamento como uma nova Card e sem inflar artificialmente a hierarquia editorial principal.
 
 ---
 
-### ⚠️ Questão em Aberto — Identidade de Card Variant
+### Resolução da Questão de Identidade
 
-A discussão histórica que originou este documento chegou a um ponto de decisão que **ainda não foi concluído** nos registros recebidos até o momento.
+Um ciclo anterior desta documentação havia sinalizado como questão em aberto se formas de impressão (Full Art, Rainbow Rare, etc.) poderiam quebrar a regra de identidade "Set + Número da Card". Essa questão foi resolvida.
 
-Foi apresentado o seguinte exemplo:
+A investigação histórica analisou exemplos reais do catálogo:
 
 ```text
-Mega Charizard X ex — 125/094 — Full Art
-Mega Charizard X ex — 125/094 — Rainbow Rare
+025/132 — Pikachu
+  Standard
+  Reverse Holo
 ```
 
-Apesar de compartilharem o mesmo Set e o mesmo número (`125/094`), essas duas impressões foram indicadas como **Cards distintas**, não como variantes uma da outra — em contraste com o caso de tradução (mesma Card em português e inglês), que foi confirmado como a mesma Card.
+Aqui existe, de fato, uma variação de acabamento sobre a mesma posição catalográfica: mesmo número, mesma arte, mesma raridade. Isso **é** uma Card Variant.
 
-Isso sugere que a regra de identidade "Set + Número da Card" (ver "Identidade", na seção Card, e ADR-004) pode não ser suficiente, isoladamente, para diferenciar todas as formas de impressão de uma Card — a forma de impressão poderia participar da identidade em determinados casos.
+```text
+187/132 — Charizard ex (Secret Rare)
+```
 
-A justificativa completa e a conclusão dessa discussão **não foram recebidas** nos anexos processados até este ciclo. Portanto:
+Essa Card não possui versão Standard — ela já é, em si, uma impressão específica. Não há Card Variant aqui.
 
-- nenhuma regra definitiva sobre a identidade de Card Variant deve ser assumida;
-- a fronteira entre "Card Variant" e "Card independente" permanece em aberto;
-- este documento será atualizado assim que a continuação da discussão for recebida e analisada.
+```text
+173/132 — Charizard
+174/132 — Charizard
+```
+
+Duas posições catalográficas diferentes, cada uma com seu próprio número oficial. Ninguém trataria `174` como uma variante de `173` — são **duas Cards**, não uma Card com uma variante.
+
+Esse último exemplo confirma que quando o Set possui, por exemplo, `188 cards` — e não `188 variantes` — o catálogo do Pokémon TCG já trata posições como Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow como **Cards numeradas independentemente**, cada uma com número, arte e raridade próprios (consistente com a hierarquia editorial definida em ADR-004 e com a métrica "Quantidade oficial de Cards" descrita acima).
+
+Consequência prática: o escopo de Card Variant é bem mais estreito do que inicialmente hipotetizado — cobre apenas diferenças de acabamento sobre a **mesma** posição catalográfica (tipicamente Standard e Reverse Holo; ocasionalmente outros acabamentos como Cosmos Holo ou Mirror). A maioria das Cards não possui nenhuma Card Variant além do próprio Standard, ou possui apenas Standard + Reverse Holo.
+
+---
+
+### Características Conceituais
+
+Conceitualmente, uma Card Variant:
+
+- pertence obrigatoriamente a uma única Card;
+- representa uma diferença de acabamento físico, não uma diferença editorial;
+- não altera número, arte, raridade ou registro editorial da Card à qual pertence.
+
+A estrutura definitiva desses campos será avaliada durante a modelagem lógica.
+
+---
+
+### Relacionamentos
+
+```text
+Card
+ 1
+ │
+ └── N Card Variant
+```
+
+Um exemplar físico do usuário (Inventory Item) provavelmente referenciará uma Card Variant específica (e não apenas a Card diretamente), já que o acabamento físico é uma característica do exemplar impresso. Essa relação será definida com precisão quando o conceito Inventory Item for documentado.
 
 ---
 
@@ -626,3 +677,4 @@ A justificativa completa e a conclusão dessa discussão **não foram recebidas*
 | 1.0 | Estrutura inicial do modelo conceitual. |
 | 1.1 | Padronização do cabeçalho (Arquivo, Escopo, Dependências, Documentos Relacionados) para consistência com os demais documentos centrais. |
 | 1.2 | Correção do exemplo de numeração da Card (denominador deve ser a quantidade do conjunto base, não o total de Cards). Adição de "Duas Métricas de Contagem do Catálogo", da entidade Card Translation, e de conteúdo parcial de Card Variant com questão de identidade sinalizada como em aberto. Correção da lista de Core Concepts ("Card Set" → "Set", reordenada pela hierarquia editorial). |
+| 1.3 | Resolvida a questão de identidade de Card Variant: escopo restrito a diferenças de acabamento sobre a mesma posição catalográfica (Standard, Reverse Holo, etc.). Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow passam a ser tratadas explicitamente como Cards independentes, não como variantes — consistente com a decisão já registrada por Fabrício e agora fundamentada por ADR-009. |
