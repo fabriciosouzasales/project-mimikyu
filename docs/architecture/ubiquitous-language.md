@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o vocabulário oficial utilizado durante todo o desenvolvimento do Project Mimikyu. |
 | **Escopo** | Terminologia de domínio utilizada em toda a documentação e implementação do projeto. |
 | **Dependências** | `../04-domain-model.md`, `../standards/STD-003-documentation-conventions.md` |
-| **Documentos Relacionados** | `../adr/ADR-003-multi-game-architecture.md`, `../adr/ADR-004-set-identity.md`, `../adr/ADR-005-catalog-language-model.md`, `../adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `../adr/ADR-007-card-translation-model.md`, `../adr/ADR-010-card-rarity-and-finish-model.md`, `../adr/ADR-011-pokemon-tcg-domain-scope.md`, `../adr/ADR-012-structured-vs-visual-card-data.md`, `../adr/ADR-013-collection-item-identity-model.md`, `../02-architecture-principles.md` (AP-013, AP-014, AP-015), `../standards/STD-002-domain-modeling.md` |
+| **Documentos Relacionados** | `../adr/ADR-003-multi-game-architecture.md`, `../adr/ADR-004-set-identity.md`, `../adr/ADR-005-catalog-language-model.md`, `../adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `../adr/ADR-007-card-translation-model.md`, `../adr/ADR-010-card-rarity-and-finish-model.md`, `../adr/ADR-011-pokemon-tcg-domain-scope.md`, `../adr/ADR-012-structured-vs-visual-card-data.md`, `../adr/ADR-013-collection-item-identity-model.md`, `../adr/ADR-014-collection-and-collection-entry-model.md`, `../02-architecture-principles.md` (AP-013, AP-014, AP-015), `../standards/STD-002-domain-modeling.md` |
 
 ---
 
@@ -40,6 +40,9 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 | Collection Item | Exemplar físico individual e identificável de uma Card, pertencente ou anteriormente pertencente a um colecionador. Referencia uma Card Finish específica e um idioma, não a Card diretamente. Nunca representado como quantidade agregada — cada cópia física possui identidade própria, técnica e permanente (ver ADR-013). Substitui o termo provisório "Inventory Item". |
 | Ownership Status | Dimensão do Collection Item que responde se o exemplar ainda pertence ao usuário (ex.: OWNED, SOLD, DISPOSED). Distinta de Availability Status. |
 | Availability Status | Dimensão do Collection Item que responde se o exemplar está disponível para alguma finalidade, como troca ou venda (ex.: AVAILABLE_FOR_TRADE, RESERVED). Distinta de Ownership Status. |
+| Collection | Agrupamento definido pelo colecionador para organizar um objetivo de coleção (ex.: Pokédex Nacional, uma coleção temática, o objetivo de completar um Set). Pertence ao colecionador, não ao catálogo editorial — distinto de Set (ver ADR-014). |
+| Collection Entry | Item que compõe o objetivo de uma Collection: uma Card específica (Card Target) ou um assunto mais amplo satisfeito por qualquer Card correspondente, como um Pokémon (Subject Target). Ver ADR-014. |
+| Collector Universe | Termo utilizado para descrever o conjunto formado por User, Collection, Collection Entry e Collection Item — abrange tanto os objetivos de coleção quanto os exemplares fisicamente possuídos. Relaciona-se com User Ownership (ver ADR-006), mas inclui também itens ainda não possuídos (objetivos declarados). |
 | Official Card Count | Quantidade de posições numeradas em um Set (ex.: ME1 = 188). |
 | Base Set Count | Denominador oficial exibido nas Cards de um Set (ex.: ME1 = 132). Característica do Set. |
 | Collectible Finish Count | Soma dos Card Finishes disponíveis para todas as Cards de um Set. Pode ser maior que o Official Card Count. |
@@ -67,3 +70,4 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 | 1.5 | Adicionados Card Category, Pokémon, Illustrator, Energy Type, Official Card Count, Base Set Count e Collectible Finish Count. |
 | 1.6 | Resolvida a taxonomia de Card Category (Pokémon/Trainer; Energia fora do catálogo numerado); adicionados Trainer Subcategory, Card Details, Identity Entity, Value Object, Reference Data, Structured Data, Visual Source e Extracted Data; Pokémon redefinido como identidade mínima (ver ADR-011, ADR-012). |
 | 1.7 | Substituído o termo Inventory Item por Collection Item, refletindo identidade individual por exemplar físico. Adicionados Ownership Status e Availability Status como dimensões distintas (ver ADR-013). |
+| 1.8 | Adicionados Collection, Collection Entry e Collector Universe, formalizando a distinção entre Set (catálogo editorial) e Collection (objetivo do colecionador), ver ADR-014. |

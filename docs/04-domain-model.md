@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `adr/ADR-013-collection-item-identity-model.md`, `02-architecture-principles.md` (AP-013, AP-014, AP-015), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `adr/ADR-013-collection-item-identity-model.md`, `adr/ADR-014-collection-and-collection-entry-model.md`, `02-architecture-principles.md` (AP-013, AP-014, AP-015), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -44,15 +44,188 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 - Collection Item
 - Storage Location
 - Collection
+- Collection Entry
 - User Collection
 
 ---
 
 # Concept Definitions
 
-## Collection
+## Collection (Coleção)
 
-*Documentação pendente.*
+### O que é?
+
+Representa um agrupamento definido pelo colecionador para organizar um objetivo de coleção. Diferente do Set (ver abaixo), que pertence ao catálogo editorial oficial e existe independentemente dos usuários, a Collection pertence ao colecionador — não existe sem um usuário associado (ver ADR-014).
+
+Exemplos:
+
+- ME1 completa;
+- Pokédex Nacional;
+- Treinadores;
+- Pokémon Trabalhando;
+- Pikachu;
+- Pokémon do tipo Fantasma;
+- Ilustrações de determinado artista;
+- Cartas com personagens humanos;
+- Cartas favoritas do usuário.
+
+Uma Collection pode reunir Cards provenientes de vários Sets, Expansions e idiomas.
+
+---
+
+### O que não é?
+
+Collection não representa:
+
+- um Set oficial;
+- uma Expansion;
+- uma pasta física;
+- um simples filtro temporário;
+- obrigatoriamente um agrupamento de itens já possuídos.
+
+Uma Collection pode conter tanto Cards já adquiridas quanto Cards ainda desejadas.
+
+---
+
+### Qual problema resolve?
+
+Permite responder perguntas como: quais Pokémon da Pokédex já possuo? quais Treinadores ainda faltam? quais Cards fazem parte da coleção "Pokémon Trabalhando"? quantas Cards do Pikachu tenho? qual é o progresso da minha coleção temática? em quais Sets estão as Cards necessárias?
+
+---
+
+### Tipos de Collection
+
+**Official Set Collection (Coleção Baseada em Set)** — representa o objetivo de completar um Set oficial. As Cards esperadas podem ser obtidas diretamente do Set.
+
+```text
+Collection: ME1 — Megaevolução
+Collection Type: SET_BASED
+Reference Set: ME1
+```
+
+**Custom Collection (Coleção Personalizada)** — representa uma seleção independente de Set. A identidade da coleção não depende de nenhum Set específico; suas Cards podem vir de múltiplos Sets e Expansions.
+
+```text
+Collection: Pokémon Trabalhando
+Collection Type: CUSTOM
+Reference Set: null
+```
+
+---
+
+### Características Conceituais (preliminar)
+
+- id;
+- owner_id (usuário dono da coleção);
+- name;
+- description;
+- collection_type (`SET_BASED` | `CUSTOM`);
+- reference_set_id (obrigatório quando `SET_BASED`; nulo quando `CUSTOM`).
+
+Esta é uma primeira aproximação; a estrutura definitiva será avaliada durante a modelagem lógica.
+
+---
+
+### Relacionamentos
+
+```text
+User (Usuário)
+ 1
+ │
+ └── N Collection
+        │
+        └── N Collection Entry
+```
+
+---
+
+## Collection Entry (Entrada da Coleção)
+
+### O que é?
+
+Representa um item que compõe o objetivo de uma Collection: uma Card específica, ou um assunto mais amplo que qualquer Card correspondente pode satisfazer.
+
+---
+
+### O que não é?
+
+Não representa um Collection Item (o exemplar físico efetivamente possuído — ver acima). Collection Entry é o alvo/objetivo da coleção; o sistema verifica os Collection Items do usuário para determinar se uma Entry já foi atendida.
+
+---
+
+### Dois Tipos de Objetivo
+
+**Card Target (Objetivo por Carta)** — a Collection exige uma Card específica.
+
+Exemplos: todas as Cards do Set ME1; todas as Special Illustration Rare; todas as Cards da Acerola; todas as Cards ilustradas por determinado artista.
+
+```text
+Collection Entry
+ │
+ └── Card
+```
+
+**Subject Target (Objetivo por Tema)** — a Collection exige um assunto, mas aceita diferentes Cards como atendimento do objetivo.
+
+Exemplo: na Pokédex, o objetivo pode ser "Bulbasaur" (o Pokémon), não uma Card específica — qualquer Card válida do Bulbasaur preenche a posição, independentemente do Set de origem. Isso é diferente de exigir "Bulbasaur 001/132 do ME1" especificamente (o que seria Card Target).
+
+```text
+Collection Entry
+ │
+ └── Pokémon
+```
+
+---
+
+### Exemplos de Aplicação
+
+**Pokédex Nacional** — Subject Target, por Pokémon:
+
+```text
+Collection: Pokédex Nacional
+Entries: 001 Bulbasaur, 002 Ivysaur, 003 Venusaur...
+```
+
+O sistema verifica se o usuário possui algum Collection Item relacionado àquele Pokémon (via Card → Pokémon), independentemente do Set. Uma Card repetida de qualquer Set preenche a posição correspondente.
+
+**Pokémon Trabalhando** — não é uma característica oficial estruturável automaticamente; depende de curadoria manual. O colecionador escolhe manualmente quais Cards representam o tema (Card Target, com curadoria manual da lista).
+
+**Coleção baseada em Set (ex.: ME1)** — Card Target, gerado automaticamente a partir das Cards do Set referenciado.
+
+---
+
+### Mecanismos de Inclusão (preliminar)
+
+- **Manual Membership (Inclusão Manual)** — o colecionador adiciona manualmente Cards ou Pokémon à coleção.
+- **Rule-Based Membership (Inclusão por Regra)** — entradas geradas automaticamente por regras estruturadas (ex.: `rarity = ILLUSTRATION_RARE`, `pokemon = PIKACHU`, `category = TRAINER`, `artist = ...`).
+
+Para a primeira implementação estão previstos apenas Manual Membership e a geração automática simples de Official Set Collections. Um motor completo de regras (Rule-Based Membership) fica para um ciclo futuro, evitando modelagem excessiva antes de uma necessidade concreta (AP-004).
+
+---
+
+### Características Conceituais (preliminar)
+
+- id;
+- collection_id;
+- card_id (nullable — usado quando Card Target);
+- pokemon_id (nullable — usado quando Subject Target);
+- display_order;
+- notes.
+
+Regra: uma Collection Entry deve apontar para Card ou para Pokémon, nunca para ambos simultaneamente. Esta é uma primeira aproximação; no modelo lógico, talvez sejam duas entidades especializadas, evitando campos nulos — decisão não fechada nesta versão.
+
+---
+
+### Relacionamentos
+
+```text
+Collection
+ 1
+ │
+ └── N Collection Entry
+        ├── referencia 1 Card (quando Card Target), ou
+        └── referencia 1 Pokémon (quando Subject Target)
+```
 
 ---
 ## Game (Jogo)
@@ -1218,7 +1391,9 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 
 ## User Collection
 
-*Documentação pendente.*
+> **Nota:** este termo provisório parece ter sido absorvido pela entidade Collection (ver acima), já definida como pertencente a um usuário (`owner_id`) e independente do catálogo editorial (ver ADR-014). Mantido aqui como stub, sem exclusão, até confirmação explícita de que não há distinção adicional pretendida entre os dois termos.
+
+*Documentação pendente — aguardando confirmação.*
 
 ---
 
@@ -1234,3 +1409,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.5 | Expandida a métrica de contagem de duas para três (Official Card Count, Base Set Count, Collectible Finish Count). Adicionadas as entidades Card Category (com taxonomia de Trainer sinalizada como em aberto), Pokémon, Illustrator e Energy Type. Corrigida a suposição de que toda Card possui um Pokémon associado — relação agora condicional à Card Category. Adicionada seção "Atributos e Relações da Card" aplicando o novo AP-014. |
 | 1.6 | Resolvida a taxonomia de Card Category: apenas Pokémon e Trainer no catálogo numerado (cartas de Energia fora de escopo); adicionada Trainer Subcategory (Item/Supporter/Stadium/Tool, obrigatória para Trainer). Pokémon finalizado como entidade mínima (id, national_dex_number, canonical_name) — HP/ataques/etc. pertencem à Card, não ao Pokémon, pois variam entre publicações da mesma espécie. Adicionado o padrão Card Details / Pokémon Card Details / Trainer Card Details, explicitamente não-genérico (específico do módulo Pokémon TCG). Ver ADR-011 e ADR-012. |
 | 1.7 | Renomeado "Inventory Item" para "Collection Item" em todo o documento (ver ADR-013). Adicionada a seção completa de Collection Item: identidade individual por exemplar físico, relação com Card + Card Finish + Language, grupos preliminares de informação (Identity, Physical State, Collection Role, Lifecycle), separação entre Ownership Status e Availability Status, e regra de identidade técnica e permanente. Adicionada nota sobre Card Image (relação com Card Translation/Card Finish em aberto, decisão progressiva) na seção Card Translation. |
+| 1.8 | Populada a entidade Collection (distinta do Set: pertence ao colecionador, não ao catálogo editorial), com os tipos Official Set Collection e Custom Collection. Adicionada a entidade Collection Entry, com os modos Card Target e Subject Target, e os mecanismos preliminares Manual Membership e Rule-Based Membership (este último deliberadamente adiado). Adicionada nota de correspondência entre o termo provisório "User Collection" e a nova entidade Collection. Ver ADR-014. |
