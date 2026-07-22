@@ -2,9 +2,13 @@
 
 | Campo | Valor |
 |--------|-------|
-| Status | Aprovado |
-| Data | 2026-07 |
-| Decisão | O idioma não faz parte da identidade editorial do catálogo. |
+| **ADR** | ADR-005 |
+| **Título** | Catalog Language Model |
+| **Status** | Aprovado |
+| **Data** | 2026-07 |
+| **Decisores** | Project Mimikyu |
+| **Decisão** | O idioma não faz parte da identidade editorial do catálogo. |
+| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-004-set-identity.md` |
 
 ---
 
@@ -54,5 +58,14 @@ Caso diferenças editoriais relevantes entre idiomas precisem ser representadas 
 
 # Related Documents
 
-- 04-domain-model.md
-- ADR-004
+- `../04-domain-model.md`
+- `ADR-004-set-identity.md`
+
+---
+
+# Revision History
+
+| Versão | Descrição |
+|---------|-----------|
+| 1.0 | Registro da decisão sobre o modelo de idioma do catálogo. |
+| 1.1 | Padronização do cabeçalho (campos ADR, Título, Decisores, Documentos Relacionados) e correção de caminhos relativos em Related Documents. |

@@ -2,9 +2,13 @@
 
 | Campo | Valor |
 |--------|-------|
+| **ADR** | ADR-003 |
+| **Título** | Multi-Game Architecture |
 | **Status** | Aprovado |
 | **Data** | 2026-07 |
+| **Decisores** | Project Mimikyu |
 | **Decisão** | O Project Mimikyu será arquitetado para suportar múltiplos Trading Card Games (TCGs), tendo Pokémon TCG como primeiro catálogo oficial. |
+| **Documentos Relacionados** | `../04-domain-model.md`, `../02-architecture-principles.md` |
 
 ---
 
@@ -58,5 +62,14 @@ Outros jogos somente serão adicionados quando fizerem sentido para o produto.
 
 # Related Documents
 
-- 04-domain-model.md
-- 02-architecture-principles.md
+- `../04-domain-model.md`
+- `../02-architecture-principles.md`
+
+---
+
+# Revision History
+
+| Versão | Descrição |
+|---------|-----------|
+| 1.0 | Registro da decisão de arquitetura multi-TCG. |
+| 1.1 | Padronização do cabeçalho (campos ADR, Título, Decisores, Documentos Relacionados) e correção de caminhos relativos em Related Documents. |

@@ -30,6 +30,11 @@ docs/
 ├── 01-technical-identity.md
 ├── 02-architecture-principles.md
 ├── 03-documentation-architecture.md
+├── 04-domain-model.md
+├── 05-modelo-de-dados.md            (stub — conteúdo pendente)
+├── 06-pipeline-importacao.md        (stub — conteúdo pendente)
+├── 07-catalogo-editorial.md         (stub — conteúdo pendente)
+├── 08-decisoes-arquiteturais.md     (stub — conteúdo pendente)
 ├── adr/
 │   ├── ADR-INDEX.md
 │   └── ADR-NNN-title.md
@@ -38,8 +43,11 @@ docs/
 │   └── STD-NNN-title.md
 └── architecture/
     ├── README.md
+    ├── ubiquitous-language.md
     └── ...
 ```
+
+Os documentos `04` a `08` seguem a mesma numeração sequencial dos documentos centrais (`00`-`03`). `04-domain-model.md` já possui conteúdo em elaboração; `05` a `08` são stubs (apenas título) cujo escopo definitivo será estabelecido durante a fase de consolidação documental.
 
 ---
 
@@ -161,3 +169,4 @@ Os documentos podem utilizar os seguintes status:
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação da arquitetura oficial da documentação. |
+| 1.1 | Atualização da árvore de estrutura documental para refletir os arquivos `04-domain-model.md` a `08-decisoes-arquiteturais.md` já existentes no repositório. |

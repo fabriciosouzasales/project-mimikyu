@@ -7,6 +7,7 @@
 | **Status** | Aprovado |
 | **Data** | 2026-07 |
 | **Decisores** | Project Mimikyu |
+| **Decisão** | Hospedar o projeto Supabase na região South America (São Paulo) — `sa-east-1`, com fuso horário de referência `America/Sao_Paulo`. |
 | **Documentos Relacionados** | `../01-technical-identity.md` |
 
 ---
@@ -82,3 +83,4 @@ Não adotada por adicionar custo e complexidade sem demanda validada.
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da região oficial de infraestrutura. |
+| 1.1 | Padronização do cabeçalho (adição do campo Decisão) para consistência com os demais ADRs. |

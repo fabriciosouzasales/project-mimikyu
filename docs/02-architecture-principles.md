@@ -11,7 +11,7 @@
 |**Dependências**|`00-project-charter.md`, `01-technical-identity.md`|
 |**Documentos Relacionados**|`03-documentation-architecture.md`, `adr/ADR-INDEX.md`, `standards/STD-INDEX.md`|
 
-\---
+---
 
 # Overview
 
@@ -19,7 +19,7 @@ Os princípios deste documento orientam decisões técnicas, arquiteturais e doc
 
 Eles não substituem decisões específicas registradas em ADRs nem regras de implementação definidas em Standards.
 
-\---
+---
 
 # Principles
 
@@ -59,21 +59,31 @@ Cada informação deve possuir um único local oficial. Duplicações documentai
 
 Mudanças relevantes na arquitetura, nos padrões ou na implementação devem ser refletidas na documentação correspondente durante o mesmo ciclo de trabalho.
 
-### AP-010 - Responsible Generalization
+## AP-010 — Responsible Generalization
+
 O sistema deverá ser modelado para suportar cenários plausíveis, evitando antecipar funcionalidades puramente hipotéticas.
+
 Isso significa:
+
 1. evitar soluções excessivamente específicas para Pokémon;
 2. evitar abstrações desnecessárias para cenários improváveis.
+
 Como consequência, o Project Mimikyu suporta múltiplos Trading Card Games (TCGs), mas não busca abstrair genericamente qualquer tipo de coleção existente.
 
-### AP-011 — Editorial Identity
+## AP-011 — Editorial Identity
+
 Os conceitos editoriais do domínio devem possuir identidade única e independente de regionalizações.
+
 Características como idioma, distribuição ou impressão pertencem à representação do exemplar e não alteram a identidade editorial do catálogo.
 
 ## AP-012 — Separation of Catalog, Ownership and Analytics
+
 Informações editoriais oficiais, informações sobre exemplares físicos e informações analíticas devem possuir responsabilidades conceituais distintas.
+
 O catálogo não deve depender de dados dos usuários.
+
 O patrimônio do usuário deve referenciar o catálogo sem duplicar sua identidade editorial.
+
 Informações analíticas devem ser derivadas sempre que seu armazenamento redundante não for necessário.
 
 ---
@@ -83,6 +93,7 @@ Informações analíticas devem ser derivadas sempre que seu armazenamento redun
 |Versão|Descrição|
 |-|-|
 |1.0|Criação inicial dos princípios arquiteturais oficiais.|
+|1.1|Correção de separadores markdown mal formatados (`\---`) e padronização do nível de heading e formatação de AP-010 a AP-012.|
 
 
 

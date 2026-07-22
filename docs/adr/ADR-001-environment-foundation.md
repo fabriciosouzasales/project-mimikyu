@@ -7,6 +7,7 @@
 | **Status** | Aprovado |
 | **Data** | 2026-07 |
 | **Decisores** | Project Mimikyu |
+| **Decisão** | Utilizar uma organização do tipo Personal como fundação inicial do ambiente Supabase do Project Mimikyu. |
 | **Documentos Relacionados** | `../01-technical-identity.md` |
 
 ---
@@ -71,3 +72,4 @@ Não adotada nesta fase por introduzir uma estrutura superior à necessidade atu
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da fundação inicial do ambiente Supabase. |
+| 1.1 | Padronização do cabeçalho (adição do campo Decisão) para consistência com os demais ADRs. |

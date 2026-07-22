@@ -9,7 +9,7 @@
 |**Objetivo**|Catalogar os Standards oficiais do Project Mimikyu.|
 |**Dependências**|`../03-documentation-architecture.md`|
 
-\---
+---
 
 # Overview
 
@@ -17,7 +17,7 @@ Este índice apresenta os Standards oficiais do Project Mimikyu.
 
 Standards definem regras permanentes e verificáveis de implementação, nomenclatura, documentação e operação.
 
-\---
+---
 
 # Catalog
 
@@ -25,7 +25,7 @@ Standards definem regras permanentes e verificáveis de implementação, nomencl
 |-|-|-|
 |STD-001|STD-001-database-standards|Aprovado|
 
-\---
+---
 
 # Planned Standards
 
@@ -36,7 +36,7 @@ Os itens abaixo representam temas já identificados, mas não constituem Standar
 |STD-002|SQL Conventions|
 |STD-003|Documentation Conventions|
 
-\---
+---
 
 # Maintenance Rules
 
@@ -46,13 +46,14 @@ Os itens abaixo representam temas já identificados, mas não constituem Standar
 * Atualizar este índice sempre que um Standard for criado ou tiver seu status alterado.
 * Não tratar um item planejado como regra vigente antes da aprovação do documento correspondente.
 
-\---
+---
 
 # Revision History
 
 |Versão|Descrição|
 |-|-|
 |1.0|Criação inicial do índice de Standards.|
+|1.1|Correção de separadores markdown mal formatados (`\---`). Nenhuma alteração de catálogo ou conteúdo.|
 
 
 

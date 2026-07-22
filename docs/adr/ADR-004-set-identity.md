@@ -2,9 +2,13 @@
 
 | Campo | Valor |
 |--------|-------|
+| **ADR** | ADR-004 |
+| **Título** | Set Identity |
 | **Status** | Aprovado |
 | **Data** | 2026-07 |
+| **Decisores** | Project Mimikyu |
 | **Decisão** | Set representa uma única publicação editorial oficial do catálogo, independentemente do idioma em que seja distribuído. |
+| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-003-multi-game-architecture.md` |
 
 ---
 
@@ -59,5 +63,14 @@ Diferenças editoriais entre idiomas deverão ser tratadas em níveis inferiores
 
 # Related Documents
 
-- 04-domain-model.md
-- ADR-003
+- `../04-domain-model.md`
+- `ADR-003-multi-game-architecture.md`
+
+---
+
+# Revision History
+
+| Versão | Descrição |
+|---------|-----------|
+| 1.0 | Registro da decisão de identidade única do Set. |
+| 1.1 | Padronização do cabeçalho (campos ADR, Título, Decisores, Documentos Relacionados) e correção de caminhos relativos em Related Documents. |

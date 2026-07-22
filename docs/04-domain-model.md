@@ -3,9 +3,13 @@
 | Campo | Valor |
 |--------|-------|
 | **Documento** | Domain Model |
+| **Arquivo** | `docs/04-domain-model.md` |
 | **Versão** | 1.0 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
+| **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
+| **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -463,3 +467,4 @@ Formas de impressão, idiomas, condições físicas, certificações e exemplare
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Estrutura inicial do modelo conceitual. |
+| 1.1 | Padronização do cabeçalho (Arquivo, Escopo, Dependências, Documentos Relacionados) para consistência com os demais documentos centrais. |

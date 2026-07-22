@@ -2,9 +2,13 @@
 
 | Campo | Valor |
 |--------|-------|
+| **ADR** | ADR-006 |
+| **Título** | Separation of Catalog, Ownership and Analytics |
 | **Status** | Aprovado |
 | **Data** | 2026-07 |
+| **Decisores** | Project Mimikyu |
 | **Decisão** | O domínio será estruturado em três responsabilidades conceituais independentes: Catálogo Editorial, Patrimônio do Usuário e Análises. |
+| **Documentos Relacionados** | `../04-domain-model.md`, `../02-architecture-principles.md`, `ADR-004-set-identity.md`, `ADR-005-catalog-language-model.md` |
 
 ---
 
@@ -106,3 +110,12 @@ A definição definitiva desse conceito será tratada separadamente.
 - `../02-architecture-principles.md`
 - `ADR-004-set-identity.md`
 - `ADR-005-catalog-language-model.md`
+
+---
+
+# Revision History
+
+| Versão | Descrição |
+|---------|-----------|
+| 1.0 | Registro da separação entre Catálogo Editorial, Patrimônio do Usuário e Analytics. |
+| 1.1 | Renomeação do arquivo para o padrão `ADR-NNN-title.md` (antes continha espaços e travessão) e padronização do cabeçalho (campos ADR, Título, Decisores). |
