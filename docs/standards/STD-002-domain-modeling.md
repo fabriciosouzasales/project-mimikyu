@@ -57,3 +57,15 @@ Durante a modelagem do domínio deve-se distinguir explicitamente:
 Identificadores técnicos (UUID) nunca substituem identificadores de negócio utilizados pelo domínio.
 
 Da mesma forma, códigos de negócio nunca devem ser utilizados como chave técnica.
+
+# Responsibility Separation
+
+Todo novo conceito deverá ser classificado conforme sua responsabilidade predominante:
+
+- Editorial Catalog;
+- User Ownership;
+- Analytics.
+
+Um conceito não deverá misturar dados editoriais oficiais com características particulares de exemplares físicos.
+
+Informações derivadas deverão ser identificadas explicitamente para evitar que sejam tratadas como dados primários do domínio.

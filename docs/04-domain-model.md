@@ -153,13 +153,7 @@ A característica "especial" pertence ao Set e não altera sua posição na hier
 
 ### O que é?
 
-Um **Set (Set)** representa uma publicação editorial oficial pertencente a uma **Expansion (Expansão).**.
-
-Ele é composto por um conjunto organizado de **Cards (Cartas)** e possui identidade própria dentro de um **Game (Jogo)**.
-
-O Set representa uma única publicação oficial do catálogo, independentemente dos idiomas em que seja distribuído.
-
----
+ **Set (Set)** é uma publicação editorial oficial pertencente a uma **Expansion (Expansão)** e composta por um conjunto ordenado de **Cards (Cartas)**. Possui código editorial textual, nome, ordem cronológica, classificação regular ou especial e limites oficiais de numeração. O Set possui identidade única, independentemente do idioma dos exemplares físicos.
 
 ### O que não é?
 
@@ -263,11 +257,184 @@ O código editorial não define:
 
 Essas características são independentes.
 
+### Ordem Cronológica
+
+A ordem cronológica de um Set é independente de seu código editorial.
+
+O código pode sugerir uma sequência, mas nunca deve ser interpretado ou convertido para determinar a posição do Set dentro de uma Expansion.
+
+Exemplo:
+
+| Código | Ordem de lançamento |
+|--------|---------------------|
+| ME1 | 1 |
+| ME2 | 2 |
+| ME2.5 | 3 |
+| ME3 | 4 |
+
+Nesse exemplo, `ME2.5` representa o terceiro Set da Expansion. Seu código não representa o valor matemático `2.5`.
+
+A ordem cronológica é uma característica própria do Set.
+
+---
+
+### Status
+
+Um Set pode possuir um estado dentro do catálogo.
+
+O escopo conceitual inicial reconhece:
+
+- `announced` (anunciado);
+- `released` (lançado).
+
+Outros estados somente deverão ser introduzidos quando houver uma necessidade real e uma definição objetiva.
+
+O estado `discontinued` (descontinuado) não faz parte do escopo inicial, pois nem sempre existe uma declaração oficial ou uma data inequívoca de encerramento de um Set.
+
+---
+
+### Visão Conceitual Consolidada
+
+Conceitualmente, um Set possui:
+
+- identidade própria;
+- relação com um Game;
+- relação com uma Expansion;
+- código editorial;
+- nome;
+- classificação editorial;
+- ordem cronológica;
+- data de lançamento;
+- quantidade oficial do conjunto base;
+- quantidade oficial total;
+- status.
+
+Essa relação não representa uma definição automática de colunas ou atributos físicos do banco de dados. A modelagem lógica e física será definida posteriormente.
+
 ---
 
 ## Card
 
-*Documentação pendente.*
+## Card (Carta)
+
+### O que é?
+
+Uma **Card (Carta)** representa uma posição oficial do catálogo pertencente a um **Set (Set)**.
+
+Ela possui identidade editorial própria e existe independentemente de qualquer exemplar físico pertencente a um usuário.
+
+Exemplo:
+
+```text
+Set: ME1 — Megaevolução
+Card: Charizard ex
+Número: 187
+```
+
+Essa Card existe no catálogo independentemente:
+
+- de um usuário possuir uma cópia;
+- do idioma em que uma cópia foi impressa;
+- da condição física de uma cópia;
+- de uma cópia ter sido certificada;
+- das formas oficiais de impressão disponíveis.
+
+---
+
+### O que não é?
+
+Uma Card não representa:
+
+- um exemplar físico;
+- uma carta pertencente a um usuário;
+- uma condição de conservação;
+- uma certificação;
+- um idioma;
+- uma forma de impressão;
+- uma localização física;
+- uma transação de compra.
+
+Essas informações pertencem a outros conceitos do domínio.
+
+---
+
+### Qual problema resolve?
+
+A Card representa o catálogo editorial oficial.
+
+Ela permite responder, entre outras, às seguintes perguntas:
+
+- quantas posições oficiais existem em um Set;
+- quais Cards pertencem a determinado Set;
+- quais Cards ainda faltam em uma coleção;
+- qual é a raridade de uma posição catalográfica;
+- quem ilustrou determinada Card;
+- qual é o número oficial da Card dentro do Set.
+
+---
+
+### Identidade
+
+Uma Card representa uma única posição catalográfica dentro de um Set.
+
+Exemplo:
+
+```text
+Charizard ex
+187/188
+```
+
+Mesmo que essa Card exista em diferentes idiomas, formas de impressão ou exemplares físicos, ela permanece uma única Card no catálogo.
+
+---
+
+### Características Conceituais
+
+Conceitualmente, uma Card:
+
+- pertence obrigatoriamente a um Set;
+- possui um número oficial dentro do Set;
+- possui um nome;
+- possui uma categoria;
+- possui uma raridade;
+- pode representar um Pokémon ou outro conteúdo oficial do jogo;
+- pode possuir informações editoriais associadas;
+- pode possuir uma ilustração.
+
+A presença e a estrutura definitiva dessas informações serão avaliadas durante a modelagem lógica.
+
+---
+
+### Relacionamentos
+
+```text
+Set
+ 1
+ │
+ └── N Card
+```
+
+Cada Card pertence obrigatoriamente a um único Set.
+
+A identidade de uma Card é contextual ao Set ao qual ela pertence.
+
+---
+
+### Limite da Hierarquia Editorial
+
+A hierarquia editorial principal termina em Card:
+
+```text
+Game
+  ↓
+Expansion
+  ↓
+Set
+  ↓
+Card
+```
+
+Formas de impressão, idiomas, condições físicas, certificações e exemplares do usuário não fazem parte dessa hierarquia editorial principal.
 
 ---
 
