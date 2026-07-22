@@ -1,17 +1,17 @@
 # Architecture Principles
 
-| Campo | Valor |
-|--------|-------|
-| **Documento** | Architecture Principles |
-| **Arquivo** | `docs/02-architecture-principles.md` |
-| **Versão** | 1.0 |
-| **Status** | Aprovado |
-| **Objetivo** | Definir os princípios permanentes que orientam as decisões arquiteturais do Project Mimikyu. |
-| **Escopo** | Princípios de arquitetura e governança técnica. Não contém regras detalhadas de implementação. |
-| **Dependências** | `00-project-charter.md`, `01-technical-identity.md` |
-| **Documentos Relacionados** | `03-documentation-architecture.md`, `adr/ADR-INDEX.md`, `standards/STD-INDEX.md` |
+|Campo|Valor|
+|-|-|
+|**Documento**|Architecture Principles|
+|**Arquivo**|`docs/02-architecture-principles.md`|
+|**Versão**|1.0|
+|**Status**|Aprovado|
+|**Objetivo**|Definir os princípios permanentes que orientam as decisões arquiteturais do Project Mimikyu.|
+|**Escopo**|Princípios de arquitetura e governança técnica. Não contém regras detalhadas de implementação.|
+|**Dependências**|`00-project-charter.md`, `01-technical-identity.md`|
+|**Documentos Relacionados**|`03-documentation-architecture.md`, `adr/ADR-INDEX.md`, `standards/STD-INDEX.md`|
 
----
+\---
 
 # Overview
 
@@ -19,7 +19,7 @@ Os princípios deste documento orientam decisões técnicas, arquiteturais e doc
 
 Eles não substituem decisões específicas registradas em ADRs nem regras de implementação definidas em Standards.
 
----
+\---
 
 # Principles
 
@@ -59,10 +59,27 @@ Cada informação deve possuir um único local oficial. Duplicações documentai
 
 Mudanças relevantes na arquitetura, nos padrões ou na implementação devem ser refletidas na documentação correspondente durante o mesmo ciclo de trabalho.
 
----
+AP-010 - Responsible Generalization
+
+O sistema deverá ser modelado para suportar cenários plausíveis, evitando antecipar funcionalidades puramente hipotéticas.
+
+Isso significa:
+
+\- evitar soluções excessivamente específicas para Pokémon;
+
+\- evitar abstrações desnecessárias para cenários improváveis.
+
+Como consequência, o Project Mimikyu suporta múltiplos Trading Card Games (TCGs), mas não busca abstrair genericamente qualquer tipo de coleção existente.
+
+
+
+\---
 
 # Revision History
 
-| Versão | Descrição |
-|---------|-----------|
-| 1.0 | Criação inicial dos princípios arquiteturais oficiais. |
+|Versão|Descrição|
+|-|-|
+|1.0|Criação inicial dos princípios arquiteturais oficiais.|
+
+
+

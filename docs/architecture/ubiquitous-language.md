@@ -19,16 +19,16 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 
 # Official Terms
 
-| Termo | Definição |
-|--------|-----------|
-| Collection | *Pendente* |
-| Expansion | *Pendente* |
-| Card Set | *Pendente* |
-| Card | *Pendente* |
-| Card Variant | *Pendente* |
-| Inventory Item | *Pendente* |
-| Storage Location | *Pendente* |
-| User Collection | *Pendente* |
+| Termo Oficial | Tradução |
+|---------------|----------|
+| Game | Jogo |
+| Expansion | Expansão |
+| Set | Set |
+| Card | Carta |
+| Card Variant | Variação da Carta |
+| Inventory Item | Item da Coleção |
+| Collection | Coleção |
+| User | Usuário |
 
 ---
 
