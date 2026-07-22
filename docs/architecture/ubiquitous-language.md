@@ -21,7 +21,7 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 |--------|-----------|
 | Game | Trading Card Game suportado pelo sistema. |
 | Expansion | Grande ciclo editorial que agrupa diversos Sets. |
-| Set | Publicação oficial do catálogo pertencente a uma Expansion. |
+| Card Set | Publicação editorial oficial pertencente a uma Expansion. Possui identidade única e não é duplicado por idioma. |
 | Card | Carta oficialmente publicada dentro de um Set. |
 | Card Variant | Variação física ou editorial de uma Card. |
 | Inventory Item | Exemplar físico pertencente à coleção do usuário. |
