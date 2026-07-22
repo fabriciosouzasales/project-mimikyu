@@ -1,4 +1,4 @@
-# ADR-006 — Multi-Game Architecture
+# ADR-003 — Multi-Game Architecture
 
 | Campo | Valor |
 |--------|-------|
