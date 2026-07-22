@@ -59,7 +59,9 @@ Cada informação deve possuir um único local oficial. Duplicações documentai
 
 Mudanças relevantes na arquitetura, nos padrões ou na implementação devem ser refletidas na documentação correspondente durante o mesmo ciclo de trabalho.
 
-AP-010 - Responsible Generalization
+
+
+\### AP-010 - Responsible Generalization
 
 O sistema deverá ser modelado para suportar cenários plausíveis, evitando antecipar funcionalidades puramente hipotéticas.
 
@@ -72,6 +74,12 @@ Isso significa:
 Como consequência, o Project Mimikyu suporta múltiplos Trading Card Games (TCGs), mas não busca abstrair genericamente qualquer tipo de coleção existente.
 
 
+
+\### AP-011 — Editorial Identity
+
+Os conceitos editoriais do domínio devem possuir identidade única e independente de regionalizações.
+
+Idiomas, traduções e distribuições internacionais não alteram a identidade conceitual de um elemento do catálogo.
 
 \---
 

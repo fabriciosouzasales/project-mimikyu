@@ -17,19 +17,14 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 
 ---
 
-# Official Terms
-
-| Termo Oficial | Tradução |
-|---------------|----------|
-| Game | Jogo |
-| Expansion | Expansão |
-| Set | Set |
-| Card | Carta |
-| Card Variant | Variação da Carta |
-| Inventory Item | Item da Coleção |
-| Collection | Coleção |
-| User | Usuário |
-
+| Termo | Definição |
+|--------|-----------|
+| Game | Trading Card Game suportado pelo sistema. |
+| Expansion | Grande ciclo editorial que agrupa diversos Sets. |
+| Set | Publicação oficial do catálogo pertencente a uma Expansion. |
+| Card | Carta oficialmente publicada dentro de um Set. |
+| Card Variant | Variação física ou editorial de uma Card. |
+| Inventory Item | Exemplar físico pertencente à coleção do usuário. |
 ---
 
 # Revision History
