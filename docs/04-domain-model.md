@@ -228,8 +228,6 @@ Inicialmente são reconhecidos dois tipos:
 - Regular Set;
 - Special Set.
 
-Podendo ser ampliado como exemplo: "ENERGY", "PROMO"
-
 A classificação não altera a natureza da entidade.
 
 Um Set Especial continua sendo um Set.
@@ -313,7 +311,7 @@ Essa relação não representa uma definição automática de colunas ou atribut
 
 ---
 
-## Card
+## Card (carta)
 
 ### O que é?
 
