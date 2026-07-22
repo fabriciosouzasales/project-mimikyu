@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `02-architecture-principles.md` (AP-013, AP-014), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `adr/ADR-013-collection-item-identity-model.md`, `02-architecture-principles.md` (AP-013, AP-014, AP-015), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -41,7 +41,7 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 - Pokémon
 - Illustrator
 - Energy Type
-- Inventory Item
+- Collection Item
 - Storage Location
 - Collection
 - User Collection
@@ -230,7 +230,7 @@ O idioma não faz parte da identidade do Set.
 
 O catálogo considera uma única publicação oficial, independentemente de existirem versões em inglês ou português.
 
-O idioma pertence ao exemplar físico do usuário (Inventory Item).
+O idioma pertence ao exemplar físico do usuário (Collection Item).
 
 ### Classificação Editorial
 
@@ -584,7 +584,7 @@ Existem duas categorias distintas de informação linguística no domínio:
 - descrições;
 - eventualmente, nomes de categorias.
 
-**Idioma do exemplar físico** — pertence ao patrimônio do usuário (Inventory Item). Indica qual versão linguística impressa o usuário efetivamente possui.
+**Idioma do exemplar físico** — pertence ao patrimônio do usuário (Collection Item). Indica qual versão linguística impressa o usuário efetivamente possui.
 
 O catálogo conhece os nomes oficiais em todos os idiomas suportados, independentemente de qualquer usuário possuir um exemplar em determinado idioma.
 
@@ -612,6 +612,14 @@ Card
 ```
 
 Cada Card pode possuir uma Card Translation por idioma suportado pelo catálogo.
+
+---
+
+### Nota sobre Imagem Editorial (Card Image)
+
+A imagem oficial da Card é tratada como a fonte editorial completa (ver ADR-012 e AP-015 — Progressive Catalog Enrichment). Como existem múltiplos idiomas suportados, uma mesma Card pode possuir imagens diferentes por idioma — a existência de uma imagem por idioma não cria uma nova Card, apenas mais uma representação localizada.
+
+A relação definitiva entre a imagem, a Card Translation e a Card Finish permanece em aberto e será decidida progressivamente: inicialmente, uma imagem por Card Translation pode ser suficiente; caso existam imagens digitais específicas por acabamento, a imagem poderá vir a se relacionar também com a Card Finish. Esta decisão não precisa ser fechada nesta versão do documento.
 
 ---
 
@@ -705,7 +713,7 @@ Finish não representa:
 - uma nova posição catalográfica;
 - uma Card diferente;
 - uma classificação de raridade (ver Rarity, acima);
-- um exemplar físico específico do usuário (ver Inventory Item).
+- um exemplar físico específico do usuário (ver Collection Item).
 
 Um Finish **não altera** o número da Card, sua posição no Set, sua raridade, seu nome ou sua identidade editorial.
 
@@ -747,7 +755,7 @@ Card Finish não representa:
 - uma nova Card;
 - uma nova posição catalográfica no Set;
 - uma diferença de idioma (ver Card Translation);
-- um exemplar físico específico do usuário (ver Inventory Item).
+- um exemplar físico específico do usuário (ver Collection Item).
 
 ---
 
@@ -781,14 +789,14 @@ Card
         └── referencia 1 Finish
 ```
 
-Um exemplar físico do usuário (Inventory Item) referencia uma Card Finish específica — não a Card diretamente — já que o acabamento físico é uma característica do exemplar impresso:
+Um exemplar físico do usuário (Collection Item) referencia uma Card Finish específica — não a Card diretamente — já que o acabamento físico é uma característica do exemplar impresso:
 
 ```text
 Card
  │
  └── Card Finish
         │
-        └── Inventory Item
+        └── Collection Item
 ```
 
 > **Nota sobre nomenclatura física:** o schema físico já existente no projeto utiliza as tabelas `card_variant` e `card_variant_type`, nomeadas antes desta refinamento conceitual. A relação entre esses nomes físicos e os termos conceituais Finish/Card Finish definidos aqui (renomear a tabela física ou apenas mapear os conceitos) é uma decisão que será tomada durante a modelagem física (`05-modelo-de-dados.md`), e não está resolvida por este documento.
@@ -1048,9 +1056,157 @@ Nem todo campo listado acima (HP, Attacks, Ability, Weakness, Resistance, Retrea
 
 ---
 
-## Inventory Item
+## Collection Item (Item da Coleção)
 
-*Documentação pendente.*
+### O que é?
+
+Representa um exemplar físico individual e identificável de uma Card, pertencente ou anteriormente pertencente a um colecionador. Substitui o termo provisório "Inventory Item" (ver ADR-013): o Project Mimikyu é uma plataforma de colecionismo, não um sistema de estoque, e o nome deve refletir isso.
+
+Cada cópia física possui identidade própria, mesmo quando indistinguível de outra:
+
+```text
+ITEM_0003456
+ITEM_0003457
+```
+
+Ambos podem representar a mesma combinação editorial (`Bulbasaur 001/132`, `Standard Foil`, `Portuguese`, `Near Mint`) e, ainda assim, são dois Collection Items distintos — com origem, preço, condição, localização, histórico e destino potencialmente diferentes.
+
+---
+
+### O que não é?
+
+Collection Item não representa:
+
+- uma posição no Set (ver Card);
+- uma Card do catálogo;
+- um acabamento disponível (ver Card Finish);
+- uma quantidade agregada;
+- uma linha genérica de estoque.
+
+Não deve ser representado como:
+
+```text
+Card: Bulbasaur 001/132
+Quantity: 3
+```
+
+Mas sim como três registros individuais:
+
+```text
+ITEM_0003456
+ITEM_0003457
+ITEM_0003458
+```
+
+---
+
+### Qual problema resolve?
+
+Permite controlar individualmente: aquisição, custo, condição, idioma, acabamento, autenticação, graduação (grading), armazenamento, movimentação, venda, troca, perda e descarte de cada cópia física.
+
+Também permite distinguir, entre exemplares de uma mesma Card: a cópia principal exibida na coleção, uma cópia repetida disponível para troca, uma cópia lacrada, uma cópia enviada para grading, e uma cópia já vendida.
+
+---
+
+### Relação com o Catálogo
+
+```text
+Card
+ │
+ └── Card Finish
+        │
+        └── N Collection Item
+```
+
+Cada Collection Item referencia uma combinação editorial válida de Card + Finish + Language (ver Card Finish, acima):
+
+```text
+Collection Item: ITEM_0003456
+Card: Bulbasaur 001/132
+Finish: Standard Foil
+Language: Portuguese
+```
+
+O acabamento físico é uma característica do exemplar impresso — por isso o Collection Item referencia a Card Finish, não a Card diretamente (ver "Relacionamentos", na seção Card Finish).
+
+---
+
+### Por que o Idioma pertence ao Collection Item
+
+O conteúdo editorial da Card é o mesmo em português e em inglês — essa variação pertence à Card Translation (ver acima). O exemplar físico, no entanto, foi impresso em um idioma concreto: é essa informação que o campo `language` do Collection Item identifica.
+
+Conceitualmente, o Collection Item poderá vir a referenciar a Card Translation correspondente, em vez de armazenar o idioma como um valor solto — essa decisão permanece em aberto para a modelagem lógica.
+
+---
+
+### Grupos Conceituais de Informação (preliminar)
+
+Para evitar que o Collection Item acumule responsabilidades demais, suas informações são organizadas conceitualmente em quatro grupos. Esta divisão é preliminar: algumas dessas informações provavelmente se tornarão entidades relacionadas próprias durante a modelagem lógica, e não campos diretos do Collection Item.
+
+**1. Identity (Identidade)** — define qual exemplar é esse: id, owner, card, finish, language.
+
+**2. Physical State (Estado Físico)** — descreve a condição atual: condition, grading_status, authentication_status, sealed_status.
+
+**3. Collection Role (Papel na Coleção)** — descreve como o colecionador utiliza aquele exemplar: primary_collection_copy, duplicate, available_for_trade, available_for_sale, reserved.
+
+**4. Lifecycle (Ciclo de Vida)** — descreve sua trajetória: acquisition, storage, movement, grading, sale, trade, disposal.
+
+---
+
+### Estado Atual vs. Histórico
+
+Há uma distinção conceitual importante entre "onde o item está agora" e "por onde o item já passou":
+
+- o estado atual (ex.: localização de armazenamento atual) pertence ao próprio Collection Item;
+- o histórico (ex.: movimentações anteriores) pertence a entidades de histórico relacionadas, ainda não modeladas em detalhe (ver Storage Location, abaixo).
+
+O mesmo vale para a posse: uma venda não deve simplesmente apagar o usuário anterior — ela encerra a posse e preserva o histórico.
+
+---
+
+### Ownership Status e Availability Status
+
+São duas dimensões distintas, que não devem ser combinadas em uma única lista de valores:
+
+- **Ownership Status (Status de Propriedade)** — responde se o exemplar ainda pertence ao usuário (ex.: `OWNED`, `SOLD`, `DISPOSED`).
+- **Availability Status (Status de Disponibilidade)** — responde se o exemplar está disponível para alguma finalidade (ex.: `AVAILABLE_FOR_TRADE`, `RESERVED`).
+
+Exemplo:
+
+```text
+Ownership Status: OWNED
+Availability Status: AVAILABLE_FOR_TRADE
+```
+
+Misturar as duas dimensões em uma única lista (ex.: `SOLD`, `AVAILABLE_FOR_TRADE`, `IN_BINDER` juntos) produziria ambiguidade, pois representam perguntas diferentes.
+
+---
+
+### Regra de Identidade
+
+A identidade de um Collection Item é técnica e permanente — não é alterada por mudanças de condição, armazenamento ou disponibilidade.
+
+Exemplo: `ITEM_0003456` pode sair do binder, ser enviado para grading, retornar encapsulado e depois ser vendido — continua sendo o mesmo exemplar físico, com a mesma identidade.
+
+---
+
+### Relacionamentos
+
+```text
+User (Usuário)
+ 1
+ │
+ └── N Collection Item
+        ├── Card
+        ├── Card Finish
+        ├── Language
+        ├── Physical Condition
+        ├── Ownership Status
+        ├── Availability Status
+        └── Current Storage Location
+```
+
+Entidades de histórico relacionadas a este conceito (estrutura detalhada pendente de ciclo futuro de documentação): Acquisition, Movement, Grading Submission, Trade, Sale, Valuation.
 
 ---
 
@@ -1077,3 +1233,4 @@ Nem todo campo listado acima (HP, Attacks, Ability, Weakness, Resistance, Retrea
 | 1.4 | Com base em documento oficial (lista de cartas do ME1), substituído o conceito "Card Variant" por três conceitos distintos: Rarity (raridade, atributo da Card), Finish (catálogo de acabamentos físicos) e Card Finish (associação Card+Finish). Termos "Printing Variant" e "Finish Variant" descartados definitivamente. Relação Inventory Item atualizada para referenciar Card Finish, não a Card diretamente. Ver ADR-010 (substitui ADR-009 nesse ponto). |
 | 1.5 | Expandida a métrica de contagem de duas para três (Official Card Count, Base Set Count, Collectible Finish Count). Adicionadas as entidades Card Category (com taxonomia de Trainer sinalizada como em aberto), Pokémon, Illustrator e Energy Type. Corrigida a suposição de que toda Card possui um Pokémon associado — relação agora condicional à Card Category. Adicionada seção "Atributos e Relações da Card" aplicando o novo AP-014. |
 | 1.6 | Resolvida a taxonomia de Card Category: apenas Pokémon e Trainer no catálogo numerado (cartas de Energia fora de escopo); adicionada Trainer Subcategory (Item/Supporter/Stadium/Tool, obrigatória para Trainer). Pokémon finalizado como entidade mínima (id, national_dex_number, canonical_name) — HP/ataques/etc. pertencem à Card, não ao Pokémon, pois variam entre publicações da mesma espécie. Adicionado o padrão Card Details / Pokémon Card Details / Trainer Card Details, explicitamente não-genérico (específico do módulo Pokémon TCG). Ver ADR-011 e ADR-012. |
+| 1.7 | Renomeado "Inventory Item" para "Collection Item" em todo o documento (ver ADR-013). Adicionada a seção completa de Collection Item: identidade individual por exemplar físico, relação com Card + Card Finish + Language, grupos preliminares de informação (Identity, Physical State, Collection Role, Lifecycle), separação entre Ownership Status e Availability Status, e regra de identidade técnica e permanente. Adicionada nota sobre Card Image (relação com Card Translation/Card Finish em aberto, decisão progressiva) na seção Card Translation. |

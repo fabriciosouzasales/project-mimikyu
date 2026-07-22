@@ -100,6 +100,12 @@ Tudo aquilo que pode ser compartilhado entre milhares de Cards deve possuir iden
 
 Exemplo de aplicação: um Pokémon (ex.: Bulbasaur) aparece em dezenas de Sets; um Illustrator ilustra centenas de Cards; um Energy Type (ex.: Água, Fogo) é compartilhado por milhares de Cards. Esses conceitos existem independentemente de qualquer Card específica e tendem a se tornar entidades de referência do catálogo, não colunas de texto repetidas.
 
+## AP-015 — Progressive Catalog Enrichment
+
+O catálogo deve armazenar inicialmente apenas os dados estruturados necessários às funcionalidades do produto. A imagem oficial de cada Card preserva as demais informações editoriais. Novos dados poderão ser estruturados progressivamente, apenas quando surgir uma necessidade concreta de pesquisa, análise, automação ou funcionalidade comercial (ver ADR-012).
+
+Este princípio evita dois extremos: modelar exaustivamente cada informação antes de haver necessidade comprovada (ver AP-004), e perder informação por não estruturar nada além do mínimo indispensável — a imagem oficial garante que nenhuma informação editorial é descartada, apenas adiada.
+
 ---
 
 # Revision History
@@ -109,6 +115,7 @@ Exemplo de aplicação: um Pokémon (ex.: Bulbasaur) aparece em dezenas de Sets;
 |1.0|Criação inicial dos princípios arquiteturais oficiais.|
 |1.1|Correção de separadores markdown mal formatados (`\---`) e padronização do nível de heading e formatação de AP-010 a AP-012.|
 |1.2|Adicionados AP-013 (Permanence Principle) e AP-014 (Editorial Reuse Principle), descobertos e validados durante a modelagem detalhada da Card.|
+|1.3|Adicionado AP-015 (Progressive Catalog Enrichment), formalizando o critério de estruturação de dados já registrado em ADR-012.|
 
 
 

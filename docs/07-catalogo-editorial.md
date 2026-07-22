@@ -80,7 +80,8 @@ Se a resposta for não, a imagem é suficiente por ora.
 # Em Aberto
 
 - critérios objetivos para priorizar quais campos hoje visuais serão estruturados em ciclos futuros;
-- mecanismo concreto de extração de dados (manual, automatizado ou híbrido) — depende do pipeline de importação (`06-pipeline-importacao.md`).
+- mecanismo concreto de extração de dados (manual, automatizado ou híbrido) — depende do pipeline de importação (`06-pipeline-importacao.md`);
+- relação definitiva entre a imagem da Card (Card Image) e a Card Translation / Card Finish (uma imagem por idioma, por acabamento, ou ambos) — decisão progressiva, ver `04-domain-model.md`, seção Card Translation, e AP-015.
 
 ---
 
@@ -89,3 +90,4 @@ Se a resposta for não, a imagem é suficiente por ora.
 | Versão | Descrição |
 |---------|-----------|
 | 0.1 | Estrutura inicial do documento, com o modelo de três níveis de disponibilidade de informação e o critério de estruturação de campos, definidos em ADR-012. |
+| 0.2 | Adicionado ponto em aberto sobre a relação entre Card Image e Card Translation/Card Finish. |
