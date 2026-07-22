@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -32,7 +32,9 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 - Set
 - Card
 - Card Translation
-- Card Variant
+- Rarity
+- Finish
+- Card Finish
 - Inventory Item
 - Storage Location
 - Collection
@@ -409,7 +411,7 @@ Conceitualmente, uma Card:
 - possui um número oficial dentro do Set;
 - possui um nome;
 - possui uma categoria;
-- possui uma raridade;
+- possui uma Rarity (ver "Rarity", abaixo);
 - pode representar um Pokémon ou outro conteúdo oficial do jogo;
 - pode possuir informações editoriais associadas;
 - pode possuir uma ilustração.
@@ -463,11 +465,11 @@ Responde: *quantas posições numeradas existem em um Set?*
 
 Exemplo: o Set ME1 possui `188` Cards, numeradas de `001/132` até `188/132`.
 
-**2. Quantidade de Printing Variants colecionáveis**
+**2. Quantidade de combinações Card + Finish colecionáveis**
 
 Responde: *quantas versões oficiais distintas podem ser colecionadas?*
 
-Essa quantidade pode ser superior à quantidade de Cards, pois uma mesma Card pode possuir mais de um acabamento físico oficial — uma Card Variant (ver abaixo). Essa contagem deve ser obtida somando as variantes efetivamente catalogadas para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem a mesma quantidade de variantes. Na prática, esse número tende a ser bem mais próximo da quantidade de Cards do que se imaginava inicialmente, já que formas de impressão como Full Art ou Rainbow Rare já contam como Cards independentes, e não como Card Variants (ver "Resolução da Questão de Identidade" na seção Card Variant).
+Essa quantidade pode ser superior à quantidade de Cards, pois uma mesma Card pode estar disponível em mais de um acabamento físico oficial — uma Card Finish (ver abaixo). Essa contagem deve ser obtida somando os acabamentos efetivamente catalogados para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem os mesmos acabamentos disponíveis. Na prática, esse número tende a ser bem mais próximo da quantidade de Cards do que se imaginava inicialmente, já que formas de impressão como Full Art ou Special Illustration Rare já contam como Cards independentes — diferenciadas por Rarity própria — e não como variações de acabamento de outra Card (ver "Rarity" e "Finish", abaixo).
 
 Essas duas métricas atendem a propósitos diferentes do produto: a primeira mede a completude do catálogo editorial (quais posições existem); a segunda mede a completude colecionável (quantos itens distintos um colecionador pode efetivamente possuir).
 
@@ -499,7 +501,7 @@ Uma Card Translation não representa:
 
 - uma nova Card;
 - uma nova posição catalográfica;
-- uma Card Variant;
+- um Finish ou Card Finish;
 - o idioma de um exemplar físico pertencente a um usuário.
 
 O nome traduzido de uma Card não cria uma nova posição no catálogo — apenas muda sua representação linguística.
@@ -558,82 +560,156 @@ Cada Card pode possuir uma Card Translation por idioma suportado pelo catálogo.
 
 ---
 
-## Card Variant
+## Rarity (Raridade)
 
 ### O que é?
 
-Representa uma diferença física de acabamento (finish) entre exemplares de uma mesma Card — mesma posição catalográfica, mesma arte, mesma raridade, mesmo registro editorial.
+Representa a classificação de raridade oficial de uma Card, indicada por um símbolo específico na lista oficial do catálogo.
 
-Exemplos de Card Variant:
+Exemplos de valores observados na lista oficial do ME1:
 
-- Standard;
-- Reverse Holo;
-- Cosmos Holo;
-- Mirror.
+- Common (Comum);
+- Uncommon (Incomum);
+- Rare (Rara);
+- Double Rare (Rara Dupla);
+- Ultra Rare (Rara Ultra);
+- Illustration Rare (Ilustração Rara);
+- Special Illustration Rare (Ilustração Rara Especial);
+- Mega Hyper Rare (Mega Rara Hiper).
 
-Durante a modelagem, este conceito também foi referido informalmente como "Printing Variant" e, posteriormente, como hipótese de renomeação, "Finish Variant" — o nome canônico adotado permanece **Card Variant**, alinhado ao schema físico já existente (`card_variant`, `card_variant_type`).
+Esta lista reflete o que foi observado no documento oficial processado até o momento (`assets/reference-sources/P10346_ME01_Card_List_PTBR.pdf`) e não deve ser considerada exaustiva para todos os Sets ou Games suportados pelo Project Mimikyu.
 
 ---
 
 ### O que não é?
 
-Uma Card Variant **não** representa:
+Rarity não representa:
 
+- uma forma de impressão ou acabamento físico (ver Finish, abaixo);
 - uma nova posição catalográfica;
-- uma Card diferente;
-- uma diferença de idioma (ver Card Translation);
-- um exemplar físico específico do usuário (ver Inventory Item).
+- uma classificação derivada ou calculada — é um dado oficial publicado pelo catálogo.
 
-Importante: cartas como **Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow não são Card Variants.** Elas possuem número, arte, textura e raridade próprios, e por isso são **Cards independentes** dentro do Set — regidas normalmente pela regra de identidade "Set + Número da Card" (ADR-004), sem necessidade de tratamento especial.
+Termos como Illustration Rare, Special Illustration Rare e Ultra Rare **não são variações de impressão**. São classificações de raridade da própria Card.
 
 ---
 
 ### Qual problema resolve?
 
-Permite representar que uma mesma posição catalográfica pode ter sido impressa oficialmente em mais de um acabamento físico, sem tratar cada acabamento como uma nova Card e sem inflar artificialmente a hierarquia editorial principal.
-
----
-
-### Resolução da Questão de Identidade
-
-Um ciclo anterior desta documentação havia sinalizado como questão em aberto se formas de impressão (Full Art, Rainbow Rare, etc.) poderiam quebrar a regra de identidade "Set + Número da Card". Essa questão foi resolvida.
-
-A investigação histórica analisou exemplos reais do catálogo:
-
-```text
-025/132 — Pikachu
-  Standard
-  Reverse Holo
-```
-
-Aqui existe, de fato, uma variação de acabamento sobre a mesma posição catalográfica: mesmo número, mesma arte, mesma raridade. Isso **é** uma Card Variant.
-
-```text
-187/132 — Charizard ex (Secret Rare)
-```
-
-Essa Card não possui versão Standard — ela já é, em si, uma impressão específica. Não há Card Variant aqui.
-
-```text
-173/132 — Charizard
-174/132 — Charizard
-```
-
-Duas posições catalográficas diferentes, cada uma com seu próprio número oficial. Ninguém trataria `174` como uma variante de `173` — são **duas Cards**, não uma Card com uma variante.
-
-Esse último exemplo confirma que quando o Set possui, por exemplo, `188 cards` — e não `188 variantes` — o catálogo do Pokémon TCG já trata posições como Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow como **Cards numeradas independentemente**, cada uma com número, arte e raridade próprios (consistente com a hierarquia editorial definida em ADR-004 e com a métrica "Quantidade oficial de Cards" descrita acima).
-
-Consequência prática: o escopo de Card Variant é bem mais estreito do que inicialmente hipotetizado — cobre apenas diferenças de acabamento sobre a **mesma** posição catalográfica (tipicamente Standard e Reverse Holo; ocasionalmente outros acabamentos como Cosmos Holo ou Mirror). A maioria das Cards não possui nenhuma Card Variant além do próprio Standard, ou possui apenas Standard + Reverse Holo.
+Permite registrar oficialmente o nível de raridade de cada Card, exatamente como publicado na lista oficial do catálogo — informação usada, entre outros fins, para diferenciar Cards que representam o mesmo Pokémon (mesmo nome) mas ocupam posições catalográficas distintas por possuírem raridade, arte e tratamento editorial próprios.
 
 ---
 
 ### Características Conceituais
 
-Conceitualmente, uma Card Variant:
+Conceitualmente, uma Rarity:
 
-- pertence obrigatoriamente a uma única Card;
-- representa uma diferença de acabamento físico, não uma diferença editorial;
-- não altera número, arte, raridade ou registro editorial da Card à qual pertence.
+- é um valor de um conjunto controlado de classificações oficiais;
+- pertence a uma Card como atributo/relação direta.
+
+A estrutura definitiva (lista fechada vs. extensível, campos adicionais) será avaliada durante a modelagem lógica.
+
+---
+
+### Relacionamentos
+
+```text
+Card
+ N
+ │
+ └── 1 Rarity
+```
+
+Cada Card possui uma única Rarity. Uma mesma Rarity pode se aplicar a diversas Cards.
+
+---
+
+## Finish (Acabamento)
+
+### O que é?
+
+Representa um tipo de acabamento físico oficial em que uma Card pode ser impressa — um catálogo controlado de valores.
+
+Exemplos de valores observados na lista oficial do ME1:
+
+- Standard (Padrão);
+- Standard Foil (Laminada Padrão).
+
+Outros acabamentos identificados em discussões anteriores da modelagem, ainda não confirmados por documento oficial:
+
+- Reverse Holo;
+- Cosmos Holo.
+
+Durante a modelagem, o conceito de acabamento também foi referido informalmente como "Printing Variant" e "Finish Variant". Ambos os termos foram **descartados definitivamente** — o nome canônico adotado é **Finish**, por não sugerir a criação de uma versão editorial derivada (ver ADR-010).
+
+---
+
+### O que não é?
+
+Finish não representa:
+
+- uma nova posição catalográfica;
+- uma Card diferente;
+- uma classificação de raridade (ver Rarity, acima);
+- um exemplar físico específico do usuário (ver Inventory Item).
+
+Um Finish **não altera** o número da Card, sua posição no Set, sua raridade, seu nome ou sua identidade editorial.
+
+---
+
+### Qual problema resolve?
+
+Permite representar em quais acabamentos físicos oficiais uma Card pode ser encontrada, sem tratar cada acabamento como uma nova Card.
+
+---
+
+## Card Finish (Acabamento da Carta)
+
+### O que é?
+
+Declara que uma determinada Card está oficialmente disponível em um determinado Finish.
+
+Exemplo:
+
+```text
+Card: 001/132 — Bulbasaur (Rarity: Common)
+Available Finishes:
+- Standard
+- Standard Foil
+
+Card: 177/132 — Mega Venusaur ex (Rarity: Special Illustration Rare)
+Available Finishes:
+- Standard Foil
+```
+
+Não se deve assumir que todas as Cards de um Set possuem automaticamente os mesmos acabamentos disponíveis — cada Card Finish deve ser catalogada individualmente.
+
+---
+
+### O que não é?
+
+Card Finish não representa:
+
+- uma nova Card;
+- uma nova posição catalográfica no Set;
+- uma diferença de idioma (ver Card Translation);
+- um exemplar físico específico do usuário (ver Inventory Item).
+
+---
+
+### Resolução da Questão de Identidade (histórico)
+
+Um ciclo anterior desta documentação havia sinalizado como questão em aberto se formas de impressão (Full Art, Rainbow Rare, etc.) poderiam quebrar a regra de identidade "Set + Número da Card". Essa questão foi resolvida com apoio de um documento oficial (a lista de cartas do ME1): Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow não são diferenças de Finish — são **Cards independentes**, cada uma com número, arte e Rarity próprios, regidas normalmente pela regra "Set + Número da Card" (ADR-004), sem necessidade de tratamento especial. O que antes parecia uma questão de identidade de "variante" era, na verdade, uma mistura de três conceitos diferentes: Card, Rarity e Finish. Ver ADR-010 para o registro completo desta decisão.
+
+Consequência prática: o escopo de Card Finish é mais estreito do que inicialmente hipotetizado — cobre apenas quais acabamentos físicos (tipicamente Standard e Standard Foil) estão disponíveis para uma mesma posição catalográfica. A maioria das Cards possui apenas um ou dois acabamentos.
+
+---
+
+### Características Conceituais
+
+Conceitualmente, uma Card Finish:
+
+- associa uma única Card a um único Finish;
+- não altera número, arte, Rarity ou registro editorial da Card à qual pertence.
 
 A estrutura definitiva desses campos será avaliada durante a modelagem lógica.
 
@@ -645,10 +721,22 @@ A estrutura definitiva desses campos será avaliada durante a modelagem lógica.
 Card
  1
  │
- └── N Card Variant
+ └── N Card Finish
+        │
+        └── referencia 1 Finish
 ```
 
-Um exemplar físico do usuário (Inventory Item) provavelmente referenciará uma Card Variant específica (e não apenas a Card diretamente), já que o acabamento físico é uma característica do exemplar impresso. Essa relação será definida com precisão quando o conceito Inventory Item for documentado.
+Um exemplar físico do usuário (Inventory Item) referencia uma Card Finish específica — não a Card diretamente — já que o acabamento físico é uma característica do exemplar impresso:
+
+```text
+Card
+ │
+ └── Card Finish
+        │
+        └── Inventory Item
+```
+
+> **Nota sobre nomenclatura física:** o schema físico já existente no projeto utiliza as tabelas `card_variant` e `card_variant_type`, nomeadas antes desta refinamento conceitual. A relação entre esses nomes físicos e os termos conceituais Finish/Card Finish definidos aqui (renomear a tabela física ou apenas mapear os conceitos) é uma decisão que será tomada durante a modelagem física (`05-modelo-de-dados.md`), e não está resolvida por este documento.
 
 ---
 
@@ -678,3 +766,4 @@ Um exemplar físico do usuário (Inventory Item) provavelmente referenciará uma
 | 1.1 | Padronização do cabeçalho (Arquivo, Escopo, Dependências, Documentos Relacionados) para consistência com os demais documentos centrais. |
 | 1.2 | Correção do exemplo de numeração da Card (denominador deve ser a quantidade do conjunto base, não o total de Cards). Adição de "Duas Métricas de Contagem do Catálogo", da entidade Card Translation, e de conteúdo parcial de Card Variant com questão de identidade sinalizada como em aberto. Correção da lista de Core Concepts ("Card Set" → "Set", reordenada pela hierarquia editorial). |
 | 1.3 | Resolvida a questão de identidade de Card Variant: escopo restrito a diferenças de acabamento sobre a mesma posição catalográfica (Standard, Reverse Holo, etc.). Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow passam a ser tratadas explicitamente como Cards independentes, não como variantes — consistente com a decisão já registrada por Fabrício e agora fundamentada por ADR-009. |
+| 1.4 | Com base em documento oficial (lista de cartas do ME1), substituído o conceito "Card Variant" por três conceitos distintos: Rarity (raridade, atributo da Card), Finish (catálogo de acabamentos físicos) e Card Finish (associação Card+Finish). Termos "Printing Variant" e "Finish Variant" descartados definitivamente. Relação Inventory Item atualizada para referenciar Card Finish, não a Card diretamente. Ver ADR-010 (substitui ADR-009 nesse ponto). |

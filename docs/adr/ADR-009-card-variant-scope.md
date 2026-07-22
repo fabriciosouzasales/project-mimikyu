@@ -4,7 +4,7 @@
 |--------|-------|
 | **ADR** | ADR-009 |
 | **Título** | Card Variant Scope |
-| **Status** | Aprovado |
+| **Status** | Substituído (ver ADR-010) |
 | **Data** | 2026-07 |
 | **Decisores** | Project Mimikyu |
 | **Decisão** | Card Variant é restrita a diferenças físicas de acabamento sobre a mesma posição catalográfica de uma Card (ex.: Standard, Reverse Holo). Formas de impressão com número, arte e raridade próprios (Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold, Rainbow) são Cards independentes, não Card Variants. |
@@ -13,6 +13,8 @@
 ---
 
 # Context
+
+> **Nota (ADR-010):** esta ADR foi substituída por `ADR-010-card-rarity-and-finish-model.md`, que refina e renomeia esta decisão com apoio de um documento oficial (lista de cartas do ME1). O escopo aqui descrito (diferenças de acabamento sobre a mesma posição catalográfica; formas de impressão com número/arte/raridade próprios são Cards independentes) **permanece correto em substância**. O que muda em ADR-010: (1) o nome "Card Variant" é retirado do vocabulário conceitual em favor de "Finish" (catálogo de acabamentos) e "Card Finish" (associação Card+Finish); (2) fica formalizado que "Rarity" é um atributo de primeira classe da Card, distinto de Finish — o texto abaixo ainda tratava raridade e acabamento de forma um pouco misturada. Este texto é preservado sem alteração como registro histórico da decisão original.
 
 Um ciclo anterior de modelagem havia levantado uma questão em aberto: um exemplo hipotético (`Mega Charizard X ex 125/094 Full Art` vs. `125/094 Rainbow Rare`, com o mesmo número) sugeria que a regra de identidade "Set + Número da Card" (ADR-004) poderia não ser suficiente, isoladamente, para diferenciar formas de impressão de uma Card.
 
@@ -78,3 +80,4 @@ Não adotada nesta ADR. O schema físico já existente utiliza `card_variant`/`c
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da decisão que restringe o escopo de Card Variant a diferenças de acabamento, resolvendo a questão de identidade sinalizada em aberto no ciclo anterior. |
+| 1.1 | Status alterado para Substituído. Adicionada nota de referência cruzada apontando para ADR-010. Nenhum conteúdo original foi alterado. |
