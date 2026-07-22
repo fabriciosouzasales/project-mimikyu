@@ -78,7 +78,8 @@ Todo catálogo pertence obrigatoriamente a um único Game.
 Um Game pode possuir uma ou mais Expansions.
 
 Cada Expansion agrupa seus respectivos Sets.
-__
+
+---
 
 ## Expansion (Expansão)
 
@@ -148,11 +149,11 @@ A característica "especial" pertence ao Set e não altera sua posição na hier
 
 ---
 
-## Card Set
+## Set
 
 ### O que é?
 
-Um **Card Set (Set)** representa uma publicação editorial oficial pertencente a uma **Expansion (Expansão), também pode ser denominada apenas de Set. Na modelagem de dados sera tratado como Card_Set**.
+Um **Set (Set)** representa uma publicação editorial oficial pertencente a uma **Expansion (Expansão).**.
 
 Ele é composto por um conjunto organizado de **Cards (Cartas)** e possui identidade própria dentro de um **Game (Jogo)**.
 
