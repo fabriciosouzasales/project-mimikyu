@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `02-architecture-principles.md` (AP-013, AP-014), `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -31,10 +31,14 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 - Expansion
 - Set
 - Card
+- Card Category
 - Card Translation
 - Rarity
 - Finish
 - Card Finish
+- Pokémon
+- Illustrator
+- Energy Type
 - Inventory Item
 - Storage Location
 - Collection
@@ -192,8 +196,8 @@ Conceitualmente um Set possui:
 - classificação editorial;
 - ordem cronológica;
 - Expansion à qual pertence;
-- quantidade oficial de cartas do conjunto base;
-- quantidade oficial total de cartas publicadas.
+- Base Set Count (Quantidade do Conjunto Base) — o denominador oficial exibido nas Cards;
+- quantidade oficial total de cartas publicadas — ver "Official Card Count", na seção Card.
 
 ---
 
@@ -322,9 +326,11 @@ Essa relação não representa uma definição automática de colunas ou atribut
 
 ### O que é?
 
-Uma **Card (Carta)** representa uma posição oficial do catálogo pertencente a um **Set (Set)**.
+Uma **Card (Carta)** representa uma posição oficial numerada dentro de um **Set (Set)**, contendo todas as características editoriais **permanentes** daquela publicação — ou seja, características que continuam verdadeiras mesmo que nenhum usuário possua um exemplar dela (ver AP-013 — Permanence Principle).
 
 Ela possui identidade editorial própria e existe independentemente de qualquer exemplar físico pertencente a um usuário.
+
+A Card tende a ser a entidade mais rica do domínio — não por possuir muitas colunas, mas por ser o ponto de convergência de praticamente todo o conhecimento editorial do catálogo (Rarity, Card Category, Card Translation, Card Finish, e demais atributos e relações descritos em "Atributos e Relações da Card", abaixo).
 
 Exemplo:
 
@@ -334,7 +340,7 @@ Card: Charizard ex
 Número: 187/132
 ```
 
-Nesse exemplo, `187` é o número oficial da Card e `132` é a quantidade oficial do conjunto base do Set (ver "Duas Métricas de Contagem do Catálogo", abaixo). Como `187` está acima do conjunto base, essa Card é uma posição independente, e não uma variante de uma Card de número menor.
+Nesse exemplo, `187` é o número oficial da Card e `132` é o Base Set Count do Set (ver "Três Métricas de Contagem do Catálogo", abaixo). Como `187` está acima do conjunto base, essa Card é uma posição independente, e não uma variante de uma Card de número menor.
 
 Essa Card existe no catálogo independentemente:
 
@@ -367,14 +373,20 @@ Essas informações pertencem a outros conceitos do domínio.
 
 A Card representa o catálogo editorial oficial.
 
-Ela permite responder, entre outras, às seguintes perguntas:
+Ela permite responder, entre outras, às seguintes perguntas — verdadeiras mesmo que ninguém no mundo possua aquela Card:
 
 - quantas posições oficiais existem em um Set;
 - quais Cards pertencem a determinado Set;
 - quais Cards ainda faltam em uma coleção;
-- qual é a raridade de uma posição catalográfica;
+- qual é o número oficial da Card dentro do Set;
+- qual Pokémon (quando aplicável) ela representa;
+- qual o HP;
+- qual o tipo (Energy Type);
+- quais ataques e habilidades possui;
 - quem ilustrou determinada Card;
-- qual é o número oficial da Card dentro do Set.
+- qual é a Rarity da Card;
+- qual é a regra ou texto oficial da Card;
+- em qual Set ela pertence.
 
 ---
 
@@ -401,6 +413,8 @@ O denominador exibido junto ao número (`132`, no exemplo) representa a quantida
 
 Uma mesma numeração (Set + Número) associada a Sets diferentes representa Cards distintas. Por exemplo, `125/094` no Set `PFL` e `125/094` em outro Set não são a mesma Card.
 
+Outro exemplo: um Charizard ex publicado no Set `ME1` e, anos depois, republicado no Set `ME8`, são **duas Cards distintas** — mesmo compartilhando o mesmo Pokémon, o mesmo HP e os mesmos ataques. Editorialmente, continuam sendo publicações diferentes, pertencentes a Sets diferentes.
+
 ---
 
 ### Características Conceituais
@@ -410,11 +424,11 @@ Conceitualmente, uma Card:
 - pertence obrigatoriamente a um Set;
 - possui um número oficial dentro do Set;
 - possui um nome;
-- possui uma categoria;
+- possui uma Card Category (ver "Card Category", abaixo);
 - possui uma Rarity (ver "Rarity", abaixo);
-- pode representar um Pokémon ou outro conteúdo oficial do jogo;
-- pode possuir informações editoriais associadas;
-- pode possuir uma ilustração.
+- quando sua Card Category for Pokémon, referencia um Pokémon — Cards de outras categorias (Trainer, Energy) não possuem essa referência (ver "Atributos e Relações da Card", abaixo);
+- pode possuir informações editoriais associadas (ataques, habilidades, texto de regras, etc.);
+- pode possuir uma ilustração e um Illustrator associado.
 
 A presença e a estrutura definitiva dessas informações serão avaliadas durante a modelagem lógica.
 
@@ -453,25 +467,64 @@ Formas de impressão, idiomas, condições físicas, certificações e exemplare
 
 ---
 
-### Duas Métricas de Contagem do Catálogo
+### Atributos e Relações da Card
 
-O catálogo precisa responder a duas perguntas distintas, que não devem ser confundidas:
+Aplicando o Princípio da Reutilização Editorial (AP-014), nem toda informação associada a uma Card deve ser um simples campo de texto: informações compartilhadas entre milhares de Cards tendem a se tornar entidades de referência próprias, evitando duplicação e permitindo consistência (ex.: corrigir o nome de um Illustrator em um único lugar).
 
-**1. Quantidade oficial de Cards**
+Dimensões já identificadas, associadas à Card:
+
+- **Card Category** — classifica a Card (Pokémon, Trainer, Energy, entre outras). Ver seção própria, abaixo.
+- **Card Translation** — conteúdo editorial por idioma. Ver seção própria, acima.
+- **Rarity** — classificação de raridade. Ver seção própria, acima.
+- **Card Finish** — acabamentos físicos disponíveis. Ver seção própria, abaixo.
+- **Pokémon** — quando a Card Category for Pokémon, a Card referencia um Pokémon (entidade de referência, reutilizada por todas as Cards que representam aquele mesmo Pokémon através de diferentes Sets). Cards de outras categorias (Trainer, Energy) não possuem essa referência.
+- **Illustrator** — o ilustrador responsável pela arte da Card; entidade de referência, reutilizada por todas as Cards ilustradas pela mesma pessoa.
+- **Energy Type** — o tipo elemental da Card (ex.: Água, Fogo, Planta, Elétrico), quando aplicável; entidade de referência.
+
+Dimensões identificadas mas ainda não detalhadas segundo o método de STD-002 (não se sabe ainda se serão entidades de referência próprias ou atributos simples da Card): Attack, Ability, Weakness, Resistance, Retreat Cost, Regulation Mark, Legality, Evolves From, Evolves To. Serão avaliadas em ciclos futuros de documentação.
+
+> **Importante:** nem toda Card representa um Pokémon. A hipótese inicial de que toda Card se relacionaria diretamente com um Pokémon foi identificada como um erro de modelagem — uma confusão entre o domínio Pokémon (o personagem/espécie) e o domínio Pokémon TCG (o jogo de cartas). Existem Cards de categoria Trainer (ex.: Acerola — Supporter; Poké Pad — Item; Torre Prisma — Stadium) e Energy que não representam nenhum Pokémon. Essa relação é, portanto, condicional à Card Category, não universal.
+
+---
+
+### Três Métricas de Contagem do Catálogo
+
+O catálogo precisa responder a três perguntas distintas, que não devem ser confundidas:
+
+**1. Official Card Count (Quantidade Oficial de Cartas)**
 
 Responde: *quantas posições numeradas existem em um Set?*
 
 É a contagem das posições catalográficas (Cards) de um Set, do número `001` até o último número oficialmente publicado — incluindo posições acima do conjunto base.
 
-Exemplo: o Set ME1 possui `188` Cards, numeradas de `001/132` até `188/132`.
+Exemplo: o Set ME1 possui Official Card Count `188`.
 
-**2. Quantidade de combinações Card + Finish colecionáveis**
+**2. Base Set Count (Quantidade do Conjunto Base)**
+
+Responde: *qual é o denominador oficial exibido nas Cards?*
+
+É a quantidade oficial de cartas do conjunto base do Set — uma característica do Set (ver "Características", acima), não da Card.
+
+Exemplo: o Set ME1 possui Base Set Count `132`; suas Cards são numeradas de `001/132` até `188/132`.
+
+**3. Collectible Finish Count (Quantidade de Acabamentos Colecionáveis)**
 
 Responde: *quantas versões oficiais distintas podem ser colecionadas?*
 
-Essa quantidade pode ser superior à quantidade de Cards, pois uma mesma Card pode estar disponível em mais de um acabamento físico oficial — uma Card Finish (ver abaixo). Essa contagem deve ser obtida somando os acabamentos efetivamente catalogados para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem os mesmos acabamentos disponíveis. Na prática, esse número tende a ser bem mais próximo da quantidade de Cards do que se imaginava inicialmente, já que formas de impressão como Full Art ou Special Illustration Rare já contam como Cards independentes — diferenciadas por Rarity própria — e não como variações de acabamento de outra Card (ver "Rarity" e "Finish", abaixo).
+É a soma dos acabamentos (Card Finish, ver abaixo) disponíveis para todas as Cards do Set. Essa quantidade pode ser superior ao Official Card Count, mas isso não altera o tamanho oficial do Set.
 
-Essas duas métricas atendem a propósitos diferentes do produto: a primeira mede a completude do catálogo editorial (quais posições existem); a segunda mede a completude colecionável (quantos itens distintos um colecionador pode efetivamente possuir).
+Exemplo hipotético:
+
+```text
+Card 001 → 2 acabamentos
+Card 002 → 2 acabamentos
+Card 003 → 1 acabamento
+...
+```
+
+Essa contagem deve ser obtida somando os acabamentos efetivamente catalogados para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem os mesmos acabamentos disponíveis. Na prática, esse número tende a ser bem mais próximo do Official Card Count do que se imaginava inicialmente, já que formas de impressão como Full Art ou Special Illustration Rare já contam como Cards independentes — diferenciadas por Rarity própria — e não como acabamentos de outra Card (ver "Rarity" e "Finish", abaixo).
+
+Essas três métricas atendem a propósitos diferentes do produto: a primeira mede a completude do catálogo editorial (quais posições existem); a segunda é uma característica de referência do Set; a terceira mede a completude colecionável (quantos itens distintos um colecionador pode efetivamente possuir).
 
 ---
 
@@ -740,6 +793,146 @@ Card
 
 ---
 
+## Card Category (Categoria da Carta)
+
+### O que é?
+
+Classifica a natureza de uma Card dentro do jogo. Corresponde à tabela física já existente `card_category`.
+
+Valores confirmados até o momento:
+
+- Pokémon;
+- Trainer — famílias observadas: Item, Supporter, Stadium, Tool;
+- Energy.
+
+---
+
+### O que não é?
+
+Card Category não representa:
+
+- uma Rarity;
+- um Finish;
+- uma relação direta e universal com a entidade Pokémon (ver "Atributos e Relações da Card", acima) — apenas Cards de categoria Pokémon possuem essa referência.
+
+---
+
+### Qual problema resolve?
+
+Evita a suposição incorreta de que toda Card representa um Pokémon. Cards como Acerola (Supporter), Poké Pad (Item) e Torre Prisma (Stadium) não representam nenhum Pokémon, mas são Cards válidas do catálogo.
+
+---
+
+### ⚠️ Questão em Aberto — Taxonomia de Card Category
+
+A discussão histórica que originou esta seção **não foi concluída** nos anexos processados até este ciclo (limitado a 20 anexos; Fabrício sinalizou que enviará um complemento).
+
+Ainda não está definido:
+
+- se "Trainer" é um valor armazenado de Card Category, com Item/Supporter/Stadium/Tool sendo uma subclassificação dentro dele; ou
+- se Item/Supporter/Stadium/Tool são tratados como valores de Card Category no mesmo nível de Pokémon e Energy (sem um valor "Trainer" intermediário armazenado).
+
+Nenhuma das duas estruturas deve ser assumida como definitiva até a continuação desta discussão ser recebida e analisada.
+
+---
+
+### Relacionamentos
+
+```text
+Card
+ N
+ │
+ └── 1 Card Category
+```
+
+Cada Card possui exatamente uma Card Category.
+
+---
+
+## Pokémon
+
+### O que é?
+
+Representa a espécie/personagem Pokémon (ex.: Bulbasaur) referenciada por uma Card de categoria Pokémon. Entidade de referência, reutilizada por todas as Cards que representam aquele mesmo Pokémon em diferentes Sets (aplicação do Princípio da Reutilização Editorial, AP-014).
+
+---
+
+### O que não é?
+
+Pokémon não representa:
+
+- uma Card específica — uma mesma espécie de Pokémon corresponde a muitas Cards distintas, uma por Set em que aparece;
+- uma categoria de Card (ver Card Category, acima) — nem toda Card possui um Pokémon associado.
+
+---
+
+### Qual problema resolve?
+
+Evita duplicar o nome e demais informações de uma espécie de Pokémon em cada uma das dezenas de Cards que a representam ao longo de diferentes Sets.
+
+---
+
+### Relacionamentos
+
+```text
+Pokémon
+ 1
+ │
+ └── N Card (apenas Cards de categoria Pokémon)
+```
+
+*Estrutura detalhada de características pendente — a ser avaliada em ciclo futuro de documentação.*
+
+---
+
+## Illustrator (Ilustrador)
+
+### O que é?
+
+Representa a pessoa responsável pela arte de uma Card. Entidade de referência, reutilizada por todas as Cards ilustradas pela mesma pessoa (aplicação do Princípio da Reutilização Editorial, AP-014).
+
+---
+
+### Qual problema resolve?
+
+Evita duplicar o nome de um ilustrador em cada uma das centenas de Cards que ele ilustrou, e permite corrigir essa informação em um único lugar.
+
+---
+
+### Relacionamentos
+
+```text
+Illustrator
+ 1
+ │
+ └── N Card
+```
+
+*Estrutura detalhada de características pendente — a ser avaliada em ciclo futuro de documentação.*
+
+---
+
+## Energy Type (Tipo de Energia)
+
+### O que é?
+
+Representa o tipo elemental de uma Card, quando aplicável (ex.: Água, Fogo, Planta, Elétrico). Entidade de referência, compartilhada por milhares de Cards (aplicação do Princípio da Reutilização Editorial, AP-014).
+
+---
+
+### Relacionamentos
+
+```text
+Energy Type
+ 1
+ │
+ └── N Card
+```
+
+*Estrutura detalhada de características pendente — a ser avaliada em ciclo futuro de documentação.*
+
+---
+
 ## Inventory Item
 
 *Documentação pendente.*
@@ -767,3 +960,4 @@ Card
 | 1.2 | Correção do exemplo de numeração da Card (denominador deve ser a quantidade do conjunto base, não o total de Cards). Adição de "Duas Métricas de Contagem do Catálogo", da entidade Card Translation, e de conteúdo parcial de Card Variant com questão de identidade sinalizada como em aberto. Correção da lista de Core Concepts ("Card Set" → "Set", reordenada pela hierarquia editorial). |
 | 1.3 | Resolvida a questão de identidade de Card Variant: escopo restrito a diferenças de acabamento sobre a mesma posição catalográfica (Standard, Reverse Holo, etc.). Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow passam a ser tratadas explicitamente como Cards independentes, não como variantes — consistente com a decisão já registrada por Fabrício e agora fundamentada por ADR-009. |
 | 1.4 | Com base em documento oficial (lista de cartas do ME1), substituído o conceito "Card Variant" por três conceitos distintos: Rarity (raridade, atributo da Card), Finish (catálogo de acabamentos físicos) e Card Finish (associação Card+Finish). Termos "Printing Variant" e "Finish Variant" descartados definitivamente. Relação Inventory Item atualizada para referenciar Card Finish, não a Card diretamente. Ver ADR-010 (substitui ADR-009 nesse ponto). |
+| 1.5 | Expandida a métrica de contagem de duas para três (Official Card Count, Base Set Count, Collectible Finish Count). Adicionadas as entidades Card Category (com taxonomia de Trainer sinalizada como em aberto), Pokémon, Illustrator e Energy Type. Corrigida a suposição de que toda Card possui um Pokémon associado — relação agora condicional à Card Category. Adicionada seção "Atributos e Relações da Card" aplicando o novo AP-014. |

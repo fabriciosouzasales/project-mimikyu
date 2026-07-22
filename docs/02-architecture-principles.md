@@ -86,6 +86,20 @@ O patrimônio do usuário deve referenciar o catálogo sem duplicar sua identida
 
 Informações analíticas devem ser derivadas sempre que seu armazenamento redundante não for necessário.
 
+## AP-013 — Permanence Principle
+
+Uma informação deve pertencer à entidade cuja existência permanece verdadeira mesmo quando todas as demais entidades desaparecem.
+
+Exemplo de aplicação: o nome, o HP e os ataques de uma Card continuam verdadeiros mesmo que nenhum usuário possua um exemplar dela — por isso pertencem à Card. Já o estado de conservação, o preço pago e uma certificação PSA deixam de existir se o exemplar físico deixar de existir — por isso pertencem ao Inventory Item.
+
+Este princípio orienta, em conjunto com ADR-006, a decisão sobre a qual responsabilidade conceitual (Catálogo Editorial, Patrimônio do Usuário ou Analytics) uma nova informação pertence.
+
+## AP-014 — Editorial Reuse Principle
+
+Tudo aquilo que pode ser compartilhado entre milhares de Cards deve possuir identidade própria, em vez de ser repetido como texto solto.
+
+Exemplo de aplicação: um Pokémon (ex.: Bulbasaur) aparece em dezenas de Sets; um Illustrator ilustra centenas de Cards; um Energy Type (ex.: Água, Fogo) é compartilhado por milhares de Cards. Esses conceitos existem independentemente de qualquer Card específica e tendem a se tornar entidades de referência do catálogo, não colunas de texto repetidas.
+
 ---
 
 # Revision History
@@ -94,6 +108,7 @@ Informações analíticas devem ser derivadas sempre que seu armazenamento redun
 |-|-|
 |1.0|Criação inicial dos princípios arquiteturais oficiais.|
 |1.1|Correção de separadores markdown mal formatados (`\---`) e padronização do nível de heading e formatação de AP-010 a AP-012.|
+|1.2|Adicionados AP-013 (Permanence Principle) e AP-014 (Editorial Reuse Principle), descobertos e validados durante a modelagem detalhada da Card.|
 
 
 
