@@ -32,8 +32,8 @@ docs/
 ├── 03-documentation-architecture.md
 ├── 04-domain-model.md
 ├── 05-modelo-de-dados.md            (stub — conteúdo pendente)
-├── 06-pipeline-importacao.md        (stub — conteúdo pendente)
-├── 07-catalogo-editorial.md         (stub — conteúdo pendente)
+├── 06-pipeline-importacao.md
+├── 07-catalogo-editorial.md
 ├── 08-decisoes-arquiteturais.md     (stub — conteúdo pendente)
 ├── adr/
 │   ├── ADR-INDEX.md
@@ -47,7 +47,7 @@ docs/
     └── ...
 ```
 
-Os documentos `04` a `08` seguem a mesma numeração sequencial dos documentos centrais (`00`-`03`). `04-domain-model.md` já possui conteúdo em elaboração; `05` a `08` são stubs (apenas título) cujo escopo definitivo será estabelecido durante a fase de consolidação documental.
+Os documentos `04` a `08` seguem a mesma numeração sequencial dos documentos centrais (`00`-`03`). `04-domain-model.md`, `06-pipeline-importacao.md` e `07-catalogo-editorial.md` já possuem conteúdo em elaboração; `05` e `08` permanecem stubs (apenas título) cujo escopo definitivo será estabelecido durante a fase de consolidação documental.
 
 ---
 
@@ -170,3 +170,4 @@ Os documentos podem utilizar os seguintes status:
 |---------|-----------|
 | 1.0 | Criação da arquitetura oficial da documentação. |
 | 1.1 | Atualização da árvore de estrutura documental para refletir os arquivos `04-domain-model.md` a `08-decisoes-arquiteturais.md` já existentes no repositório. |
+| 1.2 | Atualizada a nota de status: `06-pipeline-importacao.md` e `07-catalogo-editorial.md` deixaram de ser stubs e já possuem conteúdo em elaboração. |

@@ -82,9 +82,34 @@ Informações derivadas deverão ser identificadas explicitamente para evitar qu
 
 ---
 
+# Concept Classification
+
+Além de responder às três perguntas da Modeling Rule, todo conceito deverá ser classificado em uma das três categorias abaixo. Essa classificação orienta diretamente a modelagem lógica e física — ela ajuda a definir quais conceitos merecem uma tabela própria e quais devem permanecer como parte de outra entidade.
+
+## 1. Identity Entity (Entidade de Identidade)
+
+Possui identidade própria e pode ser referenciada por muitas outras entidades.
+
+Exemplos: Card, Set, Pokémon, Illustrator.
+
+## 2. Value Object (Objeto de Valor)
+
+Não possui identidade própria. Existe apenas como parte de outra entidade e não faz sentido isoladamente.
+
+Exemplos: HP, Weakness, Resistance, Retreat Cost, Regulation Mark.
+
+## 3. Reference Data (Tabela de Domínio)
+
+Catálogo pequeno, controlado e reutilizado por todo o sistema.
+
+Exemplos: Rarity, Card Category, Trainer Subcategory, Finish.
+
+---
+
 # Revision History
 
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação inicial do padrão de modelagem de domínio. |
 | 1.1 | Padronização do cabeçalho (Título, Arquivo, Escopo, Dependências, Documentos Relacionados) e correção de estrutura de seções (separadores e nível de heading). |
+| 1.2 | Adicionada a seção Concept Classification (Identity Entity / Value Object / Reference Data), descoberta durante a modelagem detalhada da Card. |

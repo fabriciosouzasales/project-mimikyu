@@ -11,6 +11,8 @@ Esta pasta contém a documentação oficial do Project Mimikyu.
 | [Architecture Principles](02-architecture-principles.md) | Define os princípios que orientam decisões arquiteturais. |
 | [Documentation Architecture](03-documentation-architecture.md) | Define a organização e a governança da documentação. |
 | [Domain Model](04-domain-model.md) | Define o modelo conceitual do domínio, anterior à modelagem lógica e física. *(Em elaboração)* |
+| [Pipeline de Importação](06-pipeline-importacao.md) | Estratégia de importação e sincronização de fontes externas. *(Em elaboração)* |
+| [Catálogo Editorial](07-catalogo-editorial.md) | Estratégia de captura e disponibilização de dados do catálogo. *(Em elaboração)* |
 
 ## Documentation Areas
 

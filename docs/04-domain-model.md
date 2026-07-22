@@ -9,7 +9,7 @@
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio. Não contém SQL nem detalhes físicos de implementação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `02-architecture-principles.md` (AP-013, AP-014), `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `02-architecture-principles.md` (AP-013, AP-014), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -32,10 +32,12 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 - Set
 - Card
 - Card Category
+- Trainer Subcategory
 - Card Translation
 - Rarity
 - Finish
 - Card Finish
+- Card Details (Pokémon Card Details / Trainer Card Details)
 - Pokémon
 - Illustrator
 - Energy Type
@@ -471,19 +473,19 @@ Formas de impressão, idiomas, condições físicas, certificações e exemplare
 
 Aplicando o Princípio da Reutilização Editorial (AP-014), nem toda informação associada a uma Card deve ser um simples campo de texto: informações compartilhadas entre milhares de Cards tendem a se tornar entidades de referência próprias, evitando duplicação e permitindo consistência (ex.: corrigir o nome de um Illustrator em um único lugar).
 
-Dimensões já identificadas, associadas à Card:
+Informações comuns a toda Card, independentemente da categoria:
 
-- **Card Category** — classifica a Card (Pokémon, Trainer, Energy, entre outras). Ver seção própria, abaixo.
+- **Card Category** — classifica a Card (Pokémon ou Trainer). Ver seção própria, abaixo.
 - **Card Translation** — conteúdo editorial por idioma. Ver seção própria, acima.
 - **Rarity** — classificação de raridade. Ver seção própria, acima.
-- **Card Finish** — acabamentos físicos disponíveis. Ver seção própria, abaixo.
-- **Pokémon** — quando a Card Category for Pokémon, a Card referencia um Pokémon (entidade de referência, reutilizada por todas as Cards que representam aquele mesmo Pokémon através de diferentes Sets). Cards de outras categorias (Trainer, Energy) não possuem essa referência.
+- **Card Finish** — acabamentos físicos disponíveis. Ver seção própria, acima.
 - **Illustrator** — o ilustrador responsável pela arte da Card; entidade de referência, reutilizada por todas as Cards ilustradas pela mesma pessoa.
-- **Energy Type** — o tipo elemental da Card (ex.: Água, Fogo, Planta, Elétrico), quando aplicável; entidade de referência.
 
-Dimensões identificadas mas ainda não detalhadas segundo o método de STD-002 (não se sabe ainda se serão entidades de referência próprias ou atributos simples da Card): Attack, Ability, Weakness, Resistance, Retreat Cost, Regulation Mark, Legality, Evolves From, Evolves To. Serão avaliadas em ciclos futuros de documentação.
+Informações específicas por categoria, agrupadas em Card Details (ver seção própria, abaixo): quando a Card Category for Pokémon, a Card referencia um Pokémon e conhece HP, Stage, Attacks, Ability, Weakness, Resistance, Retreat Cost e Energy Type (Pokémon Card Details); quando for Trainer, conhece apenas Effect (Trainer Card Details). Cards de categoria Trainer não possuem referência a Pokémon.
 
-> **Importante:** nem toda Card representa um Pokémon. A hipótese inicial de que toda Card se relacionaria diretamente com um Pokémon foi identificada como um erro de modelagem — uma confusão entre o domínio Pokémon (o personagem/espécie) e o domínio Pokémon TCG (o jogo de cartas). Existem Cards de categoria Trainer (ex.: Acerola — Supporter; Poké Pad — Item; Torre Prisma — Stadium) e Energy que não representam nenhum Pokémon. Essa relação é, portanto, condicional à Card Category, não universal.
+> **Importante:** nem toda Card representa um Pokémon. A hipótese inicial de que toda Card se relacionaria diretamente com um Pokémon foi identificada como um erro de modelagem — uma confusão entre o domínio Pokémon (o personagem/espécie) e o domínio Pokémon TCG (o jogo de cartas). Cards de categoria Trainer (ex.: Acerola — Supporter; Poké Pad — Item; Torre Prisma — Stadium) não representam nenhum Pokémon. Essa relação é, portanto, condicional à Card Category, não universal (ver ADR-011).
+
+Nem toda informação acima precisa necessariamente de um campo estruturado e pesquisável desde a primeira versão — ver "Nota sobre estruturação de dados" na seção Card Details, ADR-012 e `07-catalogo-editorial.md`.
 
 ---
 
@@ -797,13 +799,12 @@ Card
 
 ### O que é?
 
-Classifica a natureza de uma Card dentro do jogo. Corresponde à tabela física já existente `card_category`.
+Classifica a natureza editorial primária de uma Card pertencente a um Set, respondendo: *esta posição oficial do Set representa uma carta de Pokémon ou uma carta de Treinador?* Corresponde à tabela física já existente `card_category`. Classificação: Reference Data (Tabela de Domínio).
 
-Valores confirmados até o momento:
+Valores no escopo do catálogo numerado de um Set:
 
-- Pokémon;
-- Trainer — famílias observadas: Item, Supporter, Stadium, Tool;
-- Energy.
+- **Pokémon**;
+- **Trainer (Treinador)** — exige obrigatoriamente uma Trainer Subcategory (ver abaixo).
 
 ---
 
@@ -813,7 +814,8 @@ Card Category não representa:
 
 - uma Rarity;
 - um Finish;
-- uma relação direta e universal com a entidade Pokémon (ver "Atributos e Relações da Card", acima) — apenas Cards de categoria Pokémon possuem essa referência.
+- um Energy Type (tipo elemental de uma carta de Pokémon — ver Energy Type, abaixo; não confundir com cartas de Energia, que não fazem parte deste catálogo numerado);
+- uma relação direta e universal com a entidade Pokémon — apenas Cards de categoria Pokémon possuem essa referência (obrigatória nesse caso; inexistente para Trainer).
 
 ---
 
@@ -823,16 +825,30 @@ Evita a suposição incorreta de que toda Card representa um Pokémon. Cards com
 
 ---
 
-### ⚠️ Questão em Aberto — Taxonomia de Card Category
+### Decisão de Escopo — Cartas de Energia
 
-A discussão histórica que originou esta seção **não foi concluída** nos anexos processados até este ciclo (limitado a 20 anexos; Fabrício sinalizou que enviará um complemento).
+Cartas de Energia **não são tratadas como Cards do Set** neste modelo, porque, segundo a regra definida para o domínio, elas:
 
-Ainda não está definido:
+- não ocupam uma posição na numeração oficial do Set;
+- não participam da contagem `001/132` até `188/132` (Official Card Count);
+- não influenciam o progresso de conclusão do Set;
+- não aparecem como itens obrigatórios no checklist oficial da coleção.
 
-- se "Trainer" é um valor armazenado de Card Category, com Item/Supporter/Stadium/Tool sendo uma subclassificação dentro dele; ou
-- se Item/Supporter/Stadium/Tool são tratados como valores de Card Category no mesmo nível de Pokémon e Energy (sem um valor "Trainer" intermediário armazenado).
+Consequentemente, Card Category possui apenas dois valores neste catálogo: **Pokémon** e **Trainer**. Isso não significa que uma carta física de Energia nunca poderá ser controlada pelo sistema — apenas que ela não pertence a este catálogo numerado. Caso futuramente exista necessidade concreta de controlar Energias avulsas, elas deverão ser avaliadas em outro contexto (ex.: uma entidade específica de acessório/suplemento), não antecipado por este documento.
 
-Nenhuma das duas estruturas deve ser assumida como definitiva até a continuação desta discussão ser recebida e analisada.
+---
+
+### Regra de Integridade Conceitual
+
+```text
+Se Card Category = Pokémon:
+    Trainer Subcategory deve ser vazio;
+    referência a Pokémon é obrigatória.
+
+Se Card Category = Trainer:
+    Trainer Subcategory é obrigatória;
+    referência a Pokémon deve ser vazia.
+```
 
 ---
 
@@ -849,26 +865,72 @@ Cada Card possui exatamente uma Card Category.
 
 ---
 
+## Trainer Subcategory (Subcategoria de Treinador)
+
+### O que é?
+
+Classifica uma Card de categoria Trainer em uma das famílias oficiais de cartas de Treinador. Classificação: Reference Data (Tabela de Domínio).
+
+Valores:
+
+- Item;
+- Supporter (Apoiador);
+- Stadium (Estádio);
+- Tool (Ferramenta).
+
+---
+
+### Qual problema resolve?
+
+Permite diferenciar as regras de jogo aplicáveis dentro da família Trainer (ex.: um Stadium possui efeito permanente em campo; um Item ou Supporter possui apenas um efeito pontual).
+
+---
+
+### Relacionamentos
+
+```text
+Card (Category = Trainer)
+ N
+ │
+ └── 1 Trainer Subcategory
+```
+
+Obrigatória quando, e somente quando, a Card Category for Trainer.
+
+---
+
 ## Pokémon
 
 ### O que é?
 
-Representa a espécie/personagem Pokémon (ex.: Bulbasaur) referenciada por uma Card de categoria Pokémon. Entidade de referência, reutilizada por todas as Cards que representam aquele mesmo Pokémon em diferentes Sets (aplicação do Princípio da Reutilização Editorial, AP-014).
+Representa a identidade mínima do personagem/espécie Pokémon (ex.: Bulbasaur), referenciada por Cards de categoria Pokémon. Entidade de referência (Identity Entity), reutilizada por todas as Cards que representam aquele mesmo Pokémon em diferentes Sets (Princípio da Reutilização Editorial, AP-014).
+
+O Pokémon existe independentemente do Pokémon TCG — mas o Project Mimikyu modela apenas o subconjunto mínimo necessário ao colecionismo, não o domínio completo da franquia (ver ADR-011).
+
+Características conceituais mínimas propostas:
+
+- id (identificador);
+- national_dex_number (número na Pokédex Nacional);
+- canonical_name (nome canônico).
 
 ---
 
 ### O que não é?
 
-Pokémon não representa:
+Pokémon não representa nem armazena:
 
-- uma Card específica — uma mesma espécie de Pokémon corresponde a muitas Cards distintas, uma por Set em que aparece;
+- uma Card específica — uma mesma espécie corresponde a muitas Cards distintas, uma por Set em que aparece;
+- HP, ataques, fraqueza, resistência, custo de recuo ou estágio evolutivo **impressos** — esses valores pertencem à Card (ou à Pokémon Card Details, ver abaixo), pois uma mesma espécie pode ter valores diferentes impressos em Cards diferentes (ex.: dois "Bulbasaur" em Sets distintos podem ter HP diferente);
+- dados de batalha dos jogos eletrônicos (estatísticas, movimentos aprendidos por nível, habitat, natureza, gerações/regiões) — fora do escopo do Project Mimikyu, salvo se algum desses dados vier a ter valor direto e concreto para o colecionismo;
 - uma categoria de Card (ver Card Category, acima) — nem toda Card possui um Pokémon associado.
 
 ---
 
 ### Qual problema resolve?
 
-Evita duplicar o nome e demais informações de uma espécie de Pokémon em cada uma das dezenas de Cards que a representam ao longo de diferentes Sets.
+Evita dois extremos: (1) modelar toda a franquia Pokémon, transformando o sistema em uma Pokédex completa e desviando do produto; e (2) tratar o nome do Pokémon apenas como texto solto em cada Card, o que impediria relacionar todas as Cards do mesmo Pokémon (ex.: pesquisar todas as cartas do Pikachu, montar uma coleção temática de Charizard, ou construir uma Pokédex pessoal do usuário).
+
+O equilíbrio adotado é uma entidade Pokémon mínima e orientada ao colecionismo: *uma informação sobre Pokémon só entra no Project Mimikyu quando for necessária para identificar, pesquisar, agrupar ou analisar Cards e coleções* (ADR-011).
 
 ---
 
@@ -878,10 +940,8 @@ Evita duplicar o nome e demais informações de uma espécie de Pokémon em cada
 Pokémon
  1
  │
- └── N Card (apenas Cards de categoria Pokémon)
+ └── N Card (apenas Cards de categoria Pokémon; pokemon_id obrigatório)
 ```
-
-*Estrutura detalhada de características pendente — a ser avaliada em ciclo futuro de documentação.*
 
 ---
 
@@ -889,7 +949,7 @@ Pokémon
 
 ### O que é?
 
-Representa a pessoa responsável pela arte de uma Card. Entidade de referência, reutilizada por todas as Cards ilustradas pela mesma pessoa (aplicação do Princípio da Reutilização Editorial, AP-014).
+Representa a pessoa responsável pela arte de uma Card. Entidade de referência (Identity Entity), reutilizada por todas as Cards ilustradas pela mesma pessoa (aplicação do Princípio da Reutilização Editorial, AP-014).
 
 ---
 
@@ -916,7 +976,13 @@ Illustrator
 
 ### O que é?
 
-Representa o tipo elemental de uma Card, quando aplicável (ex.: Água, Fogo, Planta, Elétrico). Entidade de referência, compartilhada por milhares de Cards (aplicação do Princípio da Reutilização Editorial, AP-014).
+Representa o tipo elemental de uma Card de categoria Pokémon, quando aplicável (ex.: Água, Fogo, Planta, Elétrico). Entidade de referência (Reference Data), compartilhada por milhares de Cards (aplicação do Princípio da Reutilização Editorial, AP-014).
+
+---
+
+### O que não é?
+
+Não deve ser confundido com Card Category = Energy (cartas de Energia), que estão fora do escopo do catálogo numerado (ver "Decisão de Escopo — Cartas de Energia", na seção Card Category). Energy Type é um atributo elemental de uma carta de Pokémon; cartas de Energia são um tipo de carta inteiramente diferente.
 
 ---
 
@@ -926,10 +992,59 @@ Representa o tipo elemental de uma Card, quando aplicável (ex.: Água, Fogo, Pl
 Energy Type
  1
  │
- └── N Card
+ └── N Card (Pokémon Card Details)
 ```
 
 *Estrutura detalhada de características pendente — a ser avaliada em ciclo futuro de documentação.*
+
+---
+
+## Card Details (Detalhes Específicos da Carta)
+
+### O que é?
+
+Estrutura que agrupa as informações específicas de uma Card, que variam conforme sua Card Category — em oposição às informações comuns a toda Card (Set, Number, Category, Rarity, Regulation Mark, Illustrator, etc.).
+
+Para o Pokémon TCG, assume duas formas:
+
+```text
+Card
+ │
+ └── Card Details (Pokémon TCG)
+        ├── Pokémon Card Details (quando Category = Pokémon)
+        └── Trainer Card Details (quando Category = Trainer)
+```
+
+**Pokémon Card Details** pode conhecer: HP, Stage (estágio evolutivo), Attacks, Ability, Weakness, Resistance, Retreat Cost, Energy Type.
+
+**Trainer Card Details** conhece apenas: Effect (texto de efeito). Algumas regras podem variar conforme a Trainer Subcategory, mas continuam sendo Cards da categoria Trainer.
+
+---
+
+### O que não é?
+
+Card Details **não é um conceito genérico da plataforma**. Ele pertence especificamente ao módulo Pokémon TCG:
+
+```text
+Catalog Domain (genérico, multi-TCG)
+├── Game
+├── Expansion
+├── Set
+└── Card
+
+Pokémon TCG Domain (específico)
+├── Pokémon
+├── Pokémon Card Details
+└── Trainer Card Details
+```
+
+`Card → Pokémon` **não deve ser uma regra universal da plataforma** — essa associação pertence exclusivamente ao módulo específico do Pokémon TCG. Isso preserva a expansão futura para outros TCGs (Magic, Lorcana, One Piece) sem obrigá-los a adotar conceitos como Pokémon, HP ou evolução (ver ADR-003, AP-010 e ADR-011).
+
+---
+
+### Nota sobre estruturação de dados (ver ADR-012)
+
+Nem todo campo listado acima (HP, Attacks, Ability, Weakness, Resistance, Retreat Cost, Evolution Stage, texto de regras) precisa necessariamente virar uma coluna pesquisável desde a primeira versão. Ver `07-catalogo-editorial.md` e ADR-012 para o critério de quando uma informação deve receber estrutura própria versus permanecer disponível apenas através da imagem oficial da Card.
 
 ---
 
@@ -961,3 +1076,4 @@ Energy Type
 | 1.3 | Resolvida a questão de identidade de Card Variant: escopo restrito a diferenças de acabamento sobre a mesma posição catalográfica (Standard, Reverse Holo, etc.). Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow passam a ser tratadas explicitamente como Cards independentes, não como variantes — consistente com a decisão já registrada por Fabrício e agora fundamentada por ADR-009. |
 | 1.4 | Com base em documento oficial (lista de cartas do ME1), substituído o conceito "Card Variant" por três conceitos distintos: Rarity (raridade, atributo da Card), Finish (catálogo de acabamentos físicos) e Card Finish (associação Card+Finish). Termos "Printing Variant" e "Finish Variant" descartados definitivamente. Relação Inventory Item atualizada para referenciar Card Finish, não a Card diretamente. Ver ADR-010 (substitui ADR-009 nesse ponto). |
 | 1.5 | Expandida a métrica de contagem de duas para três (Official Card Count, Base Set Count, Collectible Finish Count). Adicionadas as entidades Card Category (com taxonomia de Trainer sinalizada como em aberto), Pokémon, Illustrator e Energy Type. Corrigida a suposição de que toda Card possui um Pokémon associado — relação agora condicional à Card Category. Adicionada seção "Atributos e Relações da Card" aplicando o novo AP-014. |
+| 1.6 | Resolvida a taxonomia de Card Category: apenas Pokémon e Trainer no catálogo numerado (cartas de Energia fora de escopo); adicionada Trainer Subcategory (Item/Supporter/Stadium/Tool, obrigatória para Trainer). Pokémon finalizado como entidade mínima (id, national_dex_number, canonical_name) — HP/ataques/etc. pertencem à Card, não ao Pokémon, pois variam entre publicações da mesma espécie. Adicionado o padrão Card Details / Pokémon Card Details / Trainer Card Details, explicitamente não-genérico (específico do módulo Pokémon TCG). Ver ADR-011 e ADR-012. |
