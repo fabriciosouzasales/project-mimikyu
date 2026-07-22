@@ -40,7 +40,25 @@ Inclui:
 
 # 2. Naming Conventions
 
-*Documentação pendente.*
+O banco de dados é tratado como um produto do projeto, não apenas como suporte da aplicação — por isso a nomenclatura abaixo é uma convenção permanente e única para todo o projeto, nunca misturando estilos entre tabelas ou módulos.
+
+## Tabelas
+
+Nome no singular, em inglês, minúsculas, no formato `snake_case`.
+
+Exemplos: `game`, `expansion`, `set`, `card`, `collection`, `collection_item`.
+
+## Colunas
+
+Minúsculas, no formato `snake_case`. Nunca `camelCase`, `PascalCase` ou notação húngara.
+
+Proibido: `gameId`, `GameID`, `idGame`.
+
+Correto: `game_id`.
+
+## Colunas Reservadas Comuns
+
+`id`, `status`, `created_at`, `updated_at`, `deleted_at`, `created_by`, `updated_by`, `deleted_by` (ver Seção 4 — Audit Model) possuem significado padronizado em todo o projeto e não devem ser reutilizadas com outro propósito.
 
 ---
 
@@ -78,13 +96,19 @@ Este padrão deverá ser seguido por todas as entidades persistidas.
 
 # 5. Primary Keys
 
-*Documentação pendente.*
+Toda tabela possui uma chave primária técnica chamada `id`, do tipo UUID (ver Seção 4 — Audit Model).
+
+O `id` é a identidade técnica permanente do registro: não deve ser reaproveitado, reordenado, nem carregar significado de negócio.
+
+Chaves de negócio (ex.: código do Set; Set + Número da Card) representam a identidade de domínio (ver `04-domain-model.md`) e podem receber restrições de unicidade próprias, mas não substituem o `id` técnico como chave primária da tabela.
 
 ---
 
 # 6. Foreign Keys
 
-*Documentação pendente.*
+Toda chave estrangeira segue o padrão `<entidade_referenciada>_id`, referenciando a coluna `id` (UUID) da tabela relacionada.
+
+Exemplos: `game_id` (em `expansion`), `set_id` (em `card`), `card_id` (em `card_finish`, `collection_entry`).
 
 ---
 
@@ -117,3 +141,4 @@ Este padrão deverá ser seguido por todas as entidades persistidas.
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação inicial do documento. |
+| 1.1 | Preenchidas as Seções 2 (Naming Conventions), 5 (Primary Keys) e 6 (Foreign Keys): tabelas em `snake_case` singular, colunas em `snake_case` (nunca camelCase/PascalCase), chave primária `id` (UUID) como identidade técnica, chave estrangeira no padrão `<entidade_referenciada>_id`. |

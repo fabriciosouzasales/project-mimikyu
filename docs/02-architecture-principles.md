@@ -39,6 +39,8 @@ A solução mais simples que atenda adequadamente à necessidade deve ser prefer
 
 A arquitetura deve permitir evolução e crescimento, sem introduzir antecipadamente mecanismos, componentes ou abstrações que ainda não resolvam um problema real.
 
+Exemplo de aplicação (Princípio da Simplicidade Inicial): nenhuma entidade nasce preparada para todos os cenários futuros — apenas para os cenários já conhecidos. Campos não devem ser adicionados por hipótese ("porque um dia talvez sejam úteis"); o modelo evolui quando uma necessidade real surgir.
+
 ## AP-005 — Documentation Supports Decisions, Not Bureaucracy
 
 A documentação deve preservar contexto, orientar execução e reduzir retrabalho. Ela não deve existir apenas para ampliar o volume documental.
@@ -106,6 +108,12 @@ O catálogo deve armazenar inicialmente apenas os dados estruturados necessário
 
 Este princípio evita dois extremos: modelar exaustivamente cada informação antes de haver necessidade comprovada (ver AP-004), e perder informação por não estruturar nada além do mínimo indispensável — a imagem oficial garante que nenhuma informação editorial é descartada, apenas adiada.
 
+## AP-016 — Catalog Uniqueness Principle
+
+O catálogo é único; as formas de colecionar são infinitas.
+
+O catálogo editorial (Game, Expansion, Set, Card e demais conceitos editoriais) nunca deve ser adaptado para atender a um tipo específico de coleção. A flexibilidade necessária para suportar diferentes formas de colecionar — oficiais, temáticas ou personalizadas — pertence exclusivamente à entidade Collection (ver ADR-014), nunca ao catálogo.
+
 ---
 
 # Revision History
@@ -116,6 +124,7 @@ Este princípio evita dois extremos: modelar exaustivamente cada informação an
 |1.1|Correção de separadores markdown mal formatados (`\---`) e padronização do nível de heading e formatação de AP-010 a AP-012.|
 |1.2|Adicionados AP-013 (Permanence Principle) e AP-014 (Editorial Reuse Principle), descobertos e validados durante a modelagem detalhada da Card.|
 |1.3|Adicionado AP-015 (Progressive Catalog Enrichment), formalizando o critério de estruturação de dados já registrado em ADR-012.|
+|1.4|Adicionado AP-016 (Catalog Uniqueness Principle), formalizando que o catálogo nunca deve ser adaptado para um tipo específico de coleção — a flexibilidade pertence à Collection (ver ADR-014). Adicionado exemplo de aplicação ("Princípio da Simplicidade Inicial") a AP-004.|
 
 
 
