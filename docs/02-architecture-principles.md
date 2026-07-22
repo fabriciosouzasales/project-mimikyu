@@ -70,6 +70,11 @@ Como consequência, o Project Mimikyu suporta múltiplos Trading Card Games (TCG
 Os conceitos editoriais do domínio devem possuir identidade única e independente de regionalizações.
 Características como idioma, distribuição ou impressão pertencem à representação do exemplar e não alteram a identidade editorial do catálogo.
 
+## AP-012 — Separation of Catalog, Ownership and Analytics
+Informações editoriais oficiais, informações sobre exemplares físicos e informações analíticas devem possuir responsabilidades conceituais distintas.
+O catálogo não deve depender de dados dos usuários.
+O patrimônio do usuário deve referenciar o catálogo sem duplicar sua identidade editorial.
+Informações analíticas devem ser derivadas sempre que seu armazenamento redundante não for necessário.
 
 ---
 

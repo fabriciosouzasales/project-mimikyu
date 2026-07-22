@@ -315,8 +315,6 @@ Essa relação não representa uma definição automática de colunas ou atribut
 
 ## Card
 
-## Card (Carta)
-
 ### O que é?
 
 Uma **Card (Carta)** representa uma posição oficial do catálogo pertencente a um **Set (Set)**.
