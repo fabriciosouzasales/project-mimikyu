@@ -68,9 +68,11 @@ Diferente de um Set fechado (onde `secret_set_size = total_set_size - base_set_s
 
 ## Restrições / Pendências
 
-- os cinco Sets já cadastrados (`ME1`–`ME4`) permanecem corretos e não precisam ser recriados; é necessária apenas uma migration (`122 - Adapt Card Set for Promo Series`) para ampliar `set_type`, deslocar `release_order` dos Sets existentes (`+1`, para abrir espaço para `ME0` na posição `1`) e adicionar a regra condicional de quantidades — ainda não executada (ver `05-modelo-de-dados.md`, seção Set);
+- **Executado.** Os cinco Sets já cadastrados (`ME1`–`ME4`) permaneceram corretos e não precisaram ser recriados. A migration `122 - Adapt Card Set for Promo` (nome real, não "Promo Series") foi executada dentro de uma transação (`BEGIN`/`COMMIT`): ampliou `set_type` para incluir `PROMO`, deslocou o `release_order` dos cinco Sets existentes em duas etapas (evitando violar a constraint `UNIQUE` durante a operação) e adicionou a constraint `ck_card_set_promo_size`. O registro `ME0 — ME Black Star Promos` foi inserido pela Query `821 - Seed Promo Card Set`, com `base_set_size = total_set_size = 89` (quantidade real informada por Fabrício). Confirmado por validação (`920`, versão 2.0) — ver `05-modelo-de-dados.md`, seção Set.
+- **Divergência entre o recomendado e o executado, sinalizada e não resolvida:** esta ADR recomendava um índice único parcial (`CREATE UNIQUE INDEX ... WHERE set_type = 'PROMO'`) para impedir mais de uma série promocional por Expansion ao nível do banco. A migration `122` efetivamente executada **não incluiu esse índice** — a regra hoje é apenas verificada pela Query de validação (`920`), não impedida na escrita. Registrado como pendência em aberto, não decidido unilateralmente aqui.
 - a atualização de `base_set_size`/`total_set_size` da série promocional conforme novas cartas são catalogadas não é automatizada nesta fase — depende da existência da tabela `card`;
-- esta ADR não define regras específicas sobre a própria Card promocional (numeração, se possui código próprio de carta, etc.) — isso fica para a modelagem da entidade Card, próximo ciclo.
+- esta ADR não define regras específicas sobre a própria Card promocional (numeração, se possui código próprio de carta, etc.) — isso fica para a modelagem da entidade Card, próximo ciclo;
+- **Nova pendência, identificada após a execução:** a Query `820 - Seed Card Set` ainda não foi reescrita para incluir o Set promocional como parte do snapshot completo da Expansion (hoje `ME0` só existe via a Query separada `821`). Decisão já tomada (consolidar em `820`, usando `ON CONFLICT ... DO UPDATE`), SQL ainda não apresentado/executado — ver `05-modelo-de-dados.md`, seção Set, "Pendência — Reescrita da Query 820".
 
 ---
 
@@ -100,3 +102,4 @@ Considerada e desenvolvida inicialmente (índice único parcial para `code IS NU
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da decisão: cartas promocionais (Black Star Promos) modeladas como `card_set` do tipo `PROMO`, sem entidade separada, usando uma convenção fixa de preenchimento (não campos nulos). Documentada a proposta intermediária de campos opcionais, descartada em favor da convenção fixa. |
+| 1.1 | Registrada a execução real: migration `122 - Adapt Card Set for Promo` (nome corrigido) executada em transação; Seed `821` inseriu `ME0` com `base_set_size = total_set_size = 89`; validação `920` v2.0 confirmada. Sinalizada divergência entre o índice único parcial recomendado (não implementado) e o que foi de fato executado. Adicionada pendência da reescrita de `820` para incluir o Set promocional no snapshot completo. |

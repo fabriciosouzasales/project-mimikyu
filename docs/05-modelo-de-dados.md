@@ -441,7 +441,7 @@ A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver 
 
 # Set
 
-Status: **Tabela, trigger e seed executados no Supabase — primeiro núcleo do catálogo editorial concluído** (cinco Sets da Expansion `ME`, dados validados contra folhas oficiais). Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Pendências, identificadas antes de iniciar a entidade Card** (ver "Disciplina do processo", abaixo): (1) Query `920 - Validate Card Set` redigida mas ainda sem execução/confirmação registrada; (2) migration `122 - Adapt Card Set for Promo Series`, para suportar o tipo `PROMO` (ver "Extensão Planejada — Card Set Promocional", abaixo; ADR-015), ainda não executada.
+Status: **Pacote técnico concluído** — tabela, trigger, suporte a Sets promocionais (`PROMO`, migration `122`), seed (Sets regulares/especiais via `820` + Set promocional via `821`) e validação (`920`, versão 2.0) executados e confirmados por Fabrício ("Tudo ok"). Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Único item aberto:** reescrever a Query `820` para representar o estado completo e atual da Expansion (incluindo o Set promocional) usando `ON CONFLICT ... DO UPDATE` — decisão já tomada, SQL reescrito ainda não apresentado/executado (ver "Pendência — Reescrita da Query 820", abaixo).
 
 ### Disciplina do processo
 
@@ -491,7 +491,7 @@ updated_at
 
 **name** — Nome de apresentação do catálogo (ex.: `Mega Evolution`, `Phantasmal Flames`, `Ascended Heroes`, `Perfect Order`). Localização futura tratada separadamente, sem duplicar a identidade do Set.
 
-**set_type** — Classificação editorial: `REGULAR`, `SPECIAL` ou `PROMO` (este último em processo de adição via migration `122` — ver "Extensão Planejada", abaixo; ADR-015). Sem tabela de referência própria — poucos valores estáveis, sem atributos associados; também não usa `ENUM` nativo do PostgreSQL, cuja evolução é menos flexível que uma restrição `CHECK` (ver `04-domain-model.md`, seção Set — "Classificação Editorial").
+**set_type** — Classificação editorial: `REGULAR`, `SPECIAL` ou `PROMO` (este último adicionado via migration `122` — ver "Card Set Promocional", abaixo; ADR-015). Sem tabela de referência própria — poucos valores estáveis, sem atributos associados; também não usa `ENUM` nativo do PostgreSQL, cuja evolução é menos flexível que uma restrição `CHECK` (ver `04-domain-model.md`, seção Set — "Classificação Editorial").
 
 **release_order** — Posição do Set dentro da sequência editorial da Expansion. Não é inferida do `code` — `ME2.5` ocupa uma posição inteira na sequência, mesmo com código fracionário. Único dentro da Expansion (`UNIQUE (expansion_id, release_order)`).
 
@@ -521,13 +521,13 @@ Aplicando o Princípio da Simplicidade Inicial (AP-004):
 
 **Regra 4 — Nome obrigatório.** O nome não pode ser vazio.
 
-**Regra 5 — Classificação editorial restrita.** `set_type` deve ser `REGULAR` ou `SPECIAL` (constraint executada); `PROMO` será incluído pela migration `122`, ainda não executada.
+**Regra 5 — Classificação editorial restrita.** `set_type` deve ser `REGULAR`, `SPECIAL` ou `PROMO` (constraint ampliada pela migration `122`, executada).
 
 **Regra 6 — Quantidades consistentes.** `base_set_size` deve ser positivo; `total_set_size` deve ser maior ou igual a `base_set_size` (não estritamente maior, pois um Set pode não possuir cartas secretas).
 
 **Regra 7 — Exclusão restrita.** Uma Expansion que já possua Sets não pode ser excluída (`ON DELETE RESTRICT`) — sem exclusão em cascata no catálogo editorial.
 
-**Regra 8 — Quantidades de Set promocional (planejada, migration `122`).** Para `set_type = PROMO`, `base_set_size` deve ser igual a `total_set_size` — não representa uma quantidade editorial fechada, mas a quantidade atualmente conhecida de cartas promocionais (ver ADR-015).
+**Regra 8 — Quantidades de Set promocional.** Para `set_type = PROMO`, `base_set_size` deve ser igual a `total_set_size` (constraint `ck_card_set_promo_size`, executada pela migration `122`) — não representa uma quantidade editorial fechada, mas a quantidade atualmente conhecida de cartas promocionais (ver ADR-015).
 
 ## Modelo Físico (PostgreSQL) — Executado
 
@@ -641,76 +641,225 @@ Query: `820 - Seed Card Set` (versão final). Resultado confirmado: `Success. No
 
 Cadastro validado contra as folhas oficiais de verificação de cada Set, arquivadas em `assets/reference-sources/`: `P10346_ME01_Card_List_PTBR.pdf`, `P10347_ME02_Card_List_PTBR.pdf`, `ME02pt5_Card_List_PTBR.pdf`, `P11218_ME03_Card_List_PTBR.pdf`, `ME04_Card_List_PTBR.pdf` (mesmo padrão já usado para a PDF oficial da ADR-010). A quantidade base foi identificada pelo término da numeração regular e pelo início das cartas de raridade especial; a quantidade total corresponde ao último número da folha oficial.
 
-### Validação — Redigida, Execução Ainda Não Confirmada
+### Validação — Executada e Confirmada (versão 2.0)
 
-Segue o novo padrão de três seções para Queries `9xx - Validate` (ver STD-001, Seção 10): (1) validação estrutural, (2) validação dos dados persistidos, (3) validação das regras de negócio derivadas — como `secret_set_size`, que não existe como coluna na tabela, mas faz parte do domínio.
+A primeira versão de `920` (duas seções) foi substituída, antes de ser considerada definitiva, por uma versão mais completa — a Query passou a incluir também o Set promocional e uma bateria de verificações de inconsistência. Segue um padrão de cinco categorias (ver STD-001, Seção 10, revisado): (1) dados persistidos, (2) regras de negócio derivadas, (3) inconsistências, (4) constraints, (5) trigger.
 
 ```sql
--- 1. Validação dos Card Sets (dados persistidos + regra derivada de secretas)
+-- 1. Validação dos dados persistidos
 SELECT
-    game.code                    AS game_code,
-    expansion.code               AS expansion_code,
-    card_set.code                AS card_set_code,
-    card_set.name                AS card_set_name,
-    card_set.set_type,
-    card_set.release_order,
-    card_set.release_date,
-    card_set.base_set_size,
-    card_set.total_set_size,
-    (card_set.total_set_size - card_set.base_set_size)
-        AS secret_set_size,
-    card_set.created_at,
-    card_set.updated_at
+    game.code AS game_code, expansion.code AS expansion_code,
+    card_set.code AS card_set_code, card_set.name AS card_set_name,
+    card_set.set_type, card_set.release_order, card_set.release_date,
+    card_set.base_set_size, card_set.total_set_size,
+    card_set.total_set_size - card_set.base_set_size AS secret_set_size,
+    card_set.created_at, card_set.updated_at
 FROM public.card_set
-INNER JOIN public.expansion
-    ON expansion.id = card_set.expansion_id
-INNER JOIN public.game
-    ON game.id = expansion.game_id
-ORDER BY
-    game.code,
-    expansion.release_order,
-    card_set.release_order;
+INNER JOIN public.expansion ON expansion.id = card_set.expansion_id
+INNER JOIN public.game ON game.id = expansion.game_id
+WHERE game.code = 'POKEMON' AND expansion.code = 'ME'
+ORDER BY card_set.release_order;
 
--- 2. Validação estrutural do trigger
+-- 2. Resumo da Expansion (contagem por tipo)
 SELECT
-    trigger_name,
-    event_manipulation,
-    action_timing,
-    event_object_schema,
-    event_object_table
+    game.code AS game_code, expansion.code AS expansion_code,
+    COUNT(card_set.id) AS card_set_count,
+    COUNT(*) FILTER (WHERE card_set.set_type = 'PROMO') AS promo_set_count,
+    COUNT(*) FILTER (WHERE card_set.set_type = 'REGULAR') AS regular_set_count,
+    COUNT(*) FILTER (WHERE card_set.set_type = 'SPECIAL') AS special_set_count,
+    MIN(card_set.release_order) AS first_release_order,
+    MAX(card_set.release_order) AS last_release_order
+FROM public.card_set
+INNER JOIN public.expansion ON expansion.id = card_set.expansion_id
+INNER JOIN public.game ON game.id = expansion.game_id
+WHERE game.code = 'POKEMON' AND expansion.code = 'ME'
+GROUP BY game.code, expansion.code;
+
+-- 3. Sequência editorial sem lacunas (esperado: zero linhas)
+WITH ordered_card_sets AS (
+    SELECT card_set.id, card_set.code, card_set.release_order,
+        ROW_NUMBER() OVER (PARTITION BY card_set.expansion_id ORDER BY card_set.release_order) AS expected_release_order
+    FROM public.card_set
+    INNER JOIN public.expansion ON expansion.id = card_set.expansion_id
+    INNER JOIN public.game ON game.id = expansion.game_id
+    WHERE game.code = 'POKEMON' AND expansion.code = 'ME'
+)
+SELECT code, release_order, expected_release_order
+FROM ordered_card_sets
+WHERE release_order <> expected_release_order;
+
+-- 4. Regras do Set promocional: code/name/ordem/quantidades (esperado: zero linhas)
+SELECT card_set.code, card_set.name, card_set.set_type
+FROM public.card_set
+INNER JOIN public.expansion ON expansion.id = card_set.expansion_id
+WHERE card_set.set_type = 'PROMO'
+  AND (card_set.code <> expansion.code || '0'
+       OR card_set.name <> expansion.code || ' Black Star Promos'
+       OR card_set.release_order <> 1
+       OR card_set.base_set_size <> card_set.total_set_size);
+
+-- 5. Data do Set promocional = menor data entre os Sets não promocionais (esperado: zero linhas)
+WITH first_non_promo_release AS (
+    SELECT expansion_id, MIN(release_date) AS first_release_date
+    FROM public.card_set
+    WHERE set_type IN ('REGULAR', 'SPECIAL')
+    GROUP BY expansion_id
+)
+SELECT expansion.code, promo.code, promo.release_date, first_release.first_release_date
+FROM public.card_set AS promo
+INNER JOIN public.expansion ON expansion.id = promo.expansion_id
+INNER JOIN first_non_promo_release AS first_release ON first_release.expansion_id = promo.expansion_id
+WHERE promo.set_type = 'PROMO'
+  AND promo.release_date IS DISTINCT FROM first_release.first_release_date;
+
+-- 6. No máximo um Set promocional por Expansion (esperado: zero linhas — sem constraint de banco, ver divergência acima)
+SELECT expansion.code, COUNT(card_set.id) AS promo_set_count
+FROM public.card_set
+INNER JOIN public.expansion ON expansion.id = card_set.expansion_id
+WHERE card_set.set_type = 'PROMO'
+GROUP BY expansion.id, expansion.code
+HAVING COUNT(card_set.id) > 1;
+
+-- 7. Quantidades gerais válidas (esperado: zero linhas)
+SELECT card_set.code, card_set.base_set_size, card_set.total_set_size
+FROM public.card_set
+WHERE card_set.base_set_size <= 0 OR card_set.total_set_size < card_set.base_set_size;
+
+-- 8. Tipos permitidos (esperado: zero linhas)
+SELECT card_set.code, card_set.set_type
+FROM public.card_set
+WHERE card_set.set_type NOT IN ('REGULAR', 'SPECIAL', 'PROMO');
+
+-- 9. Constraints da tabela
+SELECT constraint_name, constraint_type
+FROM information_schema.table_constraints
+WHERE table_schema = 'public' AND table_name = 'card_set'
+ORDER BY constraint_type, constraint_name;
+
+-- 10. Definição das CHECK constraints
+SELECT constraint_name, check_clause
+FROM information_schema.check_constraints
+WHERE constraint_schema = 'public'
+  AND constraint_name IN (
+      SELECT constraint_name FROM information_schema.table_constraints
+      WHERE table_schema = 'public' AND table_name = 'card_set' AND constraint_type = 'CHECK'
+  );
+
+-- 11. Trigger de updated_at
+SELECT trigger_name, event_manipulation, action_timing, event_object_schema, event_object_table
 FROM information_schema.triggers
-WHERE event_object_schema = 'public'
-  AND event_object_table = 'card_set'
-  AND trigger_name = 'trg_card_set_set_updated_at';
+WHERE event_object_schema = 'public' AND event_object_table = 'card_set';
 ```
 
-Query: `920 - Validate Card Set`. Resultado esperado da primeira consulta: cinco linhas (`ME1`/`ME2`/`ME2.5`/`ME3`/`ME4`) com `secret_set_size` igual à coluna "Secretas" da tabela de dados consolidados, acima (56/36/78/36/36). Resultado esperado da segunda: uma linha confirmando `trg_card_set_set_updated_at`/`UPDATE`/`BEFORE`/`public`/`card_set`. **A execução e a confirmação real dos resultados ainda não foram registradas nesta documentação** — não assumir que a Seed está correta até essa validação rodar de fato (ver STD-001, Seção 10).
+Query: `920 - Validate Card Set` (versão 2.0). **Resultado confirmado por Fabrício ("Tudo ok").** A consulta principal (seção 1) retornou os seis Card Sets da Expansion `ME` com `secret_set_size` correto (`ME0`=0, `ME1`=56, `ME2`=36, `ME2.5`=78, `ME3`=36, `ME4`=36); as seções 3 a 8 (inconsistências e tipos) retornaram zero linhas; o trigger `trg_card_set_set_updated_at` confirmado ativo (`BEFORE UPDATE`). **Com esse resultado, o pacote técnico da entidade Card Set está concluído.**
 
-### Extensão Planejada — Card Set Promocional (`PROMO`)
+### Pendência — Reescrita da Query `820`
 
-Antes de iniciar a modelagem de Card, foi identificado que as **cartas promocionais (Black Star Promos)** — ligadas diretamente a uma Expansion, sem código/nome oficial fixo, sem posição própria na sequência de Sets e com quantidade que cresce ao longo do tempo — não se encaixam nas regras atuais de `card_set`, mas também não justificam uma entidade separada. Decisão completa em **ADR-015**; resumo aplicado aqui:
+Imediatamente após confirmar a validação, Fabrício identificou uma inconsistência de processo: a Query `820 - Seed Card Set` (documentada acima, seção "Seed — Versão Final Executada") ainda reflete apenas os cinco Sets regulares/especiais — o Set promocional `ME0` foi inserido por uma Query separada (`821`). **Decisão tomada (ainda não convertida em SQL executado):** `820` deve passar a representar o **estado completo e atual da Expansion `ME`**, incluindo o Set promocional, para que uma reconstrução do banco do zero não dependa de executar `821` separadamente. `821` passa a ser mantida apenas como registro histórico de migrations já executadas, deixando de fazer parte do fluxo principal de instalação.
 
-`card_set` ganha um terceiro `set_type`: `PROMO`, preenchido por uma **convenção fixa** (não por campos nulos):
+Também foi recomendado evoluir a cláusula da Seed de `ON CONFLICT ... DO NOTHING` para `ON CONFLICT ... DO UPDATE`, para que reexecutar `820` não apenas evite duplicidade, mas também corrija registros existentes caso alguma informação oficial seja atualizada — uma exceção deliberada à orientação geral de idempotência via `DO NOTHING` (ver STD-001, Seção 10), aplicável a Seeds que representam o **estado atual e reaplicável** de uma entidade (como o catálogo de Card Sets de uma Expansion), e não apenas uma carga inicial única.
 
-| Campo | Convenção para `PROMO` | Exemplo (`ME`) |
+**O SQL reescrito de `820` ainda não foi apresentado nem executado** — fica como o único item aberto da entidade Set/Card Set antes de iniciar formalmente a modelagem de Card.
+
+### Card Set Promocional (`PROMO`) — Executado
+
+Antes de iniciar a modelagem de Card, foi identificado que as **cartas promocionais (Black Star Promos)** — ligadas diretamente a uma Expansion, sem código/nome oficial fixo, sem posição própria na sequência de Sets e com quantidade que cresce ao longo do tempo — não se encaixam nas regras originais de `card_set`, mas também não justificam uma entidade separada. Decisão completa em **ADR-015**; resumo aplicado aqui, já executado no Supabase:
+
+`card_set` ganhou um terceiro `set_type`: `PROMO`, preenchido por uma **convenção fixa** (não por campos nulos):
+
+| Campo | Convenção para `PROMO` | Valor real (`ME0`) |
 |-------|--------------------------|-----------------|
 | `code` | código da Expansion + `0` | `ME0` |
 | `name` | código da Expansion + `Black Star Promos` | `ME Black Star Promos` |
 | `release_order` | sempre `1` (primeiro Set da Expansion) | `1` |
 | `release_date` | mesma data do primeiro Set regular/especial da Expansion | `2025-09-26` (mesma de `ME1`) |
-| `base_set_size` / `total_set_size` | iguais entre si — quantidade atualmente conhecida, não fechada | a definir na Seed |
+| `base_set_size` / `total_set_size` | iguais entre si — quantidade atualmente conhecida, não fechada | `89` / `89` |
 
-Como todos os valores são determináveis a partir da Expansion, **nenhuma coluna existente precisa se tornar `NULL`** — uma proposta inicial nesse sentido foi avaliada e descartada (ver ADR-015, "Alternatives Considered"). A única mudança estrutural é ampliar a constraint de `set_type` e adicionar a Regra 8 (`PROMO → base_set_size = total_set_size`).
+Como todos os valores são determináveis a partir da Expansion, nenhuma coluna existente precisou se tornar `NULL` — a proposta inicial nesse sentido foi avaliada e descartada (ver ADR-015, "Alternatives Considered").
 
-**Deslocamento de `release_order` dos Sets existentes:** como o Set promocional passa a ocupar sempre a posição `1`, os cinco Sets já cadastrados precisam ser deslocados (`+1`). Isso não pode ser feito em uma única `UPDATE` direta, pois violaria a constraint `UNIQUE (expansion_id, release_order)` durante a operação — a técnica é um deslocamento em duas etapas, passando por uma faixa temporária fora do intervalo em uso:
+**Migration executada:**
 
-```text
-1, 2, 3, 4, 5   →   101, 102, 103, 104, 105   →   2, 3, 4, 5, 6
+```sql
+BEGIN;
+
+-- 1. Remove a constraint atual de tipo
+ALTER TABLE public.card_set
+DROP CONSTRAINT ck_card_set_type;
+
+-- 2. Cria a nova constraint incluindo PROMO
+ALTER TABLE public.card_set
+ADD CONSTRAINT ck_card_set_type
+CHECK (set_type IN ('REGULAR', 'SPECIAL', 'PROMO'));
+
+-- 3. Desloca temporariamente as ordens atuais para evitar conflito
+UPDATE public.card_set
+SET release_order = release_order + 100
+WHERE expansion_id = (
+    SELECT expansion.id
+    FROM public.expansion
+    INNER JOIN public.game ON game.id = expansion.game_id
+    WHERE game.code = 'POKEMON' AND expansion.code = 'ME'
+);
+
+-- 4. Define as novas ordens editoriais
+UPDATE public.card_set
+SET release_order = CASE code
+    WHEN 'ME1'   THEN 2
+    WHEN 'ME2'   THEN 3
+    WHEN 'ME2.5' THEN 4
+    WHEN 'ME3'   THEN 5
+    WHEN 'ME4'   THEN 6
+END
+WHERE expansion_id = (
+    SELECT expansion.id
+    FROM public.expansion
+    INNER JOIN public.game ON game.id = expansion.game_id
+    WHERE game.code = 'POKEMON' AND expansion.code = 'ME'
+)
+AND code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
+
+-- 5. Garante igualdade entre base e total para Sets promocionais
+ALTER TABLE public.card_set
+ADD CONSTRAINT ck_card_set_promo_size
+CHECK (set_type <> 'PROMO' OR base_set_size = total_set_size);
+
+COMMIT;
 ```
 
-**Unicidade da série promocional:** `UNIQUE (expansion_id, code)` sozinha não impede duas séries promocionais na mesma Expansion (o PostgreSQL permite múltiplos `NULL` em uma `UNIQUE` comum, mas aqui `code` não é nulo — é sempre derivado, então essa unicidade já cobre o caso). Ainda assim, para reforçar a regra de negócio "no máximo uma série promocional por Expansion" de forma independente do valor de `code`, um índice único parcial é a forma recomendada: `CREATE UNIQUE INDEX ... ON public.card_set (expansion_id) WHERE set_type = 'PROMO'`.
+Query: `122 - Adapt Card Set for Promo`. Resultado confirmado: `Success. No rows returned`. Executada dentro de uma transação explícita (`BEGIN`/`COMMIT`) — recomendação permanente para migrations que alteram constraints e dados existentes juntas (ver STD-001, Seção 10). O deslocamento do `release_order` usa a técnica de duas etapas descrita anteriormente (`1,2,3,4,5 → 101,102,103,104,105 → 2,3,4,5,6`), evitando violar `UNIQUE (expansion_id, release_order)` durante a operação.
 
-**Migration planejada:** `122 - Adapt Card Set for Promo Series`, com quatro mudanças: (1) incluir `PROMO` na constraint de `set_type`; (2) deslocar o `release_order` dos cinco Sets existentes; (3) preservar a unicidade de `release_order` durante o deslocamento (técnica de duas etapas, acima); (4) adicionar a Regra 8 (quantidades iguais para `PROMO`). **Ainda não executada** — é um pré-requisito antes de criar a Query `130 - Create Card Table`.
+**Seed do Card Set promocional:**
+
+```sql
+INSERT INTO public.card_set (
+    expansion_id, code, name, set_type, release_order,
+    release_date, base_set_size, total_set_size
+)
+SELECT
+    expansion.id, 'ME0', 'ME Black Star Promos', 'PROMO', 1,
+    DATE '2025-09-26', 89, 89
+FROM public.expansion
+INNER JOIN public.game ON game.id = expansion.game_id
+WHERE game.code = 'POKEMON' AND expansion.code = 'ME'
+ON CONFLICT (expansion_id, code) DO NOTHING;
+```
+
+Query: `821 - Seed Promo Card Set`. Resultado confirmado: `Success. No rows returned`. Quantidade real informada por Fabrício ("Atualmente são 89 cartas promos em ME").
+
+**Estado final da Expansion `ME` após `122` + `821`:**
+
+| Ordem | Código | Nome | Tipo | Lançamento | Base | Total |
+|-------|--------|------|------|------------|------|-------|
+| 1 | ME0 | ME Black Star Promos | PROMO | 2025-09-26 | 89 | 89 |
+| 2 | ME1 | Megaevolução | REGULAR | 2025-09-26 | 132 | 188 |
+| 3 | ME2 | Fogo Fantasmagórico | REGULAR | 2025-11-14 | 94 | 130 |
+| 4 | ME2.5 | Heróis Excelsos | SPECIAL | 2026-01-30 | 217 | 295 |
+| 5 | ME3 | Equilíbrio Perfeito | REGULAR | 2026-03-27 | 88 | 124 |
+| 6 | ME4 | Caos Ascendente | REGULAR | 2026-05-22 | 86 | 122 |
+
+> **Divergência sinalizada (não resolvida unilateralmente):** ADR-015 recomendava um índice único parcial (`CREATE UNIQUE INDEX ... ON public.card_set (expansion_id) WHERE set_type = 'PROMO'`) para impedir, ao nível do banco, mais de uma série promocional por Expansion. A migration `122` efetivamente executada **não incluiu esse índice** — a regra é hoje verificada apenas pela Query de validação (`920`, seção 6, abaixo), não impedida na escrita. Ou seja, nada no banco impede, hoje, que uma segunda linha `PROMO` seja inserida por engano na mesma Expansion; isso só seria detectado na próxima execução de `920`. Registrado aqui para decisão futura — não presumir que o índice existe.
+
+**Pendência de nomenclatura do `card`:** esta ADR/migration não define regras específicas sobre a numeração ou identidade das Cards promocionais individuais — fica para a modelagem da entidade Card.
 
 ## Modelo Consolidado
 
@@ -737,25 +886,26 @@ FK  expansion_id     UUID
 ```text
 120 - Create Card Set Table
 121 - Create Card Set Trigger
-122 - Adapt Card Set for Promo Series   (planejada)
-820 - Seed Card Set
-920 - Validate Card Set                 (redigida, execução não confirmada)
+122 - Adapt Card Set for Promo
+820 - Seed Card Set              (a ser reescrita — ver "Pendência", acima)
+821 - Seed Promo Card Set        (executada; passará a ser só histórico após a reescrita de 820)
+920 - Validate Card Set          (versão 2.0)
 ```
 
-Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800). `122` é uma migration de ajuste dentro do próprio bloco 100–199 de Card Set, não uma nova entidade.
+Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800). `122` é uma migration de ajuste dentro do próprio bloco 100–199 de Card Set, não uma nova entidade. `821` é um Seed adicional dentro da faixa 800–899, criado antes da decisão de consolidar tudo em `820`.
 
 ## Definition of Done
 
 - [x] modelo lógico definido, por grupo;
 - [x] atributos e campos adiados definidos;
-- [x] regras de negócio definidas (incluindo a Regra 8, planejada);
+- [x] regras de negócio definidas (incluindo a Regra 8);
 - [x] tabela `card_set` criada no Supabase (`120`);
 - [x] RLS habilitado;
 - [x] trigger criado (`121`) e verificado via `information_schema.triggers`;
-- [x] seed executado (`820` — ME1, ME2, ME2.5, ME3, ME4, todos com dados validados contra folhas oficiais, sem campos nulos);
-- [x] Query de validação redigida, seguindo o novo padrão de três seções;
-- [ ] validação executada e confirmada (`920`) — **pendência aberta**;
-- [ ] migration `122` executada (suporte a `PROMO`, deslocamento de `release_order`) — **pendência aberta, pré-requisito antes de `Card`**.
+- [x] suporte a `PROMO` adicionado (`122`, executada dentro de transação);
+- [x] seed executado (`820` — ME1–ME4; `821` — ME0, todos com dados validados);
+- [x] validação executada e confirmada (`920` v2.0 — "Tudo ok");
+- [ ] Query `820` reescrita como snapshot completo da Expansion com `ON CONFLICT ... DO UPDATE` — **único item aberto**, ver "Pendência — Reescrita da Query 820".
 
 ---
 
@@ -805,3 +955,4 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 | 0.10 | Set executado no Supabase: tabela (`120`, com `code VARCHAR(50)` e constraint `ck_card_set_total_size_valid`, ajustados frente ao modelo aprovado), trigger (`121`, verificado via `information_schema.triggers`) e seed (`820` — ME1/ME2/ME2.5 com dados reais, `release_date` nula, `ME3` deliberadamente adiado por falta de validação). Query `920 - Validate Card Set` ainda não executada — sinalizada como pendência aberta da entidade. Definition of Done atualizada (7 de 8 itens concluídos). |
 | 0.11 | **Marco: primeiro núcleo do catálogo editorial concluído.** A versão preliminar da Seed `820` (três Sets, datas nulas) nunca foi executada — substituída pela versão final, com os cinco Sets da Expansion `ME` (`ME1`–`ME4`), nomes em português e datas de lançamento, todos validados contra folhas oficiais de verificação (arquivadas em `assets/reference-sources/`). Adicionada tabela de dados consolidados, nota sobre a correção de nomenclatura (nome provisório em inglês de `ME4` substituído pelo nome oficial em português) e alerta sobre `ON CONFLICT ... DO NOTHING` não atualizar dados já gravados. `920 - Validate Card Set` continua pendente. |
 | 0.12 | Identificado desvio de disciplina (avançar para Card antes de fechar o pacote de Card Set) — corrigido antes de prosseguir. Adicionada Query `920 - Validate Card Set` completa, seguindo o novo padrão de três seções (estrutural, dados persistidos, regras derivadas); execução ainda não confirmada. Adicionada a seção "Extensão Planejada — Card Set Promocional (`PROMO`)": convenção fixa de preenchimento para a série Black Star Promos, técnica de deslocamento em duas etapas para `release_order`, e a migration planejada `122 - Adapt Card Set for Promo Series` (ver ADR-015). Nova Regra de Negócio 8 (quantidades iguais para `PROMO`). Definition of Done ampliada com os dois itens pendentes antes de iniciar a entidade Card. |
+| 0.13 | **Pacote técnico da entidade Set concluído.** Migration `122 - Adapt Card Set for Promo` executada (transação com drop/add de constraint, deslocamento de `release_order`, nova constraint `ck_card_set_promo_size`). Set promocional real cadastrado via `821 - Seed Promo Card Set` (`ME0`, 89 cartas). Query `920` evoluída para versão 2.0 (cinco categorias, onze subconsultas), executada e confirmada por Fabrício ("Tudo ok"). Sinalizada divergência entre o índice único parcial recomendado por ADR-015 e o que foi de fato executado (não implementado). Nova seção "Pendência — Reescrita da Query 820": decisão de consolidar `820`+`821` em um único snapshot completo com `ON CONFLICT ... DO UPDATE`, SQL ainda não apresentado. Definition of Done quase completa — falta apenas essa reescrita. |

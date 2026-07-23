@@ -279,17 +279,25 @@ Quando uma Seed precisa inserir mais de um registro relacionado à mesma entidad
 
 **Cuidado com `ON CONFLICT ... DO NOTHING` em correções:** essa cláusula garante que reexecutar uma Seed não crie duplicatas, mas ela também significa que **não atualiza** uma linha já existente. Se uma Seed for corrigida (ex.: um nome ou uma data errada) depois de já ter sido executada com sucesso, simplesmente reexecutar a versão corrigida não corrige os dados já gravados — é necessário um `UPDATE` explícito ou uma nova migration. Esse risco só se aplica a Seeds já executadas; corrigir uma Seed antes de sua primeira execução é seguro.
 
+**`DO NOTHING` vs. `DO UPDATE`:** o padrão (`DO NOTHING`) é adequado para Seeds de carga inicial única. Para Seeds que representam o **estado atual e reaplicável de uma entidade** — por exemplo, o conjunto completo de Card Sets de uma Expansion, incluindo o Set promocional cuja quantidade cresce ao longo do tempo — prefira `ON CONFLICT ... DO UPDATE`, atualizando as colunas relevantes. Assim, reexecutar a Seed não apenas evita duplicidade, mas também corrige os registros existentes caso a fonte oficial seja atualizada. Critério: se a Seed representa "os dados iniciais que só existem uma vez", use `DO NOTHING`; se representa "o retrato mais atual e correto que conhecemos desta entidade", use `DO UPDATE`.
+
 ### Validação
 
 Toda alteração estrutural recebe sua própria Query de validação (faixa 900–999), reutilizável sempre que a tabela correspondente for alterada novamente (ex.: `900 - Validate Game`, `901 - Validate Expansion`). As Queries 900+ funcionam, na prática, como um conjunto de testes manuais do banco.
 
 Nunca se assume que uma operação funcionou apenas porque o Supabase retornou "Success" — cada tipo de mudança tem sua própria forma de confirmação: criar uma tabela é validado com um `SELECT`; criar um índice é validado confirmando sua existência; criar um trigger é validado confirmando que está corretamente associado à tabela.
 
-**Padrão de três seções para toda Query `9xx - Validate`:** a partir da entidade Card Set, toda Query de validação passa a ter três seções padronizadas, transformando-a em um verdadeiro teste de integridade, não apenas uma consulta de inspeção:
+**Padrão de cinco categorias para toda Query `9xx - Validate`:** a partir da entidade Card Set, toda Query de validação passa a cobrir cinco categorias, transformando-a em um verdadeiro teste de integridade, não apenas uma consulta de inspeção. Uma primeira proposta agrupava isso em três seções (estrutural / dados / regras derivadas); na prática, ao aplicar o padrão em Card Set, ele se mostrou mais útil dividido em cinco:
 
-1. **Validação estrutural** — relacionamentos, triggers e constraints (ex.: confirmar via `information_schema.triggers` que o trigger de `updated_at` está associado à tabela correta).
-2. **Validação dos dados persistidos** — os valores realmente gravados nas colunas.
-3. **Validação das regras de negócio derivadas** — valores que não existem como coluna na tabela, mas fazem parte do domínio (ex.: `secret_set_size = total_set_size - base_set_size` em Card Set). Uma Query de validação deve calcular e exibir esses valores, não apenas confirmar que a estrutura existe.
+1. **Dados persistidos** — os valores realmente gravados nas colunas, com JOIN até as entidades relacionadas para leitura por código de negócio, não por UUID.
+2. **Regras de negócio derivadas** — valores que não existem como coluna na tabela, mas fazem parte do domínio (ex.: `secret_set_size = total_set_size - base_set_size` em Card Set). Inclui também consultas de resumo/contagem por categoria (ex.: quantos Sets de cada `set_type` existem).
+3. **Inconsistências** — consultas que devem retornar **zero linhas** quando tudo está correto (ex.: lacunas na sequência editorial, um Set promocional com data diferente da esperada, mais de um Set promocional na mesma Expansion). Esse é o formato mais forte de teste: o "resultado esperado" é a ausência de resultado.
+4. **Constraints** — confirmar via `information_schema.table_constraints`/`check_constraints` que as constraints esperadas existem, com a definição exata de cada `CHECK`.
+5. **Trigger** — confirmar via `information_schema.triggers` que o trigger de `updated_at` está associado à tabela correta.
+
+Nem toda entidade precisará das cinco categorias completas (a categoria "inconsistências" só se aplica quando há regras condicionais, como as de Card Set promocional) — mas a ordem e a nomenclatura das categorias usadas devem seguir este padrão.
+
+**Migrations que alteram constraints e dados existentes juntas devem ser transacionais:** envolver a Query inteira em `BEGIN; ... COMMIT;`, garantindo que uma falha em qualquer etapa não deixe o banco em estado intermediário (ex.: constraint alterada mas dados ainda não ajustados). Exemplo real: `122 - Adapt Card Set for Promo`, que remove e recria uma constraint, executa dois `UPDATE`s em sequência e adiciona uma nova constraint, tudo dentro de uma única transação.
 
 ### Modelo de Cabeçalho
 
@@ -333,3 +341,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.6 | Adicionada à Seção 10 (Seeds) a alternativa de `CROSS JOIN` com `VALUES` para inserir múltiplos registros relacionados à mesma entidade pai em uma única Query, confirmada com Card Set. Adicionada a regra de confiabilidade dos dados de Seed: nunca inserir dados estimados como oficiais — registros com atributos ainda não validados ficam de fora até a validação (exemplo real: Set `ME3` deixado fora de uma versão preliminar da Seed `820` por falta de quantidades confirmadas). |
 | 1.7 | Atualizado o exemplo de `ME3`: a Seed `820` foi de fato executada com todos os cinco Sets (`ME1`–`ME4`) após Fabrício fornecer as folhas oficiais de verificação de cada um. Adicionado alerta permanente: `ON CONFLICT ... DO NOTHING` não atualiza linhas já existentes — corrigir uma Seed já executada exige `UPDATE` explícito ou nova migration, não apenas reexecutar a Query. |
 | 1.8 | Adicionado à Seção 10 (Validação) o padrão de três seções para toda Query `9xx - Validate`: validação estrutural, validação dos dados persistidos e validação das regras de negócio derivadas (valores que não existem como coluna, mas fazem parte do domínio — ex.: `secret_set_size`). Adotado a partir da entidade Card Set. |
+| 1.9 | Revisado o padrão de validação (1.8) de três para cinco categorias, após aplicação real em Card Set: dados persistidos, regras derivadas, inconsistências (consultas que devem retornar zero linhas), constraints, trigger. Adicionada recomendação de envolver migrations que alteram constraints e dados juntas em uma transação explícita (`BEGIN`/`COMMIT`), com `122 - Adapt Card Set for Promo` como exemplo real. Adicionada à Seção 10 (Seeds) a distinção entre `DO NOTHING` (carga inicial única) e `DO UPDATE` (Seeds que representam o estado atual e reaplicável de uma entidade). |
