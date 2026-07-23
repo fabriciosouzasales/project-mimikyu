@@ -2825,7 +2825,7 @@ Ver `04-domain-model.md`, seção Finish/Card Finish, para o raciocínio complet
 
 ## Status
 
-**Discussão concluída, aprovada por Fabrício; estrutura física já existente no Supabase, confirmada via inspeção (Table Editor) — DDL formal com constraints e comentários ainda não recebida/escrita.** Nomenclatura final "Card Asset"/"Card Asset Type" (não "Card Image", nome inicialmente cogitado e depois generalizado — ver `04-domain-model.md` para o raciocínio completo, incluindo o exemplo Bulbasaur/Standard/Reverse Holo que motivou a generalização).
+**Card Asset Type: pacote técnico CONCLUÍDO E EXECUTADO** (`170`/`171`/`870`/`970`, ver "SQL confirmada" abaixo). **Card Asset: estrutura física já existente no Supabase, confirmada via inspeção (Table Editor); SQL de `180`/`181`/`980` recebida mas execução NÃO confirmada.** Nomenclatura final "Card Asset"/"Card Asset Type" (não "Card Image", nome inicialmente cogitado e depois generalizado — ver `04-domain-model.md` para o raciocínio completo, incluindo o exemplo Bulbasaur/Standard/Reverse Holo que motivou a generalização).
 
 > **Colisão confirmada com tabelas físicas já existentes — divergências reais encontradas.** `card_asset` e `card_asset_type` já constam entre as 17 tabelas físicas pré-existentes a esta fase de documentação. Fabrício confirmou via captura de tela do Table Editor: `card_asset_type` bate exatamente com a proposta. `card_asset` diverge em três pontos — ver "Estrutura Física Real", abaixo. `170`/`180` não devem ser escritas como `CREATE TABLE` novo — as tabelas já existem; falta apenas documentação retroativa (mesmo padrão já usado para Game/Card/etc.), não criação.
 
@@ -2851,25 +2851,38 @@ Três divergências em relação à proposta — a primeira agora explicada e re
 
 Localização do arquivo: `storage_provider = SUPABASE` + `storage_path` preenchido + `external_url = NULL`, ou `storage_provider = EXTERNAL` + `storage_path = NULL` + `external_url` preenchido — constraint deve exigir ao menos uma localização válida. Ativo principal: no máximo um `is_primary = TRUE` por `card_id` + `asset_type_id`, via índice único parcial `uq_card_asset_one_primary`. Integridade técnica planejada: dimensões positivas, `file_size_bytes` não negativo, `asset_order` positivo, `external_url` ou `storage_path` informado, Asset Type do mesmo Game da Card, sem duplicidade lógica, exclusão protegida, RLS habilitado. Escopo inicial reduzido: seed usará apenas `CARD_FRONT` (uma imagem única por Card); `ARTWORK`/`CARD_BACK` catalogados para uso futuro.
 
-## SQL recebida para `170`/`171`/`870`/`970` — execução NÃO confirmada
+## SQL confirmada — `170`/`171`/`870`/`970` — CONCLUÍDA E EXECUTADA
 
-Texto verbatim recebido (tabela, trigger, seed com 3 tipos canônicos, validação em 18 blocos). Nenhuma confirmação de execução — não copiado para `database/`.
+**Bloco encerrado.** Escrito em `database/` com cabeçalho reformatado para STD-001 e comentários traduzidos (lógica idêntica ao executado): `schema/170_create_card_asset_type_table.sql`, `schema/171_create_card_asset_type_triggers.sql`, `seeds/870_seed_card_asset_type.sql`, `validations/970_validate_card_asset_type.sql`.
 
-> **Dois problemas identificados.** (1) Cabeçalhos não seguem o padrão STD-001 do projeto — Fabrício sinalizou que a sessão pareada está mostrando sinais de perda de contexto a partir deste ponto; documentação deve manter o padrão já estabelecido ao reescrever para `database/`. (2) **Bug no Seed `870`**: usa código de Game `POKEMON_TCG`, inexistente no projeto — o código real, usado em todos os seeds já executados, é `POKEMON`. Executar como está causaria falha no próprio `RAISE EXCEPTION` da Query. Não corrigido unilateralmente.
->
-> Nota técnica: como `card_asset_type` já existe fisicamente, `170` como `CREATE TABLE IF NOT EXISTS` não adicionará retroativamente as novas constraints propostas à tabela existente — precisaria de migration/`ALTER TABLE`.
+`170`/`171` confirmados por **inferência técnica direta** (mesmo padrão de `140`/`141`): a validação estrutural completa de `970` (tabela/PK/FK/constraints/índices/trigger/RLS) só passa se `170`/`171` já tiverem sido aplicadas.
 
-## Queries Planejadas
+**Ciclo real de erro e correção no Seed `870`**, confirmando o problema já sinalizado antes da execução:
+1. **v1.0**: código de Game `POKEMON_TCG` (inexistente) + textos em inglês. Execução real falhou com `ERROR: P0001: Game with code POKEMON_TCG was not found` — exatamente o erro previsto nesta documentação.
+2. **v1.1**: corrigiu apenas o idioma, mantendo o bug do código de Game.
+3. **v1.2** (executada com sucesso): corrigiu código de Game para `POKEMON` (o real, usado por todos os demais seeds) e idioma. Fabrício rejeitou a sugestão da sessão pareada de inserir um novo Game/adivinhar um código ("Não quero correr o risco de outras inconsistências"), forçando a correção baseada no histórico real do projeto.
+
+**Autocorreção da sessão pareada**: reconheceu o erro ("deveria ter preservado o padrão já estabelecido ou solicitado confirmação") e se comprometeu a validar nomes/códigos consolidados do projeto antes de cada nova Query.
+
+`970` v1.2 confirmou sucesso com marcador próprio: *"Query 970 concluída com sucesso: card_asset_type está estruturalmente válida e com a carga canônica correta."* Catálogo final (Game `POKEMON`): `CARD_FRONT`/`ARTWORK`/`CARD_BACK`, ordem 1/2/3, todos `is_active = TRUE`.
+
+## SQL recebida para `180`/`181`/`980` — execução NÃO confirmada
+
+Texto verbatim recebido (tabela, triggers, validação), regenerado a pedido de Fabrício. Nenhuma confirmação de execução — não copiado para `database/`.
+
+> Mesmo problema de formatação já visto em `870`/`970` v1.0 persiste: cabeçalho fora do padrão STD-001, `COMMENT ON` em inglês (convenção do projeto exige português). Reformatação aplicada apenas quando a execução for confirmada.
+
+## Queries
 
 ```text
-170 - Create Card Asset Type Table       (SQL recebida, execução não confirmada)
-171 - Create Card Asset Type Triggers    (SQL recebida, execução não confirmada)
-870 - Seed Card Asset Type               (SQL recebida, execução não confirmada — bug de Game code)
-970 - Validate Card Asset Type           (SQL recebida, execução não confirmada)
+170 - Create Card Asset Type Table       (EXECUTADA — inferência técnica via 970)
+171 - Create Card Asset Type Triggers    (EXECUTADA — inferência técnica via 970)
+870 - Seed Card Asset Type               (EXECUTADA v1.2 — código de Game e idioma corrigidos)
+970 - Validate Card Asset Type           (EXECUTADA v1.2 — sucesso confirmado com marcador próprio)
 
-180 - Create Card Asset Table            (planejada, SQL ainda não recebida)
-181 - Create Card Asset Triggers         (planejada, SQL ainda não recebida)
-980 - Validate Card Asset Structure      (planejada, SQL ainda não recebida)
+180 - Create Card Asset Table            (SQL recebida, execução não confirmada)
+181 - Create Card Asset Triggers         (SQL recebida, execução não confirmada)
+980 - Validate Card Asset Structure      (SQL recebida, execução não confirmada)
 
 880 - Seed Card Asset                    (planejada para depois — sem dependência da Query 860)
 ```
@@ -2925,3 +2938,4 @@ Fabrício adiou o detalhamento fino desta entidade e de `language`/`card_externa
 | 0.29 | **Estratégia do Seed `860` refinada (nada executado; discrepância `ME5`/`ME0` sinalizada) + nova entidade Card Asset Type / Card Asset descoberta e discutida (`170`/`180`, aprovada, não executada).** Seção "Seed 860" ampliada com o processo por Card Set em cinco etapas, tratamento de casos seguros vs. especiais, regras de `variant_order`/`is_default`, e forma idempotente da carga (`ON CONFLICT ... DO UPDATE`); sinalizado que o plano de staging citou um `860F`/"`ME5`" inexistente no catálogo (Card Sets reais: `ME1`–`ME4` + promocional `ME0`, este último ainda sem Cards em `840`) — não resolvido, aguardando confirmação de Fabrício. Nova seção "Card Asset Type (Tipo de Ativo da Carta) / Card Asset (Ativo da Carta)": lacuna identificada por Fabrício (onde ficam as imagens das cartas, já que a ilustração é específica da Card) resolvida com a decisão de não colocar campos de imagem em `card`; entidade nomeada inicialmente "Card Image", generalizada para "Card Asset" (cobre qualquer ativo digital futuro, não só imagens); `card_asset_type` (catálogo semântico por Game) e `card_asset` (`card_id` obrigatório, `card_variant_id` opcional, `source_code` para procedência) com estrutura completa proposta. **Achado crítico, mesmo padrão do episódio Card Variant/Finish**: `card_asset`/`card_asset_type` já existem fisicamente entre as 17 tabelas pré-existentes (`06-pipeline-importacao.md`), e a proposta foi feita sem checar a estrutura real — sinalizado, precisa de verificação antes de `170`/`180` virarem DDL. Fabrício adiou o detalhamento fino desta entidade e de `language`/`card_external_reference`/`card_set_external_reference`. |
 | 0.30 | **Estrutura física real de Card Asset confirmada (diverge da proposta em 3 pontos) + correção anunciada de Card Set (`ME0` → `MEP`, novo `MEE`).** Card Asset Type/Card Asset: `card_asset_type` bate exatamente com a proposta; `card_asset` real tem `id, card_id, asset_type_id, source_code, source_reference, storage_path, external_url, mime_type, file_extension, file_size_bytes, width_pixels, height_pixels, checksum_sha256, is_primary, asset_order, is_active, created_at, updated_at, language_id, storage_bucket_id` — sem `card_variant_id` (contradiz a proposta de asset específico por variante), `storage_bucket_id` (FK) no lugar de `storage_provider` (texto), e novo `language_id` (FK, possivelmente ligado a Card Translation), nenhuma divergência resolvida. Seção Card Set (Set/Card Set Promocional) recebeu nota de correção anunciada por Fabrício, SQL/migration ainda não recebida: código `ME0` estava errado, correto é `MEP`; novo Card Set oficial `MEE` ("Energy Set") criado, possivelmente relevante para a discrepância `ENERGY` já registrada. Nota `ME5`/`ME0` da seção Card Variant/Seed 860 corrigida. Nenhuma alteração em `database/`. |
 | 0.31 | **Card Asset: relação com Card Variant descartada explicitamente + SQL recebida para `170`/`171`/`870`/`970`, execução não confirmada, 2 problemas identificados.** Fabrício: "Não pretendi representar com imagens as variações das cartas! A ilustração será representada de uma única forma" — confirmado que `card_asset` não se relaciona com `card_variant`, resolvendo/explicando a divergência de `card_variant_id` já confirmada como ausente na tabela física (era intencional). Novas regras: localização de arquivo (`storage_provider`/`storage_path`/`external_url`, reintroduzindo `storage_provider`, que segue divergindo de `storage_bucket_id` real), índice único parcial `uq_card_asset_one_primary`, integridade técnica, escopo inicial reduzido a `CARD_FRONT`. SQL verbatim recebida para `170`/`171`/`870`/`970` — sem confirmação de execução, não copiada para `database/`. Dois problemas: cabeçalhos fora do padrão STD-001 (Fabrício alertou sobre sinais de perda de contexto na sessão pareada a partir deste ponto) e bug no Seed `870` (código de Game `POKEMON_TCG`, inexistente — o real é `POKEMON`). Nota técnica: `card_asset_type` já existe fisicamente, então `170` como `CREATE TABLE IF NOT EXISTS` não adicionaria retroativamente as novas constraints. |
+| 0.32 | **Card Asset Type — pacote técnico concluído e executado (`170`/`171`/`870`/`970`); bug de Game code previsto na revisão 0.31 confirmado na prática e corrigido; `180`/`181`/`980` (Card Asset) recebidas, execução não confirmada.** Fabrício tentou executar o `870` v1.0 original e obteve exatamente o erro previsto (`ERROR: P0001: Game with code POKEMON_TCG was not found`). Ciclo de correção: v1.1 corrigiu apenas idioma; v1.2 corrigiu código de Game (`POKEMON`) e idioma simultaneamente — executada com sucesso, assim como `970` v1.2 (marcador próprio de conclusão confirma a validação estrutural completa). `170`/`171` confirmadas por inferência técnica direta (mesmo padrão de `140`/`141`). Fabrício rejeitou a sugestão de adivinhar/inserir um novo código de Game; sessão pareada reconheceu o lapso de contexto e se comprometeu a validar nomes/códigos consolidados antes de cada nova Query. Arquivos `database/schema/170_*.sql`, `database/schema/171_*.sql`, `database/seeds/870_seed_card_asset_type.sql` (v1.2), `database/validations/970_validate_card_asset_type.sql` (v1.2) criados, cabeçalho reformatado para STD-001, comentários traduzidos. SQL de `180`/`181`/`980` regenerada, mas ainda sem confirmação de execução — mesmo problema de cabeçalho/`COMMENT ON` em inglês; não copiada para `database/`. |
