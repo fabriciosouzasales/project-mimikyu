@@ -7,7 +7,7 @@ Esta pasta contém a documentação oficial do Project Mimikyu.
 | Campo | Valor |
 |-------|-------|
 | **Fase 1 — Arquitetura Conceitual** | Concluída |
-| **Fase 2 — Modelo Lógico** | Em andamento — Game (Jogo) concluída; próxima entidade: Expansion |
+| **Fase 2 — Modelo Lógico** | Em andamento. O banco físico (Supabase, projeto `mimikyu-core`) já possui 17 tabelas com carga inicial de dados: `game`, `expansion`, `card_set`, `card`, `card_category`, `rarity`, `language`, `card_variant`, `card_variant_type`, `card_asset`, `card_asset_type`, `card_external_reference`, `card_set_external_reference`, `asset_source`, `asset_import_run`, `asset_import_failure`, `storage_bucket`. A documentação formal completa (roteiro de `05-modelo-de-dados.md`) cobre apenas **Game** até o momento — as demais estão sendo documentadas retroativamente, uma de cada vez, a partir do histórico e da estrutura já existente. |
 | **Última atualização** | 2026-07-22 |
 
 Fase 1 entregou: princípios arquiteturais, delimitação do domínio (Pokémon TCG, não o universo Pokémon), estrutura do catálogo editorial, modelo do universo do colecionador, separação entre Set e Collection, e a estratégia de evolução incremental. Fase 2 transforma cada conceito já validado em modelo lógico e, em seguida, tabela física — uma entidade por vez, validada com dados reais antes de avançar para a próxima.
@@ -67,3 +67,4 @@ Cada informação deve possuir um único local oficial. A documentação deve ev
 | 1.0 | Estrutura inicial do documento de navegação. |
 | 1.1 | Adicionadas as seções "Status Atual do Projeto" e "Retomando este Projeto com uma Nova Sessão de IA", garantindo que o repositório permaneça recuperável mesmo após perda total de contexto de uma sessão de IA. |
 | 1.2 | Adicionado Modelo de Dados à tabela de Core Documents. Atualizado "Status Atual do Projeto": entidade Game concluída na Fase 2. |
+| 1.3 | Corrigido "Status Atual do Projeto": o banco físico já possui as 17 tabelas originais com carga inicial de dados, construídas antes desta fase de consolidação documental — a documentação formal (05-modelo-de-dados.md) está sendo escrita retroativamente, e não define uma sequência de criação do zero. |
