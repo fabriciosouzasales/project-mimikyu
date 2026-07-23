@@ -441,16 +441,31 @@ O idioma pertence ao exemplar físico do usuário (Collection Item).
 
 Todo Set possui uma classificação editorial.
 
-Inicialmente são reconhecidos dois tipos:
+São reconhecidos três tipos:
 
 - Regular Set;
-- Special Set.
+- Special Set;
+- Promotional Set (Black Star Promos — ver "Card Set Promocional", abaixo).
 
 A classificação não altera a natureza da entidade.
 
-Um Set Especial continua sendo um Set.
+Um Set Especial ou Promocional continua sendo um Set.
 
-A classificação editorial é uma característica do Set e não justifica a criação de entidades distintas.
+A classificação editorial é uma característica do Set e não justifica a criação de entidades distintas — inclusive para o caso promocional, que poderia parecer, à primeira vista, um conceito diferente (ver ADR-015).
+
+### Card Set Promocional (Black Star Promos)
+
+Existe um conjunto de cartas — as **cartas promocionais (Black Star Promos)** — diretamente ligado a uma Expansion, mas sem as características de um Set editorial tradicional: não possui necessariamente código ou nome oficial próprio, não ocupa uma posição fixa na sequência de Sets, e sua quantidade de cartas não é fechada — cresce ao longo do tempo, conforme novos produtos daquela Expansion são lançados.
+
+Em vez de criar uma entidade separada (o que obrigaria a Card a ter dois relacionamentos possíveis com sua entidade-pai, propagando duplicidade para coleção, inventário, traduções, imagens e importações), a série promocional é registrada como um Set comum, do tipo `PROMO`, vinculado à sua Expansion — seguindo uma **convenção fixa de preenchimento**, não campos opcionais:
+
+- **Código** = código da Expansion + `0` (ex.: `ME0`);
+- **Nome** = código da Expansion + `Black Star Promos` (ex.: `ME Black Star Promos`);
+- **Posição na sequência** = sempre a primeira da Expansion (`release_order = 1`, deslocando os demais Sets);
+- **Data de lançamento** = a mesma data do primeiro Set regular/especial da Expansion;
+- **Quantidade base e quantidade total** = sempre iguais entre si, representando a quantidade atualmente conhecida de cartas promocionais (não uma quantidade editorial fechada) — cresce conforme novas cartas são catalogadas.
+
+Com essa convenção, todos os valores de uma série promocional são determináveis a partir da Expansion à qual pertence — não é necessário relaxar nenhuma das colunas do Set para `NULL`. Ver ADR-015 para a decisão completa, incluindo a proposta intermediária (campos opcionais) que foi avaliada e descartada.
 
 ### Código Editorial
 
@@ -520,7 +535,7 @@ Conceitualmente, um Set possui:
 - relação com uma Expansion (e, transitivamente, com um Game);
 - código editorial (textual, único por Expansion);
 - nome;
-- classificação editorial (`REGULAR` ou `SPECIAL`);
+- classificação editorial (`REGULAR`, `SPECIAL` ou `PROMO` — ver "Card Set Promocional", acima; ADR-015);
 - ordem cronológica (única por Expansion);
 - data de lançamento (opcional — cobre o caso de Set anunciado sem data confirmada, sem necessidade de campo `status`);
 - quantidade oficial do conjunto base;
@@ -539,7 +554,7 @@ Uma Expansion agrupa vários Sets, e cada Set possui sua própria numeração e 
 - A quantidade de cartas secretas (posições acima do conjunto base) é **derivada**, não armazenada: `secret_set_size = total_set_size - base_set_size`. Armazená-la redundantemente arriscaria inconsistência.
 - A **data de lançamento** também pertence ao Set (`release_date`), podendo ser nula para Sets apenas anunciados. A Expansion não possui uma data de lançamento própria armazenada — quando necessário, pode ser derivada como a menor `release_date` entre seus Sets.
 
-> **Modelo aprovado (atualiza a prévia anterior):** o modelo lógico e físico do Set foi formalmente definido e aprovado por Fabrício. Atributos incluídos: `id`, `expansion_id`, `code`, `name`, `set_type`, `release_order`, `release_date`, `base_set_size`, `total_set_size`, `created_at`, `updated_at` — sem `secret_set_size` (derivado) e, por ora, **sem** `logo_url`/`symbol_url`: embora a identidade visual pertença ao Set (ver "Identidade Visual", acima — corrigindo a atribuição anterior à Expansion), esses dois campos dependem de uma decisão ainda pendente sobre o pipeline de ativos visuais e por isso ficam fora do modelo físico inicial (ver `05-modelo-de-dados.md`, seção Set). Execução da tabela física (`card_set`) no Supabase ainda não realizada — modelo aprovado, aguardando o próximo ciclo.
+> **Modelo executado (atualiza a prévia anterior):** o modelo lógico e físico do Set foi formalmente definido, aprovado e **executado no Supabase**, com os cinco primeiros Sets da Expansion `ME` cadastrados e validados contra fontes oficiais. Atributos: `id`, `expansion_id`, `code`, `name`, `set_type`, `release_order`, `release_date`, `base_set_size`, `total_set_size`, `created_at`, `updated_at` — sem `secret_set_size` (derivado) e, por ora, **sem** `logo_url`/`symbol_url`: embora a identidade visual pertença ao Set (ver "Identidade Visual", acima — corrigindo a atribuição anterior à Expansion), esses dois campos dependem de uma decisão ainda pendente sobre o pipeline de ativos visuais e por isso ficam fora do modelo físico (ver `05-modelo-de-dados.md`, seção Set). `set_type` está sendo ampliado de `REGULAR`/`SPECIAL` para incluir também `PROMO` (ver "Card Set Promocional", acima; ADR-015) — migration `122` planejada, ainda não executada. A Query de validação (`920`) foi redigida seguindo o novo padrão de três seções (ver `05-modelo-de-dados.md`, seção Set), mas sua execução/confirmação ainda não foi registrada.
 
 ---
 
@@ -1461,3 +1476,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.11 | Finalizada a seção Expansion: ordem de lançamento (inteiro simples), unicidade de código/ordem por Game (não global — decorre de ADR-003), decisão de não incluir `status` (Princípio da Simplicidade Inicial), e identidade visual (`logo_url`, com localização futura deferida). Adicionada à seção Set a responsabilidade sobre quantidades e data de lançamento (pertencem ao Set, não à Expansion; quantidade de secretas é derivada, nunca armazenada) e uma nota preliminar (não fechada) sobre o futuro modelo lógico do Set. |
 | 1.12 | Adicionada nota: `logo_url` da Expansion é preenchido por importação automática via API (armazenado no Supabase Storage), mesmo padrão de imagens de Card — não preenchimento manual. Ver `06-pipeline-importacao.md`. |
 | 1.13 | **Correção:** a identidade visual (`logo_url`/`symbol_url`) pertence ao Set, não à Expansion — corrige a seção Expansion (1.11/1.12). Adicionadas à seção Set: "Unicidade por Expansion", "Identidade Visual", correção da seção "Status" (decisão final: sem campo `status`, `release_date` opcional cobre o caso de uso), "Visão Conceitual Consolidada" atualizada para refletir o modelo já aprovado (não mais apenas conceitual). Modelo lógico e físico do Set formalmente aprovado por Fabrício, execução no Supabase ainda pendente (ver `05-modelo-de-dados.md`). |
+| 1.14 | Adicionado um terceiro tipo de Set: `PROMO` (cartas promocionais Black Star), registrado como `card_set` comum vinculado à Expansion, com convenção fixa de preenchimento (código/nome/ordem/data/quantidades derivados da Expansion) em vez de campos opcionais — ver ADR-015. Nova seção "Card Set Promocional" e atualização de "Classificação Editorial" e "Visão Conceitual Consolidada". Nota de modelo do Set atualizada: tabela física já executada no Supabase (cinco Sets reais cadastrados), `set_type` sendo ampliado via migration `122` (planejada, não executada), Query de validação `920` redigida mas ainda sem confirmação de execução. |

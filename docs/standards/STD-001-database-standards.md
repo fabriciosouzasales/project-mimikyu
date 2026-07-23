@@ -285,6 +285,12 @@ Toda alteração estrutural recebe sua própria Query de validação (faixa 900�
 
 Nunca se assume que uma operação funcionou apenas porque o Supabase retornou "Success" — cada tipo de mudança tem sua própria forma de confirmação: criar uma tabela é validado com um `SELECT`; criar um índice é validado confirmando sua existência; criar um trigger é validado confirmando que está corretamente associado à tabela.
 
+**Padrão de três seções para toda Query `9xx - Validate`:** a partir da entidade Card Set, toda Query de validação passa a ter três seções padronizadas, transformando-a em um verdadeiro teste de integridade, não apenas uma consulta de inspeção:
+
+1. **Validação estrutural** — relacionamentos, triggers e constraints (ex.: confirmar via `information_schema.triggers` que o trigger de `updated_at` está associado à tabela correta).
+2. **Validação dos dados persistidos** — os valores realmente gravados nas colunas.
+3. **Validação das regras de negócio derivadas** — valores que não existem como coluna na tabela, mas fazem parte do domínio (ex.: `secret_set_size = total_set_size - base_set_size` em Card Set). Uma Query de validação deve calcular e exibir esses valores, não apenas confirmar que a estrutura existe.
+
 ### Modelo de Cabeçalho
 
 ```sql
@@ -326,3 +332,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.5 | Adicionada à Seção 10 a regra de bloco por entidade e deslocamento fixo (Seed = criação da tabela + 700; Validate = criação da tabela + 800), confirmada com Game e Expansion. Adicionada orientação para Seeds com dependência de entidade relacionada: resolver a chave estrangeira por `SELECT` no código de negócio, nunca por UUID fixo no script. |
 | 1.6 | Adicionada à Seção 10 (Seeds) a alternativa de `CROSS JOIN` com `VALUES` para inserir múltiplos registros relacionados à mesma entidade pai em uma única Query, confirmada com Card Set. Adicionada a regra de confiabilidade dos dados de Seed: nunca inserir dados estimados como oficiais — registros com atributos ainda não validados ficam de fora até a validação (exemplo real: Set `ME3` deixado fora de uma versão preliminar da Seed `820` por falta de quantidades confirmadas). |
 | 1.7 | Atualizado o exemplo de `ME3`: a Seed `820` foi de fato executada com todos os cinco Sets (`ME1`–`ME4`) após Fabrício fornecer as folhas oficiais de verificação de cada um. Adicionado alerta permanente: `ON CONFLICT ... DO NOTHING` não atualiza linhas já existentes — corrigir uma Seed já executada exige `UPDATE` explícito ou nova migration, não apenas reexecutar a Query. |
+| 1.8 | Adicionado à Seção 10 (Validação) o padrão de três seções para toda Query `9xx - Validate`: validação estrutural, validação dos dados persistidos e validação das regras de negócio derivadas (valores que não existem como coluna, mas fazem parte do domínio — ex.: `secret_set_size`). Adotado a partir da entidade Card Set. |
