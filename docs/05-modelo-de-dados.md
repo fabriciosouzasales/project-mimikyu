@@ -441,7 +441,7 @@ A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver 
 
 # Set
 
-Status: **Tabela, trigger e seed executados no Supabase.** Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Pendência:** Query `920 - Validate Card Set` ainda não executada — resultado da seed ainda não confirmado por validação (ver STD-001, Seção 10: nunca assumir sucesso apenas pelo retorno "Success").
+Status: **Tabela, trigger e seed executados no Supabase — primeiro núcleo do catálogo editorial concluído** (cinco Sets da Expansion `ME`, dados validados contra folhas oficiais). Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Pendência:** Query `920 - Validate Card Set` ainda não executada — resultado da seed ainda não confirmado por validação (ver STD-001, Seção 10: nunca assumir sucesso apenas pelo retorno "Success").
 
 ## Modelo Lógico
 
@@ -588,9 +588,11 @@ EXECUTE FUNCTION public.set_updated_at();
 
 Query: `121 - Create Card Set Trigger`. Resultado confirmado: `Success. No rows returned`. Verificado via `information_schema.triggers` (mesma consulta usada para Game/Expansion): `trigger_name = trg_card_set_set_updated_at`, `event_manipulation = UPDATE`, `action_timing = BEFORE`, `event_object_schema = public`, `event_object_table = card_set`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game, acima).
 
-### Seed
+### Seed — Versão Final Executada
 
-Resolve `expansion_id` uma única vez (Game `POKEMON` + Expansion `ME`) e insere múltiplas linhas via `CROSS JOIN` com uma lista `VALUES` — variação do padrão de Seed já usado em Expansion, útil quando vários registros da mesma entidade pai são inseridos de uma vez (ver STD-001, Seção 10):
+**Histórico da correção (preservado para rastreabilidade):** uma primeira versão desta Seed continha apenas três Sets (`ME1`, `ME2`, `ME2.5`), com `ME3` deliberadamente excluído por falta de dados validados e todas as `release_date` nulas — essa versão **nunca chegou a ser executada** ("Não devemos executar o seed anterior"). Fabrício então forneceu as folhas oficiais de verificação (PDF) dos cinco primeiros Sets da Expansion `ME`, eliminando o risco de cadastrar estimativas — ver "Fontes Primárias", abaixo. Com os dados confirmados, a Seed foi reescrita para incluir os cinco Sets de uma vez, com nomes e datas oficiais.
+
+**Correção de nomenclatura:** o campo `name` usa o nome oficial no idioma atualmente adotado pelo catálogo para este dado (português, com base nas folhas disponíveis — ver STD-001, Seção 5, "Código Internacional, Nome Localizável"). Para `ME4`, cuja única folha inicialmente disponível estava em inglês, o nome provisório (`Chaos Rising`) foi **substituído** pelo nome oficial em português (`Caos Ascendente`) assim que a folha correspondente foi obtida — nenhuma tradução não-oficial foi inventada nesse intervalo.
 
 ```sql
 INSERT INTO public.card_set (
@@ -604,22 +606,38 @@ FROM public.expansion
 INNER JOIN public.game ON game.id = expansion.game_id
 CROSS JOIN (
     VALUES
-        ('ME1',   'Mega Evolution',     'REGULAR', 1, NULL::DATE, 132, 188),
-        ('ME2',   'Phantasmal Flames',  'REGULAR', 2, NULL::DATE,  94, 130),
-        ('ME2.5', 'Ascended Heroes',    'SPECIAL', 3, NULL::DATE, 217, 295)
+        ('ME1',   'Megaevolução',         'REGULAR', 1, DATE '2025-09-26', 132, 188),
+        ('ME2',   'Fogo Fantasmagórico',  'REGULAR', 2, DATE '2025-11-14',  94, 130),
+        ('ME2.5', 'Heróis Excelsos',      'SPECIAL', 3, DATE '2026-01-30', 217, 295),
+        ('ME3',   'Equilíbrio Perfeito',  'REGULAR', 4, DATE '2026-03-27',  88, 124),
+        ('ME4',   'Caos Ascendente',      'REGULAR', 5, DATE '2026-05-22',  86, 122)
 ) AS seed (code, name, set_type, release_order, release_date, base_set_size, total_set_size)
 WHERE game.code = 'POKEMON'
   AND expansion.code = 'ME'
 ON CONFLICT (expansion_id, code) DO NOTHING;
 ```
 
-Query: `820 - Seed Card Set`. `release_date` nula nas três linhas — datas de lançamento ainda não validadas contra uma fonte confiável.
+Query: `820 - Seed Card Set` (versão final). Resultado confirmado: `Success. No rows returned`. Nenhum campo nulo — todas as `release_date` vêm das folhas oficiais.
 
-> **Regra de confiabilidade aplicada:** o Set `ME3` (`Perfect Order`) foi **deliberadamente deixado fora desta Seed**, mesmo com sua existência confirmada pela página oficial do Pokémon TCG — suas quantidades de cartas (`base_set_size`/`total_set_size`) ainda não foram validadas, e o projeto não cadastra dados estimados como se fossem oficiais (ver STD-001, Seção 10 — regra de confiabilidade dos dados de Seed). `ME3` será incluído em uma execução futura da Seed assim que seus dados forem confirmados.
+**Dados consolidados (fonte: folhas oficiais de verificação):**
+
+| Código | Nome | Tipo | Lançamento | Base | Total | Secretas |
+|--------|------|------|------------|------|-------|----------|
+| ME1 | Megaevolução | REGULAR | 2025-09-26 | 132 | 188 | 56 |
+| ME2 | Fogo Fantasmagórico | REGULAR | 2025-11-14 | 94 | 130 | 36 |
+| ME2.5 | Heróis Excelsos | SPECIAL | 2026-01-30 | 217 | 295 | 78 |
+| ME3 | Equilíbrio Perfeito | REGULAR | 2026-03-27 | 88 | 124 | 36 |
+| ME4 | Caos Ascendente | REGULAR | 2026-05-22 | 86 | 122 | 36 |
+
+> **Nota técnica sobre `ON CONFLICT ... DO NOTHING`:** essa cláusula torna a Seed segura para repetição, mas **não atualiza** dados já existentes — se a Seed for corrigida depois de já ter sido executada com sucesso, rodar a versão corrigida não substitui as linhas antigas. Como a primeira versão (com `ME3` ausente e datas nulas) nunca foi executada, não houve esse problema aqui. Mas o cuidado vale para o futuro: corrigir dados já seedados exige um `UPDATE` explícito ou uma nova migration, não apenas reexecutar a Seed (ver STD-001, Seção 10).
+
+### Fontes Primárias
+
+Cadastro validado contra as folhas oficiais de verificação de cada Set, arquivadas em `assets/reference-sources/`: `P10346_ME01_Card_List_PTBR.pdf`, `P10347_ME02_Card_List_PTBR.pdf`, `ME02pt5_Card_List_PTBR.pdf`, `P11218_ME03_Card_List_PTBR.pdf`, `ME04_Card_List_PTBR.pdf` (mesmo padrão já usado para a PDF oficial da ADR-010). A quantidade base foi identificada pelo término da numeração regular e pelo início das cartas de raridade especial; a quantidade total corresponde ao último número da folha oficial.
 
 ### Validação — Pendente
 
-Query `920 - Validate Card Set` ainda não foi executada. Deverá seguir o padrão já usado em Game/Expansion (SELECT com JOIN até Game, mais verificação do trigger) e, adicionalmente, exibir a quantidade calculada de cartas secretas de cada Set (`total_set_size - base_set_size`). **Não assumir que a Seed está correta até essa validação ser executada e confirmada** (ver STD-001, Seção 10).
+Query `920 - Validate Card Set` ainda não foi executada. Deverá seguir o padrão já usado em Game/Expansion (SELECT com JOIN até Game, mais verificação do trigger) e, adicionalmente, exibir a quantidade calculada de cartas secretas de cada Set (`total_set_size - base_set_size`) para conferência contra a coluna "Secretas" da tabela acima. **Não assumir que a Seed está correta até essa validação ser executada e confirmada** (ver STD-001, Seção 10).
 
 ## Modelo Consolidado
 
@@ -660,7 +678,7 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 - [x] tabela `card_set` criada no Supabase (`120`);
 - [x] RLS habilitado;
 - [x] trigger criado (`121`) e verificado via `information_schema.triggers`;
-- [x] seed executado (`820` — ME1, ME2, ME2.5; ME3 deliberadamente adiado);
+- [x] seed executado (`820` — ME1, ME2, ME2.5, ME3, ME4, todos com dados validados contra folhas oficiais, sem campos nulos);
 - [ ] validação executada e confirmada (`920`) — **pendência aberta desta entidade**.
 
 ---
@@ -709,3 +727,4 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 | 0.8 | Concluído o pacote técnico da entidade Expansion: trigger (`111`), Seed real (`810` — ME/Mega Evolution/release_order=1, com nota sobre revisão futura da ordenação) e Validação (`910`), todos confirmados. Adicionadas as Queries Associadas completas. Adicionada nota sobre o início (não conclusão) da discussão da entidade Set — consistente com a prévia já registrada em `04-domain-model.md`. |
 | 0.9 | **Correção:** `logo_url` não é uma pendência da Expansion — pertence ao Set. A seção "Pendência Confirmada — logo_url" foi reescrita como "Correção — logo_url pertence ao Set, não à Expansion", com o histórico preservado. Status da Expansion atualizado para "sem pendências". Completada a entidade Set: modelo lógico por grupo, atributos, campos adiados (`logo_url`/`symbol_url`/`status`/`secret_set_size`), 7 regras de negócio, DDL completo de `card_set` (aprovado, execução ainda pendente — Query `120`), trigger/seed/validação planejados (`121`/`820`/`920`), modelo consolidado e Definition of Done (parcial — aguardando execução no Supabase). |
 | 0.10 | Set executado no Supabase: tabela (`120`, com `code VARCHAR(50)` e constraint `ck_card_set_total_size_valid`, ajustados frente ao modelo aprovado), trigger (`121`, verificado via `information_schema.triggers`) e seed (`820` — ME1/ME2/ME2.5 com dados reais, `release_date` nula, `ME3` deliberadamente adiado por falta de validação). Query `920 - Validate Card Set` ainda não executada — sinalizada como pendência aberta da entidade. Definition of Done atualizada (7 de 8 itens concluídos). |
+| 0.11 | **Marco: primeiro núcleo do catálogo editorial concluído.** A versão preliminar da Seed `820` (três Sets, datas nulas) nunca foi executada — substituída pela versão final, com os cinco Sets da Expansion `ME` (`ME1`–`ME4`), nomes em português e datas de lançamento, todos validados contra folhas oficiais de verificação (arquivadas em `assets/reference-sources/`). Adicionada tabela de dados consolidados, nota sobre a correção de nomenclatura (nome provisório em inglês de `ME4` substituído pelo nome oficial em português) e alerta sobre `ON CONFLICT ... DO NOTHING` não atualizar dados já gravados. `920 - Validate Card Set` continua pendente. |
