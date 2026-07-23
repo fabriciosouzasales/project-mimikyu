@@ -2,17 +2,18 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 130 - Create Rarity Table
-Versão......: 2.0
+Versão......: 1.1
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-18
 Descrição resumida:
-Cria a tabela rarity, incluindo o identificador do símbolo visual oficial
-de cada raridade (symbol_code).
+Cria a tabela de domínio das raridades oficiais utilizadas em cada Game.
 Descrição:
 Cria a tabela rarity, responsável por representar as classificações oficiais
-de raridade utilizadas pelas cartas de um determinado Game, incluindo o
-identificador estável do símbolo visual oficial de cada raridade.
+de raridade utilizadas pelas cartas de um determinado Game.
+Além da identificação técnica e do nome da raridade, a entidade armazena um
+código de símbolo que permite à aplicação associar cada raridade à sua
+representação visual oficial.
 Exemplos para Pokémon TCG:
 - COMMON
 - UNCOMMON
@@ -20,23 +21,26 @@ Exemplos para Pokémon TCG:
 - DOUBLE_RARE
 - ILLUSTRATION_RARE
 - SPECIAL_ILLUSTRATION_RARE
-- SAR
-- HYPER_RARE
+- MEGA_HYPER_RARE
+Exemplos de símbolos:
+- BLACK_CIRCLE
+- BLACK_DIAMOND
+- BLACK_STAR
+- BLACK_DOUBLE_STAR
+- GOLD_DOUBLE_STAR
 Regras de Negócio:
 - Toda Rarity deve pertencer a exatamente um Game.
 - O código da Rarity deve ser único dentro do respectivo Game.
 - Jogos diferentes podem utilizar códigos de raridade iguais.
 - O código representa a identificação técnica e estável da raridade.
-- O nome representa a descrição oficial ou principal da raridade.
-- O symbol_code representa a identidade visual oficial da raridade, definida
-  por formato, quantidade e estilo/cor, conforme a legenda oficial do
-  catálogo. Não deve ser inferido do nome ou do código.
-- O symbol_code é obrigatório e segue o mesmo formato técnico do código.
-- A ordem de exibição permite organizar as raridades de maneira lógica.
-- A ordem de exibição não precisa ser única, pois raridades diferentes podem
-  ocupar níveis equivalentes de classificação.
-- O código e o symbol_code podem conter letras maiúsculas, números e
-  sublinhado.
+- O nome representa a nomenclatura oficial ou principal da raridade.
+- O symbol_code identifica a representação visual oficial da raridade.
+- O symbol_code não armazena imagem, URL, SVG ou componente visual.
+- A aplicação é responsável por converter symbol_code em um ativo visual.
+- O mesmo símbolo pode ser utilizado por mais de uma raridade.
+- A ordem de exibição organiza as raridades em uma sequência lógica.
+- A ordem de exibição não precisa ser única.
+- Os códigos podem conter letras maiúsculas, números e sublinhado.
 - O nome não pode ser vazio.
 - A ordem de exibição deve ser um número inteiro positivo.
 - Um Game que possua Rarities não pode ser excluído.
@@ -48,9 +52,7 @@ Observações:
   automaticamente.
 - Eventuais agrupamentos de raridades equivalentes serão tratados
   posteriormente, caso exista necessidade real para o colecionismo.
-- symbol_code é um identificador textual estável, não o próprio caractere
-  visual nem uma URL de imagem. icon_url foi deliberadamente adiado até que
-  os arquivos gráficos oficiais estejam hospedados.
+- Os arquivos gráficos dos símbolos não pertencem a esta entidade.
 ===============================================================================
 */
 
@@ -71,10 +73,10 @@ CREATE TABLE public.rarity (
         UNIQUE (game_id, code),
     CONSTRAINT ck_rarity_code_format
         CHECK (code ~ '^[A-Z0-9][A-Z0-9_]*$'),
-    CONSTRAINT ck_rarity_symbol_code_format
-        CHECK (symbol_code ~ '^[A-Z0-9][A-Z0-9_]*$'),
     CONSTRAINT ck_rarity_name_not_blank
         CHECK (btrim(name) <> ''),
+    CONSTRAINT ck_rarity_symbol_code_format
+        CHECK (symbol_code ~ '^[A-Z0-9][A-Z0-9_]*$'),
     CONSTRAINT ck_rarity_display_order_positive
         CHECK (display_order > 0)
 );
