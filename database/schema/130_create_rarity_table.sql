@@ -2,13 +2,17 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 130 - Create Rarity Table
-Versão......: 1.0
+Versão......: 2.0
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-18
-Descrição...:
+Descrição resumida:
+Cria a tabela rarity, incluindo o identificador do símbolo visual oficial
+de cada raridade (symbol_code).
+Descrição:
 Cria a tabela rarity, responsável por representar as classificações oficiais
-de raridade utilizadas pelas cartas de um determinado Game.
+de raridade utilizadas pelas cartas de um determinado Game, incluindo o
+identificador estável do símbolo visual oficial de cada raridade.
 Exemplos para Pokémon TCG:
 - COMMON
 - UNCOMMON
@@ -24,10 +28,15 @@ Regras de Negócio:
 - Jogos diferentes podem utilizar códigos de raridade iguais.
 - O código representa a identificação técnica e estável da raridade.
 - O nome representa a descrição oficial ou principal da raridade.
+- O symbol_code representa a identidade visual oficial da raridade, definida
+  por formato, quantidade e estilo/cor, conforme a legenda oficial do
+  catálogo. Não deve ser inferido do nome ou do código.
+- O symbol_code é obrigatório e segue o mesmo formato técnico do código.
 - A ordem de exibição permite organizar as raridades de maneira lógica.
 - A ordem de exibição não precisa ser única, pois raridades diferentes podem
   ocupar níveis equivalentes de classificação.
-- O código pode conter letras maiúsculas, números e sublinhado.
+- O código e o symbol_code podem conter letras maiúsculas, números e
+  sublinhado.
 - O nome não pode ser vazio.
 - A ordem de exibição deve ser um número inteiro positivo.
 - Um Game que possua Rarities não pode ser excluído.
@@ -39,6 +48,9 @@ Observações:
   automaticamente.
 - Eventuais agrupamentos de raridades equivalentes serão tratados
   posteriormente, caso exista necessidade real para o colecionismo.
+- symbol_code é um identificador textual estável, não o próprio caractere
+  visual nem uma URL de imagem. icon_url foi deliberadamente adiado até que
+  os arquivos gráficos oficiais estejam hospedados.
 ===============================================================================
 */
 
@@ -47,6 +59,7 @@ CREATE TABLE public.rarity (
     game_id UUID NOT NULL,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(150) NOT NULL,
+    symbol_code VARCHAR(50) NOT NULL,
     display_order INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -58,6 +71,8 @@ CREATE TABLE public.rarity (
         UNIQUE (game_id, code),
     CONSTRAINT ck_rarity_code_format
         CHECK (code ~ '^[A-Z0-9][A-Z0-9_]*$'),
+    CONSTRAINT ck_rarity_symbol_code_format
+        CHECK (symbol_code ~ '^[A-Z0-9][A-Z0-9_]*$'),
     CONSTRAINT ck_rarity_name_not_blank
         CHECK (btrim(name) <> ''),
     CONSTRAINT ck_rarity_display_order_positive

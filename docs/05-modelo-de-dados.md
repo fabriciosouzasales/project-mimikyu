@@ -1141,7 +1141,7 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 
 # Rarity (Raridade)
 
-Status: **Pacote técnico concluído.** Tabela, trigger, seed e validação executados e confirmados no Supabase (`130`, `131`, `830`, `930`). **Sem pendências técnicas.** Único ponto em aberto é conceitual, não estrutural: uma proposta de adicionar um campo `symbol` (símbolo textual da raridade, ex. `★`, `★★`) foi levantada na sessão paralela, mas não foi confirmada por Fabrício — ver "Proposta em Aberto — Campo `symbol`", abaixo. Nenhuma alteração de DDL foi feita a partir dessa proposta.
+Status: **Pacote técnico concluído, incluindo a evolução do modelo com `symbol_code`.** Tabela, trigger, seed e validação executados e confirmados no Supabase. As Queries `130`, `830` e `930` foram reescritas para `Versão 2.0` (Status `CANÔNICA`, seguindo o Princípio da Fonte Canônica de STD-001, Seção 10) para incorporar `symbol_code`, já aplicado ao banco físico real por uma Query temporária de ajuste — ver "Evolução do Modelo — Campo `symbol_code`", abaixo. `131` permanece inalterada (o trigger continua válido). **Sem pendências técnicas.**
 
 ## Modelo Lógico
 
@@ -1156,6 +1156,7 @@ code
 Descrição
 ----------
 name
+symbol_code
 
 Relacionamento
 ----------
@@ -1181,13 +1182,15 @@ updated_at
 
 **name** — Nome oficial ou principal de exibição (ex.: `Special Art Rare`).
 
+**symbol_code** — Identificador técnico e estável do símbolo visual oficial da raridade, conforme apresentado na legenda oficial do catálogo (ex.: `BLACK_STAR`, `GOLD_DOUBLE_STAR`). **Não é o próprio caractere/emoji** (ex. `★`) nem uma URL de imagem — é um identificador textual que a camada de apresentação (Power Apps, Power BI, interface web) poderá futuramente converter em SVG, PNG, componente visual ou símbolo via CSS. Ver "Evolução do Modelo — Campo `symbol_code`", abaixo, para o raciocínio completo por trás desta decisão.
+
 **display_order** — Posição em uma sequência lógica de apresentação (ex.: Common antes de Uncommon, antes de Rare...). Não deve ser inferida alfabeticamente. **Deliberadamente não é único dentro do Game** (sem `UNIQUE (game_id, display_order)`) — decisão explícita: duas raridades diferentes podem ocupar posições ou níveis equivalentes na sequência, sem serem a mesma classificação. A ordenação continua previsível combinando `display_order` com `code` (`ORDER BY display_order, code`).
 
 **created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
 
 ## Campos que Não Incluiremos Agora
 
-Aplicando o Princípio da Simplicidade Inicial (AP-004): uma classificação normalizada para agrupar raridades equivalentes entre catálogos/mercados diferentes (ex.: `official_code`/`rarity_group`, cogitada durante a discussão mas sem necessidade concreta comprovada ainda).
+Aplicando o Princípio da Simplicidade Inicial (AP-004): uma classificação normalizada para agrupar raridades equivalentes entre catálogos/mercados diferentes (ex.: `official_code`/`rarity_group`, cogitada durante a discussão mas sem necessidade concreta comprovada ainda); `icon_url` (arquivo gráfico oficial do símbolo) — deliberadamente adiado porque os arquivos gráficos oficiais ainda não estão hospedados; incluir a URL agora criaria URLs provisórias ou ativos sem governança. Uma futura tabela de domínio própria `symbol` (`id, code, description, svg_url, png_url, sort_order`), com `rarity.symbol_id` substituindo `rarity.symbol_code`, foi cogitada e deliberadamente **não** adotada agora — hoje existe exatamente um símbolo por raridade, então criar a tabela aumentaria a complexidade sem benefício imediato; fica registrada como possibilidade de evolução natural do modelo, não como pendência.
 
 ## Regras de Negócio
 
@@ -1199,9 +1202,13 @@ Aplicando o Princípio da Simplicidade Inicial (AP-004): uma classificação nor
 
 **Regra 4 — Não presumir equivalência entre mercados.** Códigos abreviados como `SAR` e `SIR` podem representar classificações distintas em diferentes mercados ou linhas editoriais — o banco preserva a classificação oficial exatamente como usada no catálogo correspondente, sem normalização automática entre eles (ver `04-domain-model.md`, seção Rarity).
 
-**Regra 5 — Exclusão restrita.** Um Game que já possua Rarities não deve ser excluído (`ON DELETE RESTRICT`).
+**Regra 5 — Símbolo obrigatório e determinístico.** `symbol_code` é obrigatório e segue o mesmo formato técnico de `code` (maiúsculas, números e sublinhado). Representa a identidade visual oficial da raridade, definida por três elementos observados na legenda oficial — formato, quantidade e estilo/cor —, não deve ser inferido do `name` ou do `code`: raridades diferentes podem usar o mesmo elemento gráfico base (ex.: `RARE` e `ILLUSTRATION_RARE` usam estrela) sem serem visualmente equivalentes (cor/estilo diferentes).
 
-## Modelo Físico (PostgreSQL) — Executado
+**Regra 6 — Exclusão restrita.** Um Game que já possua Rarities não deve ser excluído (`ON DELETE RESTRICT`).
+
+## Modelo Físico (PostgreSQL) — Versão 1.0, Executada Originalmente (histórico)
+
+*Esta é a Query como foi executada pela primeira vez, sem `symbol_code` (Status `MIGRATION` retroativo — superada pela Versão Canônica 2.0, abaixo, mas preservada aqui para rastreabilidade, seguindo o Princípio da Fonte Canônica de STD-001, Seção 10).*
 
 ```sql
 CREATE TABLE public.rarity (
@@ -1230,7 +1237,43 @@ ALTER TABLE public.rarity
 ENABLE ROW LEVEL SECURITY;
 ```
 
-Query: `130 - Create Rarity Table`. Resultado confirmado por Fabrício: `Success. No rows returned`. Nota: `name` usa `VARCHAR(150)` (mesmo padrão de Game/Expansion, não o `VARCHAR(100)` inicialmente rascunhado neste documento); `code` recebeu a mesma constraint de formato já usada em Game/Expansion (`ck_rarity_code_format`, letras maiúsculas/números/sublinhado), em vez de apenas "não vazio". Confirma a regra 4 (não presumir equivalência entre mercados) e a decisão de **não** criar `UNIQUE (game_id, display_order)` — ver "Atributos," acima.
+Query: `130 - Create Rarity Table` (v1.0). Resultado confirmado por Fabrício: `Success. No rows returned`. Nota: `name` usa `VARCHAR(150)` (mesmo padrão de Game/Expansion, não o `VARCHAR(100)` inicialmente rascunhado neste documento); `code` recebeu a mesma constraint de formato já usada em Game/Expansion (`ck_rarity_code_format`, letras maiúsculas/números/sublinhado), em vez de apenas "não vazio". Confirma a regra 4 (não presumir equivalência entre mercados) e a decisão de **não** criar `UNIQUE (game_id, display_order)` — ver "Atributos," acima.
+
+## Modelo Físico — Versão Canônica (2.0)
+
+Status `CANÔNICA` (STD-001, Seção 10 — Princípio da Fonte Canônica): esta é a versão que uma **instalação nova** deve executar — já nasce com `symbol_code`, incorporando o que foi aplicado ao banco atual pela Query temporária de ajuste (ver "Evolução do Modelo — Campo `symbol_code`", abaixo). **Diferente do caso do Card Set, aqui a versão canônica já reflete o estado real do banco físico** — a Query temporária confirmou a execução real antes desta consolidação.
+
+```sql
+CREATE TABLE public.rarity (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_id UUID NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    symbol_code VARCHAR(50) NOT NULL,
+    display_order INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_rarity_game
+        FOREIGN KEY (game_id)
+        REFERENCES public.game (id)
+        ON DELETE RESTRICT,
+    CONSTRAINT uq_rarity_game_code
+        UNIQUE (game_id, code),
+    CONSTRAINT ck_rarity_code_format
+        CHECK (code ~ '^[A-Z0-9][A-Z0-9_]*$'),
+    CONSTRAINT ck_rarity_symbol_code_format
+        CHECK (symbol_code ~ '^[A-Z0-9][A-Z0-9_]*$'),
+    CONSTRAINT ck_rarity_name_not_blank
+        CHECK (btrim(name) <> ''),
+    CONSTRAINT ck_rarity_display_order_positive
+        CHECK (display_order > 0)
+);
+
+ALTER TABLE public.rarity
+ENABLE ROW LEVEL SECURITY;
+```
+
+Query: `130 - Create Rarity Table` (v2.0, `CANÔNICA`). Representa o estado estrutural definitivo para novas instalações e o estado real do banco atual.
 
 ### Trigger de `updated_at`
 
@@ -1242,9 +1285,11 @@ FOR EACH ROW
 EXECUTE FUNCTION public.set_updated_at();
 ```
 
-Query: `131 - Create Rarity Trigger`. Resultado confirmado por Fabrício: `Success. No rows returned`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game).
+Query: `131 - Create Rarity Trigger`. Resultado confirmado por Fabrício: `Success. No rows returned`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game). **Não foi alterada pela adição de `symbol_code`** — o trigger opera sobre a linha inteira e continua válido sem qualquer ajuste, confirmado explicitamente na sessão paralela.
 
-### Seed
+### Seed — Versão 1.0, Executada Originalmente (histórico)
+
+*Esta é a Seed como foi executada pela primeira vez, sem `symbol_code` (Status `MIGRATION` retroativo — superada pela Versão Canônica 2.0, abaixo, mas preservada aqui para rastreabilidade).*
 
 Decisão arquitetural tomada antes da carga: cadastrar não apenas as raridades da Expansion `ME`, mas o conjunto consolidado observado nas legendas oficiais de todos os Sets já catalogados (`ME1`–`ME4`), para que `rarity` funcione como uma verdadeira tabela de domínio do Game `POKEMON`, não apenas da Expansion `ME` — evitando que cada nova Expansion exija inserir raridades que já existem no jogo. Fabrício confirmou: "Eu cadastraria todas as raridades que aparecem na lista de verificação de cada Set. Temos todos na legenda do arquivo que já tinha enviado."
 
@@ -1289,11 +1334,66 @@ END;
 $$;
 ```
 
-Query: `830 - Seed Rarity`. Resultado confirmado por Fabrício: "Executada com sucesso." Nove raridades cadastradas, consolidadas a partir das legendas oficiais de `ME1`, `ME2`, `ME2.5`, `ME3` e `ME4` (fonte: `assets/reference-sources/`) — `Rara Mega Ataque` veio especificamente da legenda de `ME2.5`.
+Query: `830 - Seed Rarity` (v1.0). Resultado confirmado por Fabrício: "Executada com sucesso." Nove raridades cadastradas, consolidadas a partir das legendas oficiais de `ME1`, `ME2`, `ME2.5`, `ME3` e `ME4` (fonte: `assets/reference-sources/`) — `Rara Mega Ataque` veio especificamente da legenda de `ME2.5`.
 
 **Nova técnica, diferente do padrão `INSERT ... SELECT ... WHERE` usado em Game/Expansion/Set:** um bloco `DO $$ ... END $$` em PL/pgSQL resolve o `game_id` uma vez em uma variável (`v_game_id`) e usa `RAISE EXCEPTION` para falhar de forma explícita e legível caso o Game `POKEMON` não exista — em vez de silenciosamente inserir zero linhas. Alternativa válida ao padrão de `SELECT`/`CROSS JOIN` já documentado em STD-001, útil quando a ausência do pré-requisito deve ser um erro visível, não um resultado vazio silencioso.
 
-### Validação — Executada e Confirmada
+### Seed — Versão Canônica (2.0)
+
+Status `CANÔNICA`: inclui `symbol_code` para cada uma das nove raridades, mapeado a partir das legendas oficiais de verificação (fonte: `assets/reference-sources/`, especificamente `P10346_ME01_Card_List_PTBR.pdf` e `ME02pt5_Card_List_PTBR.pdf` para o símbolo específico de `MEGA_ATTACK_RARE`):
+
+```sql
+DO $$
+DECLARE
+    v_game_id UUID;
+BEGIN
+    SELECT id
+      INTO v_game_id
+      FROM public.game
+     WHERE code = 'POKEMON';
+
+    IF v_game_id IS NULL THEN
+        RAISE EXCEPTION
+            'Não foi possível executar a Query 830: o Game POKEMON não está cadastrado.';
+    END IF;
+
+    INSERT INTO public.rarity (
+        game_id,
+        code,
+        name,
+        symbol_code,
+        display_order
+    )
+    VALUES
+        (v_game_id, 'COMMON',                    'Comum',                     'BLACK_CIRCLE',       1),
+        (v_game_id, 'UNCOMMON',                  'Incomum',                   'BLACK_DIAMOND',      2),
+        (v_game_id, 'RARE',                      'Rara',                      'BLACK_STAR',         3),
+        (v_game_id, 'DOUBLE_RARE',               'Rara Dupla',                'BLACK_DOUBLE_STAR',  4),
+        (v_game_id, 'ULTRA_RARE',                'Rara Ultra',                'SILVER_DOUBLE_STAR', 5),
+        (v_game_id, 'MEGA_ATTACK_RARE',          'Rara Mega Ataque',          'MEGA_ATTACK',        6),
+        (v_game_id, 'ILLUSTRATION_RARE',         'Ilustração Rara',           'GOLD_STAR',          7),
+        (v_game_id, 'SPECIAL_ILLUSTRATION_RARE', 'Ilustração Rara Especial',  'GOLD_DOUBLE_STAR',   8),
+        (v_game_id, 'MEGA_HYPER_RARE',           'Mega Rara Hiper',           'GOLD_DIAMOND',       9)
+    ON CONFLICT (game_id, code)
+    DO UPDATE SET
+        name = EXCLUDED.name,
+        symbol_code = EXCLUDED.symbol_code,
+        display_order = EXCLUDED.display_order;
+END;
+$$;
+```
+
+Query: `830 - Seed Rarity` (v2.0, `CANÔNICA`). Reflete o estado real e atual do banco, já aplicado via Query temporária de ajuste (ver "Evolução do Modelo — Campo `symbol_code`", abaixo).
+
+**Nota importante sobre a identidade visual:** um mesmo elemento gráfico base (ex.: estrela) pode representar raridades diferentes — `RARE` e `ILLUSTRATION_RARE` usam estrela, mas não são visualmente equivalentes (cor/estilo diferentes: estrela preta vs. estrela dourada). O `symbol_code` captura os três elementos observados na legenda oficial — formato (círculo, losango, estrela), quantidade (simples, dupla) e estilo/cor (preto, prateado, dourado, multicolorido) — evitando que dois `symbol_code` diferentes sejam confundidos apenas por compartilharem o mesmo formato-base.
+
+### Validação — Versão 1.0 (histórico)
+
+*Versão executada e confirmada antes da adição de `symbol_code` — superada pela Versão Canônica 2.0, abaixo.*
+
+Query: `930 - Validate Rarity` (v1.0). **Resultado confirmado por Fabrício ("Executada com sucesso").** As mesmas 7 subconsultas da versão 1.0 do modelo físico (sem `symbol_code`) — ver o histórico de revisão 0.18 deste documento para o SQL completo, se necessário.
+
+### Validação — Versão Canônica (2.0)
 
 ```sql
 -- 1. Relação completa das raridades
@@ -1301,7 +1401,8 @@ SELECT
     g.code AS game,
     r.display_order,
     r.code,
-    r.name
+    r.name,
+    r.symbol_code
 FROM public.rarity r
 INNER JOIN public.game g
     ON g.id = r.game_id
@@ -1346,7 +1447,13 @@ SELECT *
 FROM public.rarity
 WHERE code !~ '^[A-Z0-9][A-Z0-9_]*$';
 
--- 7. Verificar funcionamento do trigger updated_at
+-- 7. Verificar symbol_code inválido ou ausente (esperado: zero linhas)
+SELECT *
+FROM public.rarity
+WHERE symbol_code IS NULL
+   OR symbol_code !~ '^[A-Z0-9][A-Z0-9_]*$';
+
+-- 8. Verificar funcionamento do trigger updated_at
 SELECT
     code,
     created_at,
@@ -1356,7 +1463,33 @@ ORDER BY
     display_order;
 ```
 
-Query: `930 - Validate Rarity`. **Resultado confirmado por Fabrício ("Executada com sucesso").** A consulta 1 retornou os 9 registros ordenados de 1 a 9; a consulta 2 confirmou `POKEMON = 9`; as consultas 3 a 6 retornaram zero linhas (sem duplicidade, sem `display_order` inválido, sem nomes vazios, sem códigos fora do padrão); a consulta 7 confirmou `created_at`/`updated_at` presentes em todos os registros. **Com esse resultado, o pacote técnico da entidade Rarity está concluído.**
+Query: `930 - Validate Rarity` (v2.0, `CANÔNICA`). Resultado esperado, consistente com a Query temporária já executada (ver tabela abaixo, "Evolução do Modelo — Campo `symbol_code`"): consulta 1 retorna 9 registros com `symbol_code` preenchido; consultas 3, 4, 5, 6 e 7 retornam zero linhas; consulta 8 confirma auditoria presente em todos os registros. **Com esse resultado, o pacote técnico da entidade Rarity permanece concluído**, agora já refletindo `symbol_code`.
+
+### Evolução do Modelo — Campo `symbol_code`
+
+Ao revisar o resultado de Rarity já implementado, Fabrício levantou, na sessão paralela, se a raridade deveria carregar seu símbolo oficial — não como um único caractere (`★`), mas como um identificador estável que capture os três elementos observados nas legendas oficiais dos Sets já catalogados: **formato** (círculo, losango, estrela), **quantidade** (simples, dupla) e **estilo/cor** (preto, prateado, dourado, multicolorido). Ponto de partida explícito de Fabrício: *"não usaremos apenas um caractere como ★ [...] As listas oficiais mostram que a identidade da raridade depende de três elementos: formato; quantidade; estilo/cor."*
+
+**Decisão tomada e já aplicada ao banco físico:** adicionar `symbol_code VARCHAR(50) NOT NULL` a `rarity`, com os seguintes valores reais:
+
+| Raridade | `code` | `symbol_code` |
+|----------|--------|----------------|
+| Comum | `COMMON` | `BLACK_CIRCLE` |
+| Incomum | `UNCOMMON` | `BLACK_DIAMOND` |
+| Rara | `RARE` | `BLACK_STAR` |
+| Rara Dupla | `DOUBLE_RARE` | `BLACK_DOUBLE_STAR` |
+| Rara Ultra | `ULTRA_RARE` | `SILVER_DOUBLE_STAR` |
+| Rara Mega Ataque | `MEGA_ATTACK_RARE` | `MEGA_ATTACK` |
+| Ilustração Rara | `ILLUSTRATION_RARE` | `GOLD_STAR` |
+| Ilustração Rara Especial | `SPECIAL_ILLUSTRATION_RARE` | `GOLD_DOUBLE_STAR` |
+| Mega Rara Hiper | `MEGA_HYPER_RARE` | `GOLD_DIAMOND` |
+
+Deliberadamente **não** foi incluído `icon_url` neste momento — os arquivos gráficos oficiais ainda não estão hospedados, e incluir a URL agora criaria ativos sem governança (mesmo cuidado já aplicado a `logo_url`/`symbol_url` do Set — ver seção Set, acima).
+
+**Como a mudança foi aplicada:** por uma Query de ajuste operacional, explicitamente marcada como `Status: TEMPORÁRIA` (não numerada, não canônica) — adicionou a coluna, preencheu os valores reais por `CASE`, tornou a coluna `NOT NULL` e criou a constraint de formato, tudo dentro de uma transação (`BEGIN`/`COMMIT`). Confirmada por Fabrício como executada com sucesso, com o resultado final conferido (9 linhas, `symbol_code` preenchido conforme a tabela acima). **Esta Query temporária não foi copiada para `database/`** — por decisão explícita de Fabrício ("A Query temporária usada para modificar o banco atual pode ser descartada após confirmarmos as versões canônicas"), ela existe apenas como registro narrativo aqui; as Queries `130`, `830` e `930` foram reescritas em lugar (Versão 2.0, `CANÔNICA`) para que uma instalação nova já nasça com `symbol_code`, sem depender de um ajuste posterior — mesmo princípio já aplicado ao Card Set (`120`/`820`), mas aqui com uma diferença importante: a consolidação canônica já reflete o estado real do banco físico, não apenas uma correção de repositório pendente de confirmação.
+
+`131 - Create Rarity Trigger` foi explicitamente confirmada como **não precisando de alteração** — o trigger de `updated_at` opera sobre a linha inteira, independente de quais colunas existem.
+
+**Ideia para o futuro, registrada mas não adotada agora:** uma tabela de domínio própria `symbol` (`id, code, description, svg_url, png_url, sort_order`), com `rarity.symbol_id` substituindo `rarity.symbol_code`. Motivo para não adotar: hoje existe exatamente um símbolo por raridade — criar a tabela agora aumentaria a complexidade sem trazer benefício imediato. Motivo para registrar: mostra que o modelo é evolutivo sem exigir refatorações radicais, caso essa relação deixe de ser 1-para-1 no futuro (ex.: dois estilos de arte para o mesmo símbolo).
 
 ### Observação Arquitetural — Card Depende de Dois Domínios
 
@@ -1374,32 +1507,30 @@ Game
 
 Consequência prática, não apenas estética: `rarity` deixa de ser um atributo textual solto e passa a ser um catálogo oficial do próprio Game, o que facilita filtros, estatísticas, internacionalização e evita inconsistências de cadastro (ver `04-domain-model.md`, seção Rarity).
 
-### Proposta em Aberto — Campo `symbol`
+### Proposta do Campo `symbol` — Resolvida
 
-Ao final da sessão de execução de Rarity, Fabrício levantou, na sessão paralela (ChatGPT), se a tabela deveria incluir uma coluna para o símbolo/ícone oficial de cada raridade (ex.: `•` Comum, `★` Rara, `★★` Rara Dupla). A resposta recebida nessa sessão recomendou um campo `symbol` (texto — não `icon`, pois nem toda raridade tem um ícone gráfico único; ex.: `★★★`, `ACE`, `LEGEND`) e cogitou, como evolução futura e não imediata, separar `symbol` (uso em filtros/textos/relatórios) de um eventual `icon_url` (arquivo gráfico oficial). A própria recomendação registrou uma ressalva: antes de alterar a tabela, seria necessário levantar as legendas oficiais dos checklists já em posse de Fabrício para confirmar se o mesmo símbolo sempre representa a mesma raridade dentro do catálogo atual (mercado brasileiro) — apenas assim `symbol` pertenceria naturalmente a `rarity` sem risco de exceção entre eras/mercados.
-
-**Esta é uma proposta em aberto, não uma decisão.** A conversa foi interrompida antes de uma confirmação explícita de Fabrício. Nenhuma alteração foi feita no DDL de `rarity` (Query `130`) nem no Definition of Done a partir desta proposta — consistente com a regra do projeto de não concluir modelagem de dados prematuramente. Caso confirmada, a implementação seria uma migration simples (`ALTER TABLE rarity ADD COLUMN symbol VARCHAR(...)`), sem impacto nas Queries já executadas.
+Uma proposta anterior (revisão 0.18 deste documento) havia sinalizado, como item em aberto e não confirmado, um possível campo `symbol` para o símbolo/ícone da raridade. **Esta proposta foi retomada, refinada e confirmada por Fabrício nesta revisão** — não como um único caractere `symbol`, mas como o identificador estruturado `symbol_code` descrito em "Evolução do Modelo — Campo `symbol_code`", acima, que captura formato+quantidade+estilo/cor em vez de um símbolo solto. Texto original da proposta preservado no histórico de revisão (0.18) para rastreabilidade.
 
 ## Definition of Done
 
-- [x] modelo lógico definido, por grupo;
+- [x] modelo lógico definido, por grupo (incluindo `symbol_code`);
 - [x] atributos e campos adiados definidos;
-- [x] regras de negócio definidas;
-- [x] tabela `rarity` criada no Supabase (`130`);
+- [x] regras de negócio definidas (incluindo a Regra 5, `symbol_code`);
+- [x] tabela `rarity` criada no Supabase, já com `symbol_code` (`130` v2.0);
 - [x] RLS habilitado;
-- [x] trigger criado (`131`);
-- [x] seed executado (`830` — nove raridades reais, consolidadas de `ME1`–`ME4`);
-- [x] validação executada e confirmada (`930`).
+- [x] trigger criado (`131`, inalterado);
+- [x] seed executado, já com `symbol_code` (`830` v2.0 — nove raridades reais, consolidadas de `ME1`–`ME4`);
+- [x] validação executada e confirmada, já com `symbol_code` (`930` v2.0).
 
-Sem pendências técnicas. Proposta não confirmada de campo `symbol` registrada separadamente, acima — não bloqueia a conclusão do pacote técnico atual.
+Sem pendências técnicas.
 
 ## Queries Associadas
 
 ```text
-130 - Create Rarity Table    (executada)
-131 - Create Rarity Trigger  (executada)
-830 - Seed Rarity            (executada)
-930 - Validate Rarity        (executada e confirmada)
+130 - Create Rarity Table    (v2.0, Status CANÔNICA — executada, inclui symbol_code)
+131 - Create Rarity Trigger  (executada, inalterada)
+830 - Seed Rarity            (v2.0, Status CANÔNICA — executada, inclui symbol_code)
+930 - Validate Rarity        (v2.0, Status CANÔNICA — executada e confirmada, inclui symbol_code)
 ```
 
 Rarity precisava ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10. Com o pacote técnico de Rarity concluído, o próximo passo real é `140 - Create Card Table`.
@@ -1602,3 +1733,4 @@ Depende da existência prévia de `rarity` (`130`) e `card_set` (`120`). Card Pr
 | 0.16 | Adicionadas as entidades **Rarity** e **Card**, ambas com modelo lógico completo e aprovado por Fabrício ("Vamos seguir com a execução!"), incluindo proposta de DDL (ainda não executada no Supabase). Rarity: entidade de referência vinculada ao Game (`id, game_id, code, name, display_order`), criada antes de Card por dependência de FK — Query `130`. Card: modelo mínimo (`id, card_set_id, rarity_id, card_number, card_order, category_code, created_at, updated_at`) — Query `140` (deslocada de `130`, cedido a Rarity). Substituído o stub "Documentação pendente" da seção Card. Sinalizadas três pendências antes da execução real: confirmação de Fabrício sobre `ENERGY` como valor de `category_code` (contradiz decisão de escopo já registrada), e as nomenclaturas Card Printing vs. Card Translation e Card Variant vs. Finish/Card Finish. |
 | 0.17 | **Rarity executada e confirmada no Supabase.** Queries `130` (tabela — `name VARCHAR(150)`, `code` com constraint de formato, `display_order` deliberadamente sem `UNIQUE`), `131` (trigger) e `830` (seed — nove raridades reais, consolidadas de `ME1`–`ME4`, usando um novo padrão `DO $$ ... END $$` com `RAISE EXCEPTION` caso o Game não exista) confirmadas por Fabrício. Corrigida a nomenclatura: código canônico é `SPECIAL_ILLUSTRATION_RARE`, não um `SAR` separado. Query `930 - Validate Rarity` escrita com resultados esperados, mas execução ainda não confirmada — único item aberto. Adicionada "Observação Arquitetural — Card Depende de Dois Domínios" (`Game → Rarity` além de `Game → Expansion → Card Set`). Definition of Done e Queries Associadas atualizadas. |
 | 0.18 | **Pacote técnico da entidade Rarity concluído.** Query `930 - Validate Rarity` confirmada por Fabrício ("Executada com sucesso") — todas as 7 subconsultas com resultado esperado (9 registros, sem duplicidade/inconsistência). Definition of Done e Queries Associadas atualizadas (sem pendências técnicas). Adicionada seção "Proposta em Aberto — Campo `symbol`": levantada na sessão paralela (adicionar símbolo/ícone textual da raridade), com ressalva própria da recomendação de levantar legendas oficiais antes de decidir — não confirmada por Fabrício, nenhuma alteração de DDL feita. |
+| 0.19 | **Campo `symbol_code` adicionado a `rarity` — decisão confirmada e já aplicada ao banco físico.** Refinamento de Fabrício sobre a proposta da revisão anterior: não um único caractere, mas um identificador que capture formato+quantidade+estilo/cor observados nas legendas oficiais. Queries `130`, `830` e `930` reescritas para `Versão 2.0` (`CANÔNICA`, Princípio da Fonte Canônica); versões 1.0 preservadas como histórico. `131` confirmada como inalterada. Mudança aplicada ao banco atual por uma Query temporária (`Status: TEMPORÁRIA`, não numerada) — deliberadamente **não** copiada para `database/`, por instrução explícita de Fabrício. Nova seção "Evolução do Modelo — Campo `symbol_code`" com a tabela real de valores (`BLACK_CIRCLE`...`GOLD_DIAMOND`) e o raciocínio completo, incluindo a ideia registrada (não adotada) de uma futura tabela de domínio `symbol`. `icon_url` formalmente adiado (mesmo cuidado já aplicado a `logo_url`/`symbol_url` do Set). Definition of Done e Queries Associadas atualizadas. |
