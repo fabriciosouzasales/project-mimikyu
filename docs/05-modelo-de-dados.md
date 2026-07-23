@@ -2317,7 +2317,7 @@ updated_at
 Aplicando o Princípio da Simplicidade Inicial (AP-004) e o Princípio do Escopo Colecionável (AP-017):
 
 - **Nome, idioma, texto localizado, arte, ilustrador, revisão/errata** — pertencem à camada Card Printing (ainda não modelada fisicamente; nomenclatura frente a Card Translation ainda não decidida por Fabrício).
-- **Acabamento (Holofoil, Reverse Holofoil), selo** — pertencem à camada Card Variant / Finish-Card Finish (nomenclatura ainda não decidida por Fabrício).
+- **Acabamento (Holofoil, Reverse Holofoil), selo** — pertencem à camada Card Variant (nomenclatura conceitual resolvida por ADR-016; ver seção "Card Variant Type"/"Card Variant", abaixo).
 - **HP, estágio, tipo elemental, fraqueza, resistência, custo de recuo, ataques, habilidades, texto de regras, referência estrutural a Pokémon** — permanentemente fora do banco de dados (mecânica de jogo, não colecionismo — ver AP-017). Continuam visíveis apenas na imagem oficial da Card.
 - **Condição física, preço pago, quantidade possuída, localização, grading, notas** — pertencem ao Collection Item.
 - **Preço de mercado** — domínio de mercado/preços, não modelado ainda.
@@ -2395,7 +2395,7 @@ ENABLE ROW LEVEL SECURITY;
 - [x] modelo físico proposto (DDL);
 - [ ] confirmação de Fabrício sobre `ENERGY` como valor de `category_code`;
 - [ ] confirmação de Fabrício sobre a nomenclatura Card Printing vs. Card Translation;
-- [ ] confirmação de Fabrício sobre a nomenclatura Card Variant vs. Finish/Card Finish;
+- [x] nomenclatura Card Variant Type/Card Variant confirmada por Fabrício (ADR-016), revertendo Finish/Card Finish;
 - [ ] tabela `rarity` criada no Supabase (pré-requisito, ver seção Rarity);
 - [ ] tabela `card` criada no Supabase (Query `140`);
 - [ ] RLS habilitado e confirmado;
@@ -2635,7 +2635,7 @@ Reescrita de 18 para **27 blocos de validação**, agora incluindo a seção can
 
 Com isso, **o pacote técnico da entidade Card está tecnicamente completo e confirmado** (`140`/`141`/`840`/`940`, todos executados). A sessão pareada descreveu isso como um marco do projeto: "o banco deixou de ser apenas uma estrutura de tabelas e passou a conter um catálogo editorial canônico completamente validado."
 
-> **Ressalva importante, não é o fim da entidade Card**: dois itens seguem em aberto e não foram tocados neste ciclo — (1) a discrepância `ENERGY` (9 Cards reais ocupando posições numeradas sob uma categoria que a "Decisão de Escopo" original excluía do catálogo numerado — ver seção Card Category); (2) o **bloco "Editorial Catalog" em si ainda não está completo** — falta modelar `Card Variant` (ou `Finish`/`Card Finish`, dependendo de qual nomenclatura for confirmada) antes que o catálogo editorial inteiro esteja pronto para sustentar Coleções. Ver `04-domain-model.md`, seção Finish/Card Finish, para a discussão iniciada (não concluída) sobre essa próxima entidade — incluindo a tensão de nomenclatura com ADR-010 que precisa ser resolvida antes de `150 - Create Card Variant Type Table` ser escrita de verdade.
+> **Ressalva importante, não é o fim da entidade Card**: dois itens seguem em aberto e não foram tocados neste ciclo — (1) a discrepância `ENERGY` (9 Cards reais ocupando posições numeradas sob uma categoria que a "Decisão de Escopo" original excluía do catálogo numerado — ver seção Card Category); (2) na época deste ciclo, o **bloco "Editorial Catalog" em si ainda não estava completo** — faltava modelar `Card Variant` antes que o catálogo editorial inteiro estivesse pronto para sustentar Coleções (ver seções "Card Variant Type" e "Card Variant", abaixo, já concluídas em ciclos posteriores).
 
 ## Definition of Done (Versão 1.1)
 
@@ -2660,7 +2660,7 @@ Com isso, **o pacote técnico da entidade Card está tecnicamente completo e con
 940 - Validate Card         (v2.0, Status CANÔNICA — executada e confirmada, 27 blocos de validação)
 ```
 
-Próxima etapa do bloco Editorial Catalog: `160 - Create Card Variant Table` / `161 - Create Card Variant Triggers` / `860 - Seed Card Variant` / `960 - Validate Card Variant` (associação entre uma Card e um Card Variant Type) — ver seção "Card Variant Type", abaixo, para o catálogo de tipos já concluído, e `04-domain-model.md`, seção Finish/Card Finish, para a discussão de nomenclatura ainda em aberto.
+Próxima etapa do bloco Editorial Catalog: `160 - Create Card Variant Table` / `161 - Create Card Variant Triggers` / `860 - Seed Card Variant` / `960 - Validate Card Variant` (associação entre uma Card e um Card Variant Type) — ver seção "Card Variant Type", abaixo, para o catálogo de tipos já concluído, e `04-domain-model.md`, seção Card Variant Type/Card Variant, para o modelo conceitual (nomenclatura resolvida por ADR-016).
 
 ---
 
@@ -2670,11 +2670,11 @@ Próxima etapa do bloco Editorial Catalog: `160 - Create Card Variant Table` / `
 
 ---
 
-# Card Variant Type (Tipo de Variante da Carta) / Finish (Acabamento)
+# Card Variant Type (Tipo de Variante da Carta)
 
 ## Status
 
-**Pacote técnico concluído e executado.** Corresponde ao catálogo de tipos de variante colecionável mencionado como "Finish" em `04-domain-model.md`. A tabela física foi criada e povoada sob o nome `card_variant_type` (não `finish_type`) — ver nota de nomenclatura abaixo. A associação entre uma Card e um Card Variant Type específico (`card_variant`/`160`/`161`/`860`/`960`) ainda não foi construída — ver `04-domain-model.md`, seção Finish/Card Finish, "Nota em aberto".
+**Pacote técnico concluído e executado.** Nome conceitual e físico convergentes: "Card Variant Type" (ADR-016) — o nome alternativo "Finish", usado por ADR-010 entre 2026-07 e a reversão desta decisão, é preservado apenas como sinônimo histórico. A tabela física foi criada e povoada sob o nome `card_variant_type`. A associação entre uma Card e um Card Variant Type específico é a entidade Card Variant (ver seção própria, abaixo).
 
 ## Modelo Físico — Versão 1.0
 
@@ -2732,9 +2732,11 @@ Decisão confirmada por Fabrício: `card_variant_type` continua representando **
 
 Query `950 - Validate Card Variant Type` (v1.3) valida: existência do Game, quantidade canônica (13 para `POKEMON`), presença e aderência dos 13 códigos esperados (incluindo `COSMOS_HOLO`), tipos fora do catálogo canônico, duplicidades de `code`/`display_order`, formato de `code`, campos obrigatórios, sequência de `display_order` (1 a 13), relacionamento com Game, timestamps, trigger de `updated_at` e RLS. **Mudança de padrão nesta versão**: reescrita como bloco executável (`DO $$`) com `RAISE EXCEPTION` e rollback automático em qualquer inconsistência, substituindo o padrão anterior (v1.0–v1.2) de `SELECT`s apenas informativos. Executada com sucesso logo após `850` v1.3 — confirmado por Fabrício.
 
-## Nota sobre nomenclatura — tensão com ADR-010, ainda não resolvida
+## Nomenclatura — RESOLVIDA (ADR-016)
 
-ADR-010 renomeou o conceito antes chamado "Card Variant" para **Finish**/**Card Finish**, mas deixou explicitamente em aberto se as tabelas físicas pré-existentes `card_variant`/`card_variant_type` (parte do conjunto original de 17 tabelas, anteriores a esta fase de documentação) seriam renomeadas — remetendo essa decisão para este ciclo de modelagem física. Este ciclo já aconteceu: a tabela foi criada e povoada sob o nome `card_variant_type`, e toda a comunicação da sessão pareada (nomes de Query, mensagens, estrutura aprovada) usa consistentemente "Card Variant"/"Card Variant Type", sem qualquer referência a "Finish". Isso não resolve a questão por si só — a tabela física já existia sob esse nome antes de ADR-010 — mas é uma evidência mais forte do que a existente antes desta execução. **Decisão pendente de Fabrício**, com três opções já registradas em `04-domain-model.md`: (a) adotar "Card Variant"/"Card Variant Type" como termos finais, revertendo ADR-010; (b) manter Finish/Card Finish como termos conceituais, mapeados às tabelas físicas já executadas; (c) outra reconciliação.
+ADR-010 havia renomeado o conceito antes chamado "Card Variant" para **Finish**/**Card Finish**, deixando em aberto se as tabelas físicas pré-existentes `card_variant`/`card_variant_type` (parte do conjunto original de 17 tabelas, anteriores a esta fase de documentação) seriam renomeadas para acompanhar. Essa renomeação física nunca aconteceu, nem foi necessária: toda a modelagem física subsequente (Queries `150`/`151`/`160`/`161`/`850`/`950`/`860`, e a própria ADR-008) foi construída e executada sob os nomes `card_variant_type`/`card_variant`, sem qualquer referência a "Finish".
+
+**Fabrício resolveu a tensão (2026-07-23, ADR-016): o vocabulário conceitual do domínio converge para "Card Variant Type"/"Card Variant"**, revertendo especificamente a parte de nomenclatura de ADR-010 — a separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida e não foi afetada. Nenhuma alteração física é necessária: `card_variant_type`/`card_variant` já usam o nome agora também canônico no vocabulário conceitual.
 
 ## Definition of Done
 
@@ -2745,8 +2747,8 @@ ADR-010 renomeou o conceito antes chamado "Card Variant" para **Finish**/**Card 
 - [x] validação executada com sucesso (`950` v1.3, reescrita como bloco `DO $$` com `RAISE EXCEPTION`);
 - [x] arquivos `150`/`151`/`850`/`950` copiados para `database/` (`850`/`950` sobrescritos em vigor, v1.3 — Princípio da Fonte Canônica);
 - [x] entidade Card Variant (associação Card ↔ Card Variant Type) — estrutura executada, ver seção própria abaixo;
-- [ ] distinção reconhecida entre acabamento (`card_variant_type`) e origem/distribuição de uma impressão promocional — necessidade identificada, entidade futura ainda não modelada (ver "Distinção Reconhecida", acima);
-- [ ] decisão de Fabrício sobre a nomenclatura conceitual (Card Variant vs. Finish/Card Finish) — ainda pendente, agora com Card Variant Type e Card Variant (estrutura + dados reais de ME1/ME2) executados sob o nome "Card Variant".
+- [x] nomenclatura conceitual resolvida — Card Variant Type/Card Variant (ADR-016), revertendo Finish/Card Finish (ADR-010);
+- [ ] distinção reconhecida entre acabamento (`card_variant_type`) e origem/distribuição de uma impressão promocional — necessidade identificada, entidade futura ainda não modelada (ver "Distinção Reconhecida", acima).
 
 ## Queries Associadas
 
@@ -2759,11 +2761,11 @@ ADR-010 renomeou o conceito antes chamado "Card Variant" para **Finish**/**Card 
 
 ---
 
-# Card Variant (Variante da Carta) / Card Finish (Acabamento da Carta)
+# Card Variant (Variante da Carta)
 
 ## Status
 
-**Estrutura concluída e executada; dados (Seed) ainda não construídos.** Associa uma Card específica a um Card Variant Type específico — representa uma versão colecionável que oficialmente existe para aquela Card (ex.: `ME1-001 — Bulbasaur` possui `STANDARD` e `REVERSE_HOLO`). Não representa uma cópia física: duas cópias físicas da mesma variante serão, no futuro, dois registros distintos de inventário/coleção, não dois registros de `card_variant`.
+**Estrutura concluída e executada; dados (Seed) parcialmente construídos (ME1/ME2, ver "Query 860" na seção Card Asset Type/Card Asset).** Associa uma Card específica a um Card Variant Type específico — representa uma versão colecionável que oficialmente existe para aquela Card (ex.: `ME1-001 — Bulbasaur` possui `STANDARD` e `REVERSE_HOLO`). Não representa uma cópia física: duas cópias físicas da mesma variante serão, no futuro, dois registros distintos de inventário/coleção, não dois registros de `card_variant`.
 
 ## Modelo Físico — Versão 1.0
 
@@ -2803,7 +2805,7 @@ Valida apenas a estrutura técnica neste momento — como o Seed `860` ainda nã
 
 ## Seed 860 — planejado, ainda não construído
 
-Ver `04-domain-model.md`, seção Finish/Card Finish, para o raciocínio completo. Resumo: não existe fonte oficial única e estruturada com todas as variantes de cada Card — o Seed será produzido por um pipeline (`Checklist oficial + TCGdex campo variants + Pokémon TCG API como evidência complementar + validação manual de exceções → dataset intermediário rastreável → Query 860`), consistente com o padrão Import/Synchronization já estabelecido em `ADR-008`/`06-pipeline-importacao.md`. Dado o volume estimado (859 Cards, possivelmente 1.200–2.000 registros de Card Variant), o trabalho será dividido e validado por Card Set (`860A`–`860E`), consolidado depois na Query canônica `860`. Nada disso foi executado ainda.
+Ver `04-domain-model.md`, seção Card Variant Type/Card Variant, para o raciocínio completo. Resumo: não existe fonte oficial única e estruturada com todas as variantes de cada Card — o Seed será produzido por um pipeline (`Checklist oficial + TCGdex campo variants + Pokémon TCG API como evidência complementar + validação manual de exceções → dataset intermediário rastreável → Query 860`), consistente com o padrão Import/Synchronization já estabelecido em `ADR-008`/`06-pipeline-importacao.md`. Dado o volume estimado (859 Cards, possivelmente 1.200–2.000 registros de Card Variant), o trabalho será dividido e validado por Card Set (`860A`–`860E`), consolidado depois na Query canônica `860`. Nada disso foi executado ainda.
 
 **Refinamento da estratégia (ainda não executado).** Fabrício recusou a recomendação de adiar `860` e abrir o domínio `200 — Collections` em paralelo ("Não temos como fugir dele!") — reafirmando a disciplina já registrada de não abrir Coleções enquanto o Catálogo Editorial estiver incompleto (ver roadmap de prioridades em memória). Processo confirmado por Card Set (cinco etapas): identificar variantes nas fontes → cruzar com Cards já cadastradas → classificar automaticamente casos seguros → separar divergências/exceções → gerar UPSERT canônico. Regra de `variant_order`: local à Card, sequencial e sem lacunas (não usa a ordem global de Card Variant Type quando a Card não possui todos os tipos). Regra de `is_default`: `STANDARD`/`HOLO` padrão conforme a impressão principal seja normal ou holográfica; demais variantes não são padrão salvo evidência excepcional. Forma da carga: `INSERT ... ON CONFLICT (card_id, variant_type_id) DO UPDATE` idempotente, com validações internas planejadas (Card/Variant Type inexistentes, duplicidade, mais de uma ou nenhuma variante padrão por Card, ordem duplicada/descontínua, inconsistência de Game, contagem divergente da esperada). Primeiro piloto confirmado: `860A` (ME1).
 
@@ -2824,7 +2826,7 @@ Ver `04-domain-model.md`, seção Finish/Card Finish, para o raciocínio complet
 - [x] `860B` (ME2) executada e confirmada — 214 Card Variants (74 `STANDARD`/56 `HOLO`/84 `REVERSE_HOLO`);
 - [ ] `860C` (ME2.5) — matriz editorial ainda não construída; distribuição final (613 Card Variants) já calculada, ver seção Card Asset Type/Card Asset, "Query 860"; depende do catálogo expandido de 13 tipos (`850`/`950` v1.3, já executado);
 - [ ] `860D`/`860E` (ME3/ME4) — ainda não iniciadas;
-- [ ] decisão de Fabrício sobre a nomenclatura conceitual (Card Variant vs. Finish/Card Finish) — segue pendente, agora com evidência adicional (`ADR-008` já usa "Card Variant" em sua lista de entidades do Catálogo Editorial, e dados reais de duas coleções já povoados sob esse nome).
+- [x] nomenclatura conceitual resolvida — Card Variant Type/Card Variant (ADR-016), revertendo Finish/Card Finish (ADR-010); consistente com `ADR-008`, que já listava "Card Variant" entre as entidades do Catálogo Editorial.
 
 ## Queries Associadas
 
@@ -2986,3 +2988,4 @@ Fabrício adiou o detalhamento fino desta entidade e de `language`/`card_externa
 | 0.33 | **Card Asset (`180`/`181`/`980` v1.1) confirmada executada — ressalva técnica importante sinalizada, não resolvida: `180` provavelmente não alterou a estrutura física real** (`CREATE TABLE IF NOT EXISTS` é no-op contra a tabela já existente com 20 colunas reais confirmadas; a `180` v1.1 propõe 19 colunas divergentes, com `storage_provider` em vez de `storage_bucket_id`/`language_id`). `181` genuinamente aplicada (trigger só depende de colunas reais). `980` é só `SELECT`s informativos, sem `RAISE EXCEPTION` — pergunta explícita deixada para Fabrício sobre os resultados reais dos blocos 2/3. Arquivos `database/schema/180_*.sql`, `database/schema/181_*.sql`, `database/validations/980_*.sql` criados (v1.1, cabeçalho já em STD-001). **Nova fase: `860`/`880` confirmadas como pendências finais do Catálogo Editorial, ordem `860` antes de `880`.** Metodologia da `860` mudada para Matriz Editorial explícita por coleção (construção → validação → geração do SQL → validação); Opção A (derivação por Rarity) rejeitada, Opção B (matriz explícita) adotada. Ordem canônica de `variant_order` (1–6) proposta, sinalizada como potencialmente conflitante com a regra de numeração local sem lacunas já registrada — não resolvido. Matriz ME1 consolidada analiticamente: 310 Card Variants esperados (111 `STANDARD`+77 `HOLO`+122 `REVERSE_HOLO`), nada executado. Escopo da `880` confirmado (`CARD_FRONT`, `card_id` direto), seis pontos em aberto. |
 | 0.34 | **`860A` (ME1) e `860B` (ME2) executadas e confirmadas com resultado real batendo exatamente com o esperado — arquitetura da Query `860` homologada; ambiguidade de `variant_order` da revisão anterior RESOLVIDA; descoberta na ME2.5 força expansão de `card_variant_type` de 6 para 12 tipos.** `860A` v1.2: 310 Card Variants (111 `STANDARD`/77 `HOLO`/122 `REVERSE_HOLO`), conferido linha a linha. `860B` v1.0: 214 Card Variants (74 `STANDARD`/56 `HOLO`/84 `REVERSE_HOLO`), confirmado por Fabrício. Ambas no padrão homologado: bloco `DO $$` autocontido, matriz JSONB local, sem tabelas temporárias, validação pré-carga, convergência segura, carga idempotente, nove passos de validação pós-carga com rollback automático. Execuções reais confirmam `variant_order` local à Card (1, ou 1 e 2), nunca a posição global de `card_variant_type.display_order` — resolve a ambiguidade da revisão `0.33`. **Descoberta ME2.5**: reversa do conjunto base não segue padrão genérico — Poké Bola específica por linha evolutiva (Poké Ball/Love Ball/Friend Ball/Quick Ball/Dusk Ball), símbolo "R" para Equipe Rocket, reversa de Energia para não `ex`; sem `MASTER_BALL_REVERSE`. Catálogo de Card Variant Type expandido para 12 tipos (`850`/`950` v1.2), confirmado executado via captura de tela real. `860C` (ME2.5) ainda NÃO executada — matriz ainda não construída. Arquivos `database/seeds/860a_seed_card_variant_me1.sql`, `database/seeds/860b_seed_card_variant_me2.sql` criados; `850`/`950` sobrescritos para v1.2. |
 | 0.35 | **Catálogo de Card Variant Type expandido de 12 para 13 tipos com a inclusão de `COSMOS_HOLO` (`850`/`950` v1.3, executadas e confirmadas); reconhecida — não modelada — a distinção entre acabamento físico e origem/distribuição de uma impressão; planejamento de `860C` (ME2.5) avançado.** Checklists editoriais oficiais (pkmn.gg) confirmaram que o acabamento "Cosmos Holo" é um padrão recorrente entre produtos promocionais distintos, não um caso isolado nem um `PROMO_STAMPED`. Avaliadas duas opções (tratar como origem de uma Card já existente vs. cadastrar como tipo físico próprio); adotada a segunda, restrita a este único tipo — outros acabamentos ainda sem evidência editorial confirmada (Galaxy Holo, Confetti Holo, Cracked Ice) permanecem fora do catálogo. Nova seção "Distinção Reconhecida — Acabamento vs. Origem de Distribuição": reconhece que `card_variant_type` deveria representar apenas o acabamento físico, com uma futura entidade de "Printing"/"Release" (ainda não modelada) cobrindo produto de distribuição, idioma, data e tiragem. `950` reescrita como bloco `DO $$` com `RAISE EXCEPTION`, substituindo o padrão anterior de `SELECT`s informativos. `860C`: distribuição final refinada e confirmada analiticamente — 613 Card Variants esperados (153 `STANDARD` + 142 `HOLO` + 38 `REVERSE_HOLO` + 140 `ENERGY_REVERSE` + 140 reversas de bola/Rocket), regra editorial por elegibilidade (`ex` vs. não-`ex`, Treinador/Energia, cartas secretas) confirmada, fonte TCGdex validada carta a carta — matriz ainda não construída, `860C` continua não executada. Arquivos `database/seeds/850_seed_card_variant_type.sql` e `database/validations/950_validate_card_variant_type.sql` sobrescritos para v1.3. |
+| 0.36 | **Nomenclatura conceitual resolvida: Card Variant Type/Card Variant, revertendo Finish/Card Finish (ADR-016, reverte parcialmente ADR-010).** Fabrício avaliou que Card Variant Type/Card Variant deve prevalecer, por já ser o nome usado no banco, no pipeline de importação e na prática do projeto — sem que "Card Variant" esteja sendo usado para Full Art/Gold/Secret Rare (escopo já restrito por ADR-009). A separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida. Seção "Nota sobre nomenclatura — tensão com ADR-010" reescrita como "Nomenclatura — RESOLVIDA (ADR-016)". Cabeçalhos das seções ajustados para "Card Variant Type (Tipo de Variante da Carta)" e "Card Variant (Variante da Carta)", sem o sufixo "/Finish"/"/Card Finish". Definition of Done de ambas as entidades atualizada (item de nomenclatura marcado como concluído). Nenhuma alteração física necessária — `card_variant_type`/`card_variant` já usavam o nome agora canônico. |

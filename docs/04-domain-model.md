@@ -4,12 +4,12 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.0 |
+| **Versão** | 2.1 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `adr/ADR-013-collection-item-identity-model.md`, `adr/ADR-014-collection-and-collection-entry-model.md`, `02-architecture-principles.md` (AP-013, AP-014, AP-015, AP-017), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `adr/ADR-013-collection-item-identity-model.md`, `adr/ADR-014-collection-and-collection-entry-model.md`, `adr/ADR-016-card-variant-naming-convention.md`, `02-architecture-principles.md` (AP-013, AP-014, AP-015, AP-017), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -35,8 +35,8 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 - Trainer Subcategory
 - Card Translation
 - Rarity
-- Finish
-- Card Finish
+- Card Variant Type
+- Card Variant
 - Card Asset Type / Card Asset
 - Card Details (Pokémon Card Details / Trainer Card Details)
 - Pokémon
@@ -525,7 +525,7 @@ Uma **Card (Carta)** representa uma posição oficial numerada dentro de um **Se
 
 Ela possui identidade editorial própria e existe independentemente de qualquer exemplar físico pertencente a um usuário.
 
-A Card tende a ser a entidade mais rica do domínio — não por possuir muitas colunas, mas por ser o ponto de convergência de praticamente todo o conhecimento editorial do catálogo (Rarity, Card Category, Card Translation, Card Finish, e demais atributos e relações descritos em "Atributos e Relações da Card", abaixo).
+A Card tende a ser a entidade mais rica do domínio — não por possuir muitas colunas, mas por ser o ponto de convergência de praticamente todo o conhecimento editorial do catálogo (Rarity, Card Category, Card Translation, Card Variant, e demais atributos e relações descritos em "Atributos e Relações da Card", abaixo).
 
 Exemplo:
 
@@ -665,7 +665,7 @@ Formas de impressão, idiomas, condições físicas, certificações e exemplare
 
 Aplicando o Princípio da Reutilização Editorial (AP-014), informações compartilhadas entre milhares de Cards são modeladas como entidades de referência próprias — evitando duplicação e permitindo consistência (ex.: corrigir o nome de um Illustrator em um único lugar) — em vez de simples campos de texto repetidos em cada Card.
 
-Informações comuns a toda Card, independentemente da categoria: Card Category, Card Translation, Rarity, Card Finish, e Illustrator (o ilustrador responsável pela arte da Card).
+Informações comuns a toda Card, independentemente da categoria: Card Category, Card Translation, Rarity, Card Variant, e Illustrator (o ilustrador responsável pela arte da Card).
 
 Informações específicas por categoria são agrupadas em Card Details (ver seção própria, abaixo): quando a Card Category for Pokémon, a Card referencia um Pokémon; quando for Trainer, não possui essa referência. Nem toda Card representa um Pokémon — Cards de categoria Trainer (ex.: Acerola — Supporter; Poké Pad — Item; Torre Prisma — Stadium) não representam nenhum Pokémon. Essa relação é, portanto, condicional à Card Category, não universal (ver ADR-011).
 
@@ -695,11 +695,11 @@ Responde: *qual é o denominador oficial exibido nas Cards?*
 
 Exemplo: o Set ME1 possui Base Set Count `132`; suas Cards são numeradas de `001/132` até `188/132`.
 
-**3. Collectible Finish Count (Quantidade de Acabamentos Colecionáveis)**
+**3. Collectible Variant Count (Quantidade de Acabamentos Colecionáveis)**
 
 Responde: *quantas versões oficiais distintas podem ser colecionadas?*
 
-É a soma dos acabamentos (Card Finish, ver abaixo) disponíveis para todas as Cards do Set. Essa quantidade pode ser superior ao Official Card Count, mas isso não altera o tamanho oficial do Set.
+É a soma dos acabamentos (Card Variant, ver abaixo) disponíveis para todas as Cards do Set. Essa quantidade pode ser superior ao Official Card Count, mas isso não altera o tamanho oficial do Set.
 
 Exemplo hipotético:
 
@@ -710,7 +710,7 @@ Card 003 → 1 acabamento
 ...
 ```
 
-Essa contagem deve ser obtida somando os acabamentos efetivamente catalogados para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem os mesmos acabamentos disponíveis. Na prática, esse número tende a ser bem mais próximo do Official Card Count do que se imaginava inicialmente, já que formas de impressão como Full Art ou Special Illustration Rare já contam como Cards independentes — diferenciadas por Rarity própria — e não como acabamentos de outra Card (ver "Rarity" e "Finish", abaixo).
+Essa contagem deve ser obtida somando os acabamentos efetivamente catalogados para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem os mesmos acabamentos disponíveis. Na prática, esse número tende a ser bem mais próximo do Official Card Count do que se imaginava inicialmente, já que formas de impressão como Full Art ou Special Illustration Rare já contam como Cards independentes — diferenciadas por Rarity própria — e não como acabamentos de outra Card (ver "Rarity" e "Card Variant Type", abaixo).
 
 Essas três métricas atendem a propósitos diferentes do produto: a primeira mede a completude do catálogo editorial (quais posições existem); a segunda é uma característica de referência do Set; a terceira mede a completude colecionável (quantos itens distintos um colecionador pode efetivamente possuir).
 
@@ -742,7 +742,7 @@ Uma Card Translation não representa:
 
 - uma nova Card;
 - uma nova posição catalográfica;
-- um Finish ou Card Finish;
+- um Card Variant Type ou Card Variant;
 - o idioma de um exemplar físico pertencente a um usuário.
 
 O nome traduzido de uma Card não cria uma nova posição no catálogo — apenas muda sua representação linguística.
@@ -805,7 +805,7 @@ Cada Card pode possuir uma Card Translation por idioma suportado pelo catálogo.
 
 A imagem oficial da Card é tratada como a fonte editorial completa (ver ADR-012 e AP-015 — Progressive Catalog Enrichment). Como existem múltiplos idiomas suportados, uma mesma Card pode possuir imagens diferentes por idioma — a existência de uma imagem por idioma não cria uma nova Card, apenas mais uma representação localizada.
 
-A relação definitiva entre a imagem, a Card Translation e a Card Finish permanece em aberto e será decidida progressivamente: inicialmente, uma imagem por Card Translation pode ser suficiente; caso existam imagens digitais específicas por acabamento, a imagem poderá vir a se relacionar também com a Card Finish. Esta decisão não precisa ser fechada nesta versão do documento.
+A relação definitiva entre a imagem, a Card Translation e o Card Variant permanece em aberto e será decidida progressivamente: inicialmente, uma imagem por Card Translation pode ser suficiente; caso existam imagens digitais específicas por acabamento, a imagem poderá vir a se relacionar também com o Card Variant. Esta decisão não precisa ser fechada nesta versão do documento.
 
 ---
 
@@ -821,7 +821,7 @@ Representa a classificação de raridade oficial de uma Card, indicada por um s�
 
 Rarity não representa:
 
-- uma forma de impressão ou acabamento físico (ver Finish, abaixo);
+- uma forma de impressão ou acabamento físico (ver Card Variant Type, abaixo);
 - uma nova posição catalográfica;
 - uma classificação derivada ou calculada — é um dado oficial publicado pelo catálogo.
 
@@ -888,7 +888,7 @@ Consequência prática: Rarity não é um atributo textual solto, mas um catálo
 
 ---
 
-## Finish (Acabamento)
+## Card Variant Type (Tipo de Variante da Carta)
 
 ### O que é?
 
@@ -899,25 +899,25 @@ Exemplos de valores observados na lista oficial do ME1:
 - Standard (Padrão);
 - Standard Foil (Laminada Padrão).
 
-Outros acabamentos identificados em ciclos anteriores de modelagem, ainda não confirmados por documento oficial:
+Outros acabamentos identificados em ciclos anteriores de modelagem:
 
 - Reverse Holo;
 - Cosmos Holo.
 
-O nome canônico adotado para este conceito é **Finish** — os termos "Printing Variant" e "Finish Variant", usados informalmente durante a modelagem, foram descartados definitivamente por sugerirem, incorretamente, a criação de uma versão editorial derivada (ver ADR-010).
+O nome conceitual canônico deste conceito é **Card Variant Type**, convergindo com o nome já usado no schema físico, no pipeline de importação e na prática do projeto (ADR-016). Os termos "Finish" (adotado anteriormente por ADR-010) e "Printing Variant"/"Finish Variant" (descartados por ADR-010) são registrados aqui apenas como sinônimos históricos.
 
 ---
 
 ### O que não é?
 
-Finish não representa:
+Card Variant Type não representa:
 
 - uma nova posição catalográfica;
 - uma Card diferente;
 - uma classificação de raridade (ver Rarity, acima);
 - um exemplar físico específico do usuário (ver Collection Item).
 
-Um Finish **não altera** o número da Card, sua posição no Set, sua raridade, seu nome ou sua identidade editorial.
+Um Card Variant Type **não altera** o número da Card, sua posição no Set, sua raridade, seu nome ou sua identidade editorial.
 
 ---
 
@@ -927,32 +927,32 @@ Permite representar em quais acabamentos físicos oficiais uma Card pode ser enc
 
 ---
 
-## Card Finish (Acabamento da Carta)
+## Card Variant (Variante da Carta)
 
 ### O que é?
 
-Declara que uma determinada Card está oficialmente disponível em um determinado Finish.
+Declara que uma determinada Card está oficialmente disponível em um determinado Card Variant Type.
 
 Exemplo:
 
 ```text
 Card: 001/132 — Bulbasaur (Rarity: Common)
-Available Finishes:
+Card Variants disponíveis:
 - Standard
 - Standard Foil
 
 Card: 177/132 — Mega Venusaur ex (Rarity: Special Illustration Rare)
-Available Finishes:
+Card Variants disponíveis:
 - Standard Foil
 ```
 
-Não se deve assumir que todas as Cards de um Set possuem automaticamente os mesmos acabamentos disponíveis — cada Card Finish deve ser catalogada individualmente.
+Não se deve assumir que todas as Cards de um Set possuem automaticamente os mesmos acabamentos disponíveis — cada Card Variant deve ser catalogada individualmente.
 
 ---
 
 ### O que não é?
 
-Card Finish não representa:
+Card Variant não representa:
 
 - uma nova Card;
 - uma nova posição catalográfica no Set;
@@ -963,17 +963,17 @@ Card Finish não representa:
 
 ### Resolução da Questão de Identidade (histórico)
 
-Um ciclo anterior desta documentação havia sinalizado como questão em aberto se formas de impressão (Full Art, Rainbow Rare, etc.) poderiam quebrar a regra de identidade "Set + Número da Card". Essa questão foi resolvida com apoio de um documento oficial (a lista de cartas do ME1): Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow não são diferenças de Finish — são **Cards independentes**, cada uma com número, arte e Rarity próprios, regidas normalmente pela regra "Set + Número da Card" (ADR-004), sem necessidade de tratamento especial. O que antes parecia uma questão de identidade de "variante" era, na verdade, uma mistura de três conceitos diferentes: Card, Rarity e Finish. Ver ADR-010 para o registro completo desta decisão.
+Um ciclo anterior desta documentação havia sinalizado como questão em aberto se formas de impressão (Full Art, Rainbow Rare, etc.) poderiam quebrar a regra de identidade "Set + Número da Card". Essa questão foi resolvida com apoio de um documento oficial (a lista de cartas do ME1): Full Art, Illustration Rare, Special Illustration Rare, Hyper Rare, Gold e Rainbow não são diferenças de Card Variant — são **Cards independentes**, cada uma com número, arte e Rarity próprios, regidas normalmente pela regra "Set + Número da Card" (ADR-004), sem necessidade de tratamento especial. O que antes parecia uma questão de identidade de "variante" era, na verdade, uma mistura de três conceitos diferentes: Card, Rarity e Card Variant Type. Ver ADR-009, ADR-010 e ADR-016 para o registro completo desta decisão.
 
-Consequência prática: o escopo de Card Finish é mais estreito do que inicialmente hipotetizado — cobre apenas quais acabamentos físicos (tipicamente Standard e Standard Foil) estão disponíveis para uma mesma posição catalográfica. A maioria das Cards possui apenas um ou dois acabamentos.
+Consequência prática: o escopo de Card Variant é mais estreito do que inicialmente hipotetizado — cobre apenas quais acabamentos físicos (tipicamente Standard e Standard Foil, além de acabamentos como Holo e Reverse Holo) estão disponíveis para uma mesma posição catalográfica. A maioria das Cards possui apenas um ou dois acabamentos.
 
 ---
 
 ### Características Conceituais
 
-Conceitualmente, uma Card Finish:
+Conceitualmente, um Card Variant:
 
-- associa uma única Card a um único Finish;
+- associa uma única Card a um único Card Variant Type;
 - não altera número, arte, Rarity ou registro editorial da Card à qual pertence.
 
 A estrutura definitiva desses campos será avaliada durante a modelagem lógica.
@@ -986,22 +986,20 @@ A estrutura definitiva desses campos será avaliada durante a modelagem lógica.
 Card
  1
  │
- └── N Card Finish
+ └── N Card Variant
         │
-        └── referencia 1 Finish
+        └── referencia 1 Card Variant Type
 ```
 
-Um exemplar físico do usuário (Collection Item) referencia uma Card Finish específica — não a Card diretamente — já que o acabamento físico é uma característica do exemplar impresso:
+Um exemplar físico do usuário (Collection Item) referencia um Card Variant específico — não a Card diretamente — já que o acabamento físico é uma característica do exemplar impresso:
 
 ```text
 Card
  │
- └── Card Finish
+ └── Card Variant
         │
         └── Collection Item
 ```
-
-> **Nota de nomenclatura:** o schema físico usa os termos `card_variant`/`card_variant_type` para representar esta relação (ver `05-modelo-de-dados.md`). A escolha final do vocabulário do projeto entre esses termos e Finish/Card Finish (ADR-010) segue em aberto, não resolvida unilateralmente.
 
 ---
 
@@ -1017,7 +1015,7 @@ A imagem não é um campo direto de Card porque não é um atributo relacional d
 
 ### O que não é?
 
-Card Asset não representa uma variante colecionável (ver Card Variant/Card Finish, acima) nem um exemplar físico do usuário (ver Collection Item).
+Card Asset não representa uma variante colecionável (ver Card Variant, acima) nem um exemplar físico do usuário (ver Collection Item).
 
 ---
 
@@ -1047,7 +1045,7 @@ Conceitualmente, um Card Asset:
 
 Ver `05-modelo-de-dados.md` para a estrutura física e o estado de execução atual.
 
-> **Distinção reconhecida, ainda não modelada:** o acabamento físico de uma Card (Finish) e o produto/origem de distribuição de uma impressão específica (ex.: um booster comum vs. uma coleção promocional) são dimensões conceitualmente independentes. Hoje o domínio representa apenas o acabamento. Uma futura entidade de "origem de impressão", vinculada a Card Finish, é uma necessidade reconhecida — ainda não modelada.
+> **Distinção reconhecida, ainda não modelada:** o acabamento físico de uma Card (Card Variant Type) e o produto/origem de distribuição de uma impressão específica (ex.: um booster comum vs. uma coleção promocional) são dimensões conceitualmente independentes. Hoje o domínio representa apenas o acabamento. Uma futura entidade de "origem de impressão", vinculada a Card Variant, é uma necessidade reconhecida — ainda não modelada.
 
 ---
 
@@ -1069,7 +1067,7 @@ Valores no escopo do catálogo numerado de um Set:
 Card Category não representa:
 
 - uma Rarity;
-- um Finish;
+- um Card Variant Type;
 - um Energy Type (tipo elemental de uma carta de Pokémon — ver Energy Type, abaixo; não confundir com cartas de Energia, que não fazem parte deste catálogo numerado);
 - uma relação direta e universal com a entidade Pokémon — apenas Cards de categoria Pokémon possuem essa referência (obrigatória nesse caso; inexistente para Trainer).
 
@@ -1329,7 +1327,7 @@ Collection Item não representa:
 
 - uma posição no Set (ver Card);
 - uma Card do catálogo;
-- um acabamento disponível (ver Card Finish);
+- um acabamento disponível (ver Card Variant);
 - uma quantidade agregada;
 - uma linha genérica de estoque.
 
@@ -1363,21 +1361,21 @@ Também permite distinguir, entre exemplares de uma mesma Card: a cópia princip
 ```text
 Card
  │
- └── Card Finish
+ └── Card Variant
         │
         └── N Collection Item
 ```
 
-Cada Collection Item referencia uma combinação editorial válida de Card + Finish + Language (ver Card Finish, acima):
+Cada Collection Item referencia uma combinação editorial válida de Card + Card Variant + Language (ver Card Variant, acima):
 
 ```text
 Collection Item: ITEM_0003456
 Card: Bulbasaur 001/132
-Finish: Standard Foil
+Card Variant: Standard Foil
 Language: Portuguese
 ```
 
-O acabamento físico é uma característica do exemplar impresso — por isso o Collection Item referencia a Card Finish, não a Card diretamente (ver "Relacionamentos", na seção Card Finish).
+O acabamento físico é uma característica do exemplar impresso — por isso o Collection Item referencia o Card Variant, não a Card diretamente (ver "Relacionamentos", na seção Card Variant).
 
 ---
 
@@ -1448,7 +1446,7 @@ User (Usuário)
  │
  └── N Collection Item
         ├── Card
-        ├── Card Finish
+        ├── Card Variant
         ├── Language
         ├── Physical Condition
         ├── Ownership Status
@@ -1497,3 +1495,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.33–1.36 | Adicionada a entidade Card Asset Type / Card Asset, para ativos digitais (imagens e futuros formatos) da Card, independente de Card Variant. |
 | 1.37–1.38 | Catálogo de Card Variant Type expandido de 6 para 12 tipos, após identificar que a reversa holográfica de determinada coleção segue padrões distintos por linha evolutiva do Pokémon, não um padrão único genérico. |
 | 2.0 | **Reestruturação editorial do documento.** Removido o conteúdo operacional acumulado ao longo dos ciclos anteriores (números de Query, SQL/DDL, versões de Seed, confirmações de execução, propostas rejeitadas mantidas na íntegra, citações de sessão, discussões não concluídas registradas linha a linha) — esse conteúdo permanece preservado em `05-modelo-de-dados.md` (camada física e de execução), `06-pipeline-importacao.md` (estratégias de importação) e no histórico de decisões do projeto. O documento passa a refletir apenas o modelo conceitual vigente de cada entidade: definição, características, relacionamentos e regras de negócio atuais. Histórico de revisões anteriores a esta reescrita comprimido para uma linha por versão (ou faixa de versões relacionadas). |
+| 2.1 | **Convergência de nomenclatura: Finish/Card Finish revertidos para Card Variant Type/Card Variant (ADR-016), revertendo parcialmente ADR-010.** Fabrício avaliou que Card Variant Type/Card Variant deve prevalecer como termo conceitual, por já ser o nome usado no banco de dados, no pipeline de importação e na linguagem prática do projeto, sem que "Card Variant" esteja sendo usado para Full Art/Gold/Secret Rare (escopo já restrito por ADR-009). A separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida e não foi afetada. Renomeadas as seções "Finish"/"Card Finish" para "Card Variant Type"/"Card Variant" e todas as referências cruzadas no documento (Card, Card Translation, Rarity, Card Category, Card Asset, Collection Item). "Finish"/"Card Finish"/"Printing Variant"/"Finish Variant" preservados apenas como sinônimos históricos. |

@@ -7,8 +7,8 @@
 | **Status** | Aprovado |
 | **Data** | 2026-07 |
 | **Decisores** | Project Mimikyu |
-| **Decisão** | O termo provisório "Inventory Item" é substituído por "Collection Item". Cada exemplar físico possui identidade individual e permanente — nunca é representado como quantidade agregada. Collection Item referencia Card Finish (não Card diretamente) e um idioma, identificando uma combinação editorial válida. Ownership Status e Availability Status são dimensões distintas. |
-| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-010-card-rarity-and-finish-model.md`, `ADR-006-separation-of-catalog-ownership-and-analytics.md` |
+| **Decisão** | O termo provisório "Inventory Item" é substituído por "Collection Item". Cada exemplar físico possui identidade individual e permanente — nunca é representado como quantidade agregada. Collection Item referencia Card Variant (não Card diretamente) e um idioma, identificando uma combinação editorial válida. Ownership Status e Availability Status são dimensões distintas. |
+| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-010-card-rarity-and-finish-model.md`, `ADR-016-card-variant-naming-convention.md`, `ADR-006-separation-of-catalog-ownership-and-analytics.md` |
 
 ---
 
@@ -16,7 +16,7 @@
 
 A entidade que representa o exemplar físico pertencente a um usuário vinha sendo chamada de "Inventory Item" desde os primeiros ciclos de modelagem. Esse nome funciona bem para um sistema de controle de estoque, mas o Project Mimikyu é uma plataforma de colecionismo — essa diferença de propósito motivou a revisão do nome antes de detalhar essa entidade, por se tratar, muito provavelmente, da entidade mais acessada de todo o sistema.
 
-Paralelamente, era preciso decidir: (1) se exemplares fisicamente idênticos deveriam ser representados como uma quantidade agregada por combinação de Card + Finish + Language, ou como registros individuais; e (2) como representar, sem ambiguidade, se um exemplar ainda pertence ao usuário e se está disponível para alguma finalidade (troca, venda).
+Paralelamente, era preciso decidir: (1) se exemplares fisicamente idênticos deveriam ser representados como uma quantidade agregada por combinação de Card + Card Variant + Language, ou como registros individuais; e (2) como representar, sem ambiguidade, se um exemplar ainda pertence ao usuário e se está disponível para alguma finalidade (troca, venda).
 
 ---
 
@@ -32,7 +32,7 @@ Cada exemplar físico recebe identidade própria, permanente e individual — nu
 
 ## Relação com o catálogo
 
-Collection Item referencia uma Card Finish (não a Card diretamente — ver ADR-010) e um idioma, identificando uma combinação editorial válida de Card + Finish + Language.
+Collection Item referencia um Card Variant (não a Card diretamente — ver ADR-010, ADR-016) e um idioma, identificando uma combinação editorial válida de Card + Card Variant + Language.
 
 ## Ownership Status e Availability Status
 
@@ -69,7 +69,7 @@ Mudanças em condição, armazenamento ou disponibilidade nunca alteram a identi
 
 Rejeitada por refletir um modelo mental de estoque, incompatível com o posicionamento do produto como plataforma de colecionismo.
 
-## Representar exemplares idênticos como quantidade agregada (Card + Finish + Language + quantity)
+## Representar exemplares idênticos como quantidade agregada (Card + Card Variant + Language + quantity)
 
 Rejeitada por impedir o controle individual de condição, preço, origem, histórico e destino de cada cópia física — informações essenciais para um colecionador.
 
@@ -83,6 +83,7 @@ Rejeitada por gerar ambiguidade entre duas perguntas conceitualmente diferentes 
 
 - `../04-domain-model.md`
 - `ADR-010-card-rarity-and-finish-model.md`
+- `ADR-016-card-variant-naming-convention.md`
 - `ADR-006-separation-of-catalog-ownership-and-analytics.md`
 
 ---
@@ -92,3 +93,4 @@ Rejeitada por gerar ambiguidade entre duas perguntas conceitualmente diferentes 
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da renomeação de Inventory Item para Collection Item, do modelo de identidade individual por exemplar, e da separação entre Ownership Status e Availability Status. |
+| 1.1 | Referências a "Card Finish" atualizadas para "Card Variant" (Decisão, Context, Decision, Alternatives Considered), refletindo a convergência de nomenclatura de ADR-016. Nenhuma decisão desta ADR foi alterada. |

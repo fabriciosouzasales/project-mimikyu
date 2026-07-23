@@ -4,15 +4,17 @@
 |--------|-------|
 | **ADR** | ADR-010 |
 | **Título** | Card Rarity and Finish Model |
-| **Status** | Aprovado |
+| **Status** | Substituído (parcialmente — ver ADR-016) |
 | **Data** | 2026-07 |
 | **Decisores** | Project Mimikyu |
 | **Decisão** | Rarity é um atributo de primeira classe da Card. O conceito antes chamado "Card Variant" é retirado do vocabulário conceitual e substituído por Finish (catálogo de acabamentos físicos) e Card Finish (associação entre uma Card e um Finish disponível). Inventory Item passa a referenciar uma Card Finish, não a Card diretamente. |
-| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-004-set-identity.md`, `ADR-009-card-variant-scope.md` |
+| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-004-set-identity.md`, `ADR-009-card-variant-scope.md`, `ADR-016-card-variant-naming-convention.md` |
 
 ---
 
 # Context
+
+> **Nota (ADR-016):** a parte desta ADR que retirava "Card Variant" do vocabulário conceitual em favor de "Finish"/"Card Finish" foi **revertida** por `ADR-016-card-variant-naming-convention.md` — o vocabulário conceitual do domínio volta a usar Card Variant Type/Card Variant, convergindo com o nome já usado no schema físico. A **outra** decisão desta ADR — Rarity como atributo de primeira classe da Card, distinto de acabamento — **permanece válida** e não foi alterada. Este texto é preservado sem alteração como registro histórico da decisão original.
 
 ADR-009 já havia restringido o escopo do então chamado "Card Variant" a diferenças de acabamento sobre a mesma posição catalográfica, e havia estabelecido que formas de impressão como Full Art e Rainbow Rare são Cards independentes. Essa conclusão permanece correta.
 
@@ -107,3 +109,4 @@ Rejeitada. Raridade não é uma característica de acabamento físico — é uma
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da decisão que separa Rarity e Finish/Card Finish, substituindo o conceito "Card Variant" de ADR-009, com base em documento oficial (lista de cartas do ME1). |
+| 1.1 | Status alterado para Substituído (parcialmente). Adicionada nota de referência cruzada apontando para ADR-016, que reverte a nomenclatura Finish/Card Finish de volta para Card Variant Type/Card Variant. A decisão sobre Rarity como atributo de primeira classe da Card permanece válida e não foi alterada. Nenhum conteúdo original foi alterado. |

@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Catálogo Editorial |
 | **Arquivo** | `docs/07-catalogo-editorial.md` |
-| **Versão** | 0.1 |
+| **Versão** | 0.3 |
 | **Status** | Em elaboração |
 | **Objetivo** | Documentar como as informações do Catálogo Editorial são efetivamente capturadas e disponibilizadas pelo Project Mimikyu. |
 | **Escopo** | Estratégia de captura e disponibilização de dados do catálogo. Não redefine entidades (ver `04-domain-model.md`) nem decisões arquiteturais (ver ADRs). |
@@ -59,7 +59,7 @@ Se a resposta for não, a imagem é suficiente por ora.
 
 ## Campos estruturados na primeira versão
 
-`Set`, `Number`, `Category`, `Trainer Subcategory`, `Rarity`, `Pokémon reference`, `Available Finishes` (Card Finish), `Translations` (Card Translation), `Image reference`.
+`Set`, `Number`, `Category`, `Trainer Subcategory`, `Rarity`, `Pokémon reference`, `Available Variants` (Card Variant), `Translations` (Card Translation), `Image reference`.
 
 ## Campos que permanecem apenas na imagem, por ora
 
@@ -81,7 +81,7 @@ Se a resposta for não, a imagem é suficiente por ora.
 
 - critérios objetivos para priorizar quais campos hoje visuais serão estruturados em ciclos futuros;
 - mecanismo concreto de extração de dados (manual, automatizado ou híbrido) — depende do pipeline de importação (`06-pipeline-importacao.md`);
-- relação definitiva entre a imagem da Card (Card Image) e a Card Translation / Card Finish (uma imagem por idioma, por acabamento, ou ambos) — decisão progressiva, ver `04-domain-model.md`, seção Card Translation, e AP-015.
+- relação definitiva entre a imagem da Card (Card Image) e a Card Translation / Card Variant (uma imagem por idioma, por acabamento, ou ambos) — decisão progressiva, ver `04-domain-model.md`, seção Card Translation, e AP-015.
 
 ---
 
@@ -91,3 +91,4 @@ Se a resposta for não, a imagem é suficiente por ora.
 |---------|-----------|
 | 0.1 | Estrutura inicial do documento, com o modelo de três níveis de disponibilidade de informação e o critério de estruturação de campos, definidos em ADR-012. |
 | 0.2 | Adicionado ponto em aberto sobre a relação entre Card Image e Card Translation/Card Finish. |
+| 0.3 | "Available Finishes"/"Card Finish" atualizados para "Available Variants"/"Card Variant" (Campos estruturados, Em Aberto), refletindo a convergência de nomenclatura de ADR-016. A entrada 0.2, acima, é preservada sem alteração como registro histórico do momento em que o ponto em aberto foi originalmente adicionado. |

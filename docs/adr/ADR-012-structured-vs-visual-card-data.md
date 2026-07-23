@@ -30,7 +30,7 @@ Adota-se um modelo de três níveis de disponibilidade da informação:
 
 Informações armazenadas em campos próprios, utilizáveis diretamente em filtros, regras e relatórios.
 
-Estruturados desde a primeira versão: Set, Number, Category, Trainer Subcategory, Rarity, Pokémon reference, Available Finishes (Card Finish), Translations (Card Translation), Image reference.
+Estruturados desde a primeira versão: Set, Number, Category, Trainer Subcategory, Rarity, Pokémon reference, Available Variants (Card Variant), Translations (Card Translation), Image reference.
 
 ## 2. Visual Source (Fonte Visual)
 
@@ -102,3 +102,4 @@ Rejeitada por impedir funcionalidades essenciais do produto, como identificar a 
 |---------|-----------|
 | 1.0 | Registro do modelo de três níveis de disponibilidade de informação e do critério de estruturação de campos da Card. |
 | 1.1 | Adicionada "Atualização — Escopo de Mecânica de Jogo Tornado Permanente": o grupo Visual Source de mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio, texto de regras) deixa de ser apenas uma classificação da primeira versão — Fabrício determinou que é permanente, formalizado em AP-017. Corrigida a lista de Structured Data: "Pokémon reference" removido como campo planejado para a primeira versão (ver ADR-011). |
+| 1.2 | "Available Finishes (Card Finish)" renomeado para "Available Variants (Card Variant)" na lista de Structured Data, refletindo a convergência de nomenclatura de ADR-016. |

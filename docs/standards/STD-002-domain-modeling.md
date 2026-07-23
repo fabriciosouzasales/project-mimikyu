@@ -102,7 +102,7 @@ Exemplos: HP, Weakness, Resistance, Retreat Cost, Regulation Mark.
 
 Catálogo pequeno, controlado e reutilizado por todo o sistema.
 
-Exemplos: Rarity, Card Category, Trainer Subcategory, Finish.
+Exemplos: Rarity, Card Category, Trainer Subcategory, Card Variant Type.
 
 ---
 
@@ -113,3 +113,4 @@ Exemplos: Rarity, Card Category, Trainer Subcategory, Finish.
 | 1.0 | Criação inicial do padrão de modelagem de domínio. |
 | 1.1 | Padronização do cabeçalho (Título, Arquivo, Escopo, Dependências, Documentos Relacionados) e correção de estrutura de seções (separadores e nível de heading). |
 | 1.2 | Adicionada a seção Concept Classification (Identity Entity / Value Object / Reference Data), descoberta durante a modelagem detalhada da Card. |
+| 1.3 | Exemplo de Reference Data "Finish" atualizado para "Card Variant Type", refletindo a convergência de nomenclatura de ADR-016. |
