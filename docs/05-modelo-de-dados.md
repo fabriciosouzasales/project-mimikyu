@@ -1141,7 +1141,7 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 
 # Rarity (Raridade)
 
-Status: **Modelo lógico aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!"). **Execução no Supabase ainda pendente** — Query `130` é o próximo passo real, ainda não confirmado como executado nesta documentação.
+Status: **Tabela, trigger e seed executados e confirmados no Supabase** (`130`, `131`, `830`). **Único item pendente:** Query `930 - Validate Rarity` foi escrita, com resultados esperados definidos, mas sua execução ainda não foi confirmada por Fabrício nesta documentação — não presumir validado até confirmação explícita (ver STD-001, "nunca assumir que Success significa correto").
 
 ## Modelo Lógico
 
@@ -1181,7 +1181,7 @@ updated_at
 
 **name** — Nome oficial ou principal de exibição (ex.: `Special Art Rare`).
 
-**display_order** — Posição em uma sequência lógica de apresentação (ex.: Common antes de Uncommon, antes de Rare...). Não deve ser inferida alfabeticamente.
+**display_order** — Posição em uma sequência lógica de apresentação (ex.: Common antes de Uncommon, antes de Rare...). Não deve ser inferida alfabeticamente. **Deliberadamente não é único dentro do Game** (sem `UNIQUE (game_id, display_order)`) — decisão explícita: duas raridades diferentes podem ocupar posições ou níveis equivalentes na sequência, sem serem a mesma classificação. A ordenação continua previsível combinando `display_order` com `code` (`ORDER BY display_order, code`).
 
 **created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
 
@@ -1201,34 +1201,27 @@ Aplicando o Princípio da Simplicidade Inicial (AP-004): uma classificação nor
 
 **Regra 5 — Exclusão restrita.** Um Game que já possua Rarities não deve ser excluído (`ON DELETE RESTRICT`).
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — Executado
 
 ```sql
 CREATE TABLE public.rarity (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     game_id UUID NOT NULL,
-
     code VARCHAR(50) NOT NULL,
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(150) NOT NULL,
     display_order INTEGER NOT NULL,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT fk_rarity_game
         FOREIGN KEY (game_id)
         REFERENCES public.game (id)
         ON DELETE RESTRICT,
-
     CONSTRAINT uq_rarity_game_code
         UNIQUE (game_id, code),
-
-    CONSTRAINT ck_rarity_code_not_blank
-        CHECK (btrim(code) <> ''),
-
+    CONSTRAINT ck_rarity_code_format
+        CHECK (code ~ '^[A-Z0-9][A-Z0-9_]*$'),
     CONSTRAINT ck_rarity_name_not_blank
         CHECK (btrim(name) <> ''),
-
     CONSTRAINT ck_rarity_display_order_positive
         CHECK (display_order > 0)
 );
@@ -1237,30 +1230,171 @@ ALTER TABLE public.rarity
 ENABLE ROW LEVEL SECURITY;
 ```
 
-> **Nota:** este DDL é uma proposta seguindo os padrões já estabelecidos em STD-001 e o mesmo formato usado em `game`/`expansion` (mesma forma: entidade de referência com `code`+`name`+ordenação, escopada a uma entidade-pai). Os tipos e nomes de constraint específicos (`VARCHAR(50)`, `VARCHAR(100)`, nomes de constraint) podem ser ajustados na execução real, assim como já ocorreu com Card Set (`code` passou de `VARCHAR(20)` planejado para `VARCHAR(50)` executado). Não presumir que este SQL foi executado até confirmação.
+Query: `130 - Create Rarity Table`. Resultado confirmado por Fabrício: `Success. No rows returned`. Nota: `name` usa `VARCHAR(150)` (mesmo padrão de Game/Expansion, não o `VARCHAR(100)` inicialmente rascunhado neste documento); `code` recebeu a mesma constraint de formato já usada em Game/Expansion (`ck_rarity_code_format`, letras maiúsculas/números/sublinhado), em vez de apenas "não vazio". Confirma a regra 4 (não presumir equivalência entre mercados) e a decisão de **não** criar `UNIQUE (game_id, display_order)` — ver "Atributos," acima.
+
+### Trigger de `updated_at`
+
+```sql
+CREATE TRIGGER trg_rarity_set_updated_at
+BEFORE UPDATE
+ON public.rarity
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+```
+
+Query: `131 - Create Rarity Trigger`. Resultado confirmado por Fabrício: `Success. No rows returned`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game).
+
+### Seed
+
+Decisão arquitetural tomada antes da carga: cadastrar não apenas as raridades da Expansion `ME`, mas o conjunto consolidado observado nas legendas oficiais de todos os Sets já catalogados (`ME1`–`ME4`), para que `rarity` funcione como uma verdadeira tabela de domínio do Game `POKEMON`, não apenas da Expansion `ME` — evitando que cada nova Expansion exija inserir raridades que já existem no jogo. Fabrício confirmou: "Eu cadastraria todas as raridades que aparecem na lista de verificação de cada Set. Temos todos na legenda do arquivo que já tinha enviado."
+
+**Correção de nomenclatura (SAR):** a lista oficial brasileira usa "Ilustração Rara Especial" — o código canônico adotado é `SPECIAL_ILLUSTRATION_RARE`, **não** um código `SAR` separado. `SAR`/`SIR` não são cadastrados como raridades adicionais apenas por serem abreviações usadas por colecionadores ou em outros mercados; a interface poderá permitir que o usuário pesquise por `SAR`, `SIR` ou `Ilustração Rara Especial` e todos apontem para a mesma raridade canônica, sem duplicar registros (ver Regra 4, acima).
+
+```sql
+DO $$
+DECLARE
+    v_game_id UUID;
+BEGIN
+    SELECT id
+      INTO v_game_id
+      FROM public.game
+     WHERE code = 'POKEMON';
+
+    IF v_game_id IS NULL THEN
+        RAISE EXCEPTION
+            'Não foi possível executar a Query 830: o Game POKEMON não está cadastrado.';
+    END IF;
+
+    INSERT INTO public.rarity (
+        game_id,
+        code,
+        name,
+        display_order
+    )
+    VALUES
+        (v_game_id, 'COMMON',                    'Comum',                     1),
+        (v_game_id, 'UNCOMMON',                  'Incomum',                   2),
+        (v_game_id, 'RARE',                      'Rara',                      3),
+        (v_game_id, 'DOUBLE_RARE',               'Rara Dupla',                4),
+        (v_game_id, 'ULTRA_RARE',                'Rara Ultra',                5),
+        (v_game_id, 'MEGA_ATTACK_RARE',          'Rara Mega Ataque',          6),
+        (v_game_id, 'ILLUSTRATION_RARE',         'Ilustração Rara',           7),
+        (v_game_id, 'SPECIAL_ILLUSTRATION_RARE', 'Ilustração Rara Especial',  8),
+        (v_game_id, 'MEGA_HYPER_RARE',           'Mega Rara Hiper',           9)
+    ON CONFLICT (game_id, code)
+    DO UPDATE SET
+        name = EXCLUDED.name,
+        display_order = EXCLUDED.display_order;
+END;
+$$;
+```
+
+Query: `830 - Seed Rarity`. Resultado confirmado por Fabrício: "Executada com sucesso." Nove raridades cadastradas, consolidadas a partir das legendas oficiais de `ME1`, `ME2`, `ME2.5`, `ME3` e `ME4` (fonte: `assets/reference-sources/`) — `Rara Mega Ataque` veio especificamente da legenda de `ME2.5`.
+
+**Nova técnica, diferente do padrão `INSERT ... SELECT ... WHERE` usado em Game/Expansion/Set:** um bloco `DO $$ ... END $$` em PL/pgSQL resolve o `game_id` uma vez em uma variável (`v_game_id`) e usa `RAISE EXCEPTION` para falhar de forma explícita e legível caso o Game `POKEMON` não exista — em vez de silenciosamente inserir zero linhas. Alternativa válida ao padrão de `SELECT`/`CROSS JOIN` já documentado em STD-001, útil quando a ausência do pré-requisito deve ser um erro visível, não um resultado vazio silencioso.
+
+### Validação — Escrita, Execução Ainda Não Confirmada
+
+```sql
+-- 1. Relação completa das raridades
+SELECT
+    g.code AS game,
+    r.display_order,
+    r.code,
+    r.name
+FROM public.rarity r
+INNER JOIN public.game g
+    ON g.id = r.game_id
+ORDER BY
+    g.code,
+    r.display_order,
+    r.code;
+
+-- 2. Quantidade de raridades por Game
+SELECT
+    g.code,
+    COUNT(*) AS total_rarities
+FROM public.rarity r
+INNER JOIN public.game g
+    ON g.id = r.game_id
+GROUP BY
+    g.code;
+
+-- 3. Verificar códigos duplicados (esperado: zero linhas)
+SELECT
+    game_id,
+    code,
+    COUNT(*)
+FROM public.rarity
+GROUP BY
+    game_id,
+    code
+HAVING COUNT(*) > 1;
+
+-- 4. Verificar display_order inválido (esperado: zero linhas)
+SELECT *
+FROM public.rarity
+WHERE display_order <= 0;
+
+-- 5. Verificar nomes vazios (esperado: zero linhas)
+SELECT *
+FROM public.rarity
+WHERE btrim(name) = '';
+
+-- 6. Verificar códigos inválidos (esperado: zero linhas)
+SELECT *
+FROM public.rarity
+WHERE code !~ '^[A-Z0-9][A-Z0-9_]*$';
+
+-- 7. Verificar funcionamento do trigger updated_at
+SELECT
+    code,
+    created_at,
+    updated_at
+FROM public.rarity
+ORDER BY
+    display_order;
+```
+
+Query: `930 - Validate Rarity`. Resultado esperado (ainda não confirmado como executado): consulta 1 retorna 9 registros ordenados de 1 a 9; consulta 2 retorna `POKEMON = 9`; consultas 3 a 6 retornam zero linhas; consulta 7 confirma que `created_at`/`updated_at` existem para todos os registros, com `updated_at` refletindo qualquer edição futura. **Não presumir validado até confirmação explícita de Fabrício, consistente com o princípio de nunca assumir que "Success" significa "correto".**
+
+### Observação Arquitetural — Card Depende de Dois Domínios
+
+A criação de `rarity` revelou uma estrutura de dependência antes não explícita: `card` não depende apenas da cadeia `Game → Expansion → Card Set`, mas também diretamente de `Game → Rarity`:
+
+```text
+Game
+ ├── Expansion
+ │     └── Card Set
+ │           └── Card
+ │
+ └── Rarity
+       └── Card
+```
+
+Consequência prática, não apenas estética: `rarity` deixa de ser um atributo textual solto e passa a ser um catálogo oficial do próprio Game, o que facilita filtros, estatísticas, internacionalização e evita inconsistências de cadastro (ver `04-domain-model.md`, seção Rarity).
 
 ## Definition of Done
 
 - [x] modelo lógico definido, por grupo;
 - [x] atributos e campos adiados definidos;
 - [x] regras de negócio definidas;
-- [x] modelo físico proposto (DDL);
-- [ ] tabela `rarity` criada no Supabase (Query `130`);
-- [ ] RLS habilitado e confirmado;
-- [ ] trigger criado (`131`) e verificado;
-- [ ] seed executado (`830` — raridades reais do Pokémon TCG, com dados validados);
-- [ ] validação executada e confirmada (`930`).
+- [x] tabela `rarity` criada no Supabase (`130`);
+- [x] RLS habilitado;
+- [x] trigger criado (`131`);
+- [x] seed executado (`830` — nove raridades reais, consolidadas de `ME1`–`ME4`);
+- [ ] validação executada e confirmada (`930`) — **único item aberto**, escrita mas não confirmada.
 
 ## Queries Associadas
 
 ```text
-130 - Create Rarity Table
-131 - Create Rarity Trigger
-830 - Seed Rarity
-930 - Validate Rarity
+130 - Create Rarity Table    (executada)
+131 - Create Rarity Trigger  (executada)
+830 - Seed Rarity            (executada)
+930 - Validate Rarity        (escrita; execução não confirmada)
 ```
 
-Rarity precisa ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10.
+Rarity precisava ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10. Com o pacote técnico de Rarity praticamente fechado, o próximo passo real é `140 - Create Card Table`.
 
 ---
 
@@ -1458,3 +1592,4 @@ Depende da existência prévia de `rarity` (`130`) e `card_set` (`120`). Card Pr
 | 0.14 | Adicionada nota apontando que todo SQL "executado" documentado aqui também existe como arquivo `.sql` versionado em `database/` (auditoria de saúde do repositório) — ver `database/README.md`. |
 | 0.15 | Adotado o Princípio da Fonte Canônica (STD-001, Seção 10) para Card Set. Queries `120` e `820` reescritas em `Versão 2.0` (Status `CANÔNICA`): `120` v2.0 já nasce com suporte nativo a `PROMO` e inclui o índice único parcial `uq_card_set_expansion_promo` (ausente na v1.0/migration `122`); `820` v2.0 consolida todos os seis Card Sets da Expansion `ME` (incluindo `ME0`) em um único snapshot com `ON CONFLICT ... DO UPDATE`. DDL e Seed originais preservados como histórico (v1.0). Queries `122` e `821` reclassificadas como `MIGRATION` — preservadas, mas fora do fluxo de instalação limpa. Pendência de reescrita da `820` marcada como RESOLVIDA (texto original preservado). Sinalizado item aberto: status do índice `uq_card_set_expansion_promo` no banco físico atual não confirmado, já que esta consolidação foi feita no repositório, não reexecutada no Supabase. Definition of Done e Queries Associadas atualizadas com Status por Query. |
 | 0.16 | Adicionadas as entidades **Rarity** e **Card**, ambas com modelo lógico completo e aprovado por Fabrício ("Vamos seguir com a execução!"), incluindo proposta de DDL (ainda não executada no Supabase). Rarity: entidade de referência vinculada ao Game (`id, game_id, code, name, display_order`), criada antes de Card por dependência de FK — Query `130`. Card: modelo mínimo (`id, card_set_id, rarity_id, card_number, card_order, category_code, created_at, updated_at`) — Query `140` (deslocada de `130`, cedido a Rarity). Substituído o stub "Documentação pendente" da seção Card. Sinalizadas três pendências antes da execução real: confirmação de Fabrício sobre `ENERGY` como valor de `category_code` (contradiz decisão de escopo já registrada), e as nomenclaturas Card Printing vs. Card Translation e Card Variant vs. Finish/Card Finish. |
+| 0.17 | **Rarity executada e confirmada no Supabase.** Queries `130` (tabela — `name VARCHAR(150)`, `code` com constraint de formato, `display_order` deliberadamente sem `UNIQUE`), `131` (trigger) e `830` (seed — nove raridades reais, consolidadas de `ME1`–`ME4`, usando um novo padrão `DO $$ ... END $$` com `RAISE EXCEPTION` caso o Game não exista) confirmadas por Fabrício. Corrigida a nomenclatura: código canônico é `SPECIAL_ILLUSTRATION_RARE`, não um `SAR` separado. Query `930 - Validate Rarity` escrita com resultados esperados, mas execução ainda não confirmada — único item aberto. Adicionada "Observação Arquitetural — Card Depende de Dois Domínios" (`Game → Rarity` além de `Game → Expansion → Card Set`). Definition of Done e Queries Associadas atualizadas. |

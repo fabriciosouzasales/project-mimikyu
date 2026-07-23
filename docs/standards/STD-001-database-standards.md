@@ -284,6 +284,34 @@ Quando uma Seed precisa inserir mais de um registro relacionado à mesma entidad
 
 **`DO NOTHING` vs. `DO UPDATE`:** o padrão (`DO NOTHING`) é adequado para Seeds de carga inicial única. Para Seeds que representam o **estado atual e reaplicável de uma entidade** — por exemplo, o conjunto completo de Card Sets de uma Expansion, incluindo o Set promocional cuja quantidade cresce ao longo do tempo — prefira `ON CONFLICT ... DO UPDATE`, atualizando as colunas relevantes. Assim, reexecutar a Seed não apenas evita duplicidade, mas também corrige os registros existentes caso a fonte oficial seja atualizada. Critério: se a Seed representa "os dados iniciais que só existem uma vez", use `DO NOTHING`; se representa "o retrato mais atual e correto que conhecemos desta entidade", use `DO UPDATE`.
 
+**Bloco `DO $$ ... END $$` com verificação explícita de pré-requisito:** quando a ausência de uma entidade-pai deve ser um erro visível — não um `INSERT` que silenciosamente insere zero linhas — a Seed pode ser escrita como um bloco PL/pgSQL, resolvendo a chave estrangeira uma única vez em uma variável e usando `RAISE EXCEPTION` caso o pré-requisito não exista:
+
+```sql
+DO $$
+DECLARE
+    v_game_id UUID;
+BEGIN
+    SELECT id INTO v_game_id FROM public.game WHERE code = 'POKEMON';
+
+    IF v_game_id IS NULL THEN
+        RAISE EXCEPTION 'Game POKEMON não está cadastrado.';
+    END IF;
+
+    INSERT INTO public.rarity (game_id, code, name, display_order)
+    VALUES (v_game_id, 'COMMON', 'Comum', 1)
+    ON CONFLICT (game_id, code) DO UPDATE SET
+        name = EXCLUDED.name,
+        display_order = EXCLUDED.display_order;
+END;
+$$;
+```
+
+Alternativa válida ao padrão `INSERT ... SELECT ... WHERE` já documentado acima — usar quando a falha silenciosa (zero linhas inseridas, sem aviso) for um risco maior do que a verbosidade de um bloco `DO`. Exemplo real: `830 - Seed Rarity`.
+
+### Convenções de Apresentação da Query
+
+Além do cabeçalho oficial (ver "Modelo de Cabeçalho", abaixo), cada Query deve ser acompanhada de uma **descrição resumida** — uma linha curta, sem o detalhamento completo do cabeçalho, usada para organizar e indexar visualmente o SQL Editor do Supabase à medida que o número de Queries cresce (dezenas ou centenas de scripts). Ao apresentar uma Query durante o par de execução, a resposta deve começar por `Query: NNN - Título` seguido de um `Objetivo:` de uma ou duas frases, antes do SQL propriamente dito — convenção adotada a partir da entidade Rarity, a pedido de Fabrício ("Isso me ajuda a manter o SQL Editor organizado e padronizado").
+
 ### Registro em `database/`
 
 Depois que uma Query for executada e confirmada no Supabase, o mesmo SQL (com o cabeçalho oficial completo) deve ser copiado como arquivo `.sql` para o subdiretório correspondente em `database/` (fora de `docs/`), organizada pela mesma faixa de numeração desta seção — ver `database/README.md`. Isso garante que o histórico de execução exista de forma versionada no Git, não apenas dentro do Supabase ou embutido em prosa em `05-modelo-de-dados.md`. Este passo é posterior à execução — nunca usar `database/` como fonte para rodar migrations automaticamente (a execução real continua manual, via SQL Editor).
@@ -371,3 +399,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.10 | Adicionada à Seção 10 a subseção "Registro em `database/`": toda Query executada e confirmada deve ser copiada como arquivo `.sql` versionado em `database/`, fora de `docs/` — registrado durante auditoria de saúde do repositório (2026-07-23). |
 | 1.11 | Adicionado o "Princípio da Fonte Canônica": Queries de criação/seed representam sempre a forma correta e mais atual para uma instalação nova; migrations que alteram um banco já existente são preservadas, mas reclassificadas como históricas, fora do fluxo de instalação limpa. Adicionado o campo `Status` (`CANÔNICA`/`MIGRATION`) ao Modelo de Cabeçalho oficial. Aplicado pela primeira vez em Card Set (`120`/`820` atualizadas para v2.0; `122`/`821` reclassificadas). |
 | 1.12 | Atualizado o exemplo real da Seção 10 (Bloco por Entidade e Regra de Deslocamento): inserida a entidade Rarity em `130` (Seed `830`, Validate `930`), criada antes de Card por dependência de chave estrangeira (`card.rarity_id`). Card deslocada de `130` para `140` (Seed `840`, Validate `940`). Adicionada nota explicando que a numeração segue a ordem real de modelagem/aprovação, não a ordem originalmente cogitada. |
+| 1.13 | Adicionado à Seção 10 (Seeds) o padrão de bloco `DO $$ ... END $$` com verificação explícita de pré-requisito via `RAISE EXCEPTION`, alternativa ao padrão `INSERT ... SELECT ... WHERE` para quando a ausência de uma entidade-pai deve ser um erro visível (exemplo real: `830 - Seed Rarity`). Adicionada nova subseção "Convenções de Apresentação da Query": toda Query deve ter uma descrição resumida para organizar o SQL Editor, e a apresentação de cada Query no par de execução deve começar por `Query: NNN - Título` + `Objetivo:`, a pedido de Fabrício. |

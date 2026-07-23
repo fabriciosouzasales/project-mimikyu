@@ -870,7 +870,7 @@ Classificação final, resultante dessa correção e confirmada num lote seguint
 
 > **Ponto em aberto, sinalizado, não resolvido unilateralmente:** o valor `ENERGY` aparece pela terceira vez em lotes de modelagem física (23º, 24º e este) como um valor inicial cogitado para `category_code` — mas isso segue contradizendo a "Decisão de Escopo — Cartas de Energia" já registrada abaixo em Card Category, que exclui cartas de Energia do catálogo numerado inteiramente (não ocupam posição no Set). Como o valor `ENERGY` já apareceu de forma concreta em exemplos de SQL neste lote, este ponto precisa de uma resposta explícita de Fabrício antes da Query `140`/`141`: cartas de Energia devem passar a ocupar posição no catálogo numerado (revertendo a decisão de Card Category), ou `ENERGY` é apenas um valor de exemplo genérico do material recebido, sem intenção real de uso?
 
-Rarity, especificamente: **RESOLVIDO** — ver "Modelagem Lógica Resolvida" na seção Rarity, acima. `rarity_id` (FK para uma entidade de referência própria, vinculada ao Game), não um texto solto — decisão confirmada por Fabrício.
+Rarity, especificamente: **RESOLVIDO E EXECUTADO** — ver "Modelagem Lógica Resolvida" na seção Rarity, acima. `rarity_id` (FK para uma entidade de referência própria, vinculada ao Game), não um texto solto — decisão confirmada por Fabrício e já executada no Supabase (`130`/`131`/`830`).
 
 **Em aberto — sinalizado, não resolvido unilateralmente:**
 
@@ -984,18 +984,19 @@ A relação definitiva entre a imagem, a Card Translation e a Card Finish perman
 
 Representa a classificação de raridade oficial de uma Card, indicada por um símbolo específico na lista oficial do catálogo.
 
-Exemplos de valores observados na lista oficial do ME1:
+**Executado.** Nove raridades cadastradas para o Game `POKEMON`, consolidadas a partir das legendas oficiais dos Sets já catalogados (`ME1`, `ME2`, `ME2.5`, `ME3`, `ME4` — fonte: `assets/reference-sources/`), em ordem de exibição (`display_order`):
 
-- Common (Comum);
-- Uncommon (Incomum);
-- Rare (Rara);
-- Double Rare (Rara Dupla);
-- Ultra Rare (Rara Ultra);
-- Illustration Rare (Ilustração Rara);
-- Special Illustration Rare (Ilustração Rara Especial);
-- Mega Hyper Rare (Mega Rara Hiper).
+1. Comum (`COMMON`);
+2. Incomum (`UNCOMMON`);
+3. Rara (`RARE`);
+4. Rara Dupla (`DOUBLE_RARE`);
+5. Rara Ultra (`ULTRA_RARE`);
+6. Rara Mega Ataque (`MEGA_ATTACK_RARE`) — específica da legenda de `ME2.5`;
+7. Ilustração Rara (`ILLUSTRATION_RARE`);
+8. Ilustração Rara Especial (`SPECIAL_ILLUSTRATION_RARE`);
+9. Mega Rara Hiper (`MEGA_HYPER_RARE`).
 
-Esta lista reflete o que foi observado no documento oficial processado até o momento (`assets/reference-sources/P10346_ME01_Card_List_PTBR.pdf`) e não deve ser considerada exaustiva para todos os Sets ou Games suportados pelo Project Mimikyu.
+Esta lista reflete o conjunto real, executado (Query `830 - Seed Rarity`, ver `05-modelo-de-dados.md`) — segue sendo específica dos Sets já catalogados, não necessariamente exaustiva para Sets futuros ou outros Games suportados pelo Project Mimikyu, que cadastrarão suas próprias Rarities de forma independente.
 
 ---
 
@@ -1065,11 +1066,27 @@ rarity
 - `name` — nome oficial ou principal de exibição (ex.: `Special Art Rare`).
 - `display_order` — permite ordenar raridades em uma sequência lógica (ex.: `1 COMMON, 2 UNCOMMON, 3 RARE, 4 DOUBLE_RARE, 5 ILLUSTRATION_RARE, 6 SPECIAL_ILLUSTRATION_RARE, 7 HYPER_RARE`); a ordem não deve ser inferida alfabeticamente.
 
-> **Cuidado importante, sinalizado explicitamente pelo material recebido:** códigos abreviados como `SAR` e `SIR` podem representar nomenclaturas distintas em diferentes mercados ou linhas editoriais — **não presumir automaticamente que são o mesmo valor** entre catálogos diferentes. O banco deve preservar a classificação oficial exatamente como usada no catálogo correspondente. Uma futura classificação normalizada para agrupar raridades equivalentes entre catálogos (ex.: `official_code`/`rarity_group`) foi mencionada como possibilidade, mas deliberadamente **não faz parte da primeira versão**, sem necessidade comprovada (AP-004).
+> **Cuidado importante, sinalizado explicitamente pelo material recebido e confirmado na execução real:** códigos abreviados como `SAR` e `SIR` podem representar nomenclaturas distintas em diferentes mercados ou linhas editoriais — **não presumir automaticamente que são o mesmo valor** entre catálogos diferentes. O banco deve preservar a classificação oficial exatamente como usada no catálogo correspondente — por isso o código canônico executado é `SPECIAL_ILLUSTRATION_RARE` (nome oficial em português: "Ilustração Rara Especial"), e **não** um `SAR` cadastrado como raridade separada; a interface poderá permitir busca por `SAR`/`SIR`/"Ilustração Rara Especial" apontando para a mesma raridade canônica. Uma futura classificação normalizada para agrupar raridades equivalentes entre catálogos (ex.: `official_code`/`rarity_group`) foi mencionada como possibilidade, mas deliberadamente **não faz parte da primeira versão**, sem necessidade comprovada (AP-004).
 
 Motivado por um caso de uso concreto levantado pelo próprio Fabrício ("Eventualmente posso querer aplicar um filtro para selecionar apenas as minhas cartas SAR"): Rarity foi confirmada como um atributo essencial para o colecionismo (ver AP-017 — serve para filtrar/classificar/organizar a coleção, não apenas para jogar), devendo ser estruturada desde a primeira versão da Card.
 
-**Este modelo foi explicitamente aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!") — ver `05-modelo-de-dados.md` para o modelo lógico completo e a proposta de DDL (ainda não executada no Supabase).
+**Este modelo foi explicitamente aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!") **e já foi executado e confirmado no Supabase** (Queries `130`, `131`, `830`) — ver `05-modelo-de-dados.md` para o modelo físico completo. Único item pendente: confirmação da execução de `930 - Validate Rarity`.
+
+### Observação Arquitetural — Card Depende de Dois Domínios
+
+A criação de Rarity revelou que `card` não depende apenas da cadeia editorial `Game → Expansion → Card Set`, mas também diretamente de `Game → Rarity`:
+
+```text
+Game
+ ├── Expansion
+ │     └── Card Set
+ │           └── Card
+ │
+ └── Rarity
+       └── Card
+```
+
+Consequência prática: Rarity deixa de ser um atributo textual solto e passa a ser um catálogo oficial do próprio Game — o que facilita filtros, estatísticas, internacionalização futura e evita inconsistências de cadastro entre Cards.
 
 ---
 
@@ -1642,3 +1659,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.18 | Avançada a discussão da modelagem física da Card (segundo lote do par Fabrício/ChatGPT). Adicionado à seção "Modelagem Física — Discussão Iniciada": modelo proposto em quatro camadas (Card → Card Printing → Card Variant → Collection Item), a regra "produto diferente não cria variante, carta fisicamente diferente cria variante", a tabela de critério (qual diferença gera nova Card/Printing/Variant), o teste da premissa `card_set_id + card_number` contra o caso de arte diferente com mesmo número (resolvido a favor de manter Card como posição abstrata do checklist), e a definição + atributos mínimos propostos para `card` (id, card_set_id, `card_number` como texto, novo campo `card_order`, created_at, updated_at — deliberadamente sem nome/raridade/HP/tipo/ilustrador). As duas questões de nomenclatura seguem em aberto, agora mais concretas: Card Printing (escopo ampliado — também cobre arte e revisão/errata) vs. Card Translation; e Card Variant (uso consistente em dois lotes) vs. Finish/Card Finish (ADR-010). Adicionada quarta questão em aberto: onde ficam HP/Rarity/Category/Type/Stage/Pokédex Number/Illustrator — o próprio material propôs e depois recuou dessa divisão, deixando-a para um lote futuro. Nenhuma DDL de Card escrita ou aprovada — segue sem confirmação explícita de Fabrício sobre os pontos em aberto. |
 | 1.19 | **Decisão direta de Fabrício, formalizada como AP-017 (Princípio do Escopo Colecionável):** mecânica de jogo (HP, estágio, tipo elemental, fraqueza, resistência, custo de recuo, ataques, habilidades, texto de regras, espécie/Pokémon como entidade estrutural) não será estruturada no banco de dados — permanece apenas na imagem oficial da Card. Adicionada "Classificação Resolvida" à seção Card com a tabela final de destino por informação; `category_code` e `rarity_code` adicionados aos atributos mínimos de `card` (formato de armazenamento ainda em avaliação); Illustrator reclassificado de Card para Card Printing (correção cruzada adicionada em "Atributos e Relações da Card"); nota de resolução adicionada a "Card Details" e seu "Nota sobre estruturação de dados". Questão "Energy Card" em grande parte esvaziada (não há mais tabelas especializadas por categoria de jogo). Seguem em aberto: nomenclatura Card Printing vs. Card Translation, Card Variant vs. Finish/Card Finish, e formato de armazenamento de `category_code`/`rarity_code`. ADR-011 e ADR-012 atualizadas com a mesma correção. |
 | 1.20 | **Modelo de Card e Rarity aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!"). Rarity promovida de atributo solto a entidade de referência própria, vinculada ao Game (`id, game_id, code, name, display_order`), com alerta sobre não presumir equivalência entre códigos abreviados de mercados diferentes (ex. `SAR`/`SIR`). Card ganha `rarity_id` (FK, resolvendo a pendência de armazenamento de Rarity) mantendo `category_code` como coluna simples (categoria confirmada como necessária por um caso de uso concreto de filtro por Set). Adicionado critério refinado de estruturação ("identificar/classificar/filtrar/organizar/avaliar a coleção, não jogar"). Sinalizado novo ponto em aberto: `ENERGY` reapareceu como valor cogitado de `category_code`, pela terceira vez contradizendo a exclusão de cartas de Energia do catálogo numerado — precisa de resposta explícita de Fabrício antes da Query `140`/`141`. |
+| 1.21 | **Rarity executada e confirmada no Supabase** (Queries `130`, `131`, `830`). Lista de raridades atualizada para o conjunto real de nove valores (adiciona `MEGA_ATTACK_RARE`, da legenda de `ME2.5`, ausente da lista anterior). Corrigido o código canônico de "Ilustração Rara Especial" para `SPECIAL_ILLUSTRATION_RARE` — `SAR` não é cadastrado como raridade separada. Adicionada "Observação Arquitetural — Card Depende de Dois Domínios" (`Game → Rarity`, além de `Game → Expansion → Card Set`). Único item pendente: confirmação de execução de `930 - Validate Rarity`. |
