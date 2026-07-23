@@ -655,7 +655,7 @@ Uma mesma numeração (Set + Número) associada a Sets diferentes representa Car
 
 Outro exemplo: um Charizard ex publicado no Set `ME1` e, anos depois, republicado no Set `ME8`, são **duas Cards distintas** — mesmo compartilhando o mesmo Pokémon, o mesmo HP e os mesmos ataques. Editorialmente, continuam sendo publicações diferentes, pertencentes a Sets diferentes.
 
-> **Nota de revisão, discussão em andamento — não presumir esta seção como definitiva:** um lote posterior de modelagem física reabriu esta questão. Fabrício confirmou diretamente que, para o Project Mimikyu, uma Card representa "a carta editorial de forma única, que pode aparecer em vários Sets" — o oposto da premissa "Set + Número" descrita acima, que assumia que uma reimpressão em outro Set criaria uma Card diferente. Isso significa que a identidade `Set + Número` pode passar a pertencer a **Card Printing**, não a Card. **Ainda não é uma decisão final** — ver "Revisão Arquitetural — Identidade Editorial Independente de Set", mais abaixo, para o registro completo da discussão em andamento. Esta seção "Identidade" é preservada como estava, para rastreabilidade, mas deve ser lida como potencialmente superada.
+> **Nota de revisão, RESOLVIDA — esta seção está confirmada como válida.** Um lote posterior de modelagem física chegou a reabrir esta questão, cogitando uma identidade editorial independente de Set (ver "Revisão Arquitetural — Identidade Editorial Independente de Set", mais abaixo). **Essa cogitação foi revertida** em uma sessão seguinte — Fabrício optou por manter Card vinculada a um Card Set específico, com a premissa "Set + Número" descrita nesta seção confirmada como final (ver "Revisão Arquitetural — Card Volta a Pertencer a um Card Set", mais abaixo, para o histórico completo de ambas as revisões). Nenhuma alteração é necessária aqui.
 
 ---
 
@@ -774,7 +774,7 @@ Essas três métricas atendem a propósitos diferentes do produto: a primeira me
 
 ### Modelagem Física — Discussão Iniciada (Query 130), Não Concluída
 
-> **Superada em parte pela revisão mais recente:** o conteúdo desta seção (identidade `card_set_id + card_number`, atributos mínimos de `card` incluindo `card_set_id`/`rarity_id`) foi o consenso até um determinado ponto da discussão, mas uma sessão posterior reabriu a questão da identidade de Card e propôs uma reestruturação — ver "Revisão Arquitetural — Identidade Editorial Independente de Set", ao final desta seção, para o estado mais atual (também não concluído). Preservado abaixo por rastreabilidade; não presumir que os atributos mínimos aqui descritos ainda são o modelo vigente.
+> **Histórico de duas revisões desde este ponto — a mais recente confirma a identidade `card_set_id + card_number` descrita aqui, mas com atributos finais diferentes.** Ordem dos eventos: (1) o conteúdo original desta seção (identidade `card_set_id + card_number`, atributos mínimos incluindo `card_set_id`/`rarity_id` diretamente em `card`); (2) uma sessão reabriu a questão e propôs uma identidade editorial independente de Set, com uma nova camada `Card Printing` (ver "Revisão Arquitetural — Identidade Editorial Independente de Set"); (3) uma sessão seguinte **reverteu** essa proposta, confirmando que Card pertence a um Card Set específico — mas com atributos finais diferentes dos originais aqui descritos (`collector_number` em vez de `card_number`; `category_id` referenciando uma nova entidade Card Category em vez de `category_code`; sem `card_order` — ver "Revisão Arquitetural — Card Volta a Pertencer a um Card Set", ao final desta seção, para o modelo final aprovado, ainda não executado). Preservado abaixo por rastreabilidade; usar a seção (3) como referência atual.
 
 **Nota de processo:** a modelagem física da Card (rumo à Query `130`) começou a ser discutida diretamente no par Fabrício/ChatGPT responsável pela execução real no Supabase, em paralelo a este documento. O material recebido cruza a discussão real com as decisões já consolidadas aqui. Um segundo lote avançou substancialmente a discussão (resumido abaixo), mas ainda não inclui SQL executado nem uma confirmação explícita de Fabrício sobre os pontos ainda em aberto — nada nesta seção deve ser tratado como definitivo, e nenhuma tabela física de Card deve ser criada a partir dela ainda.
 
@@ -955,6 +955,77 @@ card
 **Status desta revisão:** discussão real, em andamento, explicitamente não concluída — o próprio material terminou com a pergunta em aberto acima, sem uma resposta. **Nenhuma DDL deve ser escrita ou executada a partir deste rascunho.** Fabrício e a sessão pareada classificaram esta como possivelmente "a conversa mais importante de todo o Project Mimikyu até agora" — justificando a cautela redobrada antes de convertê-la em SQL.
 
 **Impacto sinalizado, não resolvido, sobre ADR-004:** ADR-004 (`Set Identity`) estabeleceu a identidade de Set como Set + Número da Card — na leitura atual, essa identidade pode precisar ser reatribuída de Card para Card Printing. **ADR-004 não foi alterada** nesta revisão — aguardando a resolução completa desta discussão antes de qualquer atualização formal de ADR, consistente com a prática do projeto de não editar ADRs a partir de discussões ainda não concluídas.
+
+### Revisão Arquitetural — Card Volta a Pertencer a um Card Set (decisão final, revertendo a revisão anterior)
+
+> **Esta seção reverte a "Revisão Arquitetural — Identidade Editorial Independente de Set", acima.** A discussão anterior é preservada por rastreabilidade, mas seu resultado (Card como identidade editorial Set-independente, com `Card Printing` como camada intermediária) **não foi adotado**. Ler esta seção como a mais atual.
+
+**Motivo da reversão, nas palavras de Fabrício:** *"Estou pensando em mudar de ideia. Estou achando melhor considerar uma 'Card' como uma representação da carta dentro de um Set específico (como 'Charizard ex nº 021 da coleção ME4'). Fiquei com receio do modelo anterior trazer dificuldades no cadastro."* A resposta recebida na sessão paralela concordou e detalhou o motivo prático: o modelo editorial global (Card independente de Set) exigiria, no momento do cadastro de cada carta, decidir previamente se ela é uma reimpressão da mesma identidade editorial ou uma carta diferente — o que exigiria comparar ataques, habilidades, textos, ilustração e outras características que o projeto decidiu deliberadamente **não** estruturar (ver AP-017). Ou seja, o modelo mais "correto" teoricamente introduzia uma dependência operacional sobre dados que o projeto já havia decidido manter fora do banco.
+
+**Nova definição final de Card:**
+
+> Uma Card representa uma entrada específica no checklist oficial de um Card Set.
+
+Exemplos — cada um é um registro `card` distinto, mesmo quando representam reimpressões ou conteúdo semelhante, porque pertencem a Sets ou posições editoriais diferentes:
+
+```text
+Charizard ex – ME4 – 021/xxx
+Charizard ex – ME5 – 074/xxx
+Charizard ex – Promo – 015
+```
+
+**Arquitetura revisada (final):**
+
+```text
+Game
+ ├── Expansion
+ │     └── Card Set
+ │           └── Card
+ │                 └── Card Variant
+ │                       └── Collection Item
+ │
+ └── Rarity
+```
+
+`Card Printing`, proposta na revisão anterior, **deixa de ser necessária neste momento** — a própria `Card` já representa a publicação dentro do Set. Card volta a pertencer diretamente a um único Card Set, exatamente como no modelo original anterior à revisão passada (ADR-004 permanece válida, não precisa de atualização).
+
+**Benefícios práticos confirmados:** o cadastro pode ser feito diretamente a partir dos checklists oficiais (Set, Número, Nome, Categoria, Raridade), sem precisar: identificar reprints; criar uma identidade editorial abstrata; decidir se duas cartas com o mesmo nome são a mesma carta; estruturar dados de gameplay apenas para diferenciar cartas; manter um processo de vinculação editorial entre Sets. Citado explicitamente como alinhado ao **AP-010 (Responsible Generalization / Princípio da Generalização Responsável)**, já registrado em `02-architecture-principles.md`: não adicionar uma camada complexa apenas porque ela poderá ser útil algum dia.
+
+> **Tensão sinalizada, não resolvida — cross-check contra AP-011 (Editorial Identity):** AP-011 já registrado neste projeto afirma que "os conceitos editoriais do domínio devem possuir identidade única e independente de regionalizações" e que "características como idioma, distribuição ou impressão pertencem à representação do exemplar e não alteram a identidade editorial do catálogo." A decisão final desta seção — Card pertence a exatamente um Card Set, e uma reimpressão em outro Set é uma Card **diferente** — pode estar em tensão com essa leitura de AP-011, dependendo de se "impressão"/"distribuição" é interpretado como incluindo "em qual Set foi publicada". **Esta tensão não foi discutida nem resolvida pela sessão paralela** — sinalizada aqui para que Fabrício decida se AP-011 precisa de um esclarecimento/exceção, ou se a leitura de "impressão" ali não cobre este caso. Nenhuma alteração foi feita em AP-011.
+
+**O que permanece em Card**: identifica a carta no checklist — Set, número, nome, categoria, raridade, ilustrador (quando disponível), imagem oficial (futuramente).
+
+**O que permanece em Card Variant**: identifica as versões colecionáveis possíveis daquela carta (Normal, Holo, Reverse Holo, Cosmos Holo, Stamped, outras versões oficiais).
+
+**O que permanece em Collection Item**: identifica cada cópia física individual (ex.: `ITEM_0003456`), com condição, aquisição, localização, idioma, certificação e demais dados patrimoniais. **Nota registrada, não resolvida:** com `Card Printing` removida, o idioma de uma publicação específica passou a ser listado como atributo do Collection Item nesta rodada — uma mudança sutil frente a discussões anteriores, onde o idioma era cogitado no nível da impressão (que serviria a múltiplas cópias físicas idênticas), não da cópia individual. Não avaliado a fundo nesta revisão; registrado para retomada quando `card_variant`/`collection_item` forem modeladas fisicamente.
+
+**Reimpressões no futuro — extensão deliberadamente não construída agora:** caso se torne necessário relacionar reimpressões/mesma-arte/arte-alternativa entre Cards, uma tabela opcional `card_relation` (`source_card_id, target_card_id, relation_type` — ex. `REPRINT_OF`, `SAME_ARTWORK_AS`, `ALTERNATE_ART_OF`) poderá ser adicionada depois, sem que o cadastro inicial dependa dessa classificação (mesmo raciocínio de AP-010/AP-004).
+
+**Três atributos discutidos e resolvidos antes da Query 140:**
+
+1. **Número da carta** — renomeado de `card_number` para **`collector_number`**, `VARCHAR(20)`, preservando zeros à esquerda, prefixos e sufixos (`001`, `SVP001`, `TG07`, `GG32`, `RC15`, `12a`).
+2. **Nome da carta** — armazenado exatamente como impresso (`Charizard`, `Charizard ex`), sem tentar separar o sufixo mecânico (`ex`, `V`, `GX`, `VMAX`) do nome — essas mecânicas podem mudar ao longo dos anos, e separá-las estruturaria uma distinção de jogo, não de colecionismo.
+3. **Categoria** — confirmada como referência a uma nova entidade de domínio própria, **Card Category** (ver seção nova, abaixo), em vez de uma coluna de texto solta — mesmo padrão já usado para Rarity, e pela mesma razão: consistência com o resto do projeto e preparação para outros jogos (Magic, Yu-Gi-Oh, Lorcana) sem alterar a tabela `card`.
+
+**Identificador composto (`ME4-021`, `SVP-001`) — decisão de não persistir:** cogitado como um campo `card_code` (concatenação de `card_set.code` + `collector_number`), mas **descartado deliberadamente** — pode ser obtido dinamicamente (`card_set.code || '-' || card.collector_number`), evitando redundância e o risco de inconsistência caso o código do Set ou o número da carta precisem ser corrigidos depois. Consistente com o princípio já aplicado a `secret_set_size` do Card Set (nunca armazenar o que pode ser derivado).
+
+**Modelo final aprovado por Fabrício ("Concordo"), pronto para a Query `140` (ainda não executada):**
+
+```text
+card
+  id                 UUID
+  card_set_id        UUID
+  rarity_id          UUID
+  category_id        UUID
+  collector_number    VARCHAR(20)
+  name               VARCHAR
+  created_at         TIMESTAMPTZ
+  updated_at         TIMESTAMPTZ
+```
+
+Regras confirmadas: Card representa uma carta específica dentro de um Set; `collector_number` é texto, preservando zeros/prefixos/sufixos; `name` é armazenado exatamente como consta oficialmente; `category_id` referencia a entidade própria Card Category; nenhum `card_code` é persistido — o código composto é derivado por aplicação ou `VIEW`.
+
+**Sequência de execução decidida:** antes de `140`, criar a entidade `Card Category` (`132 - Create Card Category Table`, `133 - Create Card Category Trigger`, `831 - Seed Card Category`, `931 - Validate Card Category`) — já que `card.category_id` depende dela. Só então `140 - Create Card Table`, `141 - Create Card Trigger`, `840 - Seed Card`, `940 - Validate Card`. Ver seção "Card Category", nova, abaixo, para o registro da execução real desta primeira parte.
 
 ---
 
@@ -1345,7 +1416,7 @@ Cartas de Energia **não são tratadas como Cards do Set** neste modelo, porque,
 
 Consequentemente, Card Category possui apenas dois valores neste catálogo: **Pokémon** e **Trainer**. Isso não significa que uma carta física de Energia nunca poderá ser controlada pelo sistema — apenas que ela não pertence a este catálogo numerado. Caso futuramente exista necessidade concreta de controlar Energias avulsas, elas deverão ser avaliadas em outro contexto (ex.: uma entidade específica de acessório/suplemento), não antecipado por este documento.
 
-> **Nota em aberto:** um lote recente de modelagem física (ver "Modelagem Física — Discussão Iniciada," na seção Card, acima) mencionou "Energy Card" como uma terceira especialização de conteúdo, o que contradiz esta decisão de escopo. Não presumir que a decisão mudou — sinalizar a Fabrício antes de qualquer ajuste.
+> **Discrepância real, agora com SQL executado — sinalizada com urgência, não resolvida unilateralmente:** a tabela `card_category`, já criada e populada no Supabase (ver seção "Card Category", nova, em `05-modelo-de-dados.md`), inclui um terceiro valor real e confirmado: `ENERGY` (nome "Energia", `display_order = 3`), ao lado de `POKEMON` e `TRAINER`. Isso não é mais uma menção de passagem em um rascunho — é dado persistido e validado no banco físico. **Isso contradiz diretamente esta "Decisão de Escopo — Cartas de Energia"**, que definiu Card Category com apenas dois valores porque cartas de Energia não ocupam posição no catálogo numerado. Duas leituras possíveis, nenhuma confirmada por Fabrício: (a) `ENERGY` foi cadastrado como valor de referência completo/disponível, mas nenhuma Card realmente usará essa categoria (cartas de Energia continuam fora do catálogo numerado, como decidido aqui) — semelhante a como Rarity cadastrou um conjunto amplo de valores nem todos necessariamente aplicáveis a cada Set; ou (b) a decisão de escopo mudou de fato, e cartas de Energia agora ocuparão posições no catálogo numerado, revertendo esta seção. **Esta seção "Decisão de Escopo — Cartas de Energia" não foi alterada nem revogada** até confirmação explícita de Fabrício sobre qual das duas leituras é a correta.
 
 ---
 
@@ -1760,3 +1831,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.24 | **Correção de versão + descoberta de `PROMO` como raridade oficial** (mesma correção registrada em `05-modelo-de-dados.md` 0.20). Nova seção "`PROMO` é uma Raridade Oficial (decisão tomada, execução pendente)": `PROMO` é uma classificação oficial do Pokémon TCG, não uma invenção do projeto; compartilha `symbol_code = BLACK_STAR` com `RARE`, confirmando `symbol_code` fora da chave de unicidade; nova ordem de exibição decidida. Consequência arquitetural sinalizada para a futura Card: `card_set.set_type = PROMO` e `rarity.code = PROMO` são independentes e complementares. Adicionada nota cruzada na seção "Card Set Promocional". Decisão confirmada por Fabrício, mas Queries `830`/`930` (v1.2, incluindo `PROMO`) ainda não escritas nem executadas. |
 | 1.25 | **Entidade Rarity oficialmente encerrada.** `PROMO` incluída via `830`/`930` v1.2, executadas e confirmadas por Fabrício. Seção "`PROMO` é uma Raridade Oficial" atualizada de "decisão tomada, execução pendente" para "confirmada e executada". |
 | 1.26 | **Revisão arquitetural importante de Card iniciada, explicitamente não concluída.** Fabrício respondeu a uma pergunta direta: Card representa "a carta editorial de forma única, que pode aparecer em vários Sets" — não uma posição fixa dentro de um Set específico. Isso inverte a premissa de identidade "Set + Número" (ADR-004) usada até aqui: `Card Printing` passa a depender de dois pais (`Card` e `Card Set`), não apenas de `Card Set`. Adicionada nota de revisão na seção "Identidade" (preservada, não substituída) e callout no início de "Modelagem Física — Discussão Iniciada". Nova seção "Revisão Arquitetural — Identidade Editorial Independente de Set": definições revisadas de Card/Card Printing/Card Variant/Collection Item; novo "Princípio: Identidade Editorial"; listas do que cria/não cria uma nova Card; distinção ilustração-vs-texto; rascunho não aprovado de nova forma para `card` (`id, game_id, name, category_code, editorial_key, created_at, updated_at`) com `editorial_key` sinalizado como indefinido; `ENERGY` resurge como exemplo de categoria (não resolvido); pergunta final da discussão ("quais atributos distinguem um design editorial de outro") permanece sem resposta. ADR-004 sinalizada como potencialmente afetada, mas não alterada. |
+| 1.27 | **Card reverte para identidade Set-específica (decisão final) + nova entidade Card Category executada.** Fabrício reconsiderou a "Revisão Arquitetural — Identidade Editorial Independente de Set" (revisão 1.26): "Estou achando melhor considerar uma 'Card' como uma representação da carta dentro de um Set específico [...] Fiquei com receio do modelo anterior trazer dificuldades no cadastro" — evitaria ter que comparar dados de gameplay (não estruturados, por AP-017) só para detectar reimpressões. Nova seção "Revisão Arquitetural — Card Volta a Pertencer a um Card Set": Card Printing removida por ora; `card_number` renomeado `collector_number`; `name` armazenado exatamente como impresso; categoria vira FK para nova entidade `Card Category`; nenhum `card_code` persistido (derivado via VIEW); tabela `card_relation` para reprints registrada como extensão futura, não construída. Citado explicitamente o AP-010 (Responsible Generalization) já existente. Sinalizada tensão não resolvida com AP-011 (Editorial Identity). Modelo final aprovado por Fabrício ("Concordo"), ainda não executado. Nova entidade **Card Category** executada e confirmada (`132`/`133`/`831`/`931`) com três valores reais: `POKEMON`, `TRAINER`, `ENERGY` — **`ENERGY` contradiz diretamente a "Decisão de Escopo — Cartas de Energia"** já registrada; sinalizado com urgência na seção correspondente, não resolvido unilateralmente. Callouts de "Identidade" e "Modelagem Física — Discussão Iniciada" atualizados para refletir o histórico completo (proposta → reaberta → revertida). |

@@ -2108,13 +2108,165 @@ Uma proposta anterior (revisão 0.18 deste documento) havia sinalizado, como ite
 930 - Validate Rarity        (v1.2, Status CANÔNICA — executada e confirmada, inclui PROMO)
 ```
 
-Rarity precisava ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10. **Com o pacote técnico de Rarity definitivamente concluído, a próxima etapa é a modelagem conceitual de Card** — ver seção Card, abaixo, "Discussão em Andamento — Nova Direção Arquitetural", ainda não concluída.
+Rarity precisava ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10. **Com o pacote técnico de Rarity definitivamente concluído, a próxima etapa foi a modelagem conceitual de Card**, cujo histórico completo (duas revisões arquiteturais sucessivas) está registrado em `04-domain-model.md`, seção Card. O resultado final está documentado logo abaixo, na seção Card Category (nova entidade, executada primeiro por dependência) e na seção Card (modelo final, aprovado, ainda não executado).
+
+---
+
+# Card Category (Categoria de Carta)
+
+Status: **Executada e confirmada.** Nova entidade, introduzida durante a modelagem de Card (ver `04-domain-model.md`, seção "Revisão Arquitetural — Card Volta a Pertencer a um Card Set"), para substituir a coluna solta `category_code` que estava cogitada diretamente em `card`. Segue o mesmo padrão de domínio já usado por Rarity: tabela de referência por Game, com `code`/`name`/`display_order`.
+
+## Modelo Lógico
+
+```text
+Card Category
+
+Identidade
+----------
+id
+code
+
+Descrição
+----------
+name
+display_order
+
+Relacionamento
+----------
+game_id
+
+Auditoria
+----------
+created_at
+updated_at
+```
+
+## Atributos
+
+**id** — Identificador técnico e permanente (UUID).
+
+**game_id** — Chave estrangeira obrigatória para `game`. Cada Game define seu próprio conjunto de categorias, evitando alterações estruturais em `card` caso outros TCGs sejam adicionados no futuro.
+
+**code** — Identificação técnica e estável da categoria (`POKEMON`, `TRAINER`, `ENERGY`). Único dentro do Game (`UNIQUE (game_id, code)`), não globalmente — outro Game pode reutilizar o mesmo código.
+
+**name** — Nome principal da categoria para apresentação ao usuário, em português (`Pokémon`, `Treinador`, `Energia`).
+
+**display_order** — Ordem lógica de exibição da categoria na interface e em relatórios.
+
+**created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
+
+## Campos que Não Incluiremos Agora
+
+- **Ícone/símbolo visual** — não cogitado para Card Category nesta fase (diferente de Rarity, que tem `symbol_code`); as categorias atuais não têm identidade visual própria a preservar.
+- **Descrição estendida/texto explicativo** — não solicitado; `name` já é autoexplicativo para as três categorias atuais.
+
+## Regras de Negócio
+
+**Regra 1 — Relacionamento obrigatório.** Toda categoria deve pertencer a um Game.
+
+**Regra 2 — Código único por Game.** `UNIQUE (game_id, code)`; Games diferentes podem reutilizar o mesmo código.
+
+**Regra 3 — Formato do código.** Letras maiúsculas, números e underscore (`^[A-Z0-9][A-Z0-9_]*$`).
+
+**Regra 4 — Nome obrigatório.** `name` não pode ser vazio.
+
+**Regra 5 — Ordem de exibição positiva.** `display_order > 0`.
+
+**Regra 6 — Exclusão restrita.** Um Game com categorias cadastradas não pode ser excluído (`ON DELETE RESTRICT`, `ON UPDATE RESTRICT`).
+
+## Modelo Físico (PostgreSQL) — Executado
+
+```sql
+CREATE TABLE public.card_category (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_id UUID NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    display_order INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_card_category_game
+        FOREIGN KEY (game_id)
+        REFERENCES public.game (id)
+        ON UPDATE RESTRICT
+        ON DELETE RESTRICT,
+
+    CONSTRAINT uq_card_category_game_code
+        UNIQUE (game_id, code),
+
+    CONSTRAINT ck_card_category_code_format
+        CHECK (
+            code ~ '^[A-Z0-9][A-Z0-9_]*$'
+        ),
+
+    CONSTRAINT ck_card_category_name_not_blank
+        CHECK (
+            btrim(name) <> ''
+        ),
+
+    CONSTRAINT ck_card_category_display_order_positive
+        CHECK (
+            display_order > 0
+        )
+);
+
+ALTER TABLE public.card_category ENABLE ROW LEVEL SECURITY;
+```
+
+> Query `132`, Versão 1.0, Status CANÔNICA. Inclui `COMMENT ON TABLE`/`COMMENT ON COLUMN` para toda a tabela (não usado em Rarity até aqui) e `ON UPDATE RESTRICT` além de `ON DELETE RESTRICT` na FK — convenções novas observadas pela primeira vez neste pacote. Texto completo em `database/schema/132_create_card_category_table.sql`.
+
+### Trigger de `updated_at`
+
+```sql
+DROP TRIGGER IF EXISTS trg_card_category_set_updated_at
+ON public.card_category;
+
+CREATE TRIGGER trg_card_category_set_updated_at
+BEFORE UPDATE ON public.card_category
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+```
+
+> Query `133`, Versão 1.0, Status CANÔNICA. Uso de `DROP TRIGGER IF EXISTS` antes do `CREATE TRIGGER` para idempotência — também uma convenção nova neste pacote. Texto completo em `database/schema/133_create_card_category_trigger.sql`.
+
+### Seed — Executado
+
+Cadastra três categorias para o Game POKEMON: `POKEMON`/Pokémon/1, `TRAINER`/Treinador/2, `ENERGY`/Energia/3. Texto completo em `database/seeds/831_seed_card_category.sql`.
+
+> **Discrepância real, agora com SQL executado — sinalizada com urgência, não resolvida unilateralmente.** A Query `831`, já executada e confirmada no Supabase, inclui `ENERGY` como uma categoria real e válida de Card Category. Isso contradiz diretamente a "Decisão de Escopo — Cartas de Energia" registrada em `04-domain-model.md` (seção Card Category), segundo a qual cartas de Energia **não** ocupam posições numeradas do catálogo e Card Category deveria ter apenas dois valores (Pokémon, Treinador). Duas leituras possíveis, nenhuma escolhida aqui: (1) `ENERGY` é um valor de referência cadastrado para uso futuro, mas não será de fato atribuído a nenhuma Card enquanto a decisão de escopo permanecer em vigor; ou (2) a decisão de escopo original foi de fato revertida e cartas de Energia passarão a ser cadastradas. **Nenhuma das duas hipóteses foi adotada** — a seção de escopo original em `04-domain-model.md` não foi alterada. Fabrício precisa confirmar explicitamente antes de qualquer alteração na Regra 6 de Card (abaixo) ou na decisão de escopo original.
+
+### Validação — Executada e Confirmada
+
+Texto completo em `database/validations/931_validate_card_category.sql`. 13 subconsultas seguindo o mesmo padrão de Rarity (relação completa, quantidade por Game, integridade referencial, duplicados, formato de código, nomes vazios, ordem inválida, ordens duplicadas, dados canônicos via CTE, categorias extras não previstas, timestamps, trigger, RLS). Resultados confirmados por Fabrício: 3 categorias (ordem 1 POKEMON/Pokémon, 2 TRAINER/Treinador, 3 ENERGY/Energia), quantidade POKEMON = 3, todas as consultas de erro "Nenhum registro," trigger "1 registro," RLS `true`. Fabrício: "Execução com sucesso."
+
+## Definition of Done
+
+- [x] modelo lógico definido;
+- [x] atributos e campos adiados definidos;
+- [x] regras de negócio definidas;
+- [x] tabela `card_category` criada no Supabase (`132`);
+- [x] RLS habilitado;
+- [x] trigger criado e verificado (`133`);
+- [x] seed executada com sucesso (`831`) — **inclui `ENERGY`, discrepância sinalizada acima, não resolvida**;
+- [x] validação executada e confirmada (`931` — "Execução com sucesso").
+
+## Queries Associadas
+
+```text
+132 - Create Card Category Table    (v1.0, Status CANÔNICA — executada)
+133 - Create Card Category Trigger  (v1.0, Status CANÔNICA — executada)
+831 - Seed Card Category            (v1.0, Status CANÔNICA — executada, inclui ENERGY)
+931 - Validate Card Category        (v1.0, Status CANÔNICA — executada e confirmada)
+```
+
+Card Category precisava ser criada antes de Card, por dependência de chave estrangeira (`card.category_id`) — mesma lógica de precedência já aplicada a Rarity (ver STD-001, Seção 10).
 
 ---
 
 # Card (Carta)
 
-Status: **SUPERADO por uma revisão arquitetural em andamento — não presumir válido.** O conteúdo abaixo (modelo lógico com `card_set_id`/`rarity_id`/`card_number`/`card_order` diretamente em `card`) representava o consenso até uma sessão em que Fabrício confirmou que a identidade de Card é **independente de Set** ("representa a carta editorial de forma única, que pode aparecer em vários Sets"). Isso desloca `card_set_id`, `card_number`, `card_order` e `rarity_id` para uma futura `card_printing` — ver `04-domain-model.md`, seção Card, "Revisão Arquitetural — Identidade Editorial Independente de Set", para o registro completo desta discussão, que **também não está concluída** (termina em uma pergunta aberta sobre quais atributos distinguem um design editorial de outro). Conteúdo original preservado abaixo por rastreabilidade. **Nenhuma DDL de Card deve ser escrita a partir de nenhuma das duas versões até a discussão ser fechada.**
+Status: **Modelo final aprovado por Fabrício, ainda não executado.** Esta seção passou por duas revisões arquiteturais sucessivas, documentadas em detalhe em `04-domain-model.md`, seção Card: (1) uma proposta de identidade editorial independente de Set (Card Printing como nova camada), discutida e explicitamente **não concluída**; (2) a reversão dessa proposta — decisão final de Fabrício ("Estou achando melhor considerar uma 'Card' como uma representação da carta dentro de um Set específico [...] Fiquei com receio do modelo anterior trazer dificuldades no cadastro") — voltando Card a pertencer diretamente a um Card Set, com Card Printing descartada por ora. O conteúdo original abaixo (modelo lógico com `card_number`/`card_order`/`category_code` diretamente em `card`) é preservado por rastreabilidade histórica; **o modelo final está na subseção "Modelo Final — Versão 1.0 (aprovado, ainda não executado)", ao final desta seção.**
 
 ## Modelo Lógico
 
@@ -2260,6 +2412,78 @@ ENABLE ROW LEVEL SECURITY;
 
 Depende da existência prévia de `rarity` (`130`) e `card_set` (`120`). Card Printing e Card Variant (ou os nomes que Fabrício confirmar) ainda não têm números de Query atribuídos — dependem das decisões de nomenclatura em aberto.
 
+> **Nota:** o conteúdo acima (Modelo Lógico, Atributos, Regras de Negócio 1-7 e DDL proposto nesta seção "Card (Carta)") reflete o estado **anterior às duas revisões arquiteturais** descritas no callout de status, no início desta seção. Preservado por rastreabilidade. **O modelo final está na subseção abaixo.**
+
+## Modelo Final — Versão 1.0 (aprovado, ainda não executado)
+
+Resultado da reversão documentada em `04-domain-model.md`, seção "Revisão Arquitetural — Card Volta a Pertencer a um Card Set". Card representa "uma entrada específica no checklist oficial de um Card Set" (ex.: Charizard ex nº 021 da coleção ME4) — não uma identidade editorial independente de Set. Card Printing, cogitada na revisão intermediária, **não é necessária neste momento**.
+
+### Modelo Lógico
+
+```text
+Card
+
+Identidade
+----------
+id
+collector_number
+
+Descrição
+----------
+name
+
+Relacionamento
+----------
+card_set_id
+rarity_id
+category_id
+
+Auditoria
+----------
+created_at
+updated_at
+```
+
+### Atributos
+
+**id** — Identificador técnico e permanente (UUID).
+
+**card_set_id** — Chave estrangeira obrigatória para `card_set`. Toda Card pertence a exatamente um Card Set.
+
+**rarity_id** — Chave estrangeira obrigatória para `rarity` (ver seção Rarity, acima).
+
+**category_id** — Chave estrangeira obrigatória para `card_category` (ver seção Card Category, acima) — substitui a coluna solta `category_code` cogitada na versão anterior.
+
+**collector_number** — Renomeado de `card_number`. Número oficial impresso ou atribuído à Card, `VARCHAR(20)`, nunca inteiro — preserva zeros à esquerda, prefixos e sufixos (`001`, `SVP001`, `TG07`, `GG32`, `RC15`, `12a`).
+
+**name** — Nome da carta armazenado exatamente como impresso oficialmente (ex.: `Charizard ex`), deliberadamente **sem** separar sufixos mecânicos (`ex`, `V`, `GX`, `VMAX`) do nome base — essa distinção é de mecânica de jogo (fora de escopo por AP-017), não de colecionismo, e mecânicas mudam ao longo do tempo.
+
+**created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
+
+> **`card_order` removido.** Não persistido nesta versão — a versão anterior o mantinha como posição sequencial distinta de `collector_number`; a necessidade real desse campo não foi reconfirmada na reversão e fica para retomada futura, se necessário.
+
+### Não Persistido — `card_code` (composto)
+
+O identificador legível composto (ex.: `ME4-021`, `SVP-001`) **não é armazenado como coluna**. Decisão: derivar via lógica de aplicação ou `VIEW` (`card_set.code || '-' || card.collector_number`), evitando redundância e risco de inconsistência — mesmo princípio já aplicado a `card_set.secret_set_size` (sempre derivado, nunca persistido).
+
+### Extensão Futura, Não Construída — `card_relation`
+
+Ponto de extensão registrado para rastrear reimpressões/artes alternativas no futuro (`source_card_id`, `target_card_id`, `relation_type`, com exemplos `REPRINT_OF`, `SAME_ARTWORK_AS`, `ALTERNATE_ART_OF`) — deliberadamente não construído agora, para que o cadastro inicial não dependa dessa classificação.
+
+### Forma Final Aprovada
+
+```text
+card (
+    id, card_set_id, rarity_id, category_id,
+    collector_number, name,
+    created_at, updated_at
+)
+```
+
+Fabrício: "Concordo." Sequência de execução confirmada: Card Category primeiro (`132`/`133`/`831`/`931`, já executada — ver seção acima), depois Card (`140`/`141`/`840`/`940`, ainda não executada).
+
+> **Tensão sinalizada, não resolvida:** conforme já registrado em `04-domain-model.md`, este modelo (Card atrelada a um Card Set específico, de modo que uma reimpressão em outro Set é uma Card diferente) está em tensão não resolvida com o princípio AP-011 (Editorial Identity), que declara que a identidade editorial deve ser independente de "impressão"/"distribuição". Não discutido pela sessão pareada; AP-011 não foi alterado.
+
 ---
 
 # Card Translation (Tradução da Carta)
@@ -2312,3 +2536,4 @@ Depende da existência prévia de `rarity` (`130`) e `card_set` (`120`). Card Pr
 | 0.20 | **Correção de versão + descoberta de `PROMO` como raridade oficial.** O rótulo "Versão 2.0" usado na revisão 0.19 para `130`/`830`/`930` foi uma reconstrução própria, não o texto real — corrigido para `Versão 1.1`, com o texto verbatim fornecido por Fabrício (ordem de constraints em `130` ajustada; `830` reformatada; `930` ampliada de 7 para 12 subconsultas, incluindo verificação linha-a-linha contra valores canônicos esperados). Reexecução formal de `830`/`930` v1.1 como tal ainda não confirmada nesta revisão (os dados já batem via a Query temporária da revisão anterior). Nova descoberta: `PROMO` é uma raridade oficial do Pokémon TCG (não uma invenção do projeto), compartilha `symbol_code = BLACK_STAR` com `RARE` — confirma que `symbol_code` está corretamente fora da chave de unicidade. Nova ordem de exibição decidida (`PROMO` logo após `RARE`, display_order 4, demais deslocadas). Novo item arquitetural sinalizado para a futura Card: `card_set.set_type = PROMO` e `rarity.code = PROMO` são independentes e complementares. Sequência de atualização (`830`/`930` → v1.2, incluir `PROMO`; `130` inalterada) decidida por Fabrício, mas **ainda não escrita nem executada** — status da entidade revertido de "concluído" para "quase concluído, pendência final identificada". Definition of Done reaberta nos itens de seed/validação; Queries Associadas atualizadas. |
 | 0.21 | **Entidade Rarity oficialmente encerrada.** `830`/`930` reescritas para v1.2 (incluindo a raridade `PROMO`, código `PROMO`, símbolo `BLACK_STAR` compartilhado com `RARE`, display_order 4) e executadas com sucesso — confirmado por Fabrício ("Tudo feito com sucesso. Vamos avançar!" / "Agora sim podemos dizer que a entidade Rarity está encerrada"). `130` permaneceu inalterada (v1.1), conforme decidido. Definition of Done totalmente concluída; status da entidade atualizado de "quase concluído" para "encerrada". Próxima etapa: modelagem conceitual de Card (ver revisão seguinte). |
 | 0.22 | **Revisão arquitetural de Card iniciada (não concluída).** Fabrício confirmou que a identidade de Card é independente de Set ("representa a carta editorial de forma única, que pode aparecer em vários Sets") — inverte a premissa "Set + Número" usada no modelo mínimo anteriormente aprovado. `card_set_id`, `card_number`, `card_order` e `rarity_id` deslocam-se para uma futura `card_printing`, que passa a depender de dois pais (`card` e `card_set`). Seção Card marcada como "SUPERADO por revisão em andamento" no topo; conteúdo original preservado por rastreabilidade. Rascunho de nova forma para `card` (`id, game_id, name, category_code, editorial_key, created_at, updated_at`) documentado apenas em `04-domain-model.md` (não replicado aqui como proposta formal, já que a própria discussão termina sem resposta sobre quais atributos distinguem um design editorial de outro). Nenhuma DDL nova escrita. |
+| 0.23 | **Card reverte para identidade Set-específica (decisão final) + nova entidade Card Category executada.** Fabrício reconsiderou a revisão 0.22: "Estou achando melhor considerar uma 'Card' como uma representação da carta dentro de um Set específico [...] Fiquei com receio do modelo anterior trazer dificuldades no cadastro". Nova seção **Card Category** criada do zero (mesmo padrão de Rarity), executada e confirmada no Supabase (`132`/`133`/`831`/`931`) com três valores reais: `POKEMON`, `TRAINER`, `ENERGY` — **`ENERGY` contradiz diretamente a "Decisão de Escopo — Cartas de Energia"** já registrada em `04-domain-model.md`; sinalizado com urgência na Seed, não resolvido unilateralmente. Seção Card atualizada: status muda de "SUPERADO" para "modelo final aprovado, ainda não executado"; conteúdo original (`card_number`/`card_order`/`category_code`) preservado por rastreabilidade; nova subseção "Modelo Final — Versão 1.0" com a forma aprovada (`id, card_set_id, rarity_id, category_id, collector_number, name, created_at, updated_at`), incluindo `collector_number` (renomeado de `card_number`), `name` armazenado como impresso, `category_id` como FK, `card_order` removido, `card_code` deliberadamente não persistido (derivado via VIEW, mesmo precedente de `secret_set_size`), e ponto de extensão futuro `card_relation` (reprints) registrado, não construído. Tensão não resolvida com AP-011 (Editorial Identity) sinalizada, não alterada. Arquivos `database/schema/132_*.sql`, `database/schema/133_*.sql`, `database/seeds/831_*.sql`, `database/validations/931_*.sql` criados com o texto verbatim executado. |
