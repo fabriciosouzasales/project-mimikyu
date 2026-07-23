@@ -2,7 +2,7 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 950 - Validate Card Variant Type
-Versão......: 1.1
+Versão......: 1.2
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-18
@@ -11,57 +11,45 @@ Descrição resumida:
 Valida a estrutura, a integridade e o seed canônico da tabela
 card_variant_type.
 
-Descrição:
-Esta Query verifica:
-- relação completa dos tipos de variante;
-- quantidade canônica do Game POKEMON;
-- presença dos seis códigos esperados;
-- aderência dos nomes e display_order canônicos;
-- tipos adicionais fora do catálogo canônico;
-- duplicidades;
-- campos obrigatórios;
-- formato dos códigos;
-- sequência de display_order;
-- relacionamento com Game;
-- timestamps;
-- trigger de updated_at;
-- Row Level Security.
-
-Catálogo canônico atual:
-1. STANDARD
-2. HOLO
-3. REVERSE_HOLO
-4. POKE_BALL_REVERSE
-5. MASTER_BALL_REVERSE
-6. PROMO_STAMPED
-
-Alterações da versão 1.1:
-- Inclusão do tipo HOLO.
-- Atualização da quantidade esperada de 5 para 6.
-- Atualização da sequência de display_order de 1 a 6.
-- Atualização das listas canônicas de validação.
+Catálogo canônico esperado:
+ 1. STANDARD
+ 2. HOLO
+ 3. REVERSE_HOLO
+ 4. ENERGY_REVERSE
+ 5. POKE_BALL_REVERSE
+ 6. LOVE_BALL_REVERSE
+ 7. FRIEND_BALL_REVERSE
+ 8. QUICK_BALL_REVERSE
+ 9. DUSK_BALL_REVERSE
+10. ROCKET_REVERSE
+11. MASTER_BALL_REVERSE
+12. PROMO_STAMPED
 
 Regras de Validação:
-- Consultas de inconsistência devem retornar zero registros.
-- O Game POKEMON deve possuir exatamente seis tipos canônicos.
-- Os seis códigos esperados devem estar presentes.
-- display_order deve formar a sequência de 1 a 6.
+- O Game POKEMON deve possuir exatamente 12 tipos canônicos.
+- Os códigos, nomes, descrições e display_order devem aderir ao catálogo.
+- Não devem existir tipos adicionais para POKEMON.
+- display_order deve formar a sequência de 1 a 12.
+- Não devem existir duplicidades.
 - O trigger de updated_at deve existir.
-- O Row Level Security deve estar habilitado.
+- Row Level Security deve estar habilitado.
 
 Pré-requisitos:
 - Query 150 - Create Card Variant Type Table.
 - Query 151 - Create Card Variant Type Triggers.
-- Query 850 - Seed Card Variant Type, versão 1.1.
+- Query 850 - Seed Card Variant Type, versão 1.2.
 
+===============================================================================
+
+NOTA DE DOCUMENTAÇÃO (Princípio da Fonte Canônica, STD-001 Seção 10): esta
+versão substitui integralmente a v1.1 (6 tipos), mantida apenas no histórico
+de revisões dos documentos de domínio. Executada com sucesso logo após a
+Query 850 v1.2, confirmada por Fabrício via captura de tela real do Table
+Editor do Supabase mostrando os 12 tipos já cadastrados.
 ===============================================================================
 */
 
--- ============================================================================
--- 1. Relação completa dos Card Variant Types
--- Resultado esperado: 6 registros para POKEMON
--- ============================================================================
-
+-- 1. Relação completa
 SELECT
     g.code AS game_code,
     cvt.code,
@@ -73,26 +61,16 @@ SELECT
 FROM public.card_variant_type AS cvt
 INNER JOIN public.game AS g
     ON g.id = cvt.game_id
-ORDER BY
-    g.code,
-    cvt.display_order,
-    cvt.code;
+ORDER BY g.code, cvt.display_order, cvt.code;
 
 
--- ============================================================================
--- 2. Quantidade canônica para o Game POKEMON
--- Resultado esperado:
--- expected_total = 6
--- registered_total = 6
--- status = COMPLETE
--- ============================================================================
-
+-- 2. Quantidade canônica
 SELECT
-    6 AS expected_total,
+    12 AS expected_total,
     COUNT(cvt.id) AS registered_total,
     CASE
-        WHEN COUNT(cvt.id) = 6 THEN 'COMPLETE'
-        WHEN COUNT(cvt.id) < 6 THEN 'PENDING'
+        WHEN COUNT(cvt.id) = 12 THEN 'COMPLETE'
+        WHEN COUNT(cvt.id) < 12 THEN 'PENDING'
         ELSE 'EXCEEDED'
     END AS status
 FROM public.card_variant_type AS cvt
@@ -101,11 +79,7 @@ INNER JOIN public.game AS g
 WHERE g.code = 'POKEMON';
 
 
--- ============================================================================
--- 3. Verificar tipos canônicos ausentes
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 3. Tipos canônicos ausentes
 WITH expected_type (
     code,
     name,
@@ -128,26 +102,62 @@ WITH expected_type (
         (
             'REVERSE_HOLO',
             'Holográfica Reversa',
-            'Versão com acabamento holográfico reverso.',
+            'Versão com acabamento holográfico reverso genérico.',
             3
+        ),
+        (
+            'ENERGY_REVERSE',
+            'Energia Reversa',
+            'Versão holográfica reversa com padrão de Energia.',
+            4
         ),
         (
             'POKE_BALL_REVERSE',
             'Poké Bola Reversa',
             'Versão holográfica reversa com padrão de Poké Bola.',
-            4
+            5
+        ),
+        (
+            'LOVE_BALL_REVERSE',
+            'Love Ball Reversa',
+            'Versão holográfica reversa com padrão de Love Ball.',
+            6
+        ),
+        (
+            'FRIEND_BALL_REVERSE',
+            'Friend Ball Reversa',
+            'Versão holográfica reversa com padrão de Friend Ball.',
+            7
+        ),
+        (
+            'QUICK_BALL_REVERSE',
+            'Quick Ball Reversa',
+            'Versão holográfica reversa com padrão de Quick Ball.',
+            8
+        ),
+        (
+            'DUSK_BALL_REVERSE',
+            'Dusk Ball Reversa',
+            'Versão holográfica reversa com padrão de Dusk Ball.',
+            9
+        ),
+        (
+            'ROCKET_REVERSE',
+            'Equipe Rocket Reversa',
+            'Versão holográfica reversa com padrão ou símbolo da Equipe Rocket.',
+            10
         ),
         (
             'MASTER_BALL_REVERSE',
-            'Master Bola Reversa',
-            'Versão holográfica reversa com padrão de Master Bola.',
-            5
+            'Master Ball Reversa',
+            'Versão holográfica reversa com padrão de Master Ball.',
+            11
         ),
         (
             'PROMO_STAMPED',
             'Promocional Estampada',
             'Versão que possui uma marca ou estampa promocional oficialmente aplicada.',
-            6
+            12
         )
 )
 SELECT
@@ -165,11 +175,7 @@ WHERE cvt.id IS NULL
 ORDER BY et.display_order;
 
 
--- ============================================================================
--- 4. Verificar divergências nos valores canônicos
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 4. Divergências nos valores canônicos
 WITH expected_type (
     code,
     expected_name,
@@ -192,26 +198,62 @@ WITH expected_type (
         (
             'REVERSE_HOLO',
             'Holográfica Reversa',
-            'Versão com acabamento holográfico reverso.',
+            'Versão com acabamento holográfico reverso genérico.',
             3
+        ),
+        (
+            'ENERGY_REVERSE',
+            'Energia Reversa',
+            'Versão holográfica reversa com padrão de Energia.',
+            4
         ),
         (
             'POKE_BALL_REVERSE',
             'Poké Bola Reversa',
             'Versão holográfica reversa com padrão de Poké Bola.',
-            4
+            5
+        ),
+        (
+            'LOVE_BALL_REVERSE',
+            'Love Ball Reversa',
+            'Versão holográfica reversa com padrão de Love Ball.',
+            6
+        ),
+        (
+            'FRIEND_BALL_REVERSE',
+            'Friend Ball Reversa',
+            'Versão holográfica reversa com padrão de Friend Ball.',
+            7
+        ),
+        (
+            'QUICK_BALL_REVERSE',
+            'Quick Ball Reversa',
+            'Versão holográfica reversa com padrão de Quick Ball.',
+            8
+        ),
+        (
+            'DUSK_BALL_REVERSE',
+            'Dusk Ball Reversa',
+            'Versão holográfica reversa com padrão de Dusk Ball.',
+            9
+        ),
+        (
+            'ROCKET_REVERSE',
+            'Equipe Rocket Reversa',
+            'Versão holográfica reversa com padrão ou símbolo da Equipe Rocket.',
+            10
         ),
         (
             'MASTER_BALL_REVERSE',
-            'Master Bola Reversa',
-            'Versão holográfica reversa com padrão de Master Bola.',
-            5
+            'Master Ball Reversa',
+            'Versão holográfica reversa com padrão de Master Ball.',
+            11
         ),
         (
             'PROMO_STAMPED',
             'Promocional Estampada',
             'Versão que possui uma marca ou estampa promocional oficialmente aplicada.',
-            6
+            12
         )
 )
 SELECT
@@ -234,11 +276,7 @@ WHERE cvt.name <> et.expected_name
 ORDER BY et.expected_display_order;
 
 
--- ============================================================================
--- 5. Verificar tipos adicionais fora do catálogo canônico atual
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 5. Tipos adicionais fora do catálogo
 SELECT
     cvt.code,
     cvt.name,
@@ -250,20 +288,22 @@ INNER JOIN public.game AS g
 WHERE g.code = 'POKEMON'
   AND cvt.code NOT IN (
       'STANDARD',
-      'HOLO',
-      'REVERSE_HOLO',
-      'POKE_BALL_REVERSE',
-      'MASTER_BALL_REVERSE',
-      'PROMO_STAMPED'
+           'HOLO',
+           'REVERSE_HOLO',
+           'ENERGY_REVERSE',
+           'POKE_BALL_REVERSE',
+           'LOVE_BALL_REVERSE',
+           'FRIEND_BALL_REVERSE',
+           'QUICK_BALL_REVERSE',
+           'DUSK_BALL_REVERSE',
+           'ROCKET_REVERSE',
+           'MASTER_BALL_REVERSE',
+           'PROMO_STAMPED'
   )
 ORDER BY cvt.display_order;
 
 
--- ============================================================================
--- 6. Verificar códigos duplicados dentro do mesmo Game
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 6. Códigos duplicados dentro do mesmo Game
 SELECT
     g.code AS game_code,
     cvt.code,
@@ -271,18 +311,11 @@ SELECT
 FROM public.card_variant_type AS cvt
 INNER JOIN public.game AS g
     ON g.id = cvt.game_id
-GROUP BY
-    g.code,
-    cvt.game_id,
-    cvt.code
+GROUP BY g.code, cvt.game_id, cvt.code
 HAVING COUNT(*) > 1;
 
 
--- ============================================================================
--- 7. Verificar display_order duplicado dentro do mesmo Game
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 7. display_order duplicado dentro do mesmo Game
 SELECT
     g.code AS game_code,
     cvt.display_order,
@@ -290,79 +323,41 @@ SELECT
 FROM public.card_variant_type AS cvt
 INNER JOIN public.game AS g
     ON g.id = cvt.game_id
-GROUP BY
-    g.code,
-    cvt.game_id,
-    cvt.display_order
+GROUP BY g.code, cvt.game_id, cvt.display_order
 HAVING COUNT(*) > 1;
 
 
--- ============================================================================
--- 8. Verificar códigos inválidos
--- Resultado esperado: nenhum registro
--- ============================================================================
-
-SELECT
-    id,
-    game_id,
-    code
+-- 8. Códigos inválidos
+SELECT id, game_id, code
 FROM public.card_variant_type
 WHERE code IS NULL
-   OR btrim(code) = ''
+   OR BTRIM(code) = ''
    OR code !~ '^[A-Z][A-Z0-9_]*$';
 
 
--- ============================================================================
--- 9. Verificar nomes nulos ou vazios
--- Resultado esperado: nenhum registro
--- ============================================================================
-
-SELECT
-    id,
-    game_id,
-    code,
-    name
+-- 9. Nomes nulos ou vazios
+SELECT id, game_id, code, name
 FROM public.card_variant_type
 WHERE name IS NULL
-   OR btrim(name) = '';
+   OR BTRIM(name) = '';
 
 
--- ============================================================================
--- 10. Verificar descrições vazias
--- Resultado esperado: nenhum registro
--- ============================================================================
-
-SELECT
-    id,
-    game_id,
-    code,
-    description
+-- 10. Descrições vazias
+SELECT id, game_id, code, description
 FROM public.card_variant_type
 WHERE description IS NOT NULL
-  AND btrim(description) = '';
+  AND BTRIM(description) = '';
 
 
--- ============================================================================
--- 11. Verificar display_order inválido
--- Resultado esperado: nenhum registro
--- ============================================================================
-
-SELECT
-    id,
-    game_id,
-    code,
-    display_order
+-- 11. display_order inválido
+SELECT id, game_id, code, display_order
 FROM public.card_variant_type
 WHERE display_order <= 0;
 
 
--- ============================================================================
--- 12. Verificar sequência de display_order do catálogo canônico
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 12. Sequência canônica de display_order
 WITH expected_order AS (
-    SELECT generate_series(1, 6) AS expected_display_order
+    SELECT generate_series(1, 12) AS expected_display_order
 )
 SELECT
     eo.expected_display_order AS missing_display_order
@@ -376,11 +371,7 @@ WHERE cvt.id IS NULL
 ORDER BY eo.expected_display_order;
 
 
--- ============================================================================
--- 13. Verificar registros sem Game válido
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 13. Registros sem Game válido
 SELECT
     cvt.id,
     cvt.game_id,
@@ -392,11 +383,7 @@ LEFT JOIN public.game AS g
 WHERE g.id IS NULL;
 
 
--- ============================================================================
--- 14. Verificar timestamps obrigatórios
--- Resultado esperado: nenhum registro
--- ============================================================================
-
+-- 14. Timestamps obrigatórios ou inconsistentes
 SELECT
     id,
     code,
@@ -404,14 +391,11 @@ SELECT
     updated_at
 FROM public.card_variant_type
 WHERE created_at IS NULL
-   OR updated_at IS NULL;
+   OR updated_at IS NULL
+   OR updated_at < created_at;
 
 
--- ============================================================================
--- 15. Verificar o trigger updated_at
--- Resultado esperado: 1 registro
--- ============================================================================
-
+-- 15. Trigger de updated_at
 SELECT
     event_object_schema,
     event_object_table,
@@ -424,12 +408,7 @@ WHERE event_object_schema = 'public'
   AND trigger_name = 'trg_card_variant_type_set_updated_at';
 
 
--- ============================================================================
--- 16. Verificar se o Row Level Security está habilitado
--- Resultado esperado:
--- rowsecurity = true
--- ============================================================================
-
+-- 16. Row Level Security
 SELECT
     schemaname,
     tablename,
@@ -437,3 +416,9 @@ SELECT
 FROM pg_catalog.pg_tables
 WHERE schemaname = 'public'
   AND tablename = 'card_variant_type';
+
+
+-- 17. Resultado resumido
+SELECT
+    'Query 950 concluída: card_variant_type validada para o catálogo canônico de 12 tipos.'
+    AS validation_result;

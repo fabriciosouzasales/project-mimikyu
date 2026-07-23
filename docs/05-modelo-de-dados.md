@@ -2649,7 +2649,7 @@ Com isso, **o pacote técnico da entidade Card está tecnicamente completo e con
 - [x] validação reescrita (27 blocos) e executada com sucesso (`940` v2.0, confirmado por Fabrício: "Pronto! Executado com sucesso.");
 - [x] arquivos `140`/`141`/`840`/`940` copiados para `database/`;
 - [ ] confirmação explícita de Fabrício sobre a discrepância `ENERGY` (agora com 9 Cards reais classificadas como Energia, ocupando posições numeradas);
-- [x] entidade Card Variant (associação Card ↔ Card Variant Type) — estrutura modelada e executada (`160`/`161`/`960`); falta apenas o Seed `860` (dados) para o bloco "Editorial Catalog" (100) ser verdadeiramente concluído — ver seções Card Variant Type e Card Variant, abaixo.
+- [x] entidade Card Variant (associação Card ↔ Card Variant Type) — estrutura modelada e executada (`160`/`161`/`960`); Seed `860` em andamento por coleção — `860A` (ME1) e `860B` (ME2) executadas e confirmadas, `860C` (ME2.5) ainda não gerada, `860D`/`860E` (ME3/ME4) ainda não iniciadas — bloco "Editorial Catalog" (100) permanece não totalmente concluído até `860` cobrir todas as coleções — ver seções Card Variant Type e Card Variant, abaixo.
 
 ## Queries Associadas (Versão 1.1)
 
@@ -2698,26 +2698,32 @@ Regras de negócio: `code` segue o formato `^[A-Z][A-Z0-9_]*$`; `name` não pode
 
 Queries `150 - Create Card Variant Type Table` e `151 - Create Card Variant Type Triggers` (trigger de `updated_at`, mesmo padrão já usado nas demais entidades) executadas e confirmadas por Fabrício.
 
-## Seed — Versão 1.1
+## Seed — Versão 1.2
 
-Catálogo canônico atual do Game `POKEMON` (seis tipos, `850` v1.1):
+Catálogo canônico atual do Game `POKEMON` (12 tipos, `850` v1.2):
 
 | code | name | display_order |
 |------|------|----------------|
 | `STANDARD` | Padrão | 1 |
 | `HOLO` | Holográfica | 2 |
 | `REVERSE_HOLO` | Holográfica Reversa | 3 |
-| `POKE_BALL_REVERSE` | Poké Bola Reversa | 4 |
-| `MASTER_BALL_REVERSE` | Master Bola Reversa | 5 |
-| `PROMO_STAMPED` | Promocional Estampada | 6 |
+| `ENERGY_REVERSE` | Energia Reversa | 4 |
+| `POKE_BALL_REVERSE` | Poké Bola Reversa | 5 |
+| `LOVE_BALL_REVERSE` | Love Ball Reversa | 6 |
+| `FRIEND_BALL_REVERSE` | Friend Ball Reversa | 7 |
+| `QUICK_BALL_REVERSE` | Quick Ball Reversa | 8 |
+| `DUSK_BALL_REVERSE` | Dusk Ball Reversa | 9 |
+| `ROCKET_REVERSE` | Equipe Rocket Reversa | 10 |
+| `MASTER_BALL_REVERSE` | Master Ball Reversa | 11 |
+| `PROMO_STAMPED` | Promocional Estampada | 12 |
 
-A versão 1.0 do seed continha apenas cinco tipos (sem `HOLO`). Fabrício identificou a lacuna ao revisar o catálogo: `HOLO` é uma variante distinta de `REVERSE_HOLO` e faz parte do modelo conceitual do Pokémon TCG — sem ela, cartas holográficas "padrão" (sem versão reverse) não poderiam ser representadas. Em vez de corrigir manualmente o registro já executado, a Query `850` foi reescrita para a versão 1.1 (Princípio da Fonte Canônica), incluindo `HOLO` na posição 2 e deslocando as demais. Como a versão 1.0 já podia estar executada, a Query desloca temporariamente os `display_order` existentes (`+1000`) antes do UPSERT definitivo, para não violar a constraint `UNIQUE (game_id, display_order)`. Executada com sucesso — confirmado por Fabrício.
+Histórico: a v1.0 continha cinco tipos (sem `HOLO`); a v1.1 (6 tipos) adicionou `HOLO` após Fabrício identificar que cartas holográficas "padrão" não poderiam ser representadas sem ela. A **v1.2 (6 novos tipos, 12 no total)** foi motivada pela análise da coleção ME2.5 (Heróis Excelsios) durante a preparação da Query `860C`: a reversa holográfica do conjunto base de ME2.5 não segue um único padrão genérico — cada Pokémon elegível recebe uma reversa com o padrão de uma Poké Bola específica de sua linha evolutiva (Poké Ball, Love Ball, Friend Ball, Quick Ball, Dusk Ball), Pokémon da Equipe Rocket usam o símbolo "R", e Pokémon não `ex` também têm reversa de Energia — nenhuma evidência de `MASTER_BALL_REVERSE` foi encontrada nesta coleção. Usar apenas `POKE_BALL_REVERSE` para todos esses padrões agruparia variantes editorialmente distintas sob o mesmo código, violando a regra de negócio da Query `160` (`card_variant` deve representar cada variante colecionável oficialmente existente). Todas as versões usam o mesmo mecanismo de convergência segura (deslocamento temporário de `display_order` em `+1000` antes do UPSERT definitivo). Executada com sucesso — confirmado por Fabrício via captura de tela real do Table Editor mostrando os 12 tipos já cadastrados.
 
-O catálogo foi mantido deliberadamente restrito a tipos com utilidade colecionável clara e documentada. O cadastro de um Card Variant Type não implica que toda Card, ou mesmo todo Card Set, possua essa variante — essa associação será feita pela futura tabela `card_variant`.
+O catálogo foi mantido deliberadamente restrito a tipos com utilidade colecionável clara e documentada. O cadastro de um Card Variant Type não implica que toda Card, ou mesmo todo Card Set, possua essa variante — essa associação é feita pela tabela `card_variant`.
 
-## Validação — Versão 1.1
+## Validação — Versão 1.2
 
-Query `950 - Validate Card Variant Type` (v1.1) valida: relação completa, quantidade canônica (6 para `POKEMON`), presença e aderência dos seis códigos esperados, tipos fora do catálogo canônico, duplicidades de `code`/`display_order`, formato de `code`, campos obrigatórios, sequência de `display_order` (1 a 6), relacionamento com Game, timestamps, trigger de `updated_at` e RLS. Executada com sucesso — confirmado por Fabrício ("Executada com sucesso. Vamos agora ao próximo bloco.").
+Query `950 - Validate Card Variant Type` (v1.2) valida: relação completa, quantidade canônica (12 para `POKEMON`), presença e aderência dos 12 códigos esperados, tipos fora do catálogo canônico, duplicidades de `code`/`display_order`, formato de `code`, campos obrigatórios, sequência de `display_order` (1 a 12), relacionamento com Game, timestamps, trigger de `updated_at` e RLS. Executada com sucesso logo após `850` v1.2 — confirmado por Fabrício via captura de tela real do Table Editor.
 
 ## Nota sobre nomenclatura — tensão com ADR-010, ainda não resolvida
 
@@ -2728,19 +2734,19 @@ ADR-010 renomeou o conceito antes chamado "Card Variant" para **Finish**/**Card 
 - [x] modelo físico definido e executado (`150`, v1.0);
 - [x] trigger de `updated_at` criado e confirmado (`151`, v1.0);
 - [x] RLS habilitado;
-- [x] seed executada com sucesso — 6 tipos canônicos (`850` v1.1, incluindo `HOLO`);
-- [x] validação executada com sucesso (`950` v1.1, 16 blocos);
-- [x] arquivos `150`/`151`/`850`/`950` copiados para `database/`;
+- [x] seed executada com sucesso — 12 tipos canônicos (`850` v1.2, incluindo os 6 tipos de reversa específica descobertos na análise da ME2.5);
+- [x] validação executada com sucesso (`950` v1.2, 17 blocos);
+- [x] arquivos `150`/`151`/`850`/`950` copiados para `database/` (`850`/`950` sobrescritos em vigor, v1.2 — Princípio da Fonte Canônica);
 - [x] entidade Card Variant (associação Card ↔ Card Variant Type) — estrutura executada, ver seção própria abaixo;
-- [ ] decisão de Fabrício sobre a nomenclatura conceitual (Card Variant vs. Finish/Card Finish) — ainda pendente, agora com Card Variant Type e Card Variant (estrutura) ambos executados sob o nome "Card Variant".
+- [ ] decisão de Fabrício sobre a nomenclatura conceitual (Card Variant vs. Finish/Card Finish) — ainda pendente, agora com Card Variant Type e Card Variant (estrutura + dados reais de ME1/ME2) executados sob o nome "Card Variant".
 
 ## Queries Associadas
 
 ```text
 150 - Create Card Variant Type Table     (v1.0, Status CANÔNICA — executada e confirmada)
 151 - Create Card Variant Type Triggers  (v1.0, Status CANÔNICA — executada e confirmada)
-850 - Seed Card Variant Type             (v1.1, Status CANÔNICA — executada e confirmada, 6 tipos)
-950 - Validate Card Variant Type         (v1.1, Status CANÔNICA — executada e confirmada, 16 blocos)
+850 - Seed Card Variant Type             (v1.2, Status CANÔNICA — executada e confirmada, 12 tipos)
+950 - Validate Card Variant Type         (v1.2, Status CANÔNICA — executada e confirmada, 17 blocos)
 ```
 
 ---
@@ -2805,8 +2811,12 @@ Ver `04-domain-model.md`, seção Finish/Card Finish, para o raciocínio complet
 - [x] RLS habilitado;
 - [x] validação estrutural executada com sucesso (`960` v1.0, 17 blocos — tabela ainda vazia, sem erro);
 - [x] arquivos `160`/`161`/`960` copiados para `database/`;
-- [ ] estratégia de fontes do Seed `860` definida (checklist + TCGdex + Pokémon TCG API), mas Seed ainda não escrito nem executado;
-- [ ] decisão de Fabrício sobre a nomenclatura conceitual (Card Variant vs. Finish/Card Finish) — segue pendente, agora com evidência adicional (`ADR-008` já usa "Card Variant" em sua lista de entidades do Catálogo Editorial).
+- [x] arquitetura da Query `860` homologada (matriz JSONB autocontida, sem tabelas temporárias, validação pós-carga em 9 passos) — comprovada por duas execuções reais (`860A`/`860B`);
+- [x] `860A` (ME1) executada e confirmada — 310 Card Variants (111 `STANDARD`/77 `HOLO`/122 `REVERSE_HOLO`);
+- [x] `860B` (ME2) executada e confirmada — 214 Card Variants (74 `STANDARD`/56 `HOLO`/84 `REVERSE_HOLO`);
+- [ ] `860C` (ME2.5) — matriz editorial ainda não construída, exige o catálogo expandido de 12 tipos (`850`/`950` v1.2, já executado);
+- [ ] `860D`/`860E` (ME3/ME4) — ainda não iniciadas;
+- [ ] decisão de Fabrício sobre a nomenclatura conceitual (Card Variant vs. Finish/Card Finish) — segue pendente, agora com evidência adicional (`ADR-008` já usa "Card Variant" em sua lista de entidades do Catálogo Editorial, e dados reais de duas coleções já povoados sob esse nome).
 
 ## Queries Associadas
 
@@ -2814,10 +2824,12 @@ Ver `04-domain-model.md`, seção Finish/Card Finish, para o raciocínio complet
 160 - Create Card Variant Table              (v1.0, Status CANÔNICA — executada e confirmada)
 161 - Create Card Variant Triggers            (v1.0, Status CANÔNICA — executada e confirmada)
 960 - Validate Card Variant Structure         (v1.0, Status CANÔNICA — executada e confirmada, 17 blocos)
-860 / 860A-860E - Seed Card Variant           (planejada, não escrita)
+860A - Seed Card Variant ME1                  (v1.2, Status CANÔNICA — executada e confirmada, 310 Card Variants)
+860B - Seed Card Variant ME2                  (v1.0, Status CANÔNICA — executada e confirmada, 214 Card Variants)
+860C/860D/860E - Seed Card Variant ME2.5/ME3/ME4  (planejadas, não escritas — 860C bloqueada até a matriz da ME2.5 ser consolidada)
 ```
 
-**Marco confirmado por Fabrício**: com `160`/`161`/`960` executados, toda a estrutura do Catálogo Editorial (`100`–`160`) está modelada e criada no banco — Game, Expansion, Card Set, Rarity, Card Category, Card, Card Variant Type, Card Variant. Falta apenas povoar `card_variant` com o dataset editorial real (`860`).
+**Marco parcial confirmado por Fabrício**: com `160`/`161`/`960` executados e o padrão arquitetural da `860` homologado via `860A`/`860B`, o Catálogo Editorial (`100`–`160`) está estruturalmente completo e parcialmente povoado com dados reais de variantes (ME1, ME2). Falta consolidar `860C`/`860D`/`860E` para as demais coleções antes de declarar o bloco "Editorial Catalog" verdadeiramente concluído.
 
 ---
 
@@ -2887,17 +2899,19 @@ Regeneradas a pedido de Fabrício, confirmadas diretamente: **"Excelente. Execut
 880 - Seed Card Asset                    (planejada — escopo confirmado: apenas CARD_FRONT, card_id direto; pré-requisitos ainda em aberto)
 ```
 
-## Query 860 — Matriz Editorial explícita (Opção B, confirmada)
+## Query 860 — `860A`/`860B` CONCLUÍDAS E EXECUTADAS; arquitetura homologada; `860C` exige catálogo expandido
 
-Ordem confirmada por Fabrício: `860` antes de `880`. Escopo: cadastrar, por Card, apenas os tipos de Card Variant realmente existentes (`STANDARD`/`HOLO`/`REVERSE_HOLO`/`POKE_BALL_REVERSE`/`MASTER_BALL_REVERSE`/`PROMO_STAMPED`), com `variant_order` local e contínuo, exatamente um `is_default = TRUE` por Card, carga idempotente.
+Ordem confirmada por Fabrício: `860` antes de `880`.
 
-**Mudança de metodologia**: em vez de popular direto por Card Set, uma Matriz Editorial de Variantes explícita será construída e validada antes de qualquer SQL, por coleção: `860A.1` construção da matriz → `860A.2` validação → `860A.3` geração do SQL → validação → próxima coleção.
+**Metodologia homologada** (dois resultados reais batendo exatamente com o esperado): Matriz Editorial de Variantes explícita construída e validada por coleção, antes de qualquer SQL — `860X.1` construção → `860X.2` validação → `860X.3` geração (bloco `DO $$` autocontido, matriz JSONB embutida, sem tabelas temporárias) → validação pós-carga. **Opção A** (derivação dinâmica via Rarity) rejeitada — usada só para validar totais da ME1. **Opção B** (matriz explícita, sem inferência) adotada e confirmada em produção duas vezes.
 
-**Opção A (derivação dinâmica via Rarity, REJEITADA)** vs. **Opção B (matriz explícita, ADOTADA — "Vamos com Opção B")**: a derivação por raridade (`COMMON`/`UNCOMMON`→`STANDARD`; `RARE`/`DOUBLE_RARE`→`HOLO`) foi usada apenas para validar os totais da ME1, não como base da Query final — rejeitada por assumir uma relação raridade→variante que "nem sempre é verdade" em coleções futuras. A matriz explícita declara cada combinação Card + Card Variant Type objetivamente, sem inferência.
+**Ambiguidade de `variant_order` — RESOLVIDA pela execução real.** As matrizes de `860A`/`860B` confirmam: `variant_order` é local à Card (1, ou 1 e 2), nunca a posição global 1–12 de `card_variant_type.display_order` — são dois conceitos distintos, confirmado na prática. `is_default`: `STANDARD` padrão quando existir; `HOLO` padrão só na ausência de `STANDARD`; `REVERSE_HOLO` nunca padrão.
 
-**Ordem canônica proposta de `variant_order`**: `STANDARD`(1)/`HOLO`(2)/`REVERSE_HOLO`(3)/`POKE_BALL_REVERSE`(4)/`MASTER_BALL_REVERSE`(5)/`PROMO_STAMPED`(6) — mesma ordem de `display_order` em `card_variant_type`. **Não resolvido**: se contradiz a regra já registrada (revisão anterior) de `variant_order` local e sem lacunas por Card — não ficou claro se a ordem 1–6 será renumerada por Card antes da carga. `is_default`: `STANDARD` padrão quando existir; `HOLO` padrão só na ausência de `STANDARD`; demais nunca padrão.
+**`860A` (ME1) — EXECUTADA.** Matriz: `001`–`132` `COMMON`/`UNCOMMON` → `STANDARD`+`REVERSE_HOLO`; 11 `RARE` → `HOLO`+`REVERSE_HOLO`; 10 `DOUBLE_RARE` (Mega `ex`) → apenas `HOLO`; `133`–`188` (Laminadas Padrão) → apenas `HOLO`. Resultado real: **111 `STANDARD` + 77 `HOLO` + 122 `REVERSE_HOLO` = 310**, conferido linha a linha (todos ✅). `POKE_BALL_REVERSE`/`MASTER_BALL_REVERSE` não existem na ME1.
 
-**Matriz ME1 consolidada (analítica, nada executado)**: `001`–`132` `COMMON`/`UNCOMMON` → `STANDARD`+`REVERSE_HOLO`; 11 `RARE` → `HOLO`+`REVERSE_HOLO`; 10 `DOUBLE_RARE` (Mega `ex`) → apenas `HOLO`, sem reversa; `133`–`188` (Laminadas Padrão) → apenas `HOLO`. Total: 111 `STANDARD` + 77 `HOLO` + 122 `REVERSE_HOLO` = **310 Card Variants esperados**. `POKE_BALL_REVERSE`/`MASTER_BALL_REVERSE` não existem na ME1; `PROMO_STAMPED` fica fora da numeração principal, entra só com identificação explícita.
+**`860B` (ME2) — EXECUTADA, mesma arquitetura.** 94 Cards no conjunto base, 130 no total. Resultado real: **74 `STANDARD` + 56 `HOLO` + 84 `REVERSE_HOLO` = 214**, confirmado ("Show! Resultado esperado após execução. Vamos em frente."). Com os dois resultados batendo, Fabrício declarou o padrão arquitetural homologado.
+
+**`860C` (ME2.5, Heróis Excelsios) — AINDA NÃO EXECUTADA.** 217 Cards no conjunto base, 295 no total. A análise revelou que essa coleção não segue o padrão simples de ME1/ME2: reversa com padrão de Poké Bola específica por linha evolutiva (Poké Ball/Love Ball/Friend Ball/Quick Ball/Dusk Ball), símbolo "R" para Equipe Rocket, reversa de Energia para Pokémon não `ex` — sem evidência de `MASTER_BALL_REVERSE`. Isso exigiu expandir `card_variant_type` de 6 para 12 tipos (`850`/`950` v1.2, ver seção Card Variant Type) antes de `860C` poder ser gerada com segurança — usar `POKE_BALL_REVERSE` para todos esses padrões violaria a regra de negócio da Query `160`. Trabalho planejado (Opção B, sem inferência): identificar variante principal das 295 Cards, `REVERSE_HOLO`, `POKE_BALL_REVERSE`, `MASTER_BALL_REVERSE`, separar `PROMO_STAMPED`, calcular distribuição, gerar `860C` autocontida. **Nenhuma matriz construída ainda.**
 
 ## Query 880 — Escopo Confirmado
 
@@ -2956,3 +2970,4 @@ Fabrício adiou o detalhamento fino desta entidade e de `language`/`card_externa
 | 0.31 | **Card Asset: relação com Card Variant descartada explicitamente + SQL recebida para `170`/`171`/`870`/`970`, execução não confirmada, 2 problemas identificados.** Fabrício: "Não pretendi representar com imagens as variações das cartas! A ilustração será representada de uma única forma" — confirmado que `card_asset` não se relaciona com `card_variant`, resolvendo/explicando a divergência de `card_variant_id` já confirmada como ausente na tabela física (era intencional). Novas regras: localização de arquivo (`storage_provider`/`storage_path`/`external_url`, reintroduzindo `storage_provider`, que segue divergindo de `storage_bucket_id` real), índice único parcial `uq_card_asset_one_primary`, integridade técnica, escopo inicial reduzido a `CARD_FRONT`. SQL verbatim recebida para `170`/`171`/`870`/`970` — sem confirmação de execução, não copiada para `database/`. Dois problemas: cabeçalhos fora do padrão STD-001 (Fabrício alertou sobre sinais de perda de contexto na sessão pareada a partir deste ponto) e bug no Seed `870` (código de Game `POKEMON_TCG`, inexistente — o real é `POKEMON`). Nota técnica: `card_asset_type` já existe fisicamente, então `170` como `CREATE TABLE IF NOT EXISTS` não adicionaria retroativamente as novas constraints. |
 | 0.32 | **Card Asset Type — pacote técnico concluído e executado (`170`/`171`/`870`/`970`); bug de Game code previsto na revisão 0.31 confirmado na prática e corrigido; `180`/`181`/`980` (Card Asset) recebidas, execução não confirmada.** Fabrício tentou executar o `870` v1.0 original e obteve exatamente o erro previsto (`ERROR: P0001: Game with code POKEMON_TCG was not found`). Ciclo de correção: v1.1 corrigiu apenas idioma; v1.2 corrigiu código de Game (`POKEMON`) e idioma simultaneamente — executada com sucesso, assim como `970` v1.2 (marcador próprio de conclusão confirma a validação estrutural completa). `170`/`171` confirmadas por inferência técnica direta (mesmo padrão de `140`/`141`). Fabrício rejeitou a sugestão de adivinhar/inserir um novo código de Game; sessão pareada reconheceu o lapso de contexto e se comprometeu a validar nomes/códigos consolidados antes de cada nova Query. Arquivos `database/schema/170_*.sql`, `database/schema/171_*.sql`, `database/seeds/870_seed_card_asset_type.sql` (v1.2), `database/validations/970_validate_card_asset_type.sql` (v1.2) criados, cabeçalho reformatado para STD-001, comentários traduzidos. SQL de `180`/`181`/`980` regenerada, mas ainda sem confirmação de execução — mesmo problema de cabeçalho/`COMMENT ON` em inglês; não copiada para `database/`. |
 | 0.33 | **Card Asset (`180`/`181`/`980` v1.1) confirmada executada — ressalva técnica importante sinalizada, não resolvida: `180` provavelmente não alterou a estrutura física real** (`CREATE TABLE IF NOT EXISTS` é no-op contra a tabela já existente com 20 colunas reais confirmadas; a `180` v1.1 propõe 19 colunas divergentes, com `storage_provider` em vez de `storage_bucket_id`/`language_id`). `181` genuinamente aplicada (trigger só depende de colunas reais). `980` é só `SELECT`s informativos, sem `RAISE EXCEPTION` — pergunta explícita deixada para Fabrício sobre os resultados reais dos blocos 2/3. Arquivos `database/schema/180_*.sql`, `database/schema/181_*.sql`, `database/validations/980_*.sql` criados (v1.1, cabeçalho já em STD-001). **Nova fase: `860`/`880` confirmadas como pendências finais do Catálogo Editorial, ordem `860` antes de `880`.** Metodologia da `860` mudada para Matriz Editorial explícita por coleção (construção → validação → geração do SQL → validação); Opção A (derivação por Rarity) rejeitada, Opção B (matriz explícita) adotada. Ordem canônica de `variant_order` (1–6) proposta, sinalizada como potencialmente conflitante com a regra de numeração local sem lacunas já registrada — não resolvido. Matriz ME1 consolidada analiticamente: 310 Card Variants esperados (111 `STANDARD`+77 `HOLO`+122 `REVERSE_HOLO`), nada executado. Escopo da `880` confirmado (`CARD_FRONT`, `card_id` direto), seis pontos em aberto. |
+| 0.34 | **`860A` (ME1) e `860B` (ME2) executadas e confirmadas com resultado real batendo exatamente com o esperado — arquitetura da Query `860` homologada; ambiguidade de `variant_order` da revisão anterior RESOLVIDA; descoberta na ME2.5 força expansão de `card_variant_type` de 6 para 12 tipos.** `860A` v1.2: 310 Card Variants (111 `STANDARD`/77 `HOLO`/122 `REVERSE_HOLO`), conferido linha a linha. `860B` v1.0: 214 Card Variants (74 `STANDARD`/56 `HOLO`/84 `REVERSE_HOLO`), confirmado por Fabrício. Ambas no padrão homologado: bloco `DO $$` autocontido, matriz JSONB local, sem tabelas temporárias, validação pré-carga, convergência segura, carga idempotente, nove passos de validação pós-carga com rollback automático. Execuções reais confirmam `variant_order` local à Card (1, ou 1 e 2), nunca a posição global de `card_variant_type.display_order` — resolve a ambiguidade da revisão `0.33`. **Descoberta ME2.5**: reversa do conjunto base não segue padrão genérico — Poké Bola específica por linha evolutiva (Poké Ball/Love Ball/Friend Ball/Quick Ball/Dusk Ball), símbolo "R" para Equipe Rocket, reversa de Energia para não `ex`; sem `MASTER_BALL_REVERSE`. Catálogo de Card Variant Type expandido para 12 tipos (`850`/`950` v1.2), confirmado executado via captura de tela real. `860C` (ME2.5) ainda NÃO executada — matriz ainda não construída. Arquivos `database/seeds/860a_seed_card_variant_me1.sql`, `database/seeds/860b_seed_card_variant_me2.sql` criados; `850`/`950` sobrescritos para v1.2. |
