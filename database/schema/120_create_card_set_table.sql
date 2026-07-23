@@ -2,13 +2,17 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 120 - Create Card Set Table
-Versão......: 1.0
+Versão......: 2.0
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-17
+Status......: CANÔNICA
 Descrição...:
 Cria a tabela card_set, responsável por representar as publicações oficiais
-numeradas pertencentes a uma Expansion.
+numeradas pertencentes a uma Expansion — já nascendo com suporte nativo ao
+tipo PROMO (Card Set promocional Black Star Promos, ver ADR-015) e com o
+índice único parcial que impede mais de uma série PROMO por Expansion.
 Exemplos:
+- ME0   - ME Black Star Promos (PROMO)
 - ME1   - Megaevolução
 - ME2   - Fogo Fantasmagórico
 - ME2.5 - Heróis Excelsos
@@ -19,17 +23,29 @@ Regras de Negócio:
 - O código deve ser único dentro da respectiva Expansion.
 - A ordem de lançamento deve ser única dentro da respectiva Expansion.
 - O código pode conter letras maiúsculas, números, ponto, hífen e sublinhado.
-- O tipo do Set deve ser REGULAR ou SPECIAL (ampliado para incluir PROMO
-  pela migration 122 — ver database/migrations/122_adapt_card_set_for_promo.sql).
+- O tipo do Set deve ser REGULAR, SPECIAL ou PROMO.
 - A ordem de lançamento deve ser um número inteiro positivo.
 - A data de lançamento pode permanecer nula enquanto não estiver confirmada.
 - A quantidade base deve ser um número inteiro positivo.
 - A quantidade total deve ser igual ou superior à quantidade base.
 - A quantidade de cartas secretas será calculada pela diferença entre
   total_set_size e base_set_size.
+- Um Card Set PROMO deve possuir base_set_size igual a total_set_size.
+- Deve existir no máximo um Card Set PROMO por Expansion.
 - Uma Expansion que possua Card Sets não pode ser excluída.
 - O UUID é gerado automaticamente.
 - O Row Level Security permanece habilitado.
+Nota — Princípio da Fonte Canônica (STD-001, Seção 10):
+esta é a versão que uma instalação nova deve executar. Ela substitui, em uma
+instalação nova, tanto a Versão 1.0 desta Query quanto a migration
+122 - Adapt Card Set for Promo (ver database/migrations/122_adapt_card_set_for_promo.sql,
+reclassificada como Status MIGRATION — histórica, não faz parte do fluxo de
+instalação limpa).
+Item aberto: esta Versão 2.0 foi escrita para o repositório; o banco físico
+atual foi construído pelo caminho antigo (120 v1.0 + migration 122), que não
+incluía o índice uq_card_set_expansion_promo. Não presumir que esse índice já
+existe no Supabase real até confirmação — ver docs/05-modelo-de-dados.md,
+seção Set.
 ===============================================================================
 */
 
@@ -58,14 +74,24 @@ CREATE TABLE public.card_set (
     CONSTRAINT ck_card_set_name_not_blank
         CHECK (btrim(name) <> ''),
     CONSTRAINT ck_card_set_type
-        CHECK (set_type IN ('REGULAR', 'SPECIAL')),
+        CHECK (set_type IN ('REGULAR', 'SPECIAL', 'PROMO')),
     CONSTRAINT ck_card_set_release_order_positive
         CHECK (release_order > 0),
     CONSTRAINT ck_card_set_base_size_positive
         CHECK (base_set_size > 0),
     CONSTRAINT ck_card_set_total_size_valid
-        CHECK (total_set_size >= base_set_size)
+        CHECK (total_set_size >= base_set_size),
+    CONSTRAINT ck_card_set_promo_size
+        CHECK (
+            set_type <> 'PROMO'
+            OR base_set_size = total_set_size
+        )
 );
+
+-- Garante no máximo um Card Set promocional por Expansion
+CREATE UNIQUE INDEX uq_card_set_expansion_promo
+    ON public.card_set (expansion_id)
+    WHERE set_type = 'PROMO';
 
 ALTER TABLE public.card_set
 ENABLE ROW LEVEL SECURITY;

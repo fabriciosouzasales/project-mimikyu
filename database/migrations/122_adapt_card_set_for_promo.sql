@@ -5,6 +5,14 @@ Query.......: 122 - Adapt Card Set for Promo
 Versão......: 1.0
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-17
+Status......: MIGRATION (reclassificação retroativa — ver STD-001, Seção 10,
+               Princípio da Fonte Canônica). Esta migration alterou um banco
+               que já possuía a tabela card_set (criada por 120 v1.0). Não é
+               mais necessária em uma instalação nova: a Query canônica
+               120 v2.0 (ver database/schema/120_create_card_set_table.sql)
+               já nasce com suporte nativo a PROMO. Preservada apenas como
+               registro histórico de como o suporte a PROMO foi introduzido
+               no banco atual.
 Descrição...:
 Adapta a entidade card_set para suportar séries promocionais Black Star
 como Card Sets do tipo PROMO.

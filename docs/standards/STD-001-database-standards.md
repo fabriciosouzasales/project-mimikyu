@@ -303,6 +303,19 @@ Nem toda entidade precisará das cinco categorias completas (a categoria "incons
 
 **Migrations que alteram constraints e dados existentes juntas devem ser transacionais:** envolver a Query inteira em `BEGIN; ... COMMIT;`, garantindo que uma falha em qualquer etapa não deixe o banco em estado intermediário (ex.: constraint alterada mas dados ainda não ajustados). Exemplo real: `122 - Adapt Card Set for Promo`, que remove e recria uma constraint, executa dois `UPDATE`s em sequência e adiciona uma nova constraint, tudo dentro de uma única transação.
 
+### Princípio da Fonte Canônica
+
+**Cada Query do repositório deve representar a forma correta e definitiva de criar aquela entidade em uma instalação nova do sistema.** Consequências diretas:
+
+- não se mantêm migrations corretivas permanentes no fluxo padrão de instalação — quando o modelo de uma entidade evolui (ex.: um novo `set_type`, uma nova constraint), a **Query original de criação é atualizada em lugar** (mesmo número, nova `Versão` no cabeçalho), passando a já nascer correta;
+- o histórico de como o modelo evoluiu passa a pertencer ao **controle de versão (Git)**, não à sequência de Queries — quem precisar consultar uma versão anterior de uma Query usa o histórico do repositório, não uma migration antiga ainda "ativa";
+- uma migration que altera um banco **já existente** (ex.: `122 - Adapt Card Set for Promo`) continua registrada e preservada — não é apagada — mas passa a ser classificada como **histórica**: aplicável apenas a instalações antigas que já passaram por aquele estado intermediário, e explicitamente **fora** do fluxo de instalação limpa;
+- o repositório deve sempre conseguir reconstruir o banco do zero executando apenas as Queries `CANÔNICA`s, na ordem de suas faixas — nunca dependendo de uma sequência de migrations históricas.
+
+Este princípio foi adotado a partir da consolidação da entidade Card Set (Queries `120`/`820`, ver `05-modelo-de-dados.md`, seção Set): a Query `120 - Create Card Set Table` e a Query `820 - Seed Card Set` foram atualizadas em lugar (para `Versão 2.0`) para já nascerem com suporte nativo a `PROMO`, e as Queries `122`/`821` (que originalmente introduziram esse suporte em um banco já existente) foram reclassificadas como históricas.
+
+**Atenção:** atualizar a Query canônica no repositório não executa nada automaticamente contra o banco físico. Se o banco atual já foi construído pelo caminho antigo (Query original + migration histórica), ele deve ser conferido individualmente contra a nova versão canônica — pode haver uma diferença estrutural entre "o que o banco atual tem" e "o que a Query canônica descreveria em uma instalação nova" até que essa conferência seja feita (ver nota concreta em `05-modelo-de-dados.md`, seção Set, sobre o índice único parcial de Card Set).
+
 ### Modelo de Cabeçalho
 
 ```sql
@@ -311,6 +324,7 @@ Nem toda entidade precisará das cinco categorias completas (a categoria "incons
 Projeto.....: Project Mimikyu
 Query.......: 100 - Create Game table
 Versão......: 1.0
+Status......: CANÔNICA
 Autor.......: [nome]
 Data........: AAAA-MM-DD
 
@@ -324,7 +338,12 @@ Regras de Negócio:
 */
 ```
 
-O campo **Versão** identifica a evolução do próprio script (ex.: uma alteração futura na tabela Game seria uma nova Query, como `045 - Alter Game structure`, preservando o registro da versão original).
+O campo **Versão** identifica a evolução do próprio script (ex.: uma Query canônica que evolui de `1.0` para `2.0` preserva o número da Query, apenas incrementando a versão).
+
+O campo **Status** identifica o papel da Query frente ao Princípio da Fonte Canônica (acima):
+
+- **CANÔNICA** — representa a forma correta e mais atual de criar aquela estrutura; é o que uma instalação nova deve executar.
+- **MIGRATION** — uma alteração histórica, já aplicada a um banco que existia antes da versão canônica correspondente; não faz parte do fluxo de instalação limpa, mas é preservada como registro.
 
 ## Execução
 
@@ -347,3 +366,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.8 | Adicionado à Seção 10 (Validação) o padrão de três seções para toda Query `9xx - Validate`: validação estrutural, validação dos dados persistidos e validação das regras de negócio derivadas (valores que não existem como coluna, mas fazem parte do domínio — ex.: `secret_set_size`). Adotado a partir da entidade Card Set. |
 | 1.9 | Revisado o padrão de validação (1.8) de três para cinco categorias, após aplicação real em Card Set: dados persistidos, regras derivadas, inconsistências (consultas que devem retornar zero linhas), constraints, trigger. Adicionada recomendação de envolver migrations que alteram constraints e dados juntas em uma transação explícita (`BEGIN`/`COMMIT`), com `122 - Adapt Card Set for Promo` como exemplo real. Adicionada à Seção 10 (Seeds) a distinção entre `DO NOTHING` (carga inicial única) e `DO UPDATE` (Seeds que representam o estado atual e reaplicável de uma entidade). |
 | 1.10 | Adicionada à Seção 10 a subseção "Registro em `database/`": toda Query executada e confirmada deve ser copiada como arquivo `.sql` versionado em `database/`, fora de `docs/` — registrado durante auditoria de saúde do repositório (2026-07-23). |
+| 1.11 | Adicionado o "Princípio da Fonte Canônica": Queries de criação/seed representam sempre a forma correta e mais atual para uma instalação nova; migrations que alteram um banco já existente são preservadas, mas reclassificadas como históricas, fora do fluxo de instalação limpa. Adicionado o campo `Status` (`CANÔNICA`/`MIGRATION`) ao Modelo de Cabeçalho oficial. Aplicado pela primeira vez em Card Set (`120`/`820` atualizadas para v2.0; `122`/`821` reclassificadas). |

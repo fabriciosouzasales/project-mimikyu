@@ -26,3 +26,14 @@ database/
 ## Regra de manutenção
 
 Sempre que uma nova Query for executada e confirmada no Supabase (ver o fluxo em `docs/05-modelo-de-dados.md`), o mesmo SQL deve ser copiado para o subdiretório correspondente aqui, com o cabeçalho oficial completo (Projeto/Query/Versão/Autor/Data/Descrição/Regras de Negócio — ver STD-001, Seção 10). Isso evita que o histórico de execução exista apenas dentro do Supabase ou embutido em prosa na documentação.
+
+## Queries `CANÔNICA` vs. `MIGRATION`
+
+Desde a adoção do **Princípio da Fonte Canônica** (STD-001, Seção 10), o cabeçalho de cada Query passou a incluir um campo `Status`, que pode ser:
+
+- **`CANÔNICA`** — representa a forma correta e definitiva de criar aquela estrutura em uma instalação nova. É a versão que deve ser executada do zero.
+- **`MIGRATION`** — Query histórica, que alterou um banco já existente. Não faz parte do fluxo de instalação limpa; preservada apenas para rastreabilidade de como o banco atual chegou ao seu estado.
+
+Quando uma Query originalmente `CANÔNICA` precisa de uma correção permanente, ela é reescrita **no mesmo arquivo/número, com a versão incrementada** (ex.: `120` v1.0 → v2.0) — não é criada uma nova migration corretiva encadeada. Migrations que já introduziram essa correção em um banco pré-existente (ex.: `122`) são então reclassificadas retroativamente como `MIGRATION` e mantidas apenas como histórico.
+
+**Atenção:** atualizar uma Query `CANÔNICA` neste repositório é uma alteração de arquivo/documentação — **não executa nada automaticamente contra o Supabase**. Um banco já construído pelo caminho antigo (versão anterior + migration) só reflete a nova versão canônica se a diferença entre elas for confirmada e, se necessário, aplicada manualmente. Ver o primeiro exemplo real desse cuidado em `docs/05-modelo-de-dados.md`, seção Set (índice `uq_card_set_expansion_promo`, cujo status no banco físico atual permanece não confirmado).

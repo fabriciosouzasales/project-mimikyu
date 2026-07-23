@@ -5,6 +5,13 @@ Query.......: 821 - Seed Promo Card Set
 Versão......: 1.0
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-17
+Status......: MIGRATION (reclassificação retroativa — ver STD-001, Seção 10,
+               Princípio da Fonte Canônica). Esta Query inseriu ME0
+               separadamente, em um banco onde os demais Sets já existiam.
+               Não é mais necessária em uma instalação nova: a Query canônica
+               820 v2.0 (ver database/seeds/820_seed_card_set.sql) já inclui
+               ME0 junto com os demais Sets em um único snapshot. Preservada
+               apenas como registro histórico.
 Descrição...:
 Insere o Card Set promocional Black Star da Expansion Mega Evolution.
 Regras de Negócio:

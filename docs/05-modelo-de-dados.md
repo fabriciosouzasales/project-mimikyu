@@ -443,7 +443,7 @@ A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver 
 
 # Set
 
-Status: **Pacote técnico concluído** — tabela, trigger, suporte a Sets promocionais (`PROMO`, migration `122`), seed (Sets regulares/especiais via `820` + Set promocional via `821`) e validação (`920`, versão 2.0) executados e confirmados por Fabrício ("Tudo ok"). Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Único item aberto:** reescrever a Query `820` para representar o estado completo e atual da Expansion (incluindo o Set promocional) usando `ON CONFLICT ... DO UPDATE` — decisão já tomada, SQL reescrito ainda não apresentado/executado (ver "Pendência — Reescrita da Query 820", abaixo).
+Status: **Pacote técnico concluído.** Tabela, trigger, suporte a Sets promocionais, seed e validação executados e confirmados. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). Seguindo o novo **Princípio da Fonte Canônica** (STD-001, Seção 10), as Queries `120 - Create Card Set Table` e `820 - Seed Card Set` foram consolidadas para `Versão 2.0` (Status `CANÔNICA`), já nascendo com suporte nativo a `PROMO` — as Queries `122` e `821` (que originalmente introduziram esse suporte em um banco já existente) foram reclassificadas como `MIGRATION` (históricas), preservadas mas fora do fluxo de instalação limpa. **Único item aberto:** confirmar se o índice único parcial `uq_card_set_expansion_promo` (novo na versão canônica de `120`) já existe no banco físico atual — ver "Modelo Físico — Versão Canônica", abaixo.
 
 ### Disciplina do processo
 
@@ -531,7 +531,9 @@ Aplicando o Princípio da Simplicidade Inicial (AP-004):
 
 **Regra 8 — Quantidades de Set promocional.** Para `set_type = PROMO`, `base_set_size` deve ser igual a `total_set_size` (constraint `ck_card_set_promo_size`, executada pela migration `122`) — não representa uma quantidade editorial fechada, mas a quantidade atualmente conhecida de cartas promocionais (ver ADR-015).
 
-## Modelo Físico (PostgreSQL) — Executado
+## Modelo Físico (PostgreSQL) — Versão 1.0, Executada Originalmente (histórico)
+
+*Esta é a Query como foi executada pela primeira vez (Status `MIGRATION` retroativo — superada pela Versão Canônica 2.0, abaixo, mas preservada aqui para rastreabilidade, seguindo o Princípio da Fonte Canônica de STD-001, Seção 10).*
 
 ```sql
 CREATE TABLE public.card_set (
@@ -583,7 +585,64 @@ ALTER TABLE public.card_set
     ENABLE ROW LEVEL SECURITY;
 ```
 
-Query: `120 - Create Card Set Table`. Resultado confirmado: `Success. No rows returned`, RLS habilitado. Nota: `code` usa `VARCHAR(50)` (mais largo que o inicialmente rascunhado) e a constraint de quantidades foi nomeada `ck_card_set_total_size_valid`.
+Query: `120 - Create Card Set Table` (v1.0). Resultado confirmado: `Success. No rows returned`, RLS habilitado. Nota: `code` usa `VARCHAR(50)` (mais largo que o inicialmente rascunhado) e a constraint de quantidades foi nomeada `ck_card_set_total_size_valid`.
+
+## Modelo Físico — Versão Canônica (2.0)
+
+Status `CANÔNICA` (STD-001, Seção 10 — Princípio da Fonte Canônica): esta é a versão que uma **instalação nova** deve executar — já nasce com suporte nativo a `PROMO`, incorporando o que antes exigia a migration `122` separada, **e adiciona o índice único parcial que a versão 1.0 e a migration `122` não incluíam** (a divergência sinalizada anteriormente em ADR-015 e nesta seção):
+
+```sql
+CREATE TABLE public.card_set (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    expansion_id UUID NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    set_type VARCHAR(20) NOT NULL,
+    release_order INTEGER NOT NULL,
+    release_date DATE NULL,
+    base_set_size INTEGER NOT NULL,
+    total_set_size INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_card_set_expansion
+        FOREIGN KEY (expansion_id)
+        REFERENCES public.expansion (id)
+        ON DELETE RESTRICT,
+    CONSTRAINT uq_card_set_expansion_code
+        UNIQUE (expansion_id, code),
+    CONSTRAINT uq_card_set_expansion_release_order
+        UNIQUE (expansion_id, release_order),
+    CONSTRAINT ck_card_set_code_format
+        CHECK (code ~ '^[A-Z0-9][A-Z0-9._-]*$'),
+    CONSTRAINT ck_card_set_name_not_blank
+        CHECK (btrim(name) <> ''),
+    CONSTRAINT ck_card_set_type
+        CHECK (set_type IN ('REGULAR', 'SPECIAL', 'PROMO')),
+    CONSTRAINT ck_card_set_release_order_positive
+        CHECK (release_order > 0),
+    CONSTRAINT ck_card_set_base_size_positive
+        CHECK (base_set_size > 0),
+    CONSTRAINT ck_card_set_total_size_valid
+        CHECK (total_set_size >= base_set_size),
+    CONSTRAINT ck_card_set_promo_size
+        CHECK (
+            set_type <> 'PROMO'
+            OR base_set_size = total_set_size
+        )
+);
+
+-- Garante no máximo um Card Set promocional por Expansion
+CREATE UNIQUE INDEX uq_card_set_expansion_promo
+    ON public.card_set (expansion_id)
+    WHERE set_type = 'PROMO';
+
+ALTER TABLE public.card_set
+ENABLE ROW LEVEL SECURITY;
+```
+
+Query: `120 - Create Card Set Table` (v2.0, `CANÔNICA`). Representa o estado estrutural definitivo para novas instalações — a Query `122` (histórica) não precisa ser executada em uma instalação nova.
+
+> **Item aberto — não presumir resolvido:** esta versão canônica foi escrita para o **repositório** (arquivo/documentação), não executada como uma nova alteração contra o banco físico atual — o banco atual foi construído pelo caminho antigo (`120` v1.0 + migration `122`), que **não incluía** o índice `uq_card_set_expansion_promo`. Ou seja, é preciso **confirmar separadamente** se esse índice já existe no Supabase real; se não existir, nada no banco atual impede hoje uma segunda linha `PROMO` na mesma Expansion (mesma divergência já registrada em ADR-015, agora resolvida apenas na definição canônica, não necessariamente na instância física).
 
 ### Trigger de `updated_at`
 
@@ -596,7 +655,9 @@ EXECUTE FUNCTION public.set_updated_at();
 
 Query: `121 - Create Card Set Trigger`. Resultado confirmado: `Success. No rows returned`. Verificado via `information_schema.triggers` (mesma consulta usada para Game/Expansion): `trigger_name = trg_card_set_set_updated_at`, `event_manipulation = UPDATE`, `action_timing = BEFORE`, `event_object_schema = public`, `event_object_table = card_set`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game, acima).
 
-### Seed — Versão Final Executada
+### Seed — Versão 1.0, Executada Originalmente (histórico)
+
+*Esta é a Seed como foi executada originalmente — ainda sem o Set promocional `ME0` (incorporado depois, separadamente, pela Query `821`) e usando `ON CONFLICT ... DO NOTHING` (Status `MIGRATION` retroativo — superada pela Versão Canônica 2.0, abaixo, mas preservada aqui para rastreabilidade, seguindo o Princípio da Fonte Canônica de STD-001, Seção 10).*
 
 **Histórico da correção (preservado para rastreabilidade):** uma primeira versão desta Seed continha apenas três Sets (`ME1`, `ME2`, `ME2.5`), com `ME3` deliberadamente excluído por falta de dados validados e todas as `release_date` nulas — essa versão **nunca chegou a ser executada** ("Não devemos executar o seed anterior"). Fabrício então forneceu as folhas oficiais de verificação (PDF) dos cinco primeiros Sets da Expansion `ME`, eliminando o risco de cadastrar estimativas — ver "Fontes Primárias", abaixo. Com os dados confirmados, a Seed foi reescrita para incluir os cinco Sets de uma vez, com nomes e datas oficiais.
 
@@ -638,6 +699,165 @@ Query: `820 - Seed Card Set` (versão final). Resultado confirmado: `Success. No
 | ME4 | Caos Ascendente | REGULAR | 2026-05-22 | 86 | 122 | 36 |
 
 > **Nota técnica sobre `ON CONFLICT ... DO NOTHING`:** essa cláusula torna a Seed segura para repetição, mas **não atualiza** dados já existentes — se a Seed for corrigida depois de já ter sido executada com sucesso, rodar a versão corrigida não substitui as linhas antigas. Como a primeira versão (com `ME3` ausente e datas nulas) nunca foi executada, não houve esse problema aqui. Mas o cuidado vale para o futuro: corrigir dados já seedados exige um `UPDATE` explícito ou uma nova migration, não apenas reexecutar a Seed (ver STD-001, Seção 10).
+
+### Seed — Versão Canônica (2.0)
+
+Status `CANÔNICA` (STD-001, Seção 10 — Princípio da Fonte Canônica): passa a representar o **estado completo e atual da Expansion `ME`**, incorporando o Set promocional `ME0` (antes inserido separadamente pela Query `821`) e trocando `ON CONFLICT ... DO NOTHING` por `ON CONFLICT ... DO UPDATE` — uma Seed que não apenas evita duplicidade, mas também corrige registros existentes caso algum dado oficial seja atualizado (ver "Pendência — Reescrita da Query 820, RESOLVIDA", abaixo).
+
+```sql
+/*
+===============================================================================
+Projeto.....: Project Mimikyu
+Query.......: 820 - Seed Card Set
+Versão......: 2.0
+Autor.......: Fabrício Sales / ChatGPT
+Data........: 2026-07-17
+Status......: CANÔNICA
+Descrição...:
+Insere e mantém atualizados os Card Sets iniciais da Expansion Mega Evolution,
+incluindo o Set promocional Black Star Promos.
+Os dados dos Sets regulares e especiais foram definidos com base nas folhas
+oficiais de verificação e nas datas de lançamento validadas.
+Card Sets contemplados:
+- ME0   - ME Black Star Promos
+- ME1   - Megaevolução
+- ME2   - Fogo Fantasmagórico
+- ME2.5 - Heróis Excelsos
+- ME3   - Equilíbrio Perfeito
+- ME4   - Caos Ascendente
+Regras de Negócio:
+- Os Card Sets devem ser vinculados ao Game POKEMON e à Expansion ME.
+- Os UUIDs das entidades relacionadas não devem ser informados diretamente.
+- A execução deve ser idempotente.
+- Uma nova execução não pode gerar registros duplicados.
+- Registros existentes devem ser atualizados conforme os dados definidos
+  nesta Query.
+- O Set promocional deve ser o primeiro Card Set da Expansion.
+- O código do Set promocional deve ser formado pelo código da Expansion
+  seguido de 0.
+- O nome do Set promocional deve ser formado pelo código da Expansion
+  seguido de " Black Star Promos".
+- A data de lançamento do Set promocional deve ser igual à data de lançamento
+  do primeiro Set não promocional da Expansion.
+- A quantidade base do Set promocional deve ser igual à quantidade total.
+- A quantidade do Set promocional representa a quantidade de cartas conhecidas
+  no momento da atualização do catálogo.
+- As quantidades dos Sets regulares e especiais devem corresponder às folhas
+  oficiais de verificação.
+- A quantidade de cartas secretas não é armazenada diretamente.
+- A quantidade de cartas secretas é derivada da diferença entre
+  total_set_size e base_set_size.
+- ME2.5 é um Set especial.
+- ME0 é um Set promocional.
+- Os demais Sets cadastrados são regulares.
+Pré-requisitos:
+- A Query 122 - Adapt Card Set for Promo deve ter sido executada.
+- O Game POKEMON deve existir.
+- A Expansion ME deve existir.
+===============================================================================
+*/
+INSERT INTO public.card_set (
+    expansion_id,
+    code,
+    name,
+    set_type,
+    release_order,
+    release_date,
+    base_set_size,
+    total_set_size
+)
+SELECT
+    expansion.id,
+    seed.code,
+    seed.name,
+    seed.set_type,
+    seed.release_order,
+    seed.release_date,
+    seed.base_set_size,
+    seed.total_set_size
+FROM public.expansion
+INNER JOIN public.game
+    ON game.id = expansion.game_id
+CROSS JOIN (
+    VALUES
+        (
+            'ME0',
+            'ME Black Star Promos',
+            'PROMO',
+            1,
+            DATE '2025-09-26',
+            89,
+            89
+        ),
+        (
+            'ME1',
+            'Megaevolução',
+            'REGULAR',
+            2,
+            DATE '2025-09-26',
+            132,
+            188
+        ),
+        (
+            'ME2',
+            'Fogo Fantasmagórico',
+            'REGULAR',
+            3,
+            DATE '2025-11-14',
+            94,
+            130
+        ),
+        (
+            'ME2.5',
+            'Heróis Excelsos',
+            'SPECIAL',
+            4,
+            DATE '2026-01-30',
+            217,
+            295
+        ),
+        (
+            'ME3',
+            'Equilíbrio Perfeito',
+            'REGULAR',
+            5,
+            DATE '2026-03-27',
+            88,
+            124
+        ),
+        (
+            'ME4',
+            'Caos Ascendente',
+            'REGULAR',
+            6,
+            DATE '2026-05-22',
+            86,
+            122
+        )
+) AS seed (
+    code,
+    name,
+    set_type,
+    release_order,
+    release_date,
+    base_set_size,
+    total_set_size
+)
+WHERE game.code = 'POKEMON'
+  AND expansion.code = 'ME'
+ON CONFLICT (expansion_id, code)
+DO UPDATE SET
+    name            = EXCLUDED.name,
+    set_type        = EXCLUDED.set_type,
+    release_order   = EXCLUDED.release_order,
+    release_date    = EXCLUDED.release_date,
+    base_set_size   = EXCLUDED.base_set_size,
+    total_set_size  = EXCLUDED.total_set_size;
+```
+
+Query: `820 - Seed Card Set` (v2.0, `CANÔNICA`). Representa o estado completo e atual da Expansion `ME` em uma única Query — a Query `821` (histórica) não precisa ser executada em uma instalação nova. O `release_order` já nasce na ordem final (`ME0`=1 … `ME4`=6), sem precisar do deslocamento em duas etapas que a migration `122` exigiu contra dados já existentes.
+
+> **Mesmo item aberto da versão canônica de `120`:** esta reescrita também é uma atualização de repositório/documentação — não foi (e não precisa ser) reexecutada contra o banco atual, já que os dados de `ME0`–`ME4` já estão persistidos (via `820` v1.0 + `821`). Serve como definição para instalações novas e como registro do formato `DO UPDATE` a partir de agora.
 
 ### Fontes Primárias
 
@@ -755,7 +975,9 @@ WHERE event_object_schema = 'public' AND event_object_table = 'card_set';
 
 Query: `920 - Validate Card Set` (versão 2.0). **Resultado confirmado por Fabrício ("Tudo ok").** A consulta principal (seção 1) retornou os seis Card Sets da Expansion `ME` com `secret_set_size` correto (`ME0`=0, `ME1`=56, `ME2`=36, `ME2.5`=78, `ME3`=36, `ME4`=36); as seções 3 a 8 (inconsistências e tipos) retornaram zero linhas; o trigger `trg_card_set_set_updated_at` confirmado ativo (`BEFORE UPDATE`). **Com esse resultado, o pacote técnico da entidade Card Set está concluído.**
 
-### Pendência — Reescrita da Query `820`
+### Pendência — Reescrita da Query `820` (RESOLVIDA)
+
+**Resolvida:** a Query `820` foi reescrita como `Versão 2.0` (Status `CANÔNICA`), incluindo `ME0` e usando `ON CONFLICT ... DO UPDATE` — ver "Seed — Versão Canônica (2.0)", acima. O texto original desta pendência é preservado abaixo para rastreabilidade da decisão.
 
 Imediatamente após confirmar a validação, Fabrício identificou uma inconsistência de processo: a Query `820 - Seed Card Set` (documentada acima, seção "Seed — Versão Final Executada") ainda reflete apenas os cinco Sets regulares/especiais — o Set promocional `ME0` foi inserido por uma Query separada (`821`). **Decisão tomada (ainda não convertida em SQL executado):** `820` deve passar a representar o **estado completo e atual da Expansion `ME`**, incluindo o Set promocional, para que uma reconstrução do banco do zero não dependa de executar `821` separadamente. `821` passa a ser mantida apenas como registro histórico de migrations já executadas, deixando de fazer parte do fluxo principal de instalação.
 
@@ -830,6 +1052,8 @@ COMMIT;
 
 Query: `122 - Adapt Card Set for Promo`. Resultado confirmado: `Success. No rows returned`. Executada dentro de uma transação explícita (`BEGIN`/`COMMIT`) — recomendação permanente para migrations que alteram constraints e dados existentes juntas (ver STD-001, Seção 10). O deslocamento do `release_order` usa a técnica de duas etapas descrita anteriormente (`1,2,3,4,5 → 101,102,103,104,105 → 2,3,4,5,6`), evitando violar `UNIQUE (expansion_id, release_order)` durante a operação.
 
+> **Status: `MIGRATION` (reclassificação retroativa, STD-001 Seção 10 — Princípio da Fonte Canônica).** Esta Query alterou um banco que já possuía a tabela `card_set` (via `120` v1.0) — não é mais necessária em uma instalação nova, já que a Query canônica `120` v2.0 nasce com suporte nativo a `PROMO`. Preservada aqui apenas como registro histórico de como o suporte a `PROMO` foi de fato introduzido no banco atual.
+
 **Seed do Card Set promocional:**
 
 ```sql
@@ -848,6 +1072,8 @@ ON CONFLICT (expansion_id, code) DO NOTHING;
 
 Query: `821 - Seed Promo Card Set`. Resultado confirmado: `Success. No rows returned`. Quantidade real informada por Fabrício ("Atualmente são 89 cartas promos em ME").
 
+> **Status: `MIGRATION` (reclassificação retroativa, STD-001 Seção 10 — Princípio da Fonte Canônica).** Esta Query inseriu `ME0` separadamente, em um banco onde os demais Sets já existiam — não é mais necessária em uma instalação nova, já que a Query canônica `820` v2.0 inclui `ME0` junto com os demais Sets em um único snapshot. Preservada aqui apenas como registro histórico.
+
 **Estado final da Expansion `ME` após `122` + `821`:**
 
 | Ordem | Código | Nome | Tipo | Lançamento | Base | Total |
@@ -859,7 +1085,7 @@ Query: `821 - Seed Promo Card Set`. Resultado confirmado: `Success. No rows retu
 | 5 | ME3 | Equilíbrio Perfeito | REGULAR | 2026-03-27 | 88 | 124 |
 | 6 | ME4 | Caos Ascendente | REGULAR | 2026-05-22 | 86 | 122 |
 
-> **Divergência sinalizada (não resolvida unilateralmente):** ADR-015 recomendava um índice único parcial (`CREATE UNIQUE INDEX ... ON public.card_set (expansion_id) WHERE set_type = 'PROMO'`) para impedir, ao nível do banco, mais de uma série promocional por Expansion. A migration `122` efetivamente executada **não incluiu esse índice** — a regra é hoje verificada apenas pela Query de validação (`920`, seção 6, abaixo), não impedida na escrita. Ou seja, nada no banco impede, hoje, que uma segunda linha `PROMO` seja inserida por engano na mesma Expansion; isso só seria detectado na próxima execução de `920`. Registrado aqui para decisão futura — não presumir que o índice existe.
+> **Divergência sinalizada — agora corrigida na definição canônica, ainda não confirmada no banco físico:** ADR-015 recomendava um índice único parcial (`CREATE UNIQUE INDEX ... ON public.card_set (expansion_id) WHERE set_type = 'PROMO'`) para impedir, ao nível do banco, mais de uma série promocional por Expansion. A migration `122` efetivamente executada **não incluiu esse índice**. A Query canônica `120` v2.0 (ver "Modelo Físico — Versão Canônica (2.0)", acima) já inclui o índice para qualquer instalação nova. **Mas isso não significa que o índice já exista no banco físico atual** — o banco atual foi construído pelo caminho antigo (`120` v1.0 + `122`), e a atualização de `120` para v2.0 foi feita no repositório/documentação, não como uma nova execução contra o Supabase. Enquanto essa confirmação não for feita, a regra continua sendo verificada apenas pela Query de validação (`920`, seção 6, abaixo), não impedida na escrita — nada no banco impede hoje que uma segunda linha `PROMO` seja inserida por engano na mesma Expansion.
 
 **Pendência de nomenclatura do `card`:** esta ADR/migration não define regras específicas sobre a numeração ou identidade das Cards promocionais individuais — fica para a modelagem da entidade Card.
 
@@ -886,15 +1112,15 @@ FK  expansion_id     UUID
 ## Queries Associadas
 
 ```text
-120 - Create Card Set Table
+120 - Create Card Set Table      (v2.0, Status CANÔNICA)
 121 - Create Card Set Trigger
-122 - Adapt Card Set for Promo
-820 - Seed Card Set              (a ser reescrita — ver "Pendência", acima)
-821 - Seed Promo Card Set        (executada; passará a ser só histórico após a reescrita de 820)
+122 - Adapt Card Set for Promo   (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
+820 - Seed Card Set              (v2.0, Status CANÔNICA)
+821 - Seed Promo Card Set        (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
 920 - Validate Card Set          (versão 2.0)
 ```
 
-Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800). `122` é uma migration de ajuste dentro do próprio bloco 100–199 de Card Set, não uma nova entidade. `821` é um Seed adicional dentro da faixa 800–899, criado antes da decisão de consolidar tudo em `820`.
+Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800). `122` é uma migration de ajuste dentro do próprio bloco 100–199 de Card Set, não uma nova entidade. `821` é um Seed adicional dentro da faixa 800–899, criado antes da decisão de consolidar tudo em `820`. Ambas preservadas por rastreabilidade, mas reclassificadas como `MIGRATION` pelo Princípio da Fonte Canônica (STD-001, Seção 10) — uma instalação nova executa apenas `120` v2.0 e `820` v2.0.
 
 ## Definition of Done
 
@@ -907,7 +1133,9 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 - [x] suporte a `PROMO` adicionado (`122`, executada dentro de transação);
 - [x] seed executado (`820` — ME1–ME4; `821` — ME0, todos com dados validados);
 - [x] validação executada e confirmada (`920` v2.0 — "Tudo ok");
-- [ ] Query `820` reescrita como snapshot completo da Expansion com `ON CONFLICT ... DO UPDATE` — **único item aberto**, ver "Pendência — Reescrita da Query 820".
+- [x] Query `820` reescrita como snapshot completo da Expansion (v2.0, `ON CONFLICT ... DO UPDATE`, inclui `ME0`) — ver "Pendência — Reescrita da Query 820 (RESOLVIDA)";
+- [x] Query `120` consolidada para v2.0 (`CANÔNICA`), com suporte nativo a `PROMO` e o índice `uq_card_set_expansion_promo`; `122`/`821` reclassificadas `MIGRATION`;
+- [ ] confirmar se o índice `uq_card_set_expansion_promo` já existe no banco físico atual — **único item aberto**, ver "Divergência sinalizada", acima. Não bloqueia o início da modelagem de Card, mas deve ser verificado antes de considerar a regra de unicidade de `PROMO` realmente garantida em produção.
 
 ---
 
@@ -959,3 +1187,4 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 | 0.12 | Identificado desvio de disciplina (avançar para Card antes de fechar o pacote de Card Set) — corrigido antes de prosseguir. Adicionada Query `920 - Validate Card Set` completa, seguindo o novo padrão de três seções (estrutural, dados persistidos, regras derivadas); execução ainda não confirmada. Adicionada a seção "Extensão Planejada — Card Set Promocional (`PROMO`)": convenção fixa de preenchimento para a série Black Star Promos, técnica de deslocamento em duas etapas para `release_order`, e a migration planejada `122 - Adapt Card Set for Promo Series` (ver ADR-015). Nova Regra de Negócio 8 (quantidades iguais para `PROMO`). Definition of Done ampliada com os dois itens pendentes antes de iniciar a entidade Card. |
 | 0.13 | **Pacote técnico da entidade Set concluído.** Migration `122 - Adapt Card Set for Promo` executada (transação com drop/add de constraint, deslocamento de `release_order`, nova constraint `ck_card_set_promo_size`). Set promocional real cadastrado via `821 - Seed Promo Card Set` (`ME0`, 89 cartas). Query `920` evoluída para versão 2.0 (cinco categorias, onze subconsultas), executada e confirmada por Fabrício ("Tudo ok"). Sinalizada divergência entre o índice único parcial recomendado por ADR-015 e o que foi de fato executado (não implementado). Nova seção "Pendência — Reescrita da Query 820": decisão de consolidar `820`+`821` em um único snapshot completo com `ON CONFLICT ... DO UPDATE`, SQL ainda não apresentado. Definition of Done quase completa — falta apenas essa reescrita. |
 | 0.14 | Adicionada nota apontando que todo SQL "executado" documentado aqui também existe como arquivo `.sql` versionado em `database/` (auditoria de saúde do repositório) — ver `database/README.md`. |
+| 0.15 | Adotado o Princípio da Fonte Canônica (STD-001, Seção 10) para Card Set. Queries `120` e `820` reescritas em `Versão 2.0` (Status `CANÔNICA`): `120` v2.0 já nasce com suporte nativo a `PROMO` e inclui o índice único parcial `uq_card_set_expansion_promo` (ausente na v1.0/migration `122`); `820` v2.0 consolida todos os seis Card Sets da Expansion `ME` (incluindo `ME0`) em um único snapshot com `ON CONFLICT ... DO UPDATE`. DDL e Seed originais preservados como histórico (v1.0). Queries `122` e `821` reclassificadas como `MIGRATION` — preservadas, mas fora do fluxo de instalação limpa. Pendência de reescrita da `820` marcada como RESOLVIDA (texto original preservado). Sinalizado item aberto: status do índice `uq_card_set_expansion_promo` no banco físico atual não confirmado, já que esta consolidação foi feita no repositório, não reexecutada no Supabase. Definition of Done e Queries Associadas atualizadas com Status por Query. |
