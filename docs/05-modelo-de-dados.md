@@ -241,7 +241,7 @@ Próxima entidade: **Expansion**, que introduziu o primeiro relacionamento e a p
 
 # Expansion (Expansão)
 
-Status: **Estrutura criada** (tabela + relacionamento + RLS). Trigger de `updated_at` e Seed ainda pendentes. **Há uma divergência em aberto entre o modelo conceitual acordado e o DDL efetivamente executado — ver "Divergência a Resolver", abaixo.**
+Status: **Estrutura criada, com pendência confirmada** (tabela + relacionamento + RLS). Trigger de `updated_at` e Seed ainda pendentes. **A coluna `logo_url`, acordada conceitualmente, ficou de fora do DDL executado por descuido — correção pendente para a retomada da implementação. Ver "Pendência Confirmada — logo_url", abaixo.**
 
 ## Modelo Lógico
 
@@ -289,7 +289,7 @@ O modelo final acordado na discussão incluiu também `logo_url` (ver "Atributos
 
 **created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
 
-**logo_url** *(acordado conceitualmente; ausente do DDL executado)* — Identidade visual principal da Expansion. Ver `04-domain-model.md`, seção Expansion — "Identidade Visual".
+**logo_url** *(pendente de correção — ver "Pendência Confirmada", abaixo)* — Identidade visual principal da Expansion. `TEXT`, opcional. Ver `04-domain-model.md`, seção Expansion — "Identidade Visual".
 
 ## Campos que Não Incluiremos Agora
 
@@ -348,11 +348,15 @@ ALTER TABLE public.expansion
 
 Query: `110 - Create Expansion table`. Resultado confirmado: `Success. No rows returned`.
 
-## Divergência a Resolver
+## Pendência Confirmada — logo_url
 
-A discussão conceitual ("Modelo revisado de Expansion") concluiu que a entidade deveria incluir `logo_url` (`TEXT NULL`), e Fabrício confirmou explicitamente esse modelo antes da execução ("Você tem toda razão... Vamos criar a tabela expansion"). **Porém, o DDL efetivamente executado (Query `110`, acima) não contém a coluna `logo_url`** — nem ela aparece nas Regras de Negócio registradas no cabeçalho do script.
+A discussão conceitual ("Modelo revisado de Expansion") concluiu que a entidade deveria incluir `logo_url` (`TEXT`, opcional), e Fabrício confirmou explicitamente esse modelo antes da execução ("Você tem toda razão... Vamos criar a tabela expansion"). O DDL efetivamente executado (Query `110`, acima) não contém essa coluna.
 
-Não presumimos qual das duas versões é a correta: pode ter sido uma simplificação deliberada não registrada em texto, ou uma coluna pendente de uma migration futura (`111` ou posterior, tipo `ALTER TABLE`). Sinalizado aqui para confirmação no próximo lote, em vez de decidir unilateralmente.
+**Confirmado por Fabrício em 2026-07-22: trata-se de um descuido, não de uma simplificação deliberada.** `logo_url` é considerada importante para o projeto e deve ser adicionada.
+
+**Atualização (mesmo dia):** Fabrício também confirmou que o logotipo da Expansion não deve ser preenchido manualmente — deve ser **importado automaticamente via API** e armazenado no Supabase (Storage), seguindo o mesmo padrão já usado para imagens de Card (ver `06-pipeline-importacao.md`, seção "Importação de Ativos Visuais"). Isso muda a natureza da pendência: não basta adicionar uma coluna `TEXT` de preenchimento livre — é necessário decidir se `logo_url` será uma referência simples a um arquivo já armazenado (populada pelo pipeline de importação) ou uma chave estrangeira para uma futura entidade de ativo (nos moldes de `card_asset`).
+
+**Ação pendente para a retomada da implementação:** (1) formalizar, no ciclo de documentação do pipeline de ativos visuais, se a infraestrutura já existente (`card_asset`, `card_asset_type`, `asset_source`, `storage_bucket`, `asset_import_run`, `asset_import_failure`) se generaliza para Expansion ou se recebe uma estrutura própria; (2) só então criar a migration correspondente (coluna simples ou relacionamento), numerada dentro da faixa 100–199, seguindo o Padrão Oficial de Queries SQL (STD-001, Seção 10). Não decidir a estrutura física antes dessa definição, para não contradizer o padrão já estabelecido para Card.
 
 ## Próximos Passos (fora deste lote)
 
@@ -405,3 +409,5 @@ Não presumimos qual das duas versões é a correta: pode ter sido uma simplific
 | 0.3 | Adicionada nota explicando que o banco físico já possui as 17 tabelas originais com carga inicial de dados, construídas antes desta fase de consolidação documental — a documentação das entidades além de Game será majoritariamente retroativa, não uma criação do zero. |
 | 0.4 | Refinado o Roteiro por Entidade: modelo lógico agora organizado por grupo (Identidade/Descrição/Relacionamento/Ordenação/Auditoria); referência ao Padrão Oficial de Queries SQL (STD-001, Seção 10). Adicionadas as Queries associadas à entidade Game (000/001/100/800/900). Adicionado o modelo lógico parcial da entidade Expansion (status "Em elaboração"); regras de negócio, modelo físico e testes previstos para o próximo ciclo. |
 | 0.5 | Adicionada a verificação do trigger de Game via `information_schema.triggers`; Queries associadas de Game atualizadas com `101 - Create Game trigger` (pacote tecnicamente completo). Completada a entidade Expansion: atributos, campos adiados, regras de negócio e o DDL efetivamente executado (`110 - Create Expansion table`, com RLS). Sinalizada divergência não resolvida entre o modelo conceitual acordado (inclui `logo_url`) e o DDL executado (não inclui) — não resolvida unilateralmente, aguardando confirmação de Fabrício. |
+| 0.6 | Confirmado por Fabrício: a ausência de `logo_url` no DDL executado foi um descuido, não uma simplificação deliberada — a coluna é importante para o projeto. Atualizado o status da entidade Expansion e registrada a ação pendente (migration `ALTER TABLE ... ADD COLUMN logo_url`) para a retomada da implementação. |
+| 0.7 | Corrigida a pendência de `logo_url`: o valor deve ser importado automaticamente via API e armazenado no Supabase Storage, seguindo o mesmo padrão de imagens de Card — não uma coluna de preenchimento manual. Ação pendente agora depende de decisão prévia sobre a estrutura do pipeline de ativos visuais (ver `06-pipeline-importacao.md`). |

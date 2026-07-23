@@ -343,6 +343,8 @@ Expansion não possui um campo `status`. Nenhum caso de uso concreto foi identif
 
 Uma Expansion possui identidade visual própria — um logotipo principal (`logo_url`), distinto do logotipo e do símbolo de cada Set (ver nota em "Set", abaixo). Para o MVP, adota-se uma única imagem principal, sem localização por idioma; uma eventual necessidade de logotipos localizados poderá evoluir para uma entidade Expansion Translation (mesmo padrão de Card Translation), quando houver necessidade concreta.
 
+O valor de `logo_url` é preenchido por **importação automática via API**, com o arquivo armazenado no Supabase (Storage) — o mesmo padrão já utilizado para imagens de Card — e não por preenchimento manual (ver `06-pipeline-importacao.md`, seção "Importação de Ativos Visuais"). A estrutura física exata (coluna simples vs. referência a uma entidade de ativo) ainda não está fechada — ver pendência registrada em `05-modelo-de-dados.md`.
+
 ---
 
 ### Relacionamentos
@@ -1455,3 +1457,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.9 | Adicionada nota sobre nomenclatura física do Set: `SET` é palavra reservada do SQL, tabela física é `card_set` (ver STD-001). |
 | 1.10 | Expandida a seção Expansion: adicionado o atributo `código editorial`, exemplos reais (SV, SWSH, SM, XY) e a regra "código internacional, nome localizável" (ver STD-001, Seção 5). Documentação de Expansion segue em elaboração — complementos previstos para o próximo ciclo. |
 | 1.11 | Finalizada a seção Expansion: ordem de lançamento (inteiro simples), unicidade de código/ordem por Game (não global — decorre de ADR-003), decisão de não incluir `status` (Princípio da Simplicidade Inicial), e identidade visual (`logo_url`, com localização futura deferida). Adicionada à seção Set a responsabilidade sobre quantidades e data de lançamento (pertencem ao Set, não à Expansion; quantidade de secretas é derivada, nunca armazenada) e uma nota preliminar (não fechada) sobre o futuro modelo lógico do Set. |
+| 1.12 | Adicionada nota: `logo_url` da Expansion é preenchido por importação automática via API (armazenado no Supabase Storage), mesmo padrão de imagens de Card — não preenchimento manual. Ver `06-pipeline-importacao.md`. |
