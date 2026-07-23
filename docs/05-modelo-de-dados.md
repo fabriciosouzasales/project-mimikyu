@@ -2414,9 +2414,11 @@ Depende da existência prévia de `rarity` (`130`) e `card_set` (`120`). Card Pr
 
 > **Nota:** o conteúdo acima (Modelo Lógico, Atributos, Regras de Negócio 1-7 e DDL proposto nesta seção "Card (Carta)") reflete o estado **anterior às duas revisões arquiteturais** descritas no callout de status, no início desta seção. Preservado por rastreabilidade. **O modelo final está na subseção abaixo.**
 
-## Modelo Final — Versão 1.0 (aprovado, ainda não executado)
+## Modelo Final — Versão 1.1 (refinado e aprovado; SQL real recebida, execução não confirmada)
 
 Resultado da reversão documentada em `04-domain-model.md`, seção "Revisão Arquitetural — Card Volta a Pertencer a um Card Set". Card representa "uma entrada específica no checklist oficial de um Card Set" (ex.: Charizard ex nº 021 da coleção ME4) — não uma identidade editorial independente de Set. Card Printing, cogitada na revisão intermediária, **não é necessária neste momento**.
+
+**Refinamento desta revisão (1.1):** a validação campo-a-campo do modelo aprovado no ciclo anterior (Versão 1.0) levou a duas adições — `collector_total` e `collector_order` — e a uma decisão sobre o idioma de `name`. Ver "Evolução do Modelo" abaixo.
 
 ### Modelo Lógico
 
@@ -2438,6 +2440,10 @@ card_set_id
 rarity_id
 category_id
 
+Ordenação
+----------
+collector_order
+
 Auditoria
 ----------
 created_at
@@ -2456,15 +2462,19 @@ updated_at
 
 **collector_number** — Renomeado de `card_number`. Número oficial impresso ou atribuído à Card, `VARCHAR(20)`, nunca inteiro — preserva zeros à esquerda, prefixos e sufixos (`001`, `SVP001`, `TG07`, `GG32`, `RC15`, `12a`).
 
+**collector_total** — **Novo nesta revisão.** `INTEGER`, opcional (`NULL` permitido). Registra o denominador exibido na numeração oficial da carta (o `182` em `021/182`), quando aplicável. Explicitamente distinto de `card_set.total_set_size`: uma mesma carta pode exibir um denominador diferente do total absoluto do Set — seções especiais (`TG`, `GG`) têm seu próprio denominador (`TG07/TG30`, `GG15/GG70`), e cartas promocionais frequentemente não exibem denominador algum (`SVP001`). Quando informado, deve ser maior que zero (`ck_card_collector_total_positive`).
+
+**collector_order** — **Reintroduzido nesta revisão** (havia sido removido na Versão 1.0, sem confirmação explícita de necessidade). Posição editorial da carta no checklist oficial do Card Set, usada para ordenação — necessário porque `collector_number` sozinho não ordena naturalmente quando há prefixos/sufixos não numéricos (`001, 002, TG01, TG02, GG15, SVP001, 12a` não têm uma ordenação textual simples). `INTEGER`, obrigatório, maior que zero, único dentro do Card Set (`uq_card_card_set_collector_order`).
+
 **name** — Nome da carta armazenado exatamente como impresso oficialmente (ex.: `Charizard ex`), deliberadamente **sem** separar sufixos mecânicos (`ex`, `V`, `GX`, `VMAX`) do nome base — essa distinção é de mecânica de jogo (fora de escopo por AP-017), não de colecionismo, e mecânicas mudam ao longo do tempo.
+
+> **Decisão sobre idioma de `name` (Opção B, confirmada por Fabrício).** Cogitadas duas opções: (A) `name` acompanha o idioma do Set de cada Card individualmente; (B) a Card sempre guarda o nome oficial da edição (Card Set) em que foi cadastrada — se o Set é em português, o nome é em português; se em inglês, em inglês. Fabrício escolheu a **Opção B**: "a Card representa exatamente o catálogo daquele Set. Não precisamos criar uma camada de tradução." Ou seja, `name` não é multi-idioma dentro da própria Card — cada publicação (cada Card, específica de um Set) tem um único nome, no idioma daquele Set. Uma eventual camada de tradução/localização permanece uma responsabilidade separada (ver seção Card Translation, abaixo — ainda "Documentação pendente"), não um campo de `card`.
 
 **created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
 
-> **`card_order` removido.** Não persistido nesta versão — a versão anterior o mantinha como posição sequencial distinta de `collector_number`; a necessidade real desse campo não foi reconfirmada na reversão e fica para retomada futura, se necessário.
-
 ### Não Persistido — `card_code` (composto)
 
-O identificador legível composto (ex.: `ME4-021`, `SVP-001`) **não é armazenado como coluna**. Decisão: derivar via lógica de aplicação ou `VIEW` (`card_set.code || '-' || card.collector_number`), evitando redundância e risco de inconsistência — mesmo princípio já aplicado a `card_set.secret_set_size` (sempre derivado, nunca persistido).
+O identificador legível composto (ex.: `ME4-021`, `SVP-001`) **não é armazenado como coluna**. Decisão: derivar via lógica de aplicação ou `VIEW` (`card_set.code || '-' || card.collector_number`), evitando redundância e risco de inconsistência — mesmo princípio já aplicado a `card_set.secret_set_size` (sempre derivado, nunca persistido). A Query `940` (abaixo) demonstra essa derivação em uma consulta real (`derived_card_code`).
 
 ### Extensão Futura, Não Construída — `card_relation`
 
@@ -2475,14 +2485,159 @@ Ponto de extensão registrado para rastrear reimpressões/artes alternativas no 
 ```text
 card (
     id, card_set_id, rarity_id, category_id,
-    collector_number, name,
+    collector_number, collector_total, collector_order, name,
     created_at, updated_at
 )
 ```
 
-Fabrício: "Concordo." Sequência de execução confirmada: Card Category primeiro (`132`/`133`/`831`/`931`, já executada — ver seção acima), depois Card (`140`/`141`/`840`/`940`, ainda não executada).
+Fabrício: "Vamos em frente. Concordo!"
 
 > **Tensão sinalizada, não resolvida:** conforme já registrado em `04-domain-model.md`, este modelo (Card atrelada a um Card Set específico, de modo que uma reimpressão em outro Set é uma Card diferente) está em tensão não resolvida com o princípio AP-011 (Editorial Identity), que declara que a identidade editorial deve ser independente de "impressão"/"distribuição". Não discutido pela sessão pareada; AP-011 não foi alterado.
+
+### Regra Adicional — Consistência de Game entre Card Set, Rarity e Card Category
+
+`card` **não armazena `game_id`** — essa informação é obtida via `Card → Card Set → Expansion → Game`. Porém `rarity_id` e `category_id` também pertencem a um Game (cada um com seu próprio `game_id`), e nada impede, apenas pela FK, que uma Card referencie uma Rarity ou Card Category de um Game diferente do seu Card Set. Regra de negócio nova: **Card Set, Rarity e Card Category referenciados por uma mesma Card devem pertencer ao mesmo Game** — validada não por CHECK constraint (não é possível comparar colunas de tabelas diferentes em um CHECK simples), mas por um **trigger de validação** (`141`, abaixo), primeira vez neste projeto que esse padrão é usado.
+
+### Modelo Físico (PostgreSQL) — SQL real recebida (verbatim), execução não confirmada
+
+```sql
+CREATE TABLE public.card (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_set_id UUID NOT NULL,
+    rarity_id UUID NOT NULL,
+    category_id UUID NOT NULL,
+
+    collector_number VARCHAR(20) NOT NULL,
+    collector_total INTEGER,
+    collector_order INTEGER NOT NULL,
+    name VARCHAR(200) NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_card_card_set
+        FOREIGN KEY (card_set_id)
+        REFERENCES public.card_set (id)
+        ON UPDATE RESTRICT
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_card_rarity
+        FOREIGN KEY (rarity_id)
+        REFERENCES public.rarity (id)
+        ON UPDATE RESTRICT
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_card_category
+        FOREIGN KEY (category_id)
+        REFERENCES public.card_category (id)
+        ON UPDATE RESTRICT
+        ON DELETE RESTRICT,
+
+    CONSTRAINT uq_card_card_set_collector_number
+        UNIQUE (card_set_id, collector_number),
+
+    CONSTRAINT uq_card_card_set_collector_order
+        UNIQUE (card_set_id, collector_order),
+
+    CONSTRAINT ck_card_collector_number_not_blank
+        CHECK (btrim(collector_number) <> ''),
+
+    CONSTRAINT ck_card_collector_number_format
+        CHECK (collector_number ~ '^[A-Za-z0-9][A-Za-z0-9._-]*$'),
+
+    CONSTRAINT ck_card_collector_total_positive
+        CHECK (collector_total IS NULL OR collector_total > 0),
+
+    CONSTRAINT ck_card_collector_order_positive
+        CHECK (collector_order > 0),
+
+    CONSTRAINT ck_card_name_not_blank
+        CHECK (btrim(name) <> '')
+);
+
+ALTER TABLE public.card ENABLE ROW LEVEL SECURITY;
+```
+
+> Query `140`, Versão 1.0, Status CANÔNICA. Inclui `COMMENT ON TABLE`/`COMMENT ON COLUMN` completo (padrão já usado em Card Category) — omitido acima por brevidade, texto completo será copiado para `database/schema/140_create_card_table.sql` **assim que a execução for confirmada** (por instrução de `database/README.md`: arquivos são copiados depois da execução confirmada, nunca antes). `ck_card_collector_number_format` permite letras, números, ponto, underscore e hífen — mais permissivo que a antiga Regra 5 do modelo superado (que evitava qualquer regex), para acomodar `TG01`, `SVP001`, `12a`, `001-A`.
+
+### Trigger — Consistência de Game + `updated_at`
+
+```sql
+CREATE OR REPLACE FUNCTION public.validate_card_game_consistency()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_card_set_game_id UUID;
+    v_rarity_game_id UUID;
+    v_category_game_id UUID;
+BEGIN
+    SELECT e.game_id INTO v_card_set_game_id
+      FROM public.card_set AS cs
+      INNER JOIN public.expansion AS e ON e.id = cs.expansion_id
+     WHERE cs.id = NEW.card_set_id;
+
+    SELECT r.game_id INTO v_rarity_game_id
+      FROM public.rarity AS r
+     WHERE r.id = NEW.rarity_id;
+
+    SELECT cc.game_id INTO v_category_game_id
+      FROM public.card_category AS cc
+     WHERE cc.id = NEW.category_id;
+
+    IF v_card_set_game_id <> v_rarity_game_id THEN
+        RAISE EXCEPTION 'Inconsistência de Game: o Card Set e a Rarity pertencem a Games diferentes.';
+    END IF;
+
+    IF v_card_set_game_id <> v_category_game_id THEN
+        RAISE EXCEPTION 'Inconsistência de Game: o Card Set e a Card Category pertencem a Games diferentes.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_card_validate_game_consistency
+BEFORE INSERT OR UPDATE OF card_set_id, rarity_id, category_id
+ON public.card
+FOR EACH ROW
+EXECUTE FUNCTION public.validate_card_game_consistency();
+
+CREATE TRIGGER trg_card_set_updated_at
+BEFORE UPDATE ON public.card
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+```
+
+> Query `141`, Versão 1.0, Status CANÔNICA. Primeira vez no projeto em que um trigger de validação (não apenas `updated_at`) é usado para impor uma regra de integridade referencial cruzada (Card Set/Rarity/Card Category do mesmo Game) que uma FK/CHECK simples não consegue expressar. Texto completo (incluindo tratamento de `NULL`, `COMMENT ON FUNCTION` e `DROP TRIGGER IF EXISTS` antes de cada `CREATE TRIGGER`) será copiado para `database/schema/141_create_card_triggers.sql` após confirmação de execução.
+
+### Seed — Query `840`, deliberadamente ainda não escrita
+
+Consistente com o princípio de não cadastrar dados especulativos: `840 - Seed Card` depende da escolha do primeiro Card Set cujo checklist oficial será importado por completo — não apenas registros de exemplo. Fabrício já enviou o PDF de referência `P10346_ME01_Card_List_PTBR.pdf` (checklist oficial de ME1 em português, já arquivado em `assets/reference-sources/` desde um ciclo anterior) como candidato para essa primeira carga, mas a Query `840` em si **não foi escrita nem decidida nesta revisão** — permanece um próximo passo em aberto.
+
+### Validação — Query `940`, SQL real recebida (verbatim), execução não confirmada
+
+18 subconsultas: relação completa, quantidade por Card Set (incluindo `derived_card_code` via concatenação, confirmando a decisão de não persistir `card_code`), duplicidade de número/ordem, formato/vazio de número, nome vazio, `collector_total`/`collector_order` inválidos, integridade referencial com Card Set/Rarity/Card Category, inconsistência de Game (nova, valida o trigger `141`), posições ausentes na sequência editorial, comparação com `total_set_size` (status `COMPLETE`/`PENDING`/`EXCEEDED`), timestamps, existência dos dois triggers, RLS. Texto completo será copiado para `database/validations/940_validate_card.sql` após confirmação de execução. Resultados esperados descritos (relação vazia, `registered_total = 0`, Sets em `PENDING`, checagens de erro sem registros, triggers presentes, RLS habilitado) — consistentes com uma tabela recém-criada, sem Cards ainda cadastradas.
+
+## Definition of Done (Versão 1.1)
+
+- [x] modelo lógico definido, por grupo (incluindo `collector_total`/`collector_order`);
+- [x] atributos definidos, incluindo a decisão de idioma de `name` (Opção B);
+- [x] regra de consistência de Game entre Card Set/Rarity/Card Category definida;
+- [x] SQL real recebida para `140` (tabela), `141` (triggers) e `940` (validação) — verbatim, Status CANÔNICA;
+- [ ] execução de `140`/`141`/`940` confirmada no Supabase (não confirmada nesta revisão);
+- [ ] arquivos copiados para `database/schema/` e `database/validations/` (aguardando confirmação de execução, por `database/README.md`);
+- [ ] Query `840 - Seed Card` escrita (depende da escolha do primeiro Card Set + checklist oficial completo);
+- [ ] validação `940` reexecutada e confirmada após o seed real.
+
+## Queries Associadas (Versão 1.1)
+
+```text
+140 - Create Card Table     (v1.0, Status CANÔNICA — SQL recebida, execução não confirmada)
+141 - Create Card Triggers  (v1.0, Status CANÔNICA — SQL recebida, execução não confirmada)
+840 - Seed Card             (ainda não escrita — depende do primeiro Card Set/checklist)
+940 - Validate Card         (v1.0, Status CANÔNICA — SQL recebida, execução não confirmada)
+```
 
 ---
 
@@ -2537,3 +2692,4 @@ Fabrício: "Concordo." Sequência de execução confirmada: Card Category primei
 | 0.21 | **Entidade Rarity oficialmente encerrada.** `830`/`930` reescritas para v1.2 (incluindo a raridade `PROMO`, código `PROMO`, símbolo `BLACK_STAR` compartilhado com `RARE`, display_order 4) e executadas com sucesso — confirmado por Fabrício ("Tudo feito com sucesso. Vamos avançar!" / "Agora sim podemos dizer que a entidade Rarity está encerrada"). `130` permaneceu inalterada (v1.1), conforme decidido. Definition of Done totalmente concluída; status da entidade atualizado de "quase concluído" para "encerrada". Próxima etapa: modelagem conceitual de Card (ver revisão seguinte). |
 | 0.22 | **Revisão arquitetural de Card iniciada (não concluída).** Fabrício confirmou que a identidade de Card é independente de Set ("representa a carta editorial de forma única, que pode aparecer em vários Sets") — inverte a premissa "Set + Número" usada no modelo mínimo anteriormente aprovado. `card_set_id`, `card_number`, `card_order` e `rarity_id` deslocam-se para uma futura `card_printing`, que passa a depender de dois pais (`card` e `card_set`). Seção Card marcada como "SUPERADO por revisão em andamento" no topo; conteúdo original preservado por rastreabilidade. Rascunho de nova forma para `card` (`id, game_id, name, category_code, editorial_key, created_at, updated_at`) documentado apenas em `04-domain-model.md` (não replicado aqui como proposta formal, já que a própria discussão termina sem resposta sobre quais atributos distinguem um design editorial de outro). Nenhuma DDL nova escrita. |
 | 0.23 | **Card reverte para identidade Set-específica (decisão final) + nova entidade Card Category executada.** Fabrício reconsiderou a revisão 0.22: "Estou achando melhor considerar uma 'Card' como uma representação da carta dentro de um Set específico [...] Fiquei com receio do modelo anterior trazer dificuldades no cadastro". Nova seção **Card Category** criada do zero (mesmo padrão de Rarity), executada e confirmada no Supabase (`132`/`133`/`831`/`931`) com três valores reais: `POKEMON`, `TRAINER`, `ENERGY` — **`ENERGY` contradiz diretamente a "Decisão de Escopo — Cartas de Energia"** já registrada em `04-domain-model.md`; sinalizado com urgência na Seed, não resolvido unilateralmente. Seção Card atualizada: status muda de "SUPERADO" para "modelo final aprovado, ainda não executado"; conteúdo original (`card_number`/`card_order`/`category_code`) preservado por rastreabilidade; nova subseção "Modelo Final — Versão 1.0" com a forma aprovada (`id, card_set_id, rarity_id, category_id, collector_number, name, created_at, updated_at`), incluindo `collector_number` (renomeado de `card_number`), `name` armazenado como impresso, `category_id` como FK, `card_order` removido, `card_code` deliberadamente não persistido (derivado via VIEW, mesmo precedente de `secret_set_size`), e ponto de extensão futuro `card_relation` (reprints) registrado, não construído. Tensão não resolvida com AP-011 (Editorial Identity) sinalizada, não alterada. Arquivos `database/schema/132_*.sql`, `database/schema/133_*.sql`, `database/seeds/831_*.sql`, `database/validations/931_*.sql` criados com o texto verbatim executado. |
+| 0.24 | **Card — Modelo Final refinado para Versão 1.1; SQL real de `140`/`141`/`940` recebida (execução não confirmada).** Validação campo-a-campo do modelo aprovado na revisão 0.23 levou a duas adições: `collector_total` (denominador da numeração impressa, ex. `182` em `021/182`, distinto de `card_set.total_set_size` pois seções especiais como `TG`/`GG` têm denominador próprio) e `collector_order` (reintroduzido — necessário para ordenar corretamente números não-numéricos como `TG01`/`SVP001`/`12a`). Decisão sobre idioma de `name`: Opção B confirmada — Card sempre guarda o nome no idioma da edição/Set em que foi cadastrada, sem camada de tradução própria (Fabrício: "a Card representa exatamente o catálogo daquele Set"). Nova regra de consistência de Game entre Card Set/Rarity/Card Category, implementada via trigger de validação (`141`) — primeiro uso desse padrão no projeto. SQL verbatim de `140`/`141`/`940` recebida e documentada, mas **não copiada para `database/`** (regra do `database/README.md`: arquivos só são copiados após execução confirmada — nenhuma confirmação explícita de sucesso foi recebida nesta revisão). Query `840 - Seed Card` permanece deliberadamente não escrita; PDF de referência de ME1 já estava arquivado de um ciclo anterior. Definition of Done e Queries Associadas reescritas para a Versão 1.1. |
