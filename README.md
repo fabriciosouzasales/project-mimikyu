@@ -34,8 +34,8 @@ O objetivo é construir uma plataforma capaz de gerenciar coleções de Trading 
 
 ```text
 docs/          Documentação oficial
-database/      Banco de dados
-assets/        Recursos do projeto
+database/      Registro versionado do SQL já executado no Supabase
+assets/        Recursos do projeto (ex.: fontes primárias de dados)
 scripts/       Scripts auxiliares
 vscode/        Configurações do ambiente
 archive/       Materiais históricos
@@ -45,29 +45,30 @@ archive/       Materiais históricos
 
 # Documentação
 
+A documentação oficial completa, incluindo o guia de retomada para uma nova sessão de IA, está em [`docs/README.md`](docs/README.md).
+
 | Documento | Descrição |
 |-----------|-----------|
-| Project Charter | Missão, visão e princípios do projeto. |
-| Roadmap | Planejamento de evolução. |
-| Architecture | Arquitetura da solução. |
-| Data Model | Modelo de dados. |
-| ADR | Registro das decisões arquiteturais. |
-| Current Status | Estado atual do desenvolvimento. |
+| [Project Charter](docs/00-project-charter.md) | Missão, visão e princípios do projeto. |
+| [Technical Identity](docs/01-technical-identity.md) | Identidade técnica permanente da plataforma. |
+| [Architecture Principles](docs/02-architecture-principles.md) | Princípios que orientam decisões arquiteturais. |
+| [Domain Model](docs/04-domain-model.md) | Modelo conceitual do domínio. |
+| [Modelo de Dados](docs/05-modelo-de-dados.md) | Modelo lógico e físico (SQL) de cada entidade. |
+| [ADRs](docs/adr/ADR-INDEX.md) | Registro das decisões arquiteturais. |
+| [Standards](docs/standards/STD-INDEX.md) | Padrões permanentes de implementação e documentação. |
 
 ---
 
 # Estado do Projeto
 
-**Fase atual:** Sprint 0 — Fundação
+**Fase 1 — Arquitetura Conceitual:** Concluída.
 
-Prioridade atual:
+**Fase 2 — Modelo Lógico:** Em andamento. As entidades **Game**, **Expansion** e **Set** já têm modelo lógico, modelo físico e dados reais validados no Supabase. Próxima entidade: **Card**.
 
-- Estruturar a documentação oficial.
-- Consolidar a arquitetura.
-- Preparar a base para o desenvolvimento.
+Ver [`docs/README.md`](docs/README.md#status-atual-do-projeto) para o status detalhado e atualizado.
 
 ---
 
 # Licença
 
-Projeto em desenvolvimento.
+Distribuído sob a licença [MIT](LICENSE).

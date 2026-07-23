@@ -62,6 +62,7 @@ Os documentos `04` a `08` seguem a mesma numeração sequencial dos documentos c
 | ADR | Registra por que uma decisão arquitetural relevante foi tomada. |
 | Standard | Define como um padrão permanente deve ser aplicado. |
 | Architecture | Documenta componentes, modelos, relacionamentos, integrações, fluxos e diagramas da solução. |
+| `database/` (fora de `docs/`) | Registro versionado, em arquivos `.sql`, das Queries já executadas no Supabase — cópia fiel do que está documentado em prosa em `05-modelo-de-dados.md`. Não é um executor de migrations; a execução real continua manual, via SQL Editor (ver STD-001, Seção 10, e `database/README.md`). |
 
 ---
 
@@ -172,3 +173,4 @@ Os documentos podem utilizar os seguintes status:
 | 1.1 | Atualização da árvore de estrutura documental para refletir os arquivos `04-domain-model.md` a `08-decisoes-arquiteturais.md` já existentes no repositório. |
 | 1.2 | Atualizada a nota de status: `06-pipeline-importacao.md` e `07-catalogo-editorial.md` deixaram de ser stubs e já possuem conteúdo em elaboração. |
 | 1.3 | Atualizada a nota de status: `05-modelo-de-dados.md` deixou de ser stub e já possui conteúdo em elaboração (primeira entidade, Game, com modelo lógico e físico completos). |
+| 1.4 | Adicionada a pasta `database/` (fora de `docs/`) à tabela de Artifact Responsibilities: registro versionado, em `.sql`, das Queries já executadas no Supabase — não fazia parte da arquitetura documental antes, embora já existisse no repositório. |
