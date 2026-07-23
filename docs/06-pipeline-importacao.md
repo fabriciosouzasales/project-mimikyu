@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.7 |
+| **Versão** | 0.8 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -146,7 +146,7 @@ Antes de escrever qualquer código, a sessão pareada de Fabrício apresentou um
 
 **13. Segurança.** A função usa internamente a credencial de serviço do projeto (`service_role`), mantida em secrets da Edge Function — nunca exposta ao cliente, junto com tokens das APIs externas, detalhes internos do banco e mensagens técnicas completas. Na primeira fase, a execução da função fica restrita a chamadas administrativas.
 
-**14. Estrutura de arquivos prevista (planejamento, não implementada de uma vez):**
+**14. Estrutura de arquivos prevista — versão refinada (ver "Sprint B2.1", abaixo, para a versão adotada de fato, ligeiramente diferente desta proposta inicial):**
 
 ```text
 supabase/functions/import-card-assets/
@@ -196,26 +196,60 @@ Roteiro definido:
 | B2.11 | Executar um `card_set` completo |
 | B2.12 | Realizar a carga oficial da Query `880` |
 
-## Sprint B2.0 — Preparar o ambiente local (CONFIRMADO — ambiente pronto)
+## Sprint B2.0 — Preparar o ambiente local (CONFIRMADO CONCLUÍDO)
 
-Sprint inserido nesta revisão, antes de qualquer execução real de código. Até este ponto, **100% do trabalho de banco de dados (tabelas, triggers, RLS, migrations) foi feito com sucesso apenas pelo painel web do Supabase** — suficiente para SQL, mas não para Edge Functions, que são código TypeScript real e se beneficiam de versionamento de arquivos, organização de código, testes locais e deploy controlado, hoje só bem resolvidos via **Supabase CLI**. Fabrício confirmou trabalhar até então apenas pelo painel web, sem CLI instalada.
+Sprint inserido na revisão `0.7`, antes de qualquer execução real de código, e **concluído integralmente nesta revisão** — todos os passos abaixo têm evidência real de terminal, um de cada vez, seguindo a disciplina descrita acima. Até o início deste sprint, **100% do trabalho de banco de dados (tabelas, triggers, RLS, migrations) tinha sido feito com sucesso apenas pelo painel web do Supabase** — suficiente para SQL, mas não para Edge Functions, que são código TypeScript real e se beneficiam de versionamento de arquivos, organização de código, testes locais e deploy controlado, hoje só bem resolvidos via **Supabase CLI**.
 
-Passos executados e confirmados, um de cada vez (disciplina descrita acima), com evidência real de terminal em cada etapa:
+Passos confirmados, em ordem:
 
-1. Verificação do ambiente (`code --version`, `node --version`, `supabase --version`) — **confirmado**: Visual Studio Code instalado; Node.js `23.6.0` instalado; Supabase CLI não instalada.
-2. Tentativa de instalação via `winget install Supabase.CLI` — **falhou**: pacote não encontrado no repositório do `winget` daquela instalação do Windows (confirmado também por `winget search supabase`, sem resultados).
-3. Verificação de `scoop --version` como alternativa — **confirmado que o Scoop também não estava instalado**.
-4. **Decisão final de instalação**: em vez de instalar mais um gerenciador de pacotes, usar a CLI via `npx supabase` (sem instalação global) — evita problemas de instalação no Windows, sempre usa a versão mais recente, dispensa Scoop/Winget, e facilita compartilhar o projeto em outra máquina no futuro. Requisito mínimo do Supabase CLI (Node.js 20+) já atendido pela versão instalada.
-5. Criação da pasta raiz do ambiente de desenvolvimento local, confirmada via `pwd`: `C:\Users\Administrador\Project-Mimikyu`.
-6. `npx supabase --version` executado com sucesso (download automático do pacote na primeira execução) — **confirmado via captura real de terminal**: Supabase CLI `2.109.1` baixada e funcionando.
+1. Verificação do ambiente (`code --version`, `node --version`, `supabase --version`) — Visual Studio Code e Node.js `23.6.0` já instalados; Supabase CLI ausente.
+2. Tentativa de instalação via `winget install Supabase.CLI` — falhou (pacote ausente no repositório do `winget` daquela instalação do Windows, confirmado também por `winget search supabase`, sem resultados); `scoop --version` confirmou que o Scoop também não estava instalado.
+3. Decisão final: usar a CLI via `npx supabase` (sem instalação global) — evita problemas de instalação no Windows, sempre usa a versão mais recente, dispensa Scoop/Winget, facilita replicar o ambiente em outra máquina.
+4. Pasta raiz local criada e confirmada via `pwd`: `C:\Users\Administrador\Project-Mimikyu`. `npx supabase --version` confirmou a CLI `2.109.1` funcional.
+5. `npx supabase init` — **confirmado** (saída real de terminal: "Finished supabase init."), gerando a estrutura padrão `supabase/` (`config.toml`, `functions/`, `migrations/`, `seed.sql`) dentro da pasta local.
+6. `npx supabase login` — **confirmado** (saída real: "Finished supabase login."), autenticando a CLI local contra a conta Supabase via navegador.
+7. Obtenção do **Project Reference** (Settings → General, no painel do Supabase) — identificador do projeto remoto, necessário para vincular o ambiente local; **não é um segredo** (diferente de Database Password/Service Role Key/Anon Key/Connection String, que foram explicitamente NÃO solicitados nesta etapa, por boa prática de segurança da própria sessão pareada) — o valor real não é repetido nesta documentação por cautela, embora não seja tecnicamente sigiloso.
+8. `npx supabase link --project-ref <ref>` — **confirmado** (saída real: "Finished supabase link."). O projeto local agora está oficialmente vinculado ao projeto remoto do Project Mimikyu no Supabase.
 
-**Nota importante, não resolvida nesta revisão**: `C:\Users\Administrador\Project-Mimikyu` é uma pasta local nova, criada nesta sessão para o desenvolvimento das Edge Functions — **ainda não confirmado se ela corresponde a um clone do repositório GitHub oficial `fabriciosouzasales/project-mimikyu`** (o mesmo que esta documentação governa) ou se é um ambiente de trabalho local separado, a ser integrado ao repositório em um momento posterior. A sessão pareada também apresentou uma proposta de estrutura de pastas (`database/migrations`, `database/seeds`, `supabase/functions`, `supabase/config.toml`) que **diverge da estrutura já estabelecida e em uso no repositório real** (`database/schema`, `database/functions` — funções SQL compartilhadas —, `database/migrations`, `database/seeds`, `database/validations`, `database/reference-data`, `database/diagrams`, governadas por `database/README.md` e `STD-001`) — presumivelmente porque a sessão pareada, ao contrário desta, não tem visibilidade direta do repositório GitHub real. Antes de qualquer código de Edge Function ser de fato incorporado ao repositório, recomenda-se que Fabrício confirme: (a) se a pasta local se tornará o próprio clone do repositório oficial; (b) a estrutura de pastas final para `supabase/functions/`, para não conflitar com a estrutura de `database/` já documentada. Não resolvido unilateralmente.
+**Nova nota arquitetural, registrada nesta revisão**: a partir deste ponto, o projeto passa a ter **dois ambientes de trabalho complementares, não um substituindo o outro**: o **Painel Web do Supabase** (administração, inspeção de dados, Storage, Auth, SQL Editor — onde todo o trabalho de banco de dados já documentado até aqui foi feito) e o **Projeto Local** (Edge Functions, scripts, futuras automações, versionamento via Git). Combinação descrita pela sessão pareada como "exatamente a que equipes profissionais utilizam".
 
-Próximo passo, ao final deste sprint: login na conta Supabase, conexão da CLI ao projeto existente (`mimikyu-core`) e criação da primeira Edge Function — ainda sem alterar nenhuma tabela do banco.
+**Nota não resolvida, reafirmada nesta revisão**: a sessão pareada propôs, mais uma vez, uma reorganização do repositório em um único diretório unificado (`docs/`, `database/{roadmap,migrations,seeds}`, `supabase/{functions,config.toml}`, `scripts/`, `README.md`) — **ainda divergente da estrutura real já em uso no repositório GitHub oficial** (`database/schema`, `database/functions` — funções SQL compartilhadas —, `database/migrations`, `database/seeds`, `database/validations`, `database/reference-data`, `database/diagrams`, governadas por `database/README.md`/`STD-001`; `docs/` com sua própria estrutura rica de `adr/`/`standards/`/`architecture/`). Continua não confirmado se `C:\Users\Administrador\Project-Mimikyu` (pasta local, agora vinculada ao projeto remoto Supabase) corresponde a um clone do repositório GitHub `fabriciosouzasales/project-mimikyu` que esta documentação governa. Não resolvido unilateralmente — Fabrício precisa decidir antes que qualquer código de Edge Function seja de fato incorporado ao repositório oficial.
 
-## Sprint B2.1 — Criar Edge Function (código proposto, deploy ainda não confirmado)
+## Sprint B2.1 — Criar Edge Function (esqueleto gerado via CLI, CONFIRMADO; lógica própria ainda não escrita/publicada)
 
-Objetivo: ter uma Edge Function publicada e respondendo, sem nenhuma lógica de importação ainda.
+**Nova disciplina adotada para Edge Functions**, proposta antes da primeira linha de código: `Criar função → Executar localmente → Publicar → Validar remotamente → Evoluir` — mesmo espírito do ciclo já usado para SQL (`Migration → Executar → Validar`), adaptado para permitir identificar problemas imediatamente durante o desenvolvimento local.
+
+Passos confirmados nesta revisão:
+
+1. `npx supabase functions new import-card-assets` — **confirmado** (saída real: "Created new Function at supabase\functions\import-card-assets"), gerando via CLI (não escrito manualmente) o esqueleto padrão em `supabase/functions/import-card-assets/index.ts`.
+2. Prompt da própria CLI, "Generate VS Code settings for Deno?", respondido `Yes` — **confirmado** (saída real: "Generated VS Code settings in .vscode/settings.json"). Necessário porque Edge Functions do Supabase rodam em **Deno**, não em Node.js; o arquivo gerado só configura autocomplete/IntelliSense/imports no editor, sem alterar o projeto nem o banco.
+
+**Pausa arquitetural antes de escrever qualquer lógica própria**: para evitar que `index.ts` cresça sem organização (risco explicitamente citado: "em poucos dias teremos centenas de linhas dentro do index.ts"), a estrutura interna de cada Edge Function foi refinada e adotada como padrão — **substitui a estrutura provisória da seção "Arquitetura de Execução", item 14, acima**:
+
+```text
+import-card-assets/
+├── index.ts          ← ponto de entrada
+├── config.ts
+├── types.ts
+├── services/
+│   ├── database.ts
+│   ├── storage.ts
+│   └── importer.ts
+├── sources/
+│   ├── source-adapter.ts
+│   ├── tcgdex.ts
+│   └── pokemon-api.ts
+└── utils/
+    ├── hash.ts
+    ├── image.ts
+    └── paths.ts
+```
+
+A maioria destes arquivos está **vazia nesta revisão** — a estrutura foi criada como padrão a ser seguido por todas as futuras Edge Functions do projeto (mencionadas como ideia futura, ainda não decidida nem agendada: `sync-card-catalog`, `reprocess-failures`, `cleanup-storage` — backlog, não confundir com trabalho planejado do roteiro B2.1–B2.12), não implementada de uma vez.
+
+**Status real, sem ambiguidade**: o esqueleto da função existe no projeto local e está vinculado ao projeto remoto, mas **nenhuma lógica própria foi escrita, testada localmente, publicada (`supabase functions deploy`) ou validada remotamente ainda** — o stub `status: "ready"` mostrado na revisão `0.6` (abaixo) foi uma proposta de código anterior a este fluxo baseado em CLI, e permanece não incorporado ao arquivo real gerado pela CLI. Próximo passo real: implementar essa resposta simples dentro do `index.ts` gerado, testar localmente, publicar e só então validar remotamente — a primeira execução de fato confirmada do Sprint B2.1.
+
+Código originalmente proposto para esta resposta simples (revisão `0.6`, ainda não incorporado ao arquivo real gerado pela CLI):
 
 ```ts
 // supabase/functions/import-card-assets/index.ts
@@ -232,10 +266,6 @@ serve(async () => {
   );
 });
 ```
-
-Deploy proposto: `supabase functions deploy import-card-assets`. Teste proposto: `supabase functions invoke import-card-assets`, esperando `{"success": true, "function": "import-card-assets", "status": "ready"}`.
-
-**Confirmado nesta revisão que nada disto foi executado.** Fabrício perguntou diretamente se deveria rodar algum dos códigos apresentados até então, e a resposta foi explícita: *"Nada do B2.1 nem do B2.2 foi executado."* Este código permanece como proposta, não como resultado — mesmo princípio já aplicado a SQL não confirmado (ver `database/README.md`: nada é registrado como concluído sem confirmação real). Quando o deploy for confirmado (após o Sprint B2.0 acima ser concluído — login + conexão do projeto), este código deverá ser versionado no repositório; a convenção de pasta ainda não foi formalizada (ver nota do Sprint B2.0, acima).
 
 ## Sprint B2.2 — Ler uma execução de importação (código refinado, ainda não executado)
 
@@ -296,3 +326,4 @@ Estrutura de arquivos ajustada nesta revisão: `supabase/functions/import-card-a
 | 0.5 | Cross-referência à seção "Finish/Card Finish" de `04-domain-model.md` corrigida para "Card Variant Type/Card Variant", refletindo a convergência de nomenclatura de ADR-016. |
 | 0.6 | **Bloco B (Pipeline de Importação) iniciado.** Adicionada a seção "Arquitetura de Execução — Edge Function `import-card-assets` (Bloco B1)": especificação completa das 14 responsabilidades da função (validação da execução, seleção de cartas por `run_type`, resolução de `card_external_reference`, fontes TCGdex/Pokémon TCG API, download/validação, formato canônico, caminho no Storage, política de `upsert`, ordem de registro em `card_asset`, hash/idempotência via `SHA-256`, tratamento de falhas por `failure_stage`/`error_code`, contadores/status final, segurança, estrutura de arquivos prevista). Adicionada a seção "Roteiro de Implementação Incremental — Bloco B (Sprints B2.1–B2.12)", registrando a mudança de método pedida por Fabrício ("Siga. Vamos ser um pouco mais objetivo nessa fase.") — ciclos curtos Objetivo/Implementar/Validar/Evoluir. Documentado o código proposto do Sprint B2.1 (Edge Function básica, apenas resposta `status: ready`) e o objetivo do Sprint B2.2 — **nenhum dos dois confirmado como executado/deployado nesta revisão**. Atualizada a seção "Em Aberto" com os pontos parcialmente respondidos por esta arquitetura. |
 | 0.7 | **Confirmado explicitamente por Fabrício que nada do Sprint B2.1/B2.2 havia sido executado ("Vamos com calma. Eu deveria executar algum desses códigos? Até agora não executei nenhum código.") — disciplina de execução refinada para código: um passo por vez, com validação antes de prosseguir, mesmo padrão já usado para SQL.** Novo **Sprint B2.0 — Preparar o ambiente local**, inserido antes do B2.1: até este ponto, 100% do trabalho de banco foi feito pelo painel web do Supabase, suficiente para SQL mas não para Edge Functions; migração para desenvolvimento local **CONFIRMADA e concluída nesta revisão**, com evidência real de terminal em cada etapa — VS Code e Node.js `23.6.0` já instalados; tentativa de instalar a Supabase CLI via `winget` falhou (pacote ausente no repositório); Scoop também não instalado; decisão final de usar `npx supabase` sem instalação global; pasta raiz local `C:\Users\Administrador\Project-Mimikyu` criada; `npx supabase --version` executado com sucesso, confirmando Supabase CLI `2.109.1` funcional. **Nota não resolvida**: ainda não confirmado se essa pasta local corresponde a um clone do repositório GitHub oficial `fabriciosouzasales/project-mimikyu`, nem como a estrutura de pastas proposta pela sessão pareada (`database/migrations`, `database/seeds`, `supabase/functions`) se concilia com a estrutura já real e documentada em `database/README.md` (`schema`/`functions`/`migrations`/`seeds`/`validations`/`reference-data`/`diagrams`). Sprint B2.2 recebeu código refinado (payload `run_id`, `createClient`, consulta a `asset_import_run`, tratamento de erro) e a estrutura de arquivos ganhou `deno.json` — **status inalterado: proposto, não executado**. Atualizada a seção "Em Aberto" com os dois novos pontos (convenção de pasta de Edge Function + relação pasta local/repositório oficial). |
+| 0.8 | **Sprint B2.0 CONFIRMADO CONCLUÍDO integralmente**: `npx supabase init` (gera `supabase/config.toml`/`functions/`/`migrations/`/`seed.sql`), `npx supabase login`, obtenção do Project Reference (não sigiloso, ao contrário de Database Password/Service Role Key/Anon Key/Connection String — explicitamente não solicitados) e `npx supabase link --project-ref <ref>` — todos **confirmados por saída real de terminal** ("Finished supabase init."/"Finished supabase login."/"Finished supabase link."). Novo registro arquitetural: dois ambientes complementares a partir de agora — Painel Web (administração/SQL Editor/Storage/Auth) e Projeto Local (Edge Functions/scripts/versionamento). Nota não resolvida sobre pasta local vs. repositório GitHub oficial reafirmada (proposta de reorganização repetida pela sessão pareada, ainda divergente da estrutura real de `database/`). **Sprint B2.1 avançou de "proposto" para "esqueleto gerado via CLI, confirmado"**: `npx supabase functions new import-card-assets` executado (confirmado), resposta `Yes` ao prompt de configuração Deno do VS Code (confirmado) — mas **nenhuma lógica própria foi escrita, testada localmente, publicada ou validada remotamente ainda**. Nova disciplina adotada: `Criar função → Executar localmente → Publicar → Validar remotamente → Evoluir`. Estrutura interna de cada Edge Function refinada e adotada como padrão (`config.ts`/`types.ts`/`services/{database,storage,importer}.ts`/`sources/{source-adapter,tcgdex,pokemon-api}.ts`/`utils/{hash,image,paths}.ts`), substituindo a estrutura provisória da seção "Arquitetura de Execução"; a maioria dos arquivos permanece vazia. Mencionadas, sem decisão, futuras Edge Functions (`sync-card-catalog`, `reprocess-failures`, `cleanup-storage`) — backlog, não roteiro confirmado. |
