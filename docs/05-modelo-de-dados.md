@@ -132,6 +132,25 @@ EXECUTE FUNCTION set_updated_at();
 
 `set_updated_at()` é reutilizável e será associada às próximas tabelas da mesma forma.
 
+### Verificação do Trigger
+
+Após criar o trigger (Query `101 - Create Game trigger`), a associação é confirmada consultando o catálogo do PostgreSQL — não basta o "Success" da execução:
+
+```sql
+SELECT
+    trigger_name,
+    event_manipulation,
+    action_timing,
+    event_object_schema,
+    event_object_table
+FROM information_schema.triggers
+WHERE event_object_schema = 'public'
+  AND event_object_table = 'game'
+  AND trigger_name = 'trg_game_set_updated_at';
+```
+
+Resultado esperado: uma linha com `trigger_name = trg_game_set_updated_at`, `event_manipulation = UPDATE`, `action_timing = BEFORE`, `event_object_schema = public`, `event_object_table = game`.
+
 ### Row Level Security
 
 Toda tabela do schema `public` deve ter RLS habilitado no momento da criação (ver STD-001, Seção 9):
@@ -209,17 +228,20 @@ Seguindo o Padrão Oficial de Queries SQL (STD-001, Seção 10):
 000 - Enable pgcrypto
 001 - Create updated_at function
 100 - Create Game table
+101 - Create Game trigger
 800 - Seed Game
 900 - Validate Game
 ```
 
-Próxima entidade: **Expansion**, que introduzirá o primeiro relacionamento e a primeira chave estrangeira do modelo físico (`Game → Expansion`).
+Com a criação e verificação do trigger (`101`), o pacote inicial de Game (Jogo) está tecnicamente completo.
+
+Próxima entidade: **Expansion**, que introduziu o primeiro relacionamento e a primeira chave estrangeira do modelo físico (`Game → Expansion`).
 
 ---
 
 # Expansion (Expansão)
 
-Status: **Em elaboração** — modelo conceitual e modelo lógico definidos; regras de negócio, modelo físico e testes previstos para o próximo ciclo.
+Status: **Estrutura criada** (tabela + relacionamento + RLS). Trigger de `updated_at` e Seed ainda pendentes. **Há uma divergência em aberto entre o modelo conceitual acordado e o DDL efetivamente executado — ver "Divergência a Resolver", abaixo.**
 
 ## Modelo Lógico
 
@@ -251,21 +273,90 @@ created_at
 updated_at
 ```
 
-## Atributos (parcial)
+O modelo final acordado na discussão incluiu também `logo_url` (ver "Atributos" e "Divergência a Resolver", abaixo) — não representado no diagrama acima, que reflete a primeira proposta.
+
+## Atributos
 
 **id** — Identificador técnico e permanente (UUID).
 
-**code** — Código editorial e internacional, não muda entre idiomas (ex.: `SV`, `SWSH`, `SM`, `XY`). Ver STD-001, Seção 5 — Código Internacional, Nome Localizável.
+**code** — Código editorial e internacional, não muda entre idiomas (ex.: `SV`, `SWSH`, `SM`, `XY`, `BW`). Obrigatório, curto, estável. Ver STD-001, Seção 5 — Código Internacional, Nome Localizável.
 
-**name** — Nome de apresentação (ex.: `Scarlet & Violet`). Pode ser localizado futuramente.
+**name** — Nome de apresentação (ex.: `Scarlet & Violet`, `Sword & Shield`, `Sun & Moon`). Pode ser localizado futuramente.
 
-**game_id** — Chave estrangeira para `game` (ver STD-001, Seção 6). Toda Expansion pertence obrigatoriamente a um Game.
+**game_id** — Chave estrangeira para `game` (ver STD-001, Seção 6). Toda Expansion pertence obrigatoriamente a um Game (cardinalidade `Game 1 --- N Expansion`).
 
-**release_order** — Ordem cronológica da Expansion dentro do Game.
+**release_order** — Ordem cronológica da Expansion dentro do Game. Inteiro simples, sem intervalos reservados (ver `04-domain-model.md`, seção Expansion — "Ordem de Lançamento").
 
 **created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
 
-Regras de negócio, modelo físico (DDL), testes de integridade e Definition of Done desta entidade ainda não foram registrados — previstos para o próximo lote de extração histórica.
+**logo_url** *(acordado conceitualmente; ausente do DDL executado)* — Identidade visual principal da Expansion. Ver `04-domain-model.md`, seção Expansion — "Identidade Visual".
+
+## Campos que Não Incluiremos Agora
+
+Aplicando o Princípio da Simplicidade Inicial (AP-004): `status` (nenhum caso de uso concreto identificado — ver `04-domain-model.md`), `release_date`, `base_set_size`, `total_set_size`, `secret_set_size` (todos pertencem ao Set, não à Expansion — ver `04-domain-model.md`, seção Set).
+
+## Regras de Negócio
+
+**Regra 1 — Relacionamento obrigatório.** Toda Expansion deve pertencer a exatamente um Game.
+
+**Regra 2 — Código único por Game.** O código deve ser único dentro do respectivo Game (`UNIQUE (game_id, code)`), não globalmente — outro Game pode reutilizar o mesmo código.
+
+**Regra 3 — Ordem única por Game.** A ordem de lançamento deve ser única dentro do respectivo Game (`UNIQUE (game_id, release_order)`) e deve ser um número inteiro positivo.
+
+**Regra 4 — Nome obrigatório.** O nome não pode ser vazio.
+
+**Regra 5 — Exclusão restrita.** Um Game que possua Expansions não pode ser excluído (`ON DELETE RESTRICT`).
+
+## Modelo Físico (PostgreSQL) — Executado
+
+```sql
+CREATE TABLE public.expansion (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_id UUID NOT NULL,
+
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    release_order INTEGER NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_expansion_game
+        FOREIGN KEY (game_id)
+        REFERENCES public.game (id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT uq_expansion_game_code
+        UNIQUE (game_id, code),
+
+    CONSTRAINT uq_expansion_game_release_order
+        UNIQUE (game_id, release_order),
+
+    CONSTRAINT ck_expansion_code_format
+        CHECK (code ~ '^[A-Z][A-Z0-9_]*$'),
+
+    CONSTRAINT ck_expansion_name_not_blank
+        CHECK (btrim(name) <> ''),
+
+    CONSTRAINT ck_expansion_release_order_positive
+        CHECK (release_order > 0)
+);
+
+ALTER TABLE public.expansion
+    ENABLE ROW LEVEL SECURITY;
+```
+
+Query: `110 - Create Expansion table`. Resultado confirmado: `Success. No rows returned`.
+
+## Divergência a Resolver
+
+A discussão conceitual ("Modelo revisado de Expansion") concluiu que a entidade deveria incluir `logo_url` (`TEXT NULL`), e Fabrício confirmou explicitamente esse modelo antes da execução ("Você tem toda razão... Vamos criar a tabela expansion"). **Porém, o DDL efetivamente executado (Query `110`, acima) não contém a coluna `logo_url`** — nem ela aparece nas Regras de Negócio registradas no cabeçalho do script.
+
+Não presumimos qual das duas versões é a correta: pode ter sido uma simplificação deliberada não registrada em texto, ou uma coluna pendente de uma migration futura (`111` ou posterior, tipo `ALTER TABLE`). Sinalizado aqui para confirmação no próximo lote, em vez de decidir unilateralmente.
+
+## Próximos Passos (fora deste lote)
+
+`111 - Create Expansion trigger` (associar `set_updated_at()` à tabela `expansion`) foi anunciada como o próximo script, mas sua execução não foi confirmada neste lote. Seed e testes de integridade também ainda não foram registrados.
 
 ---
 
@@ -313,3 +404,4 @@ Regras de negócio, modelo físico (DDL), testes de integridade e Definition of 
 | 0.2 | Adicionado o requisito de Row Level Security (RLS) ao modelo físico e à Definition of Done da entidade Game, refletindo o padrão agora registrado em STD-001, Seção 9. |
 | 0.3 | Adicionada nota explicando que o banco físico já possui as 17 tabelas originais com carga inicial de dados, construídas antes desta fase de consolidação documental — a documentação das entidades além de Game será majoritariamente retroativa, não uma criação do zero. |
 | 0.4 | Refinado o Roteiro por Entidade: modelo lógico agora organizado por grupo (Identidade/Descrição/Relacionamento/Ordenação/Auditoria); referência ao Padrão Oficial de Queries SQL (STD-001, Seção 10). Adicionadas as Queries associadas à entidade Game (000/001/100/800/900). Adicionado o modelo lógico parcial da entidade Expansion (status "Em elaboração"); regras de negócio, modelo físico e testes previstos para o próximo ciclo. |
+| 0.5 | Adicionada a verificação do trigger de Game via `information_schema.triggers`; Queries associadas de Game atualizadas com `101 - Create Game trigger` (pacote tecnicamente completo). Completada a entidade Expansion: atributos, campos adiados, regras de negócio e o DDL efetivamente executado (`110 - Create Expansion table`, com RLS). Sinalizada divergência não resolvida entre o modelo conceitual acordado (inclui `logo_url`) e o DDL executado (não inclui) — não resolvida unilateralmente, aguardando confirmação de Fabrício. |

@@ -327,6 +327,22 @@ Exemplos (Pokémon):
 
 O código de uma Expansion é editorial e internacional — não muda entre idiomas (ex.: `SV` continua sendo `SV` em qualquer idioma). O nome pode ser localizado futuramente, quando houver necessidade, seguindo o mesmo padrão já estabelecido para conteúdo editorial em Card Translation (ver ADR-007). Este padrão — código internacional, nome localizável — tende a se repetir em todo o catálogo editorial (ver também `standards/STD-001-database-standards.md`, Seção 5).
 
+### Ordem de Lançamento
+
+A ordem de lançamento (`release_order`) é um número inteiro simples, refletindo a sequência editorial conhecida (ex.: Base, Neo, e-Card, EX, Diamond & Pearl, Black & White, XY, Sun & Moon, Sword & Shield, Scarlet & Violet). Foi deliberadamente mantida simples — sem reservar intervalos entre valores — porque uma renumeração completa é considerada aceitável no raro caso de uma nova Expansion precisar se inserir entre duas antigas por necessidade editorial (reedição, linha paralela etc.).
+
+### Unicidade por Game
+
+O código e a ordem de lançamento de uma Expansion são únicos **dentro do respectivo Game**, não globalmente — `UNIQUE (game_id, code)` e `UNIQUE (game_id, release_order)`, nunca `UNIQUE (code)` isoladamente. Isso decorre diretamente da arquitetura multi-TCG (ver ADR-003): outro Trading Card Game pode perfeitamente utilizar um código como `SV` para outra finalidade. Este é o primeiro exemplo concreto de uma regra que provavelmente se repetirá em todo o catálogo — toda unicidade de código editorial deve respeitar o contexto do Game.
+
+### Sem Status
+
+Expansion não possui um campo `status`. Nenhum caso de uso concreto foi identificado até o momento (ex.: distinguir Expansions "anunciadas", "lançadas" ou "canceladas") — aplicação direta do Princípio da Simplicidade Inicial (ver AP-004). Se essa necessidade surgir, o campo será adicionado por uma nova migration, não antecipado agora.
+
+### Identidade Visual (logo_url)
+
+Uma Expansion possui identidade visual própria — um logotipo principal (`logo_url`), distinto do logotipo e do símbolo de cada Set (ver nota em "Set", abaixo). Para o MVP, adota-se uma única imagem principal, sem localização por idioma; uma eventual necessidade de logotipos localizados poderá evoluir para uma entidade Expansion Translation (mesmo padrão de Card Translation), quando houver necessidade concreta.
+
 ---
 
 ### Relacionamentos
@@ -510,6 +526,16 @@ Conceitualmente, um Set possui:
 Essa relação não representa uma definição automática de colunas ou atributos físicos do banco de dados. A modelagem lógica e física será definida posteriormente.
 
 > **Nota sobre nomenclatura física:** `SET` é uma palavra reservada do SQL (PostgreSQL). Para evitar ambiguidade, a tabela física correspondente ao conceito Set é nomeada `card_set` (ver `standards/STD-001-database-standards.md`, Seção 2). O conceito de domínio continua sendo chamado de Set na documentação e na aplicação.
+
+### Responsabilidade sobre Quantidades e Data de Lançamento (Set vs. Expansion)
+
+Uma Expansion agrupa vários Sets, e cada Set possui sua própria numeração e quantidade de cartas — por isso essas informações pertencem ao Set, não à Expansion:
+
+- **Base Set Count** e a quantidade oficial total de cartas são características do Set (ver acima e "Official Card Count", na seção Card).
+- A quantidade de cartas secretas (posições acima do conjunto base) é **derivada**, não armazenada: `secret_set_size = total_set_size - base_set_size`. Armazená-la redundantemente arriscaria inconsistência.
+- A **data de lançamento** também pertence ao Set (`release_date`), podendo ser nula para Sets apenas anunciados. A Expansion não possui uma data de lançamento própria armazenada — quando necessário, pode ser derivada como a menor `release_date` entre seus Sets.
+
+> **Nota preliminar (não fechada):** quando a documentação chegar formalmente à entidade Set, o modelo lógico previsto inclui aproximadamente: `id`, `expansion_id`, `code`, `name`, `set_type`, `release_order`, `release_date`, `base_set_size`, `total_set_size`, `logo_url` (logotipo completo do Set), `symbol_url` (símbolo pequeno usado nas Cards), `created_at`, `updated_at` — sem `secret_set_size` (derivado). Esta lista é uma prévia do que já foi discutido, não uma conclusão de modelagem; será confirmada e detalhada em seu próprio ciclo de documentação.
 
 ---
 
@@ -1428,3 +1454,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.8 | Populada a entidade Collection (distinta do Set: pertence ao colecionador, não ao catálogo editorial), com os tipos Official Set Collection e Custom Collection. Adicionada a entidade Collection Entry, com os modos Card Target e Subject Target, e os mecanismos preliminares Manual Membership e Rule-Based Membership (este último deliberadamente adiado). Adicionada nota de correspondência entre o termo provisório "User Collection" e a nova entidade Collection. Ver ADR-014. |
 | 1.9 | Adicionada nota sobre nomenclatura física do Set: `SET` é palavra reservada do SQL, tabela física é `card_set` (ver STD-001). |
 | 1.10 | Expandida a seção Expansion: adicionado o atributo `código editorial`, exemplos reais (SV, SWSH, SM, XY) e a regra "código internacional, nome localizável" (ver STD-001, Seção 5). Documentação de Expansion segue em elaboração — complementos previstos para o próximo ciclo. |
+| 1.11 | Finalizada a seção Expansion: ordem de lançamento (inteiro simples), unicidade de código/ordem por Game (não global — decorre de ADR-003), decisão de não incluir `status` (Princípio da Simplicidade Inicial), e identidade visual (`logo_url`, com localização futura deferida). Adicionada à seção Set a responsabilidade sobre quantidades e data de lançamento (pertencem ao Set, não à Expansion; quantidade de secretas é derivada, nunca armazenada) e uma nota preliminar (não fechada) sobre o futuro modelo lógico do Set. |

@@ -41,6 +41,8 @@ A arquitetura deve permitir evolução e crescimento, sem introduzir antecipadam
 
 Exemplo de aplicação (Princípio da Simplicidade Inicial): nenhuma entidade nasce preparada para todos os cenários futuros — apenas para os cenários já conhecidos. Campos não devem ser adicionados por hipótese ("porque um dia talvez sejam úteis"); o modelo evolui quando uma necessidade real surgir.
 
+Isso inclui não presumir uma "forma padrão" aplicável a toda entidade (ex.: sempre incluir `status`) — cada atributo, em cada entidade, precisa justificar sua própria existência no domínio. Exemplo: nem Game nem Expansion receberam `status`, porque nenhum caso de uso concreto foi identificado para nenhuma das duas.
+
 ## AP-005 — Documentation Supports Decisions, Not Bureaucracy
 
 A documentação deve preservar contexto, orientar execução e reduzir retrabalho. Ela não deve existir apenas para ampliar o volume documental.
@@ -125,6 +127,7 @@ O catálogo editorial (Game, Expansion, Set, Card e demais conceitos editoriais)
 |1.2|Adicionados AP-013 (Permanence Principle) e AP-014 (Editorial Reuse Principle), descobertos e validados durante a modelagem detalhada da Card.|
 |1.3|Adicionado AP-015 (Progressive Catalog Enrichment), formalizando o critério de estruturação de dados já registrado em ADR-012.|
 |1.4|Adicionado AP-016 (Catalog Uniqueness Principle), formalizando que o catálogo nunca deve ser adaptado para um tipo específico de coleção — a flexibilidade pertence à Collection (ver ADR-014). Adicionado exemplo de aplicação ("Princípio da Simplicidade Inicial") a AP-004.|
+|1.5|Reforçado o exemplo de aplicação de AP-004: nenhuma entidade recebe atributos por uma "forma padrão" presumida — cada atributo precisa justificar sua existência, mesmo campos aparentemente universais como `status`.|
 
 
 
