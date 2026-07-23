@@ -126,6 +126,10 @@ Para o MVP, utiliza-se **UUID v4**, gerado pelo próprio banco (ex.: `gen_random
 
 Além do `id` técnico, uma entidade pode possuir um `code`: um identificador curto, estável e legível, usado por pessoas, integrações ou regras editoriais (ex.: `game.code = POKEMON`; `card_set.code = ME2.5`). O `code` nunca substitui o `id` como chave primária, mas normalmente recebe uma restrição de unicidade própria.
 
+### Código Internacional, Nome Localizável
+
+O `code` é editorial e internacional — não muda entre idiomas (ex.: a Expansion `SV` continua sendo `SV` em qualquer idioma). O `name` pode ser localizado futuramente, quando houver necessidade concreta, seguindo o mesmo padrão já estabelecido para conteúdo editorial em Card Translation (ver `04-domain-model.md` e ADR-007). Este padrão — código internacional, nome localizável — tende a se repetir em todo o catálogo editorial.
+
 ---
 
 # 6. Foreign Keys
@@ -191,25 +195,53 @@ A ideia inicial era organizar migrations em arquivos numerados (`000_initial_dat
 
 ## Padrão Oficial de Queries SQL do Project Mimikyu
 
+O SQL Editor é tratado como o diário de construção do Project Mimikyu: qualquer pessoa deve conseguir acompanhar a evolução do banco apenas lendo a sequência de Queries, mesmo anos depois.
+
 Toda Query deve possuir:
 
-- **Número** — sequencial, permitindo ordenação natural e histórico de evolução do banco (ex.: `000`, `001`, `002`...);
+- **Número** — dentro da faixa oficial correspondente (ver "Faixas de Numeração", abaixo);
 - **Nome** — curto, descritivo, em inglês (ex.: `Create Game table`);
-- **Descrição** — em português, explicando o que a Query faz;
+- **Descrição** — em português, explicando o objetivo da Query;
 - **Cabeçalho** — bloco de comentário no início do script (ver modelo abaixo);
 - **SQL** — o script propriamente dito;
-- **Validação** — uma ou mais consultas que confirmam que a execução funcionou corretamente.
+- **Validação** — uma ou mais consultas que confirmam que a execução funcionou corretamente (ver "Validação", abaixo).
 
-Exemplo de sequência:
+### Faixas de Numeração
 
-```text
-000 - Enable pgcrypto
-001 - Create updated_at function
-002 - Create Game table
-003 - Create Game trigger
-004 - Seed Game
-005 - Create Expansion table
+| Faixa | Finalidade |
+|-------|------------|
+| 000–099 | Infraestrutura do banco (extensões, funções compartilhadas, configurações globais) |
+| 100–199 | Catálogo Editorial |
+| 200–299 | Coleções |
+| 300–399 | Inventário |
+| 400–499 | Aquisições |
+| 500–599 | Armazenamento |
+| 600–699 | Analytics |
+| 700–799 | Views |
+| 800–899 | Dados iniciais (Seeds) |
+| 900–999 | Validações e consultas |
+
+Deixar intervalos entre os grupos permite inserir novas migrations sem perder a organização. Exemplo real (entidade Game): `000 - Enable pgcrypto`, `001 - Create updated_at function`, `100 - Create Game table`, `800 - Seed Game`, `900 - Validate Game`.
+
+### Seeds
+
+Cada entidade possui sua própria Query de Seed (faixa 800–899), separada da Query que cria a tabela (faixa correspondente ao módulo, ex. 100–199). Estrutura e dados iniciais são responsabilidades diferentes.
+
+Seeds devem ser **idempotentes** — executáveis múltiplas vezes sem criar registros duplicados, usando `INSERT ... ON CONFLICT (<coluna_única>) DO NOTHING` em vez de um `INSERT` simples:
+
+```sql
+INSERT INTO public.game (code, name)
+VALUES ('POKEMON', 'Pokémon Trading Card Game')
+ON CONFLICT (code) DO NOTHING;
 ```
+
+Isso garante que reinstalar o banco do zero baste executar novamente todas as Seeds, sem falhas.
+
+### Validação
+
+Toda alteração estrutural recebe sua própria Query de validação (faixa 900–999), reutilizável sempre que a tabela correspondente for alterada novamente (ex.: `900 - Validate Game`, `901 - Validate Expansion`). As Queries 900+ funcionam, na prática, como um conjunto de testes manuais do banco.
+
+Nunca se assume que uma operação funcionou apenas porque o Supabase retornou "Success" — cada tipo de mudança tem sua própria forma de confirmação: criar uma tabela é validado com um `SELECT`; criar um índice é validado confirmando sua existência; criar um trigger é validado confirmando que está corretamente associado à tabela.
 
 ### Modelo de Cabeçalho
 
@@ -217,7 +249,7 @@ Exemplo de sequência:
 /*
 ================================================================
 Projeto.....: Project Mimikyu
-Query.......: 002 - Create Game table
+Query.......: 100 - Create Game table
 Versão......: 1.0
 Autor.......: [nome]
 Data........: AAAA-MM-DD
@@ -248,3 +280,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.1 | Preenchidas as Seções 2 (Naming Conventions), 5 (Primary Keys) e 6 (Foreign Keys): tabelas em `snake_case` singular, colunas em `snake_case` (nunca camelCase/PascalCase), chave primária `id` (UUID) como identidade técnica, chave estrangeira no padrão `<entidade_referenciada>_id`. |
 | 1.2 | Adicionada nota sobre palavras reservadas do SQL na Seção 2 (ex.: Set → `card_set`). Preenchida a Seção 3 (Data Types: VARCHAR vs. TEXT, UUID, TIMESTAMPTZ). Refinada a Seção 4 (Audit Model): `created_by`/`updated_by`/`deleted_at`/`deleted_by` deixam de ser obrigatórios por padrão, passando a ser adicionados apenas sob necessidade concreta (Princípio da Simplicidade Inicial, AP-004); padrão mínimo agora é `id`/`created_at`/`updated_at`. Adicionada à Seção 5 a versão do UUID (v4 no MVP, v7 quando houver suporte adequado) e a distinção entre identidade técnica (`id`) e identidade de negócio (`code`). Preenchida a Seção 8 (Logical Delete: preferir `status` de negócio a soft delete generalizado) e a Seção 9 (SQL Standards: restrições de integridade também no banco, não só na aplicação). |
 | 1.3 | Refinada a Seção 1 (Technical Language): cabeçalhos e comentários explicativos dos scripts SQL passam a ser em português; apenas identificadores técnicos seguem o inglês. Adicionado à Seção 9 o requisito de Row Level Security (RLS) habilitado em toda tabela do schema `public`. Preenchida a Seção 10 (Migration Standards): uso exclusivo do SQL Editor (nunca o menu visual), Padrão Oficial de Queries SQL (Número/Nome/Descrição/Cabeçalho/SQL/Validação, com modelo de cabeçalho incluindo Versão) e execução validada passo a passo. |
+| 1.4 | Adicionada à Seção 5 a regra "código internacional, nome localizável" (code nunca muda entre idiomas; name pode ser localizado, mesmo padrão de Card Translation/ADR-007). Substituída, na Seção 10, a numeração sequencial simples pela convenção oficial de Faixas de Numeração (000–999, por módulo do projeto); adicionadas as subseções Seeds (idempotência via `ON CONFLICT ... DO NOTHING`, Query própria por entidade) e Validação (Queries de validação reutilizáveis na faixa 900–999; nunca assumir que "Success" significa que o resultado está correto). |

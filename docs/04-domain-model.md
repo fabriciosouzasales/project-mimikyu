@@ -304,6 +304,7 @@ Sem esse conceito, um catálogo precisaria administrar centenas de Sets diretame
 
 Conceitualmente, uma Expansion possui:
 
+- código editorial;
 - nome;
 - ordem cronológica;
 - data de início;
@@ -312,6 +313,19 @@ Conceitualmente, uma Expansion possui:
 - Game ao qual pertence.
 
 Essas características representam apenas o conceito do domínio e não definem atributos técnicos da implementação.
+
+Exemplos (Pokémon):
+
+| Code | Name |
+|------|------|
+| SV | Scarlet & Violet |
+| SWSH | Sword & Shield |
+| SM | Sun & Moon |
+| XY | XY |
+
+### Código e Nome
+
+O código de uma Expansion é editorial e internacional — não muda entre idiomas (ex.: `SV` continua sendo `SV` em qualquer idioma). O nome pode ser localizado futuramente, quando houver necessidade, seguindo o mesmo padrão já estabelecido para conteúdo editorial em Card Translation (ver ADR-007). Este padrão — código internacional, nome localizável — tende a se repetir em todo o catálogo editorial (ver também `standards/STD-001-database-standards.md`, Seção 5).
 
 ---
 
@@ -1413,3 +1427,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.7 | Renomeado "Inventory Item" para "Collection Item" em todo o documento (ver ADR-013). Adicionada a seção completa de Collection Item: identidade individual por exemplar físico, relação com Card + Card Finish + Language, grupos preliminares de informação (Identity, Physical State, Collection Role, Lifecycle), separação entre Ownership Status e Availability Status, e regra de identidade técnica e permanente. Adicionada nota sobre Card Image (relação com Card Translation/Card Finish em aberto, decisão progressiva) na seção Card Translation. |
 | 1.8 | Populada a entidade Collection (distinta do Set: pertence ao colecionador, não ao catálogo editorial), com os tipos Official Set Collection e Custom Collection. Adicionada a entidade Collection Entry, com os modos Card Target e Subject Target, e os mecanismos preliminares Manual Membership e Rule-Based Membership (este último deliberadamente adiado). Adicionada nota de correspondência entre o termo provisório "User Collection" e a nova entidade Collection. Ver ADR-014. |
 | 1.9 | Adicionada nota sobre nomenclatura física do Set: `SET` é palavra reservada do SQL, tabela física é `card_set` (ver STD-001). |
+| 1.10 | Expandida a seção Expansion: adicionado o atributo `código editorial`, exemplos reais (SV, SWSH, SM, XY) e a regra "código internacional, nome localizável" (ver STD-001, Seção 5). Documentação de Expansion segue em elaboração — complementos previstos para o próximo ciclo. |

@@ -27,11 +27,11 @@ Os padrões gerais e permanentes (nomenclatura, tipos de dado, chaves, auditoria
 
 Cada entidade documentada aqui segue o mesmo roteiro:
 
-1. **Modelo lógico** — atributos, sem pensar em SQL ainda.
+1. **Modelo lógico** — atributos, sem pensar em SQL ainda, organizados por grupo (como um analista de dados faria, não como um DBA): Identidade (`id`, `code`), Descrição (`name` e demais campos descritivos), Relacionamento (chaves estrangeiras, ex. `game_id`), Ordenação (quando aplicável, ex. `release_order`), Auditoria (`created_at`, `updated_at`). Só depois desse desenho a migration é escrita — essa disciplina garante que o SQL seja apenas a implementação de um modelo já validado, não o lugar onde decisões de negócio são tomadas.
 2. **Atributos** — descrição de cada campo.
 3. **Campos que não incluiremos agora** — aplicação do Princípio da Simplicidade Inicial (AP-004).
 4. **Regras de negócio.**
-5. **Modelo físico (SQL)** — DDL, incluindo constraints e triggers.
+5. **Modelo físico (SQL)** — DDL, incluindo constraints e triggers, seguindo o Padrão Oficial de Queries SQL (ver STD-001, Seção 10: Faixas de Numeração, Seeds idempotentes, Validação reutilizável).
 6. **Testes mínimos de integridade.**
 7. **Definition of Done** — critérios para considerar a entidade concluída.
 
@@ -201,13 +201,71 @@ UK  code        VARCHAR(50)
     updated_at  TIMESTAMPTZ
 ```
 
+## Queries Associadas
+
+Seguindo o Padrão Oficial de Queries SQL (STD-001, Seção 10):
+
+```text
+000 - Enable pgcrypto
+001 - Create updated_at function
+100 - Create Game table
+800 - Seed Game
+900 - Validate Game
+```
+
 Próxima entidade: **Expansion**, que introduzirá o primeiro relacionamento e a primeira chave estrangeira do modelo físico (`Game → Expansion`).
 
 ---
 
 # Expansion (Expansão)
 
-*Documentação pendente — próxima entidade da Fase 2.*
+Status: **Em elaboração** — modelo conceitual e modelo lógico definidos; regras de negócio, modelo físico e testes previstos para o próximo ciclo.
+
+## Modelo Lógico
+
+Desenhado por grupo, antes de qualquer SQL (ver "Roteiro por Entidade", acima):
+
+```text
+Expansion
+
+Identidade
+----------
+id
+code
+
+Descrição
+----------
+name
+
+Relacionamento
+----------
+game_id
+
+Ordenação
+----------
+release_order
+
+Auditoria
+----------
+created_at
+updated_at
+```
+
+## Atributos (parcial)
+
+**id** — Identificador técnico e permanente (UUID).
+
+**code** — Código editorial e internacional, não muda entre idiomas (ex.: `SV`, `SWSH`, `SM`, `XY`). Ver STD-001, Seção 5 — Código Internacional, Nome Localizável.
+
+**name** — Nome de apresentação (ex.: `Scarlet & Violet`). Pode ser localizado futuramente.
+
+**game_id** — Chave estrangeira para `game` (ver STD-001, Seção 6). Toda Expansion pertence obrigatoriamente a um Game.
+
+**release_order** — Ordem cronológica da Expansion dentro do Game.
+
+**created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
+
+Regras de negócio, modelo físico (DDL), testes de integridade e Definition of Done desta entidade ainda não foram registrados — previstos para o próximo lote de extração histórica.
 
 ---
 
@@ -254,3 +312,4 @@ Próxima entidade: **Expansion**, que introduzirá o primeiro relacionamento e a
 | 0.1 | Estrutura inicial do documento. Modelagem lógica e física completa da entidade Game (Jogo), incluindo DDL, trigger de `updated_at`, testes mínimos de integridade e Definition of Done. Adicionados stubs para as demais entidades já definidas em `04-domain-model.md`, na ordem prevista de implementação. |
 | 0.2 | Adicionado o requisito de Row Level Security (RLS) ao modelo físico e à Definition of Done da entidade Game, refletindo o padrão agora registrado em STD-001, Seção 9. |
 | 0.3 | Adicionada nota explicando que o banco físico já possui as 17 tabelas originais com carga inicial de dados, construídas antes desta fase de consolidação documental — a documentação das entidades além de Game será majoritariamente retroativa, não uma criação do zero. |
+| 0.4 | Refinado o Roteiro por Entidade: modelo lógico agora organizado por grupo (Identidade/Descrição/Relacionamento/Ordenação/Auditoria); referência ao Padrão Oficial de Queries SQL (STD-001, Seção 10). Adicionadas as Queries associadas à entidade Game (000/001/100/800/900). Adicionado o modelo lógico parcial da entidade Expansion (status "Em elaboração"); regras de negócio, modelo físico e testes previstos para o próximo ciclo. |
