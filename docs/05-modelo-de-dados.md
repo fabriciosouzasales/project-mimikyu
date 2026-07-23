@@ -1141,7 +1141,7 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 
 # Rarity (Raridade)
 
-Status: **Tabela, trigger e seed executados e confirmados no Supabase** (`130`, `131`, `830`). **Único item pendente:** Query `930 - Validate Rarity` foi escrita, com resultados esperados definidos, mas sua execução ainda não foi confirmada por Fabrício nesta documentação — não presumir validado até confirmação explícita (ver STD-001, "nunca assumir que Success significa correto").
+Status: **Pacote técnico concluído.** Tabela, trigger, seed e validação executados e confirmados no Supabase (`130`, `131`, `830`, `930`). **Sem pendências técnicas.** Único ponto em aberto é conceitual, não estrutural: uma proposta de adicionar um campo `symbol` (símbolo textual da raridade, ex. `★`, `★★`) foi levantada na sessão paralela, mas não foi confirmada por Fabrício — ver "Proposta em Aberto — Campo `symbol`", abaixo. Nenhuma alteração de DDL foi feita a partir dessa proposta.
 
 ## Modelo Lógico
 
@@ -1293,7 +1293,7 @@ Query: `830 - Seed Rarity`. Resultado confirmado por Fabrício: "Executada com s
 
 **Nova técnica, diferente do padrão `INSERT ... SELECT ... WHERE` usado em Game/Expansion/Set:** um bloco `DO $$ ... END $$` em PL/pgSQL resolve o `game_id` uma vez em uma variável (`v_game_id`) e usa `RAISE EXCEPTION` para falhar de forma explícita e legível caso o Game `POKEMON` não exista — em vez de silenciosamente inserir zero linhas. Alternativa válida ao padrão de `SELECT`/`CROSS JOIN` já documentado em STD-001, útil quando a ausência do pré-requisito deve ser um erro visível, não um resultado vazio silencioso.
 
-### Validação — Escrita, Execução Ainda Não Confirmada
+### Validação — Executada e Confirmada
 
 ```sql
 -- 1. Relação completa das raridades
@@ -1356,7 +1356,7 @@ ORDER BY
     display_order;
 ```
 
-Query: `930 - Validate Rarity`. Resultado esperado (ainda não confirmado como executado): consulta 1 retorna 9 registros ordenados de 1 a 9; consulta 2 retorna `POKEMON = 9`; consultas 3 a 6 retornam zero linhas; consulta 7 confirma que `created_at`/`updated_at` existem para todos os registros, com `updated_at` refletindo qualquer edição futura. **Não presumir validado até confirmação explícita de Fabrício, consistente com o princípio de nunca assumir que "Success" significa "correto".**
+Query: `930 - Validate Rarity`. **Resultado confirmado por Fabrício ("Executada com sucesso").** A consulta 1 retornou os 9 registros ordenados de 1 a 9; a consulta 2 confirmou `POKEMON = 9`; as consultas 3 a 6 retornaram zero linhas (sem duplicidade, sem `display_order` inválido, sem nomes vazios, sem códigos fora do padrão); a consulta 7 confirmou `created_at`/`updated_at` presentes em todos os registros. **Com esse resultado, o pacote técnico da entidade Rarity está concluído.**
 
 ### Observação Arquitetural — Card Depende de Dois Domínios
 
@@ -1374,6 +1374,12 @@ Game
 
 Consequência prática, não apenas estética: `rarity` deixa de ser um atributo textual solto e passa a ser um catálogo oficial do próprio Game, o que facilita filtros, estatísticas, internacionalização e evita inconsistências de cadastro (ver `04-domain-model.md`, seção Rarity).
 
+### Proposta em Aberto — Campo `symbol`
+
+Ao final da sessão de execução de Rarity, Fabrício levantou, na sessão paralela (ChatGPT), se a tabela deveria incluir uma coluna para o símbolo/ícone oficial de cada raridade (ex.: `•` Comum, `★` Rara, `★★` Rara Dupla). A resposta recebida nessa sessão recomendou um campo `symbol` (texto — não `icon`, pois nem toda raridade tem um ícone gráfico único; ex.: `★★★`, `ACE`, `LEGEND`) e cogitou, como evolução futura e não imediata, separar `symbol` (uso em filtros/textos/relatórios) de um eventual `icon_url` (arquivo gráfico oficial). A própria recomendação registrou uma ressalva: antes de alterar a tabela, seria necessário levantar as legendas oficiais dos checklists já em posse de Fabrício para confirmar se o mesmo símbolo sempre representa a mesma raridade dentro do catálogo atual (mercado brasileiro) — apenas assim `symbol` pertenceria naturalmente a `rarity` sem risco de exceção entre eras/mercados.
+
+**Esta é uma proposta em aberto, não uma decisão.** A conversa foi interrompida antes de uma confirmação explícita de Fabrício. Nenhuma alteração foi feita no DDL de `rarity` (Query `130`) nem no Definition of Done a partir desta proposta — consistente com a regra do projeto de não concluir modelagem de dados prematuramente. Caso confirmada, a implementação seria uma migration simples (`ALTER TABLE rarity ADD COLUMN symbol VARCHAR(...)`), sem impacto nas Queries já executadas.
+
 ## Definition of Done
 
 - [x] modelo lógico definido, por grupo;
@@ -1383,7 +1389,9 @@ Consequência prática, não apenas estética: `rarity` deixa de ser um atributo
 - [x] RLS habilitado;
 - [x] trigger criado (`131`);
 - [x] seed executado (`830` — nove raridades reais, consolidadas de `ME1`–`ME4`);
-- [ ] validação executada e confirmada (`930`) — **único item aberto**, escrita mas não confirmada.
+- [x] validação executada e confirmada (`930`).
+
+Sem pendências técnicas. Proposta não confirmada de campo `symbol` registrada separadamente, acima — não bloqueia a conclusão do pacote técnico atual.
 
 ## Queries Associadas
 
@@ -1391,10 +1399,10 @@ Consequência prática, não apenas estética: `rarity` deixa de ser um atributo
 130 - Create Rarity Table    (executada)
 131 - Create Rarity Trigger  (executada)
 830 - Seed Rarity            (executada)
-930 - Validate Rarity        (escrita; execução não confirmada)
+930 - Validate Rarity        (executada e confirmada)
 ```
 
-Rarity precisava ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10. Com o pacote técnico de Rarity praticamente fechado, o próximo passo real é `140 - Create Card Table`.
+Rarity precisava ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10. Com o pacote técnico de Rarity concluído, o próximo passo real é `140 - Create Card Table`.
 
 ---
 
@@ -1593,3 +1601,4 @@ Depende da existência prévia de `rarity` (`130`) e `card_set` (`120`). Card Pr
 | 0.15 | Adotado o Princípio da Fonte Canônica (STD-001, Seção 10) para Card Set. Queries `120` e `820` reescritas em `Versão 2.0` (Status `CANÔNICA`): `120` v2.0 já nasce com suporte nativo a `PROMO` e inclui o índice único parcial `uq_card_set_expansion_promo` (ausente na v1.0/migration `122`); `820` v2.0 consolida todos os seis Card Sets da Expansion `ME` (incluindo `ME0`) em um único snapshot com `ON CONFLICT ... DO UPDATE`. DDL e Seed originais preservados como histórico (v1.0). Queries `122` e `821` reclassificadas como `MIGRATION` — preservadas, mas fora do fluxo de instalação limpa. Pendência de reescrita da `820` marcada como RESOLVIDA (texto original preservado). Sinalizado item aberto: status do índice `uq_card_set_expansion_promo` no banco físico atual não confirmado, já que esta consolidação foi feita no repositório, não reexecutada no Supabase. Definition of Done e Queries Associadas atualizadas com Status por Query. |
 | 0.16 | Adicionadas as entidades **Rarity** e **Card**, ambas com modelo lógico completo e aprovado por Fabrício ("Vamos seguir com a execução!"), incluindo proposta de DDL (ainda não executada no Supabase). Rarity: entidade de referência vinculada ao Game (`id, game_id, code, name, display_order`), criada antes de Card por dependência de FK — Query `130`. Card: modelo mínimo (`id, card_set_id, rarity_id, card_number, card_order, category_code, created_at, updated_at`) — Query `140` (deslocada de `130`, cedido a Rarity). Substituído o stub "Documentação pendente" da seção Card. Sinalizadas três pendências antes da execução real: confirmação de Fabrício sobre `ENERGY` como valor de `category_code` (contradiz decisão de escopo já registrada), e as nomenclaturas Card Printing vs. Card Translation e Card Variant vs. Finish/Card Finish. |
 | 0.17 | **Rarity executada e confirmada no Supabase.** Queries `130` (tabela — `name VARCHAR(150)`, `code` com constraint de formato, `display_order` deliberadamente sem `UNIQUE`), `131` (trigger) e `830` (seed — nove raridades reais, consolidadas de `ME1`–`ME4`, usando um novo padrão `DO $$ ... END $$` com `RAISE EXCEPTION` caso o Game não exista) confirmadas por Fabrício. Corrigida a nomenclatura: código canônico é `SPECIAL_ILLUSTRATION_RARE`, não um `SAR` separado. Query `930 - Validate Rarity` escrita com resultados esperados, mas execução ainda não confirmada — único item aberto. Adicionada "Observação Arquitetural — Card Depende de Dois Domínios" (`Game → Rarity` além de `Game → Expansion → Card Set`). Definition of Done e Queries Associadas atualizadas. |
+| 0.18 | **Pacote técnico da entidade Rarity concluído.** Query `930 - Validate Rarity` confirmada por Fabrício ("Executada com sucesso") — todas as 7 subconsultas com resultado esperado (9 registros, sem duplicidade/inconsistência). Definition of Done e Queries Associadas atualizadas (sem pendências técnicas). Adicionada seção "Proposta em Aberto — Campo `symbol`": levantada na sessão paralela (adicionar símbolo/ícone textual da raridade), com ressalva própria da recomendação de levantar legendas oficiais antes de decidir — não confirmada por Fabrício, nenhuma alteração de DDL feita. |
