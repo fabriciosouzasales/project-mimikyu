@@ -2,7 +2,7 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 850 - Seed Card Variant Type
-Versão......: 1.2
+Versão......: 1.3
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-18
@@ -14,39 +14,45 @@ o Pokémon Trading Card Game.
 Catálogo canônico atual:
  1. STANDARD
  2. HOLO
- 3. REVERSE_HOLO
- 4. ENERGY_REVERSE
- 5. POKE_BALL_REVERSE
- 6. LOVE_BALL_REVERSE
- 7. FRIEND_BALL_REVERSE
- 8. QUICK_BALL_REVERSE
- 9. DUSK_BALL_REVERSE
-10. ROCKET_REVERSE
-11. MASTER_BALL_REVERSE
-12. PROMO_STAMPED
+ 3. COSMOS_HOLO
+ 4. REVERSE_HOLO
+ 5. ENERGY_REVERSE
+ 6. POKE_BALL_REVERSE
+ 7. LOVE_BALL_REVERSE
+ 8. FRIEND_BALL_REVERSE
+ 9. QUICK_BALL_REVERSE
+10. DUSK_BALL_REVERSE
+11. ROCKET_REVERSE
+12. MASTER_BALL_REVERSE
+13. PROMO_STAMPED
 
-Alterações da versão 1.2:
-- Inclusão de ENERGY_REVERSE.
-- Inclusão de LOVE_BALL_REVERSE.
-- Inclusão de FRIEND_BALL_REVERSE.
-- Inclusão de QUICK_BALL_REVERSE.
-- Inclusão de DUSK_BALL_REVERSE.
-- Inclusão de ROCKET_REVERSE.
-- Reorganização da sequência de display_order para 1 a 12.
+Alterações da versão 1.3:
+- Inclusão de COSMOS_HOLO como tipo físico independente de variante.
+- Reorganização da sequência de display_order para 1 a 13.
+- Preservação dos IDs dos tipos já cadastrados.
 - Tratamento seguro da restrição UNIQUE (game_id, display_order).
 - Manutenção da idempotência por UPSERT.
 
-Motivação da versão 1.2:
-A análise editorial da coleção ME2.5 (Heróis Excelsios) revelou que a reversa
-holográfica das Cards do conjunto base não segue um único padrão genérico —
-cada Pokémon elegível recebe uma reversa com o padrão de uma Poké Bola
-específica de sua linha evolutiva (Poké Ball, Love Ball, Friend Ball, Quick
-Ball, Dusk Ball), Pokémon da Equipe Rocket usam o símbolo "R", e Pokémon não
-`ex` também possuem uma reversa de Energia. Nenhuma variante Master Ball
-Reverse foi encontrada nesta coleção. O catálogo de seis tipos (v1.1) tratava
-esses padrões como equivalentes ao já existente POKE_BALL_REVERSE, o que
-violaria a regra de negócio de que card_variant deve representar cada
-variante colecionável oficialmente existente (ver Query 160).
+Motivação da versão 1.3:
+Checklists editoriais oficiais (pkmn.gg) confirmaram que o acabamento Cosmos
+Holo é um padrão físico recorrente de impressão promocional — observado em
+mais de uma Card e mais de um produto — e não um caso isolado nem um simples
+selo (`PROMO_STAMPED`). Avaliadas duas opções de modelagem: tratar Cosmos Holo
+apenas como origem/distribuição de uma Card já existente, ou cadastrá-la como
+um tipo de variante físico próprio. Adotada a segunda opção, por já haver
+evidência concreta de recorrência entre coleções. Outros acabamentos ainda não
+confirmados por evidência editorial (Galaxy Holo, Confetti Holo, Cracked Ice
+etc.) foram deliberadamente NÃO incluídos nesta versão.
+
+Regras de Negócio:
+- O Game POKEMON deve existir.
+- code é a chave natural dentro do Game.
+- display_order determina a ordem de apresentação.
+- COSMOS_HOLO representa o acabamento holográfico Cosmos, independentemente
+  do produto ou canal em que a Card foi distribuída.
+- Registros existentes devem convergir para os valores canônicos.
+- A execução repetida não deve gerar duplicidades.
+- Tipos adicionais fora do catálogo canônico não são excluídos automaticamente.
 
 Pré-requisitos:
 - Query 150 - Create Card Variant Type Table.
@@ -56,10 +62,9 @@ Pré-requisitos:
 ===============================================================================
 
 NOTA DE DOCUMENTAÇÃO (Princípio da Fonte Canônica, STD-001 Seção 10): esta
-versão substitui integralmente a v1.1 (6 tipos), mantida apenas no histórico
+versão substitui integralmente a v1.2 (12 tipos), mantida apenas no histórico
 de revisões dos documentos de domínio (04-domain-model.md/05-modelo-de-dados.md).
-Confirmada executada por Fabrício via captura de tela real do Table Editor do
-Supabase, mostrando os 12 tipos já cadastrados fisicamente.
+Executada com sucesso, confirmada por Fabrício.
 ===============================================================================
 */
 
@@ -93,6 +98,7 @@ BEGIN
        AND code IN (
            'STANDARD',
            'HOLO',
+           'COSMOS_HOLO',
            'REVERSE_HOLO',
            'ENERGY_REVERSE',
            'POKE_BALL_REVERSE',
@@ -136,73 +142,80 @@ BEGIN
         ),
         (
             v_game_id,
+            'COSMOS_HOLO',
+            'Holográfica Cosmos',
+            'Versão com acabamento holográfico no padrão Cosmos.',
+            3
+        ),
+        (
+            v_game_id,
             'REVERSE_HOLO',
             'Holográfica Reversa',
             'Versão com acabamento holográfico reverso genérico.',
-            3
+            4
         ),
         (
             v_game_id,
             'ENERGY_REVERSE',
             'Energia Reversa',
             'Versão holográfica reversa com padrão de Energia.',
-            4
+            5
         ),
         (
             v_game_id,
             'POKE_BALL_REVERSE',
             'Poké Bola Reversa',
             'Versão holográfica reversa com padrão de Poké Bola.',
-            5
+            6
         ),
         (
             v_game_id,
             'LOVE_BALL_REVERSE',
             'Love Ball Reversa',
             'Versão holográfica reversa com padrão de Love Ball.',
-            6
+            7
         ),
         (
             v_game_id,
             'FRIEND_BALL_REVERSE',
             'Friend Ball Reversa',
             'Versão holográfica reversa com padrão de Friend Ball.',
-            7
+            8
         ),
         (
             v_game_id,
             'QUICK_BALL_REVERSE',
             'Quick Ball Reversa',
             'Versão holográfica reversa com padrão de Quick Ball.',
-            8
+            9
         ),
         (
             v_game_id,
             'DUSK_BALL_REVERSE',
             'Dusk Ball Reversa',
             'Versão holográfica reversa com padrão de Dusk Ball.',
-            9
+            10
         ),
         (
             v_game_id,
             'ROCKET_REVERSE',
             'Equipe Rocket Reversa',
             'Versão holográfica reversa com padrão ou símbolo da Equipe Rocket.',
-            10
+            11
         ),
         (
             v_game_id,
             'MASTER_BALL_REVERSE',
             'Master Ball Reversa',
             'Versão holográfica reversa com padrão de Master Ball.',
-            11
+            12
         ),
         (
             v_game_id,
             'PROMO_STAMPED',
             'Promocional Estampada',
             'Versão que possui uma marca ou estampa promocional oficialmente aplicada.',
-            12
+            13
         )
     ON CONFLICT (game_id, code)
     DO UPDATE SET
@@ -212,7 +225,7 @@ BEGIN
 
     /*
     ===========================================================================
-    3. Validação interna
+    3. Validar quantidade e ordem canônicas
     ===========================================================================
     */
 
@@ -223,6 +236,7 @@ BEGIN
        AND code IN (
            'STANDARD',
            'HOLO',
+           'COSMOS_HOLO',
            'REVERSE_HOLO',
            'ENERGY_REVERSE',
            'POKE_BALL_REVERSE',
@@ -235,9 +249,9 @@ BEGIN
            'PROMO_STAMPED'
        );
 
-    IF v_registered_total <> 12 THEN
+    IF v_registered_total <> 13 THEN
         RAISE EXCEPTION
-            'Falha na Query 850: esperados 12 tipos canônicos, encontrados %.',
+            'Falha na Query 850: esperados 13 tipos canônicos, encontrados %.',
             v_registered_total;
     END IF;
 
@@ -248,16 +262,17 @@ BEGIN
        AND (
            (cvt.code = 'STANDARD' AND cvt.display_order <> 1)
         OR (cvt.code = 'HOLO' AND cvt.display_order <> 2)
-        OR (cvt.code = 'REVERSE_HOLO' AND cvt.display_order <> 3)
-        OR (cvt.code = 'ENERGY_REVERSE' AND cvt.display_order <> 4)
-        OR (cvt.code = 'POKE_BALL_REVERSE' AND cvt.display_order <> 5)
-        OR (cvt.code = 'LOVE_BALL_REVERSE' AND cvt.display_order <> 6)
-        OR (cvt.code = 'FRIEND_BALL_REVERSE' AND cvt.display_order <> 7)
-        OR (cvt.code = 'QUICK_BALL_REVERSE' AND cvt.display_order <> 8)
-        OR (cvt.code = 'DUSK_BALL_REVERSE' AND cvt.display_order <> 9)
-        OR (cvt.code = 'ROCKET_REVERSE' AND cvt.display_order <> 10)
-        OR (cvt.code = 'MASTER_BALL_REVERSE' AND cvt.display_order <> 11)
-        OR (cvt.code = 'PROMO_STAMPED' AND cvt.display_order <> 12)
+        OR (cvt.code = 'COSMOS_HOLO' AND cvt.display_order <> 3)
+        OR (cvt.code = 'REVERSE_HOLO' AND cvt.display_order <> 4)
+        OR (cvt.code = 'ENERGY_REVERSE' AND cvt.display_order <> 5)
+        OR (cvt.code = 'POKE_BALL_REVERSE' AND cvt.display_order <> 6)
+        OR (cvt.code = 'LOVE_BALL_REVERSE' AND cvt.display_order <> 7)
+        OR (cvt.code = 'FRIEND_BALL_REVERSE' AND cvt.display_order <> 8)
+        OR (cvt.code = 'QUICK_BALL_REVERSE' AND cvt.display_order <> 9)
+        OR (cvt.code = 'DUSK_BALL_REVERSE' AND cvt.display_order <> 10)
+        OR (cvt.code = 'ROCKET_REVERSE' AND cvt.display_order <> 11)
+        OR (cvt.code = 'MASTER_BALL_REVERSE' AND cvt.display_order <> 12)
+        OR (cvt.code = 'PROMO_STAMPED' AND cvt.display_order <> 13)
        );
 
     IF v_invalid_total <> 0 THEN
@@ -265,7 +280,21 @@ BEGIN
             'Falha na Query 850: existem % tipos canônicos com display_order incorreto.',
             v_invalid_total;
     END IF;
+
+    RAISE NOTICE
+        'Query 850 concluída: 13 tipos canônicos de Card Variant cadastrados para POKEMON.';
 END;
 $$;
+
+SELECT
+    cvt.code,
+    cvt.name,
+    cvt.description,
+    cvt.display_order
+FROM public.card_variant_type AS cvt
+INNER JOIN public.game AS g
+    ON g.id = cvt.game_id
+WHERE g.code = 'POKEMON'
+ORDER BY cvt.display_order, cvt.code;
 
 COMMIT;

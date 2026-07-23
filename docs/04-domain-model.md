@@ -1047,6 +1047,8 @@ Conceitualmente, um Card Asset:
 
 Ver `05-modelo-de-dados.md` para a estrutura física e o estado de execução atual.
 
+> **Distinção reconhecida, ainda não modelada:** o acabamento físico de uma Card (Finish) e o produto/origem de distribuição de uma impressão específica (ex.: um booster comum vs. uma coleção promocional) são dimensões conceitualmente independentes. Hoje o domínio representa apenas o acabamento. Uma futura entidade de "origem de impressão", vinculada a Card Finish, é uma necessidade reconhecida — ainda não modelada.
+
 ---
 
 ## Card Category (Categoria da Carta)
