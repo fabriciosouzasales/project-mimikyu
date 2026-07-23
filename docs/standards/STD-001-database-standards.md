@@ -244,10 +244,13 @@ Expansion  110 - Create Expansion Table  →  810 - Seed Expansion  →  910 - V
            111 - Create Expansion Trigger
 
 Set        120 - Create Set Table        →  820 - Seed Set        →  920 - Validate Set
-Card       130 - Create Card Table       →  830 - Seed Card       →  930 - Validate Card
+Rarity     130 - Create Rarity Table     →  830 - Seed Rarity     →  930 - Validate Rarity
+Card       140 - Create Card Table       →  840 - Seed Card       →  940 - Validate Card
 ```
 
 Essa regra elimina qualquer ambiguidade sobre qual número usar para o Seed ou a Validação de uma nova entidade.
+
+> **Nota:** o número de uma entidade é atribuído na ordem em que ela é efetivamente modelada e aprovada, não necessariamente na ordem inicialmente imaginada — Rarity, por exemplo, precisou ser criada antes de Card por dependência de chave estrangeira (`card.rarity_id → rarity.id`), e por isso ocupa `130` em vez do `140` inicialmente cogitado para Card (ver `05-modelo-de-dados.md`, seções Rarity e Card).
 
 ### Seeds
 
@@ -367,3 +370,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.9 | Revisado o padrão de validação (1.8) de três para cinco categorias, após aplicação real em Card Set: dados persistidos, regras derivadas, inconsistências (consultas que devem retornar zero linhas), constraints, trigger. Adicionada recomendação de envolver migrations que alteram constraints e dados juntas em uma transação explícita (`BEGIN`/`COMMIT`), com `122 - Adapt Card Set for Promo` como exemplo real. Adicionada à Seção 10 (Seeds) a distinção entre `DO NOTHING` (carga inicial única) e `DO UPDATE` (Seeds que representam o estado atual e reaplicável de uma entidade). |
 | 1.10 | Adicionada à Seção 10 a subseção "Registro em `database/`": toda Query executada e confirmada deve ser copiada como arquivo `.sql` versionado em `database/`, fora de `docs/` — registrado durante auditoria de saúde do repositório (2026-07-23). |
 | 1.11 | Adicionado o "Princípio da Fonte Canônica": Queries de criação/seed representam sempre a forma correta e mais atual para uma instalação nova; migrations que alteram um banco já existente são preservadas, mas reclassificadas como históricas, fora do fluxo de instalação limpa. Adicionado o campo `Status` (`CANÔNICA`/`MIGRATION`) ao Modelo de Cabeçalho oficial. Aplicado pela primeira vez em Card Set (`120`/`820` atualizadas para v2.0; `122`/`821` reclassificadas). |
+| 1.12 | Atualizado o exemplo real da Seção 10 (Bloco por Entidade e Regra de Deslocamento): inserida a entidade Rarity em `130` (Seed `830`, Validate `930`), criada antes de Card por dependência de chave estrangeira (`card.rarity_id`). Card deslocada de `130` para `140` (Seed `840`, Validate `940`). Adicionada nota explicando que a numeração segue a ordem real de modelagem/aprovação, não a ordem originalmente cogitada. |

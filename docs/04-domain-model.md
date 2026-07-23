@@ -715,11 +715,13 @@ Informações comuns a toda Card, independentemente da categoria:
 - **Card Translation** — conteúdo editorial por idioma. Ver seção própria, acima.
 - **Rarity** — classificação de raridade. Ver seção própria, acima.
 - **Card Finish** — acabamentos físicos disponíveis. Ver seção própria, acima.
-- **Illustrator** — o ilustrador responsável pela arte da Card; entidade de referência, reutilizada por todas as Cards ilustradas pela mesma pessoa.
+- **Illustrator** — o ilustrador responsável pela arte da Card; entidade de referência, reutilizada por todas as Cards ilustradas pela mesma pessoa. **Correção (ver "Modelagem Física — Discussão Iniciada," abaixo):** um lote de modelagem física reclassificou Illustrator para o nível de Card Printing, não de Card — a autoria pertence à impressão visual concreta (que pode variar entre traduções com artes distintas sob o mesmo número), não à posição abstrata do checklist. Proposto, ainda não aprovado por Fabrício.
 
 Informações específicas por categoria, agrupadas em Card Details (ver seção própria, abaixo): quando a Card Category for Pokémon, a Card referencia um Pokémon e conhece HP, Stage, Attacks, Ability, Weakness, Resistance, Retreat Cost e Energy Type (Pokémon Card Details); quando for Trainer, conhece apenas Effect (Trainer Card Details). Cards de categoria Trainer não possuem referência a Pokémon.
 
 > **Importante:** nem toda Card representa um Pokémon. A hipótese inicial de que toda Card se relacionaria diretamente com um Pokémon foi identificada como um erro de modelagem — uma confusão entre o domínio Pokémon (o personagem/espécie) e o domínio Pokémon TCG (o jogo de cartas). Cards de categoria Trainer (ex.: Acerola — Supporter; Poké Pad — Item; Torre Prisma — Stadium) não representam nenhum Pokémon. Essa relação é, portanto, condicional à Card Category, não universal (ver ADR-011).
+
+> **Atualização (ver AP-017 e "Modelagem Física — Discussão Iniciada," abaixo):** Fabrício determinou diretamente que HP, Stage, Attacks, Ability, Weakness, Resistance, Retreat Cost e Energy Type — todo o conteúdo de "Pokémon Card Details" listado acima — não serão estruturados no banco de dados, por serem mecânica de jogo, não informação de colecionismo. Permanecem visíveis apenas na imagem oficial da Card (ADR-012). O padrão Card Details / Pokémon Card Details / Trainer Card Details continua válido como arquitetura (ADR-011), mas sem conteúdo concreto planejado.
 
 Nem toda informação acima precisa necessariamente de um campo estruturado e pesquisável desde a primeira versão — ver "Nota sobre estruturação de dados" na seção Card Details, ADR-012 e `07-catalogo-editorial.md`.
 
@@ -763,6 +765,121 @@ Card 003 → 1 acabamento
 Essa contagem deve ser obtida somando os acabamentos efetivamente catalogados para cada Card — nunca por uma multiplicação fixa, já que nem todas as Cards de um Set necessariamente possuem os mesmos acabamentos disponíveis. Na prática, esse número tende a ser bem mais próximo do Official Card Count do que se imaginava inicialmente, já que formas de impressão como Full Art ou Special Illustration Rare já contam como Cards independentes — diferenciadas por Rarity própria — e não como acabamentos de outra Card (ver "Rarity" e "Finish", abaixo).
 
 Essas três métricas atendem a propósitos diferentes do produto: a primeira mede a completude do catálogo editorial (quais posições existem); a segunda é uma característica de referência do Set; a terceira mede a completude colecionável (quantos itens distintos um colecionador pode efetivamente possuir).
+
+---
+
+### Modelagem Física — Discussão Iniciada (Query 130), Não Concluída
+
+**Nota de processo:** a modelagem física da Card (rumo à Query `130`) começou a ser discutida diretamente no par Fabrício/ChatGPT responsável pela execução real no Supabase, em paralelo a este documento. O material recebido cruza a discussão real com as decisões já consolidadas aqui. Um segundo lote avançou substancialmente a discussão (resumido abaixo), mas ainda não inclui SQL executado nem uma confirmação explícita de Fabrício sobre os pontos ainda em aberto — nada nesta seção deve ser tratado como definitivo, e nenhuma tabela física de Card deve ser criada a partir dela ainda.
+
+**Confirmado — consistente com decisões já registradas neste documento, sem necessidade de nova ADR:**
+
+- Identidade de negócio = `card_set_id` + `card_number`, mesma regra de "Set + Número da Card" (ADR-004, ver "Identidade," acima).
+- A numeração exibida (`001/132`) é derivada de `card.card_number` + `card_set.base_set_size`/`total_set_size`, nunca armazenada de forma redundante — mesmo princípio já aplicado ao denominador (ver "Identidade," acima).
+- Fronteira Card vs. Collection Item confirmada: preço pago, quantidade possuída, localização física, grading e notas particulares pertencem ao Collection Item, nunca à Card (mesma separação de ADR-006 e "Atributos e Relações da Card," acima).
+- A divisão em "conteúdo comum a toda Card" vs. "conteúdo específico por categoria" confirma o padrão já registrado como Card Details / Pokémon Card Details / Trainer Card Details (ver "Card Details," abaixo; ADR-011, ADR-012).
+
+**Modelo em quatro camadas (proposto pelo par Fabrício/ChatGPT, ainda não aprovado por Fabrício nem executado):**
+
+```text
+Game
+ ↓
+Expansion
+ ↓
+Card Set
+ ↓
+Card
+ ↓
+Card Printing
+ ↓
+Card Variant
+ ↓
+Collection Item
+```
+
+A regra prática proposta: *"Produto diferente não cria uma variante. Carta fisicamente diferente cria uma variante."* Um mesmo produto de origem (booster, box, coleção especial, produto promocional) distribuindo a mesma carta fisicamente idêntica não gera uma nova Card Variant — a origem de distribuição poderia ser registrada futuramente em uma entidade separada (`product`/`card_variant_distribution`, não modelada ainda) ou via a proveniência de um Collection Item específico.
+
+**Critério proposto para decidir se uma diferença gera nova Card, nova Card Printing ou nova Card Variant:**
+
+| Diferença | Nova Card | Nova Printing | Nova Variant |
+|---|---|---|---|
+| Número diferente | Sim | — | — |
+| Set diferente | Sim | — | — |
+| Idioma diferente | Não | Sim | Não |
+| Nome traduzido | Não | Sim | Não |
+| Holo x Reverse | Não | Não | Sim |
+| Selo promocional | Não | Não | Sim |
+| Produto de origem diferente | Não | Não | Não |
+| Ilustração diferente com mesmo número | Depende da identidade editorial (ver abaixo) | Possivelmente | Possivelmente |
+| Texto corrigido ou errata impressa | Não | Sim ou variante editorial | Não necessariamente |
+
+O caso "mesma numeração, ilustração/arte diferente" foi testado explicitamente contra a premissa `card_set_id + card_number identifica unicamente uma carta editorial?`. Duas alternativas foram avaliadas: (A) tratar como duas Cards distintas, exigindo um discriminador adicional na chave (ex. `edition_code`) — descartada porque esse código pode não existir oficialmente; (B) manter Card como a posição editorial abstrata do checklist, e tratar a diferença de arte como uma Card Printing diferente sob a mesma Card — **recomendada**. Sob essa definição, a chave `UNIQUE (card_set_id, card_number)` permanece válida, desde que Card seja entendida como *"a posição editorial numerada no checklist do Set, e não cada impressão física distinta."*
+
+**Card — definição e atributos mínimos (APROVADOS por Fabrício; execução ainda pendente):**
+
+> Uma Card representa uma posição oficial e única no checklist de um Card Set.
+
+A Card `ME1 #003` existe uma única vez na tabela `card`, mesmo que possua impressão em português, impressão em inglês, versão Holofoil, versão com selo promocional e várias cópias físicas na coleção — todas essas variações pertencem às camadas abaixo dela.
+
+**Modelo mínimo final, aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!"):
+
+```text
+card
+  id             UUID
+  card_set_id    UUID
+  rarity_id      UUID
+  card_number    VARCHAR(30)
+  card_order     INTEGER
+  category_code  (formato ainda em avaliação — ver abaixo)
+  created_at     TIMESTAMPTZ
+  updated_at     TIMESTAMPTZ
+```
+
+- `card_number` proposto como texto, não inteiro — para preservar zeros à esquerda (`003`), prefixos (`TG01`), sufixos e numerações alfanuméricas de outros TCGs/formatos editoriais futuros, sem conversão.
+- `card_order` proposto como um campo novo, tecnicamente distinto de `card_number`: representa a posição sequencial no checklist (para ordenação correta — comparar texto ordenaria `001, 010, 011, 002` incorretamente) e sustenta numerações futuras não numéricas (`TG01`, `SV01`) sem regras especiais de conversão. `card_number` = identidade editorial exibida; `card_order` = ordenação técnica.
+- `rarity_id`: `NOT NULL`, referencia `rarity.id` (ver "Rarity," acima — agora uma entidade de referência própria vinculada ao Game, não um texto solto).
+- `category_code`: mantido em `card` (ver "Onde armazenar a categoria," abaixo) — formato de armazenamento (coluna simples com `CHECK` vs. entidade de referência) ainda não decidido; a recomendação atual é uma coluna simples nesta primeira versão, por Card Category ter poucos valores estáveis.
+- Restrições propostas: `UNIQUE (card_set_id, card_number)`, `UNIQUE (card_set_id, card_order)`, `CHECK (btrim(card_number) <> '')`, `CHECK (card_order > 0)` — deliberadamente **sem** uma expressão regular de formato para `card_number` (justificativa: formatos variam entre jogos/publicações; uma restrição rígida poderia bloquear um código oficial válido).
+- `card_set_id`: `ON DELETE RESTRICT`, mesmo padrão já usado em toda a hierarquia editorial.
+
+**Critério campo-a-campo, usado para decidir Card vs. Card Printing:** *"Se o valor permanecer verdadeiro independentemente do idioma e da revisão impressa, ele pertence à Card. Se o valor puder mudar conforme idioma, mercado, arte ou revisão, ele pertence à Card Printing."*
+
+**Critério campo-a-campo, refinado e usado para decidir o que é estruturado vs. deixado apenas na imagem (ver AP-017):** *"Estruturamos informações que permitem identificar, classificar, filtrar, organizar ou avaliar a coleção. Não estruturamos atributos usados exclusivamente para jogar."*
+
+**Classificação Resolvida (RESOLVIDO — decisão direta de Fabrício, ver AP-017):**
+
+Um lote de modelagem trouxe uma lista completa campo-a-campo (Rarity, Category, HP, Tipo Elemental, Estágio, Número da Pokédex, Evolui De, Fraqueza/Resistência/Recuo, Illustrator, Ilustração, Nome) com uma recomendação inicial de destino para cada um. Ao revisar essa lista, **Fabrício determinou diretamente**: *"Não faço questão dessas informações em nossa base de dados. Lembre que essas informações são relevantes para o jogo e não para o colecionismo."* — referindo-se especificamente a HP, estágio, tipo elemental, fraqueza, resistência, custo de recuo, espécie/Pokémon como entidade estrutural, ataques, habilidades e texto de regras. Essa diretriz foi formalizada como **AP-017 (Princípio do Escopo Colecionável)** e também atualiza ADR-011 e ADR-012 (ver ambas).
+
+Classificação final, resultante dessa correção e confirmada num lote seguinte por dois casos de uso concretos de Fabrício (filtrar Treinadores de um Set; filtrar apenas cartas SAR possuídas):
+
+| Informação | Destino |
+|---|---|
+| Set, Número oficial, Ordem no checklist | `card` |
+| Categoria (Card Category) | `card` (`category_code`) |
+| Raridade (Rarity) | `card` (`rarity_id`, FK — ver "Rarity," acima) |
+| Nome localizado, Idioma, Arte, Ilustrador, Revisão impressa | `card_printing` |
+| Holofoil, Reverse Holofoil, Selo | `card_variant` |
+| Condição física, Preço pago, Quantidade possuída | `collection_item` |
+| **HP, Estágio, Tipo elemental, Fraqueza, Resistência, Custo de recuo, Espécie/Pokémon (como entidade estrutural), Ataques, Habilidades, Texto de regras** | **Fora do banco de dados** — permanecem visíveis apenas na imagem oficial da Card (ADR-012, AP-017) |
+
+**Consequência arquitetural:** a especialização por categoria de conteúdo de jogo (uma tabela `pokemon_card`, e por extensão `trainer_card`/`energy_card`) **deixa de ser necessária**. O modelo permanece nas quatro camadas já estabelecidas, sem uma camada adicional de "detalhes de jogo": `Card Set → Card → Card Printing → Card Variant → Collection Item`.
+
+**Illustrator, especificamente, foi reclassificado para `card_printing`** (não para `card` como registrado anteriormente em "Atributos e Relações da Card," acima) — raciocínio: a autoria de uma ilustração pertence à impressão visual concreta, não à posição abstrata do checklist; se uma mesma posição editorial tiver impressões com artes distintas, o Illustrator também pode diferir entre elas. Ver nota de correção cruzada nessa seção.
+
+**Onde armazenar a categoria (RESOLVIDO):** `category_code` permanece em `card`, mesmo não sendo essencial para identificar a Card (a identidade já está completa com `card_set_id + card_number`). Motivo, levantado por Fabrício com um caso de uso concreto ("Se eu quiser aplicar o filtro num determinado Set para listar apenas as cartas de Treinadores"): a categoria precisa existir como dado estruturado para filtrar/listar/separar/gerar estatísticas por categoria dentro do catálogo e da coleção — não é importante para a mecânica do jogo em si, mas é relevante para o uso do catálogo (mesmo critério do AP-017 refinado, acima). Valores iniciais previstos para o módulo Pokémon TCG: `POKEMON`, `TRAINER`, `ENERGY`.
+
+> **Ponto em aberto, sinalizado, não resolvido unilateralmente:** o valor `ENERGY` aparece pela terceira vez em lotes de modelagem física (23º, 24º e este) como um valor inicial cogitado para `category_code` — mas isso segue contradizendo a "Decisão de Escopo — Cartas de Energia" já registrada abaixo em Card Category, que exclui cartas de Energia do catálogo numerado inteiramente (não ocupam posição no Set). Como o valor `ENERGY` já apareceu de forma concreta em exemplos de SQL neste lote, este ponto precisa de uma resposta explícita de Fabrício antes da Query `140`/`141`: cartas de Energia devem passar a ocupar posição no catálogo numerado (revertendo a decisão de Card Category), ou `ENERGY` é apenas um valor de exemplo genérico do material recebido, sem intenção real de uso?
+
+Rarity, especificamente: **RESOLVIDO** — ver "Modelagem Lógica Resolvida" na seção Rarity, acima. `rarity_id` (FK para uma entidade de referência própria, vinculada ao Game), não um texto solto — decisão confirmada por Fabrício.
+
+**Em aberto — sinalizado, não resolvido unilateralmente:**
+
+- **"Card Printing" vs. Card Translation:** o conceito `card_printing` tem escopo reconfirmado neste lote — idioma, nome/conteúdo localizado, arte (inclusive diferenças de ilustração sob o mesmo número), Illustrator e revisões/erratas. Isso é mais amplo do que o já registrado **Card Translation** (ver seção abaixo), que hoje cobre apenas conteúdo editorial por idioma. Ainda não decidido: se `card_printing` deve substituir/renomear Card Translation, se são conceitos distintos, ou se é uma reformulação a ser incorporada. **Não decidir isso unilateralmente** — aguardar confirmação explícita de Fabrício.
+- **"Card Variant" (finish + stamp) vs. Finish / Card Finish:** o termo "Card Variant" — retirado do vocabulário conceitual por ADR-010 em favor de Finish/Card Finish — segue sendo usado de forma consistente e deliberada pelo par que executa no Supabase, incluindo exemplos concretos combinando acabamento e selo em uma mesma Card Variant (`Holofoil`, `Holofoil + Jogue Pokémon Stamp`). **Precisa da decisão de Fabrício**: qual nomenclatura prevalece no vocabulário do projeto — Finish/Card Finish (ADR-010) ou Card Variant (uso consistente no par Supabase)?
+- **"ENERGY" como valor de `category_code`:** ver ponto em aberto destacado acima — contradiz a decisão de escopo já registrada em Card Category. Não presumir mudança.
+- **Formato de armazenamento de `category_code`:** coluna simples com `CHECK` (recomendação atual) vs. entidade de referência própria — não decidido, mas de menor urgência que os pontos acima (Rarity já foi resolvida como entidade; Category segue como coluna simples até haver necessidade concreta de mudar).
+
+Nenhuma dessas questões restantes foi respondida de forma definitiva por Fabrício até este ponto, com exceção da exclusão de mecânica de jogo (essa, sim, uma decisão direta e confirmada).
 
 ---
 
@@ -823,6 +940,8 @@ Existem duas categorias distintas de informação linguística no domínio:
 **Idioma do exemplar físico** — pertence ao patrimônio do usuário (Collection Item). Indica qual versão linguística impressa o usuário efetivamente possui.
 
 O catálogo conhece os nomes oficiais em todos os idiomas suportados, independentemente de qualquer usuário possuir um exemplar em determinado idioma.
+
+> **Nota em aberto:** um lote recente de modelagem física (ver "Modelagem Física — Discussão Iniciada," na seção Card, acima) propôs uma camada chamada `card_printing` com escopo muito próximo a este conceito. Ainda não confirmado se são o mesmo conceito sob nomes diferentes ou algo distinto — não presumir renomeação até confirmação de Fabrício.
 
 ---
 
@@ -903,22 +1022,54 @@ Permite registrar oficialmente o nível de raridade de cada Card, exatamente com
 Conceitualmente, uma Rarity:
 
 - é um valor de um conjunto controlado de classificações oficiais;
-- pertence a uma Card como atributo/relação direta.
-
-A estrutura definitiva (lista fechada vs. extensível, campos adicionais) será avaliada durante a modelagem lógica.
+- pertence a uma Card como atributo/relação direta;
+- **pertence a um Game, não diretamente a uma Expansion ou Set** (ver "Modelagem Lógica Resolvida," abaixo) — cada jogo possui seu próprio conjunto de raridades, que não deve ser misturado com o de outro jogo.
 
 ---
 
 ### Relacionamentos
 
 ```text
-Card
- N
+Game
+ 1
  │
- └── 1 Rarity
+ └── N Rarity
+        │
+        └── N Card
 ```
 
-Cada Card possui uma única Rarity. Uma mesma Rarity pode se aplicar a diversas Cards.
+Cada Card possui uma única Rarity, referenciada por chave estrangeira (não por texto solto). Uma mesma Rarity pode se aplicar a diversas Cards. Uma Rarity pertence a exatamente um Game; diferentes Games não compartilham as mesmas linhas de Rarity, mesmo que usem nomes parecidos.
+
+---
+
+### Modelagem Lógica Resolvida — Entidade de Referência Própria (aprovado por Fabrício)
+
+Um lote de modelagem física (ver "Modelagem Física — Discussão Iniciada," na seção Card, acima) resolveu a questão de estrutura deixada em aberto acima: **Rarity é uma entidade de referência própria, vinculada ao Game — não um texto solto (`rarity_code VARCHAR`) na própria Card.**
+
+Motivo, testado explicitamente contra um texto-solto: cada TCG possui raridades próprias; o mesmo conceito pode ter códigos diferentes conforme idioma ou mercado; raridades mudam entre eras editoriais de um mesmo jogo; texto livre tem risco de erro de digitação; controlar a ordem de apresentação é difícil sem um campo próprio; filtros poderiam misturar classificações de jogos diferentes sem uma entidade que as agrupe por Game.
+
+Atributos propostos e aprovados:
+
+```text
+rarity
+  id             UUID
+  game_id        UUID
+  code           VARCHAR
+  name           VARCHAR
+  display_order  INTEGER
+  created_at     TIMESTAMPTZ
+  updated_at     TIMESTAMPTZ
+```
+
+- `code` — código técnico estável (ex.: `SPECIAL_ILLUSTRATION_RARE`), ou, quando o código oficial curto for relevante para o mercado, uma forma abreviada (ex.: `SAR`).
+- `name` — nome oficial ou principal de exibição (ex.: `Special Art Rare`).
+- `display_order` — permite ordenar raridades em uma sequência lógica (ex.: `1 COMMON, 2 UNCOMMON, 3 RARE, 4 DOUBLE_RARE, 5 ILLUSTRATION_RARE, 6 SPECIAL_ILLUSTRATION_RARE, 7 HYPER_RARE`); a ordem não deve ser inferida alfabeticamente.
+
+> **Cuidado importante, sinalizado explicitamente pelo material recebido:** códigos abreviados como `SAR` e `SIR` podem representar nomenclaturas distintas em diferentes mercados ou linhas editoriais — **não presumir automaticamente que são o mesmo valor** entre catálogos diferentes. O banco deve preservar a classificação oficial exatamente como usada no catálogo correspondente. Uma futura classificação normalizada para agrupar raridades equivalentes entre catálogos (ex.: `official_code`/`rarity_group`) foi mencionada como possibilidade, mas deliberadamente **não faz parte da primeira versão**, sem necessidade comprovada (AP-004).
+
+Motivado por um caso de uso concreto levantado pelo próprio Fabrício ("Eventualmente posso querer aplicar um filtro para selecionar apenas as minhas cartas SAR"): Rarity foi confirmada como um atributo essencial para o colecionismo (ver AP-017 — serve para filtrar/classificar/organizar a coleção, não apenas para jogar), devendo ser estruturada desde a primeira versão da Card.
+
+**Este modelo foi explicitamente aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!") — ver `05-modelo-de-dados.md` para o modelo lógico completo e a proposta de DDL (ainda não executada no Supabase).
 
 ---
 
@@ -1037,6 +1188,8 @@ Card
 
 > **Nota sobre nomenclatura física:** o schema físico já existente no projeto utiliza as tabelas `card_variant` e `card_variant_type`, nomeadas antes desta refinamento conceitual. A relação entre esses nomes físicos e os termos conceituais Finish/Card Finish definidos aqui (renomear a tabela física ou apenas mapear os conceitos) é uma decisão que será tomada durante a modelagem física (`05-modelo-de-dados.md`), e não está resolvida por este documento.
 
+> **Nota em aberto:** um lote recente de modelagem física (ver "Modelagem Física — Discussão Iniciada," na seção Card, acima) reintroduziu o termo "Card Variant" e propôs tratar `finish` e um novo campo `stamp` como dimensões independentes. Não avaliado nem aprovado — não implementar antes de decisão explícita.
+
 ---
 
 ## Card Category (Categoria da Carta)
@@ -1079,6 +1232,8 @@ Cartas de Energia **não são tratadas como Cards do Set** neste modelo, porque,
 - não aparecem como itens obrigatórios no checklist oficial da coleção.
 
 Consequentemente, Card Category possui apenas dois valores neste catálogo: **Pokémon** e **Trainer**. Isso não significa que uma carta física de Energia nunca poderá ser controlada pelo sistema — apenas que ela não pertence a este catálogo numerado. Caso futuramente exista necessidade concreta de controlar Energias avulsas, elas deverão ser avaliadas em outro contexto (ex.: uma entidade específica de acessório/suplemento), não antecipado por este documento.
+
+> **Nota em aberto:** um lote recente de modelagem física (ver "Modelagem Física — Discussão Iniciada," na seção Card, acima) mencionou "Energy Card" como uma terceira especialização de conteúdo, o que contradiz esta decisão de escopo. Não presumir que a decisão mudou — sinalizar a Fabrício antes de qualquer ajuste.
 
 ---
 
@@ -1290,6 +1445,8 @@ Pokémon TCG Domain (específico)
 
 Nem todo campo listado acima (HP, Attacks, Ability, Weakness, Resistance, Retreat Cost, Evolution Stage, texto de regras) precisa necessariamente virar uma coluna pesquisável desde a primeira versão. Ver `07-catalogo-editorial.md` e ADR-012 para o critério de quando uma informação deve receber estrutura própria versus permanecer disponível apenas através da imagem oficial da Card.
 
+> **Atualização (RESOLVIDO — ver AP-017):** o parágrafo acima tratava essa lista como uma classificação da primeira versão, com possível estruturação futura. Fabrício determinou diretamente que esse grupo específico (mecânica de jogo) não deve ser estruturado no banco de dados — permanentemente, não apenas por ora — porque o Project Mimikyu é uma plataforma de colecionismo, não um banco de dados de mecânicas de jogo (ver AP-017 e ADR-011/ADR-012 atualizadas). Consequência: `Pokémon Card Details`/`Trainer Card Details` permanecem como arquitetura válida, mas sem conteúdo de jogo concreto planejado — nenhuma tabela `pokemon_card`/`trainer_card` será criada com esses campos.
+
 ---
 
 ## Collection Item (Item da Coleção)
@@ -1481,3 +1638,7 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.14 | Adicionado um terceiro tipo de Set: `PROMO` (cartas promocionais Black Star), registrado como `card_set` comum vinculado à Expansion, com convenção fixa de preenchimento (código/nome/ordem/data/quantidades derivados da Expansion) em vez de campos opcionais — ver ADR-015. Nova seção "Card Set Promocional" e atualização de "Classificação Editorial" e "Visão Conceitual Consolidada". Nota de modelo do Set atualizada: tabela física já executada no Supabase (cinco Sets reais cadastrados), `set_type` sendo ampliado via migration `122` (planejada, não executada), Query de validação `920` redigida mas ainda sem confirmação de execução. |
 | 1.15 | **Pacote técnico da entidade Set concluído.** Migration `122` executada (constraint ampliada, `release_order` deslocado), Set promocional real cadastrado (`ME0 — ME Black Star Promos`, 89 cartas), validação `920` v2.0 confirmada por Fabrício. Seção "Card Set Promocional" atualizada com o dado real e a divergência sinalizada (índice único parcial recomendado por ADR-015 não foi implementado). Único item aberto: reescrita da Query de Seed `820` para incluir o Set promocional no snapshot completo da Expansion. |
 | 1.16 | Atualizada a seção "Card Set Promocional" para refletir o Princípio da Fonte Canônica (STD-001, Seção 10): o índice único parcial, antes divergente, já está presente na Query canônica `120` v2.0 — mas seu status no banco físico atual permanece não confirmado (ver `05-modelo-de-dados.md`, seção Set). |
+| 1.17 | Iniciada a discussão da modelagem física da Card (rumo à Query `130`), via o par Fabrício/ChatGPT que executa no Supabase. Adicionada a seção "Modelagem Física — Discussão Iniciada (Query 130), Não Concluída": confirma alinhamento com decisões já registradas (identidade Set+Número, derivação da numeração exibida, fronteira Card/Collection Item, padrão Card Details); sinaliza três pontos em aberto, não resolvidos unilateralmente — possível sobreposição entre a proposta "Card Printing" e o já registrado Card Translation; reintrodução do termo "Card Variant" (retirado por ADR-010) com uma nova ideia de dimensões independentes `finish`/`stamp`; menção a "Energy Card" como especialização, que contradiz a decisão de escopo já registrada em Card Category (exclusão de cartas de Energia do catálogo numerado). Adicionadas notas cruzadas em Card Translation, Card Finish e Card Category apontando para a discussão. Nenhuma tabela física de Card foi criada ou aprovada nesta revisão — discussão explicitamente continua em lote futuro. |
+| 1.18 | Avançada a discussão da modelagem física da Card (segundo lote do par Fabrício/ChatGPT). Adicionado à seção "Modelagem Física — Discussão Iniciada": modelo proposto em quatro camadas (Card → Card Printing → Card Variant → Collection Item), a regra "produto diferente não cria variante, carta fisicamente diferente cria variante", a tabela de critério (qual diferença gera nova Card/Printing/Variant), o teste da premissa `card_set_id + card_number` contra o caso de arte diferente com mesmo número (resolvido a favor de manter Card como posição abstrata do checklist), e a definição + atributos mínimos propostos para `card` (id, card_set_id, `card_number` como texto, novo campo `card_order`, created_at, updated_at — deliberadamente sem nome/raridade/HP/tipo/ilustrador). As duas questões de nomenclatura seguem em aberto, agora mais concretas: Card Printing (escopo ampliado — também cobre arte e revisão/errata) vs. Card Translation; e Card Variant (uso consistente em dois lotes) vs. Finish/Card Finish (ADR-010). Adicionada quarta questão em aberto: onde ficam HP/Rarity/Category/Type/Stage/Pokédex Number/Illustrator — o próprio material propôs e depois recuou dessa divisão, deixando-a para um lote futuro. Nenhuma DDL de Card escrita ou aprovada — segue sem confirmação explícita de Fabrício sobre os pontos em aberto. |
+| 1.19 | **Decisão direta de Fabrício, formalizada como AP-017 (Princípio do Escopo Colecionável):** mecânica de jogo (HP, estágio, tipo elemental, fraqueza, resistência, custo de recuo, ataques, habilidades, texto de regras, espécie/Pokémon como entidade estrutural) não será estruturada no banco de dados — permanece apenas na imagem oficial da Card. Adicionada "Classificação Resolvida" à seção Card com a tabela final de destino por informação; `category_code` e `rarity_code` adicionados aos atributos mínimos de `card` (formato de armazenamento ainda em avaliação); Illustrator reclassificado de Card para Card Printing (correção cruzada adicionada em "Atributos e Relações da Card"); nota de resolução adicionada a "Card Details" e seu "Nota sobre estruturação de dados". Questão "Energy Card" em grande parte esvaziada (não há mais tabelas especializadas por categoria de jogo). Seguem em aberto: nomenclatura Card Printing vs. Card Translation, Card Variant vs. Finish/Card Finish, e formato de armazenamento de `category_code`/`rarity_code`. ADR-011 e ADR-012 atualizadas com a mesma correção. |
+| 1.20 | **Modelo de Card e Rarity aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!"). Rarity promovida de atributo solto a entidade de referência própria, vinculada ao Game (`id, game_id, code, name, display_order`), com alerta sobre não presumir equivalência entre códigos abreviados de mercados diferentes (ex. `SAR`/`SIR`). Card ganha `rarity_id` (FK, resolvendo a pendência de armazenamento de Rarity) mantendo `category_code` como coluna simples (categoria confirmada como necessária por um caso de uso concreto de filtro por Set). Adicionado critério refinado de estruturação ("identificar/classificar/filtrar/organizar/avaliar a coleção, não jogar"). Sinalizado novo ponto em aberto: `ENERGY` reapareceu como valor cogitado de `category_code`, pela terceira vez contradizendo a exclusão de cartas de Energia do catálogo numerado — precisa de resposta explícita de Fabrício antes da Query `140`/`141`. |

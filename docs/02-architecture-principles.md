@@ -116,6 +116,18 @@ O catálogo é único; as formas de colecionar são infinitas.
 
 O catálogo editorial (Game, Expansion, Set, Card e demais conceitos editoriais) nunca deve ser adaptado para atender a um tipo específico de coleção. A flexibilidade necessária para suportar diferentes formas de colecionar — oficiais, temáticas ou personalizadas — pertence exclusivamente à entidade Collection (ver ADR-014), nunca ao catálogo.
 
+## AP-017 — Princípio do Escopo Colecionável
+
+**O Project Mimikyu é uma plataforma de colecionismo, não um banco de dados de mecânicas de jogo.**
+
+Informações relevantes apenas para jogar uma partida — HP, estágio evolutivo, tipo elemental, fraqueza, resistência, custo de recuo, ataques, habilidades, texto de regras e demais mecânicas de jogabilidade — não são estruturadas no banco de dados, independentemente de quão detalhado seja o catálogo editorial. Essas informações continuam visíveis para o usuário através da imagem oficial da Card (ver ADR-012), mas não precisam de campos próprios, filtros ou entidades de apoio.
+
+Isso vale mesmo para informações que, à primeira vista, parecem estruturáveis por reduzirem duplicação (ex.: uma entidade `Pokémon` centralizando HP/ataques compartilhados entre Cards da mesma espécie) — a pergunta decisiva não é "isso se repete entre Cards?" (AP-014), mas sim **"isso serve para colecionar, ou apenas para jogar?"**. Uma entidade de referência para o personagem/espécie Pokémon pode continuar existindo de forma mínima quando necessária para identificar e relacionar Cards (ver ADR-011), mas nunca para armazenar suas estatísticas de batalha.
+
+Este princípio nasceu de uma correção direta de Fabrício durante a modelagem física da Card: "Não faço questão dessas informações em nossa base de dados. Lembre que essas informações são relevantes para o jogo e não para o colecionismo." Ele reforça e torna permanente — não apenas uma fase inicial (V1) — o lado "Visual Source" do modelo de três níveis já estabelecido em ADR-012 para esse grupo específico de informações.
+
+Consequência prática: especializações de conteúdo por categoria de Card (ex.: uma tabela `pokemon_card` para HP/estágio/tipo/fraqueza/resistência/recuo) deixam de ser necessárias — o padrão Card Details / Pokémon Card Details / Trainer Card Details definido em ADR-011 permanece válido como arquitetura de extensão por módulo, mas seu conteúdo concreto de mecânica de jogo fica vazio/adiado indefinidamente, não apenas para a primeira versão.
+
 ---
 
 # Revision History
@@ -128,6 +140,7 @@ O catálogo editorial (Game, Expansion, Set, Card e demais conceitos editoriais)
 |1.3|Adicionado AP-015 (Progressive Catalog Enrichment), formalizando o critério de estruturação de dados já registrado em ADR-012.|
 |1.4|Adicionado AP-016 (Catalog Uniqueness Principle), formalizando que o catálogo nunca deve ser adaptado para um tipo específico de coleção — a flexibilidade pertence à Collection (ver ADR-014). Adicionado exemplo de aplicação ("Princípio da Simplicidade Inicial") a AP-004.|
 |1.5|Reforçado o exemplo de aplicação de AP-004: nenhuma entidade recebe atributos por uma "forma padrão" presumida — cada atributo precisa justificar sua existência, mesmo campos aparentemente universais como `status`.|
+|1.6|Adicionado AP-017 (Princípio do Escopo Colecionável), a partir de uma correção direta de Fabrício durante a modelagem física da Card: informações de mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio, texto de regras) não são estruturadas no banco de dados — permanecem apenas na imagem oficial da Card (ADR-012), permanentemente, não apenas na primeira versão. Torna o padrão Card Details/Pokémon Card Details/Trainer Card Details (ADR-011) uma arquitetura sem conteúdo de jogo concreto planejado.|
 
 
 

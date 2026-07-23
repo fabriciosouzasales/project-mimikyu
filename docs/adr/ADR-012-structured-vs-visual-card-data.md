@@ -66,6 +66,14 @@ A pergunta a ser feita nunca é "temos ou não temos essa informação?" — é 
 - funcionalidades que dependam de busca ou filtro por um campo hoje não-estruturado (ex.: "buscar Cards com HP acima de X") não estarão disponíveis até que esse campo seja estruturado;
 - a lista de campos estruturados nesta ADR reflete a primeira versão e deve ser revisada quando uma funcionalidade concreta exigir um novo campo estruturado.
 
+## Atualização — Escopo de Mecânica de Jogo Tornado Permanente (ver AP-017)
+
+Esta ADR originalmente tratava o grupo "Visual Source" (HP, Attacks, Abilities, Weakness, Resistance, Retreat Cost, Evolution Stage, Detailed Rules Text) como uma classificação da **primeira versão**, com possível promoção futura a "Extracted Data" via OCR/importação/enriquecimento progressivo. Fabrício determinou diretamente, durante a modelagem física da Card, que esse grupo específico (mecânica de jogo) não deve ser estruturado — permanentemente, não apenas na primeira versão — porque o Project Mimikyu é uma plataforma de colecionismo, não um banco de dados de mecânicas de jogo. Essa diretriz foi formalizada como **AP-017 (Princípio do Escopo Colecionável)**.
+
+O modelo de três níveis (Structured / Visual Source / Extracted) desta ADR continua válido como framework geral — a mudança é que, para o subconjunto específico de campos de jogabilidade, a promoção a "Extracted Data" deixa de ser um caminho de evolução natural esperado e passa a exigir uma justificativa de produto tão forte quanto qualquer nova estruturação sob AP-004/ADR-012.
+
+Também é necessário corrigir a lista de "Structured Data" (Seção 1, acima): **"Pokémon reference"** deixa de ser um campo estruturado planejado para a primeira versão da Card — ver a atualização equivalente em ADR-011. A entidade Pokémon mínima permanece possível no futuro, apenas mediante necessidade concreta de identificação/pesquisa/agrupamento.
+
 ---
 
 # Alternatives Considered
@@ -93,3 +101,4 @@ Rejeitada por impedir funcionalidades essenciais do produto, como identificar a 
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro do modelo de três níveis de disponibilidade de informação e do critério de estruturação de campos da Card. |
+| 1.1 | Adicionada "Atualização — Escopo de Mecânica de Jogo Tornado Permanente": o grupo Visual Source de mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio, texto de regras) deixa de ser apenas uma classificação da primeira versão — Fabrício determinou que é permanente, formalizado em AP-017. Corrigida a lista de Structured Data: "Pokémon reference" removido como campo planejado para a primeira versão (ver ADR-011). |

@@ -1139,9 +1139,278 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 
 ---
 
+# Rarity (Raridade)
+
+Status: **Modelo lógico aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!"). **Execução no Supabase ainda pendente** — Query `130` é o próximo passo real, ainda não confirmado como executado nesta documentação.
+
+## Modelo Lógico
+
+```text
+Rarity
+
+Identidade
+----------
+id
+code
+
+Descrição
+----------
+name
+
+Relacionamento
+----------
+game_id
+
+Ordenação
+----------
+display_order
+
+Auditoria
+----------
+created_at
+updated_at
+```
+
+## Atributos
+
+**id** — Identificador técnico e permanente (UUID).
+
+**game_id** — Chave estrangeira obrigatória para `game`. Toda Rarity pertence a exatamente um Game — raridades não são compartilhadas entre jogos, mesmo quando usam nomes parecidos (ver `04-domain-model.md`, seção Rarity).
+
+**code** — Código técnico e estável (ex.: `SPECIAL_ILLUSTRATION_RARE`), ou, quando um código curto oficial for relevante para o mercado, uma forma abreviada (ex.: `SAR`). Único dentro do Game.
+
+**name** — Nome oficial ou principal de exibição (ex.: `Special Art Rare`).
+
+**display_order** — Posição em uma sequência lógica de apresentação (ex.: Common antes de Uncommon, antes de Rare...). Não deve ser inferida alfabeticamente.
+
+**created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
+
+## Campos que Não Incluiremos Agora
+
+Aplicando o Princípio da Simplicidade Inicial (AP-004): uma classificação normalizada para agrupar raridades equivalentes entre catálogos/mercados diferentes (ex.: `official_code`/`rarity_group`, cogitada durante a discussão mas sem necessidade concreta comprovada ainda).
+
+## Regras de Negócio
+
+**Regra 1 — Relacionamento obrigatório.** Toda Rarity deve pertencer a exatamente um Game.
+
+**Regra 2 — Código único por Game.** O código deve ser único dentro do respectivo Game (`UNIQUE (game_id, code)`), não globalmente — mesmo padrão de unicidade escopada já aplicado a Expansion e Set.
+
+**Regra 3 — Nome e código obrigatórios.** Nem `code` nem `name` podem ser vazios.
+
+**Regra 4 — Não presumir equivalência entre mercados.** Códigos abreviados como `SAR` e `SIR` podem representar classificações distintas em diferentes mercados ou linhas editoriais — o banco preserva a classificação oficial exatamente como usada no catálogo correspondente, sem normalização automática entre eles (ver `04-domain-model.md`, seção Rarity).
+
+**Regra 5 — Exclusão restrita.** Um Game que já possua Rarities não deve ser excluído (`ON DELETE RESTRICT`).
+
+## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+
+```sql
+CREATE TABLE public.rarity (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_id UUID NOT NULL,
+
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    display_order INTEGER NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_rarity_game
+        FOREIGN KEY (game_id)
+        REFERENCES public.game (id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT uq_rarity_game_code
+        UNIQUE (game_id, code),
+
+    CONSTRAINT ck_rarity_code_not_blank
+        CHECK (btrim(code) <> ''),
+
+    CONSTRAINT ck_rarity_name_not_blank
+        CHECK (btrim(name) <> ''),
+
+    CONSTRAINT ck_rarity_display_order_positive
+        CHECK (display_order > 0)
+);
+
+ALTER TABLE public.rarity
+ENABLE ROW LEVEL SECURITY;
+```
+
+> **Nota:** este DDL é uma proposta seguindo os padrões já estabelecidos em STD-001 e o mesmo formato usado em `game`/`expansion` (mesma forma: entidade de referência com `code`+`name`+ordenação, escopada a uma entidade-pai). Os tipos e nomes de constraint específicos (`VARCHAR(50)`, `VARCHAR(100)`, nomes de constraint) podem ser ajustados na execução real, assim como já ocorreu com Card Set (`code` passou de `VARCHAR(20)` planejado para `VARCHAR(50)` executado). Não presumir que este SQL foi executado até confirmação.
+
+## Definition of Done
+
+- [x] modelo lógico definido, por grupo;
+- [x] atributos e campos adiados definidos;
+- [x] regras de negócio definidas;
+- [x] modelo físico proposto (DDL);
+- [ ] tabela `rarity` criada no Supabase (Query `130`);
+- [ ] RLS habilitado e confirmado;
+- [ ] trigger criado (`131`) e verificado;
+- [ ] seed executado (`830` — raridades reais do Pokémon TCG, com dados validados);
+- [ ] validação executada e confirmada (`930`).
+
+## Queries Associadas
+
+```text
+130 - Create Rarity Table
+131 - Create Rarity Trigger
+830 - Seed Rarity
+930 - Validate Rarity
+```
+
+Rarity precisa ser criada antes de Card, por dependência de chave estrangeira (`card.rarity_id`) — ver STD-001, Seção 10.
+
+---
+
 # Card (Carta)
 
-*Documentação pendente.*
+Status: **Modelo lógico aprovado por Fabrício** ("Excelente. Temos a definição agora. Vamos seguir com a execução!"). **Execução no Supabase ainda pendente** — depende da criação prévia de `rarity` (Query `130`). Query `140 - Create Card Table` é o próximo passo real após Rarity. **Itens em aberto que precisam de confirmação de Fabrício antes da execução:** nomenclatura Card Printing vs. Card Translation; nomenclatura Card Variant vs. Finish/Card Finish; se `category_code` deve aceitar `ENERGY` (ver "Regras de Negócio," abaixo — contradiz uma decisão de escopo já registrada) — ver `04-domain-model.md`, seção Card, "Modelagem Física — Discussão Iniciada".
+
+## Modelo Lógico
+
+```text
+Card
+
+Identidade
+----------
+id
+card_number
+card_order
+
+Descrição
+----------
+category_code
+
+Relacionamento
+----------
+card_set_id
+rarity_id
+
+Auditoria
+----------
+created_at
+updated_at
+```
+
+## Atributos
+
+**id** — Identificador técnico e permanente (UUID).
+
+**card_set_id** — Chave estrangeira obrigatória para `card_set`. Toda Card pertence a exatamente um Card Set (ver ADR-004 — identidade Set + Número da Card).
+
+**rarity_id** — Chave estrangeira obrigatória para `rarity` (ver seção Rarity, acima). Não armazenado como texto solto — decisão resolvida após avaliar riscos de duplicação/inconsistência entre jogos e mercados.
+
+**card_number** — Número oficial impresso ou atribuído à Card, armazenado como texto (`VARCHAR`), nunca inteiro — preserva zeros à esquerda (`003`), prefixos (`TG01`), sufixos e numerações alfanuméricas de outros TCGs ou formatos editoriais futuros, sem conversão.
+
+**card_order** — Posição sequencial da Card no checklist do Card Set, tecnicamente distinta de `card_number`: usada para ordenação correta (comparar `card_number` como texto ordenaria `001, 010, 011, 002` incorretamente) e sustenta numerações futuras não numéricas (`TG01`, `SV01`) sem regras especiais de conversão.
+
+**category_code** — Classifica a Card (Pokémon ou Trainer no escopo atual — ver "Regras de Negócio," abaixo para a pendência sobre `ENERGY`). Mantido como coluna simples nesta primeira versão, não como entidade de referência — poucos valores estáveis. Necessário para filtros concretos do produto (ex.: listar apenas Cards de Treinador de um Set), não apenas para identificar a Card.
+
+**created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
+
+## Campos que Não Incluiremos Agora
+
+Aplicando o Princípio da Simplicidade Inicial (AP-004) e o Princípio do Escopo Colecionável (AP-017):
+
+- **Nome, idioma, texto localizado, arte, ilustrador, revisão/errata** — pertencem à camada Card Printing (ainda não modelada fisicamente; nomenclatura frente a Card Translation ainda não decidida por Fabrício).
+- **Acabamento (Holofoil, Reverse Holofoil), selo** — pertencem à camada Card Variant / Finish-Card Finish (nomenclatura ainda não decidida por Fabrício).
+- **HP, estágio, tipo elemental, fraqueza, resistência, custo de recuo, ataques, habilidades, texto de regras, referência estrutural a Pokémon** — permanentemente fora do banco de dados (mecânica de jogo, não colecionismo — ver AP-017). Continuam visíveis apenas na imagem oficial da Card.
+- **Condição física, preço pago, quantidade possuída, localização, grading, notas** — pertencem ao Collection Item.
+- **Preço de mercado** — domínio de mercado/preços, não modelado ainda.
+
+## Regras de Negócio
+
+**Regra 1 — Relacionamento obrigatório.** Toda Card deve pertencer a exatamente um Card Set.
+
+**Regra 2 — Raridade obrigatória.** Toda Card deve referenciar uma Rarity (`rarity_id NOT NULL`).
+
+**Regra 3 — Número único por Card Set.** O número deve ser único dentro do respectivo Card Set (`UNIQUE (card_set_id, card_number)`), não globalmente.
+
+**Regra 4 — Ordem única por Card Set.** A posição no checklist deve ser única dentro do respectivo Card Set (`UNIQUE (card_set_id, card_order)`) e um número inteiro positivo.
+
+**Regra 5 — Número não vazio, sem formato rígido.** `card_number` não pode ser vazio, mas deliberadamente **sem** uma expressão regular de formato — formatos variam entre jogos/publicações; uma restrição rígida poderia bloquear um código oficial válido.
+
+**Regra 6 — Categoria restrita.** `category_code` deve ser `POKEMON` ou `TRAINER`.
+
+> **Pendência sinalizada, não resolvida unilateralmente:** um lote de modelagem física cogitou `ENERGY` como terceiro valor inicial de `category_code`, o que contradiz a "Decisão de Escopo — Cartas de Energia" já registrada em `04-domain-model.md` (Card Category) — cartas de Energia foram deliberadamente excluídas do catálogo numerado. Esta Regra 6 reflete a decisão já confirmada (apenas `POKEMON`/`TRAINER`); **não incluir `ENERGY` na constraint até confirmação explícita de Fabrício.**
+
+**Regra 7 — Exclusão restrita.** Um Card Set que já possua Cards não pode ser excluído (`ON DELETE RESTRICT`); uma Rarity que já esteja referenciada por Cards não pode ser excluída (`ON DELETE RESTRICT`).
+
+## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+
+```sql
+CREATE TABLE public.card (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_set_id UUID NOT NULL,
+    rarity_id UUID NOT NULL,
+
+    card_number VARCHAR(30) NOT NULL,
+    card_order INTEGER NOT NULL,
+    category_code VARCHAR(20) NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_card_card_set
+        FOREIGN KEY (card_set_id)
+        REFERENCES public.card_set (id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_card_rarity
+        FOREIGN KEY (rarity_id)
+        REFERENCES public.rarity (id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT uq_card_card_set_number
+        UNIQUE (card_set_id, card_number),
+
+    CONSTRAINT uq_card_card_set_order
+        UNIQUE (card_set_id, card_order),
+
+    CONSTRAINT ck_card_number_not_blank
+        CHECK (btrim(card_number) <> ''),
+
+    CONSTRAINT ck_card_order_positive
+        CHECK (card_order > 0),
+
+    CONSTRAINT ck_card_category
+        CHECK (category_code IN ('POKEMON', 'TRAINER'))
+);
+
+ALTER TABLE public.card
+ENABLE ROW LEVEL SECURITY;
+```
+
+> **Nota:** este DDL é uma proposta seguindo os padrões já estabelecidos em STD-001, refletindo o modelo mínimo aprovado por Fabrício. A constraint `ck_card_category` inclui deliberadamente apenas `POKEMON`/`TRAINER` — ver Regra 6 acima sobre a pendência de `ENERGY`. Tipos e nomes de constraint específicos podem ser ajustados na execução real. Não presumir que este SQL foi executado até confirmação.
+
+## Definition of Done
+
+- [x] modelo lógico definido, por grupo;
+- [x] atributos e campos adiados definidos, incluindo o escopo confirmado por AP-017;
+- [x] regras de negócio definidas (com a pendência de `ENERGY` sinalizada, não resolvida);
+- [x] modelo físico proposto (DDL);
+- [ ] confirmação de Fabrício sobre `ENERGY` como valor de `category_code`;
+- [ ] confirmação de Fabrício sobre a nomenclatura Card Printing vs. Card Translation;
+- [ ] confirmação de Fabrício sobre a nomenclatura Card Variant vs. Finish/Card Finish;
+- [ ] tabela `rarity` criada no Supabase (pré-requisito, ver seção Rarity);
+- [ ] tabela `card` criada no Supabase (Query `140`);
+- [ ] RLS habilitado e confirmado;
+- [ ] trigger criado (`141`) e verificado;
+- [ ] seed executado (`840`);
+- [ ] validação executada e confirmada (`940`).
+
+## Queries Associadas
+
+```text
+140 - Create Card Table
+141 - Create Card Trigger
+840 - Seed Card
+940 - Validate Card
+```
+
+Depende da existência prévia de `rarity` (`130`) e `card_set` (`120`). Card Printing e Card Variant (ou os nomes que Fabrício confirmar) ainda não têm números de Query atribuídos — dependem das decisões de nomenclatura em aberto.
 
 ---
 
@@ -1188,3 +1457,4 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 | 0.13 | **Pacote técnico da entidade Set concluído.** Migration `122 - Adapt Card Set for Promo` executada (transação com drop/add de constraint, deslocamento de `release_order`, nova constraint `ck_card_set_promo_size`). Set promocional real cadastrado via `821 - Seed Promo Card Set` (`ME0`, 89 cartas). Query `920` evoluída para versão 2.0 (cinco categorias, onze subconsultas), executada e confirmada por Fabrício ("Tudo ok"). Sinalizada divergência entre o índice único parcial recomendado por ADR-015 e o que foi de fato executado (não implementado). Nova seção "Pendência — Reescrita da Query 820": decisão de consolidar `820`+`821` em um único snapshot completo com `ON CONFLICT ... DO UPDATE`, SQL ainda não apresentado. Definition of Done quase completa — falta apenas essa reescrita. |
 | 0.14 | Adicionada nota apontando que todo SQL "executado" documentado aqui também existe como arquivo `.sql` versionado em `database/` (auditoria de saúde do repositório) — ver `database/README.md`. |
 | 0.15 | Adotado o Princípio da Fonte Canônica (STD-001, Seção 10) para Card Set. Queries `120` e `820` reescritas em `Versão 2.0` (Status `CANÔNICA`): `120` v2.0 já nasce com suporte nativo a `PROMO` e inclui o índice único parcial `uq_card_set_expansion_promo` (ausente na v1.0/migration `122`); `820` v2.0 consolida todos os seis Card Sets da Expansion `ME` (incluindo `ME0`) em um único snapshot com `ON CONFLICT ... DO UPDATE`. DDL e Seed originais preservados como histórico (v1.0). Queries `122` e `821` reclassificadas como `MIGRATION` — preservadas, mas fora do fluxo de instalação limpa. Pendência de reescrita da `820` marcada como RESOLVIDA (texto original preservado). Sinalizado item aberto: status do índice `uq_card_set_expansion_promo` no banco físico atual não confirmado, já que esta consolidação foi feita no repositório, não reexecutada no Supabase. Definition of Done e Queries Associadas atualizadas com Status por Query. |
+| 0.16 | Adicionadas as entidades **Rarity** e **Card**, ambas com modelo lógico completo e aprovado por Fabrício ("Vamos seguir com a execução!"), incluindo proposta de DDL (ainda não executada no Supabase). Rarity: entidade de referência vinculada ao Game (`id, game_id, code, name, display_order`), criada antes de Card por dependência de FK — Query `130`. Card: modelo mínimo (`id, card_set_id, rarity_id, card_number, card_order, category_code, created_at, updated_at`) — Query `140` (deslocada de `130`, cedido a Rarity). Substituído o stub "Documentação pendente" da seção Card. Sinalizadas três pendências antes da execução real: confirmação de Fabrício sobre `ENERGY` como valor de `category_code` (contradiz decisão de escopo já registrada), e as nomenclaturas Card Printing vs. Card Translation e Card Variant vs. Finish/Card Finish. |

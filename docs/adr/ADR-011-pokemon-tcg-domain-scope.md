@@ -71,6 +71,12 @@ Cards de categoria Trainer não possuem relação com Pokémon.
 - qualquer nova informação sobre Pokémon proposta no futuro deve ser avaliada quanto a ser necessária para identificação, pesquisa, agrupamento ou análise de Cards/coleções antes de ser adicionada à entidade Pokémon;
 - a estrutura definitiva de Pokémon Card Details e Trainer Card Details será avaliada durante a modelagem lógica, incluindo o critério de quais campos recebem estrutura própria (ver ADR-012).
 
+## Atualização — Escopo de Pokémon Card Details Esvaziado (ver AP-017)
+
+Durante a modelagem física da Card (`04-domain-model.md`, "Modelagem Física — Discussão Iniciada"), Fabrício deu uma diretriz direta e mais restritiva do que esta ADR originalmente previa: informações de mecânica de jogo — HP, estágio, tipo elemental, fraqueza, resistência, custo de recuo, ataques, habilidades — **não devem ser estruturadas no banco de dados**, mesmo que variem por publicação como já reconhecido aqui. Isso formalizou o novo **AP-017 (Princípio do Escopo Colecionável)**.
+
+Consequência prática: a arquitetura `Card → Card Details → Pokémon Card Details / Trainer Card Details` definida nesta ADR **permanece válida como padrão estrutural** (separação entre o Catalog Domain genérico e o Pokémon TCG Domain específico), mas seu conteúdo concreto de mecânica de jogo — que este documento originalmente atribuía a "Pokémon Card Details" — fica indefinidamente vazio/adiado, não apenas para a primeira versão. A entidade Pokémon mínima (`id`, `national_dex_number`, `canonical_name`) também deixa de ser um item planejado para a primeira versão da Card — permanece como possibilidade futura, apenas se e quando uma necessidade concreta de identificação/pesquisa/agrupamento surgir (mesmo critério de escopo já definido acima, agora reforçado por AP-017).
+
 ---
 
 # Alternatives Considered
@@ -98,3 +104,4 @@ Rejeitada por impedir relacionar todas as Cards que representam o mesmo Pokémon
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da decisão de escopo do domínio Pokémon TCG, com entidade Pokémon mínima e separação do módulo específico do Pokémon TCG do núcleo genérico multi-TCG. |
+| 1.1 | Adicionada "Atualização — Escopo de Pokémon Card Details Esvaziado": Fabrício determinou diretamente que mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio) não deve ser estruturada, formalizado em AP-017. O padrão Card Details/Pokémon Card Details/Trainer Card Details permanece válido como arquitetura, mas sem conteúdo de jogo planejado; a entidade Pokémon mínima deixa de ser item da primeira versão da Card. |
