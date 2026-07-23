@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.8 |
+| **Versão** | 0.9 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -94,7 +94,7 @@ Os seguintes pontos ainda não foram definidos e serão tratados em ciclos futur
 - estratégia de tratamento de falhas e reprocessamento — **respondido a nível de arquitetura** (`failure_stage`/`error_code`, `RETRY_FAILURES` — ver seção "Arquitetura de Execução", abaixo); implementação real ainda pendente;
 - estratégia de resolução de conflitos entre múltiplas fontes;
 - documentação conceitual formal do padrão de ativos visuais (`card_asset`, `card_asset_type`, `asset_source`, `asset_import_run`, `asset_import_failure`, `storage_bucket`) e se essa infraestrutura, hoje nomeada em torno de Card, se generaliza para Set (que precisará de `logo_url` e `symbol_url` — ver `04-domain-model.md`) ou se recebe uma estrutura própria;
-- convenção de pasta para versionar código de Edge Function no repositório (análoga a `database/` para SQL), ainda não formalizada — ver nota da seção "Sprint B2.0", abaixo, incluindo a divergência entre a estrutura proposta pela sessão pareada e a estrutura real já em uso em `database/`;
+- convenção de pasta para versionar código de Edge Function no repositório (análoga a `database/` para SQL) — **parcialmente resolvida nesta revisão**: o padrão natural da própria CLI do Supabase (`supabase/functions/<nome-da-função>/`) foi adotado e o código confirmado do Sprint B2.1/B2.3 foi copiado para o repositório oficial em `supabase/functions/import-card-assets/index.ts`, mesmo princípio de "copiar apenas após execução confirmada" já usado em `database/`; ainda não confirmado por Fabrício se esta é a convenção definitiva, nem a divergência entre a estrutura mais ampla proposta pela sessão pareada e a estrutura real já em uso em `database/` (ver nota da seção "Sprint B2.0", abaixo);
 - se a pasta local `C:\Users\Administrador\Project-Mimikyu` (criada no Sprint B2.0 para desenvolvimento das Edge Functions) corresponde a um clone do repositório GitHub oficial `fabriciosouzasales/project-mimikyu` ou é um ambiente de trabalho local separado — ver "Sprint B2.0", abaixo;
 - verificação de direitos/termos de uso das imagens antes de importação em massa (ver `05-modelo-de-dados.md`, seção "Arquitetura de Importação de Ativos" — ressalva registrada, não resolvida).
 
@@ -172,29 +172,54 @@ Para a primeira prova de conceito, a implementação começa menor (um único ar
 
 ---
 
-# Roteiro de Implementação Incremental — Bloco B (Sprints B2.1–B2.12)
+# Roteiro de Implementação Incremental — Bloco B (Sprints B2.0–B2.8)
 
 Depois de apresentar a arquitetura completa acima, Fabrício pediu explicitamente para reduzir a verbosidade do processo de trabalho: *"Siga. Vamos ser um pouco mais objetivo nessa fase."* A sessão pareada concordou e adotou um ritmo de ciclos curtos — **Objetivo → Implementar → Validar → Evoluir** — entregando por sprint apenas objetivo, código, forma de validar e próximo passo, sem repetir a arquitetura já registrada acima.
 
 **Disciplina de execução refinada e formalizada em revisão posterior desta seção**, depois que Fabrício interrompeu diretamente para perguntar se deveria executar algum dos códigos já mostrados: *"Vamos com calma. Eu deveria executar algum desses códigos? Até agora não executei nenhum código."* A sessão pareada confirmou que **nada do Sprint B2.1 nem do B2.2 havia sido executado até aquele ponto** — apenas descrito — e adotou, para código, a mesma disciplina já usada para SQL: **um passo → Fabrício executa → validação → só então o próximo passo**, em vez de apresentar vários sprints em sequência antes de qualquer execução real. Esta seção documenta o roteiro planejado; a marcação `(CONFIRMADO)` em cada sprint abaixo indica execução real, verificada por evidência (captura de terminal ou saída explícita), no mesmo padrão já aplicado a Queries SQL.
 
-Roteiro definido:
+**Convenções permanentes para Edge Functions, declaradas nesta revisão como regras do projeto (mesmo status de decisão que os Standards de `docs/standards/`, embora ainda não promovidas a um STD formal):**
 
-| Sprint | Escopo |
-|--------|--------|
-| B2.0 | Preparar o ambiente local de desenvolvimento (VS Code, Node.js, Supabase CLI) |
-| B2.1 | Criar Edge Function básica |
-| B2.2 | Testar acesso ao banco |
-| B2.3 | Ler um `asset_import_run` |
-| B2.4 | Consultar uma carta na TCGdex |
-| B2.5 | Baixar uma imagem |
-| B2.6 | Enviar uma imagem ao Storage |
-| B2.7 | Criar `card_external_reference` |
-| B2.8 | Criar `card_asset` |
-| B2.9 | Registrar falha |
-| B2.10 | Processar um pequeno lote |
-| B2.11 | Executar um `card_set` completo |
-| B2.12 | Realizar a carga oficial da Query `880` |
+1. **Nunca criar arquivos de Edge Function "na mão".** Toda nova função nasce via `npx supabase functions new <nome-da-função>`, garantindo que siga o padrão oficial da CLI do Supabase.
+2. **Nunca alterar o template oficial gerado pela CLI sem necessidade — sempre evoluir sobre ele**, não substituí-lo. Facilita absorver futuras atualizações da própria CLI.
+3. **Responsabilidade única** — cada Edge Function faz apenas uma coisa.
+4. **Execução restrita por padrão** (`auth: ["secret"]`) — funções como `import-card-assets` são infraestrutura interna do sistema (chamadas por script administrativo, outra Edge Function, ou futuramente um agendamento/Cron), não interface pública; não devem aceitar chamadas de clientes anônimos/publicáveis a menos que explicitamente decidido o contrário.
+5. **"Nunca avançar sem validar", aplicado ao código** — mesmo princípio já usado nas migrations SQL. Cada Sprint só se encerra quando atinge um critério de aceite explícito e verificado (ex.: B2.2 — "a função responde `status: ready`"; B2.3 — "a função consegue localizar uma execução pelo `run_code`").
+
+**Descoberta técnica confirmada nesta revisão**: a versão `2.109.1` da Supabase CLI gera um template de Edge Function diferente do que havia sido planejado nas revisões `0.6`-`0.8` (que assumiam o padrão antigo baseado em `serve()` de `https://deno.land/std/http/server.ts`). O template atual usa `withSupabase(...)`, importado de `@supabase/server`, que já injeta automaticamente `ctx.supabase`, `ctx.supabaseAdmin`, autenticação e o contexto da requisição. Decisão registrada: **adotar o template atual da CLI**, não substituí-lo pelo padrão antigo — consistente com a Convenção 2, acima. Todo código de Edge Function mostrado nas revisões `0.6`-`0.8` baseado em `serve()`/`createClient` manual está **obsoleto** e não deve ser usado como referência de implementação — mantido nas seções abaixo apenas como registro histórico do que havia sido inicialmente planejado.
+
+**Roteiro renumerado e consolidado nesta revisão** — de 13 sprints (`B2.0`–`B2.12`) para 9 (`B2.0`–`B2.8`), reduzindo a granularidade de alguns passos (a criação de `card_external_reference`, o registro de falhas, o processamento em lote e a execução de um `card_set` completo deixam de ser sprints numerados isolados e passam a fazer parte do escopo mais amplo dos sprints `B2.6`/`B2.7`, a serem detalhados quando alcançados). Registrado explicitamente aqui, no mesmo espírito da comparação de roteiro feita em `05-modelo-de-dados.md` (seção "Roteiro Consolidado — Fases e Blocos") após o incidente de confiança da revisão `0.49`, para que a renumeração fique clara e não pareça uma sequência inventada:
+
+```text
+Roteiro original (revisão 0.6)         →  Roteiro consolidado (esta revisão)
+B2.0 Preparar ambiente local           →  B2.0 Ambiente ✅
+B2.1 Criar Edge Function básica        →  B2.1 Primeira Edge Function ✅
+B2.2 Testar acesso ao banco            →  B2.2 Deploy e Teste ✅
+B2.3 Ler um asset_import_run           →  B2.3 Integração com Banco 🟪
+B2.4 Consultar uma carta na TCGdex     →  B2.4 Integração com TCGdex 🟪
+B2.5 Baixar uma imagem                 →  B2.5 Download 🟪
+B2.6 Enviar uma imagem ao Storage      →  B2.6 Storage 🟪
+B2.7 Criar card_external_reference     →  B2.7 Card Asset 🟪  (absorve card_external_reference + card_asset)
+B2.8 Criar card_asset                  →  B2.8 Carga 880 🟪  (absorve falhas/lote/card_set completo)
+B2.9 Registrar falha                   →  (absorvido em B2.6/B2.7, escopo a detalhar)
+B2.10 Processar um pequeno lote        →  (absorvido em B2.7/B2.8, escopo a detalhar)
+B2.11 Executar um card_set completo    →  (absorvido em B2.8, escopo a detalhar)
+B2.12 Realizar a carga oficial (880)   →  B2.8 Carga 880
+```
+
+Roteiro vigente:
+
+| Sprint | Escopo | Status |
+|--------|--------|--------|
+| B2.0 | Ambiente (VS Code, Node.js, Supabase CLI, projeto local vinculado ao remoto) | ✅ Concluído |
+| B2.1 | Primeira Edge Function (`import-card-assets`, esqueleto + resposta estática) | ✅ Concluído |
+| B2.2 | Deploy e Teste (primeira publicação real + invocação remota autenticada) | ✅ Concluído |
+| B2.3 | Integração com Banco (consulta a `asset_import_run` por `run_code`) | 🟪 Código publicado, teste com dado real pendente |
+| B2.4 | Integração com TCGdex | 🟪 Não iniciado |
+| B2.5 | Download | 🟪 Não iniciado |
+| B2.6 | Storage | 🟪 Não iniciado |
+| B2.7 | Card Asset (inclui `card_external_reference` e tratamento de falha) | 🟪 Não iniciado |
+| B2.8 | Carga `880` (inclui processamento em lote e execução de `card_set` completo) | 🟪 Não iniciado |
 
 ## Sprint B2.0 — Preparar o ambiente local (CONFIRMADO CONCLUÍDO)
 
@@ -215,14 +240,14 @@ Passos confirmados, em ordem:
 
 **Nota não resolvida, reafirmada nesta revisão**: a sessão pareada propôs, mais uma vez, uma reorganização do repositório em um único diretório unificado (`docs/`, `database/{roadmap,migrations,seeds}`, `supabase/{functions,config.toml}`, `scripts/`, `README.md`) — **ainda divergente da estrutura real já em uso no repositório GitHub oficial** (`database/schema`, `database/functions` — funções SQL compartilhadas —, `database/migrations`, `database/seeds`, `database/validations`, `database/reference-data`, `database/diagrams`, governadas por `database/README.md`/`STD-001`; `docs/` com sua própria estrutura rica de `adr/`/`standards/`/`architecture/`). Continua não confirmado se `C:\Users\Administrador\Project-Mimikyu` (pasta local, agora vinculada ao projeto remoto Supabase) corresponde a um clone do repositório GitHub `fabriciosouzasales/project-mimikyu` que esta documentação governa. Não resolvido unilateralmente — Fabrício precisa decidir antes que qualquer código de Edge Function seja de fato incorporado ao repositório oficial.
 
-## Sprint B2.1 — Criar Edge Function (esqueleto gerado via CLI, CONFIRMADO; lógica própria ainda não escrita/publicada)
+## Sprint B2.1 — Primeira Edge Function (CONFIRMADO CONCLUÍDO)
 
-**Nova disciplina adotada para Edge Functions**, proposta antes da primeira linha de código: `Criar função → Executar localmente → Publicar → Validar remotamente → Evoluir` — mesmo espírito do ciclo já usado para SQL (`Migration → Executar → Validar`), adaptado para permitir identificar problemas imediatamente durante o desenvolvimento local.
+Passos confirmados, nesta ordem:
 
-Passos confirmados nesta revisão:
-
-1. `npx supabase functions new import-card-assets` — **confirmado** (saída real: "Created new Function at supabase\functions\import-card-assets"), gerando via CLI (não escrito manualmente) o esqueleto padrão em `supabase/functions/import-card-assets/index.ts`.
-2. Prompt da própria CLI, "Generate VS Code settings for Deno?", respondido `Yes` — **confirmado** (saída real: "Generated VS Code settings in .vscode/settings.json"). Necessário porque Edge Functions do Supabase rodam em **Deno**, não em Node.js; o arquivo gerado só configura autocomplete/IntelliSense/imports no editor, sem alterar o projeto nem o banco.
+1. `npx supabase functions new import-card-assets` — **confirmado** (saída real: "Created new Function at supabase\functions\import-card-assets"), gerando via CLI (nunca escrito manualmente, ver Convenção 1, acima) o esqueleto padrão em `supabase/functions/import-card-assets/index.ts`.
+2. Prompt da própria CLI, "Generate VS Code settings for Deno?", respondido `Yes` — **confirmado** (saída real: "Generated VS Code settings in .vscode/settings.json"). Necessário porque Edge Functions do Supabase rodam em **Deno**, não em Node.js; o arquivo só configura autocomplete/IntelliSense/imports no editor, sem alterar o projeto nem o banco.
+3. `code .` abriu o projeto local no VS Code — **confirmado**, árvore de arquivos conferida (`.vscode/`, `supabase/.temp/`, `supabase/functions/import-card-assets/index.ts`, `supabase/config.toml`).
+4. Conteúdo real do template gerado pela CLI `2.109.1` obtido diretamente do VS Code (colado na conversa, não presumido) — confirmando a descoberta do novo padrão `withSupabase(...)` (ver nota técnica, acima).
 
 **Pausa arquitetural antes de escrever qualquer lógica própria**: para evitar que `index.ts` cresça sem organização (risco explicitamente citado: "em poucos dias teremos centenas de linhas dentro do index.ts"), a estrutura interna de cada Edge Function foi refinada e adotada como padrão — **substitui a estrutura provisória da seção "Arquitetura de Execução", item 14, acima**:
 
@@ -245,73 +270,136 @@ import-card-assets/
     └── paths.ts
 ```
 
-A maioria destes arquivos está **vazia nesta revisão** — a estrutura foi criada como padrão a ser seguido por todas as futuras Edge Functions do projeto (mencionadas como ideia futura, ainda não decidida nem agendada: `sync-card-catalog`, `reprocess-failures`, `cleanup-storage` — backlog, não confundir com trabalho planejado do roteiro B2.1–B2.12), não implementada de uma vez.
+A maioria destes arquivos está **vazia nesta revisão** — a estrutura foi criada como padrão a ser seguido por todas as futuras Edge Functions do projeto (mencionadas como ideia futura, ainda não decidida nem agendada: `sync-card-catalog`, `reprocess-failures`, `cleanup-storage` — backlog, não confundir com trabalho planejado do roteiro).
 
-**Status real, sem ambiguidade**: o esqueleto da função existe no projeto local e está vinculado ao projeto remoto, mas **nenhuma lógica própria foi escrita, testada localmente, publicada (`supabase functions deploy`) ou validada remotamente ainda** — o stub `status: "ready"` mostrado na revisão `0.6` (abaixo) foi uma proposta de código anterior a este fluxo baseado em CLI, e permanece não incorporado ao arquivo real gerado pela CLI. Próximo passo real: implementar essa resposta simples dentro do `index.ts` gerado, testar localmente, publicar e só então validar remotamente — a primeira execução de fato confirmada do Sprint B2.1.
-
-Código originalmente proposto para esta resposta simples (revisão `0.6`, ainda não incorporado ao arquivo real gerado pela CLI):
+**Primeira versão real, simplificada a partir do template oficial** (`version: "1.0.0"`), com `auth: ["secret"]` (Convenção 4, acima — a função nunca será chamada pelo navegador, apenas por chamadas administrativas/internas):
 
 ```ts
 // supabase/functions/import-card-assets/index.ts
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { withSupabase } from "@supabase/server";
+
+export default {
+  fetch: withSupabase(
+    { auth: ["secret"] },
+    async (_req, _ctx) => {
+      return Response.json({
+        success: true,
+        function: "import-card-assets",
+        version: "1.0.0",
+        status: "ready",
+      });
+    }
+  ),
+};
+```
+
+**Confirmado sem erros no VS Code** (verificado via captura real do editor). Este código estabelece as três primeiras convenções listadas acima (responsabilidade única, template oficial da CLI, execução restrita) como padrão para todas as Edge Functions futuras do projeto.
+
+Código anteriormente proposto para a mesma resposta (revisão `0.6`, baseado no padrão `serve()` — **obsoleto**, nunca chegou a ser incorporado a um arquivo real, mantido aqui apenas como registro histórico do planejamento original):
+
+```ts
+// (obsoleto — ver nota técnica sobre a mudança de template da CLI, acima)
 import { serve } from "https://deno.land/std/http/server.ts";
 
 serve(async () => {
   return new Response(
-    JSON.stringify({
-      success: true,
-      function: "import-card-assets",
-      status: "ready",
-    }),
+    JSON.stringify({ success: true, function: "import-card-assets", status: "ready" }),
     { headers: { "Content-Type": "application/json" } }
   );
 });
 ```
 
-## Sprint B2.2 — Ler uma execução de importação (código refinado, ainda não executado)
+## Sprint B2.2 — Deploy e Teste (CONFIRMADO CONCLUÍDO)
 
-Objetivo: a Edge Function deve receber um `run_id` via payload JSON, consultar `asset_import_run` no Supabase e retornar os dados da execução — nada de TCGdex, Storage ou download ainda.
+**Primeiro deploy real de uma Edge Function no Project Mimikyu.** `npx supabase functions deploy import-card-assets` — **confirmado por saída real de terminal**: `Uploading asset (import-card-assets): supabase/functions/import-card-assets/deno.json` / `...index.ts`, `Deployed Functions on project <ref>: import-card-assets`, link para o Dashboard. O aviso `WARNING: Docker is not running` **não é erro** — a CLI usa automaticamente o deploy via API quando o Docker não está disponível localmente, comportamento documentado e esperado do Supabase.
+
+**Teste real da função publicada, também confirmado**: obtida uma Secret Key do projeto (Settings → API Keys → Secret keys, prefixo `sb_secret_` — **nunca compartilhada na conversa nem repetida nesta documentação**, seguindo a mesma disciplina já aplicada a outras credenciais), salva temporariamente como variável de ambiente de sessão no PowerShell, usada para uma chamada `Invoke-RestMethod` `POST` contra `https://<project-ref>.supabase.co/functions/v1/import-card-assets` com o header `apikey`. **Resultado real confirmado**: `success: True, function: import-card-assets, version: 1.0.0, status: ready`. A variável de ambiente foi removida da sessão (`Remove-Item Env:...`) logo em seguida — boa prática de segurança observada e seguida à risca.
+
+**Critério de aceite do sprint, atingido e confirmado**: "a função responde `status: ready`" — ambiente local, vínculo com o projeto remoto, função criada, código publicado, invocação remota e autenticação com Secret Key todos validados em conjunto. Este é o primeiro marco de infraestrutura de código genuinamente confirmado (não apenas planejado) do Bloco B — a infraestrutura do Pipeline Automático de Imagens está oficialmente iniciada.
+
+## Sprint B2.3 — Integração com Banco (código publicado e CONFIRMADO; teste com execução real ainda pendente)
+
+**Mudança de interface em relação ao planejamento original**: em vez de identificar a execução por `run_id` (UUID, como planejado nas revisões `0.6`-`0.8`), a função passa a receber `run_code` (ex. `RUN_000000001`) — mesmo identificador amigável já criado propositalmente para isso na Query `220` (ver `05-modelo-de-dados.md`, "Query 220 — Create Asset Import Run": `run_code` gerado por sequência dedicada, pensado desde a origem para logs/suporte/auditoria/telas administrativas). Justificativa: `run_code` é legível, aparece em logs, pode ser informado manualmente por um administrador, e é muito mais fácil de localizar durante suporte do que um UUID; o `id` (UUID) continua existindo internamente como chave real, mas deixa de ser a interface de entrada da função.
+
+Objetivo do sprint: a função apenas recebe `run_code` → consulta `asset_import_run` → retorna os dados encontrados. Nenhuma chamada a API externa, download, upload ou processamento ainda — leitura pura.
+
+**Código real, publicado e confirmado via deploy** (`npx supabase functions deploy import-card-assets`, mesma saída de sucesso do Sprint B2.2, incluindo o aviso esperado sobre o Docker):
 
 ```ts
 // supabase/functions/import-card-assets/index.ts
-import { serve } from "https://deno.land/std/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { withSupabase } from "@supabase/server";
 
-serve(async (req) => {
-  const { run_id } = await req.json();
+type RequestBody = {
+  run_code?: string;
+};
 
-  if (!run_id) {
-    return Response.json(
-      { success: false, error: "run_id is required" },
-      { status: 400 }
-    );
-  }
+export default {
+  fetch: withSupabase(
+    { auth: ["secret"] },
+    async (req, ctx) => {
+      if (req.method !== "POST") {
+        return Response.json(
+          { success: false, error: "METHOD_NOT_ALLOWED" },
+          { status: 405, headers: { Allow: "POST" } },
+        );
+      }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+      let body: RequestBody;
+      try {
+        body = await req.json();
+      } catch {
+        return Response.json(
+          { success: false, error: "INVALID_JSON" },
+          { status: 400 },
+        );
+      }
 
-  const { data, error } = await supabase
-    .from("asset_import_run")
-    .select("*")
-    .eq("id", run_id)
-    .single();
+      const runCode = body.run_code?.trim();
 
-  if (error) {
-    return Response.json(
-      { success: false, error: error.message },
-      { status: 404 }
-    );
-  }
+      if (!runCode) {
+        return Response.json(
+          { success: false, error: "RUN_CODE_REQUIRED" },
+          { status: 400 },
+        );
+      }
 
-  return Response.json({
-    success: true,
-    run: data,
-  });
-});
+      const { data: run, error } = await ctx.supabaseAdmin
+        .from("asset_import_run")
+        .select("*")
+        .eq("run_code", runCode)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to read asset_import_run:", error);
+        return Response.json(
+          { success: false, error: "DATABASE_QUERY_FAILED" },
+          { status: 500 },
+        );
+      }
+
+      if (!run) {
+        return Response.json(
+          { success: false, error: "IMPORT_RUN_NOT_FOUND", run_code: runCode },
+          { status: 404 },
+        );
+      }
+
+      return Response.json({
+        success: true,
+        function: "import-card-assets",
+        version: "1.1.0",
+        run,
+      });
+    },
+  ),
+};
 ```
 
-Estrutura de arquivos ajustada nesta revisão: `supabase/functions/import-card-assets/{index.ts, deno.json}` (`deno.json` adicionado à estrutura antes prevista). Deploy/teste propostos: `supabase functions deploy import-card-assets`, depois criar um registro de teste em `asset_import_run` e invocar com `supabase functions invoke import-card-assets --body '{"run_id":"..."}'`, esperando `{"success": true, "run": {...}}`. **Mesmo status do Sprint B2.1: código proposto, nenhuma execução confirmada.** Próximo sprint planejado após a execução real de B2.1/B2.2 (ainda sujeito ao Sprint B2.0 acima): B2.3 — primeira consulta ao catálogo (`run_id` → `asset_import_run` → `card_set` → `language` → listar cartas), ainda sem nenhuma API externa.
+Uso de `ctx.supabaseAdmin` (não `ctx.supabase`) justificado explicitamente: a função é administrativa e precisa acessar a execução independentemente de políticas de RLS — o cliente administrativo fornecido por `withSupabase` usa a chave secreta do projeto.
+
+**Status real, sem ambiguidade**: o deploy foi confirmado por saída real de terminal, mas **a instrução explícita foi não invocar a função ainda** — o próximo passo real é criar uma execução de teste controlada em `asset_import_run` e então invocar a função usando o `run_code` dela. O critério de aceite deste sprint ("a função consegue localizar uma execução pelo `run_code`") **ainda não foi verificado**, apenas o deploy do código.
 
 ---
 
@@ -327,3 +415,4 @@ Estrutura de arquivos ajustada nesta revisão: `supabase/functions/import-card-a
 | 0.6 | **Bloco B (Pipeline de Importação) iniciado.** Adicionada a seção "Arquitetura de Execução — Edge Function `import-card-assets` (Bloco B1)": especificação completa das 14 responsabilidades da função (validação da execução, seleção de cartas por `run_type`, resolução de `card_external_reference`, fontes TCGdex/Pokémon TCG API, download/validação, formato canônico, caminho no Storage, política de `upsert`, ordem de registro em `card_asset`, hash/idempotência via `SHA-256`, tratamento de falhas por `failure_stage`/`error_code`, contadores/status final, segurança, estrutura de arquivos prevista). Adicionada a seção "Roteiro de Implementação Incremental — Bloco B (Sprints B2.1–B2.12)", registrando a mudança de método pedida por Fabrício ("Siga. Vamos ser um pouco mais objetivo nessa fase.") — ciclos curtos Objetivo/Implementar/Validar/Evoluir. Documentado o código proposto do Sprint B2.1 (Edge Function básica, apenas resposta `status: ready`) e o objetivo do Sprint B2.2 — **nenhum dos dois confirmado como executado/deployado nesta revisão**. Atualizada a seção "Em Aberto" com os pontos parcialmente respondidos por esta arquitetura. |
 | 0.7 | **Confirmado explicitamente por Fabrício que nada do Sprint B2.1/B2.2 havia sido executado ("Vamos com calma. Eu deveria executar algum desses códigos? Até agora não executei nenhum código.") — disciplina de execução refinada para código: um passo por vez, com validação antes de prosseguir, mesmo padrão já usado para SQL.** Novo **Sprint B2.0 — Preparar o ambiente local**, inserido antes do B2.1: até este ponto, 100% do trabalho de banco foi feito pelo painel web do Supabase, suficiente para SQL mas não para Edge Functions; migração para desenvolvimento local **CONFIRMADA e concluída nesta revisão**, com evidência real de terminal em cada etapa — VS Code e Node.js `23.6.0` já instalados; tentativa de instalar a Supabase CLI via `winget` falhou (pacote ausente no repositório); Scoop também não instalado; decisão final de usar `npx supabase` sem instalação global; pasta raiz local `C:\Users\Administrador\Project-Mimikyu` criada; `npx supabase --version` executado com sucesso, confirmando Supabase CLI `2.109.1` funcional. **Nota não resolvida**: ainda não confirmado se essa pasta local corresponde a um clone do repositório GitHub oficial `fabriciosouzasales/project-mimikyu`, nem como a estrutura de pastas proposta pela sessão pareada (`database/migrations`, `database/seeds`, `supabase/functions`) se concilia com a estrutura já real e documentada em `database/README.md` (`schema`/`functions`/`migrations`/`seeds`/`validations`/`reference-data`/`diagrams`). Sprint B2.2 recebeu código refinado (payload `run_id`, `createClient`, consulta a `asset_import_run`, tratamento de erro) e a estrutura de arquivos ganhou `deno.json` — **status inalterado: proposto, não executado**. Atualizada a seção "Em Aberto" com os dois novos pontos (convenção de pasta de Edge Function + relação pasta local/repositório oficial). |
 | 0.8 | **Sprint B2.0 CONFIRMADO CONCLUÍDO integralmente**: `npx supabase init` (gera `supabase/config.toml`/`functions/`/`migrations/`/`seed.sql`), `npx supabase login`, obtenção do Project Reference (não sigiloso, ao contrário de Database Password/Service Role Key/Anon Key/Connection String — explicitamente não solicitados) e `npx supabase link --project-ref <ref>` — todos **confirmados por saída real de terminal** ("Finished supabase init."/"Finished supabase login."/"Finished supabase link."). Novo registro arquitetural: dois ambientes complementares a partir de agora — Painel Web (administração/SQL Editor/Storage/Auth) e Projeto Local (Edge Functions/scripts/versionamento). Nota não resolvida sobre pasta local vs. repositório GitHub oficial reafirmada (proposta de reorganização repetida pela sessão pareada, ainda divergente da estrutura real de `database/`). **Sprint B2.1 avançou de "proposto" para "esqueleto gerado via CLI, confirmado"**: `npx supabase functions new import-card-assets` executado (confirmado), resposta `Yes` ao prompt de configuração Deno do VS Code (confirmado) — mas **nenhuma lógica própria foi escrita, testada localmente, publicada ou validada remotamente ainda**. Nova disciplina adotada: `Criar função → Executar localmente → Publicar → Validar remotamente → Evoluir`. Estrutura interna de cada Edge Function refinada e adotada como padrão (`config.ts`/`types.ts`/`services/{database,storage,importer}.ts`/`sources/{source-adapter,tcgdex,pokemon-api}.ts`/`utils/{hash,image,paths}.ts`), substituindo a estrutura provisória da seção "Arquitetura de Execução"; a maioria dos arquivos permanece vazia. Mencionadas, sem decisão, futuras Edge Functions (`sync-card-catalog`, `reprocess-failures`, `cleanup-storage`) — backlog, não roteiro confirmado. |
+| 0.9 | **Marco: primeiro deploy real e primeira invocação remota confirmada de uma Edge Function no Project Mimikyu (Sprints B2.1/B2.2, CONFIRMADOS CONCLUÍDOS).** Descoberta técnica: a CLI `2.109.1` gera Edge Functions no novo padrão `withSupabase(...)` (injeta `ctx.supabase`/`ctx.supabaseAdmin`/autenticação/contexto), substituindo o padrão `serve()` assumido nas revisões `0.6`-`0.8` — todo código anterior baseado em `serve()`/`createClient` manual marcado **obsoleto**, preservado apenas como registro histórico. Cinco convenções permanentes declaradas para Edge Functions: nunca criar arquivos "na mão" (sempre via `supabase functions new`); nunca alterar o template oficial da CLI sem necessidade; responsabilidade única; execução restrita por padrão (`auth: ["secret"]`); "nunca avançar sem validar" aplicado a critérios de aceite por sprint. **Roteiro renumerado e consolidado**: de 13 sprints (`B2.0`-`B2.12`) para 9 (`B2.0`-`B2.8`) — comparação lado a lado registrada explicitamente, no mesmo espírito da correção de roteiro feita em `05-modelo-de-dados.md` após o incidente de confiança da revisão `0.49`. Primeira versão real de `import-card-assets` escrita, publicada (`npx supabase functions deploy`) e invocada remotamente com sucesso via Secret Key — tudo **confirmado por saída real de terminal**, incluindo a remoção da chave da sessão após o teste. **Sprint B2.3 (Integração com Banco)**: interface mudou de `run_id` (UUID) para `run_code` (identificador amigável, já previsto desde a Query `220`); código real publicado e confirmado via deploy, mas **ainda não invocado com uma execução real** — teste pendente. Código copiado para o repositório oficial em `supabase/functions/import-card-assets/index.ts` (primeira vez que código de Edge Function é versionado no repositório, mesmo princípio de "copiar apenas após confirmação" já usado em `database/`). Seção "Em Aberto" atualizada: convenção de pasta de Edge Function parcialmente resolvida. |
