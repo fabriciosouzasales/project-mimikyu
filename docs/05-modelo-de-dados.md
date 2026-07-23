@@ -227,8 +227,8 @@ Seguindo o Padrão Oficial de Queries SQL (STD-001, Seção 10):
 ```text
 000 - Enable pgcrypto
 001 - Create updated_at function
-100 - Create Game table
-101 - Create Game trigger
+100 - Create Game Table
+101 - Create Game Trigger
 800 - Seed Game
 900 - Validate Game
 ```
@@ -241,7 +241,7 @@ Próxima entidade: **Expansion**, que introduziu o primeiro relacionamento e a p
 
 # Expansion (Expansão)
 
-Status: **Estrutura criada, com pendência confirmada** (tabela + relacionamento + RLS). Trigger de `updated_at` e Seed ainda pendentes. **A coluna `logo_url`, acordada conceitualmente, ficou de fora do DDL executado por descuido — correção pendente para a retomada da implementação. Ver "Pendência Confirmada — logo_url", abaixo.**
+Status: **Pacote técnico concluído** (tabela, trigger, seed e validação executados e confirmados). **Pendência aberta:** a coluna `logo_url`, acordada conceitualmente, ficou de fora do DDL executado por descuido — correção pendente para a retomada da implementação. Ver "Pendência Confirmada — logo_url", abaixo.
 
 ## Modelo Lógico
 
@@ -346,7 +346,90 @@ ALTER TABLE public.expansion
     ENABLE ROW LEVEL SECURITY;
 ```
 
-Query: `110 - Create Expansion table`. Resultado confirmado: `Success. No rows returned`.
+Query: `110 - Create Expansion Table`. Resultado confirmado: `Success. No rows returned`.
+
+### Trigger de `updated_at`
+
+```sql
+CREATE TRIGGER trg_expansion_set_updated_at
+BEFORE UPDATE ON public.expansion
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+```
+
+Query: `111 - Create Expansion Trigger`. Resultado confirmado: `Success. No rows returned`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game, acima).
+
+### Seed
+
+Primeira Expansion incorporada ao catálogo — resolve o `game_id` por `SELECT` no código do Game, nunca por UUID fixo (ver STD-001, Seção 10):
+
+```sql
+INSERT INTO public.expansion (
+    game_id,
+    code,
+    name,
+    release_order
+)
+SELECT
+    game.id,
+    'ME',
+    'Mega Evolution',
+    1
+FROM public.game
+WHERE game.code = 'POKEMON'
+ON CONFLICT (game_id, code)
+DO NOTHING;
+```
+
+Query: `810 - Seed Expansion`. Resultado confirmado: `Success. No rows returned`. Idempotente — executar novamente não cria uma segunda Expansion `ME` para o mesmo Game.
+
+> **Nota sobre `release_order`:** neste momento, `release_order = 1` representa a primeira Expansion incorporada ao catálogo do Project Mimikyu — não a primeira Expansion da história do Pokémon TCG. Quando Expansions históricas anteriores (Base, Neo, e-Card, EX, Diamond & Pearl...) forem importadas, essa ordenação precisará ser revisada para refletir a cronologia editorial completa (ver `04-domain-model.md`, seção Expansion — "Ordem de Lançamento").
+
+### Validação
+
+```sql
+-- 1. Dados e relacionamento com Game
+SELECT
+    expansion.id,
+    game.code AS game_code,
+    game.name AS game_name,
+    expansion.code AS expansion_code,
+    expansion.name AS expansion_name,
+    expansion.release_order,
+    expansion.created_at,
+    expansion.updated_at
+FROM public.expansion
+INNER JOIN public.game
+    ON game.id = expansion.game_id
+ORDER BY
+    game.code,
+    expansion.release_order;
+
+-- 2. Validação do trigger de updated_at
+SELECT
+    trigger_name,
+    event_manipulation,
+    action_timing,
+    event_object_schema,
+    event_object_table
+FROM information_schema.triggers
+WHERE event_object_schema = 'public'
+  AND event_object_table = 'expansion'
+  AND trigger_name = 'trg_expansion_set_updated_at';
+```
+
+Query: `910 - Validate Expansion`. A primeira consulta confirmou uma linha (`game_code = POKEMON`, `expansion_code = ME`, `expansion_name = Mega Evolution`, `release_order = 1`); a segunda confirmou o trigger (`trg_expansion_set_updated_at`, `UPDATE`, `BEFORE`, tabela `expansion`).
+
+## Queries Associadas
+
+```text
+110 - Create Expansion Table
+111 - Create Expansion Trigger
+810 - Seed Expansion
+910 - Validate Expansion
+```
+
+Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800).
 
 ## Pendência Confirmada — logo_url
 
@@ -358,15 +441,13 @@ A discussão conceitual ("Modelo revisado de Expansion") concluiu que a entidade
 
 **Ação pendente para a retomada da implementação:** (1) formalizar, no ciclo de documentação do pipeline de ativos visuais, se a infraestrutura já existente (`card_asset`, `card_asset_type`, `asset_source`, `storage_bucket`, `asset_import_run`, `asset_import_failure`) se generaliza para Expansion ou se recebe uma estrutura própria; (2) só então criar a migration correspondente (coluna simples ou relacionamento), numerada dentro da faixa 100–199, seguindo o Padrão Oficial de Queries SQL (STD-001, Seção 10). Não decidir a estrutura física antes dessa definição, para não contradizer o padrão já estabelecido para Card.
 
-## Próximos Passos (fora deste lote)
-
-`111 - Create Expansion trigger` (associar `set_updated_at()` à tabela `expansion`) foi anunciada como o próximo script, mas sua execução não foi confirmada neste lote. Seed e testes de integridade também ainda não foram registrados.
-
 ---
 
 # Set
 
 *Documentação pendente. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL).*
+
+**Discussão iniciada, ainda não concluída.** A entidade Set (`card_set`) foi apresentada como a mais importante do catálogo — praticamente todas as demais entidades dependem dela (`Game → Expansion → Card Set → Card → Collection Item`). Responsabilidades já mencionadas: código (`ME1`, `ME2`, `ME2.5`...), nome, tipo (Regular ou Especial), data de lançamento, quantidade de cartas base, quantidade total, símbolo do Set, logotipo do Set, idioma editorial (futuro), relação com as Cards. Isso é consistente com a "Nota preliminar (não fechada)" já registrada em `04-domain-model.md`, seção Set. Regras de negócio, modelo lógico por grupo, DDL e testes ainda não foram fornecidos — aguardando a continuação deste lote.
 
 ---
 
@@ -411,3 +492,4 @@ A discussão conceitual ("Modelo revisado de Expansion") concluiu que a entidade
 | 0.5 | Adicionada a verificação do trigger de Game via `information_schema.triggers`; Queries associadas de Game atualizadas com `101 - Create Game trigger` (pacote tecnicamente completo). Completada a entidade Expansion: atributos, campos adiados, regras de negócio e o DDL efetivamente executado (`110 - Create Expansion table`, com RLS). Sinalizada divergência não resolvida entre o modelo conceitual acordado (inclui `logo_url`) e o DDL executado (não inclui) — não resolvida unilateralmente, aguardando confirmação de Fabrício. |
 | 0.6 | Confirmado por Fabrício: a ausência de `logo_url` no DDL executado foi um descuido, não uma simplificação deliberada — a coluna é importante para o projeto. Atualizado o status da entidade Expansion e registrada a ação pendente (migration `ALTER TABLE ... ADD COLUMN logo_url`) para a retomada da implementação. |
 | 0.7 | Corrigida a pendência de `logo_url`: o valor deve ser importado automaticamente via API e armazenado no Supabase Storage, seguindo o mesmo padrão de imagens de Card — não uma coluna de preenchimento manual. Ação pendente agora depende de decisão prévia sobre a estrutura do pipeline de ativos visuais (ver `06-pipeline-importacao.md`). |
+| 0.8 | Concluído o pacote técnico da entidade Expansion: trigger (`111`), Seed real (`810` — ME/Mega Evolution/release_order=1, com nota sobre revisão futura da ordenação) e Validação (`910`), todos confirmados. Adicionadas as Queries Associadas completas. Adicionada nota sobre o início (não conclusão) da discussão da entidade Set — consistente com a prévia já registrada em `04-domain-model.md`. |

@@ -221,7 +221,33 @@ Toda Query deve possuir:
 | 800–899 | Dados iniciais (Seeds) |
 | 900–999 | Validações e consultas |
 
-Deixar intervalos entre os grupos permite inserir novas migrations sem perder a organização. Exemplo real (entidade Game): `000 - Enable pgcrypto`, `001 - Create updated_at function`, `100 - Create Game table`, `800 - Seed Game`, `900 - Validate Game`.
+Deixar intervalos entre os grupos permite inserir novas migrations sem perder a organização. Exemplo real (entidade Game): `000 - Enable pgcrypto`, `001 - Create updated_at function`, `100 - Create Game Table`, `101 - Create Game Trigger`, `800 - Seed Game`, `900 - Validate Game`.
+
+### Bloco por Entidade e Regra de Deslocamento (offset)
+
+Dentro do Catálogo Editorial (100–199), cada entidade ocupa um bloco de 10 números: `X0` cria a tabela (`Create <Entity> Table`), `X1` cria o trigger (`Create <Entity> Trigger`), com os números seguintes reservados para evoluções futuras da mesma entidade (ex.: `X2`, `X3`...).
+
+O Seed e a Validação de uma entidade são derivados do número da sua Query de criação de tabela por um deslocamento fixo:
+
+```text
+Seed      = (número de criação da tabela) + 700
+Validate  = (número de criação da tabela) + 800
+```
+
+Exemplo real:
+
+```text
+Game       100 - Create Game Table       →  800 - Seed Game       →  900 - Validate Game
+           101 - Create Game Trigger
+
+Expansion  110 - Create Expansion Table  →  810 - Seed Expansion  →  910 - Validate Expansion
+           111 - Create Expansion Trigger
+
+Set        120 - Create Set Table        →  820 - Seed Set        →  920 - Validate Set
+Card       130 - Create Card Table       →  830 - Seed Card       →  930 - Validate Card
+```
+
+Essa regra elimina qualquer ambiguidade sobre qual número usar para o Seed ou a Validação de uma nova entidade.
 
 ### Seeds
 
@@ -236,6 +262,16 @@ ON CONFLICT (code) DO NOTHING;
 ```
 
 Isso garante que reinstalar o banco do zero baste executar novamente todas as Seeds, sem falhas.
+
+Quando um Seed depende de uma entidade relacionada, a chave estrangeira é resolvida por um `SELECT` no código de negócio da entidade relacionada — nunca um UUID fixo no script, já que o UUID real varia a cada execução:
+
+```sql
+INSERT INTO public.expansion (game_id, code, name, release_order)
+SELECT game.id, 'ME', 'Mega Evolution', 1
+FROM public.game
+WHERE game.code = 'POKEMON'
+ON CONFLICT (game_id, code) DO NOTHING;
+```
 
 ### Validação
 
@@ -281,3 +317,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.2 | Adicionada nota sobre palavras reservadas do SQL na Seção 2 (ex.: Set → `card_set`). Preenchida a Seção 3 (Data Types: VARCHAR vs. TEXT, UUID, TIMESTAMPTZ). Refinada a Seção 4 (Audit Model): `created_by`/`updated_by`/`deleted_at`/`deleted_by` deixam de ser obrigatórios por padrão, passando a ser adicionados apenas sob necessidade concreta (Princípio da Simplicidade Inicial, AP-004); padrão mínimo agora é `id`/`created_at`/`updated_at`. Adicionada à Seção 5 a versão do UUID (v4 no MVP, v7 quando houver suporte adequado) e a distinção entre identidade técnica (`id`) e identidade de negócio (`code`). Preenchida a Seção 8 (Logical Delete: preferir `status` de negócio a soft delete generalizado) e a Seção 9 (SQL Standards: restrições de integridade também no banco, não só na aplicação). |
 | 1.3 | Refinada a Seção 1 (Technical Language): cabeçalhos e comentários explicativos dos scripts SQL passam a ser em português; apenas identificadores técnicos seguem o inglês. Adicionado à Seção 9 o requisito de Row Level Security (RLS) habilitado em toda tabela do schema `public`. Preenchida a Seção 10 (Migration Standards): uso exclusivo do SQL Editor (nunca o menu visual), Padrão Oficial de Queries SQL (Número/Nome/Descrição/Cabeçalho/SQL/Validação, com modelo de cabeçalho incluindo Versão) e execução validada passo a passo. |
 | 1.4 | Adicionada à Seção 5 a regra "código internacional, nome localizável" (code nunca muda entre idiomas; name pode ser localizado, mesmo padrão de Card Translation/ADR-007). Substituída, na Seção 10, a numeração sequencial simples pela convenção oficial de Faixas de Numeração (000–999, por módulo do projeto); adicionadas as subseções Seeds (idempotência via `ON CONFLICT ... DO NOTHING`, Query própria por entidade) e Validação (Queries de validação reutilizáveis na faixa 900–999; nunca assumir que "Success" significa que o resultado está correto). |
+| 1.5 | Adicionada à Seção 10 a regra de bloco por entidade e deslocamento fixo (Seed = criação da tabela + 700; Validate = criação da tabela + 800), confirmada com Game e Expansion. Adicionada orientação para Seeds com dependência de entidade relacionada: resolver a chave estrangeira por `SELECT` no código de negócio, nunca por UUID fixo no script. |
