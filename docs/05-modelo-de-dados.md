@@ -441,7 +441,7 @@ A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver 
 
 # Set
 
-Status: **Modelo lógico e físico aprovados** por Fabrício. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Execução no Supabase ainda pendente** — próximo passo é a Query `120 - Create Card Set Table`.
+Status: **Tabela, trigger e seed executados no Supabase.** Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Pendência:** Query `920 - Validate Card Set` ainda não executada — resultado da seed ainda não confirmado por validação (ver STD-001, Seção 10: nunca assumir sucesso apenas pelo retorno "Success").
 
 ## Modelo Lógico
 
@@ -523,18 +523,18 @@ Aplicando o Princípio da Simplicidade Inicial (AP-004):
 
 **Regra 7 — Exclusão restrita.** Uma Expansion que já possua Sets não pode ser excluída (`ON DELETE RESTRICT`) — sem exclusão em cascata no catálogo editorial.
 
-## Modelo Físico (PostgreSQL) — Aprovado, Execução Pendente
+## Modelo Físico (PostgreSQL) — Executado
 
 ```sql
 CREATE TABLE public.card_set (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     expansion_id UUID NOT NULL,
 
-    code VARCHAR(20) NOT NULL,
+    code VARCHAR(50) NOT NULL,
     name VARCHAR(150) NOT NULL,
     set_type VARCHAR(20) NOT NULL,
     release_order INTEGER NOT NULL,
-    release_date DATE,
+    release_date DATE NULL,
     base_set_size INTEGER NOT NULL,
     total_set_size INTEGER NOT NULL,
 
@@ -567,7 +567,7 @@ CREATE TABLE public.card_set (
     CONSTRAINT ck_card_set_base_size_positive
         CHECK (base_set_size > 0),
 
-    CONSTRAINT ck_card_set_total_gte_base
+    CONSTRAINT ck_card_set_total_size_valid
         CHECK (total_set_size >= base_set_size)
 );
 
@@ -575,9 +575,9 @@ ALTER TABLE public.card_set
     ENABLE ROW LEVEL SECURITY;
 ```
 
-Query planejada: `120 - Create Card Set Table`. Modelo aprovado por Fabrício ("Vamos em frente!") — **ainda não executado**.
+Query: `120 - Create Card Set Table`. Resultado confirmado: `Success. No rows returned`, RLS habilitado. Nota: `code` usa `VARCHAR(50)` (mais largo que o inicialmente rascunhado) e a constraint de quantidades foi nomeada `ck_card_set_total_size_valid`.
 
-### Trigger de `updated_at` (planejado)
+### Trigger de `updated_at`
 
 ```sql
 CREATE TRIGGER trg_card_set_set_updated_at
@@ -586,11 +586,40 @@ FOR EACH ROW
 EXECUTE FUNCTION public.set_updated_at();
 ```
 
-Query planejada: `121 - Create Card Set Trigger`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game, acima).
+Query: `121 - Create Card Set Trigger`. Resultado confirmado: `Success. No rows returned`. Verificado via `information_schema.triggers` (mesma consulta usada para Game/Expansion): `trigger_name = trg_card_set_set_updated_at`, `event_manipulation = UPDATE`, `action_timing = BEFORE`, `event_object_schema = public`, `event_object_table = card_set`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game, acima).
 
-### Seed e Validação (planejados)
+### Seed
 
-Seguirão o mesmo padrão já aplicado a Game e Expansion: resolução de `expansion_id` por `SELECT` no código da Expansion (nunca por UUID fixo) e idempotência via `ON CONFLICT (expansion_id, code) DO NOTHING`. Queries planejadas: `820 - Seed Card Set` e `920 - Validate Card Set`. Ainda não executadas.
+Resolve `expansion_id` uma única vez (Game `POKEMON` + Expansion `ME`) e insere múltiplas linhas via `CROSS JOIN` com uma lista `VALUES` — variação do padrão de Seed já usado em Expansion, útil quando vários registros da mesma entidade pai são inseridos de uma vez (ver STD-001, Seção 10):
+
+```sql
+INSERT INTO public.card_set (
+    expansion_id, code, name, set_type, release_order,
+    release_date, base_set_size, total_set_size
+)
+SELECT
+    expansion.id, seed.code, seed.name, seed.set_type, seed.release_order,
+    seed.release_date, seed.base_set_size, seed.total_set_size
+FROM public.expansion
+INNER JOIN public.game ON game.id = expansion.game_id
+CROSS JOIN (
+    VALUES
+        ('ME1',   'Mega Evolution',     'REGULAR', 1, NULL::DATE, 132, 188),
+        ('ME2',   'Phantasmal Flames',  'REGULAR', 2, NULL::DATE,  94, 130),
+        ('ME2.5', 'Ascended Heroes',    'SPECIAL', 3, NULL::DATE, 217, 295)
+) AS seed (code, name, set_type, release_order, release_date, base_set_size, total_set_size)
+WHERE game.code = 'POKEMON'
+  AND expansion.code = 'ME'
+ON CONFLICT (expansion_id, code) DO NOTHING;
+```
+
+Query: `820 - Seed Card Set`. `release_date` nula nas três linhas — datas de lançamento ainda não validadas contra uma fonte confiável.
+
+> **Regra de confiabilidade aplicada:** o Set `ME3` (`Perfect Order`) foi **deliberadamente deixado fora desta Seed**, mesmo com sua existência confirmada pela página oficial do Pokémon TCG — suas quantidades de cartas (`base_set_size`/`total_set_size`) ainda não foram validadas, e o projeto não cadastra dados estimados como se fossem oficiais (ver STD-001, Seção 10 — regra de confiabilidade dos dados de Seed). `ME3` será incluído em uma execução futura da Seed assim que seus dados forem confirmados.
+
+### Validação — Pendente
+
+Query `920 - Validate Card Set` ainda não foi executada. Deverá seguir o padrão já usado em Game/Expansion (SELECT com JOIN até Game, mais verificação do trigger) e, adicionalmente, exibir a quantidade calculada de cartas secretas de cada Set (`total_set_size - base_set_size`). **Não assumir que a Seed está correta até essa validação ser executada e confirmada** (ver STD-001, Seção 10).
 
 ## Modelo Consolidado
 
@@ -600,7 +629,7 @@ Card Set
 PK  id               UUID
 FK  expansion_id     UUID
 
-    code             VARCHAR(20)
+    code             VARCHAR(50)
     name             VARCHAR(150)
     set_type         VARCHAR(20)
     release_order    INTEGER
@@ -612,7 +641,7 @@ FK  expansion_id     UUID
     updated_at       TIMESTAMPTZ
 ```
 
-## Queries Associadas (planejadas)
+## Queries Associadas
 
 ```text
 120 - Create Card Set Table
@@ -621,19 +650,18 @@ FK  expansion_id     UUID
 920 - Validate Card Set
 ```
 
-Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800).
+Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800). `920` ainda não executada.
 
 ## Definition of Done
 
 - [x] modelo lógico definido, por grupo;
 - [x] atributos e campos adiados definidos;
 - [x] regras de negócio definidas;
-- [x] DDL aprovado por Fabrício;
-- [ ] tabela `card_set` criada no Supabase;
-- [ ] RLS habilitado;
-- [ ] trigger criado e verificado;
-- [ ] seed executado;
-- [ ] validação executada e confirmada.
+- [x] tabela `card_set` criada no Supabase (`120`);
+- [x] RLS habilitado;
+- [x] trigger criado (`121`) e verificado via `information_schema.triggers`;
+- [x] seed executado (`820` — ME1, ME2, ME2.5; ME3 deliberadamente adiado);
+- [ ] validação executada e confirmada (`920`) — **pendência aberta desta entidade**.
 
 ---
 
@@ -680,3 +708,4 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 | 0.7 | Corrigida a pendência de `logo_url`: o valor deve ser importado automaticamente via API e armazenado no Supabase Storage, seguindo o mesmo padrão de imagens de Card — não uma coluna de preenchimento manual. Ação pendente agora depende de decisão prévia sobre a estrutura do pipeline de ativos visuais (ver `06-pipeline-importacao.md`). |
 | 0.8 | Concluído o pacote técnico da entidade Expansion: trigger (`111`), Seed real (`810` — ME/Mega Evolution/release_order=1, com nota sobre revisão futura da ordenação) e Validação (`910`), todos confirmados. Adicionadas as Queries Associadas completas. Adicionada nota sobre o início (não conclusão) da discussão da entidade Set — consistente com a prévia já registrada em `04-domain-model.md`. |
 | 0.9 | **Correção:** `logo_url` não é uma pendência da Expansion — pertence ao Set. A seção "Pendência Confirmada — logo_url" foi reescrita como "Correção — logo_url pertence ao Set, não à Expansion", com o histórico preservado. Status da Expansion atualizado para "sem pendências". Completada a entidade Set: modelo lógico por grupo, atributos, campos adiados (`logo_url`/`symbol_url`/`status`/`secret_set_size`), 7 regras de negócio, DDL completo de `card_set` (aprovado, execução ainda pendente — Query `120`), trigger/seed/validação planejados (`121`/`820`/`920`), modelo consolidado e Definition of Done (parcial — aguardando execução no Supabase). |
+| 0.10 | Set executado no Supabase: tabela (`120`, com `code VARCHAR(50)` e constraint `ck_card_set_total_size_valid`, ajustados frente ao modelo aprovado), trigger (`121`, verificado via `information_schema.triggers`) e seed (`820` — ME1/ME2/ME2.5 com dados reais, `release_date` nula, `ME3` deliberadamente adiado por falta de validação). Query `920 - Validate Card Set` ainda não executada — sinalizada como pendência aberta da entidade. Definition of Done atualizada (7 de 8 itens concluídos). |
