@@ -130,6 +130,16 @@ EXECUTE FUNCTION set_updated_at();
 
 `set_updated_at()` é reutilizável e será associada às próximas tabelas da mesma forma.
 
+### Row Level Security
+
+Toda tabela do schema `public` deve ter RLS habilitado no momento da criação (ver STD-001, Seção 9):
+
+```sql
+ALTER TABLE game ENABLE ROW LEVEL SECURITY;
+```
+
+Sem políticas de acesso definidas ainda, isso impede qualquer leitura ou escrita pela API automática do Supabase — apenas a administração direta do banco tem acesso, até que políticas específicas sejam criadas.
+
 ## Testes Mínimos de Integridade
 
 **Código duplicado — deve falhar** (viola `uq_game_code`):
@@ -172,6 +182,7 @@ A entidade é considerada concluída quando:
 - [x] a extensão `pgcrypto` estiver habilitada;
 - [x] a função `set_updated_at()` estiver criada;
 - [x] a tabela `game` estiver criada;
+- [x] o RLS estiver habilitado em `game`;
 - [x] o registro `POKEMON` estiver inserido;
 - [x] os testes de integridade forem executados;
 - [x] o resultado estiver validado.
@@ -239,3 +250,4 @@ Próxima entidade: **Expansion**, que introduzirá o primeiro relacionamento e a
 | Versão | Descrição |
 |---------|-----------|
 | 0.1 | Estrutura inicial do documento. Modelagem lógica e física completa da entidade Game (Jogo), incluindo DDL, trigger de `updated_at`, testes mínimos de integridade e Definition of Done. Adicionados stubs para as demais entidades já definidas em `04-domain-model.md`, na ordem prevista de implementação. |
+| 0.2 | Adicionado o requisito de Row Level Security (RLS) ao modelo físico e à Definition of Done da entidade Game, refletindo o padrão agora registrado em STD-001, Seção 9. |

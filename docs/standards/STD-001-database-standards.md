@@ -33,8 +33,9 @@ Inclui:
 - índices;
 - funções;
 - triggers;
-- views;
-- documentação técnica relacionada ao banco.
+- views.
+
+Comentários e cabeçalhos explicativos dentro dos scripts SQL (descrição, regras de negócio, autor, data) são escritos em **português**, como o restante da documentação do projeto — apenas os identificadores técnicos (nomes de objetos do banco) seguem o inglês. Ver Seção 10 (Migration Standards) para o modelo de cabeçalho.
 
 ---
 
@@ -174,11 +175,68 @@ Exemplos de restrições implementadas no banco:
 - valores numéricos com regra de negócio (ex.: uma ordem de lançamento deve ser positiva — `CHECK`);
 - formato de campos de negócio (ex.: um `code` deve seguir um padrão normalizado — `CHECK` com expressão regular).
 
+## Row Level Security (RLS)
+
+Toda tabela do schema `public` deve ter Row Level Security habilitado no momento da criação (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`), já que esse schema é exposto pela API automática do Supabase (ver `01-technical-identity.md`) a clientes anônimos ou autenticados. Políticas de acesso específicas são criadas posteriormente, apenas quando houver necessidade concreta — até lá, o RLS habilitado sem políticas impede qualquer leitura ou escrita externa à administração direta do banco.
+
 ---
 
 # 10. Migration Standards
 
-*Documentação pendente.*
+## Ferramenta
+
+Migrations são sempre executadas via SQL Editor (Supabase), nunca pelo menu visual de criação de tabelas. O menu visual é adequado para protótipos, mas o Project Mimikyu depende de constraints, triggers, funções, índices e checks — recursos mais bem organizados, documentados e rastreáveis em SQL.
+
+A ideia inicial era organizar migrations em arquivos numerados (`000_initial_database.sql`, `001_create_game.sql`, ...). Na prática, com o uso direto do SQL Editor, essa organização evoluiu para **Queries nomeadas e numeradas dentro da própria ferramenta**, seguindo a mesma lógica sequencial.
+
+## Padrão Oficial de Queries SQL do Project Mimikyu
+
+Toda Query deve possuir:
+
+- **Número** — sequencial, permitindo ordenação natural e histórico de evolução do banco (ex.: `000`, `001`, `002`...);
+- **Nome** — curto, descritivo, em inglês (ex.: `Create Game table`);
+- **Descrição** — em português, explicando o que a Query faz;
+- **Cabeçalho** — bloco de comentário no início do script (ver modelo abaixo);
+- **SQL** — o script propriamente dito;
+- **Validação** — uma ou mais consultas que confirmam que a execução funcionou corretamente.
+
+Exemplo de sequência:
+
+```text
+000 - Enable pgcrypto
+001 - Create updated_at function
+002 - Create Game table
+003 - Create Game trigger
+004 - Seed Game
+005 - Create Expansion table
+```
+
+### Modelo de Cabeçalho
+
+```sql
+/*
+================================================================
+Projeto.....: Project Mimikyu
+Query.......: 002 - Create Game table
+Versão......: 1.0
+Autor.......: [nome]
+Data........: AAAA-MM-DD
+
+Descrição...:
+[o que este script cria ou altera]
+
+Regras de Negócio:
+- [regra 1]
+- [regra 2]
+================================================================
+*/
+```
+
+O campo **Versão** identifica a evolução do próprio script (ex.: uma alteração futura na tabela Game seria uma nova Query, como `045 - Alter Game structure`, preservando o registro da versão original).
+
+## Execução
+
+Uma etapa por vez, sempre validada antes de avançar: instalar extensão → validar → criar função → validar → criar tabela → validar. Isso facilita identificar exatamente onde algo deu errado, em vez de executar dezenas de comandos de uma só vez.
 
 ---
 
@@ -189,3 +247,4 @@ Exemplos de restrições implementadas no banco:
 | 1.0 | Criação inicial do documento. |
 | 1.1 | Preenchidas as Seções 2 (Naming Conventions), 5 (Primary Keys) e 6 (Foreign Keys): tabelas em `snake_case` singular, colunas em `snake_case` (nunca camelCase/PascalCase), chave primária `id` (UUID) como identidade técnica, chave estrangeira no padrão `<entidade_referenciada>_id`. |
 | 1.2 | Adicionada nota sobre palavras reservadas do SQL na Seção 2 (ex.: Set → `card_set`). Preenchida a Seção 3 (Data Types: VARCHAR vs. TEXT, UUID, TIMESTAMPTZ). Refinada a Seção 4 (Audit Model): `created_by`/`updated_by`/`deleted_at`/`deleted_by` deixam de ser obrigatórios por padrão, passando a ser adicionados apenas sob necessidade concreta (Princípio da Simplicidade Inicial, AP-004); padrão mínimo agora é `id`/`created_at`/`updated_at`. Adicionada à Seção 5 a versão do UUID (v4 no MVP, v7 quando houver suporte adequado) e a distinção entre identidade técnica (`id`) e identidade de negócio (`code`). Preenchida a Seção 8 (Logical Delete: preferir `status` de negócio a soft delete generalizado) e a Seção 9 (SQL Standards: restrições de integridade também no banco, não só na aplicação). |
+| 1.3 | Refinada a Seção 1 (Technical Language): cabeçalhos e comentários explicativos dos scripts SQL passam a ser em português; apenas identificadores técnicos seguem o inglês. Adicionado à Seção 9 o requisito de Row Level Security (RLS) habilitado em toda tabela do schema `public`. Preenchida a Seção 10 (Migration Standards): uso exclusivo do SQL Editor (nunca o menu visual), Padrão Oficial de Queries SQL (Número/Nome/Descrição/Cabeçalho/SQL/Validação, com modelo de cabeçalho incluindo Versão) e execução validada passo a passo. |
