@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.1 |
+| **Versão** | 0.40 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -2872,11 +2872,13 @@ Três divergências em relação à proposta — a primeira agora explicada e re
 
 1. **Sem `card_variant_id` — RESOLVIDO/EXPLICADO.** Fabrício corrigiu explicitamente o design: "Não pretendi representar com imagens as variações das cartas! A ilustração será representada de uma única forma." Confirmado: `card_asset` não se relaciona com `card_variant` — a imagem pertence exclusivamente à Card. Arquitetura final: Card possui identidade visual única; Card Variant representa acabamento/impressão/distribuição; Card Asset representa digitalmente a Card, nunca a Variant. A ausência de `card_variant_id` na tabela física era intencional, não uma lacuna.
 2. **`storage_bucket_id`** (FK para `storage_bucket`) no lugar de `storage_provider` (texto livre, reintroduzido numa nova rodada de discussão com valores `SUPABASE`/`EXTERNAL`) — ainda não resolvida; a estrutura física vale até indicação contrária.
-3. **`language_id`** (presumivelmente FK para `language`), ausente de toda proposta vista até agora — ainda não resolvida, possivelmente ligada à ainda-não-documentada Card Translation.
+3. **`language_id`** (FK para `language`) — **RESOLVIDO.** A dúvida original ("possivelmente ligada à ainda-não-documentada Card Translation") estava mal direcionada: o campo não representa tradução editorial nem idioma do exemplar físico do usuário — representa o **idioma da própria imagem digital**. A mesma Card pode ter, por exemplo, um ativo `CARD_FRONT` cuja imagem impressa está em português (`Rufflet do Lauro`) e outro `CARD_FRONT` cuja imagem impressa está em inglês (`Larry's Rufflet`) — mesma Card, mesmo Card Asset Type, textos diferentes porque a fonte de imagem usada é linguisticamente distinta. Ver seção "Language (Idioma)", abaixo, e a nova subseção "Três Dimensões de Idioma" em `04-domain-model.md`. Confirma que `language` — já presente entre as 17 tabelas físicas pré-existentes — tem, de fato, um propósito concreto e imediato (ao contrário do que se presumia).
 
 ## Regras adicionais de `card_asset` (discussão, não executadas)
 
-Localização do arquivo: `storage_provider = SUPABASE` + `storage_path` preenchido + `external_url = NULL`, ou `storage_provider = EXTERNAL` + `storage_path = NULL` + `external_url` preenchido — constraint deve exigir ao menos uma localização válida. Ativo principal: no máximo um `is_primary = TRUE` por `card_id` + `asset_type_id`, via índice único parcial `uq_card_asset_one_primary`. Integridade técnica planejada: dimensões positivas, `file_size_bytes` não negativo, `asset_order` positivo, `external_url` ou `storage_path` informado, Asset Type do mesmo Game da Card, sem duplicidade lógica, exclusão protegida, RLS habilitado. Escopo inicial reduzido: seed usará apenas `CARD_FRONT` (uma imagem única por Card); `ARTWORK`/`CARD_BACK` catalogados para uso futuro.
+Localização do arquivo: `storage_provider = SUPABASE` + `storage_path` preenchido + `external_url = NULL`, ou `storage_provider = EXTERNAL` + `storage_path = NULL` + `external_url` preenchido — constraint deve exigir ao menos uma localização válida. Integridade técnica planejada: dimensões positivas, `file_size_bytes` não negativo, `asset_order` positivo, `external_url` ou `storage_path` informado, Asset Type do mesmo Game da Card, sem duplicidade lógica, exclusão protegida, RLS habilitado. Escopo inicial reduzido: seed usará apenas `CARD_FRONT` (uma imagem única por Card); `ARTWORK`/`CARD_BACK` catalogados para uso futuro.
+
+**Ativo principal e unicidade — revisadas para incluir `language_id` (ver "Language", abaixo).** Regra anterior (sem dimensão de idioma): no máximo um `is_primary = TRUE` por `card_id` + `asset_type_id`, via índice único parcial `uq_card_asset_one_primary`; unicidade lógica por `card_id` + `asset_type_id` + `asset_order`. **Regra revisada**: cada combinação `card_id` + `asset_type_id` + `language_id` pode ter seu próprio ativo principal — no máximo um `is_primary = TRUE` por `card_id` + `asset_type_id` + `language_id`; unicidade lógica passa a ser `card_id` + `asset_type_id` + `language_id` + `asset_order`; localização (`storage_path` ou `external_url`) também não pode se repetir dentro de `card_id` + `asset_type_id` + `language_id`. Isso permite que a mesma Card tenha, por exemplo, um `CARD_FRONT` principal em português (`asset_order = 1`, `is_primary = TRUE`) e outro `CARD_FRONT` principal em inglês (`asset_order = 1`, `is_primary = TRUE`), sem conflito.
 
 ## SQL confirmada — `170`/`171`/`870`/`970` — CONCLUÍDA E EXECUTADA
 
@@ -2909,9 +2911,15 @@ Regeneradas a pedido de Fabrício, confirmadas diretamente: **"Excelente. Execut
 
 180 - Create Card Asset Table            (EXECUTADA v1.1 — possível no-op contra tabela já existente, ver ressalva acima)
 181 - Create Card Asset Triggers         (EXECUTADA v1.1 — trigger genuinamente criado)
-980 - Validate Card Asset Structure      (EXECUTADA v1.1 — sem erro, resultados numéricos não confirmados)
+980 - Validate Card Asset Structure      (EXECUTADA v1.1 — sem erro, resultados numéricos não confirmados; precisará ser reescrita após 192/880)
 
-880 - Seed Card Asset                    (planejada — escopo confirmado: apenas CARD_FRONT, card_id direto; pré-requisitos ainda em aberto)
+190 - Create Language Table              (EXECUTADA — ver seção "Language", abaixo)
+191 - Create Language Triggers           (EXECUTADA)
+192 - Refine Language Code Constraint    (EXECUTADA — ajuste de constraint, NÃO é a migration de card_asset, ver "Language")
+890 - Seed Language                      (em andamento — cabeçalho recebido, corpo ainda não fornecido)
+193(?) - Add Language to Card Asset      (planejada — número não confirmado, SQL ainda não recebida)
+
+880 - Seed Card Asset                    (planejada — escopo confirmado: apenas CARD_FRONT, card_id direto; bloqueada pela migration de card_asset e pela fonte oficial de imagens, ver "Query 880", abaixo)
 ```
 
 ## Query 860 — `860A`–`860E` CONCLUÍDAS, EXECUTADAS E CONSOLIDADAS; camada de Card Variant canonicamente encerrada
@@ -2942,11 +2950,105 @@ Regra editorial confirmada: cada Pokémon comum/incomum/raro elegível (não `ex
 
 **Validação final — Query `960` (v2.0, CANÔNICA).** Evoluída de validação puramente estrutural (v1.0, 17 blocos, executada quando a tabela ainda estava vazia) para validação completa pós-carga: mantém todos os blocos estruturais e acrescenta cobertura exata das 859 Cards, total exato de 1.555 Card Variants, quantidade por Card Set, exatamente uma variante padrão por Card na posição `variant_order = 1` (sempre `STANDARD` ou `HOLO`), sequência contínua de `variant_order` por Card, e distribuição canônica completa por Card Set + Card Variant Type (24 combinações esperadas). **Resultado real, executado e confirmado:** `covered_cards` 859/859, `registered_variants` 1.555/1.555, `default_variants` 859/859, `status` `COMPLETE`. Com isso, o ciclo `160 → 860 → 960` se fecha e a camada de Card Variant é declarada **canonicamente encerrada** — migrations canônicas: `150`/`151`/`160`/`161`/`850` v1.3/`950`/`860` consolidada/`960` v2.0. Arquivo antigo `960_validate_card_variant_structure.sql` (v1.0) removido de `database/validations/` com permissão de Fabrício, substituído por `960_validate_card_variant.sql` (v2.0).
 
-## Query 880 — Escopo Confirmado
+## Query 880 — Escopo Confirmado, Regras e Estratégia (planejamento, ainda não executada)
 
-`CARD_FRONT` apenas, `is_primary = TRUE`, `asset_order = 1`, vinculado a `card_id` direto, nunca a `card_variant`. Em aberto: fonte oficial das imagens, padrão de `source_code`/`source_reference`, `external_url` vs. `storage_path`, convenção de nomes/caminhos, tratamento de imagens indisponíveis, estratégia de atualização futura.
+`CARD_FRONT` apenas, `is_primary = TRUE`, `asset_order = 1`, vinculado a `card_id` direto, nunca a `card_variant`.
 
-Fabrício adiou o detalhamento fino desta entidade e de `language`/`card_external_reference`/`card_set_external_reference` (tabelas físicas pré-existentes, ver `06-pipeline-importacao.md`): "Vamos chegar a detalhar essas três mais para frente. Vamos seguir o fluxo."
+**Regras que a Query `880` precisará respeitar, por registro**: Card obrigatória; Card Asset Type obrigatório; `storage_path` ou `external_url` obrigatório (ao menos um); `asset_order > 0`; Card e Asset Type pertencentes ao mesmo Game. Sem duplicidade em `card_id` + `asset_type_id` + `language_id` + `asset_order` (unicidade lógica, já revisada acima para incluir `language_id`); no máximo um registro principal por `card_id` + `asset_type_id` + `language_id`; a mesma localização (`storage_path` ou `external_url`) não pode se repetir para a mesma Card + Asset Type + idioma.
+
+**Quantidade esperada, calculada a partir do catálogo já homologado**: 859 Cards já cadastradas (Card Variant canonicamente encerrada, ver seção acima) → 1 ativo `CARD_FRONT` por Card, por idioma disponível. Sem a dimensão de idioma, seriam exatamente 859 registros; com ela, o total real depende de quantos idiomas cada Card tiver imagem confirmada (mínimo 859, um por Card, quando só um idioma estiver disponível por Card).
+
+**Arquitetura planejada — mesmo padrão homologado da `860`**: Matriz Editorial em JSONB (`collector_number`/`set_code` → URLs por idioma) + um único bloco `DO $$` que localiza a Card, resolve o `asset_type_id` de `CARD_FRONT` (via `870`, já executada) e executa o UPSERT — sem centenas de `INSERT`s individuais, com idempotência, rollback em qualquer inconsistência e validação de consistência de Game. Fabrício confirmou explicitamente essa direção ("Siga em frente") antes do bloqueio de idioma surgir.
+
+**Estratégia provável de preenchimento de campos** (ainda não confirmada como definitiva, depende da fonte de dados escolhida): `storage_path = NULL`, `external_url` = URL pública da imagem, `is_primary = TRUE`, `asset_order = 1`, `is_active = TRUE`. Quando a fonte disponibilizar, também: `source_code`, `source_reference`, `mime_type`, `file_extension`, `width_pixels`, `height_pixels`. Campos que não puderem ser conhecidos com segurança devem permanecer `NULL` — especialmente `file_size_bytes` e `checksum_sha256` — não devem ser inventados/inferidos.
+
+**Bloqueio 1 — fonte oficial das imagens, ainda em aberto.** Três opções avaliadas: (A) Pokémon TCG API (`images.pokemontcg.io`) — estável, CDN, alta resolução, referência oficial do ecossistema, mas concentra majoritariamente imagens em inglês; (B) TCGdex (`assets.tcgdex.net`) — também sólida, com suporte multilíngue real; (C) armazenamento próprio — descartada por não fazer sentido nesta fase. Uma recomendação técnica foi esboçada (`TCGDEX`, com ME1/ME2/ME2.5 em pt-BR quando disponível e ME3/ME4 em inglês) mas **não confirmada por Fabrício** — nenhuma fonte foi definitivamente escolhida.
+
+**Bloqueio 2 — identificador externo de cada coleção/carta, ainda em aberto.** `card` possui `card_set_code + collector_number` como identidade interna, mas a URL pública de qualquer fonte externa depende da convenção de nomenclatura própria dessa fonte (ex.: `ME1` → identificador externo → URL real) — não deve ser presumido que `ME1 = me1`, `ME2.5 = me2.5`, `001 = 1`, etc. Interpolar 859 URLs sem confirmar sua existência arriscaria uma execução "bem-sucedida" registrando URLs inválidas. A Query `880` só poderá ser gerada com segurança a partir de uma matriz externa validada contendo, no mínimo: `set_code`, `collector_number`, `source_code`, `source_reference`, `external_url`, `mime_type`, `file_extension` — ainda não recebida.
+
+**Bloqueio 3 — dimensão de idioma, gerou uma revisão arquitetural própria antes da `880` (ver "Language", abaixo).** Ao comparar duas imagens reais da mesma Card (`Rufflet`, `173/217`, ME2.5) — uma em português ("Rufflet do Lauro") e outra em inglês ("Larry's Rufflet") — Fabrício identificou que ambas representam a mesma Card, o mesmo Card Asset Type (`CARD_FRONT`), mas são duas **representações linguísticas distintas do mesmo ativo digital** — não dois Card Assets Types, não duas Cards, não duas Card Variants. Isso disparou a decisão de adicionar `language_id` como dimensão de `card_asset` (ver "Estrutura Física Real", acima, e a nova entidade "Language", abaixo) — a `880` está bloqueada até essa revisão (`190`/`191`/`890`/`192`) ser executada.
+
+Fabrício havia adiado anteriormente o detalhamento fino desta entidade e de `language`/`card_external_reference`/`card_set_external_reference` (tabelas físicas pré-existentes, ver `06-pipeline-importacao.md`): "Vamos chegar a detalhar essas três mais para frente. Vamos seguir o fluxo." — o detalhamento de `language` começou a ser antecipado por conta do Bloqueio 3.
+
+---
+
+# Language (Idioma)
+
+## Status
+
+**Entidade física pré-existente (uma das 17 tabelas originais), detalhamento retroativo em andamento — `190` e `191` CONFIRMADOS EXECUTADOS ("Executada com sucesso"); `192` (ajuste da constraint) também executado; `890` (Seed) ainda não recebida por completo.** Surgiu como pré-requisito direto da Query `880`: ao decidir que `card_asset` precisa distinguir o idioma da imagem exibida (ver Bloqueio 3, acima), tornou-se necessário formalizar `language` como um catálogo de referência, em vez de um campo de texto livre em `card_asset` — mesmo padrão já usado para `card_variant_type`/`card_asset_type` (evitar risco de duplicidade como `PT`/`pt`/`pt_BR`/`Português` representando o mesmo idioma).
+
+> **Risco de cross-check sinalizado preventivamente na revisão anterior — parcialmente mitigado, não totalmente descartado.** `language` já existe fisicamente entre as 17 tabelas pré-existentes (mesma lista que incluía `card_asset`/`card_asset_type`, ambas divergentes da proposta original quando finalmente inspecionadas). `190` usa `CREATE TABLE IF NOT EXISTS`, que seria um no-op silencioso caso a estrutura real já divergisse — o mesmo padrão já ocorrido com `170`/`180`. **Evidência indireta a favor de que `190` não foi um no-op**: a Query `192` (abaixo) executa `ALTER TABLE public.language ... ADD CONSTRAINT ck_language_code_format CHECK (code ~ ...)` referenciando a coluna `code` sem erro — se a tabela real divergisse a ponto de não ter essa coluna, o `ALTER` teria falhado. Isso é consistente com a estrutura proposta, mas **não substitui uma inspeção direta via Table Editor** (como foi feita para `card_asset_type`/`card_asset`) — ainda não realizada para `language`. Tratar como "provavelmente correto, não definitivamente confirmado."
+
+> **Discrepância de numeração sinalizada, não resolvida.** Em mais de um ponto desta mesma conversa, a sessão pareada descreveu a Query `192` como sendo a migration que adicionaria `language_id` a `card_asset` ("192, que será a migration mais importante deste bloco, pois incorporará `language_id` à `card_asset`..."). Na prática, o número `192` foi consumido por uma migration diferente e menor (o ajuste da constraint de formato de `code`, abaixo) antes disso acontecer. A migration que efetivamente altera `card_asset` para incluir `language_id` **ainda não tem número nem SQL definidos** — muito provavelmente será `193`, mas isso não foi confirmado por Fabrício nem pela sessão pareada. Não presumir o número até a Query ser de fato apresentada.
+
+## Decisão de Modelagem
+
+`language` é um catálogo **global**, sem `game_id` — o idioma não pertence exclusivamente ao Pokémon TCG nem a nenhum Game específico. Catálogo inicial planejado: `pt-BR` (Português Brasil) e `en` (Inglês) — os dois idiomas com imagens reais já confirmadas nas Cards do projeto.
+
+**Formato de `code` revisado antes de qualquer carga de dados (Query `192`, abaixo).** A revisão do padrão BCP 47 completo usado por `190` mostrou-se mais permissiva do que o domínio do projeto precisa (aceitaria, por exemplo, variantes de script como `zh-Hant-TW`). Como a tabela `language` ainda não continha nenhum registro, a simplificação foi feita sem qualquer impacto: `code` passa a aceitar apenas os formatos `xx` ou `xx-YY` (ex.: `en`, `ja`, `fr`, `es`, `de`, `it`, `pt-BR`, `pt-PT`) — suficiente para todos os idiomas do Pokémon TCG previstos, reduz ambiguidade e simplifica validação futura.
+
+## Modelo Físico — Versão 1.0 (CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE IF NOT EXISTS public.language (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    native_name TEXT NOT NULL,
+    language_order INTEGER NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_language_code
+        UNIQUE (code),
+    CONSTRAINT uq_language_order
+        UNIQUE (language_order),
+    CONSTRAINT ck_language_code_not_blank
+        CHECK (BTRIM(code) <> ''),
+    CONSTRAINT ck_language_name_not_blank
+        CHECK (BTRIM(name) <> ''),
+    CONSTRAINT ck_language_native_name_not_blank
+        CHECK (BTRIM(native_name) <> ''),
+    CONSTRAINT ck_language_code_format
+        CHECK (
+            code ~ '^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$'
+        ),
+    CONSTRAINT ck_language_order_positive
+        CHECK (language_order > 0)
+);
+
+CREATE INDEX IF NOT EXISTS ix_language_is_active
+    ON public.language (is_active);
+
+ALTER TABLE public.language ENABLE ROW LEVEL SECURITY;
+```
+
+Regras de negócio: `code` único, formato revisado pela `192` (`xx` ou `xx-YY`, ver acima); `name`/`native_name` não podem ser vazios; `language_order` positivo e único; `is_active` permite desativar um idioma sem apagar registros já vinculados; RLS habilitado. Cabeçalho original (Query `190 - Create Language Table`, v1.0, Status declarado `CANÔNICA` pelo autor) executado em `BEGIN`/`COMMIT`, com comentários (`COMMENT ON TABLE`/`COMMENT ON COLUMN`) completos em português. Arquivo escrito em `database/schema/190_create_language_table.sql`.
+
+## Query 191 — Create Language Triggers (CONFIRMADO EXECUTADO)
+
+Mesmo padrão já usado em todas as demais entidades do catálogo (`101`/`111`/`121`/`131`/`141`/`151`/`161`/`171`/`181`): valida a existência de `public.set_updated_at()` antes de criar o trigger, recria `trg_language_set_updated_at` via `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`, sem nenhuma regra de negócio adicional. Confirmado executado por Fabrício ("Executada com sucesso"). Arquivo escrito em `database/schema/191_create_language_triggers.sql`.
+
+## Query 192 — Refine Language Code Constraint (CONFIRMADO EXECUTADO — não é a migration de `card_asset`)
+
+Migration de ajuste pontual, não a adição de `language_id` a `card_asset` originalmente prevista para este número (ver "Discrepância de numeração", acima). `ALTER TABLE public.language DROP CONSTRAINT IF EXISTS ck_language_code_format` seguido de `ADD CONSTRAINT` com o novo regex `^[a-z]{2}(-[A-Z]{2})?$`, executada com segurança porque a tabela ainda não tinha registros. Confirmado executado por Fabrício ("Executada com sucesso"). Arquivo escrito em `database/migrations/192_refine_language_code_constraint.sql` (mesma pasta de `122_adapt_card_set_for_promo.sql`, precedente de migration pontual pós-criação).
+
+## Impacto Planejado em `card_asset` (número ainda não definido — provavelmente `193`, SQL ainda não recebida)
+
+Adiciona `language_id UUID NOT NULL` (FK para `language`). Revisão de unicidade já documentada na seção Card Asset, acima: de `card_id`+`asset_type_id`+`asset_order` para `card_id`+`asset_type_id`+`language_id`+`asset_order`; ativo principal por `card_id`+`asset_type_id`+`language_id`. Isso permite que a mesma Card tenha uma imagem `CARD_FRONT` em português e outra em inglês, cada uma com seu próprio `asset_order = 1`/`is_primary = TRUE`.
+
+## Sequência (atualizada com o estado real de execução)
+
+```text
+190 - Create Language Table              (CONFIRMADO EXECUTADO — database/schema/190_create_language_table.sql)
+191 - Create Language Triggers           (CONFIRMADO EXECUTADO — database/schema/191_create_language_triggers.sql)
+192 - Refine Language Code Constraint    (CONFIRMADO EXECUTADO — database/migrations/192_refine_language_code_constraint.sql; NÃO é a migration de card_asset)
+890 - Seed Language                      (em andamento — cabeçalho v1.0 recebido, corpo completo ainda não fornecido; pt-BR/en, idempotente via ON CONFLICT (code))
+193(?) - Add Language to Card Asset      (planejada — número não confirmado; adiciona language_id NOT NULL + revisão de unicidade, SQL ainda não recebida)
+880 - Seed Card Asset                    (bloqueada até a migration de card_asset + fonte oficial de imagens serem resolvidas)
+980 - Validate Card Asset                (precisará ser reescrita após a migration de card_asset/880, mesmo padrão de evolução já usado em 960 v1.0→v2.0)
+```
 
 ---
 
@@ -3004,3 +3106,5 @@ Fabrício adiou o detalhamento fino desta entidade e de `language`/`card_externa
 | 0.36 | **Nomenclatura conceitual resolvida: Card Variant Type/Card Variant, revertendo Finish/Card Finish (ADR-016, reverte parcialmente ADR-010).** Fabrício avaliou que Card Variant Type/Card Variant deve prevalecer, por já ser o nome usado no banco, no pipeline de importação e na prática do projeto — sem que "Card Variant" esteja sendo usado para Full Art/Gold/Secret Rare (escopo já restrito por ADR-009). A separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida. Seção "Nota sobre nomenclatura — tensão com ADR-010" reescrita como "Nomenclatura — RESOLVIDA (ADR-016)". Cabeçalhos das seções ajustados para "Card Variant Type (Tipo de Variante da Carta)" e "Card Variant (Variante da Carta)", sem o sufixo "/Finish"/"/Card Finish". Definition of Done de ambas as entidades atualizada (item de nomenclatura marcado como concluído). Nenhuma alteração física necessária — `card_variant_type`/`card_variant` já usavam o nome agora canônico. |
 | 0.37 | **`860C` (ME2.5) e `860D` (ME3) executadas e confirmadas — 630 e 203 Card Variants, respectivamente. Apenas `860E` (ME4) permanece pendente para o bloco "Editorial Catalog".** `860C`: a estimativa anterior (613, baseada apenas no checklist oficial PT-BR) foi superada pela matriz real (630) após Fabrício exportar manualmente em PDF a página completa do pkmn.gg (bloqueada para scraping automatizado, `403 Forbidden`), revelando 7 `COSMOS_HOLO` e 10 `PROMO_STAMPED` adicionais não capturados pela fonte original. `860D`: mesma arquitetura e mesma regra de exceção de `860B` (as 9 Cards Rara Dupla/`ex` do conjunto base não recebem `REVERSE_HOLO`), confirmada com Fabrício antes da geração. Ambas seguem a arquitetura homologada (matriz JSONB autocontida, validação de referências pré-carga, convergência segura via `+1000`, validação pós-carga por tipo com `RAISE EXCEPTION`/rollback). Arquivos `database/seeds/860c_seed_card_variant_me2_5.sql` e `database/seeds/860d_seed_card_variant_me3.sql` criados, verbatim. |
 | 0.38 | **Marco: camada de Card Variant canonicamente encerrada.** `860E` (ME4) executada e confirmada — 198 Card Variants (64 `STANDARD`/58 `HOLO`/76 `REVERSE_HOLO`; 10 Cards Rara Dupla `ex` excluídas de `REVERSE_HOLO`, confirmando a exceção como editorial, não de contagem fixa). As cinco execuções por coleção (`860A`–`860E`) foram consolidadas em uma única Query canônica `860` (v1.0, CANÔNICA CONSOLIDADA): `v_set_catalog`+`v_matrix` JSONB, carga set-based via `jsonb_to_recordset`/`ON CONFLICT DO UPDATE` (substituindo o `FOR...LOOP` por coleção), 11 passos de validação — resultado real 859 Cards, 1.555 Card Variants. Os cinco arquivos intermediários removidos de `database/seeds/` com permissão de Fabrício (Princípio da Fonte Canônica). Query `960` reescrita para v2.0 (CANÔNICA): evoluída de validação puramente estrutural para validação completa pós-carga (estrutura + cobertura + distribuição editorial completa) — resultado real `covered_cards` 859/859, `registered_variants` 1.555/1.555, `default_variants` 859/859, `status` `COMPLETE`. Arquivo antigo `960_validate_card_variant_structure.sql` (v1.0) removido com permissão de Fabrício, substituído por `960_validate_card_variant.sql` (v2.0). Migrations canônicas da camada: `150`/`151`/`160`/`161`/`850` v1.3/`950`/`860` consolidada/`960` v2.0. Bloco "Editorial Catalog" (100) declarado integralmente concluído; próximo bloco confirmado: Card Asset (`170`/`171`/`870`/`180`/`181`/`880`/`980`), com o levantamento consolidado dos campos que a futura `880` deverá popular (`card_id, asset_type_id, source_code, source_reference, storage_provider, storage_path, external_url, mime_type, file_extension, file_size_bytes, width_pixels, height_pixels, checksum_sha256, is_primary, asset_order, is_active`) já registrado para o próximo ciclo. Definition of Done e Queries Associadas de Card Variant atualizadas. |
+| 0.39 | **Planejamento da Query `880` avançado (regras, estratégia provável, 3 bloqueios identificados) e nova entidade `language` iniciada (retroativa) como pré-requisito.** Regras de integridade da `880` documentadas (Card/Asset Type obrigatórios, localização obrigatória, `asset_order > 0`, mesmo Game, sem duplicidade). Estratégia provável de preenchimento de campos externos documentada (URLs públicas, campos técnicos NULL quando não confirmados). Bloqueio 1 (fonte oficial de imagens — Pokémon TCG API vs. TCGdex, não decidido), Bloqueio 2 (identificador externo de Set/Card na fonte, não confirmado) e Bloqueio 3 (idioma da imagem) documentados. **Bloqueio 3 resolvido arquiteturalmente**: Fabrício, ao comparar duas imagens reais da mesma Card (`Rufflet`, ME2.5) em português e inglês, identificou que `card_asset` precisa de uma dimensão de idioma — mesma Card, mesmo Card Asset Type, duas representações linguísticas distintas (não duas Cards, não duas Card Variants, não dois Asset Types). Resolve também um item em aberto desde a revisão `0.30`: o `language_id` já presente na estrutura física real de `card_asset` (uma das 17 tabelas pré-existentes) finalmente tem propósito explicado — idioma do ativo digital, não tradução editorial nem idioma do exemplar físico. Nova entidade "Language" documentada: catálogo global (sem `game_id`), formato BCP 47, SQL de `190` recebida verbatim mas **execução NÃO confirmada** — sinalizado risco de no-op via `CREATE TABLE IF NOT EXISTS` contra estrutura física já existente, mesmo padrão que já ocorreu com `170`/`180`. Regra de unicidade de `card_asset` revisada para incluir `language_id`. Sequência planejada: `190`/`191`/`890`/`192` antes de `880`/`980` (nova versão). Nenhum arquivo copiado para `database/` (regra do `database/README.md`: só após execução confirmada). |
+| 0.40 | **`190`/`191`/`192` (Language) confirmados executados; discrepância de numeração sinalizada (não resolvida).** `190 - Create Language Table` e `191 - Create Language Triggers` confirmados por Fabrício ("Executada com sucesso") — arquivos escritos em `database/schema/`. Antes de `890`, a sessão pareada revisou a constraint `ck_language_code_format` de `190` (BCP 47 completo, permissiva demais) e propôs simplificá-la para `xx`/`xx-YY`, viável sem impacto pois `language` ainda não tinha registros — executada como `192 - Refine Language Code Constraint`, confirmada, escrita em `database/migrations/` (mesma pasta de `122_adapt_card_set_for_promo.sql`). **Discrepância**: `192` havia sido descrita, em dois pontos desta mesma conversa, como a futura migration que adicionaria `language_id` a `card_asset` — na prática o número foi consumido pelo ajuste de constraint; a migration de `card_asset` ainda não tem número confirmado (provavelmente `193`, não confirmado) nem SQL recebida. Risco de no-op de `190` (sinalizado na revisão `0.39`) parcialmente mitigado por evidência indireta (a `192` alterou com sucesso uma constraint sobre a coluna `code`, sugerindo que a coluna existe conforme proposto) mas não definitivamente resolvido — nenhuma inspeção direta via Table Editor foi feita. `890 - Seed Language` iniciada (cabeçalho v1.0 recebido: pt-BR/en, idempotente via `ON CONFLICT (code)`), corpo completo ainda não fornecido. Seção "Language" e Queries Associadas de Card Asset atualizadas com o estado real. |

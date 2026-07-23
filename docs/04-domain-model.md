@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.1 |
+| **Versão** | 2.2 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
@@ -757,9 +757,9 @@ Sem esse conceito, o sistema não teria onde registrar, por exemplo, que uma Car
 
 ---
 
-### Diferença entre Tradução Editorial e Idioma do Exemplar
+### Três Dimensões de Idioma no Domínio
 
-Existem duas categorias distintas de informação linguística no domínio:
+Existem três categorias distintas de informação linguística no domínio:
 
 **Tradução editorial** — pertence ao catálogo (Card Translation). Pode variar entre idiomas:
 
@@ -771,6 +771,8 @@ Existem duas categorias distintas de informação linguística no domínio:
 - eventualmente, nomes de categorias.
 
 **Idioma do exemplar físico** — pertence ao patrimônio do usuário (Collection Item). Indica qual versão linguística impressa o usuário efetivamente possui.
+
+**Idioma do ativo digital** — pertence ao catálogo (Card Asset, ver "Card Asset Type / Card Asset", abaixo), não ao patrimônio do usuário. Indica em qual idioma está a imagem armazenada para aquela Card — descoberto ao comparar duas imagens reais da mesma Card (`Rufflet`, coleção ME2.5) impressas em português ("Rufflet do Lauro") e em inglês ("Larry's Rufflet"): mesma Card, mesmo Card Asset Type (`CARD_FRONT`), duas representações linguísticas distintas do mesmo ativo. Independente tanto da Tradução Editorial (nome/regras estruturados, ainda não construída) quanto do Idioma do Exemplar Físico (qual cópia impressa o usuário possui) — uma Card pode ter imagem catalogada em um idioma sem que nenhum usuário possua um exemplar físico naquele idioma, e vice-versa.
 
 O catálogo conhece os nomes oficiais em todos os idiomas suportados, independentemente de qualquer usuário possuir um exemplar em determinado idioma.
 
@@ -1041,9 +1043,10 @@ Conceitualmente, um Card Asset:
 - pertence a uma única Card;
 - possui um Card Asset Type que classifica sua finalidade;
 - registra a fonte de origem (ex.: fonte oficial, importação externa, digitalização feita pelo próprio usuário) — permitindo que múltiplas fontes coexistam para a mesma Card sem conflito, já que uma nova fonte não substitui as anteriores;
-- pode ser marcado como o ativo principal de seu tipo para aquela Card (no máximo um ativo principal por combinação Card + Asset Type).
+- registra o idioma da imagem armazenada (ver "Três Dimensões de Idioma no Domínio", acima) — a mesma Card pode ter um Card Asset `CARD_FRONT` em português e outro em inglês, cada um com sua própria identidade de registro;
+- pode ser marcado como o ativo principal de seu tipo e idioma para aquela Card (no máximo um ativo principal por combinação Card + Asset Type + Idioma).
 
-Ver `05-modelo-de-dados.md` para a estrutura física e o estado de execução atual.
+Ver `05-modelo-de-dados.md` para a estrutura física e o estado de execução atual, incluindo a nova entidade de referência **Language (Idioma)**, catálogo global (sem vínculo a um Game específico) que dá suporte a essa dimensão.
 
 > **Distinção reconhecida, ainda não modelada:** o acabamento físico de uma Card (Card Variant Type) e o produto/origem de distribuição de uma impressão específica (ex.: um booster comum vs. uma coleção promocional) são dimensões conceitualmente independentes. Hoje o domínio representa apenas o acabamento. Uma futura entidade de "origem de impressão", vinculada a Card Variant, é uma necessidade reconhecida — ainda não modelada.
 
@@ -1496,3 +1499,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.37–1.38 | Catálogo de Card Variant Type expandido de 6 para 12 tipos, após identificar que a reversa holográfica de determinada coleção segue padrões distintos por linha evolutiva do Pokémon, não um padrão único genérico. |
 | 2.0 | **Reestruturação editorial do documento.** Removido o conteúdo operacional acumulado ao longo dos ciclos anteriores (números de Query, SQL/DDL, versões de Seed, confirmações de execução, propostas rejeitadas mantidas na íntegra, citações de sessão, discussões não concluídas registradas linha a linha) — esse conteúdo permanece preservado em `05-modelo-de-dados.md` (camada física e de execução), `06-pipeline-importacao.md` (estratégias de importação) e no histórico de decisões do projeto. O documento passa a refletir apenas o modelo conceitual vigente de cada entidade: definição, características, relacionamentos e regras de negócio atuais. Histórico de revisões anteriores a esta reescrita comprimido para uma linha por versão (ou faixa de versões relacionadas). |
 | 2.1 | **Convergência de nomenclatura: Finish/Card Finish revertidos para Card Variant Type/Card Variant (ADR-016), revertendo parcialmente ADR-010.** Fabrício avaliou que Card Variant Type/Card Variant deve prevalecer como termo conceitual, por já ser o nome usado no banco de dados, no pipeline de importação e na linguagem prática do projeto, sem que "Card Variant" esteja sendo usado para Full Art/Gold/Secret Rare (escopo já restrito por ADR-009). A separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida e não foi afetada. Renomeadas as seções "Finish"/"Card Finish" para "Card Variant Type"/"Card Variant" e todas as referências cruzadas no documento (Card, Card Translation, Rarity, Card Category, Card Asset, Collection Item). "Finish"/"Card Finish"/"Printing Variant"/"Finish Variant" preservados apenas como sinônimos históricos. |
+| 2.2 | **Terceira dimensão de idioma reconhecida: Idioma do Ativo Digital (Card Asset), independente de Tradução Editorial e de Idioma do Exemplar Físico.** Ao planejar a Query `880` (Seed Card Asset), Fabrício comparou duas imagens reais da mesma Card (`Rufflet`, ME2.5) impressas em português e em inglês e identificou que representam o mesmo Card Asset Type (`CARD_FRONT`) em idiomas diferentes — não Cards distintas, não Card Variants distintas. Seção "Diferença entre Tradução Editorial e Idioma do Exemplar" renomeada para "Três Dimensões de Idioma no Domínio", com a nova categoria adicionada. Seção Card Asset Type/Card Asset atualizada: cada ativo agora registra também seu idioma, com regra de "ativo principal" revisada para Card + Asset Type + Idioma. Nova entidade de referência **Language (Idioma)** documentada em `05-modelo-de-dados.md` (catálogo global, sem `game_id`) para dar suporte a essa dimensão — SQL recebida, execução ainda não confirmada. |
