@@ -2,28 +2,23 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 830 - Seed Rarity
-Versão......: 1.1
+Versão......: 1.2
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-18
 Descrição resumida:
 Cadastra e atualiza as raridades e seus símbolos oficiais identificados nas
-listas de verificação dos Sets da expansão Megaevolução.
+listas de verificação dos Sets da expansão Megaevolução e no Set Promocional.
 Descrição:
 Insere na tabela rarity as classificações de raridade oficialmente utilizadas
 pelos Sets atualmente cadastrados no catálogo do Pokémon TCG.
-A carga é baseada na união das legendas das listas oficiais dos Sets:
-- ME1   - Megaevolução
-- ME2   - Fogo Fantasmagórico
-- ME2.5 - Heróis Excelsos
-- ME3   - Equilíbrio Perfeito
-- ME4   - Caos Ascendente
 O campo symbol_code identifica a representação visual oficial da raridade,
-sem armazenar arquivos de imagem ou URLs.
+sem armazenar arquivos de imagem, URLs, SVGs ou componentes visuais.
 Raridades cadastradas:
 - Comum
 - Incomum
 - Rara
+- Promo
 - Rara Dupla
 - Rara Ultra
 - Rara Mega Ataque
@@ -31,12 +26,14 @@ Raridades cadastradas:
 - Ilustração Rara Especial
 - Mega Rara Hiper
 Regras de Negócio:
-- Somente raridades comprovadas pelas listas oficiais são cadastradas.
+- Somente raridades comprovadas por fontes oficiais são cadastradas.
 - A raridade deve pertencer ao Game POKEMON.
 - O código representa a identificação técnica e estável da raridade.
-- O nome preserva a nomenclatura oficial em português.
+- O nome preserva a nomenclatura oficial ou principal em português.
 - O symbol_code preserva a classificação visual oficial da raridade.
-- A ordem de exibição segue a sequência apresentada nas legendas oficiais.
+- A raridade PROMO utiliza o símbolo BLACK_STAR.
+- RARE e PROMO podem compartilhar o mesmo símbolo visual.
+- A ordem de exibição organiza as raridades em uma sequência lógica.
 - A Query deve ser idempotente.
 - Registros existentes devem ser atualizados para convergir ao modelo canônico.
 - A execução deve falhar caso o Game POKEMON não esteja cadastrado.
@@ -93,45 +90,52 @@ BEGIN
         ),
         (
             v_game_id,
+            'PROMO',
+            'Promo',
+            'BLACK_STAR',
+            4
+        ),
+        (
+            v_game_id,
             'DOUBLE_RARE',
             'Rara Dupla',
             'BLACK_DOUBLE_STAR',
-            4
+            5
         ),
         (
             v_game_id,
             'ULTRA_RARE',
             'Rara Ultra',
             'SILVER_DOUBLE_STAR',
-            5
+            6
         ),
         (
             v_game_id,
             'MEGA_ATTACK_RARE',
             'Rara Mega Ataque',
             'MEGA_ATTACK',
-            6
+            7
         ),
         (
             v_game_id,
             'ILLUSTRATION_RARE',
             'Ilustração Rara',
             'GOLD_STAR',
-            7
+            8
         ),
         (
             v_game_id,
             'SPECIAL_ILLUSTRATION_RARE',
             'Ilustração Rara Especial',
             'GOLD_DOUBLE_STAR',
-            8
+            9
         ),
         (
             v_game_id,
             'MEGA_HYPER_RARE',
             'Mega Rara Hiper',
             'GOLD_DIAMOND',
-            9
+            10
         )
     ON CONFLICT (game_id, code)
     DO UPDATE SET

@@ -655,6 +655,8 @@ Uma mesma numeração (Set + Número) associada a Sets diferentes representa Car
 
 Outro exemplo: um Charizard ex publicado no Set `ME1` e, anos depois, republicado no Set `ME8`, são **duas Cards distintas** — mesmo compartilhando o mesmo Pokémon, o mesmo HP e os mesmos ataques. Editorialmente, continuam sendo publicações diferentes, pertencentes a Sets diferentes.
 
+> **Nota de revisão, discussão em andamento — não presumir esta seção como definitiva:** um lote posterior de modelagem física reabriu esta questão. Fabrício confirmou diretamente que, para o Project Mimikyu, uma Card representa "a carta editorial de forma única, que pode aparecer em vários Sets" — o oposto da premissa "Set + Número" descrita acima, que assumia que uma reimpressão em outro Set criaria uma Card diferente. Isso significa que a identidade `Set + Número` pode passar a pertencer a **Card Printing**, não a Card. **Ainda não é uma decisão final** — ver "Revisão Arquitetural — Identidade Editorial Independente de Set", mais abaixo, para o registro completo da discussão em andamento. Esta seção "Identidade" é preservada como estava, para rastreabilidade, mas deve ser lida como potencialmente superada.
+
 ---
 
 ### Características Conceituais
@@ -772,6 +774,8 @@ Essas três métricas atendem a propósitos diferentes do produto: a primeira me
 
 ### Modelagem Física — Discussão Iniciada (Query 130), Não Concluída
 
+> **Superada em parte pela revisão mais recente:** o conteúdo desta seção (identidade `card_set_id + card_number`, atributos mínimos de `card` incluindo `card_set_id`/`rarity_id`) foi o consenso até um determinado ponto da discussão, mas uma sessão posterior reabriu a questão da identidade de Card e propôs uma reestruturação — ver "Revisão Arquitetural — Identidade Editorial Independente de Set", ao final desta seção, para o estado mais atual (também não concluído). Preservado abaixo por rastreabilidade; não presumir que os atributos mínimos aqui descritos ainda são o modelo vigente.
+
 **Nota de processo:** a modelagem física da Card (rumo à Query `130`) começou a ser discutida diretamente no par Fabrício/ChatGPT responsável pela execução real no Supabase, em paralelo a este documento. O material recebido cruza a discussão real com as decisões já consolidadas aqui. Um segundo lote avançou substancialmente a discussão (resumido abaixo), mas ainda não inclui SQL executado nem uma confirmação explícita de Fabrício sobre os pontos ainda em aberto — nada nesta seção deve ser tratado como definitivo, e nenhuma tabela física de Card deve ser criada a partir dela ainda.
 
 **Confirmado — consistente com decisões já registradas neste documento, sem necessidade de nova ADR:**
@@ -882,6 +886,75 @@ Rarity, especificamente: **RESOLVIDO E EXECUTADO** — ver "Modelagem Lógica Re
 - **Formato de armazenamento de `category_code`:** coluna simples com `CHECK` (recomendação atual) vs. entidade de referência própria — não decidido, mas de menor urgência que os pontos acima (Rarity já foi resolvida como entidade; Category segue como coluna simples até haver necessidade concreta de mudar).
 
 Nenhuma dessas questões restantes foi respondida de forma definitiva por Fabrício até este ponto, com exceção da exclusão de mecânica de jogo (essa, sim, uma decisão direta e confirmada).
+
+### Revisão Arquitetural — Identidade Editorial Independente de Set (discussão em andamento, não concluída)
+
+**Contexto:** com Rarity oficialmente encerrada, a sessão paralela retomou a modelagem de Card do zero, com uma ressalva explícita do próprio material recebido: *"Antes de criarmos a Query 140, gostaria de respondêssemos essa única pergunta: Para o Project Mimikyu, uma 'Card' representa a carta editorial de forma única, que pode aparecer em vários Sets, ou representa a carta dentro de um Set específico?"* Motivação: a maioria dos sistemas modela Card como uma tabela "achatada" (`Number, Name, HP, Rarity, Illustrator, Language, Finish, Set...`), que funciona até aparecer uma reimpressão, uma versão em outro idioma, holo, reverse holo, promocional, jumbo ou de campeonato mundial — a partir daí o modelo começa a "remendar colunas". O objetivo explícito desta rodada foi evitar esse caminho.
+
+**Resposta direta de Fabrício:** *"Representa a carta editorial de forma única, que pode aparecer em vários Sets."*
+
+**Isso inverte a premissa de identidade usada até aqui neste documento** (ver "Identidade," acima, e ADR-004): Card deixa de pertencer diretamente a um Card Set. A relação correta passa a ser:
+
+```text
+Game
+ ├── Card
+ │     └── Card Printing
+ │           └── Card Variant
+ │                 └── Collection Item
+ │
+ └── Expansion
+       └── Card Set
+             └── Card Printing
+```
+
+`Card Printing` passa a depender de **dois** pais — `Card` (identidade editorial) e `Card Set` (onde/quando foi publicada) — em vez de Card depender diretamente de Card Set. Isso reflete um fato real do Pokémon TCG: a mesma carta editorial pode ser reimpressa em Sets diferentes ao longo do tempo, algo que a premissa anterior ("Set + Número" como identidade de Card) não conseguia representar sem tratar cada reimpressão como uma Card totalmente nova e desconectada.
+
+**Definições revisadas, mais precisas que as versões anteriores deste documento:**
+
+- **Card** — representa a identidade editorial única da carta. Existe independentemente de qualquer impressão física. Exemplo: `Pikachu`, ou, dependendo do nível de identidade adotado, `Pikachu ex`. Pode ser publicada várias vezes, em diferentes Sets, idiomas, numerações e acabamentos, permanecendo a mesma Card.
+- **Card Printing** — representa uma publicação daquela Card dentro de um Set específico. Exemplos: `Pikachu – ME1 – nº 025`, `Pikachu – ME0 Promo – nº 001`, `Pikachu – ME5 – nº 074` (a mesma Card, três publicações diferentes). É em `card_printing` que devem ficar: `card_id`, `card_set_id`, número da carta no Set, ordem no checklist, raridade, ilustrador (quando variar por publicação), imagem oficial (futuramente) e demais atributos editoriais próprios daquela aparição específica.
+- **Card Variant** — representa uma versão oficialmente fabricada daquela impressão (ex.: Normal, Reverse Holo, Holo, Stamped, Cosmos Holo, Staff).
+- **Collection Item** — representa cada cópia física individual possuída (ex.: `ITEM_0003456`).
+
+**Consequência imediata e explícita para a Query `140`:** a tabela `card` **não deverá conter** `card_set_id`, `card_number`, nem `rarity_id` — esses atributos identificam uma publicação em determinado Set e, portanto, pertencem a `card_printing`. A tabela `card` deve conter somente atributos intrínsecos à identidade editorial que permaneçam verdadeiros em todas as publicações da mesma carta. **Isso contradiz diretamente o modelo mínimo de `card` "aprovado por Fabrício" registrado mais acima nesta mesma seção** (`id, card_set_id, rarity_id, card_number, card_order, category_code`) — aquele modelo está superado por esta revisão, ainda que também não tenha sido substituído por uma versão final confirmada.
+
+**Princípio: Identidade Editorial (novo, proposto nesta rodada):**
+
+> Uma Card representa uma criação editorial única da The Pokémon Company. Uma nova Card somente é criada quando existe uma alteração editorial que faça a carta deixar de ser considerada a mesma publicação, independentemente do Set. Se uma carta puder ser republicada em outro Set sem mudar sua identidade editorial, continua sendo a mesma Card.
+
+**O que NÃO cria uma nova Card** (tudo isto pertence a camadas posteriores): outro Set; outro idioma; outra impressão; outra tiragem; outro acabamento (Holo, Reverse, Cosmos...); outro número dentro do Set; outra raridade; carta promocional; reprint.
+
+**O que cria uma nova Card** (muda a identidade editorial): `Pikachu`, `Pikachu ex`, `Pikachu V`, `Pikachu VMAX`, `Pikachu GX`, `Pikachu BREAK`, `Pikachu δ Species`, `Surfing Pikachu`, `Flying Pikachu` — "embora compartilhem parte do nome, editorialmente são cartas diferentes."
+
+**Caso delicado 1 — mudança de ilustração:** `Charizard ex` com Arte A e `Charizard ex` com Arte B, se ambas possuem mesmo texto, mesmos ataques, mesmos efeitos e mesma mecânica, e apenas a arte mudou, **não** criam uma nova Card — a arte pertence à Card Printing. Explicitamente relevante porque diversos reprints usam novas ilustrações mantendo exatamente a mesma carta.
+
+**Caso delicado 2 — mudança de texto:** `Professor's Research` com mesmo nome, mesmo tipo, mas texto completamente diferente **é** uma Card diferente — mudança de identidade editorial, não apenas de impressão.
+
+**Consequência para a chave de identidade:** Card não será mais identificada pelo nome — o nome deixa de ser candidato a chave. Internamente, a identidade é um UUID (`id`).
+
+**Primeira proposta para a tabela `card` (rascunho em discussão, NÃO aprovado, NÃO uma decisão final):**
+
+```text
+card
+  id
+  game_id
+  name
+  category_code       (ou category_id — variação de nome usada de forma inconsistente neste rascunho)
+  editorial_key
+  created_at
+  updated_at
+```
+
+**Pontos genuinamente em aberto nesta proposta, sinalizados aqui e não resolvidos:**
+
+- **`editorial_key`** — campo novo, sem definição precisa apresentada até o momento. Presumivelmente algum tipo de chave/identificador que distingue um "design editorial" de outro (para o problema descrito abaixo), mas seu formato, origem e regras de preenchimento não foram explicados nesta rodada. **Não presumir seu significado — aguardar esclarecimento.**
+- **`name` como único discriminador é insuficiente**, e a própria discussão reconhece isso: se `card` armazenasse apenas `name`, milhares de cartas distintas chamadas "Pikachu" (com ilustrações, ataques, textos e estatísticas diferentes) seriam incorretamente consolidadas em um único registro. A pergunta explicitamente deixada em aberto ao final deste lote: *"quais atributos distinguem um design editorial de outro sem estruturar desnecessariamente os dados de gameplay?"* — **esta pergunta não foi respondida nesta rodada.** É provável que `editorial_key` seja parte da resposta, mas isso não foi confirmado.
+- **`category_code` reaparece com `ENERGY` como exemplo explícito** ("categoria (Pokémon, Trainer, Energy)") — a mesma pendência já sinalizada em lotes anteriores (`ENERGY` contradiz a "Decisão de Escopo — Cartas de Energia" de Card Category). Este lote não resolve essa pendência; apenas a menciona de passagem, dentro de um exemplo. **Não tratar como confirmação de que `ENERGY` será incluído.**
+- **`game_id` diretamente em `card`** é uma mudança de relacionamento: no modelo anterior, o vínculo com o Game era implícito via `card_set → expansion → game`. Neste rascunho, `card` referencia `game` diretamente — consistente com a nova independência de Card em relação a Card Set, mas ainda não confirmado como decisão final.
+
+**Status desta revisão:** discussão real, em andamento, explicitamente não concluída — o próprio material terminou com a pergunta em aberto acima, sem uma resposta. **Nenhuma DDL deve ser escrita ou executada a partir deste rascunho.** Fabrício e a sessão pareada classificaram esta como possivelmente "a conversa mais importante de todo o Project Mimikyu até agora" — justificando a cautela redobrada antes de convertê-la em SQL.
+
+**Impacto sinalizado, não resolvido, sobre ADR-004:** ADR-004 (`Set Identity`) estabeleceu a identidade de Set como Set + Número da Card — na leitura atual, essa identidade pode precisar ser reatribuída de Card para Card Printing. **ADR-004 não foi alterada** nesta revisão — aguardando a resolução completa desta discussão antes de qualquer atualização formal de ADR, consistente com a prática do projeto de não editar ADRs a partir de discussões ainda não concluídas.
 
 ---
 
@@ -1084,15 +1157,15 @@ Por isso, o campo adotado é `symbol_code` — um identificador técnico estáve
 
 **Ideia registrada para o futuro, não adotada agora:** uma tabela de domínio própria `symbol` (com `svg_url`/`png_url` etc.), substituindo `rarity.symbol_code` por `rarity.symbol_id`. Não adotada porque hoje existe exatamente um símbolo por raridade — a tabela aumentaria a complexidade sem benefício imediato (AP-004). Ver `05-modelo-de-dados.md`, seção Rarity, "Evolução do Modelo — Campo `symbol_code`", para o registro técnico completo, incluindo a tabela real de valores.
 
-### `PROMO` é uma Raridade Oficial (decisão tomada, execução pendente)
+### `PROMO` é uma Raridade Oficial (confirmada e executada)
 
 Fabrício identificou um detalhe que faltava ao conjunto de nove raridades já executado: *"Toda carta do set promocional terá a raridade PROMO, com símbolo Black Star."* `PROMO` não é uma raridade improvisada para organizar o Set promocional — é uma classificação oficial do próprio Pokémon TCG, confirmada com exemplos de diferentes eras (Promo SVP/Pikachu SVP001, Promo SM/SM01, Promo SWSH/SWSH001, todas `PROMO` com símbolo estrela preta).
 
 **Insight de validação:** `PROMO` e `RARE` compartilham exatamente o mesmo `symbol_code` (`BLACK_STAR`) — confirmando que `symbol_code` está corretamente fora da chave de unicidade de Rarity (a chave permanece `UNIQUE (game_id, code)`); é um atributo puramente descritivo, nunca identificador. `PROMO` foi posicionada logo após `RARE` na ordem de exibição (paralela, não "mais alta").
 
-**Consequência arquitetural para a futura Card:** uma carta promocional não é identificada apenas pela sua raridade — ela também precisa pertencer a um Card Set do tipo `PROMO` (ver "Card Set Promocional", acima). `card_set.set_type = 'PROMO'` (o conjunto ao qual a carta pertence) e `rarity.code = 'PROMO'` (a raridade oficial daquela carta) são **fatos independentes e complementares**; a modelagem de `140 - Create Card Table` precisará contemplar os dois simultaneamente.
+**Consequência arquitetural para a futura Card:** uma carta promocional não é identificada apenas pela sua raridade — ela também precisa pertencer a um Card Set do tipo `PROMO` (ver "Card Set Promocional", acima). `card_set.set_type = 'PROMO'` (o conjunto ao qual a carta pertence) e `rarity.code = 'PROMO'` (a raridade oficial daquela carta) são **fatos independentes e complementares**; a modelagem de Card precisará contemplar os dois simultaneamente.
 
-**Status:** decisão confirmada por Fabrício, incluindo a sequência de atualização das Queries (`830`/`930` → v1.2, incluindo `PROMO`; `130` permanece inalterada). **Ainda não escrita nem executada** — ver `05-modelo-de-dados.md`, seção Rarity, "Descoberta — PROMO é uma Raridade Oficial", para o registro técnico completo (tabela de ordenação, SQL pendente). Rarity permanece "quase concluída" até essa atualização ser confirmada.
+**Status:** executado com sucesso — `830`/`930` reescritas para v1.2 (incluindo `PROMO`) e confirmadas por Fabrício ("Tudo feito com sucesso. Vamos avançar!"); `130` permaneceu inalterada, como decidido. Ver `05-modelo-de-dados.md`, seção Rarity, "Descoberta — PROMO é uma Raridade Oficial (confirmada e executada)", para o registro técnico completo. **A entidade Rarity está oficialmente encerrada** — Fabrício: "Agora sim podemos dizer que a entidade Rarity está encerrada."
 
 ### Observação Arquitetural — Card Depende de Dois Domínios
 
@@ -1685,3 +1758,5 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.22 | **Pacote técnico da entidade Rarity concluído.** Query `930 - Validate Rarity` confirmada por Fabrício — sem pendências estruturais. Adicionada nota "Proposta em aberto, não decidida" sobre um campo `symbol` (símbolo textual da raridade) sugerido na sessão paralela, condicionado por essa própria sugestão a um levantamento prévio das legendas oficiais — não confirmado, nenhuma alteração de modelo feita. |
 | 1.23 | **Campo `symbol_code` confirmado e executado.** Refinamento de Fabrício sobre a proposta anterior: não um caractere único, mas um identificador que capture formato+quantidade+estilo/cor da legenda oficial (ex.: `RARE` e `ILLUSTRATION_RARE` usam estrela, mas com cores diferentes). Adicionado `symbol_code` aos atributos de `rarity`; nova seção "Identidade Visual da Raridade — Campo `symbol_code`" com o raciocínio completo e a ideia registrada (não adotada) de uma futura tabela de domínio `symbol`. Removida a nota "Proposta em aberto" — resolvida. |
 | 1.24 | **Correção de versão + descoberta de `PROMO` como raridade oficial** (mesma correção registrada em `05-modelo-de-dados.md` 0.20). Nova seção "`PROMO` é uma Raridade Oficial (decisão tomada, execução pendente)": `PROMO` é uma classificação oficial do Pokémon TCG, não uma invenção do projeto; compartilha `symbol_code = BLACK_STAR` com `RARE`, confirmando `symbol_code` fora da chave de unicidade; nova ordem de exibição decidida. Consequência arquitetural sinalizada para a futura Card: `card_set.set_type = PROMO` e `rarity.code = PROMO` são independentes e complementares. Adicionada nota cruzada na seção "Card Set Promocional". Decisão confirmada por Fabrício, mas Queries `830`/`930` (v1.2, incluindo `PROMO`) ainda não escritas nem executadas. |
+| 1.25 | **Entidade Rarity oficialmente encerrada.** `PROMO` incluída via `830`/`930` v1.2, executadas e confirmadas por Fabrício. Seção "`PROMO` é uma Raridade Oficial" atualizada de "decisão tomada, execução pendente" para "confirmada e executada". |
+| 1.26 | **Revisão arquitetural importante de Card iniciada, explicitamente não concluída.** Fabrício respondeu a uma pergunta direta: Card representa "a carta editorial de forma única, que pode aparecer em vários Sets" — não uma posição fixa dentro de um Set específico. Isso inverte a premissa de identidade "Set + Número" (ADR-004) usada até aqui: `Card Printing` passa a depender de dois pais (`Card` e `Card Set`), não apenas de `Card Set`. Adicionada nota de revisão na seção "Identidade" (preservada, não substituída) e callout no início de "Modelagem Física — Discussão Iniciada". Nova seção "Revisão Arquitetural — Identidade Editorial Independente de Set": definições revisadas de Card/Card Printing/Card Variant/Collection Item; novo "Princípio: Identidade Editorial"; listas do que cria/não cria uma nova Card; distinção ilustração-vs-texto; rascunho não aprovado de nova forma para `card` (`id, game_id, name, category_code, editorial_key, created_at, updated_at`) com `editorial_key` sinalizado como indefinido; `ENERGY` resurge como exemplo de categoria (não resolvido); pergunta final da discussão ("quais atributos distinguem um design editorial de outro") permanece sem resposta. ADR-004 sinalizada como potencialmente afetada, mas não alterada. |

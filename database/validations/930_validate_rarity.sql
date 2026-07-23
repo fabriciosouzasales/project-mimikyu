@@ -2,7 +2,7 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 930 - Validate Rarity
-Versão......: 1.1
+Versão......: 1.2
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-18
@@ -19,8 +19,11 @@ rarity, incluindo:
 - preenchimento e formato dos símbolos;
 - ordenação;
 - nomes obrigatórios;
+- aderência aos dados canônicos;
 - timestamps;
 - existência do trigger de atualização.
+A validação considera 10 raridades canônicas para o Game POKEMON,
+incluindo a raridade PROMO com símbolo BLACK_STAR.
 Pré-requisitos:
 - Query 130 - Create Rarity Table.
 - Query 131 - Create Rarity Trigger.
@@ -30,7 +33,7 @@ Pré-requisitos:
 
 -- ============================================================================
 -- 1. Relação completa das raridades
--- Resultado esperado: 9 registros do Game POKEMON
+-- Resultado esperado: 10 registros do Game POKEMON
 -- ============================================================================
 SELECT
     g.code AS game_code,
@@ -50,7 +53,7 @@ ORDER BY
 
 -- ============================================================================
 -- 2. Quantidade de raridades por Game
--- Resultado esperado para POKEMON: 9
+-- Resultado esperado para POKEMON: 10
 -- ============================================================================
 SELECT
     g.code AS game_code,
@@ -150,15 +153,16 @@ WITH expected_rarity (
     display_order
 ) AS (
     VALUES
-        ('COMMON',                    'Comum',                     'BLACK_CIRCLE',       1),
-        ('UNCOMMON',                  'Incomum',                   'BLACK_DIAMOND',      2),
-        ('RARE',                      'Rara',                      'BLACK_STAR',         3),
-        ('DOUBLE_RARE',               'Rara Dupla',                'BLACK_DOUBLE_STAR',  4),
-        ('ULTRA_RARE',                'Rara Ultra',                'SILVER_DOUBLE_STAR', 5),
-        ('MEGA_ATTACK_RARE',          'Rara Mega Ataque',          'MEGA_ATTACK',        6),
-        ('ILLUSTRATION_RARE',         'Ilustração Rara',           'GOLD_STAR',          7),
-        ('SPECIAL_ILLUSTRATION_RARE', 'Ilustração Rara Especial',  'GOLD_DOUBLE_STAR',   8),
-        ('MEGA_HYPER_RARE',           'Mega Rara Hiper',           'GOLD_DIAMOND',       9)
+        ('COMMON',                    'Comum',                    'BLACK_CIRCLE',       1),
+        ('UNCOMMON',                  'Incomum',                  'BLACK_DIAMOND',      2),
+        ('RARE',                      'Rara',                     'BLACK_STAR',         3),
+        ('PROMO',                     'Promo',                    'BLACK_STAR',         4),
+        ('DOUBLE_RARE',               'Rara Dupla',               'BLACK_DOUBLE_STAR',  5),
+        ('ULTRA_RARE',                'Rara Ultra',               'SILVER_DOUBLE_STAR', 6),
+        ('MEGA_ATTACK_RARE',          'Rara Mega Ataque',         'MEGA_ATTACK',        7),
+        ('ILLUSTRATION_RARE',         'Ilustração Rara',          'GOLD_STAR',          8),
+        ('SPECIAL_ILLUSTRATION_RARE', 'Ilustração Rara Especial', 'GOLD_DOUBLE_STAR',   9),
+        ('MEGA_HYPER_RARE',           'Mega Rara Hiper',          'GOLD_DIAMOND',      10)
 )
 SELECT
     e.code AS expected_code,
@@ -188,6 +192,7 @@ WITH expected_rarity (code) AS (
         ('COMMON'),
         ('UNCOMMON'),
         ('RARE'),
+        ('PROMO'),
         ('DOUBLE_RARE'),
         ('ULTRA_RARE'),
         ('MEGA_ATTACK_RARE'),
@@ -209,7 +214,27 @@ WHERE g.code = 'POKEMON'
   AND e.code IS NULL;
 
 -- ============================================================================
--- 11. Verificar a existência do trigger updated_at
+-- 11. Verificar raridades que compartilham o símbolo BLACK_STAR
+-- Resultado esperado:
+-- RARE
+-- PROMO
+-- ============================================================================
+SELECT
+    r.code,
+    r.name,
+    r.symbol_code,
+    r.display_order
+FROM public.rarity AS r
+INNER JOIN public.game AS g
+    ON g.id = r.game_id
+WHERE g.code = 'POKEMON'
+  AND r.symbol_code = 'BLACK_STAR'
+ORDER BY
+    r.display_order,
+    r.code;
+
+-- ============================================================================
+-- 12. Verificar a existência do trigger updated_at
 -- Resultado esperado: 1 registro
 -- ============================================================================
 SELECT
@@ -224,7 +249,7 @@ WHERE event_object_schema = 'public'
   AND trigger_name = 'trg_rarity_set_updated_at';
 
 -- ============================================================================
--- 12. Verificar timestamps obrigatórios
+-- 13. Verificar timestamps obrigatórios
 -- Resultado esperado: nenhum registro
 -- ============================================================================
 SELECT
