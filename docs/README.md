@@ -7,7 +7,7 @@ Esta pasta contém a documentação oficial do Project Mimikyu.
 | Campo | Valor |
 |-------|-------|
 | **Fase 1 — Arquitetura Conceitual** | Concluída |
-| **Fase 2 — Modelo Lógico** | Em andamento |
+| **Fase 2 — Modelo Lógico** | Em andamento — Game (Jogo) concluída; próxima entidade: Expansion |
 | **Última atualização** | 2026-07-22 |
 
 Fase 1 entregou: princípios arquiteturais, delimitação do domínio (Pokémon TCG, não o universo Pokémon), estrutura do catálogo editorial, modelo do universo do colecionador, separação entre Set e Collection, e a estratégia de evolução incremental. Fase 2 transforma cada conceito já validado em modelo lógico e, em seguida, tabela física — uma entidade por vez, validada com dados reais antes de avançar para a próxima.
@@ -40,6 +40,7 @@ Este prompt funciona da mesma forma na fase de documentação e na fase de imple
 | [Architecture Principles](02-architecture-principles.md) | Define os princípios que orientam decisões arquiteturais. |
 | [Documentation Architecture](03-documentation-architecture.md) | Define a organização e a governança da documentação. |
 | [Domain Model](04-domain-model.md) | Define o modelo conceitual do domínio, anterior à modelagem lógica e física. *(Em elaboração)* |
+| [Modelo de Dados](05-modelo-de-dados.md) | Modelo lógico e físico (SQL) de cada entidade, uma por vez, validado com dados reais. *(Em elaboração)* |
 | [Pipeline de Importação](06-pipeline-importacao.md) | Estratégia de importação e sincronização de fontes externas. *(Em elaboração)* |
 | [Catálogo Editorial](07-catalogo-editorial.md) | Estratégia de captura e disponibilização de dados do catálogo. *(Em elaboração)* |
 
@@ -65,3 +66,4 @@ Cada informação deve possuir um único local oficial. A documentação deve ev
 |---------|-----------|
 | 1.0 | Estrutura inicial do documento de navegação. |
 | 1.1 | Adicionadas as seções "Status Atual do Projeto" e "Retomando este Projeto com uma Nova Sessão de IA", garantindo que o repositório permaneça recuperável mesmo após perda total de contexto de uma sessão de IA. |
+| 1.2 | Adicionado Modelo de Dados à tabela de Core Documents. Atualizado "Status Atual do Projeto": entidade Game concluída na Fase 2. |

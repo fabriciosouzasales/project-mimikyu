@@ -495,6 +495,8 @@ Conceitualmente, um Set possui:
 
 Essa relação não representa uma definição automática de colunas ou atributos físicos do banco de dados. A modelagem lógica e física será definida posteriormente.
 
+> **Nota sobre nomenclatura física:** `SET` é uma palavra reservada do SQL (PostgreSQL). Para evitar ambiguidade, a tabela física correspondente ao conceito Set é nomeada `card_set` (ver `standards/STD-001-database-standards.md`, Seção 2). O conceito de domínio continua sendo chamado de Set na documentação e na aplicação.
+
 ---
 
 ## Card (carta)
@@ -1410,3 +1412,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.6 | Resolvida a taxonomia de Card Category: apenas Pokémon e Trainer no catálogo numerado (cartas de Energia fora de escopo); adicionada Trainer Subcategory (Item/Supporter/Stadium/Tool, obrigatória para Trainer). Pokémon finalizado como entidade mínima (id, national_dex_number, canonical_name) — HP/ataques/etc. pertencem à Card, não ao Pokémon, pois variam entre publicações da mesma espécie. Adicionado o padrão Card Details / Pokémon Card Details / Trainer Card Details, explicitamente não-genérico (específico do módulo Pokémon TCG). Ver ADR-011 e ADR-012. |
 | 1.7 | Renomeado "Inventory Item" para "Collection Item" em todo o documento (ver ADR-013). Adicionada a seção completa de Collection Item: identidade individual por exemplar físico, relação com Card + Card Finish + Language, grupos preliminares de informação (Identity, Physical State, Collection Role, Lifecycle), separação entre Ownership Status e Availability Status, e regra de identidade técnica e permanente. Adicionada nota sobre Card Image (relação com Card Translation/Card Finish em aberto, decisão progressiva) na seção Card Translation. |
 | 1.8 | Populada a entidade Collection (distinta do Set: pertence ao colecionador, não ao catálogo editorial), com os tipos Official Set Collection e Custom Collection. Adicionada a entidade Collection Entry, com os modos Card Target e Subject Target, e os mecanismos preliminares Manual Membership e Rule-Based Membership (este último deliberadamente adiado). Adicionada nota de correspondência entre o termo provisório "User Collection" e a nova entidade Collection. Ver ADR-014. |
+| 1.9 | Adicionada nota sobre nomenclatura física do Set: `SET` é palavra reservada do SQL, tabela física é `card_set` (ver STD-001). |
