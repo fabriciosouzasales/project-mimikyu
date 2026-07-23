@@ -241,7 +241,7 @@ Próxima entidade: **Expansion**, que introduziu o primeiro relacionamento e a p
 
 # Expansion (Expansão)
 
-Status: **Pacote técnico concluído** (tabela, trigger, seed e validação executados e confirmados). **Pendência aberta:** a coluna `logo_url`, acordada conceitualmente, ficou de fora do DDL executado por descuido — correção pendente para a retomada da implementação. Ver "Pendência Confirmada — logo_url", abaixo.
+Status: **Pacote técnico concluído** (tabela, trigger, seed e validação executados e confirmados). **Sem pendências.** A ausência de `logo_url` no DDL executado, antes registrada como pendência, foi reclassificada como correta — ver "Correção — logo_url pertence ao Set, não à Expansion", abaixo.
 
 ## Modelo Lógico
 
@@ -273,7 +273,7 @@ created_at
 updated_at
 ```
 
-O modelo final acordado na discussão incluiu também `logo_url` (ver "Atributos" e "Divergência a Resolver", abaixo) — não representado no diagrama acima, que reflete a primeira proposta.
+Uma proposta inicial havia incluído também `logo_url` neste modelo — corrigida posteriormente: a identidade visual pertence ao Set, não à Expansion (ver "Correção — logo_url pertence ao Set, não à Expansion", abaixo). O diagrama acima já reflete o modelo final, sem `logo_url`.
 
 ## Atributos
 
@@ -289,11 +289,9 @@ O modelo final acordado na discussão incluiu também `logo_url` (ver "Atributos
 
 **created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
 
-**logo_url** *(pendente de correção — ver "Pendência Confirmada", abaixo)* — Identidade visual principal da Expansion. `TEXT`, opcional. Ver `04-domain-model.md`, seção Expansion — "Identidade Visual".
-
 ## Campos que Não Incluiremos Agora
 
-Aplicando o Princípio da Simplicidade Inicial (AP-004): `status` (nenhum caso de uso concreto identificado — ver `04-domain-model.md`), `release_date`, `base_set_size`, `total_set_size`, `secret_set_size` (todos pertencem ao Set, não à Expansion — ver `04-domain-model.md`, seção Set).
+Aplicando o Princípio da Simplicidade Inicial (AP-004): `status` (nenhum caso de uso concreto identificado — ver `04-domain-model.md`), `release_date`, `base_set_size`, `total_set_size`, `secret_set_size` (todos pertencem ao Set, não à Expansion — ver `04-domain-model.md`, seção Set), `logo_url` (identidade visual pertence ao Set, não à Expansion — ver "Correção — logo_url pertence ao Set, não à Expansion", abaixo).
 
 ## Regras de Negócio
 
@@ -431,23 +429,211 @@ Query: `910 - Validate Expansion`. A primeira consulta confirmou uma linha (`gam
 
 Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800).
 
-## Pendência Confirmada — logo_url
+## Correção — logo_url pertence ao Set, não à Expansion
 
-A discussão conceitual ("Modelo revisado de Expansion") concluiu que a entidade deveria incluir `logo_url` (`TEXT`, opcional), e Fabrício confirmou explicitamente esse modelo antes da execução ("Você tem toda razão... Vamos criar a tabela expansion"). O DDL efetivamente executado (Query `110`, acima) não contém essa coluna.
+**Histórico desta pendência (preservado para rastreabilidade):** a discussão conceitual original ("Modelo revisado de Expansion") havia concluído que a entidade deveria incluir `logo_url`, e Fabrício chegou a confirmar esse modelo antes da execução. O DDL efetivamente executado (Query `110`, acima) não incluiu essa coluna. Isso foi registrado em ciclos anteriores como uma divergência e, depois, como um "descuido" a ser corrigido por `ALTER TABLE`.
 
-**Confirmado por Fabrício em 2026-07-22: trata-se de um descuido, não de uma simplificação deliberada.** `logo_url` é considerada importante para o projeto e deve ser adicionada.
+**Correção final, ao concluir a modelagem do Set:** ao modelar formalmente o Set (ver seção "Set", abaixo), ficou claro que a identidade visual (logotipo completo e símbolo pequeno usado nas Cards) pertence ao **Set**, não à Expansion — cada Set possui seu próprio logotipo editorial, mesmo dentro da mesma Expansion (ex.: `ME1` e `ME2` têm logotipos diferentes, ainda que ambos pertençam à Expansion `Mega Evolution`). **A ausência de `logo_url` no DDL executado da Expansion estava, portanto, correta — não era um descuido.** Nenhuma migration `ALTER TABLE ... ADD COLUMN logo_url` deve ser criada para `expansion`.
 
-**Atualização (mesmo dia):** Fabrício também confirmou que o logotipo da Expansion não deve ser preenchido manualmente — deve ser **importado automaticamente via API** e armazenado no Supabase (Storage), seguindo o mesmo padrão já usado para imagens de Card (ver `06-pipeline-importacao.md`, seção "Importação de Ativos Visuais"). Isso muda a natureza da pendência: não basta adicionar uma coluna `TEXT` de preenchimento livre — é necessário decidir se `logo_url` será uma referência simples a um arquivo já armazenado (populada pelo pipeline de importação) ou uma chave estrangeira para uma futura entidade de ativo (nos moldes de `card_asset`).
-
-**Ação pendente para a retomada da implementação:** (1) formalizar, no ciclo de documentação do pipeline de ativos visuais, se a infraestrutura já existente (`card_asset`, `card_asset_type`, `asset_source`, `storage_bucket`, `asset_import_run`, `asset_import_failure`) se generaliza para Expansion ou se recebe uma estrutura própria; (2) só então criar a migration correspondente (coluna simples ou relacionamento), numerada dentro da faixa 100–199, seguindo o Padrão Oficial de Queries SQL (STD-001, Seção 10). Não decidir a estrutura física antes dessa definição, para não contradizer o padrão já estabelecido para Card.
+A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver `05-modelo-de-dados.md`, seção Set — "Campos que Não Incluiremos Agora", e `04-domain-model.md`, seção Set — "Identidade Visual".
 
 ---
 
 # Set
 
-*Documentação pendente. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL).*
+Status: **Modelo lógico e físico aprovados** por Fabrício. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). **Execução no Supabase ainda pendente** — próximo passo é a Query `120 - Create Card Set Table`.
 
-**Discussão iniciada, ainda não concluída.** A entidade Set (`card_set`) foi apresentada como a mais importante do catálogo — praticamente todas as demais entidades dependem dela (`Game → Expansion → Card Set → Card → Collection Item`). Responsabilidades já mencionadas: código (`ME1`, `ME2`, `ME2.5`...), nome, tipo (Regular ou Especial), data de lançamento, quantidade de cartas base, quantidade total, símbolo do Set, logotipo do Set, idioma editorial (futuro), relação com as Cards. Isso é consistente com a "Nota preliminar (não fechada)" já registrada em `04-domain-model.md`, seção Set. Regras de negócio, modelo lógico por grupo, DDL e testes ainda não foram fornecidos — aguardando a continuação deste lote.
+## Modelo Lógico
+
+Desenhado por grupo, antes de qualquer SQL (ver "Roteiro por Entidade", acima):
+
+```text
+Card Set
+
+Identidade
+----------
+id
+code
+
+Descrição
+----------
+name
+set_type
+release_date
+base_set_size
+total_set_size
+
+Relacionamento
+----------
+expansion_id
+
+Ordenação
+----------
+release_order
+
+Auditoria
+----------
+created_at
+updated_at
+```
+
+## Atributos
+
+**id** — Identificador técnico e permanente (UUID).
+
+**expansion_id** — Chave estrangeira obrigatória para `expansion` (ver STD-001, Seção 6). Todo Set pertence a exatamente uma Expansion (cardinalidade `Expansion 1 --- N Card Set`).
+
+**code** — Código editorial, textual — nunca numérico, pois Sets especiais podem ter códigos não inteiros (ex.: `ME2.5`). Não deve ser interpretado como número nem usado para inferir ordem cronológica. Único dentro da Expansion (`UNIQUE (expansion_id, code)`), mesmo padrão de unicidade escopada já aplicado à Expansion (ver `04-domain-model.md`, seção Set — "Unicidade por Expansion").
+
+**name** — Nome de apresentação do catálogo (ex.: `Mega Evolution`, `Phantasmal Flames`, `Ascended Heroes`, `Perfect Order`). Localização futura tratada separadamente, sem duplicar a identidade do Set.
+
+**set_type** — Classificação editorial: `REGULAR` ou `SPECIAL`. Sem tabela de referência própria — apenas dois valores estáveis, sem atributos associados; também não usa `ENUM` nativo do PostgreSQL, cuja evolução é menos flexível que uma restrição `CHECK` (ver `04-domain-model.md`, seção Set — "Classificação Editorial").
+
+**release_order** — Posição do Set dentro da sequência editorial da Expansion. Não é inferida do `code` — `ME2.5` ocupa uma posição inteira na sequência, mesmo com código fracionário. Único dentro da Expansion (`UNIQUE (expansion_id, release_order)`).
+
+**release_date** — Data de lançamento oficial (`DATE`), opcional (`NULL` permitido). Permite cadastrar um Set oficialmente anunciado cuja data ainda não esteja confirmada. Cobre sozinha o caso de uso que originalmente motivou a ideia de um campo `status` (ver `04-domain-model.md`, seção Set — "Status — Decisão").
+
+**base_set_size** — Número de posições da numeração base do Set (ex.: `ME1` = 132).
+
+**total_set_size** — Número total de posições oficiais, incluindo cartas acima da numeração base (ex.: `ME1` = 188). A quantidade de cartas secretas é sempre derivada (`total_set_size - base_set_size`), nunca armazenada.
+
+**created_at / updated_at** — Auditoria mínima (ver STD-001, Seção 4).
+
+## Campos que Não Incluiremos Agora
+
+Aplicando o Princípio da Simplicidade Inicial (AP-004):
+
+- **`logo_url`, `symbol_url`** — as imagens são relevantes, mas antes é preciso decidir onde os arquivos serão armazenados, se será registrada URL pública ou caminho do Storage, como tratar substituição/versionamento, e se logotipos localizados serão vinculados a traduções. Incluir apenas uma URL agora seria uma decisão técnica prematura, e não impede a criação nem a validação dos primeiros Sets. Mesma decisão já aplicada (e corrigida quanto à entidade correta) para a Expansion — ver seção Expansion, acima, "Correção — logo_url pertence ao Set, não à Expansion". Os campos poderão ser adicionados por migration quando a camada visual do catálogo for iniciada.
+- **`status`** — o campo `release_date` (nulo ou preenchido) já cobre o caso de uso inicial; sem necessidade concreta adicional até o momento.
+- **`secret_set_size`** — sempre derivado (`total_set_size - base_set_size`), nunca armazenado, para evitar inconsistência.
+
+## Regras de Negócio
+
+**Regra 1 — Relacionamento obrigatório.** Todo Set deve pertencer a exatamente uma Expansion.
+
+**Regra 2 — Código único por Expansion.** O código deve ser único dentro da respectiva Expansion (`UNIQUE (expansion_id, code)`), não globalmente.
+
+**Regra 3 — Ordem única por Expansion.** A ordem de lançamento deve ser única dentro da respectiva Expansion (`UNIQUE (expansion_id, release_order)`) e deve ser um número inteiro positivo.
+
+**Regra 4 — Nome obrigatório.** O nome não pode ser vazio.
+
+**Regra 5 — Classificação editorial restrita.** `set_type` deve ser `REGULAR` ou `SPECIAL`.
+
+**Regra 6 — Quantidades consistentes.** `base_set_size` deve ser positivo; `total_set_size` deve ser maior ou igual a `base_set_size` (não estritamente maior, pois um Set pode não possuir cartas secretas).
+
+**Regra 7 — Exclusão restrita.** Uma Expansion que já possua Sets não pode ser excluída (`ON DELETE RESTRICT`) — sem exclusão em cascata no catálogo editorial.
+
+## Modelo Físico (PostgreSQL) — Aprovado, Execução Pendente
+
+```sql
+CREATE TABLE public.card_set (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    expansion_id UUID NOT NULL,
+
+    code VARCHAR(20) NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    set_type VARCHAR(20) NOT NULL,
+    release_order INTEGER NOT NULL,
+    release_date DATE,
+    base_set_size INTEGER NOT NULL,
+    total_set_size INTEGER NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_card_set_expansion
+        FOREIGN KEY (expansion_id)
+        REFERENCES public.expansion (id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT uq_card_set_expansion_code
+        UNIQUE (expansion_id, code),
+
+    CONSTRAINT uq_card_set_expansion_release_order
+        UNIQUE (expansion_id, release_order),
+
+    CONSTRAINT ck_card_set_code_format
+        CHECK (code ~ '^[A-Z0-9][A-Z0-9._-]*$'),
+
+    CONSTRAINT ck_card_set_name_not_blank
+        CHECK (btrim(name) <> ''),
+
+    CONSTRAINT ck_card_set_type
+        CHECK (set_type IN ('REGULAR', 'SPECIAL')),
+
+    CONSTRAINT ck_card_set_release_order_positive
+        CHECK (release_order > 0),
+
+    CONSTRAINT ck_card_set_base_size_positive
+        CHECK (base_set_size > 0),
+
+    CONSTRAINT ck_card_set_total_gte_base
+        CHECK (total_set_size >= base_set_size)
+);
+
+ALTER TABLE public.card_set
+    ENABLE ROW LEVEL SECURITY;
+```
+
+Query planejada: `120 - Create Card Set Table`. Modelo aprovado por Fabrício ("Vamos em frente!") — **ainda não executado**.
+
+### Trigger de `updated_at` (planejado)
+
+```sql
+CREATE TRIGGER trg_card_set_set_updated_at
+BEFORE UPDATE ON public.card_set
+FOR EACH ROW
+EXECUTE FUNCTION public.set_updated_at();
+```
+
+Query planejada: `121 - Create Card Set Trigger`. Reaproveita a função compartilhada `set_updated_at()` (ver seção Game, acima).
+
+### Seed e Validação (planejados)
+
+Seguirão o mesmo padrão já aplicado a Game e Expansion: resolução de `expansion_id` por `SELECT` no código da Expansion (nunca por UUID fixo) e idempotência via `ON CONFLICT (expansion_id, code) DO NOTHING`. Queries planejadas: `820 - Seed Card Set` e `920 - Validate Card Set`. Ainda não executadas.
+
+## Modelo Consolidado
+
+```text
+Card Set
+
+PK  id               UUID
+FK  expansion_id     UUID
+
+    code             VARCHAR(20)
+    name             VARCHAR(150)
+    set_type         VARCHAR(20)
+    release_order    INTEGER
+    release_date     DATE
+    base_set_size    INTEGER
+    total_set_size   INTEGER
+
+    created_at       TIMESTAMPTZ
+    updated_at       TIMESTAMPTZ
+```
+
+## Queries Associadas (planejadas)
+
+```text
+120 - Create Card Set Table
+121 - Create Card Set Trigger
+820 - Seed Card Set
+920 - Validate Card Set
+```
+
+Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800).
+
+## Definition of Done
+
+- [x] modelo lógico definido, por grupo;
+- [x] atributos e campos adiados definidos;
+- [x] regras de negócio definidas;
+- [x] DDL aprovado por Fabrício;
+- [ ] tabela `card_set` criada no Supabase;
+- [ ] RLS habilitado;
+- [ ] trigger criado e verificado;
+- [ ] seed executado;
+- [ ] validação executada e confirmada.
 
 ---
 
@@ -493,3 +679,4 @@ A discussão conceitual ("Modelo revisado de Expansion") concluiu que a entidade
 | 0.6 | Confirmado por Fabrício: a ausência de `logo_url` no DDL executado foi um descuido, não uma simplificação deliberada — a coluna é importante para o projeto. Atualizado o status da entidade Expansion e registrada a ação pendente (migration `ALTER TABLE ... ADD COLUMN logo_url`) para a retomada da implementação. |
 | 0.7 | Corrigida a pendência de `logo_url`: o valor deve ser importado automaticamente via API e armazenado no Supabase Storage, seguindo o mesmo padrão de imagens de Card — não uma coluna de preenchimento manual. Ação pendente agora depende de decisão prévia sobre a estrutura do pipeline de ativos visuais (ver `06-pipeline-importacao.md`). |
 | 0.8 | Concluído o pacote técnico da entidade Expansion: trigger (`111`), Seed real (`810` — ME/Mega Evolution/release_order=1, com nota sobre revisão futura da ordenação) e Validação (`910`), todos confirmados. Adicionadas as Queries Associadas completas. Adicionada nota sobre o início (não conclusão) da discussão da entidade Set — consistente com a prévia já registrada em `04-domain-model.md`. |
+| 0.9 | **Correção:** `logo_url` não é uma pendência da Expansion — pertence ao Set. A seção "Pendência Confirmada — logo_url" foi reescrita como "Correção — logo_url pertence ao Set, não à Expansion", com o histórico preservado. Status da Expansion atualizado para "sem pendências". Completada a entidade Set: modelo lógico por grupo, atributos, campos adiados (`logo_url`/`symbol_url`/`status`/`secret_set_size`), 7 regras de negócio, DDL completo de `card_set` (aprovado, execução ainda pendente — Query `120`), trigger/seed/validação planejados (`121`/`820`/`920`), modelo consolidado e Definition of Done (parcial — aguardando execução no Supabase). |

@@ -339,11 +339,11 @@ O código e a ordem de lançamento de uma Expansion são únicos **dentro do res
 
 Expansion não possui um campo `status`. Nenhum caso de uso concreto foi identificado até o momento (ex.: distinguir Expansions "anunciadas", "lançadas" ou "canceladas") — aplicação direta do Princípio da Simplicidade Inicial (ver AP-004). Se essa necessidade surgir, o campo será adicionado por uma nova migration, não antecipado agora.
 
-### Identidade Visual (logo_url)
+### Identidade Visual — Correção: a logo pertence ao Set, não à Expansion
 
-Uma Expansion possui identidade visual própria — um logotipo principal (`logo_url`), distinto do logotipo e do símbolo de cada Set (ver nota em "Set", abaixo). Para o MVP, adota-se uma única imagem principal, sem localização por idioma; uma eventual necessidade de logotipos localizados poderá evoluir para uma entidade Expansion Translation (mesmo padrão de Card Translation), quando houver necessidade concreta.
+**Correção de modelagem (registrada ao concluir o modelo do Set).** Uma versão anterior desta documentação atribuía um logotipo próprio (`logo_url`) à Expansion. Ao modelar formalmente o Set, ficou claro que a identidade visual — logotipo completo e símbolo pequeno usado nas Cards — pertence ao **Set**, não à Expansion: cada Set dentro de uma mesma Expansion tem seu próprio logotipo editorial (ex.: o logotipo de `ME1` é diferente do logotipo de `ME2`, ainda que ambos pertençam à mesma Expansion `Mega Evolution`). A Expansion, como agrupamento cronológico/temático, não possui identidade visual própria conhecida até o momento — se essa necessidade surgir, será tratada como uma nova característica, não reintroduzida por padrão.
 
-O valor de `logo_url` é preenchido por **importação automática via API**, com o arquivo armazenado no Supabase (Storage) — o mesmo padrão já utilizado para imagens de Card — e não por preenchimento manual (ver `06-pipeline-importacao.md`, seção "Importação de Ativos Visuais"). A estrutura física exata (coluna simples vs. referência a uma entidade de ativo) ainda não está fechada — ver pendência registrada em `05-modelo-de-dados.md`.
+Esta correção fecha a pendência anteriormente registrada em `05-modelo-de-dados.md` sobre a ausência de `logo_url` no DDL executado de `expansion`: não se tratava de um descuido a corrigir por `ALTER TABLE`, e sim de um atributo que nunca deveria pertencer a esta entidade. Ver seção "Set", abaixo, para o tratamento correto de `logo_url`/`symbol_url`.
 
 ---
 
@@ -473,6 +473,16 @@ O código editorial não define:
 
 Essas características são independentes.
 
+### Unicidade por Expansion
+
+O código e a ordem de lançamento de um Set são únicos **dentro da respectiva Expansion**, não globalmente — `UNIQUE (expansion_id, code)` e `UNIQUE (expansion_id, release_order)`, nunca `UNIQUE (code)` isoladamente. Mesmo padrão de unicidade escopada já estabelecido para Expansion dentro de Game (ver acima, "Unicidade por Game"; ADR-003).
+
+### Identidade Visual (logo_url, symbol_url)
+
+O Set possui duas identidades visuais distintas: um logotipo completo (`logo_url`) e um símbolo pequeno usado nas Cards (`symbol_url`). Correção importante: uma versão anterior desta documentação havia atribuído `logo_url` à Expansion — isso foi corrigido (ver seção "Expansion", acima, "Identidade Visual — Correção"). A logo pertence ao Set porque cada Set tem sua própria identidade visual, mesmo dentro da mesma Expansion.
+
+Assim como para Expansion, os valores serão preenchidos por **importação automática via API**, com os arquivos armazenados no Supabase (Storage) — não por preenchimento manual (ver `06-pipeline-importacao.md`, seção "Importação de Ativos Visuais"). A estrutura física exata (colunas simples vs. referência a uma entidade de ativo) depende da mesma definição pendente do pipeline de ativos visuais, e por isso `logo_url`/`symbol_url` não fazem parte do modelo físico inicial do Set — ver `05-modelo-de-dados.md`, seção Set — "Campos que Não Incluiremos Agora".
+
 ### Ordem Cronológica
 
 A ordem cronológica de um Set é independente de seu código editorial.
@@ -494,18 +504,11 @@ A ordem cronológica é uma característica própria do Set.
 
 ---
 
-### Status
+### Status — Decisão: sem campo `status` por enquanto
 
-Um Set pode possuir um estado dentro do catálogo.
+**Hipótese anterior superada.** Uma versão anterior desta documentação cogitava um campo `status` com valores como `announced`/`released`. Ao modelar formalmente o Set, decidiu-se **não incluir `status`**: o campo `release_date` (opcional, `NULL` permitido) já resolve o caso de uso inicial — um Set sem `release_date` preenchida é, por definição, um Set apenas anunciado; um Set com `release_date` preenchida está lançado. Aplicação direta do Princípio da Simplicidade Inicial (AP-004) — não antecipar um campo de estado quando o dado já existente resolve a necessidade concreta.
 
-O escopo conceitual inicial reconhece:
-
-- `announced` (anunciado);
-- `released` (lançado).
-
-Outros estados somente deverão ser introduzidos quando houver uma necessidade real e uma definição objetiva.
-
-O estado `discontinued` (descontinuado) não faz parte do escopo inicial, pois nem sempre existe uma declaração oficial ou uma data inequívoca de encerramento de um Set.
+Se uma necessidade real de status explícito surgir no futuro (ex.: `cancelled`), o campo será adicionado por uma nova migration, não antecipado agora.
 
 ---
 
@@ -514,18 +517,17 @@ O estado `discontinued` (descontinuado) não faz parte do escopo inicial, pois n
 Conceitualmente, um Set possui:
 
 - identidade própria;
-- relação com um Game;
-- relação com uma Expansion;
-- código editorial;
+- relação com uma Expansion (e, transitivamente, com um Game);
+- código editorial (textual, único por Expansion);
 - nome;
-- classificação editorial;
-- ordem cronológica;
-- data de lançamento;
+- classificação editorial (`REGULAR` ou `SPECIAL`);
+- ordem cronológica (única por Expansion);
+- data de lançamento (opcional — cobre o caso de Set anunciado sem data confirmada, sem necessidade de campo `status`);
 - quantidade oficial do conjunto base;
-- quantidade oficial total;
-- status.
+- quantidade oficial total (a quantidade de cartas secretas é derivada, nunca armazenada);
+- identidade visual própria (logotipo e símbolo — ver "Identidade Visual", acima; campos ainda não incluídos no modelo físico inicial).
 
-Essa relação não representa uma definição automática de colunas ou atributos físicos do banco de dados. A modelagem lógica e física será definida posteriormente.
+Esta lista já reflete a modelagem lógica e física aprovada (ver `05-modelo-de-dados.md`, seção Set) — não é mais apenas uma projeção conceitual.
 
 > **Nota sobre nomenclatura física:** `SET` é uma palavra reservada do SQL (PostgreSQL). Para evitar ambiguidade, a tabela física correspondente ao conceito Set é nomeada `card_set` (ver `standards/STD-001-database-standards.md`, Seção 2). O conceito de domínio continua sendo chamado de Set na documentação e na aplicação.
 
@@ -537,7 +539,7 @@ Uma Expansion agrupa vários Sets, e cada Set possui sua própria numeração e 
 - A quantidade de cartas secretas (posições acima do conjunto base) é **derivada**, não armazenada: `secret_set_size = total_set_size - base_set_size`. Armazená-la redundantemente arriscaria inconsistência.
 - A **data de lançamento** também pertence ao Set (`release_date`), podendo ser nula para Sets apenas anunciados. A Expansion não possui uma data de lançamento própria armazenada — quando necessário, pode ser derivada como a menor `release_date` entre seus Sets.
 
-> **Nota preliminar (não fechada):** quando a documentação chegar formalmente à entidade Set, o modelo lógico previsto inclui aproximadamente: `id`, `expansion_id`, `code`, `name`, `set_type`, `release_order`, `release_date`, `base_set_size`, `total_set_size`, `logo_url` (logotipo completo do Set), `symbol_url` (símbolo pequeno usado nas Cards), `created_at`, `updated_at` — sem `secret_set_size` (derivado). Esta lista é uma prévia do que já foi discutido, não uma conclusão de modelagem; será confirmada e detalhada em seu próprio ciclo de documentação.
+> **Modelo aprovado (atualiza a prévia anterior):** o modelo lógico e físico do Set foi formalmente definido e aprovado por Fabrício. Atributos incluídos: `id`, `expansion_id`, `code`, `name`, `set_type`, `release_order`, `release_date`, `base_set_size`, `total_set_size`, `created_at`, `updated_at` — sem `secret_set_size` (derivado) e, por ora, **sem** `logo_url`/`symbol_url`: embora a identidade visual pertença ao Set (ver "Identidade Visual", acima — corrigindo a atribuição anterior à Expansion), esses dois campos dependem de uma decisão ainda pendente sobre o pipeline de ativos visuais e por isso ficam fora do modelo físico inicial (ver `05-modelo-de-dados.md`, seção Set). Execução da tabela física (`card_set`) no Supabase ainda não realizada — modelo aprovado, aguardando o próximo ciclo.
 
 ---
 
@@ -1458,3 +1460,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 1.10 | Expandida a seção Expansion: adicionado o atributo `código editorial`, exemplos reais (SV, SWSH, SM, XY) e a regra "código internacional, nome localizável" (ver STD-001, Seção 5). Documentação de Expansion segue em elaboração — complementos previstos para o próximo ciclo. |
 | 1.11 | Finalizada a seção Expansion: ordem de lançamento (inteiro simples), unicidade de código/ordem por Game (não global — decorre de ADR-003), decisão de não incluir `status` (Princípio da Simplicidade Inicial), e identidade visual (`logo_url`, com localização futura deferida). Adicionada à seção Set a responsabilidade sobre quantidades e data de lançamento (pertencem ao Set, não à Expansion; quantidade de secretas é derivada, nunca armazenada) e uma nota preliminar (não fechada) sobre o futuro modelo lógico do Set. |
 | 1.12 | Adicionada nota: `logo_url` da Expansion é preenchido por importação automática via API (armazenado no Supabase Storage), mesmo padrão de imagens de Card — não preenchimento manual. Ver `06-pipeline-importacao.md`. |
+| 1.13 | **Correção:** a identidade visual (`logo_url`/`symbol_url`) pertence ao Set, não à Expansion — corrige a seção Expansion (1.11/1.12). Adicionadas à seção Set: "Unicidade por Expansion", "Identidade Visual", correção da seção "Status" (decisão final: sem campo `status`, `release_date` opcional cobre o caso de uso), "Visão Conceitual Consolidada" atualizada para refletir o modelo já aprovado (não mais apenas conceitual). Modelo lógico e físico do Set formalmente aprovado por Fabrício, execução no Supabase ainda pendente (ver `05-modelo-de-dados.md`). |

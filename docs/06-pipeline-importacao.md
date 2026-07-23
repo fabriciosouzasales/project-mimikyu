@@ -56,7 +56,7 @@ Diante disso, o Project Mimikyu não deve assumir uma única fonte externa como 
 
 # Importação de Ativos Visuais (Imagens e Logos)
 
-Além de dados editoriais estruturados, o mesmo padrão Import/Synchronization se aplica a ativos visuais (imagens de Card, logotipos de Expansion e de Set): a fonte externa nunca é referenciada diretamente pela aplicação — o arquivo é importado via API e armazenado no Supabase (Storage), e o catálogo interno referencia o ativo já armazenado.
+Além de dados editoriais estruturados, o mesmo padrão Import/Synchronization se aplica a ativos visuais (imagens de Card; logotipo completo e símbolo do Set — ver `04-domain-model.md`, seção Set — "Identidade Visual"): a fonte externa nunca é referenciada diretamente pela aplicação — o arquivo é importado via API e armazenado no Supabase (Storage), e o catálogo interno referencia o ativo já armazenado.
 
 ```text
 External Data Source (imagem)
@@ -70,7 +70,7 @@ Project Mimikyu Catalog (referência ao ativo armazenado)
 
 O banco físico já possui infraestrutura pré-existente para esse padrão (anterior a esta fase de consolidação documental, ver "Status Atual do Projeto" em `README.md`): `card_asset`, `card_asset_type`, `asset_source`, `asset_import_run`, `asset_import_failure`, `storage_bucket`. Essas tabelas ainda não foram documentadas em nível conceitual — previsto para um ciclo futuro.
 
-Confirmado por Fabrício em 2026-07-22: o logotipo de uma Expansion (`logo_url`, ver `04-domain-model.md` e `05-modelo-de-dados.md`) deve seguir o mesmo padrão de importação automática já usado para imagens de Card, não ser preenchido manualmente.
+**Correção (2026-07-22):** uma versão anterior deste documento atribuía `logo_url` à Expansion. Corrigido: a identidade visual pertence ao **Set** (`logo_url` e `symbol_url`, ver `04-domain-model.md` e `05-modelo-de-dados.md`, seção Set), não à Expansion. O princípio permanece o mesmo — importação automática via API, sem preenchimento manual — apenas a entidade destinatária foi corrigida.
 
 ---
 
@@ -93,7 +93,7 @@ Os seguintes pontos ainda não foram definidos e serão tratados em ciclos futur
 - formato e frequência de importação/sincronização;
 - estratégia de tratamento de falhas e reprocessamento;
 - estratégia de resolução de conflitos entre múltiplas fontes;
-- documentação conceitual formal do padrão de ativos visuais (`card_asset`, `card_asset_type`, `asset_source`, `asset_import_run`, `asset_import_failure`, `storage_bucket`) e se essa infraestrutura, hoje nomeada em torno de Card, se generaliza para outras entidades com imagem (Expansion, e provavelmente Set — ver `04-domain-model.md`) ou se cada uma recebe uma estrutura própria.
+- documentação conceitual formal do padrão de ativos visuais (`card_asset`, `card_asset_type`, `asset_source`, `asset_import_run`, `asset_import_failure`, `storage_bucket`) e se essa infraestrutura, hoje nomeada em torno de Card, se generaliza para Set (que precisará de `logo_url` e `symbol_url` — ver `04-domain-model.md`) ou se recebe uma estrutura própria.
 
 ---
 
@@ -103,3 +103,4 @@ Os seguintes pontos ainda não foram definidos e serão tratados em ciclos futur
 |---------|-----------|
 | 0.1 | Estrutura inicial do documento, com o padrão geral de importação/sincronização definido em ADR-008. Mecanismos concretos de pipeline ainda pendentes. |
 | 0.2 | Adicionada a seção "Importação de Ativos Visuais": o mesmo padrão Import/Synchronization se aplica a imagens e logotipos, com armazenamento no Supabase Storage. Referenciada a infraestrutura física pré-existente (`card_asset`, `card_asset_type`, `asset_source`, `asset_import_run`, `asset_import_failure`, `storage_bucket`) e sinalizada como ponto em aberto se ela se generaliza além de Card. Confirmado que o logotipo da Expansion segue este mesmo padrão. |
+| 0.3 | Correção: o logotipo/símbolo pertence ao Set, não à Expansion (ver `04-domain-model.md` e `05-modelo-de-dados.md`). Atualizadas as referências à infraestrutura de ativos visuais e ao ponto em aberto sobre generalização. |
