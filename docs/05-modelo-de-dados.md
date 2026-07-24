@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.51 |
+| **Versão** | 0.52 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -3269,8 +3269,8 @@ Validação estrutural e de conteúdo completa de `language`, no mesmo padrão d
 995 - Validate Asset Import Infrastructure (CONFIRMADA EXECUTADA E HOMOLOGADA — database/validations/995_validate_asset_import_infrastructure.sql)
 
 240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql; ver seção "Card Set External Reference", abaixo)
-241 - Card Set External Reference Triggers (planejada, ainda NÃO executada — mesmo padrão de 211/201)
-910 - Seed Card Set External Reference   (planejada, ainda NÃO executada — mesma decisão já tomada para 910 Seed Card External Reference: sem seed estático, registros virão da própria rotina de importação; número colide com 910 Validate Expansion, mesmo padrão de colisão de numeração entre pastas já registrado para 900/970/975)
+241 - Card Set External Reference Triggers (CONFIRMADA EXECUTADA — database/schema/241_card_set_external_reference_triggers.sql)
+910 - Seed Card Set External Reference   (ADIADA, ainda NÃO executada — aguarda descoberta de external_set_id reais via chamada real à TCGdex; número colide com 910 Validate Expansion, mesmo padrão de colisão de numeração entre pastas já registrado para 900/970/975)
 991 - Validate Card Set External Reference (planejada, ainda NÃO executada)
 
 880 - Seed Card Asset                    (bloqueada até o pipeline de importação [Fase 1, Bloco B — Edge Function, ainda não implementada] existir e um piloto controlado ser executado, ver "Roteiro Consolidado", acima)
@@ -3529,7 +3529,11 @@ Validação estrutural e de dados completa: existência da tabela, presença das
 
 ## Status
 
-**Camada Card Set External Reference criada nesta revisão — `240` CONFIRMADA EXECUTADA.** Terceira camada de mapeamento externo do projeto (depois de Asset Source e Card External Reference), descoberta como uma lacuna real durante o Sprint B2.5 de `06-pipeline-importacao.md`: antes de consultar a TCGdex por um `card_set`, o pipeline precisa saber qual identificador a TCGdex usa para aquele conjunto — informação que ainda não existia em nenhuma tabela do catálogo. Decisão explícita de Fabrício, justificada por manter a consistência do modelo: *"Isso quebra um princípio que seguimos desde o início: tudo que vem de sistemas externos deve ser persistido e rastreável. Na minha opinião, vale muito a pena gastar mais uma sprint agora e manter a consistência do modelo."* Apenas a Query `240` (criação da tabela) foi executada nesta revisão — `241` (triggers), `910` (seed, já decidido que será descartada, mesmo padrão de `card_external_reference`) e `991` (validação) ainda **não foram executadas**.
+**Camada Card Set External Reference criada e com triggers nesta revisão — `240`/`241` CONFIRMADAS EXECUTADAS.** Terceira camada de mapeamento externo do projeto (depois de Asset Source e Card External Reference), descoberta como uma lacuna real durante o Sprint B2.5 de `06-pipeline-importacao.md`: antes de consultar a TCGdex por um `card_set`, o pipeline precisa saber qual identificador a TCGdex usa para aquele conjunto — informação que ainda não existia em nenhuma tabela do catálogo. Decisão explícita de Fabrício, justificada por manter a consistência do modelo: *"Isso quebra um princípio que seguimos desde o início: tudo que vem de sistemas externos deve ser persistido e rastreável. Na minha opinião, vale muito a pena gastar mais uma sprint agora e manter a consistência do modelo."*
+
+**Episódio real, registrado por transparência: um mapeamento de teste incorreto foi inserido e corrigido antes de qualquer Seed formal.** Ao validar a Query `241`, um registro manual foi inserido em `card_set_external_reference` (`card_set: ME0`, `asset_source: TCGDEX`, `external_set: sv10pt5`). Ao revisar esse registro, ficou claro que **`sv10pt5` é o identificador de um Set oficial real da Pokémon na TCGdex — não o `ME0` do Project Mimikyu**. Isso reafirma uma decisão já registrada anteriormente: `ME0` **não existe oficialmente** como Set na TCGdex nem na Pokémon TCG API — é uma convenção interna, criada pelo Project Mimikyu, para organizar as cartas promocionais da expansão Megaevolution. Deixar o mapeamento incorreto em pé faria a Edge Function acreditar, erradamente, que as promos de `ME0` pertencem ao Set oficial `sv10pt5`. Corrigido via `DELETE FROM public.card_set_external_reference WHERE external_set_id = 'sv10pt5';`, confirmado executado ("Success. No rows returned") — a tabela está novamente vazia (0 registros).
+
+**Decisão revisada sobre como popular esta tabela, corrigida dentro do próprio raciocínio desta revisão (auto-correção, não um erro de execução)**: a primeira proposta foi popular a Seed `910` manualmente, com os Sets que sabidamente têm equivalência oficial (`ME1`/`ME2`/`ME2.5`/`ME3`/`ME4`) e deixar `ME0` deliberadamente sem mapeamento, permanente. Antes de escrever essa Seed, a proposta foi revisada: *"Como `ME0` representa as cartas promocionais da expansão Megaevolution, é bem provável que ela tenha sim um mapeamento oficial na TCGdex (um Set promocional específico). O que não devemos fazer é assumir que seja `sv10pt5` sem validar."* Decisão final: **a Query `910` fica adiada** (não descartada como em `card_external_reference` — aqui a expectativa é que a maioria dos Sets, incluindo possivelmente `ME0`, tenha sim uma correspondência real) até que a Edge Function consiga descobrir os `external_set_id` reais consultando a própria TCGdex — a Seed só será escrita depois, com dados confirmados pela API, nunca com suposições. Apenas a Query `240` e a `241` foram executadas nesta revisão — `910` (adiada) e `991` (validação) ainda **não foram executadas**.
 
 ## Decisão de Modelagem
 
@@ -3586,21 +3590,92 @@ CREATE INDEX ix_card_set_external_reference_active
 ALTER TABLE public.card_set_external_reference ENABLE ROW LEVEL SECURITY;
 ```
 
-Regras de negócio: FK para `card_set` (`ON DELETE CASCADE`) e para `asset_source` (`ON DELETE RESTRICT`); unicidade dupla (`card_set_id`+`asset_source_id` e `asset_source_id`+`external_set_id`); `external_set_id` obrigatório e não vazio; `source_url`, quando presente, deve começar com `https://`; `metadata` deve ser sempre um objeto JSON válido; RLS habilitado. Nota estrutural, registrada por transparência: esta versão não inclui ainda os triggers de normalização/`updated_at`/proteção de identidade (ficam para a Query `241`, ainda não executada) nem os cinco índices completos do padrão de `card_external_reference` — apenas três índices foram criados nesta primeira versão (`card_set`, `asset_source`, `active`); não há índice equivalente a `source_number` porque esse conceito não existe para Set. Confirmado executado por Fabrício ("Success. No rows returned"). Arquivo escrito em `database/schema/240_create_card_set_external_reference.sql`.
+Regras de negócio: FK para `card_set` (`ON DELETE CASCADE`) e para `asset_source` (`ON DELETE RESTRICT`); unicidade dupla (`card_set_id`+`asset_source_id` e `asset_source_id`+`external_set_id`); `external_set_id` obrigatório e não vazio; `source_url`, quando presente, deve começar com `https://`; `metadata` deve ser sempre um objeto JSON válido; RLS habilitado. Confirmado executado por Fabrício ("Success. No rows returned"). Arquivo escrito em `database/schema/240_create_card_set_external_reference.sql`.
 
-> **Diário Técnico — Query 240 — Create Card Set External Reference**
-> **Objetivo**: criar a entidade responsável por mapear um `card_set` interno para seu identificador em fontes externas (TCGdex, Pokémon TCG API etc.).
-> **Critério de aceite**: tabela criada; constraints criadas; índices criados; RLS habilitado.
+## Query 241 — Card Set External Reference Triggers (CONFIRMADA EXECUTADA)
+
+Mesmo padrão já estabelecido para as demais camadas de referência externa: `normalize_card_set_external_reference()` (apara `external_set_id`, converte `source_url` vazio em `NULL`, garante `metadata` nunca nulo), `touch_card_set_external_reference_updated_at()` (padrão), e `govern_card_set_external_reference()` — proteção de identidade via `RAISE EXCEPTION`, cobrindo não só `id`/`card_set_id`/`asset_source_id` (mesmo padrão de `card_external_reference`) mas também `external_set_id` e `created_at` como imutáveis após criados:
+
+```sql
+CREATE OR REPLACE FUNCTION public.normalize_card_set_external_reference()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    NEW.external_set_id := BTRIM(NEW.external_set_id);
+    IF NEW.source_url IS NOT NULL THEN
+        NEW.source_url := NULLIF(BTRIM(NEW.source_url), '');
+    END IF;
+    NEW.metadata := COALESCE(NEW.metadata, '{}'::JSONB);
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.govern_card_set_external_reference()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    IF NEW.id IS DISTINCT FROM OLD.id THEN
+        RAISE EXCEPTION 'CARD_SET_EXTERNAL_REFERENCE_ID_IMMUTABLE';
+    END IF;
+    IF NEW.card_set_id IS DISTINCT FROM OLD.card_set_id THEN
+        RAISE EXCEPTION 'CARD_SET_EXTERNAL_REFERENCE_CARD_SET_IMMUTABLE';
+    END IF;
+    IF NEW.asset_source_id IS DISTINCT FROM OLD.asset_source_id THEN
+        RAISE EXCEPTION 'CARD_SET_EXTERNAL_REFERENCE_ASSET_SOURCE_IMMUTABLE';
+    END IF;
+    IF NEW.external_set_id IS DISTINCT FROM OLD.external_set_id THEN
+        RAISE EXCEPTION 'CARD_SET_EXTERNAL_REFERENCE_EXTERNAL_SET_ID_IMMUTABLE';
+    END IF;
+    IF NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'CARD_SET_EXTERNAL_REFERENCE_CREATED_AT_IMMUTABLE';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.touch_card_set_external_reference_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_010_normalize_card_set_external_reference
+    BEFORE INSERT OR UPDATE ON public.card_set_external_reference
+    FOR EACH ROW EXECUTE FUNCTION public.normalize_card_set_external_reference();
+
+CREATE TRIGGER trg_020_govern_card_set_external_reference
+    BEFORE UPDATE ON public.card_set_external_reference
+    FOR EACH ROW EXECUTE FUNCTION public.govern_card_set_external_reference();
+
+CREATE TRIGGER trg_030_touch_card_set_external_reference_updated_at
+    BEFORE UPDATE ON public.card_set_external_reference
+    FOR EACH ROW EXECUTE FUNCTION public.touch_card_set_external_reference_updated_at();
+```
+
+Confirmado executado por Fabrício ("Success. No rows returned"). Arquivo escrito em `database/schema/241_card_set_external_reference_triggers.sql`.
+
+> **Diário Técnico — Query 241 — Card Set External Reference Triggers**
+> **Objetivo**: adicionar normalização, `updated_at` automático e proteção de identidade a `card_set_external_reference`, mesmo padrão das demais camadas de referência externa.
+> **Critério de aceite**: três funções e três triggers criados, sem alterar dados existentes.
 > **Resultado**: ✅ Concluído.
-> **Pendências descobertas**: Query `241` (triggers), `910` (seed — já decidido que será descartada) e `991` (validação) ainda não executadas.
+> **Pendências descobertas**: um mapeamento de teste incorreto (`ME0`→`sv10pt5`) foi inserido durante a validação e precisou ser removido — ver "Status", acima, para o episódio completo. Query `910` (Seed) adiada até a Edge Function conseguir descobrir `external_set_id` reais via a própria TCGdex; Query `991` (Validação) ainda não escrita, mas com critérios já decididos: sem mapeamentos duplicados; todo `card_set_external_reference` aponta para `card_set` e `asset_source` válidos; nenhum `card_set` do tipo `REGULAR` ou `SPECIAL` sem mapeamento ativo; `PROMO` pode ficar sem mapeamento.
 
 ## Sequência
 
 ```text
 240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql)
-241 - Card Set External Reference Triggers (planejada, NÃO executada)
-910 - Seed Card Set External Reference   (planejada — decisão já tomada de descartar, mesmo padrão de 910 Seed Card External Reference)
-991 - Validate Card Set External Reference (planejada, NÃO executada)
+241 - Card Set External Reference Triggers (CONFIRMADA EXECUTADA — database/schema/241_card_set_external_reference_triggers.sql)
+910 - Seed Card Set External Reference   (ADIADA — aguarda descoberta de external_set_id reais via chamada real à TCGdex; não será mais baseada em suposição manual)
+991 - Validate Card Set External Reference (planejada, NÃO executada — critérios já decididos, ver Diário Técnico da Query 241, acima)
 ```
 
 ---
@@ -3672,3 +3747,4 @@ Regras de negócio: FK para `card_set` (`ON DELETE CASCADE`) e para `asset_sourc
 | 0.49 | **Marco: infraestrutura de importação do catálogo editorial encerrada — `asset_import_failure` criada com triggers e a validação consolidada `995` executadas (`230`/`231`/`995`, CONFIRMADOS EXECUTADOS E HOMOLOGADOS); Bloqueio 5 formalmente RESOLVIDO; framing por "Bloqueios" numerados substituído por uma estrutura de Fases e Blocos após um incidente de confiança no roteiro.** `asset_import_failure` refinada de última hora, antes da execução: FK direta e obrigatória para `card_id` (não apenas um identificador externo solto), e `asset_source_id` deliberadamente omitido como coluna própria (resolvido via `JOIN` com `asset_import_run`, mesmo padrão de normalização já usado em `storage_bucket`/`card_asset`). `995` valida as duas tabelas da camada em conjunto (não uma validação por tabela). **Incidente de confiança no roteiro**: Fabrício expressou preocupação direta e legítima de que a sessão pareada tivesse perdido o fio do roadmap combinado anteriormente (*"Estou achando que você se perdeu na sequência do trabalho e isso me deixa verdadeiramente preocupado [...]"*); a resposta comparou lado a lado o roadmap original (`220`/`221`/`222`/`920`/`995`, nomeado "Asset Import Job/Item") com o implementado (`220`/`221`/`230`/`231`/`995`, "Asset Import Run/Failure"), demonstrando que a sequência foi deliberadamente evoluída, não perdida — mas reconheceu a causa raiz: ausência de um registro mestre do roadmap, dependência excessiva da memória de conversa (que é resumida, não literal, em conversas longas). **Nova estrutura registrada**: FASE 1 — Catálogo Editorial (Bloco A — Modelo de Dados, **concluído**; Bloco B — Pipeline de Importação, **ainda não iniciado**, é o próximo trabalho — a Edge Function que efetivamente executa o fluxo; Bloco C — Carga Editorial, **ainda não iniciado**, `880` torna-se uma orquestração do importador, não um `INSERT`) → FASE 2 — Coleções (não iniciada, aguarda Fase 1 completa). Corrigido `docs/README.md`: a tabela "Status Atual do Projeto" citava `asset_source`/`asset_import_run`/`asset_import_failure` como parte das "17 tabelas físicas pré-existentes" — mas as três foram demonstravelmente criadas por este próprio projeto (guardas defensivas de `200`/`220`/`230`, mais a evidência do Table Editor da revisão `0.48`); tabela reformulada para refletir isso. Arquivos `database/schema/230_create_asset_import_failure.sql`, `database/schema/231_asset_import_failure_triggers.sql`, `database/validations/995_validate_asset_import_infrastructure.sql` criados. |
 | 0.50 | **Bloco B (Pipeline de Importação) iniciado: arquitetura completa da Edge Function `import-card-assets` especificada e roteiro de 12 sprints (`B2.1`–`B2.12`) definido — detalhamento movido para `06-pipeline-importacao.md` para evitar duplicação com este documento (que permanece focado em modelo de dados/SQL).** Atualizada a entrada de "Bloco B" no "Roteiro Consolidado — Fases e Blocos": status muda de "ainda não iniciado" para "iniciado", com cross-referência à nova seção "Arquitetura de Execução — Edge Function `import-card-assets` (Bloco B1)" de `06-pipeline-importacao.md`. Sprint B2.1 (Edge Function básica, apenas resposta `status: ready`) teve código proposto por Fabrício, mas **nenhuma confirmação de deploy foi recebida nesta revisão** — não é tratado como executado, seguindo o mesmo princípio de `database/README.md` (nada é registrado como concluído sem confirmação real). Sprint B2.2 (ler `asset_import_run` por `run_id`) apenas com objetivo definido. Nenhuma alteração de modelo de dados/SQL nesta revisão. |
 | 0.51 | **Bloco A reaberto pontualmente: nova entidade `card_set_external_reference` criada (`240` CONFIRMADA EXECUTADA; `241`/`910`/`991` planejadas, ainda não executadas).** Lacuna real identificada durante o Sprint B2.5 de `06-pipeline-importacao.md`: o pipeline precisa saber qual identificador a TCGdex usa para um `card_set` antes de poder consultá-lo, exatamente como `card_external_reference` já resolve para `card` — decisão explícita de Fabrício de manter a consistência do modelo em vez de improvisar o mapeamento dentro da Edge Function. Nova entidade **Card Set External Reference** (seção própria criada, entre "Card External Reference" e "Collection Item"): `id, card_set_id, asset_source_id, external_set_id, source_url, metadata, is_active, created_at, updated_at` — **deliberadamente não é uma cópia 1:1 de `card_external_reference`**: sem `external_card_id` (não se aplica a Set) e sem `image_source_url` (o Pipeline Automático de Imagens baixa imagens de cartas, não de Sets — o logo/símbolo do Set já é coberto por colunas próprias de `card_set`, fora deste pipeline). FK para `card_set` (`ON DELETE CASCADE`) e `asset_source` (`ON DELETE RESTRICT`), unicidade dupla (`card_set_id`+`asset_source_id` e `asset_source_id`+`external_set_id`), RLS habilitado. Apenas três índices nesta primeira versão (`card_set`, `asset_source`, `active`) — triggers de normalização/`updated_at`/proteção de identidade ficam para a Query `241`, ainda não escrita. Seed `910` já decidida como descartada (mesmo racional de `910 - Seed Card External Reference`: sem correspondências reais ainda, registros virão da própria importação) — número citado colide com `910 - Validate Expansion`, mesmo padrão de colisão de numeração entre pastas já registrado para `900`/`970`/`975`, não resolvido unilateralmente. "Bloco A" no "Roteiro Consolidado" atualizado para refletir esta adição pontual pós-conclusão. Arquivo `database/schema/240_create_card_set_external_reference.sql` criado. |
+| 0.52 | **`card_set_external_reference`: Query `241` (triggers) CONFIRMADA EXECUTADA; episódio real de correção — mapeamento de teste `ME0`→`sv10pt5` inserido e removido; Seed `910` adiada (não descartada), aguardando descoberta real via TCGdex em vez de suposição manual.** Ao validar `241`, um registro de teste foi inserido associando `ME0` (convenção interna do Project Mimikyu para promos da expansão Megaevolution) ao Set oficial real `sv10pt5` da TCGdex — identificado como incorreto (`ME0` não existe oficialmente na TCGdex/Pokémon TCG API) e removido via `DELETE`, confirmado. Plano inicial de popular `910` manualmente com `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` (excluindo `ME0` permanentemente) foi revisado antes de qualquer Seed ser escrita: `ME0` provavelmente tem sim um mapeamento oficial na TCGdex (um Set promocional específico), só não deve ser presumido sem validar — decisão final: `910` fica adiada até a Edge Function conseguir descobrir os `external_set_id` reais via chamada real à API; a Seed só será escrita depois, com dados confirmados. Critérios da futura Query `991` (Validação) já decididos: sem mapeamentos duplicados, FKs válidas, todo `card_set` `REGULAR`/`SPECIAL` com mapeamento ativo, `PROMO` pode ficar sem. Arquivo `database/schema/241_card_set_external_reference_triggers.sql` criado. |
