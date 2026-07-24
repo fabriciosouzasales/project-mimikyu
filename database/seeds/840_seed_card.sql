@@ -2,64 +2,79 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 840 - Seed Card
-Versão......: 2.1
+Versão......: 2.2
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-18
+Data........: 2026-07-20
 
 Descrição resumida:
-Cadastra e atualiza as 859 cartas oficiais em português do Brasil dos Card Sets
-ME1, ME2, ME2.5, ME3 e ME4 da expansão Megaevolução.
+Cadastra e atualiza as 927 cartas oficiais atualmente suportadas nos Card Sets
+MEE, MEP, ME1, ME2, ME2.5, ME3 e ME4 da expansão Megaevolução.
 
 Descrição:
 Esta Query consolida o catálogo oficial atualmente suportado pelo Project
 Mimikyu para a expansão Megaevolução.
 
 Card Sets contemplados:
-- ME1   - Megaevolução:             188 cartas;
-- ME2   - Fogo Fantasmagórico:      130 cartas;
-- ME2.5 - Heróis Excelsos:          295 cartas;
-- ME3   - Equilíbrio Perfeito:      124 cartas;
-- ME4   - Caos Ascendente:          122 cartas.
+- MEE   - Energia Básica Megaevolução:    8 cartas;
+- MEP   - MEP Black Star Promos:         60 cartas;
+- ME1   - Megaevolução:                 188 cartas;
+- ME2   - Fogo Fantasmagórico:          130 cartas;
+- ME2.5 - Heróis Excelsos:              295 cartas;
+- ME3   - Equilíbrio Perfeito:          124 cartas;
+- ME4   - Caos Ascendente:              122 cartas.
 
-Total canônico: 859 cartas.
+Total canônico atual: 927 cartas.
 
 Para cada Card são cadastrados:
 - Card Set;
 - número oficial;
 - total-base utilizado como denominador editorial;
-- posição no checklist;
-- nome oficial em português do Brasil;
+- posição no catálogo;
+- nome oficial ou nome editorial canônico;
 - categoria;
 - raridade.
 
 O campo collector_total é derivado do base_set_size canônico de cada Card Set:
+- MEE: 8;
+- MEP: 60;
 - ME1: 132;
 - ME2: 94;
 - ME2.5: 217;
 - ME3: 88;
 - ME4: 86.
 
-Os checklists oficiais apresentam a numeração integral das cartas, mas não
-exibem explicitamente o denominador em todos os registros. Por isso, o valor é
-obtido diretamente de card_set.base_set_size após validação.
+Nos Sets regulares e especiais, base_set_size representa o denominador
+editorial oficial da coleção.
+
+No MEE, base_set_size e total_set_size correspondem às oito Energias Básicas
+numeradas do conjunto.
+
+No MEP, base_set_size e total_set_size correspondem à quantidade de Cards
+promocionais atualmente suportada pelo catálogo. collector_number preserva a
+numeração promocional oficial, inclusive suas lacunas, enquanto collector_order
+representa a sequência contínua de 1 a 60 utilizada pelo Project Mimikyu.
 
 Regras de Negócio:
 - O Game POKEMON deve existir.
-- Os cinco Card Sets devem existir e pertencer ao Game POKEMON.
+- Os sete Card Sets devem existir e pertencer ao Game POKEMON.
 - base_set_size e total_set_size devem coincidir com os valores canônicos.
 - As categorias POKEMON, TRAINER e ENERGY devem estar cadastradas.
 - Todas as raridades utilizadas devem estar cadastradas.
 - collector_number preserva três dígitos.
-- collector_order corresponde à posição oficial no checklist.
+- collector_order corresponde à posição da Card no catálogo do respectivo Set.
 - A Query deve ser idempotente.
 - Registros existentes devem convergir para os dados desta Query.
 - A Query não exclui registros automaticamente.
 - A execução deve falhar se, ao final, algum Set não possuir exatamente a
   quantidade canônica de Cards.
 - A execução deve falhar se existirem Cards adicionais nos Sets contemplados.
+- MEE e MEP utilizam a raridade editorial PROMO.
+- No MEP, o maior collector_number não representa a quantidade de Cards.
 
 Fontes canônicas:
+- TCGdex: Mega Evolution Energy (MEE);
+- TCGdex: MEP Black Star Promos;
 - P10346_ME01_Card_List_PTBR;
 - P10347_ME02_Card_List_PTBR;
 - ME02pt5_Card_List_PTBR;
@@ -109,6 +124,8 @@ BEGIN
         total_set_size
     ) AS (
         VALUES
+        ('MEE', 8, 8),
+        ('MEP', 60, 60),
         ('ME1', 132, 188),
         ('ME2', 94, 130),
         ('ME2.5', 217, 295),
@@ -137,6 +154,8 @@ BEGIN
         total_set_size
     ) AS (
         VALUES
+        ('MEE', 8, 8),
+        ('MEP', 60, 60),
         ('ME1', 132, 188),
         ('ME2', 94, 130),
         ('ME2.5', 217, 295),
@@ -192,22 +211,23 @@ BEGIN
             'ILLUSTRATION_RARE',
             'MEGA_ATTACK_RARE',
             'MEGA_HYPER_RARE',
+            'PROMO',
             'RARE',
             'SPECIAL_ILLUSTRATION_RARE',
             'ULTRA_RARE',
             'UNCOMMON'
        );
 
-    IF v_rarity_count <> 9 THEN
+    IF v_rarity_count <> 10 THEN
         RAISE EXCEPTION
-            'Não foi possível executar a Query 840: todas as raridades utilizadas pelos cinco Sets devem estar cadastradas.';
+            'Não foi possível executar a Query 840: todas as raridades utilizadas pelos sete Sets devem estar cadastradas.';
     END IF;
 END;
 $$;
 
 
 -- ============================================================================
--- 2. Inserir ou atualizar o catálogo canônico de 859 Cards
+-- 2. Inserir ou atualizar o catálogo canônico atual de 927 Cards
 -- ============================================================================
 
 WITH source_card (
@@ -219,6 +239,74 @@ WITH source_card (
     rarity_code
 ) AS (
     VALUES
+        ('MEE', '001', 1, 'Energia Básica de Planta', 'ENERGY', 'PROMO'),
+        ('MEE', '002', 2, 'Energia Básica de Fogo', 'ENERGY', 'PROMO'),
+        ('MEE', '003', 3, 'Energia Básica de Água', 'ENERGY', 'PROMO'),
+        ('MEE', '004', 4, 'Energia Básica Elétrica', 'ENERGY', 'PROMO'),
+        ('MEE', '005', 5, 'Energia Básica Psíquica', 'ENERGY', 'PROMO'),
+        ('MEE', '006', 6, 'Energia Básica de Luta', 'ENERGY', 'PROMO'),
+        ('MEE', '007', 7, 'Energia Básica de Escuridão', 'ENERGY', 'PROMO'),
+        ('MEE', '008', 8, 'Energia Básica de Metal', 'ENERGY', 'PROMO'),
+        ('MEP', '001', 1, 'Meganium', 'POKEMON', 'PROMO'),
+        ('MEP', '002', 2, 'Inteleon', 'POKEMON', 'PROMO'),
+        ('MEP', '003', 3, 'Alakazam', 'POKEMON', 'PROMO'),
+        ('MEP', '004', 4, 'Lunatone', 'POKEMON', 'PROMO'),
+        ('MEP', '005', 5, 'Drifloon', 'POKEMON', 'PROMO'),
+        ('MEP', '006', 6, 'Drifblim', 'POKEMON', 'PROMO'),
+        ('MEP', '007', 7, 'Psyduck', 'POKEMON', 'PROMO'),
+        ('MEP', '008', 8, 'Golduck', 'POKEMON', 'PROMO'),
+        ('MEP', '009', 9, 'Alakazam', 'POKEMON', 'PROMO'),
+        ('MEP', '010', 10, 'Riolu', 'POKEMON', 'PROMO'),
+        ('MEP', '011', 11, 'Mega Latias ex', 'POKEMON', 'PROMO'),
+        ('MEP', '012', 12, 'Mega Lucario ex', 'POKEMON', 'PROMO'),
+        ('MEP', '013', 13, 'Mega Venusaur ex', 'POKEMON', 'PROMO'),
+        ('MEP', '014', 14, 'Ceruledge', 'POKEMON', 'PROMO'),
+        ('MEP', '015', 15, 'Zacian', 'POKEMON', 'PROMO'),
+        ('MEP', '016', 16, 'Flygon', 'POKEMON', 'PROMO'),
+        ('MEP', '017', 17, 'Toxtricity', 'POKEMON', 'PROMO'),
+        ('MEP', '018', 18, 'Cottonee', 'POKEMON', 'PROMO'),
+        ('MEP', '019', 19, 'Whimsicott', 'POKEMON', 'PROMO'),
+        ('MEP', '020', 20, 'Sneasel', 'POKEMON', 'PROMO'),
+        ('MEP', '021', 21, 'Weavile', 'POKEMON', 'PROMO'),
+        ('MEP', '022', 22, 'Charcadet', 'POKEMON', 'PROMO'),
+        ('MEP', '023', 23, 'Mega Charizard X ex', 'POKEMON', 'PROMO'),
+        ('MEP', '024', 24, 'Oricorio ex', 'POKEMON', 'PROMO'),
+        ('MEP', '025', 25, 'Mega Kangaskhan ex', 'POKEMON', 'PROMO'),
+        ('MEP', '026', 26, 'Meloetta', 'POKEMON', 'PROMO'),
+        ('MEP', '027', 27, 'Haunter', 'POKEMON', 'PROMO'),
+        ('MEP', '028', 28, 'Fanfarra de Celebração', 'TRAINER', 'PROMO'),
+        ('MEP', '029', 29, 'Mega Charizard X ex', 'POKEMON', 'PROMO'),
+        ('MEP', '030', 30, 'Mega Charizard Y ex', 'POKEMON', 'PROMO'),
+        ('MEP', '031', 31, 'Zekrom do N', 'POKEMON', 'PROMO'),
+        ('MEP', '032', 32, 'Mega Gardevoir ex', 'POKEMON', 'PROMO'),
+        ('MEP', '033', 33, 'Mega Lucario ex', 'POKEMON', 'PROMO'),
+        ('MEP', '034', 34, 'Mega Meganium ex', 'POKEMON', 'PROMO'),
+        ('MEP', '035', 35, 'Mega Emboar ex', 'POKEMON', 'PROMO'),
+        ('MEP', '036', 36, 'Mega Feraligatr ex', 'POKEMON', 'PROMO'),
+        ('MEP', '037', 37, 'Bulbasaur', 'POKEMON', 'PROMO'),
+        ('MEP', '038', 38, 'Charmander', 'POKEMON', 'PROMO'),
+        ('MEP', '039', 39, 'Squirtle', 'POKEMON', 'PROMO'),
+        ('MEP', '040', 40, 'Turtwig', 'POKEMON', 'PROMO'),
+        ('MEP', '041', 41, 'Chimchar', 'POKEMON', 'PROMO'),
+        ('MEP', '042', 42, 'Piplup', 'POKEMON', 'PROMO'),
+        ('MEP', '043', 43, 'Rowlet', 'POKEMON', 'PROMO'),
+        ('MEP', '044', 44, 'Litten', 'POKEMON', 'PROMO'),
+        ('MEP', '045', 45, 'Popplio', 'POKEMON', 'PROMO'),
+        ('MEP', '064', 46, 'Serperior', 'POKEMON', 'PROMO'),
+        ('MEP', '065', 47, 'Barbaracle', 'POKEMON', 'PROMO'),
+        ('MEP', '066', 48, 'Tyrantrum', 'POKEMON', 'PROMO'),
+        ('MEP', '067', 49, 'Doublade', 'POKEMON', 'PROMO'),
+        ('MEP', '068', 50, 'Makuhita', 'POKEMON', 'PROMO'),
+        ('MEP', '069', 51, 'Chikorita', 'POKEMON', 'PROMO'),
+        ('MEP', '070', 52, 'Tyrunt', 'POKEMON', 'PROMO'),
+        ('MEP', '071', 53, 'Mega Zygarde ex', 'POKEMON', 'PROMO'),
+        ('MEP', '074', 54, 'Delphox', 'POKEMON', 'PROMO'),
+        ('MEP', '075', 55, 'Ampharos', 'POKEMON', 'PROMO'),
+        ('MEP', '076', 56, 'Crobat', 'POKEMON', 'PROMO'),
+        ('MEP', '077', 57, 'Goodra', 'POKEMON', 'PROMO'),
+        ('MEP', '078', 58, 'Toxel', 'POKEMON', 'PROMO'),
+        ('MEP', '079', 59, 'Charmeleon', 'POKEMON', 'PROMO'),
+        ('MEP', '080', 60, 'Fennekin', 'POKEMON', 'PROMO'),
         ('ME1', '001', 1, 'Bulbasaur', 'POKEMON', 'COMMON'),
         ('ME1', '002', 2, 'Ivysaur', 'POKEMON', 'COMMON'),
         ('ME1', '003', 3, 'Mega Venusaur ex', 'POKEMON', 'DOUBLE_RARE'),
@@ -991,7 +1079,7 @@ WITH source_card (
         ('ME4', '033', 33, 'Deoxys', 'POKEMON', 'UNCOMMON'),
         ('ME4', '034', 34, 'Deoxys', 'POKEMON', 'UNCOMMON'),
         ('ME4', '035', 35, 'Mega Floette ex', 'POKEMON', 'DOUBLE_RARE'),
-        ('ME4', '036', 36, 'Espurr', 'POKEMON', 'COMMON'),
+        ('ME4', '036', 36, 'Espurr', 'POKEMON', 'UNCOMMON'),
         ('ME4', '037', 37, 'Meowstic', 'POKEMON', 'UNCOMMON'),
         ('ME4', '038', 38, 'Phantump', 'POKEMON', 'COMMON'),
         ('ME4', '039', 39, 'Trevenant', 'POKEMON', 'RARE'),
@@ -1091,7 +1179,7 @@ target_set AS (
     INNER JOIN public.game AS g
         ON g.id = e.game_id
     WHERE g.code = 'POKEMON'
-      AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+      AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 )
 INSERT INTO public.card (
     card_set_id,
@@ -1142,6 +1230,8 @@ BEGIN
         expected_total
     ) AS (
         VALUES
+            ('MEE',     8),
+            ('MEP',    60),
             ('ME1',   188),
             ('ME2',   130),
             ('ME2.5', 295),
@@ -1160,7 +1250,7 @@ BEGIN
         LEFT JOIN public.card AS c
             ON c.card_set_id = cs.id
         WHERE g.code = 'POKEMON'
-          AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+          AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
         GROUP BY cs.code
     )
     SELECT string_agg(
@@ -1195,11 +1285,11 @@ BEGIN
       INNER JOIN public.game AS g
           ON g.id = e.game_id
      WHERE g.code = 'POKEMON'
-       AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
+       AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
 
-    IF v_total_registered <> 859 THEN
+    IF v_total_registered <> 927 THEN
         RAISE EXCEPTION
-            'A Query 840 foi interrompida: o catálogo consolidado possui % Cards, mas deveria possuir exatamente 859.',
+            'A Query 840 foi interrompida: o catálogo consolidado possui % Cards, mas deveria possuir exatamente 927.',
             v_total_registered;
     END IF;
 END;

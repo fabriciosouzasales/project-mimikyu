@@ -2,10 +2,10 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 940 - Validate Card
-Versão......: 2.0
+Versão......: 2.1
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-18
+Data........: 2026-07-20
 
 Descrição resumida:
 Valida a estrutura, os relacionamentos, as regras de integridade e a aderência
@@ -16,13 +16,15 @@ Esta Query valida a tabela card após a execução da Query 840 - Seed Card.
 
 O catálogo canônico atualmente suportado contempla:
 
-- ME1   - Megaevolução:          188 Cards;
-- ME2   - Fogo Fantasmagórico:   130 Cards;
-- ME2.5 - Heróis Excelsos:       295 Cards;
-- ME3   - Equilíbrio Perfeito:   124 Cards;
-- ME4   - Caos Ascendente:       122 Cards.
+- MEE   - Energia Básica Megaevolução:    8 Cards;
+- MEP   - MEP Black Star Promos:         60 Cards;
+- ME1   - Megaevolução:                 188 Cards;
+- ME2   - Fogo Fantasmagórico:          130 Cards;
+- ME2.5 - Heróis Excelsos:              295 Cards;
+- ME3   - Equilíbrio Perfeito:          124 Cards;
+- ME4   - Caos Ascendente:              122 Cards.
 
-Total canônico esperado: 859 Cards.
+Total canônico esperado: 927 Cards.
 
 A validação verifica:
 
@@ -44,12 +46,15 @@ A validação verifica:
 
 Regras de Validação:
 - Consultas de inconsistência devem retornar zero registros.
-- Os cinco Card Sets devem apresentar status COMPLETE.
-- O total consolidado deve ser exatamente 859.
+- Os sete Card Sets devem apresentar status COMPLETE.
+- O total consolidado deve ser exatamente 927.
 - Cada Card Set deve possuir exatamente a quantidade canônica definida.
 - collector_total deve coincidir com card_set.base_set_size.
 - collector_order deve formar uma sequência contínua de 1 até total_set_size.
 - Card Set, Rarity e Card Category devem pertencer ao mesmo Game.
+- O MEP deve possuir collector_order contínuo de 1 a 60, mesmo quando
+  collector_number apresentar lacunas na numeração promocional oficial.
+- MEE e MEP devem utilizar apenas a raridade PROMO.
 
 Pré-requisitos:
 - Query 140 - Create Card Table.
@@ -62,7 +67,7 @@ Pré-requisitos:
 -- ============================================================================
 -- 1. Relação completa das Cards
 -- Resultado esperado:
--- 859 registros ordenados por Card Set e collector_order
+-- 927 registros ordenados por Card Set e collector_order
 -- ============================================================================
 
 SELECT
@@ -100,6 +105,8 @@ ORDER BY
 -- ============================================================================
 -- 2. Quantidade de Cards por Card Set
 -- Resultado esperado:
+-- MEE = 8
+-- MEP = 60
 -- ME1 = 188
 -- ME2 = 130
 -- ME2.5 = 295
@@ -123,7 +130,7 @@ INNER JOIN public.game AS g
 LEFT JOIN public.card AS c
     ON c.card_set_id = cs.id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 GROUP BY
     g.code,
     e.code,
@@ -148,6 +155,8 @@ WITH expected_set (
     expected_total
 ) AS (
     VALUES
+        ('MEE',     8),
+        ('MEP',    60),
         ('ME1',   188),
         ('ME2',   130),
         ('ME2.5', 295),
@@ -166,7 +175,7 @@ registered AS (
     LEFT JOIN public.card AS c
         ON c.card_set_id = cs.id
     WHERE g.code = 'POKEMON'
-      AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+      AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
     GROUP BY cs.code
 )
 SELECT
@@ -183,17 +192,17 @@ ORDER BY es.card_set_code;
 -- ============================================================================
 -- 4. Validar o total consolidado do catálogo
 -- Resultado esperado:
--- expected_total = 859
--- registered_total = 859
+-- expected_total = 927
+-- registered_total = 927
 -- status = COMPLETE
 -- ============================================================================
 
 SELECT
-    859 AS expected_total,
+    927 AS expected_total,
     COUNT(c.id) AS registered_total,
     CASE
-        WHEN COUNT(c.id) = 859 THEN 'COMPLETE'
-        WHEN COUNT(c.id) < 859 THEN 'PENDING'
+        WHEN COUNT(c.id) = 927 THEN 'COMPLETE'
+        WHEN COUNT(c.id) < 927 THEN 'PENDING'
         ELSE 'EXCEEDED'
     END AS status
 FROM public.card AS c
@@ -204,7 +213,7 @@ INNER JOIN public.expansion AS e
 INNER JOIN public.game AS g
     ON g.id = e.game_id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
 
 
 -- ============================================================================
@@ -226,7 +235,7 @@ INNER JOIN public.expansion AS e
 INNER JOIN public.game AS g
     ON g.id = e.game_id
 WHERE g.code = 'POKEMON'
-  AND cs.code NOT IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code NOT IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 GROUP BY
     g.code,
     cs.code
@@ -465,7 +474,7 @@ WITH expected_order AS (
     INNER JOIN public.game AS g
         ON g.id = e.game_id
     WHERE g.code = 'POKEMON'
-      AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+      AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 )
 SELECT
     eo.card_set_code,
@@ -483,7 +492,7 @@ ORDER BY
 -- ============================================================================
 -- 19. Comparar quantidade cadastrada com total_set_size
 -- Resultado esperado:
--- status = COMPLETE para os cinco Card Sets
+-- status = COMPLETE para os sete Card Sets
 -- ============================================================================
 
 SELECT
@@ -504,7 +513,7 @@ INNER JOIN public.game AS g
 LEFT JOIN public.card AS c
     ON c.card_set_id = cs.id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 GROUP BY
     cs.id,
     cs.code,
@@ -536,7 +545,7 @@ INNER JOIN public.game AS g
 INNER JOIN public.card_category AS cc
     ON cc.id = c.category_id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 GROUP BY
     cs.code,
     cs.release_order,
@@ -568,7 +577,7 @@ INNER JOIN public.game AS g
 INNER JOIN public.rarity AS r
     ON r.id = c.rarity_id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 GROUP BY
     cs.code,
     cs.release_order,
@@ -600,7 +609,7 @@ INNER JOIN public.game AS g
 INNER JOIN public.card_category AS cc
     ON cc.id = c.category_id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
   AND cc.code NOT IN ('POKEMON', 'TRAINER', 'ENERGY')
 ORDER BY
     cs.code,
@@ -627,7 +636,7 @@ INNER JOIN public.game AS g
 INNER JOIN public.rarity AS r
     ON r.id = c.rarity_id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
   AND r.code NOT IN (
       'COMMON',
       'UNCOMMON',
@@ -637,7 +646,8 @@ WHERE g.code = 'POKEMON'
       'MEGA_ATTACK_RARE',
       'ILLUSTRATION_RARE',
       'SPECIAL_ILLUSTRATION_RARE',
-      'MEGA_HYPER_RARE'
+      'MEGA_HYPER_RARE',
+      'PROMO'
   )
 ORDER BY
     cs.code,
@@ -645,7 +655,210 @@ ORDER BY
 
 
 -- ============================================================================
--- 24. Verificar timestamps obrigatórios
+-- 24. Verificar raridade inválida em MEE e MEP
+-- Resultado esperado: nenhum registro
+-- ============================================================================
+
+SELECT
+    cs.code AS card_set_code,
+    c.collector_number,
+    c.collector_order,
+    c.name,
+    r.code AS rarity_code
+FROM public.card AS c
+INNER JOIN public.card_set AS cs
+    ON cs.id = c.card_set_id
+INNER JOIN public.expansion AS e
+    ON e.id = cs.expansion_id
+INNER JOIN public.game AS g
+    ON g.id = e.game_id
+INNER JOIN public.rarity AS r
+    ON r.id = c.rarity_id
+WHERE g.code = 'POKEMON'
+  AND cs.code IN ('MEE', 'MEP')
+  AND r.code <> 'PROMO'
+ORDER BY
+    cs.release_order,
+    c.collector_order;
+
+
+-- ============================================================================
+-- 25. Verificar categoria inválida no MEE
+-- Resultado esperado: nenhum registro
+-- ============================================================================
+
+SELECT
+    cs.code AS card_set_code,
+    c.collector_number,
+    c.collector_order,
+    c.name,
+    cc.code AS category_code
+FROM public.card AS c
+INNER JOIN public.card_set AS cs
+    ON cs.id = c.card_set_id
+INNER JOIN public.expansion AS e
+    ON e.id = cs.expansion_id
+INNER JOIN public.game AS g
+    ON g.id = e.game_id
+INNER JOIN public.card_category AS cc
+    ON cc.id = c.category_id
+WHERE g.code = 'POKEMON'
+  AND cs.code = 'MEE'
+  AND cc.code <> 'ENERGY'
+ORDER BY
+    c.collector_order;
+
+
+-- ============================================================================
+-- 26. Verificar collector_number esperado no MEE
+-- Resultado esperado: nenhum registro
+-- ============================================================================
+
+WITH expected_mee (
+    collector_number,
+    collector_order
+) AS (
+    VALUES
+        ('001', 1),
+        ('002', 2),
+        ('003', 3),
+        ('004', 4),
+        ('005', 5),
+        ('006', 6),
+        ('007', 7),
+        ('008', 8)
+),
+registered_mee AS (
+    SELECT
+        c.collector_number,
+        c.collector_order
+    FROM public.card AS c
+    INNER JOIN public.card_set AS cs
+        ON cs.id = c.card_set_id
+    INNER JOIN public.expansion AS e
+        ON e.id = cs.expansion_id
+    INNER JOIN public.game AS g
+        ON g.id = e.game_id
+    WHERE g.code = 'POKEMON'
+      AND cs.code = 'MEE'
+)
+SELECT
+    em.collector_number AS expected_collector_number,
+    em.collector_order AS expected_collector_order,
+    rm.collector_number AS registered_collector_number,
+    rm.collector_order AS registered_collector_order
+FROM expected_mee AS em
+FULL OUTER JOIN registered_mee AS rm
+    ON rm.collector_number = em.collector_number
+   AND rm.collector_order = em.collector_order
+WHERE em.collector_number IS NULL
+   OR rm.collector_number IS NULL
+ORDER BY
+    COALESCE(em.collector_order, rm.collector_order);
+
+
+-- ============================================================================
+-- 27. Verificar collector_number esperado no MEP
+-- Resultado esperado: nenhum registro
+-- ============================================================================
+
+WITH expected_mep (
+    collector_number,
+    collector_order
+) AS (
+    VALUES
+        ('001', 1),
+        ('002', 2),
+        ('003', 3),
+        ('004', 4),
+        ('005', 5),
+        ('006', 6),
+        ('007', 7),
+        ('008', 8),
+        ('009', 9),
+        ('010', 10),
+        ('011', 11),
+        ('012', 12),
+        ('013', 13),
+        ('014', 14),
+        ('015', 15),
+        ('016', 16),
+        ('017', 17),
+        ('018', 18),
+        ('019', 19),
+        ('020', 20),
+        ('021', 21),
+        ('022', 22),
+        ('023', 23),
+        ('024', 24),
+        ('025', 25),
+        ('026', 26),
+        ('027', 27),
+        ('028', 28),
+        ('029', 29),
+        ('030', 30),
+        ('031', 31),
+        ('032', 32),
+        ('033', 33),
+        ('034', 34),
+        ('035', 35),
+        ('036', 36),
+        ('037', 37),
+        ('038', 38),
+        ('039', 39),
+        ('040', 40),
+        ('041', 41),
+        ('042', 42),
+        ('043', 43),
+        ('044', 44),
+        ('045', 45),
+        ('064', 46),
+        ('065', 47),
+        ('066', 48),
+        ('067', 49),
+        ('068', 50),
+        ('069', 51),
+        ('070', 52),
+        ('071', 53),
+        ('074', 54),
+        ('075', 55),
+        ('076', 56),
+        ('077', 57),
+        ('078', 58),
+        ('079', 59),
+        ('080', 60)
+),
+registered_mep AS (
+    SELECT
+        c.collector_number,
+        c.collector_order
+    FROM public.card AS c
+    INNER JOIN public.card_set AS cs
+        ON cs.id = c.card_set_id
+    INNER JOIN public.expansion AS e
+        ON e.id = cs.expansion_id
+    INNER JOIN public.game AS g
+        ON g.id = e.game_id
+    WHERE g.code = 'POKEMON'
+      AND cs.code = 'MEP'
+)
+SELECT
+    em.collector_number AS expected_collector_number,
+    em.collector_order AS expected_collector_order,
+    rm.collector_number AS registered_collector_number,
+    rm.collector_order AS registered_collector_order
+FROM expected_mep AS em
+FULL OUTER JOIN registered_mep AS rm
+    ON rm.collector_number = em.collector_number
+   AND rm.collector_order = em.collector_order
+WHERE em.collector_number IS NULL
+   OR rm.collector_number IS NULL
+ORDER BY
+    COALESCE(em.collector_order, rm.collector_order);
+
+
+-- ============================================================================
+-- 28. Verificar timestamps obrigatórios
 -- Resultado esperado: nenhum registro
 -- ============================================================================
 
@@ -660,7 +873,7 @@ WHERE created_at IS NULL
 
 
 -- ============================================================================
--- 25. Verificar o trigger de consistência de Game
+-- 29. Verificar o trigger de consistência de Game
 -- Resultado esperado:
 -- 2 registros, um para INSERT e outro para UPDATE
 -- ============================================================================
@@ -680,7 +893,7 @@ ORDER BY
 
 
 -- ============================================================================
--- 26. Verificar o trigger updated_at
+-- 30. Verificar o trigger updated_at
 -- Resultado esperado: 1 registro
 -- ============================================================================
 
@@ -697,7 +910,7 @@ WHERE event_object_schema = 'public'
 
 
 -- ============================================================================
--- 27. Verificar se o Row Level Security está habilitado
+-- 31. Verificar se o Row Level Security está habilitado
 -- Resultado esperado:
 -- rowsecurity = true
 -- ============================================================================
