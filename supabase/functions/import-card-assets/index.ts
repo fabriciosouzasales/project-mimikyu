@@ -120,10 +120,28 @@ Histórico:
   explícita de Fabrício**, para não interromper o fluxo a um passo da
   conclusão da `ME1`. Resposta final ampliada:
   `configuration`/`external_references`/`images`/`failures`.
+- v2.3.1 (Sprint B3.23, CONFIRMADO DEPLOYADO — teste controlado da Fase 2):
+  `LANGUAGE_CODE` alterado de `"en"` para `"pt-BR"` — **mudança temporária,
+  usada apenas para o teste controlado com uma carta (reexecução do
+  `run_code` original da `ME1`)**, seguindo a mesma disciplina já usada no
+  Incremento 2 (validar com uma carta antes de escalar para as 5 coleções).
+  Resultado real: segunda linha de `card_asset` criada para `ME1-001`
+  (`language_id` = `pt-BR`, `storage_path` = `me1/pt-BR/001.webp`), ao lado
+  da linha `en` já existente — confirma que `card_asset` já suporta múltiplos
+  idiomas por carta corretamente. **Discrepância real sinalizada antes de
+  qualquer nova execução em lote, NÃO resolvida nesta revisão**: a
+  `UNIQUE (card_id, asset_source_id)` de `card_external_reference` não inclui
+  idioma — como `asset_source_id` (TCGDEX) é o mesmo independente do idioma,
+  uma execução em `pt-BR` pode fazer `UPSERT` sobre a mesma linha já usada
+  para `en`, em vez de criar uma segunda. Fabrício optou por confirmar o
+  comportamento real antes de alterar qualquer coisa — ver
+  docs/06-pipeline-importacao.md, "Sprint B3.23". Espera-se que este valor
+  volte a ser um parâmetro da requisição (já identificado como pré-requisito
+  da Fase 2 desde o Sprint B3.21), não uma constante fixa.
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
-"Sprint B3.19" e "Sprint B3.20", para o contexto completo, o roteiro de
-sprints e o status real de cada etapa (o que foi de fato confirmado vs. o que
+"Sprint B3.19", "Sprint B3.20" e "Sprint B3.23", para o contexto completo, o
+roteiro de sprints e o status real de cada etapa (o que foi de fato confirmado vs. o que
 ainda está planejado).
 
 Convenções permanentes de Edge Functions do Project Mimikyu (ver docs/06):
@@ -187,7 +205,11 @@ type ImageImportResult = {
   error?: string;
 };
 
-const LANGUAGE_CODE = "en";
+// Sprint B3.23 — alterado temporariamente de "en" para "pt-BR" para o teste
+// controlado da Fase 2 (ver histórico de versões acima, v2.3.1). Espera-se
+// que volte a ser um parâmetro da requisição antes da Fase 2 escalar para as
+// 5 coleções.
+const LANGUAGE_CODE = "pt-BR";
 const ASSET_TYPE_CODE = "CARD_FRONT";
 const STORAGE_BUCKET_CODE = "card-front";
 const IMAGE_BATCH_SIZE = 5;
@@ -498,7 +520,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.3.0",
+      version: "2.3.1",
       run: {
         id: run.id,
         run_code: run.run_code,

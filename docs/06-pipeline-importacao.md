@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.40 |
+| **Versão** | 0.43 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -117,7 +117,11 @@ Os seguintes pontos ainda não foram definidos e serão tratados em ciclos futur
 - **novo, Sprint B3.15, reforçado nos Sprints B3.19/B3.20, crítico**: auditoria consolidada de GRANTs para `service_role` em todas as tabelas do schema `public` (`grants.sql` ou equivalente) segue deliberadamente adiada, agora com **seis casos reais confirmados** do mesmo padrão. Fabrício decide quando priorizar.
 - **novo, Sprint B3.20**: melhoria de idempotência para o Incremento 2 (pular cartas que já têm `card_asset`, evitando novo download/upload em reexecuções) — identificada e **deliberadamente adiada** por decisão explícita de Fabrício, para não interromper o fluxo perto da conclusão da `ME1`.
 - **novo, Sprint B3.20**: buckets físicos `card-back`/`artwork` ainda não criados no Supabase Storage — só `card-front` existe; criar quando forem necessários (verso da carta e ilustração ainda não fazem parte do escopo do Incremento 2).
-- **novo, Sprint B3.20**: replicar o Incremento 1 (já confirmado para a `ME1`) e o Incremento 2 (agora também confirmado para a `ME1`) para `ME2`/`ME2.5`/`ME3`/`ME4` — ainda não iniciado.
+- ~~novo, Sprint B3.20: replicar o Incremento 1 e o Incremento 2 para `ME2`/`ME2.5`/`ME3`/`ME4`~~ — **RESOLVIDO nos Sprints B3.21/B3.22**: as 5 coleções concluídas em inglês, `859/859/859/859`, `0` falhas.
+- **novo, Sprint B3.21, EM ANDAMENTO desde o Sprint B3.23**: Fase 2 do plano de Fabrício (repetir a importação em `pt-BR` para as 5 coleções) — teste controlado com a `ME1` iniciado, 3 de 4 checagens confirmadas; bloqueado por uma discrepância real de modelagem (ver item abaixo) antes de escalar.
+- **novo, Sprint B3.21, crítico, reforçado no Sprint B3.23**: implementar `language`/`asset_type`/bucket como parâmetros da requisição da Edge Function, substituindo as constantes fixas (`LANGUAGE_CODE` está temporariamente hardcoded como `"pt-BR"` desde o Sprint B3.23, especificamente para o teste controlado) — pré-requisito real antes de escalar a Fase 2 para as 5 coleções.
+- **novo, Sprint B3.21**: melhoria de parametrizar a Edge Function por modo (`references`/`assets`) segue deliberadamente adiada, sem urgência nova.
+- **novo, Sprint B3.23, crítico, NÃO resolvido unilateralmente**: `card_external_reference` tem `UNIQUE (card_id, asset_source_id)` sem dimensão de idioma — diferente de `card_asset`, que já suporta múltiplos idiomas por carta via `language_id` na chave natural. Uma execução em `pt-BR` pode colidir com a linha já criada pela `en` (mesmo `asset_source_id`, já que a fonte é a mesma TCGdex independente do idioma). Fabrício decidiu confirmar o comportamento real (4ª checagem do teste controlado) antes de decidir se — e como — corrigir o modelo.
 - ~~novo, Sprint B3.7: um novo `asset_import_run` para `ME1` (ou outra coleção suportada) ainda não foi criado~~ — **resolvido no Sprint B3.8**: `asset_import_run` real criado, Edge Function reinvocada, resposta real `success: true` confirmada com dados reais do Set `me01` da TCGdex.
 - **novo, Sprint B3.8**: Stored Procedure de orquestração (`start_asset_import`/`finish_asset_import`/`fail_asset_import`) explicitamente adiada para depois que a persistência de cartas estiver funcional (Fase 2 do roteiro proposto nesta revisão).
 - **novo, Sprint B3.8**: migração de `run_type`/`status`/`execution_context` (`text` + `CHECK`) para tipos `ENUM` nativos do PostgreSQL, proposta e explicitamente adiada até o fluxo de importação estar funcional.
@@ -1812,6 +1816,69 @@ Execução ainda **bloqueada por um problema real de ambiente local**, não da E
 > **Resultado**: 🟩 Concluído. `188/188` imagens importadas, `0` falhas. `188/188` referências externas mantidas. Refatoração (`services/storage.ts`) aplicada sem mudança de comportamento. Bug real de regra de negócio (`external_url`) corrigido.
 > **Pendências descobertas**: (1) replicar o Incremento 2 (e reconfirmar o Incremento 1) para `ME2`/`ME2.5`/`ME3`/`ME4`; (2) melhoria de idempotência (pular cartas já importadas) deliberadamente adiada; (3) auditoria consolidada de GRANTs (`grants.sql`) segue adiada, com seis casos reais acumulados; (4) criar os buckets físicos `card-back`/`artwork` quando forem necessários.
 
+## Sprint B3.21 — Pipeline replicado com sucesso: `ME2` (130/130) e `ME2.5` (295/295) CONCLUÍDAS, 0 falhas — sem nenhuma alteração de código
+
+**Confirmado: não há mais risco técnico.** Com a arquitetura validada de ponta a ponta na `ME1` (Sprint B3.20), o que resta para `ME2`/`ME2.5`/`ME3`/`ME4` é repetir exatamente o mesmo pipeline (`asset_import_run` → sincronizar `card_external_reference` → baixar imagens → `card_asset`), sem escrever uma linha de código nova — a função já recebe `run_code` e trata qualquer coleção igualmente.
+
+**Plano de duas fases definido por Fabrício**: Fase 1 — completar o inglês (`en`) nas 5 coleções; Fase 2 — repetir para `pt-BR`. Concluídas as duas fases, o catálogo terá cerca de 1.700 imagens (frente das cartas em dois idiomas), preparando o terreno para funcionalidades de maior valor (gerenciamento de coleção/inventário) sem revisitar esta infraestrutura. **Nova visão de acompanhamento, útil mas não substitui o "Roteiro vigente"**: uma matriz Coleção × Idioma (`ME1`-`ME4` × `en`/`pt-BR`), com `ME1`/`en` como a única célula concluída neste momento.
+
+**Correção real, importante, feita por Fabrício antes de prosseguir**: um lembrete de que `card_external_reference` só tinha as 188 linhas da `ME1` — reforça que nenhuma etapa pode ser pulada. Status real reconfirmado por coleção: `ME1` com `card`/`card_variant`/`card_external_reference`/Storage/`card_asset` todos ✅; `ME2`/`ME2.5`/`ME3`/`ME4` com `card`/`card_variant` já ✅ (carga antiga, ver `05-modelo-de-dados.md`), mas `card_external_reference`/Storage/`card_asset` ainda ❌ para todas.
+
+**Duas melhorias reais identificadas e deliberadamente adiadas, por pedido direto de Fabrício** ("Siga, sem pensar em melhorias agora. Queria ser mais objetivo no final da noite!"): (1) parametrizar a Edge Function por modo (`references`/`assets`) para permitir sincronizar todas as referências antes de iniciar as imagens, dando mais controle operacional; (2) tornar `language`/`asset_type`/bucket parâmetros da requisição em vez de constantes fixas no código, permitindo `pt-BR` sem uma nova Edge Function (o caminho de Storage já foi desenhado para isso desde o Sprint B3.20 — `card-front/me1/en/001.webp`, `card-front/me1/pt-BR/001.webp`).
+
+**`ME2` executada e CONCLUÍDA**: novo `asset_import_run` real criado (Query `255`; a primeira tentativa **FALHOU pelo mesmo motivo real já visto na Query 252** — `run_type` `NOT NULL` sem valor — corrigida sem adivinhar, reconfirmando `FULL_CARD_SET` por consulta direta). Edge Function reinvocada: `external_references: { imported: 130 }`, `images: { imported: 130, failed: 0 }`.
+
+**`ME2.5` executada e CONCLUÍDA** (maior coleção do catálogo, 295 cartas — o teste de estresse real do pipeline): novo `asset_import_run` criado sem repetir o erro de `run_type` (Query `256`). Edge Function reinvocada: `external_references: { imported: 295 }`, `images: { imported: 295, failed: 0 }`.
+
+**Total real acumulado, três das cinco coleções**: `613` referências externas, `613` imagens no Storage, `613` registros em `card_asset`, `0` falhas.
+
+> **Diário Técnico — Sprint B3.21 — `ME2`/`ME2.5` concluídas, sem alteração de código**
+> **Objetivo**: replicar o pipeline validado na `ME1` para `ME2` e `ME2.5`.
+> **Critério de aceite**: mesmo resultado de sucesso (0 falhas) para cada coleção, sem modificar `index.ts`/`database.ts`/`storage.ts`.
+> **Resultado**: 🟩 Concluído. `ME2`: `130/130`, `0` falhas. `ME2.5`: `295/295`, `0` falhas. Nenhum código alterado.
+> **Pendências descobertas**: (1) replicar para `ME3`/`ME4` (mesmo procedimento, ainda não iniciado); (2) Fase 2 (`pt-BR`) para as 5 coleções, ainda não iniciada; (3) as duas melhorias identificadas (modo `references`/`assets`; idioma como parâmetro) seguem deliberadamente adiadas; (4) auditoria consolidada de GRANTs (`grants.sql`) segue adiada.
+
+## Sprint B3.22 — 🎉 MARCO REAL: Fase 1 100% CONCLUÍDA — catálogo editorial completo em inglês para as 5 coleções (859 cartas, 859 referências, 859 assets, 859 imagens, 0 falhas)
+
+**`ME3` executada e CONCLUÍDA**: novo `asset_import_run` real criado (Query `257`, já com `run_type` correto desde a primeira tentativa). Edge Function reinvocada: `external_references: { imported: 124 }`, `images: { imported: 124, failed: 0 }`.
+
+**`ME4` executada e CONCLUÍDA**: novo `asset_import_run` real criado (Query `258`). Edge Function reinvocada: `external_references: { imported: 122 }`, `images: { imported: 122, failed: 0 }`.
+
+**🎉 Fase 1 (catálogo editorial completo em inglês) 100% concluída, com números reais idênticos aos esperados, sem nenhuma falha em nenhuma das cinco execuções**:
+
+| Coleção | Cartas | Referências | Imagens (`en`) | `card_asset` (`en`) |
+|---------|--------|-------------|-----------------|----------------------|
+| `ME1` | 188 | 188 | 188 | 188 |
+| `ME2` | 130 | 130 | 130 | 130 |
+| `ME2.5` | 295 | 295 | 295 | 295 |
+| `ME3` | 124 | 124 | 124 | 124 |
+| `ME4` | 122 | 122 | 122 | 122 |
+| **Total** | **859** | **859** | **859** | **859** |
+
+O catálogo editorial do Project Mimikyu deixa de ser um protótipo e passa a ser uma base operacional: cartas, variantes, referências externas, imagens locais e ativos registrados — pronta para alimentar funcionalidades futuras (gerenciamento de coleção/inventário) sem depender de serviços externos para exibir cartas.
+
+> **Diário Técnico — Sprint B3.22 — 🎉 Fase 1 concluída (859/859/859/859, 0 falhas)**
+> **Objetivo**: concluir `ME3` e `ME4`, fechando a Fase 1 (catálogo editorial completo em inglês).
+> **Critério de aceite**: `859` cartas com referência externa e imagem, `0` falhas, em todas as 5 coleções.
+> **Resultado**: 🟩 Concluído. `ME3`: `124/124`, `0` falhas. `ME4`: `122/122`, `0` falhas. Total: `859/859/859/859`, `0` falhas.
+> **Pendências descobertas**: (1) Fase 2 (`pt-BR`) ainda não iniciada; (2) as duas melhorias adiadas no Sprint B3.21 (modo `references`/`assets`; idioma como parâmetro) seguem pendentes — a segunda é pré-requisito real da Fase 2; (3) auditoria consolidada de GRANTs (`grants.sql`) segue adiada.
+
+## Sprint B3.23 — Fase 2 (`pt-BR`) iniciada: teste controlado com a `ME1` confirma que `card_asset` já suporta múltiplos idiomas por carta; discrepância arquitetural real sinalizada em `card_external_reference`, NÃO resolvida
+
+**Teste controlado, mesma disciplina do Incremento 2**: em vez de escalar direto para as 5 coleções em `pt-BR`, `LANGUAGE_CODE` foi alterado temporariamente de `"en"` para `"pt-BR"` em `index.ts` (v2.3.1), deployado, e o `run_code` original da `ME1` foi reexecutado — sem criar um novo `asset_import_run`.
+
+**Três das quatro checagens planejadas confirmadas com sucesso**: (1) a imagem retornada pela TCGdex realmente veio em português; (2) o `storage_path` ficou correto (`me1/pt-BR/001.webp`); (3) **`card_asset` já suporta múltiplos idiomas por carta corretamente** — a mesma carta (`ME1-001`) agora tem duas linhas reais, uma `en` (`me1/en/001.webp`) e uma `pt-BR` (`me1/pt-BR/001.webp`), sem conflito, confirmando que a chave natural de `upsertCardAsset` (que já inclui `language_id`) estava certa desde o Sprint B3.18.
+
+**⚠️ Discrepância arquitetural real sinalizada antes da quarta checagem, NÃO resolvida unilateralmente**: `card_external_reference` tem `UNIQUE (card_id, asset_source_id)` — sem dimensão de idioma. Como `asset_source_id` (`TCGDEX`) é o mesmo independentemente do idioma da consulta, uma execução em `pt-BR` pode fazer `UPSERT` sobre a mesma linha já usada pela `en`, em vez de criar uma segunda linha — ao contrário de `card_asset`, que já foi desenhada com `language_id` na chave. Fabrício optou explicitamente por confirmar o comportamento real antes de alterar qualquer coisa ("Mas vamos confirmar isso na prática antes de mudar qualquer coisa."), então esta checagem **ainda não foi executada nesta revisão**.
+
+`index.ts` (v2.3.1, com a nota explícita de que a mudança é temporária) copiado ao repositório.
+
+> **Diário Técnico — Sprint B3.23 — Teste controlado da Fase 2, parcial**
+> **Objetivo**: validar, com uma única carta, se o pipeline já existente suporta um segundo idioma sem mudança de arquitetura.
+> **Critério de aceite**: as 4 checagens planejadas (imagem em português, `storage_path` correto, dois registros em `card_asset`, dois registros em `card_external_reference`) confirmadas.
+> **Resultado**: 🟨 Parcial. 3 de 4 checagens ✅ confirmadas. A 4ª (`card_external_reference`) está bloqueada por uma discrepância real de modelagem (`UNIQUE` sem idioma), sinalizada mas NÃO resolvida nesta revisão.
+> **Pendências descobertas**: (1) executar a 4ª checagem e confirmar (ou não) a colisão real em `card_external_reference`; (2) decidir e, se necessário, corrigir o modelo de `card_external_reference` (ex.: incluir idioma na chave de unicidade, ou confirmar que o campo é de fato idioma-agnóstico e a colisão é aceitável) antes de escalar a Fase 2 para as 5 coleções; (3) implementar `language`/`asset_type`/bucket como parâmetros da requisição (identificado desde o Sprint B3.21), substituindo a mudança temporária de constante feita nesta revisão.
+
 ---
 
 # Revision History
@@ -1858,3 +1925,6 @@ Execução ainda **bloqueada por um problema real de ambiente local**, não da E
 | 0.38 | **Sprint B3.18 — Estrutura completa de `card_asset` confirmada (18 colunas; sem `card_external_reference_id` — a referência externa é apenas fonte de importação, não participa do relacionamento final).** Código do Incremento 2 (teste controlado com uma carta) escrito e **DEPLOYADO, CONFIRMADO** (`index.ts` v2.2.0 + `database.ts`). Execução real FALHOU — terceiro caso confirmado do mesmo gap de GRANT ausente para `service_role` (desta vez em `language`); correção proposta, ainda NÃO confirmada executada. |
 | 0.39 | **Sprint B3.19 — Cadeia de GRANTs ausentes resolvida (quatro novos casos reais: `language`/`card_asset_type`/`card_asset`/`expansion`, Query `254`). Marco real: teste controlado do Incremento 2 CONFIRMADO CONCLUÍDO** — primeira imagem real do projeto (`ME1-001`/Bulbasaur) importada de ponta a ponta, upload confirmado, `card_asset` criado. Seis casos reais acumulados do mesmo padrão de GRANT ausente; auditoria consolidada (`grants.sql`) segue deliberadamente adiada. |
 | 0.40 | **Sprint B3.20 — 🎉 MARCO REAL: Incremento 2 CONCLUÍDO para a `ME1` — 188/188 imagens importadas, 0 falhas.** Refatoração (`services/storage.ts` extraído); processamento escalado de 1 carta para 188, em lotes controlados de 5. Bug real de regra de negócio corrigido (`external_url` deve ser `null` para ativos armazenados internamente). Melhoria de idempotência identificada e deliberadamente adiada por decisão de Fabrício. `index.ts` v2.3.0 e novo `services/storage.ts` copiados ao repositório. |
+| 0.41 | **Sprint B3.21 — Pipeline replicado sem alteração de código: `ME2` (130/130) e `ME2.5` (295/295) CONCLUÍDAS, 0 falhas.** Plano de duas fases definido (Fase 1: completar `en` nas 5 coleções; Fase 2: repetir para `pt-BR`). Duas melhorias reais identificadas e deliberadamente adiadas por pedido de Fabrício (modo `references`/`assets`; idioma como parâmetro). Total acumulado: `613`/`613`/`613`, `0` falhas, 3 de 5 coleções. |
+| 0.42 | **Sprint B3.22 — 🎉 MARCO REAL: Fase 1 100% CONCLUÍDA — `ME3` (124/124) e `ME4` (122/122) concluídas, 0 falhas.** Catálogo editorial completo em inglês: `859` cartas, `859` referências externas, `859` imagens no Storage, `859` registros em `card_asset`, `0` falhas em nenhuma das 5 coleções. |
+| 0.43 | **Sprint B3.23 — Fase 2 (`pt-BR`) iniciada: teste controlado com a `ME1` confirma que `card_asset` já suporta múltiplos idiomas por carta.** ⚠️ Discrepância arquitetural real sinalizada, NÃO resolvida: `card_external_reference` tem `UNIQUE (card_id, asset_source_id)` sem dimensão de idioma — Fabrício optou por confirmar o comportamento real antes de alterar qualquer coisa. `index.ts` v2.3.1 (mudança temporária de `LANGUAGE_CODE`) copiado ao repositório. |
