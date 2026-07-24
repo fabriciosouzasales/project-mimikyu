@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.20 |
+| **Versão** | 0.21 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -1196,6 +1196,241 @@ export async function listCards(
 > **Resultado**: 🟨 Parcial, com um marco real importante. Seed `910` ✅ CONFIRMADA EXECUTADA (parcial — ver `05-modelo-de-dados.md`). Os três arquivos revisados e aprovados. `database.ts` completo entregue como rascunho — **ainda não deployado nem testado**.
 > **Pendências descobertas**: (1) decisão de negócio `ME0`↔`mee` continua aberta, agora bloqueando apenas o mapeamento de `ME0`, não mais toda a Seed; (2) `card_set.code = 'ME5'` ainda não cadastrado; (3) `database.ts` (rascunho) e a reescrita futura de `index.ts` ainda não deployados; (4) discrepância de estrutura `sync-card-set` vs. `import-card-assets/services/` (revisão anterior) permanece não resolvida; (5) endpoint `GET /sets/{id}/cards` continua sem confirmação por chamada real.
 
+## Sprint B3.2 — Primeira tentativa real de deploy da v1.3.0: falha real diagnosticada, correção em andamento (NÃO CONCLUÍDO)
+
+**Objetivo desta etapa**: reescrever `index.ts` para a v1.3.0, consumindo o `database.ts` consolidado (Sprint B3.1) e fazendo a primeira chamada real à TCGdex via `TcgdexClient.getSet()` — primeira integração de ponta a ponta (Supabase → TCGdex) do projeto. *"Ainda não vamos importar cartas nem imagens. Estamos validando a integração."*
+
+**`index.ts` v1.3.0, colado verbatim nesta revisão**: fluxo `POST → findImportRun() → findCardSet() → findCardSetExternalReference() → TcgdexClient.getSet() → retorna JSON do Set`. Resposta esperada documentada: `{success: true, version: "1.3.0", run, card_set, external_reference, tcgdex_set}`. Validaria, se bem-sucedida: comunicação com o Supabase, comunicação com a TCGdex, mapeamento de `card_set_external_reference`, `TcgdexClient`, `database.ts` — ainda sem tocar em `card_external_reference`, `card_asset` ou Storage.
+
+```ts
+// supabase/functions/import-card-assets/index.ts (v1.3.0, rascunho — deploy FALHOU nesta revisão)
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { withSupabase } from "@supabase/server";
+import {
+  findImportRun,
+  findCardSet,
+  findCardSetExternalReference,
+} from "./services/database.ts";
+import { TcgdexClient } from "./services/tcgdex.ts";
+
+type RequestBody = {
+  run_code?: string;
+};
+
+export default {
+  fetch: withSupabase(
+    { auth: ["secret"] },
+    async (req, ctx) => {
+      if (req.method !== "POST") {
+        return Response.json(
+          { success: false, error: "METHOD_NOT_ALLOWED" },
+          { status: 405, headers: { Allow: "POST" } },
+        );
+      }
+
+      let body: RequestBody;
+      try {
+        body = await req.json();
+      } catch {
+        return Response.json(
+          { success: false, error: "INVALID_JSON" },
+          { status: 400 },
+        );
+      }
+
+      const runCode = body.run_code?.trim();
+
+      if (!runCode) {
+        return Response.json(
+          { success: false, error: "RUN_CODE_REQUIRED" },
+          { status: 400 },
+        );
+      }
+
+      try {
+        const run = await findImportRun(ctx.supabaseAdmin, runCode);
+
+        if (!run) {
+          return Response.json(
+            { success: false, error: "IMPORT_RUN_NOT_FOUND" },
+            { status: 404 },
+          );
+        }
+
+        const cardSet = await findCardSet(ctx.supabaseAdmin, run.card_set_id);
+
+        if (!cardSet) {
+          return Response.json(
+            { success: false, error: "CARD_SET_NOT_FOUND" },
+            { status: 404 },
+          );
+        }
+
+        const externalReference = await findCardSetExternalReference(
+          ctx.supabaseAdmin,
+          run.card_set_id,
+          run.asset_source_id,
+        );
+
+        if (!externalReference) {
+          return Response.json(
+            { success: false, error: "CARD_SET_EXTERNAL_REFERENCE_NOT_FOUND" },
+            { status: 404 },
+          );
+        }
+
+        const tcgdex = new TcgdexClient("en");
+        const set = await tcgdex.getSet(externalReference.external_set_id);
+
+        return Response.json({
+          success: true,
+          version: "1.3.0",
+          run,
+          card_set: cardSet,
+          external_reference: externalReference,
+          tcgdex_set: set,
+        });
+      } catch (error) {
+        console.error(error);
+        return Response.json(
+          {
+            success: false,
+            error: error instanceof Error ? error.message : "UNEXPECTED_ERROR",
+          },
+          { status: 500 },
+        );
+      }
+    },
+  ),
+};
+```
+
+**Primeira tentativa real de deploy — FALHOU, com erro real confirmado por terminal.** `npx supabase functions deploy import-card-assets` retornou `Unexpected deploy status 500`: *"Failed to bundle the function... Relative import path \"@supabase/supabase-js\" not prefixed with / or ./ or ../ and not in import map"*, apontando para `services/database.ts:1`. **Causa raiz real, diagnosticada a partir do erro, não por tentativa e erro**: a versão de `database.ts` entregue na revisão anterior (Sprint B3.1) importava `SupabaseClient` de `@supabase/supabase-js` apenas para tipagem — mas o runtime Deno das Edge Functions não resolve esse pacote automaticamente; precisaria estar mapeado no `deno.json` (com prefixo `jsr:` ou `npm:`), o que não estava. Confirmado por inspeção real do `deno.json` da função: `{"imports": {"@supabase/functions-js": "jsr:@supabase/functions-js@^2", "@supabase/server": "npm:@supabase/server@^1"}}` — sem entrada para `@supabase/supabase-js`. Erro reconhecido como próprio: *"Foi um erro meu sugerir esse import. O bundler tentou resolvê-lo e falhou."*
+
+**Correção proposta, ainda sem deploy confirmado com sucesso**: como `database.ts` nunca cria um cliente Supabase — apenas recebe um já criado (`ctx.supabaseAdmin`) — não precisa conhecer o tipo concreto do cliente. Solução adotada, deliberadamente temporária: remover o import de `SupabaseClient` e tipar os parâmetros como `supabase: any` nas quatro funções. Decisão explícita de adiar tipagem forte: *"Ainda não chegamos na etapa de tipagem forte. Primeiro precisamos validar: Edge Functions, Supabase, TCGdex, Pipeline. Depois introduzimos os tipos."* Plano futuro já registrado, não implementado: gerar `database.types.ts` via `supabase gen types typescript` e trocar `any` por `SupabaseClient<Database>` quando a arquitetura estiver estável.
+
+Versão corrigida de `services/database.ts`, colada verbatim — mesmas quatro funções da revisão anterior (`findImportRun`/`findCardSet`/`findCardSetExternalReference`/`listCards`), agora sem o import problemático e com `supabase: any`:
+
+```ts
+// supabase/functions/import-card-assets/services/database.ts (correção — deploy ainda NÃO confirmado com sucesso)
+export async function findImportRun(
+  supabase: any,
+  runCode: string,
+) {
+  const { data, error } = await supabase
+    .from("asset_import_run")
+    .select(`
+      id,
+      run_code,
+      asset_source_id,
+      card_set_id,
+      status,
+      created_at
+    `)
+    .eq("run_code", runCode)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("IMPORT_RUN_QUERY_FAILED");
+  }
+
+  return data;
+}
+
+export async function findCardSet(
+  supabase: any,
+  cardSetId: string,
+) {
+  const { data, error } = await supabase
+    .from("card_set")
+    .select(`
+      id,
+      expansion_id,
+      code,
+      name,
+      set_type,
+      release_order,
+      release_date,
+      base_set_size,
+      total_set_size
+    `)
+    .eq("id", cardSetId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_SET_QUERY_FAILED");
+  }
+
+  return data;
+}
+
+export async function findCardSetExternalReference(
+  supabase: any,
+  cardSetId: string,
+  assetSourceId: string,
+) {
+  const { data, error } = await supabase
+    .from("card_set_external_reference")
+    .select(`
+      id,
+      external_set_id,
+      source_url
+    `)
+    .eq("card_set_id", cardSetId)
+    .eq("asset_source_id", assetSourceId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_SET_EXTERNAL_REFERENCE_QUERY_FAILED");
+  }
+
+  return data;
+}
+
+export async function listCards(
+  supabase: any,
+  cardSetId: string,
+) {
+  const { data, error } = await supabase
+    .from("card")
+    .select(`
+      id,
+      card_set_id,
+      rarity_id,
+      category_id,
+      collector_number,
+      collector_total,
+      collector_order,
+      name
+    `)
+    .eq("card_set_id", cardSetId)
+    .order("collector_order", {
+      ascending: true,
+    });
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARDS_QUERY_FAILED");
+  }
+
+  return data ?? [];
+}
+```
+
+**Segunda camada de debugging real, antes de tentar o deploy novamente.** Por recomendação explícita ("não execute o deploy ainda"), rodou-se primeiro `deno check supabase/functions/import-card-assets/index.ts` a partir da raiz do projeto — retornou múltiplos erros reais (`@supabase/functions-js`/`@supabase/server` "not a dependency", além de avisos de tipo implícito `any` em `req`/`ctx`). **Diagnóstico real, não um novo bug**: o comando foi executado do diretório errado — `deno check` só lê o `deno.json` da pasta a partir da qual é executado; rodá-lo da raiz do projeto ignora o `deno.json` real da função (`supabase/functions/import-card-assets/deno.json`). Comando correto: `cd supabase/functions/import-card-assets`, depois `deno check index.ts`. Além disso, o erro de import de `@supabase/supabase-js` ainda aparecia na saída — sinal de que `services/database.ts` local **ainda não havia sido atualizado** com a correção proposta; verificação pendente (conferir se a primeira linha do arquivo é `export async function findImportRun(` e não mais um `import { SupabaseClient }...`). O aviso sobre `req`/`ctx` implicitamente `any` foi classificado como não bloqueante — regra do TypeScript, não impede o deploy, correção adiada para quando os tipos de `withSupabase` forem adotados.
+
+**Estado ao final desta revisão**: nem `index.ts` v1.3.0 nem o `database.ts` corrigido foram confirmados deployados com sucesso — a primeira tentativa real falhou (erro de bundling), a causa foi diagnosticada corretamente, a correção foi escrita, mas o reteste (`deno check` a partir da pasta correta + novo deploy) ainda não tem resultado confirmado nesta revisão. **Nenhum arquivo copiado ao repositório.**
+
+> **Diário Técnico — Sprint B3.2 — Primeira Tentativa de Deploy da v1.3.0**
+> **Objetivo**: reescrever `index.ts` (v1.3.0) para consumir `database.ts` consolidado e fazer a primeira chamada real à TCGdex (`TcgdexClient.getSet()`).
+> **Critério de aceite**: deploy bem-sucedido; chamada real retornando `success: true`, `version: "1.3.0"`, com `tcgdex_set` preenchido pela TCGdex.
+> **Resultado**: 🟨 Em andamento, não concluído. Primeira tentativa real de deploy FALHOU com erro de bundling confirmado (`@supabase/supabase-js` sem mapeamento em `deno.json`). Causa raiz diagnosticada corretamente; correção (`supabase: any`, sem o import problemático) escrita e entregue, mas deploy de sucesso ainda não confirmado.
+> **Pendências descobertas**: (1) confirmar que `services/database.ts` local foi de fato atualizado com a versão corrigida antes de repetir o `deno check`/deploy; (2) `deno check` deve ser executado de dentro da pasta da função (`cd supabase/functions/import-card-assets`), não da raiz do projeto; (3) tipagem forte de `supabase` (via `database.types.ts` gerado por `supabase gen types typescript`) fica para depois que a arquitetura estabilizar; (4) endpoint `GET /sets/{id}/cards` continua sem confirmação por chamada real — só será alcançado depois que `getSet()` funcionar; (5) discrepância `sync-card-set` vs. `import-card-assets/services/` (revisões anteriores) permanece não resolvida.
+
 ---
 
 # Revision History
@@ -1222,3 +1457,4 @@ export async function listCards(
 | 0.18 | **Decisão de arquitetura declarada definitiva pela sessão pareada, formalizada em `ADR-017-two-function-import-pipeline.md`: o pipeline de importação passa a ser dividido em duas Edge Functions.** `sync-card-set` (nova, ainda não criada): TCGdex → lista completa de cartas do Set → grava `card_external_reference`; nunca baixa imagem nem toca Storage. `import-card-assets` (papel redefinido): consome `card_external_reference` já sincronizada → download → Storage → `card_asset`; deixa de descobrir cartas por conta própria. Motivação dupla: (1) correção de ordem do pipeline (`SET → CATÁLOGO → REFERÊNCIAS → IMAGENS`, não `SET → IMAGENS` direto); (2) uma única função fazendo tudo cresceria descontroladamente em escala (exemplo: `ME1` com 188 cartas). Arquitetura interna em camadas declarada definitiva para as duas funções: `index.ts` (orquestrador) → `database.ts` (único acesso ao PostgreSQL) → `tcgdex.ts` (único ponto de `fetch()` à TCGdex, reescrito como classe `TcgdexClient`) → API REST da TCGdex — estende a Convenção #6. Código de `tcgdex.ts` (`TcgdexClient` com `getSet`/`getCardsBySet`/`getCard`) colado verbatim, **não deployado, não copiado ao repositório**. Endpoint `GET /sets/{id}/cards` assumido no código, sem confirmação por chamada real — novo item em "Em Aberto". Nenhuma mudança de schema necessária (reafirmado pela sessão pareada). Próximo passo confirmado: Sprint B3 implementa `sync-card-set` primeiro, isoladamente. Mapeamento entre o roteiro vigente (`B2.5B`–`B2.9`) e a nova arquitetura ainda não detalhado por Fabrício — tabela "Roteiro vigente" mantida sem reescrita, mesma cautela do incidente de confiança da revisão `0.49`. |
 | 0.19 | **Continuação do Sprint B3: nova disciplina de trabalho ("uma camada por vez", tratar o repositório como software de produção) e revisão técnica de `tcgdex.ts`/`index.ts` — ainda sem deploy real.** Pipeline de Assets detalhado (`SELECT card_external_reference WHERE image ainda não existe → download → Storage → card_asset`), reafirmando sem alterar o já registrado na revisão `0.18`; nenhuma mudança de schema necessária, reafirmado outra vez. **Discrepância real sinalizada, não resolvida**: o plano anunciava `sync-card-set/index.ts` como pasta própria da nova função, mas a implementação real (captura de VS Code) mostra `tcgdex.ts` sendo construído dentro de `import-card-assets/services/`, a estrutura já existente — não fica claro se será compartilhado com a futura `sync-card-set` ou se a criação da função própria foi adiada; a sessão pareada aprovou a estrutura atual sem esclarecer o ponto. `tcgdex.ts` revisado tecnicamente e aprovado (URL base extraída para `BASE_URL`, retornos tipados como `Promise<Record<string, unknown>>`), versão melhorada colada verbatim — **não deployada, não copiada ao repositório**; endpoint `GET /sets/{id}/cards` continua sem confirmação real. `index.ts` revisado com nota 9,5/10 (dois pontos de melhoria: evitar `select("*")`, extrair consultas para `database.ts`), mas código completo não colado nesta revisão. |
 | 0.20 | **Marco real: Query `910` (Seed Card Set External Reference) CONFIRMADA EXECUTADA (parcial) — detalhamento completo em `05-modelo-de-dados.md`.** `ME1`–`ME4`/`ME2.5` mapeados e confirmados por consulta real; `ME0` excluído (decisão pendente); `ME5` explicado (`card_set` ainda não cadastrado). Revisão final de código concluída para os três arquivos em desenvolvimento: `index.ts` (v1.2.1 já deployado) aprovado como está, com um ponto de atenção não bloqueante (a função retorna todas as cartas do Set — aceitável agora, revisar quando o catálogo crescer); `tcgdex.ts` mantém aprovação anterior; `scripts/discover-tcgdex-sets.ts` aprovado com duas melhorias (tipagem via interface `TcgdexSet`, filtro por `set.id.startsWith("me")` em vez de nome) — código final colado verbatim pela primeira vez, mas esta versão específica **não foi reexecutada** (a execução confirmada no Sprint B2.5A foi de uma versão anterior); nada copiado ao repositório. Nova disciplina: nenhuma alteração direta em `index.ts` até `database.ts` estar consolidado. Versão completa reescrita de `database.ts` (agora com `findCardSetExternalReference`) colada verbatim — **rascunho, ainda não deployado nem testado, não copiado ao repositório**. |
+| 0.21 | **Sprint B3.2: primeira tentativa real de deploy da v1.3.0 (primeira chamada real Supabase→TCGdex) — FALHOU, com erro real de bundling diagnosticado; correção escrita, deploy de sucesso ainda NÃO confirmado.** `index.ts` v1.3.0 (`findImportRun`→`findCardSet`→`findCardSetExternalReference`→`TcgdexClient.getSet()`) colado verbatim. Deploy real retornou `Unexpected deploy status 500`: import relativo `@supabase/supabase-js` não mapeado em `deno.json`, dentro de `database.ts`. Causa raiz confirmada por inspeção real do `deno.json` (sem entrada para esse pacote) — erro reconhecido como próprio pela sessão pareada. Correção: remover o import de `SupabaseClient`, tipar `supabase: any` nas quatro funções (tipagem forte adiada deliberadamente para depois que a arquitetura estabilizar, via `database.types.ts` gerado por `supabase gen types typescript`). Segunda camada de debugging real: `deno check` rodado da raiz do projeto deu erros enganosos por ignorar o `deno.json` da função — comando correto é `cd supabase/functions/import-card-assets && deno check index.ts`; saída também sugeriu que `database.ts` local ainda não tinha sido atualizado com a correção. Nenhum arquivo copiado ao repositório nesta revisão. |
