@@ -50,6 +50,7 @@ A documentação oficial completa, incluindo o guia de retomada para uma nova se
 
 | Documento | Descrição |
 |-----------|-----------|
+| [Roadmap](docs/ROADMAP.md) | Trajetória macro do projeto (concluído/em andamento/direção futura). |
 | [Project Charter](docs/00-project-charter.md) | Missão, visão e princípios do projeto. |
 | [Technical Identity](docs/01-technical-identity.md) | Identidade técnica permanente da plataforma. |
 | [Architecture Principles](docs/02-architecture-principles.md) | Princípios que orientam decisões arquiteturais. |

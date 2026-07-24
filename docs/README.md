@@ -4,14 +4,31 @@ Esta pasta contém a documentação oficial do Project Mimikyu.
 
 ## Status Atual do Projeto
 
+### Placar Rápido
+
+| Indicador | Estado |
+|-------|-------|
+| Fase 1 — Arquitetura Conceitual | Concluída |
+| Card Sets | 7 (`MEE`/`MEP`/`ME1`-`ME4`/`ME2.5`) |
+| Cards | 927 |
+| Card Variants | 1.653 — `COMPLETE`, 7/7 Card Sets |
+| Sets com imagens (Card Asset) | 5 de 7 — `MEE`/`MEP` pendentes |
+| Card Assets carregados (`en`+`pt-BR`) | 1.718 |
+| Falhas na importação | 0 |
+| Sub-Fase 2 — Coleções | Não iniciada |
+| Próximo passo | Importar imagens de `MEE`/`MEP` (`import-card-assets`) |
+
+Ver [`ROADMAP.md`](ROADMAP.md) para a trajetória completa (o que está concluído, em andamento, e a direção futura ainda não comprometida).
+
+### Detalhamento
+
 | Campo | Valor |
 |-------|-------|
-| **Fase 1 — Arquitetura Conceitual** | Concluída |
-| **Fase 2 — Modelo Lógico** | Subdividida em Fases/Blocos próprios (ver `05-modelo-de-dados.md`, seção "Roteiro Consolidado — Fases e Blocos"). **Sub-Fase 1 — Catálogo Editorial: Bloco A (Modelo de Dados) concluído** para `game`, `expansion`, `card_set` (7 Card Sets: `MEE`/`MEP`/`ME1`-`ME4`/`ME2.5`), `card` (**927** Cards, `840` v2.2), `card_category`, `rarity` (10, incluindo `PROMO`), `language`, `card_variant_type`, `card_asset_type`/`card_asset`, `storage_bucket`, `asset_source`, `card_external_reference`, `card_set_external_reference`, `asset_import_run`, `asset_import_failure` — todas criadas e homologadas. **Bloco B (Pipeline de Importação) concluído** para as 5 coleções originais (`ME1`-`ME4`/`ME2.5`), `en`+`pt-BR`: `859` Cards processadas, `859` referências externas, `1.718` Card Assets e `1.718` imagens, `0` falhas, via uma única Edge Function (`import-card-assets`) — ver `ADR-018-single-function-import-pipeline.md` (a arquitetura de duas funções de `ADR-017` nunca foi implementada; `ADR-018` formaliza a realidade vigente). `MEE`/`MEP` ainda não importadas — aguardam a carga/validação de imagens. **`card_variant` agora completo para as 7 Card Sets (2026-07-24)**: `860A - Seed Card Variant MEE` e `860B - Seed Card Variant MEP` (ambas v1.0) e `960 - Validate Card Variant` v2.1, todas CONFIRMADAS EXECUTADAS — `927` Cards, `1.653` Card Variants, status `COMPLETE`. **Sub-Fase 2 — Coleções**: ainda não iniciada. |
+| **Fase 2 — Modelo Lógico** | Subdividida em Fases/Blocos próprios (ver `05-modelo-de-dados.md`, seção "Roteiro Consolidado — Fases e Blocos"). **Sub-Fase 1 — Catálogo Editorial, Bloco A (Modelo de Dados): concluído** — todas as entidades do catálogo (`game` até `asset_import_failure`, ver `05-modelo-de-dados.md` para a lista completa) criadas e homologadas para as 7 Card Sets, incluindo `card_variant` (ver placar acima). **Bloco B (Pipeline de Importação): concluído para as 5 coleções originais**, via uma única Edge Function (`import-card-assets`) — ver `ADR-018-single-function-import-pipeline.md` (a arquitetura de duas funções de `ADR-017` nunca foi implementada; `ADR-018` formaliza a realidade vigente). `MEE`/`MEP` ainda não importadas — aguardam a carga/validação de imagens (ver "Próximo passo" no placar). **Sub-Fase 2 — Coleções**: ainda não iniciada. |
 | **Discrepância em aberto** | Categoria `ENERGY` soma hoje `17` Cards reais, contradizendo a nota "Decisão de Escopo — Cartas de Energia" em `04-domain-model.md` (que afirma que Energias não ocupam posição numerada no catálogo) — sinalizada, não resolvida unilateralmente. |
-| **Histórico detalhado do pipeline** | Sprints `B2.0`-`B3.28` (setup, autenticação, GRANTs, Incrementos 1/2, `en`/`pt-BR`) condensados em `history/pipeline-sprint-log.md`. Este campo registra apenas o estado atual — não o histórico de tentativas (mudança de estilo aplicada nesta revisão, ver `1.49` abaixo). |
+| **Histórico detalhado do pipeline** | Sprints `B2.0`-`B3.28` (setup, autenticação, GRANTs, Incrementos 1/2, `en`/`pt-BR`) condensados em `history/pipeline-sprint-log.md`. Este campo registra apenas o estado atual — não o histórico de tentativas (mudança de estilo aplicada na revisão `1.49`). |
 | **Última atualização** | 2026-07-24 |
-| **Última revisão** | 1.51 |
+| **Última revisão** | 1.52 |
 
 Fase 1 entregou: princípios arquiteturais, delimitação do domínio (Pokémon TCG, não o universo Pokémon), estrutura do catálogo editorial, modelo do universo do colecionador, separação entre Set e Collection, e a estratégia de evolução incremental. Fase 2 transforma cada conceito já validado em modelo lógico e, em seguida, tabela física — uma entidade por vez, validada com dados reais antes de avançar para a próxima.
 
@@ -24,11 +41,12 @@ Ao iniciar uma nova sessão (por perda de contexto, início de uma nova fase, ou
 > Você está retomando o Project Mimikyu. O repositório oficial (`fabriciosouzasales/project-mimikyu`) é a única fonte de verdade — não presuma nenhuma decisão que não esteja explicitamente documentada nele, mesmo que pareça familiar. Antes de qualquer ação:
 >
 > 1. Leia `docs/README.md` (este documento), incluindo a seção "Status Atual do Projeto".
-> 2. Leia, em ordem, `docs/00-project-charter.md` até o último documento numerado existente em `docs/`.
-> 3. Leia todos os arquivos `docs/adr/ADR-NNN-*.md` presentes na pasta — não confie apenas no `ADR-INDEX.md`, que pode estar temporariamente desatualizado durante a fase de consolidação documental.
-> 4. Leia todos os arquivos `docs/standards/STD-NNN-*.md`.
-> 5. Leia `docs/architecture/ubiquitous-language.md` para o vocabulário oficial do domínio.
-> 6. Depois de ler tudo, resuma a fase atual do projeto, as decisões já consolidadas e as pendências em aberto — e só então aguarde instruções para iniciar qualquer trabalho novo.
+> 2. Leia `docs/ROADMAP.md` para a trajetória macro (concluído/em andamento/direção futura ainda não comprometida).
+> 3. Leia, em ordem, `docs/00-project-charter.md` até o último documento numerado existente em `docs/`.
+> 4. Leia `docs/adr/ADR-INDEX.md` (mantido ativamente desde 2026-07-24) e, para qualquer ADR relevante ao trabalho em questão, leia também o arquivo individual — o índice resume status, mas o arquivo individual tem o contexto e as consequências completas.
+> 5. Leia `docs/standards/STD-INDEX.md` e os arquivos `docs/standards/STD-NNN-*.md` referenciados.
+> 6. Leia `docs/architecture/ubiquitous-language.md` para o vocabulário oficial do domínio.
+> 7. Depois de ler tudo, resuma a fase atual do projeto, as decisões já consolidadas e as pendências em aberto — e só então aguarde instruções para iniciar qualquer trabalho novo.
 >
 > Não avance com implementação ou com novas decisões de modelagem sem essa confirmação.
 
@@ -38,6 +56,7 @@ Este prompt funciona da mesma forma na fase de documentação e na fase de imple
 
 | Documento | Finalidade |
 |------------|------------|
+| [Roadmap](ROADMAP.md) | Consolida a trajetória macro do projeto (concluído/em andamento/direção futura). |
 | [Project Charter](00-project-charter.md) | Define missão, visão, princípios e critérios de sucesso. |
 | [Technical Identity](01-technical-identity.md) | Consolida a identidade técnica permanente do projeto. |
 | [Architecture Principles](02-architecture-principles.md) | Define os princípios que orientam decisões arquiteturais. |
@@ -121,3 +140,4 @@ Cada informação deve possuir um único local oficial. A documentação deve ev
 | 1.49 | **Auditoria de qualidade documental conduzida por Fabrício (2026-07-24)**, confirmada por inspeção real do repositório: "Status Atual do Projeto" reescrito de uma célula única com ~48 revisões de narrativa sprint-a-sprint acumulada (duplicando o que já existia, de forma condensada, em `history/pipeline-sprint-log.md`) para um resumo enxuto do estado final atual — consistente com a disciplina de "apenas o estado final" já aplicada a `04-domain-model.md` e `06-pipeline-importacao.md`. Nenhuma informação foi perdida: o histórico completo permanece em `history/pipeline-sprint-log.md` (até a revisão que originou aquele arquivo) e nas revisões anteriores desta própria tabela, abaixo. `ADR-INDEX.md`/`STD-INDEX.md` permanecem deliberadamente desatualizados por decisão explícita de Fabrício nesta rodada — não fazem parte desta revisão. |
 | 1.50 | Atualizado "Status Atual do Projeto": 🎉 MARCO REAL — `860A - Seed Card Variant MEE`, `860B - Seed Card Variant MEP` (ambas v1.0) e `960 - Validate Card Variant` v2.1, TODAS CONFIRMADAS EXECUTADAS. Card Variant passa a cobrir as 7 Card Sets: `927` Cards, `1.653` Card Variants, status `COMPLETE`. Plano anterior de renomear a antiga `860A` (ME1) para `860C` foi abandonado por decisão explícita de Fabrício — ver `05-modelo-de-dados.md`, revisão `0.63`, para o detalhamento completo. |
 | 1.51 | **Auditoria completa da documentação (2026-07-24), a pedido explícito de Fabrício, antes de retomar o desenvolvimento.** Verificação cruzada de todas as contagens (`859`/`927`/`1.555`/`1.653`), status de ADRs, links internos, e conteúdo de `04-domain-model.md`/`07-catalogo-editorial.md`/`architecture/`/`database/README.md`. Achados e correções: (a) contradição interna nesta própria célula — a frase "`card_variant` parcial... `MEE`/`MEP` pendentes... ainda não executado" havia sobrevivido à revisão `1.50`, contradizendo a frase seguinte, que já registra o marco `927`/`1.653`/`COMPLETE`; removida a frase obsoleta. (b) nova pasta órfã encontrada, `docs/glossary/` (mesmo perfil de `pipelines/`/`editorial/`/`sprint/`, nunca documentada) — registrada em `03-documentation-architecture.md`, revisão `1.8`, mesma recomendação de remoção manual. Nenhuma outra inconsistência encontrada: colisões de numeração de Query (`900`, `970`) e a discrepância `ENERGY` já estavam corretamente sinalizadas; ADRs `009`/`010`/`016`/`017`/`018` com status mutuamente consistentes; menções a `859`/`5 Card Sets` remanescentes em `05-modelo-de-dados.md`/`06-pipeline-importacao.md`/ADRs/`operations/`/`history/` são todas legítimas (escopo do pipeline de imagens, que ainda não cobre `MEE`/`MEP`) — nenhuma foi alterada. `ADR-INDEX.md`/`STD-INDEX.md`/`ROADMAP.md` permanecem deliberadamente fora do escopo desta auditoria, por decisão explícita de Fabrício. |
+| 1.52 | **Segunda auditoria (2026-07-24), conduzida por Fabrício sobre o resultado da revisão `1.51`, com 5 achados — todos corrigidos no mesmo ciclo.** (1) `ADR-INDEX.md` reativado (versão `2.0`): catálogo completo com os 18 ADRs reais, antes limitado a `ADR-001`/`002`. (2) `STD-INDEX.md` corrigido (versão `2.0`): `STD-002`/`STD-003` já existiam aprovados havia dezenas de ciclos, mas o índice ainda os listava como "Planned" com título errado para `STD-002` ("SQL Conventions" — o real é "Domain Modeling"). (3) `docs/ROADMAP.md` criado — primeira fonte única de verdade da trajetória do projeto (Now/Next/Later), sem adotar nenhuma das múltiplas propostas de roadmap não reconciliadas ao longo do projeto; item correspondente em `06-pipeline-importacao.md` marcado como resolvido. (4) Linguagem informal ("alucinou geral") na revisão `0.64` de `05-modelo-de-dados.md` substituída por descrição neutra do episódio, mantendo os fatos técnicos. (5) Esta célula de status reestruturada em "Placar Rápido" (tabela de indicadores) + "Detalhamento" (prosa), reduzindo a densidade de uma única célula longa; resume prompt da seção "Retomando este Projeto" atualizado para incluir `ROADMAP.md` e refletir que `ADR-INDEX.md`/`STD-INDEX.md` agora são confiáveis. **Mudança de regra, decidida por Fabrício nesta revisão**: os índices e o roadmap deixam de ser "congelados até o fim da fase de documentação" e passam a ser mantidos ativamente a partir de agora — a documentação do passado do projeto está encerrada; tudo documentado daqui em diante é sobre novas atualizações. `docs/sprint/` e `docs/glossary/` seguem pendentes de remoção manual por Fabrício (Claude não pode deletar arquivos neste ambiente). |
