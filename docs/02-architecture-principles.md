@@ -128,6 +128,14 @@ Este princípio nasceu de uma correção direta de Fabrício durante a modelagem
 
 Consequência prática: especializações de conteúdo por categoria de Card (ex.: uma tabela `pokemon_card` para HP/estágio/tipo/fraqueza/resistência/recuo) deixam de ser necessárias — o padrão Card Details / Pokémon Card Details / Trainer Card Details definido em ADR-011 permanece válido como arquitetura de extensão por módulo, mas seu conteúdo concreto de mecânica de jogo fica vazio/adiado indefinidamente, não apenas para a primeira versão.
 
+## AP-018 — Princípio da Identidade Editorial Real
+
+**Nenhum código editorial (`card_set.code` e campos análogos de outras entidades editoriais) deve ser inventado internamente quando um identificador oficial real existe ou pode ser pesquisado.** Um código sintético, criado por conveniência (ex.: "código da coleção + `0`"), não tem correspondência em nenhuma fonte externa — e a correspondência com fontes externas é exatamente o que permite ao catálogo se integrar com APIs de terceiros, importar imagens, preços e outros dados (ver `ADR-008-external-catalog-data-sources.md`).
+
+Antes de cadastrar uma entidade editorial cujo identificador oficial não é imediatamente óbvio, a pesquisa (fonte editorial primária, TCGdex, ou outra fonte de referência já adotada pelo projeto) vem antes do cadastro — não depois. Se nenhum identificador oficial for encontrável no momento, o registro pode usar um valor provisório, mas deve ser tratado como não-definitivo até a pesquisa confirmar ou substituir esse valor.
+
+Este princípio nasceu de um episódio real: o Set promocional da Expansion `ME` foi cadastrado como `ME0` (convenção "código da Expansion + `0`"), o que impediu qualquer integração com a TCGdex — o identificador oficial real, encontrado só depois por pesquisa direta, era `MEP` ("Mega Evolution Black Star Promos"). O mecanismo de modelagem em si (Set do tipo `PROMO`, ver `ADR-015`) estava correto; apenas o código usado era sintético. Ver `ADR-015-promotional-card-set-model.md`, revisão `1.4`, e `05-modelo-de-dados.md`, seção "Set", "Investigação de acompanhamento — identificador oficial real encontrado: `MEP`", para o caso completo.
+
 ---
 
 # Revision History
@@ -141,6 +149,7 @@ Consequência prática: especializações de conteúdo por categoria de Card (ex
 |1.4|Adicionado AP-016 (Catalog Uniqueness Principle), formalizando que o catálogo nunca deve ser adaptado para um tipo específico de coleção — a flexibilidade pertence à Collection (ver ADR-014). Adicionado exemplo de aplicação ("Princípio da Simplicidade Inicial") a AP-004.|
 |1.5|Reforçado o exemplo de aplicação de AP-004: nenhuma entidade recebe atributos por uma "forma padrão" presumida — cada atributo precisa justificar sua existência, mesmo campos aparentemente universais como `status`.|
 |1.6|Adicionado AP-017 (Princípio do Escopo Colecionável), a partir de uma correção direta de Fabrício durante a modelagem física da Card: informações de mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio, texto de regras) não são estruturadas no banco de dados — permanecem apenas na imagem oficial da Card (ADR-012), permanentemente, não apenas na primeira versão. Torna o padrão Card Details/Pokémon Card Details/Trainer Card Details (ADR-011) uma arquitetura sem conteúdo de jogo concreto planejado.|
+|1.7|Adicionado AP-018 (Princípio da Identidade Editorial Real): nunca inventar um código editorial quando um identificador oficial real existe ou pode ser pesquisado — nasceu do episódio real `ME0`→`MEP` (ver `ADR-015`, revisão `1.4`).|
 
 
 
