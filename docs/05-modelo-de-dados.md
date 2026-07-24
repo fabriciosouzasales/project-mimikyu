@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.50 |
+| **Versão** | 0.51 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -3114,7 +3114,7 @@ A sessão pareada reconheceu a causa raiz sem se eximir: *"O problema não foi a
 
 **FASE 1 — Catálogo Editorial (em andamento)**
 
-- **Bloco A — Modelo de Dados.** Status: **Concluído.** Cobre `game`, `expansion`, `card_set`, `card`, `language`, `rarity`, `card_variant_type`/`card_variant`, `card_asset_type`/`card_asset`, `storage_bucket`, `asset_source`, `card_external_reference`, `asset_import_run`, `asset_import_failure` — todas as entidades e camadas documentadas até este ponto do documento.
+- **Bloco A — Modelo de Dados.** Status: **Concluído**, com uma adição pontual nesta revisão (`0.51`). Cobre `game`, `expansion`, `card_set`, `card`, `language`, `rarity`, `card_variant_type`/`card_variant`, `card_asset_type`/`card_asset`, `storage_bucket`, `asset_source`, `card_external_reference`, `asset_import_run`, `asset_import_failure`, `card_set_external_reference` — todas as entidades e camadas documentadas até este ponto do documento. **Nota sobre `card_set_external_reference`**: mesmo com o Bloco A já "concluído", esta entidade foi identificada como uma lacuna real de modelagem durante o próprio Sprint B2.5 do Bloco B — antes de consultar a TCGdex por um `card_set`, o pipeline precisa saber qual identificador externo corresponde a cada `card_set` interno, exatamente como `card_external_reference` já resolve para `card`. Tratado como uma extensão do Bloco A, não como parte do Bloco B (que permanece focado em código/orquestração, não em modelo de dados) — ver seção "Card Set External Reference", abaixo, e `06-pipeline-importacao.md`, "Sprint B2.5", para o contexto completo da descoberta.
 - **Bloco B — Pipeline de Importação.** Status: **iniciado nesta revisão (`0.50`).** As tabelas do Bloco A já sustentam esta camada; a arquitetura completa da Edge Function `import-card-assets` foi especificada (14 responsabilidades: validação da execução, seleção de cartas, resolução de referência externa, fontes TCGdex/Pokémon TCG API, download/validação, formato canônico, caminho no Storage, política de upload, registro em `card_asset`, hash/idempotência, tratamento de falhas, contadores/status final, segurança, estrutura de arquivos) e um roteiro de 12 sprints incrementais (`B2.1`–`B2.12`) foi definido. O código do Sprint B2.1 (Edge Function básica, sem lógica de importação) foi proposto, mas **deploy ainda não confirmado**. Ver `06-pipeline-importacao.md`, seções "Arquitetura de Execução — Edge Function `import-card-assets`" e "Roteiro de Implementação Incremental", para o detalhamento completo — este documento (`05`) permanece focado no modelo de dados/SQL, sem duplicar o conteúdo de arquitetura de código (ver `03-documentation-architecture.md`, "Não duplicar conteúdo entre artefatos"). Este bloco substitui, na prática, o antigo item "4" do Bloqueio 5 ("Edge Function + piloto controlado").
 - **Bloco C — Carga Editorial.** Status: **ainda não iniciado, depende do Bloco B.** É a Query `880 - Seed Card Asset`, mas com uma função diferente da originalmente cogitada: não será mais um `INSERT` manual de URLs, e sim uma **orquestração** — `Executar importador (Bloco B) → popular card_asset`. `880` passa a ser o ponto de entrada que aciona o pipeline, não uma carga de dados em si.
 
@@ -3267,6 +3267,11 @@ Validação estrutural e de conteúdo completa de `language`, no mesmo padrão d
 230 - Create Asset Import Failure        (CONFIRMADA EXECUTADA — database/schema/230_create_asset_import_failure.sql; ver "Query 230", acima)
 231 - Asset Import Failure Triggers      (CONFIRMADA EXECUTADA — database/schema/231_asset_import_failure_triggers.sql)
 995 - Validate Asset Import Infrastructure (CONFIRMADA EXECUTADA E HOMOLOGADA — database/validations/995_validate_asset_import_infrastructure.sql)
+
+240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql; ver seção "Card Set External Reference", abaixo)
+241 - Card Set External Reference Triggers (planejada, ainda NÃO executada — mesmo padrão de 211/201)
+910 - Seed Card Set External Reference   (planejada, ainda NÃO executada — mesma decisão já tomada para 910 Seed Card External Reference: sem seed estático, registros virão da própria rotina de importação; número colide com 910 Validate Expansion, mesmo padrão de colisão de numeração entre pastas já registrado para 900/970/975)
+991 - Validate Card Set External Reference (planejada, ainda NÃO executada)
 
 880 - Seed Card Asset                    (bloqueada até o pipeline de importação [Fase 1, Bloco B — Edge Function, ainda não implementada] existir e um piloto controlado ser executado, ver "Roteiro Consolidado", acima)
 ```
@@ -3520,6 +3525,86 @@ Validação estrutural e de dados completa: existência da tabela, presença das
 
 ---
 
+# Card Set External Reference
+
+## Status
+
+**Camada Card Set External Reference criada nesta revisão — `240` CONFIRMADA EXECUTADA.** Terceira camada de mapeamento externo do projeto (depois de Asset Source e Card External Reference), descoberta como uma lacuna real durante o Sprint B2.5 de `06-pipeline-importacao.md`: antes de consultar a TCGdex por um `card_set`, o pipeline precisa saber qual identificador a TCGdex usa para aquele conjunto — informação que ainda não existia em nenhuma tabela do catálogo. Decisão explícita de Fabrício, justificada por manter a consistência do modelo: *"Isso quebra um princípio que seguimos desde o início: tudo que vem de sistemas externos deve ser persistido e rastreável. Na minha opinião, vale muito a pena gastar mais uma sprint agora e manter a consistência do modelo."* Apenas a Query `240` (criação da tabela) foi executada nesta revisão — `241` (triggers), `910` (seed, já decidido que será descartada, mesmo padrão de `card_external_reference`) e `991` (validação) ainda **não foram executadas**.
+
+## Decisão de Modelagem
+
+`card_set_external_reference` relaciona `card_set` (interno) a `asset_source` (externo) via `card_set_id`+`asset_source_id`, com o identificador do conjunto na fonte externa (`external_set_id`, obrigatório) e a URL do registro na fonte (`source_url`, opcional). **Deliberadamente não é uma cópia 1:1 de `card_external_reference`** — duas colunas da tabela de cartas foram descartadas por não fazerem sentido no nível de Set: `external_card_id` (óbvio — não existe carta aqui) e, mais relevante, `image_source_url`: o Pipeline Automático de Imagens baixa imagens de **cartas**, não de Sets: o logotipo/símbolo de um Set (já coberto por `card_set.logo_url`/`symbol_url` — não confundir) não faz parte deste pipeline. Incluir `image_source_url` aqui seria copiar estrutura sem copiar significado. Chaves únicas seguem a mesma filosofia de `card_external_reference`: um Set só pode ter uma referência por fonte (`card_set_id`+`asset_source_id`), e um identificador externo só pode apontar para um Set dentro da mesma fonte (`asset_source_id`+`external_set_id`) — mesmo padrão, entidade diferente, não uma generalização única para as duas.
+
+## Modelo Físico — Versão 1.0 (CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.card_set_external_reference (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    card_set_id UUID NOT NULL,
+    asset_source_id UUID NOT NULL,
+    external_set_id TEXT NOT NULL,
+    source_url TEXT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT card_set_external_reference_pkey
+        PRIMARY KEY (id),
+    CONSTRAINT fk_card_set_external_reference_card_set
+        FOREIGN KEY (card_set_id)
+        REFERENCES public.card_set (id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_card_set_external_reference_asset_source
+        FOREIGN KEY (asset_source_id)
+        REFERENCES public.asset_source (id)
+        ON DELETE RESTRICT,
+    CONSTRAINT uq_card_set_external_reference_card_set_source
+        UNIQUE (card_set_id, asset_source_id),
+    CONSTRAINT uq_card_set_external_reference_source_external
+        UNIQUE (asset_source_id, external_set_id),
+    CONSTRAINT ck_card_set_external_reference_external_set_id
+        CHECK (BTRIM(external_set_id) <> ''),
+    CONSTRAINT ck_card_set_external_reference_source_url
+        CHECK (
+            source_url IS NULL
+            OR (
+                BTRIM(source_url) <> ''
+                AND source_url ~ '^https://'
+            )
+        ),
+    CONSTRAINT ck_card_set_external_reference_metadata
+        CHECK (JSONB_TYPEOF(metadata) = 'object')
+);
+
+CREATE INDEX ix_card_set_external_reference_card_set
+    ON public.card_set_external_reference (card_set_id);
+CREATE INDEX ix_card_set_external_reference_asset_source
+    ON public.card_set_external_reference (asset_source_id);
+CREATE INDEX ix_card_set_external_reference_active
+    ON public.card_set_external_reference (asset_source_id, is_active);
+
+ALTER TABLE public.card_set_external_reference ENABLE ROW LEVEL SECURITY;
+```
+
+Regras de negócio: FK para `card_set` (`ON DELETE CASCADE`) e para `asset_source` (`ON DELETE RESTRICT`); unicidade dupla (`card_set_id`+`asset_source_id` e `asset_source_id`+`external_set_id`); `external_set_id` obrigatório e não vazio; `source_url`, quando presente, deve começar com `https://`; `metadata` deve ser sempre um objeto JSON válido; RLS habilitado. Nota estrutural, registrada por transparência: esta versão não inclui ainda os triggers de normalização/`updated_at`/proteção de identidade (ficam para a Query `241`, ainda não executada) nem os cinco índices completos do padrão de `card_external_reference` — apenas três índices foram criados nesta primeira versão (`card_set`, `asset_source`, `active`); não há índice equivalente a `source_number` porque esse conceito não existe para Set. Confirmado executado por Fabrício ("Success. No rows returned"). Arquivo escrito em `database/schema/240_create_card_set_external_reference.sql`.
+
+> **Diário Técnico — Query 240 — Create Card Set External Reference**
+> **Objetivo**: criar a entidade responsável por mapear um `card_set` interno para seu identificador em fontes externas (TCGdex, Pokémon TCG API etc.).
+> **Critério de aceite**: tabela criada; constraints criadas; índices criados; RLS habilitado.
+> **Resultado**: ✅ Concluído.
+> **Pendências descobertas**: Query `241` (triggers), `910` (seed — já decidido que será descartada) e `991` (validação) ainda não executadas.
+
+## Sequência
+
+```text
+240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql)
+241 - Card Set External Reference Triggers (planejada, NÃO executada)
+910 - Seed Card Set External Reference   (planejada — decisão já tomada de descartar, mesmo padrão de 910 Seed Card External Reference)
+991 - Validate Card Set External Reference (planejada, NÃO executada)
+```
+
+---
+
 # Collection Item (Item da Coleção)
 
 *Documentação pendente.*
@@ -3586,3 +3671,4 @@ Validação estrutural e de dados completa: existência da tabela, presença das
 | 0.48 | **`asset_import_run` criada, com triggers (`220`/`221`, CONFIRMADOS EXECUTADOS), seguindo exatamente a numeração recomendada na revisão `0.47`; episódio de correção `collection`→`card_set`; tentativa de generalização revertida por pedido direto de Fabrício; nova evidência (Table Editor) corrobora que `asset_import_run`/`asset_import_failure`/`card_set_external_reference` não são tabelas pré-existentes.** Estrutura final: `id, run_code, asset_source_id, card_set_id, language_id, run_type, status, execution_context, initiated_by, requested_count, processed_count, success_count, failed_count, skipped_count, parameters, error_summary, started_at, finished_at, created_at, updated_at` — `run_code` gerado por sequência dedicada (`RUN-{data}-{sequencial}`), `card_set_id`/`language_id` como FKs opcionais. Trigger `govern_asset_import_run()` introduz o padrão de governança mais sofisticado do projeto: bloqueio de alteração de escopo após `PENDING`, máquina de estados de status, preenchimento automático de `started_at`/`finished_at`, coerência entre status final e `failed_count`. **Episódio de correção**: a primeira versão da migration referenciava uma tabela `collection` inexistente — engano da sessão pareada por limitação de memória de conversa longa, autoidentificado e corrigido após Fabrício compartilhar uma captura real do Table Editor (`collection_id`→`card_set_id`, `FULL_COLLECTION`→`FULL_CARD_SET`); a execução incorreta falhou dentro do próprio bloco de validação, sem deixar nada inconsistente. **Tentativa de generalização revertida**: antes da correção, a sessão pareada propôs tornar `asset_import_run` totalmente agnóstica de domínio (mover `card_set_id`/`language_id` para dentro de `parameters`); Fabrício interrompeu diretamente ("Lembre que são conceitos distintos" — catálogo editorial vs. coleções do usuário), e a versão final manteve as FKs reais. **Nova evidência para o Risco Crítico das revisões `0.45`-`0.47`**: a captura do Table Editor mostrou as tabelas físicas então existentes (`asset_source`, `card`, `card_asset`, `card_asset_type`, `card_category`, `card_external_reference`, `card_set`, `card_variant`, `card_variant_type`, `expansion`, `game`, `language`, `rarity`, `storage_bucket`) — **sem `asset_import_run` (esperado, pré-`220`), sem `asset_import_failure` nem `card_set_external_reference`**, reforçando (mas não provando definitivamente, dado que a captura pode estar truncada) que a lista de "17 tabelas pré-existentes" de `06-pipeline-importacao.md` está desatualizada para estes casos, no mesmo padrão já confirmado para `asset_source`. `230`/`231` (Asset Import Failure) e `995` (Validate) permanecem não escritos. Arquivos `database/schema/220_create_asset_import_run.sql`, `database/schema/221_asset_import_run_triggers.sql` criados. |
 | 0.49 | **Marco: infraestrutura de importação do catálogo editorial encerrada — `asset_import_failure` criada com triggers e a validação consolidada `995` executadas (`230`/`231`/`995`, CONFIRMADOS EXECUTADOS E HOMOLOGADOS); Bloqueio 5 formalmente RESOLVIDO; framing por "Bloqueios" numerados substituído por uma estrutura de Fases e Blocos após um incidente de confiança no roteiro.** `asset_import_failure` refinada de última hora, antes da execução: FK direta e obrigatória para `card_id` (não apenas um identificador externo solto), e `asset_source_id` deliberadamente omitido como coluna própria (resolvido via `JOIN` com `asset_import_run`, mesmo padrão de normalização já usado em `storage_bucket`/`card_asset`). `995` valida as duas tabelas da camada em conjunto (não uma validação por tabela). **Incidente de confiança no roteiro**: Fabrício expressou preocupação direta e legítima de que a sessão pareada tivesse perdido o fio do roadmap combinado anteriormente (*"Estou achando que você se perdeu na sequência do trabalho e isso me deixa verdadeiramente preocupado [...]"*); a resposta comparou lado a lado o roadmap original (`220`/`221`/`222`/`920`/`995`, nomeado "Asset Import Job/Item") com o implementado (`220`/`221`/`230`/`231`/`995`, "Asset Import Run/Failure"), demonstrando que a sequência foi deliberadamente evoluída, não perdida — mas reconheceu a causa raiz: ausência de um registro mestre do roadmap, dependência excessiva da memória de conversa (que é resumida, não literal, em conversas longas). **Nova estrutura registrada**: FASE 1 — Catálogo Editorial (Bloco A — Modelo de Dados, **concluído**; Bloco B — Pipeline de Importação, **ainda não iniciado**, é o próximo trabalho — a Edge Function que efetivamente executa o fluxo; Bloco C — Carga Editorial, **ainda não iniciado**, `880` torna-se uma orquestração do importador, não um `INSERT`) → FASE 2 — Coleções (não iniciada, aguarda Fase 1 completa). Corrigido `docs/README.md`: a tabela "Status Atual do Projeto" citava `asset_source`/`asset_import_run`/`asset_import_failure` como parte das "17 tabelas físicas pré-existentes" — mas as três foram demonstravelmente criadas por este próprio projeto (guardas defensivas de `200`/`220`/`230`, mais a evidência do Table Editor da revisão `0.48`); tabela reformulada para refletir isso. Arquivos `database/schema/230_create_asset_import_failure.sql`, `database/schema/231_asset_import_failure_triggers.sql`, `database/validations/995_validate_asset_import_infrastructure.sql` criados. |
 | 0.50 | **Bloco B (Pipeline de Importação) iniciado: arquitetura completa da Edge Function `import-card-assets` especificada e roteiro de 12 sprints (`B2.1`–`B2.12`) definido — detalhamento movido para `06-pipeline-importacao.md` para evitar duplicação com este documento (que permanece focado em modelo de dados/SQL).** Atualizada a entrada de "Bloco B" no "Roteiro Consolidado — Fases e Blocos": status muda de "ainda não iniciado" para "iniciado", com cross-referência à nova seção "Arquitetura de Execução — Edge Function `import-card-assets` (Bloco B1)" de `06-pipeline-importacao.md`. Sprint B2.1 (Edge Function básica, apenas resposta `status: ready`) teve código proposto por Fabrício, mas **nenhuma confirmação de deploy foi recebida nesta revisão** — não é tratado como executado, seguindo o mesmo princípio de `database/README.md` (nada é registrado como concluído sem confirmação real). Sprint B2.2 (ler `asset_import_run` por `run_id`) apenas com objetivo definido. Nenhuma alteração de modelo de dados/SQL nesta revisão. |
+| 0.51 | **Bloco A reaberto pontualmente: nova entidade `card_set_external_reference` criada (`240` CONFIRMADA EXECUTADA; `241`/`910`/`991` planejadas, ainda não executadas).** Lacuna real identificada durante o Sprint B2.5 de `06-pipeline-importacao.md`: o pipeline precisa saber qual identificador a TCGdex usa para um `card_set` antes de poder consultá-lo, exatamente como `card_external_reference` já resolve para `card` — decisão explícita de Fabrício de manter a consistência do modelo em vez de improvisar o mapeamento dentro da Edge Function. Nova entidade **Card Set External Reference** (seção própria criada, entre "Card External Reference" e "Collection Item"): `id, card_set_id, asset_source_id, external_set_id, source_url, metadata, is_active, created_at, updated_at` — **deliberadamente não é uma cópia 1:1 de `card_external_reference`**: sem `external_card_id` (não se aplica a Set) e sem `image_source_url` (o Pipeline Automático de Imagens baixa imagens de cartas, não de Sets — o logo/símbolo do Set já é coberto por colunas próprias de `card_set`, fora deste pipeline). FK para `card_set` (`ON DELETE CASCADE`) e `asset_source` (`ON DELETE RESTRICT`), unicidade dupla (`card_set_id`+`asset_source_id` e `asset_source_id`+`external_set_id`), RLS habilitado. Apenas três índices nesta primeira versão (`card_set`, `asset_source`, `active`) — triggers de normalização/`updated_at`/proteção de identidade ficam para a Query `241`, ainda não escrita. Seed `910` já decidida como descartada (mesmo racional de `910 - Seed Card External Reference`: sem correspondências reais ainda, registros virão da própria importação) — número citado colide com `910 - Validate Expansion`, mesmo padrão de colisão de numeração entre pastas já registrado para `900`/`970`/`975`, não resolvido unilateralmente. "Bloco A" no "Roteiro Consolidado" atualizado para refletir esta adição pontual pós-conclusão. Arquivo `database/schema/240_create_card_set_external_reference.sql` criado. |
