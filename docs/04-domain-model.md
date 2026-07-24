@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.2 |
+| **Versão** | 2.3 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
@@ -1390,6 +1390,12 @@ Conceitualmente, o Collection Item poderá vir a referenciar a Card Translation 
 
 ---
 
+### Nota de cross-check (2026-07-24, `06-pipeline-importacao.md`, Sprint B3.28)
+
+Ao planejar a modelagem lógica da Fase 2 (Coleções), a sessão pareada de Fabrício reapresentou, como uma ideia a confirmar, o mesmo conceito já formalizado nesta seção — identificador próprio por exemplar físico (`ITEM_0000000001`), distinto da Card de catálogo. Este é o ponto de partida real quando a modelagem lógica de Collection Item começar; nenhum conceito novo foi necessário. Perguntas de negócio adicionais levantadas naquela revisão (pertencimento a deck, binder como conceito de primeira classe, status de empréstimo) não são cobertas aqui e cruzam para os módulos futuros `Decks`/`Trocas`/`Marketplace` — limites ainda não decididos por Fabrício.
+
+---
+
 ### Grupos Conceituais de Informação (preliminar)
 
 Para evitar que o Collection Item acumule responsabilidades demais, suas informações são organizadas conceitualmente em quatro grupos. Esta divisão é preliminar: algumas dessas informações provavelmente se tornarão entidades relacionadas próprias durante a modelagem lógica, e não campos diretos do Collection Item.
@@ -1500,3 +1506,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 2.0 | **Reestruturação editorial do documento.** Removido o conteúdo operacional acumulado ao longo dos ciclos anteriores (números de Query, SQL/DDL, versões de Seed, confirmações de execução, propostas rejeitadas mantidas na íntegra, citações de sessão, discussões não concluídas registradas linha a linha) — esse conteúdo permanece preservado em `05-modelo-de-dados.md` (camada física e de execução), `06-pipeline-importacao.md` (estratégias de importação) e no histórico de decisões do projeto. O documento passa a refletir apenas o modelo conceitual vigente de cada entidade: definição, características, relacionamentos e regras de negócio atuais. Histórico de revisões anteriores a esta reescrita comprimido para uma linha por versão (ou faixa de versões relacionadas). |
 | 2.1 | **Convergência de nomenclatura: Finish/Card Finish revertidos para Card Variant Type/Card Variant (ADR-016), revertendo parcialmente ADR-010.** Fabrício avaliou que Card Variant Type/Card Variant deve prevalecer como termo conceitual, por já ser o nome usado no banco de dados, no pipeline de importação e na linguagem prática do projeto, sem que "Card Variant" esteja sendo usado para Full Art/Gold/Secret Rare (escopo já restrito por ADR-009). A separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida e não foi afetada. Renomeadas as seções "Finish"/"Card Finish" para "Card Variant Type"/"Card Variant" e todas as referências cruzadas no documento (Card, Card Translation, Rarity, Card Category, Card Asset, Collection Item). "Finish"/"Card Finish"/"Printing Variant"/"Finish Variant" preservados apenas como sinônimos históricos. |
 | 2.2 | **Terceira dimensão de idioma reconhecida: Idioma do Ativo Digital (Card Asset), independente de Tradução Editorial e de Idioma do Exemplar Físico.** Ao planejar a Query `880` (Seed Card Asset), Fabrício comparou duas imagens reais da mesma Card (`Rufflet`, ME2.5) impressas em português e em inglês e identificou que representam o mesmo Card Asset Type (`CARD_FRONT`) em idiomas diferentes — não Cards distintas, não Card Variants distintas. Seção "Diferença entre Tradução Editorial e Idioma do Exemplar" renomeada para "Três Dimensões de Idioma no Domínio", com a nova categoria adicionada. Seção Card Asset Type/Card Asset atualizada: cada ativo agora registra também seu idioma, com regra de "ativo principal" revisada para Card + Asset Type + Idioma. Nova entidade de referência **Language (Idioma)** documentada em `05-modelo-de-dados.md` (catálogo global, sem `game_id`) para dar suporte a essa dimensão — SQL recebida, execução ainda não confirmada. |
+| 2.3 | Adicionada nota de cross-check à seção Collection Item: o Catálogo Editorial (Bloco B) foi confirmado 100% concluído (`06-pipeline-importacao.md`, Sprint B3.26) e a sessão pareada de Fabrício, ao planejar a Fase 2 (Coleções), reapresentou como novidade um conceito já formalizado aqui (identificador por exemplar físico) — registrado como ponto de partida real para quando a modelagem lógica de Coleções começar. |
