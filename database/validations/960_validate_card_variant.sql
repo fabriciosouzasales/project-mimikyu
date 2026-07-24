@@ -2,16 +2,18 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 960 - Validate Card Variant
-Versão......: 2.0
+Versão......: 2.1
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-18
+Data........: 2026-07-20
 
 Descrição resumida:
 Valida a estrutura técnica, a integridade relacional e a carga editorial
-consolidada da tabela public.card_variant após a execução da Query 860.
+consolidada da tabela public.card_variant após a execução das Queries 860.
 
 Escopo canônico:
+- MEE:     8 Cards / 16 Card Variants
+- MEP:    60 Cards / 82 Card Variants
 - ME1:   188 Cards / 310 Card Variants
 - ME2:   130 Cards / 214 Card Variants
 - ME2.5: 295 Cards / 630 Card Variants
@@ -19,26 +21,23 @@ Escopo canônico:
 - ME4:   122 Cards / 198 Card Variants
 
 Totais:
-- 5 Card Sets
-- 859 Cards
-- 1.555 Card Variants
+- 7 Card Sets
+- 927 Cards
+- 1.653 Card Variants
 
-Alterações da versão 2.0:
-- Evolução da validação estrutural para validação completa pós-Seed 860.
-- Inclusão das quantidades canônicas por Card Set.
-- Inclusão da distribuição canônica por Card Variant Type.
-- Validação da cobertura das 859 Cards.
-- Validação de exatamente uma variante padrão por Card.
-- Validação de variant_order contínuo dentro de cada Card.
-- Validação da variante padrão na ordem 1.
-- Validação de integridade, timestamps, triggers, funções e RLS.
-- Falha explícita e rollback em qualquer inconsistência.
+Alterações da versão 2.1:
+- Inclusão de MEE e MEP no escopo canônico.
+- Atualização do total de Cards de 859 para 927.
+- Atualização do total de Card Variants de 1.555 para 1.653.
+- Inclusão das distribuições canônicas de MEE e MEP.
+- Inclusão de PROMO_STAMPED como tipo padrão permitido quando aplicável.
+- Atualização dos resultados resumido e consolidado.
 
 Pré-requisitos:
 - Query 160 - Create Card Variant Table.
 - Query 161 - Create Card Variant Triggers.
 - Query 850 - Seed Card Variant Type, versão 1.3.
-- Query 860 - Seed Card Variant, versão consolidada.
+- Queries 860 executadas para MEE, MEP, ME1, ME2, ME2.5, ME3 e ME4.
 
 ===============================================================================
 */
@@ -60,28 +59,16 @@ DECLARE
     v_count INTEGER;
     v_registered_cards INTEGER;
     v_registered_variants INTEGER;
-    v_expected_cards INTEGER := 859;
-    v_expected_variants INTEGER := 1555;
+    v_expected_cards INTEGER := 927;
+    v_expected_variants INTEGER := 1653;
 
     v_set_error_count INTEGER;
     v_distribution_error_count INTEGER;
 BEGIN
-    /*
-    ===========================================================================
-    1. Validar existência da tabela
-    ===========================================================================
-    */
-
     IF to_regclass('public.card_variant') IS NULL THEN
         RAISE EXCEPTION
             'Falha na Query 960: a tabela public.card_variant não existe.';
     END IF;
-
-    /*
-    ===========================================================================
-    2. Validar colunas obrigatórias
-    ===========================================================================
-    */
 
     SELECT string_agg(required.column_name, ', ' ORDER BY required.column_name)
       INTO v_missing_columns
@@ -108,12 +95,6 @@ BEGIN
             'Falha na Query 960: colunas ausentes em card_variant: %.',
             v_missing_columns;
     END IF;
-
-    /*
-    ===========================================================================
-    3. Validar constraints obrigatórias
-    ===========================================================================
-    */
 
     SELECT string_agg(required.constraint_name, ', ' ORDER BY required.constraint_name)
       INTO v_missing_constraints
@@ -148,12 +129,6 @@ BEGIN
             'Falha na Query 960: card_variant não possui chave primária.';
     END IF;
 
-    /*
-    ===========================================================================
-    4. Validar índices obrigatórios
-    ===========================================================================
-    */
-
     SELECT string_agg(required.index_name, ', ' ORDER BY required.index_name)
       INTO v_missing_indexes
       FROM (
@@ -187,12 +162,6 @@ BEGIN
         RAISE EXCEPTION
             'Falha na Query 960: o índice uq_card_variant_one_default_per_card não possui o predicado esperado.';
     END IF;
-
-    /*
-    ===========================================================================
-    5. Validar triggers e funções
-    ===========================================================================
-    */
 
     SELECT string_agg(required.trigger_name, ', ' ORDER BY required.trigger_name)
       INTO v_missing_triggers
@@ -233,12 +202,6 @@ BEGIN
             v_missing_functions;
     END IF;
 
-    /*
-    ===========================================================================
-    6. Validar Row Level Security
-    ===========================================================================
-    */
-
     SELECT c.relrowsecurity
       INTO v_rls_enabled
       FROM pg_catalog.pg_class AS c
@@ -253,12 +216,6 @@ BEGIN
             'Falha na Query 960: Row Level Security não está habilitado em public.card_variant.';
     END IF;
 
-    /*
-    ===========================================================================
-    7. Validar Game e escopo canônico
-    ===========================================================================
-    */
-
     SELECT g.id
       INTO v_game_id
       FROM public.game AS g
@@ -268,12 +225,6 @@ BEGIN
         RAISE EXCEPTION
             'Falha na Query 960: o Game POKEMON não está cadastrado.';
     END IF;
-
-    /*
-    ===========================================================================
-    8. Validar integridade básica dos registros
-    ===========================================================================
-    */
 
     SELECT COUNT(*)
       INTO v_count
@@ -344,12 +295,6 @@ BEGIN
             v_count;
     END IF;
 
-    /*
-    ===========================================================================
-    9. Validar unicidade lógica
-    ===========================================================================
-    */
-
     SELECT COUNT(*)
       INTO v_count
       FROM (
@@ -380,12 +325,6 @@ BEGIN
             v_count;
     END IF;
 
-    /*
-    ===========================================================================
-    10. Validar cobertura das Cards e quantidade total
-    ===========================================================================
-    */
-
     SELECT COUNT(DISTINCT cv.card_id)
       INTO v_registered_cards
       FROM public.card_variant AS cv
@@ -396,7 +335,7 @@ BEGIN
       INNER JOIN public.expansion AS e
           ON e.id = cs.expansion_id
      WHERE e.game_id = v_game_id
-       AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
+       AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
 
     IF v_registered_cards <> v_expected_cards THEN
         RAISE EXCEPTION
@@ -415,7 +354,7 @@ BEGIN
       INNER JOIN public.expansion AS e
           ON e.id = cs.expansion_id
      WHERE e.game_id = v_game_id
-       AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
+       AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
 
     IF v_registered_variants <> v_expected_variants THEN
         RAISE EXCEPTION
@@ -424,18 +363,14 @@ BEGIN
             v_registered_variants;
     END IF;
 
-    /*
-    ===========================================================================
-    11. Validar quantidade de Cards e variantes por Card Set
-    ===========================================================================
-    */
-
     WITH expected_set (
         set_code,
         expected_cards,
         expected_variants
     ) AS (
         VALUES
+            ('MEE',     8,  16),
+            ('MEP',    60,  82),
             ('ME1',   188, 310),
             ('ME2',   130, 214),
             ('ME2.5', 295, 630),
@@ -455,7 +390,7 @@ BEGIN
             ON c.card_set_id = cs.id
         LEFT JOIN public.card_variant AS cv
             ON cv.card_id = c.id
-        WHERE cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+        WHERE cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
         GROUP BY cs.code
     )
     SELECT COUNT(*)
@@ -474,17 +409,10 @@ BEGIN
             v_set_error_count;
     END IF;
 
-    /*
-    ===========================================================================
-    12. Validar exatamente uma variante padrão por Card
-    ===========================================================================
-    */
-
     SELECT COUNT(*)
       INTO v_count
       FROM (
-            SELECT
-                c.id AS card_id
+            SELECT c.id AS card_id
               FROM public.card AS c
               INNER JOIN public.card_set AS cs
                   ON cs.id = c.card_set_id
@@ -493,7 +421,7 @@ BEGIN
               LEFT JOIN public.card_variant AS cv
                   ON cv.card_id = c.id
              WHERE e.game_id = v_game_id
-               AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+               AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
              GROUP BY c.id
             HAVING COUNT(cv.id) FILTER (WHERE cv.is_default = TRUE) <> 1
       ) AS invalid_default;
@@ -514,7 +442,7 @@ BEGIN
       INNER JOIN public.expansion AS e
           ON e.id = cs.expansion_id
      WHERE e.game_id = v_game_id
-       AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+       AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
        AND cv.is_default = TRUE
        AND cv.variant_order <> 1;
 
@@ -536,21 +464,15 @@ BEGIN
       INNER JOIN public.card_variant_type AS cvt
           ON cvt.id = cv.variant_type_id
      WHERE e.game_id = v_game_id
-       AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+       AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
        AND cv.is_default = TRUE
-       AND cvt.code NOT IN ('STANDARD', 'HOLO');
+       AND cvt.code NOT IN ('STANDARD', 'HOLO', 'PROMO_STAMPED');
 
     IF v_count <> 0 THEN
         RAISE EXCEPTION
-            'Falha na Query 960: existem % variantes padrão com tipo diferente de STANDARD ou HOLO.',
+            'Falha na Query 960: existem % variantes padrão com tipo não permitido.',
             v_count;
     END IF;
-
-    /*
-    ===========================================================================
-    13. Validar sequência contínua de variant_order por Card
-    ===========================================================================
-    */
 
     SELECT COUNT(*)
       INTO v_count
@@ -568,7 +490,7 @@ BEGIN
               INNER JOIN public.expansion AS e
                   ON e.id = cs.expansion_id
              WHERE e.game_id = v_game_id
-               AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+               AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
              GROUP BY cv.card_id
             HAVING MIN(cv.variant_order) <> 1
                 OR MAX(cv.variant_order) <> COUNT(*)
@@ -580,18 +502,18 @@ BEGIN
             v_count;
     END IF;
 
-    /*
-    ===========================================================================
-    14. Validar distribuição canônica por Card Set e Variant Type
-    ===========================================================================
-    */
-
     WITH expected_distribution (
         set_code,
         variant_type_code,
         expected_total
     ) AS (
         VALUES
+            ('MEE',   'STANDARD',               8),
+            ('MEE',   'REVERSE_HOLO',           8),
+
+            ('MEP',   'HOLO',                  59),
+            ('MEP',   'PROMO_STAMPED',         23),
+
             ('ME1',   'STANDARD',             111),
             ('ME1',   'HOLO',                  77),
             ('ME1',   'REVERSE_HOLO',         122),
@@ -636,7 +558,7 @@ BEGIN
         INNER JOIN public.card_variant_type AS cvt
             ON cvt.id = cv.variant_type_id
         WHERE e.game_id = v_game_id
-          AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+          AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
         GROUP BY cs.code, cvt.code
     )
     SELECT COUNT(*)
@@ -654,21 +576,10 @@ BEGIN
             v_distribution_error_count;
     END IF;
 
-    /*
-    ===========================================================================
-    15. Conclusão
-    ===========================================================================
-    */
-
     RAISE NOTICE
-        'Query 960 concluída: 1.555 Card Variants validadas para 859 Cards em 5 Card Sets.';
+        'Query 960 concluída: 1.653 Card Variants validadas para 927 Cards em 7 Card Sets.';
 END;
 $$;
-
-
--- ============================================================================
--- Resultado resumido por Card Set e Card Variant Type
--- ============================================================================
 
 SELECT
     cs.code AS card_set_code,
@@ -686,34 +597,31 @@ INNER JOIN public.game AS g
 INNER JOIN public.card_variant_type AS cvt
     ON cvt.id = cv.variant_type_id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4')
 GROUP BY
     cs.code,
     cvt.code,
     cvt.display_order
 ORDER BY
     CASE cs.code
-        WHEN 'ME1' THEN 1
-        WHEN 'ME2' THEN 2
-        WHEN 'ME2.5' THEN 3
-        WHEN 'ME3' THEN 4
-        WHEN 'ME4' THEN 5
+        WHEN 'MEE' THEN 1
+        WHEN 'MEP' THEN 2
+        WHEN 'ME1' THEN 3
+        WHEN 'ME2' THEN 4
+        WHEN 'ME2.5' THEN 5
+        WHEN 'ME3' THEN 6
+        WHEN 'ME4' THEN 7
     END,
     cvt.display_order;
-
-
--- ============================================================================
--- Resultado consolidado
--- ============================================================================
 
 SELECT
     COUNT(DISTINCT cv.card_id) AS covered_cards,
     COUNT(*) AS registered_variants,
     COUNT(*) FILTER (WHERE cv.is_default = TRUE) AS default_variants,
     CASE
-        WHEN COUNT(DISTINCT cv.card_id) = 859
-         AND COUNT(*) = 1555
-         AND COUNT(*) FILTER (WHERE cv.is_default = TRUE) = 859
+        WHEN COUNT(DISTINCT cv.card_id) = 927
+         AND COUNT(*) = 1653
+         AND COUNT(*) FILTER (WHERE cv.is_default = TRUE) = 927
         THEN 'COMPLETE'
         ELSE 'DIVERGENT'
     END AS status
@@ -727,6 +635,6 @@ INNER JOIN public.expansion AS e
 INNER JOIN public.game AS g
     ON g.id = e.game_id
 WHERE g.code = 'POKEMON'
-  AND cs.code IN ('ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
+  AND cs.code IN ('MEE', 'MEP', 'ME1', 'ME2', 'ME2.5', 'ME3', 'ME4');
 
 COMMIT;
