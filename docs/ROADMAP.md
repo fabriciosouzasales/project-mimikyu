@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -26,6 +26,8 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 **Sub-Fase 1 — Catálogo Editorial, Bloco B (Pipeline de Importação): estender a `MEE`/`MEP`.**
 
 O Catálogo Editorial (Game → Expansion → Card Set → Card → Card Variant) está estrutural e editorialmente completo para as 7 Card Sets (`927` Cards, `1.653` Card Variants, ver `05-modelo-de-dados.md`). O pipeline de importação de imagens (`import-card-assets`, `ADR-018`) já está confirmado, executado e operacional — mas apenas para as 5 coleções originais (`ME1`-`ME4`/`ME2.5`: `859` Cards, `1.718` Card Assets, `en`+`pt-BR`, `0` falhas). Falta rodar o mesmo pipeline, sem nenhuma mudança de arquitetura, para `MEE`/`MEP` (ver `operations/import-card-assets.md`, guia de 8 passos).
+
+**Progresso (2026-07-24)**: `MEE` iniciada — referências externas confirmadas (`en`, `8`/`8`), imagens bloqueadas por gap real de dados na fonte (TCGdex ainda não publica `image` para este Set). Próximo passo: `MEP` (`60` Cards); `MEE` volta à fila quando a TCGdex publicar os assets.
 
 Só quando essa etapa for concluída o Catálogo Editorial estará genuinamente fechado — conforme a própria correção de Fabrício registrada em `05-modelo-de-dados.md`, revisão `0.63`: *"Não teremos encerrado toda a fundação do catálogo editorial do Project Mimikyu. Só concluímos após importação de todas as imagens para nossa base."*
 
@@ -66,3 +68,4 @@ Qualquer um destes itens só entra em "Next" quando Fabrício o confirmar explic
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação do documento (2026-07-24), a pedido explícito de Fabrício, junto com a reativação de `ADR-INDEX.md`/`STD-INDEX.md`. Consolida, pela primeira vez, uma única fonte de verdade para a trajetória do projeto — sem adotar nenhuma das múltiplas propostas de roadmap não reconciliadas surgidas ao longo do projeto (`B2.x`/`B3.x`, `FASE 1-6`, `FASE 1-4`, `Fase 1-7`); itens ainda não comprometidos por Fabrício ficam explicitamente em "Later", não em "Next". |
+| 1.1 | Registrado o progresso real de "Now" (2026-07-24): pipeline `import-card-assets` executado pela primeira vez para `MEE` — referências externas confirmadas, imagens bloqueadas por gap de dados na TCGdex (ver `operations/import-card-assets.md`). Próximo passo do item "Now" passa a ser `MEP`. |

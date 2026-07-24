@@ -158,6 +158,21 @@ Histórico:
   `en` sobrescritos pelos da `pt-BR`, dado que nenhuma consulta específica a
   essa tabela foi executada nesta revisão — ver docs/06-pipeline-importacao.md,
   "Sprint B3.24".
+- v2.5.0 (2026-07-24, retomada da implementação após o encerramento da fase de
+  documentação retroativa — primeira execução real do pipeline para uma
+  coleção além das 5 originais): `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` revertidos
+  de `"pt-BR"`/`"pt"` para `"en"`/`"en"`, para importar `MEE` (Set de Energias
+  Básicas, 8 Cards, `card`/`card_variant` já confirmados no catálogo) em
+  inglês primeiro, seguindo o mesmo padrão Fase 1 (`en`) / Fase 2 (`pt-BR`) já
+  usado nas 5 coleções originais. `image_source_url: tcgCard.image ?? null,`
+  corrigido (era `tcgCard.image,`, incompatível com o tipo real da coluna,
+  nula com CHECK — ver `services/database.ts` para a correção irmã do tipo).
+  Resultado real (`RUN-20260724-00000041`): `card_external_reference` 8/8
+  importadas; imagens 0/8 — TCGdex não publica o campo `image` para este Set
+  (confirmado por consulta direta ao endpoint de Set e de carta individual),
+  gap de dados na fonte, não falha do pipeline. `MEE`
+  `card_set_external_reference` já confirmado (`external_set_id = 'mee'`,
+  Migration `270`).
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
 "Sprint B3.19", "Sprint B3.20", "Sprint B3.23" e "Sprint B3.24", para o
@@ -226,11 +241,10 @@ type ImageImportResult = {
   error?: string;
 };
 
-// Sprint B3.23 — alterado temporariamente de "en" para "pt-BR" para o teste
-// controlado da Fase 2 (ver histórico de versões acima, v2.3.1). Espera-se
-// que volte a ser um parâmetro da requisição antes da Fase 2 escalar para as
-// 5 coleções.
-const LANGUAGE_CODE = "pt-BR";
+// v2.5.0 — revertido de "pt-BR" para "en" (ver "Histórico" acima) para
+// importar MEE em inglês primeiro, mesmo padrão Fase 1/Fase 2 já usado nas
+// 5 coleções originais.
+const LANGUAGE_CODE = "en";
 
 // Sprint B3.24 — o código de idioma interno do Mimikyu (`LANGUAGE_CODE`,
 // tabela `language`) e o identificador de idioma da TCGdex são domínios
@@ -241,7 +255,7 @@ const LANGUAGE_CODE = "pt-BR";
 // forma em `.../v2/pt/sets/me01`). `TCGDEX_LANGUAGE` traduz apenas para a
 // chamada à TCGdex, sem alterar `LANGUAGE_CODE` em nenhum outro uso
 // (`language.code` no banco, `card_asset.language_id`, caminho no Storage).
-const TCGDEX_LANGUAGE = "pt";
+const TCGDEX_LANGUAGE = "en";
 
 const ASSET_TYPE_CODE = "CARD_FRONT";
 const STORAGE_BUCKET_CODE = "card-front";
@@ -436,7 +450,7 @@ Deno.serve(async (req) => {
             source_number: tcgCard.localId,
             source_url:
               `https://api.tcgdex.net/v2/${LANGUAGE_CODE}/cards/${tcgCard.id}`,
-            image_source_url: tcgCard.image,
+            image_source_url: tcgCard.image ?? null,
             metadata: tcgCard,
             is_active: true,
           },
@@ -553,7 +567,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.4.0",
+      version: "2.5.0",
       run: {
         id: run.id,
         run_code: run.run_code,

@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Operação — Importar uma Nova Coleção |
 | **Arquivo** | `docs/operations/import-card-assets.md` |
-| **Versão** | 1.0 |
-| **Status** | Ativo — processo confirmado por execução real (5 coleções, `en`+`pt-BR`, 0 falhas). |
+| **Versão** | 1.1 |
+| **Status** | Ativo — processo confirmado por execução real (5 coleções, `en`+`pt-BR`, 0 falhas; `MEE` iniciada, ver "Estado Atual"). |
 | **Objetivo** | Guia operacional passo a passo para importar uma nova coleção (referências externas + imagens) usando a Edge Function `import-card-assets`. |
 | **Escopo** | Apenas o "como fazer". Para arquitetura, decisões de design e racional, ver `../06-pipeline-importacao.md`. Para o histórico de como o pipeline chegou a este estado, ver `../history/pipeline-sprint-log.md`. |
 | **Dependências** | `../06-pipeline-importacao.md`, `../05-modelo-de-dados.md` |
@@ -56,6 +56,9 @@ Não existe hoje nenhuma orquestração automática destas 8 etapas — cada uma
 | Assets (`card_asset`) | 1.718 (859 `en` + 859 `pt-BR`) | ✅ |
 | Imagens no Storage | 1.718 | ✅ |
 | Falhas de importação | 0 | ✅ |
+| `MEE` — referências externas (`en`) | 8/8 | ✅ (`RUN-20260724-00000041`) |
+| `MEE` — imagens | 0/8 | ⚠️ Bloqueado na fonte — TCGdex ainda não publica `image` para este Set (confirmado no endpoint de Set e de carta individual, 2026-07-24). Não é falha do pipeline. |
+| `MEP` | Não iniciado | — |
 
 ---
 
@@ -64,3 +67,4 @@ Não existe hoje nenhuma orquestração automática destas 8 etapas — cada uma
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Documento criado a partir da separação de `06-pipeline-importacao.md` em três artefatos (arquitetura/processo, guia operacional, diário histórico), a pedido explícito de Fabrício, para reduzir o tamanho e melhorar a navegabilidade da documentação do pipeline. Conteúdo idêntico ao "Guia Operacional" e "Estado Atual" antes publicados em `06-pipeline-importacao.md`, versão `1.1`. |
+| 1.1 | **Primeira execução real do pipeline além das 5 coleções originais: `MEE`, `en` (`RUN-20260724-00000041`).** Dois bugs de tipagem corrigidos em `import-card-assets` antes do deploy (v2.5.0) — `TcgdexClient.getSet()` retornava tipo genérico demais; `image_source_url` estava tipado como `string` obrigatório, divergindo da coluna real (nula, com `CHECK`). Resultado real: `card_external_reference` 8/8 importadas; imagens 0/8, bloqueadas porque a TCGdex ainda não publica o campo `image` para este Set (confirmado no endpoint de Set e de carta individual) — gap de dados na fonte, não falha do pipeline. "Estado Atual" atualizado com as linhas de `MEE`/`MEP`. |

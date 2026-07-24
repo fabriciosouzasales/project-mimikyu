@@ -13,6 +13,11 @@
 // escolha deliberada e temporária, até a arquitetura estabilizar (plano futuro
 // registrado: gerar `database.types.ts` via `supabase gen types typescript` e
 // trocar `any` por `SupabaseClient<Database>`).
+//
+// v2.5.0 (2026-07-24, retomada da implementação): bug real de tipagem
+// corrigido em `upsertCardExternalReference` — `image_source_url` estava
+// `string` obrigatório, divergindo da coluna real (nula, com CHECK). Ver o
+// comentário da própria função, abaixo, para o detalhe completo.
 
 export async function findImportRun(
   supabase: any,
@@ -158,6 +163,14 @@ export async function listCardsMap(
  * Cria ou atualiza uma referência externa da carta (card_external_reference).
  * Idempotente via ON CONFLICT (card_id, asset_source_id) DO UPDATE — uma
  * reexecução nunca duplica registros. Retorna o registro persistido.
+ *
+ * v2.5.0 (2026-07-24) — `image_source_url` corrigido de `string` para
+ * `string | null`: a coluna no banco é nula por padrão, com uma constraint
+ * que exige NULL ou uma URL `https://` válida (nunca string vazia) — nem
+ * toda carta da TCGdex tem imagem. Bug de tipo latente desde a criação deste
+ * arquivo, exposto agora pela primeira execução real de `deno check` contra
+ * este projeto (ver services/tcgdex.ts para a correção irmã, que tornou
+ * `tcgCard.image` corretamente opcional).
  */
 export async function upsertCardExternalReference(
   supabase: any,
@@ -168,7 +181,7 @@ export async function upsertCardExternalReference(
     external_set_id: string;
     source_number: string;
     source_url: string;
-    image_source_url: string;
+    image_source_url: string | null;
     metadata: any;
     is_active: boolean;
   },
