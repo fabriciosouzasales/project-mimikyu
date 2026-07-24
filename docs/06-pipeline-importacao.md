@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.12 |
+| **Versão** | 0.13 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -218,7 +218,7 @@ Roteiro vigente:
 | B2.2 | Deploy e Teste (primeira publicação real + invocação remota autenticada) | ✅ Concluído |
 | B2.3 | Consulta de Execução (`asset_import_run` por `run_code`) | ✅ Concluído |
 | B2.4 | Descoberta das Cartas (`card_set` + listagem de `card` da execução) | ✅ Concluído |
-| B2.4.1 | Refatoração para Services (`services/database.ts` + `types.ts`, sem nova funcionalidade) | 🟨 Código escrito, deploy não confirmado |
+| B2.4.1 | Refatoração para Services (`services/database.ts` + `types.ts`, sem nova funcionalidade) | ✅ Concluído |
 | B2.5A | Integração com TCGdex — apenas consulta e recebimento do JSON | 🟪 Não iniciado |
 | B2.5B | Extração da URL da imagem, download e validação | 🟪 Não iniciado |
 | B2.6 | Download *(possível sobreposição com B2.5B — ver nota abaixo, não resolvida unilateralmente)* | 🟪 Não iniciado |
@@ -563,34 +563,240 @@ export default {
 > **Resultado**: ✅ Concluído. A função agora retorna execução, `card_set`, quantidade de cartas e lista ordenada.
 > **Pendências descobertas**: nenhuma — comportamento exatamente o esperado.
 
-## Sprint B2.4.1 — Refatoração para Services (código escrito, deploy ainda não confirmado)
+## Sprint B2.4.1 — Refatoração para Services (CONFIRMADO CONCLUÍDO)
 
-**Mudança arquitetural proposta por Fabrício antes da primeira integração externa**: até o Sprint B2.4, `index.ts` consultava as tabelas diretamente; a partir de agora, a lógica de acesso a dados passa a viver em módulos de serviço próprios (`Database Service`, e futuramente `TCGDEX Service`/`Storage Service`), com `index.ts` apenas orquestrando. Justificativa explícita: *"Essa separação vai nos permitir, por exemplo, trocar a TCGDEX pela Pokémon TCG API sem alterar o fluxo principal da função. É uma refatoração pequena, feita no momento certo, antes que a função cresça demais."* Esta sprint resolve, para os dois arquivos abaixo, a pendência já registrada no Sprint B2.4 ("refatoração proposta, mas não aplicada de fato") — mas apenas parcialmente, porque o deploy ainda não foi confirmado (ver nota de status, abaixo).
+**Mudança arquitetural proposta por Fabrício antes da primeira integração externa**: até o Sprint B2.4, `index.ts` consultava as tabelas diretamente; a partir de agora, a lógica de acesso a dados passa a viver em módulos de serviço próprios (`Database Service`, e futuramente `TCGDEX Service`/`Storage Service`), com `index.ts` apenas orquestrando. Justificativa explícita: *"Essa separação vai nos permitir, por exemplo, trocar a TCGDEX pela Pokémon TCG API sem alterar o fluxo principal da função. É uma refatoração pequena, feita no momento certo, antes que a função cresça demais."* Esta sprint resolve, para os dois arquivos abaixo, a pendência já registrada no Sprint B2.4 ("refatoração proposta, mas não aplicada de fato").
 
-Estrutura criada dentro de `supabase/functions/import-card-assets/`:
+**Nova disciplina de trabalho para código, declarada nesta revisão, espelhando a disciplina já usada para SQL**: até aqui, a sessão pareada vinha descrevendo a estrutura de arquivos e deixando Fabrício montá-la manualmente; ele próprio notou a mudança de ritmo e perguntou *"Fiquei na dúvida de como criar essa nova estrutura... Seria direto no Visual Code?"* — a partir daqui, o processo passa a ser guiado arquivo por arquivo, no mesmo espírito do ciclo `Migration → Executar → Validar` já usado no banco: **criar pasta/arquivo → validar a estrutura → escrever o código → testar**, um passo de cada vez, para reduzir erros. Passos confirmados, em ordem: criação da pasta `services/` dentro de `import-card-assets/` (botão direito → New Folder); criação de `services/database.ts` (arquivo vazio, depois preenchido); criação de `types.ts` na raiz de `import-card-assets/`; preenchimento de `types.ts`, validado sem erros no VS Code antes de prosseguir; preenchimento de `services/database.ts`, validado sem erros antes de prosseguir; substituição completa de `index.ts` pelo novo conteúdo.
+
+Estrutura final confirmada, dentro de `supabase/functions/import-card-assets/`:
 
 ```text
 import-card-assets/
 ├── services/
 │   └── database.ts
+├── deno.json
 ├── index.ts
-├── types.ts
-└── deno.json
+└── types.ts
 ```
 
-**`types.ts`** — tipos extraídos do `index.ts` monolítico (`RequestBody`, `ImportRun`, `CardSet`, `Card`), sem alteração de forma em relação ao v1.2.0.
+**`types.ts`** — tipos extraídos do `index.ts` monolítico:
 
-**`services/database.ts`** — as três consultas que antes viviam dentro do handler (`findImportRun`, `findCardSet`, `listCards`), extraídas para funções próprias que recebem o `SupabaseClient` (`ctx.supabaseAdmin`) como parâmetro; mesmo comportamento e mesmas mensagens de erro do v1.2.0, apenas reorganizadas.
+```ts
+// supabase/functions/import-card-assets/types.ts
+export type RequestBody = {
+  run_code?: string;
+};
 
-**`index.ts` (v1.2.1)** — passa a importar `findImportRun`/`findCardSet`/`listCards` de `./services/database.ts` e `RequestBody` de `./types.ts`; o corpo do handler (validação de método/JSON/`run_code`, sequência de consultas, formato da resposta) permanece funcionalmente idêntico ao v1.2.0, apenas reorganizado em camadas.
+export type ImportRun = {
+  id: string;
+  run_code: string;
+  asset_source_id: string;
+  card_set_id: string;
+  language_id: string;
+  run_type: string;
+  status: string;
+};
 
-**Status desta sprint, nesta revisão**: código recebido e revisado nesta documentação, mas **deploy ainda não confirmado** — a instrução fornecida foi salvar os três arquivos, executar `npx supabase functions deploy import-card-assets` e repetir a mesma chamada de teste do Sprint B2.4, esperando o mesmo resultado (`card_set: ME0`, `card_count: 0`) com `version: "1.2.1"`. Enquanto essa confirmação não chega, o arquivo `supabase/functions/import-card-assets/index.ts` no repositório **permanece na v1.2.0** (última versão com deploy e teste real confirmados), seguindo o mesmo princípio de "copiar apenas após confirmação" já usado para SQL em `database/` e para o código desta própria função desde o Sprint B2.3.
+export type CardSet = {
+  id: string;
+  expansion_id: string;
+  code: string;
+  name: string;
+  set_type: string;
+  release_order: number;
+  release_date: string | null;
+  base_set_size: number;
+  total_set_size: number;
+};
+
+export type Card = {
+  id: string;
+  card_set_id: string;
+  rarity_id: string;
+  category_id: string;
+  collector_number: string;
+  collector_total: number | null;
+  collector_order: number;
+  name: string;
+};
+```
+
+**`services/database.ts`** — as três consultas que antes viviam dentro do handler (`findImportRun`, `findCardSet`, `listCards`), extraídas para funções próprias que recebem o `SupabaseClient` (`ctx.supabaseAdmin`) como parâmetro; mesmo comportamento do v1.2.0, agora lançando exceções (`IMPORT_RUN_QUERY_FAILED`/`CARD_SET_QUERY_FAILED`/`CARDS_QUERY_FAILED`) em vez de retornar `{data, error}` diretamente ao handler:
+
+```ts
+// supabase/functions/import-card-assets/services/database.ts
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Card, CardSet, ImportRun } from "../types.ts";
+
+export async function findImportRun(
+  supabase: SupabaseClient,
+  runCode: string,
+): Promise<ImportRun | null> {
+  const { data, error } = await supabase
+    .from("asset_import_run")
+    .select("*")
+    .eq("run_code", runCode)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to read asset_import_run:", error);
+    throw new Error("IMPORT_RUN_QUERY_FAILED");
+  }
+
+  return data as ImportRun | null;
+}
+
+export async function findCardSet(
+  supabase: SupabaseClient,
+  cardSetId: string,
+): Promise<CardSet | null> {
+  const { data, error } = await supabase
+    .from("card_set")
+    .select(`
+      id,
+      expansion_id,
+      code,
+      name,
+      set_type,
+      release_order,
+      release_date,
+      base_set_size,
+      total_set_size
+    `)
+    .eq("id", cardSetId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to read card_set:", error);
+    throw new Error("CARD_SET_QUERY_FAILED");
+  }
+
+  return data as CardSet | null;
+}
+
+export async function listCards(
+  supabase: SupabaseClient,
+  cardSetId: string,
+): Promise<Card[]> {
+  const { data, error } = await supabase
+    .from("card")
+    .select(`
+      id,
+      card_set_id,
+      rarity_id,
+      category_id,
+      collector_number,
+      collector_total,
+      collector_order,
+      name
+    `)
+    .eq("card_set_id", cardSetId)
+    .order("collector_order", { ascending: true });
+
+  if (error) {
+    console.error("Failed to read cards:", error);
+    throw new Error("CARDS_QUERY_FAILED");
+  }
+
+  return (data ?? []) as Card[];
+}
+```
+
+**`index.ts` (v1.2.1)** — passa a importar `findImportRun`/`findCardSet`/`listCards` de `./services/database.ts` e `RequestBody` de `./types.ts`; o corpo do handler agora envolve a sequência de consultas em um único `try/catch` (os erros lançados pelo Database Service viram a mensagem de erro da resposta 500), e a resposta de `CARD_SET_NOT_FOUND` deixou de incluir o campo `card_set_id` (simplificação observada nesta versão em relação ao v1.2.0, não uma regressão relevante — a informação já está implícita no `run` retornado em caso de sucesso):
+
+```ts
+// supabase/functions/import-card-assets/index.ts
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { withSupabase } from "@supabase/server";
+import {
+  findImportRun,
+  findCardSet,
+  listCards,
+} from "./services/database.ts";
+import type { RequestBody } from "./types.ts";
+
+export default {
+  fetch: withSupabase(
+    { auth: ["secret"] },
+    async (req, ctx) => {
+      if (req.method !== "POST") {
+        return Response.json(
+          { success: false, error: "METHOD_NOT_ALLOWED" },
+          { status: 405, headers: { Allow: "POST" } },
+        );
+      }
+
+      let body: RequestBody;
+      try {
+        body = await req.json();
+      } catch {
+        return Response.json(
+          { success: false, error: "INVALID_JSON" },
+          { status: 400 },
+        );
+      }
+
+      const runCode = body.run_code?.trim();
+
+      if (!runCode) {
+        return Response.json(
+          { success: false, error: "RUN_CODE_REQUIRED" },
+          { status: 400 },
+        );
+      }
+
+      try {
+        const run = await findImportRun(ctx.supabaseAdmin, runCode);
+
+        if (!run) {
+          return Response.json(
+            { success: false, error: "IMPORT_RUN_NOT_FOUND", run_code: runCode },
+            { status: 404 },
+          );
+        }
+
+        const cardSet = await findCardSet(ctx.supabaseAdmin, run.card_set_id);
+
+        if (!cardSet) {
+          return Response.json(
+            { success: false, error: "CARD_SET_NOT_FOUND" },
+            { status: 404 },
+          );
+        }
+
+        const cards = await listCards(ctx.supabaseAdmin, run.card_set_id);
+
+        return Response.json({
+          success: true,
+          function: "import-card-assets",
+          version: "1.2.1",
+          run,
+          card_set: cardSet,
+          card_count: cards.length,
+          cards,
+        });
+      } catch (error) {
+        const errorCode = error instanceof Error ? error.message : "UNEXPECTED_ERROR";
+        return Response.json(
+          { success: false, error: errorCode },
+          { status: 500 },
+        );
+      }
+    },
+  ),
+};
+```
+
+**Deploy e teste, confirmados nesta revisão** — `npx supabase functions deploy import-card-assets` seguido de `Invoke-RestMethod` com o mesmo `run_code` (`RUN-20260719-00000001`) do Sprint B2.4: resultado real `success: True`, `version: "1.2.1"`, `run`/`card_set` idênticos ao teste anterior (`card_set` `ME0`/"Black Star Promos"), confirmando que o comportamento observável da função **não mudou** — apenas a organização interna. Código copiado para o repositório oficial (`supabase/functions/import-card-assets/index.ts`, `types.ts`, `services/database.ts`).
+
+**Novo princípio de arquitetura, declarado nesta revisão para todas as Edge Functions futuras**: a partir de agora, `index.ts` tem uma única responsabilidade — **orquestrar o fluxo da função**. Ele não conhece SQL, não conhece PostgreSQL, não conhece TCGdex — apenas coordena chamadas a serviços especializados. *"Essa separação é exatamente o que permitirá que, nas próximas sprints, adicionemos novos serviços (`tcgdex.ts`, `storage.ts`, `image.ts`) sem transformar o `index.ts` em um arquivo de centenas de linhas."* Este princípio se soma às cinco convenções permanentes já declaradas no Sprint B2.1/B2.2 (ver "Roteiro de Implementação Incremental — Bloco B", acima).
 
 > **Diário Técnico — Sprint B2.4.1 — Refatoração para Services**
-> **Objetivo**: extrair a lógica de acesso a `asset_import_run`/`card_set`/`card` de `index.ts` para `services/database.ts`, sem alterar o comportamento observável da função.
-> **Critério de aceite**: após o deploy, a função deve continuar respondendo exatamente como na v1.2.0 (mesmo formato, mesmos dados), agora como `version: "1.2.1"`.
-> **Resultado**: 🟨 Em andamento. Código escrito e revisado; deploy e reteste ainda não confirmados nesta revisão.
-> **Pendências descobertas**: nenhuma nova além da confirmação de deploy pendente.
+> **Objetivo**: separar a lógica de negócio (acesso a `asset_import_run`/`card_set`/`card`) da lógica de infraestrutura em `index.ts`, sem alterar o comportamento observável da função.
+> **Critério de aceite**: após o deploy, a função deve continuar retornando exatamente o mesmo resultado da v1.2.0 (`run`, `card_set`, `card_count`, `cards`), agora como `version: "1.2.1"`.
+> **Resultado**: ✅ Concluído. Deploy e reteste confirmados — mesmo resultado, arquitetura em camadas (`index.ts` orquestrador + `services/database.ts` + `types.ts`).
+> **Pendências descobertas**: nenhuma.
 
 ## Sprint B2.5 — Integração com TCGdex (dividida em B2.5A e B2.5B, não iniciada)
 
@@ -620,3 +826,4 @@ Nenhum código, deploy ou teste ainda para `B2.5A`/`B2.5B` — apenas o objetivo
 | 0.10 | **Primeiro `asset_import_run` real criado (valores reais do catálogo, não inventados) e primeiro bug real de produção encontrado e corrigido: `service_role` sem `GRANT SELECT` em `asset_import_run` (erro `42501`), corrigido ad hoc.** Confirmado que o `run_code` é gerado automaticamente pelo trigger da Query `221` no formato exato desenhado na Query `220` — primeira validação em dado real. Corrigida a seção "Segurança" (item 13): `ctx.supabaseAdmin` respeita GRANTs do PostgreSQL, não os ignora. Nova pendência registrada, não formalizada: migrations dedicadas para GRANTs de Edge Functions (exemplo citado: faixa `99x`). Evidência nova (não solicitada, encontrada incidentalmente): `card_set.code = 'ME0'` ainda existe fisicamente, corroborando a pendência já registrada da migração `ME0`→`MEP`/`MEE`. Um erro de digitação (`IRUN-` em vez de `RUN-`) confirmou o caminho de erro `IMPORT_RUN_NOT_FOUND` funcionando corretamente. **Sprint B2.3 permanece EM ANDAMENTO, não concluído**: uma segunda ocorrência de HTTP 404, após aparente correção do `run_code`, ficou sem causa identificada ao final desta revisão — consulta de diagnóstico preparada, não executada. Prévia (não oficial) de sprints futuros registrada (`B2.4` Ler `card_set` → `B2.9` Criar `card_asset`), explicitamente não promovida a atualização do roteiro consolidado da revisão `0.9`, para não repetir o padrão do incidente de confiança da revisão `0.49` de `05-modelo-de-dados.md`. |
 | 0.11 | **Sprint B2.3 — CONFIRMADO CONCLUÍDO.** Causa real do segundo HTTP 404 identificada: `run_code` armazenado com 21 caracteres vs. 22 enviados (dígito extra introduzido em retranscrição manual) — corrigida a chamada, sucesso confirmado. Nova convenção de documentação formalizada e adotada oficialmente: **"Diário Técnico"** (Objetivo/Critério de Aceite/Resultado/Pendências Descobertas ao final de cada sprint), aplicada retroativamente ao Sprint B2.3. **Sprint B2.4 (Descoberta das Cartas) CONFIRMADO CONCLUÍDO**: escopo ampliado para já incluir listagem de `card` (fusão explícita de duas sprints do roteiro anterior); refatoração em módulos (`services/database.ts`/`types.ts`/`config.ts`) foi proposta e aprovada, mas **não chegou a ser aplicada nesta revisão** — o código publicado e testado permanece em um único `index.ts` (v1.2.0), registrado honestamente como pendência real; teste real confirmado com `card_set` `ME0`/"Black Star Promos" e `card_count: 0` (comportamento correto — o Set de teste ainda não tem cartas cadastradas). Roteiro vigente atualizado (B2.3/B2.4 ✅), com nota explicando que o Diário Técnico de cada sprint passa a ser a fonte de verdade mais granular. Sprint B2.5 (Integração com TCGdex) anunciado, sem código ainda. Código v1.2.0 (confirmado executado) copiado para `supabase/functions/import-card-assets/index.ts`. |
 | 0.12 | **Sprint B2.4.1 — Refatoração para Services, proposta antes da primeira integração externa.** Fabrício formalizou a decisão de separar `index.ts` em camadas (`Database Service`/`TCGDEX Service`/`Storage Service`) para permitir trocar de fonte externa (ex. TCGdex → Pokémon TCG API) sem alterar o fluxo principal — justificativa explícita: "refatoração pequena, feita no momento certo, antes que a função cresça demais". Código real recebido nesta revisão: `types.ts` (tipos `RequestBody`/`ImportRun`/`CardSet`/`Card`), `services/database.ts` (`findImportRun`/`findCardSet`/`listCards`, mesmas consultas do v1.2.0 extraídas para funções próprias) e `index.ts` v1.2.1 (usa os services, mesmo comportamento e mesmo formato de resposta do v1.2.0). **Deploy ainda não confirmado nesta revisão** — instrução de deploy (`npx supabase functions deploy import-card-assets`) e resultado esperado (`version: "1.2.1"`, mesmo `card_set`/`card_count` do teste anterior) foram fornecidos, mas a execução real e a confirmação do retorno ainda não aconteceram; código **não copiado ao repositório ainda**, seguindo o mesmo princípio de "copiar apenas após confirmação" já usado em todo o projeto. **Sprint B2.5 dividido em duas sprints mais granulares**: `B2.5A` (consultar a TCGdex, receber o JSON, encerrar — sem download/Storage/banco) e `B2.5B` (a partir do JSON validado: extrair URL da imagem → download → validar imagem). Roteiro vigente atualizado de acordo; sinalizado como ponto em aberto, não resolvido unilateralmente, que o escopo de `B2.5B` (download + validação de imagem) parece sobrepor o que o roteiro consolidado da revisão `0.9` já previa como sprint `B2.6` (Download) — Fabrício precisa decidir se `B2.6` é absorvido por `B2.5B` ou se os dois seguem distintos. |
+| 0.13 | **Sprint B2.4.1 — CONFIRMADO CONCLUÍDO.** Deploy e reteste reais confirmados: `version: "1.2.1"`, mesmo `run`/`card_set` do Sprint B2.4, comportamento observável idêntico ao v1.2.0. Nova disciplina de trabalho para código, declarada nesta revisão: criar pasta/arquivo → validar estrutura → escrever código → testar, um arquivo por vez (espelha o ciclo `Migration → Executar → Validar` do banco), motivada por Fabrício ter perguntado como criar a nova estrutura no VS Code. Código real de `types.ts`, `services/database.ts` e `index.ts` (v1.2.1) copiado ao repositório pela primeira vez, em três arquivos. **Novo princípio de arquitetura declarado para todas as Edge Functions futuras**: `index.ts` tem responsabilidade única de orquestrar o fluxo — não conhece SQL/PostgreSQL/TCGdex diretamente, apenas coordena chamadas a serviços especializados; soma-se às cinco convenções já declaradas nos Sprints B2.1/B2.2. Roteiro vigente atualizado (`B2.4.1` ✅). A nota sobre possível sobreposição entre `B2.5B` e `B2.6`, registrada na revisão `0.12`, permanece em aberto — não resolvida nesta revisão. |
