@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Bloco B (importação de referências e imagens de Card) **CONFIRMADO CONCLUÍDO e operacional** para as 5 coleções atuais, nos dois idiomas suportados (`en`/`pt-BR`). |
 | **Objetivo** | Descrever a estratégia de importação/sincronização de dados de fontes externas para o Catálogo Editorial e documentar, de forma executável, o processo real que importa referências externas e imagens de Card. |
 | **Escopo** | Estratégia de importação/sincronização; arquitetura real da Edge Function `import-card-assets`; guia operacional para importar uma nova coleção. Este documento registra apenas a solução final confirmada — não é um changelog do desenvolvimento (ver nota de reescrita na Revision History, versão `1.0`, para onde o histórico anterior está preservado). |
@@ -178,7 +178,7 @@ Não existe hoje nenhuma orquestração automática destas 8 etapas — cada uma
 - Melhoria de idempotência: pular cartas que já têm `card_asset` atualizado, evitando novo download/upload em reexecuções — identificada, deliberadamente adiada.
 - Buckets físicos `card-back`/`artwork` ainda não criados — só `card-front` existe.
 - `ADR-017-two-function-import-pipeline.md` descreve uma arquitetura de duas Edge Functions (`sync-card-set`/`import-card-assets`); na prática, apenas `import-card-assets` foi construída e faz tudo — o ADR precisa ser revisado/marcado como superado ou reconciliado com a implementação real.
-- Três formas paralelas de descrever o roadmap do projeto (`B2.x`/`B3.x`, `FASE 1-6`, `FASE 1-4`) nunca foram consolidadas em uma única fonte de verdade — Fabrício pediu explicitamente um roadmap documentado; ainda sem decisão sobre qual formato adotar.
+- Múltiplas formas paralelas de descrever o roadmap do projeto (`B2.x`/`B3.x`, `FASE 1-6`, `FASE 1-4`, e agora uma quarta — `Fase 1-7`, `Catálogo Editorial`→`Coleções`→`Inventário`→`Aquisição e movimentação`→`Inteligência`→`Automações`→`Interface`, esboçada e aparentemente endorsada por Fabrício) nunca foram consolidadas em uma única fonte de verdade — `ROADMAP.md`, planejado como o primeiro documento formal desse roadmap, ainda não existe.
 - `card_set.code = 'ME5'` ainda não cadastrado — quando for, o mapeamento externo (`card_set_external_reference`) precisa ser criado antes de importar.
 - Validação prévia de integração externa antes de criar um `asset_import_run` (recusar a criação se não houver `card_set_external_reference` ativo para a coleção) — proposta, não implementada.
 - Próximo módulo real do roadmap: **Coleções** (modelagem de banco, ainda não iniciada) — não interface de usuário. Perguntas de negócio já capturadas para quando essa modelagem começar (pertencimento a deck, binder como conceito próprio, status de empréstimo) cruzam para os módulos futuros `Decks`/`Trocas`/`Marketplace` — limites entre módulos ainda não decididos.
@@ -198,3 +198,4 @@ Não existe hoje nenhuma orquestração automática destas 8 etapas — cada uma
 | 0.35–0.42 | Incremento 1 (sincronização de `card_external_reference`) e Incremento 2 (download de imagens para `card_asset`) concluídos para a `ME1` (188/188, 0 falhas) e replicados sem alteração de código para as demais 4 coleções — catálogo completo em inglês: 859 cartas/referências/imagens, 0 falhas. |
 | 0.43–0.48 | Fase 2 (`pt-BR`) concluída para as 5 coleções — bug real de código de idioma da TCGdex corrigido (`pt` ≠ `pt-BR`); catálogo completo nos dois idiomas: 1.718 assets/imagens, 0 falhas. Guia operacional de importação de nova coleção escrito a pedido de Fabrício. |
 | 1.0 | **Reescrita completa do documento**, a pedido explícito de Fabrício: removido o histórico sprint a sprint de tentativas/bugs/versões intermediárias; adicionada a seção "Arquitetura Final" (processo real, não a especificação pré-implementação usada antes de o código existir); "Guia Operacional" mantido e formalizado como processo de 8 passos; "Em Aberto" reduzido aos itens genuinamente pendentes; seção "Primeira Aplicação Concreta — Seed de Card Variant" removida (conteúdo superado, execução real já documentada em `05-modelo-de-dados.md`). |
+| 1.1 | Atualizado item de "Em Aberto" sobre consolidação de roadmap: registrada uma quarta forma paralela (`Fase 1-7`, esboçada pela sessão pareada e aparentemente endorsada por Fabrício), e o fato de que `ROADMAP.md` foi planejado como o primeiro documento formal desse roadmap, ainda não criado. Nenhuma consolidação decidida. |
