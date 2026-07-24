@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Documentation Architecture |
 | **Arquivo** | `docs/03-documentation-architecture.md` |
-| **Versão** | 1.6 |
+| **Versão** | 1.7 |
 | **Status** | Aprovado |
 | **Objetivo** | Definir a organização, as responsabilidades e a governança da documentação oficial do Project Mimikyu. |
 | **Escopo** | Toda a documentação mantida no repositório oficial. |
@@ -34,7 +34,6 @@ docs/
 ├── 05-modelo-de-dados.md
 ├── 06-pipeline-importacao.md
 ├── 07-catalogo-editorial.md
-├── 08-decisoes-arquiteturais.md     (stub — conteúdo pendente; recomendação: remover, ver nota abaixo)
 ├── adr/
 │   ├── ADR-INDEX.md
 │   └── ADR-NNN-title.md
@@ -53,9 +52,9 @@ docs/
 
 Os documentos `04` a `07` seguem a mesma numeração sequencial dos documentos centrais (`00`-`03`) e já possuem conteúdo em elaboração.
 
-**`08-decisoes-arquiteturais.md` — recomendação de remoção (2026-07-24).** Permanece stub (apenas o título "Decisões Arquiteturais") desde sua criação, sem escopo definido em nenhuma das dezenas de ciclos de documentação já concluídos. Seu propósito aparente — registrar decisões arquiteturais — já é integralmente coberto por `adr/` (um ADR por decisão, catalogado em `ADR-INDEX.md`), tornando o arquivo redundante, não complementar. Recomendação: remover. Como o ambiente usado por Claude não consegue apagar arquivos do repositório (limitação técnica do mount, ver [[project-mimikyu-workflow]] em memória), esta é uma sinalização para Fabrício apagar `docs/08-decisoes-arquiteturais.md` manualmente, não uma remoção já efetuada.
+**`08-decisoes-arquiteturais.md` — removido (2026-07-24).** Era um stub (apenas o título "Decisões Arquiteturais") desde sua criação, sem escopo definido em nenhuma das dezenas de ciclos de documentação já concluídos; seu propósito aparente já era integralmente coberto por `adr/` (um ADR por decisão, catalogado em `ADR-INDEX.md`), tornando-o redundante. Recomendado para remoção nesta mesma auditoria e confirmado excluído por Fabrício em seguida — não consta mais na árvore acima nem no repositório.
 
-**Pastas órfãs — recomendação de remoção (2026-07-24, atualiza a nota da revisão `1.5`)**: `docs/pipelines/`, `docs/sprint/` e `docs/editorial/`, cada uma contendo apenas um `.gitkeep`, seguem sem nenhum conteúdo, sem menção em nenhum documento além deste, e sem propósito definido desde que foram descobertas (revisão `1.5`). `operations/` e `history/` já cobrem os papéis mais próximos que essas pastas poderiam ter tido (guia operacional e diário histórico, respectivamente); não há indício de que `pipelines/`, `sprint/` ou `editorial/` tenham sido usadas ou planejadas para algo distinto. Recomendação: remover as três pastas (e seus `.gitkeep`). Mesma limitação técnica acima — Claude não consegue apagá-las; fica sinalizado para Fabrício remover manualmente, junto de `docs/08-decisoes-arquiteturais.md` e do arquivo solto `_delete_test_dummy.txt` encontrado na raiz do repositório durante esta auditoria (nome sugere já ter sido marcado para remoção anteriormente).
+**Pastas órfãs — duas removidas, uma ainda pendente (2026-07-24, atualiza a nota da revisão `1.5`/`1.6`)**: `docs/pipelines/` e `docs/editorial/`, cada uma contendo apenas um `.gitkeep`, sem propósito identificável desde que foram descobertas (revisão `1.5`) e redundantes com `operations/`/`history/`, foram recomendadas para remoção e confirmadas excluídas por Fabrício. **`docs/sprint/` ainda existe** — não foi removida na mesma leva (verificado por inspeção direta do repositório); mesma recomendação de remoção permanece válida para ela, pendente de ação manual de Fabrício. O arquivo solto `_delete_test_dummy.txt`, encontrado na raiz do repositório durante a mesma auditoria, também foi confirmado excluído.
 
 ---
 
@@ -186,3 +185,4 @@ Os documentos podem utilizar os seguintes status:
 | 1.4 | Adicionada a pasta `database/` (fora de `docs/`) à tabela de Artifact Responsibilities: registro versionado, em `.sql`, das Queries já executadas no Supabase — não fazia parte da arquitetura documental antes, embora já existisse no repositório. |
 | 1.5 | **Formalizados dois novos tipos de artefato**: `operations/` (guia operacional passo a passo, sem racional de arquitetura nem histórico) e `history/` (diário histórico de tentativas/bugs/evolução sprint a sprint, sem novas decisões). Motivados pela divisão real de `06-pipeline-importacao.md` em três documentos, a pedido explícito de Fabrício, para reduzir o tamanho do documento de arquitetura. Árvore de estrutura atualizada. Registrada a existência de três pastas órfãs em `docs/` (`pipelines/`, `sprint/`, `editorial/`, vazias, nunca documentadas), não reaproveitadas por decisão de Fabrício — removê-las ou definir seu propósito real fica pendente. |
 | 1.6 | **Auditoria de qualidade documental conduzida por Fabrício (2026-07-24)**, confirmada por inspeção real do repositório. Resolvidas duas pendências abertas desde a revisão `1.5`: (a) as três pastas órfãs (`docs/pipelines/`, `docs/sprint/`, `docs/editorial/`) não têm propósito identificável e são redundantes com `operations/`/`history/` — recomendação registrada de remoção manual por Fabrício (Claude não consegue apagar arquivos neste ambiente); (b) `08-decisoes-arquiteturais.md`, stub sem escopo definido desde a criação, identificado como redundante com `adr/` — mesma recomendação de remoção manual. Também sinalizado, na mesma auditoria, o arquivo solto `_delete_test_dummy.txt` na raiz do repositório, para remoção manual. |
+| 1.7 | **Exclusões da revisão `1.6` confirmadas por Fabrício e verificadas por inspeção real do repositório**: `docs/08-decisoes-arquiteturais.md`, `docs/pipelines/`, `docs/editorial/` e `_delete_test_dummy.txt` não existem mais — removidos da árvore de estrutura e das notas, que agora registram a exclusão como fato consumado, não mais como recomendação. `docs/08-decisoes-arquiteturais.md` também removido da árvore. **Achado nesta verificação, não coberto pela exclusão anterior**: `docs/sprint/` ainda existe no repositório (confirmado por inspeção direta) — a mesma recomendação de remoção permanece válida e pendente para essa pasta especificamente. |

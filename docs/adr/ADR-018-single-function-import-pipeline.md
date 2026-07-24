@@ -65,7 +65,7 @@ Esta ADR não altera a implementação — apenas documenta, como decisão forma
 
 ## Reviver a divisão de `ADR-017` agora, criando `sync-card-set`
 
-Rejeitada nesta revisão. Não há evidência real de que a função única esteja sobrecarregada — 927 Cards/7 Card Sets processados com 0 falhas. Dividir a função agora seria trabalho de engenharia sem problema real a resolver, contrariando o princípio de simplicidade inicial (`AP-004`). Fica registrada como opção futura, não descartada, condicionada a uma necessidade real observada (ver "Restrições / Pendências", acima).
+Rejeitada nesta revisão. Não há evidência real de que a função única esteja sobrecarregada: `859` Cards de 5 Card Sets (`ME1`-`ME4`/`ME2.5`) foram processadas em dois idiomas, com `1.718` imagens e `0` falhas — o catálogo tem hoje 927 Cards/7 Card Sets, mas `MEE`/`MEP` ainda não passaram pelo pipeline (aguardam `card_variant`, ver "Restrições / Pendências", acima). Dividir a função agora seria trabalho de engenharia sem problema real a resolver, contrariando o princípio de simplicidade inicial (`AP-004`). Fica registrada como opção futura, não descartada, condicionada a uma necessidade real observada.
 
 ## Manter `ADR-017` como "Aprovada" e tratar a implementação como pendente
 
