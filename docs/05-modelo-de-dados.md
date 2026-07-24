@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.54 |
+| **Versão** | 0.55 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -1138,6 +1138,50 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 - [x] Query `820` reescrita como snapshot completo da Expansion (v2.0, `ON CONFLICT ... DO UPDATE`, inclui `ME0`) — ver "Pendência — Reescrita da Query 820 (RESOLVIDA)";
 - [x] Query `120` consolidada para v2.0 (`CANÔNICA`), com suporte nativo a `PROMO` e o índice `uq_card_set_expansion_promo`; `122`/`821` reclassificadas `MIGRATION`;
 - [ ] confirmar se o índice `uq_card_set_expansion_promo` já existe no banco físico atual — **único item aberto**, ver "Divergência sinalizada", acima. Não bloqueia o início da modelagem de Card, mas deve ser verificado antes de considerar a regra de unicidade de `PROMO` realmente garantida em produção.
+
+## Migration `251` — Remoção de `ME0` (CONFIRMADA EXECUTADA)
+
+**Correção real e definitiva à pendência "ME0 ↔ `mee`" (aberta desde a revisão que descobriu os `external_set_id` reais da TCGdex, cross-referenciada em `06-pipeline-importacao.md`, Sprint B2.5A, e na seção "Card Set External Reference", abaixo).** Descoberta durante um teste real da Edge Function `import-card-assets` (Sprint B3.7, ver `06-pipeline-importacao.md`): uma execução de teste (`asset_import_run` `RUN-20260719-00000001`) apontava para a coleção `ME0`, e a função corretamente retornou `CARD_SET_EXTERNAL_REFERENCE_NOT_FOUND`, pois `ME0` nunca teve uma referência externa ativa (ver Query `910`, abaixo). Ao investigar se `ME0` deveria finalmente ser mapeado ao Set `mee` da TCGdex, Fabrício esclareceu, com conhecimento direto do domínio, encerrando a ambiguidade: *"Na verdade nossa base tem ME0 como cartas promocionais de Megaevolution. na TCGdex mee são as cartas de energia. Coisas diferentes. Sugiro retirarmos da nossa base neste momento ME0."*
+
+**Decisão final, real, confirmada por Fabrício**: `ME0` (interno — cartas promocionais de Mega Evolução) e `mee` (TCGdex — cartas de Energia de Mega Evolução) são **coleções diferentes, sem relação entre si** — o código semelhante (`ME0`/`mee`) era coincidência, não parentesco. Criar o vínculo introduziria um erro conceitual no modelo, não apenas uma referência técnica incorreta. Decisão: remover `ME0` da tabela `card_set` por completo (não apenas deixá-lo sem mapeamento externo), até que exista uma fonte externa homologada para esse conteúdo especificamente.
+
+**Execução real, com verificação de dependências antes de qualquer exclusão (mesma disciplina já usada em todo o projeto)**: consultas de pré-checagem confirmaram exatamente o esperado — `card` referenciando `ME0`: `0`; `asset_import_run` referenciando `ME0`: `1` (a própria execução de teste que revelou o problema); `card_set_external_reference` referenciando `ME0`: `0` (nunca existiu, ver Query `910`). Com o cenário confirmado seguro, a migration `251 - Remove ME0` foi criada (`npx supabase migration new 251_remove_me0`) e executada via `npx supabase db push`:
+
+```sql
+DO $$
+DECLARE
+    v_card_set_id uuid;
+BEGIN
+    SELECT id
+    INTO v_card_set_id
+    FROM public.card_set
+    WHERE code = 'ME0';
+
+    IF v_card_set_id IS NULL THEN
+        RAISE NOTICE 'ME0 não encontrada. Nenhuma alteração necessária.';
+        RETURN;
+    END IF;
+
+    DELETE FROM public.asset_import_run
+    WHERE card_set_id = v_card_set_id;
+
+    DELETE FROM public.card_set
+    WHERE id = v_card_set_id;
+END;
+$$;
+```
+
+**Validação real pós-execução, confirmada por Fabrício**: `SELECT id, code, name FROM public.card_set ORDER BY release_order;` retornou apenas `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` — `ME0` ausente, como esperado. `SELECT * FROM public.asset_import_run WHERE run_code = 'RUN-20260719-00000001';` retornou zero linhas ("Success. No rows returned. Tudo correto"). Migration confirmada executada com sucesso.
+
+**Consequência para o restante deste documento**: todas as menções anteriores a `ME0` como parte da Expansion `ME` (Queries `120`/`121`/`122`/`820`/`821`/`920`, ADR-015) permanecem como registro histórico exato do que foi de fato modelado e executado até este ponto — não foram reescritas retroativamente, seguindo a disciplina de preservação de histórico do projeto. A partir desta revisão, porém, o estado físico e canônico da Expansion `ME` passa a ser de **cinco** Card Sets (`ME1`–`ME4`/`ME2.5`), não seis. Uma futura reescrita da Query `820` (Seed canônica) para remover `ME0` do snapshot **não foi feita nesta revisão** — a Query `820` v2.0 ainda insere `ME0` se executada em uma instalação nova, o que reintroduziria a linha removida aqui; sinalizado como pendência abaixo.
+
+**Pendência nova, registrada nesta revisão**: a Query `820` v2.0 (Seed canônica de Card Set) precisa ser atualizada para não incluir mais `ME0`, sob risco de uma instalação nova a partir do zero recriar um registro que o projeto acabou de decidir remover. Até lá, `820` v2.0 deve ser tratada como desatualizada nesse ponto específico.
+
+> **Diário Técnico — Migration 251 — Remoção de ME0**
+> **Objetivo**: resolver definitivamente a pendência de longa data "`ME0` ↔ `mee`" e remover `ME0` do modelo físico, caso confirmado que não há relação real com nenhuma fonte externa homologada.
+> **Critério de aceite**: decisão de negócio explícita de Fabrício; `ME0` removida de `card_set` sem quebrar integridade referencial.
+> **Resultado**: 🟩 Concluído. Decisão de negócio ✅ obtida (coleções diferentes, sem relação). Remoção ✅ confirmada por consulta real pós-execução.
+> **Pendências descobertas**: (1) Query `820` v2.0 (Seed canônica) ainda inclui `ME0` — precisa ser reescrita para uma instalação nova não reintroduzir a linha removida; (2) discrepância notada, mas não investigada, durante o diagnóstico: o `asset_source_id` usado pela execução de teste que apontava para `ME0` era diferente do `asset_source_id` usado por todos os registros existentes em `card_set_external_reference` — como `ME0` foi removida, essa instância específica ficou sem importância prática, mas a causa da discrepância em si (possível troca de identificador de `asset_source` em algum ponto do histórico) nunca foi explicada; baixa prioridade, registrada por transparência.
 
 ---
 
@@ -3270,7 +3314,7 @@ Validação estrutural e de conteúdo completa de `language`, no mesmo padrão d
 
 240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql; ver seção "Card Set External Reference", abaixo)
 241 - Card Set External Reference Triggers (CONFIRMADA EXECUTADA — database/schema/241_card_set_external_reference_triggers.sql)
-910 - Seed Card Set External Reference   (CONFIRMADA EXECUTADA — PARCIAL — database/seeds/910_seed_card_set_external_reference.sql; ME1/ME2/ME2.5/ME3/ME4 mapeados; ME0 excluído — decisão pendente; ME5 aguarda card_set; número colide com 910 Validate Expansion, mesmo padrão de colisão de numeração entre pastas já registrado para 900/970/975)
+910 - Seed Card Set External Reference   (CONFIRMADA EXECUTADA — PARCIAL — database/seeds/910_seed_card_set_external_reference.sql; ME1/ME2/ME2.5/ME3/ME4 mapeados; ME0 removida de card_set — Migration 251, decisão de negócio resolvida: sem relação com mee; ME5 aguarda card_set; número colide com 910 Validate Expansion, mesmo padrão de colisão de numeração entre pastas já registrado para 900/970/975)
 991 - Validate Card Set External Reference (planejada, ainda NÃO executada)
 
 880 - Seed Card Asset                    (bloqueada até o pipeline de importação [Fase 1, Bloco B — Edge Function, ainda não implementada] existir e um piloto controlado ser executado, ver "Roteiro Consolidado", acima)
@@ -3729,12 +3773,14 @@ Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
 > **Resultado**: ✅ Concluído (parcial, por design). `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` confirmados via consulta real. `ME5` ausente porque `card_set.code = 'ME5'` ainda não existe no banco — não é uma falha, confirmado por investigação direta.
 > **Pendências descobertas**: (1) decisão de negócio sobre `ME0`↔`mee` continua aberta, não resolvida aqui; (2) `card_set.code = 'ME5'` ainda não cadastrado — quando for, reexecutar esta Query (idempotente) resolve automaticamente; (3) Query `991` (Validação) continua não escrita.
 
+**Atualização posterior (Migration `251`, ver seção "Card Set", acima): a pendência (1) foi resolvida.** `ME0` (interno) e `mee` (TCGdex) foram confirmados por Fabrício como coleções diferentes e sem relação — `ME0` (cartas promocionais de Mega Evolução) não é `mee` (cartas de Energia de Mega Evolução). `ME0` foi removida de `card_set` por completo, não apenas deixada sem mapeamento. Ver "Migration `251` — Remoção de `ME0`" para o histórico completo.
+
 ## Sequência
 
 ```text
 240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql)
 241 - Card Set External Reference Triggers (CONFIRMADA EXECUTADA — database/schema/241_card_set_external_reference_triggers.sql)
-910 - Seed Card Set External Reference   (CONFIRMADA EXECUTADA — PARCIAL — database/seeds/910_seed_card_set_external_reference.sql; ME1/ME2/ME2.5/ME3/ME4 mapeados; ME0 deliberadamente excluído — decisão de negócio pendente; ME5 aguarda ser cadastrado como card_set)
+910 - Seed Card Set External Reference   (CONFIRMADA EXECUTADA — PARCIAL — database/seeds/910_seed_card_set_external_reference.sql; ME1/ME2/ME2.5/ME3/ME4 mapeados; ME0 removida de card_set — Migration 251, decisão de negócio resolvida: sem relação com mee; ME5 aguarda ser cadastrado como card_set)
 991 - Validate Card Set External Reference (planejada, NÃO executada — critérios já decididos, ver Diário Técnico da Query 241, acima)
 ```
 
@@ -3810,3 +3856,4 @@ Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
 | 0.52 | **`card_set_external_reference`: Query `241` (triggers) CONFIRMADA EXECUTADA; episódio real de correção — mapeamento de teste `ME0`→`sv10pt5` inserido e removido; Seed `910` adiada (não descartada), aguardando descoberta real via TCGdex em vez de suposição manual.** Ao validar `241`, um registro de teste foi inserido associando `ME0` (convenção interna do Project Mimikyu para promos da expansão Megaevolution) ao Set oficial real `sv10pt5` da TCGdex — identificado como incorreto (`ME0` não existe oficialmente na TCGdex/Pokémon TCG API) e removido via `DELETE`, confirmado. Plano inicial de popular `910` manualmente com `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` (excluindo `ME0` permanentemente) foi revisado antes de qualquer Seed ser escrita: `ME0` provavelmente tem sim um mapeamento oficial na TCGdex (um Set promocional específico), só não deve ser presumido sem validar — decisão final: `910` fica adiada até a Edge Function conseguir descobrir os `external_set_id` reais via chamada real à API; a Seed só será escrita depois, com dados confirmados. Critérios da futura Query `991` (Validação) já decididos: sem mapeamentos duplicados, FKs válidas, todo `card_set` `REGULAR`/`SPECIAL` com mapeamento ativo, `PROMO` pode ficar sem. Arquivo `database/schema/241_card_set_external_reference_triggers.sql` criado. |
 | 0.53 | Cross-referência pontual: o plano para descobrir os `external_set_id` reais da TCGdex (necessário para finalmente escrever a Seed `910`, adiada) passou a ser um script administrativo standalone (`scripts/discover-tcgdex-sets.ts`), não uma nova migration nem uma Edge Function — detalhado em `06-pipeline-importacao.md`, "Sprint B2.5A", não duplicado aqui. Nenhuma alteração de modelo de dados/SQL nesta revisão. |
 | 0.54 | **Query `910` — Seed Card Set External Reference — CONFIRMADA EXECUTADA (parcial), depois que os `external_set_id` reais foram descobertos por chamada real à TCGdex.** `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` mapeados e confirmados via consulta real de validação. `ME0` deliberadamente excluído — decisão de negócio sobre `mee`/"Mega Evolution Energy" continua aberta. `ME5` investigado e explicado (não é falha): `card_set.code = 'ME5'` ainda não existe fisicamente no banco, confirmado por consulta direta; a Query (idempotente, `ON CONFLICT DO UPDATE`) simplesmente não encontrou correspondência e seguirá funcionando quando `ME5` for cadastrado, sem precisar ser reescrita. Arquivo `database/seeds/910_seed_card_set_external_reference.sql` criado. Sequência (local e consolidada) atualizada de "ADIADA" para "CONFIRMADA EXECUTADA — PARCIAL". |
+| 0.55 | **Marco real: Migration `251` — remoção definitiva de `ME0` de `card_set`, resolvendo a pendência "`ME0`↔`mee`" aberta desde a revisão `0.17` de `06-pipeline-importacao.md`.** Descoberto durante teste real da Edge Function `import-card-assets` (Sprint B3.7): uma execução de teste apontava para `ME0`, retornando corretamente `CARD_SET_EXTERNAL_REFERENCE_NOT_FOUND`. Fabrício esclareceu, com conhecimento direto do domínio, que `ME0` (interno, cartas promocionais de Mega Evolução) e `mee` (TCGdex, cartas de Energia de Mega Evolução) são coleções diferentes, sem relação — decisão: remover `ME0` de `card_set` por completo, não apenas deixá-la sem mapeamento. Pré-checagem real confirmou dependências seguras (`card`: 0, `asset_import_run`: 1, `card_set_external_reference`: 0); migration `251_remove_me0` criada e aplicada via `npx supabase db push`; validação real pós-execução confirmou apenas `ME1`–`ME4`/`ME2.5` remanescentes e a execução de teste removida. Nova seção "Migration `251`" adicionada à seção Card Set/Set; pendência nova registrada (Query `820` v2.0 ainda inclui `ME0`, precisa ser reescrita para não reintroduzi-la em instalação nova); Query `910` e "Sequência" atualizadas para refletir a resolução. |
