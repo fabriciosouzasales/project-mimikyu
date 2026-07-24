@@ -443,7 +443,7 @@ A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver 
 
 # Set
 
-Status: **Pacote técnico concluído, reaberto pontualmente (terceira vez): `MEE`/`MEP` já existem como `card_set` reais.** Tabela, trigger, suporte a Sets promocionais, seed e validação executados e confirmados. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). Seguindo o novo **Princípio da Fonte Canônica** (STD-001, Seção 10), as Queries `120 - Create Card Set Table` e `820 - Seed Card Set` foram consolidadas para `Versão 2.0`/`2.1` (Status `CANÔNICA`), já nascendo com suporte nativo a `PROMO`/`ENERGY` — as Queries `122`/`263`/`264`/`821` (que originalmente introduziram esses ajustes em um banco já existente) foram reclassificadas como `MIGRATION` (históricas), preservadas mas fora do fluxo de instalação limpa. **`ENERGY` adicionado ao domínio de `set_type` e `release_order` de `ME1`-`ME4` reorganizado (Migrations `263`/`264`, CONFIRMADAS EXECUTADAS)** — ver "Migration `263`–`264`", abaixo. **`MEE`/`MEP` CONFIRMADOS EXECUTADOS (Migrations `265`–`268`)** — ver "Migration `265`–`268`", abaixo; `MEP` também já tem `card_set_external_reference` confirmada (TCGdex, `mep`); `MEE` deliberadamente ainda sem referência externa (nenhuma fonte oficial equivalente encontrada). **Itens abertos:** (1) confirmar se o índice único parcial `uq_card_set_expansion_promo` (novo na versão canônica de `120`) já existe no banco físico atual — ver "Modelo Físico — Versão Canônica", abaixo; (2) `820` v2.0 desatualizada quanto ao `release_order` real e sem `MEE`/`MEP`; (3) discrepância real sinalizada, não resolvida: nomes de `ME1`-`ME4`/`ME2.5` estão em português, inconsistentes com o princípio (novo, `AP-018` revisão `1.8`) de espelhar o nome exato da fonte oficial consultada.
+Status: **Pacote técnico concluído, reaberto pontualmente (terceira vez): `MEE`/`MEP` já existem como `card_set` reais.** Tabela, trigger, suporte a Sets promocionais, seed e validação executados e confirmados. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). Seguindo o novo **Princípio da Fonte Canônica** (STD-001, Seção 10), as Queries `120 - Create Card Set Table` e `820 - Seed Card Set` foram consolidadas para `Versão 2.0`/`2.1` (Status `CANÔNICA`), já nascendo com suporte nativo a `PROMO`/`ENERGY` — as Queries `122`/`263`/`264`/`821` (que originalmente introduziram esses ajustes em um banco já existente) foram reclassificadas como `MIGRATION` (históricas), preservadas mas fora do fluxo de instalação limpa. **`ENERGY` adicionado ao domínio de `set_type` e `release_order` de `ME1`-`ME4` reorganizado (Migrations `263`/`264`, CONFIRMADAS EXECUTADAS)** — ver "Migration `263`–`264`", abaixo. **`MEE`/`MEP` CONFIRMADOS EXECUTADOS (Migrations `265`–`268`)** — ver "Migration `265`–`268`", abaixo. **`MEE` também já tem `card_set_external_reference` confirmada (Migration `270`, TCGdex, `mee`), `metadata` de ambos padronizada para `{}` (Migration `269`), e a data de lançamento de `MEE` corrigida para `2025-09-25` (Migration `271`)** — ver "Migration `269`–`271`", abaixo; camada `Expansion → Card Set → Card Set External Reference` está completa para os dois novos Sets. Cartas/variantes/referências de carta/imagens de `MEE`/`MEP` **ainda não existem** — plano para `840 - Seed Card` v2.2 definido, não executado. **Itens abertos:** (1) confirmar se o índice único parcial `uq_card_set_expansion_promo` (novo na versão canônica de `120`) já existe no banco físico atual — ver "Modelo Físico — Versão Canônica", abaixo; (2) `820` v2.0 desatualizada quanto ao `release_order` real e sem `MEE`/`MEP`; (3) discrepância real sinalizada, não resolvida: nomes de `ME1`-`ME4`/`ME2.5` estão em português, inconsistentes com o princípio (novo, `AP-018` revisão `1.8`) de espelhar o nome exato da fonte oficial consultada.
 
 ### Disciplina do processo
 
@@ -1122,6 +1122,7 @@ FK  expansion_id     UUID
 265 - Create Card Set MEE                (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
 266 - Create Card Set MEP                (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
 267 - Fix Card Set MEP Size              (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
+271 - Fix Card Set MEE Release Date      (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
 820 - Seed Card Set                      (v2.0, Status CANÔNICA — desatualizada, ver pendência abaixo)
 821 - Seed Promo Card Set                (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
 920 - Validate Card Set                  (versão 2.0)
@@ -1433,6 +1434,102 @@ Validação real confirmou exatamente uma linha nova: `MEP` / `TCGDEX` / `mep` /
 > **Critério de aceite**: `MEE`/`MEP` inseridos com dados confirmados por fonte oficial; `card_set_external_reference` de `MEP` confirmada; `MEE` sem referência externa inventada.
 > **Resultado**: 🟩 Concluído. Ambos Sets confirmados por validação real; referência externa de `MEP` confirmada.
 > **Pendências descobertas**: (1) as instruções `UPDATE` exatas que renomearam `MEE`/`MEP` para seus nomes finais não foram capturadas nas informações recebidas — o estado final foi confirmado por diálogo e por validação, mas o SQL literal do ajuste de nome não está registrado em `database/`; (2) discrepância real sinalizada em `AP-018` (revisão `1.8`): os nomes já cadastrados de `ME1`-`ME4`/`ME2.5` estão em português, inconsistente com o princípio de espelhar o nome exato da fonte oficial consultada (TCGdex, em inglês) — não resolvida unilateralmente; (3) `ck_card_set_promo_size`/`ENERGY` equivalente exige atualização manual de `base_set_size`/`total_set_size` a cada nova carta catalogada — regra operacional ainda não escrita em `operations/`; (4) Query `820` v2.0 (Seed canônica) segue sem refletir `MEE`/`MEP`/`release_order` real.
+
+### Migration `269`–`271` — Padronização de `metadata`, referência externa do `MEE` e correção de data (CONFIRMADAS EXECUTADAS)
+
+**Fabrício notou, por observação direta dos dados, uma inconsistência real entre o registro de `MEP` (com `metadata` descritiva) e todos os demais registros de `card_set_external_reference` (`metadata = {}`).** Avaliação: três dos quatro campos guardados em `metadata` de `MEP` (`official_code`, `external_name`, `release_date`) já existem como colunas relacionais em `card_set` (`code`, `name`, `release_date`, acessíveis por `JOIN`), e o quarto (`card_count_at_registration`) ficaria desatualizado rapidamente por natureza — `card_set.total_set_size` já é a fonte de verdade para a contagem atual (ver Migration `267`, acima). Recomendação: padronizar `MEP` para `metadata = {}`, mesmo padrão de todos os demais registros. **Nova regra permanente adotada**: `metadata` nunca deve duplicar um atributo já coberto por coluna relacional — existe apenas para propriedades específicas da fonte externa, sem equivalente relacional (formalizada em `STD-001-database-standards.md`, Seção 3, revisão `1.14`).
+
+**Migration `269 - Fix Card Set External Reference MEP Metadata`**: zera `metadata` de `MEP`.
+
+```sql
+UPDATE public.card_set_external_reference cser
+SET
+    metadata = '{}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+FROM public.card_set cs,
+     public.asset_source src
+WHERE cser.card_set_id = cs.id
+  AND cser.asset_source_id = src.id
+  AND cs.code = 'MEP'
+  AND src.code = 'TCGDEX';
+```
+
+Validação real confirmou `metadata = {}` para `MEP`.
+
+**`MEE` confirmado via pesquisa real na TCGdex** (`https://api.tcgdex.net/v2/en/sets/mee`, acessado diretamente por Fabrício): identificador `mee`, `cardCount.total = 8` (todas as 8 cartas oficiais, sem lacunas de numeração — `001` a `008`), abreviação oficial `MEE`, Set irmão de `ME1`-`ME4`/`ME2.5`/`MEP` dentro da Série `me`. **Divergência real de data encontrada**: a TCGdex registra `releaseDate: 2025-09-25`, um dia antes do valor já cadastrado em `card_set.release_date` (`2025-09-26`, herdado da Migration `265`). Sinalizada primeiro sem correção automática (*"Vamos preservar o cadastro atual até definirmos qual fonte será canônica para a data de lançamento"*); Fabrício confirmou diretamente em seguida que a data correta é `2025-09-25`, e a correção foi aplicada (Migration `271`, abaixo).
+
+**Migration `270 - Create Card Set External Reference MEE`**: insere a referência externa de `MEE`, já com `metadata = {}` desde o início (aplicando a regra recém-adotada).
+
+```sql
+BEGIN;
+
+INSERT INTO public.card_set_external_reference (
+    card_set_id,
+    asset_source_id,
+    external_set_id,
+    source_url,
+    metadata,
+    is_active
+)
+SELECT
+    cs.id,
+    src.id,
+    'mee',
+    'https://api.tcgdex.net/v2/en/sets/mee',
+    '{}'::jsonb,
+    TRUE
+FROM public.card_set cs
+INNER JOIN public.expansion e
+    ON e.id = cs.expansion_id
+CROSS JOIN public.asset_source src
+WHERE e.code = 'ME'
+  AND cs.code = 'MEE'
+  AND src.code = 'TCGDEX'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public.card_set_external_reference cser
+      WHERE cser.card_set_id = cs.id
+        AND cser.asset_source_id = src.id
+  );
+
+COMMIT;
+```
+
+Validação real confirmou `MEE`/`TCGDEX`/`mee` e `MEP`/`TCGDEX`/`mep`, ambos com `metadata = {}` — camada `Expansion → Card Set → Card Set External Reference` concluída para os dois novos Sets.
+
+**Migration `271 - Fix Card Set MEE Release Date`**: corrige `card_set.release_date` de `MEE` de `2025-09-26` para `2025-09-25`, conforme confirmado pela TCGdex e por Fabrício.
+
+```sql
+UPDATE public.card_set cs
+SET
+    release_date = DATE '2025-09-25',
+    updated_at = CURRENT_TIMESTAMP
+FROM public.expansion e
+WHERE e.id = cs.expansion_id
+  AND e.code = 'ME'
+  AND cs.code = 'MEE';
+```
+
+Validação real confirmou: `MEE` / `Energia Básica Megaevolução` / `2025-09-25`.
+
+**Antes de qualquer `INSERT` em `card` para `MEE`/`MEP`, a estrutura real da tabela foi auditada (Diagnósticos `09`/`10` — `information_schema.columns` e `pg_constraint`), reaplicando a disciplina "consultar a estrutura antes de escrever SQL" adotada no batch anterior.** A auditoria confirmou os atributos obrigatórios já documentados (`card_set_id`, `rarity_id`, `category_id`, `collector_number`, `collector_total`, `collector_order`, `name`) — nenhuma divergência estrutural encontrada.
+
+**Decisão real de estratégia para popular as cartas de `MEE`/`MEP`, ainda NÃO executada**: em vez de novos `INSERT`s avulsos (padrão `ALTERAÇÃO NN` usado até aqui para `card_set`/`card_set_external_reference`), Fabrício determinou reaproveitar e evoluir a própria Query canônica de cartas: *"Vamos revisar a query 840 [...] com o cuidado de manter o padrão que usamos na primeira carga [...] mantenha os dados como na primeira carga acrescentando as cartas dos dois novos sets."* Um arquivo real (`840 - Seed Card.txt`) com o conteúdo atual e completo da Query `840` foi fornecido diretamente por Fabrício, revelando que ela já está oficialmente na `Versão 2.1`, Status `CANÔNICA` — decisão consciente de **não** recriá-la do zero como uma nova "v2.0", preservando o histórico de versões já existente (mesmo Princípio da Fonte Canônica, aplicado à evolução, não à substituição).
+
+**Plano real para `840 - Seed Card`, Versão `2.2` (ainda NÃO executado)**, quatro alterações sobre a `2.1` existente, preservando integralmente `ME1`-`ME4`/`ME2.5`:
+
+1. A validação de Card Sets esperados passa a incluir `MEE`/`MEP`, além dos cinco já existentes.
+2. As quantidades canônicas por Set são atualizadas: `MEE` `8`/`8`, `MEP` `60`/`60`, mantendo as demais inalteradas (`ME1` `132`/`188`, etc.).
+3. O CTE de origem (`source_card`, com `VALUES`) recebe os registros das `8` cartas de `MEE` e das `60` cartas atualmente catalogadas de `MEP`, no mesmo formato de escrita já usado para as 5 coleções existentes.
+4. A validação final passa a esperar `927` cartas no total (`859 + 8 + 60`), em vez de `859`.
+
+**Decidido explicitamente: não criar uma Seed complementar (`841`)** — `840` continua sendo a única fonte oficial e completa de todas as cartas da Expansion `ME`, mesmo padrão de "fonte canônica única" já usado para `card_set`/`820`.
+
+> **Diário Técnico — Migrations 269–271 — Padronização de metadata, referência externa do MEE, correção de data**
+> **Objetivo**: eliminar a inconsistência de `metadata` entre `MEP` e os demais registros; cadastrar a referência externa confirmada de `MEE`; corrigir a data de lançamento de `MEE` conforme a TCGdex.
+> **Critério de aceite**: `metadata` de `MEP` zerada; `card_set_external_reference` de `MEE` confirmada com `metadata = {}`; `release_date` de `MEE` = `2025-09-25`.
+> **Resultado**: 🟩 Concluído. Todas as três migrations confirmadas por validação real.
+> **Pendências descobertas**: (1) `840 - Seed Card` v2.2 (MEE + MEP) planejada em detalhe, mas **ainda não escrita nem executada** — nenhuma carta de `MEE`/`MEP` existe em `card` até esta revisão; (2) mesma pendência se propaga a `card_variant`, `card_external_reference` e `card_asset` — nada disso pode começar antes de `840` v2.2.
 
 ---
 
@@ -4037,10 +4134,10 @@ Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
 241 - Card Set External Reference Triggers (CONFIRMADA EXECUTADA — database/schema/241_card_set_external_reference_triggers.sql)
 910 - Seed Card Set External Reference   (CONFIRMADA EXECUTADA — PARCIAL — database/seeds/910_seed_card_set_external_reference.sql; ME1/ME2/ME2.5/ME3/ME4 mapeados; ME0 removida de card_set — Migration 251, decisão de negócio resolvida: sem relação com mee; ME5 aguarda ser cadastrado como card_set)
 268 - Create Card Set External Reference MEP (CONFIRMADA EXECUTADA — database/migrations/268_create_card_set_external_reference_mep.sql; MEP mapeado à TCGdex, external_set_id = 'mep'; ver seção "Set", "Migration 265-268")
+269 - Fix Card Set External Reference MEP Metadata (CONFIRMADA EXECUTADA — database/migrations/269_fix_card_set_external_reference_mep_metadata.sql; metadata de MEP zerada, ver seção "Set", "Migration 269-271")
+270 - Create Card Set External Reference MEE (CONFIRMADA EXECUTADA — database/migrations/270_create_card_set_external_reference_mee.sql; MEE mapeado à TCGdex, external_set_id = 'mee', metadata = {})
 991 - Validate Card Set External Reference (planejada, NÃO executada — critérios já decididos, ver Diário Técnico da Query 241, acima)
 ```
-
-`MEE` **deliberadamente sem entrada nesta sequência** — nenhuma fonte externa oficial equivalente foi encontrada até esta revisão; `card_set_external_reference` de `MEE` só será criada quando/se isso mudar.
 
 ---
 
@@ -4120,3 +4217,4 @@ Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
 | 0.58 | **Duas decisões reais novas, nenhuma ainda executada**: (1) `MEE` (Set de Energias da TCGdex) também será cadastrado — Fabrício reavaliou e decidiu completar o catálogo integralmente ("a única pergunta é: foi oficialmente publicada?"), Expansion `ME` terá 7 Card Sets no total (`ME1`-`ME4`/`ME2.5`/`MEP`/`MEE`); (2) nova convenção de `release_order` quando existem Sets especiais: Energia primeiro (`1`), Promocional em seguida (`2`), regulares depois — refina a convenção de `ADR-015` (revisão `1.5`). **Questão sobre `Expansion`/"Series"/"Era" (revisão `0.57`) RESOLVIDA por decisão direta de Fabrício, sem necessidade de investigação**: "Na modelagem não alteramos a tabela expansion. Desconsidere qualquer informação sobre as possíveis entidades 'Series e Era'." Nenhuma mudança de schema. Plano completo de execução (auditoria estrutural → ajustar `release_order` → inserir `MEE`/`MEP` → referências externas → cartas/variantes → imagens → checklist de integridade) registrado, nada executado nesta revisão. |
 | 0.59 | **Primeiros dois passos do plano da revisão `0.58` executados: Migrations `263`/`264` (CONFIRMADAS EXECUTADAS) — domínio de `set_type` ampliado para incluir `ENERGY`, `release_order` de `ME1`-`ME4` reorganizado (`3`-`7`), liberando `1`/`2` para `MEE`/`MEP`.** Antes de qualquer alteração, auditoria estrutural real confirmou duas constraints já documentadas (`uq_card_set_expansion_release_order`, `uq_card_set_expansion_code`) e a definição exata de `ck_card_set_type` — mesma disciplina de "auditar antes de alterar" já usada na Migration `251`. Nova seção "Migration `263`–`264`" adicionada à seção Set/Card Set. `120` (canônica) bumped para `v2.1`, já incluindo `ENERGY` nativamente. **Decisão consciente de não refatorar `set_type`/`ck_card_set_type` em duas dimensões (natureza editorial vs. natureza do conteúdo) nesta fase** — cogitada durante a auditoria, deliberadamente adiada por Fabrício, registrada como possível ADR futura. `MEE`/`MEP` **ainda não cadastrados** — Fabrício optou por confirmar dados editoriais oficiais reais antes do `INSERT`, mesmo princípio já aplicado à correção `ME0`→`MEP` (`AP-018`). Arquivos `database/migrations/263_add_energy_to_card_set_type.sql` e `database/migrations/264_reorganize_me_release_order.sql` criados. |
 | 0.60 | **`MEE`/`MEP` CONFIRMADOS EXECUTADOS (Migrations `265`–`268`), completando os passos 1-5 do plano da revisão `0.58`.** Antes de qualquer `INSERT`, Diagnósticos `07`/`08` confirmaram que `asset_source`/`card_set_external_reference` já suportam múltiplas fontes editoriais sem qualquer mudança de schema. Um erro real (`column cser.external_code does not exist` — a coluna real é `external_set_id`) motivou uma nova disciplina permanente: consultar a estrutura real de uma tabela antes de escrever qualquer SQL contra ela. `MEP` confirmado via pesquisa real na TCGdex (`mep`, "MEP Black Star Promos", `2025-09-26`, `60` cartas registradas — contagem real via `cardCount.total`, corrigindo uma estimativa inicial de `52`, diferente também do maior `localId` impresso, `080`, que tem lacunas de numeração). `MEE` cadastrado com dados de fontes oficiais da Pokémon (sem equivalente na TCGdex) — `card_set_external_reference` de `MEE` deliberadamente **não criada** (comportamento intencional da arquitetura: existência editorial independe de referência externa confirmada). Nova seção "Migration `265`–`268`" adicionada à seção Set/Card Set; "Sequência" de "Card Set External Reference" atualizada com `268`. **`AP-018` estendido (revisão `1.8`) para cobrir também `name`, não apenas `code`** — nasceu da correção real do nome de `MEP` (de uma tradução criada durante o cadastro para o nome oficial exato da TCGdex). **Discrepância real sinalizada, não resolvida**: os nomes já cadastrados de `ME1`-`ME4`/`ME2.5` estão em português, o que esse princípio classificaria como não-conforme se aplicado retroativamente — decisão de renomear ou não cabe a Fabrício. Esclarecida a semântica de `ck_card_set_promo_size` para Sets evolutivos (`base_set_size`/`total_set_size` = fotografia da contagem conhecida no momento, não um conjunto fechado) — nova regra operacional (atualizar a cada nova carta catalogada) ainda não formalizada em `operations/`. Arquivos `database/migrations/265_create_card_set_mee.sql`, `266_create_card_set_mep.sql`, `267_fix_card_set_mep_size.sql`, `268_create_card_set_external_reference_mep.sql` criados. |
+| 0.61 | **Migrations `269`–`271` (CONFIRMADAS EXECUTADAS): `metadata` de `card_set_external_reference` padronizada para `{}` (incluindo `MEP`, corrigindo uma inconsistência real notada por Fabrício), referência externa de `MEE` confirmada (TCGdex, `mee`), e data de lançamento de `MEE` corrigida para `2025-09-25` (conforme TCGdex).** Nova regra permanente adotada e formalizada em `STD-001-database-standards.md` (revisão `1.14`): `metadata` nunca deve duplicar um atributo já coberto por coluna relacional. Camada `Expansion → Card Set → Card Set External Reference` concluída para `MEE`/`MEP`. Antes de qualquer `INSERT` em `card`, a estrutura real da tabela foi auditada (Diagnósticos `09`/`10`) — mesma disciplina "estrutura antes de SQL" do batch anterior. **Plano definido, ainda NÃO executado**: evoluir a Query canônica `840 - Seed Card` de `v2.1` para `v2.2`, adicionando as `8` cartas de `MEE` e as `60` cartas de `MEP` preservando integralmente `ME1`-`ME4`/`ME2.5` — decisão consciente de reaproveitar/evoluir a Seed existente (preservando seu histórico de versões) em vez de recriá-la, e de não criar uma Seed complementar (`841`). Arquivos `database/migrations/269_fix_card_set_external_reference_mep_metadata.sql` e `270_create_card_set_external_reference_mee.sql` e `271_fix_card_set_mee_release_date.sql` criados. |
