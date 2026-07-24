@@ -1,34 +1,48 @@
 // Project Mimikyu — Edge Function: import-card-assets
-// Database Service — extraído do index.ts monolítico (Sprint B2.4.1 — CONFIRMADO CONCLUÍDO).
-// index.ts passa a apenas orquestrar; este arquivo concentra o acesso a
-// asset_import_run / card_set / card via ctx.supabaseAdmin.
-// Ver docs/06-pipeline-importacao.md, "Sprint B2.4.1", para o contexto completo.
-
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Card, CardSet, ImportRun } from "../types.ts";
+// Database Service — CONFIRMADO DEPLOYADO no Sprint B3.3, junto com index.ts v1.3.0
+// e o novo services/tcgdex.ts (ver docs/06-pipeline-importacao.md, "Sprint B3.3").
+//
+// Reescrito por completo no Sprint B3.1 (ganhou `findCardSetExternalReference`)
+// e corrigido no Sprint B3.2: o import de `SupabaseClient` de
+// "@supabase/supabase-js" foi removido porque esse pacote não está mapeado no
+// `deno.json` da função (só há entradas para "@supabase/functions-js" e
+// "@supabase/server") — o deploy real chegou a falhar por causa desse import
+// (erro de bundling: "Relative import path ... not in import map"). Como este
+// arquivo nunca cria um cliente Supabase (recebe sempre um já pronto via
+// `ctx.supabaseAdmin`), não precisa do tipo concreto — `supabase: any` é uma
+// escolha deliberada e temporária, até a arquitetura estabilizar (plano futuro
+// registrado: gerar `database.types.ts` via `supabase gen types typescript` e
+// trocar `any` por `SupabaseClient<Database>`).
 
 export async function findImportRun(
-  supabase: SupabaseClient,
+  supabase: any,
   runCode: string,
-): Promise<ImportRun | null> {
+) {
   const { data, error } = await supabase
     .from("asset_import_run")
-    .select("*")
+    .select(`
+      id,
+      run_code,
+      asset_source_id,
+      card_set_id,
+      status,
+      created_at
+    `)
     .eq("run_code", runCode)
     .maybeSingle();
 
   if (error) {
-    console.error("Failed to read asset_import_run:", error);
+    console.error(error);
     throw new Error("IMPORT_RUN_QUERY_FAILED");
   }
 
-  return data as ImportRun | null;
+  return data;
 }
 
 export async function findCardSet(
-  supabase: SupabaseClient,
+  supabase: any,
   cardSetId: string,
-): Promise<CardSet | null> {
+) {
   const { data, error } = await supabase
     .from("card_set")
     .select(`
@@ -46,17 +60,42 @@ export async function findCardSet(
     .maybeSingle();
 
   if (error) {
-    console.error("Failed to read card_set:", error);
+    console.error(error);
     throw new Error("CARD_SET_QUERY_FAILED");
   }
 
-  return data as CardSet | null;
+  return data;
+}
+
+export async function findCardSetExternalReference(
+  supabase: any,
+  cardSetId: string,
+  assetSourceId: string,
+) {
+  const { data, error } = await supabase
+    .from("card_set_external_reference")
+    .select(`
+      id,
+      external_set_id,
+      source_url
+    `)
+    .eq("card_set_id", cardSetId)
+    .eq("asset_source_id", assetSourceId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_SET_EXTERNAL_REFERENCE_QUERY_FAILED");
+  }
+
+  return data;
 }
 
 export async function listCards(
-  supabase: SupabaseClient,
+  supabase: any,
   cardSetId: string,
-): Promise<Card[]> {
+) {
   const { data, error } = await supabase
     .from("card")
     .select(`
@@ -70,12 +109,14 @@ export async function listCards(
       name
     `)
     .eq("card_set_id", cardSetId)
-    .order("collector_order", { ascending: true });
+    .order("collector_order", {
+      ascending: true,
+    });
 
   if (error) {
-    console.error("Failed to read cards:", error);
+    console.error(error);
     throw new Error("CARDS_QUERY_FAILED");
   }
 
-  return (data ?? []) as Card[];
+  return data ?? [];
 }
