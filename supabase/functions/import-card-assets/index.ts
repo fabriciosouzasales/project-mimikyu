@@ -77,10 +77,25 @@ Histórico:
   confirmada nesta revisão — todos os bloqueios conhecidos (401 e GRANT)
   foram eliminados, mas o próximo teste real ainda precisa confirmar o
   resultado final.
+- v2.1.0 (Sprint B3.13, CONFIRMADO CONCLUÍDO no Sprint B3.15 — execução real
+  de ponta a ponta validada: `imported: 188`, `ignored: 0`, `total: 188` para
+  a `ME1`, reconfirmado por `COUNT(*)` em `card_external_reference`):
+  incremento real de persistência. `card`/`card_variant` já estão populadas
+  para as 5 coleções (ver docs/05-modelo-de-dados.md) — esta função NUNCA
+  insere em `card`, apenas consulta. Depois de obter `tcgdex_set` da TCGdex,
+  carrega todas as cartas da coleção via `listCardsMap` (um único SELECT,
+  `Map<collector_number, card_id>`), localiza cada `card_id` pelo `localId`
+  da TCGdex e faz `UPSERT` em `card_external_reference`
+  (`upsertCardExternalReference`, idempotente via
+  `ON CONFLICT (card_id, asset_source_id)`). Cartas sem correspondência local
+  são contadas em `ignored`, não interrompem a execução. Resposta passa a
+  incluir `imported`/`ignored`/`total`. Bloqueio real encontrado e corrigido
+  no caminho: GRANT ausente em `card_external_reference` para `service_role`
+  (Query 253) — ver docs/06-pipeline-importacao.md, "Sprint B3.15".
 
-Ver docs/06-pipeline-importacao.md, seção "Sprint B3.6", para o contexto
-completo, o roteiro de sprints e o status real de cada etapa (o que foi de
-fato confirmado vs. o que ainda está planejado).
+Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6" e "Sprint B3.15",
+para o contexto completo, o roteiro de sprints e o status real de cada etapa
+(o que foi de fato confirmado vs. o que ainda está planejado).
 
 Convenções permanentes de Edge Functions do Project Mimikyu (ver docs/06):
 1. Nunca criar arquivos de Edge Function "na mão" — sempre via
@@ -113,6 +128,8 @@ import {
   findImportRun,
   findCardSet,
   findCardSetExternalReference,
+  listCardsMap,
+  upsertCardExternalReference,
 } from "./services/database.ts";
 import { TcgdexClient } from "./services/tcgdex.ts";
 
@@ -219,13 +236,54 @@ Deno.serve(async (req) => {
       externalReference.external_set_id,
     );
 
+    const cards = await listCardsMap(
+      supabase,
+      run.card_set_id,
+    );
+
+    let processed = 0;
+    let ignored = 0;
+
+    for (const tcgCard of set.cards) {
+      const cardId = cards.get(
+        tcgCard.localId,
+      );
+
+      if (!cardId) {
+        console.warn(
+          `Carta ${tcgCard.localId} não encontrada no catálogo.`,
+        );
+        ignored++;
+        continue;
+      }
+
+      await upsertCardExternalReference(
+        supabase,
+        {
+          card_id: cardId,
+          asset_source_id: run.asset_source_id,
+          external_card_id: tcgCard.id,
+          external_set_id: externalReference.external_set_id,
+          source_number: tcgCard.localId,
+          source_url:
+            `https://api.tcgdex.net/v2/en/cards/${tcgCard.id}`,
+          image_source_url: tcgCard.image,
+          metadata: tcgCard,
+          is_active: true,
+        },
+      );
+      processed++;
+    }
+
     return Response.json({
       success: true,
-      version: "2.0.0",
+      version: "2.1.0",
       run,
       card_set: cardSet,
       external_reference: externalReference,
-      tcgdex_set: set,
+      imported: processed,
+      ignored,
+      total: set.cards.length,
     });
   } catch (error) {
     console.error(error);

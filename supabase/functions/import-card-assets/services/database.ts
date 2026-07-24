@@ -120,3 +120,81 @@ export async function listCards(
 
   return data ?? [];
 }
+
+// Sprint B3.13 — Incremento 1 (CONFIRMADO CONCLUÍDO no Sprint B3.15: 188/188
+// registros para a ME1). `card`/`card_variant` já estão populadas (ver
+// docs/05-modelo-de-dados.md) — este incremento NUNCA insere em `card`,
+// apenas localiza a carta já existente e popula `card_external_reference`.
+//
+// Nota real (Sprint B3.15): a primeira execução falhou com
+// `permission denied for table card_external_reference` — GRANT ausente
+// para `service_role`, mesmo gap já visto em `card_set_external_reference`
+// (Query 250). Corrigido pela Query 253. Ver docs/06-pipeline-importacao.md,
+// "Sprint B3.15".
+
+/**
+ * Carrega todas as cartas de uma coleção em um único SELECT e monta um
+ * Map<collector_number, card_id> — lookup em memória O(1), evita uma consulta
+ * por carta durante o loop de importação.
+ */
+export async function listCardsMap(
+  supabase: any,
+  cardSetId: string,
+) {
+  const cards = await listCards(
+    supabase,
+    cardSetId,
+  );
+
+  return new Map<string, string>(
+    cards.map((card: any) => [
+      card.collector_number,
+      card.id,
+    ]),
+  );
+}
+
+/**
+ * Cria ou atualiza uma referência externa da carta (card_external_reference).
+ * Idempotente via ON CONFLICT (card_id, asset_source_id) DO UPDATE — uma
+ * reexecução nunca duplica registros. Retorna o registro persistido.
+ */
+export async function upsertCardExternalReference(
+  supabase: any,
+  payload: {
+    card_id: string;
+    asset_source_id: string;
+    external_card_id: string;
+    external_set_id: string;
+    source_number: string;
+    source_url: string;
+    image_source_url: string;
+    metadata: any;
+    is_active: boolean;
+  },
+) {
+  const record = {
+    ...payload,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("card_external_reference")
+    .upsert(record, {
+      onConflict: "card_id,asset_source_id",
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(
+      "UPSERT ERROR:",
+      JSON.stringify(error, null, 2),
+    );
+    throw new Error(
+      `CARD_EXTERNAL_REFERENCE_UPSERT_FAILED: ${error.message}`,
+    );
+  }
+
+  return data;
+}
