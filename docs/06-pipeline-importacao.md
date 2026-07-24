@@ -216,12 +216,15 @@ Roteiro vigente:
 | B2.0 | Ambiente (VS Code, Node.js, Supabase CLI, projeto local vinculado ao remoto) | ✅ Concluído |
 | B2.1 | Primeira Edge Function (`import-card-assets`, esqueleto + resposta estática) | ✅ Concluído |
 | B2.2 | Deploy e Teste (primeira publicação real + invocação remota autenticada) | ✅ Concluído |
-| B2.3 | Integração com Banco (consulta a `asset_import_run` por `run_code`) | 🟪 Em andamento — bug de permissão encontrado e corrigido; teste ainda não concluído (ver seção do sprint, abaixo) |
-| B2.4 | Integração com TCGdex | 🟪 Não iniciado |
-| B2.5 | Download | 🟪 Não iniciado |
-| B2.6 | Storage | 🟪 Não iniciado |
-| B2.7 | Card Asset (inclui `card_external_reference` e tratamento de falha) | 🟪 Não iniciado |
-| B2.8 | Carga `880` (inclui processamento em lote e execução de `card_set` completo) | 🟪 Não iniciado |
+| B2.3 | Consulta de Execução (`asset_import_run` por `run_code`) | ✅ Concluído |
+| B2.4 | Descoberta das Cartas (`card_set` + listagem de `card` da execução) | ✅ Concluído |
+| B2.5 | Integração com TCGdex | 🟪 Não iniciado |
+| B2.6 | Download | 🟪 Não iniciado |
+| B2.7 | Upload Storage | 🟪 Não iniciado |
+| B2.8 | Criar `card_asset` (inclui `card_external_reference` e tratamento de falha) | 🟪 Não iniciado |
+| B2.9 | Carga `880` (orquestração final, processamento em lote e execução de `card_set` completo) | 🟪 Não iniciado |
+
+**Nota sobre a granularidade deste roteiro, a partir da revisão `0.11`**: a partir do Sprint B2.3, o time passou a fechar cada sprint com um **Diário Técnico** (Objetivo/Critério de Aceite/Resultado/Pendências Descobertas — convenção formalizada nesta revisão, ver "Sprint B2.3", abaixo) e a ajustar o escopo dos sprints seguintes com base no que realmente foi encontrado durante o desenvolvimento (ex.: "Ler `card_set`" e "Listar cartas" foram fundidos em um único `B2.4`, por decisão explícita registrada na própria seção do sprint). Este roteiro é mantido como visão consolidada aproximada; o **Diário Técnico de cada sprint é a fonte de verdade mais granular** sobre o que foi de fato decidido e executado.
 
 ## Sprint B2.0 — Preparar o ambiente local (CONFIRMADO CONCLUÍDO)
 
@@ -411,9 +414,154 @@ Uso de `ctx.supabaseAdmin` (não `ctx.supabase`) justificado explicitamente: a f
 
 **Segunda tentativa — HTTP 404, causada por um erro de digitação real** (`"IRUN-20260719-..."` em vez de `"RUN-20260719-..."`) — comportamento correto: a função não encontrou a execução e respondeu `IMPORT_RUN_NOT_FOUND`, confirmando que esse caminho de erro funciona como projetado.
 
-**Terceira tentativa, após aparente correção do texto — HTTP 404 novamente, causa ainda NÃO identificada ao final desta revisão.** Visualmente o `run_code` enviado parece idêntico ao armazenado, mas o resultado continua sendo "não encontrado". Uma consulta de diagnóstico foi preparada (comparando `run_code`, `length(run_code)` e um booleano `exact_match` contra o valor esperado) para descartar diferenças invisíveis (espaço/caractere oculto) — **ainda não executada nem reportada nesta revisão**. **Status real, sem ambiguidade**: o Sprint B2.3 permanece **em andamento, não concluído** — o critério de aceite ("a função consegue localizar uma execução pelo `run_code`") ainda não foi atingido; o que está confirmado até aqui é o deploy do código, a criação de um `asset_import_run` real, e a correção do bug de permissão.
+**Terceira tentativa, após aparente correção do texto — HTTP 404 novamente; causa identificada e resolvida nesta revisão.** Em vez de adivinhar, o corpo real do erro foi extraído diretamente do PowerShell (o `Invoke-RestMethod` esconde o corpo JSON de respostas de erro por padrão; foi necessário um bloco `try/catch` lendo `$_.Exception.Response`). Uma consulta de diagnóstico comparando `run_code`, `length(run_code)` e um booleano `exact_match` revelou a causa exata: **o `run_code` armazenado no banco tem 21 caracteres; o valor que estava sendo enviado na chamada tinha 22** — um dígito `0` a mais na sequência final, introduzido ao retranscrever manualmente o valor em uma chamada anterior. Corrigido o valor enviado (removendo o dígito extra, restaurando o formato de 8 dígitos sequenciais desenhado na Query `220`) e repetida a mesma chamada: **sucesso confirmado** — resposta completa com `run` preenchido corretamente.
 
-**Prévia (não confirmada) da evolução dos próximos sprints**, compartilhada pela sessão pareada como expectativa, não como uma nova versão oficial do roteiro consolidado (ver tabela "Roteiro vigente", acima, que permanece a referência formal até ser explicitamente atualizada): B2.3 Ler `asset_import_run` → B2.4 Ler `card_set` → B2.5 Listar cartas → B2.6 Consultar TCGdex → B2.7 Baixar imagem → B2.8 Upload Storage → B2.9 Criar `card_asset`. Esta prévia já diverge da tabela consolidada da revisão `0.9` (que tinha "Integração com TCGdex" em `B2.4` e terminava em `B2.8` com a Carga `880`) — registrado aqui por transparência, no mesmo espírito da comparação de roteiro já feita antes, mas **sem promovê-la a roteiro oficial** até ser reconfirmada de forma consolidada, para não repetir o padrão que já gerou o incidente de confiança da revisão `0.49` em `05-modelo-de-dados.md`.
+**Sprint B2.3 — CONFIRMADO CONCLUÍDO.** *"Acabamos de concluir a primeira integração completa entre uma Edge Function e o nosso banco de dados. Esse momento é tão importante quanto foi a criação da primeira migration."* Confirmado: autenticação funcionando; função publicada; `ctx.supabaseAdmin` funcionando (respeitando GRANTs, como corrigido acima); consulta ao PostgreSQL funcionando; `run_code` validado como uma interface pública sólida para o pipeline.
+
+**Nova convenção de documentação, formalizada nesta revisão: o "Diário Técnico".** Fabrício propôs, e a partir desta revisão passa a ser o padrão oficial para cada sprint deste roteiro: ao final de cada sprint, registrar quatro itens — **Objetivo**, **Critério de Aceite**, **Resultado**, **Pendências Descobertas**. *"Será um diário técnico do Project Mimikyu. Em um projeto que vai durar meses e terá dezenas de migrations e Edge Functions, esse histórico vai facilitar muito retomadas, auditorias e futuras evoluções."* Aplicado retroativamente a este sprint:
+
+> **Diário Técnico — Sprint B2.3 — Consulta de Execução**
+> **Objetivo**: permitir que a Edge Function `import-card-assets` receba um `run_code` e localize a execução correspondente em `asset_import_run`.
+> **Critério de aceite**: a função deve retornar com sucesso o registro correspondente ao `run_code` informado.
+> **Resultado**: ✅ Concluído. A Edge Function recebe requisições autenticadas, valida o payload, consulta `asset_import_run` e retorna a execução corretamente.
+> **Pendências descobertas**: (1) falta uma migration dedicada aos `GRANT`s necessários às Edge Functions — sugestão registrada: `999 - Grant Edge Functions` (refinamento do número citado na revisão `0.10`, que mencionava `998` apenas como exemplo ilustrativo; **nenhuma das duas foi escrita como migration formal ainda**); (2) padronizar a execução de testes (ideia registrada para o futuro: coleção Postman/Insomnia/Bruno, evitando comandos longos no PowerShell); (3) documentar oficialmente que a interface pública do pipeline usa `run_code`, não UUID — feito nesta própria seção.
+
+## Sprint B2.4 — Descoberta das Cartas (CONFIRMADO CONCLUÍDO)
+
+**Mudança de escopo em relação ao planejamento original, decidida antes de escrever qualquer código**: em vez de uma sprint isolada apenas para ler `card_set` (como estava no roteiro anterior), o escopo foi ampliado para já incluir a listagem das cartas da execução — *"Essa mudança elimina uma sprint inteira, porque a leitura do `card_set` sozinha tem pouco valor prático. O objetivo real da função é descobrir quais cartas precisam ser processadas."* Fluxo final: `run_code` → `asset_import_run` → `card_set` → listar `card` (ordenadas por `collector_order`) — ainda sem nenhum download de imagem.
+
+**Refatoração estrutural proposta, mas não aplicada de fato nesta revisão** — registrado por transparência: antes de adicionar a consulta de cartas, foi proposta uma reorganização (`index.ts` como ponto de entrada + `services/database.ts` + `types.ts` + `config.ts`), para evitar que toda a lógica continuasse crescendo dentro de um único arquivo — *"Essa será a única refatoração estrutural antes de começarmos a integrar com a API externa."* Fabrício aprovou ("Siga."), mas o código efetivamente publicado e confirmado nesta revisão (abaixo, verbatim) **permanece em um único `index.ts`**, sem a separação em módulos proposta — a refatoração não chegou a ser aplicada nesta revisão, apesar da intenção declarada. Fica como pendência real, não uma decisão revertida.
+
+Antes de alterar o código, a estrutura real de `card_set`/`card` foi confirmada por leitura (`information_schema.columns` + `pg_constraint`, mesmo padrão de cautela já usado no Sprint B2.3) — confirmando `card.card_set_id → card_set.id` e os campos de ordenação `collector_number`/`collector_order`. `GRANT SELECT ON TABLE public.card_set, public.card TO service_role;` aplicado ad hoc (mesma pendência de migration formal registrada no Sprint B2.3).
+
+**Código real, publicado e confirmado via deploy** (`npx supabase functions deploy import-card-assets`, mesma saída de sucesso já vista nos sprints anteriores):
+
+```ts
+// supabase/functions/import-card-assets/index.ts
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { withSupabase } from "@supabase/server";
+
+type RequestBody = {
+  run_code?: string;
+};
+
+export default {
+  fetch: withSupabase(
+    { auth: ["secret"] },
+    async (req, ctx) => {
+      if (req.method !== "POST") {
+        return Response.json(
+          { success: false, error: "METHOD_NOT_ALLOWED" },
+          { status: 405, headers: { Allow: "POST" } },
+        );
+      }
+
+      let body: RequestBody;
+      try {
+        body = await req.json();
+      } catch {
+        return Response.json(
+          { success: false, error: "INVALID_JSON" },
+          { status: 400 },
+        );
+      }
+
+      const runCode = body.run_code?.trim();
+
+      if (!runCode) {
+        return Response.json(
+          { success: false, error: "RUN_CODE_REQUIRED" },
+          { status: 400 },
+        );
+      }
+
+      const { data: run, error: runError } = await ctx.supabaseAdmin
+        .from("asset_import_run")
+        .select("*")
+        .eq("run_code", runCode)
+        .maybeSingle();
+
+      if (runError) {
+        console.error("Failed to read asset_import_run:", runError);
+        return Response.json(
+          { success: false, error: "IMPORT_RUN_QUERY_FAILED" },
+          { status: 500 },
+        );
+      }
+
+      if (!run) {
+        return Response.json(
+          { success: false, error: "IMPORT_RUN_NOT_FOUND", run_code: runCode },
+          { status: 404 },
+        );
+      }
+
+      const { data: cardSet, error: cardSetError } = await ctx.supabaseAdmin
+        .from("card_set")
+        .select(`
+          id, expansion_id, code, name, set_type,
+          release_order, release_date, base_set_size, total_set_size
+        `)
+        .eq("id", run.card_set_id)
+        .maybeSingle();
+
+      if (cardSetError) {
+        console.error("Failed to read card_set:", cardSetError);
+        return Response.json(
+          { success: false, error: "CARD_SET_QUERY_FAILED" },
+          { status: 500 },
+        );
+      }
+
+      if (!cardSet) {
+        return Response.json(
+          { success: false, error: "CARD_SET_NOT_FOUND", card_set_id: run.card_set_id },
+          { status: 404 },
+        );
+      }
+
+      const { data: cards, error: cardsError } = await ctx.supabaseAdmin
+        .from("card")
+        .select(`
+          id, card_set_id, rarity_id, category_id,
+          collector_number, collector_total, collector_order, name
+        `)
+        .eq("card_set_id", run.card_set_id)
+        .order("collector_order", { ascending: true });
+
+      if (cardsError) {
+        console.error("Failed to read cards:", cardsError);
+        return Response.json(
+          { success: false, error: "CARDS_QUERY_FAILED" },
+          { status: 500 },
+        );
+      }
+
+      return Response.json({
+        success: true,
+        function: "import-card-assets",
+        version: "1.2.0",
+        run,
+        card_set: cardSet,
+        card_count: cards.length,
+        cards,
+      });
+    },
+  ),
+};
+```
+
+**Teste real, confirmado com sucesso**, usando o mesmo `run_code` do Sprint B2.3: retornou `success: true`, `version: "1.2.0"`, `card_set` real (`code: "ME0"`, `name: "Black Star Promos"`, `set_type: "PROMO"`, `release_date: "2020-05-20"`, `base_set_size: 88` — dados reais do catálogo, primeira vez que `card_set` é lido por uma Edge Function) e **`card_count: 0`**. Explicitamente confirmado que isso **não é um erro**: o `card_set` `ME0` usado no teste ainda não possui nenhuma carta cadastrada em `card` — a função percorreu corretamente todo o fluxo (`run_code` → `asset_import_run` → `card_set` → `card` → 0 cartas encontradas) sem falhar.
+
+> **Diário Técnico — Sprint B2.4 — Descoberta das Cartas**
+> **Objetivo**: permitir que a Edge Function descubra quais cartas pertencem ao `card_set` da execução.
+> **Critério de aceite**: receber execução, `card_set` e lista de cartas.
+> **Resultado**: ✅ Concluído. A função agora retorna execução, `card_set`, quantidade de cartas e lista ordenada.
+> **Pendências descobertas**: nenhuma — comportamento exatamente o esperado.
+
+## Sprint B2.5 — Integração com TCGdex (não iniciado)
+
+*"Estamos chegando na parte mais interessante. Até agora tudo aconteceu dentro do nosso banco. Agora vamos sair dele pela primeira vez."* Fluxo planejado: `run` → `card_set` → `cards` → **TCGdex**. Esta é a primeira sprint que efetivamente inicia o "Pipeline Automático de Imagens" propriamente dito (busca em fonte externa). Nenhum código, deploy ou teste ainda — apenas o objetivo foi anunciado; a sessão pareada sinalizou que, antes de baixar qualquer imagem, "faremos algo muito importante" primeiro, sem detalhar o quê nesta revisão.
 
 ---
 
