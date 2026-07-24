@@ -92,10 +92,27 @@ Histórico:
   incluir `imported`/`ignored`/`total`. Bloqueio real encontrado e corrigido
   no caminho: GRANT ausente em `card_external_reference` para `service_role`
   (Query 253) — ver docs/06-pipeline-importacao.md, "Sprint B3.15".
+- v2.2.0 (Sprint B3.18, CONFIRMADO DEPLOYADO — execução ainda NÃO confirmada,
+  bloqueada por um terceiro caso real do mesmo gap de GRANT, desta vez em
+  `language`): Incremento 2 (Download de Imagens), teste controlado com uma
+  única carta. Mantém a sincronização completa de `card_external_reference`
+  (herdada da v2.1.0) e, além disso, processa a primeira carta retornada pela
+  TCGdex (`set.cards[0]`): baixa a imagem de alta resolução
+  (`${tcgCard.image}/high.webp`), calcula o checksum `SHA-256`, envia ao
+  bucket físico do Storage (resolvido via `storage_bucket.code`, catálogo
+  interno confirmado no Sprint B3.17/B3.18 — não é o bucket físico em si) e
+  cria/atualiza o registro correspondente em `card_asset`
+  (`upsertCardAsset`, chave natural `card_id`+`asset_type_id`+`language_id`+
+  `storage_bucket_id`). Resposta amplia para `card_set`/`external_references`/
+  `controlled_test`. Deploy confirmado por saída real de terminal; a
+  invocação real retornou HTTP 500 com `LANGUAGE_QUERY_FAILED` — mesmo padrão
+  de GRANT ausente para `service_role` já visto nas Queries 250/253, agora em
+  `language`; correção proposta, ainda NÃO confirmada executada nesta
+  revisão. Ver docs/06-pipeline-importacao.md, "Sprint B3.18".
 
-Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6" e "Sprint B3.15",
-para o contexto completo, o roteiro de sprints e o status real de cada etapa
-(o que foi de fato confirmado vs. o que ainda está planejado).
+Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15" e
+"Sprint B3.18", para o contexto completo, o roteiro de sprints e o status real
+de cada etapa (o que foi de fato confirmado vs. o que ainda está planejado).
 
 Convenções permanentes de Edge Functions do Project Mimikyu (ver docs/06):
 1. Nunca criar arquivos de Edge Function "na mão" — sempre via
@@ -130,6 +147,10 @@ import {
   findCardSetExternalReference,
   listCardsMap,
   upsertCardExternalReference,
+  findLanguageByCode,
+  findCardAssetTypeByCode,
+  findStorageBucketByCode,
+  upsertCardAsset,
 } from "./services/database.ts";
 import { TcgdexClient } from "./services/tcgdex.ts";
 
@@ -141,6 +162,22 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
+
+/**
+ * Calcula o checksum SHA-256 do arquivo baixado.
+ */
+async function calculateSha256(
+  arrayBuffer: ArrayBuffer,
+): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest(
+    "SHA-256",
+    arrayBuffer,
+  );
+
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -241,9 +278,11 @@ Deno.serve(async (req) => {
       run.card_set_id,
     );
 
-    let processed = 0;
-    let ignored = 0;
+    let importedReferences = 0;
+    let ignoredReferences = 0;
 
+    // Sincronização completa de card_external_reference (Incremento 1,
+    // CONFIRMADO CONCLUÍDO no Sprint B3.15 — mantida idêntica nesta versão).
     for (const tcgCard of set.cards) {
       const cardId = cards.get(
         tcgCard.localId,
@@ -253,7 +292,7 @@ Deno.serve(async (req) => {
         console.warn(
           `Carta ${tcgCard.localId} não encontrada no catálogo.`,
         );
-        ignored++;
+        ignoredReferences++;
         continue;
       }
 
@@ -272,18 +311,171 @@ Deno.serve(async (req) => {
           is_active: true,
         },
       );
-      processed++;
+      importedReferences++;
     }
+
+    // Sprint B3.18 — TESTE CONTROLADO do Incremento 2 (Download de Imagens):
+    // processa somente a primeira carta retornada pela coleção, não as 188.
+    const tcgCard = set.cards[0];
+
+    if (!tcgCard) {
+      throw new Error("TCGDEX_SET_HAS_NO_CARDS");
+    }
+
+    const cardId = cards.get(tcgCard.localId);
+
+    if (!cardId) {
+      throw new Error(
+        `CARD_NOT_FOUND_FOR_IMAGE_IMPORT: ${tcgCard.localId}`,
+      );
+    }
+
+    if (!tcgCard.image) {
+      throw new Error(
+        `TCGDEX_IMAGE_NOT_AVAILABLE: ${tcgCard.id}`,
+      );
+    }
+
+    const language = await findLanguageByCode(
+      supabase,
+      "en",
+    );
+
+    if (!language) {
+      throw new Error("LANGUAGE_NOT_FOUND: en");
+    }
+
+    const assetType = await findCardAssetTypeByCode(
+      supabase,
+      "CARD_FRONT",
+    );
+
+    if (!assetType) {
+      throw new Error(
+        "CARD_ASSET_TYPE_NOT_FOUND: CARD_FRONT",
+      );
+    }
+
+    const storageBucket = await findStorageBucketByCode(
+      supabase,
+      "card-front",
+    );
+
+    if (!storageBucket) {
+      throw new Error(
+        "STORAGE_BUCKET_NOT_FOUND: card-front",
+      );
+    }
+
+    // A URL retornada pela TCGdex é uma URL-base; o sufixo /high.webp
+    // seleciona a imagem em alta resolução no formato WebP.
+    const imageSourceUrl = `${tcgCard.image}/high.webp`;
+    const imageResponse = await fetch(imageSourceUrl);
+
+    if (!imageResponse.ok) {
+      throw new Error(
+        `IMAGE_DOWNLOAD_FAILED: ${imageResponse.status} ${imageResponse.statusText}`,
+      );
+    }
+
+    const imageBuffer = await imageResponse.arrayBuffer();
+
+    if (imageBuffer.byteLength === 0) {
+      throw new Error("IMAGE_DOWNLOAD_EMPTY");
+    }
+
+    const mimeType =
+      imageResponse.headers.get("content-type")
+        ?.split(";")[0]
+        ?.trim() || "image/webp";
+    const fileExtension = "webp";
+    const storagePath =
+      `${cardSet.code.toLowerCase()}/${tcgCard.localId}.${fileExtension}`;
+    const checksumSha256 = await calculateSha256(imageBuffer);
+
+    const { error: uploadError } = await supabase.storage
+      .from(storageBucket.code)
+      .upload(
+        storagePath,
+        imageBuffer,
+        {
+          contentType: mimeType,
+          upsert: true,
+          cacheControl: "3600",
+        },
+      );
+
+    if (uploadError) {
+      console.error(
+        "STORAGE UPLOAD ERROR:",
+        JSON.stringify(uploadError, null, 2),
+      );
+      throw new Error(
+        `STORAGE_UPLOAD_FAILED: ${uploadError.message}`,
+      );
+    }
+
+    const cardAsset = await upsertCardAsset(
+      supabase,
+      {
+        card_id: cardId,
+        asset_type_id: assetType.id,
+        source_code: "TCGDEX",
+        source_reference: tcgCard.id,
+        storage_path: storagePath,
+        external_url: null,
+        mime_type: mimeType,
+        file_extension: fileExtension,
+        file_size_bytes: imageBuffer.byteLength,
+        width_pixels: null,
+        height_pixels: null,
+        checksum_sha256: checksumSha256,
+        is_primary: true,
+        asset_order: 1,
+        is_active: true,
+        language_id: language.id,
+        storage_bucket_id: storageBucket.id,
+      },
+    );
+
+    const { data: publicUrlData } = supabase.storage
+      .from(storageBucket.code)
+      .getPublicUrl(storagePath);
 
     return Response.json({
       success: true,
-      version: "2.1.0",
-      run,
-      card_set: cardSet,
-      external_reference: externalReference,
-      imported: processed,
-      ignored,
-      total: set.cards.length,
+      version: "2.2.0",
+      run: {
+        id: run.id,
+        run_code: run.run_code,
+      },
+      card_set: {
+        id: cardSet.id,
+        code: cardSet.code,
+        name: cardSet.name,
+      },
+      external_references: {
+        imported: importedReferences,
+        ignored: ignoredReferences,
+        total: set.cards.length,
+      },
+      controlled_test: {
+        card_id: cardId,
+        external_card_id: tcgCard.id,
+        collector_number: tcgCard.localId,
+        name: tcgCard.name,
+        language: language.code,
+        asset_type: assetType.code,
+        bucket: storageBucket.code,
+        source_url: imageSourceUrl,
+        storage_path: storagePath,
+        public_url: publicUrlData.publicUrl,
+        mime_type: mimeType,
+        file_extension: fileExtension,
+        file_size_bytes: imageBuffer.byteLength,
+        checksum_sha256: checksumSha256,
+        card_asset_id: cardAsset.id,
+      },
     });
   } catch (error) {
     console.error(error);

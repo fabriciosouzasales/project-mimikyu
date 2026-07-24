@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.36 |
+| **Versão** | 0.38 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -111,7 +111,9 @@ Os seguintes pontos ainda não foram definidos e serão tratados em ciclos futur
 - ~~novo, Sprint B3.5: não confirmado se o Dashboard do Supabase estava servindo a versão mais recente do `index.ts` durante os testes desta revisão~~ — superado pelo Sprint B3.6 (arquitetura mudou por completo; a dúvida específica não se aplica mais).
 - **novo, Sprint B3.6**: uma resposta final `success: true` com `tcgdex_set` populado por uma chamada real de ponta a ponta ainda não foi explicitamente confirmada — todos os bloqueios conhecidos (401, GRANT ausente) foram eliminados, mas o teste final decisivo do Bloco B ainda está pendente.
 - **novo, Sprint B3.6, reforçado no Sprint B3.15**: o mesmo gap de `GRANT` ausente para `service_role`, encontrado em `card_set_external_reference` (Query `250`), foi confirmado uma segunda vez em `card_external_reference` (Query `253`, Sprint B3.15) — auditoria completa em todas as tabelas do schema `public` continua não executada; Fabrício propôs consolidar em um único script futuro (`permissions.sql` ou equivalente), adiado para depois do Incremento 2.
-- **novo, Sprint B3.16**: estrutura real de `storage_bucket` ainda não confirmada — uma consulta assumiu a coluna `bucket_name`, que não existe (`ERROR: 42703`); nome real da coluna a ser identificado via `information_schema`, sem adivinhar, antes de prosseguir com o Incremento 2.
+- ~~novo, Sprint B3.16: estrutura real de `storage_bucket` ainda não confirmada~~ — **resolvida no Sprint B3.17**: estrutura confirmada (catálogo interno de metadados, não o bucket físico); três registros mapeados 1:1 a `card_asset_type`; bucket físico `card-front` criado.
+- **novo, Sprint B3.18, crítico**: terceiro caso real confirmado do mesmo gap de GRANT ausente para `service_role` (depois de `card_set_external_reference`/Query `250` e `card_external_reference`/Query `253`), desta vez em `language` — correção (`GRANT SELECT ON TABLE public.language TO service_role`) proposta, mas **ainda NÃO confirmada executada**. Reforça a prioridade da auditoria consolidada de GRANTs já adiada no Sprint B3.15 (`permissions.sql` ou equivalente).
+- **novo, Sprint B3.18**: execução real do teste controlado do Incremento 2 (download/upload/`card_asset` da carta `ME1-001`) ainda não confirmada — bloqueada pelo item acima; resultado esperado (imagem visível no bucket `card-front`, registro em `card_asset`) ainda não validado.
 - ~~novo, Sprint B3.7: um novo `asset_import_run` para `ME1` (ou outra coleção suportada) ainda não foi criado~~ — **resolvido no Sprint B3.8**: `asset_import_run` real criado, Edge Function reinvocada, resposta real `success: true` confirmada com dados reais do Set `me01` da TCGdex.
 - **novo, Sprint B3.8**: Stored Procedure de orquestração (`start_asset_import`/`finish_asset_import`/`fail_asset_import`) explicitamente adiada para depois que a persistência de cartas estiver funcional (Fase 2 do roteiro proposto nesta revisão).
 - **novo, Sprint B3.8**: migração de `run_type`/`status`/`execution_context` (`text` + `CHECK`) para tipos `ENUM` nativos do PostgreSQL, proposta e explicitamente adiada até o fluxo de importação estar funcional.
@@ -1742,6 +1744,36 @@ Execução ainda **bloqueada por um problema real de ambiente local**, não da E
 > **Resultado**: 🟨 Parcial. Fluxo ✅ definido e aprovado por Fabrício. `card_asset` ✅ estrutura parcialmente confirmada. `card_asset_type` ✅ confirmada (`CARD_FRONT` escolhido). 🟨 `storage_bucket` ainda NÃO confirmada — nenhum código escrito nesta revisão.
 > **Pendências descobertas**: (1) confirmar a estrutura real de `storage_bucket` (uma consulta assumindo a coluna `bucket_name` falhou — `column "bucket_name" does not exist` — nome real ainda não identificado); (2) só então implementar e testar o download de uma única carta; (3) escalar para as 188 cartas da `ME1` depois do teste controlado validado.
 
+## Sprint B3.17 — Estrutura real de `storage_bucket` confirmada: catálogo interno de metadados, não o bucket físico; três buckets mapeados (`card-front`/`card-back`/`artwork`); primeiro bucket físico criado no Storage
+
+**Estrutura real confirmada** (`information_schema.columns`, sem adivinhar): `id`, `code`, `name`, `description`, `storage_provider`, `bucket_order`, `is_public`, `is_active`, `created_at`, `updated_at`.
+
+**Descoberta arquitetural real**: `storage_bucket` não representa o bucket físico do Supabase Storage — é um catálogo interno. O campo `code` é o identificador usado para localizar o bucket físico correspondente. Três registros reais confirmados, um por `card_asset_type`: `card-front` (Card Front), `card-back` (Card Back), `artwork` (Artwork), todos `storage_provider = SUPABASE`, `is_public = true`, `is_active = true`.
+
+**Verificação real no Supabase Dashboard confirmou que os buckets físicos ainda não existiam** — o catálogo (`storage_bucket`) e o Storage físico são independentes; um não implica o outro. Decisão: criar os buckets físicos um de cada vez, começando apenas por `card-front`, necessário para o teste controlado. Bucket `card-front` **criado e confirmado** (público, sem limite de tamanho de arquivo definido, qualquer MIME type permitido).
+
+> **Diário Técnico — Sprint B3.17 — `storage_bucket` confirmada; primeiro bucket físico criado**
+> **Objetivo**: confirmar a estrutura real de `storage_bucket`; criar o bucket físico necessário para o teste controlado.
+> **Critério de aceite**: estrutura confirmada sem adivinhar; bucket `card-front` criado e visível no Supabase Storage.
+> **Resultado**: 🟩 Concluído. Estrutura confirmada; mapeamento `card_asset_type`↔`storage_bucket` 1:1 confirmado; bucket físico `card-front` criado.
+> **Pendências descobertas**: (1) criar os buckets `card-back`/`artwork` quando forem necessários (não bloqueiam o teste controlado); (2) confirmar a estrutura completa de `card_asset` antes de escrever o código de download.
+
+## Sprint B3.18 — Estrutura de `card_asset` confirmada (sem vínculo direto com `card_external_reference`); código do Incremento 2 (teste controlado com uma carta) escrito e DEPLOYADO — execução bloqueada por um terceiro caso real do mesmo gap de GRANT
+
+**Estrutura real de `card_asset` confirmada por completo** (`information_schema.columns`): `id`, `card_id`, `asset_type_id`, `source_code`, `source_reference`, `storage_path`, `external_url`, `mime_type`, `file_extension`, `file_size_bytes`, `width_pixels`, `height_pixels`, `checksum_sha256`, `is_primary`, `asset_order`, `is_active`, `language_id`, `storage_bucket_id`, `created_at`, `updated_at`.
+
+**Descoberta arquitetural real, importante**: `card_asset` **não tem** uma coluna `card_external_reference_id`. A relação final do ativo é `card_id`+`asset_type_id`+`language_id`+`storage_bucket_id` — `card_external_reference` é apenas a **fonte de importação** (de onde vêm `image_source_url`/`external_card_id`), não participa do relacionamento final. Fluxo corrigido: `card_external_reference.image_source_url` → download → Storage → `card_asset` (sem FK para `card_external_reference`).
+
+**Código do Incremento 2 escrito e DEPLOYADO, CONFIRMADO por saída real de terminal** (`index.ts` v2.2.0 + `database.ts`): novas funções `findLanguageByCode`, `findCardAssetTypeByCode`, `findStorageBucketByCode` e `upsertCardAsset` (idempotente via chave natural `card_id`+`asset_type_id`+`language_id`+`storage_bucket_id`, já que nenhuma constraint `UNIQUE` conhecida cobre esse caso). `index.ts` processa a sincronização completa de `card_external_reference` (Incremento 1, inalterado) e, como **teste controlado**, baixa e persiste a imagem apenas da primeira carta da coleção (`set.cards[0]`, `ME1-001`/Bulbasaur): download da imagem em alta resolução (`${image}/high.webp`), cálculo de checksum `SHA-256`, upload ao bucket `card-front`, `UPSERT` em `card_asset`. Copiado ao repositório nesta revisão, mesmo princípio de sempre (deploy confirmado é suficiente).
+
+**Execução real FALHOU com HTTP 500**: log da Edge Function revelou `Error: LANGUAGE_QUERY_FAILED` — terceiro caso real confirmado do mesmo gap de GRANT ausente para `service_role`, já visto em `card_set_external_reference` (Query `250`) e `card_external_reference` (Query `253`), desta vez em `language`. Correção proposta (`GRANT SELECT ON TABLE public.language TO service_role`), **ainda NÃO confirmada executada** ao final desta revisão.
+
+> **Diário Técnico — Sprint B3.18 — Incremento 2 deployado; execução bloqueada**
+> **Objetivo**: confirmar estrutura completa de `card_asset`; implementar e deployar o teste controlado do Incremento 2.
+> **Critério de aceite**: estrutura confirmada; código deployado; execução real com o registro de `card_asset` da primeira carta confirmado.
+> **Resultado**: 🟨 Parcial. `card_asset` ✅ estrutura confirmada por completo (sem `card_external_reference_id`). Código ✅ escrito e deployado (`index.ts` v2.2.0). 🟨 Execução real FALHOU — bloqueada pelo terceiro caso do gap de GRANT (`language`).
+> **Pendências descobertas**: (1) confirmar a execução do `GRANT SELECT ON TABLE public.language TO service_role`, proposto mas não confirmado; (2) reexecutar o teste controlado e validar o resultado esperado (`card_asset` criado, imagem visível no bucket `card-front`); (3) só então escalar para as 188 cartas da `ME1`; (4) a auditoria consolidada de GRANTs (adiada no Sprint B3.15) ganha um terceiro caso real, reforçando a prioridade de resolvê-la logo após o Incremento 2.
+
 ---
 
 # Revision History
@@ -1784,3 +1816,5 @@ Execução ainda **bloqueada por um problema real de ambiente local**, não da E
 | 0.34 | **Sprint B3.14 — Resolvido: banco é o Supabase Cloud, não local (elimina necessidade de Docker/WSL2 para esta função). Marco real: deploy do Incremento 1 CONFIRMADO por saída real de terminal (`login`/`link`/`deploy` bem-sucedidos).** `index.ts` (v2.1.0) e `database.ts` (`listCardsMap`/`upsertCardExternalReference`) copiados ao repositório. Execução de ponta a ponta ainda NÃO confirmada — bloqueada por verificação pendente do secret `SUPABASE_SERVICE_ROLE_KEY` na Edge Function. |
 | 0.35 | **Sprint B3.15 — 🎉 MARCO REAL: Incremento 1 CONFIRMADO CONCLUÍDO — `card_external_reference` com 188/188 registros para a `ME1`.** Causa raiz de um bloqueio real diagnosticada (GRANT ausente em `card_external_reference` para `service_role`, mesmo gap já visto em `card_set_external_reference`) e corrigida pela migration `253`. Logging de erro corrigido em `database.ts` (expõe a causa real do PostgreSQL em vez de um erro genérico). Nova auditoria de GRANTs proposta por Fabrício, deliberadamente adiada. |
 | 0.36 | **Sprint B3.16 — Incremento 2 (Download de Imagens) iniciado: fluxo definido (TCGdex → download → Storage → `card_asset`), teste controlado com uma única carta aprovado por Fabrício antes de escalar.** Estrutura real de `card_asset` parcialmente confirmada; `card_asset_type` confirmada (`CARD_FRONT` escolhido), corrigindo uma suposição inicial de nome de tabela (`asset_type`, incorreto). `storage_bucket` ainda NÃO confirmada — nenhum código escrito nesta revisão. |
+| 0.37 | **Sprint B3.17 — Estrutura real de `storage_bucket` confirmada: catálogo interno de metadados (não o bucket físico), mapeado 1:1 a `card_asset_type` (`card-front`/`card-back`/`artwork`).** Bucket físico `card-front` criado e confirmado no Supabase Storage — primeiro bucket físico do projeto. |
+| 0.38 | **Sprint B3.18 — Estrutura completa de `card_asset` confirmada (18 colunas; sem `card_external_reference_id` — a referência externa é apenas fonte de importação, não participa do relacionamento final).** Código do Incremento 2 (teste controlado com uma carta) escrito e **DEPLOYADO, CONFIRMADO** (`index.ts` v2.2.0 + `database.ts`). Execução real FALHOU — terceiro caso confirmado do mesmo gap de GRANT ausente para `service_role` (desta vez em `language`); correção proposta, ainda NÃO confirmada executada. |
