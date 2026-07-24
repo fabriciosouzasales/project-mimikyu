@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.53 |
+| **Versão** | 0.54 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -3270,7 +3270,7 @@ Validação estrutural e de conteúdo completa de `language`, no mesmo padrão d
 
 240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql; ver seção "Card Set External Reference", abaixo)
 241 - Card Set External Reference Triggers (CONFIRMADA EXECUTADA — database/schema/241_card_set_external_reference_triggers.sql)
-910 - Seed Card Set External Reference   (ADIADA, ainda NÃO executada — aguarda descoberta de external_set_id reais via chamada real à TCGdex; número colide com 910 Validate Expansion, mesmo padrão de colisão de numeração entre pastas já registrado para 900/970/975)
+910 - Seed Card Set External Reference   (CONFIRMADA EXECUTADA — PARCIAL — database/seeds/910_seed_card_set_external_reference.sql; ME1/ME2/ME2.5/ME3/ME4 mapeados; ME0 excluído — decisão pendente; ME5 aguarda card_set; número colide com 910 Validate Expansion, mesmo padrão de colisão de numeração entre pastas já registrado para 900/970/975)
 991 - Validate Card Set External Reference (planejada, ainda NÃO executada)
 
 880 - Seed Card Asset                    (bloqueada até o pipeline de importação [Fase 1, Bloco B — Edge Function, ainda não implementada] existir e um piloto controlado ser executado, ver "Roteiro Consolidado", acima)
@@ -3535,6 +3535,8 @@ Validação estrutural e de dados completa: existência da tabela, presença das
 
 **Decisão revisada sobre como popular esta tabela, corrigida dentro do próprio raciocínio desta revisão (auto-correção, não um erro de execução)**: a primeira proposta foi popular a Seed `910` manualmente, com os Sets que sabidamente têm equivalência oficial (`ME1`/`ME2`/`ME2.5`/`ME3`/`ME4`) e deixar `ME0` deliberadamente sem mapeamento, permanente. Antes de escrever essa Seed, a proposta foi revisada: *"Como `ME0` representa as cartas promocionais da expansão Megaevolution, é bem provável que ela tenha sim um mapeamento oficial na TCGdex (um Set promocional específico). O que não devemos fazer é assumir que seja `sv10pt5` sem validar."* Decisão final: **a Query `910` fica adiada** (não descartada como em `card_external_reference` — aqui a expectativa é que a maioria dos Sets, incluindo possivelmente `ME0`, tenha sim uma correspondência real) até que a Edge Function consiga descobrir os `external_set_id` reais consultando a própria TCGdex — a Seed só será escrita depois, com dados confirmados pela API, nunca com suposições. Apenas a Query `240` e a `241` foram executadas nesta revisão — `910` (adiada) e `991` (validação) ainda **não foram executadas**.
 
+**Atualização: Query `910` CONFIRMADA EXECUTADA (parcial) nesta revisão**, depois que os `external_set_id` reais foram descobertos via chamada real à TCGdex (`scripts/discover-tcgdex-sets.ts`, ver `06-pipeline-importacao.md`) — ver seção "Query 910", abaixo, para o detalhamento completo.
+
 ## Decisão de Modelagem
 
 `card_set_external_reference` relaciona `card_set` (interno) a `asset_source` (externo) via `card_set_id`+`asset_source_id`, com o identificador do conjunto na fonte externa (`external_set_id`, obrigatório) e a URL do registro na fonte (`source_url`, opcional). **Deliberadamente não é uma cópia 1:1 de `card_external_reference`** — duas colunas da tabela de cartas foram descartadas por não fazerem sentido no nível de Set: `external_card_id` (óbvio — não existe carta aqui) e, mais relevante, `image_source_url`: o Pipeline Automático de Imagens baixa imagens de **cartas**, não de Sets: o logotipo/símbolo de um Set (já coberto por `card_set.logo_url`/`symbol_url` — não confundir) não faz parte deste pipeline. Incluir `image_source_url` aqui seria copiar estrutura sem copiar significado. Chaves únicas seguem a mesma filosofia de `card_external_reference`: um Set só pode ter uma referência por fonte (`card_set_id`+`asset_source_id`), e um identificador externo só pode apontar para um Set dentro da mesma fonte (`asset_source_id`+`external_set_id`) — mesmo padrão, entidade diferente, não uma generalização única para as duas.
@@ -3669,12 +3671,70 @@ Confirmado executado por Fabrício ("Success. No rows returned"). Arquivo escrit
 > **Resultado**: ✅ Concluído.
 > **Pendências descobertas**: um mapeamento de teste incorreto (`ME0`→`sv10pt5`) foi inserido durante a validação e precisou ser removido — ver "Status", acima, para o episódio completo. Query `910` (Seed) adiada até a Edge Function conseguir descobrir `external_set_id` reais via a própria TCGdex; Query `991` (Validação) ainda não escrita, mas com critérios já decididos: sem mapeamentos duplicados; todo `card_set_external_reference` aponta para `card_set` e `asset_source` válidos; nenhum `card_set` do tipo `REGULAR` ou `SPECIAL` sem mapeamento ativo; `PROMO` pode ficar sem mapeamento.
 
+## Query 910 — Seed Card Set External Reference (CONFIRMADA EXECUTADA — PARCIAL)
+
+Executada depois que os `external_set_id` reais foram descobertos por uma chamada real à TCGdex (`scripts/discover-tcgdex-sets.ts`, execução confirmada — ver `06-pipeline-importacao.md`, Sprint B2.5A/B3). Insere apenas os Sets com correspondência oficial já confirmada (`ME1`–`ME5`); usa `JOIN` (não `LEFT JOIN`) contra `card_set`, portanto um código sem `card_set` correspondente é simplesmente ignorado, sem erro — comportamento que se revelou útil na prática (ver abaixo). Idempotente via `ON CONFLICT (card_set_id, asset_source_id) DO UPDATE`.
+
+```sql
+INSERT INTO public.card_set_external_reference (
+    card_set_id,
+    asset_source_id,
+    external_set_id,
+    source_url
+)
+SELECT
+    cs.id,
+    src.id,
+    m.external_set_id,
+    'https://api.tcgdex.net/v2/en/sets/' || m.external_set_id
+FROM (
+    VALUES
+        ('ME1', 'me01'),
+        ('ME2', 'me02'),
+        ('ME2.5', 'me02.5'),
+        ('ME3', 'me03'),
+        ('ME4', 'me04'),
+        ('ME5', 'me05')
+) AS m(card_set_code, external_set_id)
+JOIN public.card_set cs
+    ON cs.code = m.card_set_code
+JOIN public.asset_source src
+    ON src.code = 'TCGDEX'
+ON CONFLICT (card_set_id, asset_source_id)
+DO UPDATE SET
+    external_set_id = EXCLUDED.external_set_id,
+    source_url = EXCLUDED.source_url,
+    updated_at = NOW();
+```
+
+**`ME0` deliberadamente excluído desta Seed** — reafirmado explicitamente nesta revisão: *"Continuo recomendando não inseri-lo agora. Nós sabemos que existe o Set `mee`, mas ainda não sabemos se ele representa exatamente a coleção interna `ME0`. É uma decisão de domínio, não de tecnologia."* Mesma pendência já registrada em `06-pipeline-importacao.md` (Sprint B2.5A, revisão `0.17`), cross-referenciada com o "escopo `ENERGY`".
+
+**Execução real, confirmada por consulta de validação** (`SELECT cs.code, cser.external_set_id FROM public.card_set_external_reference cser JOIN public.card_set cs ON cs.id = cser.card_set_id ORDER BY cs.release_order`) — resultado real:
+
+| `code` | `external_set_id` |
+|--------|--------------------|
+| `ME1` | `me01` |
+| `ME2` | `me02` |
+| `ME2.5` | `me02.5` |
+| `ME3` | `me03` |
+| `ME4` | `me04` |
+
+**`ME5` não foi inserido — investigado e explicado, não é um bug.** Diagnóstico direto, sem adivinhar: consulta real a `card_set` (`SELECT code, name, release_order FROM public.card_set ORDER BY release_order`) confirmou que a tabela física hoje contém apenas `ME0` ("ME Black Star Promos"), `ME1` ("Megaevolução"), `ME2` ("Fogo Fantasmagórico"), `ME2.5` ("Heróis Excelsos"), `ME3` ("Equilíbrio Perfeito") e `ME4` ("Caos Ascendente") — **`ME5` ainda não existe como `card_set` real no banco**, apenas como dado de planejamento (nomes em inglês aprendidos na revisão `0.16` de `06-pipeline-importacao.md`, nunca confirmado como cadastrado). O `JOIN` da Query `910` simplesmente não encontrou correspondência para `ME5` e seguiu adiante sem erro — comportamento correto, não uma falha da Seed. Reexecutar esta Query (idempotente) depois que `ME5` for cadastrado como `card_set` populará o mapeamento automaticamente, sem alterações no SQL.
+
+Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
+
+> **Diário Técnico — Query 910 — Seed Card Set External Reference**
+> **Objetivo**: popular `card_set_external_reference` com os `external_set_id` reais da TCGdex, descobertos por chamada real à API — nunca por suposição.
+> **Critério de aceite**: `ME1`–`ME4` (e `ME5`, se já cadastrado) com `external_set_id` gravado e confirmado por consulta; `ME0` deliberadamente ausente até a decisão de negócio.
+> **Resultado**: ✅ Concluído (parcial, por design). `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` confirmados via consulta real. `ME5` ausente porque `card_set.code = 'ME5'` ainda não existe no banco — não é uma falha, confirmado por investigação direta.
+> **Pendências descobertas**: (1) decisão de negócio sobre `ME0`↔`mee` continua aberta, não resolvida aqui; (2) `card_set.code = 'ME5'` ainda não cadastrado — quando for, reexecutar esta Query (idempotente) resolve automaticamente; (3) Query `991` (Validação) continua não escrita.
+
 ## Sequência
 
 ```text
 240 - Create Card Set External Reference (CONFIRMADA EXECUTADA — database/schema/240_create_card_set_external_reference.sql)
 241 - Card Set External Reference Triggers (CONFIRMADA EXECUTADA — database/schema/241_card_set_external_reference_triggers.sql)
-910 - Seed Card Set External Reference   (ADIADA — aguarda descoberta de external_set_id reais via chamada real à TCGdex; não será mais baseada em suposição manual; plano de descoberta via script administrativo `scripts/discover-tcgdex-sets.ts` documentado em `06-pipeline-importacao.md`, ainda não executado)
+910 - Seed Card Set External Reference   (CONFIRMADA EXECUTADA — PARCIAL — database/seeds/910_seed_card_set_external_reference.sql; ME1/ME2/ME2.5/ME3/ME4 mapeados; ME0 deliberadamente excluído — decisão de negócio pendente; ME5 aguarda ser cadastrado como card_set)
 991 - Validate Card Set External Reference (planejada, NÃO executada — critérios já decididos, ver Diário Técnico da Query 241, acima)
 ```
 
@@ -3749,3 +3809,4 @@ Confirmado executado por Fabrício ("Success. No rows returned"). Arquivo escrit
 | 0.51 | **Bloco A reaberto pontualmente: nova entidade `card_set_external_reference` criada (`240` CONFIRMADA EXECUTADA; `241`/`910`/`991` planejadas, ainda não executadas).** Lacuna real identificada durante o Sprint B2.5 de `06-pipeline-importacao.md`: o pipeline precisa saber qual identificador a TCGdex usa para um `card_set` antes de poder consultá-lo, exatamente como `card_external_reference` já resolve para `card` — decisão explícita de Fabrício de manter a consistência do modelo em vez de improvisar o mapeamento dentro da Edge Function. Nova entidade **Card Set External Reference** (seção própria criada, entre "Card External Reference" e "Collection Item"): `id, card_set_id, asset_source_id, external_set_id, source_url, metadata, is_active, created_at, updated_at` — **deliberadamente não é uma cópia 1:1 de `card_external_reference`**: sem `external_card_id` (não se aplica a Set) e sem `image_source_url` (o Pipeline Automático de Imagens baixa imagens de cartas, não de Sets — o logo/símbolo do Set já é coberto por colunas próprias de `card_set`, fora deste pipeline). FK para `card_set` (`ON DELETE CASCADE`) e `asset_source` (`ON DELETE RESTRICT`), unicidade dupla (`card_set_id`+`asset_source_id` e `asset_source_id`+`external_set_id`), RLS habilitado. Apenas três índices nesta primeira versão (`card_set`, `asset_source`, `active`) — triggers de normalização/`updated_at`/proteção de identidade ficam para a Query `241`, ainda não escrita. Seed `910` já decidida como descartada (mesmo racional de `910 - Seed Card External Reference`: sem correspondências reais ainda, registros virão da própria importação) — número citado colide com `910 - Validate Expansion`, mesmo padrão de colisão de numeração entre pastas já registrado para `900`/`970`/`975`, não resolvido unilateralmente. "Bloco A" no "Roteiro Consolidado" atualizado para refletir esta adição pontual pós-conclusão. Arquivo `database/schema/240_create_card_set_external_reference.sql` criado. |
 | 0.52 | **`card_set_external_reference`: Query `241` (triggers) CONFIRMADA EXECUTADA; episódio real de correção — mapeamento de teste `ME0`→`sv10pt5` inserido e removido; Seed `910` adiada (não descartada), aguardando descoberta real via TCGdex em vez de suposição manual.** Ao validar `241`, um registro de teste foi inserido associando `ME0` (convenção interna do Project Mimikyu para promos da expansão Megaevolution) ao Set oficial real `sv10pt5` da TCGdex — identificado como incorreto (`ME0` não existe oficialmente na TCGdex/Pokémon TCG API) e removido via `DELETE`, confirmado. Plano inicial de popular `910` manualmente com `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` (excluindo `ME0` permanentemente) foi revisado antes de qualquer Seed ser escrita: `ME0` provavelmente tem sim um mapeamento oficial na TCGdex (um Set promocional específico), só não deve ser presumido sem validar — decisão final: `910` fica adiada até a Edge Function conseguir descobrir os `external_set_id` reais via chamada real à API; a Seed só será escrita depois, com dados confirmados. Critérios da futura Query `991` (Validação) já decididos: sem mapeamentos duplicados, FKs válidas, todo `card_set` `REGULAR`/`SPECIAL` com mapeamento ativo, `PROMO` pode ficar sem. Arquivo `database/schema/241_card_set_external_reference_triggers.sql` criado. |
 | 0.53 | Cross-referência pontual: o plano para descobrir os `external_set_id` reais da TCGdex (necessário para finalmente escrever a Seed `910`, adiada) passou a ser um script administrativo standalone (`scripts/discover-tcgdex-sets.ts`), não uma nova migration nem uma Edge Function — detalhado em `06-pipeline-importacao.md`, "Sprint B2.5A", não duplicado aqui. Nenhuma alteração de modelo de dados/SQL nesta revisão. |
+| 0.54 | **Query `910` — Seed Card Set External Reference — CONFIRMADA EXECUTADA (parcial), depois que os `external_set_id` reais foram descobertos por chamada real à TCGdex.** `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` mapeados e confirmados via consulta real de validação. `ME0` deliberadamente excluído — decisão de negócio sobre `mee`/"Mega Evolution Energy" continua aberta. `ME5` investigado e explicado (não é falha): `card_set.code = 'ME5'` ainda não existe fisicamente no banco, confirmado por consulta direta; a Query (idempotente, `ON CONFLICT DO UPDATE`) simplesmente não encontrou correspondência e seguirá funcionando quando `ME5` for cadastrado, sem precisar ser reescrita. Arquivo `database/seeds/910_seed_card_set_external_reference.sql` criado. Sequência (local e consolidada) atualizada de "ADIADA" para "CONFIRMADA EXECUTADA — PARCIAL". |

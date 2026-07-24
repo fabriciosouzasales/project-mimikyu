@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.18 |
+| **Versão** | 0.20 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -100,6 +100,8 @@ Os seguintes pontos ainda não foram definidos e serão tratados em ciclos futur
 - **novo, Sprint B2.5A**: se `ME0` deve ser mapeado ao Set oficial `mee`/"Mega Evolution Energy" da TCGdex (Opção B) ou permanecer uma coleção 100% interna, sem vínculo com a TCGdex (Opção A, recomendada pela sessão pareada) — decisão de negócio que depende do conteúdo real da coleção `ME0`, cross-referenciada com a pendência de longa data "escopo `ENERGY`" já registrada em ciclos anteriores deste projeto; não resolvida unilateralmente.
 - **novo, Sprint B3**: o endpoint `GET /sets/{id}/cards` da TCGdex (usado em `TcgdexClient.getCardsBySet`) foi assumido no código, mas ainda não confirmado por uma chamada real — precisa ser validado antes do deploy de `sync-card-set`;
 - **novo, Sprint B3**: mapeamento entre o roteiro vigente (`B2.5B`–`B2.9`) e a nova arquitetura de duas Edge Functions (`sync-card-set`/`import-card-assets`) — ver `ADR-017-two-function-import-pipeline.md` — ainda não detalhado por Fabrício; tabela "Roteiro vigente" mantida sem reescrita até essa confirmação.
+- **novo, Sprint B3 (continuação)**: se `tcgdex.ts` (classe `TcgdexClient`) será compartilhado entre `import-card-assets` e a futura função `sync-card-set`, ou se a criação de `sync-card-set` como Edge Function própria foi tacitamente adiada — a implementação real segue dentro de `import-card-assets/services/`, divergindo do plano anunciado na mesma revisão; não resolvido unilateralmente.
+- **novo, Sprint B3.1**: `card_set.code = 'ME5'` ainda não foi cadastrado no banco físico — confirmado por consulta real; quando for, a Query `910` (idempotente) deve ser reexecutada para popular seu mapeamento automaticamente.
 
 ---
 
@@ -965,6 +967,235 @@ export class TcgdexClient {
 > **Resultado**: 🟨 Parcial. Decisão de arquitetura tomada, declarada definitiva pela sessão pareada, e documentada nesta revisão e em `ADR-017`. **Nenhuma implementação real ocorreu** — `sync-card-set` ainda não existe como Edge Function real; `tcgdex.ts` (classe `TcgdexClient`) é um rascunho, não deployado.
 > **Pendências descobertas**: (1) endpoint `GET /sets/{id}/cards` assumido no código, sem confirmação de chamada real; (2) mapeamento entre o roteiro `B2.5B`–`B2.9` vigente e a nova arquitetura de duas funções ainda não detalhado por Fabrício; (3) decisão de negócio sobre `ME0`↔`mee` (revisão `0.17`) continua bloqueando a Seed `910`, independentemente desta correção de arquitetura; (4) `database.ts`/`index.ts` completos para a nova arquitetura ainda não entregues.
 
+## Sprint B3 (continuação) — Nova disciplina de trabalho, revisão técnica de `tcgdex.ts`/`index.ts`, discrepância de estrutura sinalizada
+
+**Pipeline de Assets, detalhado nesta revisão**: a segunda função (`import-card-assets`, papel redefinido pela `ADR-017`) segue o fluxo `SELECT card_external_reference WHERE image ainda não existe → download → Storage → card_asset → Fim` — detalha, sem alterar, o que já havia sido registrado na seção "Sprint B3", acima. **Reafirmado outra vez**: nenhuma mudança de banco é necessária — migrations e tabelas continuam válidas; a única mudança é de responsabilidade entre as Edge Functions.
+
+**Discrepância real, sinalizada aqui e NÃO resolvida unilateralmente.** O plano anunciado nesta mesma revisão previa entregar um "conjunto completo": `sync-card-set/index.ts`, `services/database.ts`, `services/tcgdex.ts`, `types.ts` — sugerindo uma nova pasta de função dedicada (`sync-card-set/`), consistente com `ADR-017`. A captura real do VS Code enviada por Fabrício, porém, mostra a implementação de `tcgdex.ts` acontecendo dentro de `supabase/functions/import-card-assets/services/tcgdex.ts` — a estrutura já existente da função `import-card-assets`, **não** uma nova pasta `sync-card-set/`. A sessão pareada revisou essa estrutura e respondeu apenas "Eu manteria exatamente essa estrutura", sem esclarecer se `tcgdex.ts` será compartilhado entre as duas funções (ex. copiado depois para `sync-card-set/`) ou se a criação de `sync-card-set` como função própria (decidida em `ADR-017`) foi tacitamente adiada. Este documento não resolve essa ambiguidade — fica registrada como pendência real para Fabrício confirmar antes do próximo deploy.
+
+**Nova disciplina de trabalho, declarada nesta revisão: "tratar o repositório como software de produção".** A sessão pareada identificou um risco na forma de trabalho corrente — *"Estamos alterando `index.ts`, `database.ts`, `tcgdex.ts` ao mesmo tempo. Isso aumenta muito a chance de inconsistências."* — e propôs um ciclo mais rígido, em vigor a partir daqui: finalizar e compilar/testar **uma camada por vez**, sem tocar nas demais (Sprint 1: apenas `tcgdex.ts`; Sprint 2: apenas `database.ts`; Sprint 3: apenas `index.ts`). Quatro regras adicionais de qualidade declaradas: uma classe por responsabilidade; uma camada por responsabilidade; testes após cada camada; nada de arquivos parcialmente implementados.
+
+**Revisão técnica de `tcgdex.ts`, registrada como "aprovada" pela sessão pareada — ainda não é confirmação de execução real (`deno check`/deploy/teste).** Pontos considerados corretos: separação em uma classe (`TcgdexClient`); o método privado `get<T>()` eliminando duplicação; uso de `fetch()` adequado para Deno; tratamento de erro HTTP; URL base; idioma configurável via construtor. Melhorias sugeridas e já aplicadas na versão revisada abaixo: (1) tipar os retornos (`Promise<Record<string, unknown>>` em vez de `Promise<unknown>`); (2) extrair a URL base para uma constante `BASE_URL`, centralizando uma futura mudança de versão da API; (3) **endpoint `getCardsBySet` (`/sets/{id}/cards`) permanece sinalizado como não confirmado** — mesma pendência já registrada na seção "Sprint B3", acima; a própria sessão pareada reafirmou que a validação real fica para a próxima etapa.
+
+Versão revisada de `tcgdex.ts`, colada verbatim nesta revisão — **ainda NÃO deployada nem testada por execução real; não copiada ao repositório**:
+
+```ts
+// supabase/functions/import-card-assets/services/tcgdex.ts (revisão de código, ainda não deployada)
+export class TcgdexClient {
+  private static readonly BASE_URL =
+    "https://api.tcgdex.net/v2";
+
+  constructor(
+    private readonly language = "en",
+  ) {}
+
+  private async get<T>(path: string): Promise<T> {
+    const response = await fetch(
+      `${TcgdexClient.BASE_URL}/${this.language}${path}`,
+      {
+        headers: {
+          Accept: "application/json",
+        },
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`TCGDEX_HTTP_${response.status}`);
+    }
+    return await response.json() as T;
+  }
+
+  async getSet(externalSetId: string): Promise<Record<string, unknown>> {
+    return this.get(`/sets/${externalSetId}`);
+  }
+
+  async getCardsBySet(externalSetId: string): Promise<Record<string, unknown>> {
+    return this.get(`/sets/${externalSetId}/cards`);
+  }
+
+  async getCard(cardId: string): Promise<Record<string, unknown>> {
+    return this.get(`/cards/${cardId}`);
+  }
+}
+```
+
+**Revisão técnica de `index.ts`, nota declarada 9,5/10 — código completo não colado nesta revisão, apenas o parecer.** Pontos elogiados: organização do fluxo (`POST → validação JSON → run → card_set → cards → Response`); tratamento de erros por consulta (`Query → Error → Not Found`); uso de `.maybeSingle()`; códigos HTTP (`400`/`404`/`405`/`500`) todos considerados corretos. Duas melhorias sugeridas, ainda não confirmadas como aplicadas: (1) evitar `.select("*")` na consulta a `asset_import_run` — listar colunas explicitamente; (2) extrair as consultas para `services/database.ts` (já criado, mas `index.ts` ainda consulta o banco diretamente nesta versão) — mesma pendência estrutural já registrada desde o Sprint B2.4 (revisão `0.11`).
+
+> **Diário Técnico — Sprint B3 (continuação) — Revisão de Código**
+> **Objetivo**: revisar tecnicamente `tcgdex.ts` e `index.ts` antes do primeiro deploy da nova arquitetura, seguindo a nova disciplina de uma camada por vez.
+> **Critério de aceite**: cada arquivo revisado, aprovado, compilado e testado isoladamente antes de avançar para o próximo.
+> **Resultado**: 🟨 Parcial. `tcgdex.ts` revisado e aprovado ("Status: Aprovado, com pequenas melhorias recomendadas"; nota 9,5/10 atribuída ao conjunto revisado), versão melhorada colada. `index.ts` revisado com nota 9,5/10 e melhorias sugeridas, mas código completo não colado nesta revisão. **Nenhum dos dois arquivos foi de fato compilado (`deno check`) ou deployado nesta revisão** — a revisão é uma leitura técnica do código, não uma execução real.
+> **Pendências descobertas**: (1) discrepância de estrutura entre a nova função `sync-card-set` anunciada e a implementação real, que continua dentro de `import-card-assets/services/` — não resolvida; (2) endpoint `GET /sets/{id}/cards` continua sem confirmação por chamada real; (3) melhorias sugeridas para `index.ts` (evitar `select("*")`, extrair consultas para `database.ts`) ainda não confirmadas como aplicadas; (4) nenhum arquivo copiado ao repositório nesta revisão.
+
+## Sprint B3.1 — Query 910 executada (marco real), revisões finais de código e reescrita completa de `database.ts` (rascunho)
+
+**Marco real: Query 910 (Seed Card Set External Reference) CONFIRMADA EXECUTADA nesta revisão** — detalhamento completo em `05-modelo-de-dados.md`, seção "Card Set External Reference", "Query 910" (não duplicado aqui). Resumo: `ME1`/`ME2`/`ME2.5`/`ME3`/`ME4` mapeados com os `external_set_id` reais descobertos via TCGdex, confirmados por consulta real; `ME0` deliberadamente excluído (decisão de negócio ainda pendente); `ME5` investigado e explicado — `card_set.code = 'ME5'` ainda não existe fisicamente no banco. Isso resolve a pendência mais antiga deste bloco: a Seed `910` estava "adiada" desde a revisão `0.15`.
+
+**Revisões finais de código concluídas para os três arquivos em desenvolvimento:**
+
+- `index.ts` (v1.2.1, já deployado): revisão final aprovou o arquivo como está — "Status: ✅ Aprovado para continuar o desenvolvimento". Único ponto de atenção levantado, não bloqueante: a função retorna hoje TODAS as cartas do `card_set` (`const { data: cards }`) — funciona bem com 188 cartas, mas não deve escalar indefinidamente (exemplos citados: 300, 600, 2000 cartas); aceito "por enquanto, em desenvolvimento", mas sinalizado para revisão futura, quando a função deixar de retornar as cartas e passar a apenas processá-las. Melhoria recomendada, não bloqueante: mover as consultas SQL para `database.ts`.
+- `tcgdex.ts`: mantém a aprovação já registrada na revisão anterior ("Aprovado, com pequenas melhorias opcionais").
+- `scripts/discover-tcgdex-sets.ts`: revisado e aprovado ("Aprovado, com melhorias de tipagem e filtro"). Duas melhorias sugeridas e incorporadas na versão final: (1) tipagem — troca de `any` por uma interface mínima `TcgdexSet` (`id`, `name`, `serie?.name`, `releaseDate?`); (2) filtro mais robusto — troca de `name.includes("mega")` (dependente do nome, frágil a traduções) por `set.id.startsWith("me")` (baseado no próprio `id` retornado pela API, já confirmado estável pela execução real do Sprint B2.5A). **Nuance importante, registrada por transparência**: esta é a primeira vez que o código final e completo do script é colado verbatim na conversa (pendência aberta desde a revisão `0.17`) — mas esta versão específica (com as duas melhorias) **não foi reexecutada** nesta revisão; a execução real confirmada no Sprint B2.5A foi de uma versão anterior do script. Tratar esta versão como revisada/aprovada, não como reconfirmada por execução — mesma distinção já aplicada a `tcgdex.ts`.
+
+Versão final de `scripts/discover-tcgdex-sets.ts`, colada verbatim nesta revisão — **ainda não copiada ao repositório** (só copiar após execução confirmada desta versão específica):
+
+```ts
+interface TcgdexSet {
+  id: string;
+  name: string;
+  serie?: {
+    name?: string;
+  };
+  releaseDate?: string;
+}
+
+const response = await fetch("https://api.tcgdex.net/v2/en/sets");
+
+if (!response.ok) {
+  throw new Error(`HTTP ${response.status}`);
+}
+
+const sets: TcgdexSet[] = await response.json();
+
+const megaEvolutionSets = sets.filter(
+  (set) => set.id.startsWith("me"),
+);
+
+console.table(
+  megaEvolutionSets.map((set) => ({
+    id: set.id,
+    name: set.name,
+    serie: set.serie?.name ?? "",
+    releaseDate: set.releaseDate ?? "",
+  })),
+);
+```
+
+**Após revisar os três arquivos, decisão explícita de não investir mais tempo neles** — *"Não devemos gastar mais tempo nesses três arquivos. Eles estão suficientemente maduros para seguirmos."* O próximo marco declarado nesse momento era exatamente a Query `910` (já executada, ver acima).
+
+**Nova disciplina declarada: consolidar `database.ts` por completo antes de tocar em `index.ts` novamente.** *"A partir deste ponto, não faremos mais alterações diretamente no `index.ts` até que o `database.ts` esteja consolidado. Isso reduz o acoplamento e facilita bastante os testes."* Aplica concretamente o "Sprint 2" da disciplina de uma-camada-por-vez anunciada na seção anterior.
+
+**Versão completa reescrita de `database.ts`, colada verbatim nesta revisão — ainda NÃO deployada nem testada; não copiada ao repositório.** Consolida em um único arquivo as quatro funções que a Edge Function vai precisar (`findImportRun`, `findCardSet`, `findCardSetExternalReference` — finalmente presente em uma versão completa, depois de aparecer apenas como rascunho isolado em revisões anteriores —, `listCards`), todas seguindo o mesmo padrão (`select` de colunas explícitas, nunca `select("*")` — já aplicando a melhoria sugerida na revisão de `index.ts`, acima — e um `throw new Error(...)` com código de erro específico por consulta):
+
+```ts
+// supabase/functions/import-card-assets/services/database.ts (rascunho completo, ainda não deployado)
+import { SupabaseClient } from "@supabase/supabase-js";
+
+export async function findImportRun(
+  supabase: SupabaseClient,
+  runCode: string,
+) {
+  const { data, error } = await supabase
+    .from("asset_import_run")
+    .select(`
+      id,
+      run_code,
+      asset_source_id,
+      card_set_id,
+      status,
+      created_at
+    `)
+    .eq("run_code", runCode)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("IMPORT_RUN_QUERY_FAILED");
+  }
+
+  return data;
+}
+
+export async function findCardSet(
+  supabase: SupabaseClient,
+  cardSetId: string,
+) {
+  const { data, error } = await supabase
+    .from("card_set")
+    .select(`
+      id,
+      expansion_id,
+      code,
+      name,
+      set_type,
+      release_order,
+      release_date,
+      base_set_size,
+      total_set_size
+    `)
+    .eq("id", cardSetId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_SET_QUERY_FAILED");
+  }
+
+  return data;
+}
+
+export async function findCardSetExternalReference(
+  supabase: SupabaseClient,
+  cardSetId: string,
+  assetSourceId: string,
+) {
+  const { data, error } = await supabase
+    .from("card_set_external_reference")
+    .select(`
+      id,
+      external_set_id,
+      source_url
+    `)
+    .eq("card_set_id", cardSetId)
+    .eq("asset_source_id", assetSourceId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_SET_EXTERNAL_REFERENCE_QUERY_FAILED");
+  }
+
+  return data;
+}
+
+export async function listCards(
+  supabase: SupabaseClient,
+  cardSetId: string,
+) {
+  const { data, error } = await supabase
+    .from("card")
+    .select(`
+      id,
+      card_set_id,
+      rarity_id,
+      category_id,
+      collector_number,
+      collector_total,
+      collector_order,
+      name
+    `)
+    .eq("card_set_id", cardSetId)
+    .order("collector_order", {
+      ascending: true,
+    });
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARDS_QUERY_FAILED");
+  }
+
+  return data ?? [];
+}
+```
+
+**Plano declarado a seguir**: depois que `database.ts` estiver consolidado e testado, `index.ts` será reescrito uma única vez, já consumindo exclusivamente essa camada — reafirmando o objetivo já registrado de que `index.ts` "deixe de conhecer SQL". Fluxo alvo: `index.ts → database.ts (findImportRun/findCardSet/findCardSetExternalReference/listCards) → tcgdex.ts`.
+
+> **Diário Técnico — Sprint B3.1 — Query 910 + Revisões Finais**
+> **Objetivo**: executar a Seed `910` com dados reais da TCGdex; fechar a revisão técnica de `index.ts`/`tcgdex.ts`/`discover-tcgdex-sets.ts`; consolidar `database.ts` como camada única de acesso ao banco.
+> **Critério de aceite**: Seed `910` executada e validada por consulta real; os três arquivos revisados aprovados; `database.ts` completo entregue.
+> **Resultado**: 🟨 Parcial, com um marco real importante. Seed `910` ✅ CONFIRMADA EXECUTADA (parcial — ver `05-modelo-de-dados.md`). Os três arquivos revisados e aprovados. `database.ts` completo entregue como rascunho — **ainda não deployado nem testado**.
+> **Pendências descobertas**: (1) decisão de negócio `ME0`↔`mee` continua aberta, agora bloqueando apenas o mapeamento de `ME0`, não mais toda a Seed; (2) `card_set.code = 'ME5'` ainda não cadastrado; (3) `database.ts` (rascunho) e a reescrita futura de `index.ts` ainda não deployados; (4) discrepância de estrutura `sync-card-set` vs. `import-card-assets/services/` (revisão anterior) permanece não resolvida; (5) endpoint `GET /sets/{id}/cards` continua sem confirmação por chamada real.
+
 ---
 
 # Revision History
@@ -989,3 +1220,5 @@ export class TcgdexClient {
 | 0.16 | **`findCardSetExternalReference` adicionado a `services/database.ts`; `services/tcgdex.ts` reescrito (`getSet` substitui `findTcgDexSet`, mudança real de comportamento no tratamento de 404); rascunho v1.3.0 de `index.ts` escrito — nada disso deployado ou testado nesta revisão.** A sprint pivotou de "deployar e validar `NO_EXTERNAL_SET_MAPPING`" para "descobrir os `external_set_id` reais da TCGdex primeiro", ao constatar que a Edge Function nunca conseguiria consultar a TCGdex sem esses identificadores. Nomes oficiais em inglês de `ME1`-`ME5` aprendidos (novo dado de domínio, não confirmado contra `card_set.name`); `ME5` mencionado pela primeira vez nesta revisão, sem confirmação de existência real no banco. **Três propostas sucessivas para descobrir os IDs, registradas por transparência**: (1) preencher manualmente, descartada; (2) nova Edge Function `sync-card-sets`, aprovada e depois reconsiderada na mesma revisão; (3) **decisão final**: script administrativo standalone `scripts/discover-tcgdex-sets.ts` (Deno, fora do runtime da Edge Function) — código escrito, mas criado no local errado (dentro de `supabase/functions/import-card-assets/scripts/`) e ainda não executado. Duas novas diretrizes de metodologia anunciadas (cada sprint entrega uma capacidade real do pipeline; ciclos mais curtos de adicionar/deployar/validar/avançar) e um reframing informal do roteiro em "Blocos funcionais" — nenhum dos dois promovido ao "Roteiro vigente" oficial, mesma cautela já aplicada a prévias anteriores. |
 | 0.17 | **Marco: primeira comunicação externa real e bem-sucedida do Bloco B — `external_set_id` reais da TCGdex descobertos para `ME0`-`ME5` (`mee`/`me01`/`me02`/`me02.5`/`me03`/`me04`/`me05`).** Ambiente corrigido antes disso: Deno CLI de fato instalado via `winget` (a extensão do VS Code só dava suporte ao editor, não instalava o executável), confirmado por saída real de terminal; script de descoberta rodado com sucesso a partir da raiz do projeto, resolvendo a pendência de localização incorreta da revisão anterior. **Nova decisão de negócio em aberto, não resolvida unilateralmente**: `mee` = "Mega Evolution Energy" na TCGdex, possivelmente um Set diferente do `ME0` interno (todas as promos da expansão, não só Energias) — cross-referenciada com a pendência "escopo `ENERGY`" já registrada em ciclos muito anteriores. **Correção arquitetural real**: `card_set_external_reference` é uma tabela de configuração, resolvida uma vez por Set; o primeiro objetivo real da Edge Function passa a ser importar o catálogo oficial de cartas (via `card_external_reference`), não baixar imagens — fluxo revisado documentado. Os três arquivos completos prometidos (`database.ts`/`tcgdex.ts`/`index.ts` v1.3.0) não foram entregues nesta revisão; Seed `910` continua bloqueada pela decisão sobre `ME0`. |
 | 0.18 | **Decisão de arquitetura declarada definitiva pela sessão pareada, formalizada em `ADR-017-two-function-import-pipeline.md`: o pipeline de importação passa a ser dividido em duas Edge Functions.** `sync-card-set` (nova, ainda não criada): TCGdex → lista completa de cartas do Set → grava `card_external_reference`; nunca baixa imagem nem toca Storage. `import-card-assets` (papel redefinido): consome `card_external_reference` já sincronizada → download → Storage → `card_asset`; deixa de descobrir cartas por conta própria. Motivação dupla: (1) correção de ordem do pipeline (`SET → CATÁLOGO → REFERÊNCIAS → IMAGENS`, não `SET → IMAGENS` direto); (2) uma única função fazendo tudo cresceria descontroladamente em escala (exemplo: `ME1` com 188 cartas). Arquitetura interna em camadas declarada definitiva para as duas funções: `index.ts` (orquestrador) → `database.ts` (único acesso ao PostgreSQL) → `tcgdex.ts` (único ponto de `fetch()` à TCGdex, reescrito como classe `TcgdexClient`) → API REST da TCGdex — estende a Convenção #6. Código de `tcgdex.ts` (`TcgdexClient` com `getSet`/`getCardsBySet`/`getCard`) colado verbatim, **não deployado, não copiado ao repositório**. Endpoint `GET /sets/{id}/cards` assumido no código, sem confirmação por chamada real — novo item em "Em Aberto". Nenhuma mudança de schema necessária (reafirmado pela sessão pareada). Próximo passo confirmado: Sprint B3 implementa `sync-card-set` primeiro, isoladamente. Mapeamento entre o roteiro vigente (`B2.5B`–`B2.9`) e a nova arquitetura ainda não detalhado por Fabrício — tabela "Roteiro vigente" mantida sem reescrita, mesma cautela do incidente de confiança da revisão `0.49`. |
+| 0.19 | **Continuação do Sprint B3: nova disciplina de trabalho ("uma camada por vez", tratar o repositório como software de produção) e revisão técnica de `tcgdex.ts`/`index.ts` — ainda sem deploy real.** Pipeline de Assets detalhado (`SELECT card_external_reference WHERE image ainda não existe → download → Storage → card_asset`), reafirmando sem alterar o já registrado na revisão `0.18`; nenhuma mudança de schema necessária, reafirmado outra vez. **Discrepância real sinalizada, não resolvida**: o plano anunciava `sync-card-set/index.ts` como pasta própria da nova função, mas a implementação real (captura de VS Code) mostra `tcgdex.ts` sendo construído dentro de `import-card-assets/services/`, a estrutura já existente — não fica claro se será compartilhado com a futura `sync-card-set` ou se a criação da função própria foi adiada; a sessão pareada aprovou a estrutura atual sem esclarecer o ponto. `tcgdex.ts` revisado tecnicamente e aprovado (URL base extraída para `BASE_URL`, retornos tipados como `Promise<Record<string, unknown>>`), versão melhorada colada verbatim — **não deployada, não copiada ao repositório**; endpoint `GET /sets/{id}/cards` continua sem confirmação real. `index.ts` revisado com nota 9,5/10 (dois pontos de melhoria: evitar `select("*")`, extrair consultas para `database.ts`), mas código completo não colado nesta revisão. |
+| 0.20 | **Marco real: Query `910` (Seed Card Set External Reference) CONFIRMADA EXECUTADA (parcial) — detalhamento completo em `05-modelo-de-dados.md`.** `ME1`–`ME4`/`ME2.5` mapeados e confirmados por consulta real; `ME0` excluído (decisão pendente); `ME5` explicado (`card_set` ainda não cadastrado). Revisão final de código concluída para os três arquivos em desenvolvimento: `index.ts` (v1.2.1 já deployado) aprovado como está, com um ponto de atenção não bloqueante (a função retorna todas as cartas do Set — aceitável agora, revisar quando o catálogo crescer); `tcgdex.ts` mantém aprovação anterior; `scripts/discover-tcgdex-sets.ts` aprovado com duas melhorias (tipagem via interface `TcgdexSet`, filtro por `set.id.startsWith("me")` em vez de nome) — código final colado verbatim pela primeira vez, mas esta versão específica **não foi reexecutada** (a execução confirmada no Sprint B2.5A foi de uma versão anterior); nada copiado ao repositório. Nova disciplina: nenhuma alteração direta em `index.ts` até `database.ts` estar consolidado. Versão completa reescrita de `database.ts` (agora com `findCardSetExternalReference`) colada verbatim — **rascunho, ainda não deployado nem testado, não copiado ao repositório**. |
