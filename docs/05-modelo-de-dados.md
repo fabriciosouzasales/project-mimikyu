@@ -443,7 +443,7 @@ A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver 
 
 # Set
 
-Status: **Pacote técnico concluído.** Tabela, trigger, suporte a Sets promocionais, seed e validação executados e confirmados. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). Seguindo o novo **Princípio da Fonte Canônica** (STD-001, Seção 10), as Queries `120 - Create Card Set Table` e `820 - Seed Card Set` foram consolidadas para `Versão 2.0` (Status `CANÔNICA`), já nascendo com suporte nativo a `PROMO` — as Queries `122` e `821` (que originalmente introduziram esse suporte em um banco já existente) foram reclassificadas como `MIGRATION` (históricas), preservadas mas fora do fluxo de instalação limpa. **Único item aberto:** confirmar se o índice único parcial `uq_card_set_expansion_promo` (novo na versão canônica de `120`) já existe no banco físico atual — ver "Modelo Físico — Versão Canônica", abaixo.
+Status: **Pacote técnico concluído, reaberto pontualmente (segunda vez) para preparar `MEE`/`MEP`.** Tabela, trigger, suporte a Sets promocionais, seed e validação executados e confirmados. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). Seguindo o novo **Princípio da Fonte Canônica** (STD-001, Seção 10), as Queries `120 - Create Card Set Table` e `820 - Seed Card Set` foram consolidadas para `Versão 2.0`/`2.1` (Status `CANÔNICA`), já nascendo com suporte nativo a `PROMO`/`ENERGY` — as Queries `122`/`263`/`264`/`821` (que originalmente introduziram esses ajustes em um banco já existente) foram reclassificadas como `MIGRATION` (históricas), preservadas mas fora do fluxo de instalação limpa. **`ENERGY` adicionado ao domínio de `set_type` e `release_order` de `ME1`-`ME4` reorganizado (Migrations `263`/`264`, CONFIRMADAS EXECUTADAS)** — ver "Migration `263`–`264`", abaixo; `MEE`/`MEP` em si **ainda não cadastrados**. **Itens abertos:** (1) confirmar se o índice único parcial `uq_card_set_expansion_promo` (novo na versão canônica de `120`) já existe no banco físico atual — ver "Modelo Físico — Versão Canônica", abaixo; (2) `820` v2.0 desatualizada quanto ao `release_order` real e sem `MEE`/`MEP`.
 
 ### Disciplina do processo
 
@@ -493,7 +493,7 @@ updated_at
 
 **name** — Nome de apresentação do catálogo (ex.: `Mega Evolution`, `Phantasmal Flames`, `Ascended Heroes`, `Perfect Order`). Localização futura tratada separadamente, sem duplicar a identidade do Set.
 
-**set_type** — Classificação editorial: `REGULAR`, `SPECIAL` ou `PROMO` (este último adicionado via migration `122` — ver "Card Set Promocional", abaixo; ADR-015). Sem tabela de referência própria — poucos valores estáveis, sem atributos associados; também não usa `ENUM` nativo do PostgreSQL, cuja evolução é menos flexível que uma restrição `CHECK` (ver `04-domain-model.md`, seção Set — "Classificação Editorial").
+**set_type** — Classificação editorial: `REGULAR`, `SPECIAL`, `PROMO` (adicionado via migration `122` — ver "Card Set Promocional", abaixo; ADR-015) ou `ENERGY` (adicionado via migration `263` — ver "Migration `263`–`264`", abaixo; ADR-015, revisão `1.6`). Sem tabela de referência própria — poucos valores estáveis, sem atributos associados; também não usa `ENUM` nativo do PostgreSQL, cuja evolução é menos flexível que uma restrição `CHECK` (ver `04-domain-model.md`, seção Set — "Classificação Editorial").
 
 **release_order** — Posição do Set dentro da sequência editorial da Expansion. Não é inferida do `code` — `ME2.5` ocupa uma posição inteira na sequência, mesmo com código fracionário. Único dentro da Expansion (`UNIQUE (expansion_id, release_order)`).
 
@@ -523,7 +523,7 @@ Aplicando o Princípio da Simplicidade Inicial (AP-004):
 
 **Regra 4 — Nome obrigatório.** O nome não pode ser vazio.
 
-**Regra 5 — Classificação editorial restrita.** `set_type` deve ser `REGULAR`, `SPECIAL` ou `PROMO` (constraint ampliada pela migration `122`, executada).
+**Regra 5 — Classificação editorial restrita.** `set_type` deve ser `REGULAR`, `SPECIAL`, `PROMO` (constraint ampliada pela migration `122`, executada) ou `ENERGY` (constraint ampliada pela migration `263`, executada).
 
 **Regra 6 — Quantidades consistentes.** `base_set_size` deve ser positivo; `total_set_size` deve ser maior ou igual a `base_set_size` (não estritamente maior, pois um Set pode não possuir cartas secretas).
 
@@ -587,9 +587,9 @@ ALTER TABLE public.card_set
 
 Query: `120 - Create Card Set Table` (v1.0). Resultado confirmado: `Success. No rows returned`, RLS habilitado. Nota: `code` usa `VARCHAR(50)` (mais largo que o inicialmente rascunhado) e a constraint de quantidades foi nomeada `ck_card_set_total_size_valid`.
 
-## Modelo Físico — Versão Canônica (2.0)
+## Modelo Físico — Versão Canônica (2.1)
 
-Status `CANÔNICA` (STD-001, Seção 10 — Princípio da Fonte Canônica): esta é a versão que uma **instalação nova** deve executar — já nasce com suporte nativo a `PROMO`, incorporando o que antes exigia a migration `122` separada, **e adiciona o índice único parcial que a versão 1.0 e a migration `122` não incluíam** (a divergência sinalizada anteriormente em ADR-015 e nesta seção):
+Status `CANÔNICA` (STD-001, Seção 10 — Princípio da Fonte Canônica): esta é a versão que uma **instalação nova** deve executar — já nasce com suporte nativo a `PROMO`, incorporando o que antes exigia a migration `122` separada, **e adiciona o índice único parcial que a versão 1.0 e a migration `122` não incluíam** (a divergência sinalizada anteriormente em ADR-015 e nesta seção). **Versão `2.1`**: `ck_card_set_type` ampliada para incluir `ENERGY`, incorporando o que a migration `263` fez contra o banco já existente (ver "Migration `263`–`264`", abaixo) — uma instalação nova a partir desta versão não precisa executar `263` separadamente.
 
 ```sql
 CREATE TABLE public.card_set (
@@ -617,7 +617,7 @@ CREATE TABLE public.card_set (
     CONSTRAINT ck_card_set_name_not_blank
         CHECK (btrim(name) <> ''),
     CONSTRAINT ck_card_set_type
-        CHECK (set_type IN ('REGULAR', 'SPECIAL', 'PROMO')),
+        CHECK (set_type IN ('REGULAR', 'SPECIAL', 'PROMO', 'ENERGY')),
     CONSTRAINT ck_card_set_release_order_positive
         CHECK (release_order > 0),
     CONSTRAINT ck_card_set_base_size_positive
@@ -640,7 +640,7 @@ ALTER TABLE public.card_set
 ENABLE ROW LEVEL SECURITY;
 ```
 
-Query: `120 - Create Card Set Table` (v2.0, `CANÔNICA`). Representa o estado estrutural definitivo para novas instalações — a Query `122` (histórica) não precisa ser executada em uma instalação nova.
+Query: `120 - Create Card Set Table` (v2.1, `CANÔNICA`). Representa o estado estrutural definitivo para novas instalações — as Queries `122` e `263` (históricas) não precisam ser executadas em uma instalação nova.
 
 > **Item aberto — não presumir resolvido:** esta versão canônica foi escrita para o **repositório** (arquivo/documentação), não executada como uma nova alteração contra o banco físico atual — o banco atual foi construído pelo caminho antigo (`120` v1.0 + migration `122`), que **não incluía** o índice `uq_card_set_expansion_promo`. Ou seja, é preciso **confirmar separadamente** se esse índice já existe no Supabase real; se não existir, nada no banco atual impede hoje uma segunda linha `PROMO` na mesma Expansion (mesma divergência já registrada em ADR-015, agora resolvida apenas na definição canônica, não necessariamente na instância física).
 
@@ -1114,15 +1114,17 @@ FK  expansion_id     UUID
 ## Queries Associadas
 
 ```text
-120 - Create Card Set Table      (v2.0, Status CANÔNICA)
+120 - Create Card Set Table              (v2.1, Status CANÔNICA)
 121 - Create Card Set Trigger
-122 - Adapt Card Set for Promo   (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
-820 - Seed Card Set              (v2.0, Status CANÔNICA)
-821 - Seed Promo Card Set        (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
-920 - Validate Card Set          (versão 2.0)
+122 - Adapt Card Set for Promo           (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
+263 - Add ENERGY to Card Set Type        (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
+264 - Reorganize ME Release Order        (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
+820 - Seed Card Set                      (v2.0, Status CANÔNICA)
+821 - Seed Promo Card Set                (Status MIGRATION — histórica, fora do fluxo de instalação limpa)
+920 - Validate Card Set                  (versão 2.0)
 ```
 
-Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800). `122` é uma migration de ajuste dentro do próprio bloco 100–199 de Card Set, não uma nova entidade. `821` é um Seed adicional dentro da faixa 800–899, criado antes da decisão de consolidar tudo em `820`. Ambas preservadas por rastreabilidade, mas reclassificadas como `MIGRATION` pelo Princípio da Fonte Canônica (STD-001, Seção 10) — uma instalação nova executa apenas `120` v2.0 e `820` v2.0.
+Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 700, Validate = criação + 800). `122`/`263`/`264` são migrations de ajuste dentro do próprio bloco 100–199 de Card Set, não novas entidades. `821` é um Seed adicional dentro da faixa 800–899, criado antes da decisão de consolidar tudo em `820`. Todas preservadas por rastreabilidade, mas reclassificadas como `MIGRATION` pelo Princípio da Fonte Canônica (STD-001, Seção 10) — uma instalação nova executa apenas `120` v2.1 e `820` v2.0. **Pendência**: `820` v2.0 ainda não reflete o `release_order` reorganizado por `264` nem `MEE`/`MEP` — precisa ser reescrita quando esses dois Sets forem efetivamente cadastrados (ver "Migration `263`–`264`", abaixo).
 
 ## Definition of Done
 
@@ -1137,7 +1139,10 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 - [x] validação executada e confirmada (`920` v2.0 — "Tudo ok");
 - [x] Query `820` reescrita como snapshot completo da Expansion (v2.0, `ON CONFLICT ... DO UPDATE`, inclui `ME0`) — ver "Pendência — Reescrita da Query 820 (RESOLVIDA)";
 - [x] Query `120` consolidada para v2.0 (`CANÔNICA`), com suporte nativo a `PROMO` e o índice `uq_card_set_expansion_promo`; `122`/`821` reclassificadas `MIGRATION`;
-- [ ] confirmar se o índice `uq_card_set_expansion_promo` já existe no banco físico atual — **único item aberto**, ver "Divergência sinalizada", acima. Não bloqueia o início da modelagem de Card, mas deve ser verificado antes de considerar a regra de unicidade de `PROMO` realmente garantida em produção.
+- [ ] confirmar se o índice `uq_card_set_expansion_promo` já existe no banco físico atual — ver "Divergência sinalizada", acima. Não bloqueia o início da modelagem de Card, mas deve ser verificado antes de considerar a regra de unicidade de `PROMO` realmente garantida em produção.
+- [x] domínio de `set_type` ampliado para incluir `ENERGY` (`263`, executada, validada);
+- [x] `release_order` de `ME1`-`ME4` reorganizado (`264`, executada, validada), liberando `1`/`2` para `MEE`/`MEP`;
+- [ ] `MEE`/`MEP` cadastrados com dados editoriais oficiais reais — **pendente**, aguardando pesquisa das fontes oficiais (TCGdex/Pokémon).
 
 ## Migration `251` — Remoção de `ME0` (CONFIRMADA EXECUTADA)
 
@@ -1196,6 +1201,75 @@ $$;
 **Plano real, ainda NÃO executado nesta revisão** (confirmar em ciclo futuro antes de tratar como concluído): auditoria estrutural do banco real (nomes de tabela, estrutura de `card_set`/`card_set_external_reference`) antes de qualquer escrita — nomes reais confirmados no singular (`expansion`, `card_set`, `card_set_external_reference`, não no plural como inicialmente presumido pela sessão pareada); ajustar `release_order` dos Sets existentes se necessário; inserir `MEE` e `MEP`; cadastrar `card_set_external_reference` para ambos; importar `card`/`card_variant`; gerar `card_external_reference`; importar imagens (inglês, depois português) pelo pipeline já existente (ver `06-pipeline-importacao.md`, "Guia Operacional"); validar a integridade completa do catálogo (checklist de estrutura/conteúdo/integridade, sem cartas sem variante, sem variante órfã, sem referência externa inválida, sem asset órfão) antes de considerar o módulo Catálogo Editorial oficialmente encerrado. Se **algum** desses passos ainda não tiver sido confirmado por execução real, tratar como planejado, não como concluído.
 
 **Questão sobre "Expansion" vs. "Series"/"Era" — RESOLVIDA por decisão direta de Fabrício, dispensando a investigação**: a hipótese levantada na revisão anterior (se `Expansion` deveria ser reconcebida como um conceito de "Series"/"Era") foi descartada por Fabrício sem necessidade de pesquisa adicional: *"Na modelagem não alteramos a tabela expansion. Desconsidere qualquer informação sobre as possíveis entidades 'Series e Era'."* `Expansion` permanece exatamente como já modelada — nenhuma mudança de schema, nenhuma nova entidade.
+
+### Migration `263`–`264` — Domínio `ENERGY` e reorganização de `release_order` (CONFIRMADAS EXECUTADAS)
+
+**Primeira execução real do plano registrado na revisão anterior ("auditoria estrutural → ajustar `release_order` → inserir `MEE`/`MEP`") — apenas os dois primeiros passos, ainda sem inserir `MEE`/`MEP` em si.** Antes de qualquer `ALTER`/`UPDATE`, uma disciplina de auditoria foi seguida à risca, na ordem: (1) `information_schema.table_constraints`/`key_column_usage`, confirmando duas restrições reais sobre `card_set` — `uq_card_set_expansion_release_order` (`UNIQUE (expansion_id, release_order)`, já documentada) e `uq_card_set_expansion_code` (`UNIQUE (expansion_id, code)`, já documentada) — nenhuma novidade estrutural, apenas confirmação; (2) `pg_constraint`/`pg_get_constraintdef`, confirmando a definição exata de `ck_card_set_type` (`REGULAR`, `SPECIAL`, `PROMO` — `ENERGY` ainda **não** fazia parte do domínio) e de `ck_card_set_promo_size`. Só depois dessa dupla confirmação as alterações reais foram escritas — mesma disciplina de "auditar antes de alterar" já usada nas Migrations `251`/`122`.
+
+**Observação real sobre a numeração de `release_order` herdada**: a sequência atual (`ME1`=2 … `ME4`=6) começa em `2`, não em `1`, porque a posição `1` já foi ocupada por `ME0` antes de sua remoção (Migration `251`) — os demais Sets nunca foram renumerados retroativamente. Essa observação de Fabrício explica a lacuna e confirma que a reorganização abaixo não está corrigindo um erro, apenas formalizando o espaço já implicitamente livre para os dois novos Sets especiais.
+
+**Migration `263 - Add Energy to Card Set Type`**: amplia `ck_card_set_type` para incluir `ENERGY`, dentro de transação (`BEGIN`/`COMMIT`), preservando `REGULAR`/`SPECIAL`/`PROMO`. Não altera nenhum dado existente — apenas o domínio permitido.
+
+```sql
+BEGIN;
+
+ALTER TABLE public.card_set
+    DROP CONSTRAINT ck_card_set_type;
+
+ALTER TABLE public.card_set
+    ADD CONSTRAINT ck_card_set_type
+    CHECK (
+        set_type IN (
+            'REGULAR',
+            'SPECIAL',
+            'PROMO',
+            'ENERGY'
+        )
+    );
+
+COMMIT;
+```
+
+Validação real, confirmada: `SELECT con.conname, pg_get_constraintdef(con.oid) FROM pg_constraint ... WHERE con.conname = 'ck_card_set_type';` retornou o domínio já incluindo `ENERGY`, junto com `REGULAR`/`SPECIAL`/`PROMO`. **Decisão consciente de não refatorar agora**: durante a auditoria, foi observado que os quatro valores não pertencem à mesma dimensão conceitual — `REGULAR`/`SPECIAL` descrevem a *natureza editorial* de um Set, enquanto `PROMO`/`ENERGY` descrevem a *natureza do conteúdo*. Uma separação em duas colunas foi cogitada e deliberadamente adiada por Fabrício (*"Não vamos refatorar agora [...] Introduzir uma nova dimensão agora aumentaria o escopo sem trazer benefício imediato"*), com a evolução mínima necessária (adicionar `ENERGY` ao mesmo domínio) escolhida para esta fase. Registrado como possível ADR futura em "Em Aberto" — ver abaixo.
+
+**Migration `264 - Reorganize ME Release Order`**: reorganiza `release_order` dos cinco Card Sets existentes da Expansion `ME` (`ME1`=2→3, `ME2`=3→4, `ME2.5`=4→5, `ME3`=5→6, `ME4`=6→7), liberando as posições `1` e `2` para `MEE` e `MEP`, respectivamente — sem essa migration, `UPDATE card_set SET release_order = release_order + 1` violaria `uq_card_set_expansion_release_order` no meio da operação (cada linha tentaria ocupar a posição da seguinte antes desta ser liberada). Executada em duas fases dentro da mesma transação, técnica clássica de migração de valores únicos: (1) desloca temporariamente todos os cinco para valores altos (`+100`), fora de qualquer colisão; (2) define a sequência definitiva final por `CASE code`.
+
+```sql
+BEGIN;
+
+-- Fase 1: move temporariamente para valores altos
+UPDATE card_set
+SET release_order = release_order + 100
+WHERE expansion_id = (
+    SELECT id FROM expansion WHERE code = 'ME'
+);
+
+-- Fase 2: define a nova sequência definitiva
+UPDATE card_set
+SET release_order =
+CASE code
+    WHEN 'ME1' THEN 3
+    WHEN 'ME2' THEN 4
+    WHEN 'ME2.5' THEN 5
+    WHEN 'ME3' THEN 6
+    WHEN 'ME4' THEN 7
+END
+WHERE expansion_id = (
+    SELECT id FROM expansion WHERE code = 'ME'
+);
+
+COMMIT;
+```
+
+Validação real, confirmada: `SELECT code, release_order FROM card_set WHERE expansion_id = (...) ORDER BY release_order;` retornou exatamente `ME1`=3, `ME2`=4, `ME2.5`=5, `ME3`=6, `ME4`=7 — nenhum dado de carta/variante/asset foi tocado, apenas a coluna `release_order` de `card_set`.
+
+**Estado real após as duas migrations**: `card_set.set_type` aceita `ENERGY`; posições `1`/`2` de `release_order` na Expansion `ME` estão livres; `MEE`/`MEP` **ainda não foram inseridos** — Fabrício optou por confirmar os dados editoriais oficiais reais de `MEE` (nome, código, data de lançamento, `base_set_size`, `total_set_size`) antes de escrever o `INSERT`, seguindo o mesmo `AP-018` (nunca inventar/presumir dado editorial) já aplicado à correção `ME0`→`MEP`. Pesquisa das fontes oficiais (TCGdex/Pokémon) planejada para um ciclo futuro, ainda **não realizada nesta revisão**.
+
+> **Diário Técnico — Migrations 263–264 — Domínio ENERGY e reorganização de release_order**
+> **Objetivo**: preparar `card_set` para receber `MEE` e `MEP` sem violar nenhuma constraint existente, seguindo a disciplina "auditar → entender restrições → evoluir o modelo → só então alterar dados".
+> **Critério de aceite**: `ck_card_set_type` aceita `ENERGY`; `release_order` de `ME1`-`ME4` desloca para `3`-`7` sem violar `uq_card_set_expansion_release_order`; nenhum dado de outras tabelas alterado.
+> **Resultado**: 🟩 Concluído. Ambas migrations confirmadas por validação real pós-execução.
+> **Pendências descobertas**: (1) `MEE`/`MEP` ainda não cadastrados — aguardando confirmação de dados oficiais; (2) `ck_card_set_type` mistura duas dimensões conceituais distintas (natureza editorial vs. natureza do conteúdo) — refatoração para duas colunas deliberadamente adiada, registrada como possível ADR futura; (3) Query `820` v2.0 (Seed canônica) segue desatualizada quanto ao `release_order` real e não inclui `MEE`/`MEP` — precisa ser reescrita quando os dois Sets forem inseridos.
 
 ---
 
@@ -3878,3 +3952,4 @@ Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
 | 0.56 | **Reconfirmação real, Sprint B3.11 de `06-pipeline-importacao.md`: a sessão pareada momentaneamente tratou `card`/`card_variant` como vazias, a preencher pela TCGdex — Fabrício corrigiu, lembrando que os 859 Cards/1.555 Card Variants já estavam carregados (marco fechado há dezenas de batches, seção "Card Variant" acima).** Duas queries de auditoria real (`SELECT * FROM public.card`/`public.card_variant`) confirmaram, sem divergência, os totais e a estrutura de colunas exatamente como já documentado (sem colunas denormalizadas). Decisão real resultante: `import-card-assets` passa a **consultar** `card` (nunca inserir); `card`/`card_variant` permanecem congeladas, fora do escopo do Bloco B. Nota adicionada ao final da seção Card Variant. Nenhuma alteração de schema/SQL nesta revisão. |
 | 0.57 | **Encontrado o identificador oficial real do Set promocional removido pela Migration `251`: `MEP` ("Mega Evolution Black Star Promos", TCGdex `mep`), não relacionado a `mee` (Energia).** Investigação real (TCGdex, TCGCodex, fontes de referência da comunidade) confirmou que `MEP` é um Set irmão de `ME1`-`ME4` dentro da Expansion `ME`, cobrindo cartas promocionais de toda a era (evidenciado por cartas `MEP` referenciando Pokémon exclusivos de coleções posteriores). O mecanismo geral de `ADR-015` (Set `PROMO`, sem entidade separada) permanece correto — o erro real estava apenas na convenção de código sintético ("Expansion + `0`"). Nova seção "Investigação de acompanhamento" adicionada à "Migration `251`"; `ADR-015` revisado (`1.4`); novo `AP-018` criado em `02-architecture-principles.md`. Recadastro de `MEP` planejado para um ciclo futuro, **NÃO executado nesta revisão**. Questão real, explicitamente em aberto: se `Expansion` modela corretamente o conceito de "Series"/"Era" dos catálogos oficiais — Fabrício optou por investigar antes de qualquer mudança no banco. |
 | 0.58 | **Duas decisões reais novas, nenhuma ainda executada**: (1) `MEE` (Set de Energias da TCGdex) também será cadastrado — Fabrício reavaliou e decidiu completar o catálogo integralmente ("a única pergunta é: foi oficialmente publicada?"), Expansion `ME` terá 7 Card Sets no total (`ME1`-`ME4`/`ME2.5`/`MEP`/`MEE`); (2) nova convenção de `release_order` quando existem Sets especiais: Energia primeiro (`1`), Promocional em seguida (`2`), regulares depois — refina a convenção de `ADR-015` (revisão `1.5`). **Questão sobre `Expansion`/"Series"/"Era" (revisão `0.57`) RESOLVIDA por decisão direta de Fabrício, sem necessidade de investigação**: "Na modelagem não alteramos a tabela expansion. Desconsidere qualquer informação sobre as possíveis entidades 'Series e Era'." Nenhuma mudança de schema. Plano completo de execução (auditoria estrutural → ajustar `release_order` → inserir `MEE`/`MEP` → referências externas → cartas/variantes → imagens → checklist de integridade) registrado, nada executado nesta revisão. |
+| 0.59 | **Primeiros dois passos do plano da revisão `0.58` executados: Migrations `263`/`264` (CONFIRMADAS EXECUTADAS) — domínio de `set_type` ampliado para incluir `ENERGY`, `release_order` de `ME1`-`ME4` reorganizado (`3`-`7`), liberando `1`/`2` para `MEE`/`MEP`.** Antes de qualquer alteração, auditoria estrutural real confirmou duas constraints já documentadas (`uq_card_set_expansion_release_order`, `uq_card_set_expansion_code`) e a definição exata de `ck_card_set_type` — mesma disciplina de "auditar antes de alterar" já usada na Migration `251`. Nova seção "Migration `263`–`264`" adicionada à seção Set/Card Set. `120` (canônica) bumped para `v2.1`, já incluindo `ENERGY` nativamente. **Decisão consciente de não refatorar `set_type`/`ck_card_set_type` em duas dimensões (natureza editorial vs. natureza do conteúdo) nesta fase** — cogitada durante a auditoria, deliberadamente adiada por Fabrício, registrada como possível ADR futura. `MEE`/`MEP` **ainda não cadastrados** — Fabrício optou por confirmar dados editoriais oficiais reais antes do `INSERT`, mesmo princípio já aplicado à correção `ME0`→`MEP` (`AP-018`). Arquivos `database/migrations/263_add_energy_to_card_set_type.sql` e `database/migrations/264_reorganize_me_release_order.sql` criados. |
