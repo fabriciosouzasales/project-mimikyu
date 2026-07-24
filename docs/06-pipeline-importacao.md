@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 0.43 |
+| **Versão** | 0.45 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir a estratégia de importação e sincronização de dados de fontes externas para o Catálogo Editorial do Project Mimikyu. |
 | **Escopo** | Estratégia de importação e sincronização, incluindo — desde a revisão `0.6` — a arquitetura de execução da Edge Function `import-card-assets` (Bloco B do roteiro de `05-modelo-de-dados.md`) e o roteiro de implementação incremental por sprints. Não é um manual operacional de deploy nem substitui o Supabase Dashboard/CLI reais. |
@@ -121,7 +121,9 @@ Os seguintes pontos ainda não foram definidos e serão tratados em ciclos futur
 - **novo, Sprint B3.21, EM ANDAMENTO desde o Sprint B3.23**: Fase 2 do plano de Fabrício (repetir a importação em `pt-BR` para as 5 coleções) — teste controlado com a `ME1` iniciado, 3 de 4 checagens confirmadas; bloqueado por uma discrepância real de modelagem (ver item abaixo) antes de escalar.
 - **novo, Sprint B3.21, crítico, reforçado no Sprint B3.23**: implementar `language`/`asset_type`/bucket como parâmetros da requisição da Edge Function, substituindo as constantes fixas (`LANGUAGE_CODE` está temporariamente hardcoded como `"pt-BR"` desde o Sprint B3.23, especificamente para o teste controlado) — pré-requisito real antes de escalar a Fase 2 para as 5 coleções.
 - **novo, Sprint B3.21**: melhoria de parametrizar a Edge Function por modo (`references`/`assets`) segue deliberadamente adiada, sem urgência nova.
-- **novo, Sprint B3.23, crítico, NÃO resolvido unilateralmente**: `card_external_reference` tem `UNIQUE (card_id, asset_source_id)` sem dimensão de idioma — diferente de `card_asset`, que já suporta múltiplos idiomas por carta via `language_id` na chave natural. Uma execução em `pt-BR` pode colidir com a linha já criada pela `en` (mesmo `asset_source_id`, já que a fonte é a mesma TCGdex independente do idioma). Fabrício decidiu confirmar o comportamento real (4ª checagem do teste controlado) antes de decidir se — e como — corrigir o modelo.
+- **novo, Sprint B3.23, crítico, REFORÇADO no Sprint B3.24, ainda NÃO resolvido**: `card_external_reference` tem `UNIQUE (card_id, asset_source_id)` sem dimensão de idioma — diferente de `card_asset`, que já suporta múltiplos idiomas por carta via `language_id` na chave natural. Uma execução em `pt-BR` pode colidir com a linha já criada pela `en` (mesmo `asset_source_id`, já que a fonte é a mesma TCGdex independente do idioma). A 4ª checagem planejada para confirmar isso empiricamente **ainda não foi executada** — o foco do Sprint B3.24 acabou sendo um bug real não relacionado (código de idioma da TCGdex). Decisão sobre se — e como — corrigir o modelo continua pendente de Fabrício.
+- **novo, Sprint B3.24**: `source_url` em `index.ts` monta a URL de metadados da TCGdex usando `LANGUAGE_CODE` (`"pt-BR"`) em vez de `TCGDEX_LANGUAGE` (`"pt"`) — mesmo padrão do bug corrigido nesta revisão, mas como o valor é apenas armazenado (nunca buscado de fato), não quebra a execução; correção adiada para quando `language`/`asset_type`/bucket virarem parâmetros da requisição.
+- **novo, Sprint B3.25**: execução da `ME2` em `pt-BR` preparada, mas não confirmada — replicar para `ME2.5`/`ME3`/`ME4` depois de confirmada.
 - ~~novo, Sprint B3.7: um novo `asset_import_run` para `ME1` (ou outra coleção suportada) ainda não foi criado~~ — **resolvido no Sprint B3.8**: `asset_import_run` real criado, Edge Function reinvocada, resposta real `success: true` confirmada com dados reais do Set `me01` da TCGdex.
 - **novo, Sprint B3.8**: Stored Procedure de orquestração (`start_asset_import`/`finish_asset_import`/`fail_asset_import`) explicitamente adiada para depois que a persistência de cartas estiver funcional (Fase 2 do roteiro proposto nesta revisão).
 - **novo, Sprint B3.8**: migração de `run_type`/`status`/`execution_context` (`text` + `CHECK`) para tipos `ENUM` nativos do PostgreSQL, proposta e explicitamente adiada até o fluxo de importação estar funcional.
@@ -1879,6 +1881,38 @@ O catálogo editorial do Project Mimikyu deixa de ser um protótipo e passa a se
 > **Resultado**: 🟨 Parcial. 3 de 4 checagens ✅ confirmadas. A 4ª (`card_external_reference`) está bloqueada por uma discrepância real de modelagem (`UNIQUE` sem idioma), sinalizada mas NÃO resolvida nesta revisão.
 > **Pendências descobertas**: (1) executar a 4ª checagem e confirmar (ou não) a colisão real em `card_external_reference`; (2) decidir e, se necessário, corrigir o modelo de `card_external_reference` (ex.: incluir idioma na chave de unicidade, ou confirmar que o campo é de fato idioma-agnóstico e a colisão é aceitável) antes de escalar a Fase 2 para as 5 coleções; (3) implementar `language`/`asset_type`/bucket como parâmetros da requisição (identificado desde o Sprint B3.21), substituindo a mudança temporária de constante feita nesta revisão.
 
+## Sprint B3.24 — 🎉 Teste controlado da Fase 2 CONFIRMADO CONCLUÍDO — bug real diferente do previsto (código de idioma da TCGdex ≠ código interno do Mimikyu), corrigido; três validações reais confirmadas
+
+**Bug real encontrado, diferente da discrepância cogitada no Sprint B3.23**: a primeira tentativa real de reexecutar o teste retornou HTTP 500 com `Error: TCGDEX_HTTP_404` — não relacionado a `card_external_reference`. Causa raiz: `TcgdexClient` estava sendo criado diretamente com `LANGUAGE_CODE` (`"pt-BR"`, o código interno do catálogo do Mimikyu), mas a API da TCGdex não reconhece esse identificador. Confirmado por teste direto no navegador, sem adivinhar: `https://api.tcgdex.net/v2/pt-BR/sets/me01` falha, `https://api.tcgdex.net/v2/pt/sets/me01` funciona — o identificador real da TCGdex para português é `pt`.
+
+**Correção real aplicada**: nova constante `TCGDEX_LANGUAGE = "pt"`, usada exclusivamente para criar o `TcgdexClient` — `LANGUAGE_CODE` (`"pt-BR"`) continua sendo o único código usado em todo o resto do fluxo (busca em `language`, `card_asset.language_id`, caminho no Storage). Nenhuma mudança no banco — o código interno do Mimikyu (`language.code = 'pt-BR'`) e o identificador da TCGdex são dois domínios independentes, que não devem ser confundidos.
+
+**Reexecução real do `run_code` original da `ME1`, CONFIRMADA CONCLUÍDA**: `external_references: { imported: 188, ignored: 0, total: 188 }`, `images: { imported: 188, failed: 0, total: 188 }`, `configuration.language: "pt-BR"`.
+
+**Três validações reais confirmadas** (das quatro originalmente planejadas no Sprint B3.23): (1) arquivo presente no bucket `card-front` (`me1/pt-BR/001.webp`); (2) `card_asset` com duas linhas reais para a mesma carta — `en` (`me1/en/001.webp`) e `pt-BR` (`me1/pt-BR/001.webp`), `external_url = NULL` e `is_primary = true` em ambas; (3) URL pública aberta e confirmada visualmente — o texto da carta realmente está em português.
+
+**⚠️ A 4ª checagem planejada no Sprint B3.23 (`card_external_reference` com dois registros) NÃO foi executada nesta revisão** — o foco real acabou sendo a correção do bug de idioma da TCGdex, não confirmado ainda se a discrepância de `UNIQUE (card_id, asset_source_id)` sem idioma se materializou. Como o contador `imported: 188` não distingue `INSERT` de `UPDATE` no código atual, o resultado da execução não permite, por si só, confirmar se `card_external_reference` ganhou uma segunda linha por carta ou se a linha existente da `en` foi sobrescrita pela `pt-BR` — segue como pendência real, não resolvida.
+
+`index.ts` (v2.4.0, com `TCGDEX_LANGUAGE` introduzida) copiado ao repositório.
+
+> **Diário Técnico — Sprint B3.24 — 🎉 Teste controlado da Fase 2 concluído**
+> **Objetivo**: corrigir o bloqueio real da reexecução; confirmar as validações da Fase 2 com uma única carta.
+> **Critério de aceite**: reexecução com sucesso; imagem confirmada em português; `card_asset` com duas linhas por carta.
+> **Resultado**: 🟩 Concluído (3 de 4 checagens originais). Bug real do código de idioma da TCGdex diagnosticado e corrigido (`TCGDEX_LANGUAGE`). `188/188/0`. Três validações reais confirmadas.
+> **Pendências descobertas**: (1) confirmar, por consulta direta, o estado real de `card_external_reference` após uma execução `pt-BR` (discrepância do Sprint B3.23 continua sem resposta empírica); (2) `source_url` em `index.ts` ainda usa `LANGUAGE_CODE` (não `TCGDEX_LANGUAGE`) ao montar a URL de metadados da TCGdex — mesmo padrão do bug corrigido, mas como esse valor é apenas armazenado (nunca buscado), não quebra a execução; deve ser corrigido junto da parametrização futura; (3) escalar a Fase 2 para `ME2`/`ME2.5`/`ME3`/`ME4`.
+
+## Sprint B3.25 — Fase 2 escalada diretamente para `ME2`-`ME4` (sem novo teste controlado), por decisão explícita de Fabrício — execução da `ME2` (`pt-BR`) preparada, ainda NÃO confirmada
+
+**Decisão real de Fabrício**: não repetir o teste controlado para as demais coleções — a arquitetura já foi validada em ambos os idiomas na `ME1`, então `ME2`/`ME2.5`/`ME3`/`ME4` em `pt-BR` podem ser executadas diretamente, uma de cada vez, sem alterar código ("Vamos deixar para comemorar após a conclusão dos outros Sets. Me ajude com a importação de ME2, ME2.5, ME3 e ME4 agora.").
+
+**`ME2` (`pt-BR`) preparada, execução ainda NÃO confirmada nesta revisão**: SQL para um novo `asset_import_run` (`run_code: RUN-20260720-00000026`) e a chamada de invocação correspondente foram geradas, mas nenhuma confirmação real (nem da criação do `asset_import_run`, nem do resultado da Edge Function) foi recebida até o final deste lote — não copiado a `database/`, seguindo o princípio de sempre ("copiar apenas após execução confirmada").
+
+> **Diário Técnico — Sprint B3.25 — `ME2` (`pt-BR`) preparada, execução pendente**
+> **Objetivo**: iniciar a réplica da Fase 2 para as 4 coleções restantes.
+> **Critério de aceite**: `asset_import_run` da `ME2` (`pt-BR`) confirmado criado; Edge Function reinvocada com sucesso.
+> **Resultado**: 🟨 Parcial. SQL e chamada preparados. 🟨 Nenhuma confirmação real de execução recebida nesta revisão.
+> **Pendências descobertas**: (1) confirmar a criação do `asset_import_run` da `ME2` (`pt-BR`) e o resultado da execução; (2) replicar para `ME2.5`/`ME3`/`ME4`; (3) a pendência de `card_external_reference` (Sprint B3.23/B3.24) continua em aberto.
+
 ---
 
 # Revision History
@@ -1928,3 +1962,5 @@ O catálogo editorial do Project Mimikyu deixa de ser um protótipo e passa a se
 | 0.41 | **Sprint B3.21 — Pipeline replicado sem alteração de código: `ME2` (130/130) e `ME2.5` (295/295) CONCLUÍDAS, 0 falhas.** Plano de duas fases definido (Fase 1: completar `en` nas 5 coleções; Fase 2: repetir para `pt-BR`). Duas melhorias reais identificadas e deliberadamente adiadas por pedido de Fabrício (modo `references`/`assets`; idioma como parâmetro). Total acumulado: `613`/`613`/`613`, `0` falhas, 3 de 5 coleções. |
 | 0.42 | **Sprint B3.22 — 🎉 MARCO REAL: Fase 1 100% CONCLUÍDA — `ME3` (124/124) e `ME4` (122/122) concluídas, 0 falhas.** Catálogo editorial completo em inglês: `859` cartas, `859` referências externas, `859` imagens no Storage, `859` registros em `card_asset`, `0` falhas em nenhuma das 5 coleções. |
 | 0.43 | **Sprint B3.23 — Fase 2 (`pt-BR`) iniciada: teste controlado com a `ME1` confirma que `card_asset` já suporta múltiplos idiomas por carta.** ⚠️ Discrepância arquitetural real sinalizada, NÃO resolvida: `card_external_reference` tem `UNIQUE (card_id, asset_source_id)` sem dimensão de idioma — Fabrício optou por confirmar o comportamento real antes de alterar qualquer coisa. `index.ts` v2.3.1 (mudança temporária de `LANGUAGE_CODE`) copiado ao repositório. |
+| 0.44 | **Sprint B3.24 — 🎉 Teste controlado da Fase 2 CONFIRMADO CONCLUÍDO.** Bug real diferente do previsto: `TcgdexClient` usava o código interno `pt-BR`, não reconhecido pela API da TCGdex (identificador real: `pt`) — corrigido com nova constante `TCGDEX_LANGUAGE`. Reexecução da `ME1`: `188/188/0`. Três validações reais confirmadas (Storage, `card_asset` duas linhas, imagem visualmente em português). Pendência de `card_external_reference` (Sprint B3.23) segue sem resposta empírica. |
+| 0.45 | **Sprint B3.25 — Fase 2 escalada diretamente para `ME2`-`ME4`, sem novo teste controlado, por decisão de Fabrício.** `ME2` (`pt-BR`) preparada (SQL + chamada), execução ainda NÃO confirmada nesta revisão. |

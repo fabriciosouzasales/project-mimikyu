@@ -138,10 +138,31 @@ Histórico:
   docs/06-pipeline-importacao.md, "Sprint B3.23". Espera-se que este valor
   volte a ser um parâmetro da requisição (já identificado como pré-requisito
   da Fase 2 desde o Sprint B3.21), não uma constante fixa.
+- v2.4.0 (Sprint B3.24, 🎉 CONFIRMADO CONCLUÍDO — teste controlado da Fase 2
+  com sucesso real de ponta a ponta): bug real encontrado e corrigido —
+  `TcgdexClient` estava sendo criado com `LANGUAGE_CODE` (`"pt-BR"`, o código
+  interno do Mimikyu) diretamente, mas a API da TCGdex não reconhece esse
+  identificador (`TCGDEX_HTTP_404`); confirmado por teste direto no navegador
+  que o identificador real da TCGdex para português é `"pt"`. Nova constante
+  `TCGDEX_LANGUAGE = "pt"` introduzida, usada exclusivamente para criar o
+  `TcgdexClient` — `LANGUAGE_CODE` continua sendo usado em todos os outros
+  pontos (busca em `language`, `card_asset.language_id`, caminho no Storage),
+  sem nenhuma alteração no banco. Resultado real, reexecutando o `run_code`
+  original da `ME1`: `external_references: { imported: 188 }`,
+  `images: { imported: 188, failed: 0 }`. Três validações reais confirmadas:
+  arquivo presente no bucket `card-front` (`me1/pt-BR/001.webp`); duas linhas
+  reais em `card_asset` para a mesma carta (`en`/`pt-BR`); imagem pública
+  aberta e confirmada visualmente em português. **Pendência que segue real e
+  NÃO confirmada por consulta direta**: se `card_external_reference` (que
+  tem `UNIQUE (card_id, asset_source_id)`, sem idioma) agora tem os dados da
+  `en` sobrescritos pelos da `pt-BR`, dado que nenhuma consulta específica a
+  essa tabela foi executada nesta revisão — ver docs/06-pipeline-importacao.md,
+  "Sprint B3.24".
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
-"Sprint B3.19", "Sprint B3.20" e "Sprint B3.23", para o contexto completo, o
-roteiro de sprints e o status real de cada etapa (o que foi de fato confirmado vs. o que
+"Sprint B3.19", "Sprint B3.20", "Sprint B3.23" e "Sprint B3.24", para o
+contexto completo, o roteiro de sprints e o status real de cada etapa (o que
+foi de fato confirmado vs. o que
 ainda está planejado).
 
 Convenções permanentes de Edge Functions do Project Mimikyu (ver docs/06):
@@ -210,6 +231,18 @@ type ImageImportResult = {
 // que volte a ser um parâmetro da requisição antes da Fase 2 escalar para as
 // 5 coleções.
 const LANGUAGE_CODE = "pt-BR";
+
+// Sprint B3.24 — o código de idioma interno do Mimikyu (`LANGUAGE_CODE`,
+// tabela `language`) e o identificador de idioma da TCGdex são domínios
+// independentes e NÃO podem ser usados um pelo outro: `pt-BR` é o código
+// correto no banco, mas a API da TCGdex não o reconhece (`TCGDEX_HTTP_404`,
+// confirmado por consulta direta no navegador a `.../v2/pt-BR/sets/me01`);
+// o identificador real da TCGdex para português é `pt` (confirmado da mesma
+// forma em `.../v2/pt/sets/me01`). `TCGDEX_LANGUAGE` traduz apenas para a
+// chamada à TCGdex, sem alterar `LANGUAGE_CODE` em nenhum outro uso
+// (`language.code` no banco, `card_asset.language_id`, caminho no Storage).
+const TCGDEX_LANGUAGE = "pt";
+
 const ASSET_TYPE_CODE = "CARD_FRONT";
 const STORAGE_BUCKET_CODE = "card-front";
 const IMAGE_BATCH_SIZE = 5;
@@ -368,7 +401,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const tcgdex = new TcgdexClient(LANGUAGE_CODE);
+    const tcgdex = new TcgdexClient(TCGDEX_LANGUAGE);
     const set = await tcgdex.getSet(
       externalReference.external_set_id,
     );
@@ -520,7 +553,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.3.1",
+      version: "2.4.0",
       run: {
         id: run.id,
         run_code: run.run_code,
