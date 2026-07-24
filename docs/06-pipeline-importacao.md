@@ -4,12 +4,12 @@
 |--------|-------|
 | **Documento** | Pipeline de Importação |
 | **Arquivo** | `docs/06-pipeline-importacao.md` |
-| **Versão** | 1.1 |
+| **Versão** | 1.2 |
 | **Status** | Bloco B (importação de referências e imagens de Card) **CONFIRMADO CONCLUÍDO e operacional** para as 5 coleções atuais, nos dois idiomas suportados (`en`/`pt-BR`). |
-| **Objetivo** | Descrever a estratégia de importação/sincronização de dados de fontes externas para o Catálogo Editorial e documentar, de forma executável, o processo real que importa referências externas e imagens de Card. |
-| **Escopo** | Estratégia de importação/sincronização; arquitetura real da Edge Function `import-card-assets`; guia operacional para importar uma nova coleção. Este documento registra apenas a solução final confirmada — não é um changelog do desenvolvimento (ver nota de reescrita na Revision History, versão `1.0`, para onde o histórico anterior está preservado). |
+| **Objetivo** | Descrever a estratégia de importação/sincronização de dados de fontes externas para o Catálogo Editorial e a arquitetura real da Edge Function `import-card-assets`. |
+| **Escopo** | Estratégia de importação/sincronização e arquitetura vigente da Edge Function `import-card-assets`. Este documento registra apenas a solução final confirmada, não é um changelog do desenvolvimento. **A partir da revisão `1.2`, três responsabilidades antes reunidas aqui foram separadas em três documentos**: este arquivo cobre apenas arquitetura/estratégia; o guia operacional (passo a passo para importar uma coleção) está em `operations/import-card-assets.md`; o histórico de tentativas/bugs/sprints está em `history/pipeline-sprint-log.md`. |
 | **Dependências** | `02-architecture-principles.md`, `04-domain-model.md`, `05-modelo-de-dados.md` |
-| **Documentos Relacionados** | `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-017-two-function-import-pipeline.md` |
+| **Documentos Relacionados** | `operations/import-card-assets.md`, `history/pipeline-sprint-log.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-017-two-function-import-pipeline.md` |
 
 ---
 
@@ -116,54 +116,13 @@ const TCGDEX_LANGUAGE = "pt";    // idioma reconhecido pela API da TCGdex (não 
 
 Também `source_url` (armazenado em `card_external_reference`, apenas para referência, nunca buscado de volta) é montado com `LANGUAGE_CODE` em vez de `TCGDEX_LANGUAGE` — mesma inconsistência, sem efeito prático até hoje, mas vale corrigir junto da parametrização.
 
----
-
-# Guia Operacional — Como Importar uma Nova Coleção
-
-Siga esta ordem. Cada etapa depende da anterior já estar confirmada no banco antes de prosseguir.
-
-1. **Cadastrar a coleção em `card_set`** (código, nome, quantidade de cartas, `expansion_id`, `set_type`) — ver `05-modelo-de-dados.md`, seção Set/Card Set.
-2. **Cadastrar o mapeamento externo em `card_set_external_reference`** (`card_set_id`, `asset_source_id` = TCGdex, `external_set_id` — ex.: `me05` para uma futura `ME5`).
-3. **Popular `card`** com as cartas da coleção (ver `05-modelo-de-dados.md`, seção Card). A Edge Function só consulta esta tabela, nunca insere — precisa estar completa antes do passo 6.
-4. **Popular `card_variant`** com as variantes/acabamentos de cada carta (ver `05-modelo-de-dados.md`, seção Card Variant). Mesma exigência do passo 3.
-5. **Conferir o idioma desejado contra o estado atual do código** (ver "⚠️ Limitação real atual", acima). Se for diferente do que está publicado, atualizar `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` em `index.ts` e reimplantar antes de prosseguir.
-6. **Criar um `asset_import_run`** para a coleção, com `run_type = 'FULL_CARD_SET'` e `status = 'PENDING'`:
-
-```sql
-INSERT INTO public.asset_import_run (
-    run_code, run_type, asset_source_id, card_set_id, status
-)
-SELECT
-    'RUN-<AAAAMMDD>-<sequencial>', 'FULL_CARD_SET', s.id, cs.id, 'PENDING'
-FROM public.asset_source s
-JOIN public.card_set cs ON cs.code = '<CÓDIGO_DA_COLEÇÃO>'
-WHERE s.code = 'TCGDEX';
-```
-
-7. **Invocar a Edge Function `import-card-assets`** com o `run_code` criado:
-
-```json
-{ "run_code": "RUN-<AAAAMMDD>-<sequencial>" }
-```
-
-8. **Conferir o resultado**: `success: true`, `images.failed: 0`. Se houver falhas, `failures[]` traz o motivo por carta — não é necessário reprocessar a coleção inteira, apenas investigar as cartas listadas.
-
-Não existe hoje nenhuma orquestração automática destas 8 etapas — cada uma é executada manualmente, uma de cada vez.
+**Nota real sobre `card_external_reference` ser idioma-agnóstico**: a tabela tem `UNIQUE (card_id, asset_source_id)`, sem dimensão de idioma. O total ficou em `859` mesmo após importar as 5 coleções nos dois idiomas — confirma que a execução em `pt-BR` faz `UPSERT` sobre a mesma linha já criada pela `en`, em vez de criar uma segunda. Isso é aceitável hoje porque `card_external_reference` é só um cache de importação — quem carrega a dimensão de idioma que importa ao catálogo é `card_asset` (que corretamente tem uma linha por idioma). Decisão em aberto: manter assim de propósito, ou adicionar `language_id` à chave.
 
 ---
 
-# Estado Atual (Confirmado)
+# Guia Operacional e Estado Atual
 
-| Item | Total | Situação |
-|------|-------|----------|
-| Coleções | 5 (`ME1`/`ME2`/`ME2.5`/`ME3`/`ME4`) | ✅ |
-| Cartas editoriais | 859 | ✅ |
-| Referências externas (`card_external_reference`) | 859 | ✅ (idioma-agnóstico — ver nota abaixo) |
-| Assets (`card_asset`) | 1.718 (859 `en` + 859 `pt-BR`) | ✅ |
-| Imagens no Storage | 1.718 | ✅ |
-| Falhas de importação | 0 | ✅ |
-
-**Nota real sobre `card_external_reference`**: a tabela tem `UNIQUE (card_id, asset_source_id)`, sem dimensão de idioma. O total ficou em `859` mesmo após importar as 5 coleções nos dois idiomas — confirma que a execução em `pt-BR` faz `UPSERT` sobre a mesma linha já criada pela `en`, em vez de criar uma segunda. Isso é aceitável hoje porque `card_external_reference` é só um cache de importação — quem carrega a dimensão de idioma que importa ao catálogo é `card_asset` (que corretamente tem uma linha por idioma). Decisão em aberto: manter assim de propósito, ou adicionar `language_id` à chave.
+Movidos para `operations/import-card-assets.md`, a partir da revisão `1.2`: o passo a passo de 8 etapas para importar uma nova coleção, e a tabela de estado atual confirmado (859 cartas, 1.718 assets, 1.718 imagens, 0 falhas). Este documento mantém apenas arquitetura e estratégia.
 
 ---
 
@@ -199,3 +158,4 @@ Não existe hoje nenhuma orquestração automática destas 8 etapas — cada uma
 | 0.43–0.48 | Fase 2 (`pt-BR`) concluída para as 5 coleções — bug real de código de idioma da TCGdex corrigido (`pt` ≠ `pt-BR`); catálogo completo nos dois idiomas: 1.718 assets/imagens, 0 falhas. Guia operacional de importação de nova coleção escrito a pedido de Fabrício. |
 | 1.0 | **Reescrita completa do documento**, a pedido explícito de Fabrício: removido o histórico sprint a sprint de tentativas/bugs/versões intermediárias; adicionada a seção "Arquitetura Final" (processo real, não a especificação pré-implementação usada antes de o código existir); "Guia Operacional" mantido e formalizado como processo de 8 passos; "Em Aberto" reduzido aos itens genuinamente pendentes; seção "Primeira Aplicação Concreta — Seed de Card Variant" removida (conteúdo superado, execução real já documentada em `05-modelo-de-dados.md`). |
 | 1.1 | Atualizado item de "Em Aberto" sobre consolidação de roadmap: registrada uma quarta forma paralela (`Fase 1-7`, esboçada pela sessão pareada e aparentemente endorsada por Fabrício), e o fato de que `ROADMAP.md` foi planejado como o primeiro documento formal desse roadmap, ainda não criado. Nenhuma consolidação decidida. |
+| 1.2 | **Documento dividido em três**, a pedido explícito de Fabrício (mesmo apesar da reescrita `1.0` já ter removido o histórico sprint a sprint, o documento ainda misturava arquitetura, guia operacional e estado atual): seções "Guia Operacional" e "Estado Atual" movidas para `operations/import-card-assets.md`; histórico condensado (tabela `0.1`–`1.1`, abaixo) reconstruído em prosa em `history/pipeline-sprint-log.md`. Este documento passa a conter apenas arquitetura/estratégia vigente. `03-documentation-architecture.md` atualizado para formalizar `operations/` e `history/` como novos tipos de artefato. Descobertas três pastas órfãs em `docs/` (`pipelines/`, `sprint/`, `editorial/`, todas vazias, nunca documentadas em `03-documentation-architecture.md`) — sinalizadas para Fabrício decidir (reaproveitar ou remover), não usadas nesta revisão por decisão explícita dele. |
