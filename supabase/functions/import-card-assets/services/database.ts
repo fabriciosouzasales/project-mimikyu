@@ -199,12 +199,14 @@ export async function upsertCardExternalReference(
   return data;
 }
 
-// Sprint B3.18 — Incremento 2 (Download de Imagens), teste controlado com uma
-// única carta. CONFIRMADO DEPLOYADO; execução ainda NÃO confirmada — bloqueada
-// por um terceiro caso real do mesmo gap de GRANT já visto nas Queries 250/253
-// (desta vez em `language`, descoberto pelo erro real `LANGUAGE_QUERY_FAILED`
-// nos logs da Edge Function). Ver docs/06-pipeline-importacao.md, "Sprint
-// B3.18", para o contexto completo.
+// Sprint B3.18/B3.19/B3.20 — Incremento 2 (Download de Imagens). CONFIRMADO
+// CONCLUÍDO no Sprint B3.20: 188/188 imagens importadas para a ME1, 0
+// falhas. Execução foi bloqueada, em sequência, por quatro casos reais do
+// mesmo gap de GRANT já visto nas Queries 250/253 (`language`,
+// `card_asset_type`, `card_asset`, `expansion` — corrigidos pela Query
+// `254`), cada um diagnosticado pelo erro real do PostgreSQL nos logs da
+// Edge Function, nunca adivinhado. Ver docs/06-pipeline-importacao.md,
+// "Sprint B3.19" e "Sprint B3.20", para o contexto completo.
 //
 // Nota arquitetural real, confirmada nesta revisão por auditoria direta de
 // `information_schema.columns`: `card_asset` NÃO tem uma coluna
