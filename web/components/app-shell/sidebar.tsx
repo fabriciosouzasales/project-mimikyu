@@ -1,3 +1,5 @@
+"use client";
+
 import { NAV_SECTIONS } from "./nav-config";
 import { SidebarSection } from "./sidebar-section";
 import { SidebarFooter } from "./sidebar-footer";
@@ -10,6 +12,13 @@ import { SidebarFooter } from "./sidebar-footer";
  *
  * `group-focus-within` replica o mesmo comportamento pra navegação só por
  * teclado, já que `hover` sozinho não serve pra esse público.
+ *
+ * "use client": `NAV_SECTIONS` carrega ícones do lucide-react (referências
+ * de componente/função). Se este componente ficasse Server e passasse
+ * `section` como prop para `SidebarSection` (Client), o React tentaria
+ * serializar o ícone na fronteira servidor→cliente e quebraria ("Only
+ * plain objects can be passed..."). Como este componente não tem nenhuma
+ * lógica exclusiva de servidor, virar Client remove a fronteira.
  */
 export function Sidebar() {
   return (
