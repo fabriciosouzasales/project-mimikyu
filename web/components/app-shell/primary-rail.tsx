@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { NAV_SECTIONS, type NavSection } from "./nav-config";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Trilha de ícones fixa (64px), sempre visível — nível 1 da navegação. */
 export function PrimaryRail({ activeSection }: { activeSection: NavSection }) {
@@ -21,21 +24,24 @@ export function PrimaryRail({ activeSection }: { activeSection: NavSection }) {
         const Icon = section.icon;
         const active = section.id === activeSection.id;
         return (
-          <Link
-            key={section.id}
-            href={section.href}
-            title={section.label}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors",
-              active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
-            )}
-          >
-            <Icon className="h-5 w-5" aria-hidden="true" />
-            <span className="sr-only">{section.label}</span>
-          </Link>
+          <Tooltip key={section.id}>
+            <TooltipTrigger asChild>
+              <Link
+                href={section.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                )}
+              >
+                <Icon className="h-5 w-5" aria-hidden="true" />
+                <span className="sr-only">{section.label}</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">{section.label}</TooltipContent>
+          </Tooltip>
         );
       })}
     </nav>
