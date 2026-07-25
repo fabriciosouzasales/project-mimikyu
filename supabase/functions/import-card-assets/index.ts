@@ -173,6 +173,33 @@ Histórico:
   gap de dados na fonte, não falha do pipeline. `MEE`
   `card_set_external_reference` já confirmado (`external_set_id = 'mee'`,
   Migration `270`).
+- v2.6.0 (2026-07-25, bug real encontrado por Fabrício em produção,
+  inspecionando `asset_import_run` diretamente): a tabela tem uma máquina de
+  estados completa (`PENDING`→`RUNNING`→`COMPLETED`/`COMPLETED_WITH_ERRORS`/
+  `FAILED`/`CANCELLED`, governada por `govern_asset_import_run()`), mas
+  nenhuma versão anterior deste arquivo jamais escrevia nela — só o `SELECT`
+  de `findImportRun`. Toda execução, inclusive as bem-sucedidas, ficava presa
+  em `PENDING` para sempre. Corrigido chamando
+  `transitionImportRunToRunning` assim que a run é localizada, e
+  `finishImportRun` em todo caminho de saída (sucesso com/sem falhas de
+  imagem, e todo erro conhecido após a run ser localizada) — ver
+  `services/database.ts` para as duas novas funções. As 11 runs já
+  executadas antes desta correção foram corrigidas via backfill manual (ver
+  docs/05-modelo-de-dados.md, seção Asset Import Run). **CONFIRMADO
+  DEPLOYADO E TESTADO EM PRODUÇÃO**: primeira invocação real após o deploy
+  (`RUN-20260725-00000081`, nova run criada só para este teste, `MEP`)
+  falhou com `permission denied for table asset_import_run` no primeiro
+  `UPDATE` (`transitionImportRunToRunning`) — mesmo padrão de gap de GRANT
+  já visto nas Queries 250/253/254 (RLS habilitado não substitui GRANT de
+  tabela); `service_role` tinha apenas `SELECT`/`TRUNCATE`/`REFERENCES`/
+  `TRIGGER` nesta tabela, confirmado por consulta direta a
+  `information_schema.role_table_grants` antes de corrigir. Corrigido por
+  `database/migrations/272_grant_asset_import_run_write_permissions.sql`
+  (concede `INSERT`/`UPDATE`). Reinvocada a mesma run após o GRANT: status
+  final `COMPLETED_WITH_ERRORS` (`60`/`60`/`0`/`60`, mesmo gap conhecido de
+  imagens da `MEP` na TCGdex), `started_at`/`finished_at` corretamente
+  preenchidos — confirma que a máquina de estados agora funciona de ponta a
+  ponta em produção.
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
 "Sprint B3.19", "Sprint B3.20", "Sprint B3.23" e "Sprint B3.24", para o
@@ -209,6 +236,8 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import {
   findImportRun,
+  transitionImportRunToRunning,
+  finishImportRun,
   findCardSet,
   findCardSetExternalReference,
   listCardsMap,
@@ -334,8 +363,12 @@ Deno.serve(async (req) => {
     );
   }
 
+  // v2.6.0 — declarado fora do try para que o catch consiga transicionar a
+  // run para FAILED mesmo quando o erro acontece depois dela ser localizada.
+  let run: Awaited<ReturnType<typeof findImportRun>> | null = null;
+
   try {
-    const run = await findImportRun(
+    run = await findImportRun(
       supabase,
       runCode,
     );
@@ -350,12 +383,33 @@ Deno.serve(async (req) => {
       );
     }
 
+    // v2.6.0 — `activeRun` (const) em vez de `run` (let) a partir daqui:
+    // `run` precisa ser `let` para o catch conseguir lê-lo, mas isso impede
+    // o TypeScript de propagar o null-check para dentro dos closures de
+    // `processInBatches` abaixo (narrowing não atravessa closures sobre
+    // variáveis mutáveis). `activeRun` é `const`, então a garantia de
+    // "não nulo" vale em qualquer escopo aninhado.
+    const activeRun = run;
+
+    // A partir daqui a run já existe: qualquer saída (sucesso ou erro) deve
+    // terminar em um status terminal, nunca deixar PENDING.
+    await transitionImportRunToRunning(supabase, activeRun.id);
+
     const cardSet = await findCardSet(
       supabase,
-      run.card_set_id,
+      activeRun.card_set_id,
     );
 
     if (!cardSet) {
+      await finishImportRun(supabase, activeRun.id, {
+        status: "FAILED",
+        requested_count: 0,
+        processed_count: 0,
+        success_count: 0,
+        failed_count: 0,
+        error_summary: "CARD_SET_NOT_FOUND",
+      });
+
       return Response.json(
         {
           success: false,
@@ -368,11 +422,20 @@ Deno.serve(async (req) => {
     const externalReference =
       await findCardSetExternalReference(
         supabase,
-        run.card_set_id,
-        run.asset_source_id,
+        activeRun.card_set_id,
+        activeRun.asset_source_id,
       );
 
     if (!externalReference) {
+      await finishImportRun(supabase, activeRun.id, {
+        status: "FAILED",
+        requested_count: 0,
+        processed_count: 0,
+        success_count: 0,
+        failed_count: 0,
+        error_summary: "CARD_SET_EXTERNAL_REFERENCE_NOT_FOUND",
+      });
+
       return Response.json(
         {
           success: false,
@@ -422,7 +485,7 @@ Deno.serve(async (req) => {
 
     const cards = await listCardsMap(
       supabase,
-      run.card_set_id,
+      activeRun.card_set_id,
     );
 
     // Sincronização completa de card_external_reference (Incremento 1,
@@ -444,7 +507,7 @@ Deno.serve(async (req) => {
           supabase,
           {
             card_id: cardId,
-            asset_source_id: run.asset_source_id,
+            asset_source_id: activeRun.asset_source_id,
             external_card_id: tcgCard.id,
             external_set_id: externalReference.external_set_id,
             source_number: tcgCard.localId,
@@ -565,12 +628,30 @@ Deno.serve(async (req) => {
       (result) => !result.success,
     );
 
+    // v2.6.0 — encerra a run com o resultado real: COMPLETED se nenhuma
+    // imagem falhou, COMPLETED_WITH_ERRORS caso contrário. Contagens
+    // baseadas na dimensão "imagens" (o que a run efetivamente entrega).
+    await finishImportRun(supabase, activeRun.id, {
+      status:
+        failedImages.length === 0
+          ? "COMPLETED"
+          : "COMPLETED_WITH_ERRORS",
+      requested_count: set.cards.length,
+      processed_count: imageResults.length,
+      success_count: importedImages.length,
+      failed_count: failedImages.length,
+      error_summary:
+        failedImages.length === 0
+          ? null
+          : `${failedImages.length}/${imageResults.length} imagens falharam`,
+    });
+
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.5.0",
+      version: "2.6.0",
       run: {
-        id: run.id,
-        run_code: run.run_code,
+        id: activeRun.id,
+        run_code: activeRun.run_code,
       },
       card_set: {
         id: cardSet.id,
@@ -597,13 +678,30 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error(error);
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "UNEXPECTED_ERROR";
+
+    // v2.6.0 — se a run já foi localizada (e por isso já está RUNNING),
+    // encerra como FAILED em vez de deixá-la presa. `finishImportRun` não
+    // relança erro — nunca deve mascarar a resposta 500 já decidida aqui.
+    if (run) {
+      await finishImportRun(supabase, run.id, {
+        status: "FAILED",
+        requested_count: 0,
+        processed_count: 0,
+        success_count: 0,
+        failed_count: 0,
+        error_summary: errorMessage,
+      });
+    }
+
     return Response.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "UNEXPECTED_ERROR",
+        error: errorMessage,
       },
       { status: 500 },
     );

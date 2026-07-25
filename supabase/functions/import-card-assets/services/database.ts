@@ -18,6 +18,28 @@
 // corrigido em `upsertCardExternalReference` — `image_source_url` estava
 // `string` obrigatório, divergindo da coluna real (nula, com CHECK). Ver o
 // comentário da própria função, abaixo, para o detalhe completo.
+//
+// v2.6.0 (2026-07-25): bug real encontrado por Fabrício em produção —
+// `asset_import_run` tem uma máquina de estados completa (`PENDING` →
+// `RUNNING` → `COMPLETED`/`COMPLETED_WITH_ERRORS`/`FAILED`/`CANCELLED`,
+// governada pelo trigger `govern_asset_import_run()`, ver
+// `database/schema/221_asset_import_run_triggers.sql`), mas nenhuma versão
+// anterior deste arquivo jamais escrevia nessa tabela — só o `SELECT` de
+// `findImportRun`. Toda execução, inclusive as bem-sucedidas, ficava presa em
+// `PENDING` para sempre. Corrigido com duas novas funções:
+// `transitionImportRunToRunning` (chamada assim que a run é localizada) e
+// `finishImportRun` (chamada ao final, sucesso ou falha, com as contagens
+// reais). As 11 runs já executadas antes desta correção foram corrigidas via
+// backfill manual (ver docs/05-modelo-de-dados.md, seção Asset Import Run,
+// para o detalhe e a query real executada). CONFIRMADO DEPLOYADO E TESTADO
+// EM PRODUÇÃO: o primeiro UPDATE real (`transitionImportRunToRunning`)
+// expôs mais um caso do mesmo gap de GRANT já visto nas Queries 250/253/254
+// — `service_role` só tinha SELECT/TRUNCATE/REFERENCES/TRIGGER em
+// `asset_import_run`, confirmado por consulta direta a
+// `information_schema.role_table_grants` antes de corrigir. Corrigido por
+// `database/migrations/272_grant_asset_import_run_write_permissions.sql`.
+// Reinvocação confirmou o fluxo completo: `PENDING` → `RUNNING` →
+// `COMPLETED_WITH_ERRORS`, contagens e timestamps corretos.
 
 export async function findImportRun(
   supabase: any,
@@ -42,6 +64,78 @@ export async function findImportRun(
   }
 
   return data;
+}
+
+/**
+ * Transiciona a run de `PENDING` para `RUNNING`, assim que ela é localizada
+ * e antes de qualquer processamento real começar. O trigger
+ * `govern_asset_import_run()` preenche `started_at` automaticamente.
+ */
+export async function transitionImportRunToRunning(
+  supabase: any,
+  runId: string,
+) {
+  const { error } = await supabase
+    .from("asset_import_run")
+    .update({ status: "RUNNING" })
+    .eq("id", runId);
+
+  if (error) {
+    console.error(
+      "IMPORT RUN TRANSITION TO RUNNING ERROR:",
+      JSON.stringify(error, null, 2),
+    );
+    throw new Error(
+      `IMPORT_RUN_TRANSITION_TO_RUNNING_FAILED: ${error.message}`,
+    );
+  }
+}
+
+/**
+ * Encerra a run em um status terminal (`COMPLETED`, `COMPLETED_WITH_ERRORS`
+ * ou `FAILED`), com as contagens reais do processamento. O trigger
+ * `govern_asset_import_run()` preenche `finished_at` automaticamente e
+ * valida a coerência entre `status` e `failed_count`
+ * (`COMPLETED` exige `failed_count = 0`;
+ * `COMPLETED_WITH_ERRORS` exige `failed_count > 0`).
+ *
+ * Deliberadamente tolerante a falha: um erro aqui é logado, mas nunca deve
+ * mascarar o resultado real da importação já processado — por isso não
+ * relança a exceção, apenas retorna `false` em caso de erro.
+ */
+export async function finishImportRun(
+  supabase: any,
+  runId: string,
+  payload: {
+    status: "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED";
+    requested_count: number;
+    processed_count: number;
+    success_count: number;
+    failed_count: number;
+    error_summary?: string | null;
+  },
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("asset_import_run")
+    .update({
+      status: payload.status,
+      requested_count: payload.requested_count,
+      processed_count: payload.processed_count,
+      success_count: payload.success_count,
+      failed_count: payload.failed_count,
+      error_summary: payload.error_summary ?? null,
+    })
+    .eq("id", runId);
+
+  if (error) {
+    console.error(
+      "IMPORT RUN FINISH ERROR:",
+      JSON.stringify(error, null, 2),
+    );
+    return false;
+  }
+
+  return true;
 }
 
 export async function findCardSet(

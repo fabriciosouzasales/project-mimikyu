@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.4 |
+| **Versão** | 1.5 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -25,7 +25,9 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 **Importação manual de imagens de `MEE`/`MEP` (TCGdex não tem os assets).**
 
-O pipeline de importação (`import-card-assets`, `ADR-018`) foi executado com sucesso para as sete Card Sets da Expansion `ME`: `card_external_reference` 100% importada em todas (`927`/`927`). Imagens completas para as 5 coleções originais (`ME1`-`ME4`/`ME2.5`: `859` Cards, `1.718` Card Assets, `en`+`pt-BR`, `0` falhas). Para `MEE`/`MEP` (`68` Cards), confirmado por consulta direta ao CDN da TCGdex que o asset genuinamente não existe na fonte (não é gap de API) — decisão de Fabrício: importar manualmente via novo script `scripts/import-manual-assets.ts` (`source_code = 'MANUAL'`, rastreável), em vez de esperar a TCGdex publicar. **`MEE` já confirmada 100% completa (`en`+`pt-BR`, referências e imagens).** Pendente: `MEP`/`en`, `MEP`/`pt-BR` (`60` Cards cada).
+O pipeline de importação (`import-card-assets`, `ADR-018`) foi executado com sucesso para as sete Card Sets da Expansion `ME`: `card_external_reference` 100% importada em todas (`927`/`927`). Imagens completas para as 5 coleções originais (`ME1`-`ME4`/`ME2.5`: `859` Cards, `1.718` Card Assets, `en`+`pt-BR`, `0` falhas). Para `MEE`/`MEP` (`68` Cards), confirmado por consulta direta ao CDN da TCGdex que o asset genuinamente não existe na fonte (não é gap de API) — decisão de Fabrício: importar manualmente via novo script `scripts/import-manual-assets.ts` (`source_code = 'MANUAL'`, rastreável), em vez de esperar a TCGdex publicar. **`MEE` já confirmada 100% completa (`en`+`pt-BR`, referências e imagens).** Pendente: `MEP`/`en`, `MEP`/`pt-BR` (`60` Cards cada) — hoje só há `13`/`60` de `MEP`/`en` salvas localmente; Fabrício optou por aguardar as duas pastas completas antes de rodar o script de verdade.
+
+Em paralelo, bug real corrigido nesta revisão (2026-07-25): `asset_import_run` nunca transicionava de `PENDING`, mesmo em execuções bem-sucedidas — a função `import-card-assets` nunca escrevia na tabela após o `SELECT` inicial. Corrigido (v2.6.0, CONFIRMADO DEPLOYADO E TESTADO EM PRODUÇÃO), as 11 runs históricas corrigidas via backfill, e um novo gap de GRANT (mesmo padrão recorrente do projeto) resolvido por `database/migrations/272_grant_asset_import_run_write_permissions.sql`. Ver `docs/05-modelo-de-dados.md`, seção "Correção real: máquina de estados nunca escrita (v2.6.0)", para o detalhe completo.
 
 Só quando as imagens de `MEE`/`MEP` também estiverem importadas o Catálogo Editorial estará genuinamente fechado — conforme a própria correção de Fabrício registrada em `05-modelo-de-dados.md`, revisão `0.63`: *"Não teremos encerrado toda a fundação do catálogo editorial do Project Mimikyu. Só concluímos após importação de todas as imagens para nossa base."*
 
@@ -70,3 +72,4 @@ Qualquer um destes itens só entra em "Next" quando Fabrício o confirmar explic
 | 1.2 | `MEP` executada no mesmo dia, mesmo resultado da `MEE`: referências externas 100%, imagens bloqueadas pelo mesmo gap real de dados na TCGdex. "Now" reescrito — não há mais nenhuma coleção com execução pendente do lado do Project Mimikyu; o item permanece aberto apenas aguardando a TCGdex publicar os assets de `MEE`/`MEP`. |
 | 1.3 | Decisão de Fabrício: em vez de esperar a TCGdex, importar as imagens de `MEE`/`MEP` manualmente — confirmado antes que o asset genuinamente não existe no CDN da TCGdex (404 direto, não só ausência no campo `image` da API). Novo script `scripts/import-manual-assets.ts` criado e CONFIRMADO EXECUTADO para `MEE`/`en` (8/8, 0 falhas). "Now" reescrito para refletir trabalho ativo novamente. |
 | 1.4 | `MEE`/`pt-BR` executada no mesmo dia (8/8, 0 falhas) — `MEE` agora 100% completa nos dois idiomas. Falta só `MEP`/`en`+`pt-BR` (`60` Cards cada) para o Catálogo Editorial estar genuinamente fechado. |
+| 1.5 | Bug real de `asset_import_run` nunca transicionar de `PENDING` corrigido e testado em produção (v2.6.0) — ver `05-modelo-de-dados.md`. `MEP`/`en` parcialmente salva localmente (`13`/`60`); execução real do script manual adiada até as duas pastas (`en`+`pt-BR`) estarem completas. |
