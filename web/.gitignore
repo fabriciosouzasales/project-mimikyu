@@ -1,0 +1,13 @@
+# Dependências e build
+node_modules
+.next
+out
+
+# Ambiente — nunca versionar valores reais (mesmo a anon key sendo pública, o padrão é não commitar .env*)
+.env
+.env.local
+.env.*.local
+
+# Logs e diagnósticos
+*.log
+.DS_Store
