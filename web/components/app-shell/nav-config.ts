@@ -7,16 +7,15 @@ export type NavSection = {
   label: string;
   icon: LucideIcon;
   href: string;
-  /** Itens do submenu contextual — seções sem filhos (ex.: Visão geral) não abrem submenu. */
+  /** Itens do submenu — seções sem filhos (ex.: Visão geral) não têm submenu. */
   children?: NavChild[];
 };
 
 /**
- * Fonte única da navegação de dois níveis (trilha de ícones + submenu).
- * Os filhos aqui refletem o que já está no roadmap de cada módulo (ver ADR-019
- * e o diagnóstico da fundação), mesmo que a página ainda não exista — o padrão
- * já estabelecido nesta fundação é ter o link e resolver o 404 quando a tela
- * for construída, não esconder a navegação futura.
+ * Fonte única da navegação. O submenu "aberto" não é um estado guardado em
+ * lugar nenhum — é sempre a seção retornada por `findActiveSection(pathname)`
+ * (decisão explícita de Fabrício: reseta e é recalculado pela rota a cada
+ * navegação, nunca persiste manualmente).
  */
 export const NAV_SECTIONS: NavSection[] = [
   { id: "overview", label: "Visão geral", icon: LayoutDashboard, href: "/" },
@@ -25,10 +24,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Usuários",
     icon: Users,
     href: "/usuarios",
-    children: [
-      { href: "/usuarios", label: "Lista de usuários" },
-      { href: "/perfil", label: "Meu perfil" },
-    ],
+    children: [{ href: "/usuarios", label: "Lista de usuários" }],
   },
   {
     id: "catalogo",
@@ -46,7 +42,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-/** Determina a seção ativa a partir do pathname (match exato ou por prefixo de subrota). */
+/** Determina a seção ativa (e, por consequência, o submenu aberto) a partir do pathname. */
 export function findActiveSection(pathname: string): NavSection {
   const nonHome = NAV_SECTIONS.filter((section) => section.id !== "overview");
   const match = nonHome.find((section) => pathname === section.href || pathname.startsWith(`${section.href}/`));

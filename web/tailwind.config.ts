@@ -61,6 +61,30 @@ const config: Config = {
         subtle: "0 1px 2px 0 hsl(var(--foreground) / 0.04)",
         panel: "0 1px 3px 0 hsl(var(--foreground) / 0.06), 0 1px 2px -1px hsl(var(--foreground) / 0.06)",
       },
+      keyframes: {
+        // Radix Collapsible expõe a altura real do conteúdo como variável CSS —
+        // isso resolve o problema clássico de animar "height: auto" sem JS de medição manual.
+        "collapsible-down": {
+          from: { height: "0", opacity: "0" },
+          to: { height: "var(--radix-collapsible-content-height)", opacity: "1" },
+        },
+        "collapsible-up": {
+          from: { height: "var(--radix-collapsible-content-height)", opacity: "1" },
+          to: { height: "0", opacity: "0" },
+        },
+        "drawer-in": { from: { transform: "translateX(-100%)" }, to: { transform: "translateX(0)" } },
+        "drawer-out": { from: { transform: "translateX(0)" }, to: { transform: "translateX(-100%)" } },
+        "overlay-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        "overlay-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+      },
+      animation: {
+        "collapsible-down": "collapsible-down 200ms ease-out",
+        "collapsible-up": "collapsible-up 200ms ease-out",
+        "drawer-in": "drawer-in 200ms ease-out",
+        "drawer-out": "drawer-out 150ms ease-in",
+        "overlay-in": "overlay-in 150ms ease-out",
+        "overlay-out": "overlay-out 150ms ease-in",
+      },
     },
   },
   plugins: [],
