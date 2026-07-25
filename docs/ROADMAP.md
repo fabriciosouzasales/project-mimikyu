@@ -4,12 +4,12 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.5 |
+| **Versão** | 1.6 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
 | **Dependências** | `docs/README.md`, `05-modelo-de-dados.md` |
-| **Documentos Relacionados** | `06-pipeline-importacao.md`, `adr/ADR-013-collection-item-identity-model.md`, `adr/ADR-014-collection-and-collection-entry-model.md`, `adr/ADR-018-single-function-import-pipeline.md` |
+| **Documentos Relacionados** | `06-pipeline-importacao.md`, `adr/ADR-013-collection-item-identity-model.md`, `adr/ADR-014-collection-and-collection-entry-model.md`, `adr/ADR-018-single-function-import-pipeline.md`, `adr/ADR-019-web-application-as-primary-interface.md` |
 
 ---
 
@@ -31,6 +31,10 @@ Em paralelo, bug real corrigido nesta revisão (2026-07-25): `asset_import_run` 
 
 Só quando as imagens de `MEE`/`MEP` também estiverem importadas o Catálogo Editorial estará genuinamente fechado — conforme a própria correção de Fabrício registrada em `05-modelo-de-dados.md`, revisão `0.63`: *"Não teremos encerrado toda a fundação do catálogo editorial do Project Mimikyu. Só concluímos após importação de todas as imagens para nossa base."*
 
+**Início do front-end (aplicação web), em paralelo, sem esperar a modelagem de Coleções.**
+
+Fabrício decidiu (2026-07-25, `ADR-019-web-application-as-primary-interface.md`) começar a construção da interface do produto agora, priorizando entregas incrementais de valor em vez de esperar a conclusão de toda a modelagem de dados. Aplicação web própria (React/Next.js) adotada como interface principal — Power Apps/SharePoint/Power BI descartados da arquitetura-alvo. Dois módulos iniciais identificados: **Gestão de Usuários** (fundação transversal — cadastro, login/logout, recuperação de senha, confirmação de e-mail, perfil, papéis/permissões, ativação/bloqueio, auditoria mínima; Supabase Auth + nova entidade `user_profile`, ainda não modelada fisicamente) e **Catálogo Editorial** (CRUD completo pela UI, substituindo o cadastro/importação hoje feito via SQL + PowerShell). Justificado pelo objetivo comercial do produto, esclarecido nesta mesma revisão: plataforma multiusuário voltada a colecionadores do mundo inteiro, não ferramenta de uso pessoal. Nenhum código de front-end existe ainda — próximo passo real é a concepção funcional/arquitetural detalhada (não a escolha de framework, já decidida). Sequenciamento entre os dois módulos iniciais (qual vem primeiro) **ainda não decidido explicitamente** — ver `ADR-019`, "Restrições / Pendências".
+
 ---
 
 # Next — Comprometido, Ainda Não Iniciado
@@ -49,7 +53,6 @@ Os itens abaixo refletem temas que já apareceram em mais de uma proposta de roa
 
 - **Aquisição e movimentação** — registro de compras, trocas e vendas de Cards/Card Variants pelo colecionador.
 - **Avaliação e inteligência** — precificação, relatórios e análises sobre a Collection do usuário.
-- **Interface / Front-end** — camada de apresentação (mencionada em propostas anteriores como Power Apps, sem decisão vigente sobre a tecnologia).
 
 Qualquer um destes itens só entra em "Next" quando Fabrício o confirmar explicitamente, com escopo próprio — seguindo a mesma disciplina de não resolver unilateralmente decisões de direção que já se aplica ao restante deste projeto.
 
@@ -73,3 +76,4 @@ Qualquer um destes itens só entra em "Next" quando Fabrício o confirmar explic
 | 1.3 | Decisão de Fabrício: em vez de esperar a TCGdex, importar as imagens de `MEE`/`MEP` manualmente — confirmado antes que o asset genuinamente não existe no CDN da TCGdex (404 direto, não só ausência no campo `image` da API). Novo script `scripts/import-manual-assets.ts` criado e CONFIRMADO EXECUTADO para `MEE`/`en` (8/8, 0 falhas). "Now" reescrito para refletir trabalho ativo novamente. |
 | 1.4 | `MEE`/`pt-BR` executada no mesmo dia (8/8, 0 falhas) — `MEE` agora 100% completa nos dois idiomas. Falta só `MEP`/`en`+`pt-BR` (`60` Cards cada) para o Catálogo Editorial estar genuinamente fechado. |
 | 1.5 | Bug real de `asset_import_run` nunca transicionar de `PENDING` corrigido e testado em produção (v2.6.0) — ver `05-modelo-de-dados.md`. `MEP`/`en` parcialmente salva localmente (`13`/`60`); execução real do script manual adiada até as duas pastas (`en`+`pt-BR`) estarem completas. |
+| 1.6 | **Decisão real de Fabrício: iniciar o front-end (aplicação web) agora, em paralelo, sem esperar a modelagem de Coleções — formalizada em `ADR-019-web-application-as-primary-interface.md`.** React/Next.js adotado como interface principal; Power Apps/SharePoint/Power BI removidos da "Later" (não são mais direção provável — foram descartados). Novo parágrafo em "Now" descrevendo os dois módulos iniciais (Gestão de Usuários, Catálogo Editorial CRUD). Nenhum código de front-end ainda existe. |

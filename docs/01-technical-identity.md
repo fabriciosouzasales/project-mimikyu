@@ -4,12 +4,12 @@
 |--------|-------|
 | **Documento** | Technical Identity |
 | **Arquivo** | `docs/01-technical-identity.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar a identidade técnica permanente do Project Mimikyu. |
 | **Escopo** | Tecnologias, convenções e definições técnicas adotadas pelo projeto. |
 | **Dependências** | `00-project-charter.md` |
-| **Documentos Relacionados** | `docs/adr/ADR-001-environment-foundation.md`, `docs/adr/ADR-002-infrastructure-region.md` |
+| **Documentos Relacionados** | `docs/adr/ADR-001-environment-foundation.md`, `docs/adr/ADR-002-infrastructure-region.md`, `docs/adr/ADR-019-web-application-as-primary-interface.md` |
 
 ---
 
@@ -32,6 +32,8 @@ As decisões registradas aqui representam o estado atual da plataforma. As justi
 | **Infrastructure Region** | South America (São Paulo) — `sa-east-1` |
 | **Time Zone** | America/Sao_Paulo |
 | **Technical Language** | English |
+| **Frontend Platform** | Aplicação web própria (React/Next.js) — ver `ADR-019` |
+| **Authentication** | Supabase Auth, com entidade de domínio própria `user_profile` (ainda não modelada fisicamente) — ver `ADR-019` |
 
 ---
 
@@ -49,3 +51,4 @@ As decisões registradas aqui representam o estado atual da plataforma. As justi
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação inicial do documento. |
+| 1.1 | Adicionadas as linhas **Frontend Platform** (aplicação web própria, React/Next.js) e **Authentication** (Supabase Auth + `user_profile`), formalizando `ADR-019-web-application-as-primary-interface.md` — primeira decisão de stack de front-end do projeto, substituindo Power Apps/SharePoint/Power BI como direção-alvo. |

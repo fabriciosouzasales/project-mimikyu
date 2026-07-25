@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Architecture Decision Records Index |
 | **Arquivo** | `docs/adr/ADR-INDEX.md` |
-| **Versão** | 2.0 |
+| **Versão** | 2.1 |
 | **Status** | Aprovado |
 | **Objetivo** | Catalogar os Architecture Decision Records do Project Mimikyu. |
 | **Dependências** | `../03-documentation-architecture.md` |
@@ -41,6 +41,7 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | [ADR-016](ADR-016-card-variant-naming-convention.md) | Card Variant Naming Convention | Aprovado |
 | [ADR-017](ADR-017-two-function-import-pipeline.md) | Two-Function Import Pipeline (Catalog Discovery vs. Asset Import) | Substituído (ver ADR-018) |
 | [ADR-018](ADR-018-single-function-import-pipeline.md) | Single-Function Import Pipeline | Aprovado |
+| [ADR-019](ADR-019-web-application-as-primary-interface.md) | Web Application as the Primary User Interface | Aprovado |
 
 ---
 
@@ -72,3 +73,4 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 |---------|-----------|
 | 1.0 | Criação inicial do índice de ADRs. |
 | 2.0 | **Catálogo atualizado para refletir todos os 18 ADRs reais do repositório (2026-07-24), a pedido explícito de Fabrício.** Até esta revisão, o índice listava apenas `ADR-001`/`ADR-002` — desatualizado desde a criação de `ADR-003`, por decisão deliberada de Fabrício de manter os índices congelados até o encerramento da fase de documentação (ver `docs/README.md`, seção "Retomando este Projeto"). Fabrício declarou nesta data que a documentação do passado está encerrada e que agora é o momento correto de ativar a manutenção deste índice — a partir de agora, toda criação ou mudança de status de ADR deve atualizar este arquivo no mesmo ciclo, conforme a regra já definida em "Maintenance Rules", acima. Adicionados `ADR-003` a `ADR-018`, com status refletindo exatamente o campo `Status` de cada arquivo individual: `Aprovado` para 001-008, 011-016, 018; `Substituído (ver ADR-010)` para `ADR-009`; `Substituído parcialmente (ver ADR-016)` para `ADR-010`; `Substituído (ver ADR-018)` para `ADR-017`. |
+| 2.1 | Adicionado `ADR-019` (Web Application as the Primary User Interface, 2026-07-25) — decisão de Fabrício de adotar aplicação web própria (React/Next.js) como interface principal do produto, descartando Power Apps/SharePoint/Power BI da arquitetura-alvo, motivada pela proposta de iniciar o front-end pelo Catálogo Editorial e pelo esclarecimento do objetivo comercial multiusuário do produto. |
