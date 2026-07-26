@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Architecture Decision Records Index |
 | **Arquivo** | `docs/adr/ADR-INDEX.md` |
-| **Versão** | 2.3 |
+| **Versão** | 2.4 |
 | **Status** | Aprovado |
 | **Objetivo** | Catalogar os Architecture Decision Records do Project Mimikyu. |
 | **Dependências** | `../03-documentation-architecture.md` |
@@ -44,6 +44,7 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | [ADR-019](ADR-019-web-application-as-primary-interface.md) | Web Application as the Primary User Interface | Aprovado |
 | [ADR-020](ADR-020-user-profile-and-username-identity-model.md) | User Profile and Username Identity Model | Aprovado |
 | [ADR-021](ADR-021-administrative-role-model.md) | Administrative Role Model | Aprovado |
+| [ADR-022](ADR-022-catalog-editorial-admin-only-access.md) | Catalog Editorial Admin-Only Access | Aprovado |
 
 ---
 
@@ -78,3 +79,4 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | 2.1 | Adicionado `ADR-019` (Web Application as the Primary User Interface, 2026-07-25) — decisão de Fabrício de adotar aplicação web própria (React/Next.js) como interface principal do produto, descartando Power Apps/SharePoint/Power BI da arquitetura-alvo, motivada pela proposta de iniciar o front-end pelo Catálogo Editorial e pelo esclarecimento do objetivo comercial multiusuário do produto. |
 | 2.2 | Adicionado `ADR-020` (User Profile and Username Identity Model, 2026-07-25) — `user_profile` separado de `auth.users`, contendo apenas dados básicos de perfil (username público/único/estável, display_name editável, avatar); papéis/permissões/preferências ficam fora do escopo desta decisão. Complementa ADR-019, que já havia identificado `user_profile` como modelagem pendente. |
 | 2.3 | Adicionado `ADR-021` (Administrative Role Model, 2026-07-26) — papel administrativo modelado como tabela dedicada (`admin_user`), sem política de RLS, distinta de `user_profile`; um único papel, sem RBAC genérico; funções `SECURITY DEFINER` que verificam somente o próprio chamador; auditoria (`admin_action_log`) com FKs anuláveis, sobrevivendo à exclusão de usuários. Resolve a pendência de modelagem de papéis deixada em aberto por ADR-020. |
+| 2.4 | Adicionado `ADR-022` (Catalog Editorial Admin-Only Access, 2026-07-26) — todo o módulo Catálogo Editorial (menu, rota e dado) restrito a administradores; leitura liberada tabela a tabela via RLS `is_admin()` apenas onde uma tela real consulta; escrita administrativa sempre por função `SECURITY DEFINER` específica, nunca política de `UPDATE` ampla; migrations de controle de acesso numeradas na faixa de evolução (`200`–`299`). Motivado pela retomada da concepção da tela Visão Geral e pela descoberta de que as 17 tabelas do Catálogo Editorial já estavam de fato fechadas (RLS sem política), tornando essa realidade uma decisão explícita. |
