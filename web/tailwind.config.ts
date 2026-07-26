@@ -26,6 +26,8 @@ const config: Config = {
         primary: {
           DEFAULT: "hsl(var(--primary) / <alpha-value>)",
           foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
+          hover: "hsl(var(--primary-hover) / <alpha-value>)",
+          active: "hsl(var(--primary-active) / <alpha-value>)",
         },
         accent: {
           DEFAULT: "hsl(var(--accent) / <alpha-value>)",

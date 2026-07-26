@@ -11,7 +11,11 @@ const FOOTER_LINKS = [
 const itemClass =
   "flex h-10 items-center gap-3 overflow-hidden whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground";
 
-/** Área fixa embaixo da sidebar: perfil, configurações e logout. */
+/**
+ * Área fixa embaixo da trilha primária: perfil, configurações e logout.
+ * O rótulo é revelado pelo hover-expand da própria trilha (ver
+ * `PrimaryRail`), sem tooltip.
+ */
 export function SidebarFooter() {
   return (
     <div className="space-y-1 border-t border-border p-2">

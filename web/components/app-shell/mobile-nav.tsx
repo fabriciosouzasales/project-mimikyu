@@ -58,10 +58,10 @@ export function MobileNav() {
                     onClick={() => setOpen(false)}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
-                      "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+                      "flex h-10 items-center gap-3 rounded-md px-3 text-sm transition-colors",
                       isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                        ? "bg-accent font-semibold text-foreground"
+                        : "font-medium text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                     )}
                   >
                     <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -79,7 +79,7 @@ export function MobileNav() {
                           className={cn(
                             "ml-9 flex items-center rounded-md px-3 py-1.5 text-sm transition-colors",
                             pathname === child.href
-                              ? "bg-primary/10 font-medium text-primary"
+                              ? "bg-accent font-semibold text-foreground"
                               : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                           )}
                         >

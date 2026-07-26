@@ -3,40 +3,59 @@
 @tailwind utilities;
 
 /*
- * Design tokens — Project Mimikyu (Etapa 0, fundação do frontend).
+ * Design tokens — Project Mimikyu.
  *
- * Paleta própria, não copiada de nenhuma marca: indigo como cor primária de ação
- * (confiança/profissionalismo) e âmbar como cor de destaque (evoca o brilho de
- * cartas foil/raras — identidade do universo de colecionismo, sem usar nenhum
- * ativo protegido da franquia Pokémon).
+ * 2026-07-25, terceira revisão: Fabrício mandou um print real do Supabase
+ * Dashboard (Settings > Audit Log Drains, item selecionado + item em hover)
+ * e pediu para reproduzir "na íntegra" ESSE padrão específico — cores,
+ * item ativo, efeito de hover. Medi os pixels do print (não estimativa):
+ * fundo #FDFDFD, borda/divisor #E8E8E8, pill de hover #F8F8F8 (quase
+ * imperceptível), pill do item selecionado #F3F3F3, texto de item
+ * ativo/hover preto quase puro + negrito, texto de item comum cinza médio
+ * (~#777777). NENHUMA cor de marca aparece nesse padrão de navegação —
+ * é inteiramente neutro/monocromático.
  *
- * Ambos os temas (claro/escuro) são definidos com paletas completas e
- * independentes — o escuro não é apenas o claro invertido.
+ * Por isso, o --background voltou a ser neutro (creme #E7E1D5 revertido —
+ * não bate com o print) e o item ativo/hover do menu (sidebar) passou a
+ * usar --accent/--surface-muted (neutros) em vez de --primary. --primary
+ * (dourado #E29C27, ver histórico acima) segue existindo para botões de
+ * ação reais (Button "default") — o print não mostra um desses, só a
+ * navegação, então não toquei nisso. Sinalizado: se Fabrício quiser
+ * --primary neutralizado também, é só avisar.
+ *
+ * --muted-foreground (claro) estava marcado como "suspeito, veio escuro
+ * demais" na revisão anterior — o print confirma: devia ser um cinza
+ * médio (~46% de luminosidade), não quase-preto. Corrigido agora com dado
+ * real, não suposição.
+ *
+ * --success continua verde, independente de --primary/--warning.
  */
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 99%;
+    --foreground: 0 0% 9%;
 
-    --surface: 0 0% 100%;
-    --surface-muted: 220 14% 96%;
+    --surface: 0 0% 99%;
+    --surface-muted: 0 0% 97%;
 
-    --border: 220 13% 90%;
-    --input: 220 13% 90%;
-    --ring: 243 75% 59%;
+    --border: 0 0% 91%;
+    --input: 0 0% 96%;
+    --ring: 36 18% 50%;
 
-    --primary: 243 75% 59%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 36 18% 50%;
+    --primary-hover: 35 19% 58%;
+    --primary-active: 36 19% 42%;
+    --primary-foreground: 0 0% 9%;
 
-    --accent: 38 92% 50%;
-    --accent-foreground: 26 83% 14%;
+    --accent: 0 0% 95%;
+    --accent-foreground: 0 0% 9%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 0 0% 93%;
+    --muted-foreground: 0 0% 46%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 10 80% 44%;
+    --destructive-foreground: 0 0% 99%;
 
     --success: 142 71% 40%;
     --success-foreground: 0 0% 100%;
@@ -51,27 +70,29 @@
   }
 
   .dark {
-    --background: 240 10% 4%;
-    --foreground: 210 20% 96%;
+    --background: 0 0% 7%;
+    --foreground: 214 25% 91%;
 
-    --surface: 240 6% 8%;
-    --surface-muted: 240 5% 12%;
+    --surface: 0 0% 9%;
+    --surface-muted: 0 0% 14%;
 
-    --border: 240 5% 18%;
-    --input: 240 5% 18%;
-    --ring: 239 84% 74%;
+    --border: 0 0% 16%;
+    --input: 0 0% 14%;
+    --ring: 37 62% 49%;
 
-    --primary: 239 84% 74%;
-    --primary-foreground: 240 10% 8%;
+    --primary: 37 62% 49%;
+    --primary-hover: 37 60% 57%;
+    --primary-active: 37 62% 42%;
+    --primary-foreground: 0 0% 9%;
 
-    --accent: 38 92% 58%;
-    --accent-foreground: 26 83% 10%;
+    --accent: 0 0% 19%;
+    --accent-foreground: 0 0% 99%;
 
-    --muted: 240 5% 14%;
-    --muted-foreground: 220 9% 65%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 63%;
 
-    --destructive: 0 63% 55%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 6 64% 20%;
+    --destructive-foreground: 0 0% 92%;
 
     --success: 142 60% 50%;
     --success-foreground: 0 0% 8%;
