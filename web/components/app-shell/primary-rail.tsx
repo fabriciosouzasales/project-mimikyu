@@ -38,11 +38,18 @@ export function PrimaryRail({ isAdmin }: { isAdmin: boolean }) {
         aria-label="Navegação principal"
       >
         <div className="flex h-14 shrink-0 items-center gap-2 overflow-hidden border-b border-border px-4">
-          <BrandMark className="h-auto w-8" />
-          <span className="truncate text-sm font-semibold">Project Mimikyu</span>
+          <BrandMark className="h-auto w-8 shrink-0" />
+          <span
+            className={cn(
+              "truncate text-sm font-semibold opacity-0 transition-opacity duration-200",
+              "group-hover:opacity-100 group-focus-within:opacity-100",
+            )}
+          >
+            Project Mimikyu
+          </span>
         </div>
 
-        <div className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2">
+        <div className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden p-2">
           {sections.map((section) => {
             const Icon = section.icon;
             const isActive = activeSection.id === section.id;
@@ -53,14 +60,21 @@ export function PrimaryRail({ isAdmin }: { isAdmin: boolean }) {
                 href={section.href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex h-10 items-center gap-3 overflow-hidden whitespace-nowrap rounded-md px-3 text-sm transition-colors",
+                  "flex h-8 items-center gap-2 overflow-hidden whitespace-nowrap rounded-md px-2.5 text-[13px] leading-tight transition-colors",
                   isActive
                     ? "bg-accent font-semibold text-foreground"
-                    : "font-medium text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                    : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                 )}
               >
-                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                <span className="flex-1 truncate">{section.label}</span>
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span
+                  className={cn(
+                    "flex-1 truncate opacity-0 transition-opacity duration-200",
+                    "group-hover:opacity-100 group-focus-within:opacity-100",
+                  )}
+                >
+                  {section.label}
+                </span>
               </Link>
             );
           })}

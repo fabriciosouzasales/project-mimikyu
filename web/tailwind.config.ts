@@ -58,6 +58,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-sans)"],
         mono: ["var(--font-mono)"],
+        heading: ["var(--font-heading)"],
       },
       boxShadow: {
         subtle: "0 1px 2px 0 hsl(var(--foreground) / 0.04)",

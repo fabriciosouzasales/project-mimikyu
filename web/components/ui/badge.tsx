@@ -4,12 +4,16 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
+  "inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium",
   {
     variants: {
       variant: {
-        default: "bg-accent text-accent-foreground",
-        outline: "border border-border text-muted-foreground",
+        default: "border-transparent bg-accent text-accent-foreground",
+        outline: "border-border text-muted-foreground",
+        /** Pílula com contorno na cor primária — usada para destacar um status importante (ex.: Administrador). */
+        primary: "border-primary/40 bg-primary/5 text-primary",
+        /** Pílula na cor de aviso — mais saturada que `primary`, usada para chamar atenção para uma restrição que o usuário precisa notar (ex.: "Fixo" em nome de usuário imutável). */
+        warning: "border-warning/40 bg-warning/10 text-warning",
       },
     },
     defaultVariants: { variant: "default" },

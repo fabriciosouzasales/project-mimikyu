@@ -28,7 +28,7 @@ export default async function PerfilPage() {
     <AppShell title="Meu perfil">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6">
-          <h1 className="text-xl font-medium text-foreground">Meu perfil</h1>
+          <h1 className="font-heading text-xl font-medium text-foreground">Meu perfil</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Dados pessoais, identidade pública e foto de perfil.
           </p>

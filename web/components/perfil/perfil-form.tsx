@@ -41,7 +41,7 @@ export function PerfilForm({
             <div className="flex-1 rounded-md border border-input bg-surface-muted px-3 py-1.5 text-sm text-muted-foreground">
               @{username}
             </div>
-            <Badge>Fixo</Badge>
+            <Badge variant="warning">Fixo</Badge>
           </div>
         </SettingsRow>
 

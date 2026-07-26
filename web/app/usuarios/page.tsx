@@ -36,7 +36,7 @@ export default async function UsuariosPage() {
     <AppShell title="Usuários">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6">
-          <h1 className="text-xl font-medium text-foreground">Usuários</h1>
+          <h1 className="font-heading text-xl font-medium text-foreground">Usuários</h1>
           <p className="mt-1 text-sm text-muted-foreground">Lista administrativa de usuários cadastrados.</p>
         </div>
 

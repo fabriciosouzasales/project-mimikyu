@@ -44,7 +44,7 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
                   href={child.href}
                   aria-current={isChildActive ? "page" : undefined}
                   className={cn(
-                    "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                    "flex items-center rounded-md px-3 py-1.5 text-[13px] leading-tight transition-colors",
                     isChildActive
                       ? "bg-accent font-semibold text-foreground"
                       : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",

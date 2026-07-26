@@ -150,7 +150,11 @@ function UserRow({
         {new Date(user.created_at).toLocaleDateString("pt-BR")}
       </td>
       <td className="px-4 py-3">
-        {user.is_admin ? <Badge>Administrador</Badge> : <Badge variant="outline">Usuário</Badge>}
+        {user.is_admin ? (
+          <Badge variant="primary">Administrador</Badge>
+        ) : (
+          <Badge variant="outline">Usuário</Badge>
+        )}
       </td>
       <td className="px-4 py-3 text-right">
         <form action={formAction}>

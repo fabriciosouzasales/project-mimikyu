@@ -1,9 +1,22 @@
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
+import { Inter, Manrope } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
+
+// Inter substitui Geist Sans em 2026-07-26: pedido de Fabrício para igualar a
+// tipografia do app à do Supabase Dashboard (confirmado via DevTools —
+// font-family: inter, 13px — no submenu de referência). Geist Mono é mantida
+// para o token --font-mono, que não foi objeto do pedido.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+
+// Manrope, também em 2026-07-26: Fabrício identificou via DevTools que o
+// Supabase Dashboard usa uma fonte separada (Manrope) para títulos de página
+// (ex.: h4 "Settings", 16px) — diferente do Inter usado na navegação. Vira o
+// token --font-heading, aplicado só nos títulos de página (h1 de cada rota),
+// não no --font-sans do corpo do texto.
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
 
 export const metadata: Metadata = {
   title: "Project Mimikyu",
@@ -12,7 +25,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html
+      lang="pt-BR"
+      suppressHydrationWarning
+      className={`${inter.variable} ${manrope.variable} ${GeistMono.variable}`}
+    >
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {/* delayDuration=0: tooltip instantâneo, pedido explícito de Fabrício (o title nativo do navegador demorava ~1s e parecia quebrado) */}
