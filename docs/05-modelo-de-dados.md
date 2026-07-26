@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.72 |
+| **Versão** | 0.73 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -1534,6 +1534,24 @@ Validação real confirmou: `MEE` / `Energia Básica Megaevolução` / `2025-09-
 > **Critério de aceite**: `metadata` de `MEP` zerada; `card_set_external_reference` de `MEE` confirmada com `metadata = {}`; `release_date` de `MEE` = `2025-09-25`.
 > **Resultado**: 🟩 Concluído. Todas as três migrations confirmadas por validação real.
 > **Pendências descobertas**: (1) `840 - Seed Card` v2.2 (MEE + MEP) planejada em detalhe, mas **ainda não escrita nem executada** — nenhuma carta de `MEE`/`MEP` existe em `card` até esta revisão; (2) mesma pendência se propaga a `card_variant`, `card_external_reference` e `card_asset` — nada disso pode começar antes de `840` v2.2.
+
+## Logo do Card Set (`logo_storage_path`)
+
+**CONFIRMADO EXECUTADO (2026-07-26).** `card_set` ganhou a coluna `logo_storage_path TEXT NULL`, guardando o caminho relativo (nunca uma URL completa) da logo oficial do Set dentro do bucket privado dedicado `card-set-logo`. Motivada pela retomada do frontend do Catálogo Editorial: a tela Visão Geral precisa exibir a logo de cada Set, e não havia nenhuma referência para ela no modelo. Decisão de Fabrício: nenhuma tabela genérica de assets — a necessidade aprovada é uma única logo principal por Card Set, resolvida com uma coluna simples, mesmo padrão de simplicidade inicial (AP-004) já aplicado outras vezes no projeto.
+
+```sql
+ALTER TABLE public.card_set
+    ADD COLUMN logo_storage_path TEXT NULL;
+
+ALTER TABLE public.card_set
+    ADD CONSTRAINT ck_card_set_logo_storage_path_not_url
+    CHECK (
+        logo_storage_path IS NULL
+        OR logo_storage_path !~* '^[a-z][a-z0-9+.-]*://'
+    );
+```
+
+`NULL` representa um Card Set ainda sem logo cadastrada — o frontend deve prever um fallback visual (ex.: iniciais/placeholder), não um erro. Nenhuma política de `UPDATE` foi criada em `card_set` para este campo: toda escrita passa pela função administrativa `admin_set_card_set_logo()` (ver seção "Autorização do Catálogo Editorial", abaixo), restrita a administradores e ao próprio campo. Convenção de caminho, espelhando o padrão já adotado para Card Asset (`pokemon/{collection-code}/{language-code}/{card-number}/front.png`, ver seção "Arquitetura de Armazenamento" acima): `{game_code}/{card_set_code}.png` — ex.: `pokemon/me1.png`, `pokemon/me2.5.png`. Leitura ocorre por URL assinada (`createSignedUrl()`), nunca `getPublicUrl()`, já que o bucket é privado (ver "Autorização do Catálogo Editorial"). Decisão formalizada em `ADR-022`. Confirmado via `information_schema.columns`/`pg_constraint`. Arquivo em `database/migrations/273_add_card_set_logo_column.sql`; `database/schema/120_create_card_set_table.sql` atualizado para v2.1 (Princípio da Fonte Canônica).
 
 ---
 
@@ -4425,6 +4443,112 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 
 ---
 
+# Autorização do Catálogo Editorial
+
+## Status
+
+**CONFIRMADO EXECUTADO (2026-07-26).** Formaliza `ADR-022` (Catalog Editorial Admin-Only Access): todo o módulo Catálogo Editorial — menu, rota e dado — passa a ser exclusivo de administradores. Motivado pela retomada do frontend do módulo (tela Visão Geral) e pela descoberta, durante a verificação que antecedeu o desenho da tela, de que as 17 tabelas do Catálogo Editorial já tinham Row Level Security habilitado sem nenhuma política — ou seja, ninguém (nem administrador) conseguia ler esses dados pela API. Este incremento torna esse fechamento uma decisão explícita, seguindo exatamente o mesmo rigor já aplicado em Administração de Usuários (acima): leitura mínima necessária, escrita sensível sempre por função vetada.
+
+## Leitura — políticas `catalog_admin_select` (Query `274`, CONFIRMADO EXECUTADO)
+
+Política `SELECT` idêntica em dez tabelas — as únicas efetivamente consultadas pela Visão Geral aprovada: `game`, `expansion`, `card_set`, `card`, `card_variant`, `card_asset`, `language`, `rarity`, `card_category`, `asset_import_run`.
+
+```sql
+CREATE POLICY catalog_admin_select ON public.<tabela>
+    FOR SELECT USING (is_admin());
+GRANT SELECT ON public.<tabela> TO authenticated;
+```
+
+Reaproveita `is_admin()` (`ADR-021`). Sem o `GRANT` de nível de tabela do PostgreSQL, a política nunca chega a ser avaliada — mesmo gap já visto nas Queries `250`/`253`/`254`/`272`. As sete tabelas do Catálogo Editorial ainda não consultadas por nenhuma tela real (`card_variant_type`, `card_asset_type`, `storage_bucket`, `asset_source`, `card_external_reference`, `card_set_external_reference`, `asset_import_failure`) permanecem sem nenhuma política — fechadas até que uma tela real precise delas, por decisão explícita (`AP-004`, Simplicidade Inicial), não por esquecimento. Confirmado via `pg_policies`/`information_schema.role_table_grants`. Arquivo em `database/migrations/274_add_admin_only_select_policies_to_catalog_tables.sql`.
+
+## Escrita da logo — `admin_set_card_set_logo()` (Query `275`, CONFIRMADO EXECUTADO)
+
+Nenhuma tabela do Catálogo Editorial recebeu política de `INSERT`/`UPDATE`/`DELETE` neste incremento. A escrita de `card_set.logo_storage_path` passa exclusivamente por uma função `SECURITY DEFINER`, mesmo padrão já usado em `admin_grant_admin()`/`admin_revoke_admin()` (`ADR-021`): restrita a administradores, restrita a este único campo, e que nunca falha silenciosamente — confirma via `GET DIAGNOSTICS ... ROW_COUNT` que exatamente uma linha foi alterada, levantando exceção se o Card Set informado não existir.
+
+```sql
+CREATE OR REPLACE FUNCTION public.admin_set_card_set_logo(
+    p_card_set_id UUID,
+    p_logo_storage_path TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_rows_updated INTEGER;
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'ADMIN_SET_CARD_SET_LOGO_FORBIDDEN: apenas administradores podem alterar a logo de um Card Set.';
+    END IF;
+
+    IF p_logo_storage_path IS NOT NULL
+       AND p_logo_storage_path ~* '^[a-z][a-z0-9+.-]*://' THEN
+        RAISE EXCEPTION 'ADMIN_SET_CARD_SET_LOGO_INVALID_PATH: logo_storage_path deve ser um caminho relativo, nunca uma URL absoluta.';
+    END IF;
+
+    UPDATE public.card_set
+        SET logo_storage_path = p_logo_storage_path,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = p_card_set_id;
+
+    GET DIAGNOSTICS v_rows_updated = ROW_COUNT;
+
+    IF v_rows_updated <> 1 THEN
+        RAISE EXCEPTION 'ADMIN_SET_CARD_SET_LOGO_NOT_FOUND: nenhum Card Set encontrado para o id informado (%).', p_card_set_id;
+    END IF;
+END;
+$$;
+```
+
+Confirmado estruturalmente: `SECURITY DEFINER`, `search_path` vazio, `EXECUTE` concedido a `authenticated` e negado a `anon`/`public`. Chamada em tempo real não foi testada nesta rodada (bloqueada pelo classificador automático do ambiente de execução por se parecer com uma ação de escrita) — comportamento validado por revisão do corpo da função. Arquivo em `database/migrations/275_create_admin_set_card_set_logo_function.sql`.
+
+## Storage — bucket `card-set-logo` (Query `276`, CONFIRMADO EXECUTADO)
+
+Bucket privado, dedicado exclusivamente às logos de Card Set — diverge deliberadamente do padrão público já usado por `card-front`/`artwork`/`card-back`/`avatars`, porque o Catálogo Editorial é admin-only por completo. Leitura no frontend ocorre por URL assinada (`createSignedUrl()`), nunca `getPublicUrl()`. Quatro políticas separadas em `storage.objects` — nunca uma única `FOR ALL` — cada uma restrita a `bucket_id = 'card-set-logo' AND is_admin()`:
+
+```sql
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('card-set-logo', 'card-set-logo', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY card_set_logo_admin_select ON storage.objects
+    FOR SELECT USING (bucket_id = 'card-set-logo' AND is_admin());
+
+CREATE POLICY card_set_logo_admin_insert ON storage.objects
+    FOR INSERT WITH CHECK (bucket_id = 'card-set-logo' AND is_admin());
+
+CREATE POLICY card_set_logo_admin_update ON storage.objects
+    FOR UPDATE USING (bucket_id = 'card-set-logo' AND is_admin())
+    WITH CHECK (bucket_id = 'card-set-logo' AND is_admin());
+
+CREATE POLICY card_set_logo_admin_delete ON storage.objects
+    FOR DELETE USING (bucket_id = 'card-set-logo' AND is_admin());
+```
+
+`card-set-logo` não é registrado na tabela `storage_bucket` — mesmo padrão já usado por `avatars` (bucket module-owned, fora do catálogo multi-bucket de `card_asset`). Confirmado via `storage.buckets`/`pg_policies`. Arquivo em `database/migrations/276_create_card_set_logo_storage_bucket_and_policies.sql`.
+
+## Menu e rota (pendente — parte da implementação da tela `/catalogo`)
+
+A guarda de menu (`nav-config.ts`, `adminOnly: true`) e a guarda de servidor em cada uma das seis rotas do módulo, mesmo padrão já validado em produção em `/usuarios/page.tsx`, ainda não foram implementadas — fazem parte da implementação da tela Visão Geral, não desta fundação de banco. Ver `ADR-022`, seção "Escopo do módulo".
+
+## Sequência
+
+```text
+274 - Add Admin-Only SELECT Policies to Catalog Tables   (CONFIRMADO EXECUTADO — database/migrations/274_add_admin_only_select_policies_to_catalog_tables.sql)
+275 - Create admin_set_card_set_logo() Function            (CONFIRMADO EXECUTADO — database/migrations/275_create_admin_set_card_set_logo_function.sql)
+276 - Create Card Set Logo Storage Bucket and Policies      (CONFIRMADO EXECUTADO — database/migrations/276_create_card_set_logo_storage_bucket_and_policies.sql)
+277 - Validate Catalog Editorial Authorization and Logo     (EXECUTADA — database/validations/277_validate_catalog_editorial_authorization_and_logo.sql)
+```
+
+(`273 - Add Card Set Logo Column` documentada na seção "Set" acima, não repetida aqui.)
+
+## Pendências / Próximos Passos
+
+Implementação da tela `/catalogo` (Visão Geral) propriamente dita — guardas de menu/rota, componentes React, upload real de logos via `admin_set_card_set_logo()`. Nenhum frontend foi implementado nesta rodada, por instrução explícita de Fabrício ("Não implemente ainda a tela /catalogo").
+
+---
+
 # Revision History
 
 | Versão | Descrição |
@@ -4501,3 +4625,4 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 0.70 | **Nova entidade User Profile (Perfil de Usuário) / Reserved Username — Incremento 1 ("Meu Perfil") do módulo Identidade e Acesso, `1000`–`1040`/`1710`/`1800`–`1840` CONFIRMADOS EXECUTADOS.** Primeira entidade fora do Catálogo Editorial, inaugurando o Modelo Modular de Numeração (milhar `1000`–`1999`, ver STD-001 revisão 1.15) e formalizada em ADR-020 (User Profile and Username Identity Model). `user_profile`: separada de `auth.users`, `username` público/único/imutável (trigger sem válvula de exceção), `display_name` editável (trim garantido por trigger), `avatar_path` relativo ao bucket `avatars`. `reserved_username`: tabela de apoio (50 termos, v1.1 acrescentou `me`/`about` por sugestão de Fabrício), sem política de RLS direta — só lida por functions `SECURITY DEFINER` (`handle_new_user()`, que popula o perfil automaticamente no cadastro a partir de metadados tratados como não confiáveis; `username_available()`, checagem de disponibilidade sujeita a condição de corrida, não autoritativa). Bucket `avatars` criado com leitura pública e escrita restrita à própria pasta do usuário. Achado real: conta de teste de Fabrício, criada antes de `handle_new_user()` existir, ficou sem perfil — decisão tomada de excluí-la e recriar pelo fluxo real quando o frontend estiver pronto, não de corrigir manualmente. Frontend (formulário de cadastro + tela `/perfil`) ainda pendente. |
 | 0.71 | **Frontend do Incremento 1 implementado e Query `1004` (bug real de GRANT) corrigida (2026-07-26).** Formulário de cadastro (`/cadastro`) estendido com `username`/`display_name`, normalização espelhando as constraints do banco (`web/lib/username.ts`), checagem de disponibilidade em tempo real via `username_available()` e envio pelos metadados esperados por `handle_new_user()`. `traduzirErroAuth` estendido para os erros do trigger, com ressalva registrada no código de que o formato exato devolvido pelo GoTrue para falha de trigger ainda não foi confirmado em produção. Tela `/perfil` real: Server Component protegido por sessão (redireciona para `/login` se ausente), trata perfil ainda não carregado, delega a edição de `display_name` a uma Server Action e o upload de avatar a uma função client-side que envia o novo arquivo ao bucket antes de remover o anterior. Durante a validação em produção, `/perfil` falhou com `permission denied for table user_profile` (`42501`): as políticas de RLS da Query `1003` estavam corretas, mas faltava o `GRANT` de base do role `authenticated` — corrigido pela Query `1004` (ver seção acima). Teste de cadastro completo (`user_profile` criado com `username`/`display_name` corretos) e carregamento de `/perfil` confirmados por Fabrício; edição de `display_name` e avatar seguem em validação. |
 | 0.72 | **Incremento 2 (Administração de Usuários), Fases 1–3 CONFIRMADAS EXECUTADAS e validadas em produção (2026-07-26) — nova entidade Administração de Usuários.** `admin_user` (papel administrativo por presença de linha, separado de `user_profile`) e `admin_action_log` (auditoria, FKs anuláveis `ON DELETE SET NULL`, `metadata` com retrato de dados), formalizados em ADR-021. Functions `is_admin()` (sem parâmetro, verifica só o chamador), `admin_list_users()` (paginada, `SECURITY DEFINER`, única via de leitura de e-mail de `auth.users` para fins administrativos) e `admin_grant_admin()`/`admin_revoke_admin()` (trava consultiva de transação contra remoção concorrente do último administrador). Bug real encontrado na Fase 3: `admin_list_users()` falhava com erro `42804` (`auth.users.email` é `varchar(255)`, não `TEXT` — corrigido com cast explícito, v1.1). Bootstrap do primeiro administrador documentado como operação única, não numerada, não replicável entre ambientes (por decisão de Fabrício). Frontend: rota `/usuarios` real (estados de acesso negado/erro/vazio/carregado), item de menu condicional a `is_admin()`. Fase 4 (correção administrativa de `username`, prevista em ADR-020) deliberadamente fora deste incremento. |
+| 0.73 | **Fundação de autorização e logo do Catálogo Editorial, Queries `273`–`277` CONFIRMADAS EXECUTADAS (2026-07-26) — nova seção Autorização do Catálogo Editorial, formalizando ADR-022.** `card_set.logo_storage_path` (`TEXT NULL`, caminho relativo, nunca URL, `CHECK ck_card_set_logo_storage_path_not_url`) adicionada via Query `273`; `database/schema/120_create_card_set_table.sql` atualizado para v2.1 (Princípio da Fonte Canônica). Leitura do Catálogo Editorial restrita a administradores via política `catalog_admin_select` (`USING is_admin()`) + `GRANT SELECT` a `authenticated`, em exatamente dez tabelas efetivamente consultadas pela Visão Geral (Query `274`) — as sete tabelas do catálogo ainda sem tela real seguem sem política. Escrita da logo restrita à função `SECURITY DEFINER` `admin_set_card_set_logo()` (Query `275`, valida administrador, formato do caminho e existência do Card Set via `ROW_COUNT`) — nenhuma política de `UPDATE` criada em `card_set`. Bucket privado `card-set-logo` com quatro políticas separadas de Storage (`SELECT`/`INSERT`/`UPDATE`/`DELETE`, Query `276`), divergindo deliberadamente do padrão público de `card-front`/`artwork`/`card-back`/`avatars`; fora do catálogo `storage_bucket`, mesmo padrão de `avatars`. Validação consolidada `277` confirma os cinco blocos (coluna+CHECK, ausência de políticas de escrita em `card_set`, as dez políticas de leitura, a segurança da função, o bucket e suas políticas). Motivado pela retomada do frontend do Catálogo Editorial e pela descoberta de que as 17 tabelas do módulo já estavam de fato fechadas (RLS sem política) antes desta decisão. Implementação da tela `/catalogo` (guardas de menu/rota, componentes) explicitamente **não** iniciada nesta rodada, por instrução de Fabrício. |

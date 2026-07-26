@@ -2,15 +2,17 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 120 - Create Card Set Table
-Versão......: 2.0
-Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-17
+Versão......: 2.1
+Autor.......: Fabrício Sales / ChatGPT / Claude
+Data........: 2026-07-26
 Status......: CANÔNICA
 Descrição...:
 Cria a tabela card_set, responsável por representar as publicações oficiais
 numeradas pertencentes a uma Expansion — já nascendo com suporte nativo ao
-tipo PROMO (Card Set promocional Black Star Promos, ver ADR-015) e com o
-índice único parcial que impede mais de uma série PROMO por Expansion.
+tipo PROMO (Card Set promocional Black Star Promos, ver ADR-015), com o
+índice único parcial que impede mais de uma série PROMO por Expansion, e com
+a coluna logo_storage_path (caminho relativo da logo oficial do Set no
+bucket privado card-set-logo, ver ADR-022 e Query 273).
 Exemplos:
 - ME0   - ME Black Star Promos (PROMO)
 - ME1   - Megaevolução
@@ -35,17 +37,21 @@ Regras de Negócio:
 - Uma Expansion que possua Card Sets não pode ser excluída.
 - O UUID é gerado automaticamente.
 - O Row Level Security permanece habilitado.
+- logo_storage_path é opcional (NULL = Card Set ainda sem logo cadastrada),
+  nunca uma URL absoluta, e só pode ser escrito pela função administrativa
+  admin_set_card_set_logo() (ver database/migrations/275_*.sql) — nenhuma
+  política de UPDATE é criada para esta tabela.
 Nota — Princípio da Fonte Canônica (STD-001, Seção 10):
 esta é a versão que uma instalação nova deve executar. Ela substitui, em uma
-instalação nova, tanto a Versão 1.0 desta Query quanto a migration
-122 - Adapt Card Set for Promo (ver database/migrations/122_adapt_card_set_for_promo.sql,
-reclassificada como Status MIGRATION — histórica, não faz parte do fluxo de
-instalação limpa).
-Item aberto: esta Versão 2.0 foi escrita para o repositório; o banco físico
-atual foi construído pelo caminho antigo (120 v1.0 + migration 122), que não
-incluía o índice uq_card_set_expansion_promo. Não presumir que esse índice já
-existe no Supabase real até confirmação — ver docs/05-modelo-de-dados.md,
-seção Set.
+instalação nova, a Versão 1.0 desta Query, a migration 122 - Adapt Card Set
+for Promo (ver database/migrations/122_adapt_card_set_for_promo.sql) e a
+migration 273 - Add Card Set Logo Column (ver database/migrations/273_*.sql)
+— ambas reclassificadas como Status MIGRATION, históricas, fora do fluxo de
+instalação limpa.
+Item aberto (herdado da Versão 2.0): o banco físico atual foi construído
+pelo caminho antigo (120 v1.0 + migration 122), que não incluía o índice
+uq_card_set_expansion_promo. Não presumir que esse índice já existe no
+Supabase real até confirmação — ver docs/05-modelo-de-dados.md, seção Set.
 ===============================================================================
 */
 
@@ -59,6 +65,7 @@ CREATE TABLE public.card_set (
     release_date DATE NULL,
     base_set_size INTEGER NOT NULL,
     total_set_size INTEGER NOT NULL,
+    logo_storage_path TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_card_set_expansion
@@ -85,6 +92,11 @@ CREATE TABLE public.card_set (
         CHECK (
             set_type <> 'PROMO'
             OR base_set_size = total_set_size
+        ),
+    CONSTRAINT ck_card_set_logo_storage_path_not_url
+        CHECK (
+            logo_storage_path IS NULL
+            OR logo_storage_path !~* '^[a-z][a-z0-9+.-]*://'
         )
 );
 
@@ -95,3 +107,6 @@ CREATE UNIQUE INDEX uq_card_set_expansion_promo
 
 ALTER TABLE public.card_set
 ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON COLUMN public.card_set.logo_storage_path IS
+    'Caminho relativo da logo oficial do Card Set dentro do bucket privado card-set-logo (nunca uma URL completa). NULL = Card Set ainda sem logo cadastrada. Escrita restrita à função admin_set_card_set_logo().';
