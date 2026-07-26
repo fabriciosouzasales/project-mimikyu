@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | STD-001 |
 | **Título** | Database Standards |
-| **Versão** | 1.16 |
+| **Versão** | 1.17 |
 | **Status** | Aprovado |
 | **Objetivo** | Definir os padrões permanentes utilizados na modelagem e implementação do banco de dados do Project Mimikyu. |
 | **Escopo** | Todas as entidades, tabelas, relacionamentos e scripts SQL do projeto. |
@@ -189,6 +189,28 @@ Exemplos de restrições implementadas no banco:
 
 Toda tabela do schema `public` deve ter Row Level Security habilitado no momento da criação (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`), já que esse schema é exposto pela API automática do Supabase (ver `01-technical-identity.md`) a clientes anônimos ou autenticados. Políticas de acesso específicas são criadas posteriormente, apenas quando houver necessidade concreta — até lá, o RLS habilitado sem políticas impede qualquer leitura ou escrita externa à administração direta do banco.
 
+## Schema `internal` — Rotinas Não Expostas pela API
+
+Além do schema `public` (exposto pela API automática do Supabase, ver acima), o projeto reserva o schema `internal` para rotinas auxiliares `SECURITY DEFINER` que nunca devem ser um contrato RPC público — a lógica de validação/persistência real que uma ou mais funções administrativas reutilizam internamente, não algo que o frontend chama diretamente. Formalizado a partir de `ADR-023-catalog-editorial-write-authorization.md`, mas não é exclusivo do Catálogo Editorial — é a convenção do projeto, a partir de agora, para qualquer módulo que precise de lógica interna não exposta.
+
+**Finalidade.** Concentrar lógica que precisa rodar com os privilégios elevados de uma função `SECURITY DEFINER`, mas que não representa, por si só, uma operação que o frontend deveria poder invocar — evita que essa lógica fique duplicada entre várias funções públicas, e evita depender de convenção de nome (ex.: um prefixo `_`) para ficar fora de alcance, o que **não é** um mecanismo de controle de acesso em PostgreSQL.
+
+**Objetos permitidos.** Apenas funções e procedures `SECURITY DEFINER` de uso interno — nunca tabelas, views, ou qualquer objeto que precisaria ser consultado diretamente por um cliente. Um dado que o frontend precisa ler sempre passa por uma função pública em `public` ou por RLS em `public`, nunca por acesso direto a algo dentro de `internal`.
+
+**Nunca exposto pela API.** `internal` não deve constar entre os schemas expostos pela API do Supabase (por padrão, apenas `public`/`graphql_public`) — PostgREST não alcança objetos fora dos schemas configurados como expostos, independentemente de `GRANT`. Esta é a primeira camada de proteção, não a única.
+
+**Revogação explícita de privilégios.** Toda função em `internal` revoga `EXECUTE` de `PUBLIC`, `anon` e `authenticated` explicitamente (`REVOKE EXECUTE ON FUNCTION internal.<função>(...) FROM PUBLIC, anon, authenticated;`) — defesa em profundidade, que não depende só do isolamento de schema.
+
+**Critério de `GRANT`.** Uma função em `internal` só é chamada por outra função `SECURITY DEFINER` do projeto (chamada interna, dentro do mesmo contexto de execução) — nunca recebe `GRANT EXECUTE` para `authenticated`, `anon` ou `service_role` diretamente. Se uma role de aplicação precisa acionar a lógica, ela sempre passa por uma função pública em `public`, nunca chama `internal` diretamente.
+
+**`search_path` explícito e seguro.** Toda função em `internal` declara `SET search_path = ''`, mesmo padrão já exigido de qualquer função `SECURITY DEFINER` do projeto — nunca depende do `search_path` de sessão de quem a invoca.
+
+**Referências qualificadas por schema.** Toda referência a tabela, view, função ou tipo dentro de uma função em `internal` usa o nome totalmente qualificado (ex.: `public.card`, `public.card_set`), nunca um nome que dependeria de `search_path` para ser resolvido.
+
+**Funções RPC públicas vs. rotinas internas reutilizáveis.** Uma função pública (schema `public`, exposta via RPC do PostgREST) é um contrato de API — parâmetros, mensagens de erro e efeitos colaterais (ex.: o que ela audita) fazem parte desse contrato, e podem diferir entre funções públicas distintas mesmo quando compartilham a mesma lógica de persistência. Uma rotina em `internal` nunca é, ela mesma, um contrato de API — existe só para ser reaproveitada por uma ou mais funções públicas, evitando duplicar validação e proteção de campos sensíveis entre elas. Uma função pública pode chamar várias rotinas internas; uma rotina interna nunca deve assumir que só existe uma função pública chamando-a.
+
+Precedente: `internal.write_card()` (Catálogo Editorial — Escrita e Ingestão, ver `ADR-023`), reutilizada por `admin_create_card()`, `admin_update_card()` e, em `ADR-024`, por `admin_confirm_catalog_import()`.
+
 ---
 
 # 10. Migration Standards
@@ -242,11 +264,32 @@ Todo módulo novo recebe um milhar inteiro (`X000`–`X999`), sem colisão com o
 | `X800–X899` | Validações |
 | `X900–X999` | Reserva |
 
-Dentro de `X000–X699`, cada entidade persistente continua ocupando um **bloco de dez** (`X0` cria a tabela, `X1` cria o trigger, `X2`/`X3`... reservados para evoluções da mesma entidade) — o mesmo princípio do esquema legado, descrito a seguir.
+Dentro de `X000–X699`, cada entidade persistente continua ocupando um **bloco de dez** (`X0` cria a tabela, `X1` cria o trigger, `X2`/`X3`... reservados para evoluções da mesma entidade) — o mesmo princípio do esquema legado, descrito a seguir. Objetos sem tabela própria dentro de `X000–X699` (funções administrativas, funções internas, políticas transversais) não ocupam um bloco de dez — recebem o próximo número sequencial livre, associados ao objeto correspondente pelo nome e pelo cabeçalho da Query, mesma flexibilidade já aplicada a Seed/Validação sem correspondência 1:1 (ver "Offset", abaixo).
+
+**Alteração de entidade legada que só serve a um módulo novo.** Quando um módulo novo precisa alterar uma entidade já existente do esquema legado (ex.: adicionar uma coluna em `card`), e essa alteração não tem propósito independente do módulo novo — só existe para viabilizar a funcionalidade que está sendo construída —, a Query correspondente é numerada dentro do milhar do módulo novo, nunca na faixa legada (`000`–`299`), mesmo que a tabela alterada seja legada. O critério é o **propósito da mudança**, não a idade da tabela: se a alteração resolve uma necessidade do próprio Catálogo Editorial legado (ex.: `card_set.logo_storage_path`, `ADR-022`), permanece em `200`–`299`; se resolve uma necessidade de um módulo novo construído sobre entidades legadas (ex.: `card.is_active`, necessário apenas para `admin_deactivate_card()`/`admin_reactivate_card()`, `ADR-023`), numera-se no milhar do módulo novo.
 
 **Offset `+700`/`+800`:** deixa de ser obrigatório no modelo modular. Quando uma Seed ou Validação corresponde diretamente a uma única entidade e o número resultante do deslocamento não colide com nada já numerado, ele pode ser usado como conveniência. Nos demais casos — funções sem tabela própria, triggers transversais, Storage, validações sem correspondência 1:1 — Seed e Validação recebem o **próximo número sequencial livre** dentro de suas faixas, associados ao objeto correspondente pelo nome e pelo cabeçalho da Query, não pela aritmética do número.
 
-**Módulos definidos:** `1000–1999` = Identidade e Acesso, incluindo papéis e permissões futuros (permanecem no mesmo milhar, não abrem um novo). Nenhum outro milhar está comprometido como decisão definitiva — novos módulos recebem milhar próprio quando efetivamente aprovados, não por reserva antecipada.
+**Módulos definidos:** `1000–1999` = Identidade e Acesso, incluindo papéis e permissões futuros (permanecem no mesmo milhar, não abrem um novo). `2000–2999` = Catálogo Editorial — Escrita e Ingestão (`ADR-023`/`ADR-024`, ver subseção própria abaixo). Nenhum outro milhar está comprometido como decisão definitiva — novos módulos recebem milhar próprio quando efetivamente aprovados, não por reserva antecipada.
+
+### Módulo: Catálogo Editorial — Escrita e Ingestão (`2000`–`2999`)
+
+Comprometido nesta revisão como o próximo milhar do Modelo Modular de Numeração, cobrindo a implementação de `ADR-023-catalog-editorial-write-authorization.md` e `ADR-024-catalog-card-ingestion-strategy.md` — tratados como um único módulo de numeração, mesmo padrão já usado por Identidade e Acesso (`1000`–`1999`), que também cobre múltiplos ADRs do mesmo domínio.
+
+Dentro de `2000–2699` (estrutura):
+
+- `catalog_import_job` e `catalog_import_row` (`ADR-024`) são entidades persistentes — cada uma ocupa um bloco de dez, mesma regra do modelo modular.
+- A alteração de `card.is_active` (`ADR-023`) é numerada aqui, não na faixa legada `200`–`299` — pela regra geral acima ("Alteração de entidade legada que só serve a um módulo novo"): `is_active` não tem propósito independente do Catálogo Editorial já existente, só viabiliza `admin_deactivate_card()`/`admin_reactivate_card()`.
+- A criação do schema `internal` (Seção 9) é numerada aqui, por ser a primeira necessidade real que a motivou — módulos futuros que também usem `internal` reaproveitam o schema já existente, sem precisar de nova Query de criação.
+- As demais funções deste módulo — `internal.write_card()`; `admin_create_game()`/`admin_update_game()`; `admin_create_expansion()`/`admin_update_expansion()`; `admin_create_card_set()`/`admin_update_card_set()`; `admin_create_card()`/`admin_update_card()`/`admin_deactivate_card()`/`admin_reactivate_card()`; a tabela de auditoria editorial (bloco de dez, por ser entidade persistente); e as funções de staging/confirmação de `ADR-024` (ex. `admin_confirm_catalog_import()`) — não têm tabela própria (exceto a auditoria) e recebem o próximo número sequencial livre dentro de `2000–2699`, pela regra geral de objetos sem tabela (acima).
+
+`2700–2799`: Seeds — reservado por consistência com o modelo modular; nenhum dado inicial conhecido a semear neste módulo até o momento.
+
+`2800–2899`: Validações — toda Query de validação estrutural e de dados deste módulo.
+
+`2900–2999`: Reserva.
+
+A escolha do número exato de cada Query específica dentro destas faixas acontece no momento da implementação, seguindo a ordem real em que cada peça for modelada e aprovada — mesmo princípio já registrado para o esquema legado (ver nota sobre Rarity/Card, na subseção seguinte).
 
 ### Bloco por Entidade e Regra de Deslocamento (offset) — esquema legado
 
@@ -359,7 +402,7 @@ Nem toda entidade precisará das cinco categorias completas (a categoria "incons
 
 **Migrations que alteram constraints e dados existentes juntas devem ser transacionais:** envolver a Query inteira em `BEGIN; ... COMMIT;`, garantindo que uma falha em qualquer etapa não deixe o banco em estado intermediário (ex.: constraint alterada mas dados ainda não ajustados). Exemplo real: `122 - Adapt Card Set for Promo`, que remove e recria uma constraint, executa dois `UPDATE`s em sequência e adiciona uma nova constraint, tudo dentro de uma única transação.
 
-### Princípio da Fonte Canônica
+### Princípio da Fonte Canônica (Autoria de Scripts SQL)
 
 **Cada Query do repositório deve representar a forma correta e definitiva de criar aquela entidade em uma instalação nova do sistema.** Consequências diretas:
 
@@ -371,6 +414,8 @@ Nem toda entidade precisará das cinco categorias completas (a categoria "incons
 Este princípio foi adotado a partir da consolidação da entidade Card Set (Queries `120`/`820`, ver `05-modelo-de-dados.md`, seção Set): a Query `120 - Create Card Set Table` e a Query `820 - Seed Card Set` foram atualizadas em lugar (para `Versão 2.0`) para já nascerem com suporte nativo a `PROMO`, e as Queries `122`/`821` (que originalmente introduziram esse suporte em um banco já existente) foram reclassificadas como históricas.
 
 **Atenção:** atualizar a Query canônica no repositório não executa nada automaticamente contra o banco físico. Se o banco atual já foi construído pelo caminho antigo (Query original + migration histórica), ele deve ser conferido individualmente contra a nova versão canônica — pode haver uma diferença estrutural entre "o que o banco atual tem" e "o que a Query canônica descreveria em uma instalação nova" até que essa conferência seja feita (ver nota concreta em `05-modelo-de-dados.md`, seção Set, sobre o índice único parcial de Card Set).
+
+**Nota de reconciliação (`ADR-024`):** `ADR-024-catalog-card-ingestion-strategy.md` registra um princípio homônimo — "Princípio da Fonte Canônica" — aplicado a um objeto diferente. Ali, a fonte canônica é o próprio banco de dados do Project Mimikyu, autoridade sobre os **dados editoriais** do catálogo: nenhuma fonte externa (PDF oficial, TCGdex, integrações futuras) grava diretamente nas tabelas canônicas — cada uma propõe, a validação administrativa decide. A ideia comum aos dois usos é a mesma (existe sempre uma única fonte com autoridade final; tudo o que vem de fora dela é, na melhor das hipóteses, um candidato a ser incorporado, nunca um fato consumado), mas os objetos regidos são diferentes: aqui, scripts SQL (qual Query é a forma correta de criar uma estrutura); em `ADR-024`, dados editoriais (qual fonte tem autoridade sobre o conteúdo do catálogo). Os dois nomes são mantidos deliberadamente iguais — a analogia é intencional —, mas qualificados por contexto: "Princípio da Fonte Canônica (Autoria de Scripts SQL)" aqui, "Princípio da Fonte Canônica (Dados Editoriais)" em `ADR-024`. Qualquer citação futura sem qualificação deve especificar a qual dos dois usos se refere.
 
 ### Modelo de Cabeçalho
 
@@ -438,3 +483,4 @@ A remoção definitiva de um objeto de banco é um **processo separado de abando
 | 1.14 | Adicionada à Seção 3 a subseção "Colunas `JSONB` de `metadata`": `metadata` nunca deve duplicar um atributo já existente em coluna relacional (própria ou de tabela relacionada) — existe apenas para propriedades específicas de uma fonte externa, sem equivalente relacional. Nasceu de um caso real: `card_set_external_reference.metadata` de `MEP` guardava campos já cobertos por `card_set` (`code`/`name`/`release_date`) e um campo (contagem de cartas) que ficaria desatualizado rapidamente — corrigido para `{}`, mesmo padrão dos demais registros. |
 | 1.15 | Motivada pelo incremento de Identidade e Acesso (User Profile, ver ADR-020): a Seção 10 (Faixas de Numeração) foi reclassificada como **esquema legado e congelado** — `200`–`299` passa a ser descrita como "Evoluções e migrations complementares do Catálogo Editorial" (contém as migrations `250`–`271`, já executadas), e todo o intervalo `000`–`999` é declarado congelado para novas implementações, sem reserva antecipada para Coleções/Inventário/Aquisições/etc. Adicionado o **Modelo Modular de Numeração**: todo módulo novo recebe um milhar inteiro (`X000`–`X999`), com `X000–X699` para estrutura, `X700–X799` para Seeds, `X800–X899` para validações e `X900–X999` de reserva; o deslocamento `+700`/`+800` deixa de ser obrigatório, valendo como conveniência quando não colide. `1000–1999` aprovado para Identidade e Acesso (incluindo papéis/permissões futuros, sem abrir milhar próprio). Adicionada a subseção "Rollback de Alterações Estruturais" (Seção 10): rollback padrão nunca remove/desabilita objetos imediatamente — bloqueia a origem de novos dados, reverte a aplicação e preserva banco; remoção definitiva é processo separado de abandono arquitetural. Corrigido também o campo **Versão** do cabeçalho, que permanecia em `1.0` desde a criação do documento, dessincronizado do Revision History (já em `1.14`). |
 | 1.16 | Motivada pela fundação de autorização e logo do Catálogo Editorial (Queries `273`–`277`, ver `ADR-022`): corrigida a faixa `200`–`299` na tabela de Faixas de Numeração e no texto de congelamento, de "inclui as migrations `250`–`271`" para "`250`–`277`" (desatualizada desde a Query `272`, cuja execução não havia gerado esta atualização). Esclarecido explicitamente o que "congelado para novas implementações" significa nesta faixa: nenhuma *nova entidade* abre um bloco de dez novo nela, mas ela permanece legitimamente aberta para *evoluções de controle de acesso/permissão de entidades já existentes* do Catálogo Editorial — precedente confirmado por `250`/`253`/`254`/`272` e reforçado por `273`–`277`, que recebem o próximo número sequencial livre, nunca um bloco de dez próprio. |
+| 1.17 | **Incremento de governança, a pedido de Fabrício, antes de iniciar migrations/funções de `ADR-023`/`ADR-024` — resolve as duas pendências deixadas em aberto por aqueles ADRs.** (1) Nova subseção na Seção 9: schema `internal` formalizado como convenção permanente do projeto para rotinas `SECURITY DEFINER` não expostas por API — finalidade, objetos permitidos (só funções, nunca tabelas/views), nunca exposto pela API, `EXECUTE` revogado explicitamente de `PUBLIC`/`anon`/`authenticated`, critério de `GRANT` (só entre funções `SECURITY DEFINER`, nunca para roles de aplicação), `search_path` explícito, referências qualificadas por schema, e a distinção entre função RPC pública (contrato de API) e rotina interna reutilizável (nunca um contrato por si só). (2) Seção 10: adicionada regra geral ao Modelo Modular de Numeração — alteração de entidade legada que só serve a um módulo novo (ex.: `card.is_active`) numera-se no milhar do módulo novo, não na faixa legada `200`–`299`, mesmo que a tabela alterada seja legada; e objetos sem tabela própria dentro de `X000–X699` não ocupam bloco de dez, recebem o próximo número sequencial livre. Comprometido o milhar `2000`–`2999` = Catálogo Editorial — Escrita e Ingestão (`ADR-023`/`ADR-024`), com subseção própria detalhando a numeração de `catalog_import_job`/`catalog_import_row` (bloco de dez cada), `card.is_active`, schema `internal`, funções administrativas/internas/de staging (sequenciais, sem bloco de dez), Seeds (`2700`–`2799`), Validações (`2800`–`2899`) e Reserva (`2900`–`2999`). (3) Reconciliado "Princípio da Fonte Canônica": heading da Seção 10 qualificado para "(Autoria de Scripts SQL)", com nota explícita distinguindo-o do princípio homônimo de `ADR-024` ("Dados Editoriais") — mesma ideia geral (uma única fonte de autoridade final), objetos diferentes (scripts SQL vs. dados editoriais); nomes mantidos deliberadamente iguais, mas sempre qualificados por contexto a partir de agora. Nenhuma migration, função ou tabela criada nesta revisão — só governança documental, conforme solicitado. |
