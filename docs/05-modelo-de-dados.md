@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.74 |
+| **Versão** | 0.76 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -4562,6 +4562,126 @@ Validação visual em `npm run dev` (ambiente desta sessão sem acesso a npm/CDN
 
 ---
 
+# Catálogo Editorial — Escrita e Ingestão
+
+## Status
+
+**EM IMPLEMENTAÇÃO (iniciado em 2026-07-26).** Formaliza `ADR-023` (Catalog Editorial Write Authorization) e, em incremento futuro, `ADR-024` (Catalog Card Ingestion Strategy). Numeração no milhar `2000`–`2999` (`STD-001` v1.17, Seção 10). Implementação em ciclos verticais por entidade (Backend → Tela → Validação), por decisão de Fabrício: primeiro a infraestrutura comum, depois `Game` → `Expansion` → `Card Set` → `Card` (subdividido em criação/edição e desativação/reativação).
+
+## Schema `internal` (Query `2000`, CONFIRMADO EXECUTADO)
+
+Schema dedicado a rotinas de persistência internas, não expostas pela API (`STD-001` v1.17, Seção 9). Primeira rotina prevista: `internal.write_card()` (Query `2030`).
+
+```sql
+CREATE SCHEMA internal;
+
+COMMENT ON SCHEMA internal IS
+    'Rotinas de persistência internas do Catálogo Editorial (ADR-023/ADR-024). '
+    'Nunca exposto pela API do Supabase. Contém apenas funções SECURITY DEFINER, '
+    'nunca tabelas ou views (STD-001 v1.17, Seção 9).';
+
+REVOKE ALL ON SCHEMA internal FROM PUBLIC;
+REVOKE ALL ON SCHEMA internal FROM anon;
+REVOKE ALL ON SCHEMA internal FROM authenticated;
+```
+
+Confirmado: schema existe, comentário gravado, `nspacl = {postgres=UC/postgres}` (nenhuma entrada para `PUBLIC`/`anon`/`authenticated`), `has_schema_privilege('anon'/'authenticated', 'internal', 'USAGE')` = `false` para ambos. Confirmado manualmente por Fabrício: `internal` não consta em Studio → Settings → API → Exposed schemas (só `graphql_public`/`public` expostos). Arquivo em `database/schema/2000_create_internal_schema.sql`; validação em `database/validations/2800_validate_internal_schema.sql`.
+
+## Auditoria — `catalog_admin_action_log` (Query `2010`, CONFIRMADO EXECUTADO)
+
+Auditoria própria do módulo, deliberadamente separada de `admin_action_log` (`ADR-021`, domínio de Identidade & Acesso). Nome definitivo confirmado nesta implementação — `ADR-023` havia registrado apenas um exemplo, deixando a confirmação para este documento.
+
+```sql
+CREATE TABLE public.catalog_admin_action_log (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_id         UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+    action           TEXT NOT NULL,
+    entity_type      TEXT NOT NULL,
+    entity_id        UUID NOT NULL,
+    metadata         JSONB NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT ck_catalog_admin_action_log_action_valid
+        CHECK (action IN (
+            'GAME_CREATED', 'GAME_UPDATED',
+            'EXPANSION_CREATED', 'EXPANSION_UPDATED',
+            'CARD_SET_CREATED', 'CARD_SET_UPDATED',
+            'CARD_CREATED', 'CARD_UPDATED',
+            'CARD_DEACTIVATED', 'CARD_REACTIVATED'
+        )),
+    CONSTRAINT ck_catalog_admin_action_log_entity_type_valid
+        CHECK (entity_type IN ('GAME', 'EXPANSION', 'CARD_SET', 'CARD')),
+    CONSTRAINT ck_catalog_admin_action_log_action_entity_match
+        CHECK (
+            (entity_type = 'GAME' AND action IN ('GAME_CREATED', 'GAME_UPDATED'))
+            OR (entity_type = 'EXPANSION' AND action IN ('EXPANSION_CREATED', 'EXPANSION_UPDATED'))
+            OR (entity_type = 'CARD_SET' AND action IN ('CARD_SET_CREATED', 'CARD_SET_UPDATED'))
+            OR (entity_type = 'CARD' AND action IN (
+                    'CARD_CREATED', 'CARD_UPDATED', 'CARD_DEACTIVATED', 'CARD_REACTIVATED'
+                ))
+        )
+);
+
+ALTER TABLE public.catalog_admin_action_log ENABLE ROW LEVEL SECURITY;
+```
+
+`entity_id` é polimórfico (aponta para `game`/`expansion`/`card_set`/`card` conforme `entity_type`) e por isso não tem FK — `NOT NULL` porque toda ação registrada aqui sempre tem exatamente uma entidade concreta como alvo. `actor_id` anulável com `ON DELETE SET NULL`, mesmo padrão de `admin_action_log`. Terceiro `CHECK` (`action_entity_match`) é reforço de integridade de implementação, adicional ao que `ADR-023` descreveu — garante que uma combinação logicamente inválida (ex. `GAME_CREATED` com `entity_type = 'CARD'`) nunca é gravada. Confirmado via `information_schema`/`pg_constraint`/`pg_tables`/`pg_policies`: 7 colunas, 5 constraints (PK, FK, 3 CHECKs), RLS habilitado, zero políticas. Arquivo em `database/schema/2010_create_catalog_admin_action_log.sql`; validação em `database/validations/2801_validate_catalog_admin_action_log.sql`.
+
+## `card.is_active` (Query `2020`, CONFIRMADO EXECUTADO)
+
+Soft delete real e irrestrito, não condicionado à ausência de dependentes (`ADR-023`).
+
+```sql
+ALTER TABLE public.card
+    ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT true;
+```
+
+`DEFAULT true` evita qualquer backfill separado — as 927 Cards existentes tornaram-se ativas automaticamente, confirmado (`927`/`927`). `uq_card_card_set_collector_number` (Query `140`) permanece inalterada e continua válida independentemente de `is_active` — uma Card inativa continua ocupando sua chave natural. Nenhum índice criado nesta Query (volume atual não justifica; reavaliar quando o número de Cards inativas crescer). Nenhuma cascata para `card_variant`/`card_asset`/`card_external_reference`. O ajuste da camada de leitura (`web/lib/catalogo/queries.ts` filtrar `is_active = true` por padrão) fica para o ciclo vertical de `Card`, junto com `admin_deactivate_card()`/`admin_reactivate_card()` (`2039`/`2040`) e o controle de inativas na tela. Arquivo de execução em `database/migrations/2020_add_is_active_to_card.sql`; canônica `database/schema/140_create_card_table.sql` atualizada para v1.1 (Princípio da Fonte Canônica); validação em `database/validations/2802_validate_card_is_active.sql`.
+
+## `internal.write_card()` (Query `2030`, CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE)
+
+Camada canônica única de persistência de Card — reutilizada por `admin_create_card()`/`admin_update_card()` (Queries `2037`/`2038`, ainda não escritas) e, em `ADR-024`, por `admin_confirm_catalog_import()` (`ADR-023`, "Camada interna canônica").
+
+```sql
+CREATE OR REPLACE FUNCTION internal.write_card(
+    p_mode TEXT, p_card_id UUID, p_card_set_id UUID, p_rarity_id UUID,
+    p_category_id UUID, p_collector_number TEXT, p_collector_total INTEGER,
+    p_collector_order INTEGER, p_name TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$ ... $$;
+
+REVOKE ALL ON FUNCTION internal.write_card(...) FROM PUBLIC, anon, authenticated;
+```
+
+`p_mode` distingue `CREATE`/`UPDATE` numa função única — evita duplicar a proteção de campos sensíveis em dois lugares. Modo `UPDATE`: se o chamador informar `p_card_set_id`/`p_collector_number` não-nulos, a função levanta `INTERNAL_WRITE_CARD_PROTECTED_FIELD` — nunca ignora silenciosamente um valor divergente. Semântica de substituição integral (não parcial) nos campos editáveis, evitando a ambiguidade de `NULL` como sentinela de "não alterar" em `collector_total` (que também aceita `NULL` como valor real). `is_active` nunca é tocado aqui — pertence exclusivamente a `admin_deactivate_card()`/`admin_reactivate_card()` (`2039`/`2040`).
+
+**Descoberta de implementação**: a consistência de Game (Card Set/Rarity/Card Category no mesmo Game) e `updated_at` já são garantidos pelo trigger existente `trg_card_validate_game_consistency`/`trg_card_set_updated_at` (Query `141`), independentemente de quem faz o `INSERT`/`UPDATE` — a "validação de FK" que `ADR-023` atribui a esta camada já é satisfeita por construção, sem duplicar lógica. Por simetria com `admin_set_card_set_logo()` (que faz sua própria checagem de `is_admin()` por não ter camada interna), esta função **não** verifica `is_admin()` — essa responsabilidade é exclusiva das funções públicas que a chamam (`2037`/`2038`), já que `EXECUTE` é revogado de todos exceto o owner.
+
+Validado estruturalmente (`prosecdef = true`, `search_path = ""`, `anon`/`authenticated` sem `EXECUTE`) **e funcionalmente, com execução real contra o banco** — primeira função deste módulo testada em tempo real, não apenas por revisão de código: cinco cenários (`CREATE` bem-sucedido; `UPDATE` de campos editáveis; tentativa de alterar `card_set_id` bloqueada; `UPDATE` de id inexistente bloqueado; `p_mode` inválido bloqueado), todos dentro de uma transação com `RAISE EXCEPTION` forçado ao final — `ROLLBACK` total confirmado, `0` linhas residuais. Arquivo em `database/schema/2030_create_internal_write_card_function.sql`; validação em `database/validations/2803_validate_internal_write_card.sql`.
+
+## Sequência
+
+```text
+2000 - Create Internal Schema                              (CONFIRMADO EXECUTADO — database/schema/2000_create_internal_schema.sql)
+2010 - Create Catalog Admin Action Log Table                (CONFIRMADO EXECUTADO — database/schema/2010_create_catalog_admin_action_log.sql)
+2020 - Add is_active to Card                                (CONFIRMADO EXECUTADO — database/migrations/2020_add_is_active_to_card.sql)
+2030 - Create internal.write_card() Function                (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2030_create_internal_write_card_function.sql)
+2800 - Validate Internal Schema                             (EXECUTADA — database/validations/2800_validate_internal_schema.sql)
+2801 - Validate Catalog Admin Action Log                    (EXECUTADA — database/validations/2801_validate_catalog_admin_action_log.sql)
+2802 - Validate Card is_active                              (EXECUTADA — database/validations/2802_validate_card_is_active.sql)
+2803 - Validate internal.write_card()                       (EXECUTADA — database/validations/2803_validate_internal_write_card.sql)
+```
+
+## Pendências / Próximos Passos
+
+**Infraestrutura comum concluída.** Próximo passo: ciclo vertical de `Game` — `admin_create_game()`/`admin_update_game()` (Queries `2031`/`2032`), tela de cadastro/edição em `/catalogo/jogos`, validação (`2804`) — antes de iniciar `Expansion`, conforme decisão de Fabrício de implementar por ciclos verticais, entidade por entidade.
+
+---
+
 # Revision History
 
 | Versão | Descrição |
@@ -4640,3 +4760,5 @@ Validação visual em `npm run dev` (ambiente desta sessão sem acesso a npm/CDN
 | 0.72 | **Incremento 2 (Administração de Usuários), Fases 1–3 CONFIRMADAS EXECUTADAS e validadas em produção (2026-07-26) — nova entidade Administração de Usuários.** `admin_user` (papel administrativo por presença de linha, separado de `user_profile`) e `admin_action_log` (auditoria, FKs anuláveis `ON DELETE SET NULL`, `metadata` com retrato de dados), formalizados em ADR-021. Functions `is_admin()` (sem parâmetro, verifica só o chamador), `admin_list_users()` (paginada, `SECURITY DEFINER`, única via de leitura de e-mail de `auth.users` para fins administrativos) e `admin_grant_admin()`/`admin_revoke_admin()` (trava consultiva de transação contra remoção concorrente do último administrador). Bug real encontrado na Fase 3: `admin_list_users()` falhava com erro `42804` (`auth.users.email` é `varchar(255)`, não `TEXT` — corrigido com cast explícito, v1.1). Bootstrap do primeiro administrador documentado como operação única, não numerada, não replicável entre ambientes (por decisão de Fabrício). Frontend: rota `/usuarios` real (estados de acesso negado/erro/vazio/carregado), item de menu condicional a `is_admin()`. Fase 4 (correção administrativa de `username`, prevista em ADR-020) deliberadamente fora deste incremento. |
 | 0.74 | **Frontend da Visão Geral (`/catalogo`) implementado sobre a fundação da revisão `0.73` (2026-07-26).** Guarda de servidor compartilhada (`requireCatalogoAdmin()`) aplicada às seis rotas do módulo, inclusive as ainda `ComingSoonPage`; nova rota de detalhe `/catalogo/card-sets/[code]`. Quatro blocos implementados: Estado do Catálogo (KPIs de estado), Card Sets (tabela navegável), Cartas por Raridade (distribuição, sem expor `ENERGY`) e Atividade Recente (linguagem natural, admin-only). Camada de dados em `web/lib/catalogo/queries.ts`, lendo diretamente as 10 tabelas liberadas pela Query `274`. `tsc --noEmit` confirmado limpo; validação visual em `npm run dev` pendente (sem acesso a npm/CDN nesta sessão). Ressalva registrada: o wireframe/indicadores exatos aprovados antes da compactação de contexto desta sessão não puderam ser recuperados verbatim — os blocos foram reconstruídos a partir do resumo disponível e de nova verificação do banco, e valem conferência de Fabrício. |
 | 0.73 | **Fundação de autorização e logo do Catálogo Editorial, Queries `273`–`277` CONFIRMADAS EXECUTADAS (2026-07-26) — nova seção Autorização do Catálogo Editorial, formalizando ADR-022.** `card_set.logo_storage_path` (`TEXT NULL`, caminho relativo, nunca URL, `CHECK ck_card_set_logo_storage_path_not_url`) adicionada via Query `273`; `database/schema/120_create_card_set_table.sql` atualizado para v2.1 (Princípio da Fonte Canônica). Leitura do Catálogo Editorial restrita a administradores via política `catalog_admin_select` (`USING is_admin()`) + `GRANT SELECT` a `authenticated`, em exatamente dez tabelas efetivamente consultadas pela Visão Geral (Query `274`) — as sete tabelas do catálogo ainda sem tela real seguem sem política. Escrita da logo restrita à função `SECURITY DEFINER` `admin_set_card_set_logo()` (Query `275`, valida administrador, formato do caminho e existência do Card Set via `ROW_COUNT`) — nenhuma política de `UPDATE` criada em `card_set`. Bucket privado `card-set-logo` com quatro políticas separadas de Storage (`SELECT`/`INSERT`/`UPDATE`/`DELETE`, Query `276`), divergindo deliberadamente do padrão público de `card-front`/`artwork`/`card-back`/`avatars`; fora do catálogo `storage_bucket`, mesmo padrão de `avatars`. Validação consolidada `277` confirma os cinco blocos (coluna+CHECK, ausência de políticas de escrita em `card_set`, as dez políticas de leitura, a segurança da função, o bucket e suas políticas). Motivado pela retomada do frontend do Catálogo Editorial e pela descoberta de que as 17 tabelas do módulo já estavam de fato fechadas (RLS sem política) antes desta decisão. Implementação da tela `/catalogo` (guardas de menu/rota, componentes) explicitamente **não** iniciada nesta rodada, por instrução de Fabrício. |
+| 0.75 | **Início da implementação de ADR-023/ADR-024 (Catálogo Editorial — Escrita e Ingestão), Queries `2000`/`2010` CONFIRMADAS EXECUTADAS (2026-07-26) — nova seção própria, milhar `2000`–`2999`.** Schema `internal` criado (Query `2000`), isolado da API (confirmado manualmente por Fabrício: não consta em Exposed Schemas), `USAGE` revogado de `PUBLIC`/`anon`/`authenticated`. `catalog_admin_action_log` criada (Query `2010`) — nome definitivo, confirmando o exemplo dado em ADR-023 — auditoria própria do módulo, separada de `admin_action_log`; `entity_id` polimórfico sem FK, `NOT NULL`; três `CHECK`s, incluindo um reforço de integridade adicional a ADR-023 (`action` compatível com `entity_type`). Implementação segue em ciclos verticais por entidade (Backend → Tela → Validação), por decisão de Fabrício — próximos passos: `card.is_active` (`2020`), `internal.write_card()` (`2030`), depois `Game` → `Expansion` → `Card Set` → `Card` (subdividido). |
+| 0.76 | **Marco: infraestrutura comum de ADR-023 concluída — `card.is_active` (Query `2020`) e `internal.write_card()` (Query `2030`), AMBAS CONFIRMADAS EXECUTADAS (2026-07-26).** `is_active BOOLEAN NOT NULL DEFAULT true` adicionada a `card` (927/927 ativas, sem backfill); `database/schema/140_create_card_table.sql` atualizado para v1.1 (Princípio da Fonte Canônica). `internal.write_card()` criada — `p_mode` (`CREATE`/`UPDATE`) numa função única, protege `card_set_id`/`collector_number` contra atualização (`RAISE EXCEPTION`, nunca ignora silenciosamente), substituição integral (não parcial) dos campos editáveis. Descoberta de implementação: consistência de Game e `updated_at` já garantidos pelo trigger existente (`141`), então a função não duplica essa validação. Primeira função do módulo **testada funcionalmente em tempo real** (não apenas revisão de código): cinco cenários executados dentro de uma transação com `ROLLBACK` forçado, todos com o comportamento esperado, `0` linhas residuais confirmadas. Próximo passo: ciclo vertical de `Game` (`2031`/`2032` + tela + validação `2804`). |

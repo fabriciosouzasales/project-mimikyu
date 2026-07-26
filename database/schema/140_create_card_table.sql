@@ -2,10 +2,10 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 140 - Create Card Table
-Versão......: 1.0
+Versão......: 1.1
 Status......: CANÔNICA
-Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-18
+Autor.......: Fabrício Sales / ChatGPT / Claude
+Data........: 2026-07-18 (v1.1: 2026-07-26)
 
 Descrição resumida:
 Cria a tabela card, responsável por armazenar cada carta específica publicada
@@ -58,6 +58,13 @@ Regras de Negócio:
   impedida.
 - A tabela deve utilizar Row Level Security.
 
+Versão 1.1 (ADR-023, Query 2020 — Princípio da Fonte Canônica, Autoria de
+Scripts SQL): adiciona is_active BOOLEAN NOT NULL DEFAULT true — soft delete
+real e irrestrito, não condicionado à ausência de dependentes. A migration
+2020_add_is_active_to_card.sql registra a execução histórica contra o banco
+já existente; este arquivo canônico reflete a estrutura final para qualquer
+instalação nova.
+
 Pré-requisitos:
 - Query 000 - Infrastructure.
 - Query 110 - Create Expansion Table.
@@ -77,6 +84,7 @@ CREATE TABLE public.card (
     collector_total INTEGER,
     collector_order INTEGER NOT NULL,
     name VARCHAR(200) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -158,6 +166,10 @@ COMMENT ON COLUMN public.card.collector_order IS
 
 COMMENT ON COLUMN public.card.name IS
     'Nome oficial da carta no idioma em que o Card Set foi publicado.';
+
+COMMENT ON COLUMN public.card.is_active IS
+    'Soft delete real e irrestrito (ADR-023). true = participa de consultas operacionais por padrão. '
+    'Desativação nunca cascateia para card_variant/card_asset/card_external_reference.';
 
 COMMENT ON COLUMN public.card.created_at IS
     'Data e hora de criação do registro.';
