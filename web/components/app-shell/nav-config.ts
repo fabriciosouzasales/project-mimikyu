@@ -1,6 +1,14 @@
 import { BookOpen, LayoutDashboard, Users, type LucideIcon } from "lucide-react";
 
-export type NavChild = { href: string; label: string };
+/**
+ * `section` agrupa itens do submenu sob um título maiúsculo, com divisória
+ * antes do primeiro item de cada novo grupo — modelo do sidebar de Database
+ * do Supabase (referência de Fabrício, 2026-07-26). Campo opcional: itens
+ * sem `section` (ex.: "Usuários", que tem um único filho) renderizam
+ * exatamente como antes, sem título nem divisória — nenhum módulo fora do
+ * Catálogo muda visualmente.
+ */
+export type NavChild = { href: string; label: string; section?: string };
 
 export type NavSection = {
   id: string;
@@ -35,12 +43,12 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: BookOpen,
     href: "/catalogo",
     children: [
-      { href: "/catalogo", label: "Visão geral" },
-      { href: "/catalogo/jogos", label: "Jogos" },
-      { href: "/catalogo/expansoes", label: "Expansões" },
-      { href: "/catalogo/card-sets", label: "Card Sets" },
-      { href: "/catalogo/cartas", label: "Cartas" },
-      { href: "/catalogo/importacoes", label: "Histórico de importações" },
+      { href: "/catalogo", label: "Visão geral", section: "Catálogo" },
+      { href: "/catalogo/jogos", label: "Jogos", section: "Catálogo" },
+      { href: "/catalogo/expansoes", label: "Expansões", section: "Catálogo" },
+      { href: "/catalogo/card-sets", label: "Card Sets", section: "Catálogo" },
+      { href: "/catalogo/cartas", label: "Cartas", section: "Catálogo" },
+      { href: "/catalogo/importacoes", label: "Histórico de importações", section: "Operação" },
     ],
     // Módulo restrito a administradores (ADR-022) — leitura dos dados
     // editoriais/operacionais já é bloqueada no banco via RLS (is_admin());
