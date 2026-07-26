@@ -24,7 +24,11 @@ O objetivo é construir uma plataforma capaz de gerenciar coleções de Trading 
 # Tecnologias
 
 - PostgreSQL
-- Supabase
+- Supabase (Auth, Storage, Edge Functions, Supabase SSR)
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
 - GitHub
 - Visual Studio Code
 
@@ -33,6 +37,7 @@ O objetivo é construir uma plataforma capaz de gerenciar coleções de Trading 
 # Estrutura do Repositório
 
 ```text
+web/           Aplicação web (Next.js/React)
 docs/          Documentação oficial
 database/      Registro versionado do SQL já executado no Supabase
 supabase/      Código confirmado deployado das Edge Functions

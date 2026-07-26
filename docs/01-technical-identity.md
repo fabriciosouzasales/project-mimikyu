@@ -4,12 +4,12 @@
 |--------|-------|
 | **Documento** | Technical Identity |
 | **Arquivo** | `docs/01-technical-identity.md` |
-| **Versão** | 1.1 |
+| **Versão** | 1.2 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar a identidade técnica permanente do Project Mimikyu. |
 | **Escopo** | Tecnologias, convenções e definições técnicas adotadas pelo projeto. |
 | **Dependências** | `00-project-charter.md` |
-| **Documentos Relacionados** | `docs/adr/ADR-001-environment-foundation.md`, `docs/adr/ADR-002-infrastructure-region.md`, `docs/adr/ADR-019-web-application-as-primary-interface.md` |
+| **Documentos Relacionados** | `docs/adr/ADR-001-environment-foundation.md`, `docs/adr/ADR-002-infrastructure-region.md`, `docs/adr/ADR-019-web-application-as-primary-interface.md`, `docs/adr/ADR-020-user-profile-and-username-identity-model.md`, `docs/adr/ADR-021-administrative-role-model.md` |
 
 ---
 
@@ -33,7 +33,7 @@ As decisões registradas aqui representam o estado atual da plataforma. As justi
 | **Time Zone** | America/Sao_Paulo |
 | **Technical Language** | English |
 | **Frontend Platform** | Aplicação web própria (React/Next.js) — ver `ADR-019` |
-| **Authentication** | Supabase Auth, com entidade de domínio própria `user_profile` (ainda não modelada fisicamente) — ver `ADR-019` |
+| **Authentication** | Supabase Auth integrado a `public.user_profile` — identidade pública por `username`, perfil editável e avatar no Supabase Storage; papel administrativo separado via `admin_user` — ver `ADR-019`, `ADR-020`, `ADR-021` |
 
 ---
 
@@ -52,3 +52,4 @@ As decisões registradas aqui representam o estado atual da plataforma. As justi
 |---------|-----------|
 | 1.0 | Criação inicial do documento. |
 | 1.1 | Adicionadas as linhas **Frontend Platform** (aplicação web própria, React/Next.js) e **Authentication** (Supabase Auth + `user_profile`), formalizando `ADR-019-web-application-as-primary-interface.md` — primeira decisão de stack de front-end do projeto, substituindo Power Apps/SharePoint/Power BI como direção-alvo. |
+| 1.2 | **Correção de auditoria documental (2026-07-26)**: linha **Authentication** ainda descrevia `user_profile` como "ainda não modelada fisicamente" — desatualizado desde `ADR-020-user-profile-and-username-identity-model.md` (tabela, triggers, RLS e frontend `/perfil` implementados e validados em produção). Reescrita para refletir o estado real, incluindo o papel administrativo (`admin_user`, `ADR-021-administrative-role-model.md`). `ADR-020`/`ADR-021` adicionadas a Documentos Relacionados. |
