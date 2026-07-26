@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | STD-001 |
 | **Título** | Database Standards |
-| **Versão** | 1.0 |
+| **Versão** | 1.15 |
 | **Status** | Aprovado |
 | **Objetivo** | Definir os padrões permanentes utilizados na modelagem e implementação do banco de dados do Project Mimikyu. |
 | **Escopo** | Todas as entidades, tabelas, relacionamentos e scripts SQL do projeto. |
@@ -212,24 +212,43 @@ Toda Query deve possuir:
 - **SQL** — o script propriamente dito;
 - **Validação** — uma ou mais consultas que confirmam que a execução funcionou corretamente (ver "Validação", abaixo).
 
-### Faixas de Numeração
+### Faixas de Numeração (Esquema Legado — Congelado)
 
 | Faixa | Finalidade |
 |-------|------------|
 | 000–099 | Infraestrutura do banco (extensões, funções compartilhadas, configurações globais) |
 | 100–199 | Catálogo Editorial |
-| 200–299 | Coleções |
-| 300–399 | Inventário |
-| 400–499 | Aquisições |
-| 500–599 | Armazenamento |
-| 600–699 | Analytics |
-| 700–799 | Views |
-| 800–899 | Dados iniciais (Seeds) |
-| 900–999 | Validações e consultas |
+| 200–299 | Evoluções e migrations complementares do Catálogo Editorial — esquema legado (inclui as migrations `250`–`271`, já executadas) |
+| 300–399 | (histórico — sem Queries executadas) |
+| 400–499 | (histórico — sem Queries executadas) |
+| 500–599 | (histórico — sem Queries executadas) |
+| 600–699 | (histórico — sem Queries executadas) |
+| 700–799 | (histórico — sem Queries executadas) |
+| 800–899 | Dados iniciais (Seeds) — das entidades numeradas em 000–299 |
+| 900–999 | Validações e consultas — das entidades numeradas em 000–299 |
 
-Deixar intervalos entre os grupos permite inserir novas migrations sem perder a organização. Exemplo real (entidade Game): `000 - Enable pgcrypto`, `001 - Create updated_at function`, `100 - Create Game Table`, `101 - Create Game Trigger`, `800 - Seed Game`, `900 - Validate Game`.
+Deixar intervalos entre os grupos permitiu inserir novas migrations sem perder a organização. Exemplo real (entidade Game): `000 - Enable pgcrypto`, `001 - Create updated_at function`, `100 - Create Game Table`, `101 - Create Game Trigger`, `800 - Seed Game`, `900 - Validate Game`.
 
-### Bloco por Entidade e Regra de Deslocamento (offset)
+**Todo o intervalo `000–999` está congelado para novas implementações** — cobre exclusivamente as Queries já executadas do Catálogo Editorial, suas evoluções (`200`–`271`) e a infraestrutura inicial. Nenhuma faixa acima, usada ou não, está reservada para futuros módulos (Coleções, Inventário, Aquisições, Armazenamento, Analytics, Views ou qualquer outro) — os nomes que aparecem nesta tabela refletem apenas o planejamento original, não uma reserva vigente. Todo módulo novo, a partir de Identidade e Acesso, segue o Modelo Modular de Numeração abaixo.
+
+### Modelo Modular de Numeração (a partir de 4 dígitos)
+
+Todo módulo novo recebe um milhar inteiro (`X000`–`X999`), sem colisão com o esquema legado ou com outros módulos:
+
+| Faixa (relativa ao milhar `X000`) | Finalidade |
+|---|---|
+| `X000–X699` | Estrutura do módulo: tabelas, triggers, functions, Storage, e evoluções futuras — inclusive extensões conceitualmente distintas que pertençam ao mesmo módulo |
+| `X700–X799` | Seeds |
+| `X800–X899` | Validações |
+| `X900–X999` | Reserva |
+
+Dentro de `X000–X699`, cada entidade persistente continua ocupando um **bloco de dez** (`X0` cria a tabela, `X1` cria o trigger, `X2`/`X3`... reservados para evoluções da mesma entidade) — o mesmo princípio do esquema legado, descrito a seguir.
+
+**Offset `+700`/`+800`:** deixa de ser obrigatório no modelo modular. Quando uma Seed ou Validação corresponde diretamente a uma única entidade e o número resultante do deslocamento não colide com nada já numerado, ele pode ser usado como conveniência. Nos demais casos — funções sem tabela própria, triggers transversais, Storage, validações sem correspondência 1:1 — Seed e Validação recebem o **próximo número sequencial livre** dentro de suas faixas, associados ao objeto correspondente pelo nome e pelo cabeçalho da Query, não pela aritmética do número.
+
+**Módulos definidos:** `1000–1999` = Identidade e Acesso, incluindo papéis e permissões futuros (permanecem no mesmo milhar, não abrem um novo). Nenhum outro milhar está comprometido como decisão definitiva — novos módulos recebem milhar próprio quando efetivamente aprovados, não por reserva antecipada.
+
+### Bloco por Entidade e Regra de Deslocamento (offset) — esquema legado
 
 Dentro do Catálogo Editorial (100–199), cada entidade ocupa um bloco de 10 números: `X0` cria a tabela (`Create <Entity> Table`), `X1` cria o trigger (`Create <Entity> Trigger`), com os números seguintes reservados para evoluções futuras da mesma entidade (ex.: `X2`, `X3`...).
 
@@ -386,6 +405,16 @@ O campo **Status** identifica o papel da Query frente ao Princípio da Fonte Can
 
 Uma etapa por vez, sempre validada antes de avançar: instalar extensão → validar → criar função → validar → criar tabela → validar. Isso facilita identificar exatamente onde algo deu errado, em vez de executar dezenas de comandos de uma só vez.
 
+## Rollback de Alterações Estruturais
+
+Toda alteração estrutural (tabela, trigger, function, política de RLS, configuração de Storage) segue o mesmo princípio de rollback: a reversão padrão **nunca remove nem desabilita imediatamente** o objeto alterado. O procedimento padrão é:
+
+1. Impedir que a aplicação continue gerando novos dados dependentes do comportamento a ser revertido — a forma concreta desse bloqueio é específica de cada mudança e deve ser documentada onde a mudança é descrita (`05-modelo-de-dados.md`, ADR do módulo), não neste Standard.
+2. Reverter o deploy da aplicação (frontend/Edge Function) que depende do objeto.
+3. Preservar dados e infraestrutura já existentes no banco — tabelas, triggers e functions permanecem intactos, sem `DROP` nem `DISABLE`.
+
+A remoção definitiva de um objeto de banco é um **processo separado de abandono arquitetural**, com Queries próprias, nomeadas e revisadas individualmente — nunca o procedimento padrão de rollback.
+
 ---
 
 # Revision History
@@ -407,3 +436,4 @@ Uma etapa por vez, sempre validada antes de avançar: instalar extensão → val
 | 1.12 | Atualizado o exemplo real da Seção 10 (Bloco por Entidade e Regra de Deslocamento): inserida a entidade Rarity em `130` (Seed `830`, Validate `930`), criada antes de Card por dependência de chave estrangeira (`card.rarity_id`). Card deslocada de `130` para `140` (Seed `840`, Validate `940`). Adicionada nota explicando que a numeração segue a ordem real de modelagem/aprovação, não a ordem originalmente cogitada. |
 | 1.13 | Adicionado à Seção 10 (Seeds) o padrão de bloco `DO $$ ... END $$` com verificação explícita de pré-requisito via `RAISE EXCEPTION`, alternativa ao padrão `INSERT ... SELECT ... WHERE` para quando a ausência de uma entidade-pai deve ser um erro visível (exemplo real: `830 - Seed Rarity`). Adicionada nova subseção "Convenções de Apresentação da Query": toda Query deve ter uma descrição resumida para organizar o SQL Editor, e a apresentação de cada Query no par de execução deve começar por `Query: NNN - Título` + `Objetivo:`, a pedido de Fabrício. |
 | 1.14 | Adicionada à Seção 3 a subseção "Colunas `JSONB` de `metadata`": `metadata` nunca deve duplicar um atributo já existente em coluna relacional (própria ou de tabela relacionada) — existe apenas para propriedades específicas de uma fonte externa, sem equivalente relacional. Nasceu de um caso real: `card_set_external_reference.metadata` de `MEP` guardava campos já cobertos por `card_set` (`code`/`name`/`release_date`) e um campo (contagem de cartas) que ficaria desatualizado rapidamente — corrigido para `{}`, mesmo padrão dos demais registros. |
+| 1.15 | Motivada pelo incremento de Identidade e Acesso (User Profile, ver ADR-020): a Seção 10 (Faixas de Numeração) foi reclassificada como **esquema legado e congelado** — `200`–`299` passa a ser descrita como "Evoluções e migrations complementares do Catálogo Editorial" (contém as migrations `250`–`271`, já executadas), e todo o intervalo `000`–`999` é declarado congelado para novas implementações, sem reserva antecipada para Coleções/Inventário/Aquisições/etc. Adicionado o **Modelo Modular de Numeração**: todo módulo novo recebe um milhar inteiro (`X000`–`X999`), com `X000–X699` para estrutura, `X700–X799` para Seeds, `X800–X899` para validações e `X900–X999` de reserva; o deslocamento `+700`/`+800` deixa de ser obrigatório, valendo como conveniência quando não colide. `1000–1999` aprovado para Identidade e Acesso (incluindo papéis/permissões futuros, sem abrir milhar próprio). Adicionada a subseção "Rollback de Alterações Estruturais" (Seção 10): rollback padrão nunca remove/desabilita objetos imediatamente — bloqueia a origem de novos dados, reverte a aplicação e preserva banco; remoção definitiva é processo separado de abandono arquitetural. Corrigido também o campo **Versão** do cabeçalho, que permanecia em `1.0` desde a criação do documento, dessincronizado do Revision History (já em `1.14`). |
