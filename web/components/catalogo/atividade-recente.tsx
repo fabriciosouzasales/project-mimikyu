@@ -5,7 +5,7 @@ import type { AtividadeRecenteItem } from "@/lib/catalogo/queries";
 const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
   COMPLETED: { texto: "Concluída", tone: "success" },
   COMPLETED_WITH_ERRORS: { texto: "Com falhas", tone: "warning" },
-  FAILED: { texto: "Falhou", tone: "warning" },
+  FAILED: { texto: "Falhou", tone: "danger" },
   RUNNING: { texto: "Em andamento", tone: "muted" },
   PENDING: { texto: "Pendente", tone: "muted" },
   CANCELLED: { texto: "Cancelada", tone: "muted" },

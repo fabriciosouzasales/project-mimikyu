@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type StateTone = "success" | "warning" | "muted";
+export type StateTone = "success" | "warning" | "danger" | "muted";
 
 /**
  * Badge discreto para estados importantes (cobertura de imagem, resultado
@@ -20,10 +20,14 @@ export type StateTone = "success" | "warning" | "muted";
  *
  * `uppercase` — regra confirmada por Fabrício para todo o sistema (mesma
  * convenção já usada no `Badge` global, `ui/badge.tsx`).
+ *
+ * `danger` adicionado para o histórico de importações (`asset_import_run`,
+ * status `FAILED`) — até então só usávamos success/warning/muted.
  */
 const TONE_CLASSES: Record<StateTone, string> = {
   success: "border-success/30 bg-success/10 text-success",
   warning: "border-warning/40 bg-warning/10 text-warning",
+  danger: "border-destructive/40 bg-destructive/10 text-destructive",
   muted: "border-border bg-transparent text-muted-foreground",
 };
 
