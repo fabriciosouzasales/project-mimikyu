@@ -18,18 +18,18 @@ const itemClass =
  */
 export function SidebarFooter() {
   return (
-    <div className="space-y-1 border-t border-border p-2">
+    <div className="w-full space-y-1 overflow-hidden border-t border-border p-2">
       {FOOTER_LINKS.map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href} className={itemClass}>
           <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-          <span>{label}</span>
+          <span className="flex-1 truncate">{label}</span>
         </Link>
       ))}
 
       <form action={logout}>
         <button type="submit" className={cn(itemClass, "w-full text-left")}>
           <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
-          <span>Sair</span>
+          <span className="flex-1 truncate">Sair</span>
         </button>
       </form>
     </div>
