@@ -42,6 +42,10 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/catalogo/cartas", label: "Cartas" },
       { href: "/catalogo/importacoes", label: "Histórico de importações" },
     ],
+    // Módulo restrito a administradores (ADR-022) — leitura dos dados
+    // editoriais/operacionais já é bloqueada no banco via RLS (is_admin());
+    // esta flag só evita mostrar o item a quem não teria acesso a nada nele.
+    adminOnly: true,
   },
 ];
 

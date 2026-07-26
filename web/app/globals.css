@@ -29,17 +29,28 @@
  * real, não suposição.
  *
  * --success continua verde, independente de --primary/--warning.
+ *
+ * 2026-07-26 — exceção pontual ao Design System global, durante a validação
+ * da nova linguagem visual do módulo Catálogo Editorial: --background
+ * corrigido para o valor exato já medido acima (#FDFDFD), em vez da
+ * aproximação anterior (0 0% 99% ≈ #FCFCFC). --surface passa a ser branco
+ * puro (#FFFFFF, distinto do fundo), para que os cards de conteúdo
+ * (KPIs, painéis) tenham contraste real contra a página — pedido explícito
+ * de Fabrício ("para dar destaque aos cards, que devem ter fundo branco").
+ * Aprovado por Fabrício como exceção deliberada, fora do escopo original
+ * de "só /catalogo" desta sessão — o resto da propagação do Design System
+ * (sombra, tabelas, badges) continua adiado para o segundo incremento.
  */
 
 @layer base {
   :root {
-    --background: 0 0% 99%;
+    --background: 0 0% 99.2%;
     --foreground: 0 0% 9%;
 
-    --surface: 0 0% 99%;
+    --surface: 0 0% 100%;
     --surface-muted: 0 0% 97%;
 
-    --border: 0 0% 91%;
+    --border: 0 0% 90.98%; /* #E8E8E8 exato — todas as bordas do sistema (tabelas, menus, cards), pedido de Fabrício, 2026-07-26 */
     --input: 0 0% 96%;
     --ring: 36 18% 50%;
 
