@@ -86,7 +86,7 @@ export function AvatarUploader({
       // arquivo órfão e preserva o avatar anterior, que continua íntegro.
       await supabase.storage.from("avatars").remove([newPath]);
       setState("error");
-      setErrorMessage("Não foi possível salvar o novo avatar. Tente novamente.");
+      setErrorMessage("Não foi possível salvar a nova foto. Tente novamente.");
       return;
     }
 
@@ -94,7 +94,7 @@ export function AvatarUploader({
     setState("success");
 
     // 3) Só agora remove o arquivo anterior. Falha aqui é apenas um arquivo
-    //    órfão no bucket — não afeta o avatar já atualizado com sucesso.
+    //    órfão no bucket — não afeta a foto já atualizada com sucesso.
     if (previousPath) {
       await supabase.storage.from("avatars").remove([previousPath]);
     }
@@ -103,13 +103,13 @@ export function AvatarUploader({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-muted text-lg font-medium text-muted-foreground">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-muted text-base font-medium text-muted-foreground">
           {avatarUrl ? (
-            // Avatar hospedado no Supabase Storage — sem config de
+            // Foto hospedada no Supabase Storage — sem config de
             // images.remotePatterns no projeto ainda, por isso <img> simples
             // em vez de next/image (ver decisão registrada para a Task 356).
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+            <img src={avatarUrl} alt="Foto do perfil" className="h-full w-full object-cover" />
           ) : (
             <span aria-hidden>?</span>
           )}
@@ -134,7 +134,7 @@ export function AvatarUploader({
             disabled={state === "uploading"}
             onClick={() => inputRef.current?.click()}
           >
-            {state === "uploading" ? "Enviando…" : "Alterar avatar"}
+            {state === "uploading" ? "Enviando…" : "Alterar foto"}
           </Button>
           <p className="text-xs text-muted-foreground">PNG, JPEG ou WEBP, até 2 MB.</p>
         </div>
@@ -146,7 +146,7 @@ export function AvatarUploader({
           Sua sessão expirou. Recarregue a página e faça login novamente antes de tentar de novo.
         </Alert>
       )}
-      {state === "success" && <Alert variant="success">Avatar atualizado.</Alert>}
+      {state === "success" && <Alert variant="success">Foto do perfil atualizada.</Alert>}
     </div>
   );
 }

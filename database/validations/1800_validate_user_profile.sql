@@ -2,17 +2,22 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 1800 - Validate User Profile
-Versão......: 1.0
+Versão......: 1.1
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-07-25
+Data........: 2026-07-26
 
 Descrição...:
 Validação de public.user_profile: estrutura, constraints,
-triggers, políticas de RLS e uma checagem de inconsistência —
-usuários em auth.users sem linha correspondente em user_profile
-(esperado ser zero a partir da Query 1020; contas criadas antes
-dela não têm perfil retroativo e precisam de decisão manual).
+triggers, políticas de RLS, privilégios de tabela (Query 1004)
+e uma checagem de inconsistência — usuários em auth.users sem
+linha correspondente em user_profile (esperado ser zero a
+partir da Query 1020; contas criadas antes dela não têm perfil
+retroativo e precisam de decisão manual).
+
+Revisão 1.1: adicionada a seção 6 (privilégios de tabela), após
+bug real encontrado na integração do frontend — RLS sozinho não
+basta sem o GRANT de base (ver Query 1004).
 ================================================================
 */
 
@@ -45,3 +50,10 @@ SELECT au.id, au.email, au.created_at
 FROM auth.users au
 LEFT JOIN public.user_profile up ON up.id = au.id
 WHERE up.id IS NULL;
+
+-- 6. Privilégios de tabela (Query 1004) — authenticated com SELECT/UPDATE, anon sem nenhum
+SELECT grantee, privilege_type
+FROM information_schema.role_table_grants
+WHERE table_schema = 'public' AND table_name = 'user_profile'
+  AND grantee IN ('anon', 'authenticated')
+ORDER BY grantee, privilege_type;
