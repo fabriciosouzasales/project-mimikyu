@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Menu, X } from "lucide-react";
-import { NAV_SECTIONS, findActiveSection } from "./nav-config";
+import { findActiveSection, getVisibleNavSections } from "./nav-config";
 import { SidebarFooter } from "./sidebar-footer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,10 +22,11 @@ import { cn } from "@/lib/utils";
  * mais props condicionais do que vale a pena para dois usos só. Se um
  * terceiro contexto aparecer, factoro num componente compartilhado.
  */
-export function MobileNav() {
+export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const activeSection = findActiveSection(pathname);
+  const sections = getVisibleNavSections(isAdmin);
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -48,7 +49,7 @@ export function MobileNav() {
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="Navegação principal (mobile)">
-            {NAV_SECTIONS.map((section) => {
+            {sections.map((section) => {
               const Icon = section.icon;
               const isActive = activeSection.id === section.id;
               return (

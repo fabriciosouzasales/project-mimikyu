@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Architecture Decision Records Index |
 | **Arquivo** | `docs/adr/ADR-INDEX.md` |
-| **Versão** | 2.2 |
+| **Versão** | 2.3 |
 | **Status** | Aprovado |
 | **Objetivo** | Catalogar os Architecture Decision Records do Project Mimikyu. |
 | **Dependências** | `../03-documentation-architecture.md` |
@@ -43,6 +43,7 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | [ADR-018](ADR-018-single-function-import-pipeline.md) | Single-Function Import Pipeline | Aprovado |
 | [ADR-019](ADR-019-web-application-as-primary-interface.md) | Web Application as the Primary User Interface | Aprovado |
 | [ADR-020](ADR-020-user-profile-and-username-identity-model.md) | User Profile and Username Identity Model | Aprovado |
+| [ADR-021](ADR-021-administrative-role-model.md) | Administrative Role Model | Aprovado |
 
 ---
 
@@ -76,3 +77,4 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | 2.0 | **Catálogo atualizado para refletir todos os 18 ADRs reais do repositório (2026-07-24), a pedido explícito de Fabrício.** Até esta revisão, o índice listava apenas `ADR-001`/`ADR-002` — desatualizado desde a criação de `ADR-003`, por decisão deliberada de Fabrício de manter os índices congelados até o encerramento da fase de documentação (ver `docs/README.md`, seção "Retomando este Projeto"). Fabrício declarou nesta data que a documentação do passado está encerrada e que agora é o momento correto de ativar a manutenção deste índice — a partir de agora, toda criação ou mudança de status de ADR deve atualizar este arquivo no mesmo ciclo, conforme a regra já definida em "Maintenance Rules", acima. Adicionados `ADR-003` a `ADR-018`, com status refletindo exatamente o campo `Status` de cada arquivo individual: `Aprovado` para 001-008, 011-016, 018; `Substituído (ver ADR-010)` para `ADR-009`; `Substituído parcialmente (ver ADR-016)` para `ADR-010`; `Substituído (ver ADR-018)` para `ADR-017`. |
 | 2.1 | Adicionado `ADR-019` (Web Application as the Primary User Interface, 2026-07-25) — decisão de Fabrício de adotar aplicação web própria (React/Next.js) como interface principal do produto, descartando Power Apps/SharePoint/Power BI da arquitetura-alvo, motivada pela proposta de iniciar o front-end pelo Catálogo Editorial e pelo esclarecimento do objetivo comercial multiusuário do produto. |
 | 2.2 | Adicionado `ADR-020` (User Profile and Username Identity Model, 2026-07-25) — `user_profile` separado de `auth.users`, contendo apenas dados básicos de perfil (username público/único/estável, display_name editável, avatar); papéis/permissões/preferências ficam fora do escopo desta decisão. Complementa ADR-019, que já havia identificado `user_profile` como modelagem pendente. |
+| 2.3 | Adicionado `ADR-021` (Administrative Role Model, 2026-07-26) — papel administrativo modelado como tabela dedicada (`admin_user`), sem política de RLS, distinta de `user_profile`; um único papel, sem RBAC genérico; funções `SECURITY DEFINER` que verificam somente o próprio chamador; auditoria (`admin_action_log`) com FKs anuláveis, sobrevivendo à exclusão de usuários. Resolve a pendência de modelagem de papéis deixada em aberto por ADR-020. |

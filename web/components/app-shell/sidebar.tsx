@@ -8,11 +8,11 @@ import { SecondaryPanel } from "./secondary-panel";
  * aparece só quando a seção ativa tem submenu. Sem estado próprio — ambos
  * derivam a seção/submenu ativos da rota.
  */
-export function Sidebar() {
+export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="hidden shrink-0 md:flex">
-      <PrimaryRail />
-      <SecondaryPanel />
+      <PrimaryRail isAdmin={isAdmin} />
+      <SecondaryPanel isAdmin={isAdmin} />
     </div>
   );
 }

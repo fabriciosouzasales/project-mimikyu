@@ -9,6 +9,8 @@ export type NavSection = {
   href: string;
   /** Itens do submenu — seções sem filhos (ex.: Visão geral) não têm submenu. */
   children?: NavChild[];
+  /** Só aparece no menu para administradores (ver ADR-021) — checagem de UX, não a autoridade de acesso: a página em si também nega acesso a não-admins. */
+  adminOnly?: boolean;
 };
 
 /**
@@ -25,6 +27,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Users,
     href: "/usuarios",
     children: [{ href: "/usuarios", label: "Lista de usuários" }],
+    adminOnly: true,
   },
   {
     id: "catalogo",
@@ -41,6 +44,11 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
 ];
+
+/** Seções visíveis no menu para o usuário atual — filtra `adminOnly` quando `isAdmin` é falso. */
+export function getVisibleNavSections(isAdmin: boolean): NavSection[] {
+  return NAV_SECTIONS.filter((section) => !section.adminOnly || isAdmin);
+}
 
 /** Determina a seção ativa (e, por consequência, o submenu aberto) a partir do pathname. */
 export function findActiveSection(pathname: string): NavSection {

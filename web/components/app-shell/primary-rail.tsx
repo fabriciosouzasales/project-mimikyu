@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_SECTIONS, findActiveSection } from "./nav-config";
+import { findActiveSection, getVisibleNavSections } from "./nav-config";
 import { SidebarFooter } from "./sidebar-footer";
 import { BrandMark } from "@/components/brand-mark";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,10 @@ import { cn } from "@/lib/utils";
  *
  * `group-focus-within` replica o hover para navegação só por teclado.
  */
-export function PrimaryRail() {
+export function PrimaryRail({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const activeSection = findActiveSection(pathname);
+  const sections = getVisibleNavSections(isAdmin);
 
   return (
     <div className="group relative z-20 h-full shrink-0">
@@ -42,7 +43,7 @@ export function PrimaryRail() {
         </div>
 
         <div className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2">
-          {NAV_SECTIONS.map((section) => {
+          {sections.map((section) => {
             const Icon = section.icon;
             const isActive = activeSection.id === section.id;
 

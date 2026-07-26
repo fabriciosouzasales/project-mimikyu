@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { findActiveSection } from "./nav-config";
+import { findActiveSection, getVisibleNavSections } from "./nav-config";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,10 +13,11 @@ import { cn } from "@/lib/utils";
  * `findActiveSection(pathname)`, mesma regra de "reseta e é recalculado
  * pela rota" já definida para a trilha primária.
  */
-export function SecondaryPanel() {
+export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const activeSection = findActiveSection(pathname);
-  const hasChildren = !!activeSection.children?.length;
+  const isVisible = getVisibleNavSections(isAdmin).some((section) => section.id === activeSection.id);
+  const hasChildren = isVisible && !!activeSection.children?.length;
 
   return (
     <div
