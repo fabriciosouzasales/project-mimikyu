@@ -222,12 +222,16 @@ export type JogoRow = {
   code: string;
   name: string;
   totalExpansoes: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type GameRawRow = {
   id: string;
   code: string;
   name: string;
+  created_at: string;
+  updated_at: string;
   expansion: { count: number } | { count: number }[] | null;
 };
 
@@ -240,7 +244,7 @@ type GameRawRow = {
 export async function getJogos(supabase: SupabaseClient): Promise<JogoRow[]> {
   const { data, error } = await supabase
     .from("game")
-    .select("id, code, name, expansion(count)")
+    .select("id, code, name, created_at, updated_at, expansion(count)")
     .order("name", { ascending: true });
 
   if (error || !data) {
@@ -252,6 +256,8 @@ export async function getJogos(supabase: SupabaseClient): Promise<JogoRow[]> {
     code: game.code,
     name: game.name,
     totalExpansoes: extractCount(game.expansion),
+    createdAt: game.created_at,
+    updatedAt: game.updated_at,
   }));
 }
 
@@ -260,8 +266,12 @@ export type ExpansaoRow = {
   code: string;
   name: string;
   releaseOrder: number;
+  gameId: string;
+  gameCode: string;
   gameName: string;
   totalCardSets: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type ExpansionRawRow = {
@@ -269,15 +279,31 @@ type ExpansionRawRow = {
   code: string;
   name: string;
   release_order: number;
-  game: { name: string } | null;
+  created_at: string;
+  updated_at: string;
+  game: { id: string; code: string; name: string } | null;
   card_set: { count: number } | { count: number }[] | null;
 };
 
-export async function getExpansoes(supabase: SupabaseClient): Promise<ExpansaoRow[]> {
-  const { data, error } = await supabase
+/**
+ * Lista de Expansões. `filters.gameCode`, quando informado, restringe o
+ * resultado ao Jogo daquele código — usado pelo link "Expansões" clicável na
+ * tela de Jogos (`?game=CODE`, ver `/catalogo/expansoes`).
+ */
+export async function getExpansoes(
+  supabase: SupabaseClient,
+  filters?: { gameCode?: string },
+): Promise<ExpansaoRow[]> {
+  let query = supabase
     .from("expansion")
-    .select("id, code, name, release_order, game(name), card_set(count)")
+    .select("id, code, name, release_order, created_at, updated_at, game!inner(id, code, name), card_set(count)")
     .order("release_order", { ascending: true });
+
+  if (filters?.gameCode) {
+    query = query.eq("game.code", filters.gameCode);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) {
     return [];
@@ -288,9 +314,26 @@ export async function getExpansoes(supabase: SupabaseClient): Promise<ExpansaoRo
     code: expansion.code,
     name: expansion.name,
     releaseOrder: expansion.release_order,
+    gameId: expansion.game?.id ?? "",
+    gameCode: expansion.game?.code ?? "",
     gameName: expansion.game?.name ?? "—",
     totalCardSets: extractCount(expansion.card_set),
+    createdAt: expansion.created_at,
+    updatedAt: expansion.updated_at,
   }));
+}
+
+export type GameOption = { id: string; code: string; name: string };
+
+/** Opções para o seletor de Jogo do formulário de cadastro de Expansão. */
+export async function getGameOptions(supabase: SupabaseClient): Promise<GameOption[]> {
+  const { data, error } = await supabase.from("game").select("id, code, name").order("name", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data as GameOption[];
 }
 
 export type CardSetOption = { code: string; name: string };

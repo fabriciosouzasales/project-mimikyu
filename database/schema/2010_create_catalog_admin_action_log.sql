@@ -2,10 +2,10 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2010 - Create Catalog Admin Action Log Table
-Versão......: 1.0
+Versão......: 1.1
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-07-26
+Data........: 2026-07-26 (v1.1: 2026-07-26)
 
 Descrição...:
 Cria public.catalog_admin_action_log: auditoria própria do módulo
@@ -53,6 +53,14 @@ Regras de Negócio:
 - Sem updated_at/trigger: tabela de auditoria append-only, nunca
   editada após a escrita.
 
+Versão 1.1 (ADR-023, emenda 2026-07-26 "Game: exclusão real via
+UI", Query 2041 — Princípio da Fonte Canônica, Autoria de Scripts
+SQL): adiciona 'GAME_DELETED' às duas constraints de action. A
+migration 2041_add_game_deleted_to_catalog_admin_action_log.sql
+registra a execução histórica contra o banco já existente; este
+arquivo canônico reflete a estrutura final para qualquer
+instalação nova.
+
 Pré-requisitos:
 - Query 2000 - Create Internal Schema (mesmo módulo).
 ================================================================
@@ -72,7 +80,7 @@ CREATE TABLE public.catalog_admin_action_log (
     CONSTRAINT ck_catalog_admin_action_log_action_valid
         CHECK (
             action IN (
-                'GAME_CREATED', 'GAME_UPDATED',
+                'GAME_CREATED', 'GAME_UPDATED', 'GAME_DELETED',
                 'EXPANSION_CREATED', 'EXPANSION_UPDATED',
                 'CARD_SET_CREATED', 'CARD_SET_UPDATED',
                 'CARD_CREATED', 'CARD_UPDATED',
@@ -87,7 +95,7 @@ CREATE TABLE public.catalog_admin_action_log (
 
     CONSTRAINT ck_catalog_admin_action_log_action_entity_match
         CHECK (
-            (entity_type = 'GAME' AND action IN ('GAME_CREATED', 'GAME_UPDATED'))
+            (entity_type = 'GAME' AND action IN ('GAME_CREATED', 'GAME_UPDATED', 'GAME_DELETED'))
             OR (entity_type = 'EXPANSION' AND action IN ('EXPANSION_CREATED', 'EXPANSION_UPDATED'))
             OR (entity_type = 'CARD_SET' AND action IN ('CARD_SET_CREATED', 'CARD_SET_UPDATED'))
             OR (entity_type = 'CARD' AND action IN (

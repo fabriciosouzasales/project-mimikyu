@@ -21,6 +21,12 @@ const buttonVariants = cva(
         default: "border-0 bg-primary/5 text-primary hover:bg-primary/10 active:bg-primary/15",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-border bg-transparent hover:bg-surface-muted",
+        // Borda na mesma cor da fonte (não a borda neutra de `outline`) —
+        // pedido explícito de Fabrício para o botão de criação de itens
+        // (ex.: "Cadastrar novo jogo"), posicionado fora do card da tabela,
+        // no padrão de ação primária de página do Supabase. Reutilizável
+        // pelos ciclos seguintes (Expansion/Card Set/Card).
+        "outline-primary": "border border-primary bg-transparent text-primary hover:bg-primary/5",
         ghost: "hover:bg-surface-muted",
         link: "text-primary underline-offset-4 hover:underline",
       },
@@ -39,6 +45,10 @@ const buttonVariants = cva(
         sm: "h-[26px] rounded-md px-2.5 py-1 text-xs",
         lg: "h-10 rounded-md px-6",
         icon: "h-9 w-9",
+        // Ícone isolado (ex.: editar/excluir numa linha de tabela), mesma
+        // altura de `sm` — evita um botão-ícone visualmente maior que os
+        // botões de texto ao lado dele na mesma linha.
+        "icon-sm": "h-[26px] w-[26px] rounded-md p-0",
       },
     },
     defaultVariants: {
