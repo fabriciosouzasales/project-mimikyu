@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.69 |
+| **Versão** | 0.70 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -4211,6 +4211,115 @@ Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
 
 ---
 
+# User Profile (Perfil de Usuário) / Reserved Username
+
+## Status
+
+**Camada Identidade e Acesso criada, semeada e homologada nesta revisão — Incremento 1 ("Meu Perfil") do módulo, `1000`–`1040`/`1710`/`1800`–`1840` CONFIRMADOS EXECUTADOS.** Primeira entidade fora do Catálogo Editorial, motivada pela decisão de arquitetura frontend (ADR-019) e formalizada em ADR-020 (User Profile and Username Identity Model). Introduz o Modelo Modular de Numeração (STD-001, Seção 10): esta é a primeira entidade do milhar `1000–1999`.
+
+## Decisão de Modelagem
+
+`user_profile` separa identidade de negócio (nome, avatar, username) da autenticação (`auth.users`, gerida pelo Supabase Auth) — ver ADR-020. Relação 1:1 via `id` compartilhado. `username` é a identidade pública, única e estável do usuário (imutável pelo próprio usuário); `display_name` é livremente editável. `reserved_username` é uma tabela de apoio (não uma entidade de domínio), consultada apenas por functions `SECURITY DEFINER`, sem acesso direto via API.
+
+## Modelo Físico — `user_profile` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.user_profile (
+    id            UUID PRIMARY KEY
+                  REFERENCES auth.users(id)
+                  ON DELETE CASCADE,
+    username      TEXT NOT NULL,
+    display_name  TEXT NOT NULL,
+    avatar_path   TEXT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT user_profile_username_unique
+        UNIQUE (username),
+    CONSTRAINT user_profile_username_format
+        CHECK (username ~ '^[a-z0-9_]{3,20}$'),
+    CONSTRAINT user_profile_display_name_length
+        CHECK (char_length(trim(display_name)) BETWEEN 1 AND 60)
+);
+
+ALTER TABLE public.user_profile
+    ENABLE ROW LEVEL SECURITY;
+```
+
+Regras de negócio: `username` minúsculo, 3–20 caracteres (letras, números, underscore), único, imutável após criado (garantido por trigger, não pela tabela em si); `display_name` sempre gravado já com `trim`; `avatar_path` guarda o caminho relativo dentro do bucket `avatars` (Query `1040`), não a URL pública completa (derivada em runtime); RLS habilitado. Confirmado executado por Fabrício (estrutura e colunas conferidas via `information_schema`). Arquivo em `database/schema/1000_create_user_profile_table.sql`.
+
+## Query `1001` — Create User Profile Trigger (CONFIRMADO EXECUTADO)
+
+Mantém `updated_at` atualizado, reaproveitando `public.set_updated_at()` — mesmo padrão de toda a base. Confirmado via `information_schema.triggers`. Arquivo em `database/schema/1001_create_user_profile_trigger.sql`.
+
+## Query `1002` — Create User Profile Invariants Trigger (CONFIRMADO EXECUTADO)
+
+Function `enforce_user_profile_invariants()` + trigger `BEFORE INSERT OR UPDATE`: normaliza `display_name` (`trim`) incondicionalmente e bloqueia qualquer alteração de `username` (`RAISE EXCEPTION`), sem válvula de exceção — imutabilidade total nesta fase, por decisão explícita de Fabrício. Uma futura correção administrativa será modelada apenas quando existir papel administrativo aprovado (ver ADR-020), sem reabrir este trigger. Confirmado via `information_schema.triggers` (três linhas: `enforce_invariants` em INSERT e UPDATE, `set_updated_at` em UPDATE). Arquivo em `database/schema/1002_create_user_profile_invariants_trigger.sql`.
+
+## Query `1003` — Create User Profile RLS Policies (CONFIRMADO EXECUTADO)
+
+`user_profile_select_own`/`user_profile_update_own`, ambas restritas a `auth.uid() = id`. Sem política de `INSERT`/`DELETE` — a única via de criação é o trigger da Query `1020` (roda como dono da function, ignora RLS). Confirmado via `pg_policies`. Arquivo em `database/schema/1003_create_user_profile_rls_policies.sql`.
+
+## Modelo Físico — `reserved_username` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.reserved_username (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username   TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.reserved_username ENABLE ROW LEVEL SECURITY;
+```
+
+Tabela de apoio, não uma entidade de domínio — sem política de RLS para `anon`/`authenticated` (só as functions `SECURITY DEFINER` a leem). Confirmado executado. Arquivo em `database/schema/1010_create_reserved_username_table.sql`; trigger de `updated_at` em `1011` (mesmo padrão, confirmado via `information_schema.triggers`, arquivo `database/schema/1011_create_reserved_username_trigger.sql`).
+
+## Query `1710` — Seed Reserved Username (v1.1, CONFIRMADA EXECUTADA)
+
+Carga idempotente (`ON CONFLICT (username) DO NOTHING`) com 50 termos reservados (`admin`, `suporte`, `sistema`, `perfil`, `me`, `about`, entre outros) — nenhum usuário pode reivindicá-los como `username`. v1.0 tinha 48 termos; v1.1 acrescenta `me` (rotas futuras como `/me`, `/api/me`) e `about` (rota institucional comum), sugeridos por Fabrício após a execução original e já aplicados incrementalmente ao banco antes desta consolidação. Confirmado: `count(*) = 48` na execução original, lista conferida termo a termo contra a intenção. Arquivo em `database/seeds/1710_seed_reserved_username.sql`.
+
+## Query `1020` — Create `handle_new_user()` (CONFIRMADO EXECUTADO)
+
+Function `SECURITY DEFINER`, `SET search_path = ''`, trigger `AFTER INSERT ON auth.users`: popula `user_profile` a partir de `raw_user_meta_data` (`username`/`display_name` enviados pelo formulário via `options.data` do `signUp()`), tratado como dado não confiável — normalizado e revalidado no próprio trigger (formato, reservados, presença). Qualquer falha cancela a transação inteira do `INSERT` em `auth.users`: a partir desta Query, nunca existe usuário sem perfil. `EXECUTE` revogado de `PUBLIC` — só o próprio trigger invoca. Confirmado: `prosecdef = true`, trigger correto em `auth.users`, `anon`/`authenticated` sem `EXECUTE`. Arquivo em `database/schema/1020_create_handle_new_user_function.sql`.
+
+**Limitação de MVP documentada em ADR-020**: esta function assume que `username` sempre vem em `raw_user_meta_data`, o que só é verdade no cadastro por e-mail/senha controlado pelo próprio formulário. Login social (OAuth) não popula esse campo — precisará de um fluxo de onboarding pós-login, não implementado nesta fase.
+
+**Achado real desta revisão**: a conta de teste de Fabrício (criada antes desta Query existir) ficou sem `user_profile` — detectado pela checagem de inconsistência da Query `1800`. Decisão tomada: excluir a conta de teste via painel do Supabase (Authentication → Users) e recriá-la pelo fluxo real assim que o frontend estiver pronto, em vez de criar um perfil manualmente ou deixar a conta órfã.
+
+## Query `1030` — Create `username_available()` (CONFIRMADO EXECUTADO)
+
+Function `SECURITY DEFINER`, `SET search_path = ''`, retorno estritamente `BOOLEAN`, chamável por `anon`/`authenticated` (checagem de disponibilidade durante o cadastro, antes de existir sessão). Documentada explicitamente como antecipação de UX sujeita a condição de corrida — a autoridade final continua sendo o `UNIQUE` de `user_profile`, verificado no `INSERT` real da Query `1020`. Testado com três casos reais: `'admin'` → `false` (reservado), `'ab'` → `false` (formato inválido), `'fabricio_teste'` → `true` (disponível). Arquivo em `database/schema/1030_create_username_available_function.sql`.
+
+## Query `1040` — Create bucket `avatars` (CONFIRMADO EXECUTADO)
+
+Bucket Supabase Storage dedicado a avatares: leitura pública (única exceção aprovada), escrita restrita à própria pasta do usuário (`<uid>/<arquivo>`), MIME `image/png`/`image/jpeg`/`image/webp`, limite de 2 MB. Toda política em `storage.objects` filtra `bucket_id = 'avatars'` explicitamente (tabela compartilhada entre todos os buckets do projeto). Confirmado: bucket e as quatro políticas (`avatars_public_read`/`avatars_insert_own_folder`/`avatars_update_own_folder`/`avatars_delete_own_folder`) conferidos via `storage.buckets`/`pg_policies`. Arquivo em `database/schema/1040_create_avatars_bucket.sql`.
+
+## Sequência
+
+```text
+1000 - Create User Profile table                       (CONFIRMADO EXECUTADO — database/schema/1000_create_user_profile_table.sql)
+1001 - Create User Profile trigger                      (CONFIRMADO EXECUTADO — database/schema/1001_create_user_profile_trigger.sql)
+1002 - Create User Profile invariants trigger           (CONFIRMADO EXECUTADO — database/schema/1002_create_user_profile_invariants_trigger.sql)
+1003 - Create User Profile RLS policies                 (CONFIRMADO EXECUTADO — database/schema/1003_create_user_profile_rls_policies.sql)
+1010 - Create Reserved Username table                   (CONFIRMADO EXECUTADO — database/schema/1010_create_reserved_username_table.sql)
+1011 - Create Reserved Username trigger                 (CONFIRMADO EXECUTADO — database/schema/1011_create_reserved_username_trigger.sql)
+1020 - Create handle_new_user function and trigger      (CONFIRMADO EXECUTADO — database/schema/1020_create_handle_new_user_function.sql)
+1030 - Create username_available function                (CONFIRMADO EXECUTADO — database/schema/1030_create_username_available_function.sql)
+1040 - Create avatars bucket and storage policies         (CONFIRMADO EXECUTADO — database/schema/1040_create_avatars_bucket.sql)
+1710 - Seed Reserved Username (v1.1, 50 termos)           (CONFIRMADA EXECUTADA — database/seeds/1710_seed_reserved_username.sql)
+1800 - Validate User Profile                              (EXECUTADA — database/validations/1800_validate_user_profile.sql)
+1810 - Validate Reserved Username                         (EXECUTADA — database/validations/1810_validate_reserved_username.sql)
+1820 - Validate handle_new_user                           (EXECUTADA — database/validations/1820_validate_handle_new_user.sql)
+1830 - Validate username_available                        (EXECUTADA — database/validations/1830_validate_username_available.sql)
+1840 - Validate avatars bucket                            (EXECUTADA — database/validations/1840_validate_avatars_bucket.sql)
+```
+
+## Pendências / Próximos Passos
+
+Frontend do Incremento 1 ainda não implementado: formulário de cadastro precisa coletar `username`/`display_name` (via `options.data` do `signUp()`), checagem de disponibilidade em tempo real, tratamento dos novos erros Postgres (estender `traduzirErroAuth`), e a tela `/perfil` (hoje placeholder "Em breve") precisa editar `display_name`/`avatar_path` de verdade. Incremento 2 (lista administrativa de usuários) e qualquer modelo de papéis/permissões permanecem fora de escopo até aprovação própria (ver ADR-020, ROADMAP).
+
+---
+
 # Revision History
 
 | Versão | Descrição |
@@ -4284,3 +4393,4 @@ Arquivo escrito em `database/seeds/910_seed_card_set_external_reference.sql`.
 | 0.67 | **Bloqueio de imagens de `MEE`/`MEP` resolvido por importação manual, decisão real de Fabrício: `scripts/import-manual-assets.ts` criado e CONFIRMADO EXECUTADO para `MEE`/`en` (8/8, 0 falhas).** Confirmado antes, por consulta direta ao CDN da TCGdex (`assets.tcgdex.net`, todas as combinações de qualidade/extensão, seguindo o padrão documentado em `tcgdex.dev/assets`), que o asset realmente não existe na fonte — não é só ausência no campo `image` da API. Script administrativo standalone (mesmo padrão de `scripts/discover-tcgdex-sets.ts`), deliberadamente fora de `supabase/functions/import-card-assets/` (lê arquivos locais, incompatível com o runtime de uma Edge Function); lê `assets/manual-imports/{card_set_code}/{language_code}/{collector_number}.{ext}`, sobe ao Storage e faz `UPSERT` em `card_asset` com `source_code = 'MANUAL'` (rastreabilidade da origem, para permitir substituir depois se a TCGdex publicar os assets). Resultado validado por consulta ao banco e por inspeção visual da imagem pública. `MEE`/`en` agora com catálogo genuinamente completo; `MEE`/`pt-BR` e `MEP`/`en`+`pt-BR` seguem o mesmo processo, imagens ainda não salvas localmente. Seção Set/Card Set (DoD) e Card Asset atualizadas. |
 | 0.68 | **`MEE`/`pt-BR` executada (2026-07-24), mesmo dia: 8/8 Cards, 0 falhas — mesmo processo de `MEE`/`en`.** Com isso, `MEE` está com o catálogo genuinamente completo nos dois idiomas (referências externas e imagens, `en`+`pt-BR`). Pendente: `MEP`/`en`, `MEP`/`pt-BR`, mesmo processo, imagens ainda não salvas localmente. Seção Set/Card Set (DoD) e Card Asset atualizadas. |
 | 0.69 | **Bug real encontrado por Fabrício (2026-07-25), inspecionando `asset_import_run` diretamente: 100% das 11 runs já executadas estavam presas em `status = PENDING`, mesmo as concluídas com sucesso — `import-card-assets` nunca escrevia nessa tabela após o `SELECT` inicial.** Corrigido em `index.ts`/`services/database.ts` (v2.6.0, CONFIRMADO DEPLOYADO E TESTADO EM PRODUÇÃO — ver nova seção "Correção real: máquina de estados nunca escrita (v2.6.0)", logo após "Query 221"). As 11 runs históricas corrigidas via backfill manual (dados reais extraídos por consulta, não adivinhados): 10 para `COMPLETED` (contagens = total de cartas do Set), `MEP` (`RUN-20260724-00000061`) para `COMPLETED_WITH_ERRORS` (`60`/`60`/`0`/`60`, gap de imagens já conhecido). Teste real pós-deploy expôs mais um caso do mesmo gap de GRANT recorrente neste projeto (`service_role` sem `INSERT`/`UPDATE` em `asset_import_run`) — corrigido por `database/migrations/272_grant_asset_import_run_write_permissions.sql`; reinvocação confirmou o fluxo completo. **Auditoria adicional solicitada por Fabrício, 100% das 11 linhas revisada**: `execution_context = MANUAL` está correto em todas (todas as execuções foram disparadas manualmente via terminal, não é bug); `language_id` e `initiated_by` seguem `NULL` em 100% das linhas — pendência conhecida, registrada, não tratada nesta revisão. `scripts/import-manual-assets.ts` (v1.1, `deno check` + dry-run confirmados, execução real ainda NÃO feita — aguardando `MEP` completa) passou a criar sua própria linha em `asset_import_run` por `(card_set, language)` processado, fechando a lacuna de as importações manuais não terem nenhum rastro nessa tabela. |
+| 0.70 | **Nova entidade User Profile (Perfil de Usuário) / Reserved Username — Incremento 1 ("Meu Perfil") do módulo Identidade e Acesso, `1000`–`1040`/`1710`/`1800`–`1840` CONFIRMADOS EXECUTADOS.** Primeira entidade fora do Catálogo Editorial, inaugurando o Modelo Modular de Numeração (milhar `1000`–`1999`, ver STD-001 revisão 1.15) e formalizada em ADR-020 (User Profile and Username Identity Model). `user_profile`: separada de `auth.users`, `username` público/único/imutável (trigger sem válvula de exceção), `display_name` editável (trim garantido por trigger), `avatar_path` relativo ao bucket `avatars`. `reserved_username`: tabela de apoio (50 termos, v1.1 acrescentou `me`/`about` por sugestão de Fabrício), sem política de RLS direta — só lida por functions `SECURITY DEFINER` (`handle_new_user()`, que popula o perfil automaticamente no cadastro a partir de metadados tratados como não confiáveis; `username_available()`, checagem de disponibilidade sujeita a condição de corrida, não autoritativa). Bucket `avatars` criado com leitura pública e escrita restrita à própria pasta do usuário. Achado real: conta de teste de Fabrício, criada antes de `handle_new_user()` existir, ficou sem perfil — decisão tomada de excluí-la e recriar pelo fluxo real quando o frontend estiver pronto, não de corrigir manualmente. Frontend (formulário de cadastro + tela `/perfil`) ainda pendente. |

@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Ubiquitous Language |
 | **Arquivo** | `docs/architecture/ubiquitous-language.md` |
-| **Versão** | 1.9 |
+| **Versão** | 1.10 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o vocabulário oficial utilizado durante todo o desenvolvimento do Project Mimikyu. |
 | **Escopo** | Terminologia de domínio utilizada em toda a documentação e implementação do projeto. |
@@ -55,6 +55,9 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 | Editorial Catalog | Conjunto de informações oficiais organizadas pela hierarquia Game, Expansion, Set e Card. |
 | User Ownership | Conjunto de exemplares físicos pertencentes aos usuários e suas características particulares. |
 | Analytics | Informações derivadas do Catálogo Editorial e do Patrimônio do Usuário. |
+| User Profile | Entidade de identidade e perfil básico do usuário (nome de exibição, avatar, Username), separada da autenticação (Supabase Auth). Relação 1:1 com o usuário autenticado. Não armazena papéis, permissões ou preferências — ficam fora do escopo desta entidade até necessidade concreta (ver ADR-020). |
+| Username | Identidade pública, única e estável do usuário dentro da plataforma. Escolhida no cadastro, imutável pelo próprio usuário depois de criada — pensada para uso futuro em compartilhamento, URLs amigáveis e perfis públicos (ver ADR-020). |
+| Reserved Username | Termo que nenhum usuário pode reivindicar como Username (ex.: admin, suporte, perfil). Tabela de apoio, não uma entidade de domínio. |
 
 ---
 
@@ -72,3 +75,4 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 | 1.7 | Substituído o termo Inventory Item por Collection Item, refletindo identidade individual por exemplar físico. Adicionados Ownership Status e Availability Status como dimensões distintas (ver ADR-013). |
 | 1.8 | Adicionados Collection, Collection Entry e Collector Universe, formalizando a distinção entre Set (catálogo editorial) e Collection (objetivo do colecionador), ver ADR-014. |
 | 1.9 | Revertidos os termos Finish e Card Finish (adotados em 1.4, ver ADR-010) para Card Variant Type e Card Variant, convergindo o vocabulário conceitual com o nome já usado no schema físico, no pipeline de importação e na prática do projeto (ver ADR-016). Collectible Finish Count renomeado para Collectible Variant Count. Atualizadas as definições de Rarity, Collection Item e Reference Data. "Finish" e "Card Finish" passam a ser tratados como sinônimos históricos, não como termos ativos do vocabulário. |
+| 1.10 | Adicionados User Profile, Username e Reserved Username, formalizando o primeiro módulo fora do Catálogo Editorial (Identidade e Acesso, Incremento 1 "Meu Perfil"), com entidade real já executada no banco (ver ADR-020, `05-modelo-de-dados.md`). |
