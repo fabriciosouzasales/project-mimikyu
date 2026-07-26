@@ -18,7 +18,7 @@ export default function LoginPage() {
     <Card>
       <CardHeader>
         <CardTitle>Entrar</CardTitle>
-        <CardDescription>Acesse sua conta do Project Mimikyu.</CardDescription>
+        <CardDescription>Acesse sua conta do MMKyu TCG Collector.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4" noValidate>

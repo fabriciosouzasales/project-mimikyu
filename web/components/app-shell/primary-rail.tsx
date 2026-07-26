@@ -45,7 +45,7 @@ export function PrimaryRail({ isAdmin }: { isAdmin: boolean }) {
               "group-hover:opacity-100 group-focus-within:opacity-100",
             )}
           >
-            Project Mimikyu
+            MMKyu TCG Collector
           </span>
         </div>
 

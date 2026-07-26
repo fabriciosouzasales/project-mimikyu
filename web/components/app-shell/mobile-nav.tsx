@@ -40,7 +40,7 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/20 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out" />
         <DialogPrimitive.Content className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-surface shadow-panel data-[state=open]:animate-drawer-in data-[state=closed]:animate-drawer-out">
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-            <DialogPrimitive.Title className="text-sm font-semibold">Project Mimikyu</DialogPrimitive.Title>
+            <DialogPrimitive.Title className="text-sm font-semibold">MMKyu TCG Collector</DialogPrimitive.Title>
             <DialogPrimitive.Close asChild>
               <Button variant="ghost" size="icon" aria-label="Fechar menu">
                 <X className="h-4 w-4" />

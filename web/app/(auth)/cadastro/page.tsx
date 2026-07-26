@@ -84,7 +84,7 @@ export default function SignupPage() {
     <Card>
       <CardHeader>
         <CardTitle>Criar conta</CardTitle>
-        <CardDescription>Junte-se à comunidade de colecionadores do Project Mimikyu.</CardDescription>
+        <CardDescription>Junte-se à comunidade de colecionadores do MMKyu TCG Collector.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4" noValidate>

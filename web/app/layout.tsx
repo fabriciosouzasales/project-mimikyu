@@ -19,7 +19,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
 
 export const metadata: Metadata = {
-  title: "Project Mimikyu",
+  title: "MMKyu TCG Collector",
   description: "Plataforma para gestão de coleções de Pokémon TCG.",
 };
 
