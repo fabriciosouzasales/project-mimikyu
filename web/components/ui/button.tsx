@@ -9,12 +9,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Pílula suave (borda + fundo translúcido na cor primária) — mesmo
-        // padrão do Badge variant="primary" (ex.: badge "Administrador" na
-        // coluna Papel), pedido explícito de Fabrício em 2026-07-26 para
-        // unificar a linguagem visual de "destaque na cor primária" entre
-        // botões e badges, no lugar do preenchimento sólido anterior.
-        default: "border border-primary/40 bg-primary/5 text-primary hover:border-primary/60 hover:bg-primary/10 active:bg-primary/15",
+        // Fundo translúcido na cor primária, sem borda — mesmo padrão do
+        // Badge variant="primary" (ex.: badge "Administrador" na coluna
+        // Papel), pedido explícito de Fabrício em 2026-07-26 para unificar a
+        // linguagem visual de "destaque na cor primária" entre botões e
+        // badges, no lugar do preenchimento sólido anterior. `border-0`
+        // confirmado via DevTools num botão "tiny" de referência do Supabase
+        // ("Gerenciar membros"): todos os `border-*-width` computados são
+        // `0px`, apesar de o elemento definir `border-color`/`border-style`
+        // — a borda existe na folha de estilo, mas nunca é visível.
+        default: "border-0 bg-primary/5 text-primary hover:bg-primary/10 active:bg-primary/15",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-border bg-transparent hover:bg-surface-muted",
         ghost: "hover:bg-surface-muted",
@@ -22,7 +26,17 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
+        // Dimensões e fonte medidas via DevTools num botão "tiny" de
+        // referência do Supabase (2026-07-26, ex.: "Gerenciar membros"):
+        // caixa externa 135.1×26px, padding 4px 10px (medição direta do
+        // elemento, confiável). Font-size CORRIGIDO para 12px: a primeira
+        // leitura (15px) veio do painel Computed com outro nó selecionado
+        // (provavelmente um pai), não o texto do botão; medição direta sobre
+        // o nó de texto (mesmo método usado no menu/badge) confirma 12px —
+        // por coincidência, igual ao `text-xs` que já existia antes desta
+        // rodada de ajustes. Cor mantida — só dimensão e borda mudaram de
+        // fato, pedido explícito de Fabrício.
+        sm: "h-[26px] rounded-md px-2.5 py-1 text-xs",
         lg: "h-10 rounded-md px-6",
         icon: "h-9 w-9",
       },
