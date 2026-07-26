@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.71 |
+| **Versão** | 0.72 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -4321,7 +4321,107 @@ Bucket Supabase Storage dedicado a avatares: leitura pública (única exceção 
 
 ## Pendências / Próximos Passos
 
-Frontend do Incremento 1 implementado (2026-07-26): formulário de cadastro coleta `username`/`display_name` e envia via `options.data` do `signUp()`, com checagem de disponibilidade em tempo real (`username_available()`) e `traduzirErroAuth` estendido para os erros de `handle_new_user()`; tela `/perfil` real (username bloqueado, `display_name` editável, avatar via upload direto ao bucket `avatars`). Validação end-to-end em andamento por Fabrício — cadastro completo e carregamento de `/perfil` já confirmados; edição de `display_name` e troca de avatar ainda não testadas na prática. Incremento 2 (lista administrativa de usuários) e qualquer modelo de papéis/permissões permanecem fora de escopo até aprovação própria (ver ADR-020, ROADMAP).
+Frontend do Incremento 1 concluído e validado por Fabrício (2026-07-26): cadastro com `username`/`display_name`, tela `/perfil` real (avatar, nome de exibição editável, username bloqueado) — cadastro completo, carregamento de `/perfil`, edição de `display_name` e troca de avatar todos confirmados em produção. Incremento 2 (Administração de Usuários) iniciado — ver seção própria abaixo.
+
+---
+
+# Administração de Usuários
+
+## Status
+
+**Incremento 2, Fases 1–3 (fundação, leitura segura, interface) CONFIRMADAS EXECUTADAS e validadas em produção (2026-07-26).** Segunda entidade do módulo Identidade e Acesso (milhar `1000`–`1999`), formalizada em ADR-021 (Administrative Role Model). Fase 4 (correção administrativa de `username`) deliberadamente fora deste incremento — tratada como incremento futuro separado.
+
+## Decisão de Modelagem
+
+Papel administrativo modelado como presença de linha em `admin_user`, entidade separada de `user_profile` — nunca um atributo booleano nela, para não expor uma coluna autopromovível pelas políticas de RLS de `UPDATE` já existentes. Um único papel (`admin`), sem sistema genérico de papéis/permissões. Todo acesso administrativo passa por functions `SECURITY DEFINER`; `admin_user` e `admin_action_log` têm RLS habilitado e zero políticas — nenhum acesso direto via API, nem para o próprio admin. Ver ADR-021 para o raciocínio completo e as alternativas rejeitadas.
+
+## Modelo Físico — `admin_user` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.admin_user (
+    id           UUID PRIMARY KEY
+                 REFERENCES auth.users(id)
+                 ON DELETE CASCADE,
+    granted_by   UUID NULL
+                 REFERENCES auth.users(id)
+                 ON DELETE SET NULL,
+    granted_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.admin_user ENABLE ROW LEVEL SECURITY;
+```
+
+Sem `updated_at`/trigger: tabela de presença (INSERT/DELETE), não um registro editável. `granted_by` anulável com `ON DELETE SET NULL` — a exclusão futura de quem concedeu o papel nunca invalida a concessão em si. Confirmado via `information_schema`/`pg_tables`. Arquivo em `database/schema/1050_create_admin_user_table.sql`.
+
+## Modelo Físico — `admin_action_log` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.admin_action_log (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_id         UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+    target_user_id   UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+    action           TEXT NOT NULL,
+    metadata         JSONB NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT admin_action_log_action_valid CHECK (action IN ('GRANT_ADMIN', 'REVOKE_ADMIN'))
+);
+
+ALTER TABLE public.admin_action_log ENABLE ROW LEVEL SECURITY;
+```
+
+FKs anuláveis com `ON DELETE SET NULL` (não `CASCADE`): o histórico administrativo sobrevive à exclusão futura de qualquer usuário envolvido — `metadata` grava um retrato (username/e-mail de ator e alvo) capturado no momento da ação, preservando contexto legível mesmo depois que a referência direta vira `NULL`. Ajuste pedido por Fabrício antes da implementação. Confirmado via `pg_constraint`/`pg_tables`. Arquivo em `database/schema/1070_create_admin_action_log_table.sql`.
+
+## Query `1060` — Create `is_admin()` (CONFIRMADO EXECUTADO)
+
+Function `SECURITY DEFINER`, `SET search_path = ''`, **sem parâmetro** — verifica somente `auth.uid()`, o usuário da própria sessão. Ajuste pedido por Fabrício antes da implementação: a proposta original aceitava um `p_user_id` arbitrário, permitindo que qualquer usuário consultasse o status administrativo de outro UUID; rejeitado. `EXECUTE` concedido apenas a `authenticated`. Confirmado: `prosecdef = true`, `pronargs = 0`, grants corretos. Testado via SQL Editor retornando `false` (esperado — sem sessão real, `auth.uid()` é `NULL` nesse contexto). Arquivo em `database/schema/1060_create_is_admin_function.sql`.
+
+## Query `1061` — Create `admin_list_users()` (CONFIRMADO EXECUTADO, v1.1)
+
+Function `SECURITY DEFINER` que lista usuários para fins administrativos — única via de leitura de e-mail (`auth.users`) para esse propósito; o frontend nunca consulta `auth.users` diretamente. Paginada desde a origem (`limit`/`offset`, teto de 100 controlado no servidor), mesmo sem busca/filtros nesta fase — ajuste pedido por Fabrício antes da implementação ("uma listagem ilimitada não é adequada à evolução comercial do sistema"). Retorna `total_count` via `count(*) OVER()` em cada linha, evitando uma segunda chamada para montar a paginação. Campos: `id`, `username`, `display_name`, `avatar_path`, `email`, `created_at`, `is_admin`.
+
+**Bug real encontrado na integração da Fase 3**: `structure of query does not match function result type` (erro `42804`) — `auth.users.email` é `character varying(255)`, não `TEXT`; o `RETURN QUERY` exige tipo exato contra o `RETURNS TABLE` declarado. Corrigido com `au.email::text` (v1.1). Confirmado funcionando a partir do app real, retornando a lista corretamente. Arquivo em `database/schema/1061_create_admin_list_users_function.sql`.
+
+## Query `1062` — Create `admin_grant_admin()` / `admin_revoke_admin()` (CONFIRMADO EXECUTADO)
+
+Functions `SECURITY DEFINER` para conceder/revogar o papel administrativo, ambas exigindo `is_admin()` do chamador. Ambas adquirem a mesma trava consultiva de transação (`pg_advisory_xact_lock`), serializando concessões/revogações concorrentes — ajuste pedido por Fabrício antes da implementação, para que duas revogações simultâneas não possam remover o último administrador ao mesmo tempo. `admin_revoke_admin()` bloqueia explicitamente essa remoção (`RAISE EXCEPTION` se restaria zero administradores). Ambas gravam em `admin_action_log` com o retrato de `metadata`. Confirmado: `prosecdef = true`, `pronargs = 1`, grants corretos. Arquivo em `database/schema/1062_create_admin_grant_revoke_functions.sql`.
+
+## Bootstrap administrativo — operação única (NÃO é uma migration replicável)
+
+Como `admin_grant_admin()` exige que o chamador já seja administrador, a primeira concessão não pode passar pela function — é um `INSERT` direto, rodado uma única vez via SQL Editor, concedendo o papel a Fabrício (identificado por e-mail, evitando copiar/colar UUID manualmente) e registrando a ação em `admin_action_log` com uma nota explícita de que é bootstrap. Por decisão de Fabrício, esta operação **não** foi numerada na sequência estrutural nem gravada em `database/schema/` — é específica deste ambiente (hardcoda um e-mail real) e não deve ser reexecutada em outro projeto/ambiente sem ajuste.
+
+```sql
+INSERT INTO public.admin_user (id, granted_by)
+SELECT id, NULL FROM auth.users WHERE email = 'fabricio.souza.sales@hotmail.com';
+
+INSERT INTO public.admin_action_log (actor_id, target_user_id, action, metadata)
+SELECT id, id, 'GRANT_ADMIN',
+    jsonb_build_object('note', 'bootstrap inicial — primeiro administrador, concedido manualmente via SQL Editor')
+FROM auth.users WHERE email = 'fabricio.souza.sales@hotmail.com';
+```
+
+Confirmado executado — Fabrício listado como administrador em `admin_user`, com o registro correspondente em `admin_action_log`.
+
+## Sequência
+
+```text
+1050 - Create Admin User table                          (CONFIRMADO EXECUTADO — database/schema/1050_create_admin_user_table.sql)
+1060 - Create is_admin() function                        (CONFIRMADO EXECUTADO — database/schema/1060_create_is_admin_function.sql)
+1061 - Create admin_list_users() function (v1.1)          (CONFIRMADO EXECUTADO — database/schema/1061_create_admin_list_users_function.sql)
+1062 - Create admin_grant_admin()/admin_revoke_admin()     (CONFIRMADO EXECUTADO — database/schema/1062_create_admin_grant_revoke_functions.sql)
+1070 - Create Admin Action Log table                      (CONFIRMADO EXECUTADO — database/schema/1070_create_admin_action_log_table.sql)
+      - Bootstrap administrativo                          (CONFIRMADO EXECUTADO — operação única, não numerada, não versionada em database/schema/)
+1850 - Validate Admin User                                (EXECUTADA — database/validations/1850_validate_admin_user.sql)
+1860 - Validate Admin Functions                           (EXECUTADA — database/validations/1860_validate_admin_functions.sql)
+1870 - Validate Admin Action Log                          (EXECUTADA — database/validations/1870_validate_admin_action_log.sql)
+```
+
+## Frontend (Fase 3, CONFIRMADO EXECUTADO)
+
+Rota `/usuarios` (já existia como placeholder desde a fundação do frontend, agora real): Server Component que redireciona para `/login` sem sessão, mostra "Acesso restrito a administradores" para não-admin, erro dedicado se `admin_list_users()` falhar, "Nenhum usuário encontrado" no caso vazio, e a tabela paginada nos demais casos. Item "Usuários" do menu (`nav-config.ts`) marcado `adminOnly` — some do menu para quem não é admin (checagem de UX; a autorização real está nas functions do banco, não no frontend). `AppShell` busca `is_admin()` uma única vez e repassa a `Sidebar`/`Header`/`MobileNav`. Tabela (`components/usuarios/users-table.tsx`) mostra username/nome/e-mail/data/papel e um botão conceder/revogar por linha, via Server Actions (`app/usuarios/actions.ts`) com tradução de erros dedicada (`lib/supabase/admin-errors.ts`).
+
+## Pendências / Próximos Passos
+
+Fase 4 (correção administrativa de `username`) deliberadamente fora deste incremento — mecanismo desenhado em nível conceitual no ADR-021 (flag local à transação sinalizando ao trigger `enforce_user_profile_invariants()`), implementação adiada para um incremento futuro. Testabilidade de `admin_grant_admin()`/`admin_revoke_admin()` com um segundo usuário real ainda pendente (Fabrício é hoje o único usuário/administrador cadastrado). Visualização do `admin_action_log` pela interface não faz parte deste incremento — o dado já é gravado, sem tela própria ainda.
 
 ---
 
@@ -4400,3 +4500,4 @@ Frontend do Incremento 1 implementado (2026-07-26): formulário de cadastro cole
 | 0.69 | **Bug real encontrado por Fabrício (2026-07-25), inspecionando `asset_import_run` diretamente: 100% das 11 runs já executadas estavam presas em `status = PENDING`, mesmo as concluídas com sucesso — `import-card-assets` nunca escrevia nessa tabela após o `SELECT` inicial.** Corrigido em `index.ts`/`services/database.ts` (v2.6.0, CONFIRMADO DEPLOYADO E TESTADO EM PRODUÇÃO — ver nova seção "Correção real: máquina de estados nunca escrita (v2.6.0)", logo após "Query 221"). As 11 runs históricas corrigidas via backfill manual (dados reais extraídos por consulta, não adivinhados): 10 para `COMPLETED` (contagens = total de cartas do Set), `MEP` (`RUN-20260724-00000061`) para `COMPLETED_WITH_ERRORS` (`60`/`60`/`0`/`60`, gap de imagens já conhecido). Teste real pós-deploy expôs mais um caso do mesmo gap de GRANT recorrente neste projeto (`service_role` sem `INSERT`/`UPDATE` em `asset_import_run`) — corrigido por `database/migrations/272_grant_asset_import_run_write_permissions.sql`; reinvocação confirmou o fluxo completo. **Auditoria adicional solicitada por Fabrício, 100% das 11 linhas revisada**: `execution_context = MANUAL` está correto em todas (todas as execuções foram disparadas manualmente via terminal, não é bug); `language_id` e `initiated_by` seguem `NULL` em 100% das linhas — pendência conhecida, registrada, não tratada nesta revisão. `scripts/import-manual-assets.ts` (v1.1, `deno check` + dry-run confirmados, execução real ainda NÃO feita — aguardando `MEP` completa) passou a criar sua própria linha em `asset_import_run` por `(card_set, language)` processado, fechando a lacuna de as importações manuais não terem nenhum rastro nessa tabela. |
 | 0.70 | **Nova entidade User Profile (Perfil de Usuário) / Reserved Username — Incremento 1 ("Meu Perfil") do módulo Identidade e Acesso, `1000`–`1040`/`1710`/`1800`–`1840` CONFIRMADOS EXECUTADOS.** Primeira entidade fora do Catálogo Editorial, inaugurando o Modelo Modular de Numeração (milhar `1000`–`1999`, ver STD-001 revisão 1.15) e formalizada em ADR-020 (User Profile and Username Identity Model). `user_profile`: separada de `auth.users`, `username` público/único/imutável (trigger sem válvula de exceção), `display_name` editável (trim garantido por trigger), `avatar_path` relativo ao bucket `avatars`. `reserved_username`: tabela de apoio (50 termos, v1.1 acrescentou `me`/`about` por sugestão de Fabrício), sem política de RLS direta — só lida por functions `SECURITY DEFINER` (`handle_new_user()`, que popula o perfil automaticamente no cadastro a partir de metadados tratados como não confiáveis; `username_available()`, checagem de disponibilidade sujeita a condição de corrida, não autoritativa). Bucket `avatars` criado com leitura pública e escrita restrita à própria pasta do usuário. Achado real: conta de teste de Fabrício, criada antes de `handle_new_user()` existir, ficou sem perfil — decisão tomada de excluí-la e recriar pelo fluxo real quando o frontend estiver pronto, não de corrigir manualmente. Frontend (formulário de cadastro + tela `/perfil`) ainda pendente. |
 | 0.71 | **Frontend do Incremento 1 implementado e Query `1004` (bug real de GRANT) corrigida (2026-07-26).** Formulário de cadastro (`/cadastro`) estendido com `username`/`display_name`, normalização espelhando as constraints do banco (`web/lib/username.ts`), checagem de disponibilidade em tempo real via `username_available()` e envio pelos metadados esperados por `handle_new_user()`. `traduzirErroAuth` estendido para os erros do trigger, com ressalva registrada no código de que o formato exato devolvido pelo GoTrue para falha de trigger ainda não foi confirmado em produção. Tela `/perfil` real: Server Component protegido por sessão (redireciona para `/login` se ausente), trata perfil ainda não carregado, delega a edição de `display_name` a uma Server Action e o upload de avatar a uma função client-side que envia o novo arquivo ao bucket antes de remover o anterior. Durante a validação em produção, `/perfil` falhou com `permission denied for table user_profile` (`42501`): as políticas de RLS da Query `1003` estavam corretas, mas faltava o `GRANT` de base do role `authenticated` — corrigido pela Query `1004` (ver seção acima). Teste de cadastro completo (`user_profile` criado com `username`/`display_name` corretos) e carregamento de `/perfil` confirmados por Fabrício; edição de `display_name` e avatar seguem em validação. |
+| 0.72 | **Incremento 2 (Administração de Usuários), Fases 1–3 CONFIRMADAS EXECUTADAS e validadas em produção (2026-07-26) — nova entidade Administração de Usuários.** `admin_user` (papel administrativo por presença de linha, separado de `user_profile`) e `admin_action_log` (auditoria, FKs anuláveis `ON DELETE SET NULL`, `metadata` com retrato de dados), formalizados em ADR-021. Functions `is_admin()` (sem parâmetro, verifica só o chamador), `admin_list_users()` (paginada, `SECURITY DEFINER`, única via de leitura de e-mail de `auth.users` para fins administrativos) e `admin_grant_admin()`/`admin_revoke_admin()` (trava consultiva de transação contra remoção concorrente do último administrador). Bug real encontrado na Fase 3: `admin_list_users()` falhava com erro `42804` (`auth.users.email` é `varchar(255)`, não `TEXT` — corrigido com cast explícito, v1.1). Bootstrap do primeiro administrador documentado como operação única, não numerada, não replicável entre ambientes (por decisão de Fabrício). Frontend: rota `/usuarios` real (estados de acesso negado/erro/vazio/carregado), item de menu condicional a `is_admin()`. Fase 4 (correção administrativa de `username`, prevista em ADR-020) deliberadamente fora deste incremento. |
