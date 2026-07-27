@@ -8,7 +8,7 @@ Uma cópia fiel, em arquivo `.sql`, de cada Query já executada com sucesso no S
 
 ## O que esta pasta não é
 
-**Não é** um sistema de migration automatizado. A execução real continua acontecendo manualmente no SQL Editor do Supabase, uma Query por vez, validada antes de avançar (ver STD-001, Seção 10 — "uso exclusivo do SQL Editor, nunca o menu visual"). Os arquivos aqui são copiados **depois** da execução confirmada, como registro histórico — nunca antes.
+**Não é** um sistema de migration automatizado — os arquivos aqui não são aplicados a um banco novo executando esta pasta em sequência; cada Query é executada e validada individualmente, uma de cada vez. A execução pode ocorrer diretamente pelo ambiente de desenvolvimento autorizado (hoje, Claude Code integrado ao Supabase via MCP, usando `apply_migration`/`execute_sql`) ou, excepcionalmente, pelo SQL Editor do Supabase (ver STD-001, Seção 10). Em ambos os casos, nunca o menu visual do Supabase (Table Editor) para alterações estruturais. Os arquivos aqui são copiados **depois** da execução confirmada, como registro histórico — nunca antes.
 
 ## Estrutura
 

@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.3 |
+| **Versão** | 2.4 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
@@ -1093,7 +1093,7 @@ Cartas de Energia **não são tratadas como Cards do Set** neste modelo, porque,
 
 Consequentemente, Card Category possui apenas dois valores neste catálogo: **Pokémon** e **Trainer**. Isso não significa que uma carta física de Energia nunca poderá ser controlada pelo sistema — apenas que ela não pertence a este catálogo numerado. Caso futuramente exista necessidade concreta de controlar Energias avulsas, elas deverão ser avaliadas em outro contexto (ex.: uma entidade específica de acessório/suplemento), não antecipado por este documento.
 
-> **Nota:** cartas de categoria Energy já aparecem cadastradas com posição numerada em alguns Sets, o que está em tensão com esta decisão de escopo. Pendência sinalizada, não resolvida unilateralmente — ver `05-modelo-de-dados.md` para o estado atual dos dados.
+> **Nota:** cartas de categoria Energy já aparecem cadastradas com posição numerada em alguns Sets, o que está em tensão com esta decisão de escopo. Pendência sinalizada, não resolvida unilateralmente — ver `05-modelo-de-dados.md` para o estado atual dos dados, e "Open Decisions" (`OD-001`), no fim deste documento, para o registro formal (responsável, impacto e gatilho de decisão).
 
 ---
 
@@ -1481,6 +1481,22 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 
 ---
 
+# Open Decisions
+
+Pendências de decisão de domínio identificadas, mas deliberadamente não resolvidas de forma unilateral — cada uma aguarda uma decisão explícita de Fabrício, no momento indicado por seu próprio gatilho. Diferente de um ADR (que registra uma decisão já tomada), esta seção registra uma decisão ainda **não tomada**. Quando uma Open Decision for resolvida, ela sai desta lista e, se tiver impacto arquitetural, gera um ADR próprio.
+
+| Campo | Valor |
+|-------|-------|
+| **ID** | `OD-001` |
+| **Tema** | Representação de Energy no catálogo |
+| **Descrição** | Cartas de categoria `ENERGY` somam hoje `17` Cards reais no banco físico, cada uma com posição numerada em seu Set — em tensão direta com a "Decisão de Escopo — Cartas de Energia" (acima), que define Card Category com apenas dois valores (Pokémon/Trainer) e trata Energias como fora do catálogo numerado. |
+| **Impacto** | `Card`, `Card Category`, contagem oficial do Set (`total_set_size`/Official Card Count), pipeline de importação e qualquer relatório que assuma só Pokémon/Trainer. |
+| **Estado** | Aberta |
+| **Decisor** | Fabrício |
+| **Gatilho** | Antes de ampliar o catálogo para uma nova era ou um novo Game (TCG), para evitar propagar a mesma ambiguidade a dados novos. |
+
+---
+
 # Revision History
 
 | Versão | Descrição |
@@ -1507,3 +1523,4 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 | 2.1 | **Convergência de nomenclatura: Finish/Card Finish revertidos para Card Variant Type/Card Variant (ADR-016), revertendo parcialmente ADR-010.** Fabrício avaliou que Card Variant Type/Card Variant deve prevalecer como termo conceitual, por já ser o nome usado no banco de dados, no pipeline de importação e na linguagem prática do projeto, sem que "Card Variant" esteja sendo usado para Full Art/Gold/Secret Rare (escopo já restrito por ADR-009). A separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida e não foi afetada. Renomeadas as seções "Finish"/"Card Finish" para "Card Variant Type"/"Card Variant" e todas as referências cruzadas no documento (Card, Card Translation, Rarity, Card Category, Card Asset, Collection Item). "Finish"/"Card Finish"/"Printing Variant"/"Finish Variant" preservados apenas como sinônimos históricos. |
 | 2.2 | **Terceira dimensão de idioma reconhecida: Idioma do Ativo Digital (Card Asset), independente de Tradução Editorial e de Idioma do Exemplar Físico.** Ao planejar a Query `880` (Seed Card Asset), Fabrício comparou duas imagens reais da mesma Card (`Rufflet`, ME2.5) impressas em português e em inglês e identificou que representam o mesmo Card Asset Type (`CARD_FRONT`) em idiomas diferentes — não Cards distintas, não Card Variants distintas. Seção "Diferença entre Tradução Editorial e Idioma do Exemplar" renomeada para "Três Dimensões de Idioma no Domínio", com a nova categoria adicionada. Seção Card Asset Type/Card Asset atualizada: cada ativo agora registra também seu idioma, com regra de "ativo principal" revisada para Card + Asset Type + Idioma. Nova entidade de referência **Language (Idioma)** documentada em `05-modelo-de-dados.md` (catálogo global, sem `game_id`) para dar suporte a essa dimensão — SQL recebida, execução ainda não confirmada. |
 | 2.3 | Adicionada nota de cross-check à seção Collection Item: o Catálogo Editorial (Bloco B) foi confirmado 100% concluído (`06-pipeline-importacao.md`, Sprint B3.26) e a sessão pareada de Fabrício, ao planejar a Fase 2 (Coleções), reapresentou como novidade um conceito já formalizado aqui (identificador por exemplar físico) — registrado como ponto de partida real para quando a modelagem lógica de Coleções começar. |
+| 2.4 | **Nova seção "Open Decisions" (2026-07-26), motivada por auditoria externa conduzida por Fabrício.** A discrepância `ENERGY` já estava sinalizada em prosa, na nota da "Decisão de Escopo — Cartas de Energia", mas sem responsável, impacto ou gatilho de decisão explícitos. Formalizada como `OD-001` (tema, descrição, impacto, estado, decisor, gatilho — "antes de ampliar o catálogo para uma nova era ou um novo Game"), com link cruzado a partir da nota original. Não gera ADR: a decisão ainda não foi tomada, só está agora formalmente rastreada. |

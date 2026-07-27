@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.11 |
+| **Versão** | 1.12 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -23,7 +23,9 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
-**Importação manual de imagens de `MEE`/`MEP` (TCGdex não tem os assets).**
+Três trilhas ativas em paralelo, sem dependência entre si (ver "Catálogo Editorial — Frentes de Encerramento", abaixo, para como as trilhas B–E se encaixam no fechamento do módulo).
+
+## Trilha 1 — Importação manual de imagens de `MEE`/`MEP` (TCGdex não tem os assets)
 
 O pipeline de importação (`import-card-assets`, `ADR-018`) foi executado com sucesso para as sete Card Sets da Expansion `ME`: `card_external_reference` 100% importada em todas (`927`/`927`). Imagens completas para as 5 coleções originais (`ME1`-`ME4`/`ME2.5`: `859` Cards, `1.718` Card Assets, `en`+`pt-BR`, `0` falhas). Para `MEE`/`MEP` (`68` Cards), confirmado por consulta direta ao CDN da TCGdex que o asset genuinamente não existe na fonte (não é gap de API) — decisão de Fabrício: importar manualmente via novo script `scripts/import-manual-assets.ts` (`source_code = 'MANUAL'`, rastreável), em vez de esperar a TCGdex publicar. **`MEE` já confirmada 100% completa (`en`+`pt-BR`, referências e imagens).** Pendente: `MEP`/`en`, `MEP`/`pt-BR` (`60` Cards cada) — hoje só há `13`/`60` de `MEP`/`en` salvas localmente; Fabrício optou por aguardar as duas pastas completas antes de rodar o script de verdade.
 
@@ -31,15 +33,31 @@ Em paralelo, bug real corrigido nesta revisão (2026-07-25): `asset_import_run` 
 
 Só quando as imagens de `MEE`/`MEP` também estiverem importadas o Catálogo Editorial estará genuinamente fechado — conforme a própria correção de Fabrício registrada em `05-modelo-de-dados.md`, revisão `0.63`: *"Não teremos encerrado toda a fundação do catálogo editorial do Project Mimikyu. Só concluímos após importação de todas as imagens para nossa base."*
 
-**Início do front-end (aplicação web), em paralelo, sem esperar a modelagem de Coleções.**
+## Trilha 2 — Catálogo Editorial: Escrita Administrativa (`ADR-023`, em andamento)
 
-Fabrício decidiu (2026-07-25, `ADR-019-web-application-as-primary-interface.md`) começar a construção da interface do produto agora, priorizando entregas incrementais de valor em vez de esperar a conclusão de toda a modelagem de dados. Aplicação web própria (React/Next.js) adotada como interface principal — Power Apps/SharePoint/Power BI descartados da arquitetura-alvo. App shell, autenticação básica (Supabase Auth) e as telas de Catálogo Editorial já têm código no repositório (`web/`).
+Formaliza a autoria (criação/edição/exclusão administrativa) das entidades do Catálogo Editorial pela própria interface web, em ciclos verticais por entidade (Backend → Tela → Validação), um de cada vez. Numeração dedicada no milhar `2000`–`2999` (`STD-001` v1.17).
 
-**Identidade e Acesso — Incremento 1 ("Meu Perfil"): CONCLUÍDO — banco, documentação e interface.** Ao testar o cadastro real, Fabrício percebeu a ausência de qualquer gestão de perfil associada — motivou a modelagem formal de `user_profile`, separada de `auth.users` (`ADR-020-user-profile-and-username-identity-model.md`), inaugurando o Modelo Modular de Numeração do STD-001 (milhar `1000`–`1999`). Tabela, triggers, RLS, `handle_new_user()`, `username_available()` e bucket de avatares confirmados e documentados (`1000`–`1040`/`1710`/`1800`–`1840`, ver `05-modelo-de-dados.md`). Frontend (formulário de cadastro com `username`/`display_name`, tela `/perfil` real com avatar e nome de exibição editáveis) implementado e validado ponta a ponta em produção por Fabrício.
+Estado atual: infraestrutura comum (schema `internal`, tabela `catalog_admin_action_log`, `card.is_active`, `internal.write_card()`) CONCLUÍDA. Ciclo vertical de `Game` CONCLUÍDO (Queries `2031`/`2032`, tela `/catalogo/jogos`, validação `2804`), incluindo emenda formal ao `ADR-023` que deu a `Game` exclusão real via UI (Queries `2041`/`2042`, validação `2808`) — `Expansion`/`Card Set` permanecem sem exclusão por UI. Ciclo vertical de `Expansion` CONCLUÍDO (Queries `2033`/`2034`, tela `/catalogo/expansoes`, validação `2805`). Próximo ciclo: `Card Set` (Queries `2035`/`2036` + tela `/catalogo/card-sets` + validação `2806`), seguido pelos dois subciclos de `Card` (criação/edição; desativação/reativação). Detalhamento completo em `05-modelo-de-dados.md`, seção "Catálogo Editorial — Escrita e Ingestão", e no handoff vigente (`development/HANDOFF-2026-07-26.md`). Duas confirmações de interface real seguem pendentes de Fabrício: exclusão de `Game` e a tela completa de `Expansion`.
 
-**Identidade e Acesso — Incremento 2 ("Administração de Usuários"): Fases 1–3 CONCLUÍDAS, Fase 4 fora deste incremento.** Papel administrativo modelado como entidade separada de `user_profile` (`admin_user`, sem RLS direta — só via functions `SECURITY DEFINER`), com auditoria (`admin_action_log`, FKs anuláveis) — formalizado em `ADR-021-administrative-role-model.md`. `is_admin()`, `admin_list_users()` (paginada) e `admin_grant_admin()`/`admin_revoke_admin()` (com trava de concorrência) confirmados e documentados (`1050`–`1070`/`1850`–`1870`, ver `05-modelo-de-dados.md`). Interface administrativa (`/usuarios`, item de menu condicional a `is_admin()`) implementada e validada em produção. **Fase 4 (correção administrativa de `username`, prevista em ADR-020) deliberadamente fora deste incremento** — tratada como incremento futuro separado, por decisão de Fabrício.
+## Trilha 3 — Catálogo Editorial: Ingestão Administrativa (`ADR-024`, não iniciada)
 
-**Catálogo Editorial (frontend) — fundação de autorização/logo e tela Visão Geral CONCLUÍDAS.** Ao retomar a concepção da tela Visão Geral (`/catalogo`), verificação direta do banco revelou que as 17 tabelas do Catálogo Editorial tinham RLS habilitado sem nenhuma política — fechadas por efeito colateral, não por decisão. Formalizado em `ADR-022-catalog-editorial-admin-only-access.md`: todo o módulo passa a ser exclusivo de administradores. Leitura liberada via política `catalog_admin_select` (`is_admin()`) nas 10 tabelas usadas pela Visão Geral; escrita da nova coluna `card_set.logo_storage_path` restrita à função `admin_set_card_set_logo()` (`SECURITY DEFINER`, sem política de `UPDATE` ampla); bucket privado `card-set-logo` com quatro políticas separadas de Storage. Queries `273`–`277` CONFIRMADAS EXECUTADAS. Sobre essa fundação, a tela `/catalogo` (Visão Geral) foi implementada — guarda de servidor compartilhada nas seis rotas do módulo, quatro blocos (Estado do Catálogo, Card Sets navegável, Cartas por Raridade, Atividade Recente), nova rota de detalhe `/catalogo/card-sets/[code]`. `tsc --noEmit` limpo; validação visual em `npm run dev` ainda pendente (ver `05-modelo-de-dados.md`, seção "Autorização do Catálogo Editorial", para a ressalva de que os indicadores exatos podem precisar de conferência de Fabrício).
+Formaliza a estratégia de captura/confirmação administrativa de novas Cards a partir de fontes externas (ex.: TCGdex), reutilizando `internal.write_card()` como camada canônica de persistência (já concluída na Trilha 2). Só começa após o fechamento do `ADR-023` — nenhuma Query, tela ou decisão de modelagem deste ADR foi iniciada até esta revisão.
+
+---
+
+# Catálogo Editorial — Frentes de Encerramento
+
+"Catálogo Editorial" é usado neste roadmap e no restante da documentação para mais de um escopo — modelo de dados, pipeline de imagens, leitura, escrita administrativa, ingestão administrativa. Esta seção formaliza as cinco frentes que compõem o módulo e o critério para declará-lo encerrado: **as cinco precisam estar concluídas**, não apenas a mais recente em andamento.
+
+| Frente | Escopo | Estado |
+|--------|--------|--------|
+| A. Modelo de Dados | Entidades estruturais do catálogo (`game` até `asset_import_failure`) | **Concluído** |
+| B. Pipeline de Assets | Importação automatizada (`import-card-assets`, `ADR-018`) + importação manual (`MEE`/`MEP`) | **Concluído parcialmente** — `MEE` completa; `MEP` pendente (Trilha 1, acima) |
+| C. Interface de Consulta | Leitura administrativa do catálogo (`ADR-022`) e tela Visão Geral (`/catalogo`) | **Concluído parcialmente** — implementado, validação visual em `npm run dev` pendente |
+| D. Escrita Administrativa | `ADR-023` — cadastro/edição/exclusão pela interface, por ciclos verticais | **Em andamento** (Trilha 2, acima) |
+| E. Ingestão Administrativa | `ADR-024` — captura/confirmação de novas Cards a partir de fontes externas | **Não iniciada** (Trilha 3, acima) |
+
+Só quando as cinco frentes estiverem concluídas o Catálogo Editorial está genuinamente encerrado e a Sub-Fase 2 (Coleções, abaixo) pode começar.
 
 ---
 
@@ -49,7 +67,7 @@ Fabrício decidiu (2026-07-25, `ADR-019-web-application-as-primary-interface.md`
 
 O domínio do colecionador (Collection, Collection Entry, Collection Item — ver `04-domain-model.md` e `ADR-013`/`ADR-014`) já está conceitualmente modelado e aprovado, mas ainda não tem modelo físico (`05-modelo-de-dados.md`) nem tabelas criadas no Supabase. Fabrício confirmou diretamente (revisão `1.40` de `docs/README.md`) que este é o próximo módulo real do projeto, distinto do Catálogo Editorial: exemplares físicos possuídos pelo usuário, objetivos de coleção, e a relação entre ambos.
 
-Início previsto apenas após o fechamento do Catálogo Editorial (item "Now", acima).
+Início previsto apenas após o fechamento das cinco frentes do Catálogo Editorial (ver "Catálogo Editorial — Frentes de Encerramento", acima) — hoje, isso significa concluir a Trilha 1 (imagens de `MEP`) e as Trilhas 2/3 (`ADR-023`/`ADR-024`).
 
 ---
 
@@ -69,6 +87,11 @@ Qualquer um destes itens só entra em "Next" quando Fabrício o confirmar explic
 - **Fase 1 — Arquitetura Conceitual.** Princípios arquiteturais, delimitação do domínio, estrutura do catálogo editorial, modelo do universo do colecionador, separação Set/Collection, estratégia de evolução incremental.
 - **Sub-Fase 1 — Catálogo Editorial, Bloco A (Modelo de Dados).** Todas as entidades estruturais criadas e homologadas para as 7 Card Sets: `game`, `expansion`, `card_set`, `card` (`927`), `card_category`, `rarity` (10), `language`, `card_variant_type`, `card_variant` (`1.653`), `card_asset_type`/`card_asset`, `storage_bucket`, `asset_source`, `card_external_reference`, `card_set_external_reference`, `asset_import_run`, `asset_import_failure`.
 - **Sub-Fase 1 — Catálogo Editorial, Bloco B (Pipeline de Importação), para as 5 coleções originais.** `859` Cards processadas, `859` referências externas, `1.718` Card Assets, `en`+`pt-BR`, `0` falhas.
+- **Início do front-end (aplicação web).** Fabrício decidiu (2026-07-25, `ADR-019-web-application-as-primary-interface.md`) começar a construção da interface do produto sem esperar a modelagem de Coleções — React/Next.js adotado como interface principal, Power Apps/SharePoint/Power BI descartados da arquitetura-alvo. App shell e autenticação básica (Supabase Auth) no repositório (`web/`).
+- **Identidade e Acesso — Incremento 1 ("Meu Perfil").** `user_profile`, separado de `auth.users` (`ADR-020`), inaugurando o Modelo Modular de Numeração do STD-001 (milhar `1000`–`1999`). Tabela, triggers, RLS, `handle_new_user()`, `username_available()`, bucket de avatares e frontend (`/perfil`) confirmados e validados ponta a ponta em produção.
+- **Identidade e Acesso — Incremento 2 ("Administração de Usuários"), Fases 1–3.** Papel administrativo (`admin_user`, sem RLS direta) e auditoria (`admin_action_log`) — `ADR-021`. `is_admin()`, `admin_list_users()`, `admin_grant_admin()`/`admin_revoke_admin()` e interface (`/usuarios`) confirmados e validados em produção. Fase 4 (correção administrativa de `username`, `ADR-020`) deliberadamente fora deste incremento, por decisão de Fabrício.
+- **Catálogo Editorial — Frente C (Interface de Consulta), fundação de autorização/logo e tela Visão Geral.** Descoberto que as 17 tabelas do módulo tinham RLS habilitado sem nenhuma política — formalizado como admin-only em `ADR-022-catalog-editorial-admin-only-access.md`. Leitura liberada via `catalog_admin_select` nas 10 tabelas usadas pela Visão Geral; escrita da logo restrita a `admin_set_card_set_logo()`; bucket privado `card-set-logo`. Queries `273`–`277` CONFIRMADAS EXECUTADAS. Tela `/catalogo` (Visão Geral) implementada — guarda de servidor nas seis rotas, quatro blocos (Estado do Catálogo, Card Sets navegável, Cartas por Raridade, Atividade Recente), rota de detalhe `/catalogo/card-sets/[code]`. `tsc --noEmit` limpo; validação visual em `npm run dev` ainda pendente.
+- **Catálogo Editorial — Frente D (Escrita Administrativa), infraestrutura comum e ciclos verticais de `Game`/`Expansion`.** Ver Trilha 2, acima, e `05-modelo-de-dados.md`/handoff vigente para o detalhamento completo.
 
 ---
 
@@ -88,3 +111,4 @@ Qualquer um destes itens só entra em "Next" quando Fabrício o confirmar explic
 | 1.9 | **Incremento 1 fechado por completo (frontend validado em produção) e Incremento 2 ("Administração de Usuários") concluído nas Fases 1–3 (2026-07-26).** Papel administrativo (`admin_user`), auditoria (`admin_action_log`) e interface (`/usuarios`) formalizados em `ADR-021-administrative-role-model.md`, executados e validados ponta a ponta. Fase 4 (correção administrativa de `username`) explicitamente adiada para um incremento futuro, por decisão de Fabrício. |
 | 1.10 | **Catálogo Editorial (frontend) — fundação de autorização e logo concluída (2026-07-26), formalizada em `ADR-022-catalog-editorial-admin-only-access.md`.** Descoberto que as 17 tabelas do módulo estavam de fato fechadas (RLS sem política); decisão de tornar isso permanente e admin-only. Queries `273`–`277` CONFIRMADAS EXECUTADAS: coluna `card_set.logo_storage_path`, política admin-only de leitura em 10 tabelas, função `admin_set_card_set_logo()`, bucket privado `card-set-logo` com quatro políticas de Storage. Novo parágrafo em "Now". Implementação da tela `/catalogo` em si permanece pendente. |
 | 1.11 | **Tela Visão Geral (`/catalogo`) implementada no mesmo dia (2026-07-26), sobre a fundação da revisão `1.10`.** Guarda de servidor compartilhada (`requireCatalogoAdmin()`) nas seis rotas do módulo; quatro blocos (Estado do Catálogo, Card Sets navegável, Cartas por Raridade, Atividade Recente); nova rota de detalhe `/catalogo/card-sets/[code]`. `tsc --noEmit` limpo; validação visual em `npm run dev` pendente. Ressalva registrada em `05-modelo-de-dados.md`: indicadores exatos reconstruídos a partir do resumo pós-compactação, não do wireframe verbatim aprovado originalmente — valem conferência de Fabrício. |
+| 1.12 | **Reconciliação documental (2026-07-26), motivada por auditoria externa conduzida por Fabrício após a sessão que produziu `development/HANDOFF-2026-07-26.md`.** "Now" reescrito em três trilhas explícitas: Trilha 1 (imagens `MEP`, inalterada em conteúdo), Trilha 2 (`ADR-023`, nova — registra infraestrutura comum/`Game`/`Expansion` concluídos e `Card Set` como próximo ciclo, referenciando o handoff vigente) e Trilha 3 (`ADR-024`, nova — explicitamente não iniciada). Itens já concluídos que estavam misturados em "Now" (início do front-end, Identidade e Acesso Incrementos 1/2, fundação de leitura/Visão Geral do Catálogo Editorial via `ADR-022`) movidos para "Concluído", eliminando a ambiguidade entre "em andamento" e "já fechado". Nova seção "Catálogo Editorial — Frentes de Encerramento" formaliza as cinco frentes do módulo (A. Modelo de Dados, B. Pipeline de Assets, C. Interface de Consulta, D. Escrita Administrativa, E. Ingestão Administrativa) e o critério de que as cinco precisam estar concluídas para o módulo ser declarado encerrado — "Next" (Sub-Fase 2 — Coleções) agora referencia esse critério explicitamente em vez de um "fechamento do Catálogo Editorial" genérico. |

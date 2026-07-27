@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Documentation Architecture |
 | **Arquivo** | `docs/03-documentation-architecture.md` |
-| **Versão** | 1.10 |
+| **Versão** | 1.11 |
 | **Status** | Aprovado |
 | **Objetivo** | Definir a organização, as responsabilidades e a governança da documentação oficial do Project Mimikyu. |
 | **Escopo** | Toda a documentação mantida no repositório oficial. |
@@ -47,11 +47,19 @@ docs/
 │   └── ...
 ├── operations/
 │   └── <artefato>.md
-└── history/
-    └── <artefato>.md
+├── history/
+│   ├── <artefato>.md
+│   └── development/
+│       └── HANDOFF-AAAA-MM-DD.md
+└── development/
+    └── HANDOFF-AAAA-MM-DD.md
 ```
 
 Os documentos `04` a `07` seguem a mesma numeração sequencial dos documentos centrais (`00`-`03`) e já possuem conteúdo em elaboração.
+
+**`development/` — formalizado (2026-07-26), a partir de `docs/development/HANDOFF-2026-07-26.md`, criado sem que a árvore documental o previsse.** Ver a responsabilidade completa e o ciclo de vida na tabela "Artifact Responsibilities" e na nota abaixo.
+
+**Ciclo de vida dos handoffs.** Apenas um handoff é vigente por vez, nomeado `HANDOFF-AAAA-MM-DD.md` com a data da sessão que o produziu. Ao criar um novo handoff, o anterior é movido para `history/development/` (mesmo padrão de `history/`: preserva rastreabilidade sem sobrecarregar a leitura corrente) — nunca dois handoffs vigentes simultâneos em `development/`. `docs/README.md`, seção "Status Atual do Projeto", aponta para o handoff vigente. Nenhuma decisão permanente (arquitetural, de modelagem, de processo) deve existir apenas em um handoff — se uma sessão tomar uma decisão desse tipo, ela precisa ser registrada em seu artefato normativo próprio (ADR, Standard, ou o documento de arquitetura correspondente) no mesmo ciclo; o handoff pode referenciá-la, mas não é a fonte de verdade dela.
 
 **`ROADMAP.md` — criado (2026-07-24).** Consolida, pela primeira vez, a trajetória macro do projeto (concluído/em andamento/direção futura ainda não comprometida) em uma única fonte de verdade, resolvendo a fragmentação de múltiplas propostas de roadmap não reconciliadas ao longo do projeto (ver `06-pipeline-importacao.md`, revisão `1.4`). Não segue a numeração sequencial `00`-`07` por ser um artefato de natureza diferente (trajetória, não arquitetura/modelo), mesmo padrão de `README.md`.
 
@@ -76,7 +84,8 @@ Os documentos `04` a `07` seguem a mesma numeração sequencial dos documentos c
 | Architecture | Documenta componentes, modelos, relacionamentos, integrações, fluxos e diagramas da solução. |
 | Operations | Guia operacional passo a passo de como executar um processo já implementado (ex.: como importar uma nova coleção). Não contém racional de arquitetura nem histórico — apenas os passos, na ordem, prontos para seguir. |
 | History | Diário histórico de como uma parte do sistema chegou ao seu estado atual — tentativas, bugs reais, propostas descartadas, evolução sprint a sprint. Não é atualizado com novas decisões (isso vai no documento de arquitetura correspondente) nem com passo a passo de uso (isso vai em Operations). Existe para preservar rastreabilidade sem sobrecarregar os documentos de leitura frequente. |
-| `database/` (fora de `docs/`) | Registro versionado, em arquivos `.sql`, das Queries já executadas no Supabase — cópia fiel do que está documentado em prosa em `05-modelo-de-dados.md`. Não é um executor de migrations; a execução real continua manual, via SQL Editor (ver STD-001, Seção 10, e `database/README.md`). |
+| Development | Documentos temporais de continuidade operacional entre sessões de desenvolvimento (handoffs), contendo estado executado, arquivos alterados, validações, pendências imediatas e checklist de retomada. Operacional, não normativo — não substitui `README.md`, `ROADMAP.md`, ADR, Standard, Architecture, Operations ou History; nenhuma decisão permanente deve residir apenas aqui. Apenas um handoff vigente por vez; handoffs anteriores são movidos para `history/development/`. Ver ciclo de vida completo na nota acima. |
+| `database/` (fora de `docs/`) | Registro versionado e canônico dos scripts SQL do projeto (estrutura, migrations, seeds, validações) — cópia fiel do que está documentado em prosa em `05-modelo-de-dados.md`. A execução pode ocorrer diretamente pelo ambiente de desenvolvimento autorizado (hoje, Claude Code integrado ao Supabase via MCP) ou, excepcionalmente, pelo SQL Editor — em ambos os casos, todo script executado deve ser versionado, validado e documentado no mesmo ciclo (ver STD-001, Seção 10, e `database/README.md`). Esta responsabilidade é sobre o registro e a disciplina de versionamento, não sobre qual ferramenta executa o script. |
 
 ---
 
@@ -194,3 +203,4 @@ Os documentos podem utilizar os seguintes status:
 | 1.8 | **Auditoria documental completa (2026-07-24), a pedido explícito de Fabrício, antes de retomar o desenvolvimento.** Achado nesta rodada: `docs/glossary/` — quarta pasta órfã do mesmo perfil das já identificadas (apenas `.gitkeep`, criada em 2026-07-21, nunca referenciada em nenhum documento nem incluída na árvore de estrutura), passou despercebida nas auditorias anteriores porque a varredura de `1.5` não a havia detectado. Adicionada à nota de pastas órfãs, com a mesma recomendação de remoção manual. Nenhuma outra inconsistência estrutural encontrada nesta auditoria (verificação cruzada de contagens 859/927/1.555/1.653 em todos os documentos, status de ADRs, links internos e conteúdo de `04-domain-model.md`/`07-catalogo-editorial.md`/`architecture/`/`database/README.md`). |
 | 1.9 | **Segunda auditoria (2026-07-24), conduzida por Fabrício sobre o resultado da revisão `1.8`.** `docs/ROADMAP.md` criado e adicionado à árvore de estrutura — primeira fonte única de verdade da trajetória do projeto. **Mudança de regra de manutenção**: `ADR-INDEX.md`/`STD-INDEX.md`, antes deliberadamente congelados até o fim da fase de documentação, passam a ser mantidos ativamente a partir de agora, por decisão explícita de Fabrício — a documentação do passado do projeto está encerrada. Ambos atualizados para refletir o estado real (ver nota própria, acima). `docs/sprint/`/`docs/glossary/` seguem pendentes de remoção manual — nenhuma pasta nova encontrada nesta rodada. |
 | 1.10 | **Exclusão de `docs/sprint/` e `docs/glossary/` confirmada por Fabrício (2026-07-24) e verificada por inspeção direta do repositório — nenhuma das quatro pastas órfãs identificadas ao longo do projeto (`pipelines/`, `editorial/`, `sprint/`, `glossary/`) existe mais.** Nota de "Pastas órfãs" reescrita de recomendação pendente para fato consumado, mesmo padrão já usado para `pipelines/`/`editorial/` na revisão `1.7`. Este item está encerrado. |
+| 1.11 | **Formalizado o tipo de artefato `development/` (2026-07-26), motivado por auditoria externa conduzida por Fabrício**: `docs/development/HANDOFF-2026-07-26.md` havia sido criado numa sessão anterior sem que a árvore documental o previsse, contrariando a regra "não criar artefatos sem responsabilidade definida". Adicionado à árvore de estrutura (junto com `history/development/`, destino dos handoffs superados); nova linha "Development" na tabela de Artifact Responsibilities; nova nota "Ciclo de vida dos handoffs" — um vigente por vez, decisões permanentes nunca residem só nele, `README.md` aponta para o vigente. **Corrigida também a responsabilidade de `database/`**, que ainda afirmava execução exclusivamente manual via SQL Editor — desatualizada frente ao fluxo real consolidado no projeto (Claude Code executando e validando Queries diretamente no Supabase via MCP, ver `development/HANDOFF-2026-07-26.md`); reescrita para descrever `database/` como o registro versionado e canônico dos scripts, neutro quanto à ferramenta de execução. |
