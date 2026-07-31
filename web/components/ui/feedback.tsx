@@ -6,7 +6,18 @@ export type FeedbackTone = "success" | "error" | "warning";
 
 const TONE_CONFIG: Record<FeedbackTone, { icon: LucideIcon; classes: string }> = {
   success: { icon: CheckCircle2, classes: "border-success/30 bg-success/10 text-success" },
-  error: { icon: XCircle, classes: "border-destructive/30 bg-destructive/10 text-destructive" },
+  // dark: overrides (2026-07-31, pedido de Fabrício: "tarja vermelha no modo
+  // escuro... não consigo ler a mensagem de erro") — mesmo diagnóstico já
+  // aplicado a `StatCard tone="danger"` e `ConfirmDeleteBar`: `--destructive`
+  // no tema escuro tem luminosidade muito baixa (20%), quase invisível sobre
+  // fundo também escuro. `dark:text-destructive-foreground`/
+  // `dark:border-destructive-foreground` (quase branco) em opacidade baixa
+  // resolve sem alterar o tema claro.
+  error: {
+    icon: XCircle,
+    classes:
+      "border-destructive/30 bg-destructive/10 text-destructive dark:border-destructive-foreground/25 dark:bg-destructive/20 dark:text-destructive-foreground",
+  },
   warning: { icon: AlertTriangle, classes: "border-warning/40 bg-warning/10 text-warning" },
 };
 

@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.91 |
+| **Versão** | 0.95 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -4850,14 +4850,14 @@ Todas as três Queries de banco (`2045`/`2046`/`2047`) e a validação (`2810`) 
 
 **Ajuste visual (2026-07-31, mesmo dia, depois de ver as primeiras logos reais na tela)**: a caixa da imagem em `ExpansaoGalleryCard` deixou de ser `aspect-square` — logos de Expansão são wordmarks horizontais (ex.: "Scarlet & Violet"), diferentes do símbolo compacto de Card Set que motivou o quadrado original. Trocada para `aspect-[2/1]`, `object-contain` preservado (nunca corta a imagem), padding reduzido de `p-4` para `p-3`.
 
-## Coleções (`/catalogo/card-sets`) no padrão de Expansões + emenda `Card Set`: atualização e exclusão real via UI (Queries `2048`/`2049`/`2050`/`2811` — SQL PREPARADO, AGUARDANDO EXECUÇÃO)
+## Coleções (`/catalogo/card-sets`) no padrão de Expansões + emenda `Card Set`: atualização e exclusão real via UI (Queries `2048`/`2049`/`2050`/`2811` — CONFIRMADO EXECUTADO)
 
 Pedido de Fabrício (2026-07-31, mesmo dia da logo de Expansão): "faça todos os ajustes necessários para manter o mesmo padrão da página Expansões" na tela Coleções. Sete pontos, todos de apresentação exceto o último:
 
 1. **`CardSetsStats`** (novo, `web/components/catalogo/card-sets-stats.tsx`) — mesmo padrão de `ExpansoesStats`: Jogos/Expansões/Coleções/Sem Cartas (Coleções sem nenhuma Carta catalogada, `tone="danger"`). Sem query nova — reaproveita `getGameOptions()`/`getExpansoes()` (já buscados para o filtro) e `getCardSetsOverview()` (mesma função da tabela de Card Sets da Visão Geral).
 2. **Botão "Novo"** sai do `PageHeader` e passa a ficar numa linha própria acima do `Card` que envolve busca/filtro/conteúdo — mesmo lugar de "Nova expansão"/"Novo Jogo". Continua abrindo `NovoCatalogoDialog` (cadastro de Card Set segue fora de escopo — `admin_create_card_set()` não existe).
 3. **Busca e filtro** migram para dentro do `Card` (cabeçalho, só `border-b`), tamanho/cor padrão (`h-9`, `bg-surface-muted`, `text-xs`) — deixam de flutuar soltos/`sticky`.
-4. **Tamanho da logo**: padding da caixa de imagem reduzido de `p-4` para `p-3` (mesmo valor de `ExpansaoGalleryCard`), uniformizando a "respiração" da arte entre as duas galerias. `aspect-square` **mantido** (não `aspect-[2/1]`) — diferente da logo de Expansão (wordmark horizontal), a logo de Card Set é o símbolo quadrado/compacto que originou o `aspect-square` do padrão; aplicar 2:1 aqui sobraria espaço vazio ao redor de uma arte já quadrada.
+4. **Tamanho da logo**: padding da caixa de imagem reduzido de `p-4` para `p-3` (mesmo valor de `ExpansaoGalleryCard`), uniformizando a "respiração" da arte entre as duas galerias. A altura da caixa passou por duas rodadas de ajuste depois da implementação inicial — ver seção própria "Altura fixa da logo (Expansão e Card Set)" mais adiante, que registra o estado final (`h-28`).
 5. **Paginação**: já seguia o mesmo padrão de Expansões ("Carregar mais", sem rolagem infinita) — reconfirmado ao mover o botão para dentro do `Card`, junto do grid.
 6. **Botões de edição e exclusão em cada Card Set** — ação rápida (ícones sem borda, lápis/lixeira) no card, mesmo mecanismo de `useAdminListState` + `ConfirmDeleteBar` já usado em Jogos/Expansões. Estrutura do card também migrou para `<Link>` absoluto + botões `relative z-10` sobre ele (mesma técnica de `ExpansaoGalleryCard`, necessária para os ícones não ficarem aninhados dentro do link de navegação para o detalhe).
 7. **Outros ajustes de padronização**: `catalogo-gallery.tsx` e `catalogo-content.tsx` (que antes dividiam cabeçalho/busca fixos vs. conteúdo trocável) foram unificados num único componente, espelhando `expansoes-gallery.tsx` (que nunca teve essa divisão) — `catalogo-content.tsx` fica sem uso, marcado no próprio arquivo, não removido. `loading.tsx` da tela também foi atualizado para o mesmo formato de skeleton usado em `expansoes/loading.tsx` (skeletons dos 4 indicadores, botão fora do cabeçalho, busca/filtro/grid dentro do mesmo `Card`).
@@ -4908,9 +4908,57 @@ Dois ajustes pedidos por Fabrício depois de testar a tela de Coleções redesen
 
 `tsc --noEmit` confirmado limpo.
 
+## Altura fixa da logo (Expansão e Card Set) (2026-07-31)
+
+Puramente de apresentação — nenhuma mudança de schema, RPC, RLS ou regra de negócio. Duas rodadas de ajuste, ambas motivadas por feedback direto de Fabrício vendo a tela renderizada, não por reinterpretação teórica:
+
+1. **Primeira rodada** — Fabrício pediu que a caixa da logo de Card Set (`CardSetGalleryCard`) usasse "a mesma altura que foi utilizada para as logos das expansões". A implementação inicial da seção anterior tinha mantido `aspect-square` para Card Set (raciocínio: logo de Card Set é um símbolo compacto, diferente do wordmark horizontal de Expansão) — esse raciocínio não se sustentou contra o pedido explícito, revertido para `aspect-[2/1]` (mesma proporção já usada em `ExpansaoGalleryCard`).
+2. **Segunda rodada, mesmo dia** — Fabrício pediu algo mais específico: "gostaria que a altura do local destinado para imagem da logo fosse fixo e padrão para todos os card set, independente das dimensões das imagens... ajuste o tamanho da imagem ao local destinado e não o inverso". `aspect-[2/1]` ainda amarrava a altura da caixa à largura da coluna do grid (variável entre breakpoints, `grid-cols-2` a `grid-cols-6`) — trocado para `h-28` (altura fixa em pixels, igual em qualquer breakpoint). `object-contain` continua responsável por encaixar a imagem no espaço sem cortar nem distorcer — a imagem se adapta à caixa, nunca o inverso.
+
+**Estado final**: `h-28` aplicado em ambas as galerias (`ExpansaoGalleryCard` e `CardSetGalleryCard`, `flex h-28 items-center justify-center bg-surface-muted`), mantendo as duas visualmente idênticas. Os skeletons de carregamento (`expansoes/loading.tsx` e `card-sets/loading.tsx`) foram atualizados junto, trocando `aspect-square`/`aspect-[2/1]` por `h-28 w-full` no bloco de imagem, para não divergir do card real. `tsc --noEmit` confirmado limpo.
+
+## Confirmações de interface real (2026-07-31)
+
+Fabrício confirmou, pela própria tela, as três pendências que vinham em aberto desde revisões anteriores:
+
+- **Validação funcional de `2811`** (Card Set: edição, exclusão, bloqueio por dependentes, upload/remoção de logo) — confirmada.
+- **Exclusão de `Game`** — confirmada, com um ajuste de escopo: a exclusão em lote (checkbox + `BulkSelectionBar`) foi desabilitada; só a exclusão individual (ação rápida por linha, mesmo padrão de `Expansion`/`Card Set`) está em produção. Consistente com o redesenho da tela `/catalogo/jogos` para o mesmo padrão de ícones de ação rápida (ver `jogos-table.tsx`) — `BulkSelectionBar` segue sem uso por nenhuma tela do módulo.
+- **Tela completa de `Expansion`** (listagem, cadastro, edição, filtro `?game=`) — confirmada.
+
+Com isso, `Game`/`Expansion`/`Card Set` (create/update/delete conforme aplicável) estão validados funcionalmente pela própria interface. Ver seção seguinte para a decisão explícita que resolve a última pendência do módulo — cadastro de `Card Set`.
+
+## Cadastro de Card Set (`admin_create_card_set()`, Query `2051`) — decisão explícita de Fabrício
+
+A decisão futura explícita que a seção anterior deste documento aguardava foi tomada: Fabrício pediu para concluir as funcionalidades de Card Set, especificamente o cadastro pela própria tela (`NovoCatalogoDialog` até então mostrava "Cadastro de Card Set ainda não disponível"). `admin_create_card_set()` deixa de estar fora de escopo.
+
+Diferente de `admin_update_card_set()` (só nome/ordem de lançamento), a criação precisa cobrir todos os campos estruturais obrigatórios de `card_set` que a atualização deliberadamente não toca: `set_type`, `base_set_size`, `total_set_size` (além de `release_date`, opcional). Mesmo padrão de validação de `admin_create_expansion()` (Query `2033`), com as regras de negócio próprias de `card_set` (`database/schema/120_create_card_set_table.sql`) antecipadas como erro administrativo claro:
+
+- `expansion_id` deve existir.
+- `code` normalizado para maiúsculas, formato `^[A-Z0-9][A-Z0-9._-]*$` (permite começar com dígito, diferente de `Game`/`Expansion`), único dentro da Expansion.
+- `release_order` positivo, único dentro da Expansion.
+- `set_type` deve ser `REGULAR`, `SPECIAL` ou `PROMO`.
+- `base_set_size` positivo; `total_set_size` maior ou igual a `base_set_size`.
+- Se `set_type = PROMO`: `base_set_size` deve ser igual a `total_set_size` (`ck_card_set_promo_size`) e não pode já existir outro Card Set `PROMO` na mesma Expansion (`uq_card_set_expansion_promo`) — os dois antecipados com mensagem clara antes do erro bruto de constraint.
+- Toda criação bem-sucedida grava `CARD_SET_CREATED` em `catalog_admin_action_log` — ação já prevista no `CHECK` desde a Query `2049` (v1.2), nenhuma migration de constraint necessária.
+
+Número de Query: `2051`, milhar `2000`–`2999` já reservado (`STD-001` v1.17 §10). **Confirmada executada por Fabrício em 2026-07-31** (validada via `has_function_privilege`: `anon` sem `EXECUTE`, `authenticated` com `EXECUTE`). Validação `2812` — estrutural confirmada; funcional (cadastro real pela tela, incluindo um Card Set `PROMO`) ainda pendente.
+
+Frontend: `NovoCatalogoDialog` ganhou o formulário completo (seletor de Expansão agrupado por Jogo, código, nome, tipo, ordem de lançamento, data de lançamento opcional, quantidade base e total) e nova Server Action `createCardSet` (`web/app/catalogo/card-sets/actions.ts`) — fiação completa e, com a Query `2051` confirmada, funcionalmente operante.
+
+## Validação funcional de `2812` confirmada + dois ajustes visuais (2026-07-31)
+
+Fabrício testou o cadastro de Card Set pela própria tela ("Funcionando perfeitamente bem"), incluindo o cenário `PROMO`: uma segunda tentativa de Card Set `PROMO` na mesma Expansion foi corretamente bloqueada por `uq_card_set_expansion_promo`, com a mensagem administrativa exibida na tela. Validação `2812` encerrada — **o ciclo vertical de `Game`/`Expansion`/`Card Set` do `ADR-023` está funcionalmente completo e confirmado.**
+
+Dois ajustes de apresentação, puramente visuais:
+
+1. **Largura do Dialog "Nova Coleção"**: `max-w-md` (padrão) cortava o texto das opções do seletor "Tipo" (ex.: "Promocional (Black Star..."). `NovoCatalogoDialog` passou a usar `size="lg"` (`DialogContent`, mesmo mecanismo já usado por `EditExpansionDialog`/`EditCardSetDialog`).
+2. **Contraste da tarja de erro no tema escuro**: mesmo diagnóstico já repetido nesta sessão (`StatCard tone="danger"`, `ConfirmDeleteBar`) — `--destructive` no tema escuro é quase invisível sobre fundo escuro. Corrigido na fonte, em `InlineFeedback` (`web/components/ui/feedback.tsx`), tom `error`: `dark:border-destructive-foreground/25 dark:bg-destructive/20 dark:text-destructive-foreground`. Por ser um componente compartilhado, o fix vale para toda mensagem de erro inline do catálogo, não só este Dialog. Tema claro e os demais tons (`success`/`warning`) não alterados.
+
+`tsc --noEmit` confirmado limpo.
+
 ## Pendências / Próximos Passos
 
-Confirmação de Fabrício da exclusão de Game via interface real (ainda pendente de revisão anterior). Confirmação de Fabrício da tela de Expansion via interface real. Validação funcional de `2811` (edição/exclusão de Card Set pela própria tela, incluindo o novo upload de logo) — próximo passo imediato. Cadastro de Card Set (`admin_create_card_set()`) continua fora de escopo até uma decisão futura explícita.
+Nenhuma pendência conhecida resta no ciclo vertical de `Game`/`Expansion`/`Card Set` — o módulo `ADR-023` fica pronto para avançar ao subciclo `Card` (criação/edição, depois desativação/reativação), último item do escopo original deste ADR.
 
 ---
 
@@ -5009,3 +5057,7 @@ Confirmação de Fabrício da exclusão de Game via interface real (ainda penden
 | 0.89 | **Coleções no mesmo padrão de Expansões + emenda `Card Set`: atualização e exclusão real via UI (2026-07-31), a pedido de Fabrício ("faça todos os ajustes necessários para manter o mesmo padrão da página Expansões").** Sete ajustes de apresentação: `CardSetsStats` (novo indicador Jogos/Expansões/Coleções/Sem Cartas), botão "Novo" reposicionado, busca/filtro dentro do `Card`, padding da logo reduzido para `p-3` (`aspect-square` mantido — logo de Card Set é símbolo quadrado, diferente do wordmark de Expansão), paginação confirmada consistente, `catalogo-gallery.tsx`/`catalogo-content.tsx` unificados num só componente (`catalogo-content.tsx` sem uso, marcado não removido) e `loading.tsx` atualizado. Mais uma mudança de escrita: botões de editar/excluir em cada card exigiram `admin_update_card_set()`/`admin_delete_card_set()` (Queries `2048`/`2050`, SQL PREPARADO — AGUARDANDO EXECUÇÃO) e `CARD_SET_DELETED` em `catalog_admin_action_log` (Query `2049`) — primeira via de escrita estrutural de Card Set além da logo. Aproveitado para reconciliar um gap: o arquivo canônico `2010` nunca tinha recebido `EXPANSION_DELETED` (só a migration histórica `2043`, já confirmada contra o banco real) — corrigido no mesmo commit (`2010` bump para v1.2). Frontend com fiação completa (`EditCardSetDialog`, `card-sets/actions.ts`) — botões só funcionam de fato após Fabrício executar `2048`–`2050` via o ritual de pareamento. Validação em `2811`. `tsc --noEmit` confirmado limpo. |
 | 0.90 | **Queries `2048`/`2049`/`2050` confirmadas executadas por Fabrício (2026-07-31), fechando a parte de banco da emenda de `Card Set`.** `2048`/`2050` validadas via `has_function_privilege` (`anon` sem `EXECUTE`, `authenticated` com `EXECUTE`); `2049` validada via `pg_get_constraintdef` (ambas as constraints com `CARD_SET_DELETED`, e `EXPANSION_DELETED` confirmado presente de quebra — o gap do canônico `2010` já estava reconciliado com o banco real). Botões "editar"/"excluir" da galeria de Coleções funcionalmente operantes em produção. Pendência remanescente: validação funcional de `2811` pela própria interface. |
 | 0.91 | **Três ajustes pontuais em Coleções (2026-07-31), a partir de teste real de Fabrício.** (1) Contraste da `ConfirmDeleteBar` no tema escuro corrigido (`dark:` overrides na borda/fundo/textos vermelhos — mesmo diagnóstico já aplicado ao ícone `tone="danger"` de `StatCard`), compartilhado por Jogos/Expansões/Coleções. (2) Botão "Novo" renomeado para "Nova Coleção" (mesma convenção de "Nova expansão"/"Novo Jogo"), incluindo o Dialog que ele abre. (3) Upload de logo conectado ao Dialog de edição de Card Set (`CardSetLogoUploader`, cópia fiel de `ExpansaoLogoUploader`) — sem nenhum trabalho de banco, já que `admin_set_card_set_logo()`/bucket `card-set-logo` (Queries `275`/`276`) já existiam desde 2026-07-26, só nunca tinham sido conectados a um uploader real. `tsc --noEmit` confirmado limpo. |
+| 0.92 | **Correção de sincronização documental + altura fixa da logo (2026-07-31), motivada pela retomada de sessão e pelo pedido explícito de Fabrício de recuperar o ponto exato de continuidade a partir do Handoff.** Duas pendências textuais desatualizadas corrigidas na seção "Coleções... emenda `Card Set`": (a) o título ainda dizia "SQL PREPARADO, AGUARDANDO EXECUÇÃO" apesar de as Queries `2048`/`2049`/`2050` já constarem CONFIRMADAS EXECUTADAS desde a revisão `0.90` — corrigido para "CONFIRMADO EXECUTADO"; (b) o item 4 (tamanho da logo) ainda descrevia `aspect-square` como decisão final, superada por dois pedidos posteriores de Fabrício não refletidos nesta seção. Nova seção "Altura fixa da logo (Expansão e Card Set)" documenta a evolução completa: `aspect-square` → `aspect-[2/1]` (pedido "use a mesma altura das expansões") → `h-28`, altura fixa em pixels (pedido "ajuste o tamanho da imagem ao local destinado e não o inverso") — estado final aplicado a `ExpansaoGalleryCard`/`CardSetGalleryCard` e aos dois `loading.tsx`. Nenhuma mudança de schema/RPC/RLS. |
+| 0.93 | **Três confirmações de interface real + decisão explícita de cadastro de Card Set (2026-07-31).** Fabrício confirmou pela própria tela: validação funcional de `2811` (Card Set), exclusão de `Game` (individual — exclusão em lote foi desabilitada por decisão de escopo, consistente com o redesenho de `/catalogo/jogos` para ação rápida por linha) e a tela completa de `Expansion`. Decisão explícita que resolve a última pendência do módulo: cadastro de `Card Set` pela própria tela passa a estar em escopo — nova Query `2051` (`admin_create_card_set()`), cobrindo os campos estruturais que a atualização deliberadamente não toca (`set_type`, `base_set_size`, `total_set_size`, `release_date`), com as regras de `ck_card_set_promo_size`/`uq_card_set_expansion_promo` antecipadas como erro claro. SQL preparado, aguardando execução via o ritual de pareamento. Frontend (`NovoCatalogoDialog` com formulário completo + `createCardSet`) já com a fiação pronta. |
+| 0.94 | **Query `2051` confirmada executada por Fabrício (2026-07-31), fechando a parte de banco do cadastro de Card Set.** Validada via `has_function_privilege` (`anon` sem `EXECUTE`, `authenticated` com `EXECUTE`). Botão "Nova Coleção" da galeria de Coleções funcionalmente operante em produção. Pendência remanescente: validação funcional de `2812` pela própria interface (incluindo um cenário `PROMO`) — único item restante antes de considerar o ciclo vertical `Game`/`Expansion`/`Card Set` do `ADR-023` totalmente encerrado. |
+| 0.95 | **Validação funcional de `2812` confirmada + dois ajustes visuais (2026-07-31).** Fabrício testou o cadastro de Card Set pela tela, incluindo o cenário `PROMO` (bloqueio de duplicidade exercitado com sucesso) — "Funcionando perfeitamente bem". Ciclo vertical de `Game`/`Expansion`/`Card Set` do `ADR-023` encerrado. Dois ajustes de apresentação a partir do teste real: `NovoCatalogoDialog` ganhou `size="lg"` (texto do seletor "Tipo" estava sendo cortado no tamanho padrão); contraste da tarja de erro no tema escuro corrigido na fonte, em `InlineFeedback` (tom `error`) — mesmo diagnóstico já repetido nesta sessão para `--destructive` no tema escuro (`StatCard`, `ConfirmDeleteBar`), agora resolvido no componente compartilhado. `tsc --noEmit` confirmado limpo. |

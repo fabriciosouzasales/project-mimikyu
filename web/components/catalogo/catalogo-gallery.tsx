@@ -48,8 +48,11 @@ import type { CatalogoCardResult, CardSetOverviewRow, ExpansaoRow, GameOption } 
  *   `admin_update_card_set()`/`admin_delete_card_set()` (Queries 2048/2050,
  *   ADR-023) — novas neste ciclo, ver `card-sets/actions.ts`.
  *
- * Cadastro de Card Set continua fora do escopo (`NovoCatalogoDialog`
- * mantido como estava — `admin_create_card_set()` ainda não existe).
+ * Cadastro de Card Set (2026-07-31, rodada seguinte, pedido explícito de
+ * Fabrício: "ainda não consigo incluir novos itens pela própria tela") —
+ * `NovoCatalogoDialog` ganhou o formulário completo e passou a receber
+ * `expansoes` (reaproveitada, já buscada para `CardSetsStats`) e `onSaved`
+ * (mesmo `handleSaved` já usado por `EditCardSetDialog`).
  */
 export function CatalogoGallery({
   jogos,
@@ -264,7 +267,7 @@ export function CatalogoGallery({
         </Card>
       </div>
 
-      <NovoCatalogoDialog open={novoOpen} onOpenChange={setNovoOpen} />
+      <NovoCatalogoDialog open={novoOpen} onOpenChange={setNovoOpen} expansoes={expansoes} onSaved={handleSaved} />
 
       <EditCardSetDialog
         open={editingCardSet !== null}
