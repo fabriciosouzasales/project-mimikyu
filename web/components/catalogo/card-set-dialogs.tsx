@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { updateCardSet } from "@/app/catalogo/card-sets/actions";
+import { CardSetLogoUploader } from "@/components/catalogo/card-set-logo-uploader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,23 +29,28 @@ const initialState: CardSetActionState = { error: null };
  * imutáveis (Jogo/Expansão/Código) saem do corpo do formulário e viram a
  * `DialogDescription` do cabeçalho — `"{Jogo} · {Expansão} · {Código}"`, um
  * nível a mais que Expansão porque Card Set tem mais um ancestral —, Dialog
- * `size="lg"` para não truncar nomes longos. Só Nome e Ordem de lançamento
- * são editáveis, mesmo escopo mínimo do Dialog de Expansão antes de ganhar a
- * logo — upload de logo de Card Set não faz parte deste pedido (o bucket
- * `card-set-logo`/`admin_set_card_set_logo()` já existe desde ADR-022, mas
- * sem nenhum uploader no frontend ainda; fica para um pedido futuro, se
- * Fabrício quiser o mesmo recurso aqui).
+ * `size="lg"` para não truncar nomes longos.
+ *
+ * Logo (2026-07-31, mesmo dia, pedido de Fabrício: "tela de edição não
+ * permite inclusão, alteração e remoção da logo do card Set. Use o mesmo
+ * padrão da tela de edição de Expansão") — `CardSetLogoUploader` incluído
+ * no corpo do formulário, mesma posição de `ExpansaoLogoUploader` em
+ * `EditExpansionForm`. `onLogoUpdated` só chama `router.refresh()`, sem
+ * fechar o Dialog nem mostrar o banner de sucesso do formulário nome/ordem
+ * — ações independentes, mesmo comportamento de Expansão.
  */
 export function EditCardSetDialog({
   open,
   cardSet,
   onSaved,
   onCancel,
+  onLogoUpdated,
 }: {
   open: boolean;
   cardSet: CardSetWithLogo | null;
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
+  onLogoUpdated: () => void;
 }) {
   const [pending, setPending] = useState(false);
 
@@ -72,7 +78,14 @@ export function EditCardSetDialog({
             Set está sendo editado remonta o formulário, mesmo padrão de
             Expansão/Game. */}
         {open && cardSet && (
-          <EditCardSetForm key={cardSet.id} cardSet={cardSet} onSaved={onSaved} onCancel={onCancel} onPendingChange={setPending} />
+          <EditCardSetForm
+            key={cardSet.id}
+            cardSet={cardSet}
+            onSaved={onSaved}
+            onCancel={onCancel}
+            onPendingChange={setPending}
+            onLogoUpdated={onLogoUpdated}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -84,11 +97,13 @@ function EditCardSetForm({
   onSaved,
   onCancel,
   onPendingChange,
+  onLogoUpdated,
 }: {
   cardSet: CardSetWithLogo;
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
   onPendingChange: (pending: boolean) => void;
+  onLogoUpdated: () => void;
 }) {
   const [state, formAction, pending] = useActionState(updateCardSet, initialState);
 
@@ -107,6 +122,16 @@ function EditCardSetForm({
     <form action={formAction}>
       <input type="hidden" name="id" value={cardSet.id} />
       <DialogBody className="space-y-4">
+        <div className="space-y-1.5">
+          <Label>Logo</Label>
+          <CardSetLogoUploader
+            cardSetId={cardSet.id}
+            initialLogoPath={cardSet.logoStoragePath}
+            initialLogoUrl={cardSet.logoUrl}
+            onChanged={onLogoUpdated}
+          />
+        </div>
+
         <div className="space-y-1">
           <Label htmlFor={`edit-card-set-name-${cardSet.id}`}>Nome</Label>
           <Input

@@ -26,11 +26,24 @@ import type { CardSetWithLogo } from "@/app/catalogo/card-sets/catalogo-actions"
  *
  * Padding da caixa de imagem reduzido de `p-4` para `p-3` (mesmo valor de
  * `ExpansaoGalleryCard`) — uniformiza a "respiração" da arte entre as duas
- * galerias. `aspect-square` (não `aspect-[2/1]`) é mantido deliberadamente:
- * diferente da logo de Expansão (wordmark horizontal), a logo de Card Set é
- * o símbolo quadrado/compacto que originou o `aspect-square` do padrão (ver
- * `05-modelo-de-dados.md`, seção Set) — aplicar a proporção 2:1 aqui
- * sobraria espaço vazio ao redor de uma arte que já é quadrada.
+ * galerias.
+ *
+ * Ajuste 2026-07-31, mesmo dia (pedido explícito de Fabrício: "use a mesma
+ * altura que foi utilizada para as logos das expansões") — a caixa da
+ * imagem trocou de `aspect-square` para `aspect-[2/1]`, revertendo a
+ * decisão de manter o quadrado registrada aqui antes.
+ *
+ * Ajuste 2026-07-31, rodada seguinte (pedido de Fabrício: "gostaria que a
+ * altura do local destinado para imagem da logo fosse fixo e padrão para
+ * todos os card set, independente das dimensões das imagens... ajuste o
+ * tamanho da imagem ao local destinado e não o inverso") — `aspect-[2/1]`
+ * ainda amarrava a altura da caixa à largura da coluna do grid (varia entre
+ * breakpoints, `grid-cols-2` a `grid-cols-6`). Trocado para `h-28` (altura
+ * fixa em pixels, a mesma em qualquer breakpoint/tamanho de tela) — a
+ * imagem, não a caixa, se adapta ao espaço disponível (`object-contain` já
+ * fazia isso, sem cortar nem distorcer). Mesma mudança aplicada em
+ * `ExpansaoGalleryCard`, para as duas galerias continuarem visualmente
+ * idênticas.
  */
 function getInitials(name: string): string {
   return name
@@ -67,7 +80,7 @@ export function CardSetGalleryCard({
         className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
 
-      <div className="flex aspect-square items-center justify-center bg-surface-muted">
+      <div className="flex h-28 items-center justify-center bg-surface-muted">
         {cardSet.logoUrl ? (
           // Signed URL expira e é gerada por requisição — next/image exigiria
           // configurar domínio remoto para uma URL que nem é estável; <img>

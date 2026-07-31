@@ -154,7 +154,7 @@ export function CatalogoGallery({
         <div className="flex justify-end">
           <Button type="button" size="sm" onClick={() => setNovoOpen(true)}>
             <Plus className="h-3.5 w-3.5" />
-            Novo
+            Nova Coleção
           </Button>
         </div>
 
@@ -235,7 +235,7 @@ export function CatalogoGallery({
             ) : cardSets.length === 0 ? (
               <EmptyState
                 title="Nenhum Card Set cadastrado ainda"
-                description='Use o botão "Novo" para começar a catalogar.'
+                description='Use o botão "Nova Coleção" para começar a catalogar.'
               />
             ) : (
               <div className="space-y-4">
@@ -271,6 +271,7 @@ export function CatalogoGallery({
         cardSet={editingCardSet}
         onSaved={handleSaved}
         onCancel={state.cancelEdit}
+        onLogoUpdated={() => router.refresh()}
       />
     </div>
   );

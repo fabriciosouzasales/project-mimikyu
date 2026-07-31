@@ -41,8 +41,8 @@ export function NovoCatalogoDialog({
     <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Novo Card Set</DialogTitle>
-          <DialogDescription>Cadastre um novo Card Set no catálogo.</DialogDescription>
+          <DialogTitle>Nova Coleção</DialogTitle>
+          <DialogDescription>Cadastre uma nova Coleção (Card Set) no catálogo.</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-3">

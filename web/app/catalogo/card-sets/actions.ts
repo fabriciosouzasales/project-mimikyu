@@ -106,3 +106,33 @@ export async function deleteCardSets(
     failures: failures.length > 0 ? failures : undefined,
   };
 }
+
+/**
+ * Define (ou remove, com `logoStoragePath: null`) a logo de um Card Set via
+ * admin_set_card_set_logo() — infraestrutura de banco já existente desde
+ * 2026-07-26 (Queries 275/276, ADR-022), CONFIRMADA EXECUTADA na época;
+ * esta action é a primeira vez que ela é chamada a partir do frontend (ver
+ * `CardSetLogoUploader`, novo em 2026-07-31, pedido de Fabrício: "use o
+ * mesmo padrão da tela de edição de Expansão"). Mesmo padrão de
+ * `setExpansionLogo()` (`expansoes/actions.ts`): chamada diretamente pelo
+ * componente de upload depois que o arquivo já foi enviado ao bucket
+ * `card-set-logo` pelo cliente — esta action só grava o ponteiro
+ * (`logo_storage_path`), nunca lida com o arquivo em si.
+ */
+export async function setCardSetLogo(
+  cardSetId: string,
+  logoStoragePath: string | null,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_card_set_logo", {
+    p_card_set_id: cardSetId,
+    p_logo_storage_path: logoStoragePath,
+  });
+
+  if (error) {
+    return { error: traduzirErroCatalogo(error.message) };
+  }
+
+  revalidatePath("/catalogo/card-sets");
+  return { error: null };
+}

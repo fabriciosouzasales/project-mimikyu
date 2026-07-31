@@ -28,6 +28,15 @@ import type { ExpansaoWithLogo } from "@/lib/catalogo/queries";
  * espaço vazio acima/abaixo da arte real, mantendo `object-contain` (nunca
  * corta a imagem).
  *
+ * Ajuste 2026-07-31, rodada seguinte (pedido de Fabrício, feito na tela de
+ * Coleções e estendido aqui pela mesma razão de manter as duas galerias
+ * idênticas: "a altura do local destinado para imagem da logo [deve ser]
+ * fixo e padrão... independente das dimensões das imagens") — `aspect-[2/1]`
+ * ainda amarrava a altura ao tamanho da coluna do grid, que varia entre
+ * breakpoints. Trocado para `h-28` (altura fixa em pixels, igual em
+ * qualquer breakpoint); `object-contain` continua responsável por encaixar
+ * a imagem no espaço, nunca o inverso.
+ *
  * Ajuste 2026-07-31 (pedido de Fabrício): clicar no card não abre mais o
  * Dialog de edição — navega para Coleções (`/catalogo/card-sets`) já
  * filtrada por Jogo e Expansão (`?game=&expansion=`, mesmos parâmetros que
@@ -82,7 +91,7 @@ export function ExpansaoGalleryCard({
         className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
 
-      <div className="flex aspect-[2/1] items-center justify-center bg-surface-muted">
+      <div className="flex h-28 items-center justify-center bg-surface-muted">
         {expansao.logoUrl ? (
           // Signed URL expira e é gerada por requisição — mesma decisão de
           // CardSetGalleryCard: <img> simples em vez de next/image.

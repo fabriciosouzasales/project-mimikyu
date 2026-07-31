@@ -44,7 +44,7 @@ export default function CatalogoLoading() {
           <div className="flex justify-end">
             <Button type="button" size="sm" disabled>
               <Plus className="h-3.5 w-3.5" />
-              Novo
+              Nova Coleção
             </Button>
           </div>
 
@@ -58,7 +58,7 @@ export default function CatalogoLoading() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {Array.from({ length: 12 }).map((_, index) => (
                   <div key={index} className="overflow-hidden rounded-lg border border-border">
-                    <Skeleton className="aspect-square w-full rounded-none" />
+                    <Skeleton className="h-28 w-full rounded-none" />
                     <div className="space-y-1.5 p-3">
                       <Skeleton className="h-3 w-16" />
                       <Skeleton className="h-4 w-3/4" />
