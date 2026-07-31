@@ -25,16 +25,34 @@ export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
 export const DialogClose = DialogPrimitive.Close;
 
+const DIALOG_SIZES = {
+  // Tamanho padrão — mantém `max-w-md` (28rem) para todo Dialog existente,
+  // formulários curtos de 2-4 campos (Game/Expansion "criar", a maioria do
+  // catálogo).
+  default: "max-w-md",
+  // Ciclo de layout (2026-07-31, pedido de Fabrício): o Dialog de "editar
+  // expansão" ganhou um bloco de logo e precisa de mais respiro horizontal
+  // para não truncar texto (ex.: nome de Jogo em metadado) — primeiro
+  // consumidor real de um Dialog mais largo. `size="lg"` fica disponível
+  // para outros Dialogs que cresçam da mesma forma (ex.: Card Set, quando
+  // ganhar edição em Dialog).
+  lg: "max-w-lg",
+} as const;
+
 export const DialogContent = forwardRef<
   ElementRef<typeof DialogPrimitive.Content>,
-  ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean }
->(({ className, children, hideClose, ...props }, ref) => (
+  ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    hideClose?: boolean;
+    size?: keyof typeof DIALOG_SIZES;
+  }
+>(({ className, children, hideClose, size = "default", ...props }, ref) => (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/20 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out" />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface shadow-panel",
+        "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface shadow-panel",
+        DIALOG_SIZES[size],
         "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
         className,
       )}

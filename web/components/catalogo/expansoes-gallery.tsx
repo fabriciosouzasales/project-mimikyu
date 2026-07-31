@@ -18,7 +18,7 @@ import { InlineFeedback } from "@/components/ui/feedback";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { getGameAccentColor } from "@/lib/catalogo/game-accent";
-import type { ExpansaoRow, ExpansoesGameGroup, GameOption } from "@/lib/catalogo/queries";
+import type { ExpansaoRow, ExpansaoWithLogo, ExpansoesGameGroupWithLogo, GameOption } from "@/lib/catalogo/queries";
 
 /**
  * Redesenho da tela de Expansões (2026-07-31) usando exatamente a mesma
@@ -76,6 +76,16 @@ import type { ExpansaoRow, ExpansoesGameGroup, GameOption } from "@/lib/catalogo
  * "primeiro... Pokémon e depois Lorcana... Pokémon foi o primeiro game
  * cadastrado". `getExpansoesGroupedByGame()` ordena os grupos por
  * `game.created_at` ascendente (Jogo mais antigo primeiro), não pelo nome.
+ *
+ * Ajuste 2026-07-31, mesmo dia ("vamos incluir uma imagem para cada
+ * expansão"): logo por Expansão (Queries 2045-2047, ADR-022). `initialGroups`/
+ * `initialItems` chegam com `logoUrl` já resolvida (URL assinada, gerada no
+ * Server Component — ver `expansoes/page.tsx`); `ExpansaoGalleryCard` exibe
+ * a imagem quando existe, iniciais como reserva. Upload/remoção acontecem
+ * dentro do `EditExpansionDialog` (não no de criação — a Expansão precisa
+ * já existir para ter um id de caminho no bucket); `onLogoUpdated` só chama
+ * `router.refresh()`, sem fechar o Dialog nem mostrar o banner de sucesso
+ * do formulário nome/ordem (são ações independentes).
  */
 export function ExpansoesGallery({
   jogos,
@@ -95,10 +105,10 @@ export function ExpansoesGallery({
   query: string;
   mode: "gallery" | "search";
   defaultGameId?: string;
-  /** Modo galeria: Expansões agrupadas por Jogo, cada grupo já ordenado por `release_order` descendente. */
-  initialGroups: ExpansoesGameGroup[];
+  /** Modo galeria: Expansões agrupadas por Jogo, cada grupo já ordenado por `release_order` e com `logoUrl` resolvida. */
+  initialGroups: ExpansoesGameGroupWithLogo[];
   /** Modo busca: lista flat, paginada — sem agrupamento por Jogo. */
-  initialItems: ExpansaoRow[];
+  initialItems: ExpansaoWithLogo[];
   initialHasMore: boolean;
 }) {
   const router = useRouter();
@@ -286,6 +296,7 @@ export function ExpansoesGallery({
         expansao={editingExpansao}
         onSaved={handleSaved}
         onCancel={state.cancelEdit}
+        onLogoUpdated={() => router.refresh()}
       />
     </div>
   );

@@ -5,10 +5,13 @@ import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 import { PageContainer } from "@/components/ui/page";
 import {
   EXPANSOES_PAGE_SIZE,
+  getExpansionLogoUrls,
   getExpansoes,
   getExpansoesGroupedByGame,
   getGameOptions,
   searchExpansoes,
+  type ExpansaoWithLogo,
+  type ExpansoesGameGroupWithLogo,
 } from "@/lib/catalogo/queries";
 
 /**
@@ -36,6 +39,13 @@ import {
  * — ver a função para a nota sobre `release_order` fazer as vezes de "data
  * de lançamento". Busca (`mode === "search"`) continua flat e paginada, sem
  * mudança.
+ *
+ * Ajuste 2026-07-31, mesmo dia ("vamos incluir uma imagem para cada
+ * expansão"): logo por Expansão (Queries 2045-2047, ADR-022, mesmo padrão
+ * de `card_set.logo_storage_path`) — bucket privado, leitura só via URL
+ * assinada. Resolvidas aqui, no Server Component, para os grupos e para a
+ * busca inicial (mesmo padrão de `card-sets/page.tsx`); `searchExpansoesAction`
+ * (`catalogo-actions.ts`) resolve de novo para o "Carregar mais" da busca.
  */
 export default async function ExpansoesPage({
   searchParams,
@@ -60,6 +70,21 @@ export default async function ExpansoesPage({
     mode === "search" ? await searchExpansoes(supabase, query, { limit: EXPANSOES_PAGE_SIZE, offset: 0 }) : null;
   const groups = mode === "gallery" ? await getExpansoesGroupedByGame(supabase, { gameCode: game }) : [];
 
+  // URLs assinadas resolvidas de uma vez só, para todos os caminhos
+  // envolvidos (grupos + busca) — uma única chamada de Storage em vez de
+  // uma por Expansão.
+  const allPaths = [...groups.flatMap((group) => group.items.map((item) => item.logoStoragePath)), ...(searchResult?.items.map((item) => item.logoStoragePath) ?? [])];
+  const logoUrls = await getExpansionLogoUrls(supabase, allPaths);
+  const withLogo = (item: (typeof groups)[number]["items"][number]): ExpansaoWithLogo => ({
+    ...item,
+    logoUrl: item.logoStoragePath ? (logoUrls.get(item.logoStoragePath) ?? null) : null,
+  });
+  const groupsWithLogo: ExpansoesGameGroupWithLogo[] = groups.map((group) => ({
+    ...group,
+    items: group.items.map(withLogo),
+  }));
+  const itemsWithLogo: ExpansaoWithLogo[] = (searchResult?.items ?? []).map(withLogo);
+
   return (
     <AppShell title="Expansões" icon={Layers}>
       <PageContainer width="wide">
@@ -70,8 +95,8 @@ export default async function ExpansoesPage({
           query={query}
           mode={mode}
           defaultGameId={defaultGameId}
-          initialGroups={groups}
-          initialItems={searchResult?.items ?? []}
+          initialGroups={groupsWithLogo}
+          initialItems={itemsWithLogo}
           initialHasMore={searchResult?.hasMore ?? false}
         />
       </PageContainer>

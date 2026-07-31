@@ -318,16 +318,19 @@ async function fetchCardSetsForCatalogo(
  * um, causa raiz do problema identificado na auditoria da tela de
  * Expansões); quando `release_date` está nulo (ainda não confirmada),
  * cai para `created_at` como desempate. Com filtro ativo, segue a mesma
- * sequência (`release_order` de Expansão e depois de Card Set) já usada em
- * getExpansoes/fetchCardSets no resto do sistema.
+ * dupla chave (`release_order` de Expansão e depois de Card Set), mas
+ * **decrescente** (2026-07-31, pedido de Fabrício: "sempre as mais atuais
+ * no topo" — mesmo critério de "mais recente primeiro" já aplicado ao
+ * caso sem filtro, agora também no caminho de clique a partir do card de
+ * Expansão em `/catalogo/expansoes`).
  */
 function sortCatalogoCardSets(rows: CatalogoCardSetRawRow[], filtered: boolean): CatalogoCardSetRawRow[] {
   const sorted = [...rows];
   if (filtered) {
     sorted.sort((a, b) => {
-      const expansionDiff = (a.expansion?.release_order ?? 0) - (b.expansion?.release_order ?? 0);
+      const expansionDiff = (b.expansion?.release_order ?? 0) - (a.expansion?.release_order ?? 0);
       if (expansionDiff !== 0) return expansionDiff;
-      return a.release_order - b.release_order;
+      return b.release_order - a.release_order;
     });
   } else {
     sorted.sort((a, b) => {
@@ -572,7 +575,12 @@ export type ExpansaoRow = {
   totalCardSets: number;
   createdAt: string;
   updatedAt: string;
+  /** Caminho relativo dentro do bucket privado `expansion-logo` (Query 2045/2047) — NULL = sem logo cadastrada. Nunca uma URL; para exibir, gerar URL assinada via `getExpansionLogoUrls()`. */
+  logoStoragePath: string | null;
 };
+
+/** `ExpansaoRow` com a URL assinada da logo já resolvida — usado só pelas telas de leitura (galeria, Dialog de edição), nunca pela camada de escrita. */
+export type ExpansaoWithLogo = ExpansaoRow & { logoUrl: string | null };
 
 type ExpansionRawRow = {
   id: string;
@@ -581,6 +589,7 @@ type ExpansionRawRow = {
   release_order: number;
   created_at: string;
   updated_at: string;
+  logo_storage_path: string | null;
   // `created_at` do Jogo só é selecionado por `fetchExpansoesRawForCatalogo`
   // (usado para ordenar os grupos de `getExpansoesGroupedByGame` pela ordem
   // de cadastro do Jogo) — por isso opcional aqui, ausente nas demais
@@ -600,7 +609,9 @@ export async function getExpansoes(
 ): Promise<ExpansaoRow[]> {
   let query = supabase
     .from("expansion")
-    .select("id, code, name, release_order, created_at, updated_at, game!inner(id, code, name), card_set(count)")
+    .select(
+      "id, code, name, release_order, created_at, updated_at, logo_storage_path, game!inner(id, code, name), card_set(count)",
+    )
     .order("release_order", { ascending: true });
 
   if (filters?.gameCode) {
@@ -624,6 +635,7 @@ export async function getExpansoes(
     totalCardSets: extractCount(expansion.card_set),
     createdAt: expansion.created_at,
     updatedAt: expansion.updated_at,
+    logoStoragePath: expansion.logo_storage_path,
   }));
 }
 
@@ -634,9 +646,13 @@ export async function getExpansoes(
 // Dialog/EditExpansionDialog) — sem tipo novo, evita qualquer divergência de
 // forma entre a galeria e os Dialogs de criação/edição já existentes.
 //
-// Adaptação à entidade: Expansion não tem `logo_storage_path` (só card_set
-// tem) e não tem `release_date` — só `release_order`, um inteiro sequencial
-// relativo ao próprio Jogo (ver `database/schema/110_create_expansion_table.sql`).
+// Adaptação à entidade: Expansion não tem `release_date` — só
+// `release_order`, um inteiro sequencial relativo ao próprio Jogo (ver
+// `database/schema/110_create_expansion_table.sql`). Ganhou
+// `logo_storage_path` em 2026-07-31 (Queries 2045-2047, pedido de
+// Fabrício), mesmo padrão de `card_set.logo_storage_path` — bucket privado
+// `expansion-logo`, escrita só via `admin_set_expansion_logo()`, leitura via
+// URL assinada (`getExpansionLogoUrls()`, abaixo).
 // ---------------------------------------------------------------------------
 
 export const EXPANSOES_PAGE_SIZE = 24;
@@ -651,7 +667,7 @@ async function fetchExpansoesRawForCatalogo(
   let query = supabase
     .from("expansion")
     .select(
-      "id, code, name, release_order, created_at, updated_at, game!inner(id, code, name, created_at), card_set(count)",
+      "id, code, name, release_order, created_at, updated_at, logo_storage_path, game!inner(id, code, name, created_at), card_set(count)",
     );
 
   if (filters.gameCode) {
@@ -677,6 +693,7 @@ function toExpansaoRow(row: ExpansionRawRow): ExpansaoRow {
     totalCardSets: extractCount(row.card_set),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    logoStoragePath: row.logo_storage_path,
   };
 }
 
@@ -686,6 +703,9 @@ export type ExpansoesGameGroup = {
   gameName: string;
   items: ExpansaoRow[];
 };
+
+/** `ExpansoesGameGroup` com a URL assinada da logo já resolvida em cada item — ver `ExpansaoWithLogo`. */
+export type ExpansoesGameGroupWithLogo = Omit<ExpansoesGameGroup, "items"> & { items: ExpansaoWithLogo[] };
 
 type ExpansoesGameGroupInternal = ExpansoesGameGroup & { gameCreatedAt: string };
 
@@ -764,7 +784,9 @@ export async function searchExpansoes(
 
   const { data, error } = await supabase
     .from("expansion")
-    .select("id, code, name, release_order, created_at, updated_at, game!inner(id, code, name), card_set(count)")
+    .select(
+      "id, code, name, release_order, created_at, updated_at, logo_storage_path, game!inner(id, code, name), card_set(count)",
+    )
     .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
     .order("name", { ascending: true });
 
@@ -776,6 +798,36 @@ export async function searchExpansoes(
   const page = rows.slice(options.offset, options.offset + options.limit);
   const hasMore = rows.length > options.offset + options.limit;
   return { items: page.map(toExpansaoRow), hasMore };
+}
+
+/**
+ * URLs assinadas (1h) para as logos de Expansão — mesmo padrão de
+ * `getCardSetLogoUrls()` (bucket privado, admin-only), agora para
+ * `expansion-logo` (Queries 2045-2047, 2026-07-31). Recebe uma lista de
+ * `logoStoragePath` (com nulos, para simplificar a chamada a partir de uma
+ * lista de `ExpansaoRow`) e devolve um mapa `path -> URL assinada`, só com
+ * os caminhos não-nulos que resolveram com sucesso.
+ */
+export async function getExpansionLogoUrls(
+  supabase: SupabaseClient,
+  paths: (string | null)[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const validPaths = paths.filter((path): path is string => !!path);
+  if (validPaths.length === 0) {
+    return map;
+  }
+
+  const { data, error } = await supabase.storage.from("expansion-logo").createSignedUrls(validPaths, 60 * 60);
+  if (error || !data) {
+    return map;
+  }
+  for (const item of data) {
+    if (item.path && item.signedUrl && !item.error) {
+      map.set(item.path, item.signedUrl);
+    }
+  }
+  return map;
 }
 
 export type GameOption = { id: string; code: string; name: string };

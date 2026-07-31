@@ -103,10 +103,10 @@ export async function updateExpansion(
  * bloqueada individualmente pela FK fk_card_set_expansion se a Expansão
  * tiver Card Sets associados, e o resultado por item é reportado de volta.
  *
- * Pendência: admin_delete_expansion() (Query 2044) ainda não foi executada
- * no Supabase — esta action existe e está correta, mas retorna erro de
- * função inexistente até a Query ser confirmada (ver docs/05-modelo-de-
- * dados.md, "Emenda — Expansion: exclusão real via UI").
+ * Query 2044 confirmada executada e validada por Fabrício via UI em
+ * 2026-07-31 (ver docs/05-modelo-de-dados.md, "Emenda — Expansion: exclusão
+ * real via UI") — correção de um comentário desatualizado que ainda
+ * marcava isso como pendente.
  */
 export async function deleteExpansions(
   _prevState: DeleteExpansionsActionState,
@@ -139,4 +139,33 @@ export async function deleteExpansions(
     deletedIds,
     failures: failures.length > 0 ? failures : undefined,
   };
+}
+
+/**
+ * Define (ou remove, com `logoStoragePath: null`) a logo de uma Expansão
+ * via admin_set_expansion_logo() (Query 2046, ADR-022 — mesmo padrão de
+ * card_set.logo_storage_path). Chamada diretamente pelo componente de
+ * upload (`ExpansaoLogoUploader`) depois que o arquivo já foi enviado ao
+ * bucket `expansion-logo` pelo cliente — esta action só grava o ponteiro
+ * (`logo_storage_path`), nunca lida com o arquivo em si. Escrita passa pela
+ * função administrativa (não por `.update()` direto) porque não existe
+ * política de RLS de UPDATE em `expansion` para esta finalidade — mesma
+ * decisão já tomada para Card Set.
+ */
+export async function setExpansionLogo(
+  expansionId: string,
+  logoStoragePath: string | null,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_expansion_logo", {
+    p_expansion_id: expansionId,
+    p_logo_storage_path: logoStoragePath,
+  });
+
+  if (error) {
+    return { error: traduzirErroCatalogo(error.message) };
+  }
+
+  revalidatePath("/catalogo/expansoes");
+  return { error: null };
 }

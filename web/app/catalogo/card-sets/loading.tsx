@@ -1,16 +1,23 @@
 import { Boxes, Plus } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Button } from "@/components/ui/button";
-import { PageActions, PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Estado de carregamento da tela Catálogo — blocos no formato exato dos
+ * Estado de carregamento da tela Coleções — blocos no formato exato dos
  * cards da galeria, nunca spinner/barra de progresso (decisão da spec
  * aprovada). Também serve de fronteira de Suspense exigida por
  * `useSearchParams()` em `CatalogoSearchBar` — Next.js já envolve
  * automaticamente o conteúdo da rota nesta fronteira quando este arquivo
  * existe, sem precisar declarar um `<Suspense>` manual.
+ *
+ * Atualizado em 2026-07-31 (pedido de Fabrício: "mesmo padrão da página
+ * Expansões") — mesmo formato do skeleton de `expansoes/loading.tsx`:
+ * skeletons dos 4 cards de indicador (Jogos/Expansões/Coleções/Sem Cartas),
+ * botão "Novo" fora do cabeçalho (acima da busca, mesmo lugar da tela
+ * real), busca/filtro e grid de cards dentro do mesmo `Card` branco.
  */
 export default function CatalogoLoading() {
   return (
@@ -24,30 +31,44 @@ export default function CatalogoLoading() {
             </div>
             <PageDescription>Explore os Card Sets catalogados, por Jogo ou por busca direta.</PageDescription>
           </PageHeading>
-          <PageActions>
+        </PageHeader>
+
+        <div className="flex flex-wrap gap-3">
+          <Skeleton className="h-[72px] w-full rounded-lg sm:w-56" />
+          <Skeleton className="h-[72px] w-full rounded-lg sm:w-56" />
+          <Skeleton className="h-[72px] w-full rounded-lg sm:w-56" />
+          <Skeleton className="h-[72px] w-full rounded-lg sm:w-56" />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-end">
             <Button type="button" size="sm" disabled>
               <Plus className="h-3.5 w-3.5" />
               Novo
             </Button>
-          </PageActions>
-        </PageHeader>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-10 flex-1 rounded-md" />
-          <Skeleton className="h-10 w-[9.5rem] shrink-0 rounded-md" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-          {Array.from({ length: 12 }).map((_, index) => (
-            <div key={index} className="overflow-hidden rounded-lg border border-border">
-              <Skeleton className="aspect-square w-full rounded-none" />
-              <div className="space-y-1.5 p-3">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
+          <Card density="compact" className="overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border p-4">
+              <Skeleton className="h-9 flex-1 rounded-md" />
+              <Skeleton className="h-9 w-[9.5rem] shrink-0 rounded-md" />
             </div>
-          ))}
+
+            <CardContent density="compact" className="pt-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                {Array.from({ length: 12 }).map((_, index) => (
+                  <div key={index} className="overflow-hidden rounded-lg border border-border">
+                    <Skeleton className="aspect-square w-full rounded-none" />
+                    <div className="space-y-1.5 p-3">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </PageContainer>
     </AppShell>

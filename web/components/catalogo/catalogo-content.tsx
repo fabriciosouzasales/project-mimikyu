@@ -9,6 +9,13 @@ import { loadMoreCardSets, searchCatalogoAction, type CardSetWithLogo } from "@/
 import type { CatalogoCardResult } from "@/lib/catalogo/queries";
 
 /**
+ * SEM USO desde 2026-07-31 (pedido de Fabrício: "faça todos os ajustes
+ * necessários para manter o mesmo padrão da página Expansões") — a lógica
+ * deste componente foi absorvida diretamente por `catalogo-gallery.tsx`,
+ * espelhando `expansoes-gallery.tsx` (que nunca teve essa divisão em dois
+ * arquivos). Não removido: o mount do projeto não suporta `unlink()` (ver
+ * memória do projeto) — arquivos sem uso ficam marcados, não apagados.
+ *
  * Área de conteúdo da tela Catálogo — spec aprovada 2026-07-31, com o ajuste
  * de "Carregar mais" no lugar de rolagem infinita. Cabeçalho/busca/filtros
  * (fora deste componente) nunca mudam; só isto aqui troca entre galeria e
@@ -68,7 +75,15 @@ export function CatalogoContent({
             <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Card Sets</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
               {cardSets.map((set) => (
-                <CardSetGalleryCard key={set.id} cardSet={set} />
+                // Placeholder de props só para o compilador — componente
+                // sem uso (ver nota no topo do arquivo).
+                <CardSetGalleryCard
+                  key={set.id}
+                  cardSet={set}
+                  highlighted={false}
+                  onEdit={() => {}}
+                  onQuickDelete={() => {}}
+                />
               ))}
             </div>
           </section>
@@ -118,7 +133,13 @@ export function CatalogoContent({
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {cardSets.map((set) => (
-          <CardSetGalleryCard key={set.id} cardSet={set} />
+          <CardSetGalleryCard
+            key={set.id}
+            cardSet={set}
+            highlighted={false}
+            onEdit={() => {}}
+            onQuickDelete={() => {}}
+          />
         ))}
       </div>
 

@@ -4,6 +4,7 @@ import { Pencil, Plus } from "lucide-react";
 import { Fragment, useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createExpansion, updateExpansion, type ExpansionActionState } from "@/app/catalogo/expansoes/actions";
+import { ExpansaoLogoUploader } from "@/components/catalogo/expansao-logo-uploader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -31,7 +32,7 @@ import { PageActions, PageDescription, PageHeader, PageHeading, PageTitle } from
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { cn } from "@/lib/utils";
 import { formatarData } from "@/lib/format-date";
-import type { ExpansaoRow, GameOption } from "@/lib/catalogo/queries";
+import type { ExpansaoRow, ExpansaoWithLogo, GameOption } from "@/lib/catalogo/queries";
 
 const initialState: ExpansionActionState = { error: null };
 
@@ -161,11 +162,18 @@ export function ExpansoesTable({
         onCancel={state.cancelCreate}
       />
 
+      {/* `ExpansoesTable` é código morto (sem consumidor — a tela real é
+          `ExpansoesGallery`, ver `app/catalogo/expansoes/page.tsx`), mantido
+          só até a limpeza pendente listada no relatório de pendências.
+          `logoUrl: null` aqui é um placeholder só para satisfazer o tipo
+          `ExpansaoWithLogo` do Dialog (2026-07-31) — sem efeito real, já que
+          este componente nunca é renderizado. */}
       <EditExpansionDialog
         open={editingExpansao !== null}
-        expansao={editingExpansao}
+        expansao={editingExpansao ? { ...editingExpansao, logoUrl: null } : null}
         onSaved={handleSaved}
         onCancel={state.cancelEdit}
+        onLogoUpdated={() => {}}
       />
     </div>
   );
@@ -337,29 +345,67 @@ export function CreateExpansionForm({
   );
 }
 
-/** Exportado (2026-07-31) pelo mesmo motivo de `CreateExpansionDialog` acima. */
+/**
+ * Exportado (2026-07-31) pelo mesmo motivo de `CreateExpansionDialog` acima.
+ *
+ * Ajuste 2026-07-31, mesmo dia ("vamos incluir uma imagem para cada
+ * expansão"): `expansao` passou a ser `ExpansaoWithLogo` (não `ExpansaoRow`)
+ * — precisa de `logoUrl` para o `ExpansaoLogoUploader` mostrar a logo atual.
+ * Novo `onLogoUpdated`, chamado depois de upload/remoção de logo bem-
+ * sucedidos, para o chamador (`ExpansoesGallery`) atualizar a lista por trás
+ * do Dialog sem fechar a edição em andamento (diferente de `onSaved`, que
+ * fecha o Dialog e mostra o banner de sucesso do formulário nome/ordem).
+ *
+ * Ajuste 2026-07-31, mesmo dia (`/impeccable layout`, pedido de Fabrício:
+ * "está muito carregada, com muita informação que não pode ser alterada...
+ * a tela está mal dimensionada, cortando informações"). Dois problemas
+ * distintos, duas correções:
+ *
+ * 1. Código e Jogo — imutáveis — ocupavam dois `Input` desabilitados de
+ *    peso visual igual aos campos editáveis, competindo por atenção com
+ *    Nome/Ordem de lançamento (que são o motivo de abrir o Dialog). Saíram
+ *    do corpo do formulário e viraram a `DialogDescription` do cabeçalho —
+ *    `"{Jogo} · {Código}"`, mesma convenção `·` já usada no card da galeria
+ *    (`{code} · {totalCardSets} coleções`) — presente, discreto, sem
+ *    competir com os campos editáveis.
+ * 2. `DialogContent` sempre foi `max-w-md` (28rem) — suficiente para um
+ *    formulário de 2-4 campos curtos, mas cortava nomes de Jogo mais longos
+ *    ("Pokémon Trading Card Game") dentro do `Input` desabilitado de meia
+ *    largura. Corrigido na raiz: novo `size="lg"` em `DialogContent`
+ *    (`components/ui/dialog.tsx`), usado aqui — texto de identidade agora
+ *    tem espaço de sobra no cabeçalho, sem precisar truncar.
+ */
 export function EditExpansionDialog({
   open,
   expansao,
   onSaved,
   onCancel,
+  onLogoUpdated,
 }: {
   open: boolean;
-  expansao: ExpansaoRow | null;
+  expansao: ExpansaoWithLogo | null;
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
+  onLogoUpdated: () => void;
 }) {
   const [pending, setPending] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !pending && onCancel()}>
       <DialogContent
+        size="lg"
         onEscapeKeyDown={(event) => pending && event.preventDefault()}
         onInteractOutside={(event) => pending && event.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle>Editar expansão</DialogTitle>
-          <DialogDescription>Código e Jogo são imutáveis após o cadastro.</DialogDescription>
+          {/* Fallback estático (código/jogo imutáveis) só aparece durante o
+              frame de saída do Dialog, quando `expansao` já voltou a `null`
+              mas o Radix ainda está animando o fechamento — nunca visível
+              em uso normal. */}
+          <DialogDescription>
+            {expansao ? `${expansao.gameName} · ${expansao.code}` : "Código e Jogo são imutáveis após o cadastro."}
+          </DialogDescription>
         </DialogHeader>
 
         {/* `key={expansao.id}` isola o estado por entidade (Ciclo D.1,
@@ -373,6 +419,7 @@ export function EditExpansionDialog({
             onSaved={onSaved}
             onCancel={onCancel}
             onPendingChange={setPending}
+            onLogoUpdated={onLogoUpdated}
           />
         )}
       </DialogContent>
@@ -385,11 +432,13 @@ function EditExpansionForm({
   onSaved,
   onCancel,
   onPendingChange,
+  onLogoUpdated,
 }: {
-  expansao: ExpansaoRow;
+  expansao: ExpansaoWithLogo;
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
   onPendingChange: (pending: boolean) => void;
+  onLogoUpdated: () => void;
 }) {
   const [state, formAction, pending] = useActionState(updateExpansion, initialState);
 
@@ -407,20 +456,15 @@ function EditExpansionForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="id" value={expansao.id} />
-      <DialogBody className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor={`edit-expansion-code-${expansao.id}`} className="text-muted-foreground">
-              Código (imutável)
-            </Label>
-            <Input id={`edit-expansion-code-${expansao.id}`} value={expansao.code} disabled />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={`edit-expansion-game-${expansao.id}`} className="text-muted-foreground">
-              Jogo (imutável)
-            </Label>
-            <Input id={`edit-expansion-game-${expansao.id}`} value={expansao.gameName} disabled />
-          </div>
+      <DialogBody className="space-y-4">
+        <div className="space-y-1.5">
+          <Label>Logo</Label>
+          <ExpansaoLogoUploader
+            expansionId={expansao.id}
+            initialLogoPath={expansao.logoStoragePath}
+            initialLogoUrl={expansao.logoUrl}
+            onChanged={onLogoUpdated}
+          />
         </div>
 
         <div className="space-y-1">

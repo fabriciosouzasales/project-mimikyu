@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 0.87 |
+| **Versão** | 0.90 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo lógico e físico de cada entidade do domínio, um bloco de cada vez, validado com dados reais antes de avançar. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -4688,6 +4688,14 @@ Validado estruturalmente (`prosecdef = true`, `search_path = ""`, `anon`/`authen
 2043 - Add EXPANSION_DELETED to Catalog Admin Action Log     (CONFIRMADO EXECUTADO — database/migrations/2043_add_expansion_deleted_to_catalog_admin_action_log.sql)
 2044 - Create admin_delete_expansion() Function              (CONFIRMADO EXECUTADO — database/schema/2044_create_admin_delete_expansion_function.sql)
 2809 - Validate Expansion Delete                             (CONFIRMADO EXECUTADO — database/validations/2809_validate_expansion_delete.sql; validação estrutural via SQL + validação funcional via UI por Fabrício)
+2045 - Add Expansion Logo Column                             (CONFIRMADO EXECUTADO — database/schema/2045_add_expansion_logo_column.sql)
+2046 - Create admin_set_expansion_logo() Function            (CONFIRMADO EXECUTADO — database/schema/2046_create_admin_set_expansion_logo_function.sql)
+2047 - Create Expansion Logo Storage Bucket and Policies     (CONFIRMADO EXECUTADO — database/schema/2047_create_expansion_logo_storage_bucket_and_policies.sql)
+2810 - Validate Expansion Logo                               (CONFIRMADO EXECUTADO — database/validations/2810_validate_expansion_logo.sql)
+2048 - Create admin_update_card_set() Function               (CONFIRMADO EXECUTADO — database/schema/2048_create_admin_update_card_set_function.sql)
+2049 - Add CARD_SET_DELETED to Catalog Admin Action Log      (CONFIRMADO EXECUTADO — database/migrations/2049_add_card_set_deleted_to_catalog_admin_action_log.sql)
+2050 - Create admin_delete_card_set() Function               (CONFIRMADO EXECUTADO — database/schema/2050_create_admin_delete_card_set_function.sql)
+2811 - Validate Card Set Update and Delete                   (validação estrutural CONFIRMADA EXECUTADA; validação funcional pendente — database/validations/2811_validate_card_set_update_and_delete.sql)
 ```
 
 ## Ciclo vertical — `Game` (Queries `2031`/`2032`, CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE)
@@ -4811,9 +4819,81 @@ Consequência necessária: o "Carregar mais" flat (paginação de 24 em 24) deix
 
 `tsc --noEmit` confirmado limpo (mesmos 10 erros pré-existentes de sempre, em `lib/supabase/middleware.ts`/`server.ts`).
 
+## Logo da Expansão (`logo_storage_path`, Queries `2045`/`2046`/`2047`, CONFIRMADO EXECUTADO)
+
+Pedido de Fabrício ("vamos incluir uma imagem para cada expansão"), mesmo dia do ajuste de agrupamento acima. Mesma arquitetura de `card_set.logo_storage_path` (ver seção "Logo do Card Set" mais adiante neste documento; decisão formalizada em `ADR-022`, emenda 2026-07-31) — coluna opcional, escrita só via função `SECURITY DEFINER`, bucket privado, leitura via URL assinada:
+
+```sql
+-- 2045: coluna
+ALTER TABLE public.expansion ADD COLUMN logo_storage_path TEXT NULL;
+ALTER TABLE public.expansion ADD CONSTRAINT ck_expansion_logo_storage_path_not_url
+    CHECK (logo_storage_path IS NULL OR logo_storage_path !~* '^[a-z][a-z0-9+.-]*://');
+
+-- 2046: admin_set_expansion_logo(p_expansion_id UUID, p_logo_storage_path TEXT)
+-- SECURITY DEFINER, exige is_admin(), única via de escrita.
+
+-- 2047: bucket privado expansion-logo + 4 políticas admin-only em storage.objects
+```
+
+Números fora da faixa legada `200`–`299` (onde `card_set.logo_storage_path` foi numerada, `273`/`275`/`276`) porque essa faixa está congelada desde então (`STD-001`, "Esquema Legado — Congelado") — numeradas no milhar `2000`–`2999` em vez disso, mesmo critério já usado na emenda de exclusão de `Expansion`/`Game`. Ver `ADR-022`, nova seção "Emenda", para o registro completo dessa decisão de numeração.
+
+**Diferente de `card_set.logo_storage_path` num ponto importante**: esta é a primeira vez que o fluxo de upload realmente chega à tela — a logo de Card Set tem toda a infraestrutura de banco pronta desde 2026-07-26 (`273`/`275`/`276`), mas o upload nunca foi conectado ao frontend (`card-sets/[code]/page.tsx` marca isso como "incremento futuro"). Para Expansão, o upload foi construído de ponta a ponta nesta mesma rodada:
+
+- `ExpansaoLogoUploader` (`web/components/catalogo/expansao-logo-uploader.tsx`, novo) — adaptado de `AvatarUploader` (`components/perfil/avatar-uploader.tsx`), com duas diferenças impostas pelo bucket ser privado/admin-only: leitura via `createSignedUrl` (não `getPublicUrl`), e a gravação do ponteiro passa pela Server Action `setExpansionLogo()` (que chama `admin_set_expansion_logo()`) em vez de um `.update()` direto do cliente — não existe política de RLS de `UPDATE` em `expansion` para isso.
+- Upload disponível só no Dialog de **edição** (`EditExpansionDialog`/`EditExpansionForm`, `expansoes-table.tsx`), não no de criação — a Expansão precisa já existir (ter um `id`) para compor o caminho no bucket e para a função `admin_set_expansion_logo()` ter o que atualizar. Uma Expansão nova é criada sem logo; a logo é adicionada depois, editando.
+- `getExpansionLogoUrls()` (`web/lib/catalogo/queries.ts`) gera URLs assinadas em lote (1h de validade), mesmo padrão de `getCardSetLogoUrls()`. Resolvida no Server Component (`expansoes/page.tsx`, para grupos e para a busca inicial) e em `searchExpansoesAction` (`catalogo-actions.ts`, para o "Carregar mais" da busca).
+- `ExpansaoGalleryCard` exibe a imagem quando `logoUrl` existe, iniciais como reserva quando não — mesmo comportamento de `CardSetGalleryCard`.
+- Novo tipo `ExpansaoWithLogo` (`ExpansaoRow & { logoUrl: string | null }`) — só usado pelas telas de leitura, nunca pela camada de escrita.
+- Também é possível remover a logo (`admin_set_expansion_logo(id, NULL)`, já suportado pela função desde a Query `2046`) — botão "Remover" no uploader quando há logo cadastrada.
+
+Todas as três Queries de banco (`2045`/`2046`/`2047`) e a validação (`2810`) confirmadas executadas por Fabrício via o ritual de pareamento (uma de cada vez, resultado conferido antes de avançar). `tsc --noEmit` confirmado limpo.
+
+**Ajuste visual (2026-07-31, mesmo dia, depois de ver as primeiras logos reais na tela)**: a caixa da imagem em `ExpansaoGalleryCard` deixou de ser `aspect-square` — logos de Expansão são wordmarks horizontais (ex.: "Scarlet & Violet"), diferentes do símbolo compacto de Card Set que motivou o quadrado original. Trocada para `aspect-[2/1]`, `object-contain` preservado (nunca corta a imagem), padding reduzido de `p-4` para `p-3`.
+
+## Coleções (`/catalogo/card-sets`) no padrão de Expansões + emenda `Card Set`: atualização e exclusão real via UI (Queries `2048`/`2049`/`2050`/`2811` — SQL PREPARADO, AGUARDANDO EXECUÇÃO)
+
+Pedido de Fabrício (2026-07-31, mesmo dia da logo de Expansão): "faça todos os ajustes necessários para manter o mesmo padrão da página Expansões" na tela Coleções. Sete pontos, todos de apresentação exceto o último:
+
+1. **`CardSetsStats`** (novo, `web/components/catalogo/card-sets-stats.tsx`) — mesmo padrão de `ExpansoesStats`: Jogos/Expansões/Coleções/Sem Cartas (Coleções sem nenhuma Carta catalogada, `tone="danger"`). Sem query nova — reaproveita `getGameOptions()`/`getExpansoes()` (já buscados para o filtro) e `getCardSetsOverview()` (mesma função da tabela de Card Sets da Visão Geral).
+2. **Botão "Novo"** sai do `PageHeader` e passa a ficar numa linha própria acima do `Card` que envolve busca/filtro/conteúdo — mesmo lugar de "Nova expansão"/"Novo Jogo". Continua abrindo `NovoCatalogoDialog` (cadastro de Card Set segue fora de escopo — `admin_create_card_set()` não existe).
+3. **Busca e filtro** migram para dentro do `Card` (cabeçalho, só `border-b`), tamanho/cor padrão (`h-9`, `bg-surface-muted`, `text-xs`) — deixam de flutuar soltos/`sticky`.
+4. **Tamanho da logo**: padding da caixa de imagem reduzido de `p-4` para `p-3` (mesmo valor de `ExpansaoGalleryCard`), uniformizando a "respiração" da arte entre as duas galerias. `aspect-square` **mantido** (não `aspect-[2/1]`) — diferente da logo de Expansão (wordmark horizontal), a logo de Card Set é o símbolo quadrado/compacto que originou o `aspect-square` do padrão; aplicar 2:1 aqui sobraria espaço vazio ao redor de uma arte já quadrada.
+5. **Paginação**: já seguia o mesmo padrão de Expansões ("Carregar mais", sem rolagem infinita) — reconfirmado ao mover o botão para dentro do `Card`, junto do grid.
+6. **Botões de edição e exclusão em cada Card Set** — ação rápida (ícones sem borda, lápis/lixeira) no card, mesmo mecanismo de `useAdminListState` + `ConfirmDeleteBar` já usado em Jogos/Expansões. Estrutura do card também migrou para `<Link>` absoluto + botões `relative z-10` sobre ele (mesma técnica de `ExpansaoGalleryCard`, necessária para os ícones não ficarem aninhados dentro do link de navegação para o detalhe).
+7. **Outros ajustes de padronização**: `catalogo-gallery.tsx` e `catalogo-content.tsx` (que antes dividiam cabeçalho/busca fixos vs. conteúdo trocável) foram unificados num único componente, espelhando `expansoes-gallery.tsx` (que nunca teve essa divisão) — `catalogo-content.tsx` fica sem uso, marcado no próprio arquivo, não removido. `loading.tsx` da tela também foi atualizado para o mesmo formato de skeleton usado em `expansoes/loading.tsx` (skeletons dos 4 indicadores, botão fora do cabeçalho, busca/filtro/grid dentro do mesmo `Card`).
+
+**O item 6 exigiu escrita nova no banco** — diferente de Expansão (que já tinha `admin_update_expansion()` antes da emenda de exclusão), Card Set não tinha **nenhuma** via administrativa de escrita estrutural além da logo (`admin_set_card_set_logo()`, `ADR-022`). Ver `ADR-023`, nova seção "Emenda (2026-07-31) — `Card Set`: atualização e exclusão real via UI", para o registro completo da decisão.
+
+```sql
+-- 2048: admin_update_card_set(p_id UUID, p_name TEXT, p_release_order INTEGER)
+-- Mesmo escopo mínimo de admin_update_expansion(): só nome e ordem de
+-- lançamento editáveis. expansion_id/code imutáveis por construção;
+-- set_type/base_set_size/total_set_size ficam de fora (campos estruturais
+-- amarrados a ck_card_set_promo_size). release_order único por Expansion.
+
+-- 2049: adiciona CARD_SET_DELETED às constraints de catalog_admin_action_log
+-- (mesma técnica de 2041/2043 — DROP + ADD). Aproveitado para reconciliar
+-- um gap: o arquivo canônico 2010 nunca tinha recebido EXPANSION_DELETED,
+-- apesar de a migration 2043 já estar confirmada executada contra o banco
+-- real desde a emenda de Expansion — corrigido no mesmo commit (2010 bump
+-- para v1.2), sem migration própria (valor já existe fisicamente).
+
+-- 2050: admin_delete_card_set(p_id UUID)
+-- Mesmo padrão de admin_delete_expansion(): DELETE real, bloqueado pela
+-- FK fk_card_card_set (ON DELETE RESTRICT, Query 140) quando há Cards
+-- associadas (ADMIN_DELETE_CARD_SET_HAS_DEPENDENTS); grava CARD_SET_DELETED
+-- em catalog_admin_action_log com code/name capturados antes do DELETE.
+```
+
+Números no milhar `2000`–`2999` (faixa legada `200`–`299` congelada desde `STD-001`), mesmo critério já usado nas emendas de Game/Expansion. Validação em `2811` (`database/validations/2811_validate_card_set_update_and_delete.sql`), mesmo roteiro de `2809`, com um bloco a mais para `admin_update_card_set()`.
+
+**Frontend já com a fiação completa**: `EditCardSetDialog`/`EditCardSetForm` (novo, `web/components/catalogo/card-set-dialogs.tsx`) — cópia fiel do `EditExpansionDialog` já corrigido pelo ciclo de layout daquela tela (campos imutáveis viram `DialogDescription` do cabeçalho — `"{Jogo} · {Expansão} · {Código}"`, um nível a mais que Expansão; `size="lg"`). Duas novas Server Actions em `web/app/catalogo/card-sets/actions.ts` (`updateCardSet`/`deleteCardSets`), mesmo padrão de `expansoes/actions.ts`. `tsc --noEmit` confirmado limpo.
+
+**Queries `2048`/`2049`/`2050` confirmadas executadas por Fabrício (2026-07-31)** via o ritual de pareamento (uma de cada vez, resultado conferido antes de avançar): `2048` e `2050` validadas via `has_function_privilege` (`anon` sem `EXECUTE`, `authenticated` com `EXECUTE`); `2049` validada via `pg_get_constraintdef` (ambas as constraints de `catalog_admin_action_log` incluem `CARD_SET_DELETED`, e também `EXPANSION_DELETED` — confirmando de quebra que o gap do canônico `2010` já estava reconciliado com o banco real). Os botões "editar"/"excluir" da galeria de Coleções estão funcionalmente operantes em produção. Pendência remanescente: validação funcional dos cenários de `2811` pela própria interface.
+
 ## Pendências / Próximos Passos
 
-Confirmação de Fabrício da exclusão de Game via interface real (ainda pendente de revisão anterior). Confirmação de Fabrício da tela de Expansion via interface real. Ciclo vertical de `Card Set` — `admin_create_card_set()`/`admin_update_card_set()` (Queries `2035`/`2036`), tela em `/catalogo/card-sets`, validação (`2806`) — próximo passo autorizado.
+Confirmação de Fabrício da exclusão de Game via interface real (ainda pendente de revisão anterior). Confirmação de Fabrício da tela de Expansion via interface real. Validação funcional de `2811` (edição/exclusão de Card Set pela própria tela) — próximo passo imediato. Cadastro de Card Set (`admin_create_card_set()`) continua fora de escopo até uma decisão futura explícita.
 
 ---
 
@@ -4907,4 +4987,7 @@ Confirmação de Fabrício da exclusão de Game via interface real (ainda penden
 | 0.84 | **Emenda: `Expansion` ganha exclusão real via UI (`admin_delete_expansion()`, Queries `2043`/`2044`, SQL PREPARADO — AGUARDANDO EXECUÇÃO), 2026-07-31.** Nova seção "Emenda — `Expansion`: exclusão real via UI", mesmo padrão já validado em `Game` (`2041`/`2042`): bloqueada pela `FK fk_card_set_expansion` (`ON DELETE RESTRICT`, Query `120`) quando há Card Sets associados; auditoria via novo `EXPANSION_DELETED` em `catalog_admin_action_log`. Frontend: nova Server Action `deleteExpansions` e `ConfirmDeleteBar` na galeria de Expansões, ação rápida de excluir ao lado de editar em cada card. Também corrigida a descrição desatualizada do frontend da tela de Expansões (referenciava a antiga `ExpansoesTable`, hoje sem uso — a tela real é `ExpansoesGallery`, redesenho de galeria de cards de 2026-07-31). Queries `2043`/`2044` ainda não executadas no Supabase — SQL versionado em `database/`, aguardando o ritual de pareamento com Fabrício; botão "excluir" só funciona após essa execução. |
 | 0.85 | **Queries `2043` e `2044` confirmadas executadas por Fabrício (2026-07-31), fechando a emenda de exclusão de `Expansion`.** `2043` validada via `pg_get_constraintdef` (ambas as constraints de `catalog_admin_action_log` incluem `EXPANSION_DELETED`); `2044` validada via `has_function_privilege` (`anon` sem `EXECUTE`, `authenticated` com `EXECUTE`). O botão "excluir" da galeria de Expansões está funcionalmente operante em produção. Pendência remanescente: validação funcional dos 4 cenários de `2809` (sem dependentes, com dependentes, id inexistente, sessão não-admin) — ainda não executada. |
 | 0.86 | **Validação funcional (`2809`) confirmada por Fabrício pela própria interface (2026-07-31) — emenda de exclusão de `Expansion` encerrada.** Testado diretamente na tela: exclusão bem-sucedida e bloqueio ao excluir Expansão com Card Sets associados, ambos "funcionando corretamente". Cenários de id inexistente e sessão não-administrativa não são alcançáveis pela UI normal — permanecem como cobertura teórica da função, mesma lógica já validada em `admin_delete_game()`. Ciclo de `Expansion` (cadastro/edição/exclusão) agora no mesmo patamar de maturidade de `Game`. |
-| 0.87 | **Galeria de Expansões agrupada por Jogo (2026-07-31), a pedido de Fabrício.** Nova `getExpansoesGroupedByGame()` substitui `getExpansoesForCatalogo()` no modo galeria — agrupa por Jogo, cada grupo ordenado por `release_order` descendente (Expansion não tem coluna de data real; `release_order` é o campo que expressa "data de lançamento" ali), grupos em si ordenados alfabeticamente por nome do Jogo. `ExpansoesGallery` ganhou uma seção por Jogo (nome + indicador de cor + grid próprio). Consequência necessária: "Carregar mais" deixou de existir no modo galeria (carrega tudo de uma vez); `loadMoreExpansoes` e `getExpansoesForCatalogo()`/`sortExpansoesForCatalogo()` removidas por ficarem sem uso. Busca não alterada. `tsc --noEmit` confirmado limpo. Puramente de apresentação — nenhuma mudança de schema/RPC/RLS. |
+| 0.87 | **Galeria de Expansões agrupada por Jogo (2026-07-31), a pedido de Fabrício.** Nova `getExpansoesGroupedByGame()` substitui `getExpansoesForCatalogo()` no modo galeria — agrupa por Jogo, cada grupo ordenado por `release_order` descendente (Expansion não tem coluna de data real; `release_order` é o campo que expressa "data de lançamento" ali), grupos em si ordenados alfabeticamente por nome do Jogo. `ExpansoesGallery` ganhou uma seção por Jogo (nome + indicador de cor + grid próprio). Consequência necessária: "Carregar mais" deixou de existir no modo galeria (carrega tudo de uma vez); `loadMoreExpansoes` e `getExpansoesForCatalogo()`/`sortExpansoesForCatalogo()` removidas por ficarem sem uso. Busca não alterada. `tsc --noEmit` confirmado limpo. Puramente de apresentação — nenhuma mudança de schema/RPC/RLS. Duas correções no mesmo dia, a partir de feedback ao vivo de Fabrício: direção do sort dentro do grupo (`release_order` ascendente, não descendente) e ordem dos próprios grupos (por `game.created_at` ascendente — Jogo mais antigo primeiro — não alfabética). |
+| 0.88 | **Logo por Expansão (2026-07-31, mesmo dia), a pedido de Fabrício ("vamos incluir uma imagem para cada expansão").** Nova coluna `expansion.logo_storage_path` (Query `2045`), função `admin_set_expansion_logo()` (Query `2046`), bucket privado `expansion-logo` com 4 políticas admin-only (Query `2047`) — mesma arquitetura de `card_set.logo_storage_path`, numerada no milhar `2000`–`2999` em vez de `200`–`299` (faixa legada congelada desde `STD-001`; ver `ADR-022`, emenda 2026-07-31). Diferente do precedente de Card Set (infraestrutura pronta desde 2026-07-26, nunca conectada ao frontend): aqui o upload foi construído de ponta a ponta — novo `ExpansaoLogoUploader` (adaptado de `AvatarUploader`, leitura via URL assinada, escrita via Server Action `setExpansionLogo()`), disponível no Dialog de edição (não no de criação — a Expansão precisa já existir). `getExpansionLogoUrls()` resolve URLs assinadas em lote; `ExpansaoGalleryCard` exibe a imagem com iniciais como reserva. Todas as Queries (`2045`/`2046`/`2047`/`2810`) confirmadas executadas via o ritual de pareamento. `tsc --noEmit` confirmado limpo. |
+| 0.89 | **Coleções no mesmo padrão de Expansões + emenda `Card Set`: atualização e exclusão real via UI (2026-07-31), a pedido de Fabrício ("faça todos os ajustes necessários para manter o mesmo padrão da página Expansões").** Sete ajustes de apresentação: `CardSetsStats` (novo indicador Jogos/Expansões/Coleções/Sem Cartas), botão "Novo" reposicionado, busca/filtro dentro do `Card`, padding da logo reduzido para `p-3` (`aspect-square` mantido — logo de Card Set é símbolo quadrado, diferente do wordmark de Expansão), paginação confirmada consistente, `catalogo-gallery.tsx`/`catalogo-content.tsx` unificados num só componente (`catalogo-content.tsx` sem uso, marcado não removido) e `loading.tsx` atualizado. Mais uma mudança de escrita: botões de editar/excluir em cada card exigiram `admin_update_card_set()`/`admin_delete_card_set()` (Queries `2048`/`2050`, SQL PREPARADO — AGUARDANDO EXECUÇÃO) e `CARD_SET_DELETED` em `catalog_admin_action_log` (Query `2049`) — primeira via de escrita estrutural de Card Set além da logo. Aproveitado para reconciliar um gap: o arquivo canônico `2010` nunca tinha recebido `EXPANSION_DELETED` (só a migration histórica `2043`, já confirmada contra o banco real) — corrigido no mesmo commit (`2010` bump para v1.2). Frontend com fiação completa (`EditCardSetDialog`, `card-sets/actions.ts`) — botões só funcionam de fato após Fabrício executar `2048`–`2050` via o ritual de pareamento. Validação em `2811`. `tsc --noEmit` confirmado limpo. |
+| 0.90 | **Queries `2048`/`2049`/`2050` confirmadas executadas por Fabrício (2026-07-31), fechando a parte de banco da emenda de `Card Set`.** `2048`/`2050` validadas via `has_function_privilege` (`anon` sem `EXECUTE`, `authenticated` com `EXECUTE`); `2049` validada via `pg_get_constraintdef` (ambas as constraints com `CARD_SET_DELETED`, e `EXPANSION_DELETED` confirmado presente de quebra — o gap do canônico `2010` já estava reconciliado com o banco real). Botões "editar"/"excluir" da galeria de Coleções funcionalmente operantes em produção. Pendência remanescente: validação funcional de `2811` pela própria interface. |

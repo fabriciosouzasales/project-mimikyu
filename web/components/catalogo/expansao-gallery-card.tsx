@@ -5,19 +5,28 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getGameAccentColor } from "@/lib/catalogo/game-accent";
 import { cn } from "@/lib/utils";
-import type { ExpansaoRow } from "@/lib/catalogo/queries";
+import type { ExpansaoWithLogo } from "@/lib/catalogo/queries";
 
 /**
  * Card da galeria de Expansões — mesma linguagem visual do card de Card Set
  * (`card-set-gallery-card.tsx`): logo/iniciais em destaque, selo de cor do
  * Jogo, nome, código e uma contagem do que a entidade agrupa. Adaptado à
- * entidade Expansion, que "não reinventa a UX" pede explicitamente:
+ * entidade Expansion:
  *
- * - Sem logo: `logo_storage_path` só existe em `card_set`, não em
- *   `expansion` — usa sempre o mesmo bloco de iniciais que Card Set usa
- *   como reserva, nunca uma imagem.
  * - Contagem de Card Sets em vez de Cartas (o que uma Expansão de fato
  *   agrupa).
+ * - Logo (2026-07-31, Queries 2045-2047, pedido de Fabrício: "vamos incluir
+ *   uma imagem para cada expansão") — mesmo padrão de `CardSetGalleryCard`:
+ *   mostra `expansao.logoUrl` (URL assinada) quando existe, iniciais como
+ *   reserva quando não.
+ *
+ * Ajuste 2026-07-31, mesmo dia (depois de ver as primeiras logos reais na
+ * tela): a caixa da imagem deixou de ser `aspect-square` — logos de
+ * Expansão são wordmarks horizontais (ex.: "Scarlet & Violet", "Sun & Moon"),
+ * bem diferentes do símbolo quadrado/compacto de Card Set que motivou o
+ * `aspect-square` original. `aspect-[2/1]` (proporção 2:1) sobra bem menos
+ * espaço vazio acima/abaixo da arte real, mantendo `object-contain` (nunca
+ * corta a imagem).
  *
  * Ajuste 2026-07-31 (pedido de Fabrício): clicar no card não abre mais o
  * Dialog de edição — navega para Coleções (`/catalogo/card-sets`) já
@@ -53,7 +62,7 @@ export function ExpansaoGalleryCard({
   onEdit,
   onQuickDelete,
 }: {
-  expansao: ExpansaoRow;
+  expansao: ExpansaoWithLogo;
   highlighted: boolean;
   onEdit: (id: string) => void;
   onQuickDelete: (id: string) => void;
@@ -73,8 +82,15 @@ export function ExpansaoGalleryCard({
         className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
 
-      <div className="flex aspect-square items-center justify-center bg-surface-muted">
-        <span className="font-heading text-2xl font-medium text-muted-foreground">{getInitials(expansao.name)}</span>
+      <div className="flex aspect-[2/1] items-center justify-center bg-surface-muted">
+        {expansao.logoUrl ? (
+          // Signed URL expira e é gerada por requisição — mesma decisão de
+          // CardSetGalleryCard: <img> simples em vez de next/image.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={expansao.logoUrl} alt="" className="h-full w-full object-contain p-3" />
+        ) : (
+          <span className="font-heading text-2xl font-medium text-muted-foreground">{getInitials(expansao.name)}</span>
+        )}
       </div>
       <div className="space-y-1 p-3">
         <div className="flex items-center gap-1.5">

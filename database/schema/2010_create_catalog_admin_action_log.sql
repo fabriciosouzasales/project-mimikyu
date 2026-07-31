@@ -2,10 +2,10 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2010 - Create Catalog Admin Action Log Table
-Versão......: 1.1
+Versão......: 1.2
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-07-26 (v1.1: 2026-07-26)
+Data........: 2026-07-26 (v1.1: 2026-07-26, v1.2: 2026-07-31)
 
 Descrição...:
 Cria public.catalog_admin_action_log: auditoria própria do módulo
@@ -61,6 +61,22 @@ registra a execução histórica contra o banco já existente; este
 arquivo canônico reflete a estrutura final para qualquer
 instalação nova.
 
+Versão 1.2 (2026-07-31 — correção de um gap + nova emenda):
+- Correção: esta versão canônica nunca havia recebido
+  'EXPANSION_DELETED', apesar de a migration
+  2043_add_expansion_deleted_to_catalog_admin_action_log.sql já
+  estar confirmada executada contra o banco real desde 2026-07-31
+  (ADR-023, emenda "Expansion: exclusão real via UI"). Uma
+  instalação nova a partir da Versão 1.1 ficaria, portanto,
+  divergente do banco real — corrigido aqui, sem migration própria
+  (o valor já existe fisicamente; só o arquivo canônico estava
+  desatualizado).
+- Nova emenda (ADR-023, "Card Set: atualização e exclusão real via
+  UI", Query 2050): adiciona 'CARD_SET_DELETED' às duas
+  constraints. A migration
+  2049_add_card_set_deleted_to_catalog_admin_action_log.sql
+  registra a execução real contra o banco existente.
+
 Pré-requisitos:
 - Query 2000 - Create Internal Schema (mesmo módulo).
 ================================================================
@@ -81,8 +97,8 @@ CREATE TABLE public.catalog_admin_action_log (
         CHECK (
             action IN (
                 'GAME_CREATED', 'GAME_UPDATED', 'GAME_DELETED',
-                'EXPANSION_CREATED', 'EXPANSION_UPDATED',
-                'CARD_SET_CREATED', 'CARD_SET_UPDATED',
+                'EXPANSION_CREATED', 'EXPANSION_UPDATED', 'EXPANSION_DELETED',
+                'CARD_SET_CREATED', 'CARD_SET_UPDATED', 'CARD_SET_DELETED',
                 'CARD_CREATED', 'CARD_UPDATED',
                 'CARD_DEACTIVATED', 'CARD_REACTIVATED'
             )
@@ -96,8 +112,8 @@ CREATE TABLE public.catalog_admin_action_log (
     CONSTRAINT ck_catalog_admin_action_log_action_entity_match
         CHECK (
             (entity_type = 'GAME' AND action IN ('GAME_CREATED', 'GAME_UPDATED', 'GAME_DELETED'))
-            OR (entity_type = 'EXPANSION' AND action IN ('EXPANSION_CREATED', 'EXPANSION_UPDATED'))
-            OR (entity_type = 'CARD_SET' AND action IN ('CARD_SET_CREATED', 'CARD_SET_UPDATED'))
+            OR (entity_type = 'EXPANSION' AND action IN ('EXPANSION_CREATED', 'EXPANSION_UPDATED', 'EXPANSION_DELETED'))
+            OR (entity_type = 'CARD_SET' AND action IN ('CARD_SET_CREATED', 'CARD_SET_UPDATED', 'CARD_SET_DELETED'))
             OR (entity_type = 'CARD' AND action IN (
                     'CARD_CREATED', 'CARD_UPDATED', 'CARD_DEACTIVATED', 'CARD_REACTIVATED'
                 ))

@@ -8,6 +8,7 @@ import {
   CATALOGO_SEARCH_CARDS_PAGE_SIZE,
   getCardSetLogoUrls,
   getCardSetsForCatalogo,
+  getCardSetsOverview,
   getExpansoes,
   getGameOptions,
   searchCatalogo,
@@ -21,6 +22,14 @@ import {
  * Substitui a antiga listagem somente-leitura em `/catalogo/card-sets`
  * (`card-sets-table.tsx`, que fica sem uso — ver relatório de pendências).
  * A rota de detalhe (`/catalogo/card-sets/[code]`) não é alterada.
+ *
+ * Ajuste 2026-07-31 (pedido de Fabrício, "faça todos os ajustes necessários
+ * para manter o mesmo padrão da página Expansões"): `jogos`/`expansoes`
+ * (sem filtro) e `cardSets` (via `getCardSetsOverview()`, mesma função da
+ * tabela da Visão Geral) passam a alimentar também `CardSetsStats` —
+ * totais sempre globais, independente do filtro/busca ativo na galeria
+ * abaixo (mesmo raciocínio de `ExpansoesStats`/`getExpansoes()` sem
+ * filtro).
  */
 export default async function CatalogoCardSetsPage({
   searchParams,
@@ -33,9 +42,11 @@ export default async function CatalogoCardSetsPage({
   const { game, expansion, q } = await searchParams;
   const query = q?.trim() ?? "";
 
-  const [jogos, expansoesDoJogo] = await Promise.all([
+  const [jogos, expansoesDoJogo, expansoes, cardSetsOverview] = await Promise.all([
     getGameOptions(supabase),
     game ? getExpansoes(supabase, { gameCode: game }) : Promise.resolve([]),
+    getExpansoes(supabase),
+    getCardSetsOverview(supabase),
   ]);
 
   const mode: "gallery" | "search" = query ? "search" : "gallery";
@@ -78,6 +89,8 @@ export default async function CatalogoCardSetsPage({
         <CatalogoGallery
           jogos={jogos}
           expansoesDoJogo={expansoesDoJogo}
+          expansoes={expansoes}
+          cardSetsOverview={cardSetsOverview}
           gameCode={game}
           expansionCode={expansion}
           query={query}
