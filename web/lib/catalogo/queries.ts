@@ -217,6 +217,246 @@ export async function getCardSetByCode(
   return overview.find((set) => set.code === code) ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Catálogo (galeria de Card Sets, /catalogo/card-sets) — camada de leitura
+// para a tela de entrada do módulo (spec aprovada em 2026-07-31). Separada de
+// getCardSetsOverview acima porque exige campos que aquela nunca precisou
+// (Jogo/Expansão associados, data de lançamento, id) e busca/pagina de forma
+// diferente (galeria + busca unificada, não uma listagem simples).
+// ---------------------------------------------------------------------------
+
+export const CATALOGO_PAGE_SIZE = 24;
+export const CATALOGO_SEARCH_CARDS_PAGE_SIZE = 12;
+
+export type CatalogoCardSetRow = {
+  id: string;
+  code: string;
+  name: string;
+  releaseOrder: number;
+  releaseDate: string | null;
+  expansionId: string;
+  expansionName: string;
+  expansionReleaseOrder: number;
+  gameId: string;
+  gameCode: string;
+  gameName: string;
+  cardsCatalogados: number;
+  logoStoragePath: string | null;
+  createdAt: string;
+};
+
+export type CatalogoCardResult = {
+  id: string;
+  name: string;
+  collectorNumber: string;
+  cardSetCode: string;
+  cardSetName: string;
+  gameName: string;
+};
+
+export type CatalogoSearchResult = {
+  cardSets: CatalogoCardSetRow[];
+  cards: CatalogoCardResult[];
+  hasMoreCards: boolean;
+};
+
+type CatalogoCardSetRawRow = {
+  id: string;
+  code: string;
+  name: string;
+  release_order: number;
+  release_date: string | null;
+  logo_storage_path: string | null;
+  created_at: string;
+  expansion: { id: string; name: string; release_order: number; game: { id: string; code: string; name: string } | null } | null;
+};
+
+async function fetchCardSetsForCatalogo(
+  supabase: SupabaseClient,
+  filters: { gameCode?: string; expansionCode?: string },
+): Promise<CatalogoCardSetRawRow[]> {
+  let query = supabase
+    .from("card_set")
+    .select(
+      "id, code, name, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
+    );
+
+  if (filters.expansionCode) {
+    query = query.eq("expansion.code", filters.expansionCode);
+  } else if (filters.gameCode) {
+    query = query.eq("expansion.game.code", filters.gameCode);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) {
+    return [];
+  }
+  return data as unknown as CatalogoCardSetRawRow[];
+}
+
+/**
+ * Ordenação e paginação em memória, mesmo padrão já usado por
+ * getEstadoDoCatalogo/getCardSetsOverview para agregar Cards por Card Set —
+ * evita depender de ordenação por coluna de tabela relacionada via
+ * PostgREST (suporte varia por versão do cliente). Sem filtro de Jogo/
+ * Expansão, cruza Jogos por `release_date` real (único campo comparável
+ * entre Jogos diferentes — `release_order` só faz sentido dentro de cada
+ * um, causa raiz do problema identificado na auditoria da tela de
+ * Expansões); quando `release_date` está nulo (ainda não confirmada),
+ * cai para `created_at` como desempate. Com filtro ativo, segue a mesma
+ * sequência (`release_order` de Expansão e depois de Card Set) já usada em
+ * getExpansoes/fetchCardSets no resto do sistema.
+ */
+function sortCatalogoCardSets(rows: CatalogoCardSetRawRow[], filtered: boolean): CatalogoCardSetRawRow[] {
+  const sorted = [...rows];
+  if (filtered) {
+    sorted.sort((a, b) => {
+      const expansionDiff = (a.expansion?.release_order ?? 0) - (b.expansion?.release_order ?? 0);
+      if (expansionDiff !== 0) return expansionDiff;
+      return a.release_order - b.release_order;
+    });
+  } else {
+    sorted.sort((a, b) => {
+      if (a.release_date && b.release_date) {
+        return b.release_date.localeCompare(a.release_date);
+      }
+      if (a.release_date) return -1;
+      if (b.release_date) return 1;
+      return b.created_at.localeCompare(a.created_at);
+    });
+  }
+  return sorted;
+}
+
+async function getCardCountsForSets(supabase: SupabaseClient, cardSetIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (cardSetIds.length === 0) {
+    return counts;
+  }
+  const { data, error } = await supabase.from("card").select("card_set_id").in("card_set_id", cardSetIds);
+  if (error || !data) {
+    return counts;
+  }
+  for (const row of data as { card_set_id: string }[]) {
+    counts.set(row.card_set_id, (counts.get(row.card_set_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function toCatalogoCardSetRow(row: CatalogoCardSetRawRow, counts: Map<string, number>): CatalogoCardSetRow {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    releaseOrder: row.release_order,
+    releaseDate: row.release_date,
+    expansionId: row.expansion?.id ?? "",
+    expansionName: row.expansion?.name ?? "—",
+    expansionReleaseOrder: row.expansion?.release_order ?? 0,
+    gameId: row.expansion?.game?.id ?? "",
+    gameCode: row.expansion?.game?.code ?? "",
+    gameName: row.expansion?.game?.name ?? "—",
+    cardsCatalogados: counts.get(row.id) ?? 0,
+    logoStoragePath: row.logo_storage_path,
+    createdAt: row.created_at,
+  };
+}
+
+/** Galeria principal da tela Catálogo — sem termo de busca. */
+export async function getCardSetsForCatalogo(
+  supabase: SupabaseClient,
+  options: { gameCode?: string; expansionCode?: string; limit: number; offset: number },
+): Promise<{ items: CatalogoCardSetRow[]; hasMore: boolean }> {
+  const filtered = Boolean(options.gameCode || options.expansionCode);
+  const all = sortCatalogoCardSets(
+    await fetchCardSetsForCatalogo(supabase, { gameCode: options.gameCode, expansionCode: options.expansionCode }),
+    filtered,
+  );
+
+  const page = all.slice(options.offset, options.offset + options.limit);
+  const hasMore = all.length > options.offset + options.limit;
+  const counts = await getCardCountsForSets(supabase, page.map((row) => row.id));
+
+  return { items: page.map((row) => toCatalogoCardSetRow(row, counts)), hasMore };
+}
+
+type CatalogoCardSearchRawRow = {
+  id: string;
+  name: string;
+  collector_number: string;
+  card_set: { code: string; name: string; expansion: { game: { name: string } | null } | null } | null;
+};
+
+/** Busca unificada da tela Catálogo — Card Sets (nome/código) e Cartas (nome/número), em paralelo. */
+export async function searchCatalogo(
+  supabase: SupabaseClient,
+  term: string,
+  options: { cardsLimit: number; cardsOffset: number },
+): Promise<CatalogoSearchResult> {
+  const q = term.trim();
+  if (!q) {
+    return { cardSets: [], cards: [], hasMoreCards: false };
+  }
+
+  const [setsResult, cardsResult] = await Promise.all([
+    supabase
+      .from("card_set")
+      .select(
+        "id, code, name, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
+      )
+      .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
+      .limit(6),
+    supabase
+      .from("card")
+      .select("id, name, collector_number, card_set(code, name, expansion(game(name)))")
+      .or(`name.ilike.%${q}%,collector_number.ilike.%${q}%`)
+      .order("name", { ascending: true })
+      .range(options.cardsOffset, options.cardsOffset + options.cardsLimit),
+  ]);
+
+  const setRows = (setsResult.data ?? []) as unknown as CatalogoCardSetRawRow[];
+  const counts = await getCardCountsForSets(supabase, setRows.map((row) => row.id));
+  const cardSets = setRows.map((row) => toCatalogoCardSetRow(row, counts));
+
+  const cardRows = (cardsResult.data ?? []) as unknown as CatalogoCardSearchRawRow[];
+  const hasMoreCards = cardRows.length > options.cardsLimit;
+  const cardsPage = hasMoreCards ? cardRows.slice(0, options.cardsLimit) : cardRows;
+
+  const cards: CatalogoCardResult[] = cardsPage.map((row) => ({
+    id: row.id,
+    name: row.name,
+    collectorNumber: row.collector_number,
+    cardSetCode: row.card_set?.code ?? "",
+    cardSetName: row.card_set?.name ?? "—",
+    gameName: row.card_set?.expansion?.game?.name ?? "—",
+  }));
+
+  return { cardSets, cards, hasMoreCards };
+}
+
+/** URLs assinadas (bucket privado `card-set-logo`, nunca getPublicUrl — ver 05-modelo-de-dados.md) para os logos presentes no lote atual. */
+export async function getCardSetLogoUrls(
+  supabase: SupabaseClient,
+  paths: (string | null)[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const validPaths = paths.filter((path): path is string => !!path);
+  if (validPaths.length === 0) {
+    return map;
+  }
+
+  const { data, error } = await supabase.storage.from("card-set-logo").createSignedUrls(validPaths, 60 * 60);
+  if (error || !data) {
+    return map;
+  }
+  for (const item of data) {
+    if (item.path && item.signedUrl && !item.error) {
+      map.set(item.path, item.signedUrl);
+    }
+  }
+  return map;
+}
+
 export type JogoRow = {
   id: string;
   code: string;

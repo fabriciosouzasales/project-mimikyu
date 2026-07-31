@@ -233,7 +233,14 @@ function CreateExpansionDialog({
   );
 }
 
-function CreateExpansionForm({
+/**
+ * Exportado (2026-07-31) para reuso pela tela Catálogo (`novo-catalogo-dialog.tsx`),
+ * que precisa do mesmo formulário de Expansão dentro de um Dialog próprio,
+ * como uma das opções da ação "Novo" que cobre o domínio inteiro (Jogo/
+ * Expansão/Card Set). Sem mudança de comportamento — só a visibilidade do
+ * export.
+ */
+export function CreateExpansionForm({
   jogos,
   defaultGameId,
   onSaved,
