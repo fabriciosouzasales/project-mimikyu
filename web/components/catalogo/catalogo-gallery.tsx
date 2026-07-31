@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageActions, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { CatalogoContent } from "@/components/catalogo/catalogo-content";
-import { CatalogoFilterChips } from "@/components/catalogo/catalogo-filter-chips";
+import { CatalogoFilterSelect } from "@/components/catalogo/catalogo-filter-select";
 import { CatalogoSearchBar } from "@/components/catalogo/catalogo-search-bar";
 import { NovoCatalogoDialog } from "@/components/catalogo/novo-catalogo-dialog";
 import type { CardSetWithLogo } from "@/app/catalogo/card-sets/catalogo-actions";
@@ -55,9 +55,11 @@ export function CatalogoGallery({
         </PageActions>
       </PageHeader>
 
-      <div className="sticky top-0 z-10 -mx-1 space-y-3 bg-background px-1 pb-3 pt-1">
-        <CatalogoSearchBar initialQuery={query} />
-        <CatalogoFilterChips
+      <div className="sticky top-0 z-10 -mx-1 flex items-center gap-2 bg-background px-1 pb-3 pt-1">
+        <div className="min-w-0 flex-1">
+          <CatalogoSearchBar initialQuery={query} />
+        </div>
+        <CatalogoFilterSelect
           jogos={jogos}
           expansoesDoJogo={expansoesDoJogo}
           gameCode={gameCode}

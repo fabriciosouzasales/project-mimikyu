@@ -27,12 +27,9 @@ export default function ExpansoesLoading() {
           </PageActions>
         </PageHeader>
 
-        <Skeleton className="h-10 w-full rounded-md" />
-
-        <div className="flex gap-2">
-          <Skeleton className="h-7 w-16 rounded-full" />
-          <Skeleton className="h-7 w-28 rounded-full" />
-          <Skeleton className="h-7 w-24 rounded-full" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 flex-1 rounded-md" />
+          <Skeleton className="h-10 w-[9.5rem] shrink-0 rounded-md" />
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">

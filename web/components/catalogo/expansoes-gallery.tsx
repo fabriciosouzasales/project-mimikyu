@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { loadMoreExpansoes, searchExpansoesAction } from "@/app/catalogo/expansoes/catalogo-actions";
 import { CreateExpansionDialog, EditExpansionDialog } from "@/components/catalogo/expansoes-table";
-import { CatalogoFilterChips } from "@/components/catalogo/catalogo-filter-chips";
+import { CatalogoFilterSelect } from "@/components/catalogo/catalogo-filter-select";
 import { CatalogoSearchBar } from "@/components/catalogo/catalogo-search-bar";
 import { ExpansaoGalleryCard } from "@/components/catalogo/expansao-gallery-card";
 import { Button } from "@/components/ui/button";
@@ -94,9 +94,11 @@ export function ExpansoesGallery({
 
       {state.successMessage && <InlineFeedback tone="success">{state.successMessage}</InlineFeedback>}
 
-      <div className="sticky top-0 z-10 -mx-1 space-y-3 bg-background px-1 pb-3 pt-1">
-        <CatalogoSearchBar initialQuery={query} placeholder="Buscar por nome ou código da Expansão…" />
-        <CatalogoFilterChips
+      <div className="sticky top-0 z-10 -mx-1 flex items-center gap-2 bg-background px-1 pb-3 pt-1">
+        <div className="min-w-0 flex-1">
+          <CatalogoSearchBar initialQuery={query} placeholder="Buscar por nome ou código da Expansão…" />
+        </div>
+        <CatalogoFilterSelect
           jogos={jogos}
           expansoesDoJogo={[]}
           gameCode={gameCode}
