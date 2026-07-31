@@ -107,7 +107,7 @@ export function ExpansoesTable({
                   <DataTableHeadCell>Expansão</DataTableHeadCell>
                   <DataTableHeadCell align="center">Código</DataTableHeadCell>
                   <DataTableHeadCell align="center">Ordem</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Card Sets</DataTableHeadCell>
+                  <DataTableHeadCell align="center">Coleções</DataTableHeadCell>
                   <DataTableHeadCell align="center">Criado em</DataTableHeadCell>
                   <DataTableHeadCell align="center">Atualizado em</DataTableHeadCell>
                   <DataTableHeadCell />

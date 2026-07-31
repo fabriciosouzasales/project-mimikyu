@@ -215,7 +215,7 @@ export function JogosTable({
                             type="button"
                             variant="outline"
                             size="icon-sm"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:text-destructive-foreground dark:hover:text-destructive-foreground"
                             aria-label={`Excluir ${jogo.name}`}
                             onClick={() => state.startQuickDelete(jogo.id)}
                           >

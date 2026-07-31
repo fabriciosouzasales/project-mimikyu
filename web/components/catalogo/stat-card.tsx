@@ -23,6 +23,16 @@ import { cn } from "@/lib/utils";
  * `tone="danger"` (2026-07-31, pedido de Fabrício na Visão Geral: "Pendências
  * deve ter ícone vermelho") — única exceção ao selo uniforme #F7F5ED/#2C2C2A.
  * Opcional, não usado por Jogos — mantém os cartões existentes intocados.
+ *
+ * `dark:text-destructive-foreground` no ícone do tone="danger" (2026-07-31,
+ * correção de contraste pedida por Fabrício): `--destructive` no tema
+ * escuro é um vermelho bem escuro (20% de luminosidade, ver globals.css) —
+ * quase invisível sobre o fundo também escuro do app. `--destructive-
+ * foreground` no tema escuro já é quase branco (92%), reservado justamente
+ * para ficar legível perto de vermelho — troca o ícone (não o selo de
+ * fundo, que continua `bg-destructive/10`) por essa cor no tema escuro.
+ * Afeta os dois cartões que usam `tone="danger"` hoje: "Pendências" (Visão
+ * Geral) e "Sem Coleções" (Expansões).
  */
 export function StatCard({
   label,
@@ -47,7 +57,9 @@ export function StatCard({
       <span
         className={cn(
           "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-          tone === "danger" ? "bg-destructive/10 text-destructive" : "bg-[#F7F5ED] text-[#2C2C2A]",
+          tone === "danger"
+            ? "bg-destructive/10 text-destructive dark:text-destructive-foreground"
+            : "bg-[#F7F5ED] text-[#2C2C2A]",
         )}
         aria-hidden="true"
       >

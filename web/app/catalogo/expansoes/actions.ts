@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { traduzirErroCatalogo } from "@/lib/supabase/catalogo-errors";
-import type { EntityActionState } from "@/lib/catalogo/admin-action-types";
+import type { DeleteEntitiesActionState, EntityActionState } from "@/lib/catalogo/admin-action-types";
 
-// Alias sobre o tipo compartilhado (`lib/catalogo/admin-action-types.ts`) —
-// mesmo padrão de `jogos/actions.ts`. Sem exclusão: ADR-023 não prevê
-// (nem foi pedida) exclusão de Expansion — só Game recebeu essa emenda.
+// Aliases sobre os tipos compartilhados (`lib/catalogo/admin-action-types.ts`)
+// — mesmo padrão de `jogos/actions.ts`.
 export type ExpansionActionState = EntityActionState;
+export type DeleteExpansionsActionState = DeleteEntitiesActionState;
 
 /**
  * Cadastra uma nova Expansão via admin_create_expansion() (Query 2033,
@@ -94,4 +94,49 @@ export async function updateExpansion(
 
   revalidatePath("/catalogo/expansoes");
   return { error: null, success: true, id };
+}
+
+/**
+ * Exclui uma ou mais Expansões via admin_delete_expansion() (Query 2044,
+ * ADR-023 — emenda 2026-07-31 "Expansion: exclusão real via UI", mesmo
+ * padrão de deleteGames). Chama a função uma vez por id — cada exclusão é
+ * bloqueada individualmente pela FK fk_card_set_expansion se a Expansão
+ * tiver Card Sets associados, e o resultado por item é reportado de volta.
+ *
+ * Pendência: admin_delete_expansion() (Query 2044) ainda não foi executada
+ * no Supabase — esta action existe e está correta, mas retorna erro de
+ * função inexistente até a Query ser confirmada (ver docs/05-modelo-de-
+ * dados.md, "Emenda — Expansion: exclusão real via UI").
+ */
+export async function deleteExpansions(
+  _prevState: DeleteExpansionsActionState,
+  formData: FormData,
+): Promise<DeleteExpansionsActionState> {
+  const ids = formData.getAll("ids").map(String).filter(Boolean);
+
+  if (ids.length === 0) {
+    return { error: "Nenhuma Expansão selecionada." };
+  }
+
+  const supabase = await createClient();
+  const deletedIds: string[] = [];
+  const failures: { id: string; error: string }[] = [];
+
+  for (const id of ids) {
+    const { error } = await supabase.rpc("admin_delete_expansion", { p_id: id });
+    if (error) {
+      failures.push({ id, error: traduzirErroCatalogo(error.message) });
+    } else {
+      deletedIds.push(id);
+    }
+  }
+
+  revalidatePath("/catalogo/expansoes");
+
+  return {
+    error: null,
+    success: true,
+    deletedIds,
+    failures: failures.length > 0 ? failures : undefined,
+  };
 }

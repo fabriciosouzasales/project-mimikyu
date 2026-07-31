@@ -39,7 +39,15 @@ const buttonVariants = cva(
         default:
           "border border-[#A39475] bg-[#F7F5ED] text-[#A39475] hover:bg-[#F7F5ED]/80 active:bg-[#F7F5ED]/70",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-border bg-transparent hover:bg-surface-muted",
+        // `text-foreground` explícito (2026-07-31, correção de contraste
+        // pedida por Fabrício — ícone de "Editar" na tabela de Jogos ficou
+        // invisível no tema escuro): sem cor de texto própria, um `<Button
+        // variant="outline">` só com ícone (sem `text-destructive`/outra cor
+        // explícita, como o botão de excluir já tinha) herdava cor de texto
+        // insuficiente no tema escuro. Afeta todo botão outline sem cor
+        // própria — inclui os mesmos ícones de editar em Expansões/Coleções
+        // e as setas de paginação, que tinham o mesmo problema latente.
+        outline: "border border-border bg-transparent text-foreground hover:bg-surface-muted",
         // Borda na mesma cor da fonte (não a borda neutra de `outline`) —
         // pedido explícito de Fabrício para o botão de criação de itens
         // (ex.: "Cadastrar novo jogo"), posicionado fora do card da tabela,

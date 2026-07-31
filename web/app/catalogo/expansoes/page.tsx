@@ -6,7 +6,7 @@ import { PageContainer } from "@/components/ui/page";
 import {
   EXPANSOES_PAGE_SIZE,
   getExpansoes,
-  getExpansoesForCatalogo,
+  getExpansoesGroupedByGame,
   getGameOptions,
   searchExpansoes,
 } from "@/lib/catalogo/queries";
@@ -28,6 +28,14 @@ import {
  * `expansoes-gallery.tsx`. A galeria de cards abaixo continua igual de
  * propósito ("mantenha o layout da lista... vamos trabalhar nesse item na
  * sequência").
+ *
+ * Ajuste 2026-07-31, rodada seguinte (pedido de Fabrício: "as expansões
+ * devem ser exibidas separadamente por cada tipo de Jogo e organizadas pela
+ * data de lançamento de forma decrescente"): o modo galeria (sem busca)
+ * passou a usar `getExpansoesGroupedByGame()` em vez de `getExpansoesForCatalogo()`
+ * — ver a função para a nota sobre `release_order` fazer as vezes de "data
+ * de lançamento". Busca (`mode === "search"`) continua flat e paginada, sem
+ * mudança.
  */
 export default async function ExpansoesPage({
   searchParams,
@@ -48,10 +56,9 @@ export default async function ExpansoesPage({
   const [jogos, expansoes] = await Promise.all([getGameOptions(supabase), getExpansoes(supabase)]);
   const defaultGameId = game ? jogos.find((jogo) => jogo.code === game)?.id : undefined;
 
-  const result =
-    mode === "search"
-      ? await searchExpansoes(supabase, query, { limit: EXPANSOES_PAGE_SIZE, offset: 0 })
-      : await getExpansoesForCatalogo(supabase, { gameCode: game, limit: EXPANSOES_PAGE_SIZE, offset: 0 });
+  const searchResult =
+    mode === "search" ? await searchExpansoes(supabase, query, { limit: EXPANSOES_PAGE_SIZE, offset: 0 }) : null;
+  const groups = mode === "gallery" ? await getExpansoesGroupedByGame(supabase, { gameCode: game }) : [];
 
   return (
     <AppShell title="Expansões" icon={Layers}>
@@ -63,8 +70,9 @@ export default async function ExpansoesPage({
           query={query}
           mode={mode}
           defaultGameId={defaultGameId}
-          initialItems={result.items}
-          initialHasMore={result.hasMore}
+          initialGroups={groups}
+          initialItems={searchResult?.items ?? []}
+          initialHasMore={searchResult?.hasMore ?? false}
         />
       </PageContainer>
     </AppShell>

@@ -581,7 +581,11 @@ type ExpansionRawRow = {
   release_order: number;
   created_at: string;
   updated_at: string;
-  game: { id: string; code: string; name: string } | null;
+  // `created_at` do Jogo só é selecionado por `fetchExpansoesRawForCatalogo`
+  // (usado para ordenar os grupos de `getExpansoesGroupedByGame` pela ordem
+  // de cadastro do Jogo) — por isso opcional aqui, ausente nas demais
+  // queries que reaproveitam este tipo (`getExpansoes`, `searchExpansoes`).
+  game: { id: string; code: string; name: string; created_at?: string } | null;
   card_set: { count: number } | { count: number }[] | null;
 };
 
@@ -631,10 +635,8 @@ export async function getExpansoes(
 // forma entre a galeria e os Dialogs de criação/edição já existentes.
 //
 // Adaptação à entidade: Expansion não tem `logo_storage_path` (só card_set
-// tem) e não tem `release_date` (só `release_order`, relativo ao próprio
-// Jogo) — sem filtro de Jogo, o único campo comparável entre Jogos é
-// `created_at`, mesmo fallback já usado em Card Set quando a data real
-// está ausente.
+// tem) e não tem `release_date` — só `release_order`, um inteiro sequencial
+// relativo ao próprio Jogo (ver `database/schema/110_create_expansion_table.sql`).
 // ---------------------------------------------------------------------------
 
 export const EXPANSOES_PAGE_SIZE = 24;
@@ -643,9 +645,14 @@ async function fetchExpansoesRawForCatalogo(
   supabase: SupabaseClient,
   filters: { gameCode?: string },
 ): Promise<ExpansionRawRow[]> {
+  // `game.created_at` incluído aqui (e só aqui — ver nota em `ExpansionRawRow`)
+  // porque `getExpansoesGroupedByGame()` precisa dele para ordenar os grupos
+  // pela ordem de cadastro do Jogo, não alfabeticamente.
   let query = supabase
     .from("expansion")
-    .select("id, code, name, release_order, created_at, updated_at, game!inner(id, code, name), card_set(count)");
+    .select(
+      "id, code, name, release_order, created_at, updated_at, game!inner(id, code, name, created_at), card_set(count)",
+    );
 
   if (filters.gameCode) {
     query = query.eq("game.code", filters.gameCode);
@@ -656,16 +663,6 @@ async function fetchExpansoesRawForCatalogo(
     return [];
   }
   return data as unknown as ExpansionRawRow[];
-}
-
-function sortExpansoesForCatalogo(rows: ExpansionRawRow[], filtered: boolean): ExpansionRawRow[] {
-  const sorted = [...rows];
-  if (filtered) {
-    sorted.sort((a, b) => a.release_order - b.release_order);
-  } else {
-    sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }
-  return sorted;
 }
 
 function toExpansaoRow(row: ExpansionRawRow): ExpansaoRow {
@@ -683,19 +680,71 @@ function toExpansaoRow(row: ExpansionRawRow): ExpansaoRow {
   };
 }
 
-/** Galeria principal da tela Expansões — sem termo de busca. */
-export async function getExpansoesForCatalogo(
+export type ExpansoesGameGroup = {
+  gameId: string;
+  gameCode: string;
+  gameName: string;
+  items: ExpansaoRow[];
+};
+
+type ExpansoesGameGroupInternal = ExpansoesGameGroup & { gameCreatedAt: string };
+
+/**
+ * Galeria principal da tela Expansões — sem termo de busca. Agrupada por
+ * Jogo (2026-07-31, pedido de Fabrício: "exibidas separadamente por cada
+ * tipo de Jogo e organizadas pela data de lançamento de forma decrescente").
+ * Como Expansion não tem `release_date` (ver nota acima), "data de
+ * lançamento" é representada por `release_order` (maior valor = Expansão
+ * mais recente daquele Jogo, por definição do próprio campo).
+ *
+ * Nota sobre a direção do sort dentro do grupo: `release_order` ASCENDENTE
+ * (1, 2, 3…) — não descendente. Fabrício pediu "decrescente" inicialmente,
+ * mas reportou "ordem inversa" ao ver o resultado com descendente aplicado
+ * (2026-07-31); ajustado para ascendente a partir desse feedback direto na
+ * tela.
+ *
+ * Ordem dos grupos (2026-07-31, mesmo dia, segundo ajuste): NÃO é
+ * alfabética — Fabrício pediu explicitamente "primeiro listar... Pokémon e
+ * depois Lorcana... Pokémon foi o primeiro game cadastrado". Grupos
+ * ordenados por `game.created_at` ASCENDENTE — Jogo cadastrado há mais
+ * tempo aparece primeiro. Deliberadamente diferente do critério de
+ * `getGameOptions()` (alfabético, usado só no seletor de Jogo dos
+ * formulários) — não há razão para os dois seguirem o mesmo critério.
+ *
+ * Sem paginação: carrega tudo que casa com o filtro opcional de Jogo — o
+ * "Carregar mais" (flat, `EXPANSOES_PAGE_SIZE` por vez) não compõe com
+ * agrupamento por Jogo, então continua existindo só para a busca
+ * (`searchExpansoes`, abaixo, que permanece flat).
+ */
+export async function getExpansoesGroupedByGame(
   supabase: SupabaseClient,
-  options: { gameCode?: string; limit: number; offset: number },
-): Promise<{ items: ExpansaoRow[]; hasMore: boolean }> {
-  const filtered = Boolean(options.gameCode);
-  const all = sortExpansoesForCatalogo(
-    await fetchExpansoesRawForCatalogo(supabase, { gameCode: options.gameCode }),
-    filtered,
-  );
-  const page = all.slice(options.offset, options.offset + options.limit);
-  const hasMore = all.length > options.offset + options.limit;
-  return { items: page.map(toExpansaoRow), hasMore };
+  filters?: { gameCode?: string },
+): Promise<ExpansoesGameGroup[]> {
+  const rows = await fetchExpansoesRawForCatalogo(supabase, { gameCode: filters?.gameCode });
+
+  const groups = new Map<string, ExpansoesGameGroupInternal>();
+  for (const row of rows) {
+    const gameId = row.game?.id ?? "";
+    let group = groups.get(gameId);
+    if (!group) {
+      group = {
+        gameId,
+        gameCode: row.game?.code ?? "",
+        gameName: row.game?.name ?? "—",
+        gameCreatedAt: row.game?.created_at ?? "",
+        items: [],
+      };
+      groups.set(gameId, group);
+    }
+    group.items.push(toExpansaoRow(row));
+  }
+
+  const result = Array.from(groups.values());
+  for (const group of result) {
+    group.items.sort((a, b) => a.releaseOrder - b.releaseOrder);
+  }
+  result.sort((a, b) => a.gameCreatedAt.localeCompare(b.gameCreatedAt));
+  return result;
 }
 
 /**
