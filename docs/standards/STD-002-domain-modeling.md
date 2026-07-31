@@ -5,7 +5,7 @@
 | **Documento** | STD-002 |
 | **Título** | Domain Modeling |
 | **Arquivo** | `docs/standards/STD-002-domain-modeling.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.3 |
 | **Status** | Aprovado |
 | **Objetivo** | Padronizar a modelagem dos conceitos do domínio. |
 | **Escopo** | Modelagem conceitual de entidades e conceitos do domínio, previamente à modelagem lógica e física. |

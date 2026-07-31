@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Catálogo Editorial |
 | **Arquivo** | `docs/07-catalogo-editorial.md` |
-| **Versão** | 0.3 |
+| **Versão** | 0.5 |
 | **Status** | Em elaboração |
 | **Objetivo** | Documentar como as informações do Catálogo Editorial são efetivamente capturadas e disponibilizadas pelo Project Mimikyu. |
 | **Escopo** | Estratégia de captura e disponibilização de dados do catálogo. Não redefine entidades (ver `04-domain-model.md`) nem decisões arquiteturais (ver ADRs). |
@@ -19,6 +19,8 @@ Este documento explica, em termos práticos, como o Catálogo Editorial do Proje
 
 A decisão arquitetural que fundamenta este documento está registrada em `adr/ADR-012-structured-vs-visual-card-data.md`.
 
+> **Nota sobre o Status "Em elaboração" (2026-07-30).** O modelo de três níveis e o critério de estruturação estão definidos e estáveis (AP-017 encerrou permanentemente a questão de mecânica de jogo). O que mantém este documento em elaboração está listado objetivamente na seção "Em Aberto", abaixo — não uma promoção de status.
+
 ---
 
 # Três Níveis de Disponibilidade da Informação
@@ -27,7 +29,9 @@ A decisão arquitetural que fundamenta este documento está registrada em `adr/A
 
 São informações armazenadas em campos próprios e utilizáveis diretamente em filtros, regras e relatórios.
 
-Exemplos: `set_id`, `card_number`, `category`, `trainer_subcategory`, `rarity`, `pokemon_id`.
+Exemplos conceituais: Set, Number, Category, Trainer Subcategory, Rarity, Pokémon reference.
+
+Exemplos físicos (colunas reais de `card`, ver `05-modelo-de-dados.md`): `card_set_id`, `rarity_id`, `category_id`, `collector_number`, `collector_total`, `collector_order`, `name`, `is_active`. A referência a Pokémon (conceitual: `Pokémon reference`) prevista em `04-domain-model.md` ainda não corresponde a nenhuma coluna física em `card` — a tabela física, hoje, não possui `pokemon_id` nem equivalente.
 
 Com esses dados, o sistema consegue responder eficientemente perguntas como: quais cartas são do Pikachu; quais cartas são Trainer; quais são Illustration Rare; quais cartas faltam no ME1.
 
@@ -39,31 +43,38 @@ O sistema possui acesso visual ao conteúdo, mas não necessariamente consegue p
 
 ## 3. Extracted Data (Dados Extraídos)
 
-No futuro, algumas informações hoje disponíveis apenas na imagem poderão ser convertidas em dados estruturados por: importação de APIs; processamento automatizado; reconhecimento de imagem; revisão manual; enriquecimento progressivo do catálogo.
+Algumas informações hoje disponíveis apenas na imagem podem, em ciclos futuros, ser convertidas em dados estruturados — por importação de APIs, revisão manual ou outro mecanismo — quando houver necessidade concreta de pesquisa, filtro ou funcionalidade (AP-015, "Progressive Catalog Enrichment").
+
+**Isso nunca se aplica a informações de mecânica de jogo.** Por decisão definitiva de Fabrício, formalizada em AP-017 — Princípio do Escopo Colecionável (`02-architecture-principles.md`), o Project Mimikyu é uma plataforma de colecionismo, não um banco de dados de mecânicas de jogo. HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio evolutivo, efeitos e demais textos de regras, e qualquer outra estatística usada para jogar uma partida, **nunca** serão lidos, extraídos (via OCR, reconhecimento de imagem ou qualquer outro processamento automatizado ou manual) nem convertidos em dados estruturados — permanentemente, não apenas na primeira versão. Essas informações continuam visíveis ao usuário apenas através da imagem oficial da Card.
 
 ```text
-Card Image → Extraction Process → HP: 180, Attack: ..., Weakness: ...
+Card Image → Extraction Process → (apenas campos com utilidade comprovada para o colecionismo,
+                                     nunca mecânica de jogo — ver AP-017)
 ```
 
-Essa extração é uma possibilidade de evolução, não uma obrigação da primeira versão.
+O enriquecimento futuro descrito acima só se aplica a informações com utilidade comprovada para o colecionismo (ex.: metadados editoriais, atributos de catalogação) e que não violem AP-017 — nunca a mecânica de jogo listada acima.
 
 ---
 
 # Critério para Estruturar uma Informação
 
-A pergunta a ser feita nunca é "temos ou não temos essa informação?" — é sempre:
+A primeira pergunta é sempre um filtro definitivo, não uma questão de priorização:
+
+> Essa informação serve para colecionar, ou apenas para jogar uma partida (AP-017)?
+
+Se a informação for mecânica de jogo (ver "Campos que permanecem apenas na imagem", abaixo), a resposta está encerrada — nunca será estruturada, independentemente de qualquer critério de utilidade. Só para as informações que passam por esse filtro (servem ao colecionismo), a pergunta seguinte se aplica:
 
 > Essa informação precisa ser pesquisável, filtrável, validável ou utilizada em regras do produto?
 
-Se a resposta for não, a imagem é suficiente por ora.
+Se a resposta for não, a imagem é suficiente por ora — e essa parte permanece uma questão de priorização (AP-015), podendo mudar em ciclos futuros.
 
 ## Campos estruturados na primeira versão
 
-`Set`, `Number`, `Category`, `Trainer Subcategory`, `Rarity`, `Pokémon reference`, `Available Variants` (Card Variant), `Translations` (Card Translation), `Image reference`.
+Conceituais: Set, Number, Category, Trainer Subcategory, Rarity, Pokémon reference, Available Variants (Card Variant), Translations (Card Translation), Image reference.
 
-## Campos que permanecem apenas na imagem, por ora
+## Campos que permanecem apenas na imagem, permanentemente (AP-017)
 
-`HP`, `Attacks`, `Abilities`, `Weakness`, `Resistance`, `Retreat Cost`, `Evolution Stage`, `Detailed Rules Text` (Effect).
+`HP`, `Attacks`, `Abilities`, `Weakness`, `Resistance`, `Retreat Cost`, `Evolution Stage`, `Detailed Rules Text` (Effect), e demais estatísticas usadas para jogar. Diferente dos demais campos "por ora" deste documento, estes nunca migram para "Estruturados" — AP-017 os mantém permanentemente como Visual Source, não como uma fase inicial do catálogo.
 
 ---
 
@@ -79,9 +90,10 @@ Se a resposta for não, a imagem é suficiente por ora.
 
 # Em Aberto
 
-- critérios objetivos para priorizar quais campos hoje visuais serão estruturados em ciclos futuros;
-- mecanismo concreto de extração de dados (manual, automatizado ou híbrido) — depende do pipeline de importação (`06-pipeline-importacao.md`);
-- relação definitiva entre a imagem da Card (Card Image) e a Card Translation / Card Variant (uma imagem por idioma, por acabamento, ou ambos) — decisão progressiva, ver `04-domain-model.md`, seção Card Translation, e AP-015.
+- critérios objetivos para priorizar quais campos hoje visuais **e elegíveis a estruturação** (ou seja, que servem ao colecionismo, não à mecânica de jogo — ver AP-017) serão estruturados em ciclos futuros;
+- mecanismo concreto de extração de dados (manual, automatizado ou híbrido) — depende do pipeline de importação (`06-pipeline-importacao.md`); aplica-se apenas a campos elegíveis, nunca a mecânica de jogo (AP-017).
+
+A relação entre a imagem da Card (Card Image) e o Card Variant, especificamente para o ativo digital (Card Asset), **está definida, não mais em aberto**: um Card Asset pertence à Card, possui idioma (`language_id`), e é independente de Card Variant (não existe `card_variant_id` em `card_asset` — resolvido deliberadamente, ver `05-modelo-de-dados.md`, seção Card Asset); o ativo principal por combinação é definido por Card + Card Asset Type + Language (`ux_card_asset_primary_per_card_type_language`, Query `193`, confirmada executada e validada). Continua em aberto, sem relação com o ponto acima: a modelagem física de **Card Translation** (conteúdo textual editorial multi-idioma, ex. nome/regras traduzidos) — a tabela física atual não possui uma entidade própria para isso; `card.name` é um único valor, sem dimensão de idioma. Ver `04-domain-model.md`, seção Card Translation.
 
 ---
 
@@ -92,3 +104,5 @@ Se a resposta for não, a imagem é suficiente por ora.
 | 0.1 | Estrutura inicial do documento, com o modelo de três níveis de disponibilidade de informação e o critério de estruturação de campos, definidos em ADR-012. |
 | 0.2 | Adicionado ponto em aberto sobre a relação entre Card Image e Card Translation/Card Finish. |
 | 0.3 | "Available Finishes"/"Card Finish" atualizados para "Available Variants"/"Card Variant" (Campos estruturados, Em Aberto), refletindo a convergência de nomenclatura de ADR-016. A entrada 0.2, acima, é preservada sem alteração como registro histórico do momento em que o ponto em aberto foi originalmente adicionado. |
+| 0.4 | **Correção direcionada (2026-07-30), a pedido de Fabrício — reconciliação com `AP-017` (Princípio do Escopo Colecionável, `02-architecture-principles.md`, já aprovado desde a revisão `1.6` daquele documento).** "Extracted Data" reescrita: mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio evolutivo, efeitos/textos de regra) nunca será extraída/estruturada, independentemente de OCR, API ou revisão manual — permanentemente, não uma possibilidade de evolução. "Critério para Estruturar uma Informação" ganhou um filtro definitivo anterior ao critério de utilidade ("serve para colecionar, ou só para jogar?"). "Campos que permanecem apenas na imagem" renomeada para deixar explícito que é permanente (AP-017), não "por ora". Exemplos de "Structured Data" corrigidos: removidos `set_id`/`card_number`/`category`/`pokemon_id` como exemplos de colunas físicas (`pokemon_id` não existe na tabela `card`); adicionados exemplos físicos reais (`card_set_id`/`rarity_id`/`category_id`/`collector_number`/`collector_total`/`collector_order`/`name`/`is_active`), separados explicitamente dos exemplos conceituais. "Em Aberto": fechada a relação Card Asset↔idioma↔Card Variant (definida e implementada — Query `193`, `05-modelo-de-dados.md`), mantida em aberto apenas a modelagem física de Card Translation (texto multi-idioma, sem tabela própria hoje), e qualificado o item de priorização de campos visuais para excluir explicitamente mecânica de jogo. Nenhuma decisão nova criada nesta revisão — apenas reconciliação com `AP-017`, já vigente. |
+| 0.5 | Nota objetiva adicionada (2026-07-30), a pedido de Fabrício, explicando o que mantém o Status deste documento como "Em elaboração" — sem promover para "Aprovado": os itens já listados em "Em Aberto", abaixo. Nenhum conteúdo novo, apenas uma referência cruzada explícita a partir da abertura do documento. |

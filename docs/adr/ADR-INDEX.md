@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Architecture Decision Records Index |
 | **Arquivo** | `docs/adr/ADR-INDEX.md` |
-| **Versão** | 2.6 |
+| **Versão** | 2.7 |
 | **Status** | Aprovado |
 | **Objetivo** | Catalogar os Architecture Decision Records do Project Mimikyu. |
 | **Dependências** | `../03-documentation-architecture.md` |
@@ -47,6 +47,7 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | [ADR-022](ADR-022-catalog-editorial-admin-only-access.md) | Catalog Editorial Admin-Only Access | Aprovado |
 | [ADR-023](ADR-023-catalog-editorial-write-authorization.md) | Catalog Editorial Write Authorization | Aprovado |
 | [ADR-024](ADR-024-catalog-card-ingestion-strategy.md) | Catalog Card Ingestion Strategy | Aprovado |
+| [ADR-025](ADR-025-energy-as-catalog-card-category.md) | Energy as Catalog Card Category | Aprovado |
 
 ---
 
@@ -84,3 +85,4 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | 2.4 | Adicionado `ADR-022` (Catalog Editorial Admin-Only Access, 2026-07-26) — todo o módulo Catálogo Editorial (menu, rota e dado) restrito a administradores; leitura liberada tabela a tabela via RLS `is_admin()` apenas onde uma tela real consulta; escrita administrativa sempre por função `SECURITY DEFINER` específica, nunca política de `UPDATE` ampla; migrations de controle de acesso numeradas na faixa de evolução (`200`–`299`). Motivado pela retomada da concepção da tela Visão Geral e pela descoberta de que as 17 tabelas do Catálogo Editorial já estavam de fato fechadas (RLS sem política), tornando essa realidade uma decisão explícita. |
 | 2.5 | Adicionados `ADR-023` (Catalog Editorial Write Authorization, 2026-07-26) e `ADR-024` (Catalog Card Ingestion Strategy, 2026-07-26). `ADR-023` formaliza a escrita administrativa de `game`/`expansion`/`card_set`/`card` por função `SECURITY DEFINER`, com a lógica de persistência isolada num schema interno (`internal`) não exposto pela API, `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated`; define `is_active` em `card` como soft delete real e irrestrito; protege `card_set_id`/`collector_number` contra alteração administrativa; cria auditoria editorial própria, separada de `admin_action_log`. `ADR-024` formaliza os três canais de entrada de Cards (individual, PDF, TCGdex) convergindo para a camada interna de `ADR-023` via staging (`catalog_import_job`/`catalog_import_row`), com quatro estados independentes por linha e oito estados de job; registra o Princípio da Fonte Canônica (o banco é a única autoridade sobre dados editoriais, fontes externas fornecem apenas propostas sujeitas a validação administrativa); separa arquitetura (o contrato `fonte → processador → linhas de staging`) de implementação (a tecnologia concreta de cada processador — TCGdex tem uma escolha inicial, PDF pendente de prova técnica); corrige a semântica transacional da confirmação em lote (isolamento de erro por linha não é durabilidade independente por linha). Motivados pela retomada do desenvolvimento do módulo Catálogo Editorial e pela ausência histórica de qualquer via de escrita controlada para Cards. |
 | 2.6 | **`ADR-023` emendado (v1.1) durante a implementação do ciclo vertical de `Game` (2026-07-26)**: `Game` ganha exclusão real via UI (`admin_delete_game()`, Queries `2041`/`2042`), substituindo a correção antes prevista "por SQL direta" — bloqueada pela `FK` existente quando há Expansions associadas. Distinta de desativação (`is_active`), que `Game` continua sem ter. Restrita a `Game`; `Expansion`/`Card Set` não afetados. |
+| 2.7 | Adicionado `ADR-025` (Energy as Catalog Card Category, 2026-07-30) — resolve `OD-001` (`04-domain-model.md`) por decisão explícita e definitiva de Fabrício: cartas de Energia passam a ocupar posição oficial no Set e a fazer parte do catálogo editorial numerado, como Pokémon e Trainer; `Card Category` passa a ter três valores (`POKEMON`, `TRAINER`, `ENERGY`); esclarece que Energy Card (categoria da própria Card) e Energy Type (atributo elemental, mecânica de jogo, AP-017) são conceitos distintos. Substitui a antiga "Decisão de Escopo — Cartas de Energia" de `04-domain-model.md` (texto histórico preservado). Nenhuma alteração física no banco — a categoria `ENERGY` e os 17 Cards que a utilizam já existiam (Query `831`); o ADR formaliza documentalmente uma realidade já implementada. |

@@ -5,7 +5,7 @@
 | **Documento** | STD-003 |
 | **Título** | Documentation Conventions |
 | **Arquivo** | `docs/standards/STD-003-documentation-conventions.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Aprovado |
 | **Objetivo** | Padronizar a escrita da documentação técnica do Project Mimikyu. |
 | **Escopo** | Convenções de terminologia e redação aplicáveis a toda a documentação técnica do projeto. |

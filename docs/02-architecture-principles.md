@@ -4,7 +4,7 @@
 |-|-|
 |**Documento**|Architecture Principles|
 |**Arquivo**|`docs/02-architecture-principles.md`|
-|**Versão**|1.0|
+|**Versão**|1.8|
 |**Status**|Aprovado|
 |**Objetivo**|Definir os princípios permanentes que orientam as decisões arquiteturais do Project Mimikyu.|
 |**Escopo**|Princípios de arquitetura e governança técnica. Não contém regras detalhadas de implementação.|

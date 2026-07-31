@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.4 |
+| **Versão** | 2.6 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
@@ -20,6 +20,8 @@ Este documento descreve os conceitos fundamentais utilizados pelo sistema.
 Seu objetivo é definir o domínio do problema antes da implementação no banco de dados.
 
 Este documento não contém SQL nem detalhes físicos de implementação.
+
+> **Nota sobre o Status "Em elaboração" (2026-07-30).** A maior parte dos conceitos abaixo está definida e estável. O que efetivamente mantém este documento em elaboração: (1) **Storage Location** — documentação pendente, nenhum modelo conceitual escrito ainda; (2) **User Collection** — stub mantido apenas até confirmação explícita de Fabrício de que o termo foi de fato absorvido por Collection, sem distinção adicional pretendida (ver seção "User Collection", abaixo); (3) a modelagem física de **Card Translation** segue em aberto (conceito definido aqui, sem tabela própria — ver `05-modelo-de-dados.md` e `07-catalogo-editorial.md`, seção "Em Aberto"); (4) partes do Catálogo Editorial ainda não implementadas fisicamente (ex.: `Card Variant` para `MEE`/`MEP` — ver `05-modelo-de-dados.md`). Isto não é uma promoção de status: o documento permanece "Em elaboração" até que os itens acima sejam fechados.
 
 ---
 
@@ -1056,12 +1058,13 @@ Ver `05-modelo-de-dados.md` para a estrutura física e o estado de execução at
 
 ### O que é?
 
-Classifica a natureza editorial primária de uma Card pertencente a um Set, respondendo: *esta posição oficial do Set representa uma carta de Pokémon ou uma carta de Treinador?*
+Classifica a natureza editorial primária de uma Card pertencente a um Set, respondendo: *esta posição oficial do Set representa uma carta de Pokémon, uma carta de Treinador ou uma carta de Energia?*
 
-Valores no escopo do catálogo numerado de um Set:
+Valores no escopo do catálogo numerado de um Set (ver ADR-025 — decisão vigente desde 2026-07-30):
 
 - **Pokémon**;
-- **Trainer (Treinador)** — exige obrigatoriamente uma Trainer Subcategory (ver abaixo).
+- **Trainer (Treinador)** — exige obrigatoriamente uma Trainer Subcategory (ver abaixo);
+- **Energy (Energia)** — não exige Trainer Subcategory nem referência a Pokémon (ver "Regra de Integridade Conceitual", abaixo).
 
 ---
 
@@ -1071,8 +1074,8 @@ Card Category não representa:
 
 - uma Rarity;
 - um Card Variant Type;
-- um Energy Type (tipo elemental de uma carta de Pokémon — ver Energy Type, abaixo; não confundir com cartas de Energia, que não fazem parte deste catálogo numerado);
-- uma relação direta e universal com a entidade Pokémon — apenas Cards de categoria Pokémon possuem essa referência (obrigatória nesse caso; inexistente para Trainer).
+- um **Energy Type** (tipo elemental de uma carta de Pokémon, ex. Água/Fogo/Planta — ver Energy Type, abaixo). **Energy Type não é o mesmo conceito que Card Category = Energy**: Energy Type é um atributo elemental que uma carta de Pokémon carrega (impresso na carta, mecânica de jogo, não estruturado — AP-017); Card Category = Energy classifica a própria Card como sendo, ela mesma, uma carta de Energia (ex. "Basic Fire Energy"), um tipo de posição editorial no Set, assim como Pokémon ou Trainer. Os dois termos compartilham a palavra "Energy" por coincidência de domínio (Pokémon TCG), não por serem a mesma entidade — ver ADR-025 para o registro formal desta distinção;
+- uma relação direta e universal com a entidade Pokémon — apenas Cards de categoria Pokémon possuem essa referência (obrigatória nesse caso; inexistente para Trainer e para Energy).
 
 ---
 
@@ -1082,18 +1085,26 @@ Evita a suposição incorreta de que toda Card representa um Pokémon. Cards com
 
 ---
 
-### Decisão de Escopo — Cartas de Energia
+### Decisão de Escopo — Cartas de Energia (SUBSTITUÍDA — ver ADR-025)
 
-Cartas de Energia **não são tratadas como Cards do Set** neste modelo, porque, segundo a regra definida para o domínio, elas:
+> **Esta subseção descreve uma decisão que não está mais vigente.** Preservada por rastreabilidade histórica — não é mais a regra aplicada pelo catálogo. Ver "Decisão Vigente — Cartas de Energia no Catálogo Numerado", logo abaixo, para o estado atual.
 
-- não ocupam uma posição na numeração oficial do Set;
-- não participam da contagem `001/132` até `188/132` (Official Card Count);
-- não influenciam o progresso de conclusão do Set;
-- não aparecem como itens obrigatórios no checklist oficial da coleção.
+Cartas de Energia **não eram tratadas como Cards do Set** neste modelo, porque, segundo a regra então definida para o domínio, elas:
 
-Consequentemente, Card Category possui apenas dois valores neste catálogo: **Pokémon** e **Trainer**. Isso não significa que uma carta física de Energia nunca poderá ser controlada pelo sistema — apenas que ela não pertence a este catálogo numerado. Caso futuramente exista necessidade concreta de controlar Energias avulsas, elas deverão ser avaliadas em outro contexto (ex.: uma entidade específica de acessório/suplemento), não antecipado por este documento.
+- não ocupavam uma posição na numeração oficial do Set;
+- não participavam da contagem `001/132` até `188/132` (Official Card Count);
+- não influenciavam o progresso de conclusão do Set;
+- não apareciam como itens obrigatórios no checklist oficial da coleção.
 
-> **Nota:** cartas de categoria Energy já aparecem cadastradas com posição numerada em alguns Sets, o que está em tensão com esta decisão de escopo. Pendência sinalizada, não resolvida unilateralmente — ver `05-modelo-de-dados.md` para o estado atual dos dados, e "Open Decisions" (`OD-001`), no fim deste documento, para o registro formal (responsável, impacto e gatilho de decisão).
+Consequentemente, Card Category possuiria apenas dois valores neste catálogo: **Pokémon** e **Trainer**. Isso não significava que uma carta física de Energia nunca poderia ser controlada pelo sistema — apenas que ela não pertenceria a este catálogo numerado.
+
+> **Nota histórica:** cartas de categoria Energy já apareciam cadastradas com posição numerada em alguns Sets desde antes desta decisão de escopo ser escrita — uma tensão sinalizada e mantida em aberto por várias revisões (registrada como Open Decision `OD-001`), até ser resolvida por decisão explícita de Fabrício em 2026-07-30 (ver abaixo).
+
+### Decisão Vigente — Cartas de Energia no Catálogo Numerado (ADR-025, 2026-07-30)
+
+**Cartas de Energia ocupam posição oficial no Set e fazem parte do catálogo editorial numerado, da mesma forma que Cards de Pokémon e de Treinador.** Decisão explícita de Fabrício, formalizada em `ADR-025-energy-as-catalog-card-category.md`, que substitui a decisão descrita na subseção anterior. `Card Category` possui, no contexto atual do Pokémon TCG, três valores: **Pokémon**, **Trainer** e **Energy**. A base física já continha `17` Cards reais de categoria `ENERGY` (Query `831`) quando esta decisão foi tomada — a decisão reconhece e formaliza esse estado já existente, não introduz dado novo.
+
+Ver ADR-025 para o contexto completo da divergência, a decisão, e os impactos conceituais e documentais.
 
 ---
 
@@ -1106,6 +1117,10 @@ Se Card Category = Pokémon:
 
 Se Card Category = Trainer:
     Trainer Subcategory é obrigatória;
+    referência a Pokémon deve ser vazia.
+
+Se Card Category = Energy:
+    Trainer Subcategory deve ser vazio;
     referência a Pokémon deve ser vazia.
 ```
 
@@ -1241,7 +1256,7 @@ Representa o tipo elemental de uma Card de categoria Pokémon, quando aplicável
 
 ### O que não é?
 
-Não deve ser confundido com Card Category = Energy (cartas de Energia), que estão fora do escopo do catálogo numerado (ver "Decisão de Escopo — Cartas de Energia", na seção Card Category). Energy Type é um atributo elemental de uma carta de Pokémon; cartas de Energia são um tipo de carta inteiramente diferente.
+Não deve ser confundido com Card Category = Energy (cartas de Energia, hoje parte do catálogo numerado — ver "Decisão Vigente — Cartas de Energia no Catálogo Numerado" e ADR-025, na seção Card Category). Energy Type é um atributo elemental de uma carta de Pokémon (mecânica de jogo, não estruturado — AP-017); Card Category = Energy classifica a própria Card como sendo uma carta de Energia — são conceitos distintos que compartilham o nome "Energy" por coincidência de domínio.
 
 ---
 
@@ -1485,15 +1500,13 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 
 Pendências de decisão de domínio identificadas, mas deliberadamente não resolvidas de forma unilateral — cada uma aguarda uma decisão explícita de Fabrício, no momento indicado por seu próprio gatilho. Diferente de um ADR (que registra uma decisão já tomada), esta seção registra uma decisão ainda **não tomada**. Quando uma Open Decision for resolvida, ela sai desta lista e, se tiver impacto arquitetural, gera um ADR próprio.
 
-| Campo | Valor |
-|-------|-------|
-| **ID** | `OD-001` |
-| **Tema** | Representação de Energy no catálogo |
-| **Descrição** | Cartas de categoria `ENERGY` somam hoje `17` Cards reais no banco físico, cada uma com posição numerada em seu Set — em tensão direta com a "Decisão de Escopo — Cartas de Energia" (acima), que define Card Category com apenas dois valores (Pokémon/Trainer) e trata Energias como fora do catálogo numerado. |
-| **Impacto** | `Card`, `Card Category`, contagem oficial do Set (`total_set_size`/Official Card Count), pipeline de importação e qualquer relatório que assuma só Pokémon/Trainer. |
-| **Estado** | Aberta |
-| **Decisor** | Fabrício |
-| **Gatilho** | Antes de ampliar o catálogo para uma nova era ou um novo Game (TCG), para evitar propagar a mesma ambiguidade a dados novos. |
+Nenhuma Open Decision aberta no momento.
+
+## Resolvidas
+
+| ID | Tema | Resolução | Registro formal |
+|----|------|-----------|------------------|
+| `OD-001` | Representação de Energy no catálogo — cartas de categoria `ENERGY` (`17` Cards reais no banco físico) em tensão com a antiga "Decisão de Escopo — Cartas de Energia", que definia Card Category com apenas dois valores (Pokémon/Trainer) e tratava Energias como fora do catálogo numerado. | **Resolvida em 2026-07-30** — decisão explícita de Fabrício: cartas de Energia ocupam posição oficial no Set e fazem parte do catálogo numerado, como Pokémon/Trainer. `Card Category` passa a ter três valores: Pokémon, Trainer, Energy. | `ADR-025-energy-as-catalog-card-category.md`; ver também "Decisão Vigente — Cartas de Energia no Catálogo Numerado", na seção Card Category, acima. |
 
 ---
 
@@ -1524,3 +1537,5 @@ Pendências de decisão de domínio identificadas, mas deliberadamente não reso
 | 2.2 | **Terceira dimensão de idioma reconhecida: Idioma do Ativo Digital (Card Asset), independente de Tradução Editorial e de Idioma do Exemplar Físico.** Ao planejar a Query `880` (Seed Card Asset), Fabrício comparou duas imagens reais da mesma Card (`Rufflet`, ME2.5) impressas em português e em inglês e identificou que representam o mesmo Card Asset Type (`CARD_FRONT`) em idiomas diferentes — não Cards distintas, não Card Variants distintas. Seção "Diferença entre Tradução Editorial e Idioma do Exemplar" renomeada para "Três Dimensões de Idioma no Domínio", com a nova categoria adicionada. Seção Card Asset Type/Card Asset atualizada: cada ativo agora registra também seu idioma, com regra de "ativo principal" revisada para Card + Asset Type + Idioma. Nova entidade de referência **Language (Idioma)** documentada em `05-modelo-de-dados.md` (catálogo global, sem `game_id`) para dar suporte a essa dimensão — SQL recebida, execução ainda não confirmada. |
 | 2.3 | Adicionada nota de cross-check à seção Collection Item: o Catálogo Editorial (Bloco B) foi confirmado 100% concluído (`06-pipeline-importacao.md`, Sprint B3.26) e a sessão pareada de Fabrício, ao planejar a Fase 2 (Coleções), reapresentou como novidade um conceito já formalizado aqui (identificador por exemplar físico) — registrado como ponto de partida real para quando a modelagem lógica de Coleções começar. |
 | 2.4 | **Nova seção "Open Decisions" (2026-07-26), motivada por auditoria externa conduzida por Fabrício.** A discrepância `ENERGY` já estava sinalizada em prosa, na nota da "Decisão de Escopo — Cartas de Energia", mas sem responsável, impacto ou gatilho de decisão explícitos. Formalizada como `OD-001` (tema, descrição, impacto, estado, decisor, gatilho — "antes de ampliar o catálogo para uma nova era ou um novo Game"), com link cruzado a partir da nota original. Não gera ADR: a decisão ainda não foi tomada, só está agora formalmente rastreada. |
+| 2.5 | **`OD-001` resolvida por decisão explícita e definitiva de Fabrício (2026-07-30): cartas de Energia passam a ocupar posição oficial no Set e a fazer parte do catálogo editorial numerado, como Pokémon/Trainer — formalizado em `ADR-025-energy-as-catalog-card-category.md`.** Seção Card Category: "O que é?"/"Valores" atualizados para três categorias (Pokémon, Trainer, Energy); antiga "Decisão de Escopo — Cartas de Energia" marcada explicitamente como substituída (texto histórico preservado, não apagado), com nova subseção "Decisão Vigente — Cartas de Energia no Catálogo Numerado" registrando o estado atual; "Regra de Integridade Conceitual" ganhou o caso `Card Category = Energy` (sem Trainer Subcategory, sem referência a Pokémon). Seção "Energy Type": nota de desambiguação reescrita — Energy Type (atributo elemental de carta Pokémon, mecânica de jogo, AP-017) e Card Category = Energy (a própria carta é uma carta de Energia) são conceitos distintos que só compartilham o nome por coincidência de domínio. `OD-001` movida de "Open Decisions" (agora vazia) para nova subseção "Resolvidas", com rastreabilidade ao ADR-025 — fato de que a divergência existiu preservado, não apagado. Nenhuma alteração física no banco: a categoria `ENERGY` já existia nos dados (Query `831`, 17 Cards); esta revisão só formaliza documentalmente o que já era real. |
+| 2.6 | **Nota objetiva adicionada (2026-07-30), a pedido de Fabrício, explicando o que mantém o Status deste documento como "Em elaboração"** — sem promover para "Aprovado": Storage Location (documentação pendente), User Collection (stub aguardando confirmação de que foi absorvido por Collection), modelagem física de Card Translation (em aberto) e partes do Catálogo Editorial ainda não implementadas fisicamente (ex.: Card Variant de MEE/MEP). Nenhum conceito teve sua definição alterada nesta revisão. |

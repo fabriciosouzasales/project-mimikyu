@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.12 |
+| **Versão** | 1.13 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -23,7 +23,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
-Três trilhas ativas em paralelo, sem dependência entre si (ver "Catálogo Editorial — Frentes de Encerramento", abaixo, para como as trilhas B–E se encaixam no fechamento do módulo).
+Três trilhas ativas. Trilha 1 e Trilha 2 podem avançar em paralelo, sem dependência entre si. Trilha 3 depende da conclusão da Trilha 2 — `ADR-024` só começa após o fechamento de `ADR-023` (ver Trilha 3, abaixo). Ver "Catálogo Editorial — Frentes de Encerramento", abaixo, para como as trilhas B–E se encaixam no fechamento do módulo.
 
 ## Trilha 1 — Importação manual de imagens de `MEE`/`MEP` (TCGdex não tem os assets)
 
@@ -112,3 +112,4 @@ Qualquer um destes itens só entra em "Next" quando Fabrício o confirmar explic
 | 1.10 | **Catálogo Editorial (frontend) — fundação de autorização e logo concluída (2026-07-26), formalizada em `ADR-022-catalog-editorial-admin-only-access.md`.** Descoberto que as 17 tabelas do módulo estavam de fato fechadas (RLS sem política); decisão de tornar isso permanente e admin-only. Queries `273`–`277` CONFIRMADAS EXECUTADAS: coluna `card_set.logo_storage_path`, política admin-only de leitura em 10 tabelas, função `admin_set_card_set_logo()`, bucket privado `card-set-logo` com quatro políticas de Storage. Novo parágrafo em "Now". Implementação da tela `/catalogo` em si permanece pendente. |
 | 1.11 | **Tela Visão Geral (`/catalogo`) implementada no mesmo dia (2026-07-26), sobre a fundação da revisão `1.10`.** Guarda de servidor compartilhada (`requireCatalogoAdmin()`) nas seis rotas do módulo; quatro blocos (Estado do Catálogo, Card Sets navegável, Cartas por Raridade, Atividade Recente); nova rota de detalhe `/catalogo/card-sets/[code]`. `tsc --noEmit` limpo; validação visual em `npm run dev` pendente. Ressalva registrada em `05-modelo-de-dados.md`: indicadores exatos reconstruídos a partir do resumo pós-compactação, não do wireframe verbatim aprovado originalmente — valem conferência de Fabrício. |
 | 1.12 | **Reconciliação documental (2026-07-26), motivada por auditoria externa conduzida por Fabrício após a sessão que produziu `development/HANDOFF-2026-07-26.md`.** "Now" reescrito em três trilhas explícitas: Trilha 1 (imagens `MEP`, inalterada em conteúdo), Trilha 2 (`ADR-023`, nova — registra infraestrutura comum/`Game`/`Expansion` concluídos e `Card Set` como próximo ciclo, referenciando o handoff vigente) e Trilha 3 (`ADR-024`, nova — explicitamente não iniciada). Itens já concluídos que estavam misturados em "Now" (início do front-end, Identidade e Acesso Incrementos 1/2, fundação de leitura/Visão Geral do Catálogo Editorial via `ADR-022`) movidos para "Concluído", eliminando a ambiguidade entre "em andamento" e "já fechado". Nova seção "Catálogo Editorial — Frentes de Encerramento" formaliza as cinco frentes do módulo (A. Modelo de Dados, B. Pipeline de Assets, C. Interface de Consulta, D. Escrita Administrativa, E. Ingestão Administrativa) e o critério de que as cinco precisam estar concluídas para o módulo ser declarado encerrado — "Next" (Sub-Fase 2 — Coleções) agora referencia esse critério explicitamente em vez de um "fechamento do Catálogo Editorial" genérico. |
+| 1.13 | **Correção direcionada (2026-07-30), a pedido de Fabrício.** Parágrafo de abertura de "Now" corrigido: Trilha 3 (`ADR-024`) depende da conclusão da Trilha 2 (`ADR-023`) — `ADR-024` só começa após o fechamento de `ADR-023` — não são três trilhas totalmente independentes como a revisão `1.12` descrevia. Trilha 1 e Trilha 2 permanecem sem dependência entre si e podem avançar em paralelo. Sequência já comprometida das trilhas não foi alterada. |

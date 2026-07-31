@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Ubiquitous Language |
 | **Arquivo** | `docs/architecture/ubiquitous-language.md` |
-| **Versão** | 1.11 |
+| **Versão** | 1.12 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o vocabulário oficial utilizado durante todo o desenvolvimento do Project Mimikyu. |
 | **Escopo** | Terminologia de domínio utilizada em toda a documentação e implementação do projeto. |
@@ -27,7 +27,7 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 | Expansion | Grande ciclo editorial que agrupa diversos Sets. |
 | Set | Publicação editorial oficial pertencente a uma Expansion. Possui identidade única e não é duplicado por idioma. |
 | Card | Posição editorial oficial pertencente a um Set. Existe uma única vez no catálogo e não representa um exemplar físico. Contém as características editoriais permanentes da publicação (AP-013). |
-| Card Category | Classifica a natureza da Card. No catálogo numerado, apenas Pokémon e Trainer — cartas de Energia não ocupam posição no Set. Nem toda Card representa um Pokémon. |
+| Card Category | Classifica a natureza da Card. No catálogo numerado, três valores no contexto atual do Pokémon TCG: Pokémon, Trainer e Energy — cartas de Energia ocupam posição oficial no Set, no mesmo nível estrutural das demais (ver ADR-025). Nem toda Card representa um Pokémon. Distinta de Energy Type (atributo elemental de uma Card Pokémon, mecânica de jogo — ver AP-017). |
 | Trainer Subcategory | Subclassificação obrigatória de uma Card de categoria Trainer: Item, Supporter, Stadium ou Tool. |
 | Card Translation | Conteúdo editorial de uma Card em um idioma específico (nome, texto de regras, etc.). Não cria uma nova posição catalográfica nem duplica a Card. |
 | Card Details | Estrutura que agrupa informações específicas por Card Category (Pokémon Card Details / Trainer Card Details). Não é um conceito genérico da plataforma — pertence ao módulo Pokémon TCG (ver ADR-011). |
@@ -79,3 +79,4 @@ Seu objetivo é eliminar ambiguidades e garantir que todos os documentos utilize
 | 1.9 | Revertidos os termos Finish e Card Finish (adotados em 1.4, ver ADR-010) para Card Variant Type e Card Variant, convergindo o vocabulário conceitual com o nome já usado no schema físico, no pipeline de importação e na prática do projeto (ver ADR-016). Collectible Finish Count renomeado para Collectible Variant Count. Atualizadas as definições de Rarity, Collection Item e Reference Data. "Finish" e "Card Finish" passam a ser tratados como sinônimos históricos, não como termos ativos do vocabulário. |
 | 1.10 | Adicionados User Profile, Username e Reserved Username, formalizando o primeiro módulo fora do Catálogo Editorial (Identidade e Acesso, Incremento 1 "Meu Perfil"), com entidade real já executada no banco (ver ADR-020, `05-modelo-de-dados.md`). |
 | 1.11 | Adicionados Administrator (Admin) e Admin Action Log, formalizando o Incremento 2 ("Administração de Usuários") do módulo Identidade e Acesso — papel administrativo como entidade separada de User Profile, sem sistema genérico de papéis/permissões (ver ADR-021, `05-modelo-de-dados.md`). |
+| 1.12 | **Card Category atualizada (2026-07-30), a pedido de Fabrício** — passa de dois para três valores no catálogo numerado (Pokémon, Trainer, Energy), refletindo a resolução definitiva de `OD-001` (`04-domain-model.md`) formalizada em `ADR-025`. Removida a afirmação de que cartas de Energia não ocupam posição no Set. Adicionada distinção explícita entre Card Category = Energy e Energy Type (mecânica de jogo, AP-017), que permanece inalterado nesta revisão. |
