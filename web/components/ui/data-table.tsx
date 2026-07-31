@@ -13,9 +13,18 @@ import { cn } from "@/lib/utils";
  * só para isso. Paginação fica fora desta rodada: nenhuma tela do piloto
  * precisa dela — `UsersTable` já tem sua própria versão inline, a
  * formalizar quando essa tela for migrada (Ciclo E).
+ *
+ * Ciclo D.1 (2026-07-30, auditoria da tela piloto): `<table>` envolvida em
+ * `overflow-x-auto` — sem isso, uma tabela com muitas colunas (caso de
+ * Expansões) estoura a largura em viewports estreitas em vez de rolar
+ * horizontalmente dentro do próprio card.
  */
 export const DataTable = forwardRef<HTMLTableElement, HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => <table ref={ref} className={cn("w-full text-sm", className)} {...props} />,
+  ({ className, ...props }, ref) => (
+    <div className="overflow-x-auto">
+      <table ref={ref} className={cn("w-full text-sm", className)} {...props} />
+    </div>
+  ),
 );
 DataTable.displayName = "DataTable";
 
@@ -62,7 +71,7 @@ export function DataTableRow({
   return (
     <tr
       className={cn(
-        "border-b border-border/60 transition-colors duration-700 last:border-b-0",
+        "border-b border-border/60 transition-colors duration-700 last:border-b-0 hover:bg-surface-muted/50",
         highlighted && "bg-primary/5",
         className,
       )}

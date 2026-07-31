@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | STD-004 |
 | **Título** | Frontend Standards |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Aprovado |
 | **Objetivo** | Definir os padrões permanentes de interface — navegação, composição de página, tabelas, formulários, feedback e tema — aplicados ao frontend web do Project Mimikyu. |
 | **Escopo** | Todo o código em `web/` (App Router, componentes, hooks). Não redefine regras de negócio, contratos de dados, autenticação ou autorização — essas permanecem nos ADRs e em `05-modelo-de-dados.md`. |
@@ -79,7 +79,7 @@ Toda página autenticada usa `AppShell` (sidebar + header) e, dentro dele, os pr
 
 Nenhum formulário de criação/edição fica permanentemente renderizado na página ou expandindo uma linha de tabela. Padrão por complexidade:
 
-- **Dialog** (`components/ui/dialog.tsx`) — formulários curtos (até ~5 campos, sem necessidade de navegação interna). Uso atual: Game, Expansion.
+- **Dialog** (`components/ui/dialog.tsx`) — formulários curtos (até ~5 campos, sem necessidade de navegação interna). Uso atual: Expansion. Game continua no formulário permanente anterior (`Panel`/`AdminToolbar`) — migração prevista para o Ciclo E, não uma exceção permanente: mesma lógica transitória já registrada para `Panel` na Seção 5.
 - **Drawer** — reservado para formulários mais longos ou com conteúdo relacionado (Card Set, Card). Ainda não implementado — sem tela real que precise dele até este momento; construir apenas quando o ciclo vertical correspondente chegar.
 - **Edição inline** (célula/linha, sem modal) — só para alterações de um único campo trivial, com justificativa registrada no próprio componente.
 
@@ -89,7 +89,7 @@ Todo Dialog controlado (`open`/`onOpenChange`, nunca `DialogTrigger` não contro
 
 # 7. Tabelas
 
-`components/ui/data-table.tsx` fornece a mecânica comum (`DataTable`, `DataTableHead`, `DataTableHeadRow`, `DataTableHeadCell`, `DataTableRow`, `DataTableCell`) — não é uma DataTable genérica com ordenação/seleção/filtro embutidos; cada tela continua decidindo suas próprias colunas e dados. Ação de linha reaproveita `Button variant="outline" size="icon-sm"`, nunca um componente próprio. Linha recém-afetada por uma operação recebe destaque temporário (`DataTableRow highlighted`), coordenado por `useAdminListState`.
+`components/ui/data-table.tsx` fornece a mecânica comum (`DataTable`, `DataTableHead`, `DataTableHeadRow`, `DataTableHeadCell`, `DataTableRow`, `DataTableCell`) — não é uma DataTable genérica com ordenação/seleção/filtro embutidos; cada tela continua decidindo suas próprias colunas e dados. `DataTable` já embrulha a tabela em `overflow-x-auto` (rola horizontalmente dentro do card em vez de estourar a página) e `DataTableRow` já tem estado de `hover`, ambos por padrão — nenhuma tela precisa adicionar isso por conta própria. Ação de linha reaproveita `Button variant="outline" size="icon-sm"`, nunca um componente próprio. Linha recém-afetada por uma operação recebe destaque temporário (`DataTableRow highlighted`), coordenado por `useAdminListState`. Uma listagem com dados de mais de uma entidade-pai (ex.: Expansões, que pertencem a um Jogo) agrupa por essa entidade — grupos ordenados por nome, itens ordenados pelo campo relevante dentro do grupo, separador visual discreto (sem accordion/estado de expansão) — para não intercalar valores que só fazem sentido dentro do próprio grupo (ex.: "ordem de lançamento" é relativa a cada Jogo, não comparável entre Jogos).
 
 Paginação real (cursor/offset) só é formalizada quando uma tela precisar dela de fato (hoje, só `UsersTable` tem uma versão própria, ainda não migrada para um primitive compartilhado).
 
@@ -97,7 +97,7 @@ Paginação real (cursor/offset) só é formalizada quando uma tela precisar del
 
 # 8. Feedback e Estados
 
-- **`InlineFeedback`** (`components/ui/feedback.tsx`) — sucesso/erro/aviso, inline (nunca toast flutuante — decisão deliberada, evita depender de `@radix-ui/react-toast` sem necessidade comprovada). Substitui qualquer `<p className="text-destructive">` solto para erro de submissão.
+- **`InlineFeedback`** (`components/ui/feedback.tsx`) — sucesso/erro/aviso, inline. Baseline atual: nenhuma tela usa toast flutuante, para evitar depender de `@radix-ui/react-toast` sem necessidade comprovada — não é uma proibição permanente; ver Seção 10 para o critério de reavaliação. Substitui qualquer `<p className="text-destructive">` solto para erro de submissão.
 - **`EmptyState`** (`components/ui/empty-state.tsx`) — estado vazio padrão de listas/tabelas.
 - **`Skeleton`** (`components/ui/skeleton.tsx`) — bloco de carregamento (`animate-pulse`), para quando uma tela buscar dado no cliente (a maioria busca no servidor, antes da renderização, e não precisa dele).
 
@@ -123,3 +123,4 @@ Todo controle interativo tem rótulo acessível (`Label`+`htmlFor`, ou `aria-lab
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação — formaliza os padrões de navegação, composição de página, superfície (`Card`, absorvendo `Panel`), formulários (Dialog), tabelas e feedback estabelecidos na sessão de correção e sincronização de frontend de 2026-07-30 (Ciclos A-D), com Expansões como tela piloto. Área identificada como pendente desde a auditoria de 26/07 (`docs/README.md`, revisão `1.55`). |
+| 1.1 | Correção pós-auditoria da tela piloto (Ciclos D.1-D.3, 2026-07-30). Seção 6: corrigido "uso atual: Game, Expansion" para apenas Expansion — Game continua no formulário permanente, migração fica para o Ciclo E, mesma lógica transitória já registrada para `Panel` (Seção 5). Seção 8: suavizada a redação de "nunca toast flutuante" para refletir que é a baseline atual, não uma proibição permanente (a ressalva de reavaliação já existia na Seção 10, mas não no corpo normativo). Seção 7: documentados `overflow-x-auto` e `hover` como padrão de `DataTable`/`DataTableRow`, e o agrupamento por entidade-pai como padrão de apresentação para listagens com essa relação. |
