@@ -40,11 +40,17 @@
  * Aprovado por Fabrício como exceção deliberada, fora do escopo original
  * de "só /catalogo" desta sessão — o resto da propagação do Design System
  * (sombra, tabelas, badges) continua adiado para o segundo incremento.
+ *
+ * 2026-07-31 — --background (tema claro) padronizado para #F7F9FB, valor
+ * exato pedido por Fabrício ("padronize a cor do fundo da página"). Só o
+ * tema claro: o valor é um branco-azulado bem claro, não faria sentido no
+ * --background do tema escuro (propositalmente bem escuro, sem relação com
+ * este ajuste).
  */
 
 @layer base {
   :root {
-    --background: 0 0% 99.2%;
+    --background: 210 33.3% 97.6%; /* #F7F9FB exato */
     --foreground: 0 0% 9%;
 
     --surface: 0 0% 100%;

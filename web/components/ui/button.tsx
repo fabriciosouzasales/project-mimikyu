@@ -9,16 +9,35 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Fundo translúcido na cor primária, sem borda — mesmo padrão do
-        // Badge variant="primary" (ex.: badge "Administrador" na coluna
-        // Papel), pedido explícito de Fabrício em 2026-07-26 para unificar a
-        // linguagem visual de "destaque na cor primária" entre botões e
-        // badges, no lugar do preenchimento sólido anterior. `border-0`
-        // confirmado via DevTools num botão "tiny" de referência do Supabase
-        // ("Gerenciar membros"): todos os `border-*-width` computados são
-        // `0px`, apesar de o elemento definir `border-color`/`border-style`
-        // — a borda existe na folha de estilo, mas nunca é visível.
-        default: "border-0 bg-primary/5 text-primary hover:bg-primary/10 active:bg-primary/15",
+        // Teste de cor (2026-07-31, pedido de Fabrício): fundo sólido, borda
+        // e texto #A39475 — substitui o preenchimento translúcido na cor
+        // --primary que existia antes (histórico abaixo). Fundo trocado de
+        // #D7CFAC para #F7F5ED (mesma cor do selo de ícone dos cartões de
+        // indicador, ver `stat-card.tsx`) por baixo contraste com o texto
+        // #A39475 no fundo anterior — ainda assim, o contraste com o fundo
+        // claro segue abaixo do recomendado (ver nota abaixo).
+        //
+        // Escopo: só o variant "default" (ação primária), usado na maioria
+        // dos botões do sistema. Os demais variants (destructive, outline,
+        // outline-primary, ghost, link) ficaram como estavam — têm função
+        // semântica própria (perigo, ação secundária/terciária) que uma cor
+        // única para "todos os botões" apagaria; avisar se a intenção era
+        // realmente cobrir todos.
+        //
+        // Contraste medido (WCAG): #F7F5ED × #A39475 ≈ 2,7:1 — melhorou
+        // frente à combinação anterior (#D7CFAC, ≈1,9:1), mas ainda abaixo
+        // do mínimo de 3:1 recomendado até para texto grande/UI. Aplicado do
+        // jeito pedido porque é um teste explícito; vale confirmar antes de
+        // aprovar em definitivo.
+        //
+        // Histórico: o fundo translúcido na cor primária, sem borda, era o
+        // mesmo padrão do Badge variant="primary" (ex.: badge
+        // "Administrador" na coluna Papel), pedido explícito de Fabrício em
+        // 2026-07-26 para unificar a linguagem visual de "destaque na cor
+        // primária" entre botões e badges, no lugar do preenchimento sólido
+        // anterior a isso.
+        default:
+          "border border-[#A39475] bg-[#F7F5ED] text-[#A39475] hover:bg-[#F7F5ED]/80 active:bg-[#F7F5ED]/70",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-border bg-transparent hover:bg-surface-muted",
         // Borda na mesma cor da fonte (não a borda neutra de `outline`) —

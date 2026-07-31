@@ -10,10 +10,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * este módulo é responsável por checar is_admin() antes de renderizar
  * qualquer bloco (mesmo padrão de /usuarios).
  *
- * Deliberadamente sem indicadores de Game/Expansion (só 1 Game/1 Expansion
- * hoje — não agregam valor visual, ajuste pedido por Fabrício) e sem
- * exposição da discrepância de Card Category ENERGY (decisão editorial
- * interna, não deve aparecer nesta tela).
+ * Ajuste 2026-07-31 (pedido de Fabrício): a tabela de Card Sets da Visão
+ * Geral passou a trazer Jogo/Expansão (`getCardSetsOverview` embute
+ * `expansion(code, name, game(code, name))`) — reverte a decisão anterior
+ * de omitir essa informação (só havia 1 Game/1 Expansion na época); mantida
+ * mesmo com pouca variação hoje, para não precisar de nova mudança de
+ * schema quando um segundo Jogo/Expansão for cadastrado. Sem exposição da
+ * discrepância de Card Category ENERGY (decisão editorial interna, não deve
+ * aparecer nesta tela).
  */
 
 type CardRow = {
@@ -41,6 +45,7 @@ type CardSetRow = {
   set_type: string;
   total_set_size: number;
   logo_storage_path: string | null;
+  expansion: { code: string; name: string; game: { code: string; name: string } | null } | null;
 };
 
 type AssetImportRunRow = {
@@ -71,6 +76,8 @@ export type CardSetOverviewRow = {
   cardsCatalogados: number;
   temImagensCompletas: boolean;
   temLogo: boolean;
+  expansionName: string | null;
+  gameName: string | null;
 };
 
 export type DistribuicaoPorRaridade = {
@@ -81,6 +88,7 @@ export type DistribuicaoPorRaridade = {
 
 export type AtividadeRecenteItem = {
   id: string;
+  runCode: string;
   cardSetCode: string | null;
   cardSetName: string | null;
   languageCode: string | null;
@@ -113,14 +121,18 @@ async function fetchCardsComCobertura(supabase: SupabaseClient): Promise<CardRow
 async function fetchCardSets(supabase: SupabaseClient): Promise<CardSetRow[]> {
   const { data, error } = await supabase
     .from("card_set")
-    .select("id, code, name, set_type, total_set_size, logo_storage_path")
+    .select("id, code, name, set_type, total_set_size, logo_storage_path, expansion(code, name, game(code, name))")
     .order("release_order", { ascending: true });
 
   if (error || !data) {
     return [];
   }
 
-  return data as CardSetRow[];
+  // `as unknown as` (não `as` direto): sem tipos gerados do schema, o
+  // Supabase infere o embed `expansion(...)` como array (relação a-muitos
+  // genérica) mesmo sendo a-um de verdade (FK obrigatória); mesmo padrão já
+  // usado em `fetchCardsComCobertura` para `card_asset`/`rarity`.
+  return data as unknown as CardSetRow[];
 }
 
 export async function getEstadoDoCatalogo(supabase: SupabaseClient): Promise<EstadoDoCatalogo> {
@@ -177,6 +189,8 @@ export async function getCardSetsOverview(supabase: SupabaseClient): Promise<Car
       cardsCatalogados: cobertura.total,
       temImagensCompletas: cobertura.total > 0 && cobertura.total === cobertura.comImagem,
       temLogo: !!set.logo_storage_path,
+      expansionName: set.expansion?.name ?? null,
+      gameName: set.expansion?.game?.name ?? null,
     };
   });
 }
@@ -501,6 +515,52 @@ export async function getJogos(supabase: SupabaseClient): Promise<JogoRow[]> {
   }));
 }
 
+export const JOGOS_PAGE_SIZE = 10;
+
+/**
+ * Versão paginada/filtrável de `getJogos`, para a tabela da tela Jogos
+ * (redesenho 2026-07-31 — busca e paginação via URL, mesmo padrão
+ * server-driven de Expansões/Catálogo). `getJogos` continua existindo sem
+ * alteração — os indicadores da tela (`JogosStats`) precisam do total real
+ * do domínio, não da página/filtro atual, então seguem usando a lista
+ * completa. Usa `.range()`/`count: "exact"` do próprio Supabase em vez do
+ * padrão "busca tudo e pagina em memória" de Expansões: `game` não tem a
+ * complicação de ordenar por coluna de tabela relacionada que motivou
+ * aquela decisão ali.
+ */
+export async function getJogosPaged(
+  supabase: SupabaseClient,
+  { search, limit = JOGOS_PAGE_SIZE, offset = 0 }: { search?: string; limit?: number; offset?: number } = {},
+): Promise<{ items: JogoRow[]; totalCount: number }> {
+  let query = supabase
+    .from("game")
+    .select("id, code, name, created_at, updated_at, expansion(count)", { count: "exact" })
+    .order("name", { ascending: true })
+    .range(offset, offset + limit - 1);
+
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,code.ilike.%${search}%`);
+  }
+
+  const { data, error, count } = await query;
+
+  if (error || !data) {
+    return { items: [], totalCount: 0 };
+  }
+
+  return {
+    items: (data as unknown as GameRawRow[]).map((game) => ({
+      id: game.id,
+      code: game.code,
+      name: game.name,
+      totalExpansoes: extractCount(game.expansion),
+      createdAt: game.created_at,
+      updatedAt: game.updated_at,
+    })),
+    totalCount: count ?? 0,
+  };
+}
+
 export type ExpansaoRow = {
   id: string;
   code: string;
@@ -818,6 +878,7 @@ export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): 
 
   return (data as unknown as AssetImportRunRow[]).map((run) => ({
     id: run.id,
+    runCode: run.run_code,
     cardSetCode: run.card_set?.code ?? null,
     cardSetName: run.card_set?.name ?? null,
     languageCode: run.language?.code ?? null,

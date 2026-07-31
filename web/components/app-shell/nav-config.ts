@@ -1,4 +1,17 @@
-import { BookOpen, LayoutDashboard, Users, type LucideIcon } from "lucide-react";
+import {
+  BookOpen,
+  Boxes,
+  CreditCard,
+  FileText,
+  Gamepad2,
+  Hand,
+  History,
+  Layers,
+  LayoutDashboard,
+  Users,
+  Webhook,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
  * `section` agrupa itens do submenu sob um título maiúsculo, com divisória
@@ -7,8 +20,14 @@ import { BookOpen, LayoutDashboard, Users, type LucideIcon } from "lucide-react"
  * sem `section` (ex.: "Usuários", que tem um único filho) renderizam
  * exatamente como antes, sem título nem divisória — nenhum módulo fora do
  * Catálogo muda visualmente.
+ *
+ * `icon` (2026-07-31, pedido de Fabrício: "em todos os itens do bloco
+ * Operações deve ter um ícone antes do título"; no mesmo dia, "ficou tão
+ * bom que quero replicar para os blocos Cadastro e Gerencial" — hoje todo
+ * item do submenu do Catálogo tem ícone. Continua opcional no tipo porque
+ * "Lista de usuários" (único filho de Usuários) não usa.
  */
-export type NavChild = { href: string; label: string; section?: string };
+export type NavChild = { href: string; label: string; section?: string; icon?: LucideIcon };
 
 export type NavSection = {
   id: string;
@@ -42,13 +61,29 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Catálogo editorial",
     icon: BookOpen,
     href: "/catalogo",
+    // Reestruturado em 2026-07-31 (pedido de Fabrício) — três grupos
+    // (Gerencial/Cadastro/Operações) no lugar de Catálogo/Operação. Rótulos
+    // e agrupamento são só de interface: não renomeiam nada no modelo de
+    // dados (Game continua Game, Expansion continua Expansion etc.) — ver
+    // comentário de `NavChild` acima. "Importação Manual"/"Via PDF"/"Via
+    // API" são rotas novas, sem tela própria ainda (`ComingSoonPage`, ver
+    // `web/app/catalogo/importacao-*/page.tsx`) — item de menu não pode
+    // levar a 404 (bug já reportado por Fabrício, 2026-07-25).
+    //
+    // Cadastro no plural (ajuste do mesmo dia, pedido de Fabrício) — os
+    // títulos das próprias páginas acompanham (ver `expansoes/page.tsx` e
+    // `card-sets/page.tsx`), mesmo raciocínio da primeira rodada: menu e
+    // título da página sempre dizem a mesma coisa.
     children: [
-      { href: "/catalogo", label: "Visão geral", section: "Catálogo" },
-      { href: "/catalogo/jogos", label: "Jogos", section: "Catálogo" },
-      { href: "/catalogo/expansoes", label: "Expansões", section: "Catálogo" },
-      { href: "/catalogo/card-sets", label: "Card Sets", section: "Catálogo" },
-      { href: "/catalogo/cartas", label: "Cartas", section: "Catálogo" },
-      { href: "/catalogo/importacoes", label: "Histórico de importações", section: "Operação" },
+      { href: "/catalogo", label: "Visão Geral", section: "Gerencial", icon: LayoutDashboard },
+      { href: "/catalogo/importacoes", label: "Histórico de Importações", section: "Gerencial", icon: History },
+      { href: "/catalogo/jogos", label: "Jogos", section: "Cadastro", icon: Gamepad2 },
+      { href: "/catalogo/expansoes", label: "Expansões", section: "Cadastro", icon: Layers },
+      { href: "/catalogo/card-sets", label: "Coleções", section: "Cadastro", icon: Boxes },
+      { href: "/catalogo/cartas", label: "Cartas", section: "Cadastro", icon: CreditCard },
+      { href: "/catalogo/importacao-manual", label: "Importação Manual", section: "Operações", icon: Hand },
+      { href: "/catalogo/importacao-pdf", label: "Importação Via PDF", section: "Operações", icon: FileText },
+      { href: "/catalogo/importacao-api", label: "Importação Via API", section: "Operações", icon: Webhook },
     ],
     // Módulo restrito a administradores (ADR-022) — leitura dos dados
     // editoriais/operacionais já é bloqueada no banco via RLS (is_admin());

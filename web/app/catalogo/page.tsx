@@ -1,10 +1,11 @@
 import { AppShell } from "@/components/app-shell/app-shell";
-import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
-import { EstadoDoCatalogo } from "@/components/catalogo/estado-do-catalogo";
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
+import { VisaoGeralStats } from "@/components/catalogo/visao-geral-stats";
 import { CardSetsTable } from "@/components/catalogo/card-sets-table";
 import { Distribuicoes } from "@/components/catalogo/distribuicoes";
 import { AtividadeRecente } from "@/components/catalogo/atividade-recente";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
+import { PageContainer, PageDescription, PageHeader, PageHeading, PageSection, PageTitle } from "@/components/ui/page";
 import {
   getAtividadeRecente,
   getCardSetsOverview,
@@ -15,12 +16,19 @@ import {
 /**
  * Visão Geral do Catálogo Editorial — módulo admin-only (ADR-022).
  *
- * Linguagem visual em validação (2026-07-26, restrita a este módulo):
- * Card Sets é o bloco dominante (mais espaço, primeiro na leitura); Estado
- * do Catálogo vira uma faixa leve de contexto, não mais 4 cards do mesmo
- * peso; Cartas por Raridade e Atividade Recente ficam mais discretos, numa
- * coluna secundária — ritmo visual desequilibrado de propósito, não um
- * grid uniforme (ajuste pedido por Fabrício).
+ * Alinhada ao padrão introduzido em Jogos (2026-07-31, aprovado por
+ * Fabrício para replicar aqui): título via `PageHeader`/`PageTitle` (era um
+ * `<h1>` solto), indicadores via `StatCard`/`StatsRow` (`VisaoGeralStats`,
+ * substitui `EstadoDoCatalogo`), Card Sets e Atividade recente migradas de
+ * `Panel` para `Card` com busca/filtro integrado e cabeçalho destacado —
+ * ver `card-sets-table.tsx`/`atividade-recente.tsx`. `Panel` permanece só
+ * em Cartas por raridade (gráfico, não tabela).
+ *
+ * Ordem da página (ajuste 2026-07-31, pedido de Fabrício): pilha única, sem
+ * mais grid de 3 colunas — indicadores, gráfico de Cartas por raridade,
+ * tabela de Card Sets, Atividade recente (log), nessa sequência. Substitui
+ * o layout anterior (2026-07-26) que colocava Card Sets como bloco
+ * dominante ao lado de uma coluna secundária com Raridade + Atividade.
  */
 export default async function CatalogoVisaoGeralPage() {
   const { denied, supabase } = await requireCatalogoAdmin("Catálogo editorial");
@@ -30,48 +38,41 @@ export default async function CatalogoVisaoGeralPage() {
     getEstadoDoCatalogo(supabase),
     getCardSetsOverview(supabase),
     getDistribuicaoPorRaridade(supabase),
-    getAtividadeRecente(supabase),
+    // 50 (era 8): a tabela de Atividade recente agora pagina 10 por vez
+    // (`atividade-recente.tsx`) — precisa de mais do que uma página de
+    // dados para a paginação ter algo a mostrar.
+    getAtividadeRecente(supabase, 50),
   ]);
 
   return (
     <AppShell title="Catálogo editorial">
-      <div className="mx-auto max-w-6xl space-y-4">
-        <h1 className="font-heading text-xl font-medium text-foreground">Visão geral do catálogo</h1>
+      <PageContainer>
+        <PageHeader>
+          <PageHeading>
+            <PageTitle>Visão Geral</PageTitle>
+            <PageDescription>Indicadores gerais e navegação rápida para os Card Sets do catálogo.</PageDescription>
+          </PageHeading>
+        </PageHeader>
 
-        <EstadoDoCatalogo estado={estado} />
+        <VisaoGeralStats estado={estado} />
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Panel className="lg:col-span-2">
-            <PanelHeader>
-              <PanelTitle>Card Sets</PanelTitle>
-              <PanelDescription>Clique em um Card Set para ver o detalhe.</PanelDescription>
-            </PanelHeader>
-            <PanelContent>
-              <CardSetsTable cardSets={cardSets} />
-            </PanelContent>
-          </Panel>
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Cartas por raridade</PanelTitle>
+          </PanelHeader>
+          <PanelContent>
+            <Distribuicoes distribuicao={distribuicao} />
+          </PanelContent>
+        </Panel>
 
-          <div className="flex flex-col gap-4">
-            <Panel>
-              <PanelHeader>
-                <PanelTitle>Cartas por raridade</PanelTitle>
-              </PanelHeader>
-              <PanelContent>
-                <Distribuicoes distribuicao={distribuicao} />
-              </PanelContent>
-            </Panel>
+        <PageSection title="Card Sets" description="Clique em um Card Set para ver o detalhe.">
+          <CardSetsTable cardSets={cardSets} />
+        </PageSection>
 
-            <Panel>
-              <PanelHeader>
-                <PanelTitle>Atividade recente</PanelTitle>
-              </PanelHeader>
-              <PanelContent>
-                <AtividadeRecente atividades={atividades} />
-              </PanelContent>
-            </Panel>
-          </div>
-        </div>
-      </div>
+        <PageSection title="Atividade recente" description="Últimas execuções de importação de imagens.">
+          <AtividadeRecente atividades={atividades} />
+        </PageSection>
+      </PageContainer>
     </AppShell>
   );
 }

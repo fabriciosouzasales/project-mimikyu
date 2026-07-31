@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 /**
  * Busca única da tela Catálogo (Card Set ou Carta, mesmo campo) — spec
@@ -11,13 +12,19 @@ import { Input } from "@/components/ui/input";
  * 300ms) preservando `game`/`expansion`, para que cabeçalho/busca/filtros
  * nunca saiam do lugar — só o conteúdo abaixo muda (decisão explícita:
  * "a busca não deve trocar a estrutura da página").
+ *
+ * `className` opcional (2026-07-31) — repassado ao `Input`, para telas como
+ * Jogos que precisam de um fundo diferente (mesma cor do cabeçalho da
+ * tabela) sem mudar o padrão usado por Catálogo/Expansões.
  */
 export function CatalogoSearchBar({
   initialQuery,
   placeholder = "Buscar por Card Set ou por Carta (nome ou número)…",
+  className,
 }: {
   initialQuery: string;
   placeholder?: string;
+  className?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -55,7 +62,7 @@ export function CatalogoSearchBar({
         value={value}
         onChange={(event) => handleChange(event.target.value)}
         placeholder={placeholder}
-        className="h-10 pl-9 text-sm"
+        className={cn("h-10 pl-9 text-sm", className)}
         aria-label="Buscar no catálogo"
       />
     </div>

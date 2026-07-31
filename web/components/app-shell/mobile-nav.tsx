@@ -71,22 +71,26 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
 
                   {isActive && section.children && (
                     <div className="space-y-0.5 py-1">
-                      {section.children.map((child) => (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={() => setOpen(false)}
-                          aria-current={pathname === child.href ? "page" : undefined}
-                          className={cn(
-                            "ml-9 flex items-center rounded-md px-3 py-1.5 text-sm transition-colors",
-                            pathname === child.href
-                              ? "bg-accent font-semibold text-foreground"
-                              : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
-                          )}
-                        >
-                          {child.label}
-                        </Link>
-                      ))}
+                      {section.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={() => setOpen(false)}
+                            aria-current={pathname === child.href ? "page" : undefined}
+                            className={cn(
+                              "ml-9 flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
+                              pathname === child.href
+                                ? "bg-accent font-semibold text-foreground"
+                                : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                            )}
+                          >
+                            {ChildIcon && <ChildIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                            {child.label}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

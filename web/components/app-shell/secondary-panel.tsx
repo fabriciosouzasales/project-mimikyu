@@ -19,6 +19,11 @@ import { cn } from "@/lib/utils";
  * (referência de Fabrício). Controlado inteiramente por `child.section` em
  * `nav-config.ts`: itens sem essa propriedade (ex.: "Usuários") continuam
  * sem título/divisória — só o Catálogo usa isso hoje.
+ *
+ * 2026-07-31 — `child.icon` opcional (pedido de Fabrício: ícone antes do
+ * título nos itens de Operações): só renderiza quando o item declara um
+ * ícone em `nav-config.ts`; os demais itens continuam exatamente como
+ * antes, sem espaço reservado para ícone.
  */
 export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
@@ -47,6 +52,7 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
               const previous = activeSection.children![index - 1];
               const isNewSection = !!child.section && child.section !== previous?.section;
               const isChildActive = pathname === child.href;
+              const ChildIcon = child.icon;
               return (
                 <Fragment key={child.href}>
                   {isNewSection && (
@@ -63,12 +69,13 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
                     href={child.href}
                     aria-current={isChildActive ? "page" : undefined}
                     className={cn(
-                      "flex items-center rounded-md px-3 py-1.5 text-[13px] leading-tight transition-colors",
+                      "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] leading-tight transition-colors",
                       isChildActive
                         ? "bg-accent font-semibold text-foreground"
                         : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                     )}
                   >
+                    {ChildIcon && <ChildIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
                     {child.label}
                   </Link>
                 </Fragment>

@@ -44,7 +44,7 @@ export function CatalogoGallery({
     <div className="space-y-4">
       <PageHeader>
         <PageHeading>
-          <PageTitle>Card Set</PageTitle>
+          <PageTitle>Coleções</PageTitle>
           <PageDescription>Explore os Card Sets catalogados, por Jogo ou por busca direta.</PageDescription>
         </PageHeading>
         <PageActions>

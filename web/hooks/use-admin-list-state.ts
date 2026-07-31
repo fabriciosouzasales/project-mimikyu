@@ -66,6 +66,17 @@ export function useAdminListState() {
   const startConfirmDelete = useCallback(() => setConfirmingDelete(true), []);
   const cancelConfirmDelete = useCallback(() => setConfirmingDelete(false), []);
 
+  /** Ação rápida de exclusão por linha (2026-07-31, tela Jogos): seleciona
+   * só aquele item e já abre a confirmação, sem passar pelo fluxo de
+   * seleção em massa (checkboxes) — usada por telas com botão de lixeira
+   * direto na linha em vez de uma barra de seleção. */
+  const startQuickDelete = useCallback((id: string) => {
+    setCreating(false);
+    setEditingId(null);
+    setSelectedIds(new Set([id]));
+    setConfirmingDelete(true);
+  }, []);
+
   /** Chamado após criação/edição/exclusão bem-sucedidas: fecha formulários,
    * limpa seleção, mostra a mensagem de sucesso e destaca a linha afetada
    * por alguns segundos. */
@@ -112,6 +123,7 @@ export function useAdminListState() {
     clearSelection,
     startConfirmDelete,
     cancelConfirmDelete,
+    startQuickDelete,
     onSuccess,
   };
 }
