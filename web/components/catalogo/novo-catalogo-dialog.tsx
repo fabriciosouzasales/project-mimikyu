@@ -19,10 +19,12 @@ import type { ExpansaoRow } from "@/lib/catalogo/queries";
 
 const initialState: CardSetActionState = { error: null };
 
-const SET_TYPE_OPTIONS: { value: string; label: string }[] = [
+/** Exportado (2026-07-31) para reuso por `EditCardSetForm` (`card-set-dialogs.tsx`), que ganhou o mesmo seletor de tipo. */
+export const SET_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "REGULAR", label: "Regular" },
   { value: "SPECIAL", label: "Especial" },
-  { value: "PROMO", label: "Promocional (Black Star Promos)" },
+  { value: "PROMO", label: "Promocional" },
+  { value: "ENERGY", label: "Energia" },
 ];
 
 /**
@@ -40,11 +42,17 @@ const SET_TYPE_OPTIONS: { value: string; label: string }[] = [
  * lançamento), este formulário precisa cobrir todos os campos estruturais
  * obrigatórios de `card_set`: Expansão (seletor agrupado por Jogo, mesmo
  * padrão de `CreateExpansionForm`), código, nome, tipo (Regular/Especial/
- * Promocional), ordem de lançamento, data de lançamento (opcional) e
- * quantidades base/total. Até Fabrício confirmar a execução da Query 2051
+ * Promocional/Energia), ordem de lançamento, data de lançamento (opcional)
+ * e quantidades base/total. Até Fabrício confirmar a execução da Query 2051
  * (ritual de pareamento de SQL do projeto), a submissão retorna o erro
  * genuíno do Postgres (função inexistente) — mesma situação já vivida por
  * `EditCardSetForm` até a Query 2048 ser confirmada.
+ *
+ * Ajuste 2026-07-31, mesmo dia (teste real de Fabrício): opção "Energia"
+ * (`ENERGY`) adicionada ao seletor — faltava, apesar de já ser um valor
+ * válido de `set_type` desde a Migration 263 (ver `admin_create_card_set()`
+ * v1.1, corrigida na mesma rodada). Rótulo de `PROMO` simplificado de
+ * "Promocional (Black Star Promos)" para "Promocional" (pedido explícito).
  */
 export function NovoCatalogoDialog({
   open,

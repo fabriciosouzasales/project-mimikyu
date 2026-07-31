@@ -93,10 +93,20 @@ export async function createCardSet(
 }
 
 /**
- * Atualiza nome e ordem de lançamento de um Card Set via
- * admin_update_card_set() (Query 2048, ADR-023). expansion_id e code nunca
- * são aceitos aqui — imutáveis por construção (a função nem tem parâmetro
- * para isso), mesmo princípio já aplicado a Game/Expansion.
+ * Atualiza nome, tipo, ordem de lançamento e data de lançamento de um Card
+ * Set via admin_update_card_set() (Query 2048, ADR-023). expansion_id e
+ * code nunca são aceitos aqui — imutáveis por construção (a função nem tem
+ * parâmetro para isso), mesmo princípio já aplicado a Game/Expansion.
+ * base_set_size/total_set_size também ficam de fora — não pedidos, e mudar
+ * set_type sozinho já precisa lidar com as regras de PROMO usando o tamanho
+ * já cadastrado (a função antecipa isso com mensagem clara).
+ *
+ * Ampliado em 2026-07-31, rodada seguinte (pedido explícito de Fabrício:
+ * "na tela de edição do set card deve ser permitido editar o tipo e a data
+ * de lançamento") — antes só aceitava nome/ordem (Query 2048 v1.0). Depende
+ * da Migration 2052 (assinatura mudou de 3 para 5 parâmetros) ser executada
+ * por Fabrício; até lá, retorna o erro genuíno do Postgres (função com essa
+ * assinatura não existe).
  */
 export async function updateCardSet(
   _prevState: CardSetActionState,
@@ -104,14 +114,19 @@ export async function updateCardSet(
 ): Promise<CardSetActionState> {
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
+  const setType = String(formData.get("set_type") ?? "").trim();
   const releaseOrderRaw = String(formData.get("release_order") ?? "").trim();
   const releaseOrder = Number(releaseOrderRaw);
+  const releaseDateRaw = String(formData.get("release_date") ?? "").trim();
 
   if (!id) {
     return { error: "Card Set inválido." };
   }
   if (!name) {
     return { error: "Informe o nome do Card Set." };
+  }
+  if (!setType) {
+    return { error: "Selecione o tipo do Card Set." };
   }
   if (!releaseOrderRaw || !Number.isInteger(releaseOrder) || releaseOrder <= 0) {
     return { error: "Informe uma ordem de lançamento válida (número inteiro positivo)." };
@@ -121,7 +136,9 @@ export async function updateCardSet(
   const { error } = await supabase.rpc("admin_update_card_set", {
     p_id: id,
     p_name: name,
+    p_set_type: setType,
     p_release_order: releaseOrder,
+    p_release_date: releaseDateRaw || null,
   });
 
   if (error) {

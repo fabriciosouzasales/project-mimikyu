@@ -2,7 +2,7 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2051 - Create admin_create_card_set() Function
-Versão......: 1.0
+Versão......: 1.1
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-07-31
@@ -18,6 +18,16 @@ de lançamento, esta função precisa cobrir todos os campos
 estruturais obrigatórios de card_set — não há valor anterior de
 onde herdar set_type/base_set_size/total_set_size.
 
+Correção (v1.1, mesmo dia): a v1.0 só aceitava REGULAR/SPECIAL/
+PROMO — gap descoberto ao testar a tela real (Fabrício: "o campo
+tipo não consta o tipo Energy"). ENERGY já é um valor válido de
+set_type desde a Migration 263 (CONFIRMADA EXECUTADA em produção
+para o cadastro real de MEE, 2026-07-26) — o arquivo canônico
+`database/schema/120_create_card_set_table.sql` também nunca
+tinha incorporado essa migration (reconciliado na mesma rodada,
+bump para v2.2). v1.1 alinha a validação desta função ao domínio
+real da coluna.
+
 Regras de Negócio:
 - Só um administrador pode chamar esta função (is_admin()).
 - expansion_id deve corresponder a uma Expansion existente —
@@ -31,7 +41,11 @@ Regras de Negócio:
 - release_order deve ser positivo e único dentro da mesma
   Expansion (uq_card_set_expansion_release_order).
 - set_type é normalizado para maiúsculas e deve ser REGULAR,
-  SPECIAL ou PROMO (ck_card_set_type).
+  SPECIAL, PROMO ou ENERGY (ck_card_set_type, Migration 263).
+  ENERGY não exige base_set_size = total_set_size por construção
+  do banco — só PROMO tem essa regra (ck_card_set_promo_size); em
+  MEE, hoje, os dois valores coincidem (8 = 8) por serem os únicos
+  conhecidos no momento do cadastro, não por constraint.
 - base_set_size deve ser positivo; total_set_size deve ser maior
   ou igual a base_set_size (ck_card_set_total_size_valid).
 - Quando set_type = PROMO: base_set_size deve ser igual a
@@ -102,8 +116,8 @@ BEGIN
         RAISE EXCEPTION 'ADMIN_CREATE_CARD_SET_INVALID_NAME: o nome não pode ser vazio.';
     END IF;
 
-    IF v_set_type NOT IN ('REGULAR', 'SPECIAL', 'PROMO') THEN
-        RAISE EXCEPTION 'ADMIN_CREATE_CARD_SET_INVALID_SET_TYPE: o tipo deve ser REGULAR, SPECIAL ou PROMO.';
+    IF v_set_type NOT IN ('REGULAR', 'SPECIAL', 'PROMO', 'ENERGY') THEN
+        RAISE EXCEPTION 'ADMIN_CREATE_CARD_SET_INVALID_SET_TYPE: o tipo deve ser REGULAR, SPECIAL, PROMO ou ENERGY.';
     END IF;
 
     IF p_release_order IS NULL OR p_release_order <= 0 THEN

@@ -2,9 +2,9 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 120 - Create Card Set Table
-Versão......: 2.1
+Versão......: 2.2
 Autor.......: Fabrício Sales / ChatGPT / Claude
-Data........: 2026-07-26
+Data........: 2026-07-31
 Status......: CANÔNICA
 Descrição...:
 Cria a tabela card_set, responsável por representar as publicações oficiais
@@ -15,6 +15,8 @@ a coluna logo_storage_path (caminho relativo da logo oficial do Set no
 bucket privado card-set-logo, ver ADR-022 e Query 273).
 Exemplos:
 - ME0   - ME Black Star Promos (PROMO)
+- MEE   - Energia Básica Megaevolução (ENERGY)
+- MEP   - MEP Black Star Promos (PROMO)
 - ME1   - Megaevolução
 - ME2   - Fogo Fantasmagórico
 - ME2.5 - Heróis Excelsos
@@ -25,7 +27,9 @@ Regras de Negócio:
 - O código deve ser único dentro da respectiva Expansion.
 - A ordem de lançamento deve ser única dentro da respectiva Expansion.
 - O código pode conter letras maiúsculas, números, ponto, hífen e sublinhado.
-- O tipo do Set deve ser REGULAR, SPECIAL ou PROMO.
+- O tipo do Set deve ser REGULAR, SPECIAL, PROMO ou ENERGY (ENERGY
+  acrescentado pela Migration 263, ver ADR-015 revisão 1.6 — Sets de
+  cartas de Energia básica, ex.: MEE).
 - A ordem de lançamento deve ser um número inteiro positivo.
 - A data de lançamento pode permanecer nula enquanto não estiver confirmada.
 - A quantidade base deve ser um número inteiro positivo.
@@ -44,10 +48,19 @@ Regras de Negócio:
 Nota — Princípio da Fonte Canônica (STD-001, Seção 10):
 esta é a versão que uma instalação nova deve executar. Ela substitui, em uma
 instalação nova, a Versão 1.0 desta Query, a migration 122 - Adapt Card Set
-for Promo (ver database/migrations/122_adapt_card_set_for_promo.sql) e a
+for Promo (ver database/migrations/122_adapt_card_set_for_promo.sql), a
 migration 273 - Add Card Set Logo Column (ver database/migrations/273_*.sql)
-— ambas reclassificadas como Status MIGRATION, históricas, fora do fluxo de
+e a migration 263 - Add Energy to Card Set Type (ver
+database/migrations/263_add_energy_to_card_set_type.sql) — todas
+reclassificadas como Status MIGRATION, históricas, fora do fluxo de
 instalação limpa.
+Correção de gap (2026-07-31): esta versão canônica (então v2.1) nunca tinha
+recebido ENERGY em ck_card_set_type, apesar de a migration 263 já estar
+CONFIRMADA EXECUTADA contra o banco real desde a modelagem de MEE
+(2026-07-26) — uma instalação nova a partir da v2.1 ficaria divergente da
+produção (rejeitaria set_type = ENERGY). Reconciliado nesta revisão (v2.2),
+descoberto ao construir admin_create_card_set() (Query 2051) e perceber que
+a validação da função só cobria REGULAR/SPECIAL/PROMO.
 Item aberto (herdado da Versão 2.0): o banco físico atual foi construído
 pelo caminho antigo (120 v1.0 + migration 122), que não incluía o índice
 uq_card_set_expansion_promo. Não presumir que esse índice já existe no
@@ -81,7 +94,7 @@ CREATE TABLE public.card_set (
     CONSTRAINT ck_card_set_name_not_blank
         CHECK (btrim(name) <> ''),
     CONSTRAINT ck_card_set_type
-        CHECK (set_type IN ('REGULAR', 'SPECIAL', 'PROMO')),
+        CHECK (set_type IN ('REGULAR', 'SPECIAL', 'PROMO', 'ENERGY')),
     CONSTRAINT ck_card_set_release_order_positive
         CHECK (release_order > 0),
     CONSTRAINT ck_card_set_base_size_positive

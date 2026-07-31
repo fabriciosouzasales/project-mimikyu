@@ -246,6 +246,7 @@ export type CatalogoCardSetRow = {
   id: string;
   code: string;
   name: string;
+  setType: string;
   releaseOrder: number;
   releaseDate: string | null;
   expansionId: string;
@@ -278,6 +279,7 @@ type CatalogoCardSetRawRow = {
   id: string;
   code: string;
   name: string;
+  set_type: string;
   release_order: number;
   release_date: string | null;
   logo_storage_path: string | null;
@@ -292,7 +294,7 @@ async function fetchCardSetsForCatalogo(
   let query = supabase
     .from("card_set")
     .select(
-      "id, code, name, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
+      "id, code, name, set_type, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
     );
 
   if (filters.expansionCode) {
@@ -316,13 +318,21 @@ async function fetchCardSetsForCatalogo(
  * Expansão, cruza Jogos por `release_date` real (único campo comparável
  * entre Jogos diferentes — `release_order` só faz sentido dentro de cada
  * um, causa raiz do problema identificado na auditoria da tela de
- * Expansões); quando `release_date` está nulo (ainda não confirmada),
- * cai para `created_at` como desempate. Com filtro ativo, segue a mesma
- * dupla chave (`release_order` de Expansão e depois de Card Set), mas
- * **decrescente** (2026-07-31, pedido de Fabrício: "sempre as mais atuais
- * no topo" — mesmo critério de "mais recente primeiro" já aplicado ao
- * caso sem filtro, agora também no caminho de clique a partir do card de
- * Expansão em `/catalogo/expansoes`).
+ * Expansões). Com filtro ativo, segue a mesma dupla chave (`release_order`
+ * de Expansão e depois de Card Set), mas **decrescente** (2026-07-31,
+ * pedido de Fabrício: "sempre as mais atuais no topo" — mesmo critério de
+ * "mais recente primeiro" já aplicado ao caso sem filtro, agora também no
+ * caminho de clique a partir do card de Expansão em `/catalogo/expansoes`).
+ *
+ * Ajuste 2026-07-31, rodada seguinte (pedido explícito de Fabrício: "os
+ * card sets devem ser organizados por data de lançamento e se as datas
+ * forem iguais deve ser levado em consideração o número de ordem do
+ * lançamento. Sempre em ordem decrescente para os dois parâmetros") — no
+ * caminho sem filtro, o desempate deixou de ser `created_at` (metadado
+ * técnico, sem significado editorial) e passou a ser `release_order`
+ * descendente, tanto quando as duas datas coincidem quanto quando as duas
+ * estão ausentes. Quando só uma das duas tem `release_date`, a com data
+ * continua vindo primeiro (comportamento já existente, não questionado).
  */
 function sortCatalogoCardSets(rows: CatalogoCardSetRawRow[], filtered: boolean): CatalogoCardSetRawRow[] {
   const sorted = [...rows];
@@ -334,12 +344,12 @@ function sortCatalogoCardSets(rows: CatalogoCardSetRawRow[], filtered: boolean):
     });
   } else {
     sorted.sort((a, b) => {
-      if (a.release_date && b.release_date) {
+      if (a.release_date && b.release_date && a.release_date !== b.release_date) {
         return b.release_date.localeCompare(a.release_date);
       }
-      if (a.release_date) return -1;
-      if (b.release_date) return 1;
-      return b.created_at.localeCompare(a.created_at);
+      if (a.release_date && !b.release_date) return -1;
+      if (!a.release_date && b.release_date) return 1;
+      return b.release_order - a.release_order;
     });
   }
   return sorted;
@@ -365,6 +375,7 @@ function toCatalogoCardSetRow(row: CatalogoCardSetRawRow, counts: Map<string, nu
     id: row.id,
     code: row.code,
     name: row.name,
+    setType: row.set_type,
     releaseOrder: row.release_order,
     releaseDate: row.release_date,
     expansionId: row.expansion?.id ?? "",
@@ -419,7 +430,7 @@ export async function searchCatalogo(
     supabase
       .from("card_set")
       .select(
-        "id, code, name, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
+        "id, code, name, set_type, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
       )
       .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
       .limit(6),

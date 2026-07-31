@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { updateCardSet } from "@/app/catalogo/card-sets/actions";
 import { CardSetLogoUploader } from "@/components/catalogo/card-set-logo-uploader";
+import { SET_TYPE_OPTIONS } from "@/components/catalogo/novo-catalogo-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,6 +39,14 @@ const initialState: CardSetActionState = { error: null };
  * `EditExpansionForm`. `onLogoUpdated` só chama `router.refresh()`, sem
  * fechar o Dialog nem mostrar o banner de sucesso do formulário nome/ordem
  * — ações independentes, mesmo comportamento de Expansão.
+ *
+ * Ajuste 2026-07-31, rodada seguinte (pedido explícito de Fabrício: "na
+ * tela de edição do set card deve ser permitido editar o tipo e a data de
+ * lançamento. Da forma como está, só consigo editar o nome e a ordem de
+ * lançamento") — campos Tipo (mesmo `SET_TYPE_OPTIONS` do formulário de
+ * criação, `novo-catalogo-dialog.tsx`) e Data de lançamento adicionados.
+ * `expansion_id`/`code`/`base_set_size`/`total_set_size` continuam de fora
+ * (não pedidos, e ainda imutáveis/estruturais por decisão do ADR-023).
  */
 export function EditCardSetDialog({
   open,
@@ -144,16 +153,44 @@ function EditCardSetForm({
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor={`edit-card-set-order-${cardSet.id}`}>Ordem de lançamento</Label>
-          <Input
-            id={`edit-card-set-order-${cardSet.id}`}
-            name="release_order"
-            type="number"
-            min={1}
-            step={1}
-            defaultValue={cardSet.releaseOrder}
+          <Label htmlFor={`edit-card-set-type-${cardSet.id}`}>Tipo</Label>
+          <select
+            id={`edit-card-set-type-${cardSet.id}`}
+            name="set_type"
             required
-          />
+            defaultValue={cardSet.setType}
+            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
+          >
+            {SET_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor={`edit-card-set-order-${cardSet.id}`}>Ordem de lançamento</Label>
+            <Input
+              id={`edit-card-set-order-${cardSet.id}`}
+              name="release_order"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={cardSet.releaseOrder}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`edit-card-set-date-${cardSet.id}`}>Data de lançamento</Label>
+            <Input
+              id={`edit-card-set-date-${cardSet.id}`}
+              name="release_date"
+              type="date"
+              defaultValue={cardSet.releaseDate ?? ""}
+            />
+          </div>
         </div>
 
         {state.error && <InlineFeedback tone="error">{state.error}</InlineFeedback>}
