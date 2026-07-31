@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { CircleUserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { PerfilForm } from "@/components/perfil/perfil-form";
 import { Alert } from "@/components/ui/alert";
@@ -25,10 +26,13 @@ export default async function PerfilPage() {
     .maybeSingle();
 
   return (
-    <AppShell title="Meu perfil">
+    <AppShell title="Meu perfil" icon={CircleUserRound}>
       <div className="mx-auto max-w-2xl">
         <div className="mb-6">
-          <h1 className="font-heading text-xl font-medium text-foreground">Meu perfil</h1>
+          <div className="flex items-center gap-2">
+            <CircleUserRound className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <h1 className="font-heading text-xl font-medium text-foreground">Meu perfil</h1>
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Dados pessoais, identidade pública e foto de perfil.
           </p>

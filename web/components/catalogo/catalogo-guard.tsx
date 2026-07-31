@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Alert } from "@/components/ui/alert";
@@ -23,8 +24,13 @@ type CatalogoGuardResult =
  * Uso: `const { denied, supabase } = await requireCatalogoAdmin("Jogos");
  * if (denied) return denied;` — mesmo padrão já validado em produção em
  * /usuarios/page.tsx, extraído aqui para reuso nas seis rotas do módulo.
+ *
+ * `icon` opcional (2026-07-31, padronização "mesmo ícone do menu antes do
+ * título" iniciada em Expansões) — repassado ao `AppShell` da própria tela
+ * de acesso restrito, pra manter o mesmo ícone do item de menu mesmo quando
+ * o usuário não tem permissão de ver o conteúdo real.
  */
-export async function requireCatalogoAdmin(title: string): Promise<CatalogoGuardResult> {
+export async function requireCatalogoAdmin(title: string, icon?: LucideIcon): Promise<CatalogoGuardResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -39,7 +45,7 @@ export async function requireCatalogoAdmin(title: string): Promise<CatalogoGuard
   if (!isAdmin) {
     return {
       denied: (
-        <AppShell title={title}>
+        <AppShell title={title} icon={icon}>
           <div className="mx-auto max-w-4xl">
             <Alert variant="destructive">Acesso restrito a administradores.</Alert>
           </div>

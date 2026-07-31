@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Construction } from "lucide-react";
+import { Boxes, Construction } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
 import { SetTypeTag } from "@/components/catalogo/set-type-tag";
@@ -16,7 +16,7 @@ import { getCardSetByCode } from "@/lib/catalogo/queries";
  */
 export default async function CardSetDetailPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const { denied, supabase } = await requireCatalogoAdmin(code);
+  const { denied, supabase } = await requireCatalogoAdmin(code, Boxes);
   if (denied) return denied;
 
   const cardSet = await getCardSetByCode(supabase, code);
@@ -25,9 +25,10 @@ export default async function CardSetDetailPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <AppShell title={cardSet.name}>
+    <AppShell title={cardSet.name} icon={Boxes}>
       <div className="mx-auto max-w-2xl space-y-4">
         <div className="flex items-center gap-2">
+          <Boxes className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <h1 className="font-heading text-xl font-medium text-foreground">{cardSet.name}</h1>
           <SetTypeTag setType={cardSet.setType} />
         </div>

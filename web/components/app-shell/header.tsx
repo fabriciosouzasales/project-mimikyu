@@ -1,10 +1,16 @@
+import type { LucideIcon } from "lucide-react";
 import { MobileNav } from "@/components/app-shell/mobile-nav";
 import { UserAvatarBadge } from "@/components/app-shell/user-avatar-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { createClient } from "@/lib/supabase/server";
 
-/** Cabeçalho fixo do app shell: menu mobile (hambúrguer) + breadcrumb + ações globais. */
-export async function Header({ title, isAdmin }: { title: string; isAdmin: boolean }) {
+/**
+ * Cabeçalho fixo do app shell: menu mobile (hambúrguer) + breadcrumb + ações
+ * globais. `icon` opcional (2026-07-31) — mesmo ícone do item de menu
+ * ativo, quando a página passa um; sem `icon`, o breadcrumb continua só
+ * texto, como sempre foi.
+ */
+export async function Header({ title, icon: Icon, isAdmin }: { title: string; icon?: LucideIcon; isAdmin: boolean }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,6 +38,7 @@ export async function Header({ title, isAdmin }: { title: string; isAdmin: boole
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
       <div className="flex items-center gap-2">
         <MobileNav isAdmin={isAdmin} />
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
       </div>
       <div className="flex items-center gap-2">

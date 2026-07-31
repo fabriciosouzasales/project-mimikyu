@@ -1,3 +1,4 @@
+import { Webhook } from "lucide-react";
 import { ComingSoonPage } from "@/components/coming-soon-page";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 
@@ -7,13 +8,14 @@ import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
  * para o menu não levar a um 404.
  */
 export default async function ImportacaoApiPage() {
-  const { denied } = await requireCatalogoAdmin("Importação Via API");
+  const { denied } = await requireCatalogoAdmin("Importação Via API", Webhook);
   if (denied) return denied;
 
   return (
     <ComingSoonPage
       title="Importação Via API"
       description="Importação automática de cartas via fontes externas (Pokémon TCG API, TCGdex)."
+      icon={Webhook}
     />
   );
 }

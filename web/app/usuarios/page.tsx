@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { UsersTable, type AdminUserRow } from "@/components/usuarios/users-table";
 import { Alert } from "@/components/ui/alert";
@@ -33,10 +34,13 @@ export default async function UsuariosPage() {
   }
 
   return (
-    <AppShell title="Usuários">
+    <AppShell title="Usuários" icon={Users}>
       <div className="mx-auto max-w-4xl">
         <div className="mb-6">
-          <h1 className="font-heading text-xl font-medium text-foreground">Usuários</h1>
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <h1 className="font-heading text-xl font-medium text-foreground">Usuários</h1>
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">Lista administrativa de usuários cadastrados.</p>
         </div>
 

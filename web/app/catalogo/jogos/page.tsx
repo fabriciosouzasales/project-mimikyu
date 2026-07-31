@@ -1,3 +1,4 @@
+import { Gamepad2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { JogosTable } from "@/components/catalogo/jogos-table";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
@@ -25,7 +26,7 @@ export default async function JogosPage({
 }: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { denied, supabase } = await requireCatalogoAdmin("Jogos");
+  const { denied, supabase } = await requireCatalogoAdmin("Jogos", Gamepad2);
   if (denied) return denied;
 
   const { q, page: pageParam } = await searchParams;
@@ -57,7 +58,7 @@ export default async function JogosPage({
   }
 
   return (
-    <AppShell title="Jogos">
+    <AppShell title="Jogos" icon={Gamepad2}>
       <PageContainer>
         <JogosTable jogos={jogos} items={paged.items} totalCount={paged.totalCount} page={page} query={query} />
       </PageContainer>

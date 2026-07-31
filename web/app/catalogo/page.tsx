@@ -1,3 +1,4 @@
+import { BookOpen, LayoutDashboard } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
 import { VisaoGeralStats } from "@/components/catalogo/visao-geral-stats";
@@ -29,9 +30,15 @@ import {
  * tabela de Card Sets, Atividade recente (log), nessa sequência. Substitui
  * o layout anterior (2026-07-26) que colocava Card Sets como bloco
  * dominante ao lado de uma coluna secundária com Raridade + Atividade.
+ *
+ * Ícones (2026-07-31, padronização iniciada em Expansões): esta tela tem
+ * DOIS títulos distintos, cada um com seu próprio ícone — o breadcrumb do
+ * `AppShell` mostra "Catálogo editorial" (nível de módulo, `BookOpen`,
+ * mesmo ícone da seção no menu principal) enquanto o `PageTitle` da própria
+ * página mostra "Visão Geral" (item "Gerencial" do submenu, `LayoutDashboard`).
  */
 export default async function CatalogoVisaoGeralPage() {
-  const { denied, supabase } = await requireCatalogoAdmin("Catálogo editorial");
+  const { denied, supabase } = await requireCatalogoAdmin("Catálogo editorial", BookOpen);
   if (denied) return denied;
 
   const [estado, cardSets, distribuicao, atividades] = await Promise.all([
@@ -45,11 +52,14 @@ export default async function CatalogoVisaoGeralPage() {
   ]);
 
   return (
-    <AppShell title="Catálogo editorial">
+    <AppShell title="Catálogo editorial" icon={BookOpen}>
       <PageContainer>
         <PageHeader>
           <PageHeading>
-            <PageTitle>Visão Geral</PageTitle>
+            <div className="flex items-center gap-2">
+              <LayoutDashboard className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              <PageTitle>Visão Geral</PageTitle>
+            </div>
             <PageDescription>Indicadores gerais e navegação rápida para os Card Sets do catálogo.</PageDescription>
           </PageHeading>
         </PageHeader>

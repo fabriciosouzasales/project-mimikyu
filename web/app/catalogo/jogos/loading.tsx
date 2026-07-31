@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Gamepad2, Plus } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Button } from "@/components/ui/button";
 import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
@@ -12,11 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 export default function JogosLoading() {
   return (
-    <AppShell title="Jogos">
+    <AppShell title="Jogos" icon={Gamepad2}>
       <PageContainer>
         <PageHeader>
           <PageHeading>
-            <PageTitle>Jogos</PageTitle>
+            <div className="flex items-center gap-2">
+              <Gamepad2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              <PageTitle>Jogos</PageTitle>
+            </div>
             <PageDescription>Cadastro e edição de Jogos do catálogo.</PageDescription>
           </PageHeading>
         </PageHeader>

@@ -1,3 +1,4 @@
+import { FileText } from "lucide-react";
 import { ComingSoonPage } from "@/components/coming-soon-page";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 
@@ -7,13 +8,14 @@ import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
  * para o menu não levar a um 404.
  */
 export default async function ImportacaoPdfPage() {
-  const { denied } = await requireCatalogoAdmin("Importação Via PDF");
+  const { denied } = await requireCatalogoAdmin("Importação Via PDF", FileText);
   if (denied) return denied;
 
   return (
     <ComingSoonPage
       title="Importação Via PDF"
       description="Importação de cartas a partir de arquivos PDF."
+      icon={FileText}
     />
   );
 }

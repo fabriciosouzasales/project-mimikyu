@@ -1,3 +1,4 @@
+import { Boxes } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { CatalogoGallery } from "@/components/catalogo/catalogo-gallery";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
@@ -26,7 +27,7 @@ export default async function CatalogoCardSetsPage({
 }: {
   searchParams: Promise<{ game?: string; expansion?: string; q?: string }>;
 }) {
-  const { denied, supabase } = await requireCatalogoAdmin("Coleções");
+  const { denied, supabase } = await requireCatalogoAdmin("Coleções", Boxes);
   if (denied) return denied;
 
   const { game, expansion, q } = await searchParams;
@@ -72,7 +73,7 @@ export default async function CatalogoCardSetsPage({
   }));
 
   return (
-    <AppShell title="Coleções">
+    <AppShell title="Coleções" icon={Boxes}>
       <PageContainer width="wide">
         <CatalogoGallery
           jogos={jogos}

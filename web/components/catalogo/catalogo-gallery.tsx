@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Boxes, Plus } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageActions, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
@@ -44,7 +44,10 @@ export function CatalogoGallery({
     <div className="space-y-4">
       <PageHeader>
         <PageHeading>
-          <PageTitle>Coleções</PageTitle>
+          <div className="flex items-center gap-2">
+            <Boxes className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            <PageTitle>Coleções</PageTitle>
+          </div>
           <PageDescription>Explore os Card Sets catalogados, por Jogo ou por busca direta.</PageDescription>
         </PageHeading>
         <PageActions>

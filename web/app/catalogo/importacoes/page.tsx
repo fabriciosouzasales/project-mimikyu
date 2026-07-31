@@ -1,3 +1,4 @@
+import { History } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
 import { StateBadge } from "@/components/catalogo/state-badge";
@@ -28,15 +29,18 @@ const RUN_TYPE_LABEL: Record<string, string> = {
  * idioma) por ser o destino dedicado desta informação.
  */
 export default async function ImportacoesPage() {
-  const { denied, supabase } = await requireCatalogoAdmin("Histórico de importações");
+  const { denied, supabase } = await requireCatalogoAdmin("Histórico de importações", History);
   if (denied) return denied;
 
   const importacoes = await getImportacoes(supabase);
 
   return (
-    <AppShell title="Histórico de importações">
+    <AppShell title="Histórico de importações" icon={History}>
       <div className="mx-auto max-w-6xl space-y-4">
-        <h1 className="font-heading text-xl font-medium text-foreground">Histórico de importações</h1>
+        <div className="flex items-center gap-2">
+          <History className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <h1 className="font-heading text-xl font-medium text-foreground">Histórico de importações</h1>
+        </div>
 
         <Panel>
           <PanelHeader>

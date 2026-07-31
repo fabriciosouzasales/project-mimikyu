@@ -35,12 +35,14 @@ function FilterSelect({
   onChange,
   disabled,
   ariaLabel,
+  className,
   children,
 }: {
   value: string;
   onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   disabled?: boolean;
   ariaLabel: string;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -54,6 +56,7 @@ function FilterSelect({
           "h-10 min-w-[9.5rem] appearance-none rounded-md border border-input bg-surface py-1 pl-3 pr-8 text-sm shadow-subtle transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           "disabled:cursor-not-allowed disabled:opacity-50",
+          className,
         )}
       >
         {children}
@@ -73,6 +76,7 @@ export function CatalogoFilterSelect({
   expansionCode,
   query,
   basePath = "/catalogo/card-sets",
+  className,
 }: {
   jogos: GameOption[];
   expansoesDoJogo: ExpansaoRow[];
@@ -80,6 +84,8 @@ export function CatalogoFilterSelect({
   expansionCode?: string;
   query: string;
   basePath?: string;
+  /** Repassado a cada `<select>` — usado por Expansões para bater h-9/bg-surface-muted com o padrão de Jogos. */
+  className?: string;
 }) {
   const router = useRouter();
 
@@ -97,7 +103,12 @@ export function CatalogoFilterSelect({
 
   return (
     <div className="flex gap-2">
-      <FilterSelect value={gameCode ?? ""} onChange={handleGameChange} ariaLabel="Filtrar por Jogo">
+      <FilterSelect
+        value={gameCode ?? ""}
+        onChange={handleGameChange}
+        ariaLabel="Filtrar por Jogo"
+        className={className}
+      >
         <option value="">Todos os Jogos</option>
         {jogos.map((jogo) => (
           <option key={jogo.id} value={jogo.code}>
@@ -107,7 +118,12 @@ export function CatalogoFilterSelect({
       </FilterSelect>
 
       {showExpansionFilter && (
-        <FilterSelect value={expansionCode ?? ""} onChange={handleExpansionChange} ariaLabel="Filtrar por Expansão">
+        <FilterSelect
+          value={expansionCode ?? ""}
+          onChange={handleExpansionChange}
+          ariaLabel="Filtrar por Expansão"
+          className={className}
+        >
           <option value="">Todas as Expansões</option>
           {expansoesDoJogo.map((expansao) => (
             <option key={expansao.id} value={expansao.code}>

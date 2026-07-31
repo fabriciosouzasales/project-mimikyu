@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CreditCard } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Panel, PanelContent, PanelHeader, PanelTitle, PanelDescription } from "@/components/catalogo/panel";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
@@ -18,7 +19,7 @@ export default async function CartasPage({
 }: {
   searchParams: Promise<{ set?: string }>;
 }) {
-  const { denied, supabase } = await requireCatalogoAdmin("Cartas");
+  const { denied, supabase } = await requireCatalogoAdmin("Cartas", CreditCard);
   if (denied) return denied;
 
   const { set } = await searchParams;
@@ -28,9 +29,12 @@ export default async function CartasPage({
   const selectedName = cardSets.find((cs) => cs.code === selectedCode)?.name;
 
   return (
-    <AppShell title="Cartas">
+    <AppShell title="Cartas" icon={CreditCard}>
       <div className="mx-auto max-w-6xl space-y-4">
-        <h1 className="font-heading text-xl font-medium text-foreground">Cartas</h1>
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <h1 className="font-heading text-xl font-medium text-foreground">Cartas</h1>
+        </div>
 
         {cardSets.length > 0 && (
           <div className="flex flex-wrap gap-1.5">

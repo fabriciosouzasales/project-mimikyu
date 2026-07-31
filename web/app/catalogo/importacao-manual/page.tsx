@@ -1,3 +1,4 @@
+import { Hand } from "lucide-react";
 import { ComingSoonPage } from "@/components/coming-soon-page";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 
@@ -10,13 +11,14 @@ import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
  * restrita a administradores.
  */
 export default async function ImportacaoManualPage() {
-  const { denied } = await requireCatalogoAdmin("Importação Manual");
+  const { denied } = await requireCatalogoAdmin("Importação Manual", Hand);
   if (denied) return denied;
 
   return (
     <ComingSoonPage
       title="Importação Manual"
       description="Registro manual de execuções de importação de imagens de cartas."
+      icon={Hand}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Boxes, Plus } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Button } from "@/components/ui/button";
 import { PageActions, PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
@@ -14,11 +14,14 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 export default function CatalogoLoading() {
   return (
-    <AppShell title="Coleções">
+    <AppShell title="Coleções" icon={Boxes}>
       <PageContainer width="wide">
         <PageHeader>
           <PageHeading>
-            <PageTitle>Coleções</PageTitle>
+            <div className="flex items-center gap-2">
+              <Boxes className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              <PageTitle>Coleções</PageTitle>
+            </div>
             <PageDescription>Explore os Card Sets catalogados, por Jogo ou por busca direta.</PageDescription>
           </PageHeading>
           <PageActions>
