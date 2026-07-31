@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { ExpansoesTable } from "@/components/catalogo/expansoes-table";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
+import { PageContainer, PageToolbar } from "@/components/ui/page";
 import { getExpansoes, getGameOptions } from "@/lib/catalogo/queries";
 
 /**
@@ -30,18 +31,20 @@ export default async function ExpansoesPage({
 
   return (
     <AppShell title="Expansões">
-      <div className="mx-auto max-w-6xl space-y-4">
+      <PageContainer>
         {game && (
-          <p className="text-xs text-muted-foreground">
-            Filtrando por Jogo: <span className="text-foreground">{gameName}</span>{" "}
-            <Link href="/catalogo/expansoes" className="underline-offset-2 hover:underline">
-              Limpar filtro
-            </Link>
-          </p>
+          <PageToolbar>
+            <p className="text-xs text-muted-foreground">
+              Filtrando por Jogo: <span className="text-foreground">{gameName}</span>{" "}
+              <Link href="/catalogo/expansoes" className="underline-offset-2 hover:underline">
+                Limpar filtro
+              </Link>
+            </p>
+          </PageToolbar>
         )}
 
         <ExpansoesTable expansoes={expansoes} jogos={jogos} defaultGameId={defaultGameId} />
-      </div>
+      </PageContainer>
     </AppShell>
   );
 }

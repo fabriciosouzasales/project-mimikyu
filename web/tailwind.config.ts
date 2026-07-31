@@ -79,6 +79,17 @@ const config: Config = {
         "drawer-out": { from: { transform: "translateX(0)" }, to: { transform: "translateX(-100%)" } },
         "overlay-in": { from: { opacity: "0" }, to: { opacity: "1" } },
         "overlay-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+        // Modal centralizado (Dialog) — zoom+fade sutil, distinto do slide
+        // lateral do Drawer mobile (drawer-in/out, acima). Fundação visual,
+        // Ciclo B (2026-07-30): primeiro consumidor é components/ui/dialog.tsx.
+        "dialog-in": {
+          from: { opacity: "0", transform: "translate(-50%, -48%) scale(0.96)" },
+          to: { opacity: "1", transform: "translate(-50%, -50%) scale(1)" },
+        },
+        "dialog-out": {
+          from: { opacity: "1", transform: "translate(-50%, -50%) scale(1)" },
+          to: { opacity: "0", transform: "translate(-50%, -48%) scale(0.96)" },
+        },
       },
       animation: {
         "collapsible-down": "collapsible-down 200ms ease-out",
@@ -87,6 +98,8 @@ const config: Config = {
         "drawer-out": "drawer-out 150ms ease-in",
         "overlay-in": "overlay-in 150ms ease-out",
         "overlay-out": "overlay-out 150ms ease-in",
+        "dialog-in": "dialog-in 150ms ease-out",
+        "dialog-out": "dialog-out 100ms ease-in",
       },
     },
   },
