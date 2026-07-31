@@ -10,14 +10,18 @@ import type { ExpansaoRow, GameOption } from "@/lib/catalogo/queries";
  * navegação normal de rota, mesmo padrão já usado pelo filtro `?game=` de
  * /catalogo/expansoes. Chips de Expansão só aparecem depois que um Jogo é
  * escolhido — é refinamento progressivo, nunca hierarquia obrigatória.
+ *
+ * `basePath` generalizado (2026-07-31) para reuso pelo redesenho de
+ * Expansões (`expansoesDoJogo={[]}` naquela tela, já que uma Expansão não
+ * filtra a si mesma) — mesmo componente, sem duplicar a marcação.
  */
-function buildHref(params: { q?: string; game?: string; expansion?: string }): string {
+function buildHref(basePath: string, params: { q?: string; game?: string; expansion?: string }): string {
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
   if (params.game) search.set("game", params.game);
   if (params.expansion) search.set("expansion", params.expansion);
   const qs = search.toString();
-  return qs ? `/catalogo/card-sets?${qs}` : "/catalogo/card-sets";
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 function Chip({ href, active, children }: { href: string; active: boolean; children: ReactNode }) {
@@ -42,21 +46,23 @@ export function CatalogoFilterChips({
   gameCode,
   expansionCode,
   query,
+  basePath = "/catalogo/card-sets",
 }: {
   jogos: GameOption[];
   expansoesDoJogo: ExpansaoRow[];
   gameCode?: string;
   expansionCode?: string;
   query: string;
+  basePath?: string;
 }) {
   return (
     <div className="space-y-2">
       <div className="flex gap-2 overflow-x-auto pb-0.5">
-        <Chip href={buildHref({ q: query })} active={!gameCode}>
+        <Chip href={buildHref(basePath, { q: query })} active={!gameCode}>
           Todos
         </Chip>
         {jogos.map((jogo) => (
-          <Chip key={jogo.id} href={buildHref({ q: query, game: jogo.code })} active={gameCode === jogo.code}>
+          <Chip key={jogo.id} href={buildHref(basePath, { q: query, game: jogo.code })} active={gameCode === jogo.code}>
             {jogo.name}
           </Chip>
         ))}
@@ -64,13 +70,13 @@ export function CatalogoFilterChips({
 
       {gameCode && expansoesDoJogo.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-0.5">
-          <Chip href={buildHref({ q: query, game: gameCode })} active={!expansionCode}>
+          <Chip href={buildHref(basePath, { q: query, game: gameCode })} active={!expansionCode}>
             Todas as expansões
           </Chip>
           {expansoesDoJogo.map((expansao) => (
             <Chip
               key={expansao.id}
-              href={buildHref({ q: query, game: gameCode, expansion: expansao.code })}
+              href={buildHref(basePath, { q: query, game: gameCode, expansion: expansao.code })}
               active={expansionCode === expansao.code}
             >
               {expansao.name}

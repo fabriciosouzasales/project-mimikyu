@@ -12,7 +12,13 @@ import { Input } from "@/components/ui/input";
  * nunca saiam do lugar — só o conteúdo abaixo muda (decisão explícita:
  * "a busca não deve trocar a estrutura da página").
  */
-export function CatalogoSearchBar({ initialQuery }: { initialQuery: string }) {
+export function CatalogoSearchBar({
+  initialQuery,
+  placeholder = "Buscar por Card Set ou por Carta (nome ou número)…",
+}: {
+  initialQuery: string;
+  placeholder?: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -48,7 +54,7 @@ export function CatalogoSearchBar({ initialQuery }: { initialQuery: string }) {
       <Input
         value={value}
         onChange={(event) => handleChange(event.target.value)}
-        placeholder="Buscar por Card Set ou por Carta (nome ou número)…"
+        placeholder={placeholder}
         className="h-10 pl-9 text-sm"
         aria-label="Buscar no catálogo"
       />

@@ -187,7 +187,14 @@ function groupByGame(expansoes: ExpansaoRow[]) {
     }));
 }
 
-function CreateExpansionDialog({
+/**
+ * Exportado (2026-07-31) para reuso pelo redesenho da própria tela de
+ * Expansões (`expansoes-gallery.tsx`, substitui `ExpansoesTable`/o layout de
+ * tabela por uma galeria de cards, mesma linguagem visual da tela Catálogo)
+ * e potencialmente por outras entidades — Dialog, guardas de `pending` e
+ * isolamento de estado por abertura continuam idênticos.
+ */
+export function CreateExpansionDialog({
   open,
   jogos,
   defaultGameId,
@@ -330,7 +337,8 @@ export function CreateExpansionForm({
   );
 }
 
-function EditExpansionDialog({
+/** Exportado (2026-07-31) pelo mesmo motivo de `CreateExpansionDialog` acima. */
+export function EditExpansionDialog({
   open,
   expansao,
   onSaved,

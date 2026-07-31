@@ -563,6 +563,112 @@ export async function getExpansoes(
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Catálogo — galeria de Expansões (/catalogo/expansoes, redesenho 2026-07-31,
+// mesma linguagem visual/comportamento da galeria de Card Sets acima).
+// Devolve `ExpansaoRow` (mesmo tipo já usado por getExpansoes/CreateExpansion
+// Dialog/EditExpansionDialog) — sem tipo novo, evita qualquer divergência de
+// forma entre a galeria e os Dialogs de criação/edição já existentes.
+//
+// Adaptação à entidade: Expansion não tem `logo_storage_path` (só card_set
+// tem) e não tem `release_date` (só `release_order`, relativo ao próprio
+// Jogo) — sem filtro de Jogo, o único campo comparável entre Jogos é
+// `created_at`, mesmo fallback já usado em Card Set quando a data real
+// está ausente.
+// ---------------------------------------------------------------------------
+
+export const EXPANSOES_PAGE_SIZE = 24;
+
+async function fetchExpansoesRawForCatalogo(
+  supabase: SupabaseClient,
+  filters: { gameCode?: string },
+): Promise<ExpansionRawRow[]> {
+  let query = supabase
+    .from("expansion")
+    .select("id, code, name, release_order, created_at, updated_at, game!inner(id, code, name), card_set(count)");
+
+  if (filters.gameCode) {
+    query = query.eq("game.code", filters.gameCode);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) {
+    return [];
+  }
+  return data as unknown as ExpansionRawRow[];
+}
+
+function sortExpansoesForCatalogo(rows: ExpansionRawRow[], filtered: boolean): ExpansionRawRow[] {
+  const sorted = [...rows];
+  if (filtered) {
+    sorted.sort((a, b) => a.release_order - b.release_order);
+  } else {
+    sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+  return sorted;
+}
+
+function toExpansaoRow(row: ExpansionRawRow): ExpansaoRow {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    releaseOrder: row.release_order,
+    gameId: row.game?.id ?? "",
+    gameCode: row.game?.code ?? "",
+    gameName: row.game?.name ?? "—",
+    totalCardSets: extractCount(row.card_set),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Galeria principal da tela Expansões — sem termo de busca. */
+export async function getExpansoesForCatalogo(
+  supabase: SupabaseClient,
+  options: { gameCode?: string; limit: number; offset: number },
+): Promise<{ items: ExpansaoRow[]; hasMore: boolean }> {
+  const filtered = Boolean(options.gameCode);
+  const all = sortExpansoesForCatalogo(
+    await fetchExpansoesRawForCatalogo(supabase, { gameCode: options.gameCode }),
+    filtered,
+  );
+  const page = all.slice(options.offset, options.offset + options.limit);
+  const hasMore = all.length > options.offset + options.limit;
+  return { items: page.map(toExpansaoRow), hasMore };
+}
+
+/**
+ * Busca por nome ou código da Expansão — mais simples que a busca dupla de
+ * Catálogo (Card Set + Carta): Expansion não tem Cards como filhos diretos,
+ * então não há um segundo tipo de resultado fazendo sentido aqui.
+ */
+export async function searchExpansoes(
+  supabase: SupabaseClient,
+  term: string,
+  options: { limit: number; offset: number },
+): Promise<{ items: ExpansaoRow[]; hasMore: boolean }> {
+  const q = term.trim();
+  if (!q) {
+    return { items: [], hasMore: false };
+  }
+
+  const { data, error } = await supabase
+    .from("expansion")
+    .select("id, code, name, release_order, created_at, updated_at, game!inner(id, code, name), card_set(count)")
+    .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
+    .order("name", { ascending: true });
+
+  if (error || !data) {
+    return { items: [], hasMore: false };
+  }
+
+  const rows = data as unknown as ExpansionRawRow[];
+  const page = rows.slice(options.offset, options.offset + options.limit);
+  const hasMore = rows.length > options.offset + options.limit;
+  return { items: page.map(toExpansaoRow), hasMore };
+}
+
 export type GameOption = { id: string; code: string; name: string };
 
 /** Opções para o seletor de Jogo do formulário de cadastro de Expansão. */
