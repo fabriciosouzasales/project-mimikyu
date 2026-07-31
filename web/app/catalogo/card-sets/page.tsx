@@ -26,7 +26,7 @@ export default async function CatalogoCardSetsPage({
 }: {
   searchParams: Promise<{ game?: string; expansion?: string; q?: string }>;
 }) {
-  const { denied, supabase } = await requireCatalogoAdmin("Catálogo");
+  const { denied, supabase } = await requireCatalogoAdmin("Card Set");
   if (denied) return denied;
 
   const { game, expansion, q } = await searchParams;
@@ -72,7 +72,7 @@ export default async function CatalogoCardSetsPage({
   }));
 
   return (
-    <AppShell title="Catálogo">
+    <AppShell title="Card Set">
       <PageContainer width="wide">
         <CatalogoGallery
           jogos={jogos}

@@ -44,7 +44,7 @@ export function CatalogoGallery({
     <div className="space-y-4">
       <PageHeader>
         <PageHeading>
-          <PageTitle>Catálogo</PageTitle>
+          <PageTitle>Card Set</PageTitle>
           <PageDescription>Explore os Card Sets catalogados, por Jogo ou por busca direta.</PageDescription>
         </PageHeading>
         <PageActions>
@@ -79,7 +79,7 @@ export function CatalogoGallery({
         initialCards={initialCards}
       />
 
-      <NovoCatalogoDialog open={novoOpen} onOpenChange={setNovoOpen} jogos={jogos} />
+      <NovoCatalogoDialog open={novoOpen} onOpenChange={setNovoOpen} />
     </div>
   );
 }

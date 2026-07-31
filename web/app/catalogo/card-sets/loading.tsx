@@ -14,11 +14,11 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 export default function CatalogoLoading() {
   return (
-    <AppShell title="Catálogo">
+    <AppShell title="Card Set">
       <PageContainer width="wide">
         <PageHeader>
           <PageHeading>
-            <PageTitle>Catálogo</PageTitle>
+            <PageTitle>Card Set</PageTitle>
             <PageDescription>Explore os Card Sets catalogados, por Jogo ou por busca direta.</PageDescription>
           </PageHeading>
           <PageActions>
