@@ -249,6 +249,10 @@ export type CatalogoCardSetRow = {
   setType: string;
   releaseOrder: number;
   releaseDate: string | null;
+  /** Quantidade de cartas do set base (sem secretas) — `card_set.base_set_size`. */
+  baseSetSize: number;
+  /** Quantidade total, incluindo secretas — `card_set.total_set_size`. A diferença `totalSetSize - baseSetSize` é a contagem de secretas (ver comentário de `120_create_card_set_table.sql`). */
+  totalSetSize: number;
   expansionId: string;
   expansionName: string;
   expansionReleaseOrder: number;
@@ -282,6 +286,8 @@ type CatalogoCardSetRawRow = {
   set_type: string;
   release_order: number;
   release_date: string | null;
+  base_set_size: number;
+  total_set_size: number;
   logo_storage_path: string | null;
   created_at: string;
   expansion: { id: string; name: string; release_order: number; game: { id: string; code: string; name: string } | null } | null;
@@ -294,7 +300,7 @@ async function fetchCardSetsForCatalogo(
   let query = supabase
     .from("card_set")
     .select(
-      "id, code, name, set_type, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
+      "id, code, name, set_type, release_order, release_date, base_set_size, total_set_size, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
     );
 
   if (filters.expansionCode) {
@@ -378,6 +384,8 @@ function toCatalogoCardSetRow(row: CatalogoCardSetRawRow, counts: Map<string, nu
     setType: row.set_type,
     releaseOrder: row.release_order,
     releaseDate: row.release_date,
+    baseSetSize: row.base_set_size,
+    totalSetSize: row.total_set_size,
     expansionId: row.expansion?.id ?? "",
     expansionName: row.expansion?.name ?? "—",
     expansionReleaseOrder: row.expansion?.release_order ?? 0,
@@ -854,64 +862,209 @@ export async function getGameOptions(supabase: SupabaseClient): Promise<GameOpti
   return data as GameOption[];
 }
 
-export type CardSetOption = { code: string; name: string };
-
-/** Opções para o seletor de Card Set da tela /catalogo/cartas — mesma ordem de exibição do resto do módulo. */
-export async function getCardSetOptions(supabase: SupabaseClient): Promise<CardSetOption[]> {
-  const cardSets = await fetchCardSets(supabase);
-  return cardSets.map((set) => ({ code: set.code, name: set.name }));
+/**
+ * Todos os Card Sets, na mesma ordenação "mais recente primeiro" da galeria
+ * de Coleções sem filtro (`sortCatalogoCardSets`, `filtered = false`) — base
+ * única para a tela /catalogo/cartas: os 3 primeiros alimentam os cards de
+ * logo em destaque (pedido de Fabrício, 2026-07-31: "ao invés de trazer no
+ * topo cards com indicadores, vamos trazer cards com a imagem da logo dos
+ * três card set mais recentes"), a lista inteira alimenta o seletor
+ * "Coleção". Sem paginação/contagem de cartas (`counts` vazio) — nenhum dos
+ * dois consumidores precisa de `cardsCatalogados`.
+ *
+ * **Atualização 2026-07-31 (mesmo dia, rodada seguinte):** `cardsCatalogados`
+ * passou a ser necessário — dois novos consumidores: (1) `CartasStats`,
+ * indicadores que substituem a antiga barra "Recentes" (removida por pedido
+ * de Fabrício: "perdeu o sentido... com os filtros que incluímos"); (2) a
+ * regra de seleção padrão em `page.tsx`, que agora precisa saber quais Card
+ * Sets têm cartas para escolher "o último card set com cartas cadastradas"
+ * em vez do último Card Set cadastrado (que pode não ter nenhuma carta
+ * ainda). `getCardCountsForSets` (já usada por `getCardSetsForCatalogo`/
+ * `getEstadoDoCatalogo`) resolve isso numa única query extra, mesmo padrão
+ * já estabelecido.
+ */
+export async function getCardSetsForCartas(supabase: SupabaseClient): Promise<CatalogoCardSetRow[]> {
+  const rows = sortCatalogoCardSets(await fetchCardSetsForCatalogo(supabase, {}), false);
+  const counts = await getCardCountsForSets(
+    supabase,
+    rows.map((row) => row.id),
+  );
+  return rows.map((row) => toCatalogoCardSetRow(row, counts));
 }
 
-export type CartaRow = {
-  id: string;
-  collectorNumber: string;
-  collectorTotal: number | null;
-  name: string;
-  raridadeNome: string | null;
-  categoriaNome: string | null;
-};
-
-type CardRawRow = {
-  id: string;
-  collector_number: string;
-  collector_total: number | null;
-  name: string;
-  rarity: { name: string } | null;
-  card_category: { name: string } | null;
+export type CartasCatalogoStats = {
+  totalVariacoes: number;
+  totalImagens: number;
+  cardsSemImagem: number;
 };
 
 /**
- * Cartas de um único Card Set, ordenadas por `collector_order` — decisão
- * deliberada de não paginar/listar as 927 cartas juntas: `collector_order` é
- * relativo a cada Card Set, então misturar Sets na mesma lista intercalaria
- * numerações sem sentido. Um seletor de Card Set (ver getCardSetOptions)
- * resolve isso e ainda reflete como o catálogo é navegado na prática.
+ * Indicadores agregados da tela Cartas que não são deriváveis de
+ * `cardSets` — pedido de Fabrício (2026-07-31, mesmo dia, lista fechada de
+ * 5 indicadores para substituir o rascunho anterior de `CartasStats`):
+ * "Quantidade de variações cadastradas", "Quantidade de imagens em nossa
+ * base" e "Quantidade de cartas sem imagens". Os outros dois da lista
+ * (Cartas, Coleções sem Cartas) já vêm de `cardSets`/`cardsCatalogados`,
+ * sem consulta nova — ver `CartasStats`.
+ *
+ * Três contagens independentes, todas `count: "exact", head: true` (sem
+ * trazer linhas, só o total — mesmo padrão já usado em
+ * `getEstadoDoCatalogo` para `execucoesComPendencia`):
+ * - `card_variant` (Query 160) — cada linha é uma variante colecionável
+ *   cadastrada para uma Card (ex.: STANDARD, REVERSE_HOLO); conta 1:1 com
+ *   o pedido.
+ * - `card_asset` (Query 180) — todo ativo digital já registrado no
+ *   catálogo, não só imagens de frente (CARD_FRONT) — o pedido foi
+ *   "imagens em nossa base", sem restringir o tipo.
+ * - Cards sem imagem: total de Cards (`totalCartas`, calculado por quem
+ *   chama — mesma base de `cardsCatalogados`, sem filtro `is_active`,
+ *   para não divergir do indicador "Cartas") menos os Cards com pelo
+ *   menos um `card_asset` primário do tipo CARD_FRONT (mesmo critério que
+ *   decide o placeholder "Sem imagem" em `CartaGridCard`/`CartaZoomDialog`
+ *   — ver `cartaImageUrl`/`pickCardFrontPath`). `card_asset_type!inner(code)`
+ *   com `.eq("card_asset_type.code", ...)` é o mesmo padrão de filtro por
+ *   coluna de tabela relacionada já usado em `fetchCardSetsForCatalogo`
+ *   (`expansion!inner`/`.eq("expansion.code", ...)`); depende da política
+ *   de SELECT em `card_asset_type` para `authenticated`+`is_admin()`
+ *   corrigida pela Query 2053 nesta mesma rodada de trabalho.
  */
-export async function getCartasPorCardSet(supabase: SupabaseClient, cardSetCode: string): Promise<CartaRow[]> {
-  const { data: cardSet } = await supabase.from("card_set").select("id").eq("code", cardSetCode).maybeSingle();
+export async function getCartasCatalogoStats(
+  supabase: SupabaseClient,
+  totalCartas: number,
+): Promise<CartasCatalogoStats> {
+  const [variantResult, assetResult, frontAssetsResult] = await Promise.all([
+    supabase.from("card_variant").select("id", { count: "exact", head: true }),
+    supabase.from("card_asset").select("id", { count: "exact", head: true }),
+    supabase
+      .from("card_asset")
+      .select("card_id, card_asset_type!inner(code)")
+      .eq("is_primary", true)
+      .eq("card_asset_type.code", "CARD_FRONT"),
+  ]);
 
-  if (!cardSet) {
-    return [];
-  }
+  const totalVariacoes = variantResult.count ?? 0;
+  const totalImagens = assetResult.count ?? 0;
+  const cardsComImagem = new Set(
+    ((frontAssetsResult.data as { card_id: string }[] | null) ?? []).map((row) => row.card_id),
+  ).size;
+  const cardsSemImagem = Math.max(totalCartas - cardsComImagem, 0);
 
+  return { totalVariacoes, totalImagens, cardsSemImagem };
+}
+
+export type CartaCompletaRow = {
+  id: string;
+  collectorNumber: string;
+  collectorTotal: number | null;
+  collectorOrder: number;
+  name: string;
+  rarityCode: string;
+  rarityName: string;
+  rarityDisplayOrder: number;
+  raritySymbolCode: string;
+  categoryCode: string;
+  categoryName: string;
+  categoryDisplayOrder: number;
+  /** Imagem CARD_FRONT principal em português (pt-BR), quando importada. */
+  imageUrlPt: string | null;
+  /** Imagem CARD_FRONT principal em inglês (en), quando importada. */
+  imageUrlEn: string | null;
+};
+
+type CartaCompletaAssetRawRow = {
+  storage_path: string | null;
+  is_primary: boolean;
+  card_asset_type: { code: string } | null;
+  language: { code: string } | null;
+};
+
+type CartaCompletaRawRow = {
+  id: string;
+  collector_number: string;
+  collector_total: number | null;
+  collector_order: number;
+  name: string;
+  rarity: { code: string; name: string; symbol_code: string; display_order: number } | null;
+  card_category: { code: string; name: string; display_order: number } | null;
+  card_asset: CartaCompletaAssetRawRow[] | null;
+};
+
+/**
+ * Caminho da imagem CARD_FRONT principal de um idioma específico — usada
+ * duas vezes (pt-BR e en) para alimentar o alternador de idioma da imagem
+ * na tela Cartas (pedido de Fabrício, 2026-07-31: "incluir um componente
+ * para alternar entre imagens das cartas em PT e IN"). Antes só o idioma
+ * preferido (`IMAGE_LANGUAGE_PRIORITY`, pt-BR > en) era resolvido — agora
+ * ambos ficam disponíveis em `CartaCompletaRow` e a UI decide qual mostrar;
+ * nem todo Card Set tem os dois idiomas importados (ver
+ * docs/06-pipeline-importacao.md), então um dos dois pode vir `null`.
+ */
+function pickCardFrontPath(assets: CartaCompletaAssetRawRow[] | null, languageCode: string): string | null {
+  if (!assets) return null;
+  return (
+    assets.find(
+      (asset) =>
+        asset.is_primary &&
+        asset.card_asset_type?.code === "CARD_FRONT" &&
+        asset.storage_path &&
+        asset.language?.code === languageCode,
+    )?.storage_path ?? null
+  );
+}
+
+/**
+ * Todas as cartas ativas de um único Card Set, com imagem (CARD_FRONT,
+ * ativo principal, ver `pickCardFrontPath`) e metadados de raridade/
+ * categoria — base da galeria visual de Cartas (pedido de Fabrício,
+ * 2026-07-31: "a exibição das cartas é a funcionalidade que deve
+ * impressionar qualquer usuário visualmente"). Ordenadas por
+ * `collector_order` — decisão já registrada em `getCartasPorCardSet`
+ * (função que esta substitui): `collector_order` é relativo a cada Card
+ * Set, então uma lista sem filtro de Set intercalaria numerações sem
+ * sentido; o seletor "Coleção" (`getCardSetsForCartas`) resolve isso.
+ *
+ * Bucket `card-front` é público (Seed 895 — `is_public = TRUE`, diferente
+ * dos buckets de logo que são privados/assinados) — `getPublicUrl()` é
+ * síncrono, sem round-trip extra por carta. Nenhuma política de RLS nova
+ * foi necessária: `card`, `card_asset`, `rarity`, `card_category` já têm
+ * SELECT liberado para authenticated+is_admin() desde a Query 274
+ * (ADR-022), a mesma leitura que `getCartasPorCardSet` já fazia para
+ * `card`/`rarity`/`card_category`.
+ */
+export async function getCartasCompletas(supabase: SupabaseClient, cardSetId: string): Promise<CartaCompletaRow[]> {
   const { data, error } = await supabase
     .from("card")
-    .select("id, collector_number, collector_total, name, rarity(name), card_category(name)")
-    .eq("card_set_id", cardSet.id)
+    .select(
+      "id, collector_number, collector_total, collector_order, name, rarity(code, name, symbol_code, display_order), card_category(code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code))",
+    )
+    .eq("card_set_id", cardSetId)
+    .eq("is_active", true)
     .order("collector_order", { ascending: true });
 
   if (error || !data) {
     return [];
   }
 
-  return (data as unknown as CardRawRow[]).map((card) => ({
-    id: card.id,
-    collectorNumber: card.collector_number,
-    collectorTotal: card.collector_total,
-    name: card.name,
-    raridadeNome: card.rarity?.name ?? null,
-    categoriaNome: card.card_category?.name ?? null,
-  }));
+  return (data as unknown as CartaCompletaRawRow[]).map((card) => {
+    const pathPt = pickCardFrontPath(card.card_asset, "pt-BR");
+    const pathEn = pickCardFrontPath(card.card_asset, "en");
+    return {
+      id: card.id,
+      collectorNumber: card.collector_number,
+      collectorTotal: card.collector_total,
+      collectorOrder: card.collector_order,
+      name: card.name,
+      rarityCode: card.rarity?.code ?? "",
+      rarityName: card.rarity?.name ?? "—",
+      rarityDisplayOrder: card.rarity?.display_order ?? 0,
+      raritySymbolCode: card.rarity?.symbol_code ?? "",
+      categoryCode: card.card_category?.code ?? "",
+      categoryName: card.card_category?.name ?? "—",
+      categoryDisplayOrder: card.card_category?.display_order ?? 0,
+      imageUrlPt: pathPt ? (supabase.storage.from("card-front").getPublicUrl(pathPt).data.publicUrl ?? null) : null,
+      imageUrlEn: pathEn ? (supabase.storage.from("card-front").getPublicUrl(pathEn).data.publicUrl ?? null) : null,
+    };
+  });
 }
 
 export type ImportacaoRow = {

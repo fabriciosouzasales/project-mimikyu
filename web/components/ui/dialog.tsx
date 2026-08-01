@@ -44,8 +44,20 @@ export const DialogContent = forwardRef<
   ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     hideClose?: boolean;
     size?: keyof typeof DIALOG_SIZES;
+    /**
+     * Desliga o zoom+fade padrão do Content (`animate-dialog-in`/`-out`),
+     * mantendo apenas o fade do Overlay — novo em 2026-07-31, primeiro
+     * consumidor é `CartaZoomDialog`, que passa a animar sua própria
+     * transição via View Transitions API (`document.startViewTransition`)
+     * em vez do zoom genérico do Dialog. `className` não é uma alternativa
+     * confiável para isso: as classes de animação já vêm embutidas na
+     * string-base do componente, e `cn`/`tailwind-merge` não garante
+     * dedupe de classes `animate-*` customizadas passadas por fora.
+     * Default `true` — preserva o comportamento de todo Dialog existente.
+     */
+    animated?: boolean;
   }
->(({ className, children, hideClose, size = "default", ...props }, ref) => (
+>(({ className, children, hideClose, size = "default", animated = true, ...props }, ref) => (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/20 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out" />
     <DialogPrimitive.Content
@@ -53,7 +65,7 @@ export const DialogContent = forwardRef<
       className={cn(
         "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface shadow-panel",
         DIALOG_SIZES[size],
-        "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
+        animated && "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
         className,
       )}
       {...props}

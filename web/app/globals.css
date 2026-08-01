@@ -147,3 +147,74 @@
     }
   }
 }
+
+/*
+ * Efeito holográfico das Cartas (`components/catalogo/holo-card.tsx`) —
+ * novo em 2026-07-31, subciclo Card. `--holo-x`/`--holo-y`/`--holo-opacity`/
+ * `--holo-transform` são gravados via JS (`element.style.setProperty`) a
+ * cada `mousemove`; aqui só a leitura (`var(...)`) e a transição de volta ao
+ * neutro no `mouseleave`. `--holo-opacity: 0` (definido inline no elemento,
+ * ver `holo-card.tsx`) é o valor de repouso — sem isso, o brilho ficaria
+ * visível parado no centro antes do primeiro `mousemove`.
+ */
+@layer components {
+  .holo-card {
+    transform: var(--holo-transform, none);
+    transition:
+      transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-style: preserve-3d;
+  }
+
+  .holo-card:hover {
+    box-shadow:
+      0 18px 30px -12px hsl(var(--foreground) / 0.28),
+      0 4px 10px -4px hsl(var(--foreground) / 0.2);
+  }
+
+  .holo-card__sheen {
+    opacity: var(--holo-opacity, 0);
+    transition: opacity 250ms ease-out;
+    background:
+      radial-gradient(circle at var(--holo-x, 50%) var(--holo-y, 50%), hsl(0 0% 100% / 0.55), transparent 48%),
+      linear-gradient(
+        115deg,
+        transparent 28%,
+        hsl(205 95% 65% / 0.5) 40%,
+        hsl(280 90% 72% / 0.5) 47%,
+        hsl(45 95% 65% / 0.5) 54%,
+        transparent 66%
+      );
+    background-size:
+      100% 100%,
+      240% 240%;
+    background-position:
+      center,
+      var(--holo-x, 50%) var(--holo-y, 50%);
+    mix-blend-mode: overlay;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .holo-card {
+      transform: none !important;
+    }
+  }
+
+  /*
+   * View Transitions API (grid → modal ampliado de Cartas) — novo em
+   * 2026-07-31, pedido de Fabrício: "quero que o movimento pareça
+   * realmente uma ampliação da carta". Sem esta regra, o navegador usa a
+   * duração padrão (~250ms, ease padrão) para o morph entre a miniatura
+   * do grid e a imagem do modal — funcional, mas destoa do resto da tela
+   * (curva `cubic-bezier(0.22, 1, 0.36, 1)` já usada em `.holo-card`).
+   * `*` cobre qualquer nome de transição (hoje só `carta-img-<id>`, ver
+   * `cartaViewTransitionName` em `cartas-gallery.tsx`); sob
+   * `prefers-reduced-motion: reduce` a própria chamada de
+   * `document.startViewTransition` nunca acontece (`canUseViewTransitions`
+   * já verifica isso), então não precisa de uma segunda `@media` aqui.
+   */
+  ::view-transition-group(*) {
+    animation-duration: 420ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}

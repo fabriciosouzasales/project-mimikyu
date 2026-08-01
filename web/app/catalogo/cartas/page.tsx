@@ -1,100 +1,130 @@
-import Link from "next/link";
 import { CreditCard } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
-import { Panel, PanelContent, PanelHeader, PanelTitle, PanelDescription } from "@/components/catalogo/panel";
+import { CartasGallery } from "@/components/catalogo/cartas-gallery";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
-import { cn } from "@/lib/utils";
-import { getCardSetOptions, getCartasPorCardSet } from "@/lib/catalogo/queries";
+import { PageContainer } from "@/components/ui/page";
+import {
+  getCardSetLogoUrls,
+  getCardSetsForCartas,
+  getCartasCatalogoStats,
+  getCartasCompletas,
+  getExpansoes,
+  getGameOptions,
+} from "@/lib/catalogo/queries";
 
 /**
- * Cartas — navegação por Card Set (chips com `?set=CODE`), não uma lista
- * única das 927 cartas: `collector_order` é relativo a cada Card Set, então
- * misturar Sets na mesma tabela intercalaria numerações sem sentido (ver
- * comentário de `getCartasPorCardSet`). Sem estado no cliente — o chip ativo
- * deriva inteiramente do `searchParams`, mesmo princípio já usado no
- * submenu (seção ativa deriva da rota).
+ * Cartas — reescrita completa em 2026-07-31 (subciclo Card, escopo
+ * somente-leitura: criação/edição administrativa de Card via
+ * `internal.write_card()` — Query 2030 — e desativação/reativação via
+ * `card.is_active` continuam pendentes, fora do escopo desta rodada). Antes
+ * era uma navegação simples por chips de código + tabela (ver histórico
+ * git); agora delega toda a composição visual a `CartasGallery` — este
+ * arquivo só resolve dados (Card Sets + cartas do Set selecionado, logo do
+ * Set selecionado) e checa autorização, mesmo padrão de
+ * `expansoes/page.tsx`/`card-sets/page.tsx`.
+ *
+ * `games`/`expansions` — adicionados em 2026-07-31 junto com o filtro
+ * hierárquico Jogo→Expansão→Coleção. Bug relatado por Fabrício na primeira
+ * versão do filtro: "o primeiro componente não exibe todos os jogos
+ * cadastrados". Causa: o seletor de Jogo era montado a partir de
+ * `cardSets` (só Jogos que já têm pelo menos um Card Set catalogado
+ * apareciam) — um Jogo recém-cadastrado em `/catalogo/jogos`, ainda sem
+ * nenhuma Expansão/Card Set, ficava invisível. `getGameOptions()`/
+ * `getExpansoes()` (já existentes, usadas em outras telas) buscam TODOS os
+ * Jogos e Expansões cadastrados, independente de já terem Card Sets — o
+ * seletor de Jogo/Expansão agora reflete o cadastro real, não só o que já
+ * tem cartas catalogadas.
+ *
+ * Resolução da seleção, em ordem de prioridade: `set` (Card Set exato) >
+ * `expansion` (Card Set mais recente daquela Expansão, se existir) > `game`
+ * (Card Set mais recente daquele Jogo, se existir) > nenhum parâmetro. Um
+ * Jogo/Expansão escolhido que ainda não tem nenhum Card Set é um estado
+ * legítimo (não cai de volta para o catálogo inteiro) — a tela mostra o
+ * estado vazio apropriado (`CartasGallery`, `!selectedCardSet`).
+ *
+ * **Sem nenhum parâmetro (clique direto no menu Cartas) — atualizado em
+ * 2026-07-31, mesmo dia, rodada seguinte:** pedido de Fabrício, "a página
+ * deve trazer carregada as cartas do último card set com cartas
+ * cadastradas". Antes o padrão era só "o Card Set mais recente do catálogo"
+ * (`cardSets[0]`), sem olhar se ele de fato tinha cartas — um Card Set
+ * recém-criado (ainda vazio) virava o padrão e a tela abria no estado vazio
+ * "Nenhuma carta catalogada". Agora busca o primeiro (mais recente, `cardSets`
+ * já vem ordenado) com `cardsCatalogados > 0`; se NENHUM Card Set tiver
+ * cartas ainda, cai de volta para `cardSets[0]` (mesmo comportamento de
+ * antes — não há "com cartas" para escolher). Cartas sem imagem importada
+ * já são tratadas normalmente pelo estado "Sem imagem" existente em
+ * `CartaGridCard`/`CartaZoomDialog` — nenhuma mudança necessária ali.
  */
 export default async function CartasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ set?: string }>;
+  searchParams: Promise<{ set?: string; game?: string; expansion?: string }>;
 }) {
   const { denied, supabase } = await requireCatalogoAdmin("Cartas", CreditCard);
   if (denied) return denied;
 
-  const { set } = await searchParams;
-  const cardSets = await getCardSetOptions(supabase);
-  const selectedCode = set && cardSets.some((cs) => cs.code === set) ? set : cardSets[0]?.code;
-  const cartas = selectedCode ? await getCartasPorCardSet(supabase, selectedCode) : [];
-  const selectedName = cardSets.find((cs) => cs.code === selectedCode)?.name;
+  const { set, game, expansion } = await searchParams;
+  const [cardSets, games, expansions] = await Promise.all([
+    getCardSetsForCartas(supabase),
+    getGameOptions(supabase),
+    getExpansoes(supabase),
+  ]);
+
+  let selected = set ? (cardSets.find((cardSet) => cardSet.code === set) ?? null) : null;
+  let selectedGameId = "";
+  let selectedExpansionId = "";
+
+  if (selected) {
+    selectedGameId = selected.gameId;
+    selectedExpansionId = selected.expansionId;
+  } else if (expansion) {
+    selectedExpansionId = expansion;
+    selected = cardSets.find((cardSet) => cardSet.expansionId === expansion) ?? null;
+    selectedGameId = selected?.gameId ?? expansions.find((row) => row.id === expansion)?.gameId ?? (game ?? "");
+  } else if (game) {
+    selectedGameId = game;
+    selected = cardSets.find((cardSet) => cardSet.gameId === game) ?? null;
+    if (selected) selectedExpansionId = selected.expansionId;
+  } else {
+    // "Último card set com cartas cadastradas" — não o mais recente do
+    // catálogo a qualquer custo (ver comentário acima). `cardSets` já vem
+    // ordenado mais recente primeiro, então o primeiro match já é o que
+    // queremos.
+    selected = cardSets.find((cardSet) => cardSet.cardsCatalogados > 0) ?? cardSets[0] ?? null;
+    if (selected) {
+      selectedGameId = selected.gameId;
+      selectedExpansionId = selected.expansionId;
+    }
+  }
+
+  // Mesma base de `cardSets[].cardsCatalogados` usada pelo indicador
+  // "Cartas" (`CartasStats`) — passada para `getCartasCatalogoStats` para
+  // que "Sem Imagens" seja calculado sobre o mesmo total, sem divergir.
+  const totalCartas = cardSets.reduce((sum, cardSet) => sum + cardSet.cardsCatalogados, 0);
+
+  const [logoUrls, cartasStats, cartas] = await Promise.all([
+    getCardSetLogoUrls(supabase, selected?.logoStoragePath ? [selected.logoStoragePath] : []),
+    getCartasCatalogoStats(supabase, totalCartas),
+    selected ? getCartasCompletas(supabase, selected.id) : Promise.resolve([]),
+  ]);
+  const selectedLogoUrl = selected?.logoStoragePath ? (logoUrls.get(selected.logoStoragePath) ?? null) : null;
 
   return (
     <AppShell title="Cartas" icon={CreditCard}>
-      <div className="mx-auto max-w-6xl space-y-4">
-        <div className="flex items-center gap-2">
-          <CreditCard className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <h1 className="font-heading text-xl font-medium text-foreground">Cartas</h1>
-        </div>
-
-        {cardSets.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {cardSets.map((cs) => (
-              <Link
-                key={cs.code}
-                href={`/catalogo/cartas?set=${cs.code}`}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-xs transition-colors",
-                  cs.code === selectedCode
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
-                )}
-              >
-                {cs.code}
-              </Link>
-            ))}
-          </div>
-        )}
-
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>{selectedName ?? "Cartas"}</PanelTitle>
-            <PanelDescription>{cartas.length} carta{cartas.length === 1 ? "" : "s"} catalogada{cartas.length === 1 ? "" : "s"}</PanelDescription>
-          </PanelHeader>
-          <PanelContent>
-            {cartas.length === 0 ? (
-              <div className="flex flex-col items-center gap-1 py-10 text-center">
-                <p className="text-sm text-foreground">Nenhuma carta catalogada neste Card Set</p>
-              </div>
-            ) : (
-              <div className="max-h-[32rem] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
-                      <th className="py-1.5 pr-3 font-normal">Nº</th>
-                      <th className="py-1.5 pr-3 font-normal">Carta</th>
-                      <th className="py-1.5 pr-3 font-normal">Raridade</th>
-                      <th className="py-1.5 font-normal">Categoria</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cartas.map((carta) => (
-                      <tr key={carta.id} className="border-b border-border/60 last:border-b-0">
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {carta.collectorNumber}
-                          {carta.collectorTotal ? `/${carta.collectorTotal}` : ""}
-                        </td>
-                        <td className="py-2 pr-3 text-foreground">{carta.name}</td>
-                        <td className="py-2 pr-3 text-muted-foreground">{carta.raridadeNome ?? "—"}</td>
-                        <td className="py-2 text-muted-foreground">{carta.categoriaNome ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </PanelContent>
-        </Panel>
-      </div>
+      <PageContainer width="wide">
+        <CartasGallery
+          key={`${selectedGameId}|${selectedExpansionId}|${selected?.code ?? ""}`}
+          cardSets={cardSets}
+          games={games}
+          expansions={expansions}
+          cartasStats={cartasStats}
+          selectedCode={selected?.code}
+          selectedLogoUrl={selectedLogoUrl}
+          selectedGameId={selectedGameId}
+          selectedExpansionId={selectedExpansionId}
+          cartas={cartas}
+        />
+      </PageContainer>
     </AppShell>
   );
 }
