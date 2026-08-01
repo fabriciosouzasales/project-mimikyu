@@ -2,14 +2,14 @@ import {
   BookOpen,
   Boxes,
   CreditCard,
-  FileText,
+  FileUp,
   Gamepad2,
-  Hand,
   History,
+  ImagePlus,
   Layers,
   LayoutDashboard,
+  ScrollText,
   Users,
-  Webhook,
   type LucideIcon,
 } from "lucide-react";
 
@@ -74,16 +74,33 @@ export const NAV_SECTIONS: NavSection[] = [
     // títulos das próprias páginas acompanham (ver `expansoes/page.tsx` e
     // `card-sets/page.tsx`), mesmo raciocínio da primeira rodada: menu e
     // título da página sempre dizem a mesma coisa.
+    //
+    // Reorganização de 2026-08-01 (retomada do dia, pedido de Fabrício —
+    // início do subciclo Card criação/edição/variações/imagens):
+    // 1. Bloco "Operações" trocou a categorização por MÉTODO de importação
+    //    ("Importação Manual"/"Via PDF"/"Via API" — Query nunca implementada,
+    //    só stubs) por categorização pelo QUE é importado: "Importar Cartas"
+    //    (`/catalogo/importar-cartas`) e "Importar Imagens"
+    //    (`/catalogo/importar-imagens`) — as duas frentes reais do trabalho
+    //    de hoje. Rotas antigas (`importacao-manual`/`-pdf`/`-api`) não têm
+    //    mais item de menu, mas os arquivos de página seguem no repositório
+    //    (não podem ser removidos sem autorização explícita — sinalizar a
+    //    Fabrício se a limpeza for desejada).
+    // 2. Bloco "Gerencial" ganhou "Log de Atualizações"
+    //    (`/catalogo/log-atualizacoes`) — trilha de auditoria de escrita
+    //    administrativa (`catalog_admin_action_log`, ADR-023), distinta do
+    //    "Histórico de Importações" (execuções do pipeline de imagens,
+    //    `asset_import_run`) já existente no mesmo bloco.
     children: [
       { href: "/catalogo", label: "Visão Geral", section: "Gerencial", icon: LayoutDashboard },
+      { href: "/catalogo/log-atualizacoes", label: "Log de Atualizações", section: "Gerencial", icon: ScrollText },
       { href: "/catalogo/importacoes", label: "Histórico de Importações", section: "Gerencial", icon: History },
       { href: "/catalogo/jogos", label: "Jogos", section: "Cadastro", icon: Gamepad2 },
       { href: "/catalogo/expansoes", label: "Expansões", section: "Cadastro", icon: Layers },
       { href: "/catalogo/card-sets", label: "Coleções", section: "Cadastro", icon: Boxes },
       { href: "/catalogo/cartas", label: "Cartas", section: "Cadastro", icon: CreditCard },
-      { href: "/catalogo/importacao-manual", label: "Importação Manual", section: "Operações", icon: Hand },
-      { href: "/catalogo/importacao-pdf", label: "Importação Via PDF", section: "Operações", icon: FileText },
-      { href: "/catalogo/importacao-api", label: "Importação Via API", section: "Operações", icon: Webhook },
+      { href: "/catalogo/importar-cartas", label: "Importar Cartas", section: "Operações", icon: FileUp },
+      { href: "/catalogo/importar-imagens", label: "Importar Imagens", section: "Operações", icon: ImagePlus },
     ],
     // Módulo restrito a administradores (ADR-022) — leitura dos dados
     // editoriais/operacionais já é bloqueada no banco via RLS (is_admin());

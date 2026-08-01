@@ -1,4 +1,4 @@
-import { AlertTriangle, CreditCard, Image, ImageOff, Shuffle } from "lucide-react";
+import { AlertTriangle, CreditCard, Image, ImageOff } from "lucide-react";
 import { StatCard, StatsRow } from "@/components/catalogo/stat-card";
 import type { CartasCatalogoStats, CatalogoCardSetRow } from "@/lib/catalogo/queries";
 
@@ -7,22 +7,26 @@ import type { CartasCatalogoStats, CatalogoCardSetRow } from "@/lib/catalogo/que
  * Card Set + seletor "outra coleção") removida em 2026-07-31. Primeira
  * versão trazia Cartas/Coleções/Média/Sem Cartas (mesmo padrão de
  * `CardSetsStats`); Fabrício pediu, na mesma rodada, uma lista fechada
- * diferente de 5 indicadores — substituída aqui:
+ * diferente de 5 indicadores, reduzida a 4 em 2026-08-01 (ver nota abaixo):
  * 1. Quantidade de cartas.
- * 2. Quantidade de variações cadastradas (`card_variant`, Query 160 — ex.:
- *    STANDARD, REVERSE_HOLO por Card).
- * 3. Quantidade de imagens em nossa base (`card_asset`, Query 180 — todo
+ * 2. Quantidade de imagens em nossa base (`card_asset`, Query 180 — todo
  *    ativo digital registrado, não só CARD_FRONT).
- * 4. Quantidade de coleções sem cartas.
- * 5. Quantidade de cartas sem imagens.
+ * 3. Quantidade de coleções sem cartas.
+ * 4. Quantidade de cartas sem imagens.
  *
  * "Cartas" e "Coleções sem Cartas" são deriváveis de `cardSets`
  * (`cardsCatalogados`), sem consulta nova — mesmo cálculo já usado na
- * versão anterior. Os outros três vêm de `getCartasCatalogoStats()`
+ * versão anterior. Os outros dois vêm de `getCartasCatalogoStats()`
  * (`queries.ts`), buscada uma vez em `page.tsx`. "Sem Cartas" e "Sem
  * Imagens" levam `tone="danger"` — os dois são indicadores de pendência
  * (dado que falta), mesmo critério já usado em "Sem Cartas" de
  * `CardSetsStats`.
+ *
+ * "Variações" removido em 2026-08-01 (pedido de Fabrício: "após a inserção
+ * do botão 'Importar Cartas' a harmonia visual da página foi impactada...
+ * remova o indicador VARIAÇÕES") — só o cartão saiu; `stats.totalVariacoes`
+ * continua calculado em `getCartasCatalogoStats()` (`queries.ts`), sem uso
+ * nesta tela por ora, caso volte a ser útil em outro lugar.
  */
 export function CartasStats({
   cardSets,
@@ -37,7 +41,6 @@ export function CartasStats({
   return (
     <StatsRow>
       <StatCard label="Cartas" value={totalCartas} caption="cartas catalogadas" icon={CreditCard} />
-      <StatCard label="Variações" value={stats.totalVariacoes} caption="variações cadastradas" icon={Shuffle} />
       <StatCard label="Imagens" value={stats.totalImagens} caption="imagens em nossa base" icon={Image} />
       <StatCard
         label="Sem Cartas"

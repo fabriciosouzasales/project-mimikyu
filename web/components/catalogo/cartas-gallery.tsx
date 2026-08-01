@@ -1,6 +1,7 @@
 "use client";
 
-import { CreditCard, Search } from "lucide-react";
+import { CreditCard, FileUp, Search } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
@@ -417,219 +418,246 @@ export function CartasGallery({
 
       {cardSets.length > 0 && <CartasStats cardSets={cardSets} stats={cartasStats} />}
 
-      {cardSets.length === 0 ? (
-        <Card density="compact">
-          <CardContent density="compact" className="pt-4">
-            <EmptyState
-              title="Nenhuma Coleção cadastrada ainda"
-              description="Cadastre um Card Set em /catalogo/card-sets para começar a catalogar cartas."
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card density="compact" className="overflow-hidden">
-          <div className="space-y-3 border-b border-border p-4">
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar por nome ou número da carta…"
-                  className="h-9 bg-surface-muted pl-9 text-xs"
-                  aria-label="Buscar carta"
-                />
+      {/* Botão "Importar Cartas" — pedido de Fabrício (2026-08-01): mesmo
+          padrão visual/posicional de "Nova Coleção"/"Nova expansão"/"Novo
+          Jogo" (linha própria com `flex justify-end`, logo acima do `Card`
+          de busca/conteúdo), mas navega para a página dedicada em vez de
+          abrir um Dialog — a importação em lote de Cartas é um fluxo
+          próprio (`/catalogo/importar-cartas`), não um formulário de
+          cadastro individual como os demais.
+
+          `space-y-2` envolvendo botão + Card (não `space-y-4`, o espaçamento
+          do contêiner externo) — correção de 2026-08-01, pedido de
+          Fabrício: "padronize o espaço do botão e da tabela abaixo" (print
+          comparando com Coleções). Nas outras três telas de cadastro
+          (Jogos/Expansões/Coleções) botão e Card sempre estiveram dentro do
+          mesmo `space-y-2` (8px); aqui tinham ficado como irmãos soltos no
+          `space-y-4` externo (16px, o mesmo espaço usado entre PageHeader/
+          Stats/conteúdo) — daí a folga visível a mais só nesta tela. */}
+      <div className="space-y-2">
+        <div className="flex justify-end">
+          <Button asChild size="sm">
+            <Link href="/catalogo/importar-cartas">
+              <FileUp className="h-3.5 w-3.5" />
+              Importar Cartas
+            </Link>
+          </Button>
+        </div>
+
+        {cardSets.length === 0 ? (
+          <Card density="compact">
+            <CardContent density="compact" className="pt-4">
+              <EmptyState
+                title="Nenhuma Coleção cadastrada ainda"
+                description="Cadastre um Card Set em /catalogo/card-sets para começar a catalogar cartas."
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <Card density="compact" className="overflow-hidden">
+            <div className="space-y-3 border-b border-border p-4">
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Buscar por nome ou número da carta…"
+                    className="h-9 bg-surface-muted pl-9 text-xs"
+                    aria-label="Buscar carta"
+                  />
+                </div>
+                <select
+                  value={selectedGameId}
+                  onChange={(event) => handleGameChange(event.target.value)}
+                  className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
+                  aria-label="Filtrar por Jogo"
+                >
+                  <option value="">Selecionar Todos</option>
+                  {gameOptions.map((game) => (
+                    <option key={game.id} value={game.id}>
+                      {game.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedExpansionId}
+                  onChange={(event) => handleExpansionChange(event.target.value)}
+                  className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
+                  aria-label="Filtrar por Expansão"
+                >
+                  <option value="">Selecionar Todos</option>
+                  {expansionOptions.map((expansion) => (
+                    <option key={expansion.id} value={expansion.id}>
+                      {expansion.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedCode ?? ""}
+                  onChange={(event) => router.push(`/catalogo/cartas?set=${event.target.value}`)}
+                  className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
+                  aria-label="Filtrar por Coleção"
+                >
+                  {cardSetsInScope.map((set) => (
+                    <option key={set.code} value={set.code}>
+                      {set.name} ({set.code})
+                    </option>
+                  ))}
+                </select>
               </div>
-              <select
-                value={selectedGameId}
-                onChange={(event) => handleGameChange(event.target.value)}
-                className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
-                aria-label="Filtrar por Jogo"
-              >
-                <option value="">Selecionar Todos</option>
-                {gameOptions.map((game) => (
-                  <option key={game.id} value={game.id}>
-                    {game.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedExpansionId}
-                onChange={(event) => handleExpansionChange(event.target.value)}
-                className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
-                aria-label="Filtrar por Expansão"
-              >
-                <option value="">Selecionar Todos</option>
-                {expansionOptions.map((expansion) => (
-                  <option key={expansion.id} value={expansion.id}>
-                    {expansion.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedCode ?? ""}
-                onChange={(event) => router.push(`/catalogo/cartas?set=${event.target.value}`)}
-                className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
-                aria-label="Filtrar por Coleção"
-              >
-                {cardSetsInScope.map((set) => (
-                  <option key={set.code} value={set.code}>
-                    {set.name} ({set.code})
-                  </option>
-                ))}
-              </select>
+
+              {(rarityOptions.length > 0 || categoryOptions.length > 0) && (
+                // Esquema pedido por Fabrício (2026-07-31, ajuste seguinte):
+                // "RARIDADE / chips / (12px) / CATEGORIA / chips" — rótulo
+                // volta a ficar em linha própria acima dos chips (dentro de
+                // cada `FilterGroup`); o espaçamento entre os dois grupos foi
+                // ajustado de 12px para 16px logo em seguida (`space-y-4` =
+                // 1rem).
+                <div className="space-y-4">
+                  <FilterGroup label="Raridade" options={rarityOptions} selected={selectedRarities} onToggle={toggleRarity} />
+                  <FilterGroup label="Categoria" options={categoryOptions} selected={selectedCategories} onToggle={toggleCategory} />
+                </div>
+              )}
             </div>
 
-            {(rarityOptions.length > 0 || categoryOptions.length > 0) && (
-              // Esquema pedido por Fabrício (2026-07-31, ajuste seguinte):
-              // "RARIDADE / chips / (12px) / CATEGORIA / chips" — rótulo
-              // volta a ficar em linha própria acima dos chips (dentro de
-              // cada `FilterGroup`); o espaçamento entre os dois grupos foi
-              // ajustado de 12px para 16px logo em seguida (`space-y-4` =
-              // 1rem).
-              <div className="space-y-4">
-                <FilterGroup label="Raridade" options={rarityOptions} selected={selectedRarities} onToggle={toggleRarity} />
-                <FilterGroup label="Categoria" options={categoryOptions} selected={selectedCategories} onToggle={toggleCategory} />
-              </div>
-            )}
-          </div>
+            <CardContent density="compact" className="pt-4">
+              {!selectedCardSet ? (
+                // Jogo/Expansão escolhidos ainda não têm nenhum Card Set
+                // cadastrado (`navigateToMostRecentInScope` não achou alvo e
+                // navegou para `?game=`/`?expansion=` mesmo assim) — estado
+                // diferente de "Card Set existe, mas está vazio", abaixo.
+                <EmptyState
+                  title="Nenhuma Coleção cadastrada neste escopo"
+                  description="Ajuste o filtro de Jogo/Expansão ou cadastre um Card Set em /catalogo/card-sets."
+                />
+              ) : cartas.length === 0 ? (
+                <EmptyState
+                  title="Nenhuma carta catalogada neste Card Set"
+                  description={`${selectedCardSet.name} ainda não tem cartas cadastradas.`}
+                />
+              ) : filtered.length === 0 ? (
+                <EmptyState title="Nenhuma carta encontrada" description="Ajuste a busca ou os filtros de raridade/categoria." />
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      {/* Logo do Card Set selecionado, à esquerda do bloco
+                          de informações — pedido de Fabrício (2026-07-31),
+                          teste do bloco de cabeçalho recém-criado. 36px →
+                          56px → 70px ao longo da mesma rodada de testes
+                          ("a logo ficou muito pequena. Vamos ampliar." duas
+                          vezes seguidas) — protagonista ao lado do nome da
+                          Coleção, não mais do tamanho de miniatura de
+                          `CardSetChip`.
 
-          <CardContent density="compact" className="pt-4">
-            {!selectedCardSet ? (
-              // Jogo/Expansão escolhidos ainda não têm nenhum Card Set
-              // cadastrado (`navigateToMostRecentInScope` não achou alvo e
-              // navegou para `?game=`/`?expansion=` mesmo assim) — estado
-              // diferente de "Card Set existe, mas está vazio", abaixo.
-              <EmptyState
-                title="Nenhuma Coleção cadastrada neste escopo"
-                description="Ajuste o filtro de Jogo/Expansão ou cadastre um Card Set em /catalogo/card-sets."
-              />
-            ) : cartas.length === 0 ? (
-              <EmptyState
-                title="Nenhuma carta catalogada neste Card Set"
-                description={`${selectedCardSet.name} ainda não tem cartas cadastradas.`}
-              />
-            ) : filtered.length === 0 ? (
-              <EmptyState title="Nenhuma carta encontrada" description="Ajuste a busca ou os filtros de raridade/categoria." />
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    {/* Logo do Card Set selecionado, à esquerda do bloco
-                        de informações — pedido de Fabrício (2026-07-31),
-                        teste do bloco de cabeçalho recém-criado. 36px →
-                        56px → 70px ao longo da mesma rodada de testes
-                        ("a logo ficou muito pequena. Vamos ampliar." duas
-                        vezes seguidas) — protagonista ao lado do nome da
-                        Coleção, não mais do tamanho de miniatura de
-                        `CardSetChip`.
+                          Ajuste seguinte, mesmo dia: "o fundo da logo deve
+                          ser transparente... vamos controlar apenas a
+                          altura que deve ter 70px" — a caixa quadrada
+                          (`w-[70px]`, `bg-surface-muted`, `rounded-md`,
+                          padding) fazia sentido para o fallback de iniciais
+                          (que precisa de alguma área para centralizar o
+                          texto), mas distorcia/emolduava a logo real sem
+                          necessidade. Sem logo cadastrada, mantém a caixa
+                          70×70 com fundo e iniciais (mesmo fallback de
+                          `CardSetChip`/`getInitials`) — o pedido foi sobre "a
+                          logo", não sobre o placeholder de iniciais.
 
-                        Ajuste seguinte, mesmo dia: "o fundo da logo deve
-                        ser transparente... vamos controlar apenas a
-                        altura que deve ter 70px" — a caixa quadrada
-                        (`w-[70px]`, `bg-surface-muted`, `rounded-md`,
-                        padding) fazia sentido para o fallback de iniciais
-                        (que precisa de alguma área para centralizar o
-                        texto), mas distorcia/emolduava a logo real sem
-                        necessidade. Sem logo cadastrada, mantém a caixa
-                        70×70 com fundo e iniciais (mesmo fallback de
-                        `CardSetChip`/`getInitials`) — o pedido foi sobre "a
-                        logo", não sobre o placeholder de iniciais.
-
-                        Terceiro ajuste, mesmo dia: "a largura máxima
-                        permitida para a logo é 250px. Vamos limitar a
-                        altura a 70px ou largura de 250px... sem exceder
-                        esses limites... não deve ser redimensionada em
-                        hipótese alguma" — `h-[70px] w-auto` sozinho não
-                        tinha teto de largura (uma logo bem larga/baixa
-                        podia esticar horizontalmente sem limite). Trocado
-                        para `max-h-[70px] max-w-[250px] h-auto w-auto`:
-                        nenhuma dimensão é forçada, a imagem renderiza no
-                        tamanho original até esbarrar num dos dois tetos —
-                        o primeiro a ser atingido manda, e a proporção
-                        original é sempre preservada (comportamento nativo
-                        do navegador para `max-*` com `auto`/`auto`, sem
-                        precisar de `object-fit` para evitar distorção,
-                        já que não há caixa de dimensões fixas para a
-                        imagem "encaixar" — mantido `object-contain` só
-                        como reforço defensivo). */}
-                    {selectedLogoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={selectedLogoUrl}
-                        alt=""
-                        className="h-auto max-h-[70px] w-auto max-w-[250px] shrink-0 object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-[70px] w-[70px] shrink-0 items-center justify-center rounded-md bg-surface-muted">
-                        <span className="text-base font-medium text-muted-foreground">
-                          {getInitials(selectedCardSet.name)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="min-w-0 space-y-1.5">
-                      <p className="truncate text-base font-semibold text-foreground sm:text-lg">
-                        {selectedCardSet.code} - {selectedCardSet.name}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                        <SetTypeTag setType={selectedCardSet.setType} />
-                        {selectedCardSet.releaseDate && (
-                          <span className="text-[11px] text-muted-foreground">
-                            Data de lançamento: {formatarData(selectedCardSet.releaseDate)}
+                          Terceiro ajuste, mesmo dia: "a largura máxima
+                          permitida para a logo é 250px. Vamos limitar a
+                          altura a 70px ou largura de 250px... sem exceder
+                          esses limites... não deve ser redimensionada em
+                          hipótese alguma" — `h-[70px] w-auto` sozinho não
+                          tinha teto de largura (uma logo bem larga/baixa
+                          podia esticar horizontalmente sem limite). Trocado
+                          para `max-h-[70px] max-w-[250px] h-auto w-auto`:
+                          nenhuma dimensão é forçada, a imagem renderiza no
+                          tamanho original até esbarrar num dos dois tetos —
+                          o primeiro a ser atingido manda, e a proporção
+                          original é sempre preservada (comportamento nativo
+                          do navegador para `max-*` com `auto`/`auto`, sem
+                          precisar de `object-fit` para evitar distorção,
+                          já que não há caixa de dimensões fixas para a
+                          imagem "encaixar" — mantido `object-contain` só
+                          como reforço defensivo). */}
+                      {selectedLogoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={selectedLogoUrl}
+                          alt=""
+                          className="h-auto max-h-[70px] w-auto max-w-[250px] shrink-0 object-contain"
+                        />
+                      ) : (
+                        <div className="flex h-[70px] w-[70px] shrink-0 items-center justify-center rounded-md bg-surface-muted">
+                          <span className="text-base font-medium text-muted-foreground">
+                            {getInitials(selectedCardSet.name)}
                           </span>
-                        )}
+                        </div>
+                      )}
+                      <div className="min-w-0 space-y-1.5">
+                        <p className="truncate text-base font-semibold text-foreground sm:text-lg">
+                          {selectedCardSet.code} - {selectedCardSet.name}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                          <SetTypeTag setType={selectedCardSet.setType} />
+                          {selectedCardSet.releaseDate && (
+                            <span className="text-[11px] text-muted-foreground">
+                              Data de lançamento: {formatarData(selectedCardSet.releaseDate)}
+                            </span>
+                          )}
+                        </div>
+                        {/* Total do Card Set + contagem exibida/filtrada
+                            unificados numa única linha — pedido de Fabrício
+                            (2026-07-31, mesma rodada): "124 cartas (88 base +
+                            36 secretas) - Exibidas 124 de 124 cartas". Antes
+                            eram duas linhas separadas (totais do Set acima,
+                            contagem de busca/filtro abaixo). */}
+                        <p className="text-[11px] text-muted-foreground">
+                          {formatCardSetTotals(selectedCardSet.baseSetSize, selectedCardSet.totalSetSize)} - Exibidas{" "}
+                          {filtered.length} de {cartas.length} carta{cartas.length === 1 ? "" : "s"}
+                        </p>
                       </div>
-                      {/* Total do Card Set + contagem exibida/filtrada
-                          unificados numa única linha — pedido de Fabrício
-                          (2026-07-31, mesma rodada): "124 cartas (88 base +
-                          36 secretas) - Exibidas 124 de 124 cartas". Antes
-                          eram duas linhas separadas (totais do Set acima,
-                          contagem de busca/filtro abaixo). */}
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatCardSetTotals(selectedCardSet.baseSetSize, selectedCardSet.totalSetSize)} - Exibidas{" "}
-                        {filtered.length} de {cartas.length} carta{cartas.length === 1 ? "" : "s"}
-                      </p>
                     </div>
+
+                    {/* Alternador de idioma da imagem — pedido de Fabrício
+                        (2026-07-31, mesma rodada): "do lado oposto das
+                        informações da coleção, incluir um componente para
+                        alternar entre imagens das cartas em PT e IN".
+                        `justify-between` no contêiner pai empurra este bloco
+                        para a direita; `flex-wrap` evita overflow em telas
+                        estreitas (cai para a linha de baixo). Só aparece
+                        quando o Card Set de fato tem os dois idiomas
+                        importados. */}
+                    {hasBothImageLanguages && (
+                      <ImageLanguageToggle value={imageLanguage} onChange={setImageLanguage} />
+                    )}
                   </div>
 
-                  {/* Alternador de idioma da imagem — pedido de Fabrício
-                      (2026-07-31, mesma rodada): "do lado oposto das
-                      informações da coleção, incluir um componente para
-                      alternar entre imagens das cartas em PT e IN".
-                      `justify-between` no contêiner pai empurra este bloco
-                      para a direita; `flex-wrap` evita overflow em telas
-                      estreitas (cai para a linha de baixo). Só aparece
-                      quando o Card Set de fato tem os dois idiomas
-                      importados. */}
-                  {hasBothImageLanguages && (
-                    <ImageLanguageToggle value={imageLanguage} onChange={setImageLanguage} />
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+                    {visible.map((carta) => (
+                      <CartaGridCard
+                        key={carta.id}
+                        carta={carta}
+                        imageLanguage={imageLanguage}
+                        isTransitionSource={transitionTargetId === carta.id && zoomCarta?.id !== carta.id}
+                        onOpen={() => openZoom(carta)}
+                      />
+                    ))}
+                  </div>
+
+                  {!showAll && filtered.length > PAGE_SIZE && (
+                    <div className="flex justify-center pt-1">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setShowAll(true)}>
+                        Ver todas ({filtered.length})
+                      </Button>
+                    </div>
                   )}
                 </div>
-
-                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-                  {visible.map((carta) => (
-                    <CartaGridCard
-                      key={carta.id}
-                      carta={carta}
-                      imageLanguage={imageLanguage}
-                      isTransitionSource={transitionTargetId === carta.id && zoomCarta?.id !== carta.id}
-                      onOpen={() => openZoom(carta)}
-                    />
-                  ))}
-                </div>
-
-                {!showAll && filtered.length > PAGE_SIZE && (
-                  <div className="flex justify-center pt-1">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setShowAll(true)}>
-                      Ver todas ({filtered.length})
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <CartaZoomDialog carta={zoomCarta} imageLanguage={imageLanguage} onClose={closeZoom} />
     </div>
