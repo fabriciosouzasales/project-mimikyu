@@ -2,10 +2,10 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2010 - Create Catalog Admin Action Log Table
-Versão......: 1.2
+Versão......: 1.3
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-07-26 (v1.1: 2026-07-26, v1.2: 2026-07-31)
+Data........: 2026-07-26 (v1.1: 2026-07-26, v1.2: 2026-07-31, v1.3: 2026-08-01)
 
 Descrição...:
 Cria public.catalog_admin_action_log: auditoria própria do módulo
@@ -77,6 +77,20 @@ Versão 1.2 (2026-07-31 — correção de um gap + nova emenda):
   2049_add_card_set_deleted_to_catalog_admin_action_log.sql
   registra a execução real contra o banco existente.
 
+Versão 1.3 (2026-08-01 — ADR-024, Ciclo 1 de ingestão de Cards):
+- Adiciona 'CATALOG_IMPORT_JOB' e 'CATALOG_IMPORT_CONFIRMED' a
+  ck_catalog_admin_action_log_action_valid, um novo entity_type
+  'CATALOG_IMPORT_JOB' a ck_catalog_admin_action_log_entity_type_
+  valid, e a combinação correspondente a
+  ck_catalog_admin_action_log_action_entity_match. As migrations
+  2054_widen_catalog_admin_action_log_for_catalog_import.sql e
+  2055_add_catalog_import_job_entity_type_to_action_log.sql
+  registram a execução real contra o banco existente — a segunda
+  corrige um gap real da primeira (ela ampliou só duas das três
+  constraints desta tabela, esquecendo entity_type_valid; descoberto
+  na execução real de admin_start_catalog_import() pela validação
+  funcional da Query 2814).
+
 Pré-requisitos:
 - Query 2000 - Create Internal Schema (mesmo módulo).
 ================================================================
@@ -100,13 +114,14 @@ CREATE TABLE public.catalog_admin_action_log (
                 'EXPANSION_CREATED', 'EXPANSION_UPDATED', 'EXPANSION_DELETED',
                 'CARD_SET_CREATED', 'CARD_SET_UPDATED', 'CARD_SET_DELETED',
                 'CARD_CREATED', 'CARD_UPDATED',
-                'CARD_DEACTIVATED', 'CARD_REACTIVATED'
+                'CARD_DEACTIVATED', 'CARD_REACTIVATED',
+                'CATALOG_IMPORT_JOB', 'CATALOG_IMPORT_CONFIRMED'
             )
         ),
 
     CONSTRAINT ck_catalog_admin_action_log_entity_type_valid
         CHECK (
-            entity_type IN ('GAME', 'EXPANSION', 'CARD_SET', 'CARD')
+            entity_type IN ('GAME', 'EXPANSION', 'CARD_SET', 'CARD', 'CATALOG_IMPORT_JOB')
         ),
 
     CONSTRAINT ck_catalog_admin_action_log_action_entity_match
@@ -116,6 +131,9 @@ CREATE TABLE public.catalog_admin_action_log (
             OR (entity_type = 'CARD_SET' AND action IN ('CARD_SET_CREATED', 'CARD_SET_UPDATED', 'CARD_SET_DELETED'))
             OR (entity_type = 'CARD' AND action IN (
                     'CARD_CREATED', 'CARD_UPDATED', 'CARD_DEACTIVATED', 'CARD_REACTIVATED'
+                ))
+            OR (entity_type = 'CATALOG_IMPORT_JOB' AND action IN (
+                    'CATALOG_IMPORT_JOB', 'CATALOG_IMPORT_CONFIRMED'
                 ))
         )
 );

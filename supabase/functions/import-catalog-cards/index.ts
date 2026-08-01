@@ -1,0 +1,210 @@
+/*
+Project Mimikyu
+Edge Function: import-catalog-cards
+Sprint 1 (2026-08-01) — primeira versão, ainda não deployada. Processador
+TCGdex do Ciclo 2 (ADR-024): recebe um catalog_import_job (aberto por
+admin_start_catalog_import(), Query 2080, com source='TCGDEX' e
+external_set_id já resolvido — a localização automática do Set acontece
+ANTES desta chamada, no frontend, fora desta função), busca o Set completo
+na TCGdex, resolve raridade/categoria/sequência/correspondência de cada
+carta, e grava em catalog_import_row — nunca em public.card diretamente
+(Princípio da Fonte Canônica). Não sabe nada sobre o canal PDF.
+
+Convenções de Edge Function do projeto (ver import-card-assets/index.ts):
+1. Só existe de fato depois de `npx supabase functions new
+   import-catalog-cards` — nunca criado "na mão".
+3. Responsabilidade única: só TCGDEX -> staging.
+6. index.ts só orquestra — SQL/TCGdex ficam em services/.
+8. Cliente Supabase próprio via SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY.
+*/
+
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "@supabase/supabase-js";
+import {
+  failJob,
+  findAssetSourceByCode,
+  findCardSetWithGame,
+  findJob,
+  finalizeJobStaged,
+  insertImportRows,
+  listCategoriesByGameCode,
+  listExistingCardsMap,
+  listRaritiesByGameCode,
+  transitionJobToProcessing,
+  updateProgressStep,
+  upsertCardSetExternalReference,
+} from "./services/database.ts";
+import { TcgdexClient, type TcgdexCardDetail } from "./services/tcgdex.ts";
+import { buildImportRow, resolveCollectorTotal } from "./services/normalize.ts";
+import type { RequestBody } from "./types.ts";
+
+const TCGDEX_LANGUAGE = "en";
+const ASSET_SOURCE_CODE = "TCGDEX";
+const CARD_DETAIL_BATCH_SIZE = 10;
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+);
+
+async function processInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  processor: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    const batchResults = await Promise.all(batch.map((item, offset) => processor(item, index + offset)));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== "POST") {
+    return Response.json({ success: false, error: "METHOD_NOT_ALLOWED" }, { status: 405, headers: { Allow: "POST" } });
+  }
+
+  let body: RequestBody;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ success: false, error: "INVALID_JSON" }, { status: 400 });
+  }
+
+  const jobId = body.job_id?.trim();
+  if (!jobId) {
+    return Response.json({ success: false, error: "JOB_ID_REQUIRED" }, { status: 400 });
+  }
+
+  let jobStarted = false;
+
+  try {
+    const job = await findJob(supabase, jobId);
+    if (!job) {
+      return Response.json({ success: false, error: "CATALOG_IMPORT_JOB_NOT_FOUND" }, { status: 404 });
+    }
+    if (job.source !== "TCGDEX") {
+      return Response.json({ success: false, error: "JOB_SOURCE_NOT_TCGDEX" }, { status: 400 });
+    }
+    if (job.status !== "RECEIVED") {
+      return Response.json({ success: false, error: `JOB_NOT_RECEIVED: status atual é ${job.status}` }, { status: 409 });
+    }
+    if (!job.external_set_id) {
+      throw new Error("EXTERNAL_SET_ID_MISSING");
+    }
+
+    // A partir daqui o job já está PROCESSING: qualquer saída de erro passa
+    // por failJob(), nunca deixa o job preso.
+    jobStarted = true;
+    await transitionJobToProcessing(supabase, jobId, "FETCHING_SOURCE");
+
+    const cardSet = await findCardSetWithGame(supabase, job.card_set_id);
+    if (!cardSet) throw new Error("CARD_SET_NOT_FOUND");
+
+    const tcgdex = new TcgdexClient(TCGDEX_LANGUAGE);
+    const set = await tcgdex.getSet(job.external_set_id);
+
+    await updateProgressStep(supabase, jobId, "EXTRACTING_CARDS");
+
+    const collectorTotal = resolveCollectorTotal(set);
+
+    // Uma chamada por carta — a listagem do Set nunca traz rarity/category/
+    // dexId. Falha de UMA carta não derruba o job inteiro: vira uma linha
+    // NEEDS_REVIEW com o dado mínimo do resumo, preservando as demais.
+    const cardDetails = await processInBatches(
+      set.cards,
+      CARD_DETAIL_BATCH_SIZE,
+      async (summary): Promise<{ detail: TcgdexCardDetail; fetchError: string | null }> => {
+        try {
+          return { detail: await tcgdex.getCard(summary.id), fetchError: null };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "UNEXPECTED_ERROR";
+          console.error(`TCGDEX getCard FAILED ${summary.id}:`, message);
+          return {
+            detail: { id: summary.id, localId: summary.localId, name: summary.name, category: "" },
+            fetchError: `TCGDEX_CARD_DETAIL_FETCH_FAILED: ${message}`,
+          };
+        }
+      },
+    );
+
+    // As quatro fases de resolução por carta rodam juntas, em memória, por
+    // carta — não há I/O separado entre elas. progress_step ainda percorre
+    // os quatro códigos em sequência, refletindo qual fase concluiu por
+    // último caso o job seja consultado neste intervalo.
+    await updateProgressStep(supabase, jobId, "DETECTING_RARITY");
+    const raritiesByCode = await listRaritiesByGameCode(supabase, cardSet.game_id);
+    const categoriesByCode = await listCategoriesByGameCode(supabase, cardSet.game_id);
+
+    await updateProgressStep(supabase, jobId, "CLASSIFYING_CATEGORY");
+    const existingCardsByCollectorNumber = await listExistingCardsMap(supabase, cardSet.id);
+
+    await updateProgressStep(supabase, jobId, "VALIDATING_SEQUENCE");
+    const seenCollectorNumbers = new Set<string>();
+    const preparedRows = cardDetails.map(({ detail, fetchError }, index) =>
+      buildImportRow({
+        tcgCard: detail,
+        indexInSet: index,
+        collectorTotal,
+        raritiesByCode,
+        categoriesByCode,
+        existingCardsByCollectorNumber,
+        seenCollectorNumbers,
+        extraNote: fetchError,
+      })
+    );
+
+    await updateProgressStep(supabase, jobId, "MATCHING_CATALOG");
+    await updateProgressStep(supabase, jobId, "PREPARING_REVIEW");
+
+    await insertImportRows(
+      supabase,
+      jobId,
+      preparedRows.map((row) => ({
+        raw_data: row.raw_data,
+        normalized_data: row.normalized_data as unknown as Record<string, unknown>,
+        validation_status: row.validation_status,
+        match_status: row.match_status,
+        decision_status: row.decision_status,
+        matched_card_id: row.matched_card_id,
+      })),
+    );
+
+    const assetSource = await findAssetSourceByCode(supabase, ASSET_SOURCE_CODE);
+    if (assetSource) {
+      await upsertCardSetExternalReference(supabase, {
+        card_set_id: cardSet.id,
+        asset_source_id: assetSource.id,
+        external_set_id: job.external_set_id,
+        source_url: `https://api.tcgdex.net/v2/${TCGDEX_LANGUAGE}/sets/${job.external_set_id}`,
+        metadata: { name: set.name, cardCount: set.cardCount ?? null },
+      });
+    } else {
+      console.error(`ASSET_SOURCE_NOT_FOUND: ${ASSET_SOURCE_CODE} — card_set_external_reference não atualizada.`);
+    }
+
+    const validRows = preparedRows.filter((r) => r.validation_status === "VALID").length;
+
+    await finalizeJobStaged(supabase, jobId, { total_rows: preparedRows.length, valid_rows: validRows });
+
+    return Response.json({
+      success: true,
+      version: "1.0.0",
+      job: { id: jobId, card_set_id: cardSet.id, external_set_id: job.external_set_id },
+      set: { id: set.id, name: set.name, card_count: set.cards.length },
+      rows: {
+        total: preparedRows.length,
+        valid: validRows,
+        needs_review: preparedRows.filter((r) => r.validation_status === "NEEDS_REVIEW").length,
+        invalid: preparedRows.filter((r) => r.validation_status === "INVALID").length,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    const message = error instanceof Error ? error.message : "UNEXPECTED_ERROR";
+    if (jobStarted) await failJob(supabase, jobId, message);
+    return Response.json({ success: false, error: message }, { status: 500 });
+  }
+});

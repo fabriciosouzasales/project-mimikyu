@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
@@ -20,7 +20,15 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        // Anotação explícita necessária (pré-existente, não introduzida pelo
+        // Ciclo 2 — arquivo nunca tocado nesta rodada, confirmado via `git
+        // log`): `createServerClient` tem uma sobrecarga deprecated (get/set/
+        // remove) declarada ANTES da sobrecarga atual (getAll/setAll) em
+        // node_modules/@supabase/ssr/dist/main/createServerClient.d.ts — o
+        // TypeScript tipa contextualmente um argumento de função sobrecarregada
+        // pela PRIMEIRA sobrecarga compatível, que não declara `setAll`, então
+        // `cookiesToSet` cai para `any` implícito sem a anotação abaixo.
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));

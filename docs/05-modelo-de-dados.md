@@ -4696,7 +4696,67 @@ Validado estruturalmente (`prosecdef = true`, `search_path = ""`, `anon`/`authen
 2049 - Add CARD_SET_DELETED to Catalog Admin Action Log      (CONFIRMADO EXECUTADO — database/migrations/2049_add_card_set_deleted_to_catalog_admin_action_log.sql)
 2050 - Create admin_delete_card_set() Function               (CONFIRMADO EXECUTADO — database/schema/2050_create_admin_delete_card_set_function.sql)
 2811 - Validate Card Set Update and Delete                   (validação estrutural CONFIRMADA EXECUTADA; validação funcional pendente — database/validations/2811_validate_card_set_update_and_delete.sql)
+2051 - Create admin_create_card_set() Function                (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE, v1.1 com ENERGY — database/schema/2051_create_admin_create_card_set_function.sql)
+2052 - Widen admin_update_card_set() for Type and Release Date (CONFIRMADO EXECUTADO — database/migrations/2052_widen_admin_update_card_set_for_type_and_release_date.sql)
+2053 - Add card_asset_type Admin Select Policy                (CONFIRMADO EXECUTADO — database/schema/2053_add_card_asset_type_admin_select_policy.sql)
+2812 - Validate admin_create_card_set()                       (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE, três cenários — database/validations/2812_validate_admin_create_card_set.sql)
 ```
+
+**Reconciliação de gap (2026-08-01):** as quatro linhas acima (`2051`/`2052`/`2053`/`2812`) já estavam confirmadas executadas por Fabrício desde 2026-07-31 (ver revisões anteriores desta tabela de histórico), mas nunca haviam sido incluídas nesta lista de Sequência — mesmo tipo de gap documental já visto antes neste projeto (ex.: `EXPANSION_DELETED` faltando no arquivo canônico de `catalog_admin_action_log`, corrigido na Query `2049` v1.2). Corrigido aqui, sem re-executar nada — só a lista estava desatualizada.
+
+### Ciclo 1 — Infraestrutura comum de staging e confirmação (ADR-024, Catalog Card Ingestion Strategy)
+
+Primeiro ciclo vertical do fluxo de ingestão de Cards (PDF e TCGdex), aprovado por Fabrício em 2026-08-01 após duas rodadas de revisão do plano técnico (ver `HANDOFF`/ata da conversa — nenhuma migration/função/frontend foi escrita antes da aprovação final). Ordem de ciclos definida por Fabrício: (1) infraestrutura comum — esta seção; (2) fluxo TCGdex completo; (3) prova técnica do processador de PDF; (4) fluxo PDF com o processador aprovado. Nenhum processador (Edge Function TCGdex ou PDF) existe ainda — esta seção só cobre staging, decisão e confirmação, exercitadas nesta fase com dados sintéticos (Query `2814`) até o Ciclo 2 existir.
+
+Decisões definitivas do ajuste final de Fabrício (2026-08-01), incorporadas em todas as Queries abaixo:
+1. `progress_step` (`catalog_import_job`) é um enum/índice estável (`TEXT` com `CHECK` fechado de 7 valores) — os textos e ícones de exibição pertencem inteiramente ao frontend.
+2. `category_confidence` (`HIGH`/`MEDIUM`/`LOW`) e `category_source` (`API`/`ENERGY_PREFIX`/`POKEMON_MATCH`/`TRAINER_FALLBACK`) vivem dentro de `normalized_data` (JSONB) de `catalog_import_row`, junto com `category` — **não** como colunas físicas próprias. Decisão revista por Fabrício em 2026-08-01 (segunda rodada de aprovação): o desenho de dados do ADR-024 não é alterado nesta etapa; category_source/category_confidence são metadados do mesmo processo de resolução que já produz name/collector_number/rarity_id/category_id dentro do JSONB, não um novo eixo de estado da linha — os quatro estados independentes continuam sendo só validation_status/match_status/decision_status/persistence_status. (Uma primeira versão desta Query havia acrescentado os dois como colunas físicas; revertido antes de qualquer execução.)
+3. A regra de classificação de categoria é única para os dois canais: a API TCGdex, quando fornece categoria, só aumenta a confiança do mesmo algoritmo (prefixo "Energia" → `ENERGY`; senão correspondência de nome de espécie Pokémon via TCGdex → `POKEMON`; senão `TRAINER` por eliminação) — nunca o substitui. Implementada nos campos `category_source`/`category_confidence` dentro de `normalized_data`; o algoritmo em si só é escrito em código no processador de cada canal (Ciclos 2/3/4), fora do escopo SQL desta Query.
+4. O resumo de análise da tela de Revisão (cartas analisadas/classificadas automaticamente/com alerta/com erro) é derivável diretamente dos contadores já recalculados por agregação em `catalog_import_job` — nenhuma coluna nova foi necessária para viabilizá-lo.
+
+Descoberta durante a implementação: `card_set`/`card` não possuem nenhuma coluna de idioma (confirmado em `database/schema/120`/`140`) — `catalog_import_job` não guarda `language_id` (diferente do que uma leitura apressada de `card_asset`, que É localizado por idioma, sugeriria). O idioma de publicação já está implícito em qual Card Set foi escolhido no dropdown.
+
+`admin_start_catalog_import()`/`admin_decide_catalog_import_row()`/`admin_confirm_catalog_import()` são três funções distintas (não uma só) porque cobrem três momentos do fluxo com autorizações e granularidades diferentes: abrir (uma vez, gera auditoria), decidir (muitas vezes por job, reversível, sem auditoria própria — a decisão já fica registrada na própria linha) e confirmar (persiste de fato, sempre em lote, sempre auditada). `admin_confirm_catalog_import()` chama `internal.write_card()` diretamente — mesma camada canônica usada por `admin_create_card()`/`admin_update_card()` (ainda não escritas), nunca duplicando a lógica de proteção de campos.
+
+```sql
+CREATE OR REPLACE FUNCTION public.admin_start_catalog_import(
+    p_card_set_id UUID, p_source TEXT, p_file_checksum TEXT DEFAULT NULL, p_external_set_id TEXT DEFAULT NULL
+)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
+
+CREATE OR REPLACE FUNCTION public.admin_decide_catalog_import_row(
+    p_row_ids UUID[], p_decision_status TEXT, p_corrected_normalized_data JSONB DEFAULT NULL
+)
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
+
+CREATE OR REPLACE FUNCTION public.admin_confirm_catalog_import(
+    p_job_id UUID, p_row_ids UUID[] DEFAULT NULL
+)
+RETURNS TABLE (inserted_count INTEGER, updated_count INTEGER, unchanged_count INTEGER, failed_count INTEGER, pending_count INTEGER, job_status TEXT)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
+```
+
+## Sequência — Ciclo 1 (ADR-024)
+
+```text
+2054 - Widen Catalog Admin Action Log for Catalog Import      (CONFIRMADO EXECUTADO, com gap — ver 2055 — database/migrations/2054_widen_catalog_admin_action_log_for_catalog_import.sql)
+2055 - Add CATALOG_IMPORT_JOB Entity Type to Action Log       (CONFIRMADO EXECUTADO — corrige gap da 2054 — database/migrations/2055_add_catalog_import_job_entity_type_to_action_log.sql)
+2060 - Create Catalog Import Job Table                        (CONFIRMADO EXECUTADO — database/schema/2060_create_catalog_import_job.sql)
+2061 - Catalog Import Job Triggers                            (CONFIRMADO EXECUTADO — database/schema/2061_catalog_import_job_triggers.sql)
+2070 - Create Catalog Import Row Table                        (CONFIRMADO EXECUTADO — database/schema/2070_create_catalog_import_row.sql)
+2071 - Catalog Import Row Triggers                            (CONFIRMADO EXECUTADO — database/schema/2071_catalog_import_row_triggers.sql)
+2080 - Create admin_start_catalog_import() Function            (CONFIRMADO EXECUTADO — database/schema/2080_create_admin_start_catalog_import_function.sql)
+2081 - Create admin_decide_catalog_import_row() Function       (CONFIRMADO EXECUTADO — database/schema/2081_create_admin_decide_catalog_import_row_function.sql)
+2082 - Create admin_confirm_catalog_import() Function          (CONFIRMADO EXECUTADO — database/schema/2082_create_admin_confirm_catalog_import_function.sql)
+2813 - Validate Catalog Import Staging Tables                 (CONFIRMADO EXECUTADO — validação estrutural conferida nos 9 resultados, database/validations/2813_validate_catalog_import_staging_tables.sql)
+2814 - Validate Catalog Import Functions                      (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/validations/2814_validate_catalog_import_functions.sql)
+```
+
+**Ciclo 1 concluído e validado (2026-08-01)** — as 11 Queries acima (as 10 originais mais a `2055`, gap descoberto durante a validação funcional) foram executadas uma a uma por Fabrício no Supabase, seguindo o ritual já estabelecido do projeto, cada uma confirmada antes da próxima. Validação estrutural (`2813`) conferida nos 9 resultados retornados. Validação funcional (`2814`, bloco 4) rodou o caminho completo com dados sintéticos (prefixo `ZZTEST`, `ROLLBACK` ao final, nenhum resíduo): abertura de job, bloqueio de fingerprint duplicado, decisão de linhas (aprovar/pular), confirmação com os três desfechos de persistência (`INSERTED`/`UPDATED`/`UNCHANGED`) — incluindo o cenário de conflito já revisado sendo sobrescrito corretamente —, bloqueio de reconfirmação de job já `COMPLETED`, e a auditoria agregada (`CATALOG_IMPORT_JOB`/`CATALOG_IMPORT_CONFIRMED`) gravada nos dois pontos certos. Dois problemas reais encontrados e corrigidos durante a própria execução (não hipotéticos, descobertos ao rodar contra o banco real):
+- **Gap na Query 2054** (Query `2055`): `catalog_admin_action_log` tem três constraints de validação, não duas — `ck_catalog_admin_action_log_entity_type_valid` foi esquecida na ampliação original, bloqueando a primeira chamada real de `admin_start_catalog_import()`. Corrigido com uma migration isolada e reconciliado no arquivo canônico da Query `2010` (v1.3).
+- **`is_admin()` inalcançável no SQL Editor**: mesma limitação já registrada na Query `1860` (`auth.uid()` não resolve fora de uma sessão JWT real) — mas, diferente de todos os ciclos anteriores, este Ciclo 1 não tem nenhuma tela para validar por lá ainda. Contornado simulando a sessão do primeiro administrador real via `set_config('request.jwt.claim(s)...', true)`, escopo local à transação de teste.
+
+Ciclo 2 (fluxo TCGdex completo) só começa com autorização explícita de Fabrício, por instrução direta dele ("Não avance para o Ciclo 2 até concluirmos integralmente o Ciclo 1 e validarmos sua implementação").
 
 ## Ciclo vertical — `Game` (Queries `2031`/`2032`, CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE)
 

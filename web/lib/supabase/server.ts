@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 /**
@@ -17,7 +17,13 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        // Anotação explícita necessária (pré-existente, não introduzida pelo
+        // Ciclo 2 — arquivo nunca tocado nesta rodada, confirmado via `git
+        // log`): mesma causa de web/lib/supabase/middleware.ts — a sobrecarga
+        // deprecated de `createServerClient` (get/set/remove) vem ANTES da
+        // atual (getAll/setAll) em @supabase/ssr, então o TypeScript tipa
+        // `cookiesToSet` contextualmente pela primeira, que não tem `setAll`.
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
           } catch {

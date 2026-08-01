@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { FileText, Globe, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { cn } from "@/lib/utils";
 
 /**
  * Estrutura visual da página "Importar Cartas" — primeiro passo do subciclo
@@ -22,9 +24,11 @@ import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/component
  *    `getCardSetsForCartas()`, mesmo dado usado por `CartasStats`) só
  *    contextualiza o escopo — nenhuma Coleção é listada nominalmente ainda.
  *
- * Cartões não são clicáveis — não há rota de destino real ainda (mesmo
- * princípio do `ComingSoonPage`: item de menu/ação nunca leva a 404, mas
- * também não finge ter uma tela pronta).
+ * A frente PDF continua sem rota de destino real (mesmo princípio do
+ * `ComingSoonPage`: item de menu/ação nunca leva a 404, mas também não
+ * finge ter uma tela pronta). A frente TCGdex deixou de ser um cartão
+ * estático em 2026-08-01 (Ciclo 2, Sprint 2a, ADR-024): agora linka para
+ * `/catalogo/importar-cartas/tcgdex`, o fluxo real de importação.
  */
 export function ImportarCartasView({ colecoesSemCartas }: { colecoesSemCartas: number }) {
   return (
@@ -46,6 +50,7 @@ export function ImportarCartasView({ colecoesSemCartas }: { colecoesSemCartas: n
           icon={Globe}
           title="Importar via API (TCGDex)"
           description="Cadastra cartas automaticamente via TCGDex, para Coleções que ainda não têm nenhuma carta catalogada."
+          href="/catalogo/importar-cartas/tcgdex"
           caption={
             colecoesSemCartas > 0
               ? `${colecoesSemCartas} Coleç${colecoesSemCartas === 1 ? "ão" : "ões"} sem cartas hoje`
@@ -62,14 +67,16 @@ function ImportOptionCard({
   title,
   description,
   caption,
+  href,
 }: {
   icon: LucideIcon;
   title: string;
   description: string;
   caption?: string;
+  href?: string;
 }) {
-  return (
-    <Card className="flex flex-col">
+  const content = (
+    <Card className={cn("flex flex-col", href && "transition-colors hover:border-[#A39475]/60")}>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F7F5ED] text-[#2C2C2A]"
@@ -77,7 +84,7 @@ function ImportOptionCard({
         >
           <Icon className="h-4 w-4" />
         </span>
-        <Badge variant="outline">Em construção</Badge>
+        {!href && <Badge variant="outline">Em construção</Badge>}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-1.5">
         <p className="text-sm font-semibold text-foreground">{title}</p>
@@ -85,5 +92,13 @@ function ImportOptionCard({
         {caption && <p className="mt-auto pt-2 text-xs text-muted-foreground">{caption}</p>}
       </CardContent>
     </Card>
+  );
+
+  if (!href) return content;
+
+  return (
+    <Link href={href} className="block">
+      {content}
+    </Link>
   );
 }

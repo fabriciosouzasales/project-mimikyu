@@ -1128,6 +1128,97 @@ export async function getImportacoes(supabase: SupabaseClient): Promise<Importac
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Importação via TCGdex (Ciclo 2, ADR-024) — leitura de apoio ao fluxo
+// /catalogo/importar-cartas/tcgdex, adicionada em 2026-08-01.
+// ---------------------------------------------------------------------------
+
+export type CardSetSemCartasRow = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+/**
+ * Coleções sem nenhuma carta cadastrada — universo elegível para o fluxo de
+ * importação via TCGdex. Reaproveita getCardSetsForCartas (mesma base de
+ * cardsCatalogados já usada pela página Importar Cartas).
+ */
+export async function getCardSetsSemCartas(supabase: SupabaseClient): Promise<CardSetSemCartasRow[]> {
+  const cardSets = await getCardSetsForCartas(supabase);
+  return cardSets
+    .filter((cardSet) => cardSet.cardsCatalogados === 0)
+    .map((cardSet) => ({ id: cardSet.id, code: cardSet.code, name: cardSet.name }));
+}
+
+export type CatalogImportJobStatus = {
+  id: string;
+  status: string;
+  progressStep: string | null;
+  totalRows: number;
+  validRows: number;
+  rejectedRows: number;
+  insertedRows: number;
+  updatedRows: number;
+  unchangedRows: number;
+  skippedRows: number;
+  failedRows: number;
+  errorSummary: string | null;
+  cardSetCode: string;
+  cardSetName: string;
+};
+
+type CatalogImportJobRawRow = {
+  id: string;
+  status: string;
+  progress_step: string | null;
+  total_rows: number;
+  valid_rows: number;
+  rejected_rows: number;
+  inserted_rows: number;
+  updated_rows: number;
+  unchanged_rows: number;
+  skipped_rows: number;
+  failed_rows: number;
+  error_summary: string | null;
+  card_set: { code: string; name: string } | null;
+};
+
+/** Status real de um catalog_import_job (Query 2060) — base da tela de acompanhamento do fluxo TCGdex. */
+export async function getCatalogImportJobStatus(
+  supabase: SupabaseClient,
+  jobId: string,
+): Promise<CatalogImportJobStatus | null> {
+  const { data, error } = await supabase
+    .from("catalog_import_job")
+    .select(
+      "id, status, progress_step, total_rows, valid_rows, rejected_rows, inserted_rows, updated_rows, unchanged_rows, skipped_rows, failed_rows, error_summary, card_set(code, name)",
+    )
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const row = data as unknown as CatalogImportJobRawRow;
+
+  return {
+    id: row.id,
+    status: row.status,
+    progressStep: row.progress_step,
+    totalRows: row.total_rows,
+    validRows: row.valid_rows,
+    rejectedRows: row.rejected_rows,
+    insertedRows: row.inserted_rows,
+    updatedRows: row.updated_rows,
+    unchangedRows: row.unchanged_rows,
+    skippedRows: row.skipped_rows,
+    failedRows: row.failed_rows,
+    errorSummary: row.error_summary,
+    cardSetCode: row.card_set?.code ?? "",
+    cardSetName: row.card_set?.name ?? "",
+  };
+}
+
 export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): Promise<AtividadeRecenteItem[]> {
   const { data, error } = await supabase
     .from("asset_import_run")
