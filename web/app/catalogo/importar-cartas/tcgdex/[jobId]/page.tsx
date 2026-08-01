@@ -1,35 +1,21 @@
-import { Globe } from "lucide-react";
-import { notFound } from "next/navigation";
-import { AppShell } from "@/components/app-shell/app-shell";
-import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
-import { JobStatusView } from "@/components/catalogo/job-status-view";
-import { PageContainer } from "@/components/ui/page";
-import { getCatalogImportJobStatus } from "@/lib/catalogo/queries";
+import { redirect } from "next/navigation";
 
 /**
- * Passos "Progresso" + "Revisão" + "Confirmação" do fluxo TCGdex (Ciclo 2,
- * ADR-024). Nesta primeira versão (Sprint 2a) só acompanha o status/
- * contagens reais do job — revisão interativa (aprovar/rejeitar/pular
- * linhas) e confirmação em lote ficam para o próximo incremento (Sprint
- * 2b), deliberadamente fora deste.
+ * Redirect puro (2026-08-01, terceira rodada de ajustes visuais da página
+ * Importar Cartas) — esta rota mostrava `JobStatusView`/
+ * `RevisaoImportacaoTable` para um job específico via `[jobId]` na URL.
+ * O fluxo inteiro (Analisar → progresso → Revisão) passou a viver em
+ * estado de componente cliente dentro de `/catalogo/importar-cartas`
+ * (ver `importar-tcgdex-view.tsx`, hook `useAnalyzeJob`), sem navegar —
+ * exatamente para resolver o problema que esta rota causava ("a tabela...
+ * é carregada em uma nova página", relatado por Fabrício). `RevisaoImportacaoTable`
+ * também ganhou uma prop `onRefresh` que só um componente cliente pode
+ * fornecer, então esta rota (um Server Component) não tem mais como
+ * renderizá-la sem duplicar aquele estado aqui — sem necessidade real,
+ * já que nada mais linka para esta rota (grep confirmado em 2026-08-01).
+ * Mantida só como redirect para não quebrar um favorito/link antigo,
+ * mesmo padrão de `tcgdex/page.tsx`.
  */
-export default async function ImportacaoTcgdexJobPage({
-  params,
-}: {
-  params: Promise<{ jobId: string }>;
-}) {
-  const { denied, supabase } = await requireCatalogoAdmin("Importação TCGdex", Globe);
-  if (denied) return denied;
-
-  const { jobId } = await params;
-  const job = await getCatalogImportJobStatus(supabase, jobId);
-  if (!job) return notFound();
-
-  return (
-    <AppShell title="Importação TCGdex" icon={Globe}>
-      <PageContainer>
-        <JobStatusView job={job} />
-      </PageContainer>
-    </AppShell>
-  );
+export default async function ImportacaoTcgdexJobRedirectPage() {
+  redirect("/catalogo/importar-cartas");
 }

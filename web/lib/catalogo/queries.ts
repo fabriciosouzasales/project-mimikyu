@@ -38,6 +38,42 @@ function extractCount(value: { count: number } | { count: number }[] | null | un
   return Array.isArray(value) ? (value[0]?.count ?? 0) : (value.count ?? 0);
 }
 
+/**
+ * Tamanho de página do PostgREST — `db-max-rows` do projeto Supabase
+ * (padrão 1000, não configurado neste projeto para um valor diferente).
+ * Qualquer `.select()` sem `.range()` é truncado silenciosamente nesse
+ * limite, sem erro — a resposta só vem mais curta que o total real.
+ */
+const SUPABASE_MAX_ROWS_PAGE_SIZE = 1000;
+
+/**
+ * Pagina uma consulta em lotes de SUPABASE_MAX_ROWS_PAGE_SIZE via
+ * `.range()`, até esgotar os resultados. Necessário em qualquer leitura de
+ * `card`/`card_asset` sem filtro que já limite o resultado a poucas
+ * dezenas de linhas (ex.: um único Card Set) — descoberto na prática em
+ * 2026-08-01 (Fabrício: o Card Set MEE, com 8 cartas já cadastradas há
+ * muito tempo, apareceu incorretamente como "sem cartas" assim que o total
+ * de public.card cruzou 1000 linhas, logo após a importação de ME5 via
+ * TCGdex — `getCardCountsForSets`/`fetchCardsComCobertura`, sem `.range()`,
+ * vinham perdendo silenciosamente as linhas além da primeira página).
+ * `buildQuery` deve montar a query do zero a cada chamada (nunca reaproveitar
+ * um builder já usado) porque `.range()` é aplicado de novo por página.
+ */
+async function fetchAllRows(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<unknown[]> {
+  const all: unknown[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildQuery(from, from + SUPABASE_MAX_ROWS_PAGE_SIZE - 1);
+    if (error || !data) break;
+    all.push(...data);
+    if (data.length < SUPABASE_MAX_ROWS_PAGE_SIZE) break;
+    from += SUPABASE_MAX_ROWS_PAGE_SIZE;
+  }
+  return all;
+}
+
 type CardSetRow = {
   id: string;
   code: string;
@@ -102,20 +138,21 @@ export type AtividadeRecenteItem = {
 
 /**
  * Busca de uma vez a base para Estado do Catálogo, Card Sets e Distribuição
- * por Raridade — uma única leitura de `card` (927 linhas hoje, volume
- * pequeno o suficiente para agregar no servidor) com `card_asset(count)` e
- * `rarity` embutidos, evitando N+1 consultas por Card Set/Raridade.
+ * por Raridade — uma única leitura (paginada via fetchAllRows, ver acima)
+ * de `card` com `card_asset(count)` e `rarity` embutidos, evitando N+1
+ * consultas por Card Set/Raridade. Continua agregando em memória, não no
+ * banco — decisão original preservada, só a paginação foi corrigida
+ * (o volume cruzou os 1000 registros em 2026-08-01, ver fetchAllRows).
  */
 async function fetchCardsComCobertura(supabase: SupabaseClient): Promise<CardRow[]> {
-  const { data, error } = await supabase
-    .from("card")
-    .select("id, card_set_id, rarity_id, card_asset(count), rarity(code, name, display_order)");
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("card")
+      .select("id, card_set_id, rarity_id, card_asset(count), rarity(code, name, display_order)")
+      .range(from, to),
+  );
 
-  if (error || !data) {
-    return [];
-  }
-
-  return data as unknown as CardRow[];
+  return rows as unknown as CardRow[];
 }
 
 async function fetchCardSets(supabase: SupabaseClient): Promise<CardSetRow[]> {
@@ -254,6 +291,8 @@ export type CatalogoCardSetRow = {
   /** Quantidade total, incluindo secretas — `card_set.total_set_size`. A diferença `totalSetSize - baseSetSize` é a contagem de secretas (ver comentário de `120_create_card_set_table.sql`). */
   totalSetSize: number;
   expansionId: string;
+  /** Código curto da Expansão (ex.: "SV") — adicionado em 2026-08-01 para o combobox de Coleção de Importar Cartas, ver toCatalogoCardSetRow. */
+  expansionCode: string;
   expansionName: string;
   expansionReleaseOrder: number;
   gameId: string;
@@ -290,7 +329,7 @@ type CatalogoCardSetRawRow = {
   total_set_size: number;
   logo_storage_path: string | null;
   created_at: string;
-  expansion: { id: string; name: string; release_order: number; game: { id: string; code: string; name: string } | null } | null;
+  expansion: { id: string; code: string; name: string; release_order: number; game: { id: string; code: string; name: string } | null } | null;
 };
 
 async function fetchCardSetsForCatalogo(
@@ -300,7 +339,7 @@ async function fetchCardSetsForCatalogo(
   let query = supabase
     .from("card_set")
     .select(
-      "id, code, name, set_type, release_order, release_date, base_set_size, total_set_size, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
+      "id, code, name, set_type, release_order, release_date, base_set_size, total_set_size, logo_storage_path, created_at, expansion!inner(id, code, name, release_order, game!inner(id, code, name))",
     );
 
   if (filters.expansionCode) {
@@ -366,11 +405,10 @@ async function getCardCountsForSets(supabase: SupabaseClient, cardSetIds: string
   if (cardSetIds.length === 0) {
     return counts;
   }
-  const { data, error } = await supabase.from("card").select("card_set_id").in("card_set_id", cardSetIds);
-  if (error || !data) {
-    return counts;
-  }
-  for (const row of data as { card_set_id: string }[]) {
+  const rows = await fetchAllRows((from, to) =>
+    supabase.from("card").select("card_set_id").in("card_set_id", cardSetIds).range(from, to),
+  );
+  for (const row of rows as { card_set_id: string }[]) {
     counts.set(row.card_set_id, (counts.get(row.card_set_id) ?? 0) + 1);
   }
   return counts;
@@ -387,6 +425,7 @@ function toCatalogoCardSetRow(row: CatalogoCardSetRawRow, counts: Map<string, nu
     baseSetSize: row.base_set_size,
     totalSetSize: row.total_set_size,
     expansionId: row.expansion?.id ?? "",
+    expansionCode: row.expansion?.code ?? "",
     expansionName: row.expansion?.name ?? "—",
     expansionReleaseOrder: row.expansion?.release_order ?? 0,
     gameId: row.expansion?.game?.id ?? "",
@@ -438,7 +477,7 @@ export async function searchCatalogo(
     supabase
       .from("card_set")
       .select(
-        "id, code, name, set_type, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, name, release_order, game!inner(id, code, name))",
+        "id, code, name, set_type, release_order, release_date, logo_storage_path, created_at, expansion!inner(id, code, name, release_order, game!inner(id, code, name))",
       )
       .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
       .limit(6),
@@ -892,6 +931,66 @@ export async function getCardSetsForCartas(supabase: SupabaseClient): Promise<Ca
   return rows.map((row) => toCatalogoCardSetRow(row, counts));
 }
 
+/**
+ * Quais Card Sets têm o job de importação TCGdex mais recente incompleto —
+ * novo em 2026-08-01 (sétima rodada, bug real reportado por Fabrício: "não
+ * consigo retomar a importação de SV1 e SV2 (também importem parcialmente
+ * as cartas)").
+ *
+ * A primeira tentativa de corrigir isso comparou `cardsCatalogados` contra
+ * `card_set.total_set_size` — **rejeitada depois de checar os dados reais**:
+ * `total_set_size` é preenchido manualmente por Fabrício ao cadastrar a
+ * Coleção e nem sempre inclui as secretas que só a TCGdex revela (SV1 tem
+ * `total_set_size = 252`, mas a TCGdex reporta 258 cartas reais — as 6 que
+ * falharam na confirmação por causa do gap de `HYPER_RARE` são exatamente a
+ * diferença). Comparar contra esse campo escondia SV1 de novo.
+ *
+ * O sinal correto vem do próprio histórico de `catalog_import_job`: para
+ * cada Card Set, olha só o job MAIS RECENTE (`created_at desc` — um retry
+ * bem-sucedido não deve ser ofuscado por uma tentativa antiga que falhou) e
+ * considera "incompleto" quando `total_rows > inserted_rows + updated_rows +
+ * unchanged_rows` — ou seja, sobrou alguma linha que nunca foi persistida,
+ * seja por falha na confirmação (caso SV1, `failed_rows > 0`) ou por nunca
+ * ter ficado válida o bastante pra ser processada (caso SV2: job com status
+ * `COMPLETED`, sem nenhuma falha registrada, mas só 270 das 279 linhas
+ * chegaram a ser inseridas — as outras 9 nunca passaram de `NEEDS_REVIEW`/
+ * `INVALID`). Cobre os dois casos com a mesma regra, sem depender de status
+ * específico.
+ */
+export async function getLatestImportJobIncompleteFlags(
+  supabase: SupabaseClient,
+  cardSetIds: string[],
+): Promise<Map<string, boolean>> {
+  const flags = new Map<string, boolean>();
+  if (cardSetIds.length === 0) return flags;
+
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("catalog_import_job")
+      .select("card_set_id, total_rows, inserted_rows, updated_rows, unchanged_rows, created_at")
+      .in("card_set_id", cardSetIds)
+      .order("created_at", { ascending: false })
+      .range(from, to),
+  );
+
+  const seen = new Set<string>();
+  for (const row of rows as {
+    card_set_id: string;
+    total_rows: number;
+    inserted_rows: number;
+    updated_rows: number;
+    unchanged_rows: number;
+  }[]) {
+    // Primeira ocorrência de cada card_set_id é a mais recente (ordenado
+    // desc acima) — ignora quaisquer jobs mais antigos do mesmo Card Set.
+    if (seen.has(row.card_set_id)) continue;
+    seen.add(row.card_set_id);
+    const processed = row.inserted_rows + row.updated_rows + row.unchanged_rows;
+    flags.set(row.card_set_id, row.total_rows > processed);
+  }
+  return flags;
+}
+
 export type CartasCatalogoStats = {
   totalVariacoes: number;
   totalImagens: number;
@@ -932,21 +1031,22 @@ export async function getCartasCatalogoStats(
   supabase: SupabaseClient,
   totalCartas: number,
 ): Promise<CartasCatalogoStats> {
-  const [variantResult, assetResult, frontAssetsResult] = await Promise.all([
+  const [variantResult, assetResult, frontAssetsRows] = await Promise.all([
     supabase.from("card_variant").select("id", { count: "exact", head: true }),
     supabase.from("card_asset").select("id", { count: "exact", head: true }),
-    supabase
-      .from("card_asset")
-      .select("card_id, card_asset_type!inner(code)")
-      .eq("is_primary", true)
-      .eq("card_asset_type.code", "CARD_FRONT"),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("card_asset")
+        .select("card_id, card_asset_type!inner(code)")
+        .eq("is_primary", true)
+        .eq("card_asset_type.code", "CARD_FRONT")
+        .range(from, to),
+    ),
   ]);
 
   const totalVariacoes = variantResult.count ?? 0;
   const totalImagens = assetResult.count ?? 0;
-  const cardsComImagem = new Set(
-    ((frontAssetsResult.data as { card_id: string }[] | null) ?? []).map((row) => row.card_id),
-  ).size;
+  const cardsComImagem = new Set((frontAssetsRows as { card_id: string }[]).map((row) => row.card_id)).size;
   const cardsSemImagem = Math.max(totalCartas - cardsComImagem, 0);
 
   return { totalVariacoes, totalImagens, cardsSemImagem };
@@ -1130,26 +1230,19 @@ export async function getImportacoes(supabase: SupabaseClient): Promise<Importac
 
 // ---------------------------------------------------------------------------
 // Importação via TCGdex (Ciclo 2, ADR-024) — leitura de apoio ao fluxo
-// /catalogo/importar-cartas/tcgdex, adicionada em 2026-08-01.
+// /catalogo/importar-cartas, adicionada em 2026-08-01.
 // ---------------------------------------------------------------------------
 
-export type CardSetSemCartasRow = {
-  id: string;
-  code: string;
-  name: string;
-};
-
-/**
- * Coleções sem nenhuma carta cadastrada — universo elegível para o fluxo de
- * importação via TCGdex. Reaproveita getCardSetsForCartas (mesma base de
- * cardsCatalogados já usada pela página Importar Cartas).
- */
-export async function getCardSetsSemCartas(supabase: SupabaseClient): Promise<CardSetSemCartasRow[]> {
-  const cardSets = await getCardSetsForCartas(supabase);
-  return cardSets
-    .filter((cardSet) => cardSet.cardsCatalogados === 0)
-    .map((cardSet) => ({ id: cardSet.id, code: cardSet.code, name: cardSet.name }));
-}
+// `getCardSetsSemCartas`/`CardSetSemCartasRow` removidos em 2026-08-01: o
+// filtro "só Coleções com zero cartas" (que essa função existia só para
+// aplicar) tinha sido tentativamente removido na mesma rodada, mas
+// Fabrício confirmou que o seletor DEVE continuar restrito a Coleções sem
+// cartas — o próprio protótipo mostrar "ME5" foi lido errado (ME5 é o
+// exemplo do rótulo, não uma Coleção com cartas de fato sendo oferecida).
+// O filtro agora é aplicado inline em `/catalogo/importar-cartas/page.tsx`
+// a partir do resultado de getCardSetsForCartas() (mesma base de
+// `cardsCatalogados` de sempre) — sem reintroduzir uma função só para um
+// `.filter()` de uma linha.
 
 export type CatalogImportJobStatus = {
   id: string;
@@ -1217,6 +1310,117 @@ export async function getCatalogImportJobStatus(
     cardSetCode: row.card_set?.code ?? "",
     cardSetName: row.card_set?.name ?? "",
   };
+}
+
+export type CatalogImportRowView = {
+  id: string;
+  name: string;
+  collectorNumber: string;
+  collectorTotal: number | null;
+  category: string | null;
+  categorySource: string | null;
+  categoryConfidence: string | null;
+  /** Raridade exatamente como veio da TCGdex (raw_data.rarity) — ver comentário de getCatalogImportRows abaixo. */
+  rawRarity: string | null;
+  reviewNotes: string[];
+  validationStatus: string;
+  matchStatus: string;
+  decisionStatus: string;
+  persistenceStatus: string;
+  errorDetail: string | null;
+};
+
+type CatalogImportRowNormalizedData = {
+  name?: string;
+  collector_number?: string;
+  collector_total?: number | null;
+  category?: string | null;
+  category_source?: string | null;
+  category_confidence?: string | null;
+  review_notes?: string[] | null;
+};
+
+type CatalogImportRowRawRow = {
+  id: string;
+  raw_data: Record<string, unknown> | null;
+  normalized_data: CatalogImportRowNormalizedData | null;
+  validation_status: string;
+  match_status: string;
+  decision_status: string;
+  persistence_status: string;
+  error_detail: string | null;
+};
+
+/**
+ * Linhas de staging (catalog_import_row, Query 2070) de um job — base da
+ * tela de Revisão (Ciclo 2, Sprint 2b, ADR-024).
+ *
+ * Buscadas em ordem de created_at (mesma ordem usada por
+ * admin_confirm_catalog_import(), Query 2082, `ORDER BY r.created_at`, e
+ * pela inserção em lote do processador), mas **exibidas** em ordem
+ * crescente de collector_number (2026-08-01, terceira rodada, pedido de
+ * Fabrício: "a tabela de revisão deve ser organizada em ordem crescente
+ * pelo campo número da carta" — created_at não tem significado nenhum pra
+ * quem está revisando visualmente). `collector_number` vem de
+ * normalized_data (JSONB), não uma coluna própria, então o sort é feito
+ * aqui em memória (nunca no SQL) — `Number(...)` porque é string
+ * ("001", "157"...); `Number.parseInt` falharia silenciosamente em casos
+ * como "157a" (não deveria existir, mas cai pro fim da lista via `NaN` →
+ * `Infinity` em vez de quebrar a ordenação inteira). A ordem usada por
+ * admin_confirm_catalog_import() continua sendo a de created_at — só a
+ * exibição mudou, o RPC não foi tocado.
+ *
+ * `rawRarity` lê raw_data.rarity (texto exatamente como veio da TCGdex, ex.:
+ * "Rare Holo") em vez de resolver rarity_id contra public.rarity: é o mesmo
+ * dado que normalize.ts (Edge Function) usou para decidir
+ * RARIDADE_NAO_MAPEADA/RARIDADE_AUSENTE_NA_TCGDEX — mostra ao administrador
+ * exatamente o que foi avaliado, sem uma segunda consulta para resolver um
+ * nome canônico que a própria linha pode nem ter conseguido mapear (rarity_id
+ * fica NULL nesse caso).
+ */
+export async function getCatalogImportRows(
+  supabase: SupabaseClient,
+  jobId: string,
+): Promise<CatalogImportRowView[]> {
+  const { data, error } = await supabase
+    .from("catalog_import_row")
+    .select(
+      "id, raw_data, normalized_data, validation_status, match_status, decision_status, persistence_status, error_detail",
+    )
+    .eq("job_id", jobId)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  const rows = (data as unknown as CatalogImportRowRawRow[]).map((row) => {
+    const normalized = row.normalized_data ?? {};
+    const rawRarity = typeof row.raw_data?.rarity === "string" ? (row.raw_data.rarity as string) : null;
+
+    return {
+      id: row.id,
+      name: normalized.name ?? "—",
+      collectorNumber: normalized.collector_number ?? "—",
+      collectorTotal: normalized.collector_total ?? null,
+      category: normalized.category ?? null,
+      categorySource: normalized.category_source ?? null,
+      categoryConfidence: normalized.category_confidence ?? null,
+      rawRarity,
+      reviewNotes: normalized.review_notes ?? [],
+      validationStatus: row.validation_status,
+      matchStatus: row.match_status,
+      decisionStatus: row.decision_status,
+      persistenceStatus: row.persistence_status,
+      errorDetail: row.error_detail,
+    };
+  });
+
+  return rows.sort((a, b) => {
+    const numA = Number(a.collectorNumber);
+    const numB = Number(b.collectorNumber);
+    return (Number.isNaN(numA) ? Infinity : numA) - (Number.isNaN(numB) ? Infinity : numB);
+  });
 }
 
 export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): Promise<AtividadeRecenteItem[]> {

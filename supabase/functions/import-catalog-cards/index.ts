@@ -1,7 +1,32 @@
 /*
 Project Mimikyu
 Edge Function: import-catalog-cards
-Sprint 1 (2026-08-01) — primeira versão, ainda não deployada. Processador
+Sprint 1 (2026-08-01) — deployada e validada (job SVE, 24/24 linhas VALID).
+Versão 3 (2026-08-01, mesmo dia): TCGDEX_LANGUAGE corrigido de "en" para
+"pt" — bug real, cartas do primeiro teste (ME5) foram cadastradas em
+inglês. Versão 2 havia corrigido para "pt-br", mas testado ao vivo esse
+código devolve 404 para o Set do ME5 na TCGdex (cobertura de tradução
+incompleta); "pt" tem os dados completos e foi confirmado por Fabrício
+como o idioma correto. Ver detalhe no comentário de TCGDEX_LANGUAGE abaixo.
+Versão 4 (2026-08-01, mesmo dia): corrigido matching de raridade. Com
+TCGDEX_LANGUAGE="pt", a TCGdex passou a devolver o nome da raridade em
+português ("Comum", "Ultra Rara"...), mas o código comparava contra
+rarity.code (inglês, "COMMON"...) — nada batia, e as 120 linhas do
+primeiro reprocessamento do ME5 caíram todas em NEEDS_REVIEW (0 válidas).
+Corrigido para comparar contra rarity.name (também PT), com normalização
+de acentos e uma tabela de alias para os casos em que a TCGdex e o nosso
+cadastro usam ordem/flexão diferentes ("Ultra Rara" vs "Rara Ultra",
+"Mega Hiper Raro" vs "Mega Rara Hiper"). Ver services/normalize.ts
+(resolveRarityLookupKey) e services/database.ts (listRaritiesByGameCode).
+Versão 5 (2026-08-01, mesmo dia): mesma família de bug, agora em
+CATEGORY_BY_TCGDEX_VALUE — só tinha as chaves em inglês ("Pokemon"/
+"Trainer"/"Energy"), mas com TCGDEX_LANGUAGE="pt" a TCGdex devolve
+"Pokémon"/"Treinador"/"Energia". Cartas Treinador caíam no fallback
+heurístico com confidence "LOW", forçando NEEDS_REVIEW à toa (23 linhas
+do reprocessamento do ME5) mesmo com o valor final já correto. Adicionadas
+as chaves em português. Ver comentário de CATEGORY_BY_TCGDEX_VALUE em
+services/normalize.ts.
+Processador
 TCGdex do Ciclo 2 (ADR-024): recebe um catalog_import_job (aberto por
 admin_start_catalog_import(), Query 2080, com source='TCGDEX' e
 external_set_id já resolvido — a localização automática do Set acontece
@@ -38,7 +63,23 @@ import { TcgdexClient, type TcgdexCardDetail } from "./services/tcgdex.ts";
 import { buildImportRow, resolveCollectorTotal } from "./services/normalize.ts";
 import type { RequestBody } from "./types.ts";
 
-const TCGDEX_LANGUAGE = "en";
+// Idioma fixo em "pt" — não "en": nosso catálogo cadastra Cards em
+// português (confirmado por Fabrício, 2026-08-01, já previsto no plano de
+// implementação — `card_set` não tem dimensão de idioma própria porque o
+// nome da Card "já nasce no idioma de publicação do próprio Card Set", ver
+// comentário de database/schema/2060_create_catalog_import_job.sql). "en"
+// era o default do TcgdexClient, usado por engano aqui sem fixar o idioma
+// correto — bug corrigido nesta rodada.
+//
+// Não "pt-br": a documentação oficial (tcgdex.dev/errors/language-invalid)
+// lista "pt", "pt-br" e "pt-pt" como três códigos de idioma distintos e
+// válidos, mas a COBERTURA REAL de dados por set é o que importa na
+// prática — testado ao vivo em 2026-08-01 (remediação do ME5):
+// /pt-br/sets/me05 devolveu 404 (sem tradução pt-br para esse set),
+// enquanto /pt/sets/me05 tem os dados completos. Fabrício confirmou "pt"
+// como o correto após checar as duas URLs diretamente no navegador — a
+// cobertura de "pt-br" na TCGdex é mais rala que a de "pt" genérico.
+const TCGDEX_LANGUAGE = "pt";
 const ASSET_SOURCE_CODE = "TCGDEX";
 const CARD_DETAIL_BATCH_SIZE = 10;
 
@@ -135,7 +176,7 @@ Deno.serve(async (req) => {
     // os quatro códigos em sequência, refletindo qual fase concluiu por
     // último caso o job seja consultado neste intervalo.
     await updateProgressStep(supabase, jobId, "DETECTING_RARITY");
-    const raritiesByCode = await listRaritiesByGameCode(supabase, cardSet.game_id);
+    const raritiesByName = await listRaritiesByGameCode(supabase, cardSet.game_id);
     const categoriesByCode = await listCategoriesByGameCode(supabase, cardSet.game_id);
 
     await updateProgressStep(supabase, jobId, "CLASSIFYING_CATEGORY");
@@ -148,7 +189,7 @@ Deno.serve(async (req) => {
         tcgCard: detail,
         indexInSet: index,
         collectorTotal,
-        raritiesByCode,
+        raritiesByName,
         categoriesByCode,
         existingCardsByCollectorNumber,
         seenCollectorNumbers,

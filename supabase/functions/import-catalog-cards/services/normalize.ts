@@ -14,14 +14,63 @@ import type {
 } from "../types.ts";
 import type { TcgdexCardDetail, TcgdexSetDetail } from "./tcgdex.ts";
 
+// Inclui as duas formas (inglês e português) porque `tcgCard.category` vem
+// da própria TCGdex no idioma pedido (TCGDEX_LANGUAGE) — com "pt" ela
+// devolve "Pokémon"/"Treinador"/"Energia", não "Pokemon"/"Trainer"/"Energy".
+// Bug real, descoberto junto com o de raridade na remediação do ME5
+// (2026-08-01): só as chaves em inglês existiam aqui, então toda carta
+// Treinador caía no fallback heurístico (resolveCategoryByHeuristic) com
+// confidence "LOW" — o valor final (TRAINER) até saía certo por coincidência
+// (é o default do fallback), mas "LOW" bloqueia a linha em NEEDS_REVIEW à
+// toa (ver blockingIssues em buildImportRow). Cartas Pokémon não travavam
+// porque o fallback por dexId dá confidence "MEDIUM" (não bloqueia), mas
+// ainda assim classificava via heurística em vez de via API por engano.
 const CATEGORY_BY_TCGDEX_VALUE: Record<string, string> = {
   Pokemon: "POKEMON",
+  "Pokémon": "POKEMON",
   Trainer: "TRAINER",
+  Treinador: "TRAINER",
   Energy: "ENERGY",
+  Energia: "ENERGY",
 };
 
-export function normalizeRarityCode(raw: string): string {
-  return raw.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+// Normaliza um nome de raridade para comparação: remove acentos, deixa em
+// maiúsculas, colapsa espaços. Usado tanto para o nome vindo da TCGdex
+// (raw_data.rarity, em português desde a correção do idioma para "pt") quanto
+// para o `name` cadastrado em public.rarity — evita depender de bater
+// caractere a caractere (ex.: "Ilustração Rara" vs "ilustração  rara").
+//
+// Bug real, descoberto na remediação do ME5 (2026-08-01): a versão anterior
+// desta função normalizava para comparar contra `rarity.code` (em inglês,
+// ex. "ULTRA_RARE"), mas a TCGdex em "pt" devolve o nome em português
+// ("Ultra Rara"), então nada batia e as 120 linhas caíam em NEEDS_REVIEW.
+// A comparação correta é contra `rarity.name` (também em português).
+export function normalizeRarityLookupKey(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+}
+
+// A TCGdex ("pt") e a nossa tabela `rarity` às vezes usam ordem de palavras
+// ou flexão de gênero diferentes para o mesmo conceito de raridade — a
+// normalização acima (acentos/caixa/espaços) não resolve isso sozinha.
+// Mapeamento explícito descoberto na remediação do ME5 (2026-08-01), chave e
+// valor já passados por normalizeRarityLookupKey:
+// - TCGdex "Ultra Rara" vs. cadastrado "Rara Ultra"
+// - TCGdex "Mega Hiper Raro" vs. cadastrado "Mega Rara Hiper"
+// Se surgir uma raridade nova sem alias aqui, ela cai em NEEDS_REVIEW (não
+// silenciosamente errada) — comportamento seguro por desenho.
+const RARITY_NAME_ALIASES: Record<string, string> = {
+  "ULTRA RARA": "RARA ULTRA",
+  "MEGA HIPER RARO": "MEGA RARA HIPER",
+};
+
+export function resolveRarityLookupKey(raw: string): string {
+  const normalized = normalizeRarityLookupKey(raw);
+  return RARITY_NAME_ALIASES[normalized] ?? normalized;
 }
 
 export function resolveCategory(
@@ -61,7 +110,9 @@ type BuildRowInput = {
   tcgCard: TcgdexCardDetail;
   indexInSet: number;
   collectorTotal: number | null;
-  raritiesByCode: Map<string, Rarity>;
+  // Chaveado por normalizeRarityLookupKey(rarity.name) — não por rarity.code.
+  // Ver comentário de resolveRarityLookupKey acima.
+  raritiesByName: Map<string, Rarity>;
   categoriesByCode: Map<string, CardCategoryRow>;
   existingCardsByCollectorNumber: Map<string, ExistingCard>;
   seenCollectorNumbers: Set<string>;
@@ -70,7 +121,7 @@ type BuildRowInput = {
 
 export function buildImportRow(input: BuildRowInput): PreparedRow {
   const {
-    tcgCard, indexInSet, collectorTotal, raritiesByCode, categoriesByCode,
+    tcgCard, indexInSet, collectorTotal, raritiesByName, categoriesByCode,
     existingCardsByCollectorNumber, seenCollectorNumbers, extraNote,
   } = input;
 
@@ -89,7 +140,7 @@ export function buildImportRow(input: BuildRowInput): PreparedRow {
 
   let rarityRow: Rarity | undefined;
   if (tcgCard.rarity) {
-    rarityRow = raritiesByCode.get(normalizeRarityCode(tcgCard.rarity));
+    rarityRow = raritiesByName.get(resolveRarityLookupKey(tcgCard.rarity));
     if (!rarityRow) notes.push(`RARIDADE_NAO_MAPEADA: ${tcgCard.rarity}`);
   } else {
     notes.push("RARIDADE_AUSENTE_NA_TCGDEX");

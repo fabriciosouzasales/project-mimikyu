@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import type { CatalogImportJobStatus } from "@/lib/catalogo/queries";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -34,61 +32,62 @@ const PROGRESS_STEP_LABEL: Record<string, string> = {
 };
 
 /**
- * Acompanhamento do job (Ciclo 2, Sprint 2a) — status real + contagens,
- * sem atualização automática ainda (botão "Atualizar" manual via
- * router.refresh()). Polling automático fica para o Sprint 2b, quando a
- * tela ganha a revisão interativa que justifica reconsultar sozinha.
+ * Acompanhamento do job (Ciclo 2, Sprint 2a) — status real + contagens.
+ * Revisão interativa e confirmação (Sprint 2b) vivem em
+ * RevisaoImportacaoTable, renderizada abaixo deste componente por quem
+ * chama — polling automático continua fora de escopo (as ações de
+ * decisão/confirmação já disparam `onRefresh` sozinhas).
+ *
+ * Simplificado em 2026-08-01 (segunda rodada, pedido de Fabrício: "a tabela
+ * com a lista de cartas [seja] apresentada na mesma página") — perdeu o
+ * PageHeader/PageTitle próprio (título de página duplicado não faz sentido
+ * embutido) e os indicadores viraram uma linha de texto simples em vez do
+ * `dl` de 4 colunas com números grandes — pedido explícito: "os
+ * indicadores podem ser mais discretos... em label simples".
+ *
+ * `onRefresh` (era `router.refresh()`, terceira rodada — ver comentário de
+ * `useAnalyzeJob` em importar-tcgdex-view.tsx): job/linhas viraram estado
+ * de componente cliente, não mais derivados de `?jobId=` na URL — um
+ * `router.refresh()` aqui não teria mais nada de servidor pra buscar de
+ * novo. Quem chama passa a mesma função usada por RevisaoImportacaoTable.
+ *
+ * SEM USO ATUALMENTE (2026-08-01, sexta rodada) — Fabrício pediu pra
+ * eliminar este card ("Importação") da tela; o conteúdo que ele mostrava
+ * (status, contagens, erro) migrou pra dentro da etapa "Concluído" de
+ * `ImportProgress` (importar-tcgdex-view.tsx). Mantido aqui intacto (não
+ * apagado) — grep confirma que nada mais importa este componente hoje.
  */
-export function JobStatusView({ job }: { job: CatalogImportJobStatus }) {
-  const router = useRouter();
-
+export function JobStatusView({
+  job,
+  onRefresh,
+}: {
+  job: CatalogImportJobStatus;
+  onRefresh: () => void;
+}) {
   return (
-    <div className="space-y-4">
-      <PageHeader>
-        <PageHeading>
-          <PageTitle>Importação — {job.cardSetName || job.cardSetCode}</PageTitle>
-          <PageDescription>{job.cardSetCode}</PageDescription>
-        </PageHeading>
-      </PageHeader>
-
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{STATUS_LABEL[job.status] ?? job.status}</Badge>
-            {job.progressStep && (
-              <span className="text-sm text-muted-foreground">
-                {PROGRESS_STEP_LABEL[job.progressStep] ?? job.progressStep}
-              </span>
-            )}
-          </div>
-          <Button variant="outline" size="sm" onClick={() => router.refresh()}>
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Atualizar
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {job.errorSummary && <p className="text-sm text-destructive">{job.errorSummary}</p>}
-          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <StatItem label="Linhas" value={job.totalRows} />
-            <StatItem label="Válidas" value={job.validRows} />
-            <StatItem label="Inseridas" value={job.insertedRows} />
-            <StatItem label="Falhas" value={job.failedRows} />
-          </dl>
-          <p className="text-xs text-muted-foreground">
-            Revisão e confirmação interativas chegam no próximo incremento — por ora, esta tela só acompanha o
-            status real do job.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function StatItem({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-lg font-semibold text-foreground">{value}</dd>
-    </div>
+    <Card>
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-foreground">Importação — {job.cardSetName || job.cardSetCode}</p>
+          <Badge variant="outline">{STATUS_LABEL[job.status] ?? job.status}</Badge>
+          {job.progressStep && (
+            <span className="text-xs text-muted-foreground">
+              {PROGRESS_STEP_LABEL[job.progressStep] ?? job.progressStep}
+            </span>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={onRefresh}>
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          Atualizar
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        {job.errorSummary && <p className="text-sm text-destructive">{job.errorSummary}</p>}
+        <p className="text-xs text-muted-foreground">
+          {job.totalRows} linhas · {job.validRows} válidas · {job.insertedRows} inseridas ·{" "}
+          {job.updatedRows} atualizadas · {job.failedRows} falhas
+        </p>
+      </CardContent>
+    </Card>
   );
 }

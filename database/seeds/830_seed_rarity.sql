@@ -2,10 +2,10 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 830 - Seed Rarity
-Versão......: 1.2
+Versão......: 1.3
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-18
+Data........: 2026-07-18 (v1.0-1.2) / 2026-08-01 (v1.3)
 Descrição resumida:
 Cadastra e atualiza as raridades e seus símbolos oficiais identificados nas
 listas de verificação dos Sets da expansão Megaevolução e no Set Promocional.
@@ -25,6 +25,20 @@ Raridades cadastradas:
 - Ilustração Rara
 - Ilustração Rara Especial
 - Mega Rara Hiper
+- Hiper Rara (v1.3)
+Nota de versão (v1.3, 2026-08-01):
+Gap real descoberto na importação TCGdex de SV1 (Escarlate e Violeta) —
+6 cartas (2 `ex`, 2 Treinador, 2 Energia Básica) vêm da TCGdex com raridade
+"Hiper Rara", distinta de "Mega Rara Hiper" (exclusiva da Megaevolução) e
+sem cadastro correspondente; a falta de rarity_id bloqueava a persistência
+dessas 6 linhas em admin_confirm_catalog_import ("Não foi possível
+identificar o Game da Rarity informada"). symbol_code reaproveita
+`GOLD_STAR` (mesmo de Ilustração Rara) como escolha provisória — sinalizada
+a Fabrício, não uma fonte oficial de símbolo confirmada, mesmo espírito da
+divergência já registrada para Ilustração Rara (ver comentário de
+RaritySymbol no frontend). display_order = 11 (acrescentada ao final, sem
+reordenar as demais) — ajustar se a posição na hierarquia importar
+visualmente.
 Regras de Negócio:
 - Somente raridades comprovadas por fontes oficiais são cadastradas.
 - A raridade deve pertencer ao Game POKEMON.
@@ -136,6 +150,13 @@ BEGIN
             'Mega Rara Hiper',
             'GOLD_DIAMOND',
             10
+        ),
+        (
+            v_game_id,
+            'HYPER_RARE',
+            'Hiper Rara',
+            'GOLD_STAR',
+            11
         )
     ON CONFLICT (game_id, code)
     DO UPDATE SET

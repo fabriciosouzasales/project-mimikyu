@@ -5,6 +5,8 @@
 // database.ts: este arquivo nunca cria um cliente Supabase, sempre recebe
 // um já pronto.
 
+import { normalizeRarityLookupKey } from "./normalize.ts";
+
 export async function findJob(supabase: any, jobId: string) {
   const { data, error } = await supabase
     .from("catalog_import_job")
@@ -130,13 +132,19 @@ export async function listExistingCardsMap(supabase: any, cardSetId: string) {
   return new Map<string, any>((data ?? []).map((card: any) => [card.collector_number, card]));
 }
 
+// Chaveado por normalizeRarityLookupKey(r.name) — não por r.code. A TCGdex
+// devolve o nome da raridade em português (idioma "pt", ver TCGDEX_LANGUAGE
+// em index.ts), então a comparação certa é contra o `name` (também PT) da
+// tabela, não contra o `code` (inglês). Bug real corrigido em 2026-08-01
+// durante a remediação do ME5 — ver comentário de resolveRarityLookupKey em
+// services/normalize.ts.
 export async function listRaritiesByGameCode(supabase: any, gameId: string) {
   const { data, error } = await supabase.from("rarity").select("id, code, name").eq("game_id", gameId);
   if (error) {
     console.error(error);
     throw new Error("RARITY_QUERY_FAILED");
   }
-  return new Map<string, any>((data ?? []).map((r: any) => [r.code, r]));
+  return new Map<string, any>((data ?? []).map((r: any) => [normalizeRarityLookupKey(r.name), r]));
 }
 
 export async function listCategoriesByGameCode(supabase: any, gameId: string) {

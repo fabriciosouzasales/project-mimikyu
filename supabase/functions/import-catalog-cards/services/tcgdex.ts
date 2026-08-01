@@ -44,7 +44,9 @@ export type TcgdexCardDetail = {
 export class TcgdexClient {
   private static readonly BASE_URL = "https://api.tcgdex.net/v2";
 
-  constructor(private readonly language = "en") {}
+  // Default defensivo — index.ts sempre passa TCGDEX_LANGUAGE ("pt")
+  // explicitamente; nunca depender deste valor sozinho.
+  constructor(private readonly language = "pt") {}
 
   private async get<T>(path: string): Promise<T> {
     const response = await fetch(

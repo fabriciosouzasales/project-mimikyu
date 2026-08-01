@@ -2,10 +2,10 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 930 - Validate Rarity
-Versão......: 1.2
+Versão......: 1.3
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-18
+Data........: 2026-07-18 (v1.0-1.2) / 2026-08-01 (v1.3)
 Descrição resumida:
 Valida a estrutura, os dados, os símbolos e as regras de integridade da
 tabela rarity.
@@ -22,8 +22,9 @@ rarity, incluindo:
 - aderência aos dados canônicos;
 - timestamps;
 - existência do trigger de atualização.
-A validação considera 10 raridades canônicas para o Game POKEMON,
-incluindo a raridade PROMO com símbolo BLACK_STAR.
+A validação considera 11 raridades canônicas para o Game POKEMON,
+incluindo a raridade PROMO com símbolo BLACK_STAR (v1.3 acrescenta
+HYPER_RARE, ver Query 830 v1.3).
 Pré-requisitos:
 - Query 130 - Create Rarity Table.
 - Query 131 - Create Rarity Trigger.
@@ -33,7 +34,7 @@ Pré-requisitos:
 
 -- ============================================================================
 -- 1. Relação completa das raridades
--- Resultado esperado: 10 registros do Game POKEMON
+-- Resultado esperado: 11 registros do Game POKEMON
 -- ============================================================================
 SELECT
     g.code AS game_code,
@@ -53,7 +54,7 @@ ORDER BY
 
 -- ============================================================================
 -- 2. Quantidade de raridades por Game
--- Resultado esperado para POKEMON: 10
+-- Resultado esperado para POKEMON: 11
 -- ============================================================================
 SELECT
     g.code AS game_code,
@@ -162,7 +163,8 @@ WITH expected_rarity (
         ('MEGA_ATTACK_RARE',          'Rara Mega Ataque',         'MEGA_ATTACK',        7),
         ('ILLUSTRATION_RARE',         'Ilustração Rara',          'GOLD_STAR',          8),
         ('SPECIAL_ILLUSTRATION_RARE', 'Ilustração Rara Especial', 'GOLD_DOUBLE_STAR',   9),
-        ('MEGA_HYPER_RARE',           'Mega Rara Hiper',          'GOLD_DIAMOND',      10)
+        ('MEGA_HYPER_RARE',           'Mega Rara Hiper',          'GOLD_DIAMOND',      10),
+        ('HYPER_RARE',                'Hiper Rara',               'GOLD_STAR',         11)
 )
 SELECT
     e.code AS expected_code,
@@ -198,7 +200,8 @@ WITH expected_rarity (code) AS (
         ('MEGA_ATTACK_RARE'),
         ('ILLUSTRATION_RARE'),
         ('SPECIAL_ILLUSTRATION_RARE'),
-        ('MEGA_HYPER_RARE')
+        ('MEGA_HYPER_RARE'),
+        ('HYPER_RARE')
 )
 SELECT
     r.code,

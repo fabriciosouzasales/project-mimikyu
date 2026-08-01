@@ -2484,6 +2484,24 @@ Ao revisar o modelo já com `symbol_code`, Fabrício lembrou de um detalhe que a
 
 **Sequência de atualização executada, conforme decidido por Fabrício:** *"Vamos seguir com esta sequência agora: Atualizar a Query 830 para incluir PROMO. Atualizar a Query 930 para validar as 10 raridades canônicas em vez de 9. Manter a Query 130 como está, pois ela já suporta essa inclusão sem alterações estruturais."* `130 - Create Rarity Table` (v1.1) permaneceu como está — nenhuma constraint de `code` restringe os valores possíveis, então adicionar `PROMO` foi puramente uma questão de dados, não de estrutura. `830` e `930` foram reescritas para v1.2 (ver "Seed — Versão Canônica (1.2)" e "Validação — Versão Canônica (1.2)", acima) e executadas com sucesso, confirmadas por Fabrício: "Tudo feito com sucesso. Vamos avançar!" **Rarity está oficialmente encerrada.**
 
+### Emenda — Hiper Rara (`HYPER_RARE`, v1.3, 2026-08-01)
+
+Gap real descoberto durante a importação TCGdex de SV1 (Escarlate e Violeta, Ciclo 2 — ver seção Catalog Import Job/Row, abaixo): a confirmação do job (`admin_confirm_catalog_import`) rejeitou 6 das 258 linhas com o erro "Não foi possível identificar o Game da Rarity informada" — Miraidon ex, Koraidon ex, Bola de Ninho, Doce Raro e as duas Energias Básicas (`collector_number` 253–258), todas com `raw_data.rarity = "Hiper Rara"` vinda da TCGdex.
+
+`rarity` já tinha `MEGA_HYPER_RARE`/"Mega Rara Hiper" (exclusiva da Megaevolução), mas nada para "Hiper Rara" pura — raridade distinta, real, usada pela TCGdex para os `ex`/Energias secretos de SV1. Sem `rarity_id` correspondente, `normalizeRarityLookupKey`/`raritiesByName` (Edge Function, `services/normalize.ts`) deixava `rarity_id = NULL` nessas 6 linhas, e a confirmação bloqueava a persistência.
+
+**Confirmado por Fabrício ("Cadastre essa raridade no catálogo") e executado:**
+
+| `display_order` | `code` | `name` | `symbol_code` |
+|---|---|---|---|
+| 11 | `HYPER_RARE` | Hiper Rara | `GOLD_STAR` |
+
+Acrescentada ao final (display_order 11, sem reordenar as demais 10). `symbol_code = GOLD_STAR` reaproveita o símbolo de `ILLUSTRATION_RARE` — **escolha provisória, sinalizada e não confirmada por fonte oficial** (mesmo espírito da divergência já registrada para Ilustração Rara em `RaritySymbol`, frontend); ajustar se surgir referência melhor.
+
+Queries `830`/`930` reescritas para v1.3 (mesmos arquivos, `ON CONFLICT` idempotente) e reexecutadas — `rarity` agora tem 11 registros para POKEMON, `HYPER_RARE` confirmado com os valores acima.
+
+**Consequência não resolvida nesta emenda:** as 6 linhas já processadas do job SV1 (`e5e43441-3193-41de-a5d3-8df5b0ac679f`, status `COMPLETED_WITH_ERRORS`) têm `rarity_id = NULL` congelado em `normalized_data` — cadastrar a raridade agora não corrige retroativamente essas 6 linhas já normalizadas; corrigir exige reprocessar (novo job de importação para SV1, ou lógica de retry específica, nenhuma das duas implementada ainda).
+
 ### Observação Arquitetural — Card Depende de Dois Domínios
 
 A criação de `rarity` revelou uma estrutura de dependência antes não explícita: `card` não depende apenas da cadeia `Game → Expansion → Card Set`, mas também diretamente de `Game → Rarity`:
