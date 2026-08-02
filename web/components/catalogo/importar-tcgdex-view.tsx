@@ -32,6 +32,7 @@ import {
   executarImportacaoImagens,
   getImportacaoJobData,
   iniciarImportacaoTcgdex,
+  type ImageImportFailureView,
   type IniciarImportacaoImagensResult,
   type IniciarImportacaoTcgdexActionState,
   type ProgressoImportacaoImagens,
@@ -39,6 +40,7 @@ import {
 import {
   fetchProgressoImportacaoImagens,
   MAX_IMAGE_IMPORT_RETRY_ATTEMPTS,
+  waitForActiveRunToFinish,
 } from "@/lib/catalogo/asset-import-progress-client";
 import { cn } from "@/lib/utils";
 
@@ -233,6 +235,8 @@ export function useAnalyzeJob(cardSetId: string) {
           imagesTotal: 0,
           runCode: null,
           runExpired: false,
+          failures: [],
+          interrupted: false,
         });
         setImagePhase("done");
         return;
@@ -247,22 +251,54 @@ export function useAnalyzeJob(cardSetId: string) {
           imagesTotal: 0,
           runCode: null,
           runExpired: false,
+          failures: [],
+          interrupted: false,
         });
         setImagePhase("done");
         return;
       }
       if (openResult.alreadyActive) {
-        setImageResult({
-          supported: true,
-          success: true,
-          error: null,
-          imagesImported: 0,
-          imagesFailed: 0,
-          imagesTotal: 0,
-          runCode: openResult.runCode,
-          runExpired: false,
+        // Mesma correção de `importar-imagens-view.tsx` (2026-08-02, mesmo
+        // dia, rodada seguinte, ME5) — ver comentário completo lá: antes
+        // este caminho fingia "concluído, 0/0" na hora; agora acompanha o
+        // progresso real da run já em andamento até ela terminar.
+        setImagePhase("importing");
+        const runCode = openResult.runCode;
+        waitForActiveRunToFinish(runCode, (progress) => {
+          if (!cancelled) setImageProgress(progress);
+        }).then((finalProgress) => {
+          if (cancelled) return;
+          if (!finalProgress) {
+            setImageResult({
+              supported: true,
+              success: false,
+              error:
+                "Uma importação já em andamento para esta Coleção não terminou a tempo de acompanhar — tente novamente em alguns minutos.",
+              imagesImported: 0,
+              imagesFailed: 0,
+              imagesTotal: 0,
+              runCode,
+              runExpired: false,
+              failures: [],
+          interrupted: false,
+            });
+          } else {
+            const failed = finalProgress.status === "FAILED";
+            setImageResult({
+              supported: true,
+              success: !failed,
+              error: failed ? (finalProgress.errorSummary ?? "A importação em andamento falhou.") : null,
+              imagesImported: finalProgress.successCount,
+              imagesFailed: finalProgress.failedCount,
+              imagesTotal: finalProgress.requestedCount,
+              runCode,
+              runExpired: false,
+              failures: [],
+          interrupted: false,
+            });
+          }
+          setImagePhase("done");
         });
-        setImagePhase("done");
         return;
       }
 
@@ -310,6 +346,15 @@ export function useAnalyzeJob(cardSetId: string) {
           if (!cancelled) setImageAttempt(attempt);
           result = await executarImportacaoImagens(cardSetId, runCodeRef.current, AUTO_CONTINUATION_LANGUAGE_CODE);
           if (cancelled) return result;
+
+          // Aborto antecipado (2026-08-02, mesmo dia, rodada seguinte, ME5) —
+          // mesmo raciocínio/implementação de `handleImportar` em
+          // `importar-imagens-view.tsx`: para o laço de retry imediatamente
+          // quando `executarImportacaoImagens` já abortou a chamada por
+          // padrão sistemático de falha (0 sucessos nas primeiras cartas
+          // processadas), em vez de insistir mais tentativas num erro que não
+          // vai se resolver sozinho.
+          if (result.interrupted) break;
 
           if (result.runExpired && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS) {
             const reopened = await abrirImportacaoImagens(
@@ -450,6 +495,43 @@ const PERCENT_CEILING = 92;
  * maior parte do tempo restante — só o "Finalizando" propriamente dito falta.
  */
 const IMAGE_PERCENT_CEILING = 97;
+
+/** Máximo de motivos distintos exibidos — ver comentário completo de `groupImageFailures`, abaixo. */
+const MAX_FAILURE_GROUPS_SHOWN = 5;
+/** Máximo de números de coleção exibidos como exemplo por motivo — mesmo espírito. */
+const MAX_FAILURE_EXAMPLES_SHOWN = 4;
+
+type ImageFailureGroup = {
+  error: string;
+  count: number;
+  examples: string[];
+};
+
+/**
+ * Agrupa as falhas individuais (`ImageImportFailureView[]`) pelo texto do
+ * erro — 2026-08-02, pedido explícito de Fabrício depois de ver ME5
+ * processar dezenas de cartas com 0 sucesso sem nenhuma pista do motivo
+ * (a Edge Function sempre devolveu isso em `failures[]`, mas a tela só
+ * mostrava o agregado `imagesFailed`). Agrupado em vez de listado carta a
+ * carta de propósito — numa falha sistemática (ex.: a TCGdex inteira fora do
+ * ar), listar as 120 cartas uma a uma seria ruído; o que importa é o motivo
+ * real e quantas cartas ele afetou. Ordenado do motivo mais frequente para o
+ * menos frequente; limitado a `MAX_FAILURE_GROUPS_SHOWN` motivos distintos e
+ * `MAX_FAILURE_EXAMPLES_SHOWN` números de coleção por motivo, com contagem
+ * "e mais N" para o que não caber — evita um bloco gigante numa Coleção
+ * grande com muitos motivos diferentes.
+ */
+function groupImageFailures(failures: ImageImportFailureView[]): ImageFailureGroup[] {
+  const groups = new Map<string, string[]>();
+  for (const failure of failures) {
+    const examples = groups.get(failure.error) ?? [];
+    examples.push(failure.collectorNumber);
+    groups.set(failure.error, examples);
+  }
+  return Array.from(groups.entries())
+    .map(([error, examples]) => ({ error, count: examples.length, examples }))
+    .sort((a, b) => b.count - a.count);
+}
 
 /**
  * Indicador visual de progresso — 2026-08-01, terceira rodada, redesenhado
@@ -770,6 +852,35 @@ export function ImportProgress({
                       `, ${imageResult.imagesFailed} pendente${imageResult.imagesFailed === 1 ? "" : "s"} (falharam — seguem disponíveis pelo pipeline manual)`}
                     .
                   </p>
+                )}
+                {/* Motivo real de cada falha (2026-08-02, mesmo dia, rodada
+                    seguinte) — ver comentário completo de `groupImageFailures`.
+                    Só aparece quando há falhas com motivo conhecido; uma
+                    falha antes do laço de imagens já aparece via `error`
+                    acima, sem duplicar aqui (`failures` fica vazio nesse
+                    caso). */}
+                {imageResult.failures.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {groupImageFailures(imageResult.failures)
+                      .slice(0, MAX_FAILURE_GROUPS_SHOWN)
+                      .map((group) => (
+                        <li key={group.error}>
+                          <span className="font-medium text-foreground">{group.count}×</span> {group.error}
+                          {group.examples.length > 0 && (
+                            <span>
+                              {" "}
+                              (ex.: {group.examples.slice(0, MAX_FAILURE_EXAMPLES_SHOWN).join(", ")}
+                              {group.examples.length > MAX_FAILURE_EXAMPLES_SHOWN &&
+                                ` e mais ${group.examples.length - MAX_FAILURE_EXAMPLES_SHOWN}`}
+                              )
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    {groupImageFailures(imageResult.failures).length > MAX_FAILURE_GROUPS_SHOWN && (
+                      <li>e mais {groupImageFailures(imageResult.failures).length - MAX_FAILURE_GROUPS_SHOWN} motivo(s) diferente(s)</li>
+                    )}
+                  </ul>
                 )}
               </>
             )

@@ -17,6 +17,7 @@ import {
 import {
   fetchProgressoImportacaoImagens,
   MAX_IMAGE_IMPORT_RETRY_ATTEMPTS,
+  waitForActiveRunToFinish,
 } from "@/lib/catalogo/asset-import-progress-client";
 import type { CatalogoCardSetImagensRow } from "@/lib/catalogo/queries";
 import { cn } from "@/lib/utils";
@@ -117,6 +118,8 @@ export function ImportarImagensView({
           imagesTotal: 0,
           runCode: null,
           runExpired: false,
+          failures: [],
+          interrupted: false,
         });
         setImagePhase("done");
         router.refresh();
@@ -132,22 +135,54 @@ export function ImportarImagensView({
           imagesTotal: 0,
           runCode: null,
           runExpired: false,
+          failures: [],
+          interrupted: false,
         });
         setImagePhase("done");
         router.refresh();
         return;
       }
       if (openResult.alreadyActive) {
-        setImageResult({
-          supported: true,
-          success: true,
-          error: null,
-          imagesImported: 0,
-          imagesFailed: 0,
-          imagesTotal: 0,
-          runCode: openResult.runCode,
-          runExpired: false,
-        });
+        // Bug real corrigido (2026-08-02, mesmo dia, rodada seguinte, ME5):
+        // antes, esse caminho marcava a importação como "concluída" com
+        // 0 importadas/0 pendentes na hora, sem checar nada — enganoso
+        // quando a run "já ativa" (aberta por outra aba/sessão) ainda
+        // estava processando de verdade em segundo plano. Agora acompanha
+        // o progresso real dessa run até ela terminar (mesmo polling visual
+        // de uma importação normal), em vez de fingir que já acabou.
+        setImagePhase("importing");
+        const runCode = openResult.runCode;
+        const finalProgress = await waitForActiveRunToFinish(runCode, setImageProgress);
+
+        if (!finalProgress) {
+          setImageResult({
+            supported: true,
+            success: false,
+            error:
+              "Uma importação já em andamento para esta Coleção não terminou a tempo de acompanhar — tente novamente em alguns minutos.",
+            imagesImported: 0,
+            imagesFailed: 0,
+            imagesTotal: 0,
+            runCode,
+            runExpired: false,
+            failures: [],
+          interrupted: false,
+          });
+        } else {
+          const failed = finalProgress.status === "FAILED";
+          setImageResult({
+            supported: true,
+            success: !failed,
+            error: failed ? (finalProgress.errorSummary ?? "A importação em andamento falhou.") : null,
+            imagesImported: finalProgress.successCount,
+            imagesFailed: finalProgress.failedCount,
+            imagesTotal: finalProgress.requestedCount,
+            runCode,
+            runExpired: false,
+            failures: [],
+          interrupted: false,
+          });
+        }
         setImagePhase("done");
         router.refresh();
         return;
@@ -198,6 +233,18 @@ export function ImportarImagensView({
         attempt += 1;
         setImageAttempt(attempt);
         result = await executarImportacaoImagens(cardSetId, runCodeRef.current, languageCode);
+
+        // Aborto antecipado (2026-08-02, mesmo dia, rodada seguinte, ME5) —
+        // pedido explícito de Fabrício: "Se a tentativa de importação falhar,
+        // precisamos interromper a tentativa. Faz sentido aguardar esse tempo
+        // todo sabendo que a tentativa irá falhar?" Quando
+        // `executarImportacaoImagens` detecta 0 sucessos nas primeiras
+        // `EARLY_ABORT_MIN_PROCESSED` cartas processadas (padrão sistemático,
+        // não falha pontual), ela mesma aborta a chamada à Edge Function e
+        // devolve `interrupted: true` — para o laço de retry imediatamente em
+        // vez de insistir mais `MAX_IMAGE_IMPORT_RETRY_ATTEMPTS - attempt`
+        // vezes num erro que não vai se resolver sozinho.
+        if (result.interrupted) break;
 
         if (result.runExpired && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS) {
           const reopened = await abrirImportacaoImagens(cardSetId, "manual_retry:importar-imagens", languageCode);

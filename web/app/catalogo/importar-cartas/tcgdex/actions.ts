@@ -317,6 +317,21 @@ export async function confirmarImportacao(jobId: string): Promise<ConfirmarImpor
 // Continuação automática: cartas → imagens (emenda de ADR-024, 2026-08-01)
 // ---------------------------------------------------------------------------
 
+/**
+ * Falha individual de uma carta ao importar a imagem (2026-08-02, mesmo dia,
+ * rodada seguinte) — a Edge Function sempre devolveu isso em `failures[]`
+ * (`external_card_id`/`collector_number`/`name`/`error`), mas a tela só
+ * mostrava o agregado `imagesFailed` (quantas), nunca o motivo de cada uma.
+ * Pedido explícito de Fabrício depois de ver ME5 processar dezenas de cartas
+ * com 0 sucesso sem nenhuma pista do porquê (a causa real só era visível
+ * inspecionando a aba Rede do navegador manualmente).
+ */
+export type ImageImportFailureView = {
+  collectorNumber: string;
+  name: string;
+  error: string;
+};
+
 export type IniciarImportacaoImagensResult = {
   /** `false` = Card Set sem card_set_external_reference/TCGDEX ativo (Promo, Energia, ou qualquer Set fora da cobertura da TCGdex) — caminho normal, não erro. */
   supported: boolean;
@@ -341,6 +356,29 @@ export type IniciarImportacaoImagensResult = {
    * repetir `executarImportacaoImagens` com o mesmo `runCode`.
    */
   runExpired: boolean;
+  /**
+   * Falhas individuais da ÚLTIMA tentativa, com o motivo real de cada uma
+   * (2026-08-02, mesmo dia, rodada seguinte — ver `ImageImportFailureView`).
+   * Reflete só a chamada mais recente à Edge Function — quem falha de novo
+   * numa tentativa seguinte continua aparecendo, quem passa a ter sucesso
+   * sai da lista; não é um acumulado histórico entre tentativas. Lista vazia
+   * não significa "sem falhas" quando `imagesFailed > 0` — pode ser uma
+   * falha antes do laço de imagens (`error` já cobre esse caso) ou uma
+   * tentativa cujo corpo de resposta não trouxe `failures` (rede/timeout de
+   * plataforma).
+   */
+  failures: ImageImportFailureView[];
+  /**
+   * `true` quando ESTA tentativa foi interrompida antecipadamente pelo
+   * próprio Server Action (2026-08-02, mesmo dia, rodada seguinte — pedido
+   * explícito de Fabrício) por detectar um padrão claro de falha
+   * sistemática (`EARLY_ABORT_MIN_PROCESSED` cartas processadas com zero
+   * sucesso) antes do teto de execução da plataforma. Quem chama deve
+   * PARAR o retry automático quando `true` (insistir de novo imediatamente
+   * não muda o resultado — o mesmo padrão provavelmente se repete) em vez
+   * de tratar como uma falha comum que ainda vale tentar de novo.
+   */
+  interrupted: boolean;
 };
 
 type AdminStartAssetImportRunRow = {
@@ -521,6 +559,34 @@ export async function abrirImportacaoImagens(
  * seu próprio idioma (gravado por `abrirImportacaoImagens`/Query 2092 v1.3),
  * a Edge Function nunca recebe este parâmetro diretamente.
  */
+// Interrupção antecipada (2026-08-02, mesmo dia, rodada seguinte) — pedido
+// explícito de Fabrício ao ver ME5 esperar o teto inteiro de execução da
+// plataforma (~150s) numa tentativa que já dava pra saber, no meio do
+// caminho, que ia falhar por completo ("Faz sentido aguardar esse tempo todo
+// sabendo que a tentativa irá falhar?"). Em vez de esperar a resposta da
+// Edge Function (sucesso, erro, ou o `HTTP 546` da plataforma matando a
+// função no meio), este Server Action agora observa o progresso AO VIVO
+// desta MESMA run (`asset_import_run`, gravado por `updateImportRunProgress`
+// a cada lote) enquanto o `fetch()` está em andamento — se acumular
+// `EARLY_ABORT_MIN_PROCESSED` cartas processadas com ZERO sucesso (não uma
+// falha isolada — um padrão sistemático e consistente), aborta o `fetch()`
+// (`AbortController`) em vez de esperar o resto do teto de execução só para
+// confirmar o óbvio. Verificação a cada `EARLY_ABORT_POLL_INTERVAL_MS`,
+// menos frequente que o polling visual do cliente (2s), para não sobrecarregar
+// o banco com um watcher rodando em paralelo.
+//
+// Importante (documentado para não gerar expectativa errada): abortar o
+// `fetch()` aqui só interrompe a ESPERA deste Server Action — não garante
+// que a Edge Function pare de processar do lado do Supabase/Deno (a
+// desconexão do cliente não é necessariamente propagada ao runtime da
+// função). A run pode continuar avançando em segundo plano depois da
+// interrupção; se o administrador tentar de novo logo em seguida, o caminho
+// `already_active` (`abrirImportacaoImagens`) vai mostrar o progresso real
+// dessa run (ver `waitForActiveRunToFinish`, `asset-import-progress-client.ts`)
+// em vez de abrir uma run concorrente.
+const EARLY_ABORT_MIN_PROCESSED = 15;
+const EARLY_ABORT_POLL_INTERVAL_MS = 5000;
+
 export async function executarImportacaoImagens(
   cardSetId: string,
   runCode: string,
@@ -529,18 +595,57 @@ export async function executarImportacaoImagens(
   const supabase = await createClient();
   const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/import-card-assets`;
 
+  const controller = new AbortController();
+  let interruptedEarly = false;
+  const watcher = setInterval(() => {
+    supabase
+      .from("asset_import_run")
+      .select("processed_count, success_count")
+      .eq("run_code", runCode)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (
+          data &&
+          data.processed_count >= EARLY_ABORT_MIN_PROCESSED &&
+          data.success_count === 0 &&
+          !controller.signal.aborted
+        ) {
+          interruptedEarly = true;
+          controller.abort();
+        }
+      });
+  }, EARLY_ABORT_POLL_INTERVAL_MS);
+
   let response: Response;
   try {
     response = await fetch(functionUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ run_code: runCode }),
+      signal: controller.signal,
     });
   } catch (fetchError) {
-    const message = fetchError instanceof Error ? fetchError.message : "Falha de rede.";
+    clearInterval(watcher);
     const { imported, total } = await contarImagensImportadas(supabase, cardSetId, languageCode);
     revalidatePath("/catalogo/cartas");
     revalidatePath("/catalogo/importar-imagens");
+
+    if (interruptedEarly) {
+      return {
+        supported: true,
+        success: false,
+        error: `Interrompido automaticamente: as primeiras ${EARLY_ABORT_MIN_PROCESSED} cartas processadas falharam todas (0 sucesso) — padrão de falha sistemática, sem sentido esperar o restante do tempo de execução. A run pode continuar processando em segundo plano; tente novamente em alguns minutos.`,
+        imagesImported: imported,
+        imagesFailed: Math.max(total - imported, 0),
+        imagesTotal: total,
+        runCode,
+        runExpired: false,
+        failures: [],
+        interrupted: true,
+      };
+    }
+
+    const message = fetchError instanceof Error ? fetchError.message : "Falha de rede.";
     return {
       supported: true,
       success: false,
@@ -550,14 +655,31 @@ export async function executarImportacaoImagens(
       imagesTotal: total,
       runCode,
       runExpired: false,
+      failures: [],
+      interrupted: false,
     };
   }
+  clearInterval(watcher);
 
   const body = await response.json().catch(() => null);
   const { imported, total } = await contarImagensImportadas(supabase, cardSetId, languageCode);
   revalidatePath("/catalogo/cartas");
   revalidatePath("/catalogo/importar-cartas");
   revalidatePath("/catalogo/importar-imagens");
+
+  // `failures` (2026-08-02, mesmo dia, rodada seguinte) — a Edge Function
+  // sempre devolveu `failures[]` com o motivo real de cada carta que falhou
+  // (ex.: `IMAGE_DOWNLOAD_FAILED: 502 Bad Gateway`), mas nada aqui lia esse
+  // campo — só os agregados (`imagesFailed`) chegavam à tela. Bug real
+  // reportado por Fabrício (ME5): dezenas de cartas processadas, 0 sucesso,
+  // e nenhuma pista do porquê sem abrir a aba Rede do navegador manualmente.
+  const failures: ImageImportFailureView[] = Array.isArray(body?.failures)
+    ? body.failures.map((failure: { collector_number?: string; name?: string; error?: string }) => ({
+        collectorNumber: failure.collector_number ?? "?",
+        name: failure.name ?? "Carta desconhecida",
+        error: failure.error ?? "Motivo não informado",
+      }))
+    : [];
 
   if (!response.ok) {
     // Corpo da resposta pode não trazer `body.images` nenhum (ex.: a
@@ -578,6 +700,8 @@ export async function executarImportacaoImagens(
       imagesTotal: total,
       runCode,
       runExpired: body?.code === "IMPORT_RUN_ALREADY_TERMINAL",
+      failures,
+      interrupted: false,
     };
   }
 
@@ -590,6 +714,8 @@ export async function executarImportacaoImagens(
     imagesTotal: total,
     runCode,
     runExpired: false,
+    failures,
+    interrupted: false,
   };
 }
 
@@ -599,6 +725,15 @@ export type ProgressoImportacaoImagens = {
   successCount: number;
   failedCount: number;
   status: string;
+  /**
+   * `error_summary` da run (2026-08-02, mesmo dia, rodada seguinte) — usado
+   * por `waitForActiveRunToFinish()` (`asset-import-progress-client.ts`)
+   * para mostrar o motivo real quando uma run "já em andamento" (aberta por
+   * outra aba/sessão) termina em `FAILED` enquanto o cliente atual só
+   * observava, sem ter chamado a Edge Function ele mesmo (sem `body.error`
+   * disponível nesse caso).
+   */
+  errorSummary: string | null;
 };
 
 /**
@@ -624,7 +759,7 @@ export async function getProgressoImportacaoImagens(runCode: string): Promise<Pr
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("asset_import_run")
-    .select("requested_count, processed_count, success_count, failed_count, status")
+    .select("requested_count, processed_count, success_count, failed_count, status, error_summary")
     .eq("run_code", runCode)
     .maybeSingle();
 
@@ -634,6 +769,7 @@ export async function getProgressoImportacaoImagens(runCode: string): Promise<Pr
     requestedCount: data.requested_count,
     processedCount: data.processed_count,
     successCount: data.success_count,
+    errorSummary: data.error_summary,
     failedCount: data.failed_count,
     status: data.status,
   };

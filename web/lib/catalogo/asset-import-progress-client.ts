@@ -47,7 +47,7 @@ export async function fetchProgressoImportacaoImagens(runCode: string): Promise<
   const supabase = createClient();
   const { data, error } = await supabase
     .from("asset_import_run")
-    .select("requested_count, processed_count, success_count, failed_count, status")
+    .select("requested_count, processed_count, success_count, failed_count, status, error_summary")
     .eq("run_code", runCode)
     .maybeSingle();
 
@@ -62,5 +62,52 @@ export async function fetchProgressoImportacaoImagens(runCode: string): Promise<
     successCount: data.success_count,
     failedCount: data.failed_count,
     status: data.status,
+    errorSummary: data.error_summary,
   };
+}
+
+/** Status terminais de `asset_import_run` — ver `govern_asset_import_run()` (`database/schema/221_asset_import_run_triggers.sql`). */
+const TERMINAL_RUN_STATUSES = new Set(["COMPLETED", "COMPLETED_WITH_ERRORS", "FAILED", "CANCELLED"]);
+
+/**
+ * Acompanha uma run que já está em andamento (aberta por outra aba/sessão —
+ * `admin_start_asset_import_run()` devolveu `already_active = true`) até ela
+ * chegar a um status terminal, chamando `onProgress` a cada leitura (mesmo
+ * intervalo de 2s do polling normal) — 2026-08-02, mesmo dia, rodada
+ * seguinte.
+ *
+ * Bug real corrigido: antes, o caminho `alreadyActive` (`handleImportar`/
+ * `useAnalyzeJob`) simplesmente marcava a importação como concluída com
+ * `imagesImported: 0`/`imagesFailed: 0`, sem checar nada — Fabrício viu isso
+ * na prática (ME5): clicou "Importar Imagens" enquanto uma tentativa
+ * anterior ainda processava de verdade em segundo plano (40/120 processadas
+ * até então) e a tela mostrou "0 importadas · 0 pendentes" com tom de
+ * sucesso, como se nada tivesse pra fazer — enganoso, porque na verdade uma
+ * importação real estava em andamento.
+ *
+ * Teto de segurança `MAX_WAIT_POLLS` (300 tentativas × 2s = 10 minutos) —
+ * mesma lógica de `MAX_IMAGE_IMPORT_RETRY_ATTEMPTS` acima: rede de segurança
+ * contra uma run genuinamente presa (nunca chega a um status terminal),
+ * nunca deve ser atingido em uso normal. Devolve `null` se o teto for
+ * atingido — quem chama trata isso como "ainda não sabemos o resultado",
+ * nunca como sucesso.
+ */
+const MAX_WAIT_POLLS = 300;
+const WAIT_POLL_INTERVAL_MS = 2000;
+
+export async function waitForActiveRunToFinish(
+  runCode: string,
+  onProgress: (progress: ProgressoImportacaoImagens) => void,
+): Promise<ProgressoImportacaoImagens | null> {
+  for (let attempt = 0; attempt < MAX_WAIT_POLLS; attempt += 1) {
+    const progress = await fetchProgressoImportacaoImagens(runCode);
+    if (progress) {
+      onProgress(progress);
+      if (TERMINAL_RUN_STATUSES.has(progress.status)) {
+        return progress;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, WAIT_POLL_INTERVAL_MS));
+  }
+  return null;
 }
