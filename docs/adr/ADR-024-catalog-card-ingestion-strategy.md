@@ -123,6 +123,22 @@ O arquivo em si não é a fonte de verdade — as linhas de staging já extraíd
 
 `admin_confirm_catalog_import()` grava exatamente uma linha na auditoria editorial de `ADR-023` por chamada bem-sucedida — referenciando o `job_id` e as contagens resultantes —, nunca uma linha por Card confirmada. O detalhe linha a linha (dado bruto, dado normalizado, decisão, resultado de persistência) já vive em `catalog_import_row`; duplicá-lo na auditoria seria redundante.
 
+## Emenda (2026-08-01) — Continuação automática: cartas → imagens
+
+Pedido explícito de Fabrício: "Após a confirmação das cartas, o fluxo de importação deve continuar automaticamente com a importação das imagens do Card Set." Resolve, para o canal TCGdex, a pendência sinalizada acima em "Restrições / Pendências" ("A interação entre `is_active` e o pipeline de imagens existente não é resolvida aqui") — apenas para o caso de continuação automática; a interação de `is_active` com o pipeline de imagens em si continua fora do escopo deste ADR.
+
+Depois que `admin_confirm_catalog_import()` (Query 2082) persiste as Cards de um Card Set, o frontend passa a continuar automaticamente para o pipeline de imagens já existente (`import-card-assets`, `ADR-018`) — sem substituir, remover ou duplicar esse pipeline, e sem alterar seu processamento interno. A continuação é só uma nova forma de abrir uma execução (`asset_import_run`) que antes só existia via SQL manual por Coleção.
+
+Regras:
+
+- "Suporte à importação automática" é a existência de `card_set_external_reference` ativo para (Card Set, TCGDEX) — o mesmo dado que `import-card-assets` já exige internamente e que o próprio processador TCGdex de Cards (`import-catalog-cards`, este ADR) já grava como parte do seu processamento. Nenhuma nova regra de detecção foi criada.
+- Quando ausente (Card Sets de Promo, Energia ou qualquer Set fora da cobertura da TCGdex), a ausência de suporte não é um erro — a importação das Cards é finalizada normalmente, e o usuário é informado de que as imagens desse Card Set continuam dependendo do pipeline manual existente.
+- Falhas parciais na importação de imagens (algumas imagens não obtidas) não impedem a conclusão do cadastro das Cards — o resumo final distingue cartas cadastradas, imagens importadas e imagens pendentes; as pendentes continuam resolvíveis pelo pipeline manual.
+- A abertura da execução (`INSERT` em `asset_import_run`) passa a ser feita por uma função administrada (`admin_start_asset_import_run()`, Query 2092) em vez de SQL avulso por Coleção — mesmo padrão de acesso do restante deste módulo (`ADR-023`): a aplicação nunca grava direto nas tabelas do pipeline de imagens.
+- O pipeline de imagens em si (`import-card-assets`) não é alterado por esta emenda — inclusive sua limitação conhecida de idioma fixo (`en`), herdada sem modificação pela continuação automática.
+
+Ver `05-modelo-de-dados.md` (Query 2092) e `database/schema/2092_create_admin_start_asset_import_run_function.sql` para a implementação.
+
 ---
 
 # Consequences

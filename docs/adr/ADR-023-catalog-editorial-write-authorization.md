@@ -90,6 +90,16 @@ Fabrício pediu explicitamente para concluir as funcionalidades de Card Set: "ai
 - Grava `catalog_admin_action_log` (`CARD_SET_CREATED`) — ação já prevista no `CHECK` desde a Query `2049` (v1.2, emenda anterior), nenhuma migration de constraint necessária para esta função.
 - Número de Query: `2051`, milhar `2000`–`2999` já reservado (`STD-001` v1.17 §10).
 
+## Emenda (2026-08-01) — `Card Set`: código editável sem Cards cadastradas
+
+Fabrício percebeu um erro real de cadastro (Coleção "151" registrada com código `SV4` em vez de `MEW`) e pediu: "Na tela de Edição deveremos permitir alterar o código. Só não será permitido se já houver cartas cadastradas." Isso revisa a decisão original deste ADR (seção "Campos estruturalmente protegidos", abaixo) só para `card_set.code` — os demais campos ali citados (`card_set_id`/`collector_number` de `Card`) continuam totalmente imutáveis, sem exceção.
+
+- `admin_update_card_set()` ganha `p_code` (Migration `2091`, incorporada à versão canônica da Query `2048`, agora v3.0) — normalizado para maiúsculas, validado no mesmo formato de `admin_create_card_set()` (`^[A-Z0-9][A-Z0-9._-]*$`).
+- Trava condicional, não removida: o código só é efetivamente alterável enquanto o Card Set não tiver nenhuma `Card` cadastrada (ativa ou inativa — qualquer linha em `card` já fixa a identidade do Card Set perante quem já catalogou algo ali). Assim que a primeira Card existe, a trava volta a ser absoluta.
+- `expansion_id` não é afetado por esta emenda — continua completamente fora da assinatura da função, mesmo raciocínio de identidade estrutural já aplicado a `game_id`/`code` em `Expansion` e a `card_set_id`/`collector_number` em `Card`.
+- Duplicidade de código dentro da mesma Expansion (`uq_card_set_expansion_code`) verificada explicitamente antes do `UPDATE`, excluindo a própria linha, só quando o código está de fato mudando.
+- Número de Migration: `2091`, milhar `2000`–`2999` já reservado (`STD-001` v1.17 §10).
+
 ## `Card`: `is_active` como soft delete real
 
 `card` recebe uma coluna `is_active boolean not null default true`. A desativação **não** é condicionada à ausência de dependentes — essa era a proposta inicial deste ADR, revisada por Fabrício por não resolver o problema real: a maioria dos erros de cadastro só é percebida depois que a Card já tem ao menos uma imagem ou variante associada, não antes.
@@ -106,7 +116,7 @@ Consequências obrigatórias dessa escolha, registradas explicitamente porque n�
 
 ## Campos estruturalmente protegidos nunca são alteráveis por atualização
 
-`admin_update_card()` — e, por construção, a camada interna que ele chama — nunca aceita alterar `card_set_id` nem `collector_number`, mesmo sob decisão administrativa explícita (inclusive ao resolver um conflito de importação em `ADR-024`). Mudar esses dois campos muda a identidade da Card, não o seu conteúdo; se a fonte sugerir um número diferente para o que parece ser "a mesma" Card, isso é matéria de revisão manual fora da UI, no mesmo espírito já aplicado a `card_set.code`/`set_type` (correção rara, deliberada, nunca uma ação de botão).
+`admin_update_card()` — e, por construção, a camada interna que ele chama — nunca aceita alterar `card_set_id` nem `collector_number`, mesmo sob decisão administrativa explícita (inclusive ao resolver um conflito de importação em `ADR-024`). Mudar esses dois campos muda a identidade da Card, não o seu conteúdo; se a fonte sugerir um número diferente para o que parece ser "a mesma" Card, isso é matéria de revisão manual fora da UI, no mesmo espírito ainda aplicado a `card_set.set_type`/`base_set_size`/`total_set_size` (correção rara, deliberada, nunca uma ação de botão) e a `card_set.expansion_id` — **`card_set.code` é a única exceção, revisada pela emenda 2026-08-01 acima**: passou a ser editável pela UI, mas só enquanto o Card Set não tiver nenhuma Card cadastrada.
 
 ## Auditoria editorial própria, separada de `admin_action_log`
 

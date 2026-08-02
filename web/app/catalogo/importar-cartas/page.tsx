@@ -71,9 +71,18 @@ export default async function ImportarCartasPage({
   const colecoesSemCartas = cardSets.filter((cardSet) => cardSet.cardsCatalogados === 0).length;
   const totalCartas = cardSets.reduce((sum, cardSet) => sum + cardSet.cardsCatalogados, 0);
 
+  // `selectedCardSet` busca em `cardSets` (lista completa), não em
+  // `cardSetsParaImportar` (filtrada) — de propósito, 2026-08-01, oitava
+  // rodada: depois que uma importação é confirmada com sucesso, a Coleção
+  // pode sair da lista "pendente" (ver `router.refresh()` disparado por
+  // `RevisaoImportacaoTable`), mas o painel de resultado desta mesma
+  // Coleção ainda selecionada (com o progresso/etapa de confirmação
+  // visíveis) precisa continuar resolvendo normalmente — só o combobox
+  // (que usa `cardSetsParaImportar` como opções) deve deixar de oferecê-la
+  // na próxima escolha.
   const [cartasStats, selectedCardSet] = await Promise.all([
     getCartasCatalogoStats(supabase, totalCartas),
-    Promise.resolve(cardSetId ? (cardSetsParaImportar.find((cardSet) => cardSet.id === cardSetId) ?? null) : null),
+    Promise.resolve(cardSetId ? (cardSets.find((cardSet) => cardSet.id === cardSetId) ?? null) : null),
   ]);
 
   // `{ code, name }` (era só `.name`, 2026-08-01, bug real corrigido em
@@ -88,7 +97,36 @@ export default async function ImportarCartasPage({
   return (
     <AppShell title="Importar Cartas" icon={FileUp}>
       <PageContainer>
+        {/*
+          `key={selectedCardSet?.id}` (2026-08-01, nona rodada, bug real
+          reportado por Fabrício: depois de concluir a importação de SV2 e
+          selecionar outra Coleção, "o fluxo de progresso não atualiza,
+          permanece com as informações do fluxo anterior"). Causa: `
+          useAnalyzeJob` (chamado dentro de `ImportarCartasView`) guarda o
+          job analisado em `useState` — trocar de Coleção pelo combobox só
+          faz `router.push` pra atualizar `?cardSetId=`, o que NÃO remonta
+          `ImportarCartasView` (mesma árvore de componente cliente, só as
+          props mudam), então o job antigo (de SV2) continuava lá quando
+          SV1 era selecionado.
+
+          `key` na identidade da Coleção resolve isso do jeito idiomático
+          do React: ao mudar, força o React a desmontar a instância antiga
+          de `ImportarCartasView` e montar uma nova do zero, zerando
+          `useAnalyzeJob` (e qualquer outro estado interno, como o
+          dropdown do combobox) — sem precisar de um `useEffect` de reset
+          manual. Não quebra o refresh pós-Confirmar da rodada anterior:
+          `router.refresh()` ali não muda `cardSetId`, então a mesma
+          Coleção mantém a mesma key e a instância (com o job/progresso já
+          concluído) continua montada normalmente.
+
+          Escopo deliberadamente só na Coleção, não na Fonte
+          (`?fonte=api|pdf`) — trocar só a Fonte para a MESMA Coleção não
+          deveria perder o progresso já visível (o painel some da tela via
+          o `fonte === "pdf" ? ... : ...` do próprio componente, não
+          precisa de um remount pra isso).
+        */}
         <ImportarCartasView
+          key={selectedCardSet?.id ?? "none"}
           cardSets={cardSetsParaImportar}
           colecoesSemCartas={colecoesSemCartas}
           cardsSemImagem={cartasStats.cardsSemImagem}

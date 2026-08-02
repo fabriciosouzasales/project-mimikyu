@@ -47,6 +47,18 @@ const initialState: CardSetActionState = { error: null };
  * criação, `novo-catalogo-dialog.tsx`) e Data de lançamento adicionados.
  * `expansion_id`/`code`/`base_set_size`/`total_set_size` continuam de fora
  * (não pedidos, e ainda imutáveis/estruturais por decisão do ADR-023).
+ *
+ * Ajuste 2026-08-01 (ADR-023, emenda "Card Set: código editável sem Cards
+ * cadastradas", Query 2048 v3.0/Migration 2091) — motivado por um erro real
+ * de cadastro (Coleção "151" com código SV4 em vez de MEW): Código sai da
+ * `DialogDescription` estática (onde vivia junto com Jogo/Expansão, os dois
+ * ainda de fato imutáveis) e vira um campo editável no corpo do formulário,
+ * como Nome — mas só quando `cardSet.cardsCatalogados === 0`
+ * (`admin_update_card_set()` trava a mudança no banco assim que existe
+ * qualquer Card cadastrada; o campo aqui é desabilitado com uma explicação
+ * inline no mesmo cenário, antecipando o erro em vez de deixar o usuário
+ * descobrir só depois de tentar salvar). `expansion_id` não é afetado — Jogo
+ * e Expansão continuam imutáveis, só na descrição do cabeçalho.
  */
 export function EditCardSetDialog({
   open,
@@ -78,8 +90,8 @@ export function EditCardSetDialog({
               cuidado já aplicado em `EditExpansionDialog`). */}
           <DialogDescription>
             {cardSet
-              ? `${cardSet.gameName} · ${cardSet.expansionName} · ${cardSet.code}`
-              : "Jogo, Expansão e Código são imutáveis após o cadastro."}
+              ? `${cardSet.gameName} · ${cardSet.expansionName}`
+              : "Jogo e Expansão são imutáveis após o cadastro."}
           </DialogDescription>
         </DialogHeader>
 
@@ -139,6 +151,35 @@ function EditCardSetForm({
             initialLogoUrl={cardSet.logoUrl}
             onChanged={onLogoUpdated}
           />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor={`edit-card-set-code-${cardSet.id}`}>Código</Label>
+          {/* `readOnly`, não `disabled` (2026-08-01): um campo `disabled` não
+              entra no `FormData` do submit — o servidor sempre precisa
+              receber `code` (mesmo sem mudança), já que
+              `admin_update_card_set()` grava o valor enviado. `readOnly`
+              impede a edição sem excluir o campo do envio; o visual
+              "desabilitado" (opacidade/cursor) é replicado manualmente, já
+              que o CSS `disabled:` do componente `Input` só reage ao
+              atributo `disabled` de verdade. */}
+          <Input
+            id={`edit-card-set-code-${cardSet.id}`}
+            name="code"
+            defaultValue={cardSet.code}
+            readOnly={cardSet.cardsCatalogados > 0}
+            aria-readonly={cardSet.cardsCatalogados > 0}
+            className={cardSet.cardsCatalogados > 0 ? "cursor-not-allowed bg-surface-muted opacity-70" : undefined}
+            required
+            maxLength={50}
+          />
+          {cardSet.cardsCatalogados > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Este Card Set já tem {cardSet.cardsCatalogados}{" "}
+              {cardSet.cardsCatalogados === 1 ? "carta cadastrada" : "cartas cadastradas"} — o código não pode mais
+              ser alterado.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">

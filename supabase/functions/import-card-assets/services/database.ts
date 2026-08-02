@@ -19,6 +19,17 @@
 // `string` obrigatório, divergindo da coluna real (nula, com CHECK). Ver o
 // comentário da própria função, abaixo, para o detalhe completo.
 //
+// v2.7.0 (2026-08-02, CONFIRMADO DEPLOYADO): duas funções novas —
+// `listCardIdsWithPrimaryAsset` (quais Cards já têm imagem, para pular no
+// reprocessamento) e `updateImportRunProgress` (grava
+// requested/processed/success/failed_count a cada lote, não só no final) —
+// ver o comentário de cada uma e o histórico completo em index.ts.
+//
+// v2.8.0 (2026-08-02, mesmo dia, PROPOSTA — AGUARDANDO deploy, ver
+// index.ts): nenhuma mudança neste arquivo — a otimização (restringir a
+// sincronização de card_external_reference a `cardsToImport`) é só
+// reordenação de chamadas já existentes em index.ts.
+//
 // v2.6.0 (2026-07-25): bug real encontrado por Fabrício em produção —
 // `asset_import_run` tem uma máquina de estados completa (`PENDING` →
 // `RUNNING` → `COMPLETED`/`COMPLETED_WITH_ERRORS`/`FAILED`/`CANCELLED`,
@@ -130,6 +141,49 @@ export async function finishImportRun(
   if (error) {
     console.error(
       "IMPORT RUN FINISH ERROR:",
+      JSON.stringify(error, null, 2),
+    );
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Grava o progresso parcial da run (2026-08-02, pedido explícito de
+ * Fabrício: "quero enxergar o progresso real" enquanto a importação de
+ * imagens está rodando) — chamada a cada lote processado (`IMAGE_BATCH_SIZE`
+ * cartas), não só ao final como `finishImportRun`. Não altera `status`
+ * (continua `RUNNING`, já definido por `transitionImportRunToRunning`) nem
+ * `error_summary` — só os quatro contadores, para o frontend poder consultar
+ * `asset_import_run` por `run_code` e mostrar "X de Y" em tempo real via
+ * polling, sem esperar a função inteira terminar. Mesmo espírito tolerante a
+ * falha de `finishImportRun`: um erro aqui é só logado, nunca interrompe o
+ * processamento real das imagens.
+ */
+export async function updateImportRunProgress(
+  supabase: any,
+  runId: string,
+  payload: {
+    requested_count: number;
+    processed_count: number;
+    success_count: number;
+    failed_count: number;
+  },
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("asset_import_run")
+    .update({
+      requested_count: payload.requested_count,
+      processed_count: payload.processed_count,
+      success_count: payload.success_count,
+      failed_count: payload.failed_count,
+    })
+    .eq("id", runId);
+
+  if (error) {
+    console.error(
+      "IMPORT RUN PROGRESS UPDATE ERROR:",
       JSON.stringify(error, null, 2),
     );
     return false;
@@ -404,6 +458,51 @@ export async function findStorageBucketByCode(
   }
 
   return data;
+}
+
+/**
+ * Quais Cards, dentre `cardIds`, já têm uma imagem primária (`is_primary =
+ * true`, `is_active = true`) do tipo/idioma pedidos — 2026-08-02, correção
+ * real de bug reportado por Fabrício: sem isto, a função reprocessava a
+ * Coleção inteira do zero a cada tentativa, então uma Coleção grande o
+ * bastante para estourar o tempo de execução da plataforma travava sempre no
+ * mesmo ponto, nunca progredindo entre retries manuais (caso real: SV4/Fenda
+ * Paradoxal, 266 cartas, presa em ~115 em toda nova tentativa). Usada para
+ * excluir essas Cards do lote de download/upload desta run — mantém a
+ * garantia de idempotência já existente em `upsertCardAsset` (que também
+ * nunca duplica), mas evita o custo de rede desnecessário de baixar/subir de
+ * novo uma imagem que já está no Storage.
+ */
+export async function listCardIdsWithPrimaryAsset(
+  supabase: any,
+  cardIds: string[],
+  assetTypeId: string,
+  languageId: string,
+): Promise<Set<string>> {
+  if (cardIds.length === 0) {
+    return new Set();
+  }
+
+  const { data, error } = await supabase
+    .from("card_asset")
+    .select("card_id")
+    .in("card_id", cardIds)
+    .eq("asset_type_id", assetTypeId)
+    .eq("language_id", languageId)
+    .eq("is_primary", true)
+    .eq("is_active", true);
+
+  if (error) {
+    console.error(
+      "CARD ASSET EXISTING QUERY ERROR:",
+      JSON.stringify(error, null, 2),
+    );
+    throw new Error(
+      `CARD_ASSET_EXISTING_QUERY_FAILED: ${error.message}`,
+    );
+  }
+
+  return new Set((data ?? []).map((row: any) => row.card_id));
 }
 
 type CardAssetPayload = {

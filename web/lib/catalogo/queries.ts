@@ -1052,6 +1052,121 @@ export async function getCartasCatalogoStats(
   return { totalVariacoes, totalImagens, cardsSemImagem };
 }
 
+export type CatalogoCardSetImagensRow = CatalogoCardSetRow & {
+  /** Cards com pelo menos uma imagem primária (CARD_FRONT, qualquer idioma) já registrada — mesmo critério de "tem imagem" usado pelo indicador global `cardsSemImagem` (getCartasCatalogoStats), agora por Card Set. */
+  imagesImportadas: number;
+  /** cardsCatalogados - imagesImportadas — nunca negativo. */
+  imagesPendentes: number;
+};
+
+/**
+ * Quantos Cards de cada Card Set já têm pelo menos uma imagem primária
+ * (CARD_FRONT) registrada — mesmo critério/consulta de `getCartasCatalogoStats`
+ * (`card_asset.is_primary = true` + `card_asset_type.code = 'CARD_FRONT'`,
+ * embed-relation-filter via `!inner`/`.eq()`), agrupado por `card_set_id`
+ * através de um segundo embed (`card!inner(card_set_id)`) — mesmo padrão já
+ * usado por `contarImagensImportadas` em `tcgdex/actions.ts` (2026-08-02),
+ * aqui generalizado para vários Card Sets de uma vez em vez de um só.
+ * `.in("card.card_set_id", ...)` filtra pela tabela relacionada, mesmo
+ * mecanismo de `.eq("card.card_set_id", ...)` já confirmado funcionando em
+ * produção.
+ */
+async function getImagesImportadasPorCardSet(
+  supabase: SupabaseClient,
+  cardSetIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (cardSetIds.length === 0) return counts;
+
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("card_asset")
+      .select("card_id, card!inner(card_set_id), card_asset_type!inner(code)")
+      .eq("is_primary", true)
+      .eq("card_asset_type.code", "CARD_FRONT")
+      .in("card.card_set_id", cardSetIds)
+      .range(from, to),
+  );
+
+  const cardIdsBySet = new Map<string, Set<string>>();
+  for (const row of rows as { card_id: string; card: { card_set_id: string } | { card_set_id: string }[] | null }[]) {
+    const cardSetId = Array.isArray(row.card) ? row.card[0]?.card_set_id : row.card?.card_set_id;
+    if (!cardSetId) continue;
+    if (!cardIdsBySet.has(cardSetId)) cardIdsBySet.set(cardSetId, new Set());
+    cardIdsBySet.get(cardSetId)!.add(row.card_id);
+  }
+  for (const [cardSetId, cardIds] of cardIdsBySet) {
+    counts.set(cardSetId, cardIds.size);
+  }
+  return counts;
+}
+
+/**
+ * Card Sets elegíveis para a tela dedicada `/catalogo/importar-imagens`
+ * (2026-08-02, pedido explícito de Fabrício: página própria, cópia da
+ * `Importar Cartas` em layout, para retomar a importação de imagens de uma
+ * Coleção que já tem Cards cadastradas — o seletor de `Importar Cartas` para
+ * de listar uma Coleção assim que ela ganha a primeira Card, então não havia
+ * como reabrir a importação de imagens pela tela depois de uma falha
+ * parcial/total, como a de SV4/Fenda Paradoxal, Query 2092 v1.2).
+ *
+ * Critério: Card Set com pelo menos uma Card cadastrada (`cardsCatalogados >
+ * 0` — sem cartas, é `Importar Cartas` que resolve) E com pelo menos uma
+ * Card ainda sem imagem (`imagesPendentes > 0`) — cobre os três casos do
+ * pedido de Fabrício na mesma condição: nunca importado (`imagesImportadas
+ * = 0`), falha parcial (`0 < imagesImportadas < cardsCatalogados`) e falha
+ * total (mesma coisa que nunca importado, do ponto de vista desta consulta
+ * — a run em si pode ter FAILED, mas o que importa aqui é quantas Cards
+ * ainda não têm imagem).
+ */
+export async function getCardSetsForImportacaoImagens(supabase: SupabaseClient): Promise<CatalogoCardSetImagensRow[]> {
+  const cardSets = (await getCardSetsForCartas(supabase)).filter((cardSet) => cardSet.cardsCatalogados > 0);
+  const imagesImportadasCounts = await getImagesImportadasPorCardSet(
+    supabase,
+    cardSets.map((cardSet) => cardSet.id),
+  );
+
+  return cardSets
+    .map((cardSet) => {
+      const imagesImportadas = imagesImportadasCounts.get(cardSet.id) ?? 0;
+      const imagesPendentes = Math.max(cardSet.cardsCatalogados - imagesImportadas, 0);
+      return { ...cardSet, imagesImportadas, imagesPendentes };
+    })
+    .filter((cardSet) => cardSet.imagesPendentes > 0);
+}
+
+/**
+ * Um Card Set específico, com as mesmas contagens de imagem de
+ * `getCardSetsForImportacaoImagens` (`imagesImportadas`/`imagesPendentes`),
+ * mas SEM o filtro `imagesPendentes > 0` — usada como fallback em
+ * `page.tsx` (2026-08-02, correção de bug real reportado por Fabrício: a
+ * tela `/catalogo/importar-imagens` resetava — combobox voltava para
+ * "Selecione uma Coleção..." e o resultado final da importação sumia — assim
+ * que uma importação terminava com sucesso. Causa: `page.tsx` resolvia
+ * `selectedCardSet` só a partir da lista filtrada por pendentes; quando
+ * `imagesPendentes` chegava a 0, o Card Set some dessa lista, `selectedCardSet`
+ * virava `null`, e a `key={selectedCardSet?.id}` de `ImportarImagensView`
+ * forçava um remount que apagava todo o estado de progresso em React. Esta
+ * função permite `page.tsx` continuar resolvendo o Card Set selecionado
+ * mesmo depois de sair da lista de pendentes — a lista (`cardSets`, usada só
+ * para popular as OPÇÕES do combobox) continua filtrada normalmente, então
+ * a Coleção concluída não volta a ser oferecida para nova seleção, só
+ * permanece visível enquanto for a que já está selecionada.
+ */
+export async function getCardSetImagensById(
+  supabase: SupabaseClient,
+  cardSetId: string,
+): Promise<CatalogoCardSetImagensRow | null> {
+  const cardSets = await getCardSetsForCartas(supabase);
+  const cardSet = cardSets.find((row) => row.id === cardSetId);
+  if (!cardSet) return null;
+
+  const imagesImportadasCounts = await getImagesImportadasPorCardSet(supabase, [cardSetId]);
+  const imagesImportadas = imagesImportadasCounts.get(cardSetId) ?? 0;
+  const imagesPendentes = Math.max(cardSet.cardsCatalogados - imagesImportadas, 0);
+  return { ...cardSet, imagesImportadas, imagesPendentes };
+}
+
 export type CartaCompletaRow = {
   id: string;
   collectorNumber: string;
@@ -1322,6 +1437,8 @@ export type CatalogImportRowView = {
   categoryConfidence: string | null;
   /** Raridade exatamente como veio da TCGdex (raw_data.rarity) — ver comentário de getCatalogImportRows abaixo. */
   rawRarity: string | null;
+  /** URL-base da imagem da TCGdex (raw_data.image, sem sufixo) — ver comentário de getCatalogImportRows abaixo. */
+  imageBaseUrl: string | null;
   reviewNotes: string[];
   validationStatus: string;
   matchStatus: string;
@@ -1377,6 +1494,17 @@ type CatalogImportRowRawRow = {
  * exatamente o que foi avaliado, sem uma segunda consulta para resolver um
  * nome canônico que a própria linha pode nem ter conseguido mapear (rarity_id
  * fica NULL nesse caso).
+ *
+ * `imageBaseUrl` lê raw_data.image (2026-08-01, nona rodada — miniatura na
+ * revisão, pedido de Fabrício: "a revisão deve parecer uma revisão de
+ * cartas"). É uma URL-base da TCGdex sem sufixo/extensão (ex.:
+ * "https://assets.tcgdex.net/pt/sv/sv03/014") — quem renderiza acrescenta
+ * `/low.webp` (miniatura pequena; mesma convenção de sufixo que
+ * `buildTcgdexHighImageUrl` usa com `/high.webp` para a imagem em alta
+ * resolução, em supabase/functions/import-card-assets/services/storage.ts,
+ * só que aqui optou-se pela variante leve por ser só uma miniatura de
+ * tabela). Puramente leitura de um campo já buscado — não é uma nova chamada
+ * de rede nem toca banco/Edge Function.
  */
 export async function getCatalogImportRows(
   supabase: SupabaseClient,
@@ -1397,6 +1525,7 @@ export async function getCatalogImportRows(
   const rows = (data as unknown as CatalogImportRowRawRow[]).map((row) => {
     const normalized = row.normalized_data ?? {};
     const rawRarity = typeof row.raw_data?.rarity === "string" ? (row.raw_data.rarity as string) : null;
+    const imageBaseUrl = typeof row.raw_data?.image === "string" ? (row.raw_data.image as string) : null;
 
     return {
       id: row.id,
@@ -1407,6 +1536,7 @@ export async function getCatalogImportRows(
       categorySource: normalized.category_source ?? null,
       categoryConfidence: normalized.category_confidence ?? null,
       rawRarity,
+      imageBaseUrl,
       reviewNotes: normalized.review_notes ?? [],
       validationStatus: row.validation_status,
       matchStatus: row.match_status,

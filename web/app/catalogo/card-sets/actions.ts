@@ -93,26 +93,36 @@ export async function createCardSet(
 }
 
 /**
- * Atualiza nome, tipo, ordem de lançamento e data de lançamento de um Card
- * Set via admin_update_card_set() (Query 2048, ADR-023). expansion_id e
- * code nunca são aceitos aqui — imutáveis por construção (a função nem tem
- * parâmetro para isso), mesmo princípio já aplicado a Game/Expansion.
+ * Atualiza código, nome, tipo, ordem de lançamento e data de lançamento de
+ * um Card Set via admin_update_card_set() (Query 2048, ADR-023).
+ * expansion_id nunca é aceito aqui — imutável por construção (a função nem
+ * tem parâmetro para isso), mesmo princípio já aplicado a Game/Expansion.
  * base_set_size/total_set_size também ficam de fora — não pedidos, e mudar
  * set_type sozinho já precisa lidar com as regras de PROMO usando o tamanho
  * já cadastrado (a função antecipa isso com mensagem clara).
  *
  * Ampliado em 2026-07-31, rodada seguinte (pedido explícito de Fabrício:
  * "na tela de edição do set card deve ser permitido editar o tipo e a data
- * de lançamento") — antes só aceitava nome/ordem (Query 2048 v1.0). Depende
- * da Migration 2052 (assinatura mudou de 3 para 5 parâmetros) ser executada
- * por Fabrício; até lá, retorna o erro genuíno do Postgres (função com essa
- * assinatura não existe).
+ * de lançamento") — antes só aceitava nome/ordem (Query 2048 v1.0).
+ *
+ * Ampliado em 2026-08-01 (ADR-023, emenda "Card Set: código editável sem
+ * Cards cadastradas", Query 2048 v3.0/Migration 2091) — motivado por um
+ * erro real de cadastro (Coleção "151" com código SV4 em vez de MEW):
+ * `code` passa a ser aceito e enviado sempre (mesmo sem mudança de valor —
+ * `EditCardSetForm` usa `readOnly`, não `disabled`, exatamente para isso).
+ * A trava condicional (código só muda de fato se o Card Set não tiver
+ * nenhuma Card cadastrada) vive inteiramente no banco — esta action só
+ * repassa o valor e traduz o erro (`ADMIN_UPDATE_CARD_SET_CODE_LOCKED`) se
+ * a trava disparar. Depende da Migration 2091 (assinatura mudou de 5 para
+ * 6 parâmetros) ser executada por Fabrício; até lá, retorna o erro genuíno
+ * do Postgres (função com essa assinatura não existe).
  */
 export async function updateCardSet(
   _prevState: CardSetActionState,
   formData: FormData,
 ): Promise<CardSetActionState> {
   const id = String(formData.get("id") ?? "");
+  const code = String(formData.get("code") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const setType = String(formData.get("set_type") ?? "").trim();
   const releaseOrderRaw = String(formData.get("release_order") ?? "").trim();
@@ -121,6 +131,9 @@ export async function updateCardSet(
 
   if (!id) {
     return { error: "Card Set inválido." };
+  }
+  if (!code) {
+    return { error: "Informe o código do Card Set." };
   }
   if (!name) {
     return { error: "Informe o nome do Card Set." };
@@ -135,6 +148,7 @@ export async function updateCardSet(
   const supabase = await createClient();
   const { error } = await supabase.rpc("admin_update_card_set", {
     p_id: id,
+    p_code: code,
     p_name: name,
     p_set_type: setType,
     p_release_order: releaseOrder,

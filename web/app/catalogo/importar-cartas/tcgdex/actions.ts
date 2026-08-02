@@ -312,3 +312,284 @@ export async function confirmarImportacao(jobId: string): Promise<ConfirmarImpor
   revalidatePath("/catalogo/cartas");
   return lastResult;
 }
+
+// ---------------------------------------------------------------------------
+// Continuação automática: cartas → imagens (emenda de ADR-024, 2026-08-01)
+// ---------------------------------------------------------------------------
+
+export type IniciarImportacaoImagensResult = {
+  /** `false` = Card Set sem card_set_external_reference/TCGDEX ativo (Promo, Energia, ou qualquer Set fora da cobertura da TCGdex) — caminho normal, não erro. */
+  supported: boolean;
+  /** Só tem sentido quando `supported = true`: `false` = falha ao abrir a run ou ao chamar a Edge Function (rede, 500, etc.), não confundir com "algumas imagens falharam" (isso é `imagesFailed > 0`, ainda `success = true`). */
+  success: boolean;
+  error: string | null;
+  imagesImported: number;
+  imagesFailed: number;
+  imagesTotal: number;
+  runCode: string | null;
+};
+
+type AdminStartAssetImportRunRow = {
+  supported: boolean;
+  run_id: string | null;
+  run_code: string | null;
+  already_active: boolean;
+};
+
+/**
+ * Continua automaticamente o fluxo de importação, depois que
+ * confirmarImportacao() persiste as Cards de um Card Set, para o pipeline de
+ * imagens já existente (Edge Function import-card-assets, ADR-018/docs/06-
+ * pipeline-importacao.md) — pedido explícito de Fabrício (2026-08-01):
+ * "Após a confirmação das cartas, o fluxo de importação deve continuar
+ * automaticamente com a importação das imagens... Importante: não criar um
+ * novo pipeline de imagens, não duplicar lógica e não alterar a arquitetura
+ * atual."
+ *
+ * Nenhuma lógica de download/checksum/upload é reimplementada aqui — esta
+ * action só (1) abre a run via admin_start_asset_import_run() (Query 2092,
+ * nova — formaliza o que antes era uma migration SQL avulsa por Coleção) e
+ * (2) invoca a mesma Edge Function que já existe, exatamente como o
+ * pipeline manual sempre fez, só que automaticamente. O pipeline manual
+ * continua existindo e funcionando do jeito que sempre funcionou — esta
+ * action não o substitui, só reaproveita o mesmo processador.
+ *
+ * `supported = false` (Card Set sem mapeamento TCGdex — Promo/Energia/fora
+ * de cobertura) não é tratado como erro: a função devolve normalmente,
+ * quem chama (useAnalyzeJob) mostra uma mensagem informativa em vez de uma
+ * falha, e o Card Set permanece disponível para o pipeline manual de
+ * sempre.
+ *
+ * `already_active = true` (uma run anterior para este Card Set ainda está
+ * PENDING/RUNNING — ex.: o próprio administrador clicou Confirmar duas
+ * vezes) não dispara uma segunda chamada à Edge Function — evita processar
+ * a mesma coleção em paralelo. Devolve `success = true` sem contadores
+ * (a run já em andamento não é acompanhada por esta chamada).
+ *
+ * Limitação conhecida, não resolvida aqui por seria alterar a Edge Function
+ * (fora do pedido — "não alterar a arquitetura atual"): import-card-
+ * assets/index.ts tem `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` fixos em `"en"`,
+ * nunca foi parametrizado por request (sinalizado como pendência desde o
+ * Sprint B3.21 do próprio pipeline, docs/06-pipeline-importacao.md) — a
+ * importação automática de imagens sempre roda em inglês; imagens em
+ * pt-BR continuam dependendo do pipeline manual (reexecução com o mesmo
+ * `run_code`, mesmo procedimento de sempre).
+ *
+ * `initiatedBy` (era `jobId`, generalizado em 2026-08-02 para a nova tela
+ * dedicada `/catalogo/importar-imagens` — ver `importar-imagens-view.tsx`):
+ * texto livre gravado em `asset_import_run.initiated_by`, só para
+ * rastreabilidade/auditoria — `admin_start_asset_import_run()` (Query 2092)
+ * nunca interpreta esse valor. A continuação automática (`useAnalyzeJob`)
+ * continua passando `catalog_import_job:<id>`; a tela dedicada, chamada
+ * diretamente por uma Coleção que já tem Cards mas ainda tem imagens
+ * pendentes (sem job de cartas nenhum envolvido), passa `manual_retry:
+ * importar-imagens`.
+ *
+ * 2026-08-02, rodada seguinte: esta continuação deixou de ser UMA action só
+ * — Fabrício pediu um contador ao vivo ("110 de 546") enquanto a Edge
+ * Function está rodando, e a única forma de o frontend saber `run_code`
+ * ANTES de a chamada (potencialmente longa, minutos) terminar é separar
+ * "abrir a run" (rápido, só a RPC) de "executar a run" (lento, a chamada à
+ * Edge Function) — ver `abrirImportacaoImagens`/`executarImportacaoImagens`/
+ * `getProgressoImportacaoImagens` abaixo. O componente cliente chama as duas
+ * primeiras em sequência e faz polling da terceira enquanto espera a
+ * segunda resolver.
+ */
+
+/**
+ * Contagem real de imagens já importadas para um Card Set — usada para
+ * compor o resultado final em TODOS os caminhos (sucesso e falha), não só
+ * quando a chamada falha: desde a v2.7.0 da Edge Function
+ * (`import-card-assets/index.ts`, 2026-08-02), ela pula Cards que já têm
+ * imagem em vez de reprocessar a Coleção inteira — então `body.images.*`
+ * (o que a Edge Function devolve) passou a refletir só o que ESSA chamada
+ * tentou, não o total acumulado da Coleção. A contagem real do banco (esta
+ * função) é a única fonte de verdade para "quantas imagens essa Coleção tem
+ * no total agora", em qualquer caminho.
+ *
+ * `import-card-assets/index.ts` grava cada `card_asset` individualmente
+ * durante o processamento em lotes (não só no final) — então o trabalho já
+ * feito até uma falha continua gravado no banco/Storage mesmo quando a
+ * resposta HTTP nunca chega ou vem sem `body.images` (caso real: 2026-08-02,
+ * Coleção SV4/Fenda Paradoxal, 115 de 266 imagens já salvas no Storage
+ * quando a chamada falhou com HTTP 546).
+ */
+async function contarImagensImportadas(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardSetId: string,
+): Promise<{ imported: number; total: number }> {
+  const [totalResult, importedResult] = await Promise.all([
+    supabase.from("card").select("id", { count: "exact", head: true }).eq("card_set_id", cardSetId),
+    supabase
+      .from("card_asset")
+      .select("id, card!inner(card_set_id), card_asset_type!inner(code), language!inner(code)", {
+        count: "exact",
+        head: true,
+      })
+      .eq("card.card_set_id", cardSetId)
+      .eq("card_asset_type.code", "CARD_FRONT")
+      .eq("language.code", "en")
+      .eq("is_primary", true)
+      .eq("is_active", true),
+  ]);
+
+  return { total: totalResult.count ?? 0, imported: importedResult.count ?? 0 };
+}
+
+export type AbrirImportacaoImagensResult = {
+  /** `false` = Card Set sem card_set_external_reference/TCGDEX ativo — caminho normal, não erro. */
+  supported: boolean;
+  /** Já existe uma run PENDING/RUNNING para este Card Set — nenhuma nova chamada à Edge Function foi feita. */
+  alreadyActive: boolean;
+  runCode: string | null;
+  error: string | null;
+};
+
+/**
+ * Abre a run (`admin_start_asset_import_run()`, Query 2092) e devolve na
+ * hora — só a chamada RPC, rápida, sem invocar a Edge Function. Separada de
+ * `executarImportacaoImagens` (2026-08-02) para o frontend conseguir
+ * `runCode` a tempo de fazer polling de progresso enquanto a chamada lenta
+ * está em andamento (ver comentário mais acima).
+ */
+export async function abrirImportacaoImagens(
+  cardSetId: string,
+  initiatedBy: string,
+): Promise<AbrirImportacaoImagensResult> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("admin_start_asset_import_run", {
+    p_card_set_id: cardSetId,
+    p_run_type: "FULL_CARD_SET",
+    p_initiated_by: initiatedBy,
+  });
+
+  if (error) {
+    return { supported: true, alreadyActive: false, runCode: null, error: traduzirErroCatalogo(error.message) };
+  }
+
+  const [row] = (data ?? []) as AdminStartAssetImportRunRow[];
+
+  if (!row || !row.supported || !row.run_code) {
+    return { supported: false, alreadyActive: false, runCode: null, error: null };
+  }
+
+  return { supported: true, alreadyActive: row.already_active, runCode: row.run_code, error: null };
+}
+
+/**
+ * Invoca a Edge Function para uma run já aberta (`abrirImportacaoImagens`) e
+ * devolve o resultado final — chamada bloqueante, pode levar minutos numa
+ * Coleção grande. O resumo final (`imagesImported`/`imagesFailed`/
+ * `imagesTotal`) vem sempre de `contarImagensImportadas` (contagem real do
+ * banco), nunca de `body?.images` — ver comentário da função acima.
+ */
+export async function executarImportacaoImagens(
+  cardSetId: string,
+  runCode: string,
+): Promise<IniciarImportacaoImagensResult> {
+  const supabase = await createClient();
+  const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/import-card-assets`;
+
+  let response: Response;
+  try {
+    response = await fetch(functionUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run_code: runCode }),
+    });
+  } catch (fetchError) {
+    const message = fetchError instanceof Error ? fetchError.message : "Falha de rede.";
+    const { imported, total } = await contarImagensImportadas(supabase, cardSetId);
+    revalidatePath("/catalogo/cartas");
+    revalidatePath("/catalogo/importar-imagens");
+    return {
+      supported: true,
+      success: false,
+      error: `Falha ao chamar o pipeline de imagens: ${message}`,
+      imagesImported: imported,
+      imagesFailed: Math.max(total - imported, 0),
+      imagesTotal: total,
+      runCode,
+    };
+  }
+
+  const body = await response.json().catch(() => null);
+  const { imported, total } = await contarImagensImportadas(supabase, cardSetId);
+  revalidatePath("/catalogo/cartas");
+  revalidatePath("/catalogo/importar-cartas");
+  revalidatePath("/catalogo/importar-imagens");
+
+  if (!response.ok) {
+    // Corpo da resposta pode não trazer `body.images` nenhum (ex.: a
+    // plataforma mata a função por tempo/CPU excedido antes dela conseguir
+    // responder algo estruturado — HTTP 546 observado na prática para
+    // coleções grandes) — a contagem real do banco é sempre a fonte de
+    // verdade aqui, nunca `body?.images`.
+    return {
+      supported: true,
+      success: false,
+      error: `Falha ao importar imagens: ${body?.error ?? response.status}`,
+      imagesImported: imported,
+      imagesFailed: Math.max(total - imported, 0),
+      imagesTotal: total,
+      runCode,
+    };
+  }
+
+  return {
+    supported: true,
+    success: true,
+    error: null,
+    imagesImported: imported,
+    imagesFailed: Math.max(total - imported, 0),
+    imagesTotal: total,
+    runCode,
+  };
+}
+
+export type ProgressoImportacaoImagens = {
+  requestedCount: number;
+  processedCount: number;
+  successCount: number;
+  failedCount: number;
+  status: string;
+};
+
+/**
+ * @deprecated (2026-08-02) Não é mais usada para o polling do contador ao
+ * vivo — no primeiro teste real em produção, o contador nunca apareceu
+ * durante um run de ~1 minuto na SV4 (54 imagens gravadas nesse intervalo,
+ * confirmadas pela contagem final; tempo de sobra para o polling a cada 2s
+ * ter sucesso se a leitura via Server Action funcionasse). Sem acesso a
+ * logs do navegador/servidor de Fabrício para confirmar a causa exata, a
+ * implementação foi trocada por uma leitura direta via `createBrowserClient`
+ * (`fetchProgressoImportacaoImagens`, `lib/catalogo/asset-import-progress-client.ts`)
+ * — mesmo padrão já usado por outros componentes cliente do projeto
+ * (uploaders, `users-table.tsx`). Mantida aqui só por rastreabilidade; sem
+ * consumidor no código atual.
+ *
+ * Leitura leve de `asset_import_run` por `run_code`. `asset_import_run`
+ * já tem policy de SELECT para admin (`catalog_admin_select`, Query 274) —
+ * sem necessidade de RPC nova, uma consulta direta basta. A Edge Function
+ * (v2.7.0) grava esses quatro contadores a cada lote processado
+ * (`updateImportRunProgress`, `services/database.ts`), não só no final.
+ */
+export async function getProgressoImportacaoImagens(runCode: string): Promise<ProgressoImportacaoImagens | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("asset_import_run")
+    .select("requested_count, processed_count, success_count, failed_count, status")
+    .eq("run_code", runCode)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    requestedCount: data.requested_count,
+    processedCount: data.processed_count,
+    successCount: data.success_count,
+    failedCount: data.failed_count,
+    status: data.status,
+  };
+}

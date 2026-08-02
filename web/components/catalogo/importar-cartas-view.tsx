@@ -160,7 +160,11 @@ export function ImportarCartasView({
   matchResult: TcgdexAutoMatchResult | null;
 }) {
   const router = useRouter();
-  const analyzeJob = useAnalyzeJob();
+  // `selectedCardSet?.id ?? ""` — cardSetId "" antes de qualquer Coleção
+  // escolhida; inofensivo porque o useEffect de continuação automática (ver
+  // useAnalyzeJob) só dispara depois que um job chega a status final, e sem
+  // Coleção selecionada não há como ter iniciado análise/job nenhum.
+  const analyzeJob = useAnalyzeJob(selectedCardSet?.id ?? "");
 
   function navigate(next: { cardSetId?: string | null; fonte?: Fonte }) {
     const params = new URLSearchParams();
@@ -258,6 +262,10 @@ export function ImportarCartasView({
                     done={Boolean(analyzeJob.jobState.job)}
                     resultSummary={{ label: matchResult.set.name, cardCount: matchResult.set.cardCountTotal }}
                     job={analyzeJob.jobState.job}
+                    imagePhase={analyzeJob.imagePhase}
+                    imageResult={analyzeJob.imageResult}
+                    imageProgress={analyzeJob.imageProgress}
+                    imageAttempt={analyzeJob.imageAttempt}
                   />
                 )}
               </>

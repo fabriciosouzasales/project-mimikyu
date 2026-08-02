@@ -8,19 +8,38 @@ import {
   useState,
   useTransition,
   type ChangeEvent,
+  type ReactNode,
 } from "react";
-import { CheckCircle2, FolderPlus, HelpCircle, ListChecks, Search, type LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FolderPlus,
+  HelpCircle,
+  ImageOff,
+  ImagePlus,
+  ListChecks,
+  Search,
+  type LucideIcon,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RevisaoImportacaoTable } from "@/components/catalogo/revisao-importacao-table";
 import type { CatalogImportJobStatus, CatalogImportRowView, CatalogoCardSetRow } from "@/lib/catalogo/queries";
 import type { TcgdexAutoMatchResult, TcgdexSetCandidate } from "@/lib/catalogo/tcgdex-lookup";
 import {
+  abrirImportacaoImagens,
   buscarSetsTcgdexManualmente,
+  executarImportacaoImagens,
   getImportacaoJobData,
   iniciarImportacaoTcgdex,
+  type IniciarImportacaoImagensResult,
   type IniciarImportacaoTcgdexActionState,
+  type ProgressoImportacaoImagens,
 } from "@/app/catalogo/importar-cartas/tcgdex/actions";
+import {
+  fetchProgressoImportacaoImagens,
+  MAX_IMAGE_IMPORT_RETRY_ATTEMPTS,
+} from "@/lib/catalogo/asset-import-progress-client";
 import { cn } from "@/lib/utils";
 
 const INITIAL_STATE: IniciarImportacaoTcgdexActionState = { error: null, jobId: null };
@@ -101,8 +120,15 @@ function CandidateSummary({ candidate }: { candidate: TcgdexSetCandidate }) {
  * `getImportacaoJobData` e guarda tudo em `useState`, então o progresso
  * (`ImportProgress`, com `done=true`) continua visível, empilhado acima da
  * `RevisaoImportacaoTable` quando aplicável, tudo na mesma árvore montada.
+ *
+ * `cardSetId` (novo parâmetro, 2026-08-01, emenda de ADR-024 "Continuação
+ * automática: cartas → imagens") — os dois pontos de chamada
+ * (`CandidateAnalyzeCard`/`ImportarCartasView`) já têm esse valor à mão
+ * (prop/`selectedCardSet.id`); passá-lo pro hook mantém a orquestração da
+ * continuação automática num único lugar, em vez de duplicar o `useEffect`
+ * abaixo nos dois componentes.
  */
-export function useAnalyzeJob() {
+export function useAnalyzeJob(cardSetId: string) {
   const [state, formAction, isPending] = useActionState(iniciarImportacaoTcgdex, INITIAL_STATE);
   const [jobState, setJobState] = useState<{ job: CatalogImportJobStatus | null; rows: CatalogImportRowView[] }>({
     job: null,
@@ -128,6 +154,150 @@ export function useAnalyzeJob() {
     setJobState(data);
   }, [jobState.job]);
 
+  // Continuação automática: cartas → imagens (2026-08-01, emenda de
+  // ADR-024, pedido de Fabrício: "Após a confirmação das cartas, o fluxo de
+  // importação deve continuar automaticamente com a importação das
+  // imagens"). Dispara exatamente uma vez por job, assim que ele chega a um
+  // status final "produtivo" (COMPLETED/COMPLETED_WITH_ERRORS — cartas de
+  // fato persistidas, ainda que com falhas pontuais) — nunca para
+  // FAILED/CANCELLED, onde não há Cards novas para anexar imagem.
+  // `imageTriggeredJobIdRef` evita disparar de novo a cada `refreshJob()`
+  // subsequente (ex.: o próprio `router.refresh()` de `confirmarImportacao`
+  // já causa uma re-renderização com o mesmo job final).
+  const [imagePhase, setImagePhase] = useState<"idle" | "checking" | "importing" | "done">("idle");
+  const [imageResult, setImageResult] = useState<IniciarImportacaoImagensResult | null>(null);
+  // Progresso ao vivo (2026-08-02, pedido explícito de Fabrício: "quero
+  // colocar um contador ao lado do Step Importando imagens... Quero
+  // enxergar o progresso real") — populado por polling em
+  // `asset_import_run` (via `fetchProgressoImportacaoImagens`) enquanto a
+  // Edge Function processa o lote, em paralelo à chamada bloqueante de
+  // `executarImportacaoImagens`. `null` até o primeiro polling responder.
+  const [imageProgress, setImageProgress] = useState<ProgressoImportacaoImagens | null>(null);
+  // Retry automático (2026-08-02, mesmo dia, rodada seguinte): número da
+  // tentativa em curso — ver comentário completo no `useEffect` abaixo.
+  const [imageAttempt, setImageAttempt] = useState(0);
+  const imageTriggeredJobIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const job = jobState.job;
+    if (!job || (job.status !== "COMPLETED" && job.status !== "COMPLETED_WITH_ERRORS")) return;
+    if (imageTriggeredJobIdRef.current === job.id) return;
+    imageTriggeredJobIdRef.current = job.id;
+
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+
+    setImagePhase("checking");
+    setImageProgress(null);
+    setImageAttempt(0);
+
+    // Fluxo em duas fases (2026-08-02, mesma emenda do contador ao vivo):
+    // `abrirImportacaoImagens` é uma chamada rápida (só abre/reaproveita a
+    // run via RPC) que devolve o `runCode` de imediato, permitindo começar
+    // o polling em paralelo à chamada longa e bloqueante de
+    // `executarImportacaoImagens` (o fetch de fato à Edge Function).
+    abrirImportacaoImagens(cardSetId, `catalog_import_job:${job.id}`).then((openResult) => {
+      if (cancelled) return;
+
+      if (!openResult.supported) {
+        setImageResult({
+          supported: false,
+          success: true,
+          error: null,
+          imagesImported: 0,
+          imagesFailed: 0,
+          imagesTotal: 0,
+          runCode: null,
+        });
+        setImagePhase("done");
+        return;
+      }
+      if (openResult.error || !openResult.runCode) {
+        setImageResult({
+          supported: true,
+          success: false,
+          error: openResult.error,
+          imagesImported: 0,
+          imagesFailed: 0,
+          imagesTotal: 0,
+          runCode: null,
+        });
+        setImagePhase("done");
+        return;
+      }
+      if (openResult.alreadyActive) {
+        setImageResult({
+          supported: true,
+          success: true,
+          error: null,
+          imagesImported: 0,
+          imagesFailed: 0,
+          imagesTotal: 0,
+          runCode: openResult.runCode,
+        });
+        setImagePhase("done");
+        return;
+      }
+
+      setImagePhase("importing");
+      const runCode = openResult.runCode;
+      pollTimer = setInterval(() => {
+        fetchProgressoImportacaoImagens(runCode).then((progress) => {
+          if (!cancelled && progress) setImageProgress(progress);
+        });
+      }, 2000);
+
+      // Retry automático (2026-08-02, pedido explícito de Fabrício depois
+      // de ver a importação de SV4 falhar de novo com HTTP 504 apesar do
+      // progresso real de 115→169 imagens): o teto de execução da
+      // plataforma para a Edge Function não muda — uma Coleção grande
+      // sempre precisa de várias chamadas. Em vez de exigir um clique
+      // manual a cada falha, repete `executarImportacaoImagens` com o
+      // MESMO `runCode` (nunca reabre a run — reabrir cairia no caminho
+      // `alreadyActive` acima, já que o `status` da run fica preso em
+      // `RUNNING` quando a plataforma mata a função no meio, sem nunca
+      // chegar ao `finishImportRun` que a fecharia; `findImportRun`/
+      // `transitionImportRunToRunning`, do lado da Edge Function, não se
+      // importam com o `status` atual — só localizam a run pelo
+      // `run_code` e seguem processando o que ainda falta) até
+      // `imagesFailed` chegar a 0 ou parar de progredir (nenhuma imagem
+      // nova desde a tentativa anterior — sinal de falha real e
+      // persistente, não mais de timeout de plataforma) ou até o teto de
+      // segurança `MAX_IMAGE_IMPORT_RETRY_ATTEMPTS`.
+      let attempt = 0;
+      let lastImported = -1;
+
+      async function runUntilDone(): Promise<IniciarImportacaoImagensResult> {
+        let result: IniciarImportacaoImagensResult;
+        do {
+          attempt += 1;
+          if (!cancelled) setImageAttempt(attempt);
+          result = await executarImportacaoImagens(cardSetId, runCode);
+          if (cancelled) return result;
+          if (result.imagesImported === lastImported) break;
+          lastImported = result.imagesImported;
+        } while (
+          result.supported &&
+          result.imagesFailed > 0 &&
+          attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS
+        );
+        return result;
+      }
+
+      runUntilDone().then((result) => {
+        if (pollTimer) clearInterval(pollTimer);
+        if (cancelled) return;
+        setImageResult(result);
+        setImagePhase("done");
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [jobState.job, cardSetId]);
+
   return {
     formAction,
     error: state.error,
@@ -135,6 +305,10 @@ export function useAnalyzeJob() {
     fetchingJob,
     jobState,
     refreshJob,
+    imagePhase,
+    imageResult,
+    imageProgress,
+    imageAttempt,
     /** Já foi clicado em Analisar (mesmo que ainda processando) — some o botão, aparece o progresso. */
     started: isPending || fetchingJob || Boolean(jobState.job),
   };
@@ -149,7 +323,7 @@ const REVIEWABLE_STATUSES = new Set(["STAGED", "CONFIRMING"]);
  * mesmo, sem navegar (ver useAnalyzeJob acima).
  */
 function CandidateAnalyzeCard({ cardSetId, candidate }: { cardSetId: string; candidate: TcgdexSetCandidate }) {
-  const analyzeJob = useAnalyzeJob();
+  const analyzeJob = useAnalyzeJob(cardSetId);
 
   return (
     <div className="space-y-3">
@@ -173,6 +347,10 @@ function CandidateAnalyzeCard({ cardSetId, candidate }: { cardSetId: string; can
           done={Boolean(analyzeJob.jobState.job)}
           resultSummary={{ label: candidate.name, cardCount: candidate.cardCountTotal }}
           job={analyzeJob.jobState.job}
+          imagePhase={analyzeJob.imagePhase}
+          imageResult={analyzeJob.imageResult}
+          imageProgress={analyzeJob.imageProgress}
+          imageAttempt={analyzeJob.imageAttempt}
         />
       )}
 
@@ -205,10 +383,23 @@ const JOB_STATUS_LABEL: Record<string, string> = {
   CANCELLED: "Cancelado",
 };
 
+/** Status finais de um job — depois de STAGED/CONFIRMING (`REVIEWABLE_STATUSES`), é onde ele pousa. Usado por `ImportProgress` para saber quando mostrar a etapa de confirmação (ver comentário lá). */
+const IMPORT_FINAL_STATUSES = new Set(["COMPLETED", "COMPLETED_WITH_ERRORS", "FAILED", "CANCELLED"]);
+
 const STEP_INTERVAL_MS = 1400;
 const PERCENT_TICK_MS = 200;
 /** Teto do avanço simulado enquanto ainda não sabemos a conclusão real — ver comentário abaixo. */
 const PERCENT_CEILING = 92;
+/**
+ * Teto separado para a fase de imagens (2026-08-02, correção de bug real
+ * reportado por Fabrício: a barra ficava em 100% com o rótulo ainda dizendo
+ * "Importando imagens" — o efeito abaixo considerava `done` só o suficiente
+ * para pular pra 100%, sem saber que a continuação automática de imagens
+ * ainda tinha etapas pela frente). Mais alto que `PERCENT_CEILING` porque a
+ * essa altura o trabalho "pesado" (download/upload de cada carta) já é a
+ * maior parte do tempo restante — só o "Finalizando" propriamente dito falta.
+ */
+const IMAGE_PERCENT_CEILING = 97;
 
 /**
  * Indicador visual de progresso — 2026-08-01, terceira rodada, redesenhado
@@ -247,59 +438,362 @@ const PERCENT_CEILING = 92;
  *    (`fetchingJob`) — nesse caso a etapa aparece concluída (ícone) mas
  *    sem o detalhe de contagens ainda.
  *
- * Enquanto ainda processando (`!done`), a porcentagem é uma simulação por
- * tempo com teto de 92% — não existe progresso granular real vindo do
- * backend nesta rodada (a Server Action é uma única chamada síncrona); só
- * quando `done` vira `true` (job de fato carregado) é que 100% reflete a
- * conclusão real.
+ * Oitava rodada (mesmo dia, pedido explícito depois de confirmar uma
+ * importação parcial de SV2 com sucesso): "Concluído" (a etapa 4) marca o
+ * fim da ANÁLISE — job criado e, se `STAGED`/`CONFIRMING`, ainda esperando
+ * revisão/confirmação manual. Isso não é a mesma coisa que a importação
+ * estar de fato terminada, e o pedido foi por uma etapa própria pra esse
+ * segundo momento: "mais um step no fluxo do progresso (importação
+ * concluída com sucesso)". Uma 5ª etapa condicional aparece quando o job
+ * chega a um status final (`IMPORT_FINAL_STATUSES` — depois de
+ * Confirmar) — as contagens (linhas/válidas/inseridas/atualizadas/falhas)
+ * e o resumo de erro saíram da etapa "Concluído" e passaram a viver aqui,
+ * já que só fazem sentido de verdade depois da confirmação (antes disso,
+ * inseridas/atualizadas são sempre 0). A etapa "Concluído" agora só mostra
+ * o Set localizado; o rótulo/ícone/tom da 5ª etapa mudam conforme o
+ * resultado real (sucesso, com falhas, falhou, cancelado) — nunca um
+ * genérico "Concluído" repetido duas vezes.
+ *
+ * Emenda de ADR-024, "Continuação automática: cartas → imagens"
+ * (2026-08-01, pedido de Fabrício: "Após a confirmação das cartas, o fluxo
+ * de importação deve continuar automaticamente com a importação das
+ * imagens... A barra de progresso deve ganhar novas etapas"). A 5ª etapa
+ * (rótulo antes dinâmico — "Importação concluída com sucesso"/"...com
+ * falhas"/"...falhou"/"...cancelada") vira `cardsWrittenStep`, rótulo fixo
+ * "Gravando cartas" (mesmo ícone/tom/corpo de antes — só o rótulo deixou de
+ * mudar conforme o resultado, pedido explícito de Fabrício usava esse nome
+ * fixo na lista de etapas). Três novas etapas só aparecem depois dela,
+ * **só quando o job chega a COMPLETED/COMPLETED_WITH_ERRORS** (nunca para
+ * FAILED/CANCELLED, onde não há Cards novas pra anexar imagem — ver
+ * `useAnalyzeJob`, que só dispara a continuação automática nesses dois
+ * casos):
+ * 1. "Verificando disponibilidade das imagens" — `imagePhase === "checking"`.
+ * 2. "Importando imagens" — `imagePhase === "importing"`; corpo final
+ *    depende de `imageResult.supported`: quando `false` (Promo/Energia/Set
+ *    fora da TCGdex), mostra uma mensagem informativa, nunca um erro
+ *    ("Não tratar como erro", pedido explícito) — o Card Set continua
+ *    disponível pro pipeline manual já existente, intocado por esta
+ *    emenda.
+ * 3. "Finalizando importação" — só etapa realmente terminal agora;
+ *    resumo final com as três contagens pedidas explicitamente: "Cartas
+ *    cadastradas", "Imagens importadas", "Imagens pendentes" (falhas
+ *    parciais de imagem viram "pendentes", nunca impedem a conclusão do
+ *    cadastro de cartas — pedido explícito).
+ *
+ * `mode="images-only"` (2026-08-02, nova tela dedicada
+ * `/catalogo/importar-imagens` — ver `importar-imagens-view.tsx`): quando a
+ * Coleção já tem todas as Cards cadastradas e só falta retomar a importação
+ * de imagens (sem nenhum job de cartas envolvido), as três primeiras etapas
+ * ("Abrindo job"/"Buscando cartas"/"Processando"), "Concluído" e "Gravando
+ * cartas" não fazem sentido — não há job de cartas para abrir, buscar ou
+ * gravar. Neste modo, `job`/`resultSummary` são ignorados e a lista de
+ * etapas começa direto em "Verificando disponibilidade das imagens";
+ * `totalCards` substitui `job.insertedRows + job.updatedRows` como a base do
+ * resumo final (nenhum job para ler essas contagens). Mesmo componente
+ * visual (mesma barra, mesmos ícones/tons) — só a lista de etapas muda.
  */
 export function ImportProgress({
+  mode = "full",
   isPending,
   done,
   resultSummary,
   job,
+  totalCards,
+  imagePhase,
+  imageResult,
+  imageProgress,
+  imageAttempt,
 }: {
+  /** "full" (padrão): fluxo completo cartas→imagens. "images-only": só as três etapas de imagem, sem job de cartas. */
+  mode?: "full" | "images-only";
   isPending: boolean;
   done: boolean;
-  /** Nome do Set localizado + quantidade de cartas na TCGdex — mesmo dado que antes vivia no box "Set localizado". */
+  /** Nome do Set localizado + quantidade de cartas na TCGdex — mesmo dado que antes vivia no box "Set localizado". Ignorado em `mode="images-only"`. */
   resultSummary?: { label: string; cardCount: number };
-  /** Job carregado após a conclusão — `null`/`undefined` enquanto ainda buscando. */
+  /** Job carregado após a conclusão — `null`/`undefined` enquanto ainda buscando. Ignorado em `mode="images-only"`. */
   job?: CatalogImportJobStatus | null;
+  /** Total de Cards da Coleção — só usado em `mode="images-only"` (substitui `job.insertedRows + job.updatedRows` no resumo final, já que não há job de cartas). */
+  totalCards?: number;
+  /** Fase da continuação automática de imagens (useAnalyzeJob) — `undefined`/`"idle"` quando ainda não disparou (job não chegou a um status final "produtivo", ou nem existe). */
+  imagePhase?: "idle" | "checking" | "importing" | "done";
+  /** Resultado final da continuação de imagens — só preenchido quando `imagePhase === "done"`. */
+  imageResult?: IniciarImportacaoImagensResult | null;
+  /** Progresso ao vivo (2026-08-02) — polling de `asset_import_run` enquanto `imagePhase === "importing"`, ver `fetchProgressoImportacaoImagens`. `null`/`undefined` até o primeiro polling responder. */
+  imageProgress?: ProgressoImportacaoImagens | null;
+  /**
+   * Número da tentativa atual de retry automático (2026-08-02, pedido
+   * explícito de Fabrício depois de ver a importação de SV4 falhar de novo
+   * com HTTP 504 apesar do progresso real — o teto de execução da Edge
+   * Function não muda, então uma Coleção grande sempre precisa de várias
+   * chamadas): quando `> 1`, mostrado como "(tentativa N)" ao lado do
+   * rótulo, para deixar claro que o sistema está repetindo sozinho, não
+   * travado. `1`/`undefined` na primeira tentativa não mostra nada.
+   */
+  imageAttempt?: number;
 }) {
   const [percent, setPercent] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
 
+  // Determinístico a partir de `job.status` (não de `imagePhase`) — evita um
+  // falso "100%" de um único render entre `done` virar `true` e o `useEffect`
+  // de `useAnalyzeJob` conseguir disparar `setImagePhase("checking")` logo
+  // em seguida. Mesmo critério de `showImageSteps` mais abaixo. Em
+  // `mode="images-only"` as etapas de imagem sempre entram — não há job de
+  // cartas para checar `status` nenhum.
+  const willRunImageSteps =
+    mode === "images-only"
+      ? true
+      : Boolean(job && (job.status === "COMPLETED" || job.status === "COMPLETED_WITH_ERRORS"));
+  const imagesInFlight = imagePhase === "checking" || imagePhase === "importing";
+  // "De verdade" concluído: ou o job nem vai ganhar etapas de imagem (ex.:
+  // FAILED/CANCELLED), ou já ganhou e a continuação de imagens também
+  // terminou (`imagePhase === "done"`) — nunca só por `done` (job carregado)
+  // sozinho, que era o bug reportado (barra em 100% com "Importando
+  // imagens" ainda em andamento). Em `mode="images-only"` não há `done`
+  // (job) para compor — só a própria fase de imagens decide.
+  const fullyDone = mode === "images-only" ? imagePhase === "done" : done && (!willRunImageSteps || imagePhase === "done");
+
   useEffect(() => {
-    if (done) {
+    if (fullyDone) {
       setPercent(100);
       setStepIndex(IMPORT_PROGRESS_STEPS.length);
       return;
     }
-    if (!isPending) return;
+    if (mode === "images-only" ? !imagesInFlight : !isPending && !imagesInFlight) return;
 
-    const stepTimer = setInterval(() => {
-      setStepIndex((index) => Math.min(index + 1, IMPORT_PROGRESS_STEPS.length - 1));
-    }, STEP_INTERVAL_MS);
+    // Progresso real (2026-08-02) — assim que o polling de
+    // `asset_import_run` responde, a barra passa a refletir a proporção
+    // real processada/solicitada em vez da curva simulada abaixo. Só entra
+    // em vigor durante a fase de imagens, onde o dado existe.
+    if (imagesInFlight && imageProgress && imageProgress.requestedCount > 0) {
+      const ratio = imageProgress.processedCount / imageProgress.requestedCount;
+      setPercent(Math.min(IMAGE_PERCENT_CEILING, Math.round(ratio * IMAGE_PERCENT_CEILING)));
+      return;
+    }
+
+    // Teto mais alto durante a fase de imagens (ver `IMAGE_PERCENT_CEILING`)
+    // — a barra continua avançando visivelmente enquanto a Edge Function
+    // processa a coleção, em vez de ficar parada num valor qualquer
+    // esperando `imagePhase` virar "done".
+    const ceiling = imagesInFlight ? IMAGE_PERCENT_CEILING : PERCENT_CEILING;
+
+    const stepTimer =
+      mode !== "images-only" && isPending
+        ? setInterval(() => {
+            setStepIndex((index) => Math.min(index + 1, IMPORT_PROGRESS_STEPS.length - 1));
+          }, STEP_INTERVAL_MS)
+        : undefined;
     const percentTimer = setInterval(() => {
-      setPercent((value) =>
-        value >= PERCENT_CEILING ? value : value + Math.max(1, Math.round((PERCENT_CEILING - value) * 0.08)),
-      );
+      setPercent((value) => (value >= ceiling ? value : value + Math.max(1, Math.round((ceiling - value) * 0.08))));
     }, PERCENT_TICK_MS);
     return () => {
-      clearInterval(stepTimer);
+      if (stepTimer) clearInterval(stepTimer);
       clearInterval(percentTimer);
     };
-  }, [isPending, done]);
+  }, [isPending, fullyDone, imagesInFlight, mode, imageProgress]);
 
-  // 4 linhas fixas: as 3 etapas simuladas + "Concluído" (só essa última
-  // depende de `done`, não do relógio de stepIndex).
-  const steps = [...IMPORT_PROGRESS_STEPS, { label: "Concluído", icon: CheckCircle2 }];
+  type StepStatus = "pending" | "active" | "done";
+  type StepTone = "neutral" | "success" | "warning";
+  type Step = { key: string; label: string; icon: LucideIcon; status: StepStatus; tone: StepTone; body?: ReactNode };
+
+  const analysisSteps: Step[] =
+    mode === "images-only"
+      ? []
+      : IMPORT_PROGRESS_STEPS.map((step, index) => ({
+          key: step.label,
+          label: step.label,
+          icon: step.icon,
+          status: done || index < stepIndex ? "done" : index === stepIndex ? "active" : "pending",
+          tone: "neutral",
+        }));
+
+  const conclusionStep: Step | null =
+    mode === "images-only"
+      ? null
+      : {
+          key: "conclusao",
+          label: "Concluído",
+          icon: CheckCircle2,
+          status: done ? "done" : "pending",
+          tone: "success",
+          body: done && resultSummary && (
+            <p>
+              {resultSummary.label} — {resultSummary.cardCount} cartas na TCGdex
+            </p>
+          ),
+        };
+
+  // Só aparece depois que o job chega a um status final — ver comentário
+  // da função acima ("Oitava rodada"). Sempre `false` em `mode="images-only"`
+  // (não há job de cartas).
+  const isFinal = mode !== "images-only" && Boolean(job && IMPORT_FINAL_STATUSES.has(job.status));
+  const hasFailures = Boolean(job && (job.failedRows > 0 || job.status === "COMPLETED_WITH_ERRORS"));
+  // Rótulo fixo "Gravando cartas" (era dinâmico — ver "Emenda de ADR-024"
+  // no comentário da função) — tom/ícone/corpo continuam refletindo o
+  // resultado real da confirmação, só o texto do rótulo parou de mudar.
+  const cardsWrittenStep: Step | null =
+    isFinal && job
+      ? {
+          key: "gravando-cartas",
+          label: "Gravando cartas",
+          icon: hasFailures || job.status === "FAILED" ? AlertTriangle : CheckCircle2,
+          status: "done",
+          tone: hasFailures || job.status === "FAILED" ? "warning" : "success",
+          body: (
+            <>
+              <p>
+                {job.totalRows} linhas · {job.validRows} válidas · {job.insertedRows} inseridas ·{" "}
+                {job.updatedRows} atualizadas · {job.failedRows} falhas
+              </p>
+              {job.errorSummary && <p className="text-destructive">{job.errorSummary}</p>}
+            </>
+          ),
+        }
+      : null;
+
+  // Continuação automática de imagens — só quando o job persistiu cartas de
+  // fato (COMPLETED/COMPLETED_WITH_ERRORS, nunca FAILED/CANCELLED; ver
+  // useAnalyzeJob, que só dispara a chamada nesses dois casos). `imagePhase`
+  // chega `undefined`/`"idle"` em qualquer outro cenário — as três etapas
+  // abaixo simplesmente não entram na lista. Mesmo critério de
+  // `willRunImageSteps` (calculado mais acima, para a barra de progresso) —
+  // reaproveitado aqui para não ter duas fontes de verdade.
+  const showImageSteps = willRunImageSteps;
+
+  const verifyingImagesStep: Step | null = showImageSteps
+    ? {
+        key: "verificando-imagens",
+        label: "Verificando disponibilidade das imagens",
+        icon: Search,
+        status: !imagePhase || imagePhase === "idle" ? "pending" : imagePhase === "checking" ? "active" : "done",
+        tone: "neutral",
+      }
+    : null;
+
+  // Erro real ao abrir a run/chamar a Edge Function (rede, 500 etc.) — nunca
+  // confundido com "sem suporte na TCGdex" (`supported = false`, caminho
+  // normal) nem com "algumas imagens falharam" (`imagesFailed > 0`, ainda
+  // `success = true`).
+  const imageHardError = Boolean(imageResult && !imageResult.success && imageResult.error);
+  const importingImagesStep: Step | null = showImageSteps
+    ? {
+        key: "importando-imagens",
+        label: "Importando imagens",
+        icon: imageResult && !imageResult.supported ? ImageOff : ImagePlus,
+        status:
+          !imagePhase || imagePhase === "idle" || imagePhase === "checking"
+            ? "pending"
+            : imagePhase === "importing"
+              ? "active"
+              : "done",
+        tone: imageHardError || (imageResult && imageResult.imagesFailed > 0) ? "warning" : "success",
+        // Contador ao vivo (2026-08-02, pedido explícito de Fabrício: "quero
+        // colocar um contador... que indique a quantidade de imagens
+        // importadas e o total a ser importada. Quero enxergar o progresso
+        // real") — enquanto `imagePhase === "importing"`, mostra
+        // `imageProgress` (polling de `asset_import_run` via
+        // `getProgressoImportacaoImagens`, gravado a cada lote pela Edge
+        // Function v2.7.0). `requestedCount > 0` evita mostrar "0 de 0"
+        // antes do primeiro polling retornar dados reais.
+        body:
+          imagePhase === "importing" && imageProgress && imageProgress.requestedCount > 0 ? (
+            <p className="tabular-nums">
+              {imageProgress.processedCount} de {imageProgress.requestedCount} processadas
+              {imageProgress.successCount > 0 && ` · ${imageProgress.successCount} importadas`}
+              {imageProgress.failedCount > 0 && ` · ${imageProgress.failedCount} falharam`}
+            </p>
+          ) : (
+            imagePhase === "done" &&
+            imageResult && (
+              <>
+                {imageHardError ? (
+                  <p className="text-destructive">{imageResult.error}</p>
+                ) : !imageResult.supported ? (
+                  <p>
+                    Este Card Set não está disponível na TCGdex — as imagens deverão ser importadas posteriormente
+                    pelo pipeline manual já existente.
+                  </p>
+                ) : (
+                  <p>
+                    {imageResult.imagesImported} importada{imageResult.imagesImported === 1 ? "" : "s"}
+                    {imageResult.imagesFailed > 0 &&
+                      `, ${imageResult.imagesFailed} pendente${imageResult.imagesFailed === 1 ? "" : "s"} (falharam — seguem disponíveis pelo pipeline manual)`}
+                    .
+                  </p>
+                )}
+              </>
+            )
+          ),
+      }
+    : null;
+
+  // `totalCards` (prop, só em `mode="images-only"`) substitui
+  // `job.insertedRows + job.updatedRows` — não há job de cartas nesse modo,
+  // a Coleção já tinha todas as Cards cadastradas de antes.
+  const cardsCatalogadas = mode === "images-only" ? (totalCards ?? 0) : job ? job.insertedRows + job.updatedRows : 0;
+  // "Pendentes": `imageResult.imagesFailed` é a fonte de verdade sempre que
+  // `supported = true` — inclusive em erro real (`imageHardError`), desde a
+  // correção de 2026-08-02 (revisão `1.33`): `contarImagensImportadas`
+  // (`tcgdex/actions.ts`) já consulta a contagem real de `card_asset` no
+  // banco nos dois caminhos de erro, então `imagesFailed` não é mais "0
+  // forçado" nesse caso. Bug real corrigido aqui (2026-08-02, mesmo dia,
+  // rodada seguinte): a checagem extra `!imageHardError` ainda fazia esta
+  // conta cair para `cardsCatalogadas` (o TOTAL de Cards da Coleção) em vez
+  // do que de fato falta — reportado por Fabrício ao ver "Imagens
+  // pendentes: 266" (o total) numa Coleção que já tinha 115 imagens de
+  // antes, quando o correto era 151 (266 - 115). Só cai para
+  // `cardsCatalogadas` quando `supported = false` (Card Set genuinamente
+  // fora da TCGdex — nenhuma imagem automática é possível, tudo mesmo
+  // pendente pro pipeline manual).
+  const imagesPendentes = imageResult ? (imageResult.supported ? imageResult.imagesFailed : cardsCatalogadas) : 0;
+  const finalizingStep: Step | null = showImageSteps
+    ? {
+        key: "finalizando",
+        label: "Finalizando importação",
+        icon: CheckCircle2,
+        status: imagePhase === "done" ? "done" : "pending",
+        tone: imageHardError || (imageResult && imageResult.supported && imageResult.imagesFailed > 0) ? "warning" : "success",
+        // "Cartas cadastradas" só faz sentido em `mode="full"` (é o resultado
+        // do job de cartas que acabou de rodar) — em `mode="images-only"` a
+        // Coleção já tinha todas as Cards de antes, então o resumo final
+        // mostra só as duas contagens de imagem.
+        body: imagePhase === "done" && imageResult && (
+          <p>
+            {mode === "full" && `Cartas cadastradas: ${cardsCatalogadas} · `}
+            Imagens importadas: {imageResult.imagesImported} · Imagens pendentes: {imagesPendentes}
+          </p>
+        ),
+      }
+    : null;
+
+  const steps: Step[] = [
+    ...analysisSteps,
+    ...(conclusionStep ? [conclusionStep] : []),
+    ...(cardsWrittenStep ? [cardsWrittenStep] : []),
+    ...(verifyingImagesStep && importingImagesStep && finalizingStep
+      ? [verifyingImagesStep, importingImagesStep, finalizingStep]
+      : []),
+  ];
+  // Badge de status do job só na última etapa de fato alcançada — evita
+  // repetir a mesma informação de status em duas linhas quando a etapa de
+  // confirmação já existe.
+  const lastStep = steps[steps.length - 1];
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{done ? "Importação processada" : "Processando importação..."}</span>
+          <span>
+            {fullyDone
+              ? "Importação processada"
+              : imagesInFlight
+                ? imageAttempt && imageAttempt > 1
+                  ? `Importando imagens... (tentativa ${imageAttempt})`
+                  : "Importando imagens..."
+                : mode === "images-only"
+                  ? "Iniciando importação de imagens..."
+                  : "Processando importação..."}
+          </span>
           <span className="tabular-nums">{percent}%</span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
@@ -311,75 +805,50 @@ export function ImportProgress({
       </div>
       <ol className="relative">
         {steps.map((step, index) => {
-          const isConclusion = index === steps.length - 1;
-          const status = isConclusion
-            ? done
-              ? "done"
-              : "pending"
-            : done || index < stepIndex
-              ? "done"
-              : index === stepIndex
-                ? "active"
-                : "pending";
           const Icon = step.icon;
           const isLast = index === steps.length - 1;
+          const toneClass =
+            step.status !== "done"
+              ? step.status === "active"
+                ? "animate-pulse text-primary"
+                : "text-muted-foreground"
+              : step.tone === "success"
+                ? "text-emerald-600"
+                : step.tone === "warning"
+                  ? "text-amber-600"
+                  : "text-muted-foreground";
 
           return (
-            <li key={step.label} className="relative flex gap-2.5 pb-4 last:pb-0">
+            <li key={step.key} className="relative flex gap-2.5 pb-4 last:pb-0">
               {!isLast && (
                 <span aria-hidden="true" className="absolute left-[9px] top-[18px] bottom-0 w-px bg-border" />
               )}
               <span
                 className={cn(
                   "relative z-10 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-surface-muted",
-                  status === "pending" && "opacity-40",
+                  step.status === "pending" && "opacity-40",
                 )}
               >
-                <Icon
-                  className={cn(
-                    "h-3.5 w-3.5",
-                    isConclusion && status === "done"
-                      ? "text-emerald-600"
-                      : status === "active"
-                        ? "animate-pulse text-primary"
-                        : "text-muted-foreground",
-                  )}
-                  aria-hidden="true"
-                />
+                <Icon className={cn("h-3.5 w-3.5", toneClass)} aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1 space-y-0.5 pt-0.5">
                 <span
                   className={cn(
                     "text-xs",
-                    status === "active" || (isConclusion && status === "done")
+                    step.status === "active" || (step.status === "done" && step.tone !== "neutral")
                       ? "font-medium text-foreground"
                       : "text-muted-foreground",
-                    status === "pending" && "opacity-40",
+                    step.status === "pending" && "opacity-40",
                   )}
                 >
                   {step.label}
-                  {isConclusion && status === "done" && job && (
+                  {step === lastStep && step.status === "done" && job && (
                     <Badge variant="outline" className="ml-1.5 align-middle">
                       {JOB_STATUS_LABEL[job.status] ?? job.status}
                     </Badge>
                   )}
                 </span>
-                {isConclusion && status === "done" && (
-                  <div className="space-y-0.5 text-xs text-muted-foreground">
-                    {resultSummary && (
-                      <p>
-                        {resultSummary.label} — {resultSummary.cardCount} cartas na TCGdex
-                      </p>
-                    )}
-                    {job && (
-                      <p>
-                        {job.totalRows} linhas · {job.validRows} válidas · {job.insertedRows} inseridas ·{" "}
-                        {job.updatedRows} atualizadas · {job.failedRows} falhas
-                      </p>
-                    )}
-                    {job?.errorSummary && <p className="text-destructive">{job.errorSummary}</p>}
-                  </div>
-                )}
+                {step.body && <div className="space-y-0.5 text-xs text-muted-foreground">{step.body}</div>}
               </div>
             </li>
           );

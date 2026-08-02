@@ -200,6 +200,61 @@ Histórico:
   imagens da `MEP` na TCGdex), `started_at`/`finished_at` corretamente
   preenchidos — confirma que a máquina de estados agora funciona de ponta a
   ponta em produção.
+- v2.7.0 (2026-08-02, CONFIRMADO DEPLOYADO — `npx supabase functions deploy
+  import-card-assets` bem-sucedido, projeto `qjfutqujxrbzgrtkpgkg`, `deno
+  cache`/`deno check` executados por Fabrício antes do deploy): dois
+  problemas reais
+  encontrados ao testar a continuação automática cartas->imagens (Query
+  2092) numa Coleção grande (SV4/Fenda Paradoxal, 266 cartas) — a função
+  estourou o tempo de execução da plataforma no meio do processamento
+  (HTTP 546) e, como reprocessava a Coleção INTEIRA a cada chamada
+  (decisão original do Sprint B3.20, deliberadamente adiada por Fabrício na
+  época — ver v2.3.0 acima), toda nova tentativa manual travava sempre no
+  mesmo ponto (~115/266), sem nunca progredir. Fabrício autorizou
+  explicitamente revisitar essa decisão: "Se for preciso alterar a function
+  para corrigir o problema, vamos fazer." Duas mudanças:
+  1. Pular cartas já importadas — antes de montar o lote de
+     download/upload, a função agora consulta quais Cards da coleção já têm
+     uma imagem primária ativa para o tipo/idioma (`listCardIdsWithPrimaryAsset`,
+     novo em `services/database.ts`) e as exclui do lote (`cardsToImport`).
+     `upsertCardAsset` continua idempotente por si só (mantido, defesa em
+     profundidade) — esta exclusão só evita o custo de rede de repetir um
+     download/upload já bem-sucedido, o que faz cada retry avançar de
+     verdade em vez de recomeçar do zero. `requested_count`/`processed_count`
+     da run passam a refletir só o que ESTA run tentou (a resposta HTTP
+     ganhou `images.already_imported` para mostrar quantas ficaram de fora).
+  2. Progresso incremental — `asset_import_run` passa a ser atualizada a
+     cada lote de `IMAGE_BATCH_SIZE` cartas processado
+     (`updateImportRunProgress`, novo em `services/database.ts`), não só
+     uma vez no final (`finishImportRun`, mantido). Pedido explícito de
+     Fabrício: "quero colocar um contador... que indique a quantidade de
+     imagens importadas e o total a ser importada. Quero enxergar o
+     progresso real" — o frontend passa a consultar essa linha por
+     `run_code` via polling enquanto a importação está rodando (ver
+     `05-modelo-de-dados.md`). Efeito colateral positivo: se a plataforma
+     matar a função no meio (como o HTTP 546 observado), o progresso real
+     feito até ali já está gravado, em vez de a run ficar com contadores
+     zerados/desatualizados. Os contadores de progresso
+     (`requestedSoFar`/`processedSoFar`/`successSoFar`/`failuresSoFar`)
+     também foram movidos para fora do `try` (mesmo padrão já usado por
+     `run`, desde v2.6.0) — o `catch` agora encerra a run com o progresso
+     real acumulado até o erro, em vez de zerar tudo incondicionalmente.
+- v2.8.0 (2026-08-02, mesmo dia, rodada seguinte, PROPOSTA — AGUARDANDO
+  `deno check` + deploy por Fabrício, ainda não confirmada publicada):
+  otimização de velocidade — Fabrício reportou lentidão real comparando com
+  o script PowerShell manual ("era quase instantânea"): o retry automático
+  do frontend (revisão `1.38` de `05-modelo-de-dados.md`) fazia várias
+  chamadas seguidas a esta função, e cada uma refazia a sincronização de
+  `card_external_reference` para as 266 cartas da Coleção inteira, mesmo
+  quando só uma fração ainda precisava de imagem. `cardsToImport` (cálculo
+  de "quais cartas ainda faltam", introduzido na v2.7.0) foi movido para
+  ANTES do passo de sincronização de referências (era depois) e a
+  sincronização passou a rodar só sobre `cardsToImport`, não mais
+  `set.cards` — uma carta com imagem já salva necessariamente já teve sua
+  referência sincronizada num passo anterior bem-sucedido (a sincronização
+  sempre roda por completo antes do laço de imagens, na mesma invocação),
+  então pular essas cartas é seguro. `external_references.total` na
+  resposta também passou a refletir `cardsToImport.length`.
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
 "Sprint B3.19", "Sprint B3.20", "Sprint B3.23" e "Sprint B3.24", para o
@@ -238,9 +293,11 @@ import {
   findImportRun,
   transitionImportRunToRunning,
   finishImportRun,
+  updateImportRunProgress,
   findCardSet,
   findCardSetExternalReference,
   listCardsMap,
+  listCardIdsWithPrimaryAsset,
   upsertCardExternalReference,
   findLanguageByCode,
   findCardAssetTypeByCode,
@@ -367,6 +424,18 @@ Deno.serve(async (req) => {
   // run para FAILED mesmo quando o erro acontece depois dela ser localizada.
   let run: Awaited<ReturnType<typeof findImportRun>> | null = null;
 
+  // v2.7.0 — mesmo motivo, para os contadores de progresso: se um erro
+  // inesperado acontecer DEPOIS de algumas imagens já terem sido
+  // processadas (ex.: uma exceção fora do try/catch por-carta de
+  // `processImageForCard`), o catch abaixo grava o progresso real já feito
+  // em vez de zerar tudo — antes desta correção, `finishImportRun` no catch
+  // sempre gravava contagens 0, mascarando qualquer progresso real anterior
+  // ao erro.
+  let requestedSoFar = 0;
+  let processedSoFar = 0;
+  let successSoFar = 0;
+  let failuresSoFar = 0;
+
   try {
     run = await findImportRun(
       supabase,
@@ -488,10 +557,47 @@ Deno.serve(async (req) => {
       activeRun.card_set_id,
     );
 
-    // Sincronização completa de card_external_reference (Incremento 1,
-    // CONFIRMADO CONCLUÍDO no Sprint B3.15 — mantida idêntica nesta versão).
+    // v2.7.0 (2026-08-02) — Cards que já têm uma imagem primária ativa para
+    // este tipo/idioma são excluídas do lote antes de processar (ver
+    // `listCardIdsWithPrimaryAsset`, novo em `services/database.ts`): sem
+    // isso, toda reexecução baixava/subia a coleção inteira de novo, mesmo
+    // as cartas já importadas com sucesso — e como o tempo de execução da
+    // plataforma é finito, uma Coleção grande o bastante travava sempre no
+    // mesmo ponto, sem nunca progredir entre tentativas (caso real:
+    // SV4/Fenda Paradoxal, 266 cartas, presa em ~115 a cada nova chamada).
+    // `upsertCardAsset` continua idempotente por si só (mantido, defesa em
+    // profundidade) — esta exclusão é só uma otimização que evita o custo de
+    // rede desnecessário de repetir um download/upload já bem-sucedido.
+    //
+    // v2.8.0 (2026-08-02, mesmo dia, rodada seguinte) — movido para ANTES da
+    // sincronização de `card_external_reference` logo abaixo (era depois):
+    // Fabrício reportou lentidão real comparando com o script PowerShell
+    // manual ("era quase instantânea"), e parte da causa é estrutural — cada
+    // tentativa automática do retry (revisão `1.38`) refazia a sincronização
+    // de `card_external_reference` para as 266 cartas da Coleção inteira,
+    // mesmo quando só uma fração ainda precisava de imagem. Card com imagem
+    // já salva necessariamente já teve sua referência sincronizada num
+    // passo anterior bem-sucedido (a sincronização sempre roda por completo
+    // ANTES do laço de imagens, na mesma invocação) — reordenar para
+    // calcular `cardsToImport` primeiro permite restringir a sincronização
+    // só a essas cartas, a mesma otimização já aplicada ao download de
+    // imagem em si.
+    const existingImageCardIds = await listCardIdsWithPrimaryAsset(
+      supabase,
+      Array.from(cards.values()),
+      assetType.id,
+      language.id,
+    );
+    const cardsToImport = set.cards.filter((tcgCard) => {
+      const cardId = cards.get(tcgCard.localId);
+      return Boolean(cardId) && !existingImageCardIds.has(cardId as string);
+    });
+
+    // Sincronização de card_external_reference (Incremento 1, CONFIRMADO
+    // CONCLUÍDO no Sprint B3.15) — v2.8.0: restrita a `cardsToImport` (era
+    // `set.cards`, a Coleção inteira), ver comentário acima.
     const referenceResults = await processInBatches(
-      set.cards,
+      cardsToImport,
       20,
       async (tcgCard) => {
         const cardId = cards.get(tcgCard.localId);
@@ -527,12 +633,16 @@ Deno.serve(async (req) => {
     const ignoredReferences =
       referenceResults.length - importedReferences;
 
-    // Incremento 2 (Sprint B3.20) — download + upload + card_asset para
-    // todas as cartas da coleção, em lotes controlados.
-    const imageResults = await processInBatches(
-      set.cards,
-      IMAGE_BATCH_SIZE,
-      async (tcgCard): Promise<ImageImportResult> => {
+    // Incremento 2 (Sprint B3.20) — download + upload + card_asset, em lotes
+    // controlados. v2.7.0: só para `cardsToImport` (ver acima); loop manual
+    // (era `processInBatches`) para poder gravar o progresso real em
+    // `asset_import_run` a cada lote concluído (`updateImportRunProgress`,
+    // novo em `services/database.ts`) — o frontend consulta essa linha por
+    // `run_code` via polling para mostrar "X de Y" enquanto a importação
+    // ainda está rodando, em vez de só saber o resultado no final.
+    async function processImageForCard(
+      tcgCard: (typeof cardsToImport)[number],
+    ): Promise<ImageImportResult> {
         try {
           const cardId = cards.get(tcgCard.localId);
 
@@ -618,8 +728,32 @@ Deno.serve(async (req) => {
             error: errorMessage,
           };
         }
-      },
-    );
+    }
+
+    // v2.7.0 — grava nas variáveis declaradas fora do try (ver comentário
+    // acima, junto de `run`) — se um erro inesperado interromper o loop no
+    // meio, o catch consegue encerrar a run com o progresso real já feito,
+    // em vez de zerar tudo.
+    const imageResults: ImageImportResult[] = [];
+    requestedSoFar = cardsToImport.length;
+
+    for (let index = 0; index < cardsToImport.length; index += IMAGE_BATCH_SIZE) {
+      const batch = cardsToImport.slice(index, index + IMAGE_BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map((tcgCard) => processImageForCard(tcgCard)),
+      );
+      imageResults.push(...batchResults);
+      processedSoFar = imageResults.length;
+      successSoFar += batchResults.filter((result) => result.success).length;
+      failuresSoFar += batchResults.filter((result) => !result.success).length;
+
+      await updateImportRunProgress(supabase, activeRun.id, {
+        requested_count: requestedSoFar,
+        processed_count: processedSoFar,
+        success_count: successSoFar,
+        failed_count: failuresSoFar,
+      });
+    }
 
     const importedImages = imageResults.filter(
       (result) => result.success,
@@ -631,12 +765,15 @@ Deno.serve(async (req) => {
     // v2.6.0 — encerra a run com o resultado real: COMPLETED se nenhuma
     // imagem falhou, COMPLETED_WITH_ERRORS caso contrário. Contagens
     // baseadas na dimensão "imagens" (o que a run efetivamente entrega).
+    // v2.7.0 — `requested_count` passa a ser `cardsToImport.length` (quantas
+    // cartas esta run de fato tentou — já excluindo as que puladas por já
+    // terem imagem), não mais `set.cards.length` (tamanho total da Coleção).
     await finishImportRun(supabase, activeRun.id, {
       status:
         failedImages.length === 0
           ? "COMPLETED"
           : "COMPLETED_WITH_ERRORS",
-      requested_count: set.cards.length,
+      requested_count: cardsToImport.length,
       processed_count: imageResults.length,
       success_count: importedImages.length,
       failed_count: failedImages.length,
@@ -648,7 +785,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.6.0",
+      version: "2.8.0",
       run: {
         id: activeRun.id,
         run_code: activeRun.run_code,
@@ -667,12 +804,20 @@ Deno.serve(async (req) => {
       external_references: {
         imported: importedReferences,
         ignored: ignoredReferences,
-        total: set.cards.length,
+        // v2.8.0 — total agora é `cardsToImport.length` (só as cartas desta
+        // run tentou sincronizar), não mais `set.cards.length` (a Coleção
+        // inteira) — ver comentário acima de `cardsToImport`.
+        total: cardsToImport.length,
       },
       images: {
         imported: importedImages.length,
         failed: failedImages.length,
+        // v2.7.0 — `total` agora é só o que ESTA run tentou (cartas ainda
+        // sem imagem no início dela); `already_imported` mostra quantas
+        // ficaram de fora por já terem imagem (não recontadas/redownload).
+        // O total real da Coleção é `already_imported + total`.
         total: imageResults.length,
+        already_imported: existingImageCardIds.size,
       },
       failures: failedImages,
     });
@@ -687,13 +832,18 @@ Deno.serve(async (req) => {
     // v2.6.0 — se a run já foi localizada (e por isso já está RUNNING),
     // encerra como FAILED em vez de deixá-la presa. `finishImportRun` não
     // relança erro — nunca deve mascarar a resposta 500 já decidida aqui.
+    // v2.7.0 — usa o progresso real acumulado até aqui (`requestedSoFar`/
+    // `processedSoFar`/`successSoFar`/`failuresSoFar`, declaradas fora do
+    // try) em vez de zerar tudo: se o erro aconteceu depois de algumas
+    // imagens já terem sido processadas com sucesso, essa informação real
+    // não deve se perder.
     if (run) {
       await finishImportRun(supabase, run.id, {
         status: "FAILED",
-        requested_count: 0,
-        processed_count: 0,
-        success_count: 0,
-        failed_count: 0,
+        requested_count: requestedSoFar,
+        processed_count: processedSoFar,
+        success_count: successSoFar,
+        failed_count: failuresSoFar,
         error_summary: errorMessage,
       });
     }
