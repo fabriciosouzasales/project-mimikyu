@@ -44,6 +44,19 @@ import { cn } from "@/lib/utils";
 
 const INITIAL_STATE: IniciarImportacaoTcgdexActionState = { error: null, jobId: null };
 
+// Continuação automática cartas→imagens (2026-08-02, suporte EN + PT-BR):
+// idioma fixo `pt-BR`, escolhido deliberadamente diferente do default 'en'
+// de `abrirImportacaoImagens`/`admin_start_asset_import_run()` — pedido
+// explícito de Fabrício ("O processo de importação das imagens só importou
+// as cartas em inglês, ficaram pendentes as 266 imagens em PT"): o pipeline
+// de imagens já rodava majoritariamente em inglês por padrão histórico
+// (LANGUAGE_CODE fixo na Edge Function até a v2.9.0); a lacuna real e
+// recorrente é justamente PT-BR nunca ser importado automaticamente. A
+// importação em inglês continua disponível via a tela dedicada
+// `/catalogo/importar-imagens?idioma=en` (`LanguageToggle`) — esta
+// continuação automática cobre só o idioma que faltava.
+const AUTO_CONTINUATION_LANGUAGE_CODE = "pt-BR";
+
 /**
  * Resultado da localização automática do Set na TCGdex (Ciclo 2, ADR-024) —
  * `MatchResultPanel` cobre os dois casos "raros" (AMBIGUOUS/NOT_FOUND, mais
@@ -196,7 +209,11 @@ export function useAnalyzeJob(cardSetId: string) {
     // run via RPC) que devolve o `runCode` de imediato, permitindo começar
     // o polling em paralelo à chamada longa e bloqueante de
     // `executarImportacaoImagens` (o fetch de fato à Edge Function).
-    abrirImportacaoImagens(cardSetId, `catalog_import_job:${job.id}`).then((openResult) => {
+    abrirImportacaoImagens(
+      cardSetId,
+      `catalog_import_job:${job.id}`,
+      AUTO_CONTINUATION_LANGUAGE_CODE,
+    ).then((openResult) => {
       if (cancelled) return;
 
       if (!openResult.supported) {
@@ -272,7 +289,7 @@ export function useAnalyzeJob(cardSetId: string) {
         do {
           attempt += 1;
           if (!cancelled) setImageAttempt(attempt);
-          result = await executarImportacaoImagens(cardSetId, runCode);
+          result = await executarImportacaoImagens(cardSetId, runCode, AUTO_CONTINUATION_LANGUAGE_CODE);
           if (cancelled) return result;
           if (result.imagesImported === lastImported) break;
           lastImported = result.imagesImported;

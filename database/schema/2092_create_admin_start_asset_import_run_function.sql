@@ -2,10 +2,12 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2092 - Create admin_start_asset_import_run() Function
-Versão......: 1.2
-Status......: EXECUTADA E CONFIRMADA por Fabrício em 2026-08-02
+Versão......: 1.3
+Status......: PROPOSTA — AGUARDANDO EXECUÇÃO (Migration 2093 reconcilia
+               banco já instalado na v1.2; instalação nova executa esta
+               Query diretamente).
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-08-01 (v1.0), 2026-08-02 (v1.1 — correção, v1.2 — correção)
+Data........: 2026-08-01 (v1.0), 2026-08-02 (v1.1/v1.2/v1.3)
 
 Correção v1.1 (2026-08-02): a v1.0, confirmada executada, tinha um bug
 real de PL/pgSQL — `RETURNS TABLE (..., run_code TEXT, ...)` cria uma
@@ -55,6 +57,32 @@ uma imagem já existente é apenas redundante, não incorreto. Assinatura
 não muda — `CREATE OR REPLACE` é suficiente, sem migration própria
 (mesmo padrão da v1.1).
 
+Ampliação de escopo v1.3 (2026-08-02, Migration 2093): idioma fixo
+'en' vira parâmetro `p_language_code` (DEFAULT 'en', preserva
+compatibilidade com todo chamador existente) — mesma motivação de
+Query 210 v2.0/Migration 277 (`[[project_mimikyu_domain_decisions]]`):
+Fabrício pediu suporte real a EN + PT-BR simultaneamente depois de
+notar que a importação automática nunca trazia as imagens em
+português. Duas mudanças de comportamento:
+1. `v_language_id` passa a ser resolvido a partir de
+   `p_language_code` (antes, sempre `'en'` hardcoded) — a run já
+   guarda esse valor em `asset_import_run.language_id` desde a v1.0
+   (Query 220), então nenhuma coluna nova é necessária aqui; só a
+   fonte do valor muda de constante para parâmetro.
+2. A checagem de "run já ativa" (evita runs duplicadas) passa a
+   também considerar `language_id` — antes, uma run RUNNING em `en`
+   bloqueava (`already_active = true`) uma tentativa de abrir uma run
+   em `pt-BR` para o MESMO Card Set, o que é incorreto agora que os
+   dois idiomas podem ser importados de forma independente e
+   simultânea (Migration 277 permite exatamente isso em
+   `card_external_reference`). Cada (card_set_id, TCGDEX, idioma) tem
+   sua própria noção de "já em andamento".
+A Edge Function import-card-assets (v2.9.0, pendente) passa a ler o
+idioma da própria run (`activeRun.language_id`) em vez do
+`LANGUAGE_CODE`/`TCGDEX_LANGUAGE` hardcoded — esta Query só abre a
+run com o idioma correto; nenhuma lógica de importação em si muda
+aqui.
+
 Descrição...:
 Cria admin_start_asset_import_run(), função pública SECURITY DEFINER
 — primeira via administrada (não mais SQL direto/migration avulsa
@@ -94,18 +122,21 @@ Regras de Negócio:
   Promo/Energia ou qualquer Set fora da cobertura da TCGdex),
   `supported = false` é devolvido sem lançar exceção — o chamador
   trata como caminho normal, não erro (ver comentário do frontend).
-- Idioma fixo: 'en' — reflete o LANGUAGE_CODE hoje hardcoded em
-  import-card-assets/index.ts (nunca foi parametrizado por request,
-  apesar de sinalizado como pré-requisito futuro desde o Sprint
-  B3.21 do próprio pipeline). O `language_id` gravado na run é só
-  descritivo — a Edge Function decide o idioma sozinha, ignora esse
-  campo da linha.
-- Evita runs duplicadas: se já existe uma run PENDING/RUNNING para
-  o mesmo (card_set_id, TCGDEX) criada há menos de 15 minutos, devolve
-  essa run existente (`already_active = true`) em vez de abrir uma
-  segunda — mesmo espírito de uq_catalog_import_job_fingerprint_active
-  (Query 2060, ADR-024), sem precisar de uma constraint nova só para
-  isto.
+- Idioma parametrizado (v1.3): `p_language_code` (DEFAULT 'en')
+  resolve `v_language_id` via `public.language.code`. Antes da v1.3
+  era sempre `'en'` fixo, refletindo o `LANGUAGE_CODE` então
+  hardcoded em import-card-assets/index.ts. O `language_id` gravado
+  na run já era usado pela Edge Function (v2.9.0) para decidir o
+  idioma da importação em si.
+- Evita runs duplicadas: se já existe uma run PENDING/RUNNING para o
+  mesmo (card_set_id, TCGDEX, idioma) criada há menos de 15 minutos,
+  devolve essa run existente (`already_active = true`) em vez de
+  abrir uma segunda — mesmo espírito de
+  uq_catalog_import_job_fingerprint_active (Query 2060, ADR-024),
+  sem precisar de uma constraint nova só para isto. Escopo por
+  idioma (v1.3): uma run ativa em `en` NÃO bloqueia mais abrir uma
+  run em `pt-BR` para o mesmo Card Set — os dois idiomas avançam de
+  forma independente.
 - Runs "presas" (v1.2): uma run PENDING/RUNNING com mais de 15 minutos
   é tratada como travada (indício de a Edge Function import-card-
   assets ter morrido no meio — timeout de plataforma — sem chegar a
@@ -137,7 +168,8 @@ Pré-requisitos:
 CREATE OR REPLACE FUNCTION public.admin_start_asset_import_run(
     p_card_set_id UUID,
     p_run_type TEXT DEFAULT 'FULL_CARD_SET',
-    p_initiated_by TEXT DEFAULT NULL
+    p_initiated_by TEXT DEFAULT NULL,
+    p_language_code TEXT DEFAULT 'en'
 )
 RETURNS TABLE (
     supported BOOLEAN,
@@ -196,9 +228,10 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT id INTO v_language_id FROM public.language WHERE code = 'en';
+    -- Idioma parametrizado (v1.3) — antes sempre 'en' fixo.
+    SELECT id INTO v_language_id FROM public.language WHERE code = p_language_code;
     IF v_language_id IS NULL THEN
-        RAISE EXCEPTION 'ADMIN_START_ASSET_IMPORT_RUN_LANGUAGE_NOT_FOUND: idioma en não cadastrado em language.';
+        RAISE EXCEPTION 'ADMIN_START_ASSET_IMPORT_RUN_LANGUAGE_NOT_FOUND: idioma % não cadastrado em language.', p_language_code;
     END IF;
 
     -- `asset_import_run.run_code` qualificado explicitamente (v1.1) —
@@ -206,11 +239,14 @@ BEGIN
     -- visível aqui dentro; um `run_code` solto é ambíguo entre ela e a
     -- coluna da tabela, e falha em tempo de execução (não é um erro que
     -- `RAISE EXCEPTION`/`traduzirErroCatalogo` conseguem traduzir).
+    -- Escopo por language_id (v1.3) — uma run ativa em outro idioma para
+    -- o mesmo Card Set não deve ser tratada como "a mesma" importação.
     SELECT id, asset_import_run.run_code, created_at
         INTO v_existing_id, v_existing_code, v_existing_created_at
         FROM public.asset_import_run
         WHERE card_set_id = p_card_set_id
           AND asset_source_id = v_asset_source_id
+          AND language_id = v_language_id
           AND status IN ('PENDING', 'RUNNING')
         ORDER BY created_at DESC
         LIMIT 1;
@@ -247,5 +283,5 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.admin_start_asset_import_run(UUID, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.admin_start_asset_import_run(UUID, TEXT, TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.admin_start_asset_import_run(UUID, TEXT, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_start_asset_import_run(UUID, TEXT, TEXT, TEXT) TO authenticated;

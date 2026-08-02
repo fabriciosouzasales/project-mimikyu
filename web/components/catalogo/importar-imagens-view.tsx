@@ -54,12 +54,15 @@ export function ImportarImagensView({
   colecoesPendentes,
   cartasSemImagem,
   selectedCardSet,
+  languageCode,
 }: {
   /** Card Sets com Cards cadastradas e pelo menos uma imagem pendente — filtro aplicado em `page.tsx` via `getCardSetsForImportacaoImagens`. */
   cardSets: CatalogoCardSetImagensRow[];
   colecoesPendentes: number;
   cartasSemImagem: number;
   selectedCardSet: CatalogoCardSetImagensRow | null;
+  /** Idioma da tela inteira (2026-08-02, suporte EN + PT-BR) — resolvido em `page.tsx` a partir de `?idioma=`. */
+  languageCode: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -75,8 +78,17 @@ export function ImportarImagensView({
   const started = isPending || imagePhase !== "idle";
 
   function navigate(cardSetId: string | null) {
-    const query = cardSetId ? `?cardSetId=${cardSetId}` : "";
-    router.push(`/catalogo/importar-imagens${query}`);
+    const params = new URLSearchParams();
+    params.set("idioma", languageCode);
+    if (cardSetId) params.set("cardSetId", cardSetId);
+    router.push(`/catalogo/importar-imagens?${params.toString()}`);
+  }
+
+  // Troca de idioma (2026-08-02) — não preserva `?cardSetId=` de propósito:
+  // a Coleção selecionada pertence à lista de pendências do idioma
+  // anterior e pode nem existir na do novo.
+  function navigateLanguage(nextLanguageCode: string) {
+    router.push(`/catalogo/importar-imagens?idioma=${nextLanguageCode}`);
   }
 
   function handleImportar() {
@@ -93,7 +105,7 @@ export function ImportarImagensView({
       // RPC) e devolve o `runCode` de imediato, permitindo iniciar o
       // polling em paralelo à chamada longa e bloqueante de
       // `executarImportacaoImagens`.
-      const openResult = await abrirImportacaoImagens(cardSetId, "manual_retry:importar-imagens");
+      const openResult = await abrirImportacaoImagens(cardSetId, "manual_retry:importar-imagens", languageCode);
 
       if (!openResult.supported) {
         setImageResult({
@@ -161,7 +173,7 @@ export function ImportarImagensView({
       do {
         attempt += 1;
         setImageAttempt(attempt);
-        result = await executarImportacaoImagens(cardSetId, runCode);
+        result = await executarImportacaoImagens(cardSetId, runCode, languageCode);
         if (result.imagesImported === lastImported) break;
         lastImported = result.imagesImported;
       } while (result.supported && result.imagesFailed > 0 && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS);
@@ -217,6 +229,7 @@ export function ImportarImagensView({
                     onSelect={(id) => navigate(id)}
                   />
                 </div>
+                <LanguageToggle value={languageCode} onChange={navigateLanguage} />
                 {selectedCardSet && (
                   <Button type="button" className="h-10 shrink-0" onClick={handleImportar} disabled={started}>
                     Importar Imagens
@@ -250,6 +263,55 @@ export function ImportarImagensView({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Alternador de idioma da tela inteira (2026-08-02, suporte EN + PT-BR) —
+ * mesmo padrão visual de `FonteToggle` (`importar-cartas-view.tsx`): grupo
+ * segmentado, `inline-flex` (não `flex`, mesmo motivo já documentado lá —
+ * encolhe para caber só o conteúdo, sem sobrar espaço vazio ao lado).
+ * Posicionado entre o combobox e o botão "Importar Imagens" (pedido
+ * explícito de Fabrício, mesma rodada) — antes vivia no `PageHeader`.
+ *
+ * Rótulo do botão é "PT" (era "PT-BR"), pedido explícito de Fabrício
+ * ("Use PT pois é a forma como a API TCGDEX está configurada") — mas o
+ * `code` continua `"pt-BR"`: é o valor real de `language.code` no banco
+ * (confirmado: `en`/`pt-BR`, não existe `pt` cadastrado) e o que
+ * `admin_start_asset_import_run()` espera em `p_language_code`. O "pt" da
+ * TCGdex já é tratado à parte, só dentro da Edge Function
+ * (`TCGDEX_LANGUAGE_BY_CODE`, `pt-BR` → `pt`) — só o RÓTULO exibido aqui
+ * muda, nada no valor que trafega internamente.
+ */
+function LanguageToggle({ value, onChange }: { value: string; onChange: (languageCode: string) => void }) {
+  const options: { code: string; label: string }[] = [
+    { code: "en", label: "EN" },
+    { code: "pt-BR", label: "PT" },
+  ];
+
+  return (
+    <div
+      className="inline-flex h-10 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-muted p-0.5"
+      role="group"
+      aria-label="Idioma da importação de imagens"
+    >
+      {options.map((option) => (
+        <button
+          key={option.code}
+          type="button"
+          onClick={() => onChange(option.code)}
+          aria-pressed={value === option.code}
+          className={cn(
+            "rounded-[5px] px-3 py-1.5 text-xs font-medium transition-colors",
+            value === option.code
+              ? "bg-surface text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

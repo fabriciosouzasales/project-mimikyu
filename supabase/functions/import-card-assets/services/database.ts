@@ -30,6 +30,19 @@
 // sincronização de card_external_reference a `cardsToImport`) é só
 // reordenação de chamadas já existentes em index.ts.
 //
+// v2.9.0 (2026-08-02, PROPOSTA — AGUARDANDO deploy, suporte EN + PT-BR, ver
+// index.ts e Query 210 v2.0/Migration 277): três mudanças —
+// `findImportRun` passa a selecionar `language_id` (idioma da run, definido
+// por `admin_start_asset_import_run()` v1.3, Query 2092); nova
+// `findLanguageById` (a função passa a resolver o idioma pela run, não mais
+// por uma constante fixa — `findLanguageByCode` continua existindo, sem uso
+// nesta função a partir de agora); `upsertCardExternalReference` ganha
+// `language_id` no payload e no `onConflict` (era
+// `card_id,asset_source_id`, agora `card_id,asset_source_id,language_id`) —
+// sem isso, sincronizar a referência em um segundo idioma sobrescreveria a
+// linha já usada pelo primeiro (mesma colisão sinalizada, não resolvida, no
+// Sprint B3.23/B3.24).
+//
 // v2.6.0 (2026-07-25): bug real encontrado por Fabrício em produção —
 // `asset_import_run` tem uma máquina de estados completa (`PENDING` →
 // `RUNNING` → `COMPLETED`/`COMPLETED_WITH_ERRORS`/`FAILED`/`CANCELLED`,
@@ -63,6 +76,7 @@ export async function findImportRun(
       run_code,
       asset_source_id,
       card_set_id,
+      language_id,
       status,
       created_at
     `)
@@ -319,12 +333,20 @@ export async function listCardsMap(
  * arquivo, exposto agora pela primeira execução real de `deno check` contra
  * este projeto (ver services/tcgdex.ts para a correção irmã, que tornou
  * `tcgCard.image` corretamente opcional).
+ *
+ * v2.9.0 (2026-08-02) — `language_id` adicionado ao payload e ao
+ * `onConflict` (era `card_id,asset_source_id`, agora
+ * `card_id,asset_source_id,language_id`) — Query 210 v2.0/Migration 277:
+ * sem o idioma na chave de conflito, sincronizar a referência em um segundo
+ * idioma sobrescrevia a linha já usada pelo primeiro (colisão real
+ * sinalizada, não resolvida, desde o Sprint B3.23/B3.24).
  */
 export async function upsertCardExternalReference(
   supabase: any,
   payload: {
     card_id: string;
     asset_source_id: string;
+    language_id: string;
     external_card_id: string;
     external_set_id: string;
     source_number: string;
@@ -342,7 +364,7 @@ export async function upsertCardExternalReference(
   const { data, error } = await supabase
     .from("card_external_reference")
     .upsert(record, {
-      onConflict: "card_id,asset_source_id",
+      onConflict: "card_id,asset_source_id,language_id",
     })
     .select()
     .single();
@@ -378,7 +400,10 @@ export async function upsertCardExternalReference(
 // final do ativo.
 
 /**
- * Localiza um idioma pelo código editorial (ex.: `en`, `pt-BR`).
+ * Localiza um idioma pelo código editorial (ex.: `en`, `pt-BR`). Mantida
+ * para compatibilidade (nenhum outro caminho depende dela hoje) — a partir
+ * da v2.9.0, `index.ts` resolve o idioma pela run (`findLanguageById`), não
+ * mais por um código fixo.
  */
 export async function findLanguageByCode(
   supabase: any,
@@ -392,6 +417,34 @@ export async function findLanguageByCode(
       name
     `)
     .eq("code", code)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    throw new Error("LANGUAGE_QUERY_FAILED");
+  }
+
+  return data;
+}
+
+/**
+ * Localiza um idioma pelo id (v2.9.0) — `asset_import_run.language_id`
+ * (Query 220, resolvido por `admin_start_asset_import_run()` v1.3, Query
+ * 2092) passa a ser a fonte real do idioma da importação, em vez de uma
+ * constante fixa em `index.ts`.
+ */
+export async function findLanguageById(
+  supabase: any,
+  languageId: string,
+) {
+  const { data, error } = await supabase
+    .from("language")
+    .select(`
+      id,
+      code,
+      name
+    `)
+    .eq("id", languageId)
     .maybeSingle();
 
   if (error) {

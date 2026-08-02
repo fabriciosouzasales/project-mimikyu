@@ -103,20 +103,13 @@ Recebe um `run_code` (identificador de um `asset_import_run` já criado) e, numa
 - **Secret `SUPABASE_SERVICE_ROLE_KEY`** configurado na Edge Function (junto com `SUPABASE_URL`, padrão de toda Edge Function Supabase).
 - **Bucket físico `card-front`** já existe no Supabase Storage. `card-back`/`artwork` (para verso e ilustração completa) ainda não foram criados — só criar quando forem realmente usados.
 
-## ⚠️ Limitação real atual — idioma é configuração fixa no código, não parâmetro
+## ~~⚠️ Limitação real atual — idioma é configuração fixa no código, não parâmetro~~ — RESOLVIDO (2026-08-02, v2.9.0, PROPOSTA — aguardando deploy)
 
-`index.ts` usa duas constantes fixas para controlar o idioma da execução, e **elas não são derivadas uma da outra** — precisam ser mantidas em sincronia manualmente a cada mudança de idioma:
+Descrição histórica preservada por rastreabilidade: `index.ts` usava duas constantes fixas para controlar o idioma da execução, que precisavam ser mantidas em sincronia manualmente a cada troca de idioma (`LANGUAGE_CODE`/`TCGDEX_LANGUAGE`) — reimplantar a função era o único jeito de trocar o idioma de uma nova coleção.
 
-```ts
-const LANGUAGE_CODE = "pt-BR";   // idioma no banco (language.code, card_asset.language_id, caminho no Storage)
-const TCGDEX_LANGUAGE = "pt";    // idioma reconhecido pela API da TCGdex (não aceita "pt-BR")
-```
+**Resolvido na revisão `1.40` de `05-modelo-de-dados.md`** (suporte real e simultâneo a EN + PT-BR, pedido explícito de Fabrício): `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` removidas — o idioma agora vem de `asset_import_run.language_id`, resolvido por `admin_start_asset_import_run()` v1.3 (Query `2092`) a partir de um novo parâmetro `p_language_code` (`DEFAULT 'en'`). `TCGDEX_LANGUAGE_BY_CODE` (novo mapa local em `index.ts`) mantém a tradução `pt-BR` → `pt` no único lugar que ainda precisa dela. `source_url` também passou a usar o mesmo `language.code` resolvido dinamicamente (a inconsistência `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` mencionada abaixo não existe mais). **Status de deploy:** Query `2092` v1.3/Migration `2093` e Edge Function v2.9.0 escritas e revisadas, ainda **AGUARDANDO EXECUÇÃO/deploy** por Fabrício — ver `05-modelo-de-dados.md`, revisão `1.40`, para o detalhe completo.
 
-**Estado atual do código publicado: configurado para `pt-BR`/`pt`.** Para importar uma coleção nova em inglês com o código como está hoje, as duas constantes precisam ser alteradas de volta para `"en"`/`"en"` e a função reimplantada (`npx supabase functions deploy import-card-assets`) — não é possível escolher o idioma por parâmetro na chamada. Transformar `language`/`asset_type`/`bucket` em parâmetros da requisição é uma melhoria real identificada e ainda não implementada (ver "Em Aberto").
-
-Também `source_url` (armazenado em `card_external_reference`, apenas para referência, nunca buscado de volta) é montado com `LANGUAGE_CODE` em vez de `TCGDEX_LANGUAGE` — mesma inconsistência, sem efeito prático até hoje, mas vale corrigir junto da parametrização.
-
-**Nota real sobre `card_external_reference` ser idioma-agnóstico**: a tabela tem `UNIQUE (card_id, asset_source_id)`, sem dimensão de idioma. O total ficou em `859` mesmo após importar as 5 coleções nos dois idiomas — confirma que a execução em `pt-BR` faz `UPSERT` sobre a mesma linha já criada pela `en`, em vez de criar uma segunda. Isso é aceitável hoje porque `card_external_reference` é só um cache de importação — quem carrega a dimensão de idioma que importa ao catálogo é `card_asset` (que corretamente tem uma linha por idioma). Decisão em aberto: manter assim de propósito, ou adicionar `language_id` à chave.
+**`card_external_reference` deixou de ser idioma-agnóstico (2026-08-02, Query `210` v2.0/Migration `277`)**: a tabela ganhou `language_id UUID NOT NULL` como parte da identidade da linha — as duas `UNIQUE` (`(card_id, asset_source_id)` e `(asset_source_id, external_card_id)`) passaram a incluir `language_id`. A "Nota real" abaixo (preservada por rastreabilidade) descreve o comportamento ANTES desta correção: o total ficou em `859` mesmo após importar as 5 coleções nos dois idiomas porque a execução em `pt-BR` fazia `UPSERT` sobre a mesma linha já criada pela `en`, em vez de criar uma segunda — a "decisão em aberto" mencionada ali foi resolvida a favor de adicionar `language_id` à chave.
 
 ---
 
@@ -130,9 +123,9 @@ Movidos para `operations/import-card-assets.md`, a partir da revisão `1.2`: o p
 
 - Estratégia de resolução de conflitos entre múltiplas fontes externas (ex.: TCGdex vs. Pokémon TCG API) — ainda não definida.
 - Verificação de direitos/termos de uso das imagens antes de importação em massa (ver `05-modelo-de-dados.md`, seção "Arquitetura de Importação de Ativos") — ressalva registrada, não resolvida.
-- **Crítico**: transformar `language`/`asset_type`/`bucket` em parâmetros da requisição da Edge Function, substituindo as constantes fixas hoje presas em `"pt-BR"`/`"pt"` — pré-requisito para importar uma coleção nova sem editar e reimplantar código a cada troca de idioma.
-- `source_url` em `card_external_reference` usa `LANGUAGE_CODE` em vez de `TCGDEX_LANGUAGE` — corrigir junto da parametrização acima.
-- `card_external_reference` sem dimensão de idioma na chave de unicidade — decisão pendente de Fabrício (manter idioma-agnóstico vs. adicionar `language_id`).
+- ~~**Crítico**: transformar `language`/`asset_type`/`bucket` em parâmetros da requisição da Edge Function...~~ — **RESOLVIDO (2026-08-02, v2.9.0, PROPOSTA — aguardando deploy)**: `language` agora vem de `asset_import_run.language_id`, ver seção acima. `asset_type`/`bucket` seguem fixos (`CARD_FRONT`/`card-front`) — fora do escopo desta rodada, nenhum pedido de Fabrício os tornou necessários ainda.
+- ~~`source_url` em `card_external_reference` usa `LANGUAGE_CODE` em vez de `TCGDEX_LANGUAGE`~~ — **RESOLVIDO (2026-08-02, v2.9.0)**: ambos substituídos por `language.code`, resolvido dinamicamente.
+- ~~`card_external_reference` sem dimensão de idioma na chave de unicidade~~ — **RESOLVIDO (2026-08-02, Query `210` v2.0/Migration `277`)**: `language_id` adicionado à chave, decisão confirmada por Fabrício ("Os dois idiomas (EN + PT-BR)").
 - Auditoria consolidada de `GRANT`s para `service_role` em todo o schema `public` (`grants.sql` ou equivalente) — sete casos reais já encontrados um a um; consolidação deliberadamente adiada por Fabrício.
 - Melhoria de idempotência: pular cartas que já têm `card_asset` atualizado, evitando novo download/upload em reexecuções — identificada, deliberadamente adiada.
 - Buckets físicos `card-back`/`artwork` ainda não criados — só `card-front` existe.

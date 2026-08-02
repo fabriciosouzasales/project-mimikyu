@@ -1070,10 +1070,18 @@ export type CatalogoCardSetImagensRow = CatalogoCardSetRow & {
  * `.in("card.card_set_id", ...)` filtra pela tabela relacionada, mesmo
  * mecanismo de `.eq("card.card_set_id", ...)` já confirmado funcionando em
  * produção.
+ *
+ * `languageCode` (2026-08-02, suporte EN + PT-BR): antes esta consulta não
+ * filtrava por idioma NENHUM — contava qualquer `card_asset` CARD_FRONT
+ * primário, de qualquer idioma, então uma Coleção 100% importada em `en`
+ * aparecia como "completa" mesmo com `pt-BR` inteiramente pendente. Agora
+ * exige `language!inner(code)` + `.eq("language.code", languageCode)`, mesmo
+ * padrão já usado por `contarImagensImportadas`.
  */
 async function getImagesImportadasPorCardSet(
   supabase: SupabaseClient,
   cardSetIds: string[],
+  languageCode: string,
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (cardSetIds.length === 0) return counts;
@@ -1081,9 +1089,10 @@ async function getImagesImportadasPorCardSet(
   const rows = await fetchAllRows((from, to) =>
     supabase
       .from("card_asset")
-      .select("card_id, card!inner(card_set_id), card_asset_type!inner(code)")
+      .select("card_id, card!inner(card_set_id), card_asset_type!inner(code), language!inner(code)")
       .eq("is_primary", true)
       .eq("card_asset_type.code", "CARD_FRONT")
+      .eq("language.code", languageCode)
       .in("card.card_set_id", cardSetIds)
       .range(from, to),
   );
@@ -1118,12 +1127,22 @@ async function getImagesImportadasPorCardSet(
  * total (mesma coisa que nunca importado, do ponto de vista desta consulta
  * — a run em si pode ter FAILED, mas o que importa aqui é quantas Cards
  * ainda não têm imagem).
+ *
+ * `languageCode` (2026-08-02, DEFAULT 'en' — mesmo padrão default de
+ * `admin_start_asset_import_run()` v1.3, preserva o comportamento anterior
+ * para quem ainda não passa o parâmetro): decide QUAL idioma está pendente —
+ * a mesma Coleção pode aparecer para `en` e para `pt-BR` de forma
+ * independente, cada consulta vendo só o idioma pedido.
  */
-export async function getCardSetsForImportacaoImagens(supabase: SupabaseClient): Promise<CatalogoCardSetImagensRow[]> {
+export async function getCardSetsForImportacaoImagens(
+  supabase: SupabaseClient,
+  languageCode: string = "en",
+): Promise<CatalogoCardSetImagensRow[]> {
   const cardSets = (await getCardSetsForCartas(supabase)).filter((cardSet) => cardSet.cardsCatalogados > 0);
   const imagesImportadasCounts = await getImagesImportadasPorCardSet(
     supabase,
     cardSets.map((cardSet) => cardSet.id),
+    languageCode,
   );
 
   return cardSets
@@ -1152,16 +1171,21 @@ export async function getCardSetsForImportacaoImagens(supabase: SupabaseClient):
  * para popular as OPÇÕES do combobox) continua filtrada normalmente, então
  * a Coleção concluída não volta a ser oferecida para nova seleção, só
  * permanece visível enquanto for a que já está selecionada.
+ *
+ * `languageCode` (2026-08-02, DEFAULT 'en', mesmo motivo de
+ * `getCardSetsForImportacaoImagens`): precisa ser o MESMO idioma que a tela
+ * está mostrando — senão `imagesPendentes` reflete o idioma errado.
  */
 export async function getCardSetImagensById(
   supabase: SupabaseClient,
   cardSetId: string,
+  languageCode: string = "en",
 ): Promise<CatalogoCardSetImagensRow | null> {
   const cardSets = await getCardSetsForCartas(supabase);
   const cardSet = cardSets.find((row) => row.id === cardSetId);
   if (!cardSet) return null;
 
-  const imagesImportadasCounts = await getImagesImportadasPorCardSet(supabase, [cardSetId]);
+  const imagesImportadasCounts = await getImagesImportadasPorCardSet(supabase, [cardSetId], languageCode);
   const imagesImportadas = imagesImportadasCounts.get(cardSetId) ?? 0;
   const imagesPendentes = Math.max(cardSet.cardsCatalogados - imagesImportadas, 0);
   return { ...cardSet, imagesImportadas, imagesPendentes };

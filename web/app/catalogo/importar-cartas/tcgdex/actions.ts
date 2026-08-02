@@ -366,14 +366,18 @@ type AdminStartAssetImportRunRow = {
  * a mesma coleção em paralelo. Devolve `success = true` sem contadores
  * (a run já em andamento não é acompanhada por esta chamada).
  *
- * Limitação conhecida, não resolvida aqui por seria alterar a Edge Function
- * (fora do pedido — "não alterar a arquitetura atual"): import-card-
- * assets/index.ts tem `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` fixos em `"en"`,
- * nunca foi parametrizado por request (sinalizado como pendência desde o
- * Sprint B3.21 do próprio pipeline, docs/06-pipeline-importacao.md) — a
- * importação automática de imagens sempre roda em inglês; imagens em
- * pt-BR continuam dependendo do pipeline manual (reexecução com o mesmo
- * `run_code`, mesmo procedimento de sempre).
+ * Limitação HISTÓRICA, resolvida em 2026-08-02 (suporte EN + PT-BR): até a
+ * Edge Function v2.9.0, `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` eram fixos em
+ * `"en"`, nunca parametrizados por request (pendência sinalizada desde o
+ * Sprint B3.21) — a importação automática sempre rodava em inglês. A partir
+ * da v2.9.0, o idioma vem de `asset_import_run.language_id` (resolvido por
+ * `admin_start_asset_import_run()` v1.3, Query 2092, a partir de
+ * `p_language_code`) — esta action agora aceita `languageCode` como
+ * parâmetro; `importar-tcgdex-view.tsx` (continuação automática) passa
+ * `AUTO_CONTINUATION_LANGUAGE_CODE = "pt-BR"` deliberadamente (era
+ * justamente o idioma que nunca era coberto automaticamente); imagens em
+ * `en` continuam disponíveis pela tela dedicada
+ * `/catalogo/importar-imagens?idioma=en`.
  *
  * `initiatedBy` (era `jobId`, generalizado em 2026-08-02 para a nova tela
  * dedicada `/catalogo/importar-imagens` — ver `importar-imagens-view.tsx`):
@@ -413,10 +417,15 @@ type AdminStartAssetImportRunRow = {
  * resposta HTTP nunca chega ou vem sem `body.images` (caso real: 2026-08-02,
  * Coleção SV4/Fenda Paradoxal, 115 de 266 imagens já salvas no Storage
  * quando a chamada falhou com HTTP 546).
+ *
+ * `languageCode` (2026-08-02, DEFAULT 'en' — suporte EN + PT-BR): antes fixo
+ * em `"en"` — precisa ser o mesmo idioma da run sendo acompanhada, senão a
+ * contagem final mistura o idioma errado.
  */
 async function contarImagensImportadas(
   supabase: Awaited<ReturnType<typeof createClient>>,
   cardSetId: string,
+  languageCode: string = "en",
 ): Promise<{ imported: number; total: number }> {
   const [totalResult, importedResult] = await Promise.all([
     supabase.from("card").select("id", { count: "exact", head: true }).eq("card_set_id", cardSetId),
@@ -428,7 +437,7 @@ async function contarImagensImportadas(
       })
       .eq("card.card_set_id", cardSetId)
       .eq("card_asset_type.code", "CARD_FRONT")
-      .eq("language.code", "en")
+      .eq("language.code", languageCode)
       .eq("is_primary", true)
       .eq("is_active", true),
   ]);
@@ -451,10 +460,18 @@ export type AbrirImportacaoImagensResult = {
  * `executarImportacaoImagens` (2026-08-02) para o frontend conseguir
  * `runCode` a tempo de fazer polling de progresso enquanto a chamada lenta
  * está em andamento (ver comentário mais acima).
+ *
+ * `languageCode` (2026-08-02, DEFAULT 'en' — suporte EN + PT-BR, Query 2092
+ * v1.3): repassado como `p_language_code` — antes esta chamada nunca
+ * informava idioma nenhum (a função sempre abria a run em `en`, fixo). Duas
+ * chamadas com idiomas diferentes para o mesmo Card Set agora abrem duas
+ * runs independentes (Query 2092 v1.3 escopa a checagem de "run já ativa"
+ * por idioma).
  */
 export async function abrirImportacaoImagens(
   cardSetId: string,
   initiatedBy: string,
+  languageCode: string = "en",
 ): Promise<AbrirImportacaoImagensResult> {
   const supabase = await createClient();
 
@@ -462,6 +479,7 @@ export async function abrirImportacaoImagens(
     p_card_set_id: cardSetId,
     p_run_type: "FULL_CARD_SET",
     p_initiated_by: initiatedBy,
+    p_language_code: languageCode,
   });
 
   if (error) {
@@ -483,10 +501,16 @@ export async function abrirImportacaoImagens(
  * Coleção grande. O resumo final (`imagesImported`/`imagesFailed`/
  * `imagesTotal`) vem sempre de `contarImagensImportadas` (contagem real do
  * banco), nunca de `body?.images` — ver comentário da função acima.
+ *
+ * `languageCode` (2026-08-02, DEFAULT 'en' — suporte EN + PT-BR): só usado
+ * para a contagem final (`contarImagensImportadas`) — a run em si já sabe
+ * seu próprio idioma (gravado por `abrirImportacaoImagens`/Query 2092 v1.3),
+ * a Edge Function nunca recebe este parâmetro diretamente.
  */
 export async function executarImportacaoImagens(
   cardSetId: string,
   runCode: string,
+  languageCode: string = "en",
 ): Promise<IniciarImportacaoImagensResult> {
   const supabase = await createClient();
   const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/import-card-assets`;
@@ -500,7 +524,7 @@ export async function executarImportacaoImagens(
     });
   } catch (fetchError) {
     const message = fetchError instanceof Error ? fetchError.message : "Falha de rede.";
-    const { imported, total } = await contarImagensImportadas(supabase, cardSetId);
+    const { imported, total } = await contarImagensImportadas(supabase, cardSetId, languageCode);
     revalidatePath("/catalogo/cartas");
     revalidatePath("/catalogo/importar-imagens");
     return {
@@ -515,7 +539,7 @@ export async function executarImportacaoImagens(
   }
 
   const body = await response.json().catch(() => null);
-  const { imported, total } = await contarImagensImportadas(supabase, cardSetId);
+  const { imported, total } = await contarImagensImportadas(supabase, cardSetId, languageCode);
   revalidatePath("/catalogo/cartas");
   revalidatePath("/catalogo/importar-cartas");
   revalidatePath("/catalogo/importar-imagens");

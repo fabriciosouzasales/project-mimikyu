@@ -11,6 +11,37 @@
 //
 // Caminho de Storage inclui o idioma (`me1/en/001.webp`) desde esta revisão,
 // para não colidir com uma futura importação em `pt-BR` da mesma carta.
+//
+// v2.9.1 (2026-08-02, mesmo dia, rodada seguinte, CONFIRMADO DEPLOYADO —
+// `npx supabase functions deploy import-card-assets` bem-sucedido, projeto
+// `qjfutqujxrbzgrtkpgkg`, versão 26) — `downloadImage()` ganhou
+// um timeout explícito (`IMAGE_DOWNLOAD_TIMEOUT_MS = 20000`, via
+// `AbortController`). Bug real reportado por Fabrício: a importação de ME5
+// (120 cartas, nenhuma imagem ainda) ficou "travada" — nenhuma imagem
+// chegou ao Storage (confirmado direto no bucket) e `asset_import_run`
+// mostrou `processed_count`/`success_count` zerados por minutos seguidos.
+// Investigação real via MCP do Supabase (logs + banco): `card_external_
+// reference` de ME5 tem `image_source_url` preenchido para as 120 cartas
+// (a TCGdex respondeu normalmente ao listar o Set), mas os logs do bucket
+// `card-front` não mostram NENHUMA tentativa de upload para `me5/...` — ou
+// seja, a função nunca passava de `downloadImage()` para a primeira carta
+// a tempo. Runs anteriores da mesma Coleção (antes desta correção)
+// confirmam o padrão: `processed_count` chegava a 60–85 depois de quase 15
+// minutos, mas `success_count` sempre `0` — cada tentativa de download
+// aparentemente ficava pendurada por um tempo real muito longo antes de
+// finalmente falhar (sem timeout, `fetch()` esperava a resposta da TCGdex
+// indefinidamente), em vez de falhar rápido e liberar o lote para a
+// próxima carta. Sem um timeout, um único fornecedor lento (ou uma URL de
+// imagem específica que nunca responde) consome sozinho todo o orçamento
+// de execução da plataforma (~150s), sem nenhum progresso registrado.
+// Corrigido: cada download agora aborta depois de 20s — tempo generoso
+// para uma imagem individual, mas suficiente para permitir várias
+// tentativas (bem-sucedidas ou falhas reais, ex.: 404) dentro do teto de
+// execução, em vez de travar tudo numa única chamada pendurada. Não
+// resolve, por si só, uma eventual ausência real de imagens para ME5 na
+// TCGdex (mesmo gap já visto para MEE, Sprint B3.24/`05-modelo-de-dados.md`
+// revisão relevante) — só garante que esse tipo de falha aparece rápido em
+// `failures[]`/`error_summary`, em vez de nunca aparecer.
 
 type DownloadedImage = {
   sourceUrl: string;
@@ -77,10 +108,36 @@ export function buildCardStoragePath(
   ].join("/");
 }
 
+// v2.9.1 — tempo máximo de espera por uma única imagem antes de desistir
+// (ver comentário do cabeçalho do arquivo). Generoso o bastante para uma
+// imagem individual real, mas baixo o suficiente para nunca consumir
+// sozinho o orçamento de execução inteiro da Edge Function.
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 20_000;
+
 export async function downloadImage(
   sourceUrl: string,
 ): Promise<DownloadedImage> {
-  const response = await fetch(sourceUrl);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    IMAGE_DOWNLOAD_TIMEOUT_MS,
+  );
+
+  let response: Response;
+  try {
+    response = await fetch(sourceUrl, {
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        `IMAGE_DOWNLOAD_TIMEOUT: sem resposta em ${IMAGE_DOWNLOAD_TIMEOUT_MS}ms`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     throw new Error(

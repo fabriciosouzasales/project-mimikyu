@@ -255,6 +255,45 @@ Histórico:
   sempre roda por completo antes do laço de imagens, na mesma invocação),
   então pular essas cartas é seguro. `external_references.total` na
   resposta também passou a refletir `cardsToImport.length`.
+- v2.9.0 (2026-08-02, mesmo dia, PROPOSTA — AGUARDANDO `deno check` +
+  deploy por Fabrício): suporte real a EN + PT-BR simultâneos — pedido
+  explícito de Fabrício ("O processo de importação das imagens só importou
+  as cartas em inglês, ficaram pendentes as 266 imagens em PT"), depois de
+  escolher explicitamente "Os dois idiomas (EN + PT-BR)" em vez de trocar o
+  padrão para só PT-BR. `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` (constantes fixas
+  desde sempre) removidas como fonte de verdade — o idioma agora vem de
+  `asset_import_run.language_id` (a run já guardava esse valor desde a
+  Query 220/v1.0, mas nunca era lido; `admin_start_asset_import_run()` v1.3,
+  Query 2092, passa a resolvê-lo a partir de `p_language_code`, parâmetro
+  novo do frontend). `findImportRun` (services/database.ts) passa a
+  selecionar `language_id`; `findLanguageByCode` (por código fixo) é
+  substituída por `findLanguageById` (pelo id da run) neste fluxo.
+  `TCGDEX_LANGUAGE_BY_CODE` — novo mapa local, único lugar que ainda conhece
+  a tradução entre o código interno do Mimikyu e o identificador da TCGdex
+  (`pt-BR` → `pt`, confirmado no Sprint B3.24; qualquer outro código usa a
+  si mesmo) — decide o idioma passado a `new TcgdexClient(...)`.
+  `upsertCardExternalReference` passa a receber `language_id` (Query 210
+  v2.0/Migration 277: `card_external_reference` agora tem o idioma como
+  parte da identidade da linha — `UNIQUE (card_id, asset_source_id,
+  language_id)` — resolvendo a colisão sinalizada, e nunca corrigida, desde
+  o Sprint B3.23/B3.24, em que sincronizar `pt-BR` sobrescrevia a linha já
+  gravada em `en`). Nenhuma mudança na lógica de download/upload de imagem
+  em si (`card_asset` já suportava múltiplos idiomas por carta desde o
+  Sprint B3.23) — só a origem do idioma usado em cada run.
+
+- v2.9.1 (2026-08-02, mesmo dia, rodada seguinte, CONFIRMADO DEPLOYADO —
+  `npx supabase functions deploy import-card-assets` bem-sucedido, projeto
+  `qjfutqujxrbzgrtkpgkg`, versão 26): `downloadImage()` (services/storage.ts)
+  ganhou um
+  timeout explícito de 20s — ver o comentário completo naquele arquivo.
+  Motivado por um bug real reportado por Fabrício (importação de ME5/120
+  cartas "travada", 0 imagens no Storage) diagnosticado via MCP do Supabase
+  (logs da Edge Function, logs do Storage e `asset_import_run` direto no
+  banco): sem timeout, um download pendurado consumia sozinho todo o
+  orçamento de execução da plataforma sem nenhum progresso gravado —
+  runs anteriores da mesma Coleção confirmam o padrão (`processed_count`
+  chegava a 60–85 em quase 15 minutos, `success_count` sempre `0`). Nenhuma
+  mudança em `index.ts` nesta revisão — só em `services/storage.ts`.
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
 "Sprint B3.19", "Sprint B3.20", "Sprint B3.23" e "Sprint B3.24", para o
@@ -299,7 +338,7 @@ import {
   listCardsMap,
   listCardIdsWithPrimaryAsset,
   upsertCardExternalReference,
-  findLanguageByCode,
+  findLanguageById,
   findCardAssetTypeByCode,
   findStorageBucketByCode,
   upsertCardAsset,
@@ -327,21 +366,28 @@ type ImageImportResult = {
   error?: string;
 };
 
-// v2.5.0 — revertido de "pt-BR" para "en" (ver "Histórico" acima) para
-// importar MEE em inglês primeiro, mesmo padrão Fase 1/Fase 2 já usado nas
-// 5 coleções originais.
-const LANGUAGE_CODE = "en";
+// v2.9.0 — o idioma da importação passa a vir de `asset_import_run.language_id`
+// (resolvido por `admin_start_asset_import_run()` v1.3, Query 2092), não mais
+// de uma constante fixa. `LANGUAGE_CODE`/`TCGDEX_LANGUAGE` removidas.
+//
+// Sprint B3.24 — o código de idioma interno do Mimikyu (`language.code`) e o
+// identificador de idioma da TCGdex são domínios independentes e NÃO podem
+// ser usados um pelo outro: `pt-BR` é o código correto no banco, mas a API
+// da TCGdex não o reconhece (`TCGDEX_HTTP_404`, confirmado por consulta
+// direta no navegador a `.../v2/pt-BR/sets/me01`); o identificador real da
+// TCGdex para português é `pt` (confirmado da mesma forma em
+// `.../v2/pt/sets/me01`). Este mapa traduz apenas para a chamada à TCGdex,
+// sem alterar `language.code` em nenhum outro uso (busca em `language`,
+// `card_asset.language_id`, caminho no Storage) — qualquer código sem
+// entrada explícita aqui usa a si mesmo (é o caso de `en`, já correto tanto
+// no Mimikyu quanto na TCGdex).
+const TCGDEX_LANGUAGE_BY_CODE: Record<string, string> = {
+  "pt-BR": "pt",
+};
 
-// Sprint B3.24 — o código de idioma interno do Mimikyu (`LANGUAGE_CODE`,
-// tabela `language`) e o identificador de idioma da TCGdex são domínios
-// independentes e NÃO podem ser usados um pelo outro: `pt-BR` é o código
-// correto no banco, mas a API da TCGdex não o reconhece (`TCGDEX_HTTP_404`,
-// confirmado por consulta direta no navegador a `.../v2/pt-BR/sets/me01`);
-// o identificador real da TCGdex para português é `pt` (confirmado da mesma
-// forma em `.../v2/pt/sets/me01`). `TCGDEX_LANGUAGE` traduz apenas para a
-// chamada à TCGdex, sem alterar `LANGUAGE_CODE` em nenhum outro uso
-// (`language.code` no banco, `card_asset.language_id`, caminho no Storage).
-const TCGDEX_LANGUAGE = "en";
+function resolveTcgdexLanguage(languageCode: string): string {
+  return TCGDEX_LANGUAGE_BY_CODE[languageCode] ?? languageCode;
+}
 
 const ASSET_TYPE_CODE = "CARD_FRONT";
 const STORAGE_BUCKET_CODE = "card-front";
@@ -514,14 +560,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const language = await findLanguageByCode(
+    // v2.9.0 — idioma resolvido pela própria run (`activeRun.language_id`,
+    // definido por `admin_start_asset_import_run()` v1.3, Query 2092), não
+    // mais por uma constante fixa.
+    const language = await findLanguageById(
       supabase,
-      LANGUAGE_CODE,
+      activeRun.language_id,
     );
 
     if (!language) {
       throw new Error(
-        `LANGUAGE_NOT_FOUND: ${LANGUAGE_CODE}`,
+        `LANGUAGE_NOT_FOUND: ${activeRun.language_id}`,
       );
     }
 
@@ -547,7 +596,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const tcgdex = new TcgdexClient(TCGDEX_LANGUAGE);
+    // v2.9.0 — traduz o idioma da run (código interno do Mimikyu) para o
+    // identificador que a TCGdex reconhece (ver TCGDEX_LANGUAGE_BY_CODE
+    // acima) — antes, sempre "en" fixo via TCGDEX_LANGUAGE.
+    const tcgdex = new TcgdexClient(
+      resolveTcgdexLanguage(language.code),
+    );
     const set = await tcgdex.getSet(
       externalReference.external_set_id,
     );
@@ -614,11 +668,12 @@ Deno.serve(async (req) => {
           {
             card_id: cardId,
             asset_source_id: activeRun.asset_source_id,
+            language_id: language.id,
             external_card_id: tcgCard.id,
             external_set_id: externalReference.external_set_id,
             source_number: tcgCard.localId,
             source_url:
-              `https://api.tcgdex.net/v2/${LANGUAGE_CODE}/cards/${tcgCard.id}`,
+              `https://api.tcgdex.net/v2/${language.code}/cards/${tcgCard.id}`,
             image_source_url: tcgCard.image ?? null,
             metadata: tcgCard,
             is_active: true,
@@ -785,7 +840,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.8.0",
+      version: "2.9.1", // CONFIRMADO DEPLOYADO — ver "Histórico" acima
       run: {
         id: activeRun.id,
         run_code: activeRun.run_code,

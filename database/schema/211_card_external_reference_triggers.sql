@@ -1,6 +1,10 @@
 /*
 Project Mimikyu
 Query 211 - Card External Reference Triggers
+Versão 2.0 (2026-08-02, Migration 277) — protect_card_external_reference_identity()
+passa a proteger também language_id (nova coluna de identidade da linha,
+Query 210 v2.0) contra alteração pós-INSERT, mesmo tratamento já dado a
+id/card_id/asset_source_id.
 Pré-requisito: Query 210.
 */
 
