@@ -4,14 +4,14 @@ import { CatalogoGallery } from "@/components/catalogo/catalogo-gallery";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 import { PageContainer } from "@/components/ui/page";
 import {
-  CATALOGO_PAGE_SIZE,
   CATALOGO_SEARCH_CARDS_PAGE_SIZE,
   getCardSetLogoUrls,
-  getCardSetsForCatalogo,
+  getCardSetsGroupedByExpansion,
   getCardSetsOverview,
   getExpansoes,
   getGameOptions,
   searchCatalogo,
+  type CardSetsExpansionGroupWithLogo,
 } from "@/lib/catalogo/queries";
 
 /**
@@ -30,6 +30,18 @@ import {
  * totais sempre globais, independente do filtro/busca ativo na galeria
  * abaixo (mesmo raciocínio de `ExpansoesStats`/`getExpansoes()` sem
  * filtro).
+ *
+ * Ajuste 2026-08-02 (pedido de Fabrício: "da mesma forma como fizemos na
+ * página de expansões, separando-as por Jogo, precisamos na página de
+ * Coleções, separá-las por Expansão. Hoje aparecem todas juntas") — modo
+ * galeria (sem busca) passou a usar `getCardSetsGroupedByExpansion()` em vez
+ * de `getCardSetsForCatalogo()` paginado — mesma mudança estrutural já
+ * aplicada a `/catalogo/expansoes` quando ganhou agrupamento por Jogo (ver
+ * `expansoes/page.tsx`). URLs assinadas resolvidas de uma vez só para todos
+ * os itens de todos os grupos (mesmo padrão de `allPaths` em `expansoes/
+ * page.tsx`). Busca (`mode === "search"`) continua flat e paginada, sem
+ * mudança — `getCardSetsForCatalogo()` segue em uso só por ela (via
+ * `searchCatalogo`/`searchCatalogoAction`).
  */
 export default async function CatalogoCardSetsPage({
   searchParams,
@@ -51,37 +63,39 @@ export default async function CatalogoCardSetsPage({
 
   const mode: "gallery" | "search" = query ? "search" : "gallery";
 
-  let initialCardSets: Awaited<ReturnType<typeof getCardSetsForCatalogo>>["items"] = [];
-  let initialHasMore = false;
   let initialCards: Awaited<ReturnType<typeof searchCatalogo>>["cards"] = [];
+  let searchItems: Awaited<ReturnType<typeof searchCatalogo>>["cardSets"] = [];
+  let initialHasMore = false;
+  let groups: Awaited<ReturnType<typeof getCardSetsGroupedByExpansion>> = [];
 
   if (mode === "search") {
     const result = await searchCatalogo(supabase, query, {
       cardsLimit: CATALOGO_SEARCH_CARDS_PAGE_SIZE,
       cardsOffset: 0,
     });
-    initialCardSets = result.cardSets;
+    searchItems = result.cardSets;
     initialCards = result.cards;
     initialHasMore = result.hasMoreCards;
   } else {
-    const result = await getCardSetsForCatalogo(supabase, {
-      gameCode: game,
-      expansionCode: expansion,
-      limit: CATALOGO_PAGE_SIZE,
-      offset: 0,
-    });
-    initialCardSets = result.items;
-    initialHasMore = result.hasMore;
+    groups = await getCardSetsGroupedByExpansion(supabase, { gameCode: game, expansionCode: expansion });
   }
 
-  const logoUrls = await getCardSetLogoUrls(
-    supabase,
-    initialCardSets.map((set) => set.logoStoragePath),
-  );
-  const cardSetsWithLogo = initialCardSets.map((set) => ({
-    ...set,
-    logoUrl: set.logoStoragePath ? (logoUrls.get(set.logoStoragePath) ?? null) : null,
+  // URLs assinadas resolvidas de uma vez só, para todos os caminhos
+  // envolvidos (grupos + busca) — mesmo padrão de `expansoes/page.tsx`.
+  const allPaths = [
+    ...groups.flatMap((group) => group.items.map((item) => item.logoStoragePath)),
+    ...searchItems.map((item) => item.logoStoragePath),
+  ];
+  const logoUrls = await getCardSetLogoUrls(supabase, allPaths);
+  const withLogo = <T extends { logoStoragePath: string | null }>(item: T) => ({
+    ...item,
+    logoUrl: item.logoStoragePath ? (logoUrls.get(item.logoStoragePath) ?? null) : null,
+  });
+  const groupsWithLogo: CardSetsExpansionGroupWithLogo[] = groups.map((group) => ({
+    ...group,
+    items: group.items.map(withLogo),
   }));
+  const cardSetsWithLogo = searchItems.map(withLogo);
 
   return (
     <AppShell title="Coleções" icon={Boxes}>
@@ -94,6 +108,7 @@ export default async function CatalogoCardSetsPage({
           gameCode={game}
           expansionCode={expansion}
           query={query}
+          initialGroups={groupsWithLogo}
           initialCardSets={cardSetsWithLogo}
           initialHasMore={initialHasMore}
           initialCards={initialCards}

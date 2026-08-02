@@ -61,11 +61,42 @@ export function normalizeRarityLookupKey(raw: string): string {
 // valor já passados por normalizeRarityLookupKey:
 // - TCGdex "Ultra Rara" vs. cadastrado "Rara Ultra"
 // - TCGdex "Mega Hiper Raro" vs. cadastrado "Mega Rara Hiper"
+//
+// Três entradas novas (2026-08-02, Query 830 v1.4) para ACE_SPEC_RARE/
+// SHINY_RARE/SHINY_ULTRA_RARE. A primeira suposição (raw sempre em inglês,
+// ex. "Shiny rare") NÃO se confirmou nos dados reais — corrigido na mesma
+// rodada com evidência real de um job já falho (catalog_import_job
+// `8cf45712-72cb-4209-ac71-6a30756a22b5`, SV4.5/Destinos de Paldea,
+// consultado direto via MCP do Supabase, `raw_data->>'rarity'` agrupado):
+// - TCGdex manda "Shiny rara" (120 linhas) — já bate DIRETO com o cadastrado
+//   "Shiny Rara" (normaliza pra "SHINY RARA" dos dois lados), sem precisar
+//   de alias nenhum. O alias "SHINY RARE"→"SHINY RARA" abaixo é só defensivo
+//   (nunca observado nos dados reais até aqui, mas inofensivo se aparecer).
+// - TCGdex manda "Brilhante Ultra Rara" (12 linhas) pra SHINY_ULTRA_RARE —
+//   nome bem diferente do cadastrado "Shiny Ultra Rara" ("Brilhante" em vez
+//   de "Shiny"), este SIM precisa do alias abaixo — é a mesma nomenclatura
+//   "Brilhante Rara"/"Brilhante Rara Ultra" que Fabrício usou na referência
+//   visual oficial dos símbolos (revisão `1.45` de `05-modelo-de-dados.md`).
+// Confirmado em dados reais na sequência (2026-08-02, mesmo dia, rodada
+// seguinte, SV5/Forças Temporais, catalog_import_job
+// `90115aaa-7b4e-44b0-823b-428d866ef58b`): TCGdex manda "ACE SPEC Raro" (7
+// linhas) — mesma classe de divergência das duas primeiras entradas acima
+// (flexão de gênero: "Raro" masculino vs. o cadastrado "ACE SPEC Rara"
+// feminino), não o texto em inglês que a suposição original previa. O alias
+// "ACE SPEC RARE"→"ACE SPEC RARA" abaixo segue sem confirmação real (mantido
+// por precaução), mas "ACE SPEC RARO"→"ACE SPEC RARA" é o que de fato
+// resolve o caso observado.
+//
 // Se surgir uma raridade nova sem alias aqui, ela cai em NEEDS_REVIEW (não
 // silenciosamente errada) — comportamento seguro por desenho.
 const RARITY_NAME_ALIASES: Record<string, string> = {
   "ULTRA RARA": "RARA ULTRA",
   "MEGA HIPER RARO": "MEGA RARA HIPER",
+  "ACE SPEC RARE": "ACE SPEC RARA",
+  "ACE SPEC RARO": "ACE SPEC RARA",
+  "SHINY RARE": "SHINY RARA",
+  "SHINY ULTRA RARE": "SHINY ULTRA RARA",
+  "BRILHANTE ULTRA RARA": "SHINY ULTRA RARA",
 };
 
 export function resolveRarityLookupKey(raw: string): string {

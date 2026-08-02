@@ -321,6 +321,34 @@ Histórico:
   actions.ts` (`executarImportacaoImagens` passa a expor `runExpired`),
   `importar-imagens-view.tsx` e `importar-tcgdex-view.tsx` (retry automático
   abre run nova quando `runExpired`, em vez de só reusar o run_code morto).
+- v2.9.3 (2026-08-02, mesmo dia, rodada seguinte, CONFIRMADO DEPLOYADO —
+  `deno check index.ts` limpo, `npx supabase functions deploy
+  import-card-assets` bem-sucedido, verificado via MCP do Supabase,
+  `list_edge_functions`, versão 31, `updated_at` 2026-08-02 21:21:24 UTC,
+  editado diretamente por Fabrício): retry automático por imagem individual,
+  dentro da própria
+  Edge Function (não confundir com o retry automático do cliente, mesmo
+  `run_code`, ver revisão `1.38`/`1.42` de `05-modelo-de-dados.md` — este é
+  um nível abaixo, por download). `downloadImage()` (`services/storage.ts`)
+  passou a lançar uma nova classe `ImageDownloadError` (código semântico
+  `TIMEOUT`/`HTTP_404`/`HTTP_429`/`HTTP_5XX`/`HTTP_OTHER`/`NETWORK`/
+  `EMPTY_RESPONSE`/`UNSUPPORTED_MIME_TYPE`, status HTTP quando aplicável, e
+  uma flag `retriable`) em vez do `Error` genérico usado até a v2.9.2 —
+  distingue falhas transientes (timeout, erro de rede, HTTP 429/5xx, corpo
+  vazio — `retriable: true`) de falhas permanentes (HTTP 404, MIME não
+  suportado, outros HTTP não-2xx — `retriable: false`, nunca vale a pena
+  tentar de novo). Novo `downloadImageWithRetry()` (`index.ts`) envolve cada
+  chamada a `downloadImage()` no loop principal: até `IMAGE_DOWNLOAD_MAX_
+  ATTEMPTS` = 3 tentativas por carta, com espera de 1s após a 1ª falha e 3s
+  após a 2ª (`IMAGE_DOWNLOAD_RETRY_DELAYS_MS`), mas só quando `retriable`
+  for `true` — uma falha permanente (404, por exemplo) já desiste na
+  primeira tentativa, sem esperar à toa. Cada tentativa grava um log
+  estruturado (`IMAGE DOWNLOAD SUCCESS`/`IMAGE DOWNLOAD ATTEMPT FAILED`) com
+  `externalCardId`/`collectorNumber`/`sourceUrl`/`attempt`/`durationMs`/
+  `code`/`status`/`retriable`/`message` — visível nos Logs da Edge Function
+  via MCP do Supabase, útil pra diagnosticar sem depender só do resumo
+  agregado que chega ao frontend. Nenhuma mudança de schema, RLS, contrato
+  de resposta ou frontend — só resiliência interna do download.
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
 "Sprint B3.19", "Sprint B3.20", "Sprint B3.23" e "Sprint B3.24", para o
@@ -376,6 +404,7 @@ import {
   buildCardStoragePath,
   downloadImage,
   uploadImage,
+  ImageDownloadError,
 } from "./services/storage.ts";
 
 type RequestBody = {
@@ -753,6 +782,79 @@ Deno.serve(async (req) => {
       referenceResults.filter(Boolean).length;
     const ignoredReferences =
       referenceResults.length - importedReferences;
+const IMAGE_DOWNLOAD_MAX_ATTEMPTS = 3;
+const IMAGE_DOWNLOAD_RETRY_DELAYS_MS = [1_000, 3_000];
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function downloadImageWithRetry(
+  sourceUrl: string,
+  context: {
+    externalCardId: string;
+    collectorNumber: string;
+  },
+) {
+  let lastError: unknown;
+
+  for (
+    let attempt = 1;
+    attempt <= IMAGE_DOWNLOAD_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    const startedAt = Date.now();
+
+    try {
+      const image = await downloadImage(sourceUrl);
+
+      console.log("IMAGE DOWNLOAD SUCCESS", {
+        externalCardId: context.externalCardId,
+        collectorNumber: context.collectorNumber,
+        sourceUrl,
+        attempt,
+        durationMs: Date.now() - startedAt,
+      });
+
+      return image;
+    } catch (error) {
+      lastError = error;
+
+      const downloadError =
+        error instanceof ImageDownloadError ? error : null;
+
+      console.error("IMAGE DOWNLOAD ATTEMPT FAILED", {
+        externalCardId: context.externalCardId,
+        collectorNumber: context.collectorNumber,
+        sourceUrl,
+        attempt,
+        durationMs: Date.now() - startedAt,
+        code: downloadError?.code ?? "UNEXPECTED",
+        status: downloadError?.status ?? null,
+        retriable: downloadError?.retriable ?? false,
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+
+      const shouldRetry =
+        downloadError?.retriable === true &&
+        attempt < IMAGE_DOWNLOAD_MAX_ATTEMPTS;
+
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const delay =
+        IMAGE_DOWNLOAD_RETRY_DELAYS_MS[attempt - 1] ?? 3_000;
+
+      await wait(delay);
+    }
+  }
+
+  throw lastError;
+}
 
     // Incremento 2 (Sprint B3.20) — download + upload + card_asset, em lotes
     // controlados. v2.7.0: só para `cardsToImport` (ver acima); loop manual
@@ -782,7 +884,13 @@ Deno.serve(async (req) => {
           const imageSourceUrl = buildTcgdexHighImageUrl(
             tcgCard.image,
           );
-          const image = await downloadImage(imageSourceUrl);
+          const image = await downloadImageWithRetry(
+  imageSourceUrl,
+  {
+    externalCardId: tcgCard.id,
+    collectorNumber: tcgCard.localId,
+  },
+);
           const storagePath = buildCardStoragePath(
             cardSet.code,
             tcgCard.localId,
@@ -906,7 +1014,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.9.2", // CONFIRMADO DEPLOYADO — ver "Histórico" acima
+      version: "2.9.3", // CONFIRMADO DEPLOYADO — ver "Histórico" acima
       run: {
         id: activeRun.id,
         run_code: activeRun.run_code,

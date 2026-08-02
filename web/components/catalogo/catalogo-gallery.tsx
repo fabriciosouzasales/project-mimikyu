@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteCardSets } from "@/app/catalogo/card-sets/actions";
-import { loadMoreCardSets, searchCatalogoAction, type CardSetWithLogo } from "@/app/catalogo/card-sets/catalogo-actions";
+import { searchCatalogoAction, type CardSetWithLogo } from "@/app/catalogo/card-sets/catalogo-actions";
 import { CardSetGalleryCard } from "@/components/catalogo/card-set-gallery-card";
 import { CardSetsStats } from "@/components/catalogo/card-sets-stats";
 import { EditCardSetDialog } from "@/components/catalogo/card-set-dialogs";
@@ -19,7 +19,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
-import type { CatalogoCardResult, CardSetOverviewRow, ExpansaoRow, GameOption } from "@/lib/catalogo/queries";
+import { getGameAccentColor } from "@/lib/catalogo/game-accent";
+import type {
+  CardSetsExpansionGroupWithLogo,
+  CatalogoCardResult,
+  CardSetOverviewRow,
+  ExpansaoRow,
+  GameOption,
+} from "@/lib/catalogo/queries";
 
 /**
  * Composição raiz da tela Coleções (spec aprovada 2026-07-31; cabeçalho,
@@ -53,6 +60,18 @@ import type { CatalogoCardResult, CardSetOverviewRow, ExpansaoRow, GameOption } 
  * `NovoCatalogoDialog` ganhou o formulário completo e passou a receber
  * `expansoes` (reaproveitada, já buscada para `CardSetsStats`) e `onSaved`
  * (mesmo `handleSaved` já usado por `EditCardSetDialog`).
+ *
+ * Ajuste 2026-08-02 (pedido de Fabrício: "da mesma forma como fizemos na
+ * página de expansões, separando-as por Jogo, precisamos na página de
+ * Coleções, separá-las por Expansão. Hoje aparecem todas juntas") — modo
+ * galeria (sem busca) deixou de ser uma grade flat paginada (`cardSets`/
+ * `loadMoreCardSets`) e passou a ser uma seção por Expansão (`initialGroups`,
+ * `getCardSetsGroupedByExpansion()`), mesma mudança estrutural já aplicada a
+ * `ExpansoesGallery` quando ganhou agrupamento por Jogo. Como consequência,
+ * o "Carregar mais" deixou de existir no modo galeria — a tela carrega todas
+ * as Coleções que casam com o filtro de uma vez. A busca (`mode === "search"`)
+ * continua exatamente como antes: lista flat (`cardSets`/`cards`), sem
+ * agrupamento, paginada.
  */
 export function CatalogoGallery({
   jogos,
@@ -62,6 +81,7 @@ export function CatalogoGallery({
   gameCode,
   expansionCode,
   query,
+  initialGroups,
   initialCardSets,
   initialHasMore,
   initialCards,
@@ -76,6 +96,9 @@ export function CatalogoGallery({
   gameCode?: string;
   expansionCode?: string;
   query: string;
+  /** Modo galeria: Coleções agrupadas por Expansão, cada grupo já ordenado e com `logoUrl` resolvida. */
+  initialGroups: CardSetsExpansionGroupWithLogo[];
+  /** Modo busca: lista flat, paginada — sem agrupamento por Expansão. */
   initialCardSets: CardSetWithLogo[];
   initialHasMore: boolean;
   initialCards: CatalogoCardResult[];
@@ -84,6 +107,7 @@ export function CatalogoGallery({
   const router = useRouter();
   const state = useAdminListState();
   const [novoOpen, setNovoOpen] = useState(false);
+  const [groups, setGroups] = useState(initialGroups);
   const [cardSets, setCardSets] = useState(initialCardSets);
   const [cards, setCards] = useState(initialCards);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -93,25 +117,25 @@ export function CatalogoGallery({
   // (busca, filtro ou navegação) — mesmo cuidado de `expansoes-gallery.tsx`
   // para nunca misturar itens de "Carregar mais" de um contexto anterior.
   useEffect(() => {
+    setGroups(initialGroups);
     setCardSets(initialCardSets);
     setCards(initialCards);
     setHasMore(initialHasMore);
-  }, [initialCardSets, initialCards, initialHasMore]);
+  }, [initialGroups, initialCardSets, initialCards, initialHasMore]);
 
-  const editingCardSet = cardSets.find((set) => set.id === state.editingId) ?? null;
-  const cardSetToDelete = cardSets.find((set) => state.selectedIds.has(set.id)) ?? null;
+  // Lista flat de todos os itens visíveis, independente do modo — usada só
+  // para localizar a Coleção em edição/exclusão; nunca para renderizar (a
+  // renderização respeita o modo, grupos ou flat) — mesmo padrão de
+  // `allItems` em `expansoes-gallery.tsx`.
+  const allCardSets = mode === "search" ? cardSets : groups.flatMap((group) => group.items);
+  const editingCardSet = allCardSets.find((set) => set.id === state.editingId) ?? null;
+  const cardSetToDelete = allCardSets.find((set) => state.selectedIds.has(set.id)) ?? null;
 
   function handleLoadMore() {
     startTransition(async () => {
-      if (mode === "search") {
-        const result = await searchCatalogoAction({ query, cardsOffset: cards.length });
-        setCards((prev) => [...prev, ...result.cards]);
-        setHasMore(result.hasMoreCards);
-      } else {
-        const result = await loadMoreCardSets({ gameCode, expansionCode, offset: cardSets.length });
-        setCardSets((prev) => [...prev, ...result.items]);
-        setHasMore(result.hasMore);
-      }
+      const result = await searchCatalogoAction({ query, cardsOffset: cards.length });
+      setCards((prev) => [...prev, ...result.cards]);
+      setHasMore(result.hasMoreCards);
     });
   }
 
@@ -235,32 +259,39 @@ export function CatalogoGallery({
                   )}
                 </div>
               )
-            ) : cardSets.length === 0 ? (
+            ) : groups.length === 0 ? (
               <EmptyState
                 title="Nenhum Card Set cadastrado ainda"
                 description='Use o botão "Nova Coleção" para começar a catalogar.'
               />
             ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                  {cardSets.map((set) => (
-                    <CardSetGalleryCard
-                      key={set.id}
-                      cardSet={set}
-                      highlighted={state.highlightId === set.id}
-                      onEdit={state.startEdit}
-                      onQuickDelete={state.startQuickDelete}
-                    />
-                  ))}
-                </div>
-
-                {hasMore && (
-                  <div className="flex justify-center">
-                    <Button type="button" variant="outline" size="sm" onClick={handleLoadMore} disabled={isPending}>
-                      {isPending ? "Carregando…" : "Carregar mais"}
-                    </Button>
+              <div className="space-y-6">
+                {groups.map((group) => (
+                  <div key={group.expansionId} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: getGameAccentColor(group.gameCode) }}
+                        aria-hidden="true"
+                      />
+                      <h3 className="text-sm font-medium text-foreground">{group.expansionName}</h3>
+                      <span className="text-xs text-muted-foreground">
+                        ({group.items.length} {group.items.length === 1 ? "coleção" : "coleções"})
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                      {group.items.map((set) => (
+                        <CardSetGalleryCard
+                          key={set.id}
+                          cardSet={set}
+                          highlighted={state.highlightId === set.id}
+                          onEdit={state.startEdit}
+                          onQuickDelete={state.startQuickDelete}
+                        />
+                      ))}
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
             )}
           </CardContent>

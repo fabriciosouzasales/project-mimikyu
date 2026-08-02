@@ -2,13 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import {
-  CATALOGO_PAGE_SIZE,
   CATALOGO_SEARCH_CARDS_PAGE_SIZE,
   getCardSetLogoUrls,
-  getCardSetsForCatalogo,
   searchCatalogo,
   type CatalogoCardResult,
   type CatalogoCardSetRow,
+  type CatalogoCardSetRowWithLogo,
 } from "@/lib/catalogo/queries";
 
 /**
@@ -19,8 +18,20 @@ import {
  * política de RLS catalog_admin_select (ADR-022), mesmo padrão já usado por
  * toda a camada de leitura em lib/catalogo/queries.ts — a página que monta
  * o componente cliente já passou por requireCatalogoAdmin antes de existir.
+ *
+ * Ajuste 2026-08-02 (pedido de Fabrício: "separá-las por Expansão", mesmo
+ * padrão de `getExpansoesGroupedByGame`): `CardSetWithLogo` passa a ser um
+ * reexport de `CatalogoCardSetRowWithLogo` (definido em `lib/catalogo/
+ * queries.ts`, mesmo lugar de `ExpansaoWithLogo`) — evita duplicar o tipo
+ * agora que a galeria (modo sem busca) usa `getCardSetsGroupedByExpansion()`
+ * em vez de paginação flat; os imports existentes em `card-set-gallery-card.
+ * tsx`/`card-set-dialogs.tsx` continuam funcionando sem alteração. `loadMoreCardSets`
+ * foi removida — modo galeria carrega tudo de uma vez (agrupado, sem
+ * paginação incremental), mesma mudança já aplicada a `searchExpansoesAction`
+ * quando Expansões ganhou agrupamento por Jogo. Só a busca (flat, sem
+ * agrupamento) continua paginada.
  */
-export type CardSetWithLogo = CatalogoCardSetRow & { logoUrl: string | null };
+export type CardSetWithLogo = CatalogoCardSetRowWithLogo;
 
 async function attachLogoUrls(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -34,21 +45,6 @@ async function attachLogoUrls(
     ...item,
     logoUrl: item.logoStoragePath ? (urls.get(item.logoStoragePath) ?? null) : null,
   }));
-}
-
-export async function loadMoreCardSets(params: {
-  gameCode?: string;
-  expansionCode?: string;
-  offset: number;
-}): Promise<{ items: CardSetWithLogo[]; hasMore: boolean }> {
-  const supabase = await createClient();
-  const { items, hasMore } = await getCardSetsForCatalogo(supabase, {
-    gameCode: params.gameCode,
-    expansionCode: params.expansionCode,
-    limit: CATALOGO_PAGE_SIZE,
-    offset: params.offset,
-  });
-  return { items: await attachLogoUrls(supabase, items), hasMore };
 }
 
 export async function searchCatalogoAction(params: {

@@ -114,52 +114,136 @@ export function buildCardStoragePath(
 // sozinho o orçamento de execução inteiro da Edge Function.
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 20_000;
 
+export type ImageDownloadErrorCode =
+  | "TIMEOUT"
+  | "HTTP_404"
+  | "HTTP_429"
+  | "HTTP_5XX"
+  | "HTTP_OTHER"
+  | "NETWORK"
+  | "EMPTY_RESPONSE"
+  | "UNSUPPORTED_MIME_TYPE";
+
+export class ImageDownloadError extends Error {
+  constructor(
+    public readonly code: ImageDownloadErrorCode,
+    message: string,
+    public readonly sourceUrl: string,
+    public readonly status: number | null,
+    public readonly retriable: boolean,
+  ) {
+    super(message);
+    this.name = "ImageDownloadError";
+  }
+}
+
 export async function downloadImage(
   sourceUrl: string,
 ): Promise<DownloadedImage> {
   const controller = new AbortController();
+
   const timeoutId = setTimeout(
     () => controller.abort(),
     IMAGE_DOWNLOAD_TIMEOUT_MS,
   );
 
   let response: Response;
+
   try {
     response = await fetch(sourceUrl, {
       signal: controller.signal,
     });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(
+      throw new ImageDownloadError(
+        "TIMEOUT",
         `IMAGE_DOWNLOAD_TIMEOUT: sem resposta em ${IMAGE_DOWNLOAD_TIMEOUT_MS}ms`,
+        sourceUrl,
+        null,
+        true,
       );
     }
-    throw error;
+
+    throw new ImageDownloadError(
+      "NETWORK",
+      `IMAGE_DOWNLOAD_NETWORK_ERROR: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      sourceUrl,
+      null,
+      true,
+    );
   } finally {
     clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
-    throw new Error(
+    if (response.status === 404) {
+      throw new ImageDownloadError(
+        "HTTP_404",
+        `IMAGE_DOWNLOAD_FAILED: ${response.status} ${response.statusText}`,
+        sourceUrl,
+        response.status,
+        false,
+      );
+    }
+
+    if (response.status === 429) {
+      throw new ImageDownloadError(
+        "HTTP_429",
+        `IMAGE_DOWNLOAD_FAILED: ${response.status} ${response.statusText}`,
+        sourceUrl,
+        response.status,
+        true,
+      );
+    }
+
+    if ([500, 502, 503, 504].includes(response.status)) {
+      throw new ImageDownloadError(
+        "HTTP_5XX",
+        `IMAGE_DOWNLOAD_FAILED: ${response.status} ${response.statusText}`,
+        sourceUrl,
+        response.status,
+        true,
+      );
+    }
+
+    throw new ImageDownloadError(
+      "HTTP_OTHER",
       `IMAGE_DOWNLOAD_FAILED: ${response.status} ${response.statusText}`,
+      sourceUrl,
+      response.status,
+      false,
     );
   }
 
   const buffer = await response.arrayBuffer();
 
   if (buffer.byteLength === 0) {
-    throw new Error("IMAGE_DOWNLOAD_EMPTY");
+    throw new ImageDownloadError(
+      "EMPTY_RESPONSE",
+      "IMAGE_DOWNLOAD_EMPTY",
+      sourceUrl,
+      response.status,
+      true,
+    );
   }
 
   const mimeType =
-    response.headers.get("content-type")
+    response.headers
+      .get("content-type")
       ?.split(";")[0]
       ?.trim() || "application/octet-stream";
+
   const fileExtension = resolveFileExtension(mimeType);
 
   if (fileExtension === "bin") {
-    throw new Error(
+    throw new ImageDownloadError(
+      "UNSUPPORTED_MIME_TYPE",
       `IMAGE_MIME_TYPE_NOT_SUPPORTED: ${mimeType}`,
+      sourceUrl,
+      response.status,
+      false,
     );
   }
 
@@ -198,6 +282,7 @@ export async function uploadImage({
       "STORAGE UPLOAD ERROR:",
       JSON.stringify(error, null, 2),
     );
+
     throw new Error(
       `STORAGE_UPLOAD_FAILED: ${error.message}`,
     );

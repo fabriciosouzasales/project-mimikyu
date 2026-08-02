@@ -318,6 +318,9 @@ export type CatalogoSearchResult = {
   hasMoreCards: boolean;
 };
 
+/** `CatalogoCardSetRow` com a URL assinada da logo já resolvida — mesmo papel de `ExpansaoWithLogo`. Reexportado como `CardSetWithLogo` em `card-sets/catalogo-actions.ts` para não quebrar os imports já existentes nos componentes de galeria/Dialog. */
+export type CatalogoCardSetRowWithLogo = CatalogoCardSetRow & { logoUrl: string | null };
+
 type CatalogoCardSetRawRow = {
   id: string;
   code: string;
@@ -329,7 +332,12 @@ type CatalogoCardSetRawRow = {
   total_set_size: number;
   logo_storage_path: string | null;
   created_at: string;
-  expansion: { id: string; code: string; name: string; release_order: number; game: { id: string; code: string; name: string } | null } | null;
+  // `game.created_at` incluído aqui (mesmo padrão de `game.created_at` em
+  // `ExpansionRawRow`, ver nota lá) porque `getCardSetsGroupedByExpansion()`
+  // precisa dele para ordenar os grupos (Expansões) sem misturar Jogos
+  // diferentes — opcional porque as demais queries que reaproveitam este
+  // tipo (busca, galeria de Cartas) não o usam.
+  expansion: { id: string; code: string; name: string; release_order: number; game: { id: string; code: string; name: string; created_at?: string } | null } | null;
 };
 
 async function fetchCardSetsForCatalogo(
@@ -339,7 +347,7 @@ async function fetchCardSetsForCatalogo(
   let query = supabase
     .from("card_set")
     .select(
-      "id, code, name, set_type, release_order, release_date, base_set_size, total_set_size, logo_storage_path, created_at, expansion!inner(id, code, name, release_order, game!inner(id, code, name))",
+      "id, code, name, set_type, release_order, release_date, base_set_size, total_set_size, logo_storage_path, created_at, expansion!inner(id, code, name, release_order, game!inner(id, code, name, created_at))",
     );
 
   if (filters.expansionCode) {
@@ -453,6 +461,97 @@ export async function getCardSetsForCatalogo(
   const counts = await getCardCountsForSets(supabase, page.map((row) => row.id));
 
   return { items: page.map((row) => toCatalogoCardSetRow(row, counts)), hasMore };
+}
+
+export type CardSetsExpansionGroup = {
+  expansionId: string;
+  expansionCode: string;
+  expansionName: string;
+  /** Usado só para o selo de cor do Jogo no cabeçalho do grupo (`getGameAccentColor`) — cada card já mostra o nome do Jogo individualmente (ver `CardSetGalleryCard`), então o grupo não precisa repetir `gameName`. */
+  gameCode: string;
+  items: CatalogoCardSetRow[];
+};
+
+/** `CardSetsExpansionGroup` com a URL assinada da logo já resolvida em cada item — ver `CatalogoCardSetRowWithLogo`. */
+export type CardSetsExpansionGroupWithLogo = Omit<CardSetsExpansionGroup, "items"> & { items: CatalogoCardSetRowWithLogo[] };
+
+type CardSetsExpansionGroupInternal = CardSetsExpansionGroup & { gameCreatedAt: string; expansionReleaseOrder: number };
+
+/**
+ * Galeria principal da tela Coleções — sem termo de busca. Agrupada por
+ * Expansão (2026-08-02, pedido de Fabrício: "da mesma forma como fizemos na
+ * página de expansões, separando-as por Jogo, precisamos na página de
+ * Coleções, separá-las por Expansão. Hoje aparecem todas juntas") — mesmo
+ * padrão estrutural de `getExpansoesGroupedByGame()`: sem paginação em modo
+ * galeria (carrega tudo que casa com o filtro opcional de Jogo/Expansão); o
+ * "Carregar mais" (`CATALOGO_PAGE_SIZE` por vez) continua existindo só para
+ * a busca (`getCardSetsForCatalogo`, flat, sem agrupamento — inalterada).
+ *
+ * Ordem dos GRUPOS (cada Expansão): reaproveita a mesma dupla chave já usada
+ * para ordenar Expansões dentro de um Jogo em `getExpansoesGroupedByGame` —
+ * `game.created_at` ascendente primeiro (Jogo cadastrado há mais tempo
+ * primeiro, nunca intercala Jogos diferentes) e, como desempate dentro do
+ * mesmo Jogo, `expansion.release_order` ascendente (a mesma "ordem de
+ * lançamento" já usada para as próprias Expansões, ver nota em
+ * `getExpansoesGroupedByGame`). Não usa nome/código (alfabético) pela mesma
+ * razão de lá — Pokémon deve continuar vindo antes de Lorcana, não por
+ * coincidência alfabética.
+ *
+ * Ordem dos ITENS (Coleções) dentro de cada grupo: deliberadamente NÃO
+ * ascendente — ao contrário do padrão adotado para Expansões-dentro-de-Jogo,
+ * aqui preserva a decisão já confirmada especificamente para Coleções
+ * (2026-07-31, pedido de Fabrício: "os card sets devem ser organizados por
+ * data de lançamento e se as datas forem iguais deve ser levado em
+ * consideração o número de ordem do lançamento. Sempre em ordem decrescente
+ * para os dois parâmetros" — mesma lógica de `sortCatalogoCardSets`, ramo
+ * "unfiltered": mais recentes no topo de cada grupo, não a mais antiga.
+ */
+export async function getCardSetsGroupedByExpansion(
+  supabase: SupabaseClient,
+  filters?: { gameCode?: string; expansionCode?: string },
+): Promise<CardSetsExpansionGroup[]> {
+  const rows = await fetchCardSetsForCatalogo(supabase, {
+    gameCode: filters?.gameCode,
+    expansionCode: filters?.expansionCode,
+  });
+  const counts = await getCardCountsForSets(supabase, rows.map((row) => row.id));
+
+  const groups = new Map<string, CardSetsExpansionGroupInternal>();
+  for (const row of rows) {
+    const expansionId = row.expansion?.id ?? "";
+    let group = groups.get(expansionId);
+    if (!group) {
+      group = {
+        expansionId,
+        expansionCode: row.expansion?.code ?? "",
+        expansionName: row.expansion?.name ?? "—",
+        gameCode: row.expansion?.game?.code ?? "",
+        items: [],
+        gameCreatedAt: row.expansion?.game?.created_at ?? "",
+        expansionReleaseOrder: row.expansion?.release_order ?? 0,
+      };
+      groups.set(expansionId, group);
+    }
+    group.items.push(toCatalogoCardSetRow(row, counts));
+  }
+
+  const result = Array.from(groups.values());
+  for (const group of result) {
+    group.items.sort((a, b) => {
+      if (a.releaseDate && b.releaseDate && a.releaseDate !== b.releaseDate) {
+        return b.releaseDate.localeCompare(a.releaseDate);
+      }
+      if (a.releaseDate && !b.releaseDate) return -1;
+      if (!a.releaseDate && b.releaseDate) return 1;
+      return b.releaseOrder - a.releaseOrder;
+    });
+  }
+  result.sort((a, b) => {
+    const gameDiff = a.gameCreatedAt.localeCompare(b.gameCreatedAt);
+    if (gameDiff !== 0) return gameDiff;
+    return a.expansionReleaseOrder - b.expansionReleaseOrder;
+  });
+  return result;
 }
 
 type CatalogoCardSearchRawRow = {

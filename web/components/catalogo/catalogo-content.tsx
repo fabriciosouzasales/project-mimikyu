@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardSetGalleryCard } from "@/components/catalogo/card-set-gallery-card";
-import { loadMoreCardSets, searchCatalogoAction, type CardSetWithLogo } from "@/app/catalogo/card-sets/catalogo-actions";
+import { searchCatalogoAction, type CardSetWithLogo } from "@/app/catalogo/card-sets/catalogo-actions";
 import type { CatalogoCardResult } from "@/lib/catalogo/queries";
 
 /**
@@ -15,6 +15,14 @@ import type { CatalogoCardResult } from "@/lib/catalogo/queries";
  * espelhando `expansoes-gallery.tsx` (que nunca teve essa divisão em dois
  * arquivos). Não removido: o mount do projeto não suporta `unlink()` (ver
  * memória do projeto) — arquivos sem uso ficam marcados, não apagados.
+ *
+ * Ajuste 2026-08-02: `loadMoreCardSets` (Server Action) foi removida de
+ * `catalogo-actions.ts` — o modo galeria da tela real passou a carregar
+ * tudo de uma vez, agrupado por Expansão (`getCardSetsGroupedByExpansion()`,
+ * ver `catalogo-gallery.tsx`), sem paginação incremental. Este arquivo (sem
+ * uso) só precisava continuar compilando; o ramo `else` de `handleLoadMore`
+ * (modo galeria) virou um no-op — nunca executado, já que nada monta este
+ * componente.
  *
  * Área de conteúdo da tela Catálogo — spec aprovada 2026-07-31, com o ajuste
  * de "Carregar mais" no lugar de rolagem infinita. Cabeçalho/busca/filtros
@@ -50,11 +58,9 @@ export function CatalogoContent({
         const result = await searchCatalogoAction({ query, cardsOffset: cards.length });
         setCards((prev) => [...prev, ...result.cards]);
         setHasMore(result.hasMoreCards);
-      } else {
-        const result = await loadMoreCardSets({ gameCode, expansionCode, offset: cardSets.length });
-        setCardSets((prev) => [...prev, ...result.items]);
-        setHasMore(result.hasMore);
       }
+      // Modo galeria: no-op — ver nota no topo do arquivo (componente sem
+      // uso, `loadMoreCardSets` removida junto com a paginação flat real).
     });
   }
 
