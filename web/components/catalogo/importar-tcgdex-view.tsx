@@ -196,6 +196,13 @@ export function useAnalyzeJob(cardSetId: string) {
     if (!job || (job.status !== "COMPLETED" && job.status !== "COMPLETED_WITH_ERRORS")) return;
     if (imageTriggeredJobIdRef.current === job.id) return;
     imageTriggeredJobIdRef.current = job.id;
+    // `catalogJobId` (2026-08-02, mesmo dia, rodada seguinte) — capturado
+    // aqui fora de qualquer closure aninhada: `job` é `const`, mas o
+    // TypeScript não propaga o null-check acima para dentro de
+    // `runUntilDone` (função aninhada, definida bem mais abaixo) — mesmo
+    // motivo já documentado para `run`/`activeRun` em
+    // `import-card-assets/index.ts`.
+    const catalogJobId = job.id;
 
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -225,6 +232,7 @@ export function useAnalyzeJob(cardSetId: string) {
           imagesFailed: 0,
           imagesTotal: 0,
           runCode: null,
+          runExpired: false,
         });
         setImagePhase("done");
         return;
@@ -238,6 +246,7 @@ export function useAnalyzeJob(cardSetId: string) {
           imagesFailed: 0,
           imagesTotal: 0,
           runCode: null,
+          runExpired: false,
         });
         setImagePhase("done");
         return;
@@ -251,15 +260,21 @@ export function useAnalyzeJob(cardSetId: string) {
           imagesFailed: 0,
           imagesTotal: 0,
           runCode: openResult.runCode,
+          runExpired: false,
         });
         setImagePhase("done");
         return;
       }
 
       setImagePhase("importing");
-      const runCode = openResult.runCode;
+      // `runCodeRef` (era `const runCode`, 2026-08-02, mesmo dia, rodada
+      // seguinte, mesma correção de `importar-imagens-view.tsx`) — precisa
+      // ser mutável agora: o retry automático abaixo pode trocar de
+      // run_code no meio do laço, e o polling precisa acompanhar qual run
+      // está valendo a cada momento.
+      const runCodeRef = { current: openResult.runCode };
       pollTimer = setInterval(() => {
-        fetchProgressoImportacaoImagens(runCode).then((progress) => {
+        fetchProgressoImportacaoImagens(runCodeRef.current).then((progress) => {
           if (!cancelled && progress) setImageProgress(progress);
         });
       }, 2000);
@@ -270,17 +285,21 @@ export function useAnalyzeJob(cardSetId: string) {
       // plataforma para a Edge Function não muda — uma Coleção grande
       // sempre precisa de várias chamadas. Em vez de exigir um clique
       // manual a cada falha, repete `executarImportacaoImagens` com o
-      // MESMO `runCode` (nunca reabre a run — reabrir cairia no caminho
-      // `alreadyActive` acima, já que o `status` da run fica preso em
-      // `RUNNING` quando a plataforma mata a função no meio, sem nunca
-      // chegar ao `finishImportRun` que a fecharia; `findImportRun`/
-      // `transitionImportRunToRunning`, do lado da Edge Function, não se
-      // importam com o `status` atual — só localizam a run pelo
-      // `run_code` e seguem processando o que ainda falta) até
-      // `imagesFailed` chegar a 0 ou parar de progredir (nenhuma imagem
-      // nova desde a tentativa anterior — sinal de falha real e
-      // persistente, não mais de timeout de plataforma) ou até o teto de
-      // segurança `MAX_IMAGE_IMPORT_RETRY_ATTEMPTS`.
+      // MESMO `runCode` até `imagesFailed` chegar a 0 ou parar de
+      // progredir (nenhuma imagem nova desde a tentativa anterior — sinal
+      // de falha real e persistente, não mais de timeout de plataforma) ou
+      // até o teto de segurança `MAX_IMAGE_IMPORT_RETRY_ATTEMPTS`.
+      //
+      // `result.runExpired` (2026-08-02, mesmo dia, rodada seguinte) — bug
+      // real corrigido (ME5, mesma causa documentada em
+      // `importar-imagens-view.tsx`): reusar o MESMO `runCode` só é
+      // seguro/correto quando a run ficou presa em `RUNNING` (a plataforma
+      // matou a função no meio, sem nunca chegar ao `finishImportRun` que a
+      // fecharia). Se a run já chegou a um status TERMINAL por um erro real
+      // de aplicação, a máquina de estados nunca permite reabri-la — a
+      // Edge Function (v2.9.2) sinaliza esse caso via `runExpired`; quando
+      // verdadeiro, em vez de insistir na run morta, abre uma run NOVA
+      // (`abrirImportacaoImagens` de novo) e continua o retry com ela.
       let attempt = 0;
       let lastImported = -1;
 
@@ -289,8 +308,22 @@ export function useAnalyzeJob(cardSetId: string) {
         do {
           attempt += 1;
           if (!cancelled) setImageAttempt(attempt);
-          result = await executarImportacaoImagens(cardSetId, runCode, AUTO_CONTINUATION_LANGUAGE_CODE);
+          result = await executarImportacaoImagens(cardSetId, runCodeRef.current, AUTO_CONTINUATION_LANGUAGE_CODE);
           if (cancelled) return result;
+
+          if (result.runExpired && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS) {
+            const reopened = await abrirImportacaoImagens(
+              cardSetId,
+              `catalog_import_job:${catalogJobId}`,
+              AUTO_CONTINUATION_LANGUAGE_CODE,
+            );
+            if (cancelled) return result;
+            if (reopened.supported && reopened.runCode && !reopened.alreadyActive) {
+              runCodeRef.current = reopened.runCode;
+              continue;
+            }
+          }
+
           if (result.imagesImported === lastImported) break;
           lastImported = result.imagesImported;
         } while (
@@ -298,7 +331,7 @@ export function useAnalyzeJob(cardSetId: string) {
           result.imagesFailed > 0 &&
           attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS
         );
-        return result;
+        return { ...result, runCode: runCodeRef.current };
       }
 
       runUntilDone().then((result) => {

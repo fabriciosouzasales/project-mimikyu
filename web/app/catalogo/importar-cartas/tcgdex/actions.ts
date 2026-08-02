@@ -327,6 +327,20 @@ export type IniciarImportacaoImagensResult = {
   imagesFailed: number;
   imagesTotal: number;
   runCode: string | null;
+  /**
+   * `true` quando a Edge Function recusou a chamada porque esta run
+   * (`runCode`) já chegou a um status terminal numa tentativa anterior
+   * (`code: "IMPORT_RUN_ALREADY_TERMINAL"`, Edge Function v2.9.2) — nunca vai
+   * ter sucesso reusando o MESMO `runCode` de novo (a máquina de estados
+   * nunca permite reabrir uma run encerrada). Bug real corrigido em
+   * 2026-08-02 (ME5): sem este sinal, o retry automático insistia no mesmo
+   * `run_code` morto e via só "Execução encerrada não pode mudar de
+   * status." como resultado final, mascarando o motivo real da primeira
+   * falha. Quem chama (`importar-imagens-view.tsx`/`importar-tcgdex-view.tsx`)
+   * deve abrir uma run NOVA (`abrirImportacaoImagens` de novo) em vez de
+   * repetir `executarImportacaoImagens` com o mesmo `runCode`.
+   */
+  runExpired: boolean;
 };
 
 type AdminStartAssetImportRunRow = {
@@ -535,6 +549,7 @@ export async function executarImportacaoImagens(
       imagesFailed: Math.max(total - imported, 0),
       imagesTotal: total,
       runCode,
+      runExpired: false,
     };
   }
 
@@ -550,6 +565,10 @@ export async function executarImportacaoImagens(
     // responder algo estruturado — HTTP 546 observado na prática para
     // coleções grandes) — a contagem real do banco é sempre a fonte de
     // verdade aqui, nunca `body?.images`.
+    // `runExpired` (2026-08-02, Edge Function v2.9.2): `body?.code ===
+    // "IMPORT_RUN_ALREADY_TERMINAL"` sinaliza que ESTE `runCode` já morreu
+    // (chegou a um status final numa tentativa anterior) — nunca vai
+    // funcionar reusá-lo de novo, quem chama precisa abrir uma run nova.
     return {
       supported: true,
       success: false,
@@ -558,6 +577,7 @@ export async function executarImportacaoImagens(
       imagesFailed: Math.max(total - imported, 0),
       imagesTotal: total,
       runCode,
+      runExpired: body?.code === "IMPORT_RUN_ALREADY_TERMINAL",
     };
   }
 
@@ -569,6 +589,7 @@ export async function executarImportacaoImagens(
     imagesFailed: Math.max(total - imported, 0),
     imagesTotal: total,
     runCode,
+    runExpired: false,
   };
 }
 

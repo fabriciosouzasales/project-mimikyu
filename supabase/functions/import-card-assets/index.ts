@@ -294,6 +294,33 @@ Histórico:
   runs anteriores da mesma Coleção confirmam o padrão (`processed_count`
   chegava a 60–85 em quase 15 minutos, `success_count` sempre `0`). Nenhuma
   mudança em `index.ts` nesta revisão — só em `services/storage.ts`.
+- v2.9.2 (2026-08-02, mesmo dia, rodada seguinte, CONFIRMADO DEPLOYADO —
+  verificado via MCP do Supabase, `list_edge_functions`, versão 27,
+  `updated_at` compatível com o horário real das runs de teste seguintes):
+  bug real encontrado logo depois do
+  deploy da v2.9.1 — nova tentativa de ME5 falhou rápido (não mais travada)
+  com `IMPORT_RUN_TRANSITION_TO_RUNNING_FAILED: Execução encerrada não pode
+  mudar de status.`. Diagnosticado via MCP do Supabase (`asset_import_run`,
+  logs da Edge Function, `pg_get_functiondef` de `admin_start_asset_import_
+  run()`/`govern_asset_import_run()`): a primeira chamada real (run nova,
+  `RUN-20260802-00000261`) falhou por um motivo genuíno mas não identificável
+  a posteriori (aconteceu antes do laço de imagens — `requested_count`/
+  `processed_count` ficaram zerados — provavelmente uma falha transiente de
+  rede/API externa entre `transitionImportRunToRunning` e o início do laço de
+  download), encerrando a run como `FAILED` com o erro real gravado. O retry
+  automático do cliente (mesmo `run_code`, ver `web/components/catalogo/
+  importar-imagens-view.tsx`) tentou de novo em seguida — mas como a run já
+  estava `FAILED` (terminal), `govern_asset_import_run()` bloqueou a
+  transição de volta pra `RUNNING`, e o `catch` desta função reescreveu
+  `error_summary` com essa mensagem genérica de transição, apagando o motivo
+  real da primeira falha. Corrigido: nova checagem logo após localizar a run
+  (ver comentário completo acima, antes de `transitionImportRunToRunning`) —
+  detecta run já terminal e devolve `code: "IMPORT_RUN_ALREADY_TERMINAL"` sem
+  tocar na run. Mudança irmã, necessária pro cliente saber abrir uma run nova
+  em vez de insistir na morta: `web/app/catalogo/importar-cartas/tcgdex/
+  actions.ts` (`executarImportacaoImagens` passa a expor `runExpired`),
+  `importar-imagens-view.tsx` e `importar-tcgdex-view.tsx` (retry automático
+  abre run nova quando `runExpired`, em vez de só reusar o run_code morto).
 
 Ver docs/06-pipeline-importacao.md, seções "Sprint B3.6", "Sprint B3.15",
 "Sprint B3.19", "Sprint B3.20", "Sprint B3.23" e "Sprint B3.24", para o
@@ -505,6 +532,45 @@ Deno.serve(async (req) => {
     // variáveis mutáveis). `activeRun` é `const`, então a garantia de
     // "não nulo" vale em qualquer escopo aninhado.
     const activeRun = run;
+
+    // v2.9.2 — a run já pode ter chegado a um status TERMINAL numa
+    // tentativa anterior deste MESMO run_code. O retry automático do
+    // cliente reusa o run_code de propósito (ver comentário em
+    // `web/components/catalogo/importar-imagens-view.tsx`/
+    // `importar-tcgdex-view.tsx`) para conseguir retomar de onde parou
+    // quando a PLATAFORMA mata a função no meio, deixando a run presa em
+    // RUNNING — nesse caso reusar é seguro e necessário. Mas se a run já
+    // terminou de verdade (COMPLETED/COMPLETED_WITH_ERRORS/FAILED/
+    // CANCELLED, por um erro real de aplicação, não por timeout de
+    // plataforma), `govern_asset_import_run()` NUNCA permite reabri-la —
+    // qualquer tentativa de transicionar de volta pra RUNNING falha com
+    // "Execução encerrada não pode mudar de status.".
+    // Bug real diagnosticado (ME5, 2026-08-02, via MCP do Supabase — logs
+    // da Edge Function + `asset_import_run` direto no banco): sem esta
+    // checagem, essa falha de transição SOBRESCREVIA o `error_summary`
+    // real da run (gravado por `finishImportRun` na tentativa que de fato
+    // a encerrou) por esta mensagem genérica, via o `catch` mais abaixo —
+    // Fabrício via só "Execução encerrada..." no resultado final, nunca a
+    // causa real da primeira falha. Corrigido: detecta esse caso ANTES de
+    // tentar a transição e devolve um erro específico (`code:
+    // "IMPORT_RUN_ALREADY_TERMINAL"`), sem tocar na run (preserva o
+    // `error_summary` original gravado por quem de fato a encerrou) — o
+    // cliente usa esse sinal pra abrir uma run NOVA em vez de insistir
+    // numa run morta.
+    if (
+      activeRun.status !== "PENDING" &&
+      activeRun.status !== "RUNNING"
+    ) {
+      return Response.json(
+        {
+          success: false,
+          error:
+            `IMPORT_RUN_ALREADY_TERMINAL: esta run já chegou a um status final (${activeRun.status}) numa tentativa anterior.`,
+          code: "IMPORT_RUN_ALREADY_TERMINAL",
+        },
+        { status: 409 },
+      );
+    }
 
     // A partir daqui a run já existe: qualquer saída (sucesso ou erro) deve
     // terminar em um status terminal, nunca deixar PENDING.
@@ -840,7 +906,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: failedImages.length === 0,
-      version: "2.9.1", // CONFIRMADO DEPLOYADO — ver "Histórico" acima
+      version: "2.9.2", // CONFIRMADO DEPLOYADO — ver "Histórico" acima
       run: {
         id: activeRun.id,
         run_code: activeRun.run_code,

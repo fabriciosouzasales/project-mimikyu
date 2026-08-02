@@ -116,6 +116,7 @@ export function ImportarImagensView({
           imagesFailed: 0,
           imagesTotal: 0,
           runCode: null,
+          runExpired: false,
         });
         setImagePhase("done");
         router.refresh();
@@ -130,6 +131,7 @@ export function ImportarImagensView({
           imagesFailed: 0,
           imagesTotal: 0,
           runCode: null,
+          runExpired: false,
         });
         setImagePhase("done");
         router.refresh();
@@ -144,6 +146,7 @@ export function ImportarImagensView({
           imagesFailed: 0,
           imagesTotal: 0,
           runCode: openResult.runCode,
+          runExpired: false,
         });
         setImagePhase("done");
         router.refresh();
@@ -151,9 +154,14 @@ export function ImportarImagensView({
       }
 
       setImagePhase("importing");
-      const runCode = openResult.runCode;
+      // `runCodeRef` (era `const runCode`, 2026-08-02, mesmo dia, rodada
+      // seguinte) — precisa ser mutável agora: o retry automático abaixo
+      // pode trocar de run_code no meio do laço (ver comentário completo
+      // logo abaixo), e o polling precisa acompanhar qual run está valendo
+      // a cada momento.
+      const runCodeRef = { current: openResult.runCode };
       const pollTimer = setInterval(() => {
-        fetchProgressoImportacaoImagens(runCode).then((progress) => {
+        fetchProgressoImportacaoImagens(runCodeRef.current).then((progress) => {
           if (progress) setImageProgress(progress);
         });
       }, 2000);
@@ -163,9 +171,25 @@ export function ImportarImagensView({
       // progresso real de 115→169 imagens — mesmo raciocínio/implementação
       // de `useAnalyzeJob` em `importar-tcgdex-view.tsx`): o teto de
       // execução da plataforma para a Edge Function não muda, então repete
-      // `executarImportacaoImagens` com o MESMO `runCode` (nunca reabre a
-      // run) até `imagesFailed` chegar a 0 ou parar de progredir, com teto
-      // de segurança `MAX_IMAGE_IMPORT_RETRY_ATTEMPTS`.
+      // `executarImportacaoImagens` com o MESMO `runCode` até `imagesFailed`
+      // chegar a 0 ou parar de progredir, com teto de segurança
+      // `MAX_IMAGE_IMPORT_RETRY_ATTEMPTS`.
+      //
+      // `result.runExpired` (2026-08-02, mesmo dia, rodada seguinte) — bug
+      // real corrigido (ME5): reusar o MESMO `runCode` só é seguro/correto
+      // quando a run ficou presa em RUNNING (a plataforma matou a função no
+      // meio, sem nunca terminar) — nesse caso a Edge Function localiza a
+      // mesma run e retoma de onde parou. Mas se a run já chegou a um
+      // status TERMINAL por um erro real de aplicação (não por timeout de
+      // plataforma), a máquina de estados nunca permite reabri-la — insistir
+      // no mesmo `runCode` sempre falha com "Execução encerrada não pode
+      // mudar de status.", e pior, essa falha de transição SOBRESCREVIA o
+      // motivo real da primeira falha no banco. A Edge Function (v2.9.2)
+      // agora sinaliza esse caso via `runExpired`; quando verdadeiro, em vez
+      // de repetir a mesma run morta, abre uma run NOVA
+      // (`abrirImportacaoImagens` de novo — o Card Set continua com imagens
+      // pendentes, então uma nova run é sempre criada) e continua o retry
+      // com ela.
       let attempt = 0;
       let lastImported = -1;
       let result: IniciarImportacaoImagensResult;
@@ -173,13 +197,22 @@ export function ImportarImagensView({
       do {
         attempt += 1;
         setImageAttempt(attempt);
-        result = await executarImportacaoImagens(cardSetId, runCode, languageCode);
+        result = await executarImportacaoImagens(cardSetId, runCodeRef.current, languageCode);
+
+        if (result.runExpired && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS) {
+          const reopened = await abrirImportacaoImagens(cardSetId, "manual_retry:importar-imagens", languageCode);
+          if (reopened.supported && reopened.runCode && !reopened.alreadyActive) {
+            runCodeRef.current = reopened.runCode;
+            continue;
+          }
+        }
+
         if (result.imagesImported === lastImported) break;
         lastImported = result.imagesImported;
       } while (result.supported && result.imagesFailed > 0 && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS);
 
       clearInterval(pollTimer);
-      setImageResult(result);
+      setImageResult({ ...result, runCode: runCodeRef.current });
       setImagePhase("done");
       router.refresh();
     });
