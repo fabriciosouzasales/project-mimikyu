@@ -1,3 +1,8 @@
 *.log
 .env
 .vscode/settings.json
+
+# Artefatos locais de sessão/ferramentas de IA (Claude Code/Cowork, Codex, etc.)
+# — nunca pertencem ao repositório do projeto.
+.agents/
+.codex/
