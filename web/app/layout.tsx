@@ -21,6 +21,19 @@ const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
 export const metadata: Metadata = {
   title: "MMKyu TCG Collector",
   description: "Plataforma para gestão de coleções de Pokémon TCG.",
+  // Favicon com o mascote (Mimikyu) — pedido de Fabrício em 2026-08-02, inspirado
+  // em como a página oficial da Pokémon usa seu ícone na aba do navegador.
+  // Duas variantes (olhos+boca claros/escuros) alternam via prefers-color-scheme
+  // para permanecer legível tanto em abas de navegador claras quanto escuras.
+  // Fonte: web/public/brand/icon-mark-{light,dark}.png, recortadas e
+  // centralizadas em web/public/favicon/.
+  icons: {
+    icon: [
+      { url: "/favicon/icon-light.png", media: "(prefers-color-scheme: light)" },
+      { url: "/favicon/icon-dark.png", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: [{ url: "/favicon/apple-icon.png" }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
