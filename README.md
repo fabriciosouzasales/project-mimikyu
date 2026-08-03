@@ -73,7 +73,7 @@ A documentação oficial completa, incluindo o guia de retomada para uma nova se
 
 **Fase 1 — Arquitetura Conceitual:** Concluída.
 
-**Fase 2 — Modelo Lógico:** Em andamento. Sub-Fase 1 (Catálogo Editorial) com Bloco A (Modelo de Dados) concluído — 7 Card Sets, 927 Cards catalogadas — e Bloco B (Pipeline de Importação) concluído para as 5 coleções originais (859 cartas, 1.718 imagens, `en`+`pt-BR`, 0 falhas). Sub-Fase 2 (Coleções) ainda não iniciada.
+**Fase 2 — Modelo Lógico:** Em andamento. Sub-Fase 1 (Catálogo Editorial): Bloco A (Modelo de Dados) concluído; Bloco B (Pipeline de Importação de imagens) operacional e em uso ativo, hoje cobrindo mais Card Sets do que os 7 originais da Expansion `ME` (via ingestão administrativa, `ADR-024`) — última contagem exata documentada por completo (7 Card Sets/927 Cards/859 cartas com imagem nas 5 coleções originais) não reflete mais o total atual; ver `docs/README.md` para o estado agregado mais recente. Sub-Fase 2 (Coleções) ainda não iniciada.
 
 Ver [`docs/README.md`](docs/README.md#status-atual-do-projeto) para o status detalhado e atualizado — fonte única, não duplicada aqui.
 

@@ -4,12 +4,12 @@
 |--------|-------|
 | **Documento** | Catálogo Editorial |
 | **Arquivo** | `docs/07-catalogo-editorial.md` |
-| **Versão** | 0.5 |
+| **Versão** | 0.6 |
 | **Status** | Em elaboração |
 | **Objetivo** | Documentar como as informações do Catálogo Editorial são efetivamente capturadas e disponibilizadas pelo Project Mimikyu. |
-| **Escopo** | Estratégia de captura e disponibilização de dados do catálogo. Não redefine entidades (ver `04-domain-model.md`) nem decisões arquiteturais (ver ADRs). |
+| **Escopo** | Estratégia de captura e disponibilização de dados do catálogo. Não redefine entidades (ver `04-domain-model.md`) nem decisões arquiteturais (ver ADRs) — o fluxo de ingestão resumido abaixo é uma referência de leitura, não a especificação; a especificação completa vive em `adr/ADR-024-catalog-card-ingestion-strategy.md`. |
 | **Dependências** | `04-domain-model.md`, `adr/ADR-012-structured-vs-visual-card-data.md` |
-| **Documentos Relacionados** | `adr/ADR-011-pokemon-tcg-domain-scope.md`, `06-pipeline-importacao.md` |
+| **Documentos Relacionados** | `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-024-catalog-card-ingestion-strategy.md`, `05-modelo-de-dados.md`, `06-pipeline-importacao.md`, `operations/import-card-assets.md`, `development/` (handoff vigente) |
 
 ---
 
@@ -88,6 +88,36 @@ Conceituais: Set, Number, Category, Trainer Subcategory, Rarity, Pokémon refere
 
 ---
 
+# Fluxo Atual de Ingestão (Resumo)
+
+Desde `ADR-024` (Catalog Card Ingestion Strategy), a captura de novas Cards a partir de fontes externas segue um fluxo único de staging/confirmação administrativa, independente da fonte concreta:
+
+```text
+Fonte externa (ex.: TCGdex)
+        ↓
+Processador (ex.: Edge Function import-catalog-cards)
+        ↓
+catalog_import_job
+        ↓
+catalog_import_row
+        ↓
+Revisão administrativa
+        ↓
+Decisão (aprovar / rejeitar / editar)
+        ↓
+Confirmação em lote
+        ↓
+Persistência canônica (internal.write_card())
+        ↓
+Importação de Assets (imagens — import-card-assets)
+```
+
+Nenhuma fonte externa grava diretamente no catálogo canônico — toda captura passa por staging revisável (`catalog_import_job`/`catalog_import_row`) antes de chegar a `internal.write_card()`, mesma camada de persistência já usada pela escrita administrativa direta (`ADR-023`). Estado real (2026-08-02): o **Ciclo 1** (infraestrutura comum de staging/confirmação) está confirmado executado e validado; o **Ciclo 2** (processador TCGdex completo, incluindo a etapa final de importação de imagens) está implementado e em uso ativo em produção, sem o mesmo fechamento formal do Ciclo 1. Um processador para PDF (Ciclos 3/4 de `ADR-024`) ainda não foi iniciado.
+
+Este resumo não substitui a especificação completa — para o contrato exato de estados, funções e regras de negócio, ver `adr/ADR-024-catalog-card-ingestion-strategy.md`; para o detalhe de implementação físico, `05-modelo-de-dados.md` (seção "Catálogo Editorial — Escrita e Ingestão") e `06-pipeline-importacao.md`; para o passo a passo operacional de imagens, `operations/import-card-assets.md`; para o estado mais recente da sessão de desenvolvimento, o handoff vigente em `development/`.
+
+---
+
 # Em Aberto
 
 - critérios objetivos para priorizar quais campos hoje visuais **e elegíveis a estruturação** (ou seja, que servem ao colecionismo, não à mecânica de jogo — ver AP-017) serão estruturados em ciclos futuros;
@@ -106,3 +136,4 @@ A relação entre a imagem da Card (Card Image) e o Card Variant, especificament
 | 0.3 | "Available Finishes"/"Card Finish" atualizados para "Available Variants"/"Card Variant" (Campos estruturados, Em Aberto), refletindo a convergência de nomenclatura de ADR-016. A entrada 0.2, acima, é preservada sem alteração como registro histórico do momento em que o ponto em aberto foi originalmente adicionado. |
 | 0.4 | **Correção direcionada (2026-07-30), a pedido de Fabrício — reconciliação com `AP-017` (Princípio do Escopo Colecionável, `02-architecture-principles.md`, já aprovado desde a revisão `1.6` daquele documento).** "Extracted Data" reescrita: mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio evolutivo, efeitos/textos de regra) nunca será extraída/estruturada, independentemente de OCR, API ou revisão manual — permanentemente, não uma possibilidade de evolução. "Critério para Estruturar uma Informação" ganhou um filtro definitivo anterior ao critério de utilidade ("serve para colecionar, ou só para jogar?"). "Campos que permanecem apenas na imagem" renomeada para deixar explícito que é permanente (AP-017), não "por ora". Exemplos de "Structured Data" corrigidos: removidos `set_id`/`card_number`/`category`/`pokemon_id` como exemplos de colunas físicas (`pokemon_id` não existe na tabela `card`); adicionados exemplos físicos reais (`card_set_id`/`rarity_id`/`category_id`/`collector_number`/`collector_total`/`collector_order`/`name`/`is_active`), separados explicitamente dos exemplos conceituais. "Em Aberto": fechada a relação Card Asset↔idioma↔Card Variant (definida e implementada — Query `193`, `05-modelo-de-dados.md`), mantida em aberto apenas a modelagem física de Card Translation (texto multi-idioma, sem tabela própria hoje), e qualificado o item de priorização de campos visuais para excluir explicitamente mecânica de jogo. Nenhuma decisão nova criada nesta revisão — apenas reconciliação com `AP-017`, já vigente. |
 | 0.5 | Nota objetiva adicionada (2026-07-30), a pedido de Fabrício, explicando o que mantém o Status deste documento como "Em elaboração" — sem promover para "Aprovado": os itens já listados em "Em Aberto", abaixo. Nenhum conteúdo novo, apenas uma referência cruzada explícita a partir da abertura do documento. |
+| 0.6 | **Auditoria de reconciliação documental (2026-08-02), a pedido de Fabrício.** Nova seção "Fluxo Atual de Ingestão (Resumo)": diagrama condensado (fonte externa → processador → staging → revisão → decisão → confirmação → persistência canônica → importação de Assets), com o estado real de cada Ciclo de `ADR-024` (Ciclo 1 concluído/validado; Ciclo 2 implementado e em uso ativo, sem fechamento formal; Ciclos 3/4 não iniciados) e referências cruzadas para a especificação completa (`ADR-024`), o detalhe físico (`05-modelo-de-dados.md`), a arquitetura do pipeline de imagens (`06-pipeline-importacao.md`), o guia operacional (`operations/import-card-assets.md`) e o handoff vigente — sem duplicar a especificação completa do ADR. "Documentos Relacionados" e "Escopo" (cabeçalho) atualizados com as mesmas referências. Status permanece "Em elaboração" — os itens de "Em Aberto" (critérios de priorização de campos, mecanismo de extração) não foram resolvidos por esta rodada, que é sobre o fluxo de ingestão administrativa, não sobre extração de dados visuais. |
