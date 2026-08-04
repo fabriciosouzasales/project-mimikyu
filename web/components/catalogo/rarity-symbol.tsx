@@ -73,8 +73,21 @@ import { cn } from "@/lib/utils";
  * transferindo o problema (`ILLUSTRATION_RARE` passaria a mostrar 3
  * estrelas por engano). `count` ampliado de `1 | 2` para `1 | 2 | 3` para
  * acomodar o novo símbolo — nenhum símbolo existente muda de contagem.
+ *
+ * `BLACK_WHITE_STAR` (2026-08-06, Query 830 v1.6) — gap real na revisão de
+ * importação ("Rara Preto e Branco", cartas Victini 171/86 e Zekrom ex
+ * 172/86). Símbolo oficial informado por Fabrício: "★☆" — uma estrela
+ * preenchida + uma vazada, o primeiro símbolo do mapa que não é uniforme
+ * (todo símbolo anterior repete o mesmo ícone/preenchimento `count` vezes).
+ * Novo campo opcional `emptyCount`: quantos ícones adicionais, além de
+ * `count`, renderizam sem preenchimento (`fill-none`, só contorno) — mantém
+ * todo entry existente compatível (sem `emptyCount`, comportamento idêntico
+ * a antes).
  */
-const SYMBOL_MAP: Record<string, { icon: LucideIcon; count: 1 | 2 | 3; tone: string; fillTone?: string }> = {
+const SYMBOL_MAP: Record<
+  string,
+  { icon: LucideIcon; count: 1 | 2 | 3; tone: string; fillTone?: string; emptyCount?: 1 }
+> = {
   BLACK_CIRCLE: { icon: Circle, count: 1, tone: "text-foreground" },
   BLACK_DIAMOND: { icon: Diamond, count: 1, tone: "text-foreground" },
   BLACK_STAR: { icon: Star, count: 1, tone: "text-foreground" },
@@ -88,6 +101,7 @@ const SYMBOL_MAP: Record<string, { icon: LucideIcon; count: 1 | 2 | 3; tone: str
   ACE_SPEC: { icon: Star, count: 1, tone: "text-pink-500" },
   GOLD_SPARKLE: { icon: Star, count: 1, tone: "text-primary", fillTone: "fill-muted-foreground" },
   GOLD_DOUBLE_SPARKLE: { icon: Star, count: 2, tone: "text-primary", fillTone: "fill-muted-foreground" },
+  BLACK_WHITE_STAR: { icon: Star, count: 1, tone: "text-foreground", emptyCount: 1 },
 };
 
 export function RaritySymbol({ symbolCode, className }: { symbolCode: string; className?: string }) {
@@ -100,12 +114,18 @@ export function RaritySymbol({ symbolCode, className }: { symbolCode: string; cl
   // "solto na tela" reportado por Fabrício (2026-07-31) não era a margem
   // para o texto acima, e sim esse espaço em branco embutido no próprio
   // símbolo.
+  const totalCount = entry.count + (entry.emptyCount ?? 0);
+
   return (
     <span className={cn("inline-flex items-center gap-[1px] leading-none", entry.tone)} aria-hidden="true">
-      {Array.from({ length: entry.count }).map((_, index) => (
+      {Array.from({ length: totalCount }).map((_, index) => (
         <Icon
           key={index}
-          className={cn("h-[7px] w-[7px] stroke-[1.5]", entry.fillTone ?? "fill-current", className)}
+          className={cn(
+            "h-[7px] w-[7px] stroke-[1.5]",
+            index < entry.count ? (entry.fillTone ?? "fill-current") : "fill-none",
+            className,
+          )}
         />
       ))}
     </span>

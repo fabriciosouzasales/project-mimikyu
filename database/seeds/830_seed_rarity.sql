@@ -2,11 +2,11 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 830 - Seed Rarity
-Versão......: 1.5
+Versão......: 1.6
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / ChatGPT
 Data........: 2026-07-18 (v1.0-1.2) / 2026-08-01 (v1.3) /
-              2026-08-02 (v1.4-v1.5)
+              2026-08-02 (v1.4-v1.5) / 2026-08-06 (v1.6)
 
 Descrição resumida:
 Cadastra e atualiza as raridades e seus símbolos oficiais identificados nas
@@ -34,6 +34,15 @@ Raridades cadastradas:
 - ACE SPEC Rara (v1.4)
 - Shiny Rara (v1.4)
 - Shiny Ultra Rara (v1.4)
+- Rara Preto e Branco (v1.6)
+
+Nota de versão (v1.6, 2026-08-06):
+Gap real encontrado na revisão de importação (raw "Rara Preto e Branco",
+RARIDADE_NAO_MAPEADA), cartas Victini (171/86) e Zekrom ex (172/86).
+Código técnico definido: BLACK_WHITE_RARE. Símbolo oficial informado por
+Fabrício (legenda "★☆ = Rara Preto e Branco"): uma estrela preenchida +
+uma estrela vazada — código novo e dedicado, BLACK_WHITE_STAR (nenhum
+symbol_code existente representa preenchimento parcial).
 
 Nota de versão (v1.5, 2026-08-02):
 Fabrício sinalizou, com referência visual oficial (print de carta real +
@@ -222,6 +231,13 @@ BEGIN
             'Shiny Ultra Rara',
             'GOLD_DOUBLE_SPARKLE',
             14
+        ),
+        (
+            v_game_id,
+            'BLACK_WHITE_RARE',
+            'Rara Preto e Branco',
+            'BLACK_WHITE_STAR',
+            15
         )
     ON CONFLICT (game_id, code)
     DO UPDATE SET
