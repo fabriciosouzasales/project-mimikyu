@@ -79,7 +79,8 @@ import type { RequestBody } from "./types.ts";
 // enquanto /pt/sets/me05 tem os dados completos. Fabrício confirmou "pt"
 // como o correto após checar as duas URLs diretamente no navegador — a
 // cobertura de "pt-br" na TCGdex é mais rala que a de "pt" genérico.
-const TCGDEX_LANGUAGE = "pt";
+const TCGDEX_PRIMARY_LANGUAGE = "pt";
+const TCGDEX_FALLBACK_LANGUAGE = "en";
 const ASSET_SOURCE_CODE = "TCGDEX";
 const CARD_DETAIL_BATCH_SIZE = 10;
 
@@ -144,8 +145,49 @@ Deno.serve(async (req) => {
     const cardSet = await findCardSetWithGame(supabase, job.card_set_id);
     if (!cardSet) throw new Error("CARD_SET_NOT_FOUND");
 
-    const tcgdex = new TcgdexClient(TCGDEX_LANGUAGE);
-    const set = await tcgdex.getSet(job.external_set_id);
+let tcgdexLanguage:
+  | typeof TCGDEX_PRIMARY_LANGUAGE
+  | typeof TCGDEX_FALLBACK_LANGUAGE =
+    TCGDEX_PRIMARY_LANGUAGE;
+
+let tcgdex = new TcgdexClient(tcgdexLanguage);
+let set;
+
+try {
+  set = await tcgdex.getSet(job.external_set_id);
+
+  const reportedCardCount =
+    set.cardCount?.official ??
+    set.cardCount?.total ??
+    0;
+
+  const hasIncompleteCardList =
+    reportedCardCount > 0 &&
+    set.cards.length === 0;
+
+  if (hasIncompleteCardList) {
+    console.warn(
+      `TCGDEX_SET_WITHOUT_CARDS: ${job.external_set_id} no idioma ${tcgdexLanguage}; tentando ${TCGDEX_FALLBACK_LANGUAGE}.`,
+    );
+
+    tcgdexLanguage = TCGDEX_FALLBACK_LANGUAGE;
+    tcgdex = new TcgdexClient(tcgdexLanguage);
+    set = await tcgdex.getSet(job.external_set_id);
+  }
+} catch (error) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error);
+
+  if (message !== "TCGDEX_HTTP_404") {
+    throw error;
+  }
+
+  tcgdexLanguage = TCGDEX_FALLBACK_LANGUAGE;
+  tcgdex = new TcgdexClient(tcgdexLanguage);
+  set = await tcgdex.getSet(job.external_set_id);
+}
 
     await updateProgressStep(supabase, jobId, "EXTRACTING_CARDS");
 
@@ -219,7 +261,7 @@ Deno.serve(async (req) => {
         card_set_id: cardSet.id,
         asset_source_id: assetSource.id,
         external_set_id: job.external_set_id,
-        source_url: `https://api.tcgdex.net/v2/${TCGDEX_LANGUAGE}/sets/${job.external_set_id}`,
+        source_url: `https://api.tcgdex.net/v2/${tcgdexLanguage}/sets/${job.external_set_id}`,
         metadata: { name: set.name, cardCount: set.cardCount ?? null },
       });
     } else {

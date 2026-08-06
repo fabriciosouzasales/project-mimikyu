@@ -90,6 +90,9 @@ export function normalizeRarityLookupKey(raw: string): string {
 // Se surgir uma raridade nova sem alias aqui, ela cai em NEEDS_REVIEW (não
 // silenciosamente errada) — comportamento seguro por desenho.
 const RARITY_NAME_ALIASES: Record<string, string> = {
+  "COMMON": "COMUM",
+  "RARE": "RARA",
+  "UNCOMMON": "INCOMUM",
   "ULTRA RARA": "RARA ULTRA",
   "MEGA HIPER RARO": "MEGA RARA HIPER",
   "ACE SPEC RARE": "ACE SPEC RARA",
