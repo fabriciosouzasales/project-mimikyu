@@ -16,13 +16,15 @@ import {
 
 /**
  * Cartas — reescrita completa em 2026-07-31 (subciclo Card, escopo
- * somente-leitura: criação/edição administrativa de Card via
- * `internal.write_card()` — Query 2030 — e desativação/reativação via
- * `card.is_active` continuam pendentes, fora do escopo desta rodada). Antes
- * era uma navegação simples por chips de código + tabela (ver histórico
- * git); agora delega toda a composição visual a `CartasGallery` — este
- * arquivo só resolve dados (Card Sets + cartas do Set selecionado, logo do
- * Set selecionado) e checa autorização, mesmo padrão de
+ * somente-leitura nessa rodada). Edição administrativa de Card
+ * (`admin_update_card()`, Query 2114) chegou em 2026-08-07; criação
+ * (`admin_create_card()`, Query 2115) e desativação/reativação
+ * (`admin_deactivate_card()`/`admin_reactivate_card()`, Queries 2116/2117)
+ * fecham o restante do subciclo Card do ADR-023 na mesma data. Antes era
+ * uma navegação simples por chips de código + tabela (ver histórico git);
+ * agora delega toda a composição visual a `CartasGallery` — este arquivo só
+ * resolve dados (Card Sets + cartas do Set selecionado, logo do Set
+ * selecionado) e checa autorização, mesmo padrão de
  * `expansoes/page.tsx`/`card-sets/page.tsx`.
  *
  * `games`/`expansions` — adicionados em 2026-07-31 junto com o filtro
@@ -114,7 +116,14 @@ export default async function CartasPage({
   const [logoUrls, cartasStats, cartas] = await Promise.all([
     getCardSetLogoUrls(supabase, selected?.logoStoragePath ? [selected.logoStoragePath] : []),
     getCartasCatalogoStats(supabase, totalCartas),
-    selected ? getCartasCompletas(supabase, selected.id) : Promise.resolve([]),
+    // `incluirInativas: true` — 2026-08-07 (subciclo Card: criação e
+    // desativação/reativação, ADR-023). A galeria precisa das cartas
+    // inativas para o toggle "Mostrar inativas" e para sugerir o próximo
+    // `collector_order` livre em `NewCardDialog` considerando ativas E
+    // inativas (mesma regra de duplicidade de `admin_create_card()`,
+    // Query 2115). O filtro "ativas por padrão" continua acontecendo no
+    // cliente (`CartasGallery`), não no banco.
+    selected ? getCartasCompletas(supabase, selected.id, { incluirInativas: true }) : Promise.resolve([]),
   ]);
   const selectedLogoUrl = selected?.logoStoragePath ? (logoUrls.get(selected.logoStoragePath) ?? null) : null;
 

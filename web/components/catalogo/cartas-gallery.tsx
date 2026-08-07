@@ -1,11 +1,12 @@
 "use client";
 
-import { CreditCard, FileUp, Pencil, Search } from "lucide-react";
+import { CreditCard, Eye, EyeOff, FileUp, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
-import { EditCardDialog } from "@/components/catalogo/carta-dialogs";
+import { reactivateCard } from "@/app/catalogo/cartas/actions";
+import { DeactivateCardDialog, EditCardDialog, NewCardDialog } from "@/components/catalogo/carta-dialogs";
 import { CartasStats } from "@/components/catalogo/cartas-stats";
 import { HoloCard } from "@/components/catalogo/holo-card";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
@@ -213,6 +214,22 @@ export function CartasGallery({
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
   const [zoomCarta, setZoomCarta] = useState<CartaCompletaRow | null>(null);
+  // Toggle "Mostrar inativas" + confirmação de desativação + estado de
+  // reativação — novo em 2026-08-07 (subciclo Card: criação e desativação/
+  // reativação, ADR-023, ajuste #6 da revisão de Fabrício: "Para Cards
+  // inativas, mantenha Editar + Reativar, em vez de substituir o lápis").
+  // `cartas` (a prop) sempre chega com ativas E inativas (ver
+  // `getCartasCompletas(..., { incluirInativas: true })` em `page.tsx`);
+  // `showInactive` decide só o que É EXIBIDO — ativas por padrão, mesmo
+  // comportamento de antes desta rodada.
+  const [showInactive, setShowInactive] = useState(false);
+  const [deactivatingCarta, setDeactivatingCarta] = useState<CartaCompletaRow | null>(null);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  // Erro de uma ação rápida (reativar) sem formulário próprio — separado de
+  // `state.successMessage`/`EditCardDialog`/`NewCardDialog` porque não há
+  // Dialog nenhum aberto no momento do erro (o clique em "Reativar" age
+  // direto, sem confirmação).
+  const [actionError, setActionError] = useState<string | null>(null);
   // Idioma da imagem exibida no grid/modal — pt-BR por padrão (mesma
   // prioridade que já existia antes do alternador, `IMAGE_LANGUAGE_PRIORITY`
   // em `queries.ts`). Estado local (não vai para a URL): pedido de Fabrício
@@ -319,9 +336,33 @@ export function CartasGallery({
     navigateToMostRecentInScope(selectedGameId, expansionId);
   }
 
+  // Base de exibição — ativas por padrão, ativas+inativas com o toggle
+  // "Mostrar inativas" ligado. `cartas` (a prop) sempre chega completa; os
+  // filtros de raridade/categoria, o alternador PT/EN e a busca abaixo
+  // trabalham todos sobre `visibleCartas`, não sobre `cartas` diretamente —
+  // senão uma carta inativa apareceria nas contagens dos chips de
+  // Raridade/Categoria mesmo com o toggle desligado.
+  const inactiveCount = useMemo(() => cartas.filter((carta) => !carta.isActive).length, [cartas]);
+  const visibleCartas = useMemo(
+    () => (showInactive ? cartas : cartas.filter((carta) => carta.isActive)),
+    [cartas, showInactive],
+  );
+
+  // Sugestão de próxima ordem editorial para `NewCardDialog` — ajuste #3 da
+  // revisão de Fabrício ("collector_order = max + 1 é apenas sugestão de
+  // UX, mantendo validação transacional no banco"). Considera TODAS as
+  // cartas (ativas e inativas — `cartas`, não `visibleCartas`), mesma regra
+  // de duplicidade de `admin_create_card()` (Query 2115): uma Card inativa
+  // ainda "ocupa" sua ordem/número, então a sugestão precisa contar com ela
+  // para não colidir na validação do banco.
+  const suggestedCollectorOrder = useMemo(
+    () => cartas.reduce((max, carta) => Math.max(max, carta.collectorOrder), 0) + 1,
+    [cartas],
+  );
+
   const rarityOptions = useMemo(() => {
     const map = new Map<string, { code: string; name: string; order: number; count: number }>();
-    for (const carta of cartas) {
+    for (const carta of visibleCartas) {
       if (!carta.rarityCode) continue;
       const entry = map.get(carta.rarityCode) ?? {
         code: carta.rarityCode,
@@ -333,11 +374,11 @@ export function CartasGallery({
       map.set(carta.rarityCode, entry);
     }
     return Array.from(map.values()).sort((a, b) => a.order - b.order);
-  }, [cartas]);
+  }, [visibleCartas]);
 
   const categoryOptions = useMemo(() => {
     const map = new Map<string, { code: string; name: string; order: number; count: number }>();
-    for (const carta of cartas) {
+    for (const carta of visibleCartas) {
       if (!carta.categoryCode) continue;
       const entry = map.get(carta.categoryCode) ?? {
         code: carta.categoryCode,
@@ -349,7 +390,7 @@ export function CartasGallery({
       map.set(carta.categoryCode, entry);
     }
     return Array.from(map.values()).sort((a, b) => a.order - b.order);
-  }, [cartas]);
+  }, [visibleCartas]);
 
   // O alternador PT/EN só faz sentido quando o Card Set de fato tem os dois
   // idiomas importados — mostrá-lo sempre, mesmo quando só um idioma existe,
@@ -357,13 +398,13 @@ export function CartasGallery({
   // não previu esse caso, mas segue o mesmo cuidado já aplicado ao filtro de
   // raridade/categoria, que também só aparece quando há opções).
   const hasBothImageLanguages = useMemo(
-    () => cartas.some((carta) => carta.imageUrlPt) && cartas.some((carta) => carta.imageUrlEn),
-    [cartas],
+    () => visibleCartas.some((carta) => carta.imageUrlPt) && visibleCartas.some((carta) => carta.imageUrlEn),
+    [visibleCartas],
   );
 
   const query = search.trim().toLowerCase();
   const filtered = useMemo(() => {
-    return cartas.filter((carta) => {
+    return visibleCartas.filter((carta) => {
       if (selectedRarities.size > 0 && !selectedRarities.has(carta.rarityCode)) return false;
       if (selectedCategories.size > 0 && !selectedCategories.has(carta.categoryCode)) return false;
       if (query) {
@@ -380,7 +421,7 @@ export function CartasGallery({
       }
       return true;
     });
-  }, [cartas, selectedRarities, selectedCategories, query]);
+  }, [visibleCartas, selectedRarities, selectedCategories, query]);
 
   const visible = showAll ? filtered : filtered.slice(0, PAGE_SIZE);
 
@@ -427,6 +468,27 @@ export function CartasGallery({
     router.refresh();
   }
 
+  /**
+   * Reativa uma Card direto (sem Dialog de confirmação — ver comentário de
+   * `DeactivateCardDialog` sobre por que a reativação não precisa de um; o
+   * próprio botão já é o "desfazer" de uma desativação, `admin_reactivate_card()`
+   * — Query 2117 — bloqueia reativar uma Card já ativa, então não há risco
+   * de dano real num clique acidental duplo). `reactivatingId` isola o
+   * estado de pendência para a carta certa dentro do grid (mesmo princípio
+   * de `transitionTargetId`).
+   */
+  async function handleReactivate(carta: CartaCompletaRow) {
+    setActionError(null);
+    setReactivatingId(carta.id);
+    const result = await reactivateCard(carta.id);
+    setReactivatingId(null);
+    if (result.error) {
+      setActionError(result.error);
+      return;
+    }
+    handleSaved("Card reativada com sucesso.", carta.id);
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader>
@@ -440,6 +502,7 @@ export function CartasGallery({
       </PageHeader>
 
       {state.successMessage && <InlineFeedback tone="success">{state.successMessage}</InlineFeedback>}
+      {actionError && <InlineFeedback tone="error">{actionError}</InlineFeedback>}
 
       {cardSets.length > 0 && <CartasStats cardSets={cardSets} stats={cartasStats} />}
 
@@ -460,7 +523,17 @@ export function CartasGallery({
           `space-y-4` externo (16px, o mesmo espaço usado entre PageHeader/
           Stats/conteúdo) — daí a folga visível a mais só nesta tela. */}
       <div className="space-y-2">
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {/* "Nova Carta" — novo em 2026-08-07 (subciclo Card: criação e
+              desativação/reativação, ADR-023), mesmo padrão posicional dos
+              botões "Nova Coleção"/"Nova expansão"/"Novo Jogo". Desabilitado
+              sem uma Coleção selecionada — `card_set_id` é obrigatório e
+              define a identidade da Card sendo criada, não há "Coleção
+              padrão" sensata para inferir. */}
+          <Button type="button" size="sm" onClick={state.startCreate} disabled={!selectedCardSet}>
+            <Plus className="h-3.5 w-3.5" />
+            Nova Carta
+          </Button>
           <Button asChild size="sm">
             <Link href="/catalogo/importar-cartas">
               <FileUp className="h-3.5 w-3.5" />
@@ -532,6 +605,25 @@ export function CartasGallery({
                 </select>
               </div>
 
+              {/* Toggle "Mostrar inativas" — novo em 2026-08-07 (subciclo
+                  Card, escolha confirmada por Fabrício entre as opções
+                  apresentadas: "Toggle 'Mostrar inativas' na galeria").
+                  Some por completo quando o Card Set atual não tem nenhuma
+                  Card inativa — sem isso, o controle apareceria sempre,
+                  mesmo quando não muda nada visualmente (mesmo cuidado já
+                  aplicado ao alternador PT/EN). */}
+              {inactiveCount > 0 && (
+                <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={showInactive}
+                    onChange={(event) => setShowInactive(event.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border accent-primary"
+                  />
+                  Mostrar inativas ({inactiveCount})
+                </label>
+              )}
+
               {(rarityOptions.length > 0 || categoryOptions.length > 0) && (
                 // Esquema pedido por Fabrício (2026-07-31, ajuste seguinte):
                 // "RARIDADE / chips / (12px) / CATEGORIA / chips" — rótulo
@@ -560,6 +652,16 @@ export function CartasGallery({
                 <EmptyState
                   title="Nenhuma carta catalogada neste Card Set"
                   description={`${selectedCardSet.name} ainda não tem cartas cadastradas.`}
+                />
+              ) : visibleCartas.length === 0 ? (
+                // Todas as cartas deste Card Set estão desativadas e o
+                // toggle "Mostrar inativas" está desligado — estado
+                // diferente de "nenhuma carta cadastrada" (acima) e de
+                // "busca/filtro sem resultado" (abaixo): aqui existem
+                // cartas, só não estão visíveis por padrão.
+                <EmptyState
+                  title="Todas as cartas deste Card Set estão desativadas"
+                  description={`Ative "Mostrar inativas" para ver as ${inactiveCount} cartas desativadas.`}
                 />
               ) : filtered.length === 0 ? (
                 <EmptyState title="Nenhuma carta encontrada" description="Ajuste a busca ou os filtros de raridade/categoria." />
@@ -639,7 +741,7 @@ export function CartasGallery({
                             contagem de busca/filtro abaixo). */}
                         <p className="text-[11px] text-muted-foreground">
                           {formatCardSetTotals(selectedCardSet.baseSetSize, selectedCardSet.totalSetSize)} - Exibidas{" "}
-                          {filtered.length} de {cartas.length} carta{cartas.length === 1 ? "" : "s"}
+                          {filtered.length} de {visibleCartas.length} carta{visibleCartas.length === 1 ? "" : "s"}
                         </p>
                       </div>
                     </div>
@@ -667,6 +769,9 @@ export function CartasGallery({
                         isTransitionSource={transitionTargetId === carta.id && zoomCarta?.id !== carta.id}
                         onOpen={() => openZoom(carta)}
                         onEdit={() => state.startEdit(carta.id)}
+                        onDeactivate={() => setDeactivatingCarta(carta)}
+                        onReactivate={() => handleReactivate(carta)}
+                        reactivating={reactivatingId === carta.id}
                       />
                     ))}
                   </div>
@@ -695,6 +800,28 @@ export function CartasGallery({
         categorias={categorias}
         onSaved={handleSaved}
         onCancel={state.cancelEdit}
+      />
+
+      <NewCardDialog
+        open={state.creating}
+        cardSetId={selectedCardSet?.id ?? ""}
+        cardSetLabel={selectedCardSet ? `${selectedCardSet.name} (${selectedCardSet.code})` : ""}
+        defaultCollectorTotal={selectedCardSet?.totalSetSize ?? null}
+        suggestedCollectorOrder={suggestedCollectorOrder}
+        raridades={raridades}
+        categorias={categorias}
+        onSaved={handleSaved}
+        onCancel={state.cancelCreate}
+      />
+
+      <DeactivateCardDialog
+        open={deactivatingCarta !== null}
+        carta={deactivatingCarta}
+        onConfirmed={(message, id) => {
+          setDeactivatingCarta(null);
+          handleSaved(message, id);
+        }}
+        onCancel={() => setDeactivatingCarta(null)}
       />
     </div>
   );
@@ -815,6 +942,9 @@ function CartaGridCard({
   isTransitionSource,
   onOpen,
   onEdit,
+  onDeactivate,
+  onReactivate,
+  reactivating,
 }: {
   carta: CartaCompletaRow;
   /** Qual imagem mostrar — ver `ImageLanguageToggle`/`cartaImageUrl`. */
@@ -833,6 +963,12 @@ function CartaGridCard({
   onOpen: () => void;
   /** Abre `EditCardDialog` para esta carta — botão de ação rápida, novo em 2026-08-07 (ver comentário abaixo). */
   onEdit: () => void;
+  /** Abre `DeactivateCardDialog` para esta carta — só renderizado quando `carta.isActive`. */
+  onDeactivate: () => void;
+  /** Chama `reactivateCard` direto para esta carta — só renderizado quando `!carta.isActive`. */
+  onReactivate: () => void;
+  /** `true` enquanto a reativação desta carta específica está em voo — desabilita o botão e troca o ícone. */
+  reactivating: boolean;
 }) {
   const imageUrl = cartaImageUrl(carta, imageLanguage);
 
@@ -843,8 +979,17 @@ function CartaGridCard({
     // Coleções") — mesma mudança estrutural que `CardSetGalleryCard`/
     // `ExpansaoGalleryCard` já tiveram: o clique de ampliar fica restrito à
     // imagem (seu próprio `<button>`), e a identificação abaixo dela vira
-    // uma linha `justify-between` com o texto à esquerda e o ícone de
-    // edição à direita — "canto inferior direito" do card inteiro.
+    // uma linha `justify-between` com o texto à esquerda e o(s) ícone(s) de
+    // ação à direita — "canto inferior direito" do card inteiro.
+    //
+    // Segundo ícone de ação (2026-08-07, subciclo Card: criação e
+    // desativação/reativação) — ajuste #6 da revisão de Fabrício: "Para
+    // Cards inativas, mantenha Editar + Reativar, em vez de substituir o
+    // lápis". Card ativa → Pencil (Editar) + EyeOff (Desativar); Card
+    // inativa → Pencil (Editar) + Eye (Reativar), nunca um substituindo o
+    // outro. Imagem com opacidade reduzida + `grayscale` e rótulo
+    // "Inativa" — sinal visual rápido de qual carta já não aparece nas
+    // telas operacionais, sem precisar abrir nada.
     <div className="flex flex-col gap-2.5 rounded-lg text-left">
       <button
         type="button"
@@ -860,6 +1005,7 @@ function CartaGridCard({
         aria-label={`Ampliar ${carta.name}`}
       >
         <HoloCard
+          className={cn(!carta.isActive && "opacity-50 grayscale")}
           style={
             { viewTransitionName: isTransitionSource ? cartaViewTransitionName(carta.id) : "none" } as CSSProperties
           }
@@ -879,18 +1025,51 @@ function CartaGridCard({
           <p className="truncate text-[10px] leading-none text-muted-foreground">
             <span className="font-medium text-foreground">#{cartaFullNumber(carta)}</span> - {carta.name}
           </p>
-          <RaritySymbol symbolCode={carta.raritySymbolCode} />
+          <div className="flex items-center gap-1">
+            <RaritySymbol symbolCode={carta.raritySymbolCode} />
+            {!carta.isActive && (
+              <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
+                Inativa
+              </span>
+            )}
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0 text-foreground"
-          aria-label={`Editar ${carta.name}`}
-          onClick={onEdit}
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-foreground"
+            aria-label={`Editar ${carta.name}`}
+            onClick={onEdit}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+          {carta.isActive ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-foreground"
+              aria-label={`Desativar ${carta.name}`}
+              onClick={onDeactivate}
+            >
+              <EyeOff className="h-3 w-3" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-foreground"
+              aria-label={`Reativar ${carta.name}`}
+              onClick={onReactivate}
+              disabled={reactivating}
+            >
+              <Eye className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -61,7 +61,7 @@ Catálogo completo com status em [`adr/ADR-INDEX.md`](adr/ADR-INDEX.md). Lista r
 | [ADR-020](adr/ADR-020-user-profile-and-username-identity-model.md) | Modelo de perfil de usuário e identidade de username. |
 | [ADR-021](adr/ADR-021-administrative-role-model.md) | Modelo de papel administrativo. |
 | [ADR-022](adr/ADR-022-catalog-editorial-admin-only-access.md) | Acesso ao catálogo editorial restrito a administradores. |
-| [ADR-023](adr/ADR-023-catalog-editorial-write-authorization.md) | Autorização de escrita administrativa no catálogo editorial (Game/Expansion/Card Set completos; Card com atualização via UI, cadastro/desativação pendentes). |
+| [ADR-023](adr/ADR-023-catalog-editorial-write-authorization.md) | Autorização de escrita administrativa no catálogo editorial (Game/Expansion/Card Set completos; Card com ciclo vertical completo — create/update/deactivate/reactivate — via UI). |
 | [ADR-024](adr/ADR-024-catalog-card-ingestion-strategy.md) | Estratégia de ingestão administrativa de cartas (Ciclo 1 e 2 via TCGdex — Ciclo 2 sem fechamento formal; emenda de Raridade self-service e revalidação). |
 | [ADR-025](adr/ADR-025-energy-as-catalog-card-category.md) | Energia como categoria de carta no catálogo. |
 

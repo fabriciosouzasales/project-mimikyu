@@ -322,6 +322,34 @@ GRANT EXECUTE ON FUNCTION public.admin_update_card(UUID, TEXT, INTEGER, INTEGER,
 
 Frontend: `web/app/catalogo/cartas/actions.ts` (`updateCard`), `web/components/catalogo/carta-dialogs.tsx` (`EditCardDialog`), botão de ação rápida em `CartaGridCard` (`web/components/catalogo/cartas-gallery.tsx`). Validado funcionalmente por Fabrício em 2026-08-07 (edição via UI, sem erros).
 
+## `admin_create_card()`/`admin_deactivate_card()`/`admin_reactivate_card()` (Queries `2115`/`2116`/`2117`, CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE)
+
+Fecha o subciclo `Card` deste módulo — pedido explícito de Fabrício, mesmo dia da Query `2114`: "Vamos avançar com o Resto do subciclo `Card` (ADR-023) — criação e desativação/reativação administrativa (edição já está pronta)". Ver `ADR-023`, "Emenda (2026-08-07) — `Card`: cadastro e desativação/reativação real via UI", para o registro conceitual completo; esta seção cobre a implementação.
+
+```sql
+CREATE OR REPLACE FUNCTION public.admin_create_card(
+    p_card_set_id UUID, p_collector_number TEXT, p_collector_total INTEGER,
+    p_collector_order INTEGER, p_rarity_id UUID, p_category_id UUID, p_name TEXT
+)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
+
+CREATE OR REPLACE FUNCTION public.admin_deactivate_card(p_id UUID)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
+
+CREATE OR REPLACE FUNCTION public.admin_reactivate_card(p_id UUID)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
+```
+
+`admin_create_card()` deriva `v_game_id` via `card_set → expansion → game_id` e valida que `rarity_id`/`category_id` pertencem a esse mesmo Game **antes** de chamar `internal.write_card('CREATE', ...)` — erro administrativo claro (`ADMIN_CREATE_CARD_RARITY_MISMATCH`/`ADMIN_CREATE_CARD_CATEGORY_MISMATCH`), em vez de depender só do trigger `trg_card_validate_game_consistency` (Query `141`), que dispara com mensagem genérica. Duplicidade de `collector_number` e `collector_order` verificada contra **todas** as Cards do Card Set, ativas e inativas (`ADMIN_CREATE_CARD_DUPLICATE_COLLECTOR_NUMBER`/`ADMIN_CREATE_CARD_DUPLICATE_COLLECTOR_ORDER`) — mesma regra já registrada em `ADR-023` para a chave natural de Card. Grava `CARD_CREATED` exatamente uma vez, depois que `internal.write_card()` retorna com sucesso — `internal.write_card()` nunca grava auditoria própria (Query `2030`), então a responsabilidade é inteiramente desta função.
+
+`admin_deactivate_card()`/`admin_reactivate_card()` são espelhos exatos entre si: `UPDATE` direto de `is_active` em `public.card` (não usam `internal.write_card()` — `is_active` está fora do escopo daquela camada por decisão explícita, mesmo padrão de `admin_set_card_set_logo()`), erro claro se a Card já estiver no estado-alvo (`ADMIN_DEACTIVATE_CARD_ALREADY_INACTIVE`/`ADMIN_REACTIVATE_CARD_ALREADY_ACTIVE` — evita um `UPDATE` sem efeito e uma linha de auditoria sem sentido), `GET DIAGNOSTICS ... ROW_COUNT` confirmando o efeito real, e gravação de `CARD_DEACTIVATED`/`CARD_REACTIVATED`. Nenhuma das duas toca `card_variant`/`card_asset`/`card_external_reference` — sem cascata, histórico preservado por completo.
+
+**Descoberta real durante a validação de `2115`**: `CREATE FUNCTION` concede `EXECUTE` a `PUBLIC` por padrão em PostgreSQL — `GRANT EXECUTE ... TO authenticated` sozinho **não revoga** essa concessão implícita, e `anon` herda `EXECUTE` por ser membro de `PUBLIC`. A primeira validação de `admin_create_card()` mostrou `anon_pode = true` (deveria ser `false`); corrigido com `REVOKE ALL ON FUNCTION ... FROM PUBLIC;`/`REVOKE ALL ON FUNCTION ... FROM anon;` explícitos após o `GRANT`, aplicado retroativamente à própria função e, desde o início, às duas seguintes (ambas validadas corretas já na primeira execução). O mesmo gap provavelmente existe nas demais funções `admin_*` do módulo, criadas antes desta rodada, nenhuma com `REVOKE` explícito — Fabrício optou explicitamente por tratar essa auditoria retroativa como um item futuro separado, não como parte deste subciclo.
+
+Validado estruturalmente (`prosecdef`/`proconfig`/`has_function_privilege` para as três funções) **e funcionalmente, com execução real contra o banco**: 15 cenários dentro de uma fixture `ZZTEST` isolada (`BEGIN`/`DO $...$`/`ROLLBACK`) — criação válida; duplicidade de `collector_number`; duplicidade de `collector_order`; Raridade de outro Game bloqueada; Categoria de outro Game bloqueada; preservação de `card_variant` através de desativação e reativação; desativação válida + auditoria única; desativar já inativa bloqueado; filtro `is_active = true` ocultando a Card desativada; reativação válida + auditoria única; reativar já ativa bloqueado; filtro voltando a mostrar a Card reativada; total de linhas de auditoria para a mesma Card = exatamente 3 (uma por operação, sem duplicação). Arquivos em `database/schema/2115_create_admin_create_card_function.sql`, `2116_create_admin_deactivate_card_function.sql`, `2117_create_admin_reactivate_card_function.sql`; validação em `database/validations/2817_validate_card_create_deactivate_reactivate.sql`.
+
+**Frontend**: `getCartasCompletas()` (`web/lib/catalogo/queries.ts`) ganhou `options.incluirInativas` (default `false`, preserva o comportamento anterior para qualquer chamador futuro) e um campo `isActive` em `CartaCompletaRow`; `page.tsx` de `/catalogo/cartas` passa `incluirInativas: true` sempre, e `CartasGallery` filtra localmente por padrão (ativas), com um toggle "Mostrar inativas" — opção escolhida por Fabrício entre as apresentadas ("Toggle 'Mostrar inativas' na galeria"). Três novas Server Actions em `web/app/catalogo/cartas/actions.ts` (`createCard`/`deactivateCard`/`reactivateCard`); `NewCardDialog` (`web/components/catalogo/carta-dialogs.tsx`) com `collector_total` pré-preenchido a partir de `totalSetSize` do Card Set (já exposto por `getCardSetsForCartas()`, nenhuma consulta nova) e `collector_order` sugerido como `max(existente, ativas e inativas) + 1` — pura sugestão de UX, validação real permanece no banco. `DeactivateCardDialog` (mesmo arquivo) confirma antes de desativar, com linguagem explícita de que a ação é reversível — diferente de `ConfirmDeleteBar` (exclusão real, irreversível), reutilizado por Game/Expansion/Card Set. Cards ativas mostram Editar + Desativar (`EyeOff`); Cards inativas mostram Editar + Reativar (`Eye`), nunca um substituindo o outro — reativação chama a Server Action direto, sem Dialog de confirmação (ação de baixo risco, o próprio botão já é o "desfazer"). `tsc --noEmit` confirmado limpo.
+
 ## Sequência
 
 ```text
@@ -362,6 +390,10 @@ Frontend: `web/app/catalogo/cartas/actions.ts` (`updateCard`), `web/components/c
 2092 - Create admin_start_asset_import_run() Function          (v1.1/v1.2/v1.3 CONFIRMADO EXECUTADO — database/schema/2092_create_admin_start_asset_import_run_function.sql)
 2816 - Validate admin_start_asset_import_run()                 (v1.1/v1.2 CONFIRMADO EXECUTADO — database/validations/2816_validate_admin_start_asset_import_run.sql)
 2114 - Create admin_update_card() Function                     (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2114_create_admin_update_card_function.sql)
+2115 - Create admin_create_card() Function                     (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2115_create_admin_create_card_function.sql)
+2116 - Create admin_deactivate_card() Function                 (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2116_create_admin_deactivate_card_function.sql)
+2117 - Create admin_reactivate_card() Function                 (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2117_create_admin_reactivate_card_function.sql)
+2817 - Validate Card Create/Deactivate/Reactivate              (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE, 15 cenários — database/validations/2817_validate_card_create_deactivate_reactivate.sql)
 ```
 
 **Reconciliação de gap (2026-08-01):** as quatro linhas acima (`2051`/`2052`/`2053`/`2812`) já estavam confirmadas executadas por Fabrício desde 2026-07-31 (ver revisões anteriores desta tabela de histórico), mas nunca haviam sido incluídas nesta lista de Sequência — mesmo tipo de gap documental já visto antes neste projeto (ex.: `EXPANSION_DELETED` faltando no arquivo canônico de `catalog_admin_action_log`, corrigido na Query `2049` v1.2). Corrigido aqui, sem re-executar nada — só a lista estava desatualizada.

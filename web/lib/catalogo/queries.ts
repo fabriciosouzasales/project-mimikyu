@@ -1310,6 +1310,16 @@ export type CartaCompletaRow = {
   imageUrlPt: string | null;
   /** Imagem CARD_FRONT principal em inglês (en), quando importada. */
   imageUrlEn: string | null;
+  /**
+   * Adicionado 2026-08-07 (subciclo Card: criação e desativação/reativação,
+   * ADR-023) — soft delete real (Query 2020). Antes desta rodada,
+   * `getCartasCompletas` filtrava sempre `is_active = true` no próprio
+   * banco, então esse campo nem existia (toda linha retornada já era
+   * ativa por construção). Agora que a tela pode exibir cartas inativas
+   * (toggle "Mostrar inativas"), a UI precisa saber, por carta, qual é o
+   * estado — daí este campo.
+   */
+  isActive: boolean;
 };
 
 type CartaCompletaAssetRawRow = {
@@ -1325,6 +1335,7 @@ type CartaCompletaRawRow = {
   collector_total: number | null;
   collector_order: number;
   name: string;
+  is_active: boolean;
   rarity: { id: string; code: string; name: string; symbol_code: string; display_order: number } | null;
   card_category: { id: string; code: string; name: string; display_order: number } | null;
   card_asset: CartaCompletaAssetRawRow[] | null;
@@ -1371,16 +1382,33 @@ function pickCardFrontPath(assets: CartaCompletaAssetRawRow[] | null, languageCo
  * SELECT liberado para authenticated+is_admin() desde a Query 274
  * (ADR-022), a mesma leitura que `getCartasPorCardSet` já fazia para
  * `card`/`rarity`/`card_category`.
+ *
+ * `options.incluirInativas` (2026-08-07, subciclo Card: criação e
+ * desativação/reativação, ADR-023) — por padrão continua filtrando só
+ * `is_active = true` (mesmo comportamento de sempre, seguro para qualquer
+ * chamador futuro que não conheça o toggle "Mostrar inativas"); `page.tsx`
+ * passa `incluirInativas: true` explicitamente, porque a galeria precisa
+ * das cartas inativas tanto para o toggle quanto para sugerir o próximo
+ * `collector_order` livre (Card criada considerando ativas E inativas,
+ * mesma regra de duplicidade da Query 2115) sem uma segunda consulta.
  */
-export async function getCartasCompletas(supabase: SupabaseClient, cardSetId: string): Promise<CartaCompletaRow[]> {
-  const { data, error } = await supabase
+export async function getCartasCompletas(
+  supabase: SupabaseClient,
+  cardSetId: string,
+  options?: { incluirInativas?: boolean },
+): Promise<CartaCompletaRow[]> {
+  let query = supabase
     .from("card")
     .select(
-      "id, collector_number, collector_total, collector_order, name, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code))",
+      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code))",
     )
-    .eq("card_set_id", cardSetId)
-    .eq("is_active", true)
-    .order("collector_order", { ascending: true });
+    .eq("card_set_id", cardSetId);
+
+  if (!options?.incluirInativas) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query.order("collector_order", { ascending: true });
 
   if (error || !data) {
     return [];
@@ -1395,6 +1423,7 @@ export async function getCartasCompletas(supabase: SupabaseClient, cardSetId: st
       collectorTotal: card.collector_total,
       collectorOrder: card.collector_order,
       name: card.name,
+      isActive: card.is_active,
       rarityId: card.rarity?.id ?? "",
       rarityCode: card.rarity?.code ?? "",
       rarityName: card.rarity?.name ?? "—",
