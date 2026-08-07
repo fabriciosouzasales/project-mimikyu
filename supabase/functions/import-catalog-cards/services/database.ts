@@ -1,11 +1,15 @@
 // Project Mimikyu — Edge Function: import-catalog-cards
 // Database Service — staging (catalog_import_job/row) e catálogos de apoio
-// (rarity, card_category, card, card_set_external_reference, asset_source).
-// `supabase: any` é deliberado, mesmo padrão de import-card-assets/services/
-// database.ts: este arquivo nunca cria um cliente Supabase, sempre recebe
-// um já pronto.
-
-import { normalizeRarityLookupKey } from "./normalize.ts";
+// (rarity_external_mapping, card_category, card, card_set_external_
+// reference, asset_source). `supabase: any` é deliberado, mesmo padrão de
+// import-card-assets/services/database.ts: este arquivo nunca cria um
+// cliente Supabase, sempre recebe um já pronto.
+//
+// 2026-08-06 (cadastro self-service de Raridade): listRaritiesByGameCode
+// (consulta direta a rarity, chaveada por normalizeRarityLookupKey(name))
+// foi substituída por listRarityExternalMappingsByGameAndSource — consulta
+// rarity_external_mapping (Query 2096), já pré-normalizada no momento do
+// cadastro. Ver _shared/catalog-normalization/rarity.ts.
 
 export async function findJob(supabase: any, jobId: string) {
   const { data, error } = await supabase
@@ -132,19 +136,64 @@ export async function listExistingCardsMap(supabase: any, cardSetId: string) {
   return new Map<string, any>((data ?? []).map((card: any) => [card.collector_number, card]));
 }
 
-// Chaveado por normalizeRarityLookupKey(r.name) — não por r.code. A TCGdex
-// devolve o nome da raridade em português (idioma "pt", ver TCGDEX_LANGUAGE
-// em index.ts), então a comparação certa é contra o `name` (também PT) da
-// tabela, não contra o `code` (inglês). Bug real corrigido em 2026-08-01
-// durante a remediação do ME5 — ver comentário de resolveRarityLookupKey em
-// services/normalize.ts.
-export async function listRaritiesByGameCode(supabase: any, gameId: string) {
-  const { data, error } = await supabase.from("rarity").select("id, code, name").eq("game_id", gameId);
-  if (error) {
-    console.error(error);
-    throw new Error("RARITY_QUERY_FAILED");
+// Chaveado por rarity_external_mapping.normalized_external_value — já
+// calculado por public.normalize_external_catalog_value() no momento em
+// que cada mapeamento foi cadastrado (Query 2095/2101/2104), nunca
+// recalculado aqui. Substitui a antiga listRaritiesByGameCode (consulta
+// direta a `rarity`, chaveada por normalizeRarityLookupKey(name) +
+// RARITY_NAME_ALIASES hardcoded) — ver rarity.ts do núcleo compartilhado
+// para o porquê da mudança.
+//
+// v1.1 (2026-08-07, correção de regressão real: GYM1 e SWSH1 falharam com
+// RARITY_EXTERNAL_MAPPING_QUERY_FAILED assim que deployado). A v1.0 usava
+// um select com relacionamento embutido do PostgREST
+// (`rarity(id, code, name)`) — único uso desse padrão neste arquivo; toda
+// outra função aqui (listExistingCardsMap, listCategoriesByGameCode etc.)
+// sempre fez select simples, sem embed. Trocado por duas consultas
+// simples + junção em memória, eliminando a dependência de o PostgREST
+// resolver corretamente o relacionamento rarity_external_mapping->rarity
+// — e agora repassando error.message/error.code real no throw (a v1.0 só
+// dava console.error, invisível fora do log da Edge Function).
+export async function listRarityExternalMappingsByGameAndSource(
+  supabase: any,
+  gameId: string,
+  assetSourceId: string,
+) {
+  const { data: mappingRows, error: mappingError } = await supabase
+    .from("rarity_external_mapping")
+    .select("normalized_external_value, rarity_id")
+    .eq("game_id", gameId)
+    .eq("asset_source_id", assetSourceId);
+
+  if (mappingError) {
+    console.error(mappingError);
+    throw new Error(
+      `RARITY_EXTERNAL_MAPPING_QUERY_FAILED: ${mappingError.message ?? mappingError.code ?? "unknown"}`,
+    );
   }
-  return new Map<string, any>((data ?? []).map((r: any) => [normalizeRarityLookupKey(r.name), r]));
+
+  const rows = (mappingRows ?? []) as { normalized_external_value: string; rarity_id: string }[];
+  if (rows.length === 0) return new Map<string, any>();
+
+  const rarityIds = Array.from(new Set(rows.map((row) => row.rarity_id)));
+
+  const { data: rarityRows, error: rarityError } = await supabase
+    .from("rarity")
+    .select("id, code, name")
+    .in("id", rarityIds);
+
+  if (rarityError) {
+    console.error(rarityError);
+    throw new Error(`RARITY_QUERY_FAILED: ${rarityError.message ?? rarityError.code ?? "unknown"}`);
+  }
+
+  const rarityById = new Map<string, any>((rarityRows ?? []).map((r: any) => [r.id, r]));
+
+  return new Map<string, any>(
+    rows
+      .map((row) => [row.normalized_external_value, rarityById.get(row.rarity_id)] as const)
+      .filter((entry): entry is [string, any] => Boolean(entry[1])),
+  );
 }
 
 export async function listCategoriesByGameCode(supabase: any, gameId: string) {

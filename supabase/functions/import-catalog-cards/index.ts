@@ -16,8 +16,8 @@ primeiro reprocessamento do ME5 caíram todas em NEEDS_REVIEW (0 válidas).
 Corrigido para comparar contra rarity.name (também PT), com normalização
 de acentos e uma tabela de alias para os casos em que a TCGdex e o nosso
 cadastro usam ordem/flexão diferentes ("Ultra Rara" vs "Rara Ultra",
-"Mega Hiper Raro" vs "Mega Rara Hiper"). Ver services/normalize.ts
-(resolveRarityLookupKey) e services/database.ts (listRaritiesByGameCode).
+"Mega Hiper Raro" vs "Mega Rara Hiper"). Mecanismo aposentado em
+2026-08-06 (Versão 6 abaixo) — substituído por rarity_external_mapping.
 Versão 5 (2026-08-01, mesmo dia): mesma família de bug, agora em
 CATEGORY_BY_TCGDEX_VALUE — só tinha as chaves em inglês ("Pokemon"/
 "Trainer"/"Energy"), mas com TCGDEX_LANGUAGE="pt" a TCGdex devolve
@@ -25,7 +25,18 @@ CATEGORY_BY_TCGDEX_VALUE — só tinha as chaves em inglês ("Pokemon"/
 heurístico com confidence "LOW", forçando NEEDS_REVIEW à toa (23 linhas
 do reprocessamento do ME5) mesmo com o valor final já correto. Adicionadas
 as chaves em português. Ver comentário de CATEGORY_BY_TCGDEX_VALUE em
-services/normalize.ts.
+_shared/catalog-normalization/category.ts (movido nesta rodada, ver
+Versão 6 abaixo).
+Versão 6 (2026-08-06, cadastro self-service de Raridade): resolução de
+raridade/categoria/sequência (antes em services/normalize.ts, só desta
+função) extraída para _shared/catalog-normalization/ — reutilizada
+também pela nova Edge Function revalidate-catalog-import-rows. A mudança
+real de comportamento é a de raridade: RARITY_NAME_ALIASES (hardcoded,
+exigia deploy para cada raridade nova) foi aposentada; a resolução agora
+consulta rarity_external_mapping (Query 2096), cadastrável em tela
+(/catalogo/raridades, "Resolver raridade"). services/normalize.ts foi
+removido — resolveCollectorTotal (específico do Set da TCGdex, não do
+núcleo compartilhado) mudou para services/tcgdex.ts.
 Processador
 TCGdex do Ciclo 2 (ADR-024): recebe um catalog_import_job (aberto por
 admin_start_catalog_import(), Query 2080, com source='TCGDEX' e
@@ -54,13 +65,13 @@ import {
   insertImportRows,
   listCategoriesByGameCode,
   listExistingCardsMap,
-  listRaritiesByGameCode,
+  listRarityExternalMappingsByGameAndSource,
   transitionJobToProcessing,
   updateProgressStep,
   upsertCardSetExternalReference,
 } from "./services/database.ts";
-import { TcgdexClient, type TcgdexCardDetail } from "./services/tcgdex.ts";
-import { buildImportRow, resolveCollectorTotal } from "./services/normalize.ts";
+import { resolveCollectorTotal, TcgdexClient, type TcgdexCardDetail } from "./services/tcgdex.ts";
+import { resolveCatalogImportRow } from "../_shared/catalog-normalization/mod.ts";
 import type { RequestBody } from "./types.ts";
 
 // Idioma fixo em "pt" — não "en": nosso catálogo cadastra Cards em
@@ -145,6 +156,16 @@ Deno.serve(async (req) => {
     const cardSet = await findCardSetWithGame(supabase, job.card_set_id);
     if (!cardSet) throw new Error("CARD_SET_NOT_FOUND");
 
+    // Buscado aqui (2026-08-06) — antes só era buscado depois de gravar as
+    // linhas, só para a referência externa do Card Set, com fallback
+    // silencioso (console.error) se não encontrado. Agora é um requisito
+    // rígido: a resolução de raridade via rarity_external_mapping (Query
+    // 2096) precisa de asset_source_id ANTES de montar preparedRows, não
+    // depois — reaproveitado adiante para a mesma referência externa de
+    // sempre, sem uma segunda consulta.
+    const assetSource = await findAssetSourceByCode(supabase, ASSET_SOURCE_CODE);
+    if (!assetSource) throw new Error(`ASSET_SOURCE_NOT_FOUND: ${ASSET_SOURCE_CODE}`);
+
 let tcgdexLanguage:
   | typeof TCGDEX_PRIMARY_LANGUAGE
   | typeof TCGDEX_FALLBACK_LANGUAGE =
@@ -218,7 +239,11 @@ try {
     // os quatro códigos em sequência, refletindo qual fase concluiu por
     // último caso o job seja consultado neste intervalo.
     await updateProgressStep(supabase, jobId, "DETECTING_RARITY");
-    const raritiesByName = await listRaritiesByGameCode(supabase, cardSet.game_id);
+    const rarityMappingByNormalizedValue = await listRarityExternalMappingsByGameAndSource(
+      supabase,
+      cardSet.game_id,
+      assetSource.id,
+    );
     const categoriesByCode = await listCategoriesByGameCode(supabase, cardSet.game_id);
 
     await updateProgressStep(supabase, jobId, "CLASSIFYING_CATEGORY");
@@ -227,11 +252,12 @@ try {
     await updateProgressStep(supabase, jobId, "VALIDATING_SEQUENCE");
     const seenCollectorNumbers = new Set<string>();
     const preparedRows = cardDetails.map(({ detail, fetchError }, index) =>
-      buildImportRow({
-        tcgCard: detail,
+      resolveCatalogImportRow({
+        rawCard: detail,
+        rawData: detail as unknown as Record<string, unknown>,
         indexInSet: index,
         collectorTotal,
-        raritiesByName,
+        rarityMappingByNormalizedValue,
         categoriesByCode,
         existingCardsByCollectorNumber,
         seenCollectorNumbers,
@@ -255,18 +281,15 @@ try {
       })),
     );
 
-    const assetSource = await findAssetSourceByCode(supabase, ASSET_SOURCE_CODE);
-    if (assetSource) {
-      await upsertCardSetExternalReference(supabase, {
-        card_set_id: cardSet.id,
-        asset_source_id: assetSource.id,
-        external_set_id: job.external_set_id,
-        source_url: `https://api.tcgdex.net/v2/${tcgdexLanguage}/sets/${job.external_set_id}`,
-        metadata: { name: set.name, cardCount: set.cardCount ?? null },
-      });
-    } else {
-      console.error(`ASSET_SOURCE_NOT_FOUND: ${ASSET_SOURCE_CODE} — card_set_external_reference não atualizada.`);
-    }
+    // assetSource já resolvido no início da função (ver comentário acima) —
+    // reaproveitado aqui, sem uma segunda consulta.
+    await upsertCardSetExternalReference(supabase, {
+      card_set_id: cardSet.id,
+      asset_source_id: assetSource.id,
+      external_set_id: job.external_set_id,
+      source_url: `https://api.tcgdex.net/v2/${tcgdexLanguage}/sets/${job.external_set_id}`,
+      metadata: { name: set.name, cardCount: set.cardCount ?? null },
+    });
 
     const validRows = preparedRows.filter((r) => r.validation_status === "VALID").length;
 

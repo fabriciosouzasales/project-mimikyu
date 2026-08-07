@@ -41,6 +41,16 @@ export type TcgdexCardDetail = {
   image?: string;
 };
 
+// Movida de services/normalize.ts em 2026-08-06 (extração de
+// _shared/catalog-normalization/): é uma propriedade do Set, não da carta
+// — não recalculável sem uma nova chamada à TCGdex, por isso nunca fez
+// parte do núcleo compartilhado de normalização (que só resolve o que dá
+// para recalcular a partir de dado já em mãos). Fica junto ao cliente
+// TCGdex, de onde o dado vem.
+export function resolveCollectorTotal(set: TcgdexSetDetail): number | null {
+  return set.cardCount?.official ?? set.cardCount?.total ?? null;
+}
+
 export class TcgdexClient {
   private static readonly BASE_URL = "https://api.tcgdex.net/v2";
 

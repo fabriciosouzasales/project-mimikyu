@@ -5,6 +5,24 @@
 // external_set_id manual no fluxo principal — resolvida ANTES desta função,
 // fora dela; (2) categoria da TCGdex como fonte primária, heurística só
 // como fallback quando a API não fornece categoria válida.
+//
+// 2026-08-06 (cadastro self-service de Raridade): ExistingCard, Rarity,
+// CardCategoryRow, CategorySource, CategoryConfidence, NormalizedData e
+// PreparedRow (renomeado ResolvedCatalogRow) foram movidos para
+// _shared/catalog-normalization/types.ts — reexportados aqui para não
+// quebrar nenhum import existente dentro desta função. Só o que é
+// genuinamente específico deste processador (requisição HTTP, job,
+// card_set+game) continua definido localmente.
+
+export type {
+  CardCategoryRow,
+  CategoryConfidence,
+  CategorySource,
+  ExistingCard,
+  NormalizedData,
+  Rarity,
+  ResolvedCatalogRow as PreparedRow,
+} from "../_shared/catalog-normalization/types.ts";
 
 export type RequestBody = {
   job_id?: string;
@@ -28,61 +46,4 @@ export type CardSetWithGame = {
   total_set_size: number;
   expansion_id: string;
   game_id: string;
-};
-
-export type ExistingCard = {
-  id: string;
-  collector_number: string;
-  name: string;
-  rarity_id: string;
-  category_id: string;
-  collector_total: number | null;
-};
-
-export type Rarity = {
-  id: string;
-  code: string;
-  name: string;
-};
-
-export type CardCategoryRow = {
-  id: string;
-  code: string; // POKEMON | TRAINER | ENERGY
-  name: string;
-};
-
-export type CategorySource =
-  | "API"
-  | "ENERGY_PREFIX"
-  | "POKEMON_MATCH"
-  | "TRAINER_FALLBACK";
-
-export type CategoryConfidence = "HIGH" | "MEDIUM" | "LOW";
-
-// Formato exigido por catalog_import_row.normalized_data — nomes de campo
-// exatamente como lidos por admin_confirm_catalog_import() (Query 2082) e
-// documentados em database/schema/2070_create_catalog_import_row.sql.
-// review_notes é um campo extra (o JSONB é aberto — "inclui, entre outros"
-// no comentário da coluna), usado só para a tela de Revisão explicar por
-// que uma linha nasceu NEEDS_REVIEW; nunca lido por admin_confirm_catalog_import().
-export type NormalizedData = {
-  name: string;
-  collector_number: string;
-  collector_total: number | null;
-  collector_order: number;
-  rarity_id: string | null;
-  category_id: string | null;
-  category: string | null;
-  category_source: CategorySource | null;
-  category_confidence: CategoryConfidence | null;
-  review_notes: string[] | null;
-};
-
-export type PreparedRow = {
-  raw_data: Record<string, unknown>;
-  normalized_data: NormalizedData;
-  validation_status: "VALID" | "NEEDS_REVIEW" | "INVALID";
-  match_status: "NEW" | "MATCHED" | "CONFLICT";
-  decision_status: "PENDING" | "SKIPPED";
-  matched_card_id: string | null;
 };
