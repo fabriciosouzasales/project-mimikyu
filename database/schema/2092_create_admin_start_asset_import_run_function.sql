@@ -3,9 +3,14 @@
 Projeto.....: Project Mimikyu
 Query.......: 2092 - Create admin_start_asset_import_run() Function
 Versão......: 1.3
-Status......: PROPOSTA — AGUARDANDO EXECUÇÃO (Migration 2093 reconcilia
-               banco já instalado na v1.2; instalação nova executa esta
-               Query diretamente).
+Status......: CONFIRMADO EXECUTADO (Migration 2093 reconciliou o banco já
+               instalado na v1.2 para a assinatura de 4 parâmetros desta
+               versão; instalação nova executa esta Query diretamente).
+               Confirmado via Query 2818 (2026-08-07, item 1): assinatura
+               real em produção já inclui p_language_code — o cabeçalho
+               desta Query só não tinha sido atualizado depois da
+               execução real, gap puramente documental, sem impacto em
+               produção.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-01 (v1.0), 2026-08-02 (v1.1/v1.2/v1.3)
 

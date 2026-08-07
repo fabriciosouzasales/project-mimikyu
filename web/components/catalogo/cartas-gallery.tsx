@@ -611,17 +611,36 @@ export function CartasGallery({
                   Some por completo quando o Card Set atual não tem nenhuma
                   Card inativa — sem isso, o controle apareceria sempre,
                   mesmo quando não muda nada visualmente (mesmo cuidado já
-                  aplicado ao alternador PT/EN). */}
+                  aplicado ao alternador PT/EN).
+
+                  Reescrito de checkbox nativo para chip (2026-08-07, mesmo
+                  dia — Fabrício desativou uma Card de teste e "estou sem
+                  saber como reativar"): o controle existia, mas um
+                  `<input type="checkbox">` cinza-claro sobre o fundo do
+                  `Card` é fácil de nunca notar — exatamente o mesmo
+                  problema já diagnosticado e corrigido para os filtros de
+                  Raridade/Categoria em 2026-07-31 ("ainda estão com
+                  aparência de formulário HTML... destoam da linguagem
+                  visual do restante do Catálogo"). Mesmo padrão visual de
+                  `FilterGroup` (chip `rounded-full`, ativo
+                  `border-primary/40 bg-primary/5 text-primary`), mais um
+                  ícone (`Eye`/`EyeOff`) para o estado ficar reconhecível
+                  mesmo sem ler o texto. */}
               {inactiveCount > 0 && (
-                <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={showInactive}
-                    onChange={(event) => setShowInactive(event.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-border accent-primary"
-                  />
+                <button
+                  type="button"
+                  onClick={() => setShowInactive((prev) => !prev)}
+                  aria-pressed={showInactive}
+                  className={cn(
+                    "inline-flex w-fit shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    showInactive
+                      ? "border-primary/40 bg-primary/5 text-primary"
+                      : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                  )}
+                >
+                  {showInactive ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                   Mostrar inativas ({inactiveCount})
-                </label>
+                </button>
               )}
 
               {(rarityOptions.length > 0 || categoryOptions.length > 0) && (
@@ -979,53 +998,109 @@ function CartaGridCard({
     // Coleções") — mesma mudança estrutural que `CardSetGalleryCard`/
     // `ExpansaoGalleryCard` já tiveram: o clique de ampliar fica restrito à
     // imagem (seu próprio `<button>`), e a identificação abaixo dela vira
-    // uma linha `justify-between` com o texto à esquerda e o(s) ícone(s) de
-    // ação à direita — "canto inferior direito" do card inteiro.
+    // uma linha `justify-between` com o texto à esquerda e o ícone de
+    // edição à direita — "canto inferior direito" do card inteiro.
     //
-    // Segundo ícone de ação (2026-08-07, subciclo Card: criação e
-    // desativação/reativação) — ajuste #6 da revisão de Fabrício: "Para
-    // Cards inativas, mantenha Editar + Reativar, em vez de substituir o
-    // lápis". Card ativa → Pencil (Editar) + EyeOff (Desativar); Card
-    // inativa → Pencil (Editar) + Eye (Reativar), nunca um substituindo o
-    // outro. Imagem com opacidade reduzida + `grayscale` e rótulo
-    // "Inativa" — sinal visual rápido de qual carta já não aparece nas
-    // telas operacionais, sem precisar abrir nada.
+    // Ação de Desativar/Reativar (2026-08-07, subciclo Card: criação e
+    // desativação/reativação) — **não** ficou nesta linha. Primeira versão
+    // colocou um segundo ícone ao lado do lápis, mas Fabrício reportou o
+    // resultado real (print da galeria): com dois ícones, a maioria dos
+    // nomes de carta era cortada e o símbolo de raridade ficava colado no
+    // texto — "até a inclusão do lápis estava perfeito, esse novo ícone
+    // bagunçou visualmente". A linha de identificação de um card de grid
+    // (3-7 colunas) não tem largura sobrando para dois botões `icon-sm`
+    // sem sacrificar o nome, que é a informação mais importante ali.
+    // Resolvido movendo o Desativar/Reativar para um selo circular sobre o
+    // canto superior direito da própria imagem (mesmo princípio de "ação
+    // secundária sai da linha de texto, vai para a miniatura" já usado em
+    // várias galerias de mídia) — a linha de identificação volta a ter
+    // exatamente um ícone, como antes desta rodada.
     <div className="flex flex-col gap-2.5 rounded-lg text-left">
-      <button
-        type="button"
-        onClick={onOpen}
-        // `gap-2.5` (em vez de `gap-1.5`) — pedido de Fabrício (2026-07-31,
-        // print da carta "001/086" com o mouse sobre a imagem): o
-        // `scale3d(1.045, ...)` do hover holográfico (`HoloCard`) não afeta
-        // o layout (é só `transform`, não reflui os irmãos), então a carta
-        // cresce visualmente por cima do respiro entre ela e a
-        // identificação — com `gap-1.5` a distância ficava quase zero no
-        // hover.
-        className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={`Ampliar ${carta.name}`}
-      >
-        <HoloCard
-          className={cn(!carta.isActive && "opacity-50 grayscale")}
-          style={
-            { viewTransitionName: isTransitionSource ? cartaViewTransitionName(carta.id) : "none" } as CSSProperties
-          }
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onOpen}
+          // `gap-2.5` (em vez de `gap-1.5`) — pedido de Fabrício (2026-07-31,
+          // print da carta "001/086" com o mouse sobre a imagem): o
+          // `scale3d(1.045, ...)` do hover holográfico (`HoloCard`) não afeta
+          // o layout (é só `transform`, não reflui os irmãos), então a carta
+          // cresce visualmente por cima do respiro entre ela e a
+          // identificação — com `gap-1.5` a distância ficava quase zero no
+          // hover.
+          className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`Ampliar ${carta.name}`}
         >
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt={carta.name} loading="lazy" decoding="async" className="w-full rounded-lg" />
-          ) : (
-            <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-2 text-center text-[10px] text-muted-foreground">
-              Sem imagem
-            </div>
-          )}
-        </HoloCard>
-      </button>
-      <div className="flex items-end justify-between gap-1 px-0.5">
-        <div className="min-w-0 space-y-0">
-          <p className="truncate text-[10px] leading-none text-muted-foreground">
-            <span className="font-medium text-foreground">#{cartaFullNumber(carta)}</span> - {carta.name}
-          </p>
-          <div className="flex items-center gap-1">
+          <HoloCard
+            className={cn(!carta.isActive && "opacity-50 grayscale")}
+            style={
+              { viewTransitionName: isTransitionSource ? cartaViewTransitionName(carta.id) : "none" } as CSSProperties
+            }
+          >
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt={carta.name} loading="lazy" decoding="async" className="w-full rounded-lg" />
+            ) : (
+              <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-2 text-center text-[10px] text-muted-foreground">
+                Sem imagem
+              </div>
+            )}
+          </HoloCard>
+        </button>
+        {/* Selo de Desativar/Reativar — irmão do `<button>` de ampliar, não
+            filho (botão dentro de botão é HTML inválido e confundiria o
+            clique); `stopPropagation` garante que clicar aqui nunca também
+            dispare `onOpen`. `bg-surface/90 backdrop-blur-sm` mantém o ícone
+            legível sobre qualquer cor de fundo da arte da carta. */}
+        {carta.isActive ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute right-1.5 top-1.5 z-10 rounded-full bg-surface/90 text-foreground shadow-sm backdrop-blur-sm hover:bg-surface"
+            aria-label={`Desativar ${carta.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeactivate();
+            }}
+          >
+            <EyeOff className="h-3 w-3" />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute right-1.5 top-1.5 z-10 rounded-full bg-surface/90 text-foreground shadow-sm backdrop-blur-sm hover:bg-surface"
+            aria-label={`Reativar ${carta.name}`}
+            disabled={reactivating}
+            onClick={(event) => {
+              event.stopPropagation();
+              onReactivate();
+            }}
+          >
+            <Eye className="h-3 w-3" />
+          </Button>
+        )}
+      </div>
+      {/* Correção (2026-08-07, mesmo dia — print real da galeria mostrando
+          o lápis "grudado" na linha do nome): o lápis nunca competiu por
+          espaço com o nome antes desta rodada — ficava na mesma linha do
+          símbolo de raridade, abaixo do nome, que tinha a largura inteira
+          só para si. A estrutura anterior (nome+símbolo empilhados num
+          único bloco, `items-end` empurrando o lápis para alinhar com o
+          fundo do bloco inteiro) parecia visualmente equivalente, mas na
+          prática deixava o lápis "grudado" perto do nome sempre que o
+          símbolo de raridade era baixo/estreito. Nome agora é sua própria
+          linha de largura total (`truncate` sem nenhum vizinho disputando
+          espaço); símbolo de raridade e lápis dividem a segunda linha,
+          `justify-between` entre eles — exatamente a disposição de antes
+          de qualquer ícone de ação ter sido adicionado. */}
+      <div className="space-y-1 px-0.5">
+        <p className="truncate text-[10px] leading-none text-muted-foreground">
+          <span className="font-medium text-foreground">#{cartaFullNumber(carta)}</span> - {carta.name}
+        </p>
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex min-w-0 items-center gap-1">
             <RaritySymbol symbolCode={carta.raritySymbolCode} />
             {!carta.isActive && (
               <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
@@ -1033,42 +1108,16 @@ function CartaGridCard({
               </span>
             )}
           </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="text-foreground"
+            className="shrink-0 text-foreground"
             aria-label={`Editar ${carta.name}`}
             onClick={onEdit}
           >
             <Pencil className="h-3 w-3" />
           </Button>
-          {carta.isActive ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground"
-              aria-label={`Desativar ${carta.name}`}
-              onClick={onDeactivate}
-            >
-              <EyeOff className="h-3 w-3" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground"
-              aria-label={`Reativar ${carta.name}`}
-              onClick={onReactivate}
-              disabled={reactivating}
-            >
-              <Eye className="h-3 w-3" />
-            </Button>
-          )}
         </div>
       </div>
     </div>

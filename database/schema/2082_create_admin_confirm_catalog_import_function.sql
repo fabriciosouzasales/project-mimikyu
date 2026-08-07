@@ -2,10 +2,42 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2082 - Create admin_confirm_catalog_import() Function
-Versão......: 1.0
-Status......: CANÔNICA
+Versão......: 1.1
+Status......: CONFIRMADO EXECUTADO
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-08-01
+Data........: 2026-08-01 (v1.0), 2026-08-07 (v1.1)
+
+Correção v1.1 (2026-08-07): bug real encontrado pela validação `2818`
+do fechamento do Ciclo 2 — o cálculo do status final do job (fim da
+função) só considerava linhas `PENDING` de persistência dentro do
+subconjunto `decision_status IN ('APPROVED', 'SKIPPED')`, ignorando
+por completo linhas com `decision_status = 'PENDING'` (nunca
+decididas por nenhum administrador — o caso típico é uma linha
+`CONFLICT` que nasceu `PENDING` e nunca foi revisada). Consequência
+real observada em produção: 2 jobs (`0a067e94-b665-4d74-b47f-
+2635d12e22a9`, 9 linhas; `3ea4752c-cf6d-4fb9-8228-224f96c11030`, 1
+linha) chegaram a `COMPLETED` com linhas nunca decididas — violação
+direta da regra já descrita em `ADR-024` ("Se ainda existir alguma
+linha com `decision_status = PENDING` ou `persistence_status =
+PENDING`, o job permanece (ou retorna a) `STAGED`"), que a
+implementação original nunca respeitou para o caso `decision_status
+= PENDING`. Corrigido adicionando uma contagem própria de linhas com
+`decision_status = 'PENDING'` (sem o filtro por `APPROVED`/`SKIPPED`,
+já que é exatamente esse filtro que as escondia) — se houver
+qualquer uma, o job volta para `STAGED` (aguardando decisão humana,
+não `CONFIRMING`, que descreve uma confirmação ativamente em
+execução), antes mesmo de avaliar persistência ou falhas. Nenhuma
+mudança na assinatura da função — `CREATE OR REPLACE` é suficiente.
+Ver `database/migrations/2118_repair_catalog_import_job_status_for_pending_decisions.sql`
+para a correção retroativa dos 2 jobs já afetados.
+
+Nota sobre o "falso alarme" descartado na mesma investigação: um
+terceiro job (`bae2f19b-223f-42da-9acd-4283da8fc7b3`) apareceu na
+mesma validação com 270 linhas `persistence_status = PENDING`, mas
+`decision_status = 'REJECTED'` em todas — comportamento correto por
+desenho (linhas rejeitadas nunca entram no laço de gravação desta
+função, então nunca saem de `PENDING`; não bloqueiam nem deveriam
+bloquear a conclusão do job). Não precisou de nenhuma correção.
 
 Descrição...:
 Cria admin_confirm_catalog_import(), função pública SECURITY DEFINER
@@ -110,6 +142,7 @@ DECLARE
     v_error_message TEXT;
     v_pending_rows INTEGER;
     v_failed_rows INTEGER;
+    v_decision_pending_rows INTEGER;
     v_final_status TEXT;
 BEGIN
     IF NOT public.is_admin() THEN
@@ -252,6 +285,16 @@ BEGIN
             failed_rows = (SELECT COUNT(*) FROM public.catalog_import_row WHERE job_id = j.id AND persistence_status = 'FAILED')
         WHERE j.id = p_job_id;
 
+    -- v1.1: contagem própria, SEM o filtro por decision_status IN ('APPROVED',
+    -- 'SKIPPED') — é exatamente esse filtro que escondia linhas nunca
+    -- decididas (ex.: CONFLICT nascida PENDING e nunca revisada) da checagem
+    -- de conclusão do job, permitindo COMPLETED com decisão humana pendente.
+    SELECT COUNT(*)
+    INTO v_decision_pending_rows
+    FROM public.catalog_import_row
+    WHERE job_id = p_job_id
+      AND decision_status = 'PENDING';
+
     SELECT
         COUNT(*) FILTER (WHERE persistence_status = 'PENDING'),
         COUNT(*) FILTER (WHERE persistence_status = 'FAILED')
@@ -260,7 +303,13 @@ BEGIN
     WHERE job_id = p_job_id
       AND decision_status IN ('APPROVED', 'SKIPPED');
 
-    IF v_pending_rows > 0 THEN
+    IF v_decision_pending_rows > 0 THEN
+        -- Ainda há linha(s) nunca decididas por um administrador — o job
+        -- volta para STAGED (aguardando revisão humana), não CONFIRMING
+        -- (que descreve uma confirmação ativamente em execução, não uma
+        -- pendência de decisão). ADR-024: "permanece (ou retorna a) STAGED".
+        v_final_status := 'STAGED';
+    ELSIF v_pending_rows > 0 THEN
         v_final_status := 'CONFIRMING';
     ELSIF v_failed_rows > 0 THEN
         v_final_status := 'COMPLETED_WITH_ERRORS';
