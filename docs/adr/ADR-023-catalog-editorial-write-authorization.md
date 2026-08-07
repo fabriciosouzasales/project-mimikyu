@@ -108,7 +108,7 @@ Fabrício encontrou um erro real de cadastro ("Encontrei duas cartas cadastradas
 - `collector_order` continua único dentro do mesmo Card Set (`uq_card_set_collector_order`), verificado explicitamente antes do `UPDATE`, mesmo padrão de `release_order` em `admin_update_card_set()`.
 - `rarity_id`/`category_id` validados contra `rarity`/`card_category` antes do `UPDATE` — erro administrativo claro se o id não existir, em vez de deixar a `FOREIGN KEY` estourar sem contexto.
 - Grava `catalog_admin_action_log` (`CARD_UPDATED`) — ação já prevista no `CHECK` desde a Query `2098` (rodada de Raridade/Mapeamento, 2026-08-07 mais cedo), nenhuma migration de constraint necessária para esta função.
-- Número de Query: `2114`, milhar `2000`–`2999` já reservado (`STD-001` v1.17 §10). **Proposta, aguardando execução e confirmação de Fabrício** — frontend já com a fiação completa (`web/app/catalogo/cartas/actions.ts`, `web/components/catalogo/carta-dialogs.tsx`), mesma situação já vivida por `updateCardSet`/`createCardSet` até suas Queries serem confirmadas.
+- Número de Query: `2114`, milhar `2000`–`2999` já reservado (`STD-001` v1.17 §10). **CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE (2026-08-07)** — Fabrício testou a edição via UI sem erros; arquivo canônico em `database/schema/2114_create_admin_update_card_function.sql`.
 
 ## `Card`: `is_active` como soft delete real
 

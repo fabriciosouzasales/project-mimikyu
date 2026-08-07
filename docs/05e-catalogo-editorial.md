@@ -234,7 +234,7 @@ REVOKE ALL ON FUNCTION internal.write_card(...) FROM PUBLIC, anon, authenticated
 
 Validado estruturalmente (`prosecdef = true`, `search_path = ""`, `anon`/`authenticated` sem `EXECUTE`) **e funcionalmente, com execução real contra o banco** — primeira função deste módulo testada em tempo real, não apenas por revisão de código: cinco cenários (`CREATE` bem-sucedido; `UPDATE` de campos editáveis; tentativa de alterar `card_set_id` bloqueada; `UPDATE` de id inexistente bloqueado; `p_mode` inválido bloqueado), todos dentro de uma transação com `RAISE EXCEPTION` forçado ao final — `ROLLBACK` total confirmado, `0` linhas residuais. Arquivo em `database/schema/2030_create_internal_write_card_function.sql`; validação em `database/validations/2803_validate_internal_write_card.sql`.
 
-## `admin_update_card()` (Query `2114`, PROPOSTA — aguardando execução e confirmação de Fabrício)
+## `admin_update_card()` (Query `2114`, CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE)
 
 Tela de edição de Card (`/catalogo/cartas`, botão de ação rápida no canto inferior direito de cada carta do grid — pedido de Fabrício, 2026-08-07: "Encontrei duas cartas cadastradas com a raridade errada... possibilitando editar todas as informações possíveis... incluindo a sua raridade"). Primeira função pública deste módulo a chamar `internal.write_card()` em modo `UPDATE` — `admin_confirm_catalog_import()` (`ADR-024`) já a chamava em modo `CREATE`.
 
@@ -320,7 +320,7 @@ GRANT EXECUTE ON FUNCTION public.admin_update_card(UUID, TEXT, INTEGER, INTEGER,
 
 `card_set_id`/`collector_number` nunca aparecem na assinatura — nem como parâmetro opcional — mesmo princípio de `expansion_id`/`code` em `admin_update_card_set()` antes da emenda 2026-08-01 (aqui não há emenda equivalente: `collector_number` continua estruturalmente protegido sem exceção, decisão explícita do ADR-023). `uq_card_card_set_collector_order` (Query `140`) já impediria a duplicata na constraint bruta, mas a checagem explícita antecipa um erro administrativo legível, mesmo padrão de `release_order` em `admin_update_card_set()`. `rarity_id`/`category_id` validados contra `rarity`/`card_category` antes do `UPDATE` — `internal.write_card()` não faz essa checagem (confia no trigger `trg_card_validate_game_consistency`, que só dispara *depois* do `UPDATE` já ter sido tentado); validar antes produz uma mensagem mais clara para o mesmo caso. Grava `catalog_admin_action_log` (`CARD_UPDATED`) — ação já prevista no `CHECK` desde a Query `2098` (rodada de Raridade/Mapeamento, mesmo dia mais cedo), nenhuma migration de constraint necessária.
 
-Frontend: `web/app/catalogo/cartas/actions.ts` (`updateCard`), `web/components/catalogo/carta-dialogs.tsx` (`EditCardDialog`), botão de ação rápida em `CartaGridCard` (`web/components/catalogo/cartas-gallery.tsx`) — já com a fiação completa, aguardando só a execução desta Query por Fabrício para funcionar de ponta a ponta (mesma situação já vivida por `updateCardSet`/`createCardSet` até suas Queries serem confirmadas).
+Frontend: `web/app/catalogo/cartas/actions.ts` (`updateCard`), `web/components/catalogo/carta-dialogs.tsx` (`EditCardDialog`), botão de ação rápida em `CartaGridCard` (`web/components/catalogo/cartas-gallery.tsx`). Validado funcionalmente por Fabrício em 2026-08-07 (edição via UI, sem erros).
 
 ## Sequência
 
@@ -361,7 +361,7 @@ Frontend: `web/app/catalogo/cartas/actions.ts` (`updateCard`), `web/components/c
 2815 - Validate Card Set Code Editable                        (CONFIRMADO EXECUTADO — database/validations/2815_validate_card_set_code_editable.sql)
 2092 - Create admin_start_asset_import_run() Function          (v1.1/v1.2/v1.3 CONFIRMADO EXECUTADO — database/schema/2092_create_admin_start_asset_import_run_function.sql)
 2816 - Validate admin_start_asset_import_run()                 (v1.1/v1.2 CONFIRMADO EXECUTADO — database/validations/2816_validate_admin_start_asset_import_run.sql)
-2114 - Create admin_update_card() Function                     (PROPOSTA — aguardando execução e confirmação de Fabrício)
+2114 - Create admin_update_card() Function                     (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2114_create_admin_update_card_function.sql)
 ```
 
 **Reconciliação de gap (2026-08-01):** as quatro linhas acima (`2051`/`2052`/`2053`/`2812`) já estavam confirmadas executadas por Fabrício desde 2026-07-31 (ver revisões anteriores desta tabela de histórico), mas nunca haviam sido incluídas nesta lista de Sequência — mesmo tipo de gap documental já visto antes neste projeto (ex.: `EXPANSION_DELETED` faltando no arquivo canônico de `catalog_admin_action_log`, corrigido na Query `2049` v1.2). Corrigido aqui, sem re-executar nada — só a lista estava desatualizada.
@@ -807,9 +807,67 @@ Fabrício reportou, com print capturando o meio da animação: "durante a transi
 
 Fabrício ainda achou o símbolo distante da identificação: "prefiro mais compacto... da forma que está o símbolo parece solto na tela." A causa não era a margem entre os dois elementos (`space-y-0.5`, já pequena) — era o próprio `<span>` do `RaritySymbol`, que não define `line-height` próprio e por isso herda o line-height ambiente de onde é usado (bem maior que os 7px do ícone), deixando uma faixa de espaço em branco embutida em torno do símbolo mesmo sem nenhuma margem visível causando isso. Corrigido com `leading-none` no `RaritySymbol` (e no `<p>` de identificação, para simetria). `tsc --noEmit` confirmado limpo.
 
+## Raridade — mapeamento self-service e revalidação (Queries `2094`–`2113`, CONFIRMADO EXECUTADO)
+
+`ADR-024`, emenda "Raridade: mapeamento self-service e revalidação" (2026-08-07). Substitui `RARITY_NAME_ALIASES` (mapa hardcoded em `import-catalog-cards/services/normalize.ts`) por dado administrável via UI — corrigir ou cadastrar um mapeamento de raridade deixa de exigir deploy de código.
+
+**Extensão e normalização (`2094`/`2095`).** `unaccent` habilitada no schema `extensions`; `normalize_external_catalog_value(p_value TEXT)` (`sql STABLE`) remove acento/caixa/espaçamento (`upper(regexp_replace(trim(extensions.unaccent(...)), '\s+', ' ', 'g'))`) — usada tanto pelo cadastro self-service quanto pelo processador TCGdex, via módulo compartilhado `_shared/catalog-normalization/` (extraído de `import-catalog-cards/services/normalize.ts`, reutilizável por outra Edge Function).
+
+**Modelo (`2096`/`2097`).** `public.rarity_external_mapping` (`game_id`, `asset_source_id`, `external_value`, `normalized_external_value`, `rarity_id`) — `UNIQUE(game_id, asset_source_id, normalized_external_value)`, FKs `ON DELETE RESTRICT`, RLS habilitado, trigger de `updated_at` reaproveitando `set_updated_at()`.
+
+**Ampliação da auditoria (`2098`).** As três `CHECK` de `catalog_admin_action_log` (Query `2010`) ganham `RARITY_CREATED`/`RARITY_UPDATED` (entity_type `RARITY`), `RARITY_EXTERNAL_MAPPING_CREATED`/`RARITY_EXTERNAL_MAPPING_UPDATED` (entity_type `RARITY_EXTERNAL_MAPPING`) e `CATALOG_IMPORT_ROWS_REVALIDATED` (entity_type `CATALOG_IMPORT_JOB`) — mesma técnica de `DROP`+`ADD CONSTRAINT` das Queries `2041`/`2043`/`2049`.
+
+**Cadastro administrativo (`2099`–`2103`).** `admin_create_rarity()`/`admin_update_rarity()` (CRUD de `rarity`, `game_id`/`code` imutáveis na edição); `admin_create_rarity_external_mapping()`/`admin_update_rarity_external_mapping()` (CRUD de `rarity_external_mapping`, valida que `rarity_id` pertence ao mesmo `game_id`); `admin_create_rarity_with_external_mapping()` (wrapper atômico das duas primeiras, fluxo "Nova raridade" da tela). Todas `SECURITY DEFINER`, exigem `is_admin()`, gravam auditoria própria.
+
+```sql
+CREATE OR REPLACE FUNCTION public.admin_create_rarity_with_external_mapping(
+    p_game_id UUID, p_code TEXT, p_name TEXT, p_symbol_code TEXT, p_display_order INTEGER,
+    p_asset_source_id UUID, p_external_value TEXT
+)
+RETURNS TABLE(rarity_id UUID, mapping_id UUID)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
+```
+
+**Backfill (`2104`).** Os 25 aliases que viviam em `RARITY_NAME_ALIASES` migrados para `rarity_external_mapping` (Game `POKEMON`, Fonte `TCGDEX`, timestamp único de lote) — mesmo conjunto de valores, sem mudança de comportamento observável na importação.
+
+**Revalidação sem reimportação (`2105`/`2106`).** `internal.persist_catalog_import_revalidation(p_job_id, p_row_updates)` — escrita em lote única (`jsonb_to_recordset()` + `UPDATE ... FROM`), `EXECUTE` revogado de `authenticated`/`anon` (só chamada por `2106`, mesmo isolamento de `internal.write_card()`). `public.svc_apply_catalog_import_revalidation(p_job_id, p_row_updates, p_actor_id)` — contrato de `service_role`, chamado pela Edge Function `revalidate-catalog-import-rows`: recalcula linhas de um job `STAGED`/`CONFIRMING`/`COMPLETED_WITH_ERRORS` sem tocar `decision_status` já decidido, destrava linhas que haviam falhado só por raridade não mapeada (`persistence_status FAILED` + `validation_status` recalculado para `VALID` → volta a `PENDING`), e recalcula o status do job — um `COMPLETED_WITH_ERRORS` com pelo menos uma linha destravada volta a `CONFIRMING`.
+
+**GRANTs/policy de apoio (`2110`/`2112`/`2113`).** `SELECT` em `catalog_import_row` para `service_role` (sem isso, a Edge Function de revalidação lia zero linhas — sintoma observado antes da correção: "Revalidar tudo" sempre reportava `updated_count = 0`). `SELECT` em `asset_source` para `authenticated` + política `catalog_admin_select` (`USING (is_admin())`) — necessário para a tela popular a combo de Fonte no formulário de mapeamento.
+
+**Limpeza de jobs (`2111`).** Investigação e correção de jobs presos em `COMPLETED_WITH_ERRORS` cuja causa raiz (raridade não mapeada) já havia sido corrigida antes da revalidação existir — ver `database/migrations/2111_cleanup_completed_with_errors_jobs.sql` para o registro exato do que foi limpo.
+
+**Cadastro real de `RARE_HOLO` (`2109`)** — a raridade mais comum de todo o catálogo (holográfica clássica) só foi percebida como faltante durante o uso real da tela; cadastrada via `admin_create_rarity_with_external_mapping()`, mesmo caminho que qualquer administrador usaria.
+
+**Frontend (`/catalogo/raridades`, CONFIRMADO IMPLEMENTADO).** Lista Raridades cadastradas e valores externos pendentes (staged sem mapeamento), ação "Resolver raridade" (Raridade existente ou Nova raridade) e botão "Revalidar tudo". Guarda de admin (`requireCatalogoAdmin`), mesmo padrão das demais telas do módulo. Camada de dados em `web/lib/catalogo/queries.ts` (`getRaridades`, resumo de revalidação pendente); Server Actions em `web/app/catalogo/raridades/actions.ts`.
+
+### Sequência — Raridade
+
+```text
+2094 - Enable unaccent Extension                              (CONFIRMADO EXECUTADO — database/schema/2094_enable_unaccent_extension.sql)
+2095 - Create normalize_external_catalog_value() Function      (CONFIRMADO EXECUTADO — database/schema/2095_create_normalize_external_catalog_value_function.sql)
+2096 - Create rarity_external_mapping Table                    (CONFIRMADO EXECUTADO — database/schema/2096_create_rarity_external_mapping_table.sql)
+2097 - rarity_external_mapping Triggers                        (CONFIRMADO EXECUTADO — database/schema/2097_rarity_external_mapping_triggers.sql)
+2098 - Add Rarity Actions to Catalog Admin Action Log          (CONFIRMADO EXECUTADO — database/migrations/2098_add_rarity_actions_to_catalog_admin_action_log.sql)
+2099 - Create admin_create_rarity() Function                   (CONFIRMADO EXECUTADO — database/schema/2099_create_admin_create_rarity_function.sql)
+2100 - Create admin_update_rarity() Function                   (CONFIRMADO EXECUTADO — database/schema/2100_create_admin_update_rarity_function.sql)
+2101 - Create admin_create_rarity_external_mapping() Function  (CONFIRMADO EXECUTADO — database/schema/2101_create_admin_create_rarity_external_mapping_function.sql)
+2102 - Create admin_update_rarity_external_mapping() Function  (CONFIRMADO EXECUTADO — database/schema/2102_create_admin_update_rarity_external_mapping_function.sql)
+2103 - Create admin_create_rarity_with_external_mapping()      (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2103_create_admin_create_rarity_with_external_mapping_function.sql)
+2104 - Backfill rarity_external_mapping                        (CONFIRMADO EXECUTADO — database/migrations/2104_backfill_rarity_external_mapping.sql)
+2105 - Create internal.persist_catalog_import_revalidation()   (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2105_create_internal_persist_catalog_import_revalidation_function.sql)
+2106 - Create svc_apply_catalog_import_revalidation()          (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2106_create_svc_apply_catalog_import_revalidation_function.sql)
+2109 - Cadastro real de RARE_HOLO                              (CONFIRMADO EXECUTADO — via admin_create_rarity_with_external_mapping())
+2110 - Grant SELECT catalog_import_row to service_role         (CONFIRMADO EXECUTADO — database/migrations/2110_grant_select_catalog_import_row_to_service_role.sql)
+2111 - Cleanup COMPLETED_WITH_ERRORS jobs duplicados           (CONFIRMADO EXECUTADO — database/migrations/2111_cleanup_completed_with_errors_jobs.sql)
+2112 - Grant SELECT asset_source to authenticated              (CONFIRMADO EXECUTADO — database/migrations/2112_grant_select_asset_source_to_authenticated.sql)
+2113 - Create asset_source catalog_admin_select Policy         (CONFIRMADO EXECUTADO — database/migrations/2113_create_asset_source_catalog_admin_select_policy.sql)
+```
+
+Ver `adr/ADR-024-catalog-card-ingestion-strategy.md`, emenda "Raridade: mapeamento self-service e revalidação" (2026-08-07), para a decisão arquitetural completa.
+
 ## Pendências / Próximos Passos
 
-A leitura/galeria de Cartas está implementada, funcional (Query `2053` confirmada executada) e ajustada visualmente conforme três rounds de teste real de Fabrício — nenhuma pendência conhecida na experiência de leitura. Seguem pendentes, no escopo original do `ADR-023`: criação/edição administrativa de Card (reaproveitando `internal.write_card()`, Query `2030`) e desativação/reativação (reaproveitando `card.is_active`, Query `2020`) — únicos itens restantes antes do fechamento formal do ADR-023.
+A leitura/galeria de Cartas está implementada, funcional (Query `2053` confirmada executada) e ajustada visualmente conforme três rounds de teste real de Fabrício — nenhuma pendência conhecida na experiência de leitura. A edição administrativa de Card está implementada (`admin_update_card()`, Query `2114`, ver seção própria acima) e validada funcionalmente por Fabrício. O cadastro self-service de Raridade (acima) está implementado e em uso em produção. Seguem pendentes, no escopo original do `ADR-023`: criação administrativa de Card (`admin_create_card()`, ainda não escrita) e desativação/reativação (reaproveitando `card.is_active`, Query `2020`) — únicos itens restantes antes do fechamento formal do ADR-023.
 
 ---
 
