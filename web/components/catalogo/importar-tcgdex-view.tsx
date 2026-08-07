@@ -59,6 +59,51 @@ const INITIAL_STATE: IniciarImportacaoTcgdexActionState = { error: null, jobId: 
 // continuação automática cobre só o idioma que faltava.
 const AUTO_CONTINUATION_LANGUAGE_CODE = "pt-BR";
 
+// Encadeamento PT-BR → EN (2026-08-06, pedido de Fabrício): coleções mais
+// antigas cujo Card Set nunca foi publicado em português na TCGdex sempre
+// falhavam por completo nesta etapa (nenhuma imagem em pt-BR existe pra
+// importar) — o administrador precisava perceber a falha, navegar até a
+// tela dedicada `/catalogo/importar-imagens?idioma=en` e repetir a operação
+// manualmente. `AUTO_CONTINUATION_LANGUAGE_CODE` (pt-BR) continua tentado
+// primeiro, sempre — só depois desse resultado (sucesso, falha parcial ou
+// falha total) a continuação tenta este idioma na sequência,
+// automaticamente, sem intervenção manual (ver `useAnalyzeJob`, laço de
+// encadeamento). Mesmo raciocínio já aplicado em `TCGDEX_FALLBACK_LANGUAGE`
+// (`import-catalog-cards/index.ts`, commit "Implementação de
+// FALLBACK_LANGUAGE") para a busca de cartas na TCGdex — aqui replicado
+// para a importação de imagens (`import-card-assets`), pipeline
+// independente. Única exceção ao encadeamento incondicional: se pt-BR
+// devolver `supported = false` (Card Set sem
+// card_set_external_reference/TCGDEX — Promo/Energia/fora de cobertura,
+// condição independente de idioma), en nunca seria diferente — a tentativa
+// em inglês é pulada (ver `runImageLanguagePhase`/laço de encadeamento).
+const AUTO_CONTINUATION_FALLBACK_LANGUAGE_CODE = "en";
+
+/** Resultado devolvido quando uma fase é abandonada por cancelamento do efeito (componente desmontado/job trocado) antes de terminar — nunca chega a ser lido de verdade (o chamador também verifica `cancelled`), só existe pra satisfazer o tipo de retorno de `runImageLanguagePhase`. */
+const CANCELLED_IMAGE_RESULT: IniciarImportacaoImagensResult = {
+  supported: true,
+  success: false,
+  error: null,
+  imagesImported: 0,
+  imagesFailed: 0,
+  imagesTotal: 0,
+  runCode: null,
+  runExpired: false,
+  failures: [],
+  interrupted: false,
+};
+
+/**
+ * Resultado da continuação automática de imagens, um por idioma tentado
+ * (2026-08-06, encadeamento PT-BR → EN) — `en` fica `null` quando pt-BR já
+ * veio `supported = false` (ver `AUTO_CONTINUATION_FALLBACK_LANGUAGE_CODE`,
+ * a tentativa em inglês é pulada nesse caso).
+ */
+export type ImageLanguageResults = {
+  ptBr: IniciarImportacaoImagensResult | null;
+  en: IniciarImportacaoImagensResult | null;
+};
+
 /**
  * Resultado da localização automática do Set na TCGdex (Ciclo 2, ADR-024) —
  * `MatchResultPanel` cobre os dois casos "raros" (AMBIGUOUS/NOT_FOUND, mais
@@ -180,16 +225,26 @@ export function useAnalyzeJob(cardSetId: string) {
   // subsequente (ex.: o próprio `router.refresh()` de `confirmarImportacao`
   // já causa uma re-renderização com o mesmo job final).
   const [imagePhase, setImagePhase] = useState<"idle" | "checking" | "importing" | "done">("idle");
-  const [imageResult, setImageResult] = useState<IniciarImportacaoImagensResult | null>(null);
+  // Idioma da fase de imagem em curso (2026-08-06, encadeamento PT-BR → EN)
+  // — `null` antes de disparar e depois que a continuação termina de vez
+  // (ambos os idiomas concluídos, ou en pulado por pt-BR `supported = false`).
+  const [imageLanguage, setImageLanguage] = useState<"pt-BR" | "en" | null>(null);
+  // Um resultado por idioma tentado (era um único `imageResult`, generalizado
+  // em 2026-08-06 para o encadeamento PT-BR → EN — ver
+  // `AUTO_CONTINUATION_FALLBACK_LANGUAGE_CODE`). `en` fica `null` quando a
+  // tentativa em inglês foi pulada.
+  const [imageResults, setImageResults] = useState<ImageLanguageResults>({ ptBr: null, en: null });
   // Progresso ao vivo (2026-08-02, pedido explícito de Fabrício: "quero
   // colocar um contador ao lado do Step Importando imagens... Quero
   // enxergar o progresso real") — populado por polling em
   // `asset_import_run` (via `fetchProgressoImportacaoImagens`) enquanto a
   // Edge Function processa o lote, em paralelo à chamada bloqueante de
-  // `executarImportacaoImagens`. `null` até o primeiro polling responder.
+  // `executarImportacaoImagens`. `null` até o primeiro polling responder;
+  // resetado a cada troca de idioma (ver `runImageLanguagePhase`).
   const [imageProgress, setImageProgress] = useState<ProgressoImportacaoImagens | null>(null);
   // Retry automático (2026-08-02, mesmo dia, rodada seguinte): número da
-  // tentativa em curso — ver comentário completo no `useEffect` abaixo.
+  // tentativa em curso DENTRO do idioma atual — reinicia a cada troca de
+  // idioma (ver comentário completo no `useEffect` abaixo).
   const [imageAttempt, setImageAttempt] = useState(0);
   const imageTriggeredJobIdRef = useRef<string | null>(null);
 
@@ -201,7 +256,7 @@ export function useAnalyzeJob(cardSetId: string) {
     // `catalogJobId` (2026-08-02, mesmo dia, rodada seguinte) — capturado
     // aqui fora de qualquer closure aninhada: `job` é `const`, mas o
     // TypeScript não propaga o null-check acima para dentro de
-    // `runUntilDone` (função aninhada, definida bem mais abaixo) — mesmo
+    // `runImageLanguagePhase` (função aninhada, definida logo abaixo) — mesmo
     // motivo já documentado para `run`/`activeRun` em
     // `import-card-assets/index.ts`.
     const catalogJobId = job.id;
@@ -212,21 +267,44 @@ export function useAnalyzeJob(cardSetId: string) {
     setImagePhase("checking");
     setImageProgress(null);
     setImageAttempt(0);
+    setImageResults({ ptBr: null, en: null });
 
-    // Fluxo em duas fases (2026-08-02, mesma emenda do contador ao vivo):
-    // `abrirImportacaoImagens` é uma chamada rápida (só abre/reaproveita a
-    // run via RPC) que devolve o `runCode` de imediato, permitindo começar
-    // o polling em paralelo à chamada longa e bloqueante de
-    // `executarImportacaoImagens` (o fetch de fato à Edge Function).
-    abrirImportacaoImagens(
-      cardSetId,
-      `catalog_import_job:${job.id}`,
-      AUTO_CONTINUATION_LANGUAGE_CODE,
-    ).then((openResult) => {
-      if (cancelled) return;
+    /**
+     * Executa o ciclo completo (abrir run → executar com retry → devolver
+     * resultado final) para UM idioma — extraído em 2026-08-06 (encadeamento
+     * PT-BR → EN, ver `AUTO_CONTINUATION_FALLBACK_LANGUAGE_CODE`) do que
+     * antes era o corpo único deste efeito, escrito só para pt-BR. Mesma
+     * lógica de sempre — fluxo em duas fases (abrir rápido via RPC, depois
+     * executar bloqueante com polling em paralelo), `alreadyActive`
+     * (acompanha a run já em andamento em vez de fingir conclusão), retry
+     * automático com aborto antecipado e reabertura em `runExpired` — só
+     * parametrizada por `languageCode` agora, e chamada duas vezes em
+     * sequência pelo laço de encadeamento logo abaixo. Nunca marca
+     * `imagePhase` como `"done"` sozinha: só quem orquestra as duas chamadas
+     * sabe quando a continuação de fato terminou.
+     */
+    async function runImageLanguagePhase(
+      languageCode: "pt-BR" | "en",
+    ): Promise<IniciarImportacaoImagensResult> {
+      setImageLanguage(languageCode);
+      setImagePhase("checking");
+      setImageProgress(null);
+      setImageAttempt(0);
+
+      // Fluxo em duas fases (2026-08-02, mesma emenda do contador ao vivo):
+      // `abrirImportacaoImagens` é uma chamada rápida (só abre/reaproveita a
+      // run via RPC) que devolve o `runCode` de imediato, permitindo começar
+      // o polling em paralelo à chamada longa e bloqueante de
+      // `executarImportacaoImagens` (o fetch de fato à Edge Function).
+      const openResult = await abrirImportacaoImagens(
+        cardSetId,
+        `catalog_import_job:${catalogJobId}`,
+        languageCode,
+      );
+      if (cancelled) return CANCELLED_IMAGE_RESULT;
 
       if (!openResult.supported) {
-        setImageResult({
+        return {
           supported: false,
           success: true,
           error: null,
@@ -237,12 +315,10 @@ export function useAnalyzeJob(cardSetId: string) {
           runExpired: false,
           failures: [],
           interrupted: false,
-        });
-        setImagePhase("done");
-        return;
+        };
       }
       if (openResult.error || !openResult.runCode) {
-        setImageResult({
+        return {
           supported: true,
           success: false,
           error: openResult.error,
@@ -253,9 +329,7 @@ export function useAnalyzeJob(cardSetId: string) {
           runExpired: false,
           failures: [],
           interrupted: false,
-        });
-        setImagePhase("done");
-        return;
+        };
       }
       if (openResult.alreadyActive) {
         // Mesma correção de `importar-imagens-view.tsx` (2026-08-02, mesmo
@@ -264,42 +338,38 @@ export function useAnalyzeJob(cardSetId: string) {
         // progresso real da run já em andamento até ela terminar.
         setImagePhase("importing");
         const runCode = openResult.runCode;
-        waitForActiveRunToFinish(runCode, (progress) => {
+        const finalProgress = await waitForActiveRunToFinish(runCode, (progress) => {
           if (!cancelled) setImageProgress(progress);
-        }).then((finalProgress) => {
-          if (cancelled) return;
-          if (!finalProgress) {
-            setImageResult({
-              supported: true,
-              success: false,
-              error:
-                "Uma importação já em andamento para esta Coleção não terminou a tempo de acompanhar — tente novamente em alguns minutos.",
-              imagesImported: 0,
-              imagesFailed: 0,
-              imagesTotal: 0,
-              runCode,
-              runExpired: false,
-              failures: [],
-          interrupted: false,
-            });
-          } else {
-            const failed = finalProgress.status === "FAILED";
-            setImageResult({
-              supported: true,
-              success: !failed,
-              error: failed ? (finalProgress.errorSummary ?? "A importação em andamento falhou.") : null,
-              imagesImported: finalProgress.successCount,
-              imagesFailed: finalProgress.failedCount,
-              imagesTotal: finalProgress.requestedCount,
-              runCode,
-              runExpired: false,
-              failures: [],
-          interrupted: false,
-            });
-          }
-          setImagePhase("done");
         });
-        return;
+        if (cancelled) return CANCELLED_IMAGE_RESULT;
+        if (!finalProgress) {
+          return {
+            supported: true,
+            success: false,
+            error:
+              "Uma importação já em andamento para esta Coleção não terminou a tempo de acompanhar — tente novamente em alguns minutos.",
+            imagesImported: 0,
+            imagesFailed: 0,
+            imagesTotal: 0,
+            runCode,
+            runExpired: false,
+            failures: [],
+            interrupted: false,
+          };
+        }
+        const failed = finalProgress.status === "FAILED";
+        return {
+          supported: true,
+          success: !failed,
+          error: failed ? (finalProgress.errorSummary ?? "A importação em andamento falhou.") : null,
+          imagesImported: finalProgress.successCount,
+          imagesFailed: finalProgress.failedCount,
+          imagesTotal: finalProgress.requestedCount,
+          runCode,
+          runExpired: false,
+          failures: [],
+          interrupted: false,
+        };
       }
 
       setImagePhase("importing");
@@ -338,54 +408,74 @@ export function useAnalyzeJob(cardSetId: string) {
       // (`abrirImportacaoImagens` de novo) e continua o retry com ela.
       let attempt = 0;
       let lastImported = -1;
+      let result: IniciarImportacaoImagensResult;
+      do {
+        attempt += 1;
+        if (!cancelled) setImageAttempt(attempt);
+        result = await executarImportacaoImagens(cardSetId, runCodeRef.current, languageCode);
+        if (cancelled) break;
 
-      async function runUntilDone(): Promise<IniciarImportacaoImagensResult> {
-        let result: IniciarImportacaoImagensResult;
-        do {
-          attempt += 1;
-          if (!cancelled) setImageAttempt(attempt);
-          result = await executarImportacaoImagens(cardSetId, runCodeRef.current, AUTO_CONTINUATION_LANGUAGE_CODE);
-          if (cancelled) return result;
+        // Aborto antecipado (2026-08-02, mesmo dia, rodada seguinte, ME5) —
+        // mesmo raciocínio/implementação de `handleImportar` em
+        // `importar-imagens-view.tsx`: para o laço de retry imediatamente
+        // quando `executarImportacaoImagens` já abortou a chamada por
+        // padrão sistemático de falha (0 sucessos nas primeiras cartas
+        // processadas), em vez de insistir mais tentativas num erro que não
+        // vai se resolver sozinho.
+        if (result.interrupted) break;
 
-          // Aborto antecipado (2026-08-02, mesmo dia, rodada seguinte, ME5) —
-          // mesmo raciocínio/implementação de `handleImportar` em
-          // `importar-imagens-view.tsx`: para o laço de retry imediatamente
-          // quando `executarImportacaoImagens` já abortou a chamada por
-          // padrão sistemático de falha (0 sucessos nas primeiras cartas
-          // processadas), em vez de insistir mais tentativas num erro que não
-          // vai se resolver sozinho.
-          if (result.interrupted) break;
-
-          if (result.runExpired && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS) {
-            const reopened = await abrirImportacaoImagens(
-              cardSetId,
-              `catalog_import_job:${catalogJobId}`,
-              AUTO_CONTINUATION_LANGUAGE_CODE,
-            );
-            if (cancelled) return result;
-            if (reopened.supported && reopened.runCode && !reopened.alreadyActive) {
-              runCodeRef.current = reopened.runCode;
-              continue;
-            }
+        if (result.runExpired && attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS) {
+          const reopened = await abrirImportacaoImagens(
+            cardSetId,
+            `catalog_import_job:${catalogJobId}`,
+            languageCode,
+          );
+          if (cancelled) break;
+          if (reopened.supported && reopened.runCode && !reopened.alreadyActive) {
+            runCodeRef.current = reopened.runCode;
+            continue;
           }
+        }
 
-          if (result.imagesImported === lastImported) break;
-          lastImported = result.imagesImported;
-        } while (
-          result.supported &&
-          result.imagesFailed > 0 &&
-          attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS
-        );
-        return { ...result, runCode: runCodeRef.current };
+        if (result.imagesImported === lastImported) break;
+        lastImported = result.imagesImported;
+      } while (
+        result.supported &&
+        result.imagesFailed > 0 &&
+        attempt < MAX_IMAGE_IMPORT_RETRY_ATTEMPTS
+      );
+
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = undefined;
+      }
+      return cancelled ? CANCELLED_IMAGE_RESULT : { ...result, runCode: runCodeRef.current };
+    }
+
+    // Encadeamento PT-BR → EN (2026-08-06) — pt-BR sempre tentado primeiro;
+    // en só é pulado quando pt-BR já veio `supported = false` (Card Set fora
+    // da cobertura da TCGdex — condição independente de idioma, tentar en
+    // não mudaria nada). Qualquer outro desfecho de pt-BR (sucesso, falha
+    // parcial, erro real) ainda dispara a tentativa em inglês na sequência —
+    // pedido explícito de Fabrício ("mesmo com falha na importação das
+    // imagens em português, realizamos na sequência a importação em
+    // inglês").
+    (async () => {
+      const ptResult = await runImageLanguagePhase(AUTO_CONTINUATION_LANGUAGE_CODE);
+      if (cancelled) return;
+      setImageResults((previous) => ({ ...previous, ptBr: ptResult }));
+
+      if (!ptResult.supported) {
+        setImageLanguage(null);
+        setImagePhase("done");
+        return;
       }
 
-      runUntilDone().then((result) => {
-        if (pollTimer) clearInterval(pollTimer);
-        if (cancelled) return;
-        setImageResult(result);
-        setImagePhase("done");
-      });
-    });
+      const enResult = await runImageLanguagePhase(AUTO_CONTINUATION_FALLBACK_LANGUAGE_CODE);
+      if (cancelled) return;
+      setImageResults((previous) => ({ ...previous, en: enResult }));
+      setImagePhase("done");
+    })();
 
     return () => {
       cancelled = true;
@@ -401,7 +491,8 @@ export function useAnalyzeJob(cardSetId: string) {
     jobState,
     refreshJob,
     imagePhase,
-    imageResult,
+    imageLanguage,
+    imageResults,
     imageProgress,
     imageAttempt,
     /** Já foi clicado em Analisar (mesmo que ainda processando) — some o botão, aparece o progresso. */
@@ -443,7 +534,8 @@ function CandidateAnalyzeCard({ cardSetId, candidate }: { cardSetId: string; can
           resultSummary={{ label: candidate.name, cardCount: candidate.cardCountTotal }}
           job={analyzeJob.jobState.job}
           imagePhase={analyzeJob.imagePhase}
-          imageResult={analyzeJob.imageResult}
+          imageLanguage={analyzeJob.imageLanguage}
+          imageResults={analyzeJob.imageResults}
           imageProgress={analyzeJob.imageProgress}
           imageAttempt={analyzeJob.imageAttempt}
         />
@@ -531,6 +623,60 @@ function groupImageFailures(failures: ImageImportFailureView[]): ImageFailureGro
   return Array.from(groups.entries())
     .map(([error, examples]) => ({ error, count: examples.length, examples }))
     .sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Resultado final de UM idioma, rotulado ("PT-BR"/"EN") — extraído em
+ * 2026-08-06 do bloco que antes vivia direto dentro de `ImportProgress`
+ * (single idioma, sem rótulo) para o encadeamento PT-BR → EN em
+ * `mode="full"`: cada idioma tentado ganha seu próprio parágrafo (importadas/
+ * pendentes + falhas agrupadas), nunca somados num único número (uma carta
+ * pode ter imagem num idioma e não no outro — ver comentário de
+ * `finalizingStep`). Não decide o caso "`supported = false`" — isso é
+ * responsabilidade de quem chama (o motivo é do Card Set inteiro, não de um
+ * idioma específico).
+ */
+function renderImageLanguageResult(label: string, result: IniciarImportacaoImagensResult) {
+  const hardError = !result.success && Boolean(result.error);
+  return (
+    <div key={label}>
+      {hardError ? (
+        <p className="text-destructive">
+          {label} — {result.error}
+        </p>
+      ) : (
+        <p>
+          {label} — {result.imagesImported} importada{result.imagesImported === 1 ? "" : "s"}
+          {result.imagesFailed > 0 &&
+            `, ${result.imagesFailed} pendente${result.imagesFailed === 1 ? "" : "s"} (falharam — seguem disponíveis pelo pipeline manual)`}
+          .
+        </p>
+      )}
+      {result.failures.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {groupImageFailures(result.failures)
+            .slice(0, MAX_FAILURE_GROUPS_SHOWN)
+            .map((group) => (
+              <li key={group.error}>
+                <span className="font-medium text-foreground">{group.count}×</span> {group.error}
+                {group.examples.length > 0 && (
+                  <span>
+                    {" "}
+                    (ex.: {group.examples.slice(0, MAX_FAILURE_EXAMPLES_SHOWN).join(", ")}
+                    {group.examples.length > MAX_FAILURE_EXAMPLES_SHOWN &&
+                      ` e mais ${group.examples.length - MAX_FAILURE_EXAMPLES_SHOWN}`}
+                    )
+                  </span>
+                )}
+              </li>
+            ))}
+          {groupImageFailures(result.failures).length > MAX_FAILURE_GROUPS_SHOWN && (
+            <li>e mais {groupImageFailures(result.failures).length - MAX_FAILURE_GROUPS_SHOWN} motivo(s) diferente(s)</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -632,7 +778,9 @@ export function ImportProgress({
   job,
   totalCards,
   imagePhase,
+  imageLanguage,
   imageResult,
+  imageResults,
   imageProgress,
   imageAttempt,
 }: {
@@ -648,8 +796,12 @@ export function ImportProgress({
   totalCards?: number;
   /** Fase da continuação automática de imagens (useAnalyzeJob) — `undefined`/`"idle"` quando ainda não disparou (job não chegou a um status final "produtivo", ou nem existe). */
   imagePhase?: "idle" | "checking" | "importing" | "done";
-  /** Resultado final da continuação de imagens — só preenchido quando `imagePhase === "done"`. */
+  /** Idioma da fase de imagem em curso (2026-08-06, encadeamento PT-BR → EN, só em `mode="full"`) — `null`/`undefined` antes de disparar ou depois que a continuação termina de vez. Ignorado em `mode="images-only"` (idioma único, escolhido manualmente por `LanguageToggle`, fora deste componente). */
+  imageLanguage?: "pt-BR" | "en" | null;
+  /** Resultado final de UM idioma — usado só em `mode="images-only"` (`importar-imagens-view.tsx`, idioma único escolhido pelo administrador). Ignorado em `mode="full"`, que usa `imageResults` (dois idiomas). */
   imageResult?: IniciarImportacaoImagensResult | null;
+  /** Resultado final por idioma tentado (2026-08-06, encadeamento PT-BR → EN) — usado só em `mode="full"` (`useAnalyzeJob`). `en` fica `null` quando a tentativa em inglês foi pulada (pt-BR já `supported = false`). Ignorado em `mode="images-only"`. */
+  imageResults?: ImageLanguageResults | null;
   /** Progresso ao vivo (2026-08-02) — polling de `asset_import_run` enquanto `imagePhase === "importing"`, ver `fetchProgressoImportacaoImagens`. `null`/`undefined` até o primeiro polling responder. */
   imageProgress?: ProgressoImportacaoImagens | null;
   /**
@@ -659,7 +811,8 @@ export function ImportProgress({
    * Function não muda, então uma Coleção grande sempre precisa de várias
    * chamadas): quando `> 1`, mostrado como "(tentativa N)" ao lado do
    * rótulo, para deixar claro que o sistema está repetindo sozinho, não
-   * travado. `1`/`undefined` na primeira tentativa não mostra nada.
+   * travado. `1`/`undefined` na primeira tentativa não mostra nada. Reinicia
+   * a cada troca de idioma em `mode="full"` (ver `imageLanguage`).
    */
   imageAttempt?: number;
 }) {
@@ -802,23 +955,50 @@ export function ImportProgress({
       }
     : null;
 
+  // Resultados por idioma (2026-08-06, encadeamento PT-BR → EN, `mode="full"`
+  // só) — `en` fica `null` enquanto ainda não chegou lá ou quando foi
+  // pulado (`ptResult.supported === false`). Em `mode="images-only"` só
+  // `imageResult` (singular, idioma único escolhido pelo `LanguageToggle`
+  // fora deste componente) importa; `imageResults` é ignorado.
+  const ptResult = imageResults?.ptBr ?? null;
+  const enResult = imageResults?.en ?? null;
+
   // Erro real ao abrir a run/chamar a Edge Function (rede, 500 etc.) — nunca
   // confundido com "sem suporte na TCGdex" (`supported = false`, caminho
   // normal) nem com "algumas imagens falharam" (`imagesFailed > 0`, ainda
-  // `success = true`).
-  const imageHardError = Boolean(imageResult && !imageResult.success && imageResult.error);
+  // `success = true`). Em `mode="full"`, verdadeiro se QUALQUER um dos dois
+  // idiomas tentados teve erro real.
+  const imageHardError =
+    mode === "images-only"
+      ? Boolean(imageResult && !imageResult.success && imageResult.error)
+      : Boolean(
+          (ptResult && !ptResult.success && ptResult.error) || (enResult && !enResult.success && enResult.error),
+        );
   const importingImagesStep: Step | null = showImageSteps
     ? {
         key: "importando-imagens",
         label: "Importando imagens",
-        icon: imageResult && !imageResult.supported ? ImageOff : ImagePlus,
+        icon:
+          mode === "images-only"
+            ? imageResult && !imageResult.supported
+              ? ImageOff
+              : ImagePlus
+            : ptResult && !ptResult.supported
+              ? ImageOff
+              : ImagePlus,
         status:
           !imagePhase || imagePhase === "idle" || imagePhase === "checking"
             ? "pending"
             : imagePhase === "importing"
               ? "active"
               : "done",
-        tone: imageHardError || (imageResult && imageResult.imagesFailed > 0) ? "warning" : "success",
+        tone:
+          imageHardError ||
+          (mode === "images-only"
+            ? Boolean(imageResult && imageResult.imagesFailed > 0)
+            : Boolean((ptResult && ptResult.imagesFailed > 0) || (enResult && enResult.imagesFailed > 0)))
+            ? "warning"
+            : "success",
         // Contador ao vivo (2026-08-02, pedido explícito de Fabrício: "quero
         // colocar um contador... que indique a quantidade de imagens
         // importadas e o total a ser importada. Quero enxergar o progresso
@@ -826,64 +1006,93 @@ export function ImportProgress({
         // `imageProgress` (polling de `asset_import_run` via
         // `getProgressoImportacaoImagens`, gravado a cada lote pela Edge
         // Function v2.7.0). `requestedCount > 0` evita mostrar "0 de 0"
-        // antes do primeiro polling retornar dados reais.
+        // antes do primeiro polling retornar dados reais. Em `mode="full"`,
+        // prefixado pelo idioma em curso (`imageLanguage`) — sem isso, o
+        // contador de EN parece uma continuação do de PT-BR em vez de uma
+        // segunda tentativa independente.
         body:
           imagePhase === "importing" && imageProgress && imageProgress.requestedCount > 0 ? (
             <p className="tabular-nums">
+              {mode === "full" && `${imageLanguage === "en" ? "EN" : "PT-BR"} — `}
               {imageProgress.processedCount} de {imageProgress.requestedCount} processadas
               {imageProgress.successCount > 0 && ` · ${imageProgress.successCount} importadas`}
               {imageProgress.failedCount > 0 && ` · ${imageProgress.failedCount} falharam`}
             </p>
           ) : (
             imagePhase === "done" &&
-            imageResult && (
-              <>
-                {imageHardError ? (
-                  <p className="text-destructive">{imageResult.error}</p>
-                ) : !imageResult.supported ? (
-                  <p>
-                    Este Card Set não está disponível na TCGdex — as imagens deverão ser importadas posteriormente
-                    pelo pipeline manual já existente.
-                  </p>
-                ) : (
-                  <p>
-                    {imageResult.imagesImported} importada{imageResult.imagesImported === 1 ? "" : "s"}
-                    {imageResult.imagesFailed > 0 &&
-                      `, ${imageResult.imagesFailed} pendente${imageResult.imagesFailed === 1 ? "" : "s"} (falharam — seguem disponíveis pelo pipeline manual)`}
-                    .
-                  </p>
-                )}
-                {/* Motivo real de cada falha (2026-08-02, mesmo dia, rodada
-                    seguinte) — ver comentário completo de `groupImageFailures`.
-                    Só aparece quando há falhas com motivo conhecido; uma
-                    falha antes do laço de imagens já aparece via `error`
-                    acima, sem duplicar aqui (`failures` fica vazio nesse
-                    caso). */}
-                {imageResult.failures.length > 0 && (
-                  <ul className="mt-1 space-y-0.5">
-                    {groupImageFailures(imageResult.failures)
-                      .slice(0, MAX_FAILURE_GROUPS_SHOWN)
-                      .map((group) => (
-                        <li key={group.error}>
-                          <span className="font-medium text-foreground">{group.count}×</span> {group.error}
-                          {group.examples.length > 0 && (
-                            <span>
-                              {" "}
-                              (ex.: {group.examples.slice(0, MAX_FAILURE_EXAMPLES_SHOWN).join(", ")}
-                              {group.examples.length > MAX_FAILURE_EXAMPLES_SHOWN &&
-                                ` e mais ${group.examples.length - MAX_FAILURE_EXAMPLES_SHOWN}`}
-                              )
-                            </span>
-                          )}
+            (mode === "images-only" ? (
+              imageResult && (
+                <>
+                  {imageHardError ? (
+                    <p className="text-destructive">{imageResult.error}</p>
+                  ) : !imageResult.supported ? (
+                    <p>
+                      Este Card Set não está disponível na TCGdex — as imagens deverão ser importadas posteriormente
+                      pelo pipeline manual já existente.
+                    </p>
+                  ) : (
+                    <p>
+                      {imageResult.imagesImported} importada{imageResult.imagesImported === 1 ? "" : "s"}
+                      {imageResult.imagesFailed > 0 &&
+                        `, ${imageResult.imagesFailed} pendente${imageResult.imagesFailed === 1 ? "" : "s"} (falharam — seguem disponíveis pelo pipeline manual)`}
+                      .
+                    </p>
+                  )}
+                  {/* Motivo real de cada falha (2026-08-02, mesmo dia, rodada
+                      seguinte) — ver comentário completo de `groupImageFailures`.
+                      Só aparece quando há falhas com motivo conhecido; uma
+                      falha antes do laço de imagens já aparece via `error`
+                      acima, sem duplicar aqui (`failures` fica vazio nesse
+                      caso). */}
+                  {imageResult.failures.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {groupImageFailures(imageResult.failures)
+                        .slice(0, MAX_FAILURE_GROUPS_SHOWN)
+                        .map((group) => (
+                          <li key={group.error}>
+                            <span className="font-medium text-foreground">{group.count}×</span> {group.error}
+                            {group.examples.length > 0 && (
+                              <span>
+                                {" "}
+                                (ex.: {group.examples.slice(0, MAX_FAILURE_EXAMPLES_SHOWN).join(", ")}
+                                {group.examples.length > MAX_FAILURE_EXAMPLES_SHOWN &&
+                                  ` e mais ${group.examples.length - MAX_FAILURE_EXAMPLES_SHOWN}`}
+                                )
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      {groupImageFailures(imageResult.failures).length > MAX_FAILURE_GROUPS_SHOWN && (
+                        <li>
+                          e mais {groupImageFailures(imageResult.failures).length - MAX_FAILURE_GROUPS_SHOWN} motivo(s)
+                          diferente(s)
                         </li>
-                      ))}
-                    {groupImageFailures(imageResult.failures).length > MAX_FAILURE_GROUPS_SHOWN && (
-                      <li>e mais {groupImageFailures(imageResult.failures).length - MAX_FAILURE_GROUPS_SHOWN} motivo(s) diferente(s)</li>
-                    )}
-                  </ul>
-                )}
-              </>
-            )
+                      )}
+                    </ul>
+                  )}
+                </>
+              )
+            ) : (
+              // Encadeamento PT-BR → EN (2026-08-06) — quando o Card Set não
+              // tem cobertura na TCGdex, o motivo é do Card Set inteiro, não
+              // de um idioma específico (en nem chegou a ser tentado): uma
+              // única mensagem, sem rótulo de idioma. Caso contrário, um
+              // parágrafo por idioma tentado (`renderImageLanguageResult`) —
+              // nunca somados, cada idioma tem seu próprio total de
+              // importadas/pendentes.
+              ptResult &&
+              (!ptResult.supported ? (
+                <p>
+                  Este Card Set não está disponível na TCGdex — as imagens deverão ser importadas posteriormente pelo
+                  pipeline manual já existente.
+                </p>
+              ) : (
+                <>
+                  {renderImageLanguageResult("PT-BR", ptResult)}
+                  {enResult && renderImageLanguageResult("EN", enResult)}
+                </>
+              ))
+            ))
           ),
       }
     : null;
@@ -892,38 +1101,77 @@ export function ImportProgress({
   // `job.insertedRows + job.updatedRows` — não há job de cartas nesse modo,
   // a Coleção já tinha todas as Cards cadastradas de antes.
   const cardsCatalogadas = mode === "images-only" ? (totalCards ?? 0) : job ? job.insertedRows + job.updatedRows : 0;
-  // "Pendentes": `imageResult.imagesFailed` é a fonte de verdade sempre que
-  // `supported = true` — inclusive em erro real (`imageHardError`), desde a
-  // correção de 2026-08-02 (revisão `1.33`): `contarImagensImportadas`
-  // (`tcgdex/actions.ts`) já consulta a contagem real de `card_asset` no
-  // banco nos dois caminhos de erro, então `imagesFailed` não é mais "0
-  // forçado" nesse caso. Bug real corrigido aqui (2026-08-02, mesmo dia,
-  // rodada seguinte): a checagem extra `!imageHardError` ainda fazia esta
-  // conta cair para `cardsCatalogadas` (o TOTAL de Cards da Coleção) em vez
-  // do que de fato falta — reportado por Fabrício ao ver "Imagens
-  // pendentes: 266" (o total) numa Coleção que já tinha 115 imagens de
-  // antes, quando o correto era 151 (266 - 115). Só cai para
-  // `cardsCatalogadas` quando `supported = false` (Card Set genuinamente
-  // fora da TCGdex — nenhuma imagem automática é possível, tudo mesmo
-  // pendente pro pipeline manual).
-  const imagesPendentes = imageResult ? (imageResult.supported ? imageResult.imagesFailed : cardsCatalogadas) : 0;
+  // "Pendentes" em `mode="images-only"`: `imageResult.imagesFailed` é a
+  // fonte de verdade sempre que `supported = true` — inclusive em erro real
+  // (`imageHardError`), desde a correção de 2026-08-02 (revisão `1.33`):
+  // `contarImagensImportadas` (`tcgdex/actions.ts`) já consulta a contagem
+  // real de `card_asset` no banco nos dois caminhos de erro, então
+  // `imagesFailed` não é mais "0 forçado" nesse caso. Bug real corrigido
+  // aqui (2026-08-02, mesmo dia, rodada seguinte): a checagem extra
+  // `!imageHardError` ainda fazia esta conta cair para `cardsCatalogadas`
+  // (o TOTAL de Cards da Coleção) em vez do que de fato falta — reportado
+  // por Fabrício ao ver "Imagens pendentes: 266" (o total) numa Coleção que
+  // já tinha 115 imagens de antes, quando o correto era 151 (266 - 115). Só
+  // cai para `cardsCatalogadas` quando `supported = false` (Card Set
+  // genuinamente fora da TCGdex — nenhuma imagem automática é possível,
+  // tudo mesmo pendente pro pipeline manual).
+  const imagesPendentesSingle = imageResult ? (imageResult.supported ? imageResult.imagesFailed : cardsCatalogadas) : 0;
   const finalizingStep: Step | null = showImageSteps
     ? {
         key: "finalizando",
         label: "Finalizando importação",
         icon: CheckCircle2,
         status: imagePhase === "done" ? "done" : "pending",
-        tone: imageHardError || (imageResult && imageResult.supported && imageResult.imagesFailed > 0) ? "warning" : "success",
+        tone:
+          imageHardError ||
+          (mode === "images-only"
+            ? Boolean(imageResult && imageResult.supported && imageResult.imagesFailed > 0)
+            : Boolean(
+                (ptResult && ptResult.supported && ptResult.imagesFailed > 0) ||
+                  (enResult && enResult.supported && enResult.imagesFailed > 0),
+              ))
+            ? "warning"
+            : "success",
         // "Cartas cadastradas" só faz sentido em `mode="full"` (é o resultado
         // do job de cartas que acabou de rodar) — em `mode="images-only"` a
         // Coleção já tinha todas as Cards de antes, então o resumo final
-        // mostra só as duas contagens de imagem.
-        body: imagePhase === "done" && imageResult && (
-          <p>
-            {mode === "full" && `Cartas cadastradas: ${cardsCatalogadas} · `}
-            Imagens importadas: {imageResult.imagesImported} · Imagens pendentes: {imagesPendentes}
-          </p>
-        ),
+        // mostra só a contagem de imagem.
+        //
+        // Em `mode="full"`, "Imagens importadas"/"Imagens pendentes" viram
+        // uma linha por idioma tentado (2026-08-06, encadeamento PT-BR →
+        // EN) em vez de um único par de números — somar os dois contaria
+        // errado: uma carta pendente em PT-BR pode já ter sido importada em
+        // EN (ou vice-versa), não é o mesmo conjunto de cartas nos dois
+        // idiomas.
+        body:
+          imagePhase === "done" &&
+          (mode === "images-only" ? (
+            imageResult && (
+              <p>
+                Imagens importadas: {imageResult.imagesImported} · Imagens pendentes: {imagesPendentesSingle}
+              </p>
+            )
+          ) : (
+            ptResult && (
+              <>
+                <p>Cartas cadastradas: {cardsCatalogadas}</p>
+                {!ptResult.supported ? (
+                  <p>Nenhuma imagem disponível na TCGdex para este Card Set.</p>
+                ) : (
+                  <>
+                    <p>
+                      Imagens importadas (PT-BR): {ptResult.imagesImported} · Pendentes: {ptResult.imagesFailed}
+                    </p>
+                    {enResult && (
+                      <p>
+                        Imagens importadas (EN): {enResult.imagesImported} · Pendentes: {enResult.imagesFailed}
+                      </p>
+                    )}
+                  </>
+                )}
+              </>
+            )
+          )),
       }
     : null;
 
@@ -948,9 +1196,9 @@ export function ImportProgress({
             {fullyDone
               ? "Importação processada"
               : imagesInFlight
-                ? imageAttempt && imageAttempt > 1
-                  ? `Importando imagens... (tentativa ${imageAttempt})`
-                  : "Importando imagens..."
+                ? `Importando imagens${mode === "full" && imageLanguage ? ` (${imageLanguage === "en" ? "EN" : "PT-BR"})` : ""}...${
+                    imageAttempt && imageAttempt > 1 ? ` (tentativa ${imageAttempt})` : ""
+                  }`
                 : mode === "images-only"
                   ? "Iniciando importação de imagens..."
                   : "Processando importação..."}

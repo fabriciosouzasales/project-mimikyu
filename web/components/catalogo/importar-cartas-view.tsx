@@ -263,7 +263,8 @@ export function ImportarCartasView({
                     resultSummary={{ label: matchResult.set.name, cardCount: matchResult.set.cardCountTotal }}
                     job={analyzeJob.jobState.job}
                     imagePhase={analyzeJob.imagePhase}
-                    imageResult={analyzeJob.imageResult}
+                    imageLanguage={analyzeJob.imageLanguage}
+                    imageResults={analyzeJob.imageResults}
                     imageProgress={analyzeJob.imageProgress}
                     imageAttempt={analyzeJob.imageAttempt}
                   />

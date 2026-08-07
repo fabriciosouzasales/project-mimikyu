@@ -38,3 +38,11 @@ Gap real na importação (Victini 171/86, Zekrom ex 172/86): raridade `BLACK_WHI
 ## [2026-08-06] docs | Adequação ao padrão LLM Wiki
 
 A pedido de Fabrício, avaliação da documentação do projeto contra o padrão LLM Wiki (gist de Andrej Karpathy) e execução dos 4 itens de adequação aprovados: `CLAUDE.md` (schema versionado), `docs/log.md` (este arquivo), `docs/INDEX.md` (catálogo único) e divisão de `docs/05-modelo-de-dados.md` em páginas menores por área.
+
+## [2026-08-06] docs | Fallback de idioma pt→en documentado (import-catalog-cards)
+
+Modificação manual de Fabrício em `index.ts`/`normalize.ts` (commit "Implementação de FALLBACK_LANGUAGE", 2026-08-05), sem documentação até agora: coleções nunca publicadas em português na TCGdex agora caem automaticamente para inglês na busca de cartas. Ver `adr/ADR-024-catalog-card-ingestion-strategy.md` revisão `1.1`, emenda 2026-08-05.
+
+## [2026-08-06] feature | Encadeamento PT-BR → EN na importação automática de imagens
+
+Pedido de Fabrício: a continuação automática cartas→imagens (`useAnalyzeJob`) agora tenta `en` automaticamente depois de `pt-BR`, cobrindo coleções sem cobertura em português na TCGdex sem exigir retomada manual em `/catalogo/importar-imagens?idioma=en`. `ImportProgress` passou a mostrar um resultado por idioma tentado. Ver `adr/ADR-024-catalog-card-ingestion-strategy.md` revisão `1.1`, emenda 2026-08-06.
