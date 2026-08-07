@@ -102,6 +102,15 @@ const SYMBOL_MAP: Record<
   GOLD_SPARKLE: { icon: Star, count: 1, tone: "text-primary", fillTone: "fill-muted-foreground" },
   GOLD_DOUBLE_SPARKLE: { icon: Star, count: 2, tone: "text-primary", fillTone: "fill-muted-foreground" },
   BLACK_WHITE_STAR: { icon: Star, count: 1, tone: "text-foreground", emptyCount: 1 },
+  // WHITE_STAR (2026-08-07, pedido de Fabrício ao cadastrar RARE_HOLO_V
+  // "Holo Rare V"): estrela branca — diferente de BLACK_WHITE_STAR (uma
+  // cheia + uma vazia), aqui a ÚNICA estrela é vazada por completo.
+  // `fillTone: "fill-none"` sobrescreve o preenchimento também para os
+  // índices "cheios" (index < count), não só os extras de `emptyCount` —
+  // resultado: contorno em `text-foreground` (mesmo tom de BLACK_STAR),
+  // sem nenhum preenchimento, distinguível de um espaço vazio pelo próprio
+  // contorno.
+  WHITE_STAR: { icon: Star, count: 1, tone: "text-foreground", fillTone: "fill-none" },
 };
 
 export function RaritySymbol({ symbolCode, className }: { symbolCode: string; className?: string }) {

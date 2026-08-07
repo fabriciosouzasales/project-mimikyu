@@ -8,8 +8,10 @@ import {
   getCardSetsForCartas,
   getCartasCatalogoStats,
   getCartasCompletas,
+  getCategoriaOptions,
   getExpansoes,
   getGameOptions,
+  getRaridades,
 } from "@/lib/catalogo/queries";
 
 /**
@@ -64,10 +66,17 @@ export default async function CartasPage({
   if (denied) return denied;
 
   const { set, game, expansion } = await searchParams;
-  const [cardSets, games, expansions] = await Promise.all([
+  const [cardSets, games, expansions, raridades, categorias] = await Promise.all([
     getCardSetsForCartas(supabase),
     getGameOptions(supabase),
     getExpansoes(supabase),
+    // Raridades/Categorias — 2026-08-07, alimentam os selects de
+    // `EditCardDialog` (tela de edição de Card). `getRaridades` já existia
+    // (tela /catalogo/raridades); reaproveitada aqui em vez de duplicar a
+    // consulta — os `mapeamentos` que ela também traz não são usados por
+    // este dialog, mas o custo extra é desprezível (cadastro pequeno).
+    getRaridades(supabase),
+    getCategoriaOptions(supabase),
   ]);
 
   let selected = set ? (cardSets.find((cardSet) => cardSet.code === set) ?? null) : null;
@@ -123,6 +132,8 @@ export default async function CartasPage({
           selectedGameId={selectedGameId}
           selectedExpansionId={selectedExpansionId}
           cartas={cartas}
+          raridades={raridades}
+          categorias={categorias}
         />
       </PageContainer>
     </AppShell>

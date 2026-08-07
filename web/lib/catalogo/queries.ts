@@ -1296,10 +1296,13 @@ export type CartaCompletaRow = {
   collectorTotal: number | null;
   collectorOrder: number;
   name: string;
+  /** Adicionado 2026-08-07 (tela de edição de Card, pedido de Fabrício: "duas cartas cadastradas com a raridade errada") — os `id`s brutos de raridade/categoria não eram necessários enquanto a tela só exibia (nunca editava) esses dados; agora alimentam os selects de `EditCardDialog`. */
+  rarityId: string;
   rarityCode: string;
   rarityName: string;
   rarityDisplayOrder: number;
   raritySymbolCode: string;
+  categoryId: string;
   categoryCode: string;
   categoryName: string;
   categoryDisplayOrder: number;
@@ -1322,8 +1325,8 @@ type CartaCompletaRawRow = {
   collector_total: number | null;
   collector_order: number;
   name: string;
-  rarity: { code: string; name: string; symbol_code: string; display_order: number } | null;
-  card_category: { code: string; name: string; display_order: number } | null;
+  rarity: { id: string; code: string; name: string; symbol_code: string; display_order: number } | null;
+  card_category: { id: string; code: string; name: string; display_order: number } | null;
   card_asset: CartaCompletaAssetRawRow[] | null;
 };
 
@@ -1373,7 +1376,7 @@ export async function getCartasCompletas(supabase: SupabaseClient, cardSetId: st
   const { data, error } = await supabase
     .from("card")
     .select(
-      "id, collector_number, collector_total, collector_order, name, rarity(code, name, symbol_code, display_order), card_category(code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code))",
+      "id, collector_number, collector_total, collector_order, name, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code))",
     )
     .eq("card_set_id", cardSetId)
     .eq("is_active", true)
@@ -1392,10 +1395,12 @@ export async function getCartasCompletas(supabase: SupabaseClient, cardSetId: st
       collectorTotal: card.collector_total,
       collectorOrder: card.collector_order,
       name: card.name,
+      rarityId: card.rarity?.id ?? "",
       rarityCode: card.rarity?.code ?? "",
       rarityName: card.rarity?.name ?? "—",
       rarityDisplayOrder: card.rarity?.display_order ?? 0,
       raritySymbolCode: card.rarity?.symbol_code ?? "",
+      categoryId: card.card_category?.id ?? "",
       categoryCode: card.card_category?.code ?? "",
       categoryName: card.card_category?.name ?? "—",
       categoryDisplayOrder: card.card_category?.display_order ?? 0,
@@ -1403,6 +1408,33 @@ export async function getCartasCompletas(supabase: SupabaseClient, cardSetId: st
       imageUrlEn: pathEn ? (supabase.storage.from("card-front").getPublicUrl(pathEn).data.publicUrl ?? null) : null,
     };
   });
+}
+
+export type CategoriaOption = { id: string; code: string; name: string; displayOrder: number };
+
+/**
+ * Todas as Categorias editoriais (Pokémon/Treinador/Energia) cadastradas —
+ * novo em 2026-08-07, alimenta o select "Categoria" de `EditCardDialog`
+ * (tela de edição de Card, pedido de Fabrício: "editar todas as informações
+ * possíveis... incluindo a sua raridade"). Mesmo padrão de `getGameOptions`:
+ * cadastro fixo/pequeno, sem paginação.
+ */
+export async function getCategoriaOptions(supabase: SupabaseClient): Promise<CategoriaOption[]> {
+  const { data, error } = await supabase
+    .from("card_category")
+    .select("id, code, name, display_order")
+    .order("display_order", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as { id: string; code: string; name: string; display_order: number }[]).map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    displayOrder: row.display_order,
+  }));
 }
 
 export type ImportacaoRow = {
@@ -1702,4 +1734,181 @@ export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): 
     failedCount: run.failed_count,
     createdAt: run.created_at,
   }));
+}
+
+/**
+ * Camada de leitura da tela /catalogo/raridades (task #336, ciclo de
+ * cadastro self-service de Raridade, 2026-08-06/07 — ver
+ * `docs/log.md`). Duas responsabilidades: `getRaridades` lista as
+ * raridades canônicas já cadastradas com seus mapeamentos externos
+ * (`rarity_external_mapping`); `getRevalidacaoPendenteResumo` calcula, a
+ * partir dos jobs hoje revalidáveis (`STAGED`/`CONFIRMING`/
+ * `COMPLETED_WITH_ERRORS` — mesmo filtro de `listRevalidatableJobs` na
+ * Edge Function `revalidate-catalog-import-rows`), quais valores brutos de
+ * raridade (`raw_data.rarity`, texto exatamente como veio da fonte
+ * externa) ainda não têm mapeamento — é essa lista que alimenta o fluxo
+ * "Resolver raridade".
+ *
+ * `getRaridades` busca `rarity` e `rarity_external_mapping` em duas
+ * consultas simples e junta em memória, em vez de um select com
+ * relacionamento embutido do PostgREST (`rarity_external_mapping(...)`) —
+ * mesma cautela documentada em `import-catalog-cards`/
+ * `revalidate-catalog-import-rows` (2026-08-07): esse embed específico já
+ * falhou em produção nesta rodada (ver `docs/log.md`, fix do GYM1/SWSH1).
+ */
+export type RaridadeMapeamentoRow = {
+  id: string;
+  assetSourceCode: string;
+  externalValue: string;
+  normalizedExternalValue: string;
+};
+
+export type RaridadeRow = {
+  id: string;
+  code: string;
+  name: string;
+  symbolCode: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  mapeamentos: RaridadeMapeamentoRow[];
+};
+
+type RarityRawRow = {
+  id: string;
+  code: string;
+  name: string;
+  symbol_code: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type RarityExternalMappingRawRow = {
+  id: string;
+  rarity_id: string;
+  asset_source_id: string;
+  external_value: string;
+  normalized_external_value: string;
+};
+
+export async function getRaridades(supabase: SupabaseClient): Promise<RaridadeRow[]> {
+  const { data: rarityRows, error: rarityError } = await supabase
+    .from("rarity")
+    .select("id, code, name, symbol_code, display_order, created_at, updated_at")
+    .order("display_order", { ascending: true });
+
+  if (rarityError || !rarityRows) {
+    return [];
+  }
+
+  const { data: mappingRows } = await supabase
+    .from("rarity_external_mapping")
+    .select("id, rarity_id, asset_source_id, external_value, normalized_external_value");
+
+  const { data: sourceRows } = await supabase.from("asset_source").select("id, code");
+  const sourceCodeById = new Map<string, string>(
+    ((sourceRows ?? []) as { id: string; code: string }[]).map((s) => [s.id, s.code]),
+  );
+
+  const mappingsByRarityId = new Map<string, RaridadeMapeamentoRow[]>();
+  for (const mapping of (mappingRows ?? []) as RarityExternalMappingRawRow[]) {
+    const list = mappingsByRarityId.get(mapping.rarity_id) ?? [];
+    list.push({
+      id: mapping.id,
+      assetSourceCode: sourceCodeById.get(mapping.asset_source_id) ?? "—",
+      externalValue: mapping.external_value,
+      normalizedExternalValue: mapping.normalized_external_value,
+    });
+    mappingsByRarityId.set(mapping.rarity_id, list);
+  }
+
+  return (rarityRows as unknown as RarityRawRow[]).map((rarity) => ({
+    id: rarity.id,
+    code: rarity.code,
+    name: rarity.name,
+    symbolCode: rarity.symbol_code,
+    displayOrder: rarity.display_order,
+    createdAt: rarity.created_at,
+    updatedAt: rarity.updated_at,
+    mapeamentos: mappingsByRarityId.get(rarity.id) ?? [],
+  }));
+}
+
+export type RaridadePendenteRow = {
+  /** Texto exatamente como veio da fonte externa (raw_data.rarity). */
+  rawValue: string;
+  totalLinhas: number;
+  /** Códigos de Coleção afetados por este valor não mapeado, ordenados. */
+  cardSets: string[];
+};
+
+export type RevalidacaoPendenteResumo = {
+  totalJobsRevalidaveis: number;
+  totalLinhasPendentes: number;
+  valoresNaoMapeados: RaridadePendenteRow[];
+};
+
+const RAIDADE_JOB_STATUSES_REVALIDAVEIS = ["STAGED", "CONFIRMING", "COMPLETED_WITH_ERRORS"] as const;
+
+export async function getRevalidacaoPendenteResumo(supabase: SupabaseClient): Promise<RevalidacaoPendenteResumo> {
+  const { data: jobs, error: jobsError } = await supabase
+    .from("catalog_import_job")
+    .select("id, card_set_id")
+    .in("status", RAIDADE_JOB_STATUSES_REVALIDAVEIS);
+
+  if (jobsError || !jobs || jobs.length === 0) {
+    return { totalJobsRevalidaveis: 0, totalLinhasPendentes: 0, valoresNaoMapeados: [] };
+  }
+
+  const jobRows = jobs as { id: string; card_set_id: string }[];
+  const jobIds = jobRows.map((job) => job.id);
+  const cardSetIdByJobId = new Map<string, string>(jobRows.map((job) => [job.id, job.card_set_id]));
+
+  const { data: cardSetRows } = await supabase.from("card_set").select("id, code");
+  const cardSetCodeById = new Map<string, string>(
+    ((cardSetRows ?? []) as { id: string; code: string }[]).map((cs) => [cs.id, cs.code]),
+  );
+
+  const { data: rows, error: rowsError } = await supabase
+    .from("catalog_import_row")
+    .select("job_id, raw_data, normalized_data")
+    .in("job_id", jobIds);
+
+  if (rowsError || !rows) {
+    return { totalJobsRevalidaveis: jobIds.length, totalLinhasPendentes: 0, valoresNaoMapeados: [] };
+  }
+
+  const porValor = new Map<string, { totalLinhas: number; cardSets: Set<string> }>();
+  let totalLinhasPendentes = 0;
+
+  for (const row of rows as { job_id: string; raw_data: Record<string, unknown>; normalized_data: Record<string, unknown> }[]) {
+    const rarityId = (row.normalized_data as { rarity_id?: string | null } | null)?.rarity_id ?? null;
+    if (rarityId) continue;
+
+    totalLinhasPendentes += 1;
+    const rawValue = typeof row.raw_data?.rarity === "string" ? (row.raw_data.rarity as string) : "(sem valor)";
+    const entry = porValor.get(rawValue) ?? { totalLinhas: 0, cardSets: new Set<string>() };
+    entry.totalLinhas += 1;
+
+    const cardSetId = cardSetIdByJobId.get(row.job_id);
+    const cardSetCode = cardSetId ? cardSetCodeById.get(cardSetId) : undefined;
+    if (cardSetCode) entry.cardSets.add(cardSetCode);
+
+    porValor.set(rawValue, entry);
+  }
+
+  const valoresNaoMapeados = Array.from(porValor.entries())
+    .map(([rawValue, entry]) => ({
+      rawValue,
+      totalLinhas: entry.totalLinhas,
+      cardSets: Array.from(entry.cardSets).sort(),
+    }))
+    .sort((a, b) => b.totalLinhas - a.totalLinhas);
+
+  return {
+    totalJobsRevalidaveis: jobIds.length,
+    totalLinhasPendentes,
+    valoresNaoMapeados,
+  };
 }

@@ -211,7 +211,7 @@ ALTER TABLE public.card
 
 ## `internal.write_card()` (Query `2030`, CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE)
 
-Camada canônica única de persistência de Card — reutilizada por `admin_create_card()`/`admin_update_card()` (Queries `2037`/`2038`, ainda não escritas) e, em `ADR-024`, por `admin_confirm_catalog_import()` (`ADR-023`, "Camada interna canônica").
+Camada canônica única de persistência de Card — reutilizada por `admin_create_card()` (ainda não escrita) e `admin_update_card()` (Query `2114`, ver abaixo) e, em `ADR-024`, por `admin_confirm_catalog_import()` (`ADR-023`, "Camada interna canônica").
 
 ```sql
 CREATE OR REPLACE FUNCTION internal.write_card(
@@ -233,6 +233,94 @@ REVOKE ALL ON FUNCTION internal.write_card(...) FROM PUBLIC, anon, authenticated
 **Descoberta de implementação**: a consistência de Game (Card Set/Rarity/Card Category no mesmo Game) e `updated_at` já são garantidos pelo trigger existente `trg_card_validate_game_consistency`/`trg_card_set_updated_at` (Query `141`), independentemente de quem faz o `INSERT`/`UPDATE` — a "validação de FK" que `ADR-023` atribui a esta camada já é satisfeita por construção, sem duplicar lógica. Por simetria com `admin_set_card_set_logo()` (que faz sua própria checagem de `is_admin()` por não ter camada interna), esta função **não** verifica `is_admin()` — essa responsabilidade é exclusiva das funções públicas que a chamam (`2037`/`2038`), já que `EXECUTE` é revogado de todos exceto o owner.
 
 Validado estruturalmente (`prosecdef = true`, `search_path = ""`, `anon`/`authenticated` sem `EXECUTE`) **e funcionalmente, com execução real contra o banco** — primeira função deste módulo testada em tempo real, não apenas por revisão de código: cinco cenários (`CREATE` bem-sucedido; `UPDATE` de campos editáveis; tentativa de alterar `card_set_id` bloqueada; `UPDATE` de id inexistente bloqueado; `p_mode` inválido bloqueado), todos dentro de uma transação com `RAISE EXCEPTION` forçado ao final — `ROLLBACK` total confirmado, `0` linhas residuais. Arquivo em `database/schema/2030_create_internal_write_card_function.sql`; validação em `database/validations/2803_validate_internal_write_card.sql`.
+
+## `admin_update_card()` (Query `2114`, PROPOSTA — aguardando execução e confirmação de Fabrício)
+
+Tela de edição de Card (`/catalogo/cartas`, botão de ação rápida no canto inferior direito de cada carta do grid — pedido de Fabrício, 2026-08-07: "Encontrei duas cartas cadastradas com a raridade errada... possibilitando editar todas as informações possíveis... incluindo a sua raridade"). Primeira função pública deste módulo a chamar `internal.write_card()` em modo `UPDATE` — `admin_confirm_catalog_import()` (`ADR-024`) já a chamava em modo `CREATE`.
+
+```sql
+CREATE OR REPLACE FUNCTION public.admin_update_card(
+    p_id UUID,
+    p_name TEXT,
+    p_collector_total INTEGER,
+    p_collector_order INTEGER,
+    p_rarity_id UUID,
+    p_category_id UUID
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_card_set_id UUID;
+    v_name TEXT;
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_FORBIDDEN: apenas administradores podem atualizar uma Card.';
+    END IF;
+
+    SELECT card_set_id INTO v_card_set_id FROM public.card WHERE id = p_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_NOT_FOUND: nenhuma Card encontrada para o id informado (%).', p_id;
+    END IF;
+
+    v_name := btrim(coalesce(p_name, ''));
+    IF v_name = '' THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_INVALID_NAME: o nome não pode ser vazio.';
+    END IF;
+
+    IF p_collector_total IS NOT NULL AND p_collector_total <= 0 THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_INVALID_COLLECTOR_TOTAL: o total, quando informado, deve ser positivo.';
+    END IF;
+
+    IF p_collector_order IS NULL OR p_collector_order <= 0 THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_INVALID_COLLECTOR_ORDER: a ordem editorial deve ser um número positivo.';
+    END IF;
+
+    IF p_rarity_id IS NULL OR NOT EXISTS (SELECT 1 FROM public.rarity WHERE id = p_rarity_id) THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_RARITY_NOT_FOUND: selecione uma Raridade válida.';
+    END IF;
+
+    IF p_category_id IS NULL OR NOT EXISTS (SELECT 1 FROM public.card_category WHERE id = p_category_id) THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_CATEGORY_NOT_FOUND: selecione uma Categoria válida.';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM public.card
+        WHERE card_set_id = v_card_set_id AND collector_order = p_collector_order AND id <> p_id
+    ) THEN
+        RAISE EXCEPTION 'ADMIN_UPDATE_CARD_DUPLICATE_COLLECTOR_ORDER: já existe outra Card com a ordem editorial % neste Card Set.', p_collector_order;
+    END IF;
+
+    -- p_card_set_id/p_collector_number sempre NULL — nunca editáveis por
+    -- esta função (ADR-023); internal.write_card() levantaria
+    -- INTERNAL_WRITE_CARD_PROTECTED_FIELD se recebesse qualquer um dos dois.
+    PERFORM internal.write_card(
+        'UPDATE', p_id, NULL, p_rarity_id, p_category_id,
+        NULL, p_collector_total, p_collector_order, v_name
+    );
+
+    INSERT INTO public.catalog_admin_action_log (actor_id, action, entity_type, entity_id, metadata)
+        VALUES (
+            auth.uid(), 'CARD_UPDATED', 'CARD', p_id,
+            jsonb_build_object(
+                'name', v_name, 'collector_total', p_collector_total,
+                'collector_order', p_collector_order,
+                'rarity_id', p_rarity_id, 'category_id', p_category_id
+            )
+        );
+
+    RETURN p_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_update_card(UUID, TEXT, INTEGER, INTEGER, UUID, UUID) TO authenticated;
+```
+
+`card_set_id`/`collector_number` nunca aparecem na assinatura — nem como parâmetro opcional — mesmo princípio de `expansion_id`/`code` em `admin_update_card_set()` antes da emenda 2026-08-01 (aqui não há emenda equivalente: `collector_number` continua estruturalmente protegido sem exceção, decisão explícita do ADR-023). `uq_card_card_set_collector_order` (Query `140`) já impediria a duplicata na constraint bruta, mas a checagem explícita antecipa um erro administrativo legível, mesmo padrão de `release_order` em `admin_update_card_set()`. `rarity_id`/`category_id` validados contra `rarity`/`card_category` antes do `UPDATE` — `internal.write_card()` não faz essa checagem (confia no trigger `trg_card_validate_game_consistency`, que só dispara *depois* do `UPDATE` já ter sido tentado); validar antes produz uma mensagem mais clara para o mesmo caso. Grava `catalog_admin_action_log` (`CARD_UPDATED`) — ação já prevista no `CHECK` desde a Query `2098` (rodada de Raridade/Mapeamento, mesmo dia mais cedo), nenhuma migration de constraint necessária.
+
+Frontend: `web/app/catalogo/cartas/actions.ts` (`updateCard`), `web/components/catalogo/carta-dialogs.tsx` (`EditCardDialog`), botão de ação rápida em `CartaGridCard` (`web/components/catalogo/cartas-gallery.tsx`) — já com a fiação completa, aguardando só a execução desta Query por Fabrício para funcionar de ponta a ponta (mesma situação já vivida por `updateCardSet`/`createCardSet` até suas Queries serem confirmadas).
 
 ## Sequência
 
@@ -273,6 +361,7 @@ Validado estruturalmente (`prosecdef = true`, `search_path = ""`, `anon`/`authen
 2815 - Validate Card Set Code Editable                        (CONFIRMADO EXECUTADO — database/validations/2815_validate_card_set_code_editable.sql)
 2092 - Create admin_start_asset_import_run() Function          (v1.1/v1.2/v1.3 CONFIRMADO EXECUTADO — database/schema/2092_create_admin_start_asset_import_run_function.sql)
 2816 - Validate admin_start_asset_import_run()                 (v1.1/v1.2 CONFIRMADO EXECUTADO — database/validations/2816_validate_admin_start_asset_import_run.sql)
+2114 - Create admin_update_card() Function                     (PROPOSTA — aguardando execução e confirmação de Fabrício)
 ```
 
 **Reconciliação de gap (2026-08-01):** as quatro linhas acima (`2051`/`2052`/`2053`/`2812`) já estavam confirmadas executadas por Fabrício desde 2026-07-31 (ver revisões anteriores desta tabela de histórico), mas nunca haviam sido incluídas nesta lista de Sequência — mesmo tipo de gap documental já visto antes neste projeto (ex.: `EXPANSION_DELETED` faltando no arquivo canônico de `catalog_admin_action_log`, corrigido na Query `2049` v1.2). Corrigido aqui, sem re-executar nada — só a lista estava desatualizada.
@@ -289,7 +378,7 @@ Decisões definitivas do ajuste final de Fabrício (2026-08-01), incorporadas em
 
 Descoberta durante a implementação: `card_set`/`card` não possuem nenhuma coluna de idioma (confirmado em `database/schema/120`/`140`) — `catalog_import_job` não guarda `language_id` (diferente do que uma leitura apressada de `card_asset`, que É localizado por idioma, sugeriria). O idioma de publicação já está implícito em qual Card Set foi escolhido no dropdown.
 
-`admin_start_catalog_import()`/`admin_decide_catalog_import_row()`/`admin_confirm_catalog_import()` são três funções distintas (não uma só) porque cobrem três momentos do fluxo com autorizações e granularidades diferentes: abrir (uma vez, gera auditoria), decidir (muitas vezes por job, reversível, sem auditoria própria — a decisão já fica registrada na própria linha) e confirmar (persiste de fato, sempre em lote, sempre auditada). `admin_confirm_catalog_import()` chama `internal.write_card()` diretamente — mesma camada canônica usada por `admin_create_card()`/`admin_update_card()` (ainda não escritas), nunca duplicando a lógica de proteção de campos.
+`admin_start_catalog_import()`/`admin_decide_catalog_import_row()`/`admin_confirm_catalog_import()` são três funções distintas (não uma só) porque cobrem três momentos do fluxo com autorizações e granularidades diferentes: abrir (uma vez, gera auditoria), decidir (muitas vezes por job, reversível, sem auditoria própria — a decisão já fica registrada na própria linha) e confirmar (persiste de fato, sempre em lote, sempre auditada). `admin_confirm_catalog_import()` chama `internal.write_card()` diretamente — mesma camada canônica usada por `admin_update_card()` (Query `2114`, ver seção própria) e, no futuro, `admin_create_card()` (ainda não escrita), nunca duplicando a lógica de proteção de campos.
 
 ```sql
 CREATE OR REPLACE FUNCTION public.admin_start_catalog_import(

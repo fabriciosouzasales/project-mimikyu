@@ -1,10 +1,11 @@
 "use client";
 
-import { CreditCard, FileUp, Search } from "lucide-react";
+import { CreditCard, FileUp, Pencil, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
+import { EditCardDialog } from "@/components/catalogo/carta-dialogs";
 import { CartasStats } from "@/components/catalogo/cartas-stats";
 import { HoloCard } from "@/components/catalogo/holo-card";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
@@ -13,16 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { formatarData } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import type {
   CartaCompletaRow,
   CartasCatalogoStats,
   CatalogoCardSetRow,
+  CategoriaOption,
   ExpansaoRow,
   GameOption,
+  RaridadeRow,
 } from "@/lib/catalogo/queries";
 
 /** Quantas cartas aparecem antes do botão "Ver todas" — ponto 10 do pedido de Fabrício ("deve ser exibido inicialmente parte do card set"). Sem critério objetivo único no pedido; 30 cobre ~5 linhas em telas largas (grade de 6-7 colunas) sem sobrecarregar o primeiro carregamento de um Set grande. */
@@ -172,6 +177,8 @@ export function CartasGallery({
   selectedGameId,
   selectedExpansionId,
   cartas,
+  raridades,
+  categorias,
 }: {
   /** Todos os Card Sets, mais recentes primeiro — alimenta o seletor "Coleção" e os indicadores (`CartasStats`). */
   cardSets: CatalogoCardSetRow[];
@@ -189,8 +196,18 @@ export function CartasGallery({
   /** "" = "Selecionar Todos". */
   selectedExpansionId: string;
   cartas: CartaCompletaRow[];
+  /** Raridades canônicas — alimenta o select "Raridade" de `EditCardDialog` (2026-08-07, pedido de Fabrício: "duas cartas cadastradas com a raridade errada"). */
+  raridades: RaridadeRow[];
+  /** Categorias editoriais — alimenta o select "Categoria" de `EditCardDialog`. */
+  categorias: CategoriaOption[];
 }) {
   const router = useRouter();
+  // Estado de edição de Card — mesmo `useAdminListState` já usado em Jogos/
+  // Expansões/Coleções (2026-08-07, tela de edição de Card, pedido de
+  // Fabrício). Só a metade "edição" é usada aqui (sem seleção em massa/
+  // exclusão — não pedidas para Card nesta rodada).
+  const state = useAdminListState();
+  const editingCarta = cartas.find((carta) => carta.id === state.editingId) ?? null;
   const [search, setSearch] = useState("");
   const [selectedRarities, setSelectedRarities] = useState<Set<string>>(new Set());
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
@@ -404,6 +421,12 @@ export function CartasGallery({
     });
   }
 
+  /** Fecha o Dialog, mostra a mensagem de sucesso e força o reload dos dados vindos do servidor — mesmo par `state.onSuccess` + `router.refresh()` já usado por `CatalogoGallery`. */
+  function handleSaved(message: string, id?: string) {
+    state.onSuccess(message, id);
+    router.refresh();
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader>
@@ -415,6 +438,8 @@ export function CartasGallery({
           <PageDescription>Explore as cartas catalogadas, Card Set por Card Set.</PageDescription>
         </PageHeading>
       </PageHeader>
+
+      {state.successMessage && <InlineFeedback tone="success">{state.successMessage}</InlineFeedback>}
 
       {cardSets.length > 0 && <CartasStats cardSets={cardSets} stats={cartasStats} />}
 
@@ -641,6 +666,7 @@ export function CartasGallery({
                         imageLanguage={imageLanguage}
                         isTransitionSource={transitionTargetId === carta.id && zoomCarta?.id !== carta.id}
                         onOpen={() => openZoom(carta)}
+                        onEdit={() => state.startEdit(carta.id)}
                       />
                     ))}
                   </div>
@@ -660,6 +686,16 @@ export function CartasGallery({
       </div>
 
       <CartaZoomDialog carta={zoomCarta} imageLanguage={imageLanguage} onClose={closeZoom} />
+
+      <EditCardDialog
+        open={editingCarta !== null}
+        carta={editingCarta}
+        cardSetLabel={selectedCardSet ? `${selectedCardSet.name} (${selectedCardSet.code})` : ""}
+        raridades={raridades}
+        categorias={categorias}
+        onSaved={handleSaved}
+        onCancel={state.cancelEdit}
+      />
     </div>
   );
 }
@@ -778,6 +814,7 @@ function CartaGridCard({
   imageLanguage,
   isTransitionSource,
   onOpen,
+  onEdit,
 }: {
   carta: CartaCompletaRow;
   /** Qual imagem mostrar — ver `ImageLanguageToggle`/`cartaImageUrl`. */
@@ -794,45 +831,68 @@ function CartaGridCard({
    */
   isTransitionSource: boolean;
   onOpen: () => void;
+  /** Abre `EditCardDialog` para esta carta — botão de ação rápida, novo em 2026-08-07 (ver comentário abaixo). */
+  onEdit: () => void;
 }) {
   const imageUrl = cartaImageUrl(carta, imageLanguage);
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      // `gap-2.5` (em vez de `gap-1.5`) — pedido de Fabrício (2026-07-31,
-      // print da carta "001/086" com o mouse sobre a imagem): o
-      // `scale3d(1.045, ...)` do hover holográfico (`HoloCard`) não afeta o
-      // layout (é só `transform`, não reflui os irmãos), então a carta
-      // cresce visualmente por cima do respiro entre ela e a identificação
-      // — com `gap-1.5` a distância ficava quase zero no hover. Não mexe no
-      // espaço entre a identificação e o símbolo (revisões `1.8`/`1.9`,
-      // já no mínimo prático).
-      className="group flex flex-col gap-2.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label={`Ampliar ${carta.name}`}
-    >
-      <HoloCard
-        style={
-          { viewTransitionName: isTransitionSource ? cartaViewTransitionName(carta.id) : "none" } as CSSProperties
-        }
+    // Deixou de ser um único `<button>` clicável (2026-08-07, pedido de
+    // Fabrício: "vamos incluir um botão de ação rápida abaixo de cada
+    // carta, no canto inferior direito... Assim como fizemos para
+    // Coleções") — mesma mudança estrutural que `CardSetGalleryCard`/
+    // `ExpansaoGalleryCard` já tiveram: o clique de ampliar fica restrito à
+    // imagem (seu próprio `<button>`), e a identificação abaixo dela vira
+    // uma linha `justify-between` com o texto à esquerda e o ícone de
+    // edição à direita — "canto inferior direito" do card inteiro.
+    <div className="flex flex-col gap-2.5 rounded-lg text-left">
+      <button
+        type="button"
+        onClick={onOpen}
+        // `gap-2.5` (em vez de `gap-1.5`) — pedido de Fabrício (2026-07-31,
+        // print da carta "001/086" com o mouse sobre a imagem): o
+        // `scale3d(1.045, ...)` do hover holográfico (`HoloCard`) não afeta
+        // o layout (é só `transform`, não reflui os irmãos), então a carta
+        // cresce visualmente por cima do respiro entre ela e a
+        // identificação — com `gap-1.5` a distância ficava quase zero no
+        // hover.
+        className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Ampliar ${carta.name}`}
       >
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={carta.name} loading="lazy" decoding="async" className="w-full rounded-lg" />
-        ) : (
-          <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-2 text-center text-[10px] text-muted-foreground">
-            Sem imagem
-          </div>
-        )}
-      </HoloCard>
-      <div className="space-y-0 px-0.5 text-left">
-        <p className="truncate text-[10px] leading-none text-muted-foreground">
-          <span className="font-medium text-foreground">#{cartaFullNumber(carta)}</span> - {carta.name}
-        </p>
-        <RaritySymbol symbolCode={carta.raritySymbolCode} />
+        <HoloCard
+          style={
+            { viewTransitionName: isTransitionSource ? cartaViewTransitionName(carta.id) : "none" } as CSSProperties
+          }
+        >
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageUrl} alt={carta.name} loading="lazy" decoding="async" className="w-full rounded-lg" />
+          ) : (
+            <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-2 text-center text-[10px] text-muted-foreground">
+              Sem imagem
+            </div>
+          )}
+        </HoloCard>
+      </button>
+      <div className="flex items-end justify-between gap-1 px-0.5">
+        <div className="min-w-0 space-y-0">
+          <p className="truncate text-[10px] leading-none text-muted-foreground">
+            <span className="font-medium text-foreground">#{cartaFullNumber(carta)}</span> - {carta.name}
+          </p>
+          <RaritySymbol symbolCode={carta.raritySymbolCode} />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-foreground"
+          aria-label={`Editar ${carta.name}`}
+          onClick={onEdit}
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
       </div>
-    </button>
+    </div>
   );
 }
 

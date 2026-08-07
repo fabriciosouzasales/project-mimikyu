@@ -46,3 +46,27 @@ Modificação manual de Fabrício em `index.ts`/`normalize.ts` (commit "Implemen
 ## [2026-08-06] feature | Encadeamento PT-BR → EN na importação automática de imagens
 
 Pedido de Fabrício: a continuação automática cartas→imagens (`useAnalyzeJob`) agora tenta `en` automaticamente depois de `pt-BR`, cobrindo coleções sem cobertura em português na TCGdex sem exigir retomada manual em `/catalogo/importar-imagens?idioma=en`. `ImportProgress` passou a mostrar um resultado por idioma tentado. Ver `adr/ADR-024-catalog-card-ingestion-strategy.md` revisão `1.1`, emenda 2026-08-06.
+
+## [2026-08-07] feature | Revalidação self-service de linhas de staging (Ciclo Raridade)
+
+Edge Function `revalidate-catalog-import-rows` (JWT verificado na própria função, `svc_apply_catalog_import_revalidation` Query 2106 v1.2) recalcula `catalog_import_row` já staged depois de um mapeamento de raridade ser cadastrado/corrigido, sem reimportar do zero — escopo ampliado no mesmo dia para cobrir jobs `COMPLETED_WITH_ERRORS` (não só `STAGED`), caminho real observado em produção (GYM1/SWSH1 com linhas `FAILED` por raridade não mapeada). Validado ponta a ponta contra o job GYM1: 34 linhas destravadas e persistidas como Card, `decision_status` preservado em todas as 132 linhas, `actor_id` real (não NULL) gravado em `catalog_admin_action_log`. Documentação normativa (ADR/modelo de dados) ainda pendente — task #337. Descoberta em aberto durante a validação: 19 jobs em `COMPLETED_WITH_ERRORS` no total (não só GYM1/SWSH1), vários duplicados por Coleção — não tratado nesta rodada.
+
+## [2026-08-07] fix | GRANTs faltantes em rarity_external_mapping e catalog_import_row
+
+Duas lacunas reais de `GRANT SELECT`, cada uma travando um fluxo diferente: `rarity_external_mapping` sem SELECT para `service_role`/`authenticated` (Query 2096 nunca concedeu — bloqueava reimportação de GYM1/SWSH1) e `catalog_import_row` sem SELECT para `service_role` (nunca precisou até a revalidação existir). Corrigidas via GRANT direto, sem mudança de schema.
+
+## [2026-08-07] fix | Raridade RARE_HOLO cadastrada
+
+Primeiro cadastro real via `admin_create_rarity_with_external_mapping()` (Query 2103) — `RARE_HOLO`/"Rara Holo", símbolo `BLACK_STAR`, mapeamento TCGdex "Rare Holo". Usado para validar a revalidação self-service com dado real, não sintético.
+
+## [2026-08-07] fix | Limpeza de jobs COMPLETED_WITH_ERRORS duplicados (Query 2111)
+
+16 jobs de importação em `COMPLETED_WITH_ERRORS` cobrindo 8 Coleções (BASE1, BASEP, GYM1, GYM2, SV1, SV4.5, SV5, SWSH1) — cada duplicata era uma nova tentativa de "Analisar" na mesma Coleção depois que a anterior terminou em erro (`admin_start_catalog_import()` só bloqueia fingerprint duplicado enquanto o job anterior está ativo, não depois de terminal). Mantido só o job mais recente por Coleção (8 apagados via `ON DELETE CASCADE` em `catalog_import_row`; nenhuma Card afetada, auditoria preservada). Decisão de Fabrício, antes da task #336 (frontend de Raridade) nascer com um botão único "revalidar tudo" em vez de job por job.
+
+## [2026-08-07] feature | Tela /catalogo/raridades (task #336)
+
+Cadastro/edição de raridades canônicas, mapeamento de valores externos (vincular a raridade existente ou cadastro atômico de raridade nova) e botão único "Revalidar tudo" (chama `revalidate-catalog-import-rows` sem `job_ids` — todos os jobs elegíveis de uma vez, decisão de Fabrício). Substitui o antigo fluxo de editar `RARITY_NAME_ALIASES` no código-fonte. Dois bugs reais corrigidos no mesmo ciclo: (1) `asset_source` tinha RLS ativado sem nenhuma política (`GRANT` sozinho não bastava — Query 2113, emenda à Query 274, que já sinalizava essa lacuna deliberadamente em 2026-07-26); (2) o modo do Dialog "Resolver raridade" ("Nova raridade" vs "Raridade existente") não resetava entre aberturas, ficando preso na última escolha. Novo símbolo `WHITE_STAR` (estrela vazada, sem preenchimento) em `RaritySymbol`, para a raridade `RARE_HOLO_V`/"Holo Rara V" (pedido de Fabrício). Terceiro bug real corrigido no mesmo dia: o botão "Revalidar tudo" nunca chamava `router.refresh()` após concluir — a Server Action resolvia tudo certinho no banco, mas a lista de pendências na tela ficava presa no estado anterior, levando Fabrício a tentar "Resolver" de novo um valor que já tinha mapeamento (erro de duplicata, não um bug de dado). Documentação normativa (ADR/modelo de dados) ainda pendente — task #337.
+
+## [2026-08-07] feature | Tela de edição de Card (ADR-023, emenda)
+
+Fabrício encontrou duas cartas cadastradas com a raridade errada e pediu uma tela de edição de Card, mesmo padrão de ação rápida já usado em Coleções: botão "editar" no canto inferior direito de cada carta do grid (`/catalogo/cartas`), abrindo `EditCardDialog` com Nome, Total, Ordem editorial, Raridade e Categoria. `card_set_id` e `collector_number` ficam de fora — estruturalmente protegidos desde a redação original do ADR-023 ("mudar identidade não é o mesmo que corrigir conteúdo"); o Número aparece só como texto no cabeçalho do Dialog, ao lado da Coleção. Implementa `admin_update_card()` (Query 2114, ADR-023 emenda 2026-08-07) — proposta, aguardando execução e confirmação de Fabrício; frontend já com a fiação completa.

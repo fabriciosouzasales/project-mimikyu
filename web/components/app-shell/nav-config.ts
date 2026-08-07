@@ -9,6 +9,7 @@ import {
   Layers,
   LayoutDashboard,
   ScrollText,
+  Tag,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -95,6 +96,10 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/catalogo", label: "Visão Geral", section: "Gerencial", icon: LayoutDashboard },
       { href: "/catalogo/log-atualizacoes", label: "Log de Atualizações", section: "Gerencial", icon: ScrollText },
       { href: "/catalogo/importacoes", label: "Histórico de Importações", section: "Gerencial", icon: History },
+      // Ordem ajustada em 2026-08-07 (pedido de Fabrício): "Raridades" sobe
+      // para o topo do bloco Cadastro, acima de "Jogos" — sem mudança de
+      // significado, só de sequência visual.
+      { href: "/catalogo/raridades", label: "Raridades", section: "Cadastro", icon: Tag },
       { href: "/catalogo/jogos", label: "Jogos", section: "Cadastro", icon: Gamepad2 },
       { href: "/catalogo/expansoes", label: "Expansões", section: "Cadastro", icon: Layers },
       { href: "/catalogo/card-sets", label: "Coleções", section: "Cadastro", icon: Boxes },
