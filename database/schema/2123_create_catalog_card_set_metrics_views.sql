@@ -2,7 +2,7 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2123 - Create Catalog Card Set Metrics Views
-Versão......: 1.0
+Versão......: 1.1
 Status......: MIGRATION — CONFIRMADO EXECUTADO
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-08
@@ -67,6 +67,20 @@ cards_cadastradas > total_set_size por secret rares além da
 numeração oficial — ex. SV1, SV3). Cobertura de MEE conferida: 8/8 em
 en e pt-BR.
 
+Emenda (2026-08-08, v1.1, Query 2124) — cards_com_imagem_algum_idioma:
+coluna adicionada ao final de catalog_card_set_metrics, contando Cards
+distintas com imagem canônica (is_primary = true E
+card_asset_type.code = 'CARD_FRONT') em PELO MENOS UM idioma ativo —
+união entre idiomas, diferente da agregação por idioma de
+catalog_card_set_image_coverage. Formaliza cardSetsComImagensCompletas/
+temImagensCompletas (web/lib/catalogo/queries.ts) segundo a definição
+canônica de "Card com imagem", não como reprodução mecânica do
+critério solto usado antes nessas funções (que contava qualquer
+card_asset, de qualquer tipo, em qualquer idioma). Os dois critérios
+coincidem hoje porque só CARD_FRONT/is_primary é gravado em produção
+— coincidência empírica validada pela Query 2821 (0 divergências
+linha a linha), não uma equivalência lógica permanente entre os dois.
+
 Regras de Negócio:
 - Nenhuma tabela nova nem coluna nova — só views sobre estruturas já
   existentes (ADR-006: dados derivados não persistidos
@@ -80,6 +94,12 @@ Pré-requisitos:
 - Query 2053 - Add Admin Select Policy to card_asset_type.
 - Query 193 - Add Language to Card Asset (language_id em card_asset).
 - PostgreSQL 15+ no projeto (security_invoker) — confirmado.
+
+Nota de manutenção: este arquivo reflete o estado atual e completo da
+view (incorpora a Query 2124). O histórico incremental de cada emenda
+mora em `database/migrations/2124_add_cards_com_imagem_algum_idioma_to_
+catalog_card_set_metrics.sql` — mesmo padrão já usado para
+admin_update_card_set (Query 2048, Migrations 2052/2091).
 ================================================================
 */
 
@@ -101,7 +121,8 @@ SELECT
     GREATEST(
         cs.total_set_size - COALESCE(card_counts.cards_cadastradas, 0),
         0
-    )                                                               AS cards_pendentes_cadastro
+    )                                                               AS cards_pendentes_cadastro,
+    COALESCE(image_union_counts.cards_com_imagem_algum_idioma, 0)   AS cards_com_imagem_algum_idioma
 FROM public.card_set cs
 JOIN public.expansion e
     ON e.id = cs.expansion_id
@@ -115,7 +136,24 @@ LEFT JOIN (
     FROM public.card crd
     GROUP BY crd.card_set_id
 ) AS card_counts
-    ON card_counts.card_set_id = cs.id;
+    ON card_counts.card_set_id = cs.id
+LEFT JOIN (
+    SELECT
+        crd.card_set_id,
+        COUNT(DISTINCT crd.id) AS cards_com_imagem_algum_idioma
+    FROM public.card_asset ca
+    JOIN public.card_asset_type cat
+        ON cat.id = ca.asset_type_id
+    JOIN public.card crd
+        ON crd.id = ca.card_id
+    JOIN public.language lang
+        ON lang.id = ca.language_id
+       AND lang.is_active = TRUE
+    WHERE ca.is_primary = TRUE
+      AND cat.code = 'CARD_FRONT'
+    GROUP BY crd.card_set_id
+) AS image_union_counts
+    ON image_union_counts.card_set_id = cs.id;
 
 COMMENT ON VIEW public.catalog_card_set_metrics IS
     'Métricas estruturais canônicas do Catálogo Editorial, grão = 1 linha por Card Set. security_invoker = true: RLS avaliada pela identidade de quem consulta, nunca pelo dono da view. Sem dado de pipeline de importação (catalog_import_job) — só volume/estado do catálogo. Reutilizável por Visão Geral e Central de Relatórios.';
@@ -134,6 +172,9 @@ COMMENT ON COLUMN public.catalog_card_set_metrics.cards_inativas IS
 
 COMMENT ON COLUMN public.catalog_card_set_metrics.cards_pendentes_cadastro IS
     'GREATEST(total_set_size - cards_cadastradas, 0). Estimativa agregada — NÃO substitui a identificação futura de quais collector_number específicos estão ausentes.';
+
+COMMENT ON COLUMN public.catalog_card_set_metrics.cards_com_imagem_algum_idioma IS
+    'COUNT(DISTINCT card.id) com imagem canônica (is_primary = true E card_asset_type.code = ''CARD_FRONT'') em PELO MENOS UM idioma ativo — união entre idiomas, não por idioma (diferente de catalog_card_set_image_coverage, que agrupa por idioma). Formaliza cardSetsComImagensCompletas/temImagensCompletas (web/lib/catalogo/queries.ts) segundo a definição canônica de "Card com imagem" — completa quando cards_cadastradas > 0 E cards_cadastradas = cards_com_imagem_algum_idioma. Coincide com o critério solto usado antes em queries.ts (qualquer card_asset, qualquer tipo/idioma) apenas porque hoje só CARD_FRONT/is_primary é gravado em produção (validado pela Query 2821) — não é uma reprodução mecânica dessa lógica antiga, e pode divergir dela no futuro se outros tipos de asset passarem a ser usados.';
 
 GRANT SELECT ON public.catalog_card_set_metrics TO authenticated;
 

@@ -18,6 +18,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * schema quando um segundo Jogo/Expansão for cadastrado. Sem exposição da
  * discrepância de Card Category ENERGY (decisão editorial interna, não deve
  * aparecer nesta tela).
+ *
+ * Ajuste 2026-08-08 (Sprint Gerencial 1, Query 2123/2124, ADR-027):
+ * `getEstadoDoCatalogo()`/`getCardSetsOverview()` passaram a ler volume e
+ * cobertura de imagem de `public.catalog_card_set_metrics` (view canônica,
+ * `security_invoker = true`), não mais agregando `fetchCardsComCobertura()`
+ * em memória — elimina a classe de bug já vivida em produção com a
+ * paginação de 1000 linhas (ver `fetchAllRows` abaixo) para este caminho
+ * específico. `fetchCardsComCobertura()` continua em uso só por
+ * `getDistribuicaoPorRaridade()`, que não foi migrada nesta rodada.
  */
 
 type CardRow = {
@@ -137,12 +146,14 @@ export type AtividadeRecenteItem = {
 };
 
 /**
- * Busca de uma vez a base para Estado do Catálogo, Card Sets e Distribuição
- * por Raridade — uma única leitura (paginada via fetchAllRows, ver acima)
- * de `card` com `card_asset(count)` e `rarity` embutidos, evitando N+1
- * consultas por Card Set/Raridade. Continua agregando em memória, não no
- * banco — decisão original preservada, só a paginação foi corrigida
- * (o volume cruzou os 1000 registros em 2026-08-01, ver fetchAllRows).
+ * Base para Distribuição por Raridade — uma única leitura (paginada via
+ * fetchAllRows, ver acima) de `card` com `card_asset(count)` e `rarity`
+ * embutidos. Único consumidor restante desde 2026-08-08: Estado do
+ * Catálogo e Card Sets migraram para `catalog_card_set_metrics` (Query
+ * 2123/2124, ADR-027) — ver ajuste no cabeçalho do arquivo. Continua
+ * agregando em memória, não no banco (decisão original preservada, só a
+ * paginação foi corrigida — o volume cruzou os 1000 registros em
+ * 2026-08-01, ver fetchAllRows).
  */
 async function fetchCardsComCobertura(supabase: SupabaseClient): Promise<CardRow[]> {
   const rows = await fetchAllRows((from, to) =>
@@ -172,59 +183,68 @@ async function fetchCardSets(supabase: SupabaseClient): Promise<CardSetRow[]> {
   return data as unknown as CardSetRow[];
 }
 
-export async function getEstadoDoCatalogo(supabase: SupabaseClient): Promise<EstadoDoCatalogo> {
-  const [cards, cardSets] = await Promise.all([fetchCardsComCobertura(supabase), fetchCardSets(supabase)]);
+type CardSetMetricsRow = {
+  card_set_id: string;
+  cards_cadastradas: number;
+  cards_com_imagem_algum_idioma: number;
+};
 
-  const cardsPorSet = new Map<string, { total: number; comImagem: number }>();
-  for (const card of cards) {
-    const atual = cardsPorSet.get(card.card_set_id) ?? { total: 0, comImagem: 0 };
-    atual.total += 1;
-    if (extractCount(card.card_asset) > 0) {
-      atual.comImagem += 1;
-    }
-    cardsPorSet.set(card.card_set_id, atual);
+/**
+ * Métricas canônicas de volume/cobertura por Card Set, direto de
+ * public.catalog_card_set_metrics (Query 2123/2124, ADR-027) — nunca mais
+ * agregadas em memória a partir de fetchCardsComCobertura(). A view já
+ * cobre todos os Card Sets (LEFT JOIN interno a card_counts/
+ * image_union_counts), sem paginação: grão é por Card Set (dezenas de
+ * linhas), não por Card (a cardinalidade que exigiu fetchAllRows()).
+ */
+async function fetchCardSetMetrics(supabase: SupabaseClient): Promise<CardSetMetricsRow[]> {
+  const { data, error } = await supabase
+    .from("catalog_card_set_metrics")
+    .select("card_set_id, cards_cadastradas, cards_com_imagem_algum_idioma");
+
+  if (error || !data) {
+    return [];
   }
 
-  const cardSetsComImagensCompletas = cardSets.filter((set) => {
-    const cobertura = cardsPorSet.get(set.id);
-    return !!cobertura && cobertura.total > 0 && cobertura.total === cobertura.comImagem;
-  }).length;
+  return data as unknown as CardSetMetricsRow[];
+}
 
-  const { count: execucoesComPendencia } = await supabase
-    .from("asset_import_run")
-    .select("id", { count: "exact", head: true })
-    .neq("status", "COMPLETED");
+export async function getEstadoDoCatalogo(supabase: SupabaseClient): Promise<EstadoDoCatalogo> {
+  const [metrics, { count: execucoesComPendencia }] = await Promise.all([
+    fetchCardSetMetrics(supabase),
+    supabase.from("asset_import_run").select("id", { count: "exact", head: true }).neq("status", "COMPLETED"),
+  ]);
+
+  const cardSetsComImagensCompletas = metrics.filter(
+    (row) => row.cards_cadastradas > 0 && row.cards_cadastradas === row.cards_com_imagem_algum_idioma,
+  ).length;
+
+  const cartasCatalogadas = metrics.reduce((total, row) => total + row.cards_cadastradas, 0);
 
   return {
-    cardSetsCatalogados: cardSets.length,
+    cardSetsCatalogados: metrics.length,
     cardSetsComImagensCompletas,
-    cartasCatalogadas: cards.length,
+    cartasCatalogadas,
     execucoesComPendencia: execucoesComPendencia ?? 0,
   };
 }
 
 export async function getCardSetsOverview(supabase: SupabaseClient): Promise<CardSetOverviewRow[]> {
-  const [cards, cardSets] = await Promise.all([fetchCardsComCobertura(supabase), fetchCardSets(supabase)]);
+  const [cardSets, metrics] = await Promise.all([fetchCardSets(supabase), fetchCardSetMetrics(supabase)]);
 
-  const cardsPorSet = new Map<string, { total: number; comImagem: number }>();
-  for (const card of cards) {
-    const atual = cardsPorSet.get(card.card_set_id) ?? { total: 0, comImagem: 0 };
-    atual.total += 1;
-    if (extractCount(card.card_asset) > 0) {
-      atual.comImagem += 1;
-    }
-    cardsPorSet.set(card.card_set_id, atual);
-  }
+  const metricsPorCardSetId = new Map(metrics.map((row) => [row.card_set_id, row]));
 
   return cardSets.map((set) => {
-    const cobertura = cardsPorSet.get(set.id) ?? { total: 0, comImagem: 0 };
+    const metric = metricsPorCardSetId.get(set.id);
+    const cardsCatalogados = metric?.cards_cadastradas ?? 0;
+    const cardsComImagem = metric?.cards_com_imagem_algum_idioma ?? 0;
     return {
       code: set.code,
       name: set.name,
       setType: set.set_type,
       totalSetSize: set.total_set_size,
-      cardsCatalogados: cobertura.total,
-      temImagensCompletas: cobertura.total > 0 && cobertura.total === cobertura.comImagem,
+      cardsCatalogados,
+      temImagensCompletas: cardsCatalogados > 0 && cardsCatalogados === cardsComImagem,
       temLogo: !!set.logo_storage_path,
       expansionName: set.expansion?.name ?? null,
       gameName: set.expansion?.game?.name ?? null,
