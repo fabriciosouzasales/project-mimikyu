@@ -18,6 +18,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import type { CardSetOverviewRow } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 /**
  * Tabela de Card Sets da Visão Geral — migrada para o padrão introduzido em
@@ -93,9 +94,9 @@ export function CardSetsTable({ cardSets }: { cardSets: CardSetOverviewRow[] }) 
               setQuery(event.target.value);
               setPage(0);
             }}
-            placeholder="Buscar por Card Set, Jogo ou Expansão…"
+            placeholder="Buscar por Coleção, Jogo ou Expansão…"
             className="h-9 bg-surface-muted pl-9 text-xs"
-            aria-label="Buscar Card Set"
+            aria-label="Buscar Coleção"
           />
         </div>
       </div>
@@ -103,8 +104,8 @@ export function CardSetsTable({ cardSets }: { cardSets: CardSetOverviewRow[] }) 
       <CardContent density="compact" className="px-0 pb-0">
         {cardSets.length === 0 ? (
           <EmptyState
-            title="Nenhum Card Set catalogado ainda"
-            description="Os Card Sets aparecem aqui assim que forem cadastrados."
+            title="Nenhuma Coleção catalogada ainda"
+            description="As Coleções aparecem aqui assim que forem cadastradas."
           />
         ) : filtrados.length === 0 ? (
           <EmptyState title={`Nenhum resultado para "${query}"`} description="Tente outro nome ou código." />
@@ -113,7 +114,7 @@ export function CardSetsTable({ cardSets }: { cardSets: CardSetOverviewRow[] }) 
             <DataTableHead>
               <DataTableHeadRow className="bg-surface-muted">
                 <DataTableHeadCell align="center" className="pl-4">
-                  Card Set
+                  Coleção
                 </DataTableHeadCell>
                 <DataTableHeadCell align="center">Jogo / Expansão</DataTableHeadCell>
                 <DataTableHeadCell align="center">Tipo</DataTableHeadCell>
@@ -145,7 +146,7 @@ export function CardSetsTable({ cardSets }: { cardSets: CardSetOverviewRow[] }) 
                     <SetTypeTag setType={set.setType} />
                   </DataTableCell>
                   <DataTableCell align="center" className="text-muted-foreground">
-                    {set.totalSetSize}
+                    {formatNumber(set.totalSetSize)}
                   </DataTableCell>
                   <DataTableCell align="center">
                     {set.temImagensCompletas ? (
@@ -176,11 +177,13 @@ export function CardSetsTable({ cardSets }: { cardSets: CardSetOverviewRow[] }) 
       {totalCount > 0 && (
         <div className="flex items-center justify-between border-t border-border px-4 py-3">
           <span className="text-sm text-muted-foreground">
-            Mostrando <span className="font-medium text-foreground">{paginaAtual * CARD_SETS_PAGE_SIZE + 1}</span>–
+            Mostrando{" "}
+            <span className="font-medium text-foreground">{formatNumber(paginaAtual * CARD_SETS_PAGE_SIZE + 1)}</span>
+            –
             <span className="font-medium text-foreground">
-              {Math.min((paginaAtual + 1) * CARD_SETS_PAGE_SIZE, totalCount)}
+              {formatNumber(Math.min((paginaAtual + 1) * CARD_SETS_PAGE_SIZE, totalCount))}
             </span>{" "}
-            de <span className="font-medium text-foreground">{totalCount}</span>
+            de <span className="font-medium text-foreground">{formatNumber(totalCount)}</span>
           </span>
           <div className="flex items-center gap-1.5">
             <Button

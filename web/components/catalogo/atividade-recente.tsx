@@ -18,7 +18,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import type { AtividadeRecenteItem } from "@/lib/catalogo/queries";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
   COMPLETED: { texto: "Concluída", tone: "success" },
@@ -117,7 +117,7 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
               setQuery(event.target.value);
               setPage(0);
             }}
-            placeholder="Filtrar por execução, Card Set, método ou status…"
+            placeholder="Filtrar por execução, Coleção, método ou status…"
             className="h-9 bg-surface-muted pl-9 text-xs"
             aria-label="Filtrar atividade recente"
           />
@@ -141,7 +141,7 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
                 </DataTableHeadCell>
                 <DataTableHeadCell align="center">Execução</DataTableHeadCell>
                 <DataTableHeadCell align="center">Método</DataTableHeadCell>
-                <DataTableHeadCell align="center">Card Set</DataTableHeadCell>
+                <DataTableHeadCell align="center">Coleção</DataTableHeadCell>
                 <DataTableHeadCell align="center">Cartas</DataTableHeadCell>
                 <DataTableHeadCell align="center" className="pr-4 last:pr-4">
                   Status
@@ -182,9 +182,9 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
                       )}
                     </DataTableCell>
                     <DataTableCell align="center" className="text-xs tabular-nums text-muted-foreground">
-                      {item.successCount}/{item.requestedCount}
+                      {formatNumber(item.successCount)}/{formatNumber(item.requestedCount)}
                       {item.failedCount > 0 && (
-                        <span className="text-destructive"> ({item.failedCount} falhas)</span>
+                        <span className="text-destructive"> ({formatNumber(item.failedCount)} falhas)</span>
                       )}
                     </DataTableCell>
                     <DataTableCell align="center" className="pr-4 last:pr-4">
@@ -201,11 +201,13 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
       {totalCount > 0 && (
         <div className="flex items-center justify-between border-t border-border px-4 py-3">
           <span className="text-sm text-muted-foreground">
-            Mostrando <span className="font-medium text-foreground">{paginaAtual * ATIVIDADE_PAGE_SIZE + 1}</span>–
+            Mostrando{" "}
+            <span className="font-medium text-foreground">{formatNumber(paginaAtual * ATIVIDADE_PAGE_SIZE + 1)}</span>
+            –
             <span className="font-medium text-foreground">
-              {Math.min((paginaAtual + 1) * ATIVIDADE_PAGE_SIZE, totalCount)}
+              {formatNumber(Math.min((paginaAtual + 1) * ATIVIDADE_PAGE_SIZE, totalCount))}
             </span>{" "}
-            de <span className="font-medium text-foreground">{totalCount}</span>
+            de <span className="font-medium text-foreground">{formatNumber(totalCount)}</span>
           </span>
           <div className="flex items-center gap-1.5">
             <Button

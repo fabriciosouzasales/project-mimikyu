@@ -5,3 +5,8 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/** Formata um número inteiro com "." como separador de milhar (pt-BR) — ex.: 5886 → "5.886". */
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat("pt-BR").format(value);
+}

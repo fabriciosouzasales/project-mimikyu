@@ -60,7 +60,7 @@ export default async function CatalogoVisaoGeralPage() {
               <LayoutDashboard className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               <PageTitle>Visão Geral</PageTitle>
             </div>
-            <PageDescription>Indicadores gerais e navegação rápida para os Card Sets do catálogo.</PageDescription>
+            <PageDescription>Indicadores gerais e navegação rápida para as Coleções do catálogo.</PageDescription>
           </PageHeading>
         </PageHeader>
 
@@ -75,7 +75,7 @@ export default async function CatalogoVisaoGeralPage() {
           </PanelContent>
         </Panel>
 
-        <PageSection title="Card Sets" description="Clique em um Card Set para ver o detalhe.">
+        <PageSection title="Coleções" description="Clique em uma Coleção para ver o detalhe.">
           <CardSetsTable cardSets={cardSets} />
         </PageSection>
 

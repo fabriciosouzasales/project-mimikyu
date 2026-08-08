@@ -5,6 +5,7 @@ import { StateBadge } from "@/components/catalogo/state-badge";
 import type { StateTone } from "@/components/catalogo/state-badge";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 import { getImportacoes } from "@/lib/catalogo/queries";
+import type { ImportacaoPipeline } from "@/lib/catalogo/queries";
 
 const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
   COMPLETED: { texto: "Concluída", tone: "success" },
@@ -23,10 +24,25 @@ const RUN_TYPE_LABEL: Record<string, string> = {
   FULL_CARD_SET: "Card Set completo",
 };
 
+/** Rótulo do pipeline de origem — "Cartas" (catalog_import_job) ou "Imagens" (asset_import_run). */
+const PIPELINE_LABEL: Record<ImportacaoPipeline, string> = {
+  CARTAS: "Cartas",
+  IMAGENS: "Imagens",
+};
+
 /**
  * Histórico completo de execuções de importação — versão sem `limit` do
  * bloco "Atividade recente" da Visão Geral, com mais colunas (tipo, fonte,
  * idioma) por ser o destino dedicado desta informação.
+ *
+ * Ampliado em 2026-08-08 (Sprint Gerencial 1) para unificar as duas frentes
+ * de importação do Catálogo: já trazia só `asset_import_run` (pipeline de
+ * Imagens); `getImportacoes` passou a unir também `catalog_import_job`
+ * (pipeline de Cartas), mesma lógica de fusão por data já usada em
+ * `getAtividadeRecente`. Nova coluna "Pipeline" distingue a origem de cada
+ * linha, já que "Tipo" (`runType`) só existe para o pipeline de Imagens —
+ * fica "—" para linhas de Cartas (`getImportacoes` retorna `runType: null`
+ * para `catalog_import_job`, que não tem esse conceito).
  */
 export default async function ImportacoesPage() {
   const { denied, supabase } = await requireCatalogoAdmin("Histórico de importações", History);
@@ -57,6 +73,7 @@ export default async function ImportacoesPage() {
                   <thead>
                     <tr className="border-b border-border text-left text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
                       <th className="py-1.5 pr-3 font-normal">Execução</th>
+                      <th className="py-1.5 pr-3 font-normal">Pipeline</th>
                       <th className="py-1.5 pr-3 font-normal">Tipo</th>
                       <th className="py-1.5 pr-3 font-normal">Card Set</th>
                       <th className="py-1.5 pr-3 font-normal">Fonte</th>
@@ -71,8 +88,9 @@ export default async function ImportacoesPage() {
                       return (
                         <tr key={run.id} className="border-b border-border/60 last:border-b-0">
                           <td className="py-2 pr-3 text-[11px] text-muted-foreground">{run.runCode}</td>
+                          <td className="py-2 pr-3 text-muted-foreground">{PIPELINE_LABEL[run.pipeline]}</td>
                           <td className="py-2 pr-3 text-muted-foreground">
-                            {RUN_TYPE_LABEL[run.runType] ?? run.runType}
+                            {run.runType ? (RUN_TYPE_LABEL[run.runType] ?? run.runType) : "—"}
                           </td>
                           <td className="py-2 pr-3 text-foreground">{run.cardSetCode ?? "—"}</td>
                           <td className="py-2 pr-3 text-muted-foreground">{run.assetSourceName ?? "—"}</td>

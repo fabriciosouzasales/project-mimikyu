@@ -1,4 +1,5 @@
 import type { DistribuicaoPorRaridade } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 /**
  * Distribuição de cartas por Raridade — deliberadamente não por Card
@@ -44,7 +45,7 @@ export function Distribuicoes({ distribuicao }: { distribuicao: DistribuicaoPorR
             />
           </div>
           <span className="w-10 shrink-0 text-right text-xs font-medium tabular-nums text-foreground">
-            {item.totalCards}
+            {formatNumber(item.totalCards)}
           </span>
         </div>
       ))}

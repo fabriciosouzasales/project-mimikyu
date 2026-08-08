@@ -106,11 +106,26 @@ type AssetImportRunRow = {
   language: { code: string } | null;
 };
 
+export type CoberturaPorIdiomaItem = {
+  languageCode: string;
+  cardsComImagem: number;
+};
+
 export type EstadoDoCatalogo = {
   cardSetsCatalogados: number;
   cardSetsComImagensCompletas: number;
   cartasCatalogadas: number;
   execucoesComPendencia: number;
+  /** Card Sets com cards_pendentes_cadastro > 0 (catalog_card_set_metrics, Query 2123). */
+  cardSetsComPendencia: number;
+  /** SUM(cards_pendentes_cadastro) — estimativa agregada, nunca a identificação de quais collector_number faltam (mesma ressalva da Query 2123). */
+  cartasPendentes: number;
+  /** SUM(cards_cadastradas - cards_com_imagem_algum_idioma) — Cards cadastradas sem imagem canônica em nenhum idioma ativo. */
+  imagensPendentes: number;
+  /** getImportacoesAguardandoRevisaoOuErro() — catalog_import_job em STAGED/CONFIRMING/COMPLETED_WITH_ERRORS/FAILED. */
+  importacoesAguardandoRevisaoOuErro: number;
+  /** Cobertura de imagem canônica agregada por idioma ativo (catalog_card_set_image_coverage, Query 2123), somada entre todos os Card Sets. */
+  coberturaPorIdioma: CoberturaPorIdiomaItem[];
 };
 
 export type CardSetOverviewRow = {
@@ -187,6 +202,7 @@ type CardSetMetricsRow = {
   card_set_id: string;
   cards_cadastradas: number;
   cards_com_imagem_algum_idioma: number;
+  cards_pendentes_cadastro: number;
 };
 
 /**
@@ -200,7 +216,7 @@ type CardSetMetricsRow = {
 async function fetchCardSetMetrics(supabase: SupabaseClient): Promise<CardSetMetricsRow[]> {
   const { data, error } = await supabase
     .from("catalog_card_set_metrics")
-    .select("card_set_id, cards_cadastradas, cards_com_imagem_algum_idioma");
+    .select("card_set_id, cards_cadastradas, cards_com_imagem_algum_idioma, cards_pendentes_cadastro");
 
   if (error || !data) {
     return [];
@@ -209,23 +225,61 @@ async function fetchCardSetMetrics(supabase: SupabaseClient): Promise<CardSetMet
   return data as unknown as CardSetMetricsRow[];
 }
 
+/**
+ * Cobertura de imagem canônica por idioma ativo, agregada entre todos os
+ * Card Sets — soma direta de public.catalog_card_set_image_coverage (Query
+ * 2123), sem reagregar nada que a view já não tenha calculado. Grão da
+ * view já é (card_set, idioma ativo); aqui só somamos cards_com_imagem por
+ * idioma, dispensando qualquer view/RPC nova (mesma decisão de "sem objeto
+ * novo quando o dado já existe" já aplicada à contagem de
+ * catalog_import_job por status).
+ */
+async function fetchCoberturaImagensPorIdioma(supabase: SupabaseClient): Promise<CoberturaPorIdiomaItem[]> {
+  const { data, error } = await supabase.from("catalog_card_set_image_coverage").select("language_code, cards_com_imagem");
+
+  if (error || !data) {
+    return [];
+  }
+
+  const porIdioma = new Map<string, number>();
+  for (const row of data as { language_code: string; cards_com_imagem: number }[]) {
+    porIdioma.set(row.language_code, (porIdioma.get(row.language_code) ?? 0) + row.cards_com_imagem);
+  }
+
+  return Array.from(porIdioma.entries()).map(([languageCode, cardsComImagem]) => ({ languageCode, cardsComImagem }));
+}
+
 export async function getEstadoDoCatalogo(supabase: SupabaseClient): Promise<EstadoDoCatalogo> {
-  const [metrics, { count: execucoesComPendencia }] = await Promise.all([
-    fetchCardSetMetrics(supabase),
-    supabase.from("asset_import_run").select("id", { count: "exact", head: true }).neq("status", "COMPLETED"),
-  ]);
+  const [metrics, { count: execucoesComPendencia }, coberturaPorIdioma, importacoesAguardandoRevisaoOuErro] =
+    await Promise.all([
+      fetchCardSetMetrics(supabase),
+      supabase.from("asset_import_run").select("id", { count: "exact", head: true }).neq("status", "COMPLETED"),
+      fetchCoberturaImagensPorIdioma(supabase),
+      getImportacoesAguardandoRevisaoOuErro(supabase),
+    ]);
 
   const cardSetsComImagensCompletas = metrics.filter(
     (row) => row.cards_cadastradas > 0 && row.cards_cadastradas === row.cards_com_imagem_algum_idioma,
   ).length;
 
   const cartasCatalogadas = metrics.reduce((total, row) => total + row.cards_cadastradas, 0);
+  const cardSetsComPendencia = metrics.filter((row) => row.cards_pendentes_cadastro > 0).length;
+  const cartasPendentes = metrics.reduce((total, row) => total + row.cards_pendentes_cadastro, 0);
+  const imagensPendentes = metrics.reduce(
+    (total, row) => total + Math.max(row.cards_cadastradas - row.cards_com_imagem_algum_idioma, 0),
+    0,
+  );
 
   return {
     cardSetsCatalogados: metrics.length,
     cardSetsComImagensCompletas,
     cartasCatalogadas,
     execucoesComPendencia: execucoesComPendencia ?? 0,
+    cardSetsComPendencia,
+    cartasPendentes,
+    imagensPendentes,
+    importacoesAguardandoRevisaoOuErro,
+    coberturaPorIdioma,
   };
 }
 
@@ -1545,10 +1599,23 @@ export async function getCategoriaOptions(supabase: SupabaseClient): Promise<Cat
   }));
 }
 
+/**
+ * `pipeline` (2026-08-08, Sprint Gerencial 1) distingue as duas frentes de
+ * escrita administrativa unificadas nesta tela: `IMAGENS` (asset_import_run,
+ * como sempre foi) e `CARTAS` (catalog_import_job, ADR-024 — antes ausente
+ * daqui, só aparecia no log limitado de Atividade Recente da Visão Geral).
+ * Pré-requisito explícito de Fabrício antes do drill-down do StatCard
+ * "Pendências" (Visão Geral): sem uma tela que liste os catalog_import_job
+ * aguardando revisão/erro, aquele card não teria destino real.
+ */
+export type ImportacaoPipeline = "CARTAS" | "IMAGENS";
+
 export type ImportacaoRow = {
   id: string;
+  pipeline: ImportacaoPipeline;
   runCode: string;
-  runType: string;
+  /** null para pipeline CARTAS — catalog_import_job não tem conceito de estratégia (run_type), só canal (source). */
+  runType: string | null;
   status: string;
   executionContext: string;
   assetSourceName: string | null;
@@ -1576,21 +1643,39 @@ type AssetImportRunFullRawRow = {
   language: { code: string } | null;
 };
 
-/** Histórico completo de execuções de importação — versão sem `limit` de getAtividadeRecente, para a tela dedicada. */
+/**
+ * Histórico completo de execuções de importação — une asset_import_run
+ * (IMAGENS) e catalog_import_job (CARTAS, ADR-024), sem `limit` (versão
+ * completa; a Visão Geral usa getAtividadeRecente, com `limit`, para o log
+ * resumido). catalog_import_job não tem `run_code`/`run_type`/
+ * `asset_source`/`language_id` — mesma síntese e aproximação de contadores
+ * já usadas em getAtividadeRecente (sintetizarRunCodeCatalogImportJob(),
+ * calcularContadoresCatalogImportJob(), acima), reaproveitadas aqui em vez
+ * de duplicadas. `assetSourceName` recebe o nome de exibição de `source`
+ * ('TCGDEX' → 'TCGdex') — mesmo papel semântico de asset_source.name para
+ * asset_import_run (de onde veio o dado).
+ */
 export async function getImportacoes(supabase: SupabaseClient): Promise<ImportacaoRow[]> {
-  const { data, error } = await supabase
-    .from("asset_import_run")
-    .select(
-      "id, run_code, run_type, status, execution_context, requested_count, success_count, failed_count, created_at, asset_source(name), card_set(code, name), language(code)",
-    )
-    .order("created_at", { ascending: false });
+  const [assetImportRunResult, catalogImportJobResult] = await Promise.all([
+    supabase
+      .from("asset_import_run")
+      .select(
+        "id, run_code, run_type, status, execution_context, requested_count, success_count, failed_count, created_at, asset_source(name), card_set(code, name), language(code)",
+      )
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("catalog_import_job")
+      .select(
+        "id, status, source, total_rows, inserted_rows, updated_rows, unchanged_rows, failed_rows, rejected_rows, created_at, card_set(code, name)",
+      )
+      .order("created_at", { ascending: false }),
+  ]);
 
-  if (error || !data) {
-    return [];
-  }
-
-  return (data as unknown as AssetImportRunFullRawRow[]).map((run) => ({
+  const assetImportRunItems: ImportacaoRow[] = (
+    (assetImportRunResult.data ?? []) as unknown as AssetImportRunFullRawRow[]
+  ).map((run) => ({
     id: run.id,
+    pipeline: "IMAGENS",
     runCode: run.run_code,
     runType: run.run_type,
     status: run.status,
@@ -1604,6 +1689,27 @@ export async function getImportacoes(supabase: SupabaseClient): Promise<Importac
     failedCount: run.failed_count,
     createdAt: run.created_at,
   }));
+
+  const catalogImportJobItems: ImportacaoRow[] = (
+    (catalogImportJobResult.data ?? []) as unknown as CatalogImportJobActivityRow[]
+  ).map((job) => ({
+    id: job.id,
+    pipeline: "CARTAS",
+    runCode: sintetizarRunCodeCatalogImportJob(job.id),
+    runType: null,
+    status: job.status,
+    executionContext: mapCatalogImportJobSourceParaExecutionContext(job.source),
+    assetSourceName: nomeFonteCatalogImportJob(job.source),
+    cardSetCode: job.card_set?.code ?? null,
+    cardSetName: job.card_set?.name ?? null,
+    languageCode: null,
+    ...calcularContadoresCatalogImportJob(job),
+    createdAt: job.created_at,
+  }));
+
+  return [...assetImportRunItems, ...catalogImportJobItems].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1843,6 +1949,44 @@ function mapCatalogImportJobSourceParaExecutionContext(source: string): string {
   return source === "TCGDEX" ? "API" : source;
 }
 
+/** Nome de exibição de `catalog_import_job.source` para a coluna "Fonte" (/catalogo/importacoes) — mesmo papel de `asset_source.name` para asset_import_run. */
+function nomeFonteCatalogImportJob(source: string): string {
+  return source === "TCGDEX" ? "TCGdex" : source;
+}
+
+/**
+ * `runCode` sintetizado para catalog_import_job, que não tem coluna
+ * equivalente (nunca persistido) — prefixo `CARDS-` distingue visualmente
+ * de `RUN-...` (asset_import_run, Query 220) em qualquer log unificado.
+ */
+function sintetizarRunCodeCatalogImportJob(id: string): string {
+  return `CARDS-${id.slice(0, 8).toUpperCase()}`;
+}
+
+/**
+ * Aproxima os contadores de 3 buckets (requested/success/failed) já usados
+ * por asset_import_run a partir dos contadores mais granulares de
+ * catalog_import_job. `skipped_rows` fica fora dos dois buckets — soma
+ * sucesso+falha pode ficar abaixo do total quando houver linhas puladas;
+ * suficiente para logs, não uma reconciliação exata (essa granularidade
+ * completa já existe na tela de Revisão do próprio job). Compartilhado por
+ * `getAtividadeRecente` e `getImportacoes` para não duplicar a fórmula.
+ */
+function calcularContadoresCatalogImportJob(job: {
+  total_rows: number;
+  inserted_rows: number;
+  updated_rows: number;
+  unchanged_rows: number;
+  failed_rows: number;
+  rejected_rows: number;
+}): { requestedCount: number; successCount: number; failedCount: number } {
+  return {
+    requestedCount: job.total_rows,
+    successCount: job.inserted_rows + job.updated_rows + job.unchanged_rows,
+    failedCount: job.failed_rows + job.rejected_rows,
+  };
+}
+
 /**
  * Une os dois pipelines de escrita administrativa do Catálogo Editorial no
  * mesmo log de Atividade Recente (Sprint Gerencial 1): asset_import_run
@@ -1905,15 +2049,13 @@ export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): 
     (catalogImportJobResult.data ?? []) as unknown as CatalogImportJobActivityRow[]
   ).map((job) => ({
     id: job.id,
-    runCode: `CARDS-${job.id.slice(0, 8).toUpperCase()}`,
+    runCode: sintetizarRunCodeCatalogImportJob(job.id),
     cardSetCode: job.card_set?.code ?? null,
     cardSetName: job.card_set?.name ?? null,
     languageCode: null,
     status: job.status,
     executionContext: mapCatalogImportJobSourceParaExecutionContext(job.source),
-    requestedCount: job.total_rows,
-    successCount: job.inserted_rows + job.updated_rows + job.unchanged_rows,
-    failedCount: job.failed_rows + job.rejected_rows,
+    ...calcularContadoresCatalogImportJob(job),
     createdAt: job.created_at,
   }));
 
