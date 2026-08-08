@@ -1,10 +1,11 @@
 import { History } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
 import { StateBadge } from "@/components/catalogo/state-badge";
 import type { StateTone } from "@/components/catalogo/state-badge";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
-import { getImportacoes } from "@/lib/catalogo/queries";
+import { getImportacoes, JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO } from "@/lib/catalogo/queries";
 import type { ImportacaoPipeline } from "@/lib/catalogo/queries";
 
 const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
@@ -43,12 +44,33 @@ const PIPELINE_LABEL: Record<ImportacaoPipeline, string> = {
  * linha, já que "Tipo" (`runType`) só existe para o pipeline de Imagens —
  * fica "—" para linhas de Cartas (`getImportacoes` retorna `runType: null`
  * para `catalog_import_job`, que não tem esse conceito).
+ *
+ * `?atencao=1` (2026-08-08, mesma Sprint): destino do drill-down do StatCard
+ * "Pendências" da Visão Geral. Filtra pelos mesmos status agregados por
+ * `getImportacoesAguardandoRevisaoOuErro()` (`JOB_STATUSES_AGUARDANDO_
+ * REVISAO_OU_ERRO`, exportada de `queries.ts` para não duplicar a lista) —
+ * garante que o número mostrado na Visão Geral e as linhas exibidas aqui
+ * sejam sempre o mesmo critério. Filtro aplicado em memória sobre o
+ * histórico completo já buscado (sem query nova), com um link "Limpar
+ * filtro" para voltar à lista inteira.
  */
-export default async function ImportacoesPage() {
+const STATUSES_ATENCAO: readonly string[] = JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO;
+
+export default async function ImportacoesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ atencao?: string }>;
+}) {
   const { denied, supabase } = await requireCatalogoAdmin("Histórico de importações", History);
   if (denied) return denied;
 
-  const importacoes = await getImportacoes(supabase);
+  const { atencao } = await searchParams;
+  const filtroAtencao = atencao === "1";
+
+  const todasImportacoes = await getImportacoes(supabase);
+  const importacoes = filtroAtencao
+    ? todasImportacoes.filter((run) => STATUSES_ATENCAO.includes(run.status))
+    : todasImportacoes;
 
   return (
     <AppShell title="Histórico de importações" icon={History}>
@@ -58,14 +80,25 @@ export default async function ImportacoesPage() {
           <h1 className="font-heading text-xl font-medium text-foreground">Histórico de importações</h1>
         </div>
 
+        {filtroAtencao && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Filtrando por: aguardando revisão ou erro</span>
+            <Link href="/catalogo/importacoes" className="text-primary hover:underline">
+              Limpar filtro
+            </Link>
+          </div>
+        )}
+
         <Panel>
           <PanelHeader>
-            <PanelTitle>Execuções registradas</PanelTitle>
+            <PanelTitle>{filtroAtencao ? "Execuções aguardando revisão ou erro" : "Execuções registradas"}</PanelTitle>
           </PanelHeader>
           <PanelContent>
             {importacoes.length === 0 ? (
               <div className="flex flex-col items-center gap-1 py-10 text-center">
-                <p className="text-sm text-foreground">Nenhuma execução registrada ainda</p>
+                <p className="text-sm text-foreground">
+                  {filtroAtencao ? "Nenhuma execução aguardando revisão ou erro" : "Nenhuma execução registrada ainda"}
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">

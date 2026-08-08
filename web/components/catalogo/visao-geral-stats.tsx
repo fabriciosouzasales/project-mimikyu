@@ -91,6 +91,7 @@ export function VisaoGeralStats({ estado }: { estado: EstadoDoCatalogoData }) {
           caption="aguardando revisão ou erro"
           icon={AlertTriangle}
           tone="danger"
+          href="/catalogo/importacoes?atencao=1"
         />
       </StatsRow>
 

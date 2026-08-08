@@ -1654,45 +1654,57 @@ type AssetImportRunFullRawRow = {
  * de duplicadas. `assetSourceName` recebe o nome de exibição de `source`
  * ('TCGDEX' → 'TCGdex') — mesmo papel semântico de asset_source.name para
  * asset_import_run (de onde veio o dado).
+ *
+ * Sem `.range()` nas duas consultas, o PostgREST trunca silenciosamente em
+ * `SUPABASE_MAX_ROWS_PAGE_SIZE` linhas (ver `fetchAllRows` acima) — ao
+ * contrário de `getAtividadeRecente` (que usa `limit` de propósito), esta é
+ * a versão "histórico completo" da tela, então precisa de `fetchAllRows`
+ * nas duas fontes para não cortar o passado silenciosamente conforme o
+ * volume crescer (mesmo bug de classe já visto em `card`/`card_asset`,
+ * 2026-08-01).
  */
 export async function getImportacoes(supabase: SupabaseClient): Promise<ImportacaoRow[]> {
-  const [assetImportRunResult, catalogImportJobResult] = await Promise.all([
-    supabase
-      .from("asset_import_run")
-      .select(
-        "id, run_code, run_type, status, execution_context, requested_count, success_count, failed_count, created_at, asset_source(name), card_set(code, name), language(code)",
-      )
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("catalog_import_job")
-      .select(
-        "id, status, source, total_rows, inserted_rows, updated_rows, unchanged_rows, failed_rows, rejected_rows, created_at, card_set(code, name)",
-      )
-      .order("created_at", { ascending: false }),
+  const [assetImportRunRows, catalogImportJobRows] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase
+        .from("asset_import_run")
+        .select(
+          "id, run_code, run_type, status, execution_context, requested_count, success_count, failed_count, created_at, asset_source(name), card_set(code, name), language(code)",
+        )
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("catalog_import_job")
+        .select(
+          "id, status, source, total_rows, inserted_rows, updated_rows, unchanged_rows, failed_rows, rejected_rows, created_at, card_set(code, name)",
+        )
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    ),
   ]);
 
-  const assetImportRunItems: ImportacaoRow[] = (
-    (assetImportRunResult.data ?? []) as unknown as AssetImportRunFullRawRow[]
-  ).map((run) => ({
-    id: run.id,
-    pipeline: "IMAGENS",
-    runCode: run.run_code,
-    runType: run.run_type,
-    status: run.status,
-    executionContext: run.execution_context,
-    assetSourceName: run.asset_source?.name ?? null,
-    cardSetCode: run.card_set?.code ?? null,
-    cardSetName: run.card_set?.name ?? null,
-    languageCode: run.language?.code ?? null,
-    requestedCount: run.requested_count,
-    successCount: run.success_count,
-    failedCount: run.failed_count,
-    createdAt: run.created_at,
-  }));
+  const assetImportRunItems: ImportacaoRow[] = (assetImportRunRows as unknown as AssetImportRunFullRawRow[]).map(
+    (run) => ({
+      id: run.id,
+      pipeline: "IMAGENS" as const,
+      runCode: run.run_code,
+      runType: run.run_type,
+      status: run.status,
+      executionContext: run.execution_context,
+      assetSourceName: run.asset_source?.name ?? null,
+      cardSetCode: run.card_set?.code ?? null,
+      cardSetName: run.card_set?.name ?? null,
+      languageCode: run.language?.code ?? null,
+      requestedCount: run.requested_count,
+      successCount: run.success_count,
+      failedCount: run.failed_count,
+      createdAt: run.created_at,
+    }),
+  );
 
-  const catalogImportJobItems: ImportacaoRow[] = (
-    (catalogImportJobResult.data ?? []) as unknown as CatalogImportJobActivityRow[]
-  ).map((job) => ({
+  const catalogImportJobItems: ImportacaoRow[] = (catalogImportJobRows as unknown as CatalogImportJobActivityRow[]).map((job) => ({
     id: job.id,
     pipeline: "CARTAS",
     runCode: sintetizarRunCodeCatalogImportJob(job.id),
@@ -2199,8 +2211,18 @@ export async function getContagemImportJobsPorStatus(supabase: SupabaseClient): 
  * de status já usado em RAIDADE_JOB_STATUSES_REVALIDAVEIS logo abaixo,
  * com FAILED incluído a mais (revalidação de Raridade não cobre jobs que
  * falharam por completo).
+ *
+ * Exportada (2026-08-08, Sprint Gerencial 1) para ser reaproveitada pelo
+ * filtro `?atencao=1` de `/catalogo/importacoes` — mesmo critério do
+ * drill-down do StatCard "Pendências" da Visão Geral, sem duplicar a lista
+ * de status em dois lugares.
  */
-const JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO = ["STAGED", "CONFIRMING", "COMPLETED_WITH_ERRORS", "FAILED"] as const;
+export const JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO = [
+  "STAGED",
+  "CONFIRMING",
+  "COMPLETED_WITH_ERRORS",
+  "FAILED",
+] as const;
 
 export async function getImportacoesAguardandoRevisaoOuErro(supabase: SupabaseClient): Promise<number> {
   const contagem = await getContagemImportJobsPorStatus(supabase);

@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { Panel } from "@/components/catalogo/panel";
 import { cn } from "@/lib/utils";
@@ -33,22 +34,36 @@ import { cn } from "@/lib/utils";
  * fundo, que continua `bg-destructive/10`) por essa cor no tema escuro.
  * Afeta os dois cartões que usam `tone="danger"` hoje: "Pendências" (Visão
  * Geral) e "Sem Coleções" (Expansões).
+ *
+ * `href` opcional (2026-08-08, Sprint Gerencial 1 — drill-down da Visão
+ * Geral): quando presente, o cartão inteiro vira um `Link` em vez de um
+ * `Panel` estático, com o mesmo miolo visual — só ganha `hover:border-
+ * foreground/20` como affordance de clique, já que nada aqui muda de cor
+ * por padrão (selo de ícone já usa cor fixa, ver acima). Sem `href`, o
+ * comportamento e o HTML renderizado são idênticos aos de antes desta
+ * mudança — os cartões dos outros módulos (Jogos/Expansões/Cartas/Card
+ * Sets/importar-imagens/importar-cartas) não usam a prop e continuam como
+ * `Panel` puro.
  */
+const STAT_CARD_CLASSES = "flex w-full items-start justify-between gap-3 p-3 sm:w-56";
+
 export function StatCard({
   label,
   value,
   caption,
   icon: Icon,
   tone = "default",
+  href,
 }: {
   label: string;
   value: string | number;
   caption?: string;
   icon: LucideIcon;
   tone?: "default" | "danger";
+  href?: string;
 }) {
-  return (
-    <Panel className="flex w-full items-start justify-between gap-3 p-3 sm:w-56">
+  const conteudo = (
+    <>
       <div className="space-y-0.5">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className="text-xl font-semibold text-foreground">{value}</p>
@@ -65,8 +80,24 @@ export function StatCard({
       >
         <Icon className="h-3.5 w-3.5" />
       </span>
-    </Panel>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={cn(
+          STAT_CARD_CLASSES,
+          "rounded-lg border border-border bg-surface transition-colors hover:border-foreground/20",
+        )}
+      >
+        {conteudo}
+      </Link>
+    );
+  }
+
+  return <Panel className={STAT_CARD_CLASSES}>{conteudo}</Panel>;
 }
 
 export function StatsRow({ children }: { children: ReactNode }) {
