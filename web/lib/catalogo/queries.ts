@@ -1816,20 +1816,78 @@ export async function getCatalogImportRows(
   });
 }
 
+type CatalogImportJobActivityRow = {
+  id: string;
+  status: string;
+  source: string;
+  total_rows: number;
+  inserted_rows: number;
+  updated_rows: number;
+  unchanged_rows: number;
+  failed_rows: number;
+  rejected_rows: number;
+  created_at: string;
+  card_set: { code: string; name: string } | null;
+};
+
+/**
+ * Traduz `catalog_import_job.source` ('TCGDEX'/'PDF') para o vocabulário de
+ * `execution_context` já usado por asset_import_run ('MANUAL'/'API'/
+ * 'SCHEDULED'/'SYSTEM'), reaproveitando o rótulo "API Externa" já existente
+ * em `EXECUTION_CONTEXT_LABEL` (atividade-recente.tsx, não alterado nesta
+ * rodada) em vez de introduzir um rótulo novo. 'PDF' fica sem tradução
+ * (canal encerrado, ADR-024 Ciclos 3/4) — aparece com o texto bruto, que o
+ * componente já trata com um fallback gracioso.
+ */
+function mapCatalogImportJobSourceParaExecutionContext(source: string): string {
+  return source === "TCGDEX" ? "API" : source;
+}
+
+/**
+ * Une os dois pipelines de escrita administrativa do Catálogo Editorial no
+ * mesmo log de Atividade Recente (Sprint Gerencial 1): asset_import_run
+ * (importação de IMAGENS) e catalog_import_job (importação de CARDS,
+ * ADR-024) — hoje só o primeiro aparecia, apesar dos dois gerarem eventos
+ * reais de escrita. Cada fonte busca até `limit` linhas mais recentes
+ * (suficiente para reconstruir o top-`limit` real da união — qualquer linha
+ * fora do top-`limit` de uma fonte é necessariamente mais antiga que o
+ * corte global, já que a outra fonte sozinha já fornece `limit` candidatos
+ * mais recentes), depois mescladas, ordenadas por `created_at` e cortadas
+ * no mesmo `limit` de sempre — nunca dobra o tamanho da lista final.
+ *
+ * catalog_import_job não tem `run_code` nem `language_id` (Card Set não
+ * carrega idioma, ver Query 2060) — `runCode` é sintetizado a partir do
+ * `id` (prefixo `CARDS-`, nunca persistido), `languageCode` fica sempre
+ * `null` para esses itens. `requestedCount`/`successCount`/`failedCount`
+ * são uma aproximação dos contadores mais granulares de catalog_import_job
+ * (`total_rows`/`inserted_rows`+`updated_rows`+`unchanged_rows`/
+ * `failed_rows`+`rejected_rows`) — `skipped_rows` não entra em nenhum dos
+ * dois buckets, então a soma sucesso+falha pode ficar abaixo do total
+ * quando houver linhas puladas; suficiente para o log, não uma
+ * reconciliação exata (essa granularidade completa já existe na tela de
+ * Revisão do próprio job).
+ */
 export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): Promise<AtividadeRecenteItem[]> {
-  const { data, error } = await supabase
-    .from("asset_import_run")
-    .select(
-      "id, run_code, status, execution_context, requested_count, success_count, failed_count, created_at, card_set(code, name), language(code)",
-    )
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const [assetImportRunResult, catalogImportJobResult] = await Promise.all([
+    supabase
+      .from("asset_import_run")
+      .select(
+        "id, run_code, status, execution_context, requested_count, success_count, failed_count, created_at, card_set(code, name), language(code)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("catalog_import_job")
+      .select(
+        "id, status, source, total_rows, inserted_rows, updated_rows, unchanged_rows, failed_rows, rejected_rows, created_at, card_set(code, name)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  ]);
 
-  if (error || !data) {
-    return [];
-  }
-
-  return (data as unknown as AssetImportRunRow[]).map((run) => ({
+  const assetImportRunItems: AtividadeRecenteItem[] = (
+    (assetImportRunResult.data ?? []) as unknown as AssetImportRunRow[]
+  ).map((run) => ({
     id: run.id,
     runCode: run.run_code,
     cardSetCode: run.card_set?.code ?? null,
@@ -1842,6 +1900,26 @@ export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): 
     failedCount: run.failed_count,
     createdAt: run.created_at,
   }));
+
+  const catalogImportJobItems: AtividadeRecenteItem[] = (
+    (catalogImportJobResult.data ?? []) as unknown as CatalogImportJobActivityRow[]
+  ).map((job) => ({
+    id: job.id,
+    runCode: `CARDS-${job.id.slice(0, 8).toUpperCase()}`,
+    cardSetCode: job.card_set?.code ?? null,
+    cardSetName: job.card_set?.name ?? null,
+    languageCode: null,
+    status: job.status,
+    executionContext: mapCatalogImportJobSourceParaExecutionContext(job.source),
+    requestedCount: job.total_rows,
+    successCount: job.inserted_rows + job.updated_rows + job.unchanged_rows,
+    failedCount: job.failed_rows + job.rejected_rows,
+    createdAt: job.created_at,
+  }));
+
+  return [...assetImportRunItems, ...catalogImportJobItems]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
 }
 
 /**
