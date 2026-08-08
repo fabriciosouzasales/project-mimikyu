@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.2 |
+| **Versão** | 1.3 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -65,6 +65,7 @@ Catálogo completo com status em [`adr/ADR-INDEX.md`](adr/ADR-INDEX.md). Lista r
 | [ADR-024](adr/ADR-024-catalog-card-ingestion-strategy.md) | Estratégia de ingestão administrativa de cartas — Ciclo 1 e Ciclo 2 (TCGdex) CONFIRMADOS EXECUTADOS E VALIDADOS de ponta a ponta (validação `2818`, 8/8 itens); bug real de status corrigido (Query `2082` v1.1 + Migration `2118`); emenda de Raridade self-service e revalidação; multi-provider adiado (decisão de escopo); canal PDF (Ciclos 3/4) encerrado definitivamente (2026-08-08). |
 | [ADR-025](adr/ADR-025-energy-as-catalog-card-category.md) | Energia como categoria de carta no catálogo. |
 | [ADR-026](adr/ADR-026-manual-local-file-asset-import-channel.md) | Canal manual de importação de imagens via arquivo local (`scripts/import-manual-assets.ts`, `asset_source` `MANUAL`) quando a fonte externa não publica o asset — caso real `MEE`/`MEP`; conclusão de `MEP` priorizada à frente do Ciclo 3 de ADR-024. |
+| [ADR-027](adr/ADR-027-catalog-editorial-canonical-metrics-views.md) | Views administrativas de métrica canônica do catálogo (`security_invoker = true`, GRANT restrito a `authenticated`) — padrão que estreia com `catalog_card_set_metrics`/`catalog_card_set_image_coverage` (Query `2123`) e será reutilizado pela futura Central de Relatórios. |
 
 ## Standards
 
@@ -114,3 +115,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.0 | Criação deste documento (2026-08-06), como parte da adequação do projeto ao padrão LLM Wiki. |
 | 1.1 | Resumo de `ADR-024` atualizado (2026-08-08) para refletir o encerramento definitivo do canal PDF (Ciclos 3/4) — decisão explícita de Fabrício, ver `adr/ADR-024-catalog-card-ingestion-strategy.md` revisão `1.7`. |
 | 1.2 | Handoff vigente atualizado para `development/HANDOFF-2026-08-08.md` (2026-08-08) — `HANDOFF-2026-08-02.md` estava significativamente desatualizado (não refletia o fechamento formal do Ciclo 2 de `ADR-024`, a conclusão de `ADR-023`, `ADR-026` nem o encerramento do canal PDF, todos ocorridos depois de 02/08); movido para `history/development/`. |
+| 1.3 | Adicionado `ADR-027` (Catalog Editorial Canonical Metrics Views, 2026-08-08) — decisão de Fabrício de abrir ADR novo (não emendar `ADR-006`) para o padrão `security_invoker = true`/GRANT restrito, estreado pela Query `2123` da Sprint Gerencial 1. |
