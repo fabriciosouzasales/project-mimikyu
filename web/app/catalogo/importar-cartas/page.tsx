@@ -6,8 +6,6 @@ import { PageContainer } from "@/components/ui/page";
 import { getCardSetsForCartas, getCartasCatalogoStats, getLatestImportJobIncompleteFlags } from "@/lib/catalogo/queries";
 import { autoMatchTcgdexSet } from "@/lib/catalogo/tcgdex-lookup";
 
-type Fonte = "api" | "pdf";
-
 /**
  * Grupo "Operações" do menu do Catálogo (`nav-config.ts`). Redesenho visual
  * completo em 2026-08-01 (dois protótipos anexados por Fabrício — visão API
@@ -17,8 +15,15 @@ type Fonte = "api" | "pdf";
  * do Set) — numa só. `tcgdex/page.tsx` virou um redirect para cá (ver
  * comentário lá).
  *
- * `?fonte=` (api | pdf, default api) e `?cardSetId=` resolvem a tela a
- * partir da URL, mesmo padrão já usado por `/catalogo/cartas`.
+ * `?cardSetId=` resolve a tela a partir da URL, mesmo padrão já usado por
+ * `/catalogo/cartas`.
+ *
+ * **Sem `?fonte=`** (removido em 2026-08-08): o seletor de Fonte (API/PDF)
+ * foi retirado desta tela depois que Fabrício encerrou definitivamente o
+ * canal PDF (Ciclos 3/4 de `ADR-024` — ver emenda 2026-08-08 no ADR). A
+ * fonte TCGdex (API) passa a ser a única opção, então deixou de fazer
+ * sentido pedir pra Fabrício escolher — o combobox de Coleção e o botão
+ * Analisar (agora sempre visível, sem depender de nenhum toggle) bastam.
  *
  * **Sem `?jobId=`** (removido em 2026-08-01, terceira rodada): um job
  * aberto e sua Revisão não são mais representados na URL — o fluxo inteiro
@@ -34,13 +39,12 @@ type Fonte = "api" | "pdf";
 export default async function ImportarCartasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cardSetId?: string; fonte?: string }>;
+  searchParams: Promise<{ cardSetId?: string }>;
 }) {
   const { denied, supabase } = await requireCatalogoAdmin("Importar Cartas", FileUp);
   if (denied) return denied;
 
-  const { cardSetId, fonte: fonteParam } = await searchParams;
-  const fonte: Fonte = fonteParam === "pdf" ? "pdf" : "api";
+  const { cardSetId } = await searchParams;
 
   const cardSets = await getCardSetsForCartas(supabase);
   // Seletor de Coleção — ver comentário acima de getCardSetsForCartas em
@@ -89,10 +93,9 @@ export default async function ImportarCartasPage({
   // tcgdex-lookup.ts): autoMatchTcgdexSet agora tenta o id exato da TCGdex
   // pelo código da Coleção antes de cair para busca fuzzy por nome — ver
   // comentário da função.
-  const matchResult =
-    selectedCardSet && fonte === "api"
-      ? await autoMatchTcgdexSet({ code: selectedCardSet.code, name: selectedCardSet.name })
-      : null;
+  const matchResult = selectedCardSet
+    ? await autoMatchTcgdexSet({ code: selectedCardSet.code, name: selectedCardSet.name })
+    : null;
 
   return (
     <AppShell title="Importar Cartas" icon={FileUp}>
@@ -119,11 +122,9 @@ export default async function ImportarCartasPage({
           Coleção mantém a mesma key e a instância (com o job/progresso já
           concluído) continua montada normalmente.
 
-          Escopo deliberadamente só na Coleção, não na Fonte
-          (`?fonte=api|pdf`) — trocar só a Fonte para a MESMA Coleção não
-          deveria perder o progresso já visível (o painel some da tela via
-          o `fonte === "pdf" ? ... : ...` do próprio componente, não
-          precisa de um remount pra isso).
+          Escopo só na Coleção — desde 2026-08-08 não existe mais Fonte
+          nesta tela (canal PDF encerrado definitivamente, ver `ADR-024`),
+          então esse `key` cobre o único eixo de navegação restante.
         */}
         <ImportarCartasView
           key={selectedCardSet?.id ?? "none"}
@@ -131,7 +132,6 @@ export default async function ImportarCartasPage({
           colecoesSemCartas={colecoesSemCartas}
           cardsSemImagem={cartasStats.cardsSemImagem}
           selectedCardSet={selectedCardSet}
-          fonte={fonte}
           matchResult={matchResult}
         />
       </PageContainer>

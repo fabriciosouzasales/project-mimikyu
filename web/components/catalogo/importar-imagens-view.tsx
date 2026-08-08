@@ -53,6 +53,30 @@ type Source = "api" | "manual";
  *    `mode="images-only"` (ver comentário lá): sem "Abrindo job"/"Buscando
  *    cartas"/"Processando"/"Concluído"/"Gravando cartas", só as três etapas
  *    de imagem.
+ *
+ * Rodada de 2026-08-08 (mesmo conceito aplicado em `ImportarCartasView` no
+ * mesmo dia, pedido explícito de Fabrício: "replique esse mesmo conceito
+ * para a tela Importar Imagens"): combobox de Coleção ganhou `max-w-[500px]`
+ * (era largura livre via `flex-1`) e o botão "Importar Imagens" deixou de
+ * ser condicionalmente renderizado (antes só aparecia com `selectedCardSet
+ * && source === "api"`) — fica sempre visível no layout, com a condição
+ * antiga virando só o `disabled` (`canImportarAqui`). Continua sem efeito em
+ * `source === "manual"` (o gatilho real desse modo é o próprio picker de
+ * arquivos abaixo, não este botão) — daí o botão ficar desabilitado nesse
+ * modo em vez de acionar `handleImportar`.
+ *
+ * Mesmo dia, rodada seguinte ("esses componentes precisam ter essa altura
+ * toda? Visualmente desagradável"): `CardSetImagensCombobox` reduzido de
+ * `min-h-10`/`py-1.5` para `min-h-9`/`py-1` (alinha com a altura padrão de
+ * controles do resto do app — `h-9` é o tamanho `default` de `Button`/
+ * `Input`, ver `button.tsx`/`input.tsx` — `h-10` aqui era uma exceção
+ * isolada destas duas telas de importação). `FonteToggle`/`LanguageToggle`
+ * perderam o `h-10` fixo e o botão "Importar Imagens" trocou `h-10` por
+ * `h-auto`: a linha inteira agora usa `items-stretch` (era `items-center`)
+ * e os três — combobox, toggles e botão — esticam para a MESMA altura real,
+ * qualquer que ela seja, sem precisar mais adivinhar/repetir um número em
+ * cada um (motivo dos ajustes de altura repetidos, e nunca totalmente
+ * resolvidos, nas rodadas 2-6 originais de `ImportarCartasView`).
  */
 export function ImportarImagensView({
   cardSets,
@@ -327,8 +351,8 @@ export function ImportarImagensView({
               <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Selecione a Coleção para importação de Imagens
               </label>
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
+              <div className="flex items-stretch gap-2">
+                <div className="min-w-0 max-w-[500px] flex-1">
                   <CardSetImagensCombobox
                     cardSets={cardSets}
                     selected={selectedCardSet}
@@ -337,11 +361,14 @@ export function ImportarImagensView({
                 </div>
                 <FonteToggle value={source} onChange={navigateSource} />
                 <LanguageToggle value={languageCode} onChange={navigateLanguage} />
-                {selectedCardSet && source === "api" && (
-                  <Button type="button" className="h-10 shrink-0" onClick={handleImportar} disabled={started}>
-                    Importar Imagens
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  className="h-auto shrink-0"
+                  onClick={handleImportar}
+                  disabled={!selectedCardSet || source !== "api" || started}
+                >
+                  Importar Imagens
+                </Button>
               </div>
             </div>
           </div>
@@ -415,7 +442,7 @@ function FonteToggle({ value, onChange }: { value: Source; onChange: (source: So
 
   return (
     <div
-      className="inline-flex h-10 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-muted p-0.5"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-muted p-0.5"
       role="group"
       aria-label="Fonte da importação de imagens"
     >
@@ -447,7 +474,7 @@ function LanguageToggle({ value, onChange }: { value: string; onChange: (languag
 
   return (
     <div
-      className="inline-flex h-10 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-muted p-0.5"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-muted p-0.5"
       role="group"
       aria-label="Idioma da importação de imagens"
     >
@@ -530,7 +557,7 @@ function CardSetImagensCombobox({
         aria-haspopup="listbox"
         aria-expanded={open}
         className={cn(
-          "flex w-full min-h-10 items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 py-1.5 text-left shadow-subtle transition-colors",
+          "flex w-full min-h-9 items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 py-1 text-left shadow-subtle transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           disabled && "cursor-not-allowed opacity-60",
         )}

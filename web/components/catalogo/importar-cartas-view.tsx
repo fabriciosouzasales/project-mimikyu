@@ -1,16 +1,8 @@
 "use client";
 
-import {
-  type ChangeEvent,
-  type DragEvent,
-  type KeyboardEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ChevronDown, FileUp, ImageOff, UploadCloud } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, CheckCircle2, ChevronDown, FileUp, ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
@@ -20,8 +12,6 @@ import { RevisaoImportacaoTable } from "@/components/catalogo/revisao-importacao
 import type { CatalogoCardSetRow } from "@/lib/catalogo/queries";
 import type { TcgdexAutoMatchResult } from "@/lib/catalogo/tcgdex-lookup";
 import { cn } from "@/lib/utils";
-
-type Fonte = "api" | "pdf";
 
 /**
  * Redesenho visual completo em 2026-08-01 (pedido de Fabrício, dois
@@ -142,13 +132,37 @@ type Fonte = "api" | "pdf";
  * estados: "N cartas encontradas para importação" (nunca importada) vs.
  * "X/N cartas catalogadas" (parcial, X já cadastradas) — ver
  * `CardSetCombobox` abaixo.
+ *
+ * Oitava rodada (2026-08-08, pedido de Fabrício após o encerramento
+ * definitivo do canal PDF — Ciclos 3/4 de `ADR-024`, ver emenda no ADR):
+ * 1. Seletor de Fonte (`FonteToggle`, API/PDF) removido por completo — só
+ *    restava uma fonte real (TCGdex/API), então o toggle não representava
+ *    mais uma escolha genuína. `PdfUploadPanel` (visual, nunca teve parsing
+ *    real por trás) também foi removido junto, mesmo motivo.
+ * 2. `CardSetCombobox` ganhou `max-w-[500px]` — Fabrício: "o combobox não
+ *    precisa ter essa largura toda", pedido explicitamente como valor a
+ *    testar, não necessariamente final.
+ * 3. O botão Analisar deixou de ser condicionalmente renderizado (antes só
+ *    aparecia com `fonte === "api" && selectedCardSet && matchResult?.status
+ *    === "MATCHED"`) e passou a ficar sempre visível — pedido de Fabrício:
+ *    "o botão de Importar cartas... deve ser visível permanentemente". A
+ *    condição antiga virou só o `disabled` (via `canAnalyzeHere`); os
+ *    inputs ocultos do form usam fallback vazio quando ainda não há Coleção/
+ *    match, inofensivo porque o botão fica desabilitado nesse caso.
+ *
+ * Nona rodada (mesmo dia, "esses componentes precisam ter essa altura toda?
+ * Visualmente desagradável"): `CardSetCombobox` reduzido de `min-h-10`/
+ * `py-1.5` para `min-h-9`/`py-1` (alinha com a altura padrão de controles do
+ * resto do app — `h-9` é o tamanho `default` de `Button`/`Input`, ver
+ * `button.tsx`/`input.tsx` — `h-10` aqui era uma exceção isolada destas duas
+ * telas). Botão Analisar perdeu o `h-10` explícito, volta a usar o `h-9`
+ * padrão do próprio `Button`.
  */
 export function ImportarCartasView({
   cardSets,
   colecoesSemCartas,
   cardsSemImagem,
   selectedCardSet,
-  fonte,
   matchResult,
 }: {
   /** Coleções ainda pendentes — sem nenhuma carta, ou com o job de importação mais recente incompleto — filtro aplicado em `page.tsx` (ver `getLatestImportJobIncompleteFlags` em `queries.ts`). */
@@ -156,7 +170,6 @@ export function ImportarCartasView({
   colecoesSemCartas: number;
   cardsSemImagem: number;
   selectedCardSet: CatalogoCardSetRow | null;
-  fonte: Fonte;
   matchResult: TcgdexAutoMatchResult | null;
 }) {
   const router = useRouter();
@@ -166,18 +179,15 @@ export function ImportarCartasView({
   // Coleção selecionada não há como ter iniciado análise/job nenhum.
   const analyzeJob = useAnalyzeJob(selectedCardSet?.id ?? "");
 
-  function navigate(next: { cardSetId?: string | null; fonte?: Fonte }) {
+  function navigate(next: { cardSetId?: string | null }) {
     const params = new URLSearchParams();
     const cardSetId = next.cardSetId !== undefined ? next.cardSetId : selectedCardSet?.id;
-    const nextFonte = next.fonte ?? fonte;
     if (cardSetId) params.set("cardSetId", cardSetId);
-    if (nextFonte !== "api") params.set("fonte", nextFonte);
     const query = params.toString();
     router.push(query ? `/catalogo/importar-cartas?${query}` : "/catalogo/importar-cartas");
   }
 
-  const canAnalyzeHere =
-    fonte === "api" && !!selectedCardSet && matchResult?.status === "MATCHED" && !analyzeJob.started;
+  const canAnalyzeHere = !!selectedCardSet && matchResult?.status === "MATCHED" && !analyzeJob.started;
 
   return (
     <div className="space-y-4">
@@ -211,7 +221,7 @@ export function ImportarCartasView({
       <Card>
         <CardContent className="space-y-4 pt-6">
           <div className="space-y-4">
-            <div className="min-w-0 space-y-1">
+            <div className="min-w-0 max-w-[500px] space-y-1">
               <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Selecione a Coleção para cadastro de Cartas
               </label>
@@ -222,30 +232,22 @@ export function ImportarCartasView({
               />
             </div>
 
-            <div className="min-w-0 space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Selecione a Fonte
-              </p>
-              <div className="flex items-center gap-2">
-                <FonteToggle value={fonte} onChange={(next) => navigate({ fonte: next })} />
-                {fonte === "api" && selectedCardSet && matchResult?.status === "MATCHED" && (
-                  <form action={analyzeJob.formAction}>
-                    <input type="hidden" name="card_set_id" value={selectedCardSet.id} />
-                    <input type="hidden" name="external_set_id" value={matchResult.set.id} />
-                    <Button type="submit" className="h-10" disabled={!canAnalyzeHere}>
-                      Analisar
-                    </Button>
-                  </form>
-                )}
-              </div>
-            </div>
+            <form action={analyzeJob.formAction}>
+              <input type="hidden" name="card_set_id" value={selectedCardSet?.id ?? ""} />
+              <input
+                type="hidden"
+                name="external_set_id"
+                value={matchResult?.status === "MATCHED" ? matchResult.set.id : ""}
+              />
+              <Button type="submit" disabled={!canAnalyzeHere}>
+                Analisar
+              </Button>
+            </form>
           </div>
 
           <div className="space-y-4 border-t border-border pt-4">
             {!selectedCardSet ? (
               <p className="text-sm text-muted-foreground">Selecione uma Coleção acima para continuar.</p>
-            ) : fonte === "pdf" ? (
-              <PdfUploadPanel />
             ) : !matchResult ? null : matchResult.status === "MATCHED" ? (
               <>
                 <div className="flex items-center gap-3 rounded-md border border-input bg-[#F7F5ED] p-3">
@@ -356,7 +358,7 @@ function CardSetCombobox({
           // sem deixar o box maior do que precisa) — altura fixa continua
           // existindo (placeholder de 1 linha não pode ficar mais baixo que
           // o estado selecionado de 2 linhas), só o valor mudou.
-          "flex w-full min-h-10 items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 py-1.5 text-left shadow-subtle transition-colors",
+          "flex w-full min-h-9 items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 py-1 text-left shadow-subtle transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           disabled && "cursor-not-allowed opacity-60",
         )}
@@ -426,136 +428,8 @@ function CardSetCombobox({
   );
 }
 
-function FonteToggle({ value, onChange }: { value: Fonte; onChange: (fonte: Fonte) => void }) {
-  const options: { code: Fonte; label: string }[] = [
-    { code: "api", label: "API" },
-    { code: "pdf", label: "PDF" },
-  ];
-
-  return (
-    <div
-      // `inline-flex` (era `flex`, quarta rodada, bug real reportado por
-      // Fabrício): `flex` sozinho é `display:flex`, que em um `div` de
-      // bloco normal (não um item flex do pai) ainda se comporta como caixa
-      // de bloco — preenche 100% da largura disponível na coluna "Selecione
-      // a Fonte", não só o conteúdo dos dois botões. Com o fundo
-      // `bg-surface-muted`, essa largura sobrando aparecia como um espaço
-      // cinza vazio depois do botão PDF. `inline-flex` faz a caixa encolher
-      // para caber só o conteúdo (comportamento correto de um
-      // toggle/segmented control).
-      // `h-10` (quinta rodada, pra bater com a altura do combobox quando
-      // ficavam lado a lado — na sexta rodada os dois passaram a ficar
-      // empilhados, ver comentário do cabeçalho acima, então o alinhamento
-      // entre os dois deixou de ser um problema; `h-10` continua aqui só
-      // pra manter a mesma altura do botão Analisar ao lado, sem outra
-      // razão especial agora).
-      className="inline-flex h-10 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-muted p-0.5"
-      role="group"
-      aria-label="Fonte da importação"
-    >
-      {options.map((option) => (
-        <button
-          key={option.code}
-          type="button"
-          onClick={() => onChange(option.code)}
-          aria-pressed={value === option.code}
-          className={cn(
-            "rounded-[5px] px-3 py-1.5 text-xs font-medium transition-colors",
-            value === option.code
-              ? "bg-surface text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function formatFileSize(bytes: number): string {
-  return `${(bytes / 1024).toFixed(2)} KB`;
-}
-
-/**
- * Upload da lista de verificação oficial (PDF) — visual apenas nesta
- * rodada (ver comentário de `ImportarCartasView`): escolhe/solta um
- * arquivo local, mostra nome/tamanho, permite cancelar, mas "Anexar" não
- * envia nada a lugar nenhum ainda. O parsing real fica para o próximo
- * ciclo de implementação.
- */
-function PdfUploadPanel() {
-  const [file, setFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function handleFiles(files: FileList | null) {
-    const picked = files?.[0];
-    if (picked) setFile(picked);
-  }
-
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setIsDragging(false);
-    handleFiles(event.dataTransfer.files);
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-foreground">Lista de verificação oficial (PDF)</p>
-        <Badge variant="outline">Em construção</Badge>
-      </div>
-
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") inputRef.current?.click();
-        }}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed p-8 text-center transition-colors",
-          isDragging ? "border-primary bg-primary/5" : "border-input bg-surface-muted hover:bg-surface-muted/70",
-        )}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="application/pdf"
-          className="hidden"
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            handleFiles(event.target.files);
-            event.target.value = "";
-          }}
-        />
-        {file ? (
-          <FileUp className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
-        ) : (
-          <UploadCloud className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
-        )}
-        <div className="space-y-0.5">
-          <p className="text-sm font-medium text-foreground">
-            {file ? file.name : "Clique ou arraste o arquivo aqui"}
-          </p>
-          <p className="text-xs text-muted-foreground">{file ? formatFileSize(file.size) : "0.00 KB"}</p>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => setFile(null)} disabled={!file}>
-          Cancelar
-        </Button>
-        <Button type="button" size="sm" disabled title="Importação via PDF ainda não está disponível">
-          Anexar
-        </Button>
-      </div>
-    </div>
-  );
-}
+// `FonteToggle` e `PdfUploadPanel` (canal API/PDF) foram removidos em
+// 2026-08-08 — o canal PDF (Ciclos 3/4 de `ADR-024`) foi encerrado
+// definitivamente por decisão de Fabrício (ver emenda 2026-08-08 no ADR), e
+// o toggle não representava mais uma escolha real com uma única fonte
+// (TCGdex/API) restante.
