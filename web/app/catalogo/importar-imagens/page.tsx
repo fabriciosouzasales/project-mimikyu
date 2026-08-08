@@ -3,7 +3,19 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 import { ImportarImagensView } from "@/components/catalogo/importar-imagens-view";
 import { PageContainer } from "@/components/ui/page";
-import { getCardSetImagensById, getCardSetsForImportacaoImagens } from "@/lib/catalogo/queries";
+import {
+  getCardSetImagensById,
+  getCardSetsForImportacaoImagens,
+  getCartasParaImportacaoManual,
+} from "@/lib/catalogo/queries";
+
+/** `Fonte` da importação (ADR-026, emenda "Segundo ponto de entrada via UI", 2026-08-08) — mesmo padrão de `?fonte=` já usado em `/catalogo/importar-cartas` (lá: `api`/`pdf`; aqui: `api`/`manual`, universos diferentes, sem relação entre si). */
+const SOURCES = ["api", "manual"] as const;
+type Source = (typeof SOURCES)[number];
+
+function resolveSource(value: string | undefined): Source {
+  return (SOURCES as readonly string[]).includes(value ?? "") ? (value as Source) : "api";
+}
 
 /** Idiomas suportados pelo pipeline de imagens (2026-08-02) — mesmo domínio aceito por `admin_start_asset_import_run()` v1.3 (Query 2092) para os dois únicos idiomas com cobertura real na TCGdex hoje (ver Sprint B3.23/B3.24). */
 const SUPPORTED_LANGUAGE_CODES = ["en", "pt-BR"] as const;
@@ -39,13 +51,14 @@ function resolveLanguageCode(value: string | undefined): SupportedLanguageCode {
 export default async function ImportarImagensPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cardSetId?: string; idioma?: string }>;
+  searchParams: Promise<{ cardSetId?: string; idioma?: string; fonte?: string }>;
 }) {
   const { denied, supabase } = await requireCatalogoAdmin("Importar Imagens", ImagePlus);
   if (denied) return denied;
 
-  const { cardSetId, idioma } = await searchParams;
+  const { cardSetId, idioma, fonte } = await searchParams;
   const languageCode = resolveLanguageCode(idioma);
+  const source = resolveSource(fonte);
 
   const cardSets = await getCardSetsForImportacaoImagens(supabase, languageCode);
   const colecoesPendentes = cardSets.length;
@@ -65,6 +78,14 @@ export default async function ImportarImagensPage({
       (await getCardSetImagensById(supabase, cardSetId, languageCode)))
     : null;
 
+  // Manifesto (ADR-026, emenda "Segundo ponto de entrada via UI") — só
+  // buscado quando o modo Manual está ativo E uma Coleção está selecionada;
+  // o modo API não precisa dele (fluxo intocado, mesma consulta de sempre).
+  const manualManifest =
+    source === "manual" && selectedCardSet
+      ? await getCartasParaImportacaoManual(supabase, selectedCardSet.id, languageCode)
+      : [];
+
   return (
     <AppShell title="Importar Imagens" icon={ImagePlus}>
       <PageContainer>
@@ -79,12 +100,14 @@ export default async function ImportarImagensPage({
           com o seletor do outro.
         */}
         <ImportarImagensView
-          key={`${languageCode}:${selectedCardSet?.id ?? "none"}`}
+          key={`${source}:${languageCode}:${selectedCardSet?.id ?? "none"}`}
           cardSets={cardSets}
           colecoesPendentes={colecoesPendentes}
           cartasSemImagem={cartasSemImagem}
           selectedCardSet={selectedCardSet}
           languageCode={languageCode}
+          source={source}
+          manualManifest={manualManifest}
         />
       </PageContainer>
     </AppShell>

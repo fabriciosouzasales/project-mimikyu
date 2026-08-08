@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { StatCard, StatsRow } from "@/components/catalogo/stat-card";
 import { ImportProgress } from "@/components/catalogo/importar-tcgdex-view";
+import { ImportarImagensManualPicker } from "@/components/catalogo/importar-imagens-manual-picker";
 import {
   abrirImportacaoImagens,
   executarImportacaoImagens,
@@ -19,8 +20,11 @@ import {
   MAX_IMAGE_IMPORT_RETRY_ATTEMPTS,
   waitForActiveRunToFinish,
 } from "@/lib/catalogo/asset-import-progress-client";
-import type { CatalogoCardSetImagensRow } from "@/lib/catalogo/queries";
+import type { CartaManualImportManifestRow, CatalogoCardSetImagensRow } from "@/lib/catalogo/queries";
 import { cn } from "@/lib/utils";
+
+/** Mesmo domínio de `Fonte` da `page.tsx` — repetido aqui só como tipo (evita import cruzado de Server/Client Component por um literal de 2 valores). */
+type Source = "api" | "manual";
 
 /**
  * Tela dedicada `/catalogo/importar-imagens` (2026-08-02) — substitui o stub
@@ -56,6 +60,8 @@ export function ImportarImagensView({
   cartasSemImagem,
   selectedCardSet,
   languageCode,
+  source,
+  manualManifest,
 }: {
   /** Card Sets com Cards cadastradas e pelo menos uma imagem pendente — filtro aplicado em `page.tsx` via `getCardSetsForImportacaoImagens`. */
   cardSets: CatalogoCardSetImagensRow[];
@@ -64,6 +70,10 @@ export function ImportarImagensView({
   selectedCardSet: CatalogoCardSetImagensRow | null;
   /** Idioma da tela inteira (2026-08-02, suporte EN + PT-BR) — resolvido em `page.tsx` a partir de `?idioma=`. */
   languageCode: string;
+  /** `Fonte` da importação (ADR-026, emenda "Segundo ponto de entrada via UI", 2026-08-08) — `api` preserva integralmente o fluxo existente; `manual` troca a área de ação pelo seletor de arquivos. */
+  source: Source;
+  /** Manifesto da Coleção+idioma selecionada, só populado quando `source === "manual"` (ver `page.tsx`). */
+  manualManifest: CartaManualImportManifestRow[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -81,6 +91,7 @@ export function ImportarImagensView({
   function navigate(cardSetId: string | null) {
     const params = new URLSearchParams();
     params.set("idioma", languageCode);
+    if (source !== "api") params.set("fonte", source);
     if (cardSetId) params.set("cardSetId", cardSetId);
     router.push(`/catalogo/importar-imagens?${params.toString()}`);
   }
@@ -89,7 +100,22 @@ export function ImportarImagensView({
   // a Coleção selecionada pertence à lista de pendências do idioma
   // anterior e pode nem existir na do novo.
   function navigateLanguage(nextLanguageCode: string) {
-    router.push(`/catalogo/importar-imagens?idioma=${nextLanguageCode}`);
+    const params = new URLSearchParams();
+    params.set("idioma", nextLanguageCode);
+    if (source !== "api") params.set("fonte", source);
+    router.push(`/catalogo/importar-imagens?${params.toString()}`);
+  }
+
+  // Troca de Fonte (ADR-026, emenda "Segundo ponto de entrada via UI") —
+  // preserva `?idioma=` (mantém a seleção EN/PT nos dois modos, pedido
+  // explícito), não preserva `?cardSetId=` pelo mesmo motivo de
+  // `navigateLanguage`: cada modo tem sua própria área de ação abaixo do
+  // combobox, sem estado em comum para carregar de um para o outro.
+  function navigateSource(nextSource: Source) {
+    const params = new URLSearchParams();
+    params.set("idioma", languageCode);
+    if (nextSource !== "api") params.set("fonte", nextSource);
+    router.push(`/catalogo/importar-imagens?${params.toString()}`);
   }
 
   function handleImportar() {
@@ -309,8 +335,9 @@ export function ImportarImagensView({
                     onSelect={(id) => navigate(id)}
                   />
                 </div>
+                <FonteToggle value={source} onChange={navigateSource} />
                 <LanguageToggle value={languageCode} onChange={navigateLanguage} />
-                {selectedCardSet && (
+                {selectedCardSet && source === "api" && (
                   <Button type="button" className="h-10 shrink-0" onClick={handleImportar} disabled={started}>
                     Importar Imagens
                   </Button>
@@ -322,6 +349,14 @@ export function ImportarImagensView({
           <div className="space-y-4 border-t border-border pt-4">
             {!selectedCardSet ? (
               <p className="text-sm text-muted-foreground">Selecione uma Coleção acima para continuar.</p>
+            ) : source === "manual" ? (
+              <ImportarImagensManualPicker
+                cardSetId={selectedCardSet.id}
+                cardSetCode={selectedCardSet.code}
+                languageCode={languageCode}
+                manifest={manualManifest}
+                onDone={() => router.refresh()}
+              />
             ) : started ? (
               <ImportProgress
                 mode="images-only"
@@ -364,6 +399,46 @@ export function ImportarImagensView({
  * (`TCGDEX_LANGUAGE_BY_CODE`, `pt-BR` → `pt`) — só o RÓTULO exibido aqui
  * muda, nada no valor que trafega internamente.
  */
+/**
+ * Alternador de Fonte (`API`/`Manual`) — ADR-026, emenda "Segundo ponto de
+ * entrada via UI" (2026-08-08). Mesmo padrão visual de `FonteToggle`
+ * (`importar-cartas-view.tsx`) e do `LanguageToggle` logo abaixo — grupo
+ * segmentado, `inline-flex`. Posicionado entre o combobox e o
+ * `LanguageToggle` (a ordem de leitura fica Coleção → Fonte → Idioma → Ação,
+ * mesma ordem em que cada escolha restringe a próxima).
+ */
+function FonteToggle({ value, onChange }: { value: Source; onChange: (source: Source) => void }) {
+  const options: { code: Source; label: string }[] = [
+    { code: "api", label: "API" },
+    { code: "manual", label: "Manual" },
+  ];
+
+  return (
+    <div
+      className="inline-flex h-10 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-muted p-0.5"
+      role="group"
+      aria-label="Fonte da importação de imagens"
+    >
+      {options.map((option) => (
+        <button
+          key={option.code}
+          type="button"
+          onClick={() => onChange(option.code)}
+          aria-pressed={value === option.code}
+          className={cn(
+            "rounded-[5px] px-3 py-1.5 text-xs font-medium transition-colors",
+            value === option.code
+              ? "bg-surface text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function LanguageToggle({ value, onChange }: { value: string; onChange: (languageCode: string) => void }) {
   const options: { code: string; label: string }[] = [
     { code: "en", label: "EN" },

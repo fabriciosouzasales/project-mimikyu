@@ -1290,6 +1290,65 @@ export async function getCardSetImagensById(
   return { ...cardSet, imagesImportadas, imagesPendentes };
 }
 
+export type CartaManualImportManifestRow = {
+  id: string;
+  collectorNumber: string;
+  name: string;
+  /** Já tem CARD_FRONT primário nesse idioma — mesmo critério de `getImagesImportadasPorCardSet`. Usado pela tela `/catalogo/importar-imagens` (modo Manual) para validar a seleção de arquivos ANTES do upload: sinaliza arquivo cujo Card já tem imagem (aviso de sobrescrita, não bloqueante) e Card sem arquivo correspondente (informativo). */
+  hasImage: boolean;
+};
+
+/**
+ * Manifesto de Cards de um Card Set + idioma, para a validação prévia do
+ * modo Manual da tela `/catalogo/importar-imagens` (ADR-026, emenda
+ * "Segundo ponto de entrada via UI", 2026-08-08) — carregado uma vez ao
+ * selecionar Coleção+idioma, permitindo checar nomes/quantidade/duplicidade/
+ * Card inexistente/Card já com imagem no cliente, sem uma chamada por
+ * arquivo. Mesmo critério de "tem imagem" de `getImagesImportadasPorCardSet`
+ * (`is_primary = true` + `card_asset_type.code = 'CARD_FRONT'` +
+ * `language.code = languageCode`), aqui por Card individual em vez de
+ * agregado por Card Set. Ordenado por `collectorNumber` (ordem numérica,
+ * não lexicográfica — `"10"` depois de `"2"`) para a tabela de revisão
+ * ficar sempre em ordem crescente.
+ */
+export async function getCartasParaImportacaoManual(
+  supabase: SupabaseClient,
+  cardSetId: string,
+  languageCode: string,
+): Promise<CartaManualImportManifestRow[]> {
+  const [cardRows, assetRows] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase
+        .from("card")
+        .select("id, collector_number, name")
+        .eq("card_set_id", cardSetId)
+        .eq("is_active", true)
+        .range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("card_asset")
+        .select("card_id, card!inner(card_set_id), card_asset_type!inner(code), language!inner(code)")
+        .eq("is_primary", true)
+        .eq("card_asset_type.code", "CARD_FRONT")
+        .eq("language.code", languageCode)
+        .eq("card.card_set_id", cardSetId)
+        .range(from, to),
+    ),
+  ]);
+
+  const cardIdsWithImage = new Set((assetRows as { card_id: string }[]).map((row) => row.card_id));
+
+  return (cardRows as { id: string; collector_number: string; name: string }[])
+    .map((card) => ({
+      id: card.id,
+      collectorNumber: card.collector_number,
+      name: card.name,
+      hasImage: cardIdsWithImage.has(card.id),
+    }))
+    .sort((a, b) => a.collectorNumber.localeCompare(b.collectorNumber, undefined, { numeric: true }));
+}
+
 export type CartaCompletaRow = {
   id: string;
   collectorNumber: string;

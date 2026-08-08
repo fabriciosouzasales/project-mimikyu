@@ -62,21 +62,37 @@ Uso:
 Convenção #7 do projeto (validação antes de qualquer execução real) também
 se aplica aqui: rode primeiro com --dry-run para conferir o que seria feito
 sem gravar nada.
+
+Refatorado em 2026-08-08 (ADR-026, emenda "Segundo ponto de entrada via UI"):
+a lógica de validação/resolução (extensão/MIME, Card Set/Card/idioma) foi
+extraída para web/lib/catalogo/manual-asset-import/core.ts — núcleo
+compartilhado, runtime-neutro, também usado pela Server Action da tela
+/catalogo/importar-imagens (modo Manual). Este script continua sendo o único
+lugar que lê arquivos do disco local e grava direto em card_asset via Service
+Role Key (bypassa RLS) — a Server Action grava por admin_persist_manual_
+card_asset() (Query 2120, exige sessão real de administrador, nunca aceitaria
+uma chamada por Service Role Key). Comportamento deste script não mudou; só
+a lógica compartilhada deixou de estar duplicada aqui.
 */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  buildScriptManualAssetStoragePath,
+  findCardAssetTypeByCode,
+  findStorageBucketByCode,
+  MANUAL_ASSET_MIME_TYPES,
+  ManualAssetImportError,
+  extensionOf,
+  resolveManualAssetCard,
+  sha256Hex,
+  stripExtension,
+  uploadManualAssetFile,
+} from "../web/lib/catalogo/manual-asset-import/core.ts";
 
 const MANUAL_IMPORT_ROOT = "assets/manual-imports";
 const ASSET_TYPE_CODE = "CARD_FRONT";
 const STORAGE_BUCKET_CODE = "card-front";
 const SOURCE_CODE = "MANUAL";
-
-const MIME_TYPES: Record<string, string> = {
-  png: "image/png",
-  webp: "image/webp",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-};
 
 type CliArgs = {
   set?: string;
@@ -111,99 +127,12 @@ function requireEnv(name: string): string {
   return value;
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function extensionOf(fileName: string): string {
-  const parts = fileName.split(".");
-
-  return parts[parts.length - 1].toLowerCase();
-}
-
-async function findCardSetByCode(supabase: any, code: string) {
-  const { data, error } = await supabase
-    .from("card_set")
-    .select("id, code, name")
-    .eq("code", code)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`CARD_SET_QUERY_FAILED: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function findCardByCollectorNumber(
-  supabase: any,
-  cardSetId: string,
-  collectorNumber: string,
-) {
-  const { data, error } = await supabase
-    .from("card")
-    .select("id, collector_number")
-    .eq("card_set_id", cardSetId)
-    .eq("collector_number", collectorNumber)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`CARD_QUERY_FAILED: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function findLanguageByCode(supabase: any, code: string) {
-  const { data, error } = await supabase
-    .from("language")
-    .select("id, code")
-    .eq("code", code)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`LANGUAGE_QUERY_FAILED: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function findCardAssetTypeByCode(supabase: any, code: string) {
-  const { data, error } = await supabase
-    .from("card_asset_type")
-    .select("id, code")
-    .eq("code", code)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`CARD_ASSET_TYPE_QUERY_FAILED: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function findStorageBucketByCode(supabase: any, code: string) {
-  const { data, error } = await supabase
-    .from("storage_bucket")
-    .select("id, code")
-    .eq("code", code)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`STORAGE_BUCKET_QUERY_FAILED: ${error.message}`);
-  }
-
-  return data;
-}
-
 // Mesma estratégia de idempotência de services/database.ts::upsertCardAsset —
 // localizar pela chave natural (card_id + asset_type_id + language_id +
 // storage_bucket_id) em vez de depender de um nome de constraint UNIQUE.
+// Gravação direta na tabela (Service Role Key, bypassa RLS) — deliberadamente
+// NÃO compartilhada com a web, que grava por admin_persist_manual_card_asset()
+// (Query 2120, exige sessão real de administrador). Ver nota no cabeçalho.
 async function upsertCardAsset(
   supabase: any,
   payload: {
@@ -229,7 +158,7 @@ async function upsertCardAsset(
     .maybeSingle();
 
   if (findError) {
-    throw new Error(`CARD_ASSET_QUERY_FAILED: ${findError.message}`);
+    throw new ManualAssetImportError("CARD_ASSET_QUERY_FAILED", findError.message);
   }
 
   const record = {
@@ -262,7 +191,7 @@ async function upsertCardAsset(
       .single();
 
     if (error) {
-      throw new Error(`CARD_ASSET_UPDATE_FAILED: ${error.message}`);
+      throw new ManualAssetImportError("CARD_ASSET_UPDATE_FAILED", error.message);
     }
 
     return { data, wasUpdate: true };
@@ -275,7 +204,7 @@ async function upsertCardAsset(
     .single();
 
   if (error) {
-    throw new Error(`CARD_ASSET_INSERT_FAILED: ${error.message}`);
+    throw new ManualAssetImportError("CARD_ASSET_INSERT_FAILED", error.message);
   }
 
   return { data, wasUpdate: false };
@@ -300,10 +229,7 @@ async function processFile(
   fileName: string,
   dryRun: boolean,
 ): Promise<ProcessResult> {
-  const collectorNumber = fileName.slice(
-    0,
-    fileName.length - extensionOf(fileName).length - 1,
-  );
+  const collectorNumber = stripExtension(fileName);
 
   const base: Omit<ProcessResult, "success"> = {
     set: cardSetCode,
@@ -313,62 +239,32 @@ async function processFile(
   };
 
   try {
-    const cardSet = await findCardSetByCode(
-      supabase,
-      cardSetCode.toUpperCase(),
-    );
-
-    if (!cardSet) {
-      throw new Error(`CARD_SET_NOT_FOUND: ${cardSetCode.toUpperCase()}`);
-    }
-
-    const card = await findCardByCollectorNumber(
-      supabase,
-      cardSet.id,
+    const { card, language } = await resolveManualAssetCard(supabase, {
+      cardSetCode,
       collectorNumber,
-    );
+      languageCode,
+    });
 
-    if (!card) {
-      throw new Error(
-        `CARD_NOT_FOUND: ${cardSetCode.toUpperCase()} #${collectorNumber}`,
-      );
-    }
-
-    const language = await findLanguageByCode(supabase, languageCode);
-
-    if (!language) {
-      throw new Error(`LANGUAGE_NOT_FOUND: ${languageCode}`);
-    }
-
-    const assetType = await findCardAssetTypeByCode(
-      supabase,
-      ASSET_TYPE_CODE,
-    );
-
+    const assetType = await findCardAssetTypeByCode(supabase, ASSET_TYPE_CODE);
     if (!assetType) {
-      throw new Error(`CARD_ASSET_TYPE_NOT_FOUND: ${ASSET_TYPE_CODE}`);
+      throw new ManualAssetImportError("CARD_ASSET_TYPE_NOT_FOUND", ASSET_TYPE_CODE);
     }
 
-    const storageBucket = await findStorageBucketByCode(
-      supabase,
-      STORAGE_BUCKET_CODE,
-    );
-
+    const storageBucket = await findStorageBucketByCode(supabase, STORAGE_BUCKET_CODE);
     if (!storageBucket) {
-      throw new Error(`STORAGE_BUCKET_NOT_FOUND: ${STORAGE_BUCKET_CODE}`);
+      throw new ManualAssetImportError("STORAGE_BUCKET_NOT_FOUND", STORAGE_BUCKET_CODE);
     }
 
     const fileBytes = await Deno.readFile(filePath);
     const extension = extensionOf(fileName);
-    const mimeType = MIME_TYPES[extension];
+    const mimeType = MANUAL_ASSET_MIME_TYPES[extension];
 
     if (!mimeType) {
-      throw new Error(`UNSUPPORTED_EXTENSION: ${extension}`);
+      throw new ManualAssetImportError("UNSUPPORTED_EXTENSION", extension);
     }
 
     const checksum = await sha256Hex(fileBytes);
-    const storagePath =
-      `${cardSetCode.toLowerCase()}/${languageCode}/${collectorNumber}.${extension}`;
+    const storagePath = buildScriptManualAssetStoragePath(cardSetCode, languageCode, collectorNumber, extension);
 
     if (dryRun) {
       return {
@@ -379,16 +275,7 @@ async function processFile(
       };
     }
 
-    const { error: uploadError } = await supabase.storage
-      .from(storageBucket.code)
-      .upload(storagePath, fileBytes, {
-        contentType: mimeType,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      throw new Error(`STORAGE_UPLOAD_FAILED: ${uploadError.message}`);
-    }
+    await uploadManualAssetFile(supabase, storageBucket.code, storagePath, fileBytes, mimeType, { upsert: true });
 
     const { wasUpdate } = await upsertCardAsset(supabase, {
       card_id: card.id,
