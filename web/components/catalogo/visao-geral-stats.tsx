@@ -1,4 +1,5 @@
 import { AlertTriangle, CreditCard, Image, Layers } from "lucide-react";
+import Link from "next/link";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
 import { StatCard, StatsRow } from "@/components/catalogo/stat-card";
 import type { EstadoDoCatalogo as EstadoDoCatalogoData } from "@/lib/catalogo/queries";
@@ -54,14 +55,27 @@ function pluralizar(quantidade: number, singular: string, plural: string): strin
  *   headline da StatCard "Pendências" acima (ajuste explícito de
  *   Fabrício, para não duplicar o mesmo número em dois lugares).
  *
- * Sem drill-down ainda (pedido explícito de Fabrício) — nada aqui embaixo
- * é link.
+ * Drill-down (2026-08-08, mesmo dia — desenho apresentado e aprovado por
+ * Fabrício antes desta implementação): "Coleções"→`/catalogo/card-sets`,
+ * "Cartas catalogadas"→`/catalogo/cartas`, "Cobertura"→
+ * `/catalogo/importar-imagens` (destinos gerais, sem filtro — nenhuma das
+ * três telas tem um parâmetro de "pendência" próprio hoje). "Pendências"→
+ * `/catalogo/importacoes?atencao=1` (único com filtro real, pré-requisito
+ * explícito: a extensão de `/catalogo/importacoes` para incluir
+ * `catalog_import_job`, implementada antes desta rodada). Cada linha de
+ * "Cobertura por idioma" linka para `/catalogo/importar-imagens?idioma=
+ * {code}` — mesmo parâmetro que a própria tela já usa para filtrar Coleções
+ * pendentes por idioma (ver `importar-imagens/page.tsx`). Os três segmentos
+ * de "Saúde do catálogo" linkam para a tela onde a lacuna correspondente é
+ * resolvida: Coleções pendentes→`/catalogo/card-sets`, Cartas pendentes→
+ * `/catalogo/importar-cartas`, Imagens pendentes→`/catalogo/importar-imagens`
+ * (também sem filtro — mesmo motivo das StatCards principais).
  *
- * Ajuste do mesmo dia (aprovação do layout acima): removida a legenda solta
- * "N Coleções com imagens pendentes" que ficava entre a linha principal e o
- * card de Cobertura por idioma — essa informação já pertence semanticamente
- * a "Saúde do catálogo" (coleções pendentes), não precisa de uma segunda
- * linha isolada logo acima.
+ * Ajuste do mesmo dia (aprovação do layout acima, antes do drill-down):
+ * removida a legenda solta "N Coleções com imagens pendentes" que ficava
+ * entre a linha principal e o card de Cobertura por idioma — essa
+ * informação já pertence semanticamente a "Saúde do catálogo" (coleções
+ * pendentes), não precisa de uma segunda linha isolada logo acima.
  */
 export function VisaoGeralStats({ estado }: { estado: EstadoDoCatalogoData }) {
   const coberturaPercentual =
@@ -77,14 +91,22 @@ export function VisaoGeralStats({ estado }: { estado: EstadoDoCatalogoData }) {
           value={formatNumber(estado.cardSetsCatalogados)}
           caption="coleções catalogadas"
           icon={Layers}
+          href="/catalogo/card-sets"
         />
         <StatCard
           label="Cartas catalogadas"
           value={formatNumber(estado.cartasCatalogadas)}
           caption="cartas no catálogo"
           icon={CreditCard}
+          href="/catalogo/cartas"
         />
-        <StatCard label="Cobertura" value={`${coberturaPercentual}%`} caption="com imagens completas" icon={Image} />
+        <StatCard
+          label="Cobertura"
+          value={`${coberturaPercentual}%`}
+          caption="com imagens completas"
+          icon={Image}
+          href="/catalogo/importar-imagens"
+        />
         <StatCard
           label="Pendências"
           value={formatNumber(estado.importacoesAguardandoRevisaoOuErro)}
@@ -107,7 +129,11 @@ export function VisaoGeralStats({ estado }: { estado: EstadoDoCatalogoData }) {
                   ? Math.round((cobertura.cardsComImagem / estado.cartasCatalogadas) * 100)
                   : 0;
               return (
-                <div key={cobertura.languageCode} className="space-y-1">
+                <Link
+                  key={cobertura.languageCode}
+                  href={`/catalogo/importar-imagens?idioma=${encodeURIComponent(cobertura.languageCode)}`}
+                  className="block space-y-1 rounded-md -mx-1 px-1 py-0.5 transition-colors hover:bg-surface-muted"
+                >
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-medium text-foreground">
                       {LANGUAGE_DISPLAY_NAME[cobertura.languageCode] ?? cobertura.languageCode}
@@ -119,7 +145,7 @@ export function VisaoGeralStats({ estado }: { estado: EstadoDoCatalogoData }) {
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
                     <div className="h-full rounded-full bg-primary" style={{ width: `${percentual}%` }} />
                   </div>
-                </div>
+                </Link>
               );
             })}
           </PanelContent>
@@ -129,13 +155,20 @@ export function VisaoGeralStats({ estado }: { estado: EstadoDoCatalogoData }) {
       <div className="space-y-1">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Saúde do catálogo</p>
         <p className="text-xs text-muted-foreground">
-          {formatNumber(estado.cardSetsComPendencia)}{" "}
-          {pluralizar(estado.cardSetsComPendencia, "coleção pendente", "coleções pendentes")}
+          <Link href="/catalogo/card-sets" className="hover:text-foreground hover:underline">
+            {formatNumber(estado.cardSetsComPendencia)}{" "}
+            {pluralizar(estado.cardSetsComPendencia, "coleção pendente", "coleções pendentes")}
+          </Link>
           {" · "}
-          {formatNumber(estado.cartasPendentes)} {pluralizar(estado.cartasPendentes, "carta pendente", "cartas pendentes")}
+          <Link href="/catalogo/importar-cartas" className="hover:text-foreground hover:underline">
+            {formatNumber(estado.cartasPendentes)}{" "}
+            {pluralizar(estado.cartasPendentes, "carta pendente", "cartas pendentes")}
+          </Link>
           {" · "}
-          {formatNumber(estado.imagensPendentes)}{" "}
-          {pluralizar(estado.imagensPendentes, "imagem pendente", "imagens pendentes")}
+          <Link href="/catalogo/importar-imagens" className="hover:text-foreground hover:underline">
+            {formatNumber(estado.imagensPendentes)}{" "}
+            {pluralizar(estado.imagensPendentes, "imagem pendente", "imagens pendentes")}
+          </Link>
         </p>
       </div>
     </div>

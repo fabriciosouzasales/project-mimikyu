@@ -2175,47 +2175,31 @@ export async function getRaridades(supabase: SupabaseClient): Promise<RaridadeRo
   }));
 }
 
-export type ContagemImportJobsPorStatus = Record<string, number>;
-
 /**
- * Contagem de catalog_import_job por status (Sprint Gerencial 1, task de
- * decidir a origem desta métrica). Direto via PostgREST, sem view
- * dedicada — decisão de Fabrício: a cardinalidade de catalog_import_job é
- * ordens de grandeza menor que card (um job por execução de importação,
- * não por Card cadastrada), então uma leitura de `status` sem filtro,
- * agrupada em memória, já basta sem reproduzir o padrão de view canônica
- * usado para catalog_card_set_metrics (que existe por reutilização entre
- * telas, não por volume). Sem paginação pelo mesmo motivo.
- */
-export async function getContagemImportJobsPorStatus(supabase: SupabaseClient): Promise<ContagemImportJobsPorStatus> {
-  const { data, error } = await supabase.from("catalog_import_job").select("status");
-
-  if (error || !data) {
-    return {};
-  }
-
-  const contagem: ContagemImportJobsPorStatus = {};
-  for (const row of data as { status: string }[]) {
-    contagem[row.status] = (contagem[row.status] ?? 0) + 1;
-  }
-  return contagem;
-}
-
-/**
- * Estados de catalog_import_job que representam pendência real de atenção
- * administrativa: STAGED/CONFIRMING aguardam decisão explícita
+ * Estados de catalog_import_job que, por si só (independente de contagem de
+ * linhas), já representam pendência de atenção administrativa: STAGED/
+ * CONFIRMING aguardam decisão explícita
  * (admin_decide_catalog_import_row()/admin_confirm_catalog_import());
  * FAILED e COMPLETED_WITH_ERRORS indicam falha total ou parcial.
  * RECEIVED/PROCESSING são trânsito normal do pipeline, não pendência;
- * COMPLETED/CANCELLED são estados finais já resolvidos. Mesmo raciocínio
- * de status já usado em RAIDADE_JOB_STATUSES_REVALIDAVEIS logo abaixo,
- * com FAILED incluído a mais (revalidação de Raridade não cobre jobs que
- * falharam por completo).
+ * CANCELLED é estado final já resolvido (nunca produzido hoje por nenhuma
+ * função — ver ck_catalog_import_job_status — mas listado fora por
+ * completude do domínio). Mesmo raciocínio de status já usado em
+ * RAIDADE_JOB_STATUSES_REVALIDAVEIS logo abaixo, com FAILED incluído a
+ * mais (revalidação de Raridade não cobre jobs que falharam por completo).
  *
- * Exportada (2026-08-08, Sprint Gerencial 1) para ser reaproveitada pelo
- * filtro `?atencao=1` de `/catalogo/importacoes` — mesmo critério do
- * drill-down do StatCard "Pendências" da Visão Geral, sem duplicar a lista
- * de status em dois lugares.
+ * Corrigido em 2026-08-08 (mesma Sprint, revisão de semântica pedida por
+ * Fabrício): estes quatro status sozinhos NÃO bastam — um job antigo pode
+ * estar em qualquer um deles só porque foi superado por uma tentativa
+ * posterior já resolvida para a mesma Coleção (achado real: os 9 jobs que
+ * a métrica antiga contava em produção eram todos, sem exceção, tentativas
+ * anteriores a um job `COMPLETED` mais recente da mesma Coleção — auditados
+ * linha a linha via Query 2822 antes desta implementação). Ver
+ * `catalogImportJobExigeAtencao()` abaixo para a regra completa, que
+ * combina esta lista com "é o job mais recente da Coleção" e com o caso
+ * `COMPLETED` incompleto (ex.: SV2 em 2026-08-01, job `COMPLETED` com
+ * `total_rows > inserted+updated+unchanged`, documentado em
+ * `getLatestImportJobIncompleteFlags()`).
  */
 export const JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO = [
   "STAGED",
@@ -2224,9 +2208,75 @@ export const JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO = [
   "FAILED",
 ] as const;
 
+/**
+ * Regra única de "exige atenção" para um catalog_import_job — fonte lógica
+ * compartilhada por `getImportacoesAguardandoRevisaoOuErro()` (contagem do
+ * StatCard "Pendências") e pelo filtro `?atencao=1` de
+ * `/catalogo/importacoes` (drill-down), para os dois nunca divergirem.
+ * Não decide sozinha se o job é o mais recente da Coleção — isso é
+ * responsabilidade de quem chama (`getCatalogImportJobIdsExigindoAtencao()`
+ * abaixo), que já filtra para só o job mais recente por `card_set_id` antes
+ * de aplicar esta regra.
+ */
+function catalogImportJobExigeAtencao(status: string, totalRows: number, processado: number): boolean {
+  if ((JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO as readonly string[]).includes(status)) return true;
+  return status === "COMPLETED" && processado < totalRows;
+}
+
+/**
+ * IDs dos catalog_import_job que exigem atenção HOJE — único ponto de
+ * cálculo desta métrica (2026-08-08, correção de semântica pedida por
+ * Fabrício depois da Query 2822 revelar que a métrica anterior, baseada só
+ * em status, contava jobs antigos já superados por uma tentativa posterior
+ * resolvida). Considera só o job MAIS RECENTE por `card_set_id`
+ * (`created_at DESC`, primeira ocorrência — mesmo padrão já usado por
+ * `getLatestImportJobIncompleteFlags()`) e aplica `catalogImportJobExigeAtencao()`
+ * só a ele; jobs mais antigos da mesma Coleção nunca contam, não importa o
+ * status. Sem view nova (mesma decisão de escopo já tomada para esta
+ * métrica): `catalog_import_job` tem cardinalidade baixa (um job por
+ * execução, não por Card), leitura completa + redução em memória basta.
+ *
+ * Retorna o `Set` de `job.id` (não só a contagem) para o filtro `?atencao=1`
+ * de `/catalogo/importacoes` poder reutilizar exatamente o mesmo cálculo —
+ * `getImportacoesAguardandoRevisaoOuErro()` abaixo só conta `ids.size`.
+ */
+export async function getCatalogImportJobIdsExigindoAtencao(supabase: SupabaseClient): Promise<Set<string>> {
+  const rows = await fetchAllRows((from, to) =>
+    supabase
+      .from("catalog_import_job")
+      .select("id, card_set_id, status, total_rows, inserted_rows, updated_rows, unchanged_rows, created_at")
+      .order("created_at", { ascending: false })
+      .range(from, to),
+  );
+
+  const idsExigindoAtencao = new Set<string>();
+  const cardSetsVistos = new Set<string>();
+  for (const job of rows as {
+    id: string;
+    card_set_id: string;
+    status: string;
+    total_rows: number;
+    inserted_rows: number;
+    updated_rows: number;
+    unchanged_rows: number;
+  }[]) {
+    // Primeira ocorrência de cada card_set_id é a mais recente (ordenado
+    // desc acima) — jobs mais antigos da mesma Coleção são ignorados,
+    // mesmo que estejam em um status que, isolado, pareceria pendente.
+    if (cardSetsVistos.has(job.card_set_id)) continue;
+    cardSetsVistos.add(job.card_set_id);
+
+    const processado = job.inserted_rows + job.updated_rows + job.unchanged_rows;
+    if (catalogImportJobExigeAtencao(job.status, job.total_rows, processado)) {
+      idsExigindoAtencao.add(job.id);
+    }
+  }
+  return idsExigindoAtencao;
+}
+
 export async function getImportacoesAguardandoRevisaoOuErro(supabase: SupabaseClient): Promise<number> {
-  const contagem = await getContagemImportJobsPorStatus(supabase);
-  return JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO.reduce((total, status) => total + (contagem[status] ?? 0), 0);
+  const ids = await getCatalogImportJobIdsExigindoAtencao(supabase);
+  return ids.size;
 }
 
 export type RaridadePendenteRow = {

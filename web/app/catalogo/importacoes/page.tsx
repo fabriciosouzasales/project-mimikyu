@@ -5,7 +5,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catal
 import { StateBadge } from "@/components/catalogo/state-badge";
 import type { StateTone } from "@/components/catalogo/state-badge";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
-import { getImportacoes, JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO } from "@/lib/catalogo/queries";
+import { getCatalogImportJobIdsExigindoAtencao, getImportacoes } from "@/lib/catalogo/queries";
 import type { ImportacaoPipeline } from "@/lib/catalogo/queries";
 
 const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
@@ -46,16 +46,25 @@ const PIPELINE_LABEL: Record<ImportacaoPipeline, string> = {
  * para `catalog_import_job`, que não tem esse conceito).
  *
  * `?atencao=1` (2026-08-08, mesma Sprint): destino do drill-down do StatCard
- * "Pendências" da Visão Geral. Filtra pelos mesmos status agregados por
- * `getImportacoesAguardandoRevisaoOuErro()` (`JOB_STATUSES_AGUARDANDO_
- * REVISAO_OU_ERRO`, exportada de `queries.ts` para não duplicar a lista) —
- * garante que o número mostrado na Visão Geral e as linhas exibidas aqui
- * sejam sempre o mesmo critério. Filtro aplicado em memória sobre o
- * histórico completo já buscado (sem query nova), com um link "Limpar
+ * "Pendências" da Visão Geral. `importacoesAguardandoRevisaoOuErro` conta
+ * SÓ `catalog_import_job` (pipeline CARTAS) — `getImportacoesAguardandoRevisaoOuErro()`
+ * nunca leu `asset_import_run`.
+ *
+ * Corrigido em 2026-08-08 (revisão de semântica, mesma Sprint): o filtro
+ * não checa mais status isoladamente — reutiliza
+ * `getCatalogImportJobIdsExigindoAtencao()` (`queries.ts`), a mesma fonte
+ * lógica do StatCard "Pendências". Checar só o texto do status vazaria
+ * linhas de IMAGENS com o mesmo status de `catalog_import_job` (bug real já
+ * corrigido antes) e, sem a regra de "job mais recente por Coleção", também
+ * contaria jobs antigos já superados por uma tentativa posterior resolvida
+ * — achado real validado contra produção pela Query 2822 antes desta
+ * implementação (os 9 jobs que a métrica antiga contava eram todos
+ * tentativas anteriores a um job `COMPLETED` mais recente da mesma
+ * Coleção). Filtro aplicado em memória sobre o histórico completo já
+ * buscado (`ids.has(run.id)` — `run.id` de uma linha CARTAS É o
+ * `catalog_import_job.id`, ver `getImportacoes()`), com um link "Limpar
  * filtro" para voltar à lista inteira.
  */
-const STATUSES_ATENCAO: readonly string[] = JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO;
-
 export default async function ImportacoesPage({
   searchParams,
 }: {
@@ -67,10 +76,14 @@ export default async function ImportacoesPage({
   const { atencao } = await searchParams;
   const filtroAtencao = atencao === "1";
 
-  const todasImportacoes = await getImportacoes(supabase);
-  const importacoes = filtroAtencao
-    ? todasImportacoes.filter((run) => STATUSES_ATENCAO.includes(run.status))
-    : todasImportacoes;
+  const [todasImportacoes, idsExigindoAtencao] = await Promise.all([
+    getImportacoes(supabase),
+    filtroAtencao ? getCatalogImportJobIdsExigindoAtencao(supabase) : Promise.resolve(null),
+  ]);
+  const importacoes =
+    filtroAtencao && idsExigindoAtencao
+      ? todasImportacoes.filter((run) => run.pipeline === "CARTAS" && idsExigindoAtencao.has(run.id))
+      : todasImportacoes;
 
   return (
     <AppShell title="Histórico de importações" icon={History}>
