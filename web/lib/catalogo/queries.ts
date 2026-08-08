@@ -1943,6 +1943,50 @@ export async function getRaridades(supabase: SupabaseClient): Promise<RaridadeRo
   }));
 }
 
+export type ContagemImportJobsPorStatus = Record<string, number>;
+
+/**
+ * Contagem de catalog_import_job por status (Sprint Gerencial 1, task de
+ * decidir a origem desta métrica). Direto via PostgREST, sem view
+ * dedicada — decisão de Fabrício: a cardinalidade de catalog_import_job é
+ * ordens de grandeza menor que card (um job por execução de importação,
+ * não por Card cadastrada), então uma leitura de `status` sem filtro,
+ * agrupada em memória, já basta sem reproduzir o padrão de view canônica
+ * usado para catalog_card_set_metrics (que existe por reutilização entre
+ * telas, não por volume). Sem paginação pelo mesmo motivo.
+ */
+export async function getContagemImportJobsPorStatus(supabase: SupabaseClient): Promise<ContagemImportJobsPorStatus> {
+  const { data, error } = await supabase.from("catalog_import_job").select("status");
+
+  if (error || !data) {
+    return {};
+  }
+
+  const contagem: ContagemImportJobsPorStatus = {};
+  for (const row of data as { status: string }[]) {
+    contagem[row.status] = (contagem[row.status] ?? 0) + 1;
+  }
+  return contagem;
+}
+
+/**
+ * Estados de catalog_import_job que representam pendência real de atenção
+ * administrativa: STAGED/CONFIRMING aguardam decisão explícita
+ * (admin_decide_catalog_import_row()/admin_confirm_catalog_import());
+ * FAILED e COMPLETED_WITH_ERRORS indicam falha total ou parcial.
+ * RECEIVED/PROCESSING são trânsito normal do pipeline, não pendência;
+ * COMPLETED/CANCELLED são estados finais já resolvidos. Mesmo raciocínio
+ * de status já usado em RAIDADE_JOB_STATUSES_REVALIDAVEIS logo abaixo,
+ * com FAILED incluído a mais (revalidação de Raridade não cobre jobs que
+ * falharam por completo).
+ */
+const JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO = ["STAGED", "CONFIRMING", "COMPLETED_WITH_ERRORS", "FAILED"] as const;
+
+export async function getImportacoesAguardandoRevisaoOuErro(supabase: SupabaseClient): Promise<number> {
+  const contagem = await getContagemImportJobsPorStatus(supabase);
+  return JOB_STATUSES_AGUARDANDO_REVISAO_OU_ERRO.reduce((total, status) => total + (contagem[status] ?? 0), 0);
+}
+
 export type RaridadePendenteRow = {
   /** Texto exatamente como veio da fonte externa (raw_data.rarity). */
   rawValue: string;
