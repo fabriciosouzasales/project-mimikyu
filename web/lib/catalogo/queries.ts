@@ -90,6 +90,8 @@ type CardSetRow = {
   set_type: string;
   total_set_size: number;
   logo_storage_path: string | null;
+  release_order: number;
+  release_date: string | null;
   expansion: { code: string; name: string; game: { code: string; name: string } | null } | null;
 };
 
@@ -134,10 +136,16 @@ export type CardSetOverviewRow = {
   setType: string;
   totalSetSize: number;
   cardsCatalogados: number;
+  /** Cards cadastradas com imagem canônica em algum idioma ativo (catalog_card_set_metrics, Query 2123/2124) — o "atual" da cobertura de imagem, "esperado" é `cardsCatalogados` (só cards já cadastradas podem ter imagem). */
+  cardsComImagem: number;
   temImagensCompletas: boolean;
-  temLogo: boolean;
+  /** URL assinada (bucket privado `card-set-logo`, 1h) — `null` quando a Coleção não tem logo cadastrada. */
+  logoUrl: string | null;
+  expansionCode: string | null;
   expansionName: string | null;
   gameName: string | null;
+  releaseDate: string | null;
+  releaseOrder: number;
 };
 
 export type DistribuicaoPorRaridade = {
@@ -149,6 +157,8 @@ export type DistribuicaoPorRaridade = {
 export type AtividadeRecenteItem = {
   id: string;
   runCode: string;
+  /** CARTAS (catalog_import_job, ADR-024) ou IMAGENS (asset_import_run) — mesmo domínio de `ImportacaoPipeline`, ver abaixo. */
+  pipeline: ImportacaoPipeline;
   cardSetCode: string | null;
   cardSetName: string | null;
   languageCode: string | null;
@@ -184,8 +194,9 @@ async function fetchCardsComCobertura(supabase: SupabaseClient): Promise<CardRow
 async function fetchCardSets(supabase: SupabaseClient): Promise<CardSetRow[]> {
   const { data, error } = await supabase
     .from("card_set")
-    .select("id, code, name, set_type, total_set_size, logo_storage_path, expansion(code, name, game(code, name))")
-    .order("release_order", { ascending: true });
+    .select(
+      "id, code, name, set_type, total_set_size, logo_storage_path, release_order, release_date, expansion(code, name, game(code, name))",
+    );
 
   if (error || !data) {
     return [];
@@ -283,12 +294,36 @@ export async function getEstadoDoCatalogo(supabase: SupabaseClient): Promise<Est
   };
 }
 
+/**
+ * Ordena por data de lançamento decrescente, com o número de ordem
+ * (`release_order`) também decrescente como desempate — mesma dupla chave já
+ * usada por `sortCatalogoCardSets()` (caminho sem filtro de Jogo/Expansão),
+ * agora replicada aqui a pedido de Fabrício (2026-08-08) para a tabela de
+ * Coleções da Visão Geral. Coleções com `release_date` vêm sempre antes das
+ * que não têm (mesmo critério já aplicado em `sortCatalogoCardSets()`).
+ */
+function sortCardSetsOverview(rows: CardSetOverviewRow[]): CardSetOverviewRow[] {
+  return [...rows].sort((a, b) => {
+    if (a.releaseDate && b.releaseDate && a.releaseDate !== b.releaseDate) {
+      return b.releaseDate.localeCompare(a.releaseDate);
+    }
+    if (a.releaseDate && !b.releaseDate) return -1;
+    if (!a.releaseDate && b.releaseDate) return 1;
+    return b.releaseOrder - a.releaseOrder;
+  });
+}
+
 export async function getCardSetsOverview(supabase: SupabaseClient): Promise<CardSetOverviewRow[]> {
   const [cardSets, metrics] = await Promise.all([fetchCardSets(supabase), fetchCardSetMetrics(supabase)]);
 
+  const logoUrls = await getCardSetLogoUrls(
+    supabase,
+    cardSets.map((set) => set.logo_storage_path),
+  );
+
   const metricsPorCardSetId = new Map(metrics.map((row) => [row.card_set_id, row]));
 
-  return cardSets.map((set) => {
+  const rows = cardSets.map((set) => {
     const metric = metricsPorCardSetId.get(set.id);
     const cardsCatalogados = metric?.cards_cadastradas ?? 0;
     const cardsComImagem = metric?.cards_com_imagem_algum_idioma ?? 0;
@@ -298,14 +333,30 @@ export async function getCardSetsOverview(supabase: SupabaseClient): Promise<Car
       setType: set.set_type,
       totalSetSize: set.total_set_size,
       cardsCatalogados,
+      cardsComImagem,
       temImagensCompletas: cardsCatalogados > 0 && cardsCatalogados === cardsComImagem,
-      temLogo: !!set.logo_storage_path,
+      logoUrl: set.logo_storage_path ? (logoUrls.get(set.logo_storage_path) ?? null) : null,
+      expansionCode: set.expansion?.code ?? null,
       expansionName: set.expansion?.name ?? null,
       gameName: set.expansion?.game?.name ?? null,
+      releaseDate: set.release_date,
+      releaseOrder: set.release_order,
     };
   });
+
+  return sortCardSetsOverview(rows);
 }
 
+/**
+ * Distribuição de Cards por Raridade. Consumida pela Visão Geral
+ * (`/catalogo`) até 2026-08-08 — removida de lá por pedido de Fabrício
+ * ("análise de distribuição sem contexto operacional nessa página") e
+ * reservada como candidata a relatório da futura Central de Relatórios
+ * (Módulo Gerencial, `ROADMAP.md`, Trilha 4). Função e componente
+ * `Distribuicoes` (`web/components/catalogo/distribuicoes.tsx`)
+ * deliberadamente mantidos, sem nenhum consumidor no momento — não é código
+ * morto por engano, é capacidade preservada para reuso.
+ */
 export async function getDistribuicaoPorRaridade(supabase: SupabaseClient): Promise<DistribuicaoPorRaridade[]> {
   const cards = await fetchCardsComCobertura(supabase);
 
@@ -1951,11 +2002,13 @@ type CatalogImportJobActivityRow = {
 /**
  * Traduz `catalog_import_job.source` ('TCGDEX'/'PDF') para o vocabulário de
  * `execution_context` já usado por asset_import_run ('MANUAL'/'API'/
- * 'SCHEDULED'/'SYSTEM'), reaproveitando o rótulo "API Externa" já existente
- * em `EXECUTION_CONTEXT_LABEL` (atividade-recente.tsx, não alterado nesta
- * rodada) em vez de introduzir um rótulo novo. 'PDF' fica sem tradução
- * (canal encerrado, ADR-024 Ciclos 3/4) — aparece com o texto bruto, que o
- * componente já trata com um fallback gracioso.
+ * 'SCHEDULED'/'SYSTEM'), em vez de introduzir um vocabulário novo — mesmo
+ * campo `executionContext` de `AtividadeRecenteItem`/`ImportacaoRow`,
+ * carregado para consumidores futuros mesmo que a Visão Geral (2026-08-08)
+ * tenha parado de exibi-lo diretamente (ver coluna "Operação",
+ * `atividade-recente.tsx` — passou a distinguir pipeline/idioma, não mais
+ * `execution_context`). 'PDF' fica sem tradução (canal encerrado, ADR-024
+ * Ciclos 3/4) — aparece com o texto bruto onde ainda for exibido.
  */
 function mapCatalogImportJobSourceParaExecutionContext(source: string): string {
   return source === "TCGDEX" ? "API" : source;
@@ -2022,6 +2075,21 @@ function calcularContadoresCatalogImportJob(job: {
  * quando houver linhas puladas; suficiente para o log, não uma
  * reconciliação exata (essa granularidade completa já existe na tela de
  * Revisão do próprio job).
+ *
+ * `pipeline` (2026-08-08, ajuste de coluna "Operação" pedido por Fabrício)
+ * — mesmo campo/domínio de `ImportacaoPipeline` já usado por `getImportacoes()`,
+ * marcando explicitamente cada item como `"IMAGENS"` (asset_import_run) ou
+ * `"CARTAS"` (catalog_import_job). Antes, a única distinção visível na
+ * Visão Geral era `executionContext` (Manual/API Externa/Agendado/Sistema),
+ * que não diz qual pipeline gerou o evento — dois eventos de pipelines
+ * diferentes por `execution_context = 'API'` ficavam indistinguíveis.
+ *
+ * Este log é deliberadamente cronológico e sem deduplicação: ao contrário
+ * de `getCatalogImportJobIdsExigindoAtencao()` (StatCard "Pendências"), que
+ * só considera o job mais recente por Coleção, a Atividade Recente mantém
+ * toda execução — inclusive tentativas antigas já superadas por uma
+ * posterior bem-sucedida (falhas históricas) — por ser um log de auditoria,
+ * não um indicador de pendência atual.
  */
 export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): Promise<AtividadeRecenteItem[]> {
   const [assetImportRunResult, catalogImportJobResult] = await Promise.all([
@@ -2046,6 +2114,7 @@ export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): 
   ).map((run) => ({
     id: run.id,
     runCode: run.run_code,
+    pipeline: "IMAGENS" as const,
     cardSetCode: run.card_set?.code ?? null,
     cardSetName: run.card_set?.name ?? null,
     languageCode: run.language?.code ?? null,
@@ -2062,6 +2131,7 @@ export async function getAtividadeRecente(supabase: SupabaseClient, limit = 8): 
   ).map((job) => ({
     id: job.id,
     runCode: sintetizarRunCodeCatalogImportJob(job.id),
+    pipeline: "CARTAS" as const,
     cardSetCode: job.card_set?.code ?? null,
     cardSetName: job.card_set?.name ?? null,
     languageCode: null,

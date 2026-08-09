@@ -37,11 +37,10 @@ const STATUS_DOT_CLASSES: Record<StateTone, string> = {
   muted: "bg-muted-foreground/40",
 };
 
-const EXECUTION_CONTEXT_LABEL: Record<string, string> = {
-  MANUAL: "Manual",
-  API: "API Externa",
-  SCHEDULED: "Agendado",
-  SYSTEM: "Sistema",
+/** Rótulo da Operação por pipeline — mesmo vocabulário de `PIPELINE_LABEL` (/catalogo/importacoes). */
+const PIPELINE_LABEL: Record<AtividadeRecenteItem["pipeline"], string> = {
+  CARTAS: "Cartas",
+  IMAGENS: "Imagens",
 };
 
 /**
@@ -52,21 +51,17 @@ const EXECUTION_CONTEXT_LABEL: Record<string, string> = {
  * padrão de busca integrada/cabeçalho destacado já usado em
  * `card-sets-table.tsx`.
  *
- * Colunas novas pedidas: "Método" (`execution_context` — Manual/API
- * Externa/Agendado/Sistema, rótulo em `EXECUTION_CONTEXT_LABEL`) e "Cartas"
- * (`successCount/requestedCount`, com nota de falhas quando houver). Ponto
- * colorido antes da data ("sinalização em verde ou amarela, dependendo do
- * status") reaproveita o mesmo tom do `StateBadge` — inclui vermelho para
+ * Ponto colorido antes da data ("sinalização em verde ou amarela, dependendo
+ * do status") reaproveita o mesmo tom do `StateBadge` — inclui vermelho para
  * `FAILED`, não só verde/amarelo, para não perder o único status realmente
  * negativo do domínio. Badge de status mantido ao lado (mais legível que só
  * o ponto, com os 6 estados possíveis aqui, não só 2-3 como em HTTP logs).
  *
- * Fonte reduzida (`text-xs`/`text-[11px]`) e código de execução em
- * `font-mono`, ambos para aproximar da densidade do log de referência.
- * Filtro é local (mesmo motivo de `card-sets-table.tsx`: lista já vem
- * inteira e pequena). `getAtividadeRecente` passou a buscar 50 execuções
- * (era 8, chamada em `page.tsx`) para a paginação abaixo ter o que mostrar
- * — histórico completo continua em /catalogo/importacoes.
+ * Fonte reduzida (`text-xs`/`text-[11px]`), para aproximar da densidade do
+ * log de referência. Filtro é local (mesmo motivo de `card-sets-table.tsx`:
+ * lista já vem inteira e pequena). `getAtividadeRecente` passou a buscar 50
+ * execuções (era 8, chamada em `page.tsx`) para a paginação abaixo ter o que
+ * mostrar — histórico completo continua em /catalogo/importacoes.
  *
  * Paginação (2026-07-31, pedido de Fabrício: "no mesmo padrão que usamos na
  * tabela de Jogos") — mesmo footer visual de `card-sets-table.tsx`
@@ -79,6 +74,44 @@ const EXECUTION_CONTEXT_LABEL: Record<string, string> = {
  * as colunas exceto a primeira (Data) — mesma convenção já usada em
  * "Nome do Jogo"/"Card Set" nas outras tabelas (rótulo centralizado, valor
  * âncora à esquerda para a coluna que carrega a identidade da linha).
+ *
+ * Reformulação de colunas (2026-08-08, pedido de Fabrício, verificada contra
+ * o dado real antes de implementar — nenhum impedimento encontrado):
+ *
+ * 1. "Método" (`execution_context`, Manual/API Externa/Agendado/Sistema) →
+ *    "Operação": mostra o pipeline (`pipeline`, já existente em
+ *    `ImportacaoRow`/`getImportacoes()`, agora também em
+ *    `AtividadeRecenteItem`) — "Cartas" ou "Imagens" — porque
+ *    `execution_context` sozinho não distinguia pipeline (um evento de
+ *    IMAGENS via API e um de CARTAS via TCGdex apareciam ambos como "API
+ *    Externa", indistinguíveis). Idioma (`languageCode`) entra entre
+ *    parênteses só quando presente — nunca para `pipeline === "CARTAS"`
+ *    (`catalog_import_job` não carrega idioma, ver nota em
+ *    `getAtividadeRecente`) e só quando `asset_import_run.language_id` foi
+ *    de fato preenchido para o item de IMAGENS.
+ * 2. "Cartas" (`successCount`/`requestedCount`) → "Resultado" — mesmo
+ *    conteúdo, só o rótulo deixou de presumir que a linha é sempre sobre
+ *    Cards (também se aplica a Imagens).
+ * 3. Coluna "Execução" (`runCode`, monospace) — mantida, reposicionada
+ *    logo após "Coleção" (correção de 2026-08-08: uma primeira versão desta
+ *    rodada havia removido a coluna por má leitura de uma instrução
+ *    conflitante; Fabrício confirmou que ela deveria ser preservada na
+ *    posição indicada, não removida).
+ * 4. Coluna "Coleção" passou a mostrar Nome + Código abaixo, mesmo formato
+ *    de duas linhas já usado em `card-sets-table.tsx` (Nome em destaque,
+ *    Código como legenda menor) — antes só mostrava o nome (ou o código,
+ *    como fallback, sem os dois juntos).
+ * 5. Estrutura final: Data | Coleção | Execução | Operação | Resultado |
+ *    Status.
+ * 6. Placeholder da busca ajustado para a nova semântica ("método" saiu de
+ *    cena, "execução" permanece).
+ * 7. Nenhuma mudança de filtragem de dado: este log continua cronológico e
+ *    sem deduplicação por Coleção — falhas históricas já superadas por uma
+ *    execução posterior bem-sucedida continuam aparecendo aqui, ao
+ *    contrário da regra usada pelo StatCard "Pendências"
+ *    (`getCatalogImportJobIdsExigindoAtencao()`, só o job mais recente por
+ *    Coleção). São propósitos diferentes: log de auditoria vs. indicador de
+ *    pendência atual.
  */
 const ATIVIDADE_PAGE_SIZE = 10;
 
@@ -91,8 +124,8 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
     if (!termo) return atividades;
     return atividades.filter((item) => {
       const status = STATUS_LABEL[item.status] ?? { texto: item.status, tone: "muted" as const };
-      const metodo = EXECUTION_CONTEXT_LABEL[item.executionContext] ?? item.executionContext;
-      return [item.runCode, item.cardSetName, item.cardSetCode, metodo, status.texto]
+      const operacao = PIPELINE_LABEL[item.pipeline];
+      return [item.runCode, item.cardSetName, item.cardSetCode, operacao, item.languageCode, status.texto]
         .filter(Boolean)
         .some((campo) => campo!.toLowerCase().includes(termo));
     });
@@ -117,7 +150,7 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
               setQuery(event.target.value);
               setPage(0);
             }}
-            placeholder="Filtrar por execução, Coleção, método ou status…"
+            placeholder="Filtrar por execução, Coleção, operação ou status…"
             className="h-9 bg-surface-muted pl-9 text-xs"
             aria-label="Filtrar atividade recente"
           />
@@ -128,7 +161,7 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
         {atividades.length === 0 ? (
           <EmptyState
             title="Nenhuma atividade registrada"
-            description="Importações de imagens aparecem aqui conforme rodam."
+            description="Execuções de importação de Cartas e Imagens aparecem aqui conforme rodam."
           />
         ) : filtradas.length === 0 ? (
           <EmptyState title={`Nenhum resultado para "${query}"`} description="Tente outro termo." />
@@ -139,10 +172,10 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
                 <DataTableHeadCell align="center" className="pl-4">
                   Data
                 </DataTableHeadCell>
-                <DataTableHeadCell align="center">Execução</DataTableHeadCell>
-                <DataTableHeadCell align="center">Método</DataTableHeadCell>
                 <DataTableHeadCell align="center">Coleção</DataTableHeadCell>
-                <DataTableHeadCell align="center">Cartas</DataTableHeadCell>
+                <DataTableHeadCell align="center">Execução</DataTableHeadCell>
+                <DataTableHeadCell align="center">Operação</DataTableHeadCell>
+                <DataTableHeadCell align="center">Resultado</DataTableHeadCell>
                 <DataTableHeadCell align="center" className="pr-4 last:pr-4">
                   Status
                 </DataTableHeadCell>
@@ -151,10 +184,12 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
             <tbody>
               {itensPagina.map((item) => {
                 const status = STATUS_LABEL[item.status] ?? { texto: item.status, tone: "muted" as const };
-                const metodo = EXECUTION_CONTEXT_LABEL[item.executionContext] ?? item.executionContext;
+                const operacao = item.languageCode
+                  ? `${PIPELINE_LABEL[item.pipeline]} (${item.languageCode})`
+                  : PIPELINE_LABEL[item.pipeline];
                 return (
                   <DataTableRow key={item.id}>
-                    <DataTableCell className="whitespace-nowrap pl-4 text-xs text-foreground">
+                    <DataTableCell className="whitespace-nowrap py-1 pl-4 text-xs text-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         <span
                           className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT_CLASSES[status.tone])}
@@ -163,31 +198,32 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
                         {new Date(item.createdAt).toLocaleString("pt-BR")}
                       </span>
                     </DataTableCell>
-                    <DataTableCell align="center" className="font-mono text-[11px] text-muted-foreground">
-                      {item.runCode}
-                    </DataTableCell>
-                    <DataTableCell align="center" className="text-xs text-muted-foreground">
-                      {metodo}
-                    </DataTableCell>
-                    <DataTableCell align="center" className="text-xs">
+                    <DataTableCell align="center" className="py-1 text-xs">
                       {item.cardSetCode ? (
                         <Link
                           href={`/catalogo/card-sets/${item.cardSetCode}`}
-                          className="text-primary hover:underline"
+                          className="inline-flex flex-col leading-tight text-primary hover:underline"
                         >
-                          {item.cardSetName ?? item.cardSetCode}
+                          <span>{item.cardSetName ?? item.cardSetCode}</span>
+                          <span className="text-[11px] text-muted-foreground no-underline">{item.cardSetCode}</span>
                         </Link>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </DataTableCell>
-                    <DataTableCell align="center" className="text-xs tabular-nums text-muted-foreground">
-                      {formatNumber(item.successCount)}/{formatNumber(item.requestedCount)}
+                    <DataTableCell align="center" className="py-1 font-mono text-[11px] text-muted-foreground">
+                      {item.runCode}
+                    </DataTableCell>
+                    <DataTableCell align="center" className="py-1 text-xs text-muted-foreground">
+                      {operacao}
+                    </DataTableCell>
+                    <DataTableCell align="center" className="py-1 text-xs tabular-nums text-muted-foreground">
+                      {formatNumber(item.successCount)} de {formatNumber(item.requestedCount)}
                       {item.failedCount > 0 && (
                         <span className="text-destructive"> ({formatNumber(item.failedCount)} falhas)</span>
                       )}
                     </DataTableCell>
-                    <DataTableCell align="center" className="pr-4 last:pr-4">
+                    <DataTableCell align="center" className="py-1 pr-4 last:pr-4">
                       <StateBadge tone={status.tone}>{status.texto}</StateBadge>
                     </DataTableCell>
                   </DataTableRow>

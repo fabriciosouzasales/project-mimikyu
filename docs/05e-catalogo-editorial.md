@@ -116,16 +116,15 @@ Guarda de menu (`nav-config.ts`, `catalogo.adminOnly = true`) e guarda de servid
 
 ## Frontend — Visão Geral (`/catalogo`, CONFIRMADO IMPLEMENTADO E VALIDADO EM PRODUÇÃO)
 
-Implementada após a fundação de banco acima ser concluída e validada, conforme condicionado por Fabrício. Quatro blocos, todos exclusivos de administradores (guarda de servidor + RLS `catalog_admin_select`):
+Implementada após a fundação de banco acima ser concluída e validada, conforme condicionado por Fabrício. Estrutura atual (revisão 2026-08-08, Sprint Gerencial 1 + ajuste de hierarquia), três blocos em pilha única, todos exclusivos de administradores (guarda de servidor + RLS `catalog_admin_select`):
 
-- **Estado do Catálogo** — KPIs de estado (Card Sets catalogados, cobertura de imagens, cartas catalogadas, importações com pendência), deliberadamente sem Games/Expansions (só 1 registro cada, sem valor visual).
-- **Card Sets** — tabela navegável; cada linha leva a `/catalogo/card-sets/{code}`, uma página de detalhe mínima (mesmos dados já resumidos na tabela — galeria de cartas, edição de logo e histórico de importações do Set ficam para um incremento futuro).
-- **Cartas por raridade** — distribuição em barras simples (CSS, sem nova dependência de gráfico); deliberadamente por Raridade, não por Card Category, para não expor a discrepância interna da categoria `ENERGY`.
-- **Atividade Recente** — últimas execuções de `asset_import_run` traduzidas para linguagem natural; continua sendo informação exclusivamente administrativa (decisão de Fabrício), nunca pública.
+1. **Estado do catálogo** (`VisaoGeralStats`) — quatro StatCards (Coleções, Cartas catalogadas, Cobertura, Pendências, cada um com drill-down próprio), painel compacto de Cobertura por idioma e a linha "Saúde do catálogo" (Coleções/Cartas/Imagens pendentes) — ver `ROADMAP.md`, Trilha 4, para o detalhamento completo do drill-down.
+2. **Coleções** — tabela navegável; cada linha leva a `/catalogo/card-sets/{code}`, uma página de detalhe mínima (mesmos dados já resumidos na tabela — galeria de cartas, edição de logo e histórico de importações do Set ficam para um incremento futuro, registrado como débito não bloqueante).
+3. **Atividade recente** — últimas execuções de `asset_import_run` (Imagens) e `catalog_import_job` (Cards) traduzidas para linguagem natural; informação exclusivamente administrativa (decisão de Fabrício), nunca pública.
 
-Camada de dados em `web/lib/catalogo/queries.ts` — leitura direta das 10 tabelas liberadas pela Query `274`, sem função de banco dedicada (volume atual, ~927 Cards, pequeno o suficiente para agregar no servidor Next.js). Guarda compartilhada em `web/components/catalogo/catalogo-guard.tsx`.
+**"Cartas por raridade" removido da Visão Geral (2026-08-08)**, por pedido de Fabrício: era uma análise de distribuição sem contexto operacional nessa página. Nem o componente (`web/components/catalogo/distribuicoes.tsx`) nem a função de dados (`getDistribuicaoPorRaridade()`, `web/lib/catalogo/queries.ts`) foram removidos — ambos preservados, sem consumidor no momento, como candidato de relatório para a futura Central de Relatórios (Módulo Gerencial, `ROADMAP.md`, Trilha 4).
 
-**Ressalva de transparência**: os blocos e o wireframe originais foram aprovados por Fabrício em uma troca anterior à compactação de contexto desta sessão; o texto exato (indicadores linha a linha, wireframe ASCII) não pôde ser recuperado integralmente. Esta implementação reconstrói os quatro blocos e os seis refinamentos já confirmados (rota `/catalogo` separada de `/`, KPIs de estado sem Games/Expansions, Atividade Recente amigável, sem expor `ENERGY`, tabela navegável) a partir do resumo disponível e de nova verificação direta do banco — os indicadores exatos (títulos, agrupamentos) podem não ser idênticos ao que foi aprovado originalmente e valem uma conferência de Fabrício.
+Camada de dados em `web/lib/catalogo/queries.ts`. Guarda compartilhada em `web/components/catalogo/catalogo-guard.tsx`.
 
 ## Pendências / Próximos Passos
 

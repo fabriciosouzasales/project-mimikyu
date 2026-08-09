@@ -1,18 +1,11 @@
 import { BookOpen, LayoutDashboard } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
-import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
 import { VisaoGeralStats } from "@/components/catalogo/visao-geral-stats";
 import { CardSetsTable } from "@/components/catalogo/card-sets-table";
-import { Distribuicoes } from "@/components/catalogo/distribuicoes";
 import { AtividadeRecente } from "@/components/catalogo/atividade-recente";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 import { PageContainer, PageDescription, PageHeader, PageHeading, PageSection, PageTitle } from "@/components/ui/page";
-import {
-  getAtividadeRecente,
-  getCardSetsOverview,
-  getDistribuicaoPorRaridade,
-  getEstadoDoCatalogo,
-} from "@/lib/catalogo/queries";
+import { getAtividadeRecente, getCardSetsOverview, getEstadoDoCatalogo } from "@/lib/catalogo/queries";
 
 /**
  * Visão Geral do Catálogo Editorial — módulo admin-only (ADR-022).
@@ -22,14 +15,20 @@ import {
  * `<h1>` solto), indicadores via `StatCard`/`StatsRow` (`VisaoGeralStats`,
  * substitui `EstadoDoCatalogo`), Card Sets e Atividade recente migradas de
  * `Panel` para `Card` com busca/filtro integrado e cabeçalho destacado —
- * ver `card-sets-table.tsx`/`atividade-recente.tsx`. `Panel` permanece só
- * em Cartas por raridade (gráfico, não tabela).
+ * ver `card-sets-table.tsx`/`atividade-recente.tsx`.
  *
- * Ordem da página (ajuste 2026-07-31, pedido de Fabrício): pilha única, sem
- * mais grid de 3 colunas — indicadores, gráfico de Cartas por raridade,
- * tabela de Card Sets, Atividade recente (log), nessa sequência. Substitui
- * o layout anterior (2026-07-26) que colocava Card Sets como bloco
- * dominante ao lado de uma coluna secundária com Raridade + Atividade.
+ * Hierarquia da página (revisão 2026-08-08, pedido de Fabrício): 1. Estado
+ * do catálogo — KPIs, Cobertura por idioma e Saúde do catálogo, tudo dentro
+ * de `VisaoGeralStats`; 2. Coleções; 3. Atividade recente. O bloco "Cartas
+ * por raridade" (gráfico de distribuição, via `Distribuicoes`/
+ * `getDistribuicaoPorRaridade()`) foi removido desta página — é uma análise
+ * de distribuição sem contexto operacional aqui, e fica reservado como
+ * candidato à futura Central de Relatórios (Módulo Gerencial, `ROADMAP.md`,
+ * Trilha 4). Nem o componente `Distribuicoes` nem `getDistribuicaoPorRaridade()`
+ * foram removidos do repositório — só deixaram de ser chamados nesta tela,
+ * disponíveis para reuso quando a Central de Relatórios for implementada.
+ * Substitui a ordem anterior (2026-07-31): indicadores, gráfico de Cartas
+ * por raridade, tabela de Card Sets, Atividade recente.
  *
  * Ícones (2026-07-31, padronização iniciada em Expansões): esta tela tem
  * DOIS títulos distintos, cada um com seu próprio ícone — o breadcrumb do
@@ -41,10 +40,9 @@ export default async function CatalogoVisaoGeralPage() {
   const { denied, supabase } = await requireCatalogoAdmin("Catálogo editorial", BookOpen);
   if (denied) return denied;
 
-  const [estado, cardSets, distribuicao, atividades] = await Promise.all([
+  const [estado, cardSets, atividades] = await Promise.all([
     getEstadoDoCatalogo(supabase),
     getCardSetsOverview(supabase),
-    getDistribuicaoPorRaridade(supabase),
     // 50 (era 8): a tabela de Atividade recente agora pagina 10 por vez
     // (`atividade-recente.tsx`) — precisa de mais do que uma página de
     // dados para a paginação ter algo a mostrar.
@@ -66,20 +64,11 @@ export default async function CatalogoVisaoGeralPage() {
 
         <VisaoGeralStats estado={estado} />
 
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Cartas por raridade</PanelTitle>
-          </PanelHeader>
-          <PanelContent>
-            <Distribuicoes distribuicao={distribuicao} />
-          </PanelContent>
-        </Panel>
-
         <PageSection title="Coleções" description="Clique em uma Coleção para ver o detalhe.">
           <CardSetsTable cardSets={cardSets} />
         </PageSection>
 
-        <PageSection title="Atividade recente" description="Últimas execuções de importação de imagens.">
+        <PageSection title="Atividade recente" description="Últimas execuções de importação — Cartas e Imagens.">
           <AtividadeRecente atividades={atividades} />
         </PageSection>
       </PageContainer>

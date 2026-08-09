@@ -57,7 +57,7 @@ export default async function CardSetDetailPage({ params }: { params: Promise<{ 
             </div>
             <div>
               <p className="text-[11px] text-muted-foreground">Logo</p>
-              <p className="mt-0.5 text-foreground">{cardSet.temLogo ? "Cadastrada" : "—"}</p>
+              <p className="mt-0.5 text-foreground">{cardSet.logoUrl ? "Cadastrada" : "—"}</p>
             </div>
           </PanelContent>
         </Panel>
