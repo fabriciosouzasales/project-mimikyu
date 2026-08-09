@@ -88,6 +88,8 @@ type CardSetRow = {
   code: string;
   name: string;
   set_type: string;
+  /** Cartas do set base, sem secretas — `card_set.base_set_size`. Adicionado 2026-08-08 para compor "Cards totais (base + secretas)" no hub de Card Set, mesma fórmula já usada em `formatCardSetTotals()` (`cartas-gallery.tsx`). */
+  base_set_size: number;
   total_set_size: number;
   logo_storage_path: string | null;
   release_order: number;
@@ -131,13 +133,19 @@ export type EstadoDoCatalogo = {
 };
 
 export type CardSetOverviewRow = {
+  /** Adicionado 2026-08-08 para o hub de Card Set (`/catalogo/card-sets/{code}`) — necessário para montar links de ações contextuais que dependem do UUID (`?cardSetId=` em importar-cartas/importar-imagens), não do `code`. */
+  id: string;
   code: string;
   name: string;
   setType: string;
+  /** Cartas do set base, sem secretas — `card_set.base_set_size`. Adicionado 2026-08-08 junto com `id`, mesmo motivo. */
+  baseSetSize: number;
   totalSetSize: number;
   cardsCatalogados: number;
   /** Cards cadastradas com imagem canônica em algum idioma ativo (catalog_card_set_metrics, Query 2123/2124) — o "atual" da cobertura de imagem, "esperado" é `cardsCatalogados` (só cards já cadastradas podem ter imagem). */
   cardsComImagem: number;
+  /** GREATEST(total_set_size - cards_cadastradas, 0) — catalog_card_set_metrics, Query 2123. Antes desta rodada (2026-08-08) era lido de `fetchCardSetMetrics()` só para agregação global em `getEstadoDoCatalogo()`; agora também exposto por Card Set individual (hub). */
+  cardsPendentes: number;
   temImagensCompletas: boolean;
   /** URL assinada (bucket privado `card-set-logo`, 1h) — `null` quando a Coleção não tem logo cadastrada. */
   logoUrl: string | null;
@@ -146,6 +154,20 @@ export type CardSetOverviewRow = {
   gameName: string | null;
   releaseDate: string | null;
   releaseOrder: number;
+};
+
+/**
+ * Detalhe de um único Card Set (hub operacional, `/catalogo/card-sets/{code}`,
+ * escopo V1 aprovado por Fabrício em 2026-08-08) — estende `CardSetOverviewRow`
+ * com a única métrica que não faz sentido calcular para toda a listagem da
+ * Visão Geral/Coleções (custaria uma query extra por Card Set ali): cobertura
+ * de imagem canônica por idioma ativo, recortada para este Card Set
+ * específico. Mesma fonte de `EstadoDoCatalogo.coberturaPorIdioma`
+ * (`catalog_card_set_image_coverage`, Query 2123), só filtrada por
+ * `card_set_id` em vez de somada entre todos os Card Sets.
+ */
+export type CardSetDetail = CardSetOverviewRow & {
+  coberturaPorIdioma: CoberturaPorIdiomaItem[];
 };
 
 export type DistribuicaoPorRaridade = {
@@ -195,7 +217,7 @@ async function fetchCardSets(supabase: SupabaseClient): Promise<CardSetRow[]> {
   const { data, error } = await supabase
     .from("card_set")
     .select(
-      "id, code, name, set_type, total_set_size, logo_storage_path, release_order, release_date, expansion(code, name, game(code, name))",
+      "id, code, name, set_type, base_set_size, total_set_size, logo_storage_path, release_order, release_date, expansion(code, name, game(code, name))",
     );
 
   if (error || !data) {
@@ -258,6 +280,31 @@ async function fetchCoberturaImagensPorIdioma(supabase: SupabaseClient): Promise
   }
 
   return Array.from(porIdioma.entries()).map(([languageCode, cardsComImagem]) => ({ languageCode, cardsComImagem }));
+}
+
+/**
+ * Mesma view de `fetchCoberturaImagensPorIdioma()`, agora filtrada por um
+ * único `card_set_id` — a view já tem esse grão (card_set, idioma ativo),
+ * então o filtro é só um `.eq()` a mais, sem view/RPC nova (2026-08-08, hub
+ * de Card Set). Usada exclusivamente por `getCardSetByCode()`.
+ */
+async function fetchCoberturaImagensPorIdiomaDoCardSet(
+  supabase: SupabaseClient,
+  cardSetId: string,
+): Promise<CoberturaPorIdiomaItem[]> {
+  const { data, error } = await supabase
+    .from("catalog_card_set_image_coverage")
+    .select("language_code, cards_com_imagem")
+    .eq("card_set_id", cardSetId);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as { language_code: string; cards_com_imagem: number }[]).map((row) => ({
+    languageCode: row.language_code,
+    cardsComImagem: row.cards_com_imagem,
+  }));
 }
 
 export async function getEstadoDoCatalogo(supabase: SupabaseClient): Promise<EstadoDoCatalogo> {
@@ -328,12 +375,15 @@ export async function getCardSetsOverview(supabase: SupabaseClient): Promise<Car
     const cardsCatalogados = metric?.cards_cadastradas ?? 0;
     const cardsComImagem = metric?.cards_com_imagem_algum_idioma ?? 0;
     return {
+      id: set.id,
       code: set.code,
       name: set.name,
       setType: set.set_type,
+      baseSetSize: set.base_set_size,
       totalSetSize: set.total_set_size,
       cardsCatalogados,
       cardsComImagem,
+      cardsPendentes: metric?.cards_pendentes_cadastro ?? 0,
       temImagensCompletas: cardsCatalogados > 0 && cardsCatalogados === cardsComImagem,
       logoUrl: set.logo_storage_path ? (logoUrls.get(set.logo_storage_path) ?? null) : null,
       expansionCode: set.expansion?.code ?? null,
@@ -379,18 +429,23 @@ export async function getDistribuicaoPorRaridade(supabase: SupabaseClient): Prom
 }
 
 /**
- * Base do detalhe de um Card Set (rota /catalogo/card-sets/{code}), destino
- * real da navegação da tabela na Visão Geral (refinamento 6 aprovado por
- * Fabrício). O design completo da tela de detalhe é um incremento futuro
- * — esta função só resolve os mesmos dados já usados em getCardSetsOverview,
- * filtrados para um único Card Set.
+ * Detalhe de um Card Set (rota /catalogo/card-sets/{code}) — destino real da
+ * navegação da tabela na Visão Geral (refinamento 6 aprovado por Fabrício,
+ * 2026-08-08) e, na mesma data, base do hub operacional da Coleção (escopo V1
+ * aprovado: cabeçalho enriquecido, galeria de Cartas, cobertura/pendências,
+ * ações contextuais). Continua reaproveitando `getCardSetsOverview()` (mesmo
+ * "sem view/query nova quando o dado já existe" já aplicado em outros pontos
+ * deste arquivo) e só busca a cobertura por idioma como um passo extra,
+ * porque essa é a única métrica que não faz sentido pré-calcular para a
+ * listagem inteira.
  */
-export async function getCardSetByCode(
-  supabase: SupabaseClient,
-  code: string,
-): Promise<CardSetOverviewRow | null> {
+export async function getCardSetByCode(supabase: SupabaseClient, code: string): Promise<CardSetDetail | null> {
   const overview = await getCardSetsOverview(supabase);
-  return overview.find((set) => set.code === code) ?? null;
+  const cardSet = overview.find((set) => set.code === code) ?? null;
+  if (!cardSet) return null;
+
+  const coberturaPorIdioma = await fetchCoberturaImagensPorIdiomaDoCardSet(supabase, cardSet.id);
+  return { ...cardSet, coberturaPorIdioma };
 }
 
 // ---------------------------------------------------------------------------

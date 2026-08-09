@@ -64,26 +64,43 @@ const PIPELINE_LABEL: Record<ImportacaoPipeline, string> = {
  * buscado (`ids.has(run.id)` — `run.id` de uma linha CARTAS É o
  * `catalog_import_job.id`, ver `getImportacoes()`), com um link "Limpar
  * filtro" para voltar à lista inteira.
+ *
+ * `?cardSet=<code>` (2026-08-08, mesmo dia — ação contextual "Histórico de
+ * Importações" do hub de Card Set, `/catalogo/card-sets/{code}`) — mesmo
+ * princípio de `?atencao=1`: filtro em memória sobre `getImportacoes()`,
+ * sem query/view nova (cada linha já traz `cardSetCode`). Usa o `code`, não
+ * o `id` — é o que o hub já tem na própria rota, sem consulta extra para
+ * resolver. Combinável com `?atencao=1` (aplicados em série); nenhum dos
+ * dois exclui o outro.
  */
 export default async function ImportacoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ atencao?: string }>;
+  searchParams: Promise<{ atencao?: string; cardSet?: string }>;
 }) {
   const { denied, supabase } = await requireCatalogoAdmin("Histórico de importações", History);
   if (denied) return denied;
 
-  const { atencao } = await searchParams;
+  const { atencao, cardSet } = await searchParams;
   const filtroAtencao = atencao === "1";
+  const filtroCardSet = cardSet?.trim() || null;
 
   const [todasImportacoes, idsExigindoAtencao] = await Promise.all([
     getImportacoes(supabase),
     filtroAtencao ? getCatalogImportJobIdsExigindoAtencao(supabase) : Promise.resolve(null),
   ]);
-  const importacoes =
+  let importacoes =
     filtroAtencao && idsExigindoAtencao
       ? todasImportacoes.filter((run) => run.pipeline === "CARTAS" && idsExigindoAtencao.has(run.id))
       : todasImportacoes;
+  if (filtroCardSet) {
+    importacoes = importacoes.filter((run) => run.cardSetCode === filtroCardSet);
+  }
+
+  const filtrosAtivos = [
+    filtroAtencao ? "aguardando revisão ou erro" : null,
+    filtroCardSet ? `Coleção ${filtroCardSet}` : null,
+  ].filter(Boolean);
 
   return (
     <AppShell title="Histórico de importações" icon={History}>
@@ -93,9 +110,9 @@ export default async function ImportacoesPage({
           <h1 className="font-heading text-xl font-medium text-foreground">Histórico de importações</h1>
         </div>
 
-        {filtroAtencao && (
+        {filtrosAtivos.length > 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Filtrando por: aguardando revisão ou erro</span>
+            <span>Filtrando por: {filtrosAtivos.join(" · ")}</span>
             <Link href="/catalogo/importacoes" className="text-primary hover:underline">
               Limpar filtro
             </Link>
@@ -104,13 +121,13 @@ export default async function ImportacoesPage({
 
         <Panel>
           <PanelHeader>
-            <PanelTitle>{filtroAtencao ? "Execuções aguardando revisão ou erro" : "Execuções registradas"}</PanelTitle>
+            <PanelTitle>{filtrosAtivos.length > 0 ? "Execuções filtradas" : "Execuções registradas"}</PanelTitle>
           </PanelHeader>
           <PanelContent>
             {importacoes.length === 0 ? (
               <div className="flex flex-col items-center gap-1 py-10 text-center">
                 <p className="text-sm text-foreground">
-                  {filtroAtencao ? "Nenhuma execução aguardando revisão ou erro" : "Nenhuma execução registrada ainda"}
+                  {filtrosAtivos.length > 0 ? "Nenhuma execução encontrada para este filtro" : "Nenhuma execução registrada ainda"}
                 </p>
               </div>
             ) : (
