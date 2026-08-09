@@ -1,7 +1,7 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ImportacaoPipeline, ImportacaoRow } from "@/lib/catalogo/queries";
 import { formatNumber } from "@/lib/utils";
@@ -36,7 +36,7 @@ const MES_ABREVIADO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "
 
 type Semana = {
   key: string;
-  /** Segunda-feira da semana — usada para ordenação cronológica e para o título completo do popover. */
+  /** Segunda-feira da semana — usada para ordenação cronológica e para o título completo do tooltip. */
   inicio: Date;
   /** Rótulo compacto do eixo X ("04/08"). */
   label: string;
@@ -77,7 +77,7 @@ function semanaLabel(inicio: Date): string {
   return `${dia}/${mes}`;
 }
 
-/** Título completo do popover ao clicar numa barra — "04–10 de ago" (segunda a domingo), cruzando o mês quando necessário. */
+/** Título completo do tooltip ao passar o mouse numa barra — "04–10 de ago" (segunda a domingo), cruzando o mês quando necessário. */
 function semanaTituloCompleto(inicio: Date): string {
   const fim = new Date(inicio);
   fim.setDate(fim.getDate() + 6);
@@ -110,8 +110,10 @@ function agruparPorSemana(importacoes: ImportacaoRow[]): Semana[] {
  * Duas mini tendências (Cartas/Imagens) lado a lado, entre o título
  * "Histórico de importações" e a tabela — pedido de Fabrício (2026-08-09),
  * modelo de referência anexado (widget de erros do Supabase: rótulo +
- * percentual à direita, barras empilhadas compactas abaixo, popover ao
- * clicar numa barra). Confirmado com Fabrício que "dois gráficos" significa
+ * percentual à direita, barras empilhadas compactas abaixo, tooltip ao
+ * passar o mouse numa barra — ajustado de "ao clicar" para "ao passar o
+ * mouse" no mesmo dia, ver `PipelineTendenciaCard` abaixo). Confirmado com
+ * Fabrício que "dois gráficos" significa
  * um gráfico por pipeline (Cartas, Imagens), cada um com barras empilhadas
  * verde (sucesso)/vermelho (falha) — não um único gráfico combinado.
  *
@@ -119,13 +121,13 @@ function agruparPorSemana(importacoes: ImportacaoRow[]): Semana[] {
  * escolha já feita para a barra de cobertura por idioma do hub de Card Set
  * (`card-sets/[code]/page.tsx`): `div`s com Tailwind, sem SVG/Canvas.
  * Precisou virar Client Component (`"use client"`) por causa do estado do
- * popover — `ImportacoesTendencia`/`PipelineTendenciaCard` continuam
+ * tooltip — `ImportacoesTendencia`/`PipelineTendenciaCard` continuam
  * recebendo os dados já prontos via prop, nenhuma busca própria.
  *
  * Eixo X trocado de quinzenal para semanal (2026-08-09, pedido de Fabrício)
  * — semana calendário ISO (segunda a domingo), não uma janela rolante de 7
  * dias a partir de uma data arbitrária. Barras sem cantos arredondados — só
- * o popover em si mantém `rounded`, como no modelo de referência.
+ * o tooltip em si mantém `rounded`, como no modelo de referência.
  */
 export function ImportacoesTendencia({ importacoes }: { importacoes: ImportacaoRow[] }) {
   const porPipeline: Record<ImportacaoPipeline, ImportacaoRow[]> = { CARTAS: [], IMAGENS: [] };
@@ -155,21 +157,17 @@ function PipelineTendenciaCard({
   const percentualFalha = totalGeral > 0 ? (totalFalha / totalGeral) * 100 : 0;
   const maiorTotal = Math.max(1, ...semanas.map((s) => s.sucesso + s.falha));
 
+  /**
+   * Tooltip ao passar o mouse — ajuste de Fabrício (2026-08-09): a V1
+   * original abria ao clicar, com listener de "clicar fora" para fechar
+   * (modelo de referência: widget de erros do Supabase); trocado para hover
+   * (`onMouseEnter`/`onMouseLeave`), com `onFocus`/`onBlur` equivalentes no
+   * `<button>` para manter a mesma informação acessível via teclado. Sem
+   * `containerRef`/listener de clique fora — não fazem mais sentido num
+   * tooltip que fecha sozinho ao tirar o mouse/foco. Mesmo ajuste aplicado
+   * em `LogAtualizacoesResumo` no mesmo dia.
+   */
   const [aberto, setAberto] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Fecha o popover ao clicar fora do gráfico — mesmo comportamento esperado
-  // do modelo de referência (widget de erros do Supabase).
-  useEffect(() => {
-    if (!aberto) return;
-    function handleClickFora(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setAberto(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickFora);
-    return () => document.removeEventListener("mousedown", handleClickFora);
-  }, [aberto]);
 
   return (
     <Card density="compact">
@@ -188,7 +186,7 @@ function PipelineTendenciaCard({
         {semanas.length === 0 ? (
           <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma execução concluída neste pipeline.</p>
         ) : (
-          <div ref={containerRef} className="space-y-1.5">
+          <div className="space-y-1.5">
             <div className="flex items-end gap-1.5" style={{ height: CHART_HEIGHT_PX }}>
               {semanas.map((semana) => {
                 const sucessoPx =
@@ -197,10 +195,16 @@ function PipelineTendenciaCard({
                   semana.falha > 0 ? Math.max(MIN_SEGMENT_PX, (semana.falha / maiorTotal) * CHART_HEIGHT_PX) : 0;
                 const estaAberto = aberto === semana.key;
                 return (
-                  <div key={semana.key} className="relative flex h-full w-6 shrink-0 flex-col-reverse">
+                  <div
+                    key={semana.key}
+                    className="relative flex h-full w-6 shrink-0 flex-col-reverse"
+                    onMouseEnter={() => setAberto(semana.key)}
+                    onMouseLeave={() => setAberto(null)}
+                  >
                     <button
                       type="button"
-                      onClick={() => setAberto((atual) => (atual === semana.key ? null : semana.key))}
+                      onFocus={() => setAberto(semana.key)}
+                      onBlur={() => setAberto(null)}
                       aria-expanded={estaAberto}
                       className="flex h-full w-full flex-col-reverse focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >

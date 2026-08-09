@@ -1,10 +1,10 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { LogAtualizacoesResumoSemanalItem } from "@/lib/catalogo/queries";
-import { cn, formatNumber } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 
 type Categoria = "CADASTRO" | "ALTERACAO" | "EXCLUSAO";
 
@@ -14,16 +14,34 @@ const CATEGORIA_TITULO: Record<Categoria, string> = {
   EXCLUSAO: "Exclusão",
 };
 
-/** Cores por categoria — decisão explícita de Fabrício (2026-08-09): tokens já usados em outros pontos do app (nunca cor nova introduzida só para este gráfico, ao contrário do #3FCF8E de ImportacoesTendencia). */
-const CATEGORIA_COR_CLASSE: Record<Categoria, string> = {
-  CADASTRO: "bg-primary",
-  ALTERACAO: "bg-warning",
-  EXCLUSAO: "bg-destructive",
-};
+/**
+ * Cor única para as 3 categorias — ajuste de Fabrício (2026-08-09, revisão
+ * pós-V1): a decisão original (tokens `bg-primary`/`bg-warning`/
+ * `bg-destructive`, um por categoria) ficou visualmente pesada; substituída
+ * por `#3FCF8E`, a mesma cor já usada por `ImportacoesTendencia`
+ * (`COR_SUCESSO`) — não é mais "cor nova introduzida só para este gráfico"
+ * como o comentário anterior registrava, é reuso da cor que já existe em
+ * outro ponto do app. Aplicada via `style` inline (mesmo padrão de
+ * `ImportacoesTendencia`), não classe Tailwind, porque não é um token do
+ * design system.
+ */
+const COR_BARRA = "#3FCF8E";
 
 const CHART_HEIGHT_PX = 56;
 const MIN_SEGMENT_PX = 2;
-const JANELA_SEMANAS = 12;
+/** Reduzida de 12 para 10 semanas — ajuste de Fabrício (2026-08-09, revisão pós-V1), junto com a redução de largura das barras, para deixar os 3 gráficos menos pesados visualmente. */
+const JANELA_SEMANAS = 10;
+/**
+ * Largura da barra em si — 18px, 25% menor que os 24px (`w-6`) da V1
+ * original, mesmo ajuste de Fabrício acima. A COLUNA que contém a barra
+ * (`flex-1`, ver render) sempre ocupa a largura total disponível do card,
+ * dividida em partes iguais entre as semanas — correção de um bug visual
+ * relatado por Fabrício logo após a V1.1: com coluna de largura fixa, o
+ * eixo inteiro (barras + rótulos) ficava encolhido à esquerda do card,
+ * sobrando um vão vazio à direita em vez de respeitar a margem simétrica do
+ * `CardContent`.
+ */
+const COLUNA_LARGURA_PX = 18;
 
 const MES_ABREVIADO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -66,9 +84,10 @@ function toKey(date: Date): string {
 }
 
 /**
- * As 12 semanas fixas da janela (mais antiga → mais recente) — sempre as
- * mesmas 12 mostradas, com ou sem evento em cada uma. Janela fixa aprovada
- * por Fabrício (2026-08-09, decisão 3), diferente da janela variável de
+ * As `JANELA_SEMANAS` semanas fixas da janela (mais antiga → mais recente)
+ * — sempre as mesmas mostradas, com ou sem evento em cada uma. Janela fixa
+ * aprovada por Fabrício (2026-08-09, decisão 3; reduzida de 12 para 10 no
+ * mesmo dia, ajuste pós-V1), diferente da janela variável de
  * `ImportacoesTendencia` (que só mostra semanas com dado real).
  */
 function buildJanelaFixa(): Date[] {
@@ -86,9 +105,11 @@ function buildJanelaFixa(): Date[] {
  * 3 gráficos semanais (Cadastro/Alteração/Exclusão), topo de
  * /catalogo/log-atualizacoes — escopo V1 aprovado por Fabrício (2026-08-09).
  * Mesma linguagem visual de `ImportacoesTendencia` (barras via div/Tailwind,
- * sem biblioteca de gráficos, popover ao clicar), mas cada card mostra uma
- * única categoria com uma única cor (não empilhado), e a janela é sempre as
- * mesmas 12 semanas fixas — não varia com o volume de dado disponível.
+ * sem biblioteca de gráficos, tooltip ao passar o mouse), mas cada card
+ * mostra uma única categoria com uma única cor (não empilhado), e a janela
+ * é sempre as
+ * mesmas `JANELA_SEMANAS` semanas fixas — não varia com o volume de dado
+ * disponível.
  */
 export function LogAtualizacoesResumo({ resumo }: { resumo: LogAtualizacoesResumoSemanalItem[] }) {
   const semanas = buildJanelaFixa();
@@ -119,19 +140,16 @@ function CategoriaResumoCard({
   const total = contagens.reduce((soma, valor) => soma + valor, 0);
   const maior = Math.max(1, ...contagens);
 
+  /**
+   * Tooltip ao passar o mouse — ajuste de Fabrício (2026-08-09, mesmo dia):
+   * a V1 original abria ao clicar (mesmo padrão de `ImportacoesTendencia`,
+   * com listener de "clicar fora" para fechar); trocado para hover
+   * (`onMouseEnter`/`onMouseLeave`), com `onFocus`/`onBlur` equivalentes no
+   * `<button>` para manter a mesma informação acessível via teclado. Sem
+   * `containerRef`/listener de clique fora — não fazem mais sentido num
+   * tooltip que fecha sozinho ao tirar o mouse/foco.
+   */
   const [aberto, setAberto] = useState<number | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (aberto === null) return;
-    function handleClickFora(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setAberto(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickFora);
-    return () => document.removeEventListener("mousedown", handleClickFora);
-  }, [aberto]);
 
   return (
     <Card density="compact">
@@ -146,21 +164,28 @@ function CategoriaResumoCard({
           </span>
         </div>
 
-        <div ref={containerRef} className="space-y-1.5">
+        <div className="space-y-1.5">
           <div className="flex items-end gap-1.5" style={{ height: CHART_HEIGHT_PX }}>
             {semanas.map((semana, index) => {
               const valor = contagens[index] ?? 0;
               const px = valor > 0 ? Math.max(MIN_SEGMENT_PX, (valor / maior) * CHART_HEIGHT_PX) : 0;
               const estaAberto = aberto === index;
               return (
-                <div key={toKey(semana)} className="relative flex h-full w-6 shrink-0 flex-col-reverse">
+                <div
+                  key={toKey(semana)}
+                  className="relative flex h-full flex-1 flex-col-reverse items-center"
+                  onMouseEnter={() => setAberto(index)}
+                  onMouseLeave={() => setAberto(null)}
+                >
                   <button
                     type="button"
-                    onClick={() => setAberto((atual) => (atual === index ? null : index))}
+                    onFocus={() => setAberto(index)}
+                    onBlur={() => setAberto(null)}
                     aria-expanded={estaAberto}
-                    className="flex h-full w-full flex-col-reverse focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-full flex-col-reverse items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{ width: COLUNA_LARGURA_PX }}
                   >
-                    <div className={cn("w-full", CATEGORIA_COR_CLASSE[categoria])} style={{ height: px }} />
+                    <div style={{ height: px, width: COLUNA_LARGURA_PX, backgroundColor: COR_BARRA }} />
                   </button>
 
                   {estaAberto && (
@@ -180,7 +205,7 @@ function CategoriaResumoCard({
             {semanas.map((semana) => (
               <span
                 key={toKey(semana)}
-                className="w-6 shrink-0 text-center text-[9px] leading-tight tabular-nums text-muted-foreground"
+                className="flex-1 text-center text-[9px] leading-tight tabular-nums text-muted-foreground"
               >
                 {semanaLabel(semana)}
               </span>
