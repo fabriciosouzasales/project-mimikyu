@@ -2481,3 +2481,160 @@ export async function getRevalidacaoPendenteResumo(supabase: SupabaseClient): Pr
     valoresNaoMapeados,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Log de Atualizações (/catalogo/log-atualizacoes) — trilha de auditoria de
+// escrita administrativa do Catálogo Editorial (catalog_admin_action_log,
+// ADR-023), lida via admin_list_catalog_action_log()/admin_get_catalog_
+// action_log_weekly_summary() (SECURITY DEFINER, paginação e agregação
+// server-side — primeira tela do módulo com filtros/paginação via RPC, não
+// fetch-tudo-e-filtra-em-memória como Importações/Atividade Recente/Cartas).
+// Escopo V1 aprovado por Fabrício em 2026-08-09: 3 gráficos semanais no topo
+// (Cadastro/Alteração/Exclusão, janela fixa de 12 semanas), tabela paginada
+// (Data | Quem | Entidade | Registro | Ação | Detalhes) com filtros por
+// busca/Entidade/Ação/Usuário, Dialog de Detalhes a partir de metadata/
+// enriquecimentos já resolvidos no backend — sem diff antes/depois.
+// ---------------------------------------------------------------------------
+
+export const LOG_ATUALIZACOES_PAGE_SIZE = 20;
+
+/** Classificação de negócio dos 21 `action` reais, aprovada por Fabrício (2026-08-09) — calculada no banco (`internal.catalog_admin_action_category()`), nunca por sufixo de string no frontend. */
+export type LogAtualizacoesCategoria = "CADASTRO" | "ALTERACAO" | "EXCLUSAO" | "OUTRAS";
+
+export type LogAtualizacoesItem = {
+  id: string;
+  createdAt: string;
+  actorId: string | null;
+  /** Já resolvido no backend (display_name com fallback username) — null quando actor_id é nulo (ex. chamada service_role sem ator humano, como svc_apply_catalog_import_revalidation sem p_actor_id). */
+  actorLabel: string | null;
+  entityType: string;
+  entityId: string;
+  /** Nome amigável do registro específico — resolvido no backend a partir de metadata (via principal) ou de um JOIN de segurança para linhas antigas sem o enriquecimento (ver decisão 2026-08-09 de gravar card_set_name/card_set_code no momento do evento). */
+  entityLabel: string;
+  action: string;
+  category: LogAtualizacoesCategoria;
+  metadata: Record<string, unknown> | null;
+};
+
+type LogAtualizacoesRawRow = {
+  id: string;
+  created_at: string;
+  actor_id: string | null;
+  actor_label: string | null;
+  entity_type: string;
+  entity_id: string;
+  entity_label: string;
+  action: string;
+  category: LogAtualizacoesCategoria;
+  metadata: Record<string, unknown> | null;
+  total_count: number;
+};
+
+/**
+ * Camada de leitura de /catalogo/log-atualizacoes — chama
+ * admin_list_catalog_action_log() (paginação/filtros inteiramente
+ * server-side, SECURITY DEFINER). Não-administrador recebe RAISE EXCEPTION
+ * da própria function (não uma lista vazia silenciosa); a página em si já
+ * bloqueia não-administradores via requireCatalogoAdmin() antes de chegar
+ * aqui, então o catch abaixo é só defensivo.
+ */
+export async function getLogAtualizacoes(
+  supabase: SupabaseClient,
+  options: {
+    search?: string;
+    entityType?: string;
+    action?: string;
+    actorId?: string;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<{ items: LogAtualizacoesItem[]; totalCount: number }> {
+  const { data, error } = await supabase.rpc("admin_list_catalog_action_log", {
+    p_search: options.search?.trim() || null,
+    p_entity_type: options.entityType || null,
+    p_action: options.action || null,
+    p_actor_id: options.actorId || null,
+    p_limit: options.limit ?? LOG_ATUALIZACOES_PAGE_SIZE,
+    p_offset: options.offset ?? 0,
+  });
+
+  if (error || !data) {
+    return { items: [], totalCount: 0 };
+  }
+
+  const rows = data as LogAtualizacoesRawRow[];
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      createdAt: row.created_at,
+      actorId: row.actor_id,
+      actorLabel: row.actor_label,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      entityLabel: row.entity_label,
+      action: row.action,
+      category: row.category,
+      metadata: row.metadata,
+    })),
+    totalCount: rows[0]?.total_count ?? 0,
+  };
+}
+
+export type LogAtualizacoesResumoSemanalItem = {
+  /** Segunda-feira da semana ISO (formato YYYY-MM-DD) — mesma convenção de inicioDaSemana() em importacoes-tendencia.tsx. */
+  weekStart: string;
+  category: "CADASTRO" | "ALTERACAO" | "EXCLUSAO";
+  totalCount: number;
+};
+
+/**
+ * Agregação semanal (janela fixa de 12 semanas, admin_get_catalog_action_
+ * log_weekly_summary()) para os 3 gráficos do topo — sempre server-side,
+ * nunca client-side sobre uma única página de resultados (a lista tem
+ * paginação própria; agregar só a página atual sub-contaria qualquer semana
+ * com mais de LOG_ATUALIZACOES_PAGE_SIZE eventos).
+ */
+export async function getLogAtualizacoesResumoSemanal(
+  supabase: SupabaseClient,
+): Promise<LogAtualizacoesResumoSemanalItem[]> {
+  const { data, error } = await supabase.rpc("admin_get_catalog_action_log_weekly_summary");
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as { week_start: string; category: "CADASTRO" | "ALTERACAO" | "EXCLUSAO"; total_count: number }[]).map(
+    (row) => ({
+      weekStart: row.week_start,
+      category: row.category,
+      totalCount: row.total_count,
+    }),
+  );
+}
+
+export type AdminUserOption = {
+  id: string;
+  label: string;
+};
+
+/**
+ * Lista de administradores para o filtro "Usuário" de Log de Atualizações —
+ * reaproveita admin_list_users() (Query 1061, ADR-021), já SECURITY
+ * DEFINER/paginada. Filtra client-side a is_admin = true (a function em si
+ * lista todo user_profile, não só administradores — catalog_admin_
+ * action_log.actor_id só grava administradores ou NULL, então usuários
+ * comuns nunca aparecem no log e não fazem sentido no dropdown).
+ * p_limit: 100 cobre qualquer quantidade real de administradores hoje.
+ */
+export async function getAdminUserOptions(supabase: SupabaseClient): Promise<AdminUserOption[]> {
+  const { data, error } = await supabase.rpc("admin_list_users", { p_limit: 100, p_offset: 0 });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as { id: string; username: string; display_name: string | null; is_admin: boolean }[])
+    .filter((row) => row.is_admin)
+    .map((row) => ({ id: row.id, label: row.display_name || row.username }))
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+}

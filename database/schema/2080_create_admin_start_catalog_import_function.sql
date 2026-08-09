@@ -2,10 +2,19 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2080 - Create admin_start_catalog_import() Function
-Versão......: 1.0
-Status......: CANÔNICA
+Versão......: 1.1
+Status......: CANÔNICA — CONFIRMADO EXECUTADO
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-08-01
+Data........: 2026-08-01 (v1.0), 2026-08-09 (v1.1)
+
+Correção v1.1 (2026-08-09): metadata de CATALOG_IMPORT_JOB passa a
+gravar card_set_name/card_set_code no momento do evento (decisão de
+Fabrício, ver Log de Atualizações V1) — antes, a Coleção só era
+resolvida por card_set_id, exigindo um JOIN a public.card_set em
+qualquer leitura futura para exibir um nome amigável. A checagem de
+existência do Card Set virou um SELECT ... INTO (nome/código), sem
+mudar nenhuma regra de validação. Nenhuma mudança de assinatura —
+CREATE OR REPLACE é suficiente.
 
 Descrição...:
 Cria admin_start_catalog_import(), função pública SECURITY DEFINER —
@@ -61,6 +70,8 @@ AS $$
 DECLARE
     v_job_id UUID;
     v_source TEXT;
+    v_card_set_name TEXT;
+    v_card_set_code TEXT;
 BEGIN
     IF NOT public.is_admin() THEN
         RAISE EXCEPTION 'ADMIN_START_CATALOG_IMPORT_FORBIDDEN: apenas administradores podem iniciar uma importação de Cards.';
@@ -70,7 +81,10 @@ BEGIN
         RAISE EXCEPTION 'ADMIN_START_CATALOG_IMPORT_MISSING_CARD_SET: p_card_set_id é obrigatório.';
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM public.card_set WHERE id = p_card_set_id) THEN
+    SELECT name, code INTO v_card_set_name, v_card_set_code
+    FROM public.card_set WHERE id = p_card_set_id;
+
+    IF NOT FOUND THEN
         RAISE EXCEPTION 'ADMIN_START_CATALOG_IMPORT_CARD_SET_NOT_FOUND: nenhum Card Set encontrado para o id informado (%).', p_card_set_id;
     END IF;
 
@@ -101,7 +115,12 @@ BEGIN
 
     INSERT INTO public.catalog_admin_action_log (actor_id, action, entity_type, entity_id, metadata)
         VALUES (auth.uid(), 'CATALOG_IMPORT_JOB', 'CATALOG_IMPORT_JOB', v_job_id,
-                jsonb_build_object('card_set_id', p_card_set_id, 'source', v_source));
+                jsonb_build_object(
+                    'card_set_id', p_card_set_id,
+                    'card_set_name', v_card_set_name,
+                    'card_set_code', v_card_set_code,
+                    'source', v_source
+                ));
 
     RETURN v_job_id;
 END;
@@ -109,3 +128,12 @@ $$;
 
 REVOKE ALL ON FUNCTION public.admin_start_catalog_import(UUID, TEXT, TEXT, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_start_catalog_import(UUID, TEXT, TEXT, TEXT) TO authenticated;
+
+-- ================================================================
+-- v1.1 CONFIRMADO EXECUTADO (2026-08-09): CREATE OR REPLACE
+-- aplicado sem erro ("Success"). Validação funcional (metadata com
+-- card_set_name/card_set_code) confirmada indiretamente pelo mesmo
+-- padrão validado nas Queries 2082 v1.2/2122 v1.1 nesta mesma
+-- rodada — a próxima importação real iniciada pela tela fecha a
+-- validação direta desta function específica.
+-- ================================================================

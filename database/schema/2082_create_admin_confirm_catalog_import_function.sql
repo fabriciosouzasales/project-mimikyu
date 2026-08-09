@@ -2,10 +2,16 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2082 - Create admin_confirm_catalog_import() Function
-Versão......: 1.1
+Versão......: 1.2
 Status......: CONFIRMADO EXECUTADO
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-08-01 (v1.0), 2026-08-07 (v1.1)
+Data........: 2026-08-01 (v1.0), 2026-08-07 (v1.1), 2026-08-09 (v1.2)
+
+Correção v1.2 (2026-08-09): metadata de CATALOG_IMPORT_CONFIRMED
+passa a gravar card_set_name/card_set_code (resolvidos a partir de
+v_job.card_set_id logo após o job ser carregado) no momento do
+evento — mesma decisão da Query 2080 v1.1, ver Log de Atualizações
+V1. Nenhuma mudança de assinatura nem de regra de negócio.
 
 Correção v1.1 (2026-08-07): bug real encontrado pela validação `2818`
 do fechamento do Ciclo 2 — o cálculo do status final do job (fim da
@@ -144,6 +150,8 @@ DECLARE
     v_failed_rows INTEGER;
     v_decision_pending_rows INTEGER;
     v_final_status TEXT;
+    v_card_set_name TEXT;
+    v_card_set_code TEXT;
 BEGIN
     IF NOT public.is_admin() THEN
         RAISE EXCEPTION 'ADMIN_CONFIRM_CATALOG_IMPORT_FORBIDDEN: apenas administradores podem confirmar uma importação.';
@@ -162,6 +170,9 @@ BEGIN
     IF v_job.status NOT IN ('STAGED', 'CONFIRMING') THEN
         RAISE EXCEPTION 'ADMIN_CONFIRM_CATALOG_IMPORT_INVALID_STATUS: o job está em % — só é possível confirmar a partir de STAGED ou CONFIRMING.', v_job.status;
     END IF;
+
+    SELECT name, code INTO v_card_set_name, v_card_set_code
+    FROM public.card_set WHERE id = v_job.card_set_id;
 
     IF v_job.status = 'STAGED' THEN
         UPDATE public.catalog_import_job SET status = 'CONFIRMING' WHERE id = p_job_id;
@@ -322,7 +333,12 @@ BEGIN
     IF v_final_status IN ('COMPLETED', 'COMPLETED_WITH_ERRORS') THEN
         INSERT INTO public.catalog_admin_action_log (actor_id, action, entity_type, entity_id, metadata)
             VALUES (auth.uid(), 'CATALOG_IMPORT_CONFIRMED', 'CATALOG_IMPORT_JOB', p_job_id,
-                    jsonb_build_object('card_set_id', v_job.card_set_id, 'final_status', v_final_status));
+                    jsonb_build_object(
+                        'card_set_id', v_job.card_set_id,
+                        'card_set_name', v_card_set_name,
+                        'card_set_code', v_card_set_code,
+                        'final_status', v_final_status
+                    ));
     END IF;
 
     RETURN QUERY
@@ -334,3 +350,11 @@ $$;
 
 REVOKE ALL ON FUNCTION public.admin_confirm_catalog_import(UUID, UUID[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_confirm_catalog_import(UUID, UUID[]) TO authenticated;
+
+-- ================================================================
+-- v1.2 CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE (2026-08-09):
+-- confirmação real de importação gravou metadata com card_set_name/
+-- card_set_code corretos ("Caminho do Campeão"/"SWSH3.5"),
+-- confirmado por Fabrício via inspeção direta da linha em
+-- catalog_admin_action_log.
+-- ================================================================

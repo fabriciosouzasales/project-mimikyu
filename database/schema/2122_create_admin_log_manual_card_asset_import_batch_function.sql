@@ -2,10 +2,25 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2122 - Create admin_log_manual_card_asset_import_batch Function
-Versão......: 1.0
-Status......: MIGRATION — CONFIRMADO EXECUTADO
+Versão......: 1.1
+Status......: MIGRATION — CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-08-07
+Data........: 2026-08-07 (v1.0), 2026-08-09 (v1.1)
+
+Correção v1.1 (2026-08-09): metadata de CARD_ASSET_MANUAL_IMPORT_
+COMPLETED passa a gravar card_set_name/card_set_code no momento do
+evento (decisão de Fabrício, ver Log de Atualizações V1) — a
+checagem de existência do Card Set (que já era feita antes de
+inserir a linha de auditoria) virou um SELECT ... INTO (nome/
+código), sem repetir a consulta. Diferente das Queries 2080 v1.1/
+2082 v1.2/2106 v1.3 (onde a mudança é só consistência/performance,
+já que catalog_import_job.card_set_id tem FK RESTRICT), esta
+correção fecha um risco real: catalog_admin_action_log.entity_id
+não tem FK (polimórfico), então uma Coleção sem catalog_import_job
+associado podia ser excluída fisicamente mesmo tendo uma linha
+CARD_ASSET_MANUAL_IMPORT_COMPLETED — o JOIN-fallback ficaria com
+entity_label nulo/UUID cru nesse caso. Nenhuma mudança de
+assinatura.
 
 Descrição...:
 Function SECURITY DEFINER que grava UMA linha de auditoria agregada
@@ -70,12 +85,17 @@ SET search_path = ''
 AS $$
 DECLARE
     v_log_id UUID;
+    v_card_set_name TEXT;
+    v_card_set_code TEXT;
 BEGIN
     IF NOT public.is_admin() THEN
         RAISE EXCEPTION 'ADMIN_LOG_MANUAL_CARD_ASSET_IMPORT_BATCH_FORBIDDEN: usuário não é administrador.';
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM public.card_set WHERE id = p_card_set_id) THEN
+    SELECT name, code INTO v_card_set_name, v_card_set_code
+    FROM public.card_set WHERE id = p_card_set_id;
+
+    IF NOT FOUND THEN
         RAISE EXCEPTION 'ADMIN_LOG_MANUAL_CARD_ASSET_IMPORT_BATCH_CARD_SET_NOT_FOUND: Card Set % não existe.', p_card_set_id;
     END IF;
 
@@ -92,6 +112,8 @@ BEGIN
         'CARD_SET',
         p_card_set_id,
         jsonb_build_object(
+            'card_set_name', v_card_set_name,
+            'card_set_code', v_card_set_code,
             'run_id', p_run_id,
             'language_code', p_language_code,
             'files_total', p_files_total,
@@ -154,4 +176,11 @@ GRANT EXECUTE ON FUNCTION public.admin_log_manual_card_asset_import_batch(
 -- ROLLBACK devolveu a linha esperada em catalog_admin_action_log
 -- (run_id/language_code/files_total/inserted_count/updated_count/
 -- failed_count/failures todos corretos); nada persistido.
+-- ================================================================
+--
+-- v1.1 CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE (2026-08-09):
+-- lote real de importação manual de imagens gravou metadata com
+-- card_set_name/card_set_code corretos ("Energias Escarlate e
+-- Violeta"/"SVE"), confirmado por Fabrício via inspeção direta da
+-- linha em catalog_admin_action_log.
 -- ================================================================

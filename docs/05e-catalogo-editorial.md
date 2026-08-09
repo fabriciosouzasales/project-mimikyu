@@ -955,6 +955,43 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$ ... $$;
 
 Ver `adr/ADR-024-catalog-card-ingestion-strategy.md`, emenda "Raridade: mapeamento self-service e revalidação" (2026-08-07), para a decisão arquitetural completa.
 
+## Log de Atualizações — primeira leitura de `catalog_admin_action_log` (Queries `2125`–`2128`, CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE)
+
+Tela `/catalogo/log-atualizacoes` (Módulo Gerencial, bloco "Gerencial" do menu) — primeira via de leitura de `catalog_admin_action_log` desde a criação da tabela (Query `2010`): RLS habilitado, zero políticas, só acessível via as duas functions abaixo. Escopo V1 aprovado por Fabrício em 2026-08-09, a partir de proposta técnica revisada (classificação semântica de todo o universo real de `action`, não por sufixo de string) e de uma segunda revisão independente (persona ECC database/security-reviewer, ver `memory/project_mimikyu_ecc_pilot.md`).
+
+**Classificação de negócio (`internal.catalog_admin_action_category()`, Query `2126`)** — fonte única, usada pela listagem e pela agregação semanal:
+- **Cadastro**: `GAME_CREATED`, `EXPANSION_CREATED`, `CARD_SET_CREATED`, `CARD_CREATED`, `RARITY_CREATED`, `RARITY_EXTERNAL_MAPPING_CREATED`.
+- **Alteração**: `GAME_UPDATED`, `EXPANSION_UPDATED`, `CARD_SET_UPDATED`, `CARD_UPDATED`, `RARITY_UPDATED`, `RARITY_EXTERNAL_MAPPING_UPDATED`.
+- **Exclusão**: `GAME_DELETED`, `EXPANSION_DELETED`, `CARD_SET_DELETED` — confirmado via leitura das 3 functions que todas fazem `DELETE FROM` real, não soft-delete.
+- **Outras**: `CARD_DEACTIVATED`/`CARD_REACTIVATED` (soft-delete reversível, decisão explícita de Fabrício de não tratar como Exclusão), `CATALOG_IMPORT_JOB`/`CATALOG_IMPORT_CONFIRMED`/`CATALOG_IMPORT_ROWS_REVALIDATED`/`CARD_ASSET_MANUAL_IMPORT_COMPLETED` (eventos agregados de pipeline/lote).
+
+**Correção retroativa de metadata (decisão de Fabrício, antes da V1)** — 4 functions de escrita já existentes passaram a gravar `card_set_name`/`card_set_code` no momento do evento, eliminando a dependência de um JOIN futuro para resolver a Coleção na tela:
+- `admin_start_catalog_import()` (Query `2080`, v1.0 → v1.1).
+- `admin_confirm_catalog_import()` (Query `2082`, v1.1 → v1.2).
+- `svc_apply_catalog_import_revalidation()` (Query `2106`, v1.2 → v1.3) — nota de transparência: `catalog_import_job.card_set_id` tem `FK ... ON DELETE RESTRICT` (Query `2060`), então o JOIN-fallback que esta e as duas anteriores já tinham nunca quebraria de fato; a mudança aqui é consistência/performance, não correção de bug ativo.
+- `admin_log_manual_card_asset_import_batch()` (Query `2122`, v1.0 → v1.1) — esta sim corrige um risco real: `catalog_admin_action_log.entity_id` não tem FK (polimórfico), então uma Coleção sem `catalog_import_job` associado podia ser excluída fisicamente mesmo tendo uma linha `CARD_ASSET_MANUAL_IMPORT_COMPLETED`, deixando o fallback antigo órfão.
+
+**Leitura paginada (`admin_list_catalog_action_log()`, Query `2127`)** — mesmo padrão estrutural de `admin_list_users()` (Query `1061`): `is_admin()` com `RAISE EXCEPTION`, `p_limit`/`p_offset` com teto controlado no servidor, `count(*) OVER()` para `total_count` na mesma query. `entity_label` resolvido por `CASE entity_type`, com fallback via `LEFT JOIN` condicional às 7 tabelas vivas correspondentes (necessário para linhas anteriores à correção de metadata acima e para `CARD_DEACTIVATED`/`CARD_REACTIVATED`, cujo metadata é vazio por desenho). Filtros server-side: busca (ILIKE sobre `entity_label`/`actor_label`/`action` já resolvidos), Entidade, Ação, Usuário — primeira tela do Catálogo Editorial nesse padrão, diferente do fetch-tudo-e-filtra-em-memória usado por Importações/Atividade Recente/Cartas.
+
+**Agregação semanal (`admin_get_catalog_action_log_weekly_summary()`, Query `2128`)** — janela fixa de 12 semanas (decisão de Fabrício, não "todo o histórico"), `date_trunc('week', ...)` (segunda a domingo), só as 3 categorias com gráfico próprio (Cadastro/Alteração/Exclusão). Sempre server-side — agregar client-side sobre uma única página da listagem sub-contaria semanas com mais eventos que o tamanho de página.
+
+**Índice de suporte (Query `2125`)** — `ix_catalog_admin_action_log_created_at`, simples (não composto, decisão explícita de Fabrício), suporta `ORDER BY created_at`/paginação sem full scan a cada página.
+
+**Frontend V1**: 3 gráficos semanais no topo (`LogAtualizacoesResumo` — cores `bg-primary`/`bg-warning`/`bg-destructive` para Cadastro/Alteração/Exclusão, mesma linguagem visual de `ImportacoesTendencia` mas categoria única por card, não empilhado), filtros server-side (`LogAtualizacoesFiltros` — busca debounced 300ms + 3 selects, mesmo mecanismo de `CatalogoSearchBar`), tabela paginada Data\|Quem\|Entidade\|Registro\|Ação\|Detalhes (`LogAtualizacoesTable`) e Dialog de Detalhes a partir do `metadata`/enriquecimentos já resolvidos pelo backend — sem diff antes/depois inventado, conforme instrução explícita de Fabrício.
+
+### Sequência — Log de Atualizações
+
+```text
+2125 - Add created_at Index to Catalog Admin Action Log        (CONFIRMADO EXECUTADO — database/migrations/2125_add_created_at_index_to_catalog_admin_action_log.sql)
+2126 - Create internal.catalog_admin_action_category()         (CONFIRMADO EXECUTADO — database/schema/2126_create_internal_catalog_admin_action_category_function.sql)
+2080 v1.1 - admin_start_catalog_import() + metadata Coleção     (CONFIRMADO EXECUTADO — database/schema/2080_create_admin_start_catalog_import_function.sql)
+2082 v1.2 - admin_confirm_catalog_import() + metadata Coleção   (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2082_create_admin_confirm_catalog_import_function.sql)
+2106 v1.3 - svc_apply_catalog_import_revalidation() + metadata  (CONFIRMADO EXECUTADO — validação funcional pendente, sem Card Set disponível para o teste — database/schema/2106_create_svc_apply_catalog_import_revalidation_function.sql)
+2122 v1.1 - admin_log_manual_card_asset_import_batch() + metadata (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2122_create_admin_log_manual_card_asset_import_batch_function.sql)
+2127 - Create admin_list_catalog_action_log()                  (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2127_create_admin_list_catalog_action_log_function.sql)
+2128 - Create admin_get_catalog_action_log_weekly_summary()    (CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE — database/schema/2128_create_admin_get_catalog_action_log_weekly_summary_function.sql)
+```
+
 ## Pendências / Próximos Passos
 
 A leitura/galeria de Cartas está implementada, funcional (Query `2053` confirmada executada) e ajustada visualmente conforme três rounds de teste real de Fabrício — nenhuma pendência conhecida na experiência de leitura. O cadastro self-service de Raridade (acima) está implementado e em uso em produção. **Atualizado em 2026-08-07** (esta seção estava desatualizada — o subciclo `Card` do `ADR-023` já tinha fechado no mesmo dia, mas esta lista de pendências nunca foi revisada): o ciclo vertical completo de `Card` está concluído — atualização (`admin_update_card()`, Query `2114`), criação (`admin_create_card()`, Query `2115`) e desativação/reativação (`admin_deactivate_card()`/`admin_reactivate_card()`, Queries `2116`/`2117`), todas confirmadas executadas e validadas funcionalmente (validação `2817`). `ADR-023` está formalmente fechado — ver seção "`admin_create_card()`/`admin_deactivate_card()`/`admin_reactivate_card()`" acima. Pendência isolada, deliberadamente fora deste fechamento: auditoria retroativa de `REVOKE ... FROM PUBLIC/anon` nas demais funções `admin_*` do módulo, criadas antes da descoberta desse gap (item futuro separado, decisão de Fabrício). O fechamento formal do Ciclo 2 de `ADR-024` (ver seção "Ciclo 2 — Fluxo vertical completo via TCGdex" acima) está com a documentação escrita; a validação `2818` correspondente aguarda execução e confirmação de Fabrício.

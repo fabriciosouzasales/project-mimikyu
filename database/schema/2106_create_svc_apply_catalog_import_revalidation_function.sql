@@ -2,10 +2,24 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2106 - Create svc_apply_catalog_import_revalidation() Function
-Versão......: 1.2
-Status......: CANÔNICA — CONFIRMADO EXECUTADO E VALIDADO FUNCIONALMENTE
+Versão......: 1.3
+Status......: CANÔNICA — CONFIRMADO EXECUTADO (v1.3 aguardando validação funcional — sem Card Set com linha pendente disponível no momento)
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-08-07
+Data........: 2026-08-07 (v1.2), 2026-08-09 (v1.3)
+
+Correção v1.3 (2026-08-09): metadata de CATALOG_IMPORT_ROWS_
+REVALIDATED passa a gravar card_set_name/card_set_code (resolvidos
+a partir de v_job.card_set_id) no momento do evento — mesma decisão
+das Queries 2080 v1.1/2082 v1.2, ver Log de Atualizações V1. Nota de
+transparência: catalog_import_job.card_set_id tem FK ON DELETE
+RESTRICT (Query 2060) — uma Coleção com qualquer job associado nunca
+podia ser fisicamente excluída, então o JOIN-fallback que esta ação
+já tinha (via catalog_import_job → card_set) nunca quebraria de
+fato. Esta mudança é uma melhoria de consistência/performance (evita
+o JOIN em toda leitura futura), não a correção de um bug ativo —
+diferente da Query 2122 v1.1 (CARD_ASSET_MANUAL_IMPORT_COMPLETED),
+onde o risco de entity_label órfão era real. Nenhuma mudança de
+assinatura.
 
 Descrição...:
 Cria public.svc_apply_catalog_import_revalidation(), contrato
@@ -70,6 +84,8 @@ DECLARE
     v_needs_review_rows INTEGER;
     v_invalid_rows INTEGER;
     v_final_status TEXT;
+    v_card_set_name TEXT;
+    v_card_set_code TEXT;
 BEGIN
     IF p_job_id IS NULL THEN
         RAISE EXCEPTION 'SVC_APPLY_CATALOG_IMPORT_REVALIDATION_MISSING_JOB: p_job_id é obrigatório.';
@@ -88,6 +104,9 @@ BEGIN
     IF v_job.status NOT IN ('STAGED', 'CONFIRMING', 'COMPLETED_WITH_ERRORS') THEN
         RAISE EXCEPTION 'SVC_APPLY_CATALOG_IMPORT_REVALIDATION_INVALID_STATUS: o job está em % — só é possível revalidar STAGED, CONFIRMING ou COMPLETED_WITH_ERRORS.', v_job.status;
     END IF;
+
+    SELECT name, code INTO v_card_set_name, v_card_set_code
+    FROM public.card_set WHERE id = v_job.card_set_id;
 
     v_rows_affected := internal.persist_catalog_import_revalidation(p_job_id, p_row_updates);
 
@@ -122,7 +141,12 @@ BEGIN
     IF v_rows_affected > 0 THEN
         INSERT INTO public.catalog_admin_action_log (actor_id, action, entity_type, entity_id, metadata)
             VALUES (p_actor_id, 'CATALOG_IMPORT_ROWS_REVALIDATED', 'CATALOG_IMPORT_JOB', p_job_id,
-                    jsonb_build_object('rows_updated', v_rows_affected, 'rows_unblocked', v_unblocked_count));
+                    jsonb_build_object(
+                        'card_set_name', v_card_set_name,
+                        'card_set_code', v_card_set_code,
+                        'rows_updated', v_rows_affected,
+                        'rows_unblocked', v_unblocked_count
+                    ));
     END IF;
 
     RETURN QUERY
@@ -141,4 +165,12 @@ GRANT EXECUTE ON FUNCTION public.svc_apply_catalog_import_revalidation(UUID, JSO
 -- subsequente, decision_status preservado nas 132 linhas,
 -- actor_id real gravado em catalog_admin_action_log. Usado em
 -- produção pelo botão "Revalidar tudo" de /catalogo/raridades.
+-- ================================================================
+--
+-- v1.3 CONFIRMADO EXECUTADO (2026-08-09): CREATE OR REPLACE
+-- aplicado sem erro ("Success"). Validação funcional (metadata com
+-- card_set_name/card_set_code preenchidos) ainda pendente no
+-- momento desta nota — nenhum Card Set com linha pendente de
+-- revalidação disponível para o teste; a próxima chamada real desta
+-- function em produção fecha essa validação.
 -- ================================================================
