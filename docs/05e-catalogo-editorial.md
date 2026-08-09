@@ -99,9 +99,9 @@ CREATE POLICY card_set_logo_admin_delete ON storage.objects
 
 `card-set-logo` não é registrado na tabela `storage_bucket` — mesmo padrão já usado por `avatars` (bucket module-owned, fora do catálogo multi-bucket de `card_asset`). Confirmado via `storage.buckets`/`pg_policies`. Arquivo em `database/migrations/276_create_card_set_logo_storage_bucket_and_policies.sql`.
 
-## Menu e rota (CONFIRMADO IMPLEMENTADO — validação em produção pendente)
+## Menu e rota (CONFIRMADO IMPLEMENTADO E VALIDADO EM PRODUÇÃO)
 
-Guarda de menu (`nav-config.ts`, `catalogo.adminOnly = true`) e guarda de servidor compartilhada pelas seis rotas do módulo (`components/catalogo/catalogo-guard.tsx`, função `requireCatalogoAdmin()`), mesmo padrão já validado em produção em `/usuarios/page.tsx`: sem sessão → `/login`; sem papel administrativo → `Alert` de acesso restrito, nenhum conteúdo real renderizado. Aplicada às seis rotas (`/catalogo`, `/jogos`, `/expansoes`, `/card-sets`, `/cartas`, `/importacoes`) e à nova rota de detalhe `/catalogo/card-sets/[code]`, inclusive as que ainda são `ComingSoonPage` — a guarda não depende da tela ter conteúdo real. `tsc --noEmit` confirmado limpo para todo o código novo; validação visual em `npm run dev` ainda pendente (ambiente sem acesso a npm/CDN nesta sessão).
+Guarda de menu (`nav-config.ts`, `catalogo.adminOnly = true`) e guarda de servidor compartilhada pelas rotas do módulo (`components/catalogo/catalogo-guard.tsx`, função `requireCatalogoAdmin()`), mesmo padrão já validado em produção em `/usuarios/page.tsx`: sem sessão → `/login`; sem papel administrativo → `Alert` de acesso restrito, nenhum conteúdo real renderizado. Aplicada a `/catalogo`, `/jogos`, `/expansoes`, `/card-sets`, `/cartas`, `/importacoes` e à rota de detalhe `/catalogo/card-sets/[code]`. `tsc --noEmit` confirmado limpo; validação visual em produção real confirmada (2026-08-08) — todas as telas do módulo estão implementadas, nenhuma segue como `ComingSoonPage` (ver auditoria da Frente C em `ROADMAP.md`, seção "Catálogo Editorial — Frentes de Encerramento").
 
 ## Sequência
 
@@ -114,7 +114,7 @@ Guarda de menu (`nav-config.ts`, `catalogo.adminOnly = true`) e guarda de servid
 
 (`273 - Add Card Set Logo Column` documentada na seção "Set" acima, não repetida aqui.)
 
-## Frontend — Visão Geral (`/catalogo`, CONFIRMADO IMPLEMENTADO, validação em produção pendente)
+## Frontend — Visão Geral (`/catalogo`, CONFIRMADO IMPLEMENTADO E VALIDADO EM PRODUÇÃO)
 
 Implementada após a fundação de banco acima ser concluída e validada, conforme condicionado por Fabrício. Quatro blocos, todos exclusivos de administradores (guarda de servidor + RLS `catalog_admin_select`):
 
@@ -129,7 +129,7 @@ Camada de dados em `web/lib/catalogo/queries.ts` — leitura direta das 10 tabel
 
 ## Pendências / Próximos Passos
 
-Validação visual em `npm run dev` (ambiente desta sessão sem acesso a npm/CDN — `tsc --noEmit` confirmado limpo, mas nenhuma renderização real foi conferida). Design completo do detalhe de Card Set (galeria de cartas, upload de logo via `admin_set_card_set_logo()`, histórico de importações do Set). Telas `/catalogo/jogos`, `/expansoes`, `/card-sets` (listagem), `/cartas` e `/importacoes` seguem como `ComingSoonPage`, agora com a guarda de admin já aplicada.
+Validação visual em produção real confirmada (2026-08-08) — nenhuma pendência de validação nesta frente. Único item real, confirmado por auditoria dedicada (2026-08-08) como evolução futura por design original, não como pendência bloqueante: design completo do detalhe de Card Set (`/catalogo/card-sets/[code]`) — galeria de cartas, upload de logo via `admin_set_card_set_logo()`, histórico de importações do Set. Registrado como débito não bloqueante em `ROADMAP.md`, seção "Débitos Técnicos Registrados (Sem Cronograma)". Todas as demais telas do módulo (`/catalogo/jogos`, `/expansoes`, `/card-sets`, `/cartas`, `/importacoes`) estão implementadas, com a guarda de admin aplicada — nenhuma segue como `ComingSoonPage`.
 
 ---
 

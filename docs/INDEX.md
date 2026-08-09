@@ -104,7 +104,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 
 | Documento | Resumo |
 |---|---|
-| [`development/HANDOFF-2026-08-08.md`](development/HANDOFF-2026-08-08.md) | Handoff vigente — `ADR-023`/`024` concluídos, `ADR-026` com segundo ponto de entrada via UI, canal PDF encerrado definitivamente, limpeza de UI das telas de importação, checklist de retomada. |
+| [`development/HANDOFF-2026-08-08.md`](development/HANDOFF-2026-08-08.md) | Handoff vigente — Catálogo Editorial formalmente encerrado (cinco frentes A–E concluídas), Módulo Gerencial iniciado (Sprint Gerencial 1: Visão Geral com drill-down, Histórico de Importações unificado, semântica de "Pendências" corrigida), inventário de débitos técnicos, checklist de retomada. |
 
 ---
 
@@ -116,3 +116,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.1 | Resumo de `ADR-024` atualizado (2026-08-08) para refletir o encerramento definitivo do canal PDF (Ciclos 3/4) — decisão explícita de Fabrício, ver `adr/ADR-024-catalog-card-ingestion-strategy.md` revisão `1.7`. |
 | 1.2 | Handoff vigente atualizado para `development/HANDOFF-2026-08-08.md` (2026-08-08) — `HANDOFF-2026-08-02.md` estava significativamente desatualizado (não refletia o fechamento formal do Ciclo 2 de `ADR-024`, a conclusão de `ADR-023`, `ADR-026` nem o encerramento do canal PDF, todos ocorridos depois de 02/08); movido para `history/development/`. |
 | 1.3 | Adicionado `ADR-027` (Catalog Editorial Canonical Metrics Views, 2026-08-08) — decisão de Fabrício de abrir ADR novo (não emendar `ADR-006`) para o padrão `security_invoker = true`/GRANT restrito, estreado pela Query `2123` da Sprint Gerencial 1. |
+| 1.4 | Resumo do handoff vigente atualizado (2026-08-08) para refletir o encerramento formal do Catálogo Editorial (cinco frentes A–E concluídas) e o início do Módulo Gerencial (Sprint Gerencial 1) — ver `development/HANDOFF-2026-08-08.md` (amendado no mesmo dia) e `ROADMAP.md` revisão `1.22`. |
