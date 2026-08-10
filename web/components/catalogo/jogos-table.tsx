@@ -36,6 +36,7 @@ import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { formatarData } from "@/lib/format-date";
 import { JOGOS_PAGE_SIZE } from "@/lib/catalogo/queries";
 import type { JogoRow } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 const initialState: GameActionState = { error: null };
 
@@ -195,7 +196,7 @@ export function JogosTable({
                           href={`/catalogo/expansoes?game=${jogo.code}`}
                           className="underline-offset-2 hover:text-foreground hover:underline"
                         >
-                          {jogo.totalExpansoes}
+                          {formatNumber(jogo.totalExpansoes)}
                         </Link>
                       </DataTableCell>
                       <DataTableCell align="center">{formatarData(jogo.createdAt)}</DataTableCell>

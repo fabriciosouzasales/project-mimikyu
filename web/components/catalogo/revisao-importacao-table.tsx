@@ -21,7 +21,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import type { CatalogImportRowView } from "@/lib/catalogo/queries";
 
 const VALIDATION_LABEL: Record<string, string> = {
@@ -84,7 +84,9 @@ const CATEGORY_LABEL: Record<string, string> = {
 function SummaryStat({ label, value, className }: { label: string; value: number; className?: string }) {
   return (
     <div>
-      <p className={cn("text-lg font-semibold leading-none tabular-nums", className ?? "text-foreground")}>{value}</p>
+      <p className={cn("text-lg font-semibold leading-none tabular-nums", className ?? "text-foreground")}>
+        {formatNumber(value)}
+      </p>
       <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
     </div>
   );
@@ -272,7 +274,7 @@ export function RevisaoImportacaoTable({
                 disabled={isPending}
                 onClick={() => decidir(Array.from(selected), "APPROVED")}
               >
-                Aprovar selecionadas ({selected.size})
+                Aprovar selecionadas ({formatNumber(selected.size)})
               </Button>
               <Button
                 type="button"
@@ -296,7 +298,7 @@ export function RevisaoImportacaoTable({
           )}
           <Button type="button" size="sm" disabled={isPending || confirming || approvableCount === 0} onClick={confirmar}>
             <Check className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            {confirming ? "Confirmando…" : `Confirmar ${approvableCount} carta${approvableCount === 1 ? "" : "s"}`}
+            {confirming ? "Confirmando…" : `Confirmar ${formatNumber(approvableCount)} carta${approvableCount === 1 ? "" : "s"}`}
           </Button>
         </div>
       </CardHeader>

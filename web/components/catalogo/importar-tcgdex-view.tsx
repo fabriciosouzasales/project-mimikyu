@@ -42,7 +42,7 @@ import {
   MAX_IMAGE_IMPORT_RETRY_ATTEMPTS,
   waitForActiveRunToFinish,
 } from "@/lib/catalogo/asset-import-progress-client";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 const INITIAL_STATE: IniciarImportacaoTcgdexActionState = { error: null, jobId: null };
 
@@ -156,7 +156,7 @@ function CandidateSummary({ candidate }: { candidate: TcgdexSetCandidate }) {
   return (
     <div className="rounded-md border border-input p-3">
       <p className="text-sm font-medium text-foreground">{candidate.name}</p>
-      <p className="text-xs text-muted-foreground">{candidate.cardCountTotal} cartas</p>
+      <p className="text-xs text-muted-foreground">{formatNumber(candidate.cardCountTotal)} cartas</p>
     </div>
   );
 }
@@ -646,9 +646,9 @@ function renderImageLanguageResult(label: string, result: IniciarImportacaoImage
         </p>
       ) : (
         <p>
-          {label} — {result.imagesImported} importada{result.imagesImported === 1 ? "" : "s"}
+          {label} — {formatNumber(result.imagesImported)} importada{result.imagesImported === 1 ? "" : "s"}
           {result.imagesFailed > 0 &&
-            `, ${result.imagesFailed} pendente${result.imagesFailed === 1 ? "" : "s"} (falharam — seguem disponíveis pelo pipeline manual)`}
+            `, ${formatNumber(result.imagesFailed)} pendente${result.imagesFailed === 1 ? "" : "s"} (falharam — seguem disponíveis pelo pipeline manual)`}
           .
         </p>
       )}
@@ -903,7 +903,7 @@ export function ImportProgress({
           tone: "success",
           body: done && resultSummary && (
             <p>
-              {resultSummary.label} — {resultSummary.cardCount} cartas na TCGdex
+              {resultSummary.label} — {formatNumber(resultSummary.cardCount)} cartas na TCGdex
             </p>
           ),
         };
@@ -927,8 +927,9 @@ export function ImportProgress({
           body: (
             <>
               <p>
-                {job.totalRows} linhas · {job.validRows} válidas · {job.insertedRows} inseridas ·{" "}
-                {job.updatedRows} atualizadas · {job.failedRows} falhas
+                {formatNumber(job.totalRows)} linhas · {formatNumber(job.validRows)} válidas ·{" "}
+                {formatNumber(job.insertedRows)} inseridas · {formatNumber(job.updatedRows)} atualizadas ·{" "}
+                {formatNumber(job.failedRows)} falhas
               </p>
               {job.errorSummary && <p className="text-destructive">{job.errorSummary}</p>}
             </>
@@ -1014,9 +1015,9 @@ export function ImportProgress({
           imagePhase === "importing" && imageProgress && imageProgress.requestedCount > 0 ? (
             <p className="tabular-nums">
               {mode === "full" && `${imageLanguage === "en" ? "EN" : "PT-BR"} — `}
-              {imageProgress.processedCount} de {imageProgress.requestedCount} processadas
-              {imageProgress.successCount > 0 && ` · ${imageProgress.successCount} importadas`}
-              {imageProgress.failedCount > 0 && ` · ${imageProgress.failedCount} falharam`}
+              {formatNumber(imageProgress.processedCount)} de {formatNumber(imageProgress.requestedCount)} processadas
+              {imageProgress.successCount > 0 && ` · ${formatNumber(imageProgress.successCount)} importadas`}
+              {imageProgress.failedCount > 0 && ` · ${formatNumber(imageProgress.failedCount)} falharam`}
             </p>
           ) : (
             imagePhase === "done" &&

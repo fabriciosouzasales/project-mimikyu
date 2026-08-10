@@ -11,7 +11,7 @@ import { MatchResultPanel, useAnalyzeJob, ImportProgress } from "@/components/ca
 import { RevisaoImportacaoTable } from "@/components/catalogo/revisao-importacao-table";
 import type { CatalogoCardSetRow } from "@/lib/catalogo/queries";
 import type { TcgdexAutoMatchResult } from "@/lib/catalogo/tcgdex-lookup";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 /**
  * Redesenho visual completo em 2026-08-01 (pedido de Fabrício, dois
@@ -204,14 +204,14 @@ export function ImportarCartasView({
       <StatsRow>
         <StatCard
           label="Sem Cartas"
-          value={colecoesSemCartas}
+          value={formatNumber(colecoesSemCartas)}
           caption="coleções sem cartas"
           icon={AlertTriangle}
           tone="danger"
         />
         <StatCard
           label="Sem Imagens"
-          value={cardsSemImagem}
+          value={formatNumber(cardsSemImagem)}
           caption="cartas sem imagens"
           icon={ImageOff}
           tone="danger"
@@ -254,7 +254,9 @@ export function ImportarCartasView({
                   <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">Set localizado: {matchResult.set.name}</p>
-                    <p className="text-xs text-muted-foreground">{matchResult.set.cardCountTotal} cartas na TCGdex</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatNumber(matchResult.set.cardCountTotal)} cartas na TCGdex
+                    </p>
                   </div>
                 </div>
                 {analyzeJob.error && <p className="text-sm text-destructive">{analyzeJob.error}</p>}
@@ -371,8 +373,8 @@ function CardSetCombobox({
             <span className="block truncate text-[11px] leading-tight text-muted-foreground">
               {selected.expansionCode} — {selected.expansionName} —{" "}
               {selected.cardsCatalogados > 0
-                ? `${selected.cardsCatalogados}/${selected.totalSetSize} cartas catalogadas`
-                : `${selected.totalSetSize} cartas encontradas para importação`}
+                ? `${formatNumber(selected.cardsCatalogados)}/${formatNumber(selected.totalSetSize)} cartas catalogadas`
+                : `${formatNumber(selected.totalSetSize)} cartas encontradas para importação`}
             </span>
           </span>
         ) : (
@@ -417,8 +419,8 @@ function CardSetCombobox({
               <span className="block truncate text-[11px] leading-tight text-muted-foreground">
                 {cardSet.expansionCode} — {cardSet.expansionName} —{" "}
                 {cardSet.cardsCatalogados > 0
-                  ? `${cardSet.cardsCatalogados}/${cardSet.totalSetSize} cartas catalogadas`
-                  : `${cardSet.totalSetSize} cartas encontradas para importação`}
+                  ? `${formatNumber(cardSet.cardsCatalogados)}/${formatNumber(cardSet.totalSetSize)} cartas catalogadas`
+                  : `${formatNumber(cardSet.totalSetSize)} cartas encontradas para importação`}
               </span>
             </button>
           ))}

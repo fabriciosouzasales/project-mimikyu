@@ -1,6 +1,7 @@
 import { Divide, Gamepad2, Layers } from "lucide-react";
 import { StatCard, StatsRow } from "@/components/catalogo/stat-card";
 import type { JogoRow } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 /**
  * Indicadores da tela Jogos — exibidos antes da tabela (pedido de
@@ -27,9 +28,14 @@ export function JogosStats({ jogos }: { jogos: JogoRow[] }) {
 
   return (
     <StatsRow>
-      <StatCard label="Jogos" value={totalJogos} caption="jogos cadastrados" icon={Gamepad2} />
-      <StatCard label="Expansões" value={totalExpansoes} caption="expansões cadastradas" icon={Layers} />
-      <StatCard label="Média" value={mediaExpansoesPorJogo} caption="expansões por jogo" icon={Divide} />
+      <StatCard label="Jogos" value={formatNumber(totalJogos)} caption="jogos cadastrados" icon={Gamepad2} />
+      <StatCard
+        label="Expansões"
+        value={formatNumber(totalExpansoes)}
+        caption="expansões cadastradas"
+        icon={Layers}
+      />
+      <StatCard label="Média" value={formatNumber(mediaExpansoesPorJogo)} caption="expansões por jogo" icon={Divide} />
     </StatsRow>
   );
 }

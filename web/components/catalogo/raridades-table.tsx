@@ -39,6 +39,7 @@ import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { formatarData } from "@/lib/format-date";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import type { RaridadeRow, RevalidacaoPendenteResumo } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 /** Mesmas chaves de `SYMBOL_MAP` em `rarity-symbol.tsx` — mantidas em sincronia manualmente (nenhum dos dois lados é gerado a partir do outro). */
 const SYMBOL_OPTIONS = [
@@ -270,7 +271,7 @@ function PendenciasRevalidacao({
             <span className="text-sm font-medium text-foreground">
               {semPendencia
                 ? "Nada pendente de revalidação"
-                : `${pendente.totalLinhasPendentes} linha(s) sem raridade mapeada, em ${pendente.totalJobsRevalidaveis} job(s)`}
+                : `${formatNumber(pendente.totalLinhasPendentes)} linha(s) sem raridade mapeada, em ${formatNumber(pendente.totalJobsRevalidaveis)} job(s)`}
             </span>
           </div>
 
@@ -278,10 +279,14 @@ function PendenciasRevalidacao({
 
           {revalidarState.success && (
             <InlineFeedback tone="success">
-              {revalidarState.jobsProcessados} job(s) processado(s), {revalidarState.linhasAtualizadas} linha(s)
-              atualizada(s){revalidarState.linhasDestravadas ? `, ${revalidarState.linhasDestravadas} destravada(s)` : ""}.
+              {formatNumber(revalidarState.jobsProcessados ?? 0)} job(s) processado(s),{" "}
+              {formatNumber(revalidarState.linhasAtualizadas ?? 0)} linha(s) atualizada(s)
+              {revalidarState.linhasDestravadas
+                ? `, ${formatNumber(revalidarState.linhasDestravadas)} destravada(s)`
+                : ""}
+              .
               {revalidarState.falhas && revalidarState.falhas.length > 0 && (
-                <> {revalidarState.falhas.length} job(s) falharam — ver logs.</>
+                <> {formatNumber(revalidarState.falhas.length)} job(s) falharam — ver logs.</>
               )}
             </InlineFeedback>
           )}

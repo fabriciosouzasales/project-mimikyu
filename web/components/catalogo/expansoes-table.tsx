@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageActions, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { formatarData } from "@/lib/format-date";
 import type { ExpansaoRow, ExpansaoWithLogo, GameOption } from "@/lib/catalogo/queries";
 
@@ -130,7 +130,7 @@ export function ExpansoesTable({
                         <DataTableCell className="text-foreground">{expansao.name}</DataTableCell>
                         <DataTableCell align="center">{expansao.code}</DataTableCell>
                         <DataTableCell align="center">{expansao.releaseOrder}</DataTableCell>
-                        <DataTableCell align="center">{expansao.totalCardSets}</DataTableCell>
+                        <DataTableCell align="center">{formatNumber(expansao.totalCardSets)}</DataTableCell>
                         <DataTableCell align="center">{formatarData(expansao.createdAt)}</DataTableCell>
                         <DataTableCell align="center">{formatarData(expansao.updatedAt)}</DataTableCell>
                         <DataTableCell align="right">

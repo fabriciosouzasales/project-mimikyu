@@ -20,6 +20,7 @@ import { InlineFeedback } from "@/components/ui/feedback";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { getGameAccentColor } from "@/lib/catalogo/game-accent";
+import { formatNumber } from "@/lib/utils";
 import type {
   CardSetsExpansionGroupWithLogo,
   CatalogoCardResult,
@@ -276,7 +277,7 @@ export function CatalogoGallery({
                       />
                       <h3 className="text-sm font-medium text-foreground">{group.expansionName}</h3>
                       <span className="text-xs text-muted-foreground">
-                        ({group.items.length} {group.items.length === 1 ? "coleção" : "coleções"})
+                        ({formatNumber(group.items.length)} {group.items.length === 1 ? "coleção" : "coleções"})
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">

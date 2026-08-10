@@ -41,8 +41,8 @@ const LANGUAGE_FLAG: Record<string, string> = {
  */
 function formatCardSetTotals(baseSetSize: number, totalSetSize: number): string {
   const secretas = totalSetSize - baseSetSize;
-  if (secretas <= 0) return `${totalSetSize} carta${totalSetSize === 1 ? "" : "s"}`;
-  return `${totalSetSize} cartas (${baseSetSize} base + ${secretas} secreta${secretas === 1 ? "" : "s"})`;
+  if (secretas <= 0) return `${formatNumber(totalSetSize)} carta${totalSetSize === 1 ? "" : "s"}`;
+  return `${formatNumber(totalSetSize)} cartas (${formatNumber(baseSetSize)} base + ${formatNumber(secretas)} secreta${secretas === 1 ? "" : "s"})`;
 }
 
 /**

@@ -21,7 +21,7 @@ import {
   waitForActiveRunToFinish,
 } from "@/lib/catalogo/asset-import-progress-client";
 import type { CartaManualImportManifestRow, CatalogoCardSetImagensRow } from "@/lib/catalogo/queries";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 /** Mesmo domínio de `Fonte` da `page.tsx` — repetido aqui só como tipo (evita import cruzado de Server/Client Component por um literal de 2 valores). */
 type Source = "api" | "manual";
@@ -330,14 +330,14 @@ export function ImportarImagensView({
       <StatsRow>
         <StatCard
           label="Coleções Pendentes"
-          value={colecoesPendentes}
+          value={formatNumber(colecoesPendentes)}
           caption="coleções com imagens faltando"
           icon={AlertTriangle}
           tone="danger"
         />
         <StatCard
           label="Sem Imagens"
-          value={cartasSemImagem}
+          value={formatNumber(cartasSemImagem)}
           caption="cartas sem imagens"
           icon={ImageOff}
           tone="danger"
@@ -397,9 +397,10 @@ export function ImportarImagensView({
               />
             ) : (
               <p className="text-sm text-muted-foreground">
-                {selectedCardSet.imagesImportadas} de {selectedCardSet.cardsCatalogados} cartas já têm imagem —{" "}
-                {selectedCardSet.imagesPendentes} pendente{selectedCardSet.imagesPendentes === 1 ? "" : "s"}. Clique em
-                "Importar Imagens" para tentar novamente.
+                {formatNumber(selectedCardSet.imagesImportadas)} de {formatNumber(selectedCardSet.cardsCatalogados)}{" "}
+                cartas já têm imagem — {formatNumber(selectedCardSet.imagesPendentes)} pendente
+                {selectedCardSet.imagesPendentes === 1 ? "" : "s"}. Clique em "Importar Imagens" para tentar
+                novamente.
               </p>
             )}
           </div>
@@ -568,8 +569,8 @@ function CardSetImagensCombobox({
               {selected.code} — {selected.name}
             </span>
             <span className="block truncate text-[11px] leading-tight text-muted-foreground">
-              {selected.expansionCode} — {selected.expansionName} — {selected.imagesImportadas}/
-              {selected.cardsCatalogados} imagens importadas
+              {selected.expansionCode} — {selected.expansionName} — {formatNumber(selected.imagesImportadas)}/
+              {formatNumber(selected.cardsCatalogados)} imagens importadas
             </span>
           </span>
         ) : (
@@ -607,8 +608,8 @@ function CardSetImagensCombobox({
                 {cardSet.code} — {cardSet.name}
               </span>
               <span className="block truncate text-[11px] leading-tight text-muted-foreground">
-                {cardSet.expansionCode} — {cardSet.expansionName} — {cardSet.imagesImportadas}/{cardSet.cardsCatalogados}{" "}
-                imagens importadas
+                {cardSet.expansionCode} — {cardSet.expansionName} — {formatNumber(cardSet.imagesImportadas)}/
+                {formatNumber(cardSet.cardsCatalogados)} imagens importadas
               </span>
             </button>
           ))}

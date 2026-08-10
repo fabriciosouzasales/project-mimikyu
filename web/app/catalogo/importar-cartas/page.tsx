@@ -62,12 +62,36 @@ export default async function ImportarCartasPage({
   // (admin_confirm_catalog_import) já trata cada linha por correspondência
   // (NEW/MATCHED/CONFLICT — ADR-024), então as cartas já cadastradas
   // aparecem como MATCHED (sem-op) e só as que faltam entram como NEW.
+  //
+  // **Emenda (2026-08-09, bug real reportado por Fabrício: "SVP não aparece
+  // no combobox" apesar de faltarem 8 cartas).** O motivo é uma lacuna do
+  // critério acima: o único job de SVP (01/08) rodou com `total_rows = 218`
+  // porque a TCGdex, naquele momento, só listava 218 cartas com dado real —
+  // as 218 foram inseridas com sucesso (`inserted_rows = 218`, sem falha),
+  // então `getLatestImportJobIncompleteFlags` corretamente não marca esse
+  // job como incompleto. O problema é que a TCGdex passou a listar mais
+  // cartas *depois* dessa análise (confirmado 226 hoje, ver
+  // `docs/05e-catalogo-editorial.md`) — cartas que nunca chegaram a fazer
+  // parte de nenhum job desta Coleção, então não existe "linha que falhou"
+  // para o critério baseado em job encontrar.
+  //
+  // A comparação com `total_set_size` que o comentário acima descarta para
+  // o caso SV1/SV2 (campo manual, podia ficar *abaixo* da contagem real da
+  // TCGdex) continua válida como sinal **complementar**, não substituto: aqui
+  // ela pega exatamente o caso que o critério por job não cobre. Os dois
+  // critérios em OR não competem — cada um cobre uma lacuna diferente do
+  // outro (job incompleto: sobrou linha dentro de um snapshot já buscado;
+  // `cardsCatalogados < totalSetSize`: o snapshot mais recente ficou
+  // desatualizado frente ao total já confirmado da Coleção).
   const incompleteFlags = await getLatestImportJobIncompleteFlags(
     supabase,
     cardSets.map((cardSet) => cardSet.id),
   );
   const cardSetsParaImportar = cardSets.filter(
-    (cardSet) => cardSet.cardsCatalogados === 0 || incompleteFlags.get(cardSet.id) === true,
+    (cardSet) =>
+      cardSet.cardsCatalogados === 0 ||
+      cardSet.cardsCatalogados < cardSet.totalSetSize ||
+      incompleteFlags.get(cardSet.id) === true,
   );
   // KPI "Sem Cartas" continua estrito (zero cartas) — métrica diferente do
   // filtro do seletor acima, não confundir: uma Coleção parcialmente

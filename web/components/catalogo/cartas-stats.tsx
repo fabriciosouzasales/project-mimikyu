@@ -1,6 +1,7 @@
 import { AlertTriangle, CreditCard, Image, ImageOff } from "lucide-react";
 import { StatCard, StatsRow } from "@/components/catalogo/stat-card";
 import type { CartasCatalogoStats, CatalogoCardSetRow } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 /**
  * Indicadores da tela Cartas — substitui a barra "Recentes" (3 chips de
@@ -40,18 +41,23 @@ export function CartasStats({
 
   return (
     <StatsRow>
-      <StatCard label="Cartas" value={totalCartas} caption="cartas catalogadas" icon={CreditCard} />
-      <StatCard label="Imagens" value={stats.totalImagens} caption="imagens em nossa base" icon={Image} />
+      <StatCard label="Cartas" value={formatNumber(totalCartas)} caption="cartas catalogadas" icon={CreditCard} />
+      <StatCard
+        label="Imagens"
+        value={formatNumber(stats.totalImagens)}
+        caption="imagens em nossa base"
+        icon={Image}
+      />
       <StatCard
         label="Sem Cartas"
-        value={colecoesSemCartas}
+        value={formatNumber(colecoesSemCartas)}
         caption="coleções sem cartas"
         icon={AlertTriangle}
         tone="danger"
       />
       <StatCard
         label="Sem Imagens"
-        value={stats.cardsSemImagem}
+        value={formatNumber(stats.cardsSemImagem)}
         caption="cartas sem imagens"
         icon={ImageOff}
         tone="danger"

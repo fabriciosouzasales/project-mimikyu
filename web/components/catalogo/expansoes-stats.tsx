@@ -1,6 +1,7 @@
 import { AlertTriangle, Boxes, Gamepad2, Layers } from "lucide-react";
 import { StatCard, StatsRow } from "@/components/catalogo/stat-card";
 import type { ExpansaoRow, GameOption } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 /**
  * Indicadores da tela Expansões — ajuste 2026-07-31 (pedido de Fabrício:
@@ -25,12 +26,17 @@ export function ExpansoesStats({ expansoes, jogos }: { expansoes: ExpansaoRow[];
 
   return (
     <StatsRow>
-      <StatCard label="Jogos" value={totalJogos} caption="jogos cadastrados" icon={Gamepad2} />
-      <StatCard label="Expansões" value={totalExpansoes} caption="expansões cadastradas" icon={Layers} />
-      <StatCard label="Coleções" value={totalCardSets} caption="coleções cadastradas" icon={Boxes} />
+      <StatCard label="Jogos" value={formatNumber(totalJogos)} caption="jogos cadastrados" icon={Gamepad2} />
+      <StatCard
+        label="Expansões"
+        value={formatNumber(totalExpansoes)}
+        caption="expansões cadastradas"
+        icon={Layers}
+      />
+      <StatCard label="Coleções" value={formatNumber(totalCardSets)} caption="coleções cadastradas" icon={Boxes} />
       <StatCard
         label="Sem Coleções"
-        value={expansoesSemSets}
+        value={formatNumber(expansoesSemSets)}
         caption="expansões sem coleções"
         icon={AlertTriangle}
         tone="danger"

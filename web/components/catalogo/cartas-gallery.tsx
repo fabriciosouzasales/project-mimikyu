@@ -21,7 +21,7 @@ import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/component
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
 import { formatarData } from "@/lib/format-date";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import type {
   CartaCompletaRow,
   CartasCatalogoStats,
@@ -76,8 +76,8 @@ function cartaFullNumber(carta: Pick<CartaCompletaRow, "collectorNumber" | "coll
  */
 function formatCardSetTotals(baseSetSize: number, totalSetSize: number): string {
   const secretas = totalSetSize - baseSetSize;
-  if (secretas <= 0) return `${totalSetSize} carta${totalSetSize === 1 ? "" : "s"}`;
-  return `${totalSetSize} cartas (${baseSetSize} base + ${secretas} secreta${secretas === 1 ? "" : "s"})`;
+  if (secretas <= 0) return `${formatNumber(totalSetSize)} carta${totalSetSize === 1 ? "" : "s"}`;
+  return `${formatNumber(totalSetSize)} cartas (${formatNumber(baseSetSize)} base + ${formatNumber(secretas)} secreta${secretas === 1 ? "" : "s"})`;
 }
 
 /** Idioma da imagem exibida no grid/modal — alternador adicionado em 2026-07-31 (pedido de Fabrício: "incluir um componente para alternar entre imagens das cartas em PT e IN"). */
@@ -694,7 +694,7 @@ export function CartasGallery({
                 // cartas, só não estão visíveis por padrão.
                 <EmptyState
                   title="Todas as cartas deste Card Set estão desativadas"
-                  description={`Ative "Mostrar inativas" para ver as ${inactiveCount} cartas desativadas.`}
+                  description={`Ative "Mostrar inativas" para ver as ${formatNumber(inactiveCount)} cartas desativadas.`}
                 />
               ) : filtered.length === 0 ? (
                 <EmptyState title="Nenhuma carta encontrada" description="Ajuste a busca ou os filtros de raridade/categoria." />
@@ -774,7 +774,8 @@ export function CartasGallery({
                             contagem de busca/filtro abaixo). */}
                         <p className="text-[11px] text-muted-foreground">
                           {formatCardSetTotals(selectedCardSet.baseSetSize, selectedCardSet.totalSetSize)} - Exibidas{" "}
-                          {filtered.length} de {visibleCartas.length} carta{visibleCartas.length === 1 ? "" : "s"}
+                          {formatNumber(filtered.length)} de {formatNumber(visibleCartas.length)} carta
+                          {visibleCartas.length === 1 ? "" : "s"}
                         </p>
                       </div>
                     </div>
@@ -956,7 +957,7 @@ function FilterGroup({
                   : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
               )}
             >
-              {option.name} ({option.count})
+              {option.name} ({formatNumber(option.count)})
             </button>
           );
         })}
