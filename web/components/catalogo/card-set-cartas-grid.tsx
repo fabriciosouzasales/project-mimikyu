@@ -5,14 +5,14 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { HoloCard } from "@/components/catalogo/holo-card";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
 import { cn } from "@/lib/utils";
 import type { CartaCompletaRow } from "@/lib/catalogo/queries";
 
-/** Quantas cartas aparecem antes do botão "Ver todas" — mesmo valor de `PAGE_SIZE` em `cartas-gallery.tsx`, mas a grade aqui é menor (ver `CardSetCartasGrid`), então cobre menos linhas; suficiente para não pesar o primeiro carregamento do hub, que já soma outras seções acima. */
+/** Tamanho de cada lote revelado por rolagem (`useInfiniteReveal`) — mesmo valor de `PAGE_SIZE` em `cartas-gallery.tsx`, mas a grade aqui é menor (ver `CardSetCartasGrid`), então cobre menos linhas; suficiente para não pesar o primeiro carregamento do hub, que já soma outras seções acima. */
 const PAGE_SIZE = 24;
 
 /** Mesma regra de `formatCollectorTotal`/`cartaFullNumber` em `cartas-gallery.tsx` — duplicada aqui (não importada) porque lá são funções internas não exportadas; o hub é um consumidor novo e independente, sem alterar a tela de Cartas. */
@@ -86,10 +86,14 @@ function cartaViewTransitionName(id: string): string {
  * — cartas inativas aparecem sempre (com a mesma badge), sem controle para
  * escondê-las; simplificação deliberada para não duplicar essa mecânica de
  * estado da tela completa neste incremento.
+ *
+ * Botão "Ver todas as N cartas" trocado por rolagem infinita (2026-08-09,
+ * pedido de Fabrício após inspeção geral das páginas de Catálogo Editorial:
+ * "carregar as cartas à medida que o usuário rola a tela para baixo") — ver
+ * `useInfiniteReveal`.
  */
 export function CardSetCartasGrid({ cartas }: { cartas: CartaCompletaRow[] }) {
   const [query, setQuery] = useState("");
-  const [showAll, setShowAll] = useState(false);
   const [zoomCarta, setZoomCarta] = useState<CartaCompletaRow | null>(null);
   const [transitionTargetId, setTransitionTargetId] = useState<string | null>(null);
 
@@ -101,7 +105,8 @@ export function CardSetCartasGrid({ cartas }: { cartas: CartaCompletaRow[] }) {
     );
   }, [cartas, termo]);
 
-  const visiveis = showAll ? filtradas : filtradas.slice(0, PAGE_SIZE);
+  const { visibleCount, sentinelRef } = useInfiniteReveal(PAGE_SIZE, termo);
+  const visiveis = filtradas.slice(0, visibleCount);
 
   function openZoom(carta: CartaCompletaRow) {
     flushSync(() => setTransitionTargetId(carta.id));
@@ -145,13 +150,7 @@ export function CardSetCartasGrid({ cartas }: { cartas: CartaCompletaRow[] }) {
               />
             ))}
           </div>
-          {!showAll && filtradas.length > PAGE_SIZE && (
-            <div className="flex justify-center">
-              <Button type="button" variant="outline" size="sm" onClick={() => setShowAll(true)}>
-                Ver todas as {filtradas.length} cartas
-              </Button>
-            </div>
-          )}
+          {visibleCount < filtradas.length && <div ref={sentinelRef} aria-hidden="true" className="h-1 w-full" />}
         </>
       )}
 

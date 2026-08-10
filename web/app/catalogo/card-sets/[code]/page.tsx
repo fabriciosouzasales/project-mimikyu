@@ -181,7 +181,15 @@ export default async function CardSetDetailPage({ params }: { params: Promise<{ 
                 para `w-40`, barra de `h-1.5` para `h-2`, textos um degrau
                 maior (`text-[10px]`→`text-xs`, `text-[9px]`→`text-[11px]`) e
                 mais respiro entre as duas (`gap-3`→`gap-6`); a largura total
-                do painel não muda, só a proporção que esta seção ocupa nele. */}
+                do painel não muda, só a proporção que esta seção ocupa nele.
+                Ampliadas de novo em 2026-08-09 (achado de Fabrício em
+                inspeção geral: "aumentar um pouco os gráficos... para
+                ocuparmos melhor o espaço do card") — coluna de `w-40` para
+                `w-56`, único ajuste desta rodada (altura da barra e textos
+                mantidos da revisão anterior); o painel já tinha espaço
+                horizontal sobrando à direita das duas barras em Coleções com
+                só 2 idiomas, então alargar a coluna aproveita esse vão sem
+                empurrar o painel para uma segunda linha. */}
             {cardSet.coberturaPorIdioma.length > 0 && (
               <div>
                 <p className="text-[11px] text-muted-foreground">Cobertura por idioma</p>
@@ -195,7 +203,7 @@ export default async function CardSetDetailPage({ params }: { params: Promise<{ 
                       <Link
                         key={cobertura.languageCode}
                         href={`/catalogo/importar-imagens?cardSetId=${cardSet.id}&idioma=${encodeURIComponent(cobertura.languageCode)}`}
-                        className="block w-40 space-y-1.5 rounded-md -mx-1 px-1 py-1 transition-colors hover:bg-surface-muted"
+                        className="block w-56 space-y-1.5 rounded-md -mx-1 px-1 py-1 transition-colors hover:bg-surface-muted"
                       >
                         <div className="flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1 font-medium text-foreground">

@@ -283,6 +283,18 @@ Implementado: três componentes extraídos de `checklist/page.tsx` para `web/com
 
 `tsc --noEmit` confirmado limpo. Ver `docs/05e-catalogo-editorial.md`, seção "Checklist por Coleção", subseção "Últimos ajustes", `docs/ROADMAP.md` revisão `1.42`, `docs/README.md` revisão `1.95`.
 
+## [2026-08-09] fix | Ícone ausente em "Log de Atualizações" + rolagem infinita em Cartas/Coleções
+
+Dois achados de Fabrício numa inspeção geral das páginas do Catálogo Editorial. (1) **Ícone do título corrigido**: o `PageTitle` de `/catalogo/log-atualizacoes` nunca tinha recebido o wrapper de ícone (`ScrollText`) que toda outra página do módulo usa ao lado do título — omissão da V1 desta tela. (2) **Botão "Ver todas as N cartas" trocado por rolagem infinita** em `CartasGallery` (`/catalogo/cartas`) e `CardSetCartasGrid` (hub de Card Set) — novo hook compartilhado `useInfiniteReveal` (`web/hooks/use-infinite-reveal.ts`) usa `IntersectionObserver` sobre um elemento sentinela para revelar mais um lote de cartas conforme o usuário rola a tela; mesmo `PAGE_SIZE` de antes em cada tela, só o mecanismo de revelação mudou.
+
+`tsc --noEmit` confirmado limpo. Ver `docs/05e-catalogo-editorial.md`, subseções "Ícone do título ausente, corrigido" e "Paginação por rolagem infinita, em vez do botão 'Ver todas'", `docs/ROADMAP.md` revisão `1.43`, `docs/README.md` revisão `1.96`.
+
+## [2026-08-09] fix | Barras de "Cobertura por idioma" ampliadas no hub de Card Set
+
+Fabrício, na mesma inspeção geral: "aumentar um pouco os gráficos de Cobertura por idioma para ocuparmos melhor o espaço do card". Coluna de cada idioma alargada de `w-40` para `w-56` (`app/catalogo/card-sets/[code]/page.tsx`, painel "Estado do Set") — o painel já tinha vão sobrando à direita das duas barras em Coleções com só 2 idiomas; altura da barra e tamanho dos textos seguem da revisão anterior.
+
+`tsc --noEmit` confirmado limpo. Ver `docs/05e-catalogo-editorial.md`, seção "Hub de Card Set", `docs/ROADMAP.md` revisão `1.44`, `docs/README.md` revisão `1.97`.
+
 ## [2026-08-08] feature | Drill-down completo da Visão Geral — demais StatCards, cobertura por idioma e Saúde do catálogo (Sprint Gerencial 1, fecha o incremento)
 
 Últimos links do desenho de drill-down já aprovado por Fabrício, todos para destinos gerais (nenhuma das telas de chegada tem parâmetro de "pendência" próprio, além do já resolvido `?atencao=1`): StatCard "Coleções"→`/catalogo/card-sets`, "Cartas catalogadas"→`/catalogo/cartas`, "Cobertura"→`/catalogo/importar-imagens` (via novo `href` de `StatCard`). Cada linha do card compacto "Cobertura por idioma" virou `Link` para `/catalogo/importar-imagens?idioma={code}` — reaproveita o parâmetro `?idioma=` que a própria tela já usa para filtrar Coleções pendentes por idioma (nenhuma mudança em `importar-imagens/page.tsx`). Os três segmentos de texto de "Saúde do catálogo" também viraram `Link` individuais: Coleções pendentes→`/catalogo/card-sets`, Cartas pendentes→`/catalogo/importar-cartas`, Imagens pendentes→`/catalogo/importar-imagens`. Com isso, a Visão Geral da Sprint Gerencial 1 está com todo o drill-down planejado implementado. `tsc --noEmit` limpo. Validação visual (hover/clique reais no navegador) pendente — só possível no ambiente de Fabrício.

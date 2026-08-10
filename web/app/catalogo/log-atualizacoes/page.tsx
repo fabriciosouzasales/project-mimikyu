@@ -26,6 +26,12 @@ import {
  * Mesmo mecanismo de "página pedida na URL ficou fora do intervalo" de
  * JogosPage — evita mostrar uma tabela vazia enganosa quando um filtro
  * reduz o total abaixo da página atualmente aberta.
+ *
+ * Ícone do título ausente, corrigido em 2026-08-09 (achado real de Fabrício
+ * em inspeção geral das páginas do Catálogo Editorial) — o `PageTitle` desta
+ * tela nunca tinha ganhado o wrapper `<div className="flex items-center
+ * gap-2">` + ícone que todas as outras páginas do módulo usam (`ScrollText`,
+ * o mesmo já passado para `AppShell`/nav).
  */
 export default async function LogAtualizacoesPage({
   searchParams,
@@ -76,7 +82,10 @@ export default async function LogAtualizacoesPage({
       <PageContainer className="space-y-4">
         <PageHeader>
           <PageHeading>
-            <PageTitle>Log de Atualizações</PageTitle>
+            <div className="flex items-center gap-2">
+              <ScrollText className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              <PageTitle>Log de Atualizações</PageTitle>
+            </div>
             <PageDescription>Trilha de auditoria das escritas administrativas do catálogo editorial.</PageDescription>
           </PageHeading>
         </PageHeader>

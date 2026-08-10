@@ -19,6 +19,7 @@ import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
+import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
 import { formatarData } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import type {
@@ -31,7 +32,7 @@ import type {
   RaridadeRow,
 } from "@/lib/catalogo/queries";
 
-/** Quantas cartas aparecem antes do botão "Ver todas" — ponto 10 do pedido de Fabrício ("deve ser exibido inicialmente parte do card set"). Sem critério objetivo único no pedido; 30 cobre ~5 linhas em telas largas (grade de 6-7 colunas) sem sobrecarregar o primeiro carregamento de um Set grande. */
+/** Tamanho de cada lote revelado por rolagem infinita (`useInfiniteReveal`) — ponto 10 do pedido original de Fabrício ("deve ser exibido inicialmente parte do card set"). Sem critério objetivo único no pedido; 30 cobre ~5 linhas em telas largas (grade de 6-7 colunas) sem sobrecarregar o primeiro carregamento de um Set grande. */
 const PAGE_SIZE = 30;
 
 function getInitials(name: string): string {
@@ -165,8 +166,14 @@ function cartaViewTransitionName(id: string): string {
  *    discretos abaixo de cada imagem (`CartaGridCard`).
  *
  * `key={selectedCode}` no componente (ver `page.tsx`) reseta busca/filtros/
- * "Ver todas" a cada troca de Set — mesmo princípio de `key={cardSet.id}`
+ * rolagem revelada a cada troca de Set — mesmo princípio de `key={cardSet.id}`
  * já usado em `EditCardSetForm` para isolar estado por entidade.
+ *
+ * Rolagem infinita (2026-08-09, pedido de Fabrício após inspeção geral das
+ * páginas do Catálogo Editorial: "remover o botão 'Ver todas as cartas' e
+ * carregar as cartas à medida que o usuário rola a tela para baixo") — troca
+ * o antigo botão "Ver todas (N)" por revelação em lotes via
+ * `useInfiniteReveal`, mesmo hook usado por `CardSetCartasGrid`.
  */
 export function CartasGallery({
   cardSets,
@@ -212,7 +219,6 @@ export function CartasGallery({
   const [search, setSearch] = useState("");
   const [selectedRarities, setSelectedRarities] = useState<Set<string>>(new Set());
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
-  const [showAll, setShowAll] = useState(false);
   const [zoomCarta, setZoomCarta] = useState<CartaCompletaRow | null>(null);
   // Toggle "Mostrar inativas" + confirmação de desativação + estado de
   // reativação — novo em 2026-08-07 (subciclo Card: criação e desativação/
@@ -423,7 +429,15 @@ export function CartasGallery({
     });
   }, [visibleCartas, selectedRarities, selectedCategories, query]);
 
-  const visible = showAll ? filtered : filtered.slice(0, PAGE_SIZE);
+  // Reseta o lote revelado ao trocar busca/filtros/toggle "Mostrar
+  // inativas" — sem isso, rolar até o fim de uma lista grande, depois
+  // filtrar para uma bem menor, deixaria `visibleCount` "adiantado" sem
+  // efeito prático (mas também sem sentido, já que a lista mudou de
+  // contexto). Troca de Coleção já reseta tudo via `key={selectedCode}` no
+  // componente inteiro (ver `page.tsx`), então não precisa entrar aqui.
+  const revealResetKey = `${query}|${showInactive}|${Array.from(selectedRarities).sort().join(",")}|${Array.from(selectedCategories).sort().join(",")}`;
+  const { visibleCount, sentinelRef } = useInfiniteReveal(PAGE_SIZE, revealResetKey);
+  const visible = filtered.slice(0, visibleCount);
 
   function openZoom(carta: CartaCompletaRow) {
     // Passo de preparo, fora da transição: marca só esta carta como alvo
@@ -795,12 +809,8 @@ export function CartasGallery({
                     ))}
                   </div>
 
-                  {!showAll && filtered.length > PAGE_SIZE && (
-                    <div className="flex justify-center pt-1">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setShowAll(true)}>
-                        Ver todas ({filtered.length})
-                      </Button>
-                    </div>
+                  {visibleCount < filtered.length && (
+                    <div ref={sentinelRef} aria-hidden="true" className="h-1 w-full" />
                   )}
                 </div>
               )}
