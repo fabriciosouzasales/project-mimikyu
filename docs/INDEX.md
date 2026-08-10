@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.3 |
+| **Versão** | 1.5 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -99,12 +99,13 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`history/development/HANDOFF-2026-07-26.md`](history/development/HANDOFF-2026-07-26.md) | Handoff superado (26/07). |
 | [`history/development/HANDOFF-2026-07-31.md`](history/development/HANDOFF-2026-07-31.md) | Handoff superado (31/07). |
 | [`history/development/HANDOFF-2026-08-02.md`](history/development/HANDOFF-2026-08-02.md) | Handoff superado (02/08). |
+| [`history/development/HANDOFF-2026-08-08.md`](history/development/HANDOFF-2026-08-08.md) | Handoff superado (08/08). |
 
 ## Development (handoff vigente)
 
 | Documento | Resumo |
 |---|---|
-| [`development/HANDOFF-2026-08-08.md`](development/HANDOFF-2026-08-08.md) | Handoff vigente — Catálogo Editorial formalmente encerrado (cinco frentes A–E concluídas), Módulo Gerencial iniciado (Sprint Gerencial 1: Visão Geral com drill-down, Histórico de Importações unificado, semântica de "Pendências" corrigida), inventário de débitos técnicos, checklist de retomada. |
+| [`development/HANDOFF-2026-08-09.md`](development/HANDOFF-2026-08-09.md) | Handoff vigente — Módulo Gerencial (Trilha 4) formalmente encerrado (Histórico de Importações, Log de Atualizações e Central de Relatórios concluídos e aprovados por Fabrício, com todas as rodadas de ajuste visual), três achados finais de uma inspeção geral do módulo, inventário de débitos técnicos, checklist de retomada. |
 
 ---
 
@@ -117,3 +118,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.2 | Handoff vigente atualizado para `development/HANDOFF-2026-08-08.md` (2026-08-08) — `HANDOFF-2026-08-02.md` estava significativamente desatualizado (não refletia o fechamento formal do Ciclo 2 de `ADR-024`, a conclusão de `ADR-023`, `ADR-026` nem o encerramento do canal PDF, todos ocorridos depois de 02/08); movido para `history/development/`. |
 | 1.3 | Adicionado `ADR-027` (Catalog Editorial Canonical Metrics Views, 2026-08-08) — decisão de Fabrício de abrir ADR novo (não emendar `ADR-006`) para o padrão `security_invoker = true`/GRANT restrito, estreado pela Query `2123` da Sprint Gerencial 1. |
 | 1.4 | Resumo do handoff vigente atualizado (2026-08-08) para refletir o encerramento formal do Catálogo Editorial (cinco frentes A–E concluídas) e o início do Módulo Gerencial (Sprint Gerencial 1) — ver `development/HANDOFF-2026-08-08.md` (amendado no mesmo dia) e `ROADMAP.md` revisão `1.22`. |
+| 1.5 | Handoff vigente atualizado para `development/HANDOFF-2026-08-09.md` (2026-08-09) — consolida o encerramento formal do Módulo Gerencial (Trilha 4: Histórico de Importações, Log de Atualizações, Central de Relatórios, todos concluídos e aprovados por Fabrício nesta janela). `HANDOFF-2026-08-08.md` movido para `history/development/`. Ver `ROADMAP.md` revisão `1.45` e `docs/README.md` revisão `1.98`. |

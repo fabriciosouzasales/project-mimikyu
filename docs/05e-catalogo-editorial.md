@@ -1009,7 +1009,7 @@ Tela `/catalogo/log-atualizacoes` (Módulo Gerencial, bloco "Gerencial" do menu)
 
 Achado real de Fabrício em inspeção geral das páginas do Catálogo Editorial: o `PageTitle` de `/catalogo/log-atualizacoes` nunca tinha recebido o wrapper `<div className="flex items-center gap-2">` + ícone (`ScrollText`) que toda outra página do módulo usa ao lado do título — omissão da V1 desta tela, sem relação com nenhuma mudança de dado/schema. Corrigido em `app/catalogo/log-atualizacoes/page.tsx`, mesmo ícone já usado em `AppShell`/`nav-config.ts`. `tsc --noEmit` confirmado limpo.
 
-## Central de Relatórios — 6 relatórios imprimíveis (IMPLEMENTADO, pendente validação visual de Fabrício)
+## Central de Relatórios — 6 relatórios imprimíveis (CONFIRMADO IMPLEMENTADO E VALIDADO VISUALMENTE — ENCERRADO, 2026-08-09)
 
 Hub em `/catalogo/relatorios` (item "Central de Relatórios" no bloco Gerencial do menu, último dos 4 previstos na Trilha 4/Módulo Gerencial) — 6 relatórios, todos imprimíveis via `window.print()` nativo do navegador (`RelatorioPrintButton`) e `@media print` (`web/app/globals.css`), sem motor de PDF — decisão original do escopo, não revisitada. Proposta técnica apresentada e confirmada por Fabrício antes da implementação (2026-08-09, via `AskUserQuestion`): definição de "Qualidade do Catálogo" (único dos 6 sem especificação prévia registrada em qualquer documento) e arquitetura geral.
 
@@ -1086,7 +1086,9 @@ Escopo desta rodada: só a apresentação do relatório já existente — nenhum
 
 `tsc --noEmit` confirmado limpo.
 
-`tsc --noEmit` confirmado limpo. **Implementação completa, mas ainda NÃO aprovada por Fabrício** — validação visual real no navegador (inclusive a própria impressão, único jeito de confirmar que o `@media print` está correto) só é possível no ambiente dele; a Trilha 4 (Módulo Gerencial) só pode ser declarada encerrada por completo depois dessa validação.
+**Encerramento formal (2026-08-09).** Depois de todas as rodadas de ajuste acima (baseline visual, zebra striping, totais, rodapé, cabeçalhos de 3 linhas) e dos três achados finais de uma inspeção geral do módulo (ícone ausente em "Log de Atualizações", rolagem infinita em Cartas/Coleções, barras de "Cobertura por idioma" ampliadas — nenhum deles específico da Central de Relatórios, mas parte da mesma varredura de fechamento), Fabrício validou o resultado pela UI e declarou: **"Considero pela UI o bloco concluído."** Com isso, a Central de Relatórios está formalmente encerrada — as quatro frentes da Trilha 4 (Módulo Gerencial) estão concluídas. Ver `ROADMAP.md`, seção "Concluído", e "Catálogo Editorial — Frentes de Encerramento" para o encerramento formal correspondente.
+
+`tsc --noEmit` confirmado limpo em cada rodada.
 
 ## Pendências / Próximos Passos
 
