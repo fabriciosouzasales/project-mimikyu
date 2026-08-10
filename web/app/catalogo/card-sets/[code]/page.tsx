@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { AlertTriangle, Boxes, CreditCard, FileUp, History, Image as ImageIcon } from "lucide-react";
+import { AlertTriangle, Boxes, ClipboardList, CreditCard, FileUp, History, Image as ImageIcon, Layers3 } from "lucide-react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { CardSetCartasGrid } from "@/components/catalogo/card-set-cartas-grid";
@@ -242,6 +242,18 @@ export default async function CardSetDetailPage({ params }: { params: Promise<{ 
               <Link href={`/catalogo/importacoes?cardSet=${cardSet.code}`}>
                 <History className="h-3.5 w-3.5" />
                 Histórico de Importações
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/catalogo/relatorios/checklist?cardSet=${cardSet.code}`}>
+                <ClipboardList className="h-3.5 w-3.5" />
+                Checklist
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/catalogo/relatorios/resumo?cardSet=${cardSet.code}`}>
+                <Layers3 className="h-3.5 w-3.5" />
+                Resumo
               </Link>
             </Button>
           </div>

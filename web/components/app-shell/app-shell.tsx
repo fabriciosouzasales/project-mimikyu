@@ -29,11 +29,14 @@ export async function AppShell({
   const { data: isAdmin } = await supabase.rpc("is_admin");
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background print:h-auto print:overflow-visible">
       <Sidebar isAdmin={!!isAdmin} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col print:overflow-visible">
         <Header title={title} icon={icon} isAdmin={!!isAdmin} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        {/* print:overflow-visible/print:p-0: sem isso, o corte de altura (h-dvh/overflow-y-auto,
+            necessário para o scroll normal da tela) clipa o conteúdo ao imprimir — a Central
+            de Relatórios (2026-08-09) é o primeiro uso real de impressão no projeto. */}
+        <main className="flex-1 overflow-y-auto p-6 print:overflow-visible print:p-0">{children}</main>
       </div>
     </div>
   );

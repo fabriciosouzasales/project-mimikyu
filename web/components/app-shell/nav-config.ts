@@ -2,6 +2,7 @@ import {
   BookOpen,
   Boxes,
   CreditCard,
+  FileText,
   FileUp,
   Gamepad2,
   History,
@@ -96,6 +97,10 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/catalogo", label: "Visão Geral", section: "Gerencial", icon: LayoutDashboard },
       { href: "/catalogo/log-atualizacoes", label: "Log de Atualizações", section: "Gerencial", icon: ScrollText },
       { href: "/catalogo/importacoes", label: "Histórico de Importações", section: "Gerencial", icon: History },
+      // Central de Relatórios (2026-08-09) — 4ª e última frente da Trilha 4
+      // (Módulo Gerencial): 6 relatórios imprimíveis (@media print), hub em
+      // /catalogo/relatorios.
+      { href: "/catalogo/relatorios", label: "Central de Relatórios", section: "Gerencial", icon: FileText },
       // Ordem ajustada em 2026-08-07 (pedido de Fabrício): "Raridades" sobe
       // para o topo do bloco Cadastro, acima de "Jogos" — sem mudança de
       // significado, só de sequência visual.

@@ -10,7 +10,7 @@ import { SecondaryPanel } from "./secondary-panel";
  */
 export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   return (
-    <div className="hidden shrink-0 md:flex">
+    <div className="hidden shrink-0 md:flex print:hidden">
       <PrimaryRail isAdmin={isAdmin} />
       <SecondaryPanel isAdmin={isAdmin} />
     </div>

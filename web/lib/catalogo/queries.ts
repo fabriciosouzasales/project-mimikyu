@@ -2638,3 +2638,178 @@ export async function getAdminUserOptions(supabase: SupabaseClient): Promise<Adm
     .map((row) => ({ id: row.id, label: row.display_name || row.username }))
     .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 }
+
+// ---------------------------------------------------------------------------
+// Central de Relatórios (/catalogo/relatorios) — última frente da Trilha 4
+// (Módulo Gerencial), V1 aprovada por Fabrício (2026-08-09): 6 relatórios
+// imprimíveis (@media print, sem motor de PDF, ver web/app/globals.css).
+// "Checklist por Coleção" e "Resumo da Coleção" não têm função própria aqui
+// — reaproveitam integralmente getCartasCompletas()/getCardSetByCode(), já
+// existentes (mesmo dado do hub de Card Set, só apresentado em layout
+// imprimível). Os outros 4 reaproveitam catalog_card_set_metrics/
+// catalog_card_set_image_coverage (Query 2123/2124, ADR-027) — o comentário
+// da própria view já previa esse reuso ("reutilizável por Visão Geral e
+// Central de Relatórios").
+// ---------------------------------------------------------------------------
+
+type RelatorioCardSetMetricsRawRow = {
+  card_set_id: string;
+  card_set_code: string;
+  card_set_name: string;
+  expansion_code: string;
+  game_code: string;
+  total_set_size: number;
+  cards_cadastradas: number;
+  cards_ativas: number;
+  cards_inativas: number;
+  cards_pendentes_cadastro: number;
+  cards_com_imagem_algum_idioma: number;
+};
+
+/** Base compartilhada pelos 3 relatórios de métricas estruturais abaixo — uma única leitura de catalog_card_set_metrics, cada relatório filtra/mapeia o que precisa. */
+async function fetchRelatorioCardSetMetrics(supabase: SupabaseClient): Promise<RelatorioCardSetMetricsRawRow[]> {
+  const { data, error } = await supabase
+    .from("catalog_card_set_metrics")
+    .select(
+      "card_set_id, card_set_code, card_set_name, expansion_code, game_code, total_set_size, cards_cadastradas, cards_ativas, cards_inativas, cards_pendentes_cadastro, cards_com_imagem_algum_idioma",
+    );
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as RelatorioCardSetMetricsRawRow[]).sort((a, b) => a.card_set_name.localeCompare(b.card_set_name, "pt-BR"));
+}
+
+export type RelatorioCartasPendentesItem = {
+  cardSetId: string;
+  cardSetCode: string;
+  cardSetName: string;
+  totalSetSize: number;
+  cardsCadastradas: number;
+  cardsPendentes: number;
+};
+
+/** Relatório "Cartas pendentes por Coleção" — só as Coleções com cards_pendentes_cadastro > 0 (mesma definição de "Saúde do catálogo" na Visão Geral), detalhado linha a linha em vez da contagem agregada. */
+export async function getRelatorioCartasPendentes(supabase: SupabaseClient): Promise<RelatorioCartasPendentesItem[]> {
+  const rows = await fetchRelatorioCardSetMetrics(supabase);
+  return rows
+    .filter((row) => row.cards_pendentes_cadastro > 0)
+    .map((row) => ({
+      cardSetId: row.card_set_id,
+      cardSetCode: row.card_set_code,
+      cardSetName: row.card_set_name,
+      totalSetSize: row.total_set_size,
+      cardsCadastradas: row.cards_cadastradas,
+      cardsPendentes: row.cards_pendentes_cadastro,
+    }));
+}
+
+export type RelatorioImagensPendentesItem = {
+  cardSetId: string;
+  cardSetCode: string;
+  cardSetName: string;
+  cardsCadastradas: number;
+  cardsComImagem: number;
+  cardsSemImagem: number;
+};
+
+/** Relatório "Imagens pendentes por Coleção" — Coleções com pelo menos uma Carta cadastrada sem imagem canônica em nenhum idioma ativo (cards_cadastradas - cards_com_imagem_algum_idioma > 0). */
+export async function getRelatorioImagensPendentes(supabase: SupabaseClient): Promise<RelatorioImagensPendentesItem[]> {
+  const rows = await fetchRelatorioCardSetMetrics(supabase);
+  return rows
+    .map((row) => ({
+      cardSetId: row.card_set_id,
+      cardSetCode: row.card_set_code,
+      cardSetName: row.card_set_name,
+      cardsCadastradas: row.cards_cadastradas,
+      cardsComImagem: row.cards_com_imagem_algum_idioma,
+      cardsSemImagem: row.cards_cadastradas - row.cards_com_imagem_algum_idioma,
+    }))
+    .filter((row) => row.cardsSemImagem > 0);
+}
+
+export type RelatorioQualidadeCatalogoItem = {
+  cardSetId: string;
+  cardSetCode: string;
+  cardSetName: string;
+  totalSetSize: number;
+  cardsCadastradas: number;
+  cardsAtivas: number;
+  cardsInativas: number;
+  cardsPendentes: number;
+  cardsComImagem: number;
+  cardsSemImagem: number;
+};
+
+/**
+ * Relatório "Qualidade do Catálogo" — uma linha por Coleção (TODAS, não só
+ * as com pendência, ao contrário dos dois relatórios acima), cruzando as
+ * mesmas três lacunas estruturais já mostradas de forma agregada em "Saúde
+ * do catálogo" (Visão Geral): pendência de cadastro, pendência de imagem e
+ * cartas inativas. Definição confirmada por Fabrício antes da implementação
+ * (2026-08-09, via pergunta direta — única das 6 sem especificação prévia
+ * registrada em nenhum documento).
+ */
+export async function getRelatorioQualidadeCatalogo(supabase: SupabaseClient): Promise<RelatorioQualidadeCatalogoItem[]> {
+  const rows = await fetchRelatorioCardSetMetrics(supabase);
+  return rows.map((row) => ({
+    cardSetId: row.card_set_id,
+    cardSetCode: row.card_set_code,
+    cardSetName: row.card_set_name,
+    totalSetSize: row.total_set_size,
+    cardsCadastradas: row.cards_cadastradas,
+    cardsAtivas: row.cards_ativas,
+    cardsInativas: row.cards_inativas,
+    cardsPendentes: row.cards_pendentes_cadastro,
+    cardsComImagem: row.cards_com_imagem_algum_idioma,
+    cardsSemImagem: row.cards_cadastradas - row.cards_com_imagem_algum_idioma,
+  }));
+}
+
+export type RelatorioCoberturaGeralItem = {
+  cardSetId: string;
+  cardSetCode: string;
+  cardSetName: string;
+  languageCode: string;
+  cardsCadastradas: number;
+  cardsComImagem: number;
+};
+
+/**
+ * Relatório "Cobertura Geral" — uma linha por (Coleção, idioma ativo), de
+ * catalog_card_set_image_coverage, com cards_cadastradas
+ * (catalog_card_set_metrics) como denominador — mesma definição de
+ * percentual já usada na Visão Geral e no hub de Card Set (cardsComImagem /
+ * cardsCatalogados), nunca uma segunda fórmula divergente.
+ */
+export async function getRelatorioCoberturaGeral(supabase: SupabaseClient): Promise<RelatorioCoberturaGeralItem[]> {
+  const [metricsRows, coverageResult] = await Promise.all([
+    fetchRelatorioCardSetMetrics(supabase),
+    supabase.from("catalog_card_set_image_coverage").select("card_set_id, card_set_code, language_code, cards_com_imagem"),
+  ]);
+
+  if (coverageResult.error || !coverageResult.data) {
+    return [];
+  }
+
+  const metricsPorCardSetId = new Map(metricsRows.map((row) => [row.card_set_id, row]));
+
+  return (
+    coverageResult.data as { card_set_id: string; card_set_code: string; language_code: string; cards_com_imagem: number }[]
+  )
+    .map((row) => {
+      const metrics = metricsPorCardSetId.get(row.card_set_id);
+      return {
+        cardSetId: row.card_set_id,
+        cardSetCode: row.card_set_code,
+        cardSetName: metrics?.card_set_name ?? row.card_set_code,
+        languageCode: row.language_code,
+        cardsCadastradas: metrics?.cards_cadastradas ?? 0,
+        cardsComImagem: row.cards_com_imagem,
+      };
+    })
+    .sort(
+      (a, b) => a.cardSetName.localeCompare(b.cardSetName, "pt-BR") || a.languageCode.localeCompare(b.languageCode),
+    );
+}

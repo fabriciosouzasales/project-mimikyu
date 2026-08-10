@@ -218,3 +218,16 @@
     animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
+
+/*
+ * Impressão da Central de Relatórios (2026-08-09) — `@page` fora de
+ * qualquer `@layer`: aplica-se a todo job de impressão do site, não só a um
+ * elemento. Inofensivo fora dos relatórios — as demais telas já escondem
+ * nav/sidebar via `print:hidden` (`AppShell`) e não têm expectativa própria
+ * de tamanho de página. A4 com margem estreita (10mm) — pedido de Fabrício
+ * para o Checklist por Coleção caber numa única folha física.
+ */
+@page {
+  size: A4;
+  margin: 10mm;
+}
