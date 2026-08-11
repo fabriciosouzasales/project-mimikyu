@@ -112,6 +112,25 @@ export function ImportarImagensView({
   const [imageAttempt, setImageAttempt] = useState(0);
   const started = isPending || imagePhase !== "idle";
 
+  // Auto-refresh ao voltar o foco na aba (2026-08-11, pedido de Fabrício) —
+  // uma aba deixada aberta por uma suspensão/reinício da máquina pode ser
+  // restaurada pelo navegador sem nenhuma requisição nova, reexibindo o
+  // último render que o Server Component tinha antes de a aba "congelar".
+  // Em vez de depender de um F5 manual para buscar dado fresco, força um
+  // `router.refresh()` sempre que `document.visibilityState` volta para
+  // `"visible"` — mesmo padrão de invalidação já usado após toda ação bem-
+  // sucedida (`handleImportar`/`onDone` do picker Manual), só que disparado
+  // por foco em vez de por ação.
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        router.refresh();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [router]);
+
   function navigate(cardSetId: string | null) {
     const params = new URLSearchParams();
     params.set("idioma", languageCode);

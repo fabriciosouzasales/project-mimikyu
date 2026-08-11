@@ -56,7 +56,7 @@ function extractCount(value: { count: number } | { count: number }[] | null | un
 const SUPABASE_MAX_ROWS_PAGE_SIZE = 1000;
 
 /**
- * Pagina uma consulta em lotes de SUPABASE_MAX_ROWS_PAGE_SIZE via
+ * Pagina uma consulta em lotes de até SUPABASE_MAX_ROWS_PAGE_SIZE via
  * `.range()`, até esgotar os resultados. Necessário em qualquer leitura de
  * `card`/`card_asset` sem filtro que já limite o resultado a poucas
  * dezenas de linhas (ex.: um único Card Set) — descoberto na prática em
@@ -67,6 +67,27 @@ const SUPABASE_MAX_ROWS_PAGE_SIZE = 1000;
  * vinham perdendo silenciosamente as linhas além da primeira página).
  * `buildQuery` deve montar a query do zero a cada chamada (nunca reaproveitar
  * um builder já usado) porque `.range()` é aplicado de novo por página.
+ *
+ * Correção real (2026-08-11, bug reportado por Fabrício em
+ * `/catalogo/importar-imagens`: várias Coleções já 100% importadas — ME5,
+ * SV8, SV8.5, SV9, SV10, SV10.5B, SV10.5W, confirmadas completas em EN e
+ * PT-BR direto no banco — apareciam com contagem parcial/errada mesmo logo
+ * após um `router.refresh()`, sem relação com cache de aba). Causa: o laço
+ * comparava `data.length` contra a CONSTANTE assumida
+ * `SUPABASE_MAX_ROWS_PAGE_SIZE` (1000) para decidir se a página era a
+ * última. Isso presume que o `db-max-rows` real do projeto Supabase é
+ * exatamente 1000 — mas essa configuração vive no dashboard (Settings →
+ * API), fora do controle deste código, e pode divergir sem qualquer aviso
+ * em tempo de execução. Quando o cap real do servidor é MENOR que 1000
+ * (ex.: 500), cada página já vem truncada pelo próprio PostgREST antes de
+ * chegar aqui — `data.length` (500) é sempre menor que o `SUPABASE_MAX_ROWS_
+ * PAGE_SIZE` assumido (1000), então o laço concluía "acabou" depois da
+ * PRIMEIRA página, descartando silenciosamente todo o resto (mesma classe
+ * de bug do incidente de 2026-08-01, causa raiz diferente: não faltava
+ * paginação, a paginação existente parava cedo demais). Agora o laço avança
+ * `from` pelo tanto que REALMENTE veio (`data.length`, não a constante) e só
+ * para quando uma página vem vazia — correto para qualquer cap real do
+ * servidor, conhecido ou não.
  */
 async function fetchAllRows(
   buildQuery: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
@@ -75,10 +96,9 @@ async function fetchAllRows(
   let from = 0;
   for (;;) {
     const { data, error } = await buildQuery(from, from + SUPABASE_MAX_ROWS_PAGE_SIZE - 1);
-    if (error || !data) break;
+    if (error || !data || data.length === 0) break;
     all.push(...data);
-    if (data.length < SUPABASE_MAX_ROWS_PAGE_SIZE) break;
-    from += SUPABASE_MAX_ROWS_PAGE_SIZE;
+    from += data.length;
   }
   return all;
 }
