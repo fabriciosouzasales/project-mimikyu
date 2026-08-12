@@ -93,13 +93,11 @@ export async function createCardSet(
 }
 
 /**
- * Atualiza código, nome, tipo, ordem de lançamento e data de lançamento de
- * um Card Set via admin_update_card_set() (Query 2048, ADR-023).
- * expansion_id nunca é aceito aqui — imutável por construção (a função nem
- * tem parâmetro para isso), mesmo princípio já aplicado a Game/Expansion.
- * base_set_size/total_set_size também ficam de fora — não pedidos, e mudar
- * set_type sozinho já precisa lidar com as regras de PROMO usando o tamanho
- * já cadastrado (a função antecipa isso com mensagem clara).
+ * Atualiza código, nome, tipo, ordem de lançamento, data de lançamento,
+ * quantidade base e quantidade total de um Card Set via
+ * admin_update_card_set() (Query 2048, ADR-023). expansion_id nunca é
+ * aceito aqui — imutável por construção (a função nem tem parâmetro para
+ * isso), mesmo princípio já aplicado a Game/Expansion.
  *
  * Ampliado em 2026-07-31, rodada seguinte (pedido explícito de Fabrício:
  * "na tela de edição do set card deve ser permitido editar o tipo e a data
@@ -113,9 +111,16 @@ export async function createCardSet(
  * A trava condicional (código só muda de fato se o Card Set não tiver
  * nenhuma Card cadastrada) vive inteiramente no banco — esta action só
  * repassa o valor e traduz o erro (`ADMIN_UPDATE_CARD_SET_CODE_LOCKED`) se
- * a trava disparar. Depende da Migration 2091 (assinatura mudou de 5 para
- * 6 parâmetros) ser executada por Fabrício; até lá, retorna o erro genuíno
- * do Postgres (função com essa assinatura não existe).
+ * a trava disparar.
+ *
+ * Ampliado em 2026-08-11 (Query 2048 v4.0) — pedido explícito de Fabrício:
+ * `base_set_size`/`total_set_size` passam a ser aceitos e validados aqui
+ * (mesma validação de `createCardSet`: base positiva, total >= base) — SEM
+ * trava condicional por Cards já cadastradas, diferente de `code`; a regra
+ * de PROMO (base = total) é revalidada no banco contra os valores enviados
+ * nesta mesma chamada. Depende da Query 2048 v4.0 (assinatura mudou de 6
+ * para 8 parâmetros) ser executada por Fabrício; até lá, retorna o erro
+ * genuíno do Postgres (função com essa assinatura não existe).
  */
 export async function updateCardSet(
   _prevState: CardSetActionState,
@@ -128,6 +133,10 @@ export async function updateCardSet(
   const releaseOrderRaw = String(formData.get("release_order") ?? "").trim();
   const releaseOrder = Number(releaseOrderRaw);
   const releaseDateRaw = String(formData.get("release_date") ?? "").trim();
+  const baseSetSizeRaw = String(formData.get("base_set_size") ?? "").trim();
+  const baseSetSize = Number(baseSetSizeRaw);
+  const totalSetSizeRaw = String(formData.get("total_set_size") ?? "").trim();
+  const totalSetSize = Number(totalSetSizeRaw);
 
   if (!id) {
     return { error: "Card Set inválido." };
@@ -144,6 +153,12 @@ export async function updateCardSet(
   if (!releaseOrderRaw || !Number.isInteger(releaseOrder) || releaseOrder <= 0) {
     return { error: "Informe uma ordem de lançamento válida (número inteiro positivo)." };
   }
+  if (!baseSetSizeRaw || !Number.isInteger(baseSetSize) || baseSetSize <= 0) {
+    return { error: "Informe uma quantidade base válida (número inteiro positivo)." };
+  }
+  if (!totalSetSizeRaw || !Number.isInteger(totalSetSize) || totalSetSize < baseSetSize) {
+    return { error: "Informe uma quantidade total válida (maior ou igual à quantidade base)." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("admin_update_card_set", {
@@ -153,6 +168,8 @@ export async function updateCardSet(
     p_set_type: setType,
     p_release_order: releaseOrder,
     p_release_date: releaseDateRaw || null,
+    p_base_set_size: baseSetSize,
+    p_total_set_size: totalSetSize,
   });
 
   if (error) {

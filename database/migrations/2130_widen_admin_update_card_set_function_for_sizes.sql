@@ -1,101 +1,39 @@
-/*
-================================================================
-Projeto.....: Project Mimikyu
-Query.......: 2048 - Create admin_update_card_set() Function
-Versão......: 4.0
-Status......: CANÔNICA
-Autor.......: Fabrício Sales / Claude
-Data........: 2026-07-31 (v2.0), 2026-08-01 (v3.0), 2026-08-11 (v4.0)
+-- ============================================================
+-- Migration 2130 - Widen admin_update_card_set() for sizes
+-- Status: MIGRATION — CONFIRMADO EXECUTADO. Incorporada à versão
+-- canônica de `2048 - Create admin_update_card_set() Function` a
+-- partir da v4.0.
+--
+-- Amplia admin_update_card_set() de 6 para 8 parâmetros (adiciona
+-- `base_set_size`/`total_set_size` como campos editáveis). Pedido
+-- explícito de Fabrício (2026-08-11), a partir de captura de tela
+-- da tabela de Coleções: "A tela de edição das coleções deve
+-- permitir alterar dois campos: base_set_size e total_set_size".
+--
+-- Sem trava condicional por Cards já cadastradas (ao contrário de
+-- `code`, Migration 2091) — o próprio motivo do pedido é poder
+-- corrigir um total oficial errado mesmo com o Card Set
+-- parcialmente cadastrado, caso real já vivido com SVP (total
+-- corrigido de 225 para 226 via SQL direto, por não existir ainda
+-- esta via de UI). Validação mirra admin_create_card_set() (Query
+-- 2051): base positiva, total >= base; a checagem de PROMO (base =
+-- total) passa a usar os valores SENDO ENVIADOS nesta chamada, não
+-- mais os já cadastrados na linha (diferença desta versão).
+--
+-- A assinatura muda (dois novos parâmetros), então CREATE OR
+-- REPLACE sozinho criaria uma segunda função sobrecarregada em vez
+-- de substituir a existente — por isso a v3.0 (6 parâmetros) é
+-- removida explicitamente antes de criar a nova versão, mesmo
+-- padrão já usado pela Migration 2091.
+--
+-- Ver docs/05e-catalogo-editorial.md.
+-- ============================================================
 
-Descrição...:
-Cria admin_update_card_set(), função pública SECURITY DEFINER —
-única via de atualização de Card Set (ADR-023). Ver ADR-023,
-emenda 2026-07-31 ("Card Set: atualização e exclusão real via
-UI"), mesmo padrão já aplicado a admin_update_expansion() (Query
-2034).
+BEGIN;
 
-Ampliação de escopo (v2.0, 2026-07-31): a v1.0 só aceitava nome e
-ordem de lançamento — Fabrício pediu explicitamente para também
-poder editar tipo e data de lançamento pela tela ("da forma como
-está, só consigo editar o nome e a ordem de lançamento").
-Instalação nova a partir da v2.0 executava esta versão diretamente,
-sem precisar da Migration 2052 (que existe só para reconciliar um
-banco onde a v1.0, com assinatura de 3 parâmetros, já foi criada).
+DROP FUNCTION IF EXISTS public.admin_update_card_set(UUID, TEXT, TEXT, TEXT, INTEGER, DATE);
 
-Ampliação de escopo (v3.0, 2026-08-01, Migration 2091): `code`
-passa a ser aceito e condicionalmente editável — Fabrício percebeu
-um erro real de cadastro (Coleção "151" registrada com código SV4
-em vez de MEW) e pediu: "Na tela de Edição deveremos permitir
-alterar o código. Só não será permitido se já houver cartas
-cadastradas." Isso reverte parcialmente a decisão original do
-ADR-023 (`code` "imutável por construção... nunca uma ação de
-botão") — ver emenda "Card Set: código editável sem Cards
-cadastradas" no próprio ADR-023. `expansion_id` continua
-completamente imutável (não aceito por esta função) — só a
-identidade textual (`code`) ganhou uma via de correção condicional,
-não o vínculo com a Expansion.
-
-Regras de Negócio:
-- Só um administrador pode chamar esta função (is_admin()).
-- expansion_id é imutável por construção: a assinatura desta
-  função não aceita esse parâmetro — mudar a Expansion de um Card
-  Set muda a identidade do registro, mesmo princípio já aplicado
-  a game_id em Expansion (Query 2034) e a card_set_id/
-  collector_number em Card (ADR-023).
-- code é normalizado para maiúsculas e validado no mesmo formato
-  de admin_create_card_set() (^[A-Z0-9][A-Z0-9._-]*$), mas só pode
-  ser efetivamente alterado enquanto o Card Set não tiver nenhuma
-  Card cadastrada (ativa ou inativa — qualquer linha em `card` já
-  fixa a identidade do Card Set). Duplicidade dentro da mesma
-  Expansion (uq_card_set_expansion_code) verificada explicitamente
-  antes do UPDATE, excluindo a própria linha, só quando o código
-  está de fato mudando.
-- base_set_size e total_set_size passam a ser editáveis nesta
-  versão (v4.0, 2026-08-11) — pedido explícito de Fabrício. Sem
-  trava condicional por Cards já cadastradas (ao contrário de
-  `code`): o próprio motivo do pedido é poder corrigir um total
-  oficial errado mesmo com o Card Set parcialmente cadastrado —
-  caso real já vivido com SVP (total corrigido de 225 para 226 via
-  SQL direto, por não existir ainda esta via de UI). Mesma
-  validação de `admin_create_card_set()` (Query 2051): base
-  positiva, total >= base — já reforçada por
-  ck_card_set_base_size_positive/ck_card_set_total_size_valid, mas
-  checada aqui antes para devolver mensagem administrativa clara em
-  vez do erro bruto de constraint.
-- set_type é normalizado para maiúsculas e deve ser REGULAR,
-  SPECIAL, PROMO ou ENERGY (ck_card_set_type, mesmo domínio de
-  admin_create_card_set(), Query 2051 v1.1). Ao mudar o tipo para
-  PROMO — ou ao editar base_set_size/total_set_size num Card Set
-  que já é PROMO —, esta função valida a regra que
-  ck_card_set_promo_size/uq_card_set_expansion_promo IRIAM
-  reforçar de qualquer forma, com mensagem administrativa clara em
-  vez do erro bruto de constraint: (a) os valores de
-  base_set_size/total_set_size SENDO ENVIADOS nesta chamada (não
-  mais os já cadastrados — diferença desta versão, já que agora são
-  editáveis na mesma chamada) precisam ser iguais; (b) nenhum outro
-  Card Set da mesma Expansion pode já ser PROMO.
-- release_order é editável, mas continua único dentro da mesma
-  Expansion (uq_card_set_expansion_release_order) — duplicidade
-  verificada explicitamente antes do UPDATE, excluindo a própria
-  linha.
-- release_date é editável e opcional (NULL = data de lançamento
-  ainda não confirmada, mesma regra de negócio de card_set).
-- GET DIAGNOSTICS ... ROW_COUNT confirma que exatamente uma linha
-  foi alterada.
-- Toda atualização bem-sucedida grava uma linha em
-  catalog_admin_action_log (CARD_SET_UPDATED) — ação já prevista
-  no CHECK original da tabela (Query 2010), nenhuma migration de
-  constraint necessária para esta Query.
-
-Pré-requisitos:
-- Query 120 - Create Card Set Table (v2.2, com ENERGY em ck_card_set_type).
-- Query 140 - Create Card Table (para o EXISTS de Cards cadastradas).
-- Query 1060 - Create is_admin() Function.
-- Query 2010 - Create Catalog Admin Action Log Table.
-================================================================
-*/
-
-CREATE OR REPLACE FUNCTION public.admin_update_card_set(
+CREATE FUNCTION public.admin_update_card_set(
     p_id UUID,
     p_code TEXT,
     p_name TEXT,
@@ -230,3 +168,13 @@ $$;
 
 REVOKE ALL ON FUNCTION public.admin_update_card_set(UUID, TEXT, TEXT, TEXT, INTEGER, DATE, INTEGER, INTEGER) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_update_card_set(UUID, TEXT, TEXT, TEXT, INTEGER, DATE, INTEGER, INTEGER) TO authenticated;
+
+COMMIT;
+
+-- ================================================================
+-- CONFIRMADO EXECUTADO (2026-08-11): assinatura validada por
+-- Fabrício via pg_get_function_identity_arguments() — "p_id uuid,
+-- p_code text, p_name text, p_set_type text, p_release_order
+-- integer, p_release_date date, p_base_set_size integer,
+-- p_total_set_size integer".
+-- ================================================================

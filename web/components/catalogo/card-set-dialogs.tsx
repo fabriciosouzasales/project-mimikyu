@@ -59,6 +59,17 @@ const initialState: CardSetActionState = { error: null };
  * inline no mesmo cenário, antecipando o erro em vez de deixar o usuário
  * descobrir só depois de tentar salvar). `expansion_id` não é afetado — Jogo
  * e Expansão continuam imutáveis, só na descrição do cabeçalho.
+ *
+ * Ajuste 2026-08-11 (Query 2048 v4.0) — pedido explícito de Fabrício: "A
+ * tela de edição das coleções deve permitir alterar dois campos:
+ * base_set_size e total_set_size". Ao contrário de `code`, SEM trava
+ * condicional por Cards já cadastradas — o próprio motivo do pedido é
+ * corrigir um total oficial errado mesmo com o Card Set parcialmente
+ * cadastrado (caso real já vivido com SVP, corrigido via SQL direto por não
+ * existir ainda esta via de UI). Depende da Query 2048 v4.0 ser executada
+ * por Fabrício; até lá, a Server Action retorna o erro genuíno do Postgres
+ * (função com essa assinatura não existe), mesma situação já vivida por
+ * outras Queries deste módulo antes de confirmadas.
  */
 export function EditCardSetDialog({
   open,
@@ -230,6 +241,33 @@ function EditCardSetForm({
               name="release_date"
               type="date"
               defaultValue={cardSet.releaseDate ?? ""}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor={`edit-card-set-base-size-${cardSet.id}`}>Quantidade base</Label>
+            <Input
+              id={`edit-card-set-base-size-${cardSet.id}`}
+              name="base_set_size"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={cardSet.baseSetSize}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`edit-card-set-total-size-${cardSet.id}`}>Quantidade total</Label>
+            <Input
+              id={`edit-card-set-total-size-${cardSet.id}`}
+              name="total_set_size"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={cardSet.totalSetSize}
+              required
             />
           </div>
         </div>

@@ -30,6 +30,30 @@ export function deriveCollectorOrder(localId: string, indexInSet: number): numbe
   return Number.isInteger(numeric) && numeric > 0 ? numeric : indexInSet + 1;
 }
 
+/**
+ * Preenche `collectorNumber` com zeros à esquerda até a mesma quantidade de
+ * dígitos de `collectorTotal` — bug real corrigido (2026-08-11, Fabrício:
+ * cartas apareciam como "#1/185" em vez de "#001/185" na galeria). A TCGdex
+ * devolve `localId` sem padding ("1", não "001") e este era o único ponto
+ * de resolução que gravava o valor bruto direto em `collector_number`.
+ *
+ * Largura derivada de `collectorTotal` (não de um número fixo de dígitos)
+ * porque o padrão correto varia por Coleção — "01/88" para uma Coleção de
+ * 88 cartas, "001/185" para uma de 185; nunca forçar 3 dígitos
+ * universalmente (produziria "010/88", exatamente o formato que Fabrício
+ * pediu para nunca permitir). Só aplica padding a números puramente
+ * numéricos — preserva formatos alfanuméricos da TCGdex sem alteração
+ * (ex.: "TG01", "SWSH001" já vêm formatados pela própria fonte).
+ * `collectorTotal` nulo (Set sem total conhecido) mantém o valor bruto,
+ * sem largura de referência para calcular o padding.
+ */
+export function padCollectorNumber(rawNumber: string, collectorTotal: number | null): string {
+  if (collectorTotal === null || collectorTotal <= 0) return rawNumber;
+  if (!/^[0-9]+$/.test(rawNumber)) return rawNumber;
+  const width = String(collectorTotal).length;
+  return rawNumber.padStart(width, "0");
+}
+
 export type ResolveCatalogRowInput = {
   rawCard: RawCatalogCard;
   // Objeto completo a persistir em catalog_import_row.raw_data — hoje
@@ -57,8 +81,9 @@ export function resolveCatalogImportRow(input: ResolveCatalogRowInput): Resolved
 
   const notes: string[] = extraNote ? [extraNote] : [];
 
-  const collectorNumber = String(rawCard.localId);
-  const collectorOrder = deriveCollectorOrder(collectorNumber, indexInSet);
+  const rawCollectorNumber = String(rawCard.localId);
+  const collectorOrder = deriveCollectorOrder(rawCollectorNumber, indexInSet);
+  const collectorNumber = padCollectorNumber(rawCollectorNumber, collectorTotal);
 
   const duplicate = seenCollectorNumbers.has(collectorNumber);
   seenCollectorNumbers.add(collectorNumber);
