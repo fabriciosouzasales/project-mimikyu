@@ -418,7 +418,7 @@ export function ImportarImagensView({
               <p className="text-sm text-muted-foreground">
                 {formatNumber(selectedCardSet.imagesImportadas)} de {formatNumber(selectedCardSet.cardsCatalogados)}{" "}
                 cartas já têm imagem — {formatNumber(selectedCardSet.imagesPendentes)} pendente
-                {selectedCardSet.imagesPendentes === 1 ? "" : "s"}. Clique em "Importar Imagens" para tentar
+                {selectedCardSet.imagesPendentes === 1 ? "" : "s"}. Clique em &quot;Importar Imagens&quot; para tentar
                 novamente.
               </p>
             )}
