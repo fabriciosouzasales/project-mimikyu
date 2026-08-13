@@ -6,6 +6,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  runtime: "nodejs",
   matcher: [
     /*
      * Roda em todas as rotas exceto assets estáticos e imagens —
