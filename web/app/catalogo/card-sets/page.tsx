@@ -7,7 +7,7 @@ import {
   CATALOGO_SEARCH_CARDS_PAGE_SIZE,
   getCardSetLogoUrls,
   getCardSetsGroupedByExpansion,
-  getCardSetsOverview,
+  getCardSetsStatsSummary,
   getExpansoes,
   getGameOptions,
   searchCatalogo,
@@ -25,10 +25,9 @@ import {
  *
  * Ajuste 2026-07-31 (pedido de Fabrício, "faça todos os ajustes necessários
  * para manter o mesmo padrão da página Expansões"): `jogos`/`expansoes`
- * (sem filtro) e `cardSets` (via `getCardSetsOverview()`, mesma função da
- * tabela da Visão Geral) passam a alimentar também `CardSetsStats` —
- * totais sempre globais, independente do filtro/busca ativo na galeria
- * abaixo (mesmo raciocínio de `ExpansoesStats`/`getExpansoes()` sem
+ * (sem filtro) e os totais de Card Sets passam a alimentar também
+ * `CardSetsStats` — totais sempre globais, independente do filtro/busca
+ * ativo na galeria abaixo (mesmo raciocínio de `ExpansoesStats`/`getExpansoes()` sem
  * filtro).
  *
  * Ajuste 2026-08-02 (pedido de Fabrício: "da mesma forma como fizemos na
@@ -42,6 +41,20 @@ import {
  * page.tsx`). Busca (`mode === "search"`) continua flat e paginada, sem
  * mudança — `getCardSetsForCatalogo()` segue em uso só por ela (via
  * `searchCatalogo`/`searchCatalogoAction`).
+ *
+ * Ajuste 2026-08-14 (gargalo #1 da auditoria de performance desta rota):
+ * `getCardSetsOverview()` trocada por `getCardSetsStatsSummary()` — os
+ * totais de `CardSetsStats` nunca precisaram dos campos ricos (nome, logo,
+ * expansão) que `getCardSetsOverview()` busca; a nova função lê só
+ * `catalog_card_set_metrics.cards_cadastradas`, sem join com `card_set`
+ * nem geração de signed URLs. `getCardSetsOverview()` não foi alterada,
+ * continua servindo `/catalogo` (Visão Geral).
+ *
+ * Ajuste 2026-08-14, rodada seguinte (gargalo #2 da mesma auditoria): a
+ * carga de conteúdo (galeria ou busca) entra no mesmo `Promise.all` das
+ * quatro chamadas de jogos/expansões/stats — não tinha dependência real
+ * delas, só rodava depois por estar fora do bloco. Ver comentário junto ao
+ * `Promise.all` abaixo.
  */
 export default async function CatalogoCardSetsPage({
   searchParams,
@@ -53,31 +66,38 @@ export default async function CatalogoCardSetsPage({
 
   const { game, expansion, q } = await searchParams;
   const query = q?.trim() ?? "";
+  const mode: "gallery" | "search" = query ? "search" : "gallery";
 
-  const [jogos, expansoesDoJogo, expansoes, cardSetsOverview] = await Promise.all([
+  // Paralelização (2026-08-14, gargalo #2 da auditoria de performance desta
+  // rota): a carga de conteúdo (galeria ou busca, quinta posição abaixo) não
+  // depende de jogos/expansoesDoJogo/expansoes/cardSetsStats — só de
+  // game/expansion/q, já resolvidos acima. Antes rodava numa fase à parte,
+  // só começando depois que as outras quatro terminassem por completo (duas
+  // fases sequenciais sem dependência real entre si). `content` distingue os
+  // dois modos por `Array.isArray()` (galeria devolve um array de grupos,
+  // busca devolve um objeto `{ cardSets, cards, hasMoreCards }`) — sem `as`,
+  // o TypeScript já estreita o tipo pela própria checagem.
+  const [jogos, expansoesDoJogo, expansoes, cardSetsStats, content] = await Promise.all([
     getGameOptions(supabase),
     game ? getExpansoes(supabase, { gameCode: game }) : Promise.resolve([]),
     getExpansoes(supabase),
-    getCardSetsOverview(supabase),
+    getCardSetsStatsSummary(supabase),
+    mode === "search"
+      ? searchCatalogo(supabase, query, { cardsLimit: CATALOGO_SEARCH_CARDS_PAGE_SIZE, cardsOffset: 0 })
+      : getCardSetsGroupedByExpansion(supabase, { gameCode: game, expansionCode: expansion }),
   ]);
-
-  const mode: "gallery" | "search" = query ? "search" : "gallery";
 
   let initialCards: Awaited<ReturnType<typeof searchCatalogo>>["cards"] = [];
   let searchItems: Awaited<ReturnType<typeof searchCatalogo>>["cardSets"] = [];
   let initialHasMore = false;
   let groups: Awaited<ReturnType<typeof getCardSetsGroupedByExpansion>> = [];
 
-  if (mode === "search") {
-    const result = await searchCatalogo(supabase, query, {
-      cardsLimit: CATALOGO_SEARCH_CARDS_PAGE_SIZE,
-      cardsOffset: 0,
-    });
-    searchItems = result.cardSets;
-    initialCards = result.cards;
-    initialHasMore = result.hasMoreCards;
+  if (Array.isArray(content)) {
+    groups = content;
   } else {
-    groups = await getCardSetsGroupedByExpansion(supabase, { gameCode: game, expansionCode: expansion });
+    searchItems = content.cardSets;
+    initialCards = content.cards;
+    initialHasMore = content.hasMoreCards;
   }
 
   // URLs assinadas resolvidas de uma vez só, para todos os caminhos
@@ -104,7 +124,7 @@ export default async function CatalogoCardSetsPage({
           jogos={jogos}
           expansoesDoJogo={expansoesDoJogo}
           expansoes={expansoes}
-          cardSetsOverview={cardSetsOverview}
+          cardSetsStats={cardSetsStats}
           gameCode={game}
           expansionCode={expansion}
           query={query}

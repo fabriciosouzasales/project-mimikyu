@@ -425,6 +425,47 @@ export async function getCardSetsOverview(supabase: SupabaseClient): Promise<Car
   return sortCardSetsOverview(rows);
 }
 
+export type CardSetsStatsSummary = {
+  totalCardSets: number;
+  cardSetsSemCartas: number;
+};
+
+/**
+ * Resumo mínimo para os indicadores de `/catalogo/card-sets`
+ * (`CardSetsStats`) — gargalo #1 da auditoria de performance desta rota
+ * (2026-08-14). Antes, a página usava `getCardSetsOverview()` inteira só
+ * para ler `cardSets.length` e `cardSets.filter(cardsCatalogados === 0)
+ * .length` (confirmado lendo `card-sets-stats.tsx` — nenhum outro campo é
+ * usado) — pagando o preço de um join completo `card_set(expansion(game))`
+ * e de até 43 signed URLs de logo nunca lidas por esse componente, tudo
+ * duplicando quase por completo a leitura que a galeria da mesma página já
+ * faz separadamente (`getCardSetsGroupedByExpansion()`).
+ *
+ * `catalog_card_set_metrics` já cobre 1:1 todos os Card Sets (LEFT JOIN
+ * interno, mesma view canônica usada em toda esta frente) — total de linhas
+ * da view = total de Card Sets, `cards_cadastradas = 0` = Card Set sem
+ * cartas. Equivalência confirmada em produção antes desta mudança: 43 Card
+ * Sets = 43 linhas na view; 0 com `cards_cadastradas = 0`, batendo com a
+ * contagem direta de Card Sets sem nenhuma linha correspondente em `card`.
+ *
+ * `getCardSetsOverview()` não foi alterada — continua servindo `/catalogo`
+ * (Visão Geral), que precisa dos campos ricos (nome, logo, expansão) que
+ * esta função deliberadamente não busca.
+ */
+export async function getCardSetsStatsSummary(supabase: SupabaseClient): Promise<CardSetsStatsSummary> {
+  const { data, error } = await supabase.from("catalog_card_set_metrics").select("cards_cadastradas");
+
+  if (error || !data) {
+    return { totalCardSets: 0, cardSetsSemCartas: 0 };
+  }
+
+  const rows = data as { cards_cadastradas: number }[];
+  return {
+    totalCardSets: rows.length,
+    cardSetsSemCartas: rows.filter((row) => row.cards_cadastradas === 0).length,
+  };
+}
+
 /**
  * Distribuição de Cards por Raridade. Consumida pela Visão Geral
  * (`/catalogo`) até 2026-08-08 — removida de lá por pedido de Fabrício
@@ -784,11 +825,25 @@ export async function getCardSetsGroupedByExpansion(
   supabase: SupabaseClient,
   filters?: { gameCode?: string; expansionCode?: string },
 ): Promise<CardSetsExpansionGroup[]> {
-  const rows = await fetchCardSetsForCatalogo(supabase, {
-    gameCode: filters?.gameCode,
-    expansionCode: filters?.expansionCode,
-  });
-  const counts = await getCardCountsForSets(supabase, rows.map((row) => row.id));
+  // Paralelização (2026-08-14, gargalo #3 da auditoria de performance de
+  // /catalogo/card-sets — mesmo padrão já validado em getCardSetsForCartas(),
+  // gargalo #3 de /catalogo/cartas): catalog_card_set_metrics não depende dos
+  // ids retornados por fetchCardSetsForCatalogo() para estar correta — a
+  // view já cobre, sem filtro, o universo inteiro de Card Sets (43 linhas em
+  // produção), e a associação por linha é feita depois via Map (`counts.get
+  // (row.id)`), não pela ordem/tamanho da resposta. Linhas do Map fora do
+  // filtro de Jogo/Expansão ativo (quando houver) simplesmente nunca são
+  // consultadas — sem efeito em nenhuma linha real. `fetchCardSetMetrics()`
+  // (já existente, usada por getCardSetsOverview()) fornece exatamente esse
+  // dado sem filtro, reaproveitada aqui em vez de duplicar getCardCountsForSets().
+  const [rows, metrics] = await Promise.all([
+    fetchCardSetsForCatalogo(supabase, {
+      gameCode: filters?.gameCode,
+      expansionCode: filters?.expansionCode,
+    }),
+    fetchCardSetMetrics(supabase),
+  ]);
+  const counts = new Map(metrics.map((row) => [row.card_set_id, row.cards_cadastradas]));
 
   const groups = new Map<string, CardSetsExpansionGroupInternal>();
   for (const row of rows) {

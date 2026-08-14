@@ -24,7 +24,7 @@ import { formatNumber } from "@/lib/utils";
 import type {
   CardSetsExpansionGroupWithLogo,
   CatalogoCardResult,
-  CardSetOverviewRow,
+  CardSetsStatsSummary,
   ExpansaoRow,
   GameOption,
 } from "@/lib/catalogo/queries";
@@ -78,7 +78,7 @@ export function CatalogoGallery({
   jogos,
   expansoesDoJogo,
   expansoes,
-  cardSetsOverview,
+  cardSetsStats,
   gameCode,
   expansionCode,
   query,
@@ -92,8 +92,8 @@ export function CatalogoGallery({
   expansoesDoJogo: ExpansaoRow[];
   /** Lista completa, sem filtro/paginação — só para `CardSetsStats` (mesmo papel de `expansoes` em `ExpansoesStats`). */
   expansoes: ExpansaoRow[];
-  /** Todos os Card Sets, sem filtro/paginação (via `getCardSetsOverview()`) — só para `CardSetsStats`. */
-  cardSetsOverview: CardSetOverviewRow[];
+  /** Totais globais de Card Sets, sem filtro/paginação (via `getCardSetsStatsSummary()`) — só para `CardSetsStats`. */
+  cardSetsStats: CardSetsStatsSummary;
   gameCode?: string;
   expansionCode?: string;
   query: string;
@@ -162,7 +162,7 @@ export function CatalogoGallery({
         </PageHeading>
       </PageHeader>
 
-      <CardSetsStats jogos={jogos} expansoes={expansoes} cardSets={cardSetsOverview} />
+      <CardSetsStats jogos={jogos} expansoes={expansoes} stats={cardSetsStats} />
 
       {state.successMessage && <InlineFeedback tone="success">{state.successMessage}</InlineFeedback>}
 

@@ -1,6 +1,6 @@
 import { AlertTriangle, Boxes, Gamepad2, Layers } from "lucide-react";
 import { StatCard, StatsRow } from "@/components/catalogo/stat-card";
-import type { CardSetOverviewRow, ExpansaoRow, GameOption } from "@/lib/catalogo/queries";
+import type { CardSetsStatsSummary, ExpansaoRow, GameOption } from "@/lib/catalogo/queries";
 import { formatNumber } from "@/lib/utils";
 
 /**
@@ -13,26 +13,27 @@ import { formatNumber } from "@/lib/utils";
  * Coleções-sem-Cartas). `tone="danger"` no último, mesmo critério de
  * "Pendências"/"Sem Coleções".
  *
- * Nenhuma consulta nova: `jogos`/`expansoes` já chegam de
- * `getGameOptions()`/`getExpansoes()` (mesmas chamadas que a página já fazia
- * para o filtro), e `cardSets` vem de `getCardSetsOverview()` — a mesma
- * função já usada pela tabela de Card Sets da Visão Geral, sem paginação,
- * então os totais aqui são sempre globais, independente do filtro/busca
- * ativo na galeria abaixo (mesmo raciocínio de `ExpansoesStats`).
+ * `jogos`/`expansoes` já chegam de `getGameOptions()`/`getExpansoes()`
+ * (mesmas chamadas que a página já fazia para o filtro); `stats` vem de
+ * `getCardSetsStatsSummary()` (2026-08-14, gargalo #1 da auditoria de
+ * performance desta rota — antes era `getCardSetsOverview()` inteira, só
+ * para ler dois números; ver `card-sets/page.tsx`), sem paginação, então os
+ * totais aqui são sempre globais, independente do filtro/busca ativo na
+ * galeria abaixo (mesmo raciocínio de `ExpansoesStats`).
  */
 export function CardSetsStats({
   jogos,
   expansoes,
-  cardSets,
+  stats,
 }: {
   jogos: GameOption[];
   expansoes: ExpansaoRow[];
-  cardSets: CardSetOverviewRow[];
+  stats: CardSetsStatsSummary;
 }) {
   const totalJogos = jogos.length;
   const totalExpansoes = expansoes.length;
-  const totalCardSets = cardSets.length;
-  const cardSetsSemCartas = cardSets.filter((set) => set.cardsCatalogados === 0).length;
+  const totalCardSets = stats.totalCardSets;
+  const cardSetsSemCartas = stats.cardSetsSemCartas;
 
   return (
     <StatsRow>
