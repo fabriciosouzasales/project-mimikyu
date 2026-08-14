@@ -1414,6 +1414,20 @@ export type CatalogoCardSetImagensRow = CatalogoCardSetRow & {
  * exige `language!inner(code)` + `.eq("language.code", languageCode)`, mesmo
  * padrão já usado por `contarImagensImportadas`.
  */
+// Otimização (2026-08-14, próximo alvo da análise de over-fetch — Incremento
+// 4): antes, carregava TODO `card_asset` do(s) Card Set(s) pedido(s) via
+// fetchAllRows() (7.055 linhas/8 round-trips em produção, idioma `en`; 6.287
+// linhas/7 round-trips em `pt-BR`) só para reconstruir
+// `new Set(card_id).size` por Card Set em memória. `catalog_card_set_image_
+// coverage` (Query 2123) já é exatamente essa contagem pré-agregada — mesmo
+// critério (`is_primary = true` + `CARD_FRONT`), grão `(card_set_id,
+// language_code)`, zero explícito via LEFT JOIN+COALESCE quando não há
+// imagem (nunca uma chave ausente). Equivalência confirmada em produção
+// antes de aplicar: 0 divergências entre a contagem manual e
+// `cards_com_imagem` da view para os 43 Card Sets, idioma `en`; os dois
+// idiomas realmente usados pelos consumidores (`en`, `pt-BR`) estão
+// `is_active = true` (view só cobre idiomas ativos via CROSS JOIN — mesma
+// ressalva teórica, sem efeito prático, já registrada no alvo 1).
 async function getImagesImportadasPorCardSet(
   supabase: SupabaseClient,
   cardSetIds: string[],
@@ -1422,26 +1436,16 @@ async function getImagesImportadasPorCardSet(
   const counts = new Map<string, number>();
   if (cardSetIds.length === 0) return counts;
 
-  const rows = await fetchAllRows((from, to) =>
-    supabase
-      .from("card_asset")
-      .select("card_id, card!inner(card_set_id), card_asset_type!inner(code), language!inner(code)")
-      .eq("is_primary", true)
-      .eq("card_asset_type.code", "CARD_FRONT")
-      .eq("language.code", languageCode)
-      .in("card.card_set_id", cardSetIds)
-      .range(from, to),
-  );
+  const { data, error } = await supabase
+    .from("catalog_card_set_image_coverage")
+    .select("card_set_id, cards_com_imagem")
+    .eq("language_code", languageCode)
+    .in("card_set_id", cardSetIds);
 
-  const cardIdsBySet = new Map<string, Set<string>>();
-  for (const row of rows as { card_id: string; card: { card_set_id: string } | { card_set_id: string }[] | null }[]) {
-    const cardSetId = Array.isArray(row.card) ? row.card[0]?.card_set_id : row.card?.card_set_id;
-    if (!cardSetId) continue;
-    if (!cardIdsBySet.has(cardSetId)) cardIdsBySet.set(cardSetId, new Set());
-    cardIdsBySet.get(cardSetId)!.add(row.card_id);
-  }
-  for (const [cardSetId, cardIds] of cardIdsBySet) {
-    counts.set(cardSetId, cardIds.size);
+  if (error || !data) return counts;
+
+  for (const row of data as { card_set_id: string; cards_com_imagem: number }[]) {
+    counts.set(row.card_set_id, row.cards_com_imagem);
   }
   return counts;
 }
