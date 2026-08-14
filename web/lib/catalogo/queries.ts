@@ -1236,11 +1236,25 @@ export async function getGameOptions(supabase: SupabaseClient): Promise<GameOpti
  * já estabelecido.
  */
 export async function getCardSetsForCartas(supabase: SupabaseClient): Promise<CatalogoCardSetRow[]> {
-  const rows = sortCatalogoCardSets(await fetchCardSetsForCatalogo(supabase, {}), false);
-  const counts = await getCardCountsForSets(
-    supabase,
-    rows.map((row) => row.id),
-  );
+  // Paralelização (2026-08-14, auditoria focada de `/catalogo/cartas`,
+  // gargalo #3): esta função sempre busca TODOS os Card Sets, sem filtro —
+  // diferente de `getCardSetsForCatalogo()` (que pagina e por isso precisa
+  // dos IDs da página antes de contar). Sem filtro, o `.in(cardSetIds)` de
+  // `getCardCountsForSets()` com a lista completa de IDs sempre retorna as
+  // mesmas linhas que uma leitura irrestrita de `catalog_card_set_metrics`
+  // (mesmo grão — uma linha por Card Set) — então a segunda leitura pode ser
+  // disparada junto com a primeira em vez de esperar os IDs. Duplicado aqui
+  // em vez de generalizar `getCardCountsForSets()`, que continua servindo
+  // `getCardSetsForCatalogo()` sem alteração.
+  const [rawRows, metricsResult] = await Promise.all([
+    fetchCardSetsForCatalogo(supabase, {}),
+    supabase.from("catalog_card_set_metrics").select("card_set_id, cards_cadastradas"),
+  ]);
+  const rows = sortCatalogoCardSets(rawRows, false);
+  const counts = new Map<string, number>();
+  for (const row of (metricsResult.data ?? []) as { card_set_id: string; cards_cadastradas: number }[]) {
+    counts.set(row.card_set_id, row.cards_cadastradas);
+  }
   return rows.map((row) => toCatalogoCardSetRow(row, counts));
 }
 
