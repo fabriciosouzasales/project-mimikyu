@@ -370,8 +370,21 @@ export function ImportarImagensView({
               <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Selecione a Coleção para importação de Imagens
               </label>
-              <div className="flex items-stretch gap-2">
-                <div className="min-w-0 max-w-[500px] flex-1">
+              {/* Responsividade (2026-08-13): a linha era `flex` sem
+                  `flex-wrap` — o combobox (`flex-1 min-w-0`) dividia espaço
+                  com três irmãos `shrink-0` (Fonte, Idioma, botão) que nunca
+                  encolhem; em viewport estreita, `min-w-0` deixava o
+                  combobox ser espremido até quase 0px (some o texto,
+                  sobra só a seta), e o painel do dropdown — que herda
+                  `w-full` do mesmo wrapper — colapsava junto, ficando
+                  inutilizável. Corrigido com `flex-wrap` (os controles
+                  passam para a linha seguinte quando não cabem) e um piso
+                  de largura no wrapper do combobox (`min-w-[240px]`, no
+                  lugar de `min-w-0`) para que ele nunca fique menor que o
+                  necessário para exibir o texto truncado — desktop/tablet
+                  largo inalterados, já cabem tudo numa linha só. */}
+              <div className="flex flex-wrap items-stretch gap-2">
+                <div className="min-w-[240px] max-w-[500px] flex-1">
                   <CardSetImagensCombobox
                     cardSets={cardSets}
                     selected={selectedCardSet}

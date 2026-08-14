@@ -191,9 +191,19 @@ export default async function CardSetDetailPage({ params }: { params: Promise<{ 
                 só 2 idiomas, então alargar a coluna aproveita esse vão sem
                 empurrar o painel para uma segunda linha. */}
             {cardSet.coberturaPorIdioma.length > 0 && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Cobertura por idioma</p>
-                <div className="mt-1.5 flex gap-6">
+                {/* Responsividade (2026-08-13): cada bloco de idioma tinha
+                    largura fixa (w-56) e o container não permitia quebra de
+                    linha — com 2+ idiomas, a soma ultrapassava a largura do
+                    Card em viewport estreita (iPad/iPhone) e o item não
+                    conseguia encolher (min-width padrão de flex item = seu
+                    conteúdo). Corrigido com flex-wrap (cada bloco empilha
+                    quando não cabe lado a lado) + largura fluida abaixo do
+                    breakpoint sm (ocupa a linha inteira), retornando a
+                    w-56 fixo a partir de sm — desktop/tablet largo
+                    inalterados. */}
+                <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-3">
                   {cardSet.coberturaPorIdioma.map((cobertura) => {
                     const percentual =
                       cardSet.cardsCatalogados > 0
@@ -203,7 +213,7 @@ export default async function CardSetDetailPage({ params }: { params: Promise<{ 
                       <Link
                         key={cobertura.languageCode}
                         href={`/catalogo/importar-imagens?cardSetId=${cardSet.id}&idioma=${encodeURIComponent(cobertura.languageCode)}`}
-                        className="block w-56 space-y-1.5 rounded-md -mx-1 px-1 py-1 transition-colors hover:bg-surface-muted"
+                        className="block w-full min-w-0 space-y-1.5 rounded-md -mx-1 px-1 py-1 transition-colors hover:bg-surface-muted sm:w-56"
                       >
                         <div className="flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1 font-medium text-foreground">
