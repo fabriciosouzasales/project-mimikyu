@@ -406,6 +406,7 @@ import {
   uploadImage,
   ImageDownloadError,
 } from "./services/storage.ts";
+import { padCollectorNumber } from "../_shared/catalog-normalization/mod.ts";
 
 type RequestBody = {
   run_code?: string;
@@ -706,6 +707,19 @@ Deno.serve(async (req) => {
       activeRun.card_set_id,
     );
 
+    // Bug real (2026-08-13): a chave do Map acima é o collector_number já
+    // padronizado no banco (padCollectorNumber, mesma regra do cadastro —
+    // ver _shared/catalog-normalization/resolve-row.ts), mas tcgCard.localId
+    // vem bruto da TCGdex ("10", não "010"). Os três lookups abaixo
+    // (cardsToImport, sincronização de card_external_reference,
+    // processImageForCard) normalizam o localId com a MESMA função antes de
+    // consultar o Map, em vez de repetir a regra — centralizado aqui porque
+    // collector_total é constante para toda a Coleção (cardSet.total_set_size),
+    // então só precisa ser resolvido uma vez por execução.
+    function resolveCardId(localId: string): string | undefined {
+      return cards.get(padCollectorNumber(localId, cardSet.total_set_size));
+    }
+
     // v2.7.0 (2026-08-02) — Cards que já têm uma imagem primária ativa para
     // este tipo/idioma são excluídas do lote antes de processar (ver
     // `listCardIdsWithPrimaryAsset`, novo em `services/database.ts`): sem
@@ -738,7 +752,7 @@ Deno.serve(async (req) => {
       language.id,
     );
     const cardsToImport = set.cards.filter((tcgCard) => {
-      const cardId = cards.get(tcgCard.localId);
+      const cardId = resolveCardId(tcgCard.localId);
       return Boolean(cardId) && !existingImageCardIds.has(cardId as string);
     });
 
@@ -749,7 +763,7 @@ Deno.serve(async (req) => {
       cardsToImport,
       20,
       async (tcgCard) => {
-        const cardId = cards.get(tcgCard.localId);
+        const cardId = resolveCardId(tcgCard.localId);
 
         if (!cardId) {
           console.warn(
@@ -867,7 +881,7 @@ async function downloadImageWithRetry(
       tcgCard: (typeof cardsToImport)[number],
     ): Promise<ImageImportResult> {
         try {
-          const cardId = cards.get(tcgCard.localId);
+          const cardId = resolveCardId(tcgCard.localId);
 
           if (!cardId) {
             throw new Error(
