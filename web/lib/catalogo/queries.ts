@@ -1333,33 +1333,42 @@ export type CartasCatalogoStats = {
  *   para não divergir do indicador "Cartas") menos os Cards com pelo
  *   menos um `card_asset` primário do tipo CARD_FRONT (mesmo critério que
  *   decide o placeholder "Sem imagem" em `CartaGridCard`/`CartaZoomDialog`
- *   — ver `cartaImageUrl`/`pickCardFrontPath`). `card_asset_type!inner(code)`
- *   com `.eq("card_asset_type.code", ...)` é o mesmo padrão de filtro por
- *   coluna de tabela relacionada já usado em `fetchCardSetsForCatalogo`
- *   (`expansion!inner`/`.eq("expansion.code", ...)`); depende da política
- *   de SELECT em `card_asset_type` para `authenticated`+`is_admin()`
- *   corrigida pela Query 2053 nesta mesma rodada de trabalho.
+ *   — ver `cartaImageUrl`/`pickCardFrontPath`).
+ *
+ * Otimização (2026-08-14, Incremento 4 da frente de performance, primeiro
+ * alvo recomendado pela análise de over-fetch): a contagem de Cards com
+ * imagem não lê mais `card_asset` linha a linha via `fetchAllRows()` (13.342
+ * linhas em produção — praticamente a tabela inteira, ~14+ round-trips
+ * paginados a cada visita à tela Cartas) para reconstruir `new Set(card_id)`
+ * em memória. `catalog_card_set_metrics.cards_com_imagem_algum_idioma`
+ * (view já existente, Query 2123/2124) já é `COUNT(DISTINCT card.id)` com o
+ * MESMO critério (`is_primary = true`, `card_asset_type.code = 'CARD_FRONT'`,
+ * união de todos os idiomas ativos), só que pré-agregado por Card Set —
+ * somar essa coluna nas 43 linhas da view (1 round-trip) produz o mesmo
+ * total. Equivalência confirmada diretamente em produção antes de aplicar
+ * (SUM da view = 7.104 = COUNT(DISTINCT card_id) da query antiga, ambos
+ * batendo com `card_total`); também confirmado que os dois idiomas
+ * atualmente cadastrados (`en`, `pt-BR`) estão `is_active = true` e que
+ * nenhuma linha de `card_asset` referencia um idioma inativo — a única
+ * diferença teórica entre a view (que exige `language.is_active = true`) e
+ * a query antiga (sem filtro de idioma) não se manifesta nos dados reais.
  */
 export async function getCartasCatalogoStats(
   supabase: SupabaseClient,
   totalCartas: number,
 ): Promise<CartasCatalogoStats> {
-  const [variantResult, assetResult, frontAssetsRows] = await Promise.all([
+  const [variantResult, assetResult, metricsResult] = await Promise.all([
     supabase.from("card_variant").select("id", { count: "exact", head: true }),
     supabase.from("card_asset").select("id", { count: "exact", head: true }),
-    fetchAllRows((from, to) =>
-      supabase
-        .from("card_asset")
-        .select("card_id, card_asset_type!inner(code)")
-        .eq("is_primary", true)
-        .eq("card_asset_type.code", "CARD_FRONT")
-        .range(from, to),
-    ),
+    supabase.from("catalog_card_set_metrics").select("cards_com_imagem_algum_idioma"),
   ]);
 
   const totalVariacoes = variantResult.count ?? 0;
   const totalImagens = assetResult.count ?? 0;
-  const cardsComImagem = new Set((frontAssetsRows as { card_id: string }[]).map((row) => row.card_id)).size;
+  const cardsComImagem = ((metricsResult.data ?? []) as { cards_com_imagem_algum_idioma: number }[]).reduce(
+    (sum, row) => sum + row.cards_com_imagem_algum_idioma,
+    0,
+  );
   const cardsSemImagem = Math.max(totalCartas - cardsComImagem, 0);
 
   return { totalVariacoes, totalImagens, cardsSemImagem };
