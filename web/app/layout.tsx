@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { SessionRefresher } from "@/components/auth/session-refresher";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* delayDuration=0: tooltip instantâneo, pedido explícito de Fabrício (o title nativo do navegador demorava ~1s e parecia quebrado) */}
           <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
         </ThemeProvider>
+        <SessionRefresher />
         <SpeedInsights />
       </body>
     </html>
