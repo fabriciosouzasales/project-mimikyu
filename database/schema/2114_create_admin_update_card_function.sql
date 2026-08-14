@@ -2,7 +2,7 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2114 - Create admin_update_card() Function
-Versão......: 1.0
+Versão......: 1.1
 Status......: CANÔNICA — CONFIRMADO EXECUTADO
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-07
@@ -128,6 +128,8 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.admin_update_card(UUID, TEXT, INTEGER, INTEGER, UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_update_card(UUID, TEXT, INTEGER, INTEGER, UUID, UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.admin_update_card(UUID, TEXT, INTEGER, INTEGER, UUID, UUID) TO authenticated;
 
 -- ================================================================
@@ -135,4 +137,19 @@ GRANT EXECUTE ON FUNCTION public.admin_update_card(UUID, TEXT, INTEGER, INTEGER,
 -- definição em produção lida via pg_get_functiondef() e conferida
 -- idêntica a este arquivo; edição de Card testada via UI sem erros
 -- (confirmação verbal de Fabrício).
+--
+-- v1.1 (2026-08-14, Finding 2 da auditoria de segurança do Catálogo
+-- Editorial, Query 2131, CONFIRMADO EXECUTADO): REVOKE ALL FROM
+-- PUBLIC/anon adicionados — a função só tinha GRANT EXECUTE TO
+-- authenticated, sem nenhum REVOKE explícito; como Postgres concede
+-- EXECUTE a PUBLIC por padrão na criação, o grant implícito a anon
+-- nunca havia sido removido (Advisor de segurança do Supabase:
+-- anon_security_definer_function_executable). Mesma classe de bug já
+-- corrigida em admin_create_card (Query 2115) e prevenida desde o
+-- início em admin_update_card_set (2048)/admin_confirm_catalog_import
+-- (2082). Só GRANT/REVOKE — corpo/assinatura da função inalterados
+-- (confirmado via pg_get_functiondef() idêntico a este arquivo antes e
+-- depois). has_function_privilege() confirmou anon=false/
+-- authenticated=true após a Query; reexecução do Advisor confirmou o
+-- finding removido da lista.
 -- ================================================================

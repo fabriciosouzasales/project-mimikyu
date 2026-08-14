@@ -52,6 +52,20 @@ Convenções de Edge Function do projeto (ver import-card-assets/index.ts):
 3. Responsabilidade única: só TCGDEX -> staging.
 6. index.ts só orquestra — SQL/TCGdex ficam em services/.
 8. Cliente Supabase próprio via SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY.
+
+Fronteira de identidade (2026-08-13, Finding 1 da auditoria de segurança do
+Catálogo Editorial): deployada sem nenhuma validação de chamador desde o
+Sprint B3.6 ("correção final, sem autenticação, temporário" — nunca
+revertido), com SERVICE_ROLE_KEY acessível por qualquer requisição que
+soubesse a URL pública. Corrigido replicando o mesmo padrão já em produção
+em revalidate-catalog-import-rows (Query 2106 v1.1): `verify_jwt: true`
+(supabase/config.toml) garante um JWT assinado válido antes deste código
+rodar, mas isso sozinho não basta — um JWT válido pode ser só a anon key,
+sem usuário nenhum por trás. Por isso um segundo client, escopado pelo JWT
+recebido no cabeçalho Authorization, chama auth.getUser() para confirmar
+uma sessão real e rpc('is_admin') para confirmar o papel administrativo —
+só então o código segue para o client de service role (`supabase`, abaixo),
+que nunca recebe o JWT do chamador.
 */
 
 import "@supabase/functions-js/edge-runtime.d.ts";
@@ -95,10 +109,14 @@ const TCGDEX_FALLBACK_LANGUAGE = "en";
 const ASSET_SOURCE_CODE = "TCGDEX";
 const CARD_DETAIL_BATCH_SIZE = 10;
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-);
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Client de serviço — único usado para ler/escrever catalog_import_job e
+// catalog_import_row. Nunca recebe o JWT do chamador (ver Fronteira de
+// identidade acima).
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 async function processInBatches<T, R>(
   items: T[],
@@ -117,6 +135,31 @@ async function processInBatches<T, R>(
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return Response.json({ success: false, error: "METHOD_NOT_ALLOWED" }, { status: 405, headers: { Allow: "POST" } });
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return Response.json({ success: false, error: "MISSING_AUTHORIZATION" }, { status: 401 });
+  }
+
+  // Client escopado pelo JWT do chamador — existe só para autenticação/
+  // autorização (auth.getUser() + rpc('is_admin')), nunca para ler ou
+  // escrever catalog_import_job/catalog_import_row (isso é sempre feito
+  // pelo client de service role, `supabase`, acima).
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const { data: userData, error: userError } = await userClient.auth.getUser();
+  if (userError || !userData?.user) {
+    console.error("IMPORT_CATALOG_CARDS_INVALID_USER_SESSION:", userError);
+    return Response.json({ success: false, error: "INVALID_USER_SESSION" }, { status: 401 });
+  }
+
+  const { data: isAdminResult, error: isAdminError } = await userClient.rpc("is_admin");
+  if (isAdminError || isAdminResult !== true) {
+    console.error("IMPORT_CATALOG_CARDS_FORBIDDEN_NOT_ADMIN:", isAdminError);
+    return Response.json({ success: false, error: "FORBIDDEN_NOT_ADMIN" }, { status: 403 });
   }
 
   let body: RequestBody;

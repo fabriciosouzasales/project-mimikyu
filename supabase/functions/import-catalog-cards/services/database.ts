@@ -254,7 +254,14 @@ export async function upsertCardSetExternalReference(
       { onConflict: "card_set_id,asset_source_id" },
     );
 
+  // Bug real (2026-08-14, Finding 5 da auditoria de segurança do Catálogo
+  // Editorial): esta era a única função deste arquivo que engolia o erro
+  // (só console.error, sem throw) — o job podia terminar como success:
+  // true mesmo sem a referência externa persistida. Corrigido para o
+  // mesmo padrão de todas as outras funções abaixo/acima (throw
+  // descritivo), propagando para o catch já existente em index.ts, que
+  // já falha o job corretamente.
   if (error) {
-    console.error("CARD_SET_EXTERNAL_REFERENCE_UPSERT_FAILED:", JSON.stringify(error, null, 2));
+    throw new Error(`CARD_SET_EXTERNAL_REFERENCE_UPSERT_FAILED: ${error.message}`);
   }
 }

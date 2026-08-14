@@ -1,7 +1,15 @@
 
+# Fronteira de identidade (2026-08-13, Finding 1 da auditoria de segurança do
+# Catálogo Editorial): as duas functions abaixo eram deployadas com
+# verify_jwt=false e sem nenhuma validação de admin no handler — SERVICE_ROLE
+# acessível por qualquer chamador que soubesse a URL pública. verify_jwt=true
+# aqui só garante um JWT assinado válido (pode ser a própria anon key, sem
+# usuário nenhum por trás) — a validação real de admin (auth.getUser() +
+# rpc('is_admin')) vive no próprio index.ts de cada function, mesmo padrão já
+# em produção em revalidate-catalog-import-rows (Query 2106 v1.1).
 [functions.import-catalog-cards]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/import-catalog-cards/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -9,3 +17,9 @@ entrypoint = "./functions/import-catalog-cards/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/import-catalog-cards/*.html" ]
+
+[functions.import-card-assets]
+enabled = true
+verify_jwt = true
+import_map = "./functions/import-card-assets/deno.json"
+entrypoint = "./functions/import-card-assets/index.ts"

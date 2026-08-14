@@ -88,13 +88,29 @@ export async function iniciarImportacaoTcgdex(
     return { error: traduzirErroCatalogo(error.message), jobId: null };
   }
 
+  // Fronteira de identidade (2026-08-13, Finding 1 da auditoria de segurança
+  // do Catálogo Editorial): import-catalog-cards agora exige um JWT válido +
+  // admin (auth.getUser() + rpc('is_admin'), mesmo padrão de
+  // revalidate-catalog-import-rows) — o access_token da sessão do próprio
+  // administrador é repassado, nunca lido do corpo da requisição.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    return { error: "Sessão inválida. Faça login novamente.", jobId: null };
+  }
+
   const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/import-catalog-cards`;
 
   let response: Response;
   try {
     response = await fetch(functionUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({ job_id: jobId }),
     });
   } catch (fetchError) {
@@ -595,6 +611,31 @@ export async function executarImportacaoImagens(
   const supabase = await createClient();
   const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/import-card-assets`;
 
+  // Fronteira de identidade (2026-08-13, Finding 1 da auditoria de segurança
+  // do Catálogo Editorial): import-card-assets agora exige um JWT válido +
+  // admin (auth.getUser() + rpc('is_admin'), mesmo padrão de
+  // revalidate-catalog-import-rows) — o access_token da sessão do próprio
+  // administrador é repassado, nunca lido do corpo da requisição.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    const { imported, total } = await contarImagensImportadas(supabase, cardSetId, languageCode);
+    return {
+      supported: true,
+      success: false,
+      error: "Sessão inválida. Faça login novamente.",
+      imagesImported: imported,
+      imagesFailed: Math.max(total - imported, 0),
+      imagesTotal: total,
+      runCode,
+      runExpired: false,
+      failures: [],
+      interrupted: false,
+    };
+  }
+
   const controller = new AbortController();
   let interruptedEarly = false;
   const watcher = setInterval(() => {
@@ -620,7 +661,10 @@ export async function executarImportacaoImagens(
   try {
     response = await fetch(functionUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({ run_code: runCode }),
       signal: controller.signal,
     });

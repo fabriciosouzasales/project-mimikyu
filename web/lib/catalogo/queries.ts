@@ -608,16 +608,30 @@ function sortCatalogoCardSets(rows: CatalogoCardSetRawRow[], filtered: boolean):
   return sorted;
 }
 
+// Otimização (2026-08-14, Finding 6 da auditoria de segurança/performance do
+// Catálogo Editorial): antes, carregava TODAS as linhas de `card` (só
+// `card_set_id`) via fetchAllRows() para contar em memória — para a galeria
+// inteira (sem filtro), isso é a base inteira de Cards só para produzir uma
+// contagem por Coleção. `catalog_card_set_metrics.cards_cadastradas` (Query
+// 2123) já é exatamente essa contagem pré-agregada — "COUNT(card) por Card
+// Set, sem filtro de is_active", mesmo critério usado aqui antes (comentário
+// da coluna, database/schema/2123_create_catalog_card_set_metrics_views.sql)
+// — trocar para ler a view é comportamento idêntico, uma leitura por Coleção
+// pedida em vez de uma leitura por Card.
 async function getCardCountsForSets(supabase: SupabaseClient, cardSetIds: string[]): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (cardSetIds.length === 0) {
     return counts;
   }
-  const rows = await fetchAllRows((from, to) =>
-    supabase.from("card").select("card_set_id").in("card_set_id", cardSetIds).range(from, to),
-  );
-  for (const row of rows as { card_set_id: string }[]) {
-    counts.set(row.card_set_id, (counts.get(row.card_set_id) ?? 0) + 1);
+  const { data, error } = await supabase
+    .from("catalog_card_set_metrics")
+    .select("card_set_id, cards_cadastradas")
+    .in("card_set_id", cardSetIds);
+  if (error || !data) {
+    return counts;
+  }
+  for (const row of data as { card_set_id: string; cards_cadastradas: number }[]) {
+    counts.set(row.card_set_id, row.cards_cadastradas);
   }
   return counts;
 }

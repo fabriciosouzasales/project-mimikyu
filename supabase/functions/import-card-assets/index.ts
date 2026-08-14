@@ -379,6 +379,16 @@ Convenções permanentes de Edge Functions do Project Mimikyu (ver docs/06):
    módulo — não usa `withSupabase`/`@supabase/server`. Validações de método
    HTTP, corpo e payload passam a ser responsabilidade explícita do próprio
    `index.ts`.
+9. [NOVA, 2026-08-13, Finding 1 da auditoria de segurança do Catálogo
+   Editorial] A ausência de autenticação da Convenção #8/`v2.0.0` era
+   deliberada apenas contra o 401 do `@supabase/server` — nunca deveria ter
+   ficado permanente. Corrigido: `verify_jwt: true` (supabase/config.toml)
+   garante um JWT assinado válido antes do handler rodar, mas isso sozinho
+   não basta (pode ser só a anon key, sem usuário por trás). Um segundo
+   client, escopado pelo JWT do cabeçalho Authorization, chama
+   auth.getUser() + rpc('is_admin') antes de qualquer acesso ao client de
+   service role — mesmo padrão já em produção em
+   revalidate-catalog-import-rows (Query 2106 v1.1).
 */
 
 import "@supabase/functions-js/edge-runtime.d.ts";
@@ -450,10 +460,14 @@ const ASSET_TYPE_CODE = "CARD_FRONT";
 const STORAGE_BUCKET_CODE = "card-front";
 const IMAGE_BATCH_SIZE = 5;
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-);
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Client de serviço — único usado para ler/escrever asset_import_run,
+// card_external_reference e card_asset. Nunca recebe o JWT do chamador (ver
+// Convenção #9 acima).
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 /**
  * Executa operações assíncronas em lotes controlados — evita excesso de
@@ -496,6 +510,31 @@ Deno.serve(async (req) => {
         },
       },
     );
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return Response.json({ success: false, error: "MISSING_AUTHORIZATION" }, { status: 401 });
+  }
+
+  // Client escopado pelo JWT do chamador — existe só para autenticação/
+  // autorização (auth.getUser() + rpc('is_admin')), nunca para ler ou
+  // escrever asset_import_run/card_external_reference/card_asset (isso é
+  // sempre feito pelo client de service role, `supabase`, acima).
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const { data: userData, error: userError } = await userClient.auth.getUser();
+  if (userError || !userData?.user) {
+    console.error("IMPORT_CARD_ASSETS_INVALID_USER_SESSION:", userError);
+    return Response.json({ success: false, error: "INVALID_USER_SESSION" }, { status: 401 });
+  }
+
+  const { data: isAdminResult, error: isAdminError } = await userClient.rpc("is_admin");
+  if (isAdminError || isAdminResult !== true) {
+    console.error("IMPORT_CARD_ASSETS_FORBIDDEN_NOT_ADMIN:", isAdminError);
+    return Response.json({ success: false, error: "FORBIDDEN_NOT_ADMIN" }, { status: 403 });
   }
 
   let body: RequestBody;
