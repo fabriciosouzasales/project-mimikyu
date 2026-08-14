@@ -885,26 +885,14 @@ export async function getCardSetsGroupedByExpansion(
   // a Promise ainda pendente (caso normal — mesma Promise que `page.tsx` já
   // colocou para rodar em paralelo com `fetchCardSetsForCatalogo` abaixo,
   // sem nenhuma serialização nova) ou um array já resolvido.
-  // INSTRUMENTAÇÃO TEMPORÁRIA (2026-08-14) — decomposição dos ~2s restantes
-  // de /catalogo/card-sets após os Incrementos #1-#3. Só mede
-  // (performance.now()), não altera nenhuma query nem a concorrência já
-  // implementada acima. Remover depois da medição (ver docs/log.md). O
-  // timing de `getCardSetCardCounts` em si é medido só uma vez, em
-  // `page.tsx` (onde a leitura é de fato disparada) — não duplicado aqui.
-  const fnStart = performance.now();
-  const rowsStart = performance.now();
   const [rows, metrics] = await Promise.all([
     fetchCardSetsForCatalogo(supabase, {
       gameCode: filters?.gameCode,
       expansionCode: filters?.expansionCode,
-    }).then((r) => {
-      console.log(`[PERF card-sets] fetchCardSetsForCatalogo: ${(performance.now() - rowsStart).toFixed(1)}ms`);
-      return r;
     }),
     cardSetCounts,
   ]);
   const counts = new Map(metrics.map((row) => [row.card_set_id, row.cards_cadastradas]));
-  const groupingStart = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA
 
   const groups = new Map<string, CardSetsExpansionGroupInternal>();
   for (const row of rows) {
@@ -941,11 +929,6 @@ export async function getCardSetsGroupedByExpansion(
     if (gameDiff !== 0) return gameDiff;
     return a.expansionReleaseOrder - b.expansionReleaseOrder;
   });
-  // INSTRUMENTAÇÃO TEMPORÁRIA
-  console.log(
-    `[PERF card-sets] getCardSetsGroupedByExpansion:processamento-em-memoria: ${(performance.now() - groupingStart).toFixed(1)}ms`,
-  );
-  console.log(`[PERF card-sets] getCardSetsGroupedByExpansion:TOTAL: ${(performance.now() - fnStart).toFixed(1)}ms`);
   return result;
 }
 
