@@ -2300,21 +2300,36 @@ type RarityExternalMappingRawRow = {
   normalized_external_value: string;
 };
 
+/**
+ * Otimização (2026-08-14, auditoria focada de `/catalogo/cartas`, gargalo
+ * #1): as três leituras abaixo (`rarity`, `rarity_external_mapping`,
+ * `asset_source`) não têm nenhuma dependência de dado entre si — só são
+ * combinadas depois, em memória (`sourceCodeById`/`mappingsByRarityId`).
+ * Antes rodavam em 3 round-trips sequenciais; agora disparam juntas via
+ * `Promise.all`, mesmas queries/filtros/campos, mesmo processamento
+ * posterior. `rarityError`/`!rarityRows` continuam decidindo o retorno
+ * antecipado `[]` exatamente como antes — só a ORDEM das chamadas mudou.
+ */
 export async function getRaridades(supabase: SupabaseClient): Promise<RaridadeRow[]> {
-  const { data: rarityRows, error: rarityError } = await supabase
-    .from("rarity")
-    .select("id, code, name, symbol_code, display_order, created_at, updated_at")
-    .order("display_order", { ascending: true });
+  const [
+    { data: rarityRows, error: rarityError },
+    { data: mappingRows },
+    { data: sourceRows },
+  ] = await Promise.all([
+    supabase
+      .from("rarity")
+      .select("id, code, name, symbol_code, display_order, created_at, updated_at")
+      .order("display_order", { ascending: true }),
+    supabase
+      .from("rarity_external_mapping")
+      .select("id, rarity_id, asset_source_id, external_value, normalized_external_value"),
+    supabase.from("asset_source").select("id, code"),
+  ]);
 
   if (rarityError || !rarityRows) {
     return [];
   }
 
-  const { data: mappingRows } = await supabase
-    .from("rarity_external_mapping")
-    .select("id, rarity_id, asset_source_id, external_value, normalized_external_value");
-
-  const { data: sourceRows } = await supabase.from("asset_source").select("id, code");
   const sourceCodeById = new Map<string, string>(
     ((sourceRows ?? []) as { id: string; code: string }[]).map((s) => [s.id, s.code]),
   );
