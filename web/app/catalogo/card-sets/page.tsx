@@ -11,7 +11,9 @@ import {
   getExpansoes,
   getGameOptions,
   searchCatalogo,
+  type CardSetsExpansionGroup,
   type CardSetsExpansionGroupWithLogo,
+  type CatalogoSearchResult,
 } from "@/lib/catalogo/queries";
 
 /**
@@ -56,12 +58,30 @@ import {
  * delas, só rodava depois por estar fora do bloco. Ver comentário junto ao
  * `Promise.all` abaixo.
  */
+// INSTRUMENTAÇÃO TEMPORÁRIA (2026-08-14) — decomposição dos ~2s restantes de
+// /catalogo/card-sets após os Incrementos #1-#3 da frente de performance.
+// Só mede (performance.now(), sem efeito sobre dado/resultado); não altera
+// nenhuma query nem a concorrência já implementada — `timed()` só encadeia um
+// `.then()` de log sobre a Promise já em execução, o que não atrasa nem
+// resseria seu início. Remover depois da medição (ver docs/log.md).
+function timedCardSets<T>(label: string, promise: Promise<T>): Promise<T> {
+  const start = performance.now();
+  return promise.then((result) => {
+    console.log(`[PERF card-sets] ${label}: ${(performance.now() - start).toFixed(1)}ms`);
+    return result;
+  });
+}
+
 export default async function CatalogoCardSetsPage({
   searchParams,
 }: {
   searchParams: Promise<{ game?: string; expansion?: string; q?: string }>;
 }) {
+  const pageStart = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA
+
+  const guardStart = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA
   const { denied, supabase } = await requireCatalogoAdmin("Coleções", Boxes);
+  console.log(`[PERF card-sets] requireCatalogoAdmin: ${(performance.now() - guardStart).toFixed(1)}ms`); // INSTRUMENTAÇÃO TEMPORÁRIA
   if (denied) return denied;
 
   const { game, expansion, q } = await searchParams;
@@ -77,15 +97,29 @@ export default async function CatalogoCardSetsPage({
   // dois modos por `Array.isArray()` (galeria devolve um array de grupos,
   // busca devolve um objeto `{ cardSets, cards, hasMoreCards }`) — sem `as`,
   // o TypeScript já estreita o tipo pela própria checagem.
-  const [jogos, expansoesDoJogo, expansoes, cardSetsStats, content] = await Promise.all([
-    getGameOptions(supabase),
-    game ? getExpansoes(supabase, { gameCode: game }) : Promise.resolve([]),
-    getExpansoes(supabase),
-    getCardSetsStatsSummary(supabase),
+  // Anotação explícita de tipo (INSTRUMENTAÇÃO TEMPORÁRIA): sem ela, a
+  // inferência genérica de `timedCardSets<T>` sobre o ternário abaixo não
+  // unifica os dois ramos (`Promise<CardSetsExpansionGroup[]>` vs.
+  // `Promise<CatalogoSearchResult>`) — problema só desta instrumentação, o
+  // código sem instrumentação (Incremento #2) não tinha esse ternário passado
+  // como argumento de função genérica.
+  const contentPromise: Promise<CardSetsExpansionGroup[] | CatalogoSearchResult> =
     mode === "search"
       ? searchCatalogo(supabase, query, { cardsLimit: CATALOGO_SEARCH_CARDS_PAGE_SIZE, cardsOffset: 0 })
-      : getCardSetsGroupedByExpansion(supabase, { gameCode: game, expansionCode: expansion }),
+      : getCardSetsGroupedByExpansion(supabase, { gameCode: game, expansionCode: expansion });
+
+  const phase1Start = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA
+  const [jogos, expansoesDoJogo, expansoes, cardSetsStats, content] = await Promise.all([
+    timedCardSets("getGameOptions", getGameOptions(supabase)),
+    timedCardSets("getExpansoes(gameCode)", game ? getExpansoes(supabase, { gameCode: game }) : Promise.resolve([])),
+    timedCardSets("getExpansoes()", getExpansoes(supabase)),
+    timedCardSets("getCardSetsStatsSummary", getCardSetsStatsSummary(supabase)),
+    timedCardSets(
+      mode === "search" ? "content:search(searchCatalogo)" : "content:gallery(getCardSetsGroupedByExpansion)",
+      contentPromise,
+    ),
   ]);
+  console.log(`[PERF card-sets] Fase1(Promise.all, 5 branches): ${(performance.now() - phase1Start).toFixed(1)}ms`); // INSTRUMENTAÇÃO TEMPORÁRIA
 
   let initialCards: Awaited<ReturnType<typeof searchCatalogo>>["cards"] = [];
   let searchItems: Awaited<ReturnType<typeof searchCatalogo>>["cardSets"] = [];
@@ -106,7 +140,9 @@ export default async function CatalogoCardSetsPage({
     ...groups.flatMap((group) => group.items.map((item) => item.logoStoragePath)),
     ...searchItems.map((item) => item.logoStoragePath),
   ];
+  const logoStart = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA
   const logoUrls = await getCardSetLogoUrls(supabase, allPaths);
+  console.log(`[PERF card-sets] getCardSetLogoUrls (${allPaths.length} paths): ${(performance.now() - logoStart).toFixed(1)}ms`); // INSTRUMENTAÇÃO TEMPORÁRIA
   const withLogo = <T extends { logoStoragePath: string | null }>(item: T) => ({
     ...item,
     logoUrl: item.logoStoragePath ? (logoUrls.get(item.logoStoragePath) ?? null) : null,
@@ -116,6 +152,8 @@ export default async function CatalogoCardSetsPage({
     items: group.items.map(withLogo),
   }));
   const cardSetsWithLogo = searchItems.map(withLogo);
+
+  console.log(`[PERF card-sets] TOTAL page.tsx: ${(performance.now() - pageStart).toFixed(1)}ms`); // INSTRUMENTAÇÃO TEMPORÁRIA
 
   return (
     <AppShell title="Coleções" icon={Boxes}>

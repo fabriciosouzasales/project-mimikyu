@@ -278,6 +278,47 @@ async function fetchCardSetMetrics(supabase: SupabaseClient): Promise<CardSetMet
   return data as unknown as CardSetMetricsRow[];
 }
 
+type CardSetCardCountRow = {
+  card_set_id: string;
+  cards_cadastradas: number;
+};
+
+/**
+ * Leitura enxuta de `catalog_card_set_metrics` — só `card_set_id` e
+ * `cards_cadastradas` (2026-08-14, Incremento 4, Opção A da auditoria de
+ * performance de `/catalogo/card-sets`). Consumidor único:
+ * `getCardSetsGroupedByExpansion()`, que nunca leu
+ * `cards_com_imagem_algum_idioma`/`cards_pendentes_cadastro` apesar de
+ * `fetchCardSetMetrics()` buscar as quatro colunas — confirmado lendo o
+ * corpo da função antes desta mudança: `counts.get(row.card_set_id)` só
+ * consome `cards_cadastradas`.
+ *
+ * `fetchCardSetMetrics()` (acima) permanece intocada — `getEstadoDoCatalogo()`
+ * e `getCardSetsOverview()` (únicos outros consumidores, confirmados via
+ * busca no arquivo) seguem precisando das quatro colunas. Reduzir
+ * `fetchCardSetMetrics()` globalmente quebraria esses dois; esta função nova
+ * evita a regressão sem duplicar a leitura ampla onde ela não é necessária.
+ *
+ * Efeito esperado no plano de execução: sem as colunas de imagem, o planner
+ * do Postgres elimina do plano o LEFT JOIN com `image_union_counts` (subquery
+ * sobre `card_asset`, ~13.342 linhas) embutido na view — confirmado via
+ * `EXPLAIN (ANALYZE, BUFFERS)` nesta mesma investigação: pedir só
+ * `cards_cadastradas` já faz o plano não incluir esse nó. Isso evita, nesta
+ * leitura, a reavaliação de `is_admin()` (RLS, `catalog_admin_select`) por
+ * linha varrida de `card_asset` — o gargalo real por trás do custo alto de
+ * `fetchCardSetMetrics()` nesta rota (achado de RLS registrado à parte em
+ * `docs/log.md`, sem alteração de política nesta rodada).
+ */
+async function fetchCardSetCardCounts(supabase: SupabaseClient): Promise<CardSetCardCountRow[]> {
+  const { data, error } = await supabase.from("catalog_card_set_metrics").select("card_set_id, cards_cadastradas");
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data as unknown as CardSetCardCountRow[];
+}
+
 /**
  * Cobertura de imagem canônica por idioma ativo, agregada entre todos os
  * Card Sets — soma direta de public.catalog_card_set_image_coverage (Query
@@ -833,17 +874,37 @@ export async function getCardSetsGroupedByExpansion(
   // produção), e a associação por linha é feita depois via Map (`counts.get
   // (row.id)`), não pela ordem/tamanho da resposta. Linhas do Map fora do
   // filtro de Jogo/Expansão ativo (quando houver) simplesmente nunca são
-  // consultadas — sem efeito em nenhuma linha real. `fetchCardSetMetrics()`
-  // (já existente, usada por getCardSetsOverview()) fornece exatamente esse
-  // dado sem filtro, reaproveitada aqui em vez de duplicar getCardCountsForSets().
+  // consultadas — sem efeito em nenhuma linha real.
+  //
+  // Incremento 4, Opção A (2026-08-14): trocado `fetchCardSetMetrics()` por
+  // `fetchCardSetCardCounts()` — leitura enxuta com só `card_set_id,
+  // cards_cadastradas`, as duas únicas colunas que este fluxo consome (ver
+  // comentário da função). Isso tira do plano o join com `image_union_counts`
+  // (subquery sobre `card_asset`, ~13.342 linhas) e evita a reavaliação de
+  // `is_admin()` (RLS) por linha dessa tabela — gargalo real medido nesta
+  // auditoria, não a view em si.
+  // INSTRUMENTAÇÃO TEMPORÁRIA (2026-08-14) — decomposição dos ~2s restantes
+  // de /catalogo/card-sets após os Incrementos #1-#3. Só mede
+  // (performance.now()), não altera nenhuma query nem a concorrência já
+  // implementada acima. Remover depois da medição (ver docs/log.md).
+  const fnStart = performance.now();
+  const rowsStart = performance.now();
+  const metricsStart = performance.now();
   const [rows, metrics] = await Promise.all([
     fetchCardSetsForCatalogo(supabase, {
       gameCode: filters?.gameCode,
       expansionCode: filters?.expansionCode,
+    }).then((r) => {
+      console.log(`[PERF card-sets] fetchCardSetsForCatalogo: ${(performance.now() - rowsStart).toFixed(1)}ms`);
+      return r;
     }),
-    fetchCardSetMetrics(supabase),
+    fetchCardSetCardCounts(supabase).then((r) => {
+      console.log(`[PERF card-sets] fetchCardSetCardCounts: ${(performance.now() - metricsStart).toFixed(1)}ms`);
+      return r;
+    }),
   ]);
   const counts = new Map(metrics.map((row) => [row.card_set_id, row.cards_cadastradas]));
+  const groupingStart = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA
 
   const groups = new Map<string, CardSetsExpansionGroupInternal>();
   for (const row of rows) {
@@ -880,6 +941,11 @@ export async function getCardSetsGroupedByExpansion(
     if (gameDiff !== 0) return gameDiff;
     return a.expansionReleaseOrder - b.expansionReleaseOrder;
   });
+  // INSTRUMENTAÇÃO TEMPORÁRIA
+  console.log(
+    `[PERF card-sets] getCardSetsGroupedByExpansion:processamento-em-memoria: ${(performance.now() - groupingStart).toFixed(1)}ms`,
+  );
+  console.log(`[PERF card-sets] getCardSetsGroupedByExpansion:TOTAL: ${(performance.now() - fnStart).toFixed(1)}ms`);
   return result;
 }
 
