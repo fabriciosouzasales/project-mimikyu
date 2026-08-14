@@ -304,18 +304,26 @@ async function fetchCoberturaImagensPorIdioma(supabase: SupabaseClient): Promise
 
 /**
  * Mesma view de `fetchCoberturaImagensPorIdioma()`, agora filtrada por um
- * único `card_set_id` — a view já tem esse grão (card_set, idioma ativo),
- * então o filtro é só um `.eq()` a mais, sem view/RPC nova (2026-08-08, hub
- * de Card Set). Usada exclusivamente por `getCardSetByCode()`.
+ * único Card Set — a view já tem esse grão (card_set, idioma ativo), então o
+ * filtro é só um `.eq()` a mais, sem view/RPC nova (2026-08-08, hub de Card
+ * Set). Usada exclusivamente por `getCardSetByCode()`.
+ *
+ * Filtro por `card_set_code` (2026-08-14, otimização de `getCardSetByCode()`
+ * — Incremento 4, terceiro alvo): antes recebia `cardSetId`, obtido só depois
+ * de `getCardSetsOverview()` já ter resolvido o Card Set inteiro — dependência
+ * sequencial desnecessária, já que a view expõe `card_set_code` diretamente
+ * (mesma coluna já usada por `catalog_card_set_metrics`). Com o filtro por
+ * `code`, esta leitura roda em paralelo com as outras duas que compõem
+ * `getCardSetByCode()`, sem esperar nenhum `id` ser resolvido antes.
  */
 async function fetchCoberturaImagensPorIdiomaDoCardSet(
   supabase: SupabaseClient,
-  cardSetId: string,
+  code: string,
 ): Promise<CoberturaPorIdiomaItem[]> {
   const { data, error } = await supabase
     .from("catalog_card_set_image_coverage")
     .select("language_code, cards_com_imagem")
-    .eq("card_set_id", cardSetId);
+    .eq("card_set_code", code);
 
   if (error || !data) {
     return [];
@@ -453,19 +461,71 @@ export async function getDistribuicaoPorRaridade(supabase: SupabaseClient): Prom
  * navegação da tabela na Visão Geral (refinamento 6 aprovado por Fabrício,
  * 2026-08-08) e, na mesma data, base do hub operacional da Coleção (escopo V1
  * aprovado: cabeçalho enriquecido, galeria de Cartas, cobertura/pendências,
- * ações contextuais). Continua reaproveitando `getCardSetsOverview()` (mesmo
- * "sem view/query nova quando o dado já existe" já aplicado em outros pontos
- * deste arquivo) e só busca a cobertura por idioma como um passo extra,
- * porque essa é a única métrica que não faz sentido pré-calcular para a
- * listagem inteira.
+ * ações contextuais).
+ *
+ * Otimização (2026-08-14, Incremento 4, terceiro alvo): antes reaproveitava
+ * `getCardSetsOverview()` inteiro (43 Card Sets, 43 linhas de métricas, URLs
+ * assinadas para os 43 logos) só para descartar 42 resultados via `.find()`.
+ * `catalog_card_set_metrics` e `catalog_card_set_image_coverage` já expõem
+ * `card_set_code` diretamente — as três leituras (`card_set`, métricas,
+ * cobertura) agora filtram por `code` desde o início e rodam em paralelo, sem
+ * depender de um `id` resolvido antes. A URL assinada é gerada só para o
+ * único `logo_storage_path` deste Card Set. Mapeamento de campos idêntico ao
+ * que `getCardSetsOverview()` já fazia — nenhuma listagem (`getCardSetsOverview`,
+ * `fetchCardSets`, `fetchCardSetMetrics`) foi alterada, elas continuam
+ * servindo a Visão Geral/Coleções normalmente.
  */
 export async function getCardSetByCode(supabase: SupabaseClient, code: string): Promise<CardSetDetail | null> {
-  const overview = await getCardSetsOverview(supabase);
-  const cardSet = overview.find((set) => set.code === code) ?? null;
-  if (!cardSet) return null;
+  const [cardSetResult, metricsResult, coberturaPorIdioma] = await Promise.all([
+    supabase
+      .from("card_set")
+      .select(
+        "id, code, name, set_type, base_set_size, total_set_size, logo_storage_path, release_order, release_date, expansion(code, name, game(code, name))",
+      )
+      .eq("code", code)
+      .maybeSingle(),
+    supabase
+      .from("catalog_card_set_metrics")
+      .select("cards_cadastradas, cards_com_imagem_algum_idioma, cards_pendentes_cadastro")
+      .eq("card_set_code", code)
+      .maybeSingle(),
+    fetchCoberturaImagensPorIdiomaDoCardSet(supabase, code),
+  ]);
 
-  const coberturaPorIdioma = await fetchCoberturaImagensPorIdiomaDoCardSet(supabase, cardSet.id);
-  return { ...cardSet, coberturaPorIdioma };
+  const cardSetRow = cardSetResult.data as unknown as CardSetRow | null;
+  if (cardSetResult.error || !cardSetRow) {
+    return null;
+  }
+
+  const metrics = metricsResult.data as {
+    cards_cadastradas: number;
+    cards_com_imagem_algum_idioma: number;
+    cards_pendentes_cadastro: number;
+  } | null;
+  const cardsCatalogados = metrics?.cards_cadastradas ?? 0;
+  const cardsComImagem = metrics?.cards_com_imagem_algum_idioma ?? 0;
+
+  const logoUrls = await getCardSetLogoUrls(supabase, [cardSetRow.logo_storage_path]);
+
+  return {
+    id: cardSetRow.id,
+    code: cardSetRow.code,
+    name: cardSetRow.name,
+    setType: cardSetRow.set_type,
+    baseSetSize: cardSetRow.base_set_size,
+    totalSetSize: cardSetRow.total_set_size,
+    cardsCatalogados,
+    cardsComImagem,
+    cardsPendentes: metrics?.cards_pendentes_cadastro ?? 0,
+    temImagensCompletas: cardsCatalogados > 0 && cardsCatalogados === cardsComImagem,
+    logoUrl: cardSetRow.logo_storage_path ? (logoUrls.get(cardSetRow.logo_storage_path) ?? null) : null,
+    expansionCode: cardSetRow.expansion?.code ?? null,
+    expansionName: cardSetRow.expansion?.name ?? null,
+    gameName: cardSetRow.expansion?.game?.name ?? null,
+    releaseDate: cardSetRow.release_date,
+    releaseOrder: cardSetRow.release_order,
+    coberturaPorIdioma,
+  };
 }
 
 // ---------------------------------------------------------------------------
