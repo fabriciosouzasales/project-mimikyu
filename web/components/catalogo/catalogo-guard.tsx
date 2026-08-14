@@ -33,21 +33,33 @@ type CatalogoGuardResult =
  */
 export async function requireCatalogoAdmin(title: string, icon?: LucideIcon): Promise<CatalogoGuardResult> {
   const supabase = await createClient();
-  const {
-    data: { user },
-    // getCachedUser()/getCachedIsAdmin() (Incremento 1 de performance,
-    // 2026-08-14): mesma chamada de sempre (auth.getUser()/rpc("is_admin")),
-    // agora memoizada por requisição via React cache() — AppShell e Header,
-    // chamados mais adiante na mesma renderização, reaproveitam este
-    // resultado em vez de refazer a chamada de rede. Ver
-    // lib/supabase/request-auth-cache.ts para o racional completo.
-  } = await getCachedUser();
+  // getCachedUser()/getCachedIsAdmin() (Incremento 1 de performance,
+  // 2026-08-14): mesma chamada de sempre (auth.getUser()/rpc("is_admin")),
+  // agora memoizada por requisição via React cache() — AppShell e Header,
+  // chamados mais adiante na mesma renderização, reaproveitam este
+  // resultado em vez de refazer a chamada de rede. Ver
+  // lib/supabase/request-auth-cache.ts para o racional completo.
+  //
+  // Promise.all (Incremento 4, gargalo #2 — 2026-08-14): as duas chamadas
+  // são independentes — is_admin() lê auth.uid() do lado do Postgres, a
+  // partir do JWT da própria requisição, sem depender do objeto `user`
+  // resolvido aqui no lado do JS. Por isso podem ser disparadas juntas em
+  // vez de esperar getUser() terminar para só então iniciar is_admin().
+  // O redirect("/login") por ausência de usuário continua acontecendo
+  // ANTES de qualquer decisão baseada em isAdmin — is_admin() sem sessão
+  // apenas retorna erro de permissão (EXECUTE restrito a `authenticated`),
+  // que é ignorado, já que o caminho sem usuário nunca chega a usar esse
+  // resultado.
+  const [
+    {
+      data: { user },
+    },
+    { data: isAdmin },
+  ] = await Promise.all([getCachedUser(), getCachedIsAdmin()]);
 
   if (!user) {
     redirect("/login");
   }
-
-  const { data: isAdmin } = await getCachedIsAdmin();
 
   if (!isAdmin) {
     return {
