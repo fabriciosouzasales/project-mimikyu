@@ -278,7 +278,7 @@ async function fetchCardSetMetrics(supabase: SupabaseClient): Promise<CardSetMet
   return data as unknown as CardSetMetricsRow[];
 }
 
-type CardSetCardCountRow = {
+export type CardSetCardCountRow = {
   card_set_id: string;
   cards_cadastradas: number;
 };
@@ -286,30 +286,35 @@ type CardSetCardCountRow = {
 /**
  * Leitura enxuta de `catalog_card_set_metrics` — só `card_set_id` e
  * `cards_cadastradas` (2026-08-14, Incremento 4, Opção A da auditoria de
- * performance de `/catalogo/card-sets`). Consumidor único:
- * `getCardSetsGroupedByExpansion()`, que nunca leu
- * `cards_com_imagem_algum_idioma`/`cards_pendentes_cadastro` apesar de
- * `fetchCardSetMetrics()` buscar as quatro colunas — confirmado lendo o
- * corpo da função antes desta mudança: `counts.get(row.card_set_id)` só
- * consome `cards_cadastradas`.
+ * performance de `/catalogo/card-sets`; promovida a exportada no Incremento
+ * 5, ver abaixo). `fetchCardSetMetrics()` (acima) permanece intocada —
+ * `getEstadoDoCatalogo()` e `getCardSetsOverview()` (únicos outros
+ * consumidores, confirmados via busca no arquivo) seguem precisando das
+ * quatro colunas; reduzi-la globalmente quebraria esses dois.
  *
- * `fetchCardSetMetrics()` (acima) permanece intocada — `getEstadoDoCatalogo()`
- * e `getCardSetsOverview()` (únicos outros consumidores, confirmados via
- * busca no arquivo) seguem precisando das quatro colunas. Reduzir
- * `fetchCardSetMetrics()` globalmente quebraria esses dois; esta função nova
- * evita a regressão sem duplicar a leitura ampla onde ela não é necessária.
- *
- * Efeito esperado no plano de execução: sem as colunas de imagem, o planner
- * do Postgres elimina do plano o LEFT JOIN com `image_union_counts` (subquery
+ * Efeito no plano de execução: sem as colunas de imagem, o planner do
+ * Postgres elimina do plano o LEFT JOIN com `image_union_counts` (subquery
  * sobre `card_asset`, ~13.342 linhas) embutido na view — confirmado via
- * `EXPLAIN (ANALYZE, BUFFERS)` nesta mesma investigação: pedir só
- * `cards_cadastradas` já faz o plano não incluir esse nó. Isso evita, nesta
- * leitura, a reavaliação de `is_admin()` (RLS, `catalog_admin_select`) por
- * linha varrida de `card_asset` — o gargalo real por trás do custo alto de
- * `fetchCardSetMetrics()` nesta rota (achado de RLS registrado à parte em
- * `docs/log.md`, sem alteração de política nesta rodada).
+ * `EXPLAIN (ANALYZE, BUFFERS)` no Incremento 4. Isso evita a reavaliação de
+ * `is_admin()` (RLS, `catalog_admin_select`) por linha varrida de
+ * `card_asset` (achado de RLS registrado à parte em `docs/log.md`, sem
+ * alteração de política nesta rodada).
+ *
+ * Incremento 5 (2026-08-14, Opção 1 — threading explícito via `page.tsx`):
+ * antes desta mudança, `getCardSetsGroupedByExpansion()` chamava esta função
+ * internamente E `getCardSetsStatsSummary()` (removida, ver nota abaixo)
+ * fazia sua própria leitura equivalente de `catalog_card_set_metrics` — duas
+ * leituras sem filtro na mesma requisição (modo galeria), cada uma pagando
+ * de novo a agregação `card_counts` (GROUP BY sobre `card`, ~7.104 linhas,
+ * sob RLS) por trás da view. `getCardSetCardCounts()` promovida a exportada
+ * e virou a ÚNICA leitura desta view por requisição: `page.tsx` (composition
+ * root) a chama uma vez e distribui o mesmo resultado para os Stats
+ * (`summarizeCardSetCardCounts()`, abaixo) e para `getCardSetsGroupedByExpansion()`
+ * (que passou a RECEBER os counts em vez de buscá-los). Deliberadamente sem
+ * `cache()` do React — threading explícito, sem depender de igualdade
+ * referencial de argumento entre chamadas.
  */
-async function fetchCardSetCardCounts(supabase: SupabaseClient): Promise<CardSetCardCountRow[]> {
+export async function getCardSetCardCounts(supabase: SupabaseClient): Promise<CardSetCardCountRow[]> {
   const { data, error } = await supabase.from("catalog_card_set_metrics").select("card_set_id, cards_cadastradas");
 
   if (error || !data) {
@@ -472,35 +477,25 @@ export type CardSetsStatsSummary = {
 };
 
 /**
- * Resumo mínimo para os indicadores de `/catalogo/card-sets`
- * (`CardSetsStats`) — gargalo #1 da auditoria de performance desta rota
- * (2026-08-14). Antes, a página usava `getCardSetsOverview()` inteira só
- * para ler `cardSets.length` e `cardSets.filter(cardsCatalogados === 0)
- * .length` (confirmado lendo `card-sets-stats.tsx` — nenhum outro campo é
- * usado) — pagando o preço de um join completo `card_set(expansion(game))`
- * e de até 43 signed URLs de logo nunca lidas por esse componente, tudo
- * duplicando quase por completo a leitura que a galeria da mesma página já
- * faz separadamente (`getCardSetsGroupedByExpansion()`).
+ * Resumo mínimo para os indicadores de `/catalogo/card-sets` (`CardSetsStats`)
+ * — função PURA, sem I/O (2026-08-14, Incremento 5, substitui
+ * `getCardSetsStatsSummary()`, removida). Recebe os mesmos `CardSetCardCountRow[]`
+ * já lidos por `getCardSetCardCounts()` para a galeria — `page.tsx`
+ * (composition root) chama `getCardSetCardCounts()` uma única vez por
+ * requisição e distribui o resultado para esta função E para
+ * `getCardSetsGroupedByExpansion()`, eliminando a segunda leitura sem filtro
+ * de `catalog_card_set_metrics` que existia antes (cada uma pagando de novo
+ * a agregação `card_counts`/RLS por trás da view). `getCardSetsOverview()`
+ * não foi alterada — continua servindo `/catalogo` (Visão Geral), que
+ * precisa dos campos ricos (nome, logo, expansão) que este resumo
+ * deliberadamente não busca.
  *
- * `catalog_card_set_metrics` já cobre 1:1 todos os Card Sets (LEFT JOIN
- * interno, mesma view canônica usada em toda esta frente) — total de linhas
- * da view = total de Card Sets, `cards_cadastradas = 0` = Card Set sem
- * cartas. Equivalência confirmada em produção antes desta mudança: 43 Card
- * Sets = 43 linhas na view; 0 com `cards_cadastradas = 0`, batendo com a
- * contagem direta de Card Sets sem nenhuma linha correspondente em `card`.
- *
- * `getCardSetsOverview()` não foi alterada — continua servindo `/catalogo`
- * (Visão Geral), que precisa dos campos ricos (nome, logo, expansão) que
- * esta função deliberadamente não busca.
+ * `totalCardSets` = total de linhas (a view cobre 1:1 todos os Card Sets);
+ * `cardSetsSemCartas` = linhas com `cards_cadastradas === 0`. Mesma lógica
+ * de antes, só a origem do dado mudou de "buscar do banco" para "receber já
+ * buscado".
  */
-export async function getCardSetsStatsSummary(supabase: SupabaseClient): Promise<CardSetsStatsSummary> {
-  const { data, error } = await supabase.from("catalog_card_set_metrics").select("cards_cadastradas");
-
-  if (error || !data) {
-    return { totalCardSets: 0, cardSetsSemCartas: 0 };
-  }
-
-  const rows = data as { cards_cadastradas: number }[];
+export function summarizeCardSetCardCounts(rows: CardSetCardCountRow[]): CardSetsStatsSummary {
   return {
     totalCardSets: rows.length,
     cardSetsSemCartas: rows.filter((row) => row.cards_cadastradas === 0).length,
@@ -864,7 +859,8 @@ type CardSetsExpansionGroupInternal = CardSetsExpansionGroup & { gameCreatedAt: 
  */
 export async function getCardSetsGroupedByExpansion(
   supabase: SupabaseClient,
-  filters?: { gameCode?: string; expansionCode?: string },
+  filters: { gameCode?: string; expansionCode?: string } | undefined,
+  cardSetCounts: Promise<CardSetCardCountRow[]> | CardSetCardCountRow[],
 ): Promise<CardSetsExpansionGroup[]> {
   // Paralelização (2026-08-14, gargalo #3 da auditoria de performance de
   // /catalogo/card-sets — mesmo padrão já validado em getCardSetsForCartas(),
@@ -876,20 +872,27 @@ export async function getCardSetsGroupedByExpansion(
   // filtro de Jogo/Expansão ativo (quando houver) simplesmente nunca são
   // consultadas — sem efeito em nenhuma linha real.
   //
-  // Incremento 4, Opção A (2026-08-14): trocado `fetchCardSetMetrics()` por
-  // `fetchCardSetCardCounts()` — leitura enxuta com só `card_set_id,
-  // cards_cadastradas`, as duas únicas colunas que este fluxo consome (ver
-  // comentário da função). Isso tira do plano o join com `image_union_counts`
-  // (subquery sobre `card_asset`, ~13.342 linhas) e evita a reavaliação de
-  // `is_admin()` (RLS) por linha dessa tabela — gargalo real medido nesta
-  // auditoria, não a view em si.
+  // Incremento 5 (2026-08-14, Opção 1 — threading explícito via `page.tsx`):
+  // esta função DEIXOU de buscar `catalog_card_set_metrics` por conta
+  // própria (Incremento 4 chamava `fetchCardSetCardCounts(supabase)` aqui
+  // dentro) — agora recebe `cardSetCounts` já iniciado pelo composition
+  // root (`page.tsx`), que dispara `getCardSetCardCounts()` UMA única vez
+  // por requisição e distribui o mesmo resultado para os Stats e para esta
+  // função. Antes, `getCardSetsStatsSummary()` (removida) fazia uma segunda
+  // leitura equivalente e sem filtro da mesma view na mesma requisição —
+  // cada uma pagando de novo a agregação `card_counts` (GROUP BY sobre
+  // `card`, ~7.104 linhas, sob RLS) por trás dela. `cardSetCounts` pode ser
+  // a Promise ainda pendente (caso normal — mesma Promise que `page.tsx` já
+  // colocou para rodar em paralelo com `fetchCardSetsForCatalogo` abaixo,
+  // sem nenhuma serialização nova) ou um array já resolvido.
   // INSTRUMENTAÇÃO TEMPORÁRIA (2026-08-14) — decomposição dos ~2s restantes
   // de /catalogo/card-sets após os Incrementos #1-#3. Só mede
   // (performance.now()), não altera nenhuma query nem a concorrência já
-  // implementada acima. Remover depois da medição (ver docs/log.md).
+  // implementada acima. Remover depois da medição (ver docs/log.md). O
+  // timing de `getCardSetCardCounts` em si é medido só uma vez, em
+  // `page.tsx` (onde a leitura é de fato disparada) — não duplicado aqui.
   const fnStart = performance.now();
   const rowsStart = performance.now();
-  const metricsStart = performance.now();
   const [rows, metrics] = await Promise.all([
     fetchCardSetsForCatalogo(supabase, {
       gameCode: filters?.gameCode,
@@ -898,10 +901,7 @@ export async function getCardSetsGroupedByExpansion(
       console.log(`[PERF card-sets] fetchCardSetsForCatalogo: ${(performance.now() - rowsStart).toFixed(1)}ms`);
       return r;
     }),
-    fetchCardSetCardCounts(supabase).then((r) => {
-      console.log(`[PERF card-sets] fetchCardSetCardCounts: ${(performance.now() - metricsStart).toFixed(1)}ms`);
-      return r;
-    }),
+    cardSetCounts,
   ]);
   const counts = new Map(metrics.map((row) => [row.card_set_id, row.cards_cadastradas]));
   const groupingStart = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA

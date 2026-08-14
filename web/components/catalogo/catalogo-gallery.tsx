@@ -92,7 +92,7 @@ export function CatalogoGallery({
   expansoesDoJogo: ExpansaoRow[];
   /** Lista completa, sem filtro/paginação — só para `CardSetsStats` (mesmo papel de `expansoes` em `ExpansoesStats`). */
   expansoes: ExpansaoRow[];
-  /** Totais globais de Card Sets, sem filtro/paginação (via `getCardSetsStatsSummary()`) — só para `CardSetsStats`. */
+  /** Totais globais de Card Sets, sem filtro/paginação (via `summarizeCardSetCardCounts()`, 2026-08-14) — só para `CardSetsStats`. */
   cardSetsStats: CardSetsStatsSummary;
   gameCode?: string;
   expansionCode?: string;

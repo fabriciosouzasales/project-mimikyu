@@ -5,12 +5,13 @@ import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 import { PageContainer } from "@/components/ui/page";
 import {
   CATALOGO_SEARCH_CARDS_PAGE_SIZE,
+  getCardSetCardCounts,
   getCardSetLogoUrls,
   getCardSetsGroupedByExpansion,
-  getCardSetsStatsSummary,
   getExpansoes,
   getGameOptions,
   searchCatalogo,
+  summarizeCardSetCardCounts,
   type CardSetsExpansionGroup,
   type CardSetsExpansionGroupWithLogo,
   type CatalogoSearchResult,
@@ -57,6 +58,21 @@ import {
  * quatro chamadas de jogos/expansões/stats — não tinha dependência real
  * delas, só rodava depois por estar fora do bloco. Ver comentário junto ao
  * `Promise.all` abaixo.
+ *
+ * Ajuste 2026-08-14, Incremento 5 (elimina leitura redundante entre Stats e
+ * galeria): `getCardSetsStatsSummary()` (comentário acima) e
+ * `getCardSetsGroupedByExpansion()` liam `catalog_card_set_metrics` sem
+ * filtro, cada uma na sua própria chamada, na MESMA requisição em modo
+ * galeria — duas agregações `card_counts` (RLS) redundantes por carga de
+ * página. `getCardSetsStatsSummary()` foi removida (zero outros
+ * consumidores confirmados por busca no repositório); esta página agora
+ * dispara `getCardSetCardCounts()` uma única vez (`cardSetCountsPromise`,
+ * abaixo) e distribui o mesmo resultado para os Stats
+ * (`summarizeCardSetCardCounts()`, função pura) e para
+ * `getCardSetsGroupedByExpansion()` (que passou a RECEBER os counts em vez
+ * de buscá-los). Concorrência preservada: `cardSetCountsPromise` continua
+ * correndo em paralelo com `getGameOptions`/`getExpansoes`/conteúdo, dentro
+ * do mesmo `Promise.all` de sempre — nenhuma serialização nova.
  */
 // INSTRUMENTAÇÃO TEMPORÁRIA (2026-08-14) — decomposição dos ~2s restantes de
 // /catalogo/card-sets após os Incrementos #1-#3 da frente de performance.
@@ -103,23 +119,33 @@ export default async function CatalogoCardSetsPage({
   // `Promise<CatalogoSearchResult>`) — problema só desta instrumentação, o
   // código sem instrumentação (Incremento #2) não tinha esse ternário passado
   // como argumento de função genérica.
+  // Incremento 5 (2026-08-14): única leitura de `catalog_card_set_metrics`
+  // (`card_set_id, cards_cadastradas`) desta requisição — disparada aqui,
+  // SEM `await`, continua correndo em paralelo com todo o resto do
+  // `Promise.all` abaixo (mesma promise é usada tanto no branch de timing
+  // quanto dentro de `getCardSetsGroupedByExpansion`, em modo galeria — não
+  // é uma segunda leitura, é a mesma promise com dois consumidores).
+  const cardSetCountsPromise = getCardSetCardCounts(supabase);
+
   const contentPromise: Promise<CardSetsExpansionGroup[] | CatalogoSearchResult> =
     mode === "search"
       ? searchCatalogo(supabase, query, { cardsLimit: CATALOGO_SEARCH_CARDS_PAGE_SIZE, cardsOffset: 0 })
-      : getCardSetsGroupedByExpansion(supabase, { gameCode: game, expansionCode: expansion });
+      : getCardSetsGroupedByExpansion(supabase, { gameCode: game, expansionCode: expansion }, cardSetCountsPromise);
 
   const phase1Start = performance.now(); // INSTRUMENTAÇÃO TEMPORÁRIA
-  const [jogos, expansoesDoJogo, expansoes, cardSetsStats, content] = await Promise.all([
+  const [jogos, expansoesDoJogo, expansoes, cardSetCounts, content] = await Promise.all([
     timedCardSets("getGameOptions", getGameOptions(supabase)),
     timedCardSets("getExpansoes(gameCode)", game ? getExpansoes(supabase, { gameCode: game }) : Promise.resolve([])),
     timedCardSets("getExpansoes()", getExpansoes(supabase)),
-    timedCardSets("getCardSetsStatsSummary", getCardSetsStatsSummary(supabase)),
+    timedCardSets("getCardSetCardCounts", cardSetCountsPromise),
     timedCardSets(
       mode === "search" ? "content:search(searchCatalogo)" : "content:gallery(getCardSetsGroupedByExpansion)",
       contentPromise,
     ),
   ]);
   console.log(`[PERF card-sets] Fase1(Promise.all, 5 branches): ${(performance.now() - phase1Start).toFixed(1)}ms`); // INSTRUMENTAÇÃO TEMPORÁRIA
+
+  const cardSetsStats = summarizeCardSetCardCounts(cardSetCounts);
 
   let initialCards: Awaited<ReturnType<typeof searchCatalogo>>["cards"] = [];
   let searchItems: Awaited<ReturnType<typeof searchCatalogo>>["cardSets"] = [];

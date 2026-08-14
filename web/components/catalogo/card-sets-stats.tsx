@@ -15,11 +15,12 @@ import { formatNumber } from "@/lib/utils";
  *
  * `jogos`/`expansoes` já chegam de `getGameOptions()`/`getExpansoes()`
  * (mesmas chamadas que a página já fazia para o filtro); `stats` vem de
- * `getCardSetsStatsSummary()` (2026-08-14, gargalo #1 da auditoria de
- * performance desta rota — antes era `getCardSetsOverview()` inteira, só
- * para ler dois números; ver `card-sets/page.tsx`), sem paginação, então os
- * totais aqui são sempre globais, independente do filtro/busca ativo na
- * galeria abaixo (mesmo raciocínio de `ExpansoesStats`).
+ * `summarizeCardSetCardCounts()` (2026-08-14, Incremento 5 — função pura,
+ * substitui `getCardSetsStatsSummary()`, removida; antes dela era
+ * `getCardSetsOverview()` inteira, só para ler dois números; ver
+ * `card-sets/page.tsx`), sem paginação, então os totais aqui são sempre
+ * globais, independente do filtro/busca ativo na galeria abaixo (mesmo
+ * raciocínio de `ExpansoesStats`).
  */
 export function CardSetsStats({
   jogos,
