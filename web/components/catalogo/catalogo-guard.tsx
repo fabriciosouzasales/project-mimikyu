@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
+import { getCachedIsAdmin, getCachedUser } from "@/lib/supabase/request-auth-cache";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 type CatalogoGuardResult =
@@ -34,13 +35,19 @@ export async function requireCatalogoAdmin(title: string, icon?: LucideIcon): Pr
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+    // getCachedUser()/getCachedIsAdmin() (Incremento 1 de performance,
+    // 2026-08-14): mesma chamada de sempre (auth.getUser()/rpc("is_admin")),
+    // agora memoizada por requisição via React cache() — AppShell e Header,
+    // chamados mais adiante na mesma renderização, reaproveitam este
+    // resultado em vez de refazer a chamada de rede. Ver
+    // lib/supabase/request-auth-cache.ts para o racional completo.
+  } = await getCachedUser();
 
   if (!user) {
     redirect("/login");
   }
 
-  const { data: isAdmin } = await supabase.rpc("is_admin");
+  const { data: isAdmin } = await getCachedIsAdmin();
 
   if (!isAdmin) {
     return {

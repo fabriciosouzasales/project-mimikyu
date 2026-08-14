@@ -3,6 +3,7 @@ import { MobileNav } from "@/components/app-shell/mobile-nav";
 import { UserAvatarBadge } from "@/components/app-shell/user-avatar-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { createClient } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/supabase/request-auth-cache";
 
 /**
  * Cabeçalho fixo do app shell: menu mobile (hambúrguer) + breadcrumb + ações
@@ -11,15 +12,21 @@ import { createClient } from "@/lib/supabase/server";
  * texto, como sempre foi.
  */
 export async function Header({ title, icon: Icon, isAdmin }: { title: string; icon?: LucideIcon; isAdmin: boolean }) {
-  const supabase = await createClient();
+  // getCachedUser() (Incremento 1 de performance, 2026-08-14): mesma chamada
+  // de sempre (auth.getUser()), memoizada por requisição — reusa o resultado
+  // já obtido por requireCatalogoAdmin() em vez de refazer a chamada de rede.
+  // Ver lib/supabase/request-auth-cache.ts. `supabase` continua criado aqui
+  // normalmente (client novo, sem custo de rede) só para a query de
+  // user_profile abaixo, que não faz parte da deduplicação pedida.
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getCachedUser();
 
   let avatarUrl: string | null = null;
   let initial = "?";
 
   if (user) {
+    const supabase = await createClient();
     const { data: profile } = await supabase
       .from("user_profile")
       .select("username, display_name, avatar_path")

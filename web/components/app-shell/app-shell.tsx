@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Header } from "@/components/app-shell/header";
 import { Sidebar } from "@/components/app-shell/sidebar";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedIsAdmin } from "@/lib/supabase/request-auth-cache";
 
 /**
  * Casca visual das telas autenticadas (sidebar + header + conteúdo).
@@ -25,8 +25,12 @@ export async function AppShell({
   icon?: LucideIcon;
   children: ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: isAdmin } = await supabase.rpc("is_admin");
+  // getCachedIsAdmin() (Incremento 1 de performance, 2026-08-14): mesma
+  // chamada de sempre (rpc("is_admin")), memoizada por requisição — reusa o
+  // resultado já obtido por requireCatalogoAdmin() (quando a página passa por
+  // ele) em vez de refazer a chamada de rede. Ver
+  // lib/supabase/request-auth-cache.ts.
+  const { data: isAdmin } = await getCachedIsAdmin();
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background print:h-auto print:overflow-visible">
