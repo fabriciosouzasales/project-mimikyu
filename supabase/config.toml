@@ -23,3 +23,13 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/import-card-assets/deno.json"
 entrypoint = "./functions/import-card-assets/index.ts"
+
+# import-card-variants (2026-08-15, Incremento 2 do bloco Card Variant,
+# ADR-028): mesma fronteira de identidade das duas functions acima —
+# verify_jwt=true garante um JWT assinado válido; a validação real de
+# admin (auth.getUser() + rpc('is_admin')) vive no próprio index.ts.
+[functions.import-card-variants]
+enabled = true
+verify_jwt = true
+import_map = "./functions/import-card-variants/deno.json"
+entrypoint = "./functions/import-card-variants/index.ts"
