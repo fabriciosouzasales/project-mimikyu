@@ -186,6 +186,24 @@ function PipelineTendenciaCard({
         {semanas.length === 0 ? (
           <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma execução concluída neste pipeline.</p>
         ) : (
+          // Auditoria de responsividade (2026-08-14, mesmo achado de
+          // `LogAtualizacoesResumo`, componente-irmão): aqui o número de
+          // colunas é dinâmico (sem janela fixa), então a largura mínima do
+          // gráfico cresce sem limite conforme o histórico de importações
+          // aumenta — sujeito a estourar mesmo em desktop largo, não só em
+          // viewport estreito. Uma primeira tentativa com `overflow-x-auto` +
+          // compensação de margem para não cortar o tooltip aumentou a altura
+          // do card incorretamente (a margem negativa não neutraliza a
+          // herdada de `space-y-4` do `CardContent`, que tem especificidade
+          // maior) — revertida.
+          // Correção final: diferente de `LogAtualizacoesResumo`, aqui a
+          // barra/botão já usa `w-full` (relativo à coluna) — só a coluna em
+          // si tinha `shrink-0` (nunca encolhe) sem `min-w-0` (piso
+          // automático do flexbox no conteúdo). Removendo `shrink-0` e
+          // adicionando `min-w-0`, a coluna volta ao comportamento padrão do
+          // flexbox (`flex-shrink: 1`) e agora consegue encolher de verdade
+          // quando o total de semanas não cabe — sem alterar a largura de
+          // 24px (`w-6`) quando há espaço de sobra, o caso de hoje.
           <div className="space-y-1.5">
             <div className="flex items-end gap-1.5" style={{ height: CHART_HEIGHT_PX }}>
               {semanas.map((semana) => {
@@ -197,7 +215,7 @@ function PipelineTendenciaCard({
                 return (
                   <div
                     key={semana.key}
-                    className="relative flex h-full w-6 shrink-0 flex-col-reverse"
+                    className="relative flex h-full w-6 min-w-0 shrink flex-col-reverse"
                     onMouseEnter={() => setAberto(semana.key)}
                     onMouseLeave={() => setAberto(null)}
                   >
@@ -240,7 +258,10 @@ function PipelineTendenciaCard({
 
             <div className="flex gap-1.5">
               {semanas.map((semana) => (
-                <span key={semana.key} className="w-6 shrink-0 text-center text-[9px] leading-tight tabular-nums text-muted-foreground">
+                <span
+                  key={semana.key}
+                  className="w-6 min-w-0 shrink overflow-hidden whitespace-nowrap text-center text-[9px] leading-tight tabular-nums text-muted-foreground"
+                >
                   {semana.label}
                 </span>
               ))}

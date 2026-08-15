@@ -118,8 +118,16 @@ export function LogAtualizacoesResumo({ resumo }: { resumo: LogAtualizacoesResum
     porCategoria.set(`${item.weekStart}|${item.category}`, item.totalCount);
   }
 
+  // Auditoria de responsividade (2026-08-14, achado real de Fabrício em
+  // desktop/notebook estreito): o grid pulava direto de 1 para 3 colunas em
+  // `sm` (640px) — sem passo intermediário, a área útil (descontada a
+  // sidebar de duas colunas) já fica abaixo da largura mínima que os 3
+  // cards + seus mini-gráficos precisam bem antes de qualquer viewport
+  // "mobile". `md:grid-cols-2 xl:grid-cols-3` intercala um estágio de 2
+  // colunas para notebook/desktop estreito — 3 colunas só a partir de
+  // desktop realmente largo.
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {(["CADASTRO", "ALTERACAO", "EXCLUSAO"] as const).map((categoria) => (
         <CategoriaResumoCard key={categoria} categoria={categoria} semanas={semanas} porCategoria={porCategoria} />
       ))}
@@ -164,6 +172,29 @@ function CategoriaResumoCard({
           </span>
         </div>
 
+        {/*
+          Auditoria de responsividade (2026-08-14): as 10 colunas semanais
+          tinham largura mínima FIXA em pixels (`COLUNA_LARGURA_PX`, no
+          `<button>`/barra) dentro de um `flex-1` que nunca deixava o item
+          encolher abaixo do conteúdo (piso automático do flexbox,
+          `min-width: auto`) — quando o card ficava mais estreito que essa
+          soma, o conteúdo estourava a própria caixa e era cortado
+          silenciosamente pelo `overflow-hidden` da raiz do AppShell
+          (necessário para o layout `h-dvh`), em vez de encolher ou rolar.
+          Uma primeira tentativa com `overflow-x-auto` + compensação de
+          margem para não cortar o tooltip aumentou a altura do card
+          incorretamente (a margem negativa não neutraliza a herdada de
+          `space-y-4` do `CardContent`, que tem especificidade maior — CSS
+          não some assim) — revertida.
+          Correção final: `min-w-0` na coluna (remove o piso automático do
+          flexbox) + `width: min(COLUNA_LARGURA_PX, 100%)` na barra (CSS
+          `min()`) — a barra continua com exatamente
+          `COLUNA_LARGURA_PX` sempre que a coluna tiver espaço de sobra
+          (o caso de hoje, em qualquer largura confortável, pixel a pixel
+          idêntico ao anterior), e só encolhe de verdade quando a coluna
+          fica mais estreita que isso — nunca estoura, nunca precisa de
+          scroll, nunca corta o tooltip.
+        */}
         <div className="space-y-1.5">
           <div className="flex items-end gap-1.5" style={{ height: CHART_HEIGHT_PX }}>
             {semanas.map((semana, index) => {
@@ -173,7 +204,7 @@ function CategoriaResumoCard({
               return (
                 <div
                   key={toKey(semana)}
-                  className="relative flex h-full flex-1 flex-col-reverse items-center"
+                  className="relative flex h-full min-w-0 flex-1 flex-col-reverse items-center"
                   onMouseEnter={() => setAberto(index)}
                   onMouseLeave={() => setAberto(null)}
                 >
@@ -183,9 +214,9 @@ function CategoriaResumoCard({
                     onBlur={() => setAberto(null)}
                     aria-expanded={estaAberto}
                     className="flex h-full flex-col-reverse items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    style={{ width: COLUNA_LARGURA_PX }}
+                    style={{ width: `min(${COLUNA_LARGURA_PX}px, 100%)` }}
                   >
-                    <div style={{ height: px, width: COLUNA_LARGURA_PX, backgroundColor: COR_BARRA }} />
+                    <div style={{ height: px, width: "100%", backgroundColor: COR_BARRA }} />
                   </button>
 
                   {estaAberto && (
@@ -205,7 +236,7 @@ function CategoriaResumoCard({
             {semanas.map((semana) => (
               <span
                 key={toKey(semana)}
-                className="flex-1 text-center text-[9px] leading-tight tabular-nums text-muted-foreground"
+                className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-center text-[9px] leading-tight tabular-nums text-muted-foreground"
               >
                 {semanaLabel(semana)}
               </span>
