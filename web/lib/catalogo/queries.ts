@@ -1784,6 +1784,23 @@ export type CartaCompletaRow = {
    * estado — daí este campo.
    */
   isActive: boolean;
+  /**
+   * Nomes das Card Variants já cadastradas para esta Card (CV-02,
+   * 2026-08-15, pedido de Fabrício: tag de contagem + tooltip com nomes na
+   * galeria de `/catalogo/cartas`, somente leitura — nenhum CRUD de Card
+   * Variant nesta tela). Vazio = nenhuma variante cadastrada = sem tag.
+   *
+   * Ordenado por `card_variant_type.display_order` (ordem canônica do tipo
+   * dentro do Game — "Padrão, Holográfica, Holográfica Reversa..."), NÃO por
+   * `card_variant.variant_order`. Ajuste explícito de Fabrício na aprovação
+   * desta rodada: `variant_order` é só ordem técnica de persistência (a
+   * ordem em que cada variante foi confirmada pelo pipeline de Importar
+   * Variantes, ver `internal.write_card_variant()`/Query 2143), não deve
+   * virar semântica visual/canônica — `display_order` é o campo desenhado
+   * para isso (`150_create_card_variant_type_table.sql`, `UNIQUE (game_id,
+   * display_order)`).
+   */
+  variantNames: string[];
 };
 
 type CartaCompletaAssetRawRow = {
@@ -1791,6 +1808,11 @@ type CartaCompletaAssetRawRow = {
   is_primary: boolean;
   card_asset_type: { code: string } | null;
   language: { code: string } | null;
+};
+
+/** Card Variant embutida na consulta de `getCartasCompletas` (CV-02) — só os dois campos usados pela tag/tooltip da galeria (nome + ordem canônica de exibição). Nenhum outro campo de `card_variant`/`card_variant_type` é necessário aqui (tela somente leitura). */
+type CartaCompletaVariantRawRow = {
+  card_variant_type: { name: string; display_order: number } | null;
 };
 
 type CartaCompletaRawRow = {
@@ -1803,6 +1825,7 @@ type CartaCompletaRawRow = {
   rarity: { id: string; code: string; name: string; symbol_code: string; display_order: number } | null;
   card_category: { id: string; code: string; name: string; display_order: number } | null;
   card_asset: CartaCompletaAssetRawRow[] | null;
+  card_variant: CartaCompletaVariantRawRow[] | null;
 };
 
 /**
@@ -1864,7 +1887,13 @@ export async function getCartasCompletas(
   let query = supabase
     .from("card")
     .select(
-      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code))",
+      // `card_variant(card_variant_type(name, display_order))` — CV-02
+      // (2026-08-15): mesma técnica de embedding já usada por `card_asset`
+      // acima, zero round-trips novos. `card_variant` já tem GRANT SELECT
+      // para `authenticated` (confirmado: `getCartasCatalogoStats()` já lê
+      // esta tabela em produção) e RLS admin-only (`catalog_admin_select`,
+      // ADR-028) — nenhuma migration necessária.
+      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_variant(card_variant_type(name, display_order))",
     )
     .eq("card_set_id", cardSetId);
 
@@ -1881,6 +1910,13 @@ export async function getCartasCompletas(
   return (data as unknown as CartaCompletaRawRow[]).map((card) => {
     const pathPt = pickCardFrontPath(card.card_asset, "pt-BR");
     const pathEn = pickCardFrontPath(card.card_asset, "en");
+    // Ordenado por `card_variant_type.display_order` (ordem canônica do
+    // tipo dentro do Game), não por `variant_order` da linha `card_variant`
+    // — ver comentário de `variantNames` em `CartaCompletaRow`.
+    const variantNames = (card.card_variant ?? [])
+      .filter((variant): variant is { card_variant_type: { name: string; display_order: number } } => variant.card_variant_type !== null)
+      .sort((a, b) => a.card_variant_type.display_order - b.card_variant_type.display_order)
+      .map((variant) => variant.card_variant_type.name);
     return {
       id: card.id,
       collectorNumber: card.collector_number,
@@ -1899,6 +1935,7 @@ export async function getCartasCompletas(
       categoryDisplayOrder: card.card_category?.display_order ?? 0,
       imageUrlPt: pathPt ? (supabase.storage.from("card-front").getPublicUrl(pathPt).data.publicUrl ?? null) : null,
       imageUrlEn: pathEn ? (supabase.storage.from("card-front").getPublicUrl(pathEn).data.publicUrl ?? null) : null,
+      variantNames,
     };
   });
 }
