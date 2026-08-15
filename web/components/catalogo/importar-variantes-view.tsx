@@ -24,6 +24,7 @@ import {
   type IniciarImportacaoVariantesActionState,
 } from "@/app/catalogo/importar-variantes/actions";
 import type {
+  CardVariantTypeOption,
   CatalogVariantImportJobStatus,
   CatalogVariantImportRowView,
   CatalogoVariantCardSetRow,
@@ -47,7 +48,8 @@ function useAnalyzeVariantsJob() {
   const [jobState, setJobState] = useState<{
     job: CatalogVariantImportJobStatus | null;
     rows: CatalogVariantImportRowView[];
-  }>({ job: null, rows: [] });
+    cardVariantTypes: CardVariantTypeOption[];
+  }>({ job: null, rows: [], cardVariantTypes: [] });
   const [fetchingJob, setFetchingJob] = useState(false);
   const fetchedJobIdRef = useRef<string | null>(null);
 
@@ -372,6 +374,7 @@ export function ImportarVariantesView({
         <RevisaoImportacaoVariantesTable
           jobId={analyzeJob.jobState.job.id}
           rows={analyzeJob.jobState.rows}
+          cardVariantTypes={analyzeJob.jobState.cardVariantTypes}
           onRefresh={analyzeJob.refreshJob}
         />
       )}

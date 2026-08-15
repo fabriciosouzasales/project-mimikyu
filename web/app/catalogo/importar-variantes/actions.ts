@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { traduzirErroCatalogo } from "@/lib/supabase/catalogo-errors";
 import {
+  getCardVariantTypesForJob,
   getCatalogVariantImportJobStatus,
   getCatalogVariantImportRows,
+  type CardVariantTypeOption,
   type CatalogVariantImportJobStatus,
   type CatalogVariantImportRowView,
 } from "@/lib/catalogo/queries";
@@ -105,15 +107,61 @@ export async function iniciarImportacaoVariantes(
   return { error: null, jobId: String(body?.job?.id ?? "") || null };
 }
 
-/** Busca job + linhas de staging em uma única chamada — mesmo papel de getImportacaoJobData (tcgdex/actions.ts). */
-export async function getImportacaoVariantesJobData(
-  jobId: string,
-): Promise<{ job: CatalogVariantImportJobStatus | null; rows: CatalogVariantImportRowView[] }> {
+/**
+ * Busca job + linhas de staging + Card Variant Types do Game (para o
+ * seletor do Dialog "Resolver mapeamento") em uma única chamada — mesmo
+ * papel de getImportacaoJobData (tcgdex/actions.ts). cardVariantTypes só é
+ * buscado quando o job é revisável, mesmo critério já usado para `rows` —
+ * evita uma leitura sem uso nos estados PROCESSING/COMPLETED/FAILED.
+ */
+export async function getImportacaoVariantesJobData(jobId: string): Promise<{
+  job: CatalogVariantImportJobStatus | null;
+  rows: CatalogVariantImportRowView[];
+  cardVariantTypes: CardVariantTypeOption[];
+}> {
   const supabase = await createClient();
   const job = await getCatalogVariantImportJobStatus(supabase, jobId);
   const reviewable = job?.status === "STAGED" || job?.status === "CONFIRMING";
-  const rows = reviewable ? await getCatalogVariantImportRows(supabase, jobId) : [];
-  return { job, rows };
+  const [rows, cardVariantTypes] = reviewable
+    ? await Promise.all([getCatalogVariantImportRows(supabase, jobId), getCardVariantTypesForJob(supabase, jobId)])
+    : [[], []];
+  return { job, rows, cardVariantTypes };
+}
+
+export type ResolverMapeamentoVarianteResult = {
+  error: string | null;
+  rowsUpdated?: number;
+  jobsAffected?: number;
+};
+
+/**
+ * Resolve, a partir de uma linha NEEDS_REVIEW, uma combinação externa
+ * (type/foil/subtype/stamp) sem mapeamento para um Card Variant Type já
+ * existente — admin_resolve_catalog_variant_import_mapping() (Query 2150).
+ * O mapeamento criado é canônico para Game+Fonte+combinação: a própria RPC
+ * revalida em lote todas as linhas NEEDS_REVIEW compatíveis em qualquer job
+ * ainda revisável (STAGED) do mesmo Game+Fonte, não só o job de origem —
+ * por isso `rowsUpdated`/`jobsAffected` podem ser maiores que 1, mesmo
+ * quando a ação foi disparada a partir de uma única linha na tela.
+ * Nunca cria um Card Variant Type novo — só associa a um já cadastrado.
+ */
+export async function resolverMapeamentoVariante(
+  rowId: string,
+  variantTypeId: string,
+): Promise<ResolverMapeamentoVarianteResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_resolve_catalog_variant_import_mapping", {
+    p_row_id: rowId,
+    p_variant_type_id: variantTypeId,
+  });
+
+  if (error) {
+    return { error: traduzirErroCatalogo(error.message) };
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  revalidatePath("/catalogo/importar-variantes");
+  return { error: null, rowsUpdated: result?.rows_updated as number | undefined, jobsAffected: result?.jobs_affected as number | undefined };
 }
 
 export type DecidirLinhasVariantesResult = { error: string | null };

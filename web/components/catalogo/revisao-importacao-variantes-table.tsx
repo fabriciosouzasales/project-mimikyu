@@ -1,9 +1,13 @@
 "use client";
 
-import { Check, SkipForward, X } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
+import { Check, Link2, SkipForward, X } from "lucide-react";
+import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { confirmarImportacaoVariantes, decidirLinhasVariantes } from "@/app/catalogo/importar-variantes/actions";
+import {
+  confirmarImportacaoVariantes,
+  decidirLinhasVariantes,
+  resolverMapeamentoVariante,
+} from "@/app/catalogo/importar-variantes/actions";
 import { StateBadge, type StateTone } from "@/components/catalogo/state-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -15,11 +19,23 @@ import {
   DataTableHeadRow,
   DataTableRow,
 } from "@/components/ui/data-table";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatNumber } from "@/lib/utils";
-import type { CatalogVariantImportRowView } from "@/lib/catalogo/queries";
+import type { CardVariantTypeOption, CatalogVariantImportRowView } from "@/lib/catalogo/queries";
+
+const selectClassName = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm";
 
 const VALIDATION_LABEL: Record<string, string> = {
   PENDING: "Pendente",
@@ -112,10 +128,12 @@ function VariantRawChips({ row }: { row: CatalogVariantImportRowView }) {
 export function RevisaoImportacaoVariantesTable({
   jobId,
   rows,
+  cardVariantTypes,
   onRefresh,
 }: {
   jobId: string;
   rows: CatalogVariantImportRowView[];
+  cardVariantTypes: CardVariantTypeOption[];
   onRefresh: () => void;
 }) {
   const router = useRouter();
@@ -124,6 +142,7 @@ export function RevisaoImportacaoVariantesTable({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmSummary, setConfirmSummary] = useState<string | null>(null);
+  const [resolvingRow, setResolvingRow] = useState<CatalogVariantImportRowView | null>(null);
 
   const approvableCount = useMemo(
     () =>
@@ -327,6 +346,23 @@ export function RevisaoImportacaoVariantesTable({
                       </DataTableCell>
                       <DataTableCell align="center" className="pr-4 last:pr-4">
                         <div className="flex justify-center gap-1">
+                          {!canApprove && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon-sm"
+                                  disabled={isPending}
+                                  aria-label={`Resolver mapeamento da variante de ${row.cardName}`}
+                                  onClick={() => setResolvingRow(row)}
+                                >
+                                  <Link2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Resolver mapeamento — associar a um Card Variant Type existente</TooltipContent>
+                            </Tooltip>
+                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span>
@@ -386,6 +422,124 @@ export function RevisaoImportacaoVariantesTable({
           </>
         )}
       </CardContent>
+      <ResolverMapeamentoDialog
+        row={resolvingRow}
+        cardVariantTypes={cardVariantTypes}
+        onResolved={(rowsUpdated, jobsAffected) => {
+          setResolvingRow(null);
+          setError(null);
+          setConfirmSummary(
+            `Mapeamento resolvido: ${formatNumber(rowsUpdated)} linha(s) em ${formatNumber(jobsAffected)} job${jobsAffected === 1 ? "" : "s"} revalidada(s) automaticamente.`,
+          );
+          onRefresh();
+        }}
+        onCancel={() => setResolvingRow(null)}
+      />
     </Card>
+  );
+}
+
+/**
+ * Dialog "Resolver mapeamento" — a partir de uma linha NEEDS_REVIEW, exibe
+ * a combinação bruta recebida da fonte (type/foil/subtype/stamp, mesmos
+ * chips de VariantRawChips) e um seletor de Card Variant Type já
+ * cadastrado. Chama resolverMapeamentoVariante() diretamente (mesmo padrão
+ * de chamada de decidir()/confirmar() neste arquivo — sem useActionState,
+ * já que a action recebe argumentos posicionais, não FormData). Nunca cria
+ * um Card Variant Type novo — o seletor só lista os já existentes no Game
+ * (cardVariantTypes, resolvido no servidor a partir do próprio job).
+ */
+function ResolverMapeamentoDialog({
+  row,
+  cardVariantTypes,
+  onResolved,
+  onCancel,
+}: {
+  row: CatalogVariantImportRowView | null;
+  cardVariantTypes: CardVariantTypeOption[];
+  onResolved: (rowsUpdated: number, jobsAffected: number) => void;
+  onCancel: () => void;
+}) {
+  const [variantTypeId, setVariantTypeId] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleOpenChange(next: boolean) {
+    if (!next && !pending) {
+      setVariantTypeId("");
+      setError(null);
+      onCancel();
+    }
+  }
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!row || !variantTypeId) return;
+    setPending(true);
+    setError(null);
+    resolverMapeamentoVariante(row.id, variantTypeId).then((result) => {
+      setPending(false);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setVariantTypeId("");
+      onResolved(result.rowsUpdated ?? 0, result.jobsAffected ?? 0);
+    });
+  }
+
+  return (
+    <Dialog open={row !== null} onOpenChange={handleOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Resolver mapeamento</DialogTitle>
+          <DialogDescription>
+            Associe esta combinação, exatamente como veio da fonte, a um Card Variant Type já cadastrado. O
+            mapeamento é canônico para este Jogo e Fonte — outras linhas com a mesma combinação, em qualquer Coleção
+            ainda em revisão, também serão resolvidas automaticamente.
+          </DialogDescription>
+        </DialogHeader>
+        {row && (
+          <form onSubmit={handleSubmit}>
+            <DialogBody className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Combinação recebida da fonte</Label>
+                <VariantRawChips row={row} />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="resolve-variant-type-id">Card Variant Type</Label>
+                <select
+                  id="resolve-variant-type-id"
+                  required
+                  value={variantTypeId}
+                  onChange={(e) => setVariantTypeId(e.target.value)}
+                  className={selectClassName}
+                >
+                  <option value="" disabled>
+                    Selecione…
+                  </option>
+                  {cardVariantTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} ({type.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {error && <InlineFeedback tone="error">{error}</InlineFeedback>}
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => handleOpenChange(false)} disabled={pending}>
+                Cancelar
+              </Button>
+              <Button type="submit" size="sm" disabled={pending || !variantTypeId}>
+                {pending ? "Resolvendo…" : "Resolver"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

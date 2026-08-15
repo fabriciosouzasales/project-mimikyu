@@ -2527,6 +2527,53 @@ export async function getCatalogVariantImportRows(
   });
 }
 
+export type CardVariantTypeOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+/**
+ * Card Variant Types do Game de um job de Importar Variantes — base do
+ * seletor do Dialog "Resolver mapeamento" (admin_resolve_catalog_variant_
+ * import_mapping, Query 2150). O Game é resolvido a partir do próprio job
+ * (card_set -> expansion -> game), nunca fixo/hardcoded — mesmo raciocínio
+ * de findCardSetWithGame() na Edge Function import-card-variants, só que
+ * aqui client-side/read-only.
+ *
+ * Ordenado por display_order (ordem canônica de apresentação dentro do
+ * Game, mesmo critério já usado pelo CV-02 para o tooltip de variantes em
+ * getCartasCompletas) — nunca por nome ou código.
+ */
+export async function getCardVariantTypesForJob(
+  supabase: SupabaseClient,
+  jobId: string,
+): Promise<CardVariantTypeOption[]> {
+  const { data: job } = await supabase
+    .from("catalog_variant_import_job")
+    .select("card_set:card_set_id(expansion:expansion_id(game_id))")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  const gameId = (job as unknown as { card_set: { expansion: { game_id: string } } | null } | null)?.card_set
+    ?.expansion?.game_id;
+  if (!gameId) return [];
+
+  const { data, error } = await supabase
+    .from("card_variant_type")
+    .select("id, code, name, display_order")
+    .eq("game_id", gameId)
+    .order("display_order", { ascending: true });
+
+  if (error || !data) return [];
+
+  return (data as { id: string; code: string; name: string }[]).map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+  }));
+}
+
 type CatalogImportJobActivityRow = {
   id: string;
   status: string;
