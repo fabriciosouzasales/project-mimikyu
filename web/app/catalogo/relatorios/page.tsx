@@ -19,6 +19,10 @@ import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } fr
  * — fora da V1 original dos 6, adicionado como primeiro incremento técnico
  * do bloco Card Variant; mesmo padrão visual/estrutural dos demais
  * relatórios sem seletor.
+ *
+ * 8º relatório "Card Variants por Carta" (CV-03, 2026-08-15) — detalhe por
+ * Card (não agregado por Coleção como o 7º): usa `RelatorioColecaoSeletor`,
+ * mesmo grupo visual de "Checklist"/"Resumo".
  */
 const RELATORIOS = [
   {
@@ -61,7 +65,13 @@ const RELATORIOS = [
     href: "/catalogo/relatorios/cobertura-variantes",
     icon: Layers,
     title: "Cobertura de Card Variant",
-    description: "Cards com pelo menos uma Card Variant cadastrada, por Coleção (ADR-028).",
+    description: "Cards com pelo menos uma Card Variant cadastrada, por Coleção.",
+  },
+  {
+    href: "/catalogo/relatorios/variantes-por-carta",
+    icon: Layers,
+    title: "Card Variants por Carta",
+    description: "Todas as Cards de uma Coleção com as Card Variants cadastradas — inclusive as sem nenhuma.",
   },
 ] as const;
 
