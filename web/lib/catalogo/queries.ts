@@ -3053,3 +3053,58 @@ export async function getRelatorioCoberturaGeral(supabase: SupabaseClient): Prom
       (a, b) => a.cardSetName.localeCompare(b.cardSetName, "pt-BR") || a.languageCode.localeCompare(b.languageCode),
     );
 }
+
+export type RelatorioCoberturaVariantesItem = {
+  cardSetId: string;
+  cardSetCode: string;
+  cardSetName: string;
+  cardsCadastradas: number;
+  cardsComVariante: number;
+  cardsSemVariante: number;
+};
+
+/**
+ * Relatório "Cobertura de Card Variant" — primeiro incremento técnico do
+ * bloco Card Variant (ADR-028, Query 2135, 2026-08-14), motivado pelo
+ * checkpoint que confirmou cobertura parcial (7 dos 43 Card Sets têm Card
+ * Variant cadastrada). Uma linha por Card Set, direto de
+ * catalog_card_set_variant_coverage (view nova, grão = 1 linha por Card Set,
+ * já traz cards_cadastradas/cards_com_variante/cards_sem_variante prontos —
+ * nenhum join em memória necessário aqui, diferente de
+ * getRelatorioCoberturaGeral, porque a view já reaproveita
+ * catalog_card_set_metrics internamente). Percentual calculado na página,
+ * não em SQL — mesmo padrão de RelatorioCoberturaGeralPage. Leitura única
+ * (1 round-trip), 43 linhas sempre, independente do volume de Cards no
+ * catálogo.
+ */
+export async function getRelatorioCoberturaVariantes(
+  supabase: SupabaseClient,
+): Promise<RelatorioCoberturaVariantesItem[]> {
+  const { data, error } = await supabase
+    .from("catalog_card_set_variant_coverage")
+    .select("card_set_id, card_set_code, card_set_name, cards_cadastradas, cards_com_variante, cards_sem_variante");
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (
+    data as {
+      card_set_id: string;
+      card_set_code: string;
+      card_set_name: string;
+      cards_cadastradas: number;
+      cards_com_variante: number;
+      cards_sem_variante: number;
+    }[]
+  )
+    .map((row) => ({
+      cardSetId: row.card_set_id,
+      cardSetCode: row.card_set_code,
+      cardSetName: row.card_set_name,
+      cardsCadastradas: row.cards_cadastradas,
+      cardsComVariante: row.cards_com_variante,
+      cardsSemVariante: row.cards_sem_variante,
+    }))
+    .sort((a, b) => a.cardSetName.localeCompare(b.cardSetName, "pt-BR"));
+}

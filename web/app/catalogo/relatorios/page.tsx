@@ -1,4 +1,4 @@
-import { BookOpen, ClipboardList, FileText, ImageOff, Layers3, PieChart, ShieldCheck } from "lucide-react";
+import { BookOpen, ClipboardList, FileText, ImageOff, Layers, Layers3, PieChart, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,11 @@ import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } fr
  * Coleção por vez (pedem Coleção via `RelatorioColecaoSeletor` na própria
  * página do relatório) — os outros 4 já são tabelas cruzando todas as
  * Coleções, sem seletor.
+ *
+ * 7º relatório "Cobertura de Card Variant" (2026-08-14, ADR-028, Query 2135)
+ * — fora da V1 original dos 6, adicionado como primeiro incremento técnico
+ * do bloco Card Variant; mesmo padrão visual/estrutural dos demais
+ * relatórios sem seletor.
  */
 const RELATORIOS = [
   {
@@ -51,6 +56,12 @@ const RELATORIOS = [
     icon: PieChart,
     title: "Cobertura Geral",
     description: "Cobertura de imagem por Coleção e idioma, em uma única tabela.",
+  },
+  {
+    href: "/catalogo/relatorios/cobertura-variantes",
+    icon: Layers,
+    title: "Cobertura de Card Variant",
+    description: "Cards com pelo menos uma Card Variant cadastrada, por Coleção (ADR-028).",
   },
 ] as const;
 
