@@ -2544,6 +2544,16 @@ export type CardVariantTypeOption = {
  * Ordenado por display_order (ordem canônica de apresentação dentro do
  * Game, mesmo critério já usado pelo CV-02 para o tooltip de variantes em
  * getCartasCompletas) — nunca por nome ou código.
+ *
+ * `.eq("is_active", true)` (2026-08-15, Incremento 1 de Governança da
+ * Taxonomia, ADR-028): correção pontual, não ampliação de escopo — este
+ * seletor já existia antes de `is_active` existir na tabela; agora que a
+ * coluna existe (Query 2152), um tipo inativado deixa de aparecer aqui,
+ * cumprindo a própria regra que a coluna foi criada para expressar ("Tipo
+ * inativo... não deve aparecer como opção para novos mappings/cadastros").
+ * card_variant/card_variant_type_external_mapping já existentes que
+ * referenciam um tipo inativo não são afetados por este filtro — ele só
+ * governa o que aparece como opção NOVA aqui.
  */
 export async function getCardVariantTypesForJob(
   supabase: SupabaseClient,
@@ -2563,6 +2573,7 @@ export async function getCardVariantTypesForJob(
     .from("card_variant_type")
     .select("id, code, name, display_order")
     .eq("game_id", gameId)
+    .eq("is_active", true)
     .order("display_order", { ascending: true });
 
   if (error || !data) return [];
@@ -2571,6 +2582,65 @@ export async function getCardVariantTypesForJob(
     id: row.id,
     code: row.code,
     name: row.name,
+  }));
+}
+
+export type CardVariantTypeAdminRow = {
+  id: string;
+  gameId: string;
+  code: string;
+  name: string;
+  description: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type CardVariantTypeAdminRawRow = {
+  id: string;
+  game_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Lista TODOS os Card Variant Types do catálogo (ativos e inativos) para a
+ * tela administrativa /catalogo/tipos-variacao (Incremento 2, ADR-028) —
+ * diferente de `getCardVariantTypesForJob` acima, que filtra por Game e só
+ * traz tipos ativos (seletor de NOVOS mappings). Aqui a administração
+ * precisa ver e poder reativar um tipo inativo, então nenhum filtro de
+ * is_active é aplicado — "tipos inativos continuam visíveis na
+ * administração, mas identificados" (pedido explícito de Fabrício).
+ *
+ * Sem join com card_variant/card_variant_type_external_mapping nesta
+ * rodada — a tela não exibe contagem de referências (fora do escopo do
+ * Incremento 2; a própria RPC de inativação não depende dessa contagem,
+ * ver ADR-028 revisão 1.2).
+ */
+export async function getCardVariantTypesAdmin(supabase: SupabaseClient): Promise<CardVariantTypeAdminRow[]> {
+  const { data, error } = await supabase
+    .from("card_variant_type")
+    .select("id, game_id, code, name, description, display_order, is_active, created_at, updated_at")
+    .order("display_order", { ascending: true });
+
+  if (error || !data) return [];
+
+  return (data as CardVariantTypeAdminRawRow[]).map((row) => ({
+    id: row.id,
+    gameId: row.game_id,
+    code: row.code,
+    name: row.name,
+    description: row.description,
+    displayOrder: row.display_order,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }));
 }
 

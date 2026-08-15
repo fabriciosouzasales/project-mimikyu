@@ -11,6 +11,7 @@ import {
   Layers,
   LayoutDashboard,
   ScrollText,
+  Sparkles,
   Tag,
   Users,
   type LucideIcon,
@@ -106,6 +107,11 @@ export const NAV_SECTIONS: NavSection[] = [
       // para o topo do bloco Cadastro, acima de "Jogos" — sem mudança de
       // significado, só de sequência visual.
       { href: "/catalogo/raridades", label: "Raridades", section: "Cadastro", icon: Tag },
+      // Tipos de Variação (Incremento 2, ADR-028, 2026-08-15) — governança
+      // administrativa da taxonomia canônica de card_variant_type, mesmo
+      // grupo/posição lógica de Raridades (ambas taxonomias consumidas pela
+      // Revisão de Variantes/Importar Cartas).
+      { href: "/catalogo/tipos-variacao", label: "Tipos de Variação", section: "Cadastro", icon: Sparkles },
       { href: "/catalogo/jogos", label: "Jogos", section: "Cadastro", icon: Gamepad2 },
       { href: "/catalogo/expansoes", label: "Expansões", section: "Cadastro", icon: Layers },
       { href: "/catalogo/card-sets", label: "Coleções", section: "Cadastro", icon: Boxes },
