@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Eye, EyeOff, FileUp, Pencil, Plus, Search } from "lucide-react";
+import { CreditCard, Eye, EyeOff, FileUp, Layers, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type CSSProperties } from "react";
@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
 import { formatarData } from "@/lib/format-date";
@@ -219,6 +220,13 @@ export function CartasGallery({
   const [search, setSearch] = useState("");
   const [selectedRarities, setSelectedRarities] = useState<Set<string>>(new Set());
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  // Filtro "Variações" (CV-02, 2026-08-15, pedido de Fabrício) — single-select
+  // (diferente de Raridade/Categoria, que são multi-seleção via `Set`), por
+  // isso um estado próprio de 3 valores em vez de reaproveitar o padrão de
+  // `toggleRarity`/`toggleCategory`. 100% client-side sobre `carta.variantNames`
+  // (já vem embutido em `getCartasCompletas`, sem consulta nova) — mesmo
+  // princípio dos demais filtros desta tela.
+  const [varianteFilter, setVarianteFilter] = useState<"all" | "with" | "without">("all");
   const [zoomCarta, setZoomCarta] = useState<CartaCompletaRow | null>(null);
   // Toggle "Mostrar inativas" + confirmação de desativação + estado de
   // reativação — novo em 2026-08-07 (subciclo Card: criação e desativação/
@@ -408,11 +416,19 @@ export function CartasGallery({
     [visibleCartas],
   );
 
+  // Filtro "Variações" só aparece quando faz diferença — mesmo cuidado já
+  // aplicado ao alternador PT/EN e ao toggle "Mostrar inativas": um Card Set
+  // sem nenhuma Card Variant cadastrada tornaria "Com variantes"/"Sem
+  // variantes" indistinguíveis de "Todas".
+  const hasAnyVariants = useMemo(() => visibleCartas.some((carta) => carta.variantNames.length > 0), [visibleCartas]);
+
   const query = search.trim().toLowerCase();
   const filtered = useMemo(() => {
     return visibleCartas.filter((carta) => {
       if (selectedRarities.size > 0 && !selectedRarities.has(carta.rarityCode)) return false;
       if (selectedCategories.size > 0 && !selectedCategories.has(carta.categoryCode)) return false;
+      if (varianteFilter === "with" && carta.variantNames.length === 0) return false;
+      if (varianteFilter === "without" && carta.variantNames.length > 0) return false;
       if (query) {
         const matchesName = carta.name.toLowerCase().includes(query);
         // Busca por número — bug reportado por Fabrício (2026-07-31, print
@@ -427,7 +443,7 @@ export function CartasGallery({
       }
       return true;
     });
-  }, [visibleCartas, selectedRarities, selectedCategories, query]);
+  }, [visibleCartas, selectedRarities, selectedCategories, varianteFilter, query]);
 
   // Reseta o lote revelado ao trocar busca/filtros/toggle "Mostrar
   // inativas" — sem isso, rolar até o fim de uma lista grande, depois
@@ -435,7 +451,7 @@ export function CartasGallery({
   // efeito prático (mas também sem sentido, já que a lista mudou de
   // contexto). Troca de Coleção já reseta tudo via `key={selectedCode}` no
   // componente inteiro (ver `page.tsx`), então não precisa entrar aqui.
-  const revealResetKey = `${query}|${showInactive}|${Array.from(selectedRarities).sort().join(",")}|${Array.from(selectedCategories).sort().join(",")}`;
+  const revealResetKey = `${query}|${showInactive}|${varianteFilter}|${Array.from(selectedRarities).sort().join(",")}|${Array.from(selectedCategories).sort().join(",")}`;
   const { visibleCount, sentinelRef } = useInfiniteReveal(PAGE_SIZE, revealResetKey);
   const visible = filtered.slice(0, visibleCount);
 
@@ -657,7 +673,7 @@ export function CartasGallery({
                 </button>
               )}
 
-              {(rarityOptions.length > 0 || categoryOptions.length > 0) && (
+              {(rarityOptions.length > 0 || categoryOptions.length > 0 || hasAnyVariants) && (
                 // Esquema pedido por Fabrício (2026-07-31, ajuste seguinte):
                 // "RARIDADE / chips / (12px) / CATEGORIA / chips" — rótulo
                 // volta a ficar em linha própria acima dos chips (dentro de
@@ -667,6 +683,12 @@ export function CartasGallery({
                 <div className="space-y-4">
                   <FilterGroup label="Raridade" options={rarityOptions} selected={selectedRarities} onToggle={toggleRarity} />
                   <FilterGroup label="Categoria" options={categoryOptions} selected={selectedCategories} onToggle={toggleCategory} />
+                  {/* Filtro "Variações" (CV-02, 2026-08-15) — mesma linguagem
+                      visual dos grupos acima, mas seleção única (não `Set`):
+                      "Todas | Com variantes | Sem variantes" são mutuamente
+                      exclusivas, diferente de Raridade/Categoria (onde várias
+                      podem estar ativas ao mesmo tempo). */}
+                  {hasAnyVariants && <VarianteFilterGroup value={varianteFilter} onChange={setVarianteFilter} />}
                 </div>
               )}
             </div>
@@ -966,6 +988,55 @@ function FilterGroup({
   );
 }
 
+/**
+ * Filtro "Variações" (CV-02, 2026-08-15, pedido de Fabrício: "Variações →
+ * Todas | Com variantes | Sem variantes"). Mesma linguagem visual de
+ * `FilterGroup` (chip `rounded-full`, ativo `border-primary/40 bg-primary/5
+ * text-primary`), mas seleção única — as 3 opções são mutuamente exclusivas
+ * (uma Card não pode estar simultaneamente "com" e "sem" variantes), então
+ * `aria-pressed` reflete `value === option.code` em vez de um `Set`.
+ */
+function VarianteFilterGroup({
+  value,
+  onChange,
+}: {
+  value: "all" | "with" | "without";
+  onChange: (value: "all" | "with" | "without") => void;
+}) {
+  const options: { code: "all" | "with" | "without"; label: string }[] = [
+    { code: "all", label: "Todas" },
+    { code: "with", label: "Com variantes" },
+    { code: "without", label: "Sem variantes" },
+  ];
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Variações</p>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por Variações">
+        {options.map((option) => {
+          const active = value === option.code;
+          return (
+            <button
+              key={option.code}
+              type="button"
+              onClick={() => onChange(option.code)}
+              aria-pressed={active}
+              className={cn(
+                "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                active
+                  ? "border-primary/40 bg-primary/5 text-primary"
+                  : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CartaGridCard({
   carta,
   imageLanguage,
@@ -1106,13 +1177,63 @@ function CartaGridCard({
           espaço); símbolo de raridade e lápis dividem a segunda linha,
           `justify-between` entre eles — exatamente a disposição de antes
           de qualquer ícone de ação ter sido adicionado. */}
-      <div className="space-y-1 px-0.5">
+      {/* `space-y-px` (1px, era `space-y-1`/4px → `space-y-0.5`/2px →
+          `space-y-px`/1px) — pedido de Fabrício (2026-08-15, mesma rodada,
+          ajuste seguinte: "reduzir um pouco mais"): aproxima ao máximo o
+          nome/número da linha de raridade+variantes logo abaixo, mesmo
+          espírito do refinamento anterior (raridade+variante já coladas
+          entre si com `gap-0.5`). Não zerado — `leading-none` de cada linha
+          já deixa as duas praticamente coladas; 1px evita que grudem por
+          completo e percam a separação em duas linhas distintas. */}
+      <div className="space-y-px px-0.5">
         <p className="truncate text-[10px] leading-none text-muted-foreground">
           <span className="font-medium text-foreground">#{cartaFullNumber(carta)}</span> - {carta.name}
         </p>
         <div className="flex items-center justify-between gap-1">
           <div className="flex min-w-0 items-center gap-1">
-            <RaritySymbol symbolCode={carta.raritySymbolCode} />
+            {/* Raridade + indicador de variantes agrupados com `gap-0.5`
+                (metade do `gap-1` do restante da linha) — refinamento de
+                Fabrício (2026-08-15, aprovação visual do CV-02): "aproxime
+                um pouco o indicador de variantes... reforçando que ambos
+                são metadados da Card". "Inativa"/lápis continuam fora deste
+                sub-grupo, no `gap-1` normal — só raridade+variantes precisam
+                ficar visualmente colados. */}
+            <div className="flex shrink-0 items-center gap-0.5">
+              <RaritySymbol symbolCode={carta.raritySymbolCode} />
+              {/* Tag de Card Variants (CV-02, 2026-08-15, pedido de Fabrício)
+                  — só renderizada quando há pelo menos 1 variante cadastrada
+                  (sem tag = sem variante, inclusive o caso de exatamente 1
+                  variante ainda mostra a tag, por pedido explícito).
+                  Monocromática/discreta por pedido explícito: sem cor, sem
+                  badge preenchido, sem texto "variações" no card — só ícone
+                  + quantidade, mesma paleta neutra do badge "Inativa"
+                  (`bg-surface-muted`/`text-muted-foreground`). Nomes no
+                  tooltip vêm de `carta.variantNames`, já ordenados por
+                  `card_variant_type.display_order` em `getCartasCompletas`
+                  (`queries.ts`) — não por `variant_order`, ver comentário
+                  lá. */}
+              {carta.variantNames.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-surface-muted px-1.5 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
+                      <Layers className="h-2.5 w-2.5" aria-hidden="true" />
+                      {carta.variantNames.length}
+                    </span>
+                  </TooltipTrigger>
+                  {/* Formato "Variações cadastradas" + lista com marcador —
+                      pedido explícito de Fabrício na mesma rodada, em vez do
+                      texto corrido separado por vírgula da primeira versão. */}
+                  <TooltipContent>
+                    <p className="font-semibold">Variações cadastradas</p>
+                    <ul className="mt-0.5">
+                      {carta.variantNames.map((variantName) => (
+                        <li key={variantName}>• {variantName}</li>
+                      ))}
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             {!carta.isActive && (
               <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
                 Inativa
