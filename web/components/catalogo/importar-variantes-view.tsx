@@ -1,16 +1,21 @@
 "use client";
 
 import { type KeyboardEvent, useActionState, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
   Copy,
+  CreditCard,
   FolderPlus,
   ListChecks,
   Loader2,
+  RotateCcw,
   Search,
+  Sparkles,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -282,6 +287,140 @@ function ImportProgressVariantes({
 }
 
 const REVIEWABLE_STATUSES = new Set(["STAGED", "CONFIRMING"]);
+const TERMINAL_STATUSES = new Set(["COMPLETED", "COMPLETED_WITH_ERRORS"]);
+
+type ConclusionState = "success" | "pending" | "errors";
+
+const CONCLUSION_META: Record<
+  ConclusionState,
+  { title: string; icon: LucideIcon; toneClass: string; iconWrapClass: string }
+> = {
+  success: {
+    title: "Importação concluída",
+    icon: CheckCircle2,
+    toneClass: "text-emerald-600",
+    iconWrapClass: "border-emerald-600/30 bg-emerald-600/10",
+  },
+  pending: {
+    title: "Concluído com pendências",
+    icon: AlertTriangle,
+    toneClass: "text-warning",
+    iconWrapClass: "border-warning/30 bg-warning/10",
+  },
+  errors: {
+    title: "Concluído com erros",
+    icon: XCircle,
+    toneClass: "text-destructive",
+    iconWrapClass: "border-destructive/30 bg-destructive/10",
+  },
+};
+
+/**
+ * Painel de conclusão persistente — fechamento de UX pedido por Fabrício
+ * (2026-08-15). Antes, ao terminar a confirmação, `REVIEWABLE_STATUSES`
+ * desmontava `RevisaoImportacaoVariantesTable` (levando junto seu
+ * `confirmSummary` local, só existente enquanto o componente vive) e, se a
+ * Coleção acabasse de zerar `cardsSemVariante`, ela também desaparecia de
+ * `getCardSetsForVariantes()` — o `key` de `ImportarVariantesView` em
+ * page.tsx mudava e a view inteira remontava, apagando o job. A segunda
+ * causa foi corrigida em page.tsx (fallback `getCardSetForVariantesById`
+ * mantém a Coleção selecionada estável); este painel resolve a primeira,
+ * substituindo "nada renderizado" por um resumo real quando o job já é
+ * terminal — sem depender do estado da tabela de revisão, que continua
+ * desmontando normalmente (comportamento correto: não há mais nada para
+ * decidir numa linha depois que o job conclui).
+ *
+ * Todos os números vêm só de `job` (CatalogVariantImportJobStatus, já
+ * carregado por useAnalyzeVariantsJob) — nenhum round-trip novo.
+ *
+ * "Aprovadas" não existe como coluna própria do job. Deriva-se por
+ * subtração exata, não aproximação: `admin_confirm_catalog_variant_import`
+ * (Query 2145) só permite o job chegar a COMPLETED/COMPLETED_WITH_ERRORS
+ * depois que toda linha já foi decidida (nenhuma decision_status PENDING
+ * resta) — logo total_rows = rejected_rows + skipped_rows + aprovadas.
+ *
+ * Classificação em três estados, pela ordem pedida (sucesso completo /
+ * concluído com pendências / concluído com erros): `errors` quando o
+ * status é COMPLETED_WITH_ERRORS (houve failed_rows); senão `pending`
+ * quando restou alguma linha sem mapeamento (needsReview = total_rows -
+ * valid_rows — conta linhas NEEDS_REVIEW mesmo já decididas como
+ * REJECTED/SKIPPED, porque nenhuma ficou mapeada); senão `success`.
+ */
+function ImportConclusionPanel({
+  job,
+  onImportarOutra,
+}: {
+  job: CatalogVariantImportJobStatus;
+  onImportarOutra: () => void;
+}) {
+  const needsReview = Math.max(job.totalRows - job.validRows, 0);
+  const aprovadas = Math.max(job.totalRows - job.rejectedRows - job.skippedRows, 0);
+  const state: ConclusionState = job.status === "COMPLETED_WITH_ERRORS" ? "errors" : needsReview > 0 ? "pending" : "success";
+  const meta = CONCLUSION_META[state];
+  const Icon = meta.icon;
+
+  const stats: { label: string; value: number }[] = [
+    { label: "Analisadas", value: job.totalRows },
+    { label: "Aprovadas", value: aprovadas },
+    { label: "Inseridas", value: job.insertedRows },
+    { label: "Inalteradas", value: job.unchangedRows },
+    { label: "Rejeitadas", value: job.rejectedRows },
+    { label: "Falhas", value: job.failedRows },
+  ];
+  if (needsReview > 0) stats.push({ label: "Sem mapeamento", value: needsReview });
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 pt-6">
+        <div className="flex items-start gap-3">
+          <span
+            className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full border", meta.iconWrapClass, meta.toneClass)}
+            aria-hidden="true"
+          >
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <p className={cn("text-sm font-medium", meta.toneClass)}>{meta.title}</p>
+            <p className="text-sm text-muted-foreground">
+              {job.cardSetCode} — {job.cardSetName}
+            </p>
+            {job.errorSummary && <p className="text-xs text-destructive">{job.errorSummary}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {stats.map((stat) => (
+            <div key={stat.label} className="rounded-lg border border-border bg-surface px-3 py-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{stat.label}</p>
+              <p className="text-lg font-semibold text-foreground">{formatNumber(stat.value)}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+          {needsReview > 0 && (
+            <Button asChild size="sm">
+              <Link href="/catalogo/tipos-variacao">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Resolver mapeamentos pendentes
+              </Link>
+            </Button>
+          )}
+          <Button asChild size="sm" variant={needsReview > 0 ? "outline" : "default"}>
+            <Link href={`/catalogo/cartas?set=${encodeURIComponent(job.cardSetCode)}`}>
+              <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
+              Ver cartas da coleção
+            </Link>
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={onImportarOutra}>
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            Importar outra coleção
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function ImportarVariantesView({
   cardSets,
@@ -376,6 +515,22 @@ export function ImportarVariantesView({
           rows={analyzeJob.jobState.rows}
           cardVariantTypes={analyzeJob.jobState.cardVariantTypes}
           onRefresh={analyzeJob.refreshJob}
+        />
+      )}
+
+      {analyzeJob.jobState.job && TERMINAL_STATUSES.has(analyzeJob.jobState.job.status) && (
+        <ImportConclusionPanel
+          job={analyzeJob.jobState.job}
+          onImportarOutra={() => {
+            // Reset explícito, só disparado por ação do usuário — nunca
+            // automático. Limpa `cardSetId` da URL: `selectedCardSet` volta
+            // a `null` em page.tsx, o `key` de `ImportarVariantesView` muda
+            // para "none" e a view remonta limpa, pronta para uma nova
+            // Coleção. Mesmo mecanismo de reset que já existia para troca
+            // manual de Coleção pelo combobox — só que agora só acontece
+            // quando pedido.
+            router.push("/catalogo/importar-variantes");
+          }}
         />
       )}
     </div>

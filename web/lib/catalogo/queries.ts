@@ -2319,19 +2319,16 @@ export type CatalogoVariantCardSetRow = CatalogoCardSetRow & {
 };
 
 /**
- * Card Sets elegíveis para Importar Variantes: reaproveita getCardSetsForCartas
- * (mesma base de Coleção/Expansão/Jogo/cardsCatalogados já usada por Importar
- * Cartas) e cruza com catalog_card_set_variant_coverage (view da Query 2135)
- * para cardsComVariante/cardsSemVariante — as duas buscas são independentes,
+ * Base compartilhada de `getCardSetsForVariantes`/`getCardSetForVariantesById`
+ * — reaproveita getCardSetsForCartas (mesma base de Coleção/Expansão/Jogo/
+ * cardsCatalogados já usada por Importar Cartas) e cruza com
+ * catalog_card_set_variant_coverage (view da Query 2135) para
+ * cardsComVariante/cardsSemVariante — as duas buscas são independentes,
  * disparadas juntas via Promise.all (mesmo raciocínio de getCardSetsForCartas
- * para catalog_card_set_metrics, ver comentário lá).
- *
- * Filtro: só Coleções com pelo menos uma carta cadastrada (Importar Variantes
- * pressupõe Importar Cartas já concluído — a própria Edge Function
- * import-card-variants recusa sem card_set_external_reference) E com
- * cardsSemVariante > 0 (nada pendente, nada para importar).
+ * para catalog_card_set_metrics, ver comentário lá). Sem filtro de pendência
+ * — cada chamador decide o recorte que precisa.
  */
-export async function getCardSetsForVariantes(supabase: SupabaseClient): Promise<CatalogoVariantCardSetRow[]> {
+async function loadCatalogoVariantCardSets(supabase: SupabaseClient): Promise<CatalogoVariantCardSetRow[]> {
   const [cardSets, coverageResult] = await Promise.all([
     getCardSetsForCartas(supabase),
     supabase.from("catalog_card_set_variant_coverage").select("card_set_id, cards_com_variante, cards_sem_variante"),
@@ -2346,16 +2343,44 @@ export async function getCardSetsForVariantes(supabase: SupabaseClient): Promise
     coverage.set(row.card_set_id, { comVariante: row.cards_com_variante, semVariante: row.cards_sem_variante });
   }
 
-  return cardSets
-    .map((cardSet) => {
-      const cov = coverage.get(cardSet.id);
-      return {
-        ...cardSet,
-        cardsComVariante: cov?.comVariante ?? 0,
-        cardsSemVariante: cov?.semVariante ?? cardSet.cardsCatalogados,
-      };
-    })
-    .filter((cardSet) => cardSet.cardsCatalogados > 0 && cardSet.cardsSemVariante > 0);
+  return cardSets.map((cardSet) => {
+    const cov = coverage.get(cardSet.id);
+    return {
+      ...cardSet,
+      cardsComVariante: cov?.comVariante ?? 0,
+      cardsSemVariante: cov?.semVariante ?? cardSet.cardsCatalogados,
+    };
+  });
+}
+
+/**
+ * Card Sets elegíveis para Importar Variantes — filtro: só Coleções com pelo
+ * menos uma carta cadastrada (Importar Variantes pressupõe Importar Cartas já
+ * concluído — a própria Edge Function import-card-variants recusa sem
+ * card_set_external_reference) E com cardsSemVariante > 0 (nada pendente,
+ * nada para importar).
+ */
+export async function getCardSetsForVariantes(supabase: SupabaseClient): Promise<CatalogoVariantCardSetRow[]> {
+  const all = await loadCatalogoVariantCardSets(supabase);
+  return all.filter((cardSet) => cardSet.cardsCatalogados > 0 && cardSet.cardsSemVariante > 0);
+}
+
+/**
+ * Uma Coleção específica, sem o filtro de pendência — usada em
+ * `importar-variantes/page.tsx` como fallback quando `cardSetId` vem na URL
+ * mas a Coleção já não aparece mais em `getCardSetsForVariantes()` (típico
+ * logo após uma confirmação bem-sucedida zerar `cardsSemVariante`). Sem esse
+ * fallback, `selectedCardSet` cairia para `null`, o `key` de
+ * `ImportarVariantesView` mudaria e a view inteira remontaria, destruindo o
+ * job/resumo que acabou de ser exibido (bug relatado por Fabrício,
+ * 2026-08-15 — fechamento de UX pós-confirmação).
+ */
+export async function getCardSetForVariantesById(
+  supabase: SupabaseClient,
+  cardSetId: string,
+): Promise<CatalogoVariantCardSetRow | null> {
+  const all = await loadCatalogoVariantCardSets(supabase);
+  return all.find((cardSet) => cardSet.id === cardSetId) ?? null;
 }
 
 export type CatalogVariantImportJobStatus = {

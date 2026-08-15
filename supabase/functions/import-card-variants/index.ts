@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
     await updateVariantJobProgressStep(supabase, jobId, "RESOLVING_VARIANT_MAPPING");
 
     const resolvedRows: ResolvedVariantRow[] = [];
-    const seenResolvedComboByCard = new Set<string>();
+    const seenComboByCard = new Set<string>();
     let duplicateResolvedSkipped = 0;
 
     for (const result of correlated) {
@@ -258,17 +258,30 @@ Deno.serve(async (req) => {
         const comboKey = buildVariantComboKey(normalizedType, normalizedFoil, normalizedSubtype, normalizedStamp);
         const variantTypeId = variantTypeMappings.get(comboKey) ?? null;
 
-        if (variantTypeId) {
-          // Índice único parcial da Query 2138 (job_id, card_id,
-          // variant_type_id) — dedup em memória evita que uma combinação
-          // repetida na própria fonte derrube o INSERT em lote inteiro.
-          const dedupeKey = `${cardId}|${variantTypeId}`;
-          if (seenResolvedComboByCard.has(dedupeKey)) {
-            duplicateResolvedSkipped++;
-            continue;
-          }
-          seenResolvedComboByCard.add(dedupeKey);
+        // Dedup em memória por card_id + combinação normalizada — SEMPRE,
+        // não só quando já mapeada (correção de 2026-08-15, incidente
+        // real em SV8.5: Lugia ex 082/131 tinha a MESMA combinação
+        // normal+set-logo listada duas vezes na fonte, e por só dedupear
+        // combinações já resolvidas, as duas viravam duas linhas
+        // NEEDS_REVIEW idênticas em catalog_variant_import_row. Isso não
+        // violava nenhum índice na hora do INSERT (o índice único parcial
+        // da Query 2138 só cobre variant_type_id NOT NULL), mas quebrava
+        // depois: ao resolver o mapeamento da combinação
+        // (admin_resolve_catalog_variant_import_mapping, Query 2150), a
+        // revalidação em lote tentava gravar o MESMO variant_type_id nas
+        // duas linhas — job_id+card_id repetidos — e violava
+        // uq_catalog_variant_import_row_job_card_variant_type, derrubando
+        // a chamada inteira (erro genérico de Postgres, sem o padrão
+        // CODIGO: mensagem, exibido cru ao admin). Uma combinação
+        // repetida na própria fonte nunca deveria virar duas linhas de
+        // staging, resolvida ou não — dedupe por combinação, não por
+        // resolução.
+        const dedupeKey = `${cardId}|${comboKey}`;
+        if (seenComboByCard.has(dedupeKey)) {
+          duplicateResolvedSkipped++;
+          continue;
         }
+        seenComboByCard.add(dedupeKey);
 
         const matchedVariantId = variantTypeId
           ? existingVariantsByCardAndType.get(`${cardId}|${variantTypeId}`) ?? null

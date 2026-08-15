@@ -143,6 +143,20 @@ export function RevisaoImportacaoVariantesTable({
   const [error, setError] = useState<string | null>(null);
   const [confirmSummary, setConfirmSummary] = useState<string | null>(null);
   const [resolvingRow, setResolvingRow] = useState<CatalogVariantImportRowView | null>(null);
+  // Filtro "Mapeamento" (client-side, sem nova query — `rows` já vem
+  // carregado por completo do servidor): "Todos" | "Mapeados" (variantTypeName
+  // resolvido, ou seja, normalized_data.variant_type_id já preenchido) |
+  // "Sem mapeamento" (validationStatus === NEEDS_REVIEW). Só afeta o que é
+  // EXIBIDO na tabela — summary/approvableCount/decidir/confirmar continuam
+  // calculados sobre `rows` inteiro, nunca sobre o recorte filtrado (regras
+  // de decisão/confirmação não mudam com o filtro).
+  const [mappingFilter, setMappingFilter] = useState<"all" | "mapped" | "unmapped">("all");
+
+  const filteredRows = useMemo(() => {
+    if (mappingFilter === "mapped") return rows.filter((row) => row.variantTypeName !== null);
+    if (mappingFilter === "unmapped") return rows.filter((row) => row.validationStatus === "NEEDS_REVIEW");
+    return rows;
+  }, [rows, mappingFilter]);
 
   const approvableCount = useMemo(
     () =>
@@ -167,7 +181,11 @@ export function RevisaoImportacaoVariantesTable({
     return { total: rows.length, aprovadas, rejeitadas, pendentes, semMapeamento };
   }, [rows]);
 
-  const allSelected = rows.length > 0 && selected.size === rows.length;
+  // "Selecionar todas" opera sobre o recorte visível (filteredRows) — mesmo
+  // raciocínio de qualquer filtro de tabela: marcar "todas" com o filtro
+  // "Sem mapeamento" ativo não deve arrastar para a seleção linhas já
+  // mapeadas que nem aparecem na tela.
+  const allSelected = filteredRows.length > 0 && filteredRows.every((row) => selected.has(row.id));
 
   function toggleRow(id: string) {
     setSelected((prev) => {
@@ -182,7 +200,16 @@ export function RevisaoImportacaoVariantesTable({
   }
 
   function toggleAll() {
-    setSelected((prev) => (prev.size === rows.length ? new Set() : new Set(rows.map((row) => row.id))));
+    setSelected((prev) => {
+      const visibleIds = filteredRows.map((row) => row.id);
+      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => prev.has(id));
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        for (const id of visibleIds) next.delete(id);
+        return next;
+      }
+      return new Set([...prev, ...visibleIds]);
+    });
   }
 
   function decidir(ids: string[], status: "APPROVED" | "REJECTED" | "SKIPPED" | "PENDING") {
@@ -285,8 +312,16 @@ export function RevisaoImportacaoVariantesTable({
               <SummaryStat label="Sem Mapeamento" value={summary.semMapeamento} className="text-destructive" />
             </div>
 
-            <DataTable>
-              <DataTableHead>
+            <MapeamentoFilterGroup value={mappingFilter} onChange={setMappingFilter} />
+
+            {filteredRows.length === 0 ? (
+              <EmptyState
+                title="Nenhuma linha para este filtro"
+                description='Troque o filtro "Mapeamento" para ver as demais linhas desta importação.'
+              />
+            ) : (
+              <DataTable>
+                <DataTableHead>
                 <DataTableHeadRow className="bg-surface-muted">
                   <DataTableHeadCell className="w-8 pl-4">
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Selecionar todas" />
@@ -302,7 +337,7 @@ export function RevisaoImportacaoVariantesTable({
                 </DataTableHeadRow>
               </DataTableHead>
               <tbody>
-                {rows.map((row) => {
+                {filteredRows.map((row) => {
                   const canApprove = row.validationStatus === "VALID";
                   return (
                     <DataTableRow key={row.id}>
@@ -419,6 +454,7 @@ export function RevisaoImportacaoVariantesTable({
                 })}
               </tbody>
             </DataTable>
+            )}
           </>
         )}
       </CardContent>
@@ -436,6 +472,57 @@ export function RevisaoImportacaoVariantesTable({
         onCancel={() => setResolvingRow(null)}
       />
     </Card>
+  );
+}
+
+/**
+ * Filtro "Mapeamento" (pedido de Fabrício, 2026-08-15): "Todos" | "Mapeados"
+ * (linhas com `variant_type_id` já resolvido) | "Sem mapeamento" (linhas
+ * `NEEDS_REVIEW` — combinação externa ainda sem correspondência em
+ * `card_variant_type_external_mapping`). Mesma linguagem visual de
+ * `VarianteFilterGroup` (cartas-gallery.tsx): chips `rounded-full`,
+ * seleção única, `aria-pressed` reflete `value === option.code`.
+ * Client-side sobre `rows` já carregado — nenhuma query nova, nenhuma
+ * mudança em regra de decisão/confirmação/mapping.
+ */
+function MapeamentoFilterGroup({
+  value,
+  onChange,
+}: {
+  value: "all" | "mapped" | "unmapped";
+  onChange: (value: "all" | "mapped" | "unmapped") => void;
+}) {
+  const options: { code: "all" | "mapped" | "unmapped"; label: string }[] = [
+    { code: "all", label: "Todos" },
+    { code: "mapped", label: "Mapeados" },
+    { code: "unmapped", label: "Sem mapeamento" },
+  ];
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Mapeamento</p>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por Mapeamento">
+        {options.map((option) => {
+          const active = value === option.code;
+          return (
+            <button
+              key={option.code}
+              type="button"
+              onClick={() => onChange(option.code)}
+              aria-pressed={active}
+              className={cn(
+                "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                active
+                  ? "border-primary/40 bg-primary/5 text-primary"
+                  : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
