@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Boxes,
+  Copy,
   CreditCard,
   FileText,
   FileUp,
@@ -111,6 +112,12 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/catalogo/cartas", label: "Cartas", section: "Cadastro", icon: CreditCard },
       { href: "/catalogo/importar-cartas", label: "Importar Cartas", section: "Operações", icon: FileUp },
       { href: "/catalogo/importar-imagens", label: "Importar Imagens", section: "Operações", icon: ImagePlus },
+      // Importar Variantes (Incremento 4, ADR-028, 2026-08-15) — cadastro em
+      // lote de Card Variant a partir do dataset-fonte da TCGdex, mesmo
+      // grupo Operações das outras duas frentes de importação. Pressupõe
+      // Importar Cartas já concluído para o Card Set (a própria Edge
+      // Function recusa sem card_set_external_reference).
+      { href: "/catalogo/importar-variantes", label: "Importar Variantes", section: "Operações", icon: Copy },
     ],
     // Módulo restrito a administradores (ADR-022) — leitura dos dados
     // editoriais/operacionais já é bloqueada no banco via RLS (is_admin());

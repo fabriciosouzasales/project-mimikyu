@@ -2265,6 +2265,231 @@ export async function getCatalogImportRows(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Importar Variantes (Incremento 4, ADR-028) — /catalogo/importar-variantes,
+// adicionada em 2026-08-15. Mesmo contrato de leitura de Importar Cartas
+// (getCardSetsForCartas/getCatalogImportJobStatus/getCatalogImportRows
+// acima), uma instância nova dele para o staging de Card Variant
+// (catalog_variant_import_job/catalog_variant_import_row, Queries
+// 2136-2139) — não uma exceção ao padrão.
+// ---------------------------------------------------------------------------
+
+export type CatalogoVariantCardSetRow = CatalogoCardSetRow & {
+  /** `catalog_card_set_variant_coverage.cards_com_variante` — Cards do Card Set com pelo menos uma Card Variant cadastrada. */
+  cardsComVariante: number;
+  /** `catalog_card_set_variant_coverage.cards_sem_variante` — Cards do Card Set ainda sem nenhuma Card Variant. */
+  cardsSemVariante: number;
+};
+
+/**
+ * Card Sets elegíveis para Importar Variantes: reaproveita getCardSetsForCartas
+ * (mesma base de Coleção/Expansão/Jogo/cardsCatalogados já usada por Importar
+ * Cartas) e cruza com catalog_card_set_variant_coverage (view da Query 2135)
+ * para cardsComVariante/cardsSemVariante — as duas buscas são independentes,
+ * disparadas juntas via Promise.all (mesmo raciocínio de getCardSetsForCartas
+ * para catalog_card_set_metrics, ver comentário lá).
+ *
+ * Filtro: só Coleções com pelo menos uma carta cadastrada (Importar Variantes
+ * pressupõe Importar Cartas já concluído — a própria Edge Function
+ * import-card-variants recusa sem card_set_external_reference) E com
+ * cardsSemVariante > 0 (nada pendente, nada para importar).
+ */
+export async function getCardSetsForVariantes(supabase: SupabaseClient): Promise<CatalogoVariantCardSetRow[]> {
+  const [cardSets, coverageResult] = await Promise.all([
+    getCardSetsForCartas(supabase),
+    supabase.from("catalog_card_set_variant_coverage").select("card_set_id, cards_com_variante, cards_sem_variante"),
+  ]);
+
+  const coverage = new Map<string, { comVariante: number; semVariante: number }>();
+  for (const row of (coverageResult.data ?? []) as {
+    card_set_id: string;
+    cards_com_variante: number;
+    cards_sem_variante: number;
+  }[]) {
+    coverage.set(row.card_set_id, { comVariante: row.cards_com_variante, semVariante: row.cards_sem_variante });
+  }
+
+  return cardSets
+    .map((cardSet) => {
+      const cov = coverage.get(cardSet.id);
+      return {
+        ...cardSet,
+        cardsComVariante: cov?.comVariante ?? 0,
+        cardsSemVariante: cov?.semVariante ?? cardSet.cardsCatalogados,
+      };
+    })
+    .filter((cardSet) => cardSet.cardsCatalogados > 0 && cardSet.cardsSemVariante > 0);
+}
+
+export type CatalogVariantImportJobStatus = {
+  id: string;
+  status: string;
+  progressStep: string | null;
+  totalRows: number;
+  validRows: number;
+  rejectedRows: number;
+  insertedRows: number;
+  unchangedRows: number;
+  skippedRows: number;
+  failedRows: number;
+  errorSummary: string | null;
+  cardSetCode: string;
+  cardSetName: string;
+};
+
+type CatalogVariantImportJobRawRow = {
+  id: string;
+  status: string;
+  progress_step: string | null;
+  total_rows: number;
+  valid_rows: number;
+  rejected_rows: number;
+  inserted_rows: number;
+  unchanged_rows: number;
+  skipped_rows: number;
+  failed_rows: number;
+  error_summary: string | null;
+  card_set: { code: string; name: string } | null;
+};
+
+/** Status real de um catalog_variant_import_job (Query 2136) — base do acompanhamento do fluxo Importar Variantes. Sem updatedRows (diferença real frente a CatalogImportJobStatus — ver comentário da Query 2136: uma Card Variant não tem conteúdo para divergir/atualizar). */
+export async function getCatalogVariantImportJobStatus(
+  supabase: SupabaseClient,
+  jobId: string,
+): Promise<CatalogVariantImportJobStatus | null> {
+  const { data, error } = await supabase
+    .from("catalog_variant_import_job")
+    .select(
+      "id, status, progress_step, total_rows, valid_rows, rejected_rows, inserted_rows, unchanged_rows, skipped_rows, failed_rows, error_summary, card_set(code, name)",
+    )
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const row = data as unknown as CatalogVariantImportJobRawRow;
+
+  return {
+    id: row.id,
+    status: row.status,
+    progressStep: row.progress_step,
+    totalRows: row.total_rows,
+    validRows: row.valid_rows,
+    rejectedRows: row.rejected_rows,
+    insertedRows: row.inserted_rows,
+    unchangedRows: row.unchanged_rows,
+    skippedRows: row.skipped_rows,
+    failedRows: row.failed_rows,
+    errorSummary: row.error_summary,
+    cardSetCode: row.card_set?.code ?? "",
+    cardSetName: row.card_set?.name ?? "",
+  };
+}
+
+export type CatalogVariantImportRowView = {
+  id: string;
+  cardName: string;
+  collectorNumber: string;
+  collectorTotal: number | null;
+  /** raw_data — type/foil/subtype/stamp exatamente como vieram do dataset-fonte, sem interpretação (ver Query 2138). */
+  rawType: string | null;
+  rawFoil: string | null;
+  rawSubtype: string | null;
+  rawStamp: string[] | null;
+  /** Nome do card_variant_type já resolvido (normalized_data.variant_type_id) — null quando NEEDS_REVIEW (sem mapeamento). */
+  variantTypeName: string | null;
+  validationStatus: string;
+  matchStatus: string;
+  decisionStatus: string;
+  persistenceStatus: string;
+  errorDetail: string | null;
+};
+
+type CatalogVariantImportRowRawRow = {
+  id: string;
+  raw_data: { type?: string; foil?: string | null; subtype?: string | null; stamp?: string[] | null } | null;
+  normalized_data: { variant_type_id?: string } | null;
+  validation_status: string;
+  match_status: string;
+  decision_status: string;
+  persistence_status: string;
+  error_detail: string | null;
+  card: { name: string; collector_number: string; collector_total: number | null } | null;
+};
+
+/**
+ * Linhas de staging (catalog_variant_import_row, Query 2138) de um job —
+ * base da tela de Revisão de Importar Variantes. Mesmo padrão de
+ * getCatalogImportRows (Carta via join direto — aqui card_id é sempre
+ * NOT NULL, nunca precisa de fallback), com uma segunda leitura em lote
+ * (card_variant_type) para resolver o nome do tipo de variante proposto a
+ * partir de normalized_data.variant_type_id — não dá para embutir isso num
+ * único select do PostgREST porque o id fica dentro de um JSONB, não numa
+ * coluna FK própria.
+ *
+ * Ordenado por collector_number (mesmo critério de exibição de
+ * getCatalogImportRows) e, dentro da mesma Carta, pelo nome do tipo de
+ * variante — mais de uma variante proposta por Carta é o caso comum aqui
+ * (diferente de Importar Cartas, uma linha por Carta).
+ */
+export async function getCatalogVariantImportRows(
+  supabase: SupabaseClient,
+  jobId: string,
+): Promise<CatalogVariantImportRowView[]> {
+  const { data, error } = await supabase
+    .from("catalog_variant_import_row")
+    .select(
+      "id, raw_data, normalized_data, validation_status, match_status, decision_status, persistence_status, error_detail, card:card_id(name, collector_number, collector_total)",
+    )
+    .eq("job_id", jobId)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  const rawRows = data as unknown as CatalogVariantImportRowRawRow[];
+
+  const variantTypeIds = Array.from(
+    new Set(rawRows.map((row) => row.normalized_data?.variant_type_id).filter((id): id is string => Boolean(id))),
+  );
+  const variantTypeNames = new Map<string, string>();
+  if (variantTypeIds.length > 0) {
+    const { data: variantTypes } = await supabase.from("card_variant_type").select("id, name").in("id", variantTypeIds);
+    for (const type of (variantTypes ?? []) as { id: string; name: string }[]) {
+      variantTypeNames.set(type.id, type.name);
+    }
+  }
+
+  const rows = rawRows.map((row) => {
+    const variantTypeId = row.normalized_data?.variant_type_id ?? null;
+    return {
+      id: row.id,
+      cardName: row.card?.name ?? "—",
+      collectorNumber: row.card?.collector_number ?? "—",
+      collectorTotal: row.card?.collector_total ?? null,
+      rawType: row.raw_data?.type ?? null,
+      rawFoil: row.raw_data?.foil ?? null,
+      rawSubtype: row.raw_data?.subtype ?? null,
+      rawStamp: row.raw_data?.stamp ?? null,
+      variantTypeName: variantTypeId ? (variantTypeNames.get(variantTypeId) ?? null) : null,
+      validationStatus: row.validation_status,
+      matchStatus: row.match_status,
+      decisionStatus: row.decision_status,
+      persistenceStatus: row.persistence_status,
+      errorDetail: row.error_detail,
+    };
+  });
+
+  return rows.sort((a, b) => {
+    const numA = Number(a.collectorNumber);
+    const numB = Number(b.collectorNumber);
+    const byNumber = (Number.isNaN(numA) ? Infinity : numA) - (Number.isNaN(numB) ? Infinity : numB);
+    if (byNumber !== 0) return byNumber;
+    return (a.variantTypeName ?? "").localeCompare(b.variantTypeName ?? "", "pt-BR");
+  });
+}
+
 type CatalogImportJobActivityRow = {
   id: string;
   status: string;
