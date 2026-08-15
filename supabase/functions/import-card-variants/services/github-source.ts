@@ -31,6 +31,16 @@ import type { ExternalVariantCombo } from "../types.ts";
 
 const GITHUB_CONTENTS_BASE = "https://api.github.com/repos/tcgdex/cards-database/contents";
 
+// Timeout explícito (2026-08-15, correção do incidente SV10) — mesmo motivo
+// e mesmo padrão de TCGDEX_METADATA_TIMEOUT_MS (services/tcgdex.ts) e de
+// IMAGE_DOWNLOAD_TIMEOUT_MS (import-card-assets/services/storage.ts):
+// qualquer uma das duas superfícies HTTP deste arquivo pendurada sem
+// resposta consumia sozinha todo o orçamento de execução da Edge Function,
+// sem o código nunca chegar ao catch()/failVariantJob(). Um valor único
+// para as duas chamadas — a listagem (1x por Set) e o conteúdo (1x por
+// Card, em lote) têm o mesmo perfil de payload pequeno.
+const GITHUB_FETCH_TIMEOUT_MS = 15000;
+
 export type GithubCardFile = {
   name: string;
   downloadUrl: string;
@@ -38,9 +48,24 @@ export type GithubCardFile = {
 
 export async function listSetCardFiles(serieName: string, setName: string): Promise<GithubCardFile[]> {
   const path = `data/${encodeURIComponent(serieName)}/${encodeURIComponent(setName)}`;
-  const response = await fetch(`${GITHUB_CONTENTS_BASE}/${path}`, {
-    headers: { Accept: "application/vnd.github+json" },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_FETCH_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${GITHUB_CONTENTS_BASE}/${path}`, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`GITHUB_CONTENTS_TIMEOUT: sem resposta em ${GITHUB_FETCH_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
     throw new Error(`GITHUB_CONTENTS_HTTP_${response.status}`);
   }
@@ -56,7 +81,21 @@ export async function listSetCardFiles(serieName: string, setName: string): Prom
 }
 
 export async function fetchCardFileSource(downloadUrl: string): Promise<string> {
-  const response = await fetch(downloadUrl);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_FETCH_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(downloadUrl, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`GITHUB_RAW_TIMEOUT: sem resposta em ${GITHUB_FETCH_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
     throw new Error(`GITHUB_RAW_HTTP_${response.status}`);
   }

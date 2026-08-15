@@ -9,6 +9,7 @@ import {
   Copy,
   FolderPlus,
   ListChecks,
+  Loader2,
   Search,
   type LucideIcon,
 } from "lucide-react";
@@ -89,31 +90,88 @@ const PERCENT_TICK_MS = 200;
 const PERCENT_CEILING = 92;
 
 /**
+ * Fase visual derivada do `job.status` real — correção do incidente SV10
+ * (2026-08-15). Antes, a etapa "Concluído" (✓ verde) aparecia assim que
+ * `Boolean(job)` fosse verdadeiro, isto é, assim que QUALQUER linha de job
+ * fosse buscada com sucesso — mesmo com `status = PROCESSING` (job ainda
+ * rodando, ou preso). Um job de SV10 ficou preso em `PROCESSING` (Edge
+ * Function travada em `resolveSetSerieName()`, sem timeout, morta pela
+ * plataforma por estouro do teto de execução) e a UI mostrou "Concluído,
+ * 0 variantes propostas" mesmo assim — falso sucesso. Agora cada status
+ * vira uma fase própria, e só `STAGED`/`COMPLETED`/`COMPLETED_WITH_ERRORS`
+ * são tratados como "terminado com sucesso" (✓ verde); `RECEIVED`/
+ * `PROCESSING`/`CONFIRMING` continuam "em andamento" (nunca ✓ verde,
+ * mesmo já havendo um `job` carregado); `FAILED`/`CANCELLED` mostram erro
+ * de verdade (ícone e cor de destructive, não a mesma cor de sucesso).
+ *
+ * `COMPLETED`/`COMPLETED_WITH_ERRORS` só existem depois da confirmação
+ * (RPC `admin_confirm_catalog_variant_import`, fora deste formulário de
+ * Análise) — tratados aqui porque `refreshJob()` (chamado por
+ * `RevisaoImportacaoVariantesTable` após confirmar) pode atualizar o mesmo
+ * `job` observado por este componente para um desses status.
+ */
+type JobPhase = "in_progress" | "staged" | "failed" | "completed" | "completed_with_errors";
+
+function resolveJobPhase(status: string | undefined): JobPhase | null {
+  switch (status) {
+    case "RECEIVED":
+    case "PROCESSING":
+    case "CONFIRMING":
+      return "in_progress";
+    case "STAGED":
+      return "staged";
+    case "FAILED":
+    case "CANCELLED":
+      return "failed";
+    case "COMPLETED":
+      return "completed";
+    case "COMPLETED_WITH_ERRORS":
+      return "completed_with_errors";
+    default:
+      return null;
+  }
+}
+
+const CONCLUSION_LABEL: Record<JobPhase, string> = {
+  in_progress: "Processando…",
+  staged: "Concluído",
+  failed: "Falhou",
+  completed: "Concluído",
+  completed_with_errors: "Concluído com pendências",
+};
+
+/**
  * Indicador de progresso — mesmo desenho visual de ImportProgress
  * (importar-tcgdex-view.tsx: etapas fixas + linha vertical + barra
- * simulada até `done`), sem as etapas condicionais de imagem (não existem
- * aqui). `done=true` mostra a etapa "Concluído" com o resumo real do job
- * (total/válidas/NEEDS_REVIEW/inseridas/inalteradas/falhas).
+ * simulada até terminar), sem as etapas condicionais de imagem (não
+ * existem aqui). A fase real do job (`resolveJobPhase`) decide o rótulo,
+ * ícone, cor e corpo da etapa final — nunca `Boolean(job)` sozinho.
  */
 function ImportProgressVariantes({
   isPending,
-  done,
   job,
 }: {
   isPending: boolean;
-  done: boolean;
   job: CatalogVariantImportJobStatus | null | undefined;
 }) {
   const [percent, setPercent] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
 
+  const phase = resolveJobPhase(job?.status);
+  // "terminado" (successo ou erro) — só quando o job tem um status real
+  // fora de RECEIVED/PROCESSING/CONFIRMING. Um `job` já carregado mas
+  // ainda em andamento continua animando os passos, exatamente como
+  // antes de qualquer resposta chegar.
+  const finished = phase !== null && phase !== "in_progress";
+  const stillRunning = isPending || phase === "in_progress";
+
   useEffect(() => {
-    if (done) {
+    if (finished) {
       setPercent(100);
       setStepIndex(ANALYSIS_STEPS.length);
       return;
     }
-    if (!isPending) return;
+    if (!stillRunning) return;
 
     const stepTimer = setInterval(() => {
       setStepIndex((index) => Math.min(index + 1, ANALYSIS_STEPS.length - 1));
@@ -125,44 +183,63 @@ function ImportProgressVariantes({
       clearInterval(stepTimer);
       clearInterval(percentTimer);
     };
-  }, [isPending, done]);
+  }, [stillRunning, finished]);
 
-  type StepStatus = "pending" | "active" | "done";
+  type StepStatus = "pending" | "active" | "done" | "error";
   type Step = { key: string; label: string; icon: LucideIcon; status: StepStatus; body?: ReactNode };
 
   const analysisSteps: Step[] = ANALYSIS_STEPS.map((step, index) => ({
     key: step.label,
     label: step.label,
     icon: step.icon,
-    status: done || index < stepIndex ? "done" : index === stepIndex ? "active" : "pending",
+    status: finished || index < stepIndex ? "done" : index === stepIndex ? "active" : "pending",
   }));
 
   const needsReview = job ? Math.max(job.totalRows - job.validRows, 0) : 0;
+  // "com pendência" só é relevante para o resultado de fato concluído
+  // (STAGED/COMPLETED/COMPLETED_WITH_ERRORS) — um job ainda em andamento
+  // não tem `needsReview`/`failedRows` significativos ainda.
   const hasIssues = Boolean(job && (job.failedRows > 0 || needsReview > 0));
+
+  const conclusionIcon: LucideIcon =
+    phase === "failed" ? AlertTriangle : phase === "in_progress" ? Loader2 : hasIssues ? AlertTriangle : CheckCircle2;
+
+  const conclusionStatus: StepStatus =
+    phase === "failed" ? "error" : phase === "in_progress" ? "active" : finished ? "done" : "pending";
+
+  const conclusionBody: ReactNode = job && phase && (
+    <>
+      <p>
+        {job.cardSetCode} — {job.cardSetName}
+      </p>
+      {phase === "failed" ? (
+        <p className="text-destructive">{job.errorSummary ?? "A importação falhou antes de concluir a análise."}</p>
+      ) : phase === "in_progress" ? (
+        <p>Análise em andamento — isso pode levar alguns minutos para Coleções grandes.</p>
+      ) : (
+        <>
+          <p>
+            {formatNumber(job.totalRows)} variantes propostas · {formatNumber(job.validRows)} válidas ·{" "}
+            {formatNumber(needsReview)} a revisar (sem mapeamento)
+          </p>
+          {(phase === "completed" || phase === "completed_with_errors") && (
+            <p>
+              {formatNumber(job.insertedRows)} inseridas · {formatNumber(job.unchangedRows)} inalteradas ·{" "}
+              {formatNumber(job.failedRows)} falhas
+            </p>
+          )}
+          {job.errorSummary && <p className="text-destructive">{job.errorSummary}</p>}
+        </>
+      )}
+    </>
+  );
 
   const conclusionStep: Step = {
     key: "conclusao",
-    label: "Concluído",
-    icon: done ? (hasIssues ? AlertTriangle : CheckCircle2) : CheckCircle2,
-    status: done ? "done" : "pending",
-    body: done && job && (
-      <>
-        <p>
-          {job.cardSetCode} — {job.cardSetName}
-        </p>
-        <p>
-          {formatNumber(job.totalRows)} variantes propostas · {formatNumber(job.validRows)} válidas ·{" "}
-          {formatNumber(needsReview)} a revisar (sem mapeamento)
-        </p>
-        {job.status !== "STAGED" && job.status !== "CONFIRMING" && (
-          <p>
-            {formatNumber(job.insertedRows)} inseridas · {formatNumber(job.unchangedRows)} inalteradas ·{" "}
-            {formatNumber(job.failedRows)} falhas
-          </p>
-        )}
-        {job.errorSummary && <p className="text-destructive">{job.errorSummary}</p>}
-      </>
-    ),
+    label: phase ? CONCLUSION_LABEL[phase] : "Concluído",
+    icon: conclusionIcon,
+    status: conclusionStatus,
+    body: conclusionBody,
   };
 
   const steps = [...analysisSteps, conclusionStep];
@@ -180,10 +257,11 @@ function ImportProgressVariantes({
                 "z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
                 step.status === "done" && "border-emerald-600/30 bg-emerald-600/10 text-emerald-600",
                 step.status === "active" && "animate-pulse border-primary/40 bg-primary/10 text-primary",
+                step.status === "error" && "border-destructive/40 bg-destructive/10 text-destructive",
                 step.status === "pending" && "border-border bg-surface text-muted-foreground opacity-40",
               )}
             >
-              <Icon className="h-4 w-4" aria-hidden="true" />
+              <Icon className={cn("h-4 w-4", step.status === "active" && step.icon === Loader2 && "animate-spin")} aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1 pt-1.5">
               <p className="text-sm font-medium text-foreground">{step.label}</p>
@@ -192,7 +270,7 @@ function ImportProgressVariantes({
           </div>
         );
       })}
-      {!done && (
+      {!finished && (
         <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
         </div>
@@ -281,7 +359,6 @@ export function ImportarVariantesView({
                 {analyzeJob.started && (
                   <ImportProgressVariantes
                     isPending={analyzeJob.isPending || analyzeJob.fetchingJob}
-                    done={Boolean(analyzeJob.jobState.job)}
                     job={analyzeJob.jobState.job}
                   />
                 )}

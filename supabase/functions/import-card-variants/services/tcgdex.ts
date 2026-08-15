@@ -24,11 +24,37 @@ export type TcgdexSetSerieName = {
 const TCGDEX_METADATA_LANGUAGE = "en";
 const TCGDEX_BASE_URL = "https://api.tcgdex.net/v2";
 
+// Timeout explícito (2026-08-15, correção do incidente SV10) — mesmo padrão
+// já usado em import-card-assets/services/storage.ts (`downloadImage()`,
+// IMAGE_DOWNLOAD_TIMEOUT_MS, corrigido em 2026-08-02 para o mesmo problema
+// estrutural: um `fetch()` sem timeout pendurado consome sozinho todo o
+// orçamento de execução da Edge Function (~150s) sem nenhum progresso, e o
+// código nunca chega ao catch()/failVariantJob() — a plataforma mata a
+// invocação de fora para dentro (HTTP 546 nos logs), deixando o job preso
+// em PROCESSING para sempre. 15s é generoso para uma única chamada de
+// metadado (payload pequeno) e folgado o bastante abaixo do teto da
+// plataforma para o erro sempre cair no catch existente antes disso.
+const TCGDEX_METADATA_TIMEOUT_MS = 15000;
+
 export async function resolveSetSerieName(externalSetId: string): Promise<TcgdexSetSerieName> {
-  const response = await fetch(
-    `${TCGDEX_BASE_URL}/${TCGDEX_METADATA_LANGUAGE}/sets/${externalSetId}`,
-    { headers: { Accept: "application/json" } },
-  );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TCGDEX_METADATA_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${TCGDEX_BASE_URL}/${TCGDEX_METADATA_LANGUAGE}/sets/${externalSetId}`,
+      { headers: { Accept: "application/json" }, signal: controller.signal },
+    );
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`TCGDEX_SET_METADATA_TIMEOUT: sem resposta em ${TCGDEX_METADATA_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
     throw new Error(`TCGDEX_SET_METADATA_HTTP_${response.status}`);
   }
