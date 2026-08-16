@@ -1,0 +1,44 @@
+/*
+ * Mecânica visual do CTA em gradiente animado — extraído de
+ * `components/auth/auth-panel.module.css` (`.cta`, aprovado no Login) para
+ * um módulo compartilhado em `components/ui/`, consumido pelo `Button`
+ * "default" (2026-08-16, ver `app/globals.css` — promoção da direção
+ * cromática da Visão Geral + Login a baseline: "componentes de formulário
+ * seguem o padrão visual aprovado no Login", instrução explícita de
+ * Fabrício). Usa `--primary`/`--primary-hover`/`--primary-foreground` (não
+ * `--auth-accent`/etc., tokens exclusivos da Auth Experience) — depois da
+ * consolidação de tokens, `--primary` já é o mesmo dourado MMKYU, então o
+ * resultado visual é o mesmo, sem duplicar valores literais.
+ *
+ * CSS Module (não Tailwind arbitrário) pelo mesmo motivo do original:
+ * combina `background-position` animado + `background-size` + múltiplas
+ * transições coordenadas — mais seguro de manter correto sem poder rodar
+ * `npm run dev`/build neste ambiente (sandbox sem binário SWC).
+ */
+
+.cta {
+  background: linear-gradient(120deg, hsl(var(--primary)) 0%, hsl(var(--primary-hover)) 50%, hsl(var(--primary)) 100%);
+  background-size: 220% 100%;
+  background-position: 0% 0%;
+  color: hsl(var(--primary-foreground));
+  transition:
+    background-position 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cta:hover {
+  background-position: 100% 0%;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -8px hsl(var(--primary) / 0.4);
+}
+
+.cta:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+.cta:disabled {
+  transform: none;
+  box-shadow: none;
+}

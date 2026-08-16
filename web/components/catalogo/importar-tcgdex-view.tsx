@@ -137,7 +137,7 @@ export function MatchResultPanel({
       // próximo.
       <div className="space-y-2">
         <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-          <HelpCircle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+          <HelpCircle className="h-4 w-4 text-warning" aria-hidden="true" />
           Mais de um Set encontrado — selecione o correto
         </p>
         <div className="space-y-4">
@@ -1220,12 +1220,12 @@ export function ImportProgress({
           const toneClass =
             step.status !== "done"
               ? step.status === "active"
-                ? "animate-pulse text-primary"
+                ? "animate-pulse text-primary-ink"
                 : "text-muted-foreground"
               : step.tone === "success"
-                ? "text-emerald-600"
+                ? "text-success"
                 : step.tone === "warning"
-                  ? "text-amber-600"
+                  ? "text-warning"
                   : "text-muted-foreground";
 
           return (

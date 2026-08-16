@@ -250,8 +250,13 @@ export function ImportarCartasView({
               <p className="text-sm text-muted-foreground">Selecione uma Coleção acima para continuar.</p>
             ) : !matchResult ? null : matchResult.status === "MATCHED" ? (
               <>
-                <div className="flex items-center gap-3 rounded-md border border-input bg-[#F7F5ED] p-3">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                {/* 2026-08-16: cor de fundo/ícone trocada de literais hardcoded
+                    (`bg-[#F7F5ED]`, resíduo da paleta antiga; `text-emerald-600`,
+                    fora do token `--success`) para o par semântico já usado em
+                    `InlineFeedback tone="success"`/`StateBadge tone="success"` —
+                    consistência de "sucesso" em todo o app, sem hardcode. */}
+                <div className="flex items-center gap-3 rounded-md border border-success/30 bg-success/10 p-3">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">Set localizado: {matchResult.set.name}</p>
                     <p className="text-xs text-muted-foreground">

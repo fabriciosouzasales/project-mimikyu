@@ -25,8 +25,28 @@ import { cn } from "@/lib/utils";
  * usada no `<Image>` abaixo (`width={546} height={309}`) — com a largura
  * fixada pelo chamador, a altura reservada pelo fallback já nasce igual à
  * altura que a imagem real vai ocupar, sem mudar nenhuma dimensão final.
+ *
+ * `variant` (2026-08-16, prova visual isolada da Visão Geral do Catálogo
+ * Editorial, ver `docs/log.md`) — `"auto"` (default) é o comportamento de
+ * sempre, direto do tema real do site. `"dark"` fixa sempre a arte clara
+ * (pensada pra fundo escuro), independente de `resolvedTheme` — usada
+ * quando o fundo local é deliberadamente escuro nos dois temas do site
+ * (Rodada 3 da prova: a navegação voltou a ser uma âncora fixa, escura nos
+ * dois temas — a Rodada 2 tinha um `"inverted"` para quando a navegação
+ * ainda invertia por tema; reprovado, removido). Mesmo problema já
+ * resolvido em `AuthHeroShell`/`BrandLogo` (a variante do ícone precisa
+ * seguir o FUNDO local, não o tema do site). Continua dependendo de
+ * `resolvedTheme` só no modo `"auto"`, mas mantém o guard de hidratação de
+ * sempre em ambos os modos. Nenhum outro uso de `BrandMark` muda de
+ * comportamento.
  */
-export function BrandMark({ className }: { className?: string }) {
+export function BrandMark({
+  className,
+  variant = "auto",
+}: {
+  className?: string;
+  variant?: "auto" | "dark";
+}) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -35,7 +55,9 @@ export function BrandMark({ className }: { className?: string }) {
     return <div className={cn("aspect-[546/309] shrink-0", className)} aria-hidden="true" />;
   }
 
-  const src = resolvedTheme === "dark" ? "/brand/icon-mark-dark.png" : "/brand/icon-mark-light.png";
+  const isDarkSite = resolvedTheme === "dark";
+  const useDarkAsset = variant === "dark" ? true : isDarkSite;
+  const src = useDarkAsset ? "/brand/icon-mark-dark.png" : "/brand/icon-mark-light.png";
 
   return (
     <Image

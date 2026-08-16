@@ -100,7 +100,7 @@ export default async function ImportacoesPage({
         {filtrosAtivos.length > 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Filtrando por: {filtrosAtivos.join(" · ")}</span>
-            <Link href="/catalogo/importacoes" className="text-primary hover:underline">
+            <Link href="/catalogo/importacoes" className="text-primary-ink hover:underline">
               Limpar filtro
             </Link>
           </div>

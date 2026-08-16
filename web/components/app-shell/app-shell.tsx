@@ -15,6 +15,13 @@ import { getCachedIsAdmin } from "@/lib/supabase/request-auth-cache";
  * antes do título da página") — opcional, repassado ao `Header`. Primeira
  * aplicação em /catalogo/expansoes (mesmo ícone do item de menu, `Layers`);
  * as demais telas não passam `icon` e continuam idênticas.
+ *
+ * `chromeVariant` (2026-08-16, existiu como prova visual isolada de
+ * Catálogo Editorial > Visão Geral, "onyx-preview") foi REMOVIDO — a
+ * arquitetura cromática que ele testava (navegação preta/grafite fixa,
+ * workspace off-white/preto profundo, dourado como accent) foi aprovada e
+ * promovida a baseline de `app/globals.css`. Não há mais variante: todo
+ * `AppShell` usa o mesmo tratamento visual, sempre.
  */
 export async function AppShell({
   title,
@@ -35,7 +42,7 @@ export async function AppShell({
   return (
     <div className="flex h-dvh overflow-hidden bg-background print:h-auto print:overflow-visible">
       <Sidebar isAdmin={!!isAdmin} />
-      <div className="flex min-w-0 flex-1 flex-col print:overflow-visible">
+      <div className="flex min-w-0 flex-1 flex-col bg-background print:overflow-visible">
         <Header title={title} icon={icon} isAdmin={!!isAdmin} />
         {/* print:overflow-visible/print:p-0: sem isso, o corte de altura (h-dvh/overflow-y-auto,
             necessário para o scroll normal da tela) clipa o conteúdo ao imprimir — a Central

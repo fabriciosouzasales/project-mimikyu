@@ -31,7 +31,7 @@ function Chip({ href, active, children }: { href: string; active: boolean; child
       className={cn(
         "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors",
         active
-          ? "border-primary/40 bg-primary/5 text-primary"
+          ? "border-primary/40 bg-primary/5 text-primary-ink"
           : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
       )}
     >

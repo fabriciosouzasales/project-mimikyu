@@ -115,6 +115,12 @@ const PIPELINE_LABEL: Record<AtividadeRecenteItem["pipeline"], string> = {
  */
 const ATIVIDADE_PAGE_SIZE = 10;
 
+/**
+ * Link do nome da Coleção em `text-foreground` com `hover:text-primary-ink`
+ * (2026-08-16, promovido de prova cromática isolada para baseline — ver
+ * `app/globals.css`) — mesmo tratamento de `card-sets-table.tsx`,
+ * consistência dentro da mesma página.
+ */
 export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteItem[] }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
@@ -202,7 +208,7 @@ export function AtividadeRecente({ atividades }: { atividades: AtividadeRecenteI
                       {item.cardSetCode ? (
                         <Link
                           href={`/catalogo/card-sets/${item.cardSetCode}`}
-                          className="inline-flex flex-col leading-tight text-primary hover:underline"
+                          className="inline-flex flex-col leading-tight text-foreground transition-colors hover:text-primary-ink hover:underline"
                         >
                           <span>{item.cardSetName ?? item.cardSetCode}</span>
                           <span className="text-[11px] text-muted-foreground no-underline">{item.cardSetCode}</span>

@@ -19,8 +19,8 @@ const badgeVariants = cva(
       variant: {
         default: "border-transparent bg-accent text-accent-foreground",
         outline: "border-border text-muted-foreground",
-        /** Pílula com contorno na cor primária — usada para destacar um status importante (ex.: Administrador). */
-        primary: "border-primary/40 bg-primary/5 text-primary",
+        /** Pílula com contorno na cor primária — usada para destacar um status importante (ex.: Administrador). `text-primary-ink` (2026-08-16, não `text-primary` puro) por legibilidade — ver app/globals.css. */
+        primary: "border-primary/40 bg-primary/5 text-primary-ink",
         /** Pílula na cor de aviso — mais saturada que `primary`, usada para chamar atenção para uma restrição que o usuário precisa notar (ex.: "Fixo" em nome de usuário imutável). */
         warning: "border-warning/40 bg-warning/10 text-warning",
       },

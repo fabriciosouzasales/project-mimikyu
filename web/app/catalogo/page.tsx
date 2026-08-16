@@ -35,6 +35,13 @@ import { getAtividadeRecente, getCardSetsOverview, getEstadoDoCatalogo } from "@
  * `AppShell` mostra "Catálogo editorial" (nível de módulo, `BookOpen`,
  * mesmo ícone da seção no menu principal) enquanto o `PageTitle` da própria
  * página mostra "Visão Geral" (item "Gerencial" do submenu, `LayoutDashboard`).
+ *
+ * A arquitetura cromática testada aqui como prova visual isolada
+ * ("onyx-preview", 3 rodadas, 2026-08-16, ver `docs/log.md`) foi aprovada e
+ * promovida a BASELINE de todas as páginas internas — `chromeVariant`/
+ * `preview` foram removidos (não são mais opcionais, `AppShell` sempre
+ * aplica o mesmo tratamento). Esta página não passa mais nenhuma prop
+ * especial de tema.
  */
 export default async function CatalogoVisaoGeralPage() {
   const { denied, supabase } = await requireCatalogoAdmin("Catálogo editorial", BookOpen);

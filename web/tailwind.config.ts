@@ -28,6 +28,26 @@ const config: Config = {
           foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
           hover: "hsl(var(--primary-hover) / <alpha-value>)",
           active: "hsl(var(--primary-active) / <alpha-value>)",
+          // Tom de dourado mais escuro/legível para uso como COR DE TEXTO
+          // (links, nomes em destaque) — `--primary` puro tem contraste
+          // insuficiente como texto sobre o workspace claro. Ver
+          // app/globals.css, 2026-08-16.
+          ink: "hsl(var(--primary-ink) / <alpha-value>)",
+        },
+        // Navegação (rail de ícones + painel contextual do AppShell) — âncora
+        // fixa da identidade MMKYU, escura nos dois temas. O grosso da
+        // navegação (fundo, bordas, texto) reusa os tokens genéricos
+        // (surface/border/foreground/muted-foreground) via as classes de
+        // escopo `.app-nav-rail`/`.app-nav-panel` em app/globals.css — só o
+        // indicador de seleção/item ativo precisa de tokens PRÓPRIOS, porque
+        // não pode reaproveitar `--accent`/`--primary` (cores do workspace,
+        // que mudam por tema) nem `--foreground` (também sobrescrito pelo
+        // escopo). Ver app/globals.css, 2026-08-16.
+        nav: {
+          gold: "hsl(var(--nav-gold) / <alpha-value>)",
+          "active-surface": "hsl(var(--nav-active-surface) / <alpha-value>)",
+          "active-ink": "hsl(var(--nav-active-ink) / <alpha-value>)",
+          "panel-active-surface": "hsl(var(--nav-panel-active-surface) / <alpha-value>)",
         },
         accent: {
           DEFAULT: "hsl(var(--accent) / <alpha-value>)",

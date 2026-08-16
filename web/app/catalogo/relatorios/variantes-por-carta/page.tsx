@@ -77,7 +77,7 @@ function RelatorioVariantesFiltro({ cardSetCode, ativo }: { cardSetCode: string;
             className={cn(
               "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               active
-                ? "border-primary/40 bg-primary/5 text-primary"
+                ? "border-primary/40 bg-primary/5 text-primary-ink"
                 : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
             )}
           >

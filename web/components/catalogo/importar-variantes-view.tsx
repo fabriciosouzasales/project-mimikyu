@@ -262,8 +262,8 @@ function ImportProgressVariantes({
             <span
               className={cn(
                 "z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
-                step.status === "done" && "border-emerald-600/30 bg-emerald-600/10 text-emerald-600",
-                step.status === "active" && "animate-pulse border-primary/40 bg-primary/10 text-primary",
+                step.status === "done" && "border-success/30 bg-success/10 text-success",
+                step.status === "active" && "animate-pulse border-primary/40 bg-primary/10 text-primary-ink",
                 step.status === "error" && "border-destructive/40 bg-destructive/10 text-destructive",
                 step.status === "pending" && "border-border bg-surface text-muted-foreground opacity-40",
               )}
@@ -298,8 +298,8 @@ const CONCLUSION_META: Record<
   success: {
     title: "Importação concluída",
     icon: CheckCircle2,
-    toneClass: "text-emerald-600",
-    iconWrapClass: "border-emerald-600/30 bg-emerald-600/10",
+    toneClass: "text-success",
+    iconWrapClass: "border-success/30 bg-success/10",
   },
   pending: {
     title: "Concluído com pendências",

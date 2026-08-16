@@ -42,34 +42,75 @@
  * (sombra, tabelas, badges) continua adiado para o segundo incremento.
  *
  * 2026-07-31 — --background (tema claro) padronizado para #F7F9FB, valor
- * exato pedido por Fabrício ("padronize a cor do fundo da página"). Só o
- * tema claro: o valor é um branco-azulado bem claro, não faria sentido no
- * --background do tema escuro (propositalmente bem escuro, sem relação com
- * este ajuste).
+ * exato pedido por Fabrício ("padronize a cor do fundo da página").
+ *
+ * 2026-08-16 — PROMOÇÃO A BASELINE (ver docs/log.md, "Consolidação visual
+ * MMKYU — Visão Geral + Login viram o Design System"): a arquitetura
+ * cromática validada em 3 rodadas de prova isolada em Catálogo Editorial >
+ * Visão Geral ("onyx-preview") — navegação preta/grafite fixa nos dois
+ * temas, workspace off-white no claro / preto-grafite profundo no escuro,
+ * dourado MMKYU como accent color — substitui os tokens globais anteriores
+ * (bege/creme neutro no claro, cinza neutro no escuro, primary bege
+ * dessaturado). Os valores abaixo são os mesmos, byte-a-byte, que estavam
+ * em `components/app-shell/onyx-preview.module.css`'s `.workspace`
+ * (light/dark) — esse arquivo foi removido, a prova virou o padrão.
+ *
+ * `--primary` deixa de ser um tom bege dessaturado e passa a ser o dourado
+ * real da marca (`37 68% 58%`, mesmo valor de `--auth-accent` na Auth
+ * Experience) — usado como accent (CTA, foco, indicadores), não como cor
+ * dominante de texto corrido.
+ *
+ * `--primary-ink` (NOVO): tom de dourado mais escuro/legível para uso como
+ * COR DE TEXTO (links, nomes em destaque) — o dourado puro de `--primary`
+ * (58% de luminosidade) tem contraste insuficiente como texto sobre o
+ * workspace off-white claro. Mesma distinção já validada na Auth Experience
+ * entre `--auth-accent` (decorativo) e `--auth-accent-ink` (texto) —
+ * `--primary-ink` reusa exatamente esses valores. No escuro, `--primary-ink`
+ * é igual a `--primary` (dourado puro já é legível sobre fundo escuro).
+ *
+ * `--accent` perde o tingimento dourado que tinha (era usado como pill de
+ * hover/seleção neutro em menus) — vira um wash neutro quente, para não
+ * competir com `--primary` como segunda cor de marca (regra explícita:
+ * "não transformar tudo em dourado").
+ *
+ * `--destructive`/`--success`/`--warning` (estados semânticos) permanecem
+ * INTOCADOS — nunca fizeram parte da prova, continuam reconhecíveis
+ * independente da nova arquitetura cromática.
+ *
+ * Tokens de navegação (`--nav-*`, NOVOS): a navegação (rail de ícones +
+ * painel contextual do `AppShell`) é uma âncora fixa da identidade —
+ * permanece escura nos dois temas, então esses tokens têm um único valor,
+ * sem bloco `.dark` próprio (ao contrário de `--background`/`--surface`/
+ * etc., que invertem por tema). Dois grupos: `--nav-*` (rail primária) e
+ * `--nav-panel-*` (painel contextual — um degrau de luminosidade
+ * sutilmente diferente da rail, para as duas camadas de navegação
+ * continuarem distinguíveis entre si). Mesmos valores, byte-a-byte, que
+ * estavam em `.navPrimary`/`.navSecondary` do CSS Module removido.
  */
 
 @layer base {
   :root {
-    --background: 210 33.3% 97.6%; /* #F7F9FB exato */
-    --foreground: 0 0% 9%;
+    --background: 42 18% 95%;
+    --foreground: 36 10% 10%;
 
-    --surface: 0 0% 100%;
-    --surface-muted: 0 0% 97%;
+    --surface: 40 22% 98%;
+    --surface-muted: 40 18% 92%;
 
-    --border: 0 0% 90.98%; /* #E8E8E8 exato — todas as bordas do sistema (tabelas, menus, cards), pedido de Fabrício, 2026-07-26 */
-    --input: 0 0% 96%;
-    --ring: 36 18% 50%;
+    --border: 40 16% 87%;
+    --input: 40 16% 85%;
+    --ring: 37 68% 58%;
 
-    --primary: 36 18% 50%;
-    --primary-hover: 35 19% 58%;
-    --primary-active: 36 19% 42%;
-    --primary-foreground: 0 0% 9%;
+    --primary: 37 68% 58%;
+    --primary-hover: 37 68% 64%;
+    --primary-active: 37 60% 50%;
+    --primary-foreground: 38 60% 9%;
+    --primary-ink: 35 66% 33%;
 
-    --accent: 0 0% 95%;
-    --accent-foreground: 0 0% 9%;
+    --accent: 40 14% 90%;
+    --accent-foreground: 36 10% 10%;
 
-    --muted: 0 0% 93%;
-    --muted-foreground: 0 0% 46%;
+    --muted: 40 18% 92%;
+    --muted-foreground: 40 8% 42%;
 
     --destructive: 10 80% 44%;
     --destructive-foreground: 0 0% 99%;
@@ -82,32 +123,41 @@
 
     --radius: 0.625rem;
 
+    /* Só os 4 tokens de navegação sem equivalente genérico (o resto da
+       navegação reutiliza --surface/--border/--foreground/--muted-foreground
+       via as classes de escopo .app-nav-rail/.app-nav-panel, abaixo). */
+    --nav-gold: 40 82% 66%;
+    --nav-active-surface: 37 24% 17%;
+    --nav-active-ink: 36 30% 92%;
+    --nav-panel-active-surface: 37 22% 20%;
+
     --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
     --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
     --font-heading: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   }
 
   .dark {
-    --background: 0 0% 7%;
-    --foreground: 214 25% 91%;
+    --background: 30 20% 7%;
+    --foreground: 38 38% 92%;
 
-    --surface: 0 0% 9%;
-    --surface-muted: 0 0% 14%;
+    --surface: 30 16% 12%;
+    --surface-muted: 30 14% 16%;
 
-    --border: 0 0% 16%;
-    --input: 0 0% 14%;
-    --ring: 37 62% 49%;
+    --border: 30 12% 21%;
+    --input: 30 12% 23%;
+    --ring: 37 68% 58%;
 
-    --primary: 37 62% 49%;
-    --primary-hover: 37 60% 57%;
-    --primary-active: 37 62% 42%;
-    --primary-foreground: 0 0% 9%;
+    --primary: 37 68% 58%;
+    --primary-hover: 37 66% 64%;
+    --primary-active: 37 62% 50%;
+    --primary-foreground: 38 60% 9%;
+    --primary-ink: 37 68% 58%;
 
-    --accent: 0 0% 19%;
-    --accent-foreground: 0 0% 99%;
+    --accent: 30 10% 18%;
+    --accent-foreground: 38 38% 92%;
 
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 63%;
+    --muted: 30 14% 16%;
+    --muted-foreground: 36 10% 62%;
 
     --destructive: 6 64% 20%;
     --destructive-foreground: 0 0% 92%;
@@ -117,6 +167,42 @@
 
     --warning: 38 92% 58%;
     --warning-foreground: 26 83% 10%;
+  }
+
+  /*
+   * Escopo da navegação (2026-08-16) — `.app-nav-rail` (rail de ícones) e
+   * `.app-nav-panel` (painel contextual, `AppShell`/`Sidebar`) sobrescrevem
+   * LOCALMENTE os mesmos tokens genéricos que qualquer componente já
+   * consome (`--surface`, `--surface-muted`, `--border`, `--input`,
+   * `--foreground`, `--muted-foreground`) — não tokens `--nav-*` à parte.
+   * Isso é deliberado: qualquer componente compartilhado renderizado DENTRO
+   * da navegação (ex.: `SidebarFooter`, que usa `text-muted-foreground`/
+   * `hover:bg-surface-muted`/`border-border` normalmente) herda o
+   * tratamento escuro automaticamente, sem precisar de nenhuma edição
+   * própria — o mesmo mecanismo de "scope override" já usado e validado em
+   * 3 rodadas de prova visual (`onyx-preview.module.css`, removido nesta
+   * promoção a baseline). Um único valor por classe (sem bloco `.dark`
+   * próprio) porque a navegação não muda por tema — é uma âncora fixa.
+   * `.app-nav-panel` tem um degrau de luminosidade sutilmente diferente de
+   * `.app-nav-rail`, para as duas colunas de navegação continuarem
+   * distinguíveis entre si.
+   */
+  .app-nav-rail {
+    --surface: 30 33% 11%;
+    --surface-muted: 30 26% 16%;
+    --border: 30 17% 21%;
+    --input: 30 17% 24%;
+    --foreground: 36 30% 88%;
+    --muted-foreground: 36 12% 55%;
+  }
+
+  .app-nav-panel {
+    --surface: 30 22% 15%;
+    --surface-muted: 30 20% 20%;
+    --border: 30 15% 24%;
+    --input: 30 15% 27%;
+    --foreground: 36 30% 88%;
+    --muted-foreground: 36 12% 58%;
   }
 }
 

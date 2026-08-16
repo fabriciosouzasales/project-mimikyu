@@ -44,6 +44,17 @@ import { cn } from "@/lib/utils";
  * mudança — os cartões dos outros módulos (Jogos/Expansões/Cartas/Card
  * Sets/importar-imagens/importar-cartas) não usam a prop e continuam como
  * `Panel` puro.
+ *
+ * Selo de ícone (2026-08-16, ver `app/globals.css` — promoção da direção
+ * cromática aprovada da Visão Geral a baseline): o selo de cor fixa
+ * (`#F7F5ED`/`#2C2C2A`, a mesma nos dois temas, valor testado em 2026-07-31
+ * abaixo da recomendação de contraste) foi substituído por `bg-primary/15
+ * text-primary-ink`, baseado em token — `--primary` é o dourado MMKYU, o
+ * selo carrega o acento da marca; `--primary-ink` (não `--primary` puro) é
+ * o tom mais escuro/legível calibrado para uso como cor de ícone/texto (ver
+ * `app/globals.css`). A prop `accentIcon` (existia como opt-in da prova
+ * visual isolada "onyx-preview") foi removida — não é mais opcional, é o
+ * comportamento padrão de todo `StatCard` com `tone="default"`.
  */
 const STAT_CARD_CLASSES = "flex w-full items-start justify-between gap-3 p-3 sm:w-56";
 
@@ -74,7 +85,7 @@ export function StatCard({
           "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
           tone === "danger"
             ? "bg-destructive/10 text-destructive dark:text-destructive-foreground"
-            : "bg-[#F7F5ED] text-[#2C2C2A]",
+            : "bg-primary/15 text-primary-ink",
         )}
         aria-hidden="true"
       >

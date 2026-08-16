@@ -24,7 +24,7 @@ const SET_TYPE_LABEL: Record<string, string> = {
  * convenção já usada no `Badge` global, `ui/badge.tsx`).
  */
 const SET_TYPE_CLASSES: Record<string, string> = {
-  REGULAR: "border-primary/25 bg-primary/10 text-primary",
+  REGULAR: "border-primary/25 bg-primary/10 text-primary-ink",
   SPECIAL: "border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-400",
   PROMO: "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-400",
   ENERGY: "border-orange-500/25 bg-orange-500/10 text-orange-700 dark:text-orange-400",

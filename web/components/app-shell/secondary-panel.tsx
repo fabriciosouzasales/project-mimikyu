@@ -24,6 +24,20 @@ import { cn } from "@/lib/utils";
  * título nos itens de Operações): só renderiza quando o item declara um
  * ícone em `nav-config.ts`; os demais itens continuam exatamente como
  * antes, sem espaço reservado para ícone.
+ *
+ * `app-nav-panel` (2026-08-16, ver `app/globals.css` e `primary-rail.tsx`
+ * para o racional completo do mecanismo de escopo) — mesmo princípio da
+ * rail primária: sobrescreve LOCALMENTE `--surface`/`--border`/`--foreground`/
+ * `--muted-foreground`/etc. para os valores escuros da navegação, um degrau
+ * de luminosidade sutilmente diferente de `.app-nav-rail`, para as duas
+ * colunas continuarem distinguíveis entre si. Promovido de prova visual
+ * isolada (`preview`/`onyx-preview.module.css`) para baseline permanente —
+ * a prop `preview` e o CSS Module condicional foram removidos.
+ *
+ * Correção de contraste (Rodada 3 da prova, mantida): o `<span>` do título
+ * do submenu ("Catálogo editorial") precisa de `text-foreground` explícito
+ * — sem classe de cor própria, ele herdava a cor já computada no `<body>`
+ * em vez de reavaliar `--foreground` dentro do escopo `.app-nav-panel`.
  */
 export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
@@ -34,14 +48,14 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div
       className={cn(
-        "h-full shrink-0 overflow-hidden border-r border-border bg-surface transition-[width] duration-200 ease-out",
+        "app-nav-panel h-full shrink-0 overflow-hidden border-r border-border bg-surface transition-[width] duration-200 ease-out",
         hasChildren ? "w-56" : "w-0",
       )}
     >
       {hasChildren && (
         <div className="flex h-full w-56 flex-col">
           <div className="flex h-14 shrink-0 items-center border-b border-border px-4">
-            <span className="truncate text-sm font-semibold">{activeSection.label}</span>
+            <span className="truncate text-sm font-semibold text-foreground">{activeSection.label}</span>
           </div>
 
           <nav
@@ -71,8 +85,10 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
                     className={cn(
                       "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] leading-tight transition-colors",
                       isChildActive
-                        ? "bg-accent font-semibold text-foreground"
+                        ? "bg-nav-panel-active-surface font-semibold text-nav-active-ink"
                         : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                      "border-l-2 pl-2.5 transition-colors duration-200",
+                      isChildActive ? "border-nav-gold" : "border-transparent",
                     )}
                   >
                     {ChildIcon && <ChildIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}

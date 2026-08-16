@@ -3,41 +3,27 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
+import ctaStyles from "@/components/ui/button-cta.module.css";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        // Teste de cor (2026-07-31, pedido de Fabrício): fundo sólido, borda
-        // e texto #A39475 — substitui o preenchimento translúcido na cor
-        // --primary que existia antes (histórico abaixo). Fundo trocado de
-        // #D7CFAC para #F7F5ED (mesma cor do selo de ícone dos cartões de
-        // indicador, ver `stat-card.tsx`) por baixo contraste com o texto
-        // #A39475 no fundo anterior — ainda assim, o contraste com o fundo
-        // claro segue abaixo do recomendado (ver nota abaixo).
-        //
-        // Escopo: só o variant "default" (ação primária), usado na maioria
-        // dos botões do sistema. Os demais variants (destructive, outline,
-        // outline-primary, ghost, link) ficaram como estavam — têm função
-        // semântica própria (perigo, ação secundária/terciária) que uma cor
-        // única para "todos os botões" apagaria; avisar se a intenção era
-        // realmente cobrir todos.
-        //
-        // Contraste medido (WCAG): #F7F5ED × #A39475 ≈ 2,7:1 — melhorou
-        // frente à combinação anterior (#D7CFAC, ≈1,9:1), mas ainda abaixo
-        // do mínimo de 3:1 recomendado até para texto grande/UI. Aplicado do
-        // jeito pedido porque é um teste explícito; vale confirmar antes de
-        // aprovar em definitivo.
-        //
-        // Histórico: o fundo translúcido na cor primária, sem borda, era o
-        // mesmo padrão do Badge variant="primary" (ex.: badge
-        // "Administrador" na coluna Papel), pedido explícito de Fabrício em
-        // 2026-07-26 para unificar a linguagem visual de "destaque na cor
-        // primária" entre botões e badges, no lugar do preenchimento sólido
-        // anterior a isso.
-        default:
-          "border border-[#A39475] bg-[#F7F5ED] text-[#A39475] hover:bg-[#F7F5ED]/80 active:bg-[#F7F5ED]/70",
+        // CTA em gradiente dourado (2026-08-16, ver app/globals.css) —
+        // substitui o teste de cor de 2026-07-31 (fundo/borda/texto
+        // #A39475/#F7F5ED, contraste abaixo do mínimo recomendado, ver
+        // histórico completo em git blame). A ação primária do sistema
+        // passa a usar o mesmo tratamento visual aprovado no botão "Entrar"
+        // do Login (`components/auth/auth-panel.module.css`'s `.cta`,
+        // extraído para `button-cta.module.css` e reaplicado aqui via
+        // tokens globais `--primary`/`--primary-hover`/`--primary-foreground`
+        // — não duplica valores, já que esses tokens agora são o mesmo
+        // dourado MMKYU do Auth). Escopo: só "default" — os demais variants
+        // (destructive, outline, outline-primary, ghost, link) mantêm sua
+        // função semântica própria (perigo, ação secundária/terciária); uma
+        // única cor "para todos os botões" apagaria essa distinção.
+        default: cn(ctaStyles.cta, "border border-transparent"),
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         // `text-foreground` explícito (2026-07-31, correção de contraste
         // pedida por Fabrício — ícone de "Editar" na tabela de Jogos ficou
@@ -52,10 +38,12 @@ const buttonVariants = cva(
         // pedido explícito de Fabrício para o botão de criação de itens
         // (ex.: "Cadastrar novo jogo"), posicionado fora do card da tabela,
         // no padrão de ação primária de página do Supabase. Reutilizável
-        // pelos ciclos seguintes (Expansion/Card Set/Card).
-        "outline-primary": "border border-primary bg-transparent text-primary hover:bg-primary/5",
+        // pelos ciclos seguintes (Expansion/Card Set/Card). `text-primary-ink`
+        // (2026-08-16, não `text-primary` puro) — legibilidade como texto
+        // corrido, ver app/globals.css.
+        "outline-primary": "border border-primary bg-transparent text-primary-ink hover:bg-primary/5",
         ghost: "hover:bg-surface-muted",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-primary-ink underline-offset-4 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2",

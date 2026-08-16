@@ -262,18 +262,39 @@ function PendenciasRevalidacao({
       </div>
 
       <Card density="compact">
-        <CardContent density="compact" className="space-y-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle
-              className={semPendencia ? "h-4 w-4 text-muted-foreground" : "h-4 w-4 text-warning-foreground"}
-              aria-hidden="true"
-            />
-            <span className="text-sm font-medium text-foreground">
-              {semPendencia
-                ? "Nada pendente de revalidação"
-                : `${formatNumber(pendente.totalLinhasPendentes)} linha(s) sem raridade mapeada, em ${formatNumber(pendente.totalJobsRevalidaveis)} job(s)`}
-            </span>
-          </div>
+        {/*
+         * 2026-08-16 (ajuste pontual pedido por Fabrício, pós-consolidação do
+         * Design System): `CardContent density="compact"` sozinho (sem
+         * `CardHeader` acima, que normalmente supre o padding superior) só
+         * tem `px-4 pb-4` — zero padding no topo (`card.tsx`). Isso empurrava
+         * o conteúdo para cima dentro do Card, um desequilíbrio vertical que
+         * ficou mais perceptível com as superfícies mais limpas do novo
+         * Design System. `pt-4` aqui (via className, não alterando a
+         * primitive `CardContent` — outros consumidores dela COM
+         * `CardHeader` não devem ganhar padding duplicado) restaura a
+         * simetria vertical (16px em todos os lados) para este Card
+         * específico, que nunca usa `CardHeader`.
+         */}
+        <CardContent density="compact" className="space-y-3 pt-4">
+          {semPendencia ? (
+            // Estado vazio ("nada pendente") — só este ramo passou a
+            // centralizar ícone+texto (horizontal via `justify-center`,
+            // vertical já resolvido pelo `pt-4` simétrico acima). O ramo com
+            // pendência real (abaixo) continua alinhado à esquerda de
+            // propósito — é uma barra de status acionável (mesmo padrão de
+            // `InlineFeedback`), não um estado vazio.
+            <div className="flex items-center justify-center gap-2 text-center">
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <span className="text-sm font-medium text-foreground">Nada pendente de revalidação</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning-foreground" aria-hidden="true" />
+              <span className="text-sm font-medium text-foreground">
+                {`${formatNumber(pendente.totalLinhasPendentes)} linha(s) sem raridade mapeada, em ${formatNumber(pendente.totalJobsRevalidaveis)} job(s)`}
+              </span>
+            </div>
+          )}
 
           {revalidarState.error && <InlineFeedback tone="error">{revalidarState.error}</InlineFeedback>}
 

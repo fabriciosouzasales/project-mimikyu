@@ -131,6 +131,15 @@ function getInitials(name: string): string {
     .join("");
 }
 
+/**
+ * Nome da Coleção em `text-foreground` com `hover:text-primary-ink`
+ * (2026-08-16, promovido de prova cromática isolada "onyx-preview" para
+ * baseline — ver `app/globals.css`) — os nomes das coleções não precisam
+ * ser todos dourados; dourado fica reservado para interação/estado
+ * (instrução explícita, mantida ao promover a prova a padrão permanente).
+ * `text-primary-ink` (não `text-primary` puro) por legibilidade — ver
+ * `app/globals.css` para a distinção entre os dois tokens.
+ */
 export function CardSetsTable({ cardSets }: { cardSets: CardSetOverviewRow[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -228,7 +237,9 @@ export function CardSetsTable({ cardSets }: { cardSets: CardSetOverviewRow[] }) 
                         onClick={(event) => event.stopPropagation()}
                         className="inline-flex flex-col leading-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        <span className="text-primary hover:underline">{set.name}</span>
+                        <span className="text-foreground transition-colors hover:text-primary-ink hover:underline">
+                          {set.name}
+                        </span>
                         <span className="text-[11px] text-muted-foreground">{set.code}</span>
                       </Link>
                     </DataTableCell>

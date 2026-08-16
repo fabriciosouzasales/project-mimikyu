@@ -163,7 +163,7 @@ export function ImportacoesTable({ importacoes }: { importacoes: ImportacaoRow[]
                   className={cn(
                     "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     active
-                      ? "border-primary/40 bg-primary/5 text-primary"
+                      ? "border-primary/40 bg-primary/5 text-primary-ink"
                       : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                   )}
                 >
@@ -223,7 +223,7 @@ export function ImportacoesTable({ importacoes }: { importacoes: ImportacaoRow[]
                       {item.cardSetCode ? (
                         <Link
                           href={`/catalogo/card-sets/${item.cardSetCode}`}
-                          className="inline-flex flex-col leading-tight text-primary hover:underline"
+                          className="inline-flex flex-col leading-tight text-primary-ink hover:underline"
                         >
                           <span>{item.cardSetName ?? item.cardSetCode}</span>
                           <span className="text-[11px] text-muted-foreground no-underline">{item.cardSetCode}</span>
