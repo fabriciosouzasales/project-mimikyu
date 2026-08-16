@@ -599,7 +599,7 @@ export function CartasGallery({
                 <Select
                   value={selectedGameId}
                   onChange={(event) => handleGameChange(event.target.value)}
-                  className="h-9 shrink-0 bg-surface-muted px-3 text-xs"
+                  className="h-9 w-auto shrink-0 min-w-[10rem] max-w-[14rem] bg-surface-muted px-3 text-xs"
                   aria-label="Filtrar por Jogo"
                 >
                   <option value="">Selecionar Todos</option>
@@ -612,7 +612,7 @@ export function CartasGallery({
                 <Select
                   value={selectedExpansionId}
                   onChange={(event) => handleExpansionChange(event.target.value)}
-                  className="h-9 shrink-0 bg-surface-muted px-3 text-xs"
+                  className="h-9 w-auto shrink-0 min-w-[9rem] max-w-[14rem] bg-surface-muted px-3 text-xs"
                   aria-label="Filtrar por Expansão"
                 >
                   <option value="">Selecionar Todos</option>
@@ -625,7 +625,7 @@ export function CartasGallery({
                 <Select
                   value={selectedCode ?? ""}
                   onChange={(event) => router.push(`/catalogo/cartas?set=${event.target.value}`)}
-                  className="h-9 shrink-0 bg-surface-muted px-3 text-xs"
+                  className="h-9 w-auto shrink-0 min-w-[10rem] max-w-[16rem] bg-surface-muted px-3 text-xs"
                   aria-label="Filtrar por Coleção"
                 >
                   {cardSetsInScope.map((set) => (
