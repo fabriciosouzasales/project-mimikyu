@@ -1,0 +1,78 @@
+/*
+ * Tokens visuais escopados da Auth Experience — direção "cartas reais"
+ * (protótipos v3→v4, aprovados 2026-08-15; implementação real nesta rodada,
+ * ver docs/log.md).
+ *
+ * Isolados pela classe local `.scope` (aplicada como `styles.scope` na raiz
+ * de `auth-hero-shell.tsx`) — nunca por sobrescrita dos tokens globais de
+ * `app/globals.css`. O backoffice (Catálogo Editorial e demais telas
+ * administrativas) continua lendo `--background`/`--primary`/etc. sem
+ * qualquer alteração. `.scope` (não um `:global(...)` puro) é a mesma
+ * correção de build de CSS Modules já documentada na Etapa 1 (erro real:
+ * "selector is not pure") — ver `auth-hero-shell.tsx`.
+ *
+ * O hero é deliberadamente escuro nos dois temas do site (mesmo par
+ * --auth-hero-1/--auth-hero-2 em `.scope` e em `:global(.dark) .scope`,
+ * herdado por cascata — não redeclarado abaixo) — não é um
+ * "--background invertido", é a identidade visual em si: um objeto sempre
+ * mais profundo que o formulário ao lado, aprovada em 4 rodadas de
+ * protótipo (v1 abstrato → v4 polish final). Só o painel de formulário
+ * (`--auth-form-*`) e o tom de texto/link derivado do dourado
+ * (`--auth-accent-ink`) trocam entre claro/escuro.
+ *
+ * Contraste verificado nesta rodada (fórmula WCAG, luminância relativa,
+ * script Python ad-hoc, não versionado):
+ *   hero-2 x hero-ink              = 17.06:1 (fixo — hero não muda por tema)
+ *   form-surface x form-ink        = 16.37:1 (claro) / 15.73:1 (escuro)
+ *   form-surface x form-ink-muted  =  5.10:1 (claro) /  7.00:1 (escuro)
+ *   accent-foreground x accent     =  7.73:1 (par fixo do CTA, os dois temas)
+ *   form-surface x accent-ink      =  5.46:1 (claro — link "Esqueceu a senha?"/"Criar conta")
+ *   dark form-surface x accent-ink =  8.34:1 (escuro — reaproveita o dourado puro)
+ * Todos acima do mínimo AA (4.5:1 texto normal, 3:1 texto grande/UI).
+ *
+ * Correção de contraste desta rodada (instrução #11 do pedido de
+ * implementação — "corrigir o problema de contraste do CTA já documentado
+ * dentro dos tokens escopados do Auth"): o protótipo v4 usava
+ * `--form-ink-muted: #8b8478` (3.49:1 sobre `--form-surface` — abaixo de AA
+ * para texto normal) e o dourado puro `--gold: #dda44a` como cor de link
+ * direta (2.09:1 — bem abaixo de AA) — nenhum dos dois havia passado por
+ * checagem formal de contraste, só o CTA em si. `--auth-form-ink-muted`
+ * ficou mais escuro e `--auth-accent-ink` (novo — tom de texto/link,
+ * separado do `--auth-accent` decorativo) foi introduzido especificamente
+ * para uso como texto. `--auth-accent` (dourado puro) permanece reservado
+ * para uso decorativo/iluminação (gradiente do CTA, glow do hero, rim da
+ * carta protagonista) — nunca como cor de texto direta sobre o painel.
+ */
+
+.scope {
+  --auth-page: 43 23% 94%;
+
+  --auth-hero-1: 30 33% 11%;
+  --auth-hero-2: 30 25% 3%;
+  --auth-hero-ink: 36 48% 92%;
+
+  --auth-accent: 37 68% 58%;
+  --auth-accent-bright: 40 88% 72%;
+  --auth-accent-foreground: 38 60% 9%;
+  --auth-accent-ink: 35 66% 33%;
+
+  --auth-form-surface: 40 37% 97%;
+  --auth-form-ink: 36 10% 10%;
+  --auth-form-ink-muted: 46 10% 39%;
+  --auth-form-line: 40 27% 87%;
+
+  --auth-radius: 0.875rem;
+  --auth-radius-control: 0.5625rem;
+  --auth-ease-signature: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:global(.dark) .scope {
+  --auth-page: 30 18% 4%;
+
+  --auth-form-surface: 30 21% 7%;
+  --auth-form-ink: 38 38% 92%;
+  --auth-form-ink-muted: 36 13% 61%;
+  --auth-form-line: 35 20% 17%;
+
+  --auth-accent-ink: 37 68% 58%;
+}

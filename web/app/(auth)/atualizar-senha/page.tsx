@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { updatePassword, type AuthActionState } from "@/app/(auth)/actions";
+import { LegacyAuthShell } from "@/components/auth/legacy-auth-shell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,34 +16,36 @@ export default function UpdatePasswordPage() {
   const [state, formAction, pending] = useActionState(updatePassword, initialState);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Definir nova senha</CardTitle>
-        <CardDescription>Escolha uma nova senha para sua conta.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form action={formAction} className="space-y-4" noValidate>
-          {state.error && <Alert variant="destructive">{state.error}</Alert>}
+    <LegacyAuthShell>
+      <Card>
+        <CardHeader>
+          <CardTitle>Definir nova senha</CardTitle>
+          <CardDescription>Escolha uma nova senha para sua conta.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={formAction} className="space-y-4" noValidate>
+            {state.error && <Alert variant="destructive">{state.error}</Alert>}
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Nova senha</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              minLength={6}
-              required
-              invalid={!!state.error}
-            />
-            <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres.</p>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Nova senha</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={6}
+                required
+                invalid={!!state.error}
+              />
+              <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres.</p>
+            </div>
 
-          <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? "Salvando…" : "Salvar nova senha"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            <Button type="submit" className="w-full" disabled={pending}>
+              {pending ? "Salvando…" : "Salvar nova senha"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </LegacyAuthShell>
   );
 }

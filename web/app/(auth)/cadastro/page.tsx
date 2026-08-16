@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { signup, type AuthActionState } from "@/app/(auth)/actions";
+import { LegacyAuthShell } from "@/components/auth/legacy-auth-shell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,18 +62,20 @@ export default function SignupPage() {
 
   if (state.success) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Confirme seu e-mail</CardTitle>
-          <CardDescription>Falta pouco para começar.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="success">
-            Enviamos um link de confirmação para o e-mail informado. Abra sua caixa de entrada e
-            clique no link para ativar sua conta.
-          </Alert>
-        </CardContent>
-      </Card>
+      <LegacyAuthShell>
+        <Card>
+          <CardHeader>
+            <CardTitle>Confirme seu e-mail</CardTitle>
+            <CardDescription>Falta pouco para começar.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="success">
+              Enviamos um link de confirmação para o e-mail informado. Abra sua caixa de entrada e
+              clique no link para ativar sua conta.
+            </Alert>
+          </CardContent>
+        </Card>
+      </LegacyAuthShell>
     );
   }
 
@@ -81,6 +84,7 @@ export default function SignupPage() {
   const displayNameInvalid = displayNameHasContent && !isDisplayNameValid(displayName);
 
   return (
+    <LegacyAuthShell>
     <Card>
       <CardHeader>
         <CardTitle>Criar conta</CardTitle>
@@ -167,6 +171,7 @@ export default function SignupPage() {
         </p>
       </CardContent>
     </Card>
+    </LegacyAuthShell>
   );
 }
 

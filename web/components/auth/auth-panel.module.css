@@ -1,0 +1,36 @@
+/*
+ * Mecânica visual do painel de formulário do Auth (CTA em gradiente
+ * animado) — extraído para CSS Module em vez de puro Tailwind arbitrário
+ * porque combina `background-position` animado + `background-size` +
+ * múltiplas transições coordenadas; mais seguro de manter correto sem poder
+ * rodar `npm run dev`/build neste ambiente (sandbox sem binário SWC, ver
+ * `docs/log.md`) do que depender de sintaxe de propriedade arbitrária do
+ * Tailwind não verificável aqui.
+ */
+
+.cta {
+  background: linear-gradient(120deg, hsl(var(--auth-accent)) 0%, hsl(var(--auth-accent-bright)) 50%, hsl(var(--auth-accent)) 100%);
+  background-size: 220% 100%;
+  background-position: 0% 0%;
+  color: hsl(var(--auth-accent-foreground));
+  transition:
+    background-position 480ms var(--auth-ease-signature),
+    transform 220ms var(--auth-ease-signature),
+    box-shadow 220ms var(--auth-ease-signature);
+}
+
+.cta:hover {
+  background-position: 100% 0%;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -8px hsl(var(--auth-accent) / 0.4);
+}
+
+.cta:focus-visible {
+  outline: 2px solid hsl(var(--auth-accent));
+  outline-offset: 2px;
+}
+
+.cta:disabled {
+  transform: none;
+  box-shadow: none;
+}
