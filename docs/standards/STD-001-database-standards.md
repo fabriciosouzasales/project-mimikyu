@@ -311,7 +311,7 @@ As demais sete entidades do domínio (`pricing_set_mapping`, `pricing_card_mappi
 
 `3700–3799`: Seeds — nenhuma executada até o momento; nenhuma fonte cadastrada (homologação pendente) nem condição semeada (vocabulário ainda não confirmado).
 
-`3800–3899`: Validações — `3800` executada no Incremento P1 (validação consolidada de 12 itens: existência, estrutura, constraints, triggers, RLS, policies, grants, isolamento de `anon`/`authenticated` não-admin, leitura administrativa, ausência de dados, ausência de referência a fontes externas, idempotência segura).
+`3800–3899`: Validações — `3800` executada no Incremento P1 (validação consolidada de 12 itens: existência, estrutura, constraints, triggers, RLS, policies, grants, isolamento de `anon`/`authenticated` não-admin, leitura administrativa, ausência de dados, ausência de referência a fontes externas, proteção contra execução duplicada — tentativa de recriação rejeitada com `42P07`, sem alteração ou efeito colateral no schema existente).
 
 `3900–3999`: Reserva.
 
