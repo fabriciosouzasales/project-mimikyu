@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Pricing |
 | **Arquivo** | `docs/05f-pricing.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | **Proposto — nenhuma tabela criada no Supabase.** Modelagem conceitual e lógica aprovada para documentação; implementação física (migrations) depende de ciclo próprio, ainda não iniciado. |
 | **Objetivo** | Modelo lógico e físico do domínio Pricing — observações de mercado por fonte externa, independente de Catálogo Editorial e de Ownership, conforme `ADR-029` e `ADR-006`. |
 | **Escopo** | Entidades de Pricing: fonte, mapeamento de Set/Card por fonte, produto (impressão+idioma reportados pela fonte), condição canônica, observação de preço, câmbio, auditoria de sincronização. Não inclui a modelagem física de Item Valuation (Analytics), deliberadamente adiada — ver seção própria ao final. |
@@ -40,18 +40,20 @@ Pricing é, portanto, um **quarto domínio de peso equivalente**, seguindo a mes
 
 | Entidade | Papel | Classificação (STD-002) |
 |---|---|---|
-| `pricing_source` | Cadastro de fontes externas de preço (JustTCG, TCGplayer, futuras fontes BR). | Reference Data |
-| `pricing_condition` | Catálogo canônico de condições físicas de conservação (Near Mint, Lightly Played, ...). | Reference Data |
-| `pricing_condition_mapping` | De-para entre o código de condição de cada fonte e a condição canônica. | Value Object (subordinado a `pricing_source`) |
-| `pricing_set_mapping` | Correspondência entre `card_set` e o identificador de Set de cada fonte, com estado de confirmação. | Identity Entity (identidade própria: uma correspondência específica Set↔Fonte) |
-| `pricing_card_mapping` | Correspondência entre `card` e o identificador de Card de cada fonte, com estado de confirmação. | Identity Entity |
-| `pricing_product` | Produto/impressão específico que a fonte reporta para uma Card (printing + idioma), com vínculo opcional a `card_variant`. | Identity Entity |
+| `pricing_source` | Cadastro de fontes externas de preço (JustTCG, TCGplayer, futuras fontes BR). Carrega apenas a classificação/default declarado de mercado — nunca a autorização final de "Valor Brasil", que depende da observação (ver `pricing_observation`). | Reference Data |
+| `card_condition` | Catálogo canônico de condições físicas de conservação (Near Mint, Lightly Played, ...) — **referência compartilhada, não exclusiva de Pricing** (ver nota na própria seção). | Reference Data |
+| `pricing_condition_mapping` | De-para entre o código de condição de cada fonte e a `card_condition` canônica. | Value Object (subordinado a `pricing_source`) |
+| `pricing_set_mapping` | Correspondência entre `card_set` e o identificador de Set de cada fonte, com estado de confirmação (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED`). | Identity Entity (identidade própria: uma correspondência específica Set↔Fonte) |
+| `pricing_card_mapping` | Correspondência entre `card` e o identificador de Card de cada fonte, com estado de confirmação (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED`). | Identity Entity |
+| `pricing_product` | Produto/impressão específico que a fonte reporta para uma Card (printing + idioma, multi-idioma — não apenas PT-BR/não-PT-BR), com vínculo opcional a `card_variant`. | Identity Entity |
 | `pricing_fx_rate` | Taxas de câmbio históricas, diárias, rastreáveis — nunca aplicadas retroativamente ao preço original. | Reference Data (série temporal) |
-| `pricing_observation` | Fato de preço observado num instante, na moeda/mercado/condição originais da fonte — imutável, nunca sobrescrito. | Identity Entity (fato de série temporal) |
+| `pricing_observation` | Fato de preço observado num instante, na moeda/mercado/condição originais da fonte — imutável, nunca sobrescrito. Carrega a evidência de mercado (`market_scope`/`market_label`/`market_evidence`) que autoriza, ou não, a classificação "Valor Brasil". | Identity Entity (fato de série temporal) |
 | `pricing_sync_run` | Execução de sincronização com uma fonte (auditoria de alto nível: status, contagens, cota). | Identity Entity |
 | `pricing_sync_run_call` | Cada chamada individual feita durante uma `pricing_sync_run` (auditoria granular: endpoint, status HTTP, erro sanitizado, cota restante). | Value Object (subordinado a `pricing_sync_run`) |
 
 `item_valuation_snapshot` (Analytics, não Pricing) é tratada à parte, ao final deste documento — ver "Item Valuation — Direção Futura (não implementada nesta rodada)".
+
+**Nota sobre o total de entidades**: este documento descreve dez entidades no total, mas apenas nove pertencem exclusivamente ao domínio Pricing — `card_condition` é uma referência compartilhada e neutra (ver correção registrada na Revision History, versão `1.1`), descrita aqui porque nasceu da necessidade de Pricing, não porque pertence a este domínio.
 
 ---
 
@@ -62,7 +64,6 @@ erDiagram
     GAME ||--o{ CARD_SET : "possui"
     CARD_SET ||--o{ CARD : "possui"
     CARD ||--o{ CARD_VARIANT : "possui"
-    CARD_VARIANT }o--o{ LANGUAGE : "não referencia diretamente (Card Translation, futuro)"
 
     PRICING_SOURCE ||--o{ PRICING_SET_MAPPING : "mapeia"
     CARD_SET ||--o{ PRICING_SET_MAPPING : "é mapeado por"
@@ -72,25 +73,26 @@ erDiagram
 
     PRICING_CARD_MAPPING ||--o{ PRICING_PRODUCT : "oferece"
     CARD_VARIANT |o--o{ PRICING_PRODUCT : "vínculo opcional"
-    LANGUAGE |o--o{ PRICING_PRODUCT : "idioma confirmado (opcional)"
+    LANGUAGE |o--o{ PRICING_PRODUCT : "idioma (opcional, CONFIRMED/INFERRED)"
 
     PRICING_SOURCE ||--o{ PRICING_CONDITION_MAPPING : "declara"
-    PRICING_CONDITION ||--o{ PRICING_CONDITION_MAPPING : "é referenciada por"
-    PRICING_CONDITION ||--o{ PRICING_OBSERVATION : "classifica"
+    CARD_CONDITION ||--o{ PRICING_CONDITION_MAPPING : "é referenciada por"
+    CARD_CONDITION ||--o{ PRICING_OBSERVATION : "classifica"
 
     PRICING_PRODUCT ||--o{ PRICING_OBSERVATION : "gera"
     PRICING_SYNC_RUN |o--o{ PRICING_OBSERVATION : "produziu (rastreável, opcional)"
     PRICING_SOURCE ||--o{ PRICING_SYNC_RUN : "é sincronizada por"
     PRICING_SYNC_RUN ||--o{ PRICING_SYNC_RUN_CALL : "registra"
 
-    PRICING_FX_RATE }o--o{ PRICING_OBSERVATION : "conversão em tempo de leitura (sem FK física, sem sobrescrever)"
-
     CARD_VARIANT ||--o{ COLLECTION_ITEM : "futuro (ADR-013, não implementado)"
+    CARD_CONDITION ||--o{ COLLECTION_ITEM : "futuro (referência compartilhada, não implementado)"
     COLLECTION_ITEM |o--o{ ITEM_VALUATION_SNAPSHOT : "futuro (Analytics, não implementado)"
     PRICING_OBSERVATION |o--o{ ITEM_VALUATION_SNAPSHOT : "futuro (Analytics, não implementado)"
 ```
 
 `COLLECTION_ITEM` e `ITEM_VALUATION_SNAPSHOT` aparecem apenas para deixar explícito onde Pricing se conecta ao restante do domínio quando Collection existir — nenhuma das duas é criada por este documento.
+
+**Duas relações conceituais, deliberadamente fora do diagrama acima, por não existir FK física** (correção de precisão — versão `1.1`): (1) `Card Variant` e `Language` — Card Translation ainda não modela essa referência fisicamente (`04-domain-model.md`); é uma direção futura, não uma FK existente ou proposta por este documento. (2) `Pricing FX Rate` e `Pricing Observation` — a conversão de moeda é sempre uma junção em tempo de leitura (pela data mais próxima de `rate_date`), nunca uma chave estrangeira física, para que uma observação antiga continue convertível por qualquer taxa futura sem exigir nova linha. Desenhar essas duas relações como ER contradiria o próprio texto deste documento, que já as declara sem FK.
 
 ---
 
@@ -98,7 +100,7 @@ erDiagram
 
 ## O que é? / O que não é? / Qual problema resolve? (STD-002)
 
-**O que é:** o cadastro de uma fonte externa de dados de mercado (ex.: JustTCG, TCGplayer, uma futura fonte brasileira). Registra, entre outras coisas, o **escopo de mercado** da fonte (`market_scope`) — a distinção arquitetural que impede que uma fonte internacional seja tratada como "Valor Brasil" (premissa 9 do pedido original desta modelagem).
+**O que é:** o cadastro de uma fonte externa de dados de mercado (ex.: JustTCG, TCGplayer, uma futura fonte brasileira). Registra, entre outras coisas, o **escopo de mercado declarado por padrão** da fonte (`default_market_scope`) — uma classificação/capacidade informativa, usada como valor inicial ao gravar novas observações, mas que **não autoriza sozinha** nenhuma classificação de "Valor Brasil" (correção de precisão, versão `1.1` — ver `pricing_observation`, onde a decisão final realmente reside).
 
 **O que não é:** não é `asset_source` (Catálogo Editorial, `05c-assets-e-importacao.md`) reaproveitada. Apesar do padrão estrutural ser deliberadamente o mesmo (mesma disciplina já validada em produção), `asset_source` governa fontes de sincronização de **catálogo/imagens** (TCGdex, importação manual) — um domínio conceitualmente distinto de mercado/preço, mesmo que uma futura fonte possa, coincidentemente, servir aos dois papéis. Ver "Divergências em relação à hipótese inicial", no `ADR-029`, para o racional completo dessa decisão.
 
@@ -118,7 +120,7 @@ Descrição
 ----------
 name
 source_type
-market_scope
+default_market_scope
 base_currency
 base_url
 api_base_url
@@ -146,7 +148,7 @@ updated_at
 
 **source_type** — `API` / `DATASET` / `MANUAL`, mesmo vocabulário de `asset_source`.
 
-**market_scope** — `INTERNATIONAL` ou `BRAZIL`. Campo arquitetural central desta entidade: só uma fonte com `market_scope = 'BRAZIL'` pode originar uma classificação `BRAZIL_ITEM_VALUATION` (ver seção "Item Valuation"). Nenhuma fonte internacional pode ser promovida a "Brasil" por conversão de moeda — a distinção é da fonte, nunca da moeda do preço.
+**default_market_scope** — `INTERNATIONAL` ou `BRAZIL`. **Correção de precisão (versão `1.1`)**: este campo deixou de ser a autoridade final sobre "Valor Brasil". Ele representa apenas a classificação/capacidade declarada e default da fonte — útil como valor inicial ao normalizar uma nova observação, e como sinal de que uma fonte *pode* produzir evidência de mercado brasileiro — mas **isoladamente nunca autoriza** a classificação `BRAZIL_ITEM_VALUATION`. Essa decisão passa a depender da evidência registrada na própria `pricing_observation` (`market_scope`/`market_evidence`, ver seção correspondente), porque uma fonte agregadora pode reportar preços de mercados diferentes ao mesmo tempo (ex.: JustTCG combina Cardmarket/TCGplayer, ambos internacionais; uma futura fonte BR pode agregar um mercado brasileiro e, eventualmente, um mercado internacional secundário) — fixar isso só na fonte impediria representar corretamente esse caso sem duplicar artificialmente o cadastro da fonte. Nenhuma fonte internacional pode ser promovida a "Brasil" por conversão de moeda — isso continua verdadeiro e é reforçado, não enfraquecido, por esta correção.
 
 **base_currency** — moeda nativa típica da fonte (`USD`, `BRL`), ISO 4217. Informativo/default — não restringe `pricing_observation.currency_code`, porque uma única fonte pode reportar preços em mais de uma moeda (ex.: achado real do discovery de 2026-08-16: o campo `pricing` embutido da TCGdex combina Cardmarket em EUR e TCGplayer em USD).
 
@@ -164,9 +166,10 @@ updated_at
 ## Regras de Negócio
 
 1. `code` único e imutável após criação (mesmo padrão de `card_variant_type.code`).
-2. `market_scope` é definido na criação da fonte e não deve mudar depois de existir qualquer `pricing_observation` associada (mudar o escopo de mercado de uma fonte já usada invalidaria retroativamente toda classificação de valuation já exibida) — reforçado por rotina administrativa futura, não por `CHECK` (não há como expressar "não há filhos" via `CHECK`).
+2. `default_market_scope` pode ser ajustado ao longo do tempo (é um default, não uma trava) sem qualquer efeito retroativo sobre `pricing_observation` já gravadas — cada observação carrega seu próprio `market_scope`/`market_evidence`, imutáveis por si (ver `pricing_observation`). Mudar o default da fonte nunca reclassifica um preço já persistido.
 3. Nenhuma exclusão física — apenas `is_active = FALSE` (mesmo padrão de `card_variant_type`/`asset_source`).
 4. Nenhum preço pode ser gravado (`pricing_observation`) sem que a fonte exista e esteja ativa — garantido pela FK obrigatória em toda a cadeia (`pricing_card_mapping` → `pricing_product` → `pricing_observation`).
+5. `default_market_scope`, isoladamente, nunca autoriza a classificação `BRAZIL_ITEM_VALUATION` — regra obrigatória detalhada em `pricing_observation` e na seção "Item Valuation".
 
 ## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
 
@@ -176,7 +179,7 @@ CREATE TABLE public.pricing_source (
     code                           TEXT NOT NULL,
     name                           TEXT NOT NULL,
     source_type                    TEXT NOT NULL,
-    market_scope                   TEXT NOT NULL,
+    default_market_scope           TEXT NOT NULL,
     base_currency                  TEXT NOT NULL,
     base_url                       TEXT,
     api_base_url                   TEXT,
@@ -197,8 +200,8 @@ CREATE TABLE public.pricing_source (
     CONSTRAINT ck_pricing_source_name_not_blank CHECK (BTRIM(name) <> ''),
     CONSTRAINT ck_pricing_source_type
         CHECK (source_type IN ('API', 'DATASET', 'MANUAL')),
-    CONSTRAINT ck_pricing_source_market_scope
-        CHECK (market_scope IN ('INTERNATIONAL', 'BRAZIL')),
+    CONSTRAINT ck_pricing_source_default_market_scope
+        CHECK (default_market_scope IN ('INTERNATIONAL', 'BRAZIL')),
     CONSTRAINT ck_pricing_source_base_currency_format
         CHECK (base_currency ~ '^[A-Z]{3}$'),
     CONSTRAINT ck_pricing_source_base_url
@@ -229,7 +232,7 @@ ALTER TABLE public.pricing_source ENABLE ROW LEVEL SECURITY;
 ## Testes Mínimos de Integridade Previstos
 
 - inserir duas fontes com o mesmo `code` deve falhar (`uq_pricing_source_code`);
-- inserir `market_scope` fora de `INTERNATIONAL`/`BRAZIL` deve falhar;
+- inserir `default_market_scope` fora de `INTERNATIONAL`/`BRAZIL` deve falhar;
 - inserir `base_currency` com formato diferente de 3 letras maiúsculas deve falhar;
 - confirmar RLS: sessão anônima não lê nenhuma linha; sessão autenticada não-admin não lê nenhuma linha; sessão admin lê todas.
 
@@ -244,20 +247,22 @@ ALTER TABLE public.pricing_source ENABLE ROW LEVEL SECURITY;
 
 ---
 
-# `pricing_condition` (Condição Canônica)
+# `card_condition` (Condição Canônica — Referência Compartilhada)
+
+**Correção de precisão (versão `1.1`)**: esta entidade se chamava `pricing_condition` na versão `1.0` deste documento. Renomeada para `card_condition` e reclassificada como **referência compartilhada e neutra** — não pertence ao domínio Pricing nem ao Catálogo Editorial. Ela é descrita neste documento porque nasceu da necessidade de Pricing (mesma disciplina de "documentar onde a decisão foi tomada"), mas o motivo da renomeação é justamente impedir que `Collection Item` (Ownership, futuro) passe a depender de uma tabela nominalmente pertencente a Pricing só porque foi definida aqui primeiro. Nenhuma reorganização física de onde este conteúdo mora em `docs/` foi feita nesta correção (fora de escopo) — só o nome da entidade e sua descrição de pertencimento.
 
 ## O que é? / O que não é? / Qual problema resolve?
 
-**O que é:** catálogo pequeno e controlado das condições físicas de conservação usadas pela indústria de colecionáveis (Near Mint, Lightly Played, ...) — Reference Data global, sem `game_id`, mesmo padrão de `language`.
+**O que é:** catálogo pequeno e controlado das condições físicas de conservação usadas pela indústria de colecionáveis (Near Mint, Lightly Played, ...) — Reference Data global, sem `game_id`, mesmo padrão de `language`. **Referência compartilhada**: pertence conceitualmente nem a Pricing nem ao Catálogo Editorial — é consumida por `pricing_condition_mapping`/`pricing_observation` (Pricing, hoje) e será consumida por `collection_item` (Ownership, quando existir), sem que nenhum dos dois domínios seja dono dela.
 
-**O que não é:** não é uma característica do Card Variant nem da carta editorial — condição nunca pertence ao Catálogo (`ADR-006`: "condição de conservação" está explicitamente listada como atributo do Patrimônio do Usuário, não do Catálogo). Em Pricing, a condição também não descreve nenhuma cópia física — descreve apenas **em qual condição a fonte externa está reportando aquele preço específico** (ex.: JustTCG reporta um preço por condição). É a mesma lista de valores que, futuramente, o Collection Item usará para descrever a condição real do exemplar do usuário — mas são usos distintos da mesma Reference Data, nunca a mesma linha de dado.
+**O que não é:** não é uma característica do Card Variant nem da carta editorial — condição nunca pertence ao Catálogo (`ADR-006`: "condição de conservação" está explicitamente listada como atributo do Patrimônio do Usuário, não do Catálogo). Também não é uma tabela exclusiva de Pricing — tratá-la como tal faria `Collection Item` depender de uma tabela do domínio Pricing para descrever a condição física do exemplar do usuário, uma dependência de domínio incorreta (mesmo tipo de erro que `ADR-006` já previne entre Catálogo e Ownership). Em Pricing, a condição descreve apenas **em qual condição a fonte externa está reportando aquele preço específico** (ex.: JustTCG reporta um preço por condição) — é a mesma lista de valores que, futuramente, o Collection Item usará para descrever a condição real do exemplar do usuário, mas são usos distintos da mesma Reference Data, nunca a mesma linha de dado.
 
-**Qual problema resolve:** sem uma condição canônica, cada fonte externa usaria seu próprio vocabulário (`"NM"`, `"Near Mint"`, `"Mint - Near Mint"`) sem possibilidade de comparação entre fontes — `pricing_condition_mapping` (próxima seção) resolve o de-para.
+**Qual problema resolve:** sem uma condição canônica, cada fonte externa usaria seu próprio vocabulário (`"NM"`, `"Near Mint"`, `"Mint - Near Mint"`) sem possibilidade de comparação entre fontes — `pricing_condition_mapping` (próxima seção) resolve o de-para. Como referência compartilhada, também resolve o problema de origem: impede que uma futura `collection_item.condition_id` precise apontar para dentro do schema de Pricing.
 
 ## Modelo Lógico
 
 ```text
-Pricing Condition
+Card Condition
 
 Identidade
 ----------
@@ -299,7 +304,7 @@ updated_at
 ## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
 
 ```sql
-CREATE TABLE public.pricing_condition (
+CREATE TABLE public.card_condition (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code             TEXT NOT NULL,
     name             TEXT NOT NULL,
@@ -307,26 +312,26 @@ CREATE TABLE public.pricing_condition (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_pricing_condition_code UNIQUE (code),
-    CONSTRAINT uq_pricing_condition_order UNIQUE (condition_order),
-    CONSTRAINT ck_pricing_condition_code_format
+    CONSTRAINT uq_card_condition_code UNIQUE (code),
+    CONSTRAINT uq_card_condition_order UNIQUE (condition_order),
+    CONSTRAINT ck_card_condition_code_format
         CHECK (code = UPPER(code) AND code ~ '^[A-Z][A-Z0-9_]*$'),
-    CONSTRAINT ck_pricing_condition_name_not_blank CHECK (BTRIM(name) <> ''),
-    CONSTRAINT ck_pricing_condition_order_positive CHECK (condition_order > 0)
+    CONSTRAINT ck_card_condition_name_not_blank CHECK (BTRIM(name) <> ''),
+    CONSTRAINT ck_card_condition_order_positive CHECK (condition_order > 0)
 );
 
-CREATE TRIGGER trg_pricing_condition_set_updated_at
-    BEFORE UPDATE ON public.pricing_condition
+CREATE TRIGGER trg_card_condition_set_updated_at
+    BEFORE UPDATE ON public.card_condition
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-ALTER TABLE public.pricing_condition ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.card_condition ENABLE ROW LEVEL SECURITY;
 ```
 
-**Cardinalidade:** 1 `pricing_condition` → N `pricing_condition_mapping`, N `pricing_observation`.
+**Cardinalidade:** 1 `card_condition` → N `pricing_condition_mapping`, N `pricing_observation`, e (futuro) N `collection_item`.
 
 **Política de exclusão:** sem `DELETE` previsto. FKs filhas `ON DELETE RESTRICT`.
 
-**RLS e Grants:** mesmo padrão de `pricing_source` — `pricing_admin_select`, `authenticated` só `SELECT`, `anon` nenhum. Diferente de `pricing_source`, este catálogo é candidato natural a leitura pública futura (a condição em si não é sensível) quando alguma tela de usuário final precisar exibi-la — não implementado agora, mesma disciplina já registrada em `ADR-028` para o seletor futuro de Card Variant.
+**RLS e Grants:** mesmo padrão de `pricing_source` — policy de leitura administrativa, `authenticated` só `SELECT`, `anon` nenhum, por ora. Diferente de `pricing_source`, este catálogo é candidato natural a leitura pública futura (a condição em si não é sensível) quando alguma tela de usuário final precisar exibi-la (Pricing ou, futuramente, Collection) — não implementado agora, mesma disciplina já registrada em `ADR-028` para o seletor futuro de Card Variant. Por ser referência compartilhada, a policy administrativa desta tabela não deve ser nomeada com prefixo `pricing_` quando implementada (ex.: `card_condition_admin_select`, não `pricing_admin_select`) — nota de nomenclatura para o ciclo de implementação, não resolvida fisicamente aqui.
 
 ## Testes Mínimos de Integridade Previstos
 
@@ -334,7 +339,7 @@ ALTER TABLE public.pricing_condition ENABLE ROW LEVEL SECURITY;
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, trigger, seed real (6 condições canônicas — texto exato a validar contra o vocabulário confirmado da(s) fonte(s) homologada(s)), validação.
+- [ ] tabela criada, RLS, trigger, seed real (6 condições canônicas — texto exato a validar contra o vocabulário confirmado da(s) fonte(s) homologada(s)), validação. Como referência compartilhada, o ciclo que implementar esta tabela deve avaliar se ela pertence fisicamente a `05f-pricing.md` ou a um documento neutro (ex.: junto de `language` em `05c-assets-e-importacao.md`, ou um futuro documento de referências compartilhadas) — decisão de organização documental, não resolvida nesta correção pontual.
 
 ---
 
@@ -342,7 +347,7 @@ ALTER TABLE public.pricing_condition ENABLE ROW LEVEL SECURITY;
 
 ## O que é? / O que não é? / Qual problema resolve?
 
-**O que é:** o de-para entre o texto de condição usado por uma fonte específica (`"Near Mint"`, `"NM"`) e uma `pricing_condition` canônica. Mesmo papel arquitetural de `card_variant_type_external_mapping` (`05b-cartas-e-raridade.md`), aplicado a condição em vez de acabamento.
+**O que é:** o de-para entre o texto de condição usado por uma fonte específica (`"Near Mint"`, `"NM"`) e uma `card_condition` canônica (referência compartilhada — ver seção anterior). Mesmo papel arquitetural de `card_variant_type_external_mapping` (`05b-cartas-e-raridade.md`), aplicado a condição em vez de acabamento. Esta tabela em si (`pricing_condition_mapping`) permanece exclusiva de Pricing — é o de-para por fonte que não faz sentido fora deste domínio; só a condição canônica que ela referencia é compartilhada.
 
 **O que não é:** não resolve idioma nem printing — só condição.
 
@@ -378,7 +383,7 @@ updated_at
 
 **external_condition_code** — texto exato retornado pela fonte (ex.: `"Near Mint"`), preservado como veio, sem normalização de caixa/acento (diferente de `card_variant_type_external_mapping`, que normaliza — aqui a normalização não é necessária porque a cardinalidade de valores possíveis por fonte é pequena e estável, tipicamente listada na própria documentação da API).
 
-**condition_id** — condição canônica correspondente.
+**condition_id** — a `card_condition` canônica correspondente (referência compartilhada, não uma tabela de Pricing — ver seção anterior).
 
 ## Regras de Negócio
 
@@ -392,7 +397,7 @@ CREATE TABLE public.pricing_condition_mapping (
     id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pricing_source_id         UUID NOT NULL REFERENCES public.pricing_source (id) ON DELETE RESTRICT,
     external_condition_code   TEXT NOT NULL,
-    condition_id              UUID NOT NULL REFERENCES public.pricing_condition (id) ON DELETE RESTRICT,
+    condition_id              UUID NOT NULL REFERENCES public.card_condition (id) ON DELETE RESTRICT,
     created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -412,7 +417,7 @@ CREATE TRIGGER trg_pricing_condition_mapping_set_updated_at
 ALTER TABLE public.pricing_condition_mapping ENABLE ROW LEVEL SECURITY;
 ```
 
-**Cardinalidade:** `pricing_source` 1—N `pricing_condition_mapping` N—1 `pricing_condition`.
+**Cardinalidade:** `pricing_source` 1—N `pricing_condition_mapping` N—1 `card_condition`.
 
 **Política de exclusão:** `ON DELETE RESTRICT` nas duas FKs — um mapeamento nunca deve desaparecer silenciosamente por exclusão de fonte ou condição (nenhuma das duas tem exclusão física prevista de qualquer forma).
 
@@ -433,7 +438,19 @@ ALTER TABLE public.pricing_condition_mapping ENABLE ROW LEVEL SECURITY;
 
 ## O que é? / O que não é? / Qual problema resolve?
 
-**O que é:** o registro de que um `card_set` do catálogo corresponde a um Set identificado por uma fonte externa — com estado de correspondência explícito (`CONFIRMED`/`PENDING`/`REJECTED`), método e evidência da confirmação. Modela exatamente a mesma necessidade que a prova técnica da JustTCG (`Fase A`, revisão 5) já executou manualmente via `Find-SetCorrespondente` no script local — esta tabela é o destino natural desse resultado quando a homologação avançar para implementação.
+**O que é:** o registro de que um `card_set` do catálogo corresponde a um Set identificado por uma fonte externa — com estado de correspondência explícito e inequívoco (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED`, correção de precisão versão `1.1` — ver "Correção de Precisão — Estados de Correspondência", abaixo), método e evidência da confirmação. Modela exatamente a mesma necessidade que a prova técnica da JustTCG (`Fase A`, revisão 5) já executou manualmente via `Find-SetCorrespondente` no script local — esta tabela é o destino natural desse resultado quando a homologação avançar para implementação.
+
+### Correção de Precisão — Estados de Correspondência (versão `1.1`)
+
+A versão `1.0` deste documento continha uma contradição real: afirmava, ao mesmo tempo, que a ausência de linha representa "Set ausente" e que ela representa "nunca testado", e tratava `REJECTED` como se também cobrisse "tentativa que concluiu ausência". Essas três afirmações não podem ser simultaneamente verdadeiras. Corrigido para quatro estados com semântica inequívoca:
+
+- **ausência de linha** = nunca avaliado (nenhuma tentativa de correspondência foi feita ainda);
+- **`PENDING`** = existem candidatos, mas a correspondência ainda é ambígua (nenhum vencedor claro);
+- **`NOT_FOUND`** = a consulta à fonte foi concluída **com sucesso técnico** e nenhuma correspondência foi localizada — ausência confirmada **naquela fonte, naquele instante** (a fonte pode passar a cobrir o Set no futuro);
+- **`CONFIRMED`** = correspondência confirmada;
+- **`REJECTED`** = um candidato específico, ou uma correspondência específica, foi explicitamente rejeitado (situação diferente de "nenhum candidato existiu" — aqui um candidato existiu e foi descartado por decisão/regra).
+
+Regra obrigatória: **falha técnica nunca gera `NOT_FOUND`.** Uma falha técnica (timeout, HTTP 5xx, `429`) durante a busca não prova ausência — ela só prova que a tentativa não foi concluída. Falhas técnicas permanecem registradas exclusivamente em `pricing_sync_run`/`pricing_sync_run_call` (`outcome = 'TECHNICAL_FAILURE'`), sem criar nem alterar nenhuma linha aqui. Exemplo real: um Set não localizado durante a Fase A da prova técnica da JustTCG, após uma busca tecnicamente bem-sucedida que não encontrou candidato algum, corresponde a `NOT_FOUND` — não a "ausência de linha" (que significaria que a busca nunca ocorreu) nem a `REJECTED` (que implicaria um candidato específico descartado).
 
 **O que não é:** não é `card_set_external_reference` (Catálogo Editorial) reaproveitada — apesar do formato quase idêntico (mesmas duas `UNIQUE`s), os dois têm propósitos e níveis de confiança diferentes: `card_set_external_reference` assume que a API de catálogo (TCGdex) publica o identificador correto diretamente, sem necessidade de correspondência heurística; fontes de Pricing (JustTCG e equivalentes) não publicam os códigos internos MMKYU e exigem correspondência por sinais (nome, data, tamanho) sujeita a ambiguidade — daí os campos adicionais de estado/método/evidência, ausentes do modelo de Catálogo.
 
@@ -465,6 +482,7 @@ match_method
 match_evidence
 confirmed_at
 confirmed_by
+last_checked_at
 
 Auditoria
 ----------
@@ -476,17 +494,19 @@ updated_at
 
 **card_set_id / pricing_source_id** — a Set do catálogo e a fonte que a está mapeando.
 
-**external_set_id** — identificador do Set na fonte (ex.: `"me01-mega-evolution-pokemon"`, achado real da prova técnica).
+**external_set_id** — identificador do Set na fonte (ex.: `"me01-mega-evolution-pokemon"`, achado real da prova técnica). **Obrigatório quando `match_status = 'CONFIRMED'`** (é a própria correspondência confirmada); **opcional** para `PENDING` (pode ou não haver um candidato líder), `NOT_FOUND` (não há candidato a registrar) e `REJECTED` (pode registrar o candidato especificamente rejeitado, ou ficar vazio se a rejeição não apontou para nenhum candidato específico) — correção de precisão, versão `1.1`.
 
 **external_set_name** — nome do Set como a fonte o descreve, preservado para auditoria/depuração (a mesma divergência de nome que já exigiu correspondência por sinais múltiplos na prova técnica).
 
-**match_status** — `CONFIRMED` / `PENDING` / `REJECTED`. Só um mapeamento `CONFIRMED` autoriza a criação de `pricing_card_mapping`/`pricing_product` para Cards daquele Set.
+**match_status** — `CONFIRMED` / `PENDING` / `NOT_FOUND` / `REJECTED` (correção de precisão, versão `1.1` — ver "Correção de Precisão — Estados de Correspondência", acima). Só um mapeamento `CONFIRMED` autoriza a criação de `pricing_card_mapping`/`pricing_product` para Cards daquele Set.
 
-**match_method** — texto curto descrevendo como a correspondência foi obtida (ex.: `"2_DE_3_SINAIS: nome+data"`, `"OVERRIDE_MANUAL"`) — espelha exatamente o campo `Criterio` já implementado e validado em `Find-SetCorrespondente` no script local da prova técnica.
+**match_method** — texto curto descrevendo como a correspondência (ou a ausência dela) foi obtida (ex.: `"2_DE_3_SINAIS: nome+data"`, `"OVERRIDE_MANUAL"`, `"BUSCA_SEM_CANDIDATO"`) — espelha exatamente o campo `Criterio` já implementado e validado em `Find-SetCorrespondente` no script local da prova técnica.
 
 **match_evidence** — `JSONB`, guarda os dados brutos que sustentaram a decisão (candidatos avaliados, sinais individuais) — espelha o campo `Candidatos` do mesmo script, cuja ausência foi justamente o defeito corrigido na 3ª rodada de revisão estática.
 
-**confirmed_at / confirmed_by** — quando e por qual administrador o `match_status` foi definido como `CONFIRMED` ou `REJECTED` (nunca preenchido para `PENDING`). `confirmed_by` é `UUID` solto, sem FK física — mesmo padrão já usado por `catalog_variant_import_job.initiated_by` (`05b-cartas-e-raridade.md`) e pelo modelo de auditoria de `ADR-021` (sobrevive à exclusão do usuário administrador).
+**confirmed_at / confirmed_by** — quando e por qual administrador o `match_status` foi definido como `CONFIRMED` ou `REJECTED` — decisões administrativas explícitas (nunca preenchido para `PENDING` nem para `NOT_FOUND`, que não são decisões humanas — ver `last_checked_at`, abaixo). `confirmed_by` é `UUID` solto, sem FK física — mesmo padrão já usado por `catalog_variant_import_job.initiated_by` (`05b-cartas-e-raridade.md`) e pelo modelo de auditoria de `ADR-021` (sobrevive à exclusão do usuário administrador).
+
+**last_checked_at** — campo novo (correção de precisão, versão `1.1`): quando a correspondência foi verificada pela última vez, especialmente relevante para `NOT_FOUND` — a cobertura de uma fonte externa pode mudar no futuro (um Set pode ser adicionado à fonte depois de uma primeira tentativa sem sucesso), então `NOT_FOUND` nunca deve ser tratado como definitivo sem considerar há quanto tempo foi verificado. Atualizado a cada tentativa de correspondência, independentemente do resultado.
 
 ## Campos que Não Incluiremos Agora
 
@@ -494,10 +514,12 @@ updated_at
 
 ## Regras de Negócio
 
-1. `UNIQUE (card_set_id, pricing_source_id)` — um Card Set tem no máximo um mapeamento por fonte.
-2. `UNIQUE (pricing_source_id, external_set_id)` — um Set externo de uma fonte corresponde a no máximo um Card Set (nunca dois Card Sets MMKYU mapeados para o mesmo Set externo).
-3. `confirmed_at`/`confirmed_by` só podem estar preenchidos quando `match_status IN ('CONFIRMED', 'REJECTED')` — verificado por `CHECK`.
-4. Nenhuma linha de `pricing_card_mapping` deve ser criada para uma Card cujo `card_set_id` não tenha `pricing_set_mapping.match_status = 'CONFIRMED'` para a mesma fonte — regra de negócio garantida pela rotina de escrita (função `SECURITY DEFINER` futura), não expressável como `CHECK` entre tabelas diferentes.
+1. `UNIQUE (card_set_id, pricing_source_id)` — um Card Set tem no máximo um mapeamento por fonte (a linha evolui de estado via `UPDATE` — ex.: `NOT_FOUND` → `CONFIRMED` quando a fonte passar a cobrir o Set — em vez de gerar uma segunda linha).
+2. `external_set_id` obrigatório quando `match_status = 'CONFIRMED'`; opcional para `PENDING`/`NOT_FOUND`/`REJECTED` — verificado por `CHECK` (correção de precisão, versão `1.1`).
+3. Unicidade de `(pricing_source_id, external_set_id)` aplicada **apenas às linhas `CONFIRMED`**, via índice único parcial — um Set externo de uma fonte corresponde a no máximo um Card Set confirmado (nunca dois Card Sets MMKYU confirmados para o mesmo Set externo); linhas `PENDING`/`REJECTED` podem legitimamente referenciar o mesmo `external_set_id` como candidato avaliado e depois descartado para mais de um Card Set, sem violar unicidade (correção de precisão, versão `1.1` — ver nota abaixo sobre por que a `UNIQUE` simples da versão `1.0` era excessivamente restritiva).
+4. `confirmed_at`/`confirmed_by` só podem estar preenchidos quando `match_status IN ('CONFIRMED', 'REJECTED')` — decisões administrativas explícitas, verificado por `CHECK`. `NOT_FOUND` e `PENDING` nunca preenchem `confirmed_at`/`confirmed_by` (não são decisões humanas) — usam `last_checked_at`.
+5. Nenhuma linha de `pricing_card_mapping` deve ser criada para uma Card cujo `card_set_id` não tenha `pricing_set_mapping.match_status = 'CONFIRMED'` para a mesma fonte — regra de negócio garantida pela rotina de escrita (função `SECURITY DEFINER` futura), não expressável como `CHECK` entre tabelas diferentes.
+6. Falha técnica durante a busca de correspondência nunca grava nem altera `match_status` desta tabela — permanece exclusivamente em `pricing_sync_run_call.outcome = 'TECHNICAL_FAILURE'` (ver "Correção de Precisão — Estados de Correspondência", acima).
 
 ## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
 
@@ -506,32 +528,39 @@ CREATE TABLE public.pricing_set_mapping (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     card_set_id        UUID NOT NULL REFERENCES public.card_set (id) ON DELETE CASCADE,
     pricing_source_id  UUID NOT NULL REFERENCES public.pricing_source (id) ON DELETE RESTRICT,
-    external_set_id    TEXT NOT NULL,
+    external_set_id    TEXT,
     external_set_name  TEXT,
     match_status       TEXT NOT NULL DEFAULT 'PENDING',
     match_method       TEXT,
     match_evidence     JSONB NOT NULL DEFAULT '{}'::JSONB,
     confirmed_at       TIMESTAMPTZ,
     confirmed_by       UUID,
+    last_checked_at    TIMESTAMPTZ,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_pricing_set_mapping_card_set_source
         UNIQUE (card_set_id, pricing_source_id),
-    CONSTRAINT uq_pricing_set_mapping_source_external
-        UNIQUE (pricing_source_id, external_set_id),
     CONSTRAINT ck_pricing_set_mapping_external_set_id_not_blank
-        CHECK (BTRIM(external_set_id) <> ''),
+        CHECK (external_set_id IS NULL OR BTRIM(external_set_id) <> ''),
     CONSTRAINT ck_pricing_set_mapping_status
-        CHECK (match_status IN ('CONFIRMED', 'PENDING', 'REJECTED')),
+        CHECK (match_status IN ('CONFIRMED', 'PENDING', 'NOT_FOUND', 'REJECTED')),
+    CONSTRAINT ck_pricing_set_mapping_confirmed_requires_external_id
+        CHECK (match_status <> 'CONFIRMED' OR external_set_id IS NOT NULL),
     CONSTRAINT ck_pricing_set_mapping_evidence_is_object
         CHECK (jsonb_typeof(match_evidence) = 'object'),
     CONSTRAINT ck_pricing_set_mapping_confirmation_consistency
         CHECK (
-            (match_status = 'PENDING' AND confirmed_at IS NULL AND confirmed_by IS NULL)
+            (match_status IN ('PENDING', 'NOT_FOUND') AND confirmed_at IS NULL AND confirmed_by IS NULL)
             OR (match_status IN ('CONFIRMED', 'REJECTED') AND confirmed_at IS NOT NULL AND confirmed_by IS NOT NULL)
         )
 );
+
+-- Índice único parcial: unicidade de external_set_id por fonte só exigida para correspondências CONFIRMED
+-- (correção de precisão, versão 1.1 — ver Regra de Negócio 3, acima).
+CREATE UNIQUE INDEX uq_pricing_set_mapping_source_external_confirmed
+    ON public.pricing_set_mapping (pricing_source_id, external_set_id)
+    WHERE match_status = 'CONFIRMED';
 
 CREATE INDEX ix_pricing_set_mapping_pricing_source_id
     ON public.pricing_set_mapping (pricing_source_id);
@@ -549,13 +578,15 @@ ALTER TABLE public.pricing_set_mapping ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** `card_set_id` em `ON DELETE CASCADE` (mesmo padrão de `card_set_external_reference` — se um Card Set for fisicamente excluído do catálogo, o que hoje não acontece na prática porque Catálogo usa soft delete, seu mapeamento de preço deixa de fazer sentido). `pricing_source_id` em `ON DELETE RESTRICT` (nunca perder mapeamentos por exclusão de fonte).
 
-**RLS e Grants:** `pricing_admin_select`. Escrita só por funções `SECURITY DEFINER` administrativas futuras (`admin_confirm_pricing_set_mapping()`/`admin_reject_pricing_set_mapping()`, mesmo padrão de `admin_resolve_catalog_variant_import_mapping()`). `service_role` com `SELECT`/`INSERT` (a futura Edge Function de sincronização grava propostas como `PENDING`, nunca `CONFIRMED` diretamente — confirmação é sempre decisão administrativa humana, mesmo princípio já aplicado a Card Variant em `ADR-028`).
+**RLS e Grants:** `pricing_admin_select`. Escrita só por funções `SECURITY DEFINER` administrativas futuras (`admin_confirm_pricing_set_mapping()`/`admin_reject_pricing_set_mapping()`, mesmo padrão de `admin_resolve_catalog_variant_import_mapping()`). `service_role` com `SELECT`/`INSERT`/`UPDATE` (a futura Edge Function de sincronização grava/atualiza propostas como `PENDING`/`NOT_FOUND`, nunca `CONFIRMED` diretamente — confirmação é sempre decisão administrativa humana, mesmo princípio já aplicado a Card Variant em `ADR-028`; `UPDATE` adicionado nesta correção porque `NOT_FOUND` pode evoluir para `CONFIRMED`/`PENDING` numa tentativa futura, sem criar linha nova).
 
 ## Testes Mínimos de Integridade Previstos
 
 - duas linhas para o mesmo `(card_set_id, pricing_source_id)` falha;
-- duas linhas para o mesmo `(pricing_source_id, external_set_id)` falha;
+- duas linhas `CONFIRMED` para o mesmo `(pricing_source_id, external_set_id)` falha (índice único parcial); duas linhas `PENDING`/`REJECTED` para o mesmo `(pricing_source_id, external_set_id)` **não** falha (candidato avaliado mais de uma vez);
+- `match_status = 'CONFIRMED'` sem `external_set_id` falha;
 - `match_status = 'CONFIRMED'` sem `confirmed_at`/`confirmed_by` falha;
+- `match_status = 'NOT_FOUND'` com `confirmed_at`/`confirmed_by` preenchidos falha;
 - `match_status = 'PENDING'` com `confirmed_at` preenchido falha.
 
 ## Definition of Done
@@ -570,7 +601,9 @@ Mesmo papel de `pricing_set_mapping`, um nível abaixo (Card em vez de Card Set)
 
 ## O que é? / O que não é? / Qual problema resolve?
 
-**O que é:** o registro de que uma `card` do catálogo corresponde a uma Card identificada por uma fonte externa, com o mesmo estado de correspondência/evidência de `pricing_set_mapping`. Corresponde diretamente aos estados `Encontrada`/`PendenteCorrespondencia`/`AusenteConfirmada` já validados na Fase B da prova técnica da JustTCG — `AusenteConfirmada` mapeia para não ter nenhuma linha aqui (a ausência de correspondência não é um `REJECTED`, é a inexistência da linha), enquanto `Encontrada` mapeia para `CONFIRMED` e `PendenteCorrespondencia` mapeia para `PENDING`.
+**O que é:** o registro de que uma `card` do catálogo corresponde a uma Card identificada por uma fonte externa, com o mesmo estado de correspondência/evidência de `pricing_set_mapping` (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED` — correção de precisão, versão `1.1`, ver seção anterior). Corresponde diretamente aos estados `Encontrada`/`PendenteCorrespondencia`/`AusenteConfirmada` já validados na Fase B da prova técnica da JustTCG: `Encontrada` mapeia para `CONFIRMED`; `PendenteCorrespondencia` mapeia para `PENDING`; **`AusenteConfirmada` mapeia para `NOT_FOUND`** — uma busca tecnicamente concluída que não localizou correspondência, distinta tanto da ausência de linha (nunca avaliado) quanto de `REJECTED` (um candidato específico rejeitado).
+
+**Correção de precisão (versão `1.1`)**: a versão `1.0` deste documento continha exatamente a contradição que esta correção resolve — afirmava, na Regra de Negócio 5 (abaixo), que "a ausência de linha é o próprio dado" e, na mesma frase, que `match_status = 'REJECTED'` representava "tentativa real que concluiu ausência" — usando `REJECTED` para dois significados incompatíveis (candidato específico rejeitado vs. busca concluída sem candidato algum). Corrigido: ausência de linha = nunca avaliado; `NOT_FOUND` = busca concluída sem correspondência (o antigo `AusenteConfirmada`); `REJECTED` = candidato específico rejeitado.
 
 **O que não é:** não é `card_external_reference` (Catálogo Editorial) reaproveitada, pela mesma razão de `pricing_set_mapping` acima. Também não é `pricing_product` — esta tabela identifica a **Card** na fonte externa (nível "esta é a mesma carta"); `pricing_product` (próxima seção) identifica cada **impressão/variante específica** que a fonte reporta para essa Card.
 
@@ -602,6 +635,7 @@ match_method
 match_evidence
 confirmed_at
 confirmed_by
+last_checked_at
 
 Auditoria
 ----------
@@ -611,15 +645,17 @@ updated_at
 
 ## Atributos
 
-Mesma semântica de `pricing_set_mapping`, com `card_id`/`external_card_id`/`external_card_name` no lugar de `card_set_id`/`external_set_id`/`external_set_name`. `match_evidence` aqui tende a registrar o número/nome normalizado comparado (mesma lógica de `Find-CartaEmLista` da prova técnica): número obrigatório batendo, nome ou alias batendo.
+Mesma semântica de `pricing_set_mapping`, com `card_id`/`external_card_id`/`external_card_name` no lugar de `card_set_id`/`external_set_id`/`external_set_name`, incluindo a mesma correção de nulabilidade (`external_card_id` obrigatório só para `CONFIRMED`) e o mesmo `last_checked_at`. `match_evidence` aqui tende a registrar o número/nome normalizado comparado (mesma lógica de `Find-CartaEmLista` da prova técnica): número obrigatório batendo, nome ou alias batendo.
 
 ## Regras de Negócio
 
-1. `UNIQUE (card_id, pricing_source_id)`.
-2. `UNIQUE (pricing_source_id, external_card_id)`.
-3. Mesma regra de consistência `confirmed_at`/`confirmed_by` vs. `match_status`.
-4. Uma linha só deve existir aqui para uma Card cujo Card Set já tenha `pricing_set_mapping.match_status = 'CONFIRMED'` na mesma fonte — mesma regra de dependência hierárquica de `pricing_set_mapping`, garantida pela rotina de escrita.
-5. Uma Card sem correspondência confirmada nem pendente **não gera linha nenhuma** — corresponde ao estado `AusenteConfirmada` da prova técnica; a ausência de linha é o próprio dado, não um valor de `match_status` (evita a ambiguidade, já identificada na prova técnica, entre "não testamos ainda" e "confirmadamente ausente" — aqui resolvida por "não existe linha" = nunca testado/sem tentativa registrada, `match_status = 'REJECTED'` = tentativa real que concluiu ausência).
+1. `UNIQUE (card_id, pricing_source_id)` — mesma lógica de evolução por `UPDATE` de `pricing_set_mapping` (Regra 1, acima).
+2. `external_card_id` obrigatório quando `match_status = 'CONFIRMED'`; opcional para `PENDING`/`NOT_FOUND`/`REJECTED`.
+3. Unicidade de `(pricing_source_id, external_card_id)` aplicada apenas às linhas `CONFIRMED`, via índice único parcial — mesma razão de `pricing_set_mapping`, Regra 3.
+4. Mesma regra de consistência `confirmed_at`/`confirmed_by`/`last_checked_at` vs. `match_status` de `pricing_set_mapping`.
+5. Uma linha só deve existir aqui para uma Card cujo Card Set já tenha `pricing_set_mapping.match_status = 'CONFIRMED'` na mesma fonte — mesma regra de dependência hierárquica de `pricing_set_mapping`, garantida pela rotina de escrita.
+6. **Semântica corrigida (versão `1.1`) para os três casos possíveis de uma Card**: (a) **ausência de linha** — a Card nunca foi avaliada contra esta fonte (nenhuma tentativa registrada); (b) **`match_status = 'NOT_FOUND'`** — corresponde ao estado `AusenteConfirmada` da prova técnica: uma busca tecnicamente concluída que não localizou correspondência para esta Card, naquela fonte, naquele instante (`last_checked_at` registra quando); (c) **`match_status = 'REJECTED'`** — um candidato específico foi encontrado e explicitamente rejeitado (situação diferente de "nenhum candidato existiu"). A versão `1.0` deste documento colapsava (b) e (c) sob o mesmo rótulo `REJECTED`, contradição corrigida nesta versão.
+7. Falha técnica nunca grava nem altera `match_status` — permanece exclusivamente em `pricing_sync_run_call.outcome = 'TECHNICAL_FAILURE'`.
 
 ## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
 
@@ -628,32 +664,38 @@ CREATE TABLE public.pricing_card_mapping (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     card_id            UUID NOT NULL REFERENCES public.card (id) ON DELETE CASCADE,
     pricing_source_id  UUID NOT NULL REFERENCES public.pricing_source (id) ON DELETE RESTRICT,
-    external_card_id   TEXT NOT NULL,
+    external_card_id   TEXT,
     external_card_name TEXT,
     match_status       TEXT NOT NULL DEFAULT 'PENDING',
     match_method       TEXT,
     match_evidence     JSONB NOT NULL DEFAULT '{}'::JSONB,
     confirmed_at       TIMESTAMPTZ,
     confirmed_by       UUID,
+    last_checked_at    TIMESTAMPTZ,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_pricing_card_mapping_card_source
         UNIQUE (card_id, pricing_source_id),
-    CONSTRAINT uq_pricing_card_mapping_source_external
-        UNIQUE (pricing_source_id, external_card_id),
     CONSTRAINT ck_pricing_card_mapping_external_card_id_not_blank
-        CHECK (BTRIM(external_card_id) <> ''),
+        CHECK (external_card_id IS NULL OR BTRIM(external_card_id) <> ''),
     CONSTRAINT ck_pricing_card_mapping_status
-        CHECK (match_status IN ('CONFIRMED', 'PENDING', 'REJECTED')),
+        CHECK (match_status IN ('CONFIRMED', 'PENDING', 'NOT_FOUND', 'REJECTED')),
+    CONSTRAINT ck_pricing_card_mapping_confirmed_requires_external_id
+        CHECK (match_status <> 'CONFIRMED' OR external_card_id IS NOT NULL),
     CONSTRAINT ck_pricing_card_mapping_evidence_is_object
         CHECK (jsonb_typeof(match_evidence) = 'object'),
     CONSTRAINT ck_pricing_card_mapping_confirmation_consistency
         CHECK (
-            (match_status = 'PENDING' AND confirmed_at IS NULL AND confirmed_by IS NULL)
+            (match_status IN ('PENDING', 'NOT_FOUND') AND confirmed_at IS NULL AND confirmed_by IS NULL)
             OR (match_status IN ('CONFIRMED', 'REJECTED') AND confirmed_at IS NOT NULL AND confirmed_by IS NOT NULL)
         )
 );
+
+-- Índice único parcial, mesma razão de pricing_set_mapping (Regra de Negócio 3, acima).
+CREATE UNIQUE INDEX uq_pricing_card_mapping_source_external_confirmed
+    ON public.pricing_card_mapping (pricing_source_id, external_card_id)
+    WHERE match_status = 'CONFIRMED';
 
 CREATE INDEX ix_pricing_card_mapping_pricing_source_id
     ON public.pricing_card_mapping (pricing_source_id);
@@ -671,11 +713,11 @@ ALTER TABLE public.pricing_card_mapping ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** `card_id` em `ON DELETE CASCADE` (mesmo padrão de `card_external_reference`); `pricing_source_id` em `ON DELETE RESTRICT`.
 
-**RLS e Grants:** idêntico a `pricing_set_mapping`.
+**RLS e Grants:** idêntico a `pricing_set_mapping` (incluindo `service_role` com `UPDATE`, para a transição `NOT_FOUND` → `CONFIRMED`/`PENDING`).
 
 ## Testes Mínimos de Integridade Previstos
 
-Mesmos casos de `pricing_set_mapping`, adaptados ao nível de Card.
+Mesmos casos de `pricing_set_mapping`, adaptados ao nível de Card — incluindo o teste específico de que `NOT_FOUND` e `REJECTED` são estados distintos e não podem ser confundidos por nenhuma rotina de escrita.
 
 ## Definition of Done
 
@@ -687,7 +729,18 @@ Mesmos casos de `pricing_set_mapping`, adaptados ao nível de Card.
 
 ## O que é? / O que não é? / Qual problema resolve?
 
-**O que é:** cada impressão/variante específica que uma fonte reporta para uma Card já mapeada (`pricing_card_mapping`) — printing (`source_printing_label`) e estado de idioma (`language_status`), com vínculo **opcional** a um `card_variant` do catálogo quando a correspondência de acabamento for inequívoca. Corresponde diretamente ao conceito `Variantes`/`ConvertTo-VarianteSanitizada` já implementado e validado na prova técnica da JustTCG, incluindo o mesmo tri-estado de idioma (`PTBRConfirmado`/`NaoPTBRConfirmado`/`NaoDeterminado`, aqui `CONFIRMED`/`NOT_CONFIRMED`/`UNDETERMINED`).
+**O que é:** cada impressão/variante específica que uma fonte reporta para uma Card já mapeada (`pricing_card_mapping`) — printing (`source_printing_label`) e estado de idioma (`language_status`), com vínculo **opcional** a um `card_variant` do catálogo quando a correspondência de acabamento for inequívoca. Corresponde ao conceito `Variantes`/`ConvertTo-VarianteSanitizada` já implementado e validado na prova técnica da JustTCG, mas com o modelo de idioma **generalizado para multi-idioma real** (correção de precisão, versão `1.1` — ver "Correção de Precisão — Idioma Multi-Idioma", abaixo). O tri-estado original da prova técnica (`PTBRConfirmado`/`NaoPTBRConfirmado`/`NaoDeterminado`) era, por desenho, binário-PT-BR — suficiente para a prova, mas incorreto como modelo permanente de domínio.
+
+### Correção de Precisão — Idioma Multi-Idioma (versão `1.1`)
+
+A versão `1.0` deste documento herdava diretamente o tri-estado da prova técnica, que tratava `CONFIRMED` como sinônimo de "PT-BR confirmado" e `NOT_CONFIRMED` como sinônimo de "idioma diferente de PT-BR" — perdendo a identidade de qualquer idioma explicitamente informado que não fosse português (inglês, espanhol, japonês, etc.) e impedindo, por construção, que o modelo servisse a qualquer estratégia futura de cobertura multi-idioma. Corrigido para um modelo neutro:
+
+- **`language_status`**: `CONFIRMED` (a fonte identifica explicitamente e com confiança um idioma específico — qualquer idioma, não só PT-BR) / `INFERRED` (o idioma foi inferido por heurística — ex.: análise de texto do `source_printing_label` — sem uma declaração explícita e dedicada da fonte) / `UNDETERMINED` (a fonte não declara nem permite inferir idioma algum para este produto).
+- **`language_id`**: FK opcional para `language` (`05c-assets-e-importacao.md`), identificando **qual** idioma — obrigatória quando `language_status IN ('CONFIRMED', 'INFERRED')`, nula quando `language_status = 'UNDETERMINED'`.
+- **Cobertura PT-BR (ou de qualquer idioma específico) deixa de ser um estado embutido em `language_status`** e passa a ser **derivada por comparação**, no momento da avaliação de valuation: `pricing_product.language_id = collection_item.language_id` (`collection_item`, futuro, ainda não implementado — comparação conceitual, registrada aqui para não exigir retrabalho do modelo quando Collection existir).
+- **Regra de valuation direto**: exige `language_status = 'CONFIRMED'`. Idioma **inferido** (`INFERRED`) não autoriza equivalência direta do item — é informação útil (melhor que `UNDETERMINED`), mas não tem a mesma força probatória de uma declaração explícita da fonte; no máximo sustenta `INTERNATIONAL_CARD_REFERENCE`, nunca `INTERNATIONAL_ITEM_VALUATION`/`BRAZIL_ITEM_VALUATION` (ver "Item Valuation", ao final).
+
+Removida, em todo este documento, qualquer semântica que tratasse `CONFIRMED` como sinônimo de PT-BR ou o antigo `NOT_CONFIRMED` como sinônimo de inglês.
 
 **O que não é:** **não é um Card Variant novo, nem um gatilho para criar um.** `card_variant_id` é sempre um vínculo a um Card Variant **já existente e editorial** (`ADR-028`) — `pricing_product` nunca cria `card_variant`, só referencia opcionalmente um já confirmado pelo Catálogo Editorial. Também não representa condição — condição é dimensão de `pricing_observation` (premissa 6 do pedido: condição pertence ao item físico e à cotação, nunca ao Card Variant nem, aqui, ao produto).
 
@@ -706,7 +759,7 @@ Relacionamento
 ----------
 pricing_card_mapping_id
 card_variant_id (opcional)
-confirmed_language_id (opcional)
+language_id (opcional)
 
 Descrição
 ----------
@@ -729,9 +782,9 @@ updated_at
 
 **source_printing_label** — texto bruto de printing como a fonte descreve (ex.: `"Holofoil"`, `"Holofoil - English"` antes do parsing de idioma — ver `Split-PrintingLanguage` na prova técnica).
 
-**language_status** — `CONFIRMED` / `NOT_CONFIRMED` / `UNDETERMINED`. Calculado por regra idêntica à já validada na prova técnica (`Get-StatusIdiomaCarta`): `CONFIRMED` quando a fonte identifica explicitamente um idioma PT-BR com preço; `NOT_CONFIRMED` quando a fonte identifica explicitamente um idioma diferente de PT-BR; `UNDETERMINED` quando a fonte não declara idioma para aquele produto.
+**language_status** — `CONFIRMED` / `INFERRED` / `UNDETERMINED` (correção de precisão, versão `1.1` — ver acima). `CONFIRMED` quando a fonte identifica explicitamente e com confiança um idioma específico (qualquer idioma — inglês, espanhol, japonês, PT-BR, o que a fonte declarar); `INFERRED` quando o idioma foi inferido por heurística (ex.: análise de texto livre), sem declaração dedicada da fonte; `UNDETERMINED` quando a fonte não declara nem permite inferir idioma algum para aquele produto. Generaliza a regra `Get-StatusIdiomaCarta` da prova técnica (antes binária PT-BR/não-PT-BR) para qualquer idioma.
 
-**confirmed_language_id** — FK opcional para `language` (`05c-assets-e-importacao.md`), preenchida só quando `language_status = 'CONFIRMED'`.
+**language_id** — FK opcional para `language` (`05c-assets-e-importacao.md`), identificando qual idioma. **Obrigatória** quando `language_status IN ('CONFIRMED', 'INFERRED')`; **nula** quando `language_status = 'UNDETERMINED'` (correção de precisão, versão `1.1` — renomeado de `confirmed_language_id`, que só cobria o caso `CONFIRMED`).
 
 **card_variant_id** — FK opcional para `card_variant`. Vincula apenas a dimensão de **acabamento/printing** (nunca idioma — `card_variant` não modela idioma, `ADR-016`/`ADR-028`) a um Card Variant já existente e ativo no Catálogo Editorial. Um `pricing_product` sem vínculo (`NULL`) ainda é válido — apenas não participa de nenhuma classificação de valuation por item (ver "Item Valuation"), só de referência internacional de carta.
 
@@ -744,9 +797,10 @@ updated_at
 ## Regras de Negócio
 
 1. `UNIQUE (pricing_card_mapping_id, external_product_id)` — a fonte não pode reportar dois produtos com o mesmo identificador para a mesma Card.
-2. `confirmed_language_id` só pode estar preenchido quando `language_status = 'CONFIRMED'` — `CHECK` cruzado.
-3. `card_variant_id`, quando preenchido, nunca implica nada sobre `language_status` — são dimensões independentes (premissa 10 do pedido: uma impressão inglesa nunca herda automaticamente o valor de uma cópia PT-BR do usuário; aqui, o inverso simétrico também vale — vincular o acabamento não confirma o idioma).
+2. `language_id` obrigatório quando `language_status IN ('CONFIRMED', 'INFERRED')`; nulo quando `language_status = 'UNDETERMINED'` — `CHECK` cruzado (correção de precisão, versão `1.1`).
+3. `card_variant_id`, quando preenchido, nunca implica nada sobre `language_status`/`language_id` — são dimensões independentes (premissa 10 do pedido original: uma impressão inglesa nunca herda automaticamente o valor de uma cópia PT-BR do usuário; aqui, o inverso simétrico também vale — vincular o acabamento não confirma nem infere idioma).
 4. Nenhuma rotina de sincronização cria `card_variant` a partir de `pricing_product` — o vínculo é sempre para um `card_variant_id` pré-existente, resolvido por correspondência (heurística ou manual), nunca inferido automaticamente como novo.
+5. Cobertura de um idioma específico (PT-BR ou qualquer outro) para um `Collection Item` (futuro) é sempre calculada por comparação — `pricing_product.language_id = collection_item.language_id` —, nunca lida diretamente de `language_status` isolado; e só produz equivalência direta de item quando `language_status = 'CONFIRMED'` (nunca `INFERRED`).
 
 ## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
 
@@ -757,7 +811,7 @@ CREATE TABLE public.pricing_product (
     external_product_id       TEXT NOT NULL,
     source_printing_label     TEXT NOT NULL,
     language_status           TEXT NOT NULL DEFAULT 'UNDETERMINED',
-    confirmed_language_id     UUID REFERENCES public.language (id) ON DELETE RESTRICT,
+    language_id               UUID REFERENCES public.language (id) ON DELETE RESTRICT,
     card_variant_id           UUID REFERENCES public.card_variant (id) ON DELETE SET NULL,
     is_active                 BOOLEAN NOT NULL DEFAULT TRUE,
     created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -768,11 +822,11 @@ CREATE TABLE public.pricing_product (
     CONSTRAINT ck_pricing_product_printing_label_not_blank
         CHECK (BTRIM(source_printing_label) <> ''),
     CONSTRAINT ck_pricing_product_language_status
-        CHECK (language_status IN ('CONFIRMED', 'NOT_CONFIRMED', 'UNDETERMINED')),
-    CONSTRAINT ck_pricing_product_confirmed_language_consistency
+        CHECK (language_status IN ('CONFIRMED', 'INFERRED', 'UNDETERMINED')),
+    CONSTRAINT ck_pricing_product_language_id_consistency
         CHECK (
-            (language_status = 'CONFIRMED' AND confirmed_language_id IS NOT NULL)
-            OR (language_status <> 'CONFIRMED' AND confirmed_language_id IS NULL)
+            (language_status IN ('CONFIRMED', 'INFERRED') AND language_id IS NOT NULL)
+            OR (language_status = 'UNDETERMINED' AND language_id IS NULL)
         )
 );
 
@@ -790,14 +844,14 @@ ALTER TABLE public.pricing_product ENABLE ROW LEVEL SECURITY;
 
 **Cardinalidade:** `pricing_card_mapping` 1—N `pricing_product`; `card_variant` 0..1—N `pricing_product` (opcional, N para permitir que produtos de fontes diferentes apontem para o mesmo Card Variant); `language` 0..1—N `pricing_product`.
 
-**Política de exclusão:** `pricing_card_mapping_id` em `ON DELETE CASCADE` (produtos não fazem sentido sem o mapeamento de Card que os originou). `card_variant_id` em `ON DELETE SET NULL` (deliberadamente **não** `CASCADE` — remover um vínculo de Card Variant nunca deve apagar histórico de preço; hoje, na prática, `card_variant` nunca é excluída fisicamente, `ADR-028`). `confirmed_language_id` em `ON DELETE RESTRICT` (idioma é Reference Data estável, nunca removida).
+**Política de exclusão:** `pricing_card_mapping_id` em `ON DELETE CASCADE` (produtos não fazem sentido sem o mapeamento de Card que os originou). `card_variant_id` em `ON DELETE SET NULL` (deliberadamente **não** `CASCADE` — remover um vínculo de Card Variant nunca deve apagar histórico de preço; hoje, na prática, `card_variant` nunca é excluída fisicamente, `ADR-028`). `language_id` em `ON DELETE RESTRICT` (idioma é Reference Data estável, nunca removida).
 
 **RLS e Grants:** `pricing_admin_select`. Escrita por função `SECURITY DEFINER` administrativa futura + `service_role` (a sincronização grava/atualiza produtos automaticamente, diferente de `pricing_set_mapping`/`pricing_card_mapping`, porque aqui não há ambiguidade de correspondência a decidir — o produto já pertence a uma Card já confirmada; só o vínculo opcional `card_variant_id` exige decisão administrativa quando não for auto-resolvível com confiança).
 
 ## Testes Mínimos de Integridade Previstos
 
 - `external_product_id` duplicado dentro do mesmo `pricing_card_mapping_id` falha;
-- `language_status = 'CONFIRMED'` sem `confirmed_language_id` falha e vice-versa;
+- `language_status IN ('CONFIRMED', 'INFERRED')` sem `language_id` falha e vice-versa; `language_status = 'UNDETERMINED'` com `language_id` preenchido falha;
 - `card_variant_id` apontando para uma variante de `card_id` diferente do `card_id` implícito em `pricing_card_mapping` deve ser impedido por regra de negócio na função de escrita (não expressável como `CHECK` entre tabelas sem trigger próprio — candidato a um trigger de consistência futuro, mesmo padrão de `validate_card_variant_game_consistency()`).
 
 ## Definition of Done
@@ -910,11 +964,17 @@ Sem trigger de `updated_at` — a tabela não tem essa coluna (imutável por des
 
 ## O que é? / O que não é? / Qual problema resolve?
 
-**O que é:** o fato central do domínio — um preço observado, num instante, para um `pricing_product`, numa condição, moeda e mercado originais da fonte. **Imutável**: cada sincronização gera novas linhas, nunca atualiza uma existente — satisfaz diretamente a exigência "preços atuais e históricos sem sobrescrever o passado".
+**O que é:** o fato central do domínio — um preço observado, num instante, para um `pricing_product`, numa condição, moeda e mercado originais da fonte. **Imutável**: cada sincronização gera novas linhas, nunca atualiza uma existente — satisfaz diretamente a exigência "preços atuais e históricos sem sobrescrever o passado". **A partir da versão `1.1`, também é onde reside a decisão final sobre "Valor Brasil"** — ver "Correção de Precisão — Evidência de Mercado", abaixo.
 
 **O que não é:** não é o preço convertido para BRL (isso é calculado em tempo de leitura via `pricing_fx_rate`, nunca persistido aqui). Não é a avaliação de um item específico do usuário (`item_valuation_snapshot`, Analytics, ver seção final) — é dado de mercado global, o mesmo para todos os usuários.
 
-**Qual problema resolve:** permite reconstruir a evolução de preço de qualquer produto ao longo do tempo, auditar de qual sincronização cada preço veio, e nunca perder o dado bruto originalmente recebido da fonte.
+**Qual problema resolve:** permite reconstruir a evolução de preço de qualquer produto ao longo do tempo, auditar de qual sincronização cada preço veio, e nunca perder o dado bruto originalmente recebido da fonte. A partir da versão `1.1`, também resolve o problema de uma fonte agregadora reportar preços de mais de um mercado (ex.: internacional e brasileiro) sem exigir um cadastro de fonte artificialmente duplicado.
+
+### Correção de Precisão — Evidência de Mercado (versão `1.1`)
+
+A versão `1.0` deste documento determinava a classificação `BRAZIL_ITEM_VALUATION` exclusivamente por `pricing_source.market_scope` (então o único mecanismo de decisão). Isso não suporta corretamente uma fonte agregadora que reporte preços de vários mercados simultaneamente (ex.: JustTCG combina Cardmarket/TCGplayer, ambos internacionais; uma futura fonte BR pode agregar um mercado brasileiro e, eventualmente, um mercado internacional secundário) — fixar a decisão só na fonte forçaria cadastrar a mesma fonte várias vezes, artificialmente, para representar mercados diferentes.
+
+Corrigido: `pricing_source.default_market_scope` (renomeado — ver seção `pricing_source`) permanece como classificação/default declarado da fonte, mas a **decisão final passa a depender da própria observação**, via três novos campos: `market_scope`, `market_label` (substituindo o antigo `market`, mesmo propósito, nome alinhado ao par `market_scope`/`market_evidence`) e `market_evidence`. **Regra obrigatória**: `BRAZIL_ITEM_VALUATION` só é autorizada quando a observação tiver `market_scope = 'BRAZIL'` **e** evidência de mercado brasileiro confirmada (`market_evidence_confirmed = TRUE`) — a classificação/default de `pricing_source` isoladamente nunca autoriza, sozinha, "Valor Brasil". Conversão cambial (`pricing_fx_rate`) continua sem alterar `market_scope` em nenhuma circunstância — reforça, não substitui, a regra já vigente na versão `1.0`.
 
 ## Modelo Lógico
 
@@ -936,7 +996,10 @@ Descrição
 price_type
 price
 currency_code
-market
+market_label
+market_scope
+market_evidence
+market_evidence_confirmed
 observed_at
 raw_payload
 
@@ -955,7 +1018,13 @@ created_at
 
 **currency_code** — ISO 4217 da moeda em que `price` foi reportado (não necessariamente igual a `pricing_source.base_currency` — ver nota sobre TCGdex/Cardmarket+TCGplayer, seção `pricing_source`).
 
-**market** — identificação livre (curta) do mercado/mecanismo que originou o preço (ex.: `"TCGPLAYER"`, `"CARDMARKET"`, `"JUSTTCG_AGGREGATE"`) — dimensão independente de `currency_code` (premissa 7: moeda e mercado são conceitos independentes). Não é `pricing_source` de novo (`pricing_product_id` já resolve isso transitivamente) — é o mercado **subjacente** que a fonte está reportando, relevante quando uma fonte agrega mais de um mercado (achado real do discovery).
+**market_label** — identificação livre (curta) do mercado/mecanismo que originou o preço (ex.: `"TCGPLAYER"`, `"CARDMARKET"`, `"JUSTTCG_AGGREGATE"`) — dimensão independente de `currency_code` (premissa 7 do pedido original: moeda e mercado são conceitos independentes). Não é `pricing_source` de novo (`pricing_product_id` já resolve isso transitivamente) — é o mercado **subjacente** que a fonte está reportando, relevante quando uma fonte agrega mais de um mercado (achado real do discovery). Renomeado de `market` para `market_label` na versão `1.1`, para deixar explícito que é o rótulo textual do mercado, par de `market_scope`/`market_evidence` — mesmo propósito, mesma coluna, nome mais preciso.
+
+**market_scope** — `INTERNATIONAL` / `BRAZIL` / `UNDETERMINED` (campo novo, versão `1.1`). A classificação de mercado **desta observação específica**, não da fonte — é este campo, não `pricing_source.default_market_scope`, que autoriza (ou não) a classificação futura `BRAZIL_ITEM_VALUATION`. Default `UNDETERMINED`; a rotina de sincronização deve preenchê-lo a partir da configuração conhecida do mercado subjacente (`market_label`) para aquela fonte — ex.: se a fonte já é sabidamente `market_label = 'LIGA_POKEMON_BR'`, a sincronização grava `market_scope = 'BRAZIL'` diretamente; se o mercado subjacente não é reconhecido, grava `UNDETERMINED` em vez de assumir o `default_market_scope` da fonte sem verificação.
+
+**market_evidence** — `JSONB`, evidência normalizada que sustenta a classificação de `market_scope` desta observação (ex.: qual regra de mapeamento mercado→escopo foi aplicada, qual trecho do `raw_payload` identificou o mercado). Nunca vazio quando `market_scope <> 'UNDETERMINED'`.
+
+**market_evidence_confirmed** — booleano, default `FALSE`. Estado de confirmação da evidência de mercado (avaliado como necessário nesta correção): `TRUE` quando o `market_scope` desta observação foi estabelecido por uma regra de mapeamento mercado→escopo já confirmada administrativamente para aquele `market_label` (não uma revisão manual por observação individual, o que seria inviável em escala — a confirmação ocorre uma vez, por mercado subjacente, na configuração da fonte/sincronização, e se propaga a todas as observações futuras daquele `market_label`). **Regra obrigatória**: `BRAZIL_ITEM_VALUATION` exige `market_scope = 'BRAZIL' AND market_evidence_confirmed = TRUE` — `market_scope = 'BRAZIL'` sozinho (ex.: uma heurística ainda não confirmada) não basta.
 
 **observed_at** — o instante que a própria fonte declara para este preço (ex.: `lastUpdated` da JustTCG) — não o instante em que o MMKYU persistiu a linha (isso é `created_at`).
 
@@ -975,22 +1044,28 @@ created_at
 2. `price >= 0`.
 3. Nenhum `UPDATE`/`DELETE` de linha existente é suportado por nenhuma rotina — apenas `INSERT`.
 4. `raw_payload` sempre um objeto JSON (`jsonb_typeof(raw_payload) = 'object'`), nunca vazio de fato quando a linha vem de sincronização automática (validado em código, não em `CHECK`, para permitir entradas manuais futuras sem payload bruto).
+5. `market_evidence` sempre um objeto JSON; nunca vazio quando `market_scope <> 'UNDETERMINED'` — `CHECK` cruzado (versão `1.1`).
+6. `market_evidence_confirmed = TRUE` exige `market_scope <> 'UNDETERMINED'` — não é possível confirmar evidência de um mercado indeterminado (versão `1.1`).
+7. **Regra obrigatória de "Valor Brasil"**: nenhuma rotina de Analytics (futura) deve classificar `BRAZIL_ITEM_VALUATION` a partir de uma observação cujo `market_scope <> 'BRAZIL'` ou `market_evidence_confirmed = FALSE` — reforçada na seção "Item Valuation", ao final (versão `1.1`).
 
 ## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
 
 ```sql
 CREATE TABLE public.pricing_observation (
-    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pricing_product_id   UUID NOT NULL REFERENCES public.pricing_product (id) ON DELETE RESTRICT,
-    condition_id         UUID NOT NULL REFERENCES public.pricing_condition (id) ON DELETE RESTRICT,
-    sync_run_id          UUID REFERENCES public.pricing_sync_run (id) ON DELETE SET NULL,
-    price_type           TEXT NOT NULL DEFAULT 'MARKET',
-    price                NUMERIC(12,2) NOT NULL,
-    currency_code        TEXT NOT NULL,
-    market               TEXT,
-    observed_at          TIMESTAMPTZ NOT NULL,
-    raw_payload          JSONB NOT NULL DEFAULT '{}'::JSONB,
-    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pricing_product_id        UUID NOT NULL REFERENCES public.pricing_product (id) ON DELETE RESTRICT,
+    condition_id              UUID NOT NULL REFERENCES public.card_condition (id) ON DELETE RESTRICT,
+    sync_run_id               UUID REFERENCES public.pricing_sync_run (id) ON DELETE SET NULL,
+    price_type                TEXT NOT NULL DEFAULT 'MARKET',
+    price                     NUMERIC(12,2) NOT NULL,
+    currency_code             TEXT NOT NULL,
+    market_label              TEXT,
+    market_scope              TEXT NOT NULL DEFAULT 'UNDETERMINED',
+    market_evidence           JSONB NOT NULL DEFAULT '{}'::JSONB,
+    market_evidence_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    observed_at               TIMESTAMPTZ NOT NULL,
+    raw_payload               JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_pricing_observation_product_condition_type_instant
         UNIQUE (pricing_product_id, condition_id, price_type, observed_at),
@@ -1000,6 +1075,14 @@ CREATE TABLE public.pricing_observation (
         CHECK (price >= 0),
     CONSTRAINT ck_pricing_observation_currency_format
         CHECK (currency_code ~ '^[A-Z]{3}$'),
+    CONSTRAINT ck_pricing_observation_market_scope
+        CHECK (market_scope IN ('INTERNATIONAL', 'BRAZIL', 'UNDETERMINED')),
+    CONSTRAINT ck_pricing_observation_market_evidence_is_object
+        CHECK (jsonb_typeof(market_evidence) = 'object'),
+    CONSTRAINT ck_pricing_observation_market_evidence_not_empty
+        CHECK (market_scope = 'UNDETERMINED' OR market_evidence <> '{}'::JSONB),
+    CONSTRAINT ck_pricing_observation_market_evidence_confirmed_requires_scope
+        CHECK (NOT market_evidence_confirmed OR market_scope <> 'UNDETERMINED'),
     CONSTRAINT ck_pricing_observation_raw_payload_is_object
         CHECK (jsonb_typeof(raw_payload) = 'object')
 );
@@ -1016,7 +1099,7 @@ ALTER TABLE public.pricing_observation ENABLE ROW LEVEL SECURITY;
 
 Sem trigger de `updated_at` (a tabela não tem essa coluna — imutabilidade por design, mesma nota de `pricing_fx_rate`).
 
-**Cardinalidade:** `pricing_product` 1—N `pricing_observation`; `pricing_condition` 1—N `pricing_observation`; `pricing_sync_run` 0..1—N `pricing_observation` (opcional).
+**Cardinalidade:** `pricing_product` 1—N `pricing_observation`; `card_condition` 1—N `pricing_observation`; `pricing_sync_run` 0..1—N `pricing_observation` (opcional).
 
 **Política de exclusão:** `pricing_product_id`/`condition_id` em `ON DELETE RESTRICT` — histórico de preço nunca é perdido por exclusão em cascata (para remover um produto de fato, primeiro seria preciso decidir explicitamente o destino de suas observações, nunca um `CASCADE` silencioso). `sync_run_id` em `ON DELETE SET NULL` (retenção do log de sincronização é independente da retenção do fato de preço em si).
 
@@ -1027,6 +1110,10 @@ Sem trigger de `updated_at` (a tabela não tem essa coluna — imutabilidade por
 - reinserir a mesma tupla de idempotência não deve gerar erro nem duplicata (`ON CONFLICT DO NOTHING`);
 - `price < 0` falha;
 - `currency_code` fora do formato `AAA` falha;
+- `market_scope` fora de `INTERNATIONAL`/`BRAZIL`/`UNDETERMINED` falha;
+- `market_scope = 'BRAZIL'` com `market_evidence = '{}'` falha;
+- `market_evidence_confirmed = TRUE` com `market_scope = 'UNDETERMINED'` falha;
+- gravar uma observação com `pricing_source.default_market_scope = 'BRAZIL'` mas `market_scope`/`market_evidence_confirmed` não preenchidos na própria observação **não** deve, sozinha, satisfazer nenhuma consulta de `BRAZIL_ITEM_VALUATION` (teste de regressão direto da correção desta versão);
 - confirmar que nenhuma role de aplicação tem `UPDATE`/`DELETE` na tabela.
 
 ## Definition of Done
@@ -1287,10 +1374,12 @@ Correspondem à Analytics (`ADR-006`), calculadas a partir de Pricing + (futura)
 
 | Classificação | Quando se aplica |
 |---|---|
-| `INTERNATIONAL_CARD_REFERENCE` | Existe `pricing_observation` para a Card, mas a impressão e/ou o idioma reportados pela fonte **não** são equivalentes ao Collection Item específico (ex.: só existe preço para a impressão em inglês, o item do usuário é PT-BR) — preço de referência, nunca do item. |
-| `INTERNATIONAL_ITEM_VALUATION` | `pricing_product.card_variant_id`, idioma confirmado e condição são todos compatíveis com o Collection Item, mas a fonte tem `pricing_source.market_scope = 'INTERNATIONAL'` — preço de mercado internacional, nunca chamado de "Valor Brasil". |
-| `BRAZIL_ITEM_VALUATION` | Mesma compatibilidade de `INTERNATIONAL_ITEM_VALUATION`, mas a fonte tem `pricing_source.market_scope = 'BRAZIL'` — única classificação que pode legitimamente aparecer como "Valor Brasil" na interface (premissa 9 do pedido), e só existe quando uma fonte desse escopo estiver homologada e mapeada. |
-| `NOT_VALUED` | Nenhuma `pricing_observation` compatível foi encontrada, ou a correspondência de Card/produto segue `PENDING`/inexistente — nunca inventar um valor por aproximação. |
+| `INTERNATIONAL_CARD_REFERENCE` | Existe `pricing_observation` para a Card, mas a impressão e/ou o idioma reportados pela fonte **não** são equivalentes ao Collection Item específico — seja porque `pricing_product.language_id <> collection_item.language_id` (ex.: só existe preço para a impressão em inglês, o item do usuário é PT-BR), seja porque `language_status = 'INFERRED'` (idioma inferido, não confirmado — correção versão `1.1`: não autoriza equivalência direta) — preço de referência, nunca do item. |
+| `INTERNATIONAL_ITEM_VALUATION` | `pricing_product.card_variant_id` compatível, `language_status = 'CONFIRMED'` **e** `pricing_product.language_id = collection_item.language_id` (correção versão `1.1` — cobertura de idioma sempre derivada por comparação, nunca lida de um estado binário PT-BR), condição compatível, **e** a `pricing_observation` usada como base tem `market_scope = 'INTERNATIONAL'` (ou `UNDETERMINED`) — preço de mercado internacional, nunca chamado de "Valor Brasil". |
+| `BRAZIL_ITEM_VALUATION` | Mesma compatibilidade de `INTERNATIONAL_ITEM_VALUATION` (idioma `CONFIRMED` e igual ao do Collection Item, condição compatível), **e** a `pricing_observation` usada como base tem `market_scope = 'BRAZIL'` **e** `market_evidence_confirmed = TRUE` (correção versão `1.1` — decisão movida da fonte para a observação; ver `pricing_observation`). `pricing_source.default_market_scope = 'BRAZIL'`, isoladamente, **nunca** é suficiente. Única classificação que pode legitimamente aparecer como "Valor Brasil" na interface (premissa 9 do pedido original), e só existe quando uma fonte desse escopo estiver homologada e mapeada. |
+| `NOT_VALUED` | Nenhuma `pricing_observation` compatível foi encontrada, a correspondência de Card/produto segue `PENDING`/`NOT_FOUND`/inexistente, ou o idioma do produto é `UNDETERMINED` — nunca inventar um valor por aproximação. |
+
+**Regra formal de cobertura de idioma (versão `1.1`)**: a cobertura de um idioma específico (PT-BR ou qualquer outro) nunca é lida diretamente de um campo booleano — é sempre **derivada por comparação** entre `pricing_product.language_id` e `collection_item.language_id` (futuro), e só produz equivalência direta de item quando `pricing_product.language_status = 'CONFIRMED'`. Idioma `INFERRED` sustenta, no máximo, `INTERNATIONAL_CARD_REFERENCE`.
 
 ## Rascunho conceitual de `item_valuation_snapshot` (Analytics, não Pricing — não implementar agora)
 
@@ -1298,14 +1387,14 @@ Quando Collection existir, um `item_valuation_snapshot` provavelmente referencia
 
 ## Cenários Obrigatórios de Validação (como o modelo acima resolve cada um)
 
-1. **Item PT-BR, preço só para impressão em inglês** — `pricing_product` do card_variant correspondente tem `language_status = 'NOT_CONFIRMED'` (idioma inglês) → classificação `INTERNATIONAL_CARD_REFERENCE`.
-2. **Item PT-BR, impressão PT-BR confirmada pela fonte, preço de mercado internacional** — `pricing_product.language_status = 'CONFIRMED'` (PT-BR), `card_variant_id` correto, mas `pricing_source.market_scope = 'INTERNATIONAL'` → `INTERNATIONAL_ITEM_VALUATION`, nunca "Valor Brasil".
-3. **Item PT-BR, evidência direta de fonte do mercado brasileiro** — mesmo caso acima, mas `pricing_source.market_scope = 'BRAZIL'` → `BRAZIL_ITEM_VALUATION`.
-4. **Mesma variante editorial em NM e LP** — duas linhas de `pricing_observation` para o mesmo `pricing_product_id`, `condition_id` diferente — nunca duas linhas de `pricing_product`/`card_variant`.
+1. **Item PT-BR, preço só para impressão em inglês** — `pricing_product` do card_variant correspondente tem `language_status = 'CONFIRMED'` com `language_id` apontando para inglês (não mais `NOT_CONFIRMED` — vocabulário corrigido na versão `1.1`) → `pricing_product.language_id <> collection_item.language_id` (PT-BR) → classificação `INTERNATIONAL_CARD_REFERENCE`.
+2. **Item PT-BR, impressão PT-BR confirmada pela fonte, preço de mercado internacional** — `pricing_product.language_status = 'CONFIRMED'` e `language_id` = idioma PT-BR (igual ao do Collection Item), `card_variant_id` correto, mas a `pricing_observation` usada como base tem `market_scope = 'INTERNATIONAL'` → `INTERNATIONAL_ITEM_VALUATION`, nunca "Valor Brasil".
+3. **Item PT-BR, evidência direta de fonte do mercado brasileiro** — mesma compatibilidade de idioma/variante do cenário 2, mas a `pricing_observation` usada como base tem `market_scope = 'BRAZIL'` **e** `market_evidence_confirmed = TRUE` (correção versão `1.1` — não basta `pricing_source.default_market_scope = 'BRAZIL'` isoladamente) → `BRAZIL_ITEM_VALUATION`.
+4. **Mesma variante editorial em NM e LP** — duas linhas de `pricing_observation` para o mesmo `pricing_product_id`, `condition_id` diferente (`card_condition`, referência compartilhada — correção versão `1.1`) — nunca duas linhas de `pricing_product`/`card_variant`.
 5. **Holofoil comum vs. Holofoil + Pokémon Center Stamp** — dois `pricing_product` distintos (dois `external_product_id`/`source_printing_label` diferentes), cada um com seu próprio vínculo opcional a `card_variant_id` — caso real já identificado na amostra da prova técnica da JustTCG (Riolu `#010`, MEP).
-6. **Preço original em USD, exibido informativamente em BRL** — `pricing_observation.price`/`currency_code` permanecem `USD`, inalterados; a exibição em BRL é obtida por leitura conjunta com `pricing_fx_rate` (data mais próxima de `observed_at`), nunca persistida sobre a observação original.
-7. **Correspondência confirmada, idioma não determinado** — `pricing_card_mapping.match_status = 'CONFIRMED'`, mas o `pricing_product` correspondente tem `language_status = 'UNDETERMINED'` — nenhuma classificação de item é produzida (no máximo `NOT_VALUED` ou `INTERNATIONAL_CARD_REFERENCE`, nunca uma equivalência de item assumida por omissão) — mesmo tratamento já validado como "indeterminado, nunca negativo" na prova técnica.
-8. **Fonte sem cobertura ou correspondência ambígua** — nenhuma linha `CONFIRMED` em `pricing_set_mapping`/`pricing_card_mapping` (ficam `PENDING` ou nunca chegam a existir) → nenhum `pricing_product`/`pricing_observation` é criado; a Card permanece `NOT_VALUED` para aquela fonte, sem dado especulativo.
+6. **Preço original em USD, exibido informativamente em BRL** — `pricing_observation.price`/`currency_code` permanecem `USD`, inalterados; a exibição em BRL é obtida por leitura conjunta com `pricing_fx_rate` (data mais próxima de `observed_at`), nunca persistida sobre a observação original, e nunca altera `pricing_observation.market_scope`.
+7. **Correspondência confirmada, idioma não determinado** — `pricing_card_mapping.match_status = 'CONFIRMED'`, mas o `pricing_product` correspondente tem `language_status = 'UNDETERMINED'` (sem `language_id`) — nenhuma classificação de item é produzida (no máximo `NOT_VALUED` ou `INTERNATIONAL_CARD_REFERENCE`, nunca uma equivalência de item assumida por omissão). O mesmo vale, com a mesma força, para `language_status = 'INFERRED'` (correção versão `1.1`) — idioma inferido também não autoriza equivalência direta, só referência — mesmo tratamento já validado como "indeterminado, nunca negativo" na prova técnica.
+8. **Fonte sem cobertura ou correspondência ambígua** — nenhuma linha `CONFIRMED` em `pricing_set_mapping`/`pricing_card_mapping` (ficam `PENDING`/`NOT_FOUND` ou nunca chegam a existir — correção versão `1.1`: `NOT_FOUND` é um resultado real de busca concluída, distinto de "nunca avaliado") → nenhum `pricing_product`/`pricing_observation` é criado; a Card permanece `NOT_VALUED` para aquela fonte, sem dado especulativo.
 
 ---
 
@@ -1315,7 +1404,6 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 
 ```text
 3000–3009  pricing_source            (estrutura)
-3010–3019  pricing_condition
 3020–3029  pricing_condition_mapping
 3030–3039  pricing_set_mapping
 3040–3049  pricing_card_mapping
@@ -1329,6 +1417,8 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 3900–3999  Reserva
 ```
 
+**`card_condition` deliberadamente fora da faixa acima (correção de precisão, versão `1.1`)**: por ser uma referência compartilhada, não exclusiva de Pricing, sua numeração não deve ser reservada dentro do milhar candidato de Pricing (`3000`–`3999`) — evitaria repetir, na numeração, o mesmo erro de pertencimento que motivou renomeá-la de `pricing_condition`. Numeração real a definir junto da governança compartilhada, no ciclo de implementação, não comprometida aqui.
+
 ---
 
 # Revision History
@@ -1336,3 +1426,4 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação deste documento (2026-08-16) — modelagem conceitual e lógica completa do domínio Pricing (10 entidades: `pricing_source`, `pricing_condition`, `pricing_condition_mapping`, `pricing_set_mapping`, `pricing_card_mapping`, `pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`), decorrente da sequência estratégica aprovada por Fabrício (`ROADMAP.md`, 2026-08-16: Card Variant → Pricing → Collection → Analytics). Formaliza a decisão em `adr/ADR-029-pricing-domain-model.md`. Nenhuma tabela criada no Supabase; nenhuma migration executada; item de implementação futura, dependente de ciclo próprio e da conclusão em paralelo da homologação de pelo menos uma fonte (`PROVA-TECNICA-JUSTTCG-PRICING-2026-08-16.md`, fora de `docs/`, ainda pendente — ver seção "Nota de Origem"). |
+| 1.1 | **Correção arquitetural pontual (2026-08-16, mesmo dia, ciclo seguinte), a pedido explícito de Fabrício — cinco pontos, sem reabrir a modelagem inteira.** (1) `pricing_product.language_status` generalizado de tri-estado binário-PT-BR (`CONFIRMED`=PT-BR/`NOT_CONFIRMED`=não-PT-BR/`UNDETERMINED`) para tri-estado neutro e multi-idioma (`CONFIRMED`/`INFERRED`/`UNDETERMINED`); `confirmed_language_id` renomeado para `language_id` (FK opcional para `language`, obrigatória em `CONFIRMED`/`INFERRED`, nula em `UNDETERMINED`); cobertura de idioma passa a ser sempre derivada por comparação (`pricing_product.language_id = collection_item.language_id`, futuro); valuation direto exige `CONFIRMED` — `INFERRED` não autoriza equivalência direta. (2) "Valor Brasil" deixa de depender exclusivamente de `pricing_source.market_scope` (renomeado para `default_market_scope` — classificação/default declarado, não mais autoridade final); `pricing_observation` ganha `market_scope`/`market_label` (renomeado de `market`)/`market_evidence`/`market_evidence_confirmed`; `BRAZIL_ITEM_VALUATION` agora exige `pricing_observation.market_scope = 'BRAZIL' AND market_evidence_confirmed = TRUE`. (3) `pricing_set_mapping`/`pricing_card_mapping` ganham quarto estado `NOT_FOUND` (busca tecnicamente concluída sem correspondência, distinta de "nunca avaliado" — ausência de linha — e de `REJECTED` — candidato específico rejeitado; contradição real da versão `1.0`, que colapsava os dois últimos sob `REJECTED`, corrigida); `external_set_id`/`external_card_id` tornam-se opcionais (obrigatórios só em `CONFIRMED`); `UNIQUE` simples de `(fonte, id externo)` substituída por índice único parcial (`WHERE match_status = 'CONFIRMED'`); novo campo `last_checked_at`. (4) `pricing_condition` renomeada para `card_condition` e reclassificada como referência compartilhada e neutra (não pertence a Pricing nem ao Catálogo Editorial) — `pricing_condition_mapping` permanece exclusiva de Pricing, agora referenciando `card_condition`; total de entidades descritas no documento permanece 10, mas apenas 9 são exclusivas de Pricing. (5) Diagrama Mermaid corrigido — removidas as relações `CARD_VARIANT`↔`LANGUAGE` e `PRICING_FX_RATE`↔`PRICING_OBSERVATION`, ambas sem FK física (o próprio texto já as declarava assim); movidas para nota textual fora do ER. Nenhuma tabela criada, nenhuma migration, nenhuma chamada à API da JustTCG; condição da homologação da JustTCG inalterada (pendente, não aprovada nem reprovada); critérios pré-registrados das Decisões A/B não tocados. Decisões corretas da versão `1.0` preservadas — ver `adr/ADR-029-pricing-domain-model.md` revisão `1.1` para o mesmo detalhamento em nível de ADR. |
