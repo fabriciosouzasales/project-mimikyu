@@ -1566,188 +1566,323 @@ Próxima etapa: estender a camada `Card Variant` (`860A`-`860G`/`960`) para cobr
 
 # Card Variant Type (Tipo de Variante da Carta)
 
-## Status
+## Status (reconciliado em 2026-08-16 contra o schema real do Supabase)
 
-**Pacote técnico concluído e executado.** Nome conceitual e físico convergentes: "Card Variant Type" (ADR-016) — o nome alternativo "Finish", usado por ADR-010 entre 2026-07 e a reversão desta decisão, é preservado apenas como sinônimo histórico. A tabela física foi criada e povoada sob o nome `card_variant_type`. A associação entre uma Card e um Card Variant Type específico é a entidade Card Variant (ver seção própria, abaixo).
+**Fundação concluída (decisão de Fabrício, 2026-08-16) — encerrada como base necessária para Pricing e Collection.** Nome conceitual e físico convergentes desde ADR-016: "Card Variant Type"/"Card Variant" ("Finish"/"Card Finish", usado por ADR-010 entre 2026-07 e a reversão desta decisão, é sinônimo histórico, não um termo ativo). A tabela física `card_variant_type` foi criada em julho de 2026 (Queries `150`/`151`, seed `850` com 13 tipos) e, a partir de 2026-08-14, ganhou uma segunda camada de governança administrativa completa (`ADR-028`) — CRUD via RPC, soft activation/deactivation, e um pipeline de importação que resolve automaticamente combinações de fontes externas para tipos canônicos. Em 2026-08-16 o catálogo real tem **39 tipos ativos**, todos do Game Pokémon TCG (`is_active = true` em 100% das linhas — nenhum foi inativado até esta data). Evoluções futuras da taxonomia (ex.: Vintage/Promo Variant Modeling, ver "Estado Atual", abaixo) permanecem como backlog explicitamente postergado — não bloqueiam Pricing nem Collection.
 
-## Modelo Físico — Versão 1.0
+## Modelo Físico — Estado Atual (confirmado por introspecção direta do Supabase em 2026-08-16)
 
 ```sql
 CREATE TABLE public.card_variant_type (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    game_id UUID NOT NULL REFERENCES public.game (id)
-        ON UPDATE RESTRICT ON DELETE RESTRICT,
-    code VARCHAR(50) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    display_order INTEGER NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (game_id, code),
-    UNIQUE (game_id, display_order)
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_id        UUID NOT NULL REFERENCES public.game (id),
+    code           VARCHAR(50) NOT NULL,
+    name           VARCHAR(100) NOT NULL,
+    description    TEXT,
+    display_order  INTEGER NOT NULL,
+    is_active      BOOLEAN NOT NULL DEFAULT TRUE,   -- Query 2152 (2026-08-15), aditiva
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT ck_card_variant_type_code_format
+        CHECK (code ~ '^[A-Z][A-Z0-9_]*$'),
+    CONSTRAINT ck_card_variant_type_name_not_blank
+        CHECK (btrim(name) <> ''),
+    CONSTRAINT ck_card_variant_type_description_not_blank
+        CHECK (description IS NULL OR btrim(description) <> ''),
+    CONSTRAINT ck_card_variant_type_display_order_positive
+        CHECK (display_order > 0),
+    CONSTRAINT uq_card_variant_type_game_code UNIQUE (game_id, code),
+    CONSTRAINT uq_card_variant_type_game_display_order UNIQUE (game_id, display_order)
 );
+
+CREATE INDEX ix_card_variant_type_game_id ON public.card_variant_type (game_id);
+
+CREATE TRIGGER trg_card_variant_type_set_updated_at
+    BEFORE UPDATE ON public.card_variant_type
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 ```
 
-Regras de negócio: `code` segue o formato `^[A-Z][A-Z0-9_]*$`; `name` não pode ser vazio; `display_order` deve ser positivo e único dentro do Game; exclusão de Game referenciado é impedida (`RESTRICT`); RLS habilitado.
+**RLS**: habilitado, uma única policy — `catalog_admin_select` (`SELECT`, `(select is_admin())`, padrão `STD-001` pós-hardening de 2026-08-14). Não existe policy de `INSERT`/`UPDATE`/`DELETE` para nenhuma role — toda escrita passa exclusivamente pelas funções `SECURITY DEFINER` abaixo. **Grants de tabela**: `authenticated` tem só `SELECT`; `anon` não tem nenhum privilégio; `service_role` tem `SELECT`/`REFERENCES`/`TRIGGER`/`TRUNCATE` (privilégios padrão de superusuário de aplicação, não usados na prática por este módulo).
 
-Queries `150 - Create Card Variant Type Table` e `151 - Create Card Variant Type Triggers` (trigger de `updated_at`, mesmo padrão já usado nas demais entidades) executadas e confirmadas por Fabrício.
+**Nenhuma exclusão física** (`DELETE`) é suportada — nem por RPC, nem por privilégio de tabela. A única forma de remover um tipo do fluxo ativo é `admin_deactivate_card_variant_type()` (soft governance, ver abaixo).
 
-## Seed — Versão 1.3
+## Governança administrativa (ADR-028) — funções `SECURITY DEFINER`, todas com `search_path=''`, `EXECUTE` restrito a `authenticated`
 
-Catálogo canônico atual do Game `POKEMON` (13 tipos, `850` v1.3):
+| Função | Query | O que faz | Regras validadas no corpo da função |
+|---|---|---|---|
+| `admin_create_card_variant_type(game_id, code, name, description, display_order)` | `2154` | Cadastra um novo tipo canônico. | Admin-only; `game_id` deve existir; `code` normalizado para maiúsculas e validado contra `^[A-Z0-9][A-Z0-9_]*$` **antes** do INSERT (nota: esta regex da função aceita código iniciando por dígito, um passo mais permissiva que a `CHECK` física da tabela — `^[A-Z][A-Z0-9_]*$` — ver "Achados desta auditoria", abaixo); `name` não pode ser vazio; `display_order` positivo; `code` e `display_order` únicos por Game (checados explicitamente, com mensagem de erro de negócio, antes de deixar a `UNIQUE` física estourar); grava `CARD_VARIANT_TYPE_CREATED` em `catalog_admin_action_log`. |
+| `admin_update_card_variant_type(id, name, description, display_order)` | `2155` | Atualiza nome/descrição/ordem. | `code` e `game_id` **não são parâmetros** — imutáveis após a criação, por design; `display_order` revalidado como único dentro do Game (excluindo o próprio registro); grava `CARD_VARIANT_TYPE_UPDATED`. |
+| `admin_deactivate_card_variant_type(id)` | `2156` | Soft-deactivation (`is_active = false`). | Rejeita se já estiver inativo; **não** afeta `card_variant`/`card_variant_type_external_mapping` já existentes — histórico nunca é alterado; `is_active` só governa disponibilidade para **novos** cadastros/mappings; grava `CARD_VARIANT_TYPE_DEACTIVATED`. |
+| `admin_reactivate_card_variant_type(id)` | `2157` | Reverte a inativação. | Rejeita se já estiver ativo; grava `CARD_VARIANT_TYPE_REACTIVATED`. |
+| `admin_create_card_variant_type_with_import_mapping(row_id, code, name, description, display_order)` | `2158` | Wrapper transacional: cria um tipo novo **e** resolve o mapeamento externo da linha de staging que originou o pedido, na mesma transação implícita da RPC. | Chama internamente `admin_create_card_variant_type()` (2154) e `admin_resolve_catalog_variant_import_mapping()` (2150, ver seção de importação); `game_id` nunca é parâmetro — resolvido a partir de `card → card_set → expansion` da própria linha, nunca informável pelo chamador; atomicidade comprovada (falha em qualquer etapa desfaz as duas). |
 
-| code | name | display_order |
-|------|------|----------------|
-| `STANDARD` | Padrão | 1 |
-| `HOLO` | Holográfica | 2 |
-| `COSMOS_HOLO` | Holográfica Cosmos | 3 |
-| `REVERSE_HOLO` | Holográfica Reversa | 4 |
-| `ENERGY_REVERSE` | Energia Reversa | 5 |
-| `POKE_BALL_REVERSE` | Poké Bola Reversa | 6 |
-| `LOVE_BALL_REVERSE` | Love Ball Reversa | 7 |
-| `FRIEND_BALL_REVERSE` | Friend Ball Reversa | 8 |
-| `QUICK_BALL_REVERSE` | Quick Ball Reversa | 9 |
-| `DUSK_BALL_REVERSE` | Dusk Ball Reversa | 10 |
-| `ROCKET_REVERSE` | Equipe Rocket Reversa | 11 |
-| `MASTER_BALL_REVERSE` | Master Ball Reversa | 12 |
-| `PROMO_STAMPED` | Promocional Estampada | 13 |
+Todas as cinco funções são chamadas exclusivamente pelo frontend administrativo (`/catalogo/tipos-variacao`, e o Dialog "Resolver mapeamento" de `/catalogo/importar-variantes` para a última) — nenhuma escrita direta de tabela pelo cliente.
 
-Histórico: a v1.0 continha cinco tipos (sem `HOLO`); a v1.1 (6 tipos) adicionou `HOLO`; a v1.2 (12 tipos) adicionou os seis tipos de reversa específica descobertos na análise editorial da coleção ME2.5 (ver "Query 860", abaixo). A **v1.3 (13 tipos)** adicionou `COSMOS_HOLO`, motivada por checklists editoriais oficiais (pkmn.gg) que confirmaram esse acabamento como um padrão físico recorrente — observado em mais de uma Card e mais de um produto de coleções distintas (ex.: Card `008` e Card `020` de uma mesma coleção, cada uma com uma impressão "Cosmos Holo" vinda de um produto promocional específico) — e não um caso isolado nem um simples selo (`PROMO_STAMPED`). Todas as versões usam o mesmo mecanismo de convergência segura (deslocamento temporário de `display_order` em `+1000` antes do UPSERT definitivo). Executada com sucesso, confirmada por Fabrício.
+## Taxonomia e distinção conceitual (herdada da modelagem original, ainda válida)
 
-O catálogo foi mantido deliberadamente restrito a tipos com utilidade colecionável clara e documentada. Outros acabamentos ainda sem evidência editorial confirmada nas coleções do projeto (ex.: Galaxy Holo, Confetti Holo, Cracked Ice) foram deliberadamente **não** incluídos — serão avaliados individualmente se e quando aparecerem em uma coleção suportada pelo Project Mimikyu. O cadastro de um Card Variant Type não implica que toda Card, ou mesmo todo Card Set, possua essa variante — essa associação é feita pela tabela `card_variant`.
+`card_variant_type` representa apenas o **acabamento físico** da carta (Standard, Holo, Cosmos Holo, Reverse, etc.) — nunca a origem/distribuição de uma impressão promocional específica (booster vs. produto promocional vs. coleção especial), que permanece uma necessidade de modelagem reconhecida e **ainda não construída** (decisão original preservada da modelagem de julho de 2026). O cadastro de um tipo não implica que toda Card, ou todo Card Set, possua essa variante — a associação real é feita por `card_variant` (seção seguinte).
 
-## Distinção Reconhecida — Acabamento vs. Origem de Distribuição (não modelada ainda)
+## Estado Atual (dado real, Supabase, 2026-08-16)
 
-A investigação que levou à inclusão de `COSMOS_HOLO` revelou que `card_variant_type` está tentando representar, hoje, duas dimensões conceitualmente independentes sob um único catálogo: (1) o **acabamento físico** da Card (Standard, Holo, Cosmos Holo, Reverse, etc. — "o que a carta fisicamente é") e (2) a **origem/distribuição** daquela impressão (booster, produto promocional específico, coleção especial — "de onde ela veio"). Uma mesma Card pode ter o mesmo acabamento reaparecendo em produtos diferentes, sem que isso deva gerar um novo Card Variant Type a cada novo produto lançado.
+39 tipos cadastrados, todos ativos, todos do Game Pokémon TCG (nenhum outro Game tem `card_variant_type` hoje). Crescimento real do catálogo: 13 tipos originais (`850` v1.3, julho de 2026) → 39 tipos após a governança e o pipeline de importação de variantes (agosto de 2026) resolverem taxonomicamente combinações reais encontradas em `SV7`–`SV10.5W` e casos vintage/promocionais (`GameStop`, `EB Games`, campeonatos regionais, Gym Challenge, etc.). A lista completa e atualizada vive no banco (`card_variant_type`, ordenável por `display_order`) — não duplicada aqui para não criar uma segunda fonte que fica desatualizada a cada novo tipo cadastrado.
 
-Decisão confirmada por Fabrício: `card_variant_type` continua representando **apenas** o acabamento físico (Opção A, entre as duas avaliadas). A origem/distribuição de uma impressão promocional específica é uma necessidade de modelagem reconhecida, mas **ainda não construída** — provavelmente uma futura entidade de "Printing"/"Release" vinculada a `card_variant` (ou reaproveitando `card_asset`), registrando produto de distribuição, idioma, data de lançamento, tiragem (quando conhecida) e exclusividade. Isso mantém o catálogo de tipos enxuto e evita que ele cresça indefinidamente a cada nova caixa, blister ou coleção promocional lançada.
-
-## Validação — Versão 1.3
-
-Query `950 - Validate Card Variant Type` (v1.3) valida: existência do Game, quantidade canônica (13 para `POKEMON`), presença e aderência dos 13 códigos esperados (incluindo `COSMOS_HOLO`), tipos fora do catálogo canônico, duplicidades de `code`/`display_order`, formato de `code`, campos obrigatórios, sequência de `display_order` (1 a 13), relacionamento com Game, timestamps, trigger de `updated_at` e RLS. **Mudança de padrão nesta versão**: reescrita como bloco executável (`DO $$`) com `RAISE EXCEPTION` e rollback automático em qualquer inconsistência, substituindo o padrão anterior (v1.0–v1.2) de `SELECT`s apenas informativos. Executada com sucesso logo após `850` v1.3 — confirmado por Fabrício.
-
-## Nomenclatura — RESOLVIDA (ADR-016)
-
-ADR-010 havia renomeado o conceito antes chamado "Card Variant" para **Finish**/**Card Finish**, deixando em aberto se as tabelas físicas pré-existentes `card_variant`/`card_variant_type` (parte do conjunto original de 17 tabelas, anteriores a esta fase de documentação) seriam renomeadas para acompanhar. Essa renomeação física nunca aconteceu, nem foi necessária: toda a modelagem física subsequente (Queries `150`/`151`/`160`/`161`/`850`/`950`/`860`, e a própria ADR-008) foi construída e executada sob os nomes `card_variant_type`/`card_variant`, sem qualquer referência a "Finish".
-
-**Fabrício resolveu a tensão (2026-07-23, ADR-016): o vocabulário conceitual do domínio converge para "Card Variant Type"/"Card Variant"**, revertendo especificamente a parte de nomenclatura de ADR-010 — a separação de Rarity como atributo de primeira classe da Card, também decidida em ADR-010, permanece válida e não foi afetada. Nenhuma alteração física é necessária: `card_variant_type`/`card_variant` já usam o nome agora também canônico no vocabulário conceitual.
+**Backlog explicitamente postergado, não bloqueante (decisão de Fabrício, 2026-08-16)**: Vintage/Promo Variant Modeling — ver seção "Importação de Card Variant", abaixo, para o achado técnico (30+ combinações de `BASEP` e a totalidade de `BASE1` sem mapeamento, motivando uma futura dimensão de "origem/distribuição" separada do acabamento físico).
 
 ## Definition of Done
 
-- [x] modelo físico definido e executado (`150`, v1.0);
-- [x] trigger de `updated_at` criado e confirmado (`151`, v1.0);
-- [x] RLS habilitado;
-- [x] seed executada com sucesso — 13 tipos canônicos (`850` v1.3, incluindo `COSMOS_HOLO` e os 6 tipos de reversa específica descobertos na análise da ME2.5);
-- [x] validação executada com sucesso (`950` v1.3, reescrita como bloco `DO $$` com `RAISE EXCEPTION`);
-- [x] arquivos `150`/`151`/`850`/`950` copiados para `database/` (`850`/`950` sobrescritos em vigor, v1.3 — Princípio da Fonte Canônica);
-- [x] entidade Card Variant (associação Card ↔ Card Variant Type) — estrutura executada, ver seção própria abaixo;
-- [x] nomenclatura conceitual resolvida — Card Variant Type/Card Variant (ADR-016), revertendo Finish/Card Finish (ADR-010);
-- [ ] distinção reconhecida entre acabamento (`card_variant_type`) e origem/distribuição de uma impressão promocional — necessidade identificada, entidade futura ainda não modelada (ver "Distinção Reconhecida", acima).
+- [x] modelo físico definido e executado (`150`/`151`, v1.0, julho de 2026);
+- [x] seed original executada — 13 tipos canônicos (`850` v1.3);
+- [x] governança administrativa completa — CRUD via RPC admin-only, soft activation/deactivation, sem exclusão física (`ADR-028` revisões `1.2`–`1.4`, Queries `2152`–`2158`, agosto de 2026);
+- [x] UI administrativa (`/catalogo/tipos-variacao`) consumindo só as RPCs, nenhuma escrita direta de tabela;
+- [x] pipeline de resolução de mapeamento externo → tipo canônico, incluindo o modo "criar tipo novo + resolver" na mesma operação (ver seção de importação, abaixo);
+- [x] RLS + least privilege de `GRANT` (Query `2147`) aplicados;
+- [x] taxonomia real em 39 tipos ativos, cobrindo até `SV10.5W` (2026-08-16);
+- [ ] distinção entre acabamento físico e origem/distribuição de uma impressão promocional — necessidade identificada desde julho de 2026, entidade futura ainda não modelada;
+- [ ] Vintage/Promo Variant Modeling — backlog postergado, não bloqueante (ver "Estado Atual", acima).
 
 ## Queries Associadas
 
 ```text
-150 - Create Card Variant Type Table     (v1.0, Status CANÔNICA — executada e confirmada)
-151 - Create Card Variant Type Triggers  (v1.0, Status CANÔNICA — executada e confirmada)
-850 - Seed Card Variant Type             (v1.3, Status CANÔNICA — executada e confirmada, 13 tipos)
-950 - Validate Card Variant Type         (v1.3, Status CANÔNICA — executada e confirmada, bloco DO $$ com RAISE EXCEPTION)
+150  - Create Card Variant Type Table                         (v1.0, CANÔNICA — jul/2026)
+151  - Create Card Variant Type Triggers                       (v1.0, CANÔNICA — jul/2026)
+850  - Seed Card Variant Type                                  (v1.3, CANÔNICA — jul/2026, 13 tipos)
+950  - Validate Card Variant Type                               (v1.3, CANÔNICA — jul/2026)
+2152 - Add is_active to Card Variant Type                       (CONFIRMADO EXECUTADO — 2026-08-15)
+2153 - Widen catalog_admin_action_log for Card Variant Type     (CONFIRMADO EXECUTADO — 2026-08-15)
+2154 - admin_create_card_variant_type()                         (CONFIRMADO EXECUTADO — 2026-08-15)
+2155 - admin_update_card_variant_type()                         (CONFIRMADO EXECUTADO — 2026-08-15)
+2156 - admin_deactivate_card_variant_type()                     (CONFIRMADO EXECUTADO — 2026-08-15)
+2157 - admin_reactivate_card_variant_type()                     (CONFIRMADO EXECUTADO — 2026-08-15)
+2158 - admin_create_card_variant_type_with_import_mapping()     (CONFIRMADO EXECUTADO — 2026-08-15)
 ```
 
 ---
 
 # Card Variant (Variante da Carta)
 
-## Status
+## Status (reconciliado em 2026-08-16 contra o schema real do Supabase)
 
-**CANONICAMENTE ENCERRADA — estrutura e dados 100% concluídos e executados.** As 5 coleções (ME1/ME2/ME2.5/ME3/ME4) estão totalmente povoadas: 859 Cards, 1.555 Card Variants, com a Query `860` consolidada (substituindo definitivamente `860A`–`860E`) e validadas integralmente pela Query `960` v2.0 — resultado confirmado: 859/859 Cards cobertas, 1.555/1.555 Card Variants, 859/859 variantes padrão, status `COMPLETE` (ver "Query 860", abaixo). Associa uma Card específica a um Card Variant Type específico — representa uma versão colecionável que oficialmente existe para aquela Card (ex.: `ME1-001 — Bulbasaur` possui `STANDARD` e `REVERSE_HOLO`). Não representa uma cópia física: duas cópias físicas da mesma variante serão, no futuro, dois registros distintos de inventário/coleção, não dois registros de `card_variant`.
+**Fundação concluída (decisão de Fabrício, 2026-08-16).** Associa uma Card específica a um Card Variant Type específico — representa uma versão colecionável que oficialmente existe para aquela Card. Não representa uma cópia física: duas cópias físicas da mesma variante serão, quando Collection existir, dois registros distintos de Collection Item, não dois registros de `card_variant` (`ADR-013`). A tabela nasceu em julho de 2026 (859 Cards / 1.555 Card Variants nas 5 coleções originais, depois 927/1.653 com `MEE`/`MEP` — ver "Histórico da carga original", abaixo) e cresceu substancialmente em agosto de 2026 via o pipeline de importação administrativa (ver seção "Importação de Card Variant", a seguir). **Estado real hoje: 4.718 Card Variants, cobrindo 2.433 das 7.104 Cards cadastradas no catálogo** (≈34% — cobertura ainda parcial porque o catálogo de Cards cresceu, via ingestão TCGdex, muito além das 7 Card Sets originais, e o pipeline de variantes ainda não foi rodado para todo Card Set existente).
 
-## Modelo Físico — Versão 1.0
+## Modelo Físico — Estado Atual (confirmado por introspecção direta do Supabase em 2026-08-16)
 
 ```sql
 CREATE TABLE public.card_variant (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    card_id UUID NOT NULL REFERENCES public.card (id)
-        ON UPDATE RESTRICT ON DELETE RESTRICT,
-    variant_type_id UUID NOT NULL REFERENCES public.card_variant_type (id)
-        ON UPDATE RESTRICT ON DELETE RESTRICT,
-    variant_order INTEGER NOT NULL,
-    is_default BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (card_id, variant_type_id),
-    UNIQUE (card_id, variant_order)
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_id          UUID NOT NULL REFERENCES public.card (id),
+    variant_type_id  UUID NOT NULL REFERENCES public.card_variant_type (id),
+    variant_order    INTEGER NOT NULL,
+    is_default       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT ck_card_variant_order_positive CHECK (variant_order > 0),
+    CONSTRAINT uq_card_variant_card_type  UNIQUE (card_id, variant_type_id),
+    CONSTRAINT uq_card_variant_card_order UNIQUE (card_id, variant_order)
 );
 
+CREATE INDEX ix_card_variant_card_id ON public.card_variant (card_id);
+CREATE INDEX ix_card_variant_variant_type_id ON public.card_variant (variant_type_id);
+
 CREATE UNIQUE INDEX uq_card_variant_one_default_per_card
-    ON public.card_variant (card_id)
-    WHERE is_default = TRUE;
+    ON public.card_variant (card_id) WHERE is_default = TRUE;
+
+CREATE TRIGGER trg_card_variant_set_updated_at
+    BEFORE UPDATE ON public.card_variant
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER trg_card_variant_validate_game_consistency
+    BEFORE INSERT OR UPDATE ON public.card_variant
+    FOR EACH ROW EXECUTE FUNCTION validate_card_variant_game_consistency();
 ```
 
-Regras de negócio: `variant_order` deve ser positivo e único dentro da Card (é local à Card, não ao catálogo geral de Card Variant Type — a ordem de apresentação das variantes de uma Card específica pode divergir da ordem canônica dos tipos); no máximo uma variante `is_default = TRUE` por Card, garantido por índice único parcial; a obrigatoriedade de existir pelo menos uma variante padrão por Card será garantida pelo processo de carga e validada pela Query `960` após o Seed `860`; exclusões de Card ou Card Variant Type referenciados são impedidas; RLS habilitado.
+Regras de negócio confirmadas: `variant_order` positivo e único por Card (local à Card, não ao catálogo geral de tipos); no máximo uma variante `is_default = TRUE` por Card, via índice único parcial; `validate_card_variant_game_consistency()` impede que uma Card de um Game seja associada a um `card_variant_type` de outro Game (mesmo padrão do trigger equivalente em `Card`). **Sem campo `variant_code` persistido** (mesmo precedente de `card_code`/`secret_set_size`): o código legível é derivado — `card_set.code || '-' || card.collector_number || '-' || card_variant_type.code` (ex.: `ME1-001-STANDARD`).
 
-**Decisão — sem campo `variant_code` persistido**: seguindo o mesmo precedente já usado para `card_code` (Card) e `secret_set_size` (Card Set), o código legível da variante é derivado, não armazenado: `card_set.code || '-' || card.collector_number || '-' || card_variant_type.code` (ex.: `ME1-001-STANDARD`, `ME1-001-REVERSE_HOLO`). Evita duplicação e risco de divergência entre o código persistido e os dados de origem.
+**RLS**: habilitado, uma única policy — `catalog_admin_select` (`SELECT`, `(select is_admin())`). **Grants de tabela**: `authenticated` só `SELECT`; `anon` sem privilégio nenhum; `service_role` com `SELECT`/`REFERENCES`/`TRIGGER`/`TRUNCATE`.
 
-Queries `160 - Create Card Variant Table` e `161 - Create Card Variant Triggers` executadas e confirmadas por Fabrício ("Executado com sucesso").
+## Imutabilidade — regra confirmada no código, não apenas na intenção
 
-## Trigger — Consistência de Game
+`internal.write_card_variant(mode, variant_id, card_id, variant_type_id, variant_order)` (Query `2143`, `SECURITY DEFINER`, chamada só internamente — nunca exposta a `authenticated`/`anon`) é a única rotina que grava em `card_variant`. **O modo `UPDATE` existe na assinatura mas está desabilitado deliberadamente**: chamá-lo levanta `INTERNAL_WRITE_CARD_VARIANT_UPDATE_NOT_SUPPORTED` — "nenhum fluxo atual atualiza uma Card Variant existente — ela é tratada como UNCHANGED. Parâmetro reservado para uma necessidade futura ainda não desenhada." Na prática, hoje, **uma `card_variant` nunca é alterada depois de criada** — só criada (via importação confirmada) ou deixada como está (`UNCHANGED`, quando a combinação já existe). Não existe nenhuma rotina de exclusão física de `card_variant`.
 
-Mesmo padrão já usado em Card (`141`, `validate_card_game_consistency()`): `validate_card_variant_game_consistency()` verifica, antes de INSERT/UPDATE de `card_id`/`variant_type_id`, que a Card (via `Card → Card Set → Expansion → Game`) e o Card Variant Type (via `Card Variant Type → Game`) pertencem ao mesmo Game — evita duplicar `game_id` diretamente em `card_variant`.
+## Governança e origem dos dados
 
-## Validação — Query 960 (Versão 2.0, CANÔNICA)
+Diferente de `card_variant_type` (taxonomia com CRUD administrativo direto), `card_variant` só é populada por dois caminhos: (1) a carga original de julho de 2026 (`860`/`860A`/`860B`, ver "Histórico da carga original", abaixo); (2) o pipeline de importação administrativa de agosto de 2026 (`admin_confirm_catalog_variant_import()`, ver seção seguinte). Não existe uma tela de "criar Card Variant" avulsa — toda criação nova passa pelo fluxo de importação e revisão, nunca por um formulário direto, reforçando `ADR-028`: Card Variant é dado editorial, mantido exclusivamente por administradores, por um processo auditável.
 
-**Evoluída de validação estrutural para validação completa pós-carga**, exatamente como a própria v1.0 já previa que faria. Mantém os 15 blocos estruturais originais (existência da tabela, colunas, constraints — PK/2 FK/2 UNIQUE/1 CHECK, índices — incluindo o índice único parcial da variante padrão, triggers, funções, RLS, integridade referencial, inconsistência de Game, unicidade lógica) e acrescenta a validação completa da carga editorial: cobertura exata das 859 Cards, total exato de 1.555 Card Variants, quantidade de Cards/variantes por Card Set (5 coleções), exatamente uma variante padrão por Card (sempre na posição `variant_order = 1`, sempre `STANDARD` ou `HOLO`), sequência contínua de `variant_order` dentro de cada Card, e distribuição canônica completa por Card Set + Card Variant Type (24 combinações esperadas, cobrindo os 12 tipos de variante). Qualquer divergência provoca `RAISE EXCEPTION` e rollback integral.
+---
 
-**Resultado real, executado e confirmado:** `covered_cards` 859/859, `registered_variants` 1.555/1.555, `default_variants` 859/859, `status` `COMPLETE`. Fecha o ciclo `160 → 860 → 960` como referência definitiva da camada de Card Variant. Arquivo copiado para `database/validations/960_validate_card_variant.sql`, substituindo em vigor a versão 1.0 (`960_validate_card_variant_structure.sql`, removida do repositório com permissão de Fabrício — Princípio da Fonte Canônica).
+# Importação de Card Variant — Pipeline Administrativo (ADR-028, agosto de 2026)
 
-## Seed 860 — CONCLUÍDO E EXECUTADO (histórico do planejamento original, preservado)
+Bloco novo desde o checkpoint técnico de 2026-08-14, cobrindo taxonomia (governança já descrita acima) e a ingestão de novas `card_variant` a partir da TCGdex. Objetivo: dado um Card Set já com Cards cadastradas (via `ADR-024`), identificar automaticamente quais combinações de acabamento a fonte externa descreve para cada Card, resolvê-las para um `card_variant_type` canônico, e só então gravar em `card_variant` — nunca a partir de inferência automática de um tipo novo (ADR-028: criar tipo é sempre decisão explícita de administrador).
 
-Ver `04-domain-model.md`, seção Card Variant Type/Card Variant, para o raciocínio completo. Resumo (histórico do planejamento original): não existe fonte oficial única e estruturada com todas as variantes de cada Card — o Seed foi produzido por um pipeline (`Checklist oficial + TCGdex campo variants + Pokémon TCG API como evidência complementar + validação manual de exceções → dataset intermediário rastreável → Query 860`), consistente com o padrão Import/Synchronization já estabelecido em `ADR-008`/`06-pipeline-importacao.md`. Dado o volume estimado (859 Cards, 1.555 registros de Card Variant no total real), o trabalho foi dividido e validado por Card Set (`860A`–`860E`) e depois consolidado na Query canônica `860`, conforme planejado.
+## `card_variant_type_external_mapping` — de-para combinação externa → tipo canônico
 
-**Refinamento da estratégia (executado integralmente).** Fabrício recusou a recomendação de adiar `860` e abrir o domínio `200 — Collections` em paralelo ("Não temos como fugir dele!") — reafirmando a disciplina já registrada de não abrir Coleções enquanto o Catálogo Editorial estiver incompleto (ver roadmap de prioridades em memória). Processo confirmado por Card Set (cinco etapas): identificar variantes nas fontes → cruzar com Cards já cadastradas → classificar automaticamente casos seguros → separar divergências/exceções → gerar UPSERT canônico. Regra de `variant_order`: local à Card, sequencial e sem lacunas (não usa a ordem global de Card Variant Type quando a Card não possui todos os tipos). Regra de `is_default`: `STANDARD`/`HOLO` padrão conforme a impressão principal seja normal ou holográfica; demais variantes não são padrão salvo evidência excepcional. Forma da carga: `INSERT ... ON CONFLICT (card_id, variant_type_id) DO UPDATE` idempotente, com validações internas (Card/Variant Type inexistentes, duplicidade, mais de uma ou nenhuma variante padrão por Card, ordem duplicada/descontínua, inconsistência de Game, contagem divergente da esperada) — todas confirmadas sem erro nas cinco execuções e na execução consolidada. As cinco execuções por coleção (`860A`–`860E`) foram concluídas e, em seguida, consolidadas em uma única Query canônica (`860`), com os cinco arquivos intermediários removidos de `database/seeds/` (Princípio da Fonte Canônica).
+```sql
+CREATE TABLE public.card_variant_type_external_mapping (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_id            UUID NOT NULL REFERENCES public.game (id),
+    asset_source_id    UUID NOT NULL REFERENCES public.asset_source (id),
+    external_type      TEXT NOT NULL,
+    external_foil      TEXT,
+    external_subtype   TEXT,
+    external_stamp     TEXT[],
+    normalized_type     TEXT NOT NULL,
+    normalized_foil     TEXT,
+    normalized_subtype  TEXT,
+    normalized_stamp    TEXT[],
+    variant_type_id    UUID NOT NULL REFERENCES public.card_variant_type (id),
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-**Discrepância sinalizada, parcialmente esclarecida**: o plano de staging cita `860F` para um Card Set "`ME5`", que não existe no catálogo atual — provável reaproveitamento por engano do rótulo "`ME5`", já usado neste documento como exemplo hipotético de expansão futura. **Atualização (2026-07-23):** a resposta não é `ME0` nem `ME5` — Fabrício esclareceu que o próprio código `ME0` estava errado (correto: `MEP`, ver seção Set/Card Set Promocional, acima) e que um novo Card Set oficial `MEE` ("Energy Set") foi criado, possivelmente relevante para a discrepância `ENERGY`. O plano de staging do Seed `860` será revisado quando a SQL/migration dessa correção for recebida; nada alterado em `database/` ainda.
+    -- normalized_type não pode ser vazio; external_stamp/normalized_stamp, quando presentes,
+    -- não podem ser array vazio nem conter elemento NULL (4 CHECKs dedicados)
+    CONSTRAINT uq_card_variant_type_external_mapping_combo
+        UNIQUE (game_id, asset_source_id, normalized_type,
+                COALESCE(normalized_foil, ''), COALESCE(normalized_subtype, ''),
+                COALESCE(normalized_stamp, '{}'))
+);
+```
 
-**Extensão a `MEE`/`MEP` — CONCLUÍDA E EXECUTADA (2026-07-24).** O plano original de renomear a antiga `860A` (ME1) para `860C` e reorganizar `860C`-`860G` por ordem cronológica (ver revisão anterior deste parágrafo, preservada no histórico do repositório) foi **explicitamente abandonado por Fabrício antes de qualquer execução**: "A renumeração que eu havia proposto para transformar a antiga `860A` (ME1) em `860C` também não deve ser feita agora. Isso criaria trabalho documental sem benefício e poderia gerar confusão com o histórico já executado. Mantemos os nomes atuais das Queries existentes e atribuímos um código novo apenas para o MEE e o MEP." Como os cinco arquivos intermediários originais (antigo `860A`-`860E`, para `ME1`-`ME4`) já haviam sido consolidados e removidos em favor de `860_seed_card_variant.sql` (ver "Nota histórica", abaixo), não havia de fato colisão de nomes de arquivo a resolver — apenas dois códigos novos foram necessários. **⚠️ Atenção, letra reaproveitada**: as letras `A`/`B` abaixo referem-se a `MEE`/`MEP` (2026-07-24), não a `ME1`/`ME2` como nas menções históricas de `860A`/`860B` no restante desta seção (essas descrevem os arquivos intermediários já removidos, preservados aqui apenas como registro histórico). `860_seed_card_variant.sql` (a Query consolidada para `ME1`-`ME4`/`ME2.5`) permanece inalterado, sem renomeação. Executados e confirmados: `database/seeds/860a_seed_card_variant_mee.sql` (v1.0, CANÔNICA — 8 Cards, 16 Card Variants: 8 `STANDARD` + 8 `REVERSE_HOLO`) e `database/seeds/860b_seed_card_variant_mep.sql` (v1.0, CANÔNICA — 60 Cards, 82 Card Variants: 59 `HOLO` + 23 `PROMO_STAMPED`). Detalhamento de cada execução na seção "Query 860", abaixo.
+Cada linha é um mapeamento **canônico por Game+Fonte+combinação normalizada** (não por job nem por Card Set) — resolver uma combinação uma vez a resolve para todos os jobs presentes e futuros daquele Game/Fonte. Normalização via `normalize_external_catalog_value()` (`STABLE`, `upper(regexp_replace(trim(unaccent(valor)), '\s+', ' ', 'g'))`) — mesma função para os 4 campos (type/foil/subtype/cada elemento de stamp). Hoje: **33 mapeamentos, cobrindo 1 única Fonte** (TCGdex).
 
-## Definition of Done
+## `catalog_variant_import_job` / `catalog_variant_import_row` — staging
 
-- [x] arquitetura validada formalmente antes da escrita das Queries (Card → Card Variant → Collection Item);
-- [x] modelo físico definido e executado (`160`, v1.0);
-- [x] decisão sobre `variant_code` não persistido, documentada;
-- [x] trigger de `updated_at` criado e confirmado (`161`, v1.0);
-- [x] trigger de consistência de Game criado e confirmado (`161`, v1.0);
-- [x] RLS habilitado;
-- [x] validação estrutural executada com sucesso (`960` v1.0, 17 blocos — tabela ainda vazia, sem erro); posteriormente evoluída para `960` v2.0 (validação completa pós-carga, ver seção própria abaixo);
-- [x] arquivos `160`/`161`/`860`/`960` copiados para `database/`;
-- [x] arquitetura da Query `860` homologada (matriz JSONB autocontida, sem tabelas temporárias, validação pós-carga em passos) — comprovada por cinco execuções reais por coleção (`860A`–`860E`) e consolidada em uma única Query canônica;
-- [x] `860A` (ME1) executada e confirmada — 310 Card Variants (111 `STANDARD`/77 `HOLO`/122 `REVERSE_HOLO`);
-- [x] `860B` (ME2) executada e confirmada — 214 Card Variants (74 `STANDARD`/56 `HOLO`/84 `REVERSE_HOLO`);
-- [x] `860C` (ME2.5) executada e confirmada — 630 Card Variants (153 `STANDARD`/142 `HOLO`/7 `COSMOS_HOLO`/38 `REVERSE_HOLO`/140 `ENERGY_REVERSE`/140 reversas de bola-ou-Rocket/10 `PROMO_STAMPED`), ver seção Card Asset Type/Card Asset, "Query 860";
-- [x] `860D` (ME3) executada e confirmada — 203 Card Variants (68 `STANDARD`/56 `HOLO`/79 `REVERSE_HOLO`);
-- [x] `860E` (ME4) executada e confirmada — 198 Card Variants (64 `STANDARD`/58 `HOLO`/76 `REVERSE_HOLO`; 10 Cards Rara Dupla `ex` excluídas de `REVERSE_HOLO`, uma a mais que `860D`, confirmando que a exceção é por classificação editorial, não por contagem fixa);
-- [x] Query `860` consolidada (v1.0, CANÔNICA CONSOLIDADA) — todas as 5 coleções em uma única transação, `v_set_catalog` + `v_matrix` JSONB, UPSERT set-based via `jsonb_to_recordset`, 11 passos de validação; substitui definitivamente `860A`–`860E`, que foram removidas de `database/` com permissão de Fabrício (Princípio da Fonte Canônica). Resultado real: **859 Cards, 1.555 Card Variants** — distribuição global: `STANDARD` 470, `HOLO` 389, `REVERSE_HOLO` 399, `ENERGY_REVERSE` 140, `POKE_BALL_REVERSE` 34, `LOVE_BALL_REVERSE` 25, `FRIEND_BALL_REVERSE` 23, `QUICK_BALL_REVERSE` 22, `DUSK_BALL_REVERSE` 26, `ROCKET_REVERSE` 10, `COSMOS_HOLO` 7, `PROMO_STAMPED` 10;
-- [x] Query `960` v2.0 (CANÔNICA) executada e confirmada — validação completa pós-carga (estrutura + cobertura + distribuição), resultado `COMPLETE` (859/859 Cards, 1.555/1.555 Card Variants, 859/859 variantes padrão);
-- [x] nomenclatura conceitual resolvida — Card Variant Type/Card Variant (ADR-016), revertendo Finish/Card Finish (ADR-010); consistente com `ADR-008`, que já listava "Card Variant" entre as entidades do Catálogo Editorial;
-- [x] **`860A - Seed Card Variant MEE` (v1.0, CANÔNICA) executada e confirmada (2026-07-24)** — 16 Card Variants (8 `STANDARD`/8 `REVERSE_HOLO`) para as 8 Cards de `MEE`;
-- [x] **`860B - Seed Card Variant MEP` (v1.0, CANÔNICA) executada e confirmada (2026-07-24)** — 82 Card Variants (59 `HOLO`/23 `PROMO_STAMPED`) para as 60 Cards de `MEP`;
-- [x] **`960` evoluída para v2.1 (CANÔNICA), executada e confirmada (2026-07-24)** — escopo estendido às 7 Card Sets, resultado `COMPLETE` (927/927 Cards, 1.653/1.653 Card Variants, 927/927 variantes padrão).
+Mesmo padrão arquitetural de `catalog_import_job`/`catalog_import_row` (`ADR-024`), adaptado para variantes:
 
-## Queries Associadas
+```sql
+CREATE TABLE public.catalog_variant_import_job (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_set_id      UUID NOT NULL REFERENCES public.card_set (id),
+    source           TEXT NOT NULL CHECK (source = 'TCGDEX'),
+    external_set_id  TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'RECEIVED'
+        CHECK (status IN ('RECEIVED','PROCESSING','STAGED','CONFIRMING',
+                           'COMPLETED','COMPLETED_WITH_ERRORS','FAILED','CANCELLED')),
+    progress_step    TEXT CHECK (progress_step IS NULL OR status = 'PROCESSING'),
+    total_rows INT NOT NULL DEFAULT 0, valid_rows INT NOT NULL DEFAULT 0,
+    rejected_rows INT NOT NULL DEFAULT 0, inserted_rows INT NOT NULL DEFAULT 0,
+    unchanged_rows INT NOT NULL DEFAULT 0, skipped_rows INT NOT NULL DEFAULT 0,
+    failed_rows INT NOT NULL DEFAULT 0,       -- todas as 7 contagens CHECK >= 0
+    error_summary    TEXT,
+    initiated_by     UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- só um job ATIVO (RECEIVED/PROCESSING/STAGED/CONFIRMING) por Card Set + external_set_id:
+    CONSTRAINT uq_catalog_variant_import_job_fingerprint_active
+        UNIQUE (card_set_id, external_set_id)  -- índice único PARCIAL, só quando status é não-terminal
+);
+
+CREATE TABLE public.catalog_variant_import_row (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id                UUID NOT NULL REFERENCES public.catalog_variant_import_job (id),
+    card_id               UUID NOT NULL REFERENCES public.card (id),
+    raw_data              JSONB NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(raw_data) = 'object'),
+    normalized_data       JSONB NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(normalized_data) = 'object'),
+    validation_status     TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (validation_status IN ('PENDING','VALID','NEEDS_REVIEW','INVALID')),
+    match_status          TEXT NOT NULL DEFAULT 'NEW'
+        CHECK (match_status IN ('NEW','MATCHED','CONFLICT')),
+    decision_status       TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (decision_status IN ('PENDING','APPROVED','REJECTED','SKIPPED')),
+    persistence_status    TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (persistence_status IN ('PENDING','INSERTED','UNCHANGED','FAILED')),
+    matched_variant_id    UUID REFERENCES public.card_variant (id),
+    resulting_variant_id  UUID REFERENCES public.card_variant (id),
+    error_detail          TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- dedupe real (fix do incidente SV8.5): no máximo uma linha por job+card+variant_type_id resolvido
+    CONSTRAINT uq_catalog_variant_import_row_job_card_variant_type
+        UNIQUE (job_id, card_id, (normalized_data->>'variant_type_id'))
+        -- índice único PARCIAL, só quando normalized_data->>'variant_type_id' IS NOT NULL
+);
+```
+
+Ambas as tabelas têm gatilhos de normalização (`UPPER(BTRIM(...))` em todos os campos de status/enum, antes de qualquer `CHECK`) e de `updated_at`. RLS habilitado em ambas, mesma policy `catalog_admin_select`. **Grants**: `authenticated` só `SELECT`; `service_role` tem `SELECT`/`INSERT`/`UPDATE` (a Edge Function grava como `service_role`); `anon` sem privilégio nenhum.
+
+**Máquina de estados do job**: `RECEIVED` (criado) → `PROCESSING` (Edge Function ativa) → `STAGED` (linhas geradas, aguardando decisão administrativa) → `CONFIRMING` (confirmação em andamento) → `COMPLETED`/`COMPLETED_WITH_ERRORS` (terminal, com sucesso) ou `FAILED`/`CANCELLED` (terminal, sem sucesso). `admin_confirm_catalog_variant_import()` decide o status final automaticamente: `STAGED` enquanto houver linha com `decision_status = PENDING`; `CONFIRMING` enquanto houver linha aprovada/pulada ainda não persistida; `COMPLETED_WITH_ERRORS` se alguma persistência falhou; `COMPLETED` caso contrário.
+
+**Máquina de estados da linha**: `validation_status` (`NEEDS_REVIEW` quando a combinação normalizada não tem mapeamento em `card_variant_type_external_mapping`; `VALID` quando tem) → `decision_status` (`PENDING`/`APPROVED`/`REJECTED`/`SKIPPED`, decidido pelo administrador — só linhas `VALID` podem ser `APPROVED`) → `persistence_status` (`PENDING`/`INSERTED`/`UNCHANGED`/`FAILED`, resultado real da confirmação). `match_status` (`NEW`/`MATCHED`/`CONFLICT`) registra se a combinação já corresponde a uma `card_variant` existente da Card.
+
+## Edge Function `import-card-variants` (versão 3, ativa)
+
+Recebe `{ card_set_id }` (não `{ job_id }` — diferente de `import-catalog-cards`, porque ainda não existe tela dedicada de pré-criação do job para variantes), cria o próprio `catalog_variant_import_job` internamente, resolve o `external_set_id` do dataset TCGdex via `card_set_external_reference` já gravada por Importar Cartas, busca os arquivos de carta do Set inteiro (não carta a carta), correlaciona cada Card externa com a Card MMKYU via `card_external_reference`, extrai as combinações `variants[]`, resolve o mapeamento externo e grava **somente em `catalog_variant_import_row`** (staging) — nunca em `card_variant` diretamente, mesmo Princípio da Fonte Canônica de `ADR-024`. Não cria RPC de confirmação própria, não infere `is_default`/`variant_order` (resolvidos só na confirmação, por `admin_confirm_catalog_variant_import()`), não modela vintage/promo.
+
+**Resiliência (fix real, incidente SV10, 2026-08-15)**: as três chamadas de rede externas (`resolveSetSerieName()`/`listSetCardFiles()`/`fetchCardFileSource()`) usam `AbortController` com timeout de 15s cada — antes, um `fetch()` sem timeout podia deixar a invocação presa até a plataforma matá-la por estouro do teto de execução (~150s), sem que o `catch()`/marcação de falha do job rodasse, deixando o job preso em `PROCESSING` indefinidamente. **Dedupe (fix real, incidente SV8.5, 2026-08-15)**: a função deduplica combinações repetidas da mesma fonte antes de gravar em `catalog_variant_import_row` (reforçado pela `UNIQUE` parcial da tabela, acima) — antes, uma combinação duplicada na fonte externa derrubava a resolução de mapeamento com erro genérico.
+
+## Funções administrativas do fluxo de revisão/confirmação
+
+| Função | Query | O que faz |
+|---|---|---|
+| `admin_decide_catalog_variant_import_row(row_ids[], decision_status)` | `2144` | Marca um lote de linhas como `APPROVED`/`REJECTED`/`SKIPPED`/`PENDING`. Exige que o job esteja `STAGED`; rejeita aprovar linha `NEEDS_REVIEW` (sem tipo resolvido). |
+| `admin_resolve_catalog_variant_import_mapping(row_id, variant_type_id)` | `2150` | Cria um `card_variant_type_external_mapping` novo para a combinação da linha (só linhas `NEEDS_REVIEW`) e **revalida em lote, cross-job e cross-Card-Set**, toda linha `STAGED`/`PENDING` da mesma Fonte/Game com a mesma combinação normalizada — não apenas a linha que originou a ação. |
+| `admin_create_card_variant_type_with_import_mapping(row_id, code, name, description, display_order)` | `2158` | Wrapper: cria um `card_variant_type` novo **e** resolve o mapeamento na mesma operação (ver seção de taxonomia, acima). |
+| `admin_confirm_catalog_variant_import(job_id, row_ids[]?)` | `2145` | Confirma linhas `APPROVED`/`SKIPPED` com `persistence_status = PENDING`. Para cada `APPROVED`: se já existe `card_variant` para `(card_id, variant_type_id)`, marca `UNCHANGED` (`match_status = MATCHED`); senão calcula o próximo `variant_order` livre da Card e chama `internal.write_card_variant('CREATE', ...)`. Falha de linha isolada não aborta o lote — cada linha roda em bloco `EXCEPTION WHEN OTHERS` próprio, gravando `FAILED` + `error_detail` sem interromper as demais (mesmo princípio de isolamento de erro por linha de `ADR-024`). Recalcula os 7 contadores do job e o status final ao fim. Grava `CARD_VARIANT_IMPORT_CONFIRMED` em `catalog_admin_action_log` só quando o job chega a um estado terminal de sucesso. |
+
+Todas admin-only (`is_admin()`), `SECURITY DEFINER`, `search_path=''`, `EXECUTE` restrito a `authenticated`. **`service_role`** tem `GRANT` adicional de `INSERT`/`UPDATE` em `catalog_variant_import_job`/`catalog_variant_import_row` (a Edge Function grava como `service_role`, Query `2148`) e `SELECT` nas tabelas de referência que precisa ler durante o processamento.
+
+## Least privilege (Query `2147`, 2026-08-15)
+
+`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados de `anon`/`authenticated` nas 24 tabelas do Catálogo Editorial, incluindo as 5 deste bloco — mesmo padrão formalizado em `STD-001` (Seção "Row Level Security (RLS)", versão `1.19`).
+
+## Estado Atual (dado real, Supabase, 2026-08-16) — 11 jobs, 2 ainda abertos
+
+| Card Set | `external_set_id` | Status | Linhas | Observação |
+|---|---|---|---|---|
+| `ME5` | `me05` | `COMPLETED` | 194/194 inseridas | |
+| `BASEP` (Wizards Black Star Promos) | `basep` | **`STAGED`** | 74 total, 44 válidas, 0 inseridas | Backlog Vintage/Promo já documentado — 30 combinações sem mapeamento, pelo menos 3 eixos conceituais hoje colapsados no mesmo `card_variant_type` (acabamento genuíno, estampa promocional/proveniência, erro/errata de impressão). Job intocado desde 2026-08-15. |
+| `SV10.5W` (Fogo Branco) | `sv10.5w` | `COMPLETED` | 404/404 inseridas | |
+| `SV10` (Rivais Predestinados) | `sv10` | `FAILED` | 0 linhas | Job original do incidente SV10 (timeout) — corrigido e substituído pela execução seguinte. |
+| `SV10` (reexecução) | `sv10` | `COMPLETED` | 435/435 inseridas | |
+| `SV10.5B` (Raio Preto) | `sv10.5b` | `COMPLETED` | 406/406 inseridas | |
+| `SV9` (Amigos de Jornada) | `sv09` | `COMPLETED` | 385/385 inseridas | |
+| `SV8.5` (Evoluções Prismáticas) | `sv08.5` | `COMPLETED` | 472/472 inseridas | Set do incidente SV8.5 (dedupe) — corrigido no mesmo job. |
+| `SV8` (Fagulhas Impetuosas) | `sv08` | `COMPLETED` | 450/450 inseridas | |
+| `SV7` (Coroa Estelar) | `sv07` | `COMPLETED` | 319/319 inseridas | |
+| `BASE1` (Coleção Básica) | `base1` | **`STAGED`** | 410 total, **0 válidas** (100% `NEEDS_REVIEW`/`NEW`/`PENDING`) | **Achado desta auditoria, não documentado anteriormente em nenhum artefato canônico ou em `docs/log.md`.** Job criado em 2026-08-16 04:32 UTC — todas as 410 linhas ficaram `NEEDS_REVIEW`, ou seja, nenhuma combinação do Set Base original (1999, Wizards of the Coast) tem mapeamento cadastrado para nenhum `card_variant_type`. Consistente com o mesmo gap Vintage/Promo já identificado em `BASEP` (a taxonomia atual foi construída sobre o vocabulário moderno da TCGdex, `2142`), mas em escala maior (um Set inteiro, não 30 combinações). Job permanece `STAGED`, sem nenhuma linha decidida. |
+
+**39 tipos canônicos** (ver seção anterior), **33 mapeamentos externos** (1 fonte — TCGdex), **4.718 Card Variants reais**, **437 linhas em `NEEDS_REVIEW`** no total (concentradas nos dois jobs `STAGED` acima).
+
+## Achados desta auditoria (2026-08-16) — precisão, não decisão
+
+Registrados aqui por exigirem apenas leitura/observação — nenhum é uma decisão de arquitetura nem exige mudança de código para ser documentado corretamente:
+
+1. **Job `BASE1` (`STAGED`, 410 linhas, 100% `NEEDS_REVIEW`) não estava registrado em nenhum documento canônico nem em `docs/log.md` antes desta auditoria** — ver tabela acima. Even o `ROADMAP.md` (débito "Vintage/Promo Variant Modeling") só mencionava `BASEP`. Corrigido nesta rodada — ver `ROADMAP.md`.
+2. **Pequena divergência entre a validação de `code` na função `admin_create_card_variant_type()` e a `CHECK` física da tabela**: a função rejeita códigos que não casem `^[A-Z0-9][A-Z0-9_]*$` (permite iniciar por dígito), mas a `CHECK` da tabela exige `^[A-Z][A-Z0-9_]*$` (deve iniciar por letra) — um código hipotético iniciado por dígito passaria na validação da função e ainda assim seria rejeitado pela constraint física, com uma mensagem de erro genérica do Postgres em vez da mensagem de negócio da função. Nunca observado na prática (nenhum dos 39 `code`s reais começa por dígito) — registrado como observação de precisão, não como bug ativo.
+3. **`catalog_card_set_variant_coverage` (view) tem um `GRANT` ligeiramente inconsistente**: `anon` tem `REFERENCES`/`TRIGGER`/`TRUNCATE` mas não `SELECT` (não consegue lê-la de qualquer forma, dado que RLS das tabelas de base já bloqueia `anon`); `authenticated` tem os quatro. As tabelas físicas de Card Variant (diferente da view) já tiveram esses privilégios revogados de `anon`/`authenticated` pela Query `2147` — a view não foi incluída nessa passada de limpeza. Sem risco de segurança real (não é possível `TRUNCATE`/criar `TRIGGER` numa view comum; `REFERENCES` não se aplica), mas é uma inconsistência de higiene de `GRANT` factualmente real.
+
+---
+
+## Histórico da carga original (julho de 2026, preservado para rastreabilidade — não é o estado atual)
+
+A base de `card_variant` começou com uma carga manual estruturada, anterior a qualquer governança administrativa: Queries `160`/`161` (tabela e triggers, v1.0), seed `860` (consolidação de `860A`–`860E` por Card Set: `ME1` 310, `ME2` 214, `ME2.5` 630, `ME3` 203, `ME4` 198 — 1.555 Card Variants, 859 Cards) e validação `960` v2.0 (`COMPLETE`). Fonte dos dados: checklists oficiais + campo `variants` da TCGdex + Pokémon TCG API como evidência complementar + validação manual de exceções — sem fonte oficial única estruturada, mesmo padrão de `ADR-008`. Estendida a `MEE`/`MEP` em 2026-07-24 (`860A`/`860B` reaproveitando as letras já liberadas pela consolidação — 16 e 82 Card Variants respectivamente), com `960` evoluída para v2.1 (927 Cards / 1.653 Card Variants, `COMPLETE` para as 7 Card Sets originais da Expansion `ME`). Marco histórico: Fabrício declarou esta carga "canonicamente encerrada" para as 7 Card Sets originais antes de qualquer trabalho de Card Asset (imagens) prosseguir — ver `06-pipeline-importacao.md` para o episódio da Sprint B3.11, em que uma sessão pareada tratou por engano `card`/`card_variant` como vazias, corrigido por Fabrício com auditoria real contra o banco.
+
+Arquivos históricos (`860A`–`860E` de `ME1`–`ME4`) foram consolidados e removidos de `database/seeds/`, mantendo `860_seed_card_variant.sql`, `860a_seed_card_variant_mee.sql` e `860b_seed_card_variant_mep.sql` como fonte única de verdade — Princípio da Fonte Canônica, `STD-001`.
 
 ```text
-160 - Create Card Variant Table              (v1.0, Status CANÔNICA — executada e confirmada)
-161 - Create Card Variant Triggers            (v1.0, Status CANÔNICA — executada e confirmada)
-860 - Seed Card Variant                       (v1.0, Status CANÔNICA CONSOLIDADA — executada e confirmada, 859 Cards / 1.555 Card Variants, ME1-ME4/ME2.5; substitui os antigos arquivos intermediários 860A-860E dessas 5 coleções)
-860A - Seed Card Variant MEE                  (v1.0, Status CANÔNICA — executada e confirmada, 8 Cards / 16 Card Variants; letra reaproveitada para MEE, não colide com o 860A histórico de ME1, já removido)
-860B - Seed Card Variant MEP                  (v1.0, Status CANÔNICA — executada e confirmada, 60 Cards / 82 Card Variants)
-960 - Validate Card Variant                   (v2.1, Status CANÔNICA — executada e confirmada, 7 Card Sets, 927 Cards / 1.653 Card Variants, status COMPLETE)
+160 - Create Card Variant Table       (v1.0, CANÔNICA — jul/2026)
+161 - Create Card Variant Triggers    (v1.0, CANÔNICA — jul/2026)
+860  - Seed Card Variant              (v1.0, CANÔNICA CONSOLIDADA — jul/2026, ME1-ME4/ME2.5)
+860A - Seed Card Variant MEE          (v1.0, CANÔNICA — jul/2026)
+860B - Seed Card Variant MEP          (v1.0, CANÔNICA — jul/2026)
+960  - Validate Card Variant          (v2.1, CANÔNICA — jul/2026, 7 Card Sets, 927/1.653, COMPLETE)
 ```
 
-**Nota histórica (Princípio da Fonte Canônica)**: as migrations intermediárias `860A` (ME1), `860B` (ME2), `860C` (ME2.5), `860D` (ME3) e `860E` (ME4) foram cada uma escrita, executada e confirmada individualmente antes da consolidação — seus resultados reais permanecem documentados nos parágrafos da seção "Query 860", abaixo, e no Definition of Done, acima. Os cinco arquivos foram removidos de `database/seeds/` com permissão explícita de Fabrício, mantendo apenas `860_seed_card_variant.sql` como fonte única de verdade, consistente com o padrão já aplicado a `850`/`950`.
+## Queries Associadas (estado atual, agosto de 2026)
 
-**Marco confirmado por Fabrício — camada de Card Variant canonicamente encerrada para as 5 coleções originais**: com `150`/`151`/`160`/`161`/`850`/`950`/`860`/`960` todos executados e confirmados, o bloco "Editorial Catalog" (`100`) estava estrutural e editorialmente completo para as 5 coleções (ME1, ME2, ME2.5, ME3, ME4) — 859 Cards, 1.555 Card Variants, validados integralmente. **Atualização (2026-07-24) — extensão a `MEE`/`MEP` CONCLUÍDA E EXECUTADA**: com `860A - Seed Card Variant MEE` (v1.0), `860B - Seed Card Variant MEP` (v1.0) e `960 - Validate Card Variant` (v2.1) todos executados e confirmados, a camada de Card Variant passa a cobrir as **7 Card Sets** da Expansion `ME` — **927 Cards, 1.653 Card Variants**, validados integralmente, `status COMPLETE`. Ver "Query 860", abaixo, para o detalhamento de `860A`/`860B`. A modelagem editorial das variantes segue como base estável para as próximas funcionalidades. Próximo grande bloco: completar Card Asset para `MEE`/`MEP` (imagens, via `import-card-assets` — ver `06-pipeline-importacao.md`/`ADR-018`), depois retomar a Sub-Fase 2 (Coleções). Fabrício foi explícito sobre a granularidade correta desse próximo marco: "Não teremos encerrado toda a fundação do catálogo editorial do Project Mimikyu. Só concluímos após importação de todas as imagens para nossa base."
-
-**Reconfirmação real, Sprint B3.11 do Bloco B (ver `06-pipeline-importacao.md` para o episódio completo)**: durante o planejamento do pipeline de importação de imagens (`import-card-assets`), a sessão pareada, momentaneamente, tratou `card`/`card_variant` como ainda vazias e a preencher a partir da TCGdex — contrariando este marco, já fechado há dezenas de batches. Fabrício corrigiu diretamente, lembrando que os 859 Cards/1.555 Card Variants já estavam carregados. Duas queries de auditoria real (`SELECT * FROM public.card`/`public.card_variant`) foram executadas contra o banco físico e confirmaram, sem divergência, tanto os totais (`859`/`1.555`) quanto a estrutura de colunas exatamente como documentada nesta seção (sem colunas denormalizadas de código/nome, apenas FKs/UUIDs). Decisão real resultante: o pipeline de `import-card-assets` passa a **consultar** `card` (nunca inserir), usando-a como base para popular `card_external_reference` e, depois, `card_asset` — `card`/`card_variant` permanecem congeladas, fora do escopo do Bloco B.
+```text
+2143 - internal.write_card_variant()                              (CONFIRMADO EXECUTADO — 2026-08-15)
+2144 - admin_decide_catalog_variant_import_row()                  (CONFIRMADO EXECUTADO — 2026-08-15)
+2145 - admin_confirm_catalog_variant_import()                     (CONFIRMADO EXECUTADO — 2026-08-15)
+2136-2141 - catalog_variant_import_job/row, external_mapping (tabelas + triggers)  (CONFIRMADO EXECUTADO — 2026-08-15)
+2142 - Seed card_variant_type_external_mapping (combinações modernas)              (CONFIRMADO EXECUTADO — 2026-08-15)
+2146 - Widen catalog_admin_action_log (variant import)            (CONFIRMADO EXECUTADO — 2026-08-15)
+2147 - Least privilege — REVOKE DDL grants (24 tabelas)           (CONFIRMADO EXECUTADO — 2026-08-15)
+2148 - GRANT service_role read access (processador)               (CONFIRMADO EXECUTADO — 2026-08-15)
+2149 - Fail stuck variant import job (fix SV10)                   (CONFIRMADO EXECUTADO — 2026-08-15)
+2150 - admin_resolve_catalog_variant_import_mapping()             (CONFIRMADO EXECUTADO — 2026-08-15)
+2151 - Widen catalog_admin_action_log (variant mapping)           (CONFIRMADO EXECUTADO — 2026-08-15)
+```
 
 ---
 

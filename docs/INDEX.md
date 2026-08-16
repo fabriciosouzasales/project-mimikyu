@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.5 |
+| **Versão** | 1.7 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -66,6 +66,7 @@ Catálogo completo com status em [`adr/ADR-INDEX.md`](adr/ADR-INDEX.md). Lista r
 | [ADR-025](adr/ADR-025-energy-as-catalog-card-category.md) | Energia como categoria de carta no catálogo. |
 | [ADR-026](adr/ADR-026-manual-local-file-asset-import-channel.md) | Canal manual de importação de imagens via arquivo local (`scripts/import-manual-assets.ts`, `asset_source` `MANUAL`) quando a fonte externa não publica o asset — caso real `MEE`/`MEP`; conclusão de `MEP` priorizada à frente do Ciclo 3 de ADR-024. |
 | [ADR-027](adr/ADR-027-catalog-editorial-canonical-metrics-views.md) | Views administrativas de métrica canônica do catálogo (`security_invoker = true`, GRANT restrito a `authenticated`) — padrão que estreia com `catalog_card_set_metrics`/`catalog_card_set_image_coverage` (Query `2123`) e será reutilizado pela futura Central de Relatórios. |
+| [ADR-028](adr/ADR-028-card-variant-governance.md) | Card Variant como entidade mestre do Catálogo Editorial — criação/alteração/ativação exclusivas de administradores; usuário final só seleciona uma variante existente, nunca escreve em `card_variant`. Quatro revisões (`1.0`–`1.4`) cobrem resolução de mapeamento externo, governança soft de `card_variant_type` e UI administrativa. Bloco declarado fundação encerrada em 2026-08-16 (base necessária para Pricing e Collection) — ver `ROADMAP.md`, seção "Now". |
 
 ## Standards
 
@@ -100,12 +101,13 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`history/development/HANDOFF-2026-07-31.md`](history/development/HANDOFF-2026-07-31.md) | Handoff superado (31/07). |
 | [`history/development/HANDOFF-2026-08-02.md`](history/development/HANDOFF-2026-08-02.md) | Handoff superado (02/08). |
 | [`history/development/HANDOFF-2026-08-08.md`](history/development/HANDOFF-2026-08-08.md) | Handoff superado (08/08). |
+| [`history/development/HANDOFF-2026-08-09.md`](history/development/HANDOFF-2026-08-09.md) | Handoff superado (09/08). |
 
 ## Development (handoff vigente)
 
 | Documento | Resumo |
 |---|---|
-| [`development/HANDOFF-2026-08-09.md`](development/HANDOFF-2026-08-09.md) | Handoff vigente — Módulo Gerencial (Trilha 4) formalmente encerrado (Histórico de Importações, Log de Atualizações e Central de Relatórios concluídos e aprovados por Fabrício, com todas as rodadas de ajuste visual), três achados finais de uma inspeção geral do módulo, inventário de débitos técnicos, checklist de retomada. |
+| [`development/HANDOFF-2026-08-16.md`](development/HANDOFF-2026-08-16.md) | Handoff vigente — bloco Card Variant encerrado como fundação (governança, taxonomia, pipeline "Importar Variantes"), Auth Experience (Login V1 congelado, propagado), Design System consolidado como baseline, evoluções do Módulo Gerencial, correção do bug de paginação de impressão, sequência estratégica Card Variant → Pricing → Collection → Analytics aprovada, e as duas rodadas de auditoria documental de 2026-08-16 (a segunda reconstruiu `05b-cartas-e-raridade.md`). |
 
 ---
 
@@ -119,3 +121,5 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.3 | Adicionado `ADR-027` (Catalog Editorial Canonical Metrics Views, 2026-08-08) — decisão de Fabrício de abrir ADR novo (não emendar `ADR-006`) para o padrão `security_invoker = true`/GRANT restrito, estreado pela Query `2123` da Sprint Gerencial 1. |
 | 1.4 | Resumo do handoff vigente atualizado (2026-08-08) para refletir o encerramento formal do Catálogo Editorial (cinco frentes A–E concluídas) e o início do Módulo Gerencial (Sprint Gerencial 1) — ver `development/HANDOFF-2026-08-08.md` (amendado no mesmo dia) e `ROADMAP.md` revisão `1.22`. |
 | 1.5 | Handoff vigente atualizado para `development/HANDOFF-2026-08-09.md` (2026-08-09) — consolida o encerramento formal do Módulo Gerencial (Trilha 4: Histórico de Importações, Log de Atualizações, Central de Relatórios, todos concluídos e aprovados por Fabrício nesta janela). `HANDOFF-2026-08-08.md` movido para `history/development/`. Ver `ROADMAP.md` revisão `1.45` e `docs/README.md` revisão `1.98`. |
+| 1.6 | **Auditoria documental completa (2026-08-16).** Adicionado `ADR-028` (Card Variant Governance) à lista rápida de ADRs — ausente desde sua criação em 2026-08-14, apesar de já constar em `adr/ADR-INDEX.md` (revisão `2.16`). Handoff vigente atualizado para `development/HANDOFF-2026-08-16.md`; `HANDOFF-2026-08-09.md` movido para `history/development/`. Ver `ROADMAP.md` revisão `1.48` e `docs/README.md` revisão `2.00`. |
+| 1.7 | **Segunda rodada de auditoria documental (2026-08-16, mesma data), achado de segunda ordem.** Resumos de `ADR-028` e do handoff vigente ainda diziam "substancialmente implementado e pausado" — desatualizados pela decisão formal de Fabrício (Card Variant = fundação encerrada) tomada na segunda rodada; ambos corrigidos. Ver `ROADMAP.md` revisão `1.49` e `docs/README.md` revisão `2.01`. |

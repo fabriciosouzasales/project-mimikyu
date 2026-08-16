@@ -1108,7 +1108,7 @@ Fabrício, depois do encerramento do Módulo Gerencial: "todo número deve ter o
 
 Não alterado, deliberadamente fora do escopo de "indicador": números ordinais sem semântica de quantidade (`releaseOrder` nas tabelas de Expansões), e a contagem de itens selecionados para exclusão em massa (`confirm-delete-bar.tsx`) — confirmação transitória de uma seleção manual do próprio usuário, nunca na casa do milhar. `tsc --noEmit` confirmado limpo.
 
-**Aprovado por Fabrício pela UI (2026-08-09): "Considero o bloco concluído pela UI."** Sessão pausada nesta data por decisão de Fabrício — retomada prevista para 2026-08-13, com a auditoria técnica final do Catálogo Editorial como ponto real de retomada (ver `docs/development/HANDOFF-2026-08-09.md`, seções 1 e 11).
+**Aprovado por Fabrício pela UI (2026-08-09): "Considero o bloco concluído pela UI."** Sessão pausada nesta data por decisão de Fabrício — retomada prevista para 2026-08-13, com a auditoria técnica final do Catálogo Editorial como ponto real de retomada (ver `docs/history/development/HANDOFF-2026-08-09.md`, seções 1 e 11 — handoff superado, preservado como histórico; o handoff vigente é `docs/development/HANDOFF-2026-08-16.md`).
 
 ## Pendências / Próximos Passos
 
