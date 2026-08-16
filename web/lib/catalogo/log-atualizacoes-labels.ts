@@ -1,13 +1,16 @@
 /**
  * Rótulos amigáveis para `/catalogo/log-atualizacoes` — fonte única em todo
  * o frontend (filtros e tabela importam daqui, nunca duplicam a lista) para
- * as 7 `entity_type` e os 21 `action` reais de `catalog_admin_action_log`
- * (universo confirmado em 2026-08-09 contra as migrations `2098`/`2121` —
- * o arquivo canônico `2010` estava desatualizado, ver `ADR-023` e
- * `05e-catalogo-editorial.md`). A classificação Cadastro/Alteração/
- * Exclusão/Outras é calculada no banco (`internal.catalog_admin_action_
- * category()`), nunca aqui — este arquivo só traduz para exibição, nunca
- * reclassifica nada.
+ * os `entity_type`/`action` reais de `catalog_admin_action_log`. Universo
+ * original (7 entity_type / 21 action) confirmado em 2026-08-09 contra as
+ * migrations `2098`/`2121` (ver `ADR-023` e `05e-catalogo-editorial.md`);
+ * ampliado em 2026-08-16 com os 3 entity_type / 4 action do módulo
+ * Governança de Variantes (`ADR-028`), que passaram a gravar em
+ * `catalog_admin_action_log` sem que este dicionário fosse atualizado —
+ * causa raiz do diagnóstico de 2026-08-16. A classificação Cadastro/
+ * Alteração/Exclusão/Outras é calculada no banco (`internal.catalog_admin_
+ * action_category()`), nunca aqui — este arquivo só traduz para exibição,
+ * nunca reclassifica nada.
  */
 
 export const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
@@ -18,6 +21,9 @@ export const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "CATALOG_IMPORT_JOB", label: "Importação" },
   { value: "RARITY", label: "Raridade" },
   { value: "RARITY_EXTERNAL_MAPPING", label: "Mapeamento de Raridade" },
+  { value: "CARD_VARIANT_TYPE", label: "Tipo de Variação" },
+  { value: "CATALOG_VARIANT_IMPORT_JOB", label: "Importação de Variações" },
+  { value: "CARD_VARIANT_TYPE_EXTERNAL_MAPPING", label: "Mapeamento Externo" },
 ];
 
 export const ACTION_OPTIONS: { value: string; label: string }[] = [
@@ -42,6 +48,10 @@ export const ACTION_OPTIONS: { value: string; label: string }[] = [
   { value: "RARITY_EXTERNAL_MAPPING_CREATED", label: "Mapeamento de raridade criado" },
   { value: "RARITY_EXTERNAL_MAPPING_UPDATED", label: "Mapeamento de raridade atualizado" },
   { value: "CARD_ASSET_MANUAL_IMPORT_COMPLETED", label: "Importação manual de imagens concluída" },
+  { value: "CARD_VARIANT_TYPE_CREATED", label: "Tipo de variação criado" },
+  { value: "CARD_VARIANT_TYPE_UPDATED", label: "Tipo de variação atualizado" },
+  { value: "CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED", label: "Mapeamento externo criado" },
+  { value: "CARD_VARIANT_IMPORT_CONFIRMED", label: "Importação de variações confirmada" },
 ];
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = Object.fromEntries(

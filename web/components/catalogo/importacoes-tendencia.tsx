@@ -11,10 +11,13 @@ import { formatNumber } from "@/lib/utils";
  * ajuste): "IMPORTAÇÕES DE CARTAS" (plural) para o pipeline CARTAS e
  * "IMPORTAÇÃO DE IMAGENS" (singular) para IMAGENS — mantido exatamente como
  * pedido, mesmo com a assimetria singular/plural entre os dois.
+ * `VARIANTES` (2026-08-16) segue a forma plural de CARTAS, também pedido
+ * explícito de Fabrício ("IMPORTAÇÕES DE VARIANTES").
  */
 const PIPELINE_TITLE: Record<ImportacaoPipeline, string> = {
   CARTAS: "Importações de Cartas",
   IMAGENS: "Importação de Imagens",
+  VARIANTES: "Importações de Variantes",
 };
 
 /**
@@ -128,17 +131,30 @@ function agruparPorSemana(importacoes: ImportacaoRow[]): Semana[] {
  * — semana calendário ISO (segunda a domingo), não uma janela rolante de 7
  * dias a partir de uma data arbitrária. Barras sem cantos arredondados — só
  * o tooltip em si mantém `rounded`, como no modelo de referência.
+ *
+ * Terceiro card VARIANTES (2026-08-16) — `PIPELINES` substitui os dois
+ * `<PipelineTendenciaCard>` explícitos por um `.map()` sobre a lista de
+ * pipelines conhecidos, só para não repetir o componente 3x; não é uma
+ * generalização para pipelines futuros (arbitrários), continua sendo uma
+ * lista fixa de 3 valores literais, mesma decisão de escopo de
+ * `ImportacaoPipeline`. Grid ajustado de `sm:grid-cols-2` para também ter
+ * `lg:grid-cols-3`: 1 coluna em mobile, 2 em tablet (o 3º card quebra para a
+ * linha de baixo, sozinho — comportamento natural do grid, não tratado à
+ * parte), 3 em desktop amplo.
  */
+const PIPELINES = ["CARTAS", "IMAGENS", "VARIANTES"] as const;
+
 export function ImportacoesTendencia({ importacoes }: { importacoes: ImportacaoRow[] }) {
-  const porPipeline: Record<ImportacaoPipeline, ImportacaoRow[]> = { CARTAS: [], IMAGENS: [] };
+  const porPipeline: Record<ImportacaoPipeline, ImportacaoRow[]> = { CARTAS: [], IMAGENS: [], VARIANTES: [] };
   for (const item of importacoes) {
     porPipeline[item.pipeline].push(item);
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <PipelineTendenciaCard pipeline="CARTAS" importacoes={porPipeline.CARTAS} />
-      <PipelineTendenciaCard pipeline="IMAGENS" importacoes={porPipeline.IMAGENS} />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {PIPELINES.map((pipeline) => (
+        <PipelineTendenciaCard key={pipeline} pipeline={pipeline} importacoes={porPipeline[pipeline]} />
+      ))}
     </div>
   );
 }

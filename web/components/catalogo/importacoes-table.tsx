@@ -23,11 +23,18 @@ import { cn, formatNumber } from "@/lib/utils";
 /**
  * Idêntico ao `STATUS_LABEL` de `atividade-recente.tsx` — inclui
  * deliberadamente só os status de `asset_import_run`. Status exclusivos de
- * `catalog_import_job` (`STAGED`/`CONFIRMING`/`RECEIVED`/`PROCESSING`) caem
- * no fallback gracioso abaixo (mostra o texto bruto), mesma decisão já
+ * `catalog_import_job` (`CONFIRMING`/`RECEIVED`/`PROCESSING`) caem no
+ * fallback gracioso abaixo (mostra o texto bruto), mesma decisão já
  * tomada para a Visão Geral (pedido explícito de Fabrício de não tocar essa
  * parte da UI ainda) — não ampliada nesta rodada para manter as duas telas
  * consistentes entre si.
+ *
+ * `STAGED` (2026-08-16, inclusão do pipeline VARIANTES): humanização
+ * explícita pedida por Fabrício — um job de Variantes fica em `STAGED`
+ * enquanto aguarda revisão manual em `/catalogo/importar-variantes` (mesmo
+ * status já existia em `catalog_import_job`, mas nunca tinha ficado visível
+ * o suficiente nesta tabela para justificar a tradução; adicionado agora
+ * porque Variantes passa mais tempo visível nesse estado).
  */
 const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
   COMPLETED: { texto: "Concluída", tone: "success" },
@@ -36,6 +43,7 @@ const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
   RUNNING: { texto: "Em andamento", tone: "muted" },
   PENDING: { texto: "Pendente", tone: "muted" },
   CANCELLED: { texto: "Cancelada", tone: "muted" },
+  STAGED: { texto: "Em revisão", tone: "muted" },
 };
 
 /** Cor do ponto de status antes da data — mesmo tom semântico do `StateBadge` (ver atividade-recente.tsx). */
@@ -49,6 +57,7 @@ const STATUS_DOT_CLASSES: Record<StateTone, string> = {
 const PIPELINE_LABEL: Record<ImportacaoPipeline, string> = {
   CARTAS: "Cartas",
   IMAGENS: "Imagens",
+  VARIANTES: "Variantes",
 };
 
 const IMPORTACOES_PAGE_SIZE = 10;
@@ -97,7 +106,7 @@ export function ImportacoesTable({ importacoes }: { importacoes: ImportacaoRow[]
     for (const item of importacoes) {
       counts.set(item.pipeline, (counts.get(item.pipeline) ?? 0) + 1);
     }
-    return (["CARTAS", "IMAGENS"] as const)
+    return (["CARTAS", "IMAGENS", "VARIANTES"] as const)
       .filter((pipeline) => (counts.get(pipeline) ?? 0) > 0)
       .map((pipeline) => ({ pipeline, count: counts.get(pipeline) ?? 0 }));
   }, [importacoes]);
@@ -179,7 +188,7 @@ export function ImportacoesTable({ importacoes }: { importacoes: ImportacaoRow[]
         {importacoes.length === 0 ? (
           <EmptyState
             title="Nenhuma execução registrada ainda"
-            description="Execuções de importação de Cartas e Imagens aparecem aqui conforme rodam."
+            description="Execuções de importação de Cartas, Imagens e Variantes aparecem aqui conforme rodam."
           />
         ) : filtradas.length === 0 ? (
           <EmptyState

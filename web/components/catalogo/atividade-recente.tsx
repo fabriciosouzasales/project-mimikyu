@@ -37,10 +37,19 @@ const STATUS_DOT_CLASSES: Record<StateTone, string> = {
   muted: "bg-muted-foreground/40",
 };
 
-/** Rótulo da Operação por pipeline — mesmo vocabulário de `PIPELINE_LABEL` (/catalogo/importacoes). */
+/**
+ * Rótulo da Operação por pipeline — mesmo vocabulário de `PIPELINE_LABEL`
+ * (/catalogo/importacoes). `VARIANTES` só existe aqui para satisfazer o
+ * tipo (`AtividadeRecenteItem["pipeline"]` reaproveita `ImportacaoPipeline`,
+ * ampliado em 2026-08-16 para o Histórico de Importações) — `getAtividadeRecente()`
+ * nunca lê `catalog_variant_import_job`, então este valor nunca é
+ * efetivamente renderizado neste componente (Visão Geral não foi ampliada
+ * nesta rodada).
+ */
 const PIPELINE_LABEL: Record<AtividadeRecenteItem["pipeline"], string> = {
   CARTAS: "Cartas",
   IMAGENS: "Imagens",
+  VARIANTES: "Variantes",
 };
 
 /**

@@ -1968,21 +1968,27 @@ export async function getCategoriaOptions(supabase: SupabaseClient): Promise<Cat
 }
 
 /**
- * `pipeline` (2026-08-08, Sprint Gerencial 1) distingue as duas frentes de
+ * `pipeline` (2026-08-08, Sprint Gerencial 1) distingue as frentes de
  * escrita administrativa unificadas nesta tela: `IMAGENS` (asset_import_run,
  * como sempre foi) e `CARTAS` (catalog_import_job, ADR-024 — antes ausente
  * daqui, só aparecia no log limitado de Atividade Recente da Visão Geral).
  * Pré-requisito explícito de Fabrício antes do drill-down do StatCard
  * "Pendências" (Visão Geral): sem uma tela que liste os catalog_import_job
  * aguardando revisão/erro, aquele card não teria destino real.
+ *
+ * `VARIANTES` (2026-08-16, diagnóstico do mesmo dia) adiciona
+ * catalog_variant_import_job (Governança de Variantes, ADR-028) — mesmo
+ * racional: o pipeline já roda em produção, mas não tinha histórico
+ * consolidado. Diretriz de produto: Variantes não tem tela de histórico
+ * própria, entra na mesma visão unificada.
  */
-export type ImportacaoPipeline = "CARTAS" | "IMAGENS";
+export type ImportacaoPipeline = "CARTAS" | "IMAGENS" | "VARIANTES";
 
 export type ImportacaoRow = {
   id: string;
   pipeline: ImportacaoPipeline;
   runCode: string;
-  /** null para pipeline CARTAS — catalog_import_job não tem conceito de estratégia (run_type), só canal (source). */
+  /** null para pipeline CARTAS/VARIANTES — nenhum dos dois tem conceito de estratégia (run_type), só canal (source). */
   runType: string | null;
   status: string;
   executionContext: string;
@@ -2013,26 +2019,30 @@ type AssetImportRunFullRawRow = {
 
 /**
  * Histórico completo de execuções de importação — une asset_import_run
- * (IMAGENS) e catalog_import_job (CARTAS, ADR-024), sem `limit` (versão
- * completa; a Visão Geral usa getAtividadeRecente, com `limit`, para o log
- * resumido). catalog_import_job não tem `run_code`/`run_type`/
+ * (IMAGENS), catalog_import_job (CARTAS, ADR-024) e catalog_variant_import_job
+ * (VARIANTES, ADR-028, 2026-08-16), sem `limit` (versão completa; a Visão
+ * Geral usa getAtividadeRecente, com `limit`, para o log resumido).
+ * catalog_import_job/catalog_variant_import_job não têm `run_code`/`run_type`/
  * `asset_source`/`language_id` — mesma síntese e aproximação de contadores
  * já usadas em getAtividadeRecente (sintetizarRunCodeCatalogImportJob(),
  * calcularContadoresCatalogImportJob(), acima), reaproveitadas aqui em vez
  * de duplicadas. `assetSourceName` recebe o nome de exibição de `source`
  * ('TCGDEX' → 'TCGdex') — mesmo papel semântico de asset_source.name para
- * asset_import_run (de onde veio o dado).
+ * asset_import_run (de onde veio o dado). catalog_variant_import_job não tem
+ * `updated_rows` (variante confirmada não tem semântica de "atualização", só
+ * inserida/inalterada/pulada/rejeitada) — contadores calculados inline em vez
+ * de reaproveitar calcularContadoresCatalogImportJob(), que assume essa coluna.
  *
- * Sem `.range()` nas duas consultas, o PostgREST trunca silenciosamente em
+ * Sem `.range()` nas três consultas, o PostgREST trunca silenciosamente em
  * `SUPABASE_MAX_ROWS_PAGE_SIZE` linhas (ver `fetchAllRows` acima) — ao
  * contrário de `getAtividadeRecente` (que usa `limit` de propósito), esta é
  * a versão "histórico completo" da tela, então precisa de `fetchAllRows`
- * nas duas fontes para não cortar o passado silenciosamente conforme o
+ * nas três fontes para não cortar o passado silenciosamente conforme o
  * volume crescer (mesmo bug de classe já visto em `card`/`card_asset`,
  * 2026-08-01).
  */
 export async function getImportacoes(supabase: SupabaseClient): Promise<ImportacaoRow[]> {
-  const [assetImportRunRows, catalogImportJobRows] = await Promise.all([
+  const [assetImportRunRows, catalogImportJobRows, catalogVariantImportJobRows] = await Promise.all([
     fetchAllRows((from, to) =>
       supabase
         .from("asset_import_run")
@@ -2047,6 +2057,15 @@ export async function getImportacoes(supabase: SupabaseClient): Promise<Importac
         .from("catalog_import_job")
         .select(
           "id, status, source, total_rows, inserted_rows, updated_rows, unchanged_rows, failed_rows, rejected_rows, created_at, card_set(code, name)",
+        )
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("catalog_variant_import_job")
+        .select(
+          "id, status, source, total_rows, inserted_rows, unchanged_rows, failed_rows, rejected_rows, created_at, card_set(code, name)",
         )
         .order("created_at", { ascending: false })
         .range(from, to),
@@ -2087,7 +2106,26 @@ export async function getImportacoes(supabase: SupabaseClient): Promise<Importac
     createdAt: job.created_at,
   }));
 
-  return [...assetImportRunItems, ...catalogImportJobItems].sort(
+  const catalogVariantImportJobItems: ImportacaoRow[] = (
+    catalogVariantImportJobRows as unknown as CatalogVariantImportJobActivityRow[]
+  ).map((job) => ({
+    id: job.id,
+    pipeline: "VARIANTES",
+    runCode: sintetizarRunCodeCatalogVariantImportJob(job.id),
+    runType: null,
+    status: job.status,
+    executionContext: mapCatalogImportJobSourceParaExecutionContext(job.source),
+    assetSourceName: nomeFonteCatalogImportJob(job.source),
+    cardSetCode: job.card_set?.code ?? null,
+    cardSetName: job.card_set?.name ?? null,
+    languageCode: null,
+    requestedCount: job.total_rows,
+    successCount: job.inserted_rows + job.unchanged_rows,
+    failedCount: job.failed_rows + job.rejected_rows,
+    createdAt: job.created_at,
+  }));
+
+  return [...assetImportRunItems, ...catalogImportJobItems, ...catalogVariantImportJobItems].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 }
@@ -2683,6 +2721,20 @@ type CatalogImportJobActivityRow = {
   card_set: { code: string; name: string } | null;
 };
 
+/** Mesmo papel de CatalogImportJobActivityRow, para catalog_variant_import_job (ADR-028) — sem `updated_rows` (não existe na tabela, ver getImportacoes()). */
+type CatalogVariantImportJobActivityRow = {
+  id: string;
+  status: string;
+  source: string;
+  total_rows: number;
+  inserted_rows: number;
+  unchanged_rows: number;
+  failed_rows: number;
+  rejected_rows: number;
+  created_at: string;
+  card_set: { code: string; name: string } | null;
+};
+
 /**
  * Traduz `catalog_import_job.source` ('TCGDEX'/'PDF') para o vocabulário de
  * `execution_context` já usado por asset_import_run ('MANUAL'/'API'/
@@ -2710,6 +2762,11 @@ function nomeFonteCatalogImportJob(source: string): string {
  */
 function sintetizarRunCodeCatalogImportJob(id: string): string {
   return `CARDS-${id.slice(0, 8).toUpperCase()}`;
+}
+
+/** Mesmo racional de sintetizarRunCodeCatalogImportJob(), para catalog_variant_import_job — prefixo `VARIANTS-` distingue de `CARDS-`/`RUN-...` no histórico unificado. */
+function sintetizarRunCodeCatalogVariantImportJob(id: string): string {
+  return `VARIANTS-${id.slice(0, 8).toUpperCase()}`;
 }
 
 /**
