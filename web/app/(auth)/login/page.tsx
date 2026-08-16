@@ -10,16 +10,19 @@ import { createClient } from "@/lib/supabase/server";
  * `/perfil` e `/` (sem guarda global no middleware — ver
  * `components/auth/session-refresher.tsx` para o porquê).
  *
- * De volta a `app/(auth)/login/page.tsx` nesta rodada (implementação real
- * da direção "cartas reais", 2026-08-15) — na Etapa 1 (2026-08-16, visual
- * "Collector's Ledger", depois reprovado) a página tinha sido movida para
- * fora do route group (`app/login/page.tsx`) porque `(auth)/layout.tsx`
- * impunha seu chrome simples a todas as rotas irmãs. Nesta rodada
- * `(auth)/layout.tsx` foi removido e sua casca virou um componente
- * explícito (`LegacyAuthShell`, usado por Cadastro/Recuperar/Atualizar
- * Senha) — o Login pode voltar para dentro do grupo e usar `AuthHeroShell`
- * (fundação visual nova) sem afetar as outras 3 telas. A URL `/login`
- * nunca mudou (route groups não entram na URL).
+ * De volta a `app/(auth)/login/page.tsx` em rodada anterior (implementação
+ * real da direção "cartas reais", 2026-08-15) — na Etapa 1 (2026-08-16,
+ * visual "Collector's Ledger", depois reprovado) a página tinha sido
+ * movida para fora do route group (`app/login/page.tsx`) porque
+ * `(auth)/layout.tsx` impunha seu chrome simples a todas as rotas irmãs.
+ * `(auth)/layout.tsx` foi removido naquela rodada. A URL `/login` nunca
+ * mudou (route groups não entram na URL).
+ *
+ * Fechamento da Auth Experience V1 (2026-08-16, ver docs/log.md): Cadastro,
+ * Recuperar Senha e Atualizar Senha migraram da casca legada temporária
+ * (`LegacyAuthShell`, removida) para `AuthHeroShell` também — as 4 rotas
+ * de autenticação agora compartilham exatamente esta mesma fundação
+ * visual.
  *
  * O andaime `?copy=a|b|c` (rodada de polish, comparação de 3 alternativas
  * de copy dentro da composição real) foi removido depois da decisão de

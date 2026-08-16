@@ -4,19 +4,17 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { login, type AuthActionState } from "@/app/(auth)/actions";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import panelStyles from "@/components/auth/auth-panel.module.css";
+import {
+  AuthFooterLink,
+  AuthPanelHeading,
+  AuthSubmitButton,
+  authInputClassName,
+  authLabelClassName,
+} from "@/components/auth/auth-form-kit";
 
 const initialState: AuthActionState = { error: null };
-
-const labelClassName = "text-[12.5px] font-medium tracking-[0.01em] text-[hsl(var(--auth-form-ink))]";
-const inputClassName =
-  "h-11 rounded-[var(--auth-radius-control)] border-[hsl(var(--auth-form-line))] bg-[hsl(var(--auth-form-surface))] " +
-  "text-[hsl(var(--auth-form-ink))] shadow-[inset_0_1px_1px_hsl(var(--auth-form-ink)/0.02)] " +
-  "placeholder:text-[hsl(var(--auth-form-ink-muted))] transition-colors " +
-  "focus-visible:border-[hsl(var(--auth-accent))] focus-visible:ring-[3px] focus-visible:ring-[hsl(var(--auth-accent)/0.15)] focus-visible:ring-offset-0";
 
 /**
  * Painel de Login — implementação real da direção "cartas reais" (protótipo
@@ -34,24 +32,27 @@ const inputClassName =
  * `invalid`) das rodadas anteriores — `app/(auth)/actions.ts` intocado.
  * `--auth-accent-ink` (não `--auth-accent`) nos links: correção de
  * contraste desta rodada, ver `auth-tokens.module.css`.
+ *
+ * Rodada de fechamento da Auth Experience V1 (2026-08-16, ver docs/log.md):
+ * as peças reutilizáveis deste painel (heading, classes de label/input, CTA,
+ * link de rodapé) foram extraídas para `auth-form-kit.tsx` — Cadastro,
+ * Recuperar Senha e Atualizar Senha agora consomem exatamente as mesmas
+ * peças, em vez de duplicar CSS/JSX. Este componente é a referência visual
+ * original; a extração é mecânica — o markup/classes renderizados aqui não
+ * mudaram em nenhum caractere.
  */
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
     <div>
-      <div className="mb-7 space-y-1.5">
-        <h2 className="text-[22px] font-semibold tracking-[-0.01em] text-[hsl(var(--auth-form-ink))]">Entrar</h2>
-        <p className="text-[13px] leading-relaxed text-[hsl(var(--auth-form-ink-muted))]">
-          Acesse sua conta do MMKyu TCG Collector.
-        </p>
-      </div>
+      <AuthPanelHeading title="Entrar" description="Acesse sua conta do MMKyu TCG Collector." />
 
       <form action={formAction} className="space-y-5" noValidate>
         {state.error && <Alert variant="destructive">{state.error}</Alert>}
 
         <div className="space-y-1.5">
-          <Label htmlFor="email" className={labelClassName}>
+          <Label htmlFor="email" className={authLabelClassName}>
             E-mail
           </Label>
           <Input
@@ -61,13 +62,13 @@ export function LoginForm() {
             autoComplete="email"
             required
             invalid={!!state.error}
-            className={inputClassName}
+            className={authInputClassName}
           />
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password" className={labelClassName}>
+            <Label htmlFor="password" className={authLabelClassName}>
               Senha
             </Label>
             <Link
@@ -84,25 +85,14 @@ export function LoginForm() {
             autoComplete="current-password"
             required
             invalid={!!state.error}
-            className={inputClassName}
+            className={authInputClassName}
           />
         </div>
 
-        <Button
-          type="submit"
-          disabled={pending}
-          className={`${panelStyles.cta} h-[46px] w-full rounded-[var(--auth-radius-control)] border-transparent text-sm font-semibold`}
-        >
-          {pending ? "Entrando…" : "Entrar"}
-        </Button>
+        <AuthSubmitButton pending={pending} pendingLabel="Entrando…" label="Entrar" />
       </form>
 
-      <p className="mt-7 text-center text-[13px] text-[hsl(var(--auth-form-ink-muted))]">
-        Não tem conta?{" "}
-        <Link href="/cadastro" className="font-medium text-[hsl(var(--auth-accent-ink))] hover:underline">
-          Criar conta
-        </Link>
-      </p>
+      <AuthFooterLink prompt="Não tem conta?" href="/cadastro" label="Criar conta" />
     </div>
   );
 }
