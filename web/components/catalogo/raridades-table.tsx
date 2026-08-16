@@ -35,6 +35,7 @@ import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { Select } from "@/components/ui/select";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { formatarData } from "@/lib/format-date";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
@@ -59,8 +60,6 @@ const SYMBOL_OPTIONS = [
   { value: "BLACK_WHITE_STAR", label: "Estrela cheia + vazia" },
   { value: "WHITE_STAR", label: "Estrela branca" },
 ] as const;
-
-const selectClassName = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm";
 
 const initialEntityState: RarityActionState = { error: null };
 const initialRevalidarState: RevalidarTudoState = { error: null };
@@ -474,20 +473,19 @@ function NovaRaridadeForm({
           <div className="space-y-1">
             <Label htmlFor="new-rarity-symbol">Símbolo</Label>
             <div className="flex items-center gap-2">
-              <select
+              <Select
                 id="new-rarity-symbol"
                 name="symbolCode"
                 required
                 value={symbolCode}
                 onChange={(event) => setSymbolCode(event.target.value)}
-                className={selectClassName}
               >
                 {SYMBOL_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </Select>
               <RaritySymbol symbolCode={symbolCode} className="h-3 w-3 shrink-0" />
             </div>
           </div>
@@ -561,7 +559,7 @@ function VincularRaridadeForm({
       <DialogBody className="space-y-3">
         <div className="space-y-1">
           <Label htmlFor="link-rarity-id">Raridade</Label>
-          <select id="link-rarity-id" name="rarityId" required defaultValue="" className={selectClassName}>
+          <Select id="link-rarity-id" name="rarityId" required defaultValue="">
             <option value="" disabled>
               Selecione…
             </option>
@@ -570,7 +568,7 @@ function VincularRaridadeForm({
                 {raridade.name} ({raridade.code})
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="space-y-1">
@@ -690,20 +688,19 @@ function EditRaridadeForm({
           <div className="space-y-1">
             <Label htmlFor={`edit-rarity-symbol-${raridade.id}`}>Símbolo</Label>
             <div className="flex items-center gap-2">
-              <select
+              <Select
                 id={`edit-rarity-symbol-${raridade.id}`}
                 name="symbolCode"
                 required
                 value={symbolCode}
                 onChange={(event) => setSymbolCode(event.target.value)}
-                className={selectClassName}
               >
                 {SYMBOL_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </Select>
               <RaritySymbol symbolCode={symbolCode} className="h-3 w-3 shrink-0" />
             </div>
           </div>

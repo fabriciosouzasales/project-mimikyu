@@ -86,6 +86,26 @@
  * sutilmente diferente da rail, para as duas camadas de navegação
  * continuarem distinguíveis entre si). Mesmos valores, byte-a-byte, que
  * estavam em `.navPrimary`/`.navSecondary` do CSS Module removido.
+ *
+ * `--control-*` (NOVOS, 2026-08-16 — consolidação de formulários): tokens
+ * semânticos dedicados a CONTROLES de formulário (`Input`/`Select`),
+ * deliberadamente separados de `--surface`/`--border`/`--input`/
+ * `--muted-foreground`/`--radius` genéricos (que continuam servindo card/
+ * tabela/dialog/etc. sem nenhuma mudança). Valores herdados byte-a-byte do
+ * padrão aprovado no Login (antes só em `components/auth/auth-tokens.
+ * module.css`, com contraste verificado por script ad-hoc — ver esse
+ * arquivo): `--control-surface`/`--control-border`/`--control-muted-
+ * foreground` eram `--auth-form-surface`/`--auth-form-line`/`--auth-form-
+ * ink-muted`; `--control-radius` era `--auth-radius-control`. Esses 4
+ * tokens em `auth-tokens.module.css` agora só apontam (`var(--control-*)`)
+ * para os valores abaixo — elimina a duplicação sem mudar nenhum pixel do
+ * Login. `--control-foreground` não existe como token próprio: já era
+ * idêntico a `--foreground` mesmo antes da consolidação (`--auth-form-ink`
+ * sempre bateu com `--foreground`), então `Input`/`Select` continuam sem
+ * setar cor de texto explícita (herdam `--foreground` por cascata, como
+ * sempre fizeram). Foco também não ganhou token próprio — `--auth-accent`
+ * já era idêntico a `--primary`, então `Input`/`Select` continuam usando
+ * `focus-visible:border-primary`/`ring-primary/15`, mesmo valor.
  */
 
 @layer base {
@@ -131,6 +151,14 @@
     --nav-active-ink: 36 30% 92%;
     --nav-panel-active-surface: 37 22% 20%;
 
+    /* Controles de formulário (Input/Select) — valores do padrão aprovado no
+       Login, ver nota acima. Dedicados: não reaproveitam --surface/--border/
+       --muted-foreground/--radius genéricos. */
+    --control-surface: 40 37% 97%;
+    --control-border: 40 27% 87%;
+    --control-muted-foreground: 46 10% 39%;
+    --control-radius: 0.5625rem;
+
     --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
     --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
     --font-heading: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
@@ -167,6 +195,12 @@
 
     --warning: 38 92% 58%;
     --warning-foreground: 26 83% 10%;
+
+    /* Controles de formulário — mesmo racional do :root acima; --control-radius
+       não muda por tema, definido uma única vez em :root. */
+    --control-surface: 30 21% 7%;
+    --control-border: 35 20% 17%;
+    --control-muted-foreground: 36 13% 61%;
   }
 
   /*
@@ -316,4 +350,61 @@
 @page {
   size: A4;
   margin: 10mm;
+}
+
+/*
+ * Bug de paginação — Card 032/084 sumindo entre as páginas de "Card
+ * Variants por Carta" (2026-08-16). Causa raiz, confirmada por leitura do
+ * mecanismo de impressão (`RelatorioFolha`/`RelatorioCabecalho`/
+ * `RelatorioRodape`, `<thead>`/`<tbody>` de `DataTable`): o rodapé
+ * (`relatorio-rodape.tsx`) usa `position: fixed; bottom: 0` para se repetir
+ * fisicamente no rodapé de TODA página impressa — mecanismo correto e
+ * deliberado (comentário no próprio arquivo explica por que `<tfoot>` não
+ * serve para isso). O problema é que um elemento `position: fixed` NUNCA
+ * participa do fluxo normal do documento: ele não reserva espaço algum para
+ * si mesmo. O `@page { margin: 10mm }` acima reserva a margem física da
+ * folha, mas não sabe da existência do rodapé fixo — o conteúdo em fluxo
+ * (linhas da tabela) preenche a área imprimível até a borda inferior desses
+ * 10mm normalmente, e o rodapé fixo (~9-10mm de altura própria: `pt-4` +
+ * texto 8px + `pb-2` em impressão) pinta por cima de qualquer coisa que caia
+ * nessa faixa — na prática, uma linha inteira da tabela (nunca dividida,
+ * apenas OCULTA sob o fundo branco opaco do rodapé). É exatamente o
+ * comportamento documentado para essa técnica (`position: fixed` em
+ * impressão é relativo ao `@page`, mas não reserva espaço — reserva manual
+ * é responsabilidade do autor da folha).
+ *
+ * Correção estrutural, no template compartilhado (`RelatorioFolha`, classe
+ * `relatorio-folha`), não em cada relatório: `box-decoration-break: clone`
+ * faz um `padding-bottom` normalmente aplicado só UMA VEZ (no fim real do
+ * elemento) se repetir em CADA fragmento de página — cria uma faixa em
+ * branco do tamanho do rodapé em toda página, empurrando o conteúdo em
+ * fluxo para parar antes da faixa que o rodapé fixo ocupa. 12mm reservados
+ * (rodapé real ≈9.5mm + margem de segurança) — cobre os 6 relatórios que
+ * compartilham `RelatorioFolha`/`RelatorioRodape`. Efeito colateral aceito
+ * e esperado: relatórios ajustados para caber numa única folha "raspando"
+ * o limite de página (ex.: Checklist por Coleção) podem passar a usar uma
+ * página a mais — corretude (nenhuma linha perdida) tem prioridade sobre a
+ * contagem de páginas, que não é um requisito documentado em nenhum lugar.
+ *
+ * `tr { break-inside: avoid }` (com o alias legado `page-break-inside`,
+ * mesmo efeito no Chromium): impede que uma linha comece numa página e
+ * termine na seguinte — se não couber inteira no espaço restante, a
+ * paginação nativa do navegador empurra a linha INTEIRA para a próxima
+ * página em vez de fragmentá-la. Escopado a `.relatorio-folha` (não ao
+ * primitive `DataTableRow` genérico, usado em telas sem expectativa de
+ * impressão) — cobre tanto linhas via `DataTableRow` quanto `<tr>` cru
+ * (linha de Total de "Card Variants por Carta", tabela do Checklist, que já
+ * tinha essa mesma proteção aplicada localmente antes desta correção).
+ */
+@media print {
+  .relatorio-folha {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    padding-bottom: 12mm;
+  }
+
+  .relatorio-folha tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }

@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { ACTION_OPTIONS, ENTITY_TYPE_OPTIONS } from "@/lib/catalogo/log-atualizacoes-labels";
 import type { AdminUserOption } from "@/lib/catalogo/queries";
 
@@ -21,14 +22,14 @@ function FilterSelect({
 }) {
   return (
     <div className="relative shrink-0">
-      <select
+      <Select
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label={ariaLabel}
-        className="h-9 min-w-[10rem] appearance-none rounded-md border border-input bg-surface-muted py-1 pl-3 pr-8 text-xs shadow-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="h-9 min-w-[10rem] appearance-none bg-surface-muted py-1 pl-3 pr-8 text-xs"
       >
         {children}
-      </select>
+      </Select>
       <ChevronDown
         className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
         aria-hidden="true"

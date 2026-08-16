@@ -29,6 +29,7 @@ import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageActions, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { Select } from "@/components/ui/select";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { cn, formatNumber } from "@/lib/utils";
 import { formatarData } from "@/lib/format-date";
@@ -288,13 +289,7 @@ export function CreateExpansionForm({
       <DialogBody className="space-y-3">
         <div className="space-y-1">
           <Label htmlFor="new-expansion-game">Jogo</Label>
-          <select
-            id="new-expansion-game"
-            name="game_id"
-            required
-            defaultValue={defaultGameId ?? ""}
-            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
-          >
+          <Select id="new-expansion-game" name="game_id" required defaultValue={defaultGameId ?? ""}>
             <option value="" disabled>
               Selecione…
             </option>
@@ -303,7 +298,7 @@ export function CreateExpansionForm({
                 {jogo.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

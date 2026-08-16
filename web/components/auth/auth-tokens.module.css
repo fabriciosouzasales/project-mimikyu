@@ -42,6 +42,22 @@
  * para uso como texto. `--auth-accent` (dourado puro) permanece reservado
  * para uso decorativo/iluminação (gradiente do CTA, glow do hero, rim da
  * carta protagonista) — nunca como cor de texto direta sobre o painel.
+ *
+ * `--auth-form-surface`/`--auth-form-line`/`--auth-form-ink-muted`/
+ * `--auth-radius-control` (2026-08-16 — consolidação de formulários,
+ * Login vira Design System global): pararam de ser valores literais e
+ * passaram a apontar (`var(--control-*)`) para os tokens homônimos
+ * promovidos em `app/globals.css` — mesmos valores, byte-a-byte (essa é a
+ * fonte original de onde `--control-*` foi copiado), então os números de
+ * contraste acima continuam válidos sem nova checagem. `Input`/`Select`
+ * (`components/ui/`) agora consomem os mesmos `--control-*` diretamente —
+ * Login e formulários internos compartilham a mesma superfície/borda/
+ * radius através da mesma fonte de valor, sem duplicação. `--auth-form-ink`
+ * também para de duplicar valor: sempre foi idêntico a `--foreground`
+ * (`app/globals.css`), então aponta para lá agora. Isolamento preservado
+ * para o que É específico da composição Auth: `--auth-page`, `--auth-hero-*`
+ * (hero sempre escuro, não muda por tema), `--auth-accent*` (decorativo/CTA)
+ * e `--auth-radius` (radius do painel/hero em si, não de controles).
  */
 
 .scope {
@@ -56,23 +72,23 @@
   --auth-accent-foreground: 38 60% 9%;
   --auth-accent-ink: 35 66% 33%;
 
-  --auth-form-surface: 40 37% 97%;
-  --auth-form-ink: 36 10% 10%;
-  --auth-form-ink-muted: 46 10% 39%;
-  --auth-form-line: 40 27% 87%;
+  --auth-form-surface: var(--control-surface);
+  --auth-form-ink: var(--foreground);
+  --auth-form-ink-muted: var(--control-muted-foreground);
+  --auth-form-line: var(--control-border);
 
   --auth-radius: 0.875rem;
-  --auth-radius-control: 0.5625rem;
+  --auth-radius-control: var(--control-radius);
   --auth-ease-signature: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :global(.dark) .scope {
   --auth-page: 30 18% 4%;
 
-  --auth-form-surface: 30 21% 7%;
-  --auth-form-ink: 38 38% 92%;
-  --auth-form-ink-muted: 36 13% 61%;
-  --auth-form-line: 35 20% 17%;
+  --auth-form-surface: var(--control-surface);
+  --auth-form-ink: var(--foreground);
+  --auth-form-ink-muted: var(--control-muted-foreground);
+  --auth-form-line: var(--control-border);
 
   --auth-accent-ink: 37 68% 58%;
 }

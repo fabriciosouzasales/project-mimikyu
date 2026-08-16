@@ -3,6 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent, ReactNode } from "react";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { ExpansaoRow, GameOption } from "@/lib/catalogo/queries";
 
@@ -47,20 +48,19 @@ function FilterSelect({
 }) {
   return (
     <div className="relative shrink-0">
-      <select
+      {/* `h-10`/`min-w-[9.5rem]`/`appearance-none`/padding: variante legítima
+          de filtro compacto com seta própria — surface/borda/radius/foco/
+          disabled vêm do `Select` compartilhado (2026-08-16, consolidação
+          de formulários), só a densidade/affordance do dropdown é local. */}
+      <Select
         value={value}
         onChange={onChange}
         disabled={disabled}
         aria-label={ariaLabel}
-        className={cn(
-          "h-10 min-w-[9.5rem] appearance-none rounded-md border border-input bg-surface py-1 pl-3 pr-8 text-sm shadow-subtle transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-          className,
-        )}
+        className={cn("h-10 min-w-[9.5rem] appearance-none py-1 pl-3 pr-8", className)}
       >
         {children}
-      </select>
+      </Select>
       <ChevronDown
         className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden="true"
@@ -84,7 +84,7 @@ export function CatalogoFilterSelect({
   expansionCode?: string;
   query: string;
   basePath?: string;
-  /** Repassado a cada `<select>` — usado por Expansões para bater h-9/bg-surface-muted com o padrão de Jogos. */
+  /** Repassado a cada `Select` — usado por Expansões para bater h-9/bg-surface-muted com o padrão de Jogos. */
   className?: string;
 }) {
   const router = useRouter();

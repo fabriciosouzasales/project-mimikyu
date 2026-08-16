@@ -49,6 +49,14 @@ const config: Config = {
           "active-ink": "hsl(var(--nav-active-ink) / <alpha-value>)",
           "panel-active-surface": "hsl(var(--nav-panel-active-surface) / <alpha-value>)",
         },
+        // Controles de formulário (Input/Select) — tokens dedicados,
+        // herdados do padrão aprovado no Login. Ver app/globals.css,
+        // 2026-08-16 (consolidação de formulários).
+        control: {
+          surface: "hsl(var(--control-surface) / <alpha-value>)",
+          border: "hsl(var(--control-border) / <alpha-value>)",
+          "muted-foreground": "hsl(var(--control-muted-foreground) / <alpha-value>)",
+        },
         accent: {
           DEFAULT: "hsl(var(--accent) / <alpha-value>)",
           foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
@@ -74,6 +82,9 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        // Radius de controle de formulário (Input/Select) — dedicado,
+        // herdado do padrão aprovado no Login. Ver app/globals.css.
+        control: "var(--control-radius)",
       },
       fontFamily: {
         sans: ["var(--font-sans)"],

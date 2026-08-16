@@ -15,6 +15,7 @@ import {
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import type { CardActionState } from "@/app/catalogo/cartas/actions";
 import type { CartaCompletaRow, CategoriaOption, RaridadeRow } from "@/lib/catalogo/queries";
 
@@ -174,13 +175,7 @@ function NewCardForm({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="new-card-rarity">Raridade</Label>
-            <select
-              id="new-card-rarity"
-              name="rarity_id"
-              required
-              defaultValue=""
-              className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
-            >
+            <Select id="new-card-rarity" name="rarity_id" required defaultValue="">
               <option value="" disabled>
                 Selecione…
               </option>
@@ -189,17 +184,11 @@ function NewCardForm({
                   {raridade.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="new-card-category">Categoria</Label>
-            <select
-              id="new-card-category"
-              name="category_id"
-              required
-              defaultValue=""
-              className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
-            >
+            <Select id="new-card-category" name="category_id" required defaultValue="">
               <option value="" disabled>
                 Selecione…
               </option>
@@ -208,7 +197,7 @@ function NewCardForm({
                   {categoria.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 
@@ -375,35 +364,23 @@ function EditCardForm({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor={`edit-card-rarity-${carta.id}`}>Raridade</Label>
-            <select
-              id={`edit-card-rarity-${carta.id}`}
-              name="rarity_id"
-              required
-              defaultValue={carta.rarityId}
-              className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
-            >
+            <Select id={`edit-card-rarity-${carta.id}`} name="rarity_id" required defaultValue={carta.rarityId}>
               {raridades.map((raridade) => (
                 <option key={raridade.id} value={raridade.id}>
                   {raridade.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor={`edit-card-category-${carta.id}`}>Categoria</Label>
-            <select
-              id={`edit-card-category-${carta.id}`}
-              name="category_id"
-              required
-              defaultValue={carta.categoryId}
-              className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
-            >
+            <Select id={`edit-card-category-${carta.id}`} name="category_id" required defaultValue={carta.categoryId}>
               {categorias.map((categoria) => (
                 <option key={categoria.id} value={categoria.id}>
                   {categoria.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 

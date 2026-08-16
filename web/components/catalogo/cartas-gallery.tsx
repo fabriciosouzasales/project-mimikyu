@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { Select } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
@@ -595,10 +596,10 @@ export function CartasGallery({
                     aria-label="Buscar carta"
                   />
                 </div>
-                <select
+                <Select
                   value={selectedGameId}
                   onChange={(event) => handleGameChange(event.target.value)}
-                  className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
+                  className="h-9 shrink-0 bg-surface-muted px-3 text-xs"
                   aria-label="Filtrar por Jogo"
                 >
                   <option value="">Selecionar Todos</option>
@@ -607,11 +608,11 @@ export function CartasGallery({
                       {game.name}
                     </option>
                   ))}
-                </select>
-                <select
+                </Select>
+                <Select
                   value={selectedExpansionId}
                   onChange={(event) => handleExpansionChange(event.target.value)}
-                  className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
+                  className="h-9 shrink-0 bg-surface-muted px-3 text-xs"
                   aria-label="Filtrar por Expansão"
                 >
                   <option value="">Selecionar Todos</option>
@@ -620,11 +621,11 @@ export function CartasGallery({
                       {expansion.name}
                     </option>
                   ))}
-                </select>
-                <select
+                </Select>
+                <Select
                   value={selectedCode ?? ""}
                   onChange={(event) => router.push(`/catalogo/cartas?set=${event.target.value}`)}
-                  className="h-9 shrink-0 rounded-md border border-border bg-surface-muted px-3 text-xs text-foreground"
+                  className="h-9 shrink-0 bg-surface-muted px-3 text-xs"
                   aria-label="Filtrar por Coleção"
                 >
                   {cardSetsInScope.map((set) => (
@@ -632,7 +633,7 @@ export function CartasGallery({
                       {set.name} ({set.code})
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Toggle "Mostrar inativas" — novo em 2026-08-07 (subciclo

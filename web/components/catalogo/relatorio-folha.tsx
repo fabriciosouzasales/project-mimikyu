@@ -12,11 +12,17 @@ import type { ReactNode } from "react";
  * (e o prefixo `-webkit-`) é obrigatório para qualquer relatório que use cor
  * de fundo (zebra striping, faixas, etc.) — a maioria dos navegadores omite
  * cor de fundo ao imprimir por padrão (economia de tinta).
+ *
+ * Classe `relatorio-folha` (2026-08-16) — hook para as regras de segurança
+ * de paginação de impressão em `app/globals.css` (linha nunca dividida nem
+ * ocultada em quebra de página; espaço reservado para o rodapé fixo em toda
+ * página, não só na última). Ver comentário completo lá — a causa raiz e a
+ * correção vivem juntas, perto do `@page` já existente.
  */
 export function RelatorioFolha({ children }: { children: ReactNode }) {
   return (
     <div
-      className="mx-auto w-full max-w-[210mm] rounded-lg border border-border bg-white text-neutral-900 shadow-panel print:max-w-none print:rounded-none print:border-none print:shadow-none"
+      className="relatorio-folha mx-auto w-full max-w-[210mm] rounded-lg border border-border bg-white text-neutral-900 shadow-panel print:max-w-none print:rounded-none print:border-none print:shadow-none"
       style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}
     >
       {children}

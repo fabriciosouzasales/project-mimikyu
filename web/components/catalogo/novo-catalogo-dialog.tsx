@@ -15,6 +15,7 @@ import {
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import type { ExpansaoRow } from "@/lib/catalogo/queries";
 
 const initialState: CardSetActionState = { error: null };
@@ -131,13 +132,7 @@ function CreateCardSetForm({
       <DialogBody className="space-y-3">
         <div className="space-y-1">
           <Label htmlFor="new-card-set-expansion">Expansão</Label>
-          <select
-            id="new-card-set-expansion"
-            name="expansion_id"
-            required
-            defaultValue=""
-            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
-          >
+          <Select id="new-card-set-expansion" name="expansion_id" required defaultValue="">
             <option value="" disabled>
               Selecione…
             </option>
@@ -152,7 +147,7 @@ function CreateCardSetForm({
                   ))}
               </optgroup>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -162,20 +157,19 @@ function CreateCardSetForm({
           </div>
           <div className="space-y-1">
             <Label htmlFor="new-card-set-type">Tipo</Label>
-            <select
+            <Select
               id="new-card-set-type"
               name="set_type"
               required
               value={setType}
               onChange={(event) => setSetType(event.target.value)}
-              className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
             >
               {SET_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 

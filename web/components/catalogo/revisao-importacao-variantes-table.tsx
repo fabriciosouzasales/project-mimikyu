@@ -33,11 +33,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatNumber } from "@/lib/utils";
 import type { CardVariantTypeOption, CatalogVariantImportRowView } from "@/lib/catalogo/queries";
 
-const selectClassName = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm";
 
 // Mesma classe de tipos-variacao-table.tsx (textareaClassName) — não há
 // componente Textarea compartilhado no repositório; reproduzida aqui em
@@ -695,12 +695,11 @@ function ResolverMapeamentoDialog({
               {mode === "existing" ? (
                 <div className="space-y-1">
                   <Label htmlFor="resolve-variant-type-id">Card Variant Type</Label>
-                  <select
+                  <Select
                     id="resolve-variant-type-id"
                     required
                     value={variantTypeId}
                     onChange={(e) => setVariantTypeId(e.target.value)}
-                    className={selectClassName}
                   >
                     <option value="" disabled>
                       Selecione…
@@ -710,7 +709,7 @@ function ResolverMapeamentoDialog({
                         {type.name} ({type.code})
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               ) : (
                 <div className="space-y-3">

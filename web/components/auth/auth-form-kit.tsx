@@ -12,15 +12,23 @@ import panelStyles from "@/components/auth/auth-panel.module.css";
  * é só a extração mecânica dele, sem nenhuma mudança de valor/token. Nada
  * aqui foi redesenhado; é a mesma implementação que já existia inline em
  * `login-form.tsx`, só reembalada para reuso.
+ *
+ * `authInputClassName` (2026-08-16, consolidação de formulários — Login
+ * vira Design System global): encolhido para só o que ainda É diferente do
+ * `Input` compartilhado. Superfície/borda/radius/placeholder/foco foram
+ * promovidos para `components/ui/input.tsx` via os tokens `--control-*`
+ * (`app/globals.css`) — como `--auth-form-surface`/`--auth-form-line`/
+ * `--auth-form-ink-muted`/`--auth-radius-control` agora só apontam
+ * (`var(--control-*)`) para os mesmos valores, remover essas classes daqui
+ * não muda um pixel: `Input` já renderiza exatamente isso por padrão. Só
+ * sobra o que É uma diferença legítima do formulário hero: altura `h-11`
+ * (backoffice usa `h-9` — instrução explícita de não igualar dimensões) e a
+ * sombra interna sutilíssima (0.02 de opacidade) do polish visual do Login.
  */
 
 export const authLabelClassName = "text-[12.5px] font-medium tracking-[0.01em] text-[hsl(var(--auth-form-ink))]";
 
-export const authInputClassName =
-  "h-11 rounded-[var(--auth-radius-control)] border-[hsl(var(--auth-form-line))] bg-[hsl(var(--auth-form-surface))] " +
-  "text-[hsl(var(--auth-form-ink))] shadow-[inset_0_1px_1px_hsl(var(--auth-form-ink)/0.02)] " +
-  "placeholder:text-[hsl(var(--auth-form-ink-muted))] transition-colors " +
-  "focus-visible:border-[hsl(var(--auth-accent))] focus-visible:ring-[3px] focus-visible:ring-[hsl(var(--auth-accent)/0.15)] focus-visible:ring-offset-0";
+export const authInputClassName = "h-11 shadow-[inset_0_1px_1px_hsl(var(--auth-form-ink)/0.02)]";
 
 export function AuthPanelHeading({ title, description }: { title: string; description: string }) {
   return (

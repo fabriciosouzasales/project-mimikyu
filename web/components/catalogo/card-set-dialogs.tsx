@@ -17,6 +17,7 @@ import {
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import type { CardSetActionState } from "@/app/catalogo/card-sets/actions";
 import type { CardSetWithLogo } from "@/app/catalogo/card-sets/catalogo-actions";
 
@@ -206,19 +207,13 @@ function EditCardSetForm({
 
         <div className="space-y-1">
           <Label htmlFor={`edit-card-set-type-${cardSet.id}`}>Tipo</Label>
-          <select
-            id={`edit-card-set-type-${cardSet.id}`}
-            name="set_type"
-            required
-            defaultValue={cardSet.setType}
-            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
-          >
+          <Select id={`edit-card-set-type-${cardSet.id}`} name="set_type" required defaultValue={cardSet.setType}>
             {SET_TYPE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
