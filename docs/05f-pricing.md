@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Pricing |
 | **Arquivo** | `docs/05f-pricing.md` |
-| **Versão** | 1.1 |
+| **Versão** | 1.2 |
 | **Status** | **Proposto — nenhuma tabela criada no Supabase.** Modelagem conceitual e lógica aprovada para documentação; implementação física (migrations) depende de ciclo próprio, ainda não iniciado. |
 | **Objetivo** | Modelo lógico e físico do domínio Pricing — observações de mercado por fonte externa, independente de Catálogo Editorial e de Ownership, conforme `ADR-029` e `ADR-006`. |
 | **Escopo** | Entidades de Pricing: fonte, mapeamento de Set/Card por fonte, produto (impressão+idioma reportados pela fonte), condição canônica, observação de preço, câmbio, auditoria de sincronização. Não inclui a modelagem física de Item Valuation (Analytics), deliberadamente adiada — ver seção própria ao final. |
@@ -171,7 +171,7 @@ updated_at
 4. Nenhum preço pode ser gravado (`pricing_observation`) sem que a fonte exista e esteja ativa — garantido pela FK obrigatória em toda a cadeia (`pricing_card_mapping` → `pricing_product` → `pricing_observation`).
 5. `default_market_scope`, isoladamente, nunca autoriza a classificação `BRAZIL_ITEM_VALUATION` — regra obrigatória detalhada em `pricing_observation` e na seção "Item Valuation".
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P1, 2026-08-16, Query `3000`/`3001`/`3002`)
 
 ```sql
 CREATE TABLE public.pricing_source (
@@ -227,7 +227,7 @@ ALTER TABLE public.pricing_source ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** sem `DELETE` físico previsto (nenhuma rotina administrativa de exclusão) — apenas `is_active = FALSE`. Toda FK de tabelas filhas para `pricing_source_id` deve ser `ON DELETE RESTRICT` (nunca perder mapeamentos/observações por exclusão em cascata de uma fonte).
 
-**RLS e Grants (proposto, mesmo padrão de `card_variant_type`/`asset_source`):** RLS habilitado; uma única policy `pricing_admin_select` (`SELECT`, `(select is_admin())`). Toda escrita via função `SECURITY DEFINER` futura (`admin_create_pricing_source()` e equivalentes, ainda não implementadas). `authenticated`: só `SELECT`. `anon`: nenhum privilégio. `service_role`: `SELECT` (leitura durante sincronização). `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados de `anon`/`authenticated` desde a criação (STD-001, versão `1.19`).
+**RLS e Grants — CONFIRMADO EXECUTADO (mesmo padrão de `card_variant_type`/`asset_source`):** RLS habilitado; uma única policy `pricing_admin_select` (`SELECT`, `(select is_admin())`). Toda escrita via função `SECURITY DEFINER` futura (`admin_create_pricing_source()` e equivalentes, ainda não implementadas — fora de escopo do Incremento P1). `authenticated`: só `SELECT`. `anon`: nenhum privilégio. `service_role`: `SELECT` (leitura durante sincronização futura — concedido em Query `3002`, corrigindo uma omissão detectada na validação do próprio Incremento P1). `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados de `anon`/`authenticated` desde a criação (STD-001, versão `1.19`).
 
 ## Testes Mínimos de Integridade Previstos
 
@@ -236,14 +236,14 @@ ALTER TABLE public.pricing_source ENABLE ROW LEVEL SECURITY;
 - inserir `base_currency` com formato diferente de 3 letras maiúsculas deve falhar;
 - confirmar RLS: sessão anônima não lê nenhuma linha; sessão autenticada não-admin não lê nenhuma linha; sessão admin lê todas.
 
-## Definition of Done (quando a implementação for iniciada)
+## Definition of Done
 
-- [ ] tabela criada no Supabase;
-- [ ] RLS + policy `pricing_admin_select`;
-- [ ] `GRANT`s mínimos (`authenticated` só `SELECT`, `anon` nenhum, `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados);
-- [ ] trigger de `updated_at`;
-- [ ] seed real das fontes homologadas (depende da conclusão da prova técnica de cada fonte — ver `PROVA-TECNICA-JUSTTCG-PRICING-2026-08-16.md`, fora de `docs/`);
-- [ ] validação estrutural + de dados.
+- [x] tabela criada no Supabase (Incremento P1, 2026-08-16);
+- [x] RLS + policy `pricing_admin_select`;
+- [x] `GRANT`s mínimos (`authenticated` só `SELECT`, `anon` nenhum, `service_role` só `SELECT`, `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados);
+- [x] trigger de `updated_at`;
+- [ ] seed real das fontes homologadas — **pendência explícita**, depende da conclusão da prova técnica de cada fonte (ver `PROVA-TECNICA-JUSTTCG-PRICING-2026-08-16.md`, fora de `docs/`); nenhuma fonte cadastrada no Incremento P1;
+- [x] validação estrutural + de dados (12 itens, Incremento P1).
 
 ---
 
@@ -301,7 +301,7 @@ updated_at
 2. `condition_order` único e positivo.
 3. Nenhuma exclusão física prevista — catálogo estável, gerido por seed/migration, não por CRUD administrativo em tempo de execução.
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P1, 2026-08-16, Query `3010`/`3011`, numeração dentro de `3000`–`3999` por decisão explícita de Fabrício — ver "Numeração", acima)
 
 ```sql
 CREATE TABLE public.card_condition (
@@ -331,7 +331,7 @@ ALTER TABLE public.card_condition ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** sem `DELETE` previsto. FKs filhas `ON DELETE RESTRICT`.
 
-**RLS e Grants:** mesmo padrão de `pricing_source` — policy de leitura administrativa, `authenticated` só `SELECT`, `anon` nenhum, por ora. Diferente de `pricing_source`, este catálogo é candidato natural a leitura pública futura (a condição em si não é sensível) quando alguma tela de usuário final precisar exibi-la (Pricing ou, futuramente, Collection) — não implementado agora, mesma disciplina já registrada em `ADR-028` para o seletor futuro de Card Variant. Por ser referência compartilhada, a policy administrativa desta tabela não deve ser nomeada com prefixo `pricing_` quando implementada (ex.: `card_condition_admin_select`, não `pricing_admin_select`) — nota de nomenclatura para o ciclo de implementação, não resolvida fisicamente aqui.
+**RLS e Grants — CONFIRMADO EXECUTADO:** mesmo padrão de `pricing_source` — RLS habilitado; única policy é leitura administrativa, nomeada `card_condition_admin_select` (sem prefixo `pricing_`, por ser referência compartilhada, não exclusiva de Pricing — nomenclatura confirmada na implementação). `authenticated`: só `SELECT`. `anon`: nenhum privilégio. `service_role`: `SELECT`. Nenhuma policy de leitura para usuário final foi criada no Incremento P1 (fora de escopo) — este catálogo continua candidato natural a leitura pública futura quando alguma tela de usuário final precisar exibi-la (Pricing ou, futuramente, Collection), mesma disciplina já registrada em `ADR-028` para o seletor futuro de Card Variant. Nenhum CRUD administrativo foi criado no Incremento P1 (fora de escopo) — a tabela nasce sem nenhuma função de escrita.
 
 ## Testes Mínimos de Integridade Previstos
 
@@ -339,7 +339,9 @@ ALTER TABLE public.card_condition ENABLE ROW LEVEL SECURITY;
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, trigger, seed real (6 condições canônicas — texto exato a validar contra o vocabulário confirmado da(s) fonte(s) homologada(s)), validação. Como referência compartilhada, o ciclo que implementar esta tabela deve avaliar se ela pertence fisicamente a `05f-pricing.md` ou a um documento neutro (ex.: junto de `language` em `05c-assets-e-importacao.md`, ou um futuro documento de referências compartilhadas) — decisão de organização documental, não resolvida nesta correção pontual.
+- [x] tabela criada, RLS, trigger, validação (Incremento P1, 2026-08-16);
+- [ ] seed real (6 condições canônicas) — **pendência explícita**, texto exato ainda não validado contra o vocabulário confirmado da(s) fonte(s) homologada(s); nenhuma linha inserida no Incremento P1;
+- [x] organização documental: permanece em `05f-pricing.md` por ora (decisão de manter, não de mover — não há, neste momento, um conjunto real de entidades compartilhadas que justifique um documento neutro próprio; ver "Numeração", acima, para o mesmo raciocínio aplicado à numeração).
 
 ---
 
@@ -390,7 +392,7 @@ updated_at
 1. Único por fonte + código externo (`UNIQUE (pricing_source_id, external_condition_code)`) — a mesma fonte nunca mapeia o mesmo texto para duas condições diferentes.
 2. Uma fonte pode ter várias linhas apontando para a mesma `condition_id` (ex.: `"NM"` e `"Near Mint"` da mesma fonte, se a fonte for inconsistente) — não há `UNIQUE` no sentido inverso.
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P1, 2026-08-16, Query `3020`/`3021`/`3002`)
 
 ```sql
 CREATE TABLE public.pricing_condition_mapping (
@@ -421,7 +423,7 @@ ALTER TABLE public.pricing_condition_mapping ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** `ON DELETE RESTRICT` nas duas FKs — um mapeamento nunca deve desaparecer silenciosamente por exclusão de fonte ou condição (nenhuma das duas tem exclusão física prevista de qualquer forma).
 
-**RLS e Grants:** `pricing_admin_select`; escrita só por função `SECURITY DEFINER` administrativa futura (`admin_create_pricing_condition_mapping()`), mesmo padrão de `admin_resolve_catalog_variant_import_mapping()`. `service_role` com `SELECT` (leitura durante sincronização, para resolver a condição de cada observação recebida).
+**RLS e Grants — CONFIRMADO EXECUTADO:** `pricing_admin_select` (RLS habilitado, `authenticated` só `SELECT`, `anon` nenhum). Escrita só por função `SECURITY DEFINER` administrativa futura (`admin_create_pricing_condition_mapping()`, ainda não implementada — fora de escopo do Incremento P1), mesmo padrão de `admin_resolve_catalog_variant_import_mapping()`. `service_role` com `SELECT` (leitura durante sincronização futura, para resolver a condição de cada observação recebida — concedido em Query `3002`, corrigindo uma omissão detectada na validação do próprio Incremento P1). Nenhuma função de sincronização criada no Incremento P1.
 
 ## Testes Mínimos de Integridade Previstos
 
@@ -430,7 +432,8 @@ ALTER TABLE public.pricing_condition_mapping ENABLE ROW LEVEL SECURITY;
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, trigger, validação. Seed real depende da homologação de cada fonte (não antes da prova técnica confirmar o vocabulário real).
+- [x] tabela criada, RLS, trigger, validação (Incremento P1, 2026-08-16);
+- [ ] seed real — **pendência explícita**, depende da homologação de cada fonte (não antes da prova técnica confirmar o vocabulário real); nenhuma linha inserida no Incremento P1 (nenhuma fonte homologada existe ainda).
 
 ---
 
@@ -1398,26 +1401,34 @@ Quando Collection existir, um `item_valuation_snapshot` provavelmente referencia
 
 ---
 
-# Numeração Futura (STD-001) — Candidata, Não Comprometida
+# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1
 
-Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o próximo milhar inteiro disponível para um módulo novo é `3000`–`3999`. Este documento **não reserva** esse milhar — STD-001 é explícito: "novos módulos recebem milhar próprio quando efetivamente aprovados, não por reserva antecipada." Registrado aqui apenas como candidato natural, a confirmar no início real da implementação física:
+Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`):
 
 ```text
-3000–3009  pricing_source            (estrutura)
-3020–3029  pricing_condition_mapping
-3030–3039  pricing_set_mapping
-3040–3049  pricing_card_mapping
-3050–3059  pricing_product
-3060–3069  pricing_fx_rate
-3070–3079  pricing_observation
-3080–3089  pricing_sync_run
-3090–3099  pricing_sync_run_call
-3700–3799  Seeds
-3800–3899  Validações
+3000–3009  pricing_source              — CONFIRMADO EXECUTADO (3000 tabela, 3001 trigger, 3002 grant service_role)
+3010–3019  card_condition              — CONFIRMADO EXECUTADO (3010 tabela, 3011 trigger)
+3020–3029  pricing_condition_mapping   — CONFIRMADO EXECUTADO (3020 tabela, 3021 trigger)
+3030–3039  pricing_set_mapping         — Proposto, ainda não executado
+3040–3049  pricing_card_mapping        — Proposto, ainda não executado
+3050–3059  pricing_product             — Proposto, ainda não executado
+3060–3069  pricing_fx_rate             — Proposto, ainda não executado
+3070–3079  pricing_observation         — Proposto, ainda não executado
+3080–3089  pricing_sync_run            — Proposto, ainda não executado
+3090–3099  pricing_sync_run_call       — Proposto, ainda não executado
+3700–3799  Seeds                       — nenhuma executada (ver "Pendências", abaixo)
+3800–3899  Validações                  — 3800 executada (validação consolidada do Incremento P1)
 3900–3999  Reserva
 ```
 
-**`card_condition` deliberadamente fora da faixa acima (correção de precisão, versão `1.1`)**: por ser uma referência compartilhada, não exclusiva de Pricing, sua numeração não deve ser reservada dentro do milhar candidato de Pricing (`3000`–`3999`) — evitaria repetir, na numeração, o mesmo erro de pertencimento que motivou renomeá-la de `pricing_condition`. Numeração real a definir junto da governança compartilhada, no ciclo de implementação, não comprometida aqui.
+**Numeração de `card_condition` — decisão explícita de Fabrício (2026-08-16).** A versão anterior deste documento deixava `card_condition` deliberadamente fora do milhar `3000`–`3999`, cogitando um módulo próprio de "Referências Compartilhadas" (candidato `4000`–`4999`) para não repetir, na numeração, o erro de pertencimento que motivou renomeá-la de `pricing_condition`. No início real da implementação (Incremento P1), Fabrício decidiu não criar esse módulo novo neste momento e formalizou `card_condition` em `3010`–`3019`, dentro do milhar de Pricing, com a semântica explícita registrada aqui:
+
+- `card_condition` continua sendo uma referência conceitualmente compartilhada e neutra — a introdução física durante o primeiro incremento de Pricing não a transfere para o domínio Pricing, nem cria dependência conceitual de Ownership (futuro `collection_item`) em relação a Pricing;
+- sua posição em `3000`–`3999` registra **apenas o ciclo que realizou a primeira implementação física** da entidade, não pertencimento de domínio;
+- entidades compartilhadas futuras **não devem** ser automaticamente colocadas neste intervalo só por este precedente;
+- o intervalo `4000`–`4999` permanece livre e **não deve ser reservado** — um módulo próprio de "Referências Compartilhadas" só será criado quando existir um conjunto real de entidades e responsabilidades que o justifique (mesmo princípio geral de `STD-001`: milhar comprometido quando efetivamente aprovado, nunca por reserva antecipada).
+
+Ver `STD-001`, subseção "Módulo: Pricing (`3000`–`3999`)", para o mesmo registro em nível de Standard.
 
 ---
 
@@ -1427,3 +1438,4 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 |---------|-----------|
 | 1.0 | Criação deste documento (2026-08-16) — modelagem conceitual e lógica completa do domínio Pricing (10 entidades: `pricing_source`, `pricing_condition`, `pricing_condition_mapping`, `pricing_set_mapping`, `pricing_card_mapping`, `pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`), decorrente da sequência estratégica aprovada por Fabrício (`ROADMAP.md`, 2026-08-16: Card Variant → Pricing → Collection → Analytics). Formaliza a decisão em `adr/ADR-029-pricing-domain-model.md`. Nenhuma tabela criada no Supabase; nenhuma migration executada; item de implementação futura, dependente de ciclo próprio e da conclusão em paralelo da homologação de pelo menos uma fonte (`PROVA-TECNICA-JUSTTCG-PRICING-2026-08-16.md`, fora de `docs/`, ainda pendente — ver seção "Nota de Origem"). |
 | 1.1 | **Correção arquitetural pontual (2026-08-16, mesmo dia, ciclo seguinte), a pedido explícito de Fabrício — cinco pontos, sem reabrir a modelagem inteira.** (1) `pricing_product.language_status` generalizado de tri-estado binário-PT-BR (`CONFIRMED`=PT-BR/`NOT_CONFIRMED`=não-PT-BR/`UNDETERMINED`) para tri-estado neutro e multi-idioma (`CONFIRMED`/`INFERRED`/`UNDETERMINED`); `confirmed_language_id` renomeado para `language_id` (FK opcional para `language`, obrigatória em `CONFIRMED`/`INFERRED`, nula em `UNDETERMINED`); cobertura de idioma passa a ser sempre derivada por comparação (`pricing_product.language_id = collection_item.language_id`, futuro); valuation direto exige `CONFIRMED` — `INFERRED` não autoriza equivalência direta. (2) "Valor Brasil" deixa de depender exclusivamente de `pricing_source.market_scope` (renomeado para `default_market_scope` — classificação/default declarado, não mais autoridade final); `pricing_observation` ganha `market_scope`/`market_label` (renomeado de `market`)/`market_evidence`/`market_evidence_confirmed`; `BRAZIL_ITEM_VALUATION` agora exige `pricing_observation.market_scope = 'BRAZIL' AND market_evidence_confirmed = TRUE`. (3) `pricing_set_mapping`/`pricing_card_mapping` ganham quarto estado `NOT_FOUND` (busca tecnicamente concluída sem correspondência, distinta de "nunca avaliado" — ausência de linha — e de `REJECTED` — candidato específico rejeitado; contradição real da versão `1.0`, que colapsava os dois últimos sob `REJECTED`, corrigida); `external_set_id`/`external_card_id` tornam-se opcionais (obrigatórios só em `CONFIRMED`); `UNIQUE` simples de `(fonte, id externo)` substituída por índice único parcial (`WHERE match_status = 'CONFIRMED'`); novo campo `last_checked_at`. (4) `pricing_condition` renomeada para `card_condition` e reclassificada como referência compartilhada e neutra (não pertence a Pricing nem ao Catálogo Editorial) — `pricing_condition_mapping` permanece exclusiva de Pricing, agora referenciando `card_condition`; total de entidades descritas no documento permanece 10, mas apenas 9 são exclusivas de Pricing. (5) Diagrama Mermaid corrigido — removidas as relações `CARD_VARIANT`↔`LANGUAGE` e `PRICING_FX_RATE`↔`PRICING_OBSERVATION`, ambas sem FK física (o próprio texto já as declarava assim); movidas para nota textual fora do ER. Nenhuma tabela criada, nenhuma migration, nenhuma chamada à API da JustTCG; condição da homologação da JustTCG inalterada (pendente, não aprovada nem reprovada); critérios pré-registrados das Decisões A/B não tocados. Decisões corretas da versão `1.0` preservadas — ver `adr/ADR-029-pricing-domain-model.md` revisão `1.1` para o mesmo detalhamento em nível de ADR. |
+| 1.2 | **Incremento P1 — Fundação Física de Pricing (2026-08-16, mesmo dia, ciclo seguinte à correção `1.1`), a pedido explícito de Fabrício.** Primeira implementação física do domínio: `pricing_source`, `card_condition` e `pricing_condition_mapping` criadas no Supabase (Queries `3000`/`3001`/`3010`/`3011`/`3020`/`3021`, mais `3002` de correção de grants), `CONFIRMADO EXECUTADO`, com estrutura, RLS, triggers, grants e validação de 12 itens idênticos ao modelo aprovado nas versões `1.0`/`1.1`. Milhar `3000`–`3999` formalizado como módulo Pricing em `STD-001`. Numeração de `card_condition` decidida explicitamente por Fabrício: permanece dentro de `3000`–`3999` (`3010`–`3019`), registrando apenas o ciclo de implementação, não pertencimento de domínio — o módulo "Referências Compartilhadas" cogitado na versão `1.1` não foi criado; `4000`–`4999` permanece livre e não reservado (ver seção "Numeração", acima, para o texto completo da decisão). Nenhuma fonte cadastrada, nenhuma condição semeada (vocabulário ainda não confirmado), nenhuma chamada à JustTCG, nenhuma das outras sete entidades do domínio implementada — todas continuam `Proposto, ainda não executado`. Nenhum commit/push realizado. |

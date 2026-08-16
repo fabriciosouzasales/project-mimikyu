@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.8 |
+| **Versão** | 1.9 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -31,7 +31,7 @@ Leia primeiro `CLAUDE.md` (raiz do repositório). Este índice é o segundo pass
 
 ## Modelo de Dados (físico)
 
-Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio). Inclui [`05f-pricing.md`](05f-pricing.md) — modelo lógico e físico do domínio Pricing (`ADR-029`), **proposto, nenhuma tabela criada no Supabase**.
+Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio). Inclui [`05f-pricing.md`](05f-pricing.md) — modelo lógico e físico do domínio Pricing (`ADR-029`); três entidades fundacionais (`pricing_source`, `card_condition`, `pricing_condition_mapping`) **CONFIRMADO EXECUTADO** no Supabase (Incremento P1, 2026-08-16), as demais sete permanecem propostas.
 
 ## Architecture Decision Records
 
@@ -67,7 +67,7 @@ Catálogo completo com status em [`adr/ADR-INDEX.md`](adr/ADR-INDEX.md). Lista r
 | [ADR-026](adr/ADR-026-manual-local-file-asset-import-channel.md) | Canal manual de importação de imagens via arquivo local (`scripts/import-manual-assets.ts`, `asset_source` `MANUAL`) quando a fonte externa não publica o asset — caso real `MEE`/`MEP`; conclusão de `MEP` priorizada à frente do Ciclo 3 de ADR-024. |
 | [ADR-027](adr/ADR-027-catalog-editorial-canonical-metrics-views.md) | Views administrativas de métrica canônica do catálogo (`security_invoker = true`, GRANT restrito a `authenticated`) — padrão que estreia com `catalog_card_set_metrics`/`catalog_card_set_image_coverage` (Query `2123`) e será reutilizado pela futura Central de Relatórios. |
 | [ADR-028](adr/ADR-028-card-variant-governance.md) | Card Variant como entidade mestre do Catálogo Editorial — criação/alteração/ativação exclusivas de administradores; usuário final só seleciona uma variante existente, nunca escreve em `card_variant`. Quatro revisões (`1.0`–`1.4`) cobrem resolução de mapeamento externo, governança soft de `card_variant_type` e UI administrativa. Bloco declarado fundação encerrada em 2026-08-16 (base necessária para Pricing e Collection) — ver `ROADMAP.md`, seção "Now". |
-| [ADR-029](adr/ADR-029-pricing-domain-model.md) | Pricing como quarto domínio conceitual, independente de Catálogo/Ownership/Analytics — dez entidades próprias (`pricing_source` até `pricing_sync_run_call`, ver `05f-pricing.md`), nenhuma reaproveitando tabelas do Catálogo Editorial. "Valor Brasil" é propriedade exclusiva da fonte (`market_scope`), nunca de conversão cambial. Nenhuma tabela criada — modelagem, não implementação. |
+| [ADR-029](adr/ADR-029-pricing-domain-model.md) | Pricing como quarto domínio conceitual, independente de Catálogo/Ownership/Analytics — dez entidades próprias (`pricing_source` até `pricing_sync_run_call`, ver `05f-pricing.md`), nenhuma reaproveitando tabelas do Catálogo Editorial. "Valor Brasil" depende de evidência em `pricing_observation`, nunca só do default da fonte ou de conversão cambial. Três entidades fundacionais criadas no Supabase (Incremento P1, 2026-08-16); as demais sete permanecem propostas. |
 
 ## Standards
 
