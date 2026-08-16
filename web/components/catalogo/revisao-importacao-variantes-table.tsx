@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   confirmarImportacaoVariantes,
+  criarTipoVariacaoEResolverMapeamento,
   decidirLinhasVariantes,
   resolverMapeamentoVariante,
 } from "@/app/catalogo/importar-variantes/actions";
@@ -30,12 +31,19 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatNumber } from "@/lib/utils";
 import type { CardVariantTypeOption, CatalogVariantImportRowView } from "@/lib/catalogo/queries";
 
 const selectClassName = "h-9 w-full rounded-md border border-border bg-background px-3 text-sm";
+
+// Mesma classe de tipos-variacao-table.tsx (textareaClassName) — não há
+// componente Textarea compartilhado no repositório; reproduzida aqui em
+// vez de importar entre módulos de tela distintos.
+const textareaClassName =
+  "flex min-h-16 w-full rounded-md border border-input bg-surface px-3 py-2 text-sm shadow-subtle transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50";
 
 const VALIDATION_LABEL: Record<string, string> = {
   PENDING: "Pendente",
@@ -461,11 +469,14 @@ export function RevisaoImportacaoVariantesTable({
       <ResolverMapeamentoDialog
         row={resolvingRow}
         cardVariantTypes={cardVariantTypes}
-        onResolved={(rowsUpdated, jobsAffected) => {
+        onResolved={(rowsUpdated, jobsAffected, createdTypeName) => {
           setResolvingRow(null);
           setError(null);
+          const prefixo = createdTypeName
+            ? `Tipo "${createdTypeName}" criado e mapeamento resolvido`
+            : "Mapeamento resolvido";
           setConfirmSummary(
-            `Mapeamento resolvido: ${formatNumber(rowsUpdated)} linha(s) em ${formatNumber(jobsAffected)} job${jobsAffected === 1 ? "" : "s"} revalidada(s) automaticamente.`,
+            `${prefixo}: ${formatNumber(rowsUpdated)} linha(s) em ${formatNumber(jobsAffected)} job${jobsAffected === 1 ? "" : "s"} revalidada(s) automaticamente.`,
           );
           onRefresh();
         }}
@@ -526,15 +537,28 @@ function MapeamentoFilterGroup({
   );
 }
 
+type ResolverMapeamentoMode = "existing" | "new";
+
 /**
  * Dialog "Resolver mapeamento" — a partir de uma linha NEEDS_REVIEW, exibe
  * a combinação bruta recebida da fonte (type/foil/subtype/stamp, mesmos
- * chips de VariantRawChips) e um seletor de Card Variant Type já
- * cadastrado. Chama resolverMapeamentoVariante() diretamente (mesmo padrão
- * de chamada de decidir()/confirmar() neste arquivo — sem useActionState,
- * já que a action recebe argumentos posicionais, não FormData). Nunca cria
- * um Card Variant Type novo — o seletor só lista os já existentes no Game
- * (cardVariantTypes, resolvido no servidor a partir do próprio job).
+ * chips de VariantRawChips) e dois modos de resolução (Incremento 3, ADR-028):
+ *
+ * - "Tipo existente" (original): associa a combinação a um Card Variant
+ *   Type já cadastrado — resolverMapeamentoVariante() (Query 2150). O
+ *   seletor só lista os já existentes e ativos no Game (cardVariantTypes,
+ *   resolvido no servidor a partir do próprio job).
+ * - "Novo tipo canônico" (novo): quando a combinação não corresponde a
+ *   nenhum tipo existente, cadastra um Card Variant Type novo e resolve o
+ *   mapeamento na mesma operação — criarTipoVariacaoEResolverMapeamento()
+ *   (Query 2158, wrapper transacional). Nunca automático: code/name/
+ *   description/displayOrder são sempre decisão explícita do
+ *   administrador neste formulário, nunca inferidos da combinação
+ *   recebida.
+ *
+ * Ambos chamam a action diretamente (mesmo padrão de chamada de
+ * decidir()/confirmar() neste arquivo — sem useActionState, já que as
+ * actions recebem argumentos posicionais, não FormData).
  */
 function ResolverMapeamentoDialog({
   row,
@@ -544,36 +568,82 @@ function ResolverMapeamentoDialog({
 }: {
   row: CatalogVariantImportRowView | null;
   cardVariantTypes: CardVariantTypeOption[];
-  onResolved: (rowsUpdated: number, jobsAffected: number) => void;
+  onResolved: (rowsUpdated: number, jobsAffected: number, createdTypeName?: string) => void;
   onCancel: () => void;
 }) {
+  const [mode, setMode] = useState<ResolverMapeamentoMode>("existing");
   const [variantTypeId, setVariantTypeId] = useState("");
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newDisplayOrder, setNewDisplayOrder] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function resetForm() {
+    setMode("existing");
+    setVariantTypeId("");
+    setNewCode("");
+    setNewName("");
+    setNewDescription("");
+    setNewDisplayOrder("");
+    setError(null);
+  }
+
   function handleOpenChange(next: boolean) {
     if (!next && !pending) {
-      setVariantTypeId("");
-      setError(null);
+      resetForm();
       onCancel();
     }
   }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!row || !variantTypeId) return;
-    setPending(true);
+    if (!row) return;
     setError(null);
-    resolverMapeamentoVariante(row.id, variantTypeId).then((result) => {
+
+    if (mode === "existing") {
+      if (!variantTypeId) return;
+      setPending(true);
+      resolverMapeamentoVariante(row.id, variantTypeId).then((result) => {
+        setPending(false);
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        resetForm();
+        onResolved(result.rowsUpdated ?? 0, result.jobsAffected ?? 0);
+      });
+      return;
+    }
+
+    const code = newCode.trim();
+    const name = newName.trim();
+    const displayOrder = Number.parseInt(newDisplayOrder, 10);
+    if (!code || !name || !Number.isFinite(displayOrder)) {
+      setError("Preencha código, nome e ordem de exibição do novo tipo.");
+      return;
+    }
+
+    setPending(true);
+    criarTipoVariacaoEResolverMapeamento(row.id, {
+      code,
+      name,
+      description: newDescription.trim() || null,
+      displayOrder,
+    }).then((result) => {
       setPending(false);
       if (result.error) {
         setError(result.error);
         return;
       }
-      setVariantTypeId("");
-      onResolved(result.rowsUpdated ?? 0, result.jobsAffected ?? 0);
+      resetForm();
+      onResolved(result.rowsUpdated ?? 0, result.jobsAffected ?? 0, name);
     });
   }
+
+  const canSubmit =
+    mode === "existing" ? Boolean(variantTypeId) : Boolean(newCode.trim() && newName.trim() && newDisplayOrder);
 
   return (
     <Dialog open={row !== null} onOpenChange={handleOpenChange}>
@@ -581,9 +651,10 @@ function ResolverMapeamentoDialog({
         <DialogHeader>
           <DialogTitle>Resolver mapeamento</DialogTitle>
           <DialogDescription>
-            Associe esta combinação, exatamente como veio da fonte, a um Card Variant Type já cadastrado. O
-            mapeamento é canônico para este Jogo e Fonte — outras linhas com a mesma combinação, em qualquer Coleção
-            ainda em revisão, também serão resolvidas automaticamente.
+            Associe esta combinação, exatamente como veio da fonte, a um Card Variant Type já cadastrado — ou
+            cadastre um tipo canônico novo, se nenhum existente corresponder. O mapeamento é canônico para este Jogo
+            e Fonte — outras linhas com a mesma combinação, em qualquer Coleção ainda em revisão, também serão
+            resolvidas automaticamente.
           </DialogDescription>
         </DialogHeader>
         {row && (
@@ -594,25 +665,107 @@ function ResolverMapeamentoDialog({
                 <VariantRawChips row={row} />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="resolve-variant-type-id">Card Variant Type</Label>
-                <select
-                  id="resolve-variant-type-id"
-                  required
-                  value={variantTypeId}
-                  onChange={(e) => setVariantTypeId(e.target.value)}
-                  className={selectClassName}
+              <div className="flex gap-1.5 rounded-md border border-border bg-surface-muted/40 p-1" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "existing"}
+                  onClick={() => setMode("existing")}
+                  className={cn(
+                    "flex-1 rounded px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    mode === "existing" ? "bg-surface text-foreground shadow-subtle" : "text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  <option value="" disabled>
-                    Selecione…
-                  </option>
-                  {cardVariantTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name} ({type.code})
-                    </option>
-                  ))}
-                </select>
+                  Tipo existente
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "new"}
+                  onClick={() => setMode("new")}
+                  className={cn(
+                    "flex-1 rounded px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    mode === "new" ? "bg-surface text-foreground shadow-subtle" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Novo tipo canônico
+                </button>
               </div>
+
+              {mode === "existing" ? (
+                <div className="space-y-1">
+                  <Label htmlFor="resolve-variant-type-id">Card Variant Type</Label>
+                  <select
+                    id="resolve-variant-type-id"
+                    required
+                    value={variantTypeId}
+                    onChange={(e) => setVariantTypeId(e.target.value)}
+                    className={selectClassName}
+                  >
+                    <option value="" disabled>
+                      Selecione…
+                    </option>
+                    {cardVariantTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name} ({type.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-[minmax(7rem,1fr)_2fr] gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="resolve-new-code">Código</Label>
+                      <Input
+                        id="resolve-new-code"
+                        value={newCode}
+                        onChange={(e) => setNewCode(e.target.value)}
+                        placeholder="Ex.: SET_LOGO_STAFF"
+                        maxLength={50}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="resolve-new-name">Nome</Label>
+                      <Input
+                        id="resolve-new-name"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        placeholder="Ex.: Logo da Coleção Staff"
+                        maxLength={100}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="resolve-new-description">Descrição (opcional)</Label>
+                    <textarea
+                      id="resolve-new-description"
+                      value={newDescription}
+                      onChange={(e) => setNewDescription(e.target.value)}
+                      placeholder="Explicação permanente do significado deste tipo de variação."
+                      maxLength={500}
+                      className={textareaClassName}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-[minmax(6rem,1fr)] gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="resolve-new-order">Ordem</Label>
+                      <Input
+                        id="resolve-new-order"
+                        type="number"
+                        min={1}
+                        value={newDisplayOrder}
+                        onChange={(e) => setNewDisplayOrder(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {error && <InlineFeedback tone="error">{error}</InlineFeedback>}
             </DialogBody>
@@ -620,8 +773,8 @@ function ResolverMapeamentoDialog({
               <Button type="button" variant="outline" size="sm" onClick={() => handleOpenChange(false)} disabled={pending}>
                 Cancelar
               </Button>
-              <Button type="submit" size="sm" disabled={pending || !variantTypeId}>
-                {pending ? "Resolvendo…" : "Resolver"}
+              <Button type="submit" size="sm" disabled={pending || !canSubmit}>
+                {pending ? "Resolvendo…" : mode === "new" ? "Criar tipo e resolver" : "Resolver"}
               </Button>
             </DialogFooter>
           </form>

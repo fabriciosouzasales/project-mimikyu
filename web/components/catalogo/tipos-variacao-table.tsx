@@ -1,7 +1,7 @@
 "use client";
 
-import { Eye, EyeOff, Pencil, Plus, Sparkles } from "lucide-react";
-import { useActionState, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, Plus, Search, Sparkles } from "lucide-react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createCardVariantType,
@@ -38,11 +38,23 @@ import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/component
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { formatarData } from "@/lib/format-date";
 import type { CardVariantTypeAdminRow } from "@/lib/catalogo/queries";
+import { formatNumber } from "@/lib/utils";
 
 const textareaClassName =
   "flex min-h-16 w-full rounded-md border border-input bg-surface px-3 py-2 text-sm shadow-subtle transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50";
 
 const initialState: CardVariantTypeActionState = { error: null };
+
+// Paginação em memória (2026-08-15, pedido de Fabrício: "a tabela tem
+// crescido a cada importação de variantes") — mesmo padrão de
+// `CardSetsTable`/`ImportacoesTable`: este componente já recebe a lista
+// inteira via prop (`getCardVariantTypesAdmin` traz tudo de uma vez, sem
+// paginação no servidor), então pagina/filtra em memória sobre o array já
+// carregado, com o mesmo footer visual (Mostrando X–Y de Z + setas ícone +
+// página atual/total) usado em Card Sets/Importações — não o padrão
+// server-side (`?page=`) de Jogos/Log de Atualizações, que pressupõe o
+// componente receber só uma página por vez do servidor.
+const TIPOS_VARIACAO_PAGE_SIZE = 10;
 
 /**
  * Tela /catalogo/tipos-variacao (Incremento 2, ADR-028 — Governança da
@@ -57,6 +69,12 @@ const initialState: CardVariantTypeActionState = { error: null };
  * Tipos inativos permanecem listados, identificados pelo badge de status —
  * nunca escondidos da administração (só somem do seletor de novos
  * cadastros/mappings, ver `getCardVariantTypesForJob`).
+ *
+ * Busca + paginação (2026-08-15, pedido de Fabrício: "a tabela tem crescido
+ * a cada importação de variantes") — ver `TIPOS_VARIACAO_PAGE_SIZE` acima
+ * para o raciocínio completo (mesmo padrão client-side de `CardSetsTable`).
+ * Busca casa por nome, código ou descrição; muda de busca sempre volta para
+ * a primeira página.
  */
 export function TiposVariacaoTable({ tiposVariacao }: { tiposVariacao: CardVariantTypeAdminRow[] }) {
   const router = useRouter();
@@ -64,9 +82,27 @@ export function TiposVariacaoTable({ tiposVariacao }: { tiposVariacao: CardVaria
   const [deactivatingTipo, setDeactivatingTipo] = useState<CardVariantTypeAdminRow | null>(null);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
 
   const editingTipo = tiposVariacao.find((t) => t.id === state.editingId) ?? null;
   const nextDisplayOrder = tiposVariacao.reduce((max, t) => Math.max(max, t.displayOrder), 0) + 1;
+
+  const filtrados = useMemo(() => {
+    const termo = query.trim().toLowerCase();
+    if (!termo) return tiposVariacao;
+    return tiposVariacao.filter((tipo) =>
+      [tipo.name, tipo.code, tipo.description].filter(Boolean).some((campo) => campo!.toLowerCase().includes(termo)),
+    );
+  }, [tiposVariacao, query]);
+
+  const totalCount = filtrados.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / TIPOS_VARIACAO_PAGE_SIZE));
+  const paginaAtual = Math.min(page, totalPages - 1);
+  const itensPagina = filtrados.slice(
+    paginaAtual * TIPOS_VARIACAO_PAGE_SIZE,
+    paginaAtual * TIPOS_VARIACAO_PAGE_SIZE + TIPOS_VARIACAO_PAGE_SIZE,
+  );
 
   function handleSaved(message: string, id?: string) {
     state.onSuccess(message, id);
@@ -126,12 +162,30 @@ export function TiposVariacaoTable({ tiposVariacao }: { tiposVariacao: CardVaria
         </div>
 
         <Card density="compact" className="overflow-hidden">
+          <div className="border-b border-border p-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(0);
+                }}
+                placeholder="Buscar por nome, código ou descrição…"
+                className="h-9 bg-surface-muted pl-9 text-xs"
+                aria-label="Buscar Tipo de Variação"
+              />
+            </div>
+          </div>
+
           <CardContent density="compact" className="px-0 pb-0">
             {tiposVariacao.length === 0 ? (
               <EmptyState
                 title="Nenhum tipo de variação cadastrado ainda"
                 description='Use o botão "Novo Tipo de Variação" para começar.'
               />
+            ) : filtrados.length === 0 ? (
+              <EmptyState title={`Nenhum resultado para "${query}"`} description="Tente outro nome, código ou descrição." />
             ) : (
               <DataTable>
                 <DataTableHead>
@@ -150,7 +204,7 @@ export function TiposVariacaoTable({ tiposVariacao }: { tiposVariacao: CardVaria
                   </DataTableHeadRow>
                 </DataTableHead>
                 <tbody>
-                  {tiposVariacao.map((tipo) => (
+                  {itensPagina.map((tipo) => (
                     <DataTableRow key={tipo.id} highlighted={state.highlightId === tipo.id}>
                       <DataTableCell align="center" className="pl-4 text-foreground">
                         {tipo.name}
@@ -215,6 +269,47 @@ export function TiposVariacaoTable({ tiposVariacao }: { tiposVariacao: CardVaria
               </DataTable>
             )}
           </CardContent>
+
+          {totalCount > 0 && (
+            <div className="flex items-center justify-between border-t border-border px-4 py-3">
+              <span className="text-sm text-muted-foreground">
+                Mostrando{" "}
+                <span className="font-medium text-foreground">
+                  {formatNumber(paginaAtual * TIPOS_VARIACAO_PAGE_SIZE + 1)}
+                </span>
+                –
+                <span className="font-medium text-foreground">
+                  {formatNumber(Math.min((paginaAtual + 1) * TIPOS_VARIACAO_PAGE_SIZE, totalCount))}
+                </span>{" "}
+                de <span className="font-medium text-foreground">{formatNumber(totalCount)}</span>
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={paginaAtual === 0}
+                  onClick={() => setPage((p) => p - 1)}
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span className="min-w-[2.5rem] text-center text-sm text-muted-foreground">
+                  {paginaAtual + 1}/{totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={paginaAtual >= totalPages - 1}
+                  onClick={() => setPage((p) => p + 1)}
+                  aria-label="Próxima página"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 

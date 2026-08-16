@@ -164,6 +164,56 @@ export async function resolverMapeamentoVariante(
   return { error: null, rowsUpdated: result?.rows_updated as number | undefined, jobsAffected: result?.jobs_affected as number | undefined };
 }
 
+export type CriarTipoVariacaoEResolverMapeamentoResult = {
+  error: string | null;
+  variantTypeId?: string;
+  mappingId?: string;
+  rowsUpdated?: number;
+  jobsAffected?: number;
+};
+
+/**
+ * Incremento 3 da Governança da Taxonomia de Card Variant Type (ADR-028):
+ * a partir de uma linha NEEDS_REVIEW sem correspondência em nenhum Card
+ * Variant Type existente, cria um tipo canônico novo e resolve o mapping
+ * dessa combinação na mesma operação —
+ * admin_create_card_variant_type_with_import_mapping() (Query 2158),
+ * wrapper transacional fino sobre admin_create_card_variant_type() (2154)
+ * e admin_resolve_catalog_variant_import_mapping() (2150). game_id nunca é
+ * enviado — a RPC resolve a partir da própria linha, mesma garantia de
+ * `resolverMapeamentoVariante` acima. Se qualquer uma das duas etapas
+ * falhar (código duplicado, display_order duplicado, combinação já
+ * mapeada), a chamada inteira reverte — nenhum tipo órfão fica criado.
+ */
+export async function criarTipoVariacaoEResolverMapeamento(
+  rowId: string,
+  novoTipo: { code: string; name: string; description: string | null; displayOrder: number },
+): Promise<CriarTipoVariacaoEResolverMapeamentoResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_create_card_variant_type_with_import_mapping", {
+    p_row_id: rowId,
+    p_code: novoTipo.code,
+    p_name: novoTipo.name,
+    p_description: novoTipo.description,
+    p_display_order: novoTipo.displayOrder,
+  });
+
+  if (error) {
+    return { error: traduzirErroCatalogo(error.message) };
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  revalidatePath("/catalogo/importar-variantes");
+  revalidatePath("/catalogo/tipos-variacao");
+  return {
+    error: null,
+    variantTypeId: result?.variant_type_id as string | undefined,
+    mappingId: result?.mapping_id as string | undefined,
+    rowsUpdated: result?.rows_updated as number | undefined,
+    jobsAffected: result?.jobs_affected as number | undefined,
+  };
+}
+
 export type DecidirLinhasVariantesResult = { error: string | null };
 
 /**
