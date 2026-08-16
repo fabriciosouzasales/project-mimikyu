@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.7 |
+| **Versão** | 1.8 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -31,7 +31,7 @@ Leia primeiro `CLAUDE.md` (raiz do repositório). Este índice é o segundo pass
 
 ## Modelo de Dados (físico)
 
-Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio).
+Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio). Inclui [`05f-pricing.md`](05f-pricing.md) — modelo lógico e físico do domínio Pricing (`ADR-029`), **proposto, nenhuma tabela criada no Supabase**.
 
 ## Architecture Decision Records
 
@@ -67,6 +67,7 @@ Catálogo completo com status em [`adr/ADR-INDEX.md`](adr/ADR-INDEX.md). Lista r
 | [ADR-026](adr/ADR-026-manual-local-file-asset-import-channel.md) | Canal manual de importação de imagens via arquivo local (`scripts/import-manual-assets.ts`, `asset_source` `MANUAL`) quando a fonte externa não publica o asset — caso real `MEE`/`MEP`; conclusão de `MEP` priorizada à frente do Ciclo 3 de ADR-024. |
 | [ADR-027](adr/ADR-027-catalog-editorial-canonical-metrics-views.md) | Views administrativas de métrica canônica do catálogo (`security_invoker = true`, GRANT restrito a `authenticated`) — padrão que estreia com `catalog_card_set_metrics`/`catalog_card_set_image_coverage` (Query `2123`) e será reutilizado pela futura Central de Relatórios. |
 | [ADR-028](adr/ADR-028-card-variant-governance.md) | Card Variant como entidade mestre do Catálogo Editorial — criação/alteração/ativação exclusivas de administradores; usuário final só seleciona uma variante existente, nunca escreve em `card_variant`. Quatro revisões (`1.0`–`1.4`) cobrem resolução de mapeamento externo, governança soft de `card_variant_type` e UI administrativa. Bloco declarado fundação encerrada em 2026-08-16 (base necessária para Pricing e Collection) — ver `ROADMAP.md`, seção "Now". |
+| [ADR-029](adr/ADR-029-pricing-domain-model.md) | Pricing como quarto domínio conceitual, independente de Catálogo/Ownership/Analytics — dez entidades próprias (`pricing_source` até `pricing_sync_run_call`, ver `05f-pricing.md`), nenhuma reaproveitando tabelas do Catálogo Editorial. "Valor Brasil" é propriedade exclusiva da fonte (`market_scope`), nunca de conversão cambial. Nenhuma tabela criada — modelagem, não implementação. |
 
 ## Standards
 
@@ -123,3 +124,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.5 | Handoff vigente atualizado para `development/HANDOFF-2026-08-09.md` (2026-08-09) — consolida o encerramento formal do Módulo Gerencial (Trilha 4: Histórico de Importações, Log de Atualizações, Central de Relatórios, todos concluídos e aprovados por Fabrício nesta janela). `HANDOFF-2026-08-08.md` movido para `history/development/`. Ver `ROADMAP.md` revisão `1.45` e `docs/README.md` revisão `1.98`. |
 | 1.6 | **Auditoria documental completa (2026-08-16).** Adicionado `ADR-028` (Card Variant Governance) à lista rápida de ADRs — ausente desde sua criação em 2026-08-14, apesar de já constar em `adr/ADR-INDEX.md` (revisão `2.16`). Handoff vigente atualizado para `development/HANDOFF-2026-08-16.md`; `HANDOFF-2026-08-09.md` movido para `history/development/`. Ver `ROADMAP.md` revisão `1.48` e `docs/README.md` revisão `2.00`. |
 | 1.7 | **Segunda rodada de auditoria documental (2026-08-16, mesma data), achado de segunda ordem.** Resumos de `ADR-028` e do handoff vigente ainda diziam "substancialmente implementado e pausado" — desatualizados pela decisão formal de Fabrício (Card Variant = fundação encerrada) tomada na segunda rodada; ambos corrigidos. Ver `ROADMAP.md` revisão `1.49` e `docs/README.md` revisão `2.01`. |
+| 1.8 | **Adicionados `05f-pricing.md` e `ADR-029` (2026-08-16, mesma data, ciclo seguinte)** — modelagem conceitual e lógica do domínio Pricing (dez entidades, quarto domínio independente de Catálogo/Ownership/Analytics), decorrente da sequência estratégica aprovada por Fabrício (Card Variant → Pricing → Collection → Analytics). Nenhuma tabela criada no Supabase; homologação de fonte externa (JustTCG) segue pendente em paralelo, sem bloquear a modelagem. Ver `ROADMAP.md` revisão equivalente e `docs/README.md` revisão equivalente. |

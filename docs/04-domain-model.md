@@ -4,12 +4,12 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.6 |
+| **Versão** | 2.7 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
 | **Dependências** | `00-project-charter.md`, `02-architecture-principles.md`, `standards/STD-002-domain-modeling.md` |
-| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `adr/ADR-013-collection-item-identity-model.md`, `adr/ADR-014-collection-and-collection-entry-model.md`, `adr/ADR-016-card-variant-naming-convention.md`, `02-architecture-principles.md` (AP-013, AP-014, AP-015, AP-017), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `architecture/ubiquitous-language.md` |
+| **Documentos Relacionados** | `adr/ADR-003-multi-game-architecture.md`, `adr/ADR-004-set-identity.md`, `adr/ADR-005-catalog-language-model.md`, `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-007-card-translation-model.md`, `adr/ADR-008-external-catalog-data-sources.md`, `adr/ADR-009-card-variant-scope.md`, `adr/ADR-010-card-rarity-and-finish-model.md`, `adr/ADR-011-pokemon-tcg-domain-scope.md`, `adr/ADR-012-structured-vs-visual-card-data.md`, `adr/ADR-013-collection-item-identity-model.md`, `adr/ADR-014-collection-and-collection-entry-model.md`, `adr/ADR-016-card-variant-naming-convention.md`, `adr/ADR-029-pricing-domain-model.md`, `02-architecture-principles.md` (AP-013, AP-014, AP-015, AP-017), `standards/STD-002-domain-modeling.md`, `07-catalogo-editorial.md`, `05f-pricing.md`, `architecture/ubiquitous-language.md` |
 
 ---
 
@@ -21,7 +21,7 @@ Seu objetivo é definir o domínio do problema antes da implementação no banco
 
 Este documento não contém SQL nem detalhes físicos de implementação.
 
-> **Nota sobre o Status "Em elaboração" (2026-07-30).** A maior parte dos conceitos abaixo está definida e estável. O que efetivamente mantém este documento em elaboração: (1) **Storage Location** — documentação pendente, nenhum modelo conceitual escrito ainda; (2) **User Collection** — stub mantido apenas até confirmação explícita de Fabrício de que o termo foi de fato absorvido por Collection, sem distinção adicional pretendida (ver seção "User Collection", abaixo); (3) a modelagem física de **Card Translation** segue em aberto (conceito definido aqui, sem tabela própria — ver `05-modelo-de-dados.md` e `07-catalogo-editorial.md`, seção "Em Aberto"); (4) partes do Catálogo Editorial ainda não implementadas fisicamente (ex.: `Card Variant` para `MEE`/`MEP` — ver `05-modelo-de-dados.md`). Isto não é uma promoção de status: o documento permanece "Em elaboração" até que os itens acima sejam fechados.
+> **Nota sobre o Status "Em elaboração" (2026-07-30).** A maior parte dos conceitos abaixo está definida e estável. O que efetivamente mantém este documento em elaboração: (1) **Storage Location** — documentação pendente, nenhum modelo conceitual escrito ainda; (2) **User Collection** — stub mantido apenas até confirmação explícita de Fabrício de que o termo foi de fato absorvido por Collection, sem distinção adicional pretendida (ver seção "User Collection", abaixo); (3) a modelagem física de **Card Translation** segue em aberto (conceito definido aqui, sem tabela própria — ver `05-modelo-de-dados.md` e `07-catalogo-editorial.md`, seção "Em Aberto"); (4) partes do Catálogo Editorial ainda não implementadas fisicamente (ex.: `Card Variant` para `MEE`/`MEP` — ver `05-modelo-de-dados.md`); (5) **Pricing (Preço de Mercado)** e **Item Valuation (Avaliação do Item)** — conceitos adicionados em 2026-08-16 (`ADR-029`), modelagem conceitual e lógica completas (ver `05f-pricing.md`), nenhuma tabela criada no Supabase; homologação de fonte externa (JustTCG) segue pendente em paralelo, sem bloquear a modelagem. Isto não é uma promoção de status: o documento permanece "Em elaboração" até que os itens acima sejam fechados.
 
 ---
 
@@ -1322,6 +1322,98 @@ Os campos de mecânica de jogo listados acima (HP, Attacks, Ability, Weakness, R
 
 ---
 
+## Pricing (Preço de Mercado)
+
+### O que é?
+
+O domínio que representa observações de preço de mercado, capturadas de fontes externas (ex.: JustTCG, TCGplayer, futuras fontes brasileiras), para impressões específicas de Cards do catálogo — em sua moeda, mercado e condição originais, preservadas ao longo do tempo. Formalizado em `ADR-029-pricing-domain-model.md`; modelo lógico e físico completo em `05f-pricing.md`.
+
+Pricing é um **quarto domínio conceitual**, de peso equivalente aos três já definidos por `ADR-006` (Catálogo Editorial, Patrimônio do Usuário, Analytics) — não um apêndice de nenhum deles.
+
+---
+
+### O que não é?
+
+- não é um dado editorial do Catálogo — um preço não é uma característica oficial permanente da Card/Card Variant, é uma observação de terceiros, sujeita a mudar a qualquer instante;
+- não pertence a nenhum usuário — o mesmo dado de preço serve a todos os usuários simultaneamente, diferente de uma característica de Collection Item;
+- não é Analytics puro — Analytics pressupõe dado calculado a partir de Catálogo + Patrimônio do Usuário; Pricing é, ele mesmo, um dado primário importado, com seu próprio ciclo de staging/confirmação/auditoria;
+- não cria nem altera `Card Variant` — Pricing pode, no máximo, vincular-se opcionalmente a um Card Variant já existente e editorial (`ADR-028`); nunca infere ou cria um novo;
+- não modela condição de conservação como característica do Card Variant — condição pertence à observação de preço (e, futuramente, ao item físico do usuário), nunca ao Catálogo (`ADR-006`).
+
+---
+
+### Qual problema resolve?
+
+Permite ao Project Mimikyu, futuramente, estimar o valor de mercado de uma carta ou de um exemplar específico do acervo do usuário, a partir de múltiplas fontes possíveis, sem tornar o sistema dependente estrutural de nenhuma delas (`ADR-008`, estendida por `ADR-029`), sem duplicar dado editorial, sem misturar preço internacional com preço brasileiro, e sem jamais sobrescrever o histórico de preço já observado.
+
+---
+
+### Dimensões independentes (nunca colapsadas)
+
+Correção conceitual central desta modelagem, validada durante a prova técnica de homologação da JustTCG (`PROVA-TECNICA-JUSTTCG-PRICING-2026-08-16.md`, fora de `docs/`) e formalizada em `ADR-029`:
+
+```text
+Cobertura de Catálogo     "esta é a mesma Card?"
+Cobertura de Idioma/Impressão   "esta é a mesma impressão e o mesmo idioma?"
+Cobertura de Mercado      "este preço vem de qual tipo de mercado (internacional/Brasil)?"
+```
+
+As três perguntas são respondidas por partes diferentes do modelo (ver `05f-pricing.md`) e nunca combinadas numa única resposta binária — uma Card pode ter correspondência confirmada com uma fonte e, ainda assim, não ter nenhum preço aplicável a um item específico do usuário, se a segunda ou a terceira pergunta não forem satisfeitas.
+
+Da mesma forma, **printing** (acabamento/impressão) e **condição de conservação** nunca são a mesma coisa: printing é o que pode, opcionalmente, se vincular a um Card Variant existente; condição é sempre uma característica da observação de preço (e, futuramente, do exemplar físico do usuário) — nunca do Catálogo.
+
+---
+
+### "Valor Brasil" é uma propriedade da fonte, nunca da conversão de moeda
+
+Um preço em USD convertido para BRL permanece um preço internacional, exibido apenas de forma informativa — nunca chamado de "Valor Brasil". A classificação **`BRAZIL_ITEM_VALUATION`** (ver "Item Valuation", abaixo) só pode existir quando a própria fonte de preço tiver evidência direta de mercado brasileiro — nunca por conversão cambial de uma fonte internacional.
+
+---
+
+### Relacionamentos
+
+```text
+Card
+ │
+ └── N Pricing Card Mapping (por Fonte)
+        │
+        └── N Pricing Product (impressão/idioma reportados pela Fonte)
+               │      │
+               │      └── vínculo opcional → Card Variant
+               │
+               └── N Pricing Observation (preço, condição, moeda, mercado, instante)
+```
+
+Modelo lógico e físico completo, incluindo `Pricing Source`, `Pricing Condition`, `Pricing Set Mapping`, `Pricing FX Rate` e a auditoria de sincronização (`Pricing Sync Run`/`Pricing Sync Run Call`): ver `05f-pricing.md`.
+
+---
+
+## Item Valuation (Avaliação do Item)
+
+### O que é?
+
+O resultado, calculado (nunca editorial), de comparar a observação de preço mais adequada disponível em Pricing com um Collection Item específico do usuário (Ownership) — Analytics, na taxonomia de `ADR-006`. Produz uma de quatro classificações: `INTERNATIONAL_CARD_REFERENCE`, `INTERNATIONAL_ITEM_VALUATION`, `BRAZIL_ITEM_VALUATION`, `NOT_VALUED` (definições e critério de cada uma em `05f-pricing.md`, seção "Item Valuation").
+
+---
+
+### O que não é?
+
+Não é uma tabela de Pricing, nem uma característica de Collection Item. É Analytics: dado derivado, calculado a partir de Pricing + Ownership, no momento em que ambos existirem — hoje, apenas Pricing existe (modelagem, sem tabela física ainda) e Ownership (Collection Item) ainda não foi implementado.
+
+---
+
+### Qual problema resolve?
+
+Evita a armadilha mais crítica identificada nesta modelagem: uma impressão internacional (ex.: inglesa) receber automaticamente o valor de uma cópia PT-BR do usuário, ou um preço internacional ser exibido como se fosse "Valor Brasil" só porque foi convertido para reais. Sem uma classificação explícita, qualquer tela futura de valor estimado teria de decidir essa distinção ad hoc, com risco real de erro silencioso.
+
+---
+
+### Estado desta modelagem
+
+Puramente conceitual nesta rodada — `item_valuation_snapshot` (nome de trabalho) é apenas esboçada em `05f-pricing.md`, sem colunas físicas comprometidas, porque depende de `collection_item_id`, que ainda não existe. Fica para quando Collection for implementada, na sequência já aprovada por Fabrício (`ROADMAP.md`: Card Variant → Pricing → Collection → Analytics/Valuation).
+
+---
+
 ## Collection Item (Item da Coleção)
 
 ### O que é?
@@ -1539,3 +1631,4 @@ Nenhuma Open Decision aberta no momento.
 | 2.4 | **Nova seção "Open Decisions" (2026-07-26), motivada por auditoria externa conduzida por Fabrício.** A discrepância `ENERGY` já estava sinalizada em prosa, na nota da "Decisão de Escopo — Cartas de Energia", mas sem responsável, impacto ou gatilho de decisão explícitos. Formalizada como `OD-001` (tema, descrição, impacto, estado, decisor, gatilho — "antes de ampliar o catálogo para uma nova era ou um novo Game"), com link cruzado a partir da nota original. Não gera ADR: a decisão ainda não foi tomada, só está agora formalmente rastreada. |
 | 2.5 | **`OD-001` resolvida por decisão explícita e definitiva de Fabrício (2026-07-30): cartas de Energia passam a ocupar posição oficial no Set e a fazer parte do catálogo editorial numerado, como Pokémon/Trainer — formalizado em `ADR-025-energy-as-catalog-card-category.md`.** Seção Card Category: "O que é?"/"Valores" atualizados para três categorias (Pokémon, Trainer, Energy); antiga "Decisão de Escopo — Cartas de Energia" marcada explicitamente como substituída (texto histórico preservado, não apagado), com nova subseção "Decisão Vigente — Cartas de Energia no Catálogo Numerado" registrando o estado atual; "Regra de Integridade Conceitual" ganhou o caso `Card Category = Energy` (sem Trainer Subcategory, sem referência a Pokémon). Seção "Energy Type": nota de desambiguação reescrita — Energy Type (atributo elemental de carta Pokémon, mecânica de jogo, AP-017) e Card Category = Energy (a própria carta é uma carta de Energia) são conceitos distintos que só compartilham o nome por coincidência de domínio. `OD-001` movida de "Open Decisions" (agora vazia) para nova subseção "Resolvidas", com rastreabilidade ao ADR-025 — fato de que a divergência existiu preservado, não apagado. Nenhuma alteração física no banco: a categoria `ENERGY` já existia nos dados (Query `831`, 17 Cards); esta revisão só formaliza documentalmente o que já era real. |
 | 2.6 | **Nota objetiva adicionada (2026-07-30), a pedido de Fabrício, explicando o que mantém o Status deste documento como "Em elaboração"** — sem promover para "Aprovado": Storage Location (documentação pendente), User Collection (stub aguardando confirmação de que foi absorvido por Collection), modelagem física de Card Translation (em aberto) e partes do Catálogo Editorial ainda não implementadas fisicamente (ex.: Card Variant de MEE/MEP). Nenhum conceito teve sua definição alterada nesta revisão. |
+| 2.7 | **Adicionadas as seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)" (2026-08-16)**, inseridas antes de "Collection Item" — modelagem conceitual do quarto domínio do projeto (ao lado de Catálogo Editorial/Ownership/Analytics, `ADR-006`), decorrente da sequência estratégica aprovada por Fabrício (`ROADMAP.md`: Card Variant → Pricing → Collection → Analytics/Valuation). Formaliza: Pricing como domínio independente, nunca reaproveitando tabelas do Catálogo Editorial; a separação entre cobertura de catálogo/idioma-impressão/mercado como três perguntas distintas; a regra de que "Valor Brasil" é propriedade exclusiva da fonte de preço, nunca de conversão cambial; e as quatro classificações de Item Valuation (`INTERNATIONAL_CARD_REFERENCE`/`INTERNATIONAL_ITEM_VALUATION`/`BRAZIL_ITEM_VALUATION`/`NOT_VALUED`), tratadas aqui apenas conceitualmente (Analytics, sem tabela física — depende de Collection Item, ainda não implementado). Decisão completa em `adr/ADR-029-pricing-domain-model.md`; modelo lógico e físico completo em `05f-pricing.md`. Nota de status ampliada com o item (5) Pricing/Item Valuation. Nenhuma tabela criada no Supabase; homologação de fonte externa (JustTCG) segue pendente em paralelo, sem bloquear esta modelagem. |
