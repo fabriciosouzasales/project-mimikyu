@@ -291,9 +291,17 @@ async function getConditionMap(supabase: SupabaseClient, pricingSourceId: string
 }
 
 async function findCard(supabase: SupabaseClient, setCode: string, numero: string): Promise<{ card_id: string; card_set_id: string; name: string } | null> {
+  // O hint "!inner" é obrigatório aqui: sem ele, o filtro .eq("card_set.code", ...)
+  // só afeta o objeto embutido (fica null quando não bate), sem restringir as linhas
+  // de "card" retornadas pela query — collector_number sozinho colide entre dezenas
+  // de Sets (cada um reinicia a numeração em 1), então card_set_id(id, code) sem
+  // "!inner" devolvia todas as cartas com aquele número em qualquer Set, e
+  // .maybeSingle() falhava com "multiple (or no) rows returned" assim que o piloto
+  // real chegava à Fase B (bug real, encontrado na validação com Fabrício,
+  // 2026-08-17 — não aparecia no fixture-check por ser 100% offline).
   const { data, error } = await supabase
     .from("card")
-    .select("id, name, collector_number, card_set:card_set_id(id, code)")
+    .select("id, name, collector_number, card_set:card_set_id!inner(id, code)")
     .eq("collector_number", numero)
     .eq("card_set.code", setCode)
     .maybeSingle();
@@ -448,16 +456,27 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
 
   const summary = { setsResolved: 0, setsFailed: 0, cardsResolved: 0, cardsFailed: 0, productsWritten: 0, observationsWritten: 0 };
   const errorParts: string[] = [];
+  // Finalização garantida (correção 2026-08-17): qualquer exceção não tratada dentro
+  // deste bloco — incluindo bugs reais como o de findCard() corrigido nesta mesma data —
+  // cai no catch ao final da função, que finaliza pricing_sync_run como FAILED antes de
+  // relançar, nunca deixando um run preso em PROCESSING (foi o que aconteceu com o run
+  // 19a04057-9660-438f-b945-4f05e364df0f, corrigido retroativamente por SQL direto).
+  // `syncRunFinalized` evita finalizar duas vezes quando um caminho já tratado (401,
+  // Fase A sem sucesso) já chamou finalizeSyncRun explicitamente antes de relançar.
+  let syncRunFinalized = false;
 
+  try {
   // Fase A — descoberta de Sets (uma única chamada, cobre os dois Sets do piloto).
   const setsResult = await client.get<{ data: JustTcgSet[] }>("/sets", { game: "pokemon" });
   if (setsResult.status === "AUTH_FAILURE") {
     await finalizeSyncRun(supabase, syncRunId, client, "FAILED", "AUTENTICACAO_FALHOU_401", args.dryRun);
+    syncRunFinalized = true;
     throw new Error("Autenticação falhou (401) — piloto abortado, mesma contrato da prova técnica.");
   }
   if (setsResult.status !== "SUCCESS") {
     errorParts.push(`FASE_A_FALHOU: ${setsResult.status}`);
     await finalizeSyncRun(supabase, syncRunId, client, "FAILED", errorParts.join(" | "), args.dryRun);
+    syncRunFinalized = true;
     throw new Error("Fase A (/v1/sets) não retornou sucesso — piloto abortado sem cobertura, mesmo contrato da prova técnica.");
   }
   const allSets = setsResult.data.data ?? [];
@@ -529,6 +548,7 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
 
     if (cardsResult.status === "AUTH_FAILURE") {
       await finalizeSyncRun(supabase, syncRunId, client, "FAILED", "AUTENTICACAO_FALHOU_401", args.dryRun);
+      syncRunFinalized = true;
       throw new Error("Autenticação falhou (401) — piloto abortado.");
     }
     if (cardsResult.status !== "SUCCESS") {
@@ -655,10 +675,18 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
 
   const finalStatus = errorParts.length === 0 ? "COMPLETED" : summary.observationsWritten > 0 ? "COMPLETED_WITH_ERRORS" : "FAILED";
   await finalizeSyncRun(supabase, syncRunId, client, finalStatus, errorParts.length > 0 ? errorParts.slice(0, 10).join(" | ") : null, args.dryRun);
+  syncRunFinalized = true;
 
   console.log("\n=== Resumo do piloto ===");
   console.log(JSON.stringify({ ...summary, requestsMade: client.requestsMade, rateLimitHits: client.rateLimitHits, status: finalStatus }, null, 2));
   if (errorParts.length > 0) console.log("\nErros:", errorParts.join(" | "));
+  } catch (error) {
+    if (!syncRunFinalized) {
+      const message = error instanceof Error ? error.message : String(error);
+      await finalizeSyncRun(supabase, syncRunId, client, "FAILED", message, args.dryRun);
+    }
+    throw error;
+  }
 }
 
 async function finalizeSyncRun(

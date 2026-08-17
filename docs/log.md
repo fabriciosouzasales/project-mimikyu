@@ -1180,3 +1180,27 @@ Implementado: `pricing_sync_run.confirmed_by UUID NOT NULL` (Query `3082`, sem `
 Validação: transação `SET ROLE service_role` — UUID administrativo real insere com sucesso; UUID aleatório falha com `ERROR P0001: PRICING_SYNC_RUN_CONFIRMED_BY_INVALID`, zero linha gravada (`ROLLBACK` em ambos os testes). `proacl` da nova função confirmado `{postgres=X/postgres}`. Grants de `admin_user` inalterados. `get_advisors` (segurança e performance): zero achado novo referenciando `pricing_sync_run`/`admin_user`/a nova função. **`ADR-021` não sofreu nenhuma revisão** — decisão original preservada integralmente. Runner PowerShell intocado por esta correção. Nenhum commit/push realizado pelo agente — decisão de Fabrício.
 
 Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.11`, nova subseção em "Incremento P8" + Modelo Físico atualizado), `docs/adr/ADR-029-pricing-domain-model.md` (revisão `1.11`, nova seção "Correção pós-P8"), `docs/standards/STD-001-database-standards.md` (versão `1.32`).
+
+## [2026-08-17] fix | Correção pós-P8, segunda rodada — `findCard()` sem hint `!inner` retornava múltiplas cartas para o mesmo `collector_number`
+
+Piloto real (Fabrício, já passando pela correção de `confirmed_by` acima) falhou na Fase B com `CARD_QUERY_FAILED: JSON object requested, multiple (or no) rows returned`.
+
+Causa raiz: `findCard()` em `scripts/sync-justtcg-pricing.ts` filtrava `.eq("card_set.code", setCode)` sobre o embed `card_set:card_set_id(id, code)` sem o hint `!inner` do PostgREST. Sem esse hint, o filtro sobre um embed *to-one* não restringe as linhas de `card` — só zera o objeto embutido quando não bate — então a query dependia apenas de `collector_number`, que reinicia em cada Card Set. Confirmado por SQL direto: `collector_number = '001'` bate em 37 cartas de Sets diferentes, incluindo exatamente os dois primeiros alvos do piloto (`Bulbasaur`/`ME1`, `Alakazam`/`BASE1`).
+
+Corrigido trocando o embed para `card_set:card_set_id!inner(id, code)`. Revisão de todos os `.select()` do arquivo confirmou que este era o único ponto com esse padrão. Sem migration — correção só de código do conector, validada por `ts.transpileModule` (zero diagnóstico) e `git diff --stat` (único arquivo alterado). Nenhum commit/push realizado.
+
+Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.12` — nova nota em "Incremento P8", header atualizado, e correção retroativa: a linha `1.11` do Revision History, referenciada mas nunca gravada no ciclo anterior, foi adicionada agora).
+
+## [2026-08-17] fix | Finalização garantida de `pricing_sync_run` + correção retroativa do run `19a04057-9660-438f-b945-4f05e364df0f` preso em `PROCESSING`
+
+Fabrício reportou o run `19a04057-9660-438f-b945-4f05e364df0f` preso em `status = 'PROCESSING'`, `finished_at = NULL`, `requests_made = 0`.
+
+Causa raiz: `runRealPilot()` (`scripts/sync-justtcg-pricing.ts`) só chamava `finalizeSyncRun()` nos pontos de falha explicitamente antecipados (401, Fase A sem sucesso) e no caminho de sucesso — o bug de `findCard()` (correção anterior, mesma data) lançava uma exceção fora desses pontos, que nunca finalizava o run. Confirmado no Supabase: o run travou exatamente após a Fase A gravar com sucesso os dois `pricing_set_mapping` do piloto (`ME1`→`me01-mega-evolution-pokemon`, `BASE1`→`base-set-pokemon`, ambos `CONFIRMED`) e antes de qualquer `pricing_card_mapping`/`pricing_product`/`pricing_observation`.
+
+Corrigido com um bloco `try/catch` envolvendo Fase A/B e a finalização de sucesso em `runRealPilot()`: qualquer exceção que escape cai no `catch`, que finaliza o run como `FAILED` com a mensagem do erro (sanitizada por `finalizeSyncRun`) antes de relançar. Uma flag `syncRunFinalized` evita finalização dupla quando um caminho já tratado (401/Fase A) já finalizou explicitamente antes de lançar.
+
+O run existente foi corrigido retroativamente por `UPDATE` direto via Supabase MCP (dado, não schema — sem migration): `status = 'FAILED'`, `finished_at = now()`, `error_summary` sanitizado explicando a causa; `requests_made` real desta execução específica ficou indeterminado (nunca foi persistido, já que o run nunca chegou a `finalizeSyncRun`) e foi mantido em `0` por não haver fonte confiável para reconstituí-lo. Os dois `pricing_set_mapping` `CONFIRMED` (ME1/BASE1) permanecem intocados — nenhum dado válido apagado.
+
+Validado diretamente no Supabase: `pricing_sync_run` só tem essa linha, agora `FAILED`; os dois `pricing_set_mapping` confirmados com `match_status = 'CONFIRMED'` e `confirmed_by` inalterado; `get_advisors` (segurança) sem achado novo referenciando `pricing_sync_run`. Nenhum commit/push realizado.
+
+Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.13` — nova nota em "Incremento P8", header atualizado, Revision History `1.13`, e ajuste do parágrafo "piloto real não executado" para refletir que já houve execução real fora do sandbox).
