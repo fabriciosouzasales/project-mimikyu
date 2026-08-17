@@ -196,6 +196,14 @@ $ExpectedRateSourceCode = "BCB_PTAX"
 
 $BcbApiHost = "olinda.bcb.gov.br"   # mesmo host de BCB_PTAX_API_BASE em sync-ptax-fx-rate.ts
 
+# User-Agent explicito e nao-browser para as leituras PostgREST deste runner.
+# Corrigido (2026-08-17, quarta rodada): Windows PowerShell 5.1 usa por padrao um
+# User-Agent que se parece com o de um navegador (ex.: "Mozilla/5.0 (Windows NT..."),
+# e o gateway do Supabase rejeita chaves novas (sb_secret_*) nesse contexto mesmo
+# com o header apikey correto (sem Authorization: Bearer) - retornando 401 mesmo
+# com credenciais validas. Um User-Agent explicito e nao-browser evita esse bloqueio.
+$PtaxRunnerUserAgent = "project-mimikyu-p9-runner/1.0"
+
 # ============================================================================
 # 2. Sanitizacao defensiva - mesmo espirito de Executar-P8-JustTCG-Local.ps1
 #    (protege qualquer coisa impressa/gravada por este runner, mesmo nao havendo
@@ -364,7 +372,7 @@ function Get-PtaxRatesNaJanela {
     $uri = "$baseUrl/rest/v1/pricing_fx_rate?$query"
     $headers = Get-CabecalhosSupabase -ServiceRoleKey $ServiceRoleKey
     try {
-        $rows = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get -ErrorAction Stop
+        $rows = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get -UserAgent $PtaxRunnerUserAgent -ErrorAction Stop
         if ($null -eq $rows) { return @() }
         return @($rows)
     } catch {

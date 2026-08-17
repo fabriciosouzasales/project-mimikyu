@@ -1256,3 +1256,17 @@ Implementado `scripts/sync-ptax-fx-rate.ts` (Deno standalone, mesmo precedente a
 Fora de escopo confirmado, não implementado: conversão de `pricing_observation`, "Valor Brasil", scheduler, frontend, qualquer dado da JustTCG, armazenamento da cotação de compra. Nenhuma migration nova; nenhum commit/push realizado.
 
 Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.16` — nova seção "Incremento P9" com decisão cambial e detalhamento da implementação, atributos `rate`/`rate_date` atualizados, `Definition of Done` da entidade atualizado, header atualizado, Revision History `1.16`); `docs/adr/ADR-029-pricing-domain-model.md` (Revision History `1.13`).
+
+## [2026-08-17] fix | P9 — três correções pós-piloto real (dataFinalCotacao, telemetria NEW/conflito, User-Agent)
+
+Piloto real do Incremento P9, executado por Fabrício via `scripts/Executar-P9-PTAX-Local.ps1`, expôs três problemas reais não previstos pela validação offline, corrigidos em três rodadas sucessivas, sempre só em código (nunca schema/dado/migration):
+
+1. **`HTTP 400` real** — `buildPtaxPeriodUrl()` usava o parâmetro OData `dataFinal`, mas a API Olinda exige `dataFinalCotacao`. Corrigido contra uma URL comprovadamente funcional fornecida por Fabrício (testada via `Invoke-RestMethod`); fixture novo comparando a URL gerada, literal, contra a URL confirmada.
+2. **Telemetria frágil de insert vs. conflito** — classificação original dependia de texto de erro (`"duplicate key"`) sob `INSERT` simples. Substituída por `.upsert(..., { onConflict: "from_currency,to_currency,rate_source_code,rate_date", ignoreDuplicates: true }).select("rate_date")` — Postgres resolve como `ON CONFLICT DO NOTHING` (sem exigir `GRANT UPDATE`), classificação passa a depender só da forma da resposta.
+3. **`401` do Supabase no runner** — Windows PowerShell 5.1 envia `User-Agent` padrão parecido com navegador; gateway do Supabase rejeitava a chave `sb_secret_*` nesse contexto. Corrigido só no runner com `-UserAgent "project-mimikyu-p9-runner/1.0"` explícito.
+
+Runner também recebeu, na mesma sequência: leitura de headers PostgREST ciente de formato de chave (`apikey` só, sem `Authorization: Bearer`, para `sb_secret_*`/`sb_publishable_*`; ambos, para JWT legado); leitura de baseline antes do piloto, validando que a execução 1 escreve só o que falta (preservando dado preexistente, nunca apagando/recriando) e que a execução 2 escreve zero.
+
+**Fechamento — evidência confirmada diretamente no Supabase pelo agente**: `pricing_fx_rate` com exatamente 6 linhas (`rate_date` 10, 11, 12, 13, 14 e 17/08/2026, `rate_source_code = 'BCB_PTAX'`, cotação de venda PTAX real), zero linha para 15–16/08 (fim de semana), zero duplicidade (`count(*) = count(DISTINCT rate_date) = 6`), segunda execução do runner com `written = 0` (idempotência real). `get_advisors` (segurança e performance): zero achado novo referenciando `pricing_fx_rate`. Varredura de segredo negativa em `scripts/sync-ptax-fx-rate.ts` e `scripts/Executar-P9-PTAX-Local.ps1`. Nenhuma migration nova, nenhum dado apagado/recriado. **Incremento P9 formalmente encerrado.** Nenhum commit/push realizado.
+
+Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.17` — seção "Incremento P9" com bloco "Fechamento — Evidência Real Final", `Definition of Done` com a última pendência marcada, header atualizado, Revision History `1.17`); `docs/adr/ADR-029-pricing-domain-model.md` (Revision History `1.14`).
