@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Pricing |
 | **Arquivo** | `docs/05f-pricing.md` |
-| **Versão** | 1.2 |
-| **Status** | **Proposto — nenhuma tabela criada no Supabase.** Modelagem conceitual e lógica aprovada para documentação; implementação física (migrations) depende de ciclo próprio, ainda não iniciado. |
+| **Versão** | 1.3 |
+| **Status** | **Parcialmente implementado.** Cinco entidades `CONFIRMADO EXECUTADO` no Supabase (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2, ambas as tabelas vazias, nenhuma fonte homologada). As cinco entidades restantes (`pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`) permanecem `Proposto, ainda não executado`. |
 | **Objetivo** | Modelo lógico e físico do domínio Pricing — observações de mercado por fonte externa, independente de Catálogo Editorial e de Ownership, conforme `ADR-029` e `ADR-006`. |
 | **Escopo** | Entidades de Pricing: fonte, mapeamento de Set/Card por fonte, produto (impressão+idioma reportados pela fonte), condição canônica, observação de preço, câmbio, auditoria de sincronização. Não inclui a modelagem física de Item Valuation (Analytics), deliberadamente adiada — ver seção própria ao final. |
 | **Dependências** | `04-domain-model.md` (seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)"), `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-029-pricing-domain-model.md`, `standards/STD-001-database-standards.md`, `standards/STD-002-domain-modeling.md`, `05b-cartas-e-raridade.md` (Card/Card Variant), `05c-assets-e-importacao.md` (Language/Asset Source — padrão de referência, não reaproveitado por tabela). |
@@ -523,8 +523,9 @@ updated_at
 4. `confirmed_at`/`confirmed_by` só podem estar preenchidos quando `match_status IN ('CONFIRMED', 'REJECTED')` — decisões administrativas explícitas, verificado por `CHECK`. `NOT_FOUND` e `PENDING` nunca preenchem `confirmed_at`/`confirmed_by` (não são decisões humanas) — usam `last_checked_at`.
 5. Nenhuma linha de `pricing_card_mapping` deve ser criada para uma Card cujo `card_set_id` não tenha `pricing_set_mapping.match_status = 'CONFIRMED'` para a mesma fonte — regra de negócio garantida pela rotina de escrita (função `SECURITY DEFINER` futura), não expressável como `CHECK` entre tabelas diferentes.
 6. Falha técnica durante a busca de correspondência nunca grava nem altera `match_status` desta tabela — permanece exclusivamente em `pricing_sync_run_call.outcome = 'TECHNICAL_FAILURE'` (ver "Correção de Precisão — Estados de Correspondência", acima).
+7. **`match_status = 'NOT_FOUND'` exige `last_checked_at IS NOT NULL`** — verificado por `CHECK` (requisito explícito do Incremento P2, 2026-08-16, reforçando por constraint física a regra já descrita em `last_checked_at`, acima: `NOT_FOUND` é sempre o resultado de uma tentativa concluída, nunca um estado assumido por omissão).
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P2, 2026-08-16, Query `3030`/`3031`)
 
 ```sql
 CREATE TABLE public.pricing_set_mapping (
@@ -556,7 +557,9 @@ CREATE TABLE public.pricing_set_mapping (
         CHECK (
             (match_status IN ('PENDING', 'NOT_FOUND') AND confirmed_at IS NULL AND confirmed_by IS NULL)
             OR (match_status IN ('CONFIRMED', 'REJECTED') AND confirmed_at IS NOT NULL AND confirmed_by IS NOT NULL)
-        )
+        ),
+    CONSTRAINT ck_pricing_set_mapping_not_found_requires_last_checked
+        CHECK (match_status <> 'NOT_FOUND' OR last_checked_at IS NOT NULL)
 );
 
 -- Índice único parcial: unicidade de external_set_id por fonte só exigida para correspondências CONFIRMED
@@ -581,20 +584,30 @@ ALTER TABLE public.pricing_set_mapping ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** `card_set_id` em `ON DELETE CASCADE` (mesmo padrão de `card_set_external_reference` — se um Card Set for fisicamente excluído do catálogo, o que hoje não acontece na prática porque Catálogo usa soft delete, seu mapeamento de preço deixa de fazer sentido). `pricing_source_id` em `ON DELETE RESTRICT` (nunca perder mapeamentos por exclusão de fonte).
 
-**RLS e Grants:** `pricing_admin_select`. Escrita só por funções `SECURITY DEFINER` administrativas futuras (`admin_confirm_pricing_set_mapping()`/`admin_reject_pricing_set_mapping()`, mesmo padrão de `admin_resolve_catalog_variant_import_mapping()`). `service_role` com `SELECT`/`INSERT`/`UPDATE` (a futura Edge Function de sincronização grava/atualiza propostas como `PENDING`/`NOT_FOUND`, nunca `CONFIRMED` diretamente — confirmação é sempre decisão administrativa humana, mesmo princípio já aplicado a Card Variant em `ADR-028`; `UPDATE` adicionado nesta correção porque `NOT_FOUND` pode evoluir para `CONFIRMED`/`PENDING` numa tentativa futura, sem criar linha nova).
+**RLS e Grants — CONFIRMADO EXECUTADO (Incremento P2):** `pricing_admin_select` (RLS habilitado, `authenticated` só `SELECT`, `anon` nenhum privilégio, `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados de `anon`/`authenticated`). Escrita só por funções `SECURITY DEFINER` administrativas futuras (`admin_confirm_pricing_set_mapping()`/`admin_reject_pricing_set_mapping()`, mesmo padrão de `admin_resolve_catalog_variant_import_mapping()`, ainda não implementadas — fora de escopo do Incremento P2). **`service_role`: apenas `SELECT` neste incremento** — decisão explícita de Fabrício (2026-08-16): a capacidade de escrita (`INSERT`/`UPDATE` para a futura Edge Function de sincronização gravar/atualizar propostas `PENDING`/`NOT_FOUND`) fica deliberadamente adiada para um incremento futuro de sincronização, não concedida agora junto da fundação física. Nenhuma função de escrita, nenhum CRUD administrativo criado no Incremento P2.
 
-## Testes Mínimos de Integridade Previstos
+## Testes Mínimos de Integridade Previstos (validados, Incremento P2 — transacional, `BEGIN`/`ROLLBACK`, sem dado residual)
 
 - duas linhas para o mesmo `(card_set_id, pricing_source_id)` falha;
-- duas linhas `CONFIRMED` para o mesmo `(pricing_source_id, external_set_id)` falha (índice único parcial); duas linhas `PENDING`/`REJECTED` para o mesmo `(pricing_source_id, external_set_id)` **não** falha (candidato avaliado mais de uma vez);
-- `match_status = 'CONFIRMED'` sem `external_set_id` falha;
-- `match_status = 'CONFIRMED'` sem `confirmed_at`/`confirmed_by` falha;
-- `match_status = 'NOT_FOUND'` com `confirmed_at`/`confirmed_by` preenchidos falha;
-- `match_status = 'PENDING'` com `confirmed_at` preenchido falha.
+- duas linhas `CONFIRMED` para o mesmo `(pricing_source_id, external_set_id)` falha (índice único parcial) — validado; duas linhas `PENDING`/`REJECTED` para o mesmo `(pricing_source_id, external_set_id)` **não** falha (candidato avaliado mais de uma vez) — validado;
+- `match_status = 'CONFIRMED'` sem `external_set_id` falha — validado;
+- `match_status = 'CONFIRMED'` sem `confirmed_at`/`confirmed_by` falha (coberto pelo mesmo `CHECK` de consistência);
+- `match_status = 'NOT_FOUND'` com `confirmed_at`/`confirmed_by` preenchidos falha (mesmo `CHECK`);
+- `match_status = 'NOT_FOUND'` sem `last_checked_at` falha — validado;
+- `match_status = 'PENDING'` com `confirmed_at` preenchido falha (mesmo `CHECK`);
+- os quatro estados (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED`) inseridos com sucesso em suas formas válidas — validado;
+- `anon` sem privilégio de leitura; `authenticated` não-admin não enxerga nenhuma linha via RLS; sessão admin enxerga todas — validado.
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, trigger, validação; nenhum dado real até a homologação de pelo menos uma fonte estar concluída.
+- [x] tabela criada no Supabase (Incremento P2, 2026-08-16);
+- [x] RLS + policy `pricing_admin_select`;
+- [x] `GRANT`s mínimos (`authenticated` só `SELECT`, `anon` nenhum, `service_role` só `SELECT` — sem `INSERT`/`UPDATE` neste incremento, `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados);
+- [x] trigger de `updated_at`;
+- [x] `CHECK` de `NOT_FOUND` exige `last_checked_at`;
+- [x] validação estrutural + transacional (15 itens, Incremento P2);
+- [ ] rotina de escrita (`service_role` `INSERT`/`UPDATE`, funções administrativas de confirmação/rejeição) — **pendência explícita**, fora de escopo do Incremento P2, depende de incremento futuro de sincronização;
+- [ ] dado real — nenhuma linha inserida (tabela vazia por decisão de escopo, nenhuma fonte homologada).
 
 ---
 
@@ -659,8 +672,9 @@ Mesma semântica de `pricing_set_mapping`, com `card_id`/`external_card_id`/`ext
 5. Uma linha só deve existir aqui para uma Card cujo Card Set já tenha `pricing_set_mapping.match_status = 'CONFIRMED'` na mesma fonte — mesma regra de dependência hierárquica de `pricing_set_mapping`, garantida pela rotina de escrita.
 6. **Semântica corrigida (versão `1.1`) para os três casos possíveis de uma Card**: (a) **ausência de linha** — a Card nunca foi avaliada contra esta fonte (nenhuma tentativa registrada); (b) **`match_status = 'NOT_FOUND'`** — corresponde ao estado `AusenteConfirmada` da prova técnica: uma busca tecnicamente concluída que não localizou correspondência para esta Card, naquela fonte, naquele instante (`last_checked_at` registra quando); (c) **`match_status = 'REJECTED'`** — um candidato específico foi encontrado e explicitamente rejeitado (situação diferente de "nenhum candidato existiu"). A versão `1.0` deste documento colapsava (b) e (c) sob o mesmo rótulo `REJECTED`, contradição corrigida nesta versão.
 7. Falha técnica nunca grava nem altera `match_status` — permanece exclusivamente em `pricing_sync_run_call.outcome = 'TECHNICAL_FAILURE'`.
+8. **`match_status = 'NOT_FOUND'` exige `last_checked_at IS NOT NULL`** — verificado por `CHECK` (mesmo requisito de `pricing_set_mapping`, Regra 7, Incremento P2, 2026-08-16).
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P2, 2026-08-16, Query `3040`/`3041`)
 
 ```sql
 CREATE TABLE public.pricing_card_mapping (
@@ -692,7 +706,9 @@ CREATE TABLE public.pricing_card_mapping (
         CHECK (
             (match_status IN ('PENDING', 'NOT_FOUND') AND confirmed_at IS NULL AND confirmed_by IS NULL)
             OR (match_status IN ('CONFIRMED', 'REJECTED') AND confirmed_at IS NOT NULL AND confirmed_by IS NOT NULL)
-        )
+        ),
+    CONSTRAINT ck_pricing_card_mapping_not_found_requires_last_checked
+        CHECK (match_status <> 'NOT_FOUND' OR last_checked_at IS NOT NULL)
 );
 
 -- Índice único parcial, mesma razão de pricing_set_mapping (Regra de Negócio 3, acima).
@@ -716,15 +732,22 @@ ALTER TABLE public.pricing_card_mapping ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** `card_id` em `ON DELETE CASCADE` (mesmo padrão de `card_external_reference`); `pricing_source_id` em `ON DELETE RESTRICT`.
 
-**RLS e Grants:** idêntico a `pricing_set_mapping` (incluindo `service_role` com `UPDATE`, para a transição `NOT_FOUND` → `CONFIRMED`/`PENDING`).
+**RLS e Grants — CONFIRMADO EXECUTADO (Incremento P2):** idêntico a `pricing_set_mapping`, incluindo o mesmo escopo deliberadamente reduzido de `service_role` (`SELECT` apenas, sem `INSERT`/`UPDATE` neste incremento — capacidade de escrita adiada para incremento futuro de sincronização).
 
-## Testes Mínimos de Integridade Previstos
+## Testes Mínimos de Integridade Previstos (validados, Incremento P2 — transacional, `BEGIN`/`ROLLBACK`, sem dado residual)
 
-Mesmos casos de `pricing_set_mapping`, adaptados ao nível de Card — incluindo o teste específico de que `NOT_FOUND` e `REJECTED` são estados distintos e não podem ser confundidos por nenhuma rotina de escrita.
+Mesmos casos de `pricing_set_mapping`, adaptados ao nível de Card — incluindo o teste específico de que `NOT_FOUND` e `REJECTED` são estados distintos e não podem ser confundidos por nenhuma rotina de escrita. Todos validados no Incremento P2.
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, trigger, validação.
+- [x] tabela criada no Supabase (Incremento P2, 2026-08-16);
+- [x] RLS + policy `pricing_admin_select`;
+- [x] `GRANT`s mínimos (`authenticated` só `SELECT`, `anon` nenhum, `service_role` só `SELECT`, `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados);
+- [x] trigger de `updated_at`;
+- [x] `CHECK` de `NOT_FOUND` exige `last_checked_at`;
+- [x] validação estrutural + transacional (15 itens, Incremento P2);
+- [ ] rotina de escrita (`service_role` `INSERT`/`UPDATE`, funções administrativas de confirmação/rejeição) — **pendência explícita**, fora de escopo do Incremento P2;
+- [ ] dado real — nenhuma linha inserida (tabela vazia por decisão de escopo, nenhuma fonte homologada).
 
 ---
 
@@ -1401,23 +1424,23 @@ Quando Collection existir, um `item_valuation_snapshot` provavelmente referencia
 
 ---
 
-# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1
+# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1, Estendida no Incremento P2
 
-Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`):
+Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`). O Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia) implementou as duas entidades seguintes:
 
 ```text
 3000–3009  pricing_source              — CONFIRMADO EXECUTADO (3000 tabela, 3001 trigger, 3002 grant service_role)
 3010–3019  card_condition              — CONFIRMADO EXECUTADO (3010 tabela, 3011 trigger)
 3020–3029  pricing_condition_mapping   — CONFIRMADO EXECUTADO (3020 tabela, 3021 trigger)
-3030–3039  pricing_set_mapping         — Proposto, ainda não executado
-3040–3049  pricing_card_mapping        — Proposto, ainda não executado
+3030–3039  pricing_set_mapping         — CONFIRMADO EXECUTADO (3030 tabela, 3031 trigger)
+3040–3049  pricing_card_mapping        — CONFIRMADO EXECUTADO (3040 tabela, 3041 trigger)
 3050–3059  pricing_product             — Proposto, ainda não executado
 3060–3069  pricing_fx_rate             — Proposto, ainda não executado
 3070–3079  pricing_observation         — Proposto, ainda não executado
 3080–3089  pricing_sync_run            — Proposto, ainda não executado
 3090–3099  pricing_sync_run_call       — Proposto, ainda não executado
 3700–3799  Seeds                       — nenhuma executada (ver "Pendências", abaixo)
-3800–3899  Validações                  — 3800 executada (validação consolidada do Incremento P1)
+3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2, validação consolidada de 15 itens, transacional, sem escrita física — nenhuma migration real associada, apenas o registro do número no diário de numeração)
 3900–3999  Reserva
 ```
 
@@ -1439,3 +1462,4 @@ Ver `STD-001`, subseção "Módulo: Pricing (`3000`–`3999`)", para o mesmo reg
 | 1.0 | Criação deste documento (2026-08-16) — modelagem conceitual e lógica completa do domínio Pricing (10 entidades: `pricing_source`, `pricing_condition`, `pricing_condition_mapping`, `pricing_set_mapping`, `pricing_card_mapping`, `pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`), decorrente da sequência estratégica aprovada por Fabrício (`ROADMAP.md`, 2026-08-16: Card Variant → Pricing → Collection → Analytics). Formaliza a decisão em `adr/ADR-029-pricing-domain-model.md`. Nenhuma tabela criada no Supabase; nenhuma migration executada; item de implementação futura, dependente de ciclo próprio e da conclusão em paralelo da homologação de pelo menos uma fonte (`PROVA-TECNICA-JUSTTCG-PRICING-2026-08-16.md`, fora de `docs/`, ainda pendente — ver seção "Nota de Origem"). |
 | 1.1 | **Correção arquitetural pontual (2026-08-16, mesmo dia, ciclo seguinte), a pedido explícito de Fabrício — cinco pontos, sem reabrir a modelagem inteira.** (1) `pricing_product.language_status` generalizado de tri-estado binário-PT-BR (`CONFIRMED`=PT-BR/`NOT_CONFIRMED`=não-PT-BR/`UNDETERMINED`) para tri-estado neutro e multi-idioma (`CONFIRMED`/`INFERRED`/`UNDETERMINED`); `confirmed_language_id` renomeado para `language_id` (FK opcional para `language`, obrigatória em `CONFIRMED`/`INFERRED`, nula em `UNDETERMINED`); cobertura de idioma passa a ser sempre derivada por comparação (`pricing_product.language_id = collection_item.language_id`, futuro); valuation direto exige `CONFIRMED` — `INFERRED` não autoriza equivalência direta. (2) "Valor Brasil" deixa de depender exclusivamente de `pricing_source.market_scope` (renomeado para `default_market_scope` — classificação/default declarado, não mais autoridade final); `pricing_observation` ganha `market_scope`/`market_label` (renomeado de `market`)/`market_evidence`/`market_evidence_confirmed`; `BRAZIL_ITEM_VALUATION` agora exige `pricing_observation.market_scope = 'BRAZIL' AND market_evidence_confirmed = TRUE`. (3) `pricing_set_mapping`/`pricing_card_mapping` ganham quarto estado `NOT_FOUND` (busca tecnicamente concluída sem correspondência, distinta de "nunca avaliado" — ausência de linha — e de `REJECTED` — candidato específico rejeitado; contradição real da versão `1.0`, que colapsava os dois últimos sob `REJECTED`, corrigida); `external_set_id`/`external_card_id` tornam-se opcionais (obrigatórios só em `CONFIRMED`); `UNIQUE` simples de `(fonte, id externo)` substituída por índice único parcial (`WHERE match_status = 'CONFIRMED'`); novo campo `last_checked_at`. (4) `pricing_condition` renomeada para `card_condition` e reclassificada como referência compartilhada e neutra (não pertence a Pricing nem ao Catálogo Editorial) — `pricing_condition_mapping` permanece exclusiva de Pricing, agora referenciando `card_condition`; total de entidades descritas no documento permanece 10, mas apenas 9 são exclusivas de Pricing. (5) Diagrama Mermaid corrigido — removidas as relações `CARD_VARIANT`↔`LANGUAGE` e `PRICING_FX_RATE`↔`PRICING_OBSERVATION`, ambas sem FK física (o próprio texto já as declarava assim); movidas para nota textual fora do ER. Nenhuma tabela criada, nenhuma migration, nenhuma chamada à API da JustTCG; condição da homologação da JustTCG inalterada (pendente, não aprovada nem reprovada); critérios pré-registrados das Decisões A/B não tocados. Decisões corretas da versão `1.0` preservadas — ver `adr/ADR-029-pricing-domain-model.md` revisão `1.1` para o mesmo detalhamento em nível de ADR. |
 | 1.2 | **Incremento P1 — Fundação Física de Pricing (2026-08-16, mesmo dia, ciclo seguinte à correção `1.1`), a pedido explícito de Fabrício.** Primeira implementação física do domínio: `pricing_source`, `card_condition` e `pricing_condition_mapping` criadas no Supabase (Queries `3000`/`3001`/`3010`/`3011`/`3020`/`3021`, mais `3002` de correção de grants), `CONFIRMADO EXECUTADO`, com estrutura, RLS, triggers, grants e validação de 12 itens idênticos ao modelo aprovado nas versões `1.0`/`1.1`. Milhar `3000`–`3999` formalizado como módulo Pricing em `STD-001`. Numeração de `card_condition` decidida explicitamente por Fabrício: permanece dentro de `3000`–`3999` (`3010`–`3019`), registrando apenas o ciclo de implementação, não pertencimento de domínio — o módulo "Referências Compartilhadas" cogitado na versão `1.1` não foi criado; `4000`–`4999` permanece livre e não reservado (ver seção "Numeração", acima, para o texto completo da decisão). Nenhuma fonte cadastrada, nenhuma condição semeada (vocabulário ainda não confirmado), nenhuma chamada à JustTCG, nenhuma das outras sete entidades do domínio implementada — todas continuam `Proposto, ainda não executado`. Nenhum commit/push realizado. |
+| 1.3 | **Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P1), a pedido explícito de Fabrício.** `pricing_set_mapping` e `pricing_card_mapping` criadas no Supabase (Queries `3030`/`3031`/`3040`/`3041`), `CONFIRMADO EXECUTADO`, ambas vazias (zero linhas, nenhuma fonte homologada, nenhuma chamada à JustTCG). Estrutura idêntica ao modelo aprovado na versão `1.1`, com um requisito de integridade novo, não previsto nas versões anteriores: `CHECK` garantindo que `match_status = 'NOT_FOUND'` exige `last_checked_at IS NOT NULL` (`ck_pricing_set_mapping_not_found_requires_last_checked`/`ck_pricing_card_mapping_not_found_requires_last_checked`) — reforça por constraint física a regra de negócio já descrita para `last_checked_at` desde a versão `1.1`. `service_role` recebeu apenas `SELECT` neste incremento, por decisão explícita de Fabrício — a capacidade de escrita (`INSERT`/`UPDATE` para a futura Edge Function de sincronização) fica deliberadamente adiada para um incremento futuro de sincronização. A regra "`pricing_card_mapping` só quando `pricing_set_mapping` da mesma fonte estiver `CONFIRMED`" permanece responsabilidade de uma futura rotina de escrita — nenhum trigger/função criada para isso neste incremento. Validação consolidada de 15 itens executada de forma transacional (`BEGIN`/`ROLLBACK`), incluindo teste real dos quatro estados (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED`), das duas falhas de `CHECK` esperadas (`NOT_FOUND` sem `last_checked_at`; `CONFIRMED` sem identificador externo), da unicidade parcial (só entre linhas `CONFIRMED`) e do isolamento RLS (`anon` bloqueado, `authenticated` não-admin sem linhas, admin com leitura completa) — sem nenhum dado residual nas tabelas reais. Milhar `3000`–`3999` permanece o único milhar comprometido; nenhum módulo novo criado. Nenhuma das cinco entidades restantes do domínio (`pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`) implementada — continuam `Proposto, ainda não executado`. Nenhum commit/push realizado. |

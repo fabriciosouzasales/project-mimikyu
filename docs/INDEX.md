@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.9 |
+| **Versão** | 1.10 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -31,7 +31,7 @@ Leia primeiro `CLAUDE.md` (raiz do repositório). Este índice é o segundo pass
 
 ## Modelo de Dados (físico)
 
-Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio). Inclui [`05f-pricing.md`](05f-pricing.md) — modelo lógico e físico do domínio Pricing (`ADR-029`); três entidades fundacionais (`pricing_source`, `card_condition`, `pricing_condition_mapping`) **CONFIRMADO EXECUTADO** no Supabase (Incremento P1, 2026-08-16), as demais sete permanecem propostas.
+Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio). Inclui [`05f-pricing.md`](05f-pricing.md) — modelo lógico e físico do domínio Pricing (`ADR-029`); cinco entidades (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2, ambas vazias) **CONFIRMADO EXECUTADO** no Supabase (2026-08-16), as demais cinco permanecem propostas.
 
 ## Architecture Decision Records
 
@@ -125,3 +125,5 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.6 | **Auditoria documental completa (2026-08-16).** Adicionado `ADR-028` (Card Variant Governance) à lista rápida de ADRs — ausente desde sua criação em 2026-08-14, apesar de já constar em `adr/ADR-INDEX.md` (revisão `2.16`). Handoff vigente atualizado para `development/HANDOFF-2026-08-16.md`; `HANDOFF-2026-08-09.md` movido para `history/development/`. Ver `ROADMAP.md` revisão `1.48` e `docs/README.md` revisão `2.00`. |
 | 1.7 | **Segunda rodada de auditoria documental (2026-08-16, mesma data), achado de segunda ordem.** Resumos de `ADR-028` e do handoff vigente ainda diziam "substancialmente implementado e pausado" — desatualizados pela decisão formal de Fabrício (Card Variant = fundação encerrada) tomada na segunda rodada; ambos corrigidos. Ver `ROADMAP.md` revisão `1.49` e `docs/README.md` revisão `2.01`. |
 | 1.8 | **Adicionados `05f-pricing.md` e `ADR-029` (2026-08-16, mesma data, ciclo seguinte)** — modelagem conceitual e lógica do domínio Pricing (dez entidades, quarto domínio independente de Catálogo/Ownership/Analytics), decorrente da sequência estratégica aprovada por Fabrício (Card Variant → Pricing → Collection → Analytics). Nenhuma tabela criada no Supabase; homologação de fonte externa (JustTCG) segue pendente em paralelo, sem bloquear a modelagem. Ver `ROADMAP.md` revisão equivalente e `docs/README.md` revisão equivalente. |
+| 1.9 | **Incremento P1 — Fundação Física de Pricing (2026-08-16, mesma data, ciclo seguinte)** — resumo de `05f-pricing.md` atualizado: três entidades fundacionais `CONFIRMADO EXECUTADO` no Supabase. Ver `ROADMAP.md`/`docs/README.md` revisões equivalentes. |
+| 1.10 | **Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesma data, ciclo seguinte)** — resumo de `05f-pricing.md` atualizado: `pricing_set_mapping`/`pricing_card_mapping` também `CONFIRMADO EXECUTADO` (ambas vazias); cinco de dez entidades do domínio agora implementadas. Ver `ROADMAP.md` revisão `1.52`, `docs/README.md` revisão `2.04` e `docs/log.md`, entrada `feature` de 2026-08-16. |
