@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, ChevronDown, X } from "lucide-react";
 import { CardImagePreview } from "@/components/card/card-image-preview";
 import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
+import { HoloCard } from "@/components/card/holo-card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -392,33 +393,36 @@ function PesquisaCardTile({
 }) {
   const imageUrl = cardImageUrl(card);
   return (
+    // Mesmo padrão de `CartaGridCard` (`cartas-gallery.tsx`): `HoloCard` sem
+    // `floating` dá o brilho/inclinação 3D ao toque do mouse na miniatura do
+    // grid — antes desta correção (2026-08-17, pedido de Fabrício: "o
+    // gride... deve seguir o mesmo padrão do gride da página Cartas... o que
+    // está aparecendo é um zoom") a Pesquisa só tinha um `scale-[1.02]` no
+    // hover, nunca o efeito holográfico real. Mesmo `HoloCard` reimportado
+    // (não reimplementado) já usado no preview ampliado desta própria
+    // página (`CardImagePreview`) — aqui sem `floating`, igual ao grid de
+    // `Cartas`.
     <button
       type="button"
       onClick={onZoom}
-      className="group flex flex-col gap-1.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`Ampliar ${card.name}`}
     >
-      <div
-        className="aspect-[5/7] w-full overflow-hidden rounded-lg border border-border bg-surface-muted"
+      <HoloCard
         style={
           { viewTransitionName: isTransitionSource ? cardImagePreviewTransitionName(card.id) : "none" } as CSSProperties
         }
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt={card.name}
-            className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-            loading="lazy"
-          />
+          <img src={imageUrl} alt={card.name} loading="lazy" decoding="async" className="w-full rounded-lg" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Search className="h-6 w-6 text-muted-foreground/30" aria-hidden="true" />
+          <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-2 text-center text-[10px] text-muted-foreground">
+            Sem imagem
           </div>
         )}
-      </div>
-      <div className="min-w-0">
+      </HoloCard>
+      <div className="mt-1.5 min-w-0">
         <p className="truncate text-xs font-medium text-foreground">{card.name}</p>
         <p className="truncate text-[11px] text-muted-foreground">
           {card.cardSet.code} · {cartaFullNumber(card.collectorNumber, card.collectorTotal)}

@@ -1112,3 +1112,11 @@ Fabrício apontou, com screenshots, que o preview de carta em `/pesquisa` (um `D
 **Fora do escopo, registrado**: `CartaZoomDialogReadOnly` (hub de Card Set, `card-set-cartas-grid.tsx`) permanece uma terceira implementação não unificada — Fabrício nomeou só `Cartas` e `Pesquisa`; só o import de `HoloCard` foi corrigido ali.
 
 Nada commitado, nada em push — decisão de Fabrício. Detalhe completo em `docs/adr/ADR-030-card-search-projection.md` revisão `1.3`, `docs/standards/STD-004-frontend-standards.md` versão `1.6` e `docs/development/HANDOFF-2026-08-17.md`, seção 10.
+
+## [2026-08-17] fix | Miniatura do grid da Pesquisa sem o efeito holográfico do grid de `Cartas`
+
+A extração da rodada anterior cobriu só o preview ampliado; a miniatura do grid de `/pesquisa` (`PesquisaCardTile`) continuava com um `scale-[1.02]` genérico no hover, nunca o `HoloCard` (sem `floating`) que dá o brilho radial + inclinação 3D ao toque do mouse em `CartaGridCard` (`cartas-gallery.tsx`). Fabrício reportou o resultado real ("o que está aparecendo é um zoom") e pediu o mesmo padrão de brilho e movimento do grid de `Cartas`.
+
+Corrigido substituindo o wrapper `<div>` de `PesquisaCardTile` por `<HoloCard>` (mesmo componente já reimportado por `CardImagePreview`, sem `floating` — igual ao grid de `Cartas`), preservando `viewTransitionName`/`isTransitionSource` no próprio `HoloCard` e o mesmo placeholder "Sem imagem" (borda tracejada) já usado em `CartaGridCard`; `transition-transform group-hover:scale-[1.02]` e a classe `group`, redundantes com o próprio `onMouseMove` do `HoloCard`, removidos. Nenhuma fórmula de motion tocada. `npx tsc --noEmit` confirmado limpo.
+
+Nada commitado, nada em push — decisão de Fabrício. Detalhe completo em `docs/adr/ADR-030-card-search-projection.md` revisão `1.4` e `docs/development/HANDOFF-2026-08-17.md`, seção 10.
