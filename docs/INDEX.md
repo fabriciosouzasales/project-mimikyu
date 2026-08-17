@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.11 |
+| **Versão** | 1.12 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -31,7 +31,7 @@ Leia primeiro `CLAUDE.md` (raiz do repositório). Este índice é o segundo pass
 
 ## Modelo de Dados (físico)
 
-Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio). Inclui [`05f-pricing.md`](05f-pricing.md) — modelo lógico e físico do domínio Pricing (`ADR-029`); sete entidades (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3, todas vazias) **CONFIRMADO EXECUTADO** no Supabase (2026-08-16), as demais três permanecem propostas.
+Ver `05-modelo-de-dados.md` para o mapa completo de divisão por área (histórico de física/SQL de cada bloco do domínio). Inclui [`05f-pricing.md`](05f-pricing.md) — modelo lógico e físico do domínio Pricing (`ADR-029`); oito entidades (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3; `pricing_product` — Incremento P4, todas vazias) **CONFIRMADO EXECUTADO** no Supabase (2026-08-16), as demais duas permanecem propostas.
 
 ## Architecture Decision Records
 
@@ -128,3 +128,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.9 | **Incremento P1 — Fundação Física de Pricing (2026-08-16, mesma data, ciclo seguinte)** — resumo de `05f-pricing.md` atualizado: três entidades fundacionais `CONFIRMADO EXECUTADO` no Supabase. Ver `ROADMAP.md`/`docs/README.md` revisões equivalentes. |
 | 1.10 | **Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesma data, ciclo seguinte)** — resumo de `05f-pricing.md` atualizado: `pricing_set_mapping`/`pricing_card_mapping` também `CONFIRMADO EXECUTADO` (ambas vazias); cinco de dez entidades do domínio agora implementadas. Ver `ROADMAP.md` revisão `1.52`, `docs/README.md` revisão `2.04` e `docs/log.md`, entrada `feature` de 2026-08-16. |
 | 1.11 | **Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesma data, ciclo seguinte)** — resumo de `05f-pricing.md` atualizado: `pricing_sync_run`/`pricing_sync_run_call` também `CONFIRMADO EXECUTADO` (ambas vazias); sete de dez entidades do domínio agora implementadas. Ver `ROADMAP.md` revisão `1.53`, `docs/README.md` revisão `2.05` e `docs/log.md`, entrada `feature` de 2026-08-16. |
+| 1.12 | **Incremento P4 — Produto Externo de Pricing (2026-08-16, mesma data, ciclo seguinte)** — resumo de `05f-pricing.md` atualizado: `pricing_product` também `CONFIRMADO EXECUTADO` (vazia); oito de dez entidades do domínio agora implementadas. Ver `ROADMAP.md` revisão `1.54`, `docs/README.md` revisão `2.06` e `docs/log.md`, entrada `feature` de 2026-08-16. |

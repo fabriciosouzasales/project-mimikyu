@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Pricing |
 | **Arquivo** | `docs/05f-pricing.md` |
-| **Versão** | 1.4 |
-| **Status** | **Parcialmente implementado.** Sete entidades `CONFIRMADO EXECUTADO` no Supabase (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3, todas ainda vazias, nenhuma fonte homologada). As três entidades restantes (`pricing_product`, `pricing_fx_rate`, `pricing_observation`) permanecem `Proposto, ainda não executado`. |
+| **Versão** | 1.6 |
+| **Status** | **Parcialmente implementado.** Oito entidades `CONFIRMADO EXECUTADO` no Supabase (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3; `pricing_product` — Incremento P4, todas ainda vazias, nenhuma fonte homologada). As duas entidades restantes (`pricing_fx_rate`, `pricing_observation`) permanecem `Proposto, ainda não executado`. |
 | **Objetivo** | Modelo lógico e físico do domínio Pricing — observações de mercado por fonte externa, independente de Catálogo Editorial e de Ownership, conforme `ADR-029` e `ADR-006`. |
 | **Escopo** | Entidades de Pricing: fonte, mapeamento de Set/Card por fonte, produto (impressão+idioma reportados pela fonte), condição canônica, observação de preço, câmbio, auditoria de sincronização. Não inclui a modelagem física de Item Valuation (Analytics), deliberadamente adiada — ver seção própria ao final. |
 | **Dependências** | `04-domain-model.md` (seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)"), `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-029-pricing-domain-model.md`, `standards/STD-001-database-standards.md`, `standards/STD-002-domain-modeling.md`, `05b-cartas-e-raridade.md` (Card/Card Variant), `05c-assets-e-importacao.md` (Language/Asset Source — padrão de referência, não reaproveitado por tabela). |
@@ -827,8 +827,10 @@ updated_at
 3. `card_variant_id`, quando preenchido, nunca implica nada sobre `language_status`/`language_id` — são dimensões independentes (premissa 10 do pedido original: uma impressão inglesa nunca herda automaticamente o valor de uma cópia PT-BR do usuário; aqui, o inverso simétrico também vale — vincular o acabamento não confirma nem infere idioma).
 4. Nenhuma rotina de sincronização cria `card_variant` a partir de `pricing_product` — o vínculo é sempre para um `card_variant_id` pré-existente, resolvido por correspondência (heurística ou manual), nunca inferido automaticamente como novo.
 5. Cobertura de um idioma específico (PT-BR ou qualquer outro) para um `Collection Item` (futuro) é sempre calculada por comparação — `pricing_product.language_id = collection_item.language_id` —, nunca lida diretamente de `language_status` isolado; e só produz equivalência direta de item quando `language_status = 'CONFIRMED'` (nunca `INFERRED`).
+6. Nenhum `pricing_product` deve ser criado para um `pricing_card_mapping` cujo `match_status` não seja `CONFIRMED` — mesma regra hierárquica já aplicada entre `pricing_set_mapping`/`pricing_card_mapping` (Regra 5 da seção anterior), garantida pela rotina de escrita (função `SECURITY DEFINER`/`service_role` futura), não expressável como `CHECK` entre tabelas diferentes (Incremento P4, 2026-08-16 — confirma a decisão já registrada como "O que não é", acima).
+7. `card_variant_id`, quando preenchido, deveria referenciar uma variante do mesmo `card_id` implícito em `pricing_card_mapping` — regra de consistência ainda **não** aplicada por trigger físico neste incremento (permanece candidata a um trigger futuro, mesmo padrão de `validate_card_variant_game_consistency()`; decisão deliberada de não introduzir trigger cross-table sem necessidade concreta comprovada — Incremento P4).
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P4, 2026-08-16, Query `3050`/`3051`/`3052`)
 
 ```sql
 CREATE TABLE public.pricing_product (
@@ -845,6 +847,8 @@ CREATE TABLE public.pricing_product (
 
     CONSTRAINT uq_pricing_product_mapping_external
         UNIQUE (pricing_card_mapping_id, external_product_id),
+    CONSTRAINT ck_pricing_product_external_product_id_not_blank
+        CHECK (BTRIM(external_product_id) <> ''),
     CONSTRAINT ck_pricing_product_printing_label_not_blank
         CHECK (BTRIM(source_printing_label) <> ''),
     CONSTRAINT ck_pricing_product_language_status
@@ -855,11 +859,6 @@ CREATE TABLE public.pricing_product (
             OR (language_status = 'UNDETERMINED' AND language_id IS NULL)
         )
 );
-
-CREATE INDEX ix_pricing_product_pricing_card_mapping_id
-    ON public.pricing_product (pricing_card_mapping_id);
-CREATE INDEX ix_pricing_product_card_variant_id
-    ON public.pricing_product (card_variant_id) WHERE card_variant_id IS NOT NULL;
 
 CREATE TRIGGER trg_pricing_product_set_updated_at
     BEFORE UPDATE ON public.pricing_product
@@ -872,17 +871,51 @@ ALTER TABLE public.pricing_product ENABLE ROW LEVEL SECURITY;
 
 **Política de exclusão:** `pricing_card_mapping_id` em `ON DELETE CASCADE` (produtos não fazem sentido sem o mapeamento de Card que os originou). `card_variant_id` em `ON DELETE SET NULL` (deliberadamente **não** `CASCADE` — remover um vínculo de Card Variant nunca deve apagar histórico de preço; hoje, na prática, `card_variant` nunca é excluída fisicamente, `ADR-028`). `language_id` em `ON DELETE RESTRICT` (idioma é Reference Data estável, nunca removida).
 
-**RLS e Grants:** `pricing_admin_select`. Escrita por função `SECURITY DEFINER` administrativa futura + `service_role` (a sincronização grava/atualiza produtos automaticamente, diferente de `pricing_set_mapping`/`pricing_card_mapping`, porque aqui não há ambiguidade de correspondência a decidir — o produto já pertence a uma Card já confirmada; só o vínculo opcional `card_variant_id` exige decisão administrativa quando não for auto-resolvível com confiança).
+**Índices — desvio deliberado da hipótese inicial acima, decidido e validado no Incremento P4 (confirmado por `EXPLAIN (ANALYZE, BUFFERS)` sobre volume sintético de 5.000 produtos/500 mappings):**
 
-## Testes Mínimos de Integridade Previstos
+```sql
+-- Nenhum índice isolado em pricing_card_mapping_id: a própria UNIQUE
+-- (pricing_card_mapping_id, external_product_id) já começa por esse prefixo
+-- e serve integralmente a leitura "produtos de um mapping".
 
-- `external_product_id` duplicado dentro do mesmo `pricing_card_mapping_id` falha;
-- `language_status IN ('CONFIRMED', 'INFERRED')` sem `language_id` falha e vice-versa; `language_status = 'UNDETERMINED'` com `language_id` preenchido falha;
-- `card_variant_id` apontando para uma variante de `card_id` diferente do `card_id` implícito em `pricing_card_mapping` deve ser impedido por regra de negócio na função de escrita (não expressável como `CHECK` entre tabelas sem trigger próprio — candidato a um trigger de consistência futuro, mesmo padrão de `validate_card_variant_game_consistency()`).
+CREATE INDEX ix_pricing_product_external_product_id
+    ON public.pricing_product (external_product_id);
+
+CREATE INDEX ix_pricing_product_card_variant_id
+    ON public.pricing_product (card_variant_id)
+    WHERE card_variant_id IS NOT NULL;
+
+CREATE INDEX ix_pricing_product_variant_language_confirmed
+    ON public.pricing_product (card_variant_id, language_id)
+    WHERE card_variant_id IS NOT NULL AND language_status = 'CONFIRMED';
+
+-- Adicionado em Query 3052, após o advisor de performance apontar a FK
+-- language_id sem cobertura (achado real pós-validação, mesmo padrão da
+-- correção de grant feita em Query 3002 no Incremento P1):
+CREATE INDEX ix_pricing_product_language_id
+    ON public.pricing_product (language_id)
+    WHERE language_id IS NOT NULL;
+```
+
+Cada um dos quatro padrões de acesso considerados (produtos de um mapping; produto por identidade externa; produtos vinculados a um `card_variant`; produto por `card_variant`+idioma confirmado) usou o índice pretendido nos planos de execução, sem `Seq Scan`. Um quinto padrão cogitado ("produtos ainda sem vínculo editorial") foi deliberadamente **não** indexado — o fluxo administrativo de resolução de vínculo ainda não existe, e criar um índice para uma consulta ainda não implementada contrariaria o princípio de não antecipar índices sem consulta real associada.
+
+**RLS e Grants — CONFIRMADO EXECUTADO (Incremento P4, mais restritivo que P1–P3):** RLS habilitado; policy `pricing_admin_select` (`SELECT`, `(select is_admin())`). `anon`: nenhum privilégio. `authenticated`: só `SELECT`. `service_role`: `SELECT`/`INSERT` completos e `UPDATE` restrito por coluna (`GRANT UPDATE (source_printing_label, language_status, language_id, card_variant_id, is_active)`) — `id`, `pricing_card_mapping_id`, `external_product_id`, `created_at` permanecem imutáveis após o insert por privilégio, confirmado por teste real de `insufficient_privilege`; nenhum `DELETE`. Diferente de P1–P3 (que deixaram intocado o `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` que `pg_default_acl` concede por padrão a `service_role` em tabelas criadas por `postgres`), este incremento **revoga explicitamente** esses quatro privilégios de `service_role` — exigência mais restritiva explícita de Fabrício, confirmada por teste real de `TRUNCATE`/`DELETE` bloqueados.
+
+## Testes Mínimos de Integridade Previstos (validados, Incremento P4 — 19 itens, transacional, `BEGIN`/`ROLLBACK`, sem dado residual)
+
+- `external_product_id` duplicado dentro do mesmo `pricing_card_mapping_id` falha (confirmado);
+- `language_status IN ('CONFIRMED', 'INFERRED')` sem `language_id` falha e vice-versa; `language_status = 'UNDETERMINED'` com `language_id` preenchido falha (confirmado, os três estados testados);
+- isolamento de `anon`, bloqueio de escrita de `authenticated`, leitura administrativa completa, capacidade exata de `service_role` (`SELECT`/`INSERT`/`UPDATE` restrito por coluna), bloqueio de `UPDATE` nos campos imutáveis, bloqueio de `DELETE`/`TRUNCATE` — todos confirmados por teste real de `insufficient_privilege` com `SET LOCAL ROLE`;
+- `card_variant_id` apontando para uma variante de `card_id` diferente do `card_id` implícito em `pricing_card_mapping` **continua** sem enforcement físico (Regra de Negócio 7, acima) — não testado porque deliberadamente não implementado neste incremento.
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, trigger, validação (incluindo o teste de consistência `card_variant_id` × `card_id`, via trigger futuro).
+- [x] tabela criada, RLS, trigger, índices, grants (Incremento P4, 2026-08-16);
+- [x] validação funcional/integridade/RLS/grants (19 itens);
+- [x] validação de performance (4 planos `EXPLAIN (ANALYZE, BUFFERS)`, volume sintético);
+- [ ] trigger de consistência `card_variant_id` × `card_id` (candidato futuro, Regra de Negócio 7 — não implementado);
+- [ ] rotina de escrita (`service_role`/função administrativa aplicando a Regra de Negócio 6 — só criar produto quando `pricing_card_mapping.match_status = 'CONFIRMED'`) — fora de escopo do Incremento P4;
+- [ ] dado real — nenhuma linha inserida (tabela vazia por decisão de escopo, nenhuma fonte homologada).
 
 ---
 
@@ -1468,9 +1501,9 @@ Quando Collection existir, um `item_valuation_snapshot` provavelmente referencia
 
 ---
 
-# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1, Estendida nos Incrementos P2 e P3
+# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1, Estendida nos Incrementos P2, P3 e P4
 
-Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`). O Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia) implementou as duas entidades seguintes; o Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia) implementou mais duas:
+Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`). O Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia) implementou as duas entidades seguintes; o Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia) implementou mais duas; o Incremento P4 — Produto Externo de Pricing (2026-08-16, mesmo dia) implementou mais uma:
 
 ```text
 3000–3009  pricing_source              — CONFIRMADO EXECUTADO (3000 tabela, 3001 trigger, 3002 grant service_role)
@@ -1478,13 +1511,13 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 3020–3029  pricing_condition_mapping   — CONFIRMADO EXECUTADO (3020 tabela, 3021 trigger)
 3030–3039  pricing_set_mapping         — CONFIRMADO EXECUTADO (3030 tabela, 3031 trigger)
 3040–3049  pricing_card_mapping        — CONFIRMADO EXECUTADO (3040 tabela, 3041 trigger)
-3050–3059  pricing_product             — Proposto, ainda não executado
+3050–3059  pricing_product             — CONFIRMADO EXECUTADO (3050 tabela + índices + RLS + grants, 3051 trigger, 3052 índice de FK adicionado após advisor de performance)
 3060–3069  pricing_fx_rate             — Proposto, ainda não executado
 3070–3079  pricing_observation         — Proposto, ainda não executado
 3080–3089  pricing_sync_run            — CONFIRMADO EXECUTADO (3080 tabela + índices + RLS + grants, 3081 trigger)
 3090–3099  pricing_sync_run_call       — CONFIRMADO EXECUTADO (3090 tabela + RLS + grants; sem trigger, tabela append-only)
 3700–3799  Seeds                       — nenhuma executada (ver "Pendências", abaixo)
-3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2), 3820 (Incremento P3, validação consolidada de 16 itens funcionais + 4 planos de execução, transacional, sem escrita física — nenhuma migration real associada, apenas o registro do número no diário de numeração)
+3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2), 3820 (Incremento P3, validação consolidada de 16 itens funcionais + 4 planos de execução), 3830 (Incremento P4, validação consolidada de 19 itens funcionais + 4 planos de execução) — todas transacionais, sem escrita física; apenas o registro do número no diário de numeração
 3900–3999  Reserva
 ```
 
@@ -1497,6 +1530,8 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 
 Ver `STD-001`, subseção "Módulo: Pricing (`3000`–`3999`)", para o mesmo registro em nível de Standard.
 
+**Query `3053` — correção retroativa de segurança, transversal a sete tabelas (2026-08-16, mesma data, mesmo ciclo do Incremento P4).** Auditoria somente leitura, a pedido explícito de Fabrício, confirmou que `pricing_source`, `card_condition`, `pricing_condition_mapping`, `pricing_set_mapping`, `pricing_card_mapping`, `pricing_sync_run` e `pricing_sync_run_call` (todas dos Incrementos P1–P3) nunca tiveram `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados de `service_role` — privilégios concedidos automaticamente por `pg_default_acl` em tabelas criadas pelo papel `postgres`, e que P1–P3 haviam deixado intocados (mesmo achado que já motivara a revogação explícita em `pricing_product`, Query `3050`). Corrigido em uma única migration (`3053`), revogando apenas esses quatro privilégios de `service_role` nas sete tabelas — `SELECT`/`INSERT`/`UPDATE` (inclusive os grants de coluna restritos de `pricing_sync_run`) preservados integralmente, sem alteração de RLS/policies/estrutura/índices/dados. Não pertence ao bloco de dez de nenhuma entidade específica — mesmo padrão de correção transversal já usado em Query `2147` (Catálogo Editorial).
+
 ---
 
 # Revision History
@@ -1508,3 +1543,5 @@ Ver `STD-001`, subseção "Módulo: Pricing (`3000`–`3999`)", para o mesmo reg
 | 1.2 | **Incremento P1 — Fundação Física de Pricing (2026-08-16, mesmo dia, ciclo seguinte à correção `1.1`), a pedido explícito de Fabrício.** Primeira implementação física do domínio: `pricing_source`, `card_condition` e `pricing_condition_mapping` criadas no Supabase (Queries `3000`/`3001`/`3010`/`3011`/`3020`/`3021`, mais `3002` de correção de grants), `CONFIRMADO EXECUTADO`, com estrutura, RLS, triggers, grants e validação de 12 itens idênticos ao modelo aprovado nas versões `1.0`/`1.1`. Milhar `3000`–`3999` formalizado como módulo Pricing em `STD-001`. Numeração de `card_condition` decidida explicitamente por Fabrício: permanece dentro de `3000`–`3999` (`3010`–`3019`), registrando apenas o ciclo de implementação, não pertencimento de domínio — o módulo "Referências Compartilhadas" cogitado na versão `1.1` não foi criado; `4000`–`4999` permanece livre e não reservado (ver seção "Numeração", acima, para o texto completo da decisão). Nenhuma fonte cadastrada, nenhuma condição semeada (vocabulário ainda não confirmado), nenhuma chamada à JustTCG, nenhuma das outras sete entidades do domínio implementada — todas continuam `Proposto, ainda não executado`. Nenhum commit/push realizado. |
 | 1.3 | **Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P1), a pedido explícito de Fabrício.** `pricing_set_mapping` e `pricing_card_mapping` criadas no Supabase (Queries `3030`/`3031`/`3040`/`3041`), `CONFIRMADO EXECUTADO`, ambas vazias (zero linhas, nenhuma fonte homologada, nenhuma chamada à JustTCG). Estrutura idêntica ao modelo aprovado na versão `1.1`, com um requisito de integridade novo, não previsto nas versões anteriores: `CHECK` garantindo que `match_status = 'NOT_FOUND'` exige `last_checked_at IS NOT NULL` (`ck_pricing_set_mapping_not_found_requires_last_checked`/`ck_pricing_card_mapping_not_found_requires_last_checked`) — reforça por constraint física a regra de negócio já descrita para `last_checked_at` desde a versão `1.1`. `service_role` recebeu apenas `SELECT` neste incremento, por decisão explícita de Fabrício — a capacidade de escrita (`INSERT`/`UPDATE` para a futura Edge Function de sincronização) fica deliberadamente adiada para um incremento futuro de sincronização. A regra "`pricing_card_mapping` só quando `pricing_set_mapping` da mesma fonte estiver `CONFIRMED`" permanece responsabilidade de uma futura rotina de escrita — nenhum trigger/função criada para isso neste incremento. Validação consolidada de 15 itens executada de forma transacional (`BEGIN`/`ROLLBACK`), incluindo teste real dos quatro estados (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED`), das duas falhas de `CHECK` esperadas (`NOT_FOUND` sem `last_checked_at`; `CONFIRMED` sem identificador externo), da unicidade parcial (só entre linhas `CONFIRMED`) e do isolamento RLS (`anon` bloqueado, `authenticated` não-admin sem linhas, admin com leitura completa) — sem nenhum dado residual nas tabelas reais. Milhar `3000`–`3999` permanece o único milhar comprometido; nenhum módulo novo criado. Nenhuma das cinco entidades restantes do domínio (`pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`) implementada — continuam `Proposto, ainda não executado`. Nenhum commit/push realizado. |
 | 1.4 | **Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P2), a pedido explícito de Fabrício.** `pricing_sync_run` e `pricing_sync_run_call` criadas no Supabase (Queries `3080`/`3081`/`3090`), `CONFIRMADO EXECUTADO`, ambas vazias. Requisitos de integridade novos, não previstos nas versões anteriores: `CHECK` de `finished_at >= started_at` em `pricing_sync_run`; `CHECK` de `http_status_code` entre `100` e `599` em `pricing_sync_run_call`. Índices reformulados por decisão explícita do incremento, deviando do par genérico originalmente cogitado: `pricing_sync_run` recebeu um índice composto `(pricing_source_id, started_at DESC)` e um índice parcial `(pricing_source_id) WHERE status IN ('RECEIVED', 'PROCESSING')`, em vez de dois índices isolados em `pricing_source_id`/`status`; `pricing_sync_run_call` não recebeu nenhum índice isolado em `sync_run_id` — a `UNIQUE (sync_run_id, sequence_number)` já cobre a leitura ordenada por `sequence_number`. Todas as escolhas de índice confirmadas por `EXPLAIN (ANALYZE, BUFFERS)` real sobre volume sintético (9.000 execuções, 1.000 chamadas), dentro de transação com `ROLLBACK`. Grants de `service_role` mais restritivos que o modelo genérico das versões anteriores: em `pricing_sync_run`, `UPDATE` concedido só nas colunas operacionais (`status`/`requests_made`/`requests_remaining_at_end`/`rate_limit_hits`/`error_summary`/`finished_at`), com `id`/`pricing_source_id`/`run_type`/`triggered_by`/`started_at`/`created_at` inalteráveis pelo fluxo normal e nenhum `GRANT DELETE`; em `pricing_sync_run_call`, apenas `SELECT`/`INSERT` (tabela append-only, `UPDATE`/`DELETE` confirmados bloqueados). Validação consolidada de 16 itens funcionais, executada de forma transacional (`BEGIN`/`ROLLBACK`, `pricing_source` temporária), incluindo todos os estados de `run_type`/`status`/`triggered_by`/`outcome`, as sete rejeições de integridade esperadas, isolamento de `anon`, bloqueio de escrita de `authenticated`, leitura administrativa, e a capacidade exata de escrita da `service_role` (inclusive tentativas de `UPDATE`/`DELETE` em colunas/tabelas restritas, todas bloqueadas) — sem nenhum dado residual. Verificação defensiva pós-teste não encontrou nenhum padrão de segredo (`tcg_`/`Bearer `/`Authorization`/`x-api-key`) nas tabelas, que permanecem vazias. Advisors de segurança e performance sem nenhum achado novo relevante para as duas tabelas. Nenhuma fonte cadastrada, nenhuma chamada à JustTCG, nenhuma das três entidades restantes do domínio (`pricing_product`, `pricing_fx_rate`, `pricing_observation`) implementada. Nenhum commit/push realizado. |
+| 1.5 | **Incremento P4 — Produto Externo de Pricing (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P3), a pedido explícito de Fabrício.** `pricing_product` criada no Supabase (Queries `3050`/`3051`/`3052`), `CONFIRMADO EXECUTADO`, vazia. Adicionado um `CHECK` de não-branco em `external_product_id` (`ck_pricing_product_external_product_id_not_blank`), consistente com o padrão já usado em outros identificadores textuais do módulo. Índices reformulados por decisão explícita do incremento: nenhum índice isolado em `pricing_card_mapping_id` (já coberto pelo prefixo da própria `UNIQUE (pricing_card_mapping_id, external_product_id)`); adicionados `ix_pricing_product_external_product_id`, `ix_pricing_product_card_variant_id` (parcial) e `ix_pricing_product_variant_language_confirmed` (composto, parcial, `card_variant_id`+`language_id` filtrado a `language_status = 'CONFIRMED'`); um quinto padrão cogitado ("produtos sem vínculo editorial") deliberadamente não indexado, por não haver ainda fluxo administrativo real que o justifique. Todas as escolhas confirmadas por `EXPLAIN (ANALYZE, BUFFERS)` sobre volume sintético (5.000 produtos, 500 mappings), dentro de transação com `ROLLBACK`. Um índice adicional (`ix_pricing_product_language_id`, parcial) foi acrescentado em Query `3052` após o advisor de performance apontar a FK `language_id` sem cobertura — mesmo padrão de correção pós-validação já usado em Query `3002` no Incremento P1. Grants de `service_role` mais restritivos que P1–P3: além de não conceder `DELETE`, este incremento **revoga explicitamente** `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` de `service_role` — privilégios que `pg_default_acl` concede por padrão em tabelas criadas por `postgres` e que os incrementos anteriores haviam deixado intocados; `UPDATE` restrito por coluna (`source_printing_label`/`language_status`/`language_id`/`card_variant_id`/`is_active`), com `id`/`pricing_card_mapping_id`/`external_product_id`/`created_at` imutáveis após o insert. Validação consolidada de 19 itens funcionais, executada de forma transacional (`BEGIN`/`ROLLBACK`, `pricing_source`/`pricing_card_mapping` temporários, `card`/`card_variant`/`language` reais e somente lidos), incluindo os três estados de idioma, as três rejeições de `CHECK` esperadas, a duplicidade técnica bloqueada, isolamento de `anon`, bloqueio de escrita de `authenticated`, leitura administrativa, e a capacidade exata de `service_role` (inclusive tentativas de `UPDATE` em colunas restritas, `DELETE` e `TRUNCATE`, todas bloqueadas por `insufficient_privilege` real) — sem nenhum dado residual. Verificação defensiva pós-teste não encontrou nenhum padrão de segredo nas tabelas, que permanecem vazias. Nenhum trigger de consistência `card_variant_id`×`card_id` criado (Regra de Negócio 7, permanece candidata futura — decisão deliberada de não introduzir trigger cross-table sem necessidade concreta comprovada). Nenhuma fonte cadastrada, nenhuma chamada à JustTCG, nenhuma das duas entidades restantes do domínio (`pricing_fx_rate`, `pricing_observation`) implementada. Nenhum commit/push realizado. |
+| 1.6 | **Correção retroativa de segurança (2026-08-16, mesmo dia, mesmo ciclo do Incremento P4), a pedido explícito de Fabrício.** Auditoria somente leitura confirmou que as sete tabelas de Pricing dos Incrementos P1–P3 (`pricing_source`, `card_condition`, `pricing_condition_mapping`, `pricing_set_mapping`, `pricing_card_mapping`, `pricing_sync_run`, `pricing_sync_run_call`) nunca tiveram `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados de `service_role` (defaults de `pg_default_acl` em tabelas criadas por `postgres`, deixados intocados até então). Corrigido via Query `3053`, revogando apenas esses quatro privilégios de `service_role` nas sete tabelas — `SELECT`/`INSERT`/`UPDATE` preservados integralmente, incluindo os grants de coluna restritos de `pricing_sync_run`; nenhuma alteração de RLS/policies/estrutura/índices/dados. Validado por `has_table_privilege` (privilégios excedentes confirmados removidos, operacionais confirmados intactos) e por smoke test transacional real (`SELECT`/`INSERT`/`UPDATE` de `service_role` continuam funcionando; `TRUNCATE` agora bloqueado por ausência real de grant; leitura administrativa de `authenticated` intacta) — zero dado residual, zero impacto funcional. Advisors de segurança e performance sem nenhum achado novo referenciando as sete tabelas. Nenhum commit/push realizado. |
