@@ -1132,3 +1132,11 @@ A extração da rodada anterior cobriu só o preview ampliado; a miniatura do gr
 Corrigido substituindo o wrapper `<div>` de `PesquisaCardTile` por `<HoloCard>` (mesmo componente já reimportado por `CardImagePreview`, sem `floating` — igual ao grid de `Cartas`), preservando `viewTransitionName`/`isTransitionSource` no próprio `HoloCard` e o mesmo placeholder "Sem imagem" (borda tracejada) já usado em `CartaGridCard`; `transition-transform group-hover:scale-[1.02]` e a classe `group`, redundantes com o próprio `onMouseMove` do `HoloCard`, removidos. Nenhuma fórmula de motion tocada. `npx tsc --noEmit` confirmado limpo.
 
 Nada commitado, nada em push — decisão de Fabrício. Detalhe completo em `docs/adr/ADR-030-card-search-projection.md` revisão `1.4` e `docs/development/HANDOFF-2026-08-17.md`, seção 10.
+
+## [2026-08-17] docs | Pesquisa Global de Cartas — encerramento formal (ADR-030)
+
+Fabrício confirmou em chat: "Pesquisa Global de Cartas já validada e aprovada. Commit + push já realizados." Isso resolve todos os itens que vinham pendentes de validação local desde a implementação original — UI desktop/mobile, teclado, ARIA, tema claro/escuro, o modo imersivo de pesquisa mobile em dispositivo real (Safari iOS/Chrome Android) e `npm run lint`/`npm run build` (não executáveis no sandbox do agente).
+
+`git log`/`git status` confirmam: cinco commits aplicadas (`0a0eea2` implementação original; `c78bb1c`/`f1018ce`/`2c07679`/`12123d1` rodadas corretivas 2-4), branch `main` sincronizado com `origin/main`, árvore de trabalho limpa.
+
+Documentação atualizada no mesmo ciclo para remover a linguagem de pendência: `docs/ROADMAP.md` (revisão `1.60`), `docs/README.md` (revisão `2.12`), `docs/development/HANDOFF-2026-08-17.md` (nova seção 12 "Encerramento formal", checklist da seção 6 marcado). Único item que permanece aberto, não bloqueante: divergência de rastreabilidade em `database/migrations/` (débito já registrado, não reconciliado nesta rodada). Incremento "Pesquisa Global de Cartas" formalmente encerrado — próximo passo real (retomar homologação JustTCG para Pricing, ou iniciar Collection) segue como decisão em aberto de Fabrício.

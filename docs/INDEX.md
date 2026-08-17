@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.15 |
+| **Versão** | 1.16 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -110,7 +110,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 
 | Documento | Resumo |
 |---|---|
-| [`development/HANDOFF-2026-08-17.md`](development/HANDOFF-2026-08-17.md) | Handoff vigente — Pesquisa Global de Cartas (`ADR-030`) implementada de ponta a ponta: combobox no header, página `/pesquisa`, projeção segura `search_cards`/`search_card_filter_options`, validações de segurança/performance reais, divergência pré-existente de rastreabilidade em `database/migrations/` registrada como débito explícito. Pendente validação local de UI/lint/build por Fabrício. |
+| [`development/HANDOFF-2026-08-17.md`](development/HANDOFF-2026-08-17.md) | Handoff vigente — Pesquisa Global de Cartas (`ADR-030`) **formalmente encerrada**: combobox no header, página `/pesquisa`, projeção segura `search_cards`/`search_card_filter_options`, validações de segurança/performance reais, quatro rodadas corretivas, validação local (UI/lint/build) aprovada por Fabrício, commit e push realizados; divergência pré-existente de rastreabilidade em `database/migrations/` permanece registrada como débito não bloqueante. |
 
 ---
 
@@ -135,3 +135,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.14 | **Incremento P6 — Observação Histórica de Preço (2026-08-16, mesma data, ciclo seguinte) — fundação física de Pricing concluída.** Resumos de `05f-pricing.md` e `ADR-029` atualizados: `pricing_observation` também `CONFIRMADO EXECUTADO` (vazia, identidade market-aware `UNIQUE NULLS NOT DISTINCT` corrigida); dez de dez entidades do domínio agora implementadas — zero entidades restantes propostas. Domínio ainda não operacional. Ver `ROADMAP.md` revisão `1.56`, `docs/README.md` revisão `2.08` e `docs/log.md`, entrada `feature` de 2026-08-16. |
 | 1.15 | **Incremento Pesquisa Global de Cartas (2026-08-17) — `ADR-030` adicionado.** Handoff vigente atualizado para `development/HANDOFF-2026-08-17.md`; `HANDOFF-2026-08-16.md` movido para `history/development/`. Ver `ROADMAP.md` revisão `1.58` e `docs/README.md` revisão `2.09`. |
 | 1.15 | **Adicionado `ADR-030` (Pesquisa Global de Cartas, 2026-08-17)** — projeção segura nova (`public.search_cards()`/`public.search_card_filter_options()`, módulo `4000`–`4999`) para combobox do header + página `/pesquisa`, disponível a qualquer usuário autenticado sem ampliar acesso direto ao Catálogo Editorial. CONFIRMADO EXECUTADO e validado com `SET ROLE` real. Ver `ROADMAP.md` revisão `1.58`, `docs/standards/STD-001-database-standards.md` revisão `1.27`, `docs/standards/STD-004-frontend-standards.md` revisão `1.4` e `docs/log.md`. |
+| 1.16 | **Pesquisa Global de Cartas formalmente encerrada (2026-08-17, mesmo dia)** — resumo do handoff vigente atualizado: validação local (UI/lint/build) aprovada por Fabrício, commit e push das cinco commits do incremento (implementação original + quatro rodadas corretivas) já realizados. Ver `ROADMAP.md` revisão `1.60`, `docs/README.md` revisão `2.12` e `docs/log.md`. |
