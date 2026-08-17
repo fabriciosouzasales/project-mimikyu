@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, ChevronDown, X } from "lucide-react";
+import { CardImagePreview } from "@/components/card/card-image-preview";
+import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { cardImageUrl, cartaFullNumber, type PesquisaCard } from "@/lib/pesquisa/format";
+import { canUseViewTransitions, cardImagePreviewTransitionName, runWithViewTransition } from "@/lib/view-transitions";
 
 const PAGE_SIZE = 36;
 
@@ -30,10 +33,21 @@ type SearchResponse = { cards: PesquisaCard[]; totalCount: number; hasMore: bool
  * Sem filtro de Jogo nesta versão — decisão de escopo explícita, não integra
  * a interface, a URL nem o contrato público (`search_cards`/
  * `search_card_filter_options`, ver migrations 4030/4031). Reaproveita
- * `Input`/`Select`/`Dialog`/`EmptyState`/`Skeleton` (STD-004) — não reescreve
+ * `Input`/`Select`/`EmptyState`/`Skeleton` (STD-004) — não reescreve
  * `CartasGallery` (galeria administrativa): formatação e URL de imagem vêm
- * de `lib/pesquisa/format.ts`, e o zoom aqui é um `Dialog` simples (não a
- * transição View Transitions da galeria admin, ver ADR-030 "Compatibilidade").
+ * de `lib/pesquisa/format.ts`.
+ *
+ * Preview ampliado (2026-08-17, pedido de Fabrício: "o preview de cartas em
+ * Pesquisa deve ser estruturalmente compartilhado com Cartas, não apenas
+ * visualmente parecido") — usa exatamente o mesmo `CardPreviewOverlay`/
+ * `CardImagePreview` (`components/card/`) que `CartaZoomDialog` na galeria
+ * administrativa: mesmo `HoloCard` com motion senoidal (`floating`), mesma
+ * sombra/backdrop, mesmo morph via View Transitions API quando disponível
+ * (`lib/view-transitions.ts`, mesmo mecanismo de `CartasGallery`), sem
+ * rodapé de texto (nome/Card Set/raridade removido — `Cartas` nunca teve
+ * um). Substitui o `Dialog` estático anterior, que reimplementava a
+ * apresentação da carta ampliada do zero (ver `docs/adr/ADR-030-card-search-projection.md`,
+ * seção "Preview compartilhado de carta").
  */
 export function PesquisaView() {
   const router = useRouter();
@@ -62,6 +76,10 @@ export function PesquisaView() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
   const [zoomCard, setZoomCard] = useState<PesquisaCard | null>(null);
+  // Qual carta, entre as do grid, empresta seu `viewTransitionName` para o
+  // morph em andamento — mesmo princípio de `transitionTargetId` em
+  // `CartasGallery` (ver `openZoom`/`closeZoom` abaixo e `lib/view-transitions.ts`).
+  const [transitionTargetId, setTransitionTargetId] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -179,6 +197,23 @@ export function PesquisaView() {
   function handleClear() {
     setQueryInput("");
     router.replace(pathname);
+  }
+
+  // Abertura/fechamento do preview ampliado — mesmo mecanismo de
+  // `openZoom`/`closeZoom` em `CartasGallery`: `flushSync` marca a carta-alvo
+  // ANTES do `startViewTransition` capturar o snapshot "antigo" (sem isso,
+  // a miniatura ainda estaria sem o `viewTransitionName` no instante em que
+  // o navegador olha o DOM), depois `runWithViewTransition` troca o estado
+  // dentro do callback que o navegador usa para morfar entre os dois
+  // snapshots.
+  function openZoom(card: PesquisaCard) {
+    flushSync(() => setTransitionTargetId(card.id));
+    runWithViewTransition(() => setZoomCard(card));
+  }
+
+  function closeZoom() {
+    runWithViewTransition(() => setZoomCard(null));
+    setTransitionTargetId(null);
   }
 
   const hasAnyParam = Boolean(q || cardId || setCode || categoryCode || rarityCode);
@@ -309,7 +344,12 @@ export function PesquisaView() {
           <>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {cards.map((card) => (
-                <PesquisaCardTile key={card.id} card={card} onZoom={() => setZoomCard(card)} />
+                <PesquisaCardTile
+                  key={card.id}
+                  card={card}
+                  onZoom={() => openZoom(card)}
+                  isTransitionSource={transitionTargetId === card.id && zoomCard?.id !== card.id}
+                />
               ))}
             </div>
             {hasMore && (
@@ -323,46 +363,47 @@ export function PesquisaView() {
         )}
       </div>
 
-      <Dialog open={Boolean(zoomCard)} onOpenChange={(open) => !open && setZoomCard(null)}>
-        <DialogContent size="lg">
-          <DialogTitle className="sr-only">{zoomCard?.name ?? "Carta"}</DialogTitle>
-          {zoomCard && (
-            <div className="p-4">
-              {cardImageUrl(zoomCard) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={cardImageUrl(zoomCard) ?? undefined}
-                  alt={zoomCard.name}
-                  className="mx-auto max-h-[70vh] w-auto rounded-lg"
-                />
-              ) : (
-                <EmptyState title="Sem imagem disponível" />
-              )}
-              <div className="mt-3 text-center">
-                <p className="font-medium text-foreground">{zoomCard.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {zoomCard.cardSet.name} ({zoomCard.cardSet.code}) ·{" "}
-                  {cartaFullNumber(zoomCard.collectorNumber, zoomCard.collectorTotal)}
-                </p>
-                {zoomCard.rarity?.name && <p className="text-xs text-muted-foreground">{zoomCard.rarity.name}</p>}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <CardPreviewOverlay
+        open={Boolean(zoomCard)}
+        onClose={closeZoom}
+        title={zoomCard?.name ?? "Carta"}
+        useViewTransition={canUseViewTransitions()}
+      >
+        {zoomCard && (
+          <CardImagePreview
+            imageUrl={cardImageUrl(zoomCard)}
+            alt={zoomCard.name}
+            viewTransitionName={cardImagePreviewTransitionName(zoomCard.id)}
+          />
+        )}
+      </CardPreviewOverlay>
     </div>
   );
 }
 
-function PesquisaCardTile({ card, onZoom }: { card: PesquisaCard; onZoom: () => void }) {
+function PesquisaCardTile({
+  card,
+  onZoom,
+  isTransitionSource,
+}: {
+  card: PesquisaCard;
+  onZoom: () => void;
+  isTransitionSource: boolean;
+}) {
   const imageUrl = cardImageUrl(card);
   return (
     <button
       type="button"
       onClick={onZoom}
       className="group flex flex-col gap-1.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`Ampliar ${card.name}`}
     >
-      <div className="aspect-[5/7] w-full overflow-hidden rounded-lg border border-border bg-surface-muted">
+      <div
+        className="aspect-[5/7] w-full overflow-hidden rounded-lg border border-border bg-surface-muted"
+        style={
+          { viewTransitionName: isTransitionSource ? cardImagePreviewTransitionName(card.id) : "none" } as CSSProperties
+        }
+      >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

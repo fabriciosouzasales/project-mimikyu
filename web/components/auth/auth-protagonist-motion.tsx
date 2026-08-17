@@ -4,15 +4,15 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 /**
  * Assinatura de motion do produto, extraída (não importada) de
- * `components/catalogo/holo-card.tsx` (`floating`, usado no
- * `CartaZoomDialog` — modal de ampliação de Cartas) — mesmo princípio
- * matemático: duas frequências senoidais independentes combinadas numa
- * trajetória contínua via `requestAnimationFrame` (nunca CSS `@keyframes`,
- * o que evitaria repetição perceptível de ciclo), pausada enquanto o
- * ponteiro está sobre a peça e desligada por completo sob
- * `prefers-reduced-motion: reduce`.
+ * `components/card/holo-card.tsx` (movido de `components/catalogo/` em
+ * 2026-08-17) (`floating`, usado no preview compartilhado de carta —
+ * `CardImagePreview`/`CartaZoomDialog`) — mesmo princípio matemático: duas
+ * frequências senoidais independentes combinadas numa trajetória contínua
+ * via `requestAnimationFrame` (nunca CSS `@keyframes`, o que evitaria
+ * repetição perceptível de ciclo), pausada enquanto o ponteiro está sobre a
+ * peça e desligada por completo sob `prefers-reduced-motion: reduce`.
  *
- * O Auth não importa nada de `components/catalogo/` — só o princípio de
+ * O Auth não importa nada de `components/card/` — só o princípio de
  * movimento foi extraído para este componente próprio e isolado. Ajuste de
  * intensidade (2026-08-16, segunda rodada de polish — a primeira tentativa,
  * a ~1/4 da amplitude da referência, ficou "praticamente imperceptível"):

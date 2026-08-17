@@ -269,7 +269,8 @@
 }
 
 /*
- * Efeito holográfico das Cartas (`components/catalogo/holo-card.tsx`) —
+ * Efeito holográfico das Cartas (`components/card/holo-card.tsx`, movido de
+ * `components/catalogo/` em 2026-08-17) —
  * novo em 2026-07-31, subciclo Card. `--holo-x`/`--holo-y`/`--holo-opacity`/
  * `--holo-transform` são gravados via JS (`element.style.setProperty`) a
  * cada `mousemove`; aqui só a leitura (`var(...)`) e a transição de volta ao

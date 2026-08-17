@@ -8,12 +8,13 @@ import { flushSync } from "react-dom";
 import { reactivateCard } from "@/app/catalogo/cartas/actions";
 import { DeactivateCardDialog, EditCardDialog, NewCardDialog } from "@/components/catalogo/carta-dialogs";
 import { CartasStats } from "@/components/catalogo/cartas-stats";
-import { HoloCard } from "@/components/catalogo/holo-card";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import { SetTypeTag } from "@/components/catalogo/set-type-tag";
+import { CardImagePreview } from "@/components/card/card-image-preview";
+import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
+import { HoloCard } from "@/components/card/holo-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
 import { formatarData } from "@/lib/format-date";
 import { cn, formatNumber } from "@/lib/utils";
+import { canUseViewTransitions, cardImagePreviewTransitionName, runWithViewTransition } from "@/lib/view-transitions";
 import type {
   CartaCompletaRow,
   CartasCatalogoStats,
@@ -104,40 +106,16 @@ function cartaImageUrl(carta: CartaCompletaRow, language: ImageLanguage): string
  * rejeitando o zoom+fade genérico do Dialog (`animate-dialog-in`, que salta
  * direto para o tamanho final). API nativa do navegador, sem dependência
  * nova (o sandbox de build não tem acesso a registry npm — mesma restrição
- * já registrada para `HoloCard`). Tipagem própria em vez de depender do
- * `lib.dom.d.ts` do ambiente incluir `startViewTransition` (ainda
- * inconsistente entre versões de TypeScript/Next.js).
+ * já registrada para `HoloCard`). Sem suporte no navegador (ou com
+ * `prefers-reduced-motion: reduce`), cai direto para a atualização normal —
+ * o Dialog volta a usar seu zoom+fade padrão.
  *
- * Mecanismo: `flushSync` força o `setState` a commitar de forma síncrona
- * dentro do callback — o `startViewTransition` exige isso para conseguir
- * capturar o DOM "antigo" e o "novo" em dois instantes bem definidos, e sem
- * `flushSync` o React adiaria o commit para depois do callback já ter
- * retornado. Sem suporte no navegador (ou com `prefers-reduced-motion:
- * reduce`), cai direto para a atualização normal — o Dialog volta a usar
- * seu zoom+fade padrão (`animated` continua `true` nesse caso).
+ * Extraído para `lib/view-transitions.ts` em 2026-08-17 (pedido de
+ * Fabrício: o preview de carta deve ser estruturalmente compartilhado com
+ * `/pesquisa`, não reimplementado por página) — `canUseViewTransitions`/
+ * `runWithViewTransition`/`cardImagePreviewTransitionName` importados de lá
+ * em vez de definidos aqui; comportamento idêntico ao anterior.
  */
-type DocumentWithViewTransitions = Document & {
-  startViewTransition?: (callback: () => void) => unknown;
-};
-
-function canUseViewTransitions(): boolean {
-  if (typeof document === "undefined" || typeof window === "undefined") return false;
-  if (!(document as DocumentWithViewTransitions).startViewTransition) return false;
-  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function runWithViewTransition(update: () => void) {
-  if (canUseViewTransitions()) {
-    (document as DocumentWithViewTransitions).startViewTransition?.(() => flushSync(update));
-  } else {
-    update();
-  }
-}
-
-/** Nome compartilhado entre a miniatura do grid e a imagem do modal ampliado — mesmo princípio de "shared element" que faz o navegador morfar uma na outra em vez de só cross-fade. Prefixo garante um `<custom-ident>` válido em CSS mesmo quando `id` (UUID) começa com dígito. */
-function cartaViewTransitionName(id: string): string {
-  return `carta-img-${id}`;
-}
 
 /**
  * Tela Cartas — reescrita completa em 2026-07-31 (subciclo Card do
@@ -1116,7 +1094,9 @@ function CartaGridCard({
           <HoloCard
             className={cn(!carta.isActive && "opacity-50 grayscale")}
             style={
-              { viewTransitionName: isTransitionSource ? cartaViewTransitionName(carta.id) : "none" } as CSSProperties
+              {
+                viewTransitionName: isTransitionSource ? cardImagePreviewTransitionName(carta.id) : "none",
+              } as CSSProperties
             }
           >
             {imageUrl ? (
@@ -1275,14 +1255,21 @@ function CartaGridCard({
  * Transição de abertura/fechamento reescrita em 2026-07-31 (mesmo dia,
  * pedido seguinte de Fabrício: "quero que o movimento pareça realmente uma
  * ampliação da carta", rejeitando o zoom+fade genérico que só salta para o
- * tamanho final). `animated={false}` desliga esse zoom+fade padrão do
- * `DialogContent` quando a View Transitions API está disponível — o
- * navegador já faz o morph de verdade (a miniatura do grid cresce até virar a imagem
- * ampliada) via `viewTransitionName` compartilhado com `CartaGridCard`
- * (`cartaViewTransitionName`), disparado por `openZoom`/`closeZoom` no
- * componente pai. Sem suporte (ou `prefers-reduced-motion: reduce`),
- * `animated` volta a `true` — o Dialog usa seu zoom+fade de sempre, ainda
- * curto o bastante para não incomodar.
+ * tamanho final). `useViewTransition` (repassado a `CardPreviewOverlay`)
+ * desliga esse zoom+fade padrão quando a View Transitions API está
+ * disponível — o navegador já faz o morph de verdade (a miniatura do grid
+ * cresce até virar a imagem ampliada) via `viewTransitionName` compartilhado
+ * com `CartaGridCard` (`cardImagePreviewTransitionName`), disparado por
+ * `openZoom`/`closeZoom` no componente pai. Sem suporte (ou
+ * `prefers-reduced-motion: reduce`), volta ao zoom+fade padrão do Dialog,
+ * ainda curto o bastante para não incomodar.
+ *
+ * Reescrito em 2026-08-17 para usar `CardPreviewOverlay`/`CardImagePreview`
+ * (`components/card/`) em vez de `Dialog`/`HoloCard` diretos — extração
+ * pedida por Fabrício para que `/pesquisa` reutilize exatamente esta mesma
+ * experiência em vez de reimplementá-la (ver
+ * `docs/adr/ADR-030-card-search-projection.md`). Estrutura e classes
+ * idênticas às de antes da extração — sem mudança visual/funcional.
  */
 function CartaZoomDialog({
   carta,
@@ -1298,31 +1285,19 @@ function CartaZoomDialog({
   const imageUrl = carta ? cartaImageUrl(carta, imageLanguage) : null;
 
   return (
-    <Dialog open={carta !== null} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent
-        hideClose
-        animated={!usingViewTransition}
-        aria-describedby={undefined}
-        className="w-full max-w-[380px] border-none bg-transparent p-0 shadow-none sm:max-w-[460px]"
-      >
-        <DialogTitle className="sr-only">{carta?.name ?? "Carta ampliada"}</DialogTitle>
-        {carta && (
-          <HoloCard
-            floating
-            className="drop-shadow-[0_25px_50px_-12px_hsl(var(--foreground)/0.55)]"
-            style={{ viewTransitionName: cartaViewTransitionName(carta.id) } as CSSProperties}
-          >
-            {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt={carta.name} className="w-full rounded-lg" />
-            ) : (
-              <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted text-xs text-muted-foreground">
-                Sem imagem
-              </div>
-            )}
-          </HoloCard>
-        )}
-      </DialogContent>
-    </Dialog>
+    <CardPreviewOverlay
+      open={carta !== null}
+      onClose={onClose}
+      title={carta?.name ?? "Carta ampliada"}
+      useViewTransition={usingViewTransition}
+    >
+      {carta && (
+        <CardImagePreview
+          imageUrl={imageUrl}
+          alt={carta.name}
+          viewTransitionName={cardImagePreviewTransitionName(carta.id)}
+        />
+      )}
+    </CardPreviewOverlay>
   );
 }

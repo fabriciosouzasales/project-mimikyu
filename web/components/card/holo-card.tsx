@@ -13,6 +13,16 @@ import { cn } from "@/lib/utils";
  * no grid (`CartaGridCard`) e no modal ampliado (`CartaZoomDialog`) — "seja
  * no gride, seja na forma ampliada" era um requisito explícito.
  *
+ * Movido de `components/catalogo/` para `components/card/` em 2026-08-17
+ * (pedido de Fabrício: o preview de carta da Pesquisa deve ser
+ * estruturalmente compartilhado com a página administrativa `Cartas`, não
+ * apenas visualmente parecido) — este componente nunca teve acoplamento
+ * real ao Catálogo Editorial (nenhuma prop de edição/ativação/importação),
+ * só morava na pasta errada; a mudança de local só reflete isso, zero
+ * alteração de comportamento. Consumido agora também por
+ * `components/card/card-image-preview.tsx` (`CardImagePreview`), o preview
+ * compartilhado entre `/catalogo/cartas` e `/pesquisa`.
+ *
  * Implementação inteiramente CSS/JS nativo (sem canvas/WebGL nem
  * dependência nova — o sandbox de build não tem acesso a registry npm, ver
  * memória do projeto): `onMouseMove` calcula a posição do cursor dentro do

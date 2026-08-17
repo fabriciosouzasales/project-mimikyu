@@ -3,7 +3,7 @@
 import { Search } from "lucide-react";
 import { useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
-import { HoloCard } from "@/components/catalogo/holo-card";
+import { HoloCard } from "@/components/card/holo-card";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
