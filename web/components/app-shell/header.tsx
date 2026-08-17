@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { MobileNav } from "@/components/app-shell/mobile-nav";
+import { GlobalSearch } from "@/components/app-shell/global-search";
 import { UserAvatarBadge } from "@/components/app-shell/user-avatar-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { createClient } from "@/lib/supabase/server";
@@ -43,12 +44,17 @@ export async function Header({ title, icon: Icon, isAdmin }: { title: string; ic
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 print:hidden">
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <MobileNav isAdmin={isAdmin} />
         {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
       </div>
-      <div className="flex items-center gap-2">
+      {/* Pesquisa Global de Cartas (2026-08-17, ADR-030): disponível em todo
+          header autenticado (não só /catalogo) — desktop inline no centro
+          (não desloca título nem ações), mobile via botão compacto que abre
+          overlay dedicado (ver GlobalSearch). */}
+      {user && <GlobalSearch />}
+      <div className="flex shrink-0 items-center gap-2">
         {user && <UserAvatarBadge avatarUrl={avatarUrl} initial={initial} />}
         <ThemeToggle />
       </div>
