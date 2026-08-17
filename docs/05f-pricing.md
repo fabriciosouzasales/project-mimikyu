@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Pricing |
 | **Arquivo** | `docs/05f-pricing.md` |
-| **Versão** | 1.6 |
-| **Status** | **Parcialmente implementado.** Oito entidades `CONFIRMADO EXECUTADO` no Supabase (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3; `pricing_product` — Incremento P4, todas ainda vazias, nenhuma fonte homologada). As duas entidades restantes (`pricing_fx_rate`, `pricing_observation`) permanecem `Proposto, ainda não executado`. |
+| **Versão** | 1.7 |
+| **Status** | **Parcialmente implementado.** Nove entidades `CONFIRMADO EXECUTADO` no Supabase (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3; `pricing_product` — Incremento P4; `pricing_fx_rate` — Incremento P5, todas ainda vazias, nenhuma fonte homologada, nenhuma taxa real cadastrada). A única entidade restante (`pricing_observation`) permanece `Proposto, ainda não executado`. |
 | **Objetivo** | Modelo lógico e físico do domínio Pricing — observações de mercado por fonte externa, independente de Catálogo Editorial e de Ownership, conforme `ADR-029` e `ADR-006`. |
 | **Escopo** | Entidades de Pricing: fonte, mapeamento de Set/Card por fonte, produto (impressão+idioma reportados pela fonte), condição canônica, observação de preço, câmbio, auditoria de sincronização. Não inclui a modelagem física de Item Valuation (Analytics), deliberadamente adiada — ver seção própria ao final. |
 | **Dependências** | `04-domain-model.md` (seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)"), `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-029-pricing-domain-model.md`, `standards/STD-001-database-standards.md`, `standards/STD-002-domain-modeling.md`, `05b-cartas-e-raridade.md` (Card/Card Variant), `05c-assets-e-importacao.md` (Language/Asset Source — padrão de referência, não reaproveitado por tabela). |
@@ -959,17 +959,18 @@ created_at
 
 **rate_date** — data (não timestamp) a que a taxa se refere — PTAX publica uma taxa por dia útil.
 
-**rate_source_code** — de onde veio a taxa (`BCB_PTAX` como default/único valor conhecido hoje; `CHECK` deliberadamente aberto a outros códigos futuros, não fechado como `ENUM` de um único valor, para não exigir migration ao adicionar uma segunda fonte de câmbio).
+**rate_source_code** — de onde veio a taxa (`BCB_PTAX` como default/único valor conhecido hoje; `CHECK` deliberadamente aberto a outros códigos futuros, não fechado como `ENUM` de um único valor, para não exigir migration ao adicionar uma segunda fonte de câmbio — mesmo padrão de formato técnico já usado em `pricing_source.code`, ver `ck_pricing_fx_rate_source_code_format` abaixo).
 
 **Sem `updated_at`** — divergência deliberada do padrão mínimo de STD-001 (ver nota de imutabilidade abaixo).
 
 ## Regras de Negócio
 
-1. `UNIQUE (from_currency, to_currency, rate_date, rate_source_code)` — no máximo uma taxa por par de moedas, por data, por fonte de câmbio.
+1. `UNIQUE (from_currency, to_currency, rate_source_code, rate_date)` — no máximo uma taxa por par de moedas, por fonte de câmbio, por data. **Ordem de colunas decidida no Incremento P5** (correção de precisão em relação à ordem original desta versão, `(from_currency, to_currency, rate_date, rate_source_code)`): par de moedas e fonte primeiro, `rate_date` por último — a mesma unicidade semântica, mas agora a própria constraint serve como índice de consulta (ver "Modelo Físico", abaixo).
 2. `rate > 0`.
 3. **Imutável por convenção de uso** — uma linha nunca é `UPDATE`ada; se uma taxa precisar de correção, uma nova linha não é possível (mesma `rate_date` colidiria com a `UNIQUE`) — a correção correta é a fonte oficial (BCB) já não permitir retificação de PTAX publicado; na prática, `rate_date` já passada nunca muda.
+4. `rate_source_code` não vazio, maiúsculo, formato técnico estável (`^[A-Z][A-Z0-9_]*$`, mesmo padrão de `pricing_source.code`) — nunca um enum fechado, para admitir uma segunda fonte de câmbio futura sem migration.
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P5, 2026-08-16, Query `3060`)
 
 ```sql
 CREATE TABLE public.pricing_fx_rate (
@@ -981,8 +982,8 @@ CREATE TABLE public.pricing_fx_rate (
     rate_source_code  TEXT NOT NULL DEFAULT 'BCB_PTAX',
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_pricing_fx_rate_pair_date_source
-        UNIQUE (from_currency, to_currency, rate_date, rate_source_code),
+    CONSTRAINT uq_pricing_fx_rate_pair_source_date
+        UNIQUE (from_currency, to_currency, rate_source_code, rate_date),
     CONSTRAINT ck_pricing_fx_rate_from_currency_format
         CHECK (from_currency ~ '^[A-Z]{3}$'),
     CONSTRAINT ck_pricing_fx_rate_to_currency_format
@@ -990,32 +991,49 @@ CREATE TABLE public.pricing_fx_rate (
     CONSTRAINT ck_pricing_fx_rate_different_currencies
         CHECK (from_currency <> to_currency),
     CONSTRAINT ck_pricing_fx_rate_positive
-        CHECK (rate > 0)
+        CHECK (rate > 0),
+    CONSTRAINT ck_pricing_fx_rate_source_code_format
+        CHECK (rate_source_code = UPPER(rate_source_code) AND rate_source_code ~ '^[A-Z][A-Z0-9_]*$')
 );
 
-CREATE INDEX ix_pricing_fx_rate_lookup
-    ON public.pricing_fx_rate (from_currency, to_currency, rate_date DESC);
-
 ALTER TABLE public.pricing_fx_rate ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY pricing_admin_select ON public.pricing_fx_rate
+    FOR SELECT
+    USING ((select is_admin()));
+
+GRANT SELECT ON public.pricing_fx_rate TO authenticated;
+GRANT SELECT, INSERT ON public.pricing_fx_rate TO service_role;
+
+REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, MAINTAIN
+    ON public.pricing_fx_rate FROM service_role;
+REVOKE TRUNCATE, REFERENCES, TRIGGER, MAINTAIN
+    ON public.pricing_fx_rate FROM anon, authenticated;
 ```
+
+**Desvio deliberado da hipótese original desta versão do documento — nenhum índice adicional `(from_currency, to_currency, rate_date DESC)` é criado.** A própria `UNIQUE`, com as colunas reordenadas (ver Regra de Negócio 1, acima), já serve integralmente unicidade **e** os três padrões de consulta reais previstos (taxa mais recente disponível até uma data; taxa de uma data exata; histórico de um par/fonte em intervalo de datas) — confirmado por `EXPLAIN (ANALYZE, BUFFERS)` sobre volume sintético de 7.830 linhas (5 pares de moeda × 2 fontes × ~3 anos de dias úteis) na validação de performance do Incremento P5: os três planos usam `Index Scan`/`Index Scan Backward` sobre `uq_pricing_fx_rate_pair_source_date`, sem `Seq Scan` e sem `Sort` adicional (B-tree percorrido nos dois sentidos, dispensando índice ou coluna `DESC` dedicados).
 
 Sem trigger de `updated_at` — a tabela não tem essa coluna (imutável por design, ver acima).
 
 **Cardinalidade:** independente — nenhuma FK física a partir de `pricing_observation` (a conversão é feita em tempo de leitura, por `JOIN` na data mais próxima disponível, nunca por chave estrangeira fixa — uma observação de anos atrás deve continuar podendo ser convertida por qualquer taxa futura sem exigir uma linha nova).
 
-**Política de exclusão:** sem exclusão prevista — série histórica permanente, mesmo espírito de `pricing_observation`.
+**Política de exclusão:** sem exclusão prevista — série histórica permanente, mesmo espírito de `pricing_observation`. Append-only por desenho: `service_role` recebe apenas `SELECT`/`INSERT`; `UPDATE`/`DELETE`/`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados explicitamente (não confiar nos defaults de `pg_default_acl`, que concedem `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` a `service_role` em tabelas criadas pelo papel `postgres`).
 
-**RLS e Grants:** RLS habilitado; **candidata a leitura pública** (`authenticated`, possivelmente até `anon`) desde o início, diferente das demais tabelas deste documento — taxa de câmbio não é dado sensível nem específico do domínio de colecionáveis; decisão final de exposição fica para o ciclo de implementação, não fechada aqui. Escrita só por `service_role` (uma rotina agendada de ingestão diária da PTAX, não uma função administrativa manual).
+**RLS e Grants — CONFIRMADO EXECUTADO (correção de precisão em relação à hipótese original desta versão, que cogitava leitura pública, inclusive `anon`, "desde o início"): decisão final do Incremento P5 é o padrão conservador já usado no restante do domínio.** `anon`: nenhum privilégio. `authenticated`: apenas `SELECT`, e leitura efetiva restrita a administrador via policy `pricing_admin_select` (`(select is_admin())`) — taxa cambial poderá futuramente ser exposta por view ou serviço próprio a usuário final, mas não neste incremento. `service_role`: apenas `SELECT`/`INSERT` (uma rotina agendada futura de ingestão diária da PTAX, ainda não implementada) — nenhuma escrita além de inserção, nenhuma exclusão, nenhuma sobrescrita de taxa histórica.
 
 ## Testes Mínimos de Integridade Previstos
 
-- mesma tupla `(from_currency, to_currency, rate_date, rate_source_code)` duas vezes falha;
+- mesma tupla `(from_currency, to_currency, rate_source_code, rate_date)` duas vezes falha;
 - `from_currency = to_currency` falha;
-- `rate <= 0` falha.
+- `rate <= 0` falha;
+- `rate_source_code` vazio ou fora do formato técnico falha; um novo código de fonte válido é aceito sem migration.
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, validação; rotina de ingestão diária da PTAX é item de implementação futura, fora do escopo desta modelagem.
+- [x] tabela criada, RLS, policy `pricing_admin_select`, `GRANT`s mínimos (Incremento P5, 2026-08-16, Query `3060`);
+- [x] validação transacional de 22 itens + validação de performance com 3 planos de execução (Incremento P5);
+- [ ] rotina de ingestão diária da PTAX — item de implementação futura, fora do escopo deste incremento;
+- [ ] primeira taxa real cadastrada — depende da rotina de ingestão acima; nenhuma taxa cadastrada no Incremento P5.
 
 ---
 
@@ -1501,9 +1519,9 @@ Quando Collection existir, um `item_valuation_snapshot` provavelmente referencia
 
 ---
 
-# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1, Estendida nos Incrementos P2, P3 e P4
+# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1, Estendida nos Incrementos P2, P3, P4 e P5
 
-Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`). O Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia) implementou as duas entidades seguintes; o Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia) implementou mais duas; o Incremento P4 — Produto Externo de Pricing (2026-08-16, mesmo dia) implementou mais uma:
+Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`). O Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia) implementou as duas entidades seguintes; o Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia) implementou mais duas; o Incremento P4 — Produto Externo de Pricing (2026-08-16, mesmo dia) implementou mais uma; o Incremento P5 — Série Histórica de Taxas de Câmbio (2026-08-16, mesmo dia) implementou a nona:
 
 ```text
 3000–3009  pricing_source              — CONFIRMADO EXECUTADO (3000 tabela, 3001 trigger, 3002 grant service_role)
@@ -1512,12 +1530,12 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 3030–3039  pricing_set_mapping         — CONFIRMADO EXECUTADO (3030 tabela, 3031 trigger)
 3040–3049  pricing_card_mapping        — CONFIRMADO EXECUTADO (3040 tabela, 3041 trigger)
 3050–3059  pricing_product             — CONFIRMADO EXECUTADO (3050 tabela + índices + RLS + grants, 3051 trigger, 3052 índice de FK adicionado após advisor de performance)
-3060–3069  pricing_fx_rate             — Proposto, ainda não executado
+3060–3069  pricing_fx_rate             — CONFIRMADO EXECUTADO (3060 tabela + constraint única reordenada (serve como índice) + RLS + policy + grants; sem trigger, tabela append-only sem updated_at)
 3070–3079  pricing_observation         — Proposto, ainda não executado
 3080–3089  pricing_sync_run            — CONFIRMADO EXECUTADO (3080 tabela + índices + RLS + grants, 3081 trigger)
 3090–3099  pricing_sync_run_call       — CONFIRMADO EXECUTADO (3090 tabela + RLS + grants; sem trigger, tabela append-only)
 3700–3799  Seeds                       — nenhuma executada (ver "Pendências", abaixo)
-3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2), 3820 (Incremento P3, validação consolidada de 16 itens funcionais + 4 planos de execução), 3830 (Incremento P4, validação consolidada de 19 itens funcionais + 4 planos de execução) — todas transacionais, sem escrita física; apenas o registro do número no diário de numeração
+3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2), 3820 (Incremento P3, validação consolidada de 16 itens funcionais + 4 planos de execução), 3830 (Incremento P4, validação consolidada de 19 itens funcionais + 4 planos de execução), 3840 (Incremento P5, validação consolidada de 22 itens funcionais + 3 planos de execução) — todas transacionais, sem escrita física; apenas o registro do número no diário de numeração
 3900–3999  Reserva
 ```
 
@@ -1545,3 +1563,4 @@ Ver `STD-001`, subseção "Módulo: Pricing (`3000`–`3999`)", para o mesmo reg
 | 1.4 | **Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P2), a pedido explícito de Fabrício.** `pricing_sync_run` e `pricing_sync_run_call` criadas no Supabase (Queries `3080`/`3081`/`3090`), `CONFIRMADO EXECUTADO`, ambas vazias. Requisitos de integridade novos, não previstos nas versões anteriores: `CHECK` de `finished_at >= started_at` em `pricing_sync_run`; `CHECK` de `http_status_code` entre `100` e `599` em `pricing_sync_run_call`. Índices reformulados por decisão explícita do incremento, deviando do par genérico originalmente cogitado: `pricing_sync_run` recebeu um índice composto `(pricing_source_id, started_at DESC)` e um índice parcial `(pricing_source_id) WHERE status IN ('RECEIVED', 'PROCESSING')`, em vez de dois índices isolados em `pricing_source_id`/`status`; `pricing_sync_run_call` não recebeu nenhum índice isolado em `sync_run_id` — a `UNIQUE (sync_run_id, sequence_number)` já cobre a leitura ordenada por `sequence_number`. Todas as escolhas de índice confirmadas por `EXPLAIN (ANALYZE, BUFFERS)` real sobre volume sintético (9.000 execuções, 1.000 chamadas), dentro de transação com `ROLLBACK`. Grants de `service_role` mais restritivos que o modelo genérico das versões anteriores: em `pricing_sync_run`, `UPDATE` concedido só nas colunas operacionais (`status`/`requests_made`/`requests_remaining_at_end`/`rate_limit_hits`/`error_summary`/`finished_at`), com `id`/`pricing_source_id`/`run_type`/`triggered_by`/`started_at`/`created_at` inalteráveis pelo fluxo normal e nenhum `GRANT DELETE`; em `pricing_sync_run_call`, apenas `SELECT`/`INSERT` (tabela append-only, `UPDATE`/`DELETE` confirmados bloqueados). Validação consolidada de 16 itens funcionais, executada de forma transacional (`BEGIN`/`ROLLBACK`, `pricing_source` temporária), incluindo todos os estados de `run_type`/`status`/`triggered_by`/`outcome`, as sete rejeições de integridade esperadas, isolamento de `anon`, bloqueio de escrita de `authenticated`, leitura administrativa, e a capacidade exata de escrita da `service_role` (inclusive tentativas de `UPDATE`/`DELETE` em colunas/tabelas restritas, todas bloqueadas) — sem nenhum dado residual. Verificação defensiva pós-teste não encontrou nenhum padrão de segredo (`tcg_`/`Bearer `/`Authorization`/`x-api-key`) nas tabelas, que permanecem vazias. Advisors de segurança e performance sem nenhum achado novo relevante para as duas tabelas. Nenhuma fonte cadastrada, nenhuma chamada à JustTCG, nenhuma das três entidades restantes do domínio (`pricing_product`, `pricing_fx_rate`, `pricing_observation`) implementada. Nenhum commit/push realizado. |
 | 1.5 | **Incremento P4 — Produto Externo de Pricing (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P3), a pedido explícito de Fabrício.** `pricing_product` criada no Supabase (Queries `3050`/`3051`/`3052`), `CONFIRMADO EXECUTADO`, vazia. Adicionado um `CHECK` de não-branco em `external_product_id` (`ck_pricing_product_external_product_id_not_blank`), consistente com o padrão já usado em outros identificadores textuais do módulo. Índices reformulados por decisão explícita do incremento: nenhum índice isolado em `pricing_card_mapping_id` (já coberto pelo prefixo da própria `UNIQUE (pricing_card_mapping_id, external_product_id)`); adicionados `ix_pricing_product_external_product_id`, `ix_pricing_product_card_variant_id` (parcial) e `ix_pricing_product_variant_language_confirmed` (composto, parcial, `card_variant_id`+`language_id` filtrado a `language_status = 'CONFIRMED'`); um quinto padrão cogitado ("produtos sem vínculo editorial") deliberadamente não indexado, por não haver ainda fluxo administrativo real que o justifique. Todas as escolhas confirmadas por `EXPLAIN (ANALYZE, BUFFERS)` sobre volume sintético (5.000 produtos, 500 mappings), dentro de transação com `ROLLBACK`. Um índice adicional (`ix_pricing_product_language_id`, parcial) foi acrescentado em Query `3052` após o advisor de performance apontar a FK `language_id` sem cobertura — mesmo padrão de correção pós-validação já usado em Query `3002` no Incremento P1. Grants de `service_role` mais restritivos que P1–P3: além de não conceder `DELETE`, este incremento **revoga explicitamente** `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` de `service_role` — privilégios que `pg_default_acl` concede por padrão em tabelas criadas por `postgres` e que os incrementos anteriores haviam deixado intocados; `UPDATE` restrito por coluna (`source_printing_label`/`language_status`/`language_id`/`card_variant_id`/`is_active`), com `id`/`pricing_card_mapping_id`/`external_product_id`/`created_at` imutáveis após o insert. Validação consolidada de 19 itens funcionais, executada de forma transacional (`BEGIN`/`ROLLBACK`, `pricing_source`/`pricing_card_mapping` temporários, `card`/`card_variant`/`language` reais e somente lidos), incluindo os três estados de idioma, as três rejeições de `CHECK` esperadas, a duplicidade técnica bloqueada, isolamento de `anon`, bloqueio de escrita de `authenticated`, leitura administrativa, e a capacidade exata de `service_role` (inclusive tentativas de `UPDATE` em colunas restritas, `DELETE` e `TRUNCATE`, todas bloqueadas por `insufficient_privilege` real) — sem nenhum dado residual. Verificação defensiva pós-teste não encontrou nenhum padrão de segredo nas tabelas, que permanecem vazias. Nenhum trigger de consistência `card_variant_id`×`card_id` criado (Regra de Negócio 7, permanece candidata futura — decisão deliberada de não introduzir trigger cross-table sem necessidade concreta comprovada). Nenhuma fonte cadastrada, nenhuma chamada à JustTCG, nenhuma das duas entidades restantes do domínio (`pricing_fx_rate`, `pricing_observation`) implementada. Nenhum commit/push realizado. |
 | 1.6 | **Correção retroativa de segurança (2026-08-16, mesmo dia, mesmo ciclo do Incremento P4), a pedido explícito de Fabrício.** Auditoria somente leitura confirmou que as sete tabelas de Pricing dos Incrementos P1–P3 (`pricing_source`, `card_condition`, `pricing_condition_mapping`, `pricing_set_mapping`, `pricing_card_mapping`, `pricing_sync_run`, `pricing_sync_run_call`) nunca tiveram `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` revogados de `service_role` (defaults de `pg_default_acl` em tabelas criadas por `postgres`, deixados intocados até então). Corrigido via Query `3053`, revogando apenas esses quatro privilégios de `service_role` nas sete tabelas — `SELECT`/`INSERT`/`UPDATE` preservados integralmente, incluindo os grants de coluna restritos de `pricing_sync_run`; nenhuma alteração de RLS/policies/estrutura/índices/dados. Validado por `has_table_privilege` (privilégios excedentes confirmados removidos, operacionais confirmados intactos) e por smoke test transacional real (`SELECT`/`INSERT`/`UPDATE` de `service_role` continuam funcionando; `TRUNCATE` agora bloqueado por ausência real de grant; leitura administrativa de `authenticated` intacta) — zero dado residual, zero impacto funcional. Advisors de segurança e performance sem nenhum achado novo referenciando as sete tabelas. Nenhum commit/push realizado. |
+| 1.7 | **Incremento P5 — Série Histórica de Taxas de Câmbio (2026-08-16, mesmo dia, ciclo seguinte à correção retroativa), a pedido explícito de Fabrício.** `pricing_fx_rate` criada no Supabase (Query `3060`), `CONFIRMADO EXECUTADO`, vazia. Estrutura idêntica à hipótese original desta versão do documento, com três desvios deliberados: (1) `CHECK` novo de formato técnico em `rate_source_code` (`ck_pricing_fx_rate_source_code_format`, mesmo padrão de `pricing_source.code`), não previsto no texto original; (2) a `UNIQUE` de unicidade semântica teve suas colunas reordenadas de `(from_currency, to_currency, rate_date, rate_source_code)` para `(from_currency, to_currency, rate_source_code, rate_date)` — mesma unicidade, mas agora a própria constraint serve integralmente como índice de consulta, dispensando o índice adicional `(from_currency, to_currency, rate_date DESC)` cogitado originalmente; (3) RLS/Grants decidido como o padrão conservador já usado no restante do domínio, e não como a "candidata a leitura pública (`anon`)" cogitada no texto original — `anon` sem privilégios, `authenticated` só `SELECT` via policy `pricing_admin_select`, `service_role` apenas `SELECT`/`INSERT`, com revogação explícita de `UPDATE`/`DELETE`/`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` (não confiar nos defaults de `pg_default_acl`, mesmo padrão já usado em `pricing_product`/Query `3053`). Validação consolidada de 22 itens funcionais/integridade/RLS/grants, executada de forma transacional (`BEGIN`/`ROLLBACK` forçado), incluindo as quatro rejeições de `CHECK` esperadas, duplicidade técnica bloqueada, aceitação de um novo código de fonte válido, isolamento de `anon`, bloqueio de escrita de `authenticated`, leitura administrativa, e a capacidade exata de `service_role` (`SELECT`/`INSERT` funcionando; `UPDATE`/`DELETE`/`TRUNCATE` bloqueados por `insufficient_privilege` real, `REFERENCES`/`TRIGGER`/`MAINTAIN` confirmados ausentes por catálogo) — sem nenhum dado residual. Validação de performance com volume sintético de 7.830 linhas (5 pares de moeda × 2 fontes × ~3 anos de dias úteis): os três planos de consulta reais (taxa mais recente até uma data; taxa de data exata; histórico de intervalo por par/fonte) usam `Index Scan`/`Index Scan Backward` sobre a própria `UNIQUE` reordenada, sem `Seq Scan` e sem `Sort` adicional. `get_advisors` (segurança e performance): zero achados novos referenciando `pricing_fx_rate`. Nenhuma chamada ao Banco Central, nenhuma chamada à JustTCG, nenhuma taxa real cadastrada, nenhuma ingestão PTAX implementada — permanecem fora de escopo. Única entidade restante do domínio: `pricing_observation`. Nenhum commit/push realizado. |
