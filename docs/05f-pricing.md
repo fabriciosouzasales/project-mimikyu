@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Pricing |
 | **Arquivo** | `docs/05f-pricing.md` |
-| **Versão** | 1.3 |
-| **Status** | **Parcialmente implementado.** Cinco entidades `CONFIRMADO EXECUTADO` no Supabase (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2, ambas as tabelas vazias, nenhuma fonte homologada). As cinco entidades restantes (`pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`) permanecem `Proposto, ainda não executado`. |
+| **Versão** | 1.4 |
+| **Status** | **Parcialmente implementado.** Sete entidades `CONFIRMADO EXECUTADO` no Supabase (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3, todas ainda vazias, nenhuma fonte homologada). As três entidades restantes (`pricing_product`, `pricing_fx_rate`, `pricing_observation`) permanecem `Proposto, ainda não executado`. |
 | **Objetivo** | Modelo lógico e físico do domínio Pricing — observações de mercado por fonte externa, independente de Catálogo Editorial e de Ownership, conforme `ADR-029` e `ADR-006`. |
 | **Escopo** | Entidades de Pricing: fonte, mapeamento de Set/Card por fonte, produto (impressão+idioma reportados pela fonte), condição canônica, observação de preço, câmbio, auditoria de sincronização. Não inclui a modelagem física de Item Valuation (Analytics), deliberadamente adiada — ver seção própria ao final. |
 | **Dependências** | `04-domain-model.md` (seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)"), `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-029-pricing-domain-model.md`, `standards/STD-001-database-standards.md`, `standards/STD-002-domain-modeling.md`, `05b-cartas-e-raridade.md` (Card/Card Variant), `05c-assets-e-importacao.md` (Language/Asset Source — padrão de referência, não reaproveitado por tabela). |
@@ -1213,8 +1213,9 @@ updated_at
 1. `finished_at IS NOT NULL` somente quando `status` for terminal (`COMPLETED`/`COMPLETED_WITH_ERRORS`/`FAILED`/`CANCELLED`).
 2. Todos os contadores `>= 0`.
 3. Nenhuma linha é excluída — log de auditoria permanente, mesmo espírito de `catalog_admin_action_log`.
+4. **`finished_at >= started_at` quando preenchido** — verificado por `CHECK` (requisito explícito do Incremento P3, reforçando por constraint física que a janela de execução nunca é temporalmente invertida).
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P3, 2026-08-16, Query `3080`/`3081`)
 
 ```sql
 CREATE TABLE public.pricing_sync_run (
@@ -1245,13 +1246,10 @@ CREATE TABLE public.pricing_sync_run (
         CHECK (
             (status IN ('RECEIVED', 'PROCESSING') AND finished_at IS NULL)
             OR (status IN ('COMPLETED', 'COMPLETED_WITH_ERRORS', 'FAILED', 'CANCELLED') AND finished_at IS NOT NULL)
-        )
+        ),
+    CONSTRAINT ck_pricing_sync_run_finished_after_started
+        CHECK (finished_at IS NULL OR finished_at >= started_at)
 );
-
-CREATE INDEX ix_pricing_sync_run_pricing_source_id
-    ON public.pricing_sync_run (pricing_source_id);
-CREATE INDEX ix_pricing_sync_run_status
-    ON public.pricing_sync_run (status);
 
 CREATE TRIGGER trg_pricing_sync_run_set_updated_at
     BEFORE UPDATE ON public.pricing_sync_run
@@ -1260,20 +1258,44 @@ CREATE TRIGGER trg_pricing_sync_run_set_updated_at
 ALTER TABLE public.pricing_sync_run ENABLE ROW LEVEL SECURITY;
 ```
 
+**Índices — decisão do Incremento P3, deviando do par genérico originalmente cogitado (`pricing_source_id` isolado + `status` isolado) em favor do menor conjunto que atende às consultas reais previstas:**
+
+```sql
+CREATE INDEX ix_pricing_sync_run_source_started
+    ON public.pricing_sync_run (pricing_source_id, started_at DESC);
+
+CREATE INDEX ix_pricing_sync_run_active
+    ON public.pricing_sync_run (pricing_source_id)
+    WHERE status IN ('RECEIVED', 'PROCESSING');
+```
+
+`ix_pricing_sync_run_source_started` atende "últimas execuções de uma fonte" (`WHERE pricing_source_id = X ORDER BY started_at DESC`) — confirmado via `EXPLAIN (ANALYZE, BUFFERS)` real (Index Scan, sem ordenação adicional). `ix_pricing_sync_run_active` é um índice parcial (só `RECEIVED`/`PROCESSING`, tipicamente um punhado de linhas mesmo em volume alto) que atende tanto "execuções ativas de uma fonte" quanto "todas as execuções ativas" — confirmado com as duas variantes de consulta usando o mesmo índice. Um índice isolado em `status` foi deliberadamente descartado: `status` sozinho não é seletivo o bastante para a maioria dos valores (a esmagadora maioria das linhas é terminal), e a única consulta real por status é justamente a de execuções ativas, já coberta pelo índice parcial.
+
 **Cardinalidade:** `pricing_source` 1—N `pricing_sync_run` 1—N `pricing_sync_run_call`; `pricing_sync_run` 0..1—N `pricing_observation`.
 
 **Política de exclusão:** `pricing_source_id` em `ON DELETE RESTRICT`. Nenhuma exclusão de `pricing_sync_run` prevista — log permanente.
 
-**RLS e Grants:** `pricing_admin_select`. `service_role` com `SELECT`/`INSERT`/`UPDATE` (grava e atualiza status/contadores ao longo da própria execução — mesmo padrão de `catalog_variant_import_job`).
+**RLS e Grants — CONFIRMADO EXECUTADO (Incremento P3):** RLS habilitado; policy `pricing_admin_select` (`SELECT`, `(select is_admin())`). `authenticated`: só `SELECT` (bloqueado de escrita — confirmado). `anon`: nenhum privilégio. **`service_role`: `SELECT`, `INSERT` e `UPDATE` restrito por coluna** — decisão explícita de Fabrício, mais restritiva que o modelo genérico "`SELECT`/`INSERT`/`UPDATE`" cogitado nas versões anteriores deste documento: `UPDATE` concedido apenas em `status`, `requests_made`, `requests_remaining_at_end`, `rate_limit_hits`, `error_summary`, `finished_at` (os campos operacionais do ciclo de vida da execução); `id`, `pricing_source_id`, `run_type`, `triggered_by`, `started_at`, `created_at` permanecem inalteráveis pelo fluxo normal após a inserção (nenhum `GRANT UPDATE` nessas colunas — confirmado por teste real: tentativa de alterar `run_type`/`pricing_source_id` via `service_role` falha com `insufficient_privilege`). Nenhum `GRANT DELETE` — histórico permanente, `DELETE` confirmado bloqueado para `service_role`.
 
-## Testes Mínimos de Integridade Previstos
+## Testes Mínimos de Integridade Previstos (validados, Incremento P3 — transacional, `BEGIN`/`ROLLBACK`, sem dado residual)
 
-- `status` terminal sem `finished_at` falha e vice-versa;
-- contador negativo falha.
+- `status` terminal sem `finished_at` falha e vice-versa — validado;
+- contador negativo falha — validado;
+- `finished_at < started_at` falha — validado;
+- os seis valores de `status`, três de `run_type`, dois de `triggered_by` inseridos com sucesso em suas formas válidas — validado;
+- `anon` sem privilégio de leitura; `authenticated` não-admin sem privilégio de escrita e sem nenhuma linha visível via RLS; sessão admin lê todas — validado;
+- `service_role` insere e atualiza colunas operacionais com sucesso; `UPDATE` em coluna de identidade (`run_type`, `pricing_source_id`) bloqueado; `DELETE` bloqueado — validado.
 
 ## Definition of Done
 
-- [ ] tabela criada, RLS, trigger, validação.
+- [x] tabela criada no Supabase (Incremento P3, 2026-08-16);
+- [x] RLS + policy `pricing_admin_select`;
+- [x] `GRANT`s mínimos, incluindo `UPDATE` restrito por coluna para `service_role` e ausência de `GRANT DELETE`;
+- [x] trigger de `updated_at`;
+- [x] `CHECK` de `finished_at >= started_at`;
+- [x] índices orientados às consultas reais (ver acima), confirmados por `EXPLAIN (ANALYZE, BUFFERS)`;
+- [x] validação estrutural, funcional e de performance (16 itens funcionais + 4 planos de execução, Incremento P3);
+- [ ] nenhuma execução real ainda — tabela vazia, depende de integração/Edge Function/cron futuros, fora de escopo do Incremento P3.
 
 ---
 
@@ -1335,10 +1357,11 @@ called_at
 ## Regras de Negócio
 
 1. `UNIQUE (sync_run_id, sequence_number)`.
-2. `error_detail` nunca deve conter os padrões sensíveis listados acima — garantido pela rotina de escrita (sanitização antes do `INSERT`), não expressável como `CHECK` sem duplicar a lógica de redação em SQL (decisão deliberada de manter a sanitização em código de aplicação/Edge Function, ponto único de verdade, mesmo já validado na prova técnica em PowerShell).
+2. `error_detail` nunca deve conter os padrões sensíveis listados acima — garantido pela rotina de escrita (sanitização antes do `INSERT`), não expressável como `CHECK` sem duplicar a lógica de redação em SQL (decisão deliberada de manter a sanitização em código de aplicação/Edge Function, ponto único de verdade, mesmo já validado na prova técnica em PowerShell). Verificação defensiva pós-implementação (Incremento P3) confirmou tabela vazia, sem qualquer padrão sensível residual.
 3. Nenhuma exclusão prevista — log permanente, mesmo espírito de `pricing_sync_run`.
+4. **`http_status_code`, quando preenchido, entre `100` e `599`** — verificado por `CHECK` (requisito explícito do Incremento P3, não presente no texto original desta seção).
 
-## Modelo Físico (PostgreSQL) — Proposto, Ainda Não Executado
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P3, 2026-08-16, Query `3090`)
 
 ```sql
 CREATE TABLE public.pricing_sync_run_call (
@@ -1361,14 +1384,15 @@ CREATE TABLE public.pricing_sync_run_call (
     CONSTRAINT ck_pricing_sync_run_call_outcome
         CHECK (outcome IN ('SUCCESS', 'TECHNICAL_FAILURE', 'BUDGET_STOPPED')),
     CONSTRAINT ck_pricing_sync_run_call_remaining_non_negative
-        CHECK (api_requests_remaining IS NULL OR api_requests_remaining >= 0)
+        CHECK (api_requests_remaining IS NULL OR api_requests_remaining >= 0),
+    CONSTRAINT ck_pricing_sync_run_call_http_status_range
+        CHECK (http_status_code IS NULL OR (http_status_code BETWEEN 100 AND 599))
 );
-
-CREATE INDEX ix_pricing_sync_run_call_sync_run_id
-    ON public.pricing_sync_run_call (sync_run_id);
 
 ALTER TABLE public.pricing_sync_run_call ENABLE ROW LEVEL SECURITY;
 ```
+
+**Nenhum índice isolado em `sync_run_id` — decisão do Incremento P3, deviando do índice genérico originalmente cogitado.** A `UNIQUE (sync_run_id, sequence_number)` já cria um índice composto cujo prefixo (`sync_run_id`) e ordenação (`sequence_number` ascendente) atendem exatamente à leitura ordenada das chamadas de uma execução — confirmado via `EXPLAIN (ANALYZE, BUFFERS)` real com 1.000 linhas sintéticas: `Index Scan using uq_pricing_sync_run_call_run_sequence`, sem `Sort` adicional. Um segundo índice apenas em `sync_run_id` seria redundante (mesmo prefixo), por isso não foi criado.
 
 Sem trigger de `updated_at` — log de eventos, imutável (mesma nota de `pricing_observation`).
 
@@ -1376,7 +1400,27 @@ Sem trigger de `updated_at` — log de eventos, imutável (mesma nota de `pricin
 
 **Política de exclusão:** `sync_run_id` em `ON DELETE CASCADE` (uma chamada não tem sentido sem a execução que a originou — diferente de `pricing_observation`, que preserva o fato de preço mesmo se o log de sincronização for eventualmente descartado).
 
-**RLS e Grants:** `pricing_admin_select`. `service_role` com `SELECT`/`INSERT` apenas (log append-only, sem `UPDATE`).
+**RLS e Grants — CONFIRMADO EXECUTADO (Incremento P3):** `pricing_admin_select`. `authenticated`: só `SELECT`, escrita bloqueada — confirmado. `anon`: nenhum privilégio. `service_role`: `SELECT`/`INSERT` apenas — `UPDATE` e `DELETE` confirmados bloqueados por teste real (`insufficient_privilege`, nenhum `GRANT` concedido); tabela genuinamente append-only. Nenhum `GRANT TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` concedido a `anon`/`authenticated` (revogados por padrão STD-001).
+
+## Testes Mínimos de Integridade Previstos (validados, Incremento P3 — transacional, `BEGIN`/`ROLLBACK`, sem dado residual)
+
+- `sequence_number <= 0` falha — validado;
+- `http_status_code` fora de `100`–`599` falha — validado;
+- `endpoint` vazio falha — validado;
+- duplicidade de `(sync_run_id, sequence_number)` falha — validado;
+- os três valores de `outcome` inseridos com sucesso — validado;
+- `authenticated` sem privilégio de escrita; `service_role` insere mas não atualiza nem exclui — validado;
+- verificação defensiva de padrões sensíveis (`tcg_`, `Bearer `, `Authorization`, `x-api-key`) — nenhum encontrado, tabela vazia.
+
+## Definition of Done
+
+- [x] tabela criada no Supabase (Incremento P3, 2026-08-16);
+- [x] RLS + policy `pricing_admin_select`;
+- [x] `GRANT`s mínimos (`service_role` só `SELECT`/`INSERT`, sem `UPDATE`/`DELETE`);
+- [x] `CHECK` de `http_status_code` entre `100` e `599`;
+- [x] decisão de índice documentada e confirmada por plano de execução real (sem índice redundante);
+- [x] validação estrutural, funcional e de performance (16 itens funcionais + 1 plano de execução, Incremento P3);
+- [ ] nenhuma chamada real ainda — depende de integração/Edge Function futura, fora de escopo do Incremento P3.
 
 ## Testes Mínimos de Integridade Previstos
 
@@ -1424,9 +1468,9 @@ Quando Collection existir, um `item_valuation_snapshot` provavelmente referencia
 
 ---
 
-# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1, Estendida no Incremento P2
+# Numeração (STD-001) — `3000`–`3999`, Formalizada no Incremento P1, Estendida nos Incrementos P2 e P3
 
-Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`). O Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia) implementou as duas entidades seguintes:
+Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999` Identidade e Acesso; `2000`–`2999` Catálogo Editorial — Escrita e Ingestão), o milhar `3000`–`3999` foi comprometido como o módulo **Pricing** durante o Incremento P1 — Fundação Física (2026-08-16), quando as três primeiras entidades foram fisicamente criadas no Supabase (`CONFIRMADO EXECUTADO`). O Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia) implementou as duas entidades seguintes; o Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia) implementou mais duas:
 
 ```text
 3000–3009  pricing_source              — CONFIRMADO EXECUTADO (3000 tabela, 3001 trigger, 3002 grant service_role)
@@ -1437,10 +1481,10 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 3050–3059  pricing_product             — Proposto, ainda não executado
 3060–3069  pricing_fx_rate             — Proposto, ainda não executado
 3070–3079  pricing_observation         — Proposto, ainda não executado
-3080–3089  pricing_sync_run            — Proposto, ainda não executado
-3090–3099  pricing_sync_run_call       — Proposto, ainda não executado
+3080–3089  pricing_sync_run            — CONFIRMADO EXECUTADO (3080 tabela + índices + RLS + grants, 3081 trigger)
+3090–3099  pricing_sync_run_call       — CONFIRMADO EXECUTADO (3090 tabela + RLS + grants; sem trigger, tabela append-only)
 3700–3799  Seeds                       — nenhuma executada (ver "Pendências", abaixo)
-3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2, validação consolidada de 15 itens, transacional, sem escrita física — nenhuma migration real associada, apenas o registro do número no diário de numeração)
+3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2), 3820 (Incremento P3, validação consolidada de 16 itens funcionais + 4 planos de execução, transacional, sem escrita física — nenhuma migration real associada, apenas o registro do número no diário de numeração)
 3900–3999  Reserva
 ```
 
@@ -1463,3 +1507,4 @@ Ver `STD-001`, subseção "Módulo: Pricing (`3000`–`3999`)", para o mesmo reg
 | 1.1 | **Correção arquitetural pontual (2026-08-16, mesmo dia, ciclo seguinte), a pedido explícito de Fabrício — cinco pontos, sem reabrir a modelagem inteira.** (1) `pricing_product.language_status` generalizado de tri-estado binário-PT-BR (`CONFIRMED`=PT-BR/`NOT_CONFIRMED`=não-PT-BR/`UNDETERMINED`) para tri-estado neutro e multi-idioma (`CONFIRMED`/`INFERRED`/`UNDETERMINED`); `confirmed_language_id` renomeado para `language_id` (FK opcional para `language`, obrigatória em `CONFIRMED`/`INFERRED`, nula em `UNDETERMINED`); cobertura de idioma passa a ser sempre derivada por comparação (`pricing_product.language_id = collection_item.language_id`, futuro); valuation direto exige `CONFIRMED` — `INFERRED` não autoriza equivalência direta. (2) "Valor Brasil" deixa de depender exclusivamente de `pricing_source.market_scope` (renomeado para `default_market_scope` — classificação/default declarado, não mais autoridade final); `pricing_observation` ganha `market_scope`/`market_label` (renomeado de `market`)/`market_evidence`/`market_evidence_confirmed`; `BRAZIL_ITEM_VALUATION` agora exige `pricing_observation.market_scope = 'BRAZIL' AND market_evidence_confirmed = TRUE`. (3) `pricing_set_mapping`/`pricing_card_mapping` ganham quarto estado `NOT_FOUND` (busca tecnicamente concluída sem correspondência, distinta de "nunca avaliado" — ausência de linha — e de `REJECTED` — candidato específico rejeitado; contradição real da versão `1.0`, que colapsava os dois últimos sob `REJECTED`, corrigida); `external_set_id`/`external_card_id` tornam-se opcionais (obrigatórios só em `CONFIRMED`); `UNIQUE` simples de `(fonte, id externo)` substituída por índice único parcial (`WHERE match_status = 'CONFIRMED'`); novo campo `last_checked_at`. (4) `pricing_condition` renomeada para `card_condition` e reclassificada como referência compartilhada e neutra (não pertence a Pricing nem ao Catálogo Editorial) — `pricing_condition_mapping` permanece exclusiva de Pricing, agora referenciando `card_condition`; total de entidades descritas no documento permanece 10, mas apenas 9 são exclusivas de Pricing. (5) Diagrama Mermaid corrigido — removidas as relações `CARD_VARIANT`↔`LANGUAGE` e `PRICING_FX_RATE`↔`PRICING_OBSERVATION`, ambas sem FK física (o próprio texto já as declarava assim); movidas para nota textual fora do ER. Nenhuma tabela criada, nenhuma migration, nenhuma chamada à API da JustTCG; condição da homologação da JustTCG inalterada (pendente, não aprovada nem reprovada); critérios pré-registrados das Decisões A/B não tocados. Decisões corretas da versão `1.0` preservadas — ver `adr/ADR-029-pricing-domain-model.md` revisão `1.1` para o mesmo detalhamento em nível de ADR. |
 | 1.2 | **Incremento P1 — Fundação Física de Pricing (2026-08-16, mesmo dia, ciclo seguinte à correção `1.1`), a pedido explícito de Fabrício.** Primeira implementação física do domínio: `pricing_source`, `card_condition` e `pricing_condition_mapping` criadas no Supabase (Queries `3000`/`3001`/`3010`/`3011`/`3020`/`3021`, mais `3002` de correção de grants), `CONFIRMADO EXECUTADO`, com estrutura, RLS, triggers, grants e validação de 12 itens idênticos ao modelo aprovado nas versões `1.0`/`1.1`. Milhar `3000`–`3999` formalizado como módulo Pricing em `STD-001`. Numeração de `card_condition` decidida explicitamente por Fabrício: permanece dentro de `3000`–`3999` (`3010`–`3019`), registrando apenas o ciclo de implementação, não pertencimento de domínio — o módulo "Referências Compartilhadas" cogitado na versão `1.1` não foi criado; `4000`–`4999` permanece livre e não reservado (ver seção "Numeração", acima, para o texto completo da decisão). Nenhuma fonte cadastrada, nenhuma condição semeada (vocabulário ainda não confirmado), nenhuma chamada à JustTCG, nenhuma das outras sete entidades do domínio implementada — todas continuam `Proposto, ainda não executado`. Nenhum commit/push realizado. |
 | 1.3 | **Incremento P2 — Correspondência Externa de Pricing (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P1), a pedido explícito de Fabrício.** `pricing_set_mapping` e `pricing_card_mapping` criadas no Supabase (Queries `3030`/`3031`/`3040`/`3041`), `CONFIRMADO EXECUTADO`, ambas vazias (zero linhas, nenhuma fonte homologada, nenhuma chamada à JustTCG). Estrutura idêntica ao modelo aprovado na versão `1.1`, com um requisito de integridade novo, não previsto nas versões anteriores: `CHECK` garantindo que `match_status = 'NOT_FOUND'` exige `last_checked_at IS NOT NULL` (`ck_pricing_set_mapping_not_found_requires_last_checked`/`ck_pricing_card_mapping_not_found_requires_last_checked`) — reforça por constraint física a regra de negócio já descrita para `last_checked_at` desde a versão `1.1`. `service_role` recebeu apenas `SELECT` neste incremento, por decisão explícita de Fabrício — a capacidade de escrita (`INSERT`/`UPDATE` para a futura Edge Function de sincronização) fica deliberadamente adiada para um incremento futuro de sincronização. A regra "`pricing_card_mapping` só quando `pricing_set_mapping` da mesma fonte estiver `CONFIRMED`" permanece responsabilidade de uma futura rotina de escrita — nenhum trigger/função criada para isso neste incremento. Validação consolidada de 15 itens executada de forma transacional (`BEGIN`/`ROLLBACK`), incluindo teste real dos quatro estados (`CONFIRMED`/`PENDING`/`NOT_FOUND`/`REJECTED`), das duas falhas de `CHECK` esperadas (`NOT_FOUND` sem `last_checked_at`; `CONFIRMED` sem identificador externo), da unicidade parcial (só entre linhas `CONFIRMED`) e do isolamento RLS (`anon` bloqueado, `authenticated` não-admin sem linhas, admin com leitura completa) — sem nenhum dado residual nas tabelas reais. Milhar `3000`–`3999` permanece o único milhar comprometido; nenhum módulo novo criado. Nenhuma das cinco entidades restantes do domínio (`pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`) implementada — continuam `Proposto, ainda não executado`. Nenhum commit/push realizado. |
+| 1.4 | **Incremento P3 — Auditoria Operacional de Sincronização (2026-08-16, mesmo dia, ciclo seguinte ao Incremento P2), a pedido explícito de Fabrício.** `pricing_sync_run` e `pricing_sync_run_call` criadas no Supabase (Queries `3080`/`3081`/`3090`), `CONFIRMADO EXECUTADO`, ambas vazias. Requisitos de integridade novos, não previstos nas versões anteriores: `CHECK` de `finished_at >= started_at` em `pricing_sync_run`; `CHECK` de `http_status_code` entre `100` e `599` em `pricing_sync_run_call`. Índices reformulados por decisão explícita do incremento, deviando do par genérico originalmente cogitado: `pricing_sync_run` recebeu um índice composto `(pricing_source_id, started_at DESC)` e um índice parcial `(pricing_source_id) WHERE status IN ('RECEIVED', 'PROCESSING')`, em vez de dois índices isolados em `pricing_source_id`/`status`; `pricing_sync_run_call` não recebeu nenhum índice isolado em `sync_run_id` — a `UNIQUE (sync_run_id, sequence_number)` já cobre a leitura ordenada por `sequence_number`. Todas as escolhas de índice confirmadas por `EXPLAIN (ANALYZE, BUFFERS)` real sobre volume sintético (9.000 execuções, 1.000 chamadas), dentro de transação com `ROLLBACK`. Grants de `service_role` mais restritivos que o modelo genérico das versões anteriores: em `pricing_sync_run`, `UPDATE` concedido só nas colunas operacionais (`status`/`requests_made`/`requests_remaining_at_end`/`rate_limit_hits`/`error_summary`/`finished_at`), com `id`/`pricing_source_id`/`run_type`/`triggered_by`/`started_at`/`created_at` inalteráveis pelo fluxo normal e nenhum `GRANT DELETE`; em `pricing_sync_run_call`, apenas `SELECT`/`INSERT` (tabela append-only, `UPDATE`/`DELETE` confirmados bloqueados). Validação consolidada de 16 itens funcionais, executada de forma transacional (`BEGIN`/`ROLLBACK`, `pricing_source` temporária), incluindo todos os estados de `run_type`/`status`/`triggered_by`/`outcome`, as sete rejeições de integridade esperadas, isolamento de `anon`, bloqueio de escrita de `authenticated`, leitura administrativa, e a capacidade exata de escrita da `service_role` (inclusive tentativas de `UPDATE`/`DELETE` em colunas/tabelas restritas, todas bloqueadas) — sem nenhum dado residual. Verificação defensiva pós-teste não encontrou nenhum padrão de segredo (`tcg_`/`Bearer `/`Authorization`/`x-api-key`) nas tabelas, que permanecem vazias. Advisors de segurança e performance sem nenhum achado novo relevante para as duas tabelas. Nenhuma fonte cadastrada, nenhuma chamada à JustTCG, nenhuma das três entidades restantes do domínio (`pricing_product`, `pricing_fx_rate`, `pricing_observation`) implementada. Nenhum commit/push realizado. |
