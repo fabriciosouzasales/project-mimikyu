@@ -331,6 +331,35 @@ function resolveSetMatch(target: SetTarget, allSets: JustTcgSet[]): { set: JustT
 }
 
 // ============================================================================
+// 5b. Classificação de INSERT — escrita real vs conflito ignorado (telemetria P8)
+// ============================================================================
+
+// Toda escrita de pricing_product/pricing_observation tenta um INSERT puro e trata
+// "duplicate key" como sucesso silencioso (equivalente a ON CONFLICT DO NOTHING via
+// client JS, já que .insert() não aceita target de conflito arbitrário sem upsert).
+// Sem esta classificação explícita, o contador de "Written" ficava indistinguível de
+// "Resolved" (resolvido, novo ou já existente) — bug real encontrado por Fabrício em
+// 2026-08-17: numa reexecução idempotente, todos os itens são conflito ignorado, mas
+// o contador antigo (productsWritten/observationsWritten) subia do mesmo jeito, porque
+// contava qualquer item resolvido, não só inserts novos. Isso fazia a prova de
+// idempotência do runner (Executar-P8-JustTCG-Local.ps1) comparar dois números que
+// batiam por definição (igualdade cega), mascarando o requisito real: a segunda
+// execução não deve escrever NADA novo.
+type InsertOutcome = "NEW" | "CONFLICT_IGNORED" | "OTHER_ERROR";
+
+function classifyInsertResult(error: { message: string } | null): InsertOutcome {
+  if (!error) return "NEW";
+  return `${error.message}`.includes("duplicate key") ? "CONFLICT_IGNORED" : "OTHER_ERROR";
+}
+
+// Acumula um item já classificado (OTHER_ERROR nunca chega aqui — é tratado como falha
+// e o item nem entra na contagem). `resolved` sobe sempre; `written` só em "NEW".
+function accumulateWriteOutcome(counts: { resolved: number; written: number }, outcome: Exclude<InsertOutcome, "OTHER_ERROR">): void {
+  counts.resolved++;
+  if (outcome === "NEW") counts.written++;
+}
+
+// ============================================================================
 // 6. Fixture-check — validação 100% offline, sem rede, sem escrita no Supabase
 // ============================================================================
 
@@ -385,6 +414,40 @@ function runFixtureCheck() {
   // Payload mínimo — raw_payload não deve conter todo o objeto `card`, só a variante.
   const rawPayloadExample = sanitizeJson({ condition: "Near Mint", printing: "Reverse Holofoil", price: 0.34, priceChange24hr: 3.03, lastUpdated: 1786950059 });
   assert("raw_payload é objeto plano, não array", !Array.isArray(rawPayloadExample) && typeof rawPayloadExample === "object");
+
+  // Telemetria de escrita (correção 2026-08-17): productsWritten/observationsWritten só
+  // podem contar inserts realmente novos — regressão direta do bug real reportado por
+  // Fabrício, em que uma reexecução 100% idempotente (todo item resolvido via conflito
+  // ignorado) inflava esses contadores como se tivesse escrito tudo de novo.
+  assert("classifyInsertResult: sem erro -> NEW", classifyInsertResult(null) === "NEW");
+  assert(
+    "classifyInsertResult: duplicate key -> CONFLICT_IGNORED (conflito ignorado, não é escrita nova)",
+    classifyInsertResult({ message: 'duplicate key value violates unique constraint "uq_pricing_product_mapping_external"' }) === "CONFLICT_IGNORED",
+  );
+  assert(
+    "classifyInsertResult: erro real (não duplicate key) -> OTHER_ERROR, nunca engolido como conflito",
+    classifyInsertResult({ message: "permission denied for table pricing_product" }) === "OTHER_ERROR",
+  );
+
+  const primeiraExecucaoSimulada = { resolved: 0, written: 0 };
+  (["NEW", "NEW", "NEW"] as const).forEach((o) => accumulateWriteOutcome(primeiraExecucaoSimulada, o));
+  assert(
+    "accumulateWriteOutcome: 3 inserts novos -> resolved=3 e written=3",
+    primeiraExecucaoSimulada.resolved === 3 && primeiraExecucaoSimulada.written === 3,
+  );
+
+  // Regressão-chave: simula a SEGUNDA execução do piloto contra os mesmos 3 itens da
+  // primeira — todos batem em "duplicate key" (ON CONFLICT DO NOTHING client-side).
+  // resolved deve continuar 3 (mesmos itens processados), mas written tem que ser 0.
+  // Com o bug antigo (sem esta classificação), written teria voltado a 3, e o runner
+  // (Executar-P8-JustTCG-Local.ps1) teria considerado isso "idempotência confirmada"
+  // por coincidência de contagem, nunca por prova de que nada novo foi escrito.
+  const reexecucaoIdempotenteSimulada = { resolved: 0, written: 0 };
+  (["CONFLICT_IGNORED", "CONFLICT_IGNORED", "CONFLICT_IGNORED"] as const).forEach((o) => accumulateWriteOutcome(reexecucaoIdempotenteSimulada, o));
+  assert(
+    "accumulateWriteOutcome: reexecução com os 3 conflitos ignorados -> resolved=3 mas written=0 (prova de idempotência real, sem escrita nova)",
+    reexecucaoIdempotenteSimulada.resolved === 3 && reexecucaoIdempotenteSimulada.written === 0,
+  );
 
   const failed = assertions.filter(([, ok]) => !ok);
   for (const [label, ok] of assertions) console.log(`  [${ok ? "OK" : "FALHOU"}] ${label}`);
@@ -454,7 +517,15 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
     syncRunId = data.id as string;
   }
 
-  const summary = { setsResolved: 0, setsFailed: 0, cardsResolved: 0, cardsFailed: 0, productsWritten: 0, observationsWritten: 0 };
+  // productsResolved/observationsResolved contam todo item processado com sucesso
+  // (novo OU já existente via conflito ignorado) — mesma semântica que setsResolved/
+  // cardsResolved sempre tiveram. productsWritten/observationsWritten (correção
+  // 2026-08-17) contam SÓ inserts novos — nunca subiam separado de "resolved" antes
+  // desta correção, o que inflava a telemetria numa reexecução idempotente.
+  const summary = {
+    setsResolved: 0, setsFailed: 0, cardsResolved: 0, cardsFailed: 0,
+    productsResolved: 0, productsWritten: 0, observationsResolved: 0, observationsWritten: 0,
+  };
   const errorParts: string[] = [];
   // Finalização garantida (correção 2026-08-17): qualquer exceção não tratada dentro
   // deste bloco — incluindo bugs reais como o de findCard() corrigido nesta mesma data —
@@ -631,8 +702,9 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
         .maybeSingle();
 
       let productId: string | null = productData?.id as string | undefined ?? null;
-      if (productError && !`${productError.message}`.includes("duplicate key")) {
-        errorParts.push(`PRODUCT_INSERT_FAILED(${externalProductId}): ${sanitize(productError.message)}`);
+      const productOutcome = classifyInsertResult(productError);
+      if (productOutcome === "OTHER_ERROR") {
+        errorParts.push(`PRODUCT_INSERT_FAILED(${externalProductId}): ${sanitize((productError as { message: string }).message)}`);
         continue;
       }
       if (!productId) {
@@ -640,7 +712,14 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
         productId = (existingProduct?.id as string) ?? null;
       }
       if (!productId) continue;
-      summary.productsWritten++;
+      // productOutcome aqui só pode ser "NEW" ou "CONFLICT_IGNORED" — "OTHER_ERROR" já
+      // causou "continue" acima. Mesma função pura testada em runFixtureCheck().
+      {
+        const productCounts = { resolved: summary.productsResolved, written: summary.productsWritten };
+        accumulateWriteOutcome(productCounts, productOutcome);
+        summary.productsResolved = productCounts.resolved;
+        summary.productsWritten = productCounts.written;
+      }
 
       const conditionId = conditionMap.get(conditionRaw);
       if (!conditionId) {
@@ -665,15 +744,26 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
         observed_at: observedAt,
         raw_payload: rawPayload,
       });
-      if (obsError && !`${obsError.message}`.includes("duplicate key")) {
-        errorParts.push(`OBSERVATION_INSERT_FAILED(${externalProductId}): ${sanitize(obsError.message)}`);
+      const observationOutcome = classifyInsertResult(obsError);
+      if (observationOutcome === "OTHER_ERROR") {
+        errorParts.push(`OBSERVATION_INSERT_FAILED(${externalProductId}): ${sanitize((obsError as { message: string }).message)}`);
         continue;
       }
-      summary.observationsWritten++;
+      {
+        const observationCounts = { resolved: summary.observationsResolved, written: summary.observationsWritten };
+        accumulateWriteOutcome(observationCounts, observationOutcome);
+        summary.observationsResolved = observationCounts.resolved;
+        summary.observationsWritten = observationCounts.written;
+      }
     }
   }
 
-  const finalStatus = errorParts.length === 0 ? "COMPLETED" : summary.observationsWritten > 0 ? "COMPLETED_WITH_ERRORS" : "FAILED";
+  // Usa observationsResolved (não observationsWritten) de propósito: o critério aqui é
+  // "existe dado real persistido apesar dos erros", não "esta execução específica
+  // escreveu algo novo" — numa reexecução idempotente com erro em outro ponto,
+  // observationsWritten pode ser 0 mesmo com observações reais já confirmadas no banco
+  // (correção 2026-08-17, junto com a separação Resolved/Written acima).
+  const finalStatus = errorParts.length === 0 ? "COMPLETED" : summary.observationsResolved > 0 ? "COMPLETED_WITH_ERRORS" : "FAILED";
   await finalizeSyncRun(supabase, syncRunId, client, finalStatus, errorParts.length > 0 ? errorParts.slice(0, 10).join(" | ") : null, args.dryRun);
   syncRunFinalized = true;
 

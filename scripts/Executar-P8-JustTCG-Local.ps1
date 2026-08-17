@@ -337,14 +337,35 @@ try {
         $semErros1 = ($run1.Output -notmatch "(?m)^Erros:")
         $semErros2 = ($run2.Output -notmatch "(?m)^Erros:")
 
+        # Prova de idempotencia (corrigida em 2026-08-17): NAO e mais igualdade cega de
+        # todos os contadores entre as duas execucoes. productsWritten/observationsWritten
+        # agora contam SO inserts novos (conector corrigido na mesma data) - antes desta
+        # correcao, esses contadores contavam qualquer item resolvido (novo OU ja
+        # existente via conflito ignorado), entao a execucao 2 batia com a execucao 1 por
+        # definicao, mesmo se a execucao 2 tivesse escrito dados novos por engano. A prova
+        # real de idempotencia exige, especificamente:
+        #   1. as duas execucoes terminaram COMPLETED (nenhuma FAILED/COMPLETED_WITH_ERRORS);
+        #   2. zero falhas em ambas (setsFailed=0/cardsFailed=0 nos dois resumos, e nenhuma
+        #      linha "Erros:" na saida bruta de nenhuma das duas);
+        #   3. as duas execucoes resolveram os MESMOS itens (setsResolved/cardsResolved/
+        #      productsResolved/observationsResolved iguais entre execucao 1 e 2 - mesmo
+        #      catalogo processado, nao um subconjunto);
+        #   4. a SEGUNDA execucao nao escreveu NADA novo (productsWritten=0 e
+        #      observationsWritten=0 no resumo 2 especificamente - a execucao 1 pode ter
+        #      escrito dados novos legitimamente, mas a execucao 2 tem que ser 100% ON
+        #      CONFLICT DO NOTHING).
         $idempotente = $false
         if ($summary1 -and $summary2) {
             $idempotente = (
                 $summary1.status -eq "COMPLETED" -and $summary2.status -eq "COMPLETED" -and
+                $summary1.setsFailed -eq 0 -and $summary2.setsFailed -eq 0 -and
+                $summary1.cardsFailed -eq 0 -and $summary2.cardsFailed -eq 0 -and
                 $summary1.setsResolved -eq $summary2.setsResolved -and
                 $summary1.cardsResolved -eq $summary2.cardsResolved -and
-                $summary1.productsWritten -eq $summary2.productsWritten -and
-                $summary1.observationsWritten -eq $summary2.observationsWritten -and
+                $summary1.productsResolved -eq $summary2.productsResolved -and
+                $summary1.observationsResolved -eq $summary2.observationsResolved -and
+                $summary2.productsWritten -eq 0 -and
+                $summary2.observationsWritten -eq 0 -and
                 $semErros1 -and $semErros2
             )
         }
@@ -356,7 +377,7 @@ try {
         }
 
         if ($idempotente) {
-            Write-Host "`nIdempotencia CONFIRMADA - execucao 2 reproduziu exatamente os mesmos contadores da execucao 1, status COMPLETED em ambas, nenhum erro em nenhuma das duas (ON CONFLICT DO NOTHING funcionando como esperado)." -ForegroundColor Green
+            Write-Host "`nIdempotencia CONFIRMADA - execucao 2 terminou COMPLETED, resolveu exatamente os mesmos itens da execucao 1 (sets/cards/products/observations), zero falhas nas duas, e NAO escreveu nenhum produto/observacao novo (productsWritten=0, observationsWritten=0 na execucao 2 - ON CONFLICT DO NOTHING confirmado por contagem real, nao por coincidencia de contadores)." -ForegroundColor Green
         } else {
             Write-Host "`nIdempotencia NAO confirmada automaticamente - compare os dois resumos abaixo manualmente antes de considerar o piloto validado." -ForegroundColor Yellow
         }

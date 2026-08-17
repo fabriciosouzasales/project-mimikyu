@@ -1204,3 +1204,19 @@ O run existente foi corrigido retroativamente por `UPDATE` direto via Supabase M
 Validado diretamente no Supabase: `pricing_sync_run` só tem essa linha, agora `FAILED`; os dois `pricing_set_mapping` confirmados com `match_status = 'CONFIRMED'` e `confirmed_by` inalterado; `get_advisors` (segurança) sem achado novo referenciando `pricing_sync_run`. Nenhum commit/push realizado.
 
 Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.13` — nova nota em "Incremento P8", header atualizado, Revision History `1.13`, e ajuste do parágrafo "piloto real não executado" para refletir que já houve execução real fora do sandbox).
+
+## [2026-08-17] fix | Telemetria de escrita P8 (productsWritten/observationsWritten só inserts novos) + prova de idempotência do runner corrigida
+
+Fabrício pediu correção da telemetria: `productsWritten`/`observationsWritten` deviam contar só inserts efetivos, com contadores separados para itens processados; e correção da prova de idempotência do runner, que fazia igualdade cega de contadores em vez de exigir zero escrita nova na segunda execução.
+
+Causa raiz: `summary.productsWritten`/`summary.observationsWritten` (`scripts/sync-justtcg-pricing.ts`) subiam para qualquer item resolvido — insert novo OU já existente via `duplicate key` ignorado (equivalente client-side de `ON CONFLICT DO NOTHING`) — nunca distinguindo os dois casos. Como resultado, a prova de idempotência do runner (`Executar-P8-JustTCG-Local.ps1`), que comparava esses contadores entre a primeira e a segunda execução exigindo igualdade, passava por definição (mesmos itens hardcoded, mesma contagem nas duas execuções), sem nunca provar de fato que a segunda execução não escreveu nada novo.
+
+Corrigido em `scripts/sync-justtcg-pricing.ts`: novos contadores `productsResolved`/`observationsResolved` (semântica antiga — todo item processado, novo ou existente) e `productsWritten`/`observationsWritten` restritos a inserts genuinamente novos, via uma classificação explícita do resultado do INSERT — `classifyInsertResult()` (`NEW` sem erro / `CONFLICT_IGNORED` em `duplicate key` / `OTHER_ERROR` em qualquer outro erro, que continua abortando o item como falha real) — e um acumulador puro `accumulateWriteOutcome()`. `finalStatus` passou a decidir `COMPLETED_WITH_ERRORS` vs. `FAILED` usando `observationsResolved` (não `observationsWritten`), já que o critério correto é "existe dado real persistido apesar dos erros", não "esta execução específica escreveu algo novo".
+
+Regressão adicionada em `runFixtureCheck()`: testa `classifyInsertResult()` nos três casos (sucesso, `duplicate key`, erro real) e simula duas execuções com `accumulateWriteOutcome()` — a primeira com 3 inserts `NEW` (`resolved=3, written=3`) e a segunda com os mesmos 3 itens batendo em `CONFLICT_IGNORED` (`resolved=3, written=0`) — prova direta de que o bug antigo (que teria marcado `written=3` de novo na reexecução) está corrigido. Validado localmente via harness `node` equivalente ao runtime Deno: 21/21 asserções aprovadas (16 anteriores + 5 novas).
+
+Runner (`scripts/Executar-P8-JustTCG-Local.ps1`) corrigido: a prova de idempotência agora exige, explicitamente, que a segunda execução termine `COMPLETED`, com `setsFailed`/`cardsFailed = 0` em ambas as execuções e nenhuma linha `Erros:` na saída bruta, que as duas execuções tenham resolvido os mesmos itens (`setsResolved`/`cardsResolved`/`productsResolved`/`observationsResolved` iguais entre execução 1 e 2), e — o requisito central — `productsWritten = 0` e `observationsWritten = 0` especificamente na segunda execução, provando por contagem real que nada foi escrito de novo.
+
+Sem mudança de dado, schema ou migration — correção só de código. Nenhum commit/push realizado.
+
+Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.14` — nova nota em "Incremento P8", header atualizado, Revision History `1.14`).
