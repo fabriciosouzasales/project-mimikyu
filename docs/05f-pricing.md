@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Pricing |
 | **Arquivo** | `docs/05f-pricing.md` |
-| **Versão** | 1.9 |
-| **Status** | **Fundação física concluída — dez das dez entidades `CONFIRMADO EXECUTADO` no Supabase** (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3; `pricing_product` — Incremento P4; `pricing_fx_rate` — Incremento P5; `pricing_observation` — Incremento P6). **Incremento P7 (2026-08-17): primeira fonte cadastrada** — `JUSTTCG` em `pricing_source` (Query `3700`), homologada para piloto técnico de produtos/printings/condições/preços USD/histórico, `is_active = FALSE` (não homologada para PT-BR nem "Valor Brasil"; uso comercial pendente de plano pago compatível). Demais nove entidades seguem vazias. **Pricing ainda não é operacional**: seguem pendentes plano comercial contratado, condições canônicas semeadas, mappings reais, integração/sincronização, ingestão PTAX, frontend e Analytics/Valuation. |
+| **Versão** | 1.11 |
+| **Status** | **Fundação física concluída — dez das dez entidades `CONFIRMADO EXECUTADO` no Supabase** (`pricing_source`, `card_condition`, `pricing_condition_mapping` — Incremento P1; `pricing_set_mapping`, `pricing_card_mapping` — Incremento P2; `pricing_sync_run`, `pricing_sync_run_call` — Incremento P3; `pricing_product` — Incremento P4; `pricing_fx_rate` — Incremento P5; `pricing_observation` — Incremento P6). **Incremento P7 (2026-08-17): primeira fonte cadastrada** — `JUSTTCG` em `pricing_source` (Query `3700`), homologada para piloto técnico de produtos/printings/condições/preços USD/histórico, `is_active = FALSE` (não homologada para PT-BR nem "Valor Brasil"; uso comercial pendente de plano pago compatível). **Incremento P8 (2026-08-17): conector `scripts/sync-justtcg-pricing.ts`**, piloto real ainda não executado (chave ausente no sandbox). **Correção pós-P8 (2026-08-17): `pricing_sync_run.confirmed_by` validado por trigger `BEFORE INSERT`**, não por RPC de UUID livre — preserva `ADR-021` integralmente (ver Revision History `1.11`). Demais nove entidades seguem vazias. **Pricing ainda não é operacional**: seguem pendentes plano comercial contratado, condições canônicas semeadas, mappings reais, integração/sincronização, ingestão PTAX, frontend e Analytics/Valuation. |
 | **Objetivo** | Modelo lógico e físico do domínio Pricing — observações de mercado por fonte externa, independente de Catálogo Editorial e de Ownership, conforme `ADR-029` e `ADR-006`. |
 | **Escopo** | Entidades de Pricing: fonte, mapeamento de Set/Card por fonte, produto (impressão+idioma reportados pela fonte), condição canônica, observação de preço, câmbio, auditoria de sincronização. Não inclui a modelagem física de Item Valuation (Analytics), deliberadamente adiada — ver seção própria ao final. |
 | **Dependências** | `04-domain-model.md` (seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)"), `adr/ADR-006-separation-of-catalog-ownership-and-analytics.md`, `adr/ADR-029-pricing-domain-model.md`, `standards/STD-001-database-standards.md`, `standards/STD-002-domain-modeling.md`, `05b-cartas-e-raridade.md` (Card/Card Variant), `05c-assets-e-importacao.md` (Language/Asset Source — padrão de referência, não reaproveitado por tabela). |
@@ -1355,7 +1355,7 @@ updated_at
 3. Nenhuma linha é excluída — log de auditoria permanente, mesmo espírito de `catalog_admin_action_log`.
 4. **`finished_at >= started_at` quando preenchido** — verificado por `CHECK` (requisito explícito do Incremento P3, reforçando por constraint física que a janela de execução nunca é temporalmente invertida).
 
-## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P3, 2026-08-16, Query `3080`/`3081`)
+## Modelo Físico (PostgreSQL) — CONFIRMADO EXECUTADO (Incremento P3, 2026-08-16, Query `3080`/`3081`; `confirmed_by` e trigger de validação administrativa acrescentados no Incremento P8, 2026-08-17, Query `3082`/`3083`)
 
 ```sql
 CREATE TABLE public.pricing_sync_run (
@@ -1368,6 +1368,7 @@ CREATE TABLE public.pricing_sync_run (
     rate_limit_hits             INTEGER NOT NULL DEFAULT 0,
     error_summary               TEXT,
     triggered_by                TEXT NOT NULL DEFAULT 'MANUAL',
+    confirmed_by                UUID NOT NULL,
     started_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     finished_at                 TIMESTAMPTZ,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1396,7 +1397,39 @@ CREATE TRIGGER trg_pricing_sync_run_set_updated_at
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 ALTER TABLE public.pricing_sync_run ENABLE ROW LEVEL SECURITY;
+
+-- Query 3083 (Incremento P8, 2026-08-17) — valida confirmed_by no INSERT, sem expor
+-- nenhuma função RPC que aceite um UUID arbitrário como parâmetro (ver
+-- ADR-021-administrative-role-model.md: esse padrão foi avaliado e rejeitado por
+-- Fabrício para o módulo de Identidade e Acesso; preservado integralmente — nenhuma
+-- alteração ao ADR-021 foi necessária, já que este trigger não é uma função RPC
+-- pública, só dispara automaticamente como efeito colateral do INSERT).
+CREATE OR REPLACE FUNCTION public.validate_pricing_sync_run_confirmed_by()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.admin_user WHERE id = NEW.confirmed_by
+    ) THEN
+        RAISE EXCEPTION 'PRICING_SYNC_RUN_CONFIRMED_BY_INVALID';
+    END IF;
+    RETURN NEW;
+END;
+$function$;
+
+REVOKE EXECUTE ON FUNCTION public.validate_pricing_sync_run_confirmed_by()
+    FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE TRIGGER trg_pricing_sync_run_validate_confirmed_by
+    BEFORE INSERT ON public.pricing_sync_run
+    FOR EACH ROW
+    EXECUTE FUNCTION public.validate_pricing_sync_run_confirmed_by();
 ```
+
+**`confirmed_by` (Incremento P8, 2026-08-17).** UUID do `admin_user` que confirma a execução — sem `FK` (mesmo precedente de `confirmed_by` em `pricing_set_mapping`/`pricing_card_mapping`: um `FK` direto impediria a auditoria de sobreviver a uma futura revogação do admin). Validado não por `SELECT` direto (`service_role` não tem esse privilégio, de propósito) nem por função RPC com parâmetro UUID livre (rejeitado pelo `ADR-021`), mas por um trigger `BEFORE INSERT` `SECURITY DEFINER` — `RETURNS TRIGGER` impede chamada direta via SQL, e o `EXECUTE` é revogado explicitamente de todos os papéis (inclusive `service_role`) como defesa em profundidade; o disparo automático do trigger não depende desse privilégio. Erro genérico (`PRICING_SYNC_RUN_CONFIRMED_BY_INVALID`, sem interpolar o UUID recebido) evita que a mensagem funcione como oráculo de enumeração de administradores. Por ser o primeiro `INSERT` do piloto (`scripts/sync-justtcg-pricing.ts`), um `confirmed_by` inválido aborta a execução antes de qualquer outro write — nenhuma Fase A/B do conector roda depois de um `SYNC_RUN_INSERT_FAILED`. Testado com UUID administrativo real (sucede) e UUID aleatório (`ERROR P0001: PRICING_SYNC_RUN_CONFIRMED_BY_INVALID`, nenhuma linha gravada) via `SET ROLE service_role` em transação com `ROLLBACK`.
 
 **Índices — decisão do Incremento P3, deviando do par genérico originalmente cogitado (`pricing_source_id` isolado + `status` isolado) em favor do menor conjunto que atende às consultas reais previstas:**
 
@@ -1621,7 +1654,7 @@ Seguindo o Modelo Modular de Numeração (`STD-001`, Seção 10: `1000`–`1999`
 3050–3059  pricing_product             — CONFIRMADO EXECUTADO (3050 tabela + índices + RLS + grants, 3051 trigger, 3052 índice de FK adicionado após advisor de performance)
 3060–3069  pricing_fx_rate             — CONFIRMADO EXECUTADO (3060 tabela + constraint única reordenada (serve como índice) + RLS + policy + grants; sem trigger, tabela append-only sem updated_at)
 3070–3079  pricing_observation         — CONFIRMADO EXECUTADO (3070 tabela + identidade market-aware `UNIQUE NULLS NOT DISTINCT` + índices + RLS + policy + grants; sem trigger, tabela append-only sem updated_at)
-3080–3089  pricing_sync_run            — CONFIRMADO EXECUTADO (3080 tabela + índices + RLS + grants, 3081 trigger)
+3080–3089  pricing_sync_run            — CONFIRMADO EXECUTADO (3080 tabela + índices + RLS + grants, 3081 trigger; 3082 coluna confirmed_by, 3083 trigger de validação administrativa, Incremento P8-correção)
 3090–3099  pricing_sync_run_call       — CONFIRMADO EXECUTADO (3090 tabela + RLS + grants; sem trigger, tabela append-only)
 3700–3799  Seeds                       — 3700 (Incremento P7, pricing_source JUSTTCG), 3701/3702 (Incremento P8, card_condition + pricing_condition_mapping JUSTTCG)
 3800–3899  Validações                  — 3800 (Incremento P1), 3810 (Incremento P2), 3820 (Incremento P3, validação consolidada de 16 itens funcionais + 4 planos de execução), 3830 (Incremento P4, validação consolidada de 19 itens funcionais + 4 planos de execução), 3840 (Incremento P5, validação consolidada de 22 itens funcionais + 3 planos de execução), 3850 (Incremento P6, validação consolidada de 32 itens funcionais + 5 planos de execução sobre 80.000 linhas sintéticas) — todas transacionais, sem escrita física; apenas o registro do número no diário de numeração

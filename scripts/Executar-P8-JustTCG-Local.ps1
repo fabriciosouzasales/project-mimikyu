@@ -67,7 +67,19 @@ so nos prompts seguros abertos por este script.
 [CmdletBinding()]
 param(
     # Caminho do repositorio - por padrao, a pasta pai de scripts/ (onde este arquivo mora).
-    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+    # $PSScriptRoot fica vazio em alguns invocations do Windows PowerShell 5.1 com
+    # "-File" e caminho relativo (bug conhecido da plataforma) - por isso ha fallback
+    # para $MyInvocation.MyCommand.Path e, por ultimo, para o diretorio atual (assume
+    # que o script foi chamado a partir da raiz do repositorio, como nos exemplos de uso).
+    [string]$RepoRoot = $(
+        if ($PSScriptRoot) {
+            (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+        } elseif ($MyInvocation.MyCommand.Path) {
+            (Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")).Path
+        } else {
+            (Get-Location).Path
+        }
+    ),
 
     # UUID de admin_user que vai "confirmar" os mappings resolvidos pelo piloto.
     # Se omitido, solicitado interativamente (nao e segredo - so identificador).
@@ -81,6 +93,20 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# O conector Deno imprime UTF-8 (acentos do pt-BR) no stdout. O console do Windows
+# PowerShell 5.1 normalmente decodifica saida de processo externo usando a code page
+# ANSI/OEM do sistema, nao UTF-8 - sem isso, texto acentuado vindo do Deno aparece
+# ilegivel (mojibake) mesmo com o codigo de saida correto (0) e nada realmente errado
+# na execucao. So afeta leitura na tela; nao altera nenhum dado gravado no Supabase
+# nem o resumo sanitizado. Best-effort: se o host nao suportar a troca (ex.: saida
+# redirecionada), segue sem travar o script.
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+    Write-Host "Aviso: nao foi possivel forcar UTF-8 no console - saida do Deno com acentos pode aparecer ilegivel, sem impacto funcional." -ForegroundColor DarkYellow
+}
+
 $TsScriptPath = Join-Path $RepoRoot "scripts\sync-justtcg-pricing.ts"
 
 # Host fixo da API da JustTCG - mesmo valor de JUSTTCG_API_BASE em

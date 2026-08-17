@@ -276,11 +276,13 @@ async function getJustTcgSource(supabase: SupabaseClient) {
   return data;
 }
 
-async function requireAdmin(supabase: SupabaseClient, confirmedBy: string) {
-  const { data, error } = await supabase.from("admin_user").select("id").eq("id", confirmedBy).maybeSingle();
-  if (error) throw new Error(`ADMIN_USER_QUERY_FAILED: ${error.message}`);
-  if (!data) throw new Error(`CONFIRMED_BY_NAO_E_ADMIN: ${confirmedBy} não existe em admin_user — informe o id de um administrador real.`);
-}
+// Não há mais uma consulta direta a admin_user aqui (service_role não tem SELECT
+// nessa tabela, de propósito — ver ADR-021-administrative-role-model.md) nem uma
+// função RPC que aceite um UUID arbitrário como parâmetro (o próprio ADR-021 registra
+// esse padrão como avaliado e rejeitado por Fabrício). A validação de confirmedBy
+// agora é responsabilidade do trigger BEFORE INSERT em pricing_sync_run
+// (validate_pricing_sync_run_confirmed_by(), Query 3083) — dispara como efeito
+// colateral obrigatório do primeiro INSERT do piloto, nunca como checagem isolada.
 
 async function getConditionMap(supabase: SupabaseClient, pricingSourceId: string): Promise<Map<string, string>> {
   const { data, error } = await supabase.from("pricing_condition_mapping").select("external_condition_code, condition_id").eq("pricing_source_id", pricingSourceId);
@@ -417,7 +419,6 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
   const client = new JustTcgClient(justTcgApiKey);
 
   const source = await getJustTcgSource(supabase);
-  await requireAdmin(supabase, args.confirmedBy);
   const conditionMap = await getConditionMap(supabase, source.id as string);
   if (conditionMap.size === 0) {
     throw new Error("CONDITION_MAP_VAZIO: rode a seed 3702 (pricing_condition_mapping) antes deste script.");
@@ -431,12 +432,17 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
   let syncRunId: string | null = null;
 
   if (!args.dryRun) {
+    // Primeiro write do piloto, de propósito: o trigger BEFORE INSERT
+    // (validate_pricing_sync_run_confirmed_by(), Query 3083) valida confirmedBy
+    // contra admin_user aqui — se for inválido, este INSERT falha e nenhum outro
+    // write do piloto chega a ser tentado (nada de Fase A/B roda depois deste ponto
+    // quando o catch abaixo relança o erro).
     const { data, error } = await supabase
       .from("pricing_sync_run")
-      .insert({ pricing_source_id: source.id, run_type: "CARD_SYNC", status: "PROCESSING", triggered_by: "MANUAL", started_at: startedAt })
+      .insert({ pricing_source_id: source.id, run_type: "CARD_SYNC", status: "PROCESSING", triggered_by: "MANUAL", started_at: startedAt, confirmed_by: args.confirmedBy })
       .select("id")
       .single();
-    if (error) throw new Error(`SYNC_RUN_INSERT_FAILED: ${error.message}`);
+    if (error) throw new Error(`SYNC_RUN_INSERT_FAILED: ${sanitize(error.message)}`);
     syncRunId = data.id as string;
   }
 
@@ -703,7 +709,7 @@ async function main() {
 
   if (!args.confirmedBy) {
     console.error("Piloto real requer --confirmed-by=<admin_user_uuid> (id de um administrador real em admin_user).");
-    console.error("Consulte seu próprio id com: SELECT id FROM admin_user WHERE id = auth.uid(); (via sessão autenticada) ou peça a outro administrador.");
+    console.error("admin_user não é legível por SELECT direto (nem em sessão autenticada — RLS habilitado sem policy). Consulte seu próprio id com: SELECT auth.uid(); (via sessão autenticada, se for administrador) ou peça o UUID a outro administrador.");
     Deno.exit(1);
   }
 
