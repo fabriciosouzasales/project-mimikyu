@@ -1220,3 +1220,13 @@ Runner (`scripts/Executar-P8-JustTCG-Local.ps1`) corrigido: a prova de idempotê
 Sem mudança de dado, schema ou migration — correção só de código. Nenhum commit/push realizado.
 
 Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.14` — nova nota em "Incremento P8", header atualizado, Revision History `1.14`).
+
+## [2026-08-17] docs | Fechamento do Incremento P8 com evidência real final
+
+Fabrício pediu o fechamento formal do P8 com a evidência real: execuções `COMPLETED`, 7 requisições cada, 2 Sets, 6 cartas, 32 produtos e 32 observações, segunda execução com zero escrita nova, zero duplicidade, zero rate limit, zero segredo, `JUSTTCG` permanecendo `is_active = FALSE` sem autorizar produção comercial/PT-BR/"Valor Brasil".
+
+Confirmado diretamente no Supabase pelo agente (não apenas relatado): **quatro** execuções `pricing_sync_run` `COMPLETED` no total — divergência explícita frente à premissa do pedido ("duas execuções"), sinalizada e não aplicada em silêncio, tratada como evidência ainda mais forte de idempotência (dois pares distintos, mesmo resultado estável). Cada execução com `requests_made = 7`, `rate_limit_hits = 0`; `pricing_product`/`pricing_observation` estáveis em `32`/`32` nas quatro; no par final, segunda execução com `productsWritten = 0`/`observationsWritten = 0`. 28 chamadas `pricing_sync_run_call`, todas `outcome = 'SUCCESS'`. Varredura SQL direta sobre `error_summary`/`error_detail`/`match_evidence`/`raw_payload` sem nenhum padrão de segredo. `get_advisors` (segurança e performance): zero achado novo referenciando Pricing. `pricing_source.is_active` confirmado `FALSE`.
+
+Sem mudança de dado, schema, migration ou código — fechamento documental sobre evidência já produzida. Nenhum commit/push realizado.
+
+Documentação atualizada no mesmo ciclo: `docs/05f-pricing.md` (versão `1.15` — seção "Fechamento do Incremento P8", header atualizado, Revision History `1.15`); `docs/adr/ADR-029-pricing-domain-model.md` (nova seção "Fechamento do Incremento P8", Revision History `1.12`). `docs/standards/STD-001-database-standards.md` e `docs/development/HANDOFF-2026-08-17.md` não tocados nesta rodada — fora do escopo explícito ("documentação já impactada").
