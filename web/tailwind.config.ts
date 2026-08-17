@@ -121,6 +121,19 @@ const config: Config = {
           from: { opacity: "1", transform: "translate(-50%, -50%) scale(1)" },
           to: { opacity: "0", transform: "translate(-50%, -48%) scale(0.96)" },
         },
+        // Modo imersivo de pesquisa mobile (2026-08-17, ADR-030) — painel
+        // fixo no topo que substitui o header, não um drawer lateral
+        // (`drawer-in/out`, translateX) nem um modal centralizado
+        // (`dialog-in/out`, scale). Leve deslize vertical + fade, coerente
+        // com "o header se transforma" em vez de "algo desliza por cima".
+        "search-panel-in": {
+          from: { opacity: "0", transform: "translateY(-8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "search-panel-out": {
+          from: { opacity: "1", transform: "translateY(0)" },
+          to: { opacity: "0", transform: "translateY(-8px)" },
+        },
       },
       animation: {
         "collapsible-down": "collapsible-down 200ms ease-out",
@@ -131,6 +144,8 @@ const config: Config = {
         "overlay-out": "overlay-out 150ms ease-in",
         "dialog-in": "dialog-in 150ms ease-out",
         "dialog-out": "dialog-out 100ms ease-in",
+        "search-panel-in": "search-panel-in 180ms ease-out",
+        "search-panel-out": "search-panel-out 120ms ease-in",
       },
     },
   },

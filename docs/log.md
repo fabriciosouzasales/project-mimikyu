@@ -1113,6 +1113,18 @@ Fabrício apontou, com screenshots, que o preview de carta em `/pesquisa` (um `D
 
 Nada commitado, nada em push — decisão de Fabrício. Detalhe completo em `docs/adr/ADR-030-card-search-projection.md` revisão `1.3`, `docs/standards/STD-004-frontend-standards.md` versão `1.6` e `docs/development/HANDOFF-2026-08-17.md`, seção 10.
 
+## [2026-08-17] fix | Rodada corretiva 4 — modo imersivo de pesquisa mobile reescrito (referência funcional pkmn.gg)
+
+Fabrício apontou, com screenshots do pkmn.gg, que o mobile "ainda não possui o comportamento aprovado": o antigo `MobileSearchTrigger` abria um `Dialog` fixo no topo sem de fato substituir o header, com o botão de pesquisa avançada só sobreposto dentro do campo, sem orientação antes de digitar, e sem integração com o botão Voltar. Pedido explícito: ao tocar na lupa, o próprio header se transforma numa experiência dedicada de pesquisa — rejeitando modal central, drawer lateral e expansão simples do campo; referência é só de comportamento, "não copiar logotipo, cores ou proporções do pkmn.gg".
+
+**Refatoração**: lógica de busca (debounce, `AbortController`, seleção, navegação) extraída para `useCardSearchSuggestions()`, compartilhada pelo `SearchCombobox` desktop (inalterado) e o novo `MobileSearchOverlay` — elimina a duplicação que antes existia via prop `variant` num único componente.
+
+**`MobileSearchOverlay`**: painel de tela cheia (`@radix-ui/react-dialog`) que ocupa a barra do header (`h-14`), com campo + botão "Filtros" + botão "Fechar" externos (toque ≥44px); painel de sugestões com rolagem própria (`min-h-0 flex-1 overflow-y-auto`, `max-h-[100dvh]`, `env(safe-area-inset-*)`); orientação textual antes do termo mínimo; `aria-live` anunciando quantidade de resultados; fechamento por `X`/Escape/navegação/clique fora/botão Voltar (`history.pushState` marcador + `popstate`, com guarda contra duplo-mount do React Strict Mode). Nova animação `search-panel-in`/`out` em `tailwind.config.ts` (distinta de `drawer-in`/`out` e `dialog-in`/`out`). `npx tsc --noEmit` confirmado limpo.
+
+**Nota**: tentativa de consultar `modern-web-guidance` via `npx` falhou por falta de acesso ao registry npm no sandbox (mesma limitação de rede já documentada para lint/build) — implementação seguiu por padrões já usados no projeto e práticas web amplamente estabelecidas.
+
+Nada commitado, nada em push — decisão de Fabrício. Teste em dispositivo/navegador real pendente. Detalhe completo em `docs/adr/ADR-030-card-search-projection.md` revisão `1.5`, `docs/standards/STD-004-frontend-standards.md` versão `1.7` e `docs/development/HANDOFF-2026-08-17.md`, seção 11.
+
 ## [2026-08-17] fix | Miniatura do grid da Pesquisa sem o efeito holográfico do grid de `Cartas`
 
 A extração da rodada anterior cobriu só o preview ampliado; a miniatura do grid de `/pesquisa` (`PesquisaCardTile`) continuava com um `scale-[1.02]` genérico no hover, nunca o `HoloCard` (sem `floating`) que dá o brilho radial + inclinação 3D ao toque do mouse em `CartaGridCard` (`cartas-gallery.tsx`). Fabrício reportou o resultado real ("o que está aparecendo é um zoom") e pediu o mesmo padrão de brilho e movimento do grid de `Cartas`.
