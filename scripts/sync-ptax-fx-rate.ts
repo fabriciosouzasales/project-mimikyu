@@ -71,17 +71,21 @@ Uso:
   deno run --allow-net --allow-env scripts/sync-ptax-fx-rate.ts --confirmed-by=<admin_user_uuid> --override-start=2026-07-01 --override-end=2026-07-31
 */
 
-import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 import {
   buildErrorSummary,
-  classifyStartAttempt,
+  buildPricingPtaxSupabaseAdapter,
+  computeReferenceDateSaoPaulo,
   decideFinalStatus,
-  type FinalSyncRunStatus,
+  finalizeSyncRun,
+  persistCallLog,
   type PtaxCallLogEntry,
-  type PtaxRate,
-  type PtaxRateRepository,
+  type PtaxSyncRunPort,
   runPtaxSync,
   sanitize,
+  type SyncRunTrigger,
+  tryStartSyncRun,
+  type UpdateSyncRunPatch,
 } from "../supabase/functions/_shared/pricing-ptax/mod.ts";
 import {
   runPricingPtaxAsyncTests,
@@ -89,13 +93,13 @@ import {
 } from "../supabase/functions/_shared/pricing-ptax/pricing-ptax.test.ts";
 
 // ============================================================================
-// 0. Identidade fixa da fonte cambial (P13.1 — fx_source_code, não mais só um
-//    DEFAULT de coluna) e parâmetros de rede.
+// 0. Parâmetros de rede. A identidade fixa da fonte cambial (FROM_CURRENCY/
+//    TO_CURRENCY/RATE_SOURCE_CODE) e o ciclo de vida de pricing_sync_run/
+//    pricing_sync_run_call foram extraídos para _shared/pricing-ptax/run-lifecycle.ts
+//    no Incremento P13.3 — reaproveitados aqui e pela Edge Function ptax-fx-refresh,
+//    sem nenhuma lógica duplicada entre os dois chamadores.
 // ============================================================================
 
-const FROM_CURRENCY = "USD";
-const TO_CURRENCY = "BRL";
-const RATE_SOURCE_CODE = "BCB_PTAX"; // pricing_fx_rate.rate_source_code E pricing_sync_run.fx_source_code
 const REQUEST_TIMEOUT_MS = 15_000;
 
 // ============================================================================
@@ -141,255 +145,70 @@ function requireEnv(name: string): string {
   return value;
 }
 
-// Data civil (YYYY-MM-DD) de America/Sao_Paulo — nunca o fuso do processo local. O
-// núcleo compartilhado nunca lê o relógio do sistema diretamente (ver core.ts); é
-// este adapter quem resolve "hoje" e passa como referenceDate.
-export function computeReferenceDateSaoPaulo(now: Date): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return formatter.format(now); // en-CA formata como YYYY-MM-DD diretamente
-}
-
 // ============================================================================
-// 2. Repositório real (adapter sobre pricing_fx_rate) — implementa o contrato
-//    PtaxRateRepository exigido pelo núcleo. Mesmo padrão .upsert(...,
-//    { ignoreDuplicates: true }).select() já corrigido e validado no Incremento P9
-//    (ON CONFLICT DO NOTHING real, nunca um UPDATE).
+// 2/3. Orquestração de pricing_sync_run/pricing_sync_run_call — reaproveitada de
+//    _shared/pricing-ptax/run-lifecycle.ts (Incremento P13.3): tryStartSyncRun,
+//    persistCallLog, finalizeSyncRun, computeReferenceDateSaoPaulo. O adapter real
+//    (buildPricingPtaxSupabaseAdapter, correção estrutural de 2026-08-18) é
+//    construído uma única vez em runRealExecution() e reaproveitado para tudo —
+//    nenhuma lógica duplicada neste arquivo.
 // ============================================================================
 
-function buildSupabaseRepository(supabase: SupabaseClient): PtaxRateRepository {
-  return {
-    async findExistingRates(dates) {
-      const result = new Map<string, number>();
-      if (dates.length === 0) return result;
-      const { data, error } = await supabase
-        .from("pricing_fx_rate")
-        .select("rate_date, rate")
-        .eq("from_currency", FROM_CURRENCY)
-        .eq("to_currency", TO_CURRENCY)
-        .eq("rate_source_code", RATE_SOURCE_CODE)
-        .in("rate_date", dates);
-      if (error) {
-        throw new Error(
-          `PRICING_FX_RATE_QUERY_FAILED: ${sanitize(error.message)}`,
-        );
-      }
-      for (const row of data ?? []) {
-        result.set(row.rate_date as string, Number(row.rate));
-      }
-      return result;
-    },
-    async insertRate(entry: PtaxRate) {
-      const { data, error } = await supabase
-        .from("pricing_fx_rate")
-        .upsert(
-          {
-            from_currency: FROM_CURRENCY,
-            to_currency: TO_CURRENCY,
-            rate: entry.rate,
-            rate_date: entry.rateDate,
-            rate_source_code: RATE_SOURCE_CODE,
-          },
-          {
-            onConflict: "from_currency,to_currency,rate_source_code,rate_date",
-            ignoreDuplicates: true,
-          },
-        )
-        .select("rate_date");
-      if (error) {
-        throw new Error(
-          `PRICING_FX_RATE_UPSERT_FAILED(${entry.rateDate}): ${
-            sanitize(error.message)
-          }`,
-        );
-      }
-      return (data?.length ?? 0) > 0 ? "INSERTED" : "CONFLICT_IGNORED";
-    },
-  };
-}
-
 // ============================================================================
-// 3. Orquestração de pricing_sync_run/pricing_sync_run_call
-// ============================================================================
-
-async function tryStartSyncRun(
-  supabase: SupabaseClient,
-  confirmedBy: string,
-): Promise<
-  | { status: "STARTED"; syncRunId: string }
-  | { status: "CONCURRENT_CONFLICT" }
-  | { status: "OTHER_ERROR"; detail: string }
-> {
-  // Único INSERT desta execução que pode colidir com o índice único parcial de
-  // concorrência (ux_pricing_sync_run_active_fx_per_source_type, Query 3907) — de
-  // propósito o PRIMEIRO efeito colateral do script, ANTES de qualquer fetch ao BCB.
-  //
-  // started_at NUNCA é enviado por este adapter (correção Query 3909, 2026-08-18): o
-  // relógio do processo cliente (máquina local) provou-se divergente do relógio do
-  // servidor na auditoria pós-piloto — o trigger trg_pricing_sync_run_server_timestamps
-  // agora é a única autoridade sobre started_at, atribuindo sempre now() do próprio
-  // Postgres. Mesmo que este INSERT enviasse um valor, o trigger o substituiria.
-  const { data, error } = await supabase
-    .from("pricing_sync_run")
-    .insert({
-      pricing_source_id: null,
-      run_type: "FX_REFRESH",
-      status: "PROCESSING",
-      triggered_by: "MANUAL",
-      confirmed_by: confirmedBy,
-      fx_source_code: RATE_SOURCE_CODE,
-    })
-    .select("id")
-    .single();
-
-  const outcome = classifyStartAttempt(
-    error
-      ? { code: (error as { code?: string }).code, message: error.message }
-      : null,
-  );
-  if (outcome === "CONCURRENT_CONFLICT") {
-    return { status: "CONCURRENT_CONFLICT" };
-  }
-  if (outcome === "OTHER_ERROR") {
-    return {
-      status: "OTHER_ERROR",
-      detail: sanitize((error as { message: string }).message) ??
-        "ERRO_DESCONHECIDO",
-    };
-  }
-  return { status: "STARTED", syncRunId: (data as { id: string }).id };
-}
-
-// Persiste pricing_sync_run_call ANTES de qualquer finalização do run (correção Query
-// 3909/reordenação de telemetria, 2026-08-18) — um run só pode assumir status terminal
-// depois de sua telemetria de chamadas já estar gravada. Devolve o resultado da tentativa
-// em vez de lançar, para que o chamador decida como finalizar o run (nunca como
-// COMPLETED se isto falhar).
-async function persistCallLog(
-  supabase: SupabaseClient,
-  syncRunId: string,
-  callLog: PtaxCallLogEntry[],
-): Promise<{ ok: true } | { ok: false; detail: string }> {
-  if (callLog.length === 0) return { ok: true };
-
-  const { error } = await supabase.from("pricing_sync_run_call").insert(
-    callLog.map((c: PtaxCallLogEntry) => ({
-      sync_run_id: syncRunId,
-      sequence_number: c.sequenceNumber,
-      endpoint: c.endpoint,
-      http_status_code: c.httpStatusCode,
-      // outcome de pricing_sync_run_call só aceita SUCCESS/TECHNICAL_FAILURE/
-      // BUDGET_STOPPED (ck_pricing_sync_run_call_outcome) — PTAX nunca usa
-      // BUDGET_STOPPED (sem orçamento de requisições), então o mapeamento é direto.
-      outcome: c.outcome,
-      // Nunca distorcido por divergência de dado — error_detail aqui é sempre o
-      // resultado bruto da CHAMADA HTTP em si (sucesso ou falha técnica), nunca
-      // uma reformulação por causa de um achado de persistência (requisito #7).
-      error_detail: c.errorDetail ? sanitize(c.errorDetail) : null,
-      api_requests_remaining: c.apiRequestsRemaining,
-    })),
-  );
-
-  if (error) {
-    return {
-      ok: false,
-      detail: sanitize(error.message) ?? "ERRO_DESCONHECIDO",
-    };
-  }
-  return { ok: true };
-}
-
-// Finaliza pricing_sync_run com um status JÁ DECIDIDO pelo chamador — nunca decide
-// sozinho se o resultado "merece" COMPLETED, exatamente para que a regra "calls
-// persistidas antes de COMPLETED" (requisito #4) fique explícita no ponto de chamada,
-// não escondida aqui dentro.
-//
-// finished_at NUNCA é enviado por este adapter (correção Query 3909, 2026-08-18): o
-// trigger trg_pricing_sync_run_server_timestamps é a única autoridade sobre finished_at,
-// atribuindo now() do servidor na primeira transição para um status terminal e
-// preservando o valor já gravado em qualquer atualização posterior de um run já terminal.
-async function finalizeSyncRun(
-  supabase: SupabaseClient,
-  syncRunId: string,
-  status: FinalSyncRunStatus,
-  errorSummary: string | null,
-  requestsMade: number,
-  rateLimitHits: number,
-  dryRun: boolean,
-): Promise<void> {
-  if (dryRun) return; // dry-run nunca cria nem finaliza pricing_sync_run/pricing_sync_run_call
-
-  await supabase
-    .from("pricing_sync_run")
-    .update({
-      status,
-      requests_made: requestsMade,
-      requests_remaining_at_end: null, // BCB não expõe orçamento de requisições
-      rate_limit_hits: rateLimitHits,
-      error_summary: errorSummary ? sanitize(errorSummary) : null,
-    })
-    .eq("id", syncRunId);
-}
-
-// ============================================================================
-// 3b. Fake mínimo de client Supabase — só para exercitar a ORQUESTRAÇÃO deste
-//     adapter (tryStartSyncRun/persistCallLog/finalizeSyncRun) 100% offline no
-//     --fixture-check. Nunca substitui os testes do núcleo compartilhado
-//     (pricing-ptax.test.ts), que já cobrem toda a lógica de negócio real via
-//     fakes de fetch/repositório — este fake só grava QUAIS colunas cada
-//     insert/update tentou gravar e EM QUE ORDEM, para provar (correção Query
-//     3909/reordenação de telemetria, 2026-08-18): (1) started_at nunca é
-//     enviado no INSERT de pricing_sync_run; (2) finished_at nunca é enviado no
-//     UPDATE de pricing_sync_run; (3) pricing_sync_run_call é sempre persistida
-//     ANTES do UPDATE que finaliza o run; (4) falha ao persistir calls nunca
-//     termina como COMPLETED.
+// 3b. Fake mínimo da PORTA (PtaxSyncRunPort) — só para exercitar a ORQUESTRAÇÃO
+//     deste adapter (tryStartSyncRun/persistCallLog/finalizeSyncRun) 100% offline no
+//     --fixture-check. Nunca um fake de SupabaseClient/PostgREST — implementa
+//     diretamente a porta de domínio, mesma que o adapter real
+//     (supabase-adapter.ts) implementa sobre o SupabaseClient. Nunca substitui os
+//     testes do núcleo compartilhado (pricing-ptax.test.ts), que já cobrem toda a
+//     lógica de negócio real via fakes de fetch/repositório — este fake só grava O
+//     QUE cada operação da porta recebeu e EM QUE ORDEM, para provar (correção
+//     Query 3909/reordenação de telemetria, 2026-08-18): (1) insertSyncRun é
+//     chamado só com o SyncRunTrigger (sem timestamp — garantido em nível de tipo);
+//     (2) updateSyncRun é chamado só com UpdateSyncRunPatch (sem timestamp — idem);
+//     (3) insertSyncRunCalls é sempre chamado ANTES do updateSyncRun que finaliza o
+//     run; (4) falha ao persistir calls nunca termina como COMPLETED.
 // ============================================================================
 
 interface FakeRecordedCall {
-  table: string;
-  op: "insert" | "update";
-  payload: Record<string, unknown>;
+  op: "insertSyncRun" | "insertSyncRunCalls" | "updateSyncRun";
+  payload: unknown;
 }
 
-function buildFakeSupabaseForOrchestrationTests(
+function buildFakePricingPtaxPort(
   recorded: FakeRecordedCall[],
   opts: { failCallInsert?: boolean } = {},
-) {
+): PtaxSyncRunPort {
   return {
-    from(table: string) {
-      return {
-        insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
-          const single = Array.isArray(payload) ? payload[0] ?? {} : payload;
-          recorded.push({ table, op: "insert", payload: single });
-          const shouldFail = table === "pricing_sync_run_call" &&
-            opts.failCallInsert === true;
-          const outcome = shouldFail
-            ? { data: null, error: { message: "INSERT_FALHOU_SIMULADO" } }
-            : { data: { id: "fake-sync-run-id" }, error: null };
-          return {
-            select: (_cols: string) => ({
-              single: () => Promise.resolve(outcome),
-            }),
-            then: (
-              onFulfilled: (v: typeof outcome) => unknown,
-              onRejected?: (e: unknown) => unknown,
-            ) => Promise.resolve(outcome).then(onFulfilled, onRejected),
-          };
-        },
-        update(payload: Record<string, unknown>) {
-          recorded.push({ table, op: "update", payload });
-          return {
-            eq: (_c: string, _v: string) => Promise.resolve({ error: null }),
-          };
-        },
-      };
+    findExistingRates() {
+      return Promise.resolve(new Map<string, number>());
     },
-    // deno-lint-ignore no-explicit-any
-  } as any;
+    insertRate() {
+      return Promise.resolve("INSERTED");
+    },
+    insertSyncRun(trigger: SyncRunTrigger) {
+      recorded.push({ op: "insertSyncRun", payload: trigger });
+      return Promise.resolve(
+        { outcome: "STARTED" as const, syncRunId: "fake-sync-run-id" },
+      );
+    },
+    insertSyncRunCalls(syncRunId: string, callLog: PtaxCallLogEntry[]) {
+      recorded.push({
+        op: "insertSyncRunCalls",
+        payload: { syncRunId, callLog },
+      });
+      if (opts.failCallInsert) {
+        return Promise.resolve(
+          { ok: false as const, message: "INSERT_FALHOU_SIMULADO" },
+        );
+      }
+      return Promise.resolve({ ok: true as const });
+    },
+    updateSyncRun(syncRunId: string, patch: UpdateSyncRunPatch) {
+      recorded.push({ op: "updateSyncRun", payload: { syncRunId, patch } });
+      return Promise.resolve();
+    },
+  };
 }
 
 // ============================================================================
@@ -449,21 +268,31 @@ function runFixtureCheck() {
 
     // ── Autoridade temporal do servidor e ordem da telemetria (Query 3909, 2026-08-18) ──
     {
-      // (a) tryStartSyncRun nunca envia started_at — autoridade é o trigger do banco.
+      // (a) tryStartSyncRun chama port.insertSyncRun só com o SyncRunTrigger — o tipo
+      // não tem campo de timestamp algum, então started_at nunca poderia ser enviado
+      // mesmo que este módulo tentasse (garantido em nível de tipo, não só testado).
       const recordedA: FakeRecordedCall[] = [];
-      const fakeA = buildFakeSupabaseForOrchestrationTests(recordedA);
-      await tryStartSyncRun(fakeA, "fake-admin-id");
+      const fakeA = buildFakePricingPtaxPort(recordedA);
+      await tryStartSyncRun(fakeA, {
+        triggeredBy: "MANUAL",
+        confirmedBy: "fake-admin-id",
+      });
       const insertRunPayload = recordedA.find(
-        (c) => c.table === "pricing_sync_run" && c.op === "insert",
-      )?.payload;
+        (c) => c.op === "insertSyncRun",
+      )?.payload as SyncRunTrigger | undefined;
       assert(
-        "tryStartSyncRun: INSERT em pricing_sync_run nunca envia started_at (autoridade do servidor via trigger, Query 3909)",
-        insertRunPayload !== undefined && !("started_at" in insertRunPayload),
+        "tryStartSyncRun: chama port.insertSyncRun com o trigger exato, sem campo de timestamp (started_at nunca é enviado — Query 3909)",
+        insertRunPayload !== undefined &&
+          insertRunPayload.triggeredBy === "MANUAL" &&
+          Object.keys(insertRunPayload).sort().join(",") ===
+            "confirmedBy,triggeredBy",
       );
 
-      // (b) finalizeSyncRun nunca envia finished_at — mesma autoridade do trigger.
+      // (b) finalizeSyncRun chama port.updateSyncRun só com UpdateSyncRunPatch — sem
+      // campo de timestamp algum, então finished_at nunca é enviado (mesma garantia
+      // de tipo).
       const recordedB: FakeRecordedCall[] = [];
-      const fakeB = buildFakeSupabaseForOrchestrationTests(recordedB);
+      const fakeB = buildFakePricingPtaxPort(recordedB);
       await finalizeSyncRun(
         fakeB,
         "fake-sync-run-id",
@@ -474,16 +303,20 @@ function runFixtureCheck() {
         false,
       );
       const updateRunPayload = recordedB.find(
-        (c) => c.table === "pricing_sync_run" && c.op === "update",
-      )?.payload;
+        (c) => c.op === "updateSyncRun",
+      )?.payload as
+        | { syncRunId: string; patch: UpdateSyncRunPatch }
+        | undefined;
       assert(
-        "finalizeSyncRun: UPDATE em pricing_sync_run nunca envia finished_at (autoridade do servidor via trigger, Query 3909)",
-        updateRunPayload !== undefined && !("finished_at" in updateRunPayload),
+        "finalizeSyncRun: chama port.updateSyncRun só com status/errorSummary/requestsMade/rateLimitHits, sem campo de timestamp (finished_at nunca é enviado — Query 3909)",
+        updateRunPayload !== undefined &&
+          Object.keys(updateRunPayload.patch).sort().join(",") ===
+            "errorSummary,rateLimitHits,requestsMade,status",
       );
 
       // (c) ordem da telemetria: calls são persistidas ANTES da finalização do run.
       const recordedC: FakeRecordedCall[] = [];
-      const fakeC = buildFakeSupabaseForOrchestrationTests(recordedC);
+      const fakeC = buildFakePricingPtaxPort(recordedC);
       const oneCall: PtaxCallLogEntry[] = [{
         sequenceNumber: 1,
         endpoint: "CotacaoDolarPeriodo",
@@ -503,13 +336,13 @@ function runFixtureCheck() {
         false,
       );
       const callInsertIndex = recordedC.findIndex(
-        (c) => c.table === "pricing_sync_run_call" && c.op === "insert",
+        (c) => c.op === "insertSyncRunCalls",
       );
       const runUpdateIndex = recordedC.findIndex(
-        (c) => c.table === "pricing_sync_run" && c.op === "update",
+        (c) => c.op === "updateSyncRun",
       );
       assert(
-        "ordem da telemetria: pricing_sync_run_call é persistida ANTES do UPDATE que finaliza pricing_sync_run",
+        "ordem da telemetria: port.insertSyncRunCalls é chamado ANTES do port.updateSyncRun que finaliza o run",
         callInsertIndex !== -1 && runUpdateIndex !== -1 &&
           callInsertIndex < runUpdateIndex,
       );
@@ -518,7 +351,7 @@ function runFixtureCheck() {
       // decisão usado em runRealExecution (persistCallLog reporta ok:false, o
       // chamador finaliza como FAILED, nunca prossegue para decideFinalStatus()).
       const recordedD: FakeRecordedCall[] = [];
-      const fakeD = buildFakeSupabaseForOrchestrationTests(recordedD, {
+      const fakeD = buildFakePricingPtaxPort(recordedD, {
         failCallInsert: true,
       });
       const callPersistResult = await persistCallLog(
@@ -527,7 +360,7 @@ function runFixtureCheck() {
         oneCall,
       );
       assert(
-        "persistCallLog: reporta ok:false quando o INSERT de pricing_sync_run_call falha",
+        "persistCallLog: reporta ok:false quando port.insertSyncRunCalls falha",
         callPersistResult.ok === false,
       );
       if (!callPersistResult.ok) {
@@ -542,9 +375,9 @@ function runFixtureCheck() {
         );
       }
       const finalUpdatePayloadD = recordedD
-        .filter((c) => c.table === "pricing_sync_run" && c.op === "update")
-        .at(-1)?.payload;
-      const finalStatusD = finalUpdatePayloadD?.status;
+        .filter((c) => c.op === "updateSyncRun")
+        .at(-1)?.payload as { patch: UpdateSyncRunPatch } | undefined;
+      const finalStatusD = finalUpdatePayloadD?.patch.status;
       assert(
         "falha ao persistir calls nunca termina como COMPLETED — finaliza como FAILED",
         Object.is(finalStatusD, "FAILED") &&
@@ -588,6 +421,11 @@ async function runRealExecution(args: ParsedArgs) {
   const supabaseUrl = requireEnv("SUPABASE_URL");
   const supabaseServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  // Adapter de infraestrutura construído UMA ÚNICA VEZ por execução — implementa
+  // PtaxSyncRunPort sobre o SupabaseClient real, reaproveitado para tudo
+  // (repositório de taxas + ciclo de vida do run). Mesma função usada pela Edge
+  // Function agendada (ptax-fx-refresh/index.ts) — nenhuma query duplicada.
+  const port = buildPricingPtaxSupabaseAdapter(supabase);
 
   const referenceDate = computeReferenceDateSaoPaulo(new Date());
   console.log(`Data de referência (America/Sao_Paulo): ${referenceDate}`);
@@ -616,10 +454,10 @@ async function runRealExecution(args: ParsedArgs) {
         Deno.exit(1);
       }
 
-      const startAttempt = await tryStartSyncRun(
-        supabase,
-        args.confirmedBy,
-      );
+      const startAttempt = await tryStartSyncRun(port, {
+        triggeredBy: "MANUAL",
+        confirmedBy: args.confirmedBy,
+      });
       if (startAttempt.status === "CONCURRENT_CONFLICT") {
         console.error(
           "Já existe uma execução FX_REFRESH ativa (RECEIVED/PROCESSING) para BCB_PTAX — abortando ANTES de qualquer chamada ao Banco Central (concorrência detectada via índice único parcial, Query 3907).",
@@ -638,14 +476,13 @@ async function runRealExecution(args: ParsedArgs) {
       );
     }
 
-    const repository = buildSupabaseRepository(supabase);
     const result = await runPtaxSync({
       referenceDate,
       overrideStartDate: args.overrideStart ?? undefined,
       overrideEndDate: args.overrideEnd ?? undefined,
       fetchImpl: fetch,
       waitImpl: (ms: number) => new Promise((r) => setTimeout(r, ms)),
-      repository,
+      repository: port, // PtaxSyncRunPort estende PtaxRateRepository
       dryRun: args.dryRun,
       timeoutMs: REQUEST_TIMEOUT_MS,
     });
@@ -655,7 +492,7 @@ async function runRealExecution(args: ParsedArgs) {
       // (pricing_sync_run_call) é persistida ANTES de qualquer finalização do run — um
       // run só pode assumir status terminal depois de sua telemetria já estar gravada.
       const callPersist = await persistCallLog(
-        supabase,
+        port,
         syncRunId,
         result.callLog,
       );
@@ -668,7 +505,7 @@ async function runRealExecution(args: ParsedArgs) {
         // como FAILED, preservando sanitização de erros/segredos (mesma sanitize()
         // já usada em toda mensagem livre desta rodada).
         await finalizeSyncRun(
-          supabase,
+          port,
           syncRunId,
           "FAILED",
           sanitize(
@@ -688,7 +525,7 @@ async function runRealExecution(args: ParsedArgs) {
       const status = decideFinalStatus(result);
       const errorSummary = buildErrorSummary(result);
       await finalizeSyncRun(
-        supabase,
+        port,
         syncRunId,
         status,
         errorSummary,
@@ -733,7 +570,7 @@ async function runRealExecution(args: ParsedArgs) {
     if (syncRunId && !syncRunFinalized) {
       const message = error instanceof Error ? error.message : String(error);
       await finalizeSyncRun(
-        supabase,
+        port,
         syncRunId,
         "FAILED",
         sanitize(message) ?? "ERRO_DESCONHECIDO",

@@ -46,6 +46,33 @@ export type {
   StartAttemptOutcome,
 } from "./sync-run-orchestration.ts";
 
+// Ciclo de vida de pricing_sync_run/pricing_sync_run_call para BCB_PTAX — Incremento
+// P13.3. Reaproveitado tanto pelo adapter manual (triggered_by='MANUAL') quanto pela
+// Edge Function agendada ptax-fx-refresh (triggered_by='SCHEDULED'). Depende só da
+// porta funcional PtaxSyncRunPort — nunca de um tipo que reproduza o PostgREST.
+export {
+  computeReferenceDateSaoPaulo,
+  finalizeSyncRun,
+  FROM_CURRENCY,
+  persistCallLog,
+  RATE_SOURCE_CODE,
+  TO_CURRENCY,
+  tryStartSyncRun,
+} from "./run-lifecycle.ts";
+export type {
+  InsertSyncRunCallsResult,
+  InsertSyncRunResult,
+  PtaxSyncRunPort,
+  SyncRunTrigger,
+  UpdateSyncRunPatch,
+} from "./run-lifecycle.ts";
+
+// Adapter de infraestrutura compartilhado — a ÚNICA implementação de PtaxSyncRunPort
+// sobre o SupabaseClient real. CLI (scripts/sync-ptax-fx-rate.ts) e Edge Function
+// (ptax-fx-refresh/index.ts) constroem este adapter uma única vez cada, nunca
+// duplicando queries entre os dois chamadores.
+export { buildPricingPtaxSupabaseAdapter } from "./supabase-adapter.ts";
+
 export type {
   CivilDate,
   DivergenceDetail,

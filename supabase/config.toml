@@ -33,3 +33,19 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/import-card-variants/deno.json"
 entrypoint = "./functions/import-card-variants/index.ts"
+
+# ptax-fx-refresh (2026-08-18, Incremento P13.3, ADR-031): PRIMEIRA function deste
+# projeto com verify_jwt=false por decisão arquitetural deliberada, não por descuido —
+# as chaves atuais do projeto (formato sb_secret_.../sb_publishable_...) não são JWT,
+# então verify_jwt=true rejeitaria QUALQUER chamador, inclusive o agendador legítimo.
+# A fronteira de identidade real aqui é um segredo dedicado desta function
+# (PTAX_FX_REFRESH_SECRET, Function Secret do Supabase — nunca a publishable key),
+# validado no header "apikey" por comparação manual em tempo constante dentro do
+# próprio handler (ver ptax-fx-refresh/auth.ts) — nunca @supabase/server. Execução
+# sempre registra triggered_by=SCHEDULED, confirmed_by=NULL em pricing_sync_run (nunca
+# um admin humano por trás desta chamada).
+[functions.ptax-fx-refresh]
+enabled = true
+verify_jwt = false
+import_map = "./functions/ptax-fx-refresh/deno.json"
+entrypoint = "./functions/ptax-fx-refresh/index.ts"
