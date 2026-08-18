@@ -12,7 +12,10 @@ import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import { SetTypeTag } from "@/components/catalogo/set-type-tag";
 import { CardImagePreview } from "@/components/card/card-image-preview";
 import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
+import { CardPriceSummary } from "@/components/card/card-price-summary";
 import { HoloCard } from "@/components/card/holo-card";
+import { usePricingBatch } from "@/hooks/use-pricing-batch";
+import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -433,6 +436,12 @@ export function CartasGallery({
   const revealResetKey = `${query}|${showInactive}|${varianteFilter}|${Array.from(selectedRarities).sort().join(",")}|${Array.from(selectedCategories).sort().join(",")}`;
   const { visibleCount, sentinelRef } = useInfiniteReveal(PAGE_SIZE, revealResetKey);
   const visible = filtered.slice(0, visibleCount);
+  // Resumo de preço em lote (P12, redesenho 2026-08-18) — uma única
+  // requisição para todas as cartas atualmente reveladas pelo scroll
+  // infinito; cartas já resolvidas em uma rolagem anterior (ou em outra
+  // grade, na mesma navegação) não são buscadas de novo, ver
+  // `usePricingBatch`/`pricing-batch-client.ts`.
+  const pricingByCard = usePricingBatch(visible.map((carta) => carta.id));
 
   function openZoom(carta: CartaCompletaRow) {
     // Passo de preparo, fora da transição: marca só esta carta como alvo
@@ -807,6 +816,7 @@ export function CartasGallery({
                         onDeactivate={() => setDeactivatingCarta(carta)}
                         onReactivate={() => handleReactivate(carta)}
                         reactivating={reactivatingId === carta.id}
+                        pricingEntry={pricingByCard.get(carta.id)}
                       />
                     ))}
                   </div>
@@ -1025,6 +1035,7 @@ function CartaGridCard({
   onDeactivate,
   onReactivate,
   reactivating,
+  pricingEntry,
 }: {
   carta: CartaCompletaRow;
   /** Qual imagem mostrar — ver `ImageLanguageToggle`/`cartaImageUrl`. */
@@ -1049,6 +1060,8 @@ function CartaGridCard({
   onReactivate: () => void;
   /** `true` enquanto a reativação desta carta específica está em voo — desabilita o botão e troca o ícone. */
   reactivating: boolean;
+  /** Resumo de preço já resolvido pelo `usePricingBatch` do grid pai — `undefined` enquanto o lote não chegou; ver `CardPriceSummary`. */
+  pricingEntry: PricingCacheEntry | undefined;
 }) {
   const imageUrl = cartaImageUrl(carta, imageLanguage);
 
@@ -1214,6 +1227,14 @@ function CartaGridCard({
                   </TooltipContent>
                 </Tooltip>
               )}
+              {/* Pill de preço (P12, último ajuste visual, 2026-08-18) —
+                  posicionado imediatamente após o indicador de variantes, pedido
+                  explícito de Fabrício: "[indicador de variantes] [pill de
+                  preço] ... [editar]". Mesmo sub-grupo `gap-0.5` da raridade+
+                  variantes (não do `gap-1` de "Inativa") — reforça que preço
+                  também é metadado da carta, mesmo racional já usado para
+                  aproximar raridade+variantes entre si. */}
+              <CardPriceSummary cardId={carta.id} cardName={carta.name} entry={pricingEntry} />
             </div>
             {!carta.isActive && (
               <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
@@ -1270,6 +1291,19 @@ function CartaGridCard({
  * experiência em vez de reimplementá-la (ver
  * `docs/adr/ADR-030-card-search-projection.md`). Estrutura e classes
  * idênticas às de antes da extração — sem mudança visual/funcional.
+ *
+ * **P12 (2026-08-17→18, duas rodadas de redesenho)**: uma primeira versão
+ * deste incremento acrescentou um painel de preços dentro deste modal
+ * (`CardPricingPanel`) — rejeitada visualmente por violar a regra "só a
+ * imagem, nenhuma outra informação" (2026-07-31, acima). Uma segunda versão
+ * tentou um ícone discreto sobre a miniatura do grid (`CardPriceBadge`,
+ * popover só no hover) — também descartada, ao se confirmar que nada de P12
+ * havia sequer sido commitado/pushado até então (ver `05f-pricing.md`/
+ * `docs/log.md`, entrada 2026-08-18). Desenho final: resumo de preço inline
+ * na identificação abaixo da miniatura (`CardPriceSummary`, ver
+ * `CartaGridCard`, abaixo), sempre visível quando há dado — nunca dependente
+ * de hover para existir. Este modal permanece exatamente neste estado (só
+ * `CardImagePreview`, motion senoidal intocado) em todas as três rodadas.
  */
 function CartaZoomDialog({
   carta,

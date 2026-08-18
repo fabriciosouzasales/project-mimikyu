@@ -6,7 +6,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, ChevronDown, X } from "lucide-react";
 import { CardImagePreview } from "@/components/card/card-image-preview";
 import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
+import { CardPriceSummary } from "@/components/card/card-price-summary";
 import { HoloCard } from "@/components/card/holo-card";
+import { usePricingBatch } from "@/hooks/use-pricing-batch";
+import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -71,6 +74,11 @@ export function PesquisaView() {
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(true);
 
   const [cards, setCards] = useState<PesquisaCard[]>([]);
+  // Resumo de preço em lote (P12, redesenho 2026-08-18) — uma única
+  // requisição para todos os resultados atualmente na tela; cresce
+  // conforme "Carregar mais" adiciona cartas, sem refazer a busca das já
+  // resolvidas (ver `usePricingBatch`/`pricing-batch-client.ts`).
+  const pricingByCard = usePricingBatch(cards.map((card) => card.id));
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -350,6 +358,7 @@ export function PesquisaView() {
                   card={card}
                   onZoom={() => openZoom(card)}
                   isTransitionSource={transitionTargetId === card.id && zoomCard?.id !== card.id}
+                  pricingEntry={pricingByCard.get(card.id)}
                 />
               ))}
             </div>
@@ -386,10 +395,13 @@ function PesquisaCardTile({
   card,
   onZoom,
   isTransitionSource,
+  pricingEntry,
 }: {
   card: PesquisaCard;
   onZoom: () => void;
   isTransitionSource: boolean;
+  /** Resumo de preço já resolvido pelo `usePricingBatch` do grid pai — `undefined` enquanto o lote não chegou; ver `CardPriceSummary`. */
+  pricingEntry: PricingCacheEntry | undefined;
 }) {
   const imageUrl = cardImageUrl(card);
   return (
@@ -402,32 +414,53 @@ function PesquisaCardTile({
     // (não reimplementado) já usado no preview ampliado desta própria
     // página (`CardImagePreview`) — aqui sem `floating`, igual ao grid de
     // `Cartas`.
-    <button
-      type="button"
-      onClick={onZoom}
-      className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label={`Ampliar ${card.name}`}
-    >
-      <HoloCard
-        style={
-          { viewTransitionName: isTransitionSource ? cardImagePreviewTransitionName(card.id) : "none" } as CSSProperties
-        }
-      >
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={card.name} loading="lazy" decoding="async" className="w-full rounded-lg" />
-        ) : (
-          <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-2 text-center text-[10px] text-muted-foreground">
-            Sem imagem
-          </div>
-        )}
-      </HoloCard>
-      <div className="mt-1.5 min-w-0">
-        <p className="truncate text-xs font-medium text-foreground">{card.name}</p>
-        <p className="truncate text-[11px] text-muted-foreground">
-          {card.cardSet.code} · {cartaFullNumber(card.collectorNumber, card.collectorTotal)}
-        </p>
+    <div className="flex flex-col gap-1.5">
+      {/* Botão de ampliar restrito à imagem — mesmo padrão de `CartaGridCard`
+          (`cartas-gallery.tsx`), adotado aqui em 2026-08-18 (P12) para o
+          resumo de preço poder viver como irmão do botão na identificação
+          abaixo (botão dentro de botão é HTML inválido, e o resumo de preço
+          é ele próprio um botão — ver `CardPriceSummary`). Antes desta
+          mudança, o `<button>` também envolvia a identificação abaixo da
+          carta — agora só a imagem é clicável, texto vira irmão fora do
+          botão. */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onZoom}
+          className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`Ampliar ${card.name}`}
+        >
+          <HoloCard
+            style={
+              { viewTransitionName: isTransitionSource ? cardImagePreviewTransitionName(card.id) : "none" } as CSSProperties
+            }
+          >
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt={card.name} loading="lazy" decoding="async" className="w-full rounded-lg" />
+            ) : (
+              <div className="flex aspect-[5/7] w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-2 text-center text-[10px] text-muted-foreground">
+                Sem imagem
+              </div>
+            )}
+          </HoloCard>
+        </button>
       </div>
-    </button>
+      <div className="min-w-0 space-y-0.5">
+        <p className="truncate text-xs font-medium text-foreground">{card.name}</p>
+        {/* Pill de preço (P12, QA visual, 2026-08-18) — pedido explícito de
+            Fabrício: mesma linha da identificação de Card Set + número,
+            alinhado à direita (`justify-between`), não mais numa linha
+            própria abaixo dos metadados. Nunca depende de hover para
+            existir: só aparece quando `pricingEntry` já chegou do lote do
+            grid pai; hover/foco/toque nele abrem o popover de detalhe. */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="min-w-0 truncate text-[11px] text-muted-foreground">
+            {card.cardSet.code} · {cartaFullNumber(card.collectorNumber, card.collectorTotal)}
+          </p>
+          <CardPriceSummary cardId={card.id} cardName={card.name} entry={pricingEntry} className="ml-auto" />
+        </div>
+      </div>
+    </div>
   );
 }

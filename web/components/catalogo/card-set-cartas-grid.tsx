@@ -3,12 +3,15 @@
 import { Search } from "lucide-react";
 import { useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
+import { CardPriceSummary } from "@/components/card/card-price-summary";
 import { HoloCard } from "@/components/card/holo-card";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
+import { usePricingBatch } from "@/hooks/use-pricing-batch";
+import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
 import { cn } from "@/lib/utils";
 import type { CartaCompletaRow } from "@/lib/catalogo/queries";
 
@@ -91,6 +94,12 @@ function cartaViewTransitionName(id: string): string {
  * pedido de Fabrício após inspeção geral das páginas de Catálogo Editorial:
  * "carregar as cartas à medida que o usuário rola a tela para baixo") — ver
  * `useInfiniteReveal`.
+ *
+ * Resumo de preço inline (P12 v4, 2026-08-18) — terceiro grid a receber
+ * `CardPriceSummary`/`usePricingBatch` (Catálogo de Cartas e Pesquisa já o
+ * tinham desde a rodada anterior deste incremento). Mesmo padrão: uma única
+ * chamada em lote por conjunto de cartas visíveis (`visiveis`, já reduzido
+ * pela busca e pela rolagem infinita), nunca dependente de hover para existir.
  */
 export function CardSetCartasGrid({ cartas }: { cartas: CartaCompletaRow[] }) {
   const [query, setQuery] = useState("");
@@ -107,6 +116,7 @@ export function CardSetCartasGrid({ cartas }: { cartas: CartaCompletaRow[] }) {
 
   const { visibleCount, sentinelRef } = useInfiniteReveal(PAGE_SIZE, termo);
   const visiveis = filtradas.slice(0, visibleCount);
+  const pricingByCard = usePricingBatch(visiveis.map((carta) => carta.id));
 
   function openZoom(carta: CartaCompletaRow) {
     flushSync(() => setTransitionTargetId(carta.id));
@@ -147,6 +157,7 @@ export function CardSetCartasGrid({ cartas }: { cartas: CartaCompletaRow[] }) {
                 carta={carta}
                 isTransitionSource={transitionTargetId === carta.id && zoomCarta?.id !== carta.id}
                 onOpen={() => openZoom(carta)}
+                pricingEntry={pricingByCard.get(carta.id)}
               />
             ))}
           </div>
@@ -170,10 +181,12 @@ function CartaGridCardReadOnly({
   carta,
   isTransitionSource,
   onOpen,
+  pricingEntry,
 }: {
   carta: CartaCompletaRow;
   isTransitionSource: boolean;
   onOpen: () => void;
+  pricingEntry: PricingCacheEntry | undefined;
 }) {
   const imageUrl = cartaImageUrl(carta);
 
@@ -205,13 +218,20 @@ function CartaGridCardReadOnly({
         <p className="truncate text-[9px] leading-none text-muted-foreground">
           <span className="font-medium text-foreground">#{cartaFullNumber(carta)}</span> - {carta.name}
         </p>
-        <div className="flex items-center gap-1">
-          <RaritySymbol symbolCode={carta.raritySymbolCode} />
-          {!carta.isActive && (
-            <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[8px] font-medium leading-none text-muted-foreground">
-              Inativa
-            </span>
-          )}
+        {/* Pill de preço (P12, QA visual, 2026-08-18) — pedido explícito de
+            Fabrício: mesma linha do símbolo de raridade/badge "Inativa",
+            alinhado à direita (`justify-between`), não mais numa linha
+            própria abaixo. */}
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex min-w-0 items-center gap-1">
+            <RaritySymbol symbolCode={carta.raritySymbolCode} />
+            {!carta.isActive && (
+              <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[8px] font-medium leading-none text-muted-foreground">
+                Inativa
+              </span>
+            )}
+          </div>
+          <CardPriceSummary cardId={carta.id} cardName={carta.name} entry={pricingEntry} className="ml-auto" />
         </div>
       </div>
     </div>
