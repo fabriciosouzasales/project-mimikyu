@@ -33,16 +33,21 @@ type PricingSnapshotRow = {
   observedAt: string;
 };
 
-// Resumo mínimo do modo live (P12 v4) — espelha exatamente o retorno de
-// `get_cards_pricing_summary(p_card_ids uuid[])`: uma única consulta SQL,
-// padrão de seleção fixo (condição NM, printing "Normal", price_type MARKET),
-// sem as colunas de detalhe (fonte, mercado, observado em, PTAX) que o
-// contrato por-carta (P11) ainda traz — por isso não reaproveita
-// `PricingSnapshotRow`.
+// Resumo mínimo do modo live (P12 v4, hierarquia de printing na revisão
+// 3904) — espelha exatamente o retorno de `get_cards_pricing_summary(p_card_ids
+// uuid[])`: uma única consulta SQL, condição NM e price_type MARKET fixos,
+// mas agora com hierarquia de printing (Normal > Holofoil > Reverse
+// Holofoil) em vez de só Normal — sem as colunas de detalhe (fonte, mercado,
+// observado em, PTAX) que o contrato por-carta (P11) ainda traz, por isso
+// não reaproveita `PricingSnapshotRow`. `printingLabel` (novo, 3904) devolve
+// qual dos três printings foi efetivamente escolhido pela função — o
+// frontend usa isso para não ter de assumir "Normal" nem recalcular a
+// hierarquia por conta própria a partir de um resumo que não a carrega.
 type PricingSummaryRow = {
   hasPricing: boolean;
   brlAmount: number | null;
   fxStatus: FxStatus | null;
+  printingLabel: string | null;
 };
 
 type GetCardsPricingSummaryRow = {
@@ -50,6 +55,7 @@ type GetCardsPricingSummaryRow = {
   has_pricing: boolean;
   brl_amount: number | null;
   fx_status: FxStatus | null;
+  printing_label: string | null;
 };
 
 // --- Modo prévia técnica (admin, ?pricingPreview=1) ---------------------
@@ -259,14 +265,19 @@ async function loadPreviewRowsBatch(
  * (nova RPC, `p_card_ids uuid[]`, máx. 100 elementos) resolve o lote inteiro
  * numa única consulta SQL (`DISTINCT ON` + `LEFT JOIN LATERAL` para PTAX),
  * validado via `EXPLAIN (ANALYZE, BUFFERS)` em 100 ids reais — 12,9ms, um
- * único `Function Scan`, sem laço nenhum. Como contrapartida, o retorno é
- * deliberadamente mínimo (`card_id`, `has_pricing`, `brl_amount`, `fx_status`)
- * e a seleção é fixa: condição NM, printing "Normal", `price_type` MARKET —
- * mesma regra de negócio literal pedida por Fabrício ("valor BRL padrão
- * NM/Normal"). Consequência real, não bug: cartas cujo único printing
- * catalogado é Holofoil (ex.: "ex" quase sempre holo-exclusivas) não têm
- * nenhuma linha que satisfaça essa regra e por isso nunca mostram resumo em
- * modo live, mesmo tendo preço real sob outro printing.
+ * único `Function Scan`, sem laço nenhum. Retorno deliberadamente mínimo
+ * (`card_id`, `has_pricing`, `brl_amount`, `fx_status`, `printing_label`) sob
+ * condição NM e `price_type` MARKET fixos.
+ *
+ * Hierarquia de printing (revisão 3904, 2026-08-18, correção pós-teste
+ * "Reverse-only"): a primeira versão desta função (3903) exigia printing
+ * "Normal" — cartas cujo único printing catalogado é Holofoil (ex.: "ex"
+ * quase sempre holo-exclusivas) nunca mostravam resumo, mesmo com preço real
+ * sob outro printing; um teste transacional confirmou o mesmo problema para
+ * Reverse Holofoil. Corrigido com a hierarquia aprovada — Normal > Holofoil >
+ * Reverse Holofoil — aplicada só dentro de NM+MARKET: `has_pricing=true` se
+ * QUALQUER um dos três tiver preço elegível, e `printing_label` devolve qual
+ * foi efetivamente escolhido.
  *
  * Modo prévia (`?pricingPreview=1`, só com `is_admin()` confirmado no
  * servidor): inalterado desde a primeira versão — uma única consulta
@@ -339,7 +350,12 @@ export async function POST(request: NextRequest) {
 
   const results: Record<string, PricingSummaryRow> = {};
   for (const row of (data ?? []) as GetCardsPricingSummaryRow[]) {
-    results[row.card_id] = { hasPricing: row.has_pricing, brlAmount: row.brl_amount, fxStatus: row.fx_status };
+    results[row.card_id] = {
+      hasPricing: row.has_pricing,
+      brlAmount: row.brl_amount,
+      fxStatus: row.fx_status,
+      printingLabel: row.printing_label,
+    };
   }
 
   return NextResponse.json({ mode: "live", results });

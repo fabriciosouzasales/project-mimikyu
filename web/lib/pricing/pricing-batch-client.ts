@@ -39,13 +39,22 @@ export type PricingSnapshotRow = {
 };
 
 // Resumo mínimo do modo live — espelha o retorno de `get_cards_pricing_summary`
-// (card_id, has_pricing, brl_amount, fx_status). `fxStatus` é `null` quando
-// não existe nenhuma linha NM+Normal+MARKET para a carta (não confundir com
-// `FX_RATE_UNAVAILABLE`, que significa "existe a linha, mas sem PTAX aplicável").
+// (card_id, has_pricing, brl_amount, fx_status, printing_label). `fxStatus` é
+// `null` quando não existe nenhuma linha NM+MARKET elegível para a carta em
+// nenhum dos três printings da hierarquia (não confundir com
+// `FX_RATE_UNAVAILABLE`, que significa "existe a linha, mas sem PTAX
+// aplicável"). Desde a revisão 3904 do RPC (2026-08-18), o resumo não é mais
+// travado em Normal — `printingLabel` devolve qual dos três (`Normal`,
+// `Holofoil`, `Reverse Holofoil`) foi efetivamente escolhido pela hierarquia
+// Normal > Holofoil > Reverse Holofoil; é `null` só quando `hasPricing` é
+// `false`. Texto cru do banco — tradução PT-BR é responsabilidade do
+// chamador (mesmo dicionário `PRINTING_LABEL_PT` já usado no detalhe
+// por-carta).
 export type PricingLiveSummary = {
   hasPricing: boolean;
   brlAmount: number | null;
   fxStatus: "CONVERTED" | "FX_RATE_UNAVAILABLE" | null;
+  printingLabel: string | null;
 };
 
 export type PricingCacheEntry =
@@ -118,7 +127,7 @@ export async function fetchPricingBatch(cardIds: string[]): Promise<void> {
       for (const cardId of cardIds) {
         cache.set(cardId, {
           mode: "live",
-          summary: results[cardId] ?? { hasPricing: false, brlAmount: null, fxStatus: null },
+          summary: results[cardId] ?? { hasPricing: false, brlAmount: null, fxStatus: null, printingLabel: null },
         });
       }
     }

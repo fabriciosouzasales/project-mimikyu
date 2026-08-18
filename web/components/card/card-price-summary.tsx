@@ -36,15 +36,19 @@ const PRINTING_LABEL_PT: Record<string, string> = {
 };
 
 // Hierarquia já aprovada, reconfirmada em QA visual (2026-08-18): NM+Normal
-// -> NM+Holográfica -> NM+Holográfica reversa. Só decide a ORDEM de exibição
-// no popover (qual linha aparece primeiro/destacada) — nunca decide qual
-// preço aciona o pill do grid, que continua sendo estritamente
-// NM+Normal+MARKET (modo live via `get_cards_pricing_summary`, modo prévia
-// via `selectDisplayRows` abaixo aplicando a mesma regra estrita antes de
-// considerar a hierarquia). NM é a condição padrão de comparação/exibição
-// em todo o produto por representar mais de 95% das negociações
-// consideradas (ver `docs/05f-pricing.md`) — por isso nunca aparecem linhas
-// de Lightly Played, Moderately Played, Heavily Played ou Damaged aqui.
+// -> NM+Holográfica -> NM+Holográfica reversa. Decide tanto a ORDEM de
+// exibição no popover (qual linha aparece primeiro/destacada) quanto — desde
+// a revisão 3904 de `get_cards_pricing_summary` (2026-08-18, correção do
+// teste "Reverse-only") — qual preço aciona o pill do grid: o próprio RPC
+// aplica essa hierarquia no modo live e devolve `printingLabel` já resolvido
+// (ver `usePricingBatch/PricingLiveSummary`), então cartas Holofoil-only
+// (ex.: Alakazam, Mega Gardevoir ex, Mega Venusaur ex do piloto P8) também
+// mostram o pill normalmente, não mais só cartas com printing Normal. Modo
+// prévia replica a mesma hierarquia via `selectDisplayRows` abaixo. NM é a
+// condição padrão de comparação/exibição em todo o produto por representar
+// mais de 95% das negociações consideradas (ver `docs/05f-pricing.md`) — por
+// isso nunca aparecem linhas de Lightly Played, Moderately Played, Heavily
+// Played ou Damaged aqui.
 const PRINTING_ORDER = ["Normal", "Holofoil", "Reverse Holofoil"];
 
 /**
@@ -112,17 +116,21 @@ export function CardPriceSummary({
   if (!entry) return null;
 
   let brlAmount: number | null = null;
+  let printingLabel: string | null = null;
   if (entry.mode === "live") {
     if (!entry.summary.hasPricing || entry.summary.brlAmount === null) return null;
     brlAmount = entry.summary.brlAmount;
+    printingLabel = entry.summary.printingLabel;
   } else {
     const rows = selectDisplayRows(entry.rows);
     if (rows.length === 0) return null;
     brlAmount = rows[0]!.equivalentBrlAmount;
+    printingLabel = rows[0]!.printingLabel;
   }
   if (brlAmount === null) return null;
 
   const priceText = brlFormatter.format(brlAmount);
+  const printingText = printingLabel ? (PRINTING_LABEL_PT[printingLabel] ?? printingLabel) : null;
   const popoverId = `card-price-summary-${cardId}`;
 
   return (
@@ -133,7 +141,9 @@ export function CardPriceSummary({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
-        aria-label={`Ver preços — equivalente em BRL ${priceText}`}
+        aria-label={
+          printingText ? `Ver preços — NM · ${printingText} — equivalente em BRL ${priceText}` : `Ver preços — equivalente em BRL ${priceText}`
+        }
         onMouseEnter={() => scheduleOpen()}
         onMouseLeave={() => scheduleClose()}
         onFocus={() => openNow()}
@@ -246,11 +256,13 @@ function CardPriceDetails({ cardId, entry }: { cardId: string; entry: PricingCac
       )}
 
       {/* Preço destacado — sempre a primeira linha da hierarquia disponível
-          (NM+Normal quando existe; NM+Holográfica/Holográfica reversa só se
-          Normal não tiver preço, embora isso hoje nunca aconteça no pill do
-          grid, que exige Normal — ver comentário de `PRINTING_ORDER` acima).
-          "NM · Normal" logo abaixo substitui as antigas linhas separadas de
-          Condição/Variante — mais compacto, mesma informação. */}
+          (NM+Normal quando existe; NM+Holográfica ou NM+Holográfica reversa
+          quando Normal não tiver preço elegível — desde a revisão 3904 do
+          RPC isso também decide qual preço aciona o pill do grid, ver
+          comentário de `PRINTING_ORDER` acima). "NM · Normal"/"NM ·
+          Holográfica"/"NM · Holográfica reversa" logo abaixo substitui as
+          antigas linhas separadas de Condição/Variante — mais compacto,
+          mesma informação. */}
       <div>
         <p className="text-xl font-bold leading-none text-foreground">
           {brlFormatter.format(primary.equivalentBrlAmount!)}
