@@ -270,14 +270,18 @@ async function loadPreviewRowsBatch(
  * condição NM e `price_type` MARKET fixos.
  *
  * Hierarquia de printing (revisão 3904, 2026-08-18, correção pós-teste
- * "Reverse-only"): a primeira versão desta função (3903) exigia printing
+ * "Reverse-only"; estendida na revisão 3918, 2026-08-19, correção da onda 1
+ * do P14.4.2): a primeira versão desta função (3903) exigia printing
  * "Normal" — cartas cujo único printing catalogado é Holofoil (ex.: "ex"
  * quase sempre holo-exclusivas) nunca mostravam resumo, mesmo com preço real
  * sob outro printing; um teste transacional confirmou o mesmo problema para
- * Reverse Holofoil. Corrigido com a hierarquia aprovada — Normal > Holofoil >
- * Reverse Holofoil — aplicada só dentro de NM+MARKET: `has_pricing=true` se
- * QUALQUER um dos três tiver preço elegível, e `printing_label` devolve qual
- * foi efetivamente escolhido.
+ * Reverse Holofoil (3904). A onda 1 do P14.4.2 (BASE2/BASE3/BASE5/GYM2, era
+ * clássica WOTC) revelou o mesmo problema para printings "Unlimited"/"1st
+ * Edition" (3918). Hierarquia aprovada atual — Normal > Holofoil > Reverse
+ * Holofoil > Unlimited > Unlimited Holofoil > 1st Edition > 1st Edition
+ * Holofoil — aplicada só dentro de NM+MARKET: `has_pricing=true` se QUALQUER
+ * um dos sete tiver preço elegível, e `printing_label` devolve qual foi
+ * efetivamente escolhido.
  *
  * Modo prévia (`?pricingPreview=1`, só com `is_admin()` confirmado no
  * servidor): inalterado desde a primeira versão — uma única consulta

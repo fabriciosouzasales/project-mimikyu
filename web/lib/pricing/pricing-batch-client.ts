@@ -41,13 +41,15 @@ export type PricingSnapshotRow = {
 // Resumo mínimo do modo live — espelha o retorno de `get_cards_pricing_summary`
 // (card_id, has_pricing, brl_amount, fx_status, printing_label). `fxStatus` é
 // `null` quando não existe nenhuma linha NM+MARKET elegível para a carta em
-// nenhum dos três printings da hierarquia (não confundir com
+// nenhum dos printings da hierarquia (não confundir com
 // `FX_RATE_UNAVAILABLE`, que significa "existe a linha, mas sem PTAX
 // aplicável"). Desde a revisão 3904 do RPC (2026-08-18), o resumo não é mais
-// travado em Normal — `printingLabel` devolve qual dos três (`Normal`,
-// `Holofoil`, `Reverse Holofoil`) foi efetivamente escolhido pela hierarquia
-// Normal > Holofoil > Reverse Holofoil; é `null` só quando `hasPricing` é
-// `false`. Texto cru do banco — tradução PT-BR é responsabilidade do
+// travado em Normal — `printingLabel` devolve qual printing foi
+// efetivamente escolhido pela hierarquia; desde a revisão 3918 (2026-08-19,
+// correção da onda 1 do P14.4.2) a hierarquia tem sete valores — Normal >
+// Holofoil > Reverse Holofoil > Unlimited > Unlimited Holofoil > 1st Edition
+// > 1st Edition Holofoil, cobrindo também a era clássica (WOTC). É `null` só
+// quando `hasPricing` é `false`. Texto cru do banco — tradução PT-BR é responsabilidade do
 // chamador (mesmo dicionário `PRINTING_LABEL_PT` já usado no detalhe
 // por-carta).
 export type PricingLiveSummary = {
@@ -139,32 +141,56 @@ export async function fetchPricingBatch(cardIds: string[]): Promise<void> {
 // --- Detalhe completo sob demanda (modo live) ---------------------------
 //
 // Desde a rodada 2 (P12 v4), o resumo em lote do modo live não traz mais o
-// detalhe completo (só NM+Normal+MARKET). O popover de detalhe, quando aberto
-// para uma carta em modo live, busca sob demanda pelo contrato por-carta já
-// existente e inalterado (`GET /api/cards/[cardId]/pricing`, P11/P12) — nunca
-// eager, só na interação (hover/foco/toque que abre o popover). Cache
-// separado do resumo em lote, também por `card_id`, para não refazer a busca
-// se o mesmo popover for reaberto na mesma sessão da página.
+// detalhe completo (só NM + hierarquia de printing aprovada — ver
+// `PRINTING_ORDER`/`PRINTING_LABEL_PT` em `card-price-summary.tsx` — com
+// `price_type` MARKET). O popover de detalhe, quando aberto para uma carta em
+// modo live, busca sob demanda pelo contrato por-carta já existente e
+// inalterado (`GET /api/cards/[cardId]/pricing`, P11/P12) — nunca eager, só
+// na interação (hover/foco/toque que abre o popover). Cache separado do
+// resumo em lote, também por `card_id`, para não refazer a busca se o mesmo
+// popover for reaberto na mesma sessão da página.
+//
+// `liveDetailInFlight` (2026-08-19, fix do bug "primeiro hover trava em
+// 'Carregando detalhes...'"): deduplica chamadas concorrentes para o mesmo
+// `card_id` — sem isso, duas invocações de `fetchLiveDetail` antes da
+// primeira resolver (por exemplo, o duplo-invoke de efeito do React 18 Strict
+// Mode em desenvolvimento, ou uma segunda abertura rápida do mesmo popover)
+// disparavam duas requisições de rede reais para a mesma carta. Não foi a
+// causa do bug relatado (a causa era o efeito de `CardPriceDetails` cancelar
+// a própria requisição antes dela resolver — ver `card-price-summary.tsx`),
+// mas é parte do contrato que o requisito "chamadas simultâneas continuam
+// deduplicadas" exige e que o código anterior não garantia.
 const liveDetailCache = new Map<string, PricingSnapshotRow[]>();
+const liveDetailInFlight = new Map<string, Promise<PricingSnapshotRow[]>>();
 
 export function getCachedLiveDetail(cardId: string): PricingSnapshotRow[] | undefined {
   return liveDetailCache.get(cardId);
 }
 
-export async function fetchLiveDetail(cardId: string): Promise<PricingSnapshotRow[]> {
+export function fetchLiveDetail(cardId: string): Promise<PricingSnapshotRow[]> {
   const cached = liveDetailCache.get(cardId);
-  if (cached) return cached;
+  if (cached) return Promise.resolve(cached);
 
-  try {
-    const response = await fetch(`/api/cards/${cardId}/pricing`);
-    if (!response.ok) return [];
+  const inFlight = liveDetailInFlight.get(cardId);
+  if (inFlight) return inFlight;
 
-    const payload = (await response.json()) as { mode?: "live" | "preview"; rows?: PricingSnapshotRow[]; error?: string };
-    if (payload.error || !payload.rows) return [];
+  const request = (async () => {
+    try {
+      const response = await fetch(`/api/cards/${cardId}/pricing`);
+      if (!response.ok) return [];
 
-    liveDetailCache.set(cardId, payload.rows);
-    return payload.rows;
-  } catch {
-    return [];
-  }
+      const payload = (await response.json()) as { mode?: "live" | "preview"; rows?: PricingSnapshotRow[]; error?: string };
+      if (payload.error || !payload.rows) return [];
+
+      liveDetailCache.set(cardId, payload.rows);
+      return payload.rows;
+    } catch {
+      return [];
+    } finally {
+      liveDetailInFlight.delete(cardId);
+    }
+  })();
+
+  liveDetailInFlight.set(cardId, request);
+  return request;
 }

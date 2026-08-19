@@ -33,23 +33,45 @@ const PRINTING_LABEL_PT: Record<string, string> = {
   Normal: "Normal",
   Holofoil: "Holográfica",
   "Reverse Holofoil": "Holográfica reversa",
+  Unlimited: "Ilimitada",
+  "Unlimited Holofoil": "Ilimitada Holográfica",
+  "1st Edition": "1ª Edição",
+  "1st Edition Holofoil": "1ª Edição Holográfica",
 };
 
-// Hierarquia já aprovada, reconfirmada em QA visual (2026-08-18): NM+Normal
-// -> NM+Holográfica -> NM+Holográfica reversa. Decide tanto a ORDEM de
-// exibição no popover (qual linha aparece primeiro/destacada) quanto — desde
-// a revisão 3904 de `get_cards_pricing_summary` (2026-08-18, correção do
-// teste "Reverse-only") — qual preço aciona o pill do grid: o próprio RPC
-// aplica essa hierarquia no modo live e devolve `printingLabel` já resolvido
-// (ver `usePricingBatch/PricingLiveSummary`), então cartas Holofoil-only
-// (ex.: Alakazam, Mega Gardevoir ex, Mega Venusaur ex do piloto P8) também
-// mostram o pill normalmente, não mais só cartas com printing Normal. Modo
-// prévia replica a mesma hierarquia via `selectDisplayRows` abaixo. NM é a
-// condição padrão de comparação/exibição em todo o produto por representar
-// mais de 95% das negociações consideradas (ver `docs/05f-pricing.md`) — por
-// isso nunca aparecem linhas de Lightly Played, Moderately Played, Heavily
-// Played ou Damaged aqui.
-const PRINTING_ORDER = ["Normal", "Holofoil", "Reverse Holofoil"];
+// Hierarquia estendida (revisão 3918, 2026-08-19, correção pós-diagnóstico da
+// onda 1 do P14.4.2): NM+Normal -> NM+Holográfica -> NM+Holográfica reversa
+// -> NM+Ilimitada -> NM+Ilimitada Holográfica -> NM+1ª Edição -> NM+1ª Edição
+// Holográfica. As quatro últimas cobrem a era clássica (WOTC — BASE2/BASE3/
+// BASE5/GYM2 e afins), cujos printings a JustTCG rotula como
+// 'Unlimited'/'1st Edition' em vez de 'Normal'/'Holofoil'; sem essa extensão,
+// `get_cards_pricing_summary` retornava has_pricing=false para 100% dessas
+// cartas, apesar de preço real persistido (diagnóstico somente-leitura,
+// 2026-08-19). Ordem aprovada por Fabrício: Ilimitada antes de 1ª Edição
+// porque representa a edição padrão mais comum; 1ª Edição é premium, menor
+// prioridade. Sem fallback genérico — um printing fora destes sete não vira
+// candidato nem aqui nem no RPC. Decide tanto a ORDEM de exibição no popover
+// (qual linha aparece primeiro/destacada) quanto — desde a revisão 3904 de
+// `get_cards_pricing_summary` (2026-08-18, correção do teste "Reverse-only")
+// — qual preço aciona o pill do grid: o próprio RPC aplica essa hierarquia no
+// modo live e devolve `printingLabel` já resolvido (ver
+// `usePricingBatch/PricingLiveSummary`), então cartas Holofoil-only (ex.:
+// Alakazam, Mega Gardevoir ex, Mega Venusaur ex do piloto P8) também mostram
+// o pill normalmente, não mais só cartas com printing Normal. Modo prévia
+// replica a mesma hierarquia via `selectDisplayRows` abaixo. NM é a condição
+// padrão de comparação/exibição em todo o produto por representar mais de
+// 95% das negociações consideradas (ver `docs/05f-pricing.md`) — por isso
+// nunca aparecem linhas de Lightly Played, Moderately Played, Heavily Played
+// ou Damaged aqui.
+const PRINTING_ORDER = [
+  "Normal",
+  "Holofoil",
+  "Reverse Holofoil",
+  "Unlimited",
+  "Unlimited Holofoil",
+  "1st Edition",
+  "1st Edition Holofoil",
+];
 
 /**
  * Filtra e ordena as linhas de detalhe (sempre em condição NM, sempre
@@ -201,6 +223,20 @@ function CardPriceDetails({ cardId, entry }: { cardId: string; entry: PricingCac
     entry.mode === "live" && getCachedLiveDetail(cardId) ? "loaded" : "idle",
   );
 
+  // Fix (2026-08-19): `liveStatus` estava na lista de dependências deste
+  // efeito, mas o próprio efeito o define via `setLiveStatus("loading")` —
+  // isso fazia o efeito re-executar assim que o React aplicava esse
+  // setState, disparando a função de limpeza (`cancelled = true`) da
+  // execução original ANTES da resposta de `fetchLiveDetail` chegar. Quando
+  // a resposta real chegava, o `.then()` via `cancelled === true` e
+  // descartava o resultado — o popover ficava travado em "Carregando
+  // detalhes…" mesmo com a requisição concluída com sucesso (o resultado
+  // ainda ia parar em `liveDetailCache`, por isso fechar e reabrir mostrava
+  // o dado na hora: a segunda montagem lia o cache já populado). Correção
+  // mínima: tirar `liveStatus` das dependências — o guard `liveStatus !==
+  // "idle"` continua sendo lido dentro do efeito (evita refetch se o
+  // componente remontar já com dado em cache), só não deve mais disparar
+  // um novo ciclo do próprio efeito.
   useEffect(() => {
     if (entry.mode !== "live") return;
     if (liveStatus !== "idle") return;
@@ -215,7 +251,8 @@ function CardPriceDetails({ cardId, entry }: { cardId: string; entry: PricingCac
     return () => {
       cancelled = true;
     };
-  }, [entry.mode, cardId, liveStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ver comentário acima: `liveStatus` é lido só como guarda de execução única; incluí-lo nas deps causava o bug (efeito cancelava a própria requisição em voo).
+  }, [entry.mode, cardId]);
 
   if (entry.mode === "live" && liveStatus === "loading") {
     return <p className="text-[11px] text-muted-foreground">Carregando detalhes…</p>;

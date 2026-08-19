@@ -403,17 +403,25 @@ class JustTcgClient {
   readonly callLog: CallLogEntry[] = [];
   rateLimitHits = 0;
   private readonly fetchImpl: typeof fetch;
+  // P14.4.2: teto local autoritativo desta execução — nunca o mesmo conceito de
+  // MAX_REQUESTS_PER_RUN (teto de segurança fixo do processo, sempre vigente). Quando
+  // informado (--max-api-requests=<n> do executor de onda), é o MENOR dos dois que vale —
+  // Math.min() nunca permite que um orçamento de onda relaxe o teto de segurança global.
+  // budgetOk() nunca inicia uma chamada que ultrapasse este valor (regra 7 do P14.4.2):
+  // a checagem acontece ANTES de qualquer fetch, nunca depois.
+  private readonly effectiveBudget: number;
 
   // fetchImpl injetável (default: fetch global) — permite testar paginação/retry/429
   // 100% offline em runFixtureCheck(), sem depender de --allow-net nem de rede real.
   // Mesmo padrão de injeção de dependência já usado em
   // supabase/functions/_shared/pricing-ptax/core.ts (runPtaxSync recebe fetch por parâmetro).
-  constructor(private readonly apiKey: string, fetchImpl?: typeof fetch) {
+  constructor(private readonly apiKey: string, fetchImpl?: typeof fetch, requestBudget?: number) {
     this.fetchImpl = fetchImpl ?? fetch;
+    this.effectiveBudget = typeof requestBudget === "number" ? Math.min(requestBudget, MAX_REQUESTS_PER_RUN) : MAX_REQUESTS_PER_RUN;
   }
 
   private budgetOk(): boolean {
-    return this.requestCount < MAX_REQUESTS_PER_RUN;
+    return this.requestCount < this.effectiveBudget;
   }
 
   async get<T>(endpoint: string, params: Record<string, string>): Promise<JustTcgResult<T>> {
@@ -423,7 +431,7 @@ class JustTcgClient {
         endpoint,
         http_status_code: null,
         outcome: "BUDGET_STOPPED",
-        error_detail: `Teto local de ${MAX_REQUESTS_PER_RUN} requisições atingido.`,
+        error_detail: `Teto local de ${this.effectiveBudget} requisições atingido.`,
         api_requests_remaining: null,
       });
       return { status: "BUDGET_STOPPED" };
@@ -499,6 +507,13 @@ class JustTcgClient {
 
   get requestsMade() {
     return this.requestCount;
+  }
+
+  // P14.4.2: saldo local autoritativo restante — usado só para relatório do resumo da onda
+  // (regra 12), nunca para decidir se uma chamada pode prosseguir (isso é budgetOk(), acima,
+  // interno e já verificado antes de qualquer fetch).
+  get requestsRemainingLocal() {
+    return Math.max(0, this.effectiveBudget - this.requestCount);
   }
 }
 
@@ -1625,6 +1640,210 @@ function makeReadOnlyFakeClient(
     },
     rpc: () => blocked("rpc"),
   } as unknown as SupabaseClient;
+}
+
+// P14.4.2: fake client combinado para testar executeExpansionWave() offline — diferente de
+// makeReadOnlyFakeClient() (só leitura, bloqueia toda escrita) e makeBatchFakeClient() (só
+// escrita simples, sem paginação/contagem exata), este suporta as DUAS capacidades no mesmo
+// teste: leitura paginada/contagem exata (mesmo contrato de makeReadOnlyFakeClient, para
+// fetchReconciledLocalInputs()/buildExpansionPlan()) e escrita real com estado em memória
+// (pricing_sync_run/pricing_sync_run_call/pricing_set_mapping/persistBatchedResults, mesma
+// mecânica de makeBatchFakeClient). A concorrência de pricing_sync_run é simulada
+// DINAMICAMENTE — nunca por uma flag estática — reproduzindo a mesma regra do índice único
+// parcial real (ux_pricing_sync_run_active_price_per_source_type, Query 3907): um INSERT
+// nesta tabela só falha com 23505 se já existir, no estado em memória, uma linha com o
+// mesmo pricing_source_id+run_type e status RECEIVED/PROCESSING — isso faz a reexecução
+// idempotente funcionar naturalmente (a 2ª chamada só vê a 1ª linha já finalizada).
+function makeExpansionWaveFakeClient(
+  seed: Record<string, FakeRow[]>,
+  options?: {
+    countOverride?: Record<string, number>;
+    errorOnCall?: Record<string, { atCallIndex: number; message: string }>;
+    failSelect?: Partial<Record<string, boolean>>;
+    failInsert?: Partial<Record<string, boolean>>;
+    failUpdate?: Partial<Record<string, boolean>>;
+    failRpc?: boolean;
+  },
+): { client: SupabaseClient; tables: Record<string, FakeRow[]> } {
+  const tables: Record<string, FakeRow[]> = {};
+  for (const [table, rows] of Object.entries(seed)) tables[table] = rows.map((row) => ({ ...row }));
+  const callCounts: Record<string, number> = {};
+  let idCounter = 5000;
+
+  function selectBuilder(table: string, selectOpts?: { count?: "exact"; head?: boolean }) {
+    const filters: Array<(row: FakeRow) => boolean> = [];
+    let rangeFrom: number | null = null;
+    let rangeTo: number | null = null;
+    const node = {
+      eq(col: string, val: unknown) {
+        filters.push((row) => row[col] === val);
+        return node;
+      },
+      gt(col: string, val: unknown) {
+        filters.push((row) => (row[col] as number) > (val as number));
+        return node;
+      },
+      in(col: string, vals: unknown[]) {
+        const set = new Set(vals);
+        filters.push((row) => set.has(row[col]));
+        return node;
+      },
+      order() {
+        return node;
+      },
+      range(from: number, to: number) {
+        rangeFrom = from;
+        rangeTo = to;
+        return node;
+      },
+      maybeSingle: async () => {
+        if (options?.failSelect?.[table]) return { data: null, error: { message: `permission denied for table ${table}` } };
+        const filtered = (tables[table] ?? []).filter((row) => filters.every((f) => f(row)));
+        return { data: filtered[0] ?? null, error: null };
+      },
+      single: async () => {
+        if (options?.failSelect?.[table]) return { data: null, error: { message: `permission denied for table ${table}` } };
+        const filtered = (tables[table] ?? []).filter((row) => filters.every((f) => f(row)));
+        return { data: filtered[0] ?? null, error: null };
+      },
+      then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+        callCounts[table] = (callCounts[table] ?? 0) + 1;
+        const injected = options?.errorOnCall?.[table];
+        if (injected && callCounts[table] === injected.atCallIndex) {
+          return Promise.resolve({ data: null, error: { message: injected.message }, count: null }).then(resolve, reject);
+        }
+        if (options?.failSelect?.[table]) {
+          return Promise.resolve({ data: null, error: { message: `permission denied for table ${table}` }, count: null }).then(resolve, reject);
+        }
+        const filtered = (tables[table] ?? []).filter((row) => filters.every((f) => f(row)));
+        if (selectOpts?.count === "exact" && selectOpts?.head) {
+          const overrideKey = filters.length > 0 ? `${table}:filtered` : table;
+          const count = options?.countOverride?.[overrideKey] ?? options?.countOverride?.[table] ?? filtered.length;
+          return Promise.resolve({ data: null, error: null, count }).then(resolve, reject);
+        }
+        const paged = rangeFrom !== null ? filtered.slice(rangeFrom, (rangeTo ?? filtered.length - 1) + 1) : filtered;
+        return Promise.resolve({ data: paged, error: null, count: filtered.length }).then(resolve, reject);
+      },
+    };
+    return node;
+  }
+
+  function insertBuilder(table: string, rows: FakeRow[]) {
+    const commit = () => {
+      callCounts[table] = (callCounts[table] ?? 0) + 1;
+      // Simulação dinâmica do índice único parcial de concorrência (Query 3907) — só para
+      // pricing_sync_run, só quando já existe uma linha ativa (RECEIVED/PROCESSING) com o
+      // mesmo pricing_source_id+run_type no estado em memória.
+      if (table === "pricing_sync_run") {
+        for (const row of rows) {
+          const conflict = (tables["pricing_sync_run"] ?? []).some(
+            (r) => r.pricing_source_id === row.pricing_source_id && r.run_type === row.run_type && (r.status === "RECEIVED" || r.status === "PROCESSING"),
+          );
+          if (conflict) {
+            return { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "ux_pricing_sync_run_active_price_per_source_type"' } };
+          }
+        }
+      }
+      if (options?.failInsert?.[table]) return { data: null, error: { message: `permission denied for table ${table}` } };
+      const inserted = rows.map((row) => ({ id: `fake-${table}-${idCounter++}`, ...row }));
+      tables[table] = [...(tables[table] ?? []), ...inserted];
+      return { data: inserted, error: null };
+    };
+    return {
+      select: (_cols?: string) => ({
+        single: async () => {
+          const r = commit();
+          return { data: r.data ? r.data[0] : null, error: r.error };
+        },
+        maybeSingle: async () => {
+          const r = commit();
+          return { data: r.data ? r.data[0] : null, error: r.error };
+        },
+        then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(commit()).then(resolve, reject),
+      }),
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
+        const r = commit();
+        return Promise.resolve({ error: r.error }).then(resolve, reject);
+      },
+    };
+  }
+
+  function updateBuilder(table: string, payload: FakeRow) {
+    const filters: Array<(row: FakeRow) => boolean> = [];
+    const node = {
+      eq(col: string, val: unknown) {
+        filters.push((row) => row[col] === val);
+        return node;
+      },
+      then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+        callCounts[table] = (callCounts[table] ?? 0) + 1;
+        if (options?.failUpdate?.[table]) {
+          return Promise.resolve({ error: { message: `permission denied for table ${table}` } }).then(resolve, reject);
+        }
+        const rows = tables[table] ?? [];
+        for (const row of rows) if (filters.every((f) => f(row))) Object.assign(row, payload);
+        return Promise.resolve({ error: null }).then(resolve, reject);
+      },
+    };
+    return node;
+  }
+
+  const client = {
+    from(table: string) {
+      return {
+        select: (_cols?: string, selectOpts?: { count?: "exact"; head?: boolean }) => selectBuilder(table, selectOpts),
+        insert: (rows: FakeRow | FakeRow[]) => insertBuilder(table, Array.isArray(rows) ? rows : [rows]),
+        update: (payload: FakeRow) => updateBuilder(table, payload),
+        delete: () => {
+          throw new Error(`WRITE_ATTEMPT_BLOCKED(delete:${table})`);
+        },
+        upsert: () => {
+          throw new Error(`WRITE_ATTEMPT_BLOCKED(upsert:${table})`);
+        },
+      };
+    },
+    rpc(fn: string, args?: Record<string, unknown>) {
+      return {
+        then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+          if (options?.failRpc) {
+            return Promise.resolve({ data: null, error: { message: `permission denied for function ${fn}` } }).then(resolve, reject);
+          }
+          if (fn === "batch_select_latest_pricing_observation_by_identity") {
+            const keys = (args?.p_keys as FakeRow[]) ?? [];
+            const obsRows = tables["pricing_observation"] ?? [];
+            const returned: FakeRow[] = [];
+            for (const k of keys) {
+              const matches = obsRows.filter(
+                (r) =>
+                  r.pricing_product_id === k.pricing_product_id &&
+                  r.condition_id === k.condition_id &&
+                  r.price_type === k.price_type &&
+                  r.currency_code === k.currency_code &&
+                  (r.market_label ?? null) === (k.market_label ?? null),
+              );
+              if (matches.length === 0) continue;
+              const latest = matches.reduce((a, b) => (String(b.observed_at) > String(a.observed_at) ? b : a));
+              returned.push(latest);
+            }
+            return Promise.resolve({ data: returned, error: null }).then(resolve, reject);
+          }
+          const updates = (args?.p_updates as FakeRow[]) ?? [];
+          const cardMappingRows = tables["pricing_card_mapping"] ?? [];
+          const returned: FakeRow[] = [];
+          for (const update of updates) {
+            const row = cardMappingRows.find((r) => r.id === update.id);
+            if (row && (row.match_status === "PENDING" || row.match_status === "NOT_FOUND") && update.match_status === "CONFIRMED") {
+              Object.assign(row, update);
+              returned.push({ id: row.id, card_id: row.card_id });
+            }
+          }
+          return Promise.resolve({ data: returned, error: null }).then(resolve, reject);
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  return { client, tables };
 }
 
 async function runFixtureCheck() {
@@ -2969,6 +3188,759 @@ async function runFixtureCheck() {
     }
   }
 
+  // ==========================================================================================
+  // P14.4.2 — Executor Explícito e Controlado de Ondas JustTCG (--expansion-wave)
+  // ==========================================================================================
+
+  // Fixture compartilhada "onda simples" — 2 Sets pequenos (SETX=2 cartas, SETY=1 carta), usada
+  // pelos cenários 5-16 abaixo, que precisam de execução completa (aquisição + classificação +
+  // persistência), diferente dos cenários 1-4 (puramente estruturais/de validação de
+  // argumentos). Cada teste chama esta função para obter um seed FRESCO (nunca compartilha
+  // estado mutável entre testes) — só makeExpansionWaveFakeClient() decide se as tabelas
+  // resultantes são compartilhadas DENTRO de um mesmo teste (ex.: reexecução idempotente).
+  function buildOndaSimplesSeed(): Record<string, FakeRow[]> {
+    return {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [
+        { id: "cs-x", code: "SETX", release_date: "2020-01-01" },
+        { id: "cs-y", code: "SETY", release_date: "2020-02-01" },
+      ],
+      catalog_card_set_metrics: [
+        { card_set_id: "cs-x", cards_ativas: 2 },
+        { card_set_id: "cs-y", cards_ativas: 1 },
+      ],
+      card: [
+        { id: "card-x1", card_set_id: "cs-x", name: "Card X1", collector_number: "1", is_active: true },
+        { id: "card-x2", card_set_id: "cs-x", name: "Card X2", collector_number: "2", is_active: true },
+        { id: "card-y1", card_set_id: "cs-y", name: "Card Y1", collector_number: "1", is_active: true },
+      ],
+      pricing_set_mapping: [],
+      pricing_set_coverage: [],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+  }
+
+  const ondaSimplesExternalSets = [
+    { id: "ext-x", name: "Ext X", release_date: "2020-01-01" },
+    { id: "ext-y", name: "Ext Y", release_date: "2020-02-01" },
+  ];
+
+  // Sequência de respostas para uma execução completa e bem-sucedida da onda (GET /sets -> GET
+  // /cards SETX -> GET /cards SETY), reaproveitada por vários cenários que só precisam da
+  // aquisição inteira funcionando de ponta a ponta.
+  function buildOndaSimplesSuccessResponses(): Array<{ status: number; body: unknown }> {
+    return [
+      { status: 200, body: { data: ondaSimplesExternalSets } },
+      {
+        status: 200,
+        body: {
+          data: [
+            { id: "ext-card-x1", name: "Card X1", number: "1", variants: [{ uuid: "var-x1", condition: "Near Mint", printing: "Normal", price: 1.5, lastUpdated: 1700000000 }] },
+            { id: "ext-card-x2", name: "Card X2", number: "2", variants: [{ uuid: "var-x2", condition: "Near Mint", printing: "Normal", price: 2.5, lastUpdated: 1700000000 }] },
+          ],
+        },
+      },
+      { status: 200, body: { data: [{ id: "ext-card-y1", name: "Card Y1", number: "1", variants: [{ uuid: "var-y1", condition: "Near Mint", printing: "Normal", price: 3.5, lastUpdated: 1700000000 }] }] } },
+    ];
+  }
+
+  // Cenário 1 — seleção exata da onda 1: composição informada por Fabrício a partir da
+  // reconciliação real (BASE2=64, BASE3=62, BASE5=83, GYM2=132 -> 341 cartas, 1 GET /sets + 5
+  // páginas de /cards). Validado 100% offline contra um plano recalculado a partir de um seed
+  // fixture — a escala real (45 Sets) não precisa ser reproduzida aqui, só a composição exata.
+  {
+    const seed = {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [
+        { id: "cs-base2", code: "BASE2", release_date: "2000-01-01" },
+        { id: "cs-base3", code: "BASE3", release_date: "2000-02-01" },
+        { id: "cs-base5", code: "BASE5", release_date: "2000-03-01" },
+        { id: "cs-gym2", code: "GYM2", release_date: "2000-04-01" },
+      ],
+      catalog_card_set_metrics: [
+        { card_set_id: "cs-base2", cards_ativas: 64 },
+        { card_set_id: "cs-base3", cards_ativas: 62 },
+        { card_set_id: "cs-base5", cards_ativas: 83 },
+        { card_set_id: "cs-gym2", cards_ativas: 132 },
+      ],
+      card: [],
+      pricing_set_mapping: [],
+      pricing_set_coverage: [],
+    };
+    const supabaseWave1 = makeReadOnlyFakeClient(seed, { countOverride: { card: 341 } });
+    const inputsWave1 = await fetchReconciledLocalInputs(supabaseWave1);
+    const externalSetsWave1 = normalizeJustTcgSets([
+      { id: "ext-base2", name: "Base Set 2", release_date: "2000-01-01" },
+      { id: "ext-base3", name: "Base Set 3", release_date: "2000-02-01" },
+      { id: "ext-base5", name: "Base Set 5", release_date: "2000-03-01" },
+      { id: "ext-gym2", name: "Gym 2", release_date: "2000-04-01" },
+    ]);
+    const planWave1 = buildExpansionPlan({ ...inputsWave1, allExternalSets: externalSetsWave1 });
+    const waveSelection1 = selectWaveFromPlan(planWave1, 1);
+    assert(
+      "P14.4.2 cenário 1: onda 1 recalculada reproduz a composição esperada — BASE2(64)+BASE3(62)+BASE5(83)+GYM2(132)=341 cartas locais, estimativa de 5 páginas de /cards",
+      waveSelection1.ok &&
+        waveSelection1.wave.sets.map((s) => s.code).join(",") === "BASE2,BASE3,BASE5,GYM2" &&
+        waveSelection1.wave.totalLocalCards === 341 &&
+        waveSelection1.wave.estimatedCallsCards === 5,
+    );
+  }
+
+  // Cenário 2 — onda inexistente: plano só tem 1 onda, pedir a onda 99 é rejeitado antes de
+  // qualquer execução (nunca "a mais próxima", nunca todas implicitamente).
+  {
+    const planUmaOnda = buildExpansionPlan({
+      localSets: [{ cardSetId: "cs-1", code: "SET1", releaseDateIso: "2020-01-01", localCardCount: 10 }],
+      existingSetMappings: new Map(),
+      allExternalSets: normalizeJustTcgSets([{ id: "ext-1", name: "Ext 1", release_date: "2020-01-01" }]),
+      existingCoverage: new Map(),
+    });
+    const selecaoInexistente = selectWaveFromPlan(planUmaOnda, 99);
+    assert(
+      "P14.4.2 cenário 2: --expansion-wave=99 num plano com só 1 onda é rejeitado com ONDA_INEXISTENTE, nunca executa a onda mais próxima nem todas implicitamente",
+      !selecaoInexistente.ok && selecaoInexistente.error.startsWith("ONDA_INEXISTENTE"),
+    );
+  }
+
+  // Cenário 3 — ausência/invalidez de orçamento (e onda) — tudo antes de qualquer chamada
+  // externa, validado por uma função pura sem rede/Supabase.
+  {
+    const semOrcamento = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: null, dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY" });
+    assert("P14.4.2 cenário 3: --max-api-requests ausente é rejeitado (MAX_API_REQUESTS_AUSENTE)", !semOrcamento.ok && semOrcamento.reason.startsWith("MAX_API_REQUESTS_AUSENTE"));
+
+    const orcamentoNaoNumerico = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "abc", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY" });
+    assert("P14.4.2 cenário 3: --max-api-requests não-numérico é rejeitado (MAX_API_REQUESTS_INVALIDO)", !orcamentoNaoNumerico.ok && orcamentoNaoNumerico.reason.startsWith("MAX_API_REQUESTS_INVALIDO"));
+
+    const orcamentoZero = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "0", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY" });
+    assert("P14.4.2 cenário 3: --max-api-requests=0 é rejeitado (deve ser inteiro positivo)", !orcamentoZero.ok);
+
+    const ondaZero = validateExpansionWaveArgs({ expansionWave: "0", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY" });
+    assert("P14.4.2 cenário 3: --expansion-wave=0 é rejeitado (EXPANSION_WAVE_INVALIDO, deve ser inteiro positivo)", !ondaZero.ok && ondaZero.reason.startsWith("EXPANSION_WAVE_INVALIDO"));
+
+    const ondaNaoNumerica = validateExpansionWaveArgs({ expansionWave: "primeira", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY" });
+    assert("P14.4.2 cenário 3: --expansion-wave não-numérico é rejeitado", !ondaNaoNumerica.ok);
+
+    const modosConflitantes = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: "admin-1", expectedSetCodes: "SETX,SETY" });
+    assert("P14.4.2 cenário 3 (bônus): --dry-run e --confirmed-by juntos são rejeitados (MODOS_CONFLITANTES)", !modosConflitantes.ok && modosConflitantes.reason.startsWith("MODOS_CONFLITANTES"));
+
+    const modoAusente = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "10", dryRun: false, confirmedBy: null, expectedSetCodes: "SETX,SETY" });
+    assert("P14.4.2 cenário 3 (bônus): nem --dry-run nem --confirmed-by informados é rejeitado (MODO_AUSENTE, nenhum modo padrão assumido)", !modoAusente.ok && modoAusente.reason.startsWith("MODO_AUSENTE"));
+
+    // Fix P14.4.2 (instabilidade de identidade) — regra 1: --expected-set-codes é obrigatório
+    // junto com --expansion-wave, validado ANTES da checagem de modo (dry-run/confirmed-by).
+    const semExpectedCodes = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: null });
+    assert(
+      "P14.4.2 fix cenário 3b: --expected-set-codes ausente é rejeitado (EXPECTED_SET_CODES_AUSENTE), mesmo com onda/orçamento/modo válidos",
+      !semExpectedCodes.ok && semExpectedCodes.reason.startsWith("EXPECTED_SET_CODES_AUSENTE"),
+    );
+
+    const expectedCodesComVazio = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,,SETY" });
+    assert(
+      "P14.4.2 fix cenário 3b: --expected-set-codes com item vazio (vírgula dupla) é rejeitado (EXPECTED_SET_CODES_INVALIDO)",
+      !expectedCodesComVazio.ok && expectedCodesComVazio.reason.startsWith("EXPECTED_SET_CODES_INVALIDO"),
+    );
+
+    const expectedCodesDuplicado = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY,setx" });
+    assert(
+      "P14.4.2 fix cenário 3b: --expected-set-codes com código repetido (após normalização uppercase) é rejeitado (EXPECTED_SET_CODES_DUPLICADO)",
+      !expectedCodesDuplicado.ok && expectedCodesDuplicado.reason.startsWith("EXPECTED_SET_CODES_DUPLICADO"),
+    );
+
+    const expectedCodesNormalizados = validateExpansionWaveArgs({ expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: " setx , sety " });
+    assert(
+      "P14.4.2 fix cenário 3b: --expected-set-codes é normalizado (trim + uppercase) antes da comparação de composição",
+      expectedCodesNormalizados.ok && expectedCodesNormalizados.expectedSetCodes.join(",") === "SETX,SETY",
+    );
+  }
+
+  // Cenário 4 — nunca executar todas as ondas implicitamente: --expansion-wave ausente nunca
+  // aciona o modo onda (cai no comportamento herdado, inalterado); só um valor explícito aciona.
+  {
+    const decisionSemWave = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: null, maxApiRequests: null, dryRun: false, confirmedBy: "admin-1" },
+      { justTcgApiKey: "k", supabaseUrl: "u", supabaseServiceRoleKey: "s" },
+    );
+    assert("P14.4.2 cenário 4: sem --expansion-wave, o modo onda nunca é acionado implicitamente (cai em REAL_PILOT, comportamento herdado inalterado)", decisionSemWave.kind === "REAL_PILOT");
+
+    const decisionComWave = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY" },
+      { justTcgApiKey: "k", supabaseUrl: "u", supabaseServiceRoleKey: "s" },
+    );
+    assert(
+      "P14.4.2 cenário 4: --expansion-wave=1 explícito aciona EXPANSION_WAVE com o número exato pedido, nunca 'todas as ondas'",
+      decisionComWave.kind === "EXPANSION_WAVE" &&
+        decisionComWave.waveNumber === 1 &&
+        decisionComWave.maxApiRequests === 10 &&
+        decisionComWave.expectedSetCodes.join(",") === "SETX,SETY",
+    );
+
+    const decisionArgsInvalidos = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: "1", maxApiRequests: null, dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY" },
+      { justTcgApiKey: undefined, supabaseUrl: undefined, supabaseServiceRoleKey: undefined },
+    );
+    assert(
+      "P14.4.2 cenário 4 (bônus): argumento de onda inválido é rejeitado ANTES até da checagem de credenciais (mesmo sem nenhuma variável de ambiente definida)",
+      decisionArgsInvalidos.kind === "EXPANSION_WAVE_INVALID_ARGS",
+    );
+  }
+
+  // Cenário 5 — falha de reconciliação gera zero HTTP: contagem exata de `card` diverge da
+  // soma local -> RECONCILIACAO_CARTAS_FALHOU dentro de fetchReconciledLocalInputs(), antes de
+  // tryOpenCardSyncRun()/qualquer chamada à JustTCG.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase5, tables: tables5 } = makeExpansionWaveFakeClient(seed, { countOverride: { card: 999 } });
+    const { fetchImpl: fetchImpl5, callCount: callCount5 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client5 = new JustTcgClient("sk-fake-5", fetchImpl5, 10);
+    let erro5: Error | null = null;
+    try {
+      await executeExpansionWave(supabase5, client5, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    } catch (error) {
+      erro5 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.2 cenário 5: falha de reconciliação local (RECONCILIACAO_CARTAS_FALHOU) aborta antes de qualquer chamada HTTP à JustTCG e antes de abrir CARD_SYNC",
+      erro5 !== null &&
+        erro5.message.startsWith("RECONCILIACAO_CARTAS_FALHOU") &&
+        callCount5() === 0 &&
+        client5.requestsMade === 0 &&
+        (tables5.pricing_sync_run ?? []).length === 0,
+    );
+  }
+
+  // Cenário 6 — conflito de concorrência gera zero HTTP: já existe um CARD_SYNC
+  // RECEIVED/PROCESSING para a mesma fonte -> INSERT falha com 23505 (índice único parcial,
+  // Query 3907) antes de qualquer requisição à JustTCG.
+  {
+    const seed = buildOndaSimplesSeed();
+    seed.pricing_sync_run = [{ id: "run-existing", pricing_source_id: "src-1", run_type: "CARD_SYNC", status: "PROCESSING" }];
+    const { client: supabase6, tables: tables6 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl6, callCount: callCount6 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client6 = new JustTcgClient("sk-fake-6", fetchImpl6, 10);
+    let erro6: Error | null = null;
+    try {
+      await executeExpansionWave(supabase6, client6, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    } catch (error) {
+      erro6 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.2 cenário 6: conflito de concorrência (CARD_SYNC já ativo) aborta com CONFLITO_DE_CONCORRENCIA antes de qualquer chamada à JustTCG, sem criar uma 2ª linha em pricing_sync_run",
+      erro6 !== null && erro6.message.startsWith("CONFLITO_DE_CONCORRENCIA") && callCount6() === 0 && client6.requestsMade === 0 && tables6.pricing_sync_run.length === 1,
+    );
+  }
+
+  // Cenário 7+8 — orçamento impede a chamada excedente E orçamento insuficiente gera zero
+  // persistência de negócio: budget=2 alcança só GET /sets + a página de SETX; a tentativa de
+  // paginar SETY nunca dispara um fetch real (budgetOk() barra antes) e nenhuma escrita de
+  // mapping/produto/observação acontece (onda inteira é abortada, regras 8/9).
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase78, tables: tables78 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl78, callCount: callCount78 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client78 = new JustTcgClient("sk-fake-78", fetchImpl78, 2);
+    const resultado78 = await executeExpansionWave(supabase78, client78, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 2, expectedSetCodes: ["SETX", "SETY"] });
+    assert(
+      "P14.4.2 cenário 7: --max-api-requests=2 nunca é ultrapassado — exatamente 2 chamadas reais (GET /sets + 1ª página de SETX), a 3ª (SETY) nunca é sequer tentada",
+      callCount78() === 2 && client78.requestsMade === 2,
+    );
+    assert(
+      "P14.4.2 cenário 8: orçamento insuficiente para paginar a onda inteira -> zero persistência de negócio (mapping/produto/observação), status FAILED",
+      resultado78.status === "FAILED" &&
+        (tables78.pricing_card_mapping ?? []).length === 0 &&
+        (tables78.pricing_product ?? []).length === 0 &&
+        (tables78.pricing_observation ?? []).length === 0,
+    );
+  }
+
+  // Cenário 9 — falha de paginação gera zero persistência de negócio: a 1ª página de SETX
+  // sinaliza meta.hasMore=true (força uma 2ª página mesmo com poucos itens), que retorna HTTP
+  // 500 — SETY nunca chega a ser tentado, nenhuma escrita de negócio acontece.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase9, tables: tables9 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl9 } = makeFakeFetch([
+      { status: 200, body: { data: ondaSimplesExternalSets } },
+      { status: 200, body: { data: [{ id: "ext-card-x1", name: "Card X1", number: "1", variants: [] }], meta: { hasMore: true } } },
+      { status: 500, body: { error: "falha simulada" } },
+    ]);
+    const client9 = new JustTcgClient("sk-fake-9", fetchImpl9, 10);
+    const resultado9 = await executeExpansionWave(supabase9, client9, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    assert(
+      "P14.4.2 cenário 9: falha de paginação (HTTP 500 na 2ª página de SETX) aborta a onda inteira -> zero mapping/produto/observação persistidos, status FAILED, SETY nunca tentado",
+      resultado9.status === "FAILED" &&
+        (tables9.pricing_card_mapping ?? []).length === 0 &&
+        (tables9.pricing_product ?? []).length === 0 &&
+        (tables9.pricing_observation ?? []).length === 0 &&
+        resultado9.errorParts.some((e) => e.startsWith("PAGINACAO_CARDS_FALHOU")),
+    );
+  }
+
+  // Cenário 10 — dry-run gera zero escrita: nenhum pricing_sync_run criado, nenhuma linha
+  // gravada em nenhuma tabela de negócio, mas a classificação/projeção roda por completo.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase10, tables: tables10 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl10 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client10 = new JustTcgClient("sk-fake-10", fetchImpl10, 10);
+    const resultado10 = await executeExpansionWave(supabase10, client10, { waveNumber: 1, dryRun: true, confirmedBy: null, maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    assert(
+      "P14.4.2 cenário 10: --dry-run nunca cria pricing_sync_run nem escreve mapping/produto/observação/set_mapping, mesmo com a onda inteira classificada com sucesso",
+      (tables10.pricing_sync_run ?? []).length === 0 &&
+        (tables10.pricing_set_mapping ?? []).length === 0 &&
+        (tables10.pricing_card_mapping ?? []).length === 0 &&
+        (tables10.pricing_product ?? []).length === 0 &&
+        (tables10.pricing_observation ?? []).length === 0 &&
+        resultado10.cardsSafe === 3 &&
+        resultado10.status === "COMPLETED",
+    );
+  }
+
+  // Cenário 11+12 — execução bem-sucedida usa um único run, e as chamadas ficam sequenciadas
+  // por sequence_number (1, 2, 3, ...) dentro desse mesmo run.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase1112, tables: tables1112 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl1112 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client1112 = new JustTcgClient("sk-fake-1112", fetchImpl1112, 10);
+    const resultado1112 = await executeExpansionWave(supabase1112, client1112, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    assert("P14.4.2 cenário 11: execução bem-sucedida consolida a onda inteira num único pricing_sync_run", resultado1112.status === "COMPLETED" && tables1112.pricing_sync_run.length === 1);
+    const runId1112 = tables1112.pricing_sync_run[0].id as string;
+    const calls1112 = (tables1112.pricing_sync_run_call ?? []) as Array<{ sync_run_id: string; sequence_number: number }>;
+    const sequencias = calls1112.map((c) => c.sequence_number);
+    assert(
+      "P14.4.2 cenário 12: pricing_sync_run_call registra uma linha por tentativa HTTP, todas do mesmo run, com sequence_number estritamente crescente (1, 2, 3)",
+      calls1112.length === 3 && calls1112.every((c) => c.sync_run_id === runId1112) && sequencias.join(",") === "1,2,3",
+    );
+  }
+
+  // Cenário 13 — ambiguidades preservadas: número único mas nome externo divergente -> PENDING
+  // (nunca CONFIRMED, nunca NOT_FOUND).
+  {
+    const seed = buildOndaSimplesSeed();
+    seed.card.push({ id: "card-x3", card_set_id: "cs-x", name: "Card X3", collector_number: "3", is_active: true });
+    seed.catalog_card_set_metrics = [
+      { card_set_id: "cs-x", cards_ativas: 3 },
+      { card_set_id: "cs-y", cards_ativas: 1 },
+    ];
+    const { client: supabase13, tables: tables13 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl13 } = makeFakeFetch([
+      { status: 200, body: { data: ondaSimplesExternalSets } },
+      {
+        status: 200,
+        body: {
+          data: [
+            { id: "ext-card-x1", name: "Card X1", number: "1", variants: [{ uuid: "var-x1", condition: "Near Mint", printing: "Normal", price: 1.5, lastUpdated: 1700000000 }] },
+            { id: "ext-card-x2", name: "Card X2", number: "2", variants: [{ uuid: "var-x2", condition: "Near Mint", printing: "Normal", price: 2.5, lastUpdated: 1700000000 }] },
+            { id: "ext-card-x3-outro", name: "Nome Totalmente Diferente", number: "3", variants: [{ uuid: "var-x3", condition: "Near Mint", printing: "Normal", price: 9.9, lastUpdated: 1700000000 }] },
+          ],
+        },
+      },
+      { status: 200, body: { data: [{ id: "ext-card-y1", name: "Card Y1", number: "1", variants: [{ uuid: "var-y1", condition: "Near Mint", printing: "Normal", price: 3.5, lastUpdated: 1700000000 }] }] } },
+    ]);
+    const client13 = new JustTcgClient("sk-fake-13", fetchImpl13, 10);
+    const resultado13 = await executeExpansionWave(supabase13, client13, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    const mappingX3 = (tables13.pricing_card_mapping ?? []).find((r) => r.card_id === "card-x3") as { match_status: string } | undefined;
+    assert(
+      "P14.4.2 cenário 13: número único com nome externo divergente (card-x3) fica PENDING (ambíguo) — nunca CONFIRMED, nunca NOT_FOUND — enquanto card-x1/x2/y1 são confirmados normalmente",
+      resultado13.cardsAmbiguous === 1 && mappingX3 !== undefined && mappingX3.match_status === "PENDING",
+    );
+  }
+
+  // Cenário 14 — reexecução idempotente: depois que a onda 1 é confirmada com sucesso, os Sets
+  // saem de SAFE_CANDIDATE para ALREADY_CONFIRMED (mesma disciplina de P14.4.1) — uma 2ª
+  // tentativa de --expansion-wave=1 é rejeitada com ONDA_INEXISTENTE. A garantia real de
+  // idempotência é sobre DADO DE NEGÓCIO (mapping/produto/observação nunca duplicam) — a 2ª
+  // execução AINDA abre seu próprio CARD_SYNC antes do GET /sets (regra 6, correto e esperado:
+  // o run anterior já foi finalizado, não há conflito de concorrência a detectar) e o registra
+  // como FAILED com o motivo ONDA_INEXISTENTE, o que é telemetria válida (não uma duplicação de
+  // dado de negócio) — por isso pricing_sync_run cresce em +1 (o registro do 2º, curto e
+  // fracassado, run), nunca fica igual.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase14, tables: tables14 } = makeExpansionWaveFakeClient(seed);
+
+    const { fetchImpl: fetchImplRun1 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const clientRun1 = new JustTcgClient("sk-fake-14a", fetchImplRun1, 10);
+    const resultadoRun1 = await executeExpansionWave(supabase14, clientRun1, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    const contagemApos1 = {
+      syncRun: tables14.pricing_sync_run.length,
+      cardMapping: tables14.pricing_card_mapping.length,
+      product: tables14.pricing_product.length,
+      observation: tables14.pricing_observation.length,
+    };
+
+    const { fetchImpl: fetchImplRun2 } = makeFakeFetch([{ status: 200, body: { data: ondaSimplesExternalSets } }]);
+    const clientRun2 = new JustTcgClient("sk-fake-14b", fetchImplRun2, 10);
+    let erroRun2: Error | null = null;
+    try {
+      await executeExpansionWave(supabase14, clientRun2, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    } catch (error) {
+      erroRun2 = error instanceof Error ? error : null;
+    }
+    const contagemApos2 = {
+      syncRun: tables14.pricing_sync_run.length,
+      cardMapping: tables14.pricing_card_mapping.length,
+      product: tables14.pricing_product.length,
+      observation: tables14.pricing_observation.length,
+    };
+
+    assert(
+      "P14.4.2 cenário 14: 1ª execução da onda 1 é bem-sucedida (COMPLETED)",
+      resultadoRun1.status === "COMPLETED",
+    );
+    assert(
+      "P14.4.2 cenário 14: reexecução imediata de --expansion-wave=1 é rejeitada com ONDA_INEXISTENTE (Sets já CONFIRMED saíram de SAFE_CANDIDATE) — registra só sua própria telemetria de falha (+1 pricing_sync_run, FAILED), NUNCA duplica mapping/produto/observação",
+      erroRun2 !== null &&
+        erroRun2.message.startsWith("ONDA_INEXISTENTE") &&
+        contagemApos2.syncRun === contagemApos1.syncRun + 1 &&
+        contagemApos2.cardMapping === contagemApos1.cardMapping &&
+        contagemApos2.product === contagemApos1.product &&
+        contagemApos2.observation === contagemApos1.observation,
+    );
+  }
+
+  // Cenário 15 — preço inalterado não cria observação: card-x1/var-x1 já tem uma observação
+  // existente ao mesmo preço (1.5) -> CONFLICT_IGNORED_SAME_PRICE, zero nova linha para esse
+  // grupo; card-x2/y1 (produtos novos) recebem observação nova normalmente.
+  {
+    const seed = buildOndaSimplesSeed();
+    seed.pricing_card_mapping = [{ id: "pcm-x1", card_id: "card-x1", pricing_source_id: "src-1", match_status: "CONFIRMED" }];
+    seed.pricing_product = [{ id: "pp-x1", pricing_card_mapping_id: "pcm-x1", external_product_id: "var-x1" }];
+    seed.pricing_observation = [
+      { pricing_product_id: "pp-x1", condition_id: "cond-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, price: 1.5, observed_at: "2026-01-01T00:00:00.000Z" },
+    ];
+    const { client: supabase15, tables: tables15 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl15 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client15 = new JustTcgClient("sk-fake-15", fetchImpl15, 10);
+    const resultado15 = await executeExpansionWave(supabase15, client15, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    const observacoesDoProdutoExistente = (tables15.pricing_observation ?? []).filter((r) => r.pricing_product_id === "pp-x1");
+    assert(
+      "P14.4.2 cenário 15: preço idêntico ao já observado (var-x1=1.5) não cria nova observação (CONFLICT_IGNORED_SAME_PRICE) — só as 2 variantes com preço novo (x2, y1) geram observação",
+      observacoesDoProdutoExistente.length === 1 && resultado15.observationsWritten === 2,
+    );
+  }
+
+  // Cenário 16 — falha parcial de persistência termina como FAILED: aquisição inteira bem-
+  // sucedida, mas o INSERT em pricing_product falha -> batchFailureOccurred tem prioridade
+  // absoluta sobre qualquer progresso parcial (computeFinalStatus), status FAILED.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase16 } = makeExpansionWaveFakeClient(seed, { failInsert: { pricing_product: true } });
+    const { fetchImpl: fetchImpl16 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client16 = new JustTcgClient("sk-fake-16", fetchImpl16, 10);
+    const resultado16 = await executeExpansionWave(supabase16, client16, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
+    assert(
+      "P14.4.2 cenário 16: falha parcial de persistência (INSERT em pricing_product falha) termina o run como FAILED, mesmo com toda a aquisição/classificação bem-sucedida",
+      resultado16.status === "FAILED" && resultado16.errorParts.some((e) => e.startsWith("PRODUCT_BATCH_INSERT_FAILED")),
+    );
+  }
+
+  // Cenário 17 — composição exata aceita explicitamente: --expected-set-codes=SETX,SETY bate
+  // exatamente com a onda 1 recalculada (mesma fixture "onda simples") -> execução completa,
+  // COMPLETED, sem nenhum bloqueio (regra 3/8: a composição informada só confirma, nunca
+  // substitui — o que roda continua sendo wave.sets vindo do plano).
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase17, tables: tables17 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl17 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client17 = new JustTcgClient("sk-fake-17", fetchImpl17, 10);
+    const resultado17 = await executeExpansionWave(supabase17, client17, {
+      waveNumber: 1,
+      dryRun: false,
+      confirmedBy: "admin-1",
+      maxApiRequests: 10,
+      expectedSetCodes: ["SETX", "SETY"],
+    });
+    assert(
+      "P14.4.2 fix cenário 17: --expected-set-codes=SETX,SETY batendo exatamente com a onda recalculada permite a execução completa (COMPLETED), nunca bloqueia uma composição correta",
+      resultado17.status === "COMPLETED" &&
+        resultado17.setsSelected.slice().sort().join(",") === "SETX,SETY" &&
+        (tables17.pricing_set_mapping ?? []).length === 2,
+    );
+  }
+
+  // Cenário 18 — --expected-set-codes com código faltando (operador informa só SETX, a onda
+  // recalculada tem SETX+SETY) -> diverge -> EXPANSION_WAVE_COMPOSITION_CHANGED, abortada ANTES
+  // de qualquer upsertSetMapping/fetchAllCardsForSet (regra 5) -> zero mapping/produto/
+  // observação, e o CARD_SYNC já aberto (regra 6) é finalizado como FAILED, nunca deixado num
+  // estado não-terminal. Do ponto de vista da mensagem de erro, SETY é "excedente" (está na
+  // onda real mas não na lista informada) — "faltando"/"excedente" na mensagem são sempre
+  // relativos à onda RECALCULADA, nunca à lista informada por --expected-set-codes.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase18, tables: tables18 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl18, callCount: callCount18 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client18 = new JustTcgClient("sk-fake-18", fetchImpl18, 10);
+    let erro18: Error | null = null;
+    try {
+      await executeExpansionWave(supabase18, client18, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX"] });
+    } catch (error) {
+      erro18 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.2 fix cenário 18: --expected-set-codes=SETX (faltando SETY na lista informada) é rejeitado com EXPANSION_WAVE_COMPOSITION_CHANGED antes de qualquer chamada de /cards, zero mapping/produto/observação persistidos",
+      erro18 !== null &&
+        erro18.message.startsWith("EXPANSION_WAVE_COMPOSITION_CHANGED") &&
+        erro18.message.includes("excedente=[SETY]") &&
+        callCount18() === 1 &&
+        (tables18.pricing_set_mapping ?? []).length === 0 &&
+        (tables18.pricing_card_mapping ?? []).length === 0 &&
+        (tables18.pricing_product ?? []).length === 0 &&
+        (tables18.pricing_observation ?? []).length === 0,
+    );
+    const runsAposFalha18 = (tables18.pricing_sync_run ?? []) as Array<{ status: string }>;
+    assert(
+      "P14.4.2 fix cenário 18: o CARD_SYNC já aberto antes da divergência é finalizado como FAILED, nunca deixado em RECEIVED/PROCESSING",
+      runsAposFalha18.length === 1 && runsAposFalha18[0].status === "FAILED",
+    );
+  }
+
+  // Cenário 19 — --expected-set-codes com código excedente na lista informada (operador
+  // informa SETX,SETY,SETZ — SETZ nunca fez parte da onda recalculada) -> mesma rejeição,
+  // mesma garantia de zero persistência. Do ponto de vista da mensagem de erro, SETZ é
+  // "faltando" (está na lista informada mas não na onda real).
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase19, tables: tables19 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl19 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client19 = new JustTcgClient("sk-fake-19", fetchImpl19, 10);
+    let erro19: Error | null = null;
+    try {
+      await executeExpansionWave(supabase19, client19, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY", "SETZ"] });
+    } catch (error) {
+      erro19 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.2 fix cenário 19: --expected-set-codes com SETZ excedente na lista informada (nunca fez parte da onda) é rejeitado com EXPANSION_WAVE_COMPOSITION_CHANGED, zero mapping/produto/observação persistidos",
+      erro19 !== null &&
+        erro19.message.startsWith("EXPANSION_WAVE_COMPOSITION_CHANGED") &&
+        erro19.message.includes("faltando=[SETZ]") &&
+        (tables19.pricing_card_mapping ?? []).length === 0 &&
+        (tables19.pricing_product ?? []).length === 0 &&
+        (tables19.pricing_observation ?? []).length === 0,
+    );
+  }
+
+  // Cenário 20 — mesma composição em ordem diferente é aceita: a comparação é por CONJUNTO
+  // (regra 3 "sem aceitar faltas ou excedentes", nunca por ordem/índice) — SETY,SETX (ordem
+  // invertida) deve executar normalmente, idêntico a SETX,SETY.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase20 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl20 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client20 = new JustTcgClient("sk-fake-20", fetchImpl20, 10);
+    const resultado20 = await executeExpansionWave(supabase20, client20, {
+      waveNumber: 1,
+      dryRun: false,
+      confirmedBy: "admin-1",
+      maxApiRequests: 10,
+      expectedSetCodes: ["SETY", "SETX"],
+    });
+    assert(
+      "P14.4.2 fix cenário 20: --expected-set-codes=SETY,SETX (ordem invertida em relação à onda) é aceito normalmente — comparação por conjunto, nunca por ordem",
+      resultado20.status === "COMPLETED",
+    );
+  }
+
+  // Cenário 21 — renumeração após confirmação nunca executa Sets novos silenciosamente: fixture
+  // com 6 Sets (SETA..SETF, WAVE_MAX_SETS=5) onde SETA-SETE já estão CONFIRMED (simulando uma
+  // onda 1 executada e confirmada numa rodada anterior) — o plano recalculado agora só tem
+  // SETF como SAFE_CANDIDATE, que vira a NOVA onda 1 (renumerada). Repetir
+  // --expansion-wave=1 --expected-set-codes=<composição ANTIGA de 5 Sets> nunca deve executar
+  // SETF silenciosamente: é bloqueado por EXPANSION_WAVE_COMPOSITION_CHANGED (a onda 1 existe,
+  // mas com composição divergente — não é o caso ONDA_INEXISTENTE), zero persistência de
+  // negócio, e o CARD_SYNC já aberto é finalizado como FAILED.
+  {
+    const seedRenumeracao: Record<string, FakeRow[]> = {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [
+        { id: "cs-a", code: "SETA", release_date: "2019-01-01" },
+        { id: "cs-b", code: "SETB", release_date: "2019-02-01" },
+        { id: "cs-c", code: "SETC", release_date: "2019-03-01" },
+        { id: "cs-d", code: "SETD", release_date: "2019-04-01" },
+        { id: "cs-e", code: "SETE", release_date: "2019-05-01" },
+        { id: "cs-f", code: "SETF", release_date: "2019-06-01" },
+      ],
+      catalog_card_set_metrics: [
+        { card_set_id: "cs-a", cards_ativas: 1 },
+        { card_set_id: "cs-b", cards_ativas: 1 },
+        { card_set_id: "cs-c", cards_ativas: 1 },
+        { card_set_id: "cs-d", cards_ativas: 1 },
+        { card_set_id: "cs-e", cards_ativas: 1 },
+        { card_set_id: "cs-f", cards_ativas: 1 },
+      ],
+      card: [
+        { id: "card-a1", card_set_id: "cs-a", name: "Card A1", collector_number: "1", is_active: true },
+        { id: "card-b1", card_set_id: "cs-b", name: "Card B1", collector_number: "1", is_active: true },
+        { id: "card-c1", card_set_id: "cs-c", name: "Card C1", collector_number: "1", is_active: true },
+        { id: "card-d1", card_set_id: "cs-d", name: "Card D1", collector_number: "1", is_active: true },
+        { id: "card-e1", card_set_id: "cs-e", name: "Card E1", collector_number: "1", is_active: true },
+        { id: "card-f1", card_set_id: "cs-f", name: "Card F1", collector_number: "1", is_active: true },
+      ],
+      // SETA-SETE já CONFIRMED (onda 1 original, executada e confirmada numa rodada anterior)
+      // -- só SETF permanece SAFE_CANDIDATE, virando a onda 1 recalculada (renumerada).
+      pricing_set_mapping: [
+        { card_set_id: "cs-a", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-a", external_set_name: "Ext A" },
+        { card_set_id: "cs-b", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-b", external_set_name: "Ext B" },
+        { card_set_id: "cs-c", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-c", external_set_name: "Ext C" },
+        { card_set_id: "cs-d", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-d", external_set_name: "Ext D" },
+        { card_set_id: "cs-e", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-e", external_set_name: "Ext E" },
+      ],
+      pricing_set_coverage: [],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+    const { client: supabase21, tables: tables21 } = makeExpansionWaveFakeClient(seedRenumeracao);
+    const { fetchImpl: fetchImpl21 } = makeFakeFetch([{ status: 200, body: { data: [{ id: "ext-f", name: "Ext F", release_date: "2019-06-01" }] } }]);
+    const client21 = new JustTcgClient("sk-fake-21", fetchImpl21, 10);
+    let erro21: Error | null = null;
+    try {
+      await executeExpansionWave(supabase21, client21, {
+        waveNumber: 1,
+        dryRun: false,
+        confirmedBy: "admin-1",
+        maxApiRequests: 10,
+        // Composição ANTIGA (a que rodou e foi confirmada antes) — nunca a nova (SETF).
+        expectedSetCodes: ["SETA", "SETB", "SETC", "SETD", "SETE"],
+      });
+    } catch (error) {
+      erro21 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.2 fix cenário 21: renumeração após confirmação (onda 1 agora = SETF, não mais SETA-SETE) nunca executa o Set renumerado silenciosamente — --expected-set-codes com a composição antiga é rejeitado com EXPANSION_WAVE_COMPOSITION_CHANGED (onda 1 EXISTE, mas divergente — não ONDA_INEXISTENTE)",
+      erro21 !== null &&
+        erro21.message.startsWith("EXPANSION_WAVE_COMPOSITION_CHANGED") &&
+        erro21.message.includes("excedente=[SETF]") &&
+        erro21.message.includes("faltando=[SETA,SETB,SETC,SETD,SETE]"),
+    );
+    assert(
+      "P14.4.2 fix cenário 21: zero persistência de negócio para o Set renumerado (SETF) — nenhum mapping/produto/observação novo, e o CARD_SYNC já aberto é finalizado como FAILED",
+      (tables21.pricing_card_mapping ?? []).length === 0 &&
+        (tables21.pricing_product ?? []).length === 0 &&
+        (tables21.pricing_observation ?? []).length === 0 &&
+        (tables21.pricing_set_mapping ?? []).length === 5 && // só os 5 originais, SETF nunca ganhou mapping
+        (tables21.pricing_sync_run ?? []).length === 1 &&
+        ((tables21.pricing_sync_run ?? [])[0] as { status: string }).status === "FAILED",
+    );
+  }
+
+  // Cenário 22 — projeção agrega corretamente em múltiplos Sets (regra 2/3 do fix): mesma
+  // fixture "onda simples" (SETX=2 cartas com 1 variante válida cada, SETY=1 carta com 1
+  // variante válida) em --dry-run — productsProjected/observationsProjected somam certo no
+  // resumo da onda E por Set em perSet (regra 4, sem duplicar planVariantProjection). Reafirma
+  // também a regra 5: zero escrita em qualquer tabela, mesmo com a projeção > 0.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase22, tables: tables22 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl22 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client22 = new JustTcgClient("sk-fake-22", fetchImpl22, 10);
+    const resultado22 = await executeExpansionWave(supabase22, client22, {
+      waveNumber: 1,
+      dryRun: true,
+      confirmedBy: null,
+      maxApiRequests: 10,
+      expectedSetCodes: ["SETX", "SETY"],
+    });
+    const perSetX22 = resultado22.perSet.find((s) => s.code === "SETX");
+    const perSetY22 = resultado22.perSet.find((s) => s.code === "SETY");
+    assert(
+      "P14.4.2 fix2 cenário 22: --dry-run projeta productsProjected/observationsProjected agregados corretamente no resumo da onda (3 variantes válidas: var-x1, var-x2, var-y1), variantsProjectionSkipped=0",
+      resultado22.productsProjected === 3 && resultado22.observationsProjected === 3 && resultado22.variantsProjectionSkipped === 0,
+    );
+    assert(
+      "P14.4.2 fix2 cenário 22: a mesma projeção também aparece detalhada por Set em perSet — SETX=2 (card-x1+card-x2), SETY=1 (card-y1) — sem duplicar planVariantProjection()",
+      perSetX22 !== undefined &&
+        perSetX22.productsProjected === 2 &&
+        perSetX22.observationsProjected === 2 &&
+        perSetY22 !== undefined &&
+        perSetY22.productsProjected === 1 &&
+        perSetY22.observationsProjected === 1,
+    );
+    assert(
+      "P14.4.2 fix2 cenário 22: --dry-run continua com zero escrita em qualquer tabela mesmo com productsProjected/observationsProjected > 0 (regra 5) — nenhum pricing_sync_run, nenhum mapping/produto/observação real",
+      (tables22.pricing_sync_run ?? []).length === 0 &&
+        (tables22.pricing_set_mapping ?? []).length === 0 &&
+        (tables22.pricing_card_mapping ?? []).length === 0 &&
+        (tables22.pricing_product ?? []).length === 0 &&
+        (tables22.pricing_observation ?? []).length === 0 &&
+        resultado22.productsResolved === 0 &&
+        resultado22.observationsResolved === 0 &&
+        resultado22.status === "COMPLETED",
+    );
+  }
+
+  // Cenário 23 — variante inválida incrementa variantsProjectionSkipped, nunca
+  // productsProjected/observationsProjected: card-x2/var-x2 chega sem "printing" (dado
+  // inválido, mesma validação de planVariantProjection() usada no caminho real) — só essa
+  // variante é ignorada na projeção; card-x1/var-x1 e card-y1/var-y1 seguem projetados.
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase23, tables: tables23 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl23 } = makeFakeFetch([
+      { status: 200, body: { data: ondaSimplesExternalSets } },
+      {
+        status: 200,
+        body: {
+          data: [
+            { id: "ext-card-x1", name: "Card X1", number: "1", variants: [{ uuid: "var-x1", condition: "Near Mint", printing: "Normal", price: 1.5, lastUpdated: 1700000000 }] },
+            { id: "ext-card-x2", name: "Card X2", number: "2", variants: [{ uuid: "var-x2", condition: "Near Mint", price: 2.5, lastUpdated: 1700000000 }] }, // sem "printing" -> SKIPPED_INVALID_DATA
+          ],
+        },
+      },
+      { status: 200, body: { data: [{ id: "ext-card-y1", name: "Card Y1", number: "1", variants: [{ uuid: "var-y1", condition: "Near Mint", printing: "Normal", price: 3.5, lastUpdated: 1700000000 }] }] } },
+    ]);
+    const client23 = new JustTcgClient("sk-fake-23", fetchImpl23, 10);
+    const resultado23 = await executeExpansionWave(supabase23, client23, {
+      waveNumber: 1,
+      dryRun: true,
+      confirmedBy: null,
+      maxApiRequests: 10,
+      expectedSetCodes: ["SETX", "SETY"],
+    });
+    assert(
+      "P14.4.2 fix2 cenário 23: variante sem 'printing' (dado inválido) incrementa variantsProjectionSkipped=1, nunca productsProjected/observationsProjected (que ficam em 2, só as variantes válidas var-x1/var-y1)",
+      resultado23.variantsProjectionSkipped === 1 && resultado23.productsProjected === 2 && resultado23.observationsProjected === 2,
+    );
+    assert(
+      "P14.4.2 fix2 cenário 23: a variante ignorada também é refletida no perSet correto (SETX: 1 projetada + 1 ignorada)",
+      resultado23.perSet.find((s) => s.code === "SETX")?.variantsProjectionSkipped === 1 &&
+        resultado23.perSet.find((s) => s.code === "SETX")?.productsProjected === 1 &&
+        (tables23.pricing_product ?? []).length === 0,
+    );
+  }
+
+  // Cenário 24 — caminho real nunca usa/preenche os campos de projeção: mesma execução
+  // bem-sucedida de sempre (não-dry-run, confirmedBy setado), productsProjected/
+  // observationsProjected/variantsProjectionSkipped ficam em 0 tanto no resumo da onda quanto
+  // em cada entrada de perSet — a persistência real continua vindo exclusivamente de
+  // productsResolved/productsWritten/observationsResolved/observationsWritten (regra 5: "o
+  // caminho real completamente inalterado").
+  {
+    const seed = buildOndaSimplesSeed();
+    const { client: supabase24 } = makeExpansionWaveFakeClient(seed);
+    const { fetchImpl: fetchImpl24 } = makeFakeFetch(buildOndaSimplesSuccessResponses());
+    const client24 = new JustTcgClient("sk-fake-24", fetchImpl24, 10);
+    const resultado24 = await executeExpansionWave(supabase24, client24, {
+      waveNumber: 1,
+      dryRun: false,
+      confirmedBy: "admin-1",
+      maxApiRequests: 10,
+      expectedSetCodes: ["SETX", "SETY"],
+    });
+    assert(
+      "P14.4.2 fix2 cenário 24: caminho real (não-dry-run) nunca preenche productsProjected/observationsProjected/variantsProjectionSkipped — ficam em 0 no resumo, mesmo com escrita real bem-sucedida (productsWritten/observationsWritten > 0)",
+      resultado24.productsProjected === 0 &&
+        resultado24.observationsProjected === 0 &&
+        resultado24.variantsProjectionSkipped === 0 &&
+        resultado24.productsWritten > 0 &&
+        resultado24.observationsWritten > 0 &&
+        resultado24.status === "COMPLETED",
+    );
+    assert(
+      "P14.4.2 fix2 cenário 24: os campos de projeção também ficam em 0 por Set em perSet no caminho real, nunca reaproveitados como contagem de escrita",
+      resultado24.perSet.every((s) => s.productsProjected === 0 && s.observationsProjected === 0 && s.variantsProjectionSkipped === 0),
+    );
+  }
+
   const failed = assertions.filter(([, ok]) => !ok);
   for (const [label, ok] of assertions) console.log(`  [${ok ? "OK" : "FALHOU"}] ${label}`);
   console.log(`\n${failed.length === 0 ? "TODAS as asserções passaram" : `${failed.length} asserção(ões) FALHARAM`} (${assertions.length} no total).`);
@@ -2983,12 +3955,27 @@ async function runFixtureCheck() {
 // ============================================================================
 
 function parseArgs(argv: string[]) {
-  const args = { dryRun: false, fixtureCheck: false, expansionPlan: false, confirmedBy: null as string | null };
+  const args = {
+    dryRun: false,
+    fixtureCheck: false,
+    expansionPlan: false,
+    confirmedBy: null as string | null,
+    // P14.4.2: valores brutos (strings), nunca convertidos aqui — a validação/conversão
+    // numérica é feita por validateExpansionWaveArgs(), pura e testável offline.
+    expansionWave: null as string | null,
+    maxApiRequests: null as string | null,
+    // P14.4.2 fix (instabilidade de identidade de onda): confirmação explícita e obrigatória
+    // da composição exata da onda — nunca substitui o plano recalculado, só o valida.
+    expectedSetCodes: null as string | null,
+  };
   for (const arg of argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--fixture-check") args.fixtureCheck = true;
     else if (arg === "--expansion-plan") args.expansionPlan = true;
     else if (arg.startsWith("--confirmed-by=")) args.confirmedBy = arg.slice("--confirmed-by=".length);
+    else if (arg.startsWith("--expansion-wave=")) args.expansionWave = arg.slice("--expansion-wave=".length);
+    else if (arg.startsWith("--max-api-requests=")) args.maxApiRequests = arg.slice("--max-api-requests=".length);
+    else if (arg.startsWith("--expected-set-codes=")) args.expectedSetCodes = arg.slice("--expected-set-codes=".length);
   }
   return args;
 }
@@ -3010,7 +3997,9 @@ function requireEnv(name: string): string {
 type EntryDecision =
   | { kind: "FIXTURE_CHECK" }
   | { kind: "MISSING_ENV"; missing: string[] }
+  | { kind: "EXPANSION_WAVE_INVALID_ARGS"; reason: string }
   | { kind: "EXPANSION_PLAN" }
+  | { kind: "EXPANSION_WAVE"; waveNumber: number; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[] }
   | { kind: "REAL_PILOT" };
 
 // P14.4.1: `expansionPlan` é opcional na assinatura (nunca `expansionPlan: boolean` obrigatório)
@@ -3020,8 +4009,25 @@ type EntryDecision =
 // como o piloto real, validadas ANTES de qualquer rede/banco — só muda o que acontece DEPOIS da
 // validação (plano só-leitura em vez de execução real). Nenhum modo novo aqui reduz a garantia
 // já existente de "nunca cai silenciosamente em modo nenhum por credencial ausente".
+//
+// P14.4.2: `expansionWave`/`maxApiRequests` também opcionais na assinatura, mesmo motivo. A
+// validação de formato (validateExpansionWaveArgs) roda ANTES até da checagem de
+// credenciais — regra 2 exige rejeitar onda inexistente/orçamento inválido "antes de
+// qualquer chamada externa", e um --expansion-wave malformado é um erro de uso puro,
+// independente do ambiente estar configurado ou não. `--expansion-wave` ausente (null) nunca
+// aciona este modo implicitamente — só um valor explícito entra neste caminho (regra
+// "nunca executar todas as ondas implicitamente" fica estruturalmente garantida: não existe
+// nenhum branch que itere plan.waves inteiro a partir daqui).
 function resolveEntryDecision(
-  args: { fixtureCheck: boolean; expansionPlan?: boolean },
+  args: {
+    fixtureCheck: boolean;
+    expansionPlan?: boolean;
+    expansionWave?: string | null;
+    maxApiRequests?: string | null;
+    dryRun?: boolean;
+    confirmedBy?: string | null;
+    expectedSetCodes?: string | null;
+  },
   env: { justTcgApiKey: string | undefined; supabaseUrl: string | undefined; supabaseServiceRoleKey: string | undefined },
 ): EntryDecision {
   // --fixture-check é sempre honrado explicitamente e tem prioridade sobre qualquer estado
@@ -3029,11 +4035,32 @@ function resolveEntryDecision(
   // depende do ambiente: por isso funciona sem nenhuma credencial definida.
   if (args.fixtureCheck) return { kind: "FIXTURE_CHECK" };
 
+  const waveArgs = {
+    expansionWave: args.expansionWave ?? null,
+    maxApiRequests: args.maxApiRequests ?? null,
+    dryRun: args.dryRun ?? false,
+    confirmedBy: args.confirmedBy ?? null,
+    expectedSetCodes: args.expectedSetCodes ?? null,
+  };
+  const waveValidation = waveArgs.expansionWave !== null ? validateExpansionWaveArgs(waveArgs) : null;
+  if (waveValidation && !waveValidation.ok) return { kind: "EXPANSION_WAVE_INVALID_ARGS", reason: waveValidation.reason };
+
   const missing: string[] = [];
   if (!env.justTcgApiKey) missing.push("JUSTTCG_API_KEY");
   if (!env.supabaseUrl) missing.push("SUPABASE_URL");
   if (!env.supabaseServiceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length > 0) return { kind: "MISSING_ENV", missing };
+
+  if (waveValidation && waveValidation.ok) {
+    return {
+      kind: "EXPANSION_WAVE",
+      waveNumber: waveValidation.waveNumber,
+      maxApiRequests: waveValidation.maxApiRequests,
+      dryRun: waveArgs.dryRun,
+      confirmedBy: waveArgs.confirmedBy,
+      expectedSetCodes: waveValidation.expectedSetCodes,
+    };
+  }
 
   if (args.expansionPlan) return { kind: "EXPANSION_PLAN" };
 
@@ -3444,6 +4471,46 @@ async function finalizeSyncRun(
 }
 
 // ============================================================================
+// 6b. P14.4.2 — Abertura de CARD_SYNC com detecção de conflito de concorrência
+// ============================================================================
+
+// Mesmo padrão de supabase/functions/_shared/pricing-ptax/sync-run-orchestration.ts
+// (classifyStartAttempt) — não importado diretamente (árvore de módulos Deno/Node
+// distinta deste script autocontido), mas replicado com a mesma semântica: o código
+// Postgres 23505 (unique_violation) nesta tabela só pode vir do índice único parcial de
+// concorrência já existente (ux_pricing_sync_run_active_price_per_source_type, Query
+// 3907, aplicada — cobre (pricing_source_id, run_type) para QUALQUER run_type, incluindo
+// CARD_SYNC, enquanto status está em RECEIVED/PROCESSING). Nenhuma migration nova foi
+// necessária para o executor de onda por causa disso.
+type CardSyncStartClassification = "STARTED" | "CONCURRENT_CONFLICT" | "OTHER_ERROR";
+
+function classifyCardSyncStartAttempt(error: { code?: string; message?: string } | null): CardSyncStartClassification {
+  if (!error) return "STARTED";
+  if (error.code === "23505") return "CONCURRENT_CONFLICT";
+  return "OTHER_ERROR";
+}
+
+type StartCardSyncOutcome = { outcome: "STARTED"; id: string } | { outcome: "CONCURRENT_CONFLICT" } | { outcome: "OTHER_ERROR"; error: string };
+
+// P14.4.2 regra 6: chamado ANTES de qualquer requisição à JustTCG (ver executeExpansionWave).
+// Diferente do INSERT equivalente em runRealPilot() (que nunca checava 23505 — lacuna real,
+// fora do escopo desta rodada), este helper classifica o erro e permite ao chamador abortar
+// a onda inteira sem nunca chegar a discar para a JustTCG quando outra execução CARD_SYNC já
+// está RECEIVED/PROCESSING para a mesma fonte.
+async function tryOpenCardSyncRun(supabase: SupabaseClient, sourceId: string, confirmedBy: string): Promise<StartCardSyncOutcome> {
+  const startedAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("pricing_sync_run")
+    .insert({ pricing_source_id: sourceId, run_type: "CARD_SYNC", status: "PROCESSING", triggered_by: "MANUAL", started_at: startedAt, confirmed_by: confirmedBy })
+    .select("id")
+    .single();
+  const classification = classifyCardSyncStartAttempt(error as { code?: string; message?: string } | null);
+  if (classification === "STARTED") return { outcome: "STARTED", id: (data as { id: string }).id };
+  if (classification === "CONCURRENT_CONFLICT") return { outcome: "CONCURRENT_CONFLICT" };
+  return { outcome: "OTHER_ERROR", error: sanitize((error as { message?: string } | null)?.message) ?? "erro desconhecido" };
+}
+
+// ============================================================================
 // 7b. P14.4.1 — Inventário de Cobertura e Plano de Ondas (--expansion-plan)
 // ============================================================================
 
@@ -3765,18 +4832,22 @@ function assertConfirmedMappingsPreserved(entries: SetPlanEntry[], localSets: Lo
   }
 }
 
-// Orquestração testável offline (ver runFixtureCheck() e os testes "P14.4.1 fix"): recebe um
-// SupabaseClient e um JustTcgClient já construídos (nunca lê Deno.env diretamente), mesmo
-// padrão de injeção de dependência de persistBatchedResults()/JustTcgClient. Faz EXATAMENTE uma
-// chamada HTTP (GET /v1/sets); toda leitura Supabase é paginada (fetchAllRowsFromTable) e
-// imediatamente reconciliada contra uma contagem exata independente (fetchExactCount) — nenhuma
-// das funções chamadas aqui usa .insert()/.update()/.rpc() em nenhum ponto, verificável por
-// leitura direta do código.
-//
-// Requer a migration 3916 (proposta, não aplicada nesta rodada — ver relatório) para existir:
-// GRANT SELECT ... TO service_role em catalog_card_set_metrics (ausente até então — nenhum
-// script server-side a usava antes deste fix) e a nova view pricing_set_coverage.
-async function executeExpansionPlan(supabase: SupabaseClient, client: JustTcgClient): Promise<ExpansionPlanResult> {
+// P14.4.2: extraído de dentro de executeExpansionPlan() (abaixo) para ser reaproveitado
+// literalmente, sem duplicação, pelo executor de onda (executeExpansionWave()) — as DUAS
+// funções precisam do mesmíssimo conjunto de leituras locais reconciliadas ANTES de
+// qualquer chamada HTTP à JustTCG (regra 5 do P14.4.2: "refazer todas as leituras locais e
+// invariantes antes da primeira chamada"). Cobre TUDO que roda antes do GET /v1/sets:
+// inventário local paginado, os dois invariantes de reconciliação (cartas ativas / Sets
+// ativos), mappings de Set já existentes e cobertura agregada — nenhuma escrita em nenhum
+// ponto, mesma garantia estrutural de antes (ver makeReadOnlyFakeClient nos testes).
+type ReconciledLocalInputs = {
+  sourceId: string;
+  localSets: LocalSetSummary[];
+  existingSetMappings: Map<string, ExistingSetMappingLite>;
+  existingCoverage: Map<string, { products: number; observations: number }>;
+};
+
+async function fetchReconciledLocalInputs(supabase: SupabaseClient): Promise<ReconciledLocalInputs> {
   const source = await getJustTcgSource(supabase);
   const sourceId = source.id as string;
 
@@ -3815,11 +4886,10 @@ async function executeExpansionPlan(supabase: SupabaseClient, client: JustTcgCli
   assertPaginationComplete("pricing_set_mapping", setMappingRows.length, exactSetMappingCount);
   const existingSetMappings = buildSetMappingMap(setMappingRows);
 
-  // Cobertura via pricing_set_coverage (Query 3916, proposta — ver relatório): agregada
-  // server-side por card_set_id x pricing_source_id, nunca cresce com o volume de
-  // produtos/observações (no máximo 1 linha por combinação Set x Fonte). Substitui as três
-  // leituras encadeadas em memória do desenho original (pricing_card_mapping ->
-  // pricing_product -> pricing_observation), que eram a segunda superfície de truncamento.
+  // Cobertura via pricing_set_coverage (Query 3916): agregada server-side por card_set_id x
+  // pricing_source_id, nunca cresce com o volume de produtos/observações (no máximo 1 linha
+  // por combinação Set x Fonte). Substitui as três leituras encadeadas em memória do desenho
+  // original (pricing_card_mapping -> pricing_product -> pricing_observation).
   const coverageRows = await fetchAllRowsFromTable<CoverageRow>(
     supabase,
     "pricing_set_coverage",
@@ -3830,6 +4900,22 @@ async function executeExpansionPlan(supabase: SupabaseClient, client: JustTcgCli
   const exactCoverageCount = await fetchExactCount(supabase, "pricing_set_coverage", (q) => q.eq("pricing_source_id", sourceId));
   assertPaginationComplete("pricing_set_coverage", coverageRows.length, exactCoverageCount);
   const existingCoverage = buildCoverageMap(coverageRows);
+
+  return { sourceId, localSets, existingSetMappings, existingCoverage };
+}
+
+// Orquestração testável offline (ver runFixtureCheck() e os testes "P14.4.1 fix"): recebe um
+// SupabaseClient e um JustTcgClient já construídos (nunca lê Deno.env diretamente), mesmo
+// padrão de injeção de dependência de persistBatchedResults()/JustTcgClient. Faz EXATAMENTE uma
+// chamada HTTP (GET /v1/sets); toda leitura Supabase é paginada (fetchAllRowsFromTable) e
+// imediatamente reconciliada contra uma contagem exata independente (fetchExactCount) — nenhuma
+// das funções chamadas aqui usa .insert()/.update()/.rpc() em nenhum ponto, verificável por
+// leitura direta do código.
+//
+// Requer a migration 3916 (aplicada — ver Query 3916/3917) para existir: GRANT SELECT ... TO
+// service_role em catalog_card_set_metrics/game e a view pricing_set_coverage.
+async function executeExpansionPlan(supabase: SupabaseClient, client: JustTcgClient): Promise<ExpansionPlanResult> {
+  const { localSets, existingSetMappings, existingCoverage } = await fetchReconciledLocalInputs(supabase);
 
   const setsResult = await client.get<{ data: JustTcgSet[] }>("/sets", { game: GAME_CODE });
   if (setsResult.status === "AUTH_FAILURE") {
@@ -3862,6 +4948,485 @@ async function runExpansionPlan(): Promise<void> {
 }
 
 // ============================================================================
+// 7c. P14.4.2 — Executor Explícito e Controlado de Ondas JustTCG (--expansion-wave)
+// ============================================================================
+//
+// Objetivo desta rodada: executar UMA única onda (nunca implicitamente todas — regra 1),
+// já classificada pelo mesmo plano reconciliado de P14.4.1/fix (buildExpansionPlan(), nunca
+// recalculado com regras próprias nem hardcoded — regra 4), reaproveitando literalmente o
+// matching fail-safe (resolveSetMatchV2/classifyCardMatch) e a persistência em lote
+// (persistBatchedResults()) já testados. CARD_SYNC é aberto entre as leituras locais e a
+// primeira chamada à JustTCG (regras 5+6); o orçamento local (--max-api-requests) é um teto
+// AUTORITATIVO independente de _metadata.apiRequestsRemaining (regra 7); qualquer falha de
+// aquisição (orçamento esgotado ou página com erro) bloqueia a persistência da onda inteira
+// (regras 8+9) — nunca uma escrita parcial por Set.
+
+// Pura — valida o formato de --expansion-wave/--max-api-requests/--dry-run/--confirmed-by
+// SEM depender de rede, Supabase ou de um plano já calculado (regra 2: "rejeitar onda
+// inexistente, combinação de modo conflitante e orçamento ausente/inválido ANTES de
+// qualquer chamada externa"). A existência da onda dentro do plano é validada à parte, por
+// selectWaveFromPlan() (abaixo), já que isso depende do plano recalculado nesta execução.
+// Fix P14.4.2 (instabilidade de identidade): o número da onda sozinho NUNCA é uma identidade
+// estável entre execuções — o plano só agrupa candidatos SAFE_CANDIDATE, então depois que uma
+// onda é confirmada, os candidatos restantes podem ser reagrupados/renumerados e
+// "--expansion-wave=1" pode passar a apontar para uma composição de Sets completamente
+// diferente da que rodou da última vez. --expected-set-codes é a confirmação explícita de
+// identidade exigida junto com --expansion-wave: nunca substitui a composição planejada (a
+// onda continua vindo do plano recalculado, nunca dos códigos informados — ver regra 8), só
+// bloqueia a execução se a composição recalculada não bater exatamente com o esperado.
+type ExpectedSetCodesValidation = { ok: true; codes: string[] } | { ok: false; reason: string };
+
+function validateExpectedSetCodes(raw: string | null): ExpectedSetCodesValidation {
+  if (raw === null) {
+    return {
+      ok: false,
+      reason:
+        "EXPECTED_SET_CODES_AUSENTE: --expected-set-codes=<CODIGO1,CODIGO2,...> é obrigatório junto com --expansion-wave — confirma a identidade exata da onda antes de qualquer persistência (o número da onda sozinho não é estável entre execuções).",
+    };
+  }
+  // Normalização: aparar espaços e uppercase — mesma convenção já usada nos códigos de
+  // card_set (BASE2, GYM2, ...) em todo o restante do arquivo.
+  const normalized = raw.split(",").map((c) => c.trim().toUpperCase());
+  if (normalized.some((c) => c.length === 0)) {
+    return { ok: false, reason: `EXPECTED_SET_CODES_INVALIDO: --expected-set-codes="${raw}" contém item vazio — nenhum código pode ser vazio (verifique vírgulas duplas/finais).` };
+  }
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const code of normalized) {
+    if (seen.has(code)) duplicates.add(code);
+    seen.add(code);
+  }
+  if (duplicates.size > 0) {
+    return { ok: false, reason: `EXPECTED_SET_CODES_DUPLICADO: código(s) repetido(s) em --expected-set-codes: ${[...duplicates].join(", ")}.` };
+  }
+  return { ok: true, codes: normalized };
+}
+
+type ExpansionWaveArgsValidation =
+  | { ok: true; waveNumber: number; maxApiRequests: number; expectedSetCodes: string[] }
+  | { ok: false; reason: string };
+
+function validateExpansionWaveArgs(args: {
+  expansionWave: string | null;
+  maxApiRequests: string | null;
+  dryRun: boolean;
+  confirmedBy: string | null;
+  expectedSetCodes: string | null;
+}): ExpansionWaveArgsValidation {
+  const waveRaw = args.expansionWave;
+  if (waveRaw === null) return { ok: false, reason: "EXPANSION_WAVE_AUSENTE: --expansion-wave=<n> é obrigatório neste modo." };
+  const waveNumber = Number(waveRaw);
+  if (!Number.isInteger(waveNumber) || waveNumber <= 0) {
+    return { ok: false, reason: `EXPANSION_WAVE_INVALIDO(${waveRaw}): --expansion-wave deve ser um inteiro positivo (1, 2, 3, ...) — nunca executa "todas as ondas" implicitamente.` };
+  }
+
+  const budgetRaw = args.maxApiRequests;
+  if (budgetRaw === null) {
+    return { ok: false, reason: "MAX_API_REQUESTS_AUSENTE: --max-api-requests=<n> é obrigatório neste modo (orçamento local autoritativo de requisições, independente do teto de segurança do processo)." };
+  }
+  const maxApiRequests = Number(budgetRaw);
+  if (!Number.isInteger(maxApiRequests) || maxApiRequests <= 0) {
+    return { ok: false, reason: `MAX_API_REQUESTS_INVALIDO(${budgetRaw}): --max-api-requests deve ser um inteiro positivo.` };
+  }
+
+  const expectedSetCodesValidation = validateExpectedSetCodes(args.expectedSetCodes);
+  if (!expectedSetCodesValidation.ok) return { ok: false, reason: expectedSetCodesValidation.reason };
+
+  const hasDryRun = args.dryRun;
+  const hasConfirmedBy = args.confirmedBy !== null && args.confirmedBy !== "";
+  if (hasDryRun && hasConfirmedBy) {
+    return { ok: false, reason: "MODOS_CONFLITANTES: --dry-run e --confirmed-by são mutuamente exclusivos no executor de onda — escolha simulação (--dry-run) ou execução real (--confirmed-by=<admin_user_uuid>), nunca os dois." };
+  }
+  if (!hasDryRun && !hasConfirmedBy) {
+    return { ok: false, reason: "MODO_AUSENTE: informe --dry-run (simulação, sem escrita) ou --confirmed-by=<admin_user_uuid> (execução real) — nenhum modo padrão é assumido." };
+  }
+
+  return { ok: true, waveNumber, maxApiRequests, expectedSetCodes: expectedSetCodesValidation.codes };
+}
+
+// Pura — opera sobre um ExpansionPlanResult já calculado (real ou fixture de teste), nunca
+// sobre rede. Resolve a tensão entre "rejeitar onda inexistente antes de qualquer chamada
+// externa" (regra 2) e "a composição da onda vem do plano reconciliado, nunca hardcoded"
+// (regra 4): o teste de onda inexistente roda 100% offline contra um plano de fixture, sem
+// precisar mockar HTTP.
+function selectWaveFromPlan(plan: ExpansionPlanResult, waveNumber: number): { ok: true; wave: ExpansionWave } | { ok: false; error: string } {
+  const wave = plan.waves.find((w) => w.waveNumber === waveNumber);
+  if (!wave) {
+    return {
+      ok: false,
+      error: `ONDA_INEXISTENTE(${waveNumber}): o plano recalculado agora tem ${plan.waves.length} onda(s) (1${plan.waves.length > 1 ? `-${plan.waves.length}` : ""}). Nunca executa todas as ondas implicitamente — escolha um número de onda válido.`,
+    };
+  }
+  return { ok: true, wave };
+}
+
+type ExpansionWaveOpts = { waveNumber: number; dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[] };
+
+// Fix P14.4.2 (dry-run sem projeção): productsProjected/observationsProjected/
+// variantsProjectionSkipped nascem sempre em 0 e só o dry-run os incrementa (mesma disciplina
+// de runRealPilot/executeExpansionPlan) — no caminho real ficam em 0 por Set, nunca
+// reaproveitados/reinterpretados como contagem real de escrita.
+type ExpansionWaveSetSummary = {
+  code: string;
+  localCardCount: number;
+  externalCardsSeen: number;
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+};
+
+type ExpansionWaveRunResult = {
+  waveNumber: number;
+  setsSelected: string[];
+  perSet: ExpansionWaveSetSummary[];
+  setsConfirmed: number;
+  cardsSafe: number;
+  cardsAmbiguous: number;
+  cardsAbsent: number;
+  productsResolved: number;
+  productsWritten: number;
+  observationsResolved: number;
+  observationsWritten: number;
+  observationsDivergent: number;
+  operationsSupabase: number;
+  // Fix P14.4.2 (dry-run sem projeção): só o --dry-run projeta (planVariantProjection(), nunca
+  // duplicado) — no caminho real ficam sempre em 0, nunca confundidos com
+  // productsResolved/observationsResolved (que só têm significado após persistência real).
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+  requestsMade: number;
+  maxApiRequests: number;
+  requestsRemainingLocal: number;
+  status: "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED";
+  errorParts: string[];
+  syncRunId: string | null;
+};
+
+// Núcleo do P14.4.2. Ordem estrita, nunca alterada: (1) leituras locais reconciliadas —
+// fetchReconciledLocalInputs(), idêntica a executeExpansionPlan() (regra 5); (2) em modo
+// real, abre um único CARD_SYNC — tryOpenCardSyncRun(), detecta 23505 antes de qualquer
+// requisição à JustTCG (regra 6); em --dry-run, nunca cria pricing_sync_run; (3) primeira
+// chamada externa (GET /v1/sets) — reclassifica os Sets e recalcula o plano/ondas nesta
+// própria execução (regra 4, nunca hardcoded); (4) seleciona a onda pedida dentro do plano
+// recém-calculado (selectWaveFromPlan); (5) para cada Set da onda, confirma o mapping
+// (upsertSetMapping, fora do dry-run) e pagina TODAS as cartas do Set
+// (fetchAllCardsForSet) — qualquer aborto (orçamento/autenticação/paginação) interrompe a
+// aquisição da onda inteira, sem persistir nada (regras 8+9); (6) só depois de todos os
+// Sets da onda adquiridos com sucesso, persiste em lote (persistBatchedResults(), reusada
+// verbatim) e finaliza o run (finalizeSyncRun(), reusada verbatim).
+async function executeExpansionWave(supabase: SupabaseClient, client: JustTcgClient, opts: ExpansionWaveOpts): Promise<ExpansionWaveRunResult> {
+  const { sourceId, localSets, existingSetMappings, existingCoverage } = await fetchReconciledLocalInputs(supabase);
+
+  let syncRunId: string | null = null;
+  let syncRunFinalized = false;
+
+  if (!opts.dryRun) {
+    const startAttempt = await tryOpenCardSyncRun(supabase, sourceId, opts.confirmedBy as string);
+    if (startAttempt.outcome === "CONCURRENT_CONFLICT") {
+      throw new Error(
+        "CONFLITO_DE_CONCORRENCIA: já existe uma execução CARD_SYNC ativa (RECEIVED/PROCESSING) para esta fonte (índice único parcial, Query 3907) — onda abortada antes de qualquer chamada à JustTCG.",
+      );
+    }
+    if (startAttempt.outcome === "OTHER_ERROR") {
+      throw new Error(`SYNC_RUN_INSERT_FAILED: ${startAttempt.error}`);
+    }
+    syncRunId = startAttempt.id;
+  }
+
+  const conditionMap = await getConditionMap(supabase, sourceId);
+  if (!opts.dryRun && conditionMap.size === 0) {
+    throw new Error("CONDITION_MAP_VAZIO: rode a seed 3702 (pricing_condition_mapping) antes deste script.");
+  }
+
+  const summary = {
+    setsConfirmed: 0,
+    cardsSafe: 0,
+    cardsAmbiguous: 0,
+    cardsAbsent: 0,
+    productsResolved: 0,
+    productsWritten: 0,
+    observationsResolved: 0,
+    observationsWritten: 0,
+    observationsDivergent: 0,
+    operationsSupabase: 0,
+    productsProjected: 0,
+    observationsProjected: 0,
+    variantsProjectionSkipped: 0,
+  };
+  const perSet: ExpansionWaveSetSummary[] = [];
+  const errorParts: string[] = [];
+  const plannedCardMappings: PlannedCardMapping[] = [];
+  const plannedVariants: PlannedVariant[] = [];
+  let acquisitionFailed = false;
+  let wave: ExpansionWave | null = null;
+
+  try {
+    const setsResult = await client.get<{ data: JustTcgSet[] }>("/sets", { game: GAME_CODE });
+    if (setsResult.status === "AUTH_FAILURE") {
+      throw new Error("AUTENTICACAO_FALHOU_401: JUSTTCG_API_KEY inválida ou expirada — execução de onda abortada.");
+    }
+    if (setsResult.status !== "SUCCESS") {
+      throw new Error(`ONDA_FASE_SETS_FALHOU: ${setsResult.status}`);
+    }
+    const allExternalSets = normalizeJustTcgSets(setsResult.data.data ?? []);
+
+    // Regra 4: plano recalculado nesta própria execução, nunca hardcoded/cacheado de uma
+    // rodada anterior — mesma função pura de P14.4.1 (buildExpansionPlan).
+    const plan = buildExpansionPlan({ localSets, existingSetMappings, allExternalSets, existingCoverage });
+    assertConfirmedMappingsPreserved(plan.entries, localSets, existingSetMappings);
+
+    const waveSelection = selectWaveFromPlan(plan, opts.waveNumber);
+    if (!waveSelection.ok) throw new Error(waveSelection.error);
+    wave = waveSelection.wave;
+
+    // Fix P14.4.2 (instabilidade de identidade): o número da onda sozinho não é estável entre
+    // execuções (ver comentário de validateExpectedSetCodes) — antes de tocar em qualquer Set
+    // desta onda, confirma que a composição RECALCULADA agora é exatamente (nunca um
+    // subconjunto, nunca com sobra) a composição esperada informada por --expected-set-codes.
+    // Comparação por CONJUNTO (ordem nunca importa) — os códigos esperados nunca substituem a
+    // composição planejada (regra 8): se baterem, o que roda continua sendo wave.sets, vindo do
+    // plano; se não baterem, a onda inteira é abortada aqui, antes de qualquer
+    // upsertSetMapping/fetchAllCardsForSet, garantindo zero persistência de negócio.
+    const actualCodes = [...new Set(wave.sets.map((s) => s.code))].sort();
+    const expectedCodes = [...new Set(opts.expectedSetCodes)].sort();
+    const compositionMatches = actualCodes.length === expectedCodes.length && actualCodes.every((code, i) => code === expectedCodes[i]);
+    if (!compositionMatches) {
+      const missing = expectedCodes.filter((c) => !actualCodes.includes(c));
+      const extra = actualCodes.filter((c) => !expectedCodes.includes(c));
+      throw new Error(
+        `EXPANSION_WAVE_COMPOSITION_CHANGED: a onda ${opts.waveNumber} recalculada agora tem os Sets [${actualCodes.join(",") || "nenhum"}], divergente do esperado [${expectedCodes.join(",") || "nenhum"}] — faltando=[${missing.join(",") || "nenhum"}] excedente=[${extra.join(",") || "nenhum"}]. O número da onda não é uma identidade estável entre execuções (candidatos são reagrupados/renumerados a cada plano recalculado) — onda abortada antes de qualquer persistência. Revise a composição atual com --expansion-plan antes de reexecutar.`,
+      );
+    }
+
+    const localByCode = new Map(localSets.map((s) => [s.code, s]));
+
+    for (const waveSet of wave.sets) {
+      const local = localByCode.get(waveSet.code);
+      if (!local) {
+        errorParts.push(`WAVE_SET_SEM_INVENTARIO_LOCAL(${waveSet.code})`);
+        acquisitionFailed = true;
+        break;
+      }
+
+      // Regra 10 (via resolveSetMatchV2, mesmo matching fail-safe de P14.2/runRealPilot):
+      // release_date exata é a única evidência automatizada — como a onda só contém Sets já
+      // classificados SAFE_CANDIDATE por classifySetForExpansionPlan() (mesmo sinal, que exige
+      // releaseDateIso não-nulo), este match deve ser CONFIRMED de forma determinística; as
+      // checagens abaixo (releaseDateIso nulo, match não-CONFIRMED) são rede de segurança
+      // defensiva, nunca o caminho esperado.
+      if (!local.releaseDateIso) {
+        errorParts.push(`WAVE_SET_SEM_RELEASE_DATE(${waveSet.code}): inconsistente com a classificação SAFE_CANDIDATE do plano — onda abortada por segurança.`);
+        acquisitionFailed = true;
+        break;
+      }
+      const match = resolveSetMatchV2({ codigoMmkyu: waveSet.code, releaseDateIso: local.releaseDateIso }, allExternalSets);
+      if (match.status !== "CONFIRMED") {
+        errorParts.push(`WAVE_SET_MATCH_INESPERADO(${waveSet.code}): ${match.status} — o plano classificou como SAFE_CANDIDATE, mas a reconfirmação pontual divergiu; onda abortada por segurança.`);
+        acquisitionFailed = true;
+        break;
+      }
+
+      if (!opts.dryRun) {
+        const setMappingResult = await upsertSetMapping(supabase, local.cardSetId, sourceId, "CONFIRMED", match.set, match.method, match.evidence, opts.confirmedBy as string);
+        if (!setMappingResult.ok) errorParts.push(`SET_MAPPING_CONFIRM_FAILED(${waveSet.code}): ${setMappingResult.error}`);
+      }
+      summary.setsConfirmed++;
+
+      const { cards: externalCards, requestsUsed, aborted } = await fetchAllCardsForSet(client, match.set.id);
+      // Fix P14.4.2 (dry-run sem projeção): setSummary é a MESMA referência empurrada em
+      // perSet — o loop de projeção mais abaixo, dentro desta mesma iteração de Set, incrementa
+      // estes campos por mutação direta, sem duplicar planVariantProjection() nem reestruturar
+      // o fluxo de aborto antecipado (abaixo) que já depende de perSet.push() acontecer aqui.
+      const setSummary: ExpansionWaveSetSummary = {
+        code: waveSet.code,
+        localCardCount: local.localCardCount,
+        externalCardsSeen: externalCards.length,
+        productsProjected: 0,
+        observationsProjected: 0,
+        variantsProjectionSkipped: 0,
+      };
+      perSet.push(setSummary);
+
+      if (aborted === "AUTH_FAILURE") {
+        errorParts.push(`AUTENTICACAO_FALHOU_401(${waveSet.code})`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "BUDGET_STOPPED") {
+        errorParts.push(`ORCAMENTO_ESGOTADO(${waveSet.code}): após ${requestsUsed} requisição(ões) de página deste Set — nenhum dado de negócio desta onda será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "TECHNICAL_FAILURE") {
+        errorParts.push(`PAGINACAO_CARDS_FALHOU(${waveSet.code}): interrompida após ${requestsUsed} requisição(ões) — nenhum dado de negócio desta onda será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+
+      const localCards = await findLocalCardsForSet(supabase, local.cardSetId);
+      const externalIndex = buildExternalNumberIndex(externalCards);
+
+      for (const localCard of localCards) {
+        const matchResult = classifyCardMatch(localCard, externalIndex);
+
+        if (matchResult.classification !== "SAFE" || !matchResult.matched) {
+          if (matchResult.classification === "ABSENT") summary.cardsAbsent++;
+          else summary.cardsAmbiguous++;
+          if (opts.dryRun) logDryRunCardEvidence(localCard, matchResult);
+          if (!opts.dryRun) {
+            plannedCardMappings.push({
+              cardId: localCard.card_id,
+              collectorNumber: localCard.collector_number,
+              status: matchResult.classification === "ABSENT" ? "NOT_FOUND" : "PENDING",
+              matchedCard: null,
+              method: matchResult.method,
+              evidence: matchResult.evidence,
+            });
+          }
+          continue;
+        }
+
+        summary.cardsSafe++;
+        const matchedCard = matchResult.matched;
+
+        if (opts.dryRun) {
+          for (const variant of matchedCard.variants ?? []) {
+            const projection = planVariantProjection(variant, conditionMap);
+            if (projection.status === "PROJECTED") {
+              summary.productsProjected++;
+              summary.observationsProjected++;
+              setSummary.productsProjected++;
+              setSummary.observationsProjected++;
+            } else {
+              summary.variantsProjectionSkipped++;
+              setSummary.variantsProjectionSkipped++;
+            }
+          }
+          continue;
+        }
+
+        plannedCardMappings.push({
+          cardId: localCard.card_id,
+          collectorNumber: localCard.collector_number,
+          status: "CONFIRMED",
+          matchedCard,
+          method: matchResult.method,
+          evidence: matchResult.evidence,
+        });
+
+        for (const variant of matchedCard.variants ?? []) {
+          const externalProductId = String(variant.uuid ?? variant.id ?? "");
+          const printingRaw = String(variant.printing ?? "");
+          const conditionRaw = String(variant.condition ?? "");
+          const price = variant.price;
+          const lastUpdated = variant.lastUpdated;
+          if (!externalProductId || !printingRaw || typeof price !== "number") continue;
+
+          const conditionId = conditionMap.get(conditionRaw);
+          if (!conditionId) {
+            errorParts.push(`CONDICAO_SEM_MAPEAMENTO(${conditionRaw})`);
+            continue;
+          }
+
+          const { printingTipo } = splitPrintingLanguage(printingRaw);
+          const observedAt = typeof lastUpdated === "number" ? new Date(lastUpdated * 1000).toISOString() : new Date().toISOString();
+          const rawPayload = sanitizeJson({ condition: conditionRaw, printing: printingRaw, price, lastUpdated });
+
+          plannedVariants.push({
+            cardId: localCard.card_id,
+            collectorNumber: localCard.collector_number,
+            externalProductId,
+            sourcePrintingLabel: printingTipo ?? printingRaw,
+            conditionId,
+            price,
+            observedAt,
+            rawPayload,
+          });
+        }
+      }
+    }
+
+    let batchPersistenceFailed = false;
+    if (acquisitionFailed) {
+      // Regras 8/9: qualquer falha de aquisição (Set ausente do inventário, reconfirmação de
+      // match inesperada, orçamento esgotado ou paginação com erro) bloqueia a persistência
+      // de TODA a onda — nunca uma escrita parcial por Set. plannedCardMappings/
+      // plannedVariants acumulados até aqui são deliberadamente descartados.
+    } else if (!opts.dryRun && (plannedCardMappings.length > 0 || plannedVariants.length > 0)) {
+      const batchOutcome = await persistBatchedResults(supabase, sourceId, syncRunId, opts.confirmedBy as string, plannedCardMappings, plannedVariants);
+      summary.productsResolved += batchOutcome.productsResolved;
+      summary.productsWritten += batchOutcome.productsWritten;
+      summary.observationsResolved += batchOutcome.observationsResolved;
+      summary.observationsWritten += batchOutcome.observationsWritten;
+      summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.operationsSupabase += batchOutcome.operationsSupabase;
+      errorParts.push(...batchOutcome.errorParts);
+      if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
+    }
+
+    const finalStatus = acquisitionFailed
+      ? "FAILED"
+      : computeFinalStatus(batchPersistenceFailed, errorParts.length > 0, summary.cardsSafe > 0 || summary.setsConfirmed > 0);
+
+    if (!opts.dryRun) {
+      await finalizeSyncRun(supabase, syncRunId, client, finalStatus, errorParts.length > 0 ? errorParts.slice(0, 15).join(" | ") : null, opts.dryRun);
+      syncRunFinalized = true;
+    }
+
+    return {
+      waveNumber: wave.waveNumber,
+      setsSelected: wave.sets.map((s) => s.code),
+      perSet,
+      setsConfirmed: summary.setsConfirmed,
+      cardsSafe: summary.cardsSafe,
+      cardsAmbiguous: summary.cardsAmbiguous,
+      cardsAbsent: summary.cardsAbsent,
+      productsResolved: summary.productsResolved,
+      productsWritten: summary.productsWritten,
+      observationsResolved: summary.observationsResolved,
+      observationsWritten: summary.observationsWritten,
+      observationsDivergent: summary.observationsDivergent,
+      operationsSupabase: summary.operationsSupabase,
+      productsProjected: summary.productsProjected,
+      observationsProjected: summary.observationsProjected,
+      variantsProjectionSkipped: summary.variantsProjectionSkipped,
+      requestsMade: client.requestsMade,
+      maxApiRequests: opts.maxApiRequests,
+      requestsRemainingLocal: client.requestsRemainingLocal,
+      status: finalStatus,
+      errorParts,
+      syncRunId,
+    };
+  } catch (error) {
+    if (!opts.dryRun && !syncRunFinalized && syncRunId) {
+      const message = error instanceof Error ? error.message : String(error);
+      await finalizeSyncRun(supabase, syncRunId, client, "FAILED", message, opts.dryRun);
+    }
+    throw error;
+  }
+}
+
+async function runExpansionWave(
+  opts: { waveNumber: number; dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[] },
+): Promise<void> {
+  const supabaseUrl = requireEnv("SUPABASE_URL");
+  const supabaseServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const justTcgApiKey = requireEnv("JUSTTCG_API_KEY");
+
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  const client = new JustTcgClient(justTcgApiKey, undefined, opts.maxApiRequests);
+
+  console.log(`=== Executor de Onda (P14.4.2) — onda ${opts.waveNumber}, orçamento local=${opts.maxApiRequests} ===`);
+  console.log(opts.dryRun ? "[DRY-RUN] Nenhuma escrita será persistida — nenhum pricing_sync_run será criado.\n" : `Confirmado por (admin_user.id): ${opts.confirmedBy}\n`);
+
+  const result = await executeExpansionWave(supabase, client, opts);
+
+  console.log("\n=== Resumo da execução de onda ===");
+  console.log(JSON.stringify(result, null, 2));
+}
+
+// ============================================================================
 // 8. Entrypoint
 // ============================================================================
 
@@ -3872,26 +5437,54 @@ async function main() {
   // ou acesso ao Supabase (nenhum client é criado até aqui). Nunca mais cai silenciosamente
   // em --fixture-check por credencial ausente — isso mascarava um ambiente mal configurado
   // como validação bem-sucedida. Ver resolveEntryDecision(), testada offline.
-  const decision = resolveEntryDecision(args, {
-    justTcgApiKey: Deno.env.get("JUSTTCG_API_KEY"),
-    supabaseUrl: Deno.env.get("SUPABASE_URL"),
-    supabaseServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-  });
+  const decision = resolveEntryDecision(
+    {
+      fixtureCheck: args.fixtureCheck,
+      expansionPlan: args.expansionPlan,
+      expansionWave: args.expansionWave,
+      maxApiRequests: args.maxApiRequests,
+      dryRun: args.dryRun,
+      confirmedBy: args.confirmedBy,
+      expectedSetCodes: args.expectedSetCodes,
+    },
+    {
+      justTcgApiKey: Deno.env.get("JUSTTCG_API_KEY"),
+      supabaseUrl: Deno.env.get("SUPABASE_URL"),
+      supabaseServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    },
+  );
 
   if (decision.kind === "FIXTURE_CHECK") {
     await runFixtureCheck();
     return;
   }
 
+  if (decision.kind === "EXPANSION_WAVE_INVALID_ARGS") {
+    console.error(`Argumentos inválidos para o executor de onda (--expansion-wave): ${decision.reason}`);
+    console.error("Exemplo: --expansion-wave=1 --max-api-requests=10 --expected-set-codes=BASE2,BASE3,BASE5,GYM2 --dry-run  (ou --confirmed-by=<admin_user_uuid> para execução real).");
+    Deno.exit(1);
+  }
+
   if (decision.kind === "MISSING_ENV") {
     // Mensagem sanitizada: só nomes de variáveis, nunca valores.
     console.error(`Variável(is) de ambiente obrigatória(s) ausente(s): ${decision.missing.join(", ")}.`);
-    console.error("Defina todas antes de rodar o piloto real ou o plano de expansão, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
+    console.error("Defina todas antes de rodar o piloto real, o plano de expansão ou o executor de onda, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
     Deno.exit(1);
   }
 
   if (decision.kind === "EXPANSION_PLAN") {
     await runExpansionPlan();
+    return;
+  }
+
+  if (decision.kind === "EXPANSION_WAVE") {
+    await runExpansionWave({
+      waveNumber: decision.waveNumber,
+      maxApiRequests: decision.maxApiRequests,
+      dryRun: decision.dryRun,
+      confirmedBy: decision.confirmedBy,
+      expectedSetCodes: decision.expectedSetCodes,
+    });
     return;
   }
 
