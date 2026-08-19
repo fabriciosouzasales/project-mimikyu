@@ -19,12 +19,18 @@ máquina, com suas próprias variáveis de ambiente — o mesmo padrão já usad
 (CLAUDE.md: "Quem executa o SQL no Supabase, por padrão, é Fabrício") e para a prova
 técnica original (PowerShell, também local).
 
-Credencial: somente `JUSTTCG_API_KEY` (variável de ambiente, nunca argumento de linha de
-comando, nunca logada). Se ausente, o script roda em modo --fixture-check: valida toda a
-lógica de parsing/normalização/paginação/idempotência contra dados sintéticos embutidos,
-100% offline (nenhuma chamada de rede, nenhuma escrita no Supabase) — e imprime um aviso
-explícito de que nenhum piloto real foi executado. Nunca solicita a chave interativamente
-nem aceita literal em texto.
+Credenciais: `JUSTTCG_API_KEY`, `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (variáveis de
+ambiente, nunca argumento de linha de comando, nunca logadas — nem seus valores, nem em
+mensagens de erro). Nunca solicita nenhuma delas interativamente nem aceita literal em texto.
+
+Fix revisão de robustez 2026-08-19 (fechamento do P14.3): `--fixture-check` roda offline
+explicitamente, sem depender do ambiente (funciona com ou sem qualquer credencial definida).
+Fora desse modo, a ausência de QUALQUER uma das três variáveis obrigatórias encerra o
+processo com código de saída diferente de zero, ANTES de qualquer chamada de rede ou acesso
+ao Supabase — nunca mais cai automaticamente em modo --fixture-check por credencial ausente
+(comportamento antigo, removido: mascarava um ambiente mal configurado como se fosse uma
+execução de validação bem-sucedida). Ver resolveEntryDecision(), abaixo — decisão pura,
+testada offline nos dois caminhos (fixture-check explícito x variáveis ausentes).
 
 pricing_source.is_active é TRUE desde o Incremento P14.1 (2026-08-19, condição comercial
 satisfeita) — este script não altera esse valor. getJustTcgSource(), abaixo, continua
@@ -779,14 +785,16 @@ function planVariantProjection(variant: JustTcgVariant, conditionMap: Map<string
 
 type InsertOutcome = "NEW" | "CONFLICT_IGNORED" | "OTHER_ERROR";
 
+// Fix P14.3: accumulateWriteOutcome() (companheira original desta função, que somava
+// resolved/written a partir de um único INSERT com erro classificado) foi removida — o
+// caminho real agora resolve produtos em lote via pré-busca (Fase 2 de
+// persistBatchedResults, REUSE vs. NEW), não mais via um INSERT-e-classifica-erro por
+// variante. classifyInsertResult() permanece como primitiva pura testada isoladamente
+// (ver runFixtureCheck), documentando a mesma semântica de classificação que a Fase 2
+// replica em memória.
 function classifyInsertResult(error: { message: string } | null): InsertOutcome {
   if (!error) return "NEW";
   return `${error.message}`.includes("duplicate key") ? "CONFLICT_IGNORED" : "OTHER_ERROR";
-}
-
-function accumulateWriteOutcome(counts: { resolved: number; written: number }, outcome: Exclude<InsertOutcome, "OTHER_ERROR">): void {
-  counts.resolved++;
-  if (outcome === "NEW") counts.written++;
 }
 
 // Correção real sobre P8: um INSERT que colide em pricing_observation (mesma identidade —
@@ -826,6 +834,443 @@ function decideMappingUpsert(existing: MappingRowLike | null, newStatus: "CONFIR
   return existing.match_status === newStatus ? "NOOP_SAME_STATUS" : "UPGRADED_TO_CONFIRMED"; // PENDING<->NOT_FOUND também é atualizado, sem novo status no schema
 }
 
+// Fix P14.3: decisão de status final extraída como função pura testável — antes vivia como
+// um ternário inline dentro de runRealPilot(). batchPersistenceFailed tem prioridade
+// absoluta sobre qualquer outro sinal: uma falha parcial de lote nunca deve ser mascarada
+// como COMPLETED_WITH_ERRORS só porque outras cartas/Set foram resolvidos com sucesso —
+// o run precisa ficar objetivamente marcado como FAILED para nunca ser confundido com
+// sucesso parcial silencioso (mesmo incidente histórico que motivou finalizeSyncRun nunca
+// ser silenciosa, aplicado aqui à decisão de status em si).
+function computeFinalStatus(
+  batchPersistenceFailed: boolean,
+  hasErrors: boolean,
+  hasAnyProgress: boolean,
+): "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" {
+  if (batchPersistenceFailed) return "FAILED";
+  if (!hasErrors) return "COMPLETED";
+  return hasAnyProgress ? "COMPLETED_WITH_ERRORS" : "FAILED";
+}
+
+// ============================================================================
+// 5e. Persistência em lotes (P14.3) — elimina o padrão "uma operação Supabase por carta
+//     ou por variante" (P8/P14.2). Estratégia: acumular decisões em memória durante a
+//     classificação (nenhuma chamada ao Supabase dentro dos loops por carta/variante) e só
+//     então pré-buscar o estado existente em lotes, decidir NEW/REUSE/DIVERGENTE em memória
+//     (reaproveitando decideMappingUpsert/classifyObservationWrite já testados) e emitir o
+//     mínimo de INSERT/UPDATE em lotes conservadores. Ver persistBatchedResults() abaixo.
+// ============================================================================
+
+// Tamanho de lote conservador para .in()/insert/rpc. Reduzido de 300 para 100 na revisão
+// de 2026-08-19: não há evidência documentada de um limite seguro para quantos UUIDs cabem
+// numa query string .in() do PostgREST através do gateway real do Supabase (Cloudflare/Kong
+// à frente do PostgREST) — 300 UUIDs (36 caracteres cada + vírgula) somam ~11kb só na lista,
+// e nenhuma fonte oficial consultada confirma esse tamanho como seguro. 100 é
+// comprovadamente mais conservador e ainda preserva >90% de redução de round trips (ver
+// relatório da revisão). GRANT/INSERT com corpo JSON (POST) e chamadas .rpc() não têm essa
+// restrição de URL, mas usam a mesma constante por simplicidade e uniformidade.
+const BATCH_SIZE = 100;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+// Decisão de mapeamento de carta acumulada em memória durante o loop de classificação —
+// nunca chama o Supabase no momento em que é criada (ver runRealPilot). matchedCard é
+// sempre null fora do caminho CONFIRMED, mesmo padrão já usado antes desta rodada.
+type PlannedCardMapping = {
+  cardId: string;
+  collectorNumber: string;
+  status: "CONFIRMED" | "PENDING" | "NOT_FOUND";
+  matchedCard: JustTcgCard | null;
+  method: string;
+  evidence: Record<string, unknown>;
+};
+
+// Variante (produto+observação) planejada — só existe para cartas CONFIRMED nesta rodada
+// (mesma cobertura do caminho real pré-existente). cardId é a chave de correlação usada
+// para resolver o pricing_card_mapping_id só depois que a Fase 1 (mappings) já rodou.
+type PlannedVariant = {
+  cardId: string;
+  collectorNumber: string;
+  externalProductId: string;
+  sourcePrintingLabel: string;
+  conditionId: string;
+  price: number;
+  observedAt: string;
+  rawPayload: unknown;
+};
+
+type BatchPersistOutcome = {
+  productsResolved: number;
+  productsWritten: number;
+  observationsResolved: number;
+  observationsWritten: number;
+  observationsDivergent: number;
+  // Contagem de round trips ao Supabase feitos exclusivamente por persistBatchedResults()
+  // (pré-busca + insert + rpc, todos em lotes) — deliberadamente separada de
+  // client.requestsMade, que só conta chamadas HTTP à JustTCG. Não inclui chamadas fora
+  // desta função (source/condition map/set mapping/sync_run insert/finalize), que
+  // continuam sendo poucas chamadas fixas por Set-alvo, fora do escopo deste incremento.
+  operationsSupabase: number;
+  errorParts: string[];
+  batchFailureOccurred: boolean;
+};
+
+// Núcleo do P14.3: pré-busca em lotes -> decide em memória (reaproveitando
+// decideMappingUpsert/classifyObservationWrite, já cobertos por runFixtureCheck) -> emite
+// só o INSERT/UPDATE mínimo, em lotes. Falha parcial em qualquer lote é reportada em
+// errorParts e sinalizada via batchFailureOccurred (nunca lançada/engolida em silêncio);
+// as linhas não resolvidas nesta rodada permanecem no estado anterior e são retomadas numa
+// reexecução idempotente (mesma garantia de decideMappingUpsert/classifyObservationWrite).
+async function persistBatchedResults(
+  supabase: SupabaseClient,
+  sourceId: string,
+  syncRunId: string | null,
+  confirmedBy: string,
+  plannedMappings: PlannedCardMapping[],
+  plannedVariants: PlannedVariant[],
+): Promise<BatchPersistOutcome> {
+  const errorParts: string[] = [];
+  let operationsSupabase = 0;
+  let batchFailureOccurred = false;
+
+  // --- Fase 1: pricing_card_mapping ------------------------------------------------
+  const cardMappingIdByCardId = new Map<string, string>();
+
+  if (plannedMappings.length > 0) {
+    const existingByCardId = new Map<string, MappingRowLike>();
+    for (const ids of chunk(plannedMappings.map((m) => m.cardId), BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase
+        .from("pricing_card_mapping")
+        .select("id, card_id, match_status")
+        .eq("pricing_source_id", sourceId)
+        .in("card_id", ids);
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(`CARD_MAPPING_BATCH_SELECT_FAILED: ${sanitize(error.message)}`);
+        continue;
+      }
+      for (const row of (data ?? []) as Array<{ id: string; card_id: string; match_status: string }>) {
+        existingByCardId.set(row.card_id, { id: row.id, match_status: row.match_status });
+      }
+    }
+
+    const toInsert: Array<Record<string, unknown>> = [];
+    const toUpdate: Array<Record<string, unknown>> = [];
+    const nowIso = new Date().toISOString();
+
+    for (const planned of plannedMappings) {
+      const existing = existingByCardId.get(planned.cardId) ?? null;
+      const action = decideMappingUpsert(existing, planned.status);
+      if (action === "NOOP_SAME_STATUS" || action === "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT" || action === "NOOP_ALREADY_CONFIRMED") {
+        if (existing) cardMappingIdByCardId.set(planned.cardId, existing.id);
+        continue;
+      }
+
+      const payload: Record<string, unknown> = {
+        match_status: planned.status,
+        match_method: planned.method,
+        match_evidence: sanitizeJson(planned.evidence),
+        last_checked_at: nowIso,
+        external_card_id: planned.matchedCard?.id ?? null,
+        external_card_name: planned.matchedCard?.name ?? null,
+        confirmed_at: planned.status === "CONFIRMED" ? nowIso : null,
+        confirmed_by: planned.status === "CONFIRMED" ? confirmedBy : null,
+      };
+
+      if (action === "INSERTED") {
+        toInsert.push({ card_id: planned.cardId, pricing_source_id: sourceId, ...payload });
+      } else if (planned.status === "CONFIRMED") {
+        // UPGRADED_TO_CONFIRMED (promoção real) — precisa da função SECURITY INVOKER
+        // (Query 3914, revisão de segurança de 2026-08-19): .upsert() reemitiria SET para
+        // card_id/pricing_source_id, que nunca têm GRANT UPDATE (Query 3912) e falharia
+        // com 42501. A partir da revisão de segurança, a RPC é EXCLUSIVAMENTE de promoção
+        // (WHERE t.match_status IN ('PENDING','NOT_FOUND') AND u.match_status='CONFIRMED')
+        // — nunca mais uma atualização genérica, nunca rebaixa nem troca identidade de uma
+        // linha já CONFIRMED. Só entram aqui linhas com status-alvo CONFIRMED.
+        toUpdate.push({ id: (existing as MappingRowLike).id, ...payload });
+      } else {
+        // Fix revisão de segurança 2026-08-19: decideMappingUpsert() ainda rotula uma
+        // transição PENDING<->NOT_FOUND (sem promoção) como "UPGRADED_TO_CONFIRMED" (nome
+        // histórico, ver comentário na própria função), mas a RPC 3914 agora bloqueia
+        // estruturalmente qualquer UPDATE cujo status-alvo não seja CONFIRMED — escopo
+        // reduzido deliberadamente a pedido da revisão de segurança (a função deve ser
+        // EXCLUSIVAMENTE de promoção). Uma troca PENDING<->NOT_FOUND não tem mais caminho
+        // de escrita em lote nesta função: a linha permanece com o status anterior nesta
+        // rodada (recuperável numa reexecução futura, mesma garantia já aplicada a falhas
+        // parciais de lote) e é sinalizada aqui — nunca aplicada silenciosamente. Não há
+        // evidência de que este caminho seja exercitado pelo piloto BASE4 hoje (schema
+        // atual não tem estado intermediário entre PENDING e NOT_FOUND fora desta função);
+        // registrado como pendência informativa, não corrigido nesta rodada.
+        errorParts.push(
+          `CARD_MAPPING_PENDING_NOT_FOUND_TOGGLE_SKIPPED(card=${planned.cardId}): ${(existing as MappingRowLike).match_status} -> ${planned.status} fora do escopo da RPC de promoção exclusiva (Query 3914); sem escrita nesta rodada, recuperável numa reexecução futura.`,
+        );
+      }
+    }
+
+    for (const rows of chunk(toInsert, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase.from("pricing_card_mapping").insert(rows).select("id, card_id");
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(`CARD_MAPPING_BATCH_INSERT_FAILED(${rows.length} linhas): ${sanitize(error.message)}`);
+        continue;
+      }
+      for (const row of (data ?? []) as Array<{ id: string; card_id: string }>) {
+        cardMappingIdByCardId.set(row.card_id, row.id);
+      }
+    }
+
+    for (const rows of chunk(toUpdate, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase.rpc("batch_update_pricing_card_mapping_status", { p_updates: rows });
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(`CARD_MAPPING_BATCH_UPDATE_FAILED(${rows.length} linhas): ${sanitize(error.message)}`);
+        continue;
+      }
+      for (const row of (data ?? []) as Array<{ id: string; card_id: string }>) {
+        cardMappingIdByCardId.set(row.card_id, row.id);
+      }
+    }
+  }
+
+  // --- Fase 2: pricing_product --------------------------------------------------
+  // Só existem variantes planejadas para cartas CONFIRMED cujo mapping foi resolvido acima
+  // (inserido, promovido ou já existente) — cartas cujo mapping falhou nesta rodada (Fase 1)
+  // ficam de fora e são reportadas, recuperáveis numa reexecução (o mapping delas volta a
+  // ser reavaliado do zero na próxima chamada desta função).
+  const productIdByKey = new Map<string, string>();
+  const usableVariants: Array<PlannedVariant & { cardMappingId: string }> = [];
+  const unresolvedCardIds = new Set<string>();
+  let productsWritten = 0;
+
+  for (const variant of plannedVariants) {
+    const cardMappingId = cardMappingIdByCardId.get(variant.cardId);
+    if (!cardMappingId) {
+      unresolvedCardIds.add(variant.cardId);
+      continue;
+    }
+    usableVariants.push({ ...variant, cardMappingId });
+  }
+  for (const cardId of unresolvedCardIds) {
+    errorParts.push(`CARD_MAPPING_UNRESOLVED_SKIP_VARIANTS(${cardId})`);
+  }
+
+  if (usableVariants.length > 0) {
+    const cardMappingIds = [...new Set(usableVariants.map((v) => v.cardMappingId))];
+    for (const ids of chunk(cardMappingIds, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase
+        .from("pricing_product")
+        .select("id, pricing_card_mapping_id, external_product_id")
+        .in("pricing_card_mapping_id", ids);
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(`PRODUCT_BATCH_SELECT_FAILED: ${sanitize(error.message)}`);
+        continue;
+      }
+      for (const row of (data ?? []) as Array<{ id: string; pricing_card_mapping_id: string; external_product_id: string }>) {
+        productIdByKey.set(`${row.pricing_card_mapping_id}::${row.external_product_id}`, row.id);
+      }
+    }
+
+    const toInsertProducts: Array<{ key: string; row: Record<string, unknown> }> = [];
+    const seenThisBatch = new Set<string>();
+    for (const variant of usableVariants) {
+      const key = `${variant.cardMappingId}::${variant.externalProductId}`;
+      if (productIdByKey.has(key) || seenThisBatch.has(key)) continue; // REUSE — já existe (banco ou mesmo lote), zero escrita
+      seenThisBatch.add(key);
+      toInsertProducts.push({
+        key,
+        row: {
+          pricing_card_mapping_id: variant.cardMappingId,
+          external_product_id: variant.externalProductId,
+          source_printing_label: variant.sourcePrintingLabel,
+          language_status: "UNDETERMINED",
+          language_id: null,
+        },
+      });
+    }
+
+    for (const pairs of chunk(toInsertProducts, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase
+        .from("pricing_product")
+        .insert(pairs.map((p) => p.row))
+        .select("id, pricing_card_mapping_id, external_product_id");
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(`PRODUCT_BATCH_INSERT_FAILED(${pairs.length} linhas): ${sanitize(error.message)}`);
+        continue;
+      }
+      for (const row of (data ?? []) as Array<{ id: string; pricing_card_mapping_id: string; external_product_id: string }>) {
+        productIdByKey.set(`${row.pricing_card_mapping_id}::${row.external_product_id}`, row.id);
+        productsWritten++;
+      }
+    }
+  }
+
+  // productsResolved conta toda variante cujo produto ficou resolvido nesta rodada, seja por
+  // já existir (pré-busca, REUSE) ou por ter sido inserido com sucesso agora (NEW) — nunca
+  // conta variantes cujo INSERT falhou (essas simplesmente não aparecem em productIdByKey e
+  // são retomadas na próxima reexecução). productsWritten conta só as NEW bem-sucedidas.
+  let productsResolved = 0;
+  for (const variant of usableVariants) {
+    const key = `${variant.cardMappingId}::${variant.externalProductId}`;
+    if (productIdByKey.has(key)) productsResolved++;
+  }
+
+  // --- Fase 3: pricing_observation -----------------------------------------------
+  let observationsResolved = 0;
+  let observationsWritten = 0;
+  let observationsDivergent = 0;
+
+  const variantsWithProduct = usableVariants
+    .map((v) => ({ ...v, productId: productIdByKey.get(`${v.cardMappingId}::${v.externalProductId}`) ?? null }))
+    .filter((v): v is PlannedVariant & { cardMappingId: string; productId: string } => v.productId !== null);
+
+  const unresolvedProductKeys = usableVariants.length - variantsWithProduct.length;
+  if (unresolvedProductKeys > 0) {
+    errorParts.push(`PRODUCT_UNRESOLVED_SKIP_OBSERVATIONS(${unresolvedProductKeys} variante(s))`);
+  }
+
+  const latestObsByGroup = new Map<string, { price: number; observedAt: string }>();
+  if (variantsWithProduct.length > 0) {
+    // Fix revisão de escala 2026-08-19 (3ª rodada, proposto — NÃO aplicado): a versão
+    // anterior (Query 3914) já corrigia o produto cartesiano, mas ainda comparava por tupla
+    // EXATA incluindo observed_at — então duas execuções em dias diferentes com o MESMO
+    // preço criavam duas linhas (observed_at nunca coincide entre execuções reais, seja por
+    // lastUpdated da JustTCG avançar ou pelo fallback new Date()). Provado por teste
+    // dedicado ("Cenário 7b"). Regra desejada: consultar diariamente, mas só persistir nova
+    // observação quando o preço muda em relação à ÚLTIMA observação conhecida daquele grupo
+    // (produto+condição+price_type+currency+market_label) — preço idêntico reaproveita a
+    // observação existente, independente de quando a checagem ocorreu. Corrigido trocando a
+    // pré-busca por tupla exata pela RPC (proposta) batch_select_latest_pricing_observation_
+    // by_identity (SECURITY INVOKER, sem observed_at na chave de busca — devolve só a
+    // observação mais recente por grupo via LATERAL...ORDER BY observed_at DESC LIMIT 1,
+    // aproveitando o índice ix_pricing_observation_snapshot_lookup já existente).
+    const uniqueGroupKeys = new Map<
+      string,
+      { pricing_product_id: string; condition_id: string; price_type: string; currency_code: string; market_label: string }
+    >();
+    for (const v of variantsWithProduct) {
+      const key = `${v.productId}::${v.conditionId}`;
+      if (!uniqueGroupKeys.has(key)) {
+        uniqueGroupKeys.set(key, {
+          pricing_product_id: v.productId,
+          condition_id: v.conditionId,
+          price_type: "MARKET",
+          currency_code: "USD",
+          market_label: MARKET_LABEL,
+        });
+      }
+    }
+    for (const keysChunk of chunk([...uniqueGroupKeys.values()], BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase.rpc("batch_select_latest_pricing_observation_by_identity", { p_keys: keysChunk });
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(`OBSERVATION_LATEST_BATCH_SELECT_FAILED: ${sanitize(error.message)}`);
+        continue;
+      }
+      for (const row of (data ?? []) as Array<{ pricing_product_id: string; condition_id: string; observed_at: string; price: number }>) {
+        latestObsByGroup.set(`${row.pricing_product_id}::${row.condition_id}`, { price: Number(row.price), observedAt: row.observed_at });
+      }
+    }
+
+    const toInsertObservations: Array<Record<string, unknown>> = [];
+    const seenThisBatch = new Map<string, { price: number; observedAt: string }>(); // última observação do grupo já decidida dentro do próprio lote
+    for (const variant of variantsWithProduct) {
+      const key = `${variant.productId}::${variant.conditionId}`;
+      const latest = seenThisBatch.get(key) ?? latestObsByGroup.get(key) ?? null;
+
+      if (latest === null) {
+        // Primeira observação já conhecida para este grupo (nunca observado antes) — grava.
+        seenThisBatch.set(key, { price: variant.price, observedAt: variant.observedAt });
+        toInsertObservations.push({
+          pricing_product_id: variant.productId,
+          condition_id: variant.conditionId,
+          sync_run_id: syncRunId,
+          price_type: "MARKET",
+          price: variant.price,
+          currency_code: "USD",
+          market_label: MARKET_LABEL,
+          market_scope: "UNDETERMINED",
+          market_evidence: {},
+          market_evidence_confirmed: false,
+          observed_at: variant.observedAt,
+          raw_payload: variant.rawPayload,
+        });
+        continue;
+      }
+
+      if (latest.price === variant.price) {
+        // CONFLICT_IGNORED_SAME_PRICE — preço idêntico ao último conhecido: reaproveita a
+        // observação existente, sem gravar nova linha, mesmo com observed_at diferente
+        // (regra de escala — evita ~34M linhas/ano de ruído sem mudança real de preço).
+        // observationsResolved conta aqui (reuso, sem INSERT) — não conta de novo no lote de
+        // INSERT abaixo, mantendo a semântica "uma variante, uma contagem".
+        observationsResolved++;
+        continue;
+      }
+      if (latest.observedAt === variant.observedAt) {
+        // DIVERGENT_PRESERVED — colisão real: mesmo observed_at exato já tem outro preço
+        // gravado (violaria a constraint única). Nunca sobrescreve, só sinaliza para revisão.
+        observationsResolved++;
+        observationsDivergent++;
+        errorParts.push(`OBSERVATION_PRICE_DIVERGENTE_PRESERVADA(${variant.externalProductId}): existente=${latest.price} novo=${variant.price} observed_at=${variant.observedAt}`);
+        continue;
+      }
+      // Preço mudou de fato em relação à última observação conhecida (observed_at diferente
+      // do último) — mudança material, grava nova observação real. observationsResolved NÃO
+      // é incrementado aqui: o lote de INSERT abaixo já soma rows.length a observationsResolved,
+      // evitando contar esta variante duas vezes (uma na resolução, outra no INSERT).
+      seenThisBatch.set(key, { price: variant.price, observedAt: variant.observedAt });
+      toInsertObservations.push({
+        pricing_product_id: variant.productId,
+        condition_id: variant.conditionId,
+        sync_run_id: syncRunId,
+        price_type: "MARKET",
+        price: variant.price,
+        currency_code: "USD",
+        market_label: MARKET_LABEL,
+        market_scope: "UNDETERMINED",
+        market_evidence: {},
+        market_evidence_confirmed: false,
+        observed_at: variant.observedAt,
+        raw_payload: variant.rawPayload,
+      });
+    }
+
+    for (const rows of chunk(toInsertObservations, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { error } = await supabase.from("pricing_observation").insert(rows);
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(`OBSERVATION_BATCH_INSERT_FAILED(${rows.length} linhas): ${sanitize(error.message)}`);
+        continue;
+      }
+      observationsResolved += rows.length;
+      observationsWritten += rows.length;
+    }
+  }
+
+  return {
+    productsResolved,
+    productsWritten,
+    observationsResolved,
+    observationsWritten,
+    observationsDivergent,
+    operationsSupabase,
+    errorParts,
+    batchFailureOccurred,
+  };
+}
+
 // ============================================================================
 // 6. Fixture-check — validação 100% offline, sem rede, sem escrita no Supabase
 // ============================================================================
@@ -845,6 +1290,168 @@ function makeFakeFetch(responses: Array<{ status: number; body: unknown }>): { f
     } as unknown as Response;
   }) as unknown as typeof fetch;
   return { fetchImpl, callCount: () => i };
+}
+
+// Fix P14.3: mock mínimo de SupabaseClient para testar offline a propagação de { error }
+// em upsertSetMapping/upsertCardMapping/finalizeSyncRun — as únicas funções deste arquivo
+// que tocam o Supabase e que precisavam desse teste (pricing_product/pricing_observation já
+// checavam { error } antes desta rodada, ver P8). Cada chamada .from(table) consulta um
+// script fixo de respostas por operação (select/insert/update); não simula rede nem
+// persiste nada de verdade.
+type MockClientScript = Record<string, {
+  select?: { data: unknown; error: { message: string } | null };
+  insert?: { data: unknown; error: { message: string } | null };
+  update?: { error: { message: string } | null };
+}>;
+
+function makeMockSupabaseClient(script: MockClientScript): SupabaseClient {
+  function chain(response: unknown) {
+    const node: Record<string, unknown> = {
+      eq: () => node,
+      select: () => node,
+      maybeSingle: async () => response,
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(response).then(resolve, reject),
+    };
+    return node;
+  }
+  return {
+    from(table: string) {
+      const cfg = script[table] ?? {};
+      return {
+        select: () => chain(cfg.select ?? { data: null, error: null }),
+        insert: (_payload: unknown) => chain(cfg.insert ?? { data: null, error: null }),
+        update: (_payload: unknown) => chain(cfg.update ?? { error: null }),
+      };
+    },
+  } as unknown as SupabaseClient;
+}
+
+// Fix P14.3: mock em memória para testar persistBatchedResults() offline — diferente de
+// makeMockSupabaseClient() (respostas fixas por tabela/operação), este simula um estado real
+// de tabela (seed inicial + linhas inseridas ficam visíveis para SELECTs seguintes dentro do
+// mesmo teste), suporta .eq()/.in() encadeados, INSERT com ou sem .select() encadeado, RPC
+// com um handler dedicado para batch_update_pricing_card_mapping_status (aplica os updates
+// na tabela pricing_card_mapping em memória e devolve {id, card_id} das linhas afetadas), e
+// contagem objetiva de chamadas por tabela/operação (stats) — é essa contagem que prova a
+// redução real de round trips, não uma suposição sobre o desenho.
+type FakeRow = Record<string, unknown>;
+
+function makeBatchFakeClient(
+  seed: Record<string, FakeRow[]>,
+  options: { failSelect?: Partial<Record<string, boolean>>; failInsert?: Partial<Record<string, boolean>>; failRpc?: boolean } = {},
+): {
+  client: SupabaseClient;
+  tables: Record<string, FakeRow[]>;
+  stats: { selectCalls: Record<string, number>; insertCalls: Record<string, number>; rpcCalls: number; rpcCallsByFn: Record<string, number> };
+} {
+  const tables: Record<string, FakeRow[]> = {};
+  for (const [table, rows] of Object.entries(seed)) tables[table] = rows.map((row) => ({ ...row }));
+  const stats = { selectCalls: {} as Record<string, number>, insertCalls: {} as Record<string, number>, rpcCalls: 0, rpcCallsByFn: {} as Record<string, number> };
+  let idCounter = 1000;
+
+  function selectBuilder(table: string) {
+    const filters: Array<(row: FakeRow) => boolean> = [];
+    const builder = {
+      eq(col: string, val: unknown) {
+        filters.push((row) => row[col] === val);
+        return builder;
+      },
+      in(col: string, vals: unknown[]) {
+        const set = new Set(vals);
+        filters.push((row) => set.has(row[col]));
+        return builder;
+      },
+      then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+        stats.selectCalls[table] = (stats.selectCalls[table] ?? 0) + 1;
+        if (options.failSelect?.[table]) {
+          return Promise.resolve({ data: null, error: { message: `permission denied for table ${table}` } }).then(resolve, reject);
+        }
+        const rows = (tables[table] ?? []).filter((row) => filters.every((f) => f(row)));
+        return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+      },
+    };
+    return builder;
+  }
+
+  function insertBuilder(table: string, rows: FakeRow[]) {
+    const inserted = rows.map((row) => ({ id: `fake-${table}-${idCounter++}`, ...row }));
+    const commit = () => {
+      stats.insertCalls[table] = (stats.insertCalls[table] ?? 0) + 1;
+      if (options.failInsert?.[table]) return { data: null, error: { message: `permission denied for table ${table}` } };
+      tables[table] = [...(tables[table] ?? []), ...inserted];
+      return { data: inserted, error: null };
+    };
+    return {
+      select: (_cols: string) => ({
+        then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(commit()).then(resolve, reject),
+      }),
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
+        const result = commit();
+        return Promise.resolve({ error: result.error }).then(resolve, reject);
+      },
+    };
+  }
+
+  const client = {
+    from(table: string) {
+      return {
+        select: (_cols: string) => selectBuilder(table),
+        insert: (rows: FakeRow[]) => insertBuilder(table, rows),
+      };
+    },
+    rpc(fn: string, args?: Record<string, unknown>) {
+      return {
+        then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+          stats.rpcCalls++;
+          stats.rpcCallsByFn[fn] = (stats.rpcCallsByFn[fn] ?? 0) + 1;
+          if (options.failRpc) {
+            return Promise.resolve({ data: null, error: { message: `permission denied for function ${fn}` } }).then(resolve, reject);
+          }
+          // Fix revisão de segurança 2026-08-19: dois RPCs distintos agora passam por este
+          // mock — batch_update_pricing_card_mapping_status (promoção exclusiva, Query 3914)
+          // e batch_select_latest_pricing_observation_by_identity (busca a ÚLTIMA observação
+          // por grupo produto+condição, proposta na revisão de escala 2026-08-19, 3ª rodada —
+          // substitui a antiga batch_select_pricing_observation_by_identity de tupla exata,
+          // que ficou órfã: nenhum caminho do código real a chama mais). Despachado por nome.
+          if (fn === "batch_select_latest_pricing_observation_by_identity") {
+            const keys = (args?.p_keys as FakeRow[]) ?? [];
+            const obsRows = tables["pricing_observation"] ?? [];
+            const returned: FakeRow[] = [];
+            for (const k of keys) {
+              const matches = obsRows.filter(
+                (r) =>
+                  r.pricing_product_id === k.pricing_product_id &&
+                  r.condition_id === k.condition_id &&
+                  r.price_type === k.price_type &&
+                  r.currency_code === k.currency_code &&
+                  (r.market_label ?? null) === (k.market_label ?? null),
+              );
+              if (matches.length === 0) continue;
+              const latest = matches.reduce((a, b) => (String(b.observed_at) > String(a.observed_at) ? b : a));
+              returned.push(latest);
+            }
+            return Promise.resolve({ data: returned, error: null }).then(resolve, reject);
+          }
+          const updates = (args?.p_updates as FakeRow[]) ?? [];
+          const cardMappingRows = tables["pricing_card_mapping"] ?? [];
+          const returned: FakeRow[] = [];
+          for (const update of updates) {
+            const row = cardMappingRows.find((r) => r.id === update.id);
+            // Espelha a RPC 3914: promoção exclusiva — só aplica se a linha existente
+            // estiver PENDING/NOT_FOUND e o alvo for CONFIRMED. Qualquer outra combinação
+            // é ignorada (0 linhas afetadas), nunca aplicada.
+            if (row && (row.match_status === "PENDING" || row.match_status === "NOT_FOUND") && update.match_status === "CONFIRMED") {
+              Object.assign(row, update);
+              returned.push({ id: row.id, card_id: row.card_id });
+            }
+          }
+          return Promise.resolve({ data: returned, error: null }).then(resolve, reject);
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  return { client, tables, stats };
 }
 
 async function runFixtureCheck() {
@@ -1295,11 +1902,503 @@ async function runFixtureCheck() {
     );
   }
 
+  // --- Fix P14.3: falha de UPDATE (ou INSERT/SELECT) nunca é silenciosa ------------------
+  // Cenário real que motivou esta rodada: service_role sem GRANT UPDATE em
+  // pricing_card_mapping/pricing_set_mapping fazia upsertCardMapping()/upsertSetMapping()
+  // engolirem o erro em silêncio (Supabase JS não lança exceção por padrão). Corrigido via
+  // Query 3912 (GRANT UPDATE restrito por coluna) + verificação explícita de { error } em
+  // toda operação de escrita. Os testes abaixo provam a propagação em nível de código,
+  // independente do estado real de grants do banco.
+  {
+    const erroPermissao = { message: "permission denied for table pricing_card_mapping" };
+
+    // SELECT (etapa de decisão do upsert) falha -> propagada, nunca tratada como "não existe".
+    const clienteSelectFalha = makeMockSupabaseClient({
+      pricing_card_mapping: { select: { data: null, error: erroPermissao } },
+    });
+    const resultadoSelectFalha = await upsertCardMapping(clienteSelectFalha, "card-1", "source-1", "CONFIRMED", null, "auto", {}, "admin-1");
+    assert(
+      "upsertCardMapping: falha no SELECT de decisão -> { ok: false } propagado (nunca tratado como ausente)",
+      resultadoSelectFalha.ok === false && resultadoSelectFalha.error.includes("permission denied"),
+    );
+
+    // INSERT falha (mapeamento novo, sem linha existente) -> propagada.
+    const clienteInsertFalha = makeMockSupabaseClient({
+      pricing_card_mapping: {
+        select: { data: null, error: null },
+        insert: { data: null, error: erroPermissao },
+      },
+    });
+    const resultadoInsertFalha = await upsertCardMapping(clienteInsertFalha, "card-2", "source-1", "CONFIRMED", null, "auto", {}, "admin-1");
+    assert(
+      "upsertCardMapping: falha no INSERT -> { ok: false } propagado",
+      resultadoInsertFalha.ok === false && resultadoInsertFalha.error.includes("permission denied"),
+    );
+
+    // UPDATE falha (mapeamento existente PENDING, nova classificação CONFIRMED) -> propagada
+    // — exatamente o cenário real encontrado nesta rodada antes da Query 3912.
+    const clienteUpdateFalha = makeMockSupabaseClient({
+      pricing_card_mapping: {
+        select: { data: { id: "existing-1", match_status: "PENDING" }, error: null },
+        update: { error: erroPermissao },
+      },
+    });
+    const resultadoUpdateFalha = await upsertCardMapping(clienteUpdateFalha, "card-3", "source-1", "CONFIRMED", null, "auto", {}, "admin-1");
+    assert(
+      "upsertCardMapping: falha no UPDATE (PENDING -> CONFIRMED) -> { ok: false } propagado, nunca silencioso",
+      resultadoUpdateFalha.ok === false && resultadoUpdateFalha.error.includes("permission denied"),
+    );
+
+    // Mesmo cenário de UPDATE falho, agora em pricing_set_mapping.
+    const clienteSetUpdateFalha = makeMockSupabaseClient({
+      pricing_set_mapping: {
+        select: { data: { id: "existing-set-1", match_status: "PENDING" }, error: null },
+        update: { error: erroPermissao },
+      },
+    });
+    const resultadoSetUpdateFalha = await upsertSetMapping(clienteSetUpdateFalha, "set-1", "source-1", "CONFIRMED", null, "auto", {}, "admin-1");
+    assert(
+      "upsertSetMapping: falha no UPDATE (PENDING -> CONFIRMED) -> { ok: false } propagado, nunca silencioso",
+      resultadoSetUpdateFalha.ok === false && resultadoSetUpdateFalha.error.includes("permission denied"),
+    );
+
+    // Caminho de sucesso continua intacto (regressão do novo contrato { ok, id }).
+    const clienteSucesso = makeMockSupabaseClient({
+      pricing_card_mapping: {
+        select: { data: null, error: null },
+        insert: { data: { id: "novo-id-1" }, error: null },
+      },
+    });
+    const resultadoSucesso = await upsertCardMapping(clienteSucesso, "card-4", "source-1", "CONFIRMED", null, "auto", {}, "admin-1");
+    assert(
+      "upsertCardMapping: caminho de sucesso preservado -> { ok: true, id: 'novo-id-1' }",
+      resultadoSucesso.ok === true && resultadoSucesso.id === "novo-id-1",
+    );
+
+    // finalizeSyncRun: UPDATE de finalização falha -> função retorna false (nunca lança nem
+    // finge sucesso) — mesmo sintoma do incidente histórico do run 19a04057 (preso em
+    // PROCESSING), agora sempre detectável programaticamente pelo valor de retorno.
+    const clienteFinalizeFalha = makeMockSupabaseClient({
+      pricing_sync_run: { update: { error: erroPermissao } },
+    });
+    const clientFinalize = new JustTcgClient("fake-key", (async () => new Response()) as unknown as typeof fetch);
+    const finalizeOk = await finalizeSyncRun(clienteFinalizeFalha, "run-1", clientFinalize, "COMPLETED", null, false);
+    assert("finalizeSyncRun: falha no UPDATE de finalização -> retorna false, nunca silencioso", finalizeOk === false);
+
+    // finalizeSyncRun: caminho de sucesso continua retornando true.
+    const clienteFinalizeOk = makeMockSupabaseClient({
+      pricing_sync_run: { update: { error: null } },
+    });
+    const finalizeSucesso = await finalizeSyncRun(clienteFinalizeOk, "run-2", clientFinalize, "COMPLETED", null, false);
+    assert("finalizeSyncRun: caminho de sucesso preservado -> retorna true", finalizeSucesso === true);
+
+    // dryRun/syncRunId nulo continuam sendo no-op sem tocar o Supabase (comportamento pré-existente).
+    const finalizeDryRun = await finalizeSyncRun(clienteFinalizeFalha, "run-3", clientFinalize, "COMPLETED", null, true);
+    assert("finalizeSyncRun: dryRun=true permanece no-op (nunca chama o Supabase) -> retorna true", finalizeDryRun === true);
+  }
+
+  // --- P14.3: persistência em lotes (persistBatchedResults) -------------------------
+  // Os 11 cenários exigidos por Fabrício + o teste de computeFinalStatus (run nunca fica em
+  // limbo). Usa makeBatchFakeClient() — um estado de tabela real em memória, não respostas
+  // fixas — para poder afirmar objetivamente quantas chamadas HTTP o adapter emitiria contra
+  // o PostgREST real, e para que reexecuções enxerguem o estado deixado pela rodada anterior.
+  {
+    const makePlannedMapping = (cardId: string, status: "CONFIRMED" | "PENDING" | "NOT_FOUND"): PlannedCardMapping => ({
+      cardId,
+      collectorNumber: cardId,
+      status,
+      matchedCard: status === "CONFIRMED" ? { id: `ext-${cardId}`, name: `Card ${cardId}`, variants: [] } : null,
+      method: "auto",
+      evidence: {},
+    });
+    const makePlannedVariant = (cardId: string, externalProductId: string, price: number, observedAt = "2026-08-19T00:00:00.000Z"): PlannedVariant => ({
+      cardId,
+      collectorNumber: cardId,
+      externalProductId,
+      sourcePrintingLabel: "Normal",
+      conditionId: "id-nm",
+      price,
+      observedAt,
+      rawPayload: {},
+    });
+
+    // Cenário 1: 130 mappings novos -> batching real, não 130 round trips.
+    {
+      const mappings = Array.from({ length: 130 }, (_, i) => makePlannedMapping(`card-${i}`, "CONFIRMED"));
+      const { client, stats } = makeBatchFakeClient({ pricing_card_mapping: [] });
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, []);
+      // Fix revisão de segurança 2026-08-19: threshold estava travado em "=== 1", correto
+      // só quando BATCH_SIZE=300 (130 cabe num único lote). Desde a redução para
+      // BATCH_SIZE=100 (revisão anterior desta mesma rodada), 130 itens exigem
+      // ceil(130/100)=2 lotes — a asserção ficou obsoleta e nunca foi revalidada com
+      // visibilidade completa (mascarada por truncamento de output numa checagem anterior).
+      assert("P14.3/1: 130 mappings novos -> poucos lotes, não 130 (BATCH_SIZE=100 -> 2 lotes)", stats.selectCalls["pricing_card_mapping"] === 2);
+      assert("P14.3/1: 130 mappings novos -> poucos lotes de INSERT, não 130 (BATCH_SIZE=100 -> 2 lotes)", stats.insertCalls["pricing_card_mapping"] === 2);
+      assert("P14.3/1: 130 mappings novos -> sem erro, sem falha de lote", outcome.errorParts.length === 0 && outcome.batchFailureOccurred === false);
+    }
+
+    // Cenário 2: 635 produtos / 635 observações -> batching real, não 635+635 round trips.
+    {
+      const cardIds = Array.from({ length: 127 }, (_, i) => `pcard-${i}`);
+      const mappings = cardIds.map((id) => makePlannedMapping(id, "CONFIRMED"));
+      const variants: PlannedVariant[] = [];
+      for (const id of cardIds) for (let v = 0; v < 5; v++) variants.push(makePlannedVariant(id, `ext-${id}-${v}`, 10 + v));
+      assert("P14.3/2: cenário de escala construído com exatamente 635 variantes", variants.length === 635);
+
+      const { client, stats } = makeBatchFakeClient({ pricing_card_mapping: [], pricing_product: [], pricing_observation: [] });
+      const outcome = await persistBatchedResults(client, "source-1", "run-scale", "admin-1", mappings, variants);
+      assert("P14.3/2: 635 produtos novos -> pré-busca em poucos lotes (não 635)", (stats.selectCalls["pricing_product"] ?? 0) <= 3);
+      // Fix revisão de segurança 2026-08-19: o INSERT de pricing_product é chunkado pelos
+      // 635 produtos distintos (não pelos 127 card mappings, usados só na pré-busca) — a
+      // BATCH_SIZE=100 exige ceil(635/100)=7 lotes. Threshold "<=3" era válido só em
+      // BATCH_SIZE=300; obsoleto desde a redução, corrigido aqui.
+      assert("P14.3/2: 635 produtos novos -> INSERT em poucos lotes (não 635)", (stats.insertCalls["pricing_product"] ?? 0) <= 7);
+      // Fix revisão de escala 2026-08-19 (3ª rodada): pré-busca de observações migrou da RPC
+      // de tupla exata (Query 3914) para batch_select_latest_pricing_observation_by_identity
+      // (proposta, não aplicada) — chave de grupo sem observed_at (produto+condição), então
+      // a contagem de chaves únicas não muda: 635 produtos x 1 condição = 635 chaves únicas
+      // / BATCH_SIZE=100 -> 7 chunks (não 635).
+      assert("P14.3/2: 635 observações novas -> pré-busca em poucos lotes via RPC de última observação por grupo (não 635)", (stats.rpcCallsByFn["batch_select_latest_pricing_observation_by_identity"] ?? 0) <= 7);
+      assert("P14.3/2: 635 observações novas -> INSERT em poucos lotes (não 635)", (stats.insertCalls["pricing_observation"] ?? 0) <= 7);
+      assert("P14.3/2: 635 produtos resolvidos e escritos", outcome.productsResolved === 635 && outcome.productsWritten === 635);
+      assert("P14.3/2: 635 observações resolvidas e escritas", outcome.observationsResolved === 635 && outcome.observationsWritten === 635);
+    }
+
+    // Cenário 3: correlação produto -> mapping nunca cruza entre cartas diferentes.
+    {
+      const mappings = [makePlannedMapping("corr-a", "CONFIRMED"), makePlannedMapping("corr-b", "CONFIRMED")];
+      const variants = [makePlannedVariant("corr-a", "ext-a-1", 5), makePlannedVariant("corr-b", "ext-b-1", 7)];
+      const { client, tables } = makeBatchFakeClient({ pricing_card_mapping: [], pricing_product: [], pricing_observation: [] });
+      await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      const mappingA = tables["pricing_card_mapping"].find((r) => r.card_id === "corr-a");
+      const mappingB = tables["pricing_card_mapping"].find((r) => r.card_id === "corr-b");
+      const productA = tables["pricing_product"].find((r) => r.external_product_id === "ext-a-1");
+      const productB = tables["pricing_product"].find((r) => r.external_product_id === "ext-b-1");
+      assert(
+        "P14.3/3: produto de corr-a aponta para o mapping de corr-a, nunca de corr-b",
+        productA?.pricing_card_mapping_id === mappingA?.id && productA?.pricing_card_mapping_id !== mappingB?.id,
+      );
+      assert(
+        "P14.3/3: produto de corr-b aponta para o mapping de corr-b, nunca de corr-a",
+        productB?.pricing_card_mapping_id === mappingB?.id && productB?.pricing_card_mapping_id !== mappingA?.id,
+      );
+    }
+
+    // Cenário 4: mapping já CONFIRMED nunca é rebaixado por uma nova classificação pior.
+    {
+      const seed = { pricing_card_mapping: [{ id: "existing-confirmed-1", card_id: "prot-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }] };
+      const mappings = [makePlannedMapping("prot-1", "PENDING")];
+      const { client, tables, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, []);
+      const row = tables["pricing_card_mapping"].find((r) => r.card_id === "prot-1");
+      assert("P14.3/4: mapping permanece CONFIRMED mesmo com nova classificação PENDING", row?.match_status === "CONFIRMED");
+      assert("P14.3/4: NOOP puro -> nenhum INSERT/RPC disparado", (stats.insertCalls["pricing_card_mapping"] ?? 0) === 0 && stats.rpcCalls === 0);
+      assert("P14.3/4: outcome sem erro", outcome.errorParts.length === 0);
+    }
+
+    // Cenário 5: idempotência total -> reexecução idêntica não escreve nada de novo.
+    {
+      const mappings = [makePlannedMapping("idem-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("idem-1", "ext-idem-1", 9)];
+      const { client, stats } = makeBatchFakeClient({ pricing_card_mapping: [], pricing_product: [], pricing_observation: [] });
+      await persistBatchedResults(client, "source-1", "run-1", "admin-1", mappings, variants);
+      const secondOutcome = await persistBatchedResults(client, "source-1", "run-2", "admin-1", mappings, variants);
+      assert("P14.3/5: 2ª rodada não insere novo mapping (total acumulado continua 1)", (stats.insertCalls["pricing_card_mapping"] ?? 0) === 1);
+      assert("P14.3/5: 2ª rodada não insere novo produto (total acumulado continua 1)", (stats.insertCalls["pricing_product"] ?? 0) === 1);
+      assert("P14.3/5: 2ª rodada não insere nova observação — mesmo preço -> CONFLICT_IGNORED_SAME_PRICE", (stats.insertCalls["pricing_observation"] ?? 0) === 1);
+      assert("P14.3/5: 2ª rodada reporta zero escrita nova", secondOutcome.productsWritten === 0 && secondOutcome.observationsWritten === 0);
+      assert("P14.3/5: 2ª rodada sem erro/divergência", secondOutcome.errorParts.length === 0 && secondOutcome.observationsDivergent === 0);
+    }
+
+    // Cenário 6: conflito de mesmo preço -> resolvido, nunca escrito de novo, sem divergência.
+    {
+      const cardMappingId = "cm-conflict-1";
+      const productId = "prod-conflict-1";
+      const observedAt = "2026-08-19T00:00:00.000Z";
+      const seed = {
+        pricing_card_mapping: [{ id: cardMappingId, card_id: "conflict-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-conflict-1" }],
+        pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: observedAt, price: 42 }],
+      };
+      const mappings = [makePlannedMapping("conflict-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("conflict-1", "ext-conflict-1", 42, observedAt)];
+      const { client, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      assert("P14.3/6: mesmo preço -> nenhum INSERT novo em pricing_observation", (stats.insertCalls["pricing_observation"] ?? 0) === 0);
+      assert("P14.3/6: resolvido (não escrito), sem divergência", outcome.observationsResolved === 1 && outcome.observationsWritten === 0 && outcome.observationsDivergent === 0);
+    }
+
+    // Cenário 7: divergência de preço -> nunca sobrescreve, sinalizada para revisão.
+    {
+      const cardMappingId = "cm-divergent-1";
+      const productId = "prod-divergent-1";
+      const observedAt = "2026-08-19T00:00:00.000Z";
+      const seed = {
+        pricing_card_mapping: [{ id: cardMappingId, card_id: "divergent-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-divergent-1" }],
+        pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: observedAt, price: 42 }],
+      };
+      const mappings = [makePlannedMapping("divergent-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("divergent-1", "ext-divergent-1", 99, observedAt)];
+      const { client, tables, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      const row = tables["pricing_observation"].find((r) => r.pricing_product_id === productId);
+      assert("P14.3/7: preço original (42) nunca é sobrescrito pelo novo (99)", row?.price === 42);
+      assert(
+        "P14.3/7: divergência sinalizada em observationsDivergent/errorParts, nenhum INSERT novo",
+        outcome.observationsDivergent === 1 && (stats.insertCalls["pricing_observation"] ?? 0) === 0 && outcome.errorParts.some((e) => e.includes("OBSERVATION_PRICE_DIVERGENTE_PRESERVADA")),
+      );
+    }
+
+    // Cenário 7b (diagnóstico 2026-08-19, revisão "escala anual" -> correção mínima da 3ª
+    // rodada): a mesma identidade (produto+condição), MESMO preço, observado em DUAS DATAS
+    // DIFERENTES (simulando duas execuções diárias reais, onde observedAt vem de
+    // variant.lastUpdated da JustTCG e avança a cada dia mesmo sem o preço mudar).
+    // Comportamento ANTES da correção (Query 3914, tupla exata): a pré-busca casava só por
+    // tupla EXATA incluindo observed_at, então a segunda data nunca encontrava a primeira
+    // observação -> um NOVO INSERT era emitido mesmo com preço idêntico (2 linhas, provado
+    // empiricamente). Comportamento DEPOIS da correção mínima proposta (RPC
+    // batch_select_latest_pricing_observation_by_identity, sem observed_at na chave de
+    // busca): compara contra o ÚLTIMO preço conhecido do grupo, não contra a tupla exata ->
+    // preço idêntico reaproveita a observação existente, nenhuma linha nova. Ver Cenário 7c
+    // logo abaixo para o caso de mudança real de preço (ainda deve gravar linha nova).
+    {
+      const cardMappingId = "cm-samepricediffday-1";
+      const productId = "prod-samepricediffday-1";
+      const seed = {
+        pricing_card_mapping: [{ id: cardMappingId, card_id: "spd-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-spd-1" }],
+        pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: "2026-08-18T00:00:00.000Z", price: 7 }],
+      };
+      const mappings = [makePlannedMapping("spd-1", "CONFIRMED")];
+      // Mesmo preço (7), mas observedAt do dia seguinte — como ocorreria numa reexecução
+      // diária real com o mesmo preço reportado pela JustTCG em dois dias consecutivos.
+      const variants = [makePlannedVariant("spd-1", "ext-spd-1", 7, "2026-08-19T00:00:00.000Z")];
+      const { client, tables, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      const rowsForProduct = tables["pricing_observation"].filter((r) => r.pricing_product_id === productId);
+      assert(
+        "Cenário 7b (comportamento DEPOIS da correção): preço idêntico em data diferente reaproveita a última observação -> nenhuma linha nova, nenhum INSERT",
+        rowsForProduct.length === 1 && outcome.observationsWritten === 0 && outcome.observationsResolved === 1 && (stats.insertCalls["pricing_observation"] ?? 0) === 0,
+      );
+    }
+
+    // Cenário 7c (correção mínima 2026-08-19, 3ª rodada): mesma identidade, DATA diferente E
+    // PREÇO diferente do último conhecido -> mudança material real, ainda deve gravar uma
+    // observação nova (a correção não suprime mudanças de preço genuínas, só o ruído de
+    // preço idêntico repetido).
+    {
+      const cardMappingId = "cm-diffpricediffday-1";
+      const productId = "prod-diffpricediffday-1";
+      const seed = {
+        pricing_card_mapping: [{ id: cardMappingId, card_id: "dpd-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-dpd-1" }],
+        pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: "2026-08-18T00:00:00.000Z", price: 7 }],
+      };
+      const mappings = [makePlannedMapping("dpd-1", "CONFIRMED")];
+      // Preço mudou de 7 para 9, observedAt do dia seguinte — mudança material real.
+      const variants = [makePlannedVariant("dpd-1", "ext-dpd-1", 9, "2026-08-19T00:00:00.000Z")];
+      const { client, tables, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      const rowsForProduct = tables["pricing_observation"].filter((r) => r.pricing_product_id === productId);
+      assert(
+        "Cenário 7c: mudança real de preço em data diferente ainda grava observação nova (correção não suprime mudanças genuínas)",
+        rowsForProduct.length === 2 && outcome.observationsWritten === 1 && outcome.observationsResolved === 1 && (stats.insertCalls["pricing_observation"] ?? 0) === 1,
+      );
+      const newRow = rowsForProduct.find((r) => r.observed_at === "2026-08-19T00:00:00.000Z");
+      assert("Cenário 7c: a linha nova tem o preço atualizado (9), a antiga (7) permanece intacta", newRow?.price === 9 && rowsForProduct.some((r) => r.price === 7));
+    }
+
+    // Cenário 7d (correção mínima 2026-08-19, 3ª rodada): colisão real — mesmo observed_at
+    // exato já tem outro preço gravado (ex.: reexecução no mesmo instante com dado
+    // divergente). Deve continuar preservando a linha existente e sinalizar, nunca
+    // sobrescrever nem inserir uma segunda linha na mesma tupla exata (violaria a
+    // constraint única uq_pricing_observation_identity_market_aware).
+    {
+      const cardMappingId = "cm-sametscollision-1";
+      const productId = "prod-sametscollision-1";
+      const sameTs = "2026-08-19T00:00:00.000Z";
+      const seed = {
+        pricing_card_mapping: [{ id: cardMappingId, card_id: "stc-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-stc-1" }],
+        pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: sameTs, price: 7 }],
+      };
+      const mappings = [makePlannedMapping("stc-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("stc-1", "ext-stc-1", 9, sameTs)];
+      const { client, tables, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      const rowsForProduct = tables["pricing_observation"].filter((r) => r.pricing_product_id === productId);
+      assert(
+        "Cenário 7d: colisão de mesmo observed_at com preço divergente continua preservada, nunca sobrescrita nem duplicada",
+        rowsForProduct.length === 1 && rowsForProduct[0]?.price === 7 && outcome.observationsDivergent === 1 && (stats.insertCalls["pricing_observation"] ?? 0) === 0 &&
+          outcome.errorParts.some((e) => e.includes("OBSERVATION_PRICE_DIVERGENTE_PRESERVADA")),
+      );
+    }
+
+    // Cenário 8: falha em um lote (INSERT de produtos) -> sinalizada, nunca engolida.
+    {
+      const mappings = [makePlannedMapping("fail-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("fail-1", "ext-fail-1", 5)];
+      const { client, stats } = makeBatchFakeClient({ pricing_card_mapping: [], pricing_product: [], pricing_observation: [] }, { failInsert: { pricing_product: true } });
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      assert("P14.3/8: mapping (tabela não afetada pela falha) ainda foi inserido com sucesso", (stats.insertCalls["pricing_card_mapping"] ?? 0) === 1);
+      assert("P14.3/8: batchFailureOccurred=true, nunca mascarado como sucesso", outcome.batchFailureOccurred === true);
+      assert("P14.3/8: erro reportado em errorParts, nunca em silêncio", outcome.errorParts.some((e) => e.includes("PRODUCT_BATCH_INSERT_FAILED")));
+      assert("P14.3/8: nenhuma observação foi tentada (produto nunca resolvido -> sem productId)", (stats.insertCalls["pricing_observation"] ?? 0) === 0);
+    }
+
+    // Cenário 9: reexecução após falha parcial recupera o que ficou pendente.
+    {
+      const mappings = [makePlannedMapping("recover-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("recover-1", "ext-recover-1", 3)];
+      const { client: clientA, tables } = makeBatchFakeClient({ pricing_card_mapping: [], pricing_product: [], pricing_observation: [] }, { failInsert: { pricing_product: true } });
+      const firstOutcome = await persistBatchedResults(clientA, "source-1", null, "admin-1", mappings, variants);
+      assert("P14.3/9: 1ª rodada falha e não deixa o produto escrito", firstOutcome.batchFailureOccurred === true && (tables["pricing_product"]?.length ?? 0) === 0);
+      const { client: clientB } = makeBatchFakeClient(tables); // reaproveita o estado real deixado pela 1ª rodada (mapping já persistido), sem forçar falha
+      const secondOutcome = await persistBatchedResults(clientB, "source-1", null, "admin-1", mappings, variants);
+      assert("P14.3/9: 2ª rodada recupera e escreve o produto pendente, sem nova falha", secondOutcome.batchFailureOccurred === false && secondOutcome.productsWritten === 1);
+    }
+
+    // Cenário 10: mappings PENDING/NOT_FOUND (sem variantes) -> zero operações de produto/observação.
+    {
+      const mappings = [makePlannedMapping("amb-1", "PENDING"), makePlannedMapping("amb-2", "NOT_FOUND")];
+      const { client, stats } = makeBatchFakeClient({ pricing_card_mapping: [] });
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, []);
+      assert("P14.3/10: PENDING/NOT_FOUND -> nenhuma operação em pricing_product", (stats.selectCalls["pricing_product"] ?? 0) === 0 && (stats.insertCalls["pricing_product"] ?? 0) === 0);
+      assert("P14.3/10: PENDING/NOT_FOUND -> nenhuma operação em pricing_observation", (stats.selectCalls["pricing_observation"] ?? 0) === 0 && (stats.insertCalls["pricing_observation"] ?? 0) === 0);
+      assert("P14.3/10: produtos/observações resolvidos = 0", outcome.productsResolved === 0 && outcome.observationsResolved === 0);
+    }
+
+    // Cenário 11: operationsSupabase é a contagem objetiva e exata de round trips reais.
+    {
+      const mappings = [makePlannedMapping("count-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("count-1", "ext-count-1", 1)];
+      const { client, stats } = makeBatchFakeClient({ pricing_card_mapping: [], pricing_product: [], pricing_observation: [] });
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      const totalCalls = Object.values(stats.selectCalls).reduce((a, b) => a + b, 0) + Object.values(stats.insertCalls).reduce((a, b) => a + b, 0) + stats.rpcCalls;
+      assert("P14.3/11: operationsSupabase bate exatamente com a contagem real de chamadas (não estimativa)", outcome.operationsSupabase === totalCalls);
+    }
+
+    // Cenário 12: run nunca fica em limbo — falha de lote sempre força FAILED, mesmo com progresso real.
+    {
+      assert("P14.3/12: falha de lote força FAILED mesmo com progresso e sem outros erros", computeFinalStatus(true, false, true) === "FAILED");
+      assert("P14.3/12: falha de lote força FAILED mesmo com progresso e outros erros", computeFinalStatus(true, true, true) === "FAILED");
+      assert("P14.3/12: sem falha de lote e sem erros -> COMPLETED", computeFinalStatus(false, false, true) === "COMPLETED");
+      assert("P14.3/12: sem falha de lote, com erros e algum progresso -> COMPLETED_WITH_ERRORS", computeFinalStatus(false, true, true) === "COMPLETED_WITH_ERRORS");
+      assert("P14.3/12: sem falha de lote, com erros e zero progresso -> FAILED", computeFinalStatus(false, true, false) === "FAILED");
+    }
+
+    // Cenário 13 (revisão de segurança 2026-08-19): RPC de promoção agora é EXCLUSIVA —
+    // uma transição PENDING<->NOT_FOUND (sem promoção a CONFIRMED) nunca é enviada à RPC;
+    // fica sem escrita nesta rodada e sinalizada em errorParts, nunca aplicada silenciosamente.
+    {
+      const seed = { pricing_card_mapping: [{ id: "existing-pending-1", card_id: "toggle-1", pricing_source_id: "source-1", match_status: "PENDING" }] };
+      const { client, stats } = makeBatchFakeClient(seed);
+      const mappings = [makePlannedMapping("toggle-1", "NOT_FOUND")];
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, []);
+      assert("P14.3/13: PENDING -> NOT_FOUND nunca chama a RPC de promoção", (stats.rpcCallsByFn["batch_update_pricing_card_mapping_status"] ?? 0) === 0);
+      assert(
+        "P14.3/13: PENDING -> NOT_FOUND sinalizado em errorParts, nunca silencioso",
+        outcome.errorParts.some((e) => e.includes("CARD_MAPPING_PENDING_NOT_FOUND_TOGGLE_SKIPPED") && e.includes("toggle-1")),
+      );
+      const row = seed.pricing_card_mapping[0];
+      assert("P14.3/13: linha permanece PENDING (status anterior preservado, recuperável numa reexecução)", row.match_status === "PENDING");
+    }
+
+    // Cenário 14 (revisão de segurança 2026-08-19): pré-busca de observações usa a RPC de
+    // identidade exata em lotes de até BATCH_SIZE chaves completas — nunca listas .in()
+    // independentes. Prova o payload real enviado (não só a contagem de chamadas).
+    {
+      const existingObs = {
+        id: "obs-existing-1",
+        pricing_product_id: "prod-A",
+        condition_id: "cond-A",
+        price_type: "MARKET",
+        currency_code: "USD",
+        market_label: MARKET_LABEL,
+        observed_at: "2026-08-18T18:56:42.000Z",
+        price: 5,
+      };
+      const seed = {
+        pricing_card_mapping: [{ id: "map-A", card_id: "card-A", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: "prod-A", pricing_card_mapping_id: "map-A", external_product_id: "ext-A" }],
+        pricing_observation: [existingObs],
+      };
+      const { client, stats } = makeBatchFakeClient(seed);
+      const mappings = [makePlannedMapping("card-A", "CONFIRMED")];
+      const variants = [{ ...makePlannedVariant("card-A", "ext-A", 5), conditionId: "cond-A", observedAt: "2026-08-18T18:56:42.000Z" }];
+      const outcome = await persistBatchedResults(client, "source-1", null, "admin-1", mappings, variants);
+      assert("P14.3/14: pré-busca de observações usa a RPC de última observação por grupo (não .select() direto)", (stats.rpcCallsByFn["batch_select_latest_pricing_observation_by_identity"] ?? 0) === 1);
+      assert("P14.3/14: nunca chama .select() direto em pricing_observation", (stats.selectCalls["pricing_observation"] ?? 0) === 0);
+      assert("P14.3/14: última observação do grupo resolvida -> CONFLICT_IGNORED_SAME_PRICE (mesmo preço, nenhum INSERT novo)", outcome.observationsResolved === 1 && outcome.observationsWritten === 0);
+    }
+
+    // P14.3/15 (fix revisão de robustez 2026-08-19, fechamento): resolveEntryDecision() —
+    // --fixture-check roda offline explicitamente (com ou sem credencial), e a ausência de
+    // QUALQUER uma das três variáveis obrigatórias fora desse modo nunca mais cai
+    // silenciosamente em --fixture-check — decide MISSING_ENV, cabendo a main() encerrar com
+    // código diferente de zero antes de qualquer chamada de rede ou acesso ao Supabase.
+    {
+      const CREDS_OK = { justTcgApiKey: "sk-fake-justtcg-000", supabaseUrl: "https://fake.supabase.co", supabaseServiceRoleKey: "sk-fake-service-role-000" };
+      const CREDS_VAZIAS = { justTcgApiKey: undefined, supabaseUrl: undefined, supabaseServiceRoleKey: undefined };
+
+      assert(
+        "P14.3/15: --fixture-check sem nenhuma credencial -> FIXTURE_CHECK (roda offline sem exigir nada)",
+        resolveEntryDecision({ fixtureCheck: true }, CREDS_VAZIAS).kind === "FIXTURE_CHECK",
+      );
+      assert(
+        "P14.3/15: --fixture-check com as três credenciais presentes -> ainda FIXTURE_CHECK (flag explícita sempre vence, nunca promove para piloto real)",
+        resolveEntryDecision({ fixtureCheck: true }, CREDS_OK).kind === "FIXTURE_CHECK",
+      );
+
+      const semApiKey = resolveEntryDecision({ fixtureCheck: false }, { ...CREDS_OK, justTcgApiKey: undefined });
+      assert(
+        "P14.3/15: sem --fixture-check, só JUSTTCG_API_KEY ausente -> MISSING_ENV (nunca cai em fixture-check automático)",
+        semApiKey.kind === "MISSING_ENV" && semApiKey.missing.length === 1 && semApiKey.missing[0] === "JUSTTCG_API_KEY",
+      );
+
+      const semSupabaseUrl = resolveEntryDecision({ fixtureCheck: false }, { ...CREDS_OK, supabaseUrl: undefined });
+      assert(
+        "P14.3/15: sem --fixture-check, só SUPABASE_URL ausente -> MISSING_ENV",
+        semSupabaseUrl.kind === "MISSING_ENV" && semSupabaseUrl.missing.length === 1 && semSupabaseUrl.missing[0] === "SUPABASE_URL",
+      );
+
+      const semServiceRole = resolveEntryDecision({ fixtureCheck: false }, { ...CREDS_OK, supabaseServiceRoleKey: undefined });
+      assert(
+        "P14.3/15: sem --fixture-check, só SUPABASE_SERVICE_ROLE_KEY ausente -> MISSING_ENV",
+        semServiceRole.kind === "MISSING_ENV" && semServiceRole.missing.length === 1 && semServiceRole.missing[0] === "SUPABASE_SERVICE_ROLE_KEY",
+      );
+
+      const todasAusentes = resolveEntryDecision({ fixtureCheck: false }, CREDS_VAZIAS);
+      assert(
+        "P14.3/15: sem --fixture-check, as três ausentes -> MISSING_ENV com as três nomeadas, na ordem JUSTTCG_API_KEY/SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY",
+        todasAusentes.kind === "MISSING_ENV" &&
+          todasAusentes.missing.length === 3 &&
+          todasAusentes.missing[0] === "JUSTTCG_API_KEY" &&
+          todasAusentes.missing[1] === "SUPABASE_URL" &&
+          todasAusentes.missing[2] === "SUPABASE_SERVICE_ROLE_KEY",
+      );
+
+      assert(
+        "P14.3/15: sem --fixture-check, as três presentes -> REAL_PILOT",
+        resolveEntryDecision({ fixtureCheck: false }, CREDS_OK).kind === "REAL_PILOT",
+      );
+
+      // Nunca revela o VALOR de uma credencial — "missing" carrega só nomes de variáveis.
+      const decisaoComValoresSensiveis = resolveEntryDecision({ fixtureCheck: false }, { ...CREDS_VAZIAS, justTcgApiKey: undefined });
+      const serializado = JSON.stringify(decisaoComValoresSensiveis);
+      assert(
+        "P14.3/15: MISSING_ENV nunca inclui valor de credencial na saída, só nomes de variável",
+        !serializado.includes("sk-fake") && !serializado.includes("fake.supabase.co"),
+      );
+    }
+  }
+
   const failed = assertions.filter(([, ok]) => !ok);
   for (const [label, ok] of assertions) console.log(`  [${ok ? "OK" : "FALHOU"}] ${label}`);
   console.log(`\n${failed.length === 0 ? "TODAS as asserções passaram" : `${failed.length} asserção(ões) FALHARAM`} (${assertions.length} no total).`);
   console.log("\nNenhuma chamada de rede foi feita. Nenhuma linha foi gravada no Supabase.");
-  console.log("Piloto real NÃO executado nesta rodada — JUSTTCG_API_KEY ausente ou --fixture-check pedido explicitamente.");
+  console.log("Piloto real NÃO executado nesta rodada — modo --fixture-check.");
 
   if (failed.length > 0) Deno.exit(1);
 }
@@ -1325,6 +2424,34 @@ function requireEnv(name: string): string {
     Deno.exit(1);
   }
   return value;
+}
+
+// Fix revisão de robustez 2026-08-19 (fechamento do P14.3): decisão pura de qual caminho de
+// entrada seguir, extraída de main() para ser testável 100% offline (mesmo padrão de
+// planVariantProjection/diagnoseExternalCoverage — nunca recebe SupabaseClient nem toca
+// Deno.env diretamente, só os valores já lidos pelo chamador). Nunca revela o VALOR de uma
+// credencial — "missing" carrega apenas nomes de variáveis, nunca o conteúdo delas.
+type EntryDecision =
+  | { kind: "FIXTURE_CHECK" }
+  | { kind: "MISSING_ENV"; missing: string[] }
+  | { kind: "REAL_PILOT" };
+
+function resolveEntryDecision(
+  args: { fixtureCheck: boolean },
+  env: { justTcgApiKey: string | undefined; supabaseUrl: string | undefined; supabaseServiceRoleKey: string | undefined },
+): EntryDecision {
+  // --fixture-check é sempre honrado explicitamente e tem prioridade sobre qualquer estado
+  // de credencial — mesmo com as três variáveis presentes, roda offline se pedido. Nunca
+  // depende do ambiente: por isso funciona sem nenhuma credencial definida.
+  if (args.fixtureCheck) return { kind: "FIXTURE_CHECK" };
+
+  const missing: string[] = [];
+  if (!env.justTcgApiKey) missing.push("JUSTTCG_API_KEY");
+  if (!env.supabaseUrl) missing.push("SUPABASE_URL");
+  if (!env.supabaseServiceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (missing.length > 0) return { kind: "MISSING_ENV", missing };
+
+  return { kind: "REAL_PILOT" };
 }
 
 async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
@@ -1377,9 +2504,19 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
     productsProjected: 0,
     observationsProjected: 0,
     variantsProjectionSkipped: 0,
+    // Fix P14.3: contagem de round trips ao Supabase feitos por persistBatchedResults()
+    // (pré-busca + INSERT/UPDATE em lotes) — nunca confundida com requestsMade, que só
+    // conta chamadas HTTP à JustTCG (ver BatchPersistOutcome.operationsSupabase).
+    operationsSupabase: 0,
   };
   const errorParts: string[] = [];
   let syncRunFinalized = false;
+  // Fix P14.3: acumuladores em memória — nenhuma operação Supabase acontece dentro do loop
+  // por Set-alvo/carta/variante abaixo; a escrita real acontece uma única vez, em lotes, via
+  // persistBatchedResults() após o loop terminar (ver chamada logo antes de finalStatus).
+  const plannedCardMappings: PlannedCardMapping[] = [];
+  const plannedVariants: PlannedVariant[] = [];
+  let batchPersistenceFailed = false;
 
   try {
     // Fase A — descoberta de Sets (uma única chamada, cobre todos os SET_TARGETS).
@@ -1413,14 +2550,16 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
         else summary.setsAmbiguous++;
         errorParts.push(`SET_${match.status}(${target.codigoMmkyu})`);
         if (!args.dryRun) {
-          await upsertSetMapping(supabase, cardSetId, source.id as string, match.status === "NOT_FOUND" ? "NOT_FOUND" : "PENDING", null, match.method, match.evidence, args.confirmedBy);
+          const setMappingResult = await upsertSetMapping(supabase, cardSetId, source.id as string, match.status === "NOT_FOUND" ? "NOT_FOUND" : "PENDING", null, match.method, match.evidence, args.confirmedBy);
+          if (!setMappingResult.ok) errorParts.push(`SET_MAPPING_UPDATE_FAILED(${target.codigoMmkyu}): ${setMappingResult.error}`);
         }
         continue; // Set não confirmado: nenhuma cobertura de cartas é tentada para ele.
       }
 
       summary.setsConfirmed++;
       if (!args.dryRun) {
-        await upsertSetMapping(supabase, cardSetId, source.id as string, "CONFIRMED", match.set, match.method, match.evidence, args.confirmedBy);
+        const setMappingResult = await upsertSetMapping(supabase, cardSetId, source.id as string, "CONFIRMED", match.set, match.method, match.evidence, args.confirmedBy);
+        if (!setMappingResult.ok) errorParts.push(`SET_MAPPING_CONFIRM_FAILED(${target.codigoMmkyu}): ${setMappingResult.error}`);
       }
 
       // Fase B — cobertura completa do Set via paginação (substitui a busca por carta de P8).
@@ -1455,8 +2594,18 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
           // Fix P14.2.2: evidência sanitizada só em dry-run (upsertCardMapping abaixo nunca
           // roda em dry-run, então sem isto a evidência de AMBIGUOUS/ABSENT ficava irrecuperável).
           if (args.dryRun) logDryRunCardEvidence(local, matchResult);
+          // Fix P14.3: nenhuma operação Supabase dentro deste loop por carta — a decisão é
+          // só acumulada em memória; persistBatchedResults() (chamada uma única vez após o
+          // loop de todos os Set-alvo) faz a pré-busca/escrita real em lotes.
           if (!args.dryRun) {
-            await upsertCardMapping(supabase, local.card_id, source.id as string, matchResult.classification === "ABSENT" ? "NOT_FOUND" : "PENDING", null, matchResult.method, matchResult.evidence, args.confirmedBy);
+            plannedCardMappings.push({
+              cardId: local.card_id,
+              collectorNumber: local.collector_number,
+              status: matchResult.classification === "ABSENT" ? "NOT_FOUND" : "PENDING",
+              matchedCard: null,
+              method: matchResult.method,
+              evidence: matchResult.evidence,
+            });
           }
           continue;
         }
@@ -1479,8 +2628,18 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
           continue;
         }
 
-        const cardMappingId = await upsertCardMapping(supabase, local.card_id, source.id as string, "CONFIRMED", matchedCard, matchResult.method, matchResult.evidence, args.confirmedBy);
-        if (!cardMappingId) continue;
+        // Fix P14.3: idem — mapeamento CONFIRMED e todas as variantes (produto+observação)
+        // desta carta são só acumulados aqui, nunca escritos inline. A resolução real do
+        // pricing_card_mapping_id acontece depois, em memória, dentro de
+        // persistBatchedResults() (Fase 1), correlacionada por cardId.
+        plannedCardMappings.push({
+          cardId: local.card_id,
+          collectorNumber: local.collector_number,
+          status: "CONFIRMED",
+          matchedCard,
+          method: matchResult.method,
+          evidence: matchResult.evidence,
+        });
 
         for (const variant of matchedCard.variants ?? []) {
           const externalProductId = String(variant.uuid ?? variant.id ?? "");
@@ -1491,92 +2650,47 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
 
           if (!externalProductId || !printingRaw || typeof price !== "number") continue;
 
-          const { printingTipo } = splitPrintingLanguage(printingRaw);
-
-          const { data: productData, error: productError } = await supabase
-            .from("pricing_product")
-            .insert({
-              pricing_card_mapping_id: cardMappingId,
-              external_product_id: externalProductId,
-              source_printing_label: printingTipo ?? printingRaw,
-              language_status: "UNDETERMINED",
-              language_id: null,
-            })
-            .select("id")
-            .maybeSingle();
-
-          let productId: string | null = productData?.id as string | undefined ?? null;
-          const productOutcome = classifyInsertResult(productError);
-          if (productOutcome === "OTHER_ERROR") {
-            errorParts.push(`PRODUCT_INSERT_FAILED(${externalProductId}): ${sanitize((productError as { message: string }).message)}`);
-            continue;
-          }
-          if (!productId) {
-            const { data: existingProduct } = await supabase.from("pricing_product").select("id").eq("pricing_card_mapping_id", cardMappingId).eq("external_product_id", externalProductId).maybeSingle();
-            productId = (existingProduct?.id as string) ?? null;
-          }
-          if (!productId) continue;
-          {
-            const productCounts = { resolved: summary.productsResolved, written: summary.productsWritten };
-            accumulateWriteOutcome(productCounts, productOutcome);
-            summary.productsResolved = productCounts.resolved;
-            summary.productsWritten = productCounts.written;
-          }
-
           const conditionId = conditionMap.get(conditionRaw);
           if (!conditionId) {
             errorParts.push(`CONDICAO_SEM_MAPEAMENTO(${conditionRaw})`);
             continue;
           }
 
+          const { printingTipo } = splitPrintingLanguage(printingRaw);
           const observedAt = typeof lastUpdated === "number" ? new Date(lastUpdated * 1000).toISOString() : new Date().toISOString();
           const rawPayload = sanitizeJson({ condition: conditionRaw, printing: printingRaw, price, lastUpdated });
 
-          const { error: obsError } = await supabase.from("pricing_observation").insert({
-            pricing_product_id: productId,
-            condition_id: conditionId,
-            sync_run_id: syncRunId,
-            price_type: "MARKET",
+          plannedVariants.push({
+            cardId: local.card_id,
+            collectorNumber: local.collector_number,
+            externalProductId,
+            sourcePrintingLabel: printingTipo ?? printingRaw,
+            conditionId,
             price,
-            currency_code: "USD",
-            market_label: MARKET_LABEL,
-            market_scope: "UNDETERMINED",
-            market_evidence: {},
-            market_evidence_confirmed: false,
-            observed_at: observedAt,
-            raw_payload: rawPayload,
+            observedAt,
+            rawPayload,
           });
-
-          let existingPrice: number | null = null;
-          if (obsError && `${obsError.message}`.includes("duplicate key")) {
-            const { data: existingObs } = await supabase
-              .from("pricing_observation")
-              .select("price")
-              .eq("pricing_product_id", productId)
-              .eq("condition_id", conditionId)
-              .eq("price_type", "MARKET")
-              .eq("currency_code", "USD")
-              .eq("market_label", MARKET_LABEL)
-              .eq("observed_at", observedAt)
-              .maybeSingle();
-            existingPrice = existingObs?.price != null ? Number(existingObs.price) : null;
-          }
-          const observationOutcome = classifyObservationWrite(obsError, existingPrice, price);
-          if (observationOutcome === "OTHER_ERROR") {
-            errorParts.push(`OBSERVATION_INSERT_FAILED(${externalProductId}): ${sanitize((obsError as { message: string }).message)}`);
-            continue;
-          }
-          if (observationOutcome === "DIVERGENT_PRESERVED") {
-            summary.observationsDivergent++;
-            errorParts.push(`OBSERVATION_PRICE_DIVERGENTE_PRESERVADA(${externalProductId}): existente=${existingPrice} novo=${price} observed_at=${observedAt}`);
-          }
-          summary.observationsResolved += observationOutcome === "NEW" || observationOutcome === "CONFLICT_IGNORED_SAME_PRICE" || observationOutcome === "DIVERGENT_PRESERVED" ? 1 : 0;
-          if (observationOutcome === "NEW") summary.observationsWritten++;
         }
       }
     }
 
-    const finalStatus = errorParts.length === 0 ? "COMPLETED" : summary.cardsSafe > 0 || summary.setsConfirmed > 0 ? "COMPLETED_WITH_ERRORS" : "FAILED";
+    // Fix P14.3: único ponto de escrita real para mappings/produtos/observações desta
+    // rodada — pré-busca, decisão em memória e INSERT/UPDATE em lotes conservadores
+    // (ver persistBatchedResults() acima). Nunca roda em dry-run (plannedCardMappings/
+    // plannedVariants ficam vazios nesse modo, pela própria estrutura do loop acima).
+    if (!args.dryRun && (plannedCardMappings.length > 0 || plannedVariants.length > 0)) {
+      const batchOutcome = await persistBatchedResults(supabase, source.id as string, syncRunId, args.confirmedBy, plannedCardMappings, plannedVariants);
+      summary.productsResolved += batchOutcome.productsResolved;
+      summary.productsWritten += batchOutcome.productsWritten;
+      summary.observationsResolved += batchOutcome.observationsResolved;
+      summary.observationsWritten += batchOutcome.observationsWritten;
+      summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.operationsSupabase += batchOutcome.operationsSupabase;
+      errorParts.push(...batchOutcome.errorParts);
+      if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
+    }
+
+    const finalStatus = computeFinalStatus(batchPersistenceFailed, errorParts.length > 0, summary.cardsSafe > 0 || summary.setsConfirmed > 0);
     await finalizeSyncRun(supabase, syncRunId, client, finalStatus, errorParts.length > 0 ? errorParts.slice(0, 15).join(" | ") : null, args.dryRun);
     syncRunFinalized = true;
 
@@ -1592,6 +2706,22 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
   }
 }
 
+// Fix P14.3 (divergência de privilégio): toda operação de escrita contra pricing_set_mapping/
+// pricing_card_mapping precisa checar e propagar { error } — o cliente Supabase JS não lança
+// exceção por padrão, e um UPDATE sem privilégio suficiente (cenário real encontrado nesta
+// rodada: service_role sem GRANT UPDATE antes da Query 3912) falhava em silêncio absoluto,
+// deixando o mapeamento com o status antigo sem qualquer sinal no console ou no resumo final.
+//
+// Fix P14.3: upsertSetMapping() continua no caminho real (chamada por Set-alvo, fora do
+// loop por carta/variante — só 1-2 chamadas nesta rodada, sem ganho relevante em batching).
+// upsertCardMapping() NÃO é mais chamada pelo caminho real: runRealPilot() agora acumula
+// PlannedCardMapping em memória e persistBatchedResults() (Fase 1) escreve em lote. A
+// função continua aqui como contrato de referência, validado por runFixtureCheck() —
+// persistBatchedResults() replica exatamente a mesma decisão (decideMappingUpsert) e o
+// mesmo payload por linha, só que em lote via jsonb_to_recordset()/RPC em vez de um UPDATE
+// por linha.
+type MappingWriteResult = { ok: true; id: string | null } | { ok: false; error: string };
+
 async function upsertSetMapping(
   supabase: SupabaseClient,
   cardSetId: string,
@@ -1601,10 +2731,14 @@ async function upsertSetMapping(
   method: string,
   evidence: Record<string, unknown>,
   confirmedBy: string,
-): Promise<void> {
-  const { data: existing } = await supabase.from("pricing_set_mapping").select("id, match_status").eq("card_set_id", cardSetId).eq("pricing_source_id", pricingSourceId).maybeSingle();
+): Promise<MappingWriteResult> {
+  const { data: existing, error: selectError } = await supabase.from("pricing_set_mapping").select("id, match_status").eq("card_set_id", cardSetId).eq("pricing_source_id", pricingSourceId).maybeSingle();
+  if (selectError) return { ok: false, error: sanitize(selectError.message) ?? "erro desconhecido" };
+
   const action = decideMappingUpsert(existing as MappingRowLike | null, status);
-  if (action === "NOOP_SAME_STATUS" || action === "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT" || action === "NOOP_ALREADY_CONFIRMED") return;
+  if (action === "NOOP_SAME_STATUS" || action === "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT" || action === "NOOP_ALREADY_CONFIRMED") {
+    return { ok: true, id: (existing as { id: string } | null)?.id ?? null };
+  }
 
   const nowIso = new Date().toISOString();
   const payload: Record<string, unknown> = {
@@ -1624,10 +2758,13 @@ async function upsertSetMapping(
   }
 
   if (action === "INSERTED") {
-    await supabase.from("pricing_set_mapping").insert({ card_set_id: cardSetId, pricing_source_id: pricingSourceId, ...payload });
-  } else {
-    await supabase.from("pricing_set_mapping").update(payload).eq("id", (existing as { id: string }).id);
+    const { data, error } = await supabase.from("pricing_set_mapping").insert({ card_set_id: cardSetId, pricing_source_id: pricingSourceId, ...payload }).select("id").maybeSingle();
+    if (error) return { ok: false, error: sanitize(error.message) ?? "erro desconhecido" };
+    return { ok: true, id: (data?.id as string) ?? null };
   }
+  const { error } = await supabase.from("pricing_set_mapping").update(payload).eq("id", (existing as { id: string }).id);
+  if (error) return { ok: false, error: sanitize(error.message) ?? "erro desconhecido" };
+  return { ok: true, id: (existing as { id: string }).id };
 }
 
 async function upsertCardMapping(
@@ -1639,12 +2776,13 @@ async function upsertCardMapping(
   method: string,
   evidence: Record<string, unknown>,
   confirmedBy: string,
-): Promise<string | null> {
-  const { data: existing } = await supabase.from("pricing_card_mapping").select("id, match_status").eq("card_id", cardId).eq("pricing_source_id", pricingSourceId).maybeSingle();
-  const action = decideMappingUpsert(existing as MappingRowLike | null, status);
+): Promise<MappingWriteResult> {
+  const { data: existing, error: selectError } = await supabase.from("pricing_card_mapping").select("id, match_status").eq("card_id", cardId).eq("pricing_source_id", pricingSourceId).maybeSingle();
+  if (selectError) return { ok: false, error: sanitize(selectError.message) ?? "erro desconhecido" };
 
+  const action = decideMappingUpsert(existing as MappingRowLike | null, status);
   if (action === "NOOP_SAME_STATUS" || action === "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT" || action === "NOOP_ALREADY_CONFIRMED") {
-    return (existing as { id: string } | null)?.id ?? null;
+    return { ok: true, id: (existing as { id: string } | null)?.id ?? null };
   }
 
   const nowIso = new Date().toISOString();
@@ -1665,13 +2803,18 @@ async function upsertCardMapping(
   }
 
   if (action === "INSERTED") {
-    const { data } = await supabase.from("pricing_card_mapping").insert({ card_id: cardId, pricing_source_id: pricingSourceId, ...payload }).select("id").maybeSingle();
-    return (data?.id as string) ?? null;
+    const { data, error } = await supabase.from("pricing_card_mapping").insert({ card_id: cardId, pricing_source_id: pricingSourceId, ...payload }).select("id").maybeSingle();
+    if (error) return { ok: false, error: sanitize(error.message) ?? "erro desconhecido" };
+    return { ok: true, id: (data?.id as string) ?? null };
   }
-  await supabase.from("pricing_card_mapping").update(payload).eq("id", (existing as { id: string }).id);
-  return (existing as { id: string }).id;
+  const { error } = await supabase.from("pricing_card_mapping").update(payload).eq("id", (existing as { id: string }).id);
+  if (error) return { ok: false, error: sanitize(error.message) ?? "erro desconhecido" };
+  return { ok: true, id: (existing as { id: string }).id };
 }
 
+// Fix P14.3: retorna sucesso/falha em vez de void — uma falha aqui historicamente deixou
+// runs presos em PROCESSING (incidente do run 19a04057, commit 84fe6813) sem nenhum sinal
+// visível; agora é sempre reportada via console.error, nunca engolida em silêncio.
 async function finalizeSyncRun(
   supabase: SupabaseClient,
   syncRunId: string | null,
@@ -1679,17 +2822,23 @@ async function finalizeSyncRun(
   status: string,
   errorSummary: string | null,
   dryRun: boolean,
-) {
-  if (dryRun || !syncRunId) return;
+): Promise<boolean> {
+  if (dryRun || !syncRunId) return true;
+
+  let ok = true;
 
   if (client.callLog.length > 0) {
-    await supabase.from("pricing_sync_run_call").insert(
+    const { error: callLogError } = await supabase.from("pricing_sync_run_call").insert(
       client.callLog.map((c) => ({ ...c, sync_run_id: syncRunId })),
     );
+    if (callLogError) {
+      ok = false;
+      console.error(`SYNC_RUN_CALL_INSERT_FAILED(run=${syncRunId}): ${sanitize(callLogError.message)}`);
+    }
   }
 
   const lastCall = client.callLog[client.callLog.length - 1];
-  await supabase
+  const { error: updateError } = await supabase
     .from("pricing_sync_run")
     .update({
       status,
@@ -1700,6 +2849,12 @@ async function finalizeSyncRun(
       error_summary: errorSummary ? sanitize(errorSummary) : null,
     })
     .eq("id", syncRunId);
+  if (updateError) {
+    ok = false;
+    console.error(`SYNC_RUN_FINALIZE_FAILED(run=${syncRunId}, status_pretendido=${status}): ${sanitize(updateError.message)} — o run pode ter ficado preso em um status não-terminal; verificar manualmente no Supabase.`);
+  }
+
+  return ok;
 }
 
 // ============================================================================
@@ -1708,14 +2863,27 @@ async function finalizeSyncRun(
 
 async function main() {
   const args = parseArgs(Deno.args);
-  const hasApiKey = !!Deno.env.get("JUSTTCG_API_KEY");
 
-  if (args.fixtureCheck || !hasApiKey) {
-    if (!hasApiKey && !args.fixtureCheck) {
-      console.log("JUSTTCG_API_KEY ausente — executando automaticamente em modo --fixture-check.\n");
-    }
+  // Fix revisão de robustez 2026-08-19: decisão calculada ANTES de qualquer chamada de rede
+  // ou acesso ao Supabase (nenhum client é criado até aqui). Nunca mais cai silenciosamente
+  // em --fixture-check por credencial ausente — isso mascarava um ambiente mal configurado
+  // como validação bem-sucedida. Ver resolveEntryDecision(), testada offline.
+  const decision = resolveEntryDecision(args, {
+    justTcgApiKey: Deno.env.get("JUSTTCG_API_KEY"),
+    supabaseUrl: Deno.env.get("SUPABASE_URL"),
+    supabaseServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+  });
+
+  if (decision.kind === "FIXTURE_CHECK") {
     await runFixtureCheck();
     return;
+  }
+
+  if (decision.kind === "MISSING_ENV") {
+    // Mensagem sanitizada: só nomes de variáveis, nunca valores.
+    console.error(`Variável(is) de ambiente obrigatória(s) ausente(s): ${decision.missing.join(", ")}.`);
+    console.error("Defina todas antes de rodar o piloto real, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
+    Deno.exit(1);
   }
 
   if (!args.confirmedBy) {
