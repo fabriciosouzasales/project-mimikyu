@@ -149,6 +149,87 @@ definido em SET_TARGETS abaixo; nenhuma alteração de PTAX ou frontend; nenhum 
 nenhum segredo (`JUSTTCG_API_KEY`/`SUPABASE_SERVICE_ROLE_KEY`) visto, solicitado, exibido ou
 registrado por este agente em nenhum momento.
 
+============================================================================
+Incremento P14.4.1 — Inventário de Cobertura e Plano de Ondas (2026-08-19)
+============================================================================
+
+Objetivo: substituir decisão por estimativa (SET_TARGETS hardcoded, escolhido manualmente a
+cada rodada) por um plano calculado a partir do catálogo local real (hoje 45 Card Sets
+ativos/7.429 cartas — ver introspecção desta rodada) e dos Sets reais devolvidos por
+GET /v1/sets, considerando a expansão futura do catálogo para ~18.700 cartas. Implementa
+SOMENTE o inventário/plano — nenhuma sincronização de preço, nenhuma escrita, nenhum
+pricing_sync_run nesta rodada. A execução real de uma onda fica para um incremento seguinte
+(P14.4.2+), que reaproveitará fetchAllCardsForSet()/persistBatchedResults() já existentes.
+
+Novo modo `--expansion-plan` (ver runExpansionPlan()/executeExpansionPlan(), seção 7b,
+abaixo): exige as mesmas três credenciais do piloto real (valida ANTES de qualquer rede/banco,
+via resolveEntryDecision() — mesma disciplina do fix de robustez acima), faz EXATAMENTE uma
+chamada HTTP (`GET /v1/sets?game=pokemon`), lê o catálogo local só para leitura (card_set/card/
+pricing_set_mapping/pricing_card_mapping/pricing_product/pricing_observation — nenhum INSERT/
+UPDATE/RPC em nenhuma dessas tabelas), nunca chama `/cards`, nunca cria pricing_sync_run, nunca
+altera mapping/produto/observação, e nunca imprime a resposta bruta da API nem qualquer
+credencial — só os campos derivados (id/nome/release_date/variants_count) por Set já resolvido.
+
+Classificação por Set local ativo (classifySetForExpansionPlan(), pura): ALREADY_CONFIRMED
+(mapping já CONFIRMED — preservado, nunca reavaliado) > SAFE_CANDIDATE (release_date normalizada
+bate com exatamente um Set externo — mesmo sinal primário já validado em resolveSetMatchV2(),
+P14.2; nome nunca é usado como fundamento isolado aqui, só apareceria como evidência auxiliar se
+fosse necessário desempatar, o que não é o caso desta rodada) > AMBIGUOUS (2+ candidatos na
+mesma data) > NOT_FOUND (zero candidatos, ou Set local sem release_date). Só SAFE_CANDIDATE
+entra em uma onda automática — AMBIGUOUS/NOT_FOUND nunca.
+
+Estimativa de páginas: a JustTCG documenta `variants_count` em `/v1/sets` (número de VARIANTES
+rastreadas, não de CARTAS — confirmado em https://justtcg.com/docs/api/sets, 2026-08-19) — como
+uma carta tem várias variantes (printing × condição), esse campo não é uma base confiável para
+estimar páginas de `GET /v1/cards` (paginado por carta, não por variante). Por isso o plano
+NUNCA inventa um total externo de cartas: `pagesEstimateExternal` é sempre `null`, com o motivo
+explícito. A estimativa de chamadas por onda usa só o que se conhece com certeza — a contagem
+LOCAL de cartas do Set (`Math.ceil(localCardCount / 100)`) — sinalizada como aproximação.
+
+Plano por ondas (buildExpansionWaves(), pura): agrupa só os SAFE_CANDIDATE em ondas de até 5
+Sets E até 500 cartas locais, o que vier primeiro. Um Set individual com mais de 500 cartas
+locais nunca é descartado nem dividido — forma sua própria onda, sinalizada (`oversized: true`),
+sem interromper a formação das ondas seguintes.
+
+Fora de escopo desta rodada: qualquer execução de onda (fica para P14.4.2+, exigirá seleção
+explícita de onda/códigos — nenhum modo padrão pode significar "todos os Sets"); qualquer
+alteração em runRealPilot()/SET_TARGETS (permanecem exatamente como estão, still usados pelo
+piloto real de Set único); qualquer migration (nenhuma foi necessária — todas as leituras usam
+tabelas/colunas já existentes).
+
+============================================================================
+Fix P14.4.1 — Truncamento de 1.000 linhas do Data API no --expansion-plan (2026-08-19, mesmo dia)
+============================================================================
+
+Causa raiz: o piloto real do --expansion-plan reportou 11 Sets/1.000 cartas contra os 45
+Sets/7.429 cartas confirmados na introspecção. fetchLocalCatalogRows() fazia um único
+`.select()` sem paginação em `card` (7.429 linhas) — o Data API do Supabase/PostgREST aplica um
+limite padrão de 1.000 linhas por requisição quando nenhum `.range()` é informado, truncando
+silenciosamente (sem erro). `pricing_card_mapping`/`pricing_product`/`pricing_observation`
+tinham o mesmo risco estrutural (hoje 136/667/851 linhas, abaixo de 1.000, mas cresce com o
+catálogo — P14.4 mira ~18.700 cartas).
+
+Correção, em duas frentes:
+1) Inventário de Sets/cartas passou a reusar catalog_card_set_metrics.cards_ativas (view já
+   existente, 1 linha por Set, agregada server-side) em vez de contar cartas uma a uma no
+   cliente — elimina a leitura de 7.429 linhas por completo. Descoberto en passant: o service_role
+   nunca tinha SELECT nesta view (nenhum script server-side a usava antes) — corrigido via GRANT
+   na Query 3916 proposta (ver relatório desta rodada; não aplicada ainda).
+2) Toda leitura Supabase que permanece linha-a-linha (card_set, pricing_set_mapping, a nova view
+   pricing_set_coverage) passou a ser paginada de forma determinística (fetchAllPages() +
+   .order("id").range(...), nunca deduzindo término por total presumido) e imediatamente
+   reconciliada contra uma contagem exata e independente (`count: "exact", head: true`,
+   fetchExactCount()) — qualquer divergência aborta o plano antes de retornar qualquer resultado
+   (nunca parcial). A cobertura de produtos/observações por Set deixou de ser calculada
+   encadeando pricing_card_mapping -> pricing_product -> pricing_observation inteiros no
+   cliente (a segunda superfície de truncamento) e passou a vir da Query 3916 (proposta),
+   agregada por card_set_id x pricing_source_id.
+
+Ver Seção 7b (fetchAllPages/fetchAllRowsFromTable/fetchExactCount/assertPaginationComplete/
+assertConfirmedMappingsPreserved) e o relatório desta rodada para o SQL completo da 3916,
+ainda não aplicada — requer aprovação de Fabrício antes de qualquer execução real de
+--expansion-plan pós-fix.
+
 Uso:
 
   # PowerShell — defina as variáveis de ambiente ANTES de rodar. NUNCA cole a Service
@@ -159,6 +240,10 @@ Uso:
 
   # Validação offline (sempre segura, não requer nenhuma variável de rede/segredo):
   deno run --allow-env scripts/sync-justtcg-pricing.ts --fixture-check
+
+  # Plano de expansão (P14.4.1) — só leitura, exige as três credenciais, 1 chamada HTTP,
+  # nunca escreve nada:
+  deno run --allow-net --allow-env scripts/sync-justtcg-pricing.ts --expansion-plan
 
   # Piloto real, sem gravar nada (recomendado primeiro — Convenção #7 do projeto):
   deno run --allow-net --allow-env scripts/sync-justtcg-pricing.ts --confirmed-by=<admin_user_uuid> --dry-run
@@ -1454,6 +1539,94 @@ function makeBatchFakeClient(
   return { client, tables, stats };
 }
 
+// P14.4.1: fake client estritamente só-leitura para testar executeExpansionPlan() offline —
+// diferente de makeMockSupabaseClient()/makeBatchFakeClient() (que simulam escrita com sucesso
+// ou falha controlada), aqui QUALQUER tentativa de insert/update/upsert/delete/rpc lança
+// imediatamente. Isso torna a prova de "plano de expansão nunca escreve" estrutural: o teste que
+// usa este fake só passa se executeExpansionPlan() completar sem nenhuma dessas chamadas, não só
+// se um contador ficar em zero (que poderia mascarar um caminho de escrita nunca exercitado pelo
+// cenário de teste).
+//
+// Fix P14.4.1 (2026-08-19): estendido para suportar .order()/.range() (paginação) e
+// .select("*", { count: "exact", head: true }) (contagem exata, usada por fetchExactCount()) —
+// além de .eq()/.gt()/.maybeSingle()/await direto, já existentes. `countOverride` permite um
+// teste forçar uma contagem exata DIVERGENTE do array semeado (simula PAGINACAO_INCOMPLETA sem
+// precisar truncar de verdade); `errorOnCall` permite falhar a N-ésima chamada a uma tabela
+// (simula falha intermediária de paginação) — ambos opcionais, nunca usados pelos testes que só
+// precisam do comportamento simples original.
+function makeReadOnlyFakeClient(
+  seed: Record<string, FakeRow[]>,
+  options?: {
+    countOverride?: Record<string, number>;
+    errorOnCall?: Record<string, { atCallIndex: number; message: string }>;
+  },
+): SupabaseClient {
+  const callCounts: Record<string, number> = {};
+  function selectBuilder(table: string, selectOpts?: { count?: "exact"; head?: boolean }) {
+    const rows = seed[table] ?? [];
+    const filters: Array<(row: FakeRow) => boolean> = [];
+    let rangeFrom: number | null = null;
+    let rangeTo: number | null = null;
+    const node = {
+      eq(col: string, val: unknown) {
+        filters.push((row) => row[col] === val);
+        return node;
+      },
+      gt(col: string, val: unknown) {
+        filters.push((row) => (row[col] as number) > (val as number));
+        return node;
+      },
+      order() {
+        return node; // no-op: seeds já vêm em ordem determinística nos testes
+      },
+      range(from: number, to: number) {
+        rangeFrom = from;
+        rangeTo = to;
+        return node;
+      },
+      maybeSingle: async () => {
+        const filtered = rows.filter((row) => filters.every((f) => f(row)));
+        return { data: filtered[0] ?? null, error: null };
+      },
+      then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
+        callCounts[table] = (callCounts[table] ?? 0) + 1;
+        const injected = options?.errorOnCall?.[table];
+        if (injected && callCounts[table] === injected.atCallIndex) {
+          return Promise.resolve({ data: null, error: { message: injected.message }, count: null }).then(resolve, reject);
+        }
+        const filtered = rows.filter((row) => filters.every((f) => f(row)));
+        if (selectOpts?.count === "exact" && selectOpts?.head) {
+          // Override específico para chamadas filtradas (ex.: "tabela:filtered") tem prioridade
+          // sobre um override genérico da tabela — permite um teste divergir só a contagem
+          // filtrada (ex.: cards_ativas > 0) sem afetar a checagem de paginação não-filtrada da
+          // mesma tabela.
+          const overrideKey = filters.length > 0 ? `${table}:filtered` : table;
+          const count = options?.countOverride?.[overrideKey] ?? options?.countOverride?.[table] ?? filtered.length;
+          return Promise.resolve({ data: null, error: null, count }).then(resolve, reject);
+        }
+        const paged = rangeFrom !== null ? filtered.slice(rangeFrom, (rangeTo ?? filtered.length - 1) + 1) : filtered;
+        return Promise.resolve({ data: paged, error: null, count: filtered.length }).then(resolve, reject);
+      },
+    };
+    return node;
+  }
+  const blocked = (op: string, table?: string) => {
+    throw new Error(`WRITE_ATTEMPT_BLOCKED(${op}${table ? `:${table}` : ""}): plano de expansão (--expansion-plan) nunca deveria escrever.`);
+  };
+  return {
+    from(table: string) {
+      return {
+        select: (_cols?: string, selectOpts?: { count?: "exact"; head?: boolean }) => selectBuilder(table, selectOpts),
+        insert: () => blocked("insert", table),
+        update: () => blocked("update", table),
+        upsert: () => blocked("upsert", table),
+        delete: () => blocked("delete", table),
+      };
+    },
+    rpc: () => blocked("rpc"),
+  } as unknown as SupabaseClient;
+}
+
 async function runFixtureCheck() {
   console.log("=== MODO FIXTURE-CHECK (offline, sem rede, sem escrita no Supabase) ===\n");
 
@@ -2392,6 +2565,408 @@ async function runFixtureCheck() {
         !serializado.includes("sk-fake") && !serializado.includes("fake.supabase.co"),
       );
     }
+
+    // ==========================================================================================
+    // P14.4.1 — Inventário de Cobertura e Plano de Ondas (--expansion-plan)
+    // ==========================================================================================
+
+    // resolveEntryDecision(): --expansion-plan não quebra nenhum caminho já testado acima
+    // (assinatura com expansionPlan opcional) e exige as mesmas três credenciais do piloto real.
+    {
+      const CREDS_OK2 = { justTcgApiKey: "sk-fake-justtcg-000", supabaseUrl: "https://fake.supabase.co", supabaseServiceRoleKey: "sk-fake-service-role-000" };
+      assert(
+        "P14.4.1: --expansion-plan com as três credenciais presentes -> EXPANSION_PLAN",
+        resolveEntryDecision({ fixtureCheck: false, expansionPlan: true }, CREDS_OK2).kind === "EXPANSION_PLAN",
+      );
+      const semUrl = resolveEntryDecision({ fixtureCheck: false, expansionPlan: true }, { ...CREDS_OK2, supabaseUrl: undefined });
+      assert(
+        "P14.4.1: --expansion-plan com credencial ausente -> MISSING_ENV (mesma disciplina do piloto real, nunca roda offline implicitamente)",
+        semUrl.kind === "MISSING_ENV" && semUrl.missing[0] === "SUPABASE_URL",
+      );
+      assert(
+        "P14.4.1: --fixture-check sempre vence sobre --expansion-plan (flag offline explícita tem prioridade máxima)",
+        resolveEntryDecision({ fixtureCheck: true, expansionPlan: true }, CREDS_OK2).kind === "FIXTURE_CHECK",
+      );
+      assert(
+        "P14.4.1: sem --expansion-plan (omitido) e três credenciais presentes -> continua REAL_PILOT (comportamento antigo intacto)",
+        resolveEntryDecision({ fixtureCheck: false }, CREDS_OK2).kind === "REAL_PILOT",
+      );
+    }
+
+    // classifySetForExpansionPlan() — cinco cenários obrigatórios.
+    {
+      const externalSets: JustTcgSet[] = normalizeJustTcgSets([
+        { id: "ext-b", name: "Ext B", release_date: "2020-02-01", variants_count: 500 },
+        { id: "ext-c1", name: "Ext C1", release_date: "2020-03-01" },
+        { id: "ext-c2", name: "Ext C2", release_date: "2020-03-01" },
+        { id: "ext-f", name: "Nome Completamente Diferente", release_date: "2020-05-01" },
+      ]);
+
+      const jaConfirmado = classifySetForExpansionPlan(
+        { releaseDateIso: "2020-01-01" },
+        { cardSetId: "cs-a", matchStatus: "CONFIRMED", externalSetId: "ext-a", externalSetName: "Ext A" },
+        externalSets,
+      );
+      assert(
+        "P14.4.1: Set já CONFIRMED -> ALREADY_CONFIRMED, preservado, nunca reavaliado contra a lista externa",
+        jaConfirmado.status === "ALREADY_CONFIRMED" && jaConfirmado.externalSetId === "ext-a" && jaConfirmado.externalSetName === "Ext A",
+      );
+
+      const candidatoUnico = classifySetForExpansionPlan({ releaseDateIso: "2020-02-01" }, null, externalSets);
+      assert(
+        "P14.4.1: candidato único por release_date -> SAFE_CANDIDATE, com o id/nome/variants_count corretos",
+        candidatoUnico.status === "SAFE_CANDIDATE" && candidatoUnico.externalSetId === "ext-b" && candidatoUnico.externalVariantsCount === 500,
+      );
+
+      const doisCandidatos = classifySetForExpansionPlan({ releaseDateIso: "2020-03-01" }, null, externalSets);
+      assert("P14.4.1: dois candidatos na mesma release_date -> AMBIGUOUS, nunca confirmado automaticamente", doisCandidatos.status === "AMBIGUOUS" && doisCandidatos.candidateCount === 2);
+
+      const nenhumCandidato = classifySetForExpansionPlan({ releaseDateIso: "2020-04-01" }, null, externalSets);
+      assert("P14.4.1: nenhum candidato na release_date -> NOT_FOUND", nenhumCandidato.status === "NOT_FOUND" && nenhumCandidato.reason === "RELEASE_DATE_SEM_CORRESPONDENCIA_EXTERNA");
+
+      const semReleaseDate = classifySetForExpansionPlan({ releaseDateIso: null }, null, externalSets);
+      assert("P14.4.1: Set local sem release_date -> NOT_FOUND, nunca tenta casar por nome", semReleaseDate.status === "NOT_FOUND" && semReleaseDate.reason === "SET_LOCAL_SEM_RELEASE_DATE");
+
+      const nomeDivergente = classifySetForExpansionPlan({ releaseDateIso: "2020-05-01" }, null, externalSets);
+      assert(
+        "P14.4.1: nome completamente divergente NUNCA bloqueia um candidato único e seguro por data (nome nunca é fundamento isolado — só release_date confirma)",
+        nomeDivergente.status === "SAFE_CANDIDATE" && nomeDivergente.externalSetId === "ext-f",
+      );
+    }
+
+    // buildExpansionWaves() — limites simultâneos (5 Sets / 500 cartas) e Set oversized.
+    {
+      const seisSetsPequenos = Array.from({ length: 6 }, (_, i) => ({ code: `W${i}`, localCardCount: 50 }));
+      const wavesPorContagemDeSets = buildExpansionWaves(seisSetsPequenos);
+      assert(
+        "P14.4.1: 6 Sets pequenos (50 cartas cada) -> onda 1 com 5 Sets, onda 2 com o 6º (limite de 5 Sets por onda)",
+        wavesPorContagemDeSets.length === 2 && wavesPorContagemDeSets[0].sets.length === 5 && wavesPorContagemDeSets[1].sets.length === 1,
+      );
+
+      const tresSetsGrandes = [
+        { code: "G1", localCardCount: 200 },
+        { code: "G2", localCardCount: 200 },
+        { code: "G3", localCardCount: 200 },
+      ];
+      const wavesPorContagemDeCartas = buildExpansionWaves(tresSetsGrandes);
+      assert(
+        "P14.4.1: 3 Sets de 200 cartas -> onda 1 com 2 Sets (400 cartas, 600 estouraria o limite de 500), onda 2 com o 3º",
+        wavesPorContagemDeCartas.length === 2 && wavesPorContagemDeCartas[0].sets.length === 2 && wavesPorContagemDeCartas[0].totalLocalCards === 400 && wavesPorContagemDeCartas[1].sets.length === 1,
+      );
+
+      const comSetGigante = [
+        { code: "A1", localCardCount: 100 },
+        { code: "GIGANTE", localCardCount: 600 },
+        { code: "A2", localCardCount: 100 },
+        { code: "A3", localCardCount: 100 },
+      ];
+      const wavesComOversized = buildExpansionWaves(comSetGigante);
+      const waveGigante = wavesComOversized.find((w) => w.sets.some((s) => s.code === "GIGANTE"));
+      assert(
+        "P14.4.1: Set individual com mais de 500 cartas locais nunca desaparece nem é dividido — forma sua própria onda, sinalizada oversized",
+        waveGigante !== undefined && waveGigante.sets.length === 1 && waveGigante.oversized === true && waveGigante.totalLocalCards === 600,
+      );
+      assert(
+        "P14.4.1: o Set oversized não interrompe a formação das ondas seguintes — A2/A3 continuam agrupados numa onda própria depois dele",
+        wavesComOversized.some((w) => !w.oversized && w.sets.some((s) => s.code === "A2") && w.sets.some((s) => s.code === "A3")),
+      );
+    }
+
+    // buildExpansionPlan() — ausência de total externo nunca é inventada.
+    {
+      const plan = buildExpansionPlan({
+        localSets: [{ cardSetId: "cs-x", code: "SETX", releaseDateIso: "2020-02-01", localCardCount: 130 }],
+        existingSetMappings: new Map(),
+        allExternalSets: normalizeJustTcgSets([{ id: "ext-x", name: "Ext X", release_date: "2020-02-01", variants_count: 999 }]),
+        existingCoverage: new Map(),
+      });
+      const entry = plan.entries[0];
+      assert(
+        "P14.4.1: pagesEstimateExternal é sempre null com motivo explícito — variants_count não é total de cartas, nunca usado para inventar um total de páginas externo",
+        entry.pagesEstimateExternal === null && entry.pagesEstimateExternalReason === PAGES_ESTIMATE_EXTERNAL_REASON,
+      );
+      assert("P14.4.1: pagesEstimateLocal usa só a contagem local conhecida (ceil(130/100)=2)", entry.pagesEstimateLocal === 2);
+    }
+
+    // executeExpansionPlan() — integração offline: exatamente 1 chamada externa, zero escrita,
+    // nenhum segredo na saída. makeReadOnlyFakeClient() bloqueia (lança) qualquer
+    // insert/update/upsert/delete/rpc — a prova de "zero escrita" é estrutural (o teste falharia
+    // com uma exceção não esperada se qualquer caminho de escrita fosse sequer tentado), não só
+    // uma contagem de chamadas. Seed fix P14.4.1: catalog_card_set_metrics/pricing_set_coverage
+    // substituem card (linha a linha) + pricing_card_mapping/pricing_product/pricing_observation
+    // (desenho anterior, removido) — coerente com todos os invariantes de reconciliação novos.
+    {
+      const seed = {
+        pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+        card_set: [
+          { id: "cs-a", code: "SETA", release_date: "2020-01-01" },
+          { id: "cs-b", code: "SETB", release_date: "2020-02-01" },
+        ],
+        catalog_card_set_metrics: [
+          { card_set_id: "cs-a", cards_ativas: 2 },
+          { card_set_id: "cs-b", cards_ativas: 1 },
+        ],
+        card: [
+          { id: "card-a1", is_active: true },
+          { id: "card-a2", is_active: true },
+          { id: "card-b1", is_active: true },
+        ],
+        pricing_set_mapping: [{ card_set_id: "cs-a", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-a", external_set_name: "Ext A" }],
+        pricing_set_coverage: [],
+      };
+      const { fetchImpl, callCount } = makeFakeFetch([
+        { status: 200, body: { data: [{ id: "ext-a", name: "Ext A", release_date: "2020-01-01" }, { id: "ext-b", name: "Ext B", release_date: "2020-02-01", variants_count: 42 }] } },
+      ]);
+      const fakeApiKey = "sk-fake-justtcg-integration-999";
+      const client = new JustTcgClient(fakeApiKey, fetchImpl);
+      const supabase = makeReadOnlyFakeClient(seed);
+
+      let writeAttemptBlocked = false;
+      let plan: ExpansionPlanResult | null = null;
+      try {
+        plan = await executeExpansionPlan(supabase, client);
+      } catch (error) {
+        writeAttemptBlocked = error instanceof Error && error.message.startsWith("WRITE_ATTEMPT_BLOCKED");
+        if (!writeAttemptBlocked) throw error; // erro inesperado nunca deve ser engolido pelo teste
+      }
+
+      assert("P14.4.1: executeExpansionPlan() completa sem nenhuma tentativa de escrita bloqueada (insert/update/upsert/delete/rpc nunca chamados)", !writeAttemptBlocked && plan !== null);
+      assert("P14.4.1: exatamente 1 chamada HTTP à JustTCG (GET /v1/sets), nunca /cards", callCount() === 1 && client.requestsMade === 1);
+      assert(
+        "P14.4.1: SETA (mapping já CONFIRMED) -> ALREADY_CONFIRMED; SETB (candidato único por data) -> SAFE_CANDIDATE",
+        plan?.entries.find((e) => e.code === "SETA")?.status === "ALREADY_CONFIRMED" && plan?.entries.find((e) => e.code === "SETB")?.status === "SAFE_CANDIDATE",
+      );
+      const serializedPlan = JSON.stringify(plan);
+      assert("P14.4.1: nenhum segredo (API key) vaza na saída do plano", !serializedPlan.includes(fakeApiKey));
+    }
+
+    // ==========================================================================================
+    // P14.4.1 fix (2026-08-19) — correção do truncamento de 1.000 linhas do Data API
+    // ==========================================================================================
+
+    // fetchAllPages() — mecânica de paginação pura, testada sem nenhum mock de Supabase: só
+    // callbacks simples de página. Cobre exatamente os cenários de borda exigidos.
+    {
+      const dataset25 = Array.from({ length: 25 }, (_, i) => ({ n: i }));
+      let calls25 = 0;
+      const rows25 = await fetchAllPages<{ n: number }>(async (from, to) => {
+        calls25++;
+        return { data: dataset25.slice(from, to + 1), error: null };
+      }, 10);
+      assert("P14.4.1 fix: fetchAllPages — múltiplas páginas (25 linhas, pageSize=10) -> 3 chamadas, 25 linhas, nunca deduz término por total presumido", calls25 === 3 && rows25.length === 25);
+
+      const dataset20 = Array.from({ length: 20 }, (_, i) => ({ n: i }));
+      let calls20 = 0;
+      const rows20 = await fetchAllPages<{ n: number }>(async (from, to) => {
+        calls20++;
+        return { data: dataset20.slice(from, to + 1), error: null };
+      }, 10);
+      assert(
+        "P14.4.1 fix: fetchAllPages — última página cheia (20 linhas, pageSize=10) exige uma 3ª chamada vazia para confirmar o fim -> 3 chamadas, 20 linhas (nunca para numa página cheia sem checar a próxima)",
+        calls20 === 3 && rows20.length === 20,
+      );
+
+      let calls_erro = 0;
+      let erroCapturado: Error | null = null;
+      let linhasParciais: unknown = "NUNCA_ATRIBUIDO";
+      try {
+        linhasParciais = await fetchAllPages<{ n: number }>(async (from, to) => {
+          calls_erro++;
+          if (calls_erro === 2) return { data: null, error: { message: "falha simulada na página 2" } };
+          return { data: dataset25.slice(from, to + 1), error: null };
+        }, 10);
+      } catch (error) {
+        erroCapturado = error instanceof Error ? error : null;
+      }
+      assert(
+        "P14.4.1 fix: fetchAllPages — falha intermediária de paginação (página 2) propaga erro e NUNCA retorna resultado parcial",
+        erroCapturado !== null && erroCapturado.message.startsWith("PAGINATED_QUERY_FAILED") && linhasParciais === "NUNCA_ATRIBUIDO",
+      );
+    }
+
+    // executeExpansionPlan() — reconciliação em escala realista: 1 Set com 1.001 cartas ativas
+    // (>1.000, nunca truncado porque cards_ativas é uma coluna agregada, não uma contagem de
+    // linhas) e 45 Sets somando 7.429 cartas (a escala real confirmada por introspecção).
+    {
+      const seedGrande = {
+        pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+        card_set: [{ id: "cs-x", code: "SETX", release_date: "2020-01-01" }],
+        catalog_card_set_metrics: [{ card_set_id: "cs-x", cards_ativas: 1001 }],
+        card: [{ id: "card-1", is_active: true }], // count-exact é sobrescrita abaixo — array não precisa ter 1001 linhas reais
+        pricing_set_mapping: [],
+        pricing_set_coverage: [],
+      };
+      const supabaseGrande = makeReadOnlyFakeClient(seedGrande, { countOverride: { card: 1001 } });
+      const { fetchImpl: fetchImplGrande } = makeFakeFetch([{ status: 200, body: { data: [{ id: "ext-x", name: "Ext X", release_date: "2020-01-01" }] } }]);
+      const clientGrande = new JustTcgClient("sk-fake-1001", fetchImplGrande);
+      const planGrande = await executeExpansionPlan(supabaseGrande, clientGrande);
+      assert(
+        "P14.4.1 fix: Set com 1.001 cartas ativas (>1.000) flui sem truncamento — cards_ativas é agregado, não uma contagem de linhas paginada",
+        planGrande.entries[0]?.localCardCount === 1001 && planGrande.totalLocalCards === 1001,
+      );
+
+      const NUM_SETS = 45;
+      const TOTAL_CARTAS = 7429;
+      const base = Math.floor(TOTAL_CARTAS / NUM_SETS);
+      const resto = TOTAL_CARTAS - base * NUM_SETS;
+      const cardSet45 = Array.from({ length: NUM_SETS }, (_, i) => ({ id: `cs-${i}`, code: `SET${i}`, release_date: `2020-01-${String((i % 28) + 1).padStart(2, "0")}` }));
+      const metrics45 = cardSet45.map((s, i) => ({ card_set_id: s.id, cards_ativas: base + (i < resto ? 1 : 0) }));
+      const seed45 = {
+        pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+        card_set: cardSet45,
+        catalog_card_set_metrics: metrics45,
+        card: [{ id: "card-1", is_active: true }],
+        pricing_set_mapping: [],
+        pricing_set_coverage: [],
+      };
+      const supabase45 = makeReadOnlyFakeClient(seed45, { countOverride: { card: TOTAL_CARTAS } });
+      const { fetchImpl: fetchImpl45 } = makeFakeFetch([{ status: 200, body: { data: [] } }]);
+      const client45 = new JustTcgClient("sk-fake-45sets", fetchImpl45);
+      const plan45 = await executeExpansionPlan(supabase45, client45);
+      assert(
+        "P14.4.1 fix: 45 Sets somando 7.429 cartas (escala real confirmada por introspecção) -> reconciliação passa, nenhum Set nem carta perdido",
+        plan45.totalLocalSets === 45 && plan45.totalLocalCards === 7429,
+      );
+    }
+
+    // Cobertura agregada (Query 3916 proposta) > 1.000 — flui sem truncamento porque é uma
+    // coluna agregada por Set/Fonte, nunca uma contagem de linhas de pricing_observation.
+    {
+      const seed = {
+        pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+        card_set: [{ id: "cs-a", code: "SETA", release_date: "2020-01-01" }],
+        catalog_card_set_metrics: [{ card_set_id: "cs-a", cards_ativas: 1 }],
+        card: [{ id: "card-1", is_active: true }],
+        pricing_set_mapping: [{ card_set_id: "cs-a", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-a", external_set_name: "Ext A" }],
+        pricing_set_coverage: [{ card_set_id: "cs-a", pricing_source_id: "src-1", products_count: 40, observations_count: 1500 }],
+      };
+      const supabase = makeReadOnlyFakeClient(seed, { countOverride: { card: 1 } });
+      const { fetchImpl } = makeFakeFetch([{ status: 200, body: { data: [{ id: "ext-a", name: "Ext A", release_date: "2020-01-01" }] } }]);
+      const client = new JustTcgClient("sk-fake-coverage", fetchImpl);
+      const plan = await executeExpansionPlan(supabase, client);
+      assert(
+        "P14.4.1 fix: cobertura agregada > 1.000 (observations_count=1500) flui inalterada — nunca recalculada linha a linha",
+        plan.entries[0]?.existingObservationsCount === 1500 && plan.entries[0]?.existingProductsCount === 40,
+      );
+    }
+
+    // Reconciliação obrigatória: plano NUNCA emitido quando qualquer contagem diverge. Três
+    // variantes: soma de cartas, quantidade de Sets ativos, e paginação incompleta genérica.
+    {
+      const seedBase = {
+        pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+        card_set: [{ id: "cs-a", code: "SETA", release_date: "2020-01-01" }],
+        catalog_card_set_metrics: [{ card_set_id: "cs-a", cards_ativas: 3 }],
+        card: [{ id: "card-1", is_active: true }],
+        pricing_set_mapping: [],
+        pricing_set_coverage: [],
+      };
+      const { fetchImpl, callCount } = makeFakeFetch([{ status: 200, body: { data: [] } }]);
+
+      const supabaseCartasDivergente = makeReadOnlyFakeClient(seedBase, { countOverride: { card: 999 } });
+      let erroCartas: Error | null = null;
+      try {
+        await executeExpansionPlan(supabaseCartasDivergente, new JustTcgClient("sk-fake-a", fetchImpl));
+      } catch (error) {
+        erroCartas = error instanceof Error ? error : null;
+      }
+      assert(
+        "P14.4.1 fix: reconciliação de cartas divergente (soma local=3, contagem exata=999) -> plano nunca emitido, aborta com RECONCILIACAO_CARTAS_FALHOU",
+        erroCartas !== null && erroCartas.message.startsWith("RECONCILIACAO_CARTAS_FALHOU"),
+      );
+
+      const supabaseSetsDivergente = makeReadOnlyFakeClient(seedBase, { countOverride: { card: 3, "catalog_card_set_metrics:filtered": 5 } });
+      let erroSets: Error | null = null;
+      try {
+        await executeExpansionPlan(supabaseSetsDivergente, new JustTcgClient("sk-fake-b", fetchImpl));
+      } catch (error) {
+        erroSets = error instanceof Error ? error : null;
+      }
+      assert(
+        "P14.4.1 fix: reconciliação de Sets divergente (1 Set no inventário, 5 na contagem exata e independente de Sets ativos com cartas) -> plano nunca emitido, aborta com RECONCILIACAO_SETS_FALHOU",
+        erroSets !== null && erroSets.message.startsWith("RECONCILIACAO_SETS_FALHOU"),
+      );
+
+      const supabasePaginacaoIncompleta = makeReadOnlyFakeClient(seedBase, { countOverride: { card_set: 2 } });
+      let erroPaginacao: Error | null = null;
+      try {
+        await executeExpansionPlan(supabasePaginacaoIncompleta, new JustTcgClient("sk-fake-c", fetchImpl));
+      } catch (error) {
+        erroPaginacao = error instanceof Error ? error : null;
+      }
+      assert(
+        "P14.4.1 fix: paginação incompleta genérica (card_set: 1 linha buscada, contagem exata diz 2) -> plano nunca emitido, aborta com PAGINACAO_INCOMPLETA(card_set)",
+        erroPaginacao !== null && erroPaginacao.message.startsWith("PAGINACAO_INCOMPLETA(card_set)"),
+      );
+      assert(
+        "Query 3917: as três falhas de reconciliação/paginação acima (cartas, Sets, paginação genérica) resultam em zero chamadas HTTP à JustTCG — erro local sempre interrompe executeExpansionPlan() antes do único GET /sets",
+        callCount() === 0,
+      );
+    }
+
+    // Regressão Query 3917: erro de permissão em uma leitura local (ex.: "permission denied for
+    // table game", faltando SELECT em tabela-base da view security_invoker catalog_card_set_metrics
+    // — cenário real reportado por Fabrício, corrigido pela Query 3917) nunca consome quota
+    // externa. executeExpansionPlan() só chama a JustTCG (GET /sets) depois que TODAS as leituras
+    // e reconciliações locais (card_set, catalog_card_set_metrics, cartas, Sets, pricing_set_mapping,
+    // pricing_set_coverage) terminam com sucesso — ver ordem das chamadas no próprio código-fonte,
+    // linhas 3742-3793. Este teste prova isso estruturalmente: mesmo com um fetchImpl pronto para
+    // responder 200, zero chamadas HTTP ocorrem quando a leitura de catalog_card_set_metrics falha.
+    {
+      const seed = {
+        pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+        card_set: [{ id: "cs-a", code: "SETA", release_date: "2020-01-01" }],
+        catalog_card_set_metrics: [{ card_set_id: "cs-a", cards_ativas: 3 }],
+        card: [{ id: "card-1", is_active: true }],
+        pricing_set_mapping: [],
+        pricing_set_coverage: [],
+      };
+      const supabasePermissaoNegada = makeReadOnlyFakeClient(seed, {
+        errorOnCall: { catalog_card_set_metrics: { atCallIndex: 1, message: "permission denied for table game" } },
+      });
+      const { fetchImpl, callCount } = makeFakeFetch([{ status: 200, body: { data: [] } }]);
+      let erroPermissao: Error | null = null;
+      try {
+        await executeExpansionPlan(supabasePermissaoNegada, new JustTcgClient("sk-fake-e", fetchImpl));
+      } catch (error) {
+        erroPermissao = error instanceof Error ? error : null;
+      }
+      assert(
+        "Query 3917 regressão: erro de permissão na leitura de catalog_card_set_metrics (ex.: 'permission denied for table game') -> aborta com PAGINATED_QUERY_FAILED, nunca chega ao GET /sets",
+        erroPermissao !== null && erroPermissao.message.startsWith("PAGINATED_QUERY_FAILED") && erroPermissao.message.includes("permission denied for table game"),
+      );
+      assert(
+        "Query 3917 regressão: falha de permissão local -> zero chamadas HTTP à JustTCG (quota externa nunca consumida por erro local, mesmo com fetchImpl pronto para responder 200)",
+        callCount() === 0,
+      );
+    }
+
+    // assertConfirmedMappingsPreserved() — mapping CONFIRMED apontando para um Set que sumiu do
+    // inventário paginado (bug de filtro/paginação) nunca produz um plano parcial silencioso.
+    {
+      const seed = {
+        pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+        card_set: [{ id: "cs-outro", code: "OUTRO", release_date: "2020-06-01" }],
+        catalog_card_set_metrics: [{ card_set_id: "cs-outro", cards_ativas: 1 }],
+        card: [{ id: "card-1", is_active: true }],
+        // Mapping CONFIRMED aponta para "cs-sumido", que NUNCA aparece em card_set/metrics —
+        // simula BASE1/BASE4/ME1 desaparecendo do inventário por um bug de paginação/filtro.
+        pricing_set_mapping: [{ card_set_id: "cs-sumido", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-sumido", external_set_name: "Ext Sumido" }],
+        pricing_set_coverage: [],
+      };
+      const supabase = makeReadOnlyFakeClient(seed, { countOverride: { card: 1 } });
+      const { fetchImpl } = makeFakeFetch([{ status: 200, body: { data: [] } }]);
+      let erro: Error | null = null;
+      try {
+        await executeExpansionPlan(supabase, new JustTcgClient("sk-fake-d", fetchImpl));
+      } catch (error) {
+        erro = error instanceof Error ? error : null;
+      }
+      assert(
+        "P14.4.1 fix: mapping CONFIRMED (ex.: BASE1/BASE4/ME1) apontando para um Set ausente do inventário -> plano nunca emitido, aborta com MAPPING_CONFIRMED_SEM_SET_LOCAL_CORRESPONDENTE",
+        erro !== null && erro.message.startsWith("MAPPING_CONFIRMED_SEM_SET_LOCAL_CORRESPONDENTE"),
+      );
+    }
   }
 
   const failed = assertions.filter(([, ok]) => !ok);
@@ -2408,10 +2983,11 @@ async function runFixtureCheck() {
 // ============================================================================
 
 function parseArgs(argv: string[]) {
-  const args = { dryRun: false, fixtureCheck: false, confirmedBy: null as string | null };
+  const args = { dryRun: false, fixtureCheck: false, expansionPlan: false, confirmedBy: null as string | null };
   for (const arg of argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--fixture-check") args.fixtureCheck = true;
+    else if (arg === "--expansion-plan") args.expansionPlan = true;
     else if (arg.startsWith("--confirmed-by=")) args.confirmedBy = arg.slice("--confirmed-by=".length);
   }
   return args;
@@ -2434,10 +3010,18 @@ function requireEnv(name: string): string {
 type EntryDecision =
   | { kind: "FIXTURE_CHECK" }
   | { kind: "MISSING_ENV"; missing: string[] }
+  | { kind: "EXPANSION_PLAN" }
   | { kind: "REAL_PILOT" };
 
+// P14.4.1: `expansionPlan` é opcional na assinatura (nunca `expansionPlan: boolean` obrigatório)
+// deliberadamente — preserva, sem qualquer edição, todas as chamadas de teste já existentes
+// desta função (fechamento do P14.3, acima) que passam só `{ fixtureCheck }`. `--expansion-plan`
+// nunca é um modo offline implícito (diferente de `--fixture-check`): exige as três credenciais
+// como o piloto real, validadas ANTES de qualquer rede/banco — só muda o que acontece DEPOIS da
+// validação (plano só-leitura em vez de execução real). Nenhum modo novo aqui reduz a garantia
+// já existente de "nunca cai silenciosamente em modo nenhum por credencial ausente".
 function resolveEntryDecision(
-  args: { fixtureCheck: boolean },
+  args: { fixtureCheck: boolean; expansionPlan?: boolean },
   env: { justTcgApiKey: string | undefined; supabaseUrl: string | undefined; supabaseServiceRoleKey: string | undefined },
 ): EntryDecision {
   // --fixture-check é sempre honrado explicitamente e tem prioridade sobre qualquer estado
@@ -2450,6 +3034,8 @@ function resolveEntryDecision(
   if (!env.supabaseUrl) missing.push("SUPABASE_URL");
   if (!env.supabaseServiceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length > 0) return { kind: "MISSING_ENV", missing };
+
+  if (args.expansionPlan) return { kind: "EXPANSION_PLAN" };
 
   return { kind: "REAL_PILOT" };
 }
@@ -2858,6 +3444,424 @@ async function finalizeSyncRun(
 }
 
 // ============================================================================
+// 7b. P14.4.1 — Inventário de Cobertura e Plano de Ondas (--expansion-plan)
+// ============================================================================
+
+const WAVE_MAX_SETS = 5;
+const WAVE_MAX_LOCAL_CARDS = 500;
+
+type LocalSetSummary = { cardSetId: string; code: string; releaseDateIso: string | null; localCardCount: number };
+
+type ExistingSetMappingLite = { cardSetId: string; matchStatus: string; externalSetId: string | null; externalSetName: string | null };
+
+type SetPlanClassification =
+  | { status: "ALREADY_CONFIRMED"; externalSetId: string; externalSetName: string | null; externalVariantsCount: number | null; reason: string }
+  | { status: "SAFE_CANDIDATE"; externalSetId: string; externalSetName: string; externalVariantsCount: number | null; reason: string }
+  | { status: "AMBIGUOUS"; candidateCount: number; reason: string }
+  | { status: "NOT_FOUND"; reason: string };
+
+// Pura — mesmo sinal primário automatizado já validado em resolveSetMatchV2() (P14.2):
+// release_date normalizada é a ÚNICA evidência usada para confirmar automaticamente. Nome
+// nunca é fundamento isolado (não é usado nem como desempate nesta rodada — zero candidatos
+// na mesma data já é o caso raro o suficiente para não precisar de um segundo sinal; ver nota
+// no cabeçalho do arquivo). Um mapping já CONFIRMED é sempre preservado, nunca reavaliado
+// contra allExternalSets — ALREADY_CONFIRMED é decidido só pelo estado local, antes de
+// qualquer comparação de data.
+function classifySetForExpansionPlan(
+  local: { releaseDateIso: string | null },
+  existingMapping: ExistingSetMappingLite | null,
+  allExternalSets: JustTcgSet[],
+): SetPlanClassification {
+  if (existingMapping && existingMapping.matchStatus === "CONFIRMED") {
+    const knownExternal = existingMapping.externalSetId ? allExternalSets.find((s) => s.id === existingMapping.externalSetId) : undefined;
+    return {
+      status: "ALREADY_CONFIRMED",
+      externalSetId: existingMapping.externalSetId ?? "",
+      externalSetName: existingMapping.externalSetName,
+      externalVariantsCount: knownExternal?.variants_count ?? null,
+      reason: "MAPPING_JA_CONFIRMED_PRESERVADO",
+    };
+  }
+
+  if (!local.releaseDateIso) {
+    return { status: "NOT_FOUND", reason: "SET_LOCAL_SEM_RELEASE_DATE" };
+  }
+
+  const candidates = allExternalSets.filter((s) => s.release_date === local.releaseDateIso);
+  if (candidates.length === 0) {
+    return { status: "NOT_FOUND", reason: "RELEASE_DATE_SEM_CORRESPONDENCIA_EXTERNA" };
+  }
+  if (candidates.length > 1) {
+    return { status: "AMBIGUOUS", candidateCount: candidates.length, reason: "RELEASE_DATE_COM_MULTIPLOS_CANDIDATOS" };
+  }
+  return {
+    status: "SAFE_CANDIDATE",
+    externalSetId: candidates[0].id,
+    externalSetName: candidates[0].name,
+    externalVariantsCount: candidates[0].variants_count ?? null,
+    reason: "RELEASE_DATE_EXACT_MATCH_UNICO",
+  };
+}
+
+// Estimativa deliberadamente baseada só na contagem LOCAL de cartas — nunca em variants_count
+// da JustTCG (não é "total de cartas", ver nota no cabeçalho do arquivo). Sempre >= 1 mesmo
+// para Sets muito pequenos, refletindo a página mínima que fetchAllCardsForSet() precisaria.
+function estimateCardsPagesFromLocalCount(localCardCount: number): number {
+  return Math.max(1, Math.ceil(localCardCount / CARDS_PAGE_LIMIT));
+}
+
+type WaveSetEntry = { code: string; localCardCount: number };
+type ExpansionWave = { waveNumber: number; sets: WaveSetEntry[]; totalLocalCards: number; oversized: boolean; estimatedCallsCards: number };
+
+// Pura — agrupa só candidatos SAFE_CANDIDATE (o chamador filtra antes). Respeita os dois
+// limites simultaneamente (5 Sets E 500 cartas locais, o que vier primeiro). Um Set individual
+// com mais de 500 cartas locais NUNCA é dividido nem descartado: fecha a onda em formação (se
+// houver) e forma sua própria onda de 1 Set, marcada oversized — sem interromper a formação
+// das ondas seguintes.
+function buildExpansionWaves(candidates: WaveSetEntry[]): ExpansionWave[] {
+  const waves: ExpansionWave[] = [];
+  let current: WaveSetEntry[] = [];
+
+  const pushWave = (sets: WaveSetEntry[], oversized: boolean) => {
+    if (sets.length === 0) return;
+    waves.push({
+      waveNumber: waves.length + 1,
+      sets,
+      totalLocalCards: sets.reduce((sum, s) => sum + s.localCardCount, 0),
+      oversized,
+      estimatedCallsCards: sets.reduce((sum, s) => sum + estimateCardsPagesFromLocalCount(s.localCardCount), 0),
+    });
+  };
+
+  for (const candidate of candidates) {
+    if (candidate.localCardCount > WAVE_MAX_LOCAL_CARDS) {
+      pushWave(current, false);
+      current = [];
+      pushWave([candidate], true);
+      continue;
+    }
+    const currentCards = current.reduce((sum, s) => sum + s.localCardCount, 0);
+    if (current.length >= WAVE_MAX_SETS || currentCards + candidate.localCardCount > WAVE_MAX_LOCAL_CARDS) {
+      pushWave(current, false);
+      current = [];
+    }
+    current.push(candidate);
+  }
+  pushWave(current, false);
+  return waves;
+}
+
+type SetPlanEntry = {
+  code: string;
+  releaseDateIso: string | null;
+  localCardCount: number;
+  status: SetPlanClassification["status"];
+  externalSetId: string | null;
+  externalSetName: string | null;
+  externalVariantsCount: number | null;
+  pagesEstimateLocal: number;
+  pagesEstimateExternal: null;
+  pagesEstimateExternalReason: string;
+  existingProductsCount: number;
+  existingObservationsCount: number;
+  reason: string;
+};
+
+type ExpansionPlanInput = {
+  localSets: LocalSetSummary[];
+  existingSetMappings: Map<string, ExistingSetMappingLite>;
+  allExternalSets: JustTcgSet[];
+  existingCoverage: Map<string, { products: number; observations: number }>;
+};
+
+type ExpansionPlanResult = {
+  generatedAt: string;
+  totalLocalSets: number;
+  totalLocalCards: number;
+  entries: SetPlanEntry[];
+  waves: ExpansionWave[];
+  totalEstimatedCallsAllWaves: number;
+};
+
+const PAGES_ESTIMATE_EXTERNAL_REASON = "JUSTTCG_SETS_NAO_EXPOE_TOTAL_DE_CARTAS_SO_VARIANTS_COUNT";
+
+// Pura — orquestra classifySetForExpansionPlan()/buildExpansionWaves() sobre dados já
+// buscados pelo chamador (executeExpansionPlan(), abaixo). 100% testável offline sem nenhum
+// SupabaseClient/fetch.
+function buildExpansionPlan(input: ExpansionPlanInput): ExpansionPlanResult {
+  const entries: SetPlanEntry[] = input.localSets.map((local) => {
+    const existingMapping = input.existingSetMappings.get(local.cardSetId) ?? null;
+    const classification = classifySetForExpansionPlan({ releaseDateIso: local.releaseDateIso }, existingMapping, input.allExternalSets);
+    const coverage = input.existingCoverage.get(local.cardSetId) ?? { products: 0, observations: 0 };
+    const hasExternal = classification.status === "ALREADY_CONFIRMED" || classification.status === "SAFE_CANDIDATE";
+
+    return {
+      code: local.code,
+      releaseDateIso: local.releaseDateIso,
+      localCardCount: local.localCardCount,
+      status: classification.status,
+      externalSetId: hasExternal ? classification.externalSetId : null,
+      externalSetName: hasExternal ? classification.externalSetName : null,
+      externalVariantsCount: hasExternal ? classification.externalVariantsCount : null,
+      pagesEstimateLocal: estimateCardsPagesFromLocalCount(local.localCardCount),
+      pagesEstimateExternal: null,
+      pagesEstimateExternalReason: PAGES_ESTIMATE_EXTERNAL_REASON,
+      existingProductsCount: coverage.products,
+      existingObservationsCount: coverage.observations,
+      reason: classification.reason,
+    };
+  });
+
+  const safeCandidates = entries.filter((e) => e.status === "SAFE_CANDIDATE").map((e) => ({ code: e.code, localCardCount: e.localCardCount }));
+  const waves = buildExpansionWaves(safeCandidates);
+  // +1 chamada de /sets por execução de onda (aproximação explícita — uma futura execução real
+  // de onda ainda precisaria revalidar a resolução de Set antes de paginar /cards; nunca
+  // escondida, sempre somada ao total).
+  const totalEstimatedCallsAllWaves = waves.reduce((sum, w) => sum + w.estimatedCallsCards, 0) + waves.length;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totalLocalSets: input.localSets.length,
+    totalLocalCards: input.localSets.reduce((sum, s) => sum + s.localCardCount, 0),
+    entries,
+    waves,
+    totalEstimatedCallsAllWaves,
+  };
+}
+
+// --- I/O só-leitura ---------------------------------------------------------------------
+
+type CardSetRow = { id: string; code: string; release_date: string | null };
+type MetricsRow = { card_set_id: string; cards_ativas: number };
+type SetMappingRow = { card_set_id: string; match_status: string; external_set_id: string | null; external_set_name: string | null };
+type CoverageRow = { card_set_id: string; products_count: number; observations_count: number };
+
+// --- Paginação determinística genérica (fix 2026-08-19, mesmo dia) --------------------------
+//
+// Causa raiz do truncamento reportado no piloto real (45 Sets/7.429 cartas na introspecção,
+// só 11 Sets/1.000 cartas no --expansion-plan): fetchLocalCatalogRows() fazia um único
+// `.select()` em `card` (7.429 linhas) sem paginação — o Data API do Supabase/PostgREST aplica
+// um limite padrão de 1.000 linhas por requisição quando nenhum `.range()` é informado,
+// truncando silenciosamente o resultado (nenhum erro é retornado, só menos linhas). Nenhuma das
+// leituras de P14.4.1 verificava isso.
+//
+// fetchAllPages() é a única implementação de paginação do módulo: pura, recebe uma função de
+// busca de página já vinculada a uma tabela/filtro específicos e NUNCA deduz término por total
+// presumido — só para quando uma página retorna estritamente menos linhas que pageSize. Uma
+// página cheia (mesmo que seja coincidentemente a última) sempre dispara a busca da página
+// seguinte, que precisa vir vazia para confirmar o fim. Isso é testado diretamente (ver
+// "P14.4.1 fix: fetchAllPages" em runFixtureCheck()) sem precisar de nenhum mock de Supabase.
+const DEFAULT_PAGE_SIZE = 1000;
+
+type PageResult<T> = { data: T[] | null; error: { message: string } | null };
+type PageFetcher<T> = (from: number, to: number) => Promise<PageResult<T>>;
+
+async function fetchAllPages<T>(fetchPage: PageFetcher<T>, pageSize: number = DEFAULT_PAGE_SIZE): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await fetchPage(from, from + pageSize - 1);
+    if (error) throw new Error(`PAGINATED_QUERY_FAILED: ${sanitize(error.message)}`);
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
+// Adapter fino Supabase -> fetchAllPages(): mantém a mecânica de paginação (acima) totalmente
+// desacoplada do cliente Supabase, testável com callbacks simples.
+// deno-lint-ignore no-explicit-any
+async function fetchAllRowsFromTable<T>(
+  supabase: SupabaseClient,
+  table: string,
+  columns: string,
+  orderColumn: string,
+  // deno-lint-ignore no-explicit-any
+  applyFilter?: (query: any) => any,
+  pageSize: number = DEFAULT_PAGE_SIZE,
+): Promise<T[]> {
+  return fetchAllPages<T>(async (from, to) => {
+    // deno-lint-ignore no-explicit-any
+    let query: any = supabase.from(table).select(columns).order(orderColumn).range(from, to);
+    if (applyFilter) query = applyFilter(query);
+    const result = await query;
+    return { data: (result.data ?? null) as T[] | null, error: result.error };
+  }, pageSize);
+}
+
+// Contagem exata via `count: "exact", head: true` (só o cabeçalho Content-Range é lido — o
+// Data API NUNCA materializa linhas para responder isso, então esta chamada não está sujeita
+// ao limite de 1.000 linhas de forma alguma). Usada como ground truth independente para
+// reconciliar cada leitura paginada (assertPaginationComplete()) e as somas agregadas
+// (RECONCILIACAO_CARTAS_FALHOU/RECONCILIACAO_SETS_FALHOU em executeExpansionPlan()).
+// deno-lint-ignore no-explicit-any
+async function fetchExactCount(supabase: SupabaseClient, table: string, applyFilter?: (query: any) => any): Promise<number> {
+  // deno-lint-ignore no-explicit-any
+  let query: any = supabase.from(table).select("*", { count: "exact", head: true });
+  if (applyFilter) query = applyFilter(query);
+  const { count, error } = await query;
+  if (error) throw new Error(`COUNT_QUERY_FAILED(${table}): ${sanitize(error.message)}`);
+  if (typeof count !== "number") throw new Error(`COUNT_QUERY_RETORNOU_INVALIDO(${table})`);
+  return count;
+}
+
+// Nunca deduzir sucesso: qualquer divergência entre o que a paginação trouxe e a contagem
+// exata e independente do banco aborta o plano imediatamente — nunca um resultado parcial.
+function assertPaginationComplete(label: string, fetchedCount: number, exactCount: number): void {
+  if (fetchedCount !== exactCount) {
+    throw new Error(
+      `PAGINACAO_INCOMPLETA(${label}): paginação retornou ${fetchedCount} linha(s), contagem exata do banco é ${exactCount}. Plano de expansão abortado — nunca emite resultado parcial.`,
+    );
+  }
+}
+
+// Pura — "Card Set local ativo" = tem ao menos uma carta local ativa. Fix 2026-08-19: em vez de
+// contar cartas uma a uma no cliente (o vetor de ataque do truncamento), reusa
+// catalog_card_set_metrics.cards_ativas — view já existente, 1 linha por Set, agregada
+// server-side, nunca sujeita ao limite de 1.000 (cresce com o nº de Sets, não com o nº de
+// cartas). Ordenação determinística (release_date, depois código) preservada.
+function buildLocalSetInventory(cardSetRows: CardSetRow[], metricsRows: MetricsRow[]): LocalSetSummary[] {
+  const activeCountBySet = new Map<string, number>();
+  for (const m of metricsRows) activeCountBySet.set(m.card_set_id, m.cards_ativas ?? 0);
+  return cardSetRows
+    .map((s) => ({ cardSetId: s.id, code: s.code, releaseDateIso: s.release_date, localCardCount: activeCountBySet.get(s.id) ?? 0 }))
+    .filter((s) => s.localCardCount > 0)
+    .sort((a, b) => {
+      const dateCompare = (a.releaseDateIso ?? "9999-99-99").localeCompare(b.releaseDateIso ?? "9999-99-99");
+      return dateCompare !== 0 ? dateCompare : a.code.localeCompare(b.code);
+    });
+}
+
+function buildSetMappingMap(rows: SetMappingRow[]): Map<string, ExistingSetMappingLite> {
+  const map = new Map<string, ExistingSetMappingLite>();
+  for (const row of rows) {
+    map.set(row.card_set_id, { cardSetId: row.card_set_id, matchStatus: row.match_status, externalSetId: row.external_set_id, externalSetName: row.external_set_name });
+  }
+  return map;
+}
+
+function buildCoverageMap(rows: CoverageRow[]): Map<string, { products: number; observations: number }> {
+  const map = new Map<string, { products: number; observations: number }>();
+  for (const row of rows) map.set(row.card_set_id, { products: row.products_count, observations: row.observations_count });
+  return map;
+}
+
+// Reconciliação final: todo mapping CONFIRMED existente precisa aparecer como
+// ALREADY_CONFIRMED no plano — se um Set com mapping CONFIRMED sumiu do inventário paginado
+// (bug de paginação, filtro errado, etc.), o plano nunca é emitido, nunca parcialmente.
+function assertConfirmedMappingsPreserved(entries: SetPlanEntry[], localSets: LocalSetSummary[], existingSetMappings: Map<string, ExistingSetMappingLite>): void {
+  for (const [cardSetId, mapping] of existingSetMappings) {
+    if (mapping.matchStatus !== "CONFIRMED") continue;
+    const local = localSets.find((s) => s.cardSetId === cardSetId);
+    if (!local) {
+      throw new Error(`MAPPING_CONFIRMED_SEM_SET_LOCAL_CORRESPONDENTE(${cardSetId}): plano de expansão abortado, nunca emitido parcialmente.`);
+    }
+    const entry = entries.find((e) => e.code === local.code);
+    if (!entry || entry.status !== "ALREADY_CONFIRMED") {
+      throw new Error(`MAPPING_CONFIRMED_NAO_PRESERVADO(${local.code}): plano de expansão abortado, nunca emitido parcialmente.`);
+    }
+  }
+}
+
+// Orquestração testável offline (ver runFixtureCheck() e os testes "P14.4.1 fix"): recebe um
+// SupabaseClient e um JustTcgClient já construídos (nunca lê Deno.env diretamente), mesmo
+// padrão de injeção de dependência de persistBatchedResults()/JustTcgClient. Faz EXATAMENTE uma
+// chamada HTTP (GET /v1/sets); toda leitura Supabase é paginada (fetchAllRowsFromTable) e
+// imediatamente reconciliada contra uma contagem exata independente (fetchExactCount) — nenhuma
+// das funções chamadas aqui usa .insert()/.update()/.rpc() em nenhum ponto, verificável por
+// leitura direta do código.
+//
+// Requer a migration 3916 (proposta, não aplicada nesta rodada — ver relatório) para existir:
+// GRANT SELECT ... TO service_role em catalog_card_set_metrics (ausente até então — nenhum
+// script server-side a usava antes deste fix) e a nova view pricing_set_coverage.
+async function executeExpansionPlan(supabase: SupabaseClient, client: JustTcgClient): Promise<ExpansionPlanResult> {
+  const source = await getJustTcgSource(supabase);
+  const sourceId = source.id as string;
+
+  const cardSetRows = await fetchAllRowsFromTable<CardSetRow>(supabase, "card_set", "id, code, release_date", "id");
+  const exactCardSetCount = await fetchExactCount(supabase, "card_set");
+  assertPaginationComplete("card_set", cardSetRows.length, exactCardSetCount);
+
+  const metricsRows = await fetchAllRowsFromTable<MetricsRow>(supabase, "catalog_card_set_metrics", "card_set_id, cards_ativas", "card_set_id");
+  const exactMetricsCount = await fetchExactCount(supabase, "catalog_card_set_metrics");
+  assertPaginationComplete("catalog_card_set_metrics", metricsRows.length, exactMetricsCount);
+
+  const localSets = buildLocalSetInventory(cardSetRows, metricsRows);
+
+  // Invariante 1: soma de localCardCount == contagem exata e independente de `card` ativas.
+  const exactActiveCardCount = await fetchExactCount(supabase, "card", (q) => q.eq("is_active", true));
+  const sumLocalCardCount = localSets.reduce((sum, s) => sum + s.localCardCount, 0);
+  if (sumLocalCardCount !== exactActiveCardCount) {
+    throw new Error(`RECONCILIACAO_CARTAS_FALHOU: soma local=${sumLocalCardCount}, contagem exata=${exactActiveCardCount}. Plano de expansão abortado — nunca emite resultado parcial.`);
+  }
+
+  // Invariante 2: quantidade de Sets no inventário == contagem exata e independente de Sets
+  // com cards_ativas > 0 (mesma view, consulta separada — cobre bug de filtro/join).
+  const exactActiveSetCount = await fetchExactCount(supabase, "catalog_card_set_metrics", (q) => q.gt("cards_ativas", 0));
+  if (localSets.length !== exactActiveSetCount) {
+    throw new Error(`RECONCILIACAO_SETS_FALHOU: Sets no inventário=${localSets.length}, contagem exata de Sets ativos=${exactActiveSetCount}. Plano de expansão abortado — nunca emite resultado parcial.`);
+  }
+
+  const setMappingRows = await fetchAllRowsFromTable<SetMappingRow>(
+    supabase,
+    "pricing_set_mapping",
+    "card_set_id, match_status, external_set_id, external_set_name",
+    "card_set_id",
+    (q) => q.eq("pricing_source_id", sourceId),
+  );
+  const exactSetMappingCount = await fetchExactCount(supabase, "pricing_set_mapping", (q) => q.eq("pricing_source_id", sourceId));
+  assertPaginationComplete("pricing_set_mapping", setMappingRows.length, exactSetMappingCount);
+  const existingSetMappings = buildSetMappingMap(setMappingRows);
+
+  // Cobertura via pricing_set_coverage (Query 3916, proposta — ver relatório): agregada
+  // server-side por card_set_id x pricing_source_id, nunca cresce com o volume de
+  // produtos/observações (no máximo 1 linha por combinação Set x Fonte). Substitui as três
+  // leituras encadeadas em memória do desenho original (pricing_card_mapping ->
+  // pricing_product -> pricing_observation), que eram a segunda superfície de truncamento.
+  const coverageRows = await fetchAllRowsFromTable<CoverageRow>(
+    supabase,
+    "pricing_set_coverage",
+    "card_set_id, products_count, observations_count",
+    "card_set_id",
+    (q) => q.eq("pricing_source_id", sourceId),
+  );
+  const exactCoverageCount = await fetchExactCount(supabase, "pricing_set_coverage", (q) => q.eq("pricing_source_id", sourceId));
+  assertPaginationComplete("pricing_set_coverage", coverageRows.length, exactCoverageCount);
+  const existingCoverage = buildCoverageMap(coverageRows);
+
+  const setsResult = await client.get<{ data: JustTcgSet[] }>("/sets", { game: GAME_CODE });
+  if (setsResult.status === "AUTH_FAILURE") {
+    throw new Error("AUTENTICACAO_FALHOU_401: JUSTTCG_API_KEY inválida ou expirada — plano de expansão abortado.");
+  }
+  if (setsResult.status !== "SUCCESS") {
+    throw new Error(`PLANO_DE_EXPANSAO_FASE_SETS_FALHOU: ${setsResult.status}`);
+  }
+  const allExternalSets = normalizeJustTcgSets(setsResult.data.data ?? []);
+
+  const plan = buildExpansionPlan({ localSets, existingSetMappings, allExternalSets, existingCoverage });
+  assertConfirmedMappingsPreserved(plan.entries, localSets, existingSetMappings);
+  return plan;
+}
+
+async function runExpansionPlan(): Promise<void> {
+  const supabaseUrl = requireEnv("SUPABASE_URL");
+  const supabaseServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const justTcgApiKey = requireEnv("JUSTTCG_API_KEY");
+
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  const client = new JustTcgClient(justTcgApiKey);
+
+  const plan = await executeExpansionPlan(supabase, client);
+
+  console.log("\n=== Plano de Expansão (P14.4.1) — somente leitura, nenhuma escrita ===");
+  console.log(JSON.stringify(plan, null, 2));
+  console.log(`\nChamadas HTTP feitas à JustTCG nesta rodada: ${client.requestsMade} (GET /v1/sets).`);
+  console.log("Nenhum pricing_sync_run foi criado nesta rodada. Nenhum mapping/produto/observação foi alterado.");
+}
+
+// ============================================================================
 // 8. Entrypoint
 // ============================================================================
 
@@ -2882,8 +3886,13 @@ async function main() {
   if (decision.kind === "MISSING_ENV") {
     // Mensagem sanitizada: só nomes de variáveis, nunca valores.
     console.error(`Variável(is) de ambiente obrigatória(s) ausente(s): ${decision.missing.join(", ")}.`);
-    console.error("Defina todas antes de rodar o piloto real, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
+    console.error("Defina todas antes de rodar o piloto real ou o plano de expansão, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
     Deno.exit(1);
+  }
+
+  if (decision.kind === "EXPANSION_PLAN") {
+    await runExpansionPlan();
+    return;
   }
 
   if (!args.confirmedBy) {

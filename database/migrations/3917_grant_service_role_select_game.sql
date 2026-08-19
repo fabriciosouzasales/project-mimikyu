@@ -1,0 +1,56 @@
+-- Query 3917 — CONFIRMADO EXECUTADO (fix P14.4.1, 2ª causa de permissão), a pedido de
+-- Fabrício, após falha real do piloto --expansion-plan em máquina local.
+-- Aplicada via Supabase MCP em 2026-08-19.
+--
+-- Contexto: após a Query 3916 (GRANT SELECT em catalog_card_set_metrics + criação de
+-- pricing_set_coverage), a reexecução real local do modo --expansion-plan
+-- (scripts/sync-justtcg-pricing.ts) falhou com:
+--   deno : error: Uncaught (in promise) Error: PAGINATED_QUERY_FAILED:
+--   permission denied for table game
+-- lançado por fetchAllPages() dentro da leitura paginada de catalog_card_set_metrics,
+-- chamada por executeExpansionPlan() -> runExpansionPlan() -> main().
+--
+-- Causa raiz confirmada por introspecção direta: catalog_card_set_metrics é
+-- security_invoker=true (ver Query 3916 e ADR-029). Isso significa que o papel que
+-- CONSULTA a view precisa de SELECT em TODAS as tabelas-base que ela referencia, não
+-- apenas na view em si. A definição da view faz
+--   card_set JOIN expansion JOIN game
+--   LEFT JOIN (agregação sobre card)
+--   LEFT JOIN (agregação sobre card_asset/card_asset_type/language)
+-- A Query 3916 concedeu SELECT em catalog_card_set_metrics a service_role, mas nenhuma
+-- migration anterior havia concedido SELECT em public.game a service_role especificamente.
+-- has_table_privilege('service_role', 'public.game', 'SELECT') confirmava FALSE antes
+-- desta migration — batendo exatamente com o erro real reportado.
+--
+-- Testada transacionalmente (BEGIN/ROLLBACK) antes desta aplicação real:
+--   BEGIN;
+--   GRANT SELECT ON public.game TO service_role;
+--   SET LOCAL ROLE service_role;
+--   SELECT card_set_id, cards_ativas FROM public.catalog_card_set_metrics
+--     WHERE cards_ativas > 0 LIMIT 1;
+--   ROLLBACK;
+-- Resultado: {"card_set_id":"02d5f64a-1f26-4fb0-a197-59694b8957c3","cards_ativas":183} —
+-- confirma que o grant resolve a leitura. Pós-ROLLBACK, has_table_privilege('service_role',
+-- 'public.game', 'SELECT'|'INSERT'|'UPDATE'|'DELETE') confirmou respectivamente
+-- FALSE/FALSE/FALSE/FALSE — prova que o GRANT transacional foi revertido sem resíduo.
+--
+-- Reexecutado pós-aplicação real:
+--   has_table_privilege('service_role','public.game','SELECT') = TRUE
+--   has_table_privilege('service_role','public.game','INSERT') = FALSE
+--   has_table_privilege('service_role','public.game','UPDATE') = FALSE
+--   has_table_privilege('service_role','public.game','DELETE') = FALSE
+-- — grant exato (somente SELECT, nenhum privilégio de escrita concedido). Migration
+-- registrada em supabase_migrations.schema_migrations: version 20260819160924,
+-- name "query_3917_grant_service_role_select_game". Advisors de segurança revisados
+-- pós-aplicação: nenhum achado novo relacionado a public.game, catalog_card_set_metrics
+-- ou pricing_set_coverage.
+--
+-- Escopo mínimo: apenas public.game, a única tabela-base confirmada faltante por
+-- introspecção direta e pelo erro real. As demais tabelas-base da view (expansion, card,
+-- card_asset, card_asset_type, language) não foram auditadas nesta rodada — se alguma
+-- delas também estiver faltando SELECT para service_role, isso só será descoberto em uma
+-- próxima execução real (mesmo padrão de erro: PAGINATED_QUERY_FAILED / permission denied).
+--
+-- Nenhum GRANT de INSERT/UPDATE/DELETE concedido. Ver 05f-pricing.md / ADR-029 (P14.4.1).
+
+GRANT SELECT ON public.game TO service_role;
