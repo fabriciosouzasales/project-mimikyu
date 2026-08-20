@@ -4969,6 +4969,125 @@ async function runFixtureCheck() {
     );
   }
 
+  // ==========================================================================
+  // P14.4.6 — --repair-set-codes: filtra os candidatos de --repair-mappings ANTES de
+  // qualquer chamada à JustTCG. Motivação: viabilizar reparo em ondas controladas (orçamento
+  // de API) sem tocar em matching/banco/schema. Ver filterRepairCandidatesBySetCodes() e
+  // validateRepairSetCodesFormat(), ambas puras.
+  // ==========================================================================
+
+  // Cenário 1 — seleção correta do subconjunto: 3 candidatos elegíveis (SETA/SETB/SETC),
+  // --repair-set-codes=SETA,SETC seleciona exatamente esses dois, nunca SETB.
+  const candidatosF1: RepairCandidateSet[] = [
+    { code: "SETA", cardSetId: "cs-a", externalSetId: "ext-a", pendingCount: 2, notFoundCount: 0 },
+    { code: "SETB", cardSetId: "cs-b", externalSetId: "ext-b", pendingCount: 1, notFoundCount: 0 },
+    { code: "SETC", cardSetId: "cs-c", externalSetId: "ext-c", pendingCount: 0, notFoundCount: 3 },
+  ];
+  const localSetsF1: LocalSetSummary[] = [
+    { cardSetId: "cs-a", code: "SETA", releaseDateIso: "2020-01-01", localCardCount: 5 },
+    { cardSetId: "cs-b", code: "SETB", releaseDateIso: "2020-02-01", localCardCount: 5 },
+    { cardSetId: "cs-c", code: "SETC", releaseDateIso: "2020-03-01", localCardCount: 5 },
+    // SETD: existe localmente mas NÃO é candidato a reparo agora (não entra em candidatosF1) —
+    // usado pelo cenário 4 (SEM_PENDENCIA).
+    { cardSetId: "cs-d", code: "SETD", releaseDateIso: "2020-04-01", localCardCount: 5 },
+  ];
+  {
+    const filtro1 = filterRepairCandidatesBySetCodes(candidatosF1, ["SETA", "SETC"], localSetsF1);
+    assert(
+      "P14.4.6 repair-set-codes cenário 1: --repair-set-codes=SETA,SETC seleciona exatamente esses 2 candidatos, nunca SETB (que também é elegível mas não foi pedido)",
+      filtro1.ok && filtro1.filtered.length === 2 && filtro1.filtered.every((c) => c.code === "SETA" || c.code === "SETC"),
+    );
+  }
+
+  // Cenário 2 — rejeição de código desconhecido: SETX nunca existiu entre os Sets locais.
+  {
+    const filtro2 = filterRepairCandidatesBySetCodes(candidatosF1, ["SETA", "SETX"], localSetsF1);
+    assert(
+      "P14.4.6 repair-set-codes cenário 2: código desconhecido (SETX, nem existe entre os Sets locais) é rejeitado com REPAIR_SET_CODES_DESCONHECIDO, antes de qualquer chamada à JustTCG (função pura, zero rede/banco)",
+      !filtro2.ok && filtro2.reason.startsWith("REPAIR_SET_CODES_DESCONHECIDO") && filtro2.reason.includes("SETX"),
+    );
+  }
+
+  // Cenário 3 — rejeição de código duplicado: validado no nível de FORMATO
+  // (validateRepairSetCodesFormat), antes até de tocar candidatos/banco.
+  {
+    const formatoDup = validateRepairSetCodesFormat("SETA,SETA");
+    assert(
+      "P14.4.6 repair-set-codes cenário 3: código repetido em --repair-set-codes (SETA,SETA) é rejeitado com REPAIR_SET_CODES_DUPLICADO — validação puramente de formato, nunca chega a tocar candidatos/banco/rede",
+      !formatoDup.ok && formatoDup.reason.startsWith("REPAIR_SET_CODES_DUPLICADO") && formatoDup.reason.includes("SETA"),
+    );
+  }
+
+  // Cenário 4 — rejeição de Set sem pendência: SETD existe localmente mas não é candidato a
+  // reparo agora (fora de candidatosF1) — distinto do "desconhecido" do cenário 2.
+  {
+    const filtro4 = filterRepairCandidatesBySetCodes(candidatosF1, ["SETD"], localSetsF1);
+    assert(
+      "P14.4.6 repair-set-codes cenário 4: código de Set que existe localmente mas não tem PENDING/NOT_FOUND elegível agora (SETD) é rejeitado com REPAIR_SET_CODES_SEM_PENDENCIA, distinto de DESCONHECIDO",
+      !filtro4.ok && filtro4.reason.startsWith("REPAIR_SET_CODES_SEM_PENDENCIA") && filtro4.reason.includes("SETD"),
+    );
+  }
+
+  // Cenário 5 — --expected-set-codes é uma assertiva independente que deve coincidir com o
+  // SUBCONJUNTO selecionado por --repair-set-codes, nunca com a lista completa de candidatos:
+  // repair-set-codes=SETR (válido), mas expected-set-codes=SETR,SETS (lista completa, sem o
+  // filtro) diverge do subconjunto real pós-filtro -> REPAIR_CANDIDATE_SETS_CHANGED, ZERO
+  // requisições HTTP, zero persistência, CARD_SYNC finalizado FAILED.
+  {
+    const { client: supabaseF5, tables: tablesF5 } = makeExpansionWaveFakeClient(buildRepairDoisSetsSeed());
+    const { fetchImpl: fetchImplF5, callCount: callCountF5 } = makeFakeFetch(buildRepairDoisSetsSuccessResponses());
+    const clientF5 = new JustTcgClient("sk-fake-f5", fetchImplF5, 10);
+    let erroF5: Error | null = null;
+    try {
+      await executeRepairMappings(supabaseF5, clientF5, {
+        dryRun: false,
+        confirmedBy: "admin-1",
+        maxApiRequests: 10,
+        expectedSetCodes: ["SETR", "SETS"],
+        repairSetCodes: ["SETR"],
+      });
+    } catch (error) {
+      erroF5 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.6 repair-set-codes cenário 5: --repair-set-codes=SETR restringe o subconjunto real a [SETR], mas --expected-set-codes=SETR,SETS (lista completa, não o subconjunto) diverge -> REPAIR_CANDIDATE_SETS_CHANGED, ZERO requisições HTTP, zero persistência, CARD_SYNC FAILED",
+      erroF5 !== null &&
+        erroF5.message.startsWith("REPAIR_CANDIDATE_SETS_CHANGED") &&
+        callCountF5() === 0 &&
+        clientF5.requestsMade === 0 &&
+        (tablesF5.pricing_product ?? []).length === 0 &&
+        tablesF5.pricing_sync_run.length === 1 &&
+        (tablesF5.pricing_sync_run[0] as { status: string }).status === "FAILED",
+    );
+  }
+
+  // Cenário 6 — ausência de --repair-set-codes preserva o comportamento anterior byte-a-byte:
+  // mesmo seed de 2 Sets (SETR+SETS), opts.repairSetCodes OMITIDO (nem null explícito) ->
+  // ambos os Sets são processados normalmente, exatamente como antes de P14.4.6 (mesmo
+  // resultado da cobertura já provada pelos cenários RC3/RC11 anteriores).
+  {
+    const { client: supabaseF6, tables: tablesF6 } = makeExpansionWaveFakeClient(buildRepairDoisSetsSeed());
+    const { fetchImpl: fetchImplF6, callCount: callCountF6 } = makeFakeFetch(buildRepairDoisSetsSuccessResponses());
+    const clientF6 = new JustTcgClient("sk-fake-f6", fetchImplF6, 10);
+    const resultadoF6 = await executeRepairMappings(supabaseF6, clientF6, {
+      dryRun: false,
+      confirmedBy: "admin-1",
+      maxApiRequests: 10,
+      expectedSetCodes: ["SETR", "SETS"],
+      // repairSetCodes intencionalmente omitido
+    });
+    const mappingR2F6 = (tablesF6.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r2") as { match_status: string } | undefined;
+    const mappingS1F6 = (tablesF6.pricing_card_mapping ?? []).find((r) => r.card_id === "card-s1") as { match_status: string } | undefined;
+    assert(
+      "P14.4.6 repair-set-codes cenário 6: ausência de --repair-set-codes (campo omitido no opts) preserva o comportamento anterior — SETR e SETS processados normalmente, 2 requisições HTTP, ambos promovidos a CONFIRMED",
+      resultadoF6.status === "COMPLETED" &&
+        callCountF6() === 2 &&
+        clientF6.requestsMade === 2 &&
+        mappingR2F6?.match_status === "CONFIRMED" &&
+        mappingS1F6?.match_status === "CONFIRMED",
+    );
+  }
+
   const failed = assertions.filter(([, ok]) => !ok);
   for (const [label, ok] of assertions) console.log(`  [${ok ? "OK" : "FALHOU"}] ${label}`);
   console.log(`\n${failed.length === 0 ? "TODAS as asserções passaram" : `${failed.length} asserção(ões) FALHARAM`} (${assertions.length} no total).`);
@@ -5001,6 +5120,9 @@ function parseArgs(argv: string[]) {
     // P14.4.4: booleano puro — o reparo não tem número de onda (lista de Sets-alvo derivada
     // dinamicamente a cada execução, ver buildRepairCandidates()).
     repairMappings: false,
+    // P14.4.6: valor bruto (string), nunca convertido/validado aqui — mesma disciplina de
+    // expectedSetCodes. Opcional: null quando ausente (nenhum filtro, comportamento anterior).
+    repairSetCodes: null as string | null,
   };
   for (const arg of argv) {
     if (arg === "--dry-run") args.dryRun = true;
@@ -5012,6 +5134,7 @@ function parseArgs(argv: string[]) {
     else if (arg.startsWith("--max-api-requests=")) args.maxApiRequests = arg.slice("--max-api-requests=".length);
     else if (arg.startsWith("--expected-set-codes=")) args.expectedSetCodes = arg.slice("--expected-set-codes=".length);
     else if (arg.startsWith("--backfill-wave=")) args.backfillWave = arg.slice("--backfill-wave=".length);
+    else if (arg.startsWith("--repair-set-codes=")) args.repairSetCodes = arg.slice("--repair-set-codes=".length);
   }
   return args;
 }
@@ -5039,7 +5162,7 @@ type EntryDecision =
   | { kind: "BACKFILL_WAVE_INVALID_ARGS"; reason: string }
   | { kind: "BACKFILL_WAVE"; waveNumber: number; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[] }
   | { kind: "REPAIR_MAPPINGS_INVALID_ARGS"; reason: string }
-  | { kind: "REPAIR_MAPPINGS"; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[] }
+  | { kind: "REPAIR_MAPPINGS"; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[]; repairSetCodes: string[] | null }
   | { kind: "REAL_PILOT" };
 
 // P14.4.1: `expansionPlan` é opcional na assinatura (nunca `expansionPlan: boolean` obrigatório)
@@ -5077,6 +5200,7 @@ function resolveEntryDecision(
     expectedSetCodes?: string | null;
     backfillWave?: string | null;
     repairMappings?: boolean;
+    repairSetCodes?: string | null;
   },
   env: { justTcgApiKey: string | undefined; supabaseUrl: string | undefined; supabaseServiceRoleKey: string | undefined },
 ): EntryDecision {
@@ -5102,6 +5226,18 @@ function resolveEntryDecision(
       kind: "REPAIR_MAPPINGS_INVALID_ARGS",
       reason:
         "MODOS_MUTUAMENTE_EXCLUSIVOS: --repair-mappings não pode ser combinado com --expansion-plan nem --expansion-wave — são modos distintos. Execute-os em rodadas separadas.",
+    };
+  }
+
+  // P14.4.6: --repair-set-codes só faz sentido junto com --repair-mappings (filtra os
+  // candidatos DESSE executor) — informado sem --repair-mappings é erro de uso puro, checado
+  // antes de qualquer validação de formato/credencial, mesma disciplina das exclusividades
+  // acima.
+  const repairSetCodesRaw = args.repairSetCodes ?? null;
+  if (repairSetCodesRaw !== null && !args.repairMappings) {
+    return {
+      kind: "REPAIR_MAPPINGS_INVALID_ARGS",
+      reason: "REPAIR_SET_CODES_SEM_REPAIR_MAPPINGS: --repair-set-codes só é válido combinado com --repair-mappings — informe --repair-mappings ou remova --repair-set-codes.",
     };
   }
 
@@ -5131,6 +5267,7 @@ function resolveEntryDecision(
     dryRun: args.dryRun ?? false,
     confirmedBy: args.confirmedBy ?? null,
     expectedSetCodes: args.expectedSetCodes ?? null,
+    repairSetCodes: repairSetCodesRaw,
   };
   const repairValidation = repairMappingsFlag ? validateRepairMappingsArgs(repairArgs) : null;
   if (repairValidation && !repairValidation.ok) return { kind: "REPAIR_MAPPINGS_INVALID_ARGS", reason: repairValidation.reason };
@@ -5159,6 +5296,7 @@ function resolveEntryDecision(
       dryRun: repairArgs.dryRun,
       confirmedBy: repairArgs.confirmedBy,
       expectedSetCodes: repairValidation.expectedSetCodes,
+      repairSetCodes: repairValidation.repairSetCodes,
     };
   }
 
@@ -6241,6 +6379,33 @@ function validateExpectedSetCodes(raw: string | null): ExpectedSetCodesValidatio
   return { ok: true, codes: normalized };
 }
 
+type RepairSetCodesFormatValidation = { ok: true; codes: string[] } | { ok: false; reason: string };
+
+// P14.4.6 — Pura, mesma disciplina de normalização de validateExpectedSetCodes (trim+uppercase,
+// rejeita item vazio, rejeita duplicado), mas com mensagens de erro PRÓPRIAS de
+// --repair-set-codes (nunca reaproveita a reason "EXPECTED_SET_CODES_*", que seria enganosa
+// aqui). Só valida FORMATO (vazio/duplicado) — a checagem de "existe entre os candidatos
+// elegíveis a reparo agora" é feita depois, contra buildRepairCandidates(), porque depende do
+// estado real do banco (ver filterRepairCandidatesBySetCodes). Diferente de
+// validateExpectedSetCodes, `raw` nunca é null aqui: --repair-set-codes é opcional (chamador só
+// invoca esta função quando o argumento foi de fato informado).
+function validateRepairSetCodesFormat(raw: string): RepairSetCodesFormatValidation {
+  const normalized = raw.split(",").map((c) => c.trim().toUpperCase());
+  if (normalized.some((c) => c.length === 0)) {
+    return { ok: false, reason: `REPAIR_SET_CODES_INVALIDO: --repair-set-codes="${raw}" contém item vazio — nenhum código pode ser vazio (verifique vírgulas duplas/finais).` };
+  }
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const code of normalized) {
+    if (seen.has(code)) duplicates.add(code);
+    seen.add(code);
+  }
+  if (duplicates.size > 0) {
+    return { ok: false, reason: `REPAIR_SET_CODES_DUPLICADO: código(s) repetido(s) em --repair-set-codes: ${[...duplicates].join(", ")}.` };
+  }
+  return { ok: true, codes: normalized };
+}
+
 type ExpansionWaveArgsValidation =
   | { ok: true; waveNumber: number; maxApiRequests: number; expectedSetCodes: string[] }
   | { ok: false; reason: string };
@@ -7189,6 +7354,50 @@ function buildRepairCandidates(
   return candidates.sort((a, b) => a.code.localeCompare(b.code));
 }
 
+type RepairSetCodesFilterResult = { ok: true; filtered: RepairCandidateSet[] } | { ok: false; reason: string };
+
+// P14.4.6 — Pura, nunca toca rede/banco. Aplica --repair-set-codes (quando informado) ANTES de
+// qualquer chamada à JustTCG: reduz `candidates` (já 100% derivado de buildRepairCandidates(),
+// rodado agora mesmo) ao subconjunto pedido. `requestedCodesRaw === null` (flag ausente)
+// preserva o comportamento anterior byte-a-byte — devolve `candidates` sem tocar. Cada código
+// pedido precisa estar em `candidates` (Set já CONFIRMED nesta fonte E com
+// pendingCount+notFoundCount>0 agora); se não estiver, distingue duas causas possíveis para uma
+// mensagem de erro útil: (a) o código nem existe entre os Sets locais -> DESCONHECIDO; (b) o
+// código existe localmente mas não é candidato a reparo agora (não é Set CONFIRMED nesta fonte,
+// ou é CONFIRMED mas já não tem PENDING/NOT_FOUND) -> SEM_PENDENCIA. Qualquer um dos dois aborta
+// antes da primeira requisição HTTP — mesma garantia estrutural do REPAIR_CANDIDATE_SETS_CHANGED
+// já existente para --expected-set-codes.
+function filterRepairCandidatesBySetCodes(
+  candidates: RepairCandidateSet[],
+  requestedCodesRaw: string[] | null,
+  localSets: LocalSetSummary[],
+): RepairSetCodesFilterResult {
+  if (requestedCodesRaw === null) return { ok: true, filtered: candidates };
+
+  const candidateCodes = new Set(candidates.map((c) => c.code));
+  const localCodes = new Set(localSets.map((s) => s.code));
+  const unknown: string[] = [];
+  const semPendencia: string[] = [];
+  for (const code of requestedCodesRaw) {
+    if (candidateCodes.has(code)) continue;
+    if (localCodes.has(code)) semPendencia.push(code);
+    else unknown.push(code);
+  }
+  if (unknown.length > 0) {
+    return { ok: false, reason: `REPAIR_SET_CODES_DESCONHECIDO: código(s) inexistente(s) entre os Sets locais: ${unknown.join(", ")}.` };
+  }
+  if (semPendencia.length > 0) {
+    return {
+      ok: false,
+      reason: `REPAIR_SET_CODES_SEM_PENDENCIA: código(s) sem PENDING/NOT_FOUND elegível a reparo agora (Set não CONFIRMED nesta fonte, ou já sem pendência): ${semPendencia.join(", ")}.`,
+    };
+  }
+
+  const requestedSet = new Set(requestedCodesRaw);
+  const filtered = candidates.filter((c) => requestedSet.has(c.code));
+  return { ok: true, filtered };
+}
+
 type PendingCardMappingRow = { card_id: string; match_status: string };
 
 // P14.4.4: cartas locais ATIVAS do Set com mapping PENDING ou NOT_FOUND nesta fonte — as
@@ -7230,7 +7439,7 @@ async function findPendingOrNotFoundCardsForSet(supabase: SupabaseClient, cardSe
 }
 
 type RepairMappingsArgsValidation =
-  | { ok: true; maxApiRequests: number; expectedSetCodes: string[] }
+  | { ok: true; maxApiRequests: number; expectedSetCodes: string[]; repairSetCodes: string[] | null }
   | { ok: false; reason: string };
 
 // Pura — mesma disciplina de validateExpansionWaveArgs/validateBackfillWaveArgs, sem número de
@@ -7238,11 +7447,18 @@ type RepairMappingsArgsValidation =
 // passada). --expected-set-codes continua obrigatório: mesmo sem onda numerada, a composição
 // da lista dinâmica de candidatos ainda pode mudar entre a hora em que Fabrício audita e a
 // hora em que roda o comando real — a mesma proteção anti-deriva se aplica.
+//
+// P14.4.6 — --repair-set-codes é OPCIONAL (diferente de --expected-set-codes): sua ausência
+// (null) preserva o comportamento anterior byte-a-byte (nenhum filtro, todos os candidatos
+// elegíveis entram). Só valida FORMATO aqui (vazio/duplicado, via validateRepairSetCodesFormat)
+// — a existência do código entre os candidatos reais é checada depois, em
+// filterRepairCandidatesBySetCodes(), porque depende do estado do banco.
 function validateRepairMappingsArgs(args: {
   maxApiRequests: string | null;
   dryRun: boolean;
   confirmedBy: string | null;
   expectedSetCodes: string | null;
+  repairSetCodes: string | null;
 }): RepairMappingsArgsValidation {
   const budgetRaw = args.maxApiRequests;
   if (budgetRaw === null) {
@@ -7256,6 +7472,13 @@ function validateRepairMappingsArgs(args: {
   const expectedSetCodesValidation = validateExpectedSetCodes(args.expectedSetCodes);
   if (!expectedSetCodesValidation.ok) return { ok: false, reason: expectedSetCodesValidation.reason };
 
+  let repairSetCodes: string[] | null = null;
+  if (args.repairSetCodes !== null) {
+    const repairSetCodesValidation = validateRepairSetCodesFormat(args.repairSetCodes);
+    if (!repairSetCodesValidation.ok) return { ok: false, reason: repairSetCodesValidation.reason };
+    repairSetCodes = repairSetCodesValidation.codes;
+  }
+
   const hasDryRun = args.dryRun;
   const hasConfirmedBy = args.confirmedBy !== null && args.confirmedBy !== "";
   if (hasDryRun && hasConfirmedBy) {
@@ -7265,10 +7488,10 @@ function validateRepairMappingsArgs(args: {
     return { ok: false, reason: "MODO_AUSENTE: informe --dry-run (simulação, sem escrita) ou --confirmed-by=<admin_user_uuid> (execução real) — nenhum modo padrão é assumido." };
   }
 
-  return { ok: true, maxApiRequests, expectedSetCodes: expectedSetCodesValidation.codes };
+  return { ok: true, maxApiRequests, expectedSetCodes: expectedSetCodesValidation.codes, repairSetCodes };
 }
 
-type RepairMappingsOpts = { dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[] };
+type RepairMappingsOpts = { dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[]; repairSetCodes?: string[] | null };
 
 type RepairMappingsSetSummary = {
   code: string;
@@ -7365,11 +7588,24 @@ async function executeRepairMappings(supabase: SupabaseClient, client: JustTcgCl
   let acquisitionFailed = false;
 
   try {
-    const candidates = buildRepairCandidates(localSets, existingSetMappings, existingCoverage);
+    const allCandidates = buildRepairCandidates(localSets, existingSetMappings, existingCoverage);
+
+    // P14.4.6 — --repair-set-codes (quando informado) filtra ANTES de qualquer chamada à
+    // JustTCG e ANTES até da checagem de --expected-set-codes abaixo, que por sua vez passa a
+    // ser a assertiva independente do SUBCONJUNTO selecionado (nunca mais da lista completa de
+    // candidatos, quando o filtro está ativo). requestedCodesRaw===null (flag ausente) devolve
+    // allCandidates sem tocar — comportamento anterior preservado byte-a-byte.
+    const repairSetCodesFilter = filterRepairCandidatesBySetCodes(allCandidates, opts.repairSetCodes ?? null, localSets);
+    if (!repairSetCodesFilter.ok) {
+      throw new Error(`${repairSetCodesFilter.reason} Reparo abortado antes de qualquer chamada à JustTCG.`);
+    }
+    const candidates = repairSetCodesFilter.filtered;
 
     // Mesma disciplina anti-deriva de validateExpectedSetCodes/executeExpansionWave/
     // executeBackfillWave — só que aqui a composição "esperada" nunca vem de uma onda
-    // pré-calculada: vem inteiramente de buildRepairCandidates() rodado agora mesmo.
+    // pré-calculada: vem inteiramente de buildRepairCandidates() rodado agora mesmo (já
+    // filtrado por --repair-set-codes, se informado — expected-set-codes deve coincidir com o
+    // SUBCONJUNTO selecionado, não com a lista completa de candidatos elegíveis).
     // Fica DENTRO do try (mesmo padrão de BACKFILL_WAVE_COMPOSITION_CHANGED em
     // executeBackfillWave) para que uma divergência aqui também finalize o sync run
     // como FAILED via finalizeSyncRun() no catch abaixo, em vez de deixá-lo preso em
@@ -7594,6 +7830,7 @@ async function main() {
       expectedSetCodes: args.expectedSetCodes,
       backfillWave: args.backfillWave,
       repairMappings: args.repairMappings,
+      repairSetCodes: args.repairSetCodes,
     },
     {
       justTcgApiKey: Deno.env.get("JUSTTCG_API_KEY"),
@@ -7622,6 +7859,7 @@ async function main() {
   if (decision.kind === "REPAIR_MAPPINGS_INVALID_ARGS") {
     console.error(`Argumentos inválidos para o executor de reparo (--repair-mappings): ${decision.reason}`);
     console.error("Exemplo: --repair-mappings --max-api-requests=10 --expected-set-codes=BASE1,ME1 --dry-run  (ou --confirmed-by=<admin_user_uuid> para execução real).");
+    console.error("Opcional: --repair-set-codes=<lista> filtra os candidatos ANTES de qualquer chamada à JustTCG — só válido junto com --repair-mappings; --expected-set-codes deve coincidir com o subconjunto selecionado, não com a lista completa de candidatos.");
     Deno.exit(1);
   }
 
@@ -7665,6 +7903,7 @@ async function main() {
       dryRun: decision.dryRun,
       confirmedBy: decision.confirmedBy,
       expectedSetCodes: decision.expectedSetCodes,
+      repairSetCodes: decision.repairSetCodes,
     });
     return;
   }
