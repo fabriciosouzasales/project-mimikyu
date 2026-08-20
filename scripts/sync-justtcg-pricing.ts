@@ -123,13 +123,16 @@ Mudanças estruturais nesta rodada (todas cobertas por --fixture-check, ver runF
 2. fetchAllCardsForSet() pagina GET /v1/cards?game=&set=&limit=100&offset=N até
    meta.hasMore=false (ou data.length < limit como fallback) — uma chamada por página de
    até 100 cartas, nunca uma por carta.
-3. classifyCardMatch() decide SAFE/AMBIGUOUS/ABSENT por carta local: número de coleção
-   normalizado é a chave primária; nome só desempata quando o número aponta para mais de
-   um candidato, ou invalida um candidato único cujo nome diverge fortemente. Cartas
-   externas sem número utilizável (`number` ausente, vazio ou "N/A" — valor real
-   documentado pela JustTCG para cartas sem numeração, ex. Energias promocionais) nunca
-   entram no índice por número — ficam ABSENT deste lado, nunca casadas só pelo nome
-   (nome é secundário, nunca a única evidência, por instrução explícita do pedido).
+3. classifyCardMatch() decide SAFE/AMBIGUOUS/ABSENT por carta local usando EXCLUSIVAMENTE
+   Card Set já CONFIRMED + collector_number normalizado (P14.4.4 — correção de causa raiz,
+   decisão de negócio confirmada por Fabrício: nome NUNCA é critério de matching, catálogo
+   local é PT-BR e a JustTCG é em inglês). 1 candidato -> SAFE; 0 -> ABSENT; >1 -> AMBIGUOUS;
+   número local ausente/inutilizável -> ABSENT. Nome é preservado só como evidência de
+   auditoria/exibição (campo `divergencia_de_nome`), nunca bloqueia nem desempata. Cartas
+   externas sem número utilizável (`number` ausente, vazio ou "N/A" — valor real documentado
+   pela JustTCG para cartas sem numeração, ex. Energias promocionais) nunca entram no índice
+   por número — ficam ABSENT deste lado. Sem exceção por categoria de carta (Treinador,
+   Nidoran, tradução, Set específico) — regra única para todo o catálogo.
 4. upsertSetMapping()/upsertCardMapping() fazem SELECT antes de decidir INSERT/UPDATE/no-op
    — corrige uma lacuna real do padrão insert-e-tolera-duplicata de P8: aquele padrão nunca
    conseguia promover uma linha PENDING/NOT_FOUND antiga para CONFIRMED numa reexecução
@@ -229,6 +232,50 @@ Ver Seção 7b (fetchAllPages/fetchAllRowsFromTable/fetchExactCount/assertPagina
 assertConfirmedMappingsPreserved) e o relatório desta rodada para o SQL completo da 3916,
 ainda não aplicada — requer aprovação de Fabrício antes de qualquer execução real de
 --expansion-plan pós-fix.
+
+============================================================================
+P14.4.3 — Cobertura completa de Sets já confirmados (2026-08-19, mesmo dia)
+============================================================================
+
+Lacuna corrigida: o planejador tratava todo Set com pricing_set_mapping CONFIRMED como
+totalmente coberto e o excluía de todo planejamento futuro — premissa falsa. BASE1 e ME1
+foram confirmados no nível do Set em pilotos anteriores (P14.1/P8), mas mapeados apenas
+parcialmente (3 cartas cada, de 102 e 188 cartas ativas respectivamente). Introspecção real
+(2026-08-19) confirmou exatamente 2 dos 7 Sets hoje CONFIRMED como incompletos: BASE1
+(3/102, 99 faltantes) e ME1 (3/188, 185 faltantes); BASE2/BASE3/BASE4/BASE5/GYM2 já têm
+cobertura total (0 faltantes).
+
+`SetPlanClassification` deixou de ter um único status ALREADY_CONFIRMED e passou a ter dois:
+ALREADY_CONFIRMED_COMPLETE (mapped_cards_count >= cartas ativas do Set) e
+ALREADY_CONFIRMED_INCOMPLETE (mapped_cards_count < cartas ativas do Set) — "mapeada" conta
+QUALQUER pricing_card_mapping existente (CONFIRMED, PENDING ou NOT_FOUND); o gap real é
+ausência TOTAL de mapping, nunca o status de um mapping já existente. PENDING/NOT_FOUND nunca
+são reprocessados automaticamente pelo backfill (ver Seção 7d) — só cartas sem NENHUM
+pricing_card_mapping entram.
+
+A view pricing_set_coverage (Query 3916, P14.4.1) foi estendida pela Query 3919 com
+mapped_cards_count/confirmed_cards_count/pending_cards_count/not_found_cards_count — todas
+COUNT(DISTINCT pricing_card_mapping.id) [+ FILTER por match_status], imunes ao fan-out dos
+LEFT JOINs de produtos/observações já existentes na mesma view. classifySetForExpansionPlan()
+agora recebe também localCardCount e a cobertura agregada do Set, decidindo COMPLETE/
+INCOMPLETE ANTES de qualquer chamada à JustTCG — 100% a partir de dados já reconciliados
+localmente (mesma disciplina de "nunca consumir quota externa para decisão local").
+
+Novo campo no plano: `backfillWaves` (buildBackfillWaves(), pura) — agrupa só os Sets
+ALREADY_CONFIRMED_INCOMPLETE em ondas de até 5 Sets E até 500 CARTAS FALTANTES (não cartas
+totais do Set), mesmo algoritmo de buildExpansionWaves() adaptado; um Set cujas cartas
+faltantes sozinhas excedem 500 nunca é dividido, forma sua própria onda (oversized). A
+estimativa de chamadas por onda usa o tamanho TOTAL do Set (localCardCount), não
+missingCardsCount — o executor de backfill (Seção 7d) ainda precisa paginar TODAS as cartas
+externas do Set via fetchAllCardsForSet() para localizar as faltantes (a JustTCG não permite
+filtrar por subconjunto), então basear a estimativa só nas faltantes subestimaria o
+orçamento necessário.
+
+Fora de escopo desta rodada: qualquer execução real de backfill (dry-run ou real) — fica
+para Fabrício rodar localmente com o comando restrito entregue no relatório final; nenhuma
+onda de expansão (--expansion-wave) pendente foi executada; nenhuma mudança de frontend/PTAX;
+documentação normativa (05f-pricing.md/ADR-029) só será atualizada num ciclo de encerramento
+próprio, por instrução explícita de Fabrício.
 
 Uso:
 
@@ -685,11 +732,26 @@ function resolveSetMatchV2(target: SetTarget, allSets: JustTcgSet[]): SetMatchRe
 
 // Índice por número normalizado -> candidatos externos com aquele número. Cartas sem
 // número utilizável (ver isUsableExternalNumber) nunca entram aqui.
+//
+// Deduplicação por external_card_id (decisão de negócio, correção pós-P14.4.4): a mesma
+// carta externa pode aparecer mais de uma vez na resposta bruta da JustTCG para o mesmo
+// id (observado na evidência histórica de BASE1/ME1 antes desta correção — "candidatos"
+// com o mesmo id repetido). Sem deduplicar aqui, contar entradas brutas do array supercontaria
+// candidatos e classificaria como AMBIGUOUS/PENDING um número que na verdade tem uma única
+// carta externa distinta — bloqueando indevidamente uma promoção que deveria ser CONFIRMED.
+// A deduplicação acontece na construção do índice (fonte única, usada por piloto,
+// expansion-wave, backfill e reparo) para que a correção valha em todos os caminhos sem
+// precisar tocar em cada chamador.
 function buildExternalNumberIndex(externalCards: JustTcgCard[]): Map<string, JustTcgCard[]> {
   const index = new Map<string, JustTcgCard[]>();
+  const seenIdsByKey = new Map<string, Set<string>>();
   for (const card of externalCards) {
     if (!isUsableExternalNumber(card.number)) continue;
     const key = normalizeNumber(card.number as string);
+    const seenIds = seenIdsByKey.get(key) ?? new Set<string>();
+    if (seenIds.has(card.id)) continue; // mesmo external_card_id já contabilizado neste número — não duplica o candidato.
+    seenIds.add(card.id);
+    seenIdsByKey.set(key, seenIds);
     const bucket = index.get(key) ?? [];
     bucket.push(card);
     index.set(key, bucket);
@@ -720,64 +782,84 @@ type CardMatchResult = {
   evidence: Record<string, unknown>;
 };
 
-// Núcleo da correlação exigida pelo pedido: número de coleção (dentro do Set já
-// CONFIRMED) é a identidade principal; nome só entra para (a) desempatar quando o
-// número aponta para mais de um candidato, ou (b) invalidar um candidato único cujo
-// nome diverge fortemente (evita casar por coincidência de numeração entre cartas
-// diferentes). Nunca confirma uma ambiguidade automaticamente.
-function classifyCardMatch(local: LocalCard, externalIndex: Map<string, JustTcgCard[]>): CardMatchResult {
+// P14.4.4 — Correção de causa raiz (identidade canônica de carta), decisão de negócio
+// confirmada por Fabrício: a correspondência entre carta local e JustTCG usa
+// EXCLUSIVAMENTE (1) Card Set local vinculado a um external_set_id já CONFIRMED, (2)
+// collector_number normalizado, (3) exatamente uma carta externa com esse número dentro
+// do Set confirmado. Nome NUNCA é critério de matching — nosso catálogo é PT-BR, a
+// JustTCG é em inglês, e comparar nomes entre os dois idiomas produzia falsos-AMBIGUOUS
+// sistemáticos (Treinadores, "Nidoran♂"/"Nidoran M", "Impostor"/"Imposter Professor Oak",
+// etc. — ver auditoria pós-P14.4.3). Nome é preservado só como evidência de auditoria/
+// exibição, nunca como critério que bloqueia ou desempata. Regra única, sem exceção por
+// categoria de carta (Treinador, Nidoran, tradução, Set específico): a divergência de
+// nome nunca impede uma correspondência única por Set+número.
+//
+// Classificação:
+//   1 candidato para Set+número  -> SAFE      (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
+//   0 candidatos                 -> ABSENT    (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
+//   >1 candidatos (mesmo número) -> AMBIGUOUS (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
+//   número local ausente/inutilizável -> ABSENT (mesmo method — nunca cai em outro branch)
+//
+// `externalSetId` é recebido só para deixar explícito, na própria evidência, sob qual Set
+// já CONFIRMED a correspondência foi tentada — nunca usado para resolver/reavaliar o Set
+// em si (isso continua sendo responsabilidade exclusiva de resolveSetMatchV2(), fora desta
+// função).
+function classifyCardMatch(local: LocalCard, externalIndex: Map<string, JustTcgCard[]>, externalSetId: string): CardMatchResult {
   const localNumNorm = normalizeNumber(local.collector_number);
+  const METHOD = "SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE";
+
+  // Número local ausente/vazio (normalizeNumber("") devolve "" — nunca "0", reservado para
+  // um número real que se reduz a zero, ex. "000") nunca encontra nenhum candidato no índice
+  // (que só contém chaves de números externos realmente utilizáveis) — cai naturalmente no
+  // branch de 0 candidatos abaixo, sem precisar de um caso especial: mesma garantia "número
+  // ausente ou inutilizável -> ABSENT" pedida, sem exceção dedicada no código.
   const candidates = externalIndex.get(localNumNorm) ?? [];
 
   if (candidates.length === 0) {
-    return { classification: "ABSENT", matched: null, method: "NUMERO_SEM_CANDIDATO_EXTERNO", evidence: { numero_normalizado: localNumNorm } };
+    return {
+      classification: "ABSENT",
+      matched: null,
+      method: METHOD,
+      evidence: { external_set_id: externalSetId, numero_local: local.collector_number, numero_normalizado: localNumNorm || null, nome_local: local.name, nome_externo: null, divergencia_de_nome: null },
+    };
   }
 
   if (candidates.length === 1) {
     const candidate = candidates[0];
-    if (isNameCompatible(local.name, candidate.name)) {
-      return {
-        classification: "SAFE",
-        matched: candidate,
-        method: "NUMERO_UNICO_MAIS_NOME_COMPATIVEL",
-        evidence: { numero_normalizado: localNumNorm, nome_local: local.name, nome_externo: candidate.name },
-      };
-    }
+    const divergenciaDeNome = !isNameCompatible(local.name, candidate.name);
     return {
-      classification: "AMBIGUOUS",
-      matched: null,
-      method: "NUMERO_UNICO_MAS_NOME_DIVERGENTE",
+      classification: "SAFE",
+      matched: candidate,
+      method: METHOD,
       evidence: {
+        external_set_id: externalSetId,
+        numero_local: local.collector_number,
         numero_normalizado: localNumNorm,
+        numero_externo: candidate.number ?? null,
         nome_local: local.name,
         nome_externo: candidate.name,
-        // Fix P14.2.2: número bruto do candidato incluído para a evidência sanitizada de
-        // dry-run (logDryRunCardEvidence) poder mostrar id/nome/número sem consulta extra.
-        candidatos: [{ id: candidate.id, name: candidate.name, number: candidate.number ?? null }],
+        // Indicador de auditoria — nunca usado para decidir a classificação, só para
+        // deixar visível quando o nome PT-BR local diverge do nome em inglês da JustTCG
+        // (comportamento esperado e normal, não um alerta de erro).
+        divergencia_de_nome: divergenciaDeNome,
       },
     };
   }
 
-  // Mais de um candidato compartilha o mesmo número (ex. variantes alt-art) — nome tenta
-  // desempatar; se não sobrar exatamente um, permanece ambíguo.
-  const nameFiltered = candidates.filter((c) => isNameCompatible(local.name, c.name));
-  if (nameFiltered.length === 1) {
-    return {
-      classification: "SAFE",
-      matched: nameFiltered[0],
-      method: "NUMERO_MULTIPLO_DESEMPATADO_POR_NOME",
-      evidence: { numero_normalizado: localNumNorm, nome_local: local.name, nome_externo: nameFiltered[0].name, total_candidatos_por_numero: candidates.length },
-    };
-  }
+  // Mais de um candidato compartilha o mesmo número dentro do Set confirmado — AMBIGUOUS
+  // sempre, independente de nome (nunca desempata por nome; regra "sem exceção" do pedido).
+  // Nomes dos candidatos preservados na evidência só para auditoria/exibição.
   return {
     classification: "AMBIGUOUS",
     matched: null,
-    method: "NUMERO_MULTIPLO_SEM_DESEMPATE_SEGURO",
+    method: METHOD,
     evidence: {
+      external_set_id: externalSetId,
+      numero_local: local.collector_number,
       numero_normalizado: localNumNorm,
       nome_local: local.name,
       candidatos: candidates.map((c) => ({ id: c.id, name: c.name, number: c.number ?? null })),
-      candidatos_compativeis_por_nome: nameFiltered.length,
+      total_candidatos: candidates.length,
     },
   };
 }
@@ -1909,8 +1991,8 @@ async function runFixtureCheck() {
   // --- P14.2 cenário 3 (síncrono, sem fetch): correspondência segura -----------------
   {
     const externalIndex = buildExternalNumberIndex([{ id: "ext-1", name: "Abra", number: "58", variants: [] }]);
-    const result = classifyCardMatch({ card_id: "local-1", name: "Abra", collector_number: "058" }, externalIndex);
-    assert("correspondência segura: número+nome batem -> SAFE", result.classification === "SAFE" && result.matched?.id === "ext-1");
+    const result = classifyCardMatch({ card_id: "local-1", name: "Abra", collector_number: "058" }, externalIndex, "fixture-set-x");
+    assert("correspondência segura: candidato único por Set+número -> SAFE", result.classification === "SAFE" && result.matched?.id === "ext-1");
   }
 
   // --- P14.2 cenário 4: número de coleção ausente ------------------------------------
@@ -1921,7 +2003,7 @@ async function runFixtureCheck() {
   {
     const externalIndex = buildExternalNumberIndex([{ id: "ext-energy", name: "Fire Energy", number: "N/A", variants: [] }]);
     assert("número ausente: carta externa 'N/A' nunca entra no índice por número", externalIndex.size === 0);
-    const result = classifyCardMatch({ card_id: "local-x", name: "Fire Energy", collector_number: "999" }, externalIndex);
+    const result = classifyCardMatch({ card_id: "local-x", name: "Fire Energy", collector_number: "999" }, externalIndex, "fixture-set-x");
     assert("número ausente: local sem candidato por número -> ABSENT (nunca casado só por nome)", result.classification === "ABSENT");
   }
 
@@ -1931,22 +2013,101 @@ async function runFixtureCheck() {
       { id: "ext-alt-1", name: "Pikachu", number: "25", variants: [] },
       { id: "ext-alt-2", name: "Pikachu", number: "25", variants: [] },
     ]);
-    const result = classifyCardMatch({ card_id: "local-pika", name: "Pikachu", collector_number: "025" }, externalIndex);
-    assert("ambíguo: dois candidatos com mesmo número e nome, sem desempate seguro -> AMBIGUOUS (nunca auto-confirmado)", result.classification === "AMBIGUOUS" && result.matched === null);
+    const result = classifyCardMatch({ card_id: "local-pika", name: "Pikachu", collector_number: "025" }, externalIndex, "fixture-set-x");
+    assert("ambíguo: dois candidatos com mesmo número, sem desempate seguro -> AMBIGUOUS (nunca auto-confirmado)", result.classification === "AMBIGUOUS" && result.matched === null);
   }
   {
+    // P14.4.4 — decisão de negócio: nome NUNCA é critério de matching. Catálogo local é
+    // PT-BR e a JustTCG é em inglês, então divergência de nome é o caso ESPERADO, não uma
+    // exceção. Um único candidato por Set+número -> SAFE mesmo com nome totalmente diferente
+    // (Abra local vs. "Alakazam" externo é um fixture deliberadamente extremo). Antes de
+    // P14.4.4 este cenário era classificado AMBIGUOUS — este teste prova a correção da causa
+    // raiz (era o cenário real de BASE1/ME1 auditado em P14.4.3: NUMERO_UNICO_MAS_NOME_DIVERGENTE).
     const externalIndex = buildExternalNumberIndex([{ id: "ext-alakazam", name: "Alakazam", number: "1", variants: [] }]);
-    const result = classifyCardMatch({ card_id: "local-abra", name: "Abra", collector_number: "001" }, externalIndex);
-    assert("ambíguo: número único mas nome diverge fortemente -> AMBIGUOUS, não SAFE", result.classification === "AMBIGUOUS" && result.matched === null);
+    const result = classifyCardMatch({ card_id: "local-abra", name: "Abra", collector_number: "001" }, externalIndex, "fixture-set-x");
+    assert(
+      "P14.4.4: candidato único por Set+número -> SAFE mesmo com nome divergente (nome nunca bloqueia)",
+      result.classification === "SAFE" && result.matched?.id === "ext-alakazam",
+    );
+    if (result.classification === "SAFE") {
+      assert(
+        "P14.4.4: match_evidence preserva nome local, nome externo e indicador de divergência de nome",
+        result.evidence.nome_local === "Abra" && result.evidence.nome_externo === "Alakazam" && result.evidence.divergencia_de_nome === true,
+      );
+      assert("P14.4.4: método sempre SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE", result.method === "SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE");
+    }
   }
   {
-    // Desempate correto: dois candidatos por número, só um com nome compatível -> SAFE.
+    // P14.4.4 — nome nunca desempata: dois candidatos externos compartilham o mesmo número
+    // dentro do Set confirmado — mesmo que só um dos nomes seja compatível com o nome local,
+    // o resultado continua AMBIGUOUS (o antigo "desempate por nome" foi removido por decisão
+    // de negócio: nome é evidência de auditoria, nunca critério de classificação).
     const externalIndex = buildExternalNumberIndex([
       { id: "ext-charizard", name: "Charizard", number: "4", variants: [] },
       { id: "ext-charmander", name: "Charmander", number: "4", variants: [] },
     ]);
-    const result = classifyCardMatch({ card_id: "local-charizard", name: "Charizard", collector_number: "004" }, externalIndex);
-    assert("desempate por nome funciona quando exatamente um candidato bate", result.classification === "SAFE" && result.matched?.id === "ext-charizard");
+    const result = classifyCardMatch({ card_id: "local-charizard", name: "Charizard", collector_number: "004" }, externalIndex, "fixture-set-x");
+    assert(
+      "P14.4.4: dois candidatos por Set+número -> AMBIGUOUS mesmo quando um nome bate exatamente (nome nunca desempata)",
+      result.classification === "AMBIGUOUS" && result.matched === null,
+    );
+  }
+
+  // --- P14.4.4 cenário: casos reais de divergência PT-BR x inglês exigidos pelo pedido --
+  // (Treinadores, Nidoran F/M, Impostor/Imposter Professor Oak) — todos candidato único por
+  // Set+número, todos devem ser SAFE apesar da divergência de nome. Sem exceção por
+  // categoria: mesma função, mesma regra, aplicada a cada caso.
+  {
+    // Treinador PT-BR local x nome em inglês na JustTCG.
+    const externalIndex = buildExternalNumberIndex([{ id: "ext-potion", name: "Potion", number: "20", variants: [] }]);
+    const result = classifyCardMatch({ card_id: "local-trainer-potion", name: "Poção", collector_number: "020" }, externalIndex, "fixture-set-x");
+    assert(
+      "P14.4.4 Treinador PT-BRxinglês: Poção (local) x Potion (externo), candidato único -> SAFE",
+      result.classification === "SAFE" && result.matched?.id === "ext-potion",
+    );
+  }
+  {
+    // Nidoran♀ (símbolo local) x "Nidoran F" (grafia JustTCG).
+    const externalIndex = buildExternalNumberIndex([{ id: "ext-nidoran-f", name: "Nidoran F", number: "29", variants: [] }]);
+    const result = classifyCardMatch({ card_id: "local-nidoran-f", name: "Nidoran♀", collector_number: "029" }, externalIndex, "fixture-set-x");
+    assert(
+      "P14.4.4 Nidoran♀/Nidoran F: candidato único -> SAFE apesar do símbolo divergente",
+      result.classification === "SAFE" && result.matched?.id === "ext-nidoran-f",
+    );
+  }
+  {
+    // Nidoran♂ (símbolo local) x "Nidoran M" (grafia JustTCG).
+    const externalIndex = buildExternalNumberIndex([{ id: "ext-nidoran-m", name: "Nidoran M", number: "51", variants: [] }]);
+    const result = classifyCardMatch({ card_id: "local-nidoran-m", name: "Nidoran♂", collector_number: "051" }, externalIndex, "fixture-set-x");
+    assert(
+      "P14.4.4 Nidoran♂/Nidoran M: candidato único -> SAFE apesar do símbolo divergente",
+      result.classification === "SAFE" && result.matched?.id === "ext-nidoran-m",
+    );
+  }
+  {
+    // "Impostor Professor Oak" (grafia local) x "Imposter Professor Oak" (grafia JustTCG,
+    // inglês americano) — caso real citado na auditoria pós-P14.4.3 (BASE1-073, PENDING
+    // antes desta correção).
+    const externalIndex = buildExternalNumberIndex([{ id: "ext-imposter-oak", name: "Imposter Professor Oak", number: "73", variants: [] }]);
+    const result = classifyCardMatch({ card_id: "local-impostor-oak", name: "Impostor Professor Oak", collector_number: "073" }, externalIndex, "fixture-set-x");
+    assert(
+      "P14.4.4 Impostor/Imposter Professor Oak: candidato único -> SAFE apesar da grafia divergente",
+      result.classification === "SAFE" && result.matched?.id === "ext-imposter-oak",
+    );
+  }
+  {
+    // Item 6 do pedido: números duplicados continuam bloqueados mesmo após a correção —
+    // dois candidatos externos com o mesmo número normalizado nunca produzem SAFE, mesmo
+    // que os nomes sejam idênticos ao nome local (nome nunca desempata, em nenhum sentido).
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-dup-1", name: "Machamp", number: "8", variants: [] },
+      { id: "ext-dup-2", name: "Machamp", number: "8", variants: [] },
+    ]);
+    const result = classifyCardMatch({ card_id: "local-machamp", name: "Machamp", collector_number: "008" }, externalIndex, "fixture-set-x");
+    assert(
+      "P14.4.4 item 6: número duplicado no lado externo continua bloqueado -> AMBIGUOUS mesmo com nome idêntico",
+      result.classification === "AMBIGUOUS" && result.matched === null,
+    );
   }
 
   // --- P14.2 cenário 6: carta da API sem equivalente local ---------------------------
@@ -1959,7 +2120,7 @@ async function runFixtureCheck() {
     // externa sem contraparte local nunca gera linha de mapeamento — não é um erro, é o
     // comportamento correto (não criamos card local a partir da JustTCG).
     const localCards: LocalCard[] = [{ card_id: "local-1", name: "Outra Carta", collector_number: "001" }];
-    const results = localCards.map((c) => classifyCardMatch(c, externalIndex));
+    const results = localCards.map((c) => classifyCardMatch(c, externalIndex, "fixture-set-x"));
     assert("carta externa sem equivalente local: nunca gera mapeamento (laço guiado pelo local)", results.every((r) => r.classification === "ABSENT"));
     assert("carta externa sem equivalente local: continua endereçável para relato informativo (não descartada do índice)", externalIndex.get("200")?.[0].id === "ext-orphan");
   }
@@ -2157,7 +2318,7 @@ async function runFixtureCheck() {
       { id: "ext-b", name: "Eevee (Alt Art)", number: "133", variants: [] },
     ]);
     const local: LocalCard = { card_id: "local-eevee", name: "Eevee", collector_number: "133" };
-    const matchResult = classifyCardMatch(local, externalIndex);
+    const matchResult = classifyCardMatch(local, externalIndex, "fixture-set-x");
     assert("cenário de evidência: dois candidatos pelo mesmo número, sem desempate seguro -> AMBIGUOUS", matchResult.classification === "AMBIGUOUS");
 
     const originalLog = console.log;
@@ -2179,7 +2340,7 @@ async function runFixtureCheck() {
   {
     const externalIndex = buildExternalNumberIndex([{ id: "ext-x", name: "Pikachu", number: "25", variants: [] }]);
     const local: LocalCard = { card_id: "local-absent", name: "Mewtwo", collector_number: "150" };
-    const matchResult = classifyCardMatch(local, externalIndex);
+    const matchResult = classifyCardMatch(local, externalIndex, "fixture-set-x");
     assert("cenário de evidência ABSENT: sem candidato externo pelo número", matchResult.classification === "ABSENT");
     const originalLog = console.log;
     const captured: string[] = [];
@@ -2191,8 +2352,8 @@ async function runFixtureCheck() {
     }
     const printed = captured.join("\n");
     assert(
-      "logDryRunCardEvidence (ABSENT): imprime carta local e motivo, candidatos_externos vazio",
-      printed.includes("Mewtwo") && printed.includes("150") && printed.includes("NUMERO_SEM_CANDIDATO_EXTERNO") && printed.includes("[]"),
+      "logDryRunCardEvidence (ABSENT): imprime carta local, motivo e candidatos_externos vazio (P14.4.4: método unificado SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE, nunca mais NUMERO_SEM_CANDIDATO_EXTERNO)",
+      printed.includes("Mewtwo") && printed.includes("150") && printed.includes("SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE") && printed.includes("[]"),
     );
   }
 
@@ -2812,7 +2973,8 @@ async function runFixtureCheck() {
       );
     }
 
-    // classifySetForExpansionPlan() — cinco cenários obrigatórios.
+    // classifySetForExpansionPlan() — cinco cenários obrigatórios (P14.4.1) + 2 novos (P14.4.3:
+    // ALREADY_CONFIRMED_COMPLETE/INCOMPLETE, split a partir do único cenário anterior).
     {
       const externalSets: JustTcgSet[] = normalizeJustTcgSets([
         { id: "ext-b", name: "Ext B", release_date: "2020-02-01", variants_count: 500 },
@@ -2821,32 +2983,55 @@ async function runFixtureCheck() {
         { id: "ext-f", name: "Nome Completamente Diferente", release_date: "2020-05-01" },
       ]);
 
-      const jaConfirmado = classifySetForExpansionPlan(
-        { releaseDateIso: "2020-01-01" },
+      const jaConfirmadoCompleto = classifySetForExpansionPlan(
+        { releaseDateIso: "2020-01-01", localCardCount: 10 },
         { cardSetId: "cs-a", matchStatus: "CONFIRMED", externalSetId: "ext-a", externalSetName: "Ext A" },
         externalSets,
+        { mappedCards: 10 },
       );
       assert(
-        "P14.4.1: Set já CONFIRMED -> ALREADY_CONFIRMED, preservado, nunca reavaliado contra a lista externa",
-        jaConfirmado.status === "ALREADY_CONFIRMED" && jaConfirmado.externalSetId === "ext-a" && jaConfirmado.externalSetName === "Ext A",
+        "P14.4.3: Set já CONFIRMED com mappedCards >= localCardCount (10/10) -> ALREADY_CONFIRMED_COMPLETE, preservado, nunca reavaliado contra a lista externa",
+        jaConfirmadoCompleto.status === "ALREADY_CONFIRMED_COMPLETE" && jaConfirmadoCompleto.externalSetId === "ext-a" && jaConfirmadoCompleto.externalSetName === "Ext A",
       );
 
-      const candidatoUnico = classifySetForExpansionPlan({ releaseDateIso: "2020-02-01" }, null, externalSets);
+      const jaConfirmadoIncompleto = classifySetForExpansionPlan(
+        { releaseDateIso: "2020-01-01", localCardCount: 102 },
+        { cardSetId: "cs-base1", matchStatus: "CONFIRMED", externalSetId: "ext-base1", externalSetName: "Base Set" },
+        externalSets,
+        { mappedCards: 3 },
+      );
+      assert(
+        "P14.4.3: Set já CONFIRMED com mappedCards < localCardCount (3/102, cenário real BASE1) -> ALREADY_CONFIRMED_INCOMPLETE, nunca reavaliado contra a lista externa",
+        jaConfirmadoIncompleto.status === "ALREADY_CONFIRMED_INCOMPLETE" && jaConfirmadoIncompleto.externalSetId === "ext-base1",
+      );
+
+      const jaConfirmadoSemCobertura = classifySetForExpansionPlan(
+        { releaseDateIso: "2020-01-01", localCardCount: 5 },
+        { cardSetId: "cs-b", matchStatus: "CONFIRMED", externalSetId: "ext-b2", externalSetName: "Ext B2" },
+        externalSets,
+        null,
+      );
+      assert(
+        "P14.4.3: Set já CONFIRMED sem NENHUMA linha de cobertura (coverage=null, ex.: Set nunca apareceu em pricing_set_coverage) -> tratado como 0 cartas mapeadas -> ALREADY_CONFIRMED_INCOMPLETE, nunca lançado nem assumido completo por omissão",
+        jaConfirmadoSemCobertura.status === "ALREADY_CONFIRMED_INCOMPLETE",
+      );
+
+      const candidatoUnico = classifySetForExpansionPlan({ releaseDateIso: "2020-02-01", localCardCount: 5 }, null, externalSets, null);
       assert(
         "P14.4.1: candidato único por release_date -> SAFE_CANDIDATE, com o id/nome/variants_count corretos",
         candidatoUnico.status === "SAFE_CANDIDATE" && candidatoUnico.externalSetId === "ext-b" && candidatoUnico.externalVariantsCount === 500,
       );
 
-      const doisCandidatos = classifySetForExpansionPlan({ releaseDateIso: "2020-03-01" }, null, externalSets);
+      const doisCandidatos = classifySetForExpansionPlan({ releaseDateIso: "2020-03-01", localCardCount: 5 }, null, externalSets, null);
       assert("P14.4.1: dois candidatos na mesma release_date -> AMBIGUOUS, nunca confirmado automaticamente", doisCandidatos.status === "AMBIGUOUS" && doisCandidatos.candidateCount === 2);
 
-      const nenhumCandidato = classifySetForExpansionPlan({ releaseDateIso: "2020-04-01" }, null, externalSets);
+      const nenhumCandidato = classifySetForExpansionPlan({ releaseDateIso: "2020-04-01", localCardCount: 5 }, null, externalSets, null);
       assert("P14.4.1: nenhum candidato na release_date -> NOT_FOUND", nenhumCandidato.status === "NOT_FOUND" && nenhumCandidato.reason === "RELEASE_DATE_SEM_CORRESPONDENCIA_EXTERNA");
 
-      const semReleaseDate = classifySetForExpansionPlan({ releaseDateIso: null }, null, externalSets);
+      const semReleaseDate = classifySetForExpansionPlan({ releaseDateIso: null, localCardCount: 5 }, null, externalSets, null);
       assert("P14.4.1: Set local sem release_date -> NOT_FOUND, nunca tenta casar por nome", semReleaseDate.status === "NOT_FOUND" && semReleaseDate.reason === "SET_LOCAL_SEM_RELEASE_DATE");
 
-      const nomeDivergente = classifySetForExpansionPlan({ releaseDateIso: "2020-05-01" }, null, externalSets);
+      const nomeDivergente = classifySetForExpansionPlan({ releaseDateIso: "2020-05-01", localCardCount: 5 }, null, externalSets, null);
       assert(
         "P14.4.1: nome completamente divergente NUNCA bloqueia um candidato único e seguro por data (nome nunca é fundamento isolado — só release_date confirma)",
         nomeDivergente.status === "SAFE_CANDIDATE" && nomeDivergente.externalSetId === "ext-f",
@@ -2952,8 +3137,10 @@ async function runFixtureCheck() {
       assert("P14.4.1: executeExpansionPlan() completa sem nenhuma tentativa de escrita bloqueada (insert/update/upsert/delete/rpc nunca chamados)", !writeAttemptBlocked && plan !== null);
       assert("P14.4.1: exatamente 1 chamada HTTP à JustTCG (GET /v1/sets), nunca /cards", callCount() === 1 && client.requestsMade === 1);
       assert(
-        "P14.4.1: SETA (mapping já CONFIRMED) -> ALREADY_CONFIRMED; SETB (candidato único por data) -> SAFE_CANDIDATE",
-        plan?.entries.find((e) => e.code === "SETA")?.status === "ALREADY_CONFIRMED" && plan?.entries.find((e) => e.code === "SETB")?.status === "SAFE_CANDIDATE",
+        "P14.4.3: SETA (mapping já CONFIRMED, mas pricing_set_coverage vazio -> 0/2 cartas mapeadas) -> ALREADY_CONFIRMED_INCOMPLETE, com missingCardsCount=2; SETB (candidato único por data) -> SAFE_CANDIDATE",
+        plan?.entries.find((e) => e.code === "SETA")?.status === "ALREADY_CONFIRMED_INCOMPLETE" &&
+          plan?.entries.find((e) => e.code === "SETA")?.missingCardsCount === 2 &&
+          plan?.entries.find((e) => e.code === "SETB")?.status === "SAFE_CANDIDATE",
       );
       const serializedPlan = JSON.stringify(plan);
       assert("P14.4.1: nenhum segredo (API key) vaza na saída do plano", !serializedPlan.includes(fakeApiKey));
@@ -3513,8 +3700,11 @@ async function runFixtureCheck() {
     );
   }
 
-  // Cenário 13 — ambiguidades preservadas: número único mas nome externo divergente -> PENDING
-  // (nunca CONFIRMED, nunca NOT_FOUND).
+  // Cenário 13 — P14.4.4: número único mas nome externo divergente -> CONFIRMED (nunca mais
+  // PENDING). Antes de P14.4.4 este cenário classificava AMBIGUOUS/PENDING só por divergência
+  // de nome — era exatamente o falso-positivo real descoberto na auditoria pós-P14.4.3
+  // (NUMERO_UNICO_MAS_NOME_DIVERGENTE em BASE1/ME1). Candidato único por Set+número agora
+  // promove normalmente, independente do nome.
   {
     const seed = buildOndaSimplesSeed();
     seed.card.push({ id: "card-x3", card_set_id: "cs-x", name: "Card X3", collector_number: "3", is_active: true });
@@ -3539,10 +3729,10 @@ async function runFixtureCheck() {
     ]);
     const client13 = new JustTcgClient("sk-fake-13", fetchImpl13, 10);
     const resultado13 = await executeExpansionWave(supabase13, client13, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETX", "SETY"] });
-    const mappingX3 = (tables13.pricing_card_mapping ?? []).find((r) => r.card_id === "card-x3") as { match_status: string } | undefined;
+    const mappingX3 = (tables13.pricing_card_mapping ?? []).find((r) => r.card_id === "card-x3") as { match_status: string; external_card_id?: string } | undefined;
     assert(
-      "P14.4.2 cenário 13: número único com nome externo divergente (card-x3) fica PENDING (ambíguo) — nunca CONFIRMED, nunca NOT_FOUND — enquanto card-x1/x2/y1 são confirmados normalmente",
-      resultado13.cardsAmbiguous === 1 && mappingX3 !== undefined && mappingX3.match_status === "PENDING",
+      "P14.4.4 cenário 13: número único com nome externo divergente (card-x3) promove a CONFIRMED normalmente, exatamente como card-x1/x2/y1 — nome nunca bloqueia (correção da causa raiz descoberta na auditoria pós-P14.4.3)",
+      resultado13.cardsAmbiguous === 0 && mappingX3 !== undefined && mappingX3.match_status === "CONFIRMED" && mappingX3.external_card_id === "ext-card-x3-outro",
     );
   }
 
@@ -3941,6 +4131,844 @@ async function runFixtureCheck() {
     );
   }
 
+  // ==========================================================================
+  // P14.4.3 — Testes focados do executor de backfill (--backfill-wave)
+  // ==========================================================================
+  //
+  // Fixture base: SETB, já CONFIRMED no nível do Set (external_set_id=ext-b), com 3 cartas
+  // ativas locais (card-b1/b2/b3) mas só card-b1 mapeada (pricing_card_mapping CONFIRMED) —
+  // reproduz em miniatura a lacuna real de BASE1/ME1 (Set confirmado, cobertura de cartas
+  // incompleta). missingCardsCount=2 (card-b2, card-b3).
+  function buildBackfillSimplesSeed(): Record<string, FakeRow[]> {
+    return {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [{ id: "cs-b", code: "SETB", release_date: "2020-03-01" }],
+      catalog_card_set_metrics: [{ card_set_id: "cs-b", cards_ativas: 3 }],
+      card: [
+        { id: "card-b1", card_set_id: "cs-b", name: "Card B1", collector_number: "1", is_active: true },
+        { id: "card-b2", card_set_id: "cs-b", name: "Card B2", collector_number: "2", is_active: true },
+        { id: "card-b3", card_set_id: "cs-b", name: "Card B3", collector_number: "3", is_active: true },
+      ],
+      pricing_set_mapping: [{ card_set_id: "cs-b", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-b", external_set_name: "Ext B" }],
+      pricing_card_mapping: [{ id: "pcm-b1", card_id: "card-b1", pricing_source_id: "src-1", match_status: "CONFIRMED" }],
+      pricing_set_coverage: [
+        { card_set_id: "cs-b", pricing_source_id: "src-1", products_count: 5, observations_count: 5, mapped_cards_count: 1, confirmed_cards_count: 1, pending_cards_count: 0, not_found_cards_count: 0 },
+      ],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+  }
+
+  const backfillSimplesExternalSets = [{ id: "ext-b", name: "Ext B", release_date: "2020-03-01" }];
+
+  function buildBackfillSimplesSuccessResponses(): Array<{ status: number; body: unknown }> {
+    return [
+      { status: 200, body: { data: backfillSimplesExternalSets } },
+      {
+        status: 200,
+        body: {
+          data: [
+            { id: "ext-card-b1", name: "Card B1", number: "1", variants: [{ uuid: "var-b1", condition: "Near Mint", printing: "Normal", price: 1.0, lastUpdated: 1700000000 }] },
+            { id: "ext-card-b2", name: "Card B2", number: "2", variants: [{ uuid: "var-b2", condition: "Near Mint", printing: "Normal", price: 2.0, lastUpdated: 1700000000 }] },
+            { id: "ext-card-b3", name: "Card B3", number: "3", variants: [{ uuid: "var-b3", condition: "Near Mint", printing: "Normal", price: 3.0, lastUpdated: 1700000000 }] },
+          ],
+        },
+      },
+    ];
+  }
+
+  // Fixture com 2 Sets já CONFIRMED e incompletos (SETB + SETC) numa mesma onda de backfill —
+  // usada pelos cenários de --expected-set-codes/orçamento/falha parcial que precisam de mais
+  // de um Set na mesma onda.
+  function buildBackfillDoisSetsSeed(): Record<string, FakeRow[]> {
+    return {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [
+        { id: "cs-b", code: "SETB", release_date: "2020-03-01" },
+        { id: "cs-c", code: "SETC", release_date: "2020-04-01" },
+      ],
+      catalog_card_set_metrics: [
+        { card_set_id: "cs-b", cards_ativas: 3 },
+        { card_set_id: "cs-c", cards_ativas: 2 },
+      ],
+      card: [
+        { id: "card-b1", card_set_id: "cs-b", name: "Card B1", collector_number: "1", is_active: true },
+        { id: "card-b2", card_set_id: "cs-b", name: "Card B2", collector_number: "2", is_active: true },
+        { id: "card-b3", card_set_id: "cs-b", name: "Card B3", collector_number: "3", is_active: true },
+        { id: "card-c1", card_set_id: "cs-c", name: "Card C1", collector_number: "1", is_active: true },
+        { id: "card-c2", card_set_id: "cs-c", name: "Card C2", collector_number: "2", is_active: true },
+      ],
+      pricing_set_mapping: [
+        { card_set_id: "cs-b", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-b", external_set_name: "Ext B" },
+        { card_set_id: "cs-c", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-c", external_set_name: "Ext C" },
+      ],
+      pricing_card_mapping: [
+        { id: "pcm-b1", card_id: "card-b1", pricing_source_id: "src-1", match_status: "CONFIRMED" },
+        { id: "pcm-c1", card_id: "card-c1", pricing_source_id: "src-1", match_status: "CONFIRMED" },
+      ],
+      pricing_set_coverage: [
+        { card_set_id: "cs-b", pricing_source_id: "src-1", products_count: 5, observations_count: 5, mapped_cards_count: 1, confirmed_cards_count: 1, pending_cards_count: 0, not_found_cards_count: 0 },
+        { card_set_id: "cs-c", pricing_source_id: "src-1", products_count: 5, observations_count: 5, mapped_cards_count: 1, confirmed_cards_count: 1, pending_cards_count: 0, not_found_cards_count: 0 },
+      ],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+  }
+
+  const backfillDoisSetsExternalSets = [
+    { id: "ext-b", name: "Ext B", release_date: "2020-03-01" },
+    { id: "ext-c", name: "Ext C", release_date: "2020-04-01" },
+  ];
+
+  // Cenário 1 — Set completo (mapped_cards_count == localCardCount) NUNCA entra em
+  // backfillWaves — só o gap real (ausência total de mapping) forma candidato a backfill.
+  {
+    const seedCompleto = {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [{ id: "cs-full", code: "SETFULL", release_date: "2020-05-01" }],
+      catalog_card_set_metrics: [{ card_set_id: "cs-full", cards_ativas: 2 }],
+      card: [],
+      pricing_set_mapping: [{ card_set_id: "cs-full", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-full", external_set_name: "Ext Full" }],
+      pricing_set_coverage: [
+        { card_set_id: "cs-full", pricing_source_id: "src-1", products_count: 20, observations_count: 20, mapped_cards_count: 2, confirmed_cards_count: 2, pending_cards_count: 0, not_found_cards_count: 0 },
+      ],
+    };
+    const supabaseBF1 = makeReadOnlyFakeClient(seedCompleto, { countOverride: { card: 2 } });
+    const inputsBF1 = await fetchReconciledLocalInputs(supabaseBF1);
+    const planBF1 = buildExpansionPlan({
+      localSets: inputsBF1.localSets,
+      existingSetMappings: inputsBF1.existingSetMappings,
+      allExternalSets: [{ id: "ext-full", name: "Ext Full", release_date: "2020-05-01", variants_count: 10 }],
+      existingCoverage: inputsBF1.existingCoverage,
+    });
+    assert(
+      "P14.4.3 backfill cenário 1: Set completo (mapped_cards_count == localCardCount) nunca entra em backfillWaves — status ALREADY_CONFIRMED_COMPLETE, missingCardsCount=0",
+      planBF1.backfillWaves.length === 0 &&
+        planBF1.entries.find((e) => e.code === "SETFULL")?.status === "ALREADY_CONFIRMED_COMPLETE" &&
+        planBF1.entries.find((e) => e.code === "SETFULL")?.missingCardsCount === 0,
+    );
+  }
+
+  // Cenário 2 — Set parcial entra em backfillWaves com o missingCardsCount exato, e a
+  // composição da onda é determinística (mesmo algoritmo de buildExpansionWaves, aplicado
+  // sobre missingCardsCount).
+  {
+    const supabaseBF2 = makeReadOnlyFakeClient(buildBackfillSimplesSeed(), { countOverride: { card: 3 } });
+    const inputsBF2 = await fetchReconciledLocalInputs(supabaseBF2);
+    const planBF2 = buildExpansionPlan({
+      localSets: inputsBF2.localSets,
+      existingSetMappings: inputsBF2.existingSetMappings,
+      allExternalSets: backfillSimplesExternalSets,
+      existingCoverage: inputsBF2.existingCoverage,
+    });
+    assert(
+      "P14.4.3 backfill cenário 2: SETB (3 cartas ativas, 1 já mapeada) -> ALREADY_CONFIRMED_INCOMPLETE com missingCardsCount=2, forma sozinho a onda de backfill 1",
+      planBF2.entries.find((e) => e.code === "SETB")?.status === "ALREADY_CONFIRMED_INCOMPLETE" &&
+        planBF2.entries.find((e) => e.code === "SETB")?.missingCardsCount === 2 &&
+        planBF2.backfillWaves.length === 1 &&
+        planBF2.backfillWaves[0].sets.length === 1 &&
+        planBF2.backfillWaves[0].sets[0].code === "SETB" &&
+        planBF2.backfillWaves[0].sets[0].missingCardsCount === 2,
+    );
+  }
+
+  // Cenário 3 — cartas locais SEM mapping (findMissingCardsForSet) e, executando a onda,
+  // cartas já PENDING/CONFIRMED nunca são retocadas: card-b1 (CONFIRMED) e card-b2 (PENDING)
+  // permanecem intactas; só card-b3 (zero mapping) recebe um novo mapping/produto/observação.
+  {
+    const seedBF3 = buildBackfillSimplesSeed();
+    seedBF3.pricing_card_mapping = [
+      { id: "pcm-b1", card_id: "card-b1", pricing_source_id: "src-1", match_status: "CONFIRMED" },
+      { id: "pcm-b2", card_id: "card-b2", pricing_source_id: "src-1", match_status: "PENDING" },
+    ];
+    seedBF3.pricing_set_coverage = [
+      { card_set_id: "cs-b", pricing_source_id: "src-1", products_count: 5, observations_count: 5, mapped_cards_count: 2, confirmed_cards_count: 1, pending_cards_count: 1, not_found_cards_count: 0 },
+    ];
+    const missingBF3 = await findMissingCardsForSet(makeExpansionWaveFakeClient(seedBF3).client, "cs-b", "src-1");
+    assert(
+      "P14.4.3 backfill cenário 3: findMissingCardsForSet() nunca retorna card-b1 (CONFIRMED) nem card-b2 (PENDING) — só card-b3 (zero mapping)",
+      missingBF3.length === 1 && missingBF3[0].card_id === "card-b3",
+    );
+
+    const { client: supabaseBF3, tables: tablesBF3 } = makeExpansionWaveFakeClient(seedBF3);
+    const { fetchImpl: fetchImplBF3 } = makeFakeFetch(buildBackfillSimplesSuccessResponses());
+    const clientBF3 = new JustTcgClient("sk-fake-bf3", fetchImplBF3, 10);
+    const resultadoBF3 = await executeBackfillWave(supabaseBF3, clientBF3, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETB"] });
+    const mappingB1 = (tablesBF3.pricing_card_mapping ?? []).find((r) => r.card_id === "card-b1") as { match_status: string } | undefined;
+    const mappingB2 = (tablesBF3.pricing_card_mapping ?? []).find((r) => r.card_id === "card-b2") as { match_status: string } | undefined;
+    const mappingB3 = (tablesBF3.pricing_card_mapping ?? []).find((r) => r.card_id === "card-b3") as { match_status: string } | undefined;
+    assert(
+      "P14.4.3 backfill cenário 3: execução real só cria mapping novo para card-b3 — card-b1 (CONFIRMED) e card-b2 (PENDING) permanecem com o status anterior, nunca reprocessados",
+      resultadoBF3.status === "COMPLETED" &&
+        resultadoBF3.cardsProcessed === 1 &&
+        mappingB1?.match_status === "CONFIRMED" &&
+        mappingB2?.match_status === "PENDING" &&
+        mappingB3?.match_status === "CONFIRMED",
+    );
+  }
+
+  // Cenário 4 — o executor usa EXCLUSIVAMENTE o external_set_id já CONFIRMED: pricing_set_mapping
+  // nunca é escrito/alterado pelo backfill (nem resolveSetMatchV2 nem upsertSetMapping são
+  // chamados) — a linha de mapping do Set permanece byte-a-byte idêntica à do seed.
+  {
+    const seedBF4 = buildBackfillSimplesSeed();
+    const { client: supabaseBF4, tables: tablesBF4 } = makeExpansionWaveFakeClient(seedBF4);
+    const { fetchImpl: fetchImplBF4 } = makeFakeFetch(buildBackfillSimplesSuccessResponses());
+    const clientBF4 = new JustTcgClient("sk-fake-bf4", fetchImplBF4, 10);
+    const resultadoBF4 = await executeBackfillWave(supabaseBF4, clientBF4, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETB"] });
+    assert(
+      "P14.4.3 backfill cenário 4: executor usa exclusivamente o external_set_id já CONFIRMED — pricing_set_mapping nunca é escrito/alterado (mesma 1 linha do seed, byte-a-byte), resolveSetMatchV2/upsertSetMapping nunca chamados",
+      resultadoBF4.status === "COMPLETED" &&
+        tablesBF4.pricing_set_mapping.length === 1 &&
+        tablesBF4.pricing_set_mapping[0].external_set_id === "ext-b" &&
+        tablesBF4.pricing_set_mapping[0].match_status === "CONFIRMED",
+    );
+  }
+
+  // Cenário 5 — composição de onda determinística (mesmo algoritmo 5 Sets/500 cartas de
+  // buildExpansionWaves, aplicado sobre missingCardsCount): 6 Sets pequenos -> onda 1 com 5,
+  // onda 2 com o 6º; um Set individual com >500 cartas faltantes forma sua própria onda
+  // oversized, sem interromper o agrupamento dos Sets seguintes.
+  {
+    const seisSetsPequenos: BackfillWaveSetEntry[] = Array.from({ length: 6 }, (_, i) => ({ code: `SB${i + 1}`, missingCardsCount: 50, localCardCount: 100 }));
+    const ondasBF5a = buildBackfillWaves(seisSetsPequenos);
+    assert(
+      "P14.4.3 backfill cenário 5: 6 Sets pequenos (50 cartas faltantes cada) -> onda 1 com 5 Sets, onda 2 com o 6º (limite de 5 Sets por onda, mesmo algoritmo de buildExpansionWaves)",
+      ondasBF5a.length === 2 && ondasBF5a[0].sets.length === 5 && ondasBF5a[1].sets.length === 1 && ondasBF5a[1].sets[0].code === "SB6",
+    );
+
+    const setGigantePrimeiro: BackfillWaveSetEntry[] = [
+      { code: "SBGIANT", missingCardsCount: 600, localCardCount: 700 },
+      { code: "SB1", missingCardsCount: 50, localCardCount: 100 },
+      { code: "SB2", missingCardsCount: 50, localCardCount: 100 },
+    ];
+    const ondasBF5b = buildBackfillWaves(setGigantePrimeiro);
+    assert(
+      "P14.4.3 backfill cenário 5: Set individual com missingCardsCount > 500 nunca é dividido nem descartado — forma sua própria onda oversized, sem impedir os Sets seguintes de se agruparem numa onda própria",
+      ondasBF5b.length === 2 && ondasBF5b[0].oversized === true && ondasBF5b[0].sets[0].code === "SBGIANT" && ondasBF5b[1].sets.length === 2 && ondasBF5b[1].oversized === false,
+    );
+  }
+
+  // Cenário 6 — --expected-set-codes bloqueia deriva de composição: onda recalculada com
+  // SETB+SETC, mas só SETB é informado -> BACKFILL_WAVE_COMPOSITION_CHANGED antes de qualquer
+  // GET /cards, zero persistência de negócio, CARD_SYNC já aberto é finalizado como FAILED.
+  {
+    const { client: supabaseBF6, tables: tablesBF6 } = makeExpansionWaveFakeClient(buildBackfillDoisSetsSeed());
+    const { fetchImpl: fetchImplBF6, callCount: callCountBF6 } = makeFakeFetch([{ status: 200, body: { data: backfillDoisSetsExternalSets } }]);
+    const clientBF6 = new JustTcgClient("sk-fake-bf6", fetchImplBF6, 10);
+    let erroBF6: Error | null = null;
+    try {
+      await executeBackfillWave(supabaseBF6, clientBF6, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETB"] });
+    } catch (error) {
+      erroBF6 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.3 backfill cenário 6: --expected-set-codes=SETB (faltando SETC) é rejeitado com BACKFILL_WAVE_COMPOSITION_CHANGED, zero mapping/produto/observação persistidos, CARD_SYNC finalizado FAILED",
+      erroBF6 !== null &&
+        erroBF6.message.startsWith("BACKFILL_WAVE_COMPOSITION_CHANGED") &&
+        callCountBF6() === 1 &&
+        (tablesBF6.pricing_card_mapping ?? []).length === 2 &&
+        (tablesBF6.pricing_product ?? []).length === 0 &&
+        (tablesBF6.pricing_observation ?? []).length === 0 &&
+        tablesBF6.pricing_sync_run.length === 1 &&
+        (tablesBF6.pricing_sync_run[0] as { status: string }).status === "FAILED",
+    );
+  }
+
+  // Cenário 7 — orçamento local (--max-api-requests) é respeitado: budget=2 alcança só
+  // GET /sets + a 1ª página de /cards de SETB; a página de SETC nunca é sequer tentada
+  // (budgetOk() barra antes do fetch) -> ORCAMENTO_ESGOTADO, FAILED, zero persistência.
+  {
+    const { client: supabaseBF7, tables: tablesBF7 } = makeExpansionWaveFakeClient(buildBackfillDoisSetsSeed());
+    const { fetchImpl: fetchImplBF7, callCount: callCountBF7 } = makeFakeFetch([
+      { status: 200, body: { data: backfillDoisSetsExternalSets } },
+      { status: 200, body: { data: [{ id: "ext-card-b2", name: "Card B2", number: "2", variants: [] }] } },
+    ]);
+    const clientBF7 = new JustTcgClient("sk-fake-bf7", fetchImplBF7, 2);
+    const resultadoBF7 = await executeBackfillWave(supabaseBF7, clientBF7, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 2, expectedSetCodes: ["SETB", "SETC"] });
+    assert(
+      "P14.4.3 backfill cenário 7: --max-api-requests=2 nunca é ultrapassado — exatamente 2 chamadas reais (GET /sets + 1ª página de SETB), SETC nunca sequer tentado; status FAILED, zero persistência de negócio",
+      callCountBF7() === 2 &&
+        clientBF7.requestsMade === 2 &&
+        resultadoBF7.status === "FAILED" &&
+        (tablesBF7.pricing_product ?? []).length === 0 &&
+        (tablesBF7.pricing_observation ?? []).length === 0 &&
+        (tablesBF7.pricing_card_mapping ?? []).length === 2,
+    );
+  }
+
+  // Cenário 8 — --dry-run gera zero escrita: nenhum pricing_sync_run criado, nenhuma linha
+  // nova em nenhuma tabela de negócio, mesmo com a classificação das cartas faltantes
+  // completa e bem-sucedida (regra 4/dry-run do executor de backfill).
+  {
+    const seedBF8 = buildBackfillSimplesSeed();
+    const { client: supabaseBF8, tables: tablesBF8 } = makeExpansionWaveFakeClient(seedBF8);
+    const { fetchImpl: fetchImplBF8 } = makeFakeFetch(buildBackfillSimplesSuccessResponses());
+    const clientBF8 = new JustTcgClient("sk-fake-bf8", fetchImplBF8, 10);
+    const resultadoBF8 = await executeBackfillWave(supabaseBF8, clientBF8, { waveNumber: 1, dryRun: true, confirmedBy: null, maxApiRequests: 10, expectedSetCodes: ["SETB"] });
+    assert(
+      "P14.4.3 backfill cenário 8: --dry-run nunca cria pricing_sync_run nem escreve mapping/produto/observação novos, mesmo com as 2 cartas faltantes classificadas com sucesso",
+      resultadoBF8.status === "COMPLETED" &&
+        resultadoBF8.cardsProcessed === 2 &&
+        resultadoBF8.cardsSafe === 2 &&
+        (tablesBF8.pricing_sync_run ?? []).length === 0 &&
+        (tablesBF8.pricing_card_mapping ?? []).length === 1 &&
+        (tablesBF8.pricing_product ?? []).length === 0 &&
+        (tablesBF8.pricing_observation ?? []).length === 0 &&
+        resultadoBF8.productsProjected > 0,
+    );
+  }
+
+  // Cenário 9 — conflito de concorrência bloqueia qualquer chamada externa: já existe um
+  // CARD_SYNC RECEIVED/PROCESSING para a mesma fonte -> CONFLITO_DE_CONCORRENCIA antes do
+  // GET /sets, zero requisições HTTP, nenhuma 2ª linha em pricing_sync_run.
+  {
+    const seedBF9 = buildBackfillSimplesSeed();
+    seedBF9.pricing_sync_run = [{ id: "run-existing", pricing_source_id: "src-1", run_type: "CARD_SYNC", status: "PROCESSING" }];
+    const { client: supabaseBF9, tables: tablesBF9 } = makeExpansionWaveFakeClient(seedBF9);
+    const { fetchImpl: fetchImplBF9, callCount: callCountBF9 } = makeFakeFetch(buildBackfillSimplesSuccessResponses());
+    const clientBF9 = new JustTcgClient("sk-fake-bf9", fetchImplBF9, 10);
+    let erroBF9: Error | null = null;
+    try {
+      await executeBackfillWave(supabaseBF9, clientBF9, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETB"] });
+    } catch (error) {
+      erroBF9 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.3 backfill cenário 9: conflito de concorrência (CARD_SYNC já ativo) aborta com CONFLITO_DE_CONCORRENCIA antes de qualquer chamada à JustTCG, sem criar uma 2ª linha em pricing_sync_run",
+      erroBF9 !== null && erroBF9.message.startsWith("CONFLITO_DE_CONCORRENCIA") && callCountBF9() === 0 && clientBF9.requestsMade === 0 && tablesBF9.pricing_sync_run.length === 1,
+    );
+  }
+
+  // Cenário 10 — erro em qualquer Set da onda bloqueia a persistência da onda inteira, mesmo
+  // que outro Set já tenha sido classificado com sucesso e mantido só em memória: SETB é
+  // adquirido e classificado com sucesso (2 cartas), mas a paginação de SETC falha (HTTP 500)
+  // -> zero mapping/produto/observação persistidos para SETB também (regra "tudo ou nada").
+  {
+    const { client: supabaseBF10, tables: tablesBF10 } = makeExpansionWaveFakeClient(buildBackfillDoisSetsSeed());
+    const { fetchImpl: fetchImplBF10 } = makeFakeFetch([
+      { status: 200, body: { data: backfillDoisSetsExternalSets } },
+      {
+        status: 200,
+        body: {
+          data: [
+            { id: "ext-card-b2", name: "Card B2", number: "2", variants: [{ uuid: "var-b2", condition: "Near Mint", printing: "Normal", price: 2.0, lastUpdated: 1700000000 }] },
+            { id: "ext-card-b3", name: "Card B3", number: "3", variants: [{ uuid: "var-b3", condition: "Near Mint", printing: "Normal", price: 3.0, lastUpdated: 1700000000 }] },
+          ],
+        },
+      },
+      { status: 500, body: { error: "falha simulada" } },
+    ]);
+    const clientBF10 = new JustTcgClient("sk-fake-bf10", fetchImplBF10, 10);
+    const resultadoBF10 = await executeBackfillWave(supabaseBF10, clientBF10, { waveNumber: 1, dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETB", "SETC"] });
+    assert(
+      "P14.4.3 backfill cenário 10: falha de paginação em SETC (HTTP 500) aborta a onda inteira -> zero mapping/produto/observação persistidos, mesmo com SETB já classificado com sucesso em memória; status FAILED",
+      resultadoBF10.status === "FAILED" &&
+        resultadoBF10.errorParts.some((e) => e.startsWith("PAGINACAO_CARDS_FALHOU(SETC)")) &&
+        (tablesBF10.pricing_card_mapping ?? []).length === 2 &&
+        (tablesBF10.pricing_product ?? []).length === 0 &&
+        (tablesBF10.pricing_observation ?? []).length === 0,
+    );
+  }
+
+  // Cenário 11 — leituras reconciliadas do backfill nunca confiam numa única página:
+  // findMissingCardsForSet() aborta com PAGINACAO_INCOMPLETA se a contagem exata e
+  // independente de pricing_card_mapping divergir do que a paginação trouxe — mesma
+  // disciplina de fetchReconciledLocalInputs(), imune ao limite de 1.000 linhas do Data API
+  // mesmo com uma divergência pequena (nunca depende do volume para disparar).
+  {
+    const seedBF11: Record<string, FakeRow[]> = {
+      card: [
+        { id: "card-t1", card_set_id: "cs-t", name: "T1", collector_number: "1", is_active: true },
+        { id: "card-t2", card_set_id: "cs-t", name: "T2", collector_number: "2", is_active: true },
+      ],
+      pricing_card_mapping: [{ id: "pcm-t1", card_id: "card-t1", pricing_source_id: "src-1", match_status: "CONFIRMED" }],
+    };
+    const { client: supabaseBF11 } = makeExpansionWaveFakeClient(seedBF11, { countOverride: { "pricing_card_mapping:filtered": 5 } });
+    let erroBF11: Error | null = null;
+    try {
+      await findMissingCardsForSet(supabaseBF11, "cs-t", "src-1");
+    } catch (error) {
+      erroBF11 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.3 backfill cenário 11: findMissingCardsForSet() aborta com PAGINACAO_INCOMPLETA(pricing_card_mapping...) quando a contagem exata diverge da paginação, mesmo com poucas linhas (imune ao limite de 1.000, nunca depende do volume)",
+      erroBF11 !== null && erroBF11.message.startsWith("PAGINACAO_INCOMPLETA(pricing_card_mapping"),
+    );
+  }
+
+  // Cenário 12 — wiring de CLI: --backfill-wave é mutuamente exclusivo com --expansion-plan e
+  // --expansion-wave (rejeitado ANTES de qualquer validação de formato/credencial), isolado
+  // aciona BACKFILL_WAVE normalmente, e --expansion-wave sozinho continua funcionando
+  // exatamente como antes (regressão de P14.4.2 preservada).
+  {
+    const CREDS_OK_BF12 = { justTcgApiKey: "sk-fake-justtcg-bf12", supabaseUrl: "https://fake.supabase.co", supabaseServiceRoleKey: "sk-fake-service-role-bf12" };
+
+    const decisaoMutuamenteExclusivo1 = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY", backfillWave: "1" },
+      CREDS_OK_BF12,
+    );
+    assert(
+      "P14.4.3 backfill cenário 12: --backfill-wave combinado com --expansion-wave é rejeitado com BACKFILL_WAVE_INVALID_ARGS/MODOS_MUTUAMENTE_EXCLUSIVOS, antes de qualquer validação de formato/credencial",
+      decisaoMutuamenteExclusivo1.kind === "BACKFILL_WAVE_INVALID_ARGS" && decisaoMutuamenteExclusivo1.reason.startsWith("MODOS_MUTUAMENTE_EXCLUSIVOS"),
+    );
+
+    const decisaoMutuamenteExclusivo2 = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: true, dryRun: true, confirmedBy: null, backfillWave: "1", maxApiRequests: "10", expectedSetCodes: "SETB" },
+      CREDS_OK_BF12,
+    );
+    assert(
+      "P14.4.3 backfill cenário 12: --backfill-wave combinado com --expansion-plan também é rejeitado com MODOS_MUTUAMENTE_EXCLUSIVOS",
+      decisaoMutuamenteExclusivo2.kind === "BACKFILL_WAVE_INVALID_ARGS" && decisaoMutuamenteExclusivo2.reason.startsWith("MODOS_MUTUAMENTE_EXCLUSIVOS"),
+    );
+
+    const decisaoBackfillValida = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: null, dryRun: true, confirmedBy: null, backfillWave: "1", maxApiRequests: "10", expectedSetCodes: "SETB" },
+      CREDS_OK_BF12,
+    );
+    assert(
+      "P14.4.3 backfill cenário 12: --backfill-wave=1 isolado (sem --expansion-plan/--expansion-wave) aciona BACKFILL_WAVE com o número exato pedido, nunca 'todas as ondas'",
+      decisaoBackfillValida.kind === "BACKFILL_WAVE" &&
+        decisaoBackfillValida.waveNumber === 1 &&
+        decisaoBackfillValida.maxApiRequests === 10 &&
+        decisaoBackfillValida.expectedSetCodes.join(",") === "SETB",
+    );
+
+    const decisaoExpansionWaveIntacta = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: "1", maxApiRequests: "10", dryRun: true, confirmedBy: null, expectedSetCodes: "SETX,SETY", backfillWave: null },
+      CREDS_OK_BF12,
+    );
+    assert(
+      "P14.4.3 backfill cenário 12: --expansion-wave sozinho (sem --backfill-wave) continua funcionando exatamente como antes de P14.4.3 (regressão preservada)",
+      decisaoExpansionWaveIntacta.kind === "EXPANSION_WAVE" && decisaoExpansionWaveIntacta.waveNumber === 1,
+    );
+  }
+
+  // ==========================================================================
+  // P14.4.4 — Testes focados do executor de reparo (--repair-mappings)
+  // ==========================================================================
+  //
+  // Fixture base: SETR, já CONFIRMED no nível do Set (external_set_id=ext-r), com 4 cartas
+  // ativas locais: card-r1 (CONFIRMED, nunca deve ser tocada), card-r2 (PENDING, candidato
+  // externo único -> deve promover a SAFE), card-r3 (NOT_FOUND, candidato externo único
+  // apareceu agora -> deve promover a SAFE), card-r4 (PENDING, dois candidatos externos com
+  // o mesmo número -> continua AMBIGUOUS, intocada). Reproduz em miniatura o cenário real
+  // descoberto na auditoria pós-P14.4.3 (NUMERO_UNICO_MAS_NOME_DIVERGENTE em BASE1/ME1).
+  function buildRepairSimplesSeed(): Record<string, FakeRow[]> {
+    return {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [{ id: "cs-r", code: "SETR", release_date: "2020-03-01" }],
+      catalog_card_set_metrics: [{ card_set_id: "cs-r", cards_ativas: 4 }],
+      card: [
+        { id: "card-r1", card_set_id: "cs-r", name: "Card R1", collector_number: "1", is_active: true },
+        { id: "card-r2", card_set_id: "cs-r", name: "Card R2 PT", collector_number: "2", is_active: true },
+        { id: "card-r3", card_set_id: "cs-r", name: "Card R3 PT", collector_number: "3", is_active: true },
+        { id: "card-r4", card_set_id: "cs-r", name: "Card R4 PT", collector_number: "4", is_active: true },
+      ],
+      pricing_set_mapping: [{ card_set_id: "cs-r", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-r", external_set_name: "Ext R" }],
+      pricing_card_mapping: [
+        { id: "pcm-r1", card_id: "card-r1", pricing_source_id: "src-1", match_status: "CONFIRMED" },
+        { id: "pcm-r2", card_id: "card-r2", pricing_source_id: "src-1", match_status: "PENDING" },
+        { id: "pcm-r3", card_id: "card-r3", pricing_source_id: "src-1", match_status: "NOT_FOUND" },
+        { id: "pcm-r4", card_id: "card-r4", pricing_source_id: "src-1", match_status: "PENDING" },
+      ],
+      pricing_set_coverage: [
+        { card_set_id: "cs-r", pricing_source_id: "src-1", products_count: 0, observations_count: 0, mapped_cards_count: 4, confirmed_cards_count: 1, pending_cards_count: 2, not_found_cards_count: 1 },
+      ],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+  }
+
+  const repairSimplesExternalCards = [
+    { id: "ext-card-r2", name: "Card R2 EN", number: "2", variants: [{ uuid: "var-r2", condition: "Near Mint", printing: "Normal", price: 2.5, lastUpdated: 1700000000 }] },
+    { id: "ext-card-r3", name: "Card R3 EN", number: "3", variants: [{ uuid: "var-r3", condition: "Near Mint", printing: "Normal", price: 3.5, lastUpdated: 1700000000 }] },
+    { id: "ext-card-r4a", name: "Card R4 EN A", number: "4", variants: [] },
+    { id: "ext-card-r4b", name: "Card R4 EN B", number: "4", variants: [] },
+  ];
+
+  function buildRepairSimplesSuccessResponses(): Array<{ status: number; body: unknown }> {
+    return [{ status: 200, body: { data: repairSimplesExternalCards } }];
+  }
+
+  // Fixture com 2 Sets já CONFIRMED e com PENDING pendente (SETR + SETS) — usada pelos
+  // cenários de --expected-set-codes/orçamento/falha parcial que precisam de mais de um Set.
+  function buildRepairDoisSetsSeed(): Record<string, FakeRow[]> {
+    return {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [
+        { id: "cs-r", code: "SETR", release_date: "2020-03-01" },
+        { id: "cs-s", code: "SETS", release_date: "2020-04-01" },
+      ],
+      catalog_card_set_metrics: [
+        { card_set_id: "cs-r", cards_ativas: 1 },
+        { card_set_id: "cs-s", cards_ativas: 1 },
+      ],
+      card: [
+        { id: "card-r2", card_set_id: "cs-r", name: "Card R2 PT", collector_number: "2", is_active: true },
+        { id: "card-s1", card_set_id: "cs-s", name: "Card S1 PT", collector_number: "1", is_active: true },
+      ],
+      pricing_set_mapping: [
+        { card_set_id: "cs-r", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-r", external_set_name: "Ext R" },
+        { card_set_id: "cs-s", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-s", external_set_name: "Ext S" },
+      ],
+      pricing_card_mapping: [
+        { id: "pcm-r2", card_id: "card-r2", pricing_source_id: "src-1", match_status: "PENDING" },
+        { id: "pcm-s1", card_id: "card-s1", pricing_source_id: "src-1", match_status: "PENDING" },
+      ],
+      pricing_set_coverage: [
+        { card_set_id: "cs-r", pricing_source_id: "src-1", products_count: 0, observations_count: 0, mapped_cards_count: 1, confirmed_cards_count: 0, pending_cards_count: 1, not_found_cards_count: 0 },
+        { card_set_id: "cs-s", pricing_source_id: "src-1", products_count: 0, observations_count: 0, mapped_cards_count: 1, confirmed_cards_count: 0, pending_cards_count: 1, not_found_cards_count: 0 },
+      ],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+  }
+
+  function buildRepairDoisSetsSuccessResponses(): Array<{ status: number; body: unknown }> {
+    return [
+      { status: 200, body: { data: [{ id: "ext-card-r2", name: "Card R2 EN", number: "2", variants: [{ uuid: "var-r2", condition: "Near Mint", printing: "Normal", price: 2.5, lastUpdated: 1700000000 }] }] } },
+      { status: 200, body: { data: [{ id: "ext-card-s1", name: "Card S1 EN", number: "1", variants: [{ uuid: "var-s1", condition: "Near Mint", printing: "Normal", price: 1.5, lastUpdated: 1700000000 }] }] } },
+    ];
+  }
+
+  // Cenário 1 — buildRepairCandidates() deriva a lista de Sets-alvo dinamicamente: SETA
+  // (CONFIRMED, pending+notFound>0) entra; SETB (CONFIRMED mas 0 pending/notFound — o caso
+  // real descoberto na auditoria, BASE5 citado como alvo mas sem nenhum PENDING/NOT_FOUND)
+  // é excluído sem precisar de lista negativa; SETC (Set ainda PENDING, não CONFIRMED) nunca
+  // é candidato a reparo, mesmo que tivesse coverage — reparo nunca reavalia Set.
+  {
+    const localSetsRC1: LocalSetSummary[] = [
+      { cardSetId: "cs-a", code: "SETA", releaseDateIso: "2020-01-01", localCardCount: 10 },
+      { cardSetId: "cs-b", code: "SETB", releaseDateIso: "2020-02-01", localCardCount: 10 },
+      { cardSetId: "cs-c", code: "SETC", releaseDateIso: "2020-03-01", localCardCount: 10 },
+    ];
+    const mapRC1 = new Map<string, ExistingSetMappingLite>([
+      ["cs-a", { cardSetId: "cs-a", matchStatus: "CONFIRMED", externalSetId: "ext-a", externalSetName: "Ext A" }],
+      ["cs-b", { cardSetId: "cs-b", matchStatus: "CONFIRMED", externalSetId: "ext-b", externalSetName: "Ext B" }],
+      ["cs-c", { cardSetId: "cs-c", matchStatus: "PENDING", externalSetId: null, externalSetName: null }],
+    ]);
+    const covRC1 = new Map<string, SetCoverageAggregate>([
+      ["cs-a", { products: 5, observations: 5, mappedCards: 10, confirmedCards: 7, pendingCards: 2, notFoundCards: 1 }],
+      ["cs-b", { products: 5, observations: 5, mappedCards: 10, confirmedCards: 10, pendingCards: 0, notFoundCards: 0 }],
+    ]);
+    const candidatesRC1 = buildRepairCandidates(localSetsRC1, mapRC1, covRC1);
+    assert(
+      "P14.4.4 repair cenário 1: buildRepairCandidates() é dinâmico — SETA (CONFIRMED, pending+notFound>0) entra; SETB (CONFIRMED mas 0 pendências, caso real BASE5) é excluído sem lista negativa; SETC (Set ainda não CONFIRMED) nunca é candidato",
+      candidatesRC1.length === 1 && candidatesRC1[0].code === "SETA" && candidatesRC1[0].externalSetId === "ext-a" && candidatesRC1[0].pendingCount === 2 && candidatesRC1[0].notFoundCount === 1,
+    );
+  }
+
+  // Cenário 2 — findPendingOrNotFoundCardsForSet() retorna SOMENTE cartas PENDING/NOT_FOUND
+  // ativas do Set: nunca CONFIRMED, nunca cartas sem nenhum mapping, nunca cartas inativas.
+  {
+    const seedRC2: Record<string, FakeRow[]> = {
+      card: [
+        { id: "card-x1", card_set_id: "cs-x", name: "X1", collector_number: "1", is_active: true },
+        { id: "card-x2", card_set_id: "cs-x", name: "X2", collector_number: "2", is_active: true },
+        { id: "card-x3", card_set_id: "cs-x", name: "X3", collector_number: "3", is_active: true },
+        { id: "card-x4", card_set_id: "cs-x", name: "X4", collector_number: "4", is_active: false },
+      ],
+      pricing_card_mapping: [
+        { id: "pcm-x1", card_id: "card-x1", pricing_source_id: "src-1", match_status: "CONFIRMED" },
+        { id: "pcm-x2", card_id: "card-x2", pricing_source_id: "src-1", match_status: "PENDING" },
+        { id: "pcm-x3", card_id: "card-x3", pricing_source_id: "src-1", match_status: "NOT_FOUND" },
+      ],
+    };
+    const { client: supabaseRC2 } = makeExpansionWaveFakeClient(seedRC2);
+    const targetRC2 = await findPendingOrNotFoundCardsForSet(supabaseRC2, "cs-x", "src-1");
+    assert(
+      "P14.4.4 repair cenário 2: findPendingOrNotFoundCardsForSet() retorna só card-x2 (PENDING) e card-x3 (NOT_FOUND) — nunca card-x1 (CONFIRMED, x5 sem mapping algum não existe aqui, nem card-x4 (inativa)",
+      targetRC2.length === 2 && targetRC2.some((c) => c.card_id === "card-x2") && targetRC2.some((c) => c.card_id === "card-x3"),
+    );
+  }
+
+  // Cenário 3 — execução real fim a fim: card-r2 (PENDING) e card-r3 (NOT_FOUND) promovem a
+  // CONFIRMED com produto/observação criados na mesma execução; card-r1 (CONFIRMED) permanece
+  // byte-a-byte intocada; card-r4 (PENDING, 2 candidatos externos mesmo número) continua
+  // PENDING, sem nenhuma escrita — nem mapping, nem produto, nem observação para ela. O
+  // executor nunca chama GET /sets (só 1 requisição HTTP no total, para /cards de SETR).
+  {
+    const { client: supabaseRC3, tables: tablesRC3 } = makeExpansionWaveFakeClient(buildRepairSimplesSeed());
+    const { fetchImpl: fetchImplRC3, callCount: callCountRC3 } = makeFakeFetch(buildRepairSimplesSuccessResponses());
+    const clientRC3 = new JustTcgClient("sk-fake-rc3", fetchImplRC3, 10);
+    const resultadoRC3 = await executeRepairMappings(supabaseRC3, clientRC3, { dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETR"] });
+
+    const mappingR1 = (tablesRC3.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r1") as { match_status: string } | undefined;
+    const mappingR2 = (tablesRC3.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r2") as { match_status: string; external_card_id?: string } | undefined;
+    const mappingR3 = (tablesRC3.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r3") as { match_status: string; external_card_id?: string } | undefined;
+    const mappingR4 = (tablesRC3.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r4") as { match_status: string } | undefined;
+    const produtosR3 = tablesRC3.pricing_product ?? [];
+
+    assert(
+      "P14.4.4 repair cenário 3: card-r2/card-r3 promovem a CONFIRMED com produto criado; card-r1 (CONFIRMED) e card-r4 (ainda AMBIGUOUS) permanecem com o status anterior, sem nenhuma escrita para card-r4; nenhuma chamada a GET /sets (1 única requisição HTTP no total)",
+      resultadoRC3.status === "COMPLETED" &&
+        resultadoRC3.cardsEvaluated === 3 &&
+        resultadoRC3.cardsPromoted === 2 &&
+        resultadoRC3.cardsStillPending === 1 &&
+        resultadoRC3.cardsStillNotFound === 0 &&
+        mappingR1?.match_status === "CONFIRMED" &&
+        mappingR2?.match_status === "CONFIRMED" &&
+        mappingR2?.external_card_id === "ext-card-r2" &&
+        mappingR3?.match_status === "CONFIRMED" &&
+        mappingR3?.external_card_id === "ext-card-r3" &&
+        mappingR4?.match_status === "PENDING" &&
+        produtosR3.length === 2 &&
+        callCountRC3() === 1 &&
+        clientRC3.requestsMade === 1,
+    );
+  }
+
+  // Cenário 4 — --expected-set-codes bloqueia deriva de composição ANTES de qualquer chamada
+  // HTTP: como a lista de candidatos é 100% derivada de dados locais (nunca depende de GET
+  // /sets), o mismatch é detectado com ZERO requisições — diferença estrutural em relação ao
+  // backfill/expansion-wave (que gastam 1 chamada a /sets antes de poder validar).
+  {
+    const { client: supabaseRC4, tables: tablesRC4 } = makeExpansionWaveFakeClient(buildRepairDoisSetsSeed());
+    const { fetchImpl: fetchImplRC4, callCount: callCountRC4 } = makeFakeFetch(buildRepairDoisSetsSuccessResponses());
+    const clientRC4 = new JustTcgClient("sk-fake-rc4", fetchImplRC4, 10);
+    let erroRC4: Error | null = null;
+    try {
+      await executeRepairMappings(supabaseRC4, clientRC4, { dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETR"] });
+    } catch (error) {
+      erroRC4 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.4 repair cenário 4: --expected-set-codes=SETR (faltando SETS) é rejeitado com REPAIR_CANDIDATE_SETS_CHANGED, ZERO requisições HTTP (candidatos derivados só de dados locais), zero persistência, CARD_SYNC finalizado FAILED",
+      erroRC4 !== null &&
+        erroRC4.message.startsWith("REPAIR_CANDIDATE_SETS_CHANGED") &&
+        callCountRC4() === 0 &&
+        clientRC4.requestsMade === 0 &&
+        (tablesRC4.pricing_product ?? []).length === 0 &&
+        tablesRC4.pricing_sync_run.length === 1 &&
+        (tablesRC4.pricing_sync_run[0] as { status: string }).status === "FAILED",
+    );
+  }
+
+  // Cenário 5 — orçamento local (--max-api-requests) é respeitado: budget=1 alcança só a
+  // página de SETR (1º na ordem alfabética); SETS nunca é sequer tentado (budgetOk() barra
+  // antes do fetch) -> ORCAMENTO_ESGOTADO, FAILED, zero persistência (regra tudo-ou-nada).
+  {
+    const { client: supabaseRC5, tables: tablesRC5 } = makeExpansionWaveFakeClient(buildRepairDoisSetsSeed());
+    const { fetchImpl: fetchImplRC5, callCount: callCountRC5 } = makeFakeFetch(buildRepairDoisSetsSuccessResponses());
+    const clientRC5 = new JustTcgClient("sk-fake-rc5", fetchImplRC5, 1);
+    const resultadoRC5 = await executeRepairMappings(supabaseRC5, clientRC5, { dryRun: false, confirmedBy: "admin-1", maxApiRequests: 1, expectedSetCodes: ["SETR", "SETS"] });
+    assert(
+      "P14.4.4 repair cenário 5: --max-api-requests=1 nunca é ultrapassado — exatamente 1 chamada real (página de SETR), SETS nunca sequer tentado; status FAILED, zero persistência de negócio",
+      callCountRC5() === 1 &&
+        clientRC5.requestsMade === 1 &&
+        resultadoRC5.status === "FAILED" &&
+        resultadoRC5.errorParts.some((e) => e.startsWith("ORCAMENTO_ESGOTADO(SETS)")) &&
+        (tablesRC5.pricing_product ?? []).length === 0 &&
+        (tablesRC5.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r2")?.match_status === "PENDING",
+    );
+  }
+
+  // Cenário 6 — --dry-run gera zero escrita: nenhum pricing_sync_run criado, nenhuma linha
+  // nova em nenhuma tabela de negócio, mesmo com card-r2/card-r3 classificados com sucesso
+  // (SAFE) — mesma disciplina de dry-run do backfill/expansion-wave.
+  {
+    const { client: supabaseRC6, tables: tablesRC6 } = makeExpansionWaveFakeClient(buildRepairSimplesSeed());
+    const { fetchImpl: fetchImplRC6 } = makeFakeFetch(buildRepairSimplesSuccessResponses());
+    const clientRC6 = new JustTcgClient("sk-fake-rc6", fetchImplRC6, 10);
+    const resultadoRC6 = await executeRepairMappings(supabaseRC6, clientRC6, { dryRun: true, confirmedBy: null, maxApiRequests: 10, expectedSetCodes: ["SETR"] });
+    assert(
+      "P14.4.4 repair cenário 6: --dry-run nunca cria pricing_sync_run nem escreve mapping/produto/observação, mesmo com 2 cartas (card-r2/card-r3) classificadas SAFE com sucesso; productsProjected > 0 só como projeção informativa",
+      resultadoRC6.status === "COMPLETED" &&
+        resultadoRC6.cardsPromoted === 2 &&
+        (tablesRC6.pricing_sync_run ?? []).length === 0 &&
+        (tablesRC6.pricing_product ?? []).length === 0 &&
+        (tablesRC6.pricing_observation ?? []).length === 0 &&
+        (tablesRC6.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r2")?.match_status === "PENDING" &&
+        resultadoRC6.productsProjected > 0,
+    );
+  }
+
+  // Cenário 7 — conflito de concorrência bloqueia qualquer chamada externa: já existe um
+  // CARD_SYNC RECEIVED/PROCESSING para a mesma fonte -> CONFLITO_DE_CONCORRENCIA antes de
+  // qualquer requisição, zero requisições HTTP, nenhuma 2ª linha em pricing_sync_run.
+  {
+    const seedRC7 = buildRepairSimplesSeed();
+    seedRC7.pricing_sync_run = [{ id: "run-existing", pricing_source_id: "src-1", run_type: "CARD_SYNC", status: "PROCESSING" }];
+    const { client: supabaseRC7, tables: tablesRC7 } = makeExpansionWaveFakeClient(seedRC7);
+    const { fetchImpl: fetchImplRC7, callCount: callCountRC7 } = makeFakeFetch(buildRepairSimplesSuccessResponses());
+    const clientRC7 = new JustTcgClient("sk-fake-rc7", fetchImplRC7, 10);
+    let erroRC7: Error | null = null;
+    try {
+      await executeRepairMappings(supabaseRC7, clientRC7, { dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETR"] });
+    } catch (error) {
+      erroRC7 = error instanceof Error ? error : null;
+    }
+    assert(
+      "P14.4.4 repair cenário 7: conflito de concorrência (CARD_SYNC já ativo) aborta com CONFLITO_DE_CONCORRENCIA antes de qualquer chamada à JustTCG, sem criar uma 2ª linha em pricing_sync_run",
+      erroRC7 !== null && erroRC7.message.startsWith("CONFLITO_DE_CONCORRENCIA") && callCountRC7() === 0 && clientRC7.requestsMade === 0 && tablesRC7.pricing_sync_run.length === 1,
+    );
+  }
+
+  // Cenário 8 — falha em qualquer Set-alvo bloqueia a persistência de TODO o reparo, mesmo
+  // que outro Set já tenha sido classificado com sucesso e mantido só em memória: SETR é
+  // adquirido e classificado com sucesso, mas a paginação de SETS falha (HTTP 500) -> zero
+  // mapping/produto/observação persistidos para SETR também (regra tudo-ou-nada).
+  {
+    const { client: supabaseRC8, tables: tablesRC8 } = makeExpansionWaveFakeClient(buildRepairDoisSetsSeed());
+    const { fetchImpl: fetchImplRC8 } = makeFakeFetch([
+      { status: 200, body: { data: [{ id: "ext-card-r2", name: "Card R2 EN", number: "2", variants: [{ uuid: "var-r2", condition: "Near Mint", printing: "Normal", price: 2.5, lastUpdated: 1700000000 }] }] } },
+      { status: 500, body: { error: "falha simulada" } },
+    ]);
+    const clientRC8 = new JustTcgClient("sk-fake-rc8", fetchImplRC8, 10);
+    const resultadoRC8 = await executeRepairMappings(supabaseRC8, clientRC8, { dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETR", "SETS"] });
+    assert(
+      "P14.4.4 repair cenário 8: falha de paginação em SETS (HTTP 500) aborta o reparo inteiro -> zero mapping/produto/observação persistidos, mesmo com SETR já classificado com sucesso em memória; status FAILED",
+      resultadoRC8.status === "FAILED" &&
+        resultadoRC8.errorParts.some((e) => e.startsWith("PAGINACAO_CARDS_FALHOU(SETS)")) &&
+        (tablesRC8.pricing_product ?? []).length === 0 &&
+        (tablesRC8.pricing_card_mapping ?? []).find((r) => r.card_id === "card-r2")?.match_status === "PENDING",
+    );
+  }
+
+  // Cenário 9 — wiring de CLI: --repair-mappings é mutuamente exclusivo com --expansion-plan,
+  // --expansion-wave e --backfill-wave (rejeitado ANTES de qualquer validação de formato/
+  // credencial), isolado aciona REPAIR_MAPPINGS normalmente, e --backfill-wave sozinho
+  // continua funcionando exatamente como antes (regressão de P14.4.3 preservada).
+  {
+    const CREDS_OK_RC9 = { justTcgApiKey: "sk-fake-justtcg-rc9", supabaseUrl: "https://fake.supabase.co", supabaseServiceRoleKey: "sk-fake-service-role-rc9" };
+
+    const decisaoExclusivo1 = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: true, dryRun: true, confirmedBy: null, expectedSetCodes: "SETR", repairMappings: true, maxApiRequests: "10" },
+      CREDS_OK_RC9,
+    );
+    assert(
+      "P14.4.4 repair cenário 9: --repair-mappings combinado com --expansion-plan é rejeitado com REPAIR_MAPPINGS_INVALID_ARGS/MODOS_MUTUAMENTE_EXCLUSIVOS",
+      decisaoExclusivo1.kind === "REPAIR_MAPPINGS_INVALID_ARGS" && decisaoExclusivo1.reason.startsWith("MODOS_MUTUAMENTE_EXCLUSIVOS"),
+    );
+
+    const decisaoExclusivo2 = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, backfillWave: "1", dryRun: true, confirmedBy: null, expectedSetCodes: "SETR", repairMappings: true, maxApiRequests: "10" },
+      CREDS_OK_RC9,
+    );
+    assert(
+      "P14.4.4 repair cenário 9: --repair-mappings combinado com --backfill-wave é rejeitado com BACKFILL_WAVE_INVALID_ARGS/MODOS_MUTUAMENTE_EXCLUSIVOS (checagem já existente de --backfill-wave cobre o par)",
+      decisaoExclusivo2.kind === "BACKFILL_WAVE_INVALID_ARGS" && decisaoExclusivo2.reason.startsWith("MODOS_MUTUAMENTE_EXCLUSIVOS"),
+    );
+
+    const decisaoRepairValida = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: null, backfillWave: null, dryRun: true, confirmedBy: null, expectedSetCodes: "SETR", repairMappings: true, maxApiRequests: "10" },
+      CREDS_OK_RC9,
+    );
+    assert(
+      "P14.4.4 repair cenário 9: --repair-mappings isolado (sem os outros três modos) aciona REPAIR_MAPPINGS com orçamento/expected-set-codes corretos",
+      decisaoRepairValida.kind === "REPAIR_MAPPINGS" && decisaoRepairValida.maxApiRequests === 10 && decisaoRepairValida.expectedSetCodes.join(",") === "SETR",
+    );
+
+    const decisaoBackfillIntacta = resolveEntryDecision(
+      { fixtureCheck: false, expansionPlan: false, expansionWave: null, backfillWave: "1", dryRun: true, confirmedBy: null, expectedSetCodes: "SETB", repairMappings: false, maxApiRequests: "10" },
+      CREDS_OK_RC9,
+    );
+    assert(
+      "P14.4.4 repair cenário 9: --backfill-wave sozinho (sem --repair-mappings) continua funcionando exatamente como antes de P14.4.4 (regressão preservada)",
+      decisaoBackfillIntacta.kind === "BACKFILL_WAVE" && decisaoBackfillIntacta.waveNumber === 1,
+    );
+  }
+
+  // ==========================================================================
+  // P14.4.5 — Correção pós-decisão de negócio: deduplicação por external_card_id.
+  // Causa raiz confirmada na auditoria real (BASE1/BASE2/BASE4/GYM2/ME1, 2026-08-19):
+  // os 6 casos NUMERO_MULTIPLO_SEM_DESEMPATE_SEGURO em produção (todos em ME1: Tangela,
+  // Ninjask, Greavard, Nickit, Repelente, Relógio Insólito) tinham a MESMA carta externa
+  // (mesmo id) listada duas vezes no array de candidatos — buildExternalNumberIndex()
+  // contava 2 candidatos onde só existia 1 distinto, bloqueando uma promoção que deveria
+  // ser CONFIRMED. A deduplicação por id na construção do índice corrige isso na origem,
+  // valendo automaticamente para piloto/expansion-wave/backfill/reparo (mesma função).
+  // ==========================================================================
+
+  // Cenário 10 — candidatos repetidos com o MESMO external_card_id colapsam para 1 candidato
+  // distinto (nunca 2) -> SAFE, nunca AMBIGUOUS. Prova direta do bug de contagem corrigido.
+  {
+    const externalIndexDup = buildExternalNumberIndex([
+      { id: "ext-tangela", name: "Tangela", number: "6", variants: [] },
+      { id: "ext-tangela", name: "Tangela", number: "6", variants: [] }, // mesmo id, entrada duplicada na resposta bruta
+    ]);
+    assert(
+      "P14.4.5 dedup cenário 10: buildExternalNumberIndex() nunca duplica o mesmo external_card_id no mesmo número — bucket tem 1 candidato, não 2",
+      (externalIndexDup.get("6") ?? []).length === 1,
+    );
+    const resultDup = classifyCardMatch({ card_id: "local-tangela", name: "Tangela", collector_number: "006" }, externalIndexDup, "fixture-set-x");
+    assert(
+      "P14.4.5 dedup cenário 10: candidatos duplicados pelo mesmo external_card_id -> SAFE (nunca AMBIGUOUS) — reproduz e corrige o caso real de ME1 (Tangela/Ninjask/Greavard/Nickit/Repelente/Relógio Insólito)",
+      resultDup.classification === "SAFE" && resultDup.matched?.id === "ext-tangela",
+    );
+  }
+  {
+    // Contraprova: 3 entradas duplicadas do MESMO id ao lado de um id genuinamente diferente
+    // no mesmo número -> ainda AMBIGUOUS (2 candidatos distintos), a deduplicação nunca
+    // esconde uma ambiguidade real, só remove repetição do mesmo id.
+    const externalIndexMisto = buildExternalNumberIndex([
+      { id: "ext-a", name: "Card A", number: "9", variants: [] },
+      { id: "ext-a", name: "Card A", number: "9", variants: [] },
+      { id: "ext-b", name: "Card B", number: "9", variants: [] },
+    ]);
+    assert(
+      "P14.4.5 dedup cenário 10: 3 entradas brutas (ext-a duplicado + ext-b) -> 2 candidatos distintos, nunca 3 nem 1",
+      (externalIndexMisto.get("9") ?? []).length === 2,
+    );
+    const resultMisto = classifyCardMatch({ card_id: "local-x9", name: "Card A", collector_number: "009" }, externalIndexMisto, "fixture-set-x");
+    assert(
+      "P14.4.5 dedup cenário 10: deduplicar não esconde ambiguidade real — 2 external_card_id genuinamente distintos continuam AMBIGUOUS mesmo com um deles duplicado na resposta bruta",
+      resultMisto.classification === "AMBIGUOUS" && resultMisto.matched === null,
+    );
+  }
+
+  // Cenário 11 — reparo real fim a fim: dois Sets CONFIRMED distintos (SETM, SETN), cada um
+  // com uma carta PENDING no MESMO collector_number ("010"), cada Set com um external_card_id
+  // distinto (e só um) para esse número. Prova que o índice por número nunca vaza entre Sets —
+  // cada carta promove para o candidato do PRÓPRIO Set, nunca para o do outro.
+  {
+    const seedRC11: Record<string, FakeRow[]> = {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [
+        { id: "cs-m", code: "SETM", release_date: "2020-05-01" },
+        { id: "cs-n", code: "SETN", release_date: "2020-06-01" },
+      ],
+      catalog_card_set_metrics: [
+        { card_set_id: "cs-m", cards_ativas: 1 },
+        { card_set_id: "cs-n", cards_ativas: 1 },
+      ],
+      card: [
+        { id: "card-m1", card_set_id: "cs-m", name: "Card M1 PT", collector_number: "10", is_active: true },
+        { id: "card-n1", card_set_id: "cs-n", name: "Card N1 PT", collector_number: "10", is_active: true },
+      ],
+      pricing_set_mapping: [
+        { card_set_id: "cs-m", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-m", external_set_name: "Ext M" },
+        { card_set_id: "cs-n", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-n", external_set_name: "Ext N" },
+      ],
+      pricing_card_mapping: [
+        { id: "pcm-m1", card_id: "card-m1", pricing_source_id: "src-1", match_status: "PENDING" },
+        { id: "pcm-n1", card_id: "card-n1", pricing_source_id: "src-1", match_status: "PENDING" },
+      ],
+      pricing_set_coverage: [
+        { card_set_id: "cs-m", pricing_source_id: "src-1", products_count: 0, observations_count: 0, mapped_cards_count: 1, confirmed_cards_count: 0, pending_cards_count: 1, not_found_cards_count: 0 },
+        { card_set_id: "cs-n", pricing_source_id: "src-1", products_count: 0, observations_count: 0, mapped_cards_count: 1, confirmed_cards_count: 0, pending_cards_count: 1, not_found_cards_count: 0 },
+      ],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+    const { client: supabaseRC11, tables: tablesRC11 } = makeExpansionWaveFakeClient(seedRC11);
+    const respostasRC11: Array<{ status: number; body: unknown }> = [
+      { status: 200, body: { data: [{ id: "ext-card-m1", name: "Card M1 EN", number: "10", variants: [{ uuid: "var-m1", condition: "Near Mint", printing: "Normal", price: 4.5, lastUpdated: 1700000000 }] }] } },
+      { status: 200, body: { data: [{ id: "ext-card-n1", name: "Card N1 EN", number: "10", variants: [{ uuid: "var-n1", condition: "Near Mint", printing: "Normal", price: 5.5, lastUpdated: 1700000000 }] }] } },
+    ];
+    const { fetchImpl: fetchImplRC11 } = makeFakeFetch(respostasRC11);
+    const clientRC11 = new JustTcgClient("sk-fake-rc11", fetchImplRC11, 10);
+    const resultadoRC11 = await executeRepairMappings(supabaseRC11, clientRC11, { dryRun: false, confirmedBy: "admin-1", maxApiRequests: 10, expectedSetCodes: ["SETM", "SETN"] });
+
+    const mappingM1 = (tablesRC11.pricing_card_mapping ?? []).find((r) => r.card_id === "card-m1") as { match_status: string; external_card_id?: string } | undefined;
+    const mappingN1 = (tablesRC11.pricing_card_mapping ?? []).find((r) => r.card_id === "card-n1") as { match_status: string; external_card_id?: string } | undefined;
+    assert(
+      "P14.4.5 Sets isolados cenário 11: SETM/SETN compartilham o mesmo collector_number (010) mas cada carta promove para o external_card_id do PRÓPRIO Set — card-m1 -> ext-card-m1 (nunca ext-card-n1), card-n1 -> ext-card-n1 (nunca ext-card-m1)",
+      resultadoRC11.status === "COMPLETED" &&
+        resultadoRC11.cardsPromoted === 2 &&
+        mappingM1?.match_status === "CONFIRMED" &&
+        mappingM1?.external_card_id === "ext-card-m1" &&
+        mappingN1?.match_status === "CONFIRMED" &&
+        mappingN1?.external_card_id === "ext-card-n1",
+    );
+  }
+
   const failed = assertions.filter(([, ok]) => !ok);
   for (const [label, ok] of assertions) console.log(`  [${ok ? "OK" : "FALHOU"}] ${label}`);
   console.log(`\n${failed.length === 0 ? "TODAS as asserções passaram" : `${failed.length} asserção(ões) FALHARAM`} (${assertions.length} no total).`);
@@ -3967,15 +4995,23 @@ function parseArgs(argv: string[]) {
     // P14.4.2 fix (instabilidade de identidade de onda): confirmação explícita e obrigatória
     // da composição exata da onda — nunca substitui o plano recalculado, só o valida.
     expectedSetCodes: null as string | null,
+    // P14.4.3: valor bruto (string), nunca convertido aqui — mesma disciplina de
+    // expansionWave; a validação/conversão numérica é feita por validateBackfillWaveArgs().
+    backfillWave: null as string | null,
+    // P14.4.4: booleano puro — o reparo não tem número de onda (lista de Sets-alvo derivada
+    // dinamicamente a cada execução, ver buildRepairCandidates()).
+    repairMappings: false,
   };
   for (const arg of argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--fixture-check") args.fixtureCheck = true;
     else if (arg === "--expansion-plan") args.expansionPlan = true;
+    else if (arg === "--repair-mappings") args.repairMappings = true;
     else if (arg.startsWith("--confirmed-by=")) args.confirmedBy = arg.slice("--confirmed-by=".length);
     else if (arg.startsWith("--expansion-wave=")) args.expansionWave = arg.slice("--expansion-wave=".length);
     else if (arg.startsWith("--max-api-requests=")) args.maxApiRequests = arg.slice("--max-api-requests=".length);
     else if (arg.startsWith("--expected-set-codes=")) args.expectedSetCodes = arg.slice("--expected-set-codes=".length);
+    else if (arg.startsWith("--backfill-wave=")) args.backfillWave = arg.slice("--backfill-wave=".length);
   }
   return args;
 }
@@ -4000,6 +5036,10 @@ type EntryDecision =
   | { kind: "EXPANSION_WAVE_INVALID_ARGS"; reason: string }
   | { kind: "EXPANSION_PLAN" }
   | { kind: "EXPANSION_WAVE"; waveNumber: number; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[] }
+  | { kind: "BACKFILL_WAVE_INVALID_ARGS"; reason: string }
+  | { kind: "BACKFILL_WAVE"; waveNumber: number; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[] }
+  | { kind: "REPAIR_MAPPINGS_INVALID_ARGS"; reason: string }
+  | { kind: "REPAIR_MAPPINGS"; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[] }
   | { kind: "REAL_PILOT" };
 
 // P14.4.1: `expansionPlan` é opcional na assinatura (nunca `expansionPlan: boolean` obrigatório)
@@ -4018,6 +5058,14 @@ type EntryDecision =
 // aciona este modo implicitamente — só um valor explícito entra neste caminho (regra
 // "nunca executar todas as ondas implicitamente" fica estruturalmente garantida: não existe
 // nenhum branch que itere plan.waves inteiro a partir daqui).
+// P14.4.3: `backfillWave` também opcional na assinatura, mesmo motivo dos demais modos.
+// Regra explícita da especificação ("mutuamente exclusivo com --expansion-plan e
+// --expansion-wave"): um --backfill-wave combinado com qualquer um dos dois é rejeitado ANTES
+// de qualquer validação de formato ou checagem de credencial — erro de uso puro, nunca uma
+// prioridade implícita entre modos. --fixture-check continua vencendo incondicionalmente
+// sobre tudo (checado primeiro, sem alteração) — precedente já estabelecido em P14.1, nunca
+// precisou de checagem de exclusividade explícita porque nenhum outro modo é sequer
+// inspecionado depois dele.
 function resolveEntryDecision(
   args: {
     fixtureCheck: boolean;
@@ -4027,6 +5075,8 @@ function resolveEntryDecision(
     dryRun?: boolean;
     confirmedBy?: string | null;
     expectedSetCodes?: string | null;
+    backfillWave?: string | null;
+    repairMappings?: boolean;
   },
   env: { justTcgApiKey: string | undefined; supabaseUrl: string | undefined; supabaseServiceRoleKey: string | undefined },
 ): EntryDecision {
@@ -4034,6 +5084,26 @@ function resolveEntryDecision(
   // de credencial — mesmo com as três variáveis presentes, roda offline se pedido. Nunca
   // depende do ambiente: por isso funciona sem nenhuma credencial definida.
   if (args.fixtureCheck) return { kind: "FIXTURE_CHECK" };
+
+  const backfillWaveRaw = args.backfillWave ?? null;
+  if (backfillWaveRaw !== null && (args.expansionPlan || args.expansionWave || args.repairMappings)) {
+    return {
+      kind: "BACKFILL_WAVE_INVALID_ARGS",
+      reason:
+        "MODOS_MUTUAMENTE_EXCLUSIVOS: --backfill-wave não pode ser combinado com --expansion-plan, --expansion-wave nem --repair-mappings — são modos distintos (backfill preenche cartas em Sets já CONFIRMED; expansion mapeia Sets ainda não confirmados; reparo corrige PENDING/NOT_FOUND em Sets já CONFIRMED). Execute-os em rodadas separadas.",
+      };
+  }
+
+  // P14.4.4: --repair-mappings mutuamente exclusivo com --expansion-plan/--expansion-wave
+  // (a exclusividade com --backfill-wave já foi checada acima). Erro de uso puro, checado
+  // antes de qualquer validação de formato ou credencial.
+  if (args.repairMappings && (args.expansionPlan || args.expansionWave)) {
+    return {
+      kind: "REPAIR_MAPPINGS_INVALID_ARGS",
+      reason:
+        "MODOS_MUTUAMENTE_EXCLUSIVOS: --repair-mappings não pode ser combinado com --expansion-plan nem --expansion-wave — são modos distintos. Execute-os em rodadas separadas.",
+    };
+  }
 
   const waveArgs = {
     expansionWave: args.expansionWave ?? null,
@@ -4045,11 +5115,52 @@ function resolveEntryDecision(
   const waveValidation = waveArgs.expansionWave !== null ? validateExpansionWaveArgs(waveArgs) : null;
   if (waveValidation && !waveValidation.ok) return { kind: "EXPANSION_WAVE_INVALID_ARGS", reason: waveValidation.reason };
 
+  const backfillArgs = {
+    backfillWave: backfillWaveRaw,
+    maxApiRequests: args.maxApiRequests ?? null,
+    dryRun: args.dryRun ?? false,
+    confirmedBy: args.confirmedBy ?? null,
+    expectedSetCodes: args.expectedSetCodes ?? null,
+  };
+  const backfillValidation = backfillWaveRaw !== null ? validateBackfillWaveArgs(backfillArgs) : null;
+  if (backfillValidation && !backfillValidation.ok) return { kind: "BACKFILL_WAVE_INVALID_ARGS", reason: backfillValidation.reason };
+
+  const repairMappingsFlag = args.repairMappings ?? false;
+  const repairArgs = {
+    maxApiRequests: args.maxApiRequests ?? null,
+    dryRun: args.dryRun ?? false,
+    confirmedBy: args.confirmedBy ?? null,
+    expectedSetCodes: args.expectedSetCodes ?? null,
+  };
+  const repairValidation = repairMappingsFlag ? validateRepairMappingsArgs(repairArgs) : null;
+  if (repairValidation && !repairValidation.ok) return { kind: "REPAIR_MAPPINGS_INVALID_ARGS", reason: repairValidation.reason };
+
   const missing: string[] = [];
   if (!env.justTcgApiKey) missing.push("JUSTTCG_API_KEY");
   if (!env.supabaseUrl) missing.push("SUPABASE_URL");
   if (!env.supabaseServiceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length > 0) return { kind: "MISSING_ENV", missing };
+
+  if (backfillValidation && backfillValidation.ok) {
+    return {
+      kind: "BACKFILL_WAVE",
+      waveNumber: backfillValidation.waveNumber,
+      maxApiRequests: backfillValidation.maxApiRequests,
+      dryRun: backfillArgs.dryRun,
+      confirmedBy: backfillArgs.confirmedBy,
+      expectedSetCodes: backfillValidation.expectedSetCodes,
+    };
+  }
+
+  if (repairValidation && repairValidation.ok) {
+    return {
+      kind: "REPAIR_MAPPINGS",
+      maxApiRequests: repairValidation.maxApiRequests,
+      dryRun: repairArgs.dryRun,
+      confirmedBy: repairArgs.confirmedBy,
+      expectedSetCodes: repairValidation.expectedSetCodes,
+    };
+  }
 
   if (waveValidation && waveValidation.ok) {
     return {
@@ -4199,7 +5310,7 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
       if (args.dryRun) console.log(`\n--- Evidência sanitizada de mapping (dry-run) — Set ${target.codigoMmkyu} ---`);
 
       for (const local of localCards) {
-        const matchResult = classifyCardMatch(local, externalIndex);
+        const matchResult = classifyCardMatch(local, externalIndex, match.set.id);
 
         if (matchResult.classification !== "SAFE" || !matchResult.matched) {
           if (matchResult.classification === "ABSENT") summary.cardsAbsent++;
@@ -4522,7 +5633,8 @@ type LocalSetSummary = { cardSetId: string; code: string; releaseDateIso: string
 type ExistingSetMappingLite = { cardSetId: string; matchStatus: string; externalSetId: string | null; externalSetName: string | null };
 
 type SetPlanClassification =
-  | { status: "ALREADY_CONFIRMED"; externalSetId: string; externalSetName: string | null; externalVariantsCount: number | null; reason: string }
+  | { status: "ALREADY_CONFIRMED_COMPLETE"; externalSetId: string; externalSetName: string | null; externalVariantsCount: number | null; reason: string }
+  | { status: "ALREADY_CONFIRMED_INCOMPLETE"; externalSetId: string; externalSetName: string | null; externalVariantsCount: number | null; reason: string }
   | { status: "SAFE_CANDIDATE"; externalSetId: string; externalSetName: string; externalVariantsCount: number | null; reason: string }
   | { status: "AMBIGUOUS"; candidateCount: number; reason: string }
   | { status: "NOT_FOUND"; reason: string };
@@ -4532,21 +5644,31 @@ type SetPlanClassification =
 // nunca é fundamento isolado (não é usado nem como desempate nesta rodada — zero candidatos
 // na mesma data já é o caso raro o suficiente para não precisar de um segundo sinal; ver nota
 // no cabeçalho do arquivo). Um mapping já CONFIRMED é sempre preservado, nunca reavaliado
-// contra allExternalSets — ALREADY_CONFIRMED é decidido só pelo estado local, antes de
-// qualquer comparação de data.
+// contra allExternalSets — ALREADY_CONFIRMED_COMPLETE/INCOMPLETE é decidido só pelo estado
+// local (mapping do Set + cobertura agregada de cartas), antes de qualquer comparação de data.
+//
+// P14.4.3: "Set confirmado" deixou de implicar "cobertura completa" (BASE1/ME1 confirmados no
+// nível do Set, mas mapeados só parcialmente em pilotos anteriores). coverage.mappedCards conta
+// QUALQUER pricing_card_mapping existente (CONFIRMED, PENDING ou NOT_FOUND contam como
+// "mapeada" — o gap real é ausência TOTAL de mapping); >= (não ===) é deliberado, tolerante a
+// mappedCards nunca poder superar localCardCount em condições normais (ambos filtram por
+// card.is_active = TRUE), mas sem quebrar se algum dia divergir por um instante entre leituras.
 function classifySetForExpansionPlan(
-  local: { releaseDateIso: string | null },
+  local: { releaseDateIso: string | null; localCardCount: number },
   existingMapping: ExistingSetMappingLite | null,
   allExternalSets: JustTcgSet[],
+  coverage: { mappedCards: number } | null,
 ): SetPlanClassification {
   if (existingMapping && existingMapping.matchStatus === "CONFIRMED") {
     const knownExternal = existingMapping.externalSetId ? allExternalSets.find((s) => s.id === existingMapping.externalSetId) : undefined;
+    const mappedCards = coverage?.mappedCards ?? 0;
+    const isComplete = mappedCards >= local.localCardCount;
     return {
-      status: "ALREADY_CONFIRMED",
+      status: isComplete ? "ALREADY_CONFIRMED_COMPLETE" : "ALREADY_CONFIRMED_INCOMPLETE",
       externalSetId: existingMapping.externalSetId ?? "",
       externalSetName: existingMapping.externalSetName,
       externalVariantsCount: knownExternal?.variants_count ?? null,
-      reason: "MAPPING_JA_CONFIRMED_PRESERVADO",
+      reason: isComplete ? "MAPPING_JA_CONFIRMED_COBERTURA_COMPLETA" : "MAPPING_JA_CONFIRMED_COBERTURA_INCOMPLETA",
     };
   }
 
@@ -4618,6 +5740,56 @@ function buildExpansionWaves(candidates: WaveSetEntry[]): ExpansionWave[] {
   return waves;
 }
 
+// ============================================================================
+// 7d. P14.4.3 — Ondas de Backfill para Sets ALREADY_CONFIRMED_INCOMPLETE
+// ============================================================================
+
+// Uma entrada de onda de backfill carrega DOIS tamanhos por Set, com propósitos distintos:
+// missingCardsCount governa o agrupamento/limite de 500 (é o que o executor realmente
+// processa — cartas locais ativas sem nenhum pricing_card_mapping); localCardCount (tamanho
+// TOTAL do Set) governa só a estimativa de chamadas HTTP, porque o executor ainda precisa
+// paginar TODAS as cartas externas do Set via fetchAllCardsForSet() para localizar as
+// faltantes — a JustTCG não expõe um jeito de pedir só um subconjunto de cartas de um Set.
+type BackfillWaveSetEntry = { code: string; missingCardsCount: number; localCardCount: number };
+type BackfillWave = { waveNumber: number; sets: BackfillWaveSetEntry[]; totalMissingCards: number; oversized: boolean; estimatedCallsCards: number };
+
+// Pura — mesmo algoritmo de agrupamento de buildExpansionWaves() (5 Sets OU 500, o que vier
+// primeiro; Set individual que sozinho excede o limite nunca é dividido, fecha a onda em
+// formação e forma sua própria onda oversized), mas o limite de 500 é aplicado sobre
+// missingCardsCount, nunca sobre localCardCount — ver comentário do tipo acima.
+function buildBackfillWaves(candidates: BackfillWaveSetEntry[]): BackfillWave[] {
+  const waves: BackfillWave[] = [];
+  let current: BackfillWaveSetEntry[] = [];
+
+  const pushWave = (sets: BackfillWaveSetEntry[], oversized: boolean) => {
+    if (sets.length === 0) return;
+    waves.push({
+      waveNumber: waves.length + 1,
+      sets,
+      totalMissingCards: sets.reduce((sum, s) => sum + s.missingCardsCount, 0),
+      oversized,
+      estimatedCallsCards: sets.reduce((sum, s) => sum + estimateCardsPagesFromLocalCount(s.localCardCount), 0),
+    });
+  };
+
+  for (const candidate of candidates) {
+    if (candidate.missingCardsCount > WAVE_MAX_LOCAL_CARDS) {
+      pushWave(current, false);
+      current = [];
+      pushWave([candidate], true);
+      continue;
+    }
+    const currentMissing = current.reduce((sum, s) => sum + s.missingCardsCount, 0);
+    if (current.length >= WAVE_MAX_SETS || currentMissing + candidate.missingCardsCount > WAVE_MAX_LOCAL_CARDS) {
+      pushWave(current, false);
+      current = [];
+    }
+    current.push(candidate);
+  }
+  pushWave(current, false);
+  return waves;
+}
+
 type SetPlanEntry = {
   code: string;
   releaseDateIso: string | null;
@@ -4631,6 +5803,15 @@ type SetPlanEntry = {
   pagesEstimateExternalReason: string;
   existingProductsCount: number;
   existingObservationsCount: number;
+  // P14.4.3: totais por status de pricing_card_mapping (Query 3919) — mappedCardsCount conta
+  // CONFIRMED+PENDING+NOT_FOUND (qualquer mapping existente); missingCardsCount é o
+  // complemento exato contra localCardCount (max(0, localCardCount - mappedCardsCount)) —
+  // sempre 0 fora de ALREADY_CONFIRMED_INCOMPLETE.
+  mappedCardsCount: number;
+  confirmedCardsCount: number;
+  pendingCardsCount: number;
+  notFoundCardsCount: number;
+  missingCardsCount: number;
   reason: string;
 };
 
@@ -4638,7 +5819,7 @@ type ExpansionPlanInput = {
   localSets: LocalSetSummary[];
   existingSetMappings: Map<string, ExistingSetMappingLite>;
   allExternalSets: JustTcgSet[];
-  existingCoverage: Map<string, { products: number; observations: number }>;
+  existingCoverage: Map<string, SetCoverageAggregate>;
 };
 
 type ExpansionPlanResult = {
@@ -4648,19 +5829,31 @@ type ExpansionPlanResult = {
   entries: SetPlanEntry[];
   waves: ExpansionWave[];
   totalEstimatedCallsAllWaves: number;
+  // P14.4.3: ondas de backfill (Sets ALREADY_CONFIRMED_INCOMPLETE) — nunca executadas
+  // implicitamente aqui, só construídas; a execução real é sempre um --backfill-wave=<n>
+  // explícito (mesma disciplina de `waves`/--expansion-wave).
+  backfillWaves: BackfillWave[];
+  totalEstimatedCallsAllBackfillWaves: number;
 };
 
 const PAGES_ESTIMATE_EXTERNAL_REASON = "JUSTTCG_SETS_NAO_EXPOE_TOTAL_DE_CARTAS_SO_VARIANTS_COUNT";
 
-// Pura — orquestra classifySetForExpansionPlan()/buildExpansionWaves() sobre dados já
-// buscados pelo chamador (executeExpansionPlan(), abaixo). 100% testável offline sem nenhum
-// SupabaseClient/fetch.
+// Pura — orquestra classifySetForExpansionPlan()/buildExpansionWaves()/buildBackfillWaves()
+// sobre dados já buscados pelo chamador (executeExpansionPlan(), abaixo). 100% testável
+// offline sem nenhum SupabaseClient/fetch.
 function buildExpansionPlan(input: ExpansionPlanInput): ExpansionPlanResult {
   const entries: SetPlanEntry[] = input.localSets.map((local) => {
     const existingMapping = input.existingSetMappings.get(local.cardSetId) ?? null;
-    const classification = classifySetForExpansionPlan({ releaseDateIso: local.releaseDateIso }, existingMapping, input.allExternalSets);
-    const coverage = input.existingCoverage.get(local.cardSetId) ?? { products: 0, observations: 0 };
-    const hasExternal = classification.status === "ALREADY_CONFIRMED" || classification.status === "SAFE_CANDIDATE";
+    const coverage = input.existingCoverage.get(local.cardSetId) ?? null;
+    const classification = classifySetForExpansionPlan(
+      { releaseDateIso: local.releaseDateIso, localCardCount: local.localCardCount },
+      existingMapping,
+      input.allExternalSets,
+      coverage ? { mappedCards: coverage.mappedCards } : null,
+    );
+    const hasExternal = classification.status === "ALREADY_CONFIRMED_COMPLETE" || classification.status === "ALREADY_CONFIRMED_INCOMPLETE" || classification.status === "SAFE_CANDIDATE";
+    const mappedCardsCount = coverage?.mappedCards ?? 0;
+    const missingCardsCount = classification.status === "ALREADY_CONFIRMED_INCOMPLETE" ? Math.max(0, local.localCardCount - mappedCardsCount) : 0;
 
     return {
       code: local.code,
@@ -4673,8 +5866,13 @@ function buildExpansionPlan(input: ExpansionPlanInput): ExpansionPlanResult {
       pagesEstimateLocal: estimateCardsPagesFromLocalCount(local.localCardCount),
       pagesEstimateExternal: null,
       pagesEstimateExternalReason: PAGES_ESTIMATE_EXTERNAL_REASON,
-      existingProductsCount: coverage.products,
-      existingObservationsCount: coverage.observations,
+      existingProductsCount: coverage?.products ?? 0,
+      existingObservationsCount: coverage?.observations ?? 0,
+      mappedCardsCount,
+      confirmedCardsCount: coverage?.confirmedCards ?? 0,
+      pendingCardsCount: coverage?.pendingCards ?? 0,
+      notFoundCardsCount: coverage?.notFoundCards ?? 0,
+      missingCardsCount,
       reason: classification.reason,
     };
   });
@@ -4686,6 +5884,14 @@ function buildExpansionPlan(input: ExpansionPlanInput): ExpansionPlanResult {
   // escondida, sempre somada ao total).
   const totalEstimatedCallsAllWaves = waves.reduce((sum, w) => sum + w.estimatedCallsCards, 0) + waves.length;
 
+  // P14.4.3: candidatos de backfill são só os Sets ALREADY_CONFIRMED_INCOMPLETE — nunca
+  // SAFE_CANDIDATE (esses vão para `waves`, nunca para `backfillWaves`) nem os já completos.
+  const backfillCandidates = entries
+    .filter((e) => e.status === "ALREADY_CONFIRMED_INCOMPLETE")
+    .map((e) => ({ code: e.code, missingCardsCount: e.missingCardsCount, localCardCount: e.localCardCount }));
+  const backfillWaves = buildBackfillWaves(backfillCandidates);
+  const totalEstimatedCallsAllBackfillWaves = backfillWaves.reduce((sum, w) => sum + w.estimatedCallsCards, 0) + backfillWaves.length;
+
   return {
     generatedAt: new Date().toISOString(),
     totalLocalSets: input.localSets.length,
@@ -4693,6 +5899,8 @@ function buildExpansionPlan(input: ExpansionPlanInput): ExpansionPlanResult {
     entries,
     waves,
     totalEstimatedCallsAllWaves,
+    backfillWaves,
+    totalEstimatedCallsAllBackfillWaves,
   };
 }
 
@@ -4701,7 +5909,20 @@ function buildExpansionPlan(input: ExpansionPlanInput): ExpansionPlanResult {
 type CardSetRow = { id: string; code: string; release_date: string | null };
 type MetricsRow = { card_set_id: string; cards_ativas: number };
 type SetMappingRow = { card_set_id: string; match_status: string; external_set_id: string | null; external_set_name: string | null };
-type CoverageRow = { card_set_id: string; products_count: number; observations_count: number };
+// P14.4.3 (Query 3919): campos novos opcionais na TYPE — a view real sempre os retorna
+// (COUNT() nunca é NULL em SQL), mas fixtures de teste que não exercitam a distinção
+// COMPLETE/INCOMPLETE continuam válidas sem precisar declará-los; buildCoverageMap() (abaixo)
+// aplica o default 0 explicitamente, nunca undefined silencioso.
+type CoverageRow = {
+  card_set_id: string;
+  products_count: number;
+  observations_count: number;
+  mapped_cards_count?: number;
+  confirmed_cards_count?: number;
+  pending_cards_count?: number;
+  not_found_cards_count?: number;
+};
+type SetCoverageAggregate = { products: number; observations: number; mappedCards: number; confirmedCards: number; pendingCards: number; notFoundCards: number };
 
 // --- Paginação determinística genérica (fix 2026-08-19, mesmo dia) --------------------------
 //
@@ -4809,15 +6030,31 @@ function buildSetMappingMap(rows: SetMappingRow[]): Map<string, ExistingSetMappi
   return map;
 }
 
-function buildCoverageMap(rows: CoverageRow[]): Map<string, { products: number; observations: number }> {
-  const map = new Map<string, { products: number; observations: number }>();
-  for (const row of rows) map.set(row.card_set_id, { products: row.products_count, observations: row.observations_count });
+// P14.4.3: campos novos default 0 explicitamente (nunca undefined silencioso) — cobre tanto
+// fixtures de teste que omitem os campos quanto, em tese, um Set sem nenhuma linha na view
+// (pricing_set_coverage é ancorada em pricing_card_mapping; um Set sem NENHUM mapping nunca
+// aparece nela) — mappedCards=0 é a semântica correta nos dois casos.
+function buildCoverageMap(rows: CoverageRow[]): Map<string, SetCoverageAggregate> {
+  const map = new Map<string, SetCoverageAggregate>();
+  for (const row of rows) {
+    map.set(row.card_set_id, {
+      products: row.products_count,
+      observations: row.observations_count,
+      mappedCards: row.mapped_cards_count ?? 0,
+      confirmedCards: row.confirmed_cards_count ?? 0,
+      pendingCards: row.pending_cards_count ?? 0,
+      notFoundCards: row.not_found_cards_count ?? 0,
+    });
+  }
   return map;
 }
 
 // Reconciliação final: todo mapping CONFIRMED existente precisa aparecer como
-// ALREADY_CONFIRMED no plano — se um Set com mapping CONFIRMED sumiu do inventário paginado
-// (bug de paginação, filtro errado, etc.), o plano nunca é emitido, nunca parcialmente.
+// ALREADY_CONFIRMED_COMPLETE ou ALREADY_CONFIRMED_INCOMPLETE no plano — se um Set com mapping
+// CONFIRMED sumiu do inventário paginado (bug de paginação, filtro errado, etc.), o plano
+// nunca é emitido, nunca parcialmente. P14.4.3: os dois status (completo/incompleto) são
+// igualmente válidos aqui — o que este invariante protege é o mapping nunca ter sido
+// "esquecido" pela reclassificação, não uma cobertura específica de cartas.
 function assertConfirmedMappingsPreserved(entries: SetPlanEntry[], localSets: LocalSetSummary[], existingSetMappings: Map<string, ExistingSetMappingLite>): void {
   for (const [cardSetId, mapping] of existingSetMappings) {
     if (mapping.matchStatus !== "CONFIRMED") continue;
@@ -4826,7 +6063,7 @@ function assertConfirmedMappingsPreserved(entries: SetPlanEntry[], localSets: Lo
       throw new Error(`MAPPING_CONFIRMED_SEM_SET_LOCAL_CORRESPONDENTE(${cardSetId}): plano de expansão abortado, nunca emitido parcialmente.`);
     }
     const entry = entries.find((e) => e.code === local.code);
-    if (!entry || entry.status !== "ALREADY_CONFIRMED") {
+    if (!entry || (entry.status !== "ALREADY_CONFIRMED_COMPLETE" && entry.status !== "ALREADY_CONFIRMED_INCOMPLETE")) {
       throw new Error(`MAPPING_CONFIRMED_NAO_PRESERVADO(${local.code}): plano de expansão abortado, nunca emitido parcialmente.`);
     }
   }
@@ -4844,7 +6081,7 @@ type ReconciledLocalInputs = {
   sourceId: string;
   localSets: LocalSetSummary[];
   existingSetMappings: Map<string, ExistingSetMappingLite>;
-  existingCoverage: Map<string, { products: number; observations: number }>;
+  existingCoverage: Map<string, SetCoverageAggregate>;
 };
 
 async function fetchReconciledLocalInputs(supabase: SupabaseClient): Promise<ReconciledLocalInputs> {
@@ -4886,14 +6123,16 @@ async function fetchReconciledLocalInputs(supabase: SupabaseClient): Promise<Rec
   assertPaginationComplete("pricing_set_mapping", setMappingRows.length, exactSetMappingCount);
   const existingSetMappings = buildSetMappingMap(setMappingRows);
 
-  // Cobertura via pricing_set_coverage (Query 3916): agregada server-side por card_set_id x
-  // pricing_source_id, nunca cresce com o volume de produtos/observações (no máximo 1 linha
-  // por combinação Set x Fonte). Substitui as três leituras encadeadas em memória do desenho
-  // original (pricing_card_mapping -> pricing_product -> pricing_observation).
+  // Cobertura via pricing_set_coverage (Query 3916, estendida pela Query 3919 no P14.4.3):
+  // agregada server-side por card_set_id x pricing_source_id, nunca cresce com o volume de
+  // produtos/observações (no máximo 1 linha por combinação Set x Fonte). Substitui as três
+  // leituras encadeadas em memória do desenho original (pricing_card_mapping ->
+  // pricing_product -> pricing_observation). mapped/confirmed/pending/not_found_cards_count
+  // (Query 3919) alimentam a classificação ALREADY_CONFIRMED_COMPLETE/INCOMPLETE.
   const coverageRows = await fetchAllRowsFromTable<CoverageRow>(
     supabase,
     "pricing_set_coverage",
-    "card_set_id, products_count, observations_count",
+    "card_set_id, products_count, observations_count, mapped_cards_count, confirmed_cards_count, pending_cards_count, not_found_cards_count",
     "card_set_id",
     (q) => q.eq("pricing_source_id", sourceId),
   );
@@ -5268,7 +6507,7 @@ async function executeExpansionWave(supabase: SupabaseClient, client: JustTcgCli
       const externalIndex = buildExternalNumberIndex(externalCards);
 
       for (const localCard of localCards) {
-        const matchResult = classifyCardMatch(localCard, externalIndex);
+        const matchResult = classifyCardMatch(localCard, externalIndex, match.set.id);
 
         if (matchResult.classification !== "SAFE" || !matchResult.matched) {
           if (matchResult.classification === "ABSENT") summary.cardsAbsent++;
@@ -5427,6 +6666,913 @@ async function runExpansionWave(
 }
 
 // ============================================================================
+// 7e. P14.4.3 — Executor Explícito de Backfill para Sets ALREADY_CONFIRMED_INCOMPLETE
+//     (--backfill-wave)
+// ============================================================================
+//
+// Objetivo: preencher a lacuna Sets confirmados-mas-parcialmente-mapeados (BASE1/ME1, ver
+// cabeçalho do arquivo) processando SÓ as cartas locais ativas que ainda não têm NENHUM
+// pricing_card_mapping — nunca reprocessando CONFIRMED/PENDING/NOT_FOUND já existentes.
+// Reaproveita literalmente o matching fail-safe (classifyCardMatch/buildExternalNumberIndex)
+// e a persistência em lote (persistBatchedResults) já testados em P14.3/P14.4.2 — a única
+// diferença estrutural real em relação a executeExpansionWave() é: (a) a fonte da onda é
+// plan.backfillWaves, não plan.waves; (b) o external_set_id vem DIRETO do mapping já
+// CONFIRMED (entry.externalSetId) — resolveSetMatchV2()/upsertSetMapping() NUNCA são
+// chamados aqui, o Set já está confirmado e não deve ser reavaliado; (c) as cartas
+// classificadas vêm de findMissingCardsForSet() (só as sem mapping), nunca de
+// findLocalCardsForSet() (todas as cartas do Set).
+
+type BackfillWaveArgsValidation =
+  | { ok: true; waveNumber: number; maxApiRequests: number; expectedSetCodes: string[] }
+  | { ok: false; reason: string };
+
+// Pura — mesma disciplina de validateExpansionWaveArgs() (rejeita onda/orçamento/modo
+// inválidos ANTES de qualquer rede/Supabase), mas com códigos de erro e nome de flag
+// próprios (BACKFILL_WAVE_*, nunca reaproveita EXPANSION_WAVE_* — mensagens sempre precisas
+// sobre qual flag o usuário realmente passou). validateExpectedSetCodes() é reaproveitada
+// verbatim (formato/duplicidade de --expected-set-codes independe de qual modo de onda).
+function validateBackfillWaveArgs(args: {
+  backfillWave: string | null;
+  maxApiRequests: string | null;
+  dryRun: boolean;
+  confirmedBy: string | null;
+  expectedSetCodes: string | null;
+}): BackfillWaveArgsValidation {
+  const waveRaw = args.backfillWave;
+  if (waveRaw === null) return { ok: false, reason: "BACKFILL_WAVE_AUSENTE: --backfill-wave=<n> é obrigatório neste modo." };
+  const waveNumber = Number(waveRaw);
+  if (!Number.isInteger(waveNumber) || waveNumber <= 0) {
+    return { ok: false, reason: `BACKFILL_WAVE_INVALIDO(${waveRaw}): --backfill-wave deve ser um inteiro positivo (1, 2, 3, ...) — nunca executa "todas as ondas" implicitamente.` };
+  }
+
+  const budgetRaw = args.maxApiRequests;
+  if (budgetRaw === null) {
+    return { ok: false, reason: "MAX_API_REQUESTS_AUSENTE: --max-api-requests=<n> é obrigatório neste modo (orçamento local autoritativo de requisições, independente do teto de segurança do processo)." };
+  }
+  const maxApiRequests = Number(budgetRaw);
+  if (!Number.isInteger(maxApiRequests) || maxApiRequests <= 0) {
+    return { ok: false, reason: `MAX_API_REQUESTS_INVALIDO(${budgetRaw}): --max-api-requests deve ser um inteiro positivo.` };
+  }
+
+  const expectedSetCodesValidation = validateExpectedSetCodes(args.expectedSetCodes);
+  if (!expectedSetCodesValidation.ok) return { ok: false, reason: expectedSetCodesValidation.reason };
+
+  const hasDryRun = args.dryRun;
+  const hasConfirmedBy = args.confirmedBy !== null && args.confirmedBy !== "";
+  if (hasDryRun && hasConfirmedBy) {
+    return { ok: false, reason: "MODOS_CONFLITANTES: --dry-run e --confirmed-by são mutuamente exclusivos no executor de backfill — escolha simulação (--dry-run) ou execução real (--confirmed-by=<admin_user_uuid>), nunca os dois." };
+  }
+  if (!hasDryRun && !hasConfirmedBy) {
+    return { ok: false, reason: "MODO_AUSENTE: informe --dry-run (simulação, sem escrita) ou --confirmed-by=<admin_user_uuid> (execução real) — nenhum modo padrão é assumido." };
+  }
+
+  return { ok: true, waveNumber, maxApiRequests, expectedSetCodes: expectedSetCodesValidation.codes };
+}
+
+// Pura — mesma disciplina de selectWaveFromPlan(), mas sobre plan.backfillWaves.
+function selectBackfillWaveFromPlan(plan: ExpansionPlanResult, waveNumber: number): { ok: true; wave: BackfillWave } | { ok: false; error: string } {
+  const wave = plan.backfillWaves.find((w) => w.waveNumber === waveNumber);
+  if (!wave) {
+    return {
+      ok: false,
+      error: `BACKFILL_WAVE_INEXISTENTE(${waveNumber}): o plano recalculado agora tem ${plan.backfillWaves.length} onda(s) de backfill (1${plan.backfillWaves.length > 1 ? `-${plan.backfillWaves.length}` : ""}). Nunca executa todas as ondas implicitamente — escolha um número de onda válido.`,
+    };
+  }
+  return { ok: true, wave };
+}
+
+type LocalCardRow = { id: string; name: string; collector_number: string };
+type CardMappingIdRow = { card_id: string };
+
+// P14.4.3: cartas locais ATIVAS do Set sem NENHUM pricing_card_mapping para esta fonte — a
+// única entrada aceitável para o backfill (CONFIRMED/PENDING/NOT_FOUND já existentes NUNCA
+// são retocados). PostgREST não expõe NOT EXISTS/anti-join direto; resolvido em duas
+// leituras paginadas e reconciliadas contra uma contagem exata (mesma disciplina de
+// fetchReconciledLocalInputs — nunca supõe que uma única página de até 1.000 linhas basta,
+// mesmo que hoje nenhum Set isolado alcance esse volume) e a diferença calculada em memória.
+// Ordenação por collector_number — mesma convenção de determinismo já usada em
+// buildLocalSetInventory().
+async function findMissingCardsForSet(supabase: SupabaseClient, cardSetId: string, pricingSourceId: string): Promise<LocalCard[]> {
+  const activeRows = await fetchAllRowsFromTable<LocalCardRow>(
+    supabase,
+    "card",
+    "id, name, collector_number",
+    "collector_number",
+    (q) => q.eq("card_set_id", cardSetId).eq("is_active", true),
+  );
+  const exactActiveCount = await fetchExactCount(supabase, "card", (q) => q.eq("card_set_id", cardSetId).eq("is_active", true));
+  assertPaginationComplete(`card(backfill,set=${cardSetId})`, activeRows.length, exactActiveCount);
+
+  const activeIds = activeRows.map((r) => r.id);
+  if (activeIds.length === 0) return [];
+
+  const mappedRows = await fetchAllRowsFromTable<CardMappingIdRow>(
+    supabase,
+    "pricing_card_mapping",
+    "card_id",
+    "card_id",
+    (q) => q.eq("pricing_source_id", pricingSourceId).in("card_id", activeIds),
+  );
+  const exactMappedCount = await fetchExactCount(supabase, "pricing_card_mapping", (q) => q.eq("pricing_source_id", pricingSourceId).in("card_id", activeIds));
+  assertPaginationComplete(`pricing_card_mapping(backfill,set=${cardSetId})`, mappedRows.length, exactMappedCount);
+
+  const mappedIds = new Set(mappedRows.map((r) => r.card_id));
+  return activeRows.filter((r) => !mappedIds.has(r.id)).map((r) => ({ card_id: r.id, name: r.name, collector_number: r.collector_number }));
+}
+
+type BackfillWaveOpts = { waveNumber: number; dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[] };
+
+type BackfillWaveSetSummary = {
+  code: string;
+  missingCardsCount: number;
+  externalCardsSeen: number;
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+};
+
+type BackfillWaveRunResult = {
+  waveNumber: number;
+  setsSelected: string[];
+  perSet: BackfillWaveSetSummary[];
+  cardsProcessed: number;
+  cardsSafe: number;
+  cardsAmbiguous: number;
+  cardsAbsent: number;
+  productsResolved: number;
+  productsWritten: number;
+  observationsResolved: number;
+  observationsWritten: number;
+  observationsDivergent: number;
+  operationsSupabase: number;
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+  requestsMade: number;
+  maxApiRequests: number;
+  requestsRemainingLocal: number;
+  status: "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED";
+  errorParts: string[];
+  syncRunId: string | null;
+};
+
+// Núcleo do P14.4.3. Ordem estrita, espelhando executeExpansionWave() (P14.4.2), com as
+// diferenças documentadas no comentário da Seção 7e: (1) leituras locais reconciliadas —
+// fetchReconciledLocalInputs(), idêntica; (2) em modo real, abre um único CARD_SYNC antes de
+// qualquer requisição à JustTCG, detectando 23505 (mesmo helper); (3) primeira chamada
+// externa (GET /v1/sets) — reclassifica os Sets e recalcula o plano/ondas de backfill nesta
+// própria execução (nunca hardcoded); (4) seleciona a onda de backfill pedida dentro do
+// plano recém-calculado; (5) para cada Set da onda, usa EXCLUSIVAMENTE o external_set_id já
+// CONFIRMED (nunca resolveSetMatchV2()/upsertSetMapping() — o Set não é reavaliado) e pagina
+// TODAS as cartas externas do Set (fetchAllCardsForSet); (6) busca só as cartas locais SEM
+// NENHUM mapping (findMissingCardsForSet) e classifica cada uma (classifyCardMatch, mesmo
+// fail-safe); qualquer aborto (Set sem external_set_id, orçamento/autenticação/paginação)
+// interrompe a aquisição da onda inteira, sem persistir nada; (7) só depois de todos os Sets
+// da onda adquiridos com sucesso, persiste em lote (persistBatchedResults(), reusada
+// verbatim) e finaliza o run (finalizeSyncRun(), reusada verbatim).
+async function executeBackfillWave(supabase: SupabaseClient, client: JustTcgClient, opts: BackfillWaveOpts): Promise<BackfillWaveRunResult> {
+  const { sourceId, localSets, existingSetMappings, existingCoverage } = await fetchReconciledLocalInputs(supabase);
+
+  let syncRunId: string | null = null;
+  let syncRunFinalized = false;
+
+  if (!opts.dryRun) {
+    const startAttempt = await tryOpenCardSyncRun(supabase, sourceId, opts.confirmedBy as string);
+    if (startAttempt.outcome === "CONCURRENT_CONFLICT") {
+      throw new Error(
+        "CONFLITO_DE_CONCORRENCIA: já existe uma execução CARD_SYNC ativa (RECEIVED/PROCESSING) para esta fonte (índice único parcial, Query 3907) — backfill abortado antes de qualquer chamada à JustTCG.",
+      );
+    }
+    if (startAttempt.outcome === "OTHER_ERROR") {
+      throw new Error(`SYNC_RUN_INSERT_FAILED: ${startAttempt.error}`);
+    }
+    syncRunId = startAttempt.id;
+  }
+
+  const conditionMap = await getConditionMap(supabase, sourceId);
+  if (!opts.dryRun && conditionMap.size === 0) {
+    throw new Error("CONDITION_MAP_VAZIO: rode a seed 3702 (pricing_condition_mapping) antes deste script.");
+  }
+
+  const summary = {
+    cardsProcessed: 0,
+    cardsSafe: 0,
+    cardsAmbiguous: 0,
+    cardsAbsent: 0,
+    productsResolved: 0,
+    productsWritten: 0,
+    observationsResolved: 0,
+    observationsWritten: 0,
+    observationsDivergent: 0,
+    operationsSupabase: 0,
+    productsProjected: 0,
+    observationsProjected: 0,
+    variantsProjectionSkipped: 0,
+  };
+  const perSet: BackfillWaveSetSummary[] = [];
+  const errorParts: string[] = [];
+  const plannedCardMappings: PlannedCardMapping[] = [];
+  const plannedVariants: PlannedVariant[] = [];
+  let acquisitionFailed = false;
+  let wave: BackfillWave | null = null;
+
+  try {
+    const setsResult = await client.get<{ data: JustTcgSet[] }>("/sets", { game: GAME_CODE });
+    if (setsResult.status === "AUTH_FAILURE") {
+      throw new Error("AUTENTICACAO_FALHOU_401: JUSTTCG_API_KEY inválida ou expirada — execução de backfill abortada.");
+    }
+    if (setsResult.status !== "SUCCESS") {
+      throw new Error(`BACKFILL_FASE_SETS_FALHOU: ${setsResult.status}`);
+    }
+    const allExternalSets = normalizeJustTcgSets(setsResult.data.data ?? []);
+
+    const plan = buildExpansionPlan({ localSets, existingSetMappings, allExternalSets, existingCoverage });
+    assertConfirmedMappingsPreserved(plan.entries, localSets, existingSetMappings);
+
+    const waveSelection = selectBackfillWaveFromPlan(plan, opts.waveNumber);
+    if (!waveSelection.ok) throw new Error(waveSelection.error);
+    wave = waveSelection.wave;
+
+    // Mesma disciplina de instabilidade de identidade do P14.4.2 (ver validateExpectedSetCodes):
+    // a composição RECALCULADA precisa bater exatamente (nunca subconjunto, nunca sobra) com
+    // --expected-set-codes antes de tocar em qualquer Set desta onda.
+    const actualCodes = [...new Set(wave.sets.map((s) => s.code))].sort();
+    const expectedCodes = [...new Set(opts.expectedSetCodes)].sort();
+    const compositionMatches = actualCodes.length === expectedCodes.length && actualCodes.every((code, i) => code === expectedCodes[i]);
+    if (!compositionMatches) {
+      const missing = expectedCodes.filter((c) => !actualCodes.includes(c));
+      const extra = actualCodes.filter((c) => !expectedCodes.includes(c));
+      throw new Error(
+        `BACKFILL_WAVE_COMPOSITION_CHANGED: a onda de backfill ${opts.waveNumber} recalculada agora tem os Sets [${actualCodes.join(",") || "nenhum"}], divergente do esperado [${expectedCodes.join(",") || "nenhum"}] — faltando=[${missing.join(",") || "nenhum"}] excedente=[${extra.join(",") || "nenhum"}]. Onda abortada antes de qualquer persistência.`,
+      );
+    }
+
+    const localByCode = new Map(localSets.map((s) => [s.code, s]));
+    const entryByCode = new Map(plan.entries.map((e) => [e.code, e]));
+
+    for (const waveSet of wave.sets) {
+      const local = localByCode.get(waveSet.code);
+      if (!local) {
+        errorParts.push(`BACKFILL_SET_SEM_INVENTARIO_LOCAL(${waveSet.code})`);
+        acquisitionFailed = true;
+        break;
+      }
+
+      const entry = entryByCode.get(waveSet.code);
+      if (!entry || entry.status !== "ALREADY_CONFIRMED_INCOMPLETE" || !entry.externalSetId) {
+        errorParts.push(
+          `BACKFILL_SET_STATUS_INESPERADO(${waveSet.code}): ${entry?.status ?? "AUSENTE"} — a onda só deveria conter Sets ALREADY_CONFIRMED_INCOMPLETE com external_set_id conhecido; onda abortada por segurança.`,
+        );
+        acquisitionFailed = true;
+        break;
+      }
+
+      // Regra central do P14.4.3: usa EXCLUSIVAMENTE o external_set_id já CONFIRMED — nunca
+      // resolveSetMatchV2()/upsertSetMapping() aqui. O Set já está confirmado; o backfill
+      // preenche cartas, nunca reavalia a identidade do Set.
+      const externalSetId = entry.externalSetId;
+
+      const { cards: externalCards, requestsUsed, aborted } = await fetchAllCardsForSet(client, externalSetId);
+      const setSummary: BackfillWaveSetSummary = {
+        code: waveSet.code,
+        missingCardsCount: waveSet.missingCardsCount,
+        externalCardsSeen: externalCards.length,
+        productsProjected: 0,
+        observationsProjected: 0,
+        variantsProjectionSkipped: 0,
+      };
+      perSet.push(setSummary);
+
+      if (aborted === "AUTH_FAILURE") {
+        errorParts.push(`AUTENTICACAO_FALHOU_401(${waveSet.code})`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "BUDGET_STOPPED") {
+        errorParts.push(`ORCAMENTO_ESGOTADO(${waveSet.code}): após ${requestsUsed} requisição(ões) de página deste Set — nenhum dado de negócio deste backfill será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "TECHNICAL_FAILURE") {
+        errorParts.push(`PAGINACAO_CARDS_FALHOU(${waveSet.code}): interrompida após ${requestsUsed} requisição(ões) — nenhum dado de negócio deste backfill será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+
+      // Regra central: só cartas locais ativas SEM NENHUM mapping — CONFIRMED/PENDING/
+      // NOT_FOUND já existentes NUNCA são retocados (findMissingCardsForSet nunca os retorna).
+      const missingLocalCards = await findMissingCardsForSet(supabase, local.cardSetId, sourceId);
+      summary.cardsProcessed += missingLocalCards.length;
+      const externalIndex = buildExternalNumberIndex(externalCards);
+
+      for (const localCard of missingLocalCards) {
+        const matchResult = classifyCardMatch(localCard, externalIndex, externalSetId);
+
+        if (matchResult.classification !== "SAFE" || !matchResult.matched) {
+          if (matchResult.classification === "ABSENT") summary.cardsAbsent++;
+          else summary.cardsAmbiguous++;
+          if (opts.dryRun) logDryRunCardEvidence(localCard, matchResult);
+          if (!opts.dryRun) {
+            plannedCardMappings.push({
+              cardId: localCard.card_id,
+              collectorNumber: localCard.collector_number,
+              status: matchResult.classification === "ABSENT" ? "NOT_FOUND" : "PENDING",
+              matchedCard: null,
+              method: matchResult.method,
+              evidence: matchResult.evidence,
+            });
+          }
+          continue;
+        }
+
+        summary.cardsSafe++;
+        const matchedCard = matchResult.matched;
+
+        if (opts.dryRun) {
+          for (const variant of matchedCard.variants ?? []) {
+            const projection = planVariantProjection(variant, conditionMap);
+            if (projection.status === "PROJECTED") {
+              summary.productsProjected++;
+              summary.observationsProjected++;
+              setSummary.productsProjected++;
+              setSummary.observationsProjected++;
+            } else {
+              summary.variantsProjectionSkipped++;
+              setSummary.variantsProjectionSkipped++;
+            }
+          }
+          continue;
+        }
+
+        plannedCardMappings.push({
+          cardId: localCard.card_id,
+          collectorNumber: localCard.collector_number,
+          status: "CONFIRMED",
+          matchedCard,
+          method: matchResult.method,
+          evidence: matchResult.evidence,
+        });
+
+        for (const variant of matchedCard.variants ?? []) {
+          const externalProductId = String(variant.uuid ?? variant.id ?? "");
+          const printingRaw = String(variant.printing ?? "");
+          const conditionRaw = String(variant.condition ?? "");
+          const price = variant.price;
+          const lastUpdated = variant.lastUpdated;
+          if (!externalProductId || !printingRaw || typeof price !== "number") continue;
+
+          const conditionId = conditionMap.get(conditionRaw);
+          if (!conditionId) {
+            errorParts.push(`CONDICAO_SEM_MAPEAMENTO(${conditionRaw})`);
+            continue;
+          }
+
+          const { printingTipo } = splitPrintingLanguage(printingRaw);
+          const observedAt = typeof lastUpdated === "number" ? new Date(lastUpdated * 1000).toISOString() : new Date().toISOString();
+          const rawPayload = sanitizeJson({ condition: conditionRaw, printing: printingRaw, price, lastUpdated });
+
+          plannedVariants.push({
+            cardId: localCard.card_id,
+            collectorNumber: localCard.collector_number,
+            externalProductId,
+            sourcePrintingLabel: printingTipo ?? printingRaw,
+            conditionId,
+            price,
+            observedAt,
+            rawPayload,
+          });
+        }
+      }
+    }
+
+    let batchPersistenceFailed = false;
+    if (acquisitionFailed) {
+      // Falha de aquisição bloqueia a persistência de TODA a onda de backfill — nunca uma
+      // escrita parcial por Set. plannedCardMappings/plannedVariants acumulados até aqui são
+      // deliberadamente descartados.
+    } else if (!opts.dryRun && (plannedCardMappings.length > 0 || plannedVariants.length > 0)) {
+      const batchOutcome = await persistBatchedResults(supabase, sourceId, syncRunId, opts.confirmedBy as string, plannedCardMappings, plannedVariants);
+      summary.productsResolved += batchOutcome.productsResolved;
+      summary.productsWritten += batchOutcome.productsWritten;
+      summary.observationsResolved += batchOutcome.observationsResolved;
+      summary.observationsWritten += batchOutcome.observationsWritten;
+      summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.operationsSupabase += batchOutcome.operationsSupabase;
+      errorParts.push(...batchOutcome.errorParts);
+      if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
+    }
+
+    const finalStatus = acquisitionFailed
+      ? "FAILED"
+      : computeFinalStatus(batchPersistenceFailed, errorParts.length > 0, summary.cardsSafe > 0 || summary.cardsProcessed > 0);
+
+    if (!opts.dryRun) {
+      await finalizeSyncRun(supabase, syncRunId, client, finalStatus, errorParts.length > 0 ? errorParts.slice(0, 15).join(" | ") : null, opts.dryRun);
+      syncRunFinalized = true;
+    }
+
+    return {
+      waveNumber: wave.waveNumber,
+      setsSelected: wave.sets.map((s) => s.code),
+      perSet,
+      cardsProcessed: summary.cardsProcessed,
+      cardsSafe: summary.cardsSafe,
+      cardsAmbiguous: summary.cardsAmbiguous,
+      cardsAbsent: summary.cardsAbsent,
+      productsResolved: summary.productsResolved,
+      productsWritten: summary.productsWritten,
+      observationsResolved: summary.observationsResolved,
+      observationsWritten: summary.observationsWritten,
+      observationsDivergent: summary.observationsDivergent,
+      operationsSupabase: summary.operationsSupabase,
+      productsProjected: summary.productsProjected,
+      observationsProjected: summary.observationsProjected,
+      variantsProjectionSkipped: summary.variantsProjectionSkipped,
+      requestsMade: client.requestsMade,
+      maxApiRequests: opts.maxApiRequests,
+      requestsRemainingLocal: client.requestsRemainingLocal,
+      status: finalStatus,
+      errorParts,
+      syncRunId,
+    };
+  } catch (error) {
+    if (!opts.dryRun && !syncRunFinalized && syncRunId) {
+      const message = error instanceof Error ? error.message : String(error);
+      await finalizeSyncRun(supabase, syncRunId, client, "FAILED", message, opts.dryRun);
+    }
+    throw error;
+  }
+}
+
+async function runBackfillWave(
+  opts: { waveNumber: number; dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[] },
+): Promise<void> {
+  const supabaseUrl = requireEnv("SUPABASE_URL");
+  const supabaseServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const justTcgApiKey = requireEnv("JUSTTCG_API_KEY");
+
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  const client = new JustTcgClient(justTcgApiKey, undefined, opts.maxApiRequests);
+
+  console.log(`=== Executor de Backfill (P14.4.3) — onda ${opts.waveNumber}, orçamento local=${opts.maxApiRequests} ===`);
+  console.log(opts.dryRun ? "[DRY-RUN] Nenhuma escrita será persistida — nenhum pricing_sync_run será criado.\n" : `Confirmado por (admin_user.id): ${opts.confirmedBy}\n`);
+
+  const result = await executeBackfillWave(supabase, client, opts);
+
+  console.log("\n=== Resumo da execução de backfill ===");
+  console.log(JSON.stringify(result, null, 2));
+}
+
+// ============================================================================
+// 7f. P14.4.4 — Executor Explícito de Reparo de Mappings PENDING/NOT_FOUND
+//     (--repair-mappings)
+// ============================================================================
+//
+// Objetivo: corrigir, nos Sets já CONFIRMED, os mappings PENDING/NOT_FOUND que a causa raiz
+// de P14.4.4 deixou para trás (nome usado como critério de matching, bloqueando
+// candidatos únicos legítimos por Set+número — ver auditoria pós-P14.4.3 e o novo
+// classifyCardMatch() acima). Reavalia SOMENTE PENDING/NOT_FOUND; CONFIRMED nunca é tocado
+// (findPendingOrNotFoundCardsForSet() abaixo nunca os retorna — mesma garantia estrutural de
+// findMissingCardsForSet() em P14.4.3, só que para o conjunto complementar de status).
+//
+// Diferenças deliberadas em relação a executeBackfillWave()/executeExpansionWave():
+//   1. Nunca chama GET /v1/sets — o reparo nunca resolve identidade de Set (nem
+//      resolveSetMatchV2 nem upsertSetMapping), só usa o external_set_id já CONFIRMED
+//      (pricing_set_mapping) diretamente. Onda de backfill/expansão precisa de /sets para
+//      reclassificar Sets ainda não confirmados; reparo não — todo Set-alvo já está
+//      CONFIRMED por definição.
+//   2. Não existe conceito de "onda numerada" aqui: a lista de Sets-alvo é derivada
+//      DINAMICAMENTE em cada execução (buildRepairCandidates(), pura) a partir do estado
+//      real de pricing_set_mapping + pricing_set_coverage — nunca os seis códigos
+//      hardcoded (BASE1/BASE2/BASE4/BASE5/GYM2/ME1) citados no pedido original. Isso é
+//      deliberado ("não criar exceção específica") e corrige uma divergência real
+//      descoberta na auditoria: BASE5 foi citado como alvo mas hoje tem 0 PENDING/
+//      NOT_FOUND — buildRepairCandidates() naturalmente o exclui, sem precisar de nenhuma
+//      lista negativa.
+//   3. Interpretação mínima de "promover somente quando resultar único": cartas que, após
+//      reclassificação, continuam AMBIGUOUS ou ABSENT são deixadas INTOCADAS — nenhuma
+//      chamada a upsertCardMapping/persistBatchedResults para elas, nenhum refresh de
+//      evidência. Só entram em plannedCardMappings (e por extensão em persistBatchedResults)
+//      as cartas que reclassificam como SAFE — a mesma função persistBatchedResults() já
+//      usada por P14.3/P14.4.2/P14.4.3 promove PENDING/NOT_FOUND->CONFIRMED e cria
+//      produtos/observações na mesma passada via decideMappingUpsert()
+//      (UPGRADED_TO_CONFIRMED) — nenhuma RPC nova, nenhuma lógica de promoção nova.
+//   4. Mesma disciplina de concorrência/orçamento/expected-set-codes dos outros dois
+//      executores: tryOpenCardSyncRun() ANTES de qualquer chamada externa; --expected-set-
+//      codes validado contra a composição REAL recalculada (nunca aceita silenciosamente
+//      uma lista desatualizada); --dry-run nunca escreve; modo real exige
+//      --confirmed-by/--max-api-requests, mutuamente exclusivo com --dry-run.
+// ============================================================================
+
+type RepairCandidateSet = { code: string; cardSetId: string; externalSetId: string; pendingCount: number; notFoundCount: number };
+
+// Pura — nunca lê Deno.env nem toca rede/banco. Um Set só entra na lista de reparo se (a) seu
+// pricing_set_mapping já é CONFIRMED com external_set_id conhecido (reparo nunca reavalia
+// identidade de Set) e (b) sua cobertura agregada (pricing_set_coverage) tem
+// pendingCards+notFoundCards > 0 (sem candidato a reparar, nenhuma chamada HTTP é gasta com
+// o Set). Ordenado por código para determinismo (mesmo padrão de buildLocalSetInventory).
+function buildRepairCandidates(
+  localSets: LocalSetSummary[],
+  existingSetMappings: Map<string, ExistingSetMappingLite>,
+  existingCoverage: Map<string, SetCoverageAggregate>,
+): RepairCandidateSet[] {
+  const candidates: RepairCandidateSet[] = [];
+  for (const local of localSets) {
+    const mapping = existingSetMappings.get(local.cardSetId);
+    if (!mapping || mapping.matchStatus !== "CONFIRMED" || !mapping.externalSetId) continue;
+    const coverage = existingCoverage.get(local.cardSetId);
+    const pendingCount = coverage?.pendingCards ?? 0;
+    const notFoundCount = coverage?.notFoundCards ?? 0;
+    if (pendingCount + notFoundCount === 0) continue;
+    candidates.push({ code: local.code, cardSetId: local.cardSetId, externalSetId: mapping.externalSetId, pendingCount, notFoundCount });
+  }
+  return candidates.sort((a, b) => a.code.localeCompare(b.code));
+}
+
+type PendingCardMappingRow = { card_id: string; match_status: string };
+
+// P14.4.4: cartas locais ATIVAS do Set com mapping PENDING ou NOT_FOUND nesta fonte — as
+// únicas candidatas ao reparo. CONFIRMED nunca é retornado (filtro .in("match_status", [...])
+// só inclui os dois status reparáveis); cartas sem NENHUM mapping também nunca são retornadas
+// (fora de escopo deste executor — isso é findMissingCardsForSet(), do backfill P14.4.3).
+// Mesma disciplina de paginação+reconciliação (fetchAllRowsFromTable + fetchExactCount +
+// assertPaginationComplete) de findMissingCardsForSet().
+async function findPendingOrNotFoundCardsForSet(supabase: SupabaseClient, cardSetId: string, pricingSourceId: string): Promise<LocalCard[]> {
+  const activeRows = await fetchAllRowsFromTable<LocalCardRow>(
+    supabase,
+    "card",
+    "id, name, collector_number",
+    "collector_number",
+    (q) => q.eq("card_set_id", cardSetId).eq("is_active", true),
+  );
+  const exactActiveCount = await fetchExactCount(supabase, "card", (q) => q.eq("card_set_id", cardSetId).eq("is_active", true));
+  assertPaginationComplete(`card(repair,set=${cardSetId})`, activeRows.length, exactActiveCount);
+
+  const activeIds = activeRows.map((r) => r.id);
+  if (activeIds.length === 0) return [];
+
+  const mappingRows = await fetchAllRowsFromTable<PendingCardMappingRow>(
+    supabase,
+    "pricing_card_mapping",
+    "card_id, match_status",
+    "card_id",
+    (q) => q.eq("pricing_source_id", pricingSourceId).in("card_id", activeIds).in("match_status", ["PENDING", "NOT_FOUND"]),
+  );
+  const exactMappingCount = await fetchExactCount(
+    supabase,
+    "pricing_card_mapping",
+    (q) => q.eq("pricing_source_id", pricingSourceId).in("card_id", activeIds).in("match_status", ["PENDING", "NOT_FOUND"]),
+  );
+  assertPaginationComplete(`pricing_card_mapping(repair,set=${cardSetId})`, mappingRows.length, exactMappingCount);
+
+  const targetIds = new Set(mappingRows.map((r) => r.card_id));
+  return activeRows.filter((r) => targetIds.has(r.id)).map((r) => ({ card_id: r.id, name: r.name, collector_number: r.collector_number }));
+}
+
+type RepairMappingsArgsValidation =
+  | { ok: true; maxApiRequests: number; expectedSetCodes: string[] }
+  | { ok: false; reason: string };
+
+// Pura — mesma disciplina de validateExpansionWaveArgs/validateBackfillWaveArgs, sem número de
+// onda (o reparo não tem conceito de onda: processa todos os Sets-alvo elegíveis numa única
+// passada). --expected-set-codes continua obrigatório: mesmo sem onda numerada, a composição
+// da lista dinâmica de candidatos ainda pode mudar entre a hora em que Fabrício audita e a
+// hora em que roda o comando real — a mesma proteção anti-deriva se aplica.
+function validateRepairMappingsArgs(args: {
+  maxApiRequests: string | null;
+  dryRun: boolean;
+  confirmedBy: string | null;
+  expectedSetCodes: string | null;
+}): RepairMappingsArgsValidation {
+  const budgetRaw = args.maxApiRequests;
+  if (budgetRaw === null) {
+    return { ok: false, reason: "MAX_API_REQUESTS_AUSENTE: --max-api-requests=<n> é obrigatório neste modo." };
+  }
+  const maxApiRequests = Number(budgetRaw);
+  if (!Number.isInteger(maxApiRequests) || maxApiRequests <= 0) {
+    return { ok: false, reason: `MAX_API_REQUESTS_INVALIDO(${budgetRaw}): --max-api-requests deve ser um inteiro positivo.` };
+  }
+
+  const expectedSetCodesValidation = validateExpectedSetCodes(args.expectedSetCodes);
+  if (!expectedSetCodesValidation.ok) return { ok: false, reason: expectedSetCodesValidation.reason };
+
+  const hasDryRun = args.dryRun;
+  const hasConfirmedBy = args.confirmedBy !== null && args.confirmedBy !== "";
+  if (hasDryRun && hasConfirmedBy) {
+    return { ok: false, reason: "MODOS_CONFLITANTES: --dry-run e --confirmed-by são mutuamente exclusivos no executor de reparo — escolha simulação (--dry-run) ou execução real (--confirmed-by=<admin_user_uuid>), nunca os dois." };
+  }
+  if (!hasDryRun && !hasConfirmedBy) {
+    return { ok: false, reason: "MODO_AUSENTE: informe --dry-run (simulação, sem escrita) ou --confirmed-by=<admin_user_uuid> (execução real) — nenhum modo padrão é assumido." };
+  }
+
+  return { ok: true, maxApiRequests, expectedSetCodes: expectedSetCodesValidation.codes };
+}
+
+type RepairMappingsOpts = { dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[] };
+
+type RepairMappingsSetSummary = {
+  code: string;
+  pendingCount: number;
+  notFoundCount: number;
+  externalCardsSeen: number;
+  cardsEvaluated: number;
+  cardsPromoted: number;
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+};
+
+type RepairMappingsRunResult = {
+  setsTargeted: string[];
+  perSet: RepairMappingsSetSummary[];
+  cardsEvaluated: number;
+  cardsPromoted: number;
+  cardsStillPending: number;
+  cardsStillNotFound: number;
+  productsResolved: number;
+  productsWritten: number;
+  observationsResolved: number;
+  observationsWritten: number;
+  observationsDivergent: number;
+  operationsSupabase: number;
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+  requestsMade: number;
+  maxApiRequests: number;
+  requestsRemainingLocal: number;
+  status: "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED";
+  errorParts: string[];
+  syncRunId: string | null;
+};
+
+// Núcleo do P14.4.4. Ordem estrita: (1) leituras locais reconciliadas — fetchReconciledLocalInputs(),
+// idêntica aos outros dois executores; (2) em modo real, abre um único CARD_SYNC antes de
+// qualquer requisição à JustTCG (mesmo helper tryOpenCardSyncRun); (3) deriva os Sets-alvo
+// DINAMICAMENTE (buildRepairCandidates(), nunca hardcoded) e valida contra --expected-set-codes
+// — nenhuma chamada externa acontece antes desta validação; (4) para cada Set-alvo, usa
+// EXCLUSIVAMENTE o external_set_id já CONFIRMED (nunca resolveSetMatchV2/upsertSetMapping/GET
+// /v1/sets) e pagina TODAS as cartas externas do Set (fetchAllCardsForSet); (5) busca só as
+// cartas locais PENDING/NOT_FOUND desta fonte (findPendingOrNotFoundCardsForSet) e reclassifica
+// cada uma (classifyCardMatch, mesmo fail-safe Set+número); só as que viram SAFE entram em
+// plannedCardMappings/plannedVariants — AMBIGUOUS/ABSENT são contadas mas nunca escritas; (6) só
+// depois de todos os Sets-alvo adquiridos com sucesso, persiste em lote (persistBatchedResults(),
+// reusada verbatim — promove PENDING/NOT_FOUND->CONFIRMED via decideMappingUpsert(), nunca toca
+// CONFIRMED) e finaliza o run (finalizeSyncRun(), reusada verbatim).
+async function executeRepairMappings(supabase: SupabaseClient, client: JustTcgClient, opts: RepairMappingsOpts): Promise<RepairMappingsRunResult> {
+  const { sourceId, localSets, existingSetMappings, existingCoverage } = await fetchReconciledLocalInputs(supabase);
+
+  let syncRunId: string | null = null;
+  let syncRunFinalized = false;
+
+  if (!opts.dryRun) {
+    const startAttempt = await tryOpenCardSyncRun(supabase, sourceId, opts.confirmedBy as string);
+    if (startAttempt.outcome === "CONCURRENT_CONFLICT") {
+      throw new Error(
+        "CONFLITO_DE_CONCORRENCIA: já existe uma execução CARD_SYNC ativa (RECEIVED/PROCESSING) para esta fonte (índice único parcial, Query 3907) — reparo abortado antes de qualquer chamada à JustTCG.",
+      );
+    }
+    if (startAttempt.outcome === "OTHER_ERROR") {
+      throw new Error(`SYNC_RUN_INSERT_FAILED: ${startAttempt.error}`);
+    }
+    syncRunId = startAttempt.id;
+  }
+
+  const conditionMap = await getConditionMap(supabase, sourceId);
+  if (!opts.dryRun && conditionMap.size === 0) {
+    throw new Error("CONDITION_MAP_VAZIO: rode a seed 3702 (pricing_condition_mapping) antes deste script.");
+  }
+
+  const summary = {
+    cardsEvaluated: 0,
+    cardsPromoted: 0,
+    cardsStillPending: 0,
+    cardsStillNotFound: 0,
+    productsResolved: 0,
+    productsWritten: 0,
+    observationsResolved: 0,
+    observationsWritten: 0,
+    observationsDivergent: 0,
+    operationsSupabase: 0,
+    productsProjected: 0,
+    observationsProjected: 0,
+    variantsProjectionSkipped: 0,
+  };
+  const perSet: RepairMappingsSetSummary[] = [];
+  const errorParts: string[] = [];
+  const plannedCardMappings: PlannedCardMapping[] = [];
+  const plannedVariants: PlannedVariant[] = [];
+  let acquisitionFailed = false;
+
+  try {
+    const candidates = buildRepairCandidates(localSets, existingSetMappings, existingCoverage);
+
+    // Mesma disciplina anti-deriva de validateExpectedSetCodes/executeExpansionWave/
+    // executeBackfillWave — só que aqui a composição "esperada" nunca vem de uma onda
+    // pré-calculada: vem inteiramente de buildRepairCandidates() rodado agora mesmo.
+    // Fica DENTRO do try (mesmo padrão de BACKFILL_WAVE_COMPOSITION_CHANGED em
+    // executeBackfillWave) para que uma divergência aqui também finalize o sync run
+    // como FAILED via finalizeSyncRun() no catch abaixo, em vez de deixá-lo preso em
+    // PROCESSING.
+    const actualCodes = [...new Set(candidates.map((c) => c.code))].sort();
+    const expectedCodes = [...new Set(opts.expectedSetCodes)].sort();
+    const compositionMatches = actualCodes.length === expectedCodes.length && actualCodes.every((code, i) => code === expectedCodes[i]);
+    if (!compositionMatches) {
+      const missing = expectedCodes.filter((c) => !actualCodes.includes(c));
+      const extra = actualCodes.filter((c) => !expectedCodes.includes(c));
+      throw new Error(
+        `REPAIR_CANDIDATE_SETS_CHANGED: os Sets elegíveis para reparo recalculados agora são [${actualCodes.join(",") || "nenhum"}], divergente do esperado [${expectedCodes.join(",") || "nenhum"}] — faltando=[${missing.join(",") || "nenhum"}] excedente=[${extra.join(",") || "nenhum"}]. Reparo abortado antes de qualquer chamada à JustTCG.`,
+      );
+    }
+
+    for (const candidate of candidates) {
+      const { cards: externalCards, requestsUsed, aborted } = await fetchAllCardsForSet(client, candidate.externalSetId);
+      const setSummary: RepairMappingsSetSummary = {
+        code: candidate.code,
+        pendingCount: candidate.pendingCount,
+        notFoundCount: candidate.notFoundCount,
+        externalCardsSeen: externalCards.length,
+        cardsEvaluated: 0,
+        cardsPromoted: 0,
+        productsProjected: 0,
+        observationsProjected: 0,
+        variantsProjectionSkipped: 0,
+      };
+      perSet.push(setSummary);
+
+      if (aborted === "AUTH_FAILURE") {
+        errorParts.push(`AUTENTICACAO_FALHOU_401(${candidate.code})`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "BUDGET_STOPPED") {
+        errorParts.push(`ORCAMENTO_ESGOTADO(${candidate.code}): após ${requestsUsed} requisição(ões) de página deste Set — nenhum dado de negócio deste reparo será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "TECHNICAL_FAILURE") {
+        errorParts.push(`PAGINACAO_CARDS_FALHOU(${candidate.code}): interrompida após ${requestsUsed} requisição(ões) — nenhum dado de negócio deste reparo será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+
+      const targetLocalCards = await findPendingOrNotFoundCardsForSet(supabase, candidate.cardSetId, sourceId);
+      summary.cardsEvaluated += targetLocalCards.length;
+      setSummary.cardsEvaluated = targetLocalCards.length;
+      const externalIndex = buildExternalNumberIndex(externalCards);
+
+      for (const localCard of targetLocalCards) {
+        const matchResult = classifyCardMatch(localCard, externalIndex, candidate.externalSetId);
+
+        if (matchResult.classification !== "SAFE" || !matchResult.matched) {
+          // P14.4.4 — interpretação mínima do pedido: "promover somente quando resultar
+          // único" nunca implica reescrever a evidência de quem continua ambíguo/ausente.
+          // Cartas que permanecem AMBIGUOUS/ABSENT ficam INTOCADAS: nenhuma entrada em
+          // plannedCardMappings, nenhuma chamada a upsertCardMapping — só contadas para o
+          // relatório final (cardsStillPending/cardsStillNotFound).
+          if (matchResult.classification === "ABSENT") summary.cardsStillNotFound++;
+          else summary.cardsStillPending++;
+          if (opts.dryRun) logDryRunCardEvidence(localCard, matchResult);
+          continue;
+        }
+
+        summary.cardsPromoted++;
+        setSummary.cardsPromoted++;
+        const matchedCard = matchResult.matched;
+
+        if (opts.dryRun) {
+          for (const variant of matchedCard.variants ?? []) {
+            const projection = planVariantProjection(variant, conditionMap);
+            if (projection.status === "PROJECTED") {
+              summary.productsProjected++;
+              summary.observationsProjected++;
+              setSummary.productsProjected++;
+              setSummary.observationsProjected++;
+            } else {
+              summary.variantsProjectionSkipped++;
+              setSummary.variantsProjectionSkipped++;
+            }
+          }
+          continue;
+        }
+
+        plannedCardMappings.push({
+          cardId: localCard.card_id,
+          collectorNumber: localCard.collector_number,
+          status: "CONFIRMED",
+          matchedCard,
+          method: matchResult.method,
+          evidence: matchResult.evidence,
+        });
+
+        for (const variant of matchedCard.variants ?? []) {
+          const externalProductId = String(variant.uuid ?? variant.id ?? "");
+          const printingRaw = String(variant.printing ?? "");
+          const conditionRaw = String(variant.condition ?? "");
+          const price = variant.price;
+          const lastUpdated = variant.lastUpdated;
+          if (!externalProductId || !printingRaw || typeof price !== "number") continue;
+
+          const conditionId = conditionMap.get(conditionRaw);
+          if (!conditionId) {
+            errorParts.push(`CONDICAO_SEM_MAPEAMENTO(${conditionRaw})`);
+            continue;
+          }
+
+          const { printingTipo } = splitPrintingLanguage(printingRaw);
+          const observedAt = typeof lastUpdated === "number" ? new Date(lastUpdated * 1000).toISOString() : new Date().toISOString();
+          const rawPayload = sanitizeJson({ condition: conditionRaw, printing: printingRaw, price, lastUpdated });
+
+          plannedVariants.push({
+            cardId: localCard.card_id,
+            collectorNumber: localCard.collector_number,
+            externalProductId,
+            sourcePrintingLabel: printingTipo ?? printingRaw,
+            conditionId,
+            price,
+            observedAt,
+            rawPayload,
+          });
+        }
+      }
+    }
+
+    let batchPersistenceFailed = false;
+    if (acquisitionFailed) {
+      // Falha de aquisição bloqueia a persistência de TODO o reparo — nunca uma escrita
+      // parcial por Set. plannedCardMappings/plannedVariants acumulados até aqui são
+      // deliberadamente descartados.
+    } else if (!opts.dryRun && (plannedCardMappings.length > 0 || plannedVariants.length > 0)) {
+      const batchOutcome = await persistBatchedResults(supabase, sourceId, syncRunId, opts.confirmedBy as string, plannedCardMappings, plannedVariants);
+      summary.productsResolved += batchOutcome.productsResolved;
+      summary.productsWritten += batchOutcome.productsWritten;
+      summary.observationsResolved += batchOutcome.observationsResolved;
+      summary.observationsWritten += batchOutcome.observationsWritten;
+      summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.operationsSupabase += batchOutcome.operationsSupabase;
+      errorParts.push(...batchOutcome.errorParts);
+      if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
+    }
+
+    const finalStatus = acquisitionFailed
+      ? "FAILED"
+      : computeFinalStatus(batchPersistenceFailed, errorParts.length > 0, summary.cardsPromoted > 0 || summary.cardsEvaluated > 0);
+
+    if (!opts.dryRun) {
+      await finalizeSyncRun(supabase, syncRunId, client, finalStatus, errorParts.length > 0 ? errorParts.slice(0, 15).join(" | ") : null, opts.dryRun);
+      syncRunFinalized = true;
+    }
+
+    return {
+      setsTargeted: candidates.map((c) => c.code),
+      perSet,
+      cardsEvaluated: summary.cardsEvaluated,
+      cardsPromoted: summary.cardsPromoted,
+      cardsStillPending: summary.cardsStillPending,
+      cardsStillNotFound: summary.cardsStillNotFound,
+      productsResolved: summary.productsResolved,
+      productsWritten: summary.productsWritten,
+      observationsResolved: summary.observationsResolved,
+      observationsWritten: summary.observationsWritten,
+      observationsDivergent: summary.observationsDivergent,
+      operationsSupabase: summary.operationsSupabase,
+      productsProjected: summary.productsProjected,
+      observationsProjected: summary.observationsProjected,
+      variantsProjectionSkipped: summary.variantsProjectionSkipped,
+      requestsMade: client.requestsMade,
+      maxApiRequests: opts.maxApiRequests,
+      requestsRemainingLocal: client.requestsRemainingLocal,
+      status: finalStatus,
+      errorParts,
+      syncRunId,
+    };
+  } catch (error) {
+    if (!opts.dryRun && !syncRunFinalized && syncRunId) {
+      const message = error instanceof Error ? error.message : String(error);
+      await finalizeSyncRun(supabase, syncRunId, client, "FAILED", message, opts.dryRun);
+    }
+    throw error;
+  }
+}
+
+async function runRepairMappings(opts: RepairMappingsOpts): Promise<void> {
+  const supabaseUrl = requireEnv("SUPABASE_URL");
+  const supabaseServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const justTcgApiKey = requireEnv("JUSTTCG_API_KEY");
+
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  const client = new JustTcgClient(justTcgApiKey, undefined, opts.maxApiRequests);
+
+  console.log(`=== Executor de Reparo de Mappings (P14.4.4) — orçamento local=${opts.maxApiRequests} ===`);
+  console.log(opts.dryRun ? "[DRY-RUN] Nenhuma escrita será persistida — nenhum pricing_sync_run será criado.\n" : `Confirmado por (admin_user.id): ${opts.confirmedBy}\n`);
+
+  const result = await executeRepairMappings(supabase, client, opts);
+
+  console.log("\n=== Resumo da execução de reparo ===");
+  console.log(JSON.stringify(result, null, 2));
+}
+
+// ============================================================================
 // 8. Entrypoint
 // ============================================================================
 
@@ -5446,6 +7592,8 @@ async function main() {
       dryRun: args.dryRun,
       confirmedBy: args.confirmedBy,
       expectedSetCodes: args.expectedSetCodes,
+      backfillWave: args.backfillWave,
+      repairMappings: args.repairMappings,
     },
     {
       justTcgApiKey: Deno.env.get("JUSTTCG_API_KEY"),
@@ -5465,10 +7613,22 @@ async function main() {
     Deno.exit(1);
   }
 
+  if (decision.kind === "BACKFILL_WAVE_INVALID_ARGS") {
+    console.error(`Argumentos inválidos para o executor de backfill (--backfill-wave): ${decision.reason}`);
+    console.error("Exemplo: --backfill-wave=1 --max-api-requests=10 --expected-set-codes=BASE1,ME1 --dry-run  (ou --confirmed-by=<admin_user_uuid> para execução real).");
+    Deno.exit(1);
+  }
+
+  if (decision.kind === "REPAIR_MAPPINGS_INVALID_ARGS") {
+    console.error(`Argumentos inválidos para o executor de reparo (--repair-mappings): ${decision.reason}`);
+    console.error("Exemplo: --repair-mappings --max-api-requests=10 --expected-set-codes=BASE1,ME1 --dry-run  (ou --confirmed-by=<admin_user_uuid> para execução real).");
+    Deno.exit(1);
+  }
+
   if (decision.kind === "MISSING_ENV") {
     // Mensagem sanitizada: só nomes de variáveis, nunca valores.
     console.error(`Variável(is) de ambiente obrigatória(s) ausente(s): ${decision.missing.join(", ")}.`);
-    console.error("Defina todas antes de rodar o piloto real, o plano de expansão ou o executor de onda, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
+    console.error("Defina todas antes de rodar o piloto real, o plano de expansão, o executor de onda, o executor de backfill ou o executor de reparo, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
     Deno.exit(1);
   }
 
@@ -5480,6 +7640,27 @@ async function main() {
   if (decision.kind === "EXPANSION_WAVE") {
     await runExpansionWave({
       waveNumber: decision.waveNumber,
+      maxApiRequests: decision.maxApiRequests,
+      dryRun: decision.dryRun,
+      confirmedBy: decision.confirmedBy,
+      expectedSetCodes: decision.expectedSetCodes,
+    });
+    return;
+  }
+
+  if (decision.kind === "BACKFILL_WAVE") {
+    await runBackfillWave({
+      waveNumber: decision.waveNumber,
+      maxApiRequests: decision.maxApiRequests,
+      dryRun: decision.dryRun,
+      confirmedBy: decision.confirmedBy,
+      expectedSetCodes: decision.expectedSetCodes,
+    });
+    return;
+  }
+
+  if (decision.kind === "REPAIR_MAPPINGS") {
+    await runRepairMappings({
       maxApiRequests: decision.maxApiRequests,
       dryRun: decision.dryRun,
       confirmedBy: decision.confirmedBy,
