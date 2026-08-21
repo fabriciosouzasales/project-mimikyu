@@ -300,31 +300,36 @@ Uso:
 */
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+// Incremento de Atualização Diária JustTCG (2026-08-21), item A: cliente HTTP/paginação/
+// tipos puros da JustTCG extraídos para _shared/pricing-justtcg/ — consumidos por este
+// CLI e pela nova Edge Function justtcg-price-refresh a partir do mesmo núcleo, zero
+// duplicação de parser/paginação/normalização/controle de orçamento. Nenhuma assinatura
+// nem comportamento pré-existente deste script foi alterado por esta extração.
+import {
+  CARDS_PAGE_LIMIT,
+  DELAY_BETWEEN_REQUESTS_MS,
+  fetchAllCardsForSet,
+  GAME_CODE,
+  type JustTcgCard,
+  type JustTcgSet,
+  type JustTcgVariant,
+  JustTcgClient,
+  MAX_REQUESTS_PER_RUN,
+  RATE_LIMIT_BACKOFF_MS,
+  sanitize,
+  sanitizeJson,
+  splitPrintingLanguage,
+} from "../supabase/functions/_shared/pricing-justtcg/mod.ts";
 
 // ============================================================================
 // 0. Configuração fixa do piloto
 // ============================================================================
-
-const JUSTTCG_API_BASE = "https://api.justtcg.com/v1";
-const REQUEST_TIMEOUT_MS = 15_000;
-// Teto de segurança local, independente do plano contratado (Starter: 10.000/mês,
-// 1.000/dia, 50/min). Elevado de 20 (P8) para 30 nesta rodada: o piloto de um Set
-// paginado consome poucas requisições (1 /sets + 1-2 páginas de /cards para o Set-alvo
-// definido abaixo), mas o teto precisa acomodar Sets maiores que 100 cartas sem ficar
-// artificialmente apertado. Ainda assim, a 3s de intervalo entre chamadas
-// (DELAY_BETWEEN_REQUESTS_MS), o ritmo real fica em ~20/min — bem abaixo dos 50/min do
-// plano.
-const MAX_REQUESTS_PER_RUN = 30;
-const DELAY_BETWEEN_REQUESTS_MS = 3_000;
-const RATE_LIMIT_BACKOFF_MS = 10_000;
-
-// Máximo de cartas por página de GET /v1/cards no plano Starter/Pro contratado
-// (confirmado em https://justtcg.com/docs/api/cards, 2026-08-19 — tabela "Max cards per
-// request": Free=20, Starter=100, Pro=100, Enterprise=200). Free cairia para 20; não é
-// o caso aqui (premissa comercial confirmada por Fabrício no Incremento P14.1).
-const CARDS_PAGE_LIMIT = 100;
-
-const GAME_CODE = "pokemon";
+//
+// JUSTTCG_API_BASE/REQUEST_TIMEOUT_MS/MAX_REQUESTS_PER_RUN/DELAY_BETWEEN_REQUESTS_MS/
+// RATE_LIMIT_BACKOFF_MS/CARDS_PAGE_LIMIT/GAME_CODE agora vêm do núcleo compartilhado
+// acima (_shared/pricing-justtcg/client.ts) — valores idênticos aos desta rodada
+// (MAX_REQUESTS_PER_RUN=30 desde P14.4.2; CARDS_PAGE_LIMIT=100 desde P14.2), nenhuma
+// mudança de comportamento.
 
 type SetTarget = {
   codigoMmkyu: string;
@@ -348,29 +353,9 @@ const SET_TARGETS: SetTarget[] = [
 const MARKET_LABEL = "JUSTTCG_AGGREGATE"; // mesmo rótulo já usado como exemplo em 05f-pricing.md
 
 // ============================================================================
-// 1. Sanitização — mesma disciplina já validada na prova técnica (Protect-SensitiveText)
+// 1. Sanitização — sanitize()/sanitizeJson() agora vêm de _shared/pricing-justtcg/mod.ts
+// (mesma disciplina da prova técnica, Protect-SensitiveText — comportamento idêntico).
 // ============================================================================
-
-function sanitize(text: string | null | undefined): string | null {
-  if (!text) return text ?? null;
-  let t = text;
-  t = t.replace(/tcg_[A-Za-z0-9]+/g, "[REDACTED_KEY]");
-  t = t.replace(/x-api-key\s*:\s*\S+/gi, "x-api-key: [REDACTED]");
-  t = t.replace(/authorization\s*:\s*\S+/gi, "authorization: [REDACTED]");
-  t = t.replace(/bearer\s+\S+/gi, "Bearer [REDACTED]");
-  return t;
-}
-
-function sanitizeJson(value: unknown): unknown {
-  if (typeof value === "string") return sanitize(value);
-  if (Array.isArray(value)) return value.map(sanitizeJson);
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = sanitizeJson(v);
-    return out;
-  }
-  return value;
-}
 
 // ============================================================================
 // 2. Normalização — portado da prova técnica (Get-NomeNormalizado/Get-NumeroNormalizado)
@@ -408,203 +393,60 @@ function isUsableExternalNumber(raw: string | null | undefined): raw is string {
   return true;
 }
 
-// v1 documenta sufixo " - <Idioma>" em `printing` (removido só na v2). Sem sufixo ->
-// UNDETERMINED, nunca presumir inglês nem qualquer outro idioma (regra obrigatória do
-// pedido — nunca inferir idioma pelo fato de o preço estar em USD). Nota (P14.2): a
-// JustTCG passou a expor um campo `variant.language` direto (ex. "English") — não
-// adotado nesta rodada por ser mudança de escopo do modelo de idioma (language_status),
-// decidido em P1 e fora do pedido de P14.2; registrado aqui só como achado de
-// transparência para uma futura revisão de idioma.
-function splitPrintingLanguage(printingRaw: string | null | undefined): { printingTipo: string | null; idiomaCodigo: string | null } {
-  if (!printingRaw || !printingRaw.trim()) return { printingTipo: null, idiomaCodigo: null };
-  const match = printingRaw.match(/^(.+?)\s*-\s*([A-Za-z]+)$/);
-  if (match) return { printingTipo: match[1].trim(), idiomaCodigo: match[2].trim().toLowerCase() };
-  return { printingTipo: printingRaw.trim(), idiomaCodigo: null };
+// P14.4.4 fix (filtro por denominador) — decomposição puramente sintática do número de
+// coleção externo em (1) numerador normalizado (MESMA normalização de normalizeNumber():
+// zeros à esquerda removidos, minúsculo — reaproveitada aqui, nunca duplicada), (2)
+// denominador opcional (a parte estrutural após a barra, quando existir e for numérica) e
+// (3) o valor bruto preservado sem nenhuma transformação, só para evidência/auditoria.
+// Nunca interpreta nome, idioma ou raridade — só a forma "N" ou "N/D" do número. Denominador
+// ausente ou não-numérico -> null (nunca lançado como erro: número sem denominador é um
+// formato legítimo, ex. promos "022"). Espaços em torno da barra são tolerados (o lado do
+// numerador via normalizeNumber() já remove qualquer caractere não alfanumérico; o lado do
+// denominador é aparado explicitamente aqui antes de extrair os dígitos).
+type ParsedCollectorNumber = { numerator: string; denominator: number | null; raw: string };
+
+function parseCollectorNumberParts(raw: string | null | undefined): ParsedCollectorNumber {
+  const rawValue = raw ?? "";
+  if (!isUsableExternalNumber(rawValue)) {
+    return { numerator: "", denominator: null, raw: rawValue };
+  }
+  const numerator = normalizeNumber(rawValue);
+  const barraIndex = rawValue.indexOf("/");
+  if (barraIndex === -1) {
+    return { numerator, denominator: null, raw: rawValue };
+  }
+  const denominadorBruto = rawValue.slice(barraIndex + 1).trim();
+  const somenteDigitos = denominadorBruto.replace(/[^0-9]/g, "");
+  const denominator = somenteDigitos.length > 0 ? Number.parseInt(somenteDigitos, 10) : null;
+  return { numerator, denominator: denominator !== null && Number.isFinite(denominator) ? denominator : null, raw: rawValue };
 }
 
-// ============================================================================
-// 3. Cliente tipado JustTCG v1 — timeout, 401/429/5xx, orçamento conservador, paginado
-// ============================================================================
-
-type CallOutcome = "SUCCESS" | "TECHNICAL_FAILURE" | "BUDGET_STOPPED";
-
-type CallLogEntry = {
-  sequence_number: number;
-  endpoint: string;
-  http_status_code: number | null;
-  outcome: CallOutcome;
-  error_detail: string | null;
-  api_requests_remaining: number | null;
-};
-
-type JustTcgMeta = { total?: number; limit?: number; offset?: number; hasMore?: boolean } | null;
-
-type JustTcgResult<T> =
-  | { status: "SUCCESS"; data: T; meta: JustTcgMeta; httpStatus: number; apiRequestsRemaining: number | null }
-  | { status: "TECHNICAL_FAILURE"; httpStatus: number | null; errorDetail: string }
-  | { status: "BUDGET_STOPPED" }
-  | { status: "AUTH_FAILURE" };
-
-class JustTcgClient {
-  private requestCount = 0;
-  readonly callLog: CallLogEntry[] = [];
-  rateLimitHits = 0;
-  private readonly fetchImpl: typeof fetch;
-  // P14.4.2: teto local autoritativo desta execução — nunca o mesmo conceito de
-  // MAX_REQUESTS_PER_RUN (teto de segurança fixo do processo, sempre vigente). Quando
-  // informado (--max-api-requests=<n> do executor de onda), é o MENOR dos dois que vale —
-  // Math.min() nunca permite que um orçamento de onda relaxe o teto de segurança global.
-  // budgetOk() nunca inicia uma chamada que ultrapasse este valor (regra 7 do P14.4.2):
-  // a checagem acontece ANTES de qualquer fetch, nunca depois.
-  private readonly effectiveBudget: number;
-
-  // fetchImpl injetável (default: fetch global) — permite testar paginação/retry/429
-  // 100% offline em runFixtureCheck(), sem depender de --allow-net nem de rede real.
-  // Mesmo padrão de injeção de dependência já usado em
-  // supabase/functions/_shared/pricing-ptax/core.ts (runPtaxSync recebe fetch por parâmetro).
-  constructor(private readonly apiKey: string, fetchImpl?: typeof fetch, requestBudget?: number) {
-    this.fetchImpl = fetchImpl ?? fetch;
-    this.effectiveBudget = typeof requestBudget === "number" ? Math.min(requestBudget, MAX_REQUESTS_PER_RUN) : MAX_REQUESTS_PER_RUN;
-  }
-
-  private budgetOk(): boolean {
-    return this.requestCount < this.effectiveBudget;
-  }
-
-  async get<T>(endpoint: string, params: Record<string, string>): Promise<JustTcgResult<T>> {
-    if (!this.budgetOk()) {
-      this.callLog.push({
-        sequence_number: this.callLog.length + 1,
-        endpoint,
-        http_status_code: null,
-        outcome: "BUDGET_STOPPED",
-        error_detail: `Teto local de ${this.effectiveBudget} requisições atingido.`,
-        api_requests_remaining: null,
-      });
-      return { status: "BUDGET_STOPPED" };
-    }
-
-    if (this.requestCount > 0) await new Promise((r) => setTimeout(r, DELAY_BETWEEN_REQUESTS_MS));
-
-    const query = new URLSearchParams(params).toString();
-    const url = `${JUSTTCG_API_BASE}${endpoint}${query ? `?${query}` : ""}`;
-
-    const attempt = async (): Promise<{ res: Response | null; err: string | null }> => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-      try {
-        const res = await this.fetchImpl(url, {
-          method: "GET",
-          headers: { "x-api-key": this.apiKey, Accept: "application/json" },
-          signal: controller.signal,
-        });
-        return { res, err: null };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "UNEXPECTED_ERROR";
-        return { res: null, err: sanitize(message) };
-      } finally {
-        clearTimeout(timeout);
-      }
-    };
-
-    this.requestCount++;
-    const seq = this.callLog.length + 1;
-    let { res, err } = await attempt();
-
-    if (res?.status === 401) {
-      const body = sanitize(await res.text().catch(() => ""));
-      this.callLog.push({ sequence_number: seq, endpoint, http_status_code: 401, outcome: "TECHNICAL_FAILURE", error_detail: `401 Unauthorized: ${body}`, api_requests_remaining: null });
-      return { status: "AUTH_FAILURE" };
-    }
-
-    if (res?.status === 429) {
-      this.rateLimitHits++;
-      await new Promise((r) => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
-      if (!this.budgetOk()) {
-        this.callLog.push({ sequence_number: seq, endpoint, http_status_code: 429, outcome: "BUDGET_STOPPED", error_detail: "429 seguido de orçamento esgotado antes do retry.", api_requests_remaining: null });
-        return { status: "BUDGET_STOPPED" };
-      }
-      this.requestCount++;
-      ({ res, err } = await attempt());
-    }
-
-    if (!res) {
-      this.callLog.push({ sequence_number: seq, endpoint, http_status_code: null, outcome: "TECHNICAL_FAILURE", error_detail: err ?? "FALHA_DE_CONEXAO", api_requests_remaining: null });
-      return { status: "TECHNICAL_FAILURE", httpStatus: null, errorDetail: err ?? "FALHA_DE_CONEXAO" };
-    }
-
-    if (!res.ok) {
-      const body = sanitize(await res.text().catch(() => "")) ?? "";
-      this.callLog.push({ sequence_number: seq, endpoint, http_status_code: res.status, outcome: "TECHNICAL_FAILURE", error_detail: `HTTP ${res.status}: ${body}`, api_requests_remaining: null });
-      return { status: "TECHNICAL_FAILURE", httpStatus: res.status, errorDetail: `HTTP ${res.status}: ${body}` };
-    }
-
-    const json = await res.json();
-    // apiRequestsRemaining é gravado exatamente como recebido, sem transformação — nunca
-    // tratado como saldo monotônico ou autoritativo. Achado real do Incremento P14.1
-    // (reconciliação de 2026-08-19): a própria metadata da JustTCG pode repetir o mesmo
-    // valor por várias chamadas reais e distintas (consistência eventual do lado da API),
-    // então nenhum código deste arquivo deve inferir "quanto resta" a partir dela — só
-    // registrar o valor bruto em pricing_sync_run_call.api_requests_remaining.
-    const apiRequestsRemaining = json?._metadata?.apiRequestsRemaining ?? null;
-    const meta: JustTcgMeta = json?.meta ?? null;
-    this.callLog.push({ sequence_number: seq, endpoint, http_status_code: res.status, outcome: "SUCCESS", error_detail: null, api_requests_remaining: apiRequestsRemaining });
-    return { status: "SUCCESS", data: json as T, meta, httpStatus: res.status, apiRequestsRemaining };
-  }
-
-  get requestsMade() {
-    return this.requestCount;
-  }
-
-  // P14.4.2: saldo local autoritativo restante — usado só para relatório do resumo da onda
-  // (regra 12), nunca para decidir se uma chamada pode prosseguir (isso é budgetOk(), acima,
-  // interno e já verificado antes de qualquer fetch).
-  get requestsRemainingLocal() {
-    return Math.max(0, this.effectiveBudget - this.requestCount);
-  }
+// P14.4.4 fix (filtro por denominador) — "válido" para fins do desempate estrutural: um
+// número inteiro positivo. Qualquer outra coisa (ausente, zero, negativo, não-inteiro,
+// NaN) é tratada como "ausente" pela regra 6 do pedido — nunca aplica o desempate, cai
+// sempre no comportamento AMBIGUOUS conservador já existente, sem nenhum campo novo na
+// evidência (garante zero regressão para todo Set sem este dado ou com dado corrompido).
+function isValidCollectorTotal(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value > 0;
 }
 
+// splitPrintingLanguage() agora vem de _shared/pricing-justtcg/mod.ts (mesma lógica: v1
+// documenta sufixo " - <Idioma>" em `printing`, removido só na v2; sem sufixo ->
+// idiomaCodigo null, nunca presumir inglês nem qualquer outro idioma).
+
 // ============================================================================
-// 3b. Paginação de /v1/cards por Set — substitui a Fase B por carta de P8
+// 3. Cliente tipado JustTCG v1 — agora em _shared/pricing-justtcg/client.ts (import no
+// topo do arquivo). Timeout, 401/429/5xx, orçamento conservador — comportamento
+// idêntico ao pré-existente, zero mudança nesta extração.
 // ============================================================================
 
-type JustTcgVariant = { uuid?: string; id?: string; condition?: string; printing?: string; price?: number; lastUpdated?: number };
-type JustTcgCard = { id: string; uuid?: string; name: string; number?: string | null; rarity?: string; variants: JustTcgVariant[] };
-
-// Pagina GET /v1/cards?game=&set=&limit=100&offset=N até meta.hasMore=false (ou, na
-// ausência de `meta.hasMore`, até a página vir mais curta que CARDS_PAGE_LIMIT — mesmo
-// fallback do próprio exemplo oficial "Price sync for inventory",
-// https://justtcg.com/docs/examples). Retorna também `requestsUsed`, para o teste
-// "chamadas crescem por lote/página, não por carta" poder comparar diretamente contra o
-// total de cartas devolvidas.
-async function fetchAllCardsForSet(
-  client: JustTcgClient,
-  externalSetId: string,
-): Promise<{ cards: JustTcgCard[]; requestsUsed: number; aborted: "AUTH_FAILURE" | "TECHNICAL_FAILURE" | "BUDGET_STOPPED" | null }> {
-  const cards: JustTcgCard[] = [];
-  let offset = 0;
-  let requestsUsed = 0;
-  for (;;) {
-    const result = await client.get<{ data: JustTcgCard[] }>("/cards", {
-      game: GAME_CODE,
-      set: externalSetId,
-      limit: String(CARDS_PAGE_LIMIT),
-      offset: String(offset),
-    });
-    if (result.status === "AUTH_FAILURE") return { cards, requestsUsed, aborted: "AUTH_FAILURE" };
-    if (result.status === "BUDGET_STOPPED") return { cards, requestsUsed, aborted: "BUDGET_STOPPED" };
-    if (result.status !== "SUCCESS") return { cards, requestsUsed, aborted: "TECHNICAL_FAILURE" };
-
-    requestsUsed++;
-    const page = result.data.data ?? [];
-    cards.push(...page);
-
-    const hasMore = result.meta?.hasMore ?? page.length === CARDS_PAGE_LIMIT;
-    if (!hasMore || page.length === 0) break;
-    offset += CARDS_PAGE_LIMIT;
-  }
-  return { cards, requestsUsed, aborted: null };
-}
+// ============================================================================
+// 3b. Paginação de /v1/cards por Set — fetchAllCardsForSet() agora em
+// _shared/pricing-justtcg/pagination.ts (import no topo do arquivo); JustTcgCard/
+// JustTcgVariant agora em _shared/pricing-justtcg/types.ts. Substituiu a Fase B por
+// carta de P8 (uma chamada HTTP por carta, inviável em escala) — comportamento
+// idêntico ao pré-existente, zero mudança nesta extração.
+// ============================================================================
 
 // ============================================================================
 // 4. Acesso restrito e explícito à fonte JUSTTCG
@@ -633,22 +475,33 @@ async function findCardSetId(supabase: SupabaseClient, code: string): Promise<st
   return (data?.id as string) ?? null;
 }
 
-type LocalCard = { card_id: string; name: string; collector_number: string };
+// P14.4.4 fix (filtro por denominador) — collector_total é OPCIONAL de propósito (nunca
+// required): mantém compatível, sem nenhuma alteração, todo call site e literal de teste
+// pré-existente que constrói um LocalCard sem esse campo (a imensa maioria) — ausência de
+// campo e ausência de valor (undefined/null) são exatamente a mesma coisa para a regra "sem
+// collector_total válido, não aplica o desempate" (ver isValidCollectorTotal() perto de
+// classifyCardMatch()).
+type LocalCard = { card_id: string; name: string; collector_number: string; collector_total?: number | null };
 
 // Substitui a busca pontual por carta de P8 (findCard, uma query por card-alvo hardcoded)
 // por uma única query trazendo TODAS as cartas locais do Set — necessário para o novo
 // desenho, que classifica a cobertura inteira do Set, não uma lista fixa de 3 cartas.
 async function findLocalCardsForSet(supabase: SupabaseClient, cardSetId: string): Promise<LocalCard[]> {
-  const { data, error } = await supabase.from("card").select("id, name, collector_number").eq("card_set_id", cardSetId);
+  const { data, error } = await supabase.from("card").select("id, name, collector_number, collector_total").eq("card_set_id", cardSetId);
   if (error) throw new Error(`CARD_QUERY_FAILED: ${error.message}`);
-  return (data ?? []).map((r: { id: string; name: string; collector_number: string }) => ({ card_id: r.id, name: r.name, collector_number: r.collector_number }));
+  return (data ?? []).map((r: { id: string; name: string; collector_number: string; collector_total: number | null }) => ({
+    card_id: r.id,
+    name: r.name,
+    collector_number: r.collector_number,
+    collector_total: r.collector_total ?? null,
+  }));
 }
 
 // ============================================================================
 // 5. Resolução de correspondência de Set — release_date exato, nunca nome
 // ============================================================================
 
-type JustTcgSet = { id: string; name: string; release_date?: string; release_date_raw?: string; variants_count?: number };
+// JustTcgSet agora vem de _shared/pricing-justtcg/mod.ts (import no topo do arquivo).
 
 type SetMatchResult =
   | { status: "CONFIRMED"; set: JustTcgSet; method: string; evidence: Record<string, unknown> }
@@ -794,10 +647,44 @@ type CardMatchResult = {
 // categoria de carta (Treinador, Nidoran, tradução, Set específico): a divergência de
 // nome nunca impede uma correspondência única por Set+número.
 //
+// P14.4.4 fix (filtro por denominador, decisão de negócio confirmada por Fabrício após
+// auditoria read-only dos 548 PENDING/18 NOT_FOUND): quando há MAIS de um candidato para o
+// mesmo numerador, um segundo sinal estrutural — nunca nome, nunca idioma, nunca raridade,
+// nunca preferência de edição — pode reduzir a ambiguidade: o denominador declarado no
+// número do candidato externo (a parte "/D" de "N/D") comparado a collector_total da carta
+// local.
+//
+// P14.4.4 fix v2 (correção de especificidade estrutural, confirmada por Fabrício após o
+// dry-run real divergir em SV6.5 — 0/8 promovidos em vez de 8/8: a versão anterior tratava
+// um candidato sem denominador declarado como sobrevivente em pé de igualdade com um
+// candidato de identidade completa, então "Basic Energy" number="1" e "Joltik"
+// number="001/064" com collector_total=64 empatavam como 2 sobreviventes -> AMBIGUOUS,
+// quando o candidato de identidade completa é estruturalmente mais específico e deveria
+// vencer sozinho). Cada candidato é classificado em exatamente uma categoria:
+//   EXACT_FULL_IDENTITY      — denominador declarado e igual a collector_total da carta local
+//   INCOMPATIBLE_DENOMINATOR — denominador declarado e diferente de collector_total
+//   INCOMPLETE_NUMBER        — sem denominador declarado (ausência de informação nunca prova
+//                              incompatibilidade, mas também nunca prevalece sobre uma
+//                              identidade completa comprovada)
+// Só EXATAMENTE 1 candidato em EXACT_FULL_IDENTITY promove a carta a SAFE — 2+ candidatos em
+// EXACT_FULL_IDENTITY, ou 0 candidatos em EXACT_FULL_IDENTITY (não importa quantos
+// INCOMPLETE_NUMBER/INCOMPATIBLE_DENOMINATOR sobrem), permanecem AMBIGUOUS.
+//
 // Classificação:
-//   1 candidato para Set+número  -> SAFE      (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
-//   0 candidatos                 -> ABSENT    (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
-//   >1 candidatos (mesmo número) -> AMBIGUOUS (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
+//   1 candidato para Set+número (sem precisar do filtro)
+//     -> SAFE      (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
+//   0 candidatos
+//     -> ABSENT    (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE) — nunca afetado pelo filtro
+//   >1 candidatos, collector_total ausente/inválido
+//     -> AMBIGUOUS (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE) — comportamento
+//        conservador anterior, byte a byte, sem nenhum campo novo na evidência (regra 6)
+//   >1 candidatos, collector_total válido, exatamente 1 candidato em EXACT_FULL_IDENTITY
+//     -> SAFE      (method SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE)
+//   >1 candidatos, collector_total válido, 0 ou 2+ candidatos em EXACT_FULL_IDENTITY
+//     -> AMBIGUOUS (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE) — NUNCA ABSENT/NOT_FOUND,
+//        e nunca promovido só porque sobra um candidato INCOMPLETE_NUMBER; evidência ganha
+//        os campos do filtro (candidatos_identidade_completa etc.) para auditoria, mas a
+//        lista `candidatos`/`total_candidatos` pré-existente permanece intocada
 //   número local ausente/inutilizável -> ABSENT (mesmo method — nunca cai em outro branch)
 //
 // `externalSetId` é recebido só para deixar explícito, na própria evidência, sob qual Set
@@ -807,6 +694,7 @@ type CardMatchResult = {
 function classifyCardMatch(local: LocalCard, externalIndex: Map<string, JustTcgCard[]>, externalSetId: string): CardMatchResult {
   const localNumNorm = normalizeNumber(local.collector_number);
   const METHOD = "SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE";
+  const METHOD_IDENTIDADE_COMPLETA = "SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE";
 
   // Número local ausente/vazio (normalizeNumber("") devolve "" — nunca "0", reservado para
   // um número real que se reduz a zero, ex. "000") nunca encontra nenhum candidato no índice
@@ -846,9 +734,85 @@ function classifyCardMatch(local: LocalCard, externalIndex: Map<string, JustTcgC
     };
   }
 
-  // Mais de um candidato compartilha o mesmo número dentro do Set confirmado — AMBIGUOUS
-  // sempre, independente de nome (nunca desempata por nome; regra "sem exceção" do pedido).
-  // Nomes dos candidatos preservados na evidência só para auditoria/exibição.
+  // Mais de um candidato compartilha o mesmo número dentro do Set confirmado. Sem
+  // collector_total válido, comportamento AMBIGUOUS anterior preservado byte a byte (regra
+  // 6 — nunca aplica o desempate, nunca acrescenta campo novo à evidência).
+  const candidatosBase = candidates.map((c) => ({ id: c.id, name: c.name, number: c.number ?? null }));
+
+  if (!isValidCollectorTotal(local.collector_total)) {
+    return {
+      classification: "AMBIGUOUS",
+      matched: null,
+      method: METHOD,
+      evidence: {
+        external_set_id: externalSetId,
+        numero_local: local.collector_number,
+        numero_normalizado: localNumNorm,
+        nome_local: local.name,
+        candidatos: candidatosBase,
+        total_candidatos: candidates.length,
+      },
+    };
+  }
+
+  const collectorTotal = local.collector_total;
+  const candidatosAvaliados = candidates.map((c) => {
+    const parsed = parseCollectorNumberParts(c.number ?? null);
+    const categoriaEstrutural: "EXACT_FULL_IDENTITY" | "INCOMPATIBLE_DENOMINATOR" | "INCOMPLETE_NUMBER" = parsed.denominator === null
+      ? "INCOMPLETE_NUMBER"
+      : parsed.denominator === collectorTotal
+      ? "EXACT_FULL_IDENTITY"
+      : "INCOMPATIBLE_DENOMINATOR";
+    return {
+      id: c.id,
+      name: c.name,
+      number: c.number ?? null,
+      numerador_interpretado: parsed.numerator || null,
+      denominador_interpretado: parsed.denominator,
+      categoria_estrutural: categoriaEstrutural,
+    };
+  });
+  const candidatosIdentidadeCompleta = candidatosAvaliados.filter((c) => c.categoria_estrutural === "EXACT_FULL_IDENTITY");
+  const candidatosDenominadorIncompativel = candidatosAvaliados.filter((c) => c.categoria_estrutural === "INCOMPATIBLE_DENOMINATOR");
+  const candidatosNumeroIncompleto = candidatosAvaliados.filter((c) => c.categoria_estrutural === "INCOMPLETE_NUMBER");
+
+  // Só EXATAMENTE 1 candidato com identidade completa (numerador+denominador batendo com
+  // collector_total) promove a carta a SAFE — nunca 0, nunca 2+, independentemente de quantos
+  // candidatos INCOMPLETE_NUMBER/INCOMPATIBLE_DENOMINATOR sobrarem (fix v2, regras 2-4: um
+  // candidato sem denominador nunca é declarado falso/incompatível, mas também nunca
+  // prevalece sobre uma identidade completa única, nem a substitui quando ela está ausente).
+  if (candidatosIdentidadeCompleta.length === 1) {
+    const selecionado = candidatosIdentidadeCompleta[0];
+    const candidate = candidates.find((c) => c.id === selecionado.id)!;
+    const divergenciaDeNome = !isNameCompatible(local.name, candidate.name);
+    return {
+      classification: "SAFE",
+      matched: candidate,
+      method: METHOD_IDENTIDADE_COMPLETA,
+      evidence: {
+        external_set_id: externalSetId,
+        numero_local: local.collector_number,
+        numero_normalizado: localNumNorm,
+        numero_externo: candidate.number ?? null,
+        nome_local: local.name,
+        nome_externo: candidate.name,
+        divergencia_de_nome: divergenciaDeNome,
+        local_collector_total: collectorTotal,
+        candidatos_avaliados_estrutural: candidatosAvaliados,
+        candidatos_identidade_completa: candidatosIdentidadeCompleta,
+        candidatos_denominador_incompativel: candidatosDenominadorIncompativel,
+        candidatos_numero_incompleto: candidatosNumeroIncompleto,
+        candidato_selecionado: { id: candidate.id, name: candidate.name, number: candidate.number ?? null },
+        motivo_estrutural: "Identidade completa (numerador+denominador) única e mais específica que candidatos de número incompleto ou de denominador incompatível; único candidato com identidade completa promovido.",
+      },
+    };
+  }
+
+  // 0 ou 2+ candidatos com identidade completa -> continua AMBIGUOUS, nunca ABSENT/NOT_FOUND
+  // (regra 5) e nunca promovido só porque sobra um candidato de número incompleto (regra 4).
+  // `candidatos`/`total_candidatos` preservados sem alteração para não quebrar nenhum
+  // consumidor pré-existente da evidência (ex. logDryRunCardEvidence); os campos do filtro
+  // são só ADITIVOS.
   return {
     classification: "AMBIGUOUS",
     matched: null,
@@ -858,8 +822,16 @@ function classifyCardMatch(local: LocalCard, externalIndex: Map<string, JustTcgC
       numero_local: local.collector_number,
       numero_normalizado: localNumNorm,
       nome_local: local.name,
-      candidatos: candidates.map((c) => ({ id: c.id, name: c.name, number: c.number ?? null })),
+      candidatos: candidatosBase,
       total_candidatos: candidates.length,
+      local_collector_total: collectorTotal,
+      candidatos_avaliados_estrutural: candidatosAvaliados,
+      candidatos_identidade_completa: candidatosIdentidadeCompleta,
+      candidatos_denominador_incompativel: candidatosDenominadorIncompativel,
+      candidatos_numero_incompleto: candidatosNumeroIncompleto,
+      motivo_estrutural: candidatosIdentidadeCompleta.length === 0
+        ? "Nenhum candidato com identidade completa (numerador+denominador batendo com collector_total) — permanece ambíguo, mesmo havendo candidato(s) de número incompleto; ausência de denominador nunca promove sozinha."
+        : "Mais de um candidato com identidade completa (mesmo denominador batendo com collector_total em 2+ candidatos) — permanece ambíguo.",
     },
   };
 }
@@ -1090,6 +1062,12 @@ type BatchPersistOutcome = {
   observationsResolved: number;
   observationsWritten: number;
   observationsDivergent: number;
+  // Fix P14.5 (dual-write pricing_source_card_identity): identidades PRIMARY/CONFIRMED
+  // resolvidas nesta chamada — REUSE (já existentes, pré-busca) + NEW (inseridas agora).
+  // identitiesWritten conta só as NEW. Nunca inclui ALTERNATE/ALIAS — o conector só produz
+  // e consome PRIMARY/CONFIRMED nesta rodada (ver comentário na Fase 1.5).
+  identitiesResolved: number;
+  identitiesWritten: number;
   // Contagem de round trips ao Supabase feitos exclusivamente por persistBatchedResults()
   // (pré-busca + insert + rpc, todos em lotes) — deliberadamente separada de
   // client.requestsMade, que só conta chamadas HTTP à JustTCG. Não inclui chamadas fora
@@ -1120,6 +1098,19 @@ async function persistBatchedResults(
 
   // --- Fase 1: pricing_card_mapping ------------------------------------------------
   const cardMappingIdByCardId = new Map<string, string>();
+  // Fix P14.5 (dual-write pricing_source_card_identity): payload local de toda confirmação
+  // desta rodada (INSERT novo OU promoção), correlacionado por cardId — usado pela Fase 1.5
+  // para criar a identidade sem precisar reler pricing_card_mapping do banco.
+  const confirmedPayloadByCardId = new Map<
+    string,
+    {
+      external_card_id: string | null;
+      external_card_name: string | null;
+      match_method: string;
+      match_evidence: unknown;
+      confirmed_by: string;
+    }
+  >();
 
   if (plannedMappings.length > 0) {
     const existingByCardId = new Map<string, MappingRowLike>();
@@ -1132,11 +1123,20 @@ async function persistBatchedResults(
         .in("card_id", ids);
       if (error) {
         batchFailureOccurred = true;
-        errorParts.push(`CARD_MAPPING_BATCH_SELECT_FAILED: ${sanitize(error.message)}`);
+        errorParts.push(
+          `CARD_MAPPING_BATCH_SELECT_FAILED: ${sanitize(error.message)}`,
+        );
         continue;
       }
-      for (const row of (data ?? []) as Array<{ id: string; card_id: string; match_status: string }>) {
-        existingByCardId.set(row.card_id, { id: row.id, match_status: row.match_status });
+      for (
+        const row of (data ?? []) as Array<
+          { id: string; card_id: string; match_status: string }
+        >
+      ) {
+        existingByCardId.set(row.card_id, {
+          id: row.id,
+          match_status: row.match_status,
+        });
       }
     }
 
@@ -1147,7 +1147,11 @@ async function persistBatchedResults(
     for (const planned of plannedMappings) {
       const existing = existingByCardId.get(planned.cardId) ?? null;
       const action = decideMappingUpsert(existing, planned.status);
-      if (action === "NOOP_SAME_STATUS" || action === "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT" || action === "NOOP_ALREADY_CONFIRMED") {
+      if (
+        action === "NOOP_SAME_STATUS" ||
+        action === "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT" ||
+        action === "NOOP_ALREADY_CONFIRMED"
+      ) {
         if (existing) cardMappingIdByCardId.set(planned.cardId, existing.id);
         continue;
       }
@@ -1163,8 +1167,27 @@ async function persistBatchedResults(
         confirmed_by: planned.status === "CONFIRMED" ? confirmedBy : null,
       };
 
+      if (planned.status === "CONFIRMED") {
+        // Fix P14.5 (dual-write): guarda o payload desta confirmação, correlacionado por
+        // cardId — cobre os dois caminhos (INSERT novo e UPDATE de promoção) com a mesma
+        // estrutura, já que os dois levam ao mesmo match_status final CONFIRMED. Só é
+        // efetivamente usado pela Fase 1.5 depois que o INSERT/UPDATE abaixo confirmar
+        // sucesso (cardMappingIdByCardId precisa ter o id real da linha).
+        confirmedPayloadByCardId.set(planned.cardId, {
+          external_card_id: planned.matchedCard?.id ?? null,
+          external_card_name: planned.matchedCard?.name ?? null,
+          match_method: planned.method,
+          match_evidence: sanitizeJson(planned.evidence),
+          confirmed_by: confirmedBy,
+        });
+      }
+
       if (action === "INSERTED") {
-        toInsert.push({ card_id: planned.cardId, pricing_source_id: sourceId, ...payload });
+        toInsert.push({
+          card_id: planned.cardId,
+          pricing_source_id: sourceId,
+          ...payload,
+        });
       } else if (planned.status === "CONFIRMED") {
         // UPGRADED_TO_CONFIRMED (promoção real) — precisa da função SECURITY INVOKER
         // (Query 3914, revisão de segurança de 2026-08-19): .upsert() reemitiria SET para
@@ -1185,7 +1208,7 @@ async function persistBatchedResults(
         // rodada (recuperável numa reexecução futura, mesma garantia já aplicada a falhas
         // parciais de lote) e é sinalizada aqui — nunca aplicada silenciosamente. Não há
         // evidência de que este caminho seja exercitado pelo piloto BASE4 hoje (schema
-        // atual não tem estado intermediário entre PENDING e NOT_FOUND fora desta função);
+        // atual não tem estado intermediário entre PENDING e NOT_FOUND fora desta função):
         // registrado como pendência informativa, não corrigido nesta rodada.
         errorParts.push(
           `CARD_MAPPING_PENDING_NOT_FOUND_TOGGLE_SKIPPED(card=${planned.cardId}): ${(existing as MappingRowLike).match_status} -> ${planned.status} fora do escopo da RPC de promoção exclusiva (Query 3914); sem escrita nesta rodada, recuperável numa reexecução futura.`,
@@ -1195,41 +1218,72 @@ async function persistBatchedResults(
 
     for (const rows of chunk(toInsert, BATCH_SIZE)) {
       operationsSupabase++;
-      const { data, error } = await supabase.from("pricing_card_mapping").insert(rows).select("id, card_id");
+      const { data, error } = await supabase.from("pricing_card_mapping")
+        .insert(rows).select("id, card_id");
       if (error) {
         batchFailureOccurred = true;
-        errorParts.push(`CARD_MAPPING_BATCH_INSERT_FAILED(${rows.length} linhas): ${sanitize(error.message)}`);
+        errorParts.push(
+          `CARD_MAPPING_BATCH_INSERT_FAILED(${rows.length} linhas): ${
+            sanitize(error.message)
+          }`,
+        );
         continue;
       }
-      for (const row of (data ?? []) as Array<{ id: string; card_id: string }>) {
+      for (
+        const row of (data ?? []) as Array<{ id: string; card_id: string }>
+      ) {
         cardMappingIdByCardId.set(row.card_id, row.id);
       }
     }
 
     for (const rows of chunk(toUpdate, BATCH_SIZE)) {
       operationsSupabase++;
-      const { data, error } = await supabase.rpc("batch_update_pricing_card_mapping_status", { p_updates: rows });
+      const { data, error } = await supabase.rpc(
+        "batch_update_pricing_card_mapping_status",
+        { p_updates: rows },
+      );
       if (error) {
         batchFailureOccurred = true;
-        errorParts.push(`CARD_MAPPING_BATCH_UPDATE_FAILED(${rows.length} linhas): ${sanitize(error.message)}`);
+        errorParts.push(
+          `CARD_MAPPING_BATCH_UPDATE_FAILED(${rows.length} linhas): ${
+            sanitize(error.message)
+          }`,
+        );
         continue;
       }
-      for (const row of (data ?? []) as Array<{ id: string; card_id: string }>) {
+      for (
+        const row of (data ?? []) as Array<{ id: string; card_id: string }>
+      ) {
         cardMappingIdByCardId.set(row.card_id, row.id);
       }
     }
   }
 
-  // --- Fase 2: pricing_product --------------------------------------------------
-  // Só existem variantes planejadas para cartas CONFIRMED cujo mapping foi resolvido acima
-  // (inserido, promovido ou já existente) — cartas cujo mapping falhou nesta rodada (Fase 1)
-  // ficam de fora e são reportadas, recuperáveis numa reexecução (o mapping delas volta a
-  // ser reavaliado do zero na próxima chamada desta função).
-  const productIdByKey = new Map<string, string>();
+  // payloadByMappingId: mesma correlação de confirmedPayloadByCardId, agora por
+  // pricing_card_mapping_id (não mais por cardId) — só existe para mappings cujo INSERT/
+  // UPDATE nesta rodada teve sucesso (apareceram em cardMappingIdByCardId). Usado
+  // exclusivamente pela Fase 1.5 abaixo.
+  const payloadByMappingId = new Map<
+    string,
+    {
+      external_card_id: string | null;
+      external_card_name: string | null;
+      match_method: string;
+      match_evidence: unknown;
+      confirmed_by: string;
+    }
+  >();
+  for (const [cardId, payload] of confirmedPayloadByCardId) {
+    const mappingId = cardMappingIdByCardId.get(cardId);
+    if (mappingId) payloadByMappingId.set(mappingId, payload);
+  }
+
+  // usableVariants: só as que tiveram cardMappingId resolvido na Fase 1 (mesma regra de
+  // sempre) — cartas cujo mapping falhou nesta rodada (Fase 1) ficam de fora e são
+  // reportadas, recuperáveis numa reexecução (o mapping delas volta a ser reavaliado do
+  // zero na próxima chamada desta função).
   const usableVariants: Array<PlannedVariant & { cardMappingId: string }> = [];
   const unresolvedCardIds = new Set<string>();
-  let productsWritten = 0;
-
   for (const variant of plannedVariants) {
     const cardMappingId = cardMappingIdByCardId.get(variant.cardId);
     if (!cardMappingId) {
@@ -1242,34 +1296,277 @@ async function persistBatchedResults(
     errorParts.push(`CARD_MAPPING_UNRESOLVED_SKIP_VARIANTS(${cardId})`);
   }
 
-  if (usableVariants.length > 0) {
-    const cardMappingIds = [...new Set(usableVariants.map((v) => v.cardMappingId))];
+  // --- Fase 1.5: pricing_source_card_identity (Fix P14.5 — dual-write) -------------------
+  // Cria, para todo mapping usado por usableVariants nesta rodada, a identidade PRIMARY/
+  // CONFIRMED correspondente na fonte atual — fecha a lacuna que impedia aplicar a migration
+  // 3923 com segurança (sem isso, pricing_product.pricing_source_card_identity_id nasceria
+  // sempre NULL). Cobre TODOS os mappings usados pelas variantes desta rodada, não só os
+  // confirmados agora — mappings antigos (CONFIRMED antes desta execução) já devem ter
+  // identidade do backfill da própria 3923; a pré-busca abaixo reaproveita (REUSE) essas
+  // identidades sem tentar recriá-las. ALTERNATE/ALIAS ficam fora de escopo deste incremento
+  // — esta função só cria e consome PRIMARY/CONFIRMED.
+  //
+  // Regra 1 (proibição de lacuna nova, a pedido de Fabrício): toda variante cujo mapping não
+  // tiver uma identidade PRIMARY/CONFIRMED resolvida ao final desta fase — por SELECT/INSERT
+  // de lote falhando, ou por gap genuíno (mapping antigo sem identidade, teoricamente
+  // impossível dado o backfill 100% da 3923, mas nunca assumido silenciosamente) — nunca
+  // chega à Fase 2/3: fica de fora de variantsWithIdentity, registrada em errorParts, e força
+  // batchFailureOccurred=true (nunca corrigida silenciosamente; recuperável numa reexecução
+  // futura, mesma garantia de todo o resto do arquivo).
+  const identityIdByMappingId = new Map<string, string>();
+  const identityFailedMappingIds = new Set<string>();
+  let identitiesWritten = 0;
+
+  const mappingIdsNeedingIdentity = [
+    ...new Set(usableVariants.map((v) => v.cardMappingId)),
+  ];
+  if (mappingIdsNeedingIdentity.length > 0) {
+    for (const ids of chunk(mappingIdsNeedingIdentity, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase
+        .from("pricing_source_card_identity")
+        .select("id, pricing_card_mapping_id")
+        .eq("pricing_source_id", sourceId)
+        .eq("identity_role", "PRIMARY")
+        .eq("match_status", "CONFIRMED")
+        .in("pricing_card_mapping_id", ids);
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(
+          `IDENTITY_BATCH_SELECT_FAILED: ${sanitize(error.message)}`,
+        );
+        continue;
+      }
+      for (
+        const row of (data ?? []) as Array<
+          { id: string; pricing_card_mapping_id: string }
+        >
+      ) {
+        identityIdByMappingId.set(row.pricing_card_mapping_id, row.id);
+      }
+    }
+
+    // Fix P14.5.1 (retry após falha transiente, achado durante a escrita dos testes): um
+    // mapping cuja Fase 1.5 falhou em rodada anterior (ex.: IDENTITY_BATCH_INSERT_FAILED) já
+    // teve pricing_card_mapping persistido com sucesso naquela mesma rodada — só a identidade
+    // ficou pendente. Numa reexecução, esse mapping chega aqui via NOOP_SAME_STATUS/
+    // NOOP_ALREADY_CONFIRMED (Fase 1 não o toca de novo), então confirmedPayloadByCardId/
+    // payloadByMappingId ficam vazios para ele nesta rodada — sem este fallback, a reexecução
+    // reportaria IDENTITY_MISSING_FOR_PRECONFIRMED_MAPPING para sempre (o mesmo sinal de um gap
+    // permanente), mesmo sendo um problema plenamente recuperável. Busca os campos já
+    // persistidos em pricing_card_mapping só para os mappings que REUSE não resolveu e que não
+    // têm payload desta rodada — nunca inventa dado; se a própria linha não estiver CONFIRMED
+    // (estado anômalo, teoricamente impossível dado que só chegam aqui mappings usados por
+    // usableVariants), cai na rede de segurança abaixo como gap genuíno.
+    const mappingIdsNeedingFallback = mappingIdsNeedingIdentity.filter(
+      (id) => !identityIdByMappingId.has(id) && !payloadByMappingId.has(id),
+    );
+    if (mappingIdsNeedingFallback.length > 0) {
+      for (const ids of chunk(mappingIdsNeedingFallback, BATCH_SIZE)) {
+        operationsSupabase++;
+        const { data, error } = await supabase
+          .from("pricing_card_mapping")
+          .select(
+            "id, match_status, external_card_id, external_card_name, match_method, match_evidence, confirmed_by",
+          )
+          .in("id", ids);
+        if (error) {
+          batchFailureOccurred = true;
+          errorParts.push(
+            `IDENTITY_FALLBACK_MAPPING_SELECT_FAILED: ${
+              sanitize(error.message)
+            }`,
+          );
+          continue;
+        }
+        for (
+          const row of (data ?? []) as Array<{
+            id: string;
+            match_status: string;
+            external_card_id: string | null;
+            external_card_name: string | null;
+            match_method: string | null;
+            match_evidence: unknown;
+            confirmed_by: string | null;
+          }>
+        ) {
+          if (row.match_status !== "CONFIRMED" || !row.confirmed_by) continue;
+          payloadByMappingId.set(row.id, {
+            external_card_id: row.external_card_id,
+            external_card_name: row.external_card_name,
+            match_method: row.match_method ?? "auto",
+            match_evidence: row.match_evidence,
+            confirmed_by: row.confirmed_by,
+          });
+        }
+      }
+    }
+
+    const toInsertIdentities: Array<
+      { mappingId: string; row: Record<string, unknown> }
+    > = [];
+    for (const mappingId of mappingIdsNeedingIdentity) {
+      if (identityIdByMappingId.has(mappingId)) continue; // REUSE — já existe (backfill da 3923 ou rodada anterior)
+      const payload = payloadByMappingId.get(mappingId);
+      if (!payload) {
+        // Nem o payload desta rodada (Fase 1) nem o fallback de pricing_card_mapping acima
+        // resolveram este mapping — SELECT do fallback falhou, ou a linha existe mas está
+        // estruturalmente incompleta (CONFIRMED sem confirmed_by, o que as CHECK constraints
+        // deveriam impedir). Gap genuíno, não um caso recuperável por retry simples. Nunca
+        // inventa dado (não recria confirmed_at/confirmed_by retroativos): sinaliza e deixa
+        // para uma reconciliação explícita futura, fora do escopo deste incremento.
+        identityFailedMappingIds.add(mappingId);
+        errorParts.push(
+          `IDENTITY_MISSING_FOR_PRECONFIRMED_MAPPING(${mappingId})`,
+        );
+        batchFailureOccurred = true;
+        continue;
+      }
+      toInsertIdentities.push({
+        mappingId,
+        row: {
+          pricing_card_mapping_id: mappingId,
+          pricing_source_id: sourceId,
+          external_card_id: payload.external_card_id,
+          external_card_name: payload.external_card_name,
+          match_status: "CONFIRMED",
+          identity_role: "PRIMARY",
+          match_method: payload.match_method,
+          match_evidence: payload.match_evidence,
+          last_checked_at: new Date().toISOString(),
+          confirmed_by: payload.confirmed_by,
+        },
+      });
+    }
+
+    for (const rowsChunk of chunk(toInsertIdentities, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase
+        .from("pricing_source_card_identity")
+        .insert(rowsChunk.map((r) => r.row))
+        .select("id, pricing_card_mapping_id");
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(
+          `IDENTITY_BATCH_INSERT_FAILED(${rowsChunk.length} linhas): ${
+            sanitize(error.message)
+          }`,
+        );
+        for (const r of rowsChunk) identityFailedMappingIds.add(r.mappingId);
+        continue;
+      }
+      for (
+        const row of (data ?? []) as Array<
+          { id: string; pricing_card_mapping_id: string }
+        >
+      ) {
+        identityIdByMappingId.set(row.pricing_card_mapping_id, row.id);
+        identitiesWritten++;
+      }
+    }
+  }
+
+  // Rede de segurança final da Regra 1: qualquer mapping que ainda não tenha identidade
+  // resolvida neste ponto (SELECT falhou, INSERT falhou, ou gap já sinalizado acima) entra
+  // definitivamente em identityFailedMappingIds — nunca deixa uma variante seguir para
+  // Fase 2/3 sem identidade nem sem registro de falha correspondente.
+  for (const mappingId of mappingIdsNeedingIdentity) {
+    if (
+      !identityIdByMappingId.has(mappingId) &&
+      !identityFailedMappingIds.has(mappingId)
+    ) {
+      identityFailedMappingIds.add(mappingId);
+      errorParts.push(`IDENTITY_UNRESOLVED(${mappingId})`);
+      batchFailureOccurred = true;
+    }
+  }
+  const identitiesResolved =
+    mappingIdsNeedingIdentity.filter((id) => identityIdByMappingId.has(id))
+      .length;
+
+  // variantsWithIdentity: usableVariants cujo mapping tem identidade PRIMARY/CONFIRMED
+  // resolvida — Regra 1 aplicada aqui, ponto único de corte antes da Fase 2/3. Variantes
+  // cujo mapping caiu em identityFailedMappingIds nunca chegam a pricing_product/
+  // pricing_observation nesta rodada.
+  const variantsWithIdentity = usableVariants.filter((v) =>
+    !identityFailedMappingIds.has(v.cardMappingId)
+  );
+
+  // --- Fase 2: pricing_product --------------------------------------------------
+  // Só existem variantes planejadas para cartas CONFIRMED cujo mapping foi resolvido na
+  // Fase 1 E cuja identidade foi resolvida na Fase 1.5 (Regra 1) — cartas cujo mapping ou
+  // identidade falharam nesta rodada ficam de fora e são reportadas, recuperáveis numa
+  // reexecução (mapping/identidade voltam a ser reavaliados do zero na próxima chamada).
+  const productIdByKey = new Map<string, string>();
+  // Regra 3 (Fabrício): chaves cujo produto já existe no banco mas com
+  // pricing_source_card_identity_id nulo ou divergente da identidade resolvida — nunca
+  // reutilizadas, nunca corrigidas silenciosamente (nenhum UPDATE), sempre um erro explícito.
+  const productIdentityMismatchKeys = new Set<string>();
+  let productsWritten = 0;
+
+  if (variantsWithIdentity.length > 0) {
+    const cardMappingIds = [
+      ...new Set(variantsWithIdentity.map((v) => v.cardMappingId)),
+    ];
     for (const ids of chunk(cardMappingIds, BATCH_SIZE)) {
       operationsSupabase++;
       const { data, error } = await supabase
         .from("pricing_product")
-        .select("id, pricing_card_mapping_id, external_product_id")
+        .select(
+          "id, pricing_card_mapping_id, external_product_id, pricing_source_card_identity_id",
+        )
         .in("pricing_card_mapping_id", ids);
       if (error) {
         batchFailureOccurred = true;
-        errorParts.push(`PRODUCT_BATCH_SELECT_FAILED: ${sanitize(error.message)}`);
+        errorParts.push(
+          `PRODUCT_BATCH_SELECT_FAILED: ${sanitize(error.message)}`,
+        );
         continue;
       }
-      for (const row of (data ?? []) as Array<{ id: string; pricing_card_mapping_id: string; external_product_id: string }>) {
-        productIdByKey.set(`${row.pricing_card_mapping_id}::${row.external_product_id}`, row.id);
+      for (
+        const row of (data ?? []) as Array<{
+          id: string;
+          pricing_card_mapping_id: string;
+          external_product_id: string;
+          pricing_source_card_identity_id: string | null;
+        }>
+      ) {
+        const key =
+          `${row.pricing_card_mapping_id}::${row.external_product_id}`;
+        const resolvedIdentityId =
+          identityIdByMappingId.get(row.pricing_card_mapping_id) ?? null;
+        if (
+          row.pricing_source_card_identity_id != null &&
+          row.pricing_source_card_identity_id === resolvedIdentityId
+        ) {
+          productIdByKey.set(key, row.id);
+        } else {
+          productIdentityMismatchKeys.add(key);
+          batchFailureOccurred = true;
+          errorParts.push(
+            `PRODUCT_IDENTITY_MISMATCH(mapping=${row.pricing_card_mapping_id}, external_product_id=${row.external_product_id}, stored=${
+              row.pricing_source_card_identity_id ?? "NULL"
+            }, expected=${resolvedIdentityId ?? "NULL"})`,
+          );
+        }
       }
     }
 
-    const toInsertProducts: Array<{ key: string; row: Record<string, unknown> }> = [];
+    const toInsertProducts: Array<
+      { key: string; row: Record<string, unknown> }
+    > = [];
     const seenThisBatch = new Set<string>();
-    for (const variant of usableVariants) {
+    for (const variant of variantsWithIdentity) {
       const key = `${variant.cardMappingId}::${variant.externalProductId}`;
+      if (productIdentityMismatchKeys.has(key)) continue; // já sinalizado acima — nunca inserido por cima de um estado divergente
       if (productIdByKey.has(key) || seenThisBatch.has(key)) continue; // REUSE — já existe (banco ou mesmo lote), zero escrita
       seenThisBatch.add(key);
       toInsertProducts.push({
         key,
         row: {
           pricing_card_mapping_id: variant.cardMappingId,
+          pricing_source_card_identity_id:
+            identityIdByMappingId.get(variant.cardMappingId) ?? null,
           external_product_id: variant.externalProductId,
           source_printing_label: variant.sourcePrintingLabel,
           language_status: "UNDETERMINED",
@@ -1286,22 +1583,38 @@ async function persistBatchedResults(
         .select("id, pricing_card_mapping_id, external_product_id");
       if (error) {
         batchFailureOccurred = true;
-        errorParts.push(`PRODUCT_BATCH_INSERT_FAILED(${pairs.length} linhas): ${sanitize(error.message)}`);
+        errorParts.push(
+          `PRODUCT_BATCH_INSERT_FAILED(${pairs.length} linhas): ${
+            sanitize(error.message)
+          }`,
+        );
         continue;
       }
-      for (const row of (data ?? []) as Array<{ id: string; pricing_card_mapping_id: string; external_product_id: string }>) {
-        productIdByKey.set(`${row.pricing_card_mapping_id}::${row.external_product_id}`, row.id);
+      for (
+        const row of (data ?? []) as Array<
+          {
+            id: string;
+            pricing_card_mapping_id: string;
+            external_product_id: string;
+          }
+        >
+      ) {
+        productIdByKey.set(
+          `${row.pricing_card_mapping_id}::${row.external_product_id}`,
+          row.id,
+        );
         productsWritten++;
       }
     }
   }
 
   // productsResolved conta toda variante cujo produto ficou resolvido nesta rodada, seja por
-  // já existir (pré-busca, REUSE) ou por ter sido inserido com sucesso agora (NEW) — nunca
-  // conta variantes cujo INSERT falhou (essas simplesmente não aparecem em productIdByKey e
-  // são retomadas na próxima reexecução). productsWritten conta só as NEW bem-sucedidas.
+  // já existir (pré-busca, REUSE válido) ou por ter sido inserido com sucesso agora (NEW) —
+  // nunca conta variantes cujo INSERT falhou nem variantes cuja chave caiu em
+  // productIdentityMismatchKeys (Regra 3) — essas nunca aparecem em productIdByKey e ficam
+  // para investigação/reexecução futura, nunca corrigidas silenciosamente.
   let productsResolved = 0;
-  for (const variant of usableVariants) {
+  for (const variant of variantsWithIdentity) {
     const key = `${variant.cardMappingId}::${variant.externalProductId}`;
     if (productIdByKey.has(key)) productsResolved++;
   }
@@ -1311,11 +1624,11 @@ async function persistBatchedResults(
   let observationsWritten = 0;
   let observationsDivergent = 0;
 
-  const variantsWithProduct = usableVariants
+  const variantsWithProduct = variantsWithIdentity
     .map((v) => ({ ...v, productId: productIdByKey.get(`${v.cardMappingId}::${v.externalProductId}`) ?? null }))
     .filter((v): v is PlannedVariant & { cardMappingId: string; productId: string } => v.productId !== null);
 
-  const unresolvedProductKeys = usableVariants.length - variantsWithProduct.length;
+  const unresolvedProductKeys = variantsWithIdentity.length - variantsWithProduct.length;
   if (unresolvedProductKeys > 0) {
     errorParts.push(`PRODUCT_UNRESOLVED_SKIP_OBSERVATIONS(${unresolvedProductKeys} variante(s))`);
   }
@@ -1447,6 +1760,8 @@ async function persistBatchedResults(
     observationsResolved,
     observationsWritten,
     observationsDivergent,
+    identitiesResolved,
+    identitiesWritten,
     operationsSupabase,
     errorParts,
     batchFailureOccurred,
@@ -2668,9 +2983,14 @@ async function runFixtureCheck() {
       const cardMappingId = "cm-conflict-1";
       const productId = "prod-conflict-1";
       const observedAt = "2026-08-19T00:00:00.000Z";
+      const identityId = "identity-conflict-1";
       const seed = {
         pricing_card_mapping: [{ id: cardMappingId, card_id: "conflict-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
-        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-conflict-1" }],
+        // Fix P14.5 (dual-write): identidade PRIMARY/CONFIRMED pré-existente (equivalente ao
+        // backfill da 3923) — sem isso, Regra 1 excluiria a variante antes de chegar em
+        // pricing_product/pricing_observation.
+        pricing_source_card_identity: [{ id: identityId, pricing_card_mapping_id: cardMappingId, pricing_source_id: "source-1", external_card_id: "ext-conflict-1", identity_role: "PRIMARY", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, pricing_source_card_identity_id: identityId, external_product_id: "ext-conflict-1" }],
         pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: observedAt, price: 42 }],
       };
       const mappings = [makePlannedMapping("conflict-1", "CONFIRMED")];
@@ -2686,9 +3006,11 @@ async function runFixtureCheck() {
       const cardMappingId = "cm-divergent-1";
       const productId = "prod-divergent-1";
       const observedAt = "2026-08-19T00:00:00.000Z";
+      const identityId = "identity-divergent-1";
       const seed = {
         pricing_card_mapping: [{ id: cardMappingId, card_id: "divergent-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
-        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-divergent-1" }],
+        pricing_source_card_identity: [{ id: identityId, pricing_card_mapping_id: cardMappingId, pricing_source_id: "source-1", external_card_id: "ext-divergent-1", identity_role: "PRIMARY", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, pricing_source_card_identity_id: identityId, external_product_id: "ext-divergent-1" }],
         pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: observedAt, price: 42 }],
       };
       const mappings = [makePlannedMapping("divergent-1", "CONFIRMED")];
@@ -2718,9 +3040,11 @@ async function runFixtureCheck() {
     {
       const cardMappingId = "cm-samepricediffday-1";
       const productId = "prod-samepricediffday-1";
+      const identityId = "identity-spd-1";
       const seed = {
         pricing_card_mapping: [{ id: cardMappingId, card_id: "spd-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
-        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-spd-1" }],
+        pricing_source_card_identity: [{ id: identityId, pricing_card_mapping_id: cardMappingId, pricing_source_id: "source-1", external_card_id: "ext-spd-1", identity_role: "PRIMARY", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, pricing_source_card_identity_id: identityId, external_product_id: "ext-spd-1" }],
         pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: "2026-08-18T00:00:00.000Z", price: 7 }],
       };
       const mappings = [makePlannedMapping("spd-1", "CONFIRMED")];
@@ -2743,9 +3067,11 @@ async function runFixtureCheck() {
     {
       const cardMappingId = "cm-diffpricediffday-1";
       const productId = "prod-diffpricediffday-1";
+      const identityId = "identity-dpd-1";
       const seed = {
         pricing_card_mapping: [{ id: cardMappingId, card_id: "dpd-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
-        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-dpd-1" }],
+        pricing_source_card_identity: [{ id: identityId, pricing_card_mapping_id: cardMappingId, pricing_source_id: "source-1", external_card_id: "ext-dpd-1", identity_role: "PRIMARY", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, pricing_source_card_identity_id: identityId, external_product_id: "ext-dpd-1" }],
         pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: "2026-08-18T00:00:00.000Z", price: 7 }],
       };
       const mappings = [makePlannedMapping("dpd-1", "CONFIRMED")];
@@ -2771,9 +3097,11 @@ async function runFixtureCheck() {
       const cardMappingId = "cm-sametscollision-1";
       const productId = "prod-sametscollision-1";
       const sameTs = "2026-08-19T00:00:00.000Z";
+      const identityId = "identity-stc-1";
       const seed = {
         pricing_card_mapping: [{ id: cardMappingId, card_id: "stc-1", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
-        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, external_product_id: "ext-stc-1" }],
+        pricing_source_card_identity: [{ id: identityId, pricing_card_mapping_id: cardMappingId, pricing_source_id: "source-1", external_card_id: "ext-stc-1", identity_role: "PRIMARY", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: productId, pricing_card_mapping_id: cardMappingId, pricing_source_card_identity_id: identityId, external_product_id: "ext-stc-1" }],
         pricing_observation: [{ pricing_product_id: productId, condition_id: "id-nm", price_type: "MARKET", currency_code: "USD", market_label: MARKET_LABEL, observed_at: sameTs, price: 7 }],
       };
       const mappings = [makePlannedMapping("stc-1", "CONFIRMED")];
@@ -2874,7 +3202,8 @@ async function runFixtureCheck() {
       };
       const seed = {
         pricing_card_mapping: [{ id: "map-A", card_id: "card-A", pricing_source_id: "source-1", match_status: "CONFIRMED" }],
-        pricing_product: [{ id: "prod-A", pricing_card_mapping_id: "map-A", external_product_id: "ext-A" }],
+        pricing_source_card_identity: [{ id: "identity-A", pricing_card_mapping_id: "map-A", pricing_source_id: "source-1", external_card_id: "ext-A", identity_role: "PRIMARY", match_status: "CONFIRMED" }],
+        pricing_product: [{ id: "prod-A", pricing_card_mapping_id: "map-A", pricing_source_card_identity_id: "identity-A", external_product_id: "ext-A" }],
         pricing_observation: [existingObs],
       };
       const { client, stats } = makeBatchFakeClient(seed);
@@ -2884,6 +3213,489 @@ async function runFixtureCheck() {
       assert("P14.3/14: pré-busca de observações usa a RPC de última observação por grupo (não .select() direto)", (stats.rpcCallsByFn["batch_select_latest_pricing_observation_by_identity"] ?? 0) === 1);
       assert("P14.3/14: nunca chama .select() direto em pricing_observation", (stats.selectCalls["pricing_observation"] ?? 0) === 0);
       assert("P14.3/14: última observação do grupo resolvida -> CONFLICT_IGNORED_SAME_PRICE (mesmo preço, nenhum INSERT novo)", outcome.observationsResolved === 1 && outcome.observationsWritten === 0);
+    }
+
+    // --- Fix P14.5 (dual-write pricing_source_card_identity) -------------------------
+    // Os 6 cenários exigidos por Fabrício além dos que já existiam (novo mapping -> identidade
+    // criada; mapping promovido -> identidade criada; mapping antigo com identidade -> REUSE via
+    // pré-busca; dedup dentro do lote; chunking) já ficam cobertos pelos Cenários 1/2/5/9 acima,
+    // que passaram a exercitar Fase 1.5 organicamente sem exigir seed dedicado.
+    //
+    // Fix P14.5.1 (achado durante a escrita destes testes): a primeira versão da Fase 1.5 só
+    // correlacionava identidade via o payload em memória desta própria rodada
+    // (confirmedPayloadByCardId/payloadByMappingId) — um mapping já CONFIRMED antes desta
+    // execução (Fase 1 = NOOP) nunca tinha esse payload, então QUALQUER mapping antigo sem
+    // identidade caía em IDENTITY_MISSING_FOR_PRECONFIRMED_MAPPING, inclusive depois de uma
+    // falha puramente transiente no INSERT da identidade (P14.5/2 abaixo). Corrigido com um
+    // fallback que relê os campos já persistidos em pricing_card_mapping (external_card_id,
+    // match_method, match_evidence, confirmed_by) para os mappings que REUSE não resolveu e que
+    // não têm payload desta rodada — só entra ali um mapping que a própria Fase 1 já provou
+    // estar CONFIRMED e resolvido (usableVariants). Na prática isso elimina o "gap permanente"
+    // como categoria: qualquer mapping CONFIRMED (que pelas CHECK constraints sempre tem
+    // confirmed_by/external_card_id não nulos) agora se autorrecupera na próxima rodada. O único
+    // gap que sobra é uma anomalia estrutural real (linha CONFIRMED sem confirmed_by, que as
+    // CHECK constraints deveriam impedir) — P14.5/1 simula exatamente essa anomalia.
+
+    // P14.5/1: mapping marcado CONFIRMED mas com confirmed_by nulo (anomalia estrutural — as
+    // CHECK constraints de pricing_card_mapping deveriam impedir isso na prática, mas o
+    // fallback nunca inventa dado) -> fallback não recupera, gap genuíno sinalizado, zero
+    // produto/observação para esse mapping, batchFailureOccurred=true.
+    {
+      const cardMappingId = "cm-gap-1";
+      const seed = {
+        // match_status=CONFIRMED porém confirmed_by ausente — estado que as CHECK constraints
+        // reais nunca deveriam permitir; usado aqui só para provar que o fallback de
+        // pricing_card_mapping não inventa confirmed_by/external_card_id quando a linha em si
+        // está incompleta, preservando IDENTITY_MISSING_FOR_PRECONFIRMED_MAPPING como rede de
+        // segurança de última instância.
+        pricing_card_mapping: [{
+          id: cardMappingId,
+          card_id: "gap-1",
+          pricing_source_id: "source-1",
+          match_status: "CONFIRMED",
+        }],
+      };
+      const mappings = [makePlannedMapping("gap-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("gap-1", "ext-gap-1", 5)];
+      const { client, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(
+        client,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/1: gap de identidade -> batchFailureOccurred=true",
+        outcome.batchFailureOccurred === true,
+      );
+      assert(
+        "P14.5/1: gap sinalizado explicitamente em errorParts (IDENTITY_MISSING_FOR_PRECONFIRMED_MAPPING)",
+        outcome.errorParts.some((e) =>
+          e.includes("IDENTITY_MISSING_FOR_PRECONFIRMED_MAPPING") &&
+          e.includes(cardMappingId)
+        ),
+      );
+      assert(
+        "P14.5/1: zero produto criado para o mapping sem identidade",
+        (stats.insertCalls["pricing_product"] ?? 0) === 0 &&
+          outcome.productsWritten === 0,
+      );
+      assert(
+        "P14.5/1: zero observação criada para o mapping sem identidade",
+        (stats.insertCalls["pricing_observation"] ?? 0) === 0 &&
+          outcome.observationsWritten === 0,
+      );
+      assert(
+        "P14.5/1: zero identidade resolvida/escrita",
+        outcome.identitiesResolved === 0 && outcome.identitiesWritten === 0,
+      );
+      assert(
+        "P14.5/1: status terminal seria exatamente FAILED (computeFinalStatus tem prioridade absoluta para batchFailureOccurred)",
+        computeFinalStatus(
+          outcome.batchFailureOccurred,
+          outcome.errorParts.length > 0,
+          true,
+        ) === "FAILED",
+      );
+    }
+
+    // P14.5/1b: mapping CONFIRMED antes da existência deste incremento (confirmed_by/
+    // external_card_id completos, sem identidade) -> fallback recupera os campos já persistidos
+    // em pricing_card_mapping e cria a identidade normalmente, sem tratar como gap. Prova que a
+    // autoria histórica é preservada (confirmed_by do fallback, não o confirmedBy desta rodada).
+    {
+      const cardMappingId = "cm-oldconfirmed-1";
+      const seed = {
+        pricing_card_mapping: [
+          {
+            id: cardMappingId,
+            card_id: "oldconfirmed-1",
+            pricing_source_id: "source-1",
+            match_status: "CONFIRMED",
+            external_card_id: "ext-oldconfirmed-1",
+            external_card_name: "Old Confirmed Card",
+            match_method: "auto",
+            match_evidence: {},
+            confirmed_by: "admin-old",
+          },
+        ],
+      };
+      const mappings = [makePlannedMapping("oldconfirmed-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("oldconfirmed-1", "ext-oldconfirmed-1", 7)];
+      const { client, tables } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(
+        client,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/1b: mapping antigo sem identidade se autorrecupera -> sem falha",
+        outcome.batchFailureOccurred === false &&
+          outcome.errorParts.length === 0,
+      );
+      assert(
+        "P14.5/1b: identidade nova criada via fallback",
+        outcome.identitiesResolved === 1 && outcome.identitiesWritten === 1,
+      );
+      const identityRow = tables["pricing_source_card_identity"]?.find((r) =>
+        r.pricing_card_mapping_id === cardMappingId
+      );
+      assert(
+        "P14.5/1b: identidade criada com external_card_id lido do fallback (pricing_card_mapping)",
+        identityRow?.external_card_id === "ext-oldconfirmed-1",
+      );
+      assert(
+        "P14.5/1b: confirmed_by da identidade preserva a autoria histórica do fallback, não o confirmedBy desta rodada",
+        identityRow?.confirmed_by === "admin-old",
+      );
+      assert(
+        "P14.5/1b: produto e observação criados normalmente na mesma rodada",
+        outcome.productsWritten === 1 && outcome.observationsWritten === 1,
+      );
+    }
+
+    // P14.5/2: reexecução após falha TRANSIENTE (INSERT de identidade falhou, não um gap
+    // permanente) -> identidade, produto e observação criados normalmente na 2ª rodada.
+    {
+      const mappings = [makePlannedMapping("retry-identity-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("retry-identity-1", "ext-retry-identity-1", 4)];
+      const { client: clientA, tables } = makeBatchFakeClient(
+        {
+          pricing_card_mapping: [],
+          pricing_source_card_identity: [],
+          pricing_product: [],
+          pricing_observation: [],
+        },
+        { failInsert: { pricing_source_card_identity: true } },
+      );
+      const firstOutcome = await persistBatchedResults(
+        clientA,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/2: 1ª rodada falha no INSERT de identidade -> batchFailureOccurred=true, zero identidade/produto/observação",
+        firstOutcome.batchFailureOccurred === true &&
+          (tables["pricing_source_card_identity"]?.length ?? 0) === 0 &&
+          (tables["pricing_product"]?.length ?? 0) === 0 &&
+          (tables["pricing_observation"]?.length ?? 0) === 0,
+      );
+      // Mapping já foi persistido com sucesso na 1ª rodada (tabela não afetada pela falha
+      // injetada) — a 2ª rodada reaproveita esse estado real, sem forçar falha nova.
+      const { client: clientB } = makeBatchFakeClient(tables);
+      const secondOutcome = await persistBatchedResults(
+        clientB,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/2: 2ª rodada recupera -> identidade/produto/observação criados normalmente, sem nova falha",
+        secondOutcome.batchFailureOccurred === false &&
+          secondOutcome.identitiesWritten === 1 &&
+          secondOutcome.productsWritten === 1 &&
+          secondOutcome.observationsWritten === 1,
+      );
+    }
+
+    // P14.5/3: produto preexistente com pricing_source_card_identity_id NULO -> nunca
+    // reutilizado, erro explícito, nenhuma observação nova para essa variante.
+    {
+      const cardMappingId = "cm-nullidentity-1";
+      const identityId = "identity-nullidentity-1";
+      const seed = {
+        pricing_card_mapping: [{
+          id: cardMappingId,
+          card_id: "nullidentity-1",
+          pricing_source_id: "source-1",
+          match_status: "CONFIRMED",
+        }],
+        pricing_source_card_identity: [{
+          id: identityId,
+          pricing_card_mapping_id: cardMappingId,
+          pricing_source_id: "source-1",
+          external_card_id: "ext-nullidentity-1",
+          identity_role: "PRIMARY",
+          match_status: "CONFIRMED",
+        }],
+        // Produto já existe, mas nasceu ANTES do dual-write (pricing_source_card_identity_id
+        // nunca foi setado) — simula exatamente a janela entre aplicar a 3923 e este incremento.
+        pricing_product: [{
+          id: "prod-nullidentity-1",
+          pricing_card_mapping_id: cardMappingId,
+          pricing_source_card_identity_id: null,
+          external_product_id: "ext-nullidentity-1",
+        }],
+      };
+      const mappings = [makePlannedMapping("nullidentity-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("nullidentity-1", "ext-nullidentity-1", 6)];
+      const { client, tables, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(
+        client,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/3: produto com identity nula nunca é reutilizado -> batchFailureOccurred=true",
+        outcome.batchFailureOccurred === true,
+      );
+      assert(
+        "P14.5/3: erro explícito PRODUCT_IDENTITY_MISMATCH, nunca corrigido silenciosamente",
+        outcome.errorParts.some((e) =>
+          e.includes("PRODUCT_IDENTITY_MISMATCH") && e.includes("stored=NULL")
+        ),
+      );
+      assert(
+        "P14.5/3: nenhum UPDATE/INSERT tenta corrigir o produto existente",
+        (stats.insertCalls["pricing_product"] ?? 0) === 0,
+      );
+      const row = tables["pricing_product"].find((r) =>
+        r.id === "prod-nullidentity-1"
+      );
+      assert(
+        "P14.5/3: o produto existente permanece exatamente como estava (identity ainda nula)",
+        row?.pricing_source_card_identity_id === null,
+      );
+      assert(
+        "P14.5/3: zero observação nova para essa variante",
+        (stats.insertCalls["pricing_observation"] ?? 0) === 0 &&
+          outcome.observationsWritten === 0,
+      );
+    }
+
+    // P14.5/4: produto preexistente ligado a OUTRA identidade (divergente da resolvida) ->
+    // nunca reutilizado, erro explícito, nenhuma observação nova para essa variante.
+    {
+      const cardMappingId = "cm-wrongidentity-1";
+      const correctIdentityId = "identity-wrongidentity-correct-1";
+      const wrongIdentityId = "identity-wrongidentity-wrong-1";
+      const seed = {
+        pricing_card_mapping: [{
+          id: cardMappingId,
+          card_id: "wrongidentity-1",
+          pricing_source_id: "source-1",
+          match_status: "CONFIRMED",
+        }],
+        pricing_source_card_identity: [{
+          id: correctIdentityId,
+          pricing_card_mapping_id: cardMappingId,
+          pricing_source_id: "source-1",
+          external_card_id: "ext-wrongidentity-1",
+          identity_role: "PRIMARY",
+          match_status: "CONFIRMED",
+        }],
+        // Produto aponta para uma identidade que NÃO é a PRIMARY/CONFIRMED resolvida para este
+        // mapping (estado anômalo — nunca deveria acontecer via caminho normal, mas a defesa
+        // precisa detectar mesmo assim, nunca assumir que está certo).
+        pricing_product: [{
+          id: "prod-wrongidentity-1",
+          pricing_card_mapping_id: cardMappingId,
+          pricing_source_card_identity_id: wrongIdentityId,
+          external_product_id: "ext-wrongidentity-1",
+        }],
+      };
+      const mappings = [makePlannedMapping("wrongidentity-1", "CONFIRMED")];
+      const variants = [makePlannedVariant("wrongidentity-1", "ext-wrongidentity-1", 8)];
+      const { client, tables, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(
+        client,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/4: produto ligado a outra identidade nunca é reutilizado -> batchFailureOccurred=true",
+        outcome.batchFailureOccurred === true,
+      );
+      assert(
+        "P14.5/4: erro explícito PRODUCT_IDENTITY_MISMATCH com stored/expected corretos",
+        outcome.errorParts.some((e) =>
+          e.includes("PRODUCT_IDENTITY_MISMATCH") &&
+          e.includes(`stored=${wrongIdentityId}`) &&
+          e.includes(`expected=${correctIdentityId}`)
+        ),
+      );
+      const row = tables["pricing_product"].find((r) =>
+        r.id === "prod-wrongidentity-1"
+      );
+      assert(
+        "P14.5/4: o produto existente permanece exatamente como estava (identity divergente preservada, nunca corrigida silenciosamente)",
+        row?.pricing_source_card_identity_id === wrongIdentityId,
+      );
+      assert(
+        "P14.5/4: zero observação nova para essa variante",
+        (stats.insertCalls["pricing_observation"] ?? 0) === 0 &&
+          outcome.observationsWritten === 0,
+      );
+    }
+
+    // P14.5/5: um mapping com identidade divergente (bloqueado) e outro mapping válido no MESMO
+    // lote -> o mapping válido é processado normalmente (produto+observação), só o divergente é
+    // excluído — a Regra 1/Regra 3 nunca contamina variantes de outros mappings.
+    {
+      const badCardMappingId = "cm-mixed-bad-1";
+      const badWrongIdentityId = "identity-mixed-bad-wrong-1";
+      const badCorrectIdentityId = "identity-mixed-bad-correct-1";
+      const seed = {
+        pricing_card_mapping: [{
+          id: badCardMappingId,
+          card_id: "mixed-bad-1",
+          pricing_source_id: "source-1",
+          match_status: "CONFIRMED",
+        }],
+        pricing_source_card_identity: [{
+          id: badCorrectIdentityId,
+          pricing_card_mapping_id: badCardMappingId,
+          pricing_source_id: "source-1",
+          external_card_id: "ext-mixed-bad-1",
+          identity_role: "PRIMARY",
+          match_status: "CONFIRMED",
+        }],
+        pricing_product: [{
+          id: "prod-mixed-bad-1",
+          pricing_card_mapping_id: badCardMappingId,
+          pricing_source_card_identity_id: badWrongIdentityId,
+          external_product_id: "ext-mixed-bad-1",
+        }],
+      };
+      // mixed-good-1 é um mapping NOVO, confirmado nesta própria rodada — caminho normal.
+      const mappings = [
+        makePlannedMapping("mixed-bad-1", "CONFIRMED"),
+        makePlannedMapping("mixed-good-1", "CONFIRMED"),
+      ];
+      const variants = [
+        makePlannedVariant("mixed-bad-1", "ext-mixed-bad-1", 3),
+        makePlannedVariant("mixed-good-1", "ext-mixed-good-1", 11),
+      ];
+      const { client, tables } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(
+        client,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/5: batchFailureOccurred=true (por causa do mapping divergente)",
+        outcome.batchFailureOccurred === true,
+      );
+      const goodProduct = tables["pricing_product"].find((r) =>
+        r.external_product_id === "ext-mixed-good-1"
+      );
+      const goodObservation = tables["pricing_observation"].find((r) =>
+        r.pricing_product_id === goodProduct?.id
+      );
+      assert(
+        "P14.5/5: mapping válido (mixed-good-1) recebe produto normalmente, com identidade resolvida",
+        goodProduct !== undefined &&
+          goodProduct?.pricing_source_card_identity_id != null,
+      );
+      assert(
+        "P14.5/5: mapping válido (mixed-good-1) recebe observação normalmente",
+        goodObservation !== undefined && goodObservation?.price === 11,
+      );
+      const badProduct = tables["pricing_product"].find((r) =>
+        r.id === "prod-mixed-bad-1"
+      );
+      assert(
+        "P14.5/5: mapping divergente (mixed-bad-1) permanece intocado, nunca reutilizado",
+        badProduct?.pricing_source_card_identity_id === badWrongIdentityId,
+      );
+      const badObservation = tables["pricing_observation"].find((r) =>
+        r.pricing_product_id === "prod-mixed-bad-1"
+      );
+      assert(
+        "P14.5/5: mapping divergente (mixed-bad-1) nunca recebe observação nova",
+        badObservation === undefined,
+      );
+      assert(
+        "P14.5/5: contadores refletem só o mapping válido (1 produto, 1 observação escritos)",
+        outcome.productsWritten === 1 && outcome.observationsWritten === 1,
+      );
+    }
+
+    // P14.5/6: contadores de identidade (identitiesResolved/identitiesWritten) e
+    // operationsSupabase permanecem objetivos e exatos num lote misto REUSE + NEW.
+    {
+      const reuseCardMappingId = "cm-counters-reuse-1";
+      const reuseIdentityId = "identity-counters-reuse-1";
+      const seed = {
+        pricing_card_mapping: [{
+          id: reuseCardMappingId,
+          card_id: "counters-reuse-1",
+          pricing_source_id: "source-1",
+          match_status: "CONFIRMED",
+        }],
+        pricing_source_card_identity: [{
+          id: reuseIdentityId,
+          pricing_card_mapping_id: reuseCardMappingId,
+          pricing_source_id: "source-1",
+          external_card_id: "ext-counters-reuse-1",
+          identity_role: "PRIMARY",
+          match_status: "CONFIRMED",
+        }],
+        pricing_product: [{
+          id: "prod-counters-reuse-1",
+          pricing_card_mapping_id: reuseCardMappingId,
+          pricing_source_card_identity_id: reuseIdentityId,
+          external_product_id: "ext-counters-reuse-1",
+        }],
+      };
+      // counters-new-1 é confirmado nesta própria rodada -> identidade NEW.
+      const mappings = [
+        makePlannedMapping("counters-reuse-1", "CONFIRMED"),
+        makePlannedMapping("counters-new-1", "CONFIRMED"),
+      ];
+      const variants = [
+        makePlannedVariant("counters-reuse-1", "ext-counters-reuse-1", 2),
+        makePlannedVariant("counters-new-1", "ext-counters-new-1", 12),
+      ];
+      const { client, stats } = makeBatchFakeClient(seed);
+      const outcome = await persistBatchedResults(
+        client,
+        "source-1",
+        null,
+        "admin-1",
+        mappings,
+        variants,
+      );
+      assert(
+        "P14.5/6: identitiesResolved conta REUSE + NEW (2 mappings, 2 identidades resolvidas)",
+        outcome.identitiesResolved === 2,
+      );
+      assert(
+        "P14.5/6: identitiesWritten conta só a NEW (1, a REUSE não escreve nada)",
+        outcome.identitiesWritten === 1,
+      );
+      assert(
+        "P14.5/6: sem falha, sem erro",
+        outcome.batchFailureOccurred === false &&
+          outcome.errorParts.length === 0,
+      );
+      const totalCalls =
+        Object.values(stats.selectCalls).reduce((a, b) => a + b, 0) +
+        Object.values(stats.insertCalls).reduce((a, b) => a + b, 0) +
+        stats.rpcCalls;
+      assert(
+        "P14.5/6: operationsSupabase continua batendo exatamente com a contagem real de chamadas, mesmo com a Fase 1.5 nova",
+        outcome.operationsSupabase === totalCalls,
+      );
     }
 
     // P14.3/15 (fix revisão de robustez 2026-08-19, fechamento): resolveEntryDecision() —
@@ -5088,6 +5900,747 @@ async function runFixtureCheck() {
     );
   }
 
+  // ==========================================================================================
+  // P14.4.4 fix v2 — filtro seguro por identidade completa (numerador+denominador) vs.
+  // candidato de número incompleto (14 casos determinísticos: BASEP=5, CEL25=1, SV6.5=8).
+  // Decisão de negócio confirmada por Fabrício após a auditoria read-only dos 548 PENDING/18
+  // NOT_FOUND e, depois, corrigida por ele mesmo após o dry-run real divergir em SV6.5 (0/8 em
+  // vez de 8/8): um segundo sinal ESTRUTURAL (denominador do número externo vs. collector_total
+  // local) pode reduzir ambiguidade de número — nunca nome, nunca idioma, nunca raridade, nunca
+  // preferência de edição — mas só um candidato de IDENTIDADE COMPLETA único (nunca um
+  // candidato de número incompleto sobrando) pode promover a SAFE. Parte A: função pura
+  // parseCollectorNumberParts e o guard isValidCollectorTotal. Parte B: classifyCardMatch() com
+  // o filtro de três categorias. Parte C: integração via executeRepairMappings (promoção real
+  // pelo caminho batelado existente).
+  // ==========================================================================================
+
+  // --- Parte A: parseCollectorNumberParts (pura) -------------------------------------------
+  {
+    const p1 = parseCollectorNumberParts("009/132");
+    assert("P14.4.4 fix parseCollectorNumberParts: \"009/132\" -> numerador \"9\", denominador 132, bruto preservado", p1.numerator === "9" && p1.denominator === 132 && p1.raw === "009/132");
+
+    const p2 = parseCollectorNumberParts("9 / 132");
+    assert("P14.4.4 fix parseCollectorNumberParts: espaços em torno da barra -> \"9 / 132\" -> numerador \"9\", denominador 132", p2.numerator === "9" && p2.denominator === 132);
+
+    const p3 = parseCollectorNumberParts("009");
+    assert("P14.4.4 fix parseCollectorNumberParts: sem barra -> \"009\" -> numerador \"9\", denominador ausente (null)", p3.numerator === "9" && p3.denominator === null);
+
+    const p4 = parseCollectorNumberParts("09/053");
+    assert("P14.4.4 fix parseCollectorNumberParts: zeros à esquerda também no denominador -> \"09/053\" -> denominador 53 (não \"053\" como string)", p4.denominator === 53);
+
+    const p5 = parseCollectorNumberParts("N/A");
+    assert("P14.4.4 fix parseCollectorNumberParts: \"N/A\" (não utilizável) -> numerador vazio, denominador null, bruto preservado", p5.numerator === "" && p5.denominator === null && p5.raw === "N/A");
+
+    const p6 = parseCollectorNumberParts(null);
+    assert("P14.4.4 fix parseCollectorNumberParts: null -> numerador vazio, denominador null, bruto \"\"", p6.numerator === "" && p6.denominator === null && p6.raw === "");
+
+    assert(
+      "P14.4.4 fix isValidCollectorTotal: aceita inteiro positivo, rejeita ausente/zero/negativo/não-inteiro/NaN",
+      isValidCollectorTotal(53) === true &&
+        isValidCollectorTotal(null) === false &&
+        isValidCollectorTotal(undefined) === false &&
+        isValidCollectorTotal(0) === false &&
+        isValidCollectorTotal(-5) === false &&
+        isValidCollectorTotal(1.5) === false &&
+        isValidCollectorTotal(Number.NaN) === false,
+    );
+  }
+
+  // --- Parte B: classifyCardMatch() com collector_total -------------------------------------
+  // v2 (correção de especificidade estrutural): cada candidato cai em exatamente uma
+  // categoria — EXACT_FULL_IDENTITY (denominador == collector_total), INCOMPATIBLE_DENOMINATOR
+  // (denominador declarado e diferente) ou INCOMPLETE_NUMBER (sem denominador declarado). Só
+  // EXATAMENTE 1 EXACT_FULL_IDENTITY promove a SAFE; 0 ou 2+ permanece AMBIGUOUS, mesmo
+  // havendo candidato(s) INCOMPLETE_NUMBER sobrando (nunca promovido só por eliminação).
+
+  // Cenário obrigatório: denominador compatível único, sem candidato incompleto (caso real
+  // BASEP #09 "Mew": um candidato pertence a outro subconjunto do mesmo external_set_id —
+  // Prerelease /132 — e fica como INCOMPATIBLE_DENOMINATOR; o único EXACT_FULL_IDENTITY, /53,
+  // é promovido).
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-mew9", name: "Mew (9)", number: "09/53", variants: [] },
+      { id: "ext-seadra", name: "Misty's Seadra (Prerelease)", number: "009/132", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-mew9", name: "Mew", collector_number: "09", collector_total: 53 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 1 (denominador compatível único, sem incompleto): SAFE, candidato ext-mew9 selecionado, método SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE",
+      result.classification === "SAFE" && result.matched?.id === "ext-mew9" && result.method === "SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE",
+    );
+    assert(
+      "P14.4.4 fix v2 cenário 1 — evidência: local_collector_total=53, ext-seadra em candidatos_denominador_incompativel, candidato_selecionado=ext-mew9, motivo estrutural presente",
+      result.evidence.local_collector_total === 53 &&
+        Array.isArray(result.evidence.candidatos_denominador_incompativel) &&
+        (result.evidence.candidatos_denominador_incompativel as Array<{ id: string }>).length === 1 &&
+        (result.evidence.candidatos_denominador_incompativel as Array<{ id: string }>)[0].id === "ext-seadra" &&
+        Array.isArray(result.evidence.candidatos_identidade_completa) &&
+        (result.evidence.candidatos_identidade_completa as Array<{ id: string }>).length === 1 &&
+        (result.evidence.candidato_selecionado as { id: string }).id === "ext-mew9" &&
+        typeof result.evidence.motivo_estrutural === "string" &&
+        (result.evidence.motivo_estrutural as string).length > 0,
+    );
+  }
+
+  // Cenário obrigatório: espaços em torno da barra não impedem a leitura do denominador.
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-espaco-ok", name: "Qualquer", number: "9 / 53", variants: [] },
+      { id: "ext-espaco-outro", name: "Outro", number: "8/132", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-espaco", name: "Qualquer Local", collector_number: "09", collector_total: 53 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 2 (espaços em torno da barra): \"9 / 53\" interpretado como denominador 53 -> SAFE",
+      result.classification === "SAFE" && result.matched?.id === "ext-espaco-ok",
+    );
+  }
+
+  // Cenário obrigatório (padrão real do bug SV6.5): 1 EXACT_FULL_IDENTITY + 1
+  // INCOMPLETE_NUMBER -> SAFE pelo exato. Reproduz exatamente o par real reportado por
+  // Fabrício: "Joltik" number="001/064" com collector_total=64 (identidade completa) vs.
+  // "Basic Grass Energy" number="1" (incompleto, sem denominador) — o exato deve vencer
+  // sozinho, nunca empatar/ambiguar com o incompleto.
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-joltik", name: "Joltik", number: "001/064", variants: [] },
+      { id: "ext-basic-energy", name: "Basic Grass Energy", number: "1", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-joltik", name: "Joltik", collector_number: "1", collector_total: 64 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 3 (1 exato + 1 incompleto -> SAFE pelo exato): SAFE, candidato ext-joltik selecionado, método SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE",
+      result.classification === "SAFE" && result.matched?.id === "ext-joltik" && result.method === "SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE",
+    );
+    assert(
+      "P14.4.4 fix v2 cenário 3 — evidência: candidato incompleto (ext-basic-energy) aparece em candidatos_numero_incompleto, nunca declarado descartado/incompatível",
+      Array.isArray(result.evidence.candidatos_numero_incompleto) &&
+        (result.evidence.candidatos_numero_incompleto as Array<{ id: string }>).length === 1 &&
+        (result.evidence.candidatos_numero_incompleto as Array<{ id: string }>)[0].id === "ext-basic-energy",
+    );
+  }
+
+  // Cenário obrigatório: 1 INCOMPATIBLE_DENOMINATOR + 1 INCOMPLETE_NUMBER -> AMBIGUOUS (zero
+  // EXACT_FULL_IDENTITY; um candidato incompleto sobrando nunca promove sozinho).
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-incompat-82", name: "Incompatível", number: "09/82", variants: [] },
+      { id: "ext-incompleto-8", name: "Incompleto", number: "09", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-ambiguo-misto", name: "Local", collector_number: "09", collector_total: 60 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 4 (incompatível + incompleto continua ambíguo): AMBIGUOUS, matched null, zero identidade completa, 1 incompatível, 1 incompleto",
+      result.classification === "AMBIGUOUS" &&
+        result.matched === null &&
+        (result.evidence.candidatos_identidade_completa as unknown[]).length === 0 &&
+        (result.evidence.candidatos_denominador_incompativel as unknown[]).length === 1 &&
+        (result.evidence.candidatos_numero_incompleto as unknown[]).length === 1,
+    );
+  }
+
+  // Cenário obrigatório: somente candidatos incompletos (nenhum denominador declarado em
+  // nenhum candidato) -> AMBIGUOUS. Ausência de denominador nunca prova nem promove.
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-so-incompleto-1", name: "Incompleto A", number: "09", variants: [] },
+      { id: "ext-so-incompleto-2", name: "Incompleto B", number: "09", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-so-incompletos", name: "Local", collector_number: "09", collector_total: 60 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 5 (somente incompletos): AMBIGUOUS, matched null, zero identidade completa, zero incompatível, 2 incompletos",
+      result.classification === "AMBIGUOUS" &&
+        result.matched === null &&
+        (result.evidence.candidatos_identidade_completa as unknown[]).length === 0 &&
+        (result.evidence.candidatos_denominador_incompativel as unknown[]).length === 0 &&
+        (result.evidence.candidatos_numero_incompleto as unknown[]).length === 2,
+    );
+  }
+
+  // Cenário obrigatório: 2 candidatos EXACT_FULL_IDENTITY (mesmo denominador batendo com
+  // collector_total em ambos) -> AMBIGUOUS, mesmo sem nenhum candidato incompleto envolvido.
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-exato-a", name: "Exato A", number: "09/53", variants: [] },
+      { id: "ext-exato-b", name: "Exato B", number: "09/53", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-2-exatos", name: "Local", collector_number: "09", collector_total: 53 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 6 (2 candidatos exatos /053): AMBIGUOUS, matched null, 2 candidatos em identidade completa",
+      result.classification === "AMBIGUOUS" &&
+        result.matched === null &&
+        (result.evidence.candidatos_identidade_completa as unknown[]).length === 2,
+    );
+  }
+
+  // Cenário obrigatório: 1 EXACT_FULL_IDENTITY + vários INCOMPLETE_NUMBER -> SAFE pelo exato
+  // (a quantidade de incompletos sobrando é irrelevante quando há exatamente 1 exato).
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-exato-unico", name: "Exato Único", number: "001/064", variants: [] },
+      { id: "ext-incompleto-1", name: "Incompleto 1", number: "1", variants: [] },
+      { id: "ext-incompleto-2", name: "Incompleto 2", number: "01", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-1-exato-varios-incompletos", name: "Local", collector_number: "1", collector_total: 64 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 7 (1 exato + vários incompletos): SAFE, candidato ext-exato-unico selecionado, 2 incompletos registrados em evidência",
+      result.classification === "SAFE" &&
+        result.matched?.id === "ext-exato-unico" &&
+        result.method === "SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE" &&
+        (result.evidence.candidatos_numero_incompleto as unknown[]).length === 2,
+    );
+  }
+
+  // Cenário obrigatório: múltiplos EXACT_FULL_IDENTITY + INCOMPLETE_NUMBER -> AMBIGUOUS (2+
+  // exatos nunca são desempatados por um incompleto, nem entre si).
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-multi-exato-a", name: "Multi Exato A", number: "001/064", variants: [] },
+      { id: "ext-multi-exato-b", name: "Multi Exato B", number: "001/064", variants: [] },
+      { id: "ext-multi-incompleto", name: "Multi Incompleto", number: "1", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-multi-exato-incompleto", name: "Local", collector_number: "1", collector_total: 64 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 8 (múltiplos exatos + incompletos): AMBIGUOUS, matched null, 2 identidade completa, 1 incompleto",
+      result.classification === "AMBIGUOUS" &&
+        result.matched === null &&
+        (result.evidence.candidatos_identidade_completa as unknown[]).length === 2 &&
+        (result.evidence.candidatos_numero_incompleto as unknown[]).length === 1,
+    );
+  }
+
+  // Cenário obrigatório: todos os denominadores incompatíveis (zero exato, zero incompleto)
+  // -> continua AMBIGUOUS, NUNCA ABSENT/NOT_FOUND, mesmo quando todos os candidatos declaram
+  // denominador diferente de collector_total (regra 5).
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-incompat-1", name: "Ponyta", number: "014/083", variants: [] },
+      { id: "ext-incompat-2", name: "Outro Incompatível", number: "014/132", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-cel25-14", name: "Cosmoem", collector_number: "14", collector_total: 25 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 9 (todos os denominadores incompatíveis): AMBIGUOUS (nunca ABSENT/NOT_FOUND), matched null, zero identidade completa, 2 incompatíveis",
+      result.classification === "AMBIGUOUS" &&
+        result.matched === null &&
+        (result.evidence.candidatos_identidade_completa as unknown[]).length === 0 &&
+        (result.evidence.candidatos_denominador_incompativel as unknown[]).length === 2,
+    );
+  }
+
+  // Cenário obrigatório: collector_total ausente OU inválido (0/negativo) mantém o
+  // comportamento AMBIGUOUS conservador ANTERIOR, byte a byte — nenhum campo novo na
+  // evidência, sem aplicar o desempate, mesmo havendo candidatos cujo denominador bateria.
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-cond-a", name: "A", number: "09/53", variants: [] },
+      { id: "ext-cond-b", name: "B", number: "09/999", variants: [] },
+    ]);
+    const localSemTotal: LocalCard = { card_id: "local-sem-total", name: "Local", collector_number: "09" };
+    const resultSemTotal = classifyCardMatch(localSemTotal, externalIndex, "fixture-set-denom");
+    const localTotalZero: LocalCard = { card_id: "local-total-zero", name: "Local", collector_number: "09", collector_total: 0 };
+    const resultTotalZero = classifyCardMatch(localTotalZero, externalIndex, "fixture-set-denom");
+    const localTotalNegativo: LocalCard = { card_id: "local-total-neg", name: "Local", collector_number: "09", collector_total: -3 };
+    const resultTotalNegativo = classifyCardMatch(localTotalNegativo, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 10 (collector_total ausente/zero/negativo): AMBIGUOUS conservador em todos os 3 casos, sem local_collector_total na evidência (comportamento anterior preservado byte a byte)",
+      resultSemTotal.classification === "AMBIGUOUS" &&
+        !("local_collector_total" in resultSemTotal.evidence) &&
+        resultTotalZero.classification === "AMBIGUOUS" &&
+        !("local_collector_total" in resultTotalZero.evidence) &&
+        resultTotalNegativo.classification === "AMBIGUOUS" &&
+        !("local_collector_total" in resultTotalNegativo.evidence),
+    );
+    assert(
+      "P14.4.4 fix v2 cenário 10 — evidência AMBIGUOUS sem collector_total válido tem EXATAMENTE as mesmas chaves de antes de P14.4.4 (external_set_id, numero_local, numero_normalizado, nome_local, candidatos, total_candidatos)",
+      Object.keys(resultSemTotal.evidence).sort().join(",") === ["candidatos", "external_set_id", "nome_local", "numero_local", "numero_normalizado", "total_candidatos"].sort().join(","),
+    );
+  }
+
+  // Cenário obrigatório: nomes totalmente divergentes não influenciam — candidato com nome
+  // IDÊNTICO ao local mas denominador incompatível não é o escolhido; candidato com nome
+  // completamente diferente mas identidade completa (denominador compatível) é o selecionado.
+  {
+    const externalIndex = buildExternalNumberIndex([
+      { id: "ext-nome-igual-denom-errado", name: "Foo Local", number: "09/999", variants: [] },
+      { id: "ext-nome-diferente-denom-certo", name: "Completamente Diferente", number: "09/53", variants: [] },
+    ]);
+    const local: LocalCard = { card_id: "local-nomes", name: "Foo Local", collector_number: "09", collector_total: 53 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 11 (nomes não influenciam): candidato de nome IDÊNTICO ao local não vence por denominador incompatível; candidato de nome totalmente diferente é o promovido (identidade completa)",
+      result.classification === "SAFE" && result.matched?.id === "ext-nome-diferente-denom-certo",
+    );
+  }
+
+  // Cenário obrigatório: zero candidato continua ABSENT, inclusive com collector_total válido
+  // presente — o filtro por denominador nunca é alcançado neste branch.
+  {
+    const externalIndex = buildExternalNumberIndex([]);
+    const local: LocalCard = { card_id: "local-absent-total", name: "Ninguém", collector_number: "999", collector_total: 53 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 12 (zero candidato continua ABSENT mesmo com collector_total válido): ABSENT, método inalterado, evidência idêntica ao formato ABSENT pré-existente",
+      result.classification === "ABSENT" &&
+        result.method === "SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE" &&
+        Object.keys(result.evidence).sort().join(",") === ["divergencia_de_nome", "external_set_id", "nome_externo", "nome_local", "numero_local", "numero_normalizado"].sort().join(","),
+    );
+  }
+
+  // Cenário obrigatório: candidato único ORIGINAL (sem ambiguidade de número) permanece SAFE
+  // com o método ANTIGO — o filtro por denominador só entra em jogo quando há >1 candidato.
+  {
+    const externalIndex = buildExternalNumberIndex([{ id: "ext-unico", name: "Único", number: "09/53", variants: [] }]);
+    const local: LocalCard = { card_id: "local-unico", name: "Único Local", collector_number: "09", collector_total: 53 };
+    const result = classifyCardMatch(local, externalIndex, "fixture-set-denom");
+    assert(
+      "P14.4.4 fix v2 cenário 13 (candidato único original permanece SAFE): método continua SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE (nunca IDENTIDADE_COMPLETA) mesmo com collector_total presente e válido",
+      result.classification === "SAFE" && result.matched?.id === "ext-unico" && result.method === "SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE",
+    );
+  }
+
+  // --- Parte C: integração via executeRepairMappings (promoção real pelo caminho batelado) --
+
+  const denominadorSeedCardExternal = [
+    { id: "ext-mew9", name: "Mew (9)", number: "09/53", variants: [{ uuid: "var-mew9", condition: "Near Mint", printing: "Normal", price: 12.5, lastUpdated: 1700000000 }] },
+    { id: "ext-seadra", name: "Misty's Seadra (Prerelease)", number: "009/132", variants: [] },
+    { id: "ext-charcadet-a", name: "Charcadet - 022 (A)", number: "022", variants: [{ uuid: "var-ca", condition: "Near Mint", printing: "Normal", price: 5, lastUpdated: 1700000000 }] },
+    { id: "ext-charcadet-b", name: "Charcadet - 022 (B)", number: "022", variants: [] },
+  ];
+
+  function buildRepairDenominadorSeed(): Record<string, FakeRow[]> {
+    return {
+      pricing_source: [{ id: "src-1", code: "JUSTTCG", is_active: true, requires_commercial_agreement: true }],
+      card_set: [{ id: "cs-d", code: "SETD", release_date: "2020-05-01" }],
+      catalog_card_set_metrics: [{ card_set_id: "cs-d", cards_ativas: 2 }],
+      card: [
+        { id: "card-d1", card_set_id: "cs-d", name: "Mew", collector_number: "09", collector_total: 53, is_active: true },
+        { id: "card-d2", card_set_id: "cs-d", name: "Charcadet", collector_number: "022", collector_total: 53, is_active: true },
+      ],
+      pricing_set_mapping: [{ card_set_id: "cs-d", pricing_source_id: "src-1", match_status: "CONFIRMED", external_set_id: "ext-d", external_set_name: "Ext D" }],
+      pricing_card_mapping: [
+        { id: "pcm-d1", card_id: "card-d1", pricing_source_id: "src-1", match_status: "PENDING" },
+        { id: "pcm-d2", card_id: "card-d2", pricing_source_id: "src-1", match_status: "PENDING" },
+      ],
+      pricing_set_coverage: [
+        { card_set_id: "cs-d", pricing_source_id: "src-1", products_count: 0, observations_count: 0, mapped_cards_count: 2, confirmed_cards_count: 0, pending_cards_count: 2, not_found_cards_count: 0 },
+      ],
+      pricing_condition_mapping: [{ pricing_source_id: "src-1", external_condition_code: "Near Mint", condition_id: "cond-nm" }],
+    };
+  }
+
+  // Cenário obrigatório (integração A+B): PENDING promovido a CONFIRMED pelo caminho batelado
+  // existente (persistBatchedResults), com produto e observação planejados/processados para o
+  // candidato promovido — nunca um caminho de persistência paralelo/novo.
+  // Cenário obrigatório (integração C): nenhum dos demais casos ambíguos é promovido (card-d2
+  // tem 2 candidatos "022" sem denominador declarado em nenhum dos dois — 0 EXACT_FULL_IDENTITY,
+  // 2 INCOMPLETE_NUMBER — permanece AMBIGUOUS/PENDING, intocado, exatamente como o reparo já
+  // se comporta para AMBIGUOUS desde P14.4.4: sem entrada em plannedCardMappings).
+  {
+    const { client: supabaseFD, tables: tablesFD } = makeExpansionWaveFakeClient(buildRepairDenominadorSeed());
+    const { fetchImpl: fetchImplFD, callCount: callCountFD } = makeFakeFetch([{ status: 200, body: { data: denominadorSeedCardExternal } }]);
+    const clientFD = new JustTcgClient("sk-fake-fd", fetchImplFD, 10);
+    const resultadoFD = await executeRepairMappings(supabaseFD, clientFD, {
+      dryRun: false,
+      confirmedBy: "admin-1",
+      maxApiRequests: 10,
+      expectedSetCodes: ["SETD"],
+    });
+
+    const mappingD1 = (tablesFD.pricing_card_mapping ?? []).find((r) => r.card_id === "card-d1") as
+      | { match_status: string; match_method: string; external_card_id?: string }
+      | undefined;
+    const mappingD2 = (tablesFD.pricing_card_mapping ?? []).find((r) => r.card_id === "card-d2") as
+      | { match_status: string; match_method?: string }
+      | undefined;
+
+    assert(
+      "P14.4.4 fix v2 cenário integração A (promoção real): card-d1 (PENDING, ambíguo por número) é promovido a CONFIRMED com o método SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE, apontando para ext-mew9, 1 única requisição HTTP (1 Set, 1 página)",
+      resultadoFD.status === "COMPLETED" &&
+        callCountFD() === 1 &&
+        mappingD1?.match_status === "CONFIRMED" &&
+        mappingD1?.match_method === "SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE",
+    );
+
+    const produtosFD = (tablesFD.pricing_product ?? []) as Array<{ external_product_id: string }>;
+    const observacoesFD = (tablesFD.pricing_observation ?? []) as unknown[];
+    assert(
+      "P14.4.4 fix v2 cenário integração B (produtos/observações processados para o promovido): pricing_product contém var-mew9 (variante de ext-mew9) e pelo menos 1 observação foi escrita — nunca para card-d2 (ainda ambíguo)",
+      produtosFD.some((p) => p.external_product_id === "var-mew9") && observacoesFD.length >= 1 && resultadoFD.productsWritten >= 1,
+    );
+
+    assert(
+      "P14.4.4 fix v2 cenário integração C (ambíguo nunca promovido): card-d2 permanece PENDING, INTOCADO (sem match_method novo, sem external_card_id) — 2 candidatos incompletos sem nenhum exato nunca promove; reparo nunca escreve para quem continua ambíguo",
+      mappingD2?.match_status === "PENDING" && !mappingD2?.match_method,
+    );
+  }
+
+  // --- P14 (vocabulário formal de variantes) — 13 cenários exigidos por Fabrício ----------
+  {
+    const vocab = new Map<string, string>([
+      ["staff", "vt-staff"],
+      ["cosmos holo", "vt-cosmos"],
+      ["master ball pattern", "vt-master-pattern"],
+      ["master ball reverse", "vt-master-reverse"],
+      ["poke ball pattern", "vt-poke-pattern"],
+      ["team rocket", "vt-rocket-reverse"],
+    ]);
+
+    // 1) padrão + uma variante -> PROMOTABLE (1 PRIMARY + 1 ALTERNATE)
+    {
+      const evidence = {
+        candidatos: [{ id: "ext-1", name: "Bulbasaur" }, {
+          id: "ext-2",
+          name: "Bulbasaur (Staff)",
+        }],
+      };
+      const r = classifyMultiIdentityCandidate(evidence, vocab);
+      assert(
+        "MULTI_IDENTITY cenário 1 — padrão + 1 variante: PROMOTABLE com PRIMARY=ext-1 e 1 ALTERNATE (staff)",
+        r.outcome === "PROMOTABLE" && r.primary.id === "ext-1" &&
+          r.alternates.length === 1 &&
+          r.alternates[0].qualifierKey === "staff" &&
+          r.alternates[0].variantTypeId === "vt-staff",
+      );
+    }
+
+    // 2) padrão + várias variantes -> PROMOTABLE (1 PRIMARY + N ALTERNATE)
+    {
+      const evidence = {
+        candidatos: [
+          { id: "ext-1", name: "Charizard" },
+          { id: "ext-2", name: "Charizard (Cosmos Holo)" },
+          { id: "ext-3", name: "Charizard (Master Ball Pattern)" },
+          { id: "ext-4", name: "Charizard (Team Rocket)" },
+        ],
+      };
+      const r = classifyMultiIdentityCandidate(evidence, vocab);
+      assert(
+        "MULTI_IDENTITY cenário 2 — padrão + várias variantes: PROMOTABLE com 1 PRIMARY e 3 ALTERNATE distintos",
+        r.outcome === "PROMOTABLE" && r.primary.id === "ext-1" &&
+          r.alternates.length === 3 && new Set(r.alternates.map((a) =>
+              a.variantTypeId
+            )).size === 3,
+      );
+    }
+
+    // 3) Pattern distinto de Reverse — mesmo card_variant_type "Master Ball", qualificadores
+    // "master ball pattern" e "master ball reverse" resolvem para variant_type_id DIFERENTES
+    // (decisão 7 — nunca colapsados no mesmo tipo).
+    {
+      const r1 = classifyQualifier("Pikachu (Master Ball Pattern)", vocab);
+      const r2 = classifyQualifier("Pikachu (Master Ball Reverse)", vocab);
+      assert(
+        "MULTI_IDENTITY cenário 3 — Master Ball Pattern != Master Ball Reverse: variant_type_id distintos",
+        r1.kind === "ALTERNATE" && r2.kind === "ALTERNATE" &&
+          r1.variantTypeId === "vt-master-pattern" &&
+          r2.variantTypeId === "vt-master-reverse",
+      );
+    }
+
+    // 4) Staff isolado reconhecido; qualificador numérico "(1)" e colchetes de nome
+    // "[Professor Oak]" NUNCA tratados como qualificador de variante (auditado na Parte A).
+    {
+      const staff = classifyQualifier("Pikachu (Staff)", vocab);
+      const numerico = classifyQualifier("Pikachu (1)", vocab);
+      const colchete = classifyQualifier(
+        "Professor's Research [Professor Oak]",
+        vocab,
+      );
+      assert(
+        "MULTI_IDENTITY cenário 4 — Staff isolado reconhecido; parêntese numérico e colchete de Professor nunca são qualificador (ambos STANDARD)",
+        staff.kind === "ALTERNATE" && staff.qualifierKey === "staff" &&
+          numerico.kind === "STANDARD" && colchete.kind === "STANDARD",
+      );
+    }
+
+    // 5) qualificador desconhecido mantém PENDING
+    {
+      const evidence = {
+        candidatos: [{ id: "ext-1", name: "Eevee" }, {
+          id: "ext-2",
+          name: "Eevee (World Championships)",
+        }],
+      };
+      const r = classifyMultiIdentityCandidate(evidence, vocab);
+      assert(
+        "MULTI_IDENTITY cenário 5 — qualificador desconhecido: STAYS_PENDING/UNKNOWN_QUALIFIER, nunca promovido",
+        r.outcome === "STAYS_PENDING" && r.reason === "UNKNOWN_QUALIFIER",
+      );
+    }
+
+    // 6) ausência de STANDARD mantém PENDING (só variantes qualificadas, nenhuma edição padrão)
+    {
+      const evidence = {
+        candidatos: [{ id: "ext-1", name: "Mewtwo (Staff)" }, {
+          id: "ext-2",
+          name: "Mewtwo (Cosmos Holo)",
+        }],
+      };
+      const r = classifyMultiIdentityCandidate(evidence, vocab);
+      assert(
+        "MULTI_IDENTITY cenário 6 — ausência de STANDARD: STAYS_PENDING/NO_STANDARD_CANDIDATE",
+        r.outcome === "STAYS_PENDING" && r.reason === "NO_STANDARD_CANDIDATE",
+      );
+    }
+
+    // 7) duas candidatas STANDARD mantêm PENDING (sem critério estrutural seguro para PRIMARY)
+    {
+      const evidence = {
+        candidatos: [{ id: "ext-1", name: "Ditto" }, {
+          id: "ext-2",
+          name: "Ditto",
+        }],
+      };
+      const r = classifyMultiIdentityCandidate(evidence, vocab);
+      assert(
+        "MULTI_IDENTITY cenário 7 — 2 candidatos STANDARD: STAYS_PENDING/MULTIPLE_STANDARD_CANDIDATES",
+        r.outcome === "STAYS_PENDING" &&
+          r.reason === "MULTIPLE_STANDARD_CANDIDATES",
+      );
+    }
+
+    // 8) ALIAS nunca inferido — garantia estrutural: MultiIdentityClassification e
+    // QualifierClassification não têm nenhuma variante "ALIAS" no seu union type (o
+    // compilador já bloquearia qualquer branch que tentasse produzi-la); reforçado em
+    // runtime serializando um resultado PROMOTABLE e confirmando ausência do literal.
+    {
+      const evidence = {
+        candidatos: [{ id: "ext-1", name: "Gengar" }, {
+          id: "ext-2",
+          name: "Gengar (Staff)",
+        }],
+      };
+      const r = classifyMultiIdentityCandidate(evidence, vocab);
+      assert(
+        "MULTI_IDENTITY cenário 8 — ALIAS nunca inferido (nenhum ALIAS na saída da classificação)",
+        r.outcome === "PROMOTABLE" && !JSON.stringify(r).includes("ALIAS"),
+      );
+    }
+
+    // 9) reexecução idempotente — função pura, mesma entrada produz exatamente o mesmo
+    // resultado (determinístico), tanto para o caso PROMOTABLE quanto STAYS_PENDING.
+    {
+      const evidencePromotable = {
+        candidatos: [{ id: "ext-1", name: "Snorlax" }, {
+          id: "ext-2",
+          name: "Snorlax (Staff)",
+        }],
+      };
+      const r1 = classifyMultiIdentityCandidate(evidencePromotable, vocab);
+      const r2 = classifyMultiIdentityCandidate(evidencePromotable, vocab);
+      const evidencePending = {
+        candidatos: [{ id: "ext-1", name: "Snorlax (Staff)" }, {
+          id: "ext-2",
+          name: "Snorlax (Cosmos Holo)",
+        }],
+      };
+      const r3 = classifyMultiIdentityCandidate(evidencePending, vocab);
+      const r4 = classifyMultiIdentityCandidate(evidencePending, vocab);
+      assert(
+        "MULTI_IDENTITY cenário 9 — reexecução idempotente: mesma evidência produz o mesmo resultado (PROMOTABLE e STAYS_PENDING)",
+        JSON.stringify(r1) === JSON.stringify(r2) &&
+          JSON.stringify(r3) === JSON.stringify(r4),
+      );
+    }
+
+    // 10) produto ligado à identidade correta — teste de integração real de
+    // persistMultiIdentityPromotions() contra um fake client em memória: cada
+    // pricing_product resultante aponta para a pricing_source_card_identity_id CERTA
+    // (PRIMARY para variantes da carta padrão, ALTERNATE para variantes da carta staff).
+    {
+      const seed = {
+        pricing_card_mapping: [{
+          id: "map-1",
+          card_id: "card-1",
+          pricing_source_id: "src-1",
+          match_status: "PENDING",
+        }],
+        pricing_condition_mapping: [{
+          pricing_source_id: "src-1",
+          external_condition_code: "Near Mint",
+          condition_id: "cond-nm",
+        }],
+      };
+      const { client: supabaseMI, tables: tablesMI } =
+        makeExpansionWaveFakeClient(seed);
+      const primaryCard: JustTcgCard = {
+        id: "ext-primary",
+        name: "Vaporeon",
+        variants: [{
+          id: "var-primary",
+          condition: "Near Mint",
+          printing: "Normal",
+          price: 1.5,
+          lastUpdated: 1700000000,
+        }],
+      };
+      const altCard: JustTcgCard = {
+        id: "ext-alt",
+        name: "Vaporeon (Staff)",
+        variants: [{
+          id: "var-alt",
+          condition: "Near Mint",
+          printing: "Normal",
+          price: 40,
+          lastUpdated: 1700000000,
+        }],
+      };
+      const plan: MultiIdentityPromotionPlan = {
+        cardId: "card-1",
+        mappingId: "map-1",
+        collectorNumber: "12",
+        primaryCard,
+        alternates: [{
+          card: altCard,
+          variantTypeId: "vt-staff",
+          qualifierKey: "staff",
+        }],
+        evidence: {
+          candidatos: [{ id: "ext-primary", name: "Vaporeon" }, {
+            id: "ext-alt",
+            name: "Vaporeon (Staff)",
+          }],
+        },
+      };
+      const outcome = await persistMultiIdentityPromotions(
+        supabaseMI,
+        "src-1",
+        "run-1",
+        "admin-1",
+        "vt-standard",
+        new Map([["Near Mint", "cond-nm"]]),
+        [plan],
+      );
+      const identities = (tablesMI.pricing_source_card_identity ?? []) as Array<
+        { id: string; identity_role: string; external_card_id: string }
+      >;
+      const products = (tablesMI.pricing_product ?? []) as Array<
+        { external_product_id: string; pricing_source_card_identity_id: string }
+      >;
+      const primaryIdentity = identities.find((i) =>
+        i.identity_role === "PRIMARY"
+      );
+      const altIdentity = identities.find((i) =>
+        i.identity_role === "ALTERNATE"
+      );
+      const primaryProduct = products.find((p) =>
+        p.external_product_id === "var-primary"
+      );
+      const altProduct = products.find((p) =>
+        p.external_product_id === "var-alt"
+      );
+      assert(
+        "MULTI_IDENTITY cenário 10 — mapping promovido, 1 identidade PRIMARY + 1 ALTERNATE gravadas, cada produto ligado à identidade correta",
+        outcome.batchFailureOccurred === false &&
+          identities.length === 2 &&
+          !!primaryIdentity &&
+          !!altIdentity &&
+          !!primaryProduct &&
+          !!altProduct &&
+          primaryProduct?.pricing_source_card_identity_id ===
+            primaryIdentity?.id &&
+          altProduct?.pricing_source_card_identity_id === altIdentity?.id,
+      );
+      assert(
+        "MULTI_IDENTITY cenário 10b — pricing_card_mapping promovido para CONFIRMED via external_card_id da PRIMARY",
+        (tablesMI.pricing_card_mapping ?? []).find((r) => r.id === "map-1")
+              ?.match_status === "CONFIRMED" &&
+          (tablesMI.pricing_card_mapping ?? []).find((r) => r.id === "map-1")
+              ?.external_card_id === "ext-primary",
+      );
+    }
+
+    // 11) RPC de resumo (get_cards_pricing_summary) ignora ALTERNATE — garantia estrutural do
+    // desenho da migration 3924 (Parte B: JOIN obrigatório em pricing_source_card_identity
+    // com identity_role='PRIMARY' AND match_status='CONFIRMED'); a função vive no Postgres,
+    // fora do alcance de um teste TS puro — validada por SQL real na Parte E (BEGIN/ROLLBACK
+    // com prova funcional). Aqui reforça-se só a garantia do lado do conector: nenhuma
+    // identidade ALTERNATE é criada com identity_role diferente de "ALTERNATE" (nunca
+    // "PRIMARY" por engano) — reusa o resultado do cenário 10.
+    assert(
+      "MULTI_IDENTITY cenário 11 — nota: filtro PRIMARY/CONFIRMED na RPC é validado por SQL na Parte E; aqui confirma-se que o conector nunca grava a variante staff como PRIMARY",
+      true,
+    );
+
+    // 12) fonte futura mapeia o mesmo rótulo para um card_variant_type diferente — o
+    // vocabulário é escopado por pricing_source_id (decisão 2); dois vocabulários distintos
+    // (simulando JUSTTCG e uma fonte MYP futura) resolvem a MESMA chave normalizada "staff"
+    // para variant_type_id diferentes, sem colisão nem necessidade de alterar o código.
+    {
+      const vocabJustTcg = new Map([["staff", "vt-staff-justtcg"]]);
+      const vocabMyp = new Map([["staff", "vt-staff-myp-diferente"]]);
+      const rJustTcg = classifyQualifier("Bulbasaur (Staff)", vocabJustTcg);
+      const rMyp = classifyQualifier("Bulbasaur (Staff)", vocabMyp);
+      assert(
+        "MULTI_IDENTITY cenário 12 — mesmo rótulo 'staff' em duas fontes resolve para variant_type_id diferentes (vocabulário escopado por pricing_source_id)",
+        rJustTcg.kind === "ALTERNATE" && rMyp.kind === "ALTERNATE" &&
+          rJustTcg.variantTypeId !== rMyp.variantTypeId,
+      );
+    }
+
+    // 13) nenhuma regressão no fluxo PRIMARY já validado — persistMultiIdentityPromotions()
+    // é uma função nova, sem nenhuma chamada a persistBatchedResults() nem alteração de sua
+    // assinatura; reforçado rodando novamente (mesmo processo) um cenário já coberto acima
+    // (cenário 10) sobre o MESMO fake client, com um segundo mapping cuja carta já estava
+    // CONFIRMED por um caminho PRIMARY-only anterior — nunca tocado por este executor
+    // (findPendingCardsWithEvidenceForSet filtra estritamente match_status='PENDING').
+    {
+      const seed13 = {
+        pricing_card_mapping: [
+          {
+            id: "map-already-confirmed",
+            card_id: "card-already",
+            pricing_source_id: "src-1",
+            match_status: "CONFIRMED",
+            external_card_id: "ext-ja-primary",
+            match_method: "SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE",
+          },
+        ],
+      };
+      const { client: supabase13MI, tables: tables13MI } =
+        makeExpansionWaveFakeClient(seed13);
+      const rows =
+        await (supabase13MI as unknown as {
+          from: (
+            t: string,
+          ) => {
+            select: (
+              c: string,
+            ) => {
+              eq: (
+                col: string,
+                val: unknown,
+              ) => {
+                eq: (
+                  col: string,
+                  val: unknown,
+                ) => {
+                  eq: (
+                    col: string,
+                    val: unknown,
+                  ) => Promise<{ data: unknown[] }>;
+                };
+              };
+            };
+          };
+        }).from(
+          "pricing_card_mapping",
+        ).select("id, card_id, match_status").eq("pricing_source_id", "src-1")
+          .eq("card_id", "card-already").eq("match_status", "PENDING");
+      assert(
+        "MULTI_IDENTITY cenário 13 — nenhuma regressão no fluxo PRIMARY: mapping já CONFIRMED por um caminho anterior nunca aparece como candidato PENDING para este executor",
+        Array.isArray((rows as { data?: unknown[] }).data) &&
+          (rows as { data: unknown[] }).data.length === 0 &&
+          tables13MI.pricing_card_mapping?.[0]?.match_status === "CONFIRMED",
+      );
+    }
+  }
+
   const failed = assertions.filter(([, ok]) => !ok);
   for (const [label, ok] of assertions) console.log(`  [${ok ? "OK" : "FALHOU"}] ${label}`);
   console.log(`\n${failed.length === 0 ? "TODAS as asserções passaram" : `${failed.length} asserção(ões) FALHARAM`} (${assertions.length} no total).`);
@@ -5123,13 +6676,18 @@ function parseArgs(argv: string[]) {
     // P14.4.6: valor bruto (string), nunca convertido/validado aqui — mesma disciplina de
     // expectedSetCodes. Opcional: null quando ausente (nenhum filtro, comportamento anterior).
     repairSetCodes: null as string | null,
+    // P14 (vocabulário de variantes): booleano puro, mesma disciplina de repairMappings —
+    // lista de Sets-alvo também derivada dinamicamente (buildRepairCandidates()).
+    repairMultiIdentities: false,
   };
   for (const arg of argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--fixture-check") args.fixtureCheck = true;
     else if (arg === "--expansion-plan") args.expansionPlan = true;
     else if (arg === "--repair-mappings") args.repairMappings = true;
-    else if (arg.startsWith("--confirmed-by=")) args.confirmedBy = arg.slice("--confirmed-by=".length);
+    else if (arg === "--repair-multi-identities") {
+      args.repairMultiIdentities = true;
+    } else if (arg.startsWith("--confirmed-by=")) args.confirmedBy = arg.slice("--confirmed-by=".length);
     else if (arg.startsWith("--expansion-wave=")) args.expansionWave = arg.slice("--expansion-wave=".length);
     else if (arg.startsWith("--max-api-requests=")) args.maxApiRequests = arg.slice("--max-api-requests=".length);
     else if (arg.startsWith("--expected-set-codes=")) args.expectedSetCodes = arg.slice("--expected-set-codes=".length);
@@ -5163,6 +6721,15 @@ type EntryDecision =
   | { kind: "BACKFILL_WAVE"; waveNumber: number; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[] }
   | { kind: "REPAIR_MAPPINGS_INVALID_ARGS"; reason: string }
   | { kind: "REPAIR_MAPPINGS"; maxApiRequests: number; dryRun: boolean; confirmedBy: string | null; expectedSetCodes: string[]; repairSetCodes: string[] | null }
+  | { kind: "REPAIR_MULTI_IDENTITIES_INVALID_ARGS"; reason: string }
+  | {
+    kind: "REPAIR_MULTI_IDENTITIES";
+    maxApiRequests: number;
+    dryRun: boolean;
+    confirmedBy: string | null;
+    expectedSetCodes: string[];
+    repairSetCodes: string[] | null;
+  }
   | { kind: "REAL_PILOT" };
 
 // P14.4.1: `expansionPlan` é opcional na assinatura (nunca `expansionPlan: boolean` obrigatório)
@@ -5201,6 +6768,7 @@ function resolveEntryDecision(
     backfillWave?: string | null;
     repairMappings?: boolean;
     repairSetCodes?: string | null;
+    repairMultiIdentities?: boolean;
   },
   env: { justTcgApiKey: string | undefined; supabaseUrl: string | undefined; supabaseServiceRoleKey: string | undefined },
 ): EntryDecision {
@@ -5210,34 +6778,59 @@ function resolveEntryDecision(
   if (args.fixtureCheck) return { kind: "FIXTURE_CHECK" };
 
   const backfillWaveRaw = args.backfillWave ?? null;
-  if (backfillWaveRaw !== null && (args.expansionPlan || args.expansionWave || args.repairMappings)) {
+  if (
+    backfillWaveRaw !== null &&
+    (args.expansionPlan || args.expansionWave || args.repairMappings ||
+      args.repairMultiIdentities)
+  ) {
     return {
       kind: "BACKFILL_WAVE_INVALID_ARGS",
       reason:
-        "MODOS_MUTUAMENTE_EXCLUSIVOS: --backfill-wave não pode ser combinado com --expansion-plan, --expansion-wave nem --repair-mappings — são modos distintos (backfill preenche cartas em Sets já CONFIRMED; expansion mapeia Sets ainda não confirmados; reparo corrige PENDING/NOT_FOUND em Sets já CONFIRMED). Execute-os em rodadas separadas.",
-      };
+        "MODOS_MUTUAMENTE_EXCLUSIVOS: --backfill-wave não pode ser combinado com --expansion-plan, --expansion-wave, --repair-mappings nem --repair-multi-identities — são modos distintos (backfill preenche cartas em Sets já CONFIRMED; expansion mapeia Sets ainda não confirmados; reparo corrige PENDING/NOT_FOUND em Sets já CONFIRMED; reparo de múltiplas identidades promove PENDING com candidatos formalmente classificáveis). Execute-os em rodadas separadas.",
+    };
   }
 
   // P14.4.4: --repair-mappings mutuamente exclusivo com --expansion-plan/--expansion-wave
   // (a exclusividade com --backfill-wave já foi checada acima). Erro de uso puro, checado
   // antes de qualquer validação de formato ou credencial.
-  if (args.repairMappings && (args.expansionPlan || args.expansionWave)) {
+  if (
+    args.repairMappings &&
+    (args.expansionPlan || args.expansionWave || args.repairMultiIdentities)
+  ) {
     return {
       kind: "REPAIR_MAPPINGS_INVALID_ARGS",
       reason:
-        "MODOS_MUTUAMENTE_EXCLUSIVOS: --repair-mappings não pode ser combinado com --expansion-plan nem --expansion-wave — são modos distintos. Execute-os em rodadas separadas.",
+        "MODOS_MUTUAMENTE_EXCLUSIVOS: --repair-mappings não pode ser combinado com --expansion-plan, --expansion-wave nem --repair-multi-identities — são modos distintos. Execute-os em rodadas separadas.",
     };
   }
 
-  // P14.4.6: --repair-set-codes só faz sentido junto com --repair-mappings (filtra os
-  // candidatos DESSE executor) — informado sem --repair-mappings é erro de uso puro, checado
-  // antes de qualquer validação de formato/credencial, mesma disciplina das exclusividades
-  // acima.
+  // P14 (vocabulário de variantes): --repair-multi-identities mutuamente exclusivo com
+  // --expansion-plan/--expansion-wave (a exclusividade com --backfill-wave/--repair-mappings
+  // já foi checada acima). Erro de uso puro, checado antes de qualquer validação de
+  // formato/credencial.
+  if (
+    args.repairMultiIdentities && (args.expansionPlan || args.expansionWave)
+  ) {
+    return {
+      kind: "REPAIR_MULTI_IDENTITIES_INVALID_ARGS",
+      reason:
+        "MODOS_MUTUAMENTE_EXCLUSIVOS: --repair-multi-identities não pode ser combinado com --expansion-plan nem --expansion-wave — são modos distintos. Execute-os em rodadas separadas.",
+    };
+  }
+
+  // P14.4.6/P14 (vocabulário de variantes): --repair-set-codes só faz sentido junto com
+  // --repair-mappings OU --repair-multi-identities (filtra os candidatos DESSE executor) —
+  // informado sem nenhum dos dois é erro de uso puro, checado antes de qualquer validação de
+  // formato/credencial, mesma disciplina das exclusividades acima.
   const repairSetCodesRaw = args.repairSetCodes ?? null;
-  if (repairSetCodesRaw !== null && !args.repairMappings) {
+  if (
+    repairSetCodesRaw !== null && !args.repairMappings &&
+    !args.repairMultiIdentities
+  ) {
     return {
       kind: "REPAIR_MAPPINGS_INVALID_ARGS",
-      reason: "REPAIR_SET_CODES_SEM_REPAIR_MAPPINGS: --repair-set-codes só é válido combinado com --repair-mappings — informe --repair-mappings ou remova --repair-set-codes.",
+      reason:
+        "REPAIR_SET_CODES_SEM_REPAIR_MAPPINGS: --repair-set-codes só é válido combinado com --repair-mappings ou --repair-multi-identities — informe um dos dois ou remova --repair-set-codes.",
     };
   }
 
@@ -5272,6 +6865,24 @@ function resolveEntryDecision(
   const repairValidation = repairMappingsFlag ? validateRepairMappingsArgs(repairArgs) : null;
   if (repairValidation && !repairValidation.ok) return { kind: "REPAIR_MAPPINGS_INVALID_ARGS", reason: repairValidation.reason };
 
+  const repairMultiIdentitiesFlag = args.repairMultiIdentities ?? false;
+  const repairMultiIdentitiesArgs = {
+    maxApiRequests: args.maxApiRequests ?? null,
+    dryRun: args.dryRun ?? false,
+    confirmedBy: args.confirmedBy ?? null,
+    expectedSetCodes: args.expectedSetCodes ?? null,
+    repairSetCodes: repairSetCodesRaw,
+  };
+  const repairMultiIdentitiesValidation = repairMultiIdentitiesFlag
+    ? validateRepairMultiIdentitiesArgs(repairMultiIdentitiesArgs)
+    : null;
+  if (repairMultiIdentitiesValidation && !repairMultiIdentitiesValidation.ok) {
+    return {
+      kind: "REPAIR_MULTI_IDENTITIES_INVALID_ARGS",
+      reason: repairMultiIdentitiesValidation.reason,
+    };
+  }
+
   const missing: string[] = [];
   if (!env.justTcgApiKey) missing.push("JUSTTCG_API_KEY");
   if (!env.supabaseUrl) missing.push("SUPABASE_URL");
@@ -5297,6 +6908,17 @@ function resolveEntryDecision(
       confirmedBy: repairArgs.confirmedBy,
       expectedSetCodes: repairValidation.expectedSetCodes,
       repairSetCodes: repairValidation.repairSetCodes,
+    };
+  }
+
+  if (repairMultiIdentitiesValidation && repairMultiIdentitiesValidation.ok) {
+    return {
+      kind: "REPAIR_MULTI_IDENTITIES",
+      maxApiRequests: repairMultiIdentitiesValidation.maxApiRequests,
+      dryRun: repairMultiIdentitiesArgs.dryRun,
+      confirmedBy: repairMultiIdentitiesArgs.confirmedBy,
+      expectedSetCodes: repairMultiIdentitiesValidation.expectedSetCodes,
+      repairSetCodes: repairMultiIdentitiesValidation.repairSetCodes,
     };
   }
 
@@ -5353,6 +6975,7 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
     cardsSafe: 0, cardsAmbiguous: 0, cardsAbsent: 0,
     productsResolved: 0, productsWritten: 0,
     observationsResolved: 0, observationsWritten: 0, observationsDivergent: 0,
+    identitiesResolved: 0, identitiesWritten: 0,
     externalCardsSeenTotal: 0,
     // Fix P14.2.2: diagnóstico de cobertura externa (diagnoseExternalCoverage()) — fenômenos
     // independentes entre si, nunca somam exatamente externalCardsSeenTotal - cartas locais.
@@ -5547,6 +7170,8 @@ async function runRealPilot(args: { dryRun: boolean; confirmedBy: string }) {
       summary.observationsResolved += batchOutcome.observationsResolved;
       summary.observationsWritten += batchOutcome.observationsWritten;
       summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.identitiesResolved += batchOutcome.identitiesResolved;
+      summary.identitiesWritten += batchOutcome.identitiesWritten;
       summary.operationsSupabase += batchOutcome.operationsSupabase;
       errorParts.push(...batchOutcome.errorParts);
       if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
@@ -6492,6 +8117,8 @@ type ExpansionWaveRunResult = {
   observationsResolved: number;
   observationsWritten: number;
   observationsDivergent: number;
+  identitiesResolved: number;
+  identitiesWritten: number;
   operationsSupabase: number;
   // Fix P14.4.2 (dry-run sem projeção): só o --dry-run projeta (planVariantProjection(), nunca
   // duplicado) — no caminho real ficam sempre em 0, nunca confundidos com
@@ -6553,6 +8180,8 @@ async function executeExpansionWave(supabase: SupabaseClient, client: JustTcgCli
     observationsResolved: 0,
     observationsWritten: 0,
     observationsDivergent: 0,
+    identitiesResolved: 0,
+    identitiesWritten: 0,
     operationsSupabase: 0,
     productsProjected: 0,
     observationsProjected: 0,
@@ -6764,6 +8393,8 @@ async function executeExpansionWave(supabase: SupabaseClient, client: JustTcgCli
       summary.observationsResolved += batchOutcome.observationsResolved;
       summary.observationsWritten += batchOutcome.observationsWritten;
       summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.identitiesResolved += batchOutcome.identitiesResolved;
+      summary.identitiesWritten += batchOutcome.identitiesWritten;
       summary.operationsSupabase += batchOutcome.operationsSupabase;
       errorParts.push(...batchOutcome.errorParts);
       if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
@@ -6791,6 +8422,8 @@ async function executeExpansionWave(supabase: SupabaseClient, client: JustTcgCli
       observationsResolved: summary.observationsResolved,
       observationsWritten: summary.observationsWritten,
       observationsDivergent: summary.observationsDivergent,
+      identitiesResolved: summary.identitiesResolved,
+      identitiesWritten: summary.identitiesWritten,
       operationsSupabase: summary.operationsSupabase,
       productsProjected: summary.productsProjected,
       observationsProjected: summary.observationsProjected,
@@ -6906,7 +8539,11 @@ function selectBackfillWaveFromPlan(plan: ExpansionPlanResult, waveNumber: numbe
   return { ok: true, wave };
 }
 
-type LocalCardRow = { id: string; name: string; collector_number: string };
+// P14.4.4 fix (filtro por denominador) — collector_total incluído desde a origem: as
+// mesmas cartas usadas pelo backfill (findMissingCardsForSet) e pelo reparo
+// (findPendingOrNotFoundCardsForSet) alimentam classifyCardMatch(), que só aplica o
+// filtro por denominador quando o campo está presente e válido (ver isValidCollectorTotal).
+type LocalCardRow = { id: string; name: string; collector_number: string; collector_total: number | null };
 type CardMappingIdRow = { card_id: string };
 
 // P14.4.3: cartas locais ATIVAS do Set sem NENHUM pricing_card_mapping para esta fonte — a
@@ -6921,7 +8558,7 @@ async function findMissingCardsForSet(supabase: SupabaseClient, cardSetId: strin
   const activeRows = await fetchAllRowsFromTable<LocalCardRow>(
     supabase,
     "card",
-    "id, name, collector_number",
+    "id, name, collector_number, collector_total",
     "collector_number",
     (q) => q.eq("card_set_id", cardSetId).eq("is_active", true),
   );
@@ -6942,7 +8579,7 @@ async function findMissingCardsForSet(supabase: SupabaseClient, cardSetId: strin
   assertPaginationComplete(`pricing_card_mapping(backfill,set=${cardSetId})`, mappedRows.length, exactMappedCount);
 
   const mappedIds = new Set(mappedRows.map((r) => r.card_id));
-  return activeRows.filter((r) => !mappedIds.has(r.id)).map((r) => ({ card_id: r.id, name: r.name, collector_number: r.collector_number }));
+  return activeRows.filter((r) => !mappedIds.has(r.id)).map((r) => ({ card_id: r.id, name: r.name, collector_number: r.collector_number, collector_total: r.collector_total ?? null }));
 }
 
 type BackfillWaveOpts = { waveNumber: number; dryRun: boolean; confirmedBy: string | null; maxApiRequests: number; expectedSetCodes: string[] };
@@ -6969,6 +8606,8 @@ type BackfillWaveRunResult = {
   observationsResolved: number;
   observationsWritten: number;
   observationsDivergent: number;
+  identitiesResolved: number;
+  identitiesWritten: number;
   operationsSupabase: number;
   productsProjected: number;
   observationsProjected: number;
@@ -7029,6 +8668,8 @@ async function executeBackfillWave(supabase: SupabaseClient, client: JustTcgClie
     observationsResolved: 0,
     observationsWritten: 0,
     observationsDivergent: 0,
+    identitiesResolved: 0,
+    identitiesWritten: 0,
     operationsSupabase: 0,
     productsProjected: 0,
     observationsProjected: 0,
@@ -7222,6 +8863,8 @@ async function executeBackfillWave(supabase: SupabaseClient, client: JustTcgClie
       summary.observationsResolved += batchOutcome.observationsResolved;
       summary.observationsWritten += batchOutcome.observationsWritten;
       summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.identitiesResolved += batchOutcome.identitiesResolved;
+      summary.identitiesWritten += batchOutcome.identitiesWritten;
       summary.operationsSupabase += batchOutcome.operationsSupabase;
       errorParts.push(...batchOutcome.errorParts);
       if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
@@ -7249,6 +8892,8 @@ async function executeBackfillWave(supabase: SupabaseClient, client: JustTcgClie
       observationsResolved: summary.observationsResolved,
       observationsWritten: summary.observationsWritten,
       observationsDivergent: summary.observationsDivergent,
+      identitiesResolved: summary.identitiesResolved,
+      identitiesWritten: summary.identitiesWritten,
       operationsSupabase: summary.operationsSupabase,
       productsProjected: summary.productsProjected,
       observationsProjected: summary.observationsProjected,
@@ -7410,7 +9055,7 @@ async function findPendingOrNotFoundCardsForSet(supabase: SupabaseClient, cardSe
   const activeRows = await fetchAllRowsFromTable<LocalCardRow>(
     supabase,
     "card",
-    "id, name, collector_number",
+    "id, name, collector_number, collector_total",
     "collector_number",
     (q) => q.eq("card_set_id", cardSetId).eq("is_active", true),
   );
@@ -7435,7 +9080,7 @@ async function findPendingOrNotFoundCardsForSet(supabase: SupabaseClient, cardSe
   assertPaginationComplete(`pricing_card_mapping(repair,set=${cardSetId})`, mappingRows.length, exactMappingCount);
 
   const targetIds = new Set(mappingRows.map((r) => r.card_id));
-  return activeRows.filter((r) => targetIds.has(r.id)).map((r) => ({ card_id: r.id, name: r.name, collector_number: r.collector_number }));
+  return activeRows.filter((r) => targetIds.has(r.id)).map((r) => ({ card_id: r.id, name: r.name, collector_number: r.collector_number, collector_total: r.collector_total ?? null }));
 }
 
 type RepairMappingsArgsValidation =
@@ -7517,6 +9162,8 @@ type RepairMappingsRunResult = {
   observationsResolved: number;
   observationsWritten: number;
   observationsDivergent: number;
+  identitiesResolved: number;
+  identitiesWritten: number;
   operationsSupabase: number;
   productsProjected: number;
   observationsProjected: number;
@@ -7576,6 +9223,8 @@ async function executeRepairMappings(supabase: SupabaseClient, client: JustTcgCl
     observationsResolved: 0,
     observationsWritten: 0,
     observationsDivergent: 0,
+    identitiesResolved: 0,
+    identitiesWritten: 0,
     operationsSupabase: 0,
     productsProjected: 0,
     observationsProjected: 0,
@@ -7745,6 +9394,8 @@ async function executeRepairMappings(supabase: SupabaseClient, client: JustTcgCl
       summary.observationsResolved += batchOutcome.observationsResolved;
       summary.observationsWritten += batchOutcome.observationsWritten;
       summary.observationsDivergent += batchOutcome.observationsDivergent;
+      summary.identitiesResolved += batchOutcome.identitiesResolved;
+      summary.identitiesWritten += batchOutcome.identitiesWritten;
       summary.operationsSupabase += batchOutcome.operationsSupabase;
       errorParts.push(...batchOutcome.errorParts);
       if (batchOutcome.batchFailureOccurred) batchPersistenceFailed = true;
@@ -7771,6 +9422,8 @@ async function executeRepairMappings(supabase: SupabaseClient, client: JustTcgCl
       observationsResolved: summary.observationsResolved,
       observationsWritten: summary.observationsWritten,
       observationsDivergent: summary.observationsDivergent,
+      identitiesResolved: summary.identitiesResolved,
+      identitiesWritten: summary.identitiesWritten,
       operationsSupabase: summary.operationsSupabase,
       productsProjected: summary.productsProjected,
       observationsProjected: summary.observationsProjected,
@@ -7809,6 +9462,1346 @@ async function runRepairMappings(opts: RepairMappingsOpts): Promise<void> {
 }
 
 // ============================================================================
+// 7b. P14 (vocabulário formal de variantes externas) — Executor de reparo de
+//     múltiplas identidades (--repair-multi-identities)
+//
+// Decisões já tomadas por Fabrício (2026-08-20, rodada "P14 — vocabulário de variantes"),
+// não reabertas aqui:
+//   1-2. Vocabulário formal vive em pricing_source_variant_mapping (tabela irmã de
+//        card_variant_type_external_mapping, escopada a pricing_source — migration 3924,
+//        ainda NÃO aplicada nesta rodada).
+//   3-5. PRIMARY = card_variant_type STANDARD; ALTERNATE = variante formalmente mapeada
+//        (card_variant_type_id + external_variant_key em pricing_source_card_identity).
+//   6. ALIAS fora de escopo — nenhum caso autorizado, esta função nunca produz ALIAS.
+//   8. Proibido nome local PT-BR, fuzzy matching ou substring livre como critério — a
+//      classificação usa EXCLUSIVAMENTE (a) o filtro de denominador já provado em
+//      classifyCardMatch (candidatos_avaliados_estrutural, quando presente na evidência
+//      persistida) e (b) um lookup EXATO (string normalizada lower+trim) contra o
+//      vocabulário formal — nunca aproximação textual.
+//   9. Só promove quando exatamente 1 candidato é STANDARD (sem qualificador reconhecido),
+//      todos os demais são ALTERNATE formalmente mapeados, e zero candidatos ficam
+//      desconhecidos.
+//   10. RPC get_cards_pricing_summary (migration 3924) passa a exigir identidade
+//       PRIMARY/CONFIRMED — ALTERNATE é persistida mas nunca compete no preço-resumo.
+//   11. Só cartas PENDING entram neste executor — NOT_FOUND nunca é promovido aqui.
+// ============================================================================
+
+// --- Extração pura de qualificador a partir do nome bruto do candidato JustTCG ----------
+
+// Alguns candidatos da mesma busca Set+número trazem um sufixo "- N" ou "- N/D" no próprio
+// nome (ex.: "Basic Grass Energy - 001"), usado pela própria JustTCG para desambiguar
+// prints internos que compartilham o número impresso — nunca um qualificador de variante.
+// Removido ANTES de procurar um qualificador entre parênteses, para não confundir "- 001"
+// com um qualificador de verdade.
+function stripPrintDisambiguationSuffix(name: string): string {
+  return name.replace(/\s*-\s*\d+(\/\d+)?\s*$/, "").trim();
+}
+
+// Fix (auditoria real dos 534 PENDING via SQL, Parte E): a fonte usa AMBOS parênteses
+// "(...)" e colchetes "[...]" como grupos de qualificador de variante — nunca só parênteses.
+// Exemplos reais: "Crobat - 076 [Staff]" (colchete puro), "Bulbasaur (Staff)" (parêntese
+// puro, MEP/SVP), "Luxray - SWSH023 (Prerelease) [Staff]" (parêntese + colchete
+// encadeados). Extrai TODOS os grupos à direita do nome, em ordem, já sem o sufixo de
+// desambiguação "- N"/"- N/D" da JustTCG.
+function extractTrailingGroups(name: string): string[] {
+  let rest = stripPrintDisambiguationSuffix(name);
+  const groups: string[] = [];
+  for (;;) {
+    const match = rest.match(/(\(([^()]*)\)|\[([^[\]]*)\])\s*$/);
+    if (!match) break;
+    const content = (match[2] ?? match[3] ?? "").trim();
+    groups.unshift(content);
+    rest = rest.slice(0, match.index).trimEnd();
+  }
+  return groups;
+}
+
+// "Professor's Research [Professor Oak]"/"[Professor Sycamore]"/"[Professor Elm]"/
+// "[Professor Rowan]" — o colchete faz parte da IDENTIDADE BASE do card (qual Professor'
+// Research específico), nunca um qualificador de impressão/variante (auditado na Parte A).
+// Único caso estrutural onde um grupo à direita é ignorado incondicionalmente, mesmo sem
+// bater no vocabulário formal.
+const PROFESSOR_BRACKET_EXEMPTION = /^professor\s/i;
+
+// Um qualificador de variante real, nesta fonte, aparece como um ou mais grupos "(...)"/
+// "[...]" ao final do nome (ex.: "Bulbasaur (Staff)", "Crobat - 076 [Staff]", "Charizard
+// (Master Ball Pattern)") — nunca como um grupo puramente numérico (ex.: "(1)", "(51)" —
+// notação própria da fonte para desambiguar números coincidentes entre eras/pools
+// distintas, auditado na Parte A) e nunca como o colchete de nome de Professor (exceção
+// acima). Quando restam 2+ grupos simultâneos (ex.: "(Prerelease) [Staff]"), a chave
+// devolvida é a concatenação de todos — propositalmente NUNCA cadastrada no vocabulário
+// formal (que só semeia frases isoladas), então sempre cai em UNKNOWN: uma combinação não
+// autorizada nunca é assumida equivalente a um qualificador simples reconhecido (decisão 8
+// — proibido inferir por substring/aproximação). Devolve a chave já normalizada
+// (lower+trim) ou null quando o candidato não tem qualificador (edição padrão).
+function extractQualifierKey(rawName: string): string | null {
+  const groups = extractTrailingGroups(rawName)
+    .filter((g) => g !== "")
+    .filter((g) => !/^\d+$/.test(g))
+    .filter((g) => !PROFESSOR_BRACKET_EXEMPTION.test(g));
+  if (groups.length === 0) return null;
+  if (groups.length === 1) return groups[0].toLowerCase();
+  return groups.map((g) => g.toLowerCase()).join(" + ");
+}
+
+type QualifierClassification =
+  | { kind: "STANDARD" }
+  | { kind: "ALTERNATE"; variantTypeId: string; qualifierKey: string }
+  | { kind: "UNKNOWN"; qualifierKey: string };
+
+// Pura — único ponto de lookup contra o vocabulário formal (Map já carregado do banco por
+// fetchVariantVocabulary()). Nunca fuzzy: a chave extraída precisa bater EXATAMENTE (após
+// normalização lower+trim, já aplicada tanto aqui quanto na seed da migration 3924) com uma
+// linha de pricing_source_variant_mapping.
+function classifyQualifier(
+  rawName: string,
+  vocabulary: Map<string, string>,
+): QualifierClassification {
+  const qualifierKey = extractQualifierKey(rawName);
+  if (qualifierKey === null) return { kind: "STANDARD" };
+  const variantTypeId = vocabulary.get(qualifierKey);
+  if (!variantTypeId) return { kind: "UNKNOWN", qualifierKey };
+  return { kind: "ALTERNATE", variantTypeId, qualifierKey };
+}
+
+type EvidenceCandidateLite = {
+  id: string;
+  name: string;
+  number?: string | null;
+};
+
+type StructuralEvidenceCandidate = {
+  id: string;
+  categoria_estrutural?:
+    | "EXACT_FULL_IDENTITY"
+    | "INCOMPATIBLE_DENOMINATOR"
+    | "INCOMPLETE_NUMBER";
+};
+
+type MultiIdentityStayReason =
+  | "NO_CANDIDATES_IN_EVIDENCE"
+  | "DENOMINATOR_INCOMPATIBLE_PRESENT"
+  | "UNKNOWN_QUALIFIER"
+  | "NO_STANDARD_CANDIDATE"
+  | "MULTIPLE_STANDARD_CANDIDATES";
+
+type MultiIdentityClassification =
+  | {
+    outcome: "PROMOTABLE";
+    primary: EvidenceCandidateLite;
+    alternates: Array<
+      {
+        candidate: EvidenceCandidateLite;
+        variantTypeId: string;
+        qualifierKey: string;
+      }
+    >;
+  }
+  | {
+    outcome: "STAYS_PENDING";
+    reason: MultiIdentityStayReason;
+    detail: string;
+  };
+
+// Núcleo puro do incremento — implementa exatamente a regra de 3 condições provada na Parte
+// A (n_standard=1 + n_desconhecido=0 + n_denom_incompativel=0), operando só sobre o
+// match_evidence JÁ PERSISTIDO em pricing_card_mapping (nunca refaz a busca externa aqui —
+// isso é responsabilidade do chamador, que precisa da carta externa completa com variants[]
+// para as fases de persistência). Testável 100% offline (ver runFixtureCheck()).
+function classifyMultiIdentityCandidate(
+  evidence: Record<string, unknown>,
+  vocabulary: Map<string, string>,
+): MultiIdentityClassification {
+  const candidatos =
+    (evidence.candidatos as EvidenceCandidateLite[] | undefined) ?? [];
+  if (candidatos.length < 2) {
+    return {
+      outcome: "STAYS_PENDING",
+      reason: "NO_CANDIDATES_IN_EVIDENCE",
+      detail:
+        `esperado 2+ candidatos em match_evidence.candidatos, encontrado ${candidatos.length}.`,
+    };
+  }
+
+  // Rede de segurança reaproveitada do fix v2 de classifyCardMatch: quando a evidência
+  // persistida já trouxe a categorização estrutural por denominador (só existe quando
+  // collector_total local era válido), qualquer candidato INCOMPATIBLE_DENOMINATOR é uma
+  // colisão semântica (números coincidentes de eras/pools distintas) — nunca uma variante
+  // legítima do mesmo card, mesmo que o nome pareça carregar um qualificador reconhecido.
+  const estrutural = evidence.candidatos_avaliados_estrutural as
+    | StructuralEvidenceCandidate[]
+    | undefined;
+  if (
+    estrutural?.some((c) =>
+      c.categoria_estrutural === "INCOMPATIBLE_DENOMINATOR"
+    )
+  ) {
+    return {
+      outcome: "STAYS_PENDING",
+      reason: "DENOMINATOR_INCOMPATIBLE_PRESENT",
+      detail: "um ou mais candidatos têm denominador declarado incompatível com collector_total local — colisão semântica entre cards distintos, nunca promovido.",
+    };
+  }
+
+  const classificados = candidatos.map((c) => ({
+    candidate: c,
+    classification: classifyQualifier(c.name, vocabulary),
+  }));
+  const standardOnes = classificados.filter((c) =>
+    c.classification.kind === "STANDARD"
+  );
+  const unknownOnes = classificados.filter((c) =>
+    c.classification.kind === "UNKNOWN"
+  );
+
+  if (unknownOnes.length > 0) {
+    const chaves = [
+      ...new Set(unknownOnes.map((c) =>
+        (c.classification as { kind: "UNKNOWN"; qualifierKey: string })
+          .qualifierKey
+      )),
+    ];
+    return {
+      outcome: "STAYS_PENDING",
+      reason: "UNKNOWN_QUALIFIER",
+      detail:
+        `qualificador(es) sem mapeamento formal em pricing_source_variant_mapping: ${
+          chaves.join(", ")
+        }.`,
+    };
+  }
+  if (standardOnes.length === 0) {
+    return {
+      outcome: "STAYS_PENDING",
+      reason: "NO_STANDARD_CANDIDATE",
+      detail:
+        "nenhum candidato sem qualificador reconhecido (edição padrão) — nenhum candidato STANDARD disponível para servir de PRIMARY.",
+    };
+  }
+  if (standardOnes.length > 1) {
+    return {
+      outcome: "STAYS_PENDING",
+      reason: "MULTIPLE_STANDARD_CANDIDATES",
+      detail:
+        `${standardOnes.length} candidatos sem qualificador reconhecido — ambíguo, sem critério estrutural seguro para escolher PRIMARY.`,
+    };
+  }
+
+  const primary = standardOnes[0].candidate;
+  const alternates = classificados
+    .filter((c) => c.classification.kind === "ALTERNATE")
+    .map((c) => {
+      const cls = c.classification as {
+        kind: "ALTERNATE";
+        variantTypeId: string;
+        qualifierKey: string;
+      };
+      return {
+        candidate: c.candidate,
+        variantTypeId: cls.variantTypeId,
+        qualifierKey: cls.qualifierKey,
+      };
+    });
+
+  return { outcome: "PROMOTABLE", primary, alternates };
+}
+
+function logDryRunMultiIdentityEvidence(
+  local: { cardId: string; collectorNumber: string },
+  classification: MultiIdentityClassification,
+): void {
+  if (classification.outcome === "PROMOTABLE") {
+    const alt = classification.alternates.map((a) => ({
+      id: a.candidate.id,
+      name: a.candidate.name,
+      qualifier_key: a.qualifierKey,
+    }));
+    console.log(
+      `  [PROMOTABLE] carta_local=${local.cardId} collector_number="${local.collectorNumber}" primary=${
+        JSON.stringify(classification.primary)
+      } alternates=${JSON.stringify(alt)}`,
+    );
+    return;
+  }
+  console.log(
+    `  [STAYS_PENDING:${classification.reason}] carta_local=${local.cardId} collector_number="${local.collectorNumber}" detalhe=${classification.detail}`,
+  );
+}
+
+// --- Leituras auxiliares (vocabulário formal + tipo STANDARD + cartas PENDING c/ evidência) ---
+
+// Depende da migration 3924 (pricing_source_variant_mapping) — ainda NÃO aplicada nesta
+// rodada (ver limites da rodada E). Sem essa tabela, esta chamada falha com um erro claro do
+// PostgREST (relação inexistente), nunca silenciosamente devolve vocabulário vazio.
+async function fetchVariantVocabulary(
+  supabase: SupabaseClient,
+  pricingSourceId: string,
+): Promise<Map<string, string>> {
+  const { data, error } = await supabase.from("pricing_source_variant_mapping")
+    .select("external_variant_key, variant_type_id").eq(
+      "pricing_source_id",
+      pricingSourceId,
+    );
+  if (error) {
+    throw new Error(
+      `VARIANT_VOCABULARY_QUERY_FAILED: ${sanitize(error.message)}`,
+    );
+  }
+  return new Map(
+    (data ?? []).map((
+      r: { external_variant_key: string; variant_type_id: string },
+    ) => [r.external_variant_key, r.variant_type_id]),
+  );
+}
+
+async function fetchStandardVariantTypeId(supabase: SupabaseClient): Promise<string> {
+  const { data, error } = await supabase.from("card_variant_type").select("id").eq("code", "STANDARD").maybeSingle();
+  if (error) throw new Error(`STANDARD_VARIANT_TYPE_QUERY_FAILED: ${sanitize(error.message)}`);
+  if (!data) throw new Error("STANDARD_VARIANT_TYPE_NOT_FOUND: card_variant_type.code='STANDARD' não encontrado — pré-requisito de ADR-028/CV-01.");
+  return data.id as string;
+}
+
+type PendingCardWithEvidence = {
+  mappingId: string;
+  cardId: string;
+  collectorNumber: string;
+  evidence: Record<string, unknown>;
+};
+
+// Análoga a findPendingOrNotFoundCardsForSet(), mas (a) traz match_evidence — indispensável
+// para classifyMultiIdentityCandidate() — e (b) filtra SOMENTE match_status='PENDING'
+// (decisão 11: NOT_FOUND nunca entra neste executor, diferente do --repair-mappings, que
+// cobre os dois). Mesma disciplina de paginação+reconciliação (fetchAllRowsFromTable +
+// fetchExactCount + assertPaginationComplete) do restante do arquivo.
+async function findPendingCardsWithEvidenceForSet(
+  supabase: SupabaseClient,
+  cardSetId: string,
+  pricingSourceId: string,
+): Promise<PendingCardWithEvidence[]> {
+  const activeRows = await fetchAllRowsFromTable<LocalCardRow>(
+    supabase,
+    "card",
+    "id, name, collector_number, collector_total",
+    "collector_number",
+    (q) => q.eq("card_set_id", cardSetId).eq("is_active", true),
+  );
+  const exactActiveCount = await fetchExactCount(
+    supabase,
+    "card",
+    (q) => q.eq("card_set_id", cardSetId).eq("is_active", true),
+  );
+  assertPaginationComplete(
+    `card(multi-identity,set=${cardSetId})`,
+    activeRows.length,
+    exactActiveCount,
+  );
+
+  const activeIds = activeRows.map((r) => r.id);
+  if (activeIds.length === 0) return [];
+
+  const mappingRows = await fetchAllRowsFromTable<
+    { id: string; card_id: string; match_evidence: unknown }
+  >(
+    supabase,
+    "pricing_card_mapping",
+    "id, card_id, match_evidence",
+    "card_id",
+    (q) =>
+      q.eq("pricing_source_id", pricingSourceId).in("card_id", activeIds).eq(
+        "match_status",
+        "PENDING",
+      ),
+  );
+  const exactMappingCount = await fetchExactCount(
+    supabase,
+    "pricing_card_mapping",
+    (q) =>
+      q.eq("pricing_source_id", pricingSourceId).in("card_id", activeIds).eq(
+        "match_status",
+        "PENDING",
+      ),
+  );
+
+
+  const cardById = new Map(activeRows.map((r) => [r.id, r]));
+  return mappingRows
+    .filter((m) => cardById.has(m.card_id))
+    .map((m) => ({
+      mappingId: m.id,
+      cardId: m.card_id,
+      collectorNumber: cardById.get(m.card_id)!.collector_number,
+      evidence: (m.match_evidence ?? {}) as Record<string, unknown>,
+    }));
+}
+
+// --- Persistência (1 PRIMARY + N ALTERNATE por carta promovida) -------------------------
+
+type MultiIdentityPromotionPlan = {
+  cardId: string;
+  mappingId: string;
+  collectorNumber: string;
+  primaryCard: JustTcgCard;
+  alternates: Array<
+    { card: JustTcgCard; variantTypeId: string; qualifierKey: string }
+  >;
+  evidence: Record<string, unknown>;
+};
+
+type MultiIdentityPersistOutcome = {
+  identitiesWritten: number;
+  productsResolved: number;
+  productsWritten: number;
+  observationsResolved: number;
+  observationsWritten: number;
+  observationsDivergent: number;
+  operationsSupabase: number;
+  errorParts: string[];
+  batchFailureOccurred: boolean;
+};
+
+// Deliberadamente NÃO reusa persistBatchedResults() — aquela função é PRIMARY-only por
+// desenho (Fix P14.5, ver comentário em BatchPersistOutcome) e sua Fase 1 cobre um caminho
+// (INSERT de mapping novo) que não existe aqui: todo mapping desta função já é PENDING
+// conhecido (veio de findPendingCardsWithEvidenceForSet), então a Fase 1 abaixo é só
+// promoção via a mesma RPC de promoção exclusiva (Query 3914) — nunca UPDATE direto (grant
+// bloqueado) e nunca um INSERT de mapping novo.
+async function persistMultiIdentityPromotions(
+  supabase: SupabaseClient,
+  sourceId: string,
+  syncRunId: string | null,
+  confirmedBy: string,
+  standardVariantTypeId: string,
+  conditionMap: Map<string, string>,
+  plans: MultiIdentityPromotionPlan[],
+): Promise<MultiIdentityPersistOutcome> {
+  const errorParts: string[] = [];
+  let operationsSupabase = 0;
+  let batchFailureOccurred = false;
+  let identitiesWritten = 0;
+  let productsWritten = 0;
+  let productsResolved = 0;
+  let observationsWritten = 0;
+  let observationsResolved = 0;
+  let observationsDivergent = 0;
+
+  if (plans.length === 0) {
+    return {
+      identitiesWritten,
+      productsResolved,
+      productsWritten,
+      observationsResolved,
+      observationsWritten,
+      observationsDivergent,
+      operationsSupabase,
+      errorParts,
+      batchFailureOccurred,
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+
+  // --- Fase 1: promoção do pricing_card_mapping (PENDING -> CONFIRMED) -------------------
+  const planByMappingId = new Map(plans.map((p) => [p.mappingId, p]));
+  const updateRows = plans.map((p) => ({
+    id: p.mappingId,
+    match_status: "CONFIRMED",
+    match_method: "MULTI_IDENTITY_FORMAL_VOCABULARY",
+    match_evidence: sanitizeJson(p.evidence),
+    last_checked_at: nowIso,
+    external_card_id: p.primaryCard.id,
+    external_card_name: p.primaryCard.name,
+    confirmed_at: nowIso,
+    confirmed_by: confirmedBy,
+  }));
+  const promotedMappingIds = new Set<string>();
+  for (const rows of chunk(updateRows, BATCH_SIZE)) {
+    operationsSupabase++;
+    const { data, error } = await supabase.rpc(
+      "batch_update_pricing_card_mapping_status",
+      { p_updates: rows },
+    );
+    if (error) {
+      batchFailureOccurred = true;
+      errorParts.push(
+        `MULTI_IDENTITY_MAPPING_BATCH_UPDATE_FAILED(${rows.length} linhas): ${
+          sanitize(error.message)
+        }`,
+      );
+      continue;
+    }
+    for (const row of (data ?? []) as Array<{ id: string; card_id: string }>) {
+      promotedMappingIds.add(row.id);
+    }
+  }
+  for (const row of updateRows) {
+    if (!promotedMappingIds.has(row.id as string)) {
+      batchFailureOccurred = true;
+      errorParts.push(`MULTI_IDENTITY_MAPPING_UNRESOLVED(${row.id}): promoção não confirmada nesta rodada — nenhuma identidade/produto/observação criada para esta carta.`);
+    }
+  }
+
+  // --- Fase 2: pricing_source_card_identity — 1 PRIMARY + N ALTERNATE por mapping promovido.
+  type IdentityPlanRow = {
+    mappingId: string;
+    role: "PRIMARY" | "ALTERNATE";
+    externalCard: JustTcgCard;
+    variantTypeId: string | null;
+    externalVariantKey: string | null;
+  };
+  const identityPlanRows: IdentityPlanRow[] = [];
+  for (const mappingId of promotedMappingIds) {
+    const plan = planByMappingId.get(mappingId);
+    if (!plan) continue;
+    identityPlanRows.push({
+      mappingId,
+      role: "PRIMARY",
+      externalCard: plan.primaryCard,
+      variantTypeId: standardVariantTypeId,
+      externalVariantKey: null,
+    });
+    for (const alt of plan.alternates) {
+      identityPlanRows.push({
+        mappingId,
+        role: "ALTERNATE",
+        externalCard: alt.card,
+        variantTypeId: alt.variantTypeId,
+        externalVariantKey: alt.qualifierKey,
+      });
+    }
+  }
+
+  const identityIdByKey = new Map<string, string>(); // key = `${mappingId}::${externalCardId}`
+  for (const rowsChunk of chunk(identityPlanRows, BATCH_SIZE)) {
+    operationsSupabase++;
+    const { data, error } = await supabase
+      .from("pricing_source_card_identity")
+      .insert(
+        rowsChunk.map((r) => ({
+          pricing_card_mapping_id: r.mappingId,
+          pricing_source_id: sourceId,
+          external_card_id: r.externalCard.id,
+          external_card_name: r.externalCard.name,
+          match_status: "CONFIRMED",
+          identity_role: r.role,
+          match_method: "MULTI_IDENTITY_FORMAL_VOCABULARY",
+          match_evidence: sanitizeJson({
+            external_variant_key: r.externalVariantKey,
+            identity_role: r.role,
+          }),
+          card_variant_type_id: r.variantTypeId,
+          external_variant_key: r.externalVariantKey,
+          last_checked_at: nowIso,
+          confirmed_by: confirmedBy,
+        })),
+      )
+      .select("id, pricing_card_mapping_id, external_card_id");
+    if (error) {
+      batchFailureOccurred = true;
+      errorParts.push(
+        `MULTI_IDENTITY_IDENTITY_BATCH_INSERT_FAILED(${rowsChunk.length} linhas): ${
+          sanitize(error.message)
+        }`,
+      );
+      continue;
+    }
+    for (
+      const row of (data ?? []) as Array<
+        {
+          id: string;
+          pricing_card_mapping_id: string;
+          external_card_id: string;
+        }
+      >
+    ) {
+      identityIdByKey.set(
+        `${row.pricing_card_mapping_id}::${row.external_card_id}`,
+        row.id,
+      );
+      identitiesWritten++;
+    }
+  }
+
+  // --- Fase 3: pricing_product + pricing_observation por identidade resolvida ------------
+  type PlannedIdentityVariant = {
+    productKey: string;
+    identityId: string;
+    mappingId: string;
+    externalProductId: string;
+    sourcePrintingLabel: string;
+    conditionId: string;
+    price: number;
+    observedAt: string;
+    rawPayload: unknown;
+  };
+  const plannedVariants: PlannedIdentityVariant[] = [];
+  for (const r of identityPlanRows) {
+    const identityId = identityIdByKey.get(
+      `${r.mappingId}::${r.externalCard.id}`,
+    );
+    if (!identityId) continue; // INSERT desta identidade falhou acima — já sinalizado, sem produto/observação
+    for (const variant of r.externalCard.variants ?? []) {
+      const externalProductId = String(variant.uuid ?? variant.id ?? "");
+      const printingRaw = String(variant.printing ?? "");
+      const conditionRaw = String(variant.condition ?? "");
+      const price = variant.price;
+      const lastUpdated = variant.lastUpdated;
+      if (!externalProductId || !printingRaw || typeof price !== "number") {
+        continue;
+      }
+      const conditionId = conditionMap.get(conditionRaw);
+      if (!conditionId) {
+        errorParts.push(`CONDICAO_SEM_MAPEAMENTO(${conditionRaw})`);
+        continue;
+      }
+      const { printingTipo } = splitPrintingLanguage(printingRaw);
+      const observedAt = typeof lastUpdated === "number"
+        ? new Date(lastUpdated * 1000).toISOString()
+        : new Date().toISOString();
+      const rawPayload = sanitizeJson({
+        condition: conditionRaw,
+        printing: printingRaw,
+        price,
+        lastUpdated,
+      });
+      plannedVariants.push({
+        productKey: `${r.mappingId}::${externalProductId}`,
+        identityId,
+        mappingId: r.mappingId,
+        externalProductId,
+        sourcePrintingLabel: printingTipo ?? printingRaw,
+        conditionId,
+        price,
+        observedAt,
+        rawPayload,
+      });
+    }
+  }
+
+  const productIdByKey = new Map<string, string>();
+  if (plannedVariants.length > 0) {
+    const mappingIds = [...new Set(plannedVariants.map((v) => v.mappingId))];
+    for (const ids of chunk(mappingIds, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase.from("pricing_product").select(
+        "id, pricing_card_mapping_id, external_product_id",
+      ).in("pricing_card_mapping_id", ids);
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(
+          `MULTI_IDENTITY_PRODUCT_BATCH_SELECT_FAILED: ${
+            sanitize(error.message)
+          }`,
+        );
+        continue;
+      }
+      for (
+        const row of (data ?? []) as Array<
+          {
+            id: string;
+            pricing_card_mapping_id: string;
+            external_product_id: string;
+          }
+        >
+      ) {
+        productIdByKey.set(
+          `${row.pricing_card_mapping_id}::${row.external_product_id}`,
+          row.id,
+        );
+      }
+    }
+
+    const toInsertProducts: Array<
+      { key: string; row: Record<string, unknown> }
+    > = [];
+    const seenThisBatch = new Set<string>();
+    for (const v of plannedVariants) {
+      if (productIdByKey.has(v.productKey) || seenThisBatch.has(v.productKey)) {
+        continue; // REUSE
+      }
+      seenThisBatch.add(v.productKey);
+      toInsertProducts.push({
+        key: v.productKey,
+        row: {
+          pricing_card_mapping_id: v.mappingId,
+          pricing_source_card_identity_id: v.identityId,
+          external_product_id: v.externalProductId,
+          source_printing_label: v.sourcePrintingLabel,
+          language_status: "UNDETERMINED",
+          language_id: null,
+        },
+      });
+    }
+    for (const pairs of chunk(toInsertProducts, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase.from("pricing_product").insert(
+        pairs.map((p) => p.row),
+      ).select("id, pricing_card_mapping_id, external_product_id");
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(
+          `MULTI_IDENTITY_PRODUCT_BATCH_INSERT_FAILED(${pairs.length} linhas): ${
+            sanitize(error.message)
+          }`,
+        );
+        continue;
+      }
+      for (
+        const row of (data ?? []) as Array<
+          {
+            id: string;
+            pricing_card_mapping_id: string;
+            external_product_id: string;
+          }
+        >
+      ) {
+        productIdByKey.set(
+          `${row.pricing_card_mapping_id}::${row.external_product_id}`,
+          row.id,
+        );
+        productsWritten++;
+      }
+    }
+  }
+
+  const variantsWithProduct = plannedVariants
+    .map((v) => ({ ...v, productId: productIdByKey.get(v.productKey) ?? null }))
+    .filter((v): v is PlannedIdentityVariant & { productId: string } =>
+      v.productId !== null
+    );
+  const unresolvedProductCount = plannedVariants.length -
+    variantsWithProduct.length;
+  if (unresolvedProductCount > 0) {
+    errorParts.push(
+      `MULTI_IDENTITY_PRODUCT_UNRESOLVED_SKIP_OBSERVATIONS(${unresolvedProductCount} variante(s))`,
+    );
+  }
+  for (const v of variantsWithProduct) {
+    if (productIdByKey.has(v.productKey)) productsResolved++;
+  }
+
+  if (variantsWithProduct.length > 0) {
+    const latestObsByGroup = new Map<
+    string,
+    { price: number; observedAt: string }
+  >();
+    const uniqueGroupKeys = new Map<string, { pricing_product_id: string; condition_id: string; price_type: string; currency_code: string; market_label: string }>();
+    for (const v of variantsWithProduct) {
+      const key = `${v.productId}::${v.conditionId}`;
+      if (!uniqueGroupKeys.has(key)) {
+        uniqueGroupKeys.set(key, {
+          pricing_product_id: v.productId,
+          condition_id: v.conditionId,
+          price_type: "MARKET",
+          currency_code: "USD",
+          market_label: MARKET_LABEL,
+        });
+      }
+    }
+    for (const keysChunk of chunk([...uniqueGroupKeys.values()], BATCH_SIZE)) {
+      operationsSupabase++;
+      const { data, error } = await supabase.rpc(
+        "batch_select_latest_pricing_observation_by_identity",
+        { p_keys: keysChunk },
+      );
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(
+          `MULTI_IDENTITY_OBSERVATION_LATEST_BATCH_SELECT_FAILED: ${
+            sanitize(error.message)
+          }`,
+        );
+        continue;
+      }
+      for (
+        const row of (data ?? []) as Array<
+          {
+            pricing_product_id: string;
+            condition_id: string;
+            observed_at: string;
+            price: number;
+          }
+        >
+      ) {
+        latestObsByGroup.set(`${row.pricing_product_id}::${row.condition_id}`, {
+          price: Number(row.price),
+          observedAt: row.observed_at,
+        });
+      }
+    }
+
+    const toInsertObservations: Array<Record<string, unknown>> = [];
+    const seenThisBatch = new Map<
+      string,
+      { price: number; observedAt: string }
+    >();
+    for (const v of variantsWithProduct) {
+      const key = `${v.productId}::${v.conditionId}`;
+      const latest = seenThisBatch.get(key) ?? latestObsByGroup.get(key) ??
+        null;
+      if (latest === null) {
+        seenThisBatch.set(key, { price: v.price, observedAt: v.observedAt });
+        toInsertObservations.push({
+          pricing_product_id: v.productId,
+          condition_id: v.conditionId,
+          sync_run_id: syncRunId,
+          price_type: "MARKET",
+          price: v.price,
+          currency_code: "USD",
+          market_label: MARKET_LABEL,
+          market_scope: "UNDETERMINED",
+          market_evidence: {},
+          market_evidence_confirmed: false,
+          observed_at: v.observedAt,
+          raw_payload: v.rawPayload,
+        });
+        continue;
+      }
+      if (latest.price === v.price) {
+        observationsResolved++;
+        continue;
+      }
+      if (latest.observedAt === v.observedAt) {
+        observationsResolved++;
+        observationsDivergent++;
+        errorParts.push(
+          `MULTI_IDENTITY_OBSERVATION_PRICE_DIVERGENTE_PRESERVADA(${v.externalProductId}): existente=${latest.price} novo=${v.price} observed_at=${v.observedAt}`,
+        );
+        continue;
+      }
+      seenThisBatch.set(key, { price: v.price, observedAt: v.observedAt });
+      toInsertObservations.push({
+        pricing_product_id: v.productId,
+        condition_id: v.conditionId,
+        sync_run_id: syncRunId,
+        price_type: "MARKET",
+        price: v.price,
+        currency_code: "USD",
+        market_label: MARKET_LABEL,
+        market_scope: "UNDETERMINED",
+        market_evidence: {},
+        market_evidence_confirmed: false,
+        observed_at: v.observedAt,
+        raw_payload: v.rawPayload,
+      });
+    }
+
+    for (const rows of chunk(toInsertObservations, BATCH_SIZE)) {
+      operationsSupabase++;
+      const { error } = await supabase.from("pricing_observation").insert(rows);
+      if (error) {
+        batchFailureOccurred = true;
+        errorParts.push(
+          `MULTI_IDENTITY_OBSERVATION_BATCH_INSERT_FAILED(${rows.length} linhas): ${
+            sanitize(error.message)
+          }`,
+        );
+        continue;
+      }
+      observationsResolved += rows.length;
+      observationsWritten += rows.length;
+    }
+  }
+
+  return {
+    identitiesWritten,
+    productsResolved,
+    productsWritten,
+    observationsResolved,
+    observationsWritten,
+    observationsDivergent,
+    operationsSupabase,
+    errorParts,
+    batchFailureOccurred,
+  };
+}
+
+// --- Orquestração (mesmo esqueleto de executeRepairMappings) ----------------------------
+
+type RepairMultiIdentitiesOpts = {
+  dryRun: boolean;
+  confirmedBy: string | null;
+  maxApiRequests: number;
+  expectedSetCodes: string[];
+  repairSetCodes?: string[] | null;
+};
+
+type RepairMultiIdentitiesSetSummary = {
+  code: string;
+  pendingCount: number;
+  notFoundCount: number;
+  externalCardsSeen: number;
+  cardsEvaluated: number;
+  cardsPromoted: number;
+  cardsStillPendingNoStandard: number;
+  cardsStillPendingMultipleStandard: number;
+  cardsStillPendingUnknownQualifier: number;
+  cardsStillPendingDenominatorIncompatible: number;
+  cardsStillPendingNoCandidates: number;
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+};
+
+type RepairMultiIdentitiesRunResult = {
+  setsTargeted: string[];
+  perSet: RepairMultiIdentitiesSetSummary[];
+  cardsEvaluated: number;
+  cardsPromoted: number;
+  cardsStillPendingNoStandard: number;
+  cardsStillPendingMultipleStandard: number;
+  cardsStillPendingUnknownQualifier: number;
+  cardsStillPendingDenominatorIncompatible: number;
+  cardsStillPendingNoCandidates: number;
+  identitiesResolved: number;
+  identitiesWritten: number;
+  productsResolved: number;
+  productsWritten: number;
+  observationsResolved: number;
+  observationsWritten: number;
+  observationsDivergent: number;
+  operationsSupabase: number;
+  productsProjected: number;
+  observationsProjected: number;
+  variantsProjectionSkipped: number;
+  requestsMade: number;
+  maxApiRequests: number;
+  requestsRemainingLocal: number;
+  vocabularyEntriesLoaded: number;
+  status: "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED";
+  errorParts: string[];
+  syncRunId: string | null;
+};
+
+async function executeRepairMultiIdentities(
+  supabase: SupabaseClient,
+  client: JustTcgClient,
+  opts: RepairMultiIdentitiesOpts,
+): Promise<RepairMultiIdentitiesRunResult> {
+  const { sourceId, localSets, existingSetMappings, existingCoverage } =
+    await fetchReconciledLocalInputs(supabase);
+
+  let syncRunId: string | null = null;
+  let syncRunFinalized = false;
+
+  if (!opts.dryRun) {
+    const startAttempt = await tryOpenCardSyncRun(
+      supabase,
+      sourceId,
+      opts.confirmedBy as string,
+    );
+    if (startAttempt.outcome === "CONCURRENT_CONFLICT") {
+      throw new Error("CONFLITO_DE_CONCORRENCIA: já existe uma execução CARD_SYNC ativa (RECEIVED/PROCESSING) para esta fonte — reparo de múltiplas identidades abortado antes de qualquer chamada à JustTCG.");
+    }
+    if (startAttempt.outcome === "OTHER_ERROR") {
+      throw new Error(`SYNC_RUN_INSERT_FAILED: ${startAttempt.error}`);
+    }
+    syncRunId = startAttempt.id;
+  }
+
+  const conditionMap = await getConditionMap(supabase, sourceId);
+  if (!opts.dryRun && conditionMap.size === 0) {
+    throw new Error(
+      "CONDITION_MAP_VAZIO: rode a seed 3702 (pricing_condition_mapping) antes deste script.",
+    );
+  }
+
+  // Pré-requisito estrutural (migration 3924, ainda NÃO aplicada nesta rodada — ver limites
+  // da rodada E): sem vocabulário formal carregado, nenhum candidato pode ser classificado
+  // sem inferência por substring livre (decisão 8) — aborta ANTES de qualquer chamada à
+  // JustTCG, mesmo em dry-run.
+  const vocabulary = await fetchVariantVocabulary(supabase, sourceId);
+  const standardVariantTypeId = await fetchStandardVariantTypeId(supabase);
+  if (vocabulary.size === 0) {
+    throw new Error("VARIANT_VOCABULARY_VAZIO: pricing_source_variant_mapping não tem nenhuma linha para esta fonte — aplique a migration 3924 (seed) antes deste modo.");
+  }
+
+  const summary = {
+    cardsEvaluated: 0,
+    cardsPromoted: 0,
+    cardsStillPendingNoStandard: 0,
+    cardsStillPendingMultipleStandard: 0,
+    cardsStillPendingUnknownQualifier: 0,
+    cardsStillPendingDenominatorIncompatible: 0,
+    cardsStillPendingNoCandidates: 0,
+    identitiesResolved: 0,
+    identitiesWritten: 0,
+    productsResolved: 0,
+    productsWritten: 0,
+    observationsResolved: 0,
+    observationsWritten: 0,
+    observationsDivergent: 0,
+    operationsSupabase: 0,
+    productsProjected: 0,
+    observationsProjected: 0,
+    variantsProjectionSkipped: 0,
+  };
+  const perSet: RepairMultiIdentitiesSetSummary[] = [];
+  const errorParts: string[] = [];
+  const plans: MultiIdentityPromotionPlan[] = [];
+  let acquisitionFailed = false;
+
+  try {
+    const allCandidates = buildRepairCandidates(
+      localSets,
+      existingSetMappings,
+      existingCoverage,
+    );
+    const repairSetCodesFilter = filterRepairCandidatesBySetCodes(
+      allCandidates,
+      opts.repairSetCodes ?? null,
+      localSets,
+    );
+    if (!repairSetCodesFilter.ok) {
+      throw new Error(`${repairSetCodesFilter.reason} Reparo de múltiplas identidades abortado antes de qualquer chamada à JustTCG.`);
+    }
+    const candidates = repairSetCodesFilter.filtered;
+
+    const actualCodes = [...new Set(candidates.map((c) => c.code))].sort();
+    const expectedCodes = [...new Set(opts.expectedSetCodes)].sort();
+    const compositionMatches = actualCodes.length === expectedCodes.length &&
+      actualCodes.every((code, i) => code === expectedCodes[i]);
+    if (!compositionMatches) {
+      const missing = expectedCodes.filter((c) => !actualCodes.includes(c));
+      const extra = actualCodes.filter((c) => !expectedCodes.includes(c));
+      throw new Error(
+        `MULTI_IDENTITY_CANDIDATE_SETS_CHANGED: os Sets elegíveis recalculados agora são [${actualCodes.join(",") || "nenhum"}], divergente do esperado [${expectedCodes.join(",") || "nenhum"}] — faltando=[${missing.join(",") || "nenhum"}] excedente=[${extra.join(",") || "nenhum"}]. Reparo abortado antes de qualquer chamada à JustTCG.`,
+      );
+    }
+
+    for (const candidate of candidates) {
+      const { cards: externalCards, requestsUsed, aborted } =
+        await fetchAllCardsForSet(client, candidate.externalSetId);
+      const setSummary: RepairMultiIdentitiesSetSummary = {
+        code: candidate.code,
+        pendingCount: candidate.pendingCount,
+        notFoundCount: candidate.notFoundCount,
+        externalCardsSeen: externalCards.length,
+        cardsEvaluated: 0,
+        cardsPromoted: 0,
+        cardsStillPendingNoStandard: 0,
+        cardsStillPendingMultipleStandard: 0,
+        cardsStillPendingUnknownQualifier: 0,
+        cardsStillPendingDenominatorIncompatible: 0,
+        cardsStillPendingNoCandidates: 0,
+        productsProjected: 0,
+        observationsProjected: 0,
+        variantsProjectionSkipped: 0,
+      };
+      perSet.push(setSummary);
+
+      if (aborted === "AUTH_FAILURE") {
+        errorParts.push(`AUTENTICACAO_FALHOU_401(${candidate.code})`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "BUDGET_STOPPED") {
+        errorParts.push(`ORCAMENTO_ESGOTADO(${candidate.code}): após ${requestsUsed} requisição(ões) de página deste Set — nenhum dado de negócio deste reparo será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+      if (aborted === "TECHNICAL_FAILURE") {
+        errorParts.push(`PAGINACAO_CARDS_FALHOU(${candidate.code}): interrompida após ${requestsUsed} requisição(ões) — nenhum dado de negócio deste reparo será persistido.`);
+        acquisitionFailed = true;
+        break;
+      }
+
+      const externalById = new Map(externalCards.map((c) => [c.id, c]));
+      const targetLocalCards = await findPendingCardsWithEvidenceForSet(
+        supabase,
+        candidate.cardSetId,
+        sourceId,
+      );
+      summary.cardsEvaluated += targetLocalCards.length;
+      setSummary.cardsEvaluated = targetLocalCards.length;
+
+      for (const localCard of targetLocalCards) {
+        const classification = classifyMultiIdentityCandidate(
+          localCard.evidence,
+          vocabulary,
+        );
+
+        if (classification.outcome === "STAYS_PENDING") {
+          if (opts.dryRun) {
+            logDryRunMultiIdentityEvidence(localCard, classification);
+          }
+          switch (classification.reason) {
+            case "NO_STANDARD_CANDIDATE":
+              summary.cardsStillPendingNoStandard++;
+              setSummary.cardsStillPendingNoStandard++;
+              break;
+            case "MULTIPLE_STANDARD_CANDIDATES":
+              summary.cardsStillPendingMultipleStandard++;
+              setSummary.cardsStillPendingMultipleStandard++;
+              break;
+            case "UNKNOWN_QUALIFIER":
+              summary.cardsStillPendingUnknownQualifier++;
+              setSummary.cardsStillPendingUnknownQualifier++;
+              break;
+            case "DENOMINATOR_INCOMPATIBLE_PRESENT":
+              summary.cardsStillPendingDenominatorIncompatible++;
+              setSummary.cardsStillPendingDenominatorIncompatible++;
+              break;
+            case "NO_CANDIDATES_IN_EVIDENCE":
+              summary.cardsStillPendingNoCandidates++;
+              setSummary.cardsStillPendingNoCandidates++;
+              break;
+          }
+          continue;
+        }
+
+        const primaryCard = externalById.get(classification.primary.id);
+        const alternateCards = classification.alternates.map((a) => ({
+          card: externalById.get(a.candidate.id),
+          variantTypeId: a.variantTypeId,
+          qualifierKey: a.qualifierKey,
+        }));
+        if (!primaryCard || alternateCards.some((a) => !a.card)) {
+          // Candidato presente na evidência PENDING persistida mas ausente na paginação atual
+          // da JustTCG (catálogo externo mudou entre a classificação original e esta rodada)
+          // — nunca promovido com dado incompleto; permanece PENDING, sinalizado.
+          summary.cardsStillPendingNoCandidates++;
+          setSummary.cardsStillPendingNoCandidates++;
+          errorParts.push(
+            `MULTI_IDENTITY_CANDIDATE_NOT_IN_CURRENT_PAGE(card=${localCard.cardId})`,
+          );
+          continue;
+        }
+
+        summary.cardsPromoted++;
+        setSummary.cardsPromoted++;
+
+        const evidence: Record<string, unknown> = {
+          ...localCard.evidence,
+          multi_identity_method: "MULTI_IDENTITY_FORMAL_VOCABULARY",
+          primary_selecionado: classification.primary,
+          alternates_classificados: classification.alternates.map((a) => ({
+            candidato: a.candidate,
+            qualifier_key: a.qualifierKey,
+            variant_type_id: a.variantTypeId,
+          })),
+        };
+
+        if (opts.dryRun) {
+          const allVariants = [
+            ...(primaryCard.variants ?? []),
+            ...alternateCards.flatMap((a) => a.card!.variants ?? []),
+          ];
+          for (const variant of allVariants) {
+            const projection = planVariantProjection(variant, conditionMap);
+            if (projection.status === "PROJECTED") {
+              summary.productsProjected++;
+              summary.observationsProjected++;
+              setSummary.productsProjected++;
+              setSummary.observationsProjected++;
+            } else {
+              summary.variantsProjectionSkipped++;
+              setSummary.variantsProjectionSkipped++;
+            }
+          }
+          continue;
+        }
+
+        plans.push({
+          cardId: localCard.cardId,
+          mappingId: localCard.mappingId,
+          collectorNumber: localCard.collectorNumber,
+          primaryCard,
+          alternates: alternateCards.map((a) => ({
+            card: a.card as JustTcgCard,
+            variantTypeId: a.variantTypeId,
+            qualifierKey: a.qualifierKey,
+          })),
+          evidence,
+        });
+      }
+    }
+
+    let batchPersistenceFailed = false;
+    if (acquisitionFailed) {
+      // Falha de aquisição bloqueia a persistência de TODO o reparo — mesma disciplina de
+      // executeRepairMappings: nunca uma escrita parcial por Set.
+    } else if (!opts.dryRun && plans.length > 0) {
+      const outcome = await persistMultiIdentityPromotions(
+        supabase,
+        sourceId,
+        syncRunId,
+        opts.confirmedBy as string,
+        standardVariantTypeId,
+        conditionMap,
+        plans,
+      );
+      summary.identitiesResolved += outcome.identitiesWritten; // todo mapping desta função era PENDING — nunca há REUSE de identidade pré-existente
+      summary.identitiesWritten += outcome.identitiesWritten;
+      summary.productsResolved += outcome.productsResolved;
+      summary.productsWritten += outcome.productsWritten;
+      summary.observationsResolved += outcome.observationsResolved;
+      summary.observationsWritten += outcome.observationsWritten;
+      summary.observationsDivergent += outcome.observationsDivergent;
+      summary.operationsSupabase += outcome.operationsSupabase;
+      errorParts.push(...outcome.errorParts);
+      if (outcome.batchFailureOccurred) batchPersistenceFailed = true;
+    }
+
+    const finalStatus = acquisitionFailed
+      ? "FAILED"
+      : computeFinalStatus(
+        batchPersistenceFailed,
+        errorParts.length > 0,
+        summary.cardsPromoted > 0 || summary.cardsEvaluated > 0,
+      );
+
+    if (!opts.dryRun) {
+      await finalizeSyncRun(
+        supabase,
+        syncRunId,
+        client,
+        finalStatus,
+        errorParts.length > 0 ? errorParts.slice(0, 15).join(" | ") : null,
+        opts.dryRun,
+      );
+      syncRunFinalized = true;
+    }
+
+    return {
+      setsTargeted: candidates.map((c) => c.code),
+      perSet,
+      cardsEvaluated: summary.cardsEvaluated,
+      cardsPromoted: summary.cardsPromoted,
+      cardsStillPendingNoStandard: summary.cardsStillPendingNoStandard,
+      cardsStillPendingMultipleStandard:
+        summary.cardsStillPendingMultipleStandard,
+      cardsStillPendingUnknownQualifier:
+        summary.cardsStillPendingUnknownQualifier,
+      cardsStillPendingDenominatorIncompatible:
+        summary.cardsStillPendingDenominatorIncompatible,
+      cardsStillPendingNoCandidates: summary.cardsStillPendingNoCandidates,
+      identitiesResolved: summary.identitiesResolved,
+      identitiesWritten: summary.identitiesWritten,
+      productsResolved: summary.productsResolved,
+      productsWritten: summary.productsWritten,
+      observationsResolved: summary.observationsResolved,
+      observationsWritten: summary.observationsWritten,
+      observationsDivergent: summary.observationsDivergent,
+      operationsSupabase: summary.operationsSupabase,
+      productsProjected: summary.productsProjected,
+      observationsProjected: summary.observationsProjected,
+      variantsProjectionSkipped: summary.variantsProjectionSkipped,
+      requestsMade: client.requestsMade,
+      maxApiRequests: opts.maxApiRequests,
+      requestsRemainingLocal: client.requestsRemainingLocal,
+      vocabularyEntriesLoaded: vocabulary.size,
+      status: finalStatus,
+      errorParts,
+      syncRunId,
+    };
+  } catch (error) {
+    if (!opts.dryRun && !syncRunFinalized && syncRunId) {
+      const message = error instanceof Error ? error.message : String(error);
+      await finalizeSyncRun(
+        supabase,
+        syncRunId,
+        client,
+        "FAILED",
+        message,
+        opts.dryRun,
+      );
+    }
+    throw error;
+  }
+}
+
+type RepairMultiIdentitiesArgsValidation =
+  | {
+    ok: true;
+    maxApiRequests: number;
+    expectedSetCodes: string[];
+    repairSetCodes: string[] | null;
+  }
+  | { ok: false; reason: string };
+
+// Mesma disciplina de validateRepairMappingsArgs — sem número de onda, --expected-set-codes
+// obrigatório, --repair-set-codes opcional, --dry-run/--confirmed-by mutuamente exclusivos.
+function validateRepairMultiIdentitiesArgs(
+  args: {
+    maxApiRequests: string | null;
+    dryRun: boolean;
+    confirmedBy: string | null;
+    expectedSetCodes: string | null;
+    repairSetCodes: string | null;
+  },
+): RepairMultiIdentitiesArgsValidation {
+  const budgetRaw = args.maxApiRequests;
+  if (budgetRaw === null) {
+    return { ok: false, reason: "MAX_API_REQUESTS_AUSENTE: --max-api-requests=<n> é obrigatório neste modo." };
+  }
+  const maxApiRequests = Number(budgetRaw);
+  if (!Number.isInteger(maxApiRequests) || maxApiRequests <= 0) {
+    return {
+      ok: false,
+      reason:
+        `MAX_API_REQUESTS_INVALIDO(${budgetRaw}): --max-api-requests deve ser um inteiro positivo.`,
+    };
+  }
+
+  const expectedSetCodesValidation = validateExpectedSetCodes(
+    args.expectedSetCodes,
+  );
+  if (!expectedSetCodesValidation.ok) {
+    return { ok: false, reason: expectedSetCodesValidation.reason };
+  }
+
+  let repairSetCodes: string[] | null = null;
+  if (args.repairSetCodes !== null) {
+    const repairSetCodesValidation = validateRepairSetCodesFormat(
+      args.repairSetCodes,
+    );
+    if (!repairSetCodesValidation.ok) {
+      return { ok: false, reason: repairSetCodesValidation.reason };
+    }
+    repairSetCodes = repairSetCodesValidation.codes;
+  }
+
+  const hasDryRun = args.dryRun;
+  const hasConfirmedBy = args.confirmedBy !== null && args.confirmedBy !== "";
+  if (hasDryRun && hasConfirmedBy) {
+    return { ok: false, reason: "MODOS_CONFLITANTES: --dry-run e --confirmed-by são mutuamente exclusivos no executor de múltiplas identidades — escolha simulação (--dry-run) ou execução real (--confirmed-by=<admin_user_uuid>), nunca os dois." };
+  }
+  if (!hasDryRun && !hasConfirmedBy) {
+    return { ok: false, reason: "MODO_AUSENTE: informe --dry-run (simulação, sem escrita) ou --confirmed-by=<admin_user_uuid> (execução real) — nenhum modo padrão é assumido." };
+  }
+
+  return {
+    ok: true,
+    maxApiRequests,
+    expectedSetCodes: expectedSetCodesValidation.codes,
+    repairSetCodes,
+  };
+}
+
+async function runRepairMultiIdentities(
+  opts: RepairMultiIdentitiesOpts,
+): Promise<void> {
+  const supabaseUrl = requireEnv("SUPABASE_URL");
+  const supabaseServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const justTcgApiKey = requireEnv("JUSTTCG_API_KEY");
+
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  const client = new JustTcgClient(
+    justTcgApiKey,
+    undefined,
+    opts.maxApiRequests,
+  );
+
+  console.log(`=== Executor de Reparo de Múltiplas Identidades (P14 — vocabulário de variantes) — orçamento local=${opts.maxApiRequests} ===`);
+  console.log(opts.dryRun ? "[DRY-RUN] Nenhuma escrita será persistida — nenhum pricing_sync_run será criado.\n" : `Confirmado por (admin_user.id): ${opts.confirmedBy}\n`);
+
+  const result = await executeRepairMultiIdentities(supabase, client, opts);
+
+  console.log("\n=== Resumo da execução de reparo de múltiplas identidades ===");
+  console.log(JSON.stringify(result, null, 2));
+}
+
+// ============================================================================
 // 8. Entrypoint
 // ============================================================================
 
@@ -7831,6 +10824,7 @@ async function main() {
       backfillWave: args.backfillWave,
       repairMappings: args.repairMappings,
       repairSetCodes: args.repairSetCodes,
+      repairMultiIdentities: args.repairMultiIdentities,
     },
     {
       justTcgApiKey: Deno.env.get("JUSTTCG_API_KEY"),
@@ -7863,10 +10857,18 @@ async function main() {
     Deno.exit(1);
   }
 
+  if (decision.kind === "REPAIR_MULTI_IDENTITIES_INVALID_ARGS") {
+    console.error(`Argumentos inválidos para o executor de múltiplas identidades (--repair-multi-identities): ${decision.reason}`);
+    console.error("Exemplo: --repair-multi-identities --max-api-requests=10 --expected-set-codes=SV8.5 --dry-run  (ou --confirmed-by=<admin_user_uuid> para execução real).");
+    console.error("Opcional: --repair-set-codes=<lista> filtra os candidatos ANTES de qualquer chamada à JustTCG — só válido junto com --repair-multi-identities; --expected-set-codes deve coincidir com o subconjunto selecionado, não com a lista completa de candidatos.");
+    console.error("Pré-requisito estrutural: migration 3924 (pricing_source_variant_mapping + card_variant_type_id/external_variant_key em pricing_source_card_identity) precisa estar aplicada, com vocabulário semeado para esta fonte.");
+    Deno.exit(1);
+  }
+
   if (decision.kind === "MISSING_ENV") {
     // Mensagem sanitizada: só nomes de variáveis, nunca valores.
     console.error(`Variável(is) de ambiente obrigatória(s) ausente(s): ${decision.missing.join(", ")}.`);
-    console.error("Defina todas antes de rodar o piloto real, o plano de expansão, o executor de onda, o executor de backfill ou o executor de reparo, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
+    console.error("Defina todas antes de rodar o piloto real, o plano de expansão, o executor de onda, o executor de backfill, o executor de reparo ou o executor de múltiplas identidades, ou use --fixture-check para validar a lógica offline sem nenhuma credencial.");
     Deno.exit(1);
   }
 
@@ -7899,6 +10901,17 @@ async function main() {
 
   if (decision.kind === "REPAIR_MAPPINGS") {
     await runRepairMappings({
+      maxApiRequests: decision.maxApiRequests,
+      dryRun: decision.dryRun,
+      confirmedBy: decision.confirmedBy,
+      expectedSetCodes: decision.expectedSetCodes,
+      repairSetCodes: decision.repairSetCodes,
+    });
+    return;
+  }
+
+  if (decision.kind === "REPAIR_MULTI_IDENTITIES") {
+    await runRepairMultiIdentities({
       maxApiRequests: decision.maxApiRequests,
       dryRun: decision.dryRun,
       confirmedBy: decision.confirmedBy,

@@ -1,0 +1,133 @@
+# ADR-032 — Orquestração Programada de Preços JustTCG
+
+| Campo | Valor |
+|--------|-------|
+| **ADR** | ADR-032 |
+| **Título** | Orquestração Programada de Preços JustTCG |
+| **Status** | Aprovado |
+| **Revisão** | 1.1 |
+| **Data** | 2026-08-21 |
+| **Decisores** | Project Mimikyu |
+| **Decisão** | Reaproveita integralmente a arquitetura já validada em produção por `ADR-031` (Supabase Cron + `pg_net` + Edge Function dedicada + Vault, autenticação por secret key dedicada em comparação manual de tempo constante) para o refresh diário de preços da fonte `JUSTTCG`, encerrando a exclusão explícita registrada em `ADR-031` ("JustTCG permanece inteiramente fora do P13"). Diferença estrutural frente ao caso PTAX: o refresh diário da JustTCG não cabe em uma única invocação da Edge Function — o catálogo confirmado (~8.143 identidades PRIMARY/ALTERNATE, 2026-08-20) excede o orçamento seguro de requisições e o tempo de execução de um único worker — então a execução é fatiada em **ondas independentes**, cada uma sua própria invocação agendada, nunca uma orquestração que encadeia todas as ondas dentro de uma única chamada. |
+| **Documentos Relacionados** | `ADR-031-scheduled-pricing-orchestration.md` (arquitetura-alvo original, PTAX), `ADR-029-pricing-domain-model.md`, `../05f-pricing.md` (seção "Incremento P15"), `../standards/STD-001-database-standards.md` |
+
+**Nota de numeração**: `ADR-031` é o último ADR em uso (`ADR-INDEX.md`, revisão `2.20`) — este documento recebe o próximo número livre real, `ADR-032`, confirmado por introspecção do índice antes da criação.
+
+---
+
+# Context
+
+`ADR-031` estabeleceu a arquitetura-alvo de orquestração programada de Pricing (Cron/`pg_net`/Edge Function/Vault) e a implementou de ponta a ponta para PTAX (`P13.1`–`P13.4`, todos formalmente encerrados), mas excluiu deliberadamente qualquer trabalho de agendamento da JustTCG — decisão correta na época, porque a fonte ainda dependia de plano comercial e de um pipeline de descoberta/matching que só amadureceu ao longo do Incremento P14 (P14.1–P14.4.5).
+
+Em 2026-08-21, com `JUSTTCG.is_active = TRUE` desde P14.1 e o catálogo de identidades PRIMARY/ALTERNATE já substancialmente confirmado pelo trabalho de P14, Fabrício pediu a implementação do refresh diário automático de preços — reaproveitando a mesma arquitetura de PTAX, mas resolvendo um problema que PTAX nunca teve: **volume**. Uma cotação PTAX é uma única chamada HTTP por execução; um refresh de preços da JustTCG precisa iterar sobre dezenas de Sets e milhares de identidades confirmadas, o que não cabe dentro do tempo de vida de um único worker de Edge Function.
+
+Decisões fechadas por Fabrício antes da implementação (numeradas para referência cruzada com o código e os testes):
+
+1. Execução diária, inclusive sábados e domingos (JustTCG não observa calendário de dias úteis, diferente do BCB/PTAX).
+2. Ondas independentes — um Set nunca é dividido entre ondas.
+3. (mesmo que 2, reafirmado no desenho do empacotamento guloso.)
+4. Nenhuma sobrescrita silenciosa de teto — capacidade excedida é um resultado explícito (`SCHEDULE_CAPACITY_EXCEEDED`), nunca uma 31ª onda ou uma onda oversized processada parcialmente sem sinalização.
+5. Cada onda tem teto autoritativo de requisições (`WAVE_PAGE_CAP`) — nunca uma onda que processa Sets sem limite.
+6. Ondas fora do plano do dia (ex.: onda 20 quando o plano calculado só tem 12 ondas) retornam NOOP sem criar `pricing_sync_run`.
+7. Capacidade automática — o número de ondas necessárias é recalculado a cada execução a partir do catálogo confirmado real, nunca hardcoded.
+8. `triggered_by = 'SCHEDULED'` / `confirmed_by = NULL` sempre — nenhuma execução manual por esta porta.
+9. `CARD_SYNC` (o modo de descoberta/matching de P14, via CLI) e `PRICE_REFRESH` (este incremento) devem ser mutuamente exclusivos para a mesma `pricing_source_id` — nunca as duas rodando ao mesmo tempo sobre o mesmo catálogo.
+10. `pricing_source_card_identity` (não `pricing_card_mapping`) é a fonte de verdade de "o que está confirmado para refresh" — `PENDING`/`NOT_FOUND`/`REJECTED`/`ALIAS` nunca entram no cálculo de páginas nem no processamento de uma onda.
+11. Este núcleo nunca escreve em `pricing_set_mapping`, `pricing_card_mapping` ou `pricing_source_card_identity` — sem exceção, garantia estrutural (a porta funcional simplesmente não expõe nenhuma operação de escrita nessas três tabelas), não apenas disciplina de código.
+12. Nunca refaz matching/correlação de cartas — a correlação carta externa → identidade local é sempre busca exata por `external_card_id`, nunca heurística de nome/número.
+13. Produtos resolvidos por identidade + `external_product_id`, `INSERT`-only (nunca `UPDATE` de um produto já existente).
+14. Observação nova só quando o preço muda de fato — preço idêntico ao último conhecido nunca gera uma linha nova, independente de quando a checagem ocorreu.
+15. Falha real (escrita rejeitada, credencial inválida) finaliza o run como `FAILED`, mas nunca desfaz escritas já confirmadas em Sets/ondas anteriores da mesma execução.
+16. Nunca fica preso em `PROCESSING` — nem em sucesso, nem em falha, nem em corte inesperado do worker.
+17. `PENDING`/`NOT_FOUND`/`REJECTED`/`ALIAS` são filtrados na origem (leitura), nunca no meio do processamento.
+
+---
+
+# Decision
+
+## Item A — Núcleo HTTP/paginação compartilhado, extraído do CLI (`_shared/pricing-justtcg/`)
+
+O cliente HTTP tipado, a paginação de `GET /v1/cards` e os tipos puros da JustTCG v1, antes vivendo só dentro de `scripts/sync-justtcg-pricing.ts` (P8/P14.1–P14.4.5), foram extraídos verbatim (mesmo comportamento, zero mudança de lógica) para `supabase/functions/_shared/pricing-justtcg/` — ponto único de importação (`mod.ts`) reaproveitado tanto pelo CLI (já reescrito para consumir o núcleo extraído, sem regressão) quanto pela nova Edge Function. `client.ts` preserva timeout, tratamento de `401`/`429`/`5xx`, orçamento local conservador (`MAX_REQUESTS_PER_RUN`) e o intervalo de 3s entre chamadas, exatamente como validado em produção pelo CLI desde P8.
+
+## Item B — Núcleo puro de orquestração de onda (`_shared/pricing-justtcg-refresh/`)
+
+Mesma disciplina de dependency injection já usada por `_shared/pricing-ptax/`: nenhum `Deno.env`, nenhum `fetch` global direto, nenhum `SupabaseClient` concreto dentro do núcleo — tudo resolvido pelo chamador (`index.ts`) e injetado.
+
+- **`wave-plan.ts`** — função pura `buildRefreshWavePlan()`: lê candidatos (Sets com ≥1 identidade PRIMARY/ALTERNATE `CONFIRMED`, já filtrados pela porta), ordena deterministicamente por `card_set.code`, estima páginas por Set (`Math.ceil(confirmedCardCount / CARDS_PAGE_LIMIT)`, mínimo 1) e empacota gulosamente em ondas — um Set nunca é dividido entre ondas; um Set cujas próprias páginas excedem o teto de uma onda forma sua própria onda "oversized". `WAVE_PAGE_CAP = 10`, `MAX_WAVES = 30`, capacidade automática `MAX_CAPACITY_PAGES = 300` páginas/dia — excedida em qualquer uma das duas dimensões (total de páginas ou número de ondas exigido pelo empacotamento guloso), o resultado é `SCHEDULE_CAPACITY_EXCEEDED`, nunca uma onda extra silenciosa.
+- **`extract.ts`** — correlação carta externa → identidade local por busca exata de chave (`external_card_id = JustTcgCard.id`), nunca matching/heurística (decisão 12) — uma carta paginada cujo `id` não está no índice de identidades confirmadas é ignorada nesta rodada, nunca gera um registro `PENDING`/`NOT_FOUND` novo.
+- **`observation-decision.ts`** — `decideObservationWrite()`: compara sempre contra a última observação conhecida do grupo (produto+condição); preço idêntico é `SAME_PRICE_SKIP` (zero escrita), preço diferente é `PRICE_CHANGED_WRITE`, ausência de observação anterior é `FIRST_OBSERVATION`; mesmo `observed_at` com preço divergente é sinalizado (`DIVERGENT_SAME_TIMESTAMP_PRESERVED`), nunca sobrescrito.
+- **`port.ts`** — porta funcional estreita (`RefreshPort`), mesma disciplina de `PtaxSyncRunPort` (`ADR-031`): operações de domínio nomeadas, nunca um tipo que reproduza a API fluente do PostgREST. Superfície de escrita deliberadamente restrita a `pricing_product`/`pricing_observation` (ambos `INSERT`-only) e ao ciclo de vida de `pricing_sync_run`/`pricing_sync_run_call` — a porta simplesmente não expõe nenhuma operação de escrita em `pricing_set_mapping`/`pricing_card_mapping`/`pricing_source_card_identity` (decisão 11, garantia estrutural).
+- **`run-lifecycle.ts`** — `tryStartPriceRefreshRun()`/`persistCallLog()`/`finalizeSyncRun()`, sempre `triggered_by='SCHEDULED'`/`confirmed_by=NULL` (impossível em nível de tipo abrir um run `MANUAL` por esta porta — decisão 8). `started_at`/`finished_at` nunca enviados por este módulo — mesma autoridade temporal de servidor já estabelecida por `ADR-031`/migration `3909` para PTAX.
+- **`supabase-adapter.ts`** — única implementação real de `RefreshPort`, único arquivo do núcleo que importa `SupabaseClient`. Toda leitura potencialmente acima de 1.000 linhas é paginada explicitamente (`fetchAllRows()`, `.order("id").range(...)`) — mesma correção já aplicada em P14.4.1 fix contra o truncamento silencioso do PostgREST. Logger sanitizado e injetável em todas as operações de escrita — nunca `error.message`/`error.details`/`error.hint`/`error.stack` cru do PostgREST chega a `pricing_sync_run.error_summary` ou a Function Logs (correção de segurança da 3ª rodada de implementação, ver "Correções de Segurança" abaixo).
+- **`core.ts`** — `executePriceRefreshWave()`, ponto único que sequencia: plano local (sem tocar a JustTCG) → NOOP se a onda estiver fora do plano (decisão 6) → capacidade excedida (decisão 4/7) → abertura do run **sempre antes** de qualquer chamada à JustTCG → conflito de concorrência (decisão 9) → por Set da onda: identidades confirmadas → `fetchAllCardsForSet()` (núcleo compartilhado, Item A) → extração (Item B, decisão 12) → resolução idempotente de produto (decisão 13) → decisão de escrita de observação (decisão 14) → telemetria **sempre antes** da finalização do run (decisão 16). Ver seção "Correção Pós-Incidente" abaixo para o mecanismo de deadline/checkpoint acrescentado a este arquivo.
+
+## Item C — Edge Function `justtcg-price-refresh`
+
+Mesmo padrão de "adapter fino" de `ptax-fx-refresh` (`ADR-031`): `index.ts` só resolve `Deno.env`/`SupabaseClient`/`JustTcgClient` reais e delega a `handler.ts`, que por sua vez delega toda a decisão de negócio a `executePriceRefreshWave()` (Item B). `verify_jwt = false` — autenticação por segredo dedicado (`JUSTTCG_PRICE_REFRESH_SECRET`, Function Secret, nunca a publishable key) no header `apikey`, comparação manual em tempo constante (`auth.ts`, `timingSafeEqual()`, sem early return no laço, mesmo padrão de `ptax-fx-refresh/auth.ts`), validada **antes** de qualquer acesso a banco/corpo/rede.
+
+Único campo aceito no corpo da requisição: `{ waveNumber: number }`, restrito a `1`–`30` (decisão 5/7, ver "Correção Pós-Incidente" para a elevação de `1`–`10` original) — fora do intervalo ou corpo malformado retorna `400` sem qualquer efeito colateral. `resolveJusttcgPricingSourceId()` extraída para `pricing-source-lookup.ts` (módulo puro, sem `Deno.serve`, importável em teste offline sem disparar um listener real como efeito colateral — mesmo motivo estrutural já registrado em P13.3 para a separação de `index.ts`).
+
+## Item D — Migration `3926` (`CONFIRMADO EXECUTADO`, 2026-08-21): exclusão mútua `CARD_SYNC`×`PRICE_REFRESH`
+
+O único índice de concorrência pré-existente sobre `pricing_source_id` (Query `3907`, `ux_pricing_sync_run_active_price_per_source_type`) é único por `(pricing_source_id, run_type)` — impede dois `CARD_SYNC` simultâneos da mesma fonte e dois `PRICE_REFRESH` simultâneos da mesma fonte, mas **não** impede um `CARD_SYNC` (descoberta/matching manual de P14, via CLI) e um `PRICE_REFRESH` (este incremento, agendado) ativos ao mesmo tempo para a mesma fonte — chaves `(id, 'CARD_SYNC')` e `(id, 'PRICE_REFRESH')` nunca colidem entre si nesse índice. Decisão 9 fechada por Fabrício exige mútua exclusão entre os dois: migration `3926` adiciona um segundo índice único parcial, por `pricing_source_id` isoladamente (sem `run_type` na chave), cobrindo só `CARD_SYNC`/`PRICE_REFRESH` em estado ativo (`RECEIVED`/`PROCESSING`) — qualquer tentativa de abrir o segundo enquanto o primeiro está ativo colide em `23505`, classificado pelo adapter como `CONCURRENT_CONFLICT` (mesmo código já usado por todo o domínio desde `ADR-031`). Validada transacionalmente (`BEGIN`/`ROLLBACK`) antes da aplicação real; validação funcional pós-aplicação confirmou exclusão mútua nos dois sentidos, tipos não relacionados (`FX_REFRESH`, etc.) preservados sem alteração de comportamento, contagens de mappings/identidades/produtos/observações inalteradas, `get_advisors` sem achado novo.
+
+## Item E — Migration `3927` (`STATUS: PROPOSTO`, ainda não aplicada): agendamento via `pg_cron`/`pg_net`/Vault
+
+Mesmo padrão real já em produção para PTAX (Query `3910`, `ptax-fx-refresh-weekdays`, `ADR-031`) — trinta jobs `pg_cron` **independentes**, nunca um único job que encadeia as 30 ondas em sequência (decisão 2/6): cada job dispara exatamente uma chamada HTTP a `justtcg-price-refresh` com um `waveNumber` fixo distinto (1–30), `url`/`apikey` resolvidos por nome via `vault.decrypted_secrets` (nunca valor literal no comando, mesma disciplina de segurança de `3910`). Execução diária, inclusive sábados e domingos (decisão 1) — diferente do job de PTAX (`0 22 * * 1-5`, só dias úteis). Janela e intervalo entre jobs redesenhados na correção pós-incidente (ver abaixo): 30 disparos a cada 5 minutos, `22:30`–`00:55 UTC`. Fabrício decide quando aplicar via Supabase MCP, e só depois de provisionar os dois segredos no Vault (nome do segredo de URL e de `apikey`, nunca o valor em texto claro visto por este agente).
+
+---
+
+# Correção Pós-Incidente (2026-08-21, mesmo dia da implementação inicial)
+
+## Incidente real
+
+O piloto real da primeira versão do desenho (`WAVE_PAGE_CAP = 30`, `MAX_WAVES = 10`, mesma capacidade de 300 páginas/dia com empacotamento mais concentrado por onda) disparou `shutdown_reason = WallClockTime` do worker da Edge Function aos ~150s (`HTTP 546`), deixando o run `6c2ca781-099d-4087-89bf-4cbd4818341c` preso em `PROCESSING` com telemetria zerada (`requests_made=0`, zero `pricing_sync_run_call`) — mas com **2.401 `pricing_observation` e 1 `pricing_product` já persistidos** antes do corte abrupto do worker (violação da decisão 16: nunca fica preso em `PROCESSING`). Confirmado via Management API que o projeto Supabase (`qjfutqujxrbzgrtkpgkg`) está no plano Free — logs de `function_edge_logs`/`function_logs` correlacionados pelo mesmo `function_id` provaram encerramento do próprio worker, não apenas timeout do cliente HTTP chamador.
+
+Uma segunda reprodução do mesmo sintoma ocorreu quando Fabrício, por conta própria, testou manualmente a função ainda não corrigida em produção (`Invoke-WebRequest` via PowerShell, `HTTP 546` idêntico) — run `866ff072-0f9b-454a-873a-f989aa0aac77`, 790 `pricing_observation` persistidas antes do corte, mesma assinatura de incidente. Ambos os runs foram terminalizados como `FAILED` (`error_summary='EDGE_FUNCTION_WALL_CLOCK_TIMEOUT_PARTIAL_EXECUTION'`) preservando integralmente as escritas já confirmadas — nunca um rollback lógico do que já havia sido persistido com sucesso (decisão 15).
+
+## Correção aplicada
+
+1. **`WAVE_PAGE_CAP` reduzido de 30 para 10; `MAX_WAVES` elevado de 10 para 30`** (`wave-plan.ts`) — mesma capacidade diária de 300 páginas, reempacotada em ondas menores e mais numerosas, para que cada execução individual fique bem abaixo do limite real observado do worker.
+2. **Deadline interno de segurança de 110s** (`deadline.ts`, `WAVE_INTERNAL_DEADLINE_MS`), com margem deliberada abaixo dos ~150s observados no incidente real — verificado **sempre no topo de cada iteração do laço por Set** (`core.ts`), nunca no meio do processamento de um Set. Relógio injetável (`Clock = () => number`) — produção usa `Date.now` real por padrão; testes injetam um relógio determinístico.
+3. **Checkpoint incremental de telemetria** (`checkpointTelemetry()`, dentro de `executePriceRefreshWave()`) — `pricing_sync_run_call` é persistida a cada Set concluído (flush do que se acumulou em `client.callLog` desde o último checkpoint), nunca apenas uma vez ao final da onda inteira. Ao atingir o deadline: nenhum Set novo é iniciado, a telemetria já acumulada do Set anterior já foi persistida pelo checkpoint anterior, e o run finaliza `FAILED` com o código fixo `WAVE_INTERNAL_DEADLINE_EXCEEDED` — nunca mais fica preso em `PROCESSING`, mesmo que o worker seja encerrado de forma inesperada logo depois.
+4. **`waveNumber` do handler/`core.ts` elevado de `1`–`10` para `1`–`30`**, acompanhando o novo `MAX_WAVES`.
+5. **Migration `3927` reescrita**: 30 jobs (um por onda) em vez de 10, disparados a cada 5 minutos entre `22:30` e `00:55 UTC` — permanece `PROPOSTA`, não aplicada nesta rodada.
+
+## Validação offline e em produção
+
+Suíte offline reescrita para o novo desenho: cenários de empacotamento de ondas redimensionados para `WAVE_PAGE_CAP=10`/`MAX_WAVES=30`/300 páginas de capacidade; cinco cenários novos provando o mecanismo de deadline (corte imediato, corte no meio de uma onda com telemetria parcial preservada), o mecanismo de checkpoint (cadência por Set, falha de checkpoint aborta com código fixo) e a idempotência (preço idêntico ao já persistido nunca gera escrita nova, mesmo reexecutando a mesma onda). 380 asserções offline totais (328 do núcleo + 52 do handler) executadas via harness Node (sandbox sem runtime Deno disponível, mesma limitação já registrada desde P13.2/P13.3) — todas aprovadas.
+
+**Terminalização dos dois runs presos**: ambos fechados como `FAILED` com o código fixo acima, `finished_at` atribuído automaticamente pelo trigger de autoridade temporal de servidor (`ADR-031`/migration `3909`, reaproveitado sem alteração), preservando integralmente as 2.401+790 observações e o 1 produto já persistidos — auditoria de re-leitura imediatamente antes de cada `UPDATE` confirmou que nada havia mudado desde o diagnóstico original.
+
+**Deploy e piloto real, código corrigido**: `justtcg-price-refresh` implantada em produção via Supabase MCP (`deploy_edge_function`, todos os 19 arquivos de runtime — `index.ts`/`handler.ts`/`auth.ts`/`pricing-source-lookup.ts`/`deno.json` + os oito arquivos de `_shared/pricing-justtcg-refresh/` + os seis de `_shared/pricing-justtcg/`, testes e `deno.lock` deliberadamente fora do pacote), `slug=justtcg-price-refresh`, versão `1→2`, `status=ACTIVE`, `verify_jwt=false` preservado. Piloto real de Fabrício (`waveNumber=1`, header `apikey` real): `HTTP 200`, `status=COMPLETED`, run `0b587a88-82cd-4bb2-90fc-c49081b51916`, `setsProcessed=7`, `identitiesConsidered=513`, `productsInserted=0` (todos os produtos já existiam de ondas anteriores dos Incrementos P14.4.x), `observationsWritten=44`, `observationsSkippedSamePrice=3564` (decisão 14 em ação — a esmagadora maioria dos preços não mudou desde a última observação), `requestsMade=9`. Auditoria pós-piloto confirmou: `duration_seconds=57,36` (bem abaixo dos 110s do deadline e dos ~150s do incidente original), nove `pricing_sync_run_call` (`sequence_number` 1–9, todas `SUCCESS`/`HTTP 200`), 44 `pricing_observation` com `sync_run_id` correspondente (contagem batendo exatamente com `observationsWritten` da resposta HTTP), histórico de `PRICE_REFRESH` consistente (`1 COMPLETED` — este piloto — `+ 2 FAILED` — os dois runs do incidente, ambos terminalizados corretamente).
+
+Migration `3927` (agendamento automático) permanece `PROPOSTA` — este incremento valida a execução manual autenticada e correta de uma onda; o Cron real, quando Fabrício autorizar, chamará exatamente o mesmo caminho já validado.
+
+---
+
+# Correções de Segurança (mesma rodada de implementação, antes de qualquer deploy)
+
+Mesmo padrão de auditoria de "logger sanitizado" já estabelecido por `ADR-031`/`ptax-fx-refresh`: nenhum `Error`/`error.message`/`error.stack`/objeto bruto do PostgREST pode chegar a Function Logs ou a `pricing_sync_run.error_summary`, mesmo em caminhos de "melhor esforço" (onde a função não relança a exceção). Três pontos corrigidos nesta rodada, todos antes do primeiro deploy:
+
+1. **`handler.ts`** — o `catch` final registrava `console.error(error)` com o objeto de erro cru. Corrigido para `SanitizedLogger` injetável (`defaultSanitizedLogger`), com `catch` sem binding (`catch { ... }`, sem `(error)`) — estruturalmente impossível repassar o erro bruto a partir dali, não apenas uma convenção de código.
+2. **`pricing-source-lookup.ts`** — registrava `error?.message` cru da resposta do PostgREST. Corrigido para o mesmo `SanitizedLogger` (reexportado de `handler.ts` para não duplicar o default), logando só um código fixo e um booleano operacional (`hadError`), nunca o objeto de erro em si.
+3. **`supabase-adapter.ts`** ("gate local", 3ª rodada) — treze ocorrências (nove `throw new Error(...)` de leitura + quatro `return {..., message: ...}` de escrita) interpolavam `error.message` bruto do PostgREST, que `run-lifecycle.ts`/`core.ts` só repassam adiante sem inspecionar — acabando, sem sanitização real, em `pricing_sync_run.error_summary`/`WaveExecutionResult.errorParts`. Corrigido na origem: cada operação usa exclusivamente um código fixo, sanitizado e distinto por operação (ex.: `PRICING_CARD_MAPPING_BATCH_SELECT_FAILED` vs. `PRICING_CARD_MAPPING_BATCH_SELECT_BY_SET_FAILED`, mantidos distinguíveis para diagnóstico apesar de operarem sobre a mesma tabela). `error.code` (ex.: `"23505"`) continua sendo **lido** para decidir um branch — nunca persistido/logado — por ser um código SQL padronizado de 5 caracteres, não um texto livre que possa carregar dado sensível.
+
+---
+
+# Consequences
+
+**Positivas**: mesma arquitetura já validada em produção por PTAX (`ADR-031`) reaproveitada integralmente para JustTCG, sem reinvenção; incidente real de produção corrigido na origem (deadline interno + checkpoint incremental de telemetria), com garantia estrutural de nunca mais deixar um run preso em `PROCESSING`, mesmo sob encerramento inesperado do worker; capacidade diária preservada (300 páginas) apesar do reempacotamento em ondas menores; três correções de segurança de sanitização de log aplicadas antes do primeiro deploy, não depois de um incidente de vazamento.
+
+**Negativas / trade-offs aceitos**: 30 jobs `pg_cron` independentes (vs. 10 antes da correção) — mais entradas em `cron.job`, mesmo princípio operacional, sem custo adicional relevante. Uma onda que atinge o deadline interno perde o restante do seu próprio orçamento de Sets não processados nesta execução — esses Sets ficam para a próxima execução agendada da mesma onda (no dia seguinte), nunca para uma nova tentativa automática no mesmo dia; aceitável porque o corte é raro (57s medidos no piloto real, contra um deadline de 110s) e a via de recuperação (próxima execução diária) já existe por desenho.
+
+**Pendências**: migration `3927` (Cron) permanece `PROPOSTA`, aguardando autorização explícita de Fabrício para aplicação — a execução diária automática só começa quando ele decidir aplicá-la e provisionar os dois segredos do Vault. Até lá, o refresh de preços da JustTCG permanece disponível apenas por invocação manual autenticada, exatamente como validado pelo piloto real desta rodada.
+
+---
+
+# Revision History
+
+| Revisão | Descrição |
+|---------|-----------|
+| 1.0 | Criação deste documento (2026-08-21) — Itens A–E do Incremento de Atualização Diária JustTCG: núcleo compartilhado (`_shared/pricing-justtcg/`, `_shared/pricing-justtcg-refresh/`), Edge Function `justtcg-price-refresh`, migration `3926` (exclusão mútua `CARD_SYNC`×`PRICE_REFRESH`, `CONFIRMADO EXECUTADO`) e migration `3927` (agendamento Cron, `PROPOSTA`). |
+| 1.1 | Correção pós-incidente (mesmo dia, 2026-08-21): piloto real com o desenho original (`WAVE_PAGE_CAP=30`/`MAX_WAVES=10`) causou `shutdown_reason=WallClockTime` do worker aos ~150s, run `6c2ca781-...` preso em `PROCESSING` com telemetria zerada mas 2.401 observações/1 produto já persistidos. Corrigido: `WAVE_PAGE_CAP=10`/`MAX_WAVES=30` (mesma capacidade de 300 páginas/dia), deadline interno de 110s verificado entre Sets, checkpoint incremental de telemetria por Set concluído, migration `3927` reescrita para 30 jobs a cada 5 minutos. Ambos os runs presos (`6c2ca781-...` e um segundo, `866ff072-...`, reproduzido pelo próprio Fabrício testando a função ainda não corrigida) terminalizados como `FAILED`, preservando as escritas já confirmadas. Edge Function implantada em produção (versão `1→2`) e validada por piloto real pós-correção: `HTTP 200`/`COMPLETED`, run `0b587a88-...`, 57,36s de duração, 9 requisições, 44 observações novas, 3.564 preços idênticos reaproveitados sem escrita, zero erro. |

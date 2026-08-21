@@ -1,0 +1,29 @@
+-- STATUS: CONFIRMADO EXECUTADO -- testada em BEGIN/ROLLBACK (SELECT nas duas tabelas +
+-- INSERT/UPDATE/DELETE confirmadamente bloqueados) e aplicada em producao em 2026-08-20.
+--
+-- Contexto: apos a Query 3924 (formalizacao do vocabulario de variantes externas,
+-- CONFIRMADO EXECUTADO em 2026-08-20), a reexecucao do dry-run A local
+-- (scripts/sync-justtcg-pricing.ts --repair-multi-identities --dry-run) falhou com:
+--   STANDARD_VARIANT_TYPE_QUERY_FAILED: permission denied for table card_variant_type
+-- lancado por fetchStandardVariantTypeId() dentro de executeRepairMultiIdentities(),
+-- chamada antes de qualquer requisicao a JustTCG (o executor aborta cedo mesmo em
+-- dry-run quando o vocabulario formal nao pode ser carregado).
+--
+-- Causa raiz confirmada por introspecao direta em information_schema.role_table_grants:
+--   card_variant_type              -> service_role tem apenas REFERENCES/TRIGGER/TRUNCATE
+--                                      (privilegios padrao de owner), SEM SELECT.
+--   pricing_source_variant_mapping -> service_role JA tem SELECT (concedido corretamente
+--                                      pela propria Query 3924) - nenhum grant adicional
+--                                      necessario nesta tabela.
+-- authenticated tem SELECT em ambas desde a Query 3924; nenhuma alteracao necessaria ali.
+--
+-- Mesmo padrao de incidente da Query 3917 (GRANT SELECT em public.game): uma migration
+-- anterior introduziu uma nova leitura server-side sem conceder o SELECT correspondente
+-- a service_role, e o erro so se manifesta na primeira execucao real que exercita o
+-- caminho de codigo.
+--
+-- Escopo minimo: apenas public.card_variant_type. Nenhum GRANT de INSERT/UPDATE/DELETE
+-- concedido, e nenhum privilegio adicional concedido a anon/authenticated. Ver
+-- 05f-pricing.md / ADR-029 (P14).
+
+GRANT SELECT ON public.card_variant_type TO service_role;

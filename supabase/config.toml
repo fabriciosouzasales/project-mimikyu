@@ -49,3 +49,19 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/ptax-fx-refresh/deno.json"
 entrypoint = "./functions/ptax-fx-refresh/index.ts"
+
+# justtcg-price-refresh (2026-08-21, Incremento de Atualização Diária JustTCG, item C):
+# mesma fronteira de identidade de ptax-fx-refresh acima — verify_jwt=false por decisão
+# arquitetural deliberada (chaves sb_secret_.../sb_publishable_... não são JWT), com
+# autorização real via segredo dedicado (JUSTTCG_PRICE_REFRESH_SECRET, Function Secret do
+# Supabase), validado no header "apikey" por comparação manual em tempo constante (ver
+# justtcg-price-refresh/auth.ts) — nunca @supabase/server. Execução sempre registra
+# triggered_by=SCHEDULED, confirmed_by=NULL em pricing_sync_run (run_type=PRICE_REFRESH).
+# O corpo aceita SOMENTE { waveNumber: 1..5 } — nunca URL/segredo/chave em payload; os 5
+# jobs pg_cron diários que chamam esta função (item E) ficam para uma migration separada,
+# PROPOSTA e não aplicada nesta rodada.
+[functions.justtcg-price-refresh]
+enabled = true
+verify_jwt = false
+import_map = "./functions/justtcg-price-refresh/deno.json"
+entrypoint = "./functions/justtcg-price-refresh/index.ts"
