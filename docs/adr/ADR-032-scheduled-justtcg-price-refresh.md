@@ -5,8 +5,8 @@
 | **ADR** | ADR-032 |
 | **Título** | Orquestração Programada de Preços JustTCG |
 | **Status** | Aprovado |
-| **Revisão** | 1.3 |
-| **Data** | 2026-08-21 |
+| **Revisão** | 1.4 |
+| **Data** | 2026-08-22 |
 | **Decisores** | Project Mimikyu |
 | **Decisão** | Reaproveita integralmente a arquitetura já validada em produção por `ADR-031` (Supabase Cron + `pg_net` + Edge Function dedicada + Vault, autenticação por secret key dedicada em comparação manual de tempo constante) para o refresh diário de preços da fonte `JUSTTCG`, encerrando a exclusão explícita registrada em `ADR-031` ("JustTCG permanece inteiramente fora do P13"). Diferença estrutural frente ao caso PTAX: o refresh diário da JustTCG não cabe em uma única invocação da Edge Function — o catálogo confirmado (~8.143 identidades PRIMARY/ALTERNATE, 2026-08-20) excede o orçamento seguro de requisições e o tempo de execução de um único worker — então a execução é fatiada em **ondas independentes**, cada uma sua própria invocação agendada, nunca uma orquestração que encadeia todas as ondas dentro de uma única chamada. |
 | **Documentos Relacionados** | `ADR-031-scheduled-pricing-orchestration.md` (arquitetura-alvo original, PTAX), `ADR-029-pricing-domain-model.md`, `../05f-pricing.md` (seção "Incremento P15"), `../standards/STD-001-database-standards.md` |
