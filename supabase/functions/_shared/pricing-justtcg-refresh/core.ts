@@ -17,10 +17,11 @@
 //      PRICE_REFRESH já ativo, regra 9) aborta sem tocar a rede.
 //   5. Por Set da onda: identidades PRIMARY/ALTERNATE CONFIRMED (regra 10/17) ->
 //      fetchAllCardsForSet (núcleo compartilhado, mesma paginação do CLI) -> extração por
-//      identidade (extract.ts, nunca matching, regra 12) -> resolução idempotente de
-//      produto por identidade+external_product_id (regra 13, INSERT-only) -> comparação
-//      com a última observação e escrita só se o preço mudou (regra 14/observation-
-//      decision.ts).
+//      identidade (extract.ts, nunca matching, regra 12) -> resolução em lote de produto
+//      pela chave econômica real (pricing_card_mapping_id+external_product_id, regra 13,
+//      corrigida 2026-08-21 — R1/R5, migration 3928, RPC resolve_pricing_products_batch;
+//      nunca mais por identity_id, nunca UPDATE/reparenting) -> comparação com a última
+//      observação e escrita só se o preço mudou (regra 14/observation-decision.ts).
 //   6. Telemetria (pricing_sync_run_call) SEMPRE antes da finalização do run — a partir
 //      desta rodada (2026-08-21, correção pós-incidente), em CHECKPOINTS incrementais
 //      entre Sets, nunca só uma vez no fim (ver passo 6b abaixo e deadline.ts).
@@ -63,7 +64,10 @@ import {
   type PriceRefreshRunPort,
   tryStartPriceRefreshRun,
 } from "./run-lifecycle.ts";
-import type { InsertObservationInput, InsertProductInput } from "./port.ts";
+import type {
+  InsertObservationInput,
+  ResolveProductsBatchInput,
+} from "./port.ts";
 
 export type WaveExecutionResult =
   | {
@@ -273,60 +277,80 @@ export async function executePriceRefreshWave(
       continue;
     }
 
-    // 3. Resolução idempotente de produto — SELECT existentes por identidade, INSERT só
-    // os faltantes. Nunca UPDATE de um produto já existente (regra 13).
-    const identityIds = [...new Set(candidates.map((c) => c.identityId))];
-    const existingProducts = await port.findExistingProducts(identityIds);
-    const productIdByKey = new Map<string, string>();
-    for (const p of existingProducts) {
-      productIdByKey.set(
-        `${p.pricingSourceCardIdentityId}::${p.externalProductId}`,
-        p.productId,
-      );
+    // 3. Resolução em lote pela chave econômica real (pricing_card_mapping_id,
+    // external_product_id — uq_pricing_product_mapping_external), via RPC
+    // resolve_pricing_products_batch (migration 3928, correção R1/R5, 2026-08-21). Nunca
+    // mais por pricing_source_card_identity_id (causa raiz de R1: um produto já existente
+    // sob uma identity ANTIGA de um mapping não era reconhecido quando a identity CONFIRMED
+    // ATUAL do mesmo mapping divergia — a tentativa de INSERT duplicado pela chave
+    // econômica real falhava e derrubava o run inteiro). NEW ou REUSE, nunca UPDATE/
+    // reparenting — REUSE sempre devolve o produto já armazenado tal como está.
+    const uniqueByEconomicKey = new Map<string, RefreshObservationCandidate>();
+    for (const c of candidates) {
+      const key = `${c.pricingCardMappingId}::${c.externalProductId}`;
+      if (!uniqueByEconomicKey.has(key)) {
+        uniqueByEconomicKey.set(key, c);
+      }
     }
 
-    const toInsertProducts: InsertProductInput[] = [];
-    const seenThisSet = new Set<string>();
-    for (const c of candidates) {
-      const key = `${c.identityId}::${c.externalProductId}`;
-      if (productIdByKey.has(key) || seenThisSet.has(key)) continue; // REUSE — zero escrita
-      seenThisSet.add(key);
-      toInsertProducts.push({
-        pricingCardMappingId: c.pricingCardMappingId,
-        pricingSourceCardIdentityId: c.identityId,
-        externalProductId: c.externalProductId,
-        sourcePrintingLabel: c.sourcePrintingLabel,
-      });
-    }
-    if (toInsertProducts.length > 0) {
-      const insertResult = await port.insertProducts(toInsertProducts);
-      if (!insertResult.ok) {
+    const resolveRows: ResolveProductsBatchInput[] = [
+      ...uniqueByEconomicKey.values(),
+    ].map((c) => ({
+      pricingCardMappingId: c.pricingCardMappingId,
+      pricingSourceCardIdentityId: c.identityId,
+      externalProductId: c.externalProductId,
+      sourcePrintingLabel: c.sourcePrintingLabel,
+    }));
+
+    const productIdByKey = new Map<string, string>();
+    if (resolveRows.length > 0) {
+      const resolveResult = await port.resolveProductsBatch(resolveRows);
+      if (!resolveResult.ok) {
         errorParts.push(
-          `PRODUCT_INSERT_FAILED(set=${setEntry.setCode}): ${
-            insertResult.message ?? "erro desconhecido"
+          `PRODUCT_RESOLUTION_FAILED(set=${setEntry.setCode}): ${
+            resolveResult.message ?? "erro desconhecido"
           }`,
         );
         hardFailure = true;
       } else {
-        for (const row of insertResult.inserted) {
-          productIdByKey.set(
-            `${row.pricingSourceCardIdentityId}::${row.externalProductId}`,
-            row.productId,
-          );
-          productsInserted++;
+        for (const row of resolveResult.rows) {
+          const key = `${row.pricingCardMappingId}::${row.externalProductId}`;
+          productIdByKey.set(key, row.productId);
+          if (row.classification === "NEW") {
+            productsInserted++;
+          }
+
+          // Warnings informativos (refinamento aprovado por Fabrício, ver plano R1/R5) —
+          // nunca hardFailure, nunca causam UPDATE/reparent: só sinalizam divergência entre
+          // o que foi candidatado nesta execução e o que já estava armazenado, pelo mesmo
+          // mecanismo já usado por OBSERVATION_DIVERGENTE_PRESERVADA (push em errorParts,
+          // status resultante COMPLETED_WITH_ERRORS).
+          const candidate = uniqueByEconomicKey.get(key);
+          if (candidate) {
+            if (candidate.identityId !== row.pricingSourceCardIdentityId) {
+              errorParts.push(
+                `IDENTITY_MISMATCH_ON_REUSE(set=${setEntry.setCode}, produto=${row.externalProductId}): candidata=${candidate.identityId} armazenada=${row.pricingSourceCardIdentityId}`,
+              );
+            }
+            if (row.candidatePrintingLabel !== row.storedPrintingLabel) {
+              errorParts.push(
+                `PRINTING_LABEL_MISMATCH_ON_REUSE(set=${setEntry.setCode}, produto=${row.externalProductId}): candidato=${row.candidatePrintingLabel} armazenado=${row.storedPrintingLabel}`,
+              );
+            }
+          }
         }
       }
     }
 
-    // Candidatos cujo produto ficou resolvido nesta rodada (já existia OU foi inserido
-    // com sucesso agora) — os demais ficam de fora, recuperáveis numa reexecução futura,
-    // nunca corrigidos silenciosamente.
+    // Candidatos cujo produto ficou resolvido nesta rodada (NEW ou REUSE) — os demais ficam
+    // de fora, recuperáveis numa reexecução futura, nunca corrigidos silenciosamente.
     const candidatesWithProduct = candidates
       .map((c) => ({
         ...c,
         productId:
-          productIdByKey.get(`${c.identityId}::${c.externalProductId}`) ??
-            null,
+          productIdByKey.get(
+            `${c.pricingCardMappingId}::${c.externalProductId}`,
+          ) ?? null,
       }))
       .filter((
         c,

@@ -28,16 +28,16 @@ import { decideObservationWrite } from "./observation-decision.ts";
 import { executePriceRefreshWave } from "./core.ts";
 import type { PriceRefreshRunPort } from "./run-lifecycle.ts";
 import type {
-  ExistingProductRow,
   InsertObservationInput,
   InsertObservationsResult,
   InsertPriceRefreshRunResult,
-  InsertProductInput,
-  InsertProductsResult,
   LatestObservationKey,
   LatestObservationRow,
   PriceRefreshCallLogEntry,
   RefreshIdentityRow,
+  ResolvedProductRow,
+  ResolveProductsBatchInput,
+  ResolveProductsBatchResult,
   UpdateSyncRunPatch,
 } from "./port.ts";
 import {
@@ -64,9 +64,8 @@ interface RecordedCall {
     | "listRefreshCandidateSets"
     | "listConfirmedIdentitiesForSet"
     | "getConditionMap"
-    | "findExistingProducts"
+    | "resolveProductsBatch"
     | "findLatestObservations"
-    | "insertProducts"
     | "insertObservations"
     | "insertPriceRefreshRun"
     | "insertSyncRunCalls"
@@ -74,14 +73,33 @@ interface RecordedCall {
   payload: unknown;
 }
 
+// Seed do estado inicial de pricing_product simulado pelo fake — reflete a chave
+// econômica real (pricing_card_mapping_id, external_product_id — ver migration 3928 /
+// uq_pricing_product_mapping_external), nunca a antiga chave por identity (defeito R1).
+interface SeedProductRow {
+  productId: string;
+  pricingCardMappingId: string;
+  pricingSourceCardIdentityId: string;
+  externalProductId: string;
+  sourcePrintingLabel: string;
+}
+
 interface FakePortOptions {
   candidateSets?: RefreshSetCandidate[];
   identitiesBySet?: Map<string, RefreshIdentityRow[]>;
   conditionMap?: Map<string, string>;
-  existingProducts?: ExistingProductRow[];
+  existingProducts?: SeedProductRow[];
   latestObservationsByKey?: Map<string, LatestObservationRow>; // key: `${productId}::${conditionId}`
   insertPriceRefreshRunResult?: InsertPriceRefreshRunResult;
-  failInsertProducts?: boolean;
+  failResolveProducts?: boolean;
+  // Mensagem devolvida quando failResolveProducts=true — default preserva o comportamento
+  // já usado por todos os testes existentes (mensagem genérica de simulação). Permite a
+  // um teste específico (ex.: regressão R1) usar a mesma string sanitizada fixa que o
+  // adapter REAL devolve em qualquer falha de resolveProductsBatch()
+  // ("PRODUCT_RESOLUTION_FAILED" — ver supabase-adapter.ts), em vez de um texto genérico —
+  // sem afetar nenhum call site existente (todos continuam sem passar esta opção,
+  // herdando o default de sempre).
+  failResolveProductsMessage?: string;
   failInsertObservations?: boolean;
   failInsertSyncRunCalls?: boolean;
 }
@@ -90,10 +108,13 @@ function buildFakePort(
   recorded: RecordedCall[],
   opts: FakePortOptions = {},
 ): PriceRefreshRunPort {
-  // Estado mutável — insertProducts realmente adiciona a existingProducts, simulando o
-  // comportamento real (o adapter INSERT-only sobre pricing_product é persistente entre
-  // Sets da mesma onda, dentro da mesma execução).
-  const products: ExistingProductRow[] = [...(opts.existingProducts ?? [])];
+  // Estado mutável — resolveProductsBatch realmente adiciona a `products` no caminho NEW,
+  // simulando o comportamento real (a RPC resolve_pricing_products_batch grava de fato em
+  // pricing_product, persistente entre Sets da mesma onda, dentro da mesma execução).
+  // REUSE nunca muta uma linha existente — mesma disciplina da RPC real (migration 3928):
+  // identity/printing_label armazenados são sempre devolvidos tal como estão, mesmo que a
+  // candidata divirja (a divergência vira só um sinal comparado por core.ts).
+  const products: SeedProductRow[] = [...(opts.existingProducts ?? [])];
   let nextProductId = 9000;
 
   return {
@@ -117,14 +138,6 @@ function buildFakePort(
         opts.conditionMap ?? new Map([["NM", "condition-nm"]]),
       );
     },
-    findExistingProducts(identityIds: readonly string[]) {
-      recorded.push({ op: "findExistingProducts", payload: identityIds });
-      return Promise.resolve(
-        products.filter((p) =>
-          identityIds.includes(p.pricingSourceCardIdentityId)
-        ),
-      );
-    },
     findLatestObservations(keys: readonly LatestObservationKey[]) {
       recorded.push({ op: "findLatestObservations", payload: keys });
       const out: LatestObservationRow[] = [];
@@ -136,26 +149,54 @@ function buildFakePort(
       }
       return Promise.resolve(out);
     },
-    insertProducts(
-      rows: readonly InsertProductInput[],
-    ): Promise<InsertProductsResult> {
-      recorded.push({ op: "insertProducts", payload: rows });
-      if (opts.failInsertProducts) {
+    resolveProductsBatch(
+      rows: readonly ResolveProductsBatchInput[],
+    ): Promise<ResolveProductsBatchResult> {
+      recorded.push({ op: "resolveProductsBatch", payload: rows });
+      if (opts.failResolveProducts) {
         return Promise.resolve({
           ok: false,
-          message: "PRODUCT_INSERT_FALHOU_SIMULADO",
+          message: opts.failResolveProductsMessage ??
+            "PRODUCT_RESOLUTION_FALHOU_SIMULADO",
         });
       }
-      const inserted = rows.map((r) => {
-        const row = {
+      const out: ResolvedProductRow[] = rows.map((r) => {
+        const existing = products.find((p) =>
+          p.pricingCardMappingId === r.pricingCardMappingId &&
+          p.externalProductId === r.externalProductId
+        );
+        if (existing) {
+          // REUSE — devolve a linha armazenada tal como está, sem mutar identity/label,
+          // mesmo que a candidata divirja (mesma disciplina da RPC real — migration 3928).
+          return {
+            productId: existing.productId,
+            pricingCardMappingId: existing.pricingCardMappingId,
+            externalProductId: existing.externalProductId,
+            pricingSourceCardIdentityId: existing.pricingSourceCardIdentityId,
+            classification: "REUSE",
+            candidatePrintingLabel: r.sourcePrintingLabel,
+            storedPrintingLabel: existing.sourcePrintingLabel,
+          };
+        }
+        const created: SeedProductRow = {
           productId: `product-${nextProductId++}`,
+          pricingCardMappingId: r.pricingCardMappingId,
           pricingSourceCardIdentityId: r.pricingSourceCardIdentityId,
           externalProductId: r.externalProductId,
+          sourcePrintingLabel: r.sourcePrintingLabel,
         };
-        products.push(row);
-        return row;
+        products.push(created);
+        return {
+          productId: created.productId,
+          pricingCardMappingId: created.pricingCardMappingId,
+          externalProductId: created.externalProductId,
+          pricingSourceCardIdentityId: created.pricingSourceCardIdentityId,
+          classification: "NEW",
+          candidatePrintingLabel: r.sourcePrintingLabel,
+          storedPrintingLabel: r.sourcePrintingLabel,
+        };
       });
-      return Promise.resolve({ ok: true, inserted });
+      return Promise.resolve({ ok: true, rows: out });
     },
     insertObservations(
       rows: readonly InsertObservationInput[],
@@ -521,7 +562,7 @@ export async function runPricingJusttcgRefreshTests(): Promise<
     assert(
       "capacidade excedida: nunca escreve produto/observação",
       !recorded.some((c) =>
-        c.op === "insertProducts" || c.op === "insertObservations"
+        c.op === "resolveProductsBatch" || c.op === "insertObservations"
       ),
     );
     assert(
@@ -665,7 +706,8 @@ export async function runPricingJusttcgRefreshTests(): Promise<
   {
     // A interface RefreshPort (port.ts) não expõe NENHUM método de escrita para
     // pricing_set_mapping/pricing_card_mapping/pricing_source_card_identity — só
-    // insertProducts/insertObservations (ambos INSERT-only) e o ciclo de vida do run.
+    // resolveProductsBatch (RPC transacional, nunca UPDATE — migration 3928) e
+    // insertObservations (INSERT-only), além do ciclo de vida do run.
     // Este fake, ao implementar RefreshPort com sucesso (typecheck), já prova a garantia
     // em nível de tipo; a asserção abaixo reforça em runtime que nenhuma operação com
     // esses três nomes jamais aparece no log de chamadas registradas, em toda a suíte.
@@ -755,11 +797,11 @@ export async function runPricingJusttcgRefreshTests(): Promise<
       result.kind === "EXECUTED" && result.productsInserted === 1 &&
         result.observationsWritten === 1,
     );
-    const insertProductsCall = recorded.find((c) => c.op === "insertProducts");
+    const resolveCall = recorded.find((c) => c.op === "resolveProductsBatch");
     const insertObsCall = recorded.find((c) => c.op === "insertObservations");
     assert(
-      "produto novo: insertProducts foi chamado com 1 linha",
-      (insertProductsCall?.payload as unknown[])?.length === 1,
+      "produto novo: resolveProductsBatch foi chamado com 1 linha",
+      (resolveCall?.payload as unknown[])?.length === 1,
     );
     assert(
       "produto novo: insertObservations foi chamado com 1 linha",
@@ -1268,7 +1310,7 @@ export async function runPricingJusttcgRefreshTests(): Promise<
     assert(
       "deadline imediato: nenhuma escrita de produto/observação",
       !recorded.some((c) =>
-        c.op === "insertProducts" || c.op === "insertObservations"
+        c.op === "resolveProductsBatch" || c.op === "insertObservations"
       ),
     );
     assert(
@@ -1576,10 +1618,12 @@ export async function runPricingJusttcgRefreshTests(): Promise<
         variants: [buildVariant("ext-prod-a", 42.5)],
       }]],
     ]);
-    const existingProducts: ExistingProductRow[] = [{
+    const existingProducts: SeedProductRow[] = [{
       productId: "product-existing-a",
+      pricingCardMappingId: "mapping-a",
       pricingSourceCardIdentityId: "identity-a",
       externalProductId: "ext-prod-a",
+      sourcePrintingLabel: "Normal",
     }];
     const latestObservationsByKey = new Map<string, LatestObservationRow>([
       ["product-existing-a::condition-nm", {
@@ -1623,6 +1667,510 @@ export async function runPricingJusttcgRefreshTests(): Promise<
       "idempotência: contabilizado como SAME_PRICE_SKIP (não como falha, nem como omissão silenciosa)",
       result.kind === "EXECUTED" &&
         result.observationsSkippedSamePrice === 1,
+    );
+  }
+
+  // ── R1 (regressão, corrigido 2026-08-21): reproduz o cenário exato do defeito real —
+  // produto já existente pela chave econômica (pricing_card_mapping_id,
+  // external_product_id), mas gravado sob uma identity ANTIGA que diverge da identity
+  // CONFIRMED atual do mesmo mapping (SV2-SV7, SV9, SWSH1-5, SWSH7 — runs a31742a4 e
+  // seguintes, 2026-08-21). Antes da correção, resolveProductsBatch nem existia — o
+  // caminho antigo (findExistingProducts/insertProducts por identity_id) não reconhecia
+  // o produto e tentava um INSERT duplicado, derrubando o run inteiro (status=FAILED,
+  // observação perdida). Pós-fix (migration 3928 + core.ts): a RPC resolve pelo par
+  // (mapping_id, external_product_id) — SEMPRE reconhece o produto via REUSE, nunca
+  // tenta INSERT duplicado. Como a identity armazenada diverge da identity candidata,
+  // core.ts sinaliza IDENTITY_MISMATCH_ON_REUSE (warning, nunca hardFailure — ver
+  // plano R1/R5 aprovado por Fabrício) e o run termina COMPLETED_WITH_ERRORS, nunca
+  // FAILED — a observação de preço É gravada (nunca perdida).
+  {
+    const candidates: RefreshSetCandidate[] = [
+      {
+        cardSetId: "set-r1",
+        setCode: "R1SET",
+        externalSetId: "ext-r1",
+        confirmedCardCount: 1,
+      },
+    ];
+    // Identidade CONFIRMED atual do Set — ex.: promovida por um reparo de identidade
+    // posterior ao momento em que o produto abaixo foi originalmente inserido sob
+    // "identity-antiga".
+    const identitiesBySet = new Map<string, RefreshIdentityRow[]>([
+      ["set-r1", [{
+        identityId: "identity-nova",
+        externalCardId: "ext-card-r1",
+        identityRole: "PRIMARY",
+        pricingCardMappingId: "mapping-r1",
+      }]],
+    ]);
+    // Produto JÁ EXISTENTE no banco, para o MESMO mapping_id+external_product_id, mas
+    // gravado sob a identidade ANTIGA — reproduz exatamente o estado de pricing_product
+    // observado nos 14 Sets reais afetados hoje. sourcePrintingLabel igual ao da
+    // candidata ("Normal", default de buildVariant) — este cenário isola só a
+    // divergência de identity, não a de printing_label (coberta num cenário à parte).
+    const existingProducts: SeedProductRow[] = [{
+      productId: "product-r1-existente",
+      pricingCardMappingId: "mapping-r1",
+      pricingSourceCardIdentityId: "identity-antiga",
+      externalProductId: "ext-prod-r1",
+      sourcePrintingLabel: "Normal",
+    }];
+    const recorded: RecordedCall[] = [];
+    const port = buildFakePort(recorded, {
+      candidateSets: candidates,
+      identitiesBySet,
+      existingProducts,
+    });
+
+    const bySetId = new Map<string, JustTcgCard[]>([
+      ["ext-r1", [{
+        id: "ext-card-r1",
+        name: "Carta R1",
+        variants: [buildVariant("ext-prod-r1", 9.99)],
+      }]],
+    ]);
+    const fetchCalls = { count: 0 };
+    const client = new JustTcgClient(
+      "fake-key",
+      buildFakeFetch(bySetId, fetchCalls),
+      30,
+    );
+    const result = await executePriceRefreshWave(
+      port,
+      client,
+      PRICING_SOURCE_ID,
+      1,
+    );
+    const resolveCalls = recorded.filter((c) =>
+      c.op === "resolveProductsBatch"
+    );
+
+    assert(
+      "R1 [corrigido]: resolveProductsBatch foi chamado exatamente 1 vez para o Set (nunca uma segunda tentativa de INSERT/resolve para o mesmo par)",
+      resolveCalls.length === 1,
+    );
+    assert(
+      "R1 [corrigido]: a única chamada carrega exatamente 1 linha, com pricingCardMappingId='mapping-r1' e externalProductId='ext-prod-r1'",
+      resolveCalls.length === 1 &&
+        (resolveCalls[0].payload as ResolveProductsBatchInput[]).length ===
+          1 &&
+        (resolveCalls[0].payload as ResolveProductsBatchInput[])[0]
+            .pricingCardMappingId === "mapping-r1" &&
+        (resolveCalls[0].payload as ResolveProductsBatchInput[])[0]
+            .externalProductId === "ext-prod-r1",
+    );
+    assert(
+      "R1 [corrigido]: run termina com status='COMPLETED_WITH_ERRORS' (nunca FAILED — o produto É reconhecido via REUSE, o mismatch de identity é só um aviso)",
+      result.kind === "EXECUTED" &&
+        result.status === "COMPLETED_WITH_ERRORS",
+    );
+    assert(
+      "R1 [corrigido]: nenhum produto novo inserido (productsInserted=0 — classificado REUSE, não NEW)",
+      result.kind === "EXECUTED" && result.productsInserted === 0,
+    );
+    assert(
+      "R1 [corrigido]: observationsWritten=1 (observação de preço gravada contra o produto existente via REUSE, nunca perdida)",
+      result.kind === "EXECUTED" && result.observationsWritten === 1,
+    );
+    assert(
+      "R1 [corrigido]: errorParts contém IDENTITY_MISMATCH_ON_REUSE(set=R1SET, produto=ext-prod-r1) com candidata=identity-nova armazenada=identity-antiga",
+      result.kind === "EXECUTED" &&
+        result.errorParts.some((p) =>
+          p ===
+            "IDENTITY_MISMATCH_ON_REUSE(set=R1SET, produto=ext-prod-r1): candidata=identity-nova armazenada=identity-antiga"
+        ),
+    );
+    assert(
+      "R1 [corrigido]: nenhum PRINTING_LABEL_MISMATCH_ON_REUSE neste cenário (printing_label idêntico entre candidata e armazenado)",
+      result.kind === "EXECUTED" &&
+        !result.errorParts.some((p) =>
+          p.startsWith("PRINTING_LABEL_MISMATCH_ON_REUSE")
+        ),
+    );
+  }
+
+  // ── R1/R5 — REUSE limpo (sem divergência): identity e printing_label da candidata
+  // coincidem com o produto já armazenado -> classificação REUSE, zero warnings, run
+  // COMPLETED (nunca COMPLETED_WITH_ERRORS), preço mudou -> 1 observação nova escrita.
+  {
+    const candidates: RefreshSetCandidate[] = [
+      {
+        cardSetId: "set-reuse",
+        setCode: "REUSESET",
+        externalSetId: "ext-reuse",
+        confirmedCardCount: 1,
+      },
+    ];
+    const identitiesBySet = new Map<string, RefreshIdentityRow[]>([
+      ["set-reuse", [{
+        identityId: "identity-reuse",
+        externalCardId: "ext-card-reuse",
+        identityRole: "PRIMARY",
+        pricingCardMappingId: "mapping-reuse",
+      }]],
+    ]);
+    const existingProducts: SeedProductRow[] = [{
+      productId: "product-reuse-existente",
+      pricingCardMappingId: "mapping-reuse",
+      pricingSourceCardIdentityId: "identity-reuse",
+      externalProductId: "ext-prod-reuse",
+      sourcePrintingLabel: "Normal",
+    }];
+    const latestObservationsByKey = new Map<string, LatestObservationRow>([
+      ["product-reuse-existente::condition-nm", {
+        productId: "product-reuse-existente",
+        conditionId: "condition-nm",
+        price: 3.0,
+        observedAt: "2026-08-20T00:00:00.000Z",
+      }],
+    ]);
+    const recorded: RecordedCall[] = [];
+    const port = buildFakePort(recorded, {
+      candidateSets: candidates,
+      identitiesBySet,
+      existingProducts,
+      latestObservationsByKey,
+    });
+    const bySetId = new Map<string, JustTcgCard[]>([
+      ["ext-reuse", [{
+        id: "ext-card-reuse",
+        name: "Carta Reuse",
+        variants: [buildVariant("ext-prod-reuse", 4.5)], // preço mudou (3.0 -> 4.5)
+      }]],
+    ]);
+    const fetchCalls = { count: 0 };
+    const client = new JustTcgClient(
+      "fake-key",
+      buildFakeFetch(bySetId, fetchCalls),
+      30,
+    );
+    const result = await executePriceRefreshWave(
+      port,
+      client,
+      PRICING_SOURCE_ID,
+      1,
+    );
+    assert(
+      "REUSE limpo: run COMPLETED (sem warnings — identity e printing_label coincidem)",
+      result.kind === "EXECUTED" && result.status === "COMPLETED",
+    );
+    assert(
+      "REUSE limpo: productsInserted=0, observationsWritten=1 (preço mudou)",
+      result.kind === "EXECUTED" && result.productsInserted === 0 &&
+        result.observationsWritten === 1,
+    );
+    assert(
+      "REUSE limpo: errorParts vazio (zero IDENTITY_MISMATCH/PRINTING_LABEL_MISMATCH)",
+      result.kind === "EXECUTED" && result.errorParts.length === 0,
+    );
+  }
+
+  // ── R1/R5 — lote misto NEW+REUSE no mesmo Set: uma identidade resolve um produto já
+  // existente (REUSE), outra resolve um produto inédito (NEW) — uma única chamada a
+  // resolveProductsBatch com as 2 linhas, productsInserted conta só a NEW.
+  {
+    const candidates: RefreshSetCandidate[] = [
+      {
+        cardSetId: "set-mix",
+        setCode: "MIXSET",
+        externalSetId: "ext-mix",
+        confirmedCardCount: 2,
+      },
+    ];
+    const identitiesBySet = new Map<string, RefreshIdentityRow[]>([
+      ["set-mix", [
+        {
+          identityId: "identity-mix-existente",
+          externalCardId: "ext-card-mix-existente",
+          identityRole: "PRIMARY",
+          pricingCardMappingId: "mapping-mix-existente",
+        },
+        {
+          identityId: "identity-mix-nova",
+          externalCardId: "ext-card-mix-nova",
+          identityRole: "PRIMARY",
+          pricingCardMappingId: "mapping-mix-nova",
+        },
+      ]],
+    ]);
+    const existingProducts: SeedProductRow[] = [{
+      productId: "product-mix-existente",
+      pricingCardMappingId: "mapping-mix-existente",
+      pricingSourceCardIdentityId: "identity-mix-existente",
+      externalProductId: "ext-prod-mix-existente",
+      sourcePrintingLabel: "Normal",
+    }];
+    const recorded: RecordedCall[] = [];
+    const port = buildFakePort(recorded, {
+      candidateSets: candidates,
+      identitiesBySet,
+      existingProducts,
+    });
+    const bySetId = new Map<string, JustTcgCard[]>([
+      ["ext-mix", [
+        {
+          id: "ext-card-mix-existente",
+          name: "Carta Existente",
+          variants: [buildVariant("ext-prod-mix-existente", 1.5)],
+        },
+        {
+          id: "ext-card-mix-nova",
+          name: "Carta Nova",
+          variants: [buildVariant("ext-prod-mix-nova", 2.5)],
+        },
+      ]],
+    ]);
+    const fetchCalls = { count: 0 };
+    const client = new JustTcgClient(
+      "fake-key",
+      buildFakeFetch(bySetId, fetchCalls),
+      30,
+    );
+    const result = await executePriceRefreshWave(
+      port,
+      client,
+      PRICING_SOURCE_ID,
+      1,
+    );
+    const resolveCalls = recorded.filter((c) =>
+      c.op === "resolveProductsBatch"
+    );
+    assert(
+      "lote misto: resolveProductsBatch chamado 1 vez, com 2 linhas (1 REUSE + 1 NEW)",
+      resolveCalls.length === 1 &&
+        (resolveCalls[0].payload as ResolveProductsBatchInput[]).length === 2,
+    );
+    assert(
+      "lote misto: run COMPLETED, productsInserted=1 (só a NEW), observationsWritten=2",
+      result.kind === "EXECUTED" && result.status === "COMPLETED" &&
+        result.productsInserted === 1 && result.observationsWritten === 2,
+    );
+  }
+
+  // ── R1/R5 — PRINTING_LABEL_MISMATCH_ON_REUSE: identity coincide, mas o printing_label
+  // candidato diverge do armazenado -> warning (nunca UPDATE), run COMPLETED_WITH_ERRORS.
+  {
+    const candidates: RefreshSetCandidate[] = [
+      {
+        cardSetId: "set-label",
+        setCode: "LABELSET",
+        externalSetId: "ext-label",
+        confirmedCardCount: 1,
+      },
+    ];
+    const identitiesBySet = new Map<string, RefreshIdentityRow[]>([
+      ["set-label", [{
+        identityId: "identity-label",
+        externalCardId: "ext-card-label",
+        identityRole: "PRIMARY",
+        pricingCardMappingId: "mapping-label",
+      }]],
+    ]);
+    // Armazenado como "Holofoil"; a variante devolvida pela JustTCG nesta execução vem
+    // como "Normal" — mesma identity, printing_label diverge.
+    const existingProducts: SeedProductRow[] = [{
+      productId: "product-label-existente",
+      pricingCardMappingId: "mapping-label",
+      pricingSourceCardIdentityId: "identity-label",
+      externalProductId: "ext-prod-label",
+      sourcePrintingLabel: "Holofoil",
+    }];
+    const recorded: RecordedCall[] = [];
+    const port = buildFakePort(recorded, {
+      candidateSets: candidates,
+      identitiesBySet,
+      existingProducts,
+    });
+    const bySetId = new Map<string, JustTcgCard[]>([
+      ["ext-label", [{
+        id: "ext-card-label",
+        name: "Carta Label",
+        variants: [buildVariant("ext-prod-label", 6.0)], // printing default "Normal"
+      }]],
+    ]);
+    const fetchCalls = { count: 0 };
+    const client = new JustTcgClient(
+      "fake-key",
+      buildFakeFetch(bySetId, fetchCalls),
+      30,
+    );
+    const result = await executePriceRefreshWave(
+      port,
+      client,
+      PRICING_SOURCE_ID,
+      1,
+    );
+    assert(
+      "printing_label mismatch: run COMPLETED_WITH_ERRORS (nunca FAILED)",
+      result.kind === "EXECUTED" &&
+        result.status === "COMPLETED_WITH_ERRORS",
+    );
+    assert(
+      "printing_label mismatch: errorParts contém PRINTING_LABEL_MISMATCH_ON_REUSE(set=LABELSET, produto=ext-prod-label) com candidato=Normal armazenado=Holofoil",
+      result.kind === "EXECUTED" &&
+        result.errorParts.some((p) =>
+          p ===
+            "PRINTING_LABEL_MISMATCH_ON_REUSE(set=LABELSET, produto=ext-prod-label): candidato=Normal armazenado=Holofoil"
+        ),
+    );
+    assert(
+      "printing_label mismatch: nenhum IDENTITY_MISMATCH_ON_REUSE neste cenário (identity coincide)",
+      result.kind === "EXECUTED" &&
+        !result.errorParts.some((p) =>
+          p.startsWith("IDENTITY_MISMATCH_ON_REUSE")
+        ),
+    );
+    assert(
+      "printing_label mismatch: produto ainda reconhecido via REUSE (productsInserted=0), observação gravada",
+      result.kind === "EXECUTED" && result.productsInserted === 0 &&
+        result.observationsWritten === 1,
+    );
+  }
+
+  // ── R1/R5 — PRIMARY+ALTERNATE no mesmo mapping: duas identidades (papéis diferentes)
+  // do mesmo pricing_card_mapping_id, cada uma com seu próprio external_product_id
+  // (produtos econômicos distintos) -> resolvidos juntos numa única chamada, sem colisão
+  // de chave econômica (a chave é mapping_id+external_product_id, não mapping_id sozinho).
+  {
+    const candidates: RefreshSetCandidate[] = [
+      {
+        cardSetId: "set-alt",
+        setCode: "ALTSET",
+        externalSetId: "ext-alt",
+        confirmedCardCount: 2,
+      },
+    ];
+    const identitiesBySet = new Map<string, RefreshIdentityRow[]>([
+      ["set-alt", [
+        {
+          identityId: "identity-alt-primary",
+          externalCardId: "ext-card-alt-primary",
+          identityRole: "PRIMARY",
+          pricingCardMappingId: "mapping-alt",
+        },
+        {
+          identityId: "identity-alt-alternate",
+          externalCardId: "ext-card-alt-alternate",
+          identityRole: "ALTERNATE",
+          pricingCardMappingId: "mapping-alt",
+        },
+      ]],
+    ]);
+    const recorded: RecordedCall[] = [];
+    const port = buildFakePort(recorded, {
+      candidateSets: candidates,
+      identitiesBySet,
+    });
+    const bySetId = new Map<string, JustTcgCard[]>([
+      ["ext-alt", [
+        {
+          id: "ext-card-alt-primary",
+          name: "Carta Primary",
+          variants: [buildVariant("ext-prod-alt-primary", 1.1)],
+        },
+        {
+          id: "ext-card-alt-alternate",
+          name: "Carta Alternate",
+          variants: [buildVariant("ext-prod-alt-alternate", 2.2)],
+        },
+      ]],
+    ]);
+    const fetchCalls = { count: 0 };
+    const client = new JustTcgClient(
+      "fake-key",
+      buildFakeFetch(bySetId, fetchCalls),
+      30,
+    );
+    const result = await executePriceRefreshWave(
+      port,
+      client,
+      PRICING_SOURCE_ID,
+      1,
+    );
+    const resolveCalls = recorded.filter((c) =>
+      c.op === "resolveProductsBatch"
+    );
+    assert(
+      "PRIMARY+ALTERNATE: resolveProductsBatch chamado 1 vez, com 2 linhas — mesmo mapping_id, external_product_id distintos",
+      resolveCalls.length === 1 &&
+        (resolveCalls[0].payload as ResolveProductsBatchInput[]).length ===
+          2 &&
+        (resolveCalls[0].payload as ResolveProductsBatchInput[]).every((r) =>
+          r.pricingCardMappingId === "mapping-alt"
+        ),
+    );
+    assert(
+      "PRIMARY+ALTERNATE: ambos NEW (nenhum já existia), run COMPLETED, 2 produtos e 2 observações",
+      result.kind === "EXECUTED" && result.status === "COMPLETED" &&
+        result.productsInserted === 2 && result.observationsWritten === 2,
+    );
+  }
+
+  // ── R1/R5 — dedup por chave econômica dentro do mesmo Set: 2 condições (NM/LP) da
+  // MESMA variante (mesmo external_product_id) geram 2 candidatos, mas resolveProductsBatch
+  // é chamado com 1 única linha (dedup por mapping_id+external_product_id, nunca por
+  // condição) — nenhuma tentativa duplicada de resolver o mesmo par econômico.
+  {
+    const candidates: RefreshSetCandidate[] = [
+      {
+        cardSetId: "set-dedup",
+        setCode: "DEDUPSET",
+        externalSetId: "ext-dedup",
+        confirmedCardCount: 1,
+      },
+    ];
+    const identitiesBySet = new Map<string, RefreshIdentityRow[]>([
+      ["set-dedup", [{
+        identityId: "identity-dedup",
+        externalCardId: "ext-card-dedup",
+        identityRole: "PRIMARY",
+        pricingCardMappingId: "mapping-dedup",
+      }]],
+    ]);
+    const conditionMap = new Map<string, string>([
+      ["NM", "condition-nm"],
+      ["LP", "condition-lp"],
+    ]);
+    const recorded: RecordedCall[] = [];
+    const port = buildFakePort(recorded, {
+      candidateSets: candidates,
+      identitiesBySet,
+      conditionMap,
+    });
+    const bySetId = new Map<string, JustTcgCard[]>([
+      ["ext-dedup", [{
+        id: "ext-card-dedup",
+        name: "Carta Dedup",
+        variants: [
+          buildVariant("ext-prod-dedup", 5.0, "NM"),
+          buildVariant("ext-prod-dedup", 4.0, "LP"),
+        ],
+      }]],
+    ]);
+    const fetchCalls = { count: 0 };
+    const client = new JustTcgClient(
+      "fake-key",
+      buildFakeFetch(bySetId, fetchCalls),
+      30,
+    );
+    const result = await executePriceRefreshWave(
+      port,
+      client,
+      PRICING_SOURCE_ID,
+      1,
+    );
+    const resolveCalls = recorded.filter((c) =>
+      c.op === "resolveProductsBatch"
+    );
+    assert(
+      "dedup: 2 condições da mesma variante -> resolveProductsBatch chamado 1 vez com 1 única linha (dedup por mapping_id+external_product_id)",
+      resolveCalls.length === 1 &&
+        (resolveCalls[0].payload as ResolveProductsBatchInput[]).length === 1,
+    );
+    assert(
+      "dedup: 1 produto inserido (NEW), mas 2 observações escritas (uma por condição)",
+      result.kind === "EXECUTED" && result.status === "COMPLETED" &&
+        result.productsInserted === 1 && result.observationsWritten === 2,
     );
   }
 

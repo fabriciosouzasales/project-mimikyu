@@ -2,12 +2,15 @@
 -- pg_net + Vault. Mesmo padrao real ja em producao para a PTAX (Query 3910,
 -- ptax-fx-refresh-weekdays) -- ver ADR-031 e docs/05f-pricing.md.
 --
--- STATUS: PROPOSTO -- ainda nao aplicada em producao nesta rodada (Incremento de
--- Atualizacao Diaria JustTCG, item E, 2026-08-21; capacidade elevada de 5 para 10 ondas
--- na rodada de escalabilidade do mesmo dia, e desta para 30 ondas de 10 paginas cada
--- nesta rodada de correcao pos-incidente, 2026-08-21, mesmo dia). Fabricio decide quando
--- aplicar via Supabase MCP, e so depois de provisionar os dois segredos no Vault (ver
--- rodape).
+-- STATUS: CONFIRMADO EXECUTADO -- aplicada em producao em 2026-08-21 via Supabase MCP
+-- (apply_migration, projeto qjfutqujxrbzgrtkpgkg), a pedido explicito de Fabricio.
+-- Validado pos-aplicacao: 30 jobs (justtcg-price-refresh-wave-1 a -30), todos active=true,
+-- agenda 22:30-00:55 UTC em intervalos de 5 minutos, job ptax-fx-refresh-weekdays
+-- preservado sem alteracao; teste transacional previo (BEGIN/ROLLBACK) confirmou os 30
+-- jobs e o rollback limpo antes da aplicacao real; advisors de seguranca pos-aplicacao sem
+-- nenhum achado novo associado a cron/justtcg/vault. Os dois segredos do Vault
+-- (justtcg_price_refresh_url/justtcg_price_refresh_secret) ja estavam provisionados desde
+-- 2026-08-21 03:36/03:39 UTC (ver rodape para os nomes exatos).
 --
 -- Contexto do incidente que motivou esta reescrita: o piloto real da onda com
 -- WAVE_PAGE_CAP=30 (desenho anterior desta migration, nunca aplicado) disparou o

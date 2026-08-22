@@ -65,3 +65,17 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/justtcg-price-refresh/deno.json"
 entrypoint = "./functions/justtcg-price-refresh/index.ts"
+
+# justtcg-price-refresh-set (2026-08-22, P15 — dispatcher durável por Set): mesma
+# fronteira de identidade de justtcg-price-refresh acima — verify_jwt=false, autorização
+# via segredo dedicado (REAPROVEITA JUSTTCG_PRICE_REFRESH_SECRET — ver
+# justtcg-price-refresh-set/auth.ts), validado no header "apikey". Diferença de desenho:
+# 1 Set por invocação, decidido inteiramente pela RPC open_pricing_set_refresh_attempt
+# (migration 3933) — o corpo da requisição não aceita nenhum parâmetro de negócio (nem
+# waveNumber nem Set). Nenhum job pg_cron aponta para esta função nesta rodada — fica para
+# uma migration futura e separada, com autorização explícita.
+[functions.justtcg-price-refresh-set]
+enabled = true
+verify_jwt = false
+import_map = "./functions/justtcg-price-refresh-set/deno.json"
+entrypoint = "./functions/justtcg-price-refresh-set/index.ts"

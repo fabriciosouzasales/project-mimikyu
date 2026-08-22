@@ -22,19 +22,18 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
-  ExistingProductRow,
   FinalRefreshRunStatus,
-  InsertedProductRow,
   InsertObservationInput,
   InsertObservationsResult,
   InsertPriceRefreshRunResult,
-  InsertProductInput,
-  InsertProductsResult,
   LatestObservationKey,
   LatestObservationRow,
   PriceRefreshCallLogEntry,
   RefreshIdentityRow,
   RefreshSetCandidate,
+  ResolvedProductRow,
+  ResolveProductsBatchInput,
+  ResolveProductsBatchResult,
   UpdateSyncRunPatch,
 } from "./port.ts";
 import type { PriceRefreshRunPort } from "./run-lifecycle.ts";
@@ -389,36 +388,6 @@ export function buildPricingJustTcgRefreshSupabaseAdapter(
       );
     },
 
-    async findExistingProducts(
-      identityIds: readonly string[],
-    ): Promise<ExistingProductRow[]> {
-      if (identityIds.length === 0) return [];
-      const out: ExistingProductRow[] = [];
-      for (const ids of chunk(identityIds, CHUNK_SIZE)) {
-        const { data, error } = await supabase
-          .from("pricing_product")
-          .select("id, pricing_source_card_identity_id, external_product_id")
-          .in("pricing_source_card_identity_id", ids);
-        if (error) {
-          throw new Error("PRODUCT_BATCH_SELECT_FAILED");
-        }
-        for (
-          const row of (data ?? []) as Array<{
-            id: string;
-            pricing_source_card_identity_id: string;
-            external_product_id: string;
-          }>
-        ) {
-          out.push({
-            productId: row.id,
-            pricingSourceCardIdentityId: row.pricing_source_card_identity_id,
-            externalProductId: row.external_product_id,
-          });
-        }
-      }
-      return out;
-    },
-
     async findLatestObservations(
       keys: readonly LatestObservationKey[],
     ): Promise<LatestObservationRow[]> {
@@ -458,49 +427,62 @@ export function buildPricingJustTcgRefreshSupabaseAdapter(
       return out;
     },
 
-    async insertProducts(
-      rows: readonly InsertProductInput[],
-    ): Promise<InsertProductsResult> {
-      if (rows.length === 0) return { ok: true, inserted: [] };
-      const inserted: InsertedProductRow[] = [];
+    async resolveProductsBatch(
+      rows: readonly ResolveProductsBatchInput[],
+    ): Promise<ResolveProductsBatchResult> {
+      // R1/R5 (correção 2026-08-21, migration 3928) — substitui o INSERT direto (que
+      // resolvia produto existente por pricing_source_card_identity_id, a chave ERRADA) por
+      // uma chamada à RPC resolve_pricing_products_batch, que resolve pela chave econômica
+      // real (pricing_card_mapping_id, external_product_id —
+      // uq_pricing_product_mapping_external) em duas instruções SQL internas (INSERT...ON
+      // CONFLICT DO NOTHING + SELECT de resolução separado), nunca UPDATE/reparenting. Ver
+      // port.ts (cabeçalho, regra 13) e a própria RPC (COMMENT ON FUNCTION) para o racional
+      // completo da correção.
+      if (rows.length === 0) return { ok: true, rows: [] };
+      const resolved: ResolvedProductRow[] = [];
       for (const batch of chunk(rows, CHUNK_SIZE)) {
-        const { data, error } = await supabase
-          .from("pricing_product")
-          .insert(
-            batch.map((r) => ({
-              // pricing_card_mapping_id: obrigatório (NOT NULL) na tabela física —
-              // resolvido pelo chamador (core.ts) a partir da própria leitura da
-              // identidade em pricing_source_card_identity.pricing_card_mapping_id
-              // (RefreshIdentityRow.pricingCardMappingId), nunca por uma segunda
-              // consulta aqui. Vale tanto para identidades PRIMARY quanto ALTERNATE —
-              // ambas compartilham o mesmo pricing_card_mapping_id da carta local.
-              pricing_card_mapping_id: r.pricingCardMappingId,
-              pricing_source_card_identity_id: r.pricingSourceCardIdentityId,
+        // CHUNK_SIZE (200) coincide com o limite máximo por chamada aceito pela própria RPC
+        // (migration 3928) — não por acaso: os dois existem para o mesmo motivo (tamanho de
+        // lote seguro). CHUNK_SIZE já era 200 nesta rodada por outro motivo (URLs de
+        // .in() em chamadas .from() diretas) — se um dos dois limites mudar no futuro,
+        // revisar o outro junto.
+        const { data, error } = await supabase.rpc(
+          "resolve_pricing_products_batch",
+          {
+            p_rows: batch.map((r) => ({
+              mapping_id: r.pricingCardMappingId,
+              identity_id: r.pricingSourceCardIdentityId,
               external_product_id: r.externalProductId,
               source_printing_label: r.sourcePrintingLabel,
-              language_status: "UNDETERMINED",
-              language_id: null,
             })),
-          )
-          .select("id, pricing_source_card_identity_id, external_product_id");
+          },
+        );
         if (error) {
-          return { ok: false, message: "PRODUCT_INSERT_FAILED" };
+          return { ok: false, message: "PRODUCT_RESOLUTION_FAILED" };
         }
         for (
           const row of (data ?? []) as Array<{
-            id: string;
-            pricing_source_card_identity_id: string;
+            product_id: string;
+            pricing_card_mapping_id: string;
             external_product_id: string;
+            pricing_source_card_identity_id: string;
+            classification: "NEW" | "REUSE";
+            candidate_printing_label: string;
+            stored_printing_label: string;
           }>
         ) {
-          inserted.push({
-            productId: row.id,
-            pricingSourceCardIdentityId: row.pricing_source_card_identity_id,
+          resolved.push({
+            productId: row.product_id,
+            pricingCardMappingId: row.pricing_card_mapping_id,
             externalProductId: row.external_product_id,
+            pricingSourceCardIdentityId: row.pricing_source_card_identity_id,
+            classification: row.classification,
+            candidatePrintingLabel: row.candidate_printing_label,
+            storedPrintingLabel: row.stored_printing_label,
           });
         }
       }
-      return { ok: true, inserted };
+      return { ok: true, rows: resolved };
     },
 
     async insertObservations(

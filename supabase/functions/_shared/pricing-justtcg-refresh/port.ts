@@ -16,8 +16,17 @@
 //       pricing_source_card_identity — a porta simplesmente NÃO EXPÕE nenhuma operação de
 //       escrita nessas três tabelas; a garantia é estrutural (impossível de violar por
 //       acidente a partir de core.ts), não apenas disciplina de código.
-//   13. Produtos resolvidos por identidade + external_product_id — insertProducts() é
-//       INSERT-only (nunca UPDATE de um produto já existente).
+//   13. Produtos resolvidos EM LOTE pela chave econômica real
+//       (pricing_card_mapping_id, external_product_id — uq_pricing_product_mapping_external)
+//       via resolveProductsBatch(), que delega para a RPC resolve_pricing_products_batch
+//       (migration 3928, correção R1/R5, 2026-08-21). Substitui o par
+//       findExistingProducts()/insertProducts() usado até esta rodada — que resolvia por
+//       pricing_source_card_identity_id, a chave ERRADA (defeito R1: produto já existente
+//       sob uma identity antiga não era reconhecido quando a identity CONFIRMED atual do
+//       mesmo mapping mudava, causando tentativa de INSERT duplicado e falha do run
+//       inteiro). Nunca UPDATE/reparenting: REUSE sempre devolve o produto já armazenado tal
+//       como está — divergências de identity/printing_label são só sinalizadas nos campos
+//       de retorno, nunca corrigidas aqui.
 //   14. Observação nova só quando o preço muda — insertObservations() é INSERT-only
 //       (pricing_observation nunca é UPDATE/DELETE por este núcleo).
 
@@ -39,27 +48,34 @@ export type RefreshIdentityRow = {
   pricingCardMappingId: string;
 };
 
-export type ExistingProductRow = {
-  productId: string;
-  pricingSourceCardIdentityId: string;
-  externalProductId: string;
-};
-
-export type InsertProductInput = {
+// Entrada de um par candidato a resolver_pricing_products_batch — um por
+// RefreshObservationCandidate único (identityId+externalProductId) da onda em
+// processamento. mappingId e identityId sempre vêm juntos da própria leitura da identidade
+// (RefreshIdentityRow.pricingCardMappingId) — nunca de uma segunda consulta.
+export type ResolveProductsBatchInput = {
   pricingCardMappingId: string;
   pricingSourceCardIdentityId: string;
   externalProductId: string;
   sourcePrintingLabel: string;
 };
 
-export type InsertedProductRow = {
+// Uma linha por par econômico pedido (invariante 1:1 garantida pela RPC — ver migration
+// 3928). pricingSourceCardIdentityId aqui é sempre a identity ARMAZENADA no banco (para
+// REUSE, pode divergir da candidata enviada em ResolveProductsBatchInput — comparação cabe
+// a core.ts, nunca a esta porta). candidatePrintingLabel/storedPrintingLabel permitem a
+// core.ts detectar PRINTING_LABEL_MISMATCH_ON_REUSE sem uma segunda leitura.
+export type ResolvedProductRow = {
   productId: string;
-  pricingSourceCardIdentityId: string;
+  pricingCardMappingId: string;
   externalProductId: string;
+  pricingSourceCardIdentityId: string;
+  classification: "NEW" | "REUSE";
+  candidatePrintingLabel: string;
+  storedPrintingLabel: string;
 };
 
-export type InsertProductsResult =
-  | { ok: true; inserted: InsertedProductRow[] }
+export type ResolveProductsBatchResult =
+  | { ok: true; rows: ResolvedProductRow[] }
   | { ok: false; message: string | null };
 
 export type LatestObservationKey = { productId: string; conditionId: string };
@@ -132,19 +148,17 @@ export interface RefreshPort {
     cardSetId: string,
   ): Promise<RefreshIdentityRow[]>;
   getConditionMap(pricingSourceId: string): Promise<Map<string, string>>;
-  findExistingProducts(
-    identityIds: readonly string[],
-  ): Promise<ExistingProductRow[]>;
   findLatestObservations(
     keys: readonly LatestObservationKey[],
   ): Promise<LatestObservationRow[]>;
 
-  // ---- Escrita — só pricing_product (INSERT-only) e pricing_observation
-  // (INSERT-only). Nunca pricing_set_mapping/pricing_card_mapping/
-  // pricing_source_card_identity (regra 11 — superfície estrutural, ver cabeçalho). ------
-  insertProducts(
-    rows: readonly InsertProductInput[],
-  ): Promise<InsertProductsResult>;
+  // ---- Escrita — só pricing_product (via RPC resolve_pricing_products_batch, nunca
+  // UPDATE) e pricing_observation (INSERT-only). Nunca pricing_set_mapping/
+  // pricing_card_mapping/pricing_source_card_identity (regra 11 — superfície estrutural,
+  // ver cabeçalho). ------
+  resolveProductsBatch(
+    rows: readonly ResolveProductsBatchInput[],
+  ): Promise<ResolveProductsBatchResult>;
   insertObservations(
     rows: readonly InsertObservationInput[],
   ): Promise<InsertObservationsResult>;
