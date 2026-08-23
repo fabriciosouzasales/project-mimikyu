@@ -23,6 +23,10 @@ const badgeVariants = cva(
         primary: "border-primary/40 bg-primary/5 text-primary-ink",
         /** Pílula na cor de aviso — mais saturada que `primary`, usada para chamar atenção para uma restrição que o usuário precisa notar (ex.: "Fixo" em nome de usuário imutável). */
         warning: "border-warning/40 bg-warning/10 text-warning",
+        /** Pílula verde (`--success`) — status operacional saudável (2026-08-23, status executivo da Visão Geral de Pricing). */
+        success: "border-success/40 bg-success/10 text-success",
+        /** Pílula vermelha (`--destructive`) — status operacional crítico, mesma cor de `tone="danger"` em `StatCard`. */
+        destructive: "border-destructive/40 bg-destructive/10 text-destructive dark:text-destructive-foreground",
       },
     },
     defaultVariants: { variant: "default" },

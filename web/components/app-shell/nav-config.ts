@@ -1,15 +1,21 @@
 import {
+  Activity,
+  AlertTriangle,
   BookOpen,
   Boxes,
+  CircleDollarSign,
   Copy,
   CreditCard,
   FileText,
   FileUp,
   Gamepad2,
+  GitMerge,
+  Globe,
   History,
   ImagePlus,
   Layers,
   LayoutDashboard,
+  RefreshCw,
   ScrollText,
   Sparkles,
   Tag,
@@ -128,6 +134,57 @@ export const NAV_SECTIONS: NavSection[] = [
     // Módulo restrito a administradores (ADR-022) — leitura dos dados
     // editoriais/operacionais já é bloqueada no banco via RLS (is_admin());
     // esta flag só evita mostrar o item a quem não teria acesso a nada nele.
+    adminOnly: true,
+  },
+  {
+    id: "pricing",
+    // Rótulo "Valores de Mercado" e ícone CircleDollarSign — teste visual
+    // pedido por Fabrício (2026-08-22), só label/ícone do menu PRIMÁRIO.
+    // Ícone trocado de TrendingUp (1ª tentativa, aprovada mas achada
+    // "mais analytics que valor de mercado") para CircleDollarSign após
+    // comparação lado a lado de 6 variantes da lucide-react — traço menos
+    // "gráfico", círculo fechado remete a cotação/valor monetário. `id`,
+    // `href` e todo o domínio técnico "Pricing" (rotas, RPCs, tabelas,
+    // docs) permanecem inalterados — ver CLAUDE.md/05f-pricing.md. Menu
+    // secundário (`children`, abaixo) também não muda.
+    //
+    // Ajuste v3.5 (2026-08-23) — Fabrício aprovou o teste visual e pediu o
+    // ajuste de concordância final: "Valores de Mercado" (plural) →
+    // "Valor de Mercado" (singular), em toda a linguagem visível do módulo.
+    // Este `label` alimenta tanto o menu primário quanto o título do painel
+    // de navegação secundário (`activeSection.label` em
+    // `secondary-panel.tsx`) — um único ponto, dois lugares corrigidos.
+    label: "Valor de Mercado",
+    icon: CircleDollarSign,
+    href: "/pricing",
+    // Bloco 1 do Pricing Admin (2026-08-22, lista final aprovada por
+    // Fabrício após duas rodadas de ajuste — ver docs/development/
+    // HANDOFF-2026-08-21.md): 11 rotas em três grupos, mesmo modelo
+    // Gerencial/Cadastros/Operações do Catálogo Editorial. Só "Visão Geral"
+    // (`/pricing`) tem tela real nesta rodada — as outras 10 são
+    // `ComingSoonPage` (mesmo padrão de `importacao-api/page.tsx`), porque
+    // item de menu não pode levar a 404. "Cobertura de Preços" foi
+    // incorporada à Visão Geral (não é rota própria); "Sincronizações"
+    // inclui a Política de Sincronização (frequência/dispatcher,
+    // `pricing_refresh_policy`, migrations 3937/3938).
+    children: [
+      { href: "/pricing", label: "Visão Geral", section: "Gerencial", icon: LayoutDashboard },
+      { href: "/pricing/saude-fontes", label: "Saúde das Fontes", section: "Gerencial", icon: Activity },
+      { href: "/pricing/historico-execucoes", label: "Histórico de Execuções", section: "Gerencial", icon: History },
+      { href: "/pricing/relatorios", label: "Central de Relatórios", section: "Gerencial", icon: FileText },
+      { href: "/pricing/fontes", label: "Fontes de Preço", section: "Cadastros", icon: Globe },
+      { href: "/pricing/mapeamentos-sets", label: "Mapeamentos de Sets", section: "Cadastros", icon: Layers },
+      { href: "/pricing/mapeamentos-cartas", label: "Mapeamentos de Cartas", section: "Cadastros", icon: CreditCard },
+      { href: "/pricing/condicoes", label: "Condições", section: "Cadastros", icon: Tag },
+      { href: "/pricing/pendencias", label: "Pendências", section: "Operações", icon: AlertTriangle },
+      { href: "/pricing/resolucao-mapeamentos", label: "Resolução de Mapeamentos", section: "Operações", icon: GitMerge },
+      { href: "/pricing/sincronizacoes", label: "Sincronizações", section: "Operações", icon: RefreshCw },
+    ],
+    // Todo o módulo é admin-only (mesma disciplina do Catálogo, ADR-022) —
+    // pricing_refresh_policy/pricing_admin_action_log e as RPCs de leitura
+    // agregada (get_pricing_admin_overview) já negam acesso a não-admin no
+    // banco; esta flag só evita mostrar o item no menu a quem não veria
+    // nada nele.
     adminOnly: true,
   },
 ];
