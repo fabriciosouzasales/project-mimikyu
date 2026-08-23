@@ -50,9 +50,22 @@ const STATUS_LABEL: Record<string, { texto: string; tone: StateTone }> = {
 const STATUS_DOT_CLASSES: Record<StateTone, string> = {
   success: "bg-success",
   warning: "bg-warning",
-  danger: "bg-destructive",
+  danger: "",
   muted: "bg-muted-foreground/40",
 };
+
+/**
+ * Fix (2026-08-23) — mesmo bug já corrigido em `pricing-sync-run-chart.tsx`
+ * (fix v3.6.1) e em `importacoes-tendencia.tsx`: `bg-destructive`/`text-destructive`
+ * como cor sólida (preenchimento ou texto puro, sem tinta de fundo por trás)
+ * rendia quase invisível no modo escuro — `--destructive` escuro (`6 64%
+ * 20%`) é um "wash" quase preto, pensado para conviver com
+ * `--destructive-foreground` claro por cima, não para ser pintado sozinho.
+ * Corrigido com o mesmo literal HSL fixo (valor de `--destructive` no tema
+ * claro), aplicado via `style` no ponto de status e no texto "(N falhas)"
+ * abaixo — mantém a cor idêntica nos dois temas, ~3:1 de contraste.
+ */
+const COR_FALHA = "hsl(10 80% 44%)";
 
 const PIPELINE_LABEL: Record<ImportacaoPipeline, string> = {
   CARTAS: "Cartas",
@@ -223,6 +236,7 @@ export function ImportacoesTable({ importacoes }: { importacoes: ImportacaoRow[]
                       <span className="inline-flex items-center gap-1.5">
                         <span
                           className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT_CLASSES[status.tone])}
+                          style={status.tone === "danger" ? { backgroundColor: COR_FALHA } : undefined}
                           aria-hidden="true"
                         />
                         {new Date(item.createdAt).toLocaleString("pt-BR")}
@@ -250,7 +264,7 @@ export function ImportacoesTable({ importacoes }: { importacoes: ImportacaoRow[]
                     <DataTableCell align="center" className="py-1 text-xs tabular-nums text-muted-foreground">
                       {formatNumber(item.successCount)} de {formatNumber(item.requestedCount)}
                       {item.failedCount > 0 && (
-                        <span className="text-destructive"> ({formatNumber(item.failedCount)} falhas)</span>
+                        <span style={{ color: COR_FALHA }}> ({formatNumber(item.failedCount)} falhas)</span>
                       )}
                     </DataTableCell>
                     <DataTableCell align="center" className="py-1 pr-4 last:pr-4">

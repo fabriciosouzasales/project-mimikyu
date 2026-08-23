@@ -30,6 +30,19 @@ const PIPELINE_TITLE: Record<ImportacaoPipeline, string> = {
  */
 const COR_SUCESSO = "#3FCF8E";
 
+/**
+ * Fix (2026-08-23) — mesmo bug já corrigido em `pricing-sync-run-chart.tsx`
+ * (fix v3.6.1): `bg-destructive` (classe Tailwind ligada ao token
+ * `--destructive`) rendia quase invisível no modo escuro, porque
+ * `--destructive` no tema escuro (`6 64% 20%`) é um "wash" de fundo quase
+ * preto, desenhado para conviver com `--destructive-foreground` claro por
+ * cima (badges/alerts) — nunca para ser pintado sozinho como barra/ponto
+ * sólido. Corrigido com a mesma técnica: literal HSL fixo (o valor de
+ * `--destructive` no tema CLARO), idêntico nos dois temas, contraste ~3:1
+ * contra `--surface` escuro (era ~1,2:1).
+ */
+const COR_FALHA = "hsl(10 80% 44%)";
+
 /** Altura máxima (px) da coluna mais alta do gráfico — mesma lógica de escala de um sparkline/bar chart compacto. */
 const CHART_HEIGHT_PX = 56;
 /** Altura mínima (px) de um segmento com contagem > 0, para não desaparecer visualmente quando o total do período é muito maior. */
@@ -194,7 +207,9 @@ function PipelineTendenciaCard({
             {PIPELINE_TITLE[pipeline]}
           </span>
           <span className="inline-flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
-            {totalGeral > 0 && <span className="h-2 w-2 shrink-0 bg-destructive" aria-hidden="true" />}
+            {totalGeral > 0 && (
+              <span className="h-2 w-2 shrink-0" style={{ backgroundColor: COR_FALHA }} aria-hidden="true" />
+            )}
             {totalGeral > 0 ? `${percentualFalha.toFixed(1)}% de falhas` : "sem execuções"}
           </span>
         </div>
@@ -243,7 +258,7 @@ function PipelineTendenciaCard({
                       className="flex h-full w-full flex-col-reverse focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <div className="w-full" style={{ height: sucessoPx, backgroundColor: COR_SUCESSO }} />
-                      <div className="w-full bg-destructive" style={{ height: falhaPx }} />
+                      <div className="w-full" style={{ height: falhaPx, backgroundColor: COR_FALHA }} />
                     </button>
 
                     {estaAberto && (
@@ -259,7 +274,7 @@ function PipelineTendenciaCard({
                           </div>
                           <div className="flex items-center justify-between gap-2 text-xs">
                             <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                              <span className="h-2 w-2 shrink-0 bg-destructive" aria-hidden="true" />
+                              <span className="h-2 w-2 shrink-0" style={{ backgroundColor: COR_FALHA }} aria-hidden="true" />
                               Falha
                             </span>
                             <span className="tabular-nums text-foreground">{formatNumber(semana.falha)}</span>

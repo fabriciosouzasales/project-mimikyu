@@ -23,11 +23,19 @@ export type StateTone = "success" | "warning" | "danger" | "muted";
  *
  * `danger` adicionado para o histórico de importações (`asset_import_run`,
  * status `FAILED`) — até então só usávamos success/warning/muted.
+ *
+ * Fix (2026-08-23) — `danger` ganhou `dark:text-destructive-foreground`,
+ * mesmo padrão já usado em `ui/badge.tsx` (variante `destructive`, linha 29):
+ * sem o override, o texto usava `text-destructive` puro, que no tema escuro
+ * é `--destructive` (`6 64% 20%`, quase preto) — baixo contraste mesmo sobre
+ * o fundo tintado sutil (`bg-destructive/10`). `--destructive-foreground`
+ * escuro (`0 0% 92%`, quase branco) resolve, réplica exata de uma correção
+ * já aprovada em outro componente do mesmo sistema, não uma técnica nova.
  */
 const TONE_CLASSES: Record<StateTone, string> = {
   success: "border-success/30 bg-success/10 text-success",
   warning: "border-warning/40 bg-warning/10 text-warning",
-  danger: "border-destructive/40 bg-destructive/10 text-destructive",
+  danger: "border-destructive/40 bg-destructive/10 text-destructive dark:text-destructive-foreground",
   muted: "border-border bg-transparent text-muted-foreground",
 };
 
