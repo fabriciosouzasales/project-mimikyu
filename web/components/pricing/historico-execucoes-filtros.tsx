@@ -14,20 +14,45 @@ const STATUS_OPTIONS = [
   { value: "FAILED", label: "Falhou" },
 ];
 
+/**
+ * Bloco rotulado — label discreto (uppercase, pequeno) acima do controle.
+ * v1.1 (2026-08-23, feedback de Fabrício: "área de filtros visualmente
+ * parecida com formulário cru") — sem isso, Status/Set/período ficavam sem
+ * contexto visual próprio, com hierarquia igual à de qualquer form solto.
+ * `gap-1` mantém a altura total da faixa praticamente igual à versão sem
+ * label (label em `text-[10px]` + `leading-none`).
+ */
+function FilterField({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
+  return (
+    <div className="flex shrink-0 flex-col gap-1">
+      <label
+        htmlFor={htmlFor}
+        className="text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 function FilterSelect({
   value,
   onChange,
   ariaLabel,
+  id,
   children,
 }: {
   value: string;
   onChange: (value: string) => void;
   ariaLabel: string;
+  id?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="relative shrink-0">
+    <div className="relative">
       <Select
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label={ariaLabel}
@@ -81,41 +106,61 @@ export function HistoricoExecucoesFiltros({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <FilterSelect value={status} onChange={(value) => pushParams({ status: value || undefined })} ariaLabel="Filtrar por Status">
-        <option value="">Todos os Status</option>
-        {STATUS_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </FilterSelect>
+    <div className="flex flex-wrap items-end gap-3">
+      <FilterField label="Status" htmlFor="historico-filtro-status">
+        <FilterSelect
+          id="historico-filtro-status"
+          value={status}
+          onChange={(value) => pushParams({ status: value || undefined })}
+          ariaLabel="Filtrar por Status"
+        >
+          <option value="">Todos os Status</option>
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </FilterSelect>
+      </FilterField>
 
-      <FilterSelect value={cardSetId} onChange={(value) => pushParams({ set: value || undefined })} ariaLabel="Filtrar por Set">
-        <option value="">Todos os Sets</option>
-        {cardSets.map((cardSet) => (
-          <option key={cardSet.id} value={cardSet.id}>
-            {cardSet.name} ({cardSet.code})
-          </option>
-        ))}
-      </FilterSelect>
+      <FilterField label="Set" htmlFor="historico-filtro-set">
+        <FilterSelect
+          id="historico-filtro-set"
+          value={cardSetId}
+          onChange={(value) => pushParams({ set: value || undefined })}
+          ariaLabel="Filtrar por Set"
+        >
+          <option value="">Todos os Sets</option>
+          {cardSets.map((cardSet) => (
+            <option key={cardSet.id} value={cardSet.id}>
+              {cardSet.name} ({cardSet.code})
+            </option>
+          ))}
+        </FilterSelect>
+      </FilterField>
 
-      <div className="flex items-center gap-1.5">
-        <Input
-          type="date"
-          value={dateFrom}
-          onChange={(event) => pushParams({ de: event.target.value || undefined })}
-          className="h-9 w-[9.5rem] bg-surface-muted text-xs"
-          aria-label="Data inicial"
-        />
-        <span className="text-xs text-muted-foreground">até</span>
-        <Input
-          type="date"
-          value={dateTo}
-          onChange={(event) => pushParams({ ate: event.target.value || undefined })}
-          className="h-9 w-[9.5rem] bg-surface-muted text-xs"
-          aria-label="Data final"
-        />
+      <div className="flex items-end gap-1.5">
+        <FilterField label="Data inicial" htmlFor="historico-filtro-de">
+          <Input
+            id="historico-filtro-de"
+            type="date"
+            value={dateFrom}
+            onChange={(event) => pushParams({ de: event.target.value || undefined })}
+            className="h-9 w-[9.5rem] bg-surface-muted text-xs"
+            aria-label="Data inicial"
+          />
+        </FilterField>
+        <span className="pb-2 text-xs text-muted-foreground">até</span>
+        <FilterField label="Data final" htmlFor="historico-filtro-ate">
+          <Input
+            id="historico-filtro-ate"
+            type="date"
+            value={dateTo}
+            onChange={(event) => pushParams({ ate: event.target.value || undefined })}
+            className="h-9 w-[9.5rem] bg-surface-muted text-xs"
+            aria-label="Data final"
+          />
+        </FilterField>
       </div>
     </div>
   );

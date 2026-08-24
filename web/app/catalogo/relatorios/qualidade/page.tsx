@@ -75,14 +75,32 @@ export default async function RelatorioQualidadePage() {
                     <RelatorioCabecalho titulo={TITULO} subtitulo={SUBTITULO} />
                   </th>
                 </tr>
-                <DataTableHeadRow className="bg-surface-muted">
-                  <DataTableHeadCell className="pl-6 print:pl-0">Coleção</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Total esperado</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Cadastradas</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Pendentes</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Com imagem</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Sem imagem</DataTableHeadCell>
-                  <DataTableHeadCell align="center" className="pr-6 last:pr-6 print:pr-0 print:last:pr-0">
+                {/* Cor literal, não token — ver nota completa em
+                    cobertura-geral/page.tsx (mesmo fix, 2026-08-23). */}
+                {/* Fundo em cada `th`, não na `tr` (2026-08-23, fix reportado
+                    por Fabrício — só metade do cabeçalho ficava cinza na
+                    impressão). Ver nota completa em cobertura-geral/page.tsx. */}
+                <DataTableHeadRow className="border-neutral-200 text-neutral-500">
+                  <DataTableHeadCell className="bg-neutral-50 pl-6 print:pl-0">Coleção</DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Total esperado
+                  </DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Cadastradas
+                  </DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Pendentes
+                  </DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Com imagem
+                  </DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Sem imagem
+                  </DataTableHeadCell>
+                  <DataTableHeadCell
+                    align="center"
+                    className="bg-neutral-50 pr-6 last:pr-6 print:pr-0 print:last:pr-0"
+                  >
                     Inativas
                   </DataTableHeadCell>
                 </DataTableHeadRow>

@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
-import { getCachedIsAdmin, getCachedUser } from "@/lib/supabase/request-auth-cache";
+import { getCachedIsAdmin, getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 type PricingGuardResult =
@@ -46,6 +46,17 @@ export async function requirePricingAdmin(title: string, icon?: LucideIcon): Pro
   if (!user) {
     redirect("/login");
   }
+
+  // Dispara a resolução de user_profile o MAIS CEDO possível, sem aguardar
+  // aqui — a promise memoizada por cache() já fica "em voo" durante as
+  // leituras específicas da página (Promise.all das RPCs), em vez de só
+  // começar depois que AppShell/Header renderizam (achado do diagnóstico P0
+  // de performance de /pricing, 2026-08-23). `.catch(() => {})` só evita
+  // warning de unhandled rejection nesta referência solta; Header ainda
+  // recebe o resultado/erro real ao dar `await` na mesma promise memoizada.
+  // Mesmo padrão aplicado simetricamente em requireCatalogoAdmin() — não é
+  // solução exclusiva de /pricing, vive na camada compartilhada de guard.
+  void getCachedUserProfile().catch(() => {});
 
   if (!isAdmin) {
     return {

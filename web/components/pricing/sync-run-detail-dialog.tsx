@@ -160,9 +160,16 @@ export function SyncRunDetailDialog({ runId, trigger }: { runId: string; trigger
   );
 }
 
+/**
+ * v1.1 (2026-08-23, feedback de Fabrício sobre Histórico de Execuções):
+ * "Ver detalhes" era `variant="outline"` — pesado para uma ação repetida em
+ * toda linha da tabela. `ghost` + texto `muted-foreground` (escurece no
+ * hover) mantém a ação claramente clicável sem competir visualmente com
+ * status/Set/dados principais da linha.
+ */
 export function SyncRunDetailTriggerButton() {
   return (
-    <Button type="button" variant="outline" size="sm">
+    <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
       Ver detalhes
     </Button>
   );

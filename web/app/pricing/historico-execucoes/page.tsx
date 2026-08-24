@@ -74,7 +74,7 @@ export default async function PricingHistoricoExecucoesPage({
               <PageTitle>Histórico de Execuções</PageTitle>
             </div>
             <PageDescription>
-              Execuções de sincronização: status, duração, requisições, rate limits e erros.
+              Execuções de sincronização: status, duração, requisições, limites da API e erros.
             </PageDescription>
           </PageHeading>
         </PageHeader>

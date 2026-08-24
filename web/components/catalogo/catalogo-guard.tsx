@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
-import { getCachedIsAdmin, getCachedUser } from "@/lib/supabase/request-auth-cache";
+import { getCachedIsAdmin, getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 type CatalogoGuardResult =
@@ -60,6 +60,20 @@ export async function requireCatalogoAdmin(title: string, icon?: LucideIcon): Pr
   if (!user) {
     redirect("/login");
   }
+
+  // Dispara a resolução de user_profile o MAIS CEDO possível, sem aguardar
+  // aqui — a promise memoizada por cache() já fica "em voo" durante as
+  // leituras específicas da página, em vez de só começar depois que
+  // AppShell/Header renderizam. Também elimina a duplicidade observada
+  // nesta rota (o `loading.tsx` de /catalogo renderiza um AppShell/Header
+  // "real" próprio como esqueleto — ver app/catalogo/loading.tsx — então
+  // Header rodava sua própria query DUAS vezes por requisição; com
+  // getCachedUserProfile() memoizado, a segunda renderização reaproveita o
+  // mesmo resultado, sem round-trip novo). Achado do diagnóstico P0 de
+  // performance de /pricing (2026-08-23) — mesmo padrão em
+  // requirePricingAdmin(), não é solução exclusiva de nenhuma das duas
+  // rotas, vive na camada compartilhada de guard.
+  void getCachedUserProfile().catch(() => {});
 
   if (!isAdmin) {
     return {

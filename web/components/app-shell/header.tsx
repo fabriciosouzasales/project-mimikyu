@@ -3,8 +3,7 @@ import { MobileNav } from "@/components/app-shell/mobile-nav";
 import { GlobalSearch } from "@/components/app-shell/global-search";
 import { UserAvatarBadge } from "@/components/app-shell/user-avatar-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { createClient } from "@/lib/supabase/server";
-import { getCachedUser } from "@/lib/supabase/request-auth-cache";
+import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
 /**
  * Cabeçalho fixo do app shell: menu mobile (hambúrguer) + breadcrumb + ações
@@ -15,10 +14,7 @@ import { getCachedUser } from "@/lib/supabase/request-auth-cache";
 export async function Header({ title, icon: Icon, isAdmin }: { title: string; icon?: LucideIcon; isAdmin: boolean }) {
   // getCachedUser() (Incremento 1 de performance, 2026-08-14): mesma chamada
   // de sempre (auth.getUser()), memoizada por requisição — reusa o resultado
-  // já obtido por requireCatalogoAdmin() em vez de refazer a chamada de rede.
-  // Ver lib/supabase/request-auth-cache.ts. `supabase` continua criado aqui
-  // normalmente (client novo, sem custo de rede) só para a query de
-  // user_profile abaixo, que não faz parte da deduplicação pedida.
+  // já obtido pelo guard em vez de refazer a chamada de rede.
   const {
     data: { user },
   } = await getCachedUser();
@@ -26,19 +22,21 @@ export async function Header({ title, icon: Icon, isAdmin }: { title: string; ic
   let avatarUrl: string | null = null;
   let initial = "?";
 
+  // getCachedUserProfile() (Fase 2 do diagnóstico P0 de performance,
+  // 2026-08-23 — ver lib/supabase/request-auth-cache.ts): antes, esta query
+  // vivia aqui mesmo, com seu próprio createClient() fora de qualquer cache
+  // de requisição — 21% do tempo de /pricing e, em rotas com loading.tsx
+  // (ex.: /catalogo), disparada DUAS vezes por request (uma pelo esqueleto,
+  // outra pela página real). Agora é a MESMA promise memoizada que os guards
+  // (requirePricingAdmin/requireCatalogoAdmin) já dispararam mais cedo, em
+  // paralelo com as leituras específicas da página — aqui só se aguarda o
+  // resultado, sem round-trip novo (nem na 1ª nem na 2ª renderização dentro
+  // da mesma requisição).
   if (user) {
-    const supabase = await createClient();
-    const { data: profile } = await supabase
-      .from("user_profile")
-      .select("username, display_name, avatar_path")
-      .eq("id", user.id)
-      .maybeSingle();
-
+    const { profile, avatarUrl: url } = await getCachedUserProfile();
     if (profile) {
       initial = (profile.display_name || profile.username || "?").charAt(0).toUpperCase();
-      if (profile.avatar_path) {
-        avatarUrl = supabase.storage.from("avatars").getPublicUrl(profile.avatar_path).data.publicUrl;
-      }
+      avatarUrl = url;
     }
   }
 

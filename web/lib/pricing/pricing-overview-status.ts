@@ -71,10 +71,18 @@ export function computePricingOverviewStatus(
     );
   }
 
+  // Texto revisado (2026-08-23, coerência com o tile "Atualização
+  // pendente"/"Atualização atrasada" de `pricing-overview-stats.tsx`): um
+  // `next_due_at` levemente no passado é backlog NORMAL com o dispatcher
+  // ativo (processado no próximo ciclo de 5 minutos, ADR-032) — por isso só
+  // este bloco, com a margem de 1h de `OVERDUE_GRACE_MS`, vira sinal de
+  // Atenção. "Fila de atualização" deixa claro que é o mesmo atraso do
+  // tile, só que persistente além do esperado — não confundir com o rótulo
+  // benigno "Atualização pendente", que aparece mesmo sem esse atraso maior.
   if (overview.sets.next_due_at) {
     const atraso = Date.now() - new Date(overview.sets.next_due_at).getTime();
     if (atraso > OVERDUE_GRACE_MS) {
-      attentionReasons.push("Próxima execução prevista já está atrasada.");
+      attentionReasons.push("Fila de atualização atrasada há mais de 1 hora.");
     }
   }
 

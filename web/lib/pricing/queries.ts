@@ -1195,8 +1195,17 @@ export type PricingReportHistoryPoint = {
   pricingSourceId: string;
   pricingSourceCode: string;
   printingLabel: string;
+  /** Preço bruto na moeda nativa da fonte (ex.: USD no JustTCG) — mantido só como contexto. */
   price: number;
+  /** Moeda nativa do ponto — mantida só como contexto. */
   currencyCode: string;
+  /**
+   * Preço convertido para `report.currency` na cotação PTAX da própria data
+   * de `observedAt` (migration 3948) — `null` quando `fxStatus` não é
+   * `NATIVE`/`CONVERTED`. É este o valor que a UI deve exibir.
+   */
+  priceDisplay: number | null;
+  fxStatus: PricingReportFxStatus;
   observedAt: string;
 };
 
@@ -1251,6 +1260,8 @@ type PricingReportCardRawRow = {
     printing_label: string;
     price: number;
     currency_code: string;
+    price_display: number | null;
+    fx_status: PricingReportFxStatus;
     observed_at: string;
   }>;
 };
@@ -1262,6 +1273,14 @@ type PricingReportCardRawRow = {
  * `getPricingSyncRunDetail`: a tela mostra um estado "não encontrado"
  * genérico, sem tentar distinguir a causa exata (nenhuma dessas RPCs de
  * detalhe traduz erro para o usuário, só as de escrita).
+ *
+ * v2 (2026-08-23, migration 3948, aprovado por Fabrício) — `history` passa a
+ * trazer conversão cambial por ponto (`price_display`/`fx_status`), na mesma
+ * semântica já validada em `current_prices`/`current_with_fx`: taxa PTAX
+ * (`BCB_PTAX`) buscada pela data da própria observação (`observed_at`), nunca
+ * pela cotação atual — histórico e "Preços atuais" agora respeitam a mesma
+ * moeda selecionada. `price`/`currency_code` nativos são preservados sem
+ * alteração, só como contexto.
  */
 export async function getPricingReportCard(
   supabase: SupabaseClient,
@@ -1312,6 +1331,8 @@ export async function getPricingReportCard(
       printingLabel: h.printing_label,
       price: h.price,
       currencyCode: h.currency_code,
+      priceDisplay: h.price_display,
+      fxStatus: h.fx_status,
       observedAt: h.observed_at,
     })),
   };
@@ -1409,7 +1430,7 @@ export type PricingReportSetCardItem = {
   setCoveredValue: number;
 };
 
-type PricingReportSetCardRawRow = {
+export type PricingReportSetCardRawRow = {
   card_id: string;
   card_name: string;
   collector_number: string;
@@ -1432,6 +1453,42 @@ type PricingReportSetCardRawRow = {
   set_covered_value: number;
   total_count: number;
 };
+
+/**
+ * Mapeamento puro snake_case (RPC) -> camelCase (`PricingReportSetCardItem`)
+ * — extraído de dentro de `getPricingReportSetCards` (2026-08-23) para ser
+ * reaproveitado também pelo fetch client-side de impressão
+ * (`fetchAllPricingReportSetCards`, `valor-por-set-print-client.ts`), que
+ * chama a MESMA RPC diretamente do navegador (mesmo padrão já usado em
+ * `users-table.tsx`) para reunir o conjunto completo de cartas do Set só no
+ * momento da impressão — nunca na carga normal da tela (que continua
+ * paginada em 20, via esta função). Nenhuma duplicação de lógica de
+ * mapeamento entre servidor e cliente.
+ */
+export function mapPricingReportSetCardRow(row: PricingReportSetCardRawRow): PricingReportSetCardItem {
+  return {
+    cardId: row.card_id,
+    cardName: row.card_name,
+    collectorNumber: row.collector_number,
+    collectorTotal: row.collector_total,
+    status: row.status,
+    pricingSourceId: row.pricing_source_id,
+    pricingSourceCode: row.pricing_source_code,
+    printingLabel: row.printing_label,
+    priceNative: row.price_native,
+    currencyNative: row.currency_native,
+    priceDisplay: row.price_display,
+    currency: row.currency,
+    fxStatus: row.fx_status,
+    fxSource: row.fx_source,
+    fxRate: row.fx_rate,
+    fxRateDate: row.fx_rate_date,
+    observedAt: row.observed_at,
+    participationPct: row.participation_pct,
+    ranking: row.ranking,
+    setCoveredValue: row.set_covered_value,
+  };
+}
 
 /**
  * Lista/ranking de cartas do relatório "Valor por Set" —
@@ -1470,28 +1527,7 @@ export async function getPricingReportSetCards(
 
   const rows = data as PricingReportSetCardRawRow[];
   return {
-    items: rows.map((row) => ({
-      cardId: row.card_id,
-      cardName: row.card_name,
-      collectorNumber: row.collector_number,
-      collectorTotal: row.collector_total,
-      status: row.status,
-      pricingSourceId: row.pricing_source_id,
-      pricingSourceCode: row.pricing_source_code,
-      printingLabel: row.printing_label,
-      priceNative: row.price_native,
-      currencyNative: row.currency_native,
-      priceDisplay: row.price_display,
-      currency: row.currency,
-      fxStatus: row.fx_status,
-      fxSource: row.fx_source,
-      fxRate: row.fx_rate,
-      fxRateDate: row.fx_rate_date,
-      observedAt: row.observed_at,
-      participationPct: row.participation_pct,
-      ranking: row.ranking,
-      setCoveredValue: row.set_covered_value,
-    })),
+    items: rows.map(mapPricingReportSetCardRow),
     totalCount: rows[0]?.total_count ?? 0,
   };
 }

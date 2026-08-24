@@ -2,6 +2,7 @@ import { Activity, Clock, RefreshCw, ShieldAlert, ShieldCheck, ShieldX } from "l
 import type { LucideIcon } from "lucide-react";
 import { Panel } from "@/components/catalogo/panel";
 import { Badge } from "@/components/ui/badge";
+import { HeroFact } from "@/components/pricing/hero-fact";
 import type { PricingAdminOverview } from "@/lib/pricing/queries";
 import type { PricingOverviewStatus } from "@/lib/pricing/pricing-overview-status";
 import { cn, formatManagerialDateTime, formatNumber } from "@/lib/utils";
@@ -135,34 +136,5 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
         />
       </div>
     </Panel>
-  );
-}
-
-function HeroFact({
-  icon: Icon,
-  label,
-  value,
-  valueClassName,
-  progressPct,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  valueClassName?: string;
-  progressPct?: number;
-}) {
-  return (
-    <div className="space-y-1">
-      <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        {label}
-      </p>
-      <p className={cn("text-lg font-semibold tabular-nums text-foreground", valueClassName)}>{value}</p>
-      {progressPct !== undefined && (
-        <div className="h-1 w-3/4 overflow-hidden rounded-full bg-surface-muted">
-          <div className="h-full rounded-full bg-primary/60 transition-[width]" style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }} />
-        </div>
-      )}
-    </div>
   );
 }

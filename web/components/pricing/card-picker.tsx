@@ -4,6 +4,7 @@ import { Loader2, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { cardImageUrl } from "@/lib/pesquisa/format";
 
 type CardSuggestion = {
   id: string;
@@ -11,6 +12,8 @@ type CardSuggestion = {
   collectorNumber: string;
   collectorTotal: number | null;
   cardSet: { code: string; name: string };
+  imageUrlPt: string | null;
+  imageUrlEn: string | null;
 };
 
 /**
@@ -116,23 +119,40 @@ export function CardPicker({ paramName = "card" }: { paramName?: string }) {
           role="listbox"
           className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-border bg-surface p-1 shadow-panel"
         >
-          {results.map((card) => (
-            <li key={card.id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={false}
-                onClick={() => selectCard(card.id)}
-                className="flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-surface-muted"
-              >
-                <span className="font-medium text-foreground">{card.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {card.cardSet.code} · {card.collectorNumber.padStart(3, "0")}/
-                  {card.collectorTotal != null ? String(card.collectorTotal).padStart(3, "0") : "???"}
-                </span>
-              </button>
-            </li>
-          ))}
+          {results.map((card) => {
+            const imageUrl = cardImageUrl(card);
+            return (
+              <li key={card.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => selectCard(card.id)}
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-surface-muted"
+                >
+                  {/* Miniatura da carta — mesmo padrão da busca global
+                      (`global-search.tsx`), pedido explícito de Fabrício
+                      (2026-08-23) para dar reconhecimento visual imediato
+                      ao escolher a carta, não só o nome/número em texto. */}
+                  <div className="flex h-9 w-7 shrink-0 items-center justify-center overflow-hidden rounded bg-surface-muted">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Search className="h-3 w-3 text-muted-foreground/40" aria-hidden="true" />
+                    )}
+                  </div>
+                  <span className="flex flex-col items-start gap-0.5">
+                    <span className="font-medium text-foreground">{card.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {card.cardSet.code} · {card.collectorNumber.padStart(3, "0")}/
+                      {card.collectorTotal != null ? String(card.collectorTotal).padStart(3, "0") : "???"}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
 

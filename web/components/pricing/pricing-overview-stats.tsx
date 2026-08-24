@@ -93,6 +93,46 @@ import { cn, formatManagerialDateTime, formatNumber } from "@/lib/utils";
  * tocados — ver `pricing-overview-hero.tsx`, `pricing-sync-run-chart.tsx` e
  * `pricing-api-usage-chart.tsx`.
  */
+/**
+ * `sets.next_due_at` (RPC `get_pricing_admin_overview`, migration 3939) é o
+ * `min(pricing_set_refresh_state.next_due_at)` entre Sets NÃO pausados —
+ * ver `queries.ts`. Esse valor pode legitimamente ficar no passado mesmo
+ * com o scheduler saudável: é só o instante em que o Set mais atrasado da
+ * fila ficou elegível, não uma previsão futura — o dispatcher roda a cada 5
+ * minutos (ADR-032) e processa esse backlog de forma assíncrona.
+ *
+ * Regra final (2026-08-23, revisão pedida por Fabrício após o primeiro
+ * ajuste: "nunca devemos exibir 'Próxima atualização' com `next_due_at` no
+ * passado, independentemente do dispatcher") — correção só de apresentação,
+ * `next_due_at`/scheduler/RPC intocados, nenhuma regra de negócio nova:
+ * 1. `next_due_at` no futuro → "Próxima atualização" / data-hora formatada.
+ * 2. `next_due_at` no passado E dispatcher ATIVO → "Atualização pendente" /
+ *    "Aguardando processamento" — backlog normal, o dispatcher já vai
+ *    processar no próximo ciclo de 5 minutos.
+ * 3. `next_due_at` no passado E dispatcher INATIVO → "Atualização atrasada"
+ *    / a própria data-hora vencida — aqui SIM é sinal real de atraso (nada
+ *    está processando o backlog sozinho), diferente do caso 2.
+ * 4. `next_due_at` ausente → tratamento neutro original ("—"), independente
+ *    do dispatcher.
+ * Em nenhum dos 4 casos o rótulo "Próxima atualização" aparece com uma data
+ * já vencida — só nos casos 1 (sempre futuro) e 4 (sem data nenhuma).
+ */
+function deriveProximaAtualizacaoTile(
+  nextDueAt: string | null,
+  dispatcherAtivo: boolean,
+): { label: string; valor: string } {
+  if (!nextDueAt) {
+    return { label: "Próxima atualização", valor: "—" };
+  }
+  if (new Date(nextDueAt).getTime() > Date.now()) {
+    return { label: "Próxima atualização", valor: formatManagerialDateTime(nextDueAt) };
+  }
+  if (dispatcherAtivo) {
+    return { label: "Atualização pendente", valor: "Aguardando processamento" };
+  }
+  return { label: "Atualização atrasada", valor: formatManagerialDateTime(nextDueAt) };
+}
+
 export function PricingOverviewStats({
   overview,
   trend,
@@ -107,6 +147,7 @@ export function PricingOverviewStats({
   const { sources, mappings, products_count, observations_count, sets, dispatcher } = overview;
 
   const status = computePricingOverviewStatus(overview, syncDaily);
+  const proximaAtualizacao = deriveProximaAtualizacaoTile(sets.next_due_at, Boolean(dispatcher?.active));
 
   return (
     <div className="space-y-6">
@@ -173,8 +214,8 @@ export function PricingOverviewStats({
               enfase="operacional"
               href="/pricing/sincronizacoes"
               icone={<Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
-              label="Próxima atualização"
-              valor={sets.next_due_at ? formatManagerialDateTime(sets.next_due_at) : "—"}
+              label={proximaAtualizacao.label}
+              valor={proximaAtualizacao.valor}
             />
           </div>
         </PanelContent>

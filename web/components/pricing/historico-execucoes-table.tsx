@@ -21,17 +21,25 @@ import {
   type PricingCardSetOption,
   type PricingSyncRunItem,
 } from "@/lib/pricing/queries";
-import { formatNumber } from "@/lib/utils";
+import { formatManagerialDateTime, formatNumber } from "@/lib/utils";
 
+// v1.1 (2026-08-23, feedback de Fabrício sobre a tela) — "Refresh de Preços"
+// → "Atualização de Preços", mesma troca já aplicada em Saúde das Fontes
+// (`saude-fontes-list.tsx`).
 const RUN_TYPE_LABEL: Record<string, string> = {
   CARD_SYNC: "Descoberta/Matching",
-  PRICE_REFRESH: "Refresh de Preços",
+  PRICE_REFRESH: "Atualização de Preços",
   FX_REFRESH: "Câmbio (PTAX)",
 };
 
+// COMPLETED_WITH_ERRORS → "Concluída com alertas" (era "com erros"): o badge
+// já é vermelho/amarelo pela tonalidade (`STATUS_TONE`), o texto não precisa
+// repetir a palavra "erros" para não soar mais grave do que o real (nem toda
+// COMPLETED_WITH_ERRORS é uma falha visível ao usuário administrativo). O
+// `StateBadge` já força `uppercase` via CSS — não precisa maiúscula aqui.
 const STATUS_LABEL: Record<string, string> = {
   COMPLETED: "Concluída",
-  COMPLETED_WITH_ERRORS: "Concluída com erros",
+  COMPLETED_WITH_ERRORS: "Concluída com alertas",
   FAILED: "Falhou",
 };
 
@@ -41,23 +49,27 @@ const STATUS_TONE: Record<string, StateTone> = {
   FAILED: "danger",
 };
 
-function formatDateTime(value: string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+/** Apresentação de `pricing_source_code` — só troca de caixa visual, nunca o código interno. */
+const SOURCE_CODE_LABEL: Record<string, string> = {
+  JUSTTCG: "JustTCG",
+};
 
+/**
+ * Duração humana (2026-08-23, feedback de Fabrício: "não exibir precisão
+ * técnica excessiva como 20.016752s"). `durationSeconds` vem do banco com
+ * várias casas decimais — abaixo de 60s mostra 1 casa (vírgula PT-BR);
+ * a partir de 60s vira "M min SS s" com segundos inteiros e zero-padded,
+ * suficiente para leitura operacional sem ruído de microssegundos.
+ */
 function formatDuration(seconds: number | null): string {
   if (seconds === null) return "—";
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return rest > 0 ? `${minutes}min ${rest}s` : `${minutes}min`;
+  if (seconds < 60) {
+    return `${seconds.toFixed(1).replace(".", ",")} s`;
+  }
+  const totalSeconds = Math.round(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const rest = totalSeconds % 60;
+  return `${minutes} min ${String(rest).padStart(2, "0")} s`;
 }
 
 /**
@@ -116,14 +128,19 @@ export function HistoricoExecucoesTable({
           <DataTable>
             <DataTableHead>
               <DataTableHeadRow className="bg-surface-muted">
-                <DataTableHeadCell className="pl-4">Tipo</DataTableHeadCell>
+                {/* v1.2 (2026-08-23) — Tipo com largura reduzida (`w-36`, sem truncar:
+                    "Atualização de Preços" cabe em uma linha com `whitespace-nowrap`) para
+                    dar mais respiro à coluna Set, pedido de Fabrício. */}
+                <DataTableHeadCell align="center" className="w-36 pl-4">
+                  Tipo
+                </DataTableHeadCell>
                 <DataTableHeadCell align="center">Status</DataTableHeadCell>
-                <DataTableHeadCell>Fonte</DataTableHeadCell>
-                <DataTableHeadCell>Set</DataTableHeadCell>
-                <DataTableHeadCell>Início</DataTableHeadCell>
+                <DataTableHeadCell align="center">Fonte</DataTableHeadCell>
+                <DataTableHeadCell align="center">Set</DataTableHeadCell>
+                <DataTableHeadCell align="center">Início</DataTableHeadCell>
                 <DataTableHeadCell align="center">Duração</DataTableHeadCell>
                 <DataTableHeadCell align="center">Requisições</DataTableHeadCell>
-                <DataTableHeadCell align="center">Rate limits</DataTableHeadCell>
+                <DataTableHeadCell align="center">Limites da API</DataTableHeadCell>
                 <DataTableHeadCell align="center" className="pr-4 last:pr-4">
                   Ações
                 </DataTableHeadCell>
@@ -133,7 +150,9 @@ export function HistoricoExecucoesTable({
               {items.map((item) => (
                 <DataTableRow key={item.id}>
                   <DataTableCell className="pl-4">
-                    <span className="text-sm text-foreground">{RUN_TYPE_LABEL[item.runType] ?? item.runType}</span>
+                    <span className="whitespace-nowrap text-sm text-foreground">
+                      {RUN_TYPE_LABEL[item.runType] ?? item.runType}
+                    </span>
                   </DataTableCell>
                   <DataTableCell align="center">
                     <StateBadge tone={STATUS_TONE[item.status] ?? "muted"}>
@@ -141,12 +160,14 @@ export function HistoricoExecucoesTable({
                     </StateBadge>
                   </DataTableCell>
                   <DataTableCell>
-                    <span className="text-xs uppercase text-muted-foreground">{item.pricingSourceCode ?? "—"}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.pricingSourceCode ? (SOURCE_CODE_LABEL[item.pricingSourceCode] ?? item.pricingSourceCode) : "—"}
+                    </span>
                   </DataTableCell>
                   <DataTableCell>
                     {item.cardSetCode ? (
                       <>
-                        <span className="text-xs text-foreground">{item.cardSetName}</span>
+                        <span className="text-sm font-medium text-foreground">{item.cardSetName}</span>
                         <span className="ml-1 text-xs text-muted-foreground">({item.cardSetCode})</span>
                       </>
                     ) : (
@@ -154,7 +175,9 @@ export function HistoricoExecucoesTable({
                     )}
                   </DataTableCell>
                   <DataTableCell>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(item.startedAt)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.startedAt ? formatManagerialDateTime(item.startedAt) : "—"}
+                    </span>
                   </DataTableCell>
                   <DataTableCell align="center">
                     <span className="tabular-nums text-xs">{formatDuration(item.durationSeconds)}</span>
@@ -163,8 +186,10 @@ export function HistoricoExecucoesTable({
                     <span className="tabular-nums text-xs">{item.requestsMade !== null ? formatNumber(item.requestsMade) : "—"}</span>
                   </DataTableCell>
                   <DataTableCell align="center">
+                    {/* v1.2 (2026-08-23) — "0" quando o valor é efetivamente zero, "—" só
+                        quando o dado está ausente: distinguir "nenhum bloqueio" de "sem dado" */}
                     <span className="tabular-nums text-xs">
-                      {item.rateLimitHits !== null && item.rateLimitHits > 0 ? formatNumber(item.rateLimitHits) : "—"}
+                      {item.rateLimitHits !== null ? formatNumber(item.rateLimitHits) : "—"}
                     </span>
                   </DataTableCell>
                   <DataTableCell align="center" className="pr-4 last:pr-4">

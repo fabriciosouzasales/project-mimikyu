@@ -8,6 +8,16 @@ import { NextResponse, type NextRequest } from "next/server";
  * IMPORTANTE (registrado para a Etapa 3): isto NÃO é controle de acesso.
  * Isto só mantém a sessão válida atualizada. Guardas de rota por papel
  * (`role`) serão adicionadas explicitamente na Etapa 3, sobre esta mesma base.
+ *
+ * ÓRFÃ desde 2026-08-14 (diagnóstico P0 de performance de /pricing,
+ * 2026-08-23): `web/middleware.ts` — o único arquivo que faria o Next.js
+ * executar `updateSession()` de fato — foi removido nessa data por um
+ * incidente de produção na Vercel (`MIDDLEWARE_INVOCATION_FAILED`, ver
+ * `docs/log.md`). Esta função não tem mais nenhum chamador; o refresh de
+ * sessão hoje é feito no browser por `components/auth/session-refresher.tsx`.
+ * Mantida no repositório apenas como registro — não remover/reativar sem
+ * decisão explícita, já que a causa do incidente original nunca foi
+ * corrigida, só contornada.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

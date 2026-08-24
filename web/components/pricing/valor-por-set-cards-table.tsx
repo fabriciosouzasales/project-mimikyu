@@ -32,6 +32,10 @@ const STATUS_TONE: Record<PricingReportSetCardStatus, StateTone> = {
   NO_PRICE: "danger",
 };
 
+// Mesmo formatador de "Preço por Carta" (`preco-por-carta-report.tsx`) — só
+// data civil, sem hora (consistência de formatação de data em Pricing Admin).
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
 function formatMoney(value: number, currencyCode: string): string {
   try {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: currencyCode }).format(value);
@@ -45,13 +49,20 @@ function formatPercent(value: number): string {
 }
 
 /**
- * Lista/ranking de cartas do relatório "Valor por Set" (Bloco 5, migration
- * 3944) — mesma arquitetura de paginação de `PendenciasTable`
- * (`?page=` via `Link`, "Mostrando X–Y de Z"), preservando os parâmetros de
- * navegação da tela (Jogo/Expansão/Set/condição/moeda) em cada link de
- * página. Ranking e participação (`participationPct`) só existem para
- * status PRICED — nunca calculados sobre FX_UNAVAILABLE/NO_PRICE, e a coluna
- * mostra "—" nesses casos em vez de 0 (ausência de preço nunca vira zero).
+ * Lista de cartas do relatório "Valor por Set" (Bloco 5, migration 3944) —
+ * mesma arquitetura de paginação de `PendenciasTable` (`?page=` via `Link`,
+ * "Mostrando X–Y de Z"), preservando os parâmetros de navegação da tela
+ * (Jogo/Expansão/Set/condição/moeda) em cada link de página.
+ *
+ * Ordenação (correção de direção de produto, 2026-08-23, migration 3949) —
+ * esta tela NÃO é um ranking econômico: é um relatório de composição de
+ * custo/valor do Set em ordem editorial da coleção. A RPC
+ * `admin_get_pricing_report_set_cards` ordena por `collector_order ASC
+ * NULLS LAST`, não mais por valor. `ranking`/`participationPct` continuam
+ * calculados internamente pela RPC (útil como dado, não como ordenação) e
+ * só existem para status PRICED — nunca sobre FX_UNAVAILABLE/NO_PRICE; a
+ * coluna mostra "—" nesses casos em vez de 0 (ausência de preço nunca vira
+ * zero).
  */
 export function ValorPorSetCardsTable({
   items,
@@ -81,7 +92,7 @@ export function ValorPorSetCardsTable({
     <Card>
       <div className="border-b border-border px-4 py-3">
         <p className="text-sm font-medium text-foreground">Cartas do Set</p>
-        <p className="text-xs text-muted-foreground">Ranking por valor coberto — mesma regra econômica do agregado acima.</p>
+        <p className="text-xs text-muted-foreground">Composição do valor estimado do Set em ordem da coleção.</p>
       </div>
       <CardContent className="p-0">
         {items.length === 0 ? (
@@ -91,13 +102,13 @@ export function ValorPorSetCardsTable({
             <DataTableHead>
               <DataTableHeadRow className="bg-surface-muted">
                 <DataTableHeadCell align="center" className="pl-4">
-                  #
+                  Carta
                 </DataTableHeadCell>
-                <DataTableHeadCell>Carta</DataTableHeadCell>
-                <DataTableHeadCell>Variante</DataTableHeadCell>
+                <DataTableHeadCell align="center">Variante</DataTableHeadCell>
                 <DataTableHeadCell align="center">Status</DataTableHeadCell>
-                <DataTableHeadCell align="right">Preço</DataTableHeadCell>
-                <DataTableHeadCell align="right" className="pr-4 last:pr-4">
+                <DataTableHeadCell align="center">Preço</DataTableHeadCell>
+                <DataTableHeadCell align="center">Última Atualização</DataTableHeadCell>
+                <DataTableHeadCell align="center" className="pr-4 last:pr-4">
                   Participação
                 </DataTableHeadCell>
               </DataTableHeadRow>
@@ -105,10 +116,7 @@ export function ValorPorSetCardsTable({
             <tbody>
               {items.map((item) => (
                 <DataTableRow key={item.cardId}>
-                  <DataTableCell align="center" className="pl-4">
-                    <span className="tabular-nums text-xs text-muted-foreground">{item.ranking ?? "—"}</span>
-                  </DataTableCell>
-                  <DataTableCell>
+                  <DataTableCell className="pl-4">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">{item.cardName}</p>
                       <p className="text-xs tabular-nums text-muted-foreground">
@@ -131,13 +139,37 @@ export function ValorPorSetCardsTable({
                       {item.priceDisplay !== null ? formatMoney(item.priceDisplay, item.currency) : "—"}
                     </span>
                     {item.fxStatus === "FX_RATE_UNAVAILABLE" && (
-                      <p className="text-[11px] text-warning-foreground">Câmbio indisponível na data</p>
+                      <p className="text-[11px] text-warning">Câmbio indisponível na data</p>
                     )}
                   </DataTableCell>
-                  <DataTableCell align="right" className="pr-4 last:pr-4">
-                    <span className="tabular-nums text-xs text-muted-foreground">
-                      {item.participationPct !== null ? formatPercent(item.participationPct) : "—"}
+                  <DataTableCell align="center">
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {item.observedAt ? dateFormatter.format(new Date(item.observedAt)) : "—"}
                     </span>
+                  </DataTableCell>
+                  <DataTableCell align="right" className="pr-4 last:pr-4">
+                    {/* v2 (2026-08-23, refinamento aprovado por Fabrício) — barra
+                        visual discreta de participação, usando o mesmo
+                        `participationPct` já retornado pela RPC 3944 (sem novo
+                        fetch). Só aparece quando há percentual real (PRICED);
+                        o número continua sendo a fonte de verdade, a barra é
+                        só reforço de leitura rápida/comparação entre linhas. */}
+                    <div className="flex items-center justify-end gap-2">
+                      {item.participationPct !== null && (
+                        <span
+                          className="h-1.5 w-12 overflow-hidden rounded-full bg-surface-muted"
+                          role="presentation"
+                        >
+                          <span
+                            className="block h-full rounded-full bg-primary"
+                            style={{ width: `${Math.min(100, Math.max(0, item.participationPct))}%` }}
+                          />
+                        </span>
+                      )}
+                      <span className="tabular-nums text-xs text-muted-foreground">
+                        {item.participationPct !== null ? formatPercent(item.participationPct) : "—"}
+                      </span>
+                    </div>
                   </DataTableCell>
                 </DataTableRow>
               ))}

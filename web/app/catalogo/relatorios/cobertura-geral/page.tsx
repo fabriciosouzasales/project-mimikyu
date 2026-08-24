@@ -80,12 +80,37 @@ export default async function RelatorioCoberturaGeralPage() {
                     <RelatorioCabecalho titulo={TITULO} subtitulo={SUBTITULO} />
                   </th>
                 </tr>
-                <DataTableHeadRow className="bg-surface-muted">
-                  <DataTableHeadCell className="pl-6 print:pl-0">Coleção</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Idioma</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Cadastradas</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Com imagem</DataTableHeadCell>
-                  <DataTableHeadCell align="center" className="pr-6 last:pr-6 print:pr-0 print:last:pr-0">
+                {/* Cor literal, não token (2026-08-23, fix reportado por Fabrício):
+                    `DataTableHeadRow` usa `text-muted-foreground`/`bg-surface-muted`
+                    por padrão — tokens que mudam com o tema do app. Mas
+                    `RelatorioFolha` é fundo branco fixo independente de dark
+                    mode (ver docstring de `relatorio-folha.tsx`); herdar o
+                    token fazia o cabeçalho ficar acastanhado/oliva quando o
+                    app estava em dark mode, em vez do cinza neutro do
+                    padrão. Mesma correção replicada nos outros 5 relatórios
+                    da Central e em `preco-por-carta-report.tsx`.
+
+                    Fix 2 (mesmo dia): fundo estava na `tr`, mas Fabrício
+                    reportou só metade do cabeçalho ficando cinza na
+                    impressão — `background-color` em `<tr>` não é confiável
+                    entre navegadores no modelo de borda "separate" (gaps
+                    entre `th` mostram o fundo da tabela, não da linha). Fix
+                    robusto: `bg-neutral-50` em CADA `th`, não na `tr`. */}
+                <DataTableHeadRow className="border-neutral-200 text-neutral-500">
+                  <DataTableHeadCell className="bg-neutral-50 pl-6 print:pl-0">Coleção</DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Idioma
+                  </DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Cadastradas
+                  </DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="bg-neutral-50">
+                    Com imagem
+                  </DataTableHeadCell>
+                  <DataTableHeadCell
+                    align="center"
+                    className="bg-neutral-50 pr-6 last:pr-6 print:pr-0 print:last:pr-0"
+                  >
                     Cobertura
                   </DataTableHeadCell>
                 </DataTableHeadRow>

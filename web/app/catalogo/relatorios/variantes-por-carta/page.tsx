@@ -209,11 +209,19 @@ export default async function RelatorioVariantesPorCartaPage({
                       />
                     </th>
                   </tr>
-                  <DataTableHeadRow className="bg-surface-muted">
-                    <DataTableHeadCell className="pl-6 print:pl-0">Número</DataTableHeadCell>
-                    <DataTableHeadCell>Nome</DataTableHeadCell>
-                    <DataTableHeadCell>Variantes cadastradas</DataTableHeadCell>
-                    <DataTableHeadCell align="center" className="pr-6 last:pr-6 print:pr-0 print:last:pr-0">
+                  {/* Cor literal, não token — ver nota completa em
+                      cobertura-geral/page.tsx (mesmo fix, 2026-08-23). */}
+                  {/* Fundo em cada `th`, não na `tr` (2026-08-23, fix reportado
+                      por Fabrício — só metade do cabeçalho ficava cinza na
+                      impressão). Ver nota completa em cobertura-geral/page.tsx. */}
+                  <DataTableHeadRow className="border-neutral-200 text-neutral-500">
+                    <DataTableHeadCell className="bg-neutral-50 pl-6 print:pl-0">Número</DataTableHeadCell>
+                    <DataTableHeadCell className="bg-neutral-50">Nome</DataTableHeadCell>
+                    <DataTableHeadCell className="bg-neutral-50">Variantes cadastradas</DataTableHeadCell>
+                    <DataTableHeadCell
+                      align="center"
+                      className="bg-neutral-50 pr-6 last:pr-6 print:pr-0 print:last:pr-0"
+                    >
                       Quantidade
                     </DataTableHeadCell>
                   </DataTableHeadRow>

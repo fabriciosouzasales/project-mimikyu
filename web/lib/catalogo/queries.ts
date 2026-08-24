@@ -1009,6 +1009,68 @@ export async function getCardSetLogoUrls(
   return map;
 }
 
+/**
+ * Logo de um único Card Set, por `id` — usado por "Preço por Carta" (Central
+ * de Relatórios, 2026-08-23, refinamento de hero visual aprovado por
+ * Fabrício) para exibir o logo do Set no hero da carta selecionada. Ponto de
+ * leitura por PK (`.eq("id", ...)`), o mais barato possível — não reaproveita
+ * `getCardSetByCode` porque essa função também busca métricas/cobertura de
+ * imagem irrelevantes aqui; nem `search_cards` (RPC de pesquisa), porque
+ * chamada só com `p_card_id` sem `p_query` faz a função varrer e contar TODAS
+ * as cartas ativas antes do ORDER BY/LIMIT (rank de desempate, ver migration
+ * 4030) — caro demais para só resolver um logo. Reaproveita `card_set`
+ * (grants já concedidos) e `getCardSetLogoUrls` (bucket privado
+ * `card-set-logo`, já existente) — nenhuma tabela/RPC nova.
+ */
+export async function getCardSetLogoUrlById(supabase: SupabaseClient, cardSetId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("card_set")
+    .select("logo_storage_path")
+    .eq("id", cardSetId)
+    .maybeSingle();
+
+  const logoStoragePath = (data as { logo_storage_path: string | null } | null)?.logo_storage_path ?? null;
+  if (error || !logoStoragePath) {
+    return null;
+  }
+
+  const logoUrls = await getCardSetLogoUrls(supabase, [logoStoragePath]);
+  return logoUrls.get(logoStoragePath) ?? null;
+}
+
+/**
+ * Imagem CARD_FRONT principal (pt-BR e en) de uma única Carta, por `id` —
+ * mesma leitura de `card_asset` já usada em `getCartasCompletas`
+ * (`pickCardFrontPath`), aqui restrita a um único `card_id` (`.eq("card_id",
+ * ...)`, ponto de leitura indexado) em vez de todas as cartas de um Set.
+ * Usada pelo hero da carta em "Preço por Carta" — bucket `card-front` é
+ * público (Seed 895), `getPublicUrl()` é síncrono, sem round-trip extra.
+ */
+export async function getCardFrontImageUrl(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<{ imageUrlPt: string | null; imageUrlEn: string | null }> {
+  const { data, error } = await supabase
+    .from("card_asset")
+    .select("storage_path, is_primary, card_asset_type(code), language(code)")
+    .eq("card_id", cardId)
+    .eq("is_primary", true)
+    .eq("is_active", true);
+
+  if (error || !data) {
+    return { imageUrlPt: null, imageUrlEn: null };
+  }
+
+  const assets = data as unknown as CartaCompletaAssetRawRow[];
+  const pathPt = pickCardFrontPath(assets, "pt-BR");
+  const pathEn = pickCardFrontPath(assets, "en");
+
+  return {
+    imageUrlPt: pathPt ? (supabase.storage.from("card-front").getPublicUrl(pathPt).data.publicUrl ?? null) : null,
+    imageUrlEn: pathEn ? (supabase.storage.from("card-front").getPublicUrl(pathEn).data.publicUrl ?? null) : null,
+  };
+}
+
 export type JogoRow = {
   id: string;
   code: string;
@@ -1399,7 +1461,10 @@ export async function getGameOptions(supabase: SupabaseClient): Promise<GameOpti
  * `getEstadoDoCatalogo`) resolve isso numa única query extra, mesmo padrão
  * já estabelecido.
  */
-export async function getCardSetsForCartas(supabase: SupabaseClient): Promise<CatalogoCardSetRow[]> {
+export async function getCardSetsForCartas(
+  supabase: SupabaseClient,
+  filters?: { gameCode?: string },
+): Promise<CatalogoCardSetRow[]> {
   // Paralelização (2026-08-14, auditoria focada de `/catalogo/cartas`,
   // gargalo #3): esta função sempre busca TODOS os Card Sets, sem filtro —
   // diferente de `getCardSetsForCatalogo()` (que pagina e por isso precisa
@@ -1410,8 +1475,13 @@ export async function getCardSetsForCartas(supabase: SupabaseClient): Promise<Ca
   // disparada junto com a primeira em vez de esperar os IDs. Duplicado aqui
   // em vez de generalizar `getCardCountsForSets()`, que continua servindo
   // `getCardSetsForCatalogo()` sem alteração.
+  //
+  // `filters?.gameCode` (2026-08-23, "Valor por Set" — remoção do seletor de
+  // Jogo na tela, decisão de produto: o MMKYU Collector contempla só Pokémon
+  // TCG no lançamento) — opcional; todos os chamadores existentes continuam
+  // sem filtro, comportamento idêntico ao anterior.
   const [rawRows, metricsResult] = await Promise.all([
-    fetchCardSetsForCatalogo(supabase, {}),
+    fetchCardSetsForCatalogo(supabase, filters ?? {}),
     supabase.from("catalog_card_set_metrics").select("card_set_id, cards_cadastradas"),
   ]);
   const rows = sortCatalogoCardSets(rawRows, false);
