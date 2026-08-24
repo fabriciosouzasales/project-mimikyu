@@ -1876,3 +1876,7 @@ Corrigido em `web/components/pricing/valor-por-set-print-folha.tsx`: `RelatorioC
 **Gap residual, não corrigido nesta rodada** (fora do escopo do que foi reportado; registrado para não ficar sem rastro): `PrecoPorCartaPrintFolha` (`preco-por-carta-report.tsx`) tem a mesma lacuna estrutural (`RelatorioCabecalho` fora do `<thead>`) — risco baixo por ser uma folha de carta única (poucas linhas de preço + 1 gráfico, raramente fragmenta em mais de uma página), mas o mesmo defeito se manifestaria num caso com muitas fontes de preço/histórico longo. Candidato a correção futura dedicada.
 
 `npm run typecheck` limpo. Nenhum commit/push.
+
+## [2026-08-23] docs | Central de Relatórios (Pricing) — Preço por Carta e Valor por Set aprovados
+
+Fabrício fechou formalmente o status dos dois relatórios funcionais da Central de Relatórios de Pricing: "Preço por Carta — aprovado; Valor por Set — aprovado; Central de Relatórios — 2 relatórios funcionais aprovados." Fecha a sequência de refinamentos visuais/impressão registrada nas entradas anteriores desta mesma data (recomposição v3, adoção ECharts/ADR-033, Hero Patrimonial, correção do cabeçalho padrão na impressão). Nenhuma mudança de código nesta entrada — só fechamento de status, registrado em `docs/development/HANDOFF-2026-08-21.md`, seção 23. Os outros 5 relatórios do hub seguem `ComingSoonPage`, fora deste fechamento.
