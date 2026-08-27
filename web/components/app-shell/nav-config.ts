@@ -13,6 +13,7 @@ import {
   ImagePlus,
   Layers,
   LayoutDashboard,
+  PencilLine,
   RefreshCw,
   ScrollText,
   Sparkles,
@@ -181,6 +182,12 @@ export const NAV_SECTIONS: NavSection[] = [
       // Cartas. Acesso direto sem esse parâmetro agora redireciona para
       // `/pricing/mapeamentos-cartas` (ver `resolucao-mapeamentos/page.tsx`).
       { href: "/pricing/sincronizacoes", label: "Sincronizações", section: "Operações", icon: RefreshCw },
+      // "Preços Manuais" (2026-08-27) — fallback manual do preço automático
+      // (migrations 3967-3969): tela administrativa para definir/atualizar o
+      // preço quando não existe automático utilizável na condição. Fica em
+      // Operações, ao lado de "Sincronizações" — mesma natureza de ação
+      // operacional sobre dado de preço, não cadastro estrutural.
+      { href: "/pricing/precos-manuais", label: "Preços Manuais", section: "Operações", icon: PencilLine },
     ],
     // Todo o módulo é admin-only (mesma disciplina do Catálogo, ADR-022) —
     // pricing_refresh_policy/pricing_admin_action_log e as RPCs de leitura

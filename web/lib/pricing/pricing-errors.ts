@@ -94,6 +94,18 @@ const KNOWN_CODES: Record<string, string> = {
   ADMIN_UPSERT_PRICING_CONDITION_MAPPING_CONDITION_NOT_FOUND: "Condição não encontrada — ela pode ter sido removida.",
   CONDITION_INACTIVE_CANNOT_RECEIVE_MAPPING: "Esta condição está inativa — reative-a antes de vinculá-la a uma fonte.",
   ADMIN_UPSERT_PRICING_CONDITION_MAPPING_NOT_FOUND: "Vínculo não encontrado — ele pode ter sido removido.",
+  // Preços Manuais (migrations 3967-3969) — Bloco 6.
+  ADMIN_LIST_PRICING_MANUAL_PRICE_CANDIDATES_FORBIDDEN: "Acesso restrito a administradores.",
+  ADMIN_LIST_PRICING_MANUAL_PRICE_CANDIDATES_INVALID_CURRENCY: "Moeda inválida — escolha BRL ou USD.",
+  ADMIN_LIST_PRICING_MANUAL_PRICE_CANDIDATES_CONDITION_NOT_FOUND: "Condição não encontrada — ela pode ter sido removida.",
+  ADMIN_SET_MANUAL_PRICE_FORBIDDEN: "Acesso restrito a administradores.",
+  ADMIN_SET_MANUAL_PRICE_CARD_NOT_FOUND: "Carta não encontrada — ela pode ter sido removida.",
+  ADMIN_SET_MANUAL_PRICE_CONDITION_NOT_FOUND: "Condição não encontrada — ela pode ter sido removida.",
+  ADMIN_SET_MANUAL_PRICE_INVALID_PRICE: "Informe um valor maior ou igual a zero.",
+  ADMIN_SET_MANUAL_PRICE_INVALID_CURRENCY: "Moeda inválida — use um código de 3 letras (ex.: BRL).",
+  ADMIN_SET_MANUAL_PRICE_REASON_REQUIRED: "Informe o motivo do preço manual.",
+  ADMIN_SET_MANUAL_PRICE_OBSERVED_AT_REQUIRED: "Informe a data de referência.",
+  ADMIN_SET_MANUAL_PRICE_OBSERVED_AT_IN_FUTURE: "A data de referência não pode ser mais de 1 hora no futuro.",
 };
 
 export function traduzirErroPricing(message: string): string {

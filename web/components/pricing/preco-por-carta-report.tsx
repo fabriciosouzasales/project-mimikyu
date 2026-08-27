@@ -401,7 +401,10 @@ export function PrecoPorCartaReport({ report, imageUrl }: { report: PricingRepor
                   className="flex items-center justify-between gap-4 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{translatePrintingLabel(price.printingLabel)}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-foreground">{translatePrintingLabel(price.printingLabel)}</p>
+                      {price.priceOrigin === "MANUAL" && <StateBadge tone="warning">MANUAL</StateBadge>}
+                    </div>
                     <p className="truncate text-xs text-muted-foreground">
                       {price.pricingSourceCode}
                       {fxDetail ? ` · ${fxDetail}` : ""}
@@ -542,6 +545,11 @@ export function PrecoPorCartaPrintFolha({
                   >
                     <DataTableCell className="py-1 font-medium text-neutral-900">
                       {price.pricingSourceCode}
+                      {price.priceOrigin === "MANUAL" && (
+                        <span className="ml-1 rounded border border-neutral-300 px-1 text-[8px] font-semibold uppercase text-neutral-600">
+                          Manual
+                        </span>
+                      )}
                     </DataTableCell>
                     <DataTableCell align="center" className="py-1 text-neutral-700">
                       {translatePrintingLabel(price.printingLabel)}

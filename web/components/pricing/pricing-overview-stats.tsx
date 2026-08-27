@@ -225,9 +225,19 @@ export function PricingOverviewStats({
               label="Pendentes"
               valor={formatNumber(mappings.pending)}
             />
+            {/*
+              2026-08-27 (migration 3970): destino corrigido de
+              /pricing/mapeamentos-cartas?status=NOT_FOUND para
+              /pricing/precos-manuais — esse KPI agora reconcilia
+              exatamente com admin_list_pricing_manual_price_candidates
+              (match_status='NOT_FOUND' estrito), então "Não encontrados"
+              deve levar direto ao fluxo de resolução (definir preço
+              manual), não à fila de mapeamentos. "Pendentes" continua
+              apontando para Mapeamentos de Cartas — não muda aqui.
+            */}
             <AcaoTile
               enfase="acionavel"
-              href="/pricing/mapeamentos-cartas?status=NOT_FOUND"
+              href="/pricing/precos-manuais"
               icone={<AlertTriangle className={mappings.not_found > 0 ? "h-3.5 w-3.5 text-warning" : "h-3.5 w-3.5 text-muted-foreground/50"} aria-hidden="true" />}
               label="Não encontrados"
               valor={formatNumber(mappings.not_found)}

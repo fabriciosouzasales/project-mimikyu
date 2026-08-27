@@ -1226,6 +1226,9 @@ export type PricingReportFxStatus = "NATIVE" | "CONVERTED" | "FX_RATE_UNAVAILABL
 
 export type PricingReportConditionRef = { id: string; code: string; name: string };
 
+/** Origem do preço — migration 3969 integrou o fallback de Preço Manual às 3 superfícies de relatório/valuation. MANUAL só aparece quando não existe AUTOMATIC utilizável na condição (precedência AUTOMATIC > MANUAL > sem preço, decidida no backend). */
+export type PricingReportPriceOrigin = "AUTOMATIC" | "MANUAL";
+
 export type PricingReportCurrentPrice = {
   pricingSourceId: string;
   pricingSourceCode: string;
@@ -1238,6 +1241,7 @@ export type PricingReportCurrentPrice = {
   fxRate: number | null;
   fxRateDate: string | null;
   observedAt: string;
+  priceOrigin: PricingReportPriceOrigin;
 };
 
 export type PricingReportHistoryPoint = {
@@ -1302,6 +1306,7 @@ type PricingReportCardRawRow = {
     fx_rate: number | null;
     fx_rate_date: string | null;
     observed_at: string;
+    price_origin: PricingReportPriceOrigin;
   }>;
   history: Array<{
     pricing_source_id: string;
@@ -1373,6 +1378,7 @@ export async function getPricingReportCard(
       fxRate: p.fx_rate,
       fxRateDate: p.fx_rate_date,
       observedAt: p.observed_at,
+      priceOrigin: p.price_origin,
     })),
     history: raw.history.map((h) => ({
       pricingSourceId: h.pricing_source_id,
@@ -1477,6 +1483,7 @@ export type PricingReportSetCardItem = {
   participationPct: number | null;
   ranking: number | null;
   setCoveredValue: number;
+  priceOrigin: PricingReportPriceOrigin | null;
 };
 
 export type PricingReportSetCardRawRow = {
@@ -1500,6 +1507,7 @@ export type PricingReportSetCardRawRow = {
   participation_pct: number | null;
   ranking: number | null;
   set_covered_value: number;
+  price_origin: PricingReportPriceOrigin | null;
   total_count: number;
 };
 
@@ -1536,6 +1544,7 @@ export function mapPricingReportSetCardRow(row: PricingReportSetCardRawRow): Pri
     participationPct: row.participation_pct,
     ranking: row.ranking,
     setCoveredValue: row.set_covered_value,
+    priceOrigin: row.price_origin,
   };
 }
 
@@ -1577,6 +1586,140 @@ export async function getPricingReportSetCards(
   const rows = data as PricingReportSetCardRawRow[];
   return {
     items: rows.map(mapPricingReportSetCardRow),
+    totalCount: rows[0]?.total_count ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Preços Manuais (migrations 3967-3970): fallback manual do preço automático
+// — `pricing_manual_price` (append-only, migration 3967), integrado às 4
+// superfícies de relatório/valuation em 3969. Esta tela é a única forma de
+// escrita: lista cartas elegíveis via `admin_list_pricing_manual_price_candidates`,
+// e grava via `admin_set_manual_price` — sempre um novo INSERT, nunca UPDATE.
+//
+// Elegibilidade corrigida em 2026-08-27 (migration 3970, decisão de
+// Fabrício): estritamente `pricing_card_mapping.match_status = 'NOT_FOUND'`
+// — nunca PENDING, REJECTED, CONFIRMED sem preço automático, ou carta sem
+// mapping. Reconciliada byte-a-byte com o KPI "Não encontrados" da Visão
+// Geral (`PricingAdminOverview.mappings.not_found`). A elegibilidade
+// anterior (migration 3967) também incluía cartas CONFIRMED sem preço
+// automático utilizável na condição — inflava a contagem (20 vs. 18) e foi
+// removida.
+// ---------------------------------------------------------------------------
+
+export const PRICING_MANUAL_PRICE_CANDIDATES_PAGE_SIZE = 20;
+
+/**
+ * Motivo da elegibilidade — desde a migration 3970, vocabulário de um único
+ * valor: `NO_EXTERNAL_MATCH` (`pricing_card_mapping.match_status = 'NOT_FOUND'`).
+ * `MATCHED_WITHOUT_USABLE_PRICE` (CONFIRMED sem preço automático utilizável)
+ * foi removido da elegibilidade e nunca mais é produzido por esta RPC — tipo
+ * mantido como union de 1 membro (não um literal solto) para não obrigar
+ * troca em cascata no restante do módulo caso um segundo motivo real volte a
+ * existir no futuro.
+ */
+export type PricingManualPriceCandidateReason = "NO_EXTERNAL_MATCH";
+
+export type PricingManualPriceCandidateItem = {
+  cardId: string;
+  cardName: string;
+  collectorNumber: string;
+  collectorTotal: number | null;
+  cardSetId: string;
+  cardSetCode: string;
+  cardSetName: string;
+  thumbnailUrl: string | null;
+  reason: PricingManualPriceCandidateReason;
+  /** Último preço manual já definido para esta carta+condição (`pricing_latest_manual_price`) — `null` quando ainda não existe nenhum (define vs. atualiza). */
+  manualPrice: number | null;
+  manualCurrencyCode: string | null;
+  manualObservedAt: string | null;
+  /**
+   * `actor_id` bruto do último registro manual — sem resolução de nome:
+   * não existe hoje, em nenhum ponto do módulo Pricing, um padrão real de
+   * UUID -> nome de admin acessível ao frontend (`admin_user` não tem SELECT
+   * grant para `authenticated`; o único precedente, `actor_label` em
+   * Catálogo Editorial, resolve dentro da própria RPC, não no cliente).
+   * Consistente com "autoria, se disponível pelo padrão real existente" —
+   * como o padrão não existe para Pricing, mostramos o UUID (truncado na UI),
+   * não um nome inventado.
+   */
+  manualActorId: string | null;
+};
+
+type PricingManualPriceCandidateRawRow = {
+  card_id: string;
+  card_name: string;
+  collector_number: string;
+  collector_total: number | null;
+  card_set_id: string;
+  card_set_code: string;
+  card_set_name: string;
+  thumbnail_storage_path: string | null;
+  reason: PricingManualPriceCandidateReason;
+  manual_price: number | null;
+  manual_currency_code: string | null;
+  manual_observed_at: string | null;
+  manual_actor_id: string | null;
+  total_count: number;
+};
+
+/**
+ * Candidatos a Preço Manual — `admin_list_pricing_manual_price_candidates`
+ * (migration 3967, elegibilidade corrigida na 3970). Lista é fixa por
+ * `match_status = 'NOT_FOUND'` — não depende da condição nem do preço manual
+ * já definido; `conditionId` (resolvida a NM no banco quando omitida) só
+ * escopa QUAL preço manual/condição é exibido e editado para cada carta já
+ * elegível, nunca decide se a carta aparece. Carta só sai da lista quando o
+ * mapping deixa de ser NOT_FOUND (resolução em `/pricing/mapeamentos-cartas`),
+ * nunca automaticamente por existir preço automático utilizável — isso é
+ * regra de precedência de LEITURA (migrations 3968/3969), não de listagem.
+ * Em erro, retorna `{ items: [], totalCount: 0 }`, mesmo contrato de
+ * `getPricingCardMappingIssues`.
+ */
+export async function getPricingManualPriceCandidates(
+  supabase: SupabaseClient,
+  options: {
+    conditionId?: string;
+    currency?: PricingReportCurrency;
+    search?: string;
+    cardSetId?: string;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<{ items: PricingManualPriceCandidateItem[]; totalCount: number }> {
+  const { data, error } = await supabase.rpc("admin_list_pricing_manual_price_candidates", {
+    p_condition_id: options.conditionId || null,
+    p_currency: options.currency ?? "BRL",
+    p_search: options.search?.trim() || null,
+    p_card_set_id: options.cardSetId || null,
+    p_limit: options.limit ?? PRICING_MANUAL_PRICE_CANDIDATES_PAGE_SIZE,
+    p_offset: options.offset ?? 0,
+  });
+
+  if (error || !data) {
+    return { items: [], totalCount: 0 };
+  }
+
+  const rows = data as PricingManualPriceCandidateRawRow[];
+  return {
+    items: rows.map((row) => ({
+      cardId: row.card_id,
+      cardName: row.card_name,
+      collectorNumber: row.collector_number,
+      collectorTotal: row.collector_total,
+      cardSetId: row.card_set_id,
+      cardSetCode: row.card_set_code,
+      cardSetName: row.card_set_name,
+      thumbnailUrl: row.thumbnail_storage_path
+        ? (supabase.storage.from("card-front").getPublicUrl(row.thumbnail_storage_path).data.publicUrl ?? null)
+        : null,
+      reason: row.reason,
+      manualPrice: row.manual_price,
+      manualCurrencyCode: row.manual_currency_code,
+      manualObservedAt: row.manual_observed_at,
+      manualActorId: row.manual_actor_id,
+    })),
     totalCount: rows[0]?.total_count ?? 0,
   };
 }
