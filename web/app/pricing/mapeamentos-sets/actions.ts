@@ -142,7 +142,11 @@ type RawSetMatchingPreviewCandidate = {
 // `body` deliberadamente `any`: espelha o retorno solto de `response.json()` já usado neste
 // módulo desde o P16.3 — o formato real é validado por `body.success`/`body.state` em cada
 // chamador, não por um tipo estático (o contrato vem de `handler.ts` da Edge Function).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// Nota (2026-08-26): comentário `eslint-disable-next-line @typescript-eslint/no-explicit-any`
+// removido daqui — `web/.eslintrc.json` só estende `next/core-web-vitals` (sem
+// `next/typescript`), então essa regra nunca chega a ser carregada nesta config; o
+// disable-comment apontava para uma regra inexistente e isso é erro de build no ESLint 9,
+// não aviso ignorável (causa real da falha de deploy do Vercel neste commit).
 async function fetchSetMatchingPreviewBody(cardSetId: string): Promise<{ ok: true; body: any } | { ok: false; error: string }> {
   const supabase = await createClient();
   const {

@@ -496,7 +496,7 @@ function SincronizarSetDialog({
             <InlineFeedback tone="success">
               Este Set já está confirmado como{" "}
               <strong>{result.alreadyConfirmed.externalSetName ?? result.alreadyConfirmed.externalSetId}</strong>. Atualize a
-              página — este mapeamento não deveria mais aparecer como "Sem mapeamento".
+              página — este mapeamento não deveria mais aparecer como &quot;Sem mapeamento&quot;.
             </InlineFeedback>
           )}
 
