@@ -57,6 +57,16 @@ export function computePricingSourceHealthStatus(sources: PricingSourceHealth[])
     attentionReasons.push(`${setsPausados} ${setsPausados === 1 ? "Set pausado" : "Sets pausados"}.`);
   }
 
+  // P16.4.1 (migration 3952) — mesmo racional de `pricing-overview-status.ts`: Set confirmado
+  // que ainda não teve sua primeira janela do dispatcher é onboarding, nunca falha. Nunca deve
+  // elevar a fonte a CRÍTICO/"COM PROBLEMA" — apenas um sinal de Atenção à parte.
+  const setsAguardandoOnboarding = ativas.reduce((soma, source) => soma + source.sets.onboardingPending, 0);
+  if (setsAguardandoOnboarding > 0) {
+    attentionReasons.push(
+      `${setsAguardandoOnboarding} ${setsAguardandoOnboarding === 1 ? "Set aguardando" : "Sets aguardando"} primeira sincronização.`,
+    );
+  }
+
   if (ativas.length === 0 && sources.length > 0) {
     attentionReasons.push("Nenhuma fonte de preço está ativa no momento.");
   }

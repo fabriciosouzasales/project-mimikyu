@@ -8,7 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { PricingRefreshPolicyItem } from "@/lib/pricing/queries";
 
+// P16.4.1 (revisão final, migration 3952) — 2 opções novas (ONBOARDING_PENDING/PROCESSING)
+// somadas às 3 já existentes, mesmo domínio de refresh_bucket usado nas demais telas de
+// Pricing (Visão Geral, Saúde das Fontes, Mapeamentos de Sets).
 const STATUS_OPTIONS = [
+  { value: "ONBOARDING_PENDING", label: "Aguardando primeira sincronização" },
+  { value: "PROCESSING", label: "Sincronizando" },
   { value: "HEALTHY", label: "Saudável" },
   { value: "PROBLEM", label: "Com problema" },
   { value: "PAUSED", label: "Pausado" },
@@ -45,9 +50,10 @@ function FilterSelect({
 
 /**
  * Filtros da seção "Estado dos Sets" — mesmo padrão de debounce/URL-driven
- * de `PendenciasFiltros`. Vocabulário de status é o derivado em SQL por
- * `admin_list_pricing_set_refresh_states` (HEALTHY/PROBLEM/PAUSED), não o
- * status bruto de `pricing_sync_run`.
+ * de `PendenciasFiltros`. Vocabulário de status é o `refresh_bucket` derivado
+ * em SQL por `admin_list_pricing_set_refresh_states` via `pricing_derive_refresh_bucket()`
+ * (ONBOARDING_PENDING/PROCESSING/HEALTHY/PROBLEM/PAUSED, migration 3952,
+ * P16.4.1 revisão final), não o status bruto de `pricing_sync_run`.
  */
 export function EstadoSetsFiltros({
   initialSearch,

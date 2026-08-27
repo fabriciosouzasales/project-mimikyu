@@ -10,10 +10,12 @@ import {
   getPricingAdminOverview,
   getPricingRefreshPolicy,
   getPricingSetRefreshStates,
-  type PricingSetRefreshDerivedStatus,
+  type PricingSetRefreshBucket,
 } from "@/lib/pricing/queries";
 
-const VALID_STATUS = new Set(["HEALTHY", "PROBLEM", "PAUSED"]);
+// P16.4.1 (revisão final, migration 3952) — 2 valores novos (ONBOARDING_PENDING/PROCESSING)
+// somados aos 3 já existentes; o filtro de URL agora é validado/repassado contra refresh_bucket.
+const VALID_STATUS = new Set(["ONBOARDING_PENDING", "PROCESSING", "HEALTHY", "PROBLEM", "PAUSED"]);
 
 /**
  * Sincronizações (Bloco 3 do Pricing Admin, grupo "Operações") — três
@@ -37,8 +39,8 @@ export default async function PricingSincronizacoesPage({
   const status = statusParam ?? "";
   const requestedPage = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
 
-  const statusFilter: PricingSetRefreshDerivedStatus[] | undefined = VALID_STATUS.has(status)
-    ? [status as PricingSetRefreshDerivedStatus]
+  const statusFilter: PricingSetRefreshBucket[] | undefined = VALID_STATUS.has(status)
+    ? [status as PricingSetRefreshBucket]
     : undefined;
 
   const setsFiltros = {

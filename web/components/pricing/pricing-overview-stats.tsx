@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronRight, Clock, Globe, RefreshCw, ScrollText, Activity } from "lucide-react";
+import { AlertTriangle, ChevronRight, Clock, Globe, RefreshCw, ScrollText, Activity, Settings2 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -144,10 +144,17 @@ export function PricingOverviewStats({
   syncDaily: PricingSyncRunDailyPoint[] | null;
   apiUsage: PricingApiUsagePoint[] | null;
 }) {
-  const { sources, mappings, products_count, observations_count, sets, dispatcher } = overview;
+  const { sources, mappings, products_count, observations_count, sets, dispatcher, coverage } = overview;
 
   const status = computePricingOverviewStatus(overview, syncDaily);
   const proximaAtualizacao = deriveProximaAtualizacaoTile(sets.next_due_at, Boolean(dispatcher?.active));
+  // P16.1 (2026-08-24): Sets elegíveis do Catálogo ainda sem nenhum tratamento em
+  // `pricing_set_mapping` (nem CONFIRMED, nem PENDING, nem NOT_FOUND — a linha nem existe).
+  // Só aparece quando `coverage.covered < coverage.eligible_total`; hoje (SWSH8) = 1. É uma
+  // pendência CADASTRAL/operacional de onboarding, não uma falha de sincronização — por isso
+  // aponta para Mapeamentos de Sets, nunca para Sincronizações/Saúde.
+  const setsAguardandoConfiguracao = coverage.eligible_total - coverage.covered;
+  const temSetsAguardandoConfiguracao = setsAguardandoConfiguracao > 0;
 
   return (
     <div className="space-y-6">
@@ -182,13 +189,35 @@ export function PricingOverviewStats({
         refresh); `enfase` em `AcaoTile` diferencia os dois grupos sem virar
         cards separados (mesmo grid "gap vira borda" de sempre) — ver
         JSDoc de `AcaoTile`.
+
+        P16.1 (2026-08-24): 5º tile condicional "Sets aguardando configuração"
+        — só renderiza quando `coverage.covered < coverage.eligible_total`
+        (hoje, com SWSH8 sem mapeamento: 1). Reusa o mesmo `AcaoTile`
+        `enfase="acionavel"` dos tiles de backlog (é pendência cadastral, não
+        falha operacional), aponta para `/pricing/mapeamentos-sets`, e o grid
+        vira `lg:grid-cols-5` só quando ele existe — sem essa condição, layout
+        idêntico ao anterior (4 colunas).
       */}
       <Panel>
         <PanelHeader>
           <PanelTitle>Atenções e Ações</PanelTitle>
         </PanelHeader>
         <PanelContent className="overflow-hidden rounded-b-lg p-0">
-          <div className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-px bg-border sm:grid-cols-2",
+              temSetsAguardandoConfiguracao ? "lg:grid-cols-5" : "lg:grid-cols-4",
+            )}
+          >
+            {temSetsAguardandoConfiguracao ? (
+              <AcaoTile
+                enfase="acionavel"
+                href="/pricing/mapeamentos-sets"
+                icone={<Settings2 className="h-3.5 w-3.5 text-warning" aria-hidden="true" />}
+                label="Sets aguardando configuração"
+                valor={formatNumber(setsAguardandoConfiguracao)}
+              />
+            ) : null}
             <AcaoTile
               enfase="acionavel"
               href="/pricing/pendencias?status=PENDING"

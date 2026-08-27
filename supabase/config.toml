@@ -79,3 +79,32 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/justtcg-price-refresh-set/deno.json"
 entrypoint = "./functions/justtcg-price-refresh-set/index.ts"
+
+# justtcg-set-bootstrap (2026-08-26, P16.5.4 — wiring do dispatcher de bootstrap de Set):
+# mesma fronteira de identidade de justtcg-price-refresh/justtcg-price-refresh-set acima —
+# verify_jwt=false, autorização via segredo dedicado (REAPROVEITA
+# JUSTTCG_PRICE_REFRESH_SECRET — ver justtcg-set-bootstrap/auth.ts), validado no header
+# "apikey". 1 Set por invocação, decidido inteiramente pela RPC
+# open_pricing_set_bootstrap_attempt (migration 3955) — o corpo da requisição não aceita
+# nenhum parâmetro de negócio. Reaproveita integralmente _shared/pricing-justtcg-bootstrap/
+# (bootstrap-core.ts/bootstrap-supabase-adapter.ts, já testado offline em P16.5.2/P16.5.3)
+# — nenhuma lógica de matching duplicada aqui. Nenhum job pg_cron aponta para esta função
+# nesta rodada — fica para uma migration futura e separada, com autorização explícita.
+[functions.justtcg-set-bootstrap]
+enabled = true
+verify_jwt = false
+import_map = "./functions/justtcg-set-bootstrap/deno.json"
+entrypoint = "./functions/justtcg-set-bootstrap/index.ts"
+
+# pricing-set-matching-preview (2026-08-25, P16.3 — Descoberta de Correspondência): mesma
+# fronteira de identidade de import-catalog-cards/import-card-assets/import-card-variants
+# acima — verify_jwt=true garante um JWT assinado válido; a validação real de admin
+# (auth.getUser() + rpc('is_admin')) vive em index.ts (verifyAdmin(), injetada em
+# handler.ts). READ + external API only — nunca escreve em pricing_set_mapping ou em
+# qualquer outra tabela (ver cabeçalho de core.ts/index.ts). Persistência fica para P16.4,
+# fora de escopo desta function.
+[functions.pricing-set-matching-preview]
+enabled = true
+verify_jwt = true
+import_map = "./functions/pricing-set-matching-preview/deno.json"
+entrypoint = "./functions/pricing-set-matching-preview/index.ts"

@@ -22,13 +22,21 @@ import {
 } from "@/lib/pricing/queries";
 import { formatNumber } from "@/lib/utils";
 
+// P16.4.1 (revisão final, migration 3952) — 2 buckets novos (ONBOARDING_PENDING/PROCESSING),
+// mesmos rótulos/tons já usados em `estado-sets-filtros.tsx` e `deriveRowStatus()` de
+// `mapeamentos-sets-table.tsx` para consistência entre telas. Nenhum dos dois é "danger" —
+// nunca é falha operacional, ver cabeçalho da migration 3952.
 const STATUS_LABEL: Record<string, string> = {
+  ONBOARDING_PENDING: "Aguardando primeira sincronização",
+  PROCESSING: "Sincronizando",
   HEALTHY: "Saudável",
   PROBLEM: "Com problema",
   PAUSED: "Pausado",
 };
 
 const STATUS_TONE: Record<string, StateTone> = {
+  ONBOARDING_PENDING: "warning",
+  PROCESSING: "warning",
   HEALTHY: "success",
   PROBLEM: "danger",
   PAUSED: "muted",
@@ -123,8 +131,9 @@ export function EstadoSetsTable({
                   </DataTableCell>
                   <DataTableCell align="center">
                     <div className="flex flex-col items-center gap-0.5">
-                      <StateBadge tone={STATUS_TONE[item.derivedStatus] ?? "muted"}>
-                        {STATUS_LABEL[item.derivedStatus] ?? item.derivedStatus}
+                      {/* P16.4.1 (revisão final) — badge lê refreshBucket (taxonomia central), não mais o derivedStatus binário legado. */}
+                      <StateBadge tone={STATUS_TONE[item.refreshBucket] ?? "muted"}>
+                        {STATUS_LABEL[item.refreshBucket] ?? item.refreshBucket}
                       </StateBadge>
                       {item.isPaused && item.pauseReason && (
                         <span className="max-w-[10rem] truncate text-[10px] text-muted-foreground" title={item.pauseReason}>

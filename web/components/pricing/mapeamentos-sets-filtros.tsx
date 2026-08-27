@@ -13,6 +13,11 @@ const STATUS_OPTIONS = [
   { value: "PENDING", label: "Pendente" },
   { value: "NOT_FOUND", label: "Não encontrado" },
   { value: "REJECTED", label: "Rejeitado" },
+  // P16.1 fix (bug objetivo pós-aplicação, 2026-08-25): pseudo-status sintético (migration
+  // 3950, nunca gravado no banco) faltava no filtro — a RPC já aceita "UNMAPPED" em
+  // `p_status`, mas sem esta opção era impossível filtrar direto para os Sets sem
+  // mapeamento; era preciso rolar a tabela inteira para achá-los.
+  { value: "UNMAPPED", label: "Sem mapeamento" },
 ];
 
 function FilterSelect({
@@ -47,8 +52,8 @@ function FilterSelect({
 /**
  * Filtros de Mapeamentos de Sets — mesmo padrão de debounce/URL-driven de
  * `PendenciasFiltros`/`EstadoSetsFiltros`. Vocabulário de status é o
- * completo (4 estados) — diferente de Pendências, que trava em
- * PENDING/NOT_FOUND.
+ * completo (4 estados reais + UNMAPPED sintético do P16.1/migration 3950) —
+ * diferente de Pendências, que trava em PENDING/NOT_FOUND.
  */
 export function MapeamentosSetsFiltros({
   initialSearch,
@@ -108,7 +113,7 @@ export function MapeamentosSetsFiltros({
       </div>
 
       <FilterSelect value={status} onChange={(value) => pushParams({ status: value || undefined })} ariaLabel="Filtrar por Status">
-        <option value="">Todos os Status</option>
+        <option value="">Todos os status</option>
         {STATUS_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -122,7 +127,7 @@ export function MapeamentosSetsFiltros({
           onChange={(value) => pushParams({ source: value || undefined })}
           ariaLabel="Filtrar por Fonte"
         >
-          <option value="">Todas as Fontes</option>
+          <option value="">Todas as fontes</option>
           {sources.map((source) => (
             <option key={source.id} value={source.id}>
               {source.name} ({source.code})

@@ -320,6 +320,36 @@ import {
   sanitizeJson,
   splitPrintingLanguage,
 } from "../supabase/functions/_shared/pricing-justtcg/mod.ts";
+// Incremento P16.2 (Núcleo Compartilhado de Matching, 2026-08-25): lógica pura de matching
+// (resolução de Set/carta e decisão de upsert de mapeamento) extraída para
+// _shared/pricing-justtcg-matching/ — consumida por este CLI e pela futura Edge Function de
+// onboarding interativo de Sets (P16.3), zero duplicação. Nenhuma assinatura nem
+// comportamento pré-existente deste script foi alterado por esta extração (refatoração
+// pura — ver mod.ts do módulo para o racional completo da fronteira "matching" x
+// "persistência"/"planejamento em ondas", que permanecem só neste CLI).
+import {
+  type CardMatchResult,
+  buildExternalNumberIndex,
+  classifyCardMatch,
+  classifySetForExpansionPlan,
+  decideMappingUpsert,
+  type ExistingSetMappingLite,
+  isNameCompatible,
+  isUsableExternalNumber,
+  isValidCollectorTotal,
+  type LocalCard,
+  type MappingRowLike,
+  normalizeExternalSetReleaseDate,
+  normalizeJustTcgSets,
+  normalizeName,
+  normalizeNumber,
+  parseCollectorNumberParts,
+  resolveSetMatchV2,
+  type SetMatchResult,
+  type SetPlanClassification,
+  type SetTarget,
+  type UpsertAction,
+} from "../supabase/functions/_shared/pricing-justtcg-matching/mod.ts";
 
 // ============================================================================
 // 0. Configuração fixa do piloto
@@ -331,11 +361,8 @@ import {
 // (MAX_REQUESTS_PER_RUN=30 desde P14.4.2; CARDS_PAGE_LIMIT=100 desde P14.2), nenhuma
 // mudança de comportamento.
 
-type SetTarget = {
-  codigoMmkyu: string;
-  releaseDateIso: string; // YYYY-MM-DD, comparado 1:1 contra JustTcgSet.release_date
-  overrideExternalSetId?: string; // compat P8 — não usado no piloto real desta rodada
-};
+// SetTarget agora vem de _shared/pricing-justtcg-matching/mod.ts (Incremento P16.2) — mesma
+// forma exata (codigoMmkyu/releaseDateIso/overrideExternalSetId), zero mudança de contrato.
 
 // Set-piloto do Incremento P14.2 — ainda não mapeado antes desta rodada. Escolhido por:
 // (a) não ter pricing_set_mapping/pricing_card_mapping prévios; (b) ser um Set principal
@@ -358,77 +385,12 @@ const MARKET_LABEL = "JUSTTCG_AGGREGATE"; // mesmo rótulo já usado como exempl
 // ============================================================================
 
 // ============================================================================
-// 2. Normalização — portado da prova técnica (Get-NomeNormalizado/Get-NumeroNormalizado)
+// 2. Normalização — normalizeName/normalizeNumber/isUsableExternalNumber/
+// parseCollectorNumberParts/isValidCollectorTotal agora vêm de
+// _shared/pricing-justtcg-matching/normalize.ts (Incremento P16.2, extraídas da prova
+// técnica original Get-NomeNormalizado/Get-NumeroNormalizado via P14.2/P14.4.4) — mesma
+// lógica, zero mudança de comportamento nesta extração.
 // ============================================================================
-
-function normalizeName(text: string): string {
-  if (!text) return "";
-  const semAcento = text.normalize("NFD").replace(/[̀-ͯ]/g, "");
-  return semAcento.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-// Só deve ser chamada com um número já confirmado utilizável — ver isUsableExternalNumber().
-// Não tenta adivinhar formato: assume dígitos/letras de coleção reais (ex. "058", "TG01").
-function normalizeNumber(numero: string): string {
-  if (!numero) return "";
-  const numerador = numero.split("/")[0];
-  const limpo = numerador.replace(/[^0-9A-Za-z]/g, "");
-  const semZeros = limpo.replace(/^0+/, "");
-  return (semZeros || "0").toLowerCase();
-}
-
-// A JustTCG documenta `number: "N/A"` como valor real para cartas sem numeração própria
-// (ex. Energias promocionais — ver https://justtcg.com/docs/schema/card, exemplo). Sem
-// esta checagem, normalizeNumber("N/A") interpretaria "/" como separador de denominador
-// (["N","A"]) e devolveria "n" — uma chave normalizada plausível, porém falsa, que
-// poderia colidir por acidente com uma carta real de número "N". Qualquer número externo
-// ausente/vazio/"N/A" (case-insensitive) fica de fora do índice por número — a carta
-// correspondente só poderia ser encontrada por nome, e nome é deliberadamente secundário
-// nesta rodada (nunca a única evidência) — logo, permanece ABSENT do lado da JustTCG.
-function isUsableExternalNumber(raw: string | null | undefined): raw is string {
-  if (!raw) return false;
-  const trimmed = raw.trim();
-  if (!trimmed) return false;
-  if (trimmed.toUpperCase() === "N/A") return false;
-  return true;
-}
-
-// P14.4.4 fix (filtro por denominador) — decomposição puramente sintática do número de
-// coleção externo em (1) numerador normalizado (MESMA normalização de normalizeNumber():
-// zeros à esquerda removidos, minúsculo — reaproveitada aqui, nunca duplicada), (2)
-// denominador opcional (a parte estrutural após a barra, quando existir e for numérica) e
-// (3) o valor bruto preservado sem nenhuma transformação, só para evidência/auditoria.
-// Nunca interpreta nome, idioma ou raridade — só a forma "N" ou "N/D" do número. Denominador
-// ausente ou não-numérico -> null (nunca lançado como erro: número sem denominador é um
-// formato legítimo, ex. promos "022"). Espaços em torno da barra são tolerados (o lado do
-// numerador via normalizeNumber() já remove qualquer caractere não alfanumérico; o lado do
-// denominador é aparado explicitamente aqui antes de extrair os dígitos).
-type ParsedCollectorNumber = { numerator: string; denominator: number | null; raw: string };
-
-function parseCollectorNumberParts(raw: string | null | undefined): ParsedCollectorNumber {
-  const rawValue = raw ?? "";
-  if (!isUsableExternalNumber(rawValue)) {
-    return { numerator: "", denominator: null, raw: rawValue };
-  }
-  const numerator = normalizeNumber(rawValue);
-  const barraIndex = rawValue.indexOf("/");
-  if (barraIndex === -1) {
-    return { numerator, denominator: null, raw: rawValue };
-  }
-  const denominadorBruto = rawValue.slice(barraIndex + 1).trim();
-  const somenteDigitos = denominadorBruto.replace(/[^0-9]/g, "");
-  const denominator = somenteDigitos.length > 0 ? Number.parseInt(somenteDigitos, 10) : null;
-  return { numerator, denominator: denominator !== null && Number.isFinite(denominator) ? denominator : null, raw: rawValue };
-}
-
-// P14.4.4 fix (filtro por denominador) — "válido" para fins do desempate estrutural: um
-// número inteiro positivo. Qualquer outra coisa (ausente, zero, negativo, não-inteiro,
-// NaN) é tratada como "ausente" pela regra 6 do pedido — nunca aplica o desempate, cai
-// sempre no comportamento AMBIGUOUS conservador já existente, sem nenhum campo novo na
-// evidência (garante zero regressão para todo Set sem este dado ou com dado corrompido).
-function isValidCollectorTotal(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value > 0;
-}
 
 // splitPrintingLanguage() agora vem de _shared/pricing-justtcg/mod.ts (mesma lógica: v1
 // documenta sufixo " - <Idioma>" em `printing`, removido só na v2; sem sufixo ->
@@ -475,13 +437,8 @@ async function findCardSetId(supabase: SupabaseClient, code: string): Promise<st
   return (data?.id as string) ?? null;
 }
 
-// P14.4.4 fix (filtro por denominador) — collector_total é OPCIONAL de propósito (nunca
-// required): mantém compatível, sem nenhuma alteração, todo call site e literal de teste
-// pré-existente que constrói um LocalCard sem esse campo (a imensa maioria) — ausência de
-// campo e ausência de valor (undefined/null) são exatamente a mesma coisa para a regra "sem
-// collector_total válido, não aplica o desempate" (ver isValidCollectorTotal() perto de
-// classifyCardMatch()).
-type LocalCard = { card_id: string; name: string; collector_number: string; collector_total?: number | null };
+// LocalCard agora vem de _shared/pricing-justtcg-matching/mod.ts (Incremento P16.2) — mesma
+// forma exata (card_id/name/collector_number/collector_total?), zero mudança de contrato.
 
 // Substitui a busca pontual por carta de P8 (findCard, uma query por card-alvo hardcoded)
 // por uma única query trazendo TODAS as cartas locais do Set — necessário para o novo
@@ -498,343 +455,20 @@ async function findLocalCardsForSet(supabase: SupabaseClient, cardSetId: string)
 }
 
 // ============================================================================
-// 5. Resolução de correspondência de Set — release_date exato, nunca nome
+// 5. Resolução de correspondência de Set — resolveSetMatchV2/normalizeExternalSetReleaseDate/
+// normalizeJustTcgSets agora vêm de _shared/pricing-justtcg-matching/mod.ts (Incremento
+// P16.2, extraídas dos Incrementos P14.2/P14.2.1). Mesma lógica, zero mudança de
+// comportamento nesta extração.
 // ============================================================================
 
 // JustTcgSet agora vem de _shared/pricing-justtcg/mod.ts (import no topo do arquivo).
 
-type SetMatchResult =
-  | { status: "CONFIRMED"; set: JustTcgSet; method: string; evidence: Record<string, unknown> }
-  | { status: "NOT_FOUND"; method: string; evidence: Record<string, unknown> }
-  | { status: "AMBIGUOUS"; candidates: JustTcgSet[]; method: string; evidence: Record<string, unknown> };
-
-// Fix P14.2.1 (2026-08-19, mesmo dia, correção pós-piloto real de Fabrício): a JustTCG pode
-// retornar `release_date` tanto como data pura (`"2000-02-24"`, formato usado nos testes
-// offline originais) quanto como datetime ISO completo (`"2000-02-24T00:00:00.000Z"`, formato
-// real observado no piloto de BASE4 — causa raiz confirmada do `SET_NOT_FOUND(BASE4)`, já que
-// `resolveSetMatchV2` comparava a string inteira contra `card_set.release_date` local, que o
-// Postgres sempre serializa como `YYYY-MM-DD`). Normaliza para `YYYY-MM-DD` extraindo o
-// prefixo por regex — nunca via `new Date()`/`toISOString()`, que dependeriam do fuso horário
-// do processo e poderiam deslocar o dia civil. Retorna null se o valor estiver ausente ou não
-// seguir o formato esperado; um Set sem `release_date` normalizável nunca entra em `allSets`
-// com um valor comparável, então nunca é confirmado automaticamente (mesma disciplina de
-// "nunca confirmar" já aplicada a números de coleção ausentes/inválidos em
-// isUsableExternalNumber()).
-function normalizeExternalSetReleaseDate(raw: string | null | undefined): string | null {
-  if (typeof raw !== "string") return null;
-  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-  return match ? match[1] : null;
-}
-
-// Fronteira de entrada da JustTCG (fix P14.2.1): ponto único de normalização — todo Set vindo
-// da API passa por aqui antes de qualquer resolução de correspondência. `resolveSetMatchV2()`
-// e os testes de fixture nunca lidam com o formato bruto da API; o valor bruto é preservado em
-// `release_date_raw` para ficar disponível na evidência de matching.
-function normalizeJustTcgSets(rawSets: JustTcgSet[]): JustTcgSet[] {
-  return rawSets.map((s) => ({
-    ...s,
-    release_date_raw: s.release_date,
-    release_date: normalizeExternalSetReleaseDate(s.release_date) ?? undefined,
-  }));
-}
-
-function resolveSetMatchV2(target: SetTarget, allSets: JustTcgSet[]): SetMatchResult {
-  if (target.overrideExternalSetId) {
-    const override = allSets.find((s) => s.id === target.overrideExternalSetId);
-    if (override) {
-      return { status: "CONFIRMED", set: override, method: "OVERRIDE_MANUAL", evidence: { external_set_id: override.id, external_set_name: override.name } };
-    }
-    return { status: "NOT_FOUND", method: "OVERRIDE_NAO_CONFIRMADO_NA_RESPOSTA_ATUAL", evidence: { esperado: target.overrideExternalSetId } };
-  }
-
-  // Sinal automatizado: release_date exata. Nome nunca é usado para casar Sets — nenhuma
-  // tabela local tem um nome em inglês confiável (achado registrado no cabeçalho deste
-  // arquivo). Zero candidatos -> NOT_FOUND; mais de um -> AMBIGUOUS (nunca confirmado
-  // automaticamente); exatamente um -> CONFIRMED.
-  const candidates = allSets.filter((s) => s.release_date === target.releaseDateIso);
-  if (candidates.length === 0) {
-    return { status: "NOT_FOUND", method: "RELEASE_DATE_EXACT_MATCH", evidence: { release_date_esperada: target.releaseDateIso, candidatos_encontrados: 0 } };
-  }
-  if (candidates.length > 1) {
-    return {
-      status: "AMBIGUOUS",
-      candidates,
-      method: "RELEASE_DATE_EXACT_MATCH",
-      evidence: {
-        release_date_esperada: target.releaseDateIso,
-        candidatos: candidates.map((c) => ({ id: c.id, name: c.name, release_date_raw: c.release_date_raw ?? null })),
-      },
-    };
-  }
-  return {
-    status: "CONFIRMED",
-    set: candidates[0],
-    method: "RELEASE_DATE_EXACT_MATCH",
-    evidence: {
-      release_date_esperada: target.releaseDateIso,
-      external_set_id: candidates[0].id,
-      external_set_name: candidates[0].name,
-      external_set_release_date_raw: candidates[0].release_date_raw ?? null,
-    },
-  };
-}
-
 // ============================================================================
-// 5b. Correlação de cartas — número de coleção primário, nome só desempata/verifica
+// 5b. Correlação de cartas — buildExternalNumberIndex/isNameCompatible/classifyCardMatch
+// agora vêm de _shared/pricing-justtcg-matching/mod.ts (Incremento P16.2, extraídas dos
+// Incrementos P14.2/P14.4.4/fix/fix v2). Mesma lógica — número de coleção primário, nome
+// só desempata/verifica —, zero mudança de comportamento nesta extração.
 // ============================================================================
-
-// Índice por número normalizado -> candidatos externos com aquele número. Cartas sem
-// número utilizável (ver isUsableExternalNumber) nunca entram aqui.
-//
-// Deduplicação por external_card_id (decisão de negócio, correção pós-P14.4.4): a mesma
-// carta externa pode aparecer mais de uma vez na resposta bruta da JustTCG para o mesmo
-// id (observado na evidência histórica de BASE1/ME1 antes desta correção — "candidatos"
-// com o mesmo id repetido). Sem deduplicar aqui, contar entradas brutas do array supercontaria
-// candidatos e classificaria como AMBIGUOUS/PENDING um número que na verdade tem uma única
-// carta externa distinta — bloqueando indevidamente uma promoção que deveria ser CONFIRMED.
-// A deduplicação acontece na construção do índice (fonte única, usada por piloto,
-// expansion-wave, backfill e reparo) para que a correção valha em todos os caminhos sem
-// precisar tocar em cada chamador.
-function buildExternalNumberIndex(externalCards: JustTcgCard[]): Map<string, JustTcgCard[]> {
-  const index = new Map<string, JustTcgCard[]>();
-  const seenIdsByKey = new Map<string, Set<string>>();
-  for (const card of externalCards) {
-    if (!isUsableExternalNumber(card.number)) continue;
-    const key = normalizeNumber(card.number as string);
-    const seenIds = seenIdsByKey.get(key) ?? new Set<string>();
-    if (seenIds.has(card.id)) continue; // mesmo external_card_id já contabilizado neste número — não duplica o candidato.
-    seenIds.add(card.id);
-    seenIdsByKey.set(key, seenIds);
-    const bucket = index.get(key) ?? [];
-    bucket.push(card);
-    index.set(key, bucket);
-  }
-  return index;
-}
-
-// Verificação secundária de nome — nunca a evidência primária. Regra conservadora e
-// determinística (sem distância de edição/fuzzy): igualdade normalizada, ou um nome é
-// prefixo do outro seguido de espaço (cobre qualificadores como "(...)" / " ex" / " V"
-// já observados em P8). Qualquer coisa fora disso é tratada como divergência de nome —
-// erra para o lado de marcar ambíguo, nunca para o lado de confirmar sem certeza.
-function isNameCompatible(localName: string, externalName: string): boolean {
-  const a = normalizeName(localName);
-  const b = normalizeName(externalName);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (a.startsWith(`${b} `) || b.startsWith(`${a} `)) return true;
-  return false;
-}
-
-type CardMatchClassification = "SAFE" | "AMBIGUOUS" | "ABSENT";
-
-type CardMatchResult = {
-  classification: CardMatchClassification;
-  matched: JustTcgCard | null;
-  method: string;
-  evidence: Record<string, unknown>;
-};
-
-// P14.4.4 — Correção de causa raiz (identidade canônica de carta), decisão de negócio
-// confirmada por Fabrício: a correspondência entre carta local e JustTCG usa
-// EXCLUSIVAMENTE (1) Card Set local vinculado a um external_set_id já CONFIRMED, (2)
-// collector_number normalizado, (3) exatamente uma carta externa com esse número dentro
-// do Set confirmado. Nome NUNCA é critério de matching — nosso catálogo é PT-BR, a
-// JustTCG é em inglês, e comparar nomes entre os dois idiomas produzia falsos-AMBIGUOUS
-// sistemáticos (Treinadores, "Nidoran♂"/"Nidoran M", "Impostor"/"Imposter Professor Oak",
-// etc. — ver auditoria pós-P14.4.3). Nome é preservado só como evidência de auditoria/
-// exibição, nunca como critério que bloqueia ou desempata. Regra única, sem exceção por
-// categoria de carta (Treinador, Nidoran, tradução, Set específico): a divergência de
-// nome nunca impede uma correspondência única por Set+número.
-//
-// P14.4.4 fix (filtro por denominador, decisão de negócio confirmada por Fabrício após
-// auditoria read-only dos 548 PENDING/18 NOT_FOUND): quando há MAIS de um candidato para o
-// mesmo numerador, um segundo sinal estrutural — nunca nome, nunca idioma, nunca raridade,
-// nunca preferência de edição — pode reduzir a ambiguidade: o denominador declarado no
-// número do candidato externo (a parte "/D" de "N/D") comparado a collector_total da carta
-// local.
-//
-// P14.4.4 fix v2 (correção de especificidade estrutural, confirmada por Fabrício após o
-// dry-run real divergir em SV6.5 — 0/8 promovidos em vez de 8/8: a versão anterior tratava
-// um candidato sem denominador declarado como sobrevivente em pé de igualdade com um
-// candidato de identidade completa, então "Basic Energy" number="1" e "Joltik"
-// number="001/064" com collector_total=64 empatavam como 2 sobreviventes -> AMBIGUOUS,
-// quando o candidato de identidade completa é estruturalmente mais específico e deveria
-// vencer sozinho). Cada candidato é classificado em exatamente uma categoria:
-//   EXACT_FULL_IDENTITY      — denominador declarado e igual a collector_total da carta local
-//   INCOMPATIBLE_DENOMINATOR — denominador declarado e diferente de collector_total
-//   INCOMPLETE_NUMBER        — sem denominador declarado (ausência de informação nunca prova
-//                              incompatibilidade, mas também nunca prevalece sobre uma
-//                              identidade completa comprovada)
-// Só EXATAMENTE 1 candidato em EXACT_FULL_IDENTITY promove a carta a SAFE — 2+ candidatos em
-// EXACT_FULL_IDENTITY, ou 0 candidatos em EXACT_FULL_IDENTITY (não importa quantos
-// INCOMPLETE_NUMBER/INCOMPATIBLE_DENOMINATOR sobrem), permanecem AMBIGUOUS.
-//
-// Classificação:
-//   1 candidato para Set+número (sem precisar do filtro)
-//     -> SAFE      (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE)
-//   0 candidatos
-//     -> ABSENT    (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE) — nunca afetado pelo filtro
-//   >1 candidatos, collector_total ausente/inválido
-//     -> AMBIGUOUS (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE) — comportamento
-//        conservador anterior, byte a byte, sem nenhum campo novo na evidência (regra 6)
-//   >1 candidatos, collector_total válido, exatamente 1 candidato em EXACT_FULL_IDENTITY
-//     -> SAFE      (method SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE)
-//   >1 candidatos, collector_total válido, 0 ou 2+ candidatos em EXACT_FULL_IDENTITY
-//     -> AMBIGUOUS (method SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE) — NUNCA ABSENT/NOT_FOUND,
-//        e nunca promovido só porque sobra um candidato INCOMPLETE_NUMBER; evidência ganha
-//        os campos do filtro (candidatos_identidade_completa etc.) para auditoria, mas a
-//        lista `candidatos`/`total_candidatos` pré-existente permanece intocada
-//   número local ausente/inutilizável -> ABSENT (mesmo method — nunca cai em outro branch)
-//
-// `externalSetId` é recebido só para deixar explícito, na própria evidência, sob qual Set
-// já CONFIRMED a correspondência foi tentada — nunca usado para resolver/reavaliar o Set
-// em si (isso continua sendo responsabilidade exclusiva de resolveSetMatchV2(), fora desta
-// função).
-function classifyCardMatch(local: LocalCard, externalIndex: Map<string, JustTcgCard[]>, externalSetId: string): CardMatchResult {
-  const localNumNorm = normalizeNumber(local.collector_number);
-  const METHOD = "SET_CONFIRMED_COLLECTOR_NUMBER_UNIQUE";
-  const METHOD_IDENTIDADE_COMPLETA = "SET_CONFIRMED_FULL_COLLECTOR_IDENTITY_UNIQUE";
-
-  // Número local ausente/vazio (normalizeNumber("") devolve "" — nunca "0", reservado para
-  // um número real que se reduz a zero, ex. "000") nunca encontra nenhum candidato no índice
-  // (que só contém chaves de números externos realmente utilizáveis) — cai naturalmente no
-  // branch de 0 candidatos abaixo, sem precisar de um caso especial: mesma garantia "número
-  // ausente ou inutilizável -> ABSENT" pedida, sem exceção dedicada no código.
-  const candidates = externalIndex.get(localNumNorm) ?? [];
-
-  if (candidates.length === 0) {
-    return {
-      classification: "ABSENT",
-      matched: null,
-      method: METHOD,
-      evidence: { external_set_id: externalSetId, numero_local: local.collector_number, numero_normalizado: localNumNorm || null, nome_local: local.name, nome_externo: null, divergencia_de_nome: null },
-    };
-  }
-
-  if (candidates.length === 1) {
-    const candidate = candidates[0];
-    const divergenciaDeNome = !isNameCompatible(local.name, candidate.name);
-    return {
-      classification: "SAFE",
-      matched: candidate,
-      method: METHOD,
-      evidence: {
-        external_set_id: externalSetId,
-        numero_local: local.collector_number,
-        numero_normalizado: localNumNorm,
-        numero_externo: candidate.number ?? null,
-        nome_local: local.name,
-        nome_externo: candidate.name,
-        // Indicador de auditoria — nunca usado para decidir a classificação, só para
-        // deixar visível quando o nome PT-BR local diverge do nome em inglês da JustTCG
-        // (comportamento esperado e normal, não um alerta de erro).
-        divergencia_de_nome: divergenciaDeNome,
-      },
-    };
-  }
-
-  // Mais de um candidato compartilha o mesmo número dentro do Set confirmado. Sem
-  // collector_total válido, comportamento AMBIGUOUS anterior preservado byte a byte (regra
-  // 6 — nunca aplica o desempate, nunca acrescenta campo novo à evidência).
-  const candidatosBase = candidates.map((c) => ({ id: c.id, name: c.name, number: c.number ?? null }));
-
-  if (!isValidCollectorTotal(local.collector_total)) {
-    return {
-      classification: "AMBIGUOUS",
-      matched: null,
-      method: METHOD,
-      evidence: {
-        external_set_id: externalSetId,
-        numero_local: local.collector_number,
-        numero_normalizado: localNumNorm,
-        nome_local: local.name,
-        candidatos: candidatosBase,
-        total_candidatos: candidates.length,
-      },
-    };
-  }
-
-  const collectorTotal = local.collector_total;
-  const candidatosAvaliados = candidates.map((c) => {
-    const parsed = parseCollectorNumberParts(c.number ?? null);
-    const categoriaEstrutural: "EXACT_FULL_IDENTITY" | "INCOMPATIBLE_DENOMINATOR" | "INCOMPLETE_NUMBER" = parsed.denominator === null
-      ? "INCOMPLETE_NUMBER"
-      : parsed.denominator === collectorTotal
-      ? "EXACT_FULL_IDENTITY"
-      : "INCOMPATIBLE_DENOMINATOR";
-    return {
-      id: c.id,
-      name: c.name,
-      number: c.number ?? null,
-      numerador_interpretado: parsed.numerator || null,
-      denominador_interpretado: parsed.denominator,
-      categoria_estrutural: categoriaEstrutural,
-    };
-  });
-  const candidatosIdentidadeCompleta = candidatosAvaliados.filter((c) => c.categoria_estrutural === "EXACT_FULL_IDENTITY");
-  const candidatosDenominadorIncompativel = candidatosAvaliados.filter((c) => c.categoria_estrutural === "INCOMPATIBLE_DENOMINATOR");
-  const candidatosNumeroIncompleto = candidatosAvaliados.filter((c) => c.categoria_estrutural === "INCOMPLETE_NUMBER");
-
-  // Só EXATAMENTE 1 candidato com identidade completa (numerador+denominador batendo com
-  // collector_total) promove a carta a SAFE — nunca 0, nunca 2+, independentemente de quantos
-  // candidatos INCOMPLETE_NUMBER/INCOMPATIBLE_DENOMINATOR sobrarem (fix v2, regras 2-4: um
-  // candidato sem denominador nunca é declarado falso/incompatível, mas também nunca
-  // prevalece sobre uma identidade completa única, nem a substitui quando ela está ausente).
-  if (candidatosIdentidadeCompleta.length === 1) {
-    const selecionado = candidatosIdentidadeCompleta[0];
-    const candidate = candidates.find((c) => c.id === selecionado.id)!;
-    const divergenciaDeNome = !isNameCompatible(local.name, candidate.name);
-    return {
-      classification: "SAFE",
-      matched: candidate,
-      method: METHOD_IDENTIDADE_COMPLETA,
-      evidence: {
-        external_set_id: externalSetId,
-        numero_local: local.collector_number,
-        numero_normalizado: localNumNorm,
-        numero_externo: candidate.number ?? null,
-        nome_local: local.name,
-        nome_externo: candidate.name,
-        divergencia_de_nome: divergenciaDeNome,
-        local_collector_total: collectorTotal,
-        candidatos_avaliados_estrutural: candidatosAvaliados,
-        candidatos_identidade_completa: candidatosIdentidadeCompleta,
-        candidatos_denominador_incompativel: candidatosDenominadorIncompativel,
-        candidatos_numero_incompleto: candidatosNumeroIncompleto,
-        candidato_selecionado: { id: candidate.id, name: candidate.name, number: candidate.number ?? null },
-        motivo_estrutural: "Identidade completa (numerador+denominador) única e mais específica que candidatos de número incompleto ou de denominador incompatível; único candidato com identidade completa promovido.",
-      },
-    };
-  }
-
-  // 0 ou 2+ candidatos com identidade completa -> continua AMBIGUOUS, nunca ABSENT/NOT_FOUND
-  // (regra 5) e nunca promovido só porque sobra um candidato de número incompleto (regra 4).
-  // `candidatos`/`total_candidatos` preservados sem alteração para não quebrar nenhum
-  // consumidor pré-existente da evidência (ex. logDryRunCardEvidence); os campos do filtro
-  // são só ADITIVOS.
-  return {
-    classification: "AMBIGUOUS",
-    matched: null,
-    method: METHOD,
-    evidence: {
-      external_set_id: externalSetId,
-      numero_local: local.collector_number,
-      numero_normalizado: localNumNorm,
-      nome_local: local.name,
-      candidatos: candidatosBase,
-      total_candidatos: candidates.length,
-      local_collector_total: collectorTotal,
-      candidatos_avaliados_estrutural: candidatosAvaliados,
-      candidatos_identidade_completa: candidatosIdentidadeCompleta,
-      candidatos_denominador_incompativel: candidatosDenominadorIncompativel,
-      candidatos_numero_incompleto: candidatosNumeroIncompleto,
-      motivo_estrutural: candidatosIdentidadeCompleta.length === 0
-        ? "Nenhum candidato com identidade completa (numerador+denominador batendo com collector_total) — permanece ambíguo, mesmo havendo candidato(s) de número incompleto; ausência de denominador nunca promove sozinha."
-        : "Mais de um candidato com identidade completa (mesmo denominador batendo com collector_total em 2+ candidatos) — permanece ambíguo.",
-    },
-  };
-}
 
 // ============================================================================
 // 5b-bis. Diagnóstico de cobertura externa (Fix P14.2.2, a pedido de Fabrício após o
@@ -968,25 +602,11 @@ function classifyObservationWrite(insertError: { message: string } | null, exist
 }
 
 // ============================================================================
-// 5d. Upsert idempotente de mapeamentos — corrige a lacuna de P8 (insert-e-tolera nunca
-//     promovia PENDING/NOT_FOUND para CONFIRMED numa reexecução)
+// 5d. Upsert idempotente de mapeamentos — decideMappingUpsert agora vem de
+// _shared/pricing-justtcg-matching/mod.ts (Incremento P16.2, extraída do Incremento P8/
+// P14.2). Corrige a lacuna de P8 (insert-e-tolera nunca promovia PENDING/NOT_FOUND para
+// CONFIRMED numa reexecução) — mesma lógica, zero mudança de comportamento nesta extração.
 // ============================================================================
-
-type MappingRowLike = { id: string; match_status: string };
-type UpsertAction = "INSERTED" | "UPGRADED_TO_CONFIRMED" | "NOOP_ALREADY_CONFIRMED" | "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT" | "NOOP_SAME_STATUS";
-
-// Pura por design (recebe a linha existente, se houver, e a nova classificação; devolve
-// só a decisão) — testável em runFixtureCheck() sem tocar o Supabase. Uma linha CONFIRMED
-// nunca é rebaixada por uma nova classificação pior (ABSENT/AMBIGUOUS): fica preservada,
-// só sinalizada como divergência para revisão humana, nunca reescrita silenciosamente.
-function decideMappingUpsert(existing: MappingRowLike | null, newStatus: "CONFIRMED" | "PENDING" | "NOT_FOUND"): UpsertAction {
-  if (!existing) return "INSERTED";
-  if (existing.match_status === "CONFIRMED") {
-    return newStatus === "CONFIRMED" ? "NOOP_SAME_STATUS" : "NOOP_KEEP_CONFIRMED_DIVERGENT_INPUT";
-  }
-  if (newStatus === "CONFIRMED") return "UPGRADED_TO_CONFIRMED";
-  return existing.match_status === newStatus ? "NOOP_SAME_STATUS" : "UPGRADED_TO_CONFIRMED"; // PENDING<->NOT_FOUND também é atualizado, sem novo status no schema
-}
 
 // Fix P14.3: decisão de status final extraída como função pura testável — antes vivia como
 // um ternário inline dentro de runRealPilot(). batchPersistenceFailed tem prioridade
@@ -7393,67 +7013,11 @@ const WAVE_MAX_LOCAL_CARDS = 500;
 
 type LocalSetSummary = { cardSetId: string; code: string; releaseDateIso: string | null; localCardCount: number };
 
-type ExistingSetMappingLite = { cardSetId: string; matchStatus: string; externalSetId: string | null; externalSetName: string | null };
-
-type SetPlanClassification =
-  | { status: "ALREADY_CONFIRMED_COMPLETE"; externalSetId: string; externalSetName: string | null; externalVariantsCount: number | null; reason: string }
-  | { status: "ALREADY_CONFIRMED_INCOMPLETE"; externalSetId: string; externalSetName: string | null; externalVariantsCount: number | null; reason: string }
-  | { status: "SAFE_CANDIDATE"; externalSetId: string; externalSetName: string; externalVariantsCount: number | null; reason: string }
-  | { status: "AMBIGUOUS"; candidateCount: number; reason: string }
-  | { status: "NOT_FOUND"; reason: string };
-
-// Pura — mesmo sinal primário automatizado já validado em resolveSetMatchV2() (P14.2):
-// release_date normalizada é a ÚNICA evidência usada para confirmar automaticamente. Nome
-// nunca é fundamento isolado (não é usado nem como desempate nesta rodada — zero candidatos
-// na mesma data já é o caso raro o suficiente para não precisar de um segundo sinal; ver nota
-// no cabeçalho do arquivo). Um mapping já CONFIRMED é sempre preservado, nunca reavaliado
-// contra allExternalSets — ALREADY_CONFIRMED_COMPLETE/INCOMPLETE é decidido só pelo estado
-// local (mapping do Set + cobertura agregada de cartas), antes de qualquer comparação de data.
-//
-// P14.4.3: "Set confirmado" deixou de implicar "cobertura completa" (BASE1/ME1 confirmados no
-// nível do Set, mas mapeados só parcialmente em pilotos anteriores). coverage.mappedCards conta
-// QUALQUER pricing_card_mapping existente (CONFIRMED, PENDING ou NOT_FOUND contam como
-// "mapeada" — o gap real é ausência TOTAL de mapping); >= (não ===) é deliberado, tolerante a
-// mappedCards nunca poder superar localCardCount em condições normais (ambos filtram por
-// card.is_active = TRUE), mas sem quebrar se algum dia divergir por um instante entre leituras.
-function classifySetForExpansionPlan(
-  local: { releaseDateIso: string | null; localCardCount: number },
-  existingMapping: ExistingSetMappingLite | null,
-  allExternalSets: JustTcgSet[],
-  coverage: { mappedCards: number } | null,
-): SetPlanClassification {
-  if (existingMapping && existingMapping.matchStatus === "CONFIRMED") {
-    const knownExternal = existingMapping.externalSetId ? allExternalSets.find((s) => s.id === existingMapping.externalSetId) : undefined;
-    const mappedCards = coverage?.mappedCards ?? 0;
-    const isComplete = mappedCards >= local.localCardCount;
-    return {
-      status: isComplete ? "ALREADY_CONFIRMED_COMPLETE" : "ALREADY_CONFIRMED_INCOMPLETE",
-      externalSetId: existingMapping.externalSetId ?? "",
-      externalSetName: existingMapping.externalSetName,
-      externalVariantsCount: knownExternal?.variants_count ?? null,
-      reason: isComplete ? "MAPPING_JA_CONFIRMED_COBERTURA_COMPLETA" : "MAPPING_JA_CONFIRMED_COBERTURA_INCOMPLETA",
-    };
-  }
-
-  if (!local.releaseDateIso) {
-    return { status: "NOT_FOUND", reason: "SET_LOCAL_SEM_RELEASE_DATE" };
-  }
-
-  const candidates = allExternalSets.filter((s) => s.release_date === local.releaseDateIso);
-  if (candidates.length === 0) {
-    return { status: "NOT_FOUND", reason: "RELEASE_DATE_SEM_CORRESPONDENCIA_EXTERNA" };
-  }
-  if (candidates.length > 1) {
-    return { status: "AMBIGUOUS", candidateCount: candidates.length, reason: "RELEASE_DATE_COM_MULTIPLOS_CANDIDATOS" };
-  }
-  return {
-    status: "SAFE_CANDIDATE",
-    externalSetId: candidates[0].id,
-    externalSetName: candidates[0].name,
-    externalVariantsCount: candidates[0].variants_count ?? null,
-    reason: "RELEASE_DATE_EXACT_MATCH_UNICO",
-  };
-}
+// ExistingSetMappingLite/SetPlanClassification/classifySetForExpansionPlan agora vêm de
+// _shared/pricing-justtcg-matching/mod.ts (Incremento P16.2, extraídas do Incremento
+// P14.4.1/P14.4.3). Mesma lógica — release_date exata como única evidência automatizada,
+// ALREADY_CONFIRMED_COMPLETE/INCOMPLETE decidido pelo estado local antes de qualquer
+// comparação de data —, zero mudança de comportamento nesta extração.
 
 // Estimativa deliberadamente baseada só na contagem LOCAL de cartas — nunca em variants_count
 // da JustTCG (não é "total de cartas", ver nota no cabeçalho do arquivo). Sempre >= 1 mesmo

@@ -5,6 +5,10 @@ import { formatNumber } from "@/lib/utils";
 const COR_SAUDAVEL = "hsl(var(--success))";
 const COR_PROBLEMA = "hsl(var(--destructive))";
 const COR_PAUSADO = "hsl(var(--muted-foreground))";
+/** P16.4.1 (migration 3952) — onboarding_pending + processing combinados num único segmento
+ * neutro/informativo: mesmo tom de "Atenção" usado nos badges de `saude-fontes-list.tsx`, nunca
+ * o vermelho de `COR_PROBLEMA` (Set em onboarding/processando não é falha operacional). */
+const COR_AGUARDANDO = "hsl(var(--warning))";
 
 /**
  * Raio/espessura do donut — v3.1 (2026-08-23, ajuste pós-revisão): reduzidos
@@ -43,11 +47,17 @@ export function PricingSetHealthBar({ sets }: { sets: PricingAdminOverview["sets
   const healthyPct = (sets.healthy / sets.total) * 100;
   const problemPct = (sets.problem / sets.total) * 100;
   const pausedPct = (sets.paused / sets.total) * 100;
+  // P16.4.1 (migration 3952) — onboarding_pending + processing precisam de segmento próprio;
+  // sem isso o donut deixaria um arco em branco (a soma healthy+problem+paused não fecha mais
+  // 100% do total, já que os dois buckets novos existem à parte).
+  const aguardandoCount = sets.onboarding_pending + sets.processing;
+  const aguardandoPct = (aguardandoCount / sets.total) * 100;
 
   const segments = [
     { pct: healthyPct, color: COR_SAUDAVEL, cumulative: 0 },
     { pct: problemPct, color: COR_PROBLEMA, cumulative: healthyPct },
     { pct: pausedPct, color: COR_PAUSADO, cumulative: healthyPct + problemPct },
+    { pct: aguardandoPct, color: COR_AGUARDANDO, cumulative: healthyPct + problemPct + pausedPct },
   ].filter((s) => s.pct > 0);
 
   return (
@@ -55,7 +65,7 @@ export function PricingSetHealthBar({ sets }: { sets: PricingAdminOverview["sets
       <div
         className="relative"
         role="img"
-        aria-label={`Retrato do instante atual: ${sets.healthy} de ${sets.total} Sets saudáveis, ${sets.problem} com problema, ${sets.paused} pausados.`}
+        aria-label={`Retrato do instante atual: ${sets.healthy} de ${sets.total} Sets saudáveis, ${sets.problem} com problema, ${sets.paused} pausados, ${aguardandoCount} aguardando ou em sincronização.`}
       >
         <svg viewBox="0 0 100 100" className="h-[88px] w-[88px] -rotate-90">
           <circle cx={50} cy={50} r={RAIO} fill="none" stroke="hsl(var(--surface-muted))" strokeWidth={ESPESSURA} />
@@ -94,6 +104,12 @@ export function PricingSetHealthBar({ sets }: { sets: PricingAdminOverview["sets
           <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: COR_PAUSADO }} aria-hidden="true" />
           Pausados <span className="tabular-nums text-foreground">{formatNumber(sets.paused)}</span>
         </span>
+        {aguardandoCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: COR_AGUARDANDO }} aria-hidden="true" />
+            Aguardando <span className="tabular-nums text-foreground">{formatNumber(aguardandoCount)}</span>
+          </span>
+        )}
       </div>
     </div>
   );

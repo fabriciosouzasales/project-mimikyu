@@ -83,10 +83,25 @@ const STATUS_HALO: Record<PricingOverviewStatus["level"], string> = {
  * (`refresh_policy[0].frequency_days`, RPC `get_pricing_admin_overview`,
  * migration 3939), nenhuma RPC nova.
  */
+/**
+ * P16.1 (2026-08-24, Onboarding de Sets no Pricing — Cobertura e Visibilidade): o fato
+ * "Cobertura" TROCOU de fonte de dado, MESMO SLOT visual, mesma composição do Hero — antes
+ * `mappings.coverage_pct` (% de `pricing_card_mapping` CONFIRMED sobre o total, um número de
+ * confirmação de CARTAS), agora `coverage.covered/coverage.eligible_total` (migration 3950),
+ * uma FRAÇÃO de SETS elegíveis do Catálogo com qualquer tratamento no Pricing — mesmo formato
+ * `N/N` de "Saúde dos Sets", ao lado. Decisão explícita de Fabrício (rodada de correção
+ * conceitual do plano P16): o rótulo "Cobertura" nesta tela deve responder "o Pricing
+ * conhece/administra todos os Sets elegíveis?", nunca "que fração das cartas já mapeadas está
+ * confirmada?" — a métrica antiga (`mappings.coverage_pct`) continua existindo no contrato de
+ * `PricingAdminOverview` e alimentando `computePricingOverviewStatus()` sem nenhuma mudança de
+ * regra, só deixou de ocupar este slot do Hero (o sinal de confirmação de cartas continua
+ * visível via os tiles "Pendentes"/"Não encontrados" de Atenções e Ações).
+ */
 export function PricingOverviewHero({ overview, status }: { overview: PricingAdminOverview; status: PricingOverviewStatus }) {
-  const { mappings, sets, dispatcher, last_sync_run, refresh_policy } = overview;
+  const { coverage, sets, dispatcher, last_sync_run, refresh_policy } = overview;
   const policyPrincipal = refresh_policy[0] ?? null;
   const Icon = STATUS_ICON[status.level];
+  const coveragePct = coverage.eligible_total > 0 ? (coverage.covered / coverage.eligible_total) * 100 : undefined;
 
   return (
     <Panel className="p-4 sm:p-6">
@@ -115,8 +130,8 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
         <HeroFact
           icon={Activity}
           label="Cobertura"
-          value={mappings.coverage_pct !== null ? `${mappings.coverage_pct}%` : "—"}
-          progressPct={mappings.coverage_pct ?? undefined}
+          value={`${formatNumber(coverage.covered)}/${formatNumber(coverage.eligible_total)}`}
+          progressPct={coveragePct}
         />
         <HeroFact icon={ShieldCheck} label="Saúde dos Sets" value={`${formatNumber(sets.healthy)}/${formatNumber(sets.total)}`} />
         <HeroFact

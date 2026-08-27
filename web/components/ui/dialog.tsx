@@ -37,6 +37,12 @@ const DIALOG_SIZES = {
   // para outros Dialogs que cresçam da mesma forma (ex.: Card Set, quando
   // ganhar edição em Dialog).
   lg: "max-w-lg",
+  // 2026-08-24 (refinamento visual de Fontes de Preço) — formulário
+  // reestruturado em blocos semânticos (Identificação / Endpoints e
+  // referências / Configuração) precisa de mais respiro horizontal que
+  // `lg` para não amontoar os pares de URL lado a lado. Mesmo raciocínio de
+  // `lg` acima, um degrau maior.
+  xl: "max-w-xl",
 } as const;
 
 export const DialogContent = forwardRef<

@@ -17,6 +17,15 @@ export type PricingAdminOverview = {
     total: number;
     coverage_pct: number | null;
   };
+  /**
+   * P16.1 — Cobertura de Sets (migration 3950), bloco NOVO e conceitualmente distinto de
+   * `mappings.coverage_pct` (confirmação de `pricing_card_mapping`, já existente). `covered` =
+   * Sets elegíveis com QUALQUER `pricing_set_mapping` (CONFIRMED/PENDING/NOT_FOUND contam, só a
+   * ausência total não conta) — mede "o Pricing conhece este Set", nunca "tem preço disponível".
+   * `eligible_total` já vem filtrado pela regra de elegibilidade (jogo suportado pela fonte
+   * ativa) — nunca `count(*) FROM card_set` cru.
+   */
+  coverage: { eligible_total: number; covered: number };
   products_count: number;
   observations_count: number;
   last_sync_run: {
@@ -29,6 +38,18 @@ export type PricingAdminOverview = {
   sets: {
     total: number;
     healthy: number;
+    /**
+     * P16.4.1 (migration 3952) — Set confirmado (`pricing_set_mapping.match_status = 'CONFIRMED'`)
+     * mas cujo `pricing_set_refresh_state.last_outcome` ainda é `NEVER_RUN`: nunca passou pela
+     * primeira janela do dispatcher. Antes desta migration, esse estado transitório de onboarding
+     * era contado como `problem` — bug corrigido aqui, ver `pricing_derive_refresh_bucket()`.
+     * Nunca deve, por si só, tornar a Visão Geral CRÍTICA nem a fonte "COM PROBLEMA".
+     */
+    onboarding_pending: number;
+    /** P16.4.1 — sincronização em andamento agora (lease ativo) ou continuação normal
+     * (BUDGET_STOPPED/DEADLINE_STOPPED, retomada automática no próximo tick do dispatcher) —
+     * nunca falha operacional. */
+    processing: number;
     problem: number;
     paused: number;
     next_due_at: string | null;
@@ -433,7 +454,9 @@ export type PricingSourceHealth = {
     triggeredBy: string;
   } | null;
   mappings: { confirmed: number; pending: number; notFound: number; total: number; coveragePct: number | null };
-  sets: { healthy: number; problem: number; paused: number; total: number };
+  /** P16.4.1 (migration 3952) — `onboardingPending`/`processing` são buckets novos, ver
+   * `PricingAdminOverview.sets` para a semântica completa (mesma taxonomia central). */
+  sets: { healthy: number; onboardingPending: number; processing: number; problem: number; paused: number; total: number };
   recentFailedRuns: number;
   recentRateLimitHits: number;
   lastErrorSummary: string | null;
@@ -458,6 +481,8 @@ type PricingSourceHealthRawRow = {
   sets_problem: number;
   sets_paused: number;
   sets_total: number;
+  sets_onboarding_pending: number;
+  sets_processing: number;
   recent_failed_runs: number;
   recent_rate_limit_hits: number;
   last_error_summary: string | null;
@@ -497,7 +522,14 @@ export async function getPricingSourceHealth(supabase: SupabaseClient): Promise<
       total: row.mappings_total,
       coveragePct: row.coverage_pct,
     },
-    sets: { healthy: row.sets_healthy, problem: row.sets_problem, paused: row.sets_paused, total: row.sets_total },
+    sets: {
+      healthy: row.sets_healthy,
+      onboardingPending: row.sets_onboarding_pending,
+      processing: row.sets_processing,
+      problem: row.sets_problem,
+      paused: row.sets_paused,
+      total: row.sets_total,
+    },
     recentFailedRuns: row.recent_failed_runs,
     recentRateLimitHits: row.recent_rate_limit_hits,
     lastErrorSummary: row.last_error_summary,
@@ -703,6 +735,16 @@ export const PRICING_SET_REFRESH_STATES_PAGE_SIZE = 20;
 
 export type PricingSetRefreshDerivedStatus = "HEALTHY" | "PROBLEM" | "PAUSED";
 
+/**
+ * P16.4.1 (revisão final, migration 3952) — domínio completo da taxonomia central
+ * (`pricing_derive_refresh_bucket`), usado para filtrar/exibir "Estado dos Sets" em
+ * `/pricing/sincronizacoes`. Superset de `PricingSetRefreshDerivedStatus`: os 3 valores
+ * antigos (HEALTHY/PROBLEM/PAUSED) continuam válidos, ONBOARDING_PENDING/PROCESSING são
+ * novos. Ver comentário de `derivedStatus` abaixo — os dois campos coexistem por
+ * compatibilidade, `refreshBucket` é a fonte semanticamente correta.
+ */
+export type PricingSetRefreshBucket = "ONBOARDING_PENDING" | "PROCESSING" | "HEALTHY" | "PROBLEM" | "PAUSED";
+
 export type PricingSetRefreshStateItem = {
   id: string;
   cardSetId: string;
@@ -710,7 +752,10 @@ export type PricingSetRefreshStateItem = {
   cardSetName: string;
   pricingSourceId: string;
   pricingSourceCode: string;
+  /** @deprecated Preservado por compatibilidade (mesmo valor byte-idêntico da RPC original, migration 3941) — usar `refreshBucket` para exibição/derivação de estado. */
   derivedStatus: PricingSetRefreshDerivedStatus;
+  /** P16.4.1 — taxonomia central (`pricing_derive_refresh_bucket`), fonte correta de estado operacional desta linha. */
+  refreshBucket: PricingSetRefreshBucket;
   lastStartedAt: string | null;
   lastSuccessAt: string | null;
   nextDueAt: string | null;
@@ -749,6 +794,7 @@ type PricingSetRefreshStateRawRow = {
   cycle_expected_card_count: number | null;
   mappings_confirmed: number;
   mappings_total: number;
+  refresh_bucket: PricingSetRefreshBucket;
   total_count: number;
 };
 
@@ -762,7 +808,9 @@ export async function getPricingSetRefreshStates(
   supabase: SupabaseClient,
   options: {
     search?: string;
-    status?: PricingSetRefreshDerivedStatus[];
+    // P16.4.1 (revisão final) — o filtro passado à RPC agora compara contra refresh_bucket,
+    // por isso aceita o domínio de 5 valores; HEALTHY/PROBLEM/PAUSED continuam funcionando.
+    status?: PricingSetRefreshBucket[];
     pricingSourceId?: string;
     limit?: number;
     offset?: number;
@@ -790,6 +838,7 @@ export async function getPricingSetRefreshStates(
       pricingSourceId: row.pricing_source_id,
       pricingSourceCode: row.pricing_source_code,
       derivedStatus: row.derived_status,
+      refreshBucket: row.refresh_bucket,
       lastStartedAt: row.last_started_at,
       lastSuccessAt: row.last_success_at,
       nextDueAt: row.next_due_at,
@@ -934,42 +983,68 @@ export async function getPricingSources(supabase: SupabaseClient): Promise<Prici
 
 export const PRICING_SET_MAPPINGS_PAGE_SIZE = 20;
 
-/** Vocabulário completo de `pricing_set_mapping.match_status` — ao contrário de Pendências, esta tela mostra os 4 estados. */
-export type PricingSetMappingStatus = "CONFIRMED" | "PENDING" | "NOT_FOUND" | "REJECTED";
+/**
+ * Vocabulário de `pricing_set_mapping.match_status` — os 4 estados reais, mais `UNMAPPED`
+ * (P16.1, migration 3950): pseudo-status sintético, produzido só pela RPC via
+ * `COALESCE(match_status, 'UNMAPPED')`, para o Card Set elegível que ainda não tem NENHUMA
+ * linha em `pricing_set_mapping` — nunca gravado na tabela real (a constraint de
+ * `match_status` continua restrita aos 4 status reais).
+ */
+export type PricingSetMappingStatus = "CONFIRMED" | "PENDING" | "NOT_FOUND" | "REJECTED" | "UNMAPPED";
 
 export type PricingSetMappingItem = {
-  id: string;
+  /** `null` quando `matchStatus === "UNMAPPED"` — não existe linha em `pricing_set_mapping` para dar um id. Use `cardSetId` como chave estável (React key, lookups). */
+  id: string | null;
   cardSetId: string;
   cardSetCode: string;
   cardSetName: string;
-  pricingSourceId: string;
-  pricingSourceCode: string;
+  /** `null` quando `matchStatus === "UNMAPPED"` (P16.1) — nenhuma fonte foi associada ainda. */
+  pricingSourceId: string | null;
+  pricingSourceCode: string | null;
   externalSetId: string | null;
   externalSetName: string | null;
   matchStatus: PricingSetMappingStatus;
   matchMethod: string | null;
   lastCheckedAt: string | null;
-  /** true quando existe mapeamento de carta confirmado ou dado de preço vinculado a este Set+fonte — `external_set_id` e a reclassificação CONFIRMED→REJECTED ficam bloqueados na RPC de write quando true (mesma fonte única de verdade da migration 3942). */
+  /** true quando existe mapeamento de carta confirmado ou dado de preço vinculado a este Set+fonte — `external_set_id` e a reclassificação CONFIRMED→REJECTED ficam bloqueados na RPC de write quando true (mesma fonte única de verdade da migration 3942). Sempre `false` para `UNMAPPED` (não há fonte associada). */
   hasDependency: boolean;
+  /**
+   * P16.4.1 (migration 3952) — taxonomia operacional derivada de `pricing_set_refresh_state`
+   * (ONBOARDING_PENDING/PROCESSING/HEALTHY/PROBLEM/PAUSED), `null` quando não existe linha de
+   * refresh_state ainda (Set UNMAPPED, ou mapping que nunca chegou a CONFIRMED — a autoentrada
+   * só é criada pela trigger da migration 3932 quando `match_status` vira CONFIRMED). Nunca
+   * confundir com `matchStatus`: um é identidade externa confirmada, o outro é o estado
+   * operacional de sincronização — podem divergir (ex.: CONFIRMED + refreshStatus=ONBOARDING_PENDING).
+   */
+  refreshStatus: "ONBOARDING_PENDING" | "PROCESSING" | "HEALTHY" | "PROBLEM" | "PAUSED" | null;
+  refreshLastOutcome: string | null;
+  refreshLastSuccessAt: string | null;
 };
 
 type PricingSetMappingRawRow = {
-  id: string;
+  id: string | null;
   card_set_id: string;
   card_set_code: string;
   card_set_name: string;
-  pricing_source_id: string;
-  pricing_source_code: string;
+  pricing_source_id: string | null;
+  pricing_source_code: string | null;
   external_set_id: string | null;
   external_set_name: string | null;
   match_status: PricingSetMappingStatus;
   match_method: string | null;
   last_checked_at: string | null;
   has_dependency: boolean;
+  refresh_status: "ONBOARDING_PENDING" | "PROCESSING" | "HEALTHY" | "PROBLEM" | "PAUSED" | null;
+  refresh_last_outcome: string | null;
+  refresh_last_success_at: string | null;
   total_count: number;
 };
 
-/** Cadastro de Mapeamentos de Sets — `admin_list_pricing_set_mappings`, paginado/filtrado server-side, todos os 4 status. */
+/**
+ * Cadastro de Mapeamentos de Sets — `admin_list_pricing_set_mappings` (migration 3950, P16.1),
+ * agora `card_set LEFT JOIN pricing_set_mapping` filtrado por elegibilidade — todo Set elegível
+ * aparece, mapeado ou não (`UNMAPPED`), paginado/filtrado server-side.
+ */
 export async function getPricingSetMappings(
   supabase: SupabaseClient,
   options: {
@@ -1007,6 +1082,9 @@ export async function getPricingSetMappings(
       matchMethod: row.match_method,
       lastCheckedAt: row.last_checked_at,
       hasDependency: row.has_dependency,
+      refreshStatus: row.refresh_status,
+      refreshLastOutcome: row.refresh_last_outcome,
+      refreshLastSuccessAt: row.refresh_last_success_at,
     })),
     totalCount: rows[0]?.total_count ?? 0,
   };

@@ -55,6 +55,16 @@ export function computePricingOverviewStatus(
     );
   }
 
+  // P16.4.1 (migration 3952) — Set recém-confirmado que ainda não passou pela primeira janela
+  // do dispatcher (`last_outcome = 'NEVER_RUN'`) é onboarding normal, nunca falha operacional.
+  // Antes desta correção, esse estado era contado dentro de `sets.problem` e tornava a Visão
+  // Geral CRÍTICA por engano — aqui vira apenas um sinal de Atenção, nunca Crítico.
+  if (overview.sets.onboarding_pending > 0) {
+    attentionReasons.push(
+      `${overview.sets.onboarding_pending} ${overview.sets.onboarding_pending === 1 ? "Set aguardando" : "Sets aguardando"} primeira sincronização.`,
+    );
+  }
+
   const ultimoDiaComExecucoes = syncRunDaily?.length ? syncRunDaily[syncRunDaily.length - 1]?.day : null;
   const falhasRecentes =
     syncRunDaily?.filter((ponto) => ponto.day === ultimoDiaComExecucoes && ponto.status === "FAILED") ?? [];
@@ -86,8 +96,13 @@ export function computePricingOverviewStatus(
     }
   }
 
+  // P16.1 (2026-08-24): texto revisado de "Cobertura de preços em X%" para
+  // "Confirmação de mapeamentos de carta em X%" — `mappings.coverage_pct` mede confirmação de
+  // `pricing_card_mapping`, conceito distinto da nova Cobertura de Sets (`overview.coverage`,
+  // migration 3950) exibida no Hero. Mesmo limiar/regra de negócio, só o rótulo mudou, para não
+  // colidir semanticamente com a palavra "Cobertura" usada em outro sentido na mesma tela.
   if (overview.mappings.coverage_pct !== null && overview.mappings.coverage_pct < COVERAGE_ATTENTION_THRESHOLD_PCT) {
-    attentionReasons.push(`Cobertura de preços em ${overview.mappings.coverage_pct}%, abaixo do esperado.`);
+    attentionReasons.push(`Confirmação de mapeamentos de carta em ${overview.mappings.coverage_pct}%, abaixo do esperado.`);
   }
 
   if (criticalReasons.length > 0) {
@@ -102,6 +117,10 @@ export function computePricingOverviewStatus(
     level: "SAUDAVEL",
     label: "Saudável",
     badgeVariant: "success",
-    reasons: ["Atualização Automática ativa, sincronizações em dia e sem Sets com problema."],
+    // P16.1 microcorreção de copy (2026-08-25): "sem Sets com problema" podia soar contraditório
+    // com o tile "Sets aguardando configuração" (SWSH8) — Set sem mapeamento ainda não é falha
+    // operacional, é pendência cadastral (ver Atenções e Ações). Nenhuma lógica de status mudou,
+    // só o texto: Hero = saúde operacional, Cobertura = alcance do Pricing.
+    reasons: ["Atualização Automática ativa, sincronizações em dia e sem problemas operacionais nos Sets configurados."],
   };
 }

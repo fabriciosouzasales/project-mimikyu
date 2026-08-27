@@ -42,6 +42,10 @@ function formatDateTime(value: string | null): string {
 function deriveSourceTone(source: PricingSourceHealth): { tone: StateTone; label: string } {
   if (!source.isActive) return { tone: "muted", label: "Inativa" };
   if (source.sets.problem > 0) return { tone: "danger", label: "Com problema" };
+  // P16.4.1 (migration 3952) — Set recém-confirmado sem primeira sincronização ainda
+  // (onboarding) nunca eleva a fonte a "Com problema", só a "Atenção" — mesmo racional de
+  // `recentFailedRuns` abaixo, nunca `danger`.
+  if (source.sets.onboardingPending > 0) return { tone: "warning", label: "Atenção" };
   if (source.recentFailedRuns > 0) return { tone: "warning", label: "Atenção" };
   return { tone: "success", label: "Saudável" };
 }
@@ -101,7 +105,8 @@ export function SaudeFontesList({ sources }: { sources: PricingSourceHealth[] })
     <div className="space-y-3">
       {sources.map((source) => {
         const { tone, label } = deriveSourceTone(source);
-        const semProblemaOuPausa = source.sets.problem === 0 && source.sets.paused === 0;
+        const semProblemaOuPausa =
+          source.sets.problem === 0 && source.sets.paused === 0 && source.sets.onboardingPending === 0;
         const errorSummaryHumanizado = humanizePricingErrorSummary(source.lastErrorSummary);
 
         return (
@@ -162,6 +167,11 @@ export function SaudeFontesList({ sources }: { sources: PricingSourceHealth[] })
                     </StateBadge>
                     {source.sets.problem > 0 && (
                       <StateBadge tone="danger">{formatNumber(source.sets.problem)} com problema</StateBadge>
+                    )}
+                    {source.sets.onboardingPending > 0 && (
+                      <StateBadge tone="warning">
+                        {formatNumber(source.sets.onboardingPending)} aguardando primeira sincronização
+                      </StateBadge>
                     )}
                     {source.sets.paused > 0 && (
                       <StateBadge tone="muted">{formatNumber(source.sets.paused)} pausados</StateBadge>

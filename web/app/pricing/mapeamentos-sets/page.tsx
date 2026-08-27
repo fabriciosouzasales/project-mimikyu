@@ -10,7 +10,11 @@ import {
   type PricingSetMappingStatus,
 } from "@/lib/pricing/queries";
 
-const VALID_STATUS = new Set(["CONFIRMED", "PENDING", "NOT_FOUND", "REJECTED"]);
+// P16.1 fix (bug objetivo pós-aplicação, 2026-08-25): "UNMAPPED" faltava aqui — a RPC
+// (migration 3950) já aceita esse valor em `p_status`, mas essa validação server-side
+// descartava o filtro antes de chegar lá, obrigando a rolar a tabela inteira para achar
+// um Set sem mapeamento (achado por Fabrício em produção).
+const VALID_STATUS = new Set(["CONFIRMED", "PENDING", "NOT_FOUND", "REJECTED", "UNMAPPED"]);
 
 /**
  * Mapeamentos de Sets (Bloco 4 do Pricing Admin, migration 3942) — cadastro
@@ -72,7 +76,7 @@ export default async function PricingMapeamentosSetsPage({
               <PageTitle>Mapeamentos de Sets</PageTitle>
             </div>
             <PageDescription>
-              Correspondência entre Card Set local e Set externo por fonte de preço (pricing_set_mapping).
+              Gerencie a correspondência entre os Sets do catálogo e os identificadores utilizados por cada fonte de preço.
             </PageDescription>
           </PageHeading>
         </PageHeader>

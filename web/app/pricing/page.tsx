@@ -62,7 +62,10 @@ export default async function PricingVisaoGeralPage() {
               <PageTitle>Visão Geral</PageTitle>
             </div>
             <PageDescription>
-              Acompanhe cobertura de preços, saúde das sincronizações e evolução operacional de Valor de Mercado.
+              {/* P16.1 microcorreção de copy (2026-08-25): "cobertura de preços" estava semanticamente
+                  incorreto — a métrica Cobertura (migration 3950) mede Sets elegíveis com tratamento
+                  explícito no Pricing / Sets elegíveis totais, não preços em si. */}
+              Acompanhe a cobertura dos Sets, a saúde das sincronizações e a evolução operacional de Valor de Mercado.
             </PageDescription>
           </PageHeading>
         </PageHeader>

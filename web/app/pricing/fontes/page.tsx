@@ -26,7 +26,7 @@ export default async function PricingFontesPage() {
               <Globe className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               <PageTitle>Fontes de Preço</PageTitle>
             </div>
-            <PageDescription>Cadastro e configuração das fontes de preço externas (pricing_source).</PageDescription>
+            <PageDescription>Gerencie as fontes externas utilizadas para obtenção de preços de mercado.</PageDescription>
           </PageHeading>
         </PageHeader>
 
