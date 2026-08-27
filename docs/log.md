@@ -2020,3 +2020,15 @@ Testado transacionalmente (`BEGIN`/`ROLLBACK`, carta real com 2 registros manuai
 Frontend no mesmo ciclo: `PricingReportHistoryPoint.priceOrigin` (`queries.ts`); `price-history-chart.tsx` (v8) — série MANUAL isolada por `groupHistoryBySeries` (`preco-por-carta-report.tsx`, chave fixa, rótulo "Preço Manual", sem fonte) ganha cor fixa `hsl(var(--warning))` (mesmo token de `pricing-sync-run-chart.tsx`, mesmo tom do badge `StateBadge tone="warning"` já usado em "Preços atuais"), traço tracejado, marcador diamante e etiqueta "MANUAL" no tooltip — nunca consome posição da paleta verde/vermelho das séries automáticas (índice de paleta dedicado). Impressão herda o mesmo tratamento sem lógica própria (deriva do mesmo dataset/`buildOption`).
 
 `npm run typecheck` limpo; `git diff --check` limpo. `npm run build` pendente para Fabrício rodar localmente (sandbox sem binário SWC). Nenhum commit/push realizado.
+
+## [2026-08-27] docs | Pricing V1 formalmente encerrado — auditoria final aprovada, zero bloqueador
+
+Fabrício aprovou a auditoria final objetiva do módulo Pricing (rotas/telas, reconciliação KPI/fila/relatório/valuation, segurança/performance/operabilidade) e declarou "PRICING V1 ESTÁ CONCLUÍDO", instruindo somente o fechamento administrativo da frente — sem novas melhorias funcionais/cosméticas nesta rodada.
+
+Resultado da auditoria: **BLOQUEADORES: nenhum encontrado.** Reconciliação KPI/fila/relatório/valuation exata (`{total:7713, pending:0, confirmed:7695, not_found:18}`; SWSH8 `R$ 11.934,96` confirmado por soma independente das 284 linhas por-carta); achado técnico novo, não bloqueante, registrado (`admin_get_pricing_report_set_cards` clampa `p_limit` em 100 silenciosamente, `total_count` correto); `get_advisors(security)` zero `ERROR`; `get_advisors(performance)` zero achado específico de Pricing; STD-004 zero débito no módulo. Migrations físicas `3950`–`3971` (22 arquivos) reconciliadas 1:1 com o histórico aplicado no Supabase.
+
+Itens conscientemente adiados, sem cronograma: cap de 100 em `admin_get_pricing_report_set_cards`; coluna `#` de ranking em Valor por Set; índices/FKs informativos (`get_advisors`); os 5 relatórios `ComingSoonPage` da Central de Relatórios.
+
+Fechamento administrativo: novo `docs/development/HANDOFF-2026-08-27.md` (sucede `HANDOFF-2026-08-26.md`, movido para `history/development/`); nova seção "Encerramento Formal — Pricing V1" em `docs/05f-pricing.md` (revisão `1.56`); `ROADMAP.md` (revisão `1.72`), `docs/README.md` (revisão `2.25`) e `docs/INDEX.md` (versão `1.31`) reconciliados — corrigido de passagem um gap pré-existente (README/INDEX ainda apontavam `HANDOFF-2026-08-23.md` como vigente, embora `HANDOFF-2026-08-26.md` já existisse desde o fechamento do P16). **Próxima frente comprometida: Collections, começando por visão de produto/North Star UX antes de qualquer implementação física.**
+
+`npm run typecheck` e `git diff --check` executados nesta rodada (ver relatório final ao Fabrício); `npm run build` pendente para Fabrício rodar localmente (sandbox sem binário SWC). Nenhuma migration/código alterado nesta rodada — escopo exclusivamente documental. Nenhum commit/push realizado.
