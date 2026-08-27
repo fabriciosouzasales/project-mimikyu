@@ -92,19 +92,36 @@ function getLastObservedAt(prices: PricingReportCard["currentPrices"]): Date | n
   return new Date(Math.max(...prices.map((p) => new Date(p.observedAt).getTime())));
 }
 
+/** Chave fixa da série MANUAL — nunca colide com `pricingSourceId-printingLabel` (sempre não nulos para pontos AUTOMATIC). */
+const MANUAL_SERIES_KEY = "manual";
+
+/**
+ * Agrupa `history` em séries para o gráfico — uma por combinação
+ * fonte+variante (AUTOMATIC), e desde a migration 3971 (v8, gap reportado
+ * por Fabrício) mais UMA série dedicada para todos os pontos MANUAL do
+ * período ("Preço Manual"), nunca misturada com uma combinação automática:
+ * histórico representa observações, automático e manual podem coexistir no
+ * mesmo período sem a exclusividade que rege "Preços atuais". Pontos MANUAL
+ * chegam do RPC com `pricingSourceId`/`pricingSourceCode`/`printingLabel`
+ * nulos (mesmo padrão já aceito em `PricingReportCurrentPrice` para linhas
+ * manuais desde a migration 3969) — por isso usam uma chave fixa
+ * (`MANUAL_SERIES_KEY`) em vez de `${pricingSourceId}-${printingLabel}`.
+ */
 function groupHistoryBySeries(history: PricingReportCard["history"]): PriceHistorySeries[] {
   const bySeries = new Map<string, PriceHistorySeries>();
   for (const point of history) {
-    const variantLabel = translatePrintingLabel(point.printingLabel);
-    const sourceLabel = humanizeSourceCode(point.pricingSourceCode);
+    const isManual = point.priceOrigin === "MANUAL";
+    const variantLabel = isManual ? "Preço Manual" : translatePrintingLabel(point.printingLabel);
+    const sourceLabel = isManual ? "" : humanizeSourceCode(point.pricingSourceCode);
     // "Variante · Fonte" — mesma ordem já usada no resumo de variação abaixo
     // do gráfico e pedida explicitamente para legenda/tooltip na rodada de
-    // refinamento visual (2026-08-23).
-    const label = `${variantLabel} · ${sourceLabel}`;
-    const key = `${point.pricingSourceId}-${point.printingLabel}`;
+    // refinamento visual (2026-08-23). Série MANUAL não tem fonte técnica —
+    // rótulo fica só "Preço Manual", sem " · " pendurado.
+    const label = isManual ? variantLabel : `${variantLabel} · ${sourceLabel}`;
+    const key = isManual ? MANUAL_SERIES_KEY : `${point.pricingSourceId}-${point.printingLabel}`;
     let series = bySeries.get(key);
     if (!series) {
-      series = { label, sourceCode: sourceLabel, variantLabel, points: [] };
+      series = { label, sourceCode: sourceLabel, variantLabel, points: [], priceOrigin: point.priceOrigin };
       bySeries.set(key, series);
     }
     series.points.push({
@@ -113,6 +130,7 @@ function groupHistoryBySeries(history: PricingReportCard["history"]): PriceHisto
       currencyCode: point.currencyCode,
       priceDisplay: point.priceDisplay,
       fxStatus: point.fxStatus,
+      priceOrigin: point.priceOrigin,
     });
   }
   return Array.from(bySeries.values());

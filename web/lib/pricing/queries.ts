@@ -1260,6 +1260,17 @@ export type PricingReportHistoryPoint = {
   priceDisplay: number | null;
   fxStatus: PricingReportFxStatus;
   observedAt: string;
+  /**
+   * Origem do ponto (migration 3971) — `AUTOMATIC` (`pricing_observation`) ou
+   * `MANUAL` (`pricing_manual_price`, linhas reais append-only, não apenas a
+   * última). Histórico representa OBSERVAÇÕES, não o valor vigente: os dois
+   * podem coexistir no mesmo período, diferente de `current_prices`
+   * (`PricingReportCurrentPrice`), que respeita a precedência AUTOMATIC >
+   * MANUAL. Pontos `MANUAL` vêm com `pricingSourceId`/`pricingSourceCode`/
+   * `printingLabel` nulos no payload bruto (mesmo padrão já aceito em
+   * `PricingReportCurrentPrice` para linhas manuais desde a migration 3969).
+   */
+  priceOrigin: PricingReportPriceOrigin;
 };
 
 export type PricingReportCard = {
@@ -1317,6 +1328,7 @@ type PricingReportCardRawRow = {
     price_display: number | null;
     fx_status: PricingReportFxStatus;
     observed_at: string;
+    price_origin: PricingReportPriceOrigin;
   }>;
 };
 
@@ -1389,6 +1401,7 @@ export async function getPricingReportCard(
       priceDisplay: h.price_display,
       fxStatus: h.fx_status,
       observedAt: h.observed_at,
+      priceOrigin: h.price_origin,
     })),
   };
 }

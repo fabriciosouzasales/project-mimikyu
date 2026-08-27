@@ -5,7 +5,7 @@ import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from "echarts/components";
 import type { EChartsCoreOption } from "echarts/core";
 import { MMKYUChart, useChartTokens } from "@/components/charts/mmkyu-chart";
-import type { PricingReportFxStatus } from "@/lib/pricing/queries";
+import type { PricingReportFxStatus, PricingReportPriceOrigin } from "@/lib/pricing/queries";
 
 /**
  * Gráfico de Histórico de Preço — Apache ECharts (ADR-033, 2026-08-23),
@@ -154,6 +154,28 @@ import type { PricingReportFxStatus } from "@/lib/pricing/queries";
  *   false` (evita capturar o snapshot de impressão no meio da transição de
  *   entrada). Séries/cores/eixos/legenda/último preço continuam os mesmos —
  *   só a camada de interação muda.
+ *
+ * v8 (2026-08-27, migration 3971, gap reportado por Fabrício) — histórico
+ * passa a incluir pontos de origem `MANUAL` (`pricing_manual_price`), até
+ * então ignorados por completo (carta com preço manual vigente exibia "Sem
+ * histórico"). Continua UM único gráfico temporal — `groupHistoryBySeries`
+ * (`preco-por-carta-report.tsx`) já isola os pontos MANUAL numa série própria
+ * ("Preço Manual", nunca misturada com uma combinação fonte+variante
+ * automática); aqui essa série ganha tratamento visual distinto e explícito:
+ * cor fixa `COR_MANUAL = hsl(var(--warning))` (mesmo token já usado por
+ * `pricing-sync-run-chart.tsx` para estados de atenção, e mesmo tom do badge
+ * `StateBadge tone="warning"` que já marca MANUAL em "Preços atuais" —
+ * vocabulário de cor consistente em toda a superfície de Pricing, não uma
+ * paleta nova), `lineStyle.type: "dashed"` (nunca sólida — sinaliza "registro
+ * declarado", não "observação de mercado") e marcador `diamond` em vez de
+ * `circle`. A cor fixa NÃO consome uma posição de `buildSeriesPalette()`:
+ * séries automáticas continuam ciclando verde/vermelho pela própria ordem
+ * entre si via um índice de paleta dedicado, incólumes à presença ou
+ * ausência de uma série manual. Tooltip ganha uma etiqueta "MANUAL" (mesmo
+ * tom `--warning`) antes do rótulo de cada ponto dessa origem — histórico
+ * representa OBSERVAÇÕES, automático e manual podem coexistir no mesmo
+ * período (a precedência AUTOMATIC > MANUAL decidida no backend continua
+ * intocada, ela rege apenas "Preços atuais", nunca o histórico).
  */
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent]);
 
@@ -170,6 +192,13 @@ export type PriceHistoryPoint = {
    */
   priceDisplay: number | null;
   fxStatus: PricingReportFxStatus;
+  /**
+   * Origem do ponto (migration 3971) — `AUTOMATIC` (`pricing_observation`) ou
+   * `MANUAL` (`pricing_manual_price`). Usado só para o acabamento visual
+   * (cor/traço/marcador da série e etiqueta no tooltip) — nunca afeta
+   * filtragem ou cálculo, que já vêm resolvidos do backend.
+   */
+  priceOrigin: PricingReportPriceOrigin;
 };
 
 export type PriceHistorySeries = {
@@ -179,6 +208,16 @@ export type PriceHistorySeries = {
   sourceCode: string;
   variantLabel: string;
   points: PriceHistoryPoint[];
+  /**
+   * Origem da série (migration 3971) — `AUTOMATIC` para as séries
+   * fonte+variante de sempre, `MANUAL` para a série dedicada "Preço Manual"
+   * (todos os pontos manuais do período, agrupados por `groupHistoryBySeries`
+   * em `preco-por-carta-report.tsx`). Único campo novo consumido por
+   * `buildOption` para decidir cor/traço/marcador — pressupõe que TODOS os
+   * pontos de uma série compartilham a mesma origem (garantido pelo
+   * agrupamento, nunca misto).
+   */
+  priceOrigin: PricingReportPriceOrigin;
 };
 
 /**
@@ -204,6 +243,18 @@ export type PriceHistorySeries = {
  */
 const COR_SUCESSO = "#3FCF8E";
 const COR_FALHA = "hsl(10 80% 44%)";
+
+/**
+ * Cor fixa da série MANUAL (migration 3971, v8) — mesmo token/padrão de
+ * `COR_AVISO` em `pricing-sync-run-chart.tsx` (`hsl(var(--warning))`, já
+ * comprovado legível em claro e escuro, ao contrário de `--destructive`) e
+ * mesmo tom do badge `StateBadge tone="warning"` que já marca origem MANUAL
+ * em "Preços atuais"/`precos-manuais-table.tsx`. Fica FORA de
+ * `buildSeriesPalette()` de propósito — não deve consumir nem deslocar uma
+ * posição do ciclo verde/vermelho das séries automáticas (ver índice de
+ * paleta dedicado em `buildOption`).
+ */
+const COR_MANUAL = "hsl(var(--warning))";
 
 function buildSeriesPalette(): string[] {
   return [COR_SUCESSO, COR_FALHA];
@@ -265,6 +316,8 @@ type ChartPointDatum = {
   priceNative: number;
   currencyNative: string;
   fxStatus: PricingReportFxStatus;
+  /** Origem do ponto (migration 3971) — usado pelo tooltip para a etiqueta "MANUAL". */
+  priceOrigin: PricingReportPriceOrigin;
 };
 
 /**
@@ -337,8 +390,16 @@ function buildOption(
   // declaração de tipos da biblioteca prevê por padrão. `npm run typecheck`
   // (local, ver nota em `mmkyu-chart.tsx`/ADR-033) é o validador final deste
   // contrato.
+  // Índice de paleta dedicado às séries AUTOMATIC (v8) — a série MANUAL usa
+  // `COR_MANUAL` fixo e nunca avança este contador, então séries automáticas
+  // continuam ciclando verde/vermelho pela própria ordem entre si,
+  // incólumes à presença ou ausência de uma série manual em qualquer
+  // posição do array.
+  let autoColorIndex = 0;
   const echartsSeries = series.map((s, i) => {
-    const color = palette[i % palette.length];
+    const isManual = s.priceOrigin === "MANUAL";
+    const color = isManual ? COR_MANUAL : palette[autoColorIndex % palette.length];
+    if (!isManual) autoColorIndex++;
     const sorted = sortedPerSeries[i] ?? [];
     const data: ChartPointDatum[] = sorted.map((p) => ({
       value: [new Date(p.observedAt).getTime(), p.priceDisplay as number],
@@ -347,6 +408,7 @@ function buildOption(
       priceNative: p.price,
       currencyNative: p.currencyCode,
       fxStatus: p.fxStatus,
+      priceOrigin: p.priceOrigin,
     }));
 
     return {
@@ -361,7 +423,10 @@ function buildOption(
       // reais, nunca desloca o dado em si.
       smooth: 0.3,
       smoothMonotone: "x",
-      symbol: "circle",
+      // Marcador diamante para a série MANUAL (v8) — nunca circle, sinaliza
+      // "registro declarado" mesmo sem cor/legenda visíveis (ex. escala de
+      // cinza na impressão P&B).
+      symbol: isManual ? "diamond" : "circle",
       // Aumentado de 4.5 para 7 (pedido de Fabrício, rodada seguinte) — mais
       // presença visual em repouso, ainda sem virar uma bolinha cheia
       // competindo com o traçado (anel colorido + centro em `surfaceColor`).
@@ -376,12 +441,14 @@ function buildOption(
       // numa rodada anterior: com `lineStyle` sem `color` próprio, o traçado
       // renderizava esbranquiçado em vez de herdar `color` do nível de série
       // (canal visual não resolvia como esperado para `SVGRenderer`).
-      // Corrigido fixando a cor explicitamente em cada estado.
-      lineStyle: { width: 2.75, color },
+      // Corrigido fixando a cor explicitamente em cada estado. Traço
+      // tracejado para MANUAL (v8) — nunca sólido, mesma lógica do marcador
+      // diamante: "observação declarada", não "observação de mercado".
+      lineStyle: { width: 2.75, color, type: isManual ? "dashed" : "solid" },
       emphasis: {
         focus: "series",
         scale: 1.5,
-        lineStyle: { width: 3.25, color },
+        lineStyle: { width: 3.25, color, type: isManual ? "dashed" : "solid" },
         // Hover inverte o marcador (fill vira a cor cheia da série, anel
         // volta a ser branco) — lê como "expansão" clara — com um glow
         // sutil na própria cor da série, sem introduzir cor nova.
@@ -583,9 +650,19 @@ function buildOption(
                         item.data.currencyNative,
                       )} · convertido por PTAX</div>`
                     : "";
+                // Etiqueta "MANUAL" (v8, migration 3971) — mesmo tom
+                // `--warning` da série/badge, antes do rótulo variante/fonte.
+                // A série manual não tem `sourceCode` (agrupada só por
+                // `groupHistoryBySeries`, sem fonte técnica) — o separador
+                // " · " é omitido nesse caso, não sobra pendurado.
+                const isManualPoint = item.data.priceOrigin === "MANUAL";
+                const manualTag = isManualPoint
+                  ? `<span style="display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.04em;color:hsl(var(--warning));border:1px solid hsl(var(--warning));border-radius:4px;padding:0 4px;margin-right:6px;vertical-align:middle;">MANUAL</span>`
+                  : "";
+                const sourceSuffix = item.data.sourceCode ? ` · ${item.data.sourceCode}` : "";
                 return `<div style="padding:4px 0;">
                   <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;">
-                    <span style="color:hsl(var(--muted-foreground));font-size:11px;">${item.marker ?? ""}${item.data.variantLabel} · ${item.data.sourceCode}</span>
+                    <span style="color:hsl(var(--muted-foreground));font-size:11px;">${item.marker ?? ""}${manualTag}${item.data.variantLabel}${sourceSuffix}</span>
                     <span style="font-weight:700;font-size:13px;color:hsl(var(--foreground));">${formatMoney(item.data.value[1], opts.displayCurrency)}</span>
                   </div>
                   ${nativeHint}
