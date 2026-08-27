@@ -220,14 +220,14 @@ export function PricingOverviewStats({
             ) : null}
             <AcaoTile
               enfase="acionavel"
-              href="/pricing/pendencias?status=PENDING"
+              href="/pricing/mapeamentos-cartas?status=PENDING"
               icone={<AlertTriangle className={mappings.pending > 0 ? "h-3.5 w-3.5 text-warning" : "h-3.5 w-3.5 text-muted-foreground/50"} aria-hidden="true" />}
               label="Pendentes"
               valor={formatNumber(mappings.pending)}
             />
             <AcaoTile
               enfase="acionavel"
-              href="/pricing/pendencias?status=NOT_FOUND"
+              href="/pricing/mapeamentos-cartas?status=NOT_FOUND"
               icone={<AlertTriangle className={mappings.not_found > 0 ? "h-3.5 w-3.5 text-warning" : "h-3.5 w-3.5 text-muted-foreground/50"} aria-hidden="true" />}
               label="Não encontrados"
               valor={formatNumber(mappings.not_found)}

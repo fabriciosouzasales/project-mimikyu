@@ -1,6 +1,5 @@
 import {
   Activity,
-  AlertTriangle,
   BookOpen,
   Boxes,
   CircleDollarSign,
@@ -9,7 +8,6 @@ import {
   FileText,
   FileUp,
   Gamepad2,
-  GitMerge,
   Globe,
   History,
   ImagePlus,
@@ -176,8 +174,12 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/pricing/mapeamentos-sets", label: "Mapeamentos de Sets", section: "Cadastros", icon: Layers },
       { href: "/pricing/mapeamentos-cartas", label: "Mapeamentos de Cartas", section: "Cadastros", icon: CreditCard },
       { href: "/pricing/condicoes", label: "Condições", section: "Cadastros", icon: Tag },
-      { href: "/pricing/pendencias", label: "Pendências", section: "Operações", icon: AlertTriangle },
-      { href: "/pricing/resolucao-mapeamentos", label: "Resolução de Mapeamentos", section: "Operações", icon: GitMerge },
+      // "Resolução de Mapeamentos" removida do menu em 2026-08-27 (pedido de
+      // Fabrício): só faz sentido com um `mapping` específico selecionado
+      // (`?mapping=<id>`), nunca como destino de navegação solto — é
+      // alcançada apenas pela ação "Resolver" da fila em Mapeamentos de
+      // Cartas. Acesso direto sem esse parâmetro agora redireciona para
+      // `/pricing/mapeamentos-cartas` (ver `resolucao-mapeamentos/page.tsx`).
       { href: "/pricing/sincronizacoes", label: "Sincronizações", section: "Operações", icon: RefreshCw },
     ],
     // Todo o módulo é admin-only (mesma disciplina do Catálogo, ADR-022) —

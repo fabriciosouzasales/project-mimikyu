@@ -15,14 +15,31 @@ const KNOWN_CODES: Record<string, string> = {
   ADMIN_GET_PRICING_MAPPING_DETAIL_NOT_FOUND: "Mapeamento não encontrado — ele pode ter sido removido.",
   ADMIN_RESOLVE_PRICING_MAPPING_NOT_FOUND: "Mapeamento não encontrado — ele pode ter sido removido.",
   ADMIN_RESOLVE_PRICING_MAPPING_ALREADY_DECIDED:
-    "Este mapeamento já foi decidido por outro administrador. Volte para Pendências e atualize a lista.",
-  ADMIN_RESOLVE_PRICING_MAPPING_INVALID_DECISION: "Decisão inválida — escolha Confirmar ou Rejeitar.",
+    "Este mapeamento já foi decidido por outro administrador. Volte para Mapeamentos de Cartas e atualize a lista.",
+  ADMIN_RESOLVE_PRICING_MAPPING_INVALID_DECISION:
+    "Decisão inválida — escolha Confirmar, Rejeitar ou Marcar como Não Encontrado.",
   ADMIN_RESOLVE_PRICING_MAPPING_REJECT_REASON_REQUIRED: "Informe o motivo da rejeição.",
   ADMIN_RESOLVE_PRICING_MAPPING_ASSIGNMENTS_REQUIRED: "Selecione ao menos uma identidade para confirmar.",
+  // Extensão NOT_FOUND manual (migration 3963) — Bloco 2.
+  ADMIN_RESOLVE_PRICING_MAPPING_NOT_FOUND_REASON_REQUIRED:
+    "Informe o motivo — por que a busca não encontrou correspondência nesta fonte.",
+  ADMIN_RESOLVE_PRICING_MAPPING_NOT_FOUND_ASSIGNMENTS_NOT_ALLOWED:
+    "Não é possível informar candidatas ao marcar como Não Encontrado.",
+  ADMIN_RESOLVE_PRICING_MAPPING_NO_OP:
+    "Este mapeamento já está marcado como Não Encontrado. Atualize a página e tente novamente.",
   ADMIN_RESOLVE_PRICING_MAPPING_IDENTITY_INCOMPATIBLE:
     "Uma ou mais identidades selecionadas não estão mais disponíveis para confirmação. Atualize a página e tente novamente.",
   ADMIN_RESOLVE_PRICING_MAPPING_NO_PRIMARY_CONFIRMED:
     "É necessário confirmar uma identidade como Principal (PRIMARY) para concluir.",
+  // Confirmação por candidato de match_evidence + guard NOT_FOUND (migration 3964).
+  ADMIN_RESOLVE_PRICING_MAPPING_NOT_FOUND_HAS_CANDIDATES:
+    "Esta carta tem candidatas encontradas pela última busca — escolha uma delas em vez de marcar como Não Encontrado.",
+  ADMIN_RESOLVE_PRICING_MAPPING_CANDIDATE_ASSIGNMENTS_CONFLICT:
+    "Não foi possível concluir a ação. Tente novamente em instantes.",
+  ADMIN_RESOLVE_PRICING_MAPPING_CANDIDATE_NOT_IN_EVIDENCE:
+    "Esta candidata não consta mais na última busca desta carta. Atualize a página e tente novamente.",
+  ADMIN_RESOLVE_PRICING_MAPPING_PRIMARY_IDENTITY_CONFLICT:
+    "Este mapeamento já tem uma identidade Principal diferente confirmada. Atualize a página e tente novamente.",
   // Bloco 3 (migration 3941 + 3937/3938, já validadas) — Saúde das Fontes,
   // Histórico de Execuções, Sincronizações.
   ADMIN_GET_PRICING_SOURCE_HEALTH_FORBIDDEN: "Acesso restrito a administradores.",

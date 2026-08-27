@@ -6,12 +6,15 @@ import { traduzirErroPricing } from "@/lib/pricing/pricing-errors";
 
 /**
  * Server Action de Mapeamentos de Cartas (Bloco 4 do Pricing Admin,
- * migration 3942) — único write desta tela é `admin_reclassify_pricing_card_mapping`
- * (CONFIRMED↔REJECTED, motivo obrigatório). Não existe "editar detalhes"
- * aqui — `external_card_id`/`external_card_name` só mudam via
- * `admin_resolve_pricing_mapping` (Bloco 2, fluxo de Resolução) ou pelo
- * conector automático; esta tela é cadastro/consulta de todos os status +
- * reclassificação pontual, não um editor de identidade externa.
+ * migration 3942; convergência com Pendências em 2026-08-27) — único write
+ * desta tela é `admin_reclassify_pricing_card_mapping` (CONFIRMED↔REJECTED,
+ * motivo obrigatório), mas depois da convergência só REJECTED→CONFIRMED é
+ * alcançável pela UI (CONFIRMED nunca aparece na fila). Migration 3962
+ * adiciona hardening: reclassificar para CONFIRMED exige uma
+ * `pricing_source_card_identity` PRIMARY já confirmada, usada para
+ * preencher `external_card_id`/`external_card_name` — não existe "editar
+ * detalhes" aqui, essas colunas nunca são setadas manualmente pela Server
+ * Action.
  */
 
 export type ReclassificarMapeamentoCartaState = { error: string | null; success?: boolean };
@@ -32,6 +35,5 @@ export async function reclassificarMapeamentoCarta(
   }
 
   revalidatePath("/pricing/mapeamentos-cartas");
-  revalidatePath("/pricing/pendencias");
   return { error: null, success: true };
 }

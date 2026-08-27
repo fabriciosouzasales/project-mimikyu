@@ -9,7 +9,6 @@ import { Select } from "@/components/ui/select";
 import type { PricingCardSetOption, PricingSource } from "@/lib/pricing/queries";
 
 const STATUS_OPTIONS = [
-  { value: "CONFIRMED", label: "Confirmado" },
   { value: "PENDING", label: "Pendente" },
   { value: "NOT_FOUND", label: "Não encontrado" },
   { value: "REJECTED", label: "Rejeitado" },
@@ -45,8 +44,9 @@ function FilterSelect({
 }
 
 /**
- * Filtros de Mapeamentos de Cartas — mesmo padrão de debounce/URL-driven de
- * `PendenciasFiltros`, com o vocabulário de status completo (4 estados).
+ * Filtros de Mapeamentos de Cartas — debounce/URL-driven; vocabulário de
+ * status é a fila de exceções (PENDING/NOT_FOUND/REJECTED), nunca CONFIRMED
+ * (convergência 2026-08-27, absorveu o papel de Pendências).
  */
 export function MapeamentosCartasFiltros({
   initialSearch,

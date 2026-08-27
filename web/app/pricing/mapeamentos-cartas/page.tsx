@@ -5,21 +5,27 @@ import { MapeamentosCartasTable } from "@/components/pricing/mapeamentos-cartas-
 import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import {
   PRICING_CARD_MAPPINGS_PAGE_SIZE,
-  getPricingCardMappings,
+  getPricingCardMappingIssues,
   getPricingCardSetOptions,
   getPricingSources,
-  type PricingCardMappingStatus,
+  type PricingCardMappingIssueStatus,
 } from "@/lib/pricing/queries";
 
-const VALID_STATUS = new Set(["CONFIRMED", "PENDING", "NOT_FOUND", "REJECTED"]);
+const VALID_STATUS = new Set(["PENDING", "NOT_FOUND", "REJECTED"]);
 
 /**
- * Mapeamentos de Cartas (Bloco 4 do Pricing Admin, migration 3942) —
- * cadastro completo de `pricing_card_mapping`, todos os 4 status (diferente
- * de `/pricing/pendencias`, que só mostra PENDING/NOT_FOUND). Linhas
- * PENDING/NOT_FOUND continuam levando para `/pricing/resolucao-mapeamentos`
- * (fluxo de atribuição de identidades, Bloco 2) — esta tela nunca duplica
- * aquele fluxo, só oferece reclassificação pontual para CONFIRMED/REJECTED.
+ * Mapeamentos de Cartas (Bloco 4 do Pricing Admin, migration 3942;
+ * convergência com Pendências em 2026-08-27) — fila operacional de
+ * exceções de `pricing_card_mapping`: PENDING/NOT_FOUND/REJECTED, nunca
+ * CONFIRMED (nem por filtro — `admin_list_pricing_card_mapping_issues`
+ * trava isso no próprio SQL). Absorveu o papel de `/pricing/pendencias`
+ * (aposentada, redirect 307 para cá). Linhas PENDING/NOT_FOUND levam para
+ * `/pricing/resolucao-mapeamentos` (fluxo de atribuição de identidades,
+ * Bloco 2); linhas REJECTED abrem o dialog de reclassificação para
+ * CONFIRMED, com hardening (migration 3962) que exige identity PRIMARY já
+ * confirmada. CONFIRMED continua consultável só por SQL direto, via
+ * `admin_list_pricing_card_mappings` (preservada sem consumidor de UI —
+ * decisão de Fabrício de não perder a auditoria por completo).
  */
 export default async function PricingMapeamentosCartasPage({
   searchParams,
@@ -34,8 +40,8 @@ export default async function PricingMapeamentosCartasPage({
   const status = statusParam ?? "";
   const requestedPage = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
 
-  const statusFilter: PricingCardMappingStatus[] | undefined = VALID_STATUS.has(status)
-    ? [status as PricingCardMappingStatus]
+  const statusFilter: PricingCardMappingIssueStatus[] | undefined = VALID_STATUS.has(status)
+    ? [status as PricingCardMappingIssueStatus]
     : undefined;
 
   const filtros = {
@@ -48,7 +54,7 @@ export default async function PricingMapeamentosCartasPage({
   const [cardSets, sources, firstAttempt] = await Promise.all([
     getPricingCardSetOptions(supabase),
     getPricingSources(supabase),
-    getPricingCardMappings(supabase, {
+    getPricingCardMappingIssues(supabase, {
       ...filtros,
       limit: PRICING_CARD_MAPPINGS_PAGE_SIZE,
       offset: requestedPage * PRICING_CARD_MAPPINGS_PAGE_SIZE,
@@ -60,7 +66,7 @@ export default async function PricingMapeamentosCartasPage({
   const totalPages = Math.max(1, Math.ceil(firstAttempt.totalCount / PRICING_CARD_MAPPINGS_PAGE_SIZE));
   if (requestedPage > 0 && requestedPage >= totalPages) {
     page = totalPages - 1;
-    paged = await getPricingCardMappings(supabase, {
+    paged = await getPricingCardMappingIssues(supabase, {
       ...filtros,
       limit: PRICING_CARD_MAPPINGS_PAGE_SIZE,
       offset: page * PRICING_CARD_MAPPINGS_PAGE_SIZE,

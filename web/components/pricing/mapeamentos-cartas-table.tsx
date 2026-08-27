@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Lock, ShieldCheck, ShieldX } from "lucide-react";
+import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -35,24 +35,28 @@ import { MapeamentosCartasFiltros } from "@/components/pricing/mapeamentos-carta
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import {
   PRICING_CARD_MAPPINGS_PAGE_SIZE,
-  type PricingCardMappingItem,
+  type PricingCardMappingIssueItem,
   type PricingCardSetOption,
   type PricingSource,
 } from "@/lib/pricing/queries";
 import { formatNumber } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
-  CONFIRMED: "Confirmado",
   PENDING: "Pendente",
   NOT_FOUND: "Não encontrado",
   REJECTED: "Rejeitado",
 };
 
 const STATUS_TONE: Record<string, StateTone> = {
-  CONFIRMED: "success",
   PENDING: "warning",
   NOT_FOUND: "muted",
   REJECTED: "danger",
+};
+
+const TIPO_PROBLEMA_LABEL: Record<string, string> = {
+  PENDING: "Aguardando correspondência",
+  NOT_FOUND: "Não encontrado na fonte",
+  REJECTED: "Rejeitado — revisar",
 };
 
 const textareaClassName =
@@ -64,14 +68,15 @@ function formatDate(value: string | null): string {
 }
 
 /**
- * Cadastro de Mapeamentos de Cartas (Bloco 4 do Pricing Admin, migration
- * 3942) — todos os 4 status (diferente de `/pricing/pendencias`, que trava
- * em PENDING/NOT_FOUND, e de `/pricing/resolucao-mapeamentos`, que resolve
- * um mapping por vez com atribuição de identidades). Aqui só existe consulta
- * + reclassificação pontual CONFIRMED↔REJECTED; CONFIRMED→REJECTED fica
- * bloqueada (ícone de cadeado) quando `hasDependency` — já existe
- * `pricing_product` vinculado (decisão de Fabrício: reclassificação direta
- * nunca desfaz dado de preço já publicado).
+ * Fila operacional de Mapeamentos de Cartas (Bloco 4 do Pricing Admin,
+ * migration 3942; convergência com Pendências em 2026-08-27, migrations
+ * 3961/3962) — PENDING/NOT_FOUND/REJECTED, nunca CONFIRMED. Ação por linha
+ * é condicional ao status: PENDING/NOT_FOUND levam para
+ * `/pricing/resolucao-mapeamentos` (fluxo de atribuição de identidades,
+ * Bloco 2); REJECTED abre o dialog de reclassificação para CONFIRMED, com
+ * hardening no banco (migration 3962) que exige uma identity PRIMARY já
+ * confirmada antes de aceitar. CONFIRMED→REJECTED não é mais uma ação
+ * possível nesta tela — CONFIRMED nunca aparece na fila.
  */
 export function MapeamentosCartasTable({
   items,
@@ -84,7 +89,7 @@ export function MapeamentosCartasTable({
   cardSets,
   sources,
 }: {
-  items: PricingCardMappingItem[];
+  items: PricingCardMappingIssueItem[];
   totalCount: number;
   page: number;
   search: string;
@@ -96,7 +101,7 @@ export function MapeamentosCartasTable({
 }) {
   const router = useRouter();
   const state = useAdminListState();
-  const [reclassifying, setReclassifying] = useState<PricingCardMappingItem | null>(null);
+  const [reclassifying, setReclassifying] = useState<PricingCardMappingIssueItem | null>(null);
   const totalPages = Math.max(1, Math.ceil(totalCount / PRICING_CARD_MAPPINGS_PAGE_SIZE));
 
   function buildPageHref(targetPage: number): string {
@@ -135,18 +140,26 @@ export function MapeamentosCartasTable({
         <CardContent className="p-0">
           {items.length === 0 ? (
             <EmptyState
-              title={hasFilter ? "Nenhum mapeamento para este filtro" : "Nenhum mapeamento de carta cadastrado"}
-              description={hasFilter ? "Troque os filtros para ver outros mapeamentos." : undefined}
+              title={hasFilter ? "Nenhum mapeamento para este filtro" : "Nenhuma exceção pendente"}
+              description={
+                hasFilter
+                  ? "Troque os filtros para ver outros mapeamentos."
+                  : "Todos os mapeamentos conhecidos já foram confirmados."
+              }
               className="py-10"
             />
           ) : (
             <DataTable>
               <DataTableHead>
                 <DataTableHeadRow className="bg-surface-muted">
-                  <DataTableHeadCell className="pl-4">Carta</DataTableHeadCell>
+                  <DataTableHeadCell className="pl-4">
+                    <span className="sr-only">Imagem</span>
+                  </DataTableHeadCell>
+                  <DataTableHeadCell>Carta</DataTableHeadCell>
                   <DataTableHeadCell>Set</DataTableHeadCell>
                   <DataTableHeadCell>Fonte</DataTableHeadCell>
                   <DataTableHeadCell align="center">Status</DataTableHeadCell>
+                  <DataTableHeadCell>Tipo de problema</DataTableHeadCell>
                   <DataTableHeadCell align="center">Candidatas</DataTableHeadCell>
                   <DataTableHeadCell>Última verificação</DataTableHeadCell>
                   <DataTableHeadCell align="center" className="pr-4 last:pr-4">
@@ -158,6 +171,22 @@ export function MapeamentosCartasTable({
                 {items.map((item) => (
                   <DataTableRow key={item.id} highlighted={state.highlightId === item.id}>
                     <DataTableCell className="pl-4">
+                      {item.thumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.thumbnailUrl}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="h-14 w-10 rounded border border-border object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-14 w-10 items-center justify-center rounded border border-dashed border-border bg-surface-muted text-center text-[8px] leading-tight text-muted-foreground">
+                          Sem imagem
+                        </div>
+                      )}
+                    </DataTableCell>
+                    <DataTableCell>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">{item.cardName}</p>
                         <p className="text-xs tabular-nums text-muted-foreground">
@@ -174,46 +203,33 @@ export function MapeamentosCartasTable({
                       <span className="text-xs uppercase text-muted-foreground">{item.pricingSourceCode}</span>
                     </DataTableCell>
                     <DataTableCell align="center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <StateBadge tone={STATUS_TONE[item.matchStatus] ?? "muted"}>
-                          {STATUS_LABEL[item.matchStatus] ?? item.matchStatus}
-                        </StateBadge>
-                        {item.hasDependency && (
-                          <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Protegido por dependência" />
-                        )}
-                      </div>
+                      <StateBadge tone={STATUS_TONE[item.matchStatus] ?? "muted"}>
+                        {STATUS_LABEL[item.matchStatus] ?? item.matchStatus}
+                      </StateBadge>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {TIPO_PROBLEMA_LABEL[item.matchStatus] ?? item.matchStatus}
+                      </span>
                     </DataTableCell>
                     <DataTableCell align="center">
-                      <span className="tabular-nums">{formatNumber(item.identityCount)}</span>
+                      <span className="tabular-nums">{formatNumber(item.candidateCount)}</span>
                     </DataTableCell>
                     <DataTableCell>{formatDate(item.lastCheckedAt)}</DataTableCell>
                     <DataTableCell align="center" className="pr-4 last:pr-4">
                       <div className="flex justify-center gap-2">
-                        {item.matchStatus === "CONFIRMED" && (
+                        {item.matchStatus === "REJECTED" ? (
                           <Button
                             type="button"
                             variant="outline"
-                            size="icon-sm"
-                            aria-label={`Rejeitar mapeamento de ${item.cardName}`}
-                            disabled={item.hasDependency}
-                            title={item.hasDependency ? "Protegido: já existe produto/observação de preço vinculado." : undefined}
+                            size="sm"
+                            aria-label={`Revisar/reclassificar mapeamento de ${item.cardName}`}
                             onClick={() => setReclassifying(item)}
                           >
-                            <ShieldX className="h-3.5 w-3.5" />
+                            <ShieldCheck className="mr-1 h-3.5 w-3.5" />
+                            Revisar
                           </Button>
-                        )}
-                        {item.matchStatus === "REJECTED" && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon-sm"
-                            aria-label={`Confirmar mapeamento de ${item.cardName}`}
-                            onClick={() => setReclassifying(item)}
-                          >
-                            <ShieldCheck className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {(item.matchStatus === "PENDING" || item.matchStatus === "NOT_FOUND") && (
+                        ) : (
                           <Button asChild variant="outline" size="sm">
                             <Link href={`/pricing/resolucao-mapeamentos?mapping=${item.id}`}>Resolver</Link>
                           </Button>
@@ -287,7 +303,7 @@ function ReclassifyCardMappingDialog({
   onCancel,
 }: {
   open: boolean;
-  item: PricingCardMappingItem | null;
+  item: PricingCardMappingIssueItem | null;
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
 }) {
@@ -300,10 +316,10 @@ function ReclassifyCardMappingDialog({
         onInteractOutside={(event) => pending && event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>{item?.matchStatus === "CONFIRMED" ? "Rejeitar" : "Confirmar"} Mapeamento de Carta</DialogTitle>
+          <DialogTitle>Confirmar Mapeamento de Carta</DialogTitle>
           <DialogDescription>
-            {item ? `${item.cardName} · ${item.cardSetCode} · ${item.pricingSourceCode}` : ""} — informe o motivo, registrado
-            no log de auditoria.
+            {item ? `${item.cardName} · ${item.cardSetCode} · ${item.pricingSourceCode}` : ""} — exige uma identidade
+            PRIMARY já confirmada; informe o motivo, registrado no log de auditoria.
           </DialogDescription>
         </DialogHeader>
 
@@ -321,14 +337,13 @@ function ReclassifyCardMappingForm({
   onCancel,
   onPendingChange,
 }: {
-  item: PricingCardMappingItem;
+  item: PricingCardMappingIssueItem;
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
   onPendingChange: (pending: boolean) => void;
 }) {
   const initialState: ReclassificarMapeamentoCartaState = { error: null };
   const [state, formAction, pending] = useActionState(reclassificarMapeamentoCarta, initialState);
-  const newStatus = item.matchStatus === "CONFIRMED" ? "REJECTED" : "CONFIRMED";
 
   useEffect(() => {
     onPendingChange(pending);
@@ -336,7 +351,7 @@ function ReclassifyCardMappingForm({
 
   useEffect(() => {
     if (state.success) {
-      onSaved(newStatus === "REJECTED" ? "Mapeamento rejeitado com sucesso." : "Mapeamento confirmado com sucesso.", item.id);
+      onSaved("Mapeamento confirmado com sucesso.", item.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.success]);
@@ -344,7 +359,7 @@ function ReclassifyCardMappingForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="id" value={item.id} />
-      <input type="hidden" name="new_status" value={newStatus} />
+      <input type="hidden" name="new_status" value="CONFIRMED" />
       <DialogBody className="space-y-3">
         <div className="space-y-1">
           <Label htmlFor={`reclassify-card-mapping-reason-${item.id}`}>Motivo</Label>
@@ -364,8 +379,8 @@ function ReclassifyCardMappingForm({
         <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={pending}>
           Cancelar
         </Button>
-        <Button type="submit" size="sm" variant={newStatus === "REJECTED" ? "destructive" : "default"} disabled={pending}>
-          {pending ? "Salvando…" : newStatus === "REJECTED" ? "Rejeitar" : "Confirmar"}
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? "Salvando…" : "Confirmar"}
         </Button>
       </DialogFooter>
     </form>

@@ -158,95 +158,6 @@ export async function getPricingApiUsageDaily(
 // só leitura, mesmo padrão de lib/catalogo/queries.ts).
 // ---------------------------------------------------------------------------
 
-export const PRICING_PENDING_MAPPINGS_PAGE_SIZE = 20;
-
-/** Vocabulário fechado desta fila — REJECTED/CONFIRMED nunca aparecem em Pendências (decisão de Fabrício: "NOT_FOUND permanece dentro de Pendências"). */
-export type PricingPendingMappingStatus = "PENDING" | "NOT_FOUND";
-
-export type PricingPendingMappingItem = {
-  id: string;
-  cardId: string;
-  cardName: string;
-  collectorNumber: string;
-  collectorTotal: number | null;
-  cardSetId: string;
-  cardSetCode: string;
-  cardSetName: string;
-  pricingSourceId: string;
-  pricingSourceCode: string;
-  matchStatus: PricingPendingMappingStatus;
-  identityCount: number;
-  lastCheckedAt: string | null;
-};
-
-type PricingPendingMappingRawRow = {
-  id: string;
-  card_id: string;
-  card_name: string;
-  collector_number: string;
-  collector_total: number | null;
-  card_set_id: string;
-  card_set_code: string;
-  card_set_name: string;
-  pricing_source_id: string;
-  pricing_source_code: string;
-  match_status: PricingPendingMappingStatus;
-  identity_count: number;
-  last_checked_at: string | null;
-  total_count: number;
-};
-
-/**
- * Listagem paginada/filtrada server-side da fila de Pendências —
- * `admin_list_pricing_pending_mappings` já trava o vocabulário de status a
- * PENDING/NOT_FOUND no próprio SQL (defesa em profundidade: mesmo que este
- * chamador não filtre nada, a RPC nunca vaza CONFIRMED/REJECTED). Em erro,
- * retorna `{ items: [], totalCount: 0 }` — mesmo contrato de
- * `getLogAtualizacoes`, nunca lança.
- */
-export async function getPricingPendingMappings(
-  supabase: SupabaseClient,
-  options: {
-    status?: PricingPendingMappingStatus[];
-    cardSetId?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  },
-): Promise<{ items: PricingPendingMappingItem[]; totalCount: number }> {
-  const { data, error } = await supabase.rpc("admin_list_pricing_pending_mappings", {
-    p_status: options.status && options.status.length > 0 ? options.status : null,
-    p_card_set_id: options.cardSetId || null,
-    p_search: options.search?.trim() || null,
-    p_limit: options.limit ?? PRICING_PENDING_MAPPINGS_PAGE_SIZE,
-    p_offset: options.offset ?? 0,
-  });
-
-  if (error || !data) {
-    return { items: [], totalCount: 0 };
-  }
-
-  const rows = data as PricingPendingMappingRawRow[];
-  return {
-    items: rows.map((row) => ({
-      id: row.id,
-      cardId: row.card_id,
-      cardName: row.card_name,
-      collectorNumber: row.collector_number,
-      collectorTotal: row.collector_total,
-      cardSetId: row.card_set_id,
-      cardSetCode: row.card_set_code,
-      cardSetName: row.card_set_name,
-      pricingSourceId: row.pricing_source_id,
-      pricingSourceCode: row.pricing_source_code,
-      matchStatus: row.match_status,
-      identityCount: row.identity_count,
-      lastCheckedAt: row.last_checked_at,
-    })),
-    totalCount: rows[0]?.total_count ?? 0,
-  };
-}
-
 export type PricingCardSetOption = { id: string; code: string; name: string };
 
 /** Opções para o filtro "Set" de Pendências — mesmo padrão enxuto de `getGameOptions`. */
@@ -288,6 +199,16 @@ export type PricingMappingDetailIdentity = {
   prices: PricingMappingDetailPrice[];
 };
 
+/**
+ * Candidato bruto de `match_evidence.candidatos` (classificador de matching,
+ * `_shared/pricing-justtcg-matching/card-matching.ts`) — `id` é o
+ * `external_card_id` da fonte, único campo que a RPC de confirmação
+ * (`admin_resolve_pricing_mapping`, migration 3964) realmente valida.
+ * `number` é só informativo (número externo bruto, pode divergir do formato
+ * local) — nunca usado para decidir nada no frontend.
+ */
+export type PricingMappingCandidate = { id: string; name: string; number: string | null };
+
 export type PricingMappingDetail = {
   mapping: {
     id: string;
@@ -298,6 +219,15 @@ export type PricingMappingDetail = {
     lastCheckedAt: string | null;
     pricingSourceId: string;
     pricingSourceCode: string;
+    /**
+     * Candidatos crus da última classificação automática (migration 3964) —
+     * `[]` quando a evidência já provou ausência total (caso NOT_FOUND
+     * elegível) ou quando o mapping não tem `match_evidence.candidatos`
+     * (ex.: já resolvido por outro caminho). Nunca materializados como
+     * `pricing_source_card_identity` só por aparecerem aqui — só a escolha
+     * do admin, via `confirmarCandidatoMapeamentoPricing`, cria a identity.
+     */
+    candidates: PricingMappingCandidate[];
   };
   card: {
     id: string;
@@ -307,6 +237,14 @@ export type PricingMappingDetail = {
     cardSetId: string;
     cardSetCode: string;
     cardSetName: string;
+    /**
+     * URL pública construída server-side a partir de `thumbnail_storage_path`
+     * (migration 3965, mesma regra de seleção da fila — `card_asset`
+     * primário, `CARD_FRONT`, prioridade pt-BR > en) — `getPublicUrl()` é
+     * transformação de string local, sem round trip nem chamada externa.
+     * `null` quando a carta não tem imagem vinculada no Catálogo.
+     */
+    thumbnailUrl: string | null;
   };
   localVariants: Array<{ id: string; variantTypeId: string; code: string; name: string; isDefault: boolean }>;
   identities: PricingMappingDetailIdentity[];
@@ -341,6 +279,7 @@ export async function getPricingMappingDetail(
       last_checked_at: string | null;
       pricing_source_id: string;
       pricing_source_code: string;
+      match_evidence: { candidatos?: Array<{ id: string; name: string; number: string | null }> } | null;
     };
     card: {
       id: string;
@@ -350,6 +289,7 @@ export async function getPricingMappingDetail(
       card_set_id: string;
       card_set_code: string;
       card_set_name: string;
+      thumbnail_storage_path: string | null;
     };
     local_variants: Array<{ id: string; variant_type_id: string; code: string; name: string; is_default: boolean }>;
     identities: Array<{
@@ -387,6 +327,11 @@ export async function getPricingMappingDetail(
       lastCheckedAt: raw.mapping.last_checked_at,
       pricingSourceId: raw.mapping.pricing_source_id,
       pricingSourceCode: raw.mapping.pricing_source_code,
+      candidates: (raw.mapping.match_evidence?.candidatos ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        number: c.number,
+      })),
     },
     card: {
       id: raw.card.id,
@@ -396,6 +341,9 @@ export async function getPricingMappingDetail(
       cardSetId: raw.card.card_set_id,
       cardSetCode: raw.card.card_set_code,
       cardSetName: raw.card.card_set_name,
+      thumbnailUrl: raw.card.thumbnail_storage_path
+        ? (supabase.storage.from("card-front").getPublicUrl(raw.card.thumbnail_storage_path).data.publicUrl ?? null)
+        : null,
     },
     localVariants: raw.local_variants.map((v) => ({
       id: v.id,
@@ -1092,10 +1040,18 @@ export async function getPricingSetMappings(
 
 export const PRICING_CARD_MAPPINGS_PAGE_SIZE = 20;
 
-/** Vocabulário completo de `pricing_card_mapping.match_status` — ao contrário de Pendências, esta tela mostra os 4 estados. */
-export type PricingCardMappingStatus = "CONFIRMED" | "PENDING" | "NOT_FOUND" | "REJECTED";
+/**
+ * Vocabulário desta fila — PENDING/NOT_FOUND/REJECTED, nunca CONFIRMED
+ * (convergência 2026-08-27: `/pricing/mapeamentos-cartas` absorveu o papel
+ * de `/pricing/pendencias`, que foi aposentada). CONFIRMED continua
+ * consultável por SQL direto via `admin_list_pricing_card_mappings`
+ * (preservada de propósito, sem consumidor de UI hoje — decisão de
+ * Fabrício de não perder a auditoria por completo até haver uma futura
+ * tela dedicada).
+ */
+export type PricingCardMappingIssueStatus = "PENDING" | "NOT_FOUND" | "REJECTED";
 
-export type PricingCardMappingItem = {
+export type PricingCardMappingIssueItem = {
   id: string;
   cardId: string;
   cardName: string;
@@ -1106,17 +1062,30 @@ export type PricingCardMappingItem = {
   cardSetName: string;
   pricingSourceId: string;
   pricingSourceCode: string;
-  externalCardId: string | null;
-  externalCardName: string | null;
-  matchStatus: PricingCardMappingStatus;
-  matchMethod: string | null;
-  identityCount: number;
+  matchStatus: PricingCardMappingIssueStatus;
+  /**
+   * Nº de candidatos vivos para este mapping (migration 3966). Para PENDING,
+   * deriva de `match_evidence.candidatos` (a fonte real de candidatos ainda
+   * não resolvidos) — NUNCA de `pricing_source_card_identity` materializada,
+   * que é o destino da escolha do admin, não a lista de opções disponíveis
+   * antes da decisão. Fallback seguro 0 quando `candidatos` está ausente ou
+   * não é array (ex.: REJECTED sem evidência válida).
+   */
+  candidateCount: number;
   lastCheckedAt: string | null;
-  /** true quando existe `pricing_product` vinculado — reclassificação CONFIRMED→REJECTED fica bloqueada na RPC de write quando true. */
-  hasDependency: boolean;
+  /**
+   * URL pública da imagem local da carta (bucket público `card-front`,
+   * migration 3964) — prioridade pt-BR, fallback en, `null` quando a carta
+   * não tem `card_asset` primário em nenhum dos dois idiomas. Construída
+   * aqui (server-side, mesmo padrão de `getCartasCompletas`/
+   * `pickCardFrontPath`) a partir do `storage_path` bruto devolvido pela
+   * RPC — `getPublicUrl()` é uma transformação de string local, sem round
+   * trip nem chamada a fonte externa.
+   */
+  thumbnailUrl: string | null;
 };
 
-type PricingCardMappingRawRow = {
+type PricingCardMappingIssueRawRow = {
   id: string;
   card_id: string;
   card_name: string;
@@ -1127,29 +1096,32 @@ type PricingCardMappingRawRow = {
   card_set_name: string;
   pricing_source_id: string;
   pricing_source_code: string;
-  external_card_id: string | null;
-  external_card_name: string | null;
-  match_status: PricingCardMappingStatus;
-  match_method: string | null;
-  identity_count: number;
+  match_status: PricingCardMappingIssueStatus;
+  candidate_count: number;
   last_checked_at: string | null;
-  has_dependency: boolean;
+  thumbnail_storage_path: string | null;
   total_count: number;
 };
 
-/** Cadastro de Mapeamentos de Cartas — `admin_list_pricing_card_mappings`, paginado/filtrado server-side, todos os 4 status (diferente de Pendências, que trava em PENDING/NOT_FOUND). */
-export async function getPricingCardMappings(
+/**
+ * Fila operacional de Mapeamentos de Cartas — `admin_list_pricing_card_mapping_issues`
+ * já trava o vocabulário de status a PENDING/NOT_FOUND/REJECTED no próprio
+ * SQL (defesa em profundidade: mesmo que este chamador não filtre nada, a
+ * RPC nunca vaza CONFIRMED). Em erro, retorna `{ items: [], totalCount: 0 }`
+ * — mesmo contrato de `getLogAtualizacoes`, nunca lança.
+ */
+export async function getPricingCardMappingIssues(
   supabase: SupabaseClient,
   options: {
-    status?: PricingCardMappingStatus[];
+    status?: PricingCardMappingIssueStatus[];
     pricingSourceId?: string;
     cardSetId?: string;
     search?: string;
     limit?: number;
     offset?: number;
   },
-): Promise<{ items: PricingCardMappingItem[]; totalCount: number }> {
-  const { data, error } = await supabase.rpc("admin_list_pricing_card_mappings", {
+): Promise<{ items: PricingCardMappingIssueItem[]; totalCount: number }> {
+  const { data, error } = await supabase.rpc("admin_list_pricing_card_mapping_issues", {
     p_status: options.status && options.status.length > 0 ? options.status : null,
     p_pricing_source_id: options.pricingSourceId || null,
     p_card_set_id: options.cardSetId || null,
@@ -1162,7 +1134,7 @@ export async function getPricingCardMappings(
     return { items: [], totalCount: 0 };
   }
 
-  const rows = data as PricingCardMappingRawRow[];
+  const rows = data as PricingCardMappingIssueRawRow[];
   return {
     items: rows.map((row) => ({
       id: row.id,
@@ -1175,13 +1147,12 @@ export async function getPricingCardMappings(
       cardSetName: row.card_set_name,
       pricingSourceId: row.pricing_source_id,
       pricingSourceCode: row.pricing_source_code,
-      externalCardId: row.external_card_id,
-      externalCardName: row.external_card_name,
       matchStatus: row.match_status,
-      matchMethod: row.match_method,
-      identityCount: row.identity_count,
+      candidateCount: row.candidate_count,
       lastCheckedAt: row.last_checked_at,
-      hasDependency: row.has_dependency,
+      thumbnailUrl: row.thumbnail_storage_path
+        ? (supabase.storage.from("card-front").getPublicUrl(row.thumbnail_storage_path).data.publicUrl ?? null)
+        : null,
     })),
     totalCount: rows[0]?.total_count ?? 0,
   };
@@ -1579,7 +1550,7 @@ export function mapPricingReportSetCardRow(row: PricingReportSetCardRawRow): Pri
  * vias: PRICED (`priceDisplay` não nulo), FX_UNAVAILABLE (candidato existe
  * mas câmbio indisponível) e NO_PRICE (nenhum candidato) — nunca colapsado
  * em "sem preço = zero". Em erro, retorna `{ items: [], totalCount: 0 }`,
- * mesmo contrato de `getPricingPendingMappings`.
+ * mesmo contrato de `getPricingCardMappingIssues`.
  */
 export async function getPricingReportSetCards(
   supabase: SupabaseClient,

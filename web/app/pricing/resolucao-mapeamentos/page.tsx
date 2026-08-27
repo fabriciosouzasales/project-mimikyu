@@ -1,24 +1,26 @@
 import { GitMerge } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { requirePricingAdmin } from "@/components/pricing/pricing-guard";
 import { ResolucaoMapeamentoDetail } from "@/components/pricing/resolucao-mapeamento-detail";
 import { Alert } from "@/components/ui/alert";
-import { EmptyState } from "@/components/ui/empty-state";
 import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { getPricingMappingDetail } from "@/lib/pricing/queries";
 
 /**
  * Resolução de Mapeamentos (Bloco 2 do Pricing Admin, migration 3940) —
- * ponto de chegada a partir de Pendências (`?mapping=<id>`), nunca uma
- * listagem própria: a triagem/paginação vive só em `/pricing/pendencias`,
- * esta rota é o fluxo de decisão de UM mapping por vez.
+ * workspace contextual, não item de navegação (removida do nav-config em
+ * 2026-08-27: só faz sentido com um `mapping` específico selecionado).
+ * Único ponto de chegada é a ação "Resolver" de Mapeamentos de Cartas
+ * (`?mapping=<id>`) — acesso direto sem esse parâmetro redireciona de volta
+ * para `/pricing/mapeamentos-cartas` (hardening, mesma migração de nav).
  *
- * Três estados possíveis: (1) sem `?mapping=`, orienta a voltar para
- * Pendências; (2) mapping não encontrado/inacessível (`getPricingMappingDetail`
- * retorna `null`); (3) mapping já decidido por outra pessoa entre a listagem
- * e o clique (`match_status` fora de PENDING/NOT_FOUND) — mesma janela de
- * corrida que a RPC já bloqueia no write, aqui é só a mensagem correspondente.
+ * Dois estados possíveis daqui em diante: (1) mapping não encontrado/inacessível
+ * (`getPricingMappingDetail` retorna `null`); (2) mapping já decidido por
+ * outra pessoa entre a listagem e o clique (`match_status` fora de
+ * PENDING/NOT_FOUND) — mesma janela de corrida que a RPC já bloqueia no
+ * write, aqui é só a mensagem correspondente.
  */
 export default async function PricingResolucaoMapeamentosPage({
   searchParams,
@@ -29,6 +31,10 @@ export default async function PricingResolucaoMapeamentosPage({
   if (denied) return denied;
 
   const { mapping: mappingId } = await searchParams;
+
+  if (!mappingId) {
+    redirect("/pricing/mapeamentos-cartas");
+  }
 
   return (
     <AppShell title="Resolução de Mapeamentos" icon={GitMerge}>
@@ -45,16 +51,7 @@ export default async function PricingResolucaoMapeamentosPage({
           </PageHeading>
         </PageHeader>
 
-        {!mappingId ? (
-          <EmptyState
-            icon={GitMerge}
-            title="Nenhum mapeamento selecionado"
-            description='Escolha um item em "Pendências" e clique em Resolver para abrir o fluxo de decisão aqui.'
-            className="py-14"
-          />
-        ) : (
-          await renderMappingDetail(mappingId)
-        )}
+        {await renderMappingDetail(mappingId)}
       </PageContainer>
     </AppShell>
   );
@@ -66,8 +63,8 @@ export default async function PricingResolucaoMapeamentosPage({
       return (
         <Alert variant="destructive">
           Mapeamento não encontrado — ele pode ter sido removido ou o link está incorreto.{" "}
-          <Link href="/pricing/pendencias" className="underline">
-            Voltar para Pendências
+          <Link href="/pricing/mapeamentos-cartas" className="underline">
+            Voltar para Mapeamentos de Cartas
           </Link>
           .
         </Alert>
@@ -79,8 +76,8 @@ export default async function PricingResolucaoMapeamentosPage({
         <Alert variant="destructive">
           Este mapeamento já foi decidido ({detail.mapping.matchStatus === "CONFIRMED" ? "confirmado" : "rejeitado"} por
           outro administrador).{" "}
-          <Link href="/pricing/pendencias" className="underline">
-            Voltar para Pendências
+          <Link href="/pricing/mapeamentos-cartas" className="underline">
+            Voltar para Mapeamentos de Cartas
           </Link>
           .
         </Alert>
