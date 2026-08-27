@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { StateBadge, type StateTone } from "@/components/catalogo/state-badge";
+import { StateBadge } from "@/components/catalogo/state-badge";
 import { HistoricoExecucoesFiltros } from "@/components/pricing/historico-execucoes-filtros";
 import { SyncRunDetailDialog, SyncRunDetailTriggerButton } from "@/components/pricing/sync-run-detail-dialog";
 import { Button } from "@/components/ui/button";
@@ -21,56 +21,14 @@ import {
   type PricingCardSetOption,
   type PricingSyncRunItem,
 } from "@/lib/pricing/queries";
+import {
+  RUN_TYPE_LABEL,
+  SOURCE_CODE_LABEL,
+  STATUS_LABEL,
+  STATUS_TONE,
+  formatSyncRunDuration,
+} from "@/lib/pricing/sync-run-labels";
 import { formatManagerialDateTime, formatNumber } from "@/lib/utils";
-
-// v1.1 (2026-08-23, feedback de Fabrício sobre a tela) — "Refresh de Preços"
-// → "Atualização de Preços", mesma troca já aplicada em Saúde das Fontes
-// (`saude-fontes-list.tsx`).
-const RUN_TYPE_LABEL: Record<string, string> = {
-  CARD_SYNC: "Descoberta/Matching",
-  PRICE_REFRESH: "Atualização de Preços",
-  FX_REFRESH: "Câmbio (PTAX)",
-};
-
-// COMPLETED_WITH_ERRORS → "Concluída com alertas" (era "com erros"): o badge
-// já é vermelho/amarelo pela tonalidade (`STATUS_TONE`), o texto não precisa
-// repetir a palavra "erros" para não soar mais grave do que o real (nem toda
-// COMPLETED_WITH_ERRORS é uma falha visível ao usuário administrativo). O
-// `StateBadge` já força `uppercase` via CSS — não precisa maiúscula aqui.
-const STATUS_LABEL: Record<string, string> = {
-  COMPLETED: "Concluída",
-  COMPLETED_WITH_ERRORS: "Concluída com alertas",
-  FAILED: "Falhou",
-};
-
-const STATUS_TONE: Record<string, StateTone> = {
-  COMPLETED: "success",
-  COMPLETED_WITH_ERRORS: "warning",
-  FAILED: "danger",
-};
-
-/** Apresentação de `pricing_source_code` — só troca de caixa visual, nunca o código interno. */
-const SOURCE_CODE_LABEL: Record<string, string> = {
-  JUSTTCG: "JustTCG",
-};
-
-/**
- * Duração humana (2026-08-23, feedback de Fabrício: "não exibir precisão
- * técnica excessiva como 20.016752s"). `durationSeconds` vem do banco com
- * várias casas decimais — abaixo de 60s mostra 1 casa (vírgula PT-BR);
- * a partir de 60s vira "M min SS s" com segundos inteiros e zero-padded,
- * suficiente para leitura operacional sem ruído de microssegundos.
- */
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) return "—";
-  if (seconds < 60) {
-    return `${seconds.toFixed(1).replace(".", ",")} s`;
-  }
-  const totalSeconds = Math.round(seconds);
-  const minutes = Math.floor(totalSeconds / 60);
-  const rest = totalSeconds % 60;
-  return `${minutes} min ${String(rest).padStart(2, "0")} s`;
-}
 
 /**
  * Tabela de Histórico de Execuções — mesma arquitetura de `PendenciasTable`:
@@ -180,7 +138,7 @@ export function HistoricoExecucoesTable({
                     </span>
                   </DataTableCell>
                   <DataTableCell align="center">
-                    <span className="tabular-nums text-xs">{formatDuration(item.durationSeconds)}</span>
+                    <span className="tabular-nums text-xs">{formatSyncRunDuration(item.durationSeconds)}</span>
                   </DataTableCell>
                   <DataTableCell align="center">
                     <span className="tabular-nums text-xs">{item.requestsMade !== null ? formatNumber(item.requestsMade) : "—"}</span>

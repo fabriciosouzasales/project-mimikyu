@@ -1,7 +1,8 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { forwardRef, useState } from "react";
+import type { ButtonHTMLAttributes } from "react";
 import { getPricingSyncRunDetailAction } from "@/app/pricing/historico-execucoes/actions";
 import { StateBadge, type StateTone } from "@/components/catalogo/state-badge";
 import { Button } from "@/components/ui/button";
@@ -15,12 +16,41 @@ import {
 } from "@/components/ui/dialog";
 import { InlineFeedback } from "@/components/ui/feedback";
 import type { PricingSyncRunDetail } from "@/lib/pricing/queries";
+import {
+  RUN_TYPE_LABEL,
+  SOURCE_CODE_LABEL,
+  STATUS_LABEL,
+  STATUS_TONE,
+  TRIGGERED_BY_LABEL,
+  computeSyncRunDurationSeconds,
+  formatSyncRunDuration,
+} from "@/lib/pricing/sync-run-labels";
 
 const OUTCOME_TONE: Record<string, StateTone> = {
   SUCCESS: "success",
   ERROR: "danger",
   RATE_LIMITED: "warning",
 };
+
+const OUTCOME_LABEL: Record<string, string> = {
+  SUCCESS: "Sucesso",
+  ERROR: "Erro",
+  RATE_LIMITED: "Rate limit",
+};
+
+/**
+ * Contagem de chamadas por `outcome` — "contadores relevantes" pedidos por
+ * Fabrício além de `requests_made`/`rate_limit_hits` (já vêm prontos do
+ * `run`). Derivado 100% client-side do array `calls` já carregado pelo
+ * Dialog — nenhuma query adicional.
+ */
+function summarizeCallOutcomes(calls: PricingSyncRunDetail["calls"]): Record<string, number> {
+  const summary: Record<string, number> = {};
+  for (const call of calls) {
+    summary[call.outcome] = (summary[call.outcome] ?? 0) + 1;
+  }
+  return summary;
+}
 
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
@@ -87,8 +117,22 @@ export function SyncRunDetailDialog({ runId, trigger }: { runId: string; trigger
             <>
               <div className="grid gap-2 rounded-md border border-border bg-surface-muted/40 p-3 text-xs sm:grid-cols-2">
                 <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Tipo</p>
+                  <p className="text-foreground">{RUN_TYPE_LABEL[detail.run.runType] ?? detail.run.runType}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status</p>
+                  <StateBadge tone={STATUS_TONE[detail.run.status] ?? "muted"}>
+                    {STATUS_LABEL[detail.run.status] ?? detail.run.status}
+                  </StateBadge>
+                </div>
+                <div>
                   <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Fonte</p>
-                  <p className="text-foreground">{detail.run.pricingSourceCode ?? "—"}</p>
+                  <p className="text-foreground">
+                    {detail.run.pricingSourceCode
+                      ? (SOURCE_CODE_LABEL[detail.run.pricingSourceCode] ?? detail.run.pricingSourceCode)
+                      : (detail.run.fxSourceCode ?? "—")}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Set</p>
@@ -103,6 +147,16 @@ export function SyncRunDetailDialog({ runId, trigger }: { runId: string; trigger
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Fim</p>
                   <p className="text-foreground">{formatDateTime(detail.run.finishedAt)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Duração</p>
+                  <p className="text-foreground">
+                    {formatSyncRunDuration(computeSyncRunDurationSeconds(detail.run.startedAt, detail.run.finishedAt))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Acionador</p>
+                  <p className="text-foreground">{TRIGGERED_BY_LABEL[detail.run.triggeredBy] ?? detail.run.triggeredBy}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Requisições</p>
@@ -123,9 +177,18 @@ export function SyncRunDetailDialog({ runId, trigger }: { runId: string; trigger
               </div>
 
               <div>
-                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Chamadas ({detail.calls.length})
-                </p>
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Chamadas ({detail.calls.length})
+                  </p>
+                  {detail.calls.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {Object.entries(summarizeCallOutcomes(detail.calls))
+                        .map(([outcome, count]) => `${count} ${(OUTCOME_LABEL[outcome] ?? outcome).toLowerCase()}`)
+                        .join(" · ")}
+                    </p>
+                  )}
+                </div>
                 {detail.calls.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Nenhuma chamada registrada para esta execução.</p>
                 ) : (
@@ -145,7 +208,9 @@ export function SyncRunDetailDialog({ runId, trigger }: { runId: string; trigger
                           {call.httpStatusCode && (
                             <span className="tabular-nums text-muted-foreground">{call.httpStatusCode}</span>
                           )}
-                          <StateBadge tone={OUTCOME_TONE[call.outcome] ?? "muted"}>{call.outcome}</StateBadge>
+                          <StateBadge tone={OUTCOME_TONE[call.outcome] ?? "muted"}>
+                            {OUTCOME_LABEL[call.outcome] ?? call.outcome}
+                          </StateBadge>
                         </div>
                       </div>
                     ))}
@@ -166,11 +231,31 @@ export function SyncRunDetailDialog({ runId, trigger }: { runId: string; trigger
  * toda linha da tabela. `ghost` + texto `muted-foreground` (escurece no
  * hover) mantém a ação claramente clicável sem competir visualmente com
  * status/Set/dados principais da linha.
+ *
+ * v1.2 (2026-08-26, correção de bug real — "Ver detalhes" sem ação):
+ * `DialogTrigger asChild` usa o `Slot` do Radix para clonar este elemento
+ * injetando `onClick`/`aria-haspopup`/`aria-expanded`/`data-state`/`ref`.
+ * A versão anterior era um componente sem props (`function
+ * SyncRunDetailTriggerButton()`), então essas props injetadas caíam no
+ * vazio — o botão renderizado nunca tinha `onClick` nenhum, por mouse ou
+ * teclado, sem gerar erro/warning (prop dropped silenciosamente). Confirmado
+ * via inspeção real do DOM: o `<button>` em produção não tinha nenhum dos
+ * atributos que o Radix injeta. Precisa ser `forwardRef` e repassar todas as
+ * props recebidas para o `Button` interno.
  */
-export function SyncRunDetailTriggerButton() {
-  return (
-    <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-      Ver detalhes
-    </Button>
-  );
-}
+export const SyncRunDetailTriggerButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(
+  function SyncRunDetailTriggerButton(props, ref) {
+    return (
+      <Button
+        ref={ref}
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground hover:text-foreground"
+        {...props}
+      >
+        Ver detalhes
+      </Button>
+    );
+  },
+);
