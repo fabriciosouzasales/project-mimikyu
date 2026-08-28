@@ -28,3 +28,21 @@ export function formatManagerialDateTime(value: string | number | Date): string 
   const timePart = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return `${datePart} às ${timePart}`;
 }
+
+/**
+ * Formata data+hora em pt-BR já separada em duas partes (data / hora) — para
+ * telas operacionais que exibem a data/hora exata como informação principal
+ * em duas linhas, em vez de um único texto corrido ou de um formato relativo
+ * ("há 2 dias") como substituto primário (rodada de refinamento visual de
+ * `/pricing/sincronizacoes`, 2026-08-28, instrução explícita de Fabrício).
+ * Retorna `null` para `value` nulo, para o chamador decidir o placeholder
+ * ("—") sem repetir a checagem de null em cada tela.
+ */
+export function formatDateTimeParts(value: string | number | Date | null): { date: string; time: string } | null {
+  if (value === null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return {
+    date: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+    time: date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+  };
+}

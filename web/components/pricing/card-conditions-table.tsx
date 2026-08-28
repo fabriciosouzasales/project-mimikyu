@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus } from "lucide-react";
+import { Link2, Pencil, Plus } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -34,6 +34,7 @@ import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import type { CardCondition, PricingSource } from "@/lib/pricing/queries";
 
@@ -46,6 +47,35 @@ import type { CardCondition, PricingSource } from "@/lib/pricing/queries";
  * `hasDependentObservations=true` — desativar preserva histórico, é o
  * propósito do campo (decisão de Fabrício); nunca há exclusão física de
  * condição ou de vínculo aqui.
+ *
+ * Rodada de refinamento visual (2026-08-28, pedido explícito de Fabrício):
+ * nome da condição ganha mais peso e o código (NM/LP/MP/HP/DMG) vira pill
+ * discreto ao lado, com o badge de status associado à própria linha do nome
+ * (coluna "Status" isolada removida); o `Pencil` fica reservado
+ * exclusivamente para "editar condição" (coluna Ações) — o mapeamento por
+ * fonte externa usa `Link2` num controle explícito (código + ícone +
+ * tooltip "Editar mapeamento {fonte}"), nunca o mesmo ícone da edição da
+ * condição, para eliminar a ambiguidade entre as duas ações.
+ *
+ * Ajuste de densidade (2026-08-28, mesma rodada, aprovação com um único
+ * refinamento): altura/padding vertical das linhas aumentado (`py-2` →
+ * `py-3.5` nas células de dado, `py-2` no cabeçalho, de `py-1.5` padrão de
+ * `DataTableHeadCell`) só dentro desta tabela — override local via
+ * `className`, sem tocar nos primitives compartilhados `DataTableCell`/
+ * `DataTableHeadCell` nem qualquer outra tabela do app. Nenhuma coluna,
+ * ação ou hierarquia alterada nesta rodada.
+ *
+ * Padronização de CTAs primários do Pricing (2026-08-28, pedido explícito
+ * de Fabrício, revoga a decisão acima): o botão "Nova Condição" volta de
+ * `outline` para `default` (dourado) — mesmo padrão visual já aprovado no
+ * Catálogo Editorial para ações primárias de criação (referência: "+ Nova
+ * Raridade" em `raridades-table.tsx`, `Button` sem `variant` = CTA dourado
+ * `ctaStyles.cta` de `button-cta.module.css`). Reusa o mesmo componente/
+ * variant do Catálogo — nenhum estilo novo duplicado. Único CTA primário de
+ * criação identificado em todo o módulo Pricing nesta auditoria: as demais
+ * ações com ícone (`Pencil`/`Link2`/`PencilLine` em Mapeamentos de Cartas,
+ * Preços Manuais, Fontes) são edição inline ou contextuais por linha, fora
+ * do escopo desta padronização.
  */
 export function CardConditionsTable({ conditions, sources }: { conditions: CardCondition[]; sources: PricingSource[] }) {
   const router = useRouter();
@@ -78,15 +108,16 @@ export function CardConditionsTable({ conditions, sources }: { conditions: CardC
             <DataTable>
               <DataTableHead>
                 <DataTableHeadRow className="bg-surface-muted">
-                  <DataTableHeadCell className="pl-4">Condição</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Ordem</DataTableHeadCell>
-                  <DataTableHeadCell align="center">Status</DataTableHeadCell>
+                  <DataTableHeadCell className="py-2 pl-4">Condição</DataTableHeadCell>
+                  <DataTableHeadCell align="center" className="py-2">
+                    Ordem
+                  </DataTableHeadCell>
                   {sources.map((source) => (
-                    <DataTableHeadCell key={source.id} align="center">
-                      Código em {source.code}
+                    <DataTableHeadCell key={source.id} align="center" className="py-2">
+                      Mapeamento {source.code}
                     </DataTableHeadCell>
                   ))}
-                  <DataTableHeadCell align="center" className="pr-4 last:pr-4">
+                  <DataTableHeadCell align="center" className="py-2 pr-4 last:pr-4">
                     Ações
                   </DataTableHeadCell>
                 </DataTableHeadRow>
@@ -94,43 +125,54 @@ export function CardConditionsTable({ conditions, sources }: { conditions: CardC
               <tbody>
                 {conditions.map((condition) => (
                   <DataTableRow key={condition.id} highlighted={state.highlightId === condition.id}>
-                    <DataTableCell className="pl-4">
-                      <p className="text-sm font-medium text-foreground">{condition.name}</p>
-                      <p className="text-xs uppercase text-muted-foreground">{condition.code}</p>
+                    <DataTableCell className="py-3.5 pl-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-foreground">{condition.name}</p>
+                        <code className="rounded-full border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                          {condition.code}
+                        </code>
+                        {condition.isActive ? <Badge variant="outline">Ativa</Badge> : <Badge variant="warning">Inativa</Badge>}
+                      </div>
                     </DataTableCell>
-                    <DataTableCell align="center">{condition.conditionOrder}</DataTableCell>
-                    <DataTableCell align="center">
-                      {condition.isActive ? <Badge variant="outline">Ativa</Badge> : <Badge variant="warning">Inativa</Badge>}
+                    <DataTableCell align="center" className="py-3.5">
+                      {condition.conditionOrder}
                     </DataTableCell>
                     {sources.map((source) => {
                       const mapping = condition.mappings.find((m) => m.pricingSourceId === source.id) ?? null;
                       return (
-                        <DataTableCell key={source.id} align="center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <code className="text-xs text-muted-foreground">{mapping?.externalConditionCode ?? "—"}</code>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon-sm"
-                              aria-label={`${mapping ? "Editar" : "Vincular"} código externo de ${condition.name} em ${source.code}`}
-                              onClick={() => setMappingContext({ condition, source })}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                          </div>
+                        <DataTableCell key={source.id} align="center" className="py-3.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-muted px-2.5 py-1 text-xs text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
+                                aria-label={`${mapping ? "Editar" : "Vincular"} mapeamento de ${condition.name} em ${source.name}`}
+                                onClick={() => setMappingContext({ condition, source })}
+                              >
+                                <code className="text-xs text-muted-foreground">{mapping?.externalConditionCode ?? "—"}</code>
+                                <Link2 className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar mapeamento {source.name}</TooltipContent>
+                          </Tooltip>
                         </DataTableCell>
                       );
                     })}
-                    <DataTableCell align="center" className="pr-4 last:pr-4">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={`Editar ${condition.name}`}
-                        onClick={() => state.startEdit(condition.id)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                    <DataTableCell align="center" className="py-3.5 pr-4 last:pr-4">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            aria-label={`Editar ${condition.name}`}
+                            onClick={() => state.startEdit(condition.id)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar condição</TooltipContent>
+                      </Tooltip>
                     </DataTableCell>
                   </DataTableRow>
                 ))}

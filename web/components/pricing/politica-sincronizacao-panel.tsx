@@ -61,7 +61,7 @@ export function PoliticaSincronizacaoPanel({ policies }: { policies: PricingRefr
                   <p className="text-[11px] text-muted-foreground">{formatUpdatedAt(policy.updatedAt)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-sm font-medium tabular-nums text-foreground">
+                  <span className="inline-flex items-center rounded-full border border-border bg-surface-muted px-2.5 py-1 text-xs font-medium tabular-nums text-foreground">
                     a cada {policy.frequencyDays} {policy.frequencyDays === 1 ? "dia" : "dias"}
                   </span>
                   <Button

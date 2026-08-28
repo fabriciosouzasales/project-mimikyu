@@ -20,7 +20,7 @@ import {
   type PricingRefreshPolicyItem,
   type PricingSetRefreshStateItem,
 } from "@/lib/pricing/queries";
-import { formatNumber } from "@/lib/utils";
+import { formatDateTimeParts, formatNumber } from "@/lib/utils";
 
 // P16.4.1 (revisão final, migration 3952) — 2 buckets novos (ONBOARDING_PENDING/PROCESSING),
 // mesmos rótulos/tons já usados em `estado-sets-filtros.tsx` e `deriveRowStatus()` de
@@ -42,16 +42,16 @@ const STATUS_TONE: Record<string, StateTone> = {
   PAUSED: "muted",
 };
 
-function formatDateTime(value: string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+/**
+ * `last_outcome` fora de `SUCCESS`/`NEVER_RUN` é sinal de diagnóstico real
+ * (parada por orçamento/deadline, erro transiente, erro terminal do Set,
+ * falha de autenticação, reconciliação incompleta — ver constraint
+ * `ck_prs_last_outcome` em `database/migrations/3930_*.sql`) — mostrado só
+ * quando diverge, nunca como texto permanente redundante com o badge de
+ * Estado (rodada de refinamento visual, 2026-08-28, pedido de Fabrício:
+ * "remover SUCCESS redundante").
+ */
+const NON_DIAGNOSTIC_OUTCOMES = new Set(["SUCCESS", "NEVER_RUN"]);
 
 /**
  * Estado dos Sets — visão operacional por `pricing_set_refresh_state`
@@ -59,6 +59,16 @@ function formatDateTime(value: string | null): string {
  * mesmo com só 45 Sets hoje. Só leitura: nenhuma ação de linha aqui —
  * pausar/retomar/recalcular `next_due_at` ficam fora desta V1 (constraint
  * explícita de Fabrício, ver `docs/development/HANDOFF-2026-08-21.md`).
+ *
+ * Rodada de refinamento visual (2026-08-28, pedido explícito de Fabrício):
+ * colunas reordenadas por prioridade de leitura (Set → Estado → Última
+ * sincronização → Próxima sincronização → Cobertura → Fonte); Tentativas e
+ * Lease deixam de ser colunas fixas — praticamente sempre vazias/zero — e
+ * passam a aparecer só contextualmente dentro da célula de Estado, quando
+ * há algo a dizer (tentativa registrada ou execução em curso); data/hora
+ * exibida em duas linhas (data em destaque, hora secundária) como
+ * informação principal — nunca formato relativo ("há X min") como
+ * substituto, só um recurso a mais se algum dia for necessário.
  */
 export function EstadoSetsTable({
   items,
@@ -108,69 +118,93 @@ export function EstadoSetsTable({
             <DataTableHead>
               <DataTableHeadRow className="bg-surface-muted">
                 <DataTableHeadCell className="pl-4">Set</DataTableHeadCell>
-                <DataTableHeadCell>Fonte</DataTableHeadCell>
-                <DataTableHeadCell align="center">Status</DataTableHeadCell>
-                <DataTableHeadCell>Última execução</DataTableHeadCell>
-                <DataTableHeadCell>Próxima prevista</DataTableHeadCell>
-                <DataTableHeadCell align="center">Tentativas</DataTableHeadCell>
+                <DataTableHeadCell align="center">Estado</DataTableHeadCell>
+                <DataTableHeadCell>Última sincronização</DataTableHeadCell>
+                <DataTableHeadCell>Próxima sincronização</DataTableHeadCell>
                 <DataTableHeadCell align="center">Cobertura</DataTableHeadCell>
                 <DataTableHeadCell align="center" className="pr-4 last:pr-4">
-                  Lease
+                  Fonte
                 </DataTableHeadCell>
               </DataTableHeadRow>
             </DataTableHead>
             <tbody>
-              {items.map((item) => (
-                <DataTableRow key={item.id}>
-                  <DataTableCell className="pl-4">
-                    <span className="text-sm text-foreground">{item.cardSetName}</span>
-                    <span className="ml-1 text-xs text-muted-foreground">({item.cardSetCode})</span>
-                  </DataTableCell>
-                  <DataTableCell>
-                    <span className="text-xs uppercase text-muted-foreground">{item.pricingSourceCode}</span>
-                  </DataTableCell>
-                  <DataTableCell align="center">
-                    <div className="flex flex-col items-center gap-0.5">
-                      {/* P16.4.1 (revisão final) — badge lê refreshBucket (taxonomia central), não mais o derivedStatus binário legado. */}
-                      <StateBadge tone={STATUS_TONE[item.refreshBucket] ?? "muted"}>
-                        {STATUS_LABEL[item.refreshBucket] ?? item.refreshBucket}
-                      </StateBadge>
-                      {item.isPaused && item.pauseReason && (
-                        <span className="max-w-[10rem] truncate text-[10px] text-muted-foreground" title={item.pauseReason}>
-                          {item.pauseReason}
-                        </span>
+              {items.map((item) => {
+                const isLeaseActive = Boolean(item.leaseUntil && new Date(item.leaseUntil).getTime() > Date.now());
+                const showOutcome = Boolean(item.lastOutcome && !NON_DIAGNOSTIC_OUTCOMES.has(item.lastOutcome));
+                const lastParts = formatDateTimeParts(item.lastStartedAt);
+                const nextParts = formatDateTimeParts(item.nextDueAt);
+                const leaseParts = isLeaseActive ? formatDateTimeParts(item.leaseUntil) : null;
+
+                return (
+                  <DataTableRow key={item.id}>
+                    <DataTableCell className="pl-4">
+                      <span className="text-sm text-foreground">{item.cardSetName}</span>
+                      <span className="ml-1 text-xs text-muted-foreground">({item.cardSetCode})</span>
+                    </DataTableCell>
+                    <DataTableCell align="center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        {/* P16.4.1 (revisão final) — badge lê refreshBucket (taxonomia central), não mais o derivedStatus binário legado. */}
+                        <StateBadge tone={STATUS_TONE[item.refreshBucket] ?? "muted"}>
+                          {STATUS_LABEL[item.refreshBucket] ?? item.refreshBucket}
+                        </StateBadge>
+                        {item.isPaused && item.pauseReason && (
+                          <span className="max-w-[10rem] truncate text-[10px] text-muted-foreground" title={item.pauseReason}>
+                            {item.pauseReason}
+                          </span>
+                        )}
+                        {/* Tentativas/Lease: contextuais — só aparecem quando há algo a dizer, nunca como coluna fixa quase sempre vazia. */}
+                        {item.attemptCount > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatNumber(item.attemptCount)} {item.attemptCount === 1 ? "tentativa" : "tentativas"}
+                          </span>
+                        )}
+                        {isLeaseActive && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] text-warning"
+                            title={leaseParts ? `Até ${leaseParts.date} ${leaseParts.time}` : undefined}
+                          >
+                            <Lock className="h-2.5 w-2.5" aria-hidden="true" />
+                            Em execução
+                          </span>
+                        )}
+                      </div>
+                    </DataTableCell>
+                    <DataTableCell>
+                      {lastParts ? (
+                        <div className="leading-tight">
+                          {showOutcome && (
+                            <span className="mr-1 align-middle text-[9px] font-medium uppercase text-destructive dark:text-destructive-foreground">
+                              {item.lastOutcome}
+                            </span>
+                          )}
+                          <span className="block text-xs text-foreground">{lastParts.date}</span>
+                          <span className="block text-[10px] text-muted-foreground">{lastParts.time}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
-                    </div>
-                  </DataTableCell>
-                  <DataTableCell>
-                    <span className="text-xs text-muted-foreground">
-                      {item.lastOutcome ? `${item.lastOutcome} — ` : ""}
-                      {formatDateTime(item.lastStartedAt)}
-                    </span>
-                  </DataTableCell>
-                  <DataTableCell>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(item.nextDueAt)}</span>
-                  </DataTableCell>
-                  <DataTableCell align="center">
-                    <span className="tabular-nums text-xs">{formatNumber(item.attemptCount)}</span>
-                  </DataTableCell>
-                  <DataTableCell align="center">
-                    <span className="tabular-nums text-xs">
-                      {formatNumber(item.mappingsConfirmed)}/{formatNumber(item.mappingsTotal)}
-                    </span>
-                  </DataTableCell>
-                  <DataTableCell align="center" className="pr-4 last:pr-4">
-                    {item.leaseUntil && new Date(item.leaseUntil).getTime() > Date.now() ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-warning" title={`Até ${formatDateTime(item.leaseUntil)}`}>
-                        <Lock className="h-3 w-3" aria-hidden="true" />
-                        Em execução
+                    </DataTableCell>
+                    <DataTableCell>
+                      {nextParts ? (
+                        <div className="leading-tight">
+                          <span className="block text-xs text-foreground">{nextParts.date}</span>
+                          <span className="block text-[10px] text-muted-foreground">{nextParts.time}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </DataTableCell>
+                    <DataTableCell align="center">
+                      <span className="tabular-nums text-xs">
+                        {formatNumber(item.mappingsConfirmed)}/{formatNumber(item.mappingsTotal)}
                       </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </DataTableCell>
-                </DataTableRow>
-              ))}
+                    </DataTableCell>
+                    <DataTableCell align="center" className="pr-4 last:pr-4">
+                      <span className="text-xs uppercase text-muted-foreground">{item.pricingSourceCode}</span>
+                    </DataTableCell>
+                  </DataTableRow>
+                );
+              })}
             </tbody>
           </DataTable>
         )}

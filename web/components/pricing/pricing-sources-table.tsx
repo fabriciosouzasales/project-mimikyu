@@ -72,6 +72,16 @@ const SOURCE_DESCRIPTION: Record<string, string> = {
  * isso é responsabilidade de `Saúde das Fontes` (`saude-fontes-list.tsx`).
  * O Dialog de edição (`EditPricingSourceDialog`/`EditPricingSourceForm`
  * abaixo) está aprovado desde a 2ª rodada e não muda nesta 3ª.
+ *
+ * Padronização de CTAs primários do Pricing (2026-08-28, pedido explícito de
+ * Fabrício): "Editar configuração" vira `default` (dourado, mesmo
+ * `ctaStyles.cta` do Catálogo Editorial) em vez de `outline`. Semanticamente
+ * é uma ação de edição, não de criação — mas é a única ação da tela (nenhum
+ * fluxo de criação de fonte existe nesta V1, ver comentário acima), logo
+ * funciona como o CTA primário da página, no mesmo papel que "+ Nova
+ * Raridade" ocupa em `raridades-table.tsx`. Confirmado explicitamente com
+ * Fabrício antes de reverter a exclusão geral de "botões de edição inline"
+ * só para este caso específico.
  */
 export function PricingSourcesTable({ sources }: { sources: PricingSource[] }) {
   const router = useRouter();
@@ -223,7 +233,7 @@ function PricingSourceCard({
                 </a>
               ))}
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+            <Button type="button" size="sm" onClick={onEdit}>
               <Pencil className="h-3.5 w-3.5" />
               Editar configuração
             </Button>
