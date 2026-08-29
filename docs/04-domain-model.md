@@ -56,6 +56,8 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 
 ## Collection (Coleção)
 
+> ⚠️ **SUBSTITUÍDO em 2026-08-28.** A modelagem de domínio de Collections foi reconciliada em `docs/domain-modeling/collections/` (`concept-decisions.md`, `logical-model.md`, `checkpoint-2026-08-28.md`), fonte canônica vigente para este domínio — substitui ADR-014 e a prosa abaixo. Preservada por rastreabilidade histórica; não usar como referência de modelagem.
+
 ### O que é?
 
 Representa um agrupamento definido pelo colecionador para organizar um objetivo de coleção. Diferente do Set (ver abaixo), que pertence ao catálogo editorial oficial e existe independentemente dos usuários, a Collection pertence ao colecionador — não existe sem um usuário associado (ver ADR-014).
@@ -138,6 +140,8 @@ User (Usuário)
 ---
 
 ## Collection Entry (Entrada da Coleção)
+
+> ⚠️ **SUBSTITUÍDO em 2026-08-28.** Ver nota de superação em "Collection", acima — a mesma fonte canônica (`docs/domain-modeling/collections/`) substitui o modelo Card Target/Subject Target descrito aqui por Collection Reference discriminada por subtipo (Collection Card Set Reference, Collection Pokédex Reference).
 
 ### O que é?
 
@@ -1416,6 +1420,8 @@ Puramente conceitual nesta rodada — `item_valuation_snapshot` (nome de trabalh
 
 ## Collection Item (Item da Coleção)
 
+> ⚠️ **SUBSTITUÍDO em 2026-08-28.** A modelagem nova (`docs/domain-modeling/collections/`) reverte esta renomeação: o nome vigente da identidade física é **Inventory Item**, não "Collection Item". Inventory Item referencia Card Variant, mas não carrega `owner_user_id` — a posse é transitiva via um novo agregado `Inventory` (Acervo, 1:1 por usuário). Ver `checkpoint-2026-08-28.md`, Seção 6, para a reafirmação explícita de que Inventory Item permanece a única identidade física (sem entidade paralela).
+
 ### O que é?
 
 Representa um exemplar físico individual e identificável de uma Card, pertencente ou anteriormente pertencente a um colecionador. Substitui o termo provisório "Inventory Item" (ver ADR-013): o Project Mimikyu é uma plataforma de colecionismo, não um sistema de estoque, e o nome deve refletir isso.
@@ -1582,7 +1588,9 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 
 ## User Collection
 
-> **Nota:** este termo provisório parece ter sido absorvido pela entidade Collection (ver acima), já definida como pertencente a um usuário (`owner_id`) e independente do catálogo editorial (ver ADR-014). Mantido aqui como stub, sem exclusão, até confirmação explícita de que não há distinção adicional pretendida entre os dois termos.
+> ⚠️ **SUBSTITUÍDO em 2026-08-28.** Ver nota de superação em "Collection", acima. A dúvida original registrada nesta nota foi resolvida pela modelagem nova: não há um conceito distinto "User Collection" — `Collection.owner_user_id` já é a referência ao usuário dono (`checkpoint-2026-08-28.md`, Seção 2.5).
+
+> **Nota (histórica):** este termo provisório parece ter sido absorvido pela entidade Collection (ver acima), já definida como pertencente a um usuário (`owner_id`) e independente do catálogo editorial (ver ADR-014). Mantido aqui como stub, sem exclusão, até confirmação explícita de que não há distinção adicional pretendida entre os dois termos.
 
 *Documentação pendente — aguardando confirmação.*
 
@@ -1632,3 +1640,4 @@ Nenhuma Open Decision aberta no momento.
 | 2.5 | **`OD-001` resolvida por decisão explícita e definitiva de Fabrício (2026-07-30): cartas de Energia passam a ocupar posição oficial no Set e a fazer parte do catálogo editorial numerado, como Pokémon/Trainer — formalizado em `ADR-025-energy-as-catalog-card-category.md`.** Seção Card Category: "O que é?"/"Valores" atualizados para três categorias (Pokémon, Trainer, Energy); antiga "Decisão de Escopo — Cartas de Energia" marcada explicitamente como substituída (texto histórico preservado, não apagado), com nova subseção "Decisão Vigente — Cartas de Energia no Catálogo Numerado" registrando o estado atual; "Regra de Integridade Conceitual" ganhou o caso `Card Category = Energy` (sem Trainer Subcategory, sem referência a Pokémon). Seção "Energy Type": nota de desambiguação reescrita — Energy Type (atributo elemental de carta Pokémon, mecânica de jogo, AP-017) e Card Category = Energy (a própria carta é uma carta de Energia) são conceitos distintos que só compartilham o nome por coincidência de domínio. `OD-001` movida de "Open Decisions" (agora vazia) para nova subseção "Resolvidas", com rastreabilidade ao ADR-025 — fato de que a divergência existiu preservado, não apagado. Nenhuma alteração física no banco: a categoria `ENERGY` já existia nos dados (Query `831`, 17 Cards); esta revisão só formaliza documentalmente o que já era real. |
 | 2.6 | **Nota objetiva adicionada (2026-07-30), a pedido de Fabrício, explicando o que mantém o Status deste documento como "Em elaboração"** — sem promover para "Aprovado": Storage Location (documentação pendente), User Collection (stub aguardando confirmação de que foi absorvido por Collection), modelagem física de Card Translation (em aberto) e partes do Catálogo Editorial ainda não implementadas fisicamente (ex.: Card Variant de MEE/MEP). Nenhum conceito teve sua definição alterada nesta revisão. |
 | 2.7 | **Adicionadas as seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)" (2026-08-16)**, inseridas antes de "Collection Item" — modelagem conceitual do quarto domínio do projeto (ao lado de Catálogo Editorial/Ownership/Analytics, `ADR-006`), decorrente da sequência estratégica aprovada por Fabrício (`ROADMAP.md`: Card Variant → Pricing → Collection → Analytics/Valuation). Formaliza: Pricing como domínio independente, nunca reaproveitando tabelas do Catálogo Editorial; a separação entre cobertura de catálogo/idioma-impressão/mercado como três perguntas distintas; a regra de que "Valor Brasil" é propriedade exclusiva da fonte de preço, nunca de conversão cambial; e as quatro classificações de Item Valuation (`INTERNATIONAL_CARD_REFERENCE`/`INTERNATIONAL_ITEM_VALUATION`/`BRAZIL_ITEM_VALUATION`/`NOT_VALUED`), tratadas aqui apenas conceitualmente (Analytics, sem tabela física — depende de Collection Item, ainda não implementado). Decisão completa em `adr/ADR-029-pricing-domain-model.md`; modelo lógico e físico completo em `05f-pricing.md`. Nota de status ampliada com o item (5) Pricing/Item Valuation. Nenhuma tabela criada no Supabase; homologação de fonte externa (JustTCG) segue pendente em paralelo, sem bloquear esta modelagem. |
+| 2.8 | **Banners de superação adicionados às seções Collection, Collection Entry, Collection Item e User Collection (2026-08-28)**, apontando para `docs/domain-modeling/collections/` como fonte canônica vigente do domínio Collections — substitui ADR-013/ADR-014 e a prosa conceitual mantida abaixo dos banners, preservada por rastreabilidade histórica. Motivado pela incorporação de três documentos de modelagem (`concept-decisions.md`, `logical-model.md`, `pkmnbindr-benchmark.md`) e de um checkpoint de decisões de simplificação de ownership (`checkpoint-2026-08-28.md`). Nenhuma prosa removida ou reescrita — só os banners foram adicionados. |

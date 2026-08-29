@@ -4,13 +4,15 @@
 |--------|-------|
 | **ADR** | ADR-014 |
 | **Título** | Collection and Collection Entry Model |
-| **Status** | Aprovado |
+| **Status** | Substituído |
 | **Data** | 2026-07 |
 | **Decisores** | Project Mimikyu |
 | **Decisão** | Set (catálogo editorial) e Collection (objetivo de organização do colecionador) são conceitos distintos. Uma Collection pode corresponder a um único Set (Official Set Collection) ou ser independente de qualquer Set (Custom Collection). Collection Entry representa um item do objetivo da Collection, em um de dois modos: Card Target (Card específica) ou Subject Target (ex.: um Pokémon, satisfeito por qualquer Card correspondente). |
-| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-004-set-identity.md`, `ADR-006-separation-of-catalog-ownership-and-analytics.md`, `ADR-011-pokemon-tcg-domain-scope.md`, `ADR-013-collection-item-identity-model.md` |
+| **Documentos Relacionados** | `../04-domain-model.md`, `ADR-004-set-identity.md`, `ADR-006-separation-of-catalog-ownership-and-analytics.md`, `ADR-011-pokemon-tcg-domain-scope.md`, `ADR-013-collection-item-identity-model.md`, `../domain-modeling/collections/` |
 
 ---
+
+> ⚠️ **SUBSTITUÍDO em 2026-08-28.** A modelagem de domínio de Collections foi reconciliada em `docs/domain-modeling/collections/` (`concept-decisions.md`, `logical-model.md`, `checkpoint-2026-08-28.md`), que passam a ser a fonte canônica. O modelo SET_BASED/CUSTOM e Card Target/Subject Target descrito aqui foi substituído por um modelo mais rico: Collection possui `mode` (`OPEN_CURATION`/`REFERENCE_BASED`) e `completion_policy` (`NONE`/`STANDARD_SET`/`MASTER_SET`/`REFERENCE_POSITION`), com Collection Reference discriminada por subtipo (Collection Card Set Reference, Collection Pokédex Reference) em vez de um Collection Entry genérico com dois "targets". Este documento é preservado abaixo, inalterado, por rastreabilidade histórica — não implementar a partir daqui.
 
 # Context
 
@@ -91,3 +93,4 @@ Rejeitada por antecipar complexidade sem necessidade comprovada (AP-004); Manual
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da distinção entre Set (catálogo editorial) e Collection (objetivo do colecionador), dos tipos Official Set Collection/Custom Collection, e do modelo Collection Entry com Card Target/Subject Target. |
+| 1.1 | **Substituído em 2026-08-28.** Status alterado para Substituído; banner adicionado apontando para `docs/domain-modeling/collections/` como fonte canônica do domínio Collections. Reconciliação motivada por três documentos de modelagem produzidos em paralelo (`concept-decisions.md`, `logical-model.md`, `pkmnbindr-benchmark.md`). Conteúdo original preservado abaixo, sem alteração. |
