@@ -5,10 +5,10 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador) — não contém SQL nem modelo físico. |
-| **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador) e, desde 2026-08-30, de `Collection Layout`/`Page`/`Slot` — não contém SQL nem modelo físico. |
+| **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
 
@@ -629,6 +629,133 @@ Arquivamento não altera:
 
 ---
 
+## Bloco complementar — Collection Layout (2026-08-30)
+
+Adicionado após reconciliação da frente `COLLECTIONS-LAYOUT-MODELING` (dez rodadas de modelagem conceitual conduzidas em 2026-08-30, consolidadas em `checkpoint-2026-08-30.md`). Não reabre C-01–C-37; complementa a Parte D (entidades descobertas), fechando a modelagem de `Binder Page`, `Binder Slot` e parte de `Placeholder`, ali listadas como pendentes.
+
+## C-38 — Collection Layout como entidade independente de Storage
+
+**Status:** Aprovada
+
+`Collection Layout` é a organização visual/espacial de uma `Collection` — a forma como o usuário arranja livremente (C-24) a apresentação de seus `Inventory Items` alocados. É independente de `Storage Container`: trocar o Storage Container físico não destrói nem recria o Layout.
+
+Todo `Collection Layout` possui exatamente uma `Collection` como contexto funcional. Uma `Collection` pode existir sem Layout. O modelo conceitual permite, no futuro, mais de um Layout por Collection, mesmo que a primeira versão do produto exponha apenas um Layout principal.
+
+Hierarquia conceitual:
+
+```text
+Collection
+└── Layout
+    └── Page
+        └── Slot
+```
+
+`Storage` permanece ortogonal a esta hierarquia. Não modelar, nesta rodada, um "Storage Layout" (organização interna de um Storage Container independente de qualquer Collection) — mas a arquitetura não deve impedir essa extensão futura.
+
+---
+
+## C-39 — Page como unidade estrutural do Layout
+
+**Status:** Aprovada
+
+`Page` é entidade conceitual própria e estável, pertencente a exatamente um `Collection Layout`. Sua identidade independe de sua posição/ordem entre as demais Pages do mesmo Layout (Page identity ≠ Page order); a ordenação é mutável sem afetar identidade.
+
+Toda Page nasce estruturalmente completa: recebe, no mesmo ato lógico de sua criação, todos os `Slots` estruturais determinados pelo Grid Configuration do Layout (ver C-40). Não existe Page estruturalmente parcial.
+
+Remover uma Page exige resolver previamente qualquer dependência persistente existente em seus Slots (Slot Assignments, Expected Content, Layout Region) — não há remoção automática silenciosa de conteúdo.
+
+Elementos como capa externa, lombada, inner cover e decorações do Binder Workspace não são Page enquanto não existir requisito funcional que lhes dê Slots estruturais reais.
+
+`Spread` (par de Pages exibidas lado a lado) não é conceito de domínio — é apresentação derivada, de responsabilidade exclusiva da camada de UX.
+
+---
+
+## C-40 — Grid Configuration pertence ao Layout
+
+**Status:** Aprovada
+
+A configuração de grade (`columns × rows`) pertence ao `Collection Layout`, não à Page individualmente. Todas as Pages de um mesmo Layout usam obrigatoriamente a mesma Grid Configuration — não são permitidas Pages com grids diferentes dentro do mesmo Layout.
+
+A capacidade estrutural de cada Page (`capacity_per_page = columns × rows`) é inteiramente derivada dessa configuração, nunca um valor independente.
+
+Mudança de grid de um Layout já existente ("Grid Change", ex. 3×3 → 4×4) é reconhecida como necessidade futura, mas seu mecanismo (migração no lugar vs. novo Layout, tratamento de Slots/Assignments fora dos novos limites) não é decidido nesta rodada.
+
+---
+
+## C-41 — Slot como posição estrutural estável
+
+**Status:** Aprovada
+
+`Slot` é entidade conceitual própria e estável, pertencente a exatamente uma `Page`. Sua identidade é independente de: estar ocupado por um `Inventory Item`; ter `Expected Content` definido; e das operações (Move/Swap/Replace) que alteram seu conteúdo ao longo do tempo. Slot nasce e morre junto com mudanças estruturais da Page (grid/capacidade), nunca junto com mudanças de conteúdo.
+
+Posição do Slot dentro de sua Page é representada por coordenadas absolutas `row + column`, 1-based (`row = 1..rows`, `column = 1..columns`). Posição não é identidade (Slot position ≠ Slot identity) — um índice de exibição sequencial, se necessário no futuro, é sempre derivado de row/column e da Grid Configuration, nunca uma segunda fonte de verdade persistida.
+
+---
+
+## C-42 — Expected Content do Slot
+
+**Status:** Aprovada
+
+Um Slot pode possuir, opcionalmente, `Expected Content` — a intenção/expectativa editorial daquela posição ("o que esta posição deveria representar"), independente de sua ocupação física atual. Expected Content referencia obrigatoriamente uma `Card` e, opcionalmente, de forma mais específica, uma `Card Variant`. Ausência de Variant significa que qualquer Variant compatível daquela Card satisfaz a expectativa.
+
+Expected Content e ocupação física (ver C-44) são independentes: são válidos os quatro estados — nenhum; só Expected Content; só ocupação; ambos. Incompatibilidade entre Expected Content e o `Inventory Item` ocupando o Slot (mismatch) nunca bloqueia a ocupação — é estado derivado, apenas sinalizável pelo produto.
+
+Expected Content **não participa** do cálculo de completude da Collection — completude permanece exclusivamente derivada da alocação à Collection frente ao universo de referência (C-19/C-20), nunca do Layout.
+
+Expected Content representa exclusivamente conteúdo editorial/colecionável. Não incorpora custom image, divisor visual, região decorativa ou outros elementos puramente visuais — esses pertencem a uma futura frente própria de Layout, não modelada aqui.
+
+---
+
+## C-43 — Lock protege a posição do Slot
+
+**Status:** Aprovada
+
+`Lock` é propriedade do `Slot` — protege a posição/configuração daquela posição no Layout, não o `Inventory Item` que porventura a ocupa, nem a relação de ocupação corrente. Um Slot pode estar locked mesmo vazio, sem Expected Content e sem ocupação.
+
+Lock é independente de Ownership, de alocação à Collection e de Expected Content. Enquanto locked, ficam bloqueadas as operações que alterariam a ocupação/configuração protegida: Move, Swap, Replace, Remove, Drop, mover para a Bandeja, e criar/desfazer uma `Layout Region` (Merge/Unmerge) que envolva aquele Slot. Substituir o Inventory Item de um Slot nunca transfere o Lock para o item — Lock permanece no Slot.
+
+Operações em lote (Bulk Lock/Unlock) aplicam a mesma propriedade uniformemente a um conjunto de Slots, independente da ocupação de cada um. Não existe "Region Lock" separado — regiões mescladas herdam a regra acima Slot a Slot.
+
+---
+
+## C-44 — Slot Assignment: posicionamento digital dentro do Layout
+
+**Status:** Aprovada
+
+`Slot Assignment` (nome adotado nesta consolidação — nasceu como rótulo de trabalho provisório ao longo da frente de modelagem, incorporado aqui como termo canônico; pode ser revisto se um nome melhor surgir) é a relação que registra que um `Inventory Item` está, agora, posicionado em um `Slot` de um `Collection Layout` — distinta de Ownership (quem possui), de alocação à Collection (por qual objetivo colecionável conta) e de Expected Content (o que a posição deveria representar).
+
+Slot Assignment exige que o `Inventory Item` já esteja alocado à mesma `Collection` dona do Layout — não é possível posicionar um item no Layout de uma Collection à qual ele não está alocado. A recíproca não vale: um item pode estar alocado a uma Collection sem ter nenhuma Slot Assignment (ex.: recém-importado, na Bandeja, layout ainda não organizado).
+
+`Slot Assignment` representa organização digital do Layout, nunca localização física real (Storage — C-16/C-17/C-25–C-28 permanecem a única fonte de verdade sobre onde o exemplar está fisicamente guardado). Por isso, o mesmo `Inventory Item` pode ter Slot Assignments simultâneas e independentes em Layouts diferentes da mesma Collection (ver C-38, múltiplos Layouts) — cardinalidade é no máximo uma Assignment ativa por par (Inventory Item, Layout), não uma restrição global do item.
+
+Dentro de um mesmo Slot, no máximo um Inventory Item por vez.
+
+`Slot Assignment` é uma relação conceitual própria de estado atual — não requer identidade de negócio/lifecycle própria no modelo conceitual atual (não é necessário distinguir "esta Assignment sobreviveu a um Move" de "a relação atual Item↔Slot mudou"). Um identificador técnico de implementação, se existir, não constitui identidade de domínio. Histórico, audit trail, versionamento ou Undo/Redo persistente, se necessários no futuro, serão modelados separadamente.
+
+---
+
+## C-45 — Bandeja é estado transitório de UX
+
+**Status:** Aprovada
+
+A "Bandeja" (área temporária para cartas fora de qualquer Slot durante a edição de um Layout) é estado transitório de UX/edição, não entidade de domínio, não estado persistente do Layout, não propriedade da Collection nem do Inventory Item. Seu escopo é somente a sessão/interação ativa de edição daquele Layout.
+
+Se o usuário mover um item para a Bandeja e sair da Collection/Layout antes de reposicioná-lo, a Bandeja é descartada e, ao retornar, o item está novamente em seu Slot Assignment persistido de origem — mover para a Bandeja não equivale a um Remove persistente da Slot Assignment. A Bandeja funciona como buffer temporário de reorganização: o resultado persistente de "Slot A → Bandeja → Slot B" é apenas "item passa de A para B"; o estado intermediário na Bandeja nunca integra o estado persistido.
+
+---
+
+## C-46 — Layout Region (mesclagem de Slots)
+
+**Status:** Aprovada
+
+`Layout Region` é o conceito persistente para representar a mesclagem visual de dois ou mais Slots contíguos ("Merge") — nunca destrói, recria ou altera a identidade dos Slots envolvidos. Pertence a exatamente uma Page, nunca atravessa Pages. Contém no mínimo 2 Slots contíguos, formando obrigatoriamente um retângulo completo (não suporta, nesta modelagem, formas em L, buracos ou regiões arbitrárias). Regions não podem se sobrepor — um Slot participa de no máximo uma Layout Region ativa.
+
+Criar ou remover uma Layout Region não altera Slot Assignments nem Expected Content dos Slots envolvidos. Se qualquer Slot necessário à operação estiver locked (C-43), Merge e Unmerge ficam bloqueados.
+
+Futuro conteúdo visual/artwork de uma Region é conceito distinto de Expected Content (C-42), que permanece exclusivamente editorial/colecionável — artwork não é modelado nesta rodada.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -851,12 +978,12 @@ A arquitetura não deve exigir interação individual exaustiva para centenas ou
 
 As seguintes entidades/conceitos foram identificados durante a modelagem de Collection, mas **não foram modelados em profundidade neste documento**:
 
-- `Collection Item`
+- `Collection Item` — resolvido: é papel contextual do `Inventory Item` (LDM-23, reafirmado em `checkpoint-2026-08-28.md` §6), não entidade própria.
 - `Storage Container`
 - `Binder`
-- `Binder Page`
-- `Binder Slot`
-- `Placeholder`
+- ~~`Binder Page`~~ — resolvido em 2026-08-30 pelo Bloco complementar acima (C-39, `Page`).
+- ~~`Binder Slot`~~ — resolvido em 2026-08-30 pelo Bloco complementar acima (C-41, `Slot`).
+- `Placeholder` — parcialmente resolvido: o comportamento de "posição reservada sem carta" está coberto por `Expected Content` (C-42); placeholders puramente visuais/decorativos permanecem não modelados.
 - `ETB / Storage Box Layout`
 - `Storage Divider`
 - `Wishlist`
@@ -923,3 +1050,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 |---------|-----------|
 | 1.0 | Documento produzido no repositório de modelagem paralelo `mimikyu-modelagem-de-dados`, FECHADO/APROVADO em 2026-08-10 (C-01 a C-37). |
 | 1.1 | Incorporado a `project-mimikyu` (2026-08-28, pedido explícito de Fabrício) em `docs/domain-modeling/collections/`, como fonte canônica para o domínio conceitual de `Collection`, substituindo `ADR-013`/`ADR-014` para este fim. Nenhuma decisão alterada — apenas cabeçalho e nota de incorporação adicionados. |
+| 1.2 | **Bloco complementar Collection Layout, 2026-08-30.** Adicionadas C-38 a C-46, consolidando dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`) sobre `Collection Layout`/`Page`/`Grid Configuration`/`Slot`/`Expected Content`/`Lock`/`Slot Assignment`/`Bandeja`/`Layout Region`. C-01–C-37 não reabertas. Parte D atualizada: `Binder Page` e `Binder Slot` resolvidos, `Placeholder` parcialmente resolvido. Ver `checkpoint-2026-08-30.md` para o diagnóstico de reconciliação completo. |

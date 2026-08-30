@@ -5,10 +5,10 @@
 | **Documento** | Collection — Logical Data Model (Checkpoint Lógico) |
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | LDM-01 a LDM-27 (checkpoint em evolução — ver banner de superação parcial abaixo) |
+| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30) |
 | **Status** | Checkpoint lógico em evolução — modelo físico ainda NÃO iniciado |
-| **Escopo** | Modelagem lógica da entidade `Collection` e do domínio de posse (`Inventory Item`) — não contém SQL nem modelo físico. |
-| **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-37, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
+| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Inventory Item`) e, desde 2026-08-30, de `Collection Layout`/`Page`/`Slot`/`Slot Assignment` — não contém SQL nem modelo físico. |
+| **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-46, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
 ---
 
@@ -41,8 +41,8 @@ Only the **current canonical decisions** are recorded. Intermediate proposals th
 
 ### Current modeling status
 
-- Conceptual model: **C-01 through C-37 — CLOSED**
-- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima)
+- Conceptual model: **C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout, 2026-08-30, ver `concept-decisions.md`)
+- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30)
 - Physical model: **NOT STARTED**
 
 ---
@@ -451,6 +451,134 @@ This should be platform-level, not Collection-specific.
 
 ---
 
+## Bloco complementar — Collection Layout (LDM-29 a LDM-37, 2026-08-30)
+
+Reabre o ponto de retomada deixado explicitamente em aberto pelo banner do topo deste documento e por `checkpoint-2026-08-28.md` §4 ("um novo tópico de LDM-28 precisa ser aberto quando a modelagem lógica for retomada"). O LDM-28 original (Seção 9, abaixo) permanece void — para evitar colisão de numeração com esse tópico void, o bloco abaixo abre em LDM-29 (não reocupa LDM-28, nem em conteúdo nem em número). Base conceitual: C-38 a C-46 em `concept-decisions.md`. Nenhum campo de timestamp/audit/UUID é fixado aqui — fora de escopo desta rodada de modelagem (ver `checkpoint-2026-08-30.md`).
+
+## LDM-29 — Collection Layout Skeleton
+
+```text
+Collection Layout
+├── id
+└── collection_id
+```
+
+Collection Layout pertence a exatamente uma Collection (C-38). Uma Collection pode ter zero Layouts. O modelo permite, futuramente, mais de um Layout por Collection; mecanismo de distinção entre eles (ex. "principal" vs. alternativos) não modelado nesta rodada.
+
+**Status:** APPROVED
+
+## LDM-30 — Page Skeleton
+
+```text
+Page
+├── id
+├── layout_id
+└── order
+```
+
+Page pertence a exatamente um Layout (C-39). `order` é mutável e independente da identidade da Page — reordenar não recria a Page nem afeta identidade, row ou column dos seus Slots. O mecanismo físico exato de `order` (índice sequencial, linked list, rank/order key) é decisão de modelagem física, não fixada nesta rodada — a única decisão lógica é que Page identity ≠ Page order.
+
+**Status:** APPROVED
+
+## LDM-31 — Grid Configuration and Page Capacity
+
+```text
+Collection Layout
+├── grid_columns
+└── grid_rows
+
+capacity_per_page = grid_columns × grid_rows   (derivado, não persistido como valor independente)
+```
+
+Grid Configuration pertence ao Layout (C-40), não à Page — todas as Pages de um Layout herdam a mesma capacidade. Criar uma Page cria, no mesmo ato lógico, todos os `capacity_per_page` Slots estruturais correspondentes (ver LDM-32). Não existe Page estruturalmente parcial.
+
+**Status:** APPROVED
+
+## LDM-32 — Slot Skeleton, Position and Identity
+
+```text
+Slot
+├── id
+├── page_id
+├── row       (1..grid_rows)
+└── column    (1..grid_columns)
+```
+
+`(page_id, row, column)` é único. Slot identity (`id`) é estável e independente de `row`/`column` — posição é atributo, não identidade (C-41). Slot sobrevive a Move, Swap e Replace sem ser recriado; nasce/morre apenas junto com mudanças estruturais da Page (criação da Page, Grid Change futuro).
+
+**Status:** APPROVED
+
+## LDM-33 — Expected Content Skeleton
+
+```text
+Slot Expected Content
+├── id
+├── slot_id          (0..1 por Slot — relação opcional)
+├── card_id          (obrigatório)
+└── card_variant_id  (opcional — ausente = qualquer Variant da Card satisfaz)
+```
+
+Compatibilidade com a Slot Assignment corrente do mesmo Slot (LDM-35) é sempre derivada por comparação (`card_id`/`card_variant_id` do Expected Content vs. `card_variant_id` do Inventory Item posicionado via sua Card Variant), nunca persistida como segunda fonte de verdade. Mismatch não invalida a Slot Assignment (C-42). Expected Content nunca entra no denominador/numerador de completude (LDM-20 permanece a única fonte).
+
+**Status:** APPROVED
+
+## LDM-34 — Lock as Slot Attribute
+
+```text
+Slot
+└── locked   (atributo do próprio Slot — ver LDM-32)
+```
+
+Não existe atributo de Lock em Slot Assignment nem em Layout Region. Bloqueio de operações (Move/Swap/Replace/Remove/Drop/Bandeja/Merge/Unmerge) sobre um Slot locked segue C-43.
+
+**Status:** APPROVED
+
+## LDM-35 — Slot Assignment: Relation, Cardinality and Lifecycle
+
+```text
+Slot Assignment
+├── inventory_item_id
+└── slot_id
+```
+
+Pré-condição: `inventory_item_id.collection_id` deve ser igual ao `collection_id` do Layout ao qual `slot_id` pertence (via `slot_id → page_id → layout_id → collection_id`) — Slot Assignment exige alocação prévia à mesma Collection (C-44).
+
+Cardinalidade: no máximo uma Slot Assignment ativa por par (`inventory_item_id`, `layout_id`) — não uma restrição global por item; no máximo um `inventory_item_id` ativo por `slot_id`.
+
+Ciclo de vida conceitual (sem histórico/audit/timestamps — fora de escopo desta rodada):
+- **ADD** — nova Slot Assignment nasce.
+- **MOVE** — a mesma relação muda de `slot_id` (não é encerrada e recriada).
+- **SWAP** — duas relações existentes trocam mutuamente seu `slot_id`.
+- **REPLACE** — a Slot Assignment do item atual termina; nova Slot Assignment nasce para o item substituto, no mesmo `slot_id`.
+- **REMOVE / mover para Bandeja** — a Slot Assignment termina; nenhuma nova nasce.
+
+Slot Assignment não requer identidade de negócio/lifecycle própria além da relação de estado atual — ADD/MOVE/SWAP/REPLACE/REMOVE descrevem mudanças do estado atual de posicionamento, não eventos de uma entidade com identidade rastreável ao longo do tempo. Um identificador técnico de implementação, se existir, não constitui identidade de domínio. Histórico, audit trail, versionamento ou Undo/Redo persistente, se necessários no futuro, serão modelados separadamente, não como consequência automática desta relação.
+
+**Status:** APPROVED
+
+## LDM-36 — Bandeja: Explicitamente Não Modelada
+
+Bandeja não recebe skeleton físico nesta rodada — por C-45, é estado de UX/sessão, não estado de domínio persistente. Nenhuma tabela, campo ou relação é criada para representá-la. Se uma Slot Assignment "vai para a Bandeja" e a sessão termina sem reposicionamento, nenhuma mudança de estado persistido ocorreu — a Slot Assignment de origem nunca foi alterada; a UI simplesmente não a exibiu como ocupando o Slot durante a sessão de edição.
+
+Este comportamento está fechado conceitualmente, não é uma pendência aberta. Se um produto futuro exigir algum mecanismo de staging que sobreviva ao fechar/reabrir o Layout, isso seria um requisito/conceito de produto novo e distinto — não uma extensão ou pendência da Bandeja tal como definida aqui.
+
+**Status:** APPROVED (decisão explícita de não modelar)
+
+## LDM-37 — Layout Region Skeleton
+
+```text
+Layout Region
+├── id
+├── page_id
+└── (referência aos Slots agrupados — mecanismo físico exato, ex. tabela de junção vs. bounding box, não decidido nesta rodada)
+```
+
+Layout Region pertence a exatamente uma Page (C-46 — todos os Slots referenciados compartilham o mesmo `page_id`). Geometria: mínimo 2 Slots, contíguos, formando retângulo completo; sem sobreposição entre Regions (um Slot participa de no máximo uma Region ativa). Criar/remover uma Region não altera Slot Assignment nem Expected Content dos Slots envolvidos, e é bloqueada se qualquer Slot envolvido estiver `locked` (LDM-34).
+
+**Status:** APPROVED
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -478,9 +606,23 @@ Inventory Item
 MASTER_SET Collection
 └── Master Set Adopted Scope
     └── selected Card Variants
+
+Collection
+└── Collection Layout (0..N)
+    └── Page (0..N)
+        ├── Slot (N — derivado de Grid Configuration)
+        │   ├── Slot Expected Content (0..1)
+        │   ├── locked (atributo)
+        │   └── Slot Assignment (0..1, via Inventory Item)
+        └── Layout Region (0..N — agrupa Slots contíguos da mesma Page)
+
+Inventory Item
+└── Slot Assignment (0..1 por Layout — ver LDM-35)
 ```
 
 > Nota (2026-08-28): o bloco `Inventory Item → Owner` acima reflete o texto original; ver `checkpoint-2026-08-28.md` para o resumo de relacionamento vigente (`Inventory Item → Inventory → User`).
+>
+> Nota (2026-08-30): o bloco `Collection Layout` acima resume LDM-29 a LDM-37. `Storage Container` permanece inteiramente ortogonal a esta árvore — não aparece nela porque Layout é digital, nunca localização física (C-38/C-44).
 
 ---
 
@@ -524,8 +666,14 @@ Do **not** implement:
 11. Structurally mandatory Storage for Inventory Item creation.
 12. Automatic Inventory Item transfer when Collection ownership changes.
 13. Unconditional patrimonial authority for Collection Owner over items owned by other members.
+14. `Placement` como nome canônico de entidade/relação para o posicionamento de um Inventory Item num Slot — terminologia superada por `Slot Assignment` (LDM-35, C-44). O termo apareceu apenas em `ux-exploration-2026-08-29.md` e `checkpoint-2026-08-29.md` (produzidos durante a exploração do spike visual do Binder), nunca havia sido ratificado em C-*/LDM-* anteriores; a reimersão documental (`COLLECTIONS-DOMAIN-REENTRY-01`) confirmou a ausência de lastro canônico antes de a frente `COLLECTIONS-LAYOUT-MODELING` decidir o nome definitivo a adotar.
+15. Um Slot exigir ocupação (Slot Assignment) para existir, ou uma Slot Assignment exigir Expected Content prévio — ambas as relações são independentes entre si e da ocupação (C-41/C-42/C-44).
+16. Cardinalidade global de 1 Slot Assignment por Inventory Item (independente de Layout) — rejeitada em favor de 1 por par (Inventory Item, Layout), necessária para suportar múltiplos Layouts da mesma Collection (LDM-35).
+17. Slot Assignment criar implicitamente Collection Allocation (ou vice-versa) — as duas relações permanecem independentes; Slot Assignment apenas *exige* Collection Allocation prévia, nunca a cria (LDM-35).
 
 > Adendo (2026-08-28): também não implementar `owner_user_id` direto em Inventory Item, nem qualquer fluxo de aprovação patrimonial fundamentado em "Collection compartilhada com itens de múltiplos owners" — ver `checkpoint-2026-08-28.md`.
+>
+> Adendo (2026-08-30): ver `checkpoint-2026-08-30.md` para o diagnóstico completo de reconciliação da frente Collection Layout, incluindo a supersessão terminológica do item 14 acima.
 
 ---
 
@@ -556,6 +704,9 @@ A transversal Audit Log should preserve meaningful changes without forcing every
 ## Approval / Messaging
 A transversal Pending Action / Approval Request mechanism and User Inbox / Notification Center are required for multi-user operations requiring explicit approval. **Atualização 2026-08-28**: a motivação original (LDM-27) não se aplica mais; este mecanismo permanece como backlog transversal para outros cenários futuros (ex.: troca entre usuários), não para o cenário original.
 
+## Layout (Atualização 2026-08-30)
+Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region agora possuem checkpoint lógico (LDM-29 a LDM-37). Permanecem como dependências não resolvidas por este bloco: mecanismo físico de ordenação de Page (LDM-30); mecanismo de Grid Change em Layout existente (C-40); representação física de Layout Region (bounding box vs. tabela de junção, LDM-37); modelagem de artwork/conteúdo visual de Region; Undo/Redo e histórico de Slot Assignment (explicitamente adiados por D53/LDM-35).
+
 ---
 
 # 8. Current Architectural Checkpoint
@@ -567,9 +718,9 @@ Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-27 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28)**
+**LDM-01 through LDM-37 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24. `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification and for the current open point.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core) and LDM-29 through LDM-37 (Collection Layout, 2026-08-30). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification. `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point.
 
 ## Physical
 **NOT STARTED**
@@ -603,3 +754,4 @@ It must preserve:
 |---------|-----------|
 | 1.0 | Documento produzido no repositório de modelagem paralelo `mimikyu-modelagem-de-dados` — checkpoint LDM-01 a LDM-27 aprovado, LDM-28 como próxima decisão. |
 | 1.1 | Incorporado a `project-mimikyu` (2026-08-28, pedido explícito de Fabrício) em `docs/domain-modeling/collections/`. Adicionado banner de superação parcial (LDM-25/26/27 superseded, LDM-28 original void) refletindo decisões novas de simplificação do modelo de ownership registradas na mesma data em `checkpoint-2026-08-28.md`. Nenhum texto original removido ou reescrito — apenas anotado. |
+| 1.2 | **Bloco complementar Collection Layout, 2026-08-30.** Adicionadas LDM-29 a LDM-37 (Collection Layout, Page, Grid Configuration, Slot, Expected Content, Lock, Slot Assignment, Bandeja explicitamente não modelada, Layout Region), evitando colisão de numeração com o LDM-28 original (void, Seção 9) — que permanece void e não é reocupado, nem em conteúdo nem em número. Seção 4 (Canonical Relationship Summary) e Seção 6 (Superseded/Rejected, itens 14–17) atualizadas; item 14 registra a supersessão terminológica de `Placement` por `Slot Assignment`. Ver `checkpoint-2026-08-30.md` para o diagnóstico de reconciliação completo. |

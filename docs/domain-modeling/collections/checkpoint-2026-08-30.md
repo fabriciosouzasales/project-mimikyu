@@ -1,0 +1,126 @@
+# Collection — Checkpoint de Consolidação do Bloco Layout (2026-08-30)
+
+| Campo | Valor |
+|--------|-------|
+| **Documento** | Checkpoint de Consolidação — Collection Layout / Page / Slot |
+| **Arquivo** | `docs/domain-modeling/collections/checkpoint-2026-08-30.md` |
+| **Data** | 2026-08-30 |
+| **Origem** | `COLLECTIONS-LAYOUT-MODELING-CONSOLIDATION-01` — encerramento formal de dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`), conduzidas nesta mesma janela de sessão, sobre o núcleo `Collection Layout`/`Page`/`Slot`/`Expected Content`/`Lock`/`Slot Assignment`/`Bandeja`/`Layout Region`. |
+| **Objetivo** | Registrar o diagnóstico de reconciliação entre as decisões de trabalho das dez rodadas e o corpus canônico (`concept-decisions.md`, `logical-model.md`), e apontar para os novos C-38–C-46 / LDM-29–LDM-37 já incorporados. |
+| **Documentos Relacionados** | `concept-decisions.md` (C-38 a C-46, novo bloco), `logical-model.md` (LDM-29 a LDM-37, novo bloco), `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md` (§5, itens 4–5, agora resolvidos — ver Seção 3 abaixo), `ux-exploration-2026-08-29.md` (§"Implicações", itens 3/5/8, terminologia superada — ver Seção 4), `pkmnbindr-benchmark.md` (§4, §13, §29 — prior art não-normativo, usado como evidência, não como fonte de decisão). |
+
+---
+
+## 1. Estado que este checkpoint assume como ponto de partida
+
+- Conceitual: `concept-decisions.md`, C-01 a C-37 — CLOSED, inalterado por este checkpoint. C-38 a C-46 — novo bloco, Aprovado nesta rodada.
+- Lógico: `logical-model.md`, LDM-01 a LDM-24 — inalteradas. LDM-25/26/27 — seguem superseded (`checkpoint-2026-08-28.md`). LDM-28 original — segue void em conteúdo e não é reocupado, nem em conteúdo nem em número; o bloco novo abre em LDM-29 (a LDM-37) para evitar colisão com essa numeração void — novo bloco, Aprovado nesta rodada.
+- Físico: NÃO iniciado — continua não iniciado após este checkpoint.
+- `checkpoint-2026-08-29.md` §5, itens 4 e 5 (próximo foco declarado: "modelo formal de Slot/Placement" e "se/como a Bandeja precisa de representação formal") — **resolvidos por este checkpoint**, ver Seção 3.
+
+---
+
+## 1.1 Status desta subfrente
+
+**Collections — Layout/Page/Slot conceptual modeling: CLOSED**
+
+Isto **não** significa que Collections como um todo esteja completo. Significa apenas que o núcleo conceitual desta subfrente — Layout, Page, Slot, Lock, Expected Content, Slot Assignment, Bandeja (Tray) e Layout Region — está suficientemente fechado nesta etapa (C-38–C-46, LDM-29–LDM-37). Seguem explicitamente fora deste fechamento e em aberto: Grid Change, artwork de Layout Region, histórico/Undo-Redo de Slot Assignment (Seção 6), e todos os pontos já listados em `checkpoint-2026-08-28.md` §9 (Inventory, Favorite, transferência entre usuários, Storage, permissões, Audit Log).
+
+---
+
+## 2. Diagnóstico de reconciliação
+
+### 2.1 — Decisões reutilizadas (fundação já existente, não alterada)
+
+O núcleo das dez rodadas se apoiou consistentemente em decisões já fechadas, sem contradizer nenhuma:
+
+- **C-04 / C-28** — alocação colecionável é independente de localização física; base direta para "Collection Allocation independe de Slot Assignment" (C-44).
+- **C-16 / C-17 / C-25–C-27** — Storage é dimensão independente de Collection; base direta para "Layout é independente de Storage" (C-38).
+- **C-19 / C-20 / LDM-20** — completude é derivada exclusivamente da alocação à Collection frente ao universo de referência; base direta para "Expected Content não participa de completude" (C-42).
+- **C-24** — layout físico/visual é livre e não determina ordem lógica; base conceitual direta de todo o bloco Layout, citada explicitamente ao longo das dez rodadas.
+- **C-26** — Collection Item pode existir sem Storage; usada por dedução direta para responder a Questão 1 da rodada 01 ("Collection Allocation pode existir sem Slot Assignment") — não uma escolha nova, uma consequência lógica de C-26 já aprovada.
+- **LDM-06** — rejeição de estrutura polimórfica solta (`reference_type + reference_id`) em favor de FKs fortes por subtipo — usada por analogia repetidamente para preferir entidades próprias com FKs explícitas (Slot Assignment, Expected Content, Layout Region) a atributos genéricos ou ponteiros soltos.
+- **LDM-19/LDM-23/LDM-24** — identidade única do Inventory Item, independente de Collection/Storage — usada por analogia direta para justificar identidade estável de Slot e Page (C-39/C-41).
+- **C.2 (Parte C, diretriz de UX)** — já antecipava "um slot não precisa obrigatoriamente conter um Collection Item" e "elementos visuais personalizados" distintos de slot — confirmado e formalizado, não contradito.
+- **`pkmnbindr-benchmark.md` §4** (não-normativo) — esboço `Binder Slot { expected_card/variant, inventory_item = NULL }` e a distinção quádrupla Wishlist/Binder Slot/Inventory Item/Completion Requirement — usado como evidência de prior art para C-41/C-42, nunca como fonte de decisão por si só.
+
+### 2.2 — Decisões novas (convertidas para C-38–C-46 / LDM-29–LDM-37)
+
+Todas as decisões de trabalho rotuladas D1–D69 ao longo das dez rodadas foram sintetizadas — não copiadas 1:1 — nos novos registros:
+
+| Tema | Conceitual | Lógico |
+|---|---|---|
+| Collection Layout como entidade independente de Storage | C-38 | LDM-29 |
+| Page como unidade estrutural estável | C-39 | LDM-30 |
+| Grid Configuration no Layout, capacidade derivada | C-40 | LDM-31 |
+| Slot: identidade ≠ posição, row/column 1-based | C-41 | LDM-32 |
+| Expected Content: Card obrigatória + Variant opcional | C-42 | LDM-33 |
+| Lock: propriedade do Slot | C-43 | LDM-34 |
+| Slot Assignment: relação, cardinalidade, ciclo de vida | C-44 | LDM-35 |
+| Bandeja: estado transitório de UX, não modelada fisicamente | C-45 | LDM-36 |
+| Layout Region (Merge): entidade persistente, geometria retangular | C-46 | LDM-37 |
+
+Decisões de trabalho que **não** viraram registro canônico próprio, por já estarem cobertas ou por serem iteração interna do próprio raciocínio das dez rodadas (não noise a preservar, per convenção de 2026-07-24 de `CLAUDE.md`): a hipótese intermediária de "Grid Size por Page" (rodada 03), corrigida na própria rodada 04 antes de qualquer registro canônico — nunca chegou a ser decisão fechada, não gera entrada de "superseded" no corpus oficial.
+
+### 2.3 — Decisões superseded
+
+- **Terminologia "Placement"** — usada em `ux-exploration-2026-08-29.md` (itens 3, 5, 8 de "Implicações dos spikes") e em `checkpoint-2026-08-29.md` §5 (itens 4–5) como nome de trabalho para a relação Inventory Item × Slot. Nunca teve lastro em C-*/LDM-* anteriores (confirmado por `COLLECTIONS-DOMAIN-REENTRY-01`). Superada por **Slot Assignment** (C-44/LDM-35), registrado explicitamente como item 14 da lista de hipóteses rejeitadas em `logical-model.md` §6.
+- **Classificação de Lock em `ux-exploration-2026-08-29.md` item 5** ("Lock protege... o placement (slot)... não é uma propriedade da carta") — a conclusão prática já estava certa (Lock não segue a carta), mas o termo "placement (slot)" conflava, sem distinguir, o Slot e a relação de ocupação. A investigação fresca da rodada 06 (explicitamente instruída a não presumir a partir do spike) precisou e corrigiu: Lock é propriedade do **Slot**, não da Slot Assignment — mesma conclusão prática, terminologia agora precisa (C-43/LDM-34). Não é uma reversão de comportamento, é uma correção de precisão conceitual.
+- **`checkpoint-2026-08-29.md` §5, itens 4 e 5** — "modelo formal de Slot/Placement" e "se/como a Bandeja precisa de representação formal" — ambos **resolvidos** por este checkpoint (C-41/C-44/LDM-32/LDM-35 para o primeiro; C-45/LDM-36 para o segundo, que resolve explicitamente como "não modelar fisicamente").
+
+### 2.4 — Conflitos encontrados
+
+**Nenhum conflito impeditivo.** As decisões novas se encaixam como extensão consistente do que já existia — nenhuma contradiz C-01–C-37 ou LDM-01–LDM-24 vigentes. A única divergência real (terminologia "Placement") já estava sinalizada como não-canônica desde `COLLECTIONS-DOMAIN-REENTRY-01` (rodada anterior a esta consolidação), não uma surpresa desta rodada.
+
+---
+
+## 3. `checkpoint-2026-08-29.md` §5 — itens resolvidos
+
+| Item (texto original) | Status | Resolução |
+|---|---|---|
+| 4. "modelo formal de `Slot`/`Placement`" | **Resolvido** | C-41/C-44, LDM-32/LDM-35 |
+| 5. "se e como a Bandeja/estado 'sem placement' precisa de representação formal" | **Resolvido** | C-45, LDM-36 — decisão explícita de **não** modelar fisicamente; Bandeja permanece estado de UX/sessão |
+
+`checkpoint-2026-08-29.md` não foi editado — permanece como registro histórico do estado em 2026-08-29/30 antes desta consolidação, per convenção de preservar o histórico de decisões (`03-documentation-architecture.md`). Este checkpoint aponta para lá, não o reescreve.
+
+---
+
+## 4. `ux-exploration-2026-08-29.md` — nota de supersessão terminológica
+
+Não editado (mesma razão da Seção 3). Registro aqui, não lá: os itens 3, 5 e 8 de "Implicações dos spikes para o modelo de Collections" usam "Placement" como termo — leia-se "Slot Assignment" (C-44) em todas as ocorrências ao consultar aquele documento daqui em diante. O item 5 especificamente ("Lock protege... o placement (slot)") deve ser lido com a precisão adicional de C-43: Lock é propriedade do Slot, não de uma relação de ocupação.
+
+---
+
+## 5. O que este checkpoint explicitamente NÃO faz
+
+- Não altera código.
+- Não cria migration, tabela, RPC, rota ou componente.
+- Não reabre C-01–C-37 nem LDM-01–LDM-24.
+- Não modela Grid Change, artwork de Layout Region, ou histórico/audit/Undo-Redo de Slot Assignment — permanecem em aberto (Seção 6). Bandeja **não** está nessa lista: seu comportamento está conceitualmente fechado por C-45/LDM-36 (estado transitório de UX, sem persistência de domínio) — não é uma pendência desta consolidação.
+- Não faz commit/push.
+
+---
+
+## 6. Próxima decisão em aberto (para quando a modelagem lógica for retomada)
+
+Combinando o que já estava aberto em `checkpoint-2026-08-28.md` §9 com o que emergiu desta frente:
+
+1. Transferência de Inventory Item entre Inventories de usuários diferentes (já aberto).
+2. Modelo físico de `Inventory` — cardinalidade, criação automática vs. explícita (já aberto).
+3. Modelo de `Favorite` — cardinalidade, dono, uso (já aberto).
+4. **Novo**: mecanismo físico de Grid Change em um Layout já existente (migração no lugar vs. novo Layout) — C-40 reconhece a necessidade, não resolve o mecanismo.
+5. **Novo**: representação física de Layout Region (tabela de junção vs. bounding box) e modelagem de conteúdo visual/artwork de Region — C-46/LDM-37 explicitamente não modelam.
+6. **Novo**: mecanismo físico de ordenação de Page (índice sequencial, linked list, rank/order key) — LDM-30 fixa só que Page identity ≠ Page order, não o mecanismo.
+7. **Novo**: histórico, audit trail, versionamento ou Undo/Redo de Slot Assignment — LDM-35 explicitamente adia, não modela.
+8. Pontos já listados em `logical-model.md` §7 e reafirmados nos checkpoints anteriores, não afetados por este: Storage (ownership, sharing, movimentação), matriz de permissões completa de Collection Member, Audit Log transversal.
+
+**Nota sobre a Bandeja**: não é uma decisão em aberto desta modelagem. D54–D59 (incorporadas em C-45/LDM-36) fecharam conceitualmente que a Bandeja é estado transitório de UX, não é entidade de domínio, não possui persistência, e que sair do Layout descarta o estado transitório preservando o estado persistido original. Se no futuro surgir uma necessidade real de staging persistente, isso será um requisito/conceito de produto novo — não uma pendência da Bandeja tal como definida aqui.
+
+---
+
+## Revision History
+
+| Versão | Descrição |
+|---------|-----------|
+| 1.0 | Criação deste checkpoint (2026-08-30) — consolida dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`) sobre Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Bandeja/Layout Region. Registra diagnóstico de reconciliação (decisões reutilizadas, novas, superseded, conflitos), aponta para C-38–C-46 e LDM-29–LDM-37 já incorporados a `concept-decisions.md`/`logical-model.md`, resolve `checkpoint-2026-08-29.md` §5 itens 4–5, e declara a próxima decisão em aberto. |
+| 1.1 | **Verificação final (`COLLECTIONS-LAYOUT-CONSOLIDATION-VERIFY-01`), a pedido explícito de Fabrício, antes de qualquer commit.** Removida "persistência futura da Bandeja" da lista de decisões abertas (Seção 5 e Seção 6) — D54–D59/C-45/LDM-36 já fecham esse comportamento conceitualmente; qualquer staging persistente futuro seria requisito de produto novo, não pendência da Bandeja atual. Adicionada Seção 1.1 com o status formal da subfrente ("Collections — Layout/Page/Slot conceptual modeling: CLOSED", com o escopo exato do que isso cobre e não cobre). `concept-decisions.md` C-44 recebeu parágrafo explícito confirmando que Slot Assignment não requer identidade de lifecycle própria no nível conceitual (ponto já presente em LDM-35, agora também na camada conceitual). Confirmado via `git status`/`git diff --stat`: exatamente 5 arquivos alterados nesta subfrente (4 modificados + 1 novo, 0 deletados) — nenhuma alteração fora do escopo esperado. |
