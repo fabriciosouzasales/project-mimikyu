@@ -5,22 +5,24 @@
 | **Documento** | Collection — Logical Data Model (Checkpoint Lógico) |
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30) |
+| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner) |
 | **Status** | Checkpoint lógico em evolução — modelo físico ainda NÃO iniciado |
-| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Inventory Item`) e, desde 2026-08-30, de `Collection Layout`/`Page`/`Slot`/`Slot Assignment` — não contém SQL nem modelo físico. |
-| **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-46, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
+| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48) e, desde 2026-08-30, de `Collection Layout`/`Page`/`Slot`/`Slot Assignment` — não contém SQL nem modelo físico. |
+| **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-48, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
 ---
 
 > ⚠️ **Banner de superação parcial (2026-08-28) — ler antes de aplicar este documento.**
-> Em 2026-08-28, Fabrício registrou decisões adicionais que simplificam o modelo de ownership de `Inventory Item` (ver `checkpoint-2026-08-28.md`, fonte canônica vigente para os pontos abaixo). Como consequência, **este documento contém três seções que não devem mais ser implementadas como escritas**:
+> Em 2026-08-28, Fabrício registrou decisões adicionais que simplificam o modelo de ownership de `Physical Card` (nome vigente desde 2026-08-30; o registro original de 2026-08-28 usava `Inventory Item` — ver nota de convergência terminológica abaixo) (ver `checkpoint-2026-08-28.md`, fonte canônica vigente para os pontos abaixo). Como consequência, **este documento contém três seções que não devem mais ser implementadas como escritas**:
 >
-> - **LDM-25 (Inventory Item Ownership)** — SUPERSEDED. `Inventory Item` deixa de ter `owner_user_id` próprio; a posse deriva transitivamente de `Inventory` (ver checkpoint).
-> - **LDM-26 (Inventory Item Ownership Transfer)** — SUPERSEDED. Transferência de posse deixa de ser uma operação sobre o item individual; torna-se uma questão de transferência entre `Inventory`s, ainda não modelada.
-> - **LDM-27 (Operational Authority and Approval for Patrimonial Actions)** — SUPERSEDED. O cenário que motivava esta seção (Collection compartilhada contendo itens de múltiplos owners) deixa de existir: uma Collection só aloca `Inventory Items` do `Inventory` do seu próprio dono (ver checkpoint). O conceito de aprovação/patrimonial pode voltar a ser necessário para outros cenários futuros (ex.: troca entre usuários), mas não pela razão original aqui registrada.
-> - O tópico de continuação original, **"LDM-28 — Removing a Collection Member Who Still Owns Inventory Items Allocated to the Collection"** (Seção 9, abaixo), está **void** — sua premissa (membro possuir itens alocados na Collection) não pode mais ocorrer, já que Members nunca introduzem Inventory Items próprios na Collection. Um novo tópico de LDM-28 precisa ser aberto quando a modelagem lógica for retomada; este documento não o antecipa.
+> - **LDM-25 (Inventory Item Ownership)** — SUPERSEDED. `Physical Card` deixa de ter `owner_user_id` próprio; a posse deriva transitivamente de `Inventory` (ver checkpoint e, desde 2026-08-30, LDM-23 revisada abaixo).
+> - **LDM-26 (Inventory Item Ownership Transfer)** — SUPERSEDED. Transferência de posse deixa de ser uma operação sobre o item individual; torna-se uma questão de transferência entre `Inventory`s, ainda não modelada em detalhe (ver LDM-23 revisada para a regra de cardinalidade que a governa).
+> - **LDM-27 (Operational Authority and Approval for Patrimonial Actions)** — SUPERSEDED. O cenário que motivava esta seção (Collection compartilhada contendo itens de múltiplos owners) deixa de existir: uma Collection só aloca `Physical Cards` do `Inventory` do seu próprio dono (ver checkpoint). O conceito de aprovação/patrimonial pode voltar a ser necessário para outros cenários futuros (ex.: troca entre usuários), mas não pela razão original aqui registrada.
+> - O tópico de continuação original, **"LDM-28 — Removing a Collection Member Who Still Owns Inventory Items Allocated to the Collection"** (Seção 9, abaixo, título preservado tal como escrito originalmente), está **void** — sua premissa (membro possuir itens alocados na Collection) não pode mais ocorrer, já que Members nunca introduzem `Physical Cards` próprias na Collection. Um novo tópico de LDM-28 precisa ser aberto quando a modelagem lógica for retomada; este documento não o antecipa.
 >
-> **LDM-01 a LDM-24 permanecem válidas e não afetadas.** O texto original abaixo é preservado integralmente por rastreabilidade (mesma disciplina de "não contradizer silenciosamente" que o próprio documento estabelece na Seção 6) — a autoridade vigente para os pontos superados é `checkpoint-2026-08-28.md`, não esta seção.
+> **LDM-01 a LDM-22 e LDM-24 permanecem válidas e não afetadas.** O texto original das seções superseded acima é preservado integralmente por rastreabilidade (mesma disciplina de "não contradizer silenciosamente" que o próprio documento estabelece na Seção 6) — a autoridade vigente para os pontos superados é `checkpoint-2026-08-28.md`, não esta seção.
+>
+> **Nota de convergência terminológica (2026-08-30).** Por decisão de Fabrício em `concept-decisions.md` (C-47/C-48), o termo canônico do exemplar físico passa a ser **`Physical Card`**, substituindo tanto `Collection Item` (nome original deste documento) quanto `Inventory Item` (nome introduzido pela reconciliação de 2026-08-28). Este documento foi revisado de ponta a ponta para usar `Physical Card` em todo texto normativo vigente (Seções 2 a 8, LDM-01 a LDM-24 e LDM-29 a LDM-37) — apenas o nome mudou; nenhuma decisão de conteúdo (cardinalidade, campos, comportamento) foi alterada por este motivo isoladamente. **LDM-23** foi, adicionalmente, revisada em conteúdo nesta mesma data: deixa de apenas apontar para o checkpoint e passa a formalizar diretamente, no nível lógico, a regra de cardinalidade corrente entre `Physical Card` e `Inventory` (contraparte lógica de C-48) — ver LDM-23 abaixo. O texto original de LDM-25, LDM-26, LDM-27 e da Seção 9 (marcados SUPERSEDED/void) foi deliberadamente **preservado com a terminologia antiga**, por ser texto histórico citado verbatim — não foi convergido.
 
 ---
 
@@ -42,7 +44,7 @@ Only the **current canonical decisions** are recorded. Intermediate proposals th
 ### Current modeling status
 
 - Conceptual model: **C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout, 2026-08-30, ver `concept-decisions.md`)
-- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30)
+- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima; LDM-23 revisada 2026-08-30 — `Physical Card` & cardinalidade corrente com `Inventory`); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30)
 - Physical model: **NOT STARTED**
 
 ---
@@ -51,14 +53,14 @@ Only the **current canonical decisions** are recorded. Intermediate proposals th
 
 The model preserves the separation between:
 
-- **Inventory Item:** physical card copy owned by a user.
-- **Collection:** collecting objective to which a physical copy may be allocated.
+- **Physical Card:** permanent identity of one physical copy of a Card Variant (canonical name since 2026-08-30; superseded names: `Collection Item`, `Inventory Item` — see `concept-decisions.md`, C-47).
+- **Collection:** collecting objective to which a Physical Card may be allocated.
 - **Storage Container:** where the physical copy is stored.
 - **Wishlist:** what the user wants to acquire.
 
 > Owning, allocating, storing, completing and wishing are distinct concerns.
 
-Every physical Inventory Item is based on exactly one **Card Variant**.
+Every Physical Card is based on exactly one **Card Variant**. Current ownership of a Physical Card is aggregated by exactly one **Inventory** at a time (see LDM-23).
 
 ---
 
@@ -75,7 +77,7 @@ Every Collection has exactly one explicit Owner through `owner_user_id`. Ownersh
 **Status:** APPROVED
 
 ## LDM-03 — Collection Member
-Shared access is represented separately through `Collection Member`, relating Collection, User, permission profile and effective permissions. UX presets may simplify assignment, but effective permissions remain authoritative. The Owner is not simultaneously a normal Collection Member. Collection + User is unique. The complete permission matrix will be finalized after Collection Item/Inventory, Storage and Layout responsibilities are sufficiently modeled.
+Shared access is represented separately through `Collection Member`, relating Collection, User, permission profile and effective permissions. UX presets may simplify assignment, but effective permissions remain authoritative. The Owner is not simultaneously a normal Collection Member. Collection + User is unique. The complete permission matrix will be finalized after Physical Card/Inventory, Storage and Layout responsibilities are sufficiently modeled.
 
 **Status:** APPROVED
 
@@ -107,9 +109,9 @@ A loose polymorphic `reference_type + reference_id` structure is rejected. Each 
 **Status:** APPROVED
 
 ## LDM-07 — Reference Consolidation
-A reference may be changed while the Collection has never received an Inventory Item. Current item count is insufficient because a Collection may have contained items and later become empty.
+A reference may be changed while the Collection has never received a Physical Card. Current item count is insufficient because a Collection may have contained items and later become empty.
 
-Collection persists `reference_locked_at`. On the first effective Inventory Item association, the reference is consolidated and `reference_locked_at` is set. In normal flow it never returns to `NULL`.
+Collection persists `reference_locked_at`. On the first effective Physical Card allocation, the reference is consolidated and `reference_locked_at` is set. In normal flow it never returns to `NULL`.
 
 **Status:** APPROVED
 
@@ -147,7 +149,7 @@ An archived Collection may remain public.
 **Status:** APPROVED
 
 ## LDM-10 — Default Storage Container
-Collection may define `default_storage_container_id`. It is an operational/UX default and does not mean every item must reside there. A Storage Container may be default for multiple Collections. Changing the default does not move existing Inventory Items.
+Collection may define `default_storage_container_id`. It is an operational/UX default and does not mean every item must reside there. A Storage Container may be default for multiple Collections. Changing the default does not move existing Physical Cards.
 
 **Status:** APPROVED — ⚠️ **redação parcialmente superada em 2026-08-28**: a frase "Collection *may* define" tratava o campo como opcional. `checkpoint-2026-08-28.md` registra que **C-36 prevalece sobre esta redação**: `default_storage_container_id` é **obrigatório**, definido na criação da Collection (a semântica operacional descrita aqui — default de UX, não exclusividade, não move itens existentes — permanece correta e válida).
 
@@ -161,7 +163,7 @@ Business milestones:
 - `reference_locked_at`
 - `archived_at`
 
-`started_at` = first effective Inventory Item association and applies to open/reference-based Collections. `completed_at` is not persisted because completion is reversible.
+`started_at` = first effective Physical Card allocation and applies to open/reference-based Collections. `completed_at` is not persisted because completion is reversible.
 
 **Status:** APPROVED
 
@@ -266,11 +268,11 @@ Each position may be adopted at most once. Adoption metadata preserves when/by w
 
 **Status:** APPROVED
 
-## LDM-17 — Inventory Item Eligibility
+## LDM-17 — Physical Card Eligibility
 Eligibility validates only the canonical universe; there is no arbitrary user-defined rule engine.
 
 - Open Curation: no canonical-universe restriction.
-- Card Set: Inventory Item's Card must belong to referenced Card Set.
+- Card Set: Physical Card's Card must belong to referenced Card Set.
 - Pokédex: Card's principal Pokémon must correspond to a Pokédex Position in the Adopted Scope.
 
 Language, rarity, variant and aesthetic preferences do not independently restrict eligibility unless a future explicit completion requirement uses them. Eligibility is derived, not stored as `is_eligible`. Eligibility and completion are independent.
@@ -288,7 +290,7 @@ Card (category = POKEMON)
 Eligibility path:
 
 ```text
-Inventory Item
+Physical Card
 → Card Variant
 → Card
 → pokemon_id
@@ -301,11 +303,11 @@ The earlier N:N Card ↔ Pokémon hypothesis is superseded and must not be imple
 
 **Status:** APPROVED
 
-## LDM-19 — Inventory Item Always Originates from Card Variant
-Every physical Inventory Item references exactly one Card Variant regardless of Collection type.
+## LDM-19 — Physical Card Always Originates from Card Variant
+Every Physical Card references exactly one Card Variant regardless of Collection type.
 
 ```text
-Inventory Item
+Physical Card
 → Card Variant
 → Card
 ```
@@ -327,7 +329,7 @@ Requirements depend on `completion_policy`:
 - `MASTER_SET`: Card Variants explicitly selected in the Collection's Master Set Adopted Scope.
 - `REFERENCE_POSITION`: each Pokédex Position in Adopted Scope.
 
-Numerator = distinct requirements satisfied by at least one Inventory Item allocated to Collection. Duplicates do not create additional satisfied requirements. Counts/percentages may later be materialized for performance but are not canonical truth.
+Numerator = distinct requirements satisfied by at least one Physical Card allocated to Collection. Duplicates do not create additional satisfied requirements. Counts/percentages may later be materialized for performance but are not canonical truth.
 
 **Status:** APPROVED
 
@@ -344,7 +346,7 @@ Collection Master Set Scope
 
 The source of truth is explicit individual `card_variant_id` selection. Variant types/presets/bulk tools are UX mechanisms only.
 
-The user may include/exclude special variants such as Jumbo, League, Tournament and others. Scope may expand or shrink. Removing a variant changes completion requirements only; it does not delete Inventory Items or remove them from Collection.
+The user may include/exclude special variants such as Jumbo, League, Tournament and others. Scope may expand or shrink. Removing a variant changes completion requirements only; it does not delete Physical Cards or remove them from Collection.
 
 Full historical changes belong to Audit Log.
 
@@ -356,7 +358,7 @@ The canonical Card Variant list of a validated Card Set is stable after its init
 Card Set Collections may change:
 - `STANDARD_SET ↔ MASTER_SET`
 
-Changing policy does not modify/remove Inventory Items.
+Changing policy does not modify/remove Physical Cards.
 
 When switching to Master Set, the user explicitly validates the Master Set Adopted Scope. When switching to Standard Set, prior Master Set Scope may be preserved but is inactive. If returning to Master Set, it may be restored.
 
@@ -370,26 +372,30 @@ Denominator changes are conscious user changes to the collecting objective, not 
 
 **Status:** APPROVED
 
-## LDM-23 — Single Canonical Identity for the Physical Item
-The physical copy has one canonical Inventory identity. Association with Collection does not create a second physical identity.
+## LDM-23 — Physical Card: Canonical Identity and Current Inventory Membership
+The physical copy has one canonical identity: **Physical Card** (canonical name since 2026-08-30; superseded names, in order of adoption: `Collection Item`, then `Inventory Item` — see `concept-decisions.md`, C-47/C-48). Association with a Collection does not create a second physical identity, and neither does current membership in an Inventory.
 
 ```text
-Inventory Item
+Physical Card
 ├── id
-├── owner_user_id
 ├── card_variant_id
-├── collection_id (0..1)
-└── storage_container_id (0..1)
+├── inventory_id          (0..1 — see cardinality rule below)
+├── collection_id         (0..1)
+└── storage_container_id  (0..1)
 ```
 
-An Inventory Item associated with Collection plays the contextual role previously described as a `Collection Item`.
+A Physical Card associated with a Collection plays the contextual role previously described as a `Collection Item`.
 
-It may exist without Collection, enter one, leave it, or move to another while retaining identity. It may belong to at most one Collection at a time. Collection allocation and physical Storage are independent.
+**Cardinality with Inventory (current ownership).** A Physical Card under MMKYU-tracked current ownership participates in exactly one Inventory at a time — `inventory_id` is functionally 1:1 while tracked, and a Physical Card cannot participate in more than one current Inventory simultaneously. `inventory_id` may be null: a Physical Card can exist without a current Inventory when its ownership exits MMKYU's tracked scope (e.g. an external sale). This does not delete the Physical Card or its history — only current patrimonial ownership becomes untracked. Transferring a Physical Card between two MMKYU Users' Inventories preserves the same Physical Card identity: it is a change of `inventory_id`, not the creation of a new Physical Card. This is the logical-layer formalization of C-48.
 
-**Status:** APPROVED — ⚠️ **skeleton parcialmente superado em 2026-08-28**: o campo `owner_user_id` acima é substituído por `inventory_id` (Inventory Item pertence ao `Inventory`, não diretamente ao User) — ver `checkpoint-2026-08-28.md`. A identidade única do exemplar físico (o ponto central desta decisão) permanece válida e não afetada.
+It may exist without Collection, enter one, leave it, or move to another while retaining identity. It may belong to at most one Collection at a time. Collection allocation and physical Storage are independent of each other and of current Inventory membership.
 
-## LDM-24 — Inventory Item and Storage Container
-Every Inventory Item must reference exactly one Card Variant. Storage is optional (`0..1`).
+**Status:** APPROVED (revisado 2026-08-30)
+
+> **Nota de proveniência (2026-08-30).** Este texto substitui diretamente a versão original de LDM-23 (que usava `owner_user_id` direto e não formalizava, no nível lógico, a regra de cardinalidade corrente com `Inventory`) e o banner de superação parcial de 2026-08-28 que a acompanhava (o skeleton `owner_user_id → inventory_id` mencionado ali). Não se trata de uma nova decisão isolada: é a primeira formalização, no nível lógico, da regra que `checkpoint-2026-08-28.md` §2.3–2.4 e os memos de modelagem de Inventory (nunca promovidos a LDM) descreviam apenas informalmente. Contraparte conceitual: C-47/C-48 em `concept-decisions.md`. O texto original desta seção permanece preservado no histórico de versões do repositório (git) e é referenciado, tal como escrito, na Revision History deste documento (linha 1.1).
+
+## LDM-24 — Physical Card and Storage Container
+Every Physical Card must reference exactly one Card Variant. Storage is optional (`0..1`).
 
 An item may temporarily have no defined location, supporting recent acquisitions, bulk imports, temporary reorganization or unknown location.
 
@@ -518,7 +524,7 @@ Slot Expected Content
 └── card_variant_id  (opcional — ausente = qualquer Variant da Card satisfaz)
 ```
 
-Compatibilidade com a Slot Assignment corrente do mesmo Slot (LDM-35) é sempre derivada por comparação (`card_id`/`card_variant_id` do Expected Content vs. `card_variant_id` do Inventory Item posicionado via sua Card Variant), nunca persistida como segunda fonte de verdade. Mismatch não invalida a Slot Assignment (C-42). Expected Content nunca entra no denominador/numerador de completude (LDM-20 permanece a única fonte).
+Compatibilidade com a Slot Assignment corrente do mesmo Slot (LDM-35) é sempre derivada por comparação (`card_id`/`card_variant_id` do Expected Content vs. `card_variant_id` da Physical Card posicionada via sua Card Variant), nunca persistida como segunda fonte de verdade. Mismatch não invalida a Slot Assignment (C-42). Expected Content nunca entra no denominador/numerador de completude (LDM-20 permanece a única fonte).
 
 **Status:** APPROVED
 
@@ -537,13 +543,13 @@ Não existe atributo de Lock em Slot Assignment nem em Layout Region. Bloqueio d
 
 ```text
 Slot Assignment
-├── inventory_item_id
+├── physical_card_id   (nome de campo atualizado 2026-08-30; anteriormente inventory_item_id)
 └── slot_id
 ```
 
-Pré-condição: `inventory_item_id.collection_id` deve ser igual ao `collection_id` do Layout ao qual `slot_id` pertence (via `slot_id → page_id → layout_id → collection_id`) — Slot Assignment exige alocação prévia à mesma Collection (C-44).
+Pré-condição: `physical_card_id.collection_id` deve ser igual ao `collection_id` do Layout ao qual `slot_id` pertence (via `slot_id → page_id → layout_id → collection_id`) — Slot Assignment exige alocação prévia à mesma Collection (C-44).
 
-Cardinalidade: no máximo uma Slot Assignment ativa por par (`inventory_item_id`, `layout_id`) — não uma restrição global por item; no máximo um `inventory_item_id` ativo por `slot_id`.
+Cardinalidade: no máximo uma Slot Assignment ativa por par (`physical_card_id`, `layout_id`) — não uma restrição global por item; no máximo um `physical_card_id` ativo por `slot_id`.
 
 Ciclo de vida conceitual (sem histórico/audit/timestamps — fora de escopo desta rodada):
 - **ADD** — nova Slot Assignment nasce.
@@ -594,8 +600,8 @@ Collection
         └── Adopted Scope
             └── Pokédex Positions
 
-Inventory Item
-├── Owner
+Physical Card
+├── Inventory (0..1 — current tracked ownership; ver LDM-23)
 ├── Card Variant
 │   └── Card
 │       ├── Card Set
@@ -613,14 +619,14 @@ Collection
         ├── Slot (N — derivado de Grid Configuration)
         │   ├── Slot Expected Content (0..1)
         │   ├── locked (atributo)
-        │   └── Slot Assignment (0..1, via Inventory Item)
+        │   └── Slot Assignment (0..1, via Physical Card)
         └── Layout Region (0..N — agrupa Slots contíguos da mesma Page)
 
-Inventory Item
+Physical Card
 └── Slot Assignment (0..1 por Layout — ver LDM-35)
 ```
 
-> Nota (2026-08-28): o bloco `Inventory Item → Owner` acima reflete o texto original; ver `checkpoint-2026-08-28.md` para o resumo de relacionamento vigente (`Inventory Item → Inventory → User`).
+> Nota (2026-08-28, terminologia atualizada 2026-08-30): o bloco `Physical Card → Inventory` acima reflete o modelo vigente (`Physical Card → Inventory → User`); o texto original desta seção usava `Owner` direto (`Inventory Item → Owner`) — ver `checkpoint-2026-08-28.md` e LDM-23 (revisada) para a regra de cardinalidade completa.
 >
 > Nota (2026-08-30): o bloco `Collection Layout` acima resume LDM-29 a LDM-37. `Storage Container` permanece inteiramente ortogonal a esta árvore — não aparece nela porque Layout é digital, nunca localização física (C-38/C-44).
 
@@ -634,15 +640,15 @@ NONE
 
 STANDARD_SET
 → denominator = Cards of referenced Card Set
-→ Inventory Item → Card Variant → Card
+→ Physical Card → Card Variant → Card
 
 MASTER_SET
 → denominator = Card Variants selected in Master Set Adopted Scope
-→ Inventory Item → Card Variant
+→ Physical Card → Card Variant
 
 REFERENCE_POSITION / POKEDEX
 → denominator = Pokédex Positions in Adopted Scope
-→ Inventory Item → Card Variant → Card → Pokemon → Pokédex Position
+→ Physical Card → Card Variant → Card → Pokemon → Pokédex Position
 ```
 
 Completion is derived. Inventory quantity is not equivalent to completion progress.
@@ -660,20 +666,22 @@ Do **not** implement:
 5. Arbitrary user-defined eligibility rule engine.
 6. Card ↔ Pokémon N:N for Pokédex eligibility.
 7. Incidental artwork Pokémon satisfying Pokédex positions.
-8. A second physical identity solely because an Inventory Item joins a Collection.
+8. A second physical identity solely because a Physical Card joins a Collection.
 9. Every canonical Card Variant being automatically mandatory in every Master Set.
 10. Automatic Master Set denominator changes caused by normal catalog expansion.
-11. Structurally mandatory Storage for Inventory Item creation.
-12. Automatic Inventory Item transfer when Collection ownership changes.
+11. Structurally mandatory Storage for Physical Card creation.
+12. Automatic Physical Card transfer when Collection ownership changes.
 13. Unconditional patrimonial authority for Collection Owner over items owned by other members.
-14. `Placement` como nome canônico de entidade/relação para o posicionamento de um Inventory Item num Slot — terminologia superada por `Slot Assignment` (LDM-35, C-44). O termo apareceu apenas em `ux-exploration-2026-08-29.md` e `checkpoint-2026-08-29.md` (produzidos durante a exploração do spike visual do Binder), nunca havia sido ratificado em C-*/LDM-* anteriores; a reimersão documental (`COLLECTIONS-DOMAIN-REENTRY-01`) confirmou a ausência de lastro canônico antes de a frente `COLLECTIONS-LAYOUT-MODELING` decidir o nome definitivo a adotar.
+14. `Placement` como nome canônico de entidade/relação para o posicionamento de uma Physical Card num Slot — terminologia superada por `Slot Assignment` (LDM-35, C-44). O termo apareceu apenas em `ux-exploration-2026-08-29.md` e `checkpoint-2026-08-29.md` (produzidos durante a exploração do spike visual do Binder), nunca havia sido ratificado em C-*/LDM-* anteriores; a reimersão documental (`COLLECTIONS-DOMAIN-REENTRY-01`) confirmou a ausência de lastro canônico antes de a frente `COLLECTIONS-LAYOUT-MODELING` decidir o nome definitivo a adotar. (Item 14 em si já usava, na sua origem em 2026-08-30, o nome então vigente `Inventory Item` para o exemplar — atualizado aqui para `Physical Card` por convergência terminológica, 2026-08-30.)
 15. Um Slot exigir ocupação (Slot Assignment) para existir, ou uma Slot Assignment exigir Expected Content prévio — ambas as relações são independentes entre si e da ocupação (C-41/C-42/C-44).
-16. Cardinalidade global de 1 Slot Assignment por Inventory Item (independente de Layout) — rejeitada em favor de 1 por par (Inventory Item, Layout), necessária para suportar múltiplos Layouts da mesma Collection (LDM-35).
+16. Cardinalidade global de 1 Slot Assignment por Physical Card (independente de Layout) — rejeitada em favor de 1 por par (Physical Card, Layout), necessária para suportar múltiplos Layouts da mesma Collection (LDM-35).
 17. Slot Assignment criar implicitamente Collection Allocation (ou vice-versa) — as duas relações permanecem independentes; Slot Assignment apenas *exige* Collection Allocation prévia, nunca a cria (LDM-35).
 
-> Adendo (2026-08-28): também não implementar `owner_user_id` direto em Inventory Item, nem qualquer fluxo de aprovação patrimonial fundamentado em "Collection compartilhada com itens de múltiplos owners" — ver `checkpoint-2026-08-28.md`.
+> Adendo (2026-08-28): também não implementar `owner_user_id` direto em Physical Card, nem qualquer fluxo de aprovação patrimonial fundamentado em "Collection compartilhada com itens de múltiplos owners" — ver `checkpoint-2026-08-28.md` e LDM-23 (revisada, 2026-08-30).
 >
 > Adendo (2026-08-30): ver `checkpoint-2026-08-30.md` para o diagnóstico completo de reconciliação da frente Collection Layout, incluindo a supersessão terminológica do item 14 acima.
+>
+> Adendo (2026-08-30): terminologia deste documento convergida de `Collection Item`/`Inventory Item` para `Physical Card` em todo texto normativo vigente — ver banner no topo do documento e `concept-decisions.md` C-47/C-48. Itens desta lista que citam terminologia histórica de outros documentos (ex.: item 14 acima, sobre `ux-exploration-2026-08-29.md`) preservam a citação e apenas anotam a atualização, sem reescrever a fonte citada.
 
 ---
 
@@ -690,7 +698,7 @@ Do **not** implement:
 Invariant: every Card classified as Pokémon identifies exactly one principal canonical Pokemon.
 
 ## Inventory
-Inventory Item requires its own detailed model beyond the Collection-allocation decisions captured here. **Atualização 2026-08-28**: o próprio conceito de `Inventory` (Acervo) como aggregate 1:1 por usuário, dono real de todo `Inventory Item`, foi introduzido nesta data — ver `checkpoint-2026-08-28.md`.
+Physical Card requires its own detailed model beyond the Collection-allocation decisions captured here. **Atualização 2026-08-28**: o próprio conceito de `Inventory` (Acervo) como aggregate 1:1 por usuário, dono real de toda `Physical Card` sob ownership corrente, foi introduzido nesta data — ver `checkpoint-2026-08-28.md`. **Atualização 2026-08-30**: a regra de cardinalidade corrente (`Physical Card` participa de no máximo um `Inventory` por vez, podendo não ter nenhum quando fora do escopo rastreado) foi formalizada em LDM-23 (revisada) e C-48 — deixa de existir apenas em nível de checkpoint/memo.
 
 ## Storage
 Storage ownership, sharing, physical organization and movement require their own model.
@@ -712,15 +720,15 @@ Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region 
 # 8. Current Architectural Checkpoint
 
 ## Conceptual
-**C-01 through C-37 — CLOSED**
+**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30)
 
 Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-37 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28)**
+**LDM-01 through LDM-37 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core) and LDM-29 through LDM-37 (Collection Layout, 2026-08-30). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification. `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core) and LDM-29 through LDM-37 (Collection Layout, 2026-08-30). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
 
 ## Physical
 **NOT STARTED**
@@ -755,3 +763,4 @@ It must preserve:
 | 1.0 | Documento produzido no repositório de modelagem paralelo `mimikyu-modelagem-de-dados` — checkpoint LDM-01 a LDM-27 aprovado, LDM-28 como próxima decisão. |
 | 1.1 | Incorporado a `project-mimikyu` (2026-08-28, pedido explícito de Fabrício) em `docs/domain-modeling/collections/`. Adicionado banner de superação parcial (LDM-25/26/27 superseded, LDM-28 original void) refletindo decisões novas de simplificação do modelo de ownership registradas na mesma data em `checkpoint-2026-08-28.md`. Nenhum texto original removido ou reescrito — apenas anotado. |
 | 1.2 | **Bloco complementar Collection Layout, 2026-08-30.** Adicionadas LDM-29 a LDM-37 (Collection Layout, Page, Grid Configuration, Slot, Expected Content, Lock, Slot Assignment, Bandeja explicitamente não modelada, Layout Region), evitando colisão de numeração com o LDM-28 original (void, Seção 9) — que permanece void e não é reocupado, nem em conteúdo nem em número. Seção 4 (Canonical Relationship Summary) e Seção 6 (Superseded/Rejected, itens 14–17) atualizadas; item 14 registra a supersessão terminológica de `Placement` por `Slot Assignment`. Ver `checkpoint-2026-08-30.md` para o diagnóstico de reconciliação completo. |
+| 1.3 | **Convergência terminológica para `Physical Card`, 2026-08-30.** Por decisão de Fabrício (`concept-decisions.md`, C-47/C-48), todo texto normativo vigente deste documento (banner, header, Seções 1–8, LDM-01 a LDM-24 e LDM-29 a LDM-37) foi convertido de `Inventory Item`/`Collection Item` para `Physical Card` — apenas nomenclatura, nenhuma decisão de cardinalidade/campo/comportamento alterada por este motivo isoladamente (inclui a renomeação do campo `inventory_item_id` para `physical_card_id` no skeleton de Slot Assignment, LDM-35). Adicionalmente, **LDM-23 foi revisada em conteúdo**: deixou de ser um skeleton com `owner_user_id` anotado como parcialmente superado e passou a formalizar diretamente, no nível lógico, a regra de cardinalidade corrente entre `Physical Card` e `Inventory` (contraparte lógica de C-48) — primeira formalização lógica desta regra, que antes só existia em `checkpoint-2026-08-28.md` e em memos nunca promovidos a LDM. O texto original de LDM-23 é preservado no histórico de versões do repositório. **Texto de LDM-25, LDM-26, LDM-27 (SUPERSEDED) e da Seção 9 (void) foi deliberadamente preservado com a terminologia antiga**, por serem citações históricas verbatim, não normativa vigente — não convergidos. |

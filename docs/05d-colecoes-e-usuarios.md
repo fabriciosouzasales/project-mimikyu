@@ -6,7 +6,7 @@
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
 | **Versão** | 1.0 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Collection Item, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
+| **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -14,9 +14,9 @@ Ver `docs/05-modelo-de-dados.md` para o mapa completo do domínio, a metodologia
 
 ---
 
-# Collection Item (Item da Coleção)
+# Physical Card (Exemplar Físico)
 
-*Documentação pendente.*
+*Documentação pendente — modelagem lógica canônica em `domain-modeling/collections/concept-decisions.md` (C-47/C-48) e `logical-model.md` (LDM-23); modelo físico/SQL ainda não iniciado.*
 
 ---
 

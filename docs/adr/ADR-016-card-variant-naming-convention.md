@@ -34,7 +34,7 @@ O vocabulário conceitual do domínio adota **Card Variant Type** e **Card Varia
 
 - **Card Variant Type**: catálogo controlado de tipos de acabamento físico possíveis para uma Card (ex.: Standard, Holo, Reverse Holo). Substitui o termo conceitual "Finish".
 - **Card Variant**: declara que uma Card específica está disponível em um Card Variant Type específico. Substitui o termo conceitual "Card Finish". Relação: `Card 1 → N Card Variant`, cada Card Variant referenciando 1 Card Variant Type.
-- **Collection Item** referencia um Card Variant específico (não a Card diretamente) — mesma relação já estabelecida em ADR-010 e ADR-013, apenas com o nome atualizado.
+- **Physical Card** (nome vigente desde 2026-08-30; à época desta ADR, `Collection Item` — ver `concept-decisions.md` C-47/C-48) referencia um Card Variant específico (não a Card diretamente) — mesma relação já estabelecida em ADR-010 e ADR-013, apenas com o nome atualizado.
 
 **O que NÃO muda** — decisões de ADR-010 preservadas sem alteração:
 
@@ -86,3 +86,4 @@ Rejeitada. Exigiria uma migration de renomeação sem ganho conceitual, além de
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da decisão que converge o vocabulário conceitual do domínio para Card Variant Type/Card Variant, revertendo a nomenclatura Finish/Card Finish de ADR-010. A separação de Rarity como atributo de primeira classe da Card (também decidida em ADR-010) permanece válida e não é afetada. |
+| 1.1 | Convergência terminológica (2026-08-30): referência downstream a "Collection Item" atualizada para "Physical Card" — ver `concept-decisions.md` C-47/C-48. A decisão desta ADR (Card Variant Type/Card Variant como termos canônicos) não foi alterada. |

@@ -18,12 +18,12 @@ ADR-005 já havia estabelecido que o idioma não faz parte da identidade editori
 
 > "Caso diferenças editoriais relevantes entre idiomas precisem ser representadas futuramente, poderá ser introduzido um conceito subordinado (...), preservando a identidade do Set."
 
-Durante a modelagem, observou-se que resultados de busca em inglês e português (por exemplo, "Lysandre Labs" e "Laboratórios Lysandre") retornam a mesma posição catalográfica (`092/094`). Isso confirmou que o nome traduzido não cria uma nova posição catalográfica — mas também evidenciou que o texto traduzido precisa de um local oficial no catálogo, e não apenas no exemplar físico do usuário (Inventory Item).
+Durante a modelagem, observou-se que resultados de busca em inglês e português (por exemplo, "Lysandre Labs" e "Laboratórios Lysandre") retornam a mesma posição catalográfica (`092/094`). Isso confirmou que o nome traduzido não cria uma nova posição catalográfica — mas também evidenciou que o texto traduzido precisa de um local oficial no catálogo, e não apenas no exemplar físico do usuário (Physical Card).
 
 Identificaram-se duas categorias distintas de informação linguística:
 
 - **Tradução editorial**: nome da carta, texto de regras, ataques, habilidades, descrições e, eventualmente, nomes de categorias. Pertence ao catálogo.
-- **Idioma do exemplar físico**: qual versão impressa um usuário efetivamente possui. Pertence ao patrimônio do usuário (Inventory Item), conforme já definido em ADR-006.
+- **Idioma do exemplar físico**: qual versão impressa um usuário efetivamente possui. Pertence ao patrimônio do usuário (Physical Card), conforme já definido em ADR-006.
 
 ---
 
@@ -47,7 +47,7 @@ Card Translation:
 - não é uma Card Variant;
 - não representa o idioma de um exemplar físico.
 
-O idioma do exemplar físico continua pertencendo exclusivamente ao Inventory Item, conforme ADR-006.
+O idioma do exemplar físico continua pertencendo exclusivamente à Physical Card, conforme ADR-006.
 
 ---
 
@@ -58,7 +58,7 @@ O idioma do exemplar físico continua pertencendo exclusivamente ao Inventory It
 - o catálogo passa a conhecer oficialmente o conteúdo editorial de uma Card em mais de um idioma;
 - a identidade da Card permanece única, independentemente da quantidade de idiomas suportados;
 - elimina a necessidade de duplicar Card ou Set por idioma para representar textos traduzidos;
-- separa claramente "o que o catálogo sabe" (Card Translation) de "o que o usuário possui" (Inventory Item).
+- separa claramente "o que o catálogo sabe" (Card Translation) de "o que o usuário possui" (Physical Card).
 
 ## Restrições
 
@@ -73,7 +73,7 @@ O idioma do exemplar físico continua pertencendo exclusivamente ao Inventory It
 
 Rejeitada por violar a decisão já consolidada em ADR-004 e ADR-005 de que a identidade da Card não muda conforme o idioma.
 
-## Armazenar o nome traduzido apenas no Inventory Item
+## Armazenar o nome traduzido apenas na Physical Card
 
 Rejeitada porque o catálogo precisa conhecer os nomes oficiais em todos os idiomas suportados, independentemente de qualquer usuário possuir um exemplar físico naquele idioma.
 
@@ -93,3 +93,4 @@ Rejeitada porque o catálogo precisa conhecer os nomes oficiais em todos os idio
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Registro da decisão de introduzir Card Translation como resolução da evolução futura prevista em ADR-005. |
+| 1.1 | Convergência terminológica (2026-08-30): referências downstream a "Inventory Item" (o exemplar físico do usuário, não a decisão desta ADR) atualizadas para "Physical Card" — ver `concept-decisions.md` C-47/C-48. A decisão de Card Translation em si não foi alterada. |

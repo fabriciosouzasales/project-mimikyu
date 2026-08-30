@@ -30,7 +30,7 @@ Consequentemente:
 
 - Set não será duplicado por idioma;
 - Card não será duplicada por idioma;
-- Inventory Item armazenará o idioma do exemplar.
+- Physical Card armazenará o idioma do exemplar (nome vigente desde 2026-08-30; nomes anteriores: `Collection Item`, `Inventory Item` — ver `domain-modeling/collections/concept-decisions.md`, C-47/C-48).
 
 O catálogo inicial suportará apenas:
 
@@ -72,3 +72,4 @@ Caso diferenças editoriais relevantes entre idiomas precisem ser representadas 
 | 1.0 | Registro da decisão sobre o modelo de idioma do catálogo. |
 | 1.1 | Padronização do cabeçalho (campos ADR, Título, Decisores, Documentos Relacionados) e correção de caminhos relativos em Related Documents. |
 | 1.2 | Adicionada nota de referência cruzada apontando para ADR-007, que resolveu a evolução futura prevista nesta ADR. Nenhum conteúdo original foi alterado. |
+| 1.3 | Convergência terminológica (2026-08-30): referência a "Inventory Item" (consequência downstream da decisão, não a decisão em si) atualizada para "Physical Card" — ver `concept-decisions.md` C-47/C-48. A decisão desta ADR (idioma pertence ao exemplar físico, não ao catálogo) não foi alterada. |

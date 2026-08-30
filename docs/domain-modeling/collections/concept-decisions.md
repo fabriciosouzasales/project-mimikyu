@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador) e, desde 2026-08-30, de `Collection Layout`/`Page`/`Slot` — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, e desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory` — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -81,7 +81,7 @@ Exemplo: uma Pokédex já criada não recebe automaticamente novos Pokémon apen
 
 A participação de um exemplar em uma Collection é intencional.
 
-Compatibilidade com a Collection torna o exemplar elegível, mas não determina automaticamente seu pertencimento.
+Compatibilidade com a Collection torna o exemplar elegível, mas não determina automaticamente sua alocação.
 
 A intenção pode ser expressa:
 
@@ -98,13 +98,13 @@ O produto deve suportar operações em massa para evitar inviabilidade de uso em
 
 **Status:** Revisada e Aprovada
 
-Cada `Collection Item` pode participar de zero ou uma `Collection` por vez.
+Cada `Physical Card` pode participar de zero ou uma `Collection` por vez.
 
 Essa associação representa sua alocação colecionável, **não sua localização física**.
 
 Um mesmo exemplar não pode contribuir simultaneamente para múltiplas Collections.
 
-`Collection Items` sem Collection continuam existindo normalmente e podem estar armazenados em locais físicos independentes, como ETBs, caixas ou outros recipientes.
+`Physical Cards` sem Collection continuam existindo normalmente e podem estar armazenadas em locais físicos independentes, como ETBs, caixas ou outros recipientes.
 
 ---
 
@@ -114,7 +114,7 @@ Um mesmo exemplar não pode contribuir simultaneamente para múltiplas Collectio
 
 Toda Collection pertence obrigatoriamente a um único `Game`.
 
-Todos os `Collection Items` alocados nela devem pertencer ao mesmo Game.
+Todas as `Physical Cards` alocadas nela devem pertencer ao mesmo Game.
 
 Collections cross-game não são suportadas.
 
@@ -152,7 +152,7 @@ Para cada usuário compartilhado, o Owner define quais ações são permitidas n
 
 As permissões pertencem à relação `User ↔ Collection` e podem diferir entre Collections.
 
-Compartilhamento da Collection não altera a propriedade física dos `Collection Items`.
+Compartilhamento da Collection não altera a propriedade física das `Physical Cards`.
 
 O Owner mantém autoridade administrativa principal sobre a Collection.
 
@@ -188,7 +188,7 @@ O conceito de Binder como única representação da Collection foi superado.
 
 **Status:** Aprovada
 
-O universo de referência pode ser alterado enquanto a Collection **nunca tiver recebido um `Collection Item`**.
+O universo de referência pode ser alterado enquanto a Collection **nunca tiver recebido a alocação de uma `Physical Card`**.
 
 A associação do primeiro exemplar consolida essa referência.
 
@@ -213,7 +213,7 @@ A transferência preserva:
 - configuração;
 - histórico.
 
-Ela não transfere automaticamente a propriedade dos `Collection Items`.
+Ela não transfere automaticamente a propriedade das `Physical Cards`.
 
 A Collection deve possuir exatamente um Owner em todos os momentos.
 
@@ -223,9 +223,9 @@ A Collection deve possuir exatamente um Owner em todos os momentos.
 
 **Status:** Aprovada
 
-Uma Collection pode ser excluída somente quando não possuir nenhum `Collection Item` associado.
+Uma Collection pode ser excluída somente quando não possuir nenhuma `Physical Card` associada.
 
-A exclusão nunca remove, desaloca ou modifica automaticamente `Collection Items`.
+A exclusão nunca remove, desaloca ou modifica automaticamente `Physical Cards`.
 
 Caso existam itens associados, o usuário deve:
 
@@ -239,9 +239,9 @@ Caso existam itens associados, o usuário deve:
 
 **Status:** Aprovada
 
-Uma Collection pode conter `Collection Items` em diferentes idiomas.
+Uma Collection pode conter `Physical Cards` em diferentes idiomas.
 
-Idioma não constitui, por si só, restrição de pertencimento à Collection.
+Idioma não constitui, por si só, restrição de alocação à Collection.
 
 ---
 
@@ -279,7 +279,7 @@ Alterar capacidade física não altera a identidade ou semântica da Collection.
 
 **Status:** Revisada e Aprovada
 
-Uma Collection pode ter seus `Collection Items` distribuídos entre zero, um ou vários `Storage Containers`.
+Uma Collection pode ter suas `Physical Cards` distribuídas entre zero, um ou vários `Storage Containers`.
 
 Tipos possíveis incluem:
 
@@ -306,7 +306,7 @@ A semântica definitiva dessa decisão foi posteriormente consolidada na C-36 co
 
 **Status:** Aprovada
 
-O progresso de uma Collection é calculado exclusivamente a partir dos `Collection Items` efetivamente alocados àquela Collection.
+O progresso de uma Collection é calculado exclusivamente a partir das `Physical Cards` efetivamente alocadas àquela Collection.
 
 Itens elegíveis:
 
@@ -338,7 +338,7 @@ Collections de curadoria aberta não possuem estado de completude.
 
 **Status:** Aprovada
 
-Uma Collection pode conter múltiplos `Collection Items` correspondentes à mesma `Card` e inclusive à mesma `Card Variant`.
+Uma Collection pode conter múltiplas `Physical Cards` correspondentes à mesma `Card` e inclusive à mesma `Card Variant`.
 
 Cada exemplar físico permanece individualmente registrado.
 
@@ -369,7 +369,7 @@ Em Collections baseadas em Card Set, o Owner pode alterar o critério de complet
 - Set convencional;
 - Master Set.
 
-A alteração pode ocorrer mesmo após existirem `Collection Items`.
+A alteração pode ocorrer mesmo após existirem `Physical Cards`.
 
 Ela preserva:
 
@@ -393,7 +393,7 @@ A numeração e estrutura canônica continuam sendo usadas para:
 - progresso;
 - completude.
 
-Mas não determinam a posição física dos `Collection Items`.
+Mas não determinam a posição física das `Physical Cards`.
 
 **Princípio:**
 O universo responde "o que falta".
@@ -416,15 +416,15 @@ Para ETBs e Storage Boxes, fica registrada a diretriz futura de UX de utilizar s
 
 ---
 
-## C-26 — Collection Item sem Storage
+## C-26 — Physical Card sem Storage
 
 **Status:** Aprovada
 
-Um `Collection Item` pode existir sem `Storage Container`.
+Uma `Physical Card` pode existir sem `Storage Container`.
 
 A localização física é opcional e pode ser definida ou alterada posteriormente.
 
-A ausência de Storage não impede pertencimento à Collection nem contribuição para completude.
+A ausência de Storage não impede a alocação à Collection nem contribuição para completude.
 
 ---
 
@@ -432,7 +432,7 @@ A ausência de Storage não impede pertencimento à Collection nem contribuiçã
 
 **Status:** Aprovada
 
-O compartilhamento de uma Collection propaga automaticamente aos usuários compartilhados o acesso aos `Storage Containers` utilizados por seus `Collection Items`, somente no contexto necessário para visualizar ou operar aquela Collection.
+O compartilhamento de uma Collection propaga automaticamente aos usuários compartilhados o acesso aos `Storage Containers` utilizados por suas `Physical Cards`, somente no contexto necessário para visualizar ou operar aquela Collection.
 
 Isso não representa compartilhamento irrestrito do Storage Container.
 
@@ -451,7 +451,7 @@ As permissões nesse contexto derivam da Collection.
 
 **Status:** Aprovada
 
-Mover um `Collection Item` entre `Storage Containers` é independente de sua associação com a Collection.
+Mover uma `Physical Card` entre `Storage Containers` é independente de sua associação com a Collection.
 
 Alterar localização física não modifica automaticamente:
 
@@ -465,10 +465,10 @@ Alterar localização física não modifica automaticamente:
 
 **Status:** Aprovada
 
-Um `Collection Item` pode ser:
+Uma `Physical Card` pode ser:
 
-- realocado entre Collections;
-- removido de uma Collection e ficar sem Collection.
+- realocada entre Collections;
+- removida de uma Collection e ficar sem Collection.
 
 A realocação preserva a identidade do exemplar e não altera automaticamente seu `Storage Container`.
 
@@ -532,7 +532,7 @@ Cada Collection possui:
 
 **Status:** Aprovada
 
-Em Collections com universo de referência, o sistema valida apenas se o `Collection Item` pertence ao universo aplicável.
+Em Collections com universo de referência, o sistema valida apenas se a `Physical Card` pertence ao universo aplicável.
 
 Não são aplicadas regras adicionais de elegibilidade baseadas em:
 
@@ -573,7 +573,7 @@ Toda Collection pertence obrigatoriamente a exatamente um `Game`.
 
 O Game é definido na criação e é imutável durante todo o ciclo de vida.
 
-Uma Collection nunca pode conter `Collection Items` de Games diferentes.
+Uma Collection nunca pode conter `Physical Cards` de Games diferentes.
 
 Se uma Collection vazia for criada no Game incorreto, deve ser excluída e recriada.
 
@@ -585,13 +585,13 @@ Se uma Collection vazia for criada no Game incorreto, deve ser excluída e recri
 
 Toda Collection possui um `Default Storage Container`, obrigatoriamente definido em sua criação.
 
-Ele representa o destino físico padrão sugerido para novos `Collection Items` associados à Collection.
+Ele representa o destino físico padrão sugerido para novas `Physical Cards` associadas à Collection.
 
 Pode ser alterado pelo Owner a qualquer momento.
 
 Não estabelece exclusividade.
 
-Cada `Collection Item` mantém sua própria localização física independente e pode estar:
+Cada `Physical Card` mantém sua própria localização física independente e pode estar:
 
 - no Default Storage;
 - em outro Storage Container;
@@ -611,7 +611,7 @@ Uma Collection `ARCHIVED` permanece integralmente preservada e disponível para 
 
 Seus:
 
-- `Collection Items`;
+- `Physical Cards`;
 - `Storage Containers`;
 - progresso;
 - compartilhamentos;
@@ -637,7 +637,7 @@ Adicionado após reconciliação da frente `COLLECTIONS-LAYOUT-MODELING` (dez ro
 
 **Status:** Aprovada
 
-`Collection Layout` é a organização visual/espacial de uma `Collection` — a forma como o usuário arranja livremente (C-24) a apresentação de seus `Inventory Items` alocados. É independente de `Storage Container`: trocar o Storage Container físico não destrói nem recria o Layout.
+`Collection Layout` é a organização visual/espacial de uma `Collection` — a forma como o usuário arranja livremente (C-24) a apresentação de suas `Physical Cards` alocadas. É independente de `Storage Container`: trocar o Storage Container físico não destrói nem recria o Layout.
 
 Todo `Collection Layout` possui exatamente uma `Collection` como contexto funcional. Uma `Collection` pode existir sem Layout. O modelo conceitual permite, no futuro, mais de um Layout por Collection, mesmo que a primeira versão do produto exponha apenas um Layout principal.
 
@@ -686,7 +686,7 @@ Mudança de grid de um Layout já existente ("Grid Change", ex. 3×3 → 4×4) �
 
 **Status:** Aprovada
 
-`Slot` é entidade conceitual própria e estável, pertencente a exatamente uma `Page`. Sua identidade é independente de: estar ocupado por um `Inventory Item`; ter `Expected Content` definido; e das operações (Move/Swap/Replace) que alteram seu conteúdo ao longo do tempo. Slot nasce e morre junto com mudanças estruturais da Page (grid/capacidade), nunca junto com mudanças de conteúdo.
+`Slot` é entidade conceitual própria e estável, pertencente a exatamente uma `Page`. Sua identidade é independente de: estar ocupado por uma `Physical Card`; ter `Expected Content` definido; e das operações (Move/Swap/Replace) que alteram seu conteúdo ao longo do tempo. Slot nasce e morre junto com mudanças estruturais da Page (grid/capacidade), nunca junto com mudanças de conteúdo.
 
 Posição do Slot dentro de sua Page é representada por coordenadas absolutas `row + column`, 1-based (`row = 1..rows`, `column = 1..columns`). Posição não é identidade (Slot position ≠ Slot identity) — um índice de exibição sequencial, se necessário no futuro, é sempre derivado de row/column e da Grid Configuration, nunca uma segunda fonte de verdade persistida.
 
@@ -698,7 +698,7 @@ Posição do Slot dentro de sua Page é representada por coordenadas absolutas `
 
 Um Slot pode possuir, opcionalmente, `Expected Content` — a intenção/expectativa editorial daquela posição ("o que esta posição deveria representar"), independente de sua ocupação física atual. Expected Content referencia obrigatoriamente uma `Card` e, opcionalmente, de forma mais específica, uma `Card Variant`. Ausência de Variant significa que qualquer Variant compatível daquela Card satisfaz a expectativa.
 
-Expected Content e ocupação física (ver C-44) são independentes: são válidos os quatro estados — nenhum; só Expected Content; só ocupação; ambos. Incompatibilidade entre Expected Content e o `Inventory Item` ocupando o Slot (mismatch) nunca bloqueia a ocupação — é estado derivado, apenas sinalizável pelo produto.
+Expected Content e ocupação física (ver C-44) são independentes: são válidos os quatro estados — nenhum; só Expected Content; só ocupação; ambos. Incompatibilidade entre Expected Content e a `Physical Card` ocupando o Slot (mismatch) nunca bloqueia a ocupação — é estado derivado, apenas sinalizável pelo produto.
 
 Expected Content **não participa** do cálculo de completude da Collection — completude permanece exclusivamente derivada da alocação à Collection frente ao universo de referência (C-19/C-20), nunca do Layout.
 
@@ -710,9 +710,9 @@ Expected Content representa exclusivamente conteúdo editorial/colecionável. N�
 
 **Status:** Aprovada
 
-`Lock` é propriedade do `Slot` — protege a posição/configuração daquela posição no Layout, não o `Inventory Item` que porventura a ocupa, nem a relação de ocupação corrente. Um Slot pode estar locked mesmo vazio, sem Expected Content e sem ocupação.
+`Lock` é propriedade do `Slot` — protege a posição/configuração daquela posição no Layout, não a `Physical Card` que porventura a ocupa, nem a relação de ocupação corrente. Um Slot pode estar locked mesmo vazio, sem Expected Content e sem ocupação.
 
-Lock é independente de Ownership, de alocação à Collection e de Expected Content. Enquanto locked, ficam bloqueadas as operações que alterariam a ocupação/configuração protegida: Move, Swap, Replace, Remove, Drop, mover para a Bandeja, e criar/desfazer uma `Layout Region` (Merge/Unmerge) que envolva aquele Slot. Substituir o Inventory Item de um Slot nunca transfere o Lock para o item — Lock permanece no Slot.
+Lock é independente de Ownership, de alocação à Collection e de Expected Content. Enquanto locked, ficam bloqueadas as operações que alterariam a ocupação/configuração protegida: Move, Swap, Replace, Remove, Drop, mover para a Bandeja, e criar/desfazer uma `Layout Region` (Merge/Unmerge) que envolva aquele Slot. Substituir a Physical Card de um Slot nunca transfere o Lock para ela — Lock permanece no Slot.
 
 Operações em lote (Bulk Lock/Unlock) aplicam a mesma propriedade uniformemente a um conjunto de Slots, independente da ocupação de cada um. Não existe "Region Lock" separado — regiões mescladas herdam a regra acima Slot a Slot.
 
@@ -722,13 +722,13 @@ Operações em lote (Bulk Lock/Unlock) aplicam a mesma propriedade uniformemente
 
 **Status:** Aprovada
 
-`Slot Assignment` (nome adotado nesta consolidação — nasceu como rótulo de trabalho provisório ao longo da frente de modelagem, incorporado aqui como termo canônico; pode ser revisto se um nome melhor surgir) é a relação que registra que um `Inventory Item` está, agora, posicionado em um `Slot` de um `Collection Layout` — distinta de Ownership (quem possui), de alocação à Collection (por qual objetivo colecionável conta) e de Expected Content (o que a posição deveria representar).
+`Slot Assignment` (nome adotado nesta consolidação — nasceu como rótulo de trabalho provisório ao longo da frente de modelagem, incorporado aqui como termo canônico; pode ser revisto se um nome melhor surgir) é a relação que registra que uma `Physical Card` está, agora, posicionada em um `Slot` de um `Collection Layout` — distinta de Ownership (quem possui), de alocação à Collection (por qual objetivo colecionável conta) e de Expected Content (o que a posição deveria representar).
 
-Slot Assignment exige que o `Inventory Item` já esteja alocado à mesma `Collection` dona do Layout — não é possível posicionar um item no Layout de uma Collection à qual ele não está alocado. A recíproca não vale: um item pode estar alocado a uma Collection sem ter nenhuma Slot Assignment (ex.: recém-importado, na Bandeja, layout ainda não organizado).
+Slot Assignment exige que a `Physical Card` já esteja alocada à mesma `Collection` dona do Layout — não é possível posicionar uma carta no Layout de uma Collection à qual ela não está alocada. A recíproca não vale: uma Physical Card pode estar alocada a uma Collection sem ter nenhuma Slot Assignment (ex.: recém-importada, na Bandeja, layout ainda não organizado).
 
-`Slot Assignment` representa organização digital do Layout, nunca localização física real (Storage — C-16/C-17/C-25–C-28 permanecem a única fonte de verdade sobre onde o exemplar está fisicamente guardado). Por isso, o mesmo `Inventory Item` pode ter Slot Assignments simultâneas e independentes em Layouts diferentes da mesma Collection (ver C-38, múltiplos Layouts) — cardinalidade é no máximo uma Assignment ativa por par (Inventory Item, Layout), não uma restrição global do item.
+`Slot Assignment` representa organização digital do Layout, nunca localização física real (Storage — C-16/C-17/C-25–C-28 permanecem a única fonte de verdade sobre onde o exemplar está fisicamente guardado). Por isso, a mesma `Physical Card` pode ter Slot Assignments simultâneas e independentes em Layouts diferentes da mesma Collection (ver C-38, múltiplos Layouts) — cardinalidade é no máximo uma Assignment ativa por par (Physical Card, Layout), não uma restrição global da carta.
 
-Dentro de um mesmo Slot, no máximo um Inventory Item por vez.
+Dentro de um mesmo Slot, no máximo uma Physical Card por vez.
 
 `Slot Assignment` é uma relação conceitual própria de estado atual — não requer identidade de negócio/lifecycle própria no modelo conceitual atual (não é necessário distinguir "esta Assignment sobreviveu a um Move" de "a relação atual Item↔Slot mudou"). Um identificador técnico de implementação, se existir, não constitui identidade de domínio. Histórico, audit trail, versionamento ou Undo/Redo persistente, se necessários no futuro, serão modelados separadamente.
 
@@ -738,7 +738,7 @@ Dentro de um mesmo Slot, no máximo um Inventory Item por vez.
 
 **Status:** Aprovada
 
-A "Bandeja" (área temporária para cartas fora de qualquer Slot durante a edição de um Layout) é estado transitório de UX/edição, não entidade de domínio, não estado persistente do Layout, não propriedade da Collection nem do Inventory Item. Seu escopo é somente a sessão/interação ativa de edição daquele Layout.
+A "Bandeja" (área temporária para cartas fora de qualquer Slot durante a edição de um Layout) é estado transitório de UX/edição, não entidade de domínio, não estado persistente do Layout, não propriedade da Collection nem da Physical Card. Seu escopo é somente a sessão/interação ativa de edição daquele Layout.
 
 Se o usuário mover um item para a Bandeja e sair da Collection/Layout antes de reposicioná-lo, a Bandeja é descartada e, ao retornar, o item está novamente em seu Slot Assignment persistido de origem — mover para a Bandeja não equivale a um Remove persistente da Slot Assignment. A Bandeja funciona como buffer temporário de reorganização: o resultado persistente de "Slot A → Bandeja → Slot B" é apenas "item passa de A para B"; o estado intermediário na Bandeja nunca integra o estado persistido.
 
@@ -756,6 +756,36 @@ Futuro conteúdo visual/artwork de uma Region é conceito distinto de Expected C
 
 ---
 
+## Bloco complementar — Physical Card & Inventory (2026-08-30)
+
+Adicionado durante a reconciliação terminológica `COLLECTIONS-PHYSICAL-CARD-RECONCILIATION-02`, formalizando como decisão conceitual C-* o que, até esta rodada, existia apenas em `checkpoint-2026-08-28.md` (introdução do agregado `Inventory`) e em quatro memos de modelagem conceitual conduzidos sem edição de arquivo (`COLLECTIONS-INVENTORY-MODELING-01` a `-04`), todos explicitamente registrados sem criar C-*/LDM-* própria. Nenhuma decisão de conteúdo nova é introduzida aqui além do que já havia sido aprovado nesses memos — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-46 não são reabertas.
+
+## C-47 — Physical Card: identidade permanente do exemplar físico
+
+**Status:** Aprovada
+
+`Physical Card` é a identidade permanente de uma cópia física individual de uma `Card Variant` — nome técnico canônico, sucedendo (nesta ordem histórica) "Collection Item" e "Inventory Item", ambos superseded (ver Parte D). Não é uma entidade paralela a esses nomes anteriores — é a mesma identidade física já reconhecida desde LDM-23, apenas correta e definitivamente nomeada.
+
+A identidade de uma Physical Card independe de ownership corrente e de participação em `Inventory` (ver C-48): sobrevive a transferência entre usuários, venda para fora do MMKYU, perda e descarte — nunca é recriada por mudança de ownership, custody, Storage, condition ou availability. Cada cópia física possui identidade própria e permanente, mesmo quando editorialmente indistinguível de outra (mesma Card, mesma Card Variant, mesmo idioma) — nunca representada como quantidade agregada.
+
+---
+
+## C-48 — Inventory: agregado de ownership corrente sobre Physical Cards
+
+**Status:** Aprovada
+
+`Inventory` é o agregado patrimonial que reúne as `Physical Cards` atualmente sob ownership de seu titular no MMKYU — 1:1 por usuário. Inventory não é histórico, não é Storage, não é Collection, não é Layout, e não é agrupamento arbitrário definido pelo usuário.
+
+Uma `Physical Card` sob ownership corrente representado pelo MMKYU participa de exatamente um Inventory. Uma Physical Card pode existir sem Inventory corrente quando não houver ownership atual rastreado pelo MMKYU (ex.: venda para fora da plataforma, perda, descarte) — a ausência de Inventory corrente não invalida nem recria sua identidade (C-47). Uma Physical Card não pode participar simultaneamente de mais de um Inventory corrente.
+
+Esta regra substitui, com o refinamento de "ownership corrente" explicitado, a formulação original — nunca formalizada em C-*/LDM-* — de que "todo Inventory Item pertence obrigatoriamente a um Inventory" (memo `COLLECTIONS-INVENTORY-MODELING-01`, decisão de trabalho "I3", nunca promovida a C-*/LDM-*). Nada aqui é tecnicamente superseded no Decision Register — é a primeira formalização canônica do que antes só existia em `checkpoint-2026-08-28.md` §2.3–2.4 e nos memos de modelagem.
+
+Participação em Inventory representa exclusivamente ownership patrimonial corrente — nunca Custody/Possession (quem está fisicamente com o exemplar), nunca Availability (se está oferecido para troca/venda/reserva). Essas dimensões, quando necessárias, são conceitualmente independentes e permanecem não modeladas nesta rodada (ver memo `COLLECTIONS-INVENTORY-MODELING-03`).
+
+Collection Allocation associa uma Physical Card a uma Collection (C-04); Slot Assignment representa uma Physical Card posicionada em um Slot do Layout (C-44); Expected Content referencia exclusivamente Card/Card Variant, nunca Physical Card (C-42) — nenhuma dessas três relações é alterada, redefinida ou reaberta por este bloco.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -768,13 +798,13 @@ Responde:
 
 Collection organiza posse; não representa desejo nem localização física.
 
-### Collection Item
+### Physical Card
 
 Responde:
 
-> Qual exemplar físico o usuário efetivamente possui?
+> Qual é a identidade permanente deste exemplar físico individual?
 
-Cada exemplar físico possui identidade própria.
+Cada exemplar físico possui identidade própria e permanente, independente de estar, neste momento, sob ownership corrente rastreado pelo MMKYU (ver C-47/C-48).
 
 ### Storage Container
 
@@ -812,14 +842,14 @@ Collection
   ├── 0..N Shared Users
   ├── 0..1 universo de referência
   ├── exatamente 1 Default Storage Container
-  └── 0..N Collection Items
+  └── 0..N Physical Cards (alocação)
 
-Collection Item
-  ├── 0..1 Collection
+Physical Card
+  ├── 0..1 Collection (alocação)
   └── 0..1 Storage Container
 
 Storage Container
-  └── 0..N Collection Items
+  └── 0..N Physical Cards
 ```
 
 Observação: o `Default Storage Container` não determina a localização real de todos os itens.
@@ -840,7 +870,7 @@ Exemplo: Card Set.
 
 - universo estável;
 - progresso calculável;
-- referência consolidada após primeiro Collection Item.
+- referência consolidada após primeira Physical Card alocada.
 
 ### Universo dinâmico
 
@@ -856,7 +886,7 @@ Exemplo: Pokédex.
 
 ### Card Set convencional
 
-Uma Card é satisfeita quando existe ao menos um `Collection Item` válido correspondente a qualquer `Card Variant` daquela Card.
+Uma Card é satisfeita quando existe ao menos uma `Physical Card` válida e alocada correspondente a qualquer `Card Variant` daquela Card.
 
 ### Master Set
 
@@ -878,14 +908,14 @@ Não possui completude.
 
 1. Uma Collection pertence a exatamente um Game.
 2. Game é imutável.
-3. Um Collection Item pertence a no máximo uma Collection.
-4. Um Collection Item pode existir sem Collection.
-5. Um Collection Item pode existir sem Storage Container.
+3. Uma Physical Card é alocada a no máximo uma Collection por vez.
+4. Uma Physical Card pode existir sem estar alocada a uma Collection.
+5. Uma Physical Card pode existir sem Storage Container.
 6. Storage e Collection são dimensões independentes.
 7. Um Storage Container pode conter itens de diferentes Collections.
 8. Um Storage Container pode conter itens sem Collection.
 9. A referência de uma Collection é única.
-10. A referência é consolidada após o primeiro Collection Item.
+10. A referência é consolidada após a primeira Physical Card alocada.
 11. Remover todos os itens não desbloqueia a referência.
 12. Set convencional e Master Set podem ser alternados posteriormente.
 13. Apenas itens efetivamente alocados contam para progresso.
@@ -899,7 +929,7 @@ Não possui completude.
 21. Visibilidade pública não concede edição.
 22. Collection pode ser compartilhada com permissões por usuário.
 23. Ownership pode ser transferido apenas para membro compartilhado existente.
-24. Collection só pode ser excluída se estiver sem Collection Items.
+24. Collection só pode ser excluída se estiver sem Physical Cards alocadas.
 25. ACTIVE e ARCHIVED são os únicos estados explícitos.
 26. ARCHIVED é somente leitura para operações colecionáveis.
 27. Toda Collection possui Default Storage Container.
@@ -947,7 +977,7 @@ Previsto:
 - organização livre;
 - elementos visuais personalizados.
 
-Um slot não precisa obrigatoriamente conter um `Collection Item`.
+Um slot não precisa obrigatoriamente conter uma `Physical Card`.
 
 ---
 
@@ -978,7 +1008,7 @@ A arquitetura não deve exigir interação individual exaustiva para centenas ou
 
 As seguintes entidades/conceitos foram identificados durante a modelagem de Collection, mas **não foram modelados em profundidade neste documento**:
 
-- `Collection Item` — resolvido: é papel contextual do `Inventory Item` (LDM-23, reafirmado em `checkpoint-2026-08-28.md` §6), não entidade própria.
+- `Collection Item` / `Inventory Item` — resolvido: ambos são nomes anteriores, superseded (ver Bloco complementar `Physical Card & Inventory`, C-47/C-48, 2026-08-30). A identidade física vigente do exemplar é `Physical Card`; sua participação patrimonial corrente é agregada por `Inventory`. Não são entidades próprias paralelas — ver `logical-model.md`, LDM-23 (revisado).
 - `Storage Container`
 - `Binder`
 - ~~`Binder Page`~~ — resolvido em 2026-08-30 pelo Bloco complementar acima (C-39, `Page`).
@@ -1051,3 +1081,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.0 | Documento produzido no repositório de modelagem paralelo `mimikyu-modelagem-de-dados`, FECHADO/APROVADO em 2026-08-10 (C-01 a C-37). |
 | 1.1 | Incorporado a `project-mimikyu` (2026-08-28, pedido explícito de Fabrício) em `docs/domain-modeling/collections/`, como fonte canônica para o domínio conceitual de `Collection`, substituindo `ADR-013`/`ADR-014` para este fim. Nenhuma decisão alterada — apenas cabeçalho e nota de incorporação adicionados. |
 | 1.2 | **Bloco complementar Collection Layout, 2026-08-30.** Adicionadas C-38 a C-46, consolidando dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`) sobre `Collection Layout`/`Page`/`Grid Configuration`/`Slot`/`Expected Content`/`Lock`/`Slot Assignment`/`Bandeja`/`Layout Region`. C-01–C-37 não reabertas. Parte D atualizada: `Binder Page` e `Binder Slot` resolvidos, `Placeholder` parcialmente resolvido. Ver `checkpoint-2026-08-30.md` para o diagnóstico de reconciliação completo. |
+| 1.3 | **Reconciliação terminológica Physical Card, 2026-08-30 (`COLLECTIONS-PHYSICAL-CARD-RECONCILIATION-02`).** Convergência de duas gerações de terminologia nunca antes reconciliadas neste documento: "Collection Item" (usado em todo o núcleo C-01–C-37 e Partes B/D, nunca migrado durante a incorporação de 2026-08-28) e "Inventory Item" (usado no bloco C-38–C-46) — ambos substituídos por `Physical Card` em todo o texto normativo. Cada ocorrência revisada semanticamente, não apenas trocada por substituição literal: onde o texto original dizia "pertence à Collection", a formulação foi corrigida para "é alocada à Collection" (B.5 #3, C-03, C-14, C-26), preservando a distinção já estabelecida entre alocação colecionável e posse física. Adicionado bloco complementar C-47–C-48, formalizando pela primeira vez em C-*/LDM-* a identidade `Physical Card` e o agregado `Inventory` (previamente registrados apenas em `checkpoint-2026-08-28.md` e em quatro memos de modelagem — `COLLECTIONS-INVENTORY-MODELING-01` a `-04` — nunca promovidos a C-*/LDM-*). C-48 formaliza a regra de participação em Inventory ("ownership corrente"), substituindo a decisão de trabalho nunca formalizada "I3". C-01–C-46 não reabertas em conteúdo — apenas em nomenclatura e, onde apontado, na precisão do verbo/relação. |

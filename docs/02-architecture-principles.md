@@ -94,7 +94,7 @@ Informações analíticas devem ser derivadas sempre que seu armazenamento redun
 
 Uma informação deve pertencer à entidade cuja existência permanece verdadeira mesmo quando todas as demais entidades desaparecem.
 
-Exemplo de aplicação: o nome, o HP e os ataques de uma Card continuam verdadeiros mesmo que nenhum usuário possua um exemplar dela — por isso pertencem à Card. Já o estado de conservação, o preço pago e uma certificação PSA deixam de existir se o exemplar físico deixar de existir — por isso pertencem ao Inventory Item.
+Exemplo de aplicação: o nome, o HP e os ataques de uma Card continuam verdadeiros mesmo que nenhum usuário possua um exemplar dela — por isso pertencem à Card. Já o estado de conservação, o preço pago e uma certificação PSA deixam de existir se o exemplar físico deixar de existir — por isso pertencem à Physical Card.
 
 Este princípio orienta, em conjunto com ADR-006, a decisão sobre a qual responsabilidade conceitual (Catálogo Editorial, Patrimônio do Usuário ou Analytics) uma nova informação pertence.
 
@@ -159,6 +159,7 @@ Este refinamento nasceu do cadastro real de `MEP`/`MEE` (ver `05-modelo-de-dados
 |1.6|Adicionado AP-017 (Princípio do Escopo Colecionável), a partir de uma correção direta de Fabrício durante a modelagem física da Card: informações de mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio, texto de regras) não são estruturadas no banco de dados — permanecem apenas na imagem oficial da Card (ADR-012), permanentemente, não apenas na primeira versão. Torna o padrão Card Details/Pokémon Card Details/Trainer Card Details (ADR-011) uma arquitetura sem conteúdo de jogo concreto planejado.|
 |1.7|Adicionado AP-018 (Princípio da Identidade Editorial Real): nunca inventar um código editorial quando um identificador oficial real existe ou pode ser pesquisado — nasceu do episódio real `ME0`→`MEP` (ver `ADR-015`, revisão `1.4`).|
 |1.8|Estendido AP-018 para cobrir também `name` (não apenas `code`): o nome de uma entidade editorial deve reproduzir exatamente o nome registrado pela fonte oficial efetivamente consultada, nunca uma tradução ou reformulação criada durante o cadastro — nasceu do cadastro real de `MEP` (nome inicialmente traduzido, corrigido para o nome oficial da TCGdex). Sinalizada, sem resolver unilateralmente, uma discrepância real: os nomes já cadastrados de `ME1`-`ME4`/`ME2.5` estão em português, o que este refinamento classificaria como não-conforme se aplicado retroativamente.|
+|1.9|Convergência terminológica (2026-08-30): exemplo de aplicação de AP-013 atualizado de "Inventory Item" para "Physical Card" (nome canônico vigente, ver `concept-decisions.md` C-47/C-48). Apenas nomenclatura — o princípio em si (o que pertence à Card vs. o que pertence ao exemplar físico) não foi alterado.|
 
 
 
