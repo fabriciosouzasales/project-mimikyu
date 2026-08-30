@@ -7,7 +7,7 @@
 | **Data** | 2026-08-30 |
 | **Origem** | `COLLECTIONS-LAYOUT-MODELING-CONSOLIDATION-01` — encerramento formal de dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`), conduzidas nesta mesma janela de sessão, sobre o núcleo `Collection Layout`/`Page`/`Slot`/`Expected Content`/`Lock`/`Slot Assignment`/`Bandeja`/`Layout Region`. |
 | **Objetivo** | Registrar o diagnóstico de reconciliação entre as decisões de trabalho das dez rodadas e o corpus canônico (`concept-decisions.md`, `logical-model.md`), e apontar para os novos C-38–C-46 / LDM-29–LDM-37 já incorporados. |
-| **Documentos Relacionados** | `concept-decisions.md` (C-38 a C-46, novo bloco), `logical-model.md` (LDM-29 a LDM-37, novo bloco), `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md` (§5, itens 4–5, agora resolvidos — ver Seção 3 abaixo), `ux-exploration-2026-08-29.md` (§"Implicações", itens 3/5/8, terminologia superada — ver Seção 4), `pkmnbindr-benchmark.md` (§4, §13, §29 — prior art não-normativo, usado como evidência, não como fonte de decisão). |
+| **Documentos Relacionados** | `concept-decisions.md` (C-38 a C-46, novo bloco; C-49 a C-54, bloco adicional — ver Seção 7), `logical-model.md` (LDM-29 a LDM-37, novo bloco; LDM-38 a LDM-43, bloco adicional — ver Seção 7), `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md` (§5, itens 4–5, agora resolvidos — ver Seção 3 abaixo), `ux-exploration-2026-08-29.md` (§"Implicações", itens 3/5/8, terminologia superada — ver Seção 4), `pkmnbindr-benchmark.md` (§4, §13, §29 — prior art não-normativo, usado como evidência, não como fonte de decisão). |
 
 ---
 
@@ -118,6 +118,18 @@ Combinando o que já estava aberto em `checkpoint-2026-08-28.md` §9 com o que e
 
 ---
 
+## 7. Custody & Availability — subfrente adicional consolidada em 2026-08-30
+
+Registrado nesta mesma data, após o fechamento da subfrente de Layout (Seções 1–6 acima) e da reconciliação terminológica Physical Card: uma subfrente própria, `COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`, conceitualizou e formalizou `Custody`/`Custodian`/`Availability` a partir do memo `COLLECTIONS-INVENTORY-MODELING-05` (conduzido sem edição de arquivo).
+
+**Status desta subfrente: Collections — Custody / Availability conceptual modeling: CLOSED.**
+
+Resultado incorporado a `concept-decisions.md` (C-49 a C-54) e `logical-model.md` (LDM-38 a LDM-43, deliberadamente sem skeleton físico). Termo canônico adotado: `Custody` (não `Possession`). `Custodian` preservado como distinção conceitual, sem entidade criada. Confirmado: Custody/Availability são independentes de Ownership (Inventory) e de Storage; nenhuma das duas altera Collection Allocation, Slot Assignment ou completion — completion permanece ownership-based (C-19/C-26 reafirmadas, não reabertas).
+
+Explicitamente fora deste fechamento, permanecendo em aberto para rodada própria de Storage: estrutura física de Custody; entidade `Custodian`; enum de Availability; fluxo completo de empréstimo; fluxo de grading; Storage cross-Inventory (se um empréstimo pode usar o Storage Container de outro usuário). Nenhum código, SQL, tabela ou UUID foi tratado nesta subfrente. C-01–C-48 e LDM-01–LDM-37 não foram reabertas em conteúdo.
+
+---
+
 ## Revision History
 
 | Versão | Descrição |
@@ -125,3 +137,4 @@ Combinando o que já estava aberto em `checkpoint-2026-08-28.md` §9 com o que e
 | 1.0 | Criação deste checkpoint (2026-08-30) — consolida dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`) sobre Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Bandeja/Layout Region. Registra diagnóstico de reconciliação (decisões reutilizadas, novas, superseded, conflitos), aponta para C-38–C-46 e LDM-29–LDM-37 já incorporados a `concept-decisions.md`/`logical-model.md`, resolve `checkpoint-2026-08-29.md` §5 itens 4–5, e declara a próxima decisão em aberto. |
 | 1.1 | **Verificação final (`COLLECTIONS-LAYOUT-CONSOLIDATION-VERIFY-01`), a pedido explícito de Fabrício, antes de qualquer commit.** Removida "persistência futura da Bandeja" da lista de decisões abertas (Seção 5 e Seção 6) — D54–D59/C-45/LDM-36 já fecham esse comportamento conceitualmente; qualquer staging persistente futuro seria requisito de produto novo, não pendência da Bandeja atual. Adicionada Seção 1.1 com o status formal da subfrente ("Collections — Layout/Page/Slot conceptual modeling: CLOSED", com o escopo exato do que isso cobre e não cobre). `concept-decisions.md` C-44 recebeu parágrafo explícito confirmando que Slot Assignment não requer identidade de lifecycle própria no nível conceitual (ponto já presente em LDM-35, agora também na camada conceitual). Confirmado via `git status`/`git diff --stat`: exatamente 5 arquivos alterados nesta subfrente (4 modificados + 1 novo, 0 deletados) — nenhuma alteração fora do escopo esperado. |
 | 1.2 | **Convergência terminológica para `Physical Card`, 2026-08-30.** Este checkpoint permanece ativo (não é puramente histórico como `checkpoint-2026-08-28.md`/`checkpoint-2026-08-29.md`), por isso suas próprias citações de terminologia foram atualizadas: `Inventory Item`/`Collection Item` → `Physical Card` nas Seções 2.1, 2.3 e 6, cada ocorrência anotada com "(à época deste checkpoint, ...)" para preservar rastreabilidade de qual termo era vigente quando este documento foi originalmente escrito. A citação literal do pseudo-código de `pkmnbindr-benchmark.md` §4 (`inventory_item = NULL`) não foi alterada, por citar um documento externo não editado nesta rodada. Seção 6, item 1 recebeu nota adicional: a preservação de identidade da Physical Card durante transferência entre Inventories já está formalizada por C-48/LDM-23 (2026-08-30); o que permanece aberto é apenas o mecanismo operacional da transferência. Ver `concept-decisions.md` C-47/C-48 e `logical-model.md` LDM-23 (revisada) para a base desta convergência. |
+| 1.3 | **Custody & Availability, subfrente adicional (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`), 2026-08-30.** Adicionada Seção 7, registrando o fechamento conceitual desta subfrente (`Collections — Custody / Availability conceptual modeling: CLOSED`) e apontando para C-49–C-54/LDM-38–LDM-43, já incorporados a `concept-decisions.md`/`logical-model.md`. Documentos Relacionados atualizado. Seções 1–6 (Layout) não alteradas em conteúdo. |

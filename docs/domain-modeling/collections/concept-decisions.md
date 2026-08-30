@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, e desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory` — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, e desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability` — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -780,9 +780,71 @@ Uma `Physical Card` sob ownership corrente representado pelo MMKYU participa de 
 
 Esta regra substitui, com o refinamento de "ownership corrente" explicitado, a formulação original — nunca formalizada em C-*/LDM-* — de que "todo Inventory Item pertence obrigatoriamente a um Inventory" (memo `COLLECTIONS-INVENTORY-MODELING-01`, decisão de trabalho "I3", nunca promovida a C-*/LDM-*). Nada aqui é tecnicamente superseded no Decision Register — é a primeira formalização canônica do que antes só existia em `checkpoint-2026-08-28.md` §2.3–2.4 e nos memos de modelagem.
 
-Participação em Inventory representa exclusivamente ownership patrimonial corrente — nunca Custody/Possession (quem está fisicamente com o exemplar), nunca Availability (se está oferecido para troca/venda/reserva). Essas dimensões, quando necessárias, são conceitualmente independentes e permanecem não modeladas nesta rodada (ver memo `COLLECTIONS-INVENTORY-MODELING-03`).
+Participação em Inventory representa exclusivamente ownership patrimonial corrente — nunca Custody (quem está fisicamente com o exemplar, ver C-49–C-51), nunca Availability (se está oferecido para troca/venda/reserva, ver C-53). Essas dimensões são conceitualmente independentes de Inventory e, desde 2026-08-30, estão formalizadas no bloco complementar C-49–C-54 abaixo (nota atualizada nesta data; referenciava anteriormente o memo `COLLECTIONS-INVENTORY-MODELING-03`, que permanece válido como origem, agora promovido a C-*).
 
 Collection Allocation associa uma Physical Card a uma Collection (C-04); Slot Assignment representa uma Physical Card posicionada em um Slot do Layout (C-44); Expected Content referencia exclusivamente Card/Card Variant, nunca Physical Card (C-42) — nenhuma dessas três relações é alterada, redefinida ou reaberta por este bloco.
+
+---
+
+## Bloco complementar — Custody & Availability (2026-08-30)
+
+Adicionado ao final de `COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`, formalizando como decisão conceitual C-* o que, até esta rodada, existia apenas no memo de modelagem conceitual `COLLECTIONS-INVENTORY-MODELING-05` (Custody/Possession/Availability, conduzido sem edição de arquivo, explicitamente registrado sem criar C-*/LDM-* própria). Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido aprovado nesse memo e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-48 não são reabertas. Storage detalhado permanece OPEN, não tratado por este bloco (ver `logical-model.md` §7).
+
+## C-49 — Custody: guarda física corrente, independente de Storage
+
+**Status:** Aprovada
+
+`Custody` é a dimensão que responde: *sob controle físico de quem está o exemplar, agora?* — termo canônico adotado; `Possession` não é utilizado como conceito concorrente. Custody é independente de ownership patrimonial (participação em Inventory, C-48) e independente de Storage: Storage responde onde o exemplar está organizado/guardado dentro da estrutura física modelada do acervo; Custody responde quem detém o controle físico corrente, que pode divergir da estrutura de Storage do titular (empréstimo, grading, trânsito, perda).
+
+Não se formaliza regra rígida de que Storage preenchido implica Custody obrigatoriamente do owner — Storage normal do próprio acervo do titular pode sustentar essa presunção operacional (ver C-51), mas os dois conceitos permanecem independentes entre si.
+
+---
+
+## C-50 — Custodian: distinção conceitual sem entidade própria
+
+**Status:** Aprovada
+
+`Custodian` é o agente que exerce a Custody, quando conhecida — distinto de Custody (a relação/condição de guarda em si). Quando conhecida, Custody pode estar sob responsabilidade do próprio owner ou de um terceiro; terceiro pode futuramente ser outro User MMKYU, pessoa externa sem conta, grading company, loja/intermediário, transportadora ("em trânsito") ou outro agente. Nenhuma entidade `Custodian` é criada nesta rodada — preserva-se apenas a distinção conceitual para modelagem futura.
+
+Terceiros externos ao MMKYU (grading company, loja, transportadora) são representáveis como valores de Custodian quando a Custody for modelada em detalhe — nunca como Storage Container, mesmo estando fisicamente com a Physical Card (ver C-49). "Em trânsito" não recebe conceito estrutural novo nesta rodada — permanece circunstância futura de Custody/lifecycle, não uma dimensão própria.
+
+---
+
+## C-51 — Default operacional de Custody
+
+**Status:** Aprovada
+
+Na ausência de evidência de Custody excepcional, o produto pode presumir que a Physical Card sob ownership corrente permanece sob Custody do próprio owner. Esta é uma presunção/default operacional de produto — não uma prova material de que o owner está fisicamente com a carta, e não obriga cadastro explícito de Custody para o volume normal de Physical Cards de um acervo.
+
+---
+
+## C-52 — LOST e Recovery: continuidade de ownership e identidade
+
+**Status:** Aprovada
+
+`LOST` é a situação em que o ownership corrente permanece (participação em Inventory inalterada) e a Custody/localização física confiável do exemplar é desconhecida — não uma fórmula estrutural fixa combinando Custody e Storage, e não um evento de lifecycle que encerra ownership. Distinguem-se sempre duas afirmações: "não sei onde está" (Custody desconhecida) é conceitualmente diferente de "não é mais meu" (evento de Ownership Lifecycle, fora de escopo desta rodada). LOST nunca implica, por si só, a segunda afirmação. O tratamento específico de Storage neste cenário fica para a modelagem detalhada de Storage.
+
+`Recovery` preserva a mesma Physical Card — não cria nova identidade. Restabelece apenas o conhecimento confiável sobre Custody/localização física, revertendo o estado de LOST.
+
+---
+
+## C-53 — Availability: disposição transacional corrente, condicionada a ownership
+
+**Status:** Aprovada
+
+`Availability` representa a disposição transacional corrente do owner sobre uma Physical Card (exemplos conceituais: não oferecida, disponível para trade, disponível para sale, reservada) — não um enum definitivo, apenas o escopo conceitual da dimensão. Não pertencem a Availability: emprestada, perdida, enviada para grading, em trânsito — esses casos pertencem a Custody/lifecycle (C-49/C-50/C-52), não a Availability.
+
+Availability só é semanticamente aplicável quando há ownership corrente rastreado pelo MMKYU (participação em Inventory, C-48). Para uma Physical Card sem Inventory corrente, Availability é conceitualmente **não aplicável** — nunca simplesmente "not available".
+
+---
+
+## C-54 — Custody/Availability não alteram Collection/Layout; completion é ownership-based
+
+**Status:** Aprovada
+
+Mudanças de Custody ou de Availability não alteram, por si próprias, Collection Allocation, completion ou Slot Assignment. Uma Physical Card enviada para grading continua contando para a Collection enquanto ownership e Collection Allocation permanecerem válidos; uma Physical Card disponível para trade continua contando até que ownership realmente mude.
+
+Completion é ownership-based, não possession/custody-based — a pergunta conceitual respondida por completion é "o owner possui Physical Cards suficientes alocadas para satisfazer os requisitos da Collection?", nunca "todas estão fisicamente comigo neste instante?". Esta leitura já era consequência direta de C-19 ("Possuir ≠ Alocar ≠ Completar") e C-26 (ausência de Storage não impede completion) — este bloco apenas a confirma explicitamente para o eixo Custody/Availability, sem reabrir C-19/C-26. Custody pode ser exibida futuramente como informação complementar na UI, sem alterar completion.
 
 ---
 
@@ -1082,3 +1144,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.1 | Incorporado a `project-mimikyu` (2026-08-28, pedido explícito de Fabrício) em `docs/domain-modeling/collections/`, como fonte canônica para o domínio conceitual de `Collection`, substituindo `ADR-013`/`ADR-014` para este fim. Nenhuma decisão alterada — apenas cabeçalho e nota de incorporação adicionados. |
 | 1.2 | **Bloco complementar Collection Layout, 2026-08-30.** Adicionadas C-38 a C-46, consolidando dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`) sobre `Collection Layout`/`Page`/`Grid Configuration`/`Slot`/`Expected Content`/`Lock`/`Slot Assignment`/`Bandeja`/`Layout Region`. C-01–C-37 não reabertas. Parte D atualizada: `Binder Page` e `Binder Slot` resolvidos, `Placeholder` parcialmente resolvido. Ver `checkpoint-2026-08-30.md` para o diagnóstico de reconciliação completo. |
 | 1.3 | **Reconciliação terminológica Physical Card, 2026-08-30 (`COLLECTIONS-PHYSICAL-CARD-RECONCILIATION-02`).** Convergência de duas gerações de terminologia nunca antes reconciliadas neste documento: "Collection Item" (usado em todo o núcleo C-01–C-37 e Partes B/D, nunca migrado durante a incorporação de 2026-08-28) e "Inventory Item" (usado no bloco C-38–C-46) — ambos substituídos por `Physical Card` em todo o texto normativo. Cada ocorrência revisada semanticamente, não apenas trocada por substituição literal: onde o texto original dizia "pertence à Collection", a formulação foi corrigida para "é alocada à Collection" (B.5 #3, C-03, C-14, C-26), preservando a distinção já estabelecida entre alocação colecionável e posse física. Adicionado bloco complementar C-47–C-48, formalizando pela primeira vez em C-*/LDM-* a identidade `Physical Card` e o agregado `Inventory` (previamente registrados apenas em `checkpoint-2026-08-28.md` e em quatro memos de modelagem — `COLLECTIONS-INVENTORY-MODELING-01` a `-04` — nunca promovidos a C-*/LDM-*). C-48 formaliza a regra de participação em Inventory ("ownership corrente"), substituindo a decisão de trabalho nunca formalizada "I3". C-01–C-46 não reabertas em conteúdo — apenas em nomenclatura e, onde apontado, na precisão do verbo/relação. |
+| 1.4 | **Bloco complementar Custody & Availability, 2026-08-30** (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`). Adicionadas C-49 a C-54, formalizando pela primeira vez em C-*/LDM-* as decisões do memo conceitual `COLLECTIONS-INVENTORY-MODELING-05` (Custody/Possession/Availability), previamente registrado sem editar nenhum arquivo. Termo canônico `Custody` adotado (não `Possession`); `Custodian` preservado como distinção conceitual, sem entidade própria criada nesta rodada. A última frase de C-48 recebeu atualização de referência cruzada (aponta agora para C-49–C-54 em vez do memo `COLLECTIONS-INVENTORY-MODELING-03`) — a regra substantiva de cardinalidade de Inventory em C-48 não foi alterada. C-01–C-48 não reabertas em conteúdo. Storage detalhado permanece OPEN, fora do escopo deste bloco. |
