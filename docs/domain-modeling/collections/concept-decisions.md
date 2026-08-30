@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, e desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional) — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), e desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -926,6 +926,102 @@ Sob hierarquia de Storage Container (C-60), o Default Storage Container de uma C
 
 ---
 
+## Bloco complementar — Physical Card Lifecycle & Provenance (2026-08-30)
+
+Adicionado ao final de `COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`, encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`, conduzida por dois memos conceituais (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-MODELING-01`/`-02`), ambos sem edição de arquivo. Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido aprovado nesses memos e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-66 não são reabertas — em particular, C-49–C-54 (Custody/Availability) permanecem integralmente vigentes, sem alteração de conteúdo. Audit Log transversal, permissões detalhadas, evidence levels, workflow de grading, histórico de Loan/LOST/Recovery, histórico detalhado de condition, Pricing e Valuation permanecem explicitamente fora de escopo.
+
+## C-67 — Lifecycle: fatos históricos, identidade permanente
+
+**Status:** Aprovada
+
+`Lifecycle` é o conjunto de fatos históricos relevantes que acontecem a uma Physical Card ao longo do tempo — distinto dos estados correntes já fechados (Inventory, Custody, Storage, Availability, condition). A identidade da Physical Card (C-47) permanece a mesma através de todos os eventos de lifecycle; nenhum evento a recria.
+
+## C-68 — Provenance: subconjunto de Lifecycle, com exclusões explícitas
+
+**Status:** Aprovada
+
+`Provenance` é o subconjunto de Lifecycle focado em origem, entrada em ownership e trajetória patrimonial relevante de uma Physical Card. Provenance explicitamente **não é**: Audit Log transversal; histórico completo de Storage; histórico completo de condition; Pricing History; Valuation History.
+
+## C-69 — Current State vs. Historical Event: critério
+
+**Status:** Aprovada
+
+`Current State` responde "o que é verdade agora?" (Inventory, Custody, Storage, Availability e condition correntes, já fechados nas subfrentes anteriores). `Historical Event` responde "o que aconteceu, e quando?" — um fato imutável uma vez registrado, que pode se repetir ao longo do tempo. Nenhum estado corrente é obrigado a ser derivado de um log de eventos por força desta decisão — as duas camadas são conceitualmente complementares, não uma implementação obrigatória da outra.
+
+## C-70 — Ownership Entry
+
+**Status:** Aprovada
+
+Quando o ownership rastreado de uma Physical Card começa sem owner MMKYU anterior conhecido, existe conceitualmente um `Ownership Entry`. Dados de aquisição associados são opcionais — podem incluir data, origem, forma, valor pago, moeda e notas — e nenhum deles bloqueia o cadastro básico ou bulk import de uma Physical Card.
+
+## C-71 — Ownership Transfer: fato único e atômico
+
+**Status:** Aprovada
+
+Uma transferência MMKYU → MMKYU é **um único fato patrimonial**, não dois fatos independentes de saída e entrada. Ela encerra o ownership corrente de A, inicia o ownership corrente de B, preserva a mesma Physical Card (C-47), e não possui hiato conceitual entre os dois ownerships — a Physical Card nunca fica sem owner MMKYU corrente durante o ato.
+
+## C-72 — Ownership Exit
+
+**Status:** Aprovada
+
+`Ownership Exit` encerra o ownership rastreado de uma Physical Card sem que exista um novo owner MMKYU conhecido. A Physical Card pode continuar existindo sem Inventory corrente (C-48 reafirmada) — o Exit não invalida nem recria sua identidade.
+
+## C-73 — Reasons qualificam o evento, não criam tipos estruturais
+
+**Status:** Aprovada
+
+O motivo de um Ownership Entry, Transfer ou Exit qualifica o evento como atributo — nunca cria um tipo estrutural próprio por motivo. Exemplos ilustrativos, não exaustivos e não fixados como enum: Entry (purchase, gift, trade, pull, unknown); Transfer (sale, gift, trade); Exit (external sale, external gift, external trade, disposal, destruction, outro).
+
+## C-74 — Ownership Episode: ferramenta conceitual
+
+**Status:** Aprovada
+
+`Ownership Episode` é uma ferramenta conceitual — o intervalo durante o qual uma Physical Card permanece sob ownership corrente de um determinado Inventory/titular — usada para raciocinar sobre Acquisition e Provenance. Não constitui entidade canônica própria nesta rodada.
+
+## C-75 — Physical Card Provenance vs. Owner/Transaction Private Data
+
+**Status:** Aprovada
+
+`Physical Card Provenance` (a trajetória patrimonial relevante da própria carta — que teve determinados episódios de ownership, aproximadamente quando, por qual categoria geral de evento) é distinta de `Owner/Transaction Private Data` (os detalhes de um episódio específico: valor pago, seller, buyer, frete, margem, contraparte, notas privadas). Dados privados de um episódio pertencem ao respectivo owner e **não são herdados nem expostos automaticamente** ao owner seguinte quando a Physical Card muda de mãos. A identidade de owners anteriores também não deve ser assumida como automaticamente pública/compartilhável. Permissões detalhadas ficam para frente própria — não modeladas aqui.
+
+## C-76 — Evidência/verificação: linguagem segura
+
+**Status:** Aprovada
+
+Provenance é descrita como "registrada/rastreada no MMKYU" — nunca como "verificada", "certificada" ou parte de uma "cadeia autenticada". Não se assume autenticidade, certificação, matching físico infalível nem qualquer mecanismo de blockchain. Um futuro nível de evidência (ex.: autodeclarado vs. documentado) pode existir, mas não é modelado nesta rodada.
+
+## C-77 — Transfer Integrity: consequências paralelas
+
+**Status:** Aprovada
+
+Uma mudança de ownership (Transfer ou Exit) deve resultar em estado consistente quanto a Collection Allocation, Slot Assignment dependente e Storage — três consequências **paralelas e independentes** da mesma mudança patrimonial, não uma cadeia onde Collection Allocation deriva da regra de Storage. Collection Allocation incompatível decorre de invariante própria (uma Collection pertence a um titular); Slot Assignment dependente decorre, essa sim, de exigir Collection Allocation prévia (C-44/LDM-35); Storage incompatível decorre da fronteira de Inventory já fechada (C-57/C-61). Product Behavior de resolução não é definido nesta etapa.
+
+## C-78 — Custody permanece independente de ownership, inclusive após Exit
+
+**Status:** Aprovada
+
+Custody (C-49–C-54, não alteradas) permanece independente de ownership patrimonial. Ownership Exit não força Custody para "não aplicável" — Custody pode continuar conceitualmente significativa após um Exit (ex.: vendedor ainda fisicamente com a carta, transportadora, terceiro), já que nenhuma decisão fechada de Custody condiciona sua aplicabilidade à existência de ownership corrente. Na prática, Custody pós-Exit tende a ficar desatualizada por falta de motivo para atualização — uma questão prática, não uma regra de domínio.
+
+## C-79 — Núcleo V1 de Lifecycle
+
+**Status:** Aprovada
+
+O núcleo de Lifecycle para V1 é: Ownership Entry, Ownership Transfer e Ownership Exit — existindo como consequência natural dos fluxos patrimoniais que o produto já precisa suportar, nunca exigindo preenchimento manual de dados de aquisição. Histórico de Loan, LOST/Recovery e Grading ficam fora do núcleo V1; os estados correntes já modelados (Custody, Availability) permanecem integralmente válidos.
+
+## C-80 — Grading: fechamento mínimo
+
+**Status:** Aprovada
+
+Fecha-se apenas: Grading pode alterar o estado atual de certificação da Physical Card, e pode futuramente produzir fatos relevantes de lifecycle. Submission, return, regrade, cracking e qualquer workflow de grading não são modelados nesta rodada.
+
+## C-81 — Valuation/Pricing History não fazem parte da Provenance
+
+**Status:** Aprovada
+
+Pricing History e Valuation History não fazem parte de Provenance (reafirma C-68). Amount paid / sale amount podem existir como dados transacionais privados de um episódio de ownership (Owner/Transaction Private Data, C-75) — nunca como o sinal de mercado contínuo que Pricing/Valuation representam. Pricing V1 (`05f-pricing.md`) não é reaberto por esta decisão.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -1225,3 +1321,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.3 | **Reconciliação terminológica Physical Card, 2026-08-30 (`COLLECTIONS-PHYSICAL-CARD-RECONCILIATION-02`).** Convergência de duas gerações de terminologia nunca antes reconciliadas neste documento: "Collection Item" (usado em todo o núcleo C-01–C-37 e Partes B/D, nunca migrado durante a incorporação de 2026-08-28) e "Inventory Item" (usado no bloco C-38–C-46) — ambos substituídos por `Physical Card` em todo o texto normativo. Cada ocorrência revisada semanticamente, não apenas trocada por substituição literal: onde o texto original dizia "pertence à Collection", a formulação foi corrigida para "é alocada à Collection" (B.5 #3, C-03, C-14, C-26), preservando a distinção já estabelecida entre alocação colecionável e posse física. Adicionado bloco complementar C-47–C-48, formalizando pela primeira vez em C-*/LDM-* a identidade `Physical Card` e o agregado `Inventory` (previamente registrados apenas em `checkpoint-2026-08-28.md` e em quatro memos de modelagem — `COLLECTIONS-INVENTORY-MODELING-01` a `-04` — nunca promovidos a C-*/LDM-*). C-48 formaliza a regra de participação em Inventory ("ownership corrente"), substituindo a decisão de trabalho nunca formalizada "I3". C-01–C-46 não reabertas em conteúdo — apenas em nomenclatura e, onde apontado, na precisão do verbo/relação. |
 | 1.4 | **Bloco complementar Custody & Availability, 2026-08-30** (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`). Adicionadas C-49 a C-54, formalizando pela primeira vez em C-*/LDM-* as decisões do memo conceitual `COLLECTIONS-INVENTORY-MODELING-05` (Custody/Possession/Availability), previamente registrado sem editar nenhum arquivo. Termo canônico `Custody` adotado (não `Possession`); `Custodian` preservado como distinção conceitual, sem entidade própria criada nesta rodada. A última frase de C-48 recebeu atualização de referência cruzada (aponta agora para C-49–C-54 em vez do memo `COLLECTIONS-INVENTORY-MODELING-03`) — a regra substantiva de cardinalidade de Inventory em C-48 não foi alterada. C-01–C-48 não reabertas em conteúdo. Storage detalhado permanece OPEN, fora do escopo deste bloco. |
 | 1.5 | **Bloco complementar Storage, 2026-08-30** (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Storage conceptual modeling`. Adicionadas C-55 a C-66, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-STORAGE-MODELING-01`/`-02` e da rodada de correção sobre remoção/hierarquia (todos previamente registrados sem editar arquivo): definição de Storage/Storage Container e fronteira com Protection (critério de endereçabilidade, C-56); ownership de Storage Container mediado por Inventory (C-57, evitando repetir o padrão SUPERSEDED de LDM-25); cardinalidade e independência de Physical Card × Storage frente a ownership/Collection Allocation/Slot Assignment/completion (C-58); existência vazia, independência de Collection e caráter corrente, não histórico (C-59); hierarquia opcional entre Storage Containers com regra de container-folha (C-60); fechamento de Storage cross-Inventory como não suportado, incluindo a regra de mesmo Inventory entre parent/child (C-61); capacidade como conceito opcional/informativo/dependente de tipo, distinto de Grid Configuration de Layout (C-62); remoção condicionada a vazio estrutural (zero Physical Cards e zero containers filhos), sem cascade (C-63); as duas operações de transferência, Bulk Card Transfer (C-64) e Reparent Storage Container (C-65); e a semântica de Default Storage sob hierarquia (C-66, sem reabrir C-36). Parte D atualizada: `Storage Container` e `Binder` marcados como conceitualmente resolvidos; `ETB / Storage Box Layout` e `Storage Divider` permanecem não modelados; adicionado `Protection / Encapsulation` como dimensão futura reconhecida, não modelada. C-01–C-54 não reabertas em conteúdo. Protection/Encapsulation, histórico de Storage e modelagem física (SQL, capacidade rígida, UX) permanecem fora de escopo. |
+| 1.6 | **Bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`. Adicionadas C-67 a C-81, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo): definição de Lifecycle e permanência de identidade (C-67); Provenance como subconjunto de Lifecycle, com exclusões explícitas — não é Audit Log, histórico de Storage, histórico de condition, Pricing nem Valuation History (C-68); critério Current State vs. Historical Event (C-69); espinha dorsal patrimonial de três formas — Ownership Entry (C-70), Ownership Transfer como fato único e atômico, sem hiato (C-71), Ownership Exit (C-72) — com motivo qualificando o evento, nunca criando tipo estrutural próprio (C-73); Ownership Episode como ferramenta conceitual, sem entidade própria (C-74); fronteira central entre Physical Card Provenance e Owner/Transaction Private Data, com dados privados de um episódio nunca herdados automaticamente pelo owner seguinte (C-75); linguagem segura de evidência/verificação — "registrada/rastreada", nunca "verificada/certificada" (C-76); Transfer Integrity com três consequências paralelas e independentes sobre Collection Allocation/Slot Assignment/Storage, corrigindo uma formulação anterior que sugeria dependência causal entre elas (C-77); confirmação de que Custody permanece independente de ownership mesmo após Exit, corrigindo uma recomendação anterior que a levava a "não aplicável" (C-78, sem alterar C-49–C-54); núcleo mínimo de Lifecycle para V1 — Entry/Transfer/Exit automáticos, sem histórico de Loan/LOST/Grading (C-79); fechamento mínimo de Grading, sem workflow (C-80); confirmação de que Valuation/Pricing History não fazem parte de Provenance, sem reabrir Pricing V1 (C-81, reafirma C-68). C-01–C-66 não reabertas em conteúdo — C-49–C-54 (Custody/Availability) permanecem integralmente vigentes. Audit Log transversal, permissões detalhadas, evidence levels, workflow de grading, histórico de Loan/LOST/Recovery, histórico detalhado de condition, Pricing e Valuation permanecem explicitamente fora de escopo. |
