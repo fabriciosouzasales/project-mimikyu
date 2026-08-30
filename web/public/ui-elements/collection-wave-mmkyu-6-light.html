@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e0dad2">
+  <title>MMKYU Collector — Minhas Collections (Wave)</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      background: #e0dad2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #e0dad2;
+    }
+
+    body {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .stage {
+      --pointer-x: 50%;
+      --pointer-y: 50%;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 440px;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(
+          circle at var(--pointer-x) var(--pointer-y),
+          rgba(70, 55, 35, 0.05),
+          transparent 24rem
+        ),
+        #e0dad2;
+      perspective: 1100px;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      background: radial-gradient(
+        ellipse at center,
+        transparent 34%,
+        rgba(0, 0, 0, 0.13) 70%,
+        rgba(0, 0, 0, 0.36) 120%
+      );
+    }
+
+    .stage::after {
+      content: "";
+      position: absolute;
+      inset: -20%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.16;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
+      transform: rotate(7deg);
+      mix-blend-mode: soft-light;
+    }
+
+    .deck {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      transform-style: preserve-3d;
+    }
+
+    .card {
+      --focus: 0;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: clamp(122px, 10.45vw, 164px);
+      aspect-ratio: 0.69;
+      padding: clamp(8px, 0.78vw, 12px);
+      border: 0;
+      border-radius: clamp(10px, 1.05vw, 16px);
+      color: #f3f0e9;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 34%),
+        var(--card-color);
+      box-shadow:
+        0 calc(7px + var(--focus) * 20px) calc(13px + var(--focus) * 40px)
+          rgba(0, 0, 0, calc(0.25 + var(--focus) * 0.34)),
+        inset 0 1px rgba(255, 255, 255, 0.06),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.24);
+      appearance: none;
+      outline: none;
+      transform-style: preserve-3d;
+      will-change: transform, opacity, filter;
+      cursor: pointer;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(255, 255, 255, calc(0.035 + var(--focus) * 0.12));
+      border-radius: inherit;
+      pointer-events: none;
+    }
+
+    .card:focus-visible::after {
+      border-color: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+    }
+
+    .portrait {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      overflow: hidden;
+      border-radius: clamp(7px, 0.75vw, 11px);
+      background: rgba(8, 9, 9, 0.24);
+      box-shadow:
+        inset 0 1px rgba(255, 255, 255, 0.04),
+        inset 0 -16px 28px rgba(0, 0, 0, 0.13);
+      transform: translateZ(7px);
+    }
+
+    .portrait img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(0.88) contrast(1.02);
+    }
+
+    .identity {
+      display: grid;
+      place-items: center;
+      gap: clamp(2px, 0.25vw, 4px);
+      margin-top: clamp(7px, 0.72vw, 11px);
+      text-align: center;
+      transform: translateZ(8px);
+    }
+
+    .name {
+      max-width: 100%;
+      overflow: hidden;
+      color: rgba(255, 255, 255, 0.93);
+      font-size: clamp(8px, 0.72vw, 11px);
+      font-weight: 500;
+      line-height: 1.15;
+      letter-spacing: -0.035em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .role {
+      max-width: 100%;
+      overflow: hidden;
+      color: rgba(255, 255, 255, 0.48);
+      font-size: clamp(4px, 0.37vw, 6px);
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .follow {
+      margin-top: clamp(3px, 0.35vw, 6px);
+      padding: clamp(3px, 0.28vw, 4px) clamp(9px, 0.85vw, 13px);
+      border: 1px solid rgba(255, 255, 255, 0.055);
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.82);
+      background: rgba(0, 0, 0, 0.86);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.42);
+      font-size: clamp(3px, 0.29vw, 5px);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .card[aria-current="true"] .follow {
+      color: #fff;
+      background: #050505;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 680px) {
+      .stage {
+        min-height: 520px;
+      }
+
+      .card {
+        width: clamp(112px, 31vw, 138px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        will-change: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage" aria-label="Estante em onda — Minhas Collections">
+    <h1 class="sr-only">MMKYU Collector — Minhas Collections (Wave)</h1>
+    <p class="sr-only">
+      Mova o ponteiro ou use as setas do teclado para explorar os Binders.
+      Pressione espaço para alternar a orientação da onda.
+    </p>
+    <div class="deck" id="deck" data-testid="deck"></div>
+  </main>
+
+  <script>
+    (() => {
+      const portraits = {
+        "base-set": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%23dda54b' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%23dda54b' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%23dda54b'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "fossil": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%236b5a3f' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%236b5a3f' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%236b5a3f'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "gym-heroes": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%233f5a6b' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%233f5a6b' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%233f5a6b'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "jungle": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%233f6b45' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%233f6b45' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%233f6b45'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "neo-genesis": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%236b3f4a' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%236b3f4a' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%236b3f4a'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "team-rocket": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%235a3f6b' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%235a3f6b' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%235a3f6b'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>"
+      };
+
+      const CARD_TINT = {"base-set": "#281e0e", "jungle": "#0b130c", "fossil": "#13100b", "team-rocket": "#100b13", "gym-heroes": "#0b1013", "neo-genesis": "#130b0d"};
+
+      const profiles = [
+        {
+          name: "Base Set",
+          code: "BASE",
+          progress: 0,
+          portrait: "base-set"
+        },
+        {
+          name: "Jungle",
+          code: "JUN",
+          progress: 23,
+          portrait: "jungle"
+        },
+        {
+          name: "Fossil",
+          code: "FOS",
+          progress: 74,
+          portrait: "fossil"
+        },
+        {
+          name: "Team Rocket",
+          code: "ROCKET",
+          progress: 2,
+          portrait: "team-rocket"
+        },
+        {
+          name: "Gym Heroes",
+          code: "GYM",
+          progress: 2,
+          portrait: "gym-heroes"
+        },
+        {
+          name: "Neo Genesis",
+          code: "NEO",
+          progress: 56,
+          portrait: "neo-genesis"
+        }
+      ];
+
+      const stage = document.querySelector("#stage");
+      const deck = document.querySelector("#deck");
+      const cards = profiles.map((profile, index) => {
+        const card = document.createElement("button");
+        card.className = "card";
+        card.type = "button";
+        card.dataset.index = String(index);
+        card.setAttribute("aria-label", `Abrir ${profile.name}, ${profile.progress}% completo`);
+        card.style.setProperty("--card-color", CARD_TINT[profile.portrait]);
+        card.innerHTML = `
+          <span class="portrait">
+            <img src="${portraits[profile.portrait]}" alt="Binder da Collection ${profile.name}">
+          </span>
+          <span class="identity">
+            <span class="name">${profile.name}</span>
+            <span class="role">${profile.code}</span>
+            <span class="follow" aria-hidden="true">${profile.progress}%</span>
+          </span>`;
+        deck.append(card);
+        return card;
+      });
+
+      const state = {
+        phase: 2,
+        targetPhase: 2,
+        basePhase: 2,
+        orientation: window.innerWidth < 680 ? 1 : 0,
+        targetOrientation: window.innerWidth < 680 ? 1 : 0,
+        pointerX: 0,
+        pointerY: 0,
+        tiltX: 0,
+        tiltY: 0,
+        active: false,
+        manualOrientation: false,
+        lastInput: performance.now()
+      };
+
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const count = cards.length;
+
+      function wrappedDelta(index, phase) {
+        let delta = index - phase;
+        while (delta > count / 2) delta -= count;
+        while (delta < -count / 2) delta += count;
+        return delta;
+      }
+
+      function nearestIndex() {
+        return (Math.round(state.phase) % count + count) % count;
+      }
+
+      function select(index) {
+        const current = nearestIndex();
+        let delta = index - current;
+        if (delta > count / 2) delta -= count;
+        if (delta < -count / 2) delta += count;
+        state.basePhase += delta;
+        state.targetPhase = state.basePhase;
+        state.lastInput = performance.now();
+      }
+
+      function setPointer(event) {
+        const rect = stage.getBoundingClientRect();
+        const nx = Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width - 0.5) * 2));
+        const ny = Math.max(-1, Math.min(1, ((event.clientY - rect.top) / rect.height - 0.5) * 2));
+
+        state.pointerX = nx;
+        state.pointerY = ny;
+        state.tiltX = nx;
+        state.tiltY = ny;
+        state.active = true;
+        state.lastInput = performance.now();
+
+        const axis = state.targetOrientation > 0.5 ? ny : nx;
+        state.targetPhase = state.basePhase + axis * (window.innerWidth < 680 ? 1.55 : 2.45);
+        stage.style.setProperty("--pointer-x", `${((nx + 1) / 2) * 100}%`);
+        stage.style.setProperty("--pointer-y", `${((ny + 1) / 2) * 100}%`);
+      }
+
+      function toggleOrientation() {
+        state.manualOrientation = true;
+        state.targetOrientation = state.targetOrientation > 0.5 ? 0 : 1;
+        state.targetPhase = state.basePhase;
+        state.lastInput = performance.now();
+      }
+
+      cards.forEach((card, index) => {
+        card.addEventListener("click", () => select(index));
+        card.addEventListener("focus", () => select(index));
+      });
+
+      stage.addEventListener("pointermove", setPointer);
+      stage.addEventListener("pointerdown", setPointer);
+      stage.addEventListener("pointerleave", () => {
+        state.active = false;
+        state.targetPhase = state.basePhase;
+        state.pointerX = 0;
+        state.pointerY = 0;
+        stage.style.setProperty("--pointer-x", "50%");
+        stage.style.setProperty("--pointer-y", "50%");
+      });
+
+      stage.addEventListener("dblclick", toggleOrientation);
+
+      stage.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const direction = Math.sign(Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX);
+        if (!direction) return;
+        state.basePhase += direction;
+        state.targetPhase = state.basePhase;
+        state.active = false;
+        state.lastInput = performance.now();
+      }, { passive: false });
+
+      window.addEventListener("keydown", (event) => {
+        if (["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", " "].includes(event.key)) {
+          event.preventDefault();
+        }
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+          state.basePhase += 1;
+          state.targetPhase = state.basePhase;
+          state.lastInput = performance.now();
+        }
+        if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+          state.basePhase -= 1;
+          state.targetPhase = state.basePhase;
+          state.lastInput = performance.now();
+        }
+        if (event.key === " ") toggleOrientation();
+      });
+
+      window.addEventListener("resize", () => {
+        if (!state.manualOrientation) {
+          state.targetOrientation = window.innerWidth < 680 ? 1 : 0;
+        }
+      });
+
+      let previousTime = performance.now();
+
+      function render(time) {
+        const deltaTime = Math.min(32, time - previousTime);
+        previousTime = time;
+        const ease = reducedMotion ? 1 : 1 - Math.pow(0.0007, deltaTime / 1000);
+
+        if (!state.active && !state.manualOrientation && time - state.lastInput > 4200) {
+          const idle = time - state.lastInput - 4200;
+          state.targetPhase = state.basePhase + Math.sin(idle * 0.00034) * 1.9;
+          state.targetOrientation = (Math.sin(idle * 0.00019 - Math.PI / 2) + 1) / 2;
+        }
+
+        state.phase += (state.targetPhase - state.phase) * ease;
+        state.orientation += (state.targetOrientation - state.orientation) * ease * 0.72;
+        state.tiltX += ((state.active ? state.pointerX : 0) - state.tiltX) * ease * 0.72;
+        state.tiltY += ((state.active ? state.pointerY : 0) - state.tiltY) * ease * 0.72;
+
+        const horizontalSpacing = Math.min(150, Math.max(102, window.innerWidth * 0.096));
+        const verticalSpacing = Math.min(136, Math.max(99, window.innerHeight * 0.148));
+        const activeIndex = nearestIndex();
+
+        cards.forEach((card, index) => {
+          const delta = wrappedDelta(index, state.phase);
+          const distance = Math.abs(delta);
+          const focus = Math.exp(-Math.pow(distance, 2) * 1.05);
+          const side = Math.max(0, 1 - distance / 5);
+          const direction = Math.sign(delta);
+
+          const horizontalX = delta * horizontalSpacing;
+          const horizontalY = -Math.pow(distance, 1.45) * 6 + Math.sin(delta * 0.8) * 5;
+          const verticalX = Math.sin(delta * 0.82) * Math.min(78, window.innerWidth * 0.06)
+            + direction * Math.pow(distance, 1.25) * 8;
+          const verticalY = delta * verticalSpacing;
+
+          const x = horizontalX * (1 - state.orientation) + verticalX * state.orientation;
+          const y = horizontalY * (1 - state.orientation) + verticalY * state.orientation;
+          const z = focus * 95 - distance * 78;
+          const scale = 0.57 + side * 0.16 + focus * 0.38;
+          const rotateX = (
+            -state.tiltY * focus * 5
+            + delta * 2.2 * state.orientation
+          );
+          const rotateY = (
+            state.tiltX * focus * 7
+            - delta * 8.5 * (1 - state.orientation)
+          );
+          const rotateZ = (
+            delta * 2.25 * (1 - state.orientation)
+            - delta * 1.4 * state.orientation
+          );
+
+          card.style.setProperty("--focus", focus.toFixed(4));
+          card.style.zIndex = String(Math.round(1000 - distance * 100));
+          card.style.opacity = String(Math.max(0.14, side * 0.82 + focus * 0.18));
+          card.style.filter = `blur(${Math.max(0, distance - 1.35) * 0.45}px) saturate(${0.72 + focus * 0.28})`;
+          card.style.transform = [
+            "translate(-50%, -50%)",
+            `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, ${z.toFixed(2)}px)`,
+            `rotateX(${rotateX.toFixed(2)}deg)`,
+            `rotateY(${rotateY.toFixed(2)}deg)`,
+            `rotateZ(${rotateZ.toFixed(2)}deg)`,
+            `scale(${scale.toFixed(4)})`
+          ].join(" ");
+          card.setAttribute("aria-current", index === activeIndex ? "true" : "false");
+        });
+
+        requestAnimationFrame(render);
+      }
+
+      requestAnimationFrame(render);
+    })();
+  </script>
+</body>
+</html>

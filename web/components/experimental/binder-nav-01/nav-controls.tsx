@@ -22,10 +22,27 @@ import { cn } from "@/lib/utils";
  * pedido: precisa estar PREPARADO para um salto direto futuro (mesma
  * posição/tamanho de um controle), mas seletor/thumbnail não entra nesta
  * rodada, então não é interativo ainda.
+ *
+ * LIGHT/DARK (2026-08-29) — diferente do resto do OBJETO Binder (que
+ * continua escuro nos dois temas), estes controles sentam DIRETAMENTE sobre
+ * o fundo do workspace (`binder-nav-view.tsx`), fora da moldura de couro —
+ * por isso precisam de tratamento real por tema: o padrão "branco
+ * translúcido sobre fundo escuro" (`bg-white/5 text-white/70`) ficaria quase
+ * invisível/ilegível sobre um workspace claro. Ganharam pares `dark:`
+ * explícitos (claro = tinta escura translúcida sobre o off-white do
+ * workspace; escuro = valores originais, inalterados). O `ring-offset` do
+ * foco usa `--binder-page-bg` (ver `globals.css`) para acompanhar o fundo
+ * real em qualquer tema, em vez de um tom escuro fixo.
+ *
+ * POLISH LIGHT MODE (2026-08-29, rodada 2) — pedido de Fabrício: aumentar
+ * levemente o contraste dos controles no claro (nav superior, setas
+ * laterais, disabled/focus/hover), mantendo "disabled" perceptível em vez de
+ * quase invisível. Ajuste ESCOPADO ao claro — todo valor `dark:` abaixo
+ * permanece idêntico ao da Rodada 1.
  */
 
 const FOCUS_RING =
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40_70%_62%)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(30_20%_7%)]";
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40_70%_62%)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--binder-page-bg))]";
 
 function NavButton({
   label,
@@ -50,7 +67,8 @@ function NavButton({
       aria-label={label}
       title={title}
       className={cn(
-        "rounded-full border border-white/15 bg-white/5 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-white/70",
+        "rounded-full border border-black/20 bg-black/[0.06] text-black/70 transition-colors hover:bg-black/[0.12] hover:text-black/95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-black/[0.06] disabled:hover:text-black/70",
+        "dark:border-white/15 dark:bg-white/5 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white dark:disabled:opacity-30 dark:disabled:hover:bg-white/5 dark:disabled:hover:text-white/70",
         size === "md" ? "p-1.5 sm:p-2" : "p-2.5 sm:p-3.5",
         FOCUS_RING,
       )}
@@ -95,7 +113,7 @@ export function TopNavControls({
       <span
         aria-live="polite"
         aria-atomic="true"
-        className="min-w-[64px] select-none rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-center text-xs font-medium tabular-nums text-white/70 sm:min-w-[72px] sm:text-sm"
+        className="min-w-[64px] select-none rounded-full border border-black/20 bg-black/[0.06] px-3 py-1.5 text-center text-xs font-medium tabular-nums text-black/70 dark:border-white/10 dark:bg-white/5 dark:text-white/70 sm:min-w-[72px] sm:text-sm"
       >
         {index + 1} / {total}
       </span>
@@ -128,7 +146,8 @@ export function SideArrowButton({
       aria-label={isPrev ? "Spread anterior" : "Próximo spread"}
       title={isPrev ? "Spread anterior (←)" : "Próximo spread (→)"}
       className={cn(
-        "flex-shrink-0 rounded-full border border-white/15 bg-black/30 text-white/70 backdrop-blur-sm transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-black/30 disabled:hover:text-white/70",
+        "flex-shrink-0 rounded-full border border-black/20 bg-white/75 text-black/70 backdrop-blur-sm transition-colors hover:bg-black/10 hover:text-black/95 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-white/75 disabled:hover:text-black/70",
+        "dark:border-white/15 dark:bg-black/30 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white dark:disabled:opacity-20 dark:disabled:hover:bg-black/30 dark:disabled:hover:text-white/70",
         "p-1.5 sm:p-2.5 md:p-3.5",
         FOCUS_RING,
       )}

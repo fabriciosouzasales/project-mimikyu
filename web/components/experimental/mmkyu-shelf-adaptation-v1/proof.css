@@ -1,0 +1,11 @@
+/**
+ * Mesmo propósito de `threeui-complete-shelf-proof/proof.css`: NÃO é CSS do
+ * ThreeUI, é só a plumbing mínima para o iframe ter altura de viewport.
+ * Duplicado (em vez de importado da rota-irmã) para manter as duas rotas
+ * completamente independentes, conforme pedido (seção 7).
+ */
+.shader-frame {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}

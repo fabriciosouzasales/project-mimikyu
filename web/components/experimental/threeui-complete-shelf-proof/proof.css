@@ -1,0 +1,13 @@
+/*
+ * FASE 1 — PROVA DE FIDELIDADE (2026-08-29).
+ * `.shader-frame` não faz parte do ThreeUI — é o mínimo de CSS necessário
+ * para o iframe interno do componente (que não define largura/altura
+ * própria; depende do container pai) ocupar a viewport nesta rota de
+ * prova. Escopo local a esta rota experimental — nenhum token/estilo
+ * MMKYU envolvido, nenhuma alteração em CSS global do projeto.
+ */
+.shader-frame {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}

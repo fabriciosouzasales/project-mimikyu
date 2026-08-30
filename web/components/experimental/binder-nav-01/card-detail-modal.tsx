@@ -40,6 +40,15 @@ import { RealCardFace } from "./real-card-face";
  * botão de favoritar das Quick Actions do slot — alterar aqui reflete lá
  * enquanto o modal está aberto, sem nenhuma persistência.
  *
+ * BINDER-QUICK-ACTIONS-01 (2026-08-29) — o botão de favoritar aqui também
+ * passou de dourado para VERMELHO no estado ativo, mesma regra aplicada em
+ * `slot-quick-actions.tsx`/`binder-slot-full.tsx`: dourado fica reservado a
+ * identidade/foco/premium do MMKYU (o preço logo abaixo continua dourado —
+ * não é Favorite), nunca para o estado de favorito. Sem outra mudança nesta
+ * rodada — Card Detail não ganhou Lock/Replace/Remove (fora de escopo,
+ * pedido explícito: "ações permitidas nesta rodada: favoritar/desfavoritar e
+ * fechar").
+ *
  * Ações permitidas nesta rodada: favoritar/desfavoritar e fechar — de
  * propósito, NADA de DnD, remover, substituir, Wishlist, Labels, edição de
  * Inventory, marketplace ou histórico de preços completo (todos citados
@@ -61,6 +70,31 @@ import { RealCardFace } from "./real-card-face";
  * renderizado dentro de `BinderPagesNav`) — sem `stopPropagation()` aqui, um
  * gesto de arrastar dentro do modal poderia disparar a navegação de spread
  * por baixo dele.
+ *
+ * LIGHT/DARK (2026-08-29) — pedido explícito: "Card Detail com superfícies
+ * claras premium e boa hierarquia" no tema claro, ao contrário do OBJETO
+ * Binder (que continua escuro nos dois temas). A superfície do diálogo
+ * (fundo/borda/sombra) passou a usar os tokens `--binder-modal-*` (ver
+ * `globals.css`, escopados via `.binder-nav-01-scope` — cascata chega aqui
+ * porque este componente é renderizado como filho de `BinderPagesNav`, que
+ * já está dentro da raiz com essa classe, mesmo o modal sendo `position:
+ * fixed`: `position: fixed` só afasta o LAYOUT do fluxo normal, a cascata de
+ * CSS variables continua seguindo a árvore real do DOM). Textos/botões/
+ * badges ganharam pares `dark:` explícitos; o escuro preserva os valores
+ * originais byte-a-byte. O dourado do preço/favorito ficou mais profundo no
+ * claro (`hsl(32_..._40%)` em vez de `hsl(40_75%_68%)`) só para manter
+ * contraste AA sobre um fundo claro — a MESMA família de cor (âmbar MMKYU),
+ * não uma substituição. O backdrop que escurece o Binder por trás (`bg-
+ * black/72`) fica igual nos dois temas de propósito: é um scrim sobre a
+ * PÁGINA, não uma superfície do modal, e o Binder por trás continua escuro
+ * em ambos os temas.
+ *
+ * POLISH LIGHT MODE (2026-08-29, rodada 2) — pedido de Fabrício: "garantir
+ * contraste equivalente no Light Mode, sem redesign" (item 6). Bump pontual
+ * de opacidade em textos/botões/badge do claro (labels, valores, botão
+ * favoritar/fechar) para equivaler à legibilidade que os Quick Actions já
+ * têm no couro escuro do Binder — sem tocar em layout, estrutura ou no
+ * escuro (`dark:` inalterado).
  */
 
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -68,7 +102,7 @@ const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-2">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/35">{title}</h3>
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-black/45 dark:text-white/35">{title}</h3>
       <div className="space-y-2">{children}</div>
     </section>
   );
@@ -77,11 +111,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Row({ icon: Icon, label, value }: { icon?: typeof MapPin; label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="flex items-center gap-1.5 text-white/45">
+      <span className="flex items-center gap-1.5 text-black/55 dark:text-white/45">
         {Icon && <Icon className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />}
         {label}
       </span>
-      <span className="min-w-0 truncate text-right text-white/85">{value}</span>
+      <span className="min-w-0 truncate text-right text-black/85 dark:text-white/85">{value}</span>
     </div>
   );
 }
@@ -175,17 +209,25 @@ export function CardDetailModal({
         onClick={(event) => event.stopPropagation()}
         className="relative z-10 flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl outline-none sm:flex-row"
         style={{
-          background: "hsl(30 14% 9%)",
-          boxShadow: "0 40px 80px -20px rgba(0,0,0,0.75), inset 0 1px 0 hsl(0 0% 100% / 0.06)",
-          border: "1px solid hsl(0 0% 100% / 0.08)",
+          background: "hsl(var(--binder-modal-bg))",
+          boxShadow: "var(--binder-modal-shadow)",
+          border: "1px solid var(--binder-modal-border)",
           maxHeight: "min(88dvh, 720px)",
         }}
       >
         {/* Imagem — protagonista, proporção real preservada (object-contain, item 2). */}
-        <div className="flex shrink-0 items-center justify-center bg-black/30 p-6 sm:w-[42%] sm:p-8">
+        <div
+          className="flex shrink-0 items-center justify-center p-6 sm:w-[42%] sm:p-8"
+          style={{ background: "hsl(var(--binder-modal-image-bg))" }}
+        >
           <div
-            className="relative aspect-[5/7] w-full max-w-[260px] overflow-hidden rounded-md"
-            style={{ boxShadow: "0 18px 40px -12px rgba(0,0,0,0.7)" }}
+            // BINDER-CARD-ASPECT-RATIO-01 — `aspect-[5/7]` → `aspect-[8/11]`,
+            // proporção real do asset (600×825px). Aqui o efeito é mais
+            // visível que no slot: `fit="contain"` faz o letterbox mudar de
+            // eixo (antes sobrava faixa vertical vazia comprimindo a arte
+            // percebida; agora a arte ocupa a caixa quase por completo).
+            className="relative aspect-[8/11] w-full max-w-[260px] overflow-hidden rounded-md"
+            style={{ boxShadow: "var(--binder-modal-image-shadow)" }}
           >
             {"imageUrl" in card ? <RealCardFace card={card} fit="contain" /> : <MockCardFace card={card} />}
           </div>
@@ -195,10 +237,10 @@ export function CardDetailModal({
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-start justify-between gap-3 px-5 pt-5 sm:px-6">
             <div className="min-w-0">
-              <h2 id={titleId} className="truncate text-xl font-semibold leading-tight text-white">
+              <h2 id={titleId} className="truncate text-xl font-semibold leading-tight text-black/90 dark:text-white">
                 {card.name}
               </h2>
-              <p className="mt-1 text-sm text-white/50">
+              <p className="mt-1 text-sm text-black/60 dark:text-white/50">
                 {setInfo.setName} · Nº {setInfo.number}
               </p>
             </div>
@@ -209,10 +251,10 @@ export function CardDetailModal({
                 aria-label={isFavorite ? "Desfavoritar carta" : "Favoritar carta"}
                 aria-pressed={isFavorite}
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40_70%_62%)] focus-visible:ring-offset-2 focus-visible:ring-offset-black",
+                  "flex h-9 w-9 items-center justify-center rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40_70%_62%)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--binder-modal-bg))]",
                   isFavorite
-                    ? "border-[hsl(40_70%_62%_/_0.4)] bg-[hsl(40_70%_62%_/_0.16)] text-[hsl(40_75%_72%)]"
-                    : "border-white/12 bg-white/5 text-white/60 hover:text-white",
+                    ? "border-red-500/40 bg-red-500/[0.14] text-red-600 dark:text-red-400"
+                    : "border-black/18 bg-black/[0.06] text-black/65 hover:bg-black/[0.1] hover:text-black/95 dark:border-white/12 dark:bg-white/5 dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white",
                 )}
               >
                 <Heart className="h-4 w-4" aria-hidden fill={isFavorite ? "currentColor" : "none"} />
@@ -221,7 +263,7 @@ export function CardDetailModal({
                 type="button"
                 onClick={onClose}
                 aria-label="Fechar detalhes da carta"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40_70%_62%)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/18 bg-black/[0.06] text-black/65 transition-colors hover:bg-black/[0.14] hover:text-black/95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40_70%_62%)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--binder-modal-bg))] dark:border-white/12 dark:bg-white/5 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
@@ -241,7 +283,7 @@ export function CardDetailModal({
                   <span className="inline-flex items-center gap-1.5">
                     {copiesOwned} {copiesOwned === 1 ? "cópia" : "cópias"}
                     {isRepeated && (
-                      <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/55">
+                      <span className="rounded-full bg-black/[0.12] px-1.5 py-0.5 text-[10px] font-medium leading-none text-black/65 dark:bg-white/10 dark:text-white/55">
                         repetida
                       </span>
                     )}
@@ -250,17 +292,17 @@ export function CardDetailModal({
               />
             </Section>
 
-            <div className="h-px bg-white/8" aria-hidden />
+            <div className="h-px bg-black/[0.1] dark:bg-white/8" aria-hidden />
 
             {/* Pricing resumido — mock local, sem integração real (item 5). */}
             <Section title="Valor de mercado">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-white/45">{setInfo.variantLabel ?? "Preço estimado"}</span>
-                <span className="text-xl font-semibold text-[hsl(40_75%_68%)]">
+                <span className="text-black/55 dark:text-white/45">{setInfo.variantLabel ?? "Preço estimado"}</span>
+                <span className="text-xl font-semibold text-[hsl(32_70%_40%)] dark:text-[hsl(40_75%_68%)]">
                   {pricing.brl.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </span>
               </div>
-              <p className="text-right text-[11px] text-white/35">
+              <p className="text-right text-[11px] text-black/45 dark:text-white/35">
                 ≈ {pricing.usd.toLocaleString("en-US", { style: "currency", currency: "USD" })} · referência internacional, dado de teste
               </p>
             </Section>

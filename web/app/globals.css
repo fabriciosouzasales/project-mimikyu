@@ -238,6 +238,132 @@
     --foreground: 36 30% 88%;
     --muted-foreground: 36 12% 58%;
   }
+
+  /*
+   * BINDER-NAV-01 — suporte LIGHT/DARK (2026-08-29). Mesmo mecanismo de
+   * "scope override" documentado acima em `.app-nav-rail`/`.app-nav-panel`:
+   * uma classe local (`.binder-nav-01-scope`, aplicada na raiz de
+   * `binder-nav-view.tsx`) redeclara tokens só para essa subárvore, com
+   * bloco `.dark` próprio desta vez (ao contrário da navegação, aqui as duas
+   * variantes SÃO diferentes por design — pedido de Fabrício).
+   *
+   * Pedido explícito: "Binder pode continuar escuro" — o OBJETO (capa,
+   * couro/gutter das páginas, slots, quick actions, contracapa) não usa
+   * nenhum destes tokens; continua com os valores hardcoded de sempre em
+   * `binder-cover-closed.tsx`/`binder-pages-nav.tsx`/`binder-slot-full.tsx`/
+   * `slot-quick-actions.tsx`/`cover-panel.tsx` — ZERO mudança visual nesses
+   * arquivos. Estes tokens cobrem só o que precisa genuinamente mudar de
+   * tema: o WORKSPACE ao redor do objeto (`binder-nav-view.tsx`, "hero
+   * stage" da tela fechada em `hero-stage-background.tsx`), os controles de
+   * navegação que sentam nesse workspace (`nav-controls.tsx` — não sentam no
+   * couro, então herdam texto claro-sobre-escuro que fica ilegível se o
+   * workspace virar claro) e as superfícies do Card Detail
+   * (`card-detail-modal.tsx`, item explícito do pedido: "Card Detail com
+   * superfícies claras premium" no tema claro).
+   *
+   * `--binder-page-bg` faz dupla função: cor de fundo do workspace E cor de
+   * `ring-offset` dos focus rings que aparecem sobre esse fundo (nav
+   * controls, botão abrir/fechar) — sem isso o offset ficaria hardcoded para
+   * o tom escuro e apareceria como um halo escuro incorreto sobre o
+   * workspace claro.
+   *
+   * Os tokens `--binder-hero-*`/`--binder-ambient-glow` guardam o valor
+   * `background` COMPLETO (gradientes prontos, não só o triplete H/S/L) —
+   * mais simples de raciocinar para camadas decorativas de uso único do que
+   * decompor cada stop de cor num token à parte. O claro NÃO é uma inversão
+   * do escuro: foi redesenhado com tons quentes/neutros calibrados para um
+   * workspace off-white (nunca invertendo para um glow escuro sobre fundo
+   * claro, que leria como sujeira).
+   *
+   * POLISH LIGHT MODE (2026-08-29, rodada 2) — Light aprovado como direção,
+   * ajuste fino pedido por Fabrício, ESCOPO ESTRITO ao bloco `.binder-nav-01-
+   * scope` claro abaixo (o bloco `.dark` desta mesma rodada permanece
+   * byte-a-byte igual ao da Rodada 1 — "Dark Mode: não alterar visual
+   * aprovado"):
+   *  1. `--binder-page-bg` saiu de um tom quase-creme (92% de luminosidade)
+   *     para um "warm stone" mais definido (85%) — pedido explícito "reduzir
+   *     sensação de branco/lavado... usar off-white/warm stone mais
+   *     definido".
+   *  2. `--binder-ambient-glow`/`--binder-hero-*`: alfa dos gradientes
+   *     reduzido (~30-40%) e elipses levemente contraídas — "manter
+   *     profundidade, mas reduzir blur/glow ambiental excessivo". O objetivo
+   *     nunca foi remover a profundidade, só parar de "lavar" o fundo.
+   *  3. Novos tokens `--binder-contact-shadow-wide`/`-tight` (cor da sombra
+   *     de contato sob o Binder fechado, `binder-nav-view.tsx`) — no claro,
+   *     trocam o preto puro por um marrom-neutro quente de alfa mais baixa
+   *     (a sombra do item anterior era preto puro, que sobre um fundo claro
+   *     lia como "mancha", não como sombra) — o tamanho/blur de cada camada
+   *     também encolhe no componente via `dark:` (ver `binder-nav-view.tsx`)
+   *     para concentrar a sombra perto do objeto ("reduzir área difusa...
+   *     preservar sensação de flutuação sem parecer mancha").
+   */
+  .binder-nav-01-scope {
+    /* Workspace claro — warm stone definido, não mais um creme quase-branco. */
+    --binder-page-bg: 34 18% 85%;
+
+    /* Glow ambiente compartilhado (Binder aberto E fechado) — versão clara,
+       alfa reduzida e elipses mais contidas (polish: menos "lavado"). */
+    --binder-ambient-glow: radial-gradient(ellipse 48% 42% at 50% 36%, hsl(36 42% 76% / 0.32), transparent 68%),
+      radial-gradient(ellipse 44% 36% at 50% 80%, hsl(30 34% 70% / 0.24), transparent 70%);
+
+    /* Hero stage da tela fechada (`hero-stage-background.tsx`) — mesma
+       estrutura de 3 camadas do escuro, recalibrada para tons claros/quentes
+       com profundidade sutil ("fundo com profundidade/gradiente muito
+       sutil", pedido explícito), preservando o spot quente central que faz
+       o Binder escuro ler como "em evidência no palco". Polish: alfa
+       reduzida em todas as camadas — a versão anterior lavava o fundo
+       inteiro em vez de sugerir profundidade discreta. */
+    --binder-hero-atmospheric: radial-gradient(ellipse 110% 50% at 50% -8%, hsl(250 26% 82% / 0.32), transparent 60%),
+      radial-gradient(ellipse 58% 48% at 8% 100%, hsl(30 36% 76% / 0.3), transparent 66%),
+      radial-gradient(ellipse 58% 48% at 92% 100%, hsl(265 20% 80% / 0.28), transparent 66%),
+      linear-gradient(180deg, hsl(38 26% 80% / 0.35) 0%, transparent 30%, transparent 66%, hsl(30 22% 74% / 0.42) 100%);
+    --binder-hero-depth-1: radial-gradient(ellipse at 50% 50%, hsl(30 28% 70% / 0.38), transparent 70%);
+    --binder-hero-depth-2: radial-gradient(ellipse at 50% 50%, hsl(255 18% 74% / 0.34), transparent 72%);
+    --binder-hero-depth-3: radial-gradient(ellipse at 50% 50%, hsl(210 16% 78% / 0.28), transparent 68%);
+    --binder-hero-glow: radial-gradient(ellipse 40% 48% at 50% 44%, hsl(38 62% 64% / 0.48), transparent 66%),
+      radial-gradient(ellipse 56% 38% at 50% 80%, hsl(30 20% 46% / 0.2), transparent 74%);
+
+    /* Sombra de contato do Binder fechado — marrom-neutro quente de baixa
+       alfa (nunca preto puro no claro, que lia como mancha). */
+    --binder-contact-shadow-wide: rgba(42, 32, 20, 0.16);
+    --binder-contact-shadow-tight: rgba(42, 32, 20, 0.28);
+
+    /* Card Detail — superfícies claras premium (pedido explícito). */
+    --binder-modal-bg: 36 32% 97%;
+    --binder-modal-image-bg: 30 16% 90%;
+    --binder-modal-border: hsl(30 16% 20% / 0.12);
+    --binder-modal-shadow: 0 26px 54px -18px rgba(35, 24, 12, 0.22), inset 0 1px 0 hsl(40 50% 97% / 0.9);
+    --binder-modal-image-shadow: 0 14px 30px -12px rgba(35, 24, 12, 0.28);
+  }
+
+  .dark .binder-nav-01-scope {
+    /* Escuro — baseline aprovado, valores idênticos aos já hardcoded hoje
+       (nenhuma mudança visual nesta rodada nem na anterior, "não degradar"). */
+    --binder-page-bg: 30 20% 7%;
+
+    --binder-ambient-glow: radial-gradient(ellipse 60% 50% at 50% 36%, hsl(30 12% 16% / 0.18), transparent 68%),
+      radial-gradient(ellipse 55% 42% at 50% 80%, hsl(30 14% 12% / 0.22), transparent 70%);
+
+    /* Sombra de contato do Binder fechado — preto original, inalterado. */
+    --binder-contact-shadow-wide: rgba(0, 0, 0, 0.35);
+    --binder-contact-shadow-tight: rgba(0, 0, 0, 0.55);
+
+    --binder-hero-atmospheric: radial-gradient(ellipse 120% 55% at 50% -8%, hsl(258 32% 20% / 0.4), transparent 62%),
+      radial-gradient(ellipse 65% 55% at 8% 100%, hsl(28 35% 16% / 0.4), transparent 68%),
+      radial-gradient(ellipse 65% 55% at 92% 100%, hsl(268 28% 14% / 0.4), transparent 68%),
+      linear-gradient(180deg, hsl(255 24% 7% / 0.55) 0%, transparent 32%, transparent 68%, hsl(20 22% 5% / 0.6) 100%);
+    --binder-hero-depth-1: radial-gradient(ellipse at 50% 50%, hsl(28 30% 15% / 0.5), transparent 72%);
+    --binder-hero-depth-2: radial-gradient(ellipse at 50% 50%, hsl(252 26% 17% / 0.48), transparent 74%);
+    --binder-hero-depth-3: radial-gradient(ellipse at 50% 50%, hsl(210 22% 12% / 0.35), transparent 70%);
+    --binder-hero-glow: radial-gradient(ellipse 42% 52% at 50% 50%, hsl(38 62% 58% / 0.26), transparent 68%),
+      radial-gradient(ellipse 68% 68% at 50% 53%, hsl(32 40% 30% / 0.22), transparent 76%);
+
+    --binder-modal-bg: 30 14% 9%;
+    --binder-modal-image-bg: 0 0% 0% / 0.3;
+    --binder-modal-border: hsl(0 0% 100% / 0.08);
+    --binder-modal-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.75), inset 0 1px 0 hsl(0 0% 100% / 0.06);
+    --binder-modal-image-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.7);
+  }
 }
 
 @layer base {

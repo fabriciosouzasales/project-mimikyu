@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121212">
+  <title>MMKYU Collector — Minhas Collections (Filmstrip)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      background: #121212;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #121212;
+    }
+
+    body {
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .stage {
+      --pointer-x: 50%;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 440px;
+      overflow: hidden;
+      isolation: isolate;
+      perspective: 1450px;
+      cursor: ew-resize;
+      touch-action: none;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 50% 0 / 25% 100%,
+        repeating-linear-gradient(
+          0deg,
+          transparent 0,
+          transparent 109px,
+          rgba(255, 255, 255, 0.045) 110px,
+          transparent 111px
+        ),
+        radial-gradient(circle at var(--pointer-x) 48%, rgba(255, 255, 255, 0.06), transparent 34%),
+        #121212;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0.16;
+      background:
+        repeating-radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.17) 0 0.5px, transparent 0.7px 4px),
+        repeating-radial-gradient(circle at 78% 71%, rgba(255, 255, 255, 0.22) 0 0.5px, transparent 0.8px 5px);
+      mix-blend-mode: soft-light;
+    }
+
+    .stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      background: linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.4),
+        transparent 14%,
+        transparent 86%,
+        rgba(0, 0, 0, 0.4)
+      );
+    }
+
+    .deck {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      transform-style: preserve-3d;
+    }
+
+    .card {
+      --focus: 0;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: clamp(154px, 16.8vw, 238px);
+      aspect-ratio: 0.72;
+      padding: 7px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      color: #f3f0e9;
+      background: #1c1c1c;
+      box-shadow:
+        0 calc(10px + var(--focus) * 24px) calc(18px + var(--focus) * 36px)
+          rgba(0, 0, 0, calc(0.3 + var(--focus) * 0.34)),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      appearance: none;
+      outline: none;
+      transform-style: preserve-3d;
+      will-change: transform, opacity, filter;
+      cursor: pointer;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 5px;
+      z-index: 3;
+      border: 1px solid rgba(255, 255, 255, calc(0.06 + var(--focus) * 0.14));
+      pointer-events: none;
+    }
+
+    .card:focus-visible {
+      box-shadow:
+        0 26px 50px rgba(0, 0, 0, 0.5),
+        0 0 0 4px rgba(221, 165, 75, 0.5);
+    }
+
+    .portrait {
+      position: absolute;
+      inset: 7px 7px 25%;
+      overflow: hidden;
+      background: rgba(8, 9, 9, 0.4);
+    }
+
+    .portrait img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scale(calc(1.04 + (1 - var(--focus)) * 0.06));
+      filter:
+        saturate(calc(0.66 + var(--focus) * 0.34))
+        contrast(1.04);
+    }
+
+    .footer {
+      position: absolute;
+      right: 7px;
+      bottom: 7px;
+      left: 7px;
+      height: calc(25% - 7px);
+      display: grid;
+      grid-template-columns: clamp(26px, 3.2vw, 43px) 1fr;
+      align-items: center;
+      gap: clamp(6px, 0.7vw, 11px);
+      padding: clamp(7px, 0.8vw, 12px);
+      color: #f3f0e9;
+      background: rgba(0, 0, 0, 0.82);
+      text-align: left;
+    }
+
+    .index {
+      display: grid;
+      width: clamp(23px, 2.7vw, 37px);
+      aspect-ratio: 1;
+      place-items: center;
+      border: 1px solid #dda54b;
+      border-radius: 50%;
+      color: #dda54b;
+      font: 600 clamp(7px, 0.68vw, 11px)/1 ui-monospace, "SFMono-Regular", monospace;
+    }
+
+    .meta {
+      min-width: 0;
+    }
+
+    .name,
+    .role {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .name {
+      color: rgba(255, 255, 255, 0.93);
+      font-size: clamp(8px, 0.86vw, 13px);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      line-height: 1.1;
+    }
+
+    .role {
+      margin-top: clamp(3px, 0.35vw, 5px);
+      color: rgba(255, 255, 255, 0.5);
+      font-size: clamp(5px, 0.48vw, 7px);
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      line-height: 1;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 650px) {
+      .stage {
+        min-height: 560px;
+        cursor: ns-resize;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 50% 0 / 50% 100%,
+          repeating-linear-gradient(
+            0deg,
+            transparent 0,
+            transparent 87px,
+            rgba(255, 255, 255, 0.045) 88px,
+            transparent 89px
+          ),
+          radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.06), transparent 35%),
+          #121212;
+      }
+
+      .card {
+        width: clamp(142px, 47vw, 180px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        will-change: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage" aria-label="Faixa de Binders — Minhas Collections">
+    <h1 class="sr-only">MMKYU Collector — Minhas Collections (Filmstrip)</h1>
+    <p class="sr-only">Arraste, use a roda do mouse ou as setas do teclado para explorar os Binders.</p>
+    <div class="deck" id="deck" data-testid="deck"></div>
+  </main>
+
+  <script>
+    (() => {
+      const portraits = {
+        "base-set": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%23dda54b' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%23dda54b' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%23dda54b'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "fossil": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%236b5a3f' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%236b5a3f' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%236b5a3f'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "gym-heroes": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%233f5a6b' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%233f5a6b' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%233f5a6b'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "jungle": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%233f6b45' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%233f6b45' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%233f6b45'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "neo-genesis": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%236b3f4a' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%236b3f4a' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%236b3f4a'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>",
+        "team-rocket": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='cover' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23221f1a'/><stop offset='55%' stop-color='%23141210'/><stop offset='100%' stop-color='%230a0908'/></linearGradient></defs><rect x='18' y='4' width='164' height='192' rx='14' fill='url(%23cover)' stroke='%235a3f6b' stroke-width='2.5' stroke-opacity='0.85'/><rect x='97' y='20' width='6' height='160' rx='3' fill='%235a3f6b' fill-opacity='0.55'/><circle cx='100' cy='36' r='9' fill='%235a3f6b'/><circle cx='100' cy='36' r='9' fill='%23000' fill-opacity='0.25'/></svg>"
+      };
+
+      const profiles = [
+        {
+          name: "Base Set",
+          code: "BASE",
+          progress: 0,
+          portrait: "base-set"
+        },
+        {
+          name: "Jungle",
+          code: "JUN",
+          progress: 23,
+          portrait: "jungle"
+        },
+        {
+          name: "Fossil",
+          code: "FOS",
+          progress: 74,
+          portrait: "fossil"
+        },
+        {
+          name: "Team Rocket",
+          code: "ROCKET",
+          progress: 2,
+          portrait: "team-rocket"
+        },
+        {
+          name: "Gym Heroes",
+          code: "GYM",
+          progress: 2,
+          portrait: "gym-heroes"
+        },
+        {
+          name: "Neo Genesis",
+          code: "NEO",
+          progress: 56,
+          portrait: "neo-genesis"
+        },
+        {
+          name: "Base Set (2)",
+          code: "BASE\u00b72",
+          progress: 21,
+          portrait: "base-set"
+        },
+        {
+          name: "Jungle (2)",
+          code: "JUN\u00b72",
+          progress: 38,
+          portrait: "jungle"
+        },
+        {
+          name: "Fossil (2)",
+          code: "FOS\u00b72",
+          progress: 97,
+          portrait: "fossil"
+        },
+        {
+          name: "Team Rocket (2)",
+          code: "ROCKET\u00b72",
+          progress: 6,
+          portrait: "team-rocket"
+        },
+        {
+          name: "Gym Heroes (2)",
+          code: "GYM\u00b72",
+          progress: 3,
+          portrait: "gym-heroes"
+        },
+        {
+          name: "Neo Genesis (2)",
+          code: "NEO\u00b72",
+          progress: 5,
+          portrait: "neo-genesis"
+        },
+        {
+          name: "Base Set (3)",
+          code: "BASE\u00b73",
+          progress: 42,
+          portrait: "base-set"
+        },
+        {
+          name: "Jungle (3)",
+          code: "JUN\u00b73",
+          progress: 52,
+          portrait: "jungle"
+        },
+        {
+          name: "Fossil (3)",
+          code: "FOS\u00b73",
+          progress: 18,
+          portrait: "fossil"
+        },
+        {
+          name: "Team Rocket (3)",
+          code: "ROCKET\u00b73",
+          progress: 10,
+          portrait: "team-rocket"
+        },
+        {
+          name: "Gym Heroes (3)",
+          code: "GYM\u00b73",
+          progress: 4,
+          portrait: "gym-heroes"
+        },
+        {
+          name: "Neo Genesis (3)",
+          code: "NEO\u00b73",
+          progress: 19,
+          portrait: "neo-genesis"
+        },
+        {
+          name: "Base Set (4)",
+          code: "BASE\u00b74",
+          progress: 63,
+          portrait: "base-set"
+        },
+        {
+          name: "Jungle (4)",
+          code: "JUN\u00b74",
+          progress: 2,
+          portrait: "jungle"
+        },
+        {
+          name: "Fossil (4)",
+          code: "FOS\u00b74",
+          progress: 40,
+          portrait: "fossil"
+        },
+        {
+          name: "Team Rocket (4)",
+          code: "ROCKET\u00b74",
+          progress: 14,
+          portrait: "team-rocket"
+        },
+        {
+          name: "Gym Heroes (4)",
+          code: "GYM\u00b74",
+          progress: 1,
+          portrait: "gym-heroes"
+        },
+        {
+          name: "Neo Genesis (4)",
+          code: "NEO\u00b74",
+          progress: 33,
+          portrait: "neo-genesis"
+        }
+      ];
+
+      const stage = document.querySelector("#stage");
+      const deck = document.querySelector("#deck");
+      const cards = profiles.map((profile, index) => {
+        const card = document.createElement("button");
+        card.className = "card";
+        card.type = "button";
+        card.dataset.index = String(index);
+        card.setAttribute("aria-label", `Abrir ${profile.name}, ${profile.code}, ${profile.progress}% completo`);
+        card.innerHTML = `
+          <span class="portrait">
+            <img src="${portraits[profile.portrait]}" alt="Binder da Collection ${profile.name}">
+          </span>
+          <span class="footer">
+            <span class="index">${String(index + 1).padStart(2, "0")}</span>
+            <span class="meta">
+              <span class="name">${profile.name}</span>
+              <span class="role">${profile.code} · ${profile.progress}%</span>
+            </span>
+          </span>`;
+        deck.append(card);
+        return card;
+      });
+
+      const count = cards.length;
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const state = {
+        phase: 3,
+        target: 3,
+        base: 3,
+        pointerX: 0,
+        pointerY: 0,
+        active: false,
+        lastInput: performance.now()
+      };
+
+      function wrappedDelta(index, phase) {
+        let delta = index - phase;
+        while (delta > count / 2) delta -= count;
+        while (delta < -count / 2) delta += count;
+        return delta;
+      }
+
+      function nearestIndex() {
+        return (Math.round(state.phase) % count + count) % count;
+      }
+
+      function moveTo(index) {
+        const current = nearestIndex();
+        let delta = index - current;
+        if (delta > count / 2) delta -= count;
+        if (delta < -count / 2) delta += count;
+        state.base += delta;
+        state.target = state.base;
+        state.active = false;
+        state.lastInput = performance.now();
+      }
+
+      cards.forEach((card, index) => {
+        card.addEventListener("click", () => moveTo(index));
+        card.addEventListener("focus", () => moveTo(index));
+      });
+
+      stage.addEventListener("pointermove", (event) => {
+        const rect = stage.getBoundingClientRect();
+        const nx = Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width - 0.5) * 2));
+        const ny = Math.max(-1, Math.min(1, ((event.clientY - rect.top) / rect.height - 0.5) * 2));
+        state.pointerX = nx;
+        state.pointerY = ny;
+        state.active = true;
+        state.target = state.base + (innerWidth < 650 ? ny * 2.2 : nx * 3.1);
+        state.lastInput = performance.now();
+        stage.style.setProperty("--pointer-x", `${(nx + 1) * 50}%`);
+      });
+
+      stage.addEventListener("pointerleave", () => {
+        state.active = false;
+        state.pointerX = 0;
+        state.pointerY = 0;
+        state.target = state.base;
+        stage.style.setProperty("--pointer-x", "50%");
+      });
+
+      stage.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const direction = Math.sign(Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX);
+        if (!direction) return;
+        state.base += direction;
+        state.target = state.base;
+        state.active = false;
+        state.lastInput = performance.now();
+      }, { passive: false });
+
+      addEventListener("keydown", (event) => {
+        const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+        const backward = event.key === "ArrowLeft" || event.key === "ArrowUp";
+        if (!forward && !backward) return;
+        event.preventDefault();
+        state.base += forward ? 1 : -1;
+        state.target = state.base;
+        state.active = false;
+        state.lastInput = performance.now();
+      });
+
+      let previousTime = performance.now();
+
+      function render(time) {
+        const deltaTime = Math.min(32, time - previousTime);
+        previousTime = time;
+        const ease = reducedMotion ? 1 : 1 - Math.pow(0.001, deltaTime / 1000);
+
+        if (!state.active && time - state.lastInput > 3600) {
+          const idle = time - state.lastInput - 3600;
+          state.target = state.base + Math.sin(idle * 0.00042) * 2.45;
+        }
+
+        state.phase += (state.target - state.phase) * ease;
+        const compact = innerWidth < 650;
+        const activeIndex = nearestIndex();
+        const horizontalSpacing = Math.min(168, Math.max(112, innerWidth * 0.116));
+        const verticalSpacing = Math.min(122, Math.max(88, innerHeight * 0.112));
+
+        cards.forEach((card, index) => {
+          const delta = wrappedDelta(index, state.phase);
+          const distance = Math.abs(delta);
+          const focus = Math.exp(-distance * distance * 1.28);
+          const side = Math.max(0, 1 - distance / 5);
+          const direction = Math.sign(delta);
+          const x = compact
+            ? delta * 24 + Math.sin(delta * 0.9) * 25
+            : delta * horizontalSpacing;
+          const y = compact
+            ? delta * verticalSpacing
+            : distance * 8 + state.pointerY * focus * 10;
+          const z = focus * 145 - distance * 148;
+          const scale = 0.54 + side * 0.15 + focus * 0.54;
+          const rotateX = compact ? delta * 2.1 : -state.pointerY * focus * 3.5;
+          const rotateY = compact
+            ? -delta * 5
+            : -direction * (distance > 0.2 ? 14 + Math.min(distance, 3) * 5 : 0) + state.pointerX * focus * 3;
+          const rotateZ = compact ? delta * -1.4 : delta * 0.7;
+
+          card.style.setProperty("--focus", focus.toFixed(4));
+          card.style.zIndex = String(Math.round(1000 - distance * 100));
+          card.style.opacity = String(Math.max(0.13, side * 0.76 + focus * 0.24));
+          card.style.filter = `blur(${Math.max(0, distance - 1.5) * 0.38}px)`;
+          card.style.transform = [
+            "translate(-50%, -50%)",
+            `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, ${z.toFixed(2)}px)`,
+            `rotateX(${rotateX.toFixed(2)}deg)`,
+            `rotateY(${rotateY.toFixed(2)}deg)`,
+            `rotateZ(${rotateZ.toFixed(2)}deg)`,
+            `scale(${scale.toFixed(4)})`
+          ].join(" ");
+          card.setAttribute("aria-current", index === activeIndex ? "true" : "false");
+        });
+
+        requestAnimationFrame(render);
+      }
+
+      requestAnimationFrame(render);
+    })();
+  </script>
+</body>
+</html>

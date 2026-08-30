@@ -17,6 +17,24 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // THREEUI-PROOF-01 (2026-08-29): o bundle compilado de @designcodeio/threeui
+  // (ex.: lib-dist/shaders/gallery/Gallery.js) embute imagens como
+  // `new URL("data:image/webp;base64,...")`. O webpack 5 detecta esse padrão
+  // e tenta criar um asset module `asset/inline` automaticamente, mas herda
+  // uma opção `filename` da configuração global de asset generator do
+  // Next.js — que só é válida para `asset/resource`, não `asset/inline`.
+  // Isso quebra o schema do Asset Modules Plugin (bug conhecido do webpack,
+  // ver issues #15934/#16063). Como esses data: URIs já são o asset final
+  // (não precisam de resolução de arquivo), desligamos o parsing automático
+  // de `new URL()` como asset module só para os arquivos desse pacote —
+  // não altera o comportamento de asset import do resto do projeto.
+  webpack(config) {
+    config.module.rules.push({
+      test: /node_modules[\\/]@designcodeio[\\/]threeui[\\/].*\.js$/,
+      parser: { url: false },
+    });
+    return config;
+  },
 };
 
 export default nextConfig;

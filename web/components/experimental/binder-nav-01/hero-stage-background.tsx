@@ -37,6 +37,19 @@
  * Todas as camadas são `aria-hidden` e `pointer-events-none` — decoração
  * pura, sem qualquer interação ou concorrência de foco/clique com o botão
  * de abrir o Binder.
+ *
+ * LIGHT/DARK (2026-08-29) — "Binder fechado" está na lista de cobertura do
+ * pedido de tema. As 3 primeiras camadas (Atmospheric/Depth/BaseGlow) agora
+ * usam os tokens `--binder-hero-*` (definidos em `globals.css`, escopados
+ * via `.binder-nav-01-scope` na raiz de `binder-nav-view.tsx`) em vez de
+ * `hsl(...)` literal — claro e escuro têm gradientes DESENHADOS
+ * separadamente (não uma inversão; ver comentário dos tokens em
+ * `globals.css`), preservando a mesma estrutura de camadas/blur/posições. O
+ * escuro mantém os valores originais byte-a-byte. `ParticlesLayer` não
+ * mudou — as partículas continuam com as mesmas cores fixas em ambos os
+ * temas: são um detalhe de baixo peso visual (pequenos pontos, opacidade
+ * baixa) que não compromete legibilidade nem "não degradar" em nenhum dos
+ * dois temas, e recalibrá-las fica fora do orçamento desta rodada.
  */
 
 interface Particle {
@@ -72,23 +85,7 @@ const PARTICLES: Particle[] = [
 ];
 
 function AtmosphericLayer() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background: [
-          // "Céu" frio e distante, no alto — sugere horizonte, não literal.
-          "radial-gradient(ellipse 120% 55% at 50% -8%, hsl(258 32% 20% / 0.4), transparent 62%)",
-          // Bolsões terrosos/âmbar mais baixos, laterais — contraponto quente.
-          "radial-gradient(ellipse 65% 55% at 8% 100%, hsl(28 35% 16% / 0.4), transparent 68%)",
-          "radial-gradient(ellipse 65% 55% at 92% 100%, hsl(268 28% 14% / 0.4), transparent 68%)",
-          // Vinheta vertical — escurece topo/base, mantém o miolo mais aberto.
-          "linear-gradient(180deg, hsl(255 24% 7% / 0.55) 0%, transparent 32%, transparent 68%, hsl(20 22% 5% / 0.6) 100%)",
-        ].join(", "),
-      }}
-    />
-  );
+  return <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "var(--binder-hero-atmospheric)" }} />;
 }
 
 function DepthLayer() {
@@ -97,46 +94,24 @@ function DepthLayer() {
       {/* Volume 1 — inferior-esquerdo, amplo e baixo (sugere terreno/ruína distante). */}
       <div
         className="absolute -left-[12%] bottom-[-18%] h-[52%] w-[46%] rounded-[50%]"
-        style={{
-          background: "radial-gradient(ellipse at 50% 50%, hsl(28 30% 15% / 0.5), transparent 72%)",
-          filter: "blur(20px)",
-        }}
+        style={{ background: "var(--binder-hero-depth-1)", filter: "blur(20px)" }}
       />
       {/* Volume 2 — inferior-direito, mais alto/estreito (sugere pico/torre distante). */}
       <div
         className="absolute -right-[9%] bottom-[-22%] h-[60%] w-[36%] rounded-[50%]"
-        style={{
-          background: "radial-gradient(ellipse at 50% 50%, hsl(252 26% 17% / 0.48), transparent 74%)",
-          filter: "blur(24px)",
-        }}
+        style={{ background: "var(--binder-hero-depth-2)", filter: "blur(24px)" }}
       />
       {/* Volume 3 — névoa alta, centrada no topo, bem baixa opacidade. */}
       <div
         className="absolute left-1/2 top-[-28%] h-[46%] w-[78%] -translate-x-1/2 rounded-[50%]"
-        style={{
-          background: "radial-gradient(ellipse at 50% 50%, hsl(210 22% 12% / 0.35), transparent 70%)",
-          filter: "blur(28px)",
-        }}
+        style={{ background: "var(--binder-hero-depth-3)", filter: "blur(28px)" }}
       />
     </div>
   );
 }
 
 function BaseGlowLayer() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background: [
-          // Núcleo — spot quente concentrado, diretamente atrás do Binder.
-          "radial-gradient(ellipse 42% 52% at 50% 50%, hsl(38 62% 58% / 0.26), transparent 68%)",
-          // Auréola — mais larga e suave, funde o núcleo com a atmosfera.
-          "radial-gradient(ellipse 68% 68% at 50% 53%, hsl(32 40% 30% / 0.22), transparent 76%)",
-        ].join(", "),
-      }}
-    />
-  );
+  return <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "var(--binder-hero-glow)" }} />;
 }
 
 function ParticlesLayer({ animate }: { animate: boolean }) {

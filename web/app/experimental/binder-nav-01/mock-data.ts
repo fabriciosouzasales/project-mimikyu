@@ -44,6 +44,17 @@ import type { MockCardData } from "@/components/experimental/binder-spike/mock-c
  * mocks fictícios já usavam. `MockCardData`/`MOCK_CARDS` ficam mantidos,
  * sem uso nesta rodada, para reverter o teste com um diff mínimo se
  * Fabrício preferir voltar às cartas fictícias.
+ *
+ * BINDER-ADD-REPLACE-CARD-01 (2026-08-29) — primeiro fluxo funcional de
+ * Adicionar/Substituir carta (pedido de Fabrício: "retomar implementação
+ * funcional" depois do encerramento da frente visual da Collection Library).
+ * `ME2_CARDS` passou a ser EXPORTADO — é o mesmo pool reaproveitado pelo
+ * Card Picker (`card-picker-mock.ts`), evitando uma segunda lista paralela
+ * de cartas. A antiga `getNextReplacementCard()` (ciclava automaticamente
+ * para a "próxima" carta ao clicar "Substituir", sem escolha do usuário) foi
+ * REMOVIDA — substituir carta agora abre o mesmo Card Picker do fluxo de
+ * adicionar, em modo substituição, e a carta escolhida é quem decide o
+ * resultado (ver `binder-pages-nav.tsx`, `handleSelectPickerCard`).
  */
 
 export interface RealCardData {
@@ -79,8 +90,14 @@ const MOCK_CARDS: MockCardData[] = [
 ];
 void MOCK_CARDS;
 
-/** 18 cartas reais do Card Set ME2 "Fogo Fantasmagórico" (coletor 001-018, pt-BR). */
-const ME2_CARDS: RealCardData[] = [
+/**
+ * 18 cartas reais do Card Set ME2 "Fogo Fantasmagórico" (coletor 001-018,
+ * pt-BR). Exportado desde BINDER-ADD-REPLACE-CARD-01 (2026-08-29) — é o
+ * mesmo pool que já preenche os 224 bolsos do Binder (ciclado, ver `card()`
+ * abaixo); o Card Picker (`card-picker-mock.ts`) reaproveita este array em
+ * vez de duplicar uma segunda lista de cartas.
+ */
+export const ME2_CARDS: RealCardData[] = [
   { id: "me2-001", name: "Oddish", imageUrl: `${CARD_FRONT_BASE}/me2/pt-BR/001.webp` },
   { id: "me2-002", name: "Gloom", imageUrl: `${CARD_FRONT_BASE}/me2/pt-BR/002.webp` },
   { id: "me2-003", name: "Vileplume", imageUrl: `${CARD_FRONT_BASE}/me2/pt-BR/003.webp` },
@@ -100,21 +117,6 @@ const ME2_CARDS: RealCardData[] = [
   { id: "me2-017", name: "Reshiram", imageUrl: `${CARD_FRONT_BASE}/me2/pt-BR/017.webp` },
   { id: "me2-018", name: "Oricorio ex", imageUrl: `${CARD_FRONT_BASE}/me2/pt-BR/018.webp` },
 ];
-
-/**
- * BINDER-INTERACTION-01 (2026-08-28) — devolve a "próxima" carta real do
- * pool ME2 para simular visualmente a ação "Substituir carta" dos quick
- * actions de slot (`slot-quick-actions.tsx`/`binder-pages-nav.tsx`).
- * Determinístico (cicla o array, não sorteia) — previsível ao testar, sem
- * qualquer noção de Inventory real (fora de escopo desta rodada). Efeito
- * puramente local/visual: quem chama (`binder-pages-nav.tsx`) guarda o
- * resultado num Map em memória, nunca persistido.
- */
-export function getNextReplacementCard(currentCardId: string): RealCardData {
-  const currentIndex = ME2_CARDS.findIndex((entry) => entry.id === currentCardId);
-  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % ME2_CARDS.length : 0;
-  return ME2_CARDS[nextIndex]!;
-}
 
 const SLOTS_PER_PAGE = 9;
 const TOTAL_PAGES = 26; // 13 spreads físicos originais × 2 — ver nota acima sobre a página 26.
