@@ -5,9 +5,9 @@
 | **Documento** | Collection — Logical Data Model (Checkpoint Lógico) |
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico) |
+| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico) |
 | **Status** | Checkpoint lógico em evolução — modelo físico ainda NÃO iniciado |
-| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, e desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43) — não contém SQL nem modelo físico. |
+| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), e desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-48, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
 ---
@@ -44,7 +44,7 @@ Only the **current canonical decisions** are recorded. Intermediate proposals th
 ### Current modeling status
 
 - Conceptual model: **C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout, 2026-08-30, ver `concept-decisions.md`)
-- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima; LDM-23 revisada 2026-08-30 — `Physical Card` & cardinalidade corrente com `Inventory`); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30); **LDM-38 through LDM-43 — APPROVED** (Custody & Availability, 2026-08-30, sem skeleton físico)
+- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima; LDM-23 revisada 2026-08-30 — `Physical Card` & cardinalidade corrente com `Inventory`); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30); **LDM-38 through LDM-43 — APPROVED** (Custody & Availability, 2026-08-30, sem skeleton físico); **LDM-44 through LDM-54 — APPROVED** (Storage, 2026-08-30, sem skeleton físico)
 - Physical model: **NOT STARTED**
 
 ---
@@ -627,6 +627,78 @@ Neither Custody nor Availability changes are inputs to Collection allocation (LD
 
 ---
 
+## Bloco complementar — Storage (LDM-44 a LDM-54, 2026-08-30)
+
+Formaliza, no nível lógico, o bloco conceitual C-55 a C-66 (`concept-decisions.md`), produzido por `COLLECTIONS-STORAGE-CONSOLIDATION-01`. Nenhum skeleton físico novo (campo, enum, tabela, fórmula de capacidade) é fixado além do que LDM-24 já estabelece (`storage_container_id`, 0..1) — por decisão explícita de escopo desta rodada, a estrutura física de Storage Container (inclusive seu próprio identificador, referência de Inventory e referência de parent) permanece para uma rodada de modelagem lógica/física própria. LDM-01 a LDM-43 não são reabertas.
+
+## LDM-44 — Storage as Logical Dimension, Distinct from Protection
+
+Storage answers where a Physical Card is physically stored, within the organized structure of the acervo — logically distinct from Custody (LDM-38), Collection Layout (LDM-29–LDM-37) and Collection allocation. A Storage Container is only recognized as such when the user treats it as an addressable location — not any physical object capable of holding a card. No skeleton is added for a Protection/Encapsulation concept at this logical layer. Logical-layer formalization of C-55/C-56.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico de Protection)
+
+## LDM-45 — Storage Container Ownership Mediated by Inventory
+
+A Storage Container belongs to exactly one Inventory — no direct `owner_user_id` field is introduced for Storage Container at this logical layer, mirroring the lesson already formalized for Physical Card (LDM-23 revised, superseding the direct-ownership design of LDM-25). Logical-layer formalization of C-57.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-46 — Physical Card and Storage: Cardinality Reaffirmed
+
+Extends LDM-24: `storage_container_id` remains `0..1` on Physical Card — at most one current Storage Container, optional. Changing Storage never changes `inventory_id` (LDM-23), Collection allocation, Slot Assignment (LDM-35) or completion inputs (Section 5). Logical-layer formalization of C-58 — no new field introduced beyond what LDM-24 already fixes.
+
+**Status:** APPROVED
+
+## LDM-47 — Storage Container May Exist Empty; Independent of Collection
+
+A Storage Container may exist with zero Physical Cards. Collection and Storage remain independent axes — a Storage Container may hold Physical Cards from multiple Collections of the same Inventory, or none. Default Storage Container (LDM-10, C-36) remains a suggested destination, not an exclusivity constraint. Storage is current-only, not historical — no "last known storage" field or table is fixed at this logical layer. Logical-layer formalization of C-59.
+
+**Status:** APPROVED (decisão lógica, sem skeleton de histórico)
+
+## LDM-48 — Storage Container Hierarchy (Optional Parent Reference)
+
+A Storage Container may optionally reference a parent Storage Container — no field name or table is fixed at this layer, only the relationship itself is recognized. Physical Card continues to reference only the most specific ("leaf") Storage Container (LDM-24's `storage_container_id` is never a list, never a chain) — the full location path is always derived by walking parents, never stored redundantly. This preserves LDM-46's cardinality even under hierarchy. Logical-layer formalization of C-60.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-49 — Storage Never Crosses Inventory Boundaries
+
+A Physical Card may only reference a Storage Container belonging to the same Inventory as its current `inventory_id` (LDM-23/LDM-45). Under hierarchy (LDM-48), parent and child Storage Container must belong to the same Inventory — no cross-Inventory edge is permitted anywhere in the tree. Custody (LDM-38/LDM-39) — not Storage — represents borrowing, grading, third-party custody or a card temporarily with another User. Logical-layer formalization of C-61.
+
+**Status:** APPROVED
+
+## LDM-50 — Storage Container Capacity: Optional, Non-Uniform
+
+Capacity is an optional, type-dependent attribute of Storage Container — known, approximate or not applicable — never a uniform field across all types, and never a hard allocation-blocking rule at this logical layer. Distinct from Collection Layout's Grid Configuration capacity (LDM-31, digital slot count) — the two must not be conflated. Logical-layer formalization of C-62; no field or formula fixed.
+
+**Status:** APPROVED (decisão lógica, sem fórmula física)
+
+## LDM-51 — Storage Container Removal: Structural Emptiness
+
+A Storage Container may only be removed when structurally empty: zero Physical Cards directly referencing it (LDM-46) and zero child Storage Containers (LDM-48) referencing it as parent. No cascading delete is defined — removal never deletes child Storage Containers nor invalidates Physical Card identity (LDM-19). Logical-layer formalization of C-63.
+
+**Status:** APPROVED
+
+## LDM-52 — Bulk Card Transfer
+
+A logical operation moves, in a single act, all Physical Cards directly referencing a source Storage Container to a valid destination Storage Container (capable of directly holding Physical Cards), within the same Inventory (LDM-49). Only `storage_container_id` changes per affected Physical Card — `inventory_id`, Collection allocation, Slot Assignment and completion inputs are untouched, same guarantee as an individual move (LDM-46), applied at batch scope. Logical-layer formalization of C-64. Product-level flow (confirmation, partial-failure handling) deferred.
+
+**Status:** APPROVED
+
+## LDM-53 — Reparent Storage Container
+
+A logical operation distinct from LDM-52 moves a child Storage Container to a different valid parent, within the same Inventory (LDM-49). Physical Cards referencing that Storage Container (or any of its descendants) are unaffected — no `storage_container_id` changes as a side effect. Logical-layer formalization of C-65. Product-level flow deferred.
+
+**Status:** APPROVED
+
+## LDM-54 — Default Storage Container Under Hierarchy
+
+Collection's Default Storage Container (LDM-10) must reference a Storage Container capable of directly holding Physical Cards — never a purely organizational ancestor incapable of doing so. LDM-10 is not reopened; this only extends its semantics to the hierarchy introduced by LDM-48. Logical-layer formalization of C-66.
+
+**Status:** APPROVED
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -673,6 +745,8 @@ Physical Card
 > Nota (2026-08-30): o bloco `Collection Layout` acima resume LDM-29 a LDM-37. `Storage Container` permanece inteiramente ortogonal a esta árvore — não aparece nela porque Layout é digital, nunca localização física (C-38/C-44).
 >
 > Nota (2026-08-30): `Custody`, `Custodian` e `Availability` (LDM-38 a LDM-43) não aparecem na árvore acima — são dimensões lógicas reconhecidas, ortogonais a Inventory/Storage/Collection/Layout, sem skeleton físico fixado nesta rodada (ver bloco complementar acima e `concept-decisions.md` C-49–C-54).
+>
+> Nota (2026-08-30): `Storage Container` (LDM-44 a LDM-54) passa a suportar hierarquia opcional (parent/child, sempre dentro do mesmo Inventory) — a árvore acima continua mostrando apenas `Physical Card → Storage Container (0..1)` porque a Physical Card sempre referencia o container mais específico; a cadeia de parents, quando existir, é derivada, nunca uma segunda referência na Physical Card. Nenhum skeleton de Storage Container (id, inventory_id, parent_id) é fixado nesta rodada.
 
 ---
 
@@ -744,11 +818,11 @@ Invariant: every Card classified as Pokémon identifies exactly one principal ca
 ## Inventory
 Physical Card requires its own detailed model beyond the Collection-allocation decisions captured here. **Atualização 2026-08-28**: o próprio conceito de `Inventory` (Acervo) como aggregate 1:1 por usuário, dono real de toda `Physical Card` sob ownership corrente, foi introduzido nesta data — ver `checkpoint-2026-08-28.md`. **Atualização 2026-08-30**: a regra de cardinalidade corrente (`Physical Card` participa de no máximo um `Inventory` por vez, podendo não ter nenhum quando fora do escopo rastreado) foi formalizada em LDM-23 (revisada) e C-48 — deixa de existir apenas em nível de checkpoint/memo.
 
-## Storage
-Storage ownership, sharing, physical organization and movement require their own model. **Atualização 2026-08-30**: Custody (quem detém controle físico corrente) foi reconhecida como dimensão lógica distinta de Storage (LDM-38/C-49) — a futura modelagem detalhada de Storage deve tratá-las como eixos independentes, não fundir Custody em Storage nem tratar terceiros (grading company, loja, transportadora) como Storage Container (ver C-50). Storage cross-Inventory (se um empréstimo pode usar o Storage Container de outro usuário) permanece explicitamente não decidido.
+## Storage (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-44 a LDM-54)
+Ownership, hierarquia, cardinalidade, capacidade, remoção e as duas operações de transferência (Bulk Card Transfer, Reparent) foram formalizadas em LDM-44 a LDM-54 (`concept-decisions.md` C-55–C-66). Storage cross-Inventory foi fechado como **não suportado** (LDM-49/C-61) — Custody cobre os cenários de empréstimo/grading/guarda por terceiro. Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico de Storage Container (id, inventory_id, parent_id — nenhum fixado); Protection/Encapsulation como dimensão própria (LDM-44/C-56, apenas reconhecida, não modelada); histórico de Storage ("last known storage", LDM-47/C-59); fórmula/mecânica de capacidade, inclusive capacidade agregada sob hierarquia; Product Behavior detalhado de remoção, Bulk Card Transfer e Reparent (fluxo, confirmação, tratamento de erro parcial).
 
 ## Custody / Availability (Atualização 2026-08-30)
-Reconhecidas como dimensões lógicas distintas de Inventory (ownership), Storage (localização) e Collection/Layout (organização colecionável) — ver LDM-38 a LDM-43 e `concept-decisions.md` C-49–C-54. Nenhum skeleton físico, enum ou entidade `Custodian` foi fixado nesta rodada. Dependências não resolvidas: estrutura física de Custody; enum de Availability; entidade Custodian; fluxo de empréstimo completo; fluxo de grading; Storage cross-Inventory.
+Reconhecidas como dimensões lógicas distintas de Inventory (ownership), Storage (localização) e Collection/Layout (organização colecionável) — ver LDM-38 a LDM-43 e `concept-decisions.md` C-49–C-54. Nenhum skeleton físico, enum ou entidade `Custodian` foi fixado nesta rodada. Dependências não resolvidas: estrutura física de Custody; enum de Availability; entidade Custodian; fluxo de empréstimo completo; fluxo de grading.
 
 ## Permissions
 Complete permission matrix will be finalized after Collection, Inventory, Storage and Layout responsibilities are sufficiently defined.
@@ -767,15 +841,15 @@ Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region 
 # 8. Current Architectural Checkpoint
 
 ## Conceptual
-**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30)
+**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30)
 
 Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-43 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
+**LDM-01 through LDM-54 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), and LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), and LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
 
 ## Physical
 **NOT STARTED**
@@ -812,3 +886,4 @@ It must preserve:
 | 1.2 | **Bloco complementar Collection Layout, 2026-08-30.** Adicionadas LDM-29 a LDM-37 (Collection Layout, Page, Grid Configuration, Slot, Expected Content, Lock, Slot Assignment, Bandeja explicitamente não modelada, Layout Region), evitando colisão de numeração com o LDM-28 original (void, Seção 9) — que permanece void e não é reocupado, nem em conteúdo nem em número. Seção 4 (Canonical Relationship Summary) e Seção 6 (Superseded/Rejected, itens 14–17) atualizadas; item 14 registra a supersessão terminológica de `Placement` por `Slot Assignment`. Ver `checkpoint-2026-08-30.md` para o diagnóstico de reconciliação completo. |
 | 1.3 | **Convergência terminológica para `Physical Card`, 2026-08-30.** Por decisão de Fabrício (`concept-decisions.md`, C-47/C-48), todo texto normativo vigente deste documento (banner, header, Seções 1–8, LDM-01 a LDM-24 e LDM-29 a LDM-37) foi convertido de `Inventory Item`/`Collection Item` para `Physical Card` — apenas nomenclatura, nenhuma decisão de cardinalidade/campo/comportamento alterada por este motivo isoladamente (inclui a renomeação do campo `inventory_item_id` para `physical_card_id` no skeleton de Slot Assignment, LDM-35). Adicionalmente, **LDM-23 foi revisada em conteúdo**: deixou de ser um skeleton com `owner_user_id` anotado como parcialmente superado e passou a formalizar diretamente, no nível lógico, a regra de cardinalidade corrente entre `Physical Card` e `Inventory` (contraparte lógica de C-48) — primeira formalização lógica desta regra, que antes só existia em `checkpoint-2026-08-28.md` e em memos nunca promovidos a LDM. O texto original de LDM-23 é preservado no histórico de versões do repositório. **Texto de LDM-25, LDM-26, LDM-27 (SUPERSEDED) e da Seção 9 (void) foi deliberadamente preservado com a terminologia antiga**, por serem citações históricas verbatim, não normativa vigente — não convergidos. |
 | 1.4 | **Bloco complementar Custody & Availability, 2026-08-30** (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`). Adicionadas LDM-38 a LDM-43, formalizando no nível lógico o bloco conceitual C-49 a C-54 (`concept-decisions.md`) — deliberadamente sem skeleton físico (campo, enum, tabela, entidade `Custodian`), por decisão explícita de escopo desta rodada. Seção 4 (nota adicional sobre ortogonalidade de Custody/Availability), Seção 7 (novas subseções `Storage` atualizada e `Custody / Availability`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-37 não reabertas em conteúdo. Storage detalhado permanece dependência não resolvida. |
+| 1.5 | **Bloco complementar Storage, 2026-08-30** (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Storage conceptual modeling`. Adicionadas LDM-44 a LDM-54, formalizando no nível lógico o bloco conceitual C-55 a C-66 — deliberadamente sem skeleton físico além do que LDM-24 já fixa (`storage_container_id`, 0..1): nenhum campo, tabela ou identificador é introduzido para o próprio Storage Container, sua referência de Inventory ou sua referência de parent. Cobre: fronteira com Protection (LDM-44); ownership mediado por Inventory (LDM-45); cardinalidade reafirmada (LDM-46); existência vazia e caráter corrente (LDM-47); hierarquia opcional com regra de container-folha (LDM-48); fechamento de Storage cross-Inventory (LDM-49); capacidade opcional/não-uniforme (LDM-50); remoção condicionada a vazio estrutural (LDM-51); Bulk Card Transfer (LDM-52) e Reparent Storage Container (LDM-53); Default Storage sob hierarquia (LDM-54). Seção 4 (nota sobre hierarquia), Seção 7 (subseção `Storage` atualizada de "não resolvido" para "conceitualmente resolvido") e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-43 não reabertas em conteúdo. |

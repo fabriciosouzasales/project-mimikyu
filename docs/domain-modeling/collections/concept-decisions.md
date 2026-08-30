@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, e desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability` — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, e desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -848,6 +848,84 @@ Completion é ownership-based, não possession/custody-based — a pergunta conc
 
 ---
 
+## Bloco complementar — Storage (2026-08-30)
+
+Adicionado ao final de `COLLECTIONS-STORAGE-CONSOLIDATION-01`, encerrando a subfrente `Collections — Storage conceptual modeling`, conduzida por três memos conceituais (`COLLECTIONS-STORAGE-MODELING-01`/`-02` e uma rodada de correção sobre remoção/hierarquia), todos sem edição de arquivo. Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido aprovado nesses memos e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-54 não são reabertas. Protection/Encapsulation, histórico de Storage ("last known storage") e modelagem física (SQL, capacidade rígida por tipo, UX detalhada) permanecem explicitamente fora de escopo.
+
+## C-55 — Storage e Storage Container: definição e fronteira
+
+**Status:** Aprovada
+
+`Storage` é a dimensão que responde onde uma Physical Card está fisicamente guardada, dentro da organização estruturada e corrente do acervo. `Storage Container` é a unidade física endereçável que materializa essa dimensão (Binder, ETB, Storage Box, Deck Box, maleta, cofre, entre outros — tipos não fixados como enum fechado, ver C-17). Storage é distinto de Custody (quem detém controle físico corrente, C-49), de Collection Layout (organização digital, nunca física, C-38/C-44) e de Collection (organização de um objetivo colecionável, não localização física, C-16).
+
+## C-56 — Storage × Protection: critério de endereçabilidade
+
+**Status:** Aprovada
+
+Nem todo objeto que envolve fisicamente uma Physical Card é Storage Container. O critério conceitual é a endereçabilidade: Storage Container é a unidade física que o usuário trata como localização endereçável dentro da organização do seu acervo — não qualquer objeto capaz de conter fisicamente a carta. Sleeves, toploaders, one-touch holders, slabs de grading e acessórios equivalentes podem futuramente compor uma dimensão distinta de Protection/Encapsulation, não modelada nesta rodada — não são, por si só, Storage Container.
+
+## C-57 — Storage Container: ownership mediado por Inventory
+
+**Status:** Aprovada
+
+Um Storage Container pertence ao contexto patrimonial de exatamente um Inventory — nunca a uma Collection, e nunca via `owner_user_id` direto como fonte paralela de ownership (mesmo padrão já corrigido para Physical Card em C-48, evitando repetir o desenho SUPERSEDED de LDM-25).
+
+## C-58 — Physical Card × Storage: cardinalidade e independência
+
+**Status:** Aprovada
+
+Uma Physical Card pode existir sem Storage Container corrente, e possui no máximo um Storage Container corrente por vez — nunca simultaneamente em dois. Mudança de Storage altera apenas localização física: não altera ownership, Collection Allocation, Slot Assignment, completion, nem a identidade da Physical Card (mesma independência já estabelecida por C-28/C-19/C-20/C-26, agora reafirmada explicitamente também frente a Slot Assignment).
+
+## C-59 — Storage Container: existência vazia, independência de Collection e caráter corrente
+
+**Status:** Aprovada
+
+Um Storage Container pode existir vazio, sem nenhuma Physical Card associada. Collection e Storage permanecem dimensões independentes (C-16/C-17/C-25 reafirmadas): um Storage Container pode guardar Physical Cards de várias Collections do mesmo Inventory, ou Physical Cards sem Collection alguma; o Default Storage Container de uma Collection (C-36) permanece um vínculo/destino operacional, não uma exclusividade que obrigue todas as Physical Cards da Collection a estarem ali. Storage representa exclusivamente localização corrente confiável — nunca "last known storage"; histórico de Storage permanece fora desta subfrente.
+
+## C-60 — Hierarquia de Storage Container
+
+**Status:** Aprovada
+
+Um Storage Container pode, opcionalmente, estar contido em outro Storage Container (relação parent/child), sem exigir hierarquia para todo Storage. Uma Physical Card referencia apenas o Storage Container mais específico que representa sua localização corrente — nunca a cadeia inteira; a localização superior (ex.: Armário → Caixa → Deck Box) é sempre derivada pela navegação da cadeia de parents, nunca armazenada redundantemente. Esta regra evita que uma mesma Physical Card tenha múltiplas localizações simultâneas mesmo sob hierarquia — preserva C-58 integralmente.
+
+## C-61 — Fronteira de Inventory: Storage nunca cruza Inventory
+
+**Status:** Aprovada
+
+Storage cross-Inventory não é suportado: uma Physical Card só pode usar como Storage corrente um Storage Container do mesmo Inventory de seu ownership corrente (decorrência direta de C-57/C-48). Sob hierarquia (C-60), parent e child Storage Container devem sempre pertencer ao mesmo Inventory — a árvore de containers nunca cruza fronteiras patrimoniais. Empréstimo, grading, guarda por terceiro e Physical Card temporariamente com outro User são representados por Custody (C-49/C-50), nunca por referência a Storage de um Inventory diferente.
+
+## C-62 — Capacidade de Storage Container
+
+**Status:** Aprovada
+
+Capacidade é conceito opcional e dependente do tipo/configuração do Storage Container — pode ser conhecida, aproximada ou não aplicável, nunca universal nem uma regra rígida de bloqueio nesta etapa. Capacidade física de Storage Container é distinta de Grid Configuration/capacidade de Collection Layout (C-40/LDM-31, digital) — os dois conceitos não devem ser confundidos.
+
+## C-63 — Remoção de Storage Container: vazio estrutural
+
+**Status:** Aprovada
+
+Um Storage Container só pode ser removido quando estruturalmente vazio: zero Physical Cards diretamente associadas e zero Storage Containers filhos, simultaneamente. Um parent com filho vazio ainda não pode ser removido; um parent com descendentes que contenham Physical Cards também não pode. Não existe cascade conceitual de delete — remover um Storage Container nunca apaga containers filhos nem destrói ou invalida Physical Cards.
+
+## C-64 — Bulk Card Transfer: transferência em massa de Physical Cards
+
+**Status:** Aprovada
+
+Existe a operação conceitual "Transferir todas as Physical Cards", que move em lote apenas as Physical Cards diretamente associadas a um Storage Container de origem para um Storage Container de destino válido (capaz de receber Physical Cards diretamente), sempre dentro do mesmo Inventory (C-61). Altera apenas o Storage corrente de cada Physical Card movida — não altera ownership, Collection Allocation, Slot Assignment, completion, nem identidade (mesma regra de C-28, aplicada em lote). Product Behavior detalhado (fluxo, confirmação, tratamento de erro parcial) fica para rodada própria.
+
+## C-65 — Reparent Storage Container: reposicionamento na hierarquia
+
+**Status:** Aprovada
+
+Existe operação conceitual distinta, "Mover/Reparent Storage Container", que move um Storage Container filho para outro parent válido — não deve ser confundida com Bulk Card Transfer (C-64), que opera sobre Physical Cards, não sobre containers. Parent e child permanecem sempre no mesmo Inventory (C-61); a operação não altera as Physical Cards contidas no container movido, nem ownership, Collection Allocation, Slot Assignment ou completion. Product Behavior detalhado fica para rodada própria.
+
+## C-66 — Default Storage sob hierarquia
+
+**Status:** Aprovada
+
+Sob hierarquia de Storage Container (C-60), o Default Storage Container de uma Collection (C-36) deve apontar para um Storage Container válido como destino operacional de novas Physical Cards — nunca para um container que não possa receber Physical Cards diretamente. Esta rodada não reabre a existência ou obrigatoriedade do Default Storage Container (C-36 permanece integralmente vigente); apenas precisa sua semântica para o cenário, agora suportado, de hierarquia.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -1071,13 +1149,14 @@ A arquitetura não deve exigir interação individual exaustiva para centenas ou
 As seguintes entidades/conceitos foram identificados durante a modelagem de Collection, mas **não foram modelados em profundidade neste documento**:
 
 - `Collection Item` / `Inventory Item` — resolvido: ambos são nomes anteriores, superseded (ver Bloco complementar `Physical Card & Inventory`, C-47/C-48, 2026-08-30). A identidade física vigente do exemplar é `Physical Card`; sua participação patrimonial corrente é agregada por `Inventory`. Não são entidades próprias paralelas — ver `logical-model.md`, LDM-23 (revisado).
-- `Storage Container`
-- `Binder`
+- `Storage Container` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Storage`, C-55–C-66): definição, fronteira com Protection, ownership mediado por Inventory, hierarquia opcional, fronteira de Inventory, capacidade (conceito, não fórmula), remoção e transferência (Bulk Card Transfer, Reparent). Modelagem física (SQL, capacidade rígida por tipo, UX detalhada) permanece não iniciada.
+- `Binder` — tipo de Storage Container (C-17, reafirmado por C-55); estrutura interna (páginas/pockets) permanece não modelada.
 - ~~`Binder Page`~~ — resolvido em 2026-08-30 pelo Bloco complementar acima (C-39, `Page`).
 - ~~`Binder Slot`~~ — resolvido em 2026-08-30 pelo Bloco complementar acima (C-41, `Slot`).
 - `Placeholder` — parcialmente resolvido: o comportamento de "posição reservada sem carta" está coberto por `Expected Content` (C-42); placeholders puramente visuais/decorativos permanecem não modelados.
-- `ETB / Storage Box Layout`
-- `Storage Divider`
+- `ETB / Storage Box Layout` — capacidade/estrutura interna permanece não modelada (C-62 trata apenas o conceito de capacidade, não a fórmula).
+- `Storage Divider` — permanece não modelado.
+- `Protection / Encapsulation` — reconhecida como dimensão futura distinta de Storage (C-56), explicitamente não modelada nesta rodada (sleeve, toploader, one-touch, slab de grading).
 - `Wishlist`
 - `Pokémon / Subject Reference`
 - histórico/auditoria operacional detalhada
@@ -1145,3 +1224,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.2 | **Bloco complementar Collection Layout, 2026-08-30.** Adicionadas C-38 a C-46, consolidando dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`) sobre `Collection Layout`/`Page`/`Grid Configuration`/`Slot`/`Expected Content`/`Lock`/`Slot Assignment`/`Bandeja`/`Layout Region`. C-01–C-37 não reabertas. Parte D atualizada: `Binder Page` e `Binder Slot` resolvidos, `Placeholder` parcialmente resolvido. Ver `checkpoint-2026-08-30.md` para o diagnóstico de reconciliação completo. |
 | 1.3 | **Reconciliação terminológica Physical Card, 2026-08-30 (`COLLECTIONS-PHYSICAL-CARD-RECONCILIATION-02`).** Convergência de duas gerações de terminologia nunca antes reconciliadas neste documento: "Collection Item" (usado em todo o núcleo C-01–C-37 e Partes B/D, nunca migrado durante a incorporação de 2026-08-28) e "Inventory Item" (usado no bloco C-38–C-46) — ambos substituídos por `Physical Card` em todo o texto normativo. Cada ocorrência revisada semanticamente, não apenas trocada por substituição literal: onde o texto original dizia "pertence à Collection", a formulação foi corrigida para "é alocada à Collection" (B.5 #3, C-03, C-14, C-26), preservando a distinção já estabelecida entre alocação colecionável e posse física. Adicionado bloco complementar C-47–C-48, formalizando pela primeira vez em C-*/LDM-* a identidade `Physical Card` e o agregado `Inventory` (previamente registrados apenas em `checkpoint-2026-08-28.md` e em quatro memos de modelagem — `COLLECTIONS-INVENTORY-MODELING-01` a `-04` — nunca promovidos a C-*/LDM-*). C-48 formaliza a regra de participação em Inventory ("ownership corrente"), substituindo a decisão de trabalho nunca formalizada "I3". C-01–C-46 não reabertas em conteúdo — apenas em nomenclatura e, onde apontado, na precisão do verbo/relação. |
 | 1.4 | **Bloco complementar Custody & Availability, 2026-08-30** (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`). Adicionadas C-49 a C-54, formalizando pela primeira vez em C-*/LDM-* as decisões do memo conceitual `COLLECTIONS-INVENTORY-MODELING-05` (Custody/Possession/Availability), previamente registrado sem editar nenhum arquivo. Termo canônico `Custody` adotado (não `Possession`); `Custodian` preservado como distinção conceitual, sem entidade própria criada nesta rodada. A última frase de C-48 recebeu atualização de referência cruzada (aponta agora para C-49–C-54 em vez do memo `COLLECTIONS-INVENTORY-MODELING-03`) — a regra substantiva de cardinalidade de Inventory em C-48 não foi alterada. C-01–C-48 não reabertas em conteúdo. Storage detalhado permanece OPEN, fora do escopo deste bloco. |
+| 1.5 | **Bloco complementar Storage, 2026-08-30** (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Storage conceptual modeling`. Adicionadas C-55 a C-66, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-STORAGE-MODELING-01`/`-02` e da rodada de correção sobre remoção/hierarquia (todos previamente registrados sem editar arquivo): definição de Storage/Storage Container e fronteira com Protection (critério de endereçabilidade, C-56); ownership de Storage Container mediado por Inventory (C-57, evitando repetir o padrão SUPERSEDED de LDM-25); cardinalidade e independência de Physical Card × Storage frente a ownership/Collection Allocation/Slot Assignment/completion (C-58); existência vazia, independência de Collection e caráter corrente, não histórico (C-59); hierarquia opcional entre Storage Containers com regra de container-folha (C-60); fechamento de Storage cross-Inventory como não suportado, incluindo a regra de mesmo Inventory entre parent/child (C-61); capacidade como conceito opcional/informativo/dependente de tipo, distinto de Grid Configuration de Layout (C-62); remoção condicionada a vazio estrutural (zero Physical Cards e zero containers filhos), sem cascade (C-63); as duas operações de transferência, Bulk Card Transfer (C-64) e Reparent Storage Container (C-65); e a semântica de Default Storage sob hierarquia (C-66, sem reabrir C-36). Parte D atualizada: `Storage Container` e `Binder` marcados como conceitualmente resolvidos; `ETB / Storage Box Layout` e `Storage Divider` permanecem não modelados; adicionado `Protection / Encapsulation` como dimensão futura reconhecida, não modelada. C-01–C-54 não reabertas em conteúdo. Protection/Encapsulation, histórico de Storage e modelagem física (SQL, capacidade rígida, UX) permanecem fora de escopo. |
