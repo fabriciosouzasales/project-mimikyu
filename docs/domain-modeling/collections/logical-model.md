@@ -5,9 +5,9 @@
 | **Documento** | Collection — Logical Data Model (Checkpoint Lógico) |
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico); LDM-79 a LDM-90 (bloco complementar Wishlist, 2026-08-30, sem skeleton físico) |
+| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico); LDM-79 a LDM-90 (bloco complementar Wishlist, 2026-08-30, sem skeleton físico); LDM-91 a LDM-108 (bloco complementar Physical Card Condition, 2026-08-30, sem skeleton físico); LDM-109 a LDM-128 (bloco complementar Grading / Certification, 2026-08-30, sem skeleton físico); LDM-129 a LDM-153 (bloco complementar Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico) |
 | **Status** | Checkpoint lógico em evolução — modelo físico ainda NÃO iniciado |
-| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69), desde 2026-08-30 de `Favorite` (User↔Card, sem skeleton físico — ver LDM-70 a LDM-78), e desde 2026-08-30 de `Wishlist` (User↔Card Variant, sem skeleton físico — ver LDM-79 a LDM-90) — não contém SQL nem modelo físico. |
+| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69), desde 2026-08-30 de `Favorite` (User↔Card, sem skeleton físico — ver LDM-70 a LDM-78), desde 2026-08-30 de `Wishlist` (User↔Card Variant, sem skeleton físico — ver LDM-79 a LDM-90), desde 2026-08-30 de `Physical Card Condition` (sem skeleton físico — ver LDM-91 a LDM-108), desde 2026-08-30 de `Grading`/`Certification` (sem skeleton físico — ver LDM-109 a LDM-128), e desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Membership, roles EDITOR/VIEWER, sem skeleton físico — ver LDM-129 a LDM-153) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-48, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
 ---
@@ -1173,6 +1173,162 @@ The V1 minimum scope for Grading/Certification is: Grading Company; Grade Scale;
 
 ---
 
+## Bloco complementar — Collection Collaboration / Permissions (2026-08-30)
+
+Formaliza, no nível lógico, o bloco conceitual C-141 a C-165 (`concept-decisions.md`). LDM-01 a LDM-128 não são reabertas.
+
+## LDM-129 — Collection Owner as Structural Relation
+
+Collection Owner is a structural relation between `Collection` and exactly one `User`, distinct from Collection Membership — Owner is not a Membership row. Collection ownership transfer remains out of scope. Logical-layer formalization of C-141.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-130 — Collection Membership
+
+Collection Membership represents exclusively the collaborative participation of non-owner Users in a specific Collection. Conceptual cardinality: Collection → 0..N Memberships. Logical-layer formalization of C-142.
+
+**Status:** APPROVED
+
+## LDM-131 — Membership Roles
+
+V1 Membership roles: EDITOR and VIEWER. OWNER is not a Membership role (reaffirms LDM-129). UX labels ("Proprietário", "Editor", "Visualizador") may exist without requiring structural identity with these roles. Logical-layer formalization of C-143.
+
+**Status:** APPROVED
+
+## LDM-132 — Collaboration ≠ Ownership
+
+Membership/Collaboration never grants ownership over Physical Cards, Inventory, Storage, Favorite, Wishlist, or the Owner's private data. Editing a Collection is not equivalent to owning its exemplars. Logical-layer formalization of C-144.
+
+**Status:** APPROVED
+
+## LDM-133 — Viewer
+
+VIEWER is a formal, read-only Member — may view Collection, Layout, Expected Content, and progress/completion; cannot edit. VIEWER does not mean "anyone who can view" — formally distinct from Public Access (LDM-140). Logical-layer formalization of C-145.
+
+**Status:** APPROVED
+
+## LDM-134 — Editor
+
+EDITOR may edit common metadata, Layout, Expected Content, reorder Pages, and move Slot Assignments of already-allocated Physical Cards. By role, EDITOR may not create/remove Collection Allocation, nor alter Storage, Condition, Certification, Availability, or ownership/Inventory. Logical-layer formalization of C-146.
+
+**Status:** APPROVED
+
+## LDM-135 — Collection Allocation as Owner-Authorized Collection Operation
+
+Collection Allocation remains Owner-only at V1. Not described as a patrimonial operation per se — Allocation does not alter ownership, Inventory participation, Storage, Condition, Certification, or Availability. It is Owner-only because it determines which private Physical Cards from the Owner's Inventory participate in that Collection, requiring authority over the set of eligible exemplars. Conceptual classification, no definitive technical naming: **Owner-authorized Collection operation**. Logical-layer formalization of C-147.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-136 — Slot Assignment After Allocation
+
+Once a Physical Card is validly allocated to the Collection, EDITOR may operate on Slot Assignment/Layout. Conceptual split: Owner decides "which exemplars enter/leave the Collection?" (LDM-135); Editor decides "how already-allocated exemplars are organized?". Reaffirms LDM-35. Logical-layer formalization of C-148.
+
+**Status:** APPROVED
+
+## LDM-137 — Expected Content / Layout
+
+EDITOR may edit Expected Content, Layout, Pages, grid (per already-closed rules), merge/unmerge, and slot lock/unlock, plus general visual organization — without reopening the Layout/Page/Slot semantics proper (LDM-29–LDM-37). Logical-layer formalization of C-149.
+
+**Status:** APPROVED
+
+## LDM-138 — Collection Metadata
+
+Common metadata (name, description, objective, cover image) is editable by Owner + Editor. Sensitive structural decisions (Visibility, Archive/Delete, changes subject to existing locks/rules) remain Owner-only, without reopening reference locking. Logical-layer formalization of C-150.
+
+**Status:** APPROVED
+
+## LDM-139 — Visibility
+
+PUBLIC/PRIVATE is Owner-only at V1. Editor cannot publish or privatize the Owner's Collection. Logical-layer formalization of C-151.
+
+**Status:** APPROVED
+
+## LDM-140 — Public Access ≠ Membership
+
+A PUBLIC Collection may be viewed by a non-Member User; that User does not become a Member and does not receive the VIEWER role. Formalized: Visibility ≠ Membership ≠ Role. Public Access is a consequence of Visibility, not a fourth independent axis, and must not be confused with the VIEWER role. Logical-layer formalization of C-152.
+
+**Status:** APPROVED
+
+## LDM-141 — Invite / Acceptance
+
+Membership arises only after an invite issued by the Owner and explicit acceptance by the User — never created silently. Notifications out of scope. Logical-layer formalization of C-153.
+
+**Status:** APPROVED
+
+## LDM-142 — Membership Management
+
+At V1, only Owner invites and removes Members. A Member may leave voluntarily. Owner does not participate in these mechanisms as a Member (reaffirms LDM-129). Logical-layer formalization of C-154.
+
+**Status:** APPROVED
+
+## LDM-143 — Member Exit
+
+Removal or voluntary exit ends Membership without altering Collection ownership, without transferring Physical Cards, without altering Favorite/Wishlist/personal data, and without undoing prior edits — which remain part of the Collection's state, not the editing user's. Logical-layer formalization of C-155.
+
+**Status:** APPROVED
+
+## LDM-144 — Owner Invariant
+
+Owner is not invited, does not accept an invite, does not leave via Membership, and is not removed via Membership (reaffirms LDM-129/LDM-142). Collection ownership transfer is a separate, future flow, not decided at this round. Logical-layer formalization of C-156.
+
+**Status:** APPROVED
+
+## LDM-145 — Physical Card Visibility
+
+Collaborator may only view Physical Cards already allocated to that specific Collection — no access to the Owner's full Inventory. Visibility limited to the context necessary for collaboration. Logical-layer formalization of C-157.
+
+**Status:** APPROVED
+
+## LDM-146 — Private Data
+
+Collaboration does not automatically expose amount paid, seller/buyer, private transaction notes, financial data, Favorite, Wishlist, Inventory beyond necessary context, Storage, or Provenance. Logical-layer formalization of C-158.
+
+**Status:** APPROVED
+
+## LDM-147 — Storage Privacy
+
+Storage remains private by default. Membership does not grant automatic access to the physical location of exemplars (reaffirms LDM-46/LDM-99). Any future exposure requires its own decision. Logical-layer formalization of C-159.
+
+**Status:** APPROVED
+
+## LDM-148 — Condition / Certification Visibility
+
+Condition and Certification of allocated Physical Cards may be visible for curatorial purposes; editing remains Owner-only. Read access ≠ edit authority — reaffirms the independence of these dimensions from other structures (LDM-96/LDM-117). Logical-layer formalization of C-160.
+
+**Status:** APPROVED
+
+## LDM-149 — Provenance
+
+At V1, Collaboration neither requires nor grants access to Provenance. Any future exposure is a specific product/privacy decision, without reopening Lifecycle (reaffirms LDM-55/LDM-63). Logical-layer formalization of C-161.
+
+**Status:** APPROVED
+
+## LDM-150 — Owner-Only Operations
+
+Remain Owner-only at V1: Membership management; Visibility; Archive/Delete; Collection Allocation; Storage changes; Condition changes; Certification changes; Availability changes; ownership/Inventory operations; access/editing of private data. Logical-layer formalization of C-162.
+
+**Status:** APPROVED
+
+## LDM-151 — Sharing
+
+Public View/shareable access ≠ Collaboration. A shareable link does not create Membership. A private link for a PRIVATE Collection remains a future possibility, with no mechanism decided. Logical-layer formalization of C-163.
+
+**Status:** APPROVED
+
+## LDM-152 — Audit (Future Need)
+
+Future need to audit Collaborator actions is recognized, especially over Layout, Expected Content, Slot Assignment, and metadata. Audit Log is not modeled at this round — only the need is registered. Logical-layer formalization of C-164.
+
+**Status:** APPROVED (necessidade registrada, sem solução modelada)
+
+## LDM-153 — V1 Minimum Scope
+
+Collection with exactly 1 structural Owner; Collection Membership with 0..N non-owner Members, role EDITOR or VIEWER; EDITOR covers Collection/Layout curation, Expected Content, Slot Assignment, common metadata; VIEWER covers collaborative read access; OWNER holds structural authority, Membership, Visibility, Archive/Delete, Collection Allocation, and remaining Owner/Inventory-scoped operations; Public User may view a PUBLIC Collection without becoming a Member or receiving the VIEWER role; no custom permission system at V1. Logical-layer formalization of C-165.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -1231,6 +1387,8 @@ Physical Card
 > Nota (2026-08-30): `Physical Card Condition` (LDM-91 a LDM-108) também não aparece na árvore acima — é uma dimensão lógica de `Physical Card`, ortogonal a Inventory/Storage/Collection/Layout, referenciando a escala canônica compartilhada `card_condition` (já existente em Pricing, não exclusiva dele). Mesmo padrão de `Custody`/`Availability` (LDM-38 a LDM-43): dimensão reconhecida, sem entrar na árvore estrutural. Nenhum skeleton (campo `condition_id` ou equivalente em Physical Card) é fixado nesta rodada.
 >
 > Nota (2026-08-30): `Grading`/`Certification` (LDM-109 a LDM-128) também não aparece na árvore acima — mesmo padrão de `Physical Card Condition`: dimensão lógica de `Physical Card`, ortogonal a Inventory/Storage/Collection/Layout, sem skeleton (campo `current_certification_id` ou equivalente) fixado nesta rodada. Diferente de Condition, não há referência a uma tabela física preexistente — Grading Company/Grade Scale/Grade/Certification partem de base puramente conceitual. Current Condition e Current Certification são mutuamente exclusivas quanto à aplicabilidade corrente (LDM-117), mas essa exclusividade é regra de aplicabilidade, não uma relação estrutural nova representada na árvore.
+>
+> Nota (2026-08-30): `Owner` e `Members`, na árvore acima, deixam de ser tratados como a mesma relação — `Owner` (LDM-129) é relação estrutural própria `Collection → User`, fora de Collection Membership; `Members` (LDM-130 a LDM-153) representa exclusivamente Users não-owner, 0..N, com role EDITOR ou VIEWER. Nenhum skeleton físico (tabela de Membership, enum de role) é fixado nesta rodada — ver bloco complementar `Collection Collaboration / Permissions` acima e `concept-decisions.md` C-141–C-165.
 
 ---
 
@@ -1323,8 +1481,8 @@ Definição e entidade-alvo exclusivo `Physical Card`, ratificação conceitual 
 ## Grading / Certification (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-109 a LDM-128)
 Separação Grading (workflow, fora do V1) vs. Certification (resultado formal, modelada); entidade-alvo exclusivo `Physical Card`; Grading Company como Reference Data (nome, código/sigla, status ativo/inativo); Grade Scale (sem assumir equivalência entre companies, cardinalidade não fixada); Grade (valor e/ou designação, sem enum físico); Certification Number opcional, sem conceito separado de "Grading Declaration"; no máximo uma Current Certification por Physical Card (0..1); raw/graded como predicado derivado da existência de Current Certification; **fechamento definitivo da aplicabilidade simultânea Condition × Certification** (mutuamente exclusivas quanto à corrente, sem fusão/substituição/derivação entre os dois valores — fecha a pendência deixada aberta por LDM-99/LDM-100); Condition History fora do V1; efeitos de crack (Current Condition volta a ser aplicável, sem restauração automática de valor anterior) e regrade (identidade preservada, sem canonizar workflow temporal); Grade ≠ Condition sem de-para automático; Certification como dado declarado/registrado, não verificado; subgrades/qualifiers fora do núcleo V1; fronteiras com Protection/Encapsulation, Custody/Storage e Valuation; Wishlist inalterada — formalizados em LDM-109 a LDM-128 (`concept-decisions.md` C-121–C-140). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico de Grading Company/Grade Scale/Grade/Certification; tipo de dado exato de Grade (valor+designação); cardinalidade de Grade Scale por Grading Company; taxonomia de status detalhado de Certification além de current/ausente; verificação externa de Certification Number; refinamento de Wishlist por Certification; modelagem própria de Protection/Encapsulation.
 
-## Permissions
-Complete permission matrix will be finalized after Collection, Inventory, Storage and Layout responsibilities are sufficiently defined.
+## Permissions (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-129 a LDM-153)
+Collection Owner formalizado como relação estrutural própria (`Collection → User`), fora de Collection Membership; Collection Membership restrita a Users não-owner (0..N), com roles V1 limitadas a EDITOR e VIEWER; fronteira Collection-scoped (Layout, Expected Content, Slot Assignment de cartas já alocadas, metadata comum — Editor-capable) vs. Owner-authorized Collection operation (Collection Allocation e demais operações Owner/Inventory-scoped); Public Access formalizado como consequência de Visibility, distinto de Membership e da role VIEWER; privacidade por padrão de Storage/Provenance/Favorite/Wishlist/dados financeiros; Condition/Certification legíveis para curadoria, não editáveis por Collaborator — formalizados em LDM-129 a LDM-153 (`concept-decisions.md` C-141–C-165). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico de Membership (tabela, enum de role); granularidade de capability assignments além de EDITOR/VIEWER; transferência de Collection ownership; mecanismo de private sharing link; Audit Log.
 
 ## Audit
 A transversal Audit Log should preserve meaningful changes without forcing every business relation into a temporal table.
@@ -1340,15 +1498,15 @@ Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region 
 # 8. Current Architectural Checkpoint
 
 ## Conceptual
-**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30); **C-91 through C-102 — APPROVED** (Wishlist, 2026-08-30); **C-103 through C-120 — APPROVED** (Physical Card Condition, 2026-08-30); **C-121 through C-140 — APPROVED** (Grading / Certification, 2026-08-30)
+**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30); **C-91 through C-102 — APPROVED** (Wishlist, 2026-08-30); **C-103 through C-120 — APPROVED** (Physical Card Condition, 2026-08-30); **C-121 through C-140 — APPROVED** (Grading / Certification, 2026-08-30); **C-141 through C-165 — APPROVED** (Collection Collaboration / Permissions, 2026-08-30)
 
 Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-128 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
+**LDM-01 through LDM-153 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico), and LDM-109 through LDM-128 (Grading / Certification, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico), LDM-109 through LDM-128 (Grading / Certification, 2026-08-30, sem skeleton físico), and LDM-129 through LDM-153 (Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
 
 ## Physical
 **NOT STARTED**
@@ -1391,3 +1549,4 @@ It must preserve:
 | 1.8 | **Bloco complementar Wishlist, 2026-08-30** (`COLLECTIONS-WISHLIST-CONSOLIDATION-01`), encerrando a subfrente `Collections — Wishlist conceptual modeling`. Adicionadas LDM-79 a LDM-90, formalizando no nível lógico o bloco conceitual C-91 a C-102 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Wishlist↔Card Variant). Cobre: definição e alvo obrigatório `Card Variant` (LDM-79); idioma como refinamento opcional (LDM-80); independência de ownership, sem remoção automática, múltiplas cópias válidas (LDM-81); independência de completion (LDM-82); sem vínculo estrutural com Collection (LDM-83); independência de Expected Content (LDM-84); independência de Favorite, diferença de granularidade intencional (LDM-85); núcleo binário V1 (LDM-86); cardinalidade/duplicidade conceitual (LDM-87); condition/grading como fronteira futura, achado preservado (LDM-88); Marketplace como fronteira futura sem dependência estrutural (LDM-89); User scope (LDM-90). Seção 4 (nota adicional), Seção 7 (nova subseção `Wishlist`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-78 não reabertas em conteúdo. |
 | 1.9 | **Bloco complementar Physical Card Condition, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`. Adicionadas LDM-91 a LDM-108, formalizando no nível lógico o bloco conceitual C-103 a C-120 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a referência Physical Card → `card_condition`). Cobre: definição e entidade-alvo exclusivo Physical Card (LDM-91); ratificação conceitual da referência canônica compartilhada `card_condition`, já `CONFIRMADO EXECUTADO` em Pricing, sem alteração de schema (LDM-92); escala canônica formalizada, com discrepância de contagem (5 vs. 6) registrada como pendência não investigada (LDM-93); code canônico independente de idioma vs. label localizado (LDM-94); evidência de mercado brasileiro (LDM-95); opcionalidade, sem valor UNKNOWN (LDM-96); classificação declarada/não certificada (LDM-97); Damage/Defects fora do núcleo V1 (LDM-98); fronteira Condition × Grading, aplicabilidade a cards graded deferida para futura subfrente `Grading / Certification Domain Modeling` (LDM-99); raw/graded não é valor de Condition (LDM-100); sem histórico no núcleo V1 (LDM-101); independência de identidade e de outras dimensões (LDM-102); independência de idioma (LDM-103); independência de Storage/Custody (LDM-104); relação futura com Valuation sem reabrir Pricing (LDM-105); filter semantics sem novo valor de escala (LDM-106); Wishlist permanece sem Condition (LDM-107); escopo mínimo V1 (LDM-108). Seção 4 (nota adicional, mesmo padrão de Custody/Availability), Seção 7 (nova subseção `Physical Card Condition`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-90 não reabertas em conteúdo. Nota de divergência registrada: o pedido de consolidação referenciou uma rodada "CONDITION-MODELING-02" não entregue literalmente sob esse nome nesta sessão — o complemento de evidência de mercado brasileiro cumpriu esse papel em conteúdo, tratado como equivalente (ver `concept-decisions.md`, bloco complementar Physical Card Condition, para o texto completo da nota). |
 | 1.10 | **Bloco complementar Grading / Certification, 2026-08-30** (`COLLECTIONS-GRADING-CERTIFICATION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Grading / Certification conceptual modeling`. Adicionadas LDM-109 a LDM-128, formalizando no nível lógico o bloco conceitual C-121 a C-140 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para Grading Company/Grade Scale/Grade/Certification). Cobre: separação Grading vs. Certification (LDM-109); entidade-alvo exclusivo Physical Card (LDM-110); Grading Company como Reference Data (LDM-111); Grade Scale, sem equivalência entre companies, cardinalidade não fixada (LDM-112); Grade com valor e/ou designação, sem enum físico (LDM-113); Certification Number opcional, sem conceito separado de "Grading Declaration" (LDM-114); no máximo uma Current Certification por Physical Card (LDM-115); raw/graded como predicado derivado (LDM-116); **fechamento definitivo da pendência deixada aberta por LDM-99/LDM-100** — Current Condition e Current Certification mutuamente exclusivas quanto à aplicabilidade corrente, sem fusão/substituição/derivação entre os dois valores (LDM-117); Condition History fora do V1 (LDM-118); efeitos de crack, Current Condition volta a ser aplicável sem restauração automática (LDM-119); efeitos de regrade, identidade preservada sem canonizar workflow temporal (LDM-120); Grade ≠ Condition sem de-para automático (LDM-121); Certification declarada/registrada, não verificada (LDM-122); subgrades/qualifiers fora do núcleo V1 (LDM-123); fronteira com Protection/Encapsulation (LDM-124); fronteira com Custody/Storage, reafirmando LDM-39/LDM-44/LDM-46 (LDM-125); relação futura com Valuation sem reabrir Pricing (LDM-126); Wishlist inalterada (LDM-127); escopo mínimo V1 (LDM-128). Seção 4 (nota adicional), Seção 7 (nova subseção `Grading / Certification`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-108 não reabertas em conteúdo. Direção vigente é a do memo `-02` (`COLLECTIONS-GRADING-CERTIFICATION-MODELING-02`), que corrigiu a posição do `-01` sobre a aplicabilidade simultânea de Condition e Certification antes de qualquer consolidação — sem supersessão de documento canônico. |
+| 1.11 | **Bloco complementar Collection Collaboration / Permissions, 2026-08-30** (`COLLECTIONS-COLLABORATION-PERMISSIONS-CONSOLIDATION-01`), encerrando a subfrente `Collections — Collaboration / Permissions conceptual modeling`. Adicionadas LDM-129 a LDM-153, formalizando no nível lógico o bloco conceitual C-141 a C-165 — deliberadamente sem skeleton físico (nenhuma tabela de Membership, enum de role, ou campo introduzido). Cobre: Collection Owner como relação estrutural própria, fora de Membership (LDM-129); Collection Membership restrita a Users não-owner, 0..N (LDM-130); roles V1 EDITOR/VIEWER, sem OWNER como role (LDM-131); Collaboration ≠ Ownership (LDM-132); Viewer read-only formal (LDM-133); Editor com fronteira precisa de capacidades (LDM-134); **Collection Allocation reclassificada como Owner-authorized Collection operation**, corrigindo a formulação "operação patrimonial" do memo-01 (LDM-135); Slot Assignment Collection-scoped após Allocation (LDM-136); Expected Content/Layout Editor-capable (LDM-137); metadata comum vs. estrutural sensível (LDM-138); Visibility Owner-only (LDM-139); **Public Access formalizado como consequência de Visibility, distinto de Membership e da role VIEWER** (LDM-140); Invite/Acceptance explícitos (LDM-141); Membership management Owner-only (LDM-142); efeitos de remoção/saída sobre o estado da Collection (LDM-143); invariante estrutural do Owner (LDM-144); Physical Card visibility escopada às cartas alocadas (LDM-145); private data não exposta automaticamente (LDM-146); Storage privado por padrão (LDM-147); Condition/Certification legíveis para curadoria, não editáveis (LDM-148); Provenance não exposta por Membership (LDM-149); lista de Owner-only operations (LDM-150); Sharing/link ≠ Collaboration (LDM-151); necessidade futura de Audit Log registrada (LDM-152); escopo mínimo V1 (LDM-153). Seção 4 (nota adicional sobre Owner/Members), Seção 7 (subseção `Permissions`, atualizada de placeholder original para "conceitualmente resolvido") e Seção 8 (checkpoint conceitual e lógico) atualizadas. Header table (Decision Register/Escopo) também atualizado nesta rodada para refletir os blocos Physical Card Condition e Grading/Certification, que haviam sido adicionados nas versões 1.9/1.10 sem correspondente atualização do cabeçalho — correção de consistência, sem alteração de conteúdo normativo. LDM-01 a LDM-128 não reabertas em conteúdo. Direção vigente é a do memo `-02` (`COLLECTIONS-COLLABORATION-PERMISSIONS-MODELING-02`), que corrigiu a duplicidade conceitual do `-01` (Owner tratado simultaneamente como estrutural e como role de Membership) antes de qualquer consolidação — sem supersessão de documento canônico. |
