@@ -2230,3 +2230,15 @@ Decorrente de `COLLECTIONS-TRANSVERSAL-DOMAIN-REVIEW-01`, auditoria de leitura p
 `ubiquitous-language.md` (v1.23): `Collection Entry` marcada termo superado/deprecated (substituída por `Collection Reference`/Adopted Scope); `Collector Universe` recebeu nota cruzada. `04-domain-model.md` verificado e mantido intacto — já possuía banners de substituição adequados para todas as seções relevantes de Collections, nenhuma ação necessária. `INDEX.md` atualizado (v1.35).
 
 Nenhuma nova `C-*`/`LDM-*`/ADR criada — as três decisões do núcleo (`C-08`, `C-12`, `C-27`) e as duas do nível lógico (`LDM-03`, `LDM-48`) mantiveram seus números originais, apenas com status/nota/redação ajustados, mesmo padrão já usado para `LDM-25`/`26`/`27`. Nenhum código/SQL/tabela/UUID/RLS/migration alterado. Sem commit/push.
+
+## [2026-08-31] docs | COLLECTIONS-CARD-CONDITION-RECONCILIATION-02 — Pendência de contagem 5×6 de Condition encerrada
+
+Decorrente de `COLLECTIONS-CARD-CONDITION-MINT-POSTCHECK-01`, auditoria read-only que confirmou a inclusão física da condição `M`/Mint em `card_condition` (via UI — passo referido por Fabrício como "PRE-PHYSICAL-GATE") sem regressão de Pricing (**SAFE**: nenhum código dependente de "exatamente 5 condições" ou de um intervalo fixo de `condition_order`; `pricing_observation`/`pricing_manual_price` com 0 linhas para M; nenhuma observação histórica alterada).
+
+`concept-decisions.md` (v1.14): **`C-105`** deixa de descrever a escala canônica pelos codes longos "pretendidos" (`MINT`/`NEAR_MINT`/`LIGHTLY_PLAYED`/`MODERATELY_PLAYED`/`HEAVILY_PLAYED`/`DAMAGED`, nunca gravados fisicamente) e passa a refletir os codes físicos reais — `M`/`NM`/`LP`/`MP`/`HP`/`DMG`, `condition_order` 1..6; a pendência histórica de contagem (5 registros citados vs. 6 códigos documentados), registrada por esta decisão desde 2026-08-30, é marcada **CLOSED**. **`C-106`** teve seu exemplo de code trocado de `NEAR_MINT` para `NM`. **`C-107`** recebeu nota de precisão distinguindo o "D" de mercado (Danificada) do code canônico `DMG`, e confirmando que qualquer equivalência de fonte externa (ex.: JustTCG) pertence exclusivamente à camada de mapping (`pricing_condition_mapping`), nunca ao vocabulário canônico.
+
+`logical-model.md` (v1.14) espelha a mesma correção no nível lógico: **`LDM-93`/`LDM-94`/`LDM-95`** atualizadas em paralelo a `C-105`/`C-106`/`C-107`, mesmo conteúdo e mesmo fechamento de pendência.
+
+`checkpoint-2026-08-30.md` (Seção 12, v1.12) recebeu nota de fechamento removendo a pendência "5 linhas vs. 6 códigos" da lista de itens em aberto. `ubiquitous-language.md` (v1.24): entrada `Condition (Physical Card Condition)` atualizada com os 6 codes físicos reais. `INDEX.md` atualizado (v1.43).
+
+Nenhuma nova `C-*`/`LDM-*` criada — `C-105`/`C-106`/`C-107` e `LDM-93`/`LDM-94`/`LDM-95` mantiveram seus números originais, apenas conteúdo/status atualizados. Nenhum código/SQL/tabela/migration/banco alterado. Pricing não reaberto. Sem commit/push.
