@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados (Índice) |
 | **Arquivo** | `docs/05-modelo-de-dados.md` |
-| **Versão** | 2.2 |
+| **Versão** | 2.3 |
 | **Status** | Em elaboração |
 | **Objetivo** | Ponto de entrada do modelo lógico e físico do domínio — metodologia comum e mapa para os documentos por área, resultado da divisão de 2026-08-06. |
 | **Escopo** | Modelagem lógica e física (SQL) das entidades já conceitualmente definidas em `04-domain-model.md`. Não redefine conceitos de domínio nem decisões arquiteturais (ver ADRs). |
@@ -24,7 +24,7 @@ Este documento cresceu além do que ferramentas de leitura conseguem processar e
 | [`05a-catalogo-base.md`](05a-catalogo-base.md) | Game (Jogo), Expansion (Expansão), Set (Card Set) |
 | [`05b-cartas-e-raridade.md`](05b-cartas-e-raridade.md) | Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type, Card Variant |
 | [`05c-assets-e-importacao.md`](05c-assets-e-importacao.md) | Card Asset Type/Card Asset, Language, Storage Bucket, Asset Source, Card External Reference, Card Set External Reference |
-| [`05d-colecoes-e-usuarios.md`](05d-colecoes-e-usuarios.md) | Physical Card, Collection/Collection Entry, User Profile/Reserved Username, Administração de Usuários (Physical Card/Collection: documentação física pendente — fonte canônica vigente é `domain-modeling/collections/`) |
+| [`05d-colecoes-e-usuarios.md`](05d-colecoes-e-usuarios.md) | Physical Card / Inventory (fundação física CONFIRMADO EXECUTADO em 2026-08-31 — `inventory`/`physical_card`/`add_physical_cards()`), Collection/Collection Entry (documentação física ainda pendente), User Profile/Reserved Username, Administração de Usuários |
 | [`05e-catalogo-editorial.md`](05e-catalogo-editorial.md) | Autorização do Catálogo Editorial (ADR-022/023), Catálogo Editorial — Escrita e Ingestão (ADR-024) |
 | [`05f-pricing.md`](05f-pricing.md) | Pricing Source, Pricing Condition/Condition Mapping, Pricing Set/Card Mapping, Pricing Product, Pricing FX Rate, Pricing Observation, Pricing Sync Run/Sync Run Call (ADR-029) — **proposto, nenhuma tabela criada** |
 
@@ -219,3 +219,4 @@ Uma entidade só é considerada concluída quando todos os itens de sua Definiti
 | 2.0 | **Divisão do documento por área de domínio (2026-08-06)**, como parte da adequação do projeto ao padrão LLM Wiki (ver `CLAUDE.md`, `docs/log.md`). Conteúdo físico/SQL movido, sem alteração, para `05a-catalogo-base.md`, `05b-cartas-e-raridade.md`, `05c-assets-e-importacao.md`, `05d-colecoes-e-usuarios.md` e `05e-catalogo-editorial.md`. Este arquivo passa a ser o índice e a metodologia comum (Purpose, Roteiro por Entidade); Revision History anterior a esta data preservada aqui, sem redistribuição retroativa por entidade. |
 | 2.1 | **Adicionado `05f-pricing.md` ao mapa por área (2026-08-16)** — modelo lógico e físico do domínio Pricing (`ADR-029`): dez entidades (`pricing_source`, `pricing_condition`, `pricing_condition_mapping`, `pricing_set_mapping`, `pricing_card_mapping`, `pricing_product`, `pricing_fx_rate`, `pricing_observation`, `pricing_sync_run`, `pricing_sync_run_call`), **proposto, nenhuma tabela criada no Supabase**. Decorre da sequência estratégica aprovada por Fabrício (`ROADMAP.md`: Card Variant → Pricing → Collection → Analytics/Valuation). |
 | 2.2 | Convergência terminológica (2026-08-30): referências a "Collection Item" no mapa por área (linha `05d-colecoes-e-usuarios.md`) e na nota de status "Em elaboração" atualizadas para "Physical Card" — nome canônico vigente do exemplar físico, ver `domain-modeling/collections/concept-decisions.md` C-47/C-48. Seção correspondente em `05d-colecoes-e-usuarios.md` (stub "Documentação pendente") também renomeada. Nenhum conteúdo técnico/SQL alterado. |
+| 2.3 | Mapa por área atualizado (2026-08-31): linha `05d-colecoes-e-usuarios.md` passa a refletir a fundação física de Physical Card/Inventory CONFIRMADO EXECUTADO (`COLLECTIONS-PHYSICAL-INCREMENT-01B`, Queries `5000`–`5012`) — Collection/Collection Entry permanece como a única parte de `05d` ainda com documentação física pendente. Detalhe completo em `05d-colecoes-e-usuarios.md`, revisão `1.1`. |

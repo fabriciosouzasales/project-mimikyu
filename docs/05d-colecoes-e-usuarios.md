@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -14,9 +14,110 @@ Ver `docs/05-modelo-de-dados.md` para o mapa completo do domínio, a metodologia
 
 ---
 
-# Physical Card (Exemplar Físico)
+# Physical Card (Exemplar Físico) / Inventory
 
-*Documentação pendente — modelagem lógica canônica em `domain-modeling/collections/concept-decisions.md` (C-47/C-48) e `logical-model.md` (LDM-23); modelo físico/SQL ainda não iniciado.*
+## Status
+
+**Fundação física de Inventory + Physical Card CONFIRMADO EXECUTADO em 2026-08-31** (`COLLECTIONS-PHYSICAL-INCREMENT-01B`, primeira entidade do milhar `5000`–`5999`, Módulo Collections — Modelo Modular de Numeração, STD-001 Seção 10). Precedida por três rodadas de modelagem física sem alteração de banco (`COLLECTIONS-PHYSICAL-MODELING-01`/`-02`, `COLLECTIONS-PHYSICAL-PREIMPLEMENTATION-GATE-01`) e por uma rodada de staging auditada em `database/proposals/2026-08-31-collections-physical-increment-01a/` antes da aplicação real. Seis Queries estruturais (`5000`–`5012`), uma bateria de validação de 23 itens e um plano de performance sob volume de 20.000 linhas — todos executados e confirmados ao vivo na mesma rodada. Modelagem lógica/conceitual canônica em `domain-modeling/collections/concept-decisions.md` (C-47/C-48) e `logical-model.md` (LDM-23) — nenhuma das duas foi reaberta nesta rodada; nenhuma divergência entre o conceitual e o físico aplicado foi encontrada.
+
+## Decisão de Modelagem
+
+`Inventory` é um agregado de domínio próprio — não compartilha PK com `auth.users` (contraste deliberado com o padrão de `user_profile`, ver acima): tem `id` gerado independente, com a cardinalidade 1:1 por User garantida por `UNIQUE(owner_user_id)`, não pelo PK. Decisão revisada em `COLLECTIONS-PHYSICAL-MODELING-02` a partir de uma primeira proposta que usava PK=FK — rejeitada porque `Inventory` é um agregado patrimonial com identidade e ciclo de vida próprios (C-48), não um apelido para o próprio User.
+
+`Physical Card` é o exemplar físico individual (C-47) — cada cópia possuída é sua própria linha, sem coluna `quantity`. `inventory_id` é nulável por desenho (uma Physical Card pode existir sem custódia corrente — saída de custódia, fora de escopo desta fundação) mas a FK usa `ON DELETE RESTRICT`, nunca `SET NULL`: mudança de custódia é sempre uma operação de domínio explícita futura (Lifecycle/Provenance, C-67–C-81), nunca efeito colateral de um `DELETE`.
+
+Toda escrita em `physical_card` passa exclusivamente pela RPC `add_physical_cards()` (bulk-first, 1–500 itens por chamada) — não existe policy de `INSERT`/`UPDATE`/`DELETE` para `authenticated` em nenhuma das duas tabelas; o Inventory de destino é sempre resolvido no servidor a partir de `auth.uid()`, nunca aceito como parâmetro, tornando estruturalmente impossível ao cliente forjar o Inventory de outro usuário.
+
+## Modelo Físico — `inventory` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.inventory (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_user_id  UUID NOT NULL UNIQUE
+                       REFERENCES auth.users(id)
+                       ON UPDATE RESTRICT ON DELETE RESTRICT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY inventory_select_own
+    ON public.inventory FOR SELECT
+    USING (owner_user_id = (select auth.uid()));
+
+GRANT SELECT ON public.inventory TO authenticated;
+```
+
+`owner_user_id` é `UNIQUE` (garante exatamente 1 Inventory por User) e `ON DELETE RESTRICT` (nenhum `DELETE` em `auth.users` remove silenciosamente um Inventory com Physical Cards vinculados — não existe fluxo de exclusão de conta no repositório hoje, confirmado por Gate 1 de `COLLECTIONS-PHYSICAL-PREIMPLEMENTATION-GATE-01`). Única policy de RLS é `SELECT` do próprio owner; nenhuma via de escrita direta — provisionamento é exclusivamente pelo trigger `SECURITY DEFINER` da Query `5002`. Confirmado via `information_schema`/`pg_policies`/`pg_class` contra o banco real. Arquivo em `database/schema/5000_create_inventory_table.sql`.
+
+## Query `5001` — Create Inventory Trigger (CONFIRMADO EXECUTADO)
+
+Mantém `updated_at`, reaproveitando `public.set_updated_at()` — mesmo padrão de toda a base. Confirmado via `information_schema.triggers`. Arquivo em `database/schema/5001_create_inventory_trigger.sql`.
+
+## Query `5002` — Create Inventory Provisioning and Backfill (CONFIRMADO EXECUTADO, v1.1)
+
+Consolida em uma única transação (`BEGIN`/`COMMIT` explícitos — padrão comprovado do projeto, confirmado em 72 arquivos de `database/` antes desta rodada, ver `COLLECTIONS-PHYSICAL-INCREMENT-01A-FINAL-CHECK`): `handle_new_user_inventory()` (`SECURITY DEFINER`, `SET search_path = ''`, `INSERT ... ON CONFLICT (owner_user_id) DO NOTHING`), o trigger `on_auth_user_created_inventory AFTER INSERT ON auth.users` (independente de `handle_new_user()`/Query `1020` — decisão deliberada para não introduzir risco em um mecanismo já em produção), e o backfill idempotente dos Users pré-existentes. Consolidar as duas operações na mesma transação elimina a janela em que o trigger existiria sem que Users antigos tivessem Inventory (achado da revisão `COLLECTIONS-PHYSICAL-INCREMENT-01A-REVISION-01`, item 1).
+
+Validado ao vivo em três frentes: backfill dos 2 Users pré-existentes confirmado por contagem; reexecução idempotente do backfill sem duplicar linhas; e — por exigência explícita de Fabrício de que a prova fosse observada ao vivo, não indireta — provisionamento automático de um **novo** User testado através do fluxo real de signup da aplicação (um `INSERT` direto em `auth.users` foi bloqueado pelo classificador de segurança do Auto Mode; a alternativa de signup real foi escolhida explicitamente por Fabrício). Resultado: exatamente 1 Inventory criado para o novo User, `owner_user_id` correto. Arquivo em `database/schema/5002_create_inventory_provisioning_and_backfill.sql`.
+
+## Modelo Físico — `physical_card` (Versão 1.1, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.physical_card (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_variant_id UUID NOT NULL REFERENCES public.card_variant(id)
+                        ON UPDATE RESTRICT ON DELETE RESTRICT,
+    language_id     UUID NOT NULL REFERENCES public.language(id)
+                        ON UPDATE RESTRICT ON DELETE RESTRICT,
+    inventory_id    UUID NULL REFERENCES public.inventory(id)
+                        ON UPDATE RESTRICT ON DELETE RESTRICT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ix_physical_card_inventory_variant ON public.physical_card (inventory_id, card_variant_id);
+CREATE INDEX ix_physical_card_inventory_language ON public.physical_card (inventory_id, language_id);
+
+ALTER TABLE public.physical_card ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY physical_card_select_own
+    ON public.physical_card FOR SELECT
+    USING (inventory_id = (SELECT i.id FROM public.inventory i WHERE i.owner_user_id = (select auth.uid())));
+
+GRANT SELECT ON public.physical_card TO authenticated;
+```
+
+Sem `UNIQUE(card_variant_id, language_id)` — duplicatas são o comportamento esperado (múltiplas cópias da mesma Card Variant/idioma). Dois índices compostos, ambos liderados por `inventory_id` (padrão de acesso real, inclusive a própria RLS) — nenhum índice isolado em `card_variant_id`/`language_id`; a versão original cogitava um índice isolado de `language_id`, substituído nesta revisão pelo composto `(inventory_id, language_id)` por não haver consumidor real do índice isolado. Uso real de ambos os índices (e do `UNIQUE(owner_user_id)` de `inventory` na resolução da RLS) confirmado por `EXPLAIN (ANALYZE, BUFFERS)` sob volume sintético de 20.000 linhas, contexto transacional reversível — ver `database/validations/5801_performance_checks_collections_physical_increment_01a.sql`. Arquivo em `database/schema/5010_create_physical_card_table.sql`.
+
+## Query `5011` — Create Physical Card Trigger (CONFIRMADO EXECUTADO)
+
+Mesmo padrão de `5001`, reaproveitando `set_updated_at()`. Arquivo em `database/schema/5011_create_physical_card_trigger.sql`.
+
+## Query `5012` — Create `add_physical_cards()` (CONFIRMADO EXECUTADO, v1.1)
+
+Function `SECURITY DEFINER` (estruturalmente necessária, não estilística: não existe policy de `INSERT` para `authenticated`, então uma função `SECURITY INVOKER` seria bloqueada pela própria RLS), `SET search_path = ''`, `RETURNS TABLE (id, card_variant_id, language_id, created_at)` — deliberadamente não `RETURNS SETOF public.physical_card`, para que colunas futuras da tabela (Collection, Storage, Condition, Certification, Lifecycle, Audit) não vazem automaticamente para o contrato público da RPC. Único parâmetro é `p_items jsonb` (array de 1 a 500 objetos `{card_variant_id, language_id}`) — sem `inventory_id`, sem `quantity`; o Inventory de destino é sempre resolvido no servidor via `auth.uid()`.
+
+Validações no corpo da função: `auth.uid() IS NULL` rejeitado; `p_items` deve ser array JSON, não vazio, no máximo 500 itens (limite justificado por tamanho de payload, tempo de transação, Set físico realista e prevenção de abuso); item inválido (FK inexistente) aborta o lote inteiro (atomicidade nativa de um único `INSERT...SELECT...RETURNING`); duplicatas de `card_variant_id`+`language_id` são permitidas. `EXECUTE` revogado de `PUBLIC`/`anon`, concedido apenas a `authenticated`.
+
+Validado ao vivo, todos os cenários transacionais com `ROLLBACK`: lote válido N→N (3→3, com duplicatas); item inválido → exceção de FK, 0 persistidos; lote vazio, payload não-array e lote >500 rejeitados com a mensagem esperada; `UPDATE`/`DELETE` direto negados em `physical_card` mesmo para o próprio dado do usuário (RPC é a única superfície de escrita, sem exceção); chamada bulk de 500 itens medida sob `EXPLAIN (ANALYZE, BUFFERS)` com 20.000 Physical Cards já existentes no Inventory alvo — 52,525 ms. Arquivo em `database/schema/5012_create_add_physical_cards_function.sql`.
+
+## Sequência
+
+```text
+5000 - Create Inventory table                              (CONFIRMADO EXECUTADO — database/schema/5000_create_inventory_table.sql)
+5001 - Create Inventory trigger                             (CONFIRMADO EXECUTADO — database/schema/5001_create_inventory_trigger.sql)
+5002 - Create Inventory provisioning and backfill (v1.1)     (CONFIRMADO EXECUTADO — database/schema/5002_create_inventory_provisioning_and_backfill.sql)
+5010 - Create Physical Card table (v1.1)                     (CONFIRMADO EXECUTADO — database/schema/5010_create_physical_card_table.sql)
+5011 - Create Physical Card trigger                          (CONFIRMADO EXECUTADO — database/schema/5011_create_physical_card_trigger.sql)
+5012 - Create add_physical_cards() function (v1.1)            (CONFIRMADO EXECUTADO — database/schema/5012_create_add_physical_cards_function.sql)
+5800 - Validate Collections Physical Increment 01A (23 itens) (EXECUTADA — database/validations/5800_validate_collections_physical_increment_01a.sql)
+5801 - Performance Checks Collections Physical Increment 01A  (EXECUTADA — database/validations/5801_performance_checks_collections_physical_increment_01a.sql)
+```
+
+## Pendências / Próximos Passos
+
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco (`inventory`/`physical_card`/`add_physical_cards()`). Saída de custódia (transferência/perda/venda), Collection/Collection Entry (alocação de Physical Card dentro de uma Coleção específica), Storage, Condition, Certification, Lifecycle/Provenance detalhado, Favorite, Wishlist e Activity History/Audit têm modelagem conceitual já fechada (`concept-decisions.md`/`logical-model.md`) mas nenhuma delas tem modelo físico ainda — cada uma será um incremento físico separado, seguindo o mesmo padrão desta rodada (staging auditado → aplicação real gateada por fase → reconciliação).
 
 ---
 
@@ -239,4 +340,11 @@ Rota `/usuarios` (já existia como placeholder desde a fundação do frontend, a
 Fase 4 (correção administrativa de `username`) deliberadamente fora deste incremento — mecanismo desenhado em nível conceitual no ADR-021 (flag local à transação sinalizando ao trigger `enforce_user_profile_invariants()`), implementação adiada para um incremento futuro. Testabilidade de `admin_grant_admin()`/`admin_revoke_admin()` com um segundo usuário real ainda pendente (Fabrício é hoje o único usuário/administrador cadastrado). Visualização do `admin_action_log` pela interface não faz parte deste incremento — o dado já é gravado, sem tela própria ainda.
 
 ---
+
+## Revision History
+
+| Versão | Descrição |
+|---------|-----------|
+| 1.0 | Criação deste documento (2026-08-06), resultado da divisão de `05-modelo-de-dados.md` por área de domínio. Conteúdo inicial: seções placeholder de Physical Card e Collection/Collection Entry ("Documentação pendente"), mais o conteúdo físico completo (já existente antes da divisão) de User Profile/Reserved Username e Administração de Usuários. |
+| 1.1 | **Fundação física de Inventory + Physical Card CONFIRMADO EXECUTADO (2026-08-31, `COLLECTIONS-PHYSICAL-INCREMENT-01B`).** Seção "Physical Card (Exemplar Físico)" substituída por "Physical Card (Exemplar Físico) / Inventory", com Status/Decisão de Modelagem/Modelo Físico completos das seis Queries `5000`–`5012` (tabelas `inventory`/`physical_card`, triggers de `updated_at`, provisionamento automático + backfill consolidados, RPC bulk-first `add_physical_cards()`), Sequência e Pendências. Precedida por três rodadas de modelagem física sem alteração de banco e uma rodada de staging auditada (`database/proposals/2026-08-31-collections-physical-increment-01a/`, agora histórica). Validação funcional/segurança de 23 itens e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5800_...`/`5801_...`. Nenhuma divergência entre o modelo conceitual (`concept-decisions.md` C-47/C-48, `logical-model.md` LDM-23) e o físico aplicado encontrada; nenhuma das duas foi alterada nesta rodada. Seção Collection/Collection Entry permanece "Documentação pendente" — fora de escopo. Ver `docs/log.md`. |
 
