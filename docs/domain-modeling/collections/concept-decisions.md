@@ -142,19 +142,23 @@ Collections distintas podem compartilhar o mesmo nome.
 
 ## C-08 — Owner, compartilhamento e permissões
 
-**Status:** Aprovada
+**Status:** Aprovada — parcialmente superada em 2026-08-30 (ver nota abaixo)
 
 Toda Collection possui um único `Owner`.
 
 A Collection pode ser compartilhada com zero ou vários usuários adicionais.
 
-Para cada usuário compartilhado, o Owner define quais ações são permitidas naquela Collection.
-
-As permissões pertencem à relação `User ↔ Collection` e podem diferir entre Collections.
+> 🔴 **Superado em 2026-08-30** (`COLLECTIONS-TRANSVERSAL-RECONCILIATION-01`). As duas frases abaixo descreviam um modelo de permissão livremente customizável por relação `User ↔ Collection`, incompatível com o modelo estrutural fixo adotado em C-141–C-165: Collection Owner como relação estrutural fora de Membership (C-141); Collection Membership restrita a roles V1 fixos EDITOR/VIEWER (C-142/C-143); "nenhum sistema de permissão customizada no V1" (C-165/C-186). Texto original preservado por rastreabilidade; não implementar como escrito.
+>
+> ~~Para cada usuário compartilhado, o Owner define quais ações são permitidas naquela Collection.~~
+>
+> ~~As permissões pertencem à relação `User ↔ Collection` e podem diferir entre Collections.~~
 
 Compartilhamento da Collection não altera a propriedade física das `Physical Cards`.
 
 O Owner mantém autoridade administrativa principal sobre a Collection.
+
+**Autoridade vigente para participação e roles**: C-141 (Collection Owner, relação estrutural), C-142 (Collection Membership, 0..N não-owner), C-143 (roles V1 fixos EDITOR/VIEWER, sem customização por usuário/Collection).
 
 ---
 
@@ -202,7 +206,7 @@ Além disso, o universo de referência define a fronteira básica de elegibilida
 
 ## C-12 — Transferência de ownership
 
-**Status:** Aprovada
+**Status:** Aprovada — 🔴 **SUPERSEDED em 2026-08-30** (`COLLECTIONS-TRANSVERSAL-RECONCILIATION-01`, ver C-141/C-156). Texto original preservado por rastreabilidade; não implementar como escrito.
 
 O ownership de uma Collection pode ser transferido pelo Owner exclusivamente para um usuário que já participe da Collection como usuário compartilhado.
 
@@ -216,6 +220,8 @@ A transferência preserva:
 Ela não transfere automaticamente a propriedade das `Physical Cards`.
 
 A Collection deve possuir exatamente um Owner em todos os momentos.
+
+> **Autoridade vigente**: Collection possui exatamente um Owner estrutural em todos os momentos (C-141, ponto que C-12 não contradizia e que permanece válido em espírito). Transferência de Collection ownership é fluxo futuro separado — mecanismo e regras de transferência não estão modelados no V1 (C-156). Nenhuma nova decisão sobre transferência foi criada nesta reconciliação.
 
 ---
 
@@ -430,7 +436,7 @@ A ausência de Storage não impede a alocação à Collection nem contribuição
 
 ## C-27 — Compartilhamento e Storage
 
-**Status:** Aprovada
+**Status:** Aprovada — 🔴 **SUPERSEDED em 2026-08-30** (`COLLECTIONS-TRANSVERSAL-RECONCILIATION-01`, ver C-159/C-174). Texto original preservado por rastreabilidade; não implementar como escrito.
 
 O compartilhamento de uma Collection propaga automaticamente aos usuários compartilhados o acesso aos `Storage Containers` utilizados por suas `Physical Cards`, somente no contexto necessário para visualizar ou operar aquela Collection.
 
@@ -444,6 +450,8 @@ Itens:
 permanecem protegidos por suas próprias regras.
 
 As permissões nesse contexto derivam da Collection.
+
+> **Autoridade vigente**: Storage permanece privado por padrão; Collection Membership não concede acesso automático à localização física dos exemplares (C-159). Collection Activity History/Collaboration também não expõem Storage automaticamente (C-174).
 
 ---
 
@@ -1740,8 +1748,8 @@ Game
   └── 0..N Collection
 
 Collection
-  ├── exatamente 1 Owner
-  ├── 0..N Shared Users
+  ├── exatamente 1 Owner estrutural (C-141)
+  ├── 0..N Collection Membership (role EDITOR | VIEWER — C-142/C-143)
   ├── 0..1 universo de referência
   ├── exatamente 1 Default Storage Container
   └── 0..N Physical Cards (alocação)
@@ -1755,6 +1763,8 @@ Storage Container
 ```
 
 Observação: o `Default Storage Container` não determina a localização real de todos os itens.
+
+**Nota (2026-08-30, `COLLECTIONS-TRANSVERSAL-RECONCILIATION-01`)**: "Shared Users" (nomenclatura original desta Parte B, produzida em 2026-08-10) foi substituída por `Collection Membership`. O modelo vigente de participação é Owner (estrutural, exatamente 1) + Membership (0..N, roles fixos EDITOR/VIEWER, sem permissão customizada) — ver C-141–C-165. `Public Access` permanece eixo independente de Membership, consequência apenas de Visibility (C-152).
 
 ---
 
@@ -1829,12 +1839,14 @@ Não possui completude.
 19. Collection nasce privada.
 20. Collection pode ser pública para visualização.
 21. Visibilidade pública não concede edição.
-22. Collection pode ser compartilhada com permissões por usuário.
-23. Ownership pode ser transferido apenas para membro compartilhado existente.
+22. ~~Collection pode ser compartilhada com permissões por usuário.~~ — **Superado em 2026-08-30**: Collection possui Membership (0..N, roles fixos EDITOR/VIEWER, sem permissão customizável por usuário — C-141–C-143).
+23. ~~Ownership pode ser transferido apenas para membro compartilhado existente.~~ — **Superado em 2026-08-30** (C-12 SUPERSEDED): transferência de Collection ownership é fluxo futuro separado, mecanismo não modelado (C-156).
 24. Collection só pode ser excluída se estiver sem Physical Cards alocadas.
 25. ACTIVE e ARCHIVED são os únicos estados explícitos.
 26. ARCHIVED é somente leitura para operações colecionáveis.
 27. Toda Collection possui Default Storage Container.
+
+**Nota (2026-08-30, `COLLECTIONS-TRANSVERSAL-RECONCILIATION-01`)**: os itens 22 e 23 acima refletiam o modelo original de 2026-08-10 (C-08/C-12, ambos parcial ou integralmente superados nesta data — ver Parte A). O modelo vigente de participação/permissão é C-141–C-165: Owner estrutural (1) + Membership (0..N, EDITOR/VIEWER) + Public Access como consequência independente de Visibility (C-152). Transferência de Collection ownership permanece fluxo futuro, não modelado (C-156).
 
 ---
 
@@ -2003,3 +2015,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.10 | **Bloco complementar Grading / Certification, 2026-08-30** (`COLLECTIONS-GRADING-CERTIFICATION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Grading / Certification conceptual modeling`, aberta pelos memos `COLLECTIONS-GRADING-CERTIFICATION-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo; direção vigente é a do `-02`, que corrigiu a posição do `-01` sobre a aplicabilidade simultânea de Condition e Certification antes de qualquer consolidação — sem supersessão de documento canônico). Adicionadas C-121 a C-140: separação Grading (workflow, fora do V1) vs. Certification (resultado formal) (C-121); entidade-alvo exclusiva `Physical Card` (C-122); Grading Company como Reference Data (C-123); Grade Scale, sem assumir equivalência entre companies (C-124); Grade com representação de valor e/ou designação, sem enum físico (C-125); Certification Number opcional, sem conceito separado de "Grading Declaration" (C-126); no máximo uma Current Certification por Physical Card (C-127); raw/graded como predicado derivado da existência de Current Certification (C-128); **fechamento definitivo da pendência deixada aberta por C-111/C-112** — Current Condition e Current Certification mutuamente exclusivas quanto à aplicabilidade corrente, sem fusão, substituição ou derivação entre os dois valores (C-129); Condition History fora do V1 (C-130); efeitos de crack — Current Condition volta a ser aplicável, sem restauração automática de valor anterior (C-131); efeitos de regrade — identidade preservada, sem canonizar workflow temporal (C-132); Grade ≠ Condition, sem de-para automático (C-133); Certification como dado declarado/registrado, não verificado (C-134); subgrades/qualifiers fora do núcleo V1 (C-135); fronteira com Protection/Encapsulation (C-136); fronteira com Custody/Storage, reafirmando C-49/C-56/C-58 (C-137); relação futura com Valuation sem reabrir Pricing (C-138); Wishlist permanece inalterada (C-139); escopo mínimo V1 consolidado (C-140). Parte D atualizada: `Grading / Certification` marcado como conceitualmente resolvido. C-01–C-120 não reabertas em conteúdo — Physical Card Condition (C-103–C-120), Custody/Availability (C-49–C-54), Storage (C-55–C-66), Lifecycle/Provenance (C-67–C-81) e Wishlist (C-91–C-102) permanecem integralmente vigentes. Submission/regrade/crack workflow operacional, Certification History, subgrades, verification externa e Protection/Encapsulation detalhada permanecem explicitamente fora de escopo. Nenhuma migration ou alteração de schema proposta ou aplicada. |
 | 1.11 | **Bloco complementar Collection Collaboration / Permissions, 2026-08-30** (`COLLECTIONS-COLLABORATION-PERMISSIONS-CONSOLIDATION-01`), encerrando a subfrente `Collections — Collaboration / Permissions conceptual modeling`, aberta pelos memos `COLLECTIONS-COLLABORATION-PERMISSIONS-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo; direção vigente é a do `-02`, que corrigiu a duplicidade conceitual do `-01` — Owner tratado simultaneamente como relação estrutural e como role de Membership — antes de qualquer consolidação, sem supersessão de documento canônico). Adicionadas C-141 a C-165: Collection Owner como relação estrutural própria (Collection→User), fora de Collection Membership (C-141); Collection Membership como participação exclusiva de Users não-owner, 0..N (C-142); roles V1 restritas a EDITOR/VIEWER, sem OWNER como role de Membership (C-143); Collaboration ≠ Ownership sobre Physical Cards/Inventory/Storage/Favorite/Wishlist/dados privados (C-144); Viewer read-only formal, distinto de Public Access (C-145); Editor com fronteira precisa de capacidades (metadata comum, Layout, Expected Content, Slot Assignment) e vedações (Collection Allocation, Storage, Condition, Certification, Availability, ownership/Inventory) (C-146); **Collection Allocation reclassificada como Owner-authorized Collection operation** — não "operação patrimonial" per se, mas exigindo autoridade do Owner sobre o conjunto de exemplares elegíveis, corrigindo a formulação do memo-01 (C-147); Slot Assignment sobre cartas já alocadas como Collection-scoped, Editor-capable (C-148); Expected Content/Layout Editor-capable, sem reabrir C-38–C-46 (C-149); metadata comum vs. decisões estruturais sensíveis (C-150); Visibility Owner-only (C-151); **Public Access formalizado como consequência de Visibility, distinto de Membership e da role VIEWER** (C-152); Invite/Acceptance explícitos, nunca silenciosos (C-153); Membership management Owner-only no V1 (C-154); efeitos de remoção/saída voluntária sobre o estado da Collection (C-155); invariante estrutural do Owner frente a mecanismos de Membership (C-156); Physical Card visibility escopada às cartas alocadas àquela Collection (C-157); private data não exposta automaticamente por Collaboration (C-158); Storage privado por padrão (C-159); Condition/Certification legíveis para curadoria, não editáveis por Collaborator (C-160); Provenance não exposta por Membership no V1 (C-161); lista consolidada de Owner-only operations (C-162); Sharing/link compartilhável ≠ Collaboration (C-163); necessidade futura de Audit Log registrada sem solução (C-164); escopo mínimo V1 consolidado (C-165). Parte D atualizada: `Collection Collaboration / Permissions` marcado como conceitualmente resolvido. C-01–C-140 não reabertas em conteúdo — Collection core, Physical Card/Inventory, Custody/Availability, Storage, Layout/Page/Slot, Lifecycle/Provenance, Favorite, Wishlist, Physical Card Condition e Grading/Certification permanecem integralmente vigentes. Custom permissions, capability assignments granulares, transferência de Collection ownership, private sharing link e Audit Log permanecem explicitamente fora de escopo. Nenhuma migration, tabela, UUID ou RLS proposta ou aplicada. |
 | 1.12 | **Bloco complementar Collection Activity History / Audit, 2026-08-30** (`COLLECTIONS-ACTIVITY-HISTORY-AUDIT-CONSOLIDATION-01`), encerrando a subfrente `Collections — Activity History / Audit conceptual modeling`, aberta pelo memo `COLLECTIONS-ACTIVITY-HISTORY-AUDIT-MODELING-01` (previamente registrado sem edição de arquivo, sem rodada de correção intermediária — direção do memo único aprovada diretamente). Adicionadas C-166 a C-186: três camadas conceitualmente distintas — Lifecycle/Provenance, Activity History, Audit — nenhuma substitui as demais (C-166); definição de Collection Activity History como sequência temporal user-facing (C-167); Activity Trigger refinado para "acontecimento de domínio significativo", não "ação que muda diretamente o estado" (C-168); Activity em linguagem de domínio, nunca schema técnico (C-169); categorias candidatas não exaustivas (C-170); actor Owner/Editor/System, Viewer/Public User não geram Activity (C-171); visibilidade Owner+Members, nunca automática a Public User mesmo em Collection PUBLIC (C-172); Activity histórica permanece após Member exit (C-173); privacidade — sem exposição automática de dados financeiros/Storage/Provenance privada/Favorite/Wishlist (C-174); definição de Audit Log como camada de governança/segurança (C-175); Audit coverage priorizando ações Owner-sensitive e state-changing de Collaborators (C-176); quatro combinações Activity×Audit reconhecidas, matriz não fechada (C-177); grouping/bulk reconhecido sem mecanismo decidido (C-178); immutability de registros históricos (C-179); retenção diferenciada sem TTL definido (C-180); archive/delete boundary identificada, não resolvida — Lifecycle permanece independente da Collection (C-181); History ≠ Undo (C-182); History ≠ Current State, sem event sourcing implícito (C-183); System como actor possível de Activity, sem transformar log técnico automaticamente (C-184); Activity ≠ Lifecycle, sem duplicação automática de fatos patrimoniais (C-185); escopo mínimo V1 consolidado (C-186). Parte D atualizada: `Collection Activity History / Audit` marcado como conceitualmente resolvido; itens de fora de escopo (Undo/Restore, event sourcing, algoritmo de agrupamento, retenção/TTL, hard-delete policy) adicionados individualmente. C-01–C-165 não reabertas em conteúdo — todas as subfrentes anteriores permanecem integralmente vigentes. Undo/Restore, event sourcing, schema de Audit, retenção/TTL, hard-delete policy, matriz exaustiva Activity×Audit, algoritmo de agrupamento e qualquer SQL/tabela/UUID/RLS/migration permanecem explicitamente fora de escopo. |
+| 1.13 | **Reconciliação transversal, 2026-08-30** (`COLLECTIONS-TRANSVERSAL-RECONCILIATION-01`), decorrente de `COLLECTIONS-TRANSVERSAL-DOMAIN-REVIEW-01` (auditoria de leitura pura, sem edição). Corrige uma contradição real, nunca antes reconciliada, entre o núcleo original (C-01–C-37, 2026-08-10) e o bloco `Collection Collaboration / Permissions` (C-141–C-165, mesma data anterior desta rodada): **C-08 parcialmente superada** — preservados "um único Owner", "0..N usuários adicionais", "compartilhamento não transfere ownership de Physical Cards" e "autoridade administrativa principal do Owner"; superada apenas a semântica de permissão livremente customizável por relação `User ↔ Collection`, incompatível com C-143/C-165 (roles fixos EDITOR/VIEWER, sem custom permission system). **C-12 SUPERSEDED integralmente** — o mecanismo de transferência de Collection ownership que descrevia contradizia C-156 ("transferência é fluxo futuro separado, não decidido"); nenhuma nova decisão sobre transferência foi criada. **C-27 SUPERSEDED integralmente** — a propagação automática de acesso a Storage Containers para usuários compartilhados contradizia C-159 ("Storage privado por padrão, Membership não concede acesso automático") e representava risco real de vazamento de dado privado se implementada como escrita. B.2 (diagrama de cardinalidade) e B.5 (itens 22–23) atualizados para refletir o modelo vigente Owner (1, estrutural) + Membership (0..N, EDITOR/VIEWER) em vez do termo obsoleto "Shared Users"/"permissões por usuário". Nenhuma nova C-* criada — todas as três decisões afetadas mantiveram seu número original, apenas com status/nota de supersessão adicionados, seguindo o mesmo padrão já usado para LDM-25/26/27. C-01–C-186 não reabertas em conteúdo além do estritamente descrito acima. |
