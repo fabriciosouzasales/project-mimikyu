@@ -933,6 +933,120 @@ Wishlist belongs to the User. It does not belong to Collection, Inventory, or a 
 
 ---
 
+## Bloco complementar — Physical Card Condition (LDM-91 a LDM-108, 2026-08-30)
+
+Formaliza, no nível lógico, o bloco conceitual C-103 a C-120 (`concept-decisions.md`), produzido por `COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`. Nenhum skeleton físico (campo, tabela, enum) é fixado — a estrutura física de Condition, incluindo a forma exata de referenciar `card_condition` a partir de Physical Card, permanece para uma rodada de modelagem lógica/física própria. LDM-01 a LDM-90 não são reabertas.
+
+## LDM-91 — Condition: Definition and Target Entity
+
+Condition is the standardized classification of a Physical Card's current physical state, according to MMKYU's canonical scale. It belongs exclusively to Physical Card — never to Card, Card Variant, Collection, Wishlist, or Storage. Logical-layer formalization of C-103.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-92 — Canonical Reference Ratified: card_condition
+
+It is conceptually ratified that the existing shared reference `card_condition` (CONFIRMED EXECUTED, Pricing Increment P1, 2026-08-16 — see `docs/05f-pricing.md`) represents MMKYU's canonical Condition scale. Collections does not create a second scale, a second vocabulary, or a parallel Condition concept — Physical Card Condition and Pricing's condition mappings (`pricing_condition_mapping`) consume the same canonical reference. No schema change is proposed or applied at this round. Logical-layer formalization of C-104.
+
+**Status:** APPROVED (decisão lógica, sem alteração de schema)
+
+## LDM-93 — Canonical Scale Formalized
+
+The intended canonical scale is: MINT, NEAR_MINT, LIGHTLY_PLAYED, MODERATELY_PLAYED, HEAVILY_PLAYED, DAMAGED (same order and codes already documented in `card_condition`). A historical discrepancy between a post-migration validation mentioning 5 records and documentation listing 6 codes is registered as a pending physical verification item — not investigated or corrected at this round. Logical-layer formalization of C-105.
+
+**Status:** APPROVED (decisão lógica, verificação física pendente)
+
+## LDM-94 — Canonical Code vs. Localized Label
+
+The Condition code (e.g. `NEAR_MINT`) is a stable, language-independent identity. The label displayed to the User is localized and translated separately (e.g. pt-BR "Praticamente Nova", en "Near Mint"). The internal code is never bound to a specific translated label. Logical-layer formalization of C-106.
+
+**Status:** APPROVED
+
+## LDM-95 — Brazilian Market Evidence
+
+Registered as market-alignment evidence: the vocabulary observed on Brazilian specialized sites (M/Nova, NM/Praticamente Nova, SP-LP/Usada Levemente, MP/Usada Moderadamente, HP/Muito Usada, D/Danificada), which converges semantically, in order and meaning, with MMKYU's canonical scale (LDM-93). Market abbreviations do not become new canonical codes. Logical-layer formalization of C-107.
+
+**Status:** APPROVED
+
+## LDM-96 — Optionality
+
+Condition is optional. It does not block basic registration, bulk import, or Ownership Entry (LDM-58). Absence of Condition means "not informed" — no `UNKNOWN` value is created merely to represent that absence. Logical-layer formalization of C-108.
+
+**Status:** APPROVED
+
+## LDM-97 — Declared, Not Certified
+
+Raw Condition is a current declared/registered classification — no independent verification, certification, MMKYU inspection, or guaranteed objective truth is assumed. The same safe-evidence-language discipline already used for Provenance (LDM-64) applies. Logical-layer formalization of C-109.
+
+**Status:** APPROVED
+
+## LDM-98 — Damage/Defects Out of V1 Core
+
+Condition represents a global classification. Detailed damage/defects (whitening, scratches, crease, dent, stains, edge wear, print lines, centering, water damage, and others) are not modeled at this round — they remain out of the V1 core. Logical-layer formalization of C-110.
+
+**Status:** APPROVED
+
+## LDM-99 — Condition × Grading
+
+Condition ≠ Grading. Condition is a canonical/declared physical-state classification; Grading (LDM-68) is external certification. Neither is automatically derived from the other. This round does not decide whether a currently graded Physical Card retains a current Condition, treats Condition as not applicable, preserves only a prior evaluation, or can have both simultaneously — that applicability is deferred to a future `Collections — Grading / Certification Domain Modeling` subfrente. Logical-layer formalization of C-111.
+
+**Status:** APPROVED (decisão lógica, aplicabilidade a graded cards não decidida)
+
+## LDM-100 — Raw/Graded Is Not a Condition Value
+
+"Raw vs. graded" is not a Condition value. That status structure belongs to Grading/Certification and, eventually, to Protection/Encapsulation (LDM-44) — not to the Condition canonical scale. Logical-layer formalization of C-112.
+
+**Status:** APPROVED
+
+## LDM-101 — No History at V1 Core
+
+The V1 core keeps only Current Condition, without Condition History. Reaffirms the exclusion already registered in LDM-56/LDM-69 (Lifecycle & Provenance). Future material condition-change events may be evaluated later in a dedicated Lifecycle round. Logical-layer formalization of C-113.
+
+**Status:** APPROVED
+
+## LDM-102 — Independence from Identity and Other Dimensions
+
+A Condition change does not alter: Physical Card identity (reaffirms C-47); Card Variant; ownership; Collection Allocation; Slot Assignment; Favorite; Wishlist; Storage; Custody. Logical-layer formalization of C-114.
+
+**Status:** APPROVED
+
+## LDM-103 — Independence from Language
+
+Condition is independent of language. Language describes the specimen (printing/localization); Condition classifies its current physical state — orthogonal axes. Logical-layer formalization of C-115.
+
+**Status:** APPROVED
+
+## LDM-104 — Independence from Storage/Custody
+
+Changes to Storage or Custody do not alter Condition by structural rule. Real-world damage may occur (handling, transport, storage conditions), but that is real-world causality, not a structural dependency between the concepts. Logical-layer formalization of C-116.
+
+**Status:** APPROVED
+
+## LDM-105 — Relationship with Valuation
+
+Condition may future be an input to Valuation, but Condition ≠ Price and Condition ≠ Valuation. No fixed discount/price factor is included inside Condition — a precedent already established by Pricing V1 itself (`05f-pricing.md`), which explicitly rejected embedding that factor in `card_condition`. Pricing V1 is not reopened by this decision. Logical-layer formalization of C-117.
+
+**Status:** APPROVED (decisão lógica, sem reabrir Pricing)
+
+## LDM-106 — Filter Semantics Is Not a New Condition Value
+
+Expressions such as "NM or better" / "Near Mint or better" are not additional Condition values — they are filter/comparison semantics based on the canonical scale's ordering (`condition_order`, already present in `card_condition`). UX and filter mechanism are not modeled at this round. Logical-layer formalization of C-118.
+
+**Status:** APPROVED (decisão lógica, sem modelagem de UX)
+
+## LDM-107 — Wishlist Remains Without Condition
+
+Wishlist V1 (LDM-79–LDM-90) remains without Condition. The future possibility of refining Wishlist by Condition (already anticipated in LDM-88) can only be evaluated in a dedicated round, without altering LDM-79–LDM-90 at this consolidation. Logical-layer formalization of C-119.
+
+**Status:** APPROVED
+
+## LDM-108 — V1 Minimum Scope
+
+The V1 minimum scope for Condition is: optional Current Condition; shared canonical scale (`card_condition`); language-independent code with localized label; no detailed defects; no history; no evidence levels; no mandatory fill; no automatic derivation from Grade. Logical-layer formalization of C-120.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -987,6 +1101,8 @@ Physical Card
 > Nota (2026-08-30): Favorite (LDM-70 a LDM-78) não aparece na árvore acima porque não é uma relação de `Physical Card` — referencia diretamente `Card` (nível editorial, acima de `Card Variant`) a partir do `User`, nunca a partir de `Inventory`, `Collection` ou `Storage Container`. Nenhum skeleton (tabela, campo, enum) de Favorite é fixado nesta rodada.
 >
 > Nota (2026-08-30): Wishlist (LDM-79 a LDM-90) também não aparece na árvore acima — referencia `Card Variant` (não `Physical Card`) a partir do `User`, nunca a partir de `Inventory`, `Collection` ou `Storage Container`. Diferente de Favorite (que referencia `Card`), Wishlist referencia `Card Variant` diretamente, mesmo nível de especificidade de `Physical Card` — mas continua sendo intenção sobre o catálogo, não sobre um exemplar físico existente. Nenhum skeleton de Wishlist é fixado nesta rodada.
+>
+> Nota (2026-08-30): `Physical Card Condition` (LDM-91 a LDM-108) também não aparece na árvore acima — é uma dimensão lógica de `Physical Card`, ortogonal a Inventory/Storage/Collection/Layout, referenciando a escala canônica compartilhada `card_condition` (já existente em Pricing, não exclusiva dele). Mesmo padrão de `Custody`/`Availability` (LDM-38 a LDM-43): dimensão reconhecida, sem entrar na árvore estrutural. Nenhum skeleton (campo `condition_id` ou equivalente em Physical Card) é fixado nesta rodada.
 
 ---
 
@@ -1073,6 +1189,9 @@ Definição, entidade-alvo (`Card`, nunca `Card Variant`/`Physical Card`), perte
 ## Wishlist (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-79 a LDM-90)
 Definição, alvo obrigatório `Card Variant` (não `Card`), idioma como refinamento opcional, independência de ownership/completion/Expected Content/Favorite, núcleo binário V1, cardinalidade/duplicidade conceitual, e fronteiras futuras (condition/grading, Marketplace) formalizados em LDM-79 a LDM-90 (`concept-decisions.md` C-91–C-102). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico da relação User↔Wishlist↔Card Variant(+idioma); quantity/priority/price target como extensões futuras; mecanismo de consumo por Marketplace; modelagem própria de `condition` (encaminhada para futura subfrente `Collections — Physical Card Condition Modeling`) e de Grading em detalhe.
 
+## Physical Card Condition (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-91 a LDM-108)
+Definição e entidade-alvo exclusivo `Physical Card`, ratificação conceitual da referência canônica compartilhada `card_condition` (já `CONFIRMADO EXECUTADO` em Pricing, Incremento P1, sem alteração de schema), escala formalizada (MINT/NEAR_MINT/LIGHTLY_PLAYED/MODERATELY_PLAYED/HEAVILY_PLAYED/DAMAGED), code canônico independente de idioma vs. label localizado, evidência de convergência de mercado brasileiro, opcionalidade, classificação declarada/não certificada, fronteira com Damage/Defects (fora do núcleo V1) e com Grading (coexistência sem derivação automática — aplicabilidade a cards graded deferida para futura subfrente `Grading / Certification Domain Modeling`), independência de identidade/idioma/Storage/Custody/Wishlist, relação futura com Valuation sem reabrir Pricing, e semântica de filtro ("NM ou superior") apoiada em `condition_order` sem novo valor de escala — formalizados em LDM-91 a LDM-108 (`concept-decisions.md` C-103–C-120). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico da referência Physical Card → `card_condition`; verificação da discrepância entre "5 linhas" (validação) e 6 códigos documentados; Grading/Certification em detalhe; Damage/Defects detalhados; Condition History; mecanismo/UX de filtro por ordenação; refinamento de Wishlist por Condition.
+
 ## Permissions
 Complete permission matrix will be finalized after Collection, Inventory, Storage and Layout responsibilities are sufficiently defined.
 
@@ -1090,15 +1209,15 @@ Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region 
 # 8. Current Architectural Checkpoint
 
 ## Conceptual
-**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30); **C-91 through C-102 — APPROVED** (Wishlist, 2026-08-30)
+**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30); **C-91 through C-102 — APPROVED** (Wishlist, 2026-08-30); **C-103 through C-120 — APPROVED** (Physical Card Condition, 2026-08-30)
 
 Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-90 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
+**LDM-01 through LDM-108 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), and LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), and LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
 
 ## Physical
 **NOT STARTED**
@@ -1139,3 +1258,4 @@ It must preserve:
 | 1.6 | **Bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`. Adicionadas LDM-55 a LDM-69, formalizando no nível lógico o bloco conceitual C-67 a C-81 — deliberadamente sem skeleton físico além de `inventory_id` (LDM-23): nenhum campo, tabela, enum ou entidade `Ownership Episode` é introduzido. Cobre: Lifecycle e permanência de identidade (LDM-55); Provenance como subconjunto com exclusões explícitas (LDM-56); critério Current State vs. Historical Event (LDM-57); espinha dorsal Ownership Entry (LDM-58), Transfer atômico e sem hiato (LDM-59), Exit (LDM-60), com reason como atributo (LDM-61); Ownership Episode como ferramenta conceitual, sem entidade (LDM-62); fronteira Physical Card Provenance × Owner/Transaction Private Data (LDM-63); linguagem segura de evidência (LDM-64); Transfer Integrity com três consequências paralelas — Collection Allocation, Slot Assignment, Storage (LDM-65); Custody independente de ownership mesmo após Exit, corrigindo recomendação anterior (LDM-66, sem reabrir LDM-38–LDM-43); núcleo V1 (LDM-67); fechamento mínimo de Grading (LDM-68); Valuation/Pricing History não são Provenance (LDM-69). Seção 4 (nota adicional), Seção 7 (nova subseção `Lifecycle / Provenance`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-54 não reabertas em conteúdo — LDM-38 a LDM-43 permanecem integralmente vigentes. |
 | 1.7 | **Bloco complementar Favorite, 2026-08-30** (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Favorite conceptual modeling`. Adicionadas LDM-70 a LDM-78, formalizando no nível lógico o bloco conceitual C-82 a C-90 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Favorite↔Card). Cobre: definição e entidade-alvo, `Card` exclusivamente (LDM-70); pertencimento ao User, transversal a Collections, sem relação com Inventory (LDM-71); independência de ownership (LDM-72); independência de Collection (LDM-73); caráter binário (LDM-74); cardinalidade conceitual (LDM-75); fronteira com Wishlist (LDM-76); cada Card como identidade editorial própria por Set (LDM-77); catalog lifecycle não modelado (LDM-78). Seção 4 (nota adicional), Seção 7 (nova subseção `Favorite`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-69 não reabertas em conteúdo. |
 | 1.8 | **Bloco complementar Wishlist, 2026-08-30** (`COLLECTIONS-WISHLIST-CONSOLIDATION-01`), encerrando a subfrente `Collections — Wishlist conceptual modeling`. Adicionadas LDM-79 a LDM-90, formalizando no nível lógico o bloco conceitual C-91 a C-102 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Wishlist↔Card Variant). Cobre: definição e alvo obrigatório `Card Variant` (LDM-79); idioma como refinamento opcional (LDM-80); independência de ownership, sem remoção automática, múltiplas cópias válidas (LDM-81); independência de completion (LDM-82); sem vínculo estrutural com Collection (LDM-83); independência de Expected Content (LDM-84); independência de Favorite, diferença de granularidade intencional (LDM-85); núcleo binário V1 (LDM-86); cardinalidade/duplicidade conceitual (LDM-87); condition/grading como fronteira futura, achado preservado (LDM-88); Marketplace como fronteira futura sem dependência estrutural (LDM-89); User scope (LDM-90). Seção 4 (nota adicional), Seção 7 (nova subseção `Wishlist`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-78 não reabertas em conteúdo. |
+| 1.9 | **Bloco complementar Physical Card Condition, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`. Adicionadas LDM-91 a LDM-108, formalizando no nível lógico o bloco conceitual C-103 a C-120 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a referência Physical Card → `card_condition`). Cobre: definição e entidade-alvo exclusivo Physical Card (LDM-91); ratificação conceitual da referência canônica compartilhada `card_condition`, já `CONFIRMADO EXECUTADO` em Pricing, sem alteração de schema (LDM-92); escala canônica formalizada, com discrepância de contagem (5 vs. 6) registrada como pendência não investigada (LDM-93); code canônico independente de idioma vs. label localizado (LDM-94); evidência de mercado brasileiro (LDM-95); opcionalidade, sem valor UNKNOWN (LDM-96); classificação declarada/não certificada (LDM-97); Damage/Defects fora do núcleo V1 (LDM-98); fronteira Condition × Grading, aplicabilidade a cards graded deferida para futura subfrente `Grading / Certification Domain Modeling` (LDM-99); raw/graded não é valor de Condition (LDM-100); sem histórico no núcleo V1 (LDM-101); independência de identidade e de outras dimensões (LDM-102); independência de idioma (LDM-103); independência de Storage/Custody (LDM-104); relação futura com Valuation sem reabrir Pricing (LDM-105); filter semantics sem novo valor de escala (LDM-106); Wishlist permanece sem Condition (LDM-107); escopo mínimo V1 (LDM-108). Seção 4 (nota adicional, mesmo padrão de Custody/Availability), Seção 7 (nova subseção `Physical Card Condition`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-90 não reabertas em conteúdo. Nota de divergência registrada: o pedido de consolidação referenciou uma rodada "CONDITION-MODELING-02" não entregue literalmente sob esse nome nesta sessão — o complemento de evidência de mercado brasileiro cumpriu esse papel em conteúdo, tratado como equivalente (ver `concept-decisions.md`, bloco complementar Physical Card Condition, para o texto completo da nota). |

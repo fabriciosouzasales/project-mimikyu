@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), e desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant) — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), e desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -1160,6 +1160,120 @@ Wishlist pertence ao `User`. Não pertence a `Collection`, `Inventory` nem a uma
 
 ---
 
+## Bloco complementar — Physical Card Condition (2026-08-30)
+
+Adicionado ao final de `COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`, encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`, conduzida por um memo conceitual (`COLLECTIONS-PHYSICAL-CARD-CONDITION-MODELING-01`) e um complemento de evidência de mercado brasileiro (entregue como `COMPLEMENTO — CONDITION / EVIDÊNCIA DE MERCADO BRASILEIRO`). Nota de divergência sinalizada explicitamente, não aplicada silenciosamente: o pedido de consolidação refere-se a "memos CONDITION-MODELING-01, CONDITION-MODELING-02 e o complemento"; nesta sessão não houve uma rodada entregue literalmente como `CONDITION-MODELING-02` — o complemento de evidência de mercado cumpriu, em conteúdo, o papel equivalente de um refinamento de segunda rodada (evidência de mercado brasileiro, code vs. label, filter semantics), e é tratado aqui como tal. Ambos previamente registrados sem edição de arquivo. Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido explorado nesses dois textos e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-102 não são reabertas — em particular, `Lifecycle`/`Provenance` (C-67–C-81, especialmente C-69/C-80/C-81) e `Wishlist` (C-91–C-102, especialmente C-100) permanecem integralmente vigentes. Grading/Certification em detalhe, Damage/Defects, Condition History, Valuation e Wishlist refinement permanecem explicitamente fora de escopo. Achado central desta rodada: a tabela física `card_condition`, já `CONFIRMADO EXECUTADO` em Pricing (Incremento P1, 2026-08-16 — ver `docs/05f-pricing.md`), é reconhecida e ratificada conceitualmente como a referência canônica compartilhada de Condition (C-104), sem propor ou alterar schema nesta rodada.
+
+## C-103 — Condition: definição e entidade-alvo
+
+**Status:** Aprovada
+
+`Condition` é a classificação padronizada do estado físico corrente de uma `Physical Card`, segundo a escala canônica do MMKYU. Pertence exclusivamente à `Physical Card` — nunca a `Card`, `Card Variant`, `Collection`, `Wishlist` ou `Storage`.
+
+## C-104 — Referência canônica ratificada: card_condition
+
+**Status:** Aprovada
+
+Fica ratificado conceitualmente que a referência compartilhada já existente `card_condition` (CONFIRMADO EXECUTADO, Incremento P1 de Pricing, 2026-08-16 — ver `docs/05f-pricing.md`) representa a escala canônica de Condition do MMKYU. Collections não cria uma segunda escala, um segundo vocabulário nem um conceito paralelo de Condition — Physical Card Condition e os mapeamentos de condition de Pricing (`pricing_condition_mapping`) consomem a mesma referência canônica. Nenhuma alteração de schema é proposta ou aplicada nesta rodada.
+
+## C-105 — Escala canônica formalizada
+
+**Status:** Aprovada
+
+A escala canônica pretendida é: MINT, NEAR_MINT, LIGHTLY_PLAYED, MODERATELY_PLAYED, HEAVILY_PLAYED, DAMAGED (mesma ordem e códigos já documentados em `card_condition`, `docs/05f-pricing.md`). A discrepância histórica entre uma validação pós-migration que mencionava 5 registros e a documentação que lista 6 códigos fica registrada como pendência de verificação física (ver Parte D/decisões ainda abertas) — não investigada nem corrigida nesta rodada.
+
+## C-106 — Condition code canônico vs. label localizado
+
+**Status:** Aprovada
+
+O código de Condition (ex.: `NEAR_MINT`) é identidade estável, independente de idioma. O rótulo exibido ao usuário é localizado e traduzido separadamente (ex.: pt-BR "Praticamente Nova", en "Near Mint"). O código interno nunca é amarrado a um rótulo traduzido específico.
+
+## C-107 — Evidência de mercado brasileiro
+
+**Status:** Aprovada
+
+Registra-se como evidência de alinhamento de mercado o vocabulário observado em sites especializados brasileiros (M/Nova, NM/Praticamente Nova, SP-LP/Usada Levemente, MP/Usada Moderadamente, HP/Muito Usada, D/Danificada), que converge semanticamente, em ordem e significado, com a escala canônica do MMKYU (C-105). Abreviações de mercado não se tornam novos códigos canônicos.
+
+## C-108 — Opcionalidade
+
+**Status:** Aprovada
+
+Condition é opcional. Não bloqueia cadastro básico, bulk import nem Ownership Entry (C-70). Ausência de Condition significa "não informada" — não se cria um valor `UNKNOWN` apenas para representar essa ausência.
+
+## C-109 — Classificação declarada, não certificada
+
+**Status:** Aprovada
+
+Condition raw é classificação corrente declarada/registrada — não se assume verificação independente, certificação, inspeção MMKYU ou verdade objetiva garantida. Aplica-se a mesma disciplina de linguagem segura já usada para Provenance (C-76).
+
+## C-110 — Damage/Defects fora do núcleo V1
+
+**Status:** Aprovada
+
+Condition representa classificação global do estado físico. Damage/defects detalhados (whitening, scratches, crease, dent, stains, edge wear, print lines, centering, water damage e outros) não são modelados nesta rodada — permanecem fora do núcleo V1.
+
+## C-111 — Condition × Grading
+
+**Status:** Aprovada
+
+Condition ≠ Grading. Condition é classificação canônica/declarada do estado físico; Grading (C-80) é certificação externa. Nenhum é derivado automaticamente do outro. Não se decide nesta rodada se uma Physical Card atualmente graded mantém Condition corrente, deixa Condition não aplicável, preserva apenas avaliação anterior, ou pode ter ambas simultaneamente — essa aplicabilidade fica para a futura subfrente `Collections — Grading / Certification Domain Modeling`.
+
+## C-112 — Raw/graded não é valor de Condition
+
+**Status:** Aprovada
+
+"Raw vs. graded" não é um valor de Condition. A estrutura desse status pertence a Grading/Certification e, eventualmente, a Protection/Encapsulation (C-56) — não à escala canônica de Condition.
+
+## C-113 — Sem histórico no núcleo V1
+
+**Status:** Aprovada
+
+O núcleo V1 mantém apenas Current Condition, sem Condition History. Reafirma a exclusão já registrada em C-68/C-81 (Lifecycle & Provenance). Eventos materiais futuros de mudança de condition podem ser avaliados posteriormente em rodada própria de Lifecycle.
+
+## C-114 — Independência de identidade e de outras dimensões
+
+**Status:** Aprovada
+
+Mudança de Condition não altera: a identidade da Physical Card (reafirma C-47); Card Variant; ownership; Collection Allocation; Slot Assignment; Favorite; Wishlist; Storage; Custody.
+
+## C-115 — Independência de idioma
+
+**Status:** Aprovada
+
+Condition é independente de idioma. Idioma descreve o exemplar (impressão/localização); Condition classifica seu estado físico corrente — eixos ortogonais.
+
+## C-116 — Independência de Storage/Custody
+
+**Status:** Aprovada
+
+Mudanças de Storage ou Custody não alteram Condition por regra estrutural. Danos reais podem ocorrer no mundo físico (manuseio, transporte, condições de armazenamento), mas isso é causalidade de mundo real, não dependência estrutural entre os conceitos.
+
+## C-117 — Relação com Valuation
+
+**Status:** Aprovada
+
+Condition pode futuramente ser input de Valuation, mas Condition ≠ Price e Condition ≠ Valuation. Não se inclui fator fixo de desconto/preço dentro de Condition — precedente já estabelecido pelo próprio Pricing V1 (`05f-pricing.md`), que rejeitou explicitamente embutir esse fator em `card_condition`. Pricing V1 não é reaberto por esta decisão.
+
+## C-118 — Filter semantics não é novo valor de Condition
+
+**Status:** Aprovada
+
+Expressões como "NM ou superior" / "Near Mint or better" não são valores adicionais de Condition — são semântica de filtro/comparação baseada na ordenação da escala canônica (`condition_order`, já existente em `card_condition`). UX e mecanismo de filtro não são modelados nesta rodada.
+
+## C-119 — Wishlist permanece sem Condition
+
+**Status:** Aprovada
+
+Wishlist V1 (C-91–C-102) permanece sem Condition. A possibilidade futura de refinamento de Wishlist por Condition (já antecipada em C-100) só poderá ser avaliada em rodada própria, sem alterar C-91–C-102 nesta consolidação.
+
+## C-120 — Escopo mínimo V1
+
+**Status:** Aprovada
+
+O escopo mínimo V1 de Condition é: Current Condition opcional; escala canônica compartilhada (`card_condition`); código independente de idioma, com label localizado; sem defects detalhados; sem histórico; sem evidence levels; sem obrigatoriedade de preenchimento; sem derivação automática a partir de Grade.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -1393,6 +1507,7 @@ As seguintes entidades/conceitos foram identificados durante a modelagem de Coll
 - `Protection / Encapsulation` — reconhecida como dimensão futura distinta de Storage (C-56), explicitamente não modelada nesta rodada (sleeve, toploader, one-touch, slab de grading).
 - `Favorite` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Favorite`, C-82–C-90): definição e entidade-alvo (`Card`, nunca `Card Variant`/`Physical Card`), pertencimento ao `User` transversal a Collections, independência de ownership e de Collection, caráter binário, cardinalidade conceitual, fronteira com Wishlist. Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
 - `Wishlist` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Wishlist`, C-91–C-102): definição e alvo obrigatório (`Card Variant`, não `Card`), idioma como refinamento opcional, independência de ownership/completion/Expected Content/Favorite, núcleo binário, cardinalidade/duplicidade, e fronteiras futuras (condition/grading, Marketplace). Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
+- `Physical Card Condition` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Physical Card Condition`, C-103–C-120): definição e entidade-alvo (`Physical Card`), ratificação da referência canônica compartilhada `card_condition` (sem alteração de schema), escala formalizada, code vs. label localizado, evidência de mercado brasileiro, opcionalidade, linguagem declarada/não certificada, fronteira com Damage/Defects e com Grading (aplicabilidade a cards graded deixada para futura subfrente `Grading / Certification Domain Modeling`), independência de identidade/idioma/Storage/Custody/Wishlist, relação futura com Valuation sem reabrir Pricing, e semântica de filtro ("NM ou superior") sem novo valor de escala. Pendência registrada: discrepância entre "5 linhas" (validação) e 6 códigos documentados em `card_condition` — verificação física não realizada nesta rodada. Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
 - `Pokémon / Subject Reference`
 - histórico/auditoria operacional detalhada
 - engine de progresso
@@ -1463,3 +1578,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.6 | **Bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`. Adicionadas C-67 a C-81, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo): definição de Lifecycle e permanência de identidade (C-67); Provenance como subconjunto de Lifecycle, com exclusões explícitas — não é Audit Log, histórico de Storage, histórico de condition, Pricing nem Valuation History (C-68); critério Current State vs. Historical Event (C-69); espinha dorsal patrimonial de três formas — Ownership Entry (C-70), Ownership Transfer como fato único e atômico, sem hiato (C-71), Ownership Exit (C-72) — com motivo qualificando o evento, nunca criando tipo estrutural próprio (C-73); Ownership Episode como ferramenta conceitual, sem entidade própria (C-74); fronteira central entre Physical Card Provenance e Owner/Transaction Private Data, com dados privados de um episódio nunca herdados automaticamente pelo owner seguinte (C-75); linguagem segura de evidência/verificação — "registrada/rastreada", nunca "verificada/certificada" (C-76); Transfer Integrity com três consequências paralelas e independentes sobre Collection Allocation/Slot Assignment/Storage, corrigindo uma formulação anterior que sugeria dependência causal entre elas (C-77); confirmação de que Custody permanece independente de ownership mesmo após Exit, corrigindo uma recomendação anterior que a levava a "não aplicável" (C-78, sem alterar C-49–C-54); núcleo mínimo de Lifecycle para V1 — Entry/Transfer/Exit automáticos, sem histórico de Loan/LOST/Grading (C-79); fechamento mínimo de Grading, sem workflow (C-80); confirmação de que Valuation/Pricing History não fazem parte de Provenance, sem reabrir Pricing V1 (C-81, reafirma C-68). C-01–C-66 não reabertas em conteúdo — C-49–C-54 (Custody/Availability) permanecem integralmente vigentes. Audit Log transversal, permissões detalhadas, evidence levels, workflow de grading, histórico de Loan/LOST/Recovery, histórico detalhado de condition, Pricing e Valuation permanecem explicitamente fora de escopo. |
 | 1.7 | **Bloco complementar Favorite, 2026-08-30** (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Favorite conceptual modeling`. Adicionadas C-82 a C-90, formalizando pela primeira vez em C-*/LDM-* as decisões do memo `COLLECTIONS-FAVORITE-MODELING-01` (previamente registrado sem editar arquivo): definição e entidade-alvo — Favorite referencia exclusivamente `Card`, nunca `Card Variant`/`Physical Card`/Collection Allocation/Slot Assignment/Storage (C-82); pertencimento ao `User`, transversal a todas as Collections, independente do papel do User (Owner/Member) e sem relação com `Inventory` (C-83); independência de ownership (C-84); independência de Collection — completion, Collection Allocation, canonical ordering, Layout e Slot Assignment (C-85); caráter binário, sem score/rating/prioridade/níveis/ranking (C-86); cardinalidade conceitual, um Favorite por par User×Card (C-87); fronteira Favorite vs. Wishlist, independentes e coexistentes (C-88); cada Card como identidade editorial própria por Set, sem herança automática entre impressões do mesmo Pokémon/personagem (C-89); catalog lifecycle (hard delete/deprecation) não modelado (C-90). Parte D atualizada: `Favorite` marcado como conceitualmente resolvido. C-01–C-81 não reabertas em conteúdo — Custody/Availability (C-49–C-54), Storage (C-55–C-66) e Lifecycle/Provenance (C-67–C-81) permanecem integralmente vigentes. Wishlist em profundidade, `Pokémon`/`Subject Reference`, ranking/grail, recomendações e notificações permanecem explicitamente fora de escopo. |
 | 1.8 | **Bloco complementar Wishlist, 2026-08-30** (`COLLECTIONS-WISHLIST-CONSOLIDATION-01`), encerrando a subfrente `Collections — Wishlist conceptual modeling`. Adicionadas C-91 a C-102, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-WISHLIST-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo; direção vigente é a do `-02`, que corrigiu a granularidade de alvo proposta no `-01` antes de qualquer consolidação — sem supersessão de documento canônico): definição e alvo obrigatório `Card Variant`, não `Card` (C-91); idioma como refinamento opcional (C-92); independência de ownership, sem remoção automática por aquisição, múltiplas cópias desejadas válidas sem quantity (C-93); independência de completion — Wishlist ≠ Collection Missing, estende C-19 (C-94); sem vínculo estrutural com Collection, associação contextual futura como Product Behavior (C-95); independência de Expected Content, granularidade de C-42 não reutilizada como justificativa (C-96); independência de Favorite, diferença de granularidade (Card vs. Card Variant) intencional (C-97); núcleo binário V1, sem quantity/priority/grail/ranking/price target/alerts/procurement (C-98); cardinalidade/duplicidade conceitual por combinação exata de Variant+idioma (C-99); condition/grading como fronteira futura, achado documental preservado, encaminhado para futura subfrente `Collections — Physical Card Condition Modeling` (C-100); Marketplace como fronteira futura sem dependência estrutural (C-101); Wishlist pertence ao User, não a Collection/Inventory/Physical Card específica (C-102). C-01–C-90 não reabertas em conteúdo — Favorite (C-82–C-90) permanece integralmente vigente. Quantity, priority/grail, price target, Marketplace, condition e grading permanecem explicitamente fora de escopo. |
+| 1.9 | **Bloco complementar Physical Card Condition, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`, aberta pelo memo `COLLECTIONS-PHYSICAL-CARD-CONDITION-MODELING-01` e por um complemento de evidência de mercado brasileiro (ambos previamente registrados sem editar arquivo; nota de divergência sinalizada explicitamente — o pedido de consolidação referenciou "MODELING-02", rodada não entregue literalmente sob esse nome nesta sessão, cujo conteúdo equivalente foi coberto pelo complemento). Adicionadas C-103 a C-120: definição e entidade-alvo exclusivo `Physical Card` (C-103); ratificação conceitual da referência canônica compartilhada já existente e `CONFIRMADO EXECUTADO` `card_condition` (Incremento P1 de Pricing, 2026-08-16), sem criar escala/vocabulário/conceito paralelo e sem alterar schema (C-104); escala canônica formalizada — MINT/NEAR_MINT/LIGHTLY_PLAYED/MODERATELY_PLAYED/HEAVILY_PLAYED/DAMAGED, com discrepância histórica de contagem (5 vs. 6) registrada como pendência de verificação física, não investigada (C-105); code canônico independente de idioma vs. label localizado (C-106); evidência de convergência semântica do vocabulário de mercado brasileiro, sem gerar novos códigos canônicos (C-107); opcionalidade, sem valor `UNKNOWN` para representar ausência (C-108); classificação declarada/registrada, não certificada, mesma disciplina de linguagem segura de C-76 (C-109); Damage/Defects detalhados fora do núcleo V1 (C-110); fronteira Condition × Grading, coexistência sem derivação automática, aplicabilidade a cards graded deixada para futura subfrente `Grading / Certification Domain Modeling` (C-111); "raw/graded" não é valor de Condition (C-112); sem histórico no núcleo V1, reafirma C-68/C-81 (C-113); independência de identidade da Physical Card e de Card Variant/ownership/Collection Allocation/Slot Assignment/Favorite/Wishlist/Storage/Custody (C-114); independência de idioma (C-115); independência estrutural de Storage/Custody (C-116); relação futura com Valuation sem reabrir Pricing, precedente já estabelecido em `05f-pricing.md` (C-117); semântica de filtro ("NM ou superior") apoiada em `condition_order`, sem novo valor de Condition, sem modelar UX (C-118); Wishlist V1 permanece sem Condition, sem reabrir C-91–C-102 (C-119); escopo mínimo V1 consolidado (C-120). Parte D atualizada: `Physical Card Condition` marcado como conceitualmente resolvido. C-01–C-102 não reabertas em conteúdo — Lifecycle/Provenance (C-67–C-81) e Wishlist (C-91–C-102) permanecem integralmente vigentes. Grading/Certification em detalhe, Damage/Defects, Condition History, Valuation e Wishlist refinement permanecem explicitamente fora de escopo. Nenhuma migration ou alteração de schema proposta ou aplicada. |
