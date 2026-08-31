@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), e desde 2026-08-30 de `Favorite` (preferência do User por Card) — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), e desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -1082,6 +1082,84 @@ Enquanto a `Card` existir como identidade editorial no catálogo, Favorite perma
 
 ---
 
+## Bloco complementar — Wishlist (2026-08-30)
+
+Adicionado ao final de `COLLECTIONS-WISHLIST-CONSOLIDATION-01`, encerrando a subfrente `Collections — Wishlist conceptual modeling`, conduzida por dois memos conceituais (`COLLECTIONS-WISHLIST-MODELING-01`/`-02`, sem edição de arquivo). A direção vigente é a do memo `-02`, que corrigiu a granularidade de alvo proposta no memo `-01` (Card obrigatório + Variant opcional) para `Card Variant` obrigatório — nenhuma dessas conclusões havia sido consolidada em C-*/LDM-*, portanto não há supersessão de documento canônico, apenas a formalização direta da versão corrigida. C-01–C-90 não são reabertas — em particular, `Favorite` (C-82–C-90) permanece integralmente vigente, com a diferença de granularidade frente a Wishlist tratada como intencional (C-97). Quantity, priority/grail, price target, Marketplace, condition e grading permanecem explicitamente fora de escopo.
+
+## C-91 — Wishlist: definição e alvo obrigatório Card Variant
+
+**Status:** Aprovada
+
+`Wishlist` representa a intenção pessoal declarada de um `User` de adquirir uma determinada `Card Variant`. Toda Wishlist referencia obrigatoriamente uma `Card Variant` — não existe Wishlist genérica apenas para `Card` no núcleo atual. A `Card` correspondente é conhecida indiretamente através da `Card Variant`, no mesmo nível de especificidade em que uma `Physical Card` real é referenciada (ver `Physical Card`, C-47).
+
+## C-92 — Idioma como refinamento opcional
+
+**Status:** Aprovada
+
+Wishlist pode opcionalmente especificar um idioma desejado sobre a `Card Variant` alvo. Ausência de idioma significa que qualquer idioma é aceitável. Exemplos válidos: Variant X + qualquer idioma; Variant X + PT-BR; Variant X + EN; Variant X + JP.
+
+## C-93 — Independência de ownership, sem remoção automática
+
+**Status:** Aprovada
+
+Wishlist independe completamente de ownership corrente. Pode existir quando o User nunca possuiu nenhuma `Physical Card` correspondente, possui uma, possui várias, ou possui exatamente a mesma `Card Variant` + idioma desejados — é válido desejar uma combinação mesmo já possuindo uma ou várias `Physical Cards` compatíveis, sem que isso exija quantity para ser representado. `Possuir ≠ Desejar`. Aquisição de uma Physical Card correspondente (Ownership Entry ou Transfer, C-70/C-71) não remove automaticamente a Wishlist — a intenção só deixa de existir por decisão explícita do User ou por um futuro comportamento assistido de produto, não modelado nesta rodada.
+
+## C-94 — Independência de completion: Wishlist ≠ Collection Missing
+
+**Status:** Aprovada
+
+Wishlist não é derivada de completion. São válidos, em qualquer combinação: lacuna de completion sem Wishlist; Wishlist sem lacuna de completion; ambos; nenhum. `Possuir ≠ Alocar ≠ Completar ≠ Desejar` (estende C-19).
+
+## C-95 — Sem vínculo estrutural com Collection
+
+**Status:** Aprovada
+
+Não existe vínculo estrutural entre Wishlist e Collection no núcleo atual — Wishlist não pertence a nenhuma Collection. Uma futura associação contextual (ex.: "quero esta Variant para determinado objetivo/Collection") pode ser estudada como Product Behavior ou extensão futura, sem transformar Collection em dona da Wishlist — não permanece como decisão estrutural em aberto desta consolidação.
+
+## C-96 — Independência de Expected Content
+
+**Status:** Aprovada
+
+Wishlist e `Expected Content` (C-42) são independentes. Expected Content responde "o que este Slot espera?" (organizacional, pertence ao Slot); Wishlist responde "qual Variant desejo adquirir?" (intenção pessoal, pertence ao User). Compartilham vocabulário de catálogo, mas a granularidade de C-42 (Card obrigatório + Variant opcional) não é reutilizada como justificativa para a forma de Wishlist.
+
+## C-97 — Independência de Favorite
+
+**Status:** Aprovada
+
+Wishlist e `Favorite` (C-82–C-90) são independentes — válidos em qualquer combinação: Favorite sem Wishlist; Wishlist sem Favorite; ambos; nenhum. A diferença de granularidade entre os dois é intencional: `Favorite → Card` (preferência editorial ampla); `Wishlist → Card Variant` (intenção específica de aquisição).
+
+## C-98 — Núcleo binário V1
+
+**Status:** Aprovada
+
+Wishlist é binária no núcleo V1: a existência da entrada significa "ainda desejo esta combinação". Quantity, priority, grail, ranking, target price, alerts e procurement behavior ficam fora do núcleo V1.
+
+## C-99 — Cardinalidade/duplicidade conceitual
+
+**Status:** Aprovada
+
+Duplicidade conceitual existe apenas quando duas entradas têm a mesma `Card Variant` e a mesma condição de idioma (ambas sem idioma, ou mesmo idioma específico). Combinações diferentes não são duplicidade estrutural — por exemplo, "Variant X + qualquer idioma" e "Variant X + JP" podem coexistir. Eventual aviso ou merge entre entradas sobrepostas é Product Behavior, não regra de domínio.
+
+## C-100 — Condition/grading: fronteira futura
+
+**Status:** Aprovada
+
+Condition e grading não são incorporados a Wishlist nesta rodada. Registra-se apenas a possibilidade futura de refinamentos como condition, raw/graded, grader e grade — somente depois que essas dimensões forem formalmente modeladas em rodada própria. Preserva-se o achado já registrado (ver Bloco complementar Lifecycle & Provenance): há referências textuais a `condition` como dimensão de Physical Card sem C-*/LDM-* correspondente formalizando-a — não corrigido nesta rodada, encaminhado para uma futura subfrente própria, `Collections — Physical Card Condition Modeling`.
+
+## C-101 — Marketplace: fronteira futura, sem dependência estrutural
+
+**Status:** Aprovada
+
+Marketplace pode futuramente consumir Wishlist para matching, sugestões, alerts e oportunidades de compra. Wishlist não depende estruturalmente de Marketplace — sua existência e significado não pressupõem esse módulo, cujos limites permanecem não decididos (ver `ROADMAP.md`).
+
+## C-102 — User scope
+
+**Status:** Aprovada
+
+Wishlist pertence ao `User`. Não pertence a `Collection`, `Inventory` nem a uma `Physical Card` específica.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -1314,7 +1392,7 @@ As seguintes entidades/conceitos foram identificados durante a modelagem de Coll
 - `Storage Divider` — permanece não modelado.
 - `Protection / Encapsulation` — reconhecida como dimensão futura distinta de Storage (C-56), explicitamente não modelada nesta rodada (sleeve, toploader, one-touch, slab de grading).
 - `Favorite` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Favorite`, C-82–C-90): definição e entidade-alvo (`Card`, nunca `Card Variant`/`Physical Card`), pertencimento ao `User` transversal a Collections, independência de ownership e de Collection, caráter binário, cardinalidade conceitual, fronteira com Wishlist. Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
-- `Wishlist`
+- `Wishlist` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Wishlist`, C-91–C-102): definição e alvo obrigatório (`Card Variant`, não `Card`), idioma como refinamento opcional, independência de ownership/completion/Expected Content/Favorite, núcleo binário, cardinalidade/duplicidade, e fronteiras futuras (condition/grading, Marketplace). Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
 - `Pokémon / Subject Reference`
 - histórico/auditoria operacional detalhada
 - engine de progresso
@@ -1384,3 +1462,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.5 | **Bloco complementar Storage, 2026-08-30** (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Storage conceptual modeling`. Adicionadas C-55 a C-66, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-STORAGE-MODELING-01`/`-02` e da rodada de correção sobre remoção/hierarquia (todos previamente registrados sem editar arquivo): definição de Storage/Storage Container e fronteira com Protection (critério de endereçabilidade, C-56); ownership de Storage Container mediado por Inventory (C-57, evitando repetir o padrão SUPERSEDED de LDM-25); cardinalidade e independência de Physical Card × Storage frente a ownership/Collection Allocation/Slot Assignment/completion (C-58); existência vazia, independência de Collection e caráter corrente, não histórico (C-59); hierarquia opcional entre Storage Containers com regra de container-folha (C-60); fechamento de Storage cross-Inventory como não suportado, incluindo a regra de mesmo Inventory entre parent/child (C-61); capacidade como conceito opcional/informativo/dependente de tipo, distinto de Grid Configuration de Layout (C-62); remoção condicionada a vazio estrutural (zero Physical Cards e zero containers filhos), sem cascade (C-63); as duas operações de transferência, Bulk Card Transfer (C-64) e Reparent Storage Container (C-65); e a semântica de Default Storage sob hierarquia (C-66, sem reabrir C-36). Parte D atualizada: `Storage Container` e `Binder` marcados como conceitualmente resolvidos; `ETB / Storage Box Layout` e `Storage Divider` permanecem não modelados; adicionado `Protection / Encapsulation` como dimensão futura reconhecida, não modelada. C-01–C-54 não reabertas em conteúdo. Protection/Encapsulation, histórico de Storage e modelagem física (SQL, capacidade rígida, UX) permanecem fora de escopo. |
 | 1.6 | **Bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`. Adicionadas C-67 a C-81, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo): definição de Lifecycle e permanência de identidade (C-67); Provenance como subconjunto de Lifecycle, com exclusões explícitas — não é Audit Log, histórico de Storage, histórico de condition, Pricing nem Valuation History (C-68); critério Current State vs. Historical Event (C-69); espinha dorsal patrimonial de três formas — Ownership Entry (C-70), Ownership Transfer como fato único e atômico, sem hiato (C-71), Ownership Exit (C-72) — com motivo qualificando o evento, nunca criando tipo estrutural próprio (C-73); Ownership Episode como ferramenta conceitual, sem entidade própria (C-74); fronteira central entre Physical Card Provenance e Owner/Transaction Private Data, com dados privados de um episódio nunca herdados automaticamente pelo owner seguinte (C-75); linguagem segura de evidência/verificação — "registrada/rastreada", nunca "verificada/certificada" (C-76); Transfer Integrity com três consequências paralelas e independentes sobre Collection Allocation/Slot Assignment/Storage, corrigindo uma formulação anterior que sugeria dependência causal entre elas (C-77); confirmação de que Custody permanece independente de ownership mesmo após Exit, corrigindo uma recomendação anterior que a levava a "não aplicável" (C-78, sem alterar C-49–C-54); núcleo mínimo de Lifecycle para V1 — Entry/Transfer/Exit automáticos, sem histórico de Loan/LOST/Grading (C-79); fechamento mínimo de Grading, sem workflow (C-80); confirmação de que Valuation/Pricing History não fazem parte de Provenance, sem reabrir Pricing V1 (C-81, reafirma C-68). C-01–C-66 não reabertas em conteúdo — C-49–C-54 (Custody/Availability) permanecem integralmente vigentes. Audit Log transversal, permissões detalhadas, evidence levels, workflow de grading, histórico de Loan/LOST/Recovery, histórico detalhado de condition, Pricing e Valuation permanecem explicitamente fora de escopo. |
 | 1.7 | **Bloco complementar Favorite, 2026-08-30** (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Favorite conceptual modeling`. Adicionadas C-82 a C-90, formalizando pela primeira vez em C-*/LDM-* as decisões do memo `COLLECTIONS-FAVORITE-MODELING-01` (previamente registrado sem editar arquivo): definição e entidade-alvo — Favorite referencia exclusivamente `Card`, nunca `Card Variant`/`Physical Card`/Collection Allocation/Slot Assignment/Storage (C-82); pertencimento ao `User`, transversal a todas as Collections, independente do papel do User (Owner/Member) e sem relação com `Inventory` (C-83); independência de ownership (C-84); independência de Collection — completion, Collection Allocation, canonical ordering, Layout e Slot Assignment (C-85); caráter binário, sem score/rating/prioridade/níveis/ranking (C-86); cardinalidade conceitual, um Favorite por par User×Card (C-87); fronteira Favorite vs. Wishlist, independentes e coexistentes (C-88); cada Card como identidade editorial própria por Set, sem herança automática entre impressões do mesmo Pokémon/personagem (C-89); catalog lifecycle (hard delete/deprecation) não modelado (C-90). Parte D atualizada: `Favorite` marcado como conceitualmente resolvido. C-01–C-81 não reabertas em conteúdo — Custody/Availability (C-49–C-54), Storage (C-55–C-66) e Lifecycle/Provenance (C-67–C-81) permanecem integralmente vigentes. Wishlist em profundidade, `Pokémon`/`Subject Reference`, ranking/grail, recomendações e notificações permanecem explicitamente fora de escopo. |
+| 1.8 | **Bloco complementar Wishlist, 2026-08-30** (`COLLECTIONS-WISHLIST-CONSOLIDATION-01`), encerrando a subfrente `Collections — Wishlist conceptual modeling`. Adicionadas C-91 a C-102, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-WISHLIST-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo; direção vigente é a do `-02`, que corrigiu a granularidade de alvo proposta no `-01` antes de qualquer consolidação — sem supersessão de documento canônico): definição e alvo obrigatório `Card Variant`, não `Card` (C-91); idioma como refinamento opcional (C-92); independência de ownership, sem remoção automática por aquisição, múltiplas cópias desejadas válidas sem quantity (C-93); independência de completion — Wishlist ≠ Collection Missing, estende C-19 (C-94); sem vínculo estrutural com Collection, associação contextual futura como Product Behavior (C-95); independência de Expected Content, granularidade de C-42 não reutilizada como justificativa (C-96); independência de Favorite, diferença de granularidade (Card vs. Card Variant) intencional (C-97); núcleo binário V1, sem quantity/priority/grail/ranking/price target/alerts/procurement (C-98); cardinalidade/duplicidade conceitual por combinação exata de Variant+idioma (C-99); condition/grading como fronteira futura, achado documental preservado, encaminhado para futura subfrente `Collections — Physical Card Condition Modeling` (C-100); Marketplace como fronteira futura sem dependência estrutural (C-101); Wishlist pertence ao User, não a Collection/Inventory/Physical Card específica (C-102). C-01–C-90 não reabertas em conteúdo — Favorite (C-82–C-90) permanece integralmente vigente. Quantity, priority/grail, price target, Marketplace, condition e grading permanecem explicitamente fora de escopo. |

@@ -5,9 +5,9 @@
 | **Documento** | Collection — Logical Data Model (Checkpoint Lógico) |
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico) |
+| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico); LDM-79 a LDM-90 (bloco complementar Wishlist, 2026-08-30, sem skeleton físico) |
 | **Status** | Checkpoint lógico em evolução — modelo físico ainda NÃO iniciado |
-| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69), e desde 2026-08-30 de `Favorite` (User↔Card, sem skeleton físico — ver LDM-70 a LDM-78) — não contém SQL nem modelo físico. |
+| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69), desde 2026-08-30 de `Favorite` (User↔Card, sem skeleton físico — ver LDM-70 a LDM-78), e desde 2026-08-30 de `Wishlist` (User↔Card Variant, sem skeleton físico — ver LDM-79 a LDM-90) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-48, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
 ---
@@ -44,7 +44,7 @@ Only the **current canonical decisions** are recorded. Intermediate proposals th
 ### Current modeling status
 
 - Conceptual model: **C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout, 2026-08-30, ver `concept-decisions.md`)
-- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima; LDM-23 revisada 2026-08-30 — `Physical Card` & cardinalidade corrente com `Inventory`); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30); **LDM-38 through LDM-43 — APPROVED** (Custody & Availability, 2026-08-30, sem skeleton físico); **LDM-44 through LDM-54 — APPROVED** (Storage, 2026-08-30, sem skeleton físico); **LDM-55 through LDM-69 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); **LDM-70 through LDM-78 — APPROVED** (Favorite, 2026-08-30, sem skeleton físico)
+- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima; LDM-23 revisada 2026-08-30 — `Physical Card` & cardinalidade corrente com `Inventory`); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30); **LDM-38 through LDM-43 — APPROVED** (Custody & Availability, 2026-08-30, sem skeleton físico); **LDM-44 through LDM-54 — APPROVED** (Storage, 2026-08-30, sem skeleton físico); **LDM-55 through LDM-69 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); **LDM-70 through LDM-78 — APPROVED** (Favorite, 2026-08-30, sem skeleton físico); **LDM-79 through LDM-90 — APPROVED** (Wishlist, 2026-08-30, sem skeleton físico)
 - Physical model: **NOT STARTED**
 
 ---
@@ -855,6 +855,84 @@ While a Card exists as an editorial identity in the catalog, Favorite remains bo
 
 ---
 
+## Bloco complementar — Wishlist (LDM-79 a LDM-90, 2026-08-30)
+
+Formaliza, no nível lógico, o bloco conceitual C-91 a C-102 (`concept-decisions.md`), produzido por `COLLECTIONS-WISHLIST-CONSOLIDATION-01`. Nenhum skeleton físico (campo, tabela, enum) é fixado — a estrutura física da relação User↔Wishlist↔Card Variant(+idioma) permanece para uma rodada de modelagem lógica/física própria. LDM-01 a LDM-78 não são reabertas.
+
+## LDM-79 — Wishlist: Definition and Mandatory Target Card Variant
+
+Wishlist represents a User's personally declared intent to acquire a given Card Variant. Every Wishlist entry references a Card Variant mandatorily — there is no generic Card-level Wishlist in the current core. The corresponding Card is known indirectly through the Card Variant, at the same specificity level a Physical Card itself is referenced (C-47). Logical-layer formalization of C-91.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-80 — Language as Optional Refinement
+
+Wishlist may optionally specify a desired language over the target Card Variant. Absence of language means any language is acceptable. Logical-layer formalization of C-92.
+
+**Status:** APPROVED
+
+## LDM-81 — Ownership Independence, No Automatic Removal
+
+Wishlist is fully independent of current ownership. It may exist whether the User never owned any corresponding Physical Card, owns one, owns several, or owns exactly the same Card Variant + language desired — wanting a combination already owned, even in multiple copies, remains valid without requiring quantity. Acquisition (Ownership Entry or Transfer, LDM-58/LDM-59) does not automatically remove the Wishlist entry — it ceases to exist only by explicit User decision or by a future assisted product behavior, not modeled at this logical layer. Logical-layer formalization of C-93.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-82 — Independence from Completion: Wishlist Is Not Collection Missing
+
+Wishlist is not derived from completion. All combinations are valid: a completion gap without Wishlist; Wishlist without a completion gap; both; neither. Logical-layer formalization of C-94.
+
+**Status:** APPROVED
+
+## LDM-83 — No Structural Link to Collection
+
+No structural link exists between Wishlist and Collection at this logical layer — Wishlist does not belong to any Collection. A future contextual association may be studied as Product Behavior or future extension, without making Collection the owner of Wishlist. Logical-layer formalization of C-95.
+
+**Status:** APPROVED (decisão lógica, sem vínculo estrutural)
+
+## LDM-84 — Independence from Expected Content
+
+Wishlist and Expected Content (LDM-31/C-42) are independent. Expected Content answers what a Slot expects (organizational, belongs to the Slot); Wishlist answers what Card Variant the User intends to acquire (personal intent, belongs to the User). They share catalog vocabulary, but Expected Content's granularity (mandatory Card, optional Variant) is not reused as justification for Wishlist's shape. Logical-layer formalization of C-96.
+
+**Status:** APPROVED
+
+## LDM-85 — Independence from Favorite
+
+Wishlist and Favorite (LDM-70–LDM-78) are independent — valid in any combination: Favorite without Wishlist; Wishlist without Favorite; both; neither. The granularity difference is intentional: Favorite targets Card (broad editorial preference); Wishlist targets Card Variant (specific acquisition intent). Logical-layer formalization of C-97.
+
+**Status:** APPROVED
+
+## LDM-86 — Binary V1 Core
+
+Wishlist is binary at the V1 core: the existence of an entry means "this combination is still desired." Quantity, priority, grail, ranking, target price, alerts and procurement behavior remain out of the V1 core. Logical-layer formalization of C-98.
+
+**Status:** APPROVED (decisão lógica, sem escala/quantity)
+
+## LDM-87 — Conceptual Cardinality/Duplicity
+
+Conceptual duplicity exists only when two entries share the same Card Variant and the same language condition (both without language, or the same specific language). Different combinations are not structural duplicity — e.g., "Variant X + any language" and "Variant X + JP" may coexist. Any warning or merge between overlapping entries is Product Behavior, not a domain rule. Logical-layer formalization of C-99.
+
+**Status:** APPROVED (decisão lógica, sem constraint física)
+
+## LDM-88 — Condition/Grading: Future Boundary
+
+Condition and grading are not incorporated into Wishlist at this round. Only the future possibility of refinements such as condition, raw/graded, grader and grade is registered — only after those dimensions are formally modeled in their own round. The existing finding is preserved: historical textual references treat `condition` as a Physical Card dimension without corresponding C-*/LDM-* — not corrected at this round, deferred to a future dedicated subfrente, `Collections — Physical Card Condition Modeling`. Logical-layer formalization of C-100.
+
+**Status:** APPROVED (decisão lógica, sem modelo de condition/grading)
+
+## LDM-89 — Marketplace: Future Boundary, No Structural Dependency
+
+Marketplace may future consume Wishlist for matching, suggestions, alerts and purchase opportunities. Wishlist does not structurally depend on Marketplace — its existence and meaning do not presuppose that module, whose boundaries remain undecided. Logical-layer formalization of C-101.
+
+**Status:** APPROVED
+
+## LDM-90 — User Scope
+
+Wishlist belongs to the User. It does not belong to Collection, Inventory, or a specific Physical Card. Logical-layer formalization of C-102.
+
+**Status:** APPROVED
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -907,6 +985,8 @@ Physical Card
 > Nota (2026-08-30): Lifecycle/Provenance (LDM-55 a LDM-69) não aparece na árvore acima — Ownership Entry/Transfer/Exit são fatos históricos sobre a transição de `inventory_id` (LDM-23), não uma relação estrutural nova de Physical Card. Nenhum skeleton de evento, Ownership Episode ou Acquisition é fixado nesta rodada.
 >
 > Nota (2026-08-30): Favorite (LDM-70 a LDM-78) não aparece na árvore acima porque não é uma relação de `Physical Card` — referencia diretamente `Card` (nível editorial, acima de `Card Variant`) a partir do `User`, nunca a partir de `Inventory`, `Collection` ou `Storage Container`. Nenhum skeleton (tabela, campo, enum) de Favorite é fixado nesta rodada.
+>
+> Nota (2026-08-30): Wishlist (LDM-79 a LDM-90) também não aparece na árvore acima — referencia `Card Variant` (não `Physical Card`) a partir do `User`, nunca a partir de `Inventory`, `Collection` ou `Storage Container`. Diferente de Favorite (que referencia `Card`), Wishlist referencia `Card Variant` diretamente, mesmo nível de especificidade de `Physical Card` — mas continua sendo intenção sobre o catálogo, não sobre um exemplar físico existente. Nenhum skeleton de Wishlist é fixado nesta rodada.
 
 ---
 
@@ -990,6 +1070,9 @@ Espinha dorsal patrimonial (Ownership Entry/Transfer/Exit, motivo como atributo,
 ## Favorite (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-70 a LDM-78)
 Definição, entidade-alvo (`Card`, nunca `Card Variant`/`Physical Card`), pertencimento ao `User` transversal a Collections, independência de ownership e de Collection, caráter binário, cardinalidade conceitual e fronteira com Wishlist formalizados em LDM-70 a LDM-78 (`concept-decisions.md` C-82–C-90). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico da relação User↔Favorite↔Card; Wishlist em profundidade; camada `Pokémon`/`Subject Reference`; ranking/grail como conceito de produto; consumo futuro por filtros/dashboards/recomendações/compartilhamento.
 
+## Wishlist (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-79 a LDM-90)
+Definição, alvo obrigatório `Card Variant` (não `Card`), idioma como refinamento opcional, independência de ownership/completion/Expected Content/Favorite, núcleo binário V1, cardinalidade/duplicidade conceitual, e fronteiras futuras (condition/grading, Marketplace) formalizados em LDM-79 a LDM-90 (`concept-decisions.md` C-91–C-102). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico da relação User↔Wishlist↔Card Variant(+idioma); quantity/priority/price target como extensões futuras; mecanismo de consumo por Marketplace; modelagem própria de `condition` (encaminhada para futura subfrente `Collections — Physical Card Condition Modeling`) e de Grading em detalhe.
+
 ## Permissions
 Complete permission matrix will be finalized after Collection, Inventory, Storage and Layout responsibilities are sufficiently defined.
 
@@ -1007,15 +1090,15 @@ Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region 
 # 8. Current Architectural Checkpoint
 
 ## Conceptual
-**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30)
+**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30); **C-91 through C-102 — APPROVED** (Wishlist, 2026-08-30)
 
 Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-78 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
+**LDM-01 through LDM-90 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), and LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), and LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
 
 ## Physical
 **NOT STARTED**
@@ -1055,3 +1138,4 @@ It must preserve:
 | 1.5 | **Bloco complementar Storage, 2026-08-30** (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Storage conceptual modeling`. Adicionadas LDM-44 a LDM-54, formalizando no nível lógico o bloco conceitual C-55 a C-66 — deliberadamente sem skeleton físico além do que LDM-24 já fixa (`storage_container_id`, 0..1): nenhum campo, tabela ou identificador é introduzido para o próprio Storage Container, sua referência de Inventory ou sua referência de parent. Cobre: fronteira com Protection (LDM-44); ownership mediado por Inventory (LDM-45); cardinalidade reafirmada (LDM-46); existência vazia e caráter corrente (LDM-47); hierarquia opcional com regra de container-folha (LDM-48); fechamento de Storage cross-Inventory (LDM-49); capacidade opcional/não-uniforme (LDM-50); remoção condicionada a vazio estrutural (LDM-51); Bulk Card Transfer (LDM-52) e Reparent Storage Container (LDM-53); Default Storage sob hierarquia (LDM-54). Seção 4 (nota sobre hierarquia), Seção 7 (subseção `Storage` atualizada de "não resolvido" para "conceitualmente resolvido") e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-43 não reabertas em conteúdo. |
 | 1.6 | **Bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`. Adicionadas LDM-55 a LDM-69, formalizando no nível lógico o bloco conceitual C-67 a C-81 — deliberadamente sem skeleton físico além de `inventory_id` (LDM-23): nenhum campo, tabela, enum ou entidade `Ownership Episode` é introduzido. Cobre: Lifecycle e permanência de identidade (LDM-55); Provenance como subconjunto com exclusões explícitas (LDM-56); critério Current State vs. Historical Event (LDM-57); espinha dorsal Ownership Entry (LDM-58), Transfer atômico e sem hiato (LDM-59), Exit (LDM-60), com reason como atributo (LDM-61); Ownership Episode como ferramenta conceitual, sem entidade (LDM-62); fronteira Physical Card Provenance × Owner/Transaction Private Data (LDM-63); linguagem segura de evidência (LDM-64); Transfer Integrity com três consequências paralelas — Collection Allocation, Slot Assignment, Storage (LDM-65); Custody independente de ownership mesmo após Exit, corrigindo recomendação anterior (LDM-66, sem reabrir LDM-38–LDM-43); núcleo V1 (LDM-67); fechamento mínimo de Grading (LDM-68); Valuation/Pricing History não são Provenance (LDM-69). Seção 4 (nota adicional), Seção 7 (nova subseção `Lifecycle / Provenance`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-54 não reabertas em conteúdo — LDM-38 a LDM-43 permanecem integralmente vigentes. |
 | 1.7 | **Bloco complementar Favorite, 2026-08-30** (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Favorite conceptual modeling`. Adicionadas LDM-70 a LDM-78, formalizando no nível lógico o bloco conceitual C-82 a C-90 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Favorite↔Card). Cobre: definição e entidade-alvo, `Card` exclusivamente (LDM-70); pertencimento ao User, transversal a Collections, sem relação com Inventory (LDM-71); independência de ownership (LDM-72); independência de Collection (LDM-73); caráter binário (LDM-74); cardinalidade conceitual (LDM-75); fronteira com Wishlist (LDM-76); cada Card como identidade editorial própria por Set (LDM-77); catalog lifecycle não modelado (LDM-78). Seção 4 (nota adicional), Seção 7 (nova subseção `Favorite`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-69 não reabertas em conteúdo. |
+| 1.8 | **Bloco complementar Wishlist, 2026-08-30** (`COLLECTIONS-WISHLIST-CONSOLIDATION-01`), encerrando a subfrente `Collections — Wishlist conceptual modeling`. Adicionadas LDM-79 a LDM-90, formalizando no nível lógico o bloco conceitual C-91 a C-102 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Wishlist↔Card Variant). Cobre: definição e alvo obrigatório `Card Variant` (LDM-79); idioma como refinamento opcional (LDM-80); independência de ownership, sem remoção automática, múltiplas cópias válidas (LDM-81); independência de completion (LDM-82); sem vínculo estrutural com Collection (LDM-83); independência de Expected Content (LDM-84); independência de Favorite, diferença de granularidade intencional (LDM-85); núcleo binário V1 (LDM-86); cardinalidade/duplicidade conceitual (LDM-87); condition/grading como fronteira futura, achado preservado (LDM-88); Marketplace como fronteira futura sem dependência estrutural (LDM-89); User scope (LDM-90). Seção 4 (nota adicional), Seção 7 (nova subseção `Wishlist`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-78 não reabertas em conteúdo. |
