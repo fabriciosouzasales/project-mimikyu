@@ -5,9 +5,9 @@
 | **Documento** | Collection — Logical Data Model (Checkpoint Lógico) |
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico) |
+| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico) |
 | **Status** | Checkpoint lógico em evolução — modelo físico ainda NÃO iniciado |
-| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), e desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69) — não contém SQL nem modelo físico. |
+| **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69), e desde 2026-08-30 de `Favorite` (User↔Card, sem skeleton físico — ver LDM-70 a LDM-78) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-48, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
 ---
@@ -44,7 +44,7 @@ Only the **current canonical decisions** are recorded. Intermediate proposals th
 ### Current modeling status
 
 - Conceptual model: **C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout, 2026-08-30, ver `concept-decisions.md`)
-- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima; LDM-23 revisada 2026-08-30 — `Physical Card` & cardinalidade corrente com `Inventory`); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30); **LDM-38 through LDM-43 — APPROVED** (Custody & Availability, 2026-08-30, sem skeleton físico); **LDM-44 through LDM-54 — APPROVED** (Storage, 2026-08-30, sem skeleton físico); **LDM-55 through LDM-69 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico)
+- Logical model: **LDM-01 through LDM-27 — APPROVED** (LDM-25/26/27 superseded 2026-08-28, ver banner acima; LDM-23 revisada 2026-08-30 — `Physical Card` & cardinalidade corrente com `Inventory`); **LDM-29 through LDM-37 — APPROVED** (Collection Layout, 2026-08-30); **LDM-38 through LDM-43 — APPROVED** (Custody & Availability, 2026-08-30, sem skeleton físico); **LDM-44 through LDM-54 — APPROVED** (Storage, 2026-08-30, sem skeleton físico); **LDM-55 through LDM-69 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); **LDM-70 through LDM-78 — APPROVED** (Favorite, 2026-08-30, sem skeleton físico)
 - Physical model: **NOT STARTED**
 
 ---
@@ -795,6 +795,66 @@ Pricing History and Valuation History are not part of Provenance (reaffirms LDM-
 
 ---
 
+## Bloco complementar — Favorite (LDM-70 a LDM-78, 2026-08-30)
+
+Formaliza, no nível lógico, o bloco conceitual C-82 a C-90 (`concept-decisions.md`), produzido por `COLLECTIONS-FAVORITE-CONSOLIDATION-01`. Nenhum skeleton físico (campo, tabela, enum) é fixado — a estrutura física da relação User↔Favorite↔Card permanece para uma rodada de modelagem lógica/física própria. LDM-01 a LDM-69 não são reabertas.
+
+## LDM-70 — Favorite: Definition and Target Entity
+
+Favorite represents a User's personal editorial preference for a Card. References exclusively Card — never Card Variant, Physical Card, Collection, Collection Allocation, Slot Assignment or Storage. Logical-layer formalization of C-82.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-71 — Favorite Belongs to the User, Transversal to Collections
+
+Favorite belongs to the User, not to any Collection. It is transversal across all of the user's Collections and independent of the user's role toward a Collection (Owner or Member). No relation is fixed between Favorite and Inventory. Logical-layer formalization of C-83.
+
+**Status:** APPROVED
+
+## LDM-72 — Independence from Ownership
+
+Favorite is independent of ownership. It may exist whether the User never owned any corresponding Physical Card, owns one, owns several, sold all, or reacquires in the future. Logical-layer formalization of C-84.
+
+**Status:** APPROVED
+
+## LDM-73 — Independence from Collection
+
+Favorite neither alters nor depends on completion, Collection Allocation, canonical ordering, Layout or Slot Assignment. Logical-layer formalization of C-85.
+
+**Status:** APPROVED
+
+## LDM-74 — Favorite Is Binary
+
+Favorite answers only whether a Card is a favorite of a User — yes or no. No score, rating, priority, level or ranking is modeled at this logical layer. Logical-layer formalization of C-86.
+
+**Status:** APPROVED (decisão lógica, sem escala/ranking)
+
+## LDM-75 — Conceptual Cardinality
+
+A User may favorite N Cards; a Card may be favorited by N Users; at most one Favorite per (User, Card) pair. Physical constraint is not discussed at this logical layer. Logical-layer formalization of C-87.
+
+**Status:** APPROVED (decisão lógica, sem constraint física)
+
+## LDM-76 — Favorite vs. Wishlist
+
+Favorite and Wishlist are independent concepts that may coexist without structural dependency between them. Wishlist itself remains unmodeled in depth at this logical layer. Logical-layer formalization of C-88.
+
+**Status:** APPROVED
+
+## LDM-77 — Each Card Is Its Own Editorial Identity
+
+Each Card remains its own editorial identity per Set (reaffirms LDM-23's Card Variant/Card chain). Favoriting a Card from a given Set does not imply favoriting other Cards of the same Pokémon/character in other Sets — each printing requires its own Favorite. A future Pokémon/Subject Reference layer remains out of this round. Logical-layer formalization of C-89.
+
+**Status:** APPROVED
+
+## LDM-78 — Catalog Lifecycle Not Modeled
+
+While a Card exists as an editorial identity in the catalog, Favorite remains bound to that same Card. Hard delete, deprecation behavior and catalog lifecycle are not modeled at this logical layer. Logical-layer formalization of C-90.
+
+**Status:** APPROVED (decisão lógica, sem modelo de catalog lifecycle)
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -845,6 +905,8 @@ Physical Card
 > Nota (2026-08-30): `Storage Container` (LDM-44 a LDM-54) passa a suportar hierarquia opcional (parent/child, sempre dentro do mesmo Inventory) — a árvore acima continua mostrando apenas `Physical Card → Storage Container (0..1)` porque a Physical Card sempre referencia o container mais específico; a cadeia de parents, quando existir, é derivada, nunca uma segunda referência na Physical Card. Nenhum skeleton de Storage Container (id, inventory_id, parent_id) é fixado nesta rodada.
 >
 > Nota (2026-08-30): Lifecycle/Provenance (LDM-55 a LDM-69) não aparece na árvore acima — Ownership Entry/Transfer/Exit são fatos históricos sobre a transição de `inventory_id` (LDM-23), não uma relação estrutural nova de Physical Card. Nenhum skeleton de evento, Ownership Episode ou Acquisition é fixado nesta rodada.
+>
+> Nota (2026-08-30): Favorite (LDM-70 a LDM-78) não aparece na árvore acima porque não é uma relação de `Physical Card` — referencia diretamente `Card` (nível editorial, acima de `Card Variant`) a partir do `User`, nunca a partir de `Inventory`, `Collection` ou `Storage Container`. Nenhum skeleton (tabela, campo, enum) de Favorite é fixado nesta rodada.
 
 ---
 
@@ -925,6 +987,9 @@ Reconhecidas como dimensões lógicas distintas de Inventory (ownership), Storag
 ## Lifecycle / Provenance (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-55 a LDM-69)
 Espinha dorsal patrimonial (Ownership Entry/Transfer/Exit, motivo como atributo, Ownership Episode como ferramenta conceitual) e fronteira Physical Card Provenance × Owner/Transaction Private Data formalizadas em LDM-55 a LDM-69 (`concept-decisions.md` C-67–C-81). Núcleo V1 confirmado: Entry/Transfer/Exit automáticos, sem histórico de Loan/LOST/Grading. Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico de qualquer evento de lifecycle; entidade Ownership Episode (mantida como ferramenta conceitual, não entidade); modelo de permissão para separar Provenance de Private Data; evidence levels; workflow de grading; histórico de Loan/LOST/Recovery; histórico detalhado de condition; Pricing/Valuation (não reabertos).
 
+## Favorite (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-70 a LDM-78)
+Definição, entidade-alvo (`Card`, nunca `Card Variant`/`Physical Card`), pertencimento ao `User` transversal a Collections, independência de ownership e de Collection, caráter binário, cardinalidade conceitual e fronteira com Wishlist formalizados em LDM-70 a LDM-78 (`concept-decisions.md` C-82–C-90). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico da relação User↔Favorite↔Card; Wishlist em profundidade; camada `Pokémon`/`Subject Reference`; ranking/grail como conceito de produto; consumo futuro por filtros/dashboards/recomendações/compartilhamento.
+
 ## Permissions
 Complete permission matrix will be finalized after Collection, Inventory, Storage and Layout responsibilities are sufficiently defined.
 
@@ -942,15 +1007,15 @@ Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region 
 # 8. Current Architectural Checkpoint
 
 ## Conceptual
-**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30)
+**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30)
 
 Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-69 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
+**LDM-01 through LDM-78 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), and LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), and LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
 
 ## Physical
 **NOT STARTED**
@@ -989,3 +1054,4 @@ It must preserve:
 | 1.4 | **Bloco complementar Custody & Availability, 2026-08-30** (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`). Adicionadas LDM-38 a LDM-43, formalizando no nível lógico o bloco conceitual C-49 a C-54 (`concept-decisions.md`) — deliberadamente sem skeleton físico (campo, enum, tabela, entidade `Custodian`), por decisão explícita de escopo desta rodada. Seção 4 (nota adicional sobre ortogonalidade de Custody/Availability), Seção 7 (novas subseções `Storage` atualizada e `Custody / Availability`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-37 não reabertas em conteúdo. Storage detalhado permanece dependência não resolvida. |
 | 1.5 | **Bloco complementar Storage, 2026-08-30** (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Storage conceptual modeling`. Adicionadas LDM-44 a LDM-54, formalizando no nível lógico o bloco conceitual C-55 a C-66 — deliberadamente sem skeleton físico além do que LDM-24 já fixa (`storage_container_id`, 0..1): nenhum campo, tabela ou identificador é introduzido para o próprio Storage Container, sua referência de Inventory ou sua referência de parent. Cobre: fronteira com Protection (LDM-44); ownership mediado por Inventory (LDM-45); cardinalidade reafirmada (LDM-46); existência vazia e caráter corrente (LDM-47); hierarquia opcional com regra de container-folha (LDM-48); fechamento de Storage cross-Inventory (LDM-49); capacidade opcional/não-uniforme (LDM-50); remoção condicionada a vazio estrutural (LDM-51); Bulk Card Transfer (LDM-52) e Reparent Storage Container (LDM-53); Default Storage sob hierarquia (LDM-54). Seção 4 (nota sobre hierarquia), Seção 7 (subseção `Storage` atualizada de "não resolvido" para "conceitualmente resolvido") e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-43 não reabertas em conteúdo. |
 | 1.6 | **Bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`. Adicionadas LDM-55 a LDM-69, formalizando no nível lógico o bloco conceitual C-67 a C-81 — deliberadamente sem skeleton físico além de `inventory_id` (LDM-23): nenhum campo, tabela, enum ou entidade `Ownership Episode` é introduzido. Cobre: Lifecycle e permanência de identidade (LDM-55); Provenance como subconjunto com exclusões explícitas (LDM-56); critério Current State vs. Historical Event (LDM-57); espinha dorsal Ownership Entry (LDM-58), Transfer atômico e sem hiato (LDM-59), Exit (LDM-60), com reason como atributo (LDM-61); Ownership Episode como ferramenta conceitual, sem entidade (LDM-62); fronteira Physical Card Provenance × Owner/Transaction Private Data (LDM-63); linguagem segura de evidência (LDM-64); Transfer Integrity com três consequências paralelas — Collection Allocation, Slot Assignment, Storage (LDM-65); Custody independente de ownership mesmo após Exit, corrigindo recomendação anterior (LDM-66, sem reabrir LDM-38–LDM-43); núcleo V1 (LDM-67); fechamento mínimo de Grading (LDM-68); Valuation/Pricing History não são Provenance (LDM-69). Seção 4 (nota adicional), Seção 7 (nova subseção `Lifecycle / Provenance`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-54 não reabertas em conteúdo — LDM-38 a LDM-43 permanecem integralmente vigentes. |
+| 1.7 | **Bloco complementar Favorite, 2026-08-30** (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Favorite conceptual modeling`. Adicionadas LDM-70 a LDM-78, formalizando no nível lógico o bloco conceitual C-82 a C-90 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Favorite↔Card). Cobre: definição e entidade-alvo, `Card` exclusivamente (LDM-70); pertencimento ao User, transversal a Collections, sem relação com Inventory (LDM-71); independência de ownership (LDM-72); independência de Collection (LDM-73); caráter binário (LDM-74); cardinalidade conceitual (LDM-75); fronteira com Wishlist (LDM-76); cada Card como identidade editorial própria por Set (LDM-77); catalog lifecycle não modelado (LDM-78). Seção 4 (nota adicional), Seção 7 (nova subseção `Favorite`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-69 não reabertas em conteúdo. |

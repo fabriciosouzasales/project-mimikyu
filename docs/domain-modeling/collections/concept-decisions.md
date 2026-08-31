@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), e desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit) — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), e desde 2026-08-30 de `Favorite` (preferência do User por Card) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -1022,6 +1022,66 @@ Pricing History e Valuation History não fazem parte de Provenance (reafirma C-6
 
 ---
 
+## Bloco complementar — Favorite (2026-08-30)
+
+Adicionado ao final de `COLLECTIONS-FAVORITE-CONSOLIDATION-01`, encerrando a subfrente `Collections — Favorite conceptual modeling`, conduzida por um memo conceitual (`COLLECTIONS-FAVORITE-MODELING-01`, sem edição de arquivo). Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido aprovado nesse memo e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-81 não são reabertas — em particular, `Custody`/`Availability` (C-49–C-54), `Storage` (C-55–C-66) e `Lifecycle`/`Provenance` (C-67–C-81) permanecem integralmente vigentes. Wishlist em profundidade, `Pokémon`/`Subject Reference`, ranking/grail, recomendações e notificações permanecem explicitamente fora de escopo.
+
+## C-82 — Favorite: definição e entidade-alvo
+
+**Status:** Aprovada
+
+`Favorite` representa a preferência editorial pessoal de um `User` por uma `Card`. Referencia exclusivamente `Card` — nunca `Card Variant`, `Physical Card`, `Collection`, Collection Allocation, Slot Assignment ou Storage. Favoritar uma `Card` significa gostar dela editorialmente (arte, personagem, posição no Set), independentemente de acabamento — o usuário não favorita cada `Card Variant` separadamente.
+
+## C-83 — Favorite pertence ao User, transversal às Collections
+
+**Status:** Aprovada
+
+`Favorite` pertence ao `User`, não à `Collection`. É transversal a todas as Collections do usuário — não pertence a nenhuma Collection específica e não é afetado pelo papel do User frente a uma Collection (Owner ou Member): o Favorite de um User independe de ele ser Collection Owner, ser Collection Member, ou não participar de nenhuma Collection. Não há relação entre Favorite e a existência de `Inventory`.
+
+## C-84 — Independência de ownership
+
+**Status:** Aprovada
+
+`Favorite` é independente de ownership. Pode existir quando o User nunca possuiu nenhuma `Physical Card` correspondente à `Card` favoritada, possui uma, possui várias, vendeu todas, ou volta a adquirir no futuro — nenhum desses estados cria, altera ou invalida um Favorite.
+
+## C-85 — Independência de Collection
+
+**Status:** Aprovada
+
+`Favorite` não altera nem depende de completion, Collection Allocation, canonical ordering, Layout ou Slot Assignment. É possível favoritar uma `Card` que não participa de nenhuma Collection do usuário.
+
+## C-86 — Favorite é binário
+
+**Status:** Aprovada
+
+`Favorite` responde apenas "esta Card é favorita deste User? Sim ou não." Não são modelados score, rating, prioridade, níveis de favorito ou ranking. Um futuro conceito de "grail", ranking ou nível de interesse, se necessário, será conceito próprio de produto — não extensão implícita de Favorite.
+
+## C-87 — Cardinalidade conceitual
+
+**Status:** Aprovada
+
+Um `User` pode favoritar N `Cards`; uma `Card` pode ser favorita de N `Users`; no máximo um Favorite por par (`User`, `Card`) — sem duplicidade. Constraint física não é discutida nesta rodada.
+
+## C-88 — Favorite vs. Wishlist
+
+**Status:** Aprovada
+
+`Favorite` ("gosto/destaco esta Card") e `Wishlist` ("quero adquirir esta Card") são conceitos independentes, que podem coexistir ou não sem relação de dependência estrutural entre si. Wishlist em profundidade não é modelada nesta rodada (permanece pendência própria, já registrada em B.2).
+
+## C-89 — Cada Card é identidade editorial própria
+
+**Status:** Aprovada
+
+Cada `Card` continua sendo identidade editorial própria (uma posição única por Set, C-47 reafirmada). Favoritar uma Card de determinado Set não implica favoritar outras Cards do mesmo Pokémon/personagem em outros Sets — cada impressão exige seu próprio Favorite. Uma futura camada `Pokémon`/`Subject Reference` permanece fora desta frente.
+
+## C-90 — Catalog lifecycle não modelado
+
+**Status:** Aprovada
+
+Enquanto a `Card` existir como identidade editorial no catálogo, Favorite permanece ligado à mesma Card. Hard delete, deprecation behavior e catalog lifecycle não são modelados nesta rodada — ficam para frente própria de modelagem de catálogo.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -1253,6 +1313,7 @@ As seguintes entidades/conceitos foram identificados durante a modelagem de Coll
 - `ETB / Storage Box Layout` — capacidade/estrutura interna permanece não modelada (C-62 trata apenas o conceito de capacidade, não a fórmula).
 - `Storage Divider` — permanece não modelado.
 - `Protection / Encapsulation` — reconhecida como dimensão futura distinta de Storage (C-56), explicitamente não modelada nesta rodada (sleeve, toploader, one-touch, slab de grading).
+- `Favorite` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Favorite`, C-82–C-90): definição e entidade-alvo (`Card`, nunca `Card Variant`/`Physical Card`), pertencimento ao `User` transversal a Collections, independência de ownership e de Collection, caráter binário, cardinalidade conceitual, fronteira com Wishlist. Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
 - `Wishlist`
 - `Pokémon / Subject Reference`
 - histórico/auditoria operacional detalhada
@@ -1322,3 +1383,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.4 | **Bloco complementar Custody & Availability, 2026-08-30** (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`). Adicionadas C-49 a C-54, formalizando pela primeira vez em C-*/LDM-* as decisões do memo conceitual `COLLECTIONS-INVENTORY-MODELING-05` (Custody/Possession/Availability), previamente registrado sem editar nenhum arquivo. Termo canônico `Custody` adotado (não `Possession`); `Custodian` preservado como distinção conceitual, sem entidade própria criada nesta rodada. A última frase de C-48 recebeu atualização de referência cruzada (aponta agora para C-49–C-54 em vez do memo `COLLECTIONS-INVENTORY-MODELING-03`) — a regra substantiva de cardinalidade de Inventory em C-48 não foi alterada. C-01–C-48 não reabertas em conteúdo. Storage detalhado permanece OPEN, fora do escopo deste bloco. |
 | 1.5 | **Bloco complementar Storage, 2026-08-30** (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Storage conceptual modeling`. Adicionadas C-55 a C-66, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-STORAGE-MODELING-01`/`-02` e da rodada de correção sobre remoção/hierarquia (todos previamente registrados sem editar arquivo): definição de Storage/Storage Container e fronteira com Protection (critério de endereçabilidade, C-56); ownership de Storage Container mediado por Inventory (C-57, evitando repetir o padrão SUPERSEDED de LDM-25); cardinalidade e independência de Physical Card × Storage frente a ownership/Collection Allocation/Slot Assignment/completion (C-58); existência vazia, independência de Collection e caráter corrente, não histórico (C-59); hierarquia opcional entre Storage Containers com regra de container-folha (C-60); fechamento de Storage cross-Inventory como não suportado, incluindo a regra de mesmo Inventory entre parent/child (C-61); capacidade como conceito opcional/informativo/dependente de tipo, distinto de Grid Configuration de Layout (C-62); remoção condicionada a vazio estrutural (zero Physical Cards e zero containers filhos), sem cascade (C-63); as duas operações de transferência, Bulk Card Transfer (C-64) e Reparent Storage Container (C-65); e a semântica de Default Storage sob hierarquia (C-66, sem reabrir C-36). Parte D atualizada: `Storage Container` e `Binder` marcados como conceitualmente resolvidos; `ETB / Storage Box Layout` e `Storage Divider` permanecem não modelados; adicionado `Protection / Encapsulation` como dimensão futura reconhecida, não modelada. C-01–C-54 não reabertas em conteúdo. Protection/Encapsulation, histórico de Storage e modelagem física (SQL, capacidade rígida, UX) permanecem fora de escopo. |
 | 1.6 | **Bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Lifecycle / Provenance conceptual modeling`. Adicionadas C-67 a C-81, formalizando pela primeira vez em C-*/LDM-* as decisões dos memos `COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo): definição de Lifecycle e permanência de identidade (C-67); Provenance como subconjunto de Lifecycle, com exclusões explícitas — não é Audit Log, histórico de Storage, histórico de condition, Pricing nem Valuation History (C-68); critério Current State vs. Historical Event (C-69); espinha dorsal patrimonial de três formas — Ownership Entry (C-70), Ownership Transfer como fato único e atômico, sem hiato (C-71), Ownership Exit (C-72) — com motivo qualificando o evento, nunca criando tipo estrutural próprio (C-73); Ownership Episode como ferramenta conceitual, sem entidade própria (C-74); fronteira central entre Physical Card Provenance e Owner/Transaction Private Data, com dados privados de um episódio nunca herdados automaticamente pelo owner seguinte (C-75); linguagem segura de evidência/verificação — "registrada/rastreada", nunca "verificada/certificada" (C-76); Transfer Integrity com três consequências paralelas e independentes sobre Collection Allocation/Slot Assignment/Storage, corrigindo uma formulação anterior que sugeria dependência causal entre elas (C-77); confirmação de que Custody permanece independente de ownership mesmo após Exit, corrigindo uma recomendação anterior que a levava a "não aplicável" (C-78, sem alterar C-49–C-54); núcleo mínimo de Lifecycle para V1 — Entry/Transfer/Exit automáticos, sem histórico de Loan/LOST/Grading (C-79); fechamento mínimo de Grading, sem workflow (C-80); confirmação de que Valuation/Pricing History não fazem parte de Provenance, sem reabrir Pricing V1 (C-81, reafirma C-68). C-01–C-66 não reabertas em conteúdo — C-49–C-54 (Custody/Availability) permanecem integralmente vigentes. Audit Log transversal, permissões detalhadas, evidence levels, workflow de grading, histórico de Loan/LOST/Recovery, histórico detalhado de condition, Pricing e Valuation permanecem explicitamente fora de escopo. |
+| 1.7 | **Bloco complementar Favorite, 2026-08-30** (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Favorite conceptual modeling`. Adicionadas C-82 a C-90, formalizando pela primeira vez em C-*/LDM-* as decisões do memo `COLLECTIONS-FAVORITE-MODELING-01` (previamente registrado sem editar arquivo): definição e entidade-alvo — Favorite referencia exclusivamente `Card`, nunca `Card Variant`/`Physical Card`/Collection Allocation/Slot Assignment/Storage (C-82); pertencimento ao `User`, transversal a todas as Collections, independente do papel do User (Owner/Member) e sem relação com `Inventory` (C-83); independência de ownership (C-84); independência de Collection — completion, Collection Allocation, canonical ordering, Layout e Slot Assignment (C-85); caráter binário, sem score/rating/prioridade/níveis/ranking (C-86); cardinalidade conceitual, um Favorite por par User×Card (C-87); fronteira Favorite vs. Wishlist, independentes e coexistentes (C-88); cada Card como identidade editorial própria por Set, sem herança automática entre impressões do mesmo Pokémon/personagem (C-89); catalog lifecycle (hard delete/deprecation) não modelado (C-90). Parte D atualizada: `Favorite` marcado como conceitualmente resolvido. C-01–C-81 não reabertas em conteúdo — Custody/Availability (C-49–C-54), Storage (C-55–C-66) e Lifecycle/Provenance (C-67–C-81) permanecem integralmente vigentes. Wishlist em profundidade, `Pokémon`/`Subject Reference`, ranking/grail, recomendações e notificações permanecem explicitamente fora de escopo. |

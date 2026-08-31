@@ -7,7 +7,7 @@
 | **Data** | 2026-08-30 |
 | **Origem** | `COLLECTIONS-LAYOUT-MODELING-CONSOLIDATION-01` — encerramento formal de dez rodadas de modelagem conceitual (`COLLECTIONS-LAYOUT-MODELING-01` a `-10`), conduzidas nesta mesma janela de sessão, sobre o núcleo `Collection Layout`/`Page`/`Slot`/`Expected Content`/`Lock`/`Slot Assignment`/`Bandeja`/`Layout Region`. |
 | **Objetivo** | Registrar o diagnóstico de reconciliação entre as decisões de trabalho das dez rodadas e o corpus canônico (`concept-decisions.md`, `logical-model.md`), e apontar para os novos C-38–C-46 / LDM-29–LDM-37 já incorporados. |
-| **Documentos Relacionados** | `concept-decisions.md` (C-38 a C-46, novo bloco; C-49 a C-54, bloco adicional — ver Seção 7; C-55 a C-66, bloco adicional — ver Seção 8; C-67 a C-81, bloco adicional — ver Seção 9), `logical-model.md` (LDM-29 a LDM-37, novo bloco; LDM-38 a LDM-43, bloco adicional — ver Seção 7; LDM-44 a LDM-54, bloco adicional — ver Seção 8; LDM-55 a LDM-69, bloco adicional — ver Seção 9), `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md` (§5, itens 4–5, agora resolvidos — ver Seção 3 abaixo), `ux-exploration-2026-08-29.md` (§"Implicações", itens 3/5/8, terminologia superada — ver Seção 4), `pkmnbindr-benchmark.md` (§4, §13, §29 — prior art não-normativo, usado como evidência, não como fonte de decisão). |
+| **Documentos Relacionados** | `concept-decisions.md` (C-38 a C-46, novo bloco; C-49 a C-54, bloco adicional — ver Seção 7; C-55 a C-66, bloco adicional — ver Seção 8; C-67 a C-81, bloco adicional — ver Seção 9; C-82 a C-90, bloco adicional — ver Seção 10), `logical-model.md` (LDM-29 a LDM-37, novo bloco; LDM-38 a LDM-43, bloco adicional — ver Seção 7; LDM-44 a LDM-54, bloco adicional — ver Seção 8; LDM-55 a LDM-69, bloco adicional — ver Seção 9; LDM-70 a LDM-78, bloco adicional — ver Seção 10), `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md` (§5, itens 4–5, agora resolvidos — ver Seção 3 abaixo), `ux-exploration-2026-08-29.md` (§"Implicações", itens 3/5/8, terminologia superada — ver Seção 4), `pkmnbindr-benchmark.md` (§4, §13, §29 — prior art não-normativo, usado como evidência, não como fonte de decisão). |
 
 ---
 
@@ -107,7 +107,7 @@ Combinando o que já estava aberto em `checkpoint-2026-08-28.md` §9 com o que e
 
 1. Transferência de Physical Card entre Inventories de usuários diferentes (já aberto; à época deste checkpoint, `Inventory Item`) — **atualização 2026-08-30**: a preservação de identidade da Physical Card durante a transferência (mudança de `inventory_id`, não criação de nova Physical Card) já está formalizada por C-48/LDM-23; o que permanece aberto é o mecanismo operacional da transferência (fluxo, autorização, aprovação entre usuários), não a regra de identidade/cardinalidade em si.
 2. Modelo físico de `Inventory` — cardinalidade, criação automática vs. explícita (já aberto).
-3. Modelo de `Favorite` — cardinalidade, dono, uso (já aberto).
+3. ~~Modelo de `Favorite` — cardinalidade, dono, uso (já aberto).~~ — **resolvido conceitualmente em 2026-08-30, ver Seção 10** (C-82–C-90, LDM-70–LDM-78). Permanece aberto apenas o skeleton físico da relação User↔Favorite↔Card.
 4. **Novo**: mecanismo físico de Grid Change em um Layout já existente (migração no lugar vs. novo Layout) — C-40 reconhece a necessidade, não resolve o mecanismo.
 5. **Novo**: representação física de Layout Region (tabela de junção vs. bounding box) e modelagem de conteúdo visual/artwork de Region — C-46/LDM-37 explicitamente não modelam.
 6. **Novo**: mecanismo físico de ordenação de Page (índice sequencial, linked list, rank/order key) — LDM-30 fixa só que Page identity ≠ Page order, não o mecanismo.
@@ -154,6 +154,18 @@ Explicitamente fora deste fechamento, permanecendo em aberto para rodadas futura
 
 ---
 
+## 10. Favorite — subfrente adicional consolidada em 2026-08-30
+
+Registrado nesta mesma data, após o fechamento de Physical Card Lifecycle & Provenance (Seção 9): uma subfrente própria, `COLLECTIONS-FAVORITE-CONSOLIDATION-01`, formalizou `Favorite` a partir de um memo conceitual (`COLLECTIONS-FAVORITE-MODELING-01`, conduzido sem edição de arquivo, revisado por Fabrício).
+
+**Status desta subfrente: Collections — Favorite conceptual modeling: CLOSED.**
+
+Resultado incorporado a `concept-decisions.md` (C-82 a C-90) e `logical-model.md` (LDM-70 a LDM-78, deliberadamente sem skeleton físico). Confirmado: Favorite representa a preferência editorial pessoal de um `User` por uma `Card` — referencia exclusivamente `Card`, nunca `Card Variant`, `Physical Card`, `Collection`, Collection Allocation, Slot Assignment ou Storage; pertence ao `User`, transversal a todas as Collections, independente do papel do User (Owner/Member) e sem relação com `Inventory`; é independente de ownership, sobrevivendo à ausência, existência ou alienação total de Physical Cards correspondentes; é independente de Collection, não alterando nem dependendo de completion, Collection Allocation, canonical ordering, Layout ou Slot Assignment; é binário — sem score, rating, prioridade, níveis ou ranking; cardinalidade conceitual é no máximo um Favorite por par (User, Card); é distinto de Wishlist, ambos independentes e podendo coexistir; cada Card permanece identidade editorial própria por Set, sem herança automática entre impressões do mesmo Pokémon/personagem em outros Sets.
+
+Explicitamente fora deste fechamento, permanecendo em aberto para rodadas futuras: Wishlist em profundidade; camada `Pokémon`/`Subject Reference`; ranking/grail como conceito próprio de produto; recomendações; notificações; skeleton físico da relação User↔Favorite↔Card; catalog lifecycle (hard delete/deprecation). Nenhum código, SQL, tabela ou UUID foi tratado nesta subfrente. C-01–C-81 e LDM-01–LDM-69 não foram reabertas em conteúdo.
+
+---
+
 ## Revision History
 
 | Versão | Descrição |
@@ -164,3 +176,4 @@ Explicitamente fora deste fechamento, permanecendo em aberto para rodadas futura
 | 1.3 | **Custody & Availability, subfrente adicional (`COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`), 2026-08-30.** Adicionada Seção 7, registrando o fechamento conceitual desta subfrente (`Collections — Custody / Availability conceptual modeling: CLOSED`) e apontando para C-49–C-54/LDM-38–LDM-43, já incorporados a `concept-decisions.md`/`logical-model.md`. Documentos Relacionados atualizado. Seções 1–6 (Layout) não alteradas em conteúdo. |
 | 1.4 | **Storage, subfrente adicional (`COLLECTIONS-STORAGE-CONSOLIDATION-01`), 2026-08-30.** Adicionada Seção 8, registrando o fechamento conceitual desta subfrente (`Collections — Storage conceptual modeling: CLOSED`) e apontando para C-55–C-66/LDM-44–LDM-54, já incorporados a `concept-decisions.md`/`logical-model.md`. Documentos Relacionados atualizado. Seções 1–7 não alteradas em conteúdo. |
 | 1.5 | **Physical Card Lifecycle & Provenance, subfrente adicional (`COLLECTIONS-PHYSICAL-CARD-LIFECYCLE-CONSOLIDATION-01`), 2026-08-30.** Adicionada Seção 9, registrando o fechamento conceitual desta subfrente (`Collections — Physical Card Lifecycle / Provenance conceptual modeling: CLOSED`) e apontando para C-67–C-81/LDM-55–LDM-69, já incorporados a `concept-decisions.md`/`logical-model.md`. Documentos Relacionados atualizado. Seções 1–8 não alteradas em conteúdo. |
+| 1.6 | **Favorite, subfrente adicional (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), 2026-08-30.** Adicionada Seção 10, registrando o fechamento conceitual desta subfrente (`Collections — Favorite conceptual modeling: CLOSED`) e apontando para C-82–C-90/LDM-70–LDM-78, já incorporados a `concept-decisions.md`/`logical-model.md`. Seção 6, item 3 (pendência "Modelo de Favorite") marcada resolvida, apontando para a Seção 10 — permanece aberto apenas o skeleton físico. Documentos Relacionados atualizado. Seções 1–9 não alteradas em conteúdo. |
