@@ -1047,6 +1047,132 @@ The V1 minimum scope for Condition is: optional Current Condition; shared canoni
 
 ---
 
+## Bloco complementar — Grading / Certification (LDM-109 a LDM-128, 2026-08-30)
+
+Formaliza, no nível lógico, o bloco conceitual C-121 a C-140 (`concept-decisions.md`), produzido por `COLLECTIONS-GRADING-CERTIFICATION-CONSOLIDATION-01`. Nenhum skeleton físico (campo, tabela, enum) é fixado — a estrutura física de Grading Company, Grade Scale, Grade e Certification permanece para uma rodada de modelagem lógica/física própria. LDM-01 a LDM-108 não são reabertas.
+
+## LDM-109 — Grading vs. Certification
+
+Grading is the process/workflow of external evaluation performed by a specialized third party. Certification is the formal result issued by a Grading Company for a Physical Card. The V1 core models only the current Certification — the Grading workflow (submission, evaluation, turnaround) is not modeled (reaffirms LDM-68). Logical-layer formalization of C-121.
+
+**Status:** APPROVED (decisão lógica, sem workflow)
+
+## LDM-110 — Certification: Target Entity
+
+Certification belongs exclusively to Physical Card — never to Card, Card Variant, Collection, Wishlist, or Storage. The same Card Variant may have raw, PSA 10, PSA 9, and CGC 10 Physical Cards simultaneously, each with its own identity (C-47). Logical-layer formalization of C-122.
+
+**Status:** APPROVED
+
+## LDM-111 — Grading Company: Reference Data
+
+Grading Company is its own Reference Data, with stable identity, conceptually supporting at least name, code/abbreviation, and active/inactive status (e.g., PSA, CGC, BGS). No physical structure is created at this round. Logical-layer formalization of C-123.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+## LDM-112 — Grade Scale
+
+Grade has no isolated meaning — it depends on Grading Company + Grade Scale. No equivalence is assumed between PSA 10, BGS 10, and CGC 10. The future possibility of multiple Grade Scales per Grading Company is recognized, without fixing physical cardinality at this round. Logical-layer formalization of C-124.
+
+**Status:** APPROVED (decisão lógica, cardinalidade não fixada)
+
+## LDM-113 — Grade
+
+Grade is the recognized result within a specific Grade Scale. Its representation may involve value (numeric, integer or decimal) and/or textual designation/label, per the Grading Company/Grade Scale convention — not reduced to a plain number nor to an unstructured free string. Future qualifiers (e.g., Black Label) are recognized as a possible third facet, not resolved into structure at this round. No enum or physical taxonomy is created. Logical-layer formalization of C-125.
+
+**Status:** APPROVED (decisão lógica, sem enum físico)
+
+## LDM-114 — Certification Number
+
+Certification Number is the identifier issued by the Grading Company for that certification. At V1, it is optional — its absence does not prevent a declared Certification from existing, and its presence does not imply verification by MMKYU. No separate "Grading Declaration" concept is created: a single concept, Certification, covers both cases, with Certification Number as an optional refining/identifying attribute. Verification and physical uniqueness are deferred. Logical-layer formalization of C-126.
+
+**Status:** APPROVED (decisão lógica, sem verification/uniqueness física)
+
+## LDM-115 — Current Certification: Cardinality
+
+A Physical Card has at most one Current Certification (0..1) — no multiple simultaneous Current Certifications. History of prior certifications is out of V1. Logical-layer formalization of C-127.
+
+**Status:** APPROVED (decisão lógica, sem histórico)
+
+## LDM-116 — Raw/Graded: Derived Predicate
+
+Raw/Graded is a predicate derived exclusively from the existence of Current Certification: no Current Certification → RAW; with Current Certification → GRADED. No manually maintained parallel status is created. Logical-layer formalization of C-128.
+
+**Status:** APPROVED
+
+## LDM-117 — Condition × Certification: Current Applicability Exclusivity
+
+Definitively closes the pending point left open by LDM-99/LDM-100 (C-111/C-112): Current Condition and Current Certification are mutually exclusive regarding current applicability at V1. RAW → Current Condition may optionally be informed (reaffirms LDM-96). GRADED (Current Certification exists) → Current Condition is not applicable while that Current Certification remains current. This does not mean Grade equals, semantically replaces, or derives Condition (PSA 9 ≠ NEAR_MINT) — Condition and Certification remain distinct concepts, each with its own scale and provenance (reaffirms LDM-99/LDM-100, not altered). Only simultaneous applicability changes, never the nature of the concepts. Logical-layer formalization of C-129.
+
+**Status:** APPROVED (decisão lógica, fecha aplicabilidade simultânea)
+
+## LDM-118 — Condition History Out of V1
+
+Condition registered before a current Certification does not remain as Current Condition (reaffirms LDM-101, Condition History out of V1). If a future product need arises to preserve "Condition before grading," that belongs to Condition History/Lifecycle, a dedicated future round — not resolved here. Logical-layer formalization of C-130.
+
+**Status:** APPROVED
+
+## LDM-119 — Crack
+
+Crack does not alter Physical Card identity (reaffirms C-47). When the Current Certification ceases to exist: the Physical Card becomes RAW by derivation (LDM-116); Current Condition becomes applicable again; no prior Condition value is automatically restored — if the User wants to inform Condition again, it is a new current evaluation, starting from the same "not informed" state as any raw Physical Card (LDM-96). Crack workflow/event is not modeled in detail. Logical-layer formalization of C-131.
+
+**Status:** APPROVED (decisão lógica, sem workflow)
+
+## LDM-120 — Regrade
+
+Regrade preserves the same Physical Card (reaffirms C-47). Conceptually: the prior Certification stops being current; the new Certification becomes current. History of the prior one is out of V1. The temporal behavior of the workflow between submission and issuance of the new Certification is not canonized — the sufficient rule is: while a Current Certification exists, Current Condition is not applicable (LDM-117). Logical-layer formalization of C-132.
+
+**Status:** APPROVED (decisão lógica, sem workflow temporal)
+
+## LDM-121 — Grade ≠ Condition
+
+No automatic Grade → Condition mapping is created. Any future correlation belongs to Analytics/Product Behavior, never to the domain's canonical rule. Logical-layer formalization of C-133.
+
+**Status:** APPROVED
+
+## LDM-122 — Certification Verification
+
+Certification at V1 is registered/declared — it does not imply verified authenticity, official lookup, or MMKYU-confirmed certification (same safe-language discipline as LDM-64/LDM-97). External evidence/verification is out of V1. Logical-layer formalization of C-134.
+
+**Status:** APPROVED
+
+## LDM-123 — Subgrades / Qualifiers Out of V1 Core
+
+Subgrades (e.g., Centering, Corners, Edges, Surface) are out of the V1 core. Special labels/qualifiers may exist per the Grade Scale (LDM-113), but their detailed structure is not modeled at this round. Logical-layer formalization of C-135.
+
+**Status:** APPROVED
+
+## LDM-124 — Certification ≠ Protection/Encapsulation
+
+Certification is distinct from Protection/Encapsulation (LDM-44/C-56). A slab represents physical encapsulation, not the Certification itself. Protection/Encapsulation is not modeled at this round. Logical-layer formalization of C-136.
+
+**Status:** APPROVED
+
+## LDM-125 — Certification × Custody/Storage
+
+Certification does not define Custody or Storage. During grading, Custody continues to be handled by the already-closed domain (LDM-39, which already lists "grading company" as an example Custodian — not reopened). A graded Physical Card may use any valid Storage (reaffirms LDM-46/C-58); a slab does not automatically become Storage (reaffirms LDM-44/C-56). Logical-layer formalization of C-137.
+
+**Status:** APPROVED
+
+## LDM-126 — Relationship with Valuation
+
+Certification/Grade may future be inputs to Valuation, but Grade ≠ Price and Certification ≠ Valuation — same precedent as Condition (LDM-105/C-117). No fixed factor is created. Pricing V1 is not reopened. Logical-layer formalization of C-138.
+
+**Status:** APPROVED (decisão lógica, sem reabrir Pricing)
+
+## LDM-127 — Wishlist Remains Unchanged
+
+Wishlist V1 (LDM-79–LDM-90) remains unchanged. Future refinements (graded only, specific Grading Company, minimum grade) may be studied in a dedicated round, without altering LDM-79–LDM-90 at this consolidation. Logical-layer formalization of C-139.
+
+**Status:** APPROVED
+
+## LDM-128 — V1 Minimum Scope
+
+The V1 minimum scope for Grading/Certification is: Grading Company; Grade Scale; Grade (value and/or designation); optional Certification Number; 0..1 Current Certification per Physical Card; derived raw/graded; Condition not applicable while graded. Out of V1: submission workflow; regrade workflow; crack workflow; Certification History; Condition History; subgrades; external verification; evidence levels; detailed Protection/Encapsulation. Logical-layer formalization of C-140.
+
+**Status:** APPROVED (decisão lógica, sem skeleton físico)
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -1103,6 +1229,8 @@ Physical Card
 > Nota (2026-08-30): Wishlist (LDM-79 a LDM-90) também não aparece na árvore acima — referencia `Card Variant` (não `Physical Card`) a partir do `User`, nunca a partir de `Inventory`, `Collection` ou `Storage Container`. Diferente de Favorite (que referencia `Card`), Wishlist referencia `Card Variant` diretamente, mesmo nível de especificidade de `Physical Card` — mas continua sendo intenção sobre o catálogo, não sobre um exemplar físico existente. Nenhum skeleton de Wishlist é fixado nesta rodada.
 >
 > Nota (2026-08-30): `Physical Card Condition` (LDM-91 a LDM-108) também não aparece na árvore acima — é uma dimensão lógica de `Physical Card`, ortogonal a Inventory/Storage/Collection/Layout, referenciando a escala canônica compartilhada `card_condition` (já existente em Pricing, não exclusiva dele). Mesmo padrão de `Custody`/`Availability` (LDM-38 a LDM-43): dimensão reconhecida, sem entrar na árvore estrutural. Nenhum skeleton (campo `condition_id` ou equivalente em Physical Card) é fixado nesta rodada.
+>
+> Nota (2026-08-30): `Grading`/`Certification` (LDM-109 a LDM-128) também não aparece na árvore acima — mesmo padrão de `Physical Card Condition`: dimensão lógica de `Physical Card`, ortogonal a Inventory/Storage/Collection/Layout, sem skeleton (campo `current_certification_id` ou equivalente) fixado nesta rodada. Diferente de Condition, não há referência a uma tabela física preexistente — Grading Company/Grade Scale/Grade/Certification partem de base puramente conceitual. Current Condition e Current Certification são mutuamente exclusivas quanto à aplicabilidade corrente (LDM-117), mas essa exclusividade é regra de aplicabilidade, não uma relação estrutural nova representada na árvore.
 
 ---
 
@@ -1192,6 +1320,9 @@ Definição, alvo obrigatório `Card Variant` (não `Card`), idioma como refinam
 ## Physical Card Condition (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-91 a LDM-108)
 Definição e entidade-alvo exclusivo `Physical Card`, ratificação conceitual da referência canônica compartilhada `card_condition` (já `CONFIRMADO EXECUTADO` em Pricing, Incremento P1, sem alteração de schema), escala formalizada (MINT/NEAR_MINT/LIGHTLY_PLAYED/MODERATELY_PLAYED/HEAVILY_PLAYED/DAMAGED), code canônico independente de idioma vs. label localizado, evidência de convergência de mercado brasileiro, opcionalidade, classificação declarada/não certificada, fronteira com Damage/Defects (fora do núcleo V1) e com Grading (coexistência sem derivação automática — aplicabilidade a cards graded deferida para futura subfrente `Grading / Certification Domain Modeling`), independência de identidade/idioma/Storage/Custody/Wishlist, relação futura com Valuation sem reabrir Pricing, e semântica de filtro ("NM ou superior") apoiada em `condition_order` sem novo valor de escala — formalizados em LDM-91 a LDM-108 (`concept-decisions.md` C-103–C-120). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico da referência Physical Card → `card_condition`; verificação da discrepância entre "5 linhas" (validação) e 6 códigos documentados; Grading/Certification em detalhe; Damage/Defects detalhados; Condition History; mecanismo/UX de filtro por ordenação; refinamento de Wishlist por Condition.
 
+## Grading / Certification (Atualização 2026-08-30 — conceitualmente resolvido, ver LDM-109 a LDM-128)
+Separação Grading (workflow, fora do V1) vs. Certification (resultado formal, modelada); entidade-alvo exclusivo `Physical Card`; Grading Company como Reference Data (nome, código/sigla, status ativo/inativo); Grade Scale (sem assumir equivalência entre companies, cardinalidade não fixada); Grade (valor e/ou designação, sem enum físico); Certification Number opcional, sem conceito separado de "Grading Declaration"; no máximo uma Current Certification por Physical Card (0..1); raw/graded como predicado derivado da existência de Current Certification; **fechamento definitivo da aplicabilidade simultânea Condition × Certification** (mutuamente exclusivas quanto à corrente, sem fusão/substituição/derivação entre os dois valores — fecha a pendência deixada aberta por LDM-99/LDM-100); Condition History fora do V1; efeitos de crack (Current Condition volta a ser aplicável, sem restauração automática de valor anterior) e regrade (identidade preservada, sem canonizar workflow temporal); Grade ≠ Condition sem de-para automático; Certification como dado declarado/registrado, não verificado; subgrades/qualifiers fora do núcleo V1; fronteiras com Protection/Encapsulation, Custody/Storage e Valuation; Wishlist inalterada — formalizados em LDM-109 a LDM-128 (`concept-decisions.md` C-121–C-140). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: skeleton físico de Grading Company/Grade Scale/Grade/Certification; tipo de dado exato de Grade (valor+designação); cardinalidade de Grade Scale por Grading Company; taxonomia de status detalhado de Certification além de current/ausente; verificação externa de Certification Number; refinamento de Wishlist por Certification; modelagem própria de Protection/Encapsulation.
+
 ## Permissions
 Complete permission matrix will be finalized after Collection, Inventory, Storage and Layout responsibilities are sufficiently defined.
 
@@ -1209,15 +1340,15 @@ Collection Layout/Page/Slot/Expected Content/Lock/Slot Assignment/Layout Region 
 # 8. Current Architectural Checkpoint
 
 ## Conceptual
-**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30); **C-91 through C-102 — APPROVED** (Wishlist, 2026-08-30); **C-103 through C-120 — APPROVED** (Physical Card Condition, 2026-08-30)
+**C-01 through C-37 — CLOSED**; **C-38 through C-46 — APPROVED** (Collection Layout); **C-47/C-48 — APPROVED** (Physical Card & Inventory, 2026-08-30); **C-49 through C-54 — APPROVED** (Custody & Availability, 2026-08-30); **C-55 through C-66 — APPROVED** (Storage, 2026-08-30); **C-67 through C-81 — APPROVED** (Physical Card Lifecycle & Provenance, 2026-08-30); **C-82 through C-90 — APPROVED** (Favorite, 2026-08-30); **C-91 through C-102 — APPROVED** (Wishlist, 2026-08-30); **C-103 through C-120 — APPROVED** (Physical Card Condition, 2026-08-30); **C-121 through C-140 — APPROVED** (Grading / Certification, 2026-08-30)
 
 Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-108 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
+**LDM-01 through LDM-128 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), and LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico), and LDM-109 through LDM-128 (Grading / Certification, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
 
 ## Physical
 **NOT STARTED**
@@ -1259,3 +1390,4 @@ It must preserve:
 | 1.7 | **Bloco complementar Favorite, 2026-08-30** (`COLLECTIONS-FAVORITE-CONSOLIDATION-01`), encerrando a subfrente `Collections — Favorite conceptual modeling`. Adicionadas LDM-70 a LDM-78, formalizando no nível lógico o bloco conceitual C-82 a C-90 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Favorite↔Card). Cobre: definição e entidade-alvo, `Card` exclusivamente (LDM-70); pertencimento ao User, transversal a Collections, sem relação com Inventory (LDM-71); independência de ownership (LDM-72); independência de Collection (LDM-73); caráter binário (LDM-74); cardinalidade conceitual (LDM-75); fronteira com Wishlist (LDM-76); cada Card como identidade editorial própria por Set (LDM-77); catalog lifecycle não modelado (LDM-78). Seção 4 (nota adicional), Seção 7 (nova subseção `Favorite`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-69 não reabertas em conteúdo. |
 | 1.8 | **Bloco complementar Wishlist, 2026-08-30** (`COLLECTIONS-WISHLIST-CONSOLIDATION-01`), encerrando a subfrente `Collections — Wishlist conceptual modeling`. Adicionadas LDM-79 a LDM-90, formalizando no nível lógico o bloco conceitual C-91 a C-102 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a relação User↔Wishlist↔Card Variant). Cobre: definição e alvo obrigatório `Card Variant` (LDM-79); idioma como refinamento opcional (LDM-80); independência de ownership, sem remoção automática, múltiplas cópias válidas (LDM-81); independência de completion (LDM-82); sem vínculo estrutural com Collection (LDM-83); independência de Expected Content (LDM-84); independência de Favorite, diferença de granularidade intencional (LDM-85); núcleo binário V1 (LDM-86); cardinalidade/duplicidade conceitual (LDM-87); condition/grading como fronteira futura, achado preservado (LDM-88); Marketplace como fronteira futura sem dependência estrutural (LDM-89); User scope (LDM-90). Seção 4 (nota adicional), Seção 7 (nova subseção `Wishlist`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-78 não reabertas em conteúdo. |
 | 1.9 | **Bloco complementar Physical Card Condition, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`. Adicionadas LDM-91 a LDM-108, formalizando no nível lógico o bloco conceitual C-103 a C-120 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para a referência Physical Card → `card_condition`). Cobre: definição e entidade-alvo exclusivo Physical Card (LDM-91); ratificação conceitual da referência canônica compartilhada `card_condition`, já `CONFIRMADO EXECUTADO` em Pricing, sem alteração de schema (LDM-92); escala canônica formalizada, com discrepância de contagem (5 vs. 6) registrada como pendência não investigada (LDM-93); code canônico independente de idioma vs. label localizado (LDM-94); evidência de mercado brasileiro (LDM-95); opcionalidade, sem valor UNKNOWN (LDM-96); classificação declarada/não certificada (LDM-97); Damage/Defects fora do núcleo V1 (LDM-98); fronteira Condition × Grading, aplicabilidade a cards graded deferida para futura subfrente `Grading / Certification Domain Modeling` (LDM-99); raw/graded não é valor de Condition (LDM-100); sem histórico no núcleo V1 (LDM-101); independência de identidade e de outras dimensões (LDM-102); independência de idioma (LDM-103); independência de Storage/Custody (LDM-104); relação futura com Valuation sem reabrir Pricing (LDM-105); filter semantics sem novo valor de escala (LDM-106); Wishlist permanece sem Condition (LDM-107); escopo mínimo V1 (LDM-108). Seção 4 (nota adicional, mesmo padrão de Custody/Availability), Seção 7 (nova subseção `Physical Card Condition`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-90 não reabertas em conteúdo. Nota de divergência registrada: o pedido de consolidação referenciou uma rodada "CONDITION-MODELING-02" não entregue literalmente sob esse nome nesta sessão — o complemento de evidência de mercado brasileiro cumpriu esse papel em conteúdo, tratado como equivalente (ver `concept-decisions.md`, bloco complementar Physical Card Condition, para o texto completo da nota). |
+| 1.10 | **Bloco complementar Grading / Certification, 2026-08-30** (`COLLECTIONS-GRADING-CERTIFICATION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Grading / Certification conceptual modeling`. Adicionadas LDM-109 a LDM-128, formalizando no nível lógico o bloco conceitual C-121 a C-140 — deliberadamente sem skeleton físico (nenhum campo, tabela ou enum introduzido para Grading Company/Grade Scale/Grade/Certification). Cobre: separação Grading vs. Certification (LDM-109); entidade-alvo exclusivo Physical Card (LDM-110); Grading Company como Reference Data (LDM-111); Grade Scale, sem equivalência entre companies, cardinalidade não fixada (LDM-112); Grade com valor e/ou designação, sem enum físico (LDM-113); Certification Number opcional, sem conceito separado de "Grading Declaration" (LDM-114); no máximo uma Current Certification por Physical Card (LDM-115); raw/graded como predicado derivado (LDM-116); **fechamento definitivo da pendência deixada aberta por LDM-99/LDM-100** — Current Condition e Current Certification mutuamente exclusivas quanto à aplicabilidade corrente, sem fusão/substituição/derivação entre os dois valores (LDM-117); Condition History fora do V1 (LDM-118); efeitos de crack, Current Condition volta a ser aplicável sem restauração automática (LDM-119); efeitos de regrade, identidade preservada sem canonizar workflow temporal (LDM-120); Grade ≠ Condition sem de-para automático (LDM-121); Certification declarada/registrada, não verificada (LDM-122); subgrades/qualifiers fora do núcleo V1 (LDM-123); fronteira com Protection/Encapsulation (LDM-124); fronteira com Custody/Storage, reafirmando LDM-39/LDM-44/LDM-46 (LDM-125); relação futura com Valuation sem reabrir Pricing (LDM-126); Wishlist inalterada (LDM-127); escopo mínimo V1 (LDM-128). Seção 4 (nota adicional), Seção 7 (nova subseção `Grading / Certification`) e Seção 8 (checkpoint conceitual e lógico) atualizadas. LDM-01 a LDM-108 não reabertas em conteúdo. Direção vigente é a do memo `-02` (`COLLECTIONS-GRADING-CERTIFICATION-MODELING-02`), que corrigiu a posição do `-01` sobre a aplicabilidade simultânea de Condition e Certification antes de qualquer consolidação — sem supersessão de documento canônico. |
