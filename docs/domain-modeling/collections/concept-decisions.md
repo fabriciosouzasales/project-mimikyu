@@ -5,9 +5,9 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30) |
-| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado |
-| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), e desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped) — não contém SQL nem modelo físico. |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30) |
+| **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
+| **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
 
 ---
@@ -1556,6 +1556,138 @@ Collection com exatamente 1 Owner estrutural; Collection Membership com 0..N Mem
 
 ---
 
+## Bloco complementar — Collection Activity History / Audit (2026-08-30)
+
+Adicionado ao final de `COLLECTIONS-ACTIVITY-HISTORY-AUDIT-CONSOLIDATION-01`, encerrando a subfrente `Collections — Activity History / Audit conceptual modeling`, aberta pelo memo `COLLECTIONS-ACTIVITY-HISTORY-AUDIT-MODELING-01` (previamente registrado sem edição de arquivo, revisado por Fabrício, sem rodada de correção intermediária). Não reabre em conteúdo: Collection core semantics, Physical Card/Inventory, Custody/Availability, Storage, Layout/Page/Slot, Lifecycle/Provenance, Favorite, Wishlist, Physical Card Condition, Grading/Certification, Collection Collaboration/Permissions.
+
+### C-166 — Três Camadas
+
+**Status:** Aprovada
+
+`Physical Card Lifecycle/Provenance`, `Collection Activity History` e `Audit Log` são conceitos distintos; nenhuma camada substitui as demais. Um mesmo acontecimento pode eventualmente alimentar mais de uma camada, mas possuem propósito, audiência e exposição diferentes.
+
+### C-167 — Collection Activity History
+
+**Status:** Aprovada
+
+Collection Activity History é a sequência temporal de acontecimentos de domínio significativos que permitem ao usuário compreender como uma Collection evoluiu ou foi operada. É Collection-scoped, user-facing, semanticamente compreensível — não é simples visualização de mutações técnicas.
+
+### C-168 — Activity Trigger
+
+**Status:** Aprovada
+
+Refinamento sobre o memo: Activity não é limitada literalmente a "ação que muda diretamente o estado da Collection" — representa acontecimento de domínio significativo relacionado à evolução/operação da Collection, normalmente decorrente de mudança persistente de estado. Não geram Activity: leitura, navegação, tentativa sem efeito, log técnico interno, mutação irrelevante ao usuário. System outcomes relevantes podem futuramente produzir Activity se satisfizerem o mesmo critério semântico.
+
+### C-169 — Semantic Activity
+
+**Status:** Aprovada
+
+Activity usa linguagem de domínio (ex.: "Card movida do Slot 12 para o Slot 24"), nunca nomes de campo ou schema técnico (ex.: "slot_position changed").
+
+### C-170 — Categorias
+
+**Status:** Aprovada
+
+Reconhecidas como candidatas, sem lista exaustiva: Collection metadata; Layout; Page; Slot/Region; Expected Content; Slot Assignment; Collection Allocation; Membership; Visibility; Archive; operações relevantes do sistema. Catálogo definitivo não fechado nesta rodada.
+
+### C-171 — Actor
+
+**Status:** Aprovada
+
+Activity pode possuir ator quando aplicável: Owner, Editor, System. Viewer e Public User não alteram estado no modelo V1 e, portanto, não geram Activity por simples leitura.
+
+### C-172 — Activity Visibility
+
+**Status:** Aprovada
+
+Activity History é visível no V1 para Owner, Members EDITOR e Members VIEWER. Não é exposta automaticamente a Public User, mesmo quando Collection = PUBLIC. Public Access ≠ acesso ao histórico interno de colaboração.
+
+### C-173 — Member Exit
+
+**Status:** Aprovada
+
+Activity histórica permanece após saída/remoção do Member; a autoria histórica permanece associada ao acontecimento. Isso não concede direito residual do ex-Member sobre a Collection. Questões futuras de account deletion/anonymization ficam fora desta rodada.
+
+### C-174 — Privacy
+
+**Status:** Aprovada
+
+Activity não expõe automaticamente amount paid, seller/buyer, dados financeiros, Storage, private Provenance, Favorite, Wishlist ou outros dados privados. A narrativa user-facing contém apenas informação necessária ao entendimento da mudança na Collection.
+
+### C-175 — Audit (definição)
+
+**Status:** Aprovada
+
+Audit Log é camada separada destinada a governança, segurança, accountability, investigação e suporte. Deve permitir conceitualmente reconstruir quem fez o quê, quando, sobre qual contexto/entidade. Schema físico não fixado nesta rodada.
+
+### C-176 — Audit Coverage
+
+**Status:** Aprovada
+
+Cobertura proporcional a risco e necessidade de accountability. Prioridade obrigatória conceitual para: (A) ações Owner-sensitive — Membership, Visibility, Collection Allocation, Archive/Delete, demais ações sensíveis; (B) ações state-changing executadas por Collaborators — Layout, Expected Content, Slot Assignment, metadata editável. Motivação: Owner deve poder futuramente responder "quem alterou o quê na minha Collection?". Isso não significa auditar toda mutação técnica ou interação de UI.
+
+### C-177 — Activity × Audit
+
+**Status:** Aprovada
+
+Reconhecidas quatro possibilidades: Activity + Audit; Audit-only; Activity-only; nenhuma. Matriz exaustiva não fechada nesta rodada. Exemplo: Visibility PRIVATE → PUBLIC gera Activity + Audit; erro/tentativa negada relevante à segurança gera Audit-only.
+
+### C-178 — Bulk / Grouping
+
+**Status:** Aprovada
+
+Activity deve suportar conceitualmente operações em massa sem obrigar histórico ruidoso (ex.: preferível "7 Slots removidos" a sete linhas idênticas). Não decidido se a implementação será evento agregado, eventos individuais agrupados na apresentação, ou ambos — detalhe futuro.
+
+### C-179 — Immutability
+
+**Status:** Aprovada
+
+Enquanto existirem, registros históricos não são editáveis, reescritos silenciosamente, nem apagáveis livremente por Users comuns. Política de retenção e hard-delete fica fora desta rodada.
+
+### C-180 — Retention
+
+**Status:** Aprovada
+
+Activity History e Audit podem possuir políticas de retenção diferentes. TTL/prazos não definidos nesta rodada.
+
+### C-181 — Archive / Delete
+
+**Status:** Aprovada
+
+Não presumir que Activity, Audit e Physical Card Lifecycle possuem o mesmo ciclo de vida. Physical Card Lifecycle permanece independente da Collection (reafirma C-47/C-67). Destino de Activity/Audit após archive/hard-delete da Collection permanece em aberto.
+
+### C-182 — History ≠ Undo
+
+**Status:** Aprovada
+
+History não implica Undo, Restore ou rollback automático. Reversibilidade exige modelagem própria futura.
+
+### C-183 — History ≠ Current State
+
+**Status:** Aprovada
+
+Activity History e Audit não são fonte única obrigatória para reconstruir estado corrente no V1. Não se adota event sourcing implicitamente. Estado corrente continua modelado pelas entidades de domínio.
+
+### C-184 — System Activity
+
+**Status:** Aprovada
+
+System pode ser actor de Activity quando houver acontecimento semanticamente relevante ao usuário. Log técnico não é transformado em Activity automaticamente.
+
+### C-185 — Activity ≠ Lifecycle
+
+**Status:** Aprovada
+
+Não se duplicam automaticamente fatos de Physical Card Lifecycle. Ownership Entry/Transfer/Exit continuam pertencendo ao lifecycle (C-67–C-81, não reaberto). Se um fato patrimonial também tiver relevância explícita para uma Collection, uma Activity correspondente pode futuramente existir, mas os conceitos permanecem independentes.
+
+### C-186 — Escopo mínimo V1
+
+**Status:** Aprovada
+
+**ACTIVITY HISTORY:** Collection-scoped; user-facing; linguagem de domínio; actor quando aplicável; timestamp; mudanças/acontecimentos relevantes; visível para Owner + Members; não pública por padrão; sem Undo; não é fonte de estado corrente; não substitui Lifecycle. **AUDIT:** camada separada; segurança/governança/accountability; cobre ações Owner-sensitive; cobre mudanças relevantes feitas por Collaborators; não necessariamente user-facing; não substitui Activity/Lifecycle; não é fonte de estado corrente.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -1792,9 +1924,14 @@ As seguintes entidades/conceitos foram identificados durante a modelagem de Coll
 - `Physical Card Condition` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Physical Card Condition`, C-103–C-120): definição e entidade-alvo (`Physical Card`), ratificação da referência canônica compartilhada `card_condition` (sem alteração de schema), escala formalizada, code vs. label localizado, evidência de mercado brasileiro, opcionalidade, linguagem declarada/não certificada, fronteira com Damage/Defects e com Grading (aplicabilidade a cards graded deixada para futura subfrente `Grading / Certification Domain Modeling`), independência de identidade/idioma/Storage/Custody/Wishlist, relação futura com Valuation sem reabrir Pricing, e semântica de filtro ("NM ou superior") sem novo valor de escala. Pendência registrada: discrepância entre "5 linhas" (validação) e 6 códigos documentados em `card_condition` — verificação física não realizada nesta rodada. Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
 - `Grading / Certification` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Grading / Certification`, C-121–C-140): separação Grading (workflow, fora do V1) vs. Certification (resultado formal, modelada); entidade-alvo (`Physical Card`); Grading Company como Reference Data; Grade Scale e Grade (valor e/ou designação, sem enum físico); Certification Number opcional, sem conceito separado de "Grading Declaration"; no máximo uma Current Certification por Physical Card; raw/graded derivado; fechamento definitivo da aplicabilidade simultânea Condition × Certification (mutuamente exclusivas quanto à corrente, sem derivação entre os dois valores — pendência deixada aberta por C-111/C-112); efeitos de crack e regrade sobre identidade e aplicabilidade; fronteiras com Protection/Encapsulation, Custody, Storage e Valuation; Wishlist não alterada. Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
 - `Collection Collaboration / Permissions` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Collection Collaboration / Permissions`, C-141–C-165): separação estrutural entre Collection Owner (relação própria Collection→User, fora de Membership) e Collection Membership (0..N Members não-owner); roles V1 restritas a EDITOR e VIEWER; fronteira Collection-scoped (Layout, Expected Content, Slot Assignment de cartas já alocadas, metadata comum — Editor-capable) vs. Owner-authorized Collection operation (Collection Allocation, Owner-only, sem rotulá-la como "operação patrimonial"); Visibility, Archive/Delete e Membership management Owner-only; Public Access formalizado como consequência de Visibility, distinto de Membership e de role VIEWER; privacidade por padrão (Storage, Provenance, Favorite, Wishlist, dados financeiros não expostos automaticamente); Condition/Certification legíveis para curadoria mas não editáveis por Collaborator; necessidade futura de Audit Log registrada sem solução proposta. Modelagem física (SQL, tabelas, UUID, RLS) permanece não iniciada.
+- `Collection Activity History / Audit` — resolvido conceitualmente em 2026-08-30 (Bloco complementar `Collection Activity History / Audit`, C-166–C-186): três camadas conceitualmente distintas — Physical Card Lifecycle/Provenance (não reaberto), Collection Activity History (novo, narrativa user-facing de mudanças significativas na Collection, em linguagem de domínio) e Audit Log (necessidade já registrada em C-164, trilha de governança/segurança); Activity Trigger refinado para "acontecimento de domínio significativo", não mutação técnica; categorias candidatas não exaustivas; actor Owner/Editor/System; visibilidade Owner+Members, nunca automática a Public User; privacidade e immutability reafirmadas; quatro combinações Activity×Audit reconhecidas sem matriz fechada; grouping/bulk, retenção, archive/delete boundary e History≠Undo/Current State registrados como fronteiras, não resolvidos em detalhe. Modelagem física (SQL, tabelas, UUID, RLS, schema de Audit) permanece não iniciada.
 - `Pokémon / Subject Reference`
-- histórico/auditoria operacional detalhada
 - engine de progresso
+- Undo/Restore e reversibilidade de operações
+- event sourcing (não adotado implicitamente)
+- algoritmo de agrupamento de Activity em operações em massa
+- retenção/TTL de Activity e Audit
+- hard-delete policy completa sobre Activity/Audit
 - permissões detalhadas de membros (granularidade além de EDITOR/VIEWER, capability assignments customizadas)
 
 Cada uma deverá possuir seu próprio ciclo de modelagem.
@@ -1865,3 +2002,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.9 | **Bloco complementar Physical Card Condition, 2026-08-30** (`COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`, aberta pelo memo `COLLECTIONS-PHYSICAL-CARD-CONDITION-MODELING-01` e por um complemento de evidência de mercado brasileiro (ambos previamente registrados sem editar arquivo; nota de divergência sinalizada explicitamente — o pedido de consolidação referenciou "MODELING-02", rodada não entregue literalmente sob esse nome nesta sessão, cujo conteúdo equivalente foi coberto pelo complemento). Adicionadas C-103 a C-120: definição e entidade-alvo exclusivo `Physical Card` (C-103); ratificação conceitual da referência canônica compartilhada já existente e `CONFIRMADO EXECUTADO` `card_condition` (Incremento P1 de Pricing, 2026-08-16), sem criar escala/vocabulário/conceito paralelo e sem alterar schema (C-104); escala canônica formalizada — MINT/NEAR_MINT/LIGHTLY_PLAYED/MODERATELY_PLAYED/HEAVILY_PLAYED/DAMAGED, com discrepância histórica de contagem (5 vs. 6) registrada como pendência de verificação física, não investigada (C-105); code canônico independente de idioma vs. label localizado (C-106); evidência de convergência semântica do vocabulário de mercado brasileiro, sem gerar novos códigos canônicos (C-107); opcionalidade, sem valor `UNKNOWN` para representar ausência (C-108); classificação declarada/registrada, não certificada, mesma disciplina de linguagem segura de C-76 (C-109); Damage/Defects detalhados fora do núcleo V1 (C-110); fronteira Condition × Grading, coexistência sem derivação automática, aplicabilidade a cards graded deixada para futura subfrente `Grading / Certification Domain Modeling` (C-111); "raw/graded" não é valor de Condition (C-112); sem histórico no núcleo V1, reafirma C-68/C-81 (C-113); independência de identidade da Physical Card e de Card Variant/ownership/Collection Allocation/Slot Assignment/Favorite/Wishlist/Storage/Custody (C-114); independência de idioma (C-115); independência estrutural de Storage/Custody (C-116); relação futura com Valuation sem reabrir Pricing, precedente já estabelecido em `05f-pricing.md` (C-117); semântica de filtro ("NM ou superior") apoiada em `condition_order`, sem novo valor de Condition, sem modelar UX (C-118); Wishlist V1 permanece sem Condition, sem reabrir C-91–C-102 (C-119); escopo mínimo V1 consolidado (C-120). Parte D atualizada: `Physical Card Condition` marcado como conceitualmente resolvido. C-01–C-102 não reabertas em conteúdo — Lifecycle/Provenance (C-67–C-81) e Wishlist (C-91–C-102) permanecem integralmente vigentes. Grading/Certification em detalhe, Damage/Defects, Condition History, Valuation e Wishlist refinement permanecem explicitamente fora de escopo. Nenhuma migration ou alteração de schema proposta ou aplicada. |
 | 1.10 | **Bloco complementar Grading / Certification, 2026-08-30** (`COLLECTIONS-GRADING-CERTIFICATION-CONSOLIDATION-01`), encerrando a subfrente `Collections — Grading / Certification conceptual modeling`, aberta pelos memos `COLLECTIONS-GRADING-CERTIFICATION-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo; direção vigente é a do `-02`, que corrigiu a posição do `-01` sobre a aplicabilidade simultânea de Condition e Certification antes de qualquer consolidação — sem supersessão de documento canônico). Adicionadas C-121 a C-140: separação Grading (workflow, fora do V1) vs. Certification (resultado formal) (C-121); entidade-alvo exclusiva `Physical Card` (C-122); Grading Company como Reference Data (C-123); Grade Scale, sem assumir equivalência entre companies (C-124); Grade com representação de valor e/ou designação, sem enum físico (C-125); Certification Number opcional, sem conceito separado de "Grading Declaration" (C-126); no máximo uma Current Certification por Physical Card (C-127); raw/graded como predicado derivado da existência de Current Certification (C-128); **fechamento definitivo da pendência deixada aberta por C-111/C-112** — Current Condition e Current Certification mutuamente exclusivas quanto à aplicabilidade corrente, sem fusão, substituição ou derivação entre os dois valores (C-129); Condition History fora do V1 (C-130); efeitos de crack — Current Condition volta a ser aplicável, sem restauração automática de valor anterior (C-131); efeitos de regrade — identidade preservada, sem canonizar workflow temporal (C-132); Grade ≠ Condition, sem de-para automático (C-133); Certification como dado declarado/registrado, não verificado (C-134); subgrades/qualifiers fora do núcleo V1 (C-135); fronteira com Protection/Encapsulation (C-136); fronteira com Custody/Storage, reafirmando C-49/C-56/C-58 (C-137); relação futura com Valuation sem reabrir Pricing (C-138); Wishlist permanece inalterada (C-139); escopo mínimo V1 consolidado (C-140). Parte D atualizada: `Grading / Certification` marcado como conceitualmente resolvido. C-01–C-120 não reabertas em conteúdo — Physical Card Condition (C-103–C-120), Custody/Availability (C-49–C-54), Storage (C-55–C-66), Lifecycle/Provenance (C-67–C-81) e Wishlist (C-91–C-102) permanecem integralmente vigentes. Submission/regrade/crack workflow operacional, Certification History, subgrades, verification externa e Protection/Encapsulation detalhada permanecem explicitamente fora de escopo. Nenhuma migration ou alteração de schema proposta ou aplicada. |
 | 1.11 | **Bloco complementar Collection Collaboration / Permissions, 2026-08-30** (`COLLECTIONS-COLLABORATION-PERMISSIONS-CONSOLIDATION-01`), encerrando a subfrente `Collections — Collaboration / Permissions conceptual modeling`, aberta pelos memos `COLLECTIONS-COLLABORATION-PERMISSIONS-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo; direção vigente é a do `-02`, que corrigiu a duplicidade conceitual do `-01` — Owner tratado simultaneamente como relação estrutural e como role de Membership — antes de qualquer consolidação, sem supersessão de documento canônico). Adicionadas C-141 a C-165: Collection Owner como relação estrutural própria (Collection→User), fora de Collection Membership (C-141); Collection Membership como participação exclusiva de Users não-owner, 0..N (C-142); roles V1 restritas a EDITOR/VIEWER, sem OWNER como role de Membership (C-143); Collaboration ≠ Ownership sobre Physical Cards/Inventory/Storage/Favorite/Wishlist/dados privados (C-144); Viewer read-only formal, distinto de Public Access (C-145); Editor com fronteira precisa de capacidades (metadata comum, Layout, Expected Content, Slot Assignment) e vedações (Collection Allocation, Storage, Condition, Certification, Availability, ownership/Inventory) (C-146); **Collection Allocation reclassificada como Owner-authorized Collection operation** — não "operação patrimonial" per se, mas exigindo autoridade do Owner sobre o conjunto de exemplares elegíveis, corrigindo a formulação do memo-01 (C-147); Slot Assignment sobre cartas já alocadas como Collection-scoped, Editor-capable (C-148); Expected Content/Layout Editor-capable, sem reabrir C-38–C-46 (C-149); metadata comum vs. decisões estruturais sensíveis (C-150); Visibility Owner-only (C-151); **Public Access formalizado como consequência de Visibility, distinto de Membership e da role VIEWER** (C-152); Invite/Acceptance explícitos, nunca silenciosos (C-153); Membership management Owner-only no V1 (C-154); efeitos de remoção/saída voluntária sobre o estado da Collection (C-155); invariante estrutural do Owner frente a mecanismos de Membership (C-156); Physical Card visibility escopada às cartas alocadas àquela Collection (C-157); private data não exposta automaticamente por Collaboration (C-158); Storage privado por padrão (C-159); Condition/Certification legíveis para curadoria, não editáveis por Collaborator (C-160); Provenance não exposta por Membership no V1 (C-161); lista consolidada de Owner-only operations (C-162); Sharing/link compartilhável ≠ Collaboration (C-163); necessidade futura de Audit Log registrada sem solução (C-164); escopo mínimo V1 consolidado (C-165). Parte D atualizada: `Collection Collaboration / Permissions` marcado como conceitualmente resolvido. C-01–C-140 não reabertas em conteúdo — Collection core, Physical Card/Inventory, Custody/Availability, Storage, Layout/Page/Slot, Lifecycle/Provenance, Favorite, Wishlist, Physical Card Condition e Grading/Certification permanecem integralmente vigentes. Custom permissions, capability assignments granulares, transferência de Collection ownership, private sharing link e Audit Log permanecem explicitamente fora de escopo. Nenhuma migration, tabela, UUID ou RLS proposta ou aplicada. |
+| 1.12 | **Bloco complementar Collection Activity History / Audit, 2026-08-30** (`COLLECTIONS-ACTIVITY-HISTORY-AUDIT-CONSOLIDATION-01`), encerrando a subfrente `Collections — Activity History / Audit conceptual modeling`, aberta pelo memo `COLLECTIONS-ACTIVITY-HISTORY-AUDIT-MODELING-01` (previamente registrado sem edição de arquivo, sem rodada de correção intermediária — direção do memo único aprovada diretamente). Adicionadas C-166 a C-186: três camadas conceitualmente distintas — Lifecycle/Provenance, Activity History, Audit — nenhuma substitui as demais (C-166); definição de Collection Activity History como sequência temporal user-facing (C-167); Activity Trigger refinado para "acontecimento de domínio significativo", não "ação que muda diretamente o estado" (C-168); Activity em linguagem de domínio, nunca schema técnico (C-169); categorias candidatas não exaustivas (C-170); actor Owner/Editor/System, Viewer/Public User não geram Activity (C-171); visibilidade Owner+Members, nunca automática a Public User mesmo em Collection PUBLIC (C-172); Activity histórica permanece após Member exit (C-173); privacidade — sem exposição automática de dados financeiros/Storage/Provenance privada/Favorite/Wishlist (C-174); definição de Audit Log como camada de governança/segurança (C-175); Audit coverage priorizando ações Owner-sensitive e state-changing de Collaborators (C-176); quatro combinações Activity×Audit reconhecidas, matriz não fechada (C-177); grouping/bulk reconhecido sem mecanismo decidido (C-178); immutability de registros históricos (C-179); retenção diferenciada sem TTL definido (C-180); archive/delete boundary identificada, não resolvida — Lifecycle permanece independente da Collection (C-181); History ≠ Undo (C-182); History ≠ Current State, sem event sourcing implícito (C-183); System como actor possível de Activity, sem transformar log técnico automaticamente (C-184); Activity ≠ Lifecycle, sem duplicação automática de fatos patrimoniais (C-185); escopo mínimo V1 consolidado (C-186). Parte D atualizada: `Collection Activity History / Audit` marcado como conceitualmente resolvido; itens de fora de escopo (Undo/Restore, event sourcing, algoritmo de agrupamento, retenção/TTL, hard-delete policy) adicionados individualmente. C-01–C-165 não reabertas em conteúdo — todas as subfrentes anteriores permanecem integralmente vigentes. Undo/Restore, event sourcing, schema de Audit, retenção/TTL, hard-delete policy, matriz exaustiva Activity×Audit, algoritmo de agrupamento e qualquer SQL/tabela/UUID/RLS/migration permanecem explicitamente fora de escopo. |
