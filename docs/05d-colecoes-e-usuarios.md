@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.1 |
+| **Versão** | 1.2 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
+| **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -117,7 +117,100 @@ Validado ao vivo, todos os cenários transacionais com `ROLLBACK`: lote válido 
 
 ## Pendências / Próximos Passos
 
-Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco (`inventory`/`physical_card`/`add_physical_cards()`). Saída de custódia (transferência/perda/venda), Collection/Collection Entry (alocação de Physical Card dentro de uma Coleção específica), Storage, Condition, Certification, Lifecycle/Provenance detalhado, Favorite, Wishlist e Activity History/Audit têm modelagem conceitual já fechada (`concept-decisions.md`/`logical-model.md`) mas nenhuma delas tem modelo físico ainda — cada uma será um incremento físico separado, seguindo o mesmo padrão desta rodada (staging auditado → aplicação real gateada por fase → reconciliação).
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco (`inventory`/`physical_card`/`add_physical_cards()`). Saída de custódia (transferência/perda/venda), Collection/Collection Entry (alocação de Physical Card dentro de uma Coleção específica), Condition, Certification, Lifecycle/Provenance detalhado, Favorite, Wishlist e Activity History/Audit têm modelagem conceitual já fechada (`concept-decisions.md`/`logical-model.md`) mas nenhuma delas tem modelo físico ainda — cada uma será um incremento físico separado, seguindo o mesmo padrão desta rodada (staging auditado → aplicação real gateada por fase → reconciliação). Storage/Storage Container física já consolidada — ver seção própria a seguir.
+
+---
+
+# Storage / Storage Container
+
+## Status
+
+**Fundação física de Storage Container + `physical_card.storage_container_id` CONFIRMADO EXECUTADA em 2026-09-01** (`COLLECTIONS-PHYSICAL-INCREMENT-02A-IMPLEMENTATION-01`, Incremento 2A — Storage Foundation, dentro do milhar `5000`–`5999`, Módulo Collections). Precedida por três rodadas de modelagem física sem alteração de banco (`COLLECTIONS-PHYSICAL-MODELING-03`, `-REVISION-01`, `-REVISION-02`, `-FINAL-01`) e por uma rodada de staging auditada em `database/proposals/2026-08-31-02a-storage/` antes da aplicação real. Cinco Queries estruturais (`5020`–`5024`), uma bateria de validação de 19 itens (incluindo os casos estruturais A–E da FK composta e os casos funcionais F–J da RPC de Current Storage) e um plano de performance sob volume de 20.000 linhas — todos executados e confirmados ao vivo na mesma rodada. Modelagem lógica/conceitual canônica em `domain-modeling/collections/concept-decisions.md` (C-55–C-61) e `logical-model.md` (LDM-44–LDM-54) — nenhuma das duas foi reaberta nesta rodada. Este é o primeiro incremento físico de Storage Container do projeto — nenhum skeleton físico havia sido fixado em rodada lógica anterior.
+
+Este incremento existe especificamente para desbloquear Collection (ainda não iniciada fisicamente): `collection.default_storage_container_id` será `NOT NULL` desde a criação (C-36), e criar `collection` antes de `storage_container` existir geraria estado fisicamente incompatível com C-36.
+
+## Decisão de Modelagem
+
+`storage_container` é a unidade física endereçável de armazenamento corrente (C-55/C-56), com ownership mediado por Inventory (C-57) — mesmo padrão já usado em `physical_card`, nunca `owner_user_id` direto como fonte paralela de ownership. Escopo desta fundação é deliberadamente mínimo: apenas identidade, `name` e vínculo com Inventory — hierarquia (C-60), capacidade (C-62), Bulk Card Transfer (C-64), Reparent (C-65) e Protection/Encapsulation (C-56) permanecem fora, sem nenhum campo/tabela/relação criado para eles.
+
+Integridade Inventory × Storage (C-61 — Storage nunca cruza Inventory) é garantida de forma **declarativa**, via FK composta, não por trigger: `storage_container` ganha `UNIQUE(id, inventory_id)` e `physical_card.storage_container_id` referencia essas duas colunas junto de `inventory_id` via `FOREIGN KEY (storage_container_id, inventory_id) REFERENCES storage_container(id, inventory_id)`. A validação técnica desta rodada identificou um caso não coberto por `MATCH SIMPLE` (padrão do Postgres quando `MATCH` não é especificado): a constraint é pulada quando qualquer coluna referenciadora é NULL, o que deixaria passar `storage_container_id` preenchido com `inventory_id` NULL. Fechado com um `CHECK` local adicional (`chk_physical_card_storage_requires_inventory`), sem depender de outra tabela.
+
+Toda escrita de Current Storage passa exclusivamente pela RPC `set_physical_cards_storage()` (bulk-first, 1–500 itens por chamada, `p_storage_container_id` nulável — `NULL` limpa a localização corrente, cobrindo o ciclo de vida completo 0..1 de C-58) — não existe policy de `UPDATE` para `authenticated` em `physical_card` para esta coluna. IDs duplicados no payload são normalizados internamente para `DISTINCT`; o teto de 500 é avaliado sobre o array recebido, antes da deduplicação. Não há auto-provisionamento de um Storage Container "padrão" por Inventory — Storage Container representa unidade física real do acervo, nunca um placeholder; fica como requisito de UX futuro (não desenhado nesta rodada) permitir, na criação da Collection, selecionar um Storage Container existente ou criar um novo no próprio fluxo.
+
+## Modelo Físico — `storage_container` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.storage_container (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    inventory_id   UUID NOT NULL
+                       REFERENCES public.inventory(id)
+                       ON UPDATE RESTRICT ON DELETE RESTRICT,
+    name           TEXT NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_storage_container_id_inventory UNIQUE (id, inventory_id)
+);
+
+ALTER TABLE public.storage_container ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY storage_container_select_own
+    ON public.storage_container FOR SELECT
+    USING (inventory_id = (SELECT i.id FROM public.inventory i WHERE i.owner_user_id = (select auth.uid())));
+
+GRANT SELECT ON public.storage_container TO authenticated;
+```
+
+`UNIQUE(id, inventory_id)` não é uma segunda chave candidata independente — existe exclusivamente para servir de alvo da FK composta a partir de `physical_card`. RLS/grants no mesmo padrão de `inventory`/`physical_card`: única policy é `SELECT` do próprio owner (via Inventory), nenhuma via de escrita direta. Validado ao vivo: usuário A não vê Storage Container de B; `INSERT` direto e acesso `anon` negados (permission denied, não apenas 0 linhas). Arquivo em `database/schema/5020_create_storage_container_table.sql`.
+
+## Query `5021` — Create Storage Container Trigger (CONFIRMADO EXECUTADO)
+
+Mantém `updated_at`, reaproveitando `public.set_updated_at()`. Arquivo em `database/schema/5021_create_storage_container_trigger.sql`.
+
+## Query `5022` — Create `create_storage_container()` (CONFIRMADO EXECUTADO)
+
+Function `SECURITY DEFINER`, `SET search_path = ''`, único parâmetro `p_name text` — sem `inventory_id`, resolvido no servidor via `auth.uid()`. Não é bulk (criação de Storage Container é evento de UX único). Retorno explícito `(id, name, created_at)`, não `RETURNS SETOF storage_container`, mesma justificativa de contrato mínimo de `add_physical_cards()`. Validado ao vivo: Storage Container criado sempre resolve para o Inventory do próprio chamador. Arquivo em `database/schema/5022_create_create_storage_container_function.sql`.
+
+## Query `5023` — Alter Physical Card: Add Storage Container Link (CONFIRMADO EXECUTADO)
+
+```sql
+ALTER TABLE public.physical_card ADD COLUMN storage_container_id UUID NULL;
+
+ALTER TABLE public.physical_card
+    ADD CONSTRAINT fk_physical_card_storage_same_inventory
+    FOREIGN KEY (storage_container_id, inventory_id)
+    REFERENCES public.storage_container (id, inventory_id)
+    ON UPDATE RESTRICT ON DELETE RESTRICT;
+
+ALTER TABLE public.physical_card
+    ADD CONSTRAINT chk_physical_card_storage_requires_inventory
+    CHECK (storage_container_id IS NULL OR inventory_id IS NOT NULL);
+
+CREATE INDEX ix_physical_card_storage_container ON public.physical_card (storage_container_id);
+```
+
+`storage_container_id` é 0..1 (LDM-46/C-58), nulável por desenho. Índice isolado (não composto com `inventory_id`) justificado por workload confirmado — "conteúdo deste Storage Container" — e por RLS já escopar por Inventory antes de qualquer filtro de Storage. Validado ao vivo, por tentativa de escrita real (não apenas introspecção): Physical Card + Storage do mesmo Inventory aceito; Physical Card + Storage de outro Inventory rejeitado (violação da FK composta); `storage_container_id` NULL aceito independente de `inventory_id`; mudar `inventory_id` mantendo Storage de outro Inventory rejeitado (FK composta); Storage preenchido + `inventory_id` NULL rejeitado (via CHECK, não via FK — confirma que os dois mecanismos cobrem casos complementares de `MATCH SIMPLE`). Performance: consulta "conteúdo de um Storage Container" sobre 20.000 Physical Cards usou `ix_physical_card_storage_container` (Index Scan), 0,764ms, 284 buffer hits, 0 leituras de disco. Arquivo em `database/schema/5023_alter_physical_card_add_storage_container.sql`.
+
+## Query `5024` — Create `set_physical_cards_storage()` (CONFIRMADO EXECUTADO, v2.0)
+
+Function `SECURITY DEFINER`, `SET search_path = ''`, `RETURNS TABLE (id, storage_container_id, updated_at)` — não `RETURNS SETOF physical_card`. Parâmetros: `p_storage_container_id UUID` (nulável — `NULL` limpa Current Storage) e `p_physical_card_ids UUID[]` (1–500 por chamada, deduplicados internamente via `array_agg(DISTINCT ...)`, teto avaliado sobre o array recebido antes da deduplicação). Substitui a v1.0 (`assign_physical_cards_to_storage()`, só atribuía/movia) — a v2.0 cobre o ciclo de vida completo 0..1 de Current Storage.
+
+Validado ao vivo: `NULL` limpa a localização corrente; payload `[A,A,B]` afeta A e B exatamente uma vez; lote misto (cartas do próprio Owner + carta de outro User) rejeitado com zero alterações, inclusive nas cartas do próprio Owner (atomicidade real); lote de 501 elementos rejeitado antes da deduplicação; Storage Container de outro Inventory rejeitado. Performance sobre 20.000 Physical Cards: bulk assign de 500 itens ~61–65ms, bulk clear (NULL) de 500 itens ~55ms — mesma ordem de grandeza de `add_physical_cards()` (52,525ms). Arquivo em `database/schema/5024_create_set_physical_cards_storage_function.sql`.
+
+## Sequência
+
+```text
+5020 - Create Storage Container table                         (CONFIRMADO EXECUTADO — database/schema/5020_create_storage_container_table.sql)
+5021 - Create Storage Container trigger                        (CONFIRMADO EXECUTADO — database/schema/5021_create_storage_container_trigger.sql)
+5022 - Create create_storage_container() function               (CONFIRMADO EXECUTADO — database/schema/5022_create_create_storage_container_function.sql)
+5023 - Alter Physical Card: add storage_container_id            (CONFIRMADO EXECUTADO — database/schema/5023_alter_physical_card_add_storage_container.sql)
+5024 - Create set_physical_cards_storage() function (v2.0)      (CONFIRMADO EXECUTADO — database/schema/5024_create_set_physical_cards_storage_function.sql)
+5802 - Validate Collections Physical Increment 02A (19 itens)   (EXECUTADA — database/validations/5802_validate_collections_physical_increment_02a.sql)
+5803 - Performance Checks Collections Physical Increment 02A    (EXECUTADA — database/validations/5803_performance_checks_collections_physical_increment_02a.sql)
+```
+
+## Pendências / Próximos Passos
+
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. Hierarquia de Storage Container, capacidade, Bulk Card Transfer, Reparent e Protection/Encapsulation permanecem sem modelo físico, cada um como incremento próprio se/quando necessário. Próximo incremento planejado: Collection + Default Storage (Incremento 2B), seguido de Collection Allocation (Incremento 2C) — ver proposta física em `COLLECTIONS-PHYSICAL-MODELING-03-FINAL-01`. Collection Reference permanece deferida a um incremento posterior, sem bloquear os anteriores.
 
 ---
 
@@ -347,4 +440,5 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 |---------|-----------|
 | 1.0 | Criação deste documento (2026-08-06), resultado da divisão de `05-modelo-de-dados.md` por área de domínio. Conteúdo inicial: seções placeholder de Physical Card e Collection/Collection Entry ("Documentação pendente"), mais o conteúdo físico completo (já existente antes da divisão) de User Profile/Reserved Username e Administração de Usuários. |
 | 1.1 | **Fundação física de Inventory + Physical Card CONFIRMADO EXECUTADO (2026-08-31, `COLLECTIONS-PHYSICAL-INCREMENT-01B`).** Seção "Physical Card (Exemplar Físico)" substituída por "Physical Card (Exemplar Físico) / Inventory", com Status/Decisão de Modelagem/Modelo Físico completos das seis Queries `5000`–`5012` (tabelas `inventory`/`physical_card`, triggers de `updated_at`, provisionamento automático + backfill consolidados, RPC bulk-first `add_physical_cards()`), Sequência e Pendências. Precedida por três rodadas de modelagem física sem alteração de banco e uma rodada de staging auditada (`database/proposals/2026-08-31-collections-physical-increment-01a/`, agora histórica). Validação funcional/segurança de 23 itens e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5800_...`/`5801_...`. Nenhuma divergência entre o modelo conceitual (`concept-decisions.md` C-47/C-48, `logical-model.md` LDM-23) e o físico aplicado encontrada; nenhuma das duas foi alterada nesta rodada. Seção Collection/Collection Entry permanece "Documentação pendente" — fora de escopo. Ver `docs/log.md`. |
+| 1.2 | **Fundação física de Storage/Storage Container CONFIRMADO EXECUTADO (2026-09-01, `COLLECTIONS-PHYSICAL-INCREMENT-02A-IMPLEMENTATION-01`).** Nova seção "Storage / Storage Container" inserida entre "Physical Card (Exemplar Físico) / Inventory" e "Collection (Coleção) / Collection Entry", com Status/Decisão de Modelagem/Modelo Físico completos das cinco Queries `5020`–`5024` (tabela `storage_container`, trigger de `updated_at`, RPC `create_storage_container()`, `physical_card.storage_container_id` + FK composta `(id, inventory_id)` + CHECK complementar, RPC bulk-first `set_physical_cards_storage()` cobrindo o ciclo de vida 0..1 completo incluindo limpeza via `NULL`), Sequência e Pendências. Precedida por quatro rodadas de modelagem física sem alteração de banco (`COLLECTIONS-PHYSICAL-MODELING-03`/`-REVISION-01`/`-REVISION-02`/`-FINAL-01`) e uma rodada de staging auditada com correção (`database/proposals/2026-08-31-02a-storage/`, agora histórica). Validação funcional/segurança de 19 itens (casos A–J) e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5802_...`/`5803_...`. Achado de modelagem registrado nesta rodada: FK composta sob `MATCH SIMPLE` não cobre `storage_container_id` preenchido com `inventory_id` NULL — fechado com CHECK complementar, sem reabrir a decisão conceitual (C-61/LDM-49). Nenhuma decisão conceitual/lógica reaberta — `logical-model.md` recebeu apenas nota de materialização física (LDM-45/46/49), versão 1.15. Seção Collection/Collection Entry permanece "Documentação pendente" — fora de escopo. Ver `docs/log.md`. |
 
