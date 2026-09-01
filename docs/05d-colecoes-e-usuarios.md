@@ -210,13 +210,125 @@ Validado ao vivo: `NULL` limpa a localização corrente; payload `[A,A,B]` afeta
 
 ## Pendências / Próximos Passos
 
-Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. Hierarquia de Storage Container, capacidade, Bulk Card Transfer, Reparent e Protection/Encapsulation permanecem sem modelo físico, cada um como incremento próprio se/quando necessário. Próximo incremento planejado: Collection + Default Storage (Incremento 2B), seguido de Collection Allocation (Incremento 2C) — ver proposta física em `COLLECTIONS-PHYSICAL-MODELING-03-FINAL-01`. Collection Reference permanece deferida a um incremento posterior, sem bloquear os anteriores.
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. Hierarquia de Storage Container, capacidade, Bulk Card Transfer, Reparent e Protection/Encapsulation permanecem sem modelo físico, cada um como incremento próprio se/quando necessário. Incremento 2B (Collection + Default Storage) já **CONFIRMADO EXECUTADO** — ver seção própria a seguir. Próximo incremento planejado: Collection Allocation (Incremento 2C) — ver proposta física em `COLLECTIONS-PHYSICAL-MODELING-03-FINAL-01`. Collection Reference permanece deferida a um incremento posterior, sem bloquear os anteriores.
 
 ---
 
-# Collection (Coleção) / Collection Entry (Entrada da Coleção)
+# Collection (Coleção)
 
-*Documentação pendente.*
+## Status
+
+**Skeleton físico do núcleo de Collection + Default Storage CONFIRMADO EXECUTADO em 2026-09-01** (`COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01`, Incremento 2B, dentro do milhar `5000`–`5999`, Módulo Collections). Precedida por três rodadas de modelagem física sem alteração de banco (`COLLECTIONS-PHYSICAL-INCREMENT-02B-MODELING-01`, `-REVISION-01`, `-FINAL-01`), uma rodada de correção de concorrência/idempotência ainda em staging (`-STAGING-REVISION-01`) e uma rodada de staging auditado em `database/proposals/2026-08-31-02b-collection/` antes da aplicação real. Dez Queries estruturais (`5030`–`5039`), uma bateria de validação (21+ casos, 2 achados reais corrigidos no mesmo ciclo) e um plano de performance sob volume de 20.000 linhas — todos executados e confirmados ao vivo na mesma rodada. Modelagem lógica/conceitual canônica em `domain-modeling/collections/concept-decisions.md` (C-01–C-37, C-141) e `logical-model.md` (LDM-01–LDM-27, skeleton físico LDM-12) — nenhuma das duas foi reaberta nesta rodada.
+
+Este incremento depende de Storage Foundation (2A) já existir fisicamente, porque `collection.default_storage_container_id` é `NOT NULL` desde a criação (C-36).
+
+## Decisão de Modelagem
+
+`collection` tem identidade própria (`id` gerado) e ownership **direto** por `owner_user_id` — diferente de `storage_container`/`physical_card`, NÃO mediado por Inventory (decisão já fixada em LDM-02/C-141, não reaberta). Materialização deliberadamente mínima do skeleton de LDM-12: campos preservados exatamente conforme a modelagem lógica, com exclusões explícitas — sem `started_at` (C-30/LDM-11, primeira alocação ainda não existe), sem `created_by_user_id`/`updated_by_user_id`, sem `completion_policy` (LDM-08, semanticamente vazio sem Collection Reference), sem Collection Reference/Allocation/Membership/Layout.
+
+Duas restrições físicas temporárias, ambas conscientemente reversíveis quando os incrementos que as tornam desnecessárias existirem: `mode` fisicamente só `'OPEN_CURATION'` (`REFERENCE_BASED` aguarda Collection Reference) e `visibility` fisicamente só `'PRIVATE'` (Public Access/C-15 não tem projeção/read model seguro implementado ainda — `set_collection_visibility()` deliberadamente não criada nesta rodada; quando Public Access existir, a projeção segura vem primeiro, a constraint é ampliada depois, a RPC vem por último, nessa ordem). `reference_locked_at` existe fisicamente (evita `ALTER TABLE` futuro) mas travado em `NULL` por CHECK — Collection Allocation (2C) é quem vai legitimamente controlá-lo (LDM-07).
+
+`owner_user_id`/`game_id` são estruturalmente imutáveis após a criação (trigger dedicado, não CHECK — CHECK não compara OLD/NEW). Integridade Owner × Default Storage é garantida por **trigger** (não FK composta, ao contrário de `physical_card`×`storage_container`): `collection.owner_user_id` e `storage_container.inventory_id` não compartilham nenhuma coluna, e adicionar um `inventory_id` redundante a `collection` só para viabilizar uma FK composta foi avaliado e descartado (`COLLECTIONS-PHYSICAL-MODELING-03-FINAL-01`, item 3).
+
+Todas as seis operações de escrita passam por RPC `SECURITY DEFINER` — nenhuma policy de `INSERT`/`UPDATE`/`DELETE` para `authenticated`. As quatro RPCs de edição/lifecycle (`update_collection_metadata`/`set_collection_default_storage`/`archive_collection`/`reactivate_collection`) usam o padrão **UPDATE-atômico-com-guard-no-WHERE**: o guard de estado (`lifecycle_status = 'ACTIVE'` ou `'ARCHIVED'`, conforme o caso) é parte do próprio `WHERE` da `UPDATE`, não uma checagem `SELECT` separada — sob READ COMMITTED, isso elimina a janela de corrida entre checar e escrever (ex.: editar metadata de uma Collection concorrentemente arquivada). `archive_collection()`/`reactivate_collection()` são idempotentes por desenho: uma segunda chamada no mesmo estado-alvo não realiza novo `UPDATE` e retorna `archived_at`/`updated_at` idênticos à chamada anterior — provado por execução real, não apenas por design.
+
+`delete_collection()` é incondicional para o próprio Owner nesta rodada — a pré-condição de C-13 (zero Physical Cards associadas) está vacuamente satisfeita porque Collection Allocation ainda não existe. `physical_card` **nunca terá** `collection_id`; a associação futura será uma entidade própria (`collection_allocation`), e C-13 será protegida por `collection_allocation.collection_id` (FK `RESTRICT`) no Incremento 2C — `delete_collection()` precisará de revisão obrigatória nessa ocasião.
+
+**Dois achados reais corrigidos durante a implementação** (nunca detectáveis em `CREATE FUNCTION`, só na primeira execução real): (1) `create_collection()` v1.0 dependia de `game.is_active`, coluna que nunca existiu fisicamente em `public.game` — checagem removida, `game_id` inexistente continua rejeitado via `EXISTS`/FK; (2) `RETURNS TABLE (id UUID, ...)` cria parâmetros OUT que colidem com colunas homônimas da tabela (`id`, e em `archive_collection()`/`reactivate_collection()` também `lifecycle_status`) quando referenciados sem qualificação no `WHERE` de um `UPDATE`/`DELETE` — `ERROR: column reference "id" is ambiguous`, corrigido qualificando todas as ocorrências com `collection.`. Um terceiro achado de segurança (Supabase Advisor): as duas trigger functions nunca tiveram `EXECUTE` revogado de `PUBLIC`/`anon`, ficando chamáveis diretamente via `/rest/v1/rpc/...` fora do contexto de trigger — corrigido com `REVOKE` explícito.
+
+## Modelo Físico — `collection` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.collection (
+    id                           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_user_id                UUID NOT NULL REFERENCES auth.users(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+    game_id                      UUID NOT NULL REFERENCES public.game(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+    default_storage_container_id UUID NOT NULL REFERENCES public.storage_container(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+    name                         TEXT NOT NULL,
+    description                  TEXT NULL,
+    mode                         TEXT NOT NULL DEFAULT 'OPEN_CURATION',
+    lifecycle_status             TEXT NOT NULL DEFAULT 'ACTIVE',
+    visibility                   TEXT NOT NULL DEFAULT 'PRIVATE',
+    reference_locked_at          TIMESTAMPTZ NULL,
+    archived_at                  TIMESTAMPTZ NULL,
+    created_at                   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- + 6 CHECKs (mode, lifecycle_status, visibility, name_not_blank,
+    --   archived_at_consistency, reference_locked_at_null)
+);
+
+CREATE INDEX ix_collection_owner_lifecycle ON public.collection (owner_user_id, lifecycle_status);
+
+ALTER TABLE public.collection ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY collection_select_own ON public.collection FOR SELECT
+    USING (owner_user_id = (select auth.uid()));
+
+GRANT SELECT ON public.collection TO authenticated;
+```
+
+RLS/grants no mesmo padrão de `inventory`/`storage_container`: única policy é `SELECT` do próprio owner, nenhuma via de escrita direta. Validado ao vivo: Owner B não vê Collection de Owner A; `INSERT`/`UPDATE`/`DELETE` diretos e acesso `anon` negados (permission denied 42501). Arquivo em `database/schema/5030_create_collection_table.sql`.
+
+## Query `5031` — Create Collection `updated_at` Trigger (CONFIRMADO EXECUTADO)
+
+Mantém `updated_at`, reaproveitando `public.set_updated_at()`. Arquivo em `database/schema/5031_create_collection_updated_at_trigger.sql`.
+
+## Query `5032` — Create Collection Structural Identity Trigger (CONFIRMADO EXECUTADO)
+
+Trigger `BEFORE UPDATE` bloqueando alteração de `owner_user_id`/`game_id`. Validado ao vivo: as duas tentativas rejeitadas com a mensagem exata esperada. `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated` (correção de segurança — trigger functions não precisam de `EXECUTE` concedido a nenhuma role para disparar). Arquivo em `database/schema/5032_create_collection_structural_identity_trigger.sql`.
+
+## Query `5033` — Create Collection Default Storage Owner Trigger (CONFIRMADO EXECUTADO)
+
+Trigger `BEFORE INSERT OR UPDATE OF default_storage_container_id`, join até `inventory` para confirmar que o Storage pertence ao mesmo Owner. Validado ao vivo: Owner A + Storage de Owner B rejeitado. `EXECUTE` revogado, mesma correção de segurança de `5032`. Arquivo em `database/schema/5033_create_collection_default_storage_owner_trigger.sql`.
+
+## Query `5034` — Create `create_collection()` (CONFIRMADO EXECUTADO, v1.1)
+
+Function `SECURITY DEFINER`, `SET search_path = ''`, parâmetros `(p_game_id, p_name, p_description, p_default_storage_container_id)` — `owner_user_id`/`mode`/`lifecycle_status`/`visibility` nunca aceitos como parâmetro. Retorno explícito `(id, name, mode, lifecycle_status, visibility, default_storage_container_id, created_at)`. v1.1 remove a checagem de `game.is_active` (coluna inexistente — ver "Decisão de Modelagem" acima). Validado ao vivo: criação com valores iniciais corretos; Storage de outro Owner rejeitado; Game inexistente rejeitado (`'game not found'`); nome vazio rejeitado; chamada sem autenticação rejeitada. Arquivo em `database/schema/5034_create_create_collection_function.sql`.
+
+## Query `5035` — Create `update_collection_metadata()` (CONFIRMADO EXECUTADO, v1.2)
+
+Function `SECURITY DEFINER`, edita `name`/`description`. `UPDATE` atômico com guard `lifecycle_status = 'ACTIVE'` no próprio `WHERE` (ver "Decisão de Modelagem"). Validado ao vivo: ACTIVE aceita a edição; ARCHIVED rejeitado (`'collection is archived — reactivate before editing metadata'`), sem alterar `updated_at`. Arquivo em `database/schema/5035_create_update_collection_metadata_function.sql`.
+
+## Query `5036` — Create `set_collection_default_storage()` (CONFIRMADO EXECUTADO, v1.2)
+
+Function `SECURITY DEFINER`, única via de escrita de `default_storage_container_id` (obrigatório — não existe "limpar" Default Storage). Mesmo padrão atômico de `5035`. Validado ao vivo: ACTIVE aceita a troca; Storage de outro Owner rejeitado; ARCHIVED rejeitado. Arquivo em `database/schema/5036_create_set_collection_default_storage_function.sql`.
+
+## Query `5037` — Create `archive_collection()` (CONFIRMADO EXECUTADO, v1.2)
+
+Function `SECURITY DEFINER`, transição `ACTIVE -> ARCHIVED`, idempotente. `UPDATE` atômico com guard `lifecycle_status = 'ACTIVE'` no `WHERE`; zero linhas afetadas cai em leitura diagnóstica *read-only* que distingue "não existe/não é minha" de "já ARCHIVED" (retorna estado atual, sem novo `UPDATE`). Validado ao vivo: chamada real captura `archived_at`/`updated_at`; chamada repetida retorna os **mesmos valores exatos**, comprovando que nenhuma segunda escrita ocorreu. Arquivo em `database/schema/5037_create_archive_collection_function.sql`.
+
+## Query `5038` — Create `reactivate_collection()` (CONFIRMADO EXECUTADO, v1.2)
+
+Espelho exato de `5037` para `ARCHIVED -> ACTIVE`. Validado ao vivo com a mesma rigidez: `updated_at` idêntico entre a chamada real e a idempotente. Arquivo em `database/schema/5038_create_reactivate_collection_function.sql`.
+
+## Query `5039` — Create `delete_collection()` (CONFIRMADO EXECUTADO, v1.1)
+
+Function `SECURITY DEFINER`, `DELETE` físico Owner-only, incondicional nesta rodada (ver "Decisão de Modelagem" — revisão obrigatória no Incremento 2C). Validado ao vivo: Owner B não consegue deletar Collection de Owner A; id inexistente rejeitado; Owner A deleta a própria com sucesso, remoção física confirmada. Arquivo em `database/schema/5039_create_delete_collection_function.sql`.
+
+## Performance (volume de 20.000 Collections)
+
+Quatro workloads medidos com `EXPLAIN (ANALYZE, BUFFERS)` sobre 20.000 Collections sintéticas (80% ACTIVE/20% ARCHIVED) do mesmo Owner: listagem sem filtro de status (Bitmap Scan via `ix_collection_owner_lifecycle`, 8,5ms), listagem ACTIVE (Index Scan, 11,2ms), listagem ARCHIVED (Index Scan mesmo com seletividade baixa, 5,0ms), abertura por PK (Index Scan, 0,03ms) — todos usando o índice pretendido, nenhuma alegação de performance para volumes maiores. Ver `database/validations/5805_performance_checks_collections_physical_increment_02b.sql`.
+
+## Sequência
+
+```text
+5030 - Create Collection table                              (CONFIRMADO EXECUTADO — database/schema/5030_create_collection_table.sql)
+5031 - Create Collection updated_at trigger                  (CONFIRMADO EXECUTADO — database/schema/5031_create_collection_updated_at_trigger.sql)
+5032 - Create Collection Structural Identity trigger          (CONFIRMADO EXECUTADO — database/schema/5032_create_collection_structural_identity_trigger.sql)
+5033 - Create Collection Default Storage Owner trigger         (CONFIRMADO EXECUTADO — database/schema/5033_create_collection_default_storage_owner_trigger.sql)
+5034 - Create create_collection() function (v1.1)              (CONFIRMADO EXECUTADO — database/schema/5034_create_create_collection_function.sql)
+5035 - Create update_collection_metadata() function (v1.2)      (CONFIRMADO EXECUTADO — database/schema/5035_create_update_collection_metadata_function.sql)
+5036 - Create set_collection_default_storage() function (v1.2)  (CONFIRMADO EXECUTADO — database/schema/5036_create_set_collection_default_storage_function.sql)
+5037 - Create archive_collection() function (v1.2)              (CONFIRMADO EXECUTADO — database/schema/5037_create_archive_collection_function.sql)
+5038 - Create reactivate_collection() function (v1.2)           (CONFIRMADO EXECUTADO — database/schema/5038_create_reactivate_collection_function.sql)
+5039 - Create delete_collection() function (v1.1)               (CONFIRMADO EXECUTADO — database/schema/5039_create_delete_collection_function.sql)
+5804 - Validate Collections Physical Increment 02B              (EXECUTADA — database/validations/5804_validate_collections_physical_increment_02b.sql)
+5805 - Performance Checks Collections Physical Increment 02B    (EXECUTADA — database/validations/5805_performance_checks_collections_physical_increment_02b.sql)
+```
+
+## Pendências / Próximos Passos
+
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. `completion_policy`, Collection Reference, `set_collection_visibility()`/Public Access, `started_at`, `created_by_user_id`/`updated_by_user_id` permanecem fora, sem nenhum campo/tabela criado para eles. Próximo incremento planejado: Collection Allocation (Incremento 2C) — precisará revisar `delete_collection()` (Query 5039) para adicionar a guarda real de C-13.
 
 ---
 
@@ -441,4 +553,5 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.0 | Criação deste documento (2026-08-06), resultado da divisão de `05-modelo-de-dados.md` por área de domínio. Conteúdo inicial: seções placeholder de Physical Card e Collection/Collection Entry ("Documentação pendente"), mais o conteúdo físico completo (já existente antes da divisão) de User Profile/Reserved Username e Administração de Usuários. |
 | 1.1 | **Fundação física de Inventory + Physical Card CONFIRMADO EXECUTADO (2026-08-31, `COLLECTIONS-PHYSICAL-INCREMENT-01B`).** Seção "Physical Card (Exemplar Físico)" substituída por "Physical Card (Exemplar Físico) / Inventory", com Status/Decisão de Modelagem/Modelo Físico completos das seis Queries `5000`–`5012` (tabelas `inventory`/`physical_card`, triggers de `updated_at`, provisionamento automático + backfill consolidados, RPC bulk-first `add_physical_cards()`), Sequência e Pendências. Precedida por três rodadas de modelagem física sem alteração de banco e uma rodada de staging auditada (`database/proposals/2026-08-31-collections-physical-increment-01a/`, agora histórica). Validação funcional/segurança de 23 itens e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5800_...`/`5801_...`. Nenhuma divergência entre o modelo conceitual (`concept-decisions.md` C-47/C-48, `logical-model.md` LDM-23) e o físico aplicado encontrada; nenhuma das duas foi alterada nesta rodada. Seção Collection/Collection Entry permanece "Documentação pendente" — fora de escopo. Ver `docs/log.md`. |
 | 1.2 | **Fundação física de Storage/Storage Container CONFIRMADO EXECUTADO (2026-09-01, `COLLECTIONS-PHYSICAL-INCREMENT-02A-IMPLEMENTATION-01`).** Nova seção "Storage / Storage Container" inserida entre "Physical Card (Exemplar Físico) / Inventory" e "Collection (Coleção) / Collection Entry", com Status/Decisão de Modelagem/Modelo Físico completos das cinco Queries `5020`–`5024` (tabela `storage_container`, trigger de `updated_at`, RPC `create_storage_container()`, `physical_card.storage_container_id` + FK composta `(id, inventory_id)` + CHECK complementar, RPC bulk-first `set_physical_cards_storage()` cobrindo o ciclo de vida 0..1 completo incluindo limpeza via `NULL`), Sequência e Pendências. Precedida por quatro rodadas de modelagem física sem alteração de banco (`COLLECTIONS-PHYSICAL-MODELING-03`/`-REVISION-01`/`-REVISION-02`/`-FINAL-01`) e uma rodada de staging auditada com correção (`database/proposals/2026-08-31-02a-storage/`, agora histórica). Validação funcional/segurança de 19 itens (casos A–J) e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5802_...`/`5803_...`. Achado de modelagem registrado nesta rodada: FK composta sob `MATCH SIMPLE` não cobre `storage_container_id` preenchido com `inventory_id` NULL — fechado com CHECK complementar, sem reabrir a decisão conceitual (C-61/LDM-49). Nenhuma decisão conceitual/lógica reaberta — `logical-model.md` recebeu apenas nota de materialização física (LDM-45/46/49), versão 1.15. Seção Collection/Collection Entry permanece "Documentação pendente" — fora de escopo. Ver `docs/log.md`. |
+| 1.3 | **Skeleton físico de Collection + Default Storage CONFIRMADO EXECUTADO (2026-09-01, `COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01`).** Seção "Collection (Coleção) / Collection Entry" ("Documentação pendente") substituída por "Collection (Coleção)", com Status/Decisão de Modelagem/Modelo Físico completos das dez Queries `5030`–`5039` (tabela `collection` com ownership direto por `owner_user_id` + 6 CHECKs, triggers de `updated_at`/Structural Identity/Default Storage Owner, seis RPCs `create_collection()`/`update_collection_metadata()`/`set_collection_default_storage()`/`archive_collection()`/`reactivate_collection()`/`delete_collection()`), Performance, Sequência e Pendências. Precedida por três rodadas de modelagem física sem alteração de banco (`-MODELING-01`/`-REVISION-01`/`-FINAL-01`), uma rodada de correção de concorrência/idempotência ainda em staging (`-STAGING-REVISION-01`) e uma rodada de staging auditado (`database/proposals/2026-08-31-02b-collection/`, agora histórica). Validação funcional/segurança (21+ casos) e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5804_...`/`5805_...`. Três achados reais corrigidos no mesmo ciclo, nunca detectáveis antes da execução real: (1) `game.is_active` nunca existiu fisicamente — checagem removida de `create_collection()`, decisão de Fabrício, sem ampliar escopo de Catálogo; (2) referência ambígua `id`/`lifecycle_status` entre coluna de tabela e parâmetro OUT de `RETURNS TABLE` em `UPDATE`/`DELETE` sem qualificação — corrigida em todas as RPCs afetadas; (3) as duas trigger functions nunca tiveram `EXECUTE` revogado de `PUBLIC`/`anon` (achado do Supabase Advisor) — corrigido com `REVOKE` explícito. Nenhuma decisão conceitual/lógica reaberta. `delete_collection()` explicitamente marcado para revisão obrigatória no Incremento 2C (guarda de C-13 via `collection_allocation`). Ver `docs/log.md`. |
 
