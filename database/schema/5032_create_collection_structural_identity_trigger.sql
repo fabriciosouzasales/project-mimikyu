@@ -2,11 +2,14 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 5032 - Create Collection Structural Identity Trigger
-Versão......: 1.1
+Versão......: 1.2
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-31 (aplicado em 2026-09-01,
-               COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01)
+               COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01;
+               estendida em 2026-09-01, aplicada em 2026-09-02, via
+               Query 5044, COLLECTIONS-PHYSICAL-INCREMENT-02C-
+               IMPLEMENTATION-01)
 
 Descrição...:
 Garante estruturalmente que owner_user_id e game_id são imutáveis após
@@ -41,6 +44,22 @@ chamável diretamente por anon/authenticated fora do contexto de
 trigger. Corrigido com REVOKE EXECUTE explícito — o disparo via
 CREATE TRIGGER não depende de EXECUTE concedido a nenhuma role.
 
+EXTENSÃO (Query 5044, COLLECTIONS-PHYSICAL-INCREMENT-02C-
+IMPLEMENTATION-01). Estende esta função (CREATE OR REPLACE, mesma
+trigger já criada abaixo — nenhum CREATE TRIGGER adicional) com a
+proteção de collection.started_at (Query 5043), em vez de criar uma
+trigger nova e isolada — a função já é BEFORE UPDATE ... FOR EACH ROW
+genérica em collection. Duas regras, semanticamente distintas de
+owner_user_id/game_id (sempre imutáveis desde a criação) porque
+started_at é mutável exatamente uma vez: (1) já definido, qualquer
+tentativa de mudar (inclusive voltar a NULL) é rejeitada; (2) ainda
+NULL, só pode ser definido se existir pelo menos uma Collection
+Allocation real para a Collection e o valor proposto corresponder
+exatamente a MIN(collection_allocation.created_at) — impede qualquer
+timestamp inventado por RPC, só o materializador (Query 5045) escreve,
+e mesmo esse escritor é reauditado aqui contra a fonte de verdade real
+a cada UPDATE.
+
 STATUS DESTA QUERY: CONFIRMADO EXECUTADO.
 ================================================================
 */
@@ -51,6 +70,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+    v_min_allocated_at TIMESTAMPTZ;
 BEGIN
     IF NEW.owner_user_id IS DISTINCT FROM OLD.owner_user_id THEN
         RAISE EXCEPTION 'owner_user_id é imutável';
@@ -58,6 +79,24 @@ BEGIN
 
     IF NEW.game_id IS DISTINCT FROM OLD.game_id THEN
         RAISE EXCEPTION 'game_id é imutável';
+    END IF;
+
+    IF OLD.started_at IS NOT NULL AND NEW.started_at IS DISTINCT FROM OLD.started_at THEN
+        RAISE EXCEPTION 'started_at é imutável após definido';
+    END IF;
+
+    IF OLD.started_at IS NULL AND NEW.started_at IS NOT NULL THEN
+        SELECT MIN(ca.created_at) INTO v_min_allocated_at
+        FROM public.collection_allocation ca
+        WHERE ca.collection_id = NEW.id;
+
+        IF v_min_allocated_at IS NULL THEN
+            RAISE EXCEPTION 'started_at não pode ser definido sem nenhuma Collection Allocation existente';
+        END IF;
+
+        IF NEW.started_at IS DISTINCT FROM v_min_allocated_at THEN
+            RAISE EXCEPTION 'started_at deve corresponder exatamente à primeira Collection Allocation (MIN(created_at))';
+        END IF;
     END IF;
 
     RETURN NEW;

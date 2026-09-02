@@ -2,11 +2,14 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 5039 - Create delete_collection Function
-Versão......: 1.1
+Versão......: 1.3
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-31 (aplicado em 2026-09-01,
-               COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01)
+               COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01;
+               estendida em 2026-09-01, aplicada em 2026-09-02, via
+               Query 5048, COLLECTIONS-PHYSICAL-INCREMENT-02C-
+               IMPLEMENTATION-01)
 
 Descrição...:
 Cria delete_collection(p_collection_id) — Owner-only, DELETE físico.
@@ -48,13 +51,30 @@ Regras de Negócio:
 - retorno explícito (id) — confirma qual Collection foi removida;
 - EXECUTE revogado de PUBLIC/anon; concedido apenas a authenticated.
 
+EXTENSÃO (Query 5048, COLLECTIONS-PHYSICAL-INCREMENT-02C-
+IMPLEMENTATION-01) — cumpre a revisão obrigatória acima. A garantia
+estrutural real de C-13 já existe de forma declarativa desde a Query
+5040 (collection_allocation.collection_id REFERENCES collection(id)
+ON DELETE RESTRICT); esta extensão adiciona um pré-check amigável
+antes do DELETE, para que o Owner receba uma mensagem de domínio
+compreensível em vez do erro cru de violação de FK. Mensagem
+deliberadamente NÃO sugere archive_collection() como alternativa —
+Collections ARCHIVED preservam todas as suas Allocations (C-37), então
+arquivar não resolve o bloqueio; a única saída real é
+deallocate_physical_cards_from_collection() (Query 5047) até zerar as
+Allocations. Ownership é confirmada primeiro, via PERFORM ... FOR
+UPDATE com owner_user_id = auth.uid() já no WHERE (mesmo padrão de
+não-enumeração de 5046/5047) — só depois desse gate roda o pré-check
+de C-13, já garantidamente sobre uma Collection do próprio caller. Uma
+Collection inexistente e uma Collection de outro Owner (com ou sem
+Allocations) produzem exatamente a mesma mensagem genérica, na mesma
+etapa — nenhuma distinção observável entre os dois casos.
+
 STATUS DESTA QUERY: CONFIRMADO EXECUTADO.
-Revisão obrigatória no Incremento 2C: adicionar guarda de C-13 via
-collection_allocation antes de qualquer promoção de 2C a CANÔNICA.
 ================================================================
 */
 
-CREATE FUNCTION public.delete_collection(p_collection_id UUID)
+CREATE OR REPLACE FUNCTION public.delete_collection(p_collection_id UUID)
 RETURNS TABLE (id UUID)
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -63,6 +83,24 @@ AS $$
 BEGIN
     IF auth.uid() IS NULL THEN
         RAISE EXCEPTION 'authentication required';
+    END IF;
+
+    PERFORM 1
+    FROM public.collection col
+    WHERE col.id = p_collection_id
+      AND col.owner_user_id = auth.uid()
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'collection not found or not owned by caller';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM public.collection_allocation ca
+        WHERE ca.collection_id = p_collection_id
+    ) THEN
+        RAISE EXCEPTION 'collection has allocated physical cards — deallocate them before deleting';
     END IF;
 
     RETURN QUERY

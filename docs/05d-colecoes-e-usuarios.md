@@ -210,7 +210,7 @@ Validado ao vivo: `NULL` limpa a localização corrente; payload `[A,A,B]` afeta
 
 ## Pendências / Próximos Passos
 
-Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. Hierarquia de Storage Container, capacidade, Bulk Card Transfer, Reparent e Protection/Encapsulation permanecem sem modelo físico, cada um como incremento próprio se/quando necessário. Incremento 2B (Collection + Default Storage) já **CONFIRMADO EXECUTADO** — ver seção própria a seguir. Próximo incremento planejado: Collection Allocation (Incremento 2C) — ver proposta física em `COLLECTIONS-PHYSICAL-MODELING-03-FINAL-01`. Collection Reference permanece deferida a um incremento posterior, sem bloquear os anteriores.
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. Hierarquia de Storage Container, capacidade, Bulk Card Transfer, Reparent e Protection/Encapsulation permanecem sem modelo físico, cada um como incremento próprio se/quando necessário. Incremento 2B (Collection + Default Storage) e Incremento 2C (Collection Allocation) já **CONFIRMADOS EXECUTADOS** — ver seções próprias a seguir. Collection Reference permanece deferida a um incremento posterior, sem bloquear os anteriores.
 
 ---
 
@@ -224,15 +224,15 @@ Este incremento depende de Storage Foundation (2A) já existir fisicamente, porq
 
 ## Decisão de Modelagem
 
-`collection` tem identidade própria (`id` gerado) e ownership **direto** por `owner_user_id` — diferente de `storage_container`/`physical_card`, NÃO mediado por Inventory (decisão já fixada em LDM-02/C-141, não reaberta). Materialização deliberadamente mínima do skeleton de LDM-12: campos preservados exatamente conforme a modelagem lógica, com exclusões explícitas — sem `started_at` (C-30/LDM-11, primeira alocação ainda não existe), sem `created_by_user_id`/`updated_by_user_id`, sem `completion_policy` (LDM-08, semanticamente vazio sem Collection Reference), sem Collection Reference/Allocation/Membership/Layout.
+`collection` tem identidade própria (`id` gerado) e ownership **direto** por `owner_user_id` — diferente de `storage_container`/`physical_card`, NÃO mediado por Inventory (decisão já fixada em LDM-02/C-141, não reaberta). Materialização deliberadamente mínima do skeleton de LDM-12 nesta rodada (2B): campos preservados exatamente conforme a modelagem lógica, com exclusões explícitas — sem `started_at` (C-30/LDM-11, primeira alocação ainda não existia nesta rodada; passou a existir fisicamente no Incremento 2C, ver seção própria a seguir), sem `created_by_user_id`/`updated_by_user_id`, sem `completion_policy` (LDM-08, semanticamente vazio sem Collection Reference), sem Collection Allocation (idem — resolvida no 2C) nem Collection Reference/Membership/Layout (permanecem deferidas).
 
-Duas restrições físicas temporárias, ambas conscientemente reversíveis quando os incrementos que as tornam desnecessárias existirem: `mode` fisicamente só `'OPEN_CURATION'` (`REFERENCE_BASED` aguarda Collection Reference) e `visibility` fisicamente só `'PRIVATE'` (Public Access/C-15 não tem projeção/read model seguro implementado ainda — `set_collection_visibility()` deliberadamente não criada nesta rodada; quando Public Access existir, a projeção segura vem primeiro, a constraint é ampliada depois, a RPC vem por último, nessa ordem). `reference_locked_at` existe fisicamente (evita `ALTER TABLE` futuro) mas travado em `NULL` por CHECK — Collection Allocation (2C) é quem vai legitimamente controlá-lo (LDM-07).
+Duas restrições físicas temporárias, ambas conscientemente reversíveis quando os incrementos que as tornam desnecessárias existirem: `mode` fisicamente só `'OPEN_CURATION'` (`REFERENCE_BASED` aguarda Collection Reference) e `visibility` fisicamente só `'PRIVATE'` (Public Access/C-15 não tem projeção/read model seguro implementado ainda — `set_collection_visibility()` deliberadamente não criada nesta rodada; quando Public Access existir, a projeção segura vem primeiro, a constraint é ampliada depois, a RPC vem por último, nessa ordem). `reference_locked_at` existe fisicamente (evita `ALTER TABLE` futuro) mas travado em `NULL` por CHECK — o Incremento 2C (Collection Allocation) NÃO o tocou; quem vai legitimamente controlá-lo é o futuro incremento de Collection Reference (LDM-07), ainda sem data.
 
 `owner_user_id`/`game_id` são estruturalmente imutáveis após a criação (trigger dedicado, não CHECK — CHECK não compara OLD/NEW). Integridade Owner × Default Storage é garantida por **trigger** (não FK composta, ao contrário de `physical_card`×`storage_container`): `collection.owner_user_id` e `storage_container.inventory_id` não compartilham nenhuma coluna, e adicionar um `inventory_id` redundante a `collection` só para viabilizar uma FK composta foi avaliado e descartado (`COLLECTIONS-PHYSICAL-MODELING-03-FINAL-01`, item 3).
 
 Todas as seis operações de escrita passam por RPC `SECURITY DEFINER` — nenhuma policy de `INSERT`/`UPDATE`/`DELETE` para `authenticated`. As quatro RPCs de edição/lifecycle (`update_collection_metadata`/`set_collection_default_storage`/`archive_collection`/`reactivate_collection`) usam o padrão **UPDATE-atômico-com-guard-no-WHERE**: o guard de estado (`lifecycle_status = 'ACTIVE'` ou `'ARCHIVED'`, conforme o caso) é parte do próprio `WHERE` da `UPDATE`, não uma checagem `SELECT` separada — sob READ COMMITTED, isso elimina a janela de corrida entre checar e escrever (ex.: editar metadata de uma Collection concorrentemente arquivada). `archive_collection()`/`reactivate_collection()` são idempotentes por desenho: uma segunda chamada no mesmo estado-alvo não realiza novo `UPDATE` e retorna `archived_at`/`updated_at` idênticos à chamada anterior — provado por execução real, não apenas por design.
 
-`delete_collection()` é incondicional para o próprio Owner nesta rodada — a pré-condição de C-13 (zero Physical Cards associadas) está vacuamente satisfeita porque Collection Allocation ainda não existe. `physical_card` **nunca terá** `collection_id`; a associação futura será uma entidade própria (`collection_allocation`), e C-13 será protegida por `collection_allocation.collection_id` (FK `RESTRICT`) no Incremento 2C — `delete_collection()` precisará de revisão obrigatória nessa ocasião.
+`delete_collection()` é incondicional para o próprio Owner nesta rodada (2B) — a pré-condição de C-13 (zero Physical Cards associadas) está vacuamente satisfeita porque Collection Allocation ainda não existe. `physical_card` **nunca terá** `collection_id`; a associação é uma entidade própria (`collection_allocation`), e C-13 passou a ser protegida por `collection_allocation.collection_id` (FK `RESTRICT`) mais um pré-check amigável na própria RPC — `delete_collection()` recebeu a revisão obrigatória anunciada aqui no Incremento 2C (Query 5048/5039 v1.3, ver seção "Collection Allocation" a seguir).
 
 **Dois achados reais corrigidos durante a implementação** (nunca detectáveis em `CREATE FUNCTION`, só na primeira execução real): (1) `create_collection()` v1.0 dependia de `game.is_active`, coluna que nunca existiu fisicamente em `public.game` — checagem removida, `game_id` inexistente continua rejeitado via `EXISTS`/FK; (2) `RETURNS TABLE (id UUID, ...)` cria parâmetros OUT que colidem com colunas homônimas da tabela (`id`, e em `archive_collection()`/`reactivate_collection()` também `lifecycle_status`) quando referenciados sem qualificação no `WHERE` de um `UPDATE`/`DELETE` — `ERROR: column reference "id" is ambiguous`, corrigido qualificando todas as ocorrências com `collection.`. Um terceiro achado de segurança (Supabase Advisor): as duas trigger functions nunca tiveram `EXECUTE` revogado de `PUBLIC`/`anon`, ficando chamáveis diretamente via `/rest/v1/rpc/...` fora do contexto de trigger — corrigido com `REVOKE` explícito.
 
@@ -275,7 +275,7 @@ Mantém `updated_at`, reaproveitando `public.set_updated_at()`. Arquivo em `data
 
 ## Query `5032` — Create Collection Structural Identity Trigger (CONFIRMADO EXECUTADO)
 
-Trigger `BEFORE UPDATE` bloqueando alteração de `owner_user_id`/`game_id`. Validado ao vivo: as duas tentativas rejeitadas com a mensagem exata esperada. `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated` (correção de segurança — trigger functions não precisam de `EXECUTE` concedido a nenhuma role para disparar). Arquivo em `database/schema/5032_create_collection_structural_identity_trigger.sql`.
+Trigger `BEFORE UPDATE` bloqueando alteração de `owner_user_id`/`game_id`. Validado ao vivo: as duas tentativas rejeitadas com a mensagem exata esperada. `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated` (correção de segurança — trigger functions não precisam de `EXECUTE` concedido a nenhuma role para disparar). Estendida no Incremento 2C (Query 5044, v1.2) com a proteção de `started_at` — ver seção "Collection Allocation" a seguir. Arquivo em `database/schema/5032_create_collection_structural_identity_trigger.sql`.
 
 ## Query `5033` — Create Collection Default Storage Owner Trigger (CONFIRMADO EXECUTADO)
 
@@ -303,7 +303,7 @@ Espelho exato de `5037` para `ARCHIVED -> ACTIVE`. Validado ao vivo com a mesma 
 
 ## Query `5039` — Create `delete_collection()` (CONFIRMADO EXECUTADO, v1.1)
 
-Function `SECURITY DEFINER`, `DELETE` físico Owner-only, incondicional nesta rodada (ver "Decisão de Modelagem" — revisão obrigatória no Incremento 2C). Validado ao vivo: Owner B não consegue deletar Collection de Owner A; id inexistente rejeitado; Owner A deleta a própria com sucesso, remoção física confirmada. Arquivo em `database/schema/5039_create_delete_collection_function.sql`.
+Function `SECURITY DEFINER`, `DELETE` físico Owner-only, incondicional nesta rodada — v1.1 descrita aqui é o estado no momento do 2B; recebeu a guarda real de C-13 no Incremento 2C (v1.3, ver seção "Collection Allocation" a seguir). Validado ao vivo (2B): Owner B não consegue deletar Collection de Owner A; id inexistente rejeitado; Owner A deleta a própria com sucesso, remoção física confirmada. Arquivo em `database/schema/5039_create_delete_collection_function.sql`.
 
 ## Performance (volume de 20.000 Collections)
 
@@ -328,7 +328,114 @@ Quatro workloads medidos com `EXPLAIN (ANALYZE, BUFFERS)` sobre 20.000 Collectio
 
 ## Pendências / Próximos Passos
 
-Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. `completion_policy`, Collection Reference, `set_collection_visibility()`/Public Access, `started_at`, `created_by_user_id`/`updated_by_user_id` permanecem fora, sem nenhum campo/tabela criado para eles. Próximo incremento planejado: Collection Allocation (Incremento 2C) — precisará revisar `delete_collection()` (Query 5039) para adicionar a guarda real de C-13.
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. `completion_policy`, Collection Reference, `set_collection_visibility()`/Public Access, `created_by_user_id`/`updated_by_user_id` permanecem fora, sem nenhum campo/tabela criado para eles. `started_at` materializado desde o Incremento 2C — ver seção própria a seguir. Collection Reference permanece deferida a um incremento posterior, sem bloquear os anteriores.
+
+---
+
+# Collection Allocation
+
+## Status
+
+**Física CONFIRMADO EXECUTADO em 2026-09-02** (`COLLECTIONS-PHYSICAL-INCREMENT-02C-IMPLEMENTATION-01`, Incremento 2C, dentro do milhar `5000`–`5999`, Módulo Collections). Precedida por duas rodadas de modelagem física sem alteração de banco (`-MODELING-01`, `-REVISION-01`) e três rodadas de staging auditado em `database/proposals/2026-09-01-02c-allocation/` (`-STAGING-REVISION-01` — hardenings de não-enumeração e privilégio; `-STAGING-FINAL-01` — script de performance efetivamente executável; `-STAGING-FINAL-FIX-01` — grants de TEMP TABLE, correção de contagem, nota de planner) antes da aplicação real. Nove Queries estruturais (`5040`–`5048`), uma bateria de validação funcional (49 casos, 0 falhas — cobrindo A–Z) e um plano de performance real sob volume de ~21.000 Collection Allocations — todos executados e confirmados ao vivo na mesma rodada. Modelagem lógica/conceitual canônica em `domain-modeling/collections/concept-decisions.md` (C-04/C-05/C-13/C-37/C-141) e `logical-model.md` (LDM-07/LDM-11/LDM-12/LDM-23) — nenhuma das duas foi reaberta nesta rodada.
+
+Cumpre a revisão obrigatória anunciada na seção "Collection" acima: `delete_collection()` (Query 5039, agora v1.3 via extensão 5048) ganhou a guarda real de C-13.
+
+## Decisão de Modelagem
+
+`collection_allocation` associa uma Physical Card a uma Collection (C-04) — entidade própria, nunca uma coluna em `physical_card` (decisão fixada desde `COLLECTIONS-PHYSICAL-INCREMENT-02B-MODELING-FINAL-01`, item 7, não reaberta). `physical_card_id UNIQUE` garante estruturalmente Physical Card 0..1 Collection corrente, sem depender de nenhuma RPC. Integridade Owner × Inventory × Game (C-05, C-141) é garantida por trigger dedicado (`validate_collection_allocation_integrity()`, Query 5042) — três checagens sequenciais (Physical Card sem Inventory corrente / Owner incompatível / Game incompatível), cada uma set-based sobre a transition table do statement inteiro, não por CHECK declarativo (CHECK não faz JOIN).
+
+`collection.started_at` (LDM-11) passa a existir fisicamente nesta rodada — nulável, imutável após definido, nunca escrito por RPC: materializado por trigger dedicado (`materialize_collection_started_at()`, Query 5045) a partir do fato físico real (`MIN(collection_allocation.created_at)`), e reconfirmado independentemente por uma segunda camada de defesa na trigger de identidade estrutural (`validate_collection_structural_identity()`, Query 5032, estendida v1.2 via 5044) — dupla camada, não uma dependendo silenciosamente da outra. Deallocate total (Collection volta a zero Allocations) nunca reseta `started_at` — é fato histórico, não reflexo do estado de composição atual.
+
+`allocate_physical_cards_to_collection()`/`deallocate_physical_cards_from_collection()` (Queries 5046/5047) são a única via de escrita em `collection_allocation` para `authenticated` — bulk-first (1–500 por chamada, dedup via `array_agg(DISTINCT ...)`), Owner-only, fail-closed (qualquer item inválido do lote aborta o lote inteiro, zero inserções/remoções parciais). Não-enumeração: ambas incorporam `owner_user_id = auth.uid()` diretamente no `WHERE` da `SELECT ... FOR UPDATE`, de forma que Collection inexistente e Collection de outro Owner produzem exatamente a mesma mensagem genérica — nenhuma distinção observável. `delete_collection()` segue o mesmo padrão: ownership confirmado via `PERFORM ... FOR UPDATE` antes de qualquer pré-check de C-13, para que uma Collection alheia (com ou sem Allocations) nunca vaze essa distinção.
+
+C-37 (ARCHIVED não aceita mudança de composição) e C-13 (exclusão só com zero Allocations) têm garantia estrutural declarativa independente de qualquer RPC: `collection_allocation.collection_id` é FK `ON DELETE RESTRICT` para `collection`, então mesmo um `DELETE` direto bypassando `delete_collection()` falha pela FK. O pré-check da RPC é só conveniência de UX (mensagem de domínio em vez do erro cru de FK).
+
+## Modelo Físico — `collection_allocation` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.collection_allocation (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    physical_card_id UUID NOT NULL UNIQUE REFERENCES public.physical_card(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+    collection_id    UUID NOT NULL REFERENCES public.collection(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ix_collection_allocation_collection ON public.collection_allocation (collection_id);
+
+ALTER TABLE public.collection_allocation ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY collection_allocation_select_own ON public.collection_allocation FOR SELECT
+    USING (EXISTS (SELECT 1 FROM public.collection c WHERE c.id = collection_allocation.collection_id AND c.owner_user_id = (select auth.uid())));
+
+GRANT SELECT ON public.collection_allocation TO authenticated;
+```
+
+RLS/grants no mesmo padrão do restante do domínio: única policy é `SELECT` do próprio Owner (via join até `collection`, porque esta tabela não tem `owner_user_id` próprio), nenhuma via de escrita direta — toda escrita passa pelas RPCs 5046/5047. Validado ao vivo (5806): `anon` sem nenhum grant; `authenticated` só com `SELECT`; Owner B não vê Allocations de Owner A. Arquivo em `database/schema/5040_create_collection_allocation_table.sql`.
+
+## Query `5041` — Create Collection Allocation `updated_at` Trigger (CONFIRMADO EXECUTADO)
+
+Mesmo padrão de `set_updated_at()`. Arquivo em `database/schema/5041_create_collection_allocation_updated_at_trigger.sql`.
+
+## Query `5042` — Create Collection Allocation Integrity Trigger (CONFIRMADO EXECUTADO, v1.1)
+
+`validate_collection_allocation_integrity()`, `AFTER INSERT`/`AFTER UPDATE ... FOR EACH STATEMENT` com transition table — três checagens sequenciais (Inventory corrente / Owner / Game), cada uma capaz de disparar isoladamente mesmo em bypass direto da RPC. Validado ao vivo (5806, Casos I/J/K): Physical Card sem Inventory rejeitada; Physical Card de outro Owner rejeitada; Physical Card de Game diferente rejeitada — as três via `INSERT` direto em `collection_allocation`, não via RPC. `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated`. Arquivo em `database/schema/5042_create_collection_allocation_integrity_trigger.sql`.
+
+## Query `5043` — Alter Collection: Add `started_at` (CONFIRMADO EXECUTADO)
+
+`ALTER TABLE public.collection ADD COLUMN started_at TIMESTAMPTZ NULL` + CHECK `started_at IS NULL OR started_at >= created_at`. Arquivo em `database/schema/5043_alter_collection_add_started_at.sql`.
+
+## Query `5044`/`5032` v1.2 — Extensão da Collection Structural Identity Trigger (CONFIRMADO EXECUTADO)
+
+Estende `validate_collection_structural_identity()` (já canônica desde 5032/Incremento 2B) com a proteção de `started_at`: já definido, qualquer tentativa de mudar (inclusive reset para `NULL`) é rejeitada; ainda `NULL`, só aceita o valor exato de `MIN(collection_allocation.created_at)`. Validado ao vivo (5806, Casos A/G): `UPDATE` direto sem nenhuma Allocation rejeitado; `UPDATE` após já definido rejeitado nas duas direções (mudar valor, resetar a `NULL`). Conteúdo incorporado ao arquivo canônico `database/schema/5032_create_collection_structural_identity_trigger.sql` (v1.2), não um arquivo `5044` isolado — mesmo padrão de correção-em-linha já usado no domínio.
+
+## Query `5045` — Create Collection `started_at` From First Allocation Trigger (CONFIRMADO EXECUTADO)
+
+`materialize_collection_started_at()`, `AFTER INSERT ... FOR EACH STATEMENT`, `started_at = MIN(collection_allocation.created_at)` do lote, só quando ainda `NULL`. Validado ao vivo (5806, Casos B–F): primeiro `allocate()` preenche `started_at`; segundo `allocate()` na mesma Collection não altera; `deallocate()` parcial e total preservam o valor. `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated`. Arquivo em `database/schema/5045_create_collection_started_at_from_allocation_trigger.sql`.
+
+## Query `5046` — Create `allocate_physical_cards_to_collection()` (CONFIRMADO EXECUTADO, v1.1)
+
+Function `SECURITY DEFINER`, `SET search_path = ''`, `RETURNS TABLE (physical_card_id, collection_id, created_at)`. Nunca referencia `started_at` no corpo (auditado textualmente, Caso Q). Validado ao vivo: primeiro allocate materializa `started_at`; Game incompatível rejeitado; Collection ARCHIVED rejeitada; bulk fail-closed (1 de N já alocada aborta o lote inteiro); teto de 500 avaliado antes da dedup; dedup de ids repetidos resulta em 1 linha; não-enumeração contra Collection alheia (vazia/com Allocations/inexistente) — mesma mensagem nos três casos. Arquivo em `database/schema/5046_create_allocate_physical_cards_to_collection_function.sql`.
+
+## Query `5047` — Create `deallocate_physical_cards_from_collection()` (CONFIRMADO EXECUTADO, v1.1)
+
+Espelho exato de 5046 para `DELETE`. Nunca toca `started_at`, mesmo esvaziando a Collection por completo. Validado ao vivo: bulk fail-closed; Collection ARCHIVED rejeitada; não-enumeração contra Collection alheia. Arquivo em `database/schema/5047_create_deallocate_physical_cards_from_collection_function.sql`.
+
+## Query `5048`/`5039` v1.3 — Extensão do `delete_collection()` (CONFIRMADO EXECUTADO)
+
+Cumpre a revisão obrigatória anunciada na seção "Collection": pré-check de C-13 (`EXISTS` em `collection_allocation`) antes do `DELETE`, ownership confirmado primeiro via `PERFORM ... FOR UPDATE` para não vazar existência/composição de Collection alheia. Mensagem deliberadamente não sugere `archive_collection()` como alternativa (ARCHIVED preserva Allocations — arquivar não desbloqueia a exclusão). Validado ao vivo (5806, Casos R/S/T/Z): exclusão com Allocation rejeitada; após `deallocate` total, exclusão bem-sucedida; `DELETE` direto bypassando a RPC falha pela FK `RESTRICT`; não-enumeração — Owner B nunca recebe a mensagem de C-13 sobre Collection alheia. Conteúdo incorporado ao arquivo canônico `database/schema/5039_create_delete_collection_function.sql` (v1.3).
+
+## Validação Funcional (5806 — 49 casos, 0 falhas)
+
+Bateria completa executada ao vivo com fixtures reversíveis (`BEGIN`/`ROLLBACK`, zero resíduo confirmado): Casos A–H (mecanismo `started_at`), I–K (integridade estrutural via bypass direto), L–M (ARCHIVED bloqueia allocate/deallocate), N (RLS cross-user), O–P (bulk fail-closed), Q (auditoria textual), R–T (semântica de delete), U–V (limite/dedup), W (sem overload), X–Z (prova de não-enumeração nas três RPCs). Nenhuma falha em nenhum caso.
+
+## Performance (volume real de ~21.000 Collection Allocations)
+
+Cinco workloads medidos com `EXPLAIN (ANALYZE, BUFFERS)` sobre dados sintéticos reversíveis (21.601 Physical Cards, 24 Collections, ~21.000 Allocations distribuídas): listar Allocations de 1 Collection (5.000 linhas, ~24% do total) — Bitmap Heap Scan via `ix_collection_allocation_collection`, 1,9ms, 65 buffer hits; mesma consulta contra Collection filler (750 linhas) — 0,6ms, 177 buffer hits; localizar Allocation por `physical_card_id` — Index Scan via índice único, 0,07ms, 6 buffer hits; `allocate()` de 500 numa Collection sem `started_at` — 50,0ms; `allocate()` de 500 numa Collection já com `started_at` — 43,8ms (diferença não significativa — dominada pelo custo comum de validação/INSERT, não pela materialização de `started_at`); `deallocate()` de 500 — 2,2ms. Índices dedicados usados em todas as leituras; nenhum Seq Scan observado.
+
+## Segurança (Security Advisor)
+
+Duas novas ocorrências de `authenticated_security_definer_function_executable` (WARN) — `allocate_physical_cards_to_collection()`/`deallocate_physical_cards_from_collection()` — da mesma categoria intencional já aceita para toda RPC Owner-scoped do domínio (`create_collection`, `delete_collection`, `set_physical_cards_storage`, etc., desde os incrementos anteriores): `SECURITY DEFINER` + `EXECUTE` restrito a `authenticated` é o desenho, não um achado a corrigir. Nenhum finding novo fora dessa categoria atribuível a este incremento.
+
+## Sequência
+
+```text
+5040 - Create Collection Allocation table                        (CONFIRMADO EXECUTADO — database/schema/5040_create_collection_allocation_table.sql)
+5041 - Create Collection Allocation updated_at trigger            (CONFIRMADO EXECUTADO — database/schema/5041_create_collection_allocation_updated_at_trigger.sql)
+5042 - Create Collection Allocation Integrity trigger (v1.1)      (CONFIRMADO EXECUTADO — database/schema/5042_create_collection_allocation_integrity_trigger.sql)
+5043 - Alter Collection: add started_at                          (CONFIRMADO EXECUTADO — database/schema/5043_alter_collection_add_started_at.sql)
+5044 - Extensão da Structural Identity trigger (dobra em 5032 v1.2) (CONFIRMADO EXECUTADO — database/schema/5032_create_collection_structural_identity_trigger.sql)
+5045 - Create started_at From First Allocation trigger            (CONFIRMADO EXECUTADO — database/schema/5045_create_collection_started_at_from_allocation_trigger.sql)
+5046 - Create allocate_physical_cards_to_collection() (v1.1)      (CONFIRMADO EXECUTADO — database/schema/5046_create_allocate_physical_cards_to_collection_function.sql)
+5047 - Create deallocate_physical_cards_from_collection() (v1.1)  (CONFIRMADO EXECUTADO — database/schema/5047_create_deallocate_physical_cards_from_collection_function.sql)
+5048 - Extensão do delete_collection() (dobra em 5039 v1.3)       (CONFIRMADO EXECUTADO — database/schema/5039_create_delete_collection_function.sql)
+5806 - Validate Collections Physical Increment 02C (49 casos)     (EXECUTADA — database/proposals/2026-09-01-02c-allocation/5806_validate_collections_physical_increment_02c.sql)
+5807 - Performance Checks Collections Physical Increment 02C      (EXECUTADA — database/proposals/2026-09-01-02c-allocation/5807_performance_checks_collections_physical_increment_02c.sql)
+```
+
+## Pendências / Próximos Passos
+
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. Collection Reference, `reference_locked_at` (ainda travado em `NULL`), `completion_policy`, `set_collection_visibility()`/Public Access permanecem fora, sem nenhum campo/tabela criado para eles. Layout/Slot/Placement, Custody & Availability, Lifecycle/Provenance, Favorite, Wishlist, Condition, Grading/Certification, Collaboration/Permissions e Activity History/Audit seguem sem modelo físico.
 
 ---
 
