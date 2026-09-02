@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.2 |
+| **Versão** | 1.4 |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -439,6 +439,179 @@ Nenhuma superfície de frontend construída nesta rodada — fundação exclusiv
 
 ---
 
+# Collection Reference / Card Set Reference
+
+## Status
+
+**Física CONFIRMADO EXECUTADO em 2026-09-02** (`COLLECTIONS-PHYSICAL-INCREMENT-02D-IMPLEMENTATION-01`, Incremento 02D, dentro do milhar `5000`–`5999`, Módulo Collections). Precedida por duas rodadas de modelagem física sem alteração de banco (`-MODELING-01`, `-REVISION-01`, `-FINAL-01`) e duas rodadas de staging auditado em `database/proposals/2026-09-02-02d-reference/` (`-STAGING-REVISION-01` — fechou o blocker de Reference-after-lock; `-STAGING-FINAL-FIX-01` — três correções pontuais de fixture) antes da aplicação real. Dezoito Queries estruturais (`5049`–`5066`), uma bateria de validação funcional de 25 casos (A–Z, 0 falhas) e um plano de performance real sob workloads de 200–500 operações — todos executados e confirmados ao vivo na mesma rodada. Modelagem lógica/conceitual canônica em `domain-modeling/collections/concept-decisions.md` (C-05/C-18/C-22/C-32/C-37/C-141) e `logical-model.md` (LDM-04/LDM-06/LDM-07/LDM-13–LDM-17) — nenhuma das duas foi reaberta nesta rodada.
+
+Libera `mode = 'REFERENCE_BASED'` fisicamente pela primeira vez (Query 5060) — desde o Incremento 2B, `collection.mode` era fisicamente só `'OPEN_CURATION'`, um hardening temporário que já anunciava a própria condição de revisão ("alargável quando Collection Reference existir").
+
+## Decisão de Modelagem
+
+Collection agora tem dois modos operacionais reais: `OPEN_CURATION` (curadoria livre, sem Reference — comportamento inalterado desde o 2B) e `REFERENCE_BASED` (a Collection é definida por uma referência canônica externa — nesta rodada, um Card Set completo). `mode` passa a ser estruturalmente imutável após a criação (extensão da Query 5032 via 5061) — não existe conversão de uma Collection já criada entre os dois modos no V1 (decisão fechada em `-MODELING-FINAL-01`, item 1); trocar de modo exige criar uma nova Collection.
+
+`collection_reference` (Query 5049) é o supertipo da hierarquia (LDM-06/LDM-13) — entidade própria, não uma coluna solta em `collection`, rejeitando deliberadamente um desenho polimórfico solto (`reference_type`/`reference_id` sem FK forte). `collection_id UNIQUE` estrutura fisicamente a cardinalidade 0..1 por Collection; `reference_kind` é um discriminador explícito, fisicamente só `'CARD_SET'` nesta etapa (mesmo padrão incremental de `chk_collection_mode`, alargável por `DROP`+`ADD CONSTRAINT` quando um segundo subtipo existir). `collection_card_set_reference` (Query 5052) é o primeiro subtipo físico — `collection_reference_id` é PK=FK (padrão clássico de subtipo 1:1, nunca um id próprio duplicando identidade), `card_set_id` é FK forte para `public.card_set`, sem duplicar nenhum metadado do Card Set. `card_set_id` **não** é `UNIQUE`: o mesmo Card Set pode ser referenciado por Collections diferentes, inclusive do mesmo Owner (C-32).
+
+CASCADE composicional: `collection_reference.collection_id` e `collection_card_set_reference.collection_reference_id` usam `ON DELETE CASCADE` (não `RESTRICT`) — nenhuma das duas linhas tem existência independente da Collection que a contém (decisão fechada em `-MODELING-REVISION-01`, item 4); excluir a Collection leva consigo sua Reference e seu subtipo, sem exigir um passo extra em `delete_collection()`. `card_set_id` em si continua `ON DELETE RESTRICT` — excluir uma Collection nunca pode cascatear até excluir catálogo.
+
+Duas garantias transacionais cruzam tabelas e por isso não podem ser CHECK/FK declarativa — modeladas como `CREATE CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED` (avaliam só no COMMIT, não a cada `INSERT` isolado, permitindo que `create_reference_based_card_set_collection()` insira as três linhas — `collection`, `collection_reference`, `collection_card_set_reference` — na mesma transação sem falhar num estado intermediário incompleto): (1) `mode` ↔ presença de Reference (Queries 5057/5059 — `REFERENCE_BASED` sempre com exatamente 1 `collection_reference`, `OPEN_CURATION` sempre com 0); (2) supertipo ↔ subtipo (Queries 5057/5058, função auxiliar compartilhada `check_collection_reference_subtype_consistency()` — `reference_kind = 'CARD_SET'` sempre com exatamente 1 `collection_card_set_reference`, reagindo tanto a eventos no supertipo quanto no subtipo, cobrindo inclusive um `DELETE`/`UPDATE` direto só no subtipo).
+
+Integridade de Game (C-05) — `card_set_id` deve pertencer ao mesmo `game_id` da Collection — é garantida por trigger imediato (Query 5055, `BEFORE INSERT OR UPDATE`), disparado tanto na criação quanto na troca de `card_set_id`; não é FK composta possível (`card_set` não tem `game_id` direto, só via `card_set.expansion_id -> expansion.game_id`, mesma limitação já enfrentada por `collection`×`storage_container` em 5033).
+
+`reference_locked_at` (existente fisicamente em `collection` desde o Incremento 2C, mas travado em `NULL` por CHECK até esta rodada) é liberado pela Query 5060 e passa a ser materializado pela mesma trigger que já materializa `started_at` (extensão de 5045 via 5062): na primeira `collection_allocation` de uma Collection `REFERENCE_BASED`, `reference_locked_at` recebe o mesmo `MIN(created_at)` — na prática, os dois marcos coincidem no mesmo evento, porque a Reference já existe desde antes de qualquer Allocation ser possível (ver invariante seguinte). Imutável após definido, nunca `NOW()` arbitrário, reconfirmado contra a fonte de verdade real a cada `UPDATE` de `collection` (extensão de 5032 via 5061) — mesma dupla camada de defesa já usada para `started_at` desde o 2C.
+
+**Invariante Reference-antes-da-primeira-Allocation** (LDM-07/C-18): uma Collection Reference precisa existir *antes* da primeira Allocation, não apenas coexistir com ela no estado final — uma regra sobre a *ordem* dos eventos, que nenhum trigger diferido consegue enxergar sozinho (só vê o snapshot no COMMIT). Fechada com checagem **imediata** (não diferida) no momento do `INSERT` de `collection_reference`/`collection_card_set_reference`: se `reference_locked_at` já está definido, o `INSERT` falha (Queries 5056/5055, blocker fechado em `-STAGING-REVISION-01`, item 1, antes da aplicação real). Sob o fluxo normal do V1 (só `create_reference_based_card_set_collection()`, que sempre cria uma Collection nova, `ACTIVE` por definição) este guard nunca deveria disparar em produção — existe como enforcement estrutural independente de qualquer comportamento de RPC.
+
+**Elegibilidade de Reference** (LDM-17): quando a Collection é `REFERENCE_BASED`/`CARD_SET`, toda Physical Card alocada deve ter Card pertencente ao `card_set_id` referenciado. Dupla camada: pré-validação amigável em `allocate_physical_cards_to_collection()` (extensão de 5046 via 5064) e garantia estrutural independente de RPC na trigger de integridade de Allocation (extensão de 5042 via 5063, quarta checagem sequencial, depois de Inventory-nulo/Owner/Game). Fail-closed preservado — um único `physical_card_id` inelegível reprova o lote inteiro.
+
+Duas RPCs novas, ambas `SECURITY DEFINER`, `EXECUTE` restrito a `authenticated`: `create_reference_based_card_set_collection()` (Query 5065) — única via de criação de uma Collection `REFERENCE_BASED`/`CARD_SET`, espelha toda validação de `create_collection()` (5034) e adiciona a criação atômica das três linhas na mesma transação; `create_collection()` permanece exclusiva para `OPEN_CURATION`, sem alteração. `set_collection_card_set_reference()` (Query 5066) — única via de troca de `card_set_id` antes do lock, com os mesmos early checks amigáveis (mode/lifecycle/lock) espelhando a garantia estrutural real de 5055; não misturada com `update_collection_metadata()` (decisão fechada em `-MODELING-FINAL-01`, item 7).
+
+`completion_policy` (LDM-08) permanece deferida — semanticamente vazia sem Collection Reference até esta rodada, mas nenhum campo foi adicionado aqui; fica para um incremento posterior (02E), quando a semântica de "coleção completa" (percentual do Card Set possuído) puder ser definida sobre uma Reference que já existe fisicamente.
+
+## Modelo Físico — `collection_reference` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.collection_reference (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    collection_id  UUID NOT NULL UNIQUE
+                      REFERENCES public.collection(id)
+                      ON UPDATE RESTRICT ON DELETE CASCADE,
+    reference_kind TEXT NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- + CHECK chk_collection_reference_kind (fisicamente só 'CARD_SET')
+);
+```
+
+RLS: `SELECT` via join até `collection.owner_user_id` — mesmo padrão de `collection_allocation` (5040), já que esta tabela não tem `owner_user_id` próprio. Nenhuma policy de escrita para `authenticated`; toda escrita passa pelas RPCs 5065/5066 ou pelos triggers estruturais desta rodada. Arquivo em `database/schema/5049_create_collection_reference_table.sql`.
+
+## Query `5050` — Create Collection Reference `updated_at` Trigger (CONFIRMADO EXECUTADO)
+
+Mesmo padrão de `set_updated_at()`. Arquivo em `database/schema/5050_create_collection_reference_updated_at_trigger.sql`.
+
+## Query `5051` — Create Collection Reference Structural Identity Trigger (CONFIRMADO EXECUTADO)
+
+Trigger `BEFORE UPDATE` (imediata, não diferida) bloqueando alteração de `collection_id` (reparenting nunca é operação válida) e `reference_kind` (CARD_SET nunca vira outro kind). Arquivo em `database/schema/5051_create_collection_reference_structural_identity_trigger.sql`.
+
+## Modelo Físico — `collection_card_set_reference` (Versão 1.0, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.collection_card_set_reference (
+    collection_reference_id UUID PRIMARY KEY
+                                REFERENCES public.collection_reference(id)
+                                ON UPDATE RESTRICT ON DELETE CASCADE,
+    card_set_id               UUID NOT NULL
+                                REFERENCES public.card_set(id)
+                                ON UPDATE RESTRICT ON DELETE RESTRICT,
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+Nenhum índice adicional em `card_set_id` nesta rodada — nenhum padrão de acesso "todas as Collections que referenciam este Card Set" identificado nos workloads pedidos; a PK (`collection_reference_id`) já cobre o único padrão de leitura conhecido (Collection → Reference → subtipo). RLS: mesmo padrão de `collection_reference`, `SELECT` via join duplo até `collection.owner_user_id`. Arquivo em `database/schema/5052_create_collection_card_set_reference_table.sql`.
+
+## Query `5053` — Create Collection Card Set Reference `updated_at` Trigger (CONFIRMADO EXECUTADO)
+
+Arquivo em `database/schema/5053_create_collection_card_set_reference_updated_at_trigger.sql`.
+
+## Query `5054` — Create Collection Card Set Reference Structural Identity Trigger (CONFIRMADO EXECUTADO)
+
+Trigger `BEFORE UPDATE` bloqueando alteração de `collection_reference_id` (a PK, fechando explicitamente uma lacuna que o Postgres não recusa por si só). Arquivo em `database/schema/5054_create_collection_card_set_reference_structural_identity_trigger.sql`.
+
+## Query `5055` — Create Collection Card Set Reference Game and Lock Guard Trigger (CONFIRMADO EXECUTADO, v1.1)
+
+`validate_collection_card_set_reference_game_and_lock()`, `BEFORE INSERT OR UPDATE`, imediata. Duas garantias: integridade de Game (checagem em INSERT e UPDATE) e lock/lifecycle guard sobre `card_set_id` (só aceita troca com `reference_locked_at IS NULL` e `lifecycle_status = 'ACTIVE'`). v1.1 (endurecida antes da aplicação real, em `-STAGING-REVISION-01`) fecha o blocker Reference-after-lock também no INSERT do subtipo, espelhando 5056. Arquivo em `database/schema/5055_create_collection_card_set_reference_game_and_lock_trigger.sql`.
+
+## Query `5056` — Create Collection Reference Lifecycle Guard Trigger (CONFIRMADO EXECUTADO, v1.1)
+
+`validate_collection_reference_lifecycle_guard()`, `BEFORE INSERT OR DELETE`, imediata. Impede criar/remover uma Collection Reference enquanto a Collection não está `ACTIVE` (C-37); v1.1 fecha o mesmo blocker Reference-after-lock do lado do supertipo — no `INSERT`, se `reference_locked_at` já está definido, `FAIL`. `DELETE` em cascata (a própria Collection sendo excluída) continua funcionando, via o mesmo padrão "a linha pai ainda existe?" usado em todo o domínio. Arquivo em `database/schema/5056_create_collection_reference_lifecycle_guard_trigger.sql`.
+
+## Query `5057` — Create Collection Reference Consistency Trigger (CONFIRMADO EXECUTADO)
+
+`CREATE CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED`, dupla garantia diferida: `mode` ↔ presença de Reference, e supertipo ↔ subtipo (via a função auxiliar `check_collection_reference_subtype_consistency()`, reaproveitada pela Query 5058). Arquivo em `database/schema/5057_create_collection_reference_consistency_trigger.sql`.
+
+## Query `5058` — Create Collection Card Set Reference Consistency Trigger (CONFIRMADO EXECUTADO)
+
+Segundo lado do enforcement diferido de supertipo/subtipo, reagindo a eventos no subtipo (não no supertipo) — cobre `DELETE`/`UPDATE` direto em `collection_card_set_reference` que 5057 sozinha não detectaria. Arquivo em `database/schema/5058_create_collection_card_set_reference_consistency_trigger.sql`.
+
+## Query `5059` — Create Collection Reference Presence Trigger (CONFIRMADO EXECUTADO)
+
+Fecha a outra metade do enforcement `mode` ↔ Reference — o lado de `collection`: sem esta trigger, `INSERT INTO collection (mode = 'REFERENCE_BASED')` sem nunca inserir `collection_reference` na mesma transação nunca dispararia nenhum evento sobre a tabela vazia, e o COMMIT passaria silenciosamente. `AFTER INSERT` apenas (mode é imutável — 5061). Arquivo em `database/schema/5059_create_collection_reference_presence_trigger.sql`.
+
+## Query `5060` — Alter Collection: Widen `mode` and Unlock `reference_locked_at` (CONFIRMADO EXECUTADO)
+
+`chk_collection_mode` ampliada para incluir `'REFERENCE_BASED'`; `chk_collection_reference_locked_at_null` (travava o campo em `NULL` desde o 2B) removida. Aplicada na mesma transação em que 5049–5059 já haviam sido aplicadas antes — nenhuma janela onde `mode` aceita `REFERENCE_BASED` sem o enforcement completo já existir. Arquivo em `database/schema/5060_alter_collection_widen_mode_and_unlock_reference.sql`.
+
+## Query `5061`/`5032` v1.3 — Extensão da Collection Structural Identity Trigger (CONFIRMADO EXECUTADO)
+
+Estende `validate_collection_structural_identity()` (já canônica desde 5032/Incremento 2B, estendida uma vez em 5044/2C) com `mode` imutável e `reference_locked_at` (mesmo padrão de `started_at`, mais o barramento explícito por `mode` — só `REFERENCE_BASED` tem esse campo aplicável). Conteúdo incorporado ao arquivo canônico `database/schema/5032_create_collection_structural_identity_trigger.sql` (v1.3), não um arquivo `5061` isolado.
+
+## Query `5062`/`5045` v1.1 — Extensão da Collection `started_at`/`reference_locked_at` Materializer Trigger (CONFIRMADO EXECUTADO)
+
+Estende `materialize_collection_started_at()` (já canônica desde 5045/Incremento 2C) com o ramo de `reference_locked_at`, preservando `started_at` sem nenhuma mudança de comportamento. Conteúdo incorporado ao arquivo canônico `database/schema/5045_create_collection_started_at_from_allocation_trigger.sql` (v1.1).
+
+## Query `5063`/`5042` v1.2 — Extensão da Collection Allocation Integrity Trigger (CONFIRMADO EXECUTADO)
+
+Estende `validate_collection_allocation_integrity()` (já canônica desde 5042/Incremento 2C) com a quarta checagem — Elegibilidade de Reference. Conteúdo incorporado ao arquivo canônico `database/schema/5042_create_collection_allocation_integrity_trigger.sql` (v1.2).
+
+## Query `5064`/`5046` v1.2 — Extensão do `allocate_physical_cards_to_collection()` (CONFIRMADO EXECUTADO)
+
+Estende a função (já canônica desde 5046/Incremento 2C) com pré-validação amigável de Elegibilidade de Reference, simétrica à Query 5063. Nenhuma mudança de assinatura, contrato de retorno, teto de 500, deduplicação ou lock de concorrência já existentes. Conteúdo incorporado ao arquivo canônico `database/schema/5046_create_allocate_physical_cards_to_collection_function.sql` (v1.2).
+
+## Query `5065` — Create `create_reference_based_card_set_collection()` (CONFIRMADO EXECUTADO)
+
+Function `SECURITY DEFINER`, parâmetros `(p_game_id, p_name, p_description, p_default_storage_container_id, p_card_set_id)` — `owner_user_id`/`mode` nunca aceitos como parâmetro (`mode` sempre `'REFERENCE_BASED'`). Espelha `create_collection()` em toda validação já existente e adiciona a criação atômica de `collection` → `collection_reference` → `collection_card_set_reference` na mesma transação. Arquivo em `database/schema/5065_create_reference_based_card_set_collection_function.sql`.
+
+## Query `5066` — Create `set_collection_card_set_reference()` (CONFIRMADO EXECUTADO)
+
+Function `SECURITY DEFINER`, parâmetros `(p_collection_id, p_card_set_id)` — única via de troca de `card_set_id` antes do lock. `SELECT ... FOR UPDATE` com `owner_user_id = auth.uid()` no próprio `WHERE` (não-enumeração, mesmo padrão do domínio). Arquivo em `database/schema/5066_create_set_collection_card_set_reference_function.sql`.
+
+## Validação Funcional (5808 — 25 casos, 0 falhas)
+
+Bateria completa executada ao vivo com fixtures reversíveis (`BEGIN`/`ROLLBACK`, zero resíduo confirmado, incluindo checagem específica de nenhum `card_set` sintético sobrevivente): Casos A–F/J (criação REFERENCE_BASED atômica e suas rejeições), C/D (consistência supertipo/subtipo, incluindo bypass direto no subtipo), E (presença Reference no lado `collection`), G/H (mode imutável), I (reference_locked_at imutável/barrado por mode), K (Game da Reference diferente do Game da Collection → FAIL, via fixture sintético reversível — ver divergência de fixture abaixo), L (Card Set fora do Game → FAIL na criação), N (materialização real de `reference_locked_at`, timestamp exato confirmado), O–Q (imutabilidade/auditoria de `reference_locked_at`), R/S (elegibilidade de Reference — lote misto rejeitado, lote elegível aceito), T/U/V (lifecycle guard — ARCHIVED bloqueia criar/remover Reference, CASCADE via delete_collection funciona), W (troca de `card_set_id` antes do lock via 5066), X (existência/grants das 8 helpers + 2 RPCs), Z (blocker Reference-after-lock — assertion específica de `SQLERRM`, confirmando a mensagem exata de 5055/5056). Nenhuma falha em nenhum caso.
+
+**Três divergências de fixture identificadas e corrigidas durante a execução real** (nunca detectáveis em `CREATE FUNCTION`, só na primeira execução contra o catálogo real): (1) o catálogo real do Supabase está materialmente incompleto em relação ao que o fixture original do Caso K assumia — só 1 dos 2 Games (Pokémon TCG) tem qualquer Card Set carregado (Lorcana tem 9 Expansions reais, 0 Card Sets); corrigido por instrução explícita de Fabrício (`FIXTURE CORRECTION K`): reutilizar uma Expansion real de Lorcana já existente e inserir apenas o Card Set sintético mínimo *dentro da própria transação* (nunca sobrevive ao `ROLLBACK`), sem carregar catálogo Lorcana permanente; (2) a seleção de Card Sets para os Casos CS1/CS2 não checava existência de Card Variant — corrigido com `EXISTS` na seleção, mesma categoria de correção, sem dado sintético; (3) os Casos G/I/W liam uma TEMP TABLE de fixture *depois* de impersonar a role `authenticated` via `set_config('role', ...)` — TEMP TABLEs pertencem à role de conexão, não à role impersonada; corrigido movendo as leituras para o `DECLARE` (antes do `BEGIN`, portanto antes da troca de role). Nenhuma das três correções alterou modelagem 02D, migrations 5049–5066, regras de Game, catálogo permanente ou documentação de produto — escopo confirmado por Fabrício antes da correção do Caso K. Ver `database/proposals/2026-09-02-02d-reference/5808_validate_collections_physical_increment_02d.sql` (v2.4).
+
+## Performance (workloads reais de 200–500 operações)
+
+Cinco workloads medidos com `EXPLAIN (ANALYZE, BUFFERS)`/timing real sobre dados sintéticos reversíveis: 200 criações via `create_reference_based_card_set_collection()` — 117,5ms total/588µs média; 200 chamadas de `set_collection_card_set_reference()` (Fase A) — 106,7ms/533µs média; flush de 200 (Fase B) — 62,4ms/312µs média; 200 trocas reais CS1→CS2 — 66,2ms total/331µs média; plano `EXPLAIN ANALYZE` da consulta de elegibilidade de Reference (JOIN `physical_card`→`card_variant`→`card`→`collection`→`collection_reference`→`collection_card_set_reference`) — 6,117ms, 13 linhas; `allocate_physical_cards_to_collection()` sobre 13 cartas elegíveis — 30,7ms. Nenhuma alegação de performance para volumes maiores que os medidos. Ver `database/proposals/2026-09-02-02d-reference/5809_performance_checks_collections_physical_increment_02d.sql` (v2.2).
+
+## Segurança (Security/Performance Advisor)
+
+Performance Advisor: uma nova ocorrência `unindexed_foreign_keys` (INFO) em `collection_card_set_reference_card_set_id_fkey` — mesma categoria de dezenas de outras FKs sem índice já pré-existentes no projeto, não um achado exclusivo desta rodada nem corrigido (nenhum padrão de acesso que o justifique, mesmo raciocínio já aplicado em 5052). Security Advisor: nenhum finding novo fora da categoria intencional já aceita para toda RPC `SECURITY DEFINER` `Owner`-scoped do domínio (`authenticated_security_definer_function_executable` WARN, confirmado presente para as duas RPCs novas — 5065/5066 — e confirmado **ausente** para todas as funções internas de trigger/helper desta rodada, ou seja, zero vazamento de `EXECUTE`). Nenhum finding novo de `rls_enabled_no_policy`, `function_search_path_mutable` ou qualquer outra categoria atribuível a este incremento.
+
+## Sequência
+
+```text
+5049 - Create Collection Reference table                          (CONFIRMADO EXECUTADO — database/schema/5049_create_collection_reference_table.sql)
+5050 - Create Collection Reference updated_at trigger               (CONFIRMADO EXECUTADO — database/schema/5050_create_collection_reference_updated_at_trigger.sql)
+5051 - Create Collection Reference Structural Identity trigger       (CONFIRMADO EXECUTADO — database/schema/5051_create_collection_reference_structural_identity_trigger.sql)
+5052 - Create Collection Card Set Reference table                   (CONFIRMADO EXECUTADO — database/schema/5052_create_collection_card_set_reference_table.sql)
+5053 - Create Collection Card Set Reference updated_at trigger        (CONFIRMADO EXECUTADO — database/schema/5053_create_collection_card_set_reference_updated_at_trigger.sql)
+5054 - Create Collection Card Set Reference Structural Identity trigger (CONFIRMADO EXECUTADO — database/schema/5054_create_collection_card_set_reference_structural_identity_trigger.sql)
+5055 - Create Collection Card Set Reference Game and Lock trigger (v1.1) (CONFIRMADO EXECUTADO — database/schema/5055_create_collection_card_set_reference_game_and_lock_trigger.sql)
+5056 - Create Collection Reference Lifecycle Guard trigger (v1.1)    (CONFIRMADO EXECUTADO — database/schema/5056_create_collection_reference_lifecycle_guard_trigger.sql)
+5057 - Create Collection Reference Consistency trigger               (CONFIRMADO EXECUTADO — database/schema/5057_create_collection_reference_consistency_trigger.sql)
+5058 - Create Collection Card Set Reference Consistency trigger      (CONFIRMADO EXECUTADO — database/schema/5058_create_collection_card_set_reference_consistency_trigger.sql)
+5059 - Create Collection Reference Presence trigger                  (CONFIRMADO EXECUTADO — database/schema/5059_create_collection_reference_presence_trigger.sql)
+5060 - Alter Collection: widen mode / unlock reference_locked_at    (CONFIRMADO EXECUTADO — database/schema/5060_alter_collection_widen_mode_and_unlock_reference.sql)
+5061 - Extensão da Structural Identity trigger (dobra em 5032 v1.3)  (CONFIRMADO EXECUTADO — database/schema/5032_create_collection_structural_identity_trigger.sql)
+5062 - Extensão do started_at/reference_locked_at Materializer (dobra em 5045 v1.1) (CONFIRMADO EXECUTADO — database/schema/5045_create_collection_started_at_from_allocation_trigger.sql)
+5063 - Extensão da Allocation Integrity trigger (dobra em 5042 v1.2) (CONFIRMADO EXECUTADO — database/schema/5042_create_collection_allocation_integrity_trigger.sql)
+5064 - Extensão do allocate_physical_cards_to_collection() (dobra em 5046 v1.2) (CONFIRMADO EXECUTADO — database/schema/5046_create_allocate_physical_cards_to_collection_function.sql)
+5065 - Create create_reference_based_card_set_collection() function (CONFIRMADO EXECUTADO — database/schema/5065_create_reference_based_card_set_collection_function.sql)
+5066 - Create set_collection_card_set_reference() function           (CONFIRMADO EXECUTADO — database/schema/5066_create_set_collection_card_set_reference_function.sql)
+5808 - Validate Collections Physical Increment 02D (25 casos, v2.4) (EXECUTADA — database/proposals/2026-09-02-02d-reference/5808_validate_collections_physical_increment_02d.sql)
+5809 - Performance Checks Collections Physical Increment 02D (v2.2) (EXECUTADA — database/proposals/2026-09-02-02d-reference/5809_performance_checks_collections_physical_increment_02d.sql)
+```
+
+## Pendências / Próximos Passos
+
+Nenhuma superfície de frontend construída nesta rodada — fundação exclusivamente de banco. `completion_policy` (LDM-08) permanece deferida a um incremento posterior (02E), sem nenhum campo criado para ela nesta rodada. `collection_pokedex_reference` (segundo subtipo, `reference_kind = 'POKEDEX'`) permanece fora de escopo — Pokédex/Pokédex Position nem existem fisicamente ainda; o desenho supertipo/subtipo já acomoda essa extensão futura sem migration destrutiva. `set_collection_visibility()`/Public Access seguem fora desde o 2B. Layout/Slot/Placement, Custody & Availability, Lifecycle/Provenance, Favorite, Wishlist, Condition, Grading/Certification, Collaboration/Permissions e Activity History/Audit seguem sem modelo físico.
+
+---
+
 # User Profile (Perfil de Usuário) / Reserved Username
 
 ## Status
@@ -660,5 +833,6 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.0 | Criação deste documento (2026-08-06), resultado da divisão de `05-modelo-de-dados.md` por área de domínio. Conteúdo inicial: seções placeholder de Physical Card e Collection/Collection Entry ("Documentação pendente"), mais o conteúdo físico completo (já existente antes da divisão) de User Profile/Reserved Username e Administração de Usuários. |
 | 1.1 | **Fundação física de Inventory + Physical Card CONFIRMADO EXECUTADO (2026-08-31, `COLLECTIONS-PHYSICAL-INCREMENT-01B`).** Seção "Physical Card (Exemplar Físico)" substituída por "Physical Card (Exemplar Físico) / Inventory", com Status/Decisão de Modelagem/Modelo Físico completos das seis Queries `5000`–`5012` (tabelas `inventory`/`physical_card`, triggers de `updated_at`, provisionamento automático + backfill consolidados, RPC bulk-first `add_physical_cards()`), Sequência e Pendências. Precedida por três rodadas de modelagem física sem alteração de banco e uma rodada de staging auditada (`database/proposals/2026-08-31-collections-physical-increment-01a/`, agora histórica). Validação funcional/segurança de 23 itens e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5800_...`/`5801_...`. Nenhuma divergência entre o modelo conceitual (`concept-decisions.md` C-47/C-48, `logical-model.md` LDM-23) e o físico aplicado encontrada; nenhuma das duas foi alterada nesta rodada. Seção Collection/Collection Entry permanece "Documentação pendente" — fora de escopo. Ver `docs/log.md`. |
 | 1.2 | **Fundação física de Storage/Storage Container CONFIRMADO EXECUTADO (2026-09-01, `COLLECTIONS-PHYSICAL-INCREMENT-02A-IMPLEMENTATION-01`).** Nova seção "Storage / Storage Container" inserida entre "Physical Card (Exemplar Físico) / Inventory" e "Collection (Coleção) / Collection Entry", com Status/Decisão de Modelagem/Modelo Físico completos das cinco Queries `5020`–`5024` (tabela `storage_container`, trigger de `updated_at`, RPC `create_storage_container()`, `physical_card.storage_container_id` + FK composta `(id, inventory_id)` + CHECK complementar, RPC bulk-first `set_physical_cards_storage()` cobrindo o ciclo de vida 0..1 completo incluindo limpeza via `NULL`), Sequência e Pendências. Precedida por quatro rodadas de modelagem física sem alteração de banco (`COLLECTIONS-PHYSICAL-MODELING-03`/`-REVISION-01`/`-REVISION-02`/`-FINAL-01`) e uma rodada de staging auditada com correção (`database/proposals/2026-08-31-02a-storage/`, agora histórica). Validação funcional/segurança de 19 itens (casos A–J) e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5802_...`/`5803_...`. Achado de modelagem registrado nesta rodada: FK composta sob `MATCH SIMPLE` não cobre `storage_container_id` preenchido com `inventory_id` NULL — fechado com CHECK complementar, sem reabrir a decisão conceitual (C-61/LDM-49). Nenhuma decisão conceitual/lógica reaberta — `logical-model.md` recebeu apenas nota de materialização física (LDM-45/46/49), versão 1.15. Seção Collection/Collection Entry permanece "Documentação pendente" — fora de escopo. Ver `docs/log.md`. |
-| 1.3 | **Skeleton físico de Collection + Default Storage CONFIRMADO EXECUTADO (2026-09-01, `COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01`).** Seção "Collection (Coleção) / Collection Entry" ("Documentação pendente") substituída por "Collection (Coleção)", com Status/Decisão de Modelagem/Modelo Físico completos das dez Queries `5030`–`5039` (tabela `collection` com ownership direto por `owner_user_id` + 6 CHECKs, triggers de `updated_at`/Structural Identity/Default Storage Owner, seis RPCs `create_collection()`/`update_collection_metadata()`/`set_collection_default_storage()`/`archive_collection()`/`reactivate_collection()`/`delete_collection()`), Performance, Sequência e Pendências. Precedida por três rodadas de modelagem física sem alteração de banco (`-MODELING-01`/`-REVISION-01`/`-FINAL-01`), uma rodada de correção de concorrência/idempotência ainda em staging (`-STAGING-REVISION-01`) e uma rodada de staging auditado (`database/proposals/2026-08-31-02b-collection/`, agora histórica). Validação funcional/segurança (21+ casos) e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5804_...`/`5805_...`. Três achados reais corrigidos no mesmo ciclo, nunca detectáveis antes da execução real: (1) `game.is_active` nunca existiu fisicamente — checagem removida de `create_collection()`, decisão de Fabrício, sem ampliar escopo de Catálogo; (2) referência ambígua `id`/`lifecycle_status` entre coluna de tabela e parâmetro OUT de `RETURNS TABLE` em `UPDATE`/`DELETE` sem qualificação — corrigida em todas as RPCs afetadas; (3) as duas trigger functions nunca tiveram `EXECUTE` revogado de `PUBLIC`/`anon` (achado do Supabase Advisor) — corrigido com `REVOKE` explícito. Nenhuma decisão conceitual/lógica reaberta. `delete_collection()` explicitamente marcado para revisão obrigatória no Incremento 2C (guarda de C-13 via `collection_allocation`). Ver `docs/log.md`. |
+| 1.3 | **Skeleton físico de Collection + Default Storage CONFIRMADO EXECUTADO (2026-09-01, `COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01`).** Seção "Collection (Coleção) / Collection Entry" ("Documentação pendente") substituída por "Collection (Coleção)", com Status/Decisão de Modelagem/Modelo Físico completos das dez Queries `5030`–`5039` (tabela `collection` com ownership direto por `owner_user_id` + 6 CHECKs, triggers de `updated_at`/Structural Identity/Default Storage Owner, seis RPCs `create_collection()`/`update_collection_metadata()`/`set_collection_default_storage()`/`archive_collection()`/`reactivate_collection()`/`delete_collection()`), Performance, Sequência e Pendências. Precedida por três rodadas de modelagem física sem alteração de banco (`-MODELING-01`/`-REVISION-01`/`-FINAL-01`), uma rodada de correção de concorrência/idempotência ainda em staging (`-STAGING-REVISION-01`) e uma rodada de staging auditado (`database/proposals/2026-08-31-02b-collection/`, agora histórica). Validação funcional/segurança (21+ casos) e plano de performance sob 20.000 linhas, ambos executados ao vivo — ver `database/validations/5804_...`/`5805_...`. Três achados reais corrigidos no mesmo ciclo, nunca detectáveis antes da execução real: (1) `game.is_active` nunca existiu fisicamente — checagem removida de `create_collection()`, decisão de Fabrício, sem ampliar escopo de Catálogo; (2) referência ambígua `id`/`lifecycle_status` entre coluna de tabela e parâmetro OUT de `RETURNS TABLE` em `UPDATE`/`DELETE` sem qualificação — corrigida em todas as RPCs afetadas; (3) as duas trigger functions nunca tiveram `EXECUTE` revogado de `PUBLIC`/`anon` (achado do Supabase Advisor) — corrigido com `REVOKE` explícito. Nenhuma decisão conceitual/lógica reaberta. `delete_collection()` explicitamente marcado para revisão obrigatória no Incremento 2C (guarda de C-13 via `collection_allocation`). Ver `docs/log.md`. **Nota de campo (2026-09-02):** o campo "Versão" do cabeçalho deste documento não foi atualizado quando o Incremento 2C (Collection Allocation) foi consolidado na Revision `1.3`→(2C) — a seção "Collection Allocation" já existia completa no corpo do documento, mas sem entrada própria nesta tabela nem bump do campo "Versão". Divergência de campo sinalizada e corrigida nesta rodada (2D, Revision `1.4`, ver abaixo) sem reabrir ou reescrever o conteúdo já existente do 2C. |
+| 1.4 | **Física de Collection Reference / Card Set Reference CONFIRMADO EXECUTADO (2026-09-02, `COLLECTIONS-PHYSICAL-INCREMENT-02D-IMPLEMENTATION-01`).** Nova seção "Collection Reference / Card Set Reference" inserida entre "Collection Allocation" e "User Profile (Perfil de Usuário) / Reserved Username", com Status/Decisão de Modelagem/Modelo Físico completos das dezoito Queries `5049`–`5066` (tabelas `collection_reference`/`collection_card_set_reference` — supertipo/subtipo com CASCADE composicional —, `mode = 'REFERENCE_BASED'` liberado fisicamente, `reference_locked_at` destravado e materializado, dois constraint triggers `DEFERRABLE INITIALLY DEFERRED` para as garantias transacionais `mode`↔Reference e supertipo↔subtipo, guard imediato de Reference-antes-da-primeira-Allocation, integridade de Game e elegibilidade de Reference sobre Allocation, duas RPCs novas `create_reference_based_card_set_collection()`/`set_collection_card_set_reference()`), Validação Funcional, Performance, Segurança, Sequência e Pendências. Precedida por duas rodadas de modelagem física sem alteração de banco (`-MODELING-01`/`-REVISION-01`/`-FINAL-01`) e duas rodadas de staging auditado em `database/proposals/2026-09-02-02d-reference/` (`-STAGING-REVISION-01` — fechou o blocker de Reference-after-lock antes da aplicação real; `-STAGING-FINAL-FIX-01` — três correções pontuais de fixture de validação). Validação funcional de 25 casos (A–Z, 0 falhas) e performance real sob workloads de 200–500 operações, ambos executados ao vivo — ver `database/proposals/2026-09-02-02d-reference/5808_...`(v2.4)/`5809_...`(v2.2). Três divergências de fixture (não de produto) identificadas e corrigidas durante a execução real, detalhadas na seção "Validação Funcional" acima — nenhuma alterou modelagem 02D, migrations 5049–5066, regras de Game, catálogo permanente ou documentação de produto. Nenhuma decisão conceitual/lógica reaberta. `completion_policy` permanece deferida a um incremento posterior (02E). Ver `docs/log.md`. |
 

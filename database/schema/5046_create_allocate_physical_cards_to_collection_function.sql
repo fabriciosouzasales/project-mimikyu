@@ -2,11 +2,15 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 5046 - Create allocate_physical_cards_to_collection Function
-Versão......: 1.1
+Versão......: 1.2 (estendida em 2026-09-02, aplicada em 2026-09-02, via
+               Query 5064, COLLECTIONS-PHYSICAL-INCREMENT-02D-
+               IMPLEMENTATION-01)
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-01 (aplicado em 2026-09-02,
-               COLLECTIONS-PHYSICAL-INCREMENT-02C-IMPLEMENTATION-01)
+               COLLECTIONS-PHYSICAL-INCREMENT-02C-IMPLEMENTATION-01;
+               estendida em 2026-09-02, via Query 5064, COLLECTIONS-
+               PHYSICAL-INCREMENT-02D-IMPLEMENTATION-01)
 
 Descrição...:
 Cria allocate_physical_cards_to_collection(p_collection_id,
@@ -82,11 +86,32 @@ Regras de Negócio:
   5045 (materialização de started_at) como parte da mesma transação;
 - EXECUTE revogado de PUBLIC/anon; concedido apenas a authenticated.
 
+EXTENSÃO (Query 5064, COLLECTIONS-PHYSICAL-INCREMENT-02D-
+IMPLEMENTATION-01). Extensão de regra sobre esta função (CREATE OR
+REPLACE, mesma assinatura/contrato de retorno/teto de 500/deduplicação
+/fail-closed de "já alocada"/lock de concorrência já existentes —
+extensão pura), mesma instrução de -MODELING-FINAL-01, item 6, já
+citada no cabeçalho de 5063. Adiciona uma pré-validação amigável de
+elegibilidade de Reference, simétrica à checagem estrutural da Query
+5063: quando a Collection é REFERENCE_BASED com Card Set Reference,
+todo physical_card_id do lote deve ter Card pertencente ao card_set_id
+referenciado. Fail-closed preservado — mesmo raciocínio de "uma ou
+mais... rejeitado" já usado para a checagem de Owner/Game existente.
+Resolvida com uma única consulta adicional, reaproveitando
+v_collection_game/v_lifecycle_status já obtidos pelo SELECT ... FOR
+UPDATE original (nenhuma segunda leitura de collection): busca o
+Collection Reference/Card Set Reference da Collection (0 ou 1 linha,
+LEFT JOIN), e só aplica a checagem quando existir. Segunda camada de
+defesa: a checagem estrutural equivalente já existe em validate_
+collection_allocation_integrity() (Query 5063, trigger independente de
+RPC) — esta é só a mensagem amigável antecipada, não a garantia de
+fundo. Validado em execução real (5808, Casos R/S).
+
 STATUS DESTA QUERY: CONFIRMADO EXECUTADO.
 ================================================================
 */
 
-CREATE FUNCTION public.allocate_physical_cards_to_collection(
+CREATE OR REPLACE FUNCTION public.allocate_physical_cards_to_collection(
     p_collection_id      UUID,
     p_physical_card_ids  UUID[]
 )
@@ -100,13 +125,17 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-    v_inventory_id     UUID;
-    v_collection_game  UUID;
-    v_lifecycle_status TEXT;
-    v_distinct_ids     UUID[];
-    v_raw_count        INT;
-    v_owned_count      INT;
-    v_already_count    INT;
+    v_inventory_id       UUID;
+    v_collection_game    UUID;
+    v_lifecycle_status   TEXT;
+    v_collection_mode    TEXT;
+    v_reference_kind     TEXT;
+    v_reference_card_set UUID;
+    v_distinct_ids       UUID[];
+    v_raw_count          INT;
+    v_owned_count        INT;
+    v_already_count      INT;
+    v_eligible_count     INT;
 BEGIN
     IF auth.uid() IS NULL THEN
         RAISE EXCEPTION 'authentication required';
@@ -125,8 +154,8 @@ BEGIN
     SELECT array_agg(DISTINCT x) INTO v_distinct_ids
     FROM unnest(p_physical_card_ids) AS x;
 
-    SELECT col.game_id, col.lifecycle_status
-    INTO v_collection_game, v_lifecycle_status
+    SELECT col.game_id, col.lifecycle_status, col.mode
+    INTO v_collection_game, v_lifecycle_status, v_collection_mode
     FROM public.collection col
     WHERE col.id = p_collection_id
       AND col.owner_user_id = auth.uid()
@@ -160,6 +189,29 @@ BEGIN
 
     IF v_owned_count <> array_length(v_distinct_ids, 1) THEN
         RAISE EXCEPTION 'uma ou mais physical_card_ids não pertencem ao inventory do chamador ou ao Game da Collection';
+    END IF;
+
+    -- Elegibilidade de Reference (LDM-17): só se aplica quando a
+    -- Collection é REFERENCE_BASED e tem Card Set Reference — 0 linhas
+    -- para OPEN_CURATION, por causa do LEFT JOIN.
+    SELECT cr.reference_kind, ccsr.card_set_id
+    INTO v_reference_kind, v_reference_card_set
+    FROM public.collection_reference cr
+    LEFT JOIN public.collection_card_set_reference ccsr
+        ON ccsr.collection_reference_id = cr.id
+    WHERE cr.collection_id = p_collection_id;
+
+    IF v_collection_mode = 'REFERENCE_BASED' AND v_reference_kind = 'CARD_SET' THEN
+        SELECT count(*) INTO v_eligible_count
+        FROM public.physical_card pc
+        JOIN public.card_variant cv ON cv.id = pc.card_variant_id
+        JOIN public.card ca ON ca.id = cv.card_id
+        WHERE pc.id = ANY(v_distinct_ids)
+          AND ca.card_set_id = v_reference_card_set;
+
+        IF v_eligible_count <> array_length(v_distinct_ids, 1) THEN
+            RAISE EXCEPTION 'uma ou mais physical_card_ids não pertencem ao Card Set referenciado pela Collection';
+        END IF;
     END IF;
 
     SELECT count(*) INTO v_already_count
