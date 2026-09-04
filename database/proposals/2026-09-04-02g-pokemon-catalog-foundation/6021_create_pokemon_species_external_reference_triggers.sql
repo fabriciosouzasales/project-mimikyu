@@ -1,0 +1,93 @@
+/*
+===============================================================================
+Projeto.....: Project Mimikyu
+Query.......: 6021 - Pokemon Species External Reference Triggers
+Versão......: 1.0
+Status......: PROPOSTA (staging — aguardando execução)
+Autor.......: Fabrício Sales / Claude
+Data........: 2026-09-04
+
+Descrição...:
+Normalização, governança de identidade e updated_at para
+pokemon_species_external_reference (Query 6020). Mesmo padrão de três
+triggers de card_set_external_reference (Query 241) — mesmos cinco
+campos protegidos (id, FK para a entidade pai, FK para a Fonte,
+identificador externo, created_at).
+
+Pré-requisitos:
+- Query 6020 - Create Pokemon Species External Reference Table.
+===============================================================================
+*/
+
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.normalize_pokemon_species_external_reference()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    NEW.external_species_id := BTRIM(NEW.external_species_id);
+    IF NEW.source_url IS NOT NULL THEN
+        NEW.source_url := NULLIF(BTRIM(NEW.source_url), '');
+    END IF;
+    NEW.metadata := COALESCE(NEW.metadata, '{}'::JSONB);
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.govern_pokemon_species_external_reference()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    IF NEW.id IS DISTINCT FROM OLD.id THEN
+        RAISE EXCEPTION 'POKEMON_SPECIES_EXTERNAL_REFERENCE_ID_IMMUTABLE';
+    END IF;
+    IF NEW.pokemon_species_id IS DISTINCT FROM OLD.pokemon_species_id THEN
+        RAISE EXCEPTION 'POKEMON_SPECIES_EXTERNAL_REFERENCE_SPECIES_IMMUTABLE';
+    END IF;
+    IF NEW.asset_source_id IS DISTINCT FROM OLD.asset_source_id THEN
+        RAISE EXCEPTION 'POKEMON_SPECIES_EXTERNAL_REFERENCE_ASSET_SOURCE_IMMUTABLE';
+    END IF;
+    IF NEW.external_species_id IS DISTINCT FROM OLD.external_species_id THEN
+        RAISE EXCEPTION 'POKEMON_SPECIES_EXTERNAL_REFERENCE_EXTERNAL_ID_IMMUTABLE';
+    END IF;
+    IF NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'POKEMON_SPECIES_EXTERNAL_REFERENCE_CREATED_AT_IMMUTABLE';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.touch_pokemon_species_external_reference_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_010_normalize_pokemon_species_external_reference
+BEFORE INSERT OR UPDATE
+ON public.pokemon_species_external_reference
+FOR EACH ROW
+EXECUTE FUNCTION public.normalize_pokemon_species_external_reference();
+
+CREATE TRIGGER trg_020_govern_pokemon_species_external_reference
+BEFORE UPDATE
+ON public.pokemon_species_external_reference
+FOR EACH ROW
+EXECUTE FUNCTION public.govern_pokemon_species_external_reference();
+
+CREATE TRIGGER trg_030_touch_pokemon_species_external_reference_updated_at
+BEFORE UPDATE
+ON public.pokemon_species_external_reference
+FOR EACH ROW
+EXECUTE FUNCTION public.touch_pokemon_species_external_reference_updated_at();
+
+COMMIT;
