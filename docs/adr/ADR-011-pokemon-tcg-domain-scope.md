@@ -77,6 +77,24 @@ Durante a modelagem física da Card (`04-domain-model.md`, "Modelagem Física �
 
 Consequência prática: a arquitetura `Card → Card Details → Pokémon Card Details / Trainer Card Details` definida nesta ADR **permanece válida como padrão estrutural** (separação entre o Catalog Domain genérico e o Pokémon TCG Domain específico), mas seu conteúdo concreto de mecânica de jogo — que este documento originalmente atribuía a "Pokémon Card Details" — fica indefinidamente vazio/adiado, não apenas para a primeira versão. A entidade Pokémon mínima (`id`, `national_dex_number`, `canonical_name`) também deixa de ser um item planejado para a primeira versão da Card — permanece como possibilidade futura, apenas se e quando uma necessidade concreta de identificação/pesquisa/agrupamento surgir (mesmo critério de escopo já definido acima, agora reforçado por AP-017).
 
+## Atualização — Revogação do Adiamento da Entidade Pokémon / Registro de Pokémon Species (v1.2, 2026-09-03)
+
+> ⚠️ Esta seção **revoga parcialmente** a atualização anterior (v1.1, acima). Texto de v1.1 preservado inalterado por rastreabilidade — não editado, apenas superado no ponto específico indicado abaixo.
+
+A necessidade concreta que v1.1 previa como condição para reverter o adiamento ("apenas se e quando uma necessidade concreta de identificação/pesquisa/agrupamento surgir") se materializou: a frente Collections Pokédex / `REFERENCE_POSITION` (cadeia de rodadas `COLLECTIONS-POKEDEX-MODELING-AUDIT-01` → `COLLECTIONS-POKEDEX-DATA-SOURCE-SPIKE-01` → `COLLECTIONS-POKEDEX-TCGDEX-DEXID-PROOF-01` → `COLLECTIONS-POKEDEX-MODELING-RECONCILIATION-01` → `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`) depende estruturalmente de uma identidade de espécie para funcionar: uma Pokédex Position representa uma espécie, não uma Card; a Completion de uma Collection Pokédex é contada por espécie; e uma fonte de dados real e viável para essa identidade (PokéAPI, complementada por reconciliação editorial MMKYU) foi confirmada empiricamente (ver `COLLECTIONS-POKEDEX-DATA-SOURCE-SPIKE-01` e `COLLECTIONS-POKEDEX-TCGDEX-DEXID-PROOF-01`).
+
+**Decisão desta atualização:**
+
+1. **O adiamento da entidade Pokémon mínima, registrado em v1.1, é revogado.** A entidade volta a ser um conceito ativo do domínio Pokémon TCG desta ADR — não mais "possibilidade futura sem necessidade concreta", mas necessidade concreta já confirmada e documentada em `docs/domain-modeling/collections/logical-model.md` (bloco LDM-175 a LDM-185).
+2. **O adiamento de mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio), também registrado em v1.1 e formalizado por AP-017, permanece integralmente em vigor.** Esta revogação é específica à existência da entidade de identidade; não reabre a decisão de AP-017 sobre estrutura de jogo, que continua fora de escopo.
+3. **Convergência terminológica**: a entidade passa a ser chamada **Pokémon Species** (não apenas "Pokémon"), para distinguir explicitamente a identidade de espécie/personagem (o que este documento sempre pretendeu — `id`, `national_dex_number`/`pokedex_numbers`, `canonical_name`) do domínio de jogo completo dos videogames, que permanece fora de escopo. Esta nomenclatura converge com o vocabulário da fonte de dados adotada (PokéAPI: `pokemon-species`). Dois conceitos subordinados são registrados junto com Pokémon Species, ambos também fora de escopo de mecânica de jogo:
+   - **Generation** — a geração de introdução da espécie (ex.: Kanto/Generation I); Pokémon Species possui exatamente uma Generation de introdução.
+   - **Pokémon Form / Variety** — variação visual/regional de uma Pokémon Species (ex.: Alolan Form, Mega, forma regional); subordinada à Species, não cria uma nova identidade de completion nem deve ser confundida com Card Variant (que é uma propriedade da Card, não da espécie).
+4. **Sourcing**: PokéAPI é a fonte estruturada para Pokémon Species/Generation/Form-Variety/Pokédex/Position; TCGdex (já integrada ao catálogo MMKYU) é a fonte de Card/`dexId`; reconciliação editorial MMKYU resolve os casos em que `dexId` é múltiplo ou ausente. Nenhuma API externa é dependência de runtime — consistente com ADR-008; o catálogo interno do Project Mimikyu permanece a autoridade em tempo de execução.
+5. O critério de escopo original desta ADR — "uma informação sobre Pokémon só entra no Project Mimikyu quando for necessária para identificar, pesquisar, agrupar ou analisar Cards e coleções" — **não é alterado**; esta atualização apenas confirma que esse critério foi atendido para a identidade mínima de espécie, não abre a porta para dados de jogo.
+
+A modelagem lógica completa de Pokémon Species/Generation/Form-Variety e sua relação com Pokédex Position, Position Assignment e Completion está em `docs/domain-modeling/collections/logical-model.md` (LDM-175 a LDM-185) — não duplicada aqui. Estrutura física (tabelas, colunas) **não iniciada** — próximo checkpoint da frente Collections é "POKEDEX PHYSICAL MODELING".
+
 ---
 
 # Alternatives Considered
@@ -96,6 +114,9 @@ Rejeitada por impedir relacionar todas as Cards que representam o mesmo Pokémon
 - `../04-domain-model.md`
 - `ADR-003-multi-game-architecture.md`
 - `../02-architecture-principles.md`
+- `ADR-008-external-catalog-data-sources.md`
+- `../domain-modeling/collections/logical-model.md` (LDM-175 a LDM-185)
+- `../05d-colecoes-e-usuarios.md`
 
 ---
 
@@ -105,3 +126,4 @@ Rejeitada por impedir relacionar todas as Cards que representam o mesmo Pokémon
 |---------|-----------|
 | 1.0 | Registro da decisão de escopo do domínio Pokémon TCG, com entidade Pokémon mínima e separação do módulo específico do Pokémon TCG do núcleo genérico multi-TCG. |
 | 1.1 | Adicionada "Atualização — Escopo de Pokémon Card Details Esvaziado": Fabrício determinou diretamente que mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio) não deve ser estruturada, formalizado em AP-017. O padrão Card Details/Pokémon Card Details/Trainer Card Details permanece válido como arquitetura, mas sem conteúdo de jogo planejado; a entidade Pokémon mínima deixa de ser item da primeira versão da Card. |
+| 1.2 | **Revogação do adiamento da entidade Pokémon, 2026-09-03** (`COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`). Adicionada "Atualização — Revogação do Adiamento da Entidade Pokémon / Registro de Pokémon Species (v1.2)": a condição que v1.1 estabelecia para reverter o adiamento ("necessidade concreta de identificação/pesquisa/agrupamento") se confirmou com a frente Collections Pokédex/`REFERENCE_POSITION` (ver `docs/domain-modeling/collections/logical-model.md`, LDM-175 a LDM-185). Entidade renomeada para **Pokémon Species** (convergência com PokéAPI), com **Generation** e **Pokémon Form/Variety** registrados como conceitos subordinados. Sourcing formalizado: PokéAPI (Species/Generation/Form/Pokédex) + TCGdex (Card/`dexId`, já integrada) + reconciliação editorial MMKYU, sem dependência de runtime (consistente com ADR-008). O adiamento de mecânica de jogo (AP-017) **não é afetado** — permanece integralmente em vigor. Texto de v1.0/v1.1 preservado inalterado. Nenhuma estrutura física criada nesta rodada. |

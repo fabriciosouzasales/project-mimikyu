@@ -5,8 +5,8 @@
 | **Documento** | Collection — Logical Data Model (Checkpoint Lógico) |
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico); LDM-79 a LDM-90 (bloco complementar Wishlist, 2026-08-30, sem skeleton físico); LDM-91 a LDM-108 (bloco complementar Physical Card Condition, 2026-08-30, sem skeleton físico); LDM-109 a LDM-128 (bloco complementar Grading / Certification, 2026-08-30, sem skeleton físico); LDM-129 a LDM-153 (bloco complementar Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico); LDM-154 a LDM-174 (bloco complementar Collection Activity History / Audit, 2026-08-30, sem skeleton físico) |
-| **Status** | Checkpoint lógico em evolução — modelo físico iniciado em 2026-08-31 (Inventory + Physical Card, LDM-23 core skeleton, CONFIRMADO EXECUTADO) e estendido em 2026-09-01 (Storage Container + `physical_card.storage_container_id`, LDM-44/LDM-45/LDM-46/LDM-49 primeira materialização física, CONFIRMADO EXECUTADO; Collection root, LDM-12 primeira materialização física, CONFIRMADO EXECUTADO; demais frentes NOT STARTED) |
+| **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico); LDM-79 a LDM-90 (bloco complementar Wishlist, 2026-08-30, sem skeleton físico); LDM-91 a LDM-108 (bloco complementar Physical Card Condition, 2026-08-30, sem skeleton físico); LDM-109 a LDM-128 (bloco complementar Grading / Certification, 2026-08-30, sem skeleton físico); LDM-129 a LDM-153 (bloco complementar Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico); LDM-154 a LDM-174 (bloco complementar Collection Activity History / Audit, 2026-08-30, sem skeleton físico); LDM-175 a LDM-185 (bloco complementar Pokédex / REFERENCE_POSITION, 2026-09-03, sem skeleton físico — supersede LDM-16 e a cláusula Pokédex de LDM-17) |
+| **Status** | Checkpoint lógico em evolução — modelo físico iniciado em 2026-08-31 (Inventory + Physical Card, LDM-23 core skeleton, CONFIRMADO EXECUTADO) e estendido em 2026-09-01 (Storage Container + `physical_card.storage_container_id`, LDM-44/LDM-45/LDM-46/LDM-49 primeira materialização física, CONFIRMADO EXECUTADO; Collection root, LDM-12 primeira materialização física, CONFIRMADO EXECUTADO; demais frentes NOT STARTED). Pokédex / REFERENCE_POSITION (LDM-175 a LDM-185): **CONCEPTUALLY CLOSED em 2026-09-03**, PHYSICAL MODELING NOT STARTED. |
 | **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69), desde 2026-08-30 de `Favorite` (User↔Card, sem skeleton físico — ver LDM-70 a LDM-78), desde 2026-08-30 de `Wishlist` (User↔Card Variant, sem skeleton físico — ver LDM-79 a LDM-90), desde 2026-08-30 de `Physical Card Condition` (sem skeleton físico — ver LDM-91 a LDM-108), desde 2026-08-30 de `Grading`/`Certification` (sem skeleton físico — ver LDM-109 a LDM-128), e desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Membership, roles EDITOR/VIEWER, sem skeleton físico — ver LDM-129 a LDM-153), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas distintas — Lifecycle/Provenance, Activity History, Audit —, sem skeleton físico — ver LDM-154 a LDM-174) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-48, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
@@ -271,18 +271,18 @@ Collection Pokédex Scope
 
 Each position may be adopted at most once. Adoption metadata preserves when/by whom it entered the objective. Pokédex and Pokédex Position belong to their canonical domain, not Collection.
 
-**Status:** APPROVED
+**Status:** SUPERSEDED (2026-09-03, `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`) — ver LDM-177. O mecanismo de Scope por adoção individual de Position como verdade primária (`Collection Pokédex Scope` acima) é substituído por Scope declarado (`FULL_REFERENCE`/`GENERATION_FILTERED`) do qual as Positions adotadas são **derivadas**, nunca selecionadas uma a uma. Texto original preservado abaixo, integralmente, por rastreabilidade — não implementar a partir daqui.
 
 ## LDM-17 — Physical Card Eligibility
 Eligibility validates only the canonical universe; there is no arbitrary user-defined rule engine.
 
 - Open Curation: no canonical-universe restriction.
 - Card Set: Physical Card's Card must belong to referenced Card Set.
-- Pokédex: Card's principal Pokémon must correspond to a Pokédex Position in the Adopted Scope.
+- ~~Pokédex: Card's principal Pokémon must correspond to a Pokédex Position in the Adopted Scope.~~ **SUPERSEDED (2026-09-03, `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`) — ver LDM-178.** Esta cláusula, isoladamente, lia como bloqueio duro (`hard block`) por incompatibilidade. A regra vigente para Pokédex passa a ser Species Match/Mismatch com aviso e confirmação explícita do usuário (`USER_OVERRIDE`), nunca bloqueio por incompatibilidade semântica — ver LDM-178. As cláusulas Open Curation e Card Set acima **não são afetadas** e permanecem vigentes sem alteração.
 
 Language, rarity, variant and aesthetic preferences do not independently restrict eligibility unless a future explicit completion requirement uses them. Eligibility is derived, not stored as `is_eligible`. Eligibility and completion are independent.
 
-**Status:** APPROVED
+**Status:** APPROVED (Open Curation e Card Set); cláusula Pokédex SUPERSEDED, ver acima
 
 ## LDM-18 — Card to Pokémon Relationship for Pokédex Eligibility
 Every Card classified as Pokémon is associated with exactly one canonical Pokémon: the principal Pokémon in evidence. Incidental Pokémon in artwork do not generate eligibility.
@@ -306,7 +306,7 @@ Pokédex Position
 
 The earlier N:N Card ↔ Pokémon hypothesis is superseded and must not be implemented.
 
-**Status:** APPROVED
+**Status:** APPROVED — decisão central inalterada. Nota de terminologia/sourcing (2026-09-03, `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`): "Pokémon"/`pokemon_id` neste LDM correspondem ao que passa a se chamar **Pokémon Species** (`species_id` no nível lógico) — ver LDM-175. A evidência estruturada para resolver este vínculo (`dexId` único da TCGdex) e a exigência de reconciliação editorial quando `dexId` for múltiplo/ausente estão formalizadas em LDM-182, sem reabrir esta decisão central.
 
 ## LDM-19 — Physical Card Always Originates from Card Variant
 Every Physical Card references exactly one Card Variant regardless of Collection type.
@@ -320,9 +320,9 @@ Physical Card
 Completion projection:
 - `STANDARD_SET`: Card Variant → Card
 - `MASTER_SET`: Card Variant
-- `REFERENCE_POSITION`: Card Variant → Card → Pokemon → Pokédex Position
+- `REFERENCE_POSITION`: Card Variant → Card → Pokémon Species → Pokédex Position
 
-Requirement satisfaction is derived rather than persisted as a second source of truth.
+Requirement satisfaction is derived rather than persisted as a second source of truth. Para `REFERENCE_POSITION`, "requirement satisfaction" refere-se à Position possuir Pokédex Position Assignment explícito — Allocation sozinha não basta (ver LDM-179/LDM-181, que revisam a leitura deste projection sem alterar a mecânica de `STANDARD_SET`/`MASTER_SET`, que permanecem satisfeitas por Allocation).
 
 **Status:** APPROVED
 
@@ -1474,6 +1474,163 @@ Physical Card Lifecycle facts are not automatically duplicated. Ownership Entry/
 
 ---
 
+## Bloco complementar — Pokédex / REFERENCE_POSITION (2026-09-03, `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`)
+
+> Encerra a subfrente conceitual `Collections — Pokédex / REFERENCE_POSITION modeling`, iniciada em `COLLECTIONS-POKEDEX-MODELING-AUDIT-01` e reconciliada em `COLLECTIONS-POKEDEX-MODELING-RECONCILIATION-01` (auditoria read-only, não editada em disco). Estado: **POKÉDEX MODELING — CONCEPTUALLY CLOSED. PHYSICAL MODELING — NOT STARTED.** LDM-175 a LDM-185 abaixo formalizam as decisões conceituais; LDM-16 e a cláusula Pokédex de LDM-17 são supersedidas (ver anotações nos próprios itens, acima) — texto original preservado por rastreabilidade.
+
+## LDM-175 — Pokémon Species, Generation, Pokémon Form/Variety
+
+Três conceitos distintos, onde antes só existia "Pokémon" (ADR-011, LDM-13 a LDM-19 originais):
+
+- **Pokémon Species** — identidade canônica de completion. Possui exatamente uma **Introduction Generation** (a geração de jogos em que a espécie foi introduzida).
+- **Generation** — entidade própria, referenciada por exatamente uma Species como sua Generation de introdução.
+- **Pokémon Form / Variety** — subordinada a uma Species; não cria uma nova Position por padrão; não altera completion por padrão (ver LDM-176).
+
+Todo uso anterior de "Pokémon"/`pokemon_id` neste documento, quando referente à identidade de completion (LDM-16 a LDM-19), passa a se ler como **Pokémon Species**/`species_id` a partir desta data — nomenclatura apenas, nenhuma cardinalidade ou campo alterado por este motivo isoladamente (mesma disciplina já aplicada à convergência `Physical Card`, LDM revisão 1.3). Formaliza no nível lógico a revogação do adiamento de ADR-011 (ver emenda v1.2 do ADR).
+
+**Status:** APPROVED
+
+## LDM-176 — Pokédex Position References Exactly One Species
+
+```text
+Pokédex
+└── Pokédex Position
+    ├── id
+    ├── species_id → exactly one Pokémon Species
+    └── position_number
+```
+
+Uma Position nunca referencia uma Form/Variety diretamente — apenas a Species. Uma Card cuja Primary Species resolvida corresponda a uma Form/Variety específica (ex.: Mega, forma regional) ainda satisfaz a Position da Species-base, porque Form não gera identidade de completion própria (LDM-175).
+
+**Status:** APPROVED
+
+## LDM-177 — Collection Pokédex Scope (SUPERSEDE de LDM-16)
+
+```text
+Collection Pokédex Scope
+├── FULL_REFERENCE (padrão)
+│   └── todas as Positions da Pokédex referenciada
+└── GENERATION_FILTERED (opcional)
+    └── 1..N Generations selecionadas
+        └── Positions cuja Species pertence a alguma das Generations selecionadas
+```
+
+Positions adotadas são **derivadas** do Scope declarado (`FULL_REFERENCE` ou `GENERATION_FILTERED` + conjunto de Generations) — não existe seleção individual de Position como verdade primária do Scope V1 (o modelo de LDM-16, `Collection Pokédex Scope` por linha `pokedex_position_id` adotada uma a uma, é substituído integralmente por este mecanismo).
+
+Scope mutation (troca de `FULL_REFERENCE`↔`GENERATION_FILTERED`, ou troca do conjunto de Generations selecionadas):
+- recalcula completion (denominador/numerador, ver LDM-181);
+- **não remove** Physical Cards;
+- **não remove** Collection Allocations;
+- **não remove** Pokédex Position Assignments (LDM-179).
+
+Um Position Assignment que caia fora do Scope corrente após uma mutação: permanece **permitido**, **preservado**, e **não participa do progress atual** — mesmo padrão já usado por `Collection Master Set Scope` (LDM-21/C-23, confirmado fisicamente em `COLLECTIONS-PHYSICAL-INCREMENT-02F`).
+
+**Status:** APPROVED — supersede LDM-16 integralmente.
+
+## LDM-178 — Species Match / Mismatch (SUPERSEDE da cláusula Pokédex de LDM-17)
+
+Duas trilhas para associar uma Physical Card a uma Pokédex Position:
+
+- **Species Match** — a Primary Species resolvida da Card (LDM-18/LDM-182) corresponde exatamente à Species da Position. `assignment_basis = SPECIES_MATCH`. Sem warning, sem confirmação adicional.
+- **Mismatch, Primary Species ausente, ou Card de categoria Trainer/Energy** — associação manual à Position ainda é permitida, mas o sistema emite **warning** e exige **confirmação explícita do usuário**. Uma vez confirmada, `assignment_basis = USER_OVERRIDE`.
+
+Incompatibilidade semântica **nunca** é bloqueio duro (`hard block`) — apenas aviso + confirmação. `USER_OVERRIDE` é Collection-local (ver LDM-179/C-referência de Collection) e **nunca** altera o Catálogo Editorial (Card, Card Variant, ou qualquer dado de Species/Pokédex canônico).
+
+**Status:** APPROVED — supersede a cláusula Pokédex de LDM-17 (cláusulas Open Curation e Card Set de LDM-17 não afetadas).
+
+## LDM-179 — Pokédex Position Assignment (novo conceito lógico)
+
+```text
+Pokédex Position Assignment
+├── pokedex_position_id
+├── physical_card_id
+├── assignment_basis (SPECIES_MATCH | USER_OVERRIDE)
+├── assigned_at
+└── assigned_by_user_id
+```
+
+Nomes de campo acima são conceito lógico, não nome físico definitivo — a modelagem física (frente futura, ainda `NOT STARTED`) pode ajustar.
+
+Regras:
+- a Physical Card precisa estar **alocada** à Collection (Collection Allocation) antes de qualquer Assignment;
+- **Allocation sozinha não satisfaz uma Position** — Assignment explícito é obrigatório (distingue `REFERENCE_POSITION` do modelo de `STANDARD_SET`/`MASTER_SET`, que continuam satisfeitos apenas por Allocation — LDM-19 nota acima, sem alteração naquelas duas políticas);
+- uma Position pode ter **múltiplos** Assignments (múltiplas Physical Cards representando a mesma Position);
+- uma Physical Card pode representar **no máximo uma** Position dentro da mesma Collection Pokédex;
+- um Assignment pode existir **fora do Scope** corrente — permanece preservado, não conta para o progress atual (ver LDM-177);
+- remover a Physical Card da Collection, ou realocá-la para fora dela, **remove o Assignment operacional** correspondente;
+- o histórico de Assignments criados/removidos fica a cargo de Collection Activity History / Audit (LDM-154 a LDM-174, não reabertas) — nenhuma entidade de histórico própria é introduzida aqui.
+
+**Status:** ADD — conceito lógico novo, sem skeleton físico.
+
+## LDM-180 — Primary Representative (Pokédex Position)
+
+Uma Position com um ou mais Assignments pode ter, opcionalmente, no máximo **uma** Physical Card marcada como Primary Representative — escolha do usuário, sem obrigatoriedade. Afeta somente **apresentação** (qual exemplar é mostrado como "a carta" daquela Position numa tela) — não afeta numerator/completion (ver LDM-181) e não é criada implicitamente pela existência de Assignments.
+
+Não confundir com `Slot Assignment` do Binder/Layout (LDM-35) — são conceitos ortogonais: Primary Representative é sobre qual Physical Card representa uma Pokédex Position; Slot Assignment é sobre qual Physical Card ocupa um Slot físico de página.
+
+**Status:** ADD — conceito lógico novo, sem skeleton físico.
+
+## LDM-181 — REFERENCE_POSITION Completion (REVISE da Seção 5)
+
+Para `completion_policy = REFERENCE_POSITION`:
+
+- **Denominator** = Pokédex Positions distintas adotadas pelo Scope corrente (LDM-177).
+- **Numerator** = Positions adotadas distintas com **≥ 1 Pokédex Position Assignment** (LDM-179) — Allocation sem Assignment **não** satisfaz a Position.
+- Duplicatas (múltiplas Physical Cards satisfazendo a mesma Position) **não inflam** o progress — mesmo princípio de `DISTINCT` já provado fisicamente para `STANDARD_SET` (Query `5070`, 02E).
+- `USER_OVERRIDE` (LDM-178) satisfaz a Position **normalmente** para fins de completion — nenhuma penalidade ou tratamento distinto do `SPECIES_MATCH`.
+- Primary Representative (LDM-180) é **irrelevante** para completion — dimensão puramente de apresentação.
+
+Isto revisa a linha `REFERENCE_POSITION` da Seção 5 (Completion Model Summary) e a nota adicionada a LDM-19 acima — sem alterar `NONE`/`STANDARD_SET`/`MASTER_SET`.
+
+**Status:** APPROVED — revisa a leitura da Seção 5 para `REFERENCE_POSITION`.
+
+## LDM-182 — Card Primary Species: Sourcing Estrutural
+
+A decisão central de LDM-18 (Card categoria Pokémon possui no máximo uma Species principal para elegibilidade automática) permanece inalterada. O que se formaliza aqui é a fonte de evidência:
+
+- `dexId` único e estruturado, retornado pela TCGdex para uma Card, é evidência estruturada suficiente para resolução automática da Primary Species (`assignment_basis = SPECIES_MATCH` candidato).
+- `dexId` múltiplo (mais de um elemento no array) ou ausente exige **reconciliação editorial** — nunca resolução automática silenciosa.
+- `card.name` (texto livre, localizado) **nunca** é fonte canônica por parsing — confirmado empiricamente (`COLLECTIONS-POKEDEX-TCGDEX-DEXID-PROOF-01`): Pokémon Paradoxo com nome PT sem relação lexical com a espécie-base, formas Mega/regionais/históricas sem campo estruturado equivalente no `name`.
+- Pokémon incidental em artwork não gera elegibilidade automática (LDM-18, inalterado). N:N Card↔Pokémon Species para completion continua rejeitado (Seção 6, item 6, inalterado).
+
+**Status:** ADD — formaliza sourcing sem reabrir LDM-18.
+
+## LDM-183 — Modelo de Sourcing (PokéAPI + TCGdex + MMKYU Editorial Reconciliation)
+
+```text
+PokéAPI          → Species, Generation, Pokédex, Pokédex Position, Form/Variety relationships
+TCGdex            → Card, dexId (já integrada ao pipeline do MMKYU — ADR-008/ADR-024)
+MMKYU Editorial Reconciliation → resolve gaps/ambiguidades (dexId múltiplo/ausente — LDM-182)
+MMKYU canonical catalog        → runtime authority
+```
+
+Nenhuma API externa é dependência estrutural em tempo real — mesmo princípio já estabelecido por ADR-008 para o Catálogo Editorial em geral, agora estendido a Species/Generation/Pokédex/Pokédex Position. Completion nunca depende de API externa em runtime.
+
+**Editorial Reconciliation ≠ USER_OVERRIDE**: Editorial Reconciliation é uma correção/decisão sobre o dado do Catálogo Editorial (ex.: qual `dexId` é a Species correta para uma Card com `dexId` múltiplo) — afeta o Catálogo, visível a todas as Collections. `USER_OVERRIDE` (LDM-178) é uma decisão Collection-local de um usuário associando manualmente uma Card a uma Position — nunca altera o Catálogo Editorial. São mecanismos independentes, ainda que ambos lidem com incerteza de Species.
+
+**Status:** ADD — conceitual, sem alteração de pipeline de importação nesta rodada.
+
+## LDM-184 — Correção Editorial Posterior não Remove Assignment
+
+Se a Primary Species de uma Card for corrigida (Editorial Reconciliation, LDM-183) depois de já existir um Pokédex Position Assignment baseado na resolução anterior:
+
+- o Assignment existente **não é removido automaticamente**;
+- o completion da Collection **não é invalidado automaticamente**;
+- a escolha do usuário é preservada;
+- a associação pode, no futuro, ser sinalizada como semanticamente divergente (mecanismo de sinalização não desenhado nesta rodada — apenas o princípio de não-remoção/não-invalidação automática é fixado agora).
+
+Mesma disciplina de não-destruição silenciosa já aplicada a mutações de Scope (LDM-177) e a mudanças de `completion_policy` em geral (C-23/LDM-22).
+
+**Status:** ADD.
+
+## LDM-185 — ARCHIVED aplica-se a Collection Pokédex
+
+Confirma, para Collection com `completion_policy = REFERENCE_POSITION`, o mesmo princípio geral já estabelecido para Collection em qualquer política de completion: uma Collection `ARCHIVED` permanece consultável; seu completion derivado continua computável normalmente; Scope (LDM-177), Assignments (LDM-179) e Primary Representative (LDM-180) tornam-se **imutáveis** enquanto `ARCHIVED`. Nenhuma decisão nova — apenas confirmação de aplicabilidade transversal.
+
+**Status:** APPROVED — confirmação, não nova decisão.
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -1486,17 +1643,20 @@ Collection
     │   └── Card Set
     └── Pokédex Reference
         ├── Pokédex
-        └── Adopted Scope
-            └── Pokédex Positions
+        └── Adopted Scope (LDM-177 — FULL_REFERENCE | GENERATION_FILTERED)
+            └── Pokédex Positions (derivadas do Scope, não selecionadas individualmente)
+                └── Pokédex Position Assignment (0..N — LDM-179)
+                    └── Primary Representative (0..1 — LDM-180)
 
 Physical Card
 ├── Inventory (0..1 — current tracked ownership; ver LDM-23)
 ├── Card Variant
 │   └── Card
 │       ├── Card Set
-│       └── Pokemon (when category = POKEMON)
+│       └── Pokémon Species (when category = POKEMON; ver LDM-175)
 ├── Collection (0..1)
-└── Storage Container (0..1)
+├── Storage Container (0..1)
+└── Pokédex Position Assignment (0..1 por Collection Pokédex — LDM-179)
 
 MASTER_SET Collection
 └── Master Set Adopted Scope
@@ -1583,12 +1743,16 @@ Do **not** implement:
 15. Um Slot exigir ocupação (Slot Assignment) para existir, ou uma Slot Assignment exigir Expected Content prévio — ambas as relações são independentes entre si e da ocupação (C-41/C-42/C-44).
 16. Cardinalidade global de 1 Slot Assignment por Physical Card (independente de Layout) — rejeitada em favor de 1 por par (Physical Card, Layout), necessária para suportar múltiplos Layouts da mesma Collection (LDM-35).
 17. Slot Assignment criar implicitamente Collection Allocation (ou vice-versa) — as duas relações permanecem independentes; Slot Assignment apenas *exige* Collection Allocation prévia, nunca a cria (LDM-35).
+18. Seleção individual de Pokédex Position como verdade primária do Scope V1 (modelo original de LDM-16) — substituída por Scope declarado (`FULL_REFERENCE`/`GENERATION_FILTERED`) com Positions derivadas (LDM-177).
+19. Bloqueio duro (`hard block`) de associação Card↔Pokédex Position por incompatibilidade semântica (cláusula Pokédex original de LDM-17) — substituído por warning + confirmação explícita do usuário (`USER_OVERRIDE`), nunca bloqueio (LDM-178).
 
 > Adendo (2026-08-28): também não implementar `owner_user_id` direto em Physical Card, nem qualquer fluxo de aprovação patrimonial fundamentado em "Collection compartilhada com itens de múltiplos owners" — ver `checkpoint-2026-08-28.md` e LDM-23 (revisada, 2026-08-30).
 >
 > Adendo (2026-08-30): ver `checkpoint-2026-08-30.md` para o diagnóstico completo de reconciliação da frente Collection Layout, incluindo a supersessão terminológica do item 14 acima.
 >
 > Adendo (2026-08-30): terminologia deste documento convergida de `Collection Item`/`Inventory Item` para `Physical Card` em todo texto normativo vigente — ver banner no topo do documento e `concept-decisions.md` C-47/C-48. Itens desta lista que citam terminologia histórica de outros documentos (ex.: item 14 acima, sobre `ux-exploration-2026-08-29.md`) preservam a citação e apenas anotam a atualização, sem reescrever a fonte citada.
+>
+> Adendo (2026-09-03, `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`): itens 18 e 19 encerram a subfrente conceitual Pokédex/`REFERENCE_POSITION` — ver bloco complementar LDM-175 a LDM-185, acima. Itens 6 e 7 (N:N Card↔Pokémon e artwork incidental) permanecem vigentes, não reabertos — as premissas desta rodada os reconfirmam, não os contradizem.
 
 ---
 
@@ -1598,11 +1762,16 @@ Do **not** implement:
 - Card
 - Card Variant
 - Card Set
-- Pokemon
+- Pokémon Species (nomenclatura atualizada 2026-09-03 — ver LDM-175; antes apenas "Pokemon")
+- Generation
+- Pokémon Form / Variety
 - Pokédex
 - Pokédex Position
 
-Invariant: every Card classified as Pokémon identifies exactly one principal canonical Pokemon.
+Invariant: every Card classified as Pokémon identifies exactly one principal canonical Pokémon Species.
+
+## Pokédex / REFERENCE_POSITION (Atualização 2026-09-03 — conceitualmente resolvido, ver LDM-175 a LDM-185)
+Espécie (Pokémon Species) como identidade de completion, com exatamente uma Generation de introdução; Form/Variety subordinada à Species, sem gerar Position ou alterar completion por padrão (LDM-175); Pokédex Position referenciando exatamente uma Species (LDM-176); Collection Pokédex Scope reformulado de seleção individual de Position para Scope declarado com Positions derivadas — `FULL_REFERENCE` (padrão) ou `GENERATION_FILTERED` (1..N Generations) —, preservando Physical Cards/Allocations/Position Assignments em qualquer mutação (LDM-177, supersede LDM-16); elegibilidade Pokédex sem bloqueio duro — Species Match sem aviso, Mismatch/Species ausente/Trainer-Energy com aviso e confirmação explícita (`USER_OVERRIDE`) (LDM-178, supersede a cláusula Pokédex de LDM-17); Pokédex Position Assignment como conceito lógico explícito, distinto de Collection Allocation (LDM-179); Primary Representative opcional, só apresentação (LDM-180); completion revisada — denominador por Positions adotadas, numerador por Positions com Assignment, nunca só Allocation (LDM-181); sourcing conceitual de Primary Species via `dexId` estruturado da TCGdex, com reconciliação editorial obrigatória para múltiplo/ausente, nunca parsing de `card.name` (LDM-182); modelo de sourcing PokéAPI + TCGdex + MMKYU Editorial Reconciliation, catálogo MMKYU como runtime authority, sem dependência de API externa em runtime, Editorial Reconciliation distinta de `USER_OVERRIDE` (LDM-183); correção editorial posterior não remove Assignment nem invalida completion automaticamente (LDM-184); ARCHIVED confirmado aplicável (LDM-185). Formaliza no nível lógico a revogação do adiamento de ADR-011 (emenda v1.2). Dependências que permanecem não resolvidas, deliberadamente fora desta rodada: qualquer skeleton físico (tabela, coluna, enum) de Pokémon Species/Generation/Form/Pokédex/Pokédex Position/Collection Pokédex Scope/Pokédex Position Assignment/Primary Representative; pipeline de ingestão PokéAPI/TCGdex; mecanismo de sinalização de divergência semântica pós-correção editorial (LDM-184); UX/telas de confirmação de `USER_OVERRIDE`.
 
 ## Inventory
 Physical Card requires its own detailed model beyond the Collection-allocation decisions captured here. **Atualização 2026-08-28**: o próprio conceito de `Inventory` (Acervo) como aggregate 1:1 por usuário, dono real de toda `Physical Card` sob ownership corrente, foi introduzido nesta data — ver `checkpoint-2026-08-28.md`. **Atualização 2026-08-30**: a regra de cardinalidade corrente (`Physical Card` participa de no máximo um `Inventory` por vez, podendo não ter nenhum quando fora do escopo rastreado) foi formalizada em LDM-23 (revisada) e C-48 — deixa de existir apenas em nível de checkpoint/memo.
@@ -1651,12 +1820,12 @@ Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-174 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-23 REVISADA (2026-08-30), LDM-03 PARCIALMENTE SUPERSEDED (2026-08-30, ver LDM-129–LDM-153)**
+**LDM-01 through LDM-185 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-16 SUPERSEDED (2026-09-03, ver LDM-177), cláusula Pokédex de LDM-17 SUPERSEDED (2026-09-03, ver LDM-178), LDM-23 REVISADA (2026-08-30), LDM-03 PARCIALMENTE SUPERSEDED (2026-08-30, ver LDM-129–LDM-153)**
 
-This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico), LDM-109 through LDM-128 (Grading / Certification, 2026-08-30, sem skeleton físico), LDM-129 through LDM-153 (Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico), and LDM-154 through LDM-174 (Collection Activity History / Audit, 2026-08-30, sem skeleton físico). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48.
+This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico), LDM-109 through LDM-128 (Grading / Certification, 2026-08-30, sem skeleton físico), LDM-129 through LDM-153 (Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico), LDM-154 through LDM-174 (Collection Activity History / Audit, 2026-08-30, sem skeleton físico), and LDM-175 through LDM-185 (Pokédex / REFERENCE_POSITION, 2026-09-03, sem skeleton físico — supersede LDM-16 e a cláusula Pokédex de LDM-17). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48. "Pokémon" foi convergido para "Pokémon Species" em 2026-09-03 nos LDM-16 a LDM-19 e no bloco novo — ver LDM-175.
 
 ## Physical
-**Inventory + Physical Card (core skeleton, LDM-23): CONFIRMADO EXECUTADO (2026-08-31)** — ver `docs/05d-colecoes-e-usuarios.md`, seção "Physical Card (Exemplar Físico) / Inventory", e `database/schema/5000`–`5012`. Todas as demais frentes (Collection Layout, Custody & Availability, Storage, Lifecycle & Provenance, Favorite, Wishlist, Condition, Grading/Certification, Collaboration/Permissions, Activity History/Audit) permanecem **NOT STARTED** fisicamente — só a fundação patrimonial mínima (LDM-23) foi implementada nesta rodada.
+**Inventory + Physical Card (core skeleton, LDM-23): CONFIRMADO EXECUTADO (2026-08-31)** — ver `docs/05d-colecoes-e-usuarios.md`, seção "Physical Card (Exemplar Físico) / Inventory", e `database/schema/5000`–`5012`. Todas as demais frentes (Collection Layout, Custody & Availability, Storage, Lifecycle & Provenance, Favorite, Wishlist, Condition, Grading/Certification, Collaboration/Permissions, Activity History/Audit, Pokédex/REFERENCE_POSITION) permanecem **NOT STARTED** fisicamente — só a fundação patrimonial mínima (LDM-23) foi implementada. **Pokédex/REFERENCE_POSITION (LDM-175 a LDM-185): CONCEPTUALLY CLOSED (2026-09-03). PHYSICAL MODELING NOT STARTED** — próximo checkpoint planejado da frente Collections.
 
 ---
 
@@ -1703,3 +1872,4 @@ It must preserve:
 | 1.15 | **Primeira materialização física do bloco Storage, 2026-09-01** (`COLLECTIONS-PHYSICAL-INCREMENT-02A-IMPLEMENTATION-01`), decorrente das rodadas de modelagem física `COLLECTIONS-PHYSICAL-MODELING-03`/`-REVISION-01`/`-REVISION-02`/`-FINAL-01` e da rodada de staging `COLLECTIONS-PHYSICAL-INCREMENT-02A-STAGING-REVISION-01`. Header (linha "Status") e Seção "Current modeling status" atualizados para registrar Storage Container + `physical_card.storage_container_id` como CONFIRMADO EXECUTADO. Adicionada nota de materialização física logo após a introdução do bloco complementar Storage (antes de LDM-44), apontando que apenas LDM-45 (ownership mediado por Inventory), LDM-46 (cardinalidade 0..1 reafirmada) e LDM-49 (Storage nunca cruza Inventory, via FK composta + CHECK) foram fisicamente materializadas — hierarquia (LDM-48), capacidade (LDM-50), remoção estrutural (LDM-51), Bulk Card Transfer (LDM-52) e Reparent (LDM-53) permanecem sem skeleton físico. Nenhuma LDM-* teve seu texto normativo alterado ou sua decisão reaberta — apenas anotado com um ponteiro para o novo estado físico, mesmo padrão já usado para LDM-23 na versão 1.3. Ver `docs/05d-colecoes-e-usuarios.md`, seção "Storage / Storage Container", para a documentação física narrativa completa, e `database/schema/5020`-`5024`/`database/validations/5802`-`5803` para o SQL e as validações `CONFIRMADO EXECUTADO`. |
 | 1.15 | **Fundação física de Inventory + Physical Card CONFIRMADO EXECUTADO, 2026-08-31** (`COLLECTIONS-PHYSICAL-INCREMENT-01B`, seis Queries `5000`–`5012`, primeira entidade do módulo Collections no Modelo Modular de Numeração). Apenas atualização de status/ponteiro — nenhum conteúdo normativo de LDM-23 (ou de qualquer outra LDM-*) foi reaberto ou alterado: a regra de cardinalidade e identidade já formalizada em LDM-23 (revisão 2026-08-30) foi implementada fisicamente exatamente como descrita, sem divergência encontrada. Header table (`Status`), "Current modeling status" (linha "Physical model") e seção "## Physical" (Seção 8) atualizados para refletir CONFIRMADO EXECUTADO do core skeleton (Inventory + Physical Card), com todas as demais frentes (Layout, Custody & Availability, Storage, Lifecycle & Provenance, Favorite, Wishlist, Condition, Grading/Certification, Collaboration/Permissions, Activity History/Audit) permanecendo explicitamente NOT STARTED fisicamente. Documentação física narrativa completa (SQL, decisões de índice/grants/RLS, resultados de validação) em `docs/05d-colecoes-e-usuarios.md`, não duplicada aqui. Ver `docs/log.md`. |
 | 1.16 | **Primeira materialização física do skeleton raiz de Collection, 2026-09-01** (`COLLECTIONS-PHYSICAL-INCREMENT-02B-IMPLEMENTATION-01`), decorrente das rodadas de modelagem física `COLLECTIONS-PHYSICAL-MODELING-03`/`2B-MODELING-01`/`2B-MODELING-FINAL-01` e da rodada de staging `2B-STAGING-REVISION-01`. Header (linha "Status") e Seção "Current modeling status" (linha "Physical model") atualizados para registrar o skeleton raiz de `Collection` (LDM-12) como CONFIRMADO EXECUTADO. Adicionada nota de materialização física logo após o título de LDM-12, apontando os campos efetivamente materializados na tabela `public.collection` (`id`, `game_id`, `owner_user_id`, `name`, `description`, `mode`, `lifecycle_status`, `visibility`, `default_storage_container_id`, `reference_locked_at`, `archived_at`, `created_at`, `updated_at`) e os campos deliberadamente fora de escopo nesta rodada (`completion_policy`, `started_at`, `created_by_user_id`, `updated_by_user_id`). Nenhuma LDM-* teve seu texto normativo alterado ou sua decisão reaberta — apenas anotado com um ponteiro para o novo estado físico, mesmo padrão já usado para LDM-23 (versão 1.3) e para o bloco Storage (versão 1.15). Divergência real encontrada e corrigida durante a implementação (não uma decisão desta rodada de documentação): a proposta física original de `create_collection()` dependia de `game.is_active`, coluna inexistente no modelo físico de `public.game` e sem decisão conceitual correspondente para Game — Fabrício optou por remover a dependência (não criar a coluna), preservando apenas a FK estrutural `collection.game_id → game.id`; eventual lifecycle/ativação de Game é registrado como decisão futura do domínio de Catálogo, fora desta subfrente de Collections. Ver `docs/05d-colecoes-e-usuarios.md`, seção "Collection (Coleção)", para a documentação física narrativa completa, e `database/schema/5030`-`5039`/`database/validations/5804`-`5805` para o SQL e as validações `CONFIRMADO EXECUTADO`. |
+| 1.17 | **Reconciliação e documentação canônica do bloco Pokédex / REFERENCE_POSITION, 2026-09-03** (`COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`), rodada exclusivamente de documentação, decorrente da cadeia de rodadas conceituais `COLLECTIONS-POKEDEX-MODELING-AUDIT-01` → `COLLECTIONS-POKEDEX-DATA-SOURCE-SPIKE-01` → `COLLECTIONS-POKEDEX-TCGDEX-DEXID-PROOF-01` → `COLLECTIONS-POKEDEX-MODELING-RECONCILIATION-01`. **LDM-16 SUPERSEDED** — Collection Pokédex Scope deixa de ser individualmente adotado por Position e passa a `FULL_REFERENCE` (padrão) ou `GENERATION_FILTERED` (1..N Generations), com Positions derivadas do Scope; texto original preservado, ver LDM-177. **Cláusula Pokédex de LDM-17 SUPERSEDED** — hard block de elegibilidade substituído por Species Match (silencioso, `assignment_basis=SPECIES_MATCH`) vs. Mismatch/sem Species/Trainer-Energy (aviso + confirmação explícita, `assignment_basis=USER_OVERRIDE`), nunca bloqueio duro; cláusulas de Open Curation e Card Set de LDM-17 não afetadas; texto original preservado, ver LDM-178. Adicionado novo bloco complementar **LDM-175 a LDM-185**: LDM-175 (Pokémon Species/Generation/Pokémon Form-Variety, convergência terminológica, formaliza a revogação do adiamento de ADR-011 no nível lógico), LDM-176 (Pokédex Position referencia exatamente uma Species), LDM-177 (Collection Pokédex Scope, supersede de LDM-16), LDM-178 (Species Match/Mismatch, supersede da cláusula Pokédex de LDM-17), LDM-179 (Pokédex Position Assignment, novo conceito lógico, sem tabela física), LDM-180 (Primary Representative, opcional, apresentacional), LDM-181 (Completion de REFERENCE_POSITION, revisão do denominador/numerador por Assignment), LDM-182 (sourcing de Card Primary Species — `dexId` único vs. reconciliação editorial, decisão central de LDM-18 inalterada), LDM-183 (Sourcing Model — PokéAPI + TCGdex + MMKYU Editorial Reconciliation + catálogo MMKYU como autoridade em runtime; Editorial Reconciliation ≠ USER_OVERRIDE), LDM-184 (Correção Editorial Posterior não remove Assignment nem invalida completion automaticamente), LDM-185 (confirmação de ARCHIVED para Pokédex — sem decisão nova). LDM-18 e LDM-19 tiveram apenas anotações/ponteiros adicionados (terminologia e projeção Card → Pokémon Species → Pokédex Position), sem reabertura de decisão. Seção 4 (árvore de relacionamento canônica), Seção 6 (hipóteses rejeitadas, itens 18 e 19 adicionados), Seção 7 (nova subseção "Pokédex / REFERENCE_POSITION", catálogo canônico atualizado para Pokémon Species/Generation/Form) e Seção 8 ("Logical" e "Physical" atualizados — Pokédex/REFERENCE_POSITION CONCEPTUALLY CLOSED, PHYSICAL MODELING NOT STARTED) também atualizadas, junto com a tabela header do documento. LDM-01 a LDM-174 não reabertas em conteúdo — apenas LDM-16, LDM-17 (cláusula Pokédex), LDM-18 e LDM-19 receberam anotações/ponteiros conforme descrito acima. Nenhuma mudança física, nenhum SQL, nenhum commit/push nesta rodada. Ver `docs/adr/ADR-011-pokemon-tcg-domain-scope.md` (nova emenda v1.2), `docs/04-domain-model.md`, `docs/05d-colecoes-e-usuarios.md` e `docs/log.md` para a documentação complementar do mesmo ciclo. |

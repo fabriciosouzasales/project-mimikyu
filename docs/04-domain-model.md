@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.7 |
+| **Versão** | 2.10 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
@@ -1177,49 +1177,63 @@ Obrigatória quando, e somente quando, a Card Category for Trainer.
 
 ---
 
-## Pokémon
+## Pokémon Species
+
+> **Nota de terminologia (2026-09-03, `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`):** esta entidade era chamada apenas "Pokémon" até esta rodada. Passa a se chamar **Pokémon Species**, convergindo com o vocabulário da fonte de dados adotada (PokéAPI: `pokemon-species`) e distinguindo explicitamente a identidade de espécie/personagem do domínio completo dos jogos eletrônicos, que continua fora de escopo (ver ADR-011, atualização v1.2). A decisão central — entidade mínima, orientada ao colecionismo — **não muda**, apenas o nome e o registro de dois conceitos subordinados (Generation, Pokémon Form/Variety). Demais menções a "Pokémon" neste documento — o valor de Card Category (Pokémon/Trainer/Energy), o rótulo "Pokémon TCG Domain", e referências informais como "Card → Pokémon" fora desta seção — não foram renomeadas nesta rodada, por se referirem a conceitos distintos (categoria de Card) ou por não terem necessidade concreta de alteração textual (AP-004; "não fazer alterações artificiais onde não houver necessidade").
 
 ### O que é?
 
-Representa a identidade mínima do personagem/espécie Pokémon (ex.: Bulbasaur), referenciada por Cards de categoria Pokémon. Entidade de referência (Identity Entity), reutilizada por todas as Cards que representam aquele mesmo Pokémon em diferentes Sets (Princípio da Reutilização Editorial, AP-014).
+Representa a identidade mínima do personagem/espécie Pokémon (ex.: Bulbasaur), referenciada por Cards de categoria Pokémon. Entidade de referência (Identity Entity), reutilizada por todas as Cards que representam aquele mesmo Pokémon Species em diferentes Sets (Princípio da Reutilização Editorial, AP-014).
 
-O Pokémon existe independentemente do Pokémon TCG — mas o Project Mimikyu modela apenas o subconjunto mínimo necessário ao colecionismo, não o domínio completo da franquia (ver ADR-011).
+O Pokémon Species existe independentemente do Pokémon TCG — mas o Project Mimikyu modela apenas o subconjunto mínimo necessário ao colecionismo, não o domínio completo da franquia (ver ADR-011).
 
 Características conceituais mínimas:
 
 - id (identificador);
-- national_dex_number (número na Pokédex Nacional);
-- canonical_name (nome canônico).
+- national_dex_number / pokedex_numbers (número(s) na Pokédex Nacional e em Pokédexes regionais);
+- canonical_name (nome canônico);
+- generation (geração de introdução da espécie — exatamente uma por Pokémon Species; ver ADR-011 v1.2 e `docs/domain-modeling/collections/logical-model.md`, LDM-175).
+
+Dois conceitos subordinados são registrados junto com Pokémon Species, sem criar entidades próprias nesta rodada (conceitual apenas, modelagem física não iniciada):
+
+- **Generation** — a geração de introdução da espécie (ex.: Kanto/Generation I).
+- **Pokémon Form / Variety** — variação visual/regional de uma Pokémon Species (ex.: Alolan Form, Mega); subordinada à Species, não cria uma nova identidade de completion por padrão, e nunca deve ser confundida com Card Variant (propriedade da Card, não da espécie).
 
 ---
 
 ### O que não é?
 
-Pokémon não representa nem armazena:
+Pokémon Species não representa nem armazena:
 
 - uma Card específica — uma mesma espécie corresponde a muitas Cards distintas, uma por Set em que aparece;
 - HP, ataques, fraqueza, resistência, custo de recuo ou estágio evolutivo **impressos** — esses valores pertencem à Card (ou à Pokémon Card Details, ver abaixo), pois uma mesma espécie pode ter valores diferentes impressos em Cards diferentes (ex.: dois "Bulbasaur" em Sets distintos podem ter HP diferente);
-- dados de batalha dos jogos eletrônicos (estatísticas, movimentos aprendidos por nível, habitat, natureza, gerações/regiões) — fora do escopo do Project Mimikyu, salvo se algum desses dados vier a ter valor direto e concreto para o colecionismo;
-- uma categoria de Card (ver Card Category, acima) — nem toda Card possui um Pokémon associado.
+- dados de batalha dos jogos eletrônicos (estatísticas, movimentos aprendidos por nível, habitat, natureza, regiões) — fora do escopo do Project Mimikyu, salvo se algum desses dados vier a ter valor direto e concreto para o colecionismo;
+- uma categoria de Card (ver Card Category, acima) — nem toda Card possui um Pokémon Species associado.
 
 ---
 
 ### Qual problema resolve?
 
-Evita dois extremos: (1) modelar toda a franquia Pokémon, transformando o sistema em uma Pokédex completa e desviando do produto; e (2) tratar o nome do Pokémon apenas como texto solto em cada Card, o que impediria relacionar todas as Cards do mesmo Pokémon (ex.: pesquisar todas as cartas do Pikachu, montar uma coleção temática de Charizard, ou construir uma Pokédex pessoal do usuário).
+Evita dois extremos: (1) modelar toda a franquia Pokémon, transformando o sistema em uma Pokédex completa e desviando do produto; e (2) tratar o nome do Pokémon apenas como texto solto em cada Card, o que impediria relacionar todas as Cards do mesmo Pokémon (ex.: pesquisar todas as cartas do Pikachu, montar uma coleção temática de Charizard, ou construir uma Pokédex pessoal do usuário — este último agora um caso concreto e ativo, ver "Pokédex / REFERENCE_POSITION" abaixo).
 
-O equilíbrio adotado é uma entidade Pokémon mínima e orientada ao colecionismo: *uma informação sobre Pokémon só entra no Project Mimikyu quando for necessária para identificar, pesquisar, agrupar ou analisar Cards e coleções* (ADR-011).
+O equilíbrio adotado é uma entidade Pokémon Species mínima e orientada ao colecionismo: *uma informação sobre Pokémon só entra no Project Mimikyu quando for necessária para identificar, pesquisar, agrupar ou analisar Cards e coleções* (ADR-011).
 
 ---
 
 ### Relacionamentos
 
 ```text
-Pokémon
+Pokémon Species
  1
  │
- └── N Card (apenas Cards de categoria Pokémon; pokemon_id obrigatório)
+ └── N Card (apenas Cards de categoria Pokémon; referência a Pokémon Species obrigatória)
 ```
+
+---
+
+### Pokédex / REFERENCE_POSITION (nota, 2026-09-03)
+
+A modelagem conceitual e lógica de Collection Pokédex (`REFERENCE_POSITION`, Pokédex Position, Position Assignment, Primary Representative, Species Match/Mismatch) está **fechada conceitualmente** e documentada em `docs/domain-modeling/collections/logical-model.md` (LDM-175 a LDM-185), não duplicada aqui — este documento registra apenas a identidade Pokémon Species em si, que é a base de que aquela modelagem depende. Estrutura física (tabelas, colunas) **não iniciada**; próximo checkpoint da frente Collections é "POKEDEX PHYSICAL MODELING".
 
 ---
 
@@ -1642,3 +1656,4 @@ Nenhuma Open Decision aberta no momento.
 | 2.7 | **Adicionadas as seções "Pricing (Preço de Mercado)" e "Item Valuation (Avaliação do Item)" (2026-08-16)**, inseridas antes de "Collection Item" — modelagem conceitual do quarto domínio do projeto (ao lado de Catálogo Editorial/Ownership/Analytics, `ADR-006`), decorrente da sequência estratégica aprovada por Fabrício (`ROADMAP.md`: Card Variant → Pricing → Collection → Analytics/Valuation). Formaliza: Pricing como domínio independente, nunca reaproveitando tabelas do Catálogo Editorial; a separação entre cobertura de catálogo/idioma-impressão/mercado como três perguntas distintas; a regra de que "Valor Brasil" é propriedade exclusiva da fonte de preço, nunca de conversão cambial; e as quatro classificações de Item Valuation (`INTERNATIONAL_CARD_REFERENCE`/`INTERNATIONAL_ITEM_VALUATION`/`BRAZIL_ITEM_VALUATION`/`NOT_VALUED`), tratadas aqui apenas conceitualmente (Analytics, sem tabela física — depende de Collection Item, ainda não implementado). Decisão completa em `adr/ADR-029-pricing-domain-model.md`; modelo lógico e físico completo em `05f-pricing.md`. Nota de status ampliada com o item (5) Pricing/Item Valuation. Nenhuma tabela criada no Supabase; homologação de fonte externa (JustTCG) segue pendente em paralelo, sem bloquear esta modelagem. |
 | 2.8 | **Banners de superação adicionados às seções Collection, Collection Entry, Collection Item e User Collection (2026-08-28)**, apontando para `docs/domain-modeling/collections/` como fonte canônica vigente do domínio Collections — substitui ADR-013/ADR-014 e a prosa conceitual mantida abaixo dos banners, preservada por rastreabilidade histórica. Motivado pela incorporação de três documentos de modelagem (`concept-decisions.md`, `logical-model.md`, `pkmnbindr-benchmark.md`) e de um checkpoint de decisões de simplificação de ownership (`checkpoint-2026-08-28.md`). Nenhuma prosa removida ou reescrita — só os banners foram adicionados. |
 | 2.9 | **Banner da seção Collection Item atualizado (2026-08-30)**, por convergência terminológica registrada em `concept-decisions.md` (C-47/C-48): o nome vigente apontado pelo banner passa de "Inventory Item" (nome citado desde 2026-08-28) para "Physical Card", com a cadeia completa de nomes superados (`Collection Item` → `Inventory Item` → `Physical Card`) explicitada. Nenhuma outra alteração — a prosa histórica da seção (que usa "Collection Item" ao longo de todo o corpo) permanece intocada por rastreabilidade, assim como os demais banners do documento (Collection, Collection Entry, User Collection), que já não citavam um nome específico a ser atualizado. |
+| 2.10 | **Entidade "Pokémon" renomeada para "Pokémon Species", 2026-09-03** (`COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`), decorrente da revogação do adiamento registrada em ADR-011 v1.2. Seção renomeada e reescrita: decisão central (entidade mínima, id/national_dex_number/canonical_name) preservada, adicionado `generation` (geração de introdução, exatamente uma por Species) às características conceituais mínimas, e registrados dois conceitos subordinados sem entidade física própria — Generation e Pokémon Form/Variety (forma/variedade nunca confundida com Card Variant). Diagrama de relacionamento atualizado (`Pokémon` → `Pokémon Species`). Adicionada subseção "Pokédex / REFERENCE_POSITION (nota, 2026-09-03)" apontando para `docs/domain-modeling/collections/logical-model.md` (LDM-175 a LDM-185) como fonte canônica da modelagem de Pokédex, sem duplicar conteúdo aqui. Nota de terminologia explícita registra que outras menções a "Pokémon" no documento (valor de Card Category, rótulo "Pokémon TCG Domain", relações informais "Card → Pokémon" fora desta seção) não foram renomeadas nesta rodada, por se referirem a conceito distinto ou por ausência de necessidade concreta. Header (linha "Versão") corrigido de 2.7 para 2.10, refletindo entradas 2.8/2.9 já existentes na tabela mas não propagadas ao header em rodadas anteriores — divergência de drift pré-existente, não introduzida nesta rodada, corrigida por ser trivial e diretamente adjacente à edição. |
