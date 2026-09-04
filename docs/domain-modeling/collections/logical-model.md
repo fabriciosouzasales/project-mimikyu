@@ -1631,6 +1631,34 @@ Confirma, para Collection com `completion_policy = REFERENCE_POSITION`, o mesmo 
 
 ---
 
+## LDM-186 a LDM-190 — Pokémon Region (bloco complementar, 2026-09-04)
+
+> Contexto: `POKEMON-REGION-DOMAIN-MODELING-AUDIT-01` (auditoria read-only direta da PokéAPI, `/region/`, 11 regiões — kanto/johto/hoenn/sinnoh/unova/kalos/alola/galar/hisui/paldea/orre, ids 1-11) → `POKEMON-REGION-FOUNDATION-PHYSICAL-MODELING-01` (modelagem física, read-only) → staging/revisão/implementação/promoção física (`POKEMON-REGION-FOUNDATION-PHYSICAL-STAGING-01`/`-REVISION-01`/`-IMPLEMENTATION-01`/`-CANONICAL-PROMOTION-01`, todas 2026-09-04). Bloco inteiramente **aditivo** — não reabre nem altera LDM-175 a LDM-185.
+
+### LDM-186 — Pokémon Region é entidade canônica própria
+
+Region (ex.: Kanto, Johto, Hoenn) é modelada como entidade-raiz de catálogo própria, nunca como concatenação `TEXT` derivada de Generation. Confirmado empiricamente: existem Regiões sem nenhuma Generation principal associada (`main_generation: null` para Orre e Hisui na PokéAPI) — a existência de Region não depende da existência de uma Generation correspondente. **Status:** ADD.
+
+### LDM-187 — Cardinalidade Generation ↔ Region é N:1 (Main Region)
+
+Cada Pokémon Generation tem exatamente uma Main Region (`pokemon_generation.main_region_id`, `NOT NULL`); uma Region pode ser Main Region de 0..N Generations. A unicidade reversa observada no dataset atual da PokéAPI (aparentemente 1:1) **não é invariante de domínio** — é padrão observado, não regra imposta. Por isso, deliberadamente: nenhum `UNIQUE` em `main_region_id`; Region pode existir sem nenhuma Generation apontando para ela (Region → Generation é 0..N, nunca 1..N). **Status:** ADD.
+
+### LDM-188 — Pokémon Region External Reference é a identidade externa da Region
+
+Mesmo padrão de evidência-de-integração já usado por `pokemon_species_external_reference`/`pokedex_external_reference`: nenhuma coluna `pokeapi_id` solta na entidade canônica `pokemon_region` — o identificador externo (o id numérico estável do recurso `/region/{id}` da PokéAPI, nunca o slug/name roteável) mora exclusivamente em `pokemon_region_external_reference`, por Fonte (`asset_source`). **Status:** ADD.
+
+### LDM-189 — Sourcing futuro de `canonical_name`; `main_generation` não duplicado em Region
+
+Fonte esperada de `pokemon_region.canonical_name` no sourcing futuro (ainda SUSPENSO): `names[language=en].name` da PokéAPI, nunca o slug roteável — mesmo princípio já aplicado a Species/Pokédex. `main_generation` (a geração historicamente associada a uma Region, quando existe) não é duplicado como coluna em `pokemon_region` — é sempre a relação inversa derivada de `pokemon_generation.main_region_id`, nunca um dado armazenado redundantemente na Region. **Status:** ADD.
+
+### LDM-190 — Escopo físico desta rodada e estado real
+
+Nenhum índice dedicado em `main_region_id` nesta rodada — decisão proporcional ao volume esperado (dezenas de linhas em `pokemon_generation`), mesmo raciocínio já aplicado a `pokemon_generation`/`pokedex`; reconhecido pelo Performance Advisor como `unindexed_foreign_keys` INFO, aceito por decisão explícita. Locations, Areas, Version Groups e o grafo de navegação entre Regiões permanecem explicitamente fora de escopo (`POKEMON-REGION-DOMAIN-MODELING-AUDIT-01`). Sourcing real (carga via PokéAPI) permanece **SUSPENSO**; `pokemon_region`, `pokemon_region_external_reference` e `pokemon_generation` seguem com zero linhas após esta rodada — apenas estrutura física, nenhum dado. **Status:** ADD.
+
+**Aplicação física:** `pokemon_region`/triggers (Queries `6060`/`6061`), `pokemon_region_external_reference`/triggers (Queries `6070`/`6071`) e `pokemon_generation.main_region_id` (Query `6080`, FK `ON UPDATE RESTRICT ON DELETE RESTRICT` explícitos) — **CONFIRMADO EXECUTADO em 2026-09-04**, promovidas para `database/schema/`. Ver `docs/05d-colecoes-e-usuarios.md`, seção "Collection Pokédex Reference / REFERENCE_POSITION", para o resumo físico narrativo.
+
+---
+
 # 4. Canonical Relationship Summary
 
 ```text
@@ -1820,7 +1848,7 @@ Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-185 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-16 SUPERSEDED (2026-09-03, ver LDM-177), cláusula Pokédex de LDM-17 SUPERSEDED (2026-09-03, ver LDM-178), LDM-23 REVISADA (2026-08-30), LDM-03 PARCIALMENTE SUPERSEDED (2026-08-30, ver LDM-129–LDM-153)**
+**LDM-01 through LDM-190 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-16 SUPERSEDED (2026-09-03, ver LDM-177), cláusula Pokédex de LDM-17 SUPERSEDED (2026-09-03, ver LDM-178), LDM-23 REVISADA (2026-08-30), LDM-03 PARCIALMENTE SUPERSEDED (2026-08-30, ver LDM-129–LDM-153), LDM-186–LDM-190 bloco complementar Pokémon Region (2026-09-04), aditivo, física CONFIRMADO EXECUTADO**
 
 This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico), LDM-109 through LDM-128 (Grading / Certification, 2026-08-30, sem skeleton físico), LDM-129 through LDM-153 (Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico), LDM-154 through LDM-174 (Collection Activity History / Audit, 2026-08-30, sem skeleton físico), and LDM-175 through LDM-185 (Pokédex / REFERENCE_POSITION, 2026-09-03, sem skeleton físico — supersede LDM-16 e a cláusula Pokédex de LDM-17). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48. "Pokémon" foi convergido para "Pokémon Species" em 2026-09-03 nos LDM-16 a LDM-19 e no bloco novo — ver LDM-175.
 
