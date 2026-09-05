@@ -2440,3 +2440,11 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-09-05] feature | Segundo ciclo de idempotência real — DRY_RUN `RUN-20260905-00000141` (mesmo snapshot_hash, 100% UNCHANGED) e APPLY `RUN-20260905-00000161` (0 INSERT/0 UPDATE/2071 UNCHANGED); zero órfão, zero mismatch, zero duplicidade, 0 active runs.
 
 ## [2026-09-05] docs | POKEMON-CATALOG-SOURCING-INITIAL-LOAD-FINAL-REPOSITORY-RECONCILIATION-01 — `docs/06a-pokemon-catalog-sourcing.md` v1.3 (IMPLEMENTED/LIVE/SECURED/IDEMPOTENT/CLOSED, nova Seção 15.1); `6111` promovido para `database/schema/`; `6821` mantido em `database/proposals/` como evidência histórica (cabeçalho atualizado); executor Deno incorporado sem alteração funcional; `.pokemon-catalog-sourcing-snapshots/` no `.gitignore`; próxima frente do projeto: Collections. Nenhum commit/push realizado.
+
+## [2026-09-05] feature | COLLECTIONS-POKEDEX-FATIA-B-CANONICAL-PROMOTION-01 — 15 Queries `5085`–`5099` promovidas para `database/schema/` (13 arquivos novos + extensão v1.1 de `5057`, fold-in da Query `5092`, sem arquivo `5092_*.sql` isolado); staging mantida integralmente em `database/proposals/2026-09-05-collections-pokedex-fatia-b-scope/` como evidência histórica/auditoria.
+
+## [2026-09-05] docs | Fatia B ("Collection Pokédex Reference + Adopted Scope") registrada como IMPLEMENTED / VALIDATED / CLOSED em `docs/05d-colecoes-e-usuarios.md` (v1.12), `docs/ROADMAP.md` (v1.83), `docs/development/HANDOFF-2026-09-04.md` (v1.7), `docs/INDEX.md` (v1.60) e `docs/README.md` (v2.38); próxima frente do projeto: Fatia C — Card → Primary Species / sourcing.
+
+## [2026-09-05] fix | Corrigida, no mesmo ciclo de `CANONICAL-PROMOTION-01`, passagem obsoleta da Seção 3 de `docs/development/HANDOFF-2026-09-04.md` que ainda afirmava que a carga real via PokéAPI "ainda NÃO ocorreu" — desatualizada desde a revisão `1.6` (2026-09-05), quando o Initial Load já havia sido confirmado executado.
+
+## [2026-09-05] docs | Débito de privilégios estruturais de `service_role` (`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`) nas 5 tabelas legadas de Collection registrado como item separado, não bloqueante — não corrigido nesta rodada, por instrução explícita.

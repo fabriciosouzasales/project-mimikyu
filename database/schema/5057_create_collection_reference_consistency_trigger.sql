@@ -2,11 +2,14 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 5057 - Create Collection Reference Consistency Trigger
-Versão......: 1.0
+Versão......: 1.1
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
-               COLLECTIONS-PHYSICAL-INCREMENT-02D-IMPLEMENTATION-01)
+               COLLECTIONS-PHYSICAL-INCREMENT-02D-IMPLEMENTATION-01;
+               estendida em 2026-09-05 pela Query 5092 do staging
+               COLLECTIONS-POKEDEX-FATIA-B-PHYSICAL-MODELING-AUDIT-01,
+               aplicada via COLLECTIONS-POKEDEX-FATIA-B-IMPLEMENTATION-01)
 
 Descrição...:
 Núcleo do enforcement transacional pedido em COLLECTIONS-PHYSICAL-
@@ -72,16 +75,41 @@ EXECUTE revogado de PUBLIC/anon/authenticated.
 Validado em execução real (COLLECTIONS-PHYSICAL-INCREMENT-02D-
 IMPLEMENTATION-01, 5808, Casos A-F/J/U/V).
 
+EXTENSÃO v1.1 (2026-09-05, Query 5092 do staging COLLECTIONS-POKEDEX-
+FATIA-B-PHYSICAL-MODELING-AUDIT-01, renumerada em REVISION-01):
+preenche o ELSIF que este cabeçalho e o corpo original já deixavam
+reservado — "-- ELSIF v_kind = 'POKEDEX' THEN ... (futuro, quando o
+subtipo existir)". CREATE OR REPLACE FUNCTION apenas, mesmo padrão de
+correção-em-linha já usado repetidamente no domínio (5032 v1.2/v1.3,
+5042 v1.1/v1.2, 5045 v1.1, 5046 v1.2). Nenhum trigger novo — os dois
+triggers que já chamam esta função (trg_collection_reference_consistency,
+abaixo; e trg_collection_pokedex_reference_consistency, Query 5093)
+passam a cobrir POKEDEX automaticamente assim que esta função foi
+substituída. Garante, no COMMIT (função continua chamada só por
+CONSTRAINT TRIGGER DEFERRABLE INITIALLY DEFERRED), que todo Collection
+Reference de kind POKEDEX possui exatamente 1 linha em
+collection_pokedex_reference — espelho exato da checagem já existente
+para CARD_SET/collection_card_set_reference.
+
+Aplicação real (COLLECTIONS-POKEDEX-FATIA-B-IMPLEMENTATION-01): aplicada
+via apply_migration/MCP do Supabase (projeto qjfutqujxrbzgrtkpgkg), como
+Query 5092, na sequência 5085→5099, sem alteração de SQL. Postcheck
+físico independente (COLLECTIONS-POKEDEX-FATIA-B-CANONICAL-PROMOTION-01)
+confirmou o branch POKEDEX operante e o branch CARD_SET intacto (5808,
+Casos A-F/J/U/V continuam válidos, nenhuma regressão). Validado
+funcionalmente por duas Collections Pokédex reais criadas em
+BEGIN/ROLLBACK, cada uma com exatamente 1 linha em
+collection_pokedex_reference. Zero resíduo.
+
 STATUS DESTA QUERY: CONFIRMADO EXECUTADO.
 ================================================================
 */
 
 -- Função auxiliar compartilhada entre 5057 e 5058 — único lugar que
 -- sabe "o que significa" um Collection Reference estar consistente
--- com seu subtipo. Quando collection_pokedex_reference existir, um
--- novo ramo ELSIF é adicionado aqui (CREATE OR REPLACE), sem alterar
--- os dois triggers que a chamam.
-CREATE FUNCTION public.check_collection_reference_subtype_consistency(p_collection_reference_id UUID)
+-- com seu subtipo. Estendida em 2026-09-05 (v1.1, Query 5092) para
+-- cobrir o subtipo POKEDEX, criado na mesma rodada.
+CREATE OR REPLACE FUNCTION public.check_collection_reference_subtype_consistency(p_collection_reference_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -110,8 +138,15 @@ BEGIN
         IF v_subtype_count <> 1 THEN
             RAISE EXCEPTION 'Collection Reference of kind CARD_SET must have exactly one Collection Card Set Reference (found %)', v_subtype_count;
         END IF;
+    ELSIF v_kind = 'POKEDEX' THEN
+        SELECT count(*) INTO v_subtype_count
+        FROM public.collection_pokedex_reference cpr
+        WHERE cpr.collection_reference_id = p_collection_reference_id;
+
+        IF v_subtype_count <> 1 THEN
+            RAISE EXCEPTION 'Collection Reference of kind POKEDEX must have exactly one Collection Pokedex Reference (found %)', v_subtype_count;
+        END IF;
     END IF;
-    -- ELSIF v_kind = 'POKEDEX' THEN ... (futuro, quando o subtipo existir)
 END;
 $$;
 
