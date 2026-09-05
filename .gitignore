@@ -6,3 +6,7 @@
 # — nunca pertencem ao repositório do projeto.
 .agents/
 .codex/
+
+# Snapshots operacionais locais do Pokémon Catalog Sourcing (DRY_RUN/APPLY)
+# — artefato de execução, não código/documentação; nunca versionado.
+.pokemon-catalog-sourcing-snapshots/

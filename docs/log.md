@@ -2432,3 +2432,11 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-09-04] fix | GATE-5-HOTFIX-6110-IMPLEMENTATION-01 — `6110` (hotfix incremental de `6104`/`6105`/`6108`, `NOW()`→`CLOCK_TIMESTAMP()`) aplicado; `6820` v2.3 executado por completo desde a Seção 0, PASS integral nas 16 Seções, zero resíduo.
 
 ## [2026-09-04] docs | POKEMON-CATALOG-SOURCING-GATE-9-PROMOTION-RECONCILIATION-01 — sourcing foundation (`6090`-`6110`, 13 objetos) promovida para `database/schema/`; `6820` marcado CONFIRMADO EXECUTADO — resultado PASS em `database/proposals/`; `docs/06a-pokemon-catalog-sourcing.md` v1.2; sourcing real via PokéAPI ainda não executado.
+
+## [2026-09-05] feature | Initial Load real executado — DRY_RUN `RUN-20260905-00000101` e APPLY `RUN-20260905-00000121`, ambos COMPLETED, 2071 linhas (Regions=11/Generations=9/Species=1025/Pokédex=1/Positions=1025) mais 4 xrefs.
+
+## [2026-09-05] fix | POKEMON-CATALOG-SOURCING-POST-APPLY-SECURITY-HARDENING-EXECUTION-01 — `6111` (REVOKE TRUNCATE/REFERENCES/TRIGGER/MAINTAIN de service_role nas 9 tabelas) CONFIRMADO EXECUTADO; `6821` v1.1 PASS A-E (PUBLIC via aclexplode, assinaturas exatas, active-run set canônico, search_path exato, tgenabled<>'D').
+
+## [2026-09-05] feature | Segundo ciclo de idempotência real — DRY_RUN `RUN-20260905-00000141` (mesmo snapshot_hash, 100% UNCHANGED) e APPLY `RUN-20260905-00000161` (0 INSERT/0 UPDATE/2071 UNCHANGED); zero órfão, zero mismatch, zero duplicidade, 0 active runs.
+
+## [2026-09-05] docs | POKEMON-CATALOG-SOURCING-INITIAL-LOAD-FINAL-REPOSITORY-RECONCILIATION-01 — `docs/06a-pokemon-catalog-sourcing.md` v1.3 (IMPLEMENTED/LIVE/SECURED/IDEMPOTENT/CLOSED, nova Seção 15.1); `6111` promovido para `database/schema/`; `6821` mantido em `database/proposals/` como evidência histórica (cabeçalho atualizado); executor Deno incorporado sem alteração funcional; `.pokemon-catalog-sourcing-snapshots/` no `.gitignore`; próxima frente do projeto: Collections. Nenhum commit/push realizado.
