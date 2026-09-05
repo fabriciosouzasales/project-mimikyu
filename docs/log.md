@@ -2422,3 +2422,13 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-09-04] docs | POKEMON-CATALOG-SOURCING-CONTRACT-CANONICALIZATION-01 — contrato completo de Pokémon Catalog Sourcing reconstruído, auditado e persistido em 06a-pokemon-catalog-sourcing.md antes do staging físico.
 
 ## [2026-09-04] docs | POKEMON-CATALOG-SOURCING-CONTRACT-POST-COMMIT-CLOSEOUT-01 — contrato canônico confirmado no remote HEAD 0e032cbc; estado reconciliado para CLOSED / COMMITTED / PUSHED e GATE 3 STAGING liberável.
+
+## [2026-09-04] docs | GATE 3 STAGING (base + REVISION-01/02 + VALIDATION REVISION-03) — SQL de proposta de `6090`-`6108`/`6820` escrito em `database/proposals/2026-09-04-pokemon-catalog-sourcing/`, revisado três vezes contra achados reais de GATE 4, sem execução de banco.
+
+## [2026-09-04] feature | GATE-5-IMPLEMENTATION-01 — `6090`-`6108` aplicados ao Supabase real; `6820` v2.2 abortou na Seção 6 com erro real `42702` (RETURNING ambíguo em `open_pokemon_catalog_sourcing_run`).
+
+## [2026-09-04] fix | GATE-5-HOTFIX-6109-IMPLEMENTATION-01 — `6109` (hotfix incremental de `6103`) aplicado; smoke test PASS; `6820` v2.2 avançou até a Seção 9 e abortou com novo erro real `23514` (`ck_pokemon_catalog_sourcing_run_period`).
+
+## [2026-09-04] fix | GATE-5-HOTFIX-6110-IMPLEMENTATION-01 — `6110` (hotfix incremental de `6104`/`6105`/`6108`, `NOW()`→`CLOCK_TIMESTAMP()`) aplicado; `6820` v2.3 executado por completo desde a Seção 0, PASS integral nas 16 Seções, zero resíduo.
+
+## [2026-09-04] docs | POKEMON-CATALOG-SOURCING-GATE-9-PROMOTION-RECONCILIATION-01 — sourcing foundation (`6090`-`6110`, 13 objetos) promovida para `database/schema/`; `6820` marcado CONFIRMADO EXECUTADO — resultado PASS em `database/proposals/`; `docs/06a-pokemon-catalog-sourcing.md` v1.2; sourcing real via PokéAPI ainda não executado.

@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Pokémon Catalog Sourcing |
 | **Arquivo** | `docs/06a-pokemon-catalog-sourcing.md` |
-| **Versão** | 1.1 |
-| **Status** | Contrato **CANONICALIZED / AUDITED / COMMITTED / PUSHED**. Reconstruído e persistido a partir de modelagem fechada em rodadas de chat anteriores, auditado em três rodadas de revisão (`REVISION-01`/`02`/`03`) e confirmado no remote (commit `0e032cbcc2b903a4859838acc98e069f9543588d`, `docs(collections): canonicalize pokemon catalog sourcing contract`). Nenhum objeto físico deste contrato foi criado ainda — próximo gate: **`GATE 3 — POKEMON CATALOG SOURCING STAGING`**. |
+| **Versão** | 1.2 |
+| **Status** | Contrato **CANONICALIZED / AUDITED / COMMITTED / PUSHED** (commit `0e032cbcc2b903a4859838acc98e069f9543588d`). **Sourcing foundation física IMPLEMENTADA e PROMOVIDA (2026-09-04)**: os 13 objetos físicos de `6090`-`6110` (tabela/triggers de `pokemon_generation_external_reference`; run ledger `pokemon_catalog_sourcing_run` + triggers; hash helper; RPCs `open`/`PLAN`/`APPLY`; auxiliares `reconcile`/`heartbeat`/`close_failed`; hotfixes `6109` runtime `run_code` ambíguo e `6110` `NOW()`→`CLOCK_TIMESTAMP()`) foram aplicados ao banco real e promovidos para `database/schema/` (`POKEMON-CATALOG-SOURCING-GATE-5-IMPLEMENTATION-01` e hotfixes, `GATE-9-PROMOTION-RECONCILIATION-01`). Script de validação `6820` v2.3 **CONFIRMADO EXECUTADO — resultado PASS** (16 Seções, zero resíduo), permanece em `database/proposals/` como evidência histórica. **Sourcing real via PokéAPI ainda NÃO executado** — pipeline fisicamente pronto; próximo checkpoint: `POKEMON-CATALOG-SOURCING-INITIAL-LOAD` (carga real). |
 | **Objetivo** | Descrever a estratégia de aquisição, normalização, reconciliação e carga (Initial Load) do Pokémon Catalog a partir da PokéAPI — Regions, Generations, Species e National Pokédex/Positions — e o contrato definitivo do pipeline de sourcing (run lifecycle, PLAN/APPLY, snapshot, hash, segurança, idempotência). |
 | **Escopo** | Initial Load do Pokémon Catalog (módulo físico `6000`-`6999`, `ADR-011`). Não cobre o pipeline de importação de cartas/imagens (`06-pipeline-importacao.md`, Edge Function `import-card-assets`, Catálogo Editorial) — domínios, fontes e arquitetura distintas. |
 | **Dependências** | `02-architecture-principles.md`, `04-domain-model.md`, `docs/domain-modeling/collections/logical-model.md` (LDM-175–190), `adr/ADR-011-pokemon-tcg-domain-scope.md` (v1.3), `standards/STD-001-database-standards.md` (Seção 10). |
@@ -382,23 +382,33 @@ Dinâmicos — nunca números fixos:
 
 ---
 
-# 15. Objetos físicos futuros (GATE 3 STAGING)
+# 15. Objetos físicos (CONFIRMADO EXECUTADO E PROMOVIDO — 2026-09-04)
 
-Nenhum destes objetos existe ainda. Numeração proposta (verificada contra `database/schema/` real, 6000-6999 — usados hoje: `6000-6002, 6010-6011, 6020-6021, 6030-6031, 6040-6041, 6050-6051, 6060-6061, 6070-6071, 6080, 6700-6701`; validação: `6800`, `6810`), a confirmar em GATE 3:
+Todos os objetos abaixo foram criados, aplicados ao banco real e promovidos
+para `database/schema/` (corpo SQL idêntico ao aplicado; apenas cabeçalho
+Status/Data atualizado na promoção). Numeração efetivamente usada (contra
+`database/schema/` real, 6000-6999):
 
-| Query proposta | Objeto |
-|---|---|
-| `6090`/`6091` | `pokemon_generation_external_reference` (tabela/triggers) — falta hoje. **Não** é necessária para resolver `main_region_external_id` (isso já é feito hoje via `pokemon_region_external_reference`, Query `6070`, existente). É necessária para: (a) a identidade externa própria da Generation; (b) resolver `species[].generation_external_id → pokemon_generation.id` (Seção 4.3) |
-| `6100` | `pokemon_catalog_sourcing_run` (tabela + sequência de `run_code`) |
-| `6101` | triggers de `pokemon_catalog_sourcing_run` |
-| `6102` | hash helper |
-| `6103` | `open_pokemon_catalog_sourcing_run(...)` |
-| `6104` | RPC de PLAN |
-| `6105` | RPC de APPLY |
-| `6106+` | funções auxiliares (reconciliação de run stale/órfão etc.), conforme desenho de GATE 3 |
-| `6820` | script de validação (após `6800`/`6810`, em `database/proposals/`, mesmo padrão de não promoção) |
+| Query | Objeto | Status |
+|---|---|---|
+| `6090`/`6091` | `pokemon_generation_external_reference` (tabela/triggers) — identidade externa própria da Generation; resolve `species[].generation_external_id → pokemon_generation.id` (Seção 4.3). Não resolve `main_region_external_id` (já coberto por `6070`). | CONFIRMADO EXECUTADO |
+| `6100`/`6101` | `pokemon_catalog_sourcing_run` (tabela + sequência de `run_code`) e seus triggers (máquina de estados `run_type`-aware) | CONFIRMADO EXECUTADO |
+| `6102` | `compute_pokemon_catalog_sourcing_snapshot_hash()` (hash helper) | CONFIRMADO EXECUTADO |
+| `6103` | `open_pokemon_catalog_sourcing_run(...)` | CONFIRMADO EXECUTADO |
+| `6104` | RPC de PLAN | CONFIRMADO EXECUTADO |
+| `6105` | RPC de APPLY | CONFIRMADO EXECUTADO |
+| `6106` | `reconcile_pokemon_catalog_sourcing_snapshot()` (auxiliar, usado por PLAN e APPLY) | CONFIRMADO EXECUTADO |
+| `6107` | `heartbeat_pokemon_catalog_sourcing_run()` (auxiliar) | CONFIRMADO EXECUTADO |
+| `6108` | `close_failed_pokemon_catalog_sourcing_run()` (auxiliar) | CONFIRMADO EXECUTADO |
+| `6109` | hotfix runtime: `RETURNING` ambíguo de `run_code` em `open_pokemon_catalog_sourcing_run` (erro real `42702`, migration incremental própria — não reescreve `6103`) | CONFIRMADO EXECUTADO |
+| `6110` | hotfix temporal: `finished_at = NOW()` → `CLOCK_TIMESTAMP()` em `plan`/`apply`/`close_failed` (erro real `23514` em `ck_..._run_period`, migration incremental própria — não reescreve `6104`/`6105`/`6108`) | CONFIRMADO EXECUTADO |
+| `6820` | script de validação (`BEGIN...ROLLBACK`, 16 Seções) — permanece em `database/proposals/`, mesmo padrão de não promoção de `6800`/`6810` | CONFIRMADO EXECUTADO — resultado PASS |
 
-Ferramenta administrativa: script Deno standalone (fora do banco). `APPLY` não faz HTTP. Cache local sanitizado e determinístico. Nunca logar `service key`, headers sensíveis ou payload secreto.
+Residual conhecido, não corrigido por instrução explícita: `open_pokemon_catalog_sourcing_run`
+(`6103`/`6109`) mantém `finished_at = NOW()` no passo de stale recovery.
+Classificação: **KNOWN / ACCEPTED / NON-BLOCKING**.
+
+Ferramenta administrativa: script Deno standalone (fora do banco). `APPLY` não faz HTTP. Cache local sanitizado e determinístico. Nunca logar `service key`, headers sensíveis ou payload secreto. **Sourcing real via PokéAPI (carga de dados) ainda não executado** — este contrato cobre a fundação física do pipeline, não a execução da carga inicial.
 
 ---
 
@@ -420,3 +430,4 @@ Ferramenta administrativa: script Deno standalone (fora do banco). `APPLY` não 
 |---------|-----------|
 | 1.0 | **Criação deste documento (2026-09-04), `POKEMON-CATALOG-SOURCING-CONTRACT-CANONICALIZATION-01`.** Persiste como fonte canônica o contrato de Pokémon Catalog Sourcing fechado em rodadas de chat anteriores (`POKEMON-CATALOG-SOURCING-INITIAL-LOAD-MODELING-AUDIT-01`, nunca antes persistido), reconstruído e auditado contra o HEAD físico real sem nenhuma contradição encontrada (`POKEMON-CATALOG-SOURCING-CONTRACT-RECONSTRUCTION-01`), incorporando a Pokémon Region Foundation já `CLOSED / COMMITTED / PUSHED`. Decisões fechadas nesta canonicalização: formato de `run_code` (`RUN-YYYYMMDD-NNNNNNNN`, precedente `asset_import_run`); reconciliation matrix completa de Positions; fórmula exata do payload guard; `internal.write_pokemon_species()`/`internal.write_pokemon_generation()` confirmados como não-risco (não antecipados). Mantida como versão única durante três rodadas de auditoria/revisão do contrato (`REVISION-01`/`02`/`03`, mesmo dia) por instrução explícita — arquivo ainda não commitado. Nenhum objeto físico criado — `AWAITING COMMIT`, `GATE 3 STAGING` é o próximo gate autorizável. |
 | 1.1 | **Reconciliação pós-commit (2026-09-04), `POKEMON-CATALOG-SOURCING-CONTRACT-POST-COMMIT-CLOSEOUT-01`.** Commit/push documental confirmado no remote (`0e032cbcc2b903a4859838acc98e069f9543588d`, `docs(collections): canonicalize pokemon catalog sourcing contract`) — inclui o conteúdo v1.0 já corrigido pelas três rodadas de revisão (`REVISION-01`/`02`/`03`). Apenas status atualizado: `CANONICALIZED / AUDITED / COMMITTED / PUSHED`; próximo gate `GATE 3 — POKEMON CATALOG SOURCING STAGING`. Nenhuma alteração ao contrato técnico. |
+| 1.2 | **Reconciliação pós-implementação (2026-09-04), `POKEMON-CATALOG-SOURCING-GATE-9-PROMOTION-RECONCILIATION-01`.** Sourcing foundation física implementada: `6090`-`6110` (13 objetos) CONFIRMADO EXECUTADO no banco real e promovidos para `database/schema/` (`GATE-5-IMPLEMENTATION-01`, `GATE-5-HOTFIX-6109-IMPLEMENTATION-01`, `GATE-5-HOTFIX-6110-IMPLEMENTATION-01`, `GATE-9-PROMOTION-RECONCILIATION-01`). `6109` = hotfix runtime do `RETURNING` ambíguo de `run_code` em `open_pokemon_catalog_sourcing_run` (erro real `42702`). `6110` = hotfix temporal `NOW()`→`CLOCK_TIMESTAMP()` em `plan`/`apply`/`close_failed` (erro real `23514`, `ck_..._run_period`). Script de validação `6820` v2.3 executado integralmente com **PASS** (16 Seções, zero resíduo) — permanece em `database/proposals/` como evidência histórica, não promovido. Zero resíduo confirmado pós-validação; advisors de segurança/performance sem novo bloqueador atribuível a `6090`-`6110`. Residual conhecido, não corrigido: `open_pokemon_catalog_sourcing_run` mantém `NOW()` no stale recovery — `KNOWN / ACCEPTED / NON-BLOCKING`. **Sourcing real via PokéAPI ainda NÃO executado.** Seção 15 reescrita para refletir objetos físicos existentes (era "futuros/GATE 3 STAGING"). Ver `docs/log.md` e `database/proposals/2026-09-04-pokemon-catalog-sourcing/README.md`. |
