@@ -200,6 +200,37 @@ Deno.serve(async (req) => {
         let confirmResult: { inserted_count: number; updated_count: number; failed_count: number; job_status: string } | null = null;
         if (unblockedCount > 0) {
           confirmResult = await confirmCatalogImport(userClient, job.id);
+
+          // Fatia C — Primary Species (2026-09-05, INCREMENTAL-IMPLEMENTATION-01):
+          // mesmo ponto de integração único usado pelo Fluxo A
+          // (confirmarImportacao(), web/app/catalogo/importar-cartas/tcgdex/
+          // actions.ts), chamado aqui só depois que confirmCatalogImport()
+          // já teve sucesso. Usa userClient (JWT do administrador já
+          // verificado acima) — nunca o client de service role — porque
+          // resolve_card_primary_species_for_catalog_import_job() exige
+          // is_admin()/auth.uid() reais, mesma exigência de
+          // admin_confirm_catalog_import().
+          //
+          // Checagem direta de { error }, nunca uma função auxiliar que
+          // lança exceção (diferente de confirmCatalogImport() acima, que
+          // propositalmente `throw`s): esta chamada está dentro do mesmo
+          // bloco try/catch por job (linha ~150 abaixo) que já envolve toda
+          // a revalidação + confirmação. Se uma falha de Primary Species
+          // fosse lançada como exceção aqui, o catch por job a capturaria e
+          // reportaria como jobResults[].error — fazendo o job inteiro
+          // parecer ter falhado mesmo com os Cards já persistidos com
+          // sucesso. Por isso: só loga, nunca lança, nunca altera
+          // confirmResult/jobResults.
+          const { error: speciesError } = await userClient.rpc(
+            "resolve_card_primary_species_for_catalog_import_job",
+            { p_job_id: job.id },
+          );
+          if (speciesError) {
+            console.error(
+              `RESOLVE_CARD_PRIMARY_SPECIES_FOR_CATALOG_IMPORT_JOB_FAILED ${job.id}:`,
+              speciesError,
+            );
+          }
         }
 
         jobResults.push({

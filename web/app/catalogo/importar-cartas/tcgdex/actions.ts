@@ -311,6 +311,28 @@ export async function confirmarImportacao(jobId: string): Promise<ConfirmarImpor
     }
   }
 
+  // Fatia C — Primary Species (2026-09-05, INCREMENTAL-IMPLEMENTATION-01):
+  // ponto de integração único pós-confirmação, chamado depois que TODO o
+  // loop de lotes acima terminou (nunca por lote — resolve_card_primary_
+  // species_for_catalog_import_job() já lê o job inteiro via
+  // catalog_import_row.resulting_card_id). Chamada em transação própria,
+  // separada da(s) transação(ões) de admin_confirm_catalog_import() acima.
+  // Falha aqui é só logada — nunca deve reverter/alterar o resultado da
+  // confirmação já persistida (Cards já existem em public.card nesse
+  // ponto), nunca é repassada como erro de importação ao usuário, e nunca
+  // desfaz lastResult. Ver database/proposals/2026-09-05-fatia-c-
+  // incremental-integration/README.md para o desenho completo.
+  const { error: speciesError } = await supabase.rpc(
+    "resolve_card_primary_species_for_catalog_import_job",
+    { p_job_id: jobId },
+  );
+  if (speciesError) {
+    console.error(
+      `RESOLVE_CARD_PRIMARY_SPECIES_FOR_CATALOG_IMPORT_JOB_FAILED ${jobId}:`,
+      speciesError,
+    );
+  }
+
   // Revalida também as telas que derivam "Coleções sem cartas" de
   // public.card (Cartas e Importar Cartas, ambas via getCardSetsForCartas)
   // — descoberto na prática em 2026-08-01 (Fabrício confirmou ME5 com
