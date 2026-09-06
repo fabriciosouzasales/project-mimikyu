@@ -1239,7 +1239,7 @@ Region (ex.: Kanto, Johto, Hoenn) é registrada como entidade canônica própria
 
 ### Pokédex / REFERENCE_POSITION (nota, 2026-09-03)
 
-A modelagem conceitual e lógica de Collection Pokédex (`REFERENCE_POSITION`, Pokédex Position, Position Assignment, Primary Representative, Species Match/Mismatch) está **fechada conceitualmente** e documentada em `docs/domain-modeling/collections/logical-model.md` (LDM-175 a LDM-185), não duplicada aqui — este documento registra apenas a identidade Pokémon Species em si, que é a base de que aquela modelagem depende. Estrutura física (tabelas, colunas) **não iniciada**; próximo checkpoint da frente Collections é "POKEDEX PHYSICAL MODELING".
+A modelagem conceitual e lógica de Collection Pokédex (`REFERENCE_POSITION`, Pokédex Position, Position Assignment, Primary Representative, Species Match/Mismatch) está **fechada conceitualmente** e documentada em `docs/domain-modeling/collections/logical-model.md` (LDM-175 a LDM-185), não duplicada aqui — este documento registra apenas a identidade Pokémon Species em si, que é a base de que aquela modelagem depende. Estrutura física: Canonical Pokédex Foundation, Collection Pokédex Reference/Adopted Scope, Card → Primary Species e Pokédex Position Assignment/Primary Representative (Fatias A–D) **CONFIRMADO EXECUTADO** — Fatia D fechada em 2026-09-06 (`COLLECTIONS-POKEDEX-FATIA-D-PROMOTION-CLOSEOUT-01`), detalhe completo em `docs/05d-colecoes-e-usuarios.md`. Completion por `REFERENCE_POSITION` (Fatia E) segue sem modelo físico; próximo checkpoint da frente Collections é a Fatia E.
 
 ---
 
