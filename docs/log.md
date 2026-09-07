@@ -2470,3 +2470,5 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-09-06] docs | Reconciliação da documentação de Product/UX do Pokédex com o auto-`SPECIES_MATCH` já LIVE da Query `6119` (`COLLECTIONS-POKEDEX-AUTO-ASSIGNMENT-DOC-RECONCILIATION-01`): `05d` v1.17 (item 3 de "Product / UX Traceability" deixou de afirmar que "não existe auto-assignment"), `HANDOFF-2026-09-04` v1.11 e `logical-model.md` v1.18 (LDM-178/LDM-179 — "Explicit Assignment" = existência da linha, não ação humana; dois caminhos: SYSTEM `SPECIES_MATCH` automático e USER-DRIVEN via RPC, com `USER_OVERRIDE` sempre humano). Nenhuma mudança de banco.
 
 ## [2026-09-07] feature | Binder/Layout Foundation implementada, validada e encerrada; hardening UUID[] aplicado e pendência de cardinalidade em Pricing registrada como próximo gate.
+
+## [2026-09-07] fix | Hardening de cardinalidade de payload em get_cards_pricing_summary concluído e validado; Bulk Collection Operations liberado como próxima frente.
