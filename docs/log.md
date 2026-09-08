@@ -2472,3 +2472,7 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-09-07] feature | Binder/Layout Foundation implementada, validada e encerrada; hardening UUID[] aplicado e pendência de cardinalidade em Pricing registrada como próximo gate.
 
 ## [2026-09-07] fix | Hardening de cardinalidade de payload em get_cards_pricing_summary concluído e validado; Bulk Collection Operations liberado como próxima frente.
+
+## [2026-09-07] feature | Bulk Operations Foundation (BULK-01) implementada, validada e com concorrência provada; próxima frente BULK-02.
+
+## [2026-09-08] docs | 5142-5146 (BULK-01) promovidas para database/schema/; harness 5821 e runbook de concorrencia mantidos em proposals como evidencia.

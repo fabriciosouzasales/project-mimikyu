@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.19 |
+| **Versão** | 1.21 |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1027,9 +1027,132 @@ A classe do bypass multidimensional está fechada **nas RPCs do escopo desta imp
 ## Pendências / Próximos Passos
 
 - **Promoção para `database/schema/`** ainda não autorizada.
-- **Gate obrigatório antes de Bulk Collection Operations:** `PRICING-PAYLOAD-CARDINALITY-HARDENING-01` — `get_cards_pricing_summary(uuid[])` mantém o bypass multidimensional (ver `05f-pricing.md`).
+- ~~**Gate obrigatório antes de Bulk Collection Operations:** `PRICING-PAYLOAD-CARDINALITY-HARDENING-01`~~ — **FECHADO em 2026-09-07** (Query `3972`, ledger `20260907231143`, harness `3860` v1.1 em 18/18). Ver `05f-pricing.md`.
 - **Hardening de contrato `UUID[]` / admin**, em rodada própria e separada da de Pricing: `admin_decide_catalog_import_row` (guard `array_length(...,1) <> 1` burlável por array 2-D com `dim1 = 1`) e os usos que só checam `IS NULL`, sem teto.
 - Nenhuma tela ou rota de Binder foi construída — todo o trabalho desta frente é de banco. A exploração de UX de 2026-08-29 (`domain-modeling/collections/ux-exploration-2026-08-29.md`) permanece como referência de produto, não como contrato implementado.
+
+---
+
+# Bulk Operations Foundation (BULK-01)
+
+## Status
+
+**`IMPLEMENTED / VALIDATED / CONCURRENCY PROVEN / CLEAN` (2026-09-07).** Décima sexta fundação física de Collections e primeiro incremento da frente **Bulk Collection Operations**. Queries `5142`–`5146` CONFIRMADO EXECUTADO; validação automatizada `5821` v1.3 em **39 TOTAL / 36 PASS / 0 FAIL / 3 NOT PROVEN**, com os três NOT PROVEN (`K01`/`K02`/`K03`) posteriormente **provados externamente** — duas sessões `psql` persistentes para A/B e observador externo via SQL Editor do Supabase — e o resultado efetivo é **39/39 provados**.
+
+Este incremento não entrega nenhuma operação de negócio. Ele entrega apenas a **infraestrutura mínima de idempotência** sobre a qual `BULK-02` (`register_physical_cards_bulk`) e os seguintes serão construídos.
+
+**`5142`–`5146` foram PROMOVIDAS para `database/schema/`** em 2026-09-08 (`COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`), seguindo a política canônica do repositório: migrations estruturais executadas e validadas são promovidas; as cópias em `database/proposals/` permanecem como evidência histórica; harness (`5821`), runbook de concorrência e `README.md` da rodada **não** são promovidos.
+
+## Por que existe
+
+`bulk_operation` existe por **um** motivo: tornar idempotente uma operação de criação de patrimônio em massa. Sem ela, um clique duplo cria patrimônio fantasma **indistinguível** de duplicata legítima — e duplicatas são explicitamente permitidas por `C-21`.
+
+Não é Activity/Audit. Sem trigger de histórico, sem linha por item afetado, sem consumo por UI de histórico. `C-178`/`LDM-166` (Activity agrupada) seguem em aberto, em frente própria.
+
+## Modelo Físico — `bulk_operation` (Versão 1.1, CONFIRMADO EXECUTADO)
+
+```sql
+CREATE TABLE public.bulk_operation (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_user_id       UUID NOT NULL
+                            REFERENCES auth.users(id)
+                            ON UPDATE RESTRICT ON DELETE RESTRICT,
+    operation_type      TEXT NOT NULL,      -- vocabulário FECHADO
+    idempotency_key     UUID NOT NULL,
+    request_hash        TEXT NOT NULL,      -- intenção do usuário
+    preview_fingerprint TEXT NOT NULL,      -- estado do mundo no preview
+    result_summary      JSONB NULL,         -- NULL só enquanto em voo
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+UNIQUE (owner_user_id, operation_type, idempotency_key)
+```
+
+**Sem coluna `status`.** Com `FAILED` nunca persistido, `status` teria um único valor possível. Linha committada **é** operação bem-sucedida — definição, não convenção (D9): o claim nasce na mesma transação da operação; sucesso ⇒ `result_summary` preenchido + COMMIT; falha ⇒ ROLLBACK apaga também o claim, liberando retry com a mesma `idempotency_key`.
+
+Vocabulário fechado na V1: `REGISTER_PHYSICAL_CARDS` (B1), `REGISTER_CARD_SET` (B2). Ampliar exige migration própria.
+
+**Índices: exatamente 2** — a PK e o índice implícito da UNIQUE. Nenhum índice especulativo; `(owner_user_id, created_at DESC)` foi proposto e **removido** por não ter workload aprovado.
+
+## Contrato de `result_summary` — três camadas complementares
+
+`NOT NULL` estrutural não serve: o claim precisa nascer NULL.
+
+| Camada | Query | Garante |
+|---|---|---|
+| Constraint trigger `DEFERRABLE INITIALLY DEFERRED` | `5143` | nenhuma linha **persistente** com SQL NULL |
+| `CHECK` imediato | `5146` | quando preenchido, é um **JSON object** |
+| Guard no helper interno `complete_bulk_operation()` | `5146` | falha cedo e nomeia o tipo recebido |
+
+A terceira camada não é redundância. `5143` só testa `IS NOT NULL`, e **`'null'::jsonb` não é SQL NULL** — passaria pelo trigger e seria devolvido no REPLAY como resultado legítimo de uma operação concluída. Array, string, number e boolean idem.
+
+O trigger de `5143` **não inspeciona `NEW.result_summary`** — esse valor é o do instante do INSERT, quando é legitimamente NULL. Ele **reconsulta a linha por `NEW.id`** no disparo (fim da transação) e avalia o **estado final**.
+
+## Idempotência e serialização
+
+`UNIQUE (owner_user_id, operation_type, idempotency_key)` é, ao mesmo tempo, a identidade lógica da operação e o **mecanismo de serialização** entre sessões concorrentes. `claim_bulk_operation()` (`5144`) usa `INSERT … ON CONFLICT DO NOTHING` **sem `SELECT`-antes-de-`INSERT`** — que seria corrida.
+
+**"0 linhas inseridas" NÃO significa "linha committada".** Significa apenas *existe linha visível para esta transação*, e essa linha pode ser a da própria transação, ainda incompleta. O desfecho é decidido pelo **estado lido**:
+
+| Estado lido | Desfecho |
+|---|---|
+| linha ausente | erro `55000` — invariante interno |
+| `request_hash` **diferente** | **CONFLICT** (o chamador traduz em `BULK_IDEMPOTENCY_CONFLICT`) |
+| mesmo hash + `result_summary` **NULL** | erro `55000` — operação incompleta. **Nunca REPLAY** |
+| mesmo hash + `result_summary` preenchido | **REPLAY**, devolvendo o resultado original |
+
+**Replay é independente do mundo (D9).** `claim_bulk_operation()` não valida `preview_fingerprint` — fingerprint é do caminho novo. Repetir a mesma intenção já concluída não pode falhar porque o mundo andou.
+
+## Segurança — ledger interno
+
+`bulk_operation` **não tem caminho de acesso direto** para papel algum de aplicação: `authenticated`, `anon` e `service_role` ficam sem privilégio (`REVOKE ALL`; `relacl` = `postgres=arwdDxtm/postgres`). Leitura e escrita operacionais acontecem exclusivamente dentro das funções `SECURITY DEFINER` de `5144`/`5145`.
+
+RLS fica **ligada** e a policy `bulk_operation_select_own` existe como **defesa em profundidade** — para que um GRANT futuro já nasça restrito ao dono —, não como caminho vigente. `S06` do harness prova isso em runtime: sessão `authenticated` recebe `42501` **antes** de a RLS ser avaliada.
+
+As três funções: `SECURITY DEFINER`, `search_path = ''`, owner `postgres`, `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated`/`service_role` — `proacl` não-NULL e sem entrada `grantee = 0`. Precedente: `5122` (`assert_collection_layout_mutable`).
+
+## Validação — `5821` v1.3
+
+**Gate: `TOTAL 39 / PASS 36 / FAIL 0 / NOT PROVEN 3`**, executado ao vivo com baseline 0 e postcheck pós-`ROLLBACK` = 0 (zero resíduo real, provado fora do harness).
+
+| Grupo | Casos | Cobre |
+|---|---|---|
+| `F` | F01 | fixture somente leitura, dois `auth.users` distintos |
+| `E` | E01–E08 | tabela/owner/RLS · colunas exatas **sem `status`** · **UNIQUE com lista ordenada de colunas** · **FK com coluna local e remota** · CHECK de vocabulário · trigger `AFTER INSERT OR UPDATE` + `DEFERRABLE INITIALLY DEFERRED` (bits de `tgtype`) · **somente índices estruturais** · CHECK de `result_summary` |
+| `S` | S01–S06 | **expressão efetiva da policy** + `polroles={0}` + sem `WITH CHECK` · os 4 verbos DML negados aos 3 papéis · TRUNCATE/REFERENCES/TRIGGER/**MAINTAIN** revogados dos 3 papéis · funções com `proacl` não-NULL e sem `grantee = 0` · **`42501` em runtime** |
+| `T` | T01–T05 | claim completo passa · NULL impede commit · valida **estado final**, não `NEW` · UPDATE zerando também impede · linha apagada não falha |
+| `C` | C01–C06 | CLAIMED · REPLAY sobre claim **já completado** · CONFLICT · owner sempre `auth.uid()` · prova estática de `ON CONFLICT DO NOTHING` sem `SELECT` antes · **claim incompleto levanta erro e nunca vira REPLAY** |
+| `R` | R01–R08 | SQL NULL · **`'null'::jsonb`** · array · string · number · boolean rejeitados · object aceito no mesmo claim intacto após as 6 rejeições · **CHECK de tabela barra `UPDATE` direto** |
+| `K` | K01–K03 | concorrência real — **NOT PROVEN no harness**, provado externamente (abaixo) |
+| `X` | X01, X02 | baseline 0 antes de qualquer escrita · o harness escreveu de fato |
+
+Técnica obrigatória do grupo `T`: o trigger é DEFERRED e o harness nunca comita, então o disparo é forçado com `SET CONSTRAINTS … IMMEDIATE` dentro de um savepoint revertido em seguida. Precedente: `5057`/`5058`/`5059`.
+
+## Prova de concorrência externa — `K01`/`K02`/`K03` PASS
+
+Os três casos exigem **duas sessões persistentes e simultâneas**, com a transação de A aberta enquanto B tenta o mesmo claim. Foi medido que o canal MCP `execute_sql` não preserva sessão nem transação entre chamadas — mesma classe de `C04`/`R18` do `5818`, e mesmo tratamento: gravados como NOT PROVEN no harness, **jamais convertidos em PASS artificial**, e provados por roteiro manual.
+
+A prova usou **duas sessões `psql` persistentes para A e B** (Session Pooler, porta 5432) e um **observador externo one-shot pelo SQL Editor do Supabase**. A distinção importa: só A e B precisam de sessão persistente, porque dependem de transação aberta atravessando comandos; o observador emite uma consulta única e autocontida sobre `pg_stat_activity`/`pg_blocking_pids`, e por isso o SQL Editor serve para ele e não serve para A/B. A e B conectaram com a role temporária `bulk_k_probe`, com `EXECUTE` explícito nos dois helpers e **sem acesso direto à tabela** — no estado normal apenas `postgres` tem esse `EXECUTE`; `authenticated`/`anon`/`service_role` continuam sem ele. As etapas de guard, contagem de estado e limpeza tocam `bulk_operation` e por isso rodam por conexão administrativa (owner) separada.
+
+| Caso | Resultado | Evidência |
+|---|---|---|
+| `K01` | **PASS** | A segurou o claim; B bloqueou. Observador externo: `pg_blocking_pids(B) = [A]`, `bloqueado_por_a = true`, `wait_event_type = Lock`, `wait_event = transactionid` |
+| `K02` | **PASS** | A completou e COMMITOU; B desbloqueou com **REPLAY**, mesmo `operation_id` da operação concluída; contagem final da identidade = 1 (B não criou linha nova) |
+| `K03` | **PASS** | A fez claim, B bloqueou por A, A executou ROLLBACK; B desbloqueou com **CLAIMED**; rollback de B; contagem final = 0 |
+
+Isto estabelece que o **índice único é o mecanismo de serialização**, não código de aplicação.
+
+**Cleanup:** `fx_residuo = 0`; role temporária `bulk_k_probe` removida, `role_residuo = 0`.
+
+**Nota de execução (registrada por honestidade):** houve uma primeira tentativa inválida de `K02` que fez `SELECT` direto na tabela usando a role temporária sem privilégio — o que é exatamente o comportamento correto do ledger interno. A transação foi revertida, a chave confirmada com `count = 0`, e `K02` foi reexecutado corretamente usando o `operation_id` devolvido pelo claim. **Não foi defeito da migration nem do produto — foi defeito do roteiro**, cujo passo de conclusão recuperava o `operation_id` por `SELECT` na tabela, contradizendo o próprio contrato do ledger. Corrigido na v1.2 de `CONCURRENCY-PROOF-BULK-CLAIM.sql`: o id passa a ser anotado a partir do retorno de CLAIMED e usado literalmente, sem tocar a tabela.
+
+## Pendências / Próximos Passos
+
+- ~~**Promoção para `database/schema/`** não autorizada nesta rodada.~~ **RESOLVIDO em 2026-09-08** (`COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`): `5142`–`5146` estão em `database/schema/`, com o corpo executável provado byte-idêntico ao das cópias em `database/proposals/2026-09-07-bulk-operations-foundation/`, que permanecem como evidência histórica junto do harness `5821`, do roteiro genérico de concorrência e do `README.md` da rodada — esses três **não** são promovidos.
+- **Próxima frente canônica: `BULK-02` — `register_physical_cards_bulk`.** Sequência macro congelada: `BULK-02` → `BULK-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
+- **Risco `B4` (Alta, herdado do desenho):** `request_hash` é calculado **fora** do banco, pelo chamador. A normalização precisa ser idêntica nos dois lados, ou a idempotência silenciosamente não funciona. `BULK-02` deve incluir caso provando que a mesma requisição, reordenada, produz o mesmo hash.
+- **`bulk_operation` cresce sem política de retenção** — irrelevante na V1 (volume desprezível), vira dívida se o produto escalar. Registrado, não resolvido.
+- `add_physical_cards()` (`5012`) permanece canônica e **não removida** (D6); auditoria/migração de callers e depreciação ficam para depois de `BULK-02`, em cleanup próprio.
 
 ---
 
@@ -1271,3 +1394,5 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.17 | **Reconciliação documental do auto-`SPECIES_MATCH` (2026-09-06, `COLLECTIONS-POKEDEX-AUTO-ASSIGNMENT-DOC-RECONCILIATION-01`). Nenhuma mudança física; Fatias D e E não reabertas; nenhum SQL executado, nenhum objeto de banco alterado.** A seção "Product / UX Traceability — Pokédex" afirmava, no item 3, que "**não existe auto-assignment**" e que a seleção da Card e a Assignment seriam sempre atos explícitos — o que contradiz o comportamento **já LIVE desde a Fatia D**: a Query `6119` (`auto_assign_pokedex_position_species_match()`, trigger `AFTER INSERT` `FOR EACH STATEMENT` em `collection_allocation`) cria a Assignment automaticamente, com `assignment_basis = SPECIES_MATCH` e `assigned_by_user_id = NULL`, quando a Collection é Pokédex e a Primary Species da Card corresponde inequivocamente a uma Position do Pokédex referenciado. Quatro itens reescritos, mantendo os 10: (1) o North Star Position → Card passa a ser declarado como do **fluxo manual**, sem eliminar automações determinísticas; (2) Allocation ≠ Position Assignment reforçado como *relações distintas*, com a ressalva de que a Allocation **causa** a Assignment via `6119` sem **substituí-la** — completion segue consultando exclusivamente a Assignment; (3) o `SPECIES_MATCH` inequívoco passa a ser descrito como automático, registrando também o caminho manual por `6122` quando a automação não ocorreu; (4) ausência de match inequívoco passa a registrar explicitamente que a automação não cria nada e não erra, e que `USER_OVERRIDE` nunca é automático. O item 8 ganhou a nota de que `6119` não filtra por Scope — auto-Assignment fora do Scope é preservada mas não conta. Demais princípios preservados sem alteração. Nenhuma entrada histórica reescrita. Ver `docs/development/HANDOFF-2026-09-04.md` revisão `1.11`, `docs/domain-modeling/collections/logical-model.md` e `docs/log.md`. |
 | 1.18 | **Binder/Layout Foundation — `IMPLEMENTED / VALIDATED / PERFORMANCE HEALTHY / CLOSED` (2026-09-07, cadeia `COLLECTIONS-BINDER-LAYOUT-FOUNDATION-IMPLEMENTATION-01` → `-DOCUMENTATION-CLOSEOUT-01`).** Nova seção "Binder / Layout Foundation" com o estado final: seis tabelas (`collection_layout`, `collection_layout_page`, `collection_layout_slot`, `collection_layout_slot_expected_content`, `collection_layout_slot_assignment`, `collection_layout_region`), 15 RPCs `SECURITY DEFINER` com ordem de lock canônica COLLECTION → LAYOUT e não-enumeração, e os triggers de integridade (`5104`–`5137`); `5137` registrada como definição histórica aplicada com defeito de ambiguidade descoberto **em runtime**, e `5141` como definição corretiva efetiva (migration incremental, histórico não reescrito). Validação registrada: `5818` v7.2 **196/196 runtime, FAIL 0** — incluindo `C04` e `R18` provados manualmente em duas sessões reais com bloqueio comprovado por `pg_blocking_pids`, nunca convertidos artificialmente em PASS; `5819` v3.0 **22/22 HEALTHY** sem criar índice; `5820` v1.2 **27/27**. Hardening de cardinalidade de payload `UUID[]` (`5138`–`5140` sobre `5024`/`5046`/`5047`) documentado com o mecanismo do bypass e a correção. Escopo da afirmação de segurança explicitado: a classe está fechada **apenas nas RPCs do escopo desta implementação**, e o documento **não** afirma ausência do bypass em todo o sistema — `get_cards_pricing_summary(uuid[])` fica registrada como pendência material, com o gate `PRICING-PAYLOAD-CARDINALITY-HARDENING-01` precedendo Bulk Collection Operations. Item 10 de "Product / UX Traceability — Pokédex" atualizado: o Binder deixou de ser "futuro" e a distinção Binder Slot × Pokédex Position Assignment passou a ser descrita pelas tabelas reais. Nenhuma mudança de banco nesta revisão. |
 | 1.19 | **Reconciliação de estado corrente após o fechamento do gate de Pricing (2026-09-07, `PRICING-PAYLOAD-CARDINALITY-HARDENING-01-DOCUMENTATION-CLOSEOUT`). Nenhuma mudança de modelo físico.** Dois trechos de corpo que apontavam `PRICING-PAYLOAD-CARDINALITY-HARDENING-01` como próxima frente — no bloco de status do Pokédex e em "Pendências / Próximos Passos" — passam a registrar o gate como `IMPLEMENTED / VALIDATED / CLOSED` (Query `3972`, harness `3860` v1.1 em 18/18, detalhe em `05f-pricing.md` v1.58) e **a próxima frente do projeto passa a ser Bulk Collection Operations**, sem gate pendente à frente. A seção "Binder / Layout Foundation" e o escopo da afirmação de segurança permanecem inalterados. Nenhum SQL executado. |
+| 1.20 | **Bulk Operations Foundation (BULK-01) — `IMPLEMENTED / VALIDATED / CONCURRENCY PROVEN / CLEAN` (2026-09-07, cadeia `COLLECTIONS-BULK-OPERATIONS-MODELING-AUDIT-01` → `-REVISION-01` → `-FINALIZATION-01` → `COLLECTIONS-BULK-01-PHYSICAL-PROPOSAL-01` → `-REVISION-01` → `-IMPLEMENTATION-01` → `-POST-AUDIT-HARDENING-01` → `-REVISION-02` → `-VALIDATION-02` → `-DOCUMENTATION-CLOSURE-01`).** Seção nova "Bulk Operations Foundation (BULK-01)", décima sexta fundação física de Collections e primeiro incremento da frente Bulk: `bulk_operation` (ledger mínimo de idempotência, **sem coluna `status`**), constraint trigger diferido de presença de `result_summary`, `claim_bulk_operation()`, `complete_bulk_operation()` e o hardening de contrato de `result_summary` (Queries `5142`–`5146`, ledger `20260908003848`/`003907`/`003935`/`003951`/`20260908011925`). Registra: (a) o contrato de `result_summary` em **três camadas complementares** — `NOT NULL` não serve porque o claim nasce NULL; `5143` fecha SQL NULL persistente; `5146` fecha `'null'::jsonb`/array/escalares, que **não são** SQL NULL e passariam pelo trigger; (b) a semântica de claim corrigida — "0 linhas do `INSERT … ON CONFLICT DO NOTHING`" **não** significa "linha committada", e claim incompleto **nunca** vira REPLAY; (c) `bulk_operation` como **ledger interno sem caminho de acesso direto** (`REVOKE ALL` dos três papéis; RLS + policy owner-scoped apenas como defesa em profundidade, provado em runtime por `42501`); (d) **exatamente 2 índices** — o índice especulativo `(owner_user_id, created_at DESC)` foi proposto e removido por falta de workload aprovado. Validação `5821` v1.3 = **39 TOTAL / 36 PASS / 0 FAIL / 3 NOT PROVEN**, baseline 0 e postcheck pós-`ROLLBACK` = 0; `K01`/`K02`/`K03` posteriormente **provados em duas sessões `psql` persistentes (A e B) mais observador externo via SQL Editor do Supabase** (`pg_blocking_pids(B) = [A]`, `wait_event = transactionid`; REPLAY com o mesmo `operation_id` após COMMIT; CLAIMED após ROLLBACK), totalizando **39/39 efetivamente provados**. Cleanup com `fx_residuo = 0` e role temporária `bulk_k_probe` removida (`role_residuo = 0`). Registrada por honestidade a primeira tentativa inválida de `K02` (SELECT direto com role sem privilégio — comportamento correto do ledger), revertida e reexecutada corretamente; não foi defeito do produto nem da migration. **`5142`–`5146` promovidas para `database/schema/`** em 2026-09-08 (`COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`), corpo executável byte-idêntico ao das cópias em `proposals`; `5821`, runbook e `README.md` da rodada mantidos apenas em `proposals`, como evidência histórica. Próxima frente canônica: **`BULK-02` — `register_physical_cards_bulk`**; sequência macro congelada `BULK-02` → `BULK-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`. Marcado como fechado, na seção Binder, o gate `PRICING-PAYLOAD-CARDINALITY-HARDENING-01` que ali ainda constava como pendente. **Correção documental posterior, na mesma rodada não commitada (`-PRECOMMIT-CORRECTION-02`):** a descrição da execução externa passou a registrar a configuração factual — **duas** sessões `psql` persistentes para A/B, com a role temporária `bulk_k_probe` detentora de `EXECUTE` explícito nos helpers e sem acesso direto à tabela, mais observador externo **one-shot via SQL Editor do Supabase** —, em lugar de "três sessões `psql`"; e a nota de execução passou a atribuir a primeira tentativa inválida de `K02` ao **defeito do roteiro** (recuperava o `operation_id` por `SELECT` na tabela), corrigido na v1.2 de `CONCURRENCY-PROOF-BULK-CLAIM.sql`. Também nessa correção, a camada de `5146` deixou de ser chamada de "guard na RPC" e passou a "guard no helper interno `complete_bulk_operation()`" — `EXECUTE` está revogado de todos os papéis, logo não é RPC. Nenhuma lógica SQL alterada. |
+| 1.21 | **Promoção canônica de `5142`–`5146` para `database/schema/` (2026-09-08, `COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`). Nenhum SQL executado, nenhuma lógica de migration alterada.** A política canônica de promoção do repositório foi reconfirmada diretamente no histórico: migrations estruturais executadas e validadas vão para `database/schema/`; as cópias em `database/proposals/` ficam como evidência histórica; harnesses, runbooks e `README.md` de staging **não** são promovidos. `BULK-01` estava fechado tecnicamente mas com a promoção pendente — corrigido aqui. As cinco migrations passam a existir também em `database/schema/`, com **corpo executável byte-idêntico** ao das cópias em `proposals` (SHA-256 conferido arquivo a arquivo; a única diferença é o cabeçalho de comentário, integralmente antes do `BEGIN;`, que passa a `CONFIRMADO EXECUTADO / LIVE / PROMOVIDO` e ganha o bloco de rodapé com ledger, gate e prova externa). `5821`, `CONCURRENCY-PROOF-BULK-CLAIM.sql` e o `README.md` da rodada permanecem apenas em `proposals`. Os três trechos desta seção que declaravam "Nada promovido para `database/schema/`" / "promoção não autorizada" foram reconciliados. Nenhuma decisão de modelo revista. |
