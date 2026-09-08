@@ -2,7 +2,7 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 5024 - Create set_physical_cards_storage Function
-Versão......: 2.0
+Versão......: 2.1 (hardening da Query 5138, foldado)
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-31 (v1.0 assign_physical_cards_to_storage,
@@ -100,9 +100,51 @@ para 500 itens sobre 20k linhas) — ver
 database/validations/5802_validate_collections_physical_increment_02a.sql
 e 5803_performance_checks_collections_physical_increment_02a.sql.
 ================================================================
+
+HARDENING DE CARDINALIDADE DE PAYLOAD — FOLD-IN DA QUERY 5138
+------------------------------------------------------------
+Achado real (COLLECTIONS-BINDER-LAYOUT-FOUNDATION-CONSOLIDATED-
+CORRECTION-03, §6 SECURITY SPILLOVER): o teto de 500 desta função era
+medido com `array_length(p_physical_card_ids, 1)`, que conta APENAS a
+primeira dimensão. Um payload multidimensional atravessava o teto — por
+exemplo `array_fill(uuid, ARRAY[2, 400])` tem `array_length(x,1) = 2` e
+`cardinality(x) = 800` — e o `unnest` processava os 800 elementos. Uma
+RPC `SECURITY DEFINER` executava trabalho não limitado escolhido pelo
+chamador; o teto existia no papel e não no comportamento.
+
+A Query `5138` (`CREATE OR REPLACE`, aplicada ao banco real em
+2026-09-07, `COLLECTIONS-BINDER-LAYOUT-FOUNDATION-IMPLEMENTATION-01`)
+substituiu o teto por, nesta ordem e todos ANTES de qualquer
+`unnest`/`DISTINCT`, resolução de Inventory/ownership ou escrita:
+
+  1. NULL                     -> 'não pode ser vazio';
+  2. cardinality(...) = 0     -> 'não pode ser vazio'
+                                 (cobre '{}', cujo array_ndims é NULL);
+  3. array_ndims(...) <> 1    -> 'deve ser um array unidimensional';
+  4. cardinality(...) > 500   -> 'lote excede o limite de 500 itens
+                                 por chamada'.
+
+Assinatura, contrato de retorno, validações de Inventory/ownership,
+atomicidade, mutação set-based e grants permanecem inalterados; as
+mensagens de erro pré-existentes foram preservadas literalmente.
+Validado por `5820` v1.2 (27/27).
+
+**O corpo executável deste arquivo é o da Query `5138`** — o estado
+final efetivamente vivo no banco. `5138` permanece INTACTA em
+`database/proposals/2026-09-06-bulk-payload-cardinality-hardening/` como
+registro histórico. Por decisão de Fabrício em
+`SCHEMA-PROMOTION-RECONCILIATION-01` (2026-09-08), **`5138` NÃO recebe
+arquivo próprio em `database/schema/`**: a representação canônica é uma
+definição por objeto. Mesmo padrão de `5039`×`5048`, `5046`×`5064` e
+`5057`×`5092`.
+
+STATUS DESTA QUERY: CONFIRMADO EXECUTADO / LIVE / PROMOVIDO — corpo
+efetivo = Query `5138` (fold-in em SCHEMA-PROMOTION-RECONCILIATION-01,
+2026-09-08). O harness `5820` NÃO é promovido, por convenção.
+================================================================
 */
 
-CREATE FUNCTION public.set_physical_cards_storage(
+CREATE OR REPLACE FUNCTION public.set_physical_cards_storage(
     p_storage_container_id UUID,
     p_physical_card_ids UUID[]
 )
@@ -126,11 +168,27 @@ BEGIN
         RAISE EXCEPTION 'authentication required';
     END IF;
 
-    IF p_physical_card_ids IS NULL OR array_length(p_physical_card_ids, 1) IS NULL THEN
+    IF p_physical_card_ids IS NULL THEN
         RAISE EXCEPTION 'p_physical_card_ids não pode ser vazio';
     END IF;
 
-    v_raw_count := array_length(p_physical_card_ids, 1);
+    -- HARDENING: cardinality() conta TODOS os elementos, em qualquer
+    -- numero de dimensoes. array_length(x, 1) contava apenas a
+    -- primeira dimensao e permitia bypass do teto de 500.
+    v_raw_count := cardinality(p_physical_card_ids);
+
+    IF v_raw_count = 0 THEN
+        RAISE EXCEPTION 'p_physical_card_ids não pode ser vazio';
+    END IF;
+
+    -- CONTRATO DE FORMA: somente array unidimensional. Avaliado ANTES
+    -- de qualquer unnest/DISTINCT, resolve de ownership, lock ou
+    -- escrita.
+    IF array_ndims(p_physical_card_ids) <> 1 THEN
+        RAISE EXCEPTION
+            'p_physical_card_ids deve ser um array unidimensional (recebido array com % dimensões)',
+            array_ndims(p_physical_card_ids);
+    END IF;
 
     IF v_raw_count > 500 THEN
         RAISE EXCEPTION 'lote excede o limite de 500 itens por chamada';
@@ -166,7 +224,7 @@ BEGIN
     WHERE pc.id = ANY(v_distinct_ids)
       AND pc.inventory_id = v_inventory_id;
 
-    IF v_owned_count <> array_length(v_distinct_ids, 1) THEN
+    IF v_owned_count <> cardinality(v_distinct_ids) THEN
         RAISE EXCEPTION 'um ou mais physical_card_ids não pertencem ao inventory do chamador';
     END IF;
 

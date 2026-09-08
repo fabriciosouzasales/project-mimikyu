@@ -2476,3 +2476,5 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-09-07] feature | Bulk Operations Foundation (BULK-01) implementada, validada e com concorrência provada; próxima frente BULK-02.
 
 ## [2026-09-08] docs | 5142-5146 (BULK-01) promovidas para database/schema/; harness 5821 e runbook de concorrencia mantidos em proposals como evidencia.
+
+## [2026-09-08] docs | SCHEMA-PROMOTION-RECONCILIATION-01 CLOSED: 5104-5136 promovidos, 5137 com 5141 foldada, 5138-5140 foldados em 5024/5046/5047, 3972 em database/migrations/; sem SQL, BULK-01 segue CLOSED, proximo passo GATE A do BULK-02.

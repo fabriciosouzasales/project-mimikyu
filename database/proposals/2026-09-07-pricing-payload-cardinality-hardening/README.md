@@ -3,7 +3,7 @@
 | Campo | Valor |
 |--------|-------|
 | **Rodada** | `PRICING-PAYLOAD-CARDINALITY-HARDENING-01` → `-IMPLEMENTATION` → `-DOCUMENTATION-CLOSEOUT` (2026-09-07) |
-| **Status** | **IMPLEMENTED / VALIDATED / CLOSED (2026-09-07).** `3972` **aplicada** (ledger `20260907231143`); `3860` v1.1 **executado** com `18 TOTAL / 18 PASS / 0 FAIL / 0 NOT PROVEN`; zero resíduo. **Não promovido** para `database/schema/`; **nenhum commit/push realizado.** |
+| **Status** | **IMPLEMENTED / VALIDATED / CLOSED (2026-09-07).** `3972` **aplicada** (ledger `20260907231143`); `3860` v1.1 **executado** com `18 TOTAL / 18 PASS / 0 FAIL / 0 NOT PROVEN`; zero resíduo. **`3972` PROMOVIDA para `database/migrations/` em 2026-09-08** (`SCHEMA-PROMOTION-RECONCILIATION-01`) — destino canônico da faixa `3xxx`, promoção individual, **sem fold-in em `3968`**. O harness `3860` **não** é promovido e permanece aqui como evidência histórica. |
 | **Natureza** | **Segurança material**, não higiene. Mesma classe do BLOCKER fechado em `5138`–`5140` (2026-09-07). |
 | **Escopo** | **Exclusivamente** `public.get_cards_pricing_summary(p_card_ids uuid[])`. Nenhuma outra RPC, nenhum outro uso de `uuid[]`. |
 | **Origem** | Achado do postcheck de fechamento da Binder/Layout Foundation (`COLLECTIONS-BINDER-LAYOUT-FOUNDATION-IMPLEMENTATION-01`), registrado em `docs/05f-pricing.md` §"PENDÊNCIA ABERTA". |
@@ -246,4 +246,4 @@ A primeira execução abortou com `42883: function min(uuid) does not exist`. O 
 
 `ROLLBACK;` emitido. Temp tables `_v`/`_fx`/`_ids` remanescentes = **0**. `pricing_observation` = 251.230 e `pricing_manual_price` = 19 — o harness é somente leitura e não escreveu nada.
 
-**Estado:** `3972 APLICADA` · `3860 EXECUTADO — 18/18 PASS` · `NÃO PROMOVIDO` · `COMMIT/PUSH NÃO REALIZADO`.
+**Estado:** `3972 APLICADA` · `3860 EXECUTADO — 18/18 PASS` · `3972 PROMOVIDA PARA database/migrations/ (2026-09-08, SCHEMA-PROMOTION-RECONCILIATION-01, sem fold-in em 3968)` · `3860 NÃO PROMOVIDO — evidência histórica`.

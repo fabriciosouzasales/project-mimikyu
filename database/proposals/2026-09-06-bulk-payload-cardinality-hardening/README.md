@@ -3,7 +3,7 @@
 | Campo | Valor |
 |--------|-------|
 | **Rodada** | criado em `...-CONSOLIDATED-CORRECTION-03` §6 SECURITY SPILLOVER; reconciliado em `...-CONSOLIDATED-CORRECTION-04` §6; **executado e fechado em `...-IMPLEMENTATION-01-CLOSE` (2026-09-07)** |
-| **Status** | **IMPLEMENTED / VALIDATED (2026-09-07).** `5138`, `5139` e `5140` **aplicados** ao banco; `5820` **executado** com PASS `27/27/0/0`. Ainda **não** promovido para `database/schema/`; **nenhum commit/push realizado.** |
+| **Status** | **IMPLEMENTED / VALIDATED (2026-09-07).** `5138`, `5139` e `5140` **aplicados** ao banco; `5820` **executado** com PASS `27/27/0/0`. **FOLDADOS na representação canônica em 2026-09-08** (`SCHEMA-PROMOTION-RECONCILIATION-01`): `5138` → `database/schema/5024`, `5139` → `database/schema/5046`, `5140` → `database/schema/5047`. Os três **não** recebem arquivos independentes em `schema/` — a representação canônica é uma definição por objeto. Estes arquivos permanecem aqui como registro histórico; o harness `5820` **não** é promovido. |
 | **Natureza** | **Segurança material**, não higiene. Mesma classe do BLOCKER que a FINAL MATERIAL AUDIT encontrou nas RPCs da Binder/Layout Foundation. |
 | **Escopo** | 3 migrations incrementais sobre RPCs públicas `SECURITY DEFINER` já LIVE + 1 harness funcional executável. |
 
