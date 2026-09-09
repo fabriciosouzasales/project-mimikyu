@@ -1330,10 +1330,103 @@ O desfecho ser `PREVIEW_STALE` e **não** `collection is archived` prova a ordem
 
 ## Pendências / Próximos Passos
 
-- **Próxima frente canônica: `BULK-03` — Preview.** Será a interface pública que expõe `5149` de dentro da sua própria RPC `SECURITY DEFINER`. Sequência macro congelada restante: `BULK-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
+- ~~**Próxima frente canônica: `BULK-03` — Preview.**~~ **CONCLUÍDA em 2026-09-09** — ver a seção "Bulk Operations — BULK-03: Preview" logo abaixo. **Próxima frente: `CATALOG-HISTORICAL-BOOTSTRAP`.** Sequência macro congelada restante: `CATALOG-HISTORICAL-BOOTSTRAP` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
 - `add_physical_cards()` (`5012`) e `allocate_physical_cards_to_collection()` (`5046`) permanecem canônicas, com teto de 500 e todos os callers, **até `BULK-05`**.
 - **`bulk_operation` cresce sem política de retenção** — herdado de BULK-01, irrelevante na V1, registrado e não resolvido.
 - Nenhum benchmark de performance dedicado foi executado para `5150`. O teto de 1000 e as duas escritas set-based mantêm o custo limitado por desenho, mas medição sob volume fica para quando houver workload real.
+
+---
+
+# Bulk Operations — BULK-03: Preview
+
+| Campo | Valor |
+|---|---|
+| **Status** | **`EXECUTED / VALIDATED / PROMOTED / CLOSED`** (2026-09-09) |
+| **Query** | `5151` — `preview_bulk_operation()`; ledger `20260909024422` |
+| **Validação** | `5823` v2.2 — **`60 TOTAL / 60 PASS / 0 FAIL / 0 NOT PROVEN`** |
+| **Resíduo** | Δ = 0 nas **nove** tabelas do postcheck baseline-relativo |
+| **Escopo** | Somente `REGISTER_PHYSICAL_CARDS` (B1) |
+| **Promoção** | `5151` em `database/schema/`, corpo executável byte-idêntico (SHA-256) |
+
+Terceiro incremento da frente Bulk e **interface pública de Preview**. Produz o `preview_fingerprint` que a execução (`5150`) consome, e devolve numa única chamada o resumo do que aconteceria e a lista completa de impedimentos — sem escrever nada e sem tomar lock algum.
+
+## Assinatura e escopo
+
+```
+public.preview_bulk_operation(p_request jsonb) RETURNS jsonb
+```
+
+**Contrato reutilizável da família Bulk**, com discriminador `operation_type` — o mesmo do vocabulário fechado de `bulk_operation` (`5142`). Nesta versão **apenas `REGISTER_PHYSICAL_CARDS` é suportado**.
+
+`REGISTER_CARD_SET` **pertence ao vocabulário** e é recusado com mensagem própria de *ainda não suportado pelo Preview nesta versão* — nunca como "inválido". A distinção é normativa: um cliente que envia `REGISTER_CARD_SET` usa um valor legítimo do domínio que esta frente ainda não implementa; chamá-lo de inválido mandaria o desenvolvedor caçar o bug no lugar errado. As três situações — fora do vocabulário, no vocabulário sem suporte, suportado — têm mensagens distintas.
+
+## Request e response
+
+**Request**, contrato fechado de chaves: `operation_type`, `items`, `collection_id`, `storage_container_id`. **Sem `idempotency_key`** — Preview não faz claim, não escreve em `bulk_operation` e não reserva nada. A assimetria com o envelope de `5150` é deliberada.
+
+**Response**: `operation_type`, `ok`, `preview_fingerprint`, `summary` (`distinct_items`, `total_quantity`, `will_create_count`, `will_allocate_count`, `collection_id`, `storage_container_id`) e `issues[]`.
+
+**Contrato binário, sem estado intermediário:**
+
+| | `preview_fingerprint` | `issues` |
+|---|---|---|
+| `ok = true` | **presente**, não-branco | **`[]`** |
+| `ok = false` | **JSON `null`** | ≥ 1 item `BLOCKING` |
+
+Fingerprint de Preview reprovado **nunca chega ao cliente** — é calculado depois das validações, não antes. Não há como confirmar por engano uma operação que o Preview reprovou.
+
+`request_hash` **não** é devolvido: `5150` o deriva server-side (D-2 de BULK-02, que fechou o risco `B4`). Expô-lo só convidaria o cliente a mandá-lo de volta.
+
+## Exceção versus `issues[]`
+
+| Classe | Tratamento |
+|---|---|
+| **Erro estrutural** — envelope malformado, chave desconhecida, tipo errado, UUID inválido, `quantity` não-inteira, teto estourado | **exceção**, `ERRCODE` idêntico ao de `5150` |
+| **Situação corrigível pelo usuário** — carta inexistente, Collection arquivada, Game divergente, duplicata, recurso inacessível | **`issues[]`** com `ok=false` |
+
+O usuário precisa ver **tudo** de uma vez: estourar no primeiro problema faz quem tem 300 cartas descobrir um erro por round-trip.
+
+**Nove `issues[].code`**, cada um com prova dedicada no harness:
+
+`DUPLICATE_ITEM` · **`INVENTORY_NOT_FOUND`** · `COLLECTION_NOT_ACCESSIBLE` · `COLLECTION_ARCHIVED` · `STORAGE_NOT_ACCESSIBLE` · `CARD_VARIANT_NOT_FOUND` · `LANGUAGE_NOT_FOUND` · `GAME_MISMATCH` · `NOT_ELIGIBLE_FOR_REFERENCE`
+
+`INVENTORY_NOT_FOUND` é necessidade estrutural, não escopo novo: sem ele, um usuário sem `inventory` receberia exceção crua de dentro de `5149` em vez de `issues[]`, quebrando o próprio contrato binário. `severity` é `BLOCKING` em todos.
+
+## Segurança
+
+| Propriedade | Valor |
+|---|---|
+| `SECURITY DEFINER` | **obrigatório** — ver abaixo |
+| Volatilidade | **`VOLATILE`** — leitura do mundo AGORA, não cacheável na query chamadora |
+| `search_path` | vazio |
+| `EXECUTE` | **somente `authenticated`**; revogado de `PUBLIC`, `anon` e `service_role` |
+| Escritas / locks / claim | **nenhum** |
+
+**`SECURITY DEFINER` é requisito de correção, não preferência.** `5149` lê `card_variant → card → card_set → expansion` e `language` para montar o array `catalog` do fingerprint. O Catálogo Editorial (`ADR-022`) fecha essas tabelas ao `authenticated` comum: `public.card` tem RLS habilitado **sem nenhuma policy** e `card_variant` tem só `catalog_admin_select`, gated por `is_admin()` — precedente já registrado em `ADR-030` e no cabeçalho de `5070`. Como `SECURITY INVOKER`, o `catalog` viria **vazio** para todo usuário real, enquanto `5150` (`DEFINER` como `postgres`) o montaria cheio: os fingerprints jamais bateriam e **100% das execuções falhariam com `PREVIEW_STALE`**. `DEFINER` troca o **privilégio**, nunca a **identidade** — `auth.uid()` segue devolvendo o usuário real, então ownership e não-enumeração permanecem corretos.
+
+**`ok = true` NÃO é autorização.** Preview é consultivo: não toma lock e é inerentemente stale. `5150` revalida tudo **sob lock** e continua sendo a única autoridade — é ele quem detecta `PREVIEW_STALE`. Preview não toma lock de propósito: é um caminho de leitura chamado a cada alteração do payload na UI, e travar `INVENTORY` a cada chamada serializaria a interface contra ela mesma.
+
+**Não-enumeração** preservada para **Collection e Storage**: recurso inexistente e recurso de terceiro produzem o mesmo `code`, a mesma mensagem e a mesma contagem de `issues`. Resposta estruturada é mais informativa que exceção genérica — sem esse cuidado, o Preview viraria oráculo de enumeração, regressão em relação ao que `5148`/`5149`/`5150` protegem.
+
+## Cardinalidade
+
+Teto de **1000**, literal, **comportamentalmente equivalente ao de `5150`** — 1000 aceito e 1001 rejeitado, bruto e expandido, provado nos dois lados. A constante é duplicada e não compartilhada porque `5150` está `CLOSED`; a equivalência é garantida por teste, não por construção. Dívida registrada: o helper único fica para quando `5150` for tocado por outro motivo legítimo.
+
+## Validação e performance
+
+`5823` v2.2 — **`60/60/0/0`**, em 12 grupos: estrutura estática e ACL nos quatro papéis, vocabulário, guards com **SQLSTATE verificado** (`22023` estrutural; `28000` para `auth.uid()` ausente), teto, contrato `ok=true`/`ok=false` caso a caso, não-enumeração de Collection e de Storage, e a prova de fingerprint Preview × execução executada com `SET ROLE authenticated` **real** — sem a troca de papel, uma implementação `INVOKER` passaria no teste e quebraria em produção.
+
+**Medição observacional: `338.43 ms`** para 1000 `card_variant_id` reais e distintos, `quantity = 1`, sem Collection e sem Storage — 1000 resoluções reais de catálogo. Sem SLO nesta rodada; nenhum índice novo criado.
+
+Resíduo: **Δ = 0 nas nove tabelas** — as oito de BULK-02 mais `public.game`, tocada pela fixture sintética que prova `GAME_MISMATCH`.
+
+## Pendências / Próximos Passos
+
+- **Próxima frente canônica: `CATALOG-HISTORICAL-BOOTSTRAP`** — importação em massa do catálogo histórico do TCGdex (Card Sets, Cards e Card Variants), ainda não modelada; antecede o backfill de variantes default. Sequência macro congelada restante: `CATALOG-HISTORICAL-BOOTSTRAP` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
+- **`REGISTER_CARD_SET` (B2) sem Preview.** Exigirá função de fingerprint própria e um segundo braço no discriminador; envelope, semântica de erro, teto e matriz de segurança são herdados sem alteração.
+- **Constante `1000` duplicada** entre `5151` e `5150` — ver "Cardinalidade".
+- **Sem rate limiting na camada de banco.** Não-objetivo declarado desta frente: a proteção é o teto, o `EXECUTE` restrito a `authenticated` e o escopo por Owner; debounce é responsabilidade do cliente.
+- **Sem prova de concorrência** — ao contrário de BULK-02, aqui a afirmação se sustenta: Preview não toma lock, não escreve e não serializa nada. Não há blocker concreto a provar.
 
 ---
 
@@ -1579,3 +1672,4 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.21 | **Promoção canônica de `5142`–`5146` para `database/schema/` (2026-09-08, `COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`). Nenhum SQL executado, nenhuma lógica de migration alterada.** A política canônica de promoção do repositório foi reconfirmada diretamente no histórico: migrations estruturais executadas e validadas vão para `database/schema/`; as cópias em `database/proposals/` ficam como evidência histórica; harnesses, runbooks e `README.md` de staging **não** são promovidos. `BULK-01` estava fechado tecnicamente mas com a promoção pendente — corrigido aqui. As cinco migrations passam a existir também em `database/schema/`, com **corpo executável byte-idêntico** ao das cópias em `proposals` (SHA-256 conferido arquivo a arquivo; a única diferença é o cabeçalho de comentário, integralmente antes do `BEGIN;`, que passa a `CONFIRMADO EXECUTADO / LIVE / PROMOVIDO` e ganha o bloco de rodapé com ledger, gate e prova externa). `5821`, `CONCURRENCY-PROOF-BULK-CLAIM.sql` e o `README.md` da rodada permanecem apenas em `proposals`. Os três trechos desta seção que declaravam "Nada promovido para `database/schema/`" / "promoção não autorizada" foram reconciliados. Nenhuma decisão de modelo revista. |
 | 1.22 | **`SCHEMA-PROMOTION-RECONCILIATION-01` — `CLOSED` (2026-09-08). Rodada exclusivamente de reconciliação de baseline: nenhum SQL executado, nenhuma migration aplicada, nenhuma lógica funcional nova, nenhuma mudança no banco.** Restaurada a representação canônica das migrations já `EXECUTED`/`VALIDATED` que estavam fora do destino canônico: `5104`–`5136` promovidos individualmente para `database/schema/`; **`5137` promovido com o corpo efetivo da correção `5141` foldada** (`5141` sem arquivo próprio em `schema/`); `5138`/`5139`/`5140` **foldados** em `database/schema/5024`/`5046`/`5047`; **`3972` promovida individualmente para `database/migrations/`**, sem fold-in em `3968`. Equivalência do corpo executável provada por SHA-256 em todos os casos. Proposals históricas preservadas intactas; harnesses (`5818`/`5819`/`5820`/`3860`), runbooks e READMEs de staging **não** promovidos; `database/validations/` fora de escopo. `BULK-01` permanece `CLOSED` e não foi reaberto; `BULK-02` **não foi iniciado** — próximo passo funcional é o **`GATE A` de `BULK-02` — `register_physical_cards_bulk`**. Nesta revisão, na seção "Binder / Layout Foundation": o bloco de status deixa de dizer "Ainda não promovida" e passa a registrar a promoção com o detalhe COPY/FOLD-IN, e o item "Promoção para `database/schema/` ainda não autorizada" de "Pendências / Próximos Passos" foi riscado como RESOLVIDO. A seção "Bulk Operations Foundation (BULK-01)" **não foi tocada** — `BULK-01` segue `CLOSED`. Nenhuma decisão de modelo revista, nenhuma entrada histórica reescrita. |
 | 1.23 | **Bulk Operations — B1 (BULK-02) `register_physical_cards_bulk` — `EXECUTED / VALIDATED / CONCURRENCY PROVEN / PROMOTED / CLOSED` (2026-09-09, cadeia `COLLECTIONS-BULK-02-GATE-A-01` → `-GATE-A-REVISION-01` → `-GATE-A-REVISION-02` → `-GATE-A-FINAL-CORRECTION-01` → `-IMPLEMENTATION-01` → `-HARNESS-CORRECTION-01` → `-GATE-B-01` → `-DOCUMENTATION-CLOSEOUT-01`).** Seção nova "Bulk Operations — B1 (BULK-02): `register_physical_cards_bulk`", décima sétima fundação física de Collections e **primeira operação de negócio** da frente Bulk: `bulk_canonical_json()`/`bulk_request_hash()` (`5147`, fonte única de canonicalização), `bulk_lock_operation_scope()` (`5148`, fonte única da ordem `INVENTORY → COLLECTION → STORAGE`, atendendo `I9`), `preview_fingerprint_register_physical_cards()` (`5149`) e a RPC `register_physical_cards_bulk(p_request jsonb)` (`5150`) — ledger `20260908235708`/`235737`/`235815`/`20260909000013`. Esta seção passa a ser a **fonte durável** do contrato congelado decidido em `COLLECTIONS-BULK-OPERATIONS-MODELING-FINALIZATION-01`, rodada que não gerou artefato próprio no repositório — dívida documental identificada no GATE A e quitada aqui, sem ADR novo. Registra: (a) o caminho NEW obrigatório `guards → request_hash → claim → locks → RECÁLCULO do preview_fingerprint → validação de domínio → escritas set-based → complete`, com `PREVIEW_STALE` conferido **pós-lock** (fechando a janela TOCTOU que existiria se a conferência ficasse na aplicação) e REPLAY retornando antes, sem revalidar fingerprint (D9); (b) **D-2** — `request_hash` derivado **dentro do banco**, o que fecha por construção o risco `B4` de BULK-01, riscado nas Pendências daquela seção; (c) **D-1 corrigida** — a justificativa inicial de que múltiplas chamadas internas quebrariam atomicidade **estava errada** e foi descartada; os motivos reais de B1 não reutilizar `5012`/`5046` são teto de 500, ausência de `quantity`, performance e preservação das RPCs antigas até `BULK-05`; (d) `5149` como helper **INTERNO**, `SECURITY INVOKER` e **`VOLATILE` — nunca `STABLE`**, requisito de correção porque uma função `STABLE` leria o snapshot anterior ao commit que liberou o lock e o `PREVIEW_STALE` não dispararia. Validação `5822` v2.1 = **64 TOTAL / 64 PASS / 0 FAIL / 0 NOT PROVEN**, com resíduo Δ = 0 nas **oito** tabelas do postcheck baseline-relativo. Prova de concorrência externa `CONCURRENCY-PROOF-PREVIEW-STALE` = **PASS** (B bloqueada por A com `wait_event = transactionid`; após COMMIT de A, B falhou com `PREVIEW_STALE` e não com `collection is archived`; F0 ≠ F1; contraprova com F1 devolveu `CREATED`/2 cartas; resíduos e role temporária = 0) — blocker concreto **distinto** de `K01`–`K03`, que não foram repetidos. Registrados por honestidade: a adaptação de transporte do harness (canal MCP não preserva transação entre chamadas; execução em chamada única com `RAISE` forçando rollback) e o defeito real encontrado na primeira execução (**59/64**, cinco FAIL em `E01`–`E05` por asserção errada de `search_path`, corrigida reaproveitando o helper canônico do `5821`) — o defeito era do harness, nunca do produto. **`5147`–`5150` promovidas para `database/schema/`**, corpo executável byte-idêntico por SHA-256; `5822`, runbook de concorrência e `README.md` da rodada mantidos apenas em `proposals`, como evidência histórica. Próxima frente canônica: **`BULK-03` — Preview**, que passará a expor `5149` publicamente. |
+| 1.24 | **Bulk Operations — `BULK-03` Preview — `EXECUTED / VALIDATED / PROMOTED / CLOSED` (2026-09-09, cadeia `COLLECTIONS-BULK-03-MODELING-01` → `-MODELING-FINALIZATION-01` → `-GATE-A-REVISION-01` → `-GATE-A-REVISION-02` → `-GATE-A-EXECUTION-01` → `-GATE-A-HARNESS-CORRECTION-01` → `-GATE-B-01` → `-DOCUMENTATION-CLOSEOUT-01`).** Seção nova "Bulk Operations — BULK-03: Preview", décima oitava fundação física de Collections e **interface pública de Preview** da família Bulk: `preview_bulk_operation(p_request jsonb) → jsonb` (`5151`, ledger `20260909024422`). Registra: (a) contrato **reutilizável da família** com discriminador `operation_type`, mas nesta versão só `REGISTER_PHYSICAL_CARDS` — `REGISTER_CARD_SET` pertence ao vocabulário e é recusado com mensagem própria de *não suportado nesta versão*, nunca como "inválido"; (b) **contrato binário** — `ok=true` ⇒ fingerprint presente e `issues=[]`; `ok=false` ⇒ fingerprint **JSON `null`** e ao menos um `BLOCKING`, de modo que token de Preview reprovado nunca chega ao cliente; (c) erros estruturais viram **exceção** (mesmos `ERRCODE` de `5150`) e situações corrigíveis pelo usuário viram **`issues[]`**, com nove codes — inclusive `INVENTORY_NOT_FOUND`, acrescentado por necessidade estrutural e coberto por caso próprio; (d) **`SECURITY DEFINER` como requisito de correção, não preferência** — `5149` lê o catálogo fechado a `authenticated` por RLS (`ADR-022`/`ADR-030`), e como `INVOKER` o array `catalog` viria vazio, divergindo do de `5150` e quebrando 100% das execuções com `PREVIEW_STALE`; `VOLATILE`, `search_path` vazio, `EXECUTE` só para `authenticated`; (e) **sem escrita, sem lock e sem claim** — `ok=true` **não é autorização**, `5150` revalida sob lock e é quem detecta `PREVIEW_STALE`; (f) não-enumeração preservada para **Collection e Storage** (mesmo code, mesma mensagem, mesma contagem de issues), risco novo introduzido por resposta estruturada; (g) teto de **1000** comportamentalmente equivalente ao de `5150`, com a constante deliberadamente duplicada porque `5150` está `CLOSED` — dívida registrada. Validação `5823` v2.2 = **60 TOTAL / 60 PASS / 0 FAIL / 0 NOT PROVEN**, resíduo Δ = 0 nas **nove** tabelas (as oito de BULK-02 mais `public.game`, tocada pela fixture sintética de `GAME_MISMATCH`). Medição observacional `338.43 ms` para 1000 Card Variants reais. Registrados por honestidade: a primeira execução deu **59/60**, com um FAIL em `E06` por asserção errada sobre `pg_get_function_identity_arguments()`, que devolve `p_request jsonb` e não `jsonb` — **defeito exclusivo do harness**, com `5151` correta e intocada, e cujo idioma correto já existia no `E06` do `5822` e não foi reaproveitado; e o `F03` que passava `NULL` como `p_default_storage_container_id`, o que teria derrubado o harness antes do gate porque o guard de `create_collection()` (`5034`) é um `NOT EXISTS` incondicional. **`5151` promovida para `database/schema/`**, corpo executável byte-idêntico por SHA-256 nas três fontes (proposal, schema, ledger); `5823` e o `README.md` da rodada mantidos apenas em `proposals`, como evidência histórica. Próxima frente canônica: **`CATALOG-HISTORICAL-BOOTSTRAP`** — importação em massa do catálogo histórico do TCGdex, inserida antes de `CATALOG-VARIANT-DEFAULT-BACKFILL-01`. |

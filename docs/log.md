@@ -2480,3 +2480,5 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-09-08] docs | SCHEMA-PROMOTION-RECONCILIATION-01 CLOSED: 5104-5136 promovidos, 5137 com 5141 foldada, 5138-5140 foldados em 5024/5046/5047, 3972 em database/migrations/; sem SQL, BULK-01 segue CLOSED, proximo passo GATE A do BULK-02.
 
 ## [2026-09-09] feature | BULK-02 (B1) register_physical_cards_bulk EXECUTED/VALIDATED/CONCURRENCY PROVEN/PROMOTED/CLOSED: 5147-5150 aplicadas e promovidas para database/schema/, harness 5822 64/64/0/0, prova externa de PREVIEW_STALE PASS, risco B4 fechado por construcao; contrato congelado do FINALIZATION-01 passa a viver em docs/05d (rev 1.23); proxima frente BULK-03 - Preview.
+
+## [2026-09-09] feature | BULK-03 (Preview) preview_bulk_operation EXECUTED/VALIDATED/PROMOTED/DOCUMENTED: 5151 aplicada (ledger 20260909024422) e promovida para database/schema/, harness 5823 v2.2 60/60/0/0, D03 = 338,43 ms para 1000 Card Variants reais, Δ=0 nas nove tabelas; próxima frente CATALOG-HISTORICAL-BOOTSTRAP.
