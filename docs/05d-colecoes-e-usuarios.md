@@ -1149,10 +1149,191 @@ Isto estabelece que o **índice único é o mecanismo de serialização**, não 
 ## Pendências / Próximos Passos
 
 - ~~**Promoção para `database/schema/`** não autorizada nesta rodada.~~ **RESOLVIDO em 2026-09-08** (`COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`): `5142`–`5146` estão em `database/schema/`, com o corpo executável provado byte-idêntico ao das cópias em `database/proposals/2026-09-07-bulk-operations-foundation/`, que permanecem como evidência histórica junto do harness `5821`, do roteiro genérico de concorrência e do `README.md` da rodada — esses três **não** são promovidos.
-- **Próxima frente canônica: `BULK-02` — `register_physical_cards_bulk`.** Sequência macro congelada: `BULK-02` → `BULK-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
-- **Risco `B4` (Alta, herdado do desenho):** `request_hash` é calculado **fora** do banco, pelo chamador. A normalização precisa ser idêntica nos dois lados, ou a idempotência silenciosamente não funciona. `BULK-02` deve incluir caso provando que a mesma requisição, reordenada, produz o mesmo hash.
+- ~~**Próxima frente canônica: `BULK-02` — `register_physical_cards_bulk`.**~~ **CONCLUÍDA em 2026-09-09** — ver a seção "Bulk Operations — B1 (BULK-02)" logo abaixo. **Próxima frente canônica: `BULK-03` — Preview.** Sequência macro congelada restante: `BULK-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
+- ~~**Risco `B4` (Alta, herdado do desenho):** `request_hash` é calculado **fora** do banco, pelo chamador.~~ **FECHADO POR CONSTRUÇÃO em 2026-09-09 (BULK-02, decisão D-2).** O `request_hash` passou a ser derivado **dentro** do banco, por `bulk_request_hash()` (`5147`), a partir da intenção canônica; o chamador não o informa e não tem como informá-lo. Não há mais dois lados para divergir.
 - **`bulk_operation` cresce sem política de retenção** — irrelevante na V1 (volume desprezível), vira dívida se o produto escalar. Registrado, não resolvido.
 - `add_physical_cards()` (`5012`) permanece canônica e **não removida** (D6); auditoria/migração de callers e depreciação ficam para depois de `BULK-02`, em cleanup próprio.
+
+---
+
+# Bulk Operations — B1 (BULK-02): `register_physical_cards_bulk`
+
+## Status
+
+**`EXECUTED / VALIDATED / CONCURRENCY PROVEN / PROMOTED / CLOSED` (2026-09-09).** Décima sétima fundação física de Collections e **primeira operação de negócio** da frente Bulk. Queries `5147`–`5150` CONFIRMADO EXECUTADO (ledger `20260908235708`, `20260908235737`, `20260908235815`, `20260909000013`) e promovidas para `database/schema/` com corpo executável provado byte-idêntico por SHA-256.
+
+Validação automatizada `5822` v2.1 = **`64 TOTAL / 64 PASS / 0 FAIL / 0 NOT PROVEN`**, com resíduo Δ = 0 nas **oito** tabelas do postcheck baseline-relativo. Prova de concorrência externa `CONCURRENCY-PROOF-PREVIEW-STALE` = **PASS**.
+
+`5822`, o runbook de concorrência e o `README.md` da rodada permanecem **apenas** em `database/proposals/2026-09-08-bulk-02-register-physical-cards/`, como evidência histórica — não são promovidos, seguindo a política canônica.
+
+## Autoridade deste contrato
+
+Esta seção é a **fonte durável** do contrato congelado de B1. Ele foi decidido em `COLLECTIONS-BULK-OPERATIONS-MODELING-FINALIZATION-01`, rodada de modelagem que **não gerou artefato próprio no repositório** — a assinatura, a ordem de locks e o rótulo `I9` viveram apenas no chat até aqui. Dívida documental identificada no GATE A de BULK-02 e quitada nesta seção, por decisão explícita de não criar ADR novo.
+
+## Contrato congelado
+
+### Assinatura
+
+```
+register_physical_cards_bulk(p_request JSONB) RETURNS JSONB
+```
+
+Envelope com **contrato FECHADO de chaves** — `idempotency_key`, `preview_fingerprint`, `items` obrigatórias; `collection_id` e `storage_container_id` opcionais; qualquer chave desconhecida é erro. Cada item aceita exatamente `card_variant_id`, `language_id`, `quantity`.
+
+Retorno: `{ outcome: "CREATED" | "REPLAY", operation_id, result_summary }`. **`CONFLICT` não é um `outcome`** — vira exceção `BULK_IDEMPOTENCY_CONFLICT`. Sucesso e conflito não compartilham canal.
+
+### Invariantes
+
+| Cláusula | Como é garantida |
+|---|---|
+| Uma operação lógica = **uma transação**, all-or-nothing | A RPC roda na transação do chamador; qualquer `RAISE` derruba tudo, inclusive o claim |
+| Máximo **1000** Physical Cards criados | `c_max_total = 1000` |
+| **Raw cardinality** validada antes das escritas | `jsonb_array_length(items) > 1000` → erro, antes até do claim |
+| **Expanded cardinality** validada antes das escritas | `sum(quantity) > 1000` → erro, também antes do claim |
+| `quantity >= 1`, inteiro | Comparação em `numeric`, que cobre `0`, negativos e fracionários |
+| Duplicidade **semântica** de `(card_variant_id, language_id)` rejeitada | Comparação por tupla de `uuid`, não por concatenação textual — UUID é case-insensitive e a comparação crua deixaria passar duplicata real. **Sem deduplicação silenciosa**: multiplicidade é somente por `quantity`, então repetir a tupla é ambiguidade de intenção |
+| Storage e Collection **opcionais** | Parâmetros do envelope com default nulo; blocos condicionais |
+| IDs inválidos ou inexistentes abortam com **LISTA** dos ofensores | Três classes: UUID sintaticamente inválido (antes do claim), `card_variant_id` inexistente e `language_id` inexistente (validação de domínio). Mensagem com contagem + 10 primeiros; `DETAIL` com a lista completa. Nunca violação crua de FK vinda do meio da escrita |
+| **Zero partial success** | Guards de atomicidade comparando `created_count` com o total expandido e `allocated_count` com `created_count` |
+| Escritas **set-based**, sem loop por Physical Card | Um `INSERT ... SELECT` com `CROSS JOIN LATERAL generate_series(1, quantity)`; um segundo `INSERT ... SELECT` para a allocation. Duas escritas, sejam 1 ou 1000 cartas |
+
+### D-1 — por que B1 não reutiliza `5012` / `5046`
+
+Registro honesto: a justificativa inicial (que múltiplas chamadas internas quebrariam a atomicidade) **estava errada** e foi descartada — dentro da mesma transação tudo cairia junto no ROLLBACK. Os motivos reais, verificáveis no código canônico:
+
+1. **Teto.** `add_physical_cards()` (`5012`) rejeita array com mais de 500 elementos; `allocate_physical_cards_to_collection()` (`5046`) rejeita mais de 500 ids. O contrato de B1 é 1000 cartas criadas.
+2. **`quantity`.** `5012` não tem multiplicidade: 1000 cartas exigiriam 1000 elementos, que ela rejeita. A expansão iria para o cliente, jogando para fora do banco a validação do total expandido que o contrato manda fazer antes das escritas.
+3. **Performance.** O caminho de B1 é um `INSERT ... SELECT`; passar por dois helpers acrescenta parsing, revalidação e materialização de arrays intermediários sem ganho.
+4. **Preservação.** `5012` e `5046` seguem canônicas, com teto de 500 e todos os seus callers, **até `BULK-05`**. Nenhuma é alterada, removida ou migrada nesta frente.
+
+B1 faz as próprias escritas e **replica literalmente** a sequência de validação de `5046` (ownership não-enumerante, lifecycle, Game via `card_variant → card → card_set → expansion`, elegibilidade de Reference). Duplicação consciente de regra, não descuido: parametrizar o teto dos helpers antigos abriria frentes já fechadas para regressão.
+
+### D-2 — `request_hash` derivado server-side
+
+O `request_hash` é calculado **dentro do banco**, nunca recebido do chamador. Fecha por construção o risco `B4` de BULK-01: um cliente não pode enviar hash igual para intenções diferentes (REPLAY de outra operação) nem hash diferente para a mesma intenção (falso CONFLICT).
+
+Derivado da intenção canônica — `operation_type`, `collection_id`, `storage_container_id` e itens com UUIDs normalizados por cast e `quantity` como inteiro. `idempotency_key` e `preview_fingerprint` ficam **fora**: a primeira é a identidade da chamada, o segundo é estado do mundo (D9).
+
+## Modelo físico
+
+### `5147` — canonicalização, fonte única
+
+`bulk_canonical_json(JSONB) → TEXT` e `bulk_request_hash(TEXT, JSONB) → TEXT`. **Fonte única para toda a família Bulk** — B1, B2 e `BULK-03` derivam o hash exclusivamente daqui. Duas implementações parecidas produziriam hashes divergentes para a mesma intenção e a idempotência falharia em silêncio; por isso o objeto é um só.
+
+Serialização determinística: chaves de objeto ordenadas, elementos de array ordenados pelo próprio texto canônico, sempre `COLLATE "C"` (sem isso a ordenação dependeria da collation do banco), números normalizados por `trim_scale()`. **Arrays têm semântica de CONJUNTO** — deliberado, e sem perda de informação porque os chamadores rejeitam duplicatas antes.
+
+`IMMUTABLE`, funções puras, `search_path` vazio, `EXECUTE` revogado dos quatro papéis.
+
+### `5148` — ordem canônica de locks (I9)
+
+`bulk_lock_operation_scope(UUID, UUID)`. **Fonte única e reutilizável da ordem de aquisição de locks**, atendendo `I9`:
+
+```
+INVENTORY  ->  COLLECTION  ->  STORAGE
+```
+
+Ordem canônica **completa** de uma operação Bulk, incluindo o claim que a antecede:
+
+```
+BULK_OPERATION  ->  INVENTORY  ->  COLLECTION  ->  STORAGE
+```
+
+A ordem deixou de ser comentário repetido em cada RPC e virou implementação executável compartilhada por B1 e B2 — inversão passa a ser impossível por construção, não por disciplina de revisão. Ownership fica **dentro do `WHERE`**: recurso inexistente e recurso de terceiro produzem a mesma mensagem, e nenhuma linha alheia chega a ser travada. `SECURITY DEFINER`, owner `postgres`, `EXECUTE` revogado dos quatro papéis.
+
+### `5149` — `preview_fingerprint`, helper INTERNO
+
+`preview_fingerprint_register_physical_cards(JSONB, UUID, UUID) → TEXT`. Fonte única do fingerprint, usada nos **dois lados** da comparação — e é por ser a mesma função nos dois lados que a comparação tem sentido.
+
+**Helper INTERNO**: `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated`/`service_role`. **Não é endpoint público** — a interface pública de Preview será `BULK-03`. Duas razões: expor aqui criaria uma segunda porta para um contrato só, e esta função tem apenas guard mínimo de forma (não impõe o teto de 1000), o que, pública e `SECURITY DEFINER`, abriria trabalho não limitado escolhido pelo chamador. A saída **não** foi duplicar nela os guards de `5150`, e sim mantê-la interna.
+
+**`SECURITY INVOKER`** — é chamada por `5150` (`SECURITY DEFINER`, owner `postgres`) e, no futuro, pela RPC de `BULK-03`; herda o privilégio de quem chama.
+
+**`VOLATILE`, nunca `STABLE`** — requisito de correção, não estilo. Uma função `STABLE` enxerga o snapshot do início da query chamadora: depois de a sessão esperar no `FOR UPDATE` de `5148`, o recálculo poderia ler o estado **anterior** ao commit que liberou o lock, o `PREVIEW_STALE` não dispararia e a operação escreveria sobre um mundo já mudado. Falha silenciosa, invisível em sessão única — daí a prova de concorrência externa ser obrigatória.
+
+Cobre o estado do mundo que muda o resultado: Inventory; Collection (`updated_at`, `lifecycle_status`, `mode`, `game_id`, `reference_kind`, `reference_card_set_id`); Storage (`updated_at`); e o catálogo **resolvido**. `quantity` **não** entra — quantidade é intenção e mora no `request_hash` (D9).
+
+### `5150` — a RPC
+
+Caminho NEW, ordem obrigatória:
+
+```
+GUARDS -> request_hash (5147) -> CLAIM (5144)
+       -> INVENTORY -> COLLECTION -> STORAGE (5148)
+       -> RECÁLCULO do preview_fingerprint (5149)
+       -> validação de domínio -> escritas set-based
+       -> complete_bulk_operation (5145)
+```
+
+**`PREVIEW_STALE` é conferido pós-lock.** Conferir na aplicação, antes da chamada, deixaria uma janela TOCTOU entre a leitura e a transação; feita depois dos locks, a janela tem largura zero — o estado conferido é literalmente o estado travado sobre o qual se escreve.
+
+**REPLAY não revalida fingerprint (D9).** O retorno acontece no claim, antes do recálculo: repetir uma intenção já concluída não pode falhar porque o mundo andou depois. `claim_bulk_operation()` também nunca consultou fingerprint — coerência, não coincidência.
+
+`bulk_operation`, `claim_bulk_operation()` e `complete_bulk_operation()` são **consumidos e nunca redefinidos**.
+
+## Segurança — least privilege
+
+| Objeto | PUBLIC | anon | authenticated | service_role |
+|---|---|---|---|---|
+| `register_physical_cards_bulk` (`5150`) | não | não | **SIM** | não |
+| `bulk_canonical_json` / `bulk_request_hash` (`5147`) | não | não | não | não |
+| `bulk_lock_operation_scope` (`5148`) | não | não | não | não |
+| `preview_fingerprint_register_physical_cards` (`5149`) | não | não | não | não |
+| `claim` / `complete_bulk_operation` (BULK-01) | não | não | não | não |
+
+`proacl` não-NULL e sem entrada `grantee = 0` em todos — `proacl` NULL significaria privilégios default, e o default de function é justamente `EXECUTE TO PUBLIC`, por isso NULL é o caso ruim. `bulk_operation` segue sem caminho de acesso direto para papel algum, provado em runtime por `42501`.
+
+## Validação — `5822` v2.1
+
+**Gate: `TOTAL 64 / PASS 64 / FAIL 0 / NOT PROVEN 0`.**
+
+| Grupo | Casos | Cobre |
+|---|---|---|
+| `X` | 2 | baseline das 8 tabelas antes de escrever; prova de que o harness escreveu |
+| `F` | 2 | fixtures pelas RPCs canônicas |
+| `E` | 8 | estrutural, assinatura congelada, preservação de `5012`/`5046`, `5149` `SECURITY INVOKER` e **`VOLATILE`** |
+| `S` | 8 | os quatro papéis em `5150`, `5149` sem execute para nenhum, helpers novos e antigos, `42501` em runtime |
+| `H` | 5 | canonicalização: ordem de array, ordem de chaves, `1.50 = 1.5`, `operation_type`, sanidade negativa |
+| `L` | 2 | ordem de locks na fonte única; B1 **sem `FOR UPDATE` próprio** |
+| `P` | 15 | contrato de payload, incluindo bruto 1001, expandido 1001 com bruto 2, e duplicidade com variação de caixa no UUID |
+| `R` | 6 | relacional e não-enumeração |
+| `G` | 5 | fingerprint e `PREVIEW_STALE` antes da validação de lifecycle |
+| `A` | 6 | atomicidade, **expandido exatamente 1000 ACEITO**, elegibilidade `CARD_SET` |
+| `I` | 5 | idempotência: CREATED, REPLAY com JSON reordenado e UUID em outra caixa, REPLAY idêntico, REPLAY zero-write, CONFLICT |
+
+**Zero resíduo baseline-relativo, 8 tabelas** — `bulk_operation`, `physical_card`, `collection_allocation`, `collection`, `collection_reference`, `collection_card_set_reference`, `storage_container`, `inventory`. São oito, e não seis, porque a fixture `REFERENCE_BASED` é criada por `create_reference_based_card_set_collection()`, que escreve também nas duas tabelas de Reference. O critério é **igualdade com o baseline**, não "tudo zero": o harness funciona com o banco já povoado.
+
+### Nota de execução — adaptação de transporte
+
+Foi medido em 2026-09-09 que o canal MCP `execute_sql` não preserva sessão nem transação entre chamadas. O protocolo literal de três chamadas comitaria a CALL 1 e deixaria resíduo. O `5822` rodou em **chamada única**, com o relatório entregue por `RAISE EXCEPTION` — que aborta a transação e força o ROLLBACK por construção. Nenhum caso de teste foi alterado. Mesma classe de limitação de canal já registrada em `K01`–`K03` de BULK-01.
+
+### Defeito real encontrado — no harness, não no produto
+
+A primeira execução deu **59/64**. Os 5 FAIL eram `E01`–`E05`, todos pela asserção `proconfig @> ARRAY['search_path=']`: o PostgreSQL persiste `SET search_path = ''` como **`search_path=""`**, com o valor entre aspas, e a comparação por literal nunca casaria. Os objetos estavam corretos; a expectativa é que estava errada. Corrigido reaproveitando o helper canônico `pg_temp._empty_search_path(p_oid)` do `5821` — idioma que já existia no repositório desde BULK-01 e não havia sido reaproveitado.
+
+## Prova de concorrência externa — `PREVIEW_STALE` (PASS)
+
+Blocker concreto **distinto** de `K01`–`K03`: *snapshot pós-espera*. `K01`–`K03` provaram a serialização de `claim_bulk_operation()`, que B1 apenas consome, e **não** são repetidos. B1 **introduz** locks novos, via `5148` — por isso a prova nova.
+
+Configuração: duas sessões `psql` persistentes (Session Pooler porta 5432, role temporária `bulk_preview_probe` com `EXECUTE` apenas em `register_physical_cards_bulk` e `archive_collection`, sem acesso direto a tabela alguma) mais observador one-shot pelo SQL Editor do Supabase.
+
+| Evidência | Resultado |
+|---|---|
+| `volatilidade_5149` | `v` |
+| B bloqueada por A | `bloqueado_por_a = true`, `wait_event = transactionid` |
+| Após COMMIT de A, desfecho de B | **`PREVIEW_STALE`** — não `collection is archived`, não `CREATED` |
+| F0 ≠ F1 | true |
+| Contraprova com F1 | `CREATED` / 2 cartas |
+| Resíduo das duas `idempotency_key` | 0 |
+| Collection/Storage temporários, role temporária | 0 / 0 / 0 |
+
+O desfecho ser `PREVIEW_STALE` e **não** `collection is archived` prova a ordem do caminho NEW: fingerprint (passo 5) antes da validação de domínio (passo 6). A contraprova existe para que um `PREVIEW_STALE` que dispare sempre não passe por prova.
+
+## Pendências / Próximos Passos
+
+- **Próxima frente canônica: `BULK-03` — Preview.** Será a interface pública que expõe `5149` de dentro da sua própria RPC `SECURITY DEFINER`. Sequência macro congelada restante: `BULK-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
+- `add_physical_cards()` (`5012`) e `allocate_physical_cards_to_collection()` (`5046`) permanecem canônicas, com teto de 500 e todos os callers, **até `BULK-05`**.
+- **`bulk_operation` cresce sem política de retenção** — herdado de BULK-01, irrelevante na V1, registrado e não resolvido.
+- Nenhum benchmark de performance dedicado foi executado para `5150`. O teto de 1000 e as duas escritas set-based mantêm o custo limitado por desenho, mas medição sob volume fica para quando houver workload real.
 
 ---
 
@@ -1397,3 +1578,4 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.20 | **Bulk Operations Foundation (BULK-01) — `IMPLEMENTED / VALIDATED / CONCURRENCY PROVEN / CLEAN` (2026-09-07, cadeia `COLLECTIONS-BULK-OPERATIONS-MODELING-AUDIT-01` → `-REVISION-01` → `-FINALIZATION-01` → `COLLECTIONS-BULK-01-PHYSICAL-PROPOSAL-01` → `-REVISION-01` → `-IMPLEMENTATION-01` → `-POST-AUDIT-HARDENING-01` → `-REVISION-02` → `-VALIDATION-02` → `-DOCUMENTATION-CLOSURE-01`).** Seção nova "Bulk Operations Foundation (BULK-01)", décima sexta fundação física de Collections e primeiro incremento da frente Bulk: `bulk_operation` (ledger mínimo de idempotência, **sem coluna `status`**), constraint trigger diferido de presença de `result_summary`, `claim_bulk_operation()`, `complete_bulk_operation()` e o hardening de contrato de `result_summary` (Queries `5142`–`5146`, ledger `20260908003848`/`003907`/`003935`/`003951`/`20260908011925`). Registra: (a) o contrato de `result_summary` em **três camadas complementares** — `NOT NULL` não serve porque o claim nasce NULL; `5143` fecha SQL NULL persistente; `5146` fecha `'null'::jsonb`/array/escalares, que **não são** SQL NULL e passariam pelo trigger; (b) a semântica de claim corrigida — "0 linhas do `INSERT … ON CONFLICT DO NOTHING`" **não** significa "linha committada", e claim incompleto **nunca** vira REPLAY; (c) `bulk_operation` como **ledger interno sem caminho de acesso direto** (`REVOKE ALL` dos três papéis; RLS + policy owner-scoped apenas como defesa em profundidade, provado em runtime por `42501`); (d) **exatamente 2 índices** — o índice especulativo `(owner_user_id, created_at DESC)` foi proposto e removido por falta de workload aprovado. Validação `5821` v1.3 = **39 TOTAL / 36 PASS / 0 FAIL / 3 NOT PROVEN**, baseline 0 e postcheck pós-`ROLLBACK` = 0; `K01`/`K02`/`K03` posteriormente **provados em duas sessões `psql` persistentes (A e B) mais observador externo via SQL Editor do Supabase** (`pg_blocking_pids(B) = [A]`, `wait_event = transactionid`; REPLAY com o mesmo `operation_id` após COMMIT; CLAIMED após ROLLBACK), totalizando **39/39 efetivamente provados**. Cleanup com `fx_residuo = 0` e role temporária `bulk_k_probe` removida (`role_residuo = 0`). Registrada por honestidade a primeira tentativa inválida de `K02` (SELECT direto com role sem privilégio — comportamento correto do ledger), revertida e reexecutada corretamente; não foi defeito do produto nem da migration. **`5142`–`5146` promovidas para `database/schema/`** em 2026-09-08 (`COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`), corpo executável byte-idêntico ao das cópias em `proposals`; `5821`, runbook e `README.md` da rodada mantidos apenas em `proposals`, como evidência histórica. Próxima frente canônica: **`BULK-02` — `register_physical_cards_bulk`**; sequência macro congelada `BULK-02` → `BULK-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`. Marcado como fechado, na seção Binder, o gate `PRICING-PAYLOAD-CARDINALITY-HARDENING-01` que ali ainda constava como pendente. **Correção documental posterior, na mesma rodada não commitada (`-PRECOMMIT-CORRECTION-02`):** a descrição da execução externa passou a registrar a configuração factual — **duas** sessões `psql` persistentes para A/B, com a role temporária `bulk_k_probe` detentora de `EXECUTE` explícito nos helpers e sem acesso direto à tabela, mais observador externo **one-shot via SQL Editor do Supabase** —, em lugar de "três sessões `psql`"; e a nota de execução passou a atribuir a primeira tentativa inválida de `K02` ao **defeito do roteiro** (recuperava o `operation_id` por `SELECT` na tabela), corrigido na v1.2 de `CONCURRENCY-PROOF-BULK-CLAIM.sql`. Também nessa correção, a camada de `5146` deixou de ser chamada de "guard na RPC" e passou a "guard no helper interno `complete_bulk_operation()`" — `EXECUTE` está revogado de todos os papéis, logo não é RPC. Nenhuma lógica SQL alterada. |
 | 1.21 | **Promoção canônica de `5142`–`5146` para `database/schema/` (2026-09-08, `COLLECTIONS-BULK-01-SCHEMA-PROMOTION-01`). Nenhum SQL executado, nenhuma lógica de migration alterada.** A política canônica de promoção do repositório foi reconfirmada diretamente no histórico: migrations estruturais executadas e validadas vão para `database/schema/`; as cópias em `database/proposals/` ficam como evidência histórica; harnesses, runbooks e `README.md` de staging **não** são promovidos. `BULK-01` estava fechado tecnicamente mas com a promoção pendente — corrigido aqui. As cinco migrations passam a existir também em `database/schema/`, com **corpo executável byte-idêntico** ao das cópias em `proposals` (SHA-256 conferido arquivo a arquivo; a única diferença é o cabeçalho de comentário, integralmente antes do `BEGIN;`, que passa a `CONFIRMADO EXECUTADO / LIVE / PROMOVIDO` e ganha o bloco de rodapé com ledger, gate e prova externa). `5821`, `CONCURRENCY-PROOF-BULK-CLAIM.sql` e o `README.md` da rodada permanecem apenas em `proposals`. Os três trechos desta seção que declaravam "Nada promovido para `database/schema/`" / "promoção não autorizada" foram reconciliados. Nenhuma decisão de modelo revista. |
 | 1.22 | **`SCHEMA-PROMOTION-RECONCILIATION-01` — `CLOSED` (2026-09-08). Rodada exclusivamente de reconciliação de baseline: nenhum SQL executado, nenhuma migration aplicada, nenhuma lógica funcional nova, nenhuma mudança no banco.** Restaurada a representação canônica das migrations já `EXECUTED`/`VALIDATED` que estavam fora do destino canônico: `5104`–`5136` promovidos individualmente para `database/schema/`; **`5137` promovido com o corpo efetivo da correção `5141` foldada** (`5141` sem arquivo próprio em `schema/`); `5138`/`5139`/`5140` **foldados** em `database/schema/5024`/`5046`/`5047`; **`3972` promovida individualmente para `database/migrations/`**, sem fold-in em `3968`. Equivalência do corpo executável provada por SHA-256 em todos os casos. Proposals históricas preservadas intactas; harnesses (`5818`/`5819`/`5820`/`3860`), runbooks e READMEs de staging **não** promovidos; `database/validations/` fora de escopo. `BULK-01` permanece `CLOSED` e não foi reaberto; `BULK-02` **não foi iniciado** — próximo passo funcional é o **`GATE A` de `BULK-02` — `register_physical_cards_bulk`**. Nesta revisão, na seção "Binder / Layout Foundation": o bloco de status deixa de dizer "Ainda não promovida" e passa a registrar a promoção com o detalhe COPY/FOLD-IN, e o item "Promoção para `database/schema/` ainda não autorizada" de "Pendências / Próximos Passos" foi riscado como RESOLVIDO. A seção "Bulk Operations Foundation (BULK-01)" **não foi tocada** — `BULK-01` segue `CLOSED`. Nenhuma decisão de modelo revista, nenhuma entrada histórica reescrita. |
+| 1.23 | **Bulk Operations — B1 (BULK-02) `register_physical_cards_bulk` — `EXECUTED / VALIDATED / CONCURRENCY PROVEN / PROMOTED / CLOSED` (2026-09-09, cadeia `COLLECTIONS-BULK-02-GATE-A-01` → `-GATE-A-REVISION-01` → `-GATE-A-REVISION-02` → `-GATE-A-FINAL-CORRECTION-01` → `-IMPLEMENTATION-01` → `-HARNESS-CORRECTION-01` → `-GATE-B-01` → `-DOCUMENTATION-CLOSEOUT-01`).** Seção nova "Bulk Operations — B1 (BULK-02): `register_physical_cards_bulk`", décima sétima fundação física de Collections e **primeira operação de negócio** da frente Bulk: `bulk_canonical_json()`/`bulk_request_hash()` (`5147`, fonte única de canonicalização), `bulk_lock_operation_scope()` (`5148`, fonte única da ordem `INVENTORY → COLLECTION → STORAGE`, atendendo `I9`), `preview_fingerprint_register_physical_cards()` (`5149`) e a RPC `register_physical_cards_bulk(p_request jsonb)` (`5150`) — ledger `20260908235708`/`235737`/`235815`/`20260909000013`. Esta seção passa a ser a **fonte durável** do contrato congelado decidido em `COLLECTIONS-BULK-OPERATIONS-MODELING-FINALIZATION-01`, rodada que não gerou artefato próprio no repositório — dívida documental identificada no GATE A e quitada aqui, sem ADR novo. Registra: (a) o caminho NEW obrigatório `guards → request_hash → claim → locks → RECÁLCULO do preview_fingerprint → validação de domínio → escritas set-based → complete`, com `PREVIEW_STALE` conferido **pós-lock** (fechando a janela TOCTOU que existiria se a conferência ficasse na aplicação) e REPLAY retornando antes, sem revalidar fingerprint (D9); (b) **D-2** — `request_hash` derivado **dentro do banco**, o que fecha por construção o risco `B4` de BULK-01, riscado nas Pendências daquela seção; (c) **D-1 corrigida** — a justificativa inicial de que múltiplas chamadas internas quebrariam atomicidade **estava errada** e foi descartada; os motivos reais de B1 não reutilizar `5012`/`5046` são teto de 500, ausência de `quantity`, performance e preservação das RPCs antigas até `BULK-05`; (d) `5149` como helper **INTERNO**, `SECURITY INVOKER` e **`VOLATILE` — nunca `STABLE`**, requisito de correção porque uma função `STABLE` leria o snapshot anterior ao commit que liberou o lock e o `PREVIEW_STALE` não dispararia. Validação `5822` v2.1 = **64 TOTAL / 64 PASS / 0 FAIL / 0 NOT PROVEN**, com resíduo Δ = 0 nas **oito** tabelas do postcheck baseline-relativo. Prova de concorrência externa `CONCURRENCY-PROOF-PREVIEW-STALE` = **PASS** (B bloqueada por A com `wait_event = transactionid`; após COMMIT de A, B falhou com `PREVIEW_STALE` e não com `collection is archived`; F0 ≠ F1; contraprova com F1 devolveu `CREATED`/2 cartas; resíduos e role temporária = 0) — blocker concreto **distinto** de `K01`–`K03`, que não foram repetidos. Registrados por honestidade: a adaptação de transporte do harness (canal MCP não preserva transação entre chamadas; execução em chamada única com `RAISE` forçando rollback) e o defeito real encontrado na primeira execução (**59/64**, cinco FAIL em `E01`–`E05` por asserção errada de `search_path`, corrigida reaproveitando o helper canônico do `5821`) — o defeito era do harness, nunca do produto. **`5147`–`5150` promovidas para `database/schema/`**, corpo executável byte-idêntico por SHA-256; `5822`, runbook de concorrência e `README.md` da rodada mantidos apenas em `proposals`, como evidência histórica. Próxima frente canônica: **`BULK-03` — Preview**, que passará a expor `5149` publicamente. |
