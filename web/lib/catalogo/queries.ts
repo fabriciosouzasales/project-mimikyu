@@ -842,9 +842,13 @@ type CardSetsExpansionGroupInternal = CardSetsExpansionGroup & { gameCreatedAt: 
  * para ordenar Expansões dentro de um Jogo em `getExpansoesGroupedByGame` —
  * `game.created_at` ascendente primeiro (Jogo cadastrado há mais tempo
  * primeiro, nunca intercala Jogos diferentes) e, como desempate dentro do
- * mesmo Jogo, `expansion.release_order` ascendente (a mesma "ordem de
+ * mesmo Jogo, `expansion.release_order` DESCENDENTE (a mesma "ordem de
  * lançamento" já usada para as próprias Expansões, ver nota em
- * `getExpansoesGroupedByGame`). Não usa nome/código (alfabético) pela mesma
+ * `getExpansoesGroupedByGame`) — Expansão mais recente primeiro. Era
+ * ascendente até 2026-09-09; a Query `2160`
+ * (`CATALOG-EXPANSION-RELEASE-ORDER-CORRECTION`) corrigiu os dados para
+ * ordem cronológica crescente (`BASE` = 1 … `ME` = 17), invertendo a direção
+ * necessária para a mesma UX. Não usa nome/código (alfabético) pela mesma
  * razão de lá — Pokémon deve continuar vindo antes de Lorcana, não por
  * coincidência alfabética.
  *
@@ -927,7 +931,7 @@ export async function getCardSetsGroupedByExpansion(
   result.sort((a, b) => {
     const gameDiff = a.gameCreatedAt.localeCompare(b.gameCreatedAt);
     if (gameDiff !== 0) return gameDiff;
-    return a.expansionReleaseOrder - b.expansionReleaseOrder;
+    return b.expansionReleaseOrder - a.expansionReleaseOrder;
   });
   return result;
 }
@@ -1199,6 +1203,12 @@ type ExpansionRawRow = {
  * Lista de Expansões. `filters.gameCode`, quando informado, restringe o
  * resultado ao Jogo daquele código — usado pelo link "Expansões" clicável na
  * tela de Jogos (`?game=CODE`, ver `/catalogo/expansoes`).
+ *
+ * Direção do sort (2026-09-09, `CATALOG-EXPANSION-RELEASE-ORDER-CORRECTION`):
+ * `release_order` DESCENDENTE. Os dados foram corrigidos para ordem
+ * cronológica crescente (Query `2160`: `BASE` = 1 … `ME` = 17), então maior
+ * `release_order` = Expansão mais recente. Descendente preserva a UX já
+ * vigente — mais recente primeiro.
  */
 export async function getExpansoes(
   supabase: SupabaseClient,
@@ -1209,7 +1219,7 @@ export async function getExpansoes(
     .select(
       "id, code, name, release_order, created_at, updated_at, logo_storage_path, game!inner(id, code, name), card_set(count)",
     )
-    .order("release_order", { ascending: true });
+    .order("release_order", { ascending: false });
 
   if (filters?.gameCode) {
     query = query.eq("game.code", filters.gameCode);
@@ -1312,13 +1322,17 @@ type ExpansoesGameGroupInternal = ExpansoesGameGroup & { gameCreatedAt: string }
  * tipo de Jogo e organizadas pela data de lançamento de forma decrescente").
  * Como Expansion não tem `release_date` (ver nota acima), "data de
  * lançamento" é representada por `release_order` (maior valor = Expansão
- * mais recente daquele Jogo, por definição do próprio campo).
+ * mais recente daquele Jogo).
  *
- * Nota sobre a direção do sort dentro do grupo: `release_order` ASCENDENTE
- * (1, 2, 3…) — não descendente. Fabrício pediu "decrescente" inicialmente,
- * mas reportou "ordem inversa" ao ver o resultado com descendente aplicado
- * (2026-07-31); ajustado para ascendente a partir desse feedback direto na
- * tela.
+ * Nota sobre a direção do sort dentro do grupo: `release_order`
+ * DESCENDENTE, desde 2026-09-09
+ * (`CATALOG-EXPANSION-RELEASE-ORDER-CORRECTION`). Até então era ASCENDENTE,
+ * porque os dados estavam gravados em ordem cronológica INVERSA (`ME` = 1 …
+ * `BASE` = 17) e ascendente era o que produzia "mais recente primeiro". A
+ * Query `2160` corrigiu os dados para ordem cronológica crescente (`BASE` =
+ * 1 … `ME` = 17), então a mesma UX passa a exigir descendente. O feedback
+ * original de Fabrício ("ordem inversa", 2026-07-31) continua respeitado —
+ * mudou o dado, não a regra de apresentação.
  *
  * Ordem dos grupos (2026-07-31, mesmo dia, segundo ajuste): NÃO é
  * alfabética — Fabrício pediu explicitamente "primeiro listar... Pokémon e
@@ -1358,7 +1372,7 @@ export async function getExpansoesGroupedByGame(
 
   const result = Array.from(groups.values());
   for (const group of result) {
-    group.items.sort((a, b) => a.releaseOrder - b.releaseOrder);
+    group.items.sort((a, b) => b.releaseOrder - a.releaseOrder);
   }
   result.sort((a, b) => a.gameCreatedAt.localeCompare(b.gameCreatedAt));
   return result;
