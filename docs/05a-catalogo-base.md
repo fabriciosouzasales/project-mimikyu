@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Catálogo Base |
 | **Arquivo** | `docs/05a-catalogo-base.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Aprovado (entidades concluídas e executadas) |
 | **Objetivo** | Modelo lógico e físico de Game (Jogo), Expansion (Expansão) e Set (Card Set) — a hierarquia base do catálogo. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -356,7 +356,7 @@ DO NOTHING;
 
 Query: `810 - Seed Expansion`. Resultado confirmado: `Success. No rows returned`. Idempotente — executar novamente não cria uma segunda Expansion `ME` para o mesmo Game.
 
-> **Nota sobre `release_order`:** neste momento, `release_order = 1` representa a primeira Expansion incorporada ao catálogo do Project Mimikyu — não a primeira Expansion da história do Pokémon TCG. Quando Expansions históricas anteriores (Base, Neo, e-Card, EX, Diamond & Pearl...) forem importadas, essa ordenação precisará ser revisada para refletir a cronologia editorial completa (ver `04-domain-model.md`, seção Expansion — "Ordem de Lançamento").
+> **Nota sobre `release_order` (retrato histórico — SUPERADA em 2026-09-09).** Quando esta seção foi escrita, `release_order = 1` representava a primeira Expansion incorporada ao catálogo do Project Mimikyu, não a primeira Expansion da história do Pokémon TCG, e a revisão dessa ordenação ficou registrada como dívida para quando as Expansions históricas fossem importadas. **Essa revisão já aconteceu:** com a importação das Expansions históricas em `CATALOG-HISTORICAL-BOOTSTRAP-01`, o `release_order` de Expansion foi renormalizado pela Query one-shot `2160` (CONFIRMADA EXECUTADA em 2026-09-09, ledger `20260909231838`), passando a refletir a cronologia editorial real — hoje são **17 Expansions** Pokémon com ordenação histórica, e `release_order = 1` é de fato a mais antiga. O texto acima permanece apenas como registro do estado anterior.
 
 ### Validação
 
@@ -416,7 +416,7 @@ A identidade visual segue pendente, mas agora corretamente escopada ao Set: ver 
 
 # Set
 
-Status: **Pacote técnico concluído, reaberto pontualmente (terceira vez): `MEE`/`MEP` já existem como `card_set` reais.** Tabela, trigger, suporte a Sets promocionais, seed e validação executados e confirmados. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). Seguindo o novo **Princípio da Fonte Canônica** (STD-001, Seção 10), as Queries `120 - Create Card Set Table` e `820 - Seed Card Set` foram consolidadas para `Versão 2.0`/`2.1` (Status `CANÔNICA`), já nascendo com suporte nativo a `PROMO`/`ENERGY` — as Queries `122`/`263`/`264`/`821` (que originalmente introduziram esses ajustes em um banco já existente) foram reclassificadas como `MIGRATION` (históricas), preservadas mas fora do fluxo de instalação limpa. **`ENERGY` adicionado ao domínio de `set_type` e `release_order` de `ME1`-`ME4` reorganizado (Migrations `263`/`264`, CONFIRMADAS EXECUTADAS)** — ver "Migration `263`–`264`", abaixo. **`MEE`/`MEP` CONFIRMADOS EXECUTADOS (Migrations `265`–`268`)** — ver "Migration `265`–`268`", abaixo. **`MEE` também já tem `card_set_external_reference` confirmada (Migration `270`, TCGdex, `mee`), `metadata` de ambos padronizada para `{}` (Migration `269`), e a data de lançamento de `MEE` corrigida para `2025-09-25` (Migration `271`)** — ver "Migration `269`–`271`", abaixo; camada `Expansion → Card Set → Card Set External Reference` está completa para os dois novos Sets. Cartas/variantes/referências de carta/imagens de `MEE`/`MEP` **ainda não existem** — plano para `840 - Seed Card` v2.2 definido, não executado. **Itens abertos:** (1) confirmar se o índice único parcial `uq_card_set_expansion_promo` (novo na versão canônica de `120`) já existe no banco físico atual — ver "Modelo Físico — Versão Canônica", abaixo; (2) `820` v2.0 desatualizada quanto ao `release_order` real e sem `MEE`/`MEP`; (3) discrepância real sinalizada, não resolvida: nomes de `ME1`-`ME4`/`ME2.5` estão em português, inconsistentes com o princípio (novo, `AP-018` revisão `1.8`) de espelhar o nome exato da fonte oficial consultada.
+Status: **Pacote técnico concluído, reaberto pontualmente (terceira vez): `MEE`/`MEP` já existem como `card_set` reais.** Tabela, trigger, suporte a Sets promocionais, seed e validação executados e confirmados. Tabela física: `card_set` (ver nota em `04-domain-model.md` e STD-001, Seção 2 — `SET` é palavra reservada do SQL). Seguindo o novo **Princípio da Fonte Canônica** (STD-001, Seção 10), as Queries `120 - Create Card Set Table` e `820 - Seed Card Set` foram consolidadas para `Versão 2.0`/`2.1` (Status `CANÔNICA`), já nascendo com suporte nativo a `PROMO`/`ENERGY` — as Queries `122`/`263`/`264`/`821` (que originalmente introduziram esses ajustes em um banco já existente) foram reclassificadas como `MIGRATION` (históricas), preservadas mas fora do fluxo de instalação limpa. **`ENERGY` adicionado ao domínio de `set_type` e `release_order` de `ME1`-`ME4` reorganizado (Migrations `263`/`264`, CONFIRMADAS EXECUTADAS)** — ver "Migration `263`–`264`", abaixo. **`MEE`/`MEP` CONFIRMADOS EXECUTADOS (Migrations `265`–`268`)** — ver "Migration `265`–`268`", abaixo. **`MEE` também já tem `card_set_external_reference` confirmada (Migration `270`, TCGdex, `mee`), `metadata` de ambos padronizada para `{}` (Migration `269`), e a data de lançamento de `MEE` corrigida para `2025-09-25` (Migration `271`)** — ver "Migration `269`–`271`", abaixo; camada `Expansion → Card Set → Card Set External Reference` está completa para os dois novos Sets. Cartas/variantes/referências de carta/imagens de `MEE`/`MEP` **ainda não existem** — plano para `840 - Seed Card` v2.2 definido, não executado. **Atualização (2026-09-10) — `CATALOG-HISTORICAL-BOOTSTRAP-02 — CARD SETS` está CLOSED.** O catálogo passou de 46 para **199 Card Sets** Pokémon em 17 Expansions (Batch A = 71, Batch B = 82, além dos 46 originais), o índice único parcial `uq_card_set_expansion_promo` **existe no banco físico** (Query `2161`, ledger `20260910025017`) e `card_set.release_order` foi renormalizado para valores definitivos (Query `2162`, ledger `20260910025112`). Ver a seção "Bootstrap histórico do catálogo de Card Sets", ao final deste documento, para o estado consolidado e a regra definitiva de ordenação. **Itens abertos:** (1) ~~confirmar se o índice único parcial `uq_card_set_expansion_promo` (novo na versão canônica de `120`) já existe no banco físico atual~~ — **RESOLVIDO em 2026-09-10:** o índice existe, criado pela Query `2161` e confirmado pelo gate `921` (14/14); (2) `820` v2.0 desatualizada quanto ao `release_order` real e sem `MEE`/`MEP`; (3) discrepância real sinalizada, não resolvida: nomes de `ME1`-`ME4`/`ME2.5` estão em português, inconsistentes com o princípio (novo, `AP-018` revisão `1.8`) de espelhar o nome exato da fonte oficial consultada.
 
 ### Disciplina do processo
 
@@ -613,9 +613,9 @@ ALTER TABLE public.card_set
 ENABLE ROW LEVEL SECURITY;
 ```
 
-Query: `120 - Create Card Set Table` (v2.1, `CANÔNICA`). Representa o estado estrutural definitivo para novas instalações — as Queries `122` e `263` (históricas) não precisam ser executadas em uma instalação nova.
+Query: `120 - Create Card Set Table` (hoje na **v2.2**, `CANÔNICA` — a v2.1 acima é o estado em que esta seção foi escrita; a v2.2 apenas incorporou `ENERGY` em `ck_card_set_type`, ver ADR-015 revisão `1.8`). Representa o estado estrutural definitivo para novas instalações — as Queries `122` e `263` (históricas) não precisam ser executadas em uma instalação nova.
 
-> **Item aberto — não presumir resolvido:** esta versão canônica foi escrita para o **repositório** (arquivo/documentação), não executada como uma nova alteração contra o banco físico atual — o banco atual foi construído pelo caminho antigo (`120` v1.0 + migration `122`), que **não incluía** o índice `uq_card_set_expansion_promo`. Ou seja, é preciso **confirmar separadamente** se esse índice já existe no Supabase real; se não existir, nada no banco atual impede hoje uma segunda linha `PROMO` na mesma Expansion (mesma divergência já registrada em ADR-015, agora resolvida apenas na definição canônica, não necessariamente na instância física).
+> **Item RESOLVIDO em 2026-09-10 — o índice existe no banco físico.** Esta versão canônica foi escrita para o **repositório** (arquivo/documentação) e não como uma alteração contra o banco físico, que havia sido construído pelo caminho antigo (`120` v1.0 + migration `122`) sem o índice `uq_card_set_expansion_promo`. A divergência era, portanto, exclusivamente entre uma definição canônica **correta** e uma instância física antiga. Ela foi encerrada pela Query `2161 - Create Card Set Expansion Promo Unique Index` (CONFIRMADA EXECUTADA, ledger `20260910025017`, em `database/migrations/` — mesma classe de `122`, reconciliação de banco existente; `120` **não foi alterada**, por já estar certa). Estado medido: índice presente exatamente uma vez, `card_set` com 4 índices, 10 `PROMO` em 10 Expansions, zero Expansion com mais de um `PROMO`. Confirmado pelo gate read-only `921 - Validate Card Set Finalization` (14 verificações, 14 PASS, 0 FAIL). Uma segunda linha `PROMO` na mesma Expansion passou a ser **impedida fisicamente**.
 
 ### Trigger de `updated_at`
 
@@ -1116,7 +1116,8 @@ Seguindo a regra de deslocamento fixo (STD-001, Seção 10: Seed = criação + 7
 - [x] validação executada e confirmada (`920` v2.0 — "Tudo ok");
 - [x] Query `820` reescrita como snapshot completo da Expansion (v2.0, `ON CONFLICT ... DO UPDATE`, inclui `ME0`) — ver "Pendência — Reescrita da Query 820 (RESOLVIDA)";
 - [x] Query `120` consolidada para v2.0 (`CANÔNICA`), com suporte nativo a `PROMO` e o índice `uq_card_set_expansion_promo`; `122`/`821` reclassificadas `MIGRATION`;
-- [ ] confirmar se o índice `uq_card_set_expansion_promo` já existe no banco físico atual — ver "Divergência sinalizada", acima. Não bloqueia o início da modelagem de Card, mas deve ser verificado antes de considerar a regra de unicidade de `PROMO` realmente garantida em produção.
+- [x] índice `uq_card_set_expansion_promo` **confirmado presente no banco físico** (Query `2161`, CONFIRMADA EXECUTADA em 2026-09-10, ledger `20260910025017`; gate `921` 14/14) — a regra de unicidade de `PROMO` passou a ser garantida em produção, não apenas na definição canônica;
+- [x] `release_order` de todos os 199 Card Sets Pokémon normalizado para valores definitivos por regra determinística (Query `2162`, CONFIRMADA EXECUTADA em 2026-09-10, ledger `20260910025112`) — ver "Bootstrap histórico do catálogo de Card Sets", ao final deste documento;
 - [x] domínio de `set_type` ampliado para incluir `ENERGY` (`263`, executada, validada);
 - [x] `release_order` de `ME1`-`ME4` reorganizado (`264`, executada, validada), liberando `1`/`2` para `MEE`/`MEP`;
 - [x] `MEE` cadastrado com dados editoriais oficiais reais (`265`, executada, validada);
@@ -1526,5 +1527,77 @@ ALTER TABLE public.card_set
 
 `NULL` representa um Card Set ainda sem logo cadastrada — o frontend deve prever um fallback visual (ex.: iniciais/placeholder), não um erro. Nenhuma política de `UPDATE` foi criada em `card_set` para este campo: toda escrita passa pela função administrativa `admin_set_card_set_logo()` (ver seção "Autorização do Catálogo Editorial", abaixo), restrita a administradores e ao próprio campo. Convenção de caminho, espelhando o padrão já adotado para Card Asset (`pokemon/{collection-code}/{language-code}/{card-number}/front.png`, ver seção "Arquitetura de Armazenamento" acima): `{game_code}/{card_set_code}.png` — ex.: `pokemon/me1.png`, `pokemon/me2.5.png`. Leitura ocorre por URL assinada (`createSignedUrl()`), nunca `getPublicUrl()`, já que o bucket é privado (ver "Autorização do Catálogo Editorial"). Decisão formalizada em `ADR-022`. Confirmado via `information_schema.columns`/`pg_constraint`. Arquivo em `database/migrations/273_add_card_set_logo_column.sql`; `database/schema/120_create_card_set_table.sql` atualizado para v2.1 (Princípio da Fonte Canônica).
 
+> **Correção de estado (2026-09-10): a convenção de caminho real em uso não é `{game_code}/{card_set_code}.png`.** O caminho previsto acima nunca chegou a ser o que o código grava. A escrita real — tanto pela UI (`CardSetLogoUploader`) quanto pelo backfill em massa desta frente — usa `{card_set_id}/{uuid}.{ext}`, com `upsert: false` e teto de 5 MB, e a extensão acompanha o formato de origem (`webp` preferencial, `png` como fallback). O restante do parágrafo permanece válido: caminho relativo (nunca URL completa), bucket privado, leitura por URL assinada, escrita exclusivamente via `admin_set_card_set_logo()` — que, aliás, **rejeita** caminhos absolutos (`ADMIN_SET_CARD_SET_LOGO_INVALID_PATH`). Ver "Bootstrap histórico do catálogo de Card Sets", abaixo, para a cobertura atual de logos.
+
 ---
 
+## Bootstrap histórico do catálogo de Card Sets (`CATALOG-HISTORICAL-BOOTSTRAP-02 — CARD SETS`, **CLOSED** em 2026-09-10)
+
+**Estado final medido, não presumido.** O catálogo de Card Sets deixou de ser o recorte editorial inicial e passou a cobrir o histórico disponível na TCGdex:
+
+| Métrica | Valor |
+|---|---|
+| Card Sets Pokémon | **199** |
+| Expansions Pokémon | **17** |
+| Originais (curadoria humana, anteriores a esta frente) | 46 |
+| Batch A (criados nesta frente) | 71 |
+| Batch B (criados nesta frente) | 82 |
+| `set_type = PROMO` | 10, em 10 Expansions distintas |
+| Índice `uq_card_set_expansion_promo` | **presente** (Query `2161`) |
+| `release_order` local | `1..N` contíguo por Expansion, faixa global `1..28` |
+| `release_order` residual do bootstrap (`>= 1000`) | **0** |
+
+O gate read-only `921 - Validate Card Set Finalization` fechou em **14 verificações / 14 PASS / 0 FAIL**.
+
+### Regra definitiva de `card_set.release_order`
+
+`release_order` é **derivado**, não arbitrado caso a caso. A regra abaixo é a fonte normativa e foi lida a partir das 46 linhas de curadoria humana já existentes (não inventada): antes da renormalização foi provado que **nenhuma** dessas 46 linhas tinha inversão relativa sob a regra, e só por isso a renormalização completa dos 199 foi considerada segura.
+
+Ordenação **dentro de cada Expansion**, nesta ordem de precedência:
+
+1. **`release_date` ASC** — critério primário; a cronologia editorial real manda.
+2. **Precedência de tipo, apenas como desempate de data:** `ENERGY` → `PROMO` → `REGULAR`/`SPECIAL`.
+3. **Publicação principal antes do subset/gallery associado**, quando ambos empatam em data.
+4. **`code` ASC `COLLATE "C"`** — desempate final, determinístico e estável, para nunca depender de ordem física de linha.
+
+Semântica: **`1` = o mais antigo; maior = mais recente.** A sequência é **local à Expansion** (`1..N`), coerente com a constraint `UNIQUE (expansion_id, release_order)` (Regra 3). Nenhum consumidor de frontend precisou mudar: todos já ordenam `release_order DESC` para exibir "mais recente primeiro".
+
+**Execução.** Query `2162 - Normalize Card Set Release Order` (CONFIRMADA EXECUTADA em 2026-09-10, ledger `20260910025112`), aplicada aos 199 Card Sets do Game `POKEMON`, alterando **exclusivamente** a coluna `release_order` (invariantes de md5 sobre as demais colunas, incluindo `logo_storage_path`, verificadas antes e depois). A Query é um **one-shot de dado**, não estrutura: permanece em `database/proposals/2026-09-09-card-sets-finalization/` como evidência histórica e **não** é promovida para `database/schema/` — mesmo tratamento dado à `2160` (renormalização equivalente em `expansion`).
+
+**Detalhe de implementação que precisa ser preservado:** `uq_card_set_expansion_release_order` é `UNIQUE (expansion_id, release_order)` e **NÃO é `DEFERRABLE`** (`pg_constraint.condeferrable = f`), de modo que `SET CONSTRAINTS ALL DEFERRED` não tem efeito sobre ela e um `UPDATE` em massa colide durante a própria atualização. A renormalização é feita em **duas passagens**, com deslocamento temporário para uma faixa disjunta (`+10000`) antes de gravar os valores finais. Qualquer renormalização futura desta coluna precisa repetir esse cuidado.
+
+**Divergência editorial registrada, deliberadamente não corrigida nesta frente:** `SV10.5B`/`SV10.5W` têm entre si uma diferença de 1 dia na data de lançamento em relação ao que a curadoria editorial esperaria. A decisão foi **manter o dado atual** e registrar a divergência para revisão editorial futura — corrigir data é uma mudança de conteúdo e não deve ser misturada com uma renormalização de ordenação.
+
+### Decisões de escopo preservadas
+
+- **Subsets/galleries são `card_set` independentes**, não um atributo de um Set "pai" — o que torna a regra 3 acima necessária (principal antes do subset em empate de data).
+- **`xya` e `wp` foram deliberadamente retirados do escopo de Card Set** e classificados como `DEFER_TO_CARD_VARIANTS`: são melhor representados como variantes das cartas, não como contêineres editoriais próprios. Registrado como dívida da futura etapa de Card Variants — não como omissão.
+- **`miscp` e `jumbo` permanecem `OUT_OF_SCOPE`.**
+- **Nomes em inglês (`EN_PROVISIONAL`) são aceitáveis** quando não existe nome PT-BR confirmado na fonte. Dos 82 Card Sets do Batch B, 81 entraram como `EN_PROVISIONAL` e 1 (`mfb`, "My First Battle") como `PT_BR_CONFIRMADO`, com evidência registrada. O enriquecimento PT-BR posterior é uma etapa editorial própria, não um bloqueio para a criação do Set — princípio já aplicado em `AP-018` (espelhar a fonte oficial consultada, não traduzir por conta própria).
+- **Classificação de `set_type`:** ver a semântica congelada em `adr/ADR-015-promotional-card-set-model.md`, seção "Classificação de `set_type` — semântica congelada". Em resumo: `PROMO` é a série Black Star Promos agregadora da Expansion; uma publicação fechada distribuída promocionalmente é `SPECIAL`, não `PROMO`.
+
+### Cobertura de logos
+
+Estado medido em 2026-09-10, após o backfill:
+
+| Métrica | Valor |
+|---|---|
+| Card Sets **com** logo | **153** |
+| Card Sets **sem** logo | **46** |
+| Objetos no bucket `card-set-logo` | 156 |
+| Ponteiros `logo_storage_path` válidos | 153 |
+| Ponteiros quebrados | **0** |
+| Órfãos no bucket (objeto sem ponteiro) | 3 |
+
+A logo é **enriquecimento editorial, não parte da integridade do Card Set**: ausência de logo, ou falha ao obter o asset na fonte, nunca bloqueia a criação de um Card Set nem invalida o fechamento desta frente. Formato preferido WEBP, com fallback PNG quando a fonte não publica WEBP (medido, não presumido: `hgss3` e `xy3` só existem em PNG). Nunca se persiste URL externa, e o `symbol` do Set nunca é usado como substituto da logo.
+
+**Dívida operacional histórica:** os 3 órfãos do bucket datam de 2026-08-02, 2026-08-04 e 2026-08-05 — são **anteriores** a esta frente, não foram produzidos por ela, e não bloqueiam o fechamento. Ficam registrados para uma limpeza operacional futura; nenhuma remoção foi feita nesta rodada.
+
+---
+
+# Revision History
+
+| Versão | Descrição |
+|---------|-----------|
+| 1.0 | **Criação deste documento (2026-08-06)**, como resultado da divisão de `05-modelo-de-dados.md` por área de domínio (ver nota de divisão lá). Conteúdo de Game, Expansion e Set movido sem alteração técnica. O histórico de revisão anterior a esta data permanece consolidado em `05-modelo-de-dados.md` e não foi redistribuído retroativamente por entidade. |
+| 1.1 | **Fechamento documental de `CATALOG-HISTORICAL-BOOTSTRAP-02 — CARD SETS` (2026-09-10).** Nova seção "Bootstrap histórico do catálogo de Card Sets" registrando o estado final medido (199 Card Sets Pokémon em 17 Expansions: 46 originais + 71 Batch A + 82 Batch B), a **regra definitiva de `card_set.release_order`** (quatro critérios; `1` = mais antigo; sequência local `1..N` por Expansion; faixa global `1..28`; zero resíduo `>= 1000`), a execução da Query `2162` e o cuidado de duas passagens exigido pela constraint não-`DEFERRABLE`, as decisões de escopo preservadas (subsets independentes, `xya`/`wp` diferidos para Card Variants, `miscp`/`jumbo` fora de escopo, nomes `EN_PROVISIONAL` aceitos) e a cobertura de logos (153 com logo / 46 sem / 156 objetos / 153 ponteiros / 0 quebrados / 3 órfãos históricos, estes anteriores à frente). **Divergência do índice `uq_card_set_expansion_promo` encerrada:** o canônico `120` já estava correto (v2.2, intocado) e o banco físico foi reconciliado pela Query `2161`; toda a linguagem de "item aberto / não presumir resolvido" foi substituída pelo estado real, e o item correspondente da Definition of Done passou a marcado. Também registrada a supersessão da nota de `expansion.release_order` (Query `2160`, executada em 2026-09-09) e corrigida a menção obsoleta a `120` v2.1. Nenhuma alteração de SQL, schema, pipeline ou frontend. |

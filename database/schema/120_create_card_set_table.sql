@@ -61,10 +61,21 @@ CONFIRMADA EXECUTADA contra o banco real desde a modelagem de MEE
 produção (rejeitaria set_type = ENERGY). Reconciliado nesta revisão (v2.2),
 descoberto ao construir admin_create_card_set() (Query 2051) e perceber que
 a validação da função só cobria REGULAR/SPECIAL/PROMO.
-Item aberto (herdado da Versão 2.0): o banco físico atual foi construído
-pelo caminho antigo (120 v1.0 + migration 122), que não incluía o índice
-uq_card_set_expansion_promo. Não presumir que esse índice já existe no
-Supabase real até confirmação — ver docs/05-modelo-de-dados.md, seção Set.
+Item aberto ENCERRADO em 2026-09-10 (era herdado da Versão 2.0): o banco
+físico havia sido construído pelo caminho antigo (120 v1.0 + migration 122),
+que não incluía o índice uq_card_set_expansion_promo — a divergência era
+exclusivamente entre esta definição canônica, que SEMPRE esteve correta, e
+aquela instância física antiga. A reconciliação foi feita pela Query
+2161 - Create Card Set Expansion Promo Unique Index (CONFIRMADA EXECUTADA,
+ledger 20260910025017, em database/migrations/, mesma classe da 122). Este
+arquivo NÃO foi alterado por aquela rodada: nada aqui precisava mudar.
+Estado medido após a execução: uq_card_set_expansion_promo presente,
+card_set com 4 índices, 10 PROMO em 10 Expansions, zero Expansion com mais
+de um PROMO; confirmado pelo gate read-only 921 (14 verificações, 14 PASS).
+Ver docs/05a-catalogo-base.md, seção Set, e ADR-015 revisão 1.9.
+(Atualização de 2026-09-10: apenas TEXTO deste cabeçalho. Nenhuma linha
+executável desta Query foi alterada — a v2.2 permanece byte-idêntica no
+corpo SQL.)
 ===============================================================================
 */
 
