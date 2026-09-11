@@ -25,10 +25,12 @@ import { resolveRarity } from "./rarity.ts";
 import type { RarityMappingLookup } from "./rarity.ts";
 import type { CardCategoryRow, ExistingCard, NormalizedData, RawCatalogCard, ResolvedCatalogRow } from "./types.ts";
 
-export function deriveCollectorOrder(localId: string, indexInSet: number): number {
-  const numeric = Number(localId);
-  return Number.isInteger(numeric) && numeric > 0 ? numeric : indexInSet + 1;
-}
+// deriveCollectorOrder(localId, indexInSet) foi REMOVIDA em 2026-09-10
+// (G0-FREEZE). Ela decidia por linha entre o número da carta e a posição na
+// resposta HTTP, no mesmo espaço de valores — ver collector-order.ts para o
+// diagnóstico completo e a regra SET-LEVEL que a substitui. `collector_order`
+// passa a ser um PARÂMETRO desta função: quem resolve uma linha isolada não
+// tem, por definição, a informação necessária para decidir a ordem.
 
 /**
  * Preenche `collectorNumber` com zeros à esquerda até a mesma quantidade de
@@ -61,7 +63,13 @@ export type ResolveCatalogRowInput = {
   // a revalidação poder repassar o raw_data já armazenado sem precisar
   // reconstruí-lo.
   rawData: Record<string, unknown>;
-  indexInSet: number;
+  /**
+   * Ordem editorial já resolvida pelo plano SET-LEVEL do Card Set
+   * (buildSetCollectorOrderPlan/collectorOrderFor, collector-order.ts).
+   * Nunca calculada aqui: a decisão é do conjunto, não da linha.
+   * Substituiu `indexInSet` em 2026-09-10 (G0-FREEZE).
+   */
+  collectorOrder: number;
   collectorTotal: number | null;
   rarityMappingByNormalizedValue: RarityMappingLookup;
   categoriesByCode: Map<string, CardCategoryRow>;
@@ -75,14 +83,13 @@ export type ResolveCatalogRowInput = {
 
 export function resolveCatalogImportRow(input: ResolveCatalogRowInput): ResolvedCatalogRow {
   const {
-    rawCard, rawData, indexInSet, collectorTotal, rarityMappingByNormalizedValue, categoriesByCode,
+    rawCard, rawData, collectorOrder, collectorTotal, rarityMappingByNormalizedValue, categoriesByCode,
     existingCardsByCollectorNumber, seenCollectorNumbers, extraNote,
   } = input;
 
   const notes: string[] = extraNote ? [extraNote] : [];
 
   const rawCollectorNumber = String(rawCard.localId);
-  const collectorOrder = deriveCollectorOrder(rawCollectorNumber, indexInSet);
   const collectorNumber = padCollectorNumber(rawCollectorNumber, collectorTotal);
 
   const duplicate = seenCollectorNumbers.has(collectorNumber);

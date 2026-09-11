@@ -65,7 +65,12 @@ import {
   listRevalidatableJobs,
   listRowsForRevalidation,
 } from "./services/database.ts";
-import { resolveCatalogImportRow } from "../_shared/catalog-normalization/mod.ts";
+import {
+  assertPersistedCardsCovered,
+  buildSetCollectorOrderPlan,
+  collectorOrderFor,
+  resolveCatalogImportRow,
+} from "../_shared/catalog-normalization/mod.ts";
 import type { RawCatalogCard } from "../_shared/catalog-normalization/mod.ts";
 import type { RequestBody } from "./types.ts";
 
@@ -164,12 +169,38 @@ Deno.serve(async (req) => {
         const rows = await listRowsForRevalidation(supabase, job.id);
         if (rows.length === 0) continue;
 
+        // MESMA função e MESMA regra da importação inicial (2026-09-10,
+        // G0-FREEZE): o plano é construído sobre o conjunto completo de
+        // identificadores deste job, não sobre a ordem em que as linhas
+        // voltaram do banco. Antes desta correção a revalidação recalculava
+        // collector_order a partir da posição no array — ver o comentário de
+        // listRowsForRevalidation para o contra-exemplo.
+        // Mesma pré-condição congelada em G0, mesmo helper compartilhado. Aqui
+        // `collector_total` vem de cada linha (normalized_data), porque a
+        // revalidação nunca refaz a chamada HTTP que traria o total do Set.
+        assertPersistedCardsCovered({
+          incoming: rows.map((row) => ({
+            localId: String((row.raw_data as any)?.localId),
+            collectorTotal: (row.normalized_data as any)?.collector_total ?? null,
+          })),
+          persistedCollectorNumbers: existingCardsByCollectorNumber.keys(),
+          setCode: cardSet.code,
+        });
+
+        const collectorOrderPlan = buildSetCollectorOrderPlan({
+          tokens: rows.map((row) => String((row.raw_data as any)?.localId)),
+          setCode: cardSet.code,
+        });
+        if (collectorOrderPlan.blockedReason) {
+          throw new Error(collectorOrderPlan.blockedReason);
+        }
+
         const seenCollectorNumbers = new Set<string>();
-        const resolvedRows = rows.map((row, index) =>
+        const resolvedRows = rows.map((row) =>
           resolveCatalogImportRow({
             rawCard: row.raw_data as unknown as RawCatalogCard,
             rawData: row.raw_data,
-            indexInSet: index,
+            collectorOrder: collectorOrderFor(collectorOrderPlan, String((row.raw_data as any)?.localId)),
             collectorTotal: (row.normalized_data as any)?.collector_total ?? null,
             rarityMappingByNormalizedValue,
             categoriesByCode,

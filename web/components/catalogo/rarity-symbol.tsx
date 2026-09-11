@@ -84,9 +84,15 @@ import { cn } from "@/lib/utils";
  * todo entry existente compatível (sem `emptyCount`, comportamento idêntico
  * a antes).
  */
+// `mark` (2026-09-10, G1A): marca textual ADJACENTE ao ícone, nunca dentro
+// dele. Os símbolos novos desta rodada (★P, ★L, ☆RAD, ☆SH, VSTAR) são
+// estrelas com uma sigla; o ícone renderiza a 7px (`h-[7px]` abaixo), e uma
+// letra sobreposta nesse tamanho é ilegível — conferido antes de escolher.
+// Por isso a sigla sai ao lado, na mesma linha, herdando o `gap-[1px]` e o
+// `leading-none` do contêiner.
 const SYMBOL_MAP: Record<
   string,
-  { icon: LucideIcon; count: 1 | 2 | 3; tone: string; fillTone?: string; emptyCount?: 1 }
+  { icon: LucideIcon; count: 1 | 2 | 3; tone: string; fillTone?: string; emptyCount?: 1; mark?: string }
 > = {
   BLACK_CIRCLE: { icon: Circle, count: 1, tone: "text-foreground" },
   BLACK_DIAMOND: { icon: Diamond, count: 1, tone: "text-foreground" },
@@ -111,6 +117,18 @@ const SYMBOL_MAP: Record<
   // sem nenhum preenchimento, distinguível de um espaço vazio pelo próprio
   // contorno.
   WHITE_STAR: { icon: Star, count: 1, tone: "text-foreground", fillTone: "fill-none" },
+  // G1A (2026-09-10) — cinco símbolos das raridades históricas do bootstrap
+  // (Rare PRIME, LEGEND, Radiante, Shining Fates shiny V/VMAX, VSTAR). Todos
+  // usam `mark` em vez de um ícone dedicado: a diferença entre eles é a
+  // sigla oficial, não o desenho da estrela.
+  //
+  // `RARE_HOLO_LV_X` NÃO entra aqui — reaproveita `WHITE_STAR` acima, que já
+  // é exatamente a estrela vazada única do símbolo oficial do Lv.X.
+  BLACK_STAR_P: { icon: Star, count: 1, tone: "text-foreground", mark: "P" },
+  BLACK_STAR_L: { icon: Star, count: 1, tone: "text-foreground", mark: "L" },
+  RADIANT_STAR: { icon: Star, count: 1, tone: "text-foreground", fillTone: "fill-none", mark: "RAD" },
+  SHINY_STAR_SH: { icon: Star, count: 1, tone: "text-foreground", fillTone: "fill-none", mark: "SH" },
+  VSTAR_MARK: { icon: Star, count: 1, tone: "text-primary-ink", fillTone: "fill-none", mark: "VSTAR" },
 };
 
 export function RaritySymbol({ symbolCode, className }: { symbolCode: string; className?: string }) {
@@ -137,6 +155,9 @@ export function RaritySymbol({ symbolCode, className }: { symbolCode: string; cl
           )}
         />
       ))}
+      {entry.mark ? (
+        <span className="text-[8px] font-semibold leading-none tracking-tight">{entry.mark}</span>
+      ) : null}
     </span>
   );
 }

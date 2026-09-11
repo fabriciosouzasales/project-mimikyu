@@ -167,13 +167,22 @@ export async function listExistingCardsMap(supabase: any, cardSetId: string) {
   return new Map<string, any>((data ?? []).map((card: any) => [card.collector_number, card]));
 }
 
-// Ordenado por normalized_data.collector_order já armazenado — nunca
-// recalculado a partir de uma nova posição na TCGdex, que exigiria uma
-// chamada HTTP fora do escopo desta função (ver comentário de
-// deriveCollectorOrder em _shared/catalog-normalization/resolve-row.ts).
-// A posição de cada linha no array resultante é usada como indexInSet ao
-// chamar resolveCatalogImportRow, preservando o mesmo desempate original
-// para collector_number não numérico (ex. "TG01").
+// CORREÇÃO 2026-09-10 (G0-FREEZE). A versão anterior ordenava as linhas por
+// `normalized_data.collector_order` já armazenado e usava a POSIÇÃO de cada
+// linha no array resultante como `indexInSet` ao chamar
+// resolveCatalogImportRow, afirmando em comentário que isso "preserva o mesmo
+// desempate original". **Essa afirmação era falsa** e foi refutada por
+// contra-exemplo executado: num Set cujos identificadores chegam da TCGdex
+// como `["1","2","3","150","151","3a"]`, a importação inicial grava
+// `3a → 6` (posição 6 no array HTTP); a revalidação reordena por
+// collector_order (`1,2,3,3a,150,151`) e regrava `3a → 4`. O mesmo dado,
+// revalidado sem nenhuma mudança de mapeamento, mudava de ordem editorial.
+//
+// A ordenação foi removida por completo: `collector_order` agora vem do plano
+// SET-LEVEL (buildSetCollectorOrderPlan), calculado sobre o conjunto completo
+// de identificadores do job e independente da ordem em que as linhas chegam.
+// Esta função devolve as linhas sem ordem garantida — de propósito, para que
+// nenhum caller volte a depender de posição.
 export async function listRowsForRevalidation(supabase: any, jobId: string) {
   const { data, error } = await supabase
     .from("catalog_import_row")
@@ -185,13 +194,11 @@ export async function listRowsForRevalidation(supabase: any, jobId: string) {
     throw new Error(`CATALOG_IMPORT_ROW_QUERY_FAILED: ${error.message ?? error.code ?? "unknown"}`);
   }
 
-  const rows = (data ?? []) as { id: string; raw_data: Record<string, unknown>; normalized_data: Record<string, unknown> }[];
-
-  return rows.sort((a, b) => {
-    const orderA = Number((a.normalized_data as any)?.collector_order ?? 0);
-    const orderB = Number((b.normalized_data as any)?.collector_order ?? 0);
-    return orderA - orderB;
-  });
+  return (data ?? []) as {
+    id: string;
+    raw_data: Record<string, unknown>;
+    normalized_data: Record<string, unknown>;
+  }[];
 }
 
 export async function applyRevalidation(

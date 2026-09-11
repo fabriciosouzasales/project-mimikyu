@@ -85,7 +85,12 @@ import {
   upsertCardSetExternalReference,
 } from "./services/database.ts";
 import { resolveCollectorTotal, TcgdexClient, type TcgdexCardDetail } from "./services/tcgdex.ts";
-import { resolveCatalogImportRow } from "../_shared/catalog-normalization/mod.ts";
+import {
+  assertPersistedCardsCovered,
+  buildSetCollectorOrderPlan,
+  collectorOrderFor,
+  resolveCatalogImportRow,
+} from "../_shared/catalog-normalization/mod.ts";
 import type { RequestBody } from "./types.ts";
 
 // Idioma fixo em "pt" — não "en": nosso catálogo cadastra Cards em
@@ -293,12 +298,36 @@ try {
     const existingCardsByCollectorNumber = await listExistingCardsMap(supabase, cardSet.id);
 
     await updateProgressStep(supabase, jobId, "VALIDATING_SEQUENCE");
+    // collector_order é decidido no nível do SET, uma única vez, sobre o
+    // conjunto COMPLETO de identificadores — nunca por linha e nunca a partir
+    // da posição no array devolvido pela TCGdex (2026-09-10, G0-FREEZE; ver
+    // _shared/catalog-normalization/collector-order.ts). Formato não
+    // suportado levanta exceção aqui e o job inteiro falha de forma
+    // explícita, em vez de gravar uma ordem inventada.
+    // Pré-condição congelada em G0: o plano exige o conjunto COMPLETO
+    // (Cards persistidas + linhas do job). `existingCardsByCollectorNumber`
+    // já está carregado acima — aqui ele deixa de ser só insumo de matching e
+    // passa a ser a prova de completude. Fail closed antes de montar o plano.
+    assertPersistedCardsCovered({
+      incoming: cardDetails.map(({ detail }) => ({ localId: String(detail.localId), collectorTotal })),
+      persistedCollectorNumbers: existingCardsByCollectorNumber.keys(),
+      setCode: cardSet.code,
+    });
+
+    const collectorOrderPlan = buildSetCollectorOrderPlan({
+      tokens: cardDetails.map(({ detail }) => String(detail.localId)),
+      setCode: cardSet.code,
+    });
+    if (collectorOrderPlan.blockedReason) {
+      throw new Error(collectorOrderPlan.blockedReason);
+    }
+
     const seenCollectorNumbers = new Set<string>();
-    const preparedRows = cardDetails.map(({ detail, fetchError }, index) =>
+    const preparedRows = cardDetails.map(({ detail, fetchError }) =>
       resolveCatalogImportRow({
         rawCard: detail,
         rawData: detail as unknown as Record<string, unknown>,
-        indexInSet: index,
+        collectorOrder: collectorOrderFor(collectorOrderPlan, String(detail.localId)),
         collectorTotal,
         rarityMappingByNormalizedValue,
         categoriesByCode,

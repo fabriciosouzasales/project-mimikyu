@@ -12,8 +12,27 @@ export { normalizeExternalCatalogValue } from "./normalize-value.ts";
 export { resolveCategory } from "./category.ts";
 export { resolveRarity } from "./rarity.ts";
 export type { RarityMappingLookup } from "./rarity.ts";
-export { deriveCollectorOrder, padCollectorNumber, resolveCatalogImportRow } from "./resolve-row.ts";
+export { padCollectorNumber, resolveCatalogImportRow } from "./resolve-row.ts";
 export type { ResolveCatalogRowInput } from "./resolve-row.ts";
+// Regra SET-LEVEL de collector_order (2026-09-10, G0-FREEZE) — substitui a
+// antiga deriveCollectorOrder(localId, indexInSet), removida no mesmo ciclo.
+export {
+  AmbiguousCollectorKeyError,
+  assertPersistedCardsCovered,
+  buildSetCollectorOrderPlan,
+  collectorOrderFor,
+  EXU_EDITORIAL_ORDER,
+  IncompleteCollectorOrderSetError,
+  InvalidNumericSetError,
+  UnsupportedCollectorNumberError,
+} from "./collector-order.ts";
+export type {
+  BuildSetCollectorOrderPlanInput,
+  CollectorOrderException,
+  CollectorOrderMode,
+  IncomingCollectorItem,
+  SetCollectorOrderPlan,
+} from "./collector-order.ts";
 export type {
   CardCategoryRow,
   CategoryConfidence,

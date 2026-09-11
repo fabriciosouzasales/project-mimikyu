@@ -59,6 +59,15 @@ const SYMBOL_OPTIONS = [
   { value: "GOLD_DOUBLE_SPARKLE", label: "2 estrelas borda dourada" },
   { value: "BLACK_WHITE_STAR", label: "Estrela cheia + vazia" },
   { value: "WHITE_STAR", label: "Estrela branca" },
+  // G1A (2026-09-10) — símbolos das raridades históricas do bootstrap. A
+  // sigla aparece ao LADO da estrela, nunca dentro dela (ver o comentário de
+  // `mark` em rarity-symbol.tsx). `RARE_HOLO_LV_X` não precisa de entrada
+  // nova: usa "Estrela branca" (WHITE_STAR), já disponível acima.
+  { value: "BLACK_STAR_P", label: "Estrela preta + P (Prime)" },
+  { value: "BLACK_STAR_L", label: "Estrela preta + L (LEGEND)" },
+  { value: "RADIANT_STAR", label: "Estrela vazada + RAD (Radiante)" },
+  { value: "SHINY_STAR_SH", label: "Estrela vazada + SH (Shiny Holo)" },
+  { value: "VSTAR_MARK", label: "Estrela vazada + VSTAR" },
 ] as const;
 
 const initialEntityState: RarityActionState = { error: null };
