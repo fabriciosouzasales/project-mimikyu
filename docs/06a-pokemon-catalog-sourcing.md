@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Pokémon Catalog Sourcing |
 | **Arquivo** | `docs/06a-pokemon-catalog-sourcing.md` |
-| **Versão** | 1.5 |
+| **Versão** | 1.6 |
 | **Status** | **`POKEMON CATALOG SOURCING INITIAL LOAD — IMPLEMENTED / LIVE / SECURED / IDEMPOTENT / CLOSED`.** Sourcing real via PokéAPI executado no banco de produção (`qjfutqujxrbzgrtkpgkg`): primeiro DRY_RUN (`RUN-20260905-00000101`, `COMPLETED`, `snapshot_hash = a816dc9e83d733f02ae5aa8b01fa67ca68e4a9f48df96829a8d3e6068e0cba72`) e primeiro APPLY (`RUN-20260905-00000121`, `COMPLETED`, `2071` linhas inseridas: `Regions=11`/`Generations=9`/`Species=1025`/`National Pokédex=1`/`Positions=1025`, mais os 4 xrefs correspondentes) — ambos reais, ambos `COMPLETED`. Hardening de segurança residual (`6111`, REVOKE de `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` de `service_role` nas 9 tabelas canônicas) **CONFIRMADO EXECUTADO**, validado PASS A-E pela Query `6821` v1.1. Idempotência confirmada por um segundo ciclo real: segundo DRY_RUN (`RUN-20260905-00000141`, mesmo `snapshot_hash`, 100% `UNCHANGED`) e segundo APPLY (`RUN-20260905-00000161`, `0 INSERT` / `0 UPDATE` / `2071 UNCHANGED`). Zero órfãos, zero mismatch, zero duplicidade, `0` active runs. Catálogo sem dependência de PokéAPI em runtime — ver Seção 15.1. Sourcing foundation física (`6090`-`6110`, 13 objetos) permanece `CONFIRMADO EXECUTADO E PROMOVIDO` para `database/schema/`; `6111` também promovido. Próxima frente do projeto: **Collections**, não mais este contrato — ver `docs/ROADMAP.md`/handoff vigente. |
 | **Objetivo** | Descrever a estratégia de aquisição, normalização, reconciliação e carga (Initial Load) do Pokémon Catalog a partir da PokéAPI — Regions, Generations, Species e National Pokédex/Positions — e o contrato definitivo do pipeline de sourcing (run lifecycle, PLAN/APPLY, snapshot, hash, segurança, idempotência). |
 | **Escopo** | Initial Load do Pokémon Catalog (módulo físico `6000`-`6999`, `ADR-011`). Não cobre o pipeline de importação de cartas/imagens (`06-pipeline-importacao.md`, Edge Function `import-card-assets`, Catálogo Editorial) — domínios, fontes e arquitetura distintas. |
@@ -438,6 +438,46 @@ Próxima frente do projeto **não é mais** este contrato — ver `docs/ROADMAP.
 
 ---
 
+# 15.2 Sourcing de evidência TCGdex para Primary Species dos Card Sets ME* (2026-09-12)
+
+Não é aquisição PokéAPI e não altera o contrato das Seções 1–14. Fica registrado aqui porque expõe uma **causa-raiz de sourcing** que vale para qualquer Card Set futuro que entre no catálogo pela mesma via.
+
+## 15.2.1 Causa-raiz — Cards de seed manual não têm evidência de importação
+
+As 752 Cards `POKEMON` dos seis Card Sets ME* (`ME1`, `ME2`, `ME2.5`, `ME3`, `ME4`, `MEP`) estavam com cobertura de Primary Species de **0 %**. A causa, medida no LIVE e não inferida:
+
+1. as Cards foram criadas por **seed manual** (`database/seeds/840_seed_card.sql`, a partir do checklist oficial PT-BR) — **nunca passaram pelo pipeline de importação de catálogo**; `catalog_import_row` para essas 752 Cards = **0 linhas**;
+2. o `card_external_reference` veio **depois**, pelo fluxo de **assets** (Edge Function `import-card-assets`), que grava `metadata: tcgCard` a partir da **listagem** do Set — payload que, por construção, **não traz `dexId`** (tipo `TcgdexCardSummary`); `card_external_reference.metadata` contendo `dexId` = **0 refs**.
+
+Logo, `6116` nunca teve o que ler: não havia job, não havia `raw_data`. **Não é regressão de `6116`/`6128`** — é ausência de evidência persistida na origem.
+
+A recuperação usou o contrato TCGdex **já existente** no projeto (`GET /v2/{lang}/cards/{id}`, exposto por `TcgdexClient.getCard()`, cujo tipo `TcgdexCardDetail` já declara `dexId?: number[]`), lido read-only em 2026-09-12 via o endpoint GraphQL do mesmo serviço. **Nenhuma integração nova foi criada.** A evidência foi congelada como constante versionada de 752 pares `(external_card_id, dexId)` dentro da própria Query `6129`.
+
+## 15.2.2 Regra permanente — `SOURCE_DATA_ERROR` × ambiguidade
+
+Duas situações que parecem a mesma coisa e não são:
+
+- **`SOURCE_DATA_ERROR`** — a Species é conhecida com segurança; **a fonte externa publicou evidência errada**. Resolve-se editorialmente (`6114`), e a evidência errada é **preservada** ao lado da decisão.
+- **`AMBIGUOUS` / `UNRESOLVED`** — a Species **não pode** ser determinada com segurança. Permanece sem associação até decisão editorial futura.
+
+> **Evidência externa observada nunca deve ser reescrita para parecer correta.** Corrigir o dado da fonte dentro do payload automático destrói o registro do erro e faz o sistema afirmar, como evidência durável, algo que a fonte nunca disse.
+
+## 15.2.3 `me01-086` — primeiro caso documentado
+
+A TCGdex publica, para `me01-086`: `name = "Mega Absol ex"`, `dexId = [351]` (Castform). As **duas vias da própria fonte** (`/v2/graphql` e `/v2/en/cards/me01-086`) concordam entre si e contradizem o nome que a própria fonte publica. O perfil da Card na fonte (`types ["Darkness"]`, `hp 280`, `suffix "ex"`, `stage Basic`) é idêntico ao de `me01-161` — também "Mega Absol ex", cujo `dexId` a TCGdex publica como **359**.
+
+Tratamento: `351` permanece na evidência congelada da `6129` (guard `G3b` aborta se alguém "corrigir" para 359) e em `source_evidence.observed_dex_id`; a decisão editorial **Absol / 359** entra por `6130` via `admin_resolve_card_primary_species()`, com responsável nomeado, em `resolved_national_dex`. O payload automático da `6115` **nunca** recebeu 359.
+
+## 15.2.4 Dívida NÃO BLOQUEANTE
+
+- As **752 Cards ME* históricas continuam sem `catalog_import_row`**. Isso **não invalida** as resoluções: a evidência da rodada está preservada, versionada e reproduzível na `6129` (752 pares) e, para `me01-086`, no `source_evidence` da linha editorial e no `catalog_admin_action_log`.
+- O `MEP` tem **29 Cards Pokémon na TCGdex sem Card local** (`046`–`063`, `072`, `073`, `081`–`088`, `Museum`) — dívida de catálogo, fora do escopo daquela rodada, nenhuma Card criada.
+- `6116` **não emite sinal específico** quando não encontra `dexId` — dívida de observabilidade.
+
+Nenhuma dessas dívidas bloqueia a próxima frente. Estado final da frente: Primary Species = **17.409 / 17.536 = 99,28 %**, residual **127** (`INTENTIONAL UNRESOLVED`). Detalhe completo em `docs/05d-colecoes-e-usuarios.md`.
+
+---
+
 # 16. Fora de escopo (decisão explícita)
 
 - Forms/Varieties.
@@ -460,3 +500,4 @@ Próxima frente do projeto **não é mais** este contrato — ver `docs/ROADMAP.
 | 1.3 | **`POKEMON CATALOG SOURCING INITIAL LOAD — IMPLEMENTED / LIVE / SECURED / IDEMPOTENT / CLOSED` (2026-09-05), `POKEMON-CATALOG-SOURCING-INITIAL-LOAD-FINAL-REPOSITORY-RECONCILIATION-01`.** Sourcing real via PokéAPI executado no banco de produção: primeiro DRY_RUN (`RUN-20260905-00000101`) e primeiro APPLY (`RUN-20260905-00000121`), ambos `COMPLETED` (`2071` linhas: `Regions=11`/`Generations=9`/`Species=1025`/`Pokédex=1`/`Positions=1025`, mais os 4 xrefs). Achado de segurança residual pós-APPLY (`service_role` com `TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN` remanescentes por herança do default ACL de `postgres`) corrigido pela Query `6111` (REVOKE atômico, escopo restrito às 9 tabelas) — **CONFIRMADO EXECUTADO**, validado PASS A-E pela Query `6821` v1.1 (corrigida antes da execução: PUBLIC provado via `aclexplode`/`grantee=0` em vez de `has_function_privilege('public', ...)`, assinaturas exatas via `regprocedure`, active-run set canônico `PENDING`/`ACQUIRING`/`PLANNING`/`APPLYING`, `search_path` exato `search_path=""`, `tgenabled<>'D'`). Idempotência confirmada por segundo ciclo real: DRY_RUN `RUN-20260905-00000141` (mesmo `snapshot_hash`, 100% `UNCHANGED`) e APPLY `RUN-20260905-00000161` (`0 INSERT`/`0 UPDATE`/`2071 UNCHANGED`). Nova Seção 15.1 com a evidência completa; `6111`/`6821` adicionados à tabela da Seção 15 (`6111` promovido para `database/schema/`; `6821` permanece em `database/proposals/`, mesmo padrão de `6800`/`6810`/`6820`). `.pokemon-catalog-sourcing-snapshots/` adicionado ao `.gitignore` (artefato operacional local). Executor Deno (`scripts/run-pokemon-catalog-sourcing.ts`, `supabase/functions/_shared/pokemon-catalog-sourcing/`) incorporado ao repositório sem alteração funcional. **Próxima frente do projeto: Collections, não mais este contrato.** Nenhum commit/push realizado nesta reconciliação. Ver `docs/README.md`, `docs/ROADMAP.md`, `docs/INDEX.md`, handoff vigente e `docs/log.md`. |
 | 1.4 | **Reconciliação pós-Fatia C (2026-09-05), `COLLECTIONS-POKEDEX-FATIA-C-CANONICAL-CLOSEOUT-01`.** Seção 15 e Seção 16 ("Fora de escopo") corrigidas: Card → Primary Species (Fatia C, Queries `2159`/`6112`–`6116`) saiu de "fora de escopo"/"`PHYSICALLY NOT STARTED`" — `CONFIRMADO EXECUTADO` em 2026-09-05, ver `docs/05d-colecoes-e-usuarios.md`. Apenas Pokédex Position Assignment/Primary Representative (Fatias D/E) permanecem fora de escopo. Nenhuma alteração ao contrato técnico de sourcing PokéAPI em si. |
 | 1.5 | **Reconciliação pós-Fatias D/E (2026-09-06), `COLLECTIONS-POKEDEX-FATIA-E-CLOSEOUT-01`.** Correção pontual de uma afirmação factualmente stale na Seção 15: Fatia D (`IMPLEMENTED / VALIDATED / CLOSED` em 2026-09-06) e Fatia E (`IMPLEMENTED / LIVE / VALIDATED / PERFORMANCE-MEASURED / CLOSED` em 2026-09-06) não estão mais `PHYSICALLY NOT STARTED` — permanecem, como sempre estiveram, **fora do escopo deste Initial Load**, que continua limitado à aquisição do Pokémon Catalog via PokéAPI. Nenhuma alteração ao contrato técnico de sourcing em si; nenhum conteúdo histórico reescrito. Ver `docs/05d-colecoes-e-usuarios.md` revisão `1.15` e `docs/log.md`. |
+| 1.6 | **Sourcing de evidência TCGdex para Primary Species ME* (2026-09-12), `PRIMARY-SPECIES-ME-SOURCING-01 — DOCUMENTATION-CLOSEOUT-01`.** Nova Seção 15.2, aditiva: registra a **causa-raiz de sourcing** das 752 Cards ME* sem Primary Species (seed manual `840` nunca passou por `catalog_import_row`; `card_external_reference` veio depois pelo fluxo de assets, cujo payload de listagem não traz `dexId`; logo `6116` nunca teve o que ler — não é regressão), a **regra permanente `SOURCE_DATA_ERROR` × ambiguidade** (evidência externa observada nunca é reescrita para parecer correta), `me01-086` como **primeiro caso documentado** (a TCGdex publica `Mega Absol ex` com `dexId 351`/Castform; `351` preservado na evidência congelada e em `observed_dex_id`, decisão editorial `Absol`/`359` registrada em separado) e três **dívidas não bloqueantes** (752 ME* ainda sem `catalog_import_row`; 29 Cards MEP na TCGdex sem Card local; `6116` sem sinal específico para ausência de `dexId`). Nenhuma alteração ao contrato técnico de sourcing PokéAPI (Seções 1–14). Nenhum ADR/Standard criado nesta rodada. Ver `docs/05d-colecoes-e-usuarios.md` e `docs/log.md`. |

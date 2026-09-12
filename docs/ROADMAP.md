@@ -23,7 +23,17 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
-> **Estado corrente (2026-09-12, `PRIMARY-SPECIES-INCREMENTAL-HOOK-FIX-01 / PROMOTION-CLOSEOUT-01`).**
+> **Estado corrente (2026-09-12, `PRIMARY-SPECIES-ME-SOURCING-01 / DOCUMENTATION-CLOSEOUT-01`).**
+>
+> **`PRIMARY SPECIES` = CLOSED para esta etapa.** Cobertura em produção: **17.409 / 17.536 = 99,28 %**. Os seis Card Sets ME* (`ME1`, `ME2`, `ME2.5`, `ME3`, `ME4`, `MEP`) passaram de 0 % para **752/752 = 100 %** — 751 `AUTOMATIC_DEXID` pela Query `6129` (evidência TCGdex congelada de 752 pares, chamada única a `6115`) e 1 `EDITORIAL_RECONCILIATION` pela Query `6130` (`me01-086` → Absol / National Dex 359, `SOURCE_DATA_ERROR` da fonte). Gates finais: **B1–B10 = 10/10 PASS**, **C1–C7 = 7/7 PASS**. Baseline antes desta frente: **879** pendentes (752 ME* + 8 SVP + 119 ambiguidades) → **879 → 127**.
+>
+> **Residual de 127 — `INTENTIONAL UNRESOLVED` / `DEFERRED TO FUTURE EDITORIAL UI` / `NON-BLOCKING FOR CARD VARIANTS`.** Composição: **8 SVP** sem evidência durável suficiente + **119 ambiguidades históricas reais**. Decisão de produto: **não serão tratados agora** — ficam deliberadamente preservados como massa real de teste da futura funcionalidade editorial do frontend. Não abrir campanha de resolução residual, backfill adicional de Primary Species, nem resolução manual desses 127.
+>
+> **Regra de domínio consolidada:** *coverage nunca prevalece sobre correctness*. `UNRESOLVED`/`AMBIGUOUS` é estado válido; associação automática só com evidência determinística; `SOURCE_DATA_ERROR` (fonte errada, Species conhecida) nunca se confunde com ambiguidade (Species indeterminável). Detalhe em `docs/05d-colecoes-e-usuarios.md` e `docs/06a-pokemon-catalog-sourcing.md` §15.2.
+>
+> **Sequência oficial a seguir:** `PRIMARY SPECIES` → **CLOSED** → **`CARD VARIANTS — GLOBAL RECONCILIATION`** → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`.
+
+> **Registro anterior (2026-09-12, `PRIMARY-SPECIES-INCREMENTAL-HOOK-FIX-01 / PROMOTION-CLOSEOUT-01`).**
 >
 > **`PRIMARY SPECIES — INCREMENTAL HOOK` = CLOSED / PASS.** O hook pós-confirmação (`6116`) tinha um defeito real: a CTE `evidence` não filtrava por `p_job_id`, provocando `Seq Scan` em `catalog_import_row` e estouro do `statement_timeout` de 8 s do papel `authenticated`. Três jobs (`SMP`, `SM10`, `BW10`) chegaram a `COMPLETED` com Primary Species = 0 — causa provada pelo CSV do próprio caller, não inferida. Migration **`6128`** (`AND r.job_id = p_job_id`) aplicada, validada por **`6841` = 17 PASS / 0 FAIL / 0 NOT PROVEN** e promovida para `database/schema/`. Performance no job do SM10: **7663 ms → 262 ms (~29×)**, `Seq Scan` global eliminado. Nenhum índice novo; nenhum caller alterado.
 >
@@ -36,7 +46,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 >
 > **Dívida de proveniência aberta (não resolvida):** o corpo LIVE da `6116` anterior à `6128` **não era byte-idêntico** ao arquivo canônico, apesar da afirmação documental em contrário; o corpo histórico não está mais disponível e nenhuma equivalência retroativa é alegada. Auditar se outras funções promovidas divergem do canônico **exige mandato próprio**.
 >
-> Sequência aprovada a seguir: fechar o residual de `PRIMARY SPECIES` → `CARD VARIANTS` → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`.
+> Sequência aprovada naquela rodada: fechar o residual de `PRIMARY SPECIES` → `CARD VARIANTS` → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`. **Superada no mesmo dia** pelo bloco acima: o residual recuperável (752 ME*) foi fechado e os 127 restantes tornaram-se `INTENTIONAL UNRESOLVED`; a sequência vigente vai direto para `CARD VARIANTS — GLOBAL RECONCILIATION`.
 
 > **Registro anterior (2026-09-11, `ASSETS-FINAL-CLOSEOUT`). O macrobloco ASSETS está FORMALMENTE ENCERRADO.**
 >
@@ -54,7 +64,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 >
 > **Decisão explícita de escopo — não haverá nova busca por fonte externa neste momento.** A cobertura residual (Cards sem Asset em um ou nos dois idiomas) fica registrada como **dívida conhecida, fora do escopo desta fase**, e **não** como omissão. Não abrir nova investigação de Assets — nem novas APIs, nem novos aliases, nem varredura de gaps — sem mandato explícito de Fabrício. Cobertura perfeita não é critério de encerramento deste macrobloco; o critério é pipeline correto, governado e com resíduo declarado.
 >
-> **Próximo macrobloco, na ordem aprovada:** `PRIMARY SPECIES` → `CARD VARIANTS` → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`.
+> **Próximo macrobloco, na ordem aprovada à época:** `PRIMARY SPECIES` → `CARD VARIANTS` → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`. (`PRIMARY SPECIES` foi encerrado em 2026-09-12 — ver bloco "Estado corrente" no topo; a próxima frente é `CARD VARIANTS — GLOBAL RECONCILIATION`.)
 >
 > Os parágrafos datados abaixo são registro histórico de cada rodada e não foram reescritos.
 
