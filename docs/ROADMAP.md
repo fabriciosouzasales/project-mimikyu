@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.98 |
+| **Versão** | 1.99 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -23,7 +23,21 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
-> **Estado corrente (2026-09-12, `PRIMARY-SPECIES-ME-SOURCING-01 / DOCUMENTATION-CLOSEOUT-01`).**
+> **Estado corrente (2026-09-12, `PRINTING-MODEL-STAGING-01 / PROMOTION-CLOSEOUT-PREP-01`).**
+>
+> **`PRINTING MODEL FOUNDATION` = EXECUTED / VALIDATED / READY FOR PROMOTION.** `card_variant` ganhou o **segundo eixo**: acabamento continua em `variant_type_id`; impressão passa a viver no domínio **Printing**, com `card_printing_trait` (átomo), `card_printing_profile` (agregado) e a N:N `card_printing_profile_trait` como fonte semântica da composição. Modelo ratificado: **C2 — Print Profile + Print Traits**, escolhido para evitar a explosão combinatória que o tipo composto produziria em cada Set da era WOTC.
+>
+> Migrations **`2165`–`2171`** aplicadas no LIVE na ordem exata, todas sem erro. Harness **`2823` v1.2: 12 PASS / 0 FAIL / 0 NOT PROVEN, zero resíduo.** Seed canônica **5 traits / 6 profiles / 10 links**. Legado **inteiramente intacto**: 7.002 `card_variant`, `printing_profile_id` preenchido = **0**, 927 defaults, 79 Variant Types, 69 mappings, **505 `NEEDS_REVIEW` e 4 jobs `STAGED` não tocados**.
+>
+> Composição de Profile é **imutável** (selada no COMMIT); `traits_signature UUID[]` é chave técnica derivada de **igualdade exata, sem hash**; `printing_profile_id` é NULLABLE e `NULL` significa *sem perfil de impressão declarado* — nunca Unlimited, padrão ou desconhecido. A unicidade de `card_variant` passou a ser **dois índices únicos parciais**. Detalhe em `docs/05b-cartas-e-raridade.md`, seção "Printing (Impressão)".
+>
+> **`PROMOTED` ainda NÃO.** Os sete arquivos seguem apenas em `database/proposals/2026-09-12-card-variants-printing-model/`. Falta a cópia byte-preserving para `database/migrations/` com prova SHA-256 7/7 — bloqueada nesta sessão por indisponibilidade do shell.
+>
+> **Routing NÃO existe.** Próxima etapa: **`PRINTING ROUTING / EXTERNAL MAPPING`**. Só depois: **resolução de BASE1 e das demais `NEEDS_REVIEW` seguras**.
+>
+> **Sequência oficial a seguir:** `PRINTING MODEL FOUNDATION` (executado, aguardando promotion) → `PRINTING ROUTING / EXTERNAL MAPPING` → `BASE1 + NEEDS_REVIEW` → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`.
+
+> **Registro anterior (2026-09-12, `PRIMARY-SPECIES-ME-SOURCING-01 / DOCUMENTATION-CLOSEOUT-01`).**
 >
 > **`PRIMARY SPECIES` = CLOSED para esta etapa.** Cobertura em produção: **17.409 / 17.536 = 99,28 %**. Os seis Card Sets ME* (`ME1`, `ME2`, `ME2.5`, `ME3`, `ME4`, `MEP`) passaram de 0 % para **752/752 = 100 %** — 751 `AUTOMATIC_DEXID` pela Query `6129` (evidência TCGdex congelada de 752 pares, chamada única a `6115`) e 1 `EDITORIAL_RECONCILIATION` pela Query `6130` (`me01-086` → Absol / National Dex 359, `SOURCE_DATA_ERROR` da fonte). Gates finais: **B1–B10 = 10/10 PASS**, **C1–C7 = 7/7 PASS**. Baseline antes desta frente: **879** pendentes (752 ME* + 8 SVP + 119 ambiguidades) → **879 → 127**.
 >

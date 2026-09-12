@@ -1701,6 +1701,8 @@ Regras de negócio confirmadas: `variant_order` positivo e único por Card (loca
 
 **RLS**: habilitado, uma única policy — `catalog_admin_select` (`SELECT`, `(select is_admin())`). **Grants de tabela**: `authenticated` só `SELECT`; `anon` sem privilégio nenhum; `service_role` com `SELECT`/`REFERENCES`/`TRIGGER`/`TRUNCATE`.
 
+> **Superado em parte (2026-09-12).** O DDL acima é o estado de 2026-08-16. Desde as migrations `2165`–`2171`, `card_variant` ganhou a coluna `printing_profile_id` (NULLABLE) e a `UNIQUE CONSTRAINT uq_card_variant_card_type` foi substituída por **dois índices únicos parciais**. Ver "Printing (Impressão) — segundo eixo de Card Variant", adiante. As 7.002 linhas e todas as demais constraints seguem intactas.
+
 ## Imutabilidade — regra confirmada no código, não apenas na intenção
 
 `internal.write_card_variant(mode, variant_id, card_id, variant_type_id, variant_order)` (Query `2143`, `SECURITY DEFINER`, chamada só internamente — nunca exposta a `authenticated`/`anon`) é a única rotina que grava em `card_variant`. **O modo `UPDATE` existe na assinatura mas está desabilitado deliberadamente**: chamá-lo levanta `INTERNAL_WRITE_CARD_VARIANT_UPDATE_NOT_SUPPORTED` — "nenhum fluxo atual atualiza uma Card Variant existente — ela é tratada como UNCHANGED. Parâmetro reservado para uma necessidade futura ainda não desenhada." Na prática, hoje, **uma `card_variant` nunca é alterada depois de criada** — só criada (via importação confirmada) ou deixada como está (`UNCHANGED`, quando a combinação já existe). Não existe nenhuma rotina de exclusão física de `card_variant`.
@@ -1708,6 +1710,132 @@ Regras de negócio confirmadas: `variant_order` positivo e único por Card (loca
 ## Governança e origem dos dados
 
 Diferente de `card_variant_type` (taxonomia com CRUD administrativo direto), `card_variant` só é populada por dois caminhos: (1) a carga original de julho de 2026 (`860`/`860A`/`860B`, ver "Histórico da carga original", abaixo); (2) o pipeline de importação administrativa de agosto de 2026 (`admin_confirm_catalog_variant_import()`, ver seção seguinte). Não existe uma tela de "criar Card Variant" avulsa — toda criação nova passa pelo fluxo de importação e revisão, nunca por um formulário direto, reforçando `ADR-028`: Card Variant é dado editorial, mantido exclusivamente por administradores, por um processo auditável.
+
+---
+
+# Printing (Impressão) — segundo eixo de Card Variant
+
+> **Status: EXECUTED / VALIDATED — READY FOR PROMOTION** (2026-09-12).
+> Migrations `2165`–`2171` aplicadas no LIVE e validadas pelo harness `2823` v1.2 (12 PASS / 0 FAIL / 0 NOT PROVEN, zero resíduo). Staging em `database/proposals/2026-09-12-card-variants-printing-model/`; ainda **não** promovidas para `database/migrations/`.
+
+## O problema
+
+`card_variant` tinha **um único eixo**: `variant_type_id`. BASE1 exige dois, porque acabamento e impressão são **ortogonais**:
+
+| Eixo | Valores em BASE1 | Onde vive |
+|---|---|---|
+| **Acabamento** | `normal`, `holo` | `card_variant_type` — inalterado |
+| **Impressão** | `shadowless`, `unlimited`, `1999-2000-copyright`, `1st-edition`, `red-cheek` | **Printing** (novo) |
+
+Sem o segundo eixo, as 10 assinaturas de BASE1 virariam 10 Card Variant Types compostos, e o mesmo se repetiria em cada Set da era WOTC. Evidência do vácuo: nos 69 mappings externos existentes, `external_subtype` é `NULL` em **100 %** — a taxonomia nunca mapeou uma assinatura com subtype.
+
+**Printing é domínio separado de acabamento.** `card_variant.variant_type_id` continua sendo o acabamento, com a mesma semântica de sempre.
+
+## Vocabulário
+
+| Conceito | EN | pt-BR | Tabela |
+|---|---|---|---|
+| Domínio | **Printing** | Impressão | — |
+| Átomo | **Print Trait** | Característica de Impressão | `card_printing_trait` |
+| Agregado | **Print Profile** | Perfil de Impressão | `card_printing_profile` |
+| Composição | — | — | `card_printing_profile_trait` (N:N) |
+
+`EDITION` foi rejeitado como nome: só seria correto para `1st-edition` e `unlimited`. `1999-2000-copyright` é linha de copyright; `red-cheek` é característica de arte impressa.
+
+## Por que C2 (Profile + Traits)
+
+**Print Trait é o fato atômico; Print Profile é a combinação canônica.** A `card_variant` referencia o *Profile* (FK escalar, unicidade simples), enquanto a composição real vive na N:N.
+
+O modelo alternativo — um campo escalar de "edição" na própria `card_variant` — falha contra a evidência: `shadowless-red-cheek` precisa de **dois** valores simultâneos na mesma variante (BASE1 058 Pikachu). E o modelo de "tipo composto" recria a explosão combinatória um nível abaixo. **C2 evita a explosão combinatória** porque cada trait é declarado uma vez e reaproveitado em quantos profiles for preciso.
+
+## Composição imutável
+
+A composição de um Profile é **selada** e nunca muda depois disso. Corrigir uma composição não é `UPDATE` — é criar Profile novo e reconciliar explicitamente as variantes.
+
+O estado de selamento é a própria coluna derivada:
+
+```
+traits_signature IS NULL      →  EM MONTAGEM (transação de criação)
+traits_signature IS NOT NULL  →  SELADO, composição imutável
+```
+
+Três guards, todos `SECURITY DEFINER` com `search_path=''`:
+
+- **selamento** — `CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED` sobre `card_printing_profile`, dispara 1× por Profile no COMMIT: rejeita Profile **sem nenhum trait** e grava a assinatura;
+- **imutabilidade da N:N** — `UPDATE` de vínculo sempre proibido; `INSERT`/`DELETE` em Profile selado rejeitados; reinserção **idêntica** aceita (é o que mantém a seed idempotente);
+- **escrita do selo** — depois de posto, o selo não pode ser alterado nem removido; ao ser posto, precisa corresponder exatamente à composição real.
+
+## `traits_signature` — chave técnica derivada, exata
+
+**`UUID[]`, sempre ordenado ascendente pelo `trait_id`.** É o conjunto materializado, não uma renderização dele.
+
+- **Sem hash.** Não há `md5`/`sha`/`digest` em lugar nenhum — igualdade de negócio não depende de igualdade probabilística quando a exata é simples.
+- **Igualdade exata**: comparação de array no Postgres é elemento a elemento. Colisão é impossível, não improvável.
+- **Independente da ordem e do code**: o array é sempre montado com `ORDER BY trait_id`; o `code` não participa.
+- **Unicidade real do banco**: `UNIQUE (game_id, traits_signature) WHERE traits_signature IS NOT NULL`. É o índice, não uma leitura de aplicação, que rejeita composição duplicada — inclusive sob concorrência.
+
+**A N:N continua sendo a fonte semântica da composição.** `traits_signature` é materialização técnica derivada; filtro por característica é sempre `JOIN`, nunca parse de `code`.
+
+## `card_variant.printing_profile_id`
+
+**`UUID` NULLABLE**, FK `RESTRICT`, índice parcial `WHERE printing_profile_id IS NOT NULL`.
+
+`NULL` significa **exatamente** "sem perfil de impressão declarado". **Não** significa Unlimited · **não** significa padrão · **não** significa desconhecido · **não** significa erro. `UNLIMITED` só é atribuído quando a fonte declara explicitamente o token; ausência de token de impressão nunca implica `UNLIMITED`.
+
+As 7.002 variantes legadas estão todas com `NULL`.
+
+## Unicidade — dois índices parciais
+
+A `UNIQUE CONSTRAINT uq_card_variant_card_type` foi substituída por dois índices únicos parciais, sem UUID sentinela:
+
+```
+WHERE printing_profile_id IS NULL      →  UNIQUE (card_id, variant_type_id)
+WHERE printing_profile_id IS NOT NULL  →  UNIQUE (card_id, variant_type_id, printing_profile_id)
+```
+
+Os dois universos não se sobrepõem e sua união cobre a tabela inteira. O primeiro preserva literalmente a regra antiga — é onde estão as 7.002 legadas. O segundo permite o que BASE1 exige: mesma Card, mesmo acabamento, **perfis diferentes** são variantes distintas.
+
+Preservados: `card_variant_pkey`, `uq_card_variant_card_order`, `uq_card_variant_id_card`, `uq_card_variant_one_default_per_card`, `ck_card_variant_order_positive` e as FKs.
+
+## Same-Game
+
+Garantido em duas camadas: entre Profile e Trait, **estruturalmente**, por FKs compostas `(profile_id, game_id)` e `(trait_id, game_id)` — sem trigger; entre `card_variant` e Profile, por trigger que resolve o Game da Card via `card_set → expansion` e rejeita divergência.
+
+## Seed inicial — 5 / 6 / 10
+
+**Traits:** `SHADOWLESS` · `FIRST_EDITION` · `UNLIMITED` · `COPYRIGHT_1999_2000` · `RED_CHEEK`
+
+**Profiles e suas composições:**
+
+| Profile | Traits |
+|---|---|
+| `UNLIMITED` | UNLIMITED |
+| `SHADOWLESS` | SHADOWLESS |
+| `SHADOWLESS_FIRST_EDITION` | SHADOWLESS + FIRST_EDITION |
+| `COPYRIGHT_1999_2000` | COPYRIGHT_1999_2000 |
+| `SHADOWLESS_RED_CHEEK` | SHADOWLESS + RED_CHEEK |
+| `SHADOWLESS_RED_CHEEK_FIRST_EDITION` | SHADOWLESS + RED_CHEEK + FIRST_EDITION |
+
+Total: **5 traits · 6 profiles · 10 vínculos**. Seed idempotente (`ON CONFLICT DO NOTHING`), sem ids literais — resolve por `(game.code, code)`. Só Game `POKEMON`.
+
+## Fora de escopo — routing NÃO existe
+
+**O routing semântico ainda NÃO está implementado.** Não existe `card_printing_external_mapping`; `import-card-variants` não foi alterado; nenhuma RPC de Printing foi criada; nenhuma `card_variant` recebeu `printing_profile_id`; as 505 linhas `NEEDS_REVIEW` e BASE1 permanecem intocadas.
+
+**Próximo passo técnico:** `PRINTING ROUTING / EXTERNAL MAPPING`.
+
+## Queries associadas
+
+```
+2165 - Create Card Printing Trait Table                    (CONFIRMADO EXECUTADO — 2026-09-12)
+2166 - Create Card Printing Profile Table (v1.1)           (CONFIRMADO EXECUTADO — 2026-09-12)
+2167 - Create Card Printing Profile Trait Table            (CONFIRMADO EXECUTADO — 2026-09-12)
+2168 - Create Card Printing Composition Guards (v1.1)      (CONFIRMADO EXECUTADO — 2026-09-12)
+2169 - Seed Card Printing Traits and Profiles              (CONFIRMADO EXECUTADO — 2026-09-12)
+2170 - Add printing_profile_id to Card Variant             (CONFIRMADO EXECUTADO — 2026-09-12)
+2171 - Reconcile Card Variant Uniqueness for Printing      (CONFIRMADO EXECUTADO — 2026-09-12)
+2823 - Validate Card Printing Model (v1.2)                 (VALIDATED / PASS — 12/0/0)
+```
 
 ---
 
