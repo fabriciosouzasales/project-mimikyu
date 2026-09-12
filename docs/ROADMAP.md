@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.96 |
+| **Versão** | 1.97 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -23,7 +23,27 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
-> **Estado corrente (2026-09-06, `COLLECTIONS-POKEDEX-FATIA-E-FINAL-DOC-CORRECTION-01`).** A frente ativa é **Collections**, e ela **não está mais em reconciliação documental nem em modelagem inicial**: o **domínio físico está fechado até a Fatia E** — Inventory/Physical Card, Storage, Collection, Collection Allocation, Collection Reference, Completion STANDARD_SET, Master Set Scope, e o Pokédex completo (Fatias A–E: Canonical Pokédex Foundation, Collection Pokédex Reference/Scope, Card → Primary Species, Position Assignment/Primary Representative, e REFERENCE_POSITION Completion). Todos aplicados ao banco real, validados e promovidos. **Atualizado em 2026-09-07 (`COLLECTIONS-BINDER-LAYOUT-FOUNDATION-DOCUMENTATION-CLOSEOUT-01`): a Binder/Layout Foundation também está fechada** — `IMPLEMENTED / VALIDATED / PERFORMANCE HEALTHY / CLOSED` (ver a seção "Concluído"), e o gate de segurança que a sucedia — **`PRICING-PAYLOAD-CARDINALITY-HARDENING-01`** — também foi executado e fechado no mesmo dia (`IMPLEMENTED / VALIDATED / CLOSED`). **Próxima frente: Bulk Collection Operations**, sem gate pendente à frente. Nenhuma tela/rota de Collections construída até aqui — todo o trabalho é de banco. Os parágrafos datados abaixo são registro histórico de cada rodada e não foram reescritos.
+> **Estado corrente (2026-09-11, `ASSETS-FINAL-CLOSEOUT`). O macrobloco ASSETS está FORMALMENTE ENCERRADO.**
+>
+> Encerramento medido em produção, não estimado:
+>
+> | Indicador | Valor LIVE (2026-09-11) |
+> |---|---|
+> | Cards ativos | **20.939** |
+> | Assets primários `en` | **19.945** |
+> | Assets primários `pt-BR` | **10.303** |
+> | `asset_import_run` não terminais | **0** |
+> | Edge `import-card-assets` | versão **45**, `ACTIVE`, `verify_jwt = true` |
+>
+> A última frente aberta era o alias de asset-path dos 6 subsets SWSH, recuperados **integralmente em EN** (`SWSH4.5SV` 122/122, `SWSH12.5GG` 70/70, `SWSH9TG`/`SWSH10TG`/`SWSH11TG`/`SWSH12TG` 30/30 cada) — **312 Assets EN**. Gates: smoke `SV001` PASS, harness de alias `140/140`, harness de integridade de promoção `12/12`.
+>
+> **Decisão explícita de escopo — não haverá nova busca por fonte externa neste momento.** A cobertura residual (Cards sem Asset em um ou nos dois idiomas) fica registrada como **dívida conhecida, fora do escopo desta fase**, e **não** como omissão. Não abrir nova investigação de Assets — nem novas APIs, nem novos aliases, nem varredura de gaps — sem mandato explícito de Fabrício. Cobertura perfeita não é critério de encerramento deste macrobloco; o critério é pipeline correto, governado e com resíduo declarado.
+>
+> **Próximo macrobloco, na ordem aprovada:** `PRIMARY SPECIES` → `CARD VARIANTS` → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`.
+>
+> Os parágrafos datados abaixo são registro histórico de cada rodada e não foram reescritos.
+
+> **Estado anterior (2026-09-06, `COLLECTIONS-POKEDEX-FATIA-E-FINAL-DOC-CORRECTION-01`).** A frente ativa é **Collections**, e ela **não está mais em reconciliação documental nem em modelagem inicial**: o **domínio físico está fechado até a Fatia E** — Inventory/Physical Card, Storage, Collection, Collection Allocation, Collection Reference, Completion STANDARD_SET, Master Set Scope, e o Pokédex completo (Fatias A–E: Canonical Pokédex Foundation, Collection Pokédex Reference/Scope, Card → Primary Species, Position Assignment/Primary Representative, e REFERENCE_POSITION Completion). Todos aplicados ao banco real, validados e promovidos. **Atualizado em 2026-09-07 (`COLLECTIONS-BINDER-LAYOUT-FOUNDATION-DOCUMENTATION-CLOSEOUT-01`): a Binder/Layout Foundation também está fechada** — `IMPLEMENTED / VALIDATED / PERFORMANCE HEALTHY / CLOSED` (ver a seção "Concluído"), e o gate de segurança que a sucedia — **`PRICING-PAYLOAD-CARDINALITY-HARDENING-01`** — também foi executado e fechado no mesmo dia (`IMPLEMENTED / VALIDATED / CLOSED`). **Próxima frente: Bulk Collection Operations**, sem gate pendente à frente. Nenhuma tela/rota de Collections construída até aqui — todo o trabalho é de banco. Os parágrafos datados abaixo são registro histórico de cada rodada e não foram reescritos.
 >
 > **Atualização 2026-09-07 (mesma data, rodada seguinte):** o gate `PRICING-PAYLOAD-CARDINALITY-HARDENING-01` foi executado e fechado — `IMPLEMENTED / VALIDATED / CLOSED`.
 >

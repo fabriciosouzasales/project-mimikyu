@@ -300,9 +300,37 @@ export async function listCards(
 // "Sprint B3.15".
 
 /**
+ * Chave de comparação simétrica entre o `localId` da TCGdex e o
+ * `collector_number` do banco.
+ *
+ *   número puro   -> remove o padding semântico ("01", "001", "1" -> "1")
+ *   alfanumérico  -> trim + uppercase ("tg01" -> "TG01"), conteúdo preservado
+ *
+ * Blocker real (2026-09-11, BW4): o matching anterior usava
+ * `padCollectorNumber(localId, cardSet.total_set_size)` e portanto assumia que
+ * o padding gravado no banco tinha sido derivado de `total_set_size`. Em BW4
+ * isso é falso — `total_set_size` = 103 (3 dígitos), mas as 99 Cards da base
+ * foram persistidas com a largura de `base_set_size` = 99 (2 dígitos). O Edge
+ * procurava "001" enquanto o banco tinha "01": 99 de 103 Cards ficaram
+ * invisíveis para o import de Assets, em silêncio, e todo retry posterior
+ * devolvia `requested_count = 0` com `status = COMPLETED`.
+ *
+ * A normalização vale só para COMPARAÇÃO. Nenhum valor derivado dela é
+ * persistido: `card.collector_number` não é tocado, e o caminho no Storage
+ * continua sendo montado a partir do `localId` cru (ver
+ * `buildCardStoragePath` em index.ts) — mudá-lo tornaria órfão todo Asset já
+ * importado.
+ */
+export function chaveColecionador(v: string): string {
+  const s = String(v ?? "").trim();
+  if (s === "") return "";
+  return /^\d+$/.test(s) ? String(Number(s)) : s.toUpperCase();
+}
+
+/**
  * Carrega todas as cartas de uma coleção em um único SELECT e monta um
- * Map<collector_number, card_id> — lookup em memória O(1), evita uma consulta
- * por carta durante o loop de importação.
+ * Map<chaveColecionador(collector_number), card_id> — lookup em memória O(1),
+ * evita uma consulta por carta durante o loop de importação.
  */
 export async function listCardsMap(
   supabase: any,
@@ -313,12 +341,29 @@ export async function listCardsMap(
     cardSetId,
   );
 
-  return new Map<string, string>(
-    cards.map((card: any) => [
-      card.collector_number,
-      card.id,
-    ]),
-  );
+  const mapa = new Map<string, string>();
+  const origem = new Map<string, string>();
+
+  for (const card of cards as any[]) {
+    const bruto = String(card.collector_number);
+    const chave = chaveColecionador(bruto);
+
+    // FAIL CLOSED: duas Cards distintas do mesmo Card Set normalizando para a
+    // mesma chave tornam o matching ambíguo. Abortar é a única saída correta —
+    // escolher uma arbitrariamente gravaria o Asset na Card errada.
+    if (mapa.has(chave)) {
+      throw new Error(
+        `COLLECTOR_KEY_COLLISION: collector_number "${origem.get(chave)}" e "${bruto}" ` +
+        `normalizam para "${chave}" no mesmo Card Set. Run abortada antes de qualquer ` +
+        `escrita em card_external_reference/card_asset.`,
+      );
+    }
+
+    mapa.set(chave, card.id);
+    origem.set(chave, bruto);
+  }
+
+  return mapa;
 }
 
 /**
@@ -380,6 +425,96 @@ export async function upsertCardExternalReference(
   }
 
   return data;
+}
+
+/**
+ * CORRECTION-02 — PROMOCAO de uma URL DERIVED_ALLOWLIST a identidade.
+ *
+ * Uma URL derivada e HIPOTESE. Ela so vira `image_source_url` DEPOIS que o
+ * download provou que o arquivo existe. Antes disso a coluna fica `null` — e
+ * `null` e honesto: "nao sabemos onde esta a imagem". Gravar a hipotese antes
+ * da prova plantaria no banco um endereco possivelmente inexistente, que o
+ * auditor de CDN leria como identidade AUTORITATIVA (ver SOURCE-404-CDN-
+ * PROOF-04, cuja regra inteira depende de `image_source_url` ser confiavel).
+ *
+ * UPDATE pontual pela chave unica (card_id, asset_source_id, language_id) —
+ * nao um upsert: a linha JA existe (foi criada na sincronizacao). Se nao
+ * existir, nada e criado e nada falha: a ausencia e tratada como no-op.
+ *
+ * NAO toca external_set_id, external_card_id, source_number, source_url nem
+ * metadata.
+ */
+export async function promoverImageSourceUrlDerivada(
+  supabase: any,
+  chave: { card_id: string; asset_source_id: string; language_id: string },
+  imageSourceUrl: string,
+): Promise<boolean> {
+  // PROMOTION-INTEGRITY-GATE-01 — guards de entrada. Chave incompleta produz
+  // `.eq()` degenerado; barrar aqui e mais barato que descobrir depois que a
+  // coluna "foi promovida" na linha errada.
+  if (!imageSourceUrl) return false;
+  if (!chave?.card_id || !chave?.asset_source_id || !chave?.language_id) {
+    console.error("PROMOCAO image_source_url ABORTADA: chave incompleta.", {
+      card_id: Boolean(chave?.card_id),
+      asset_source_id: Boolean(chave?.asset_source_id),
+      language_id: Boolean(chave?.language_id),
+    });
+    return false;
+  }
+
+  // try/catch envolve TUDO: `card_asset` ja foi salvo neste ponto. A promocao
+  // e metadado de procedencia — nenhuma excecao dela pode derrubar a
+  // importacao. Falha => `null` na coluna, que e o estado conservador.
+  try {
+    const { data, error } = await supabase
+      .from("card_external_reference")
+      .update({
+        image_source_url: imageSourceUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("card_id", chave.card_id)
+      .eq("asset_source_id", chave.asset_source_id)
+      .eq("language_id", chave.language_id)
+      // `.single()` exige EXATAMENTE uma linha: zero ou multiplas viram erro.
+      // Cardinalidade fica garantida pela UNIQUE (card_id, asset_source_id,
+      // language_id) + `.single()`, sem revalidacao redundante no cliente.
+      // `image_source_url` no select e o que permite conferir o VALOR
+      // PERSISTIDO — `id` sozinho provaria que algo respondeu, nao o que ficou
+      // gravado.
+      .select("id, image_source_url")
+      .single();
+
+    if (error) {
+      // Inclui o caso ZERO LINHAS: sob RLS, um WHERE que nao casa nada
+      // visivel chega aqui via `.single()`, em vez de passar como sucesso.
+      console.error(
+        "PROMOCAO image_source_url FALHOU (imagem ja importada; coluna segue null):",
+        JSON.stringify(error, null, 2),
+      );
+      return false;
+    }
+
+    if (!data) {
+      console.error("PROMOCAO image_source_url: sem linha retornada.", { ...chave });
+      return false;
+    }
+
+    if (data.image_source_url !== imageSourceUrl) {
+      console.error("PROMOCAO image_source_url: valor persistido diverge do promovido.", {
+        promovido: imageSourceUrl,
+        persistido: data.image_source_url,
+      });
+      return false;
+    }
+
+    return true;
+  } catch (erro) {
+    console.error(
+      "PROMOCAO image_source_url LANCOU (contido; imagem ja importada):",
+      erro instanceof Error ? erro.message : String(erro),
+    );
+    return false;
+  }
 }
 
 // Sprint B3.18/B3.19/B3.20 — Incremento 2 (Download de Imagens). CONFIRMADO

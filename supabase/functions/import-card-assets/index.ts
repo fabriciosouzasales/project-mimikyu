@@ -402,24 +402,37 @@ import {
   findCardSetExternalReference,
   listCardsMap,
   listCardIdsWithPrimaryAsset,
+  promoverImageSourceUrlDerivada,
   upsertCardExternalReference,
   findLanguageById,
   findCardAssetTypeByCode,
   findStorageBucketByCode,
   upsertCardAsset,
+  chaveColecionador,
 } from "./services/database.ts";
-import { TcgdexClient } from "./services/tcgdex.ts";
 import {
-  buildTcgdexHighImageUrl,
+  ORIGEM_RESOLUCAO,
+  type OrigemResolucao,
+  resolverBaseImageUrlDaCarta,
+  TcgdexClient,
+  validarSetSnapshot,
+} from "./services/tcgdex.ts";
+import {
   buildCardStoragePath,
   downloadImage,
   uploadImage,
   ImageDownloadError,
+  baixarImagemComFallbackDeQualidade,
 } from "./services/storage.ts";
-import { padCollectorNumber } from "../_shared/catalog-normalization/mod.ts";
 
 type RequestBody = {
   run_code?: string;
+  // v2.11.0 (BOOTSTRAP-METADATA-PASSTHROUGH-01) — metadata do Set já obtida
+  // pelo chamador, para evitar um segundo GET a `api.tcgdex.net`. OPCIONAL e
+  // deliberadamente `unknown`: vem do cliente e só é usada depois de
+  // `validarSetSnapshot()` (fail closed). Sem este campo, o fluxo é
+  // byte a byte o de hoje — a UI nunca envia snapshot.
+  set_snapshot?: unknown;
 };
 
 type ImageImportResult = {
@@ -737,26 +750,63 @@ Deno.serve(async (req) => {
     const tcgdex = new TcgdexClient(
       resolveTcgdexLanguage(language.code),
     );
-    const set = await tcgdex.getSet(
-      externalReference.external_set_id,
-    );
+
+    // v2.11.0 (BOOTSTRAP-METADATA-PASSTHROUGH-01) — `set_snapshot` opcional.
+    //
+    // Sem snapshot: caminho de hoje, byte a byte. A UI nunca envia o campo,
+    // então o fluxo normal chama `tcgdex.getSet()` exatamente como antes.
+    //
+    // Com snapshot: `api.tcgdex.net` NÃO é consultado. O bootstrap histórico
+    // já obteve esse metadata no preflight (`disponibilidadeNaFonte` em
+    // run-bootstrap-assets.mjs) e o repassa, evitando o segundo GET — que
+    // hoje falha de forma persistente a partir da plataforma Edge (TLS EOF,
+    // connection reset, e v2.10 esgotando as 3 tentativas em ~47s), enquanto
+    // `assets.tcgdex.net` (host do download de imagem) segue alcançável.
+    //
+    // O snapshot é DADO DE CLIENTE: `validarSetSnapshot` é fail closed e
+    // lança `SET_SNAPSHOT_INVALID` em qualquer desvio. Ele nunca cria Card —
+    // `card_id` continua vindo exclusivamente de `listCardsMap` (banco), e o
+    // matching continua por `chaveColecionador(localId)`.
+    const set = body.set_snapshot !== undefined
+      ? validarSetSnapshot(
+        body.set_snapshot,
+        externalReference.external_set_id,
+        chaveColecionador,
+      )
+      : await tcgdex.getSet(
+        externalReference.external_set_id,
+      );
 
     const cards = await listCardsMap(
       supabase,
       activeRun.card_set_id,
     );
 
-    // Bug real (2026-08-13): a chave do Map acima é o collector_number já
-    // padronizado no banco (padCollectorNumber, mesma regra do cadastro —
-    // ver _shared/catalog-normalization/resolve-row.ts), mas tcgCard.localId
-    // vem bruto da TCGdex ("10", não "010"). Os três lookups abaixo
-    // (cardsToImport, sincronização de card_external_reference,
-    // processImageForCard) normalizam o localId com a MESMA função antes de
-    // consultar o Map, em vez de repetir a regra — centralizado aqui porque
-    // collector_total é constante para toda a Coleção (cardSet.total_set_size),
-    // então só precisa ser resolvido uma vez por execução.
+    // Bug real (2026-08-13): a chave do Map vinha do banco já padronizada,
+    // mas tcgCard.localId vem bruto da TCGdex ("10", não "010"). Os três
+    // lookups abaixo (cardsToImport, sincronização de
+    // card_external_reference, processImageForCard) passam pelo MESMO
+    // resolvedor, em vez de repetir a regra.
+    //
+    // Blocker real (2026-09-11, BW4) — correção desta rodada: a versão
+    // anterior era
+    //     cards.get(padCollectorNumber(localId, cardSet.total_set_size))
+    // e dependia de o padding gravado no banco ter sido derivado de
+    // total_set_size. Em BW4 isso é falso: total_set_size = 103 (3 dígitos),
+    // mas as 99 Cards da base foram persistidas com a largura de
+    // base_set_size = 99 (2 dígitos). O Edge procurava "001" e o banco tinha
+    // "01" — 99 de 103 Cards invisíveis, em silêncio, com todo retry
+    // devolvendo requested_count = 0 e status COMPLETED.
+    //
+    // Agora os DOIS lados passam por chaveColecionador() (services/
+    // database.ts), que é indiferente à quantidade de zeros à esquerda.
+    // total_set_size deixa de participar do matching.
+    //
+    // O caminho no Storage NÃO usa esta normalização — buildCardStoragePath
+    // continua recebendo tcgCard.localId cru, preservando os Assets já
+    // importados.
     function resolveCardId(localId: string): string | undefined {
-      return cards.get(padCollectorNumber(localId, cardSet.total_set_size));
+      return cards.get(chaveColecionador(localId));
     }
 
     // v2.7.0 (2026-08-02) — Cards que já têm uma imagem primária ativa para
@@ -795,6 +845,87 @@ Deno.serve(async (req) => {
       return Boolean(cardId) && !existingImageCardIds.has(cardId as string);
     });
 
+    // SWSH-SUBSET-ASSET-ALIAS-RECOVERY-01 — RESOLUÇÃO ÚNICA da URL-base.
+    //
+    // `tcgCard.image` era lido em DOIS lugares (sincronização de
+    // `card_external_reference` e download). Resolver duas vezes abriria a
+    // porta para persistir uma URL e baixar de outra. Aqui a resolução é feita
+    // UMA vez, por `localId`, e os dois consumidores leem o MESMO valor.
+    //
+    // Escopo do alias: troca UM segmento do path físico. Não toca
+    // `external_set_id`, `external_card_id`, `source_number`/`localId`,
+    // `card_asset.source_reference` nem a identidade lógica do Card Set.
+    // Set fora do mapa => byte-equivalente ao comportamento anterior.
+    // CORRECTION-02 — a resolução passa a distinguir a PROCEDÊNCIA da URL:
+    //   SOURCE            — a fonte publicou `image` (com alias se devido);
+    //   DERIVED_ALLOWLIST — a fonte NÃO publicou; URL construída da allowlist;
+    //   NONE              — sem URL utilizável.
+    const resolucaoPorLocalId = new Map<
+      string,
+      { url: string; origem: OrigemResolucao }
+    >();
+    let contSource = 0;
+    let contDerived = 0;
+    let contNone = 0;
+    let contAlias = 0;
+
+    for (const tcgCard of cardsToImport) {
+      const r = resolverBaseImageUrlDaCarta(
+        tcgCard.image,
+        externalReference.external_set_id,
+        tcgCard.localId,
+        language.code,
+      );
+      resolucaoPorLocalId.set(tcgCard.localId, { url: r.url, origem: r.origem });
+
+      if (r.origem === ORIGEM_RESOLUCAO.SOURCE) contSource += 1;
+      else if (r.origem === ORIGEM_RESOLUCAO.DERIVED_ALLOWLIST) contDerived += 1;
+      else contNone += 1;
+
+      if (r.aliasAplicado) contAlias += 1;
+
+      if (r.origem === ORIGEM_RESOLUCAO.DERIVED_ALLOWLIST) {
+        console.log("ASSET URL DERIVED_ALLOWLIST", {
+          externalSetId: externalReference.external_set_id,
+          languageCode: language.code,
+          localId: tcgCard.localId,
+          diretorio: r.diretorioAliasado,
+          url: r.url,
+          nota: "HIPOTESE — nao persistida ate prova positiva do download",
+        });
+      } else if (r.aliasAplicado) {
+        console.log("ASSET PATH ALIAS", {
+          externalSetId: externalReference.external_set_id,
+          languageCode: language.code,
+          localId: tcgCard.localId,
+          para: r.diretorioAliasado,
+          url: r.url,
+        });
+      }
+    }
+
+    if (contDerived > 0 || contAlias > 0) {
+      console.log("ASSET URL RESOLUCAO RESUMO", {
+        externalSetId: externalReference.external_set_id,
+        languageCode: language.code,
+        cards: cardsToImport.length,
+        SOURCE: contSource,
+        DERIVED_ALLOWLIST: contDerived,
+        NONE: contNone,
+        aliasAplicado: contAlias,
+      });
+    }
+
+    /** URL-base efetiva; "" quando não há URL utilizável (origem NONE). */
+    function resolverBaseImageUrl(localId: string): string {
+      return resolucaoPorLocalId.get(localId)?.url ?? "";
+    }
+
+    /** Procedência da URL — decide se pode ser persistida antes da prova. */
+    function origemDaUrl(localId: string): OrigemResolucao {
+      return resolucaoPorLocalId.get(localId)?.origem ?? ORIGEM_RESOLUCAO.NONE;
+    }
+
     // Sincronização de card_external_reference (Incremento 1, CONFIRMADO
     // CONCLUÍDO no Sprint B3.15) — v2.8.0: restrita a `cardsToImport` (era
     // `set.cards`, a Coleção inteira), ver comentário acima.
@@ -822,7 +953,23 @@ Deno.serve(async (req) => {
             source_number: tcgCard.localId,
             source_url:
               `https://api.tcgdex.net/v2/${language.code}/cards/${tcgCard.id}`,
-            image_source_url: tcgCard.image ?? null,
+            // SWSH-SUBSET-ASSET-ALIAS-RECOVERY-01 + CORRECTION-02.
+            //
+            // SOURCE            -> persiste a URL EFETIVA (já aliasada). É a
+            //                      mesma de onde o binário é baixado, e veio
+            //                      da fonte: é identidade.
+            // DERIVED_ALLOWLIST -> persiste `null`. A URL é HIPÓTESE nossa,
+            //                      não afirmação da fonte. Só vira identidade
+            //                      depois do download bem-sucedido (promoção
+            //                      em `processImageForCard`). Gravar antes
+            //                      plantaria um endereço não comprovado numa
+            //                      coluna que o auditor de CDN trata como
+            //                      AUTORITATIVA.
+            // NONE              -> `null`, como sempre foi.
+            image_source_url:
+              origemDaUrl(tcgCard.localId) === ORIGEM_RESOLUCAO.SOURCE
+                ? (resolverBaseImageUrl(tcgCard.localId) || null)
+                : null,
             metadata: tcgCard,
             is_active: true,
           },
@@ -928,22 +1075,39 @@ async function downloadImageWithRetry(
             );
           }
 
-          if (!tcgCard.image) {
+          // SWSH-SUBSET-ASSET-ALIAS-RECOVERY-01 — mesma resolução usada na
+          // sincronização de `card_external_reference` (map montado uma vez
+          // acima). Vazio só quando a fonte não publica `image`, exatamente
+          // como antes.
+          const baseImageUrl = resolverBaseImageUrl(tcgCard.localId);
+
+          if (!baseImageUrl) {
             throw new Error(
               `TCGDEX_IMAGE_NOT_AVAILABLE: ${tcgCard.id}`,
             );
           }
 
-          const imageSourceUrl = buildTcgdexHighImageUrl(
-            tcgCard.image,
-          );
-          const image = await downloadImageWithRetry(
-  imageSourceUrl,
-  {
-    externalCardId: tcgCard.id,
-    collectorNumber: tcgCard.localId,
-  },
-);
+          // IMAGE-QUALITY-FALLBACK-01: `high` primeiro; `low` SOMENTE apos
+          // 404 comprovado em `high`. Ver baixarImagemComFallbackDeQualidade.
+          const { image, qualidade } =
+            await baixarImagemComFallbackDeQualidade(
+              baseImageUrl,
+              {
+                externalCardId: tcgCard.id,
+                collectorNumber: tcgCard.localId,
+              },
+              downloadImageWithRetry,
+            );
+
+          // Diagnostico apenas. A qualidade efetiva NAO e persistida:
+          // card_asset nao tem coluna para procedencia de download, e
+          // external_url e reservado a ativos NAO baixados (ver abaixo).
+          console.log("IMAGE QUALITY RESOLVED", {
+            externalCardId: tcgCard.id,
+            collectorNumber: tcgCard.localId,
+            qualidade,
+          });
+
           const storagePath = buildCardStoragePath(
             cardSet.code,
             tcgCard.localId,
@@ -983,6 +1147,34 @@ async function downloadImageWithRetry(
               storage_bucket_id: storageBucket.id,
             },
           );
+
+          // CORRECTION-02 — PROMOÇÃO, e só aqui.
+          //
+          // Chegamos neste ponto com PROVA POSITIVA: o binário foi baixado da
+          // URL derivada, passou pelo checksum e está no Storage. Só agora a
+          // hipótese vira identidade em `image_source_url`.
+          //
+          // Ordem deliberada: DEPOIS de `upsertCardAsset`. Se o upsert
+          // falhasse, não haveria Asset, e a coluna deve permanecer `null`.
+          // A promoção não é bloqueante — falhar aqui deixa `null`, que é o
+          // estado conservador (a imagem já está importada de qualquer forma).
+          if (origemDaUrl(tcgCard.localId) === ORIGEM_RESOLUCAO.DERIVED_ALLOWLIST) {
+            const promovida = await promoverImageSourceUrlDerivada(
+              supabase,
+              {
+                card_id: cardId,
+                asset_source_id: activeRun.asset_source_id,
+                language_id: language.id,
+              },
+              baseImageUrl,
+            );
+            console.log("ASSET URL DERIVED PROMOVIDA", {
+              externalCardId: tcgCard.id,
+              collectorNumber: tcgCard.localId,
+              url: baseImageUrl,
+              promovida,
+            });
+          }
 
           return {
             external_card_id: tcgCard.id,

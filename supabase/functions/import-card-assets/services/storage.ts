@@ -43,7 +43,7 @@
 // revisão relevante) — só garante que esse tipo de falha aparece rápido em
 // `failures[]`/`error_summary`, em vez de nunca aparecer.
 
-type DownloadedImage = {
+export type DownloadedImage = {
   sourceUrl: string;
   buffer: ArrayBuffer;
   mimeType: string;
@@ -93,6 +93,96 @@ export function buildTcgdexHighImageUrl(
   baseImageUrl: string,
 ): string {
   return `${baseImageUrl}/high.webp`;
+}
+
+/**
+ * IMAGE-QUALITY-FALLBACK-01 — mesma URL-base, variante de MENOR resolução.
+ *
+ * A TCGdex publica cada carta sob uma URL-base com múltiplas variantes de
+ * qualidade, e a cobertura dessas variantes NAO e uniforme por idioma.
+ * Evidencia LIVE que motivou esta funcao (SM10 #226, Whimsicott GX, pt-BR):
+ *   .../pt/sm/sm10/226/high.webp -> HTTP 404
+ *   .../pt/sm/sm10/226/low.webp  -> HTTP 200
+ * O import falhou duas vezes porque `high` era a unica variante conhecida, e
+ * um 404 nela era propagado como "imagem indisponivel" — afirmacao mais forte
+ * do que a evidencia sustentava.
+ *
+ * `low` NUNCA e a primeira escolha: e consultada apenas depois de um 404
+ * COMPROVADO em `high` (ver processImageForCard em index.ts). Deriva da mesma
+ * `baseImageUrl` ja recebida da fonte — nenhuma origem nova, nenhum host novo,
+ * mesma superficie de SSRF.
+ */
+export function buildTcgdexLowImageUrl(
+  baseImageUrl: string,
+): string {
+  return `${baseImageUrl}/low.webp`;
+}
+
+export type QualidadeImagem = "high" | "low";
+
+export type ContextoDownload = {
+  externalCardId: string;
+  collectorNumber: string;
+};
+
+/** Assinatura de `downloadImageWithRetry` (index.ts), injetada. */
+export type BaixarComRetry = (
+  sourceUrl: string,
+  context: ContextoDownload,
+) => Promise<DownloadedImage>;
+
+/**
+ * IMAGE-QUALITY-FALLBACK-01 — baixa a imagem tentando `high` e, SOMENTE apos
+ * 404 comprovado, `low`.
+ *
+ * Contrato deliberadamente estreito:
+ *   - `high` 200                     -> sucesso; `low` NUNCA e chamada;
+ *   - `high` HTTP_404                -> UNICA porta para o fallback;
+ *   - `high` TIMEOUT/NETWORK/429/5XX -> ja foram retentados pelo `baixar`
+ *                                       injetado; se chegaram aqui, a politica
+ *                                       de retry se esgotou. Relanca SEM
+ *                                       fallback: trocar de qualidade nao
+ *                                       conserta rede nem throttling;
+ *   - `high` HTTP_OTHER / EMPTY_RESPONSE / UNSUPPORTED_MIME_TYPE -> relanca.
+ *                                       Fail closed: nao ficou provado que o
+ *                                       recurso inexiste, e cair para `low`
+ *                                       mascararia o problema real;
+ *   - erro que NAO e ImageDownloadError -> relanca intacto.
+ *
+ * Depois de um fallback legitimo, `low` passa pelo MESMO `baixar`, herdando
+ * integralmente retry transitorio, timeout e validacao de MIME. `low` 404 =
+ * indisponivel de verdade — as duas variantes publicadas foram testadas.
+ *
+ * `baixar` e parametro obrigatorio (nao ha default) porque
+ * `downloadImageWithRetry` vive em index.ts, que executa `Deno.serve()` no
+ * topo. Manter esta funcao aqui, em modulo puro, e o que permite testa-la
+ * offline sem subir servidor.
+ */
+export async function baixarImagemComFallbackDeQualidade(
+  baseImageUrl: string,
+  context: ContextoDownload,
+  baixar: BaixarComRetry,
+): Promise<{ image: DownloadedImage; qualidade: QualidadeImagem }> {
+  try {
+    const image = await baixar(buildTcgdexHighImageUrl(baseImageUrl), context);
+    return { image, qualidade: "high" };
+  } catch (error) {
+    const downloadError = error instanceof ImageDownloadError ? error : null;
+
+    // A ÚNICA condição que autoriza trocar de qualidade.
+    if (downloadError?.code !== "HTTP_404") {
+      throw error;
+    }
+
+    console.warn("IMAGE QUALITY FALLBACK high->low", {
+      externalCardId: context.externalCardId,
+      collectorNumber: context.collectorNumber,
+      motivo: "HTTP_404 em high.webp",
+    });
+
+    const image = await baixar(buildTcgdexLowImageUrl(baseImageUrl), context);
+    return { image, qualidade: "low" };
+  }
 }
 
 export function buildCardStoragePath(
