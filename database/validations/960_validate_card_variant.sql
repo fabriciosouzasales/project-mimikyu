@@ -2,10 +2,10 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 960 - Validate Card Variant
-Versão......: 2.1
-Status......: CANÔNICA
-Autor.......: Fabrício Sales / ChatGPT
-Data........: 2026-07-20
+Versão......: 2.2
+Status......: CANÔNICA — versão 2.2 STAGED, NÃO EXECUTADA
+Autor.......: Fabrício Sales / ChatGPT (v2.1) · Claude (v2.2)
+Data........: 2026-07-20 (v2.1) · 2026-09-12 (v2.2)
 
 Descrição resumida:
 Valida a estrutura técnica, a integridade relacional e a carga editorial
@@ -25,6 +25,29 @@ Totais:
 - 927 Cards
 - 1.653 Card Variants
 
+Alterações da versão 2.2 (2026-09-12) — RECONCILIAÇÃO COM O PRINTING MODEL:
+A Query 2171 REMOVEU a constraint uq_card_variant_card_type e a substituiu
+por dois índices únicos PARCIAIS. A versão 2.1 desta validação continuava
+exigindo a constraint removida — ou seja, falhava por procurar algo que o
+próprio projeto decidiu não ter mais. Corrigido:
+
+- uq_card_variant_card_type removida da lista de constraints exigidas.
+- fk_card_variant_printing_profile acrescentada (Query 2170).
+- printing_profile_id acrescentada à lista de colunas exigidas.
+- uq_card_variant_card_type_no_printing e uq_card_variant_card_type_printing
+  acrescentados à lista de índices exigidos, com verificação dos predicados.
+- A checagem de duplicidade passou a agrupar pela identidade REAL de três
+  eixos (card_id, variant_type_id, printing_profile_id). Agrupar só pelos
+  dois primeiros passaria a acusar duplicata legítima assim que existisse
+  mais de um perfil de impressão para a mesma Card — o defeito B4.
+
+Sobre a contagem de NULL nessa checagem: GROUP BY trata NULLs como iguais,
+então a regra "no máximo uma variante sem perfil por (card, type)" continua
+sendo verificada exatamente como antes para as 7.002 linhas legadas.
+
+As contagens canônicas (927 Cards / 1.653 Card Variants para 7 Card Sets)
+NÃO foram alteradas: o Printing Model não criou nem removeu variante alguma.
+
 Alterações da versão 2.1:
 - Inclusão de MEE e MEP no escopo canônico.
 - Atualização do total de Cards de 859 para 927.
@@ -38,6 +61,8 @@ Pré-requisitos:
 - Query 161 - Create Card Variant Triggers.
 - Query 850 - Seed Card Variant Type, versão 1.3.
 - Queries 860 executadas para MEE, MEP, ME1, ME2, ME2.5, ME3 e ME4.
+- Query 2170 - Add printing_profile_id to Card Variant (LIVE).
+- Query 2171 - Reconcile Card Variant Uniqueness for Printing (LIVE).
 
 ===============================================================================
 */
@@ -79,6 +104,7 @@ BEGIN
                 ('variant_type_id'),
                 ('variant_order'),
                 ('is_default'),
+                ('printing_profile_id'),
                 ('created_at'),
                 ('updated_at')
       ) AS required(column_name)
@@ -102,7 +128,7 @@ BEGIN
             VALUES
                 ('fk_card_variant_card'),
                 ('fk_card_variant_variant_type'),
-                ('uq_card_variant_card_type'),
+                ('fk_card_variant_printing_profile'),
                 ('uq_card_variant_card_order'),
                 ('ck_card_variant_order_positive')
       ) AS required(constraint_name)
@@ -134,6 +160,8 @@ BEGIN
       FROM (
             VALUES
                 ('uq_card_variant_one_default_per_card'),
+                ('uq_card_variant_card_type_no_printing'),
+                ('uq_card_variant_card_type_printing'),
                 ('ix_card_variant_card_id'),
                 ('ix_card_variant_variant_type_id')
       ) AS required(index_name)
@@ -161,6 +189,52 @@ BEGIN
     ) THEN
         RAISE EXCEPTION
             'Falha na Query 960: o índice uq_card_variant_one_default_per_card não possui o predicado esperado.';
+    END IF;
+
+    -- ---------------------------------------------------------------------
+    -- Query 2171: a unicidade de (Card + Variant Type) passou a ser expressa
+    -- por DOIS índices únicos parciais, um para cada lado de
+    -- printing_profile_id. Não basta que existam: os predicados precisam ser
+    -- complementares e exaustivos, senão existe um universo de linhas sem
+    -- nenhuma proteção de unicidade.
+    -- ---------------------------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_indexes AS i
+         WHERE i.schemaname = 'public'
+           AND i.tablename = 'card_variant'
+           AND i.indexname = 'uq_card_variant_card_type_no_printing'
+           AND i.indexdef ILIKE 'CREATE UNIQUE INDEX%'
+           AND i.indexdef ILIKE '%WHERE (printing_profile_id IS NULL)%'
+    ) THEN
+        RAISE EXCEPTION
+            'Falha na Query 960: uq_card_variant_card_type_no_printing não é único ou não possui o predicado printing_profile_id IS NULL.';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_indexes AS i
+         WHERE i.schemaname = 'public'
+           AND i.tablename = 'card_variant'
+           AND i.indexname = 'uq_card_variant_card_type_printing'
+           AND i.indexdef ILIKE 'CREATE UNIQUE INDEX%'
+           AND i.indexdef ILIKE '%WHERE (printing_profile_id IS NOT NULL)%'
+    ) THEN
+        RAISE EXCEPTION
+            'Falha na Query 960: uq_card_variant_card_type_printing não é único ou não possui o predicado printing_profile_id IS NOT NULL.';
+    END IF;
+
+    -- A constraint uq_card_variant_card_type NÃO deve mais existir: sua
+    -- permanência significaria que a Query 2171 não foi aplicada e que
+    -- nenhuma Card poderia ter dois perfis de impressão.
+    IF EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_constraint AS c
+         WHERE c.conrelid = 'public.card_variant'::regclass
+           AND c.conname = 'uq_card_variant_card_type'
+    ) THEN
+        RAISE EXCEPTION
+            'Falha na Query 960: a constraint uq_card_variant_card_type ainda existe. A Query 2171 não foi aplicada — com ela, uma Card nunca poderá ter dois perfis de impressão.';
     END IF;
 
     SELECT string_agg(required.trigger_name, ', ' ORDER BY required.trigger_name)
@@ -279,6 +353,20 @@ BEGIN
     SELECT COUNT(*)
       INTO v_count
       FROM public.card_variant AS cv
+      LEFT JOIN public.card_printing_profile AS cpp
+          ON cpp.id = cv.printing_profile_id
+     WHERE cv.printing_profile_id IS NOT NULL
+       AND cpp.id IS NULL;
+
+    IF v_count <> 0 THEN
+        RAISE EXCEPTION
+            'Falha na Query 960: existem % referências órfãs para Print Profile.',
+            v_count;
+    END IF;
+
+    SELECT COUNT(*)
+      INTO v_count
+      FROM public.card_variant AS cv
       INNER JOIN public.card AS c
           ON c.id = cv.card_id
       INNER JOIN public.card_set AS cs
@@ -295,18 +383,22 @@ BEGIN
             v_count;
     END IF;
 
+    -- Identidade REAL de card_variant são TRÊS eixos desde a Query 2171.
+    -- GROUP BY trata NULLs como iguais, então a regra "no máximo uma
+    -- variante sem perfil por (Card, Variant Type)" continua sendo
+    -- verificada exatamente como antes para as linhas legadas.
     SELECT COUNT(*)
       INTO v_count
       FROM (
-            SELECT card_id, variant_type_id
+            SELECT card_id, variant_type_id, printing_profile_id
               FROM public.card_variant
-             GROUP BY card_id, variant_type_id
+             GROUP BY card_id, variant_type_id, printing_profile_id
             HAVING COUNT(*) > 1
-      ) AS duplicate_card_type;
+      ) AS duplicate_card_type_printing;
 
     IF v_count <> 0 THEN
         RAISE EXCEPTION
-            'Falha na Query 960: existem % combinações Card + Variant Type duplicadas.',
+            'Falha na Query 960: existem % combinações Card + Variant Type + Print Profile duplicadas.',
             v_count;
     END IF;
 

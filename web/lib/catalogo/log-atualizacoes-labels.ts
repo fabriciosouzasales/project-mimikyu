@@ -11,6 +11,21 @@
  * Alteração/Exclusão/Outras é calculada no banco (`internal.catalog_admin_
  * action_category()`), nunca aqui — este arquivo só traduz para exibição,
  * nunca reclassifica nada.
+ *
+ * STAGED / NOT DEPLOYED (2026-09-12, `PRINTING-ROUTING — STAGING-REVISION-01`):
+ * as entradas marcadas `CARD_PRINTING_EXTERNAL_MAPPING*` referem-se a valores
+ * que só passam a existir no banco com a Query 2185 (PHASE B do rollout de
+ * Impressão), ainda NÃO aplicada. Antes disso elas são inertes: filtros
+ * simplesmente não retornam nada. Depois disso elas são obrigatórias — sem
+ * elas a tela exibiria o enum técnico cru, que foi a causa raiz do
+ * diagnóstico de 2026-08-16.
+ *
+ * RESÍDUO CONHECIDO, fora do escopo desta rodada: a coluna "Registro" do Log
+ * de Atualizações resolve o nome da entidade por um ramo dedicado dentro de
+ * `admin_list_catalog_action_log()` (Query 2127). Não existe ramo para
+ * `CARD_PRINTING_EXTERNAL_MAPPING`, então esses eventos exibirão o UUID cru
+ * até que esse ramo seja criado. Decisão consciente: alterar aquela RPC é
+ * mudança de contrato de leitura do log, não de roteamento.
  */
 
 export const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
@@ -24,6 +39,10 @@ export const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "CARD_VARIANT_TYPE", label: "Tipo de Variação" },
   { value: "CATALOG_VARIANT_IMPORT_JOB", label: "Importação de Variações" },
   { value: "CARD_VARIANT_TYPE_EXTERNAL_MAPPING", label: "Mapeamento Externo" },
+  // STAGED / NOT DEPLOYED — passa a existir com a Query 2185 (PHASE B do
+  // rollout de Impressão). Sem esta entrada o Log de Atualizações exibiria
+  // o enum técnico cru, que foi o incidente de 2026-08-16.
+  { value: "CARD_PRINTING_EXTERNAL_MAPPING", label: "Mapeamento de Impressão" },
 ];
 
 export const ACTION_OPTIONS: { value: string; label: string }[] = [
@@ -52,6 +71,8 @@ export const ACTION_OPTIONS: { value: string; label: string }[] = [
   { value: "CARD_VARIANT_TYPE_UPDATED", label: "Tipo de variação atualizado" },
   { value: "CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED", label: "Mapeamento externo criado" },
   { value: "CARD_VARIANT_IMPORT_CONFIRMED", label: "Importação de variações confirmada" },
+  // STAGED / NOT DEPLOYED — ver comentário em ENTITY_TYPE_OPTIONS.
+  { value: "CARD_PRINTING_EXTERNAL_MAPPING_CREATED", label: "Mapeamento de impressão criado" },
 ];
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = Object.fromEntries(
@@ -102,6 +123,17 @@ export const METADATA_KEY_LABEL: Record<string, string> = {
   game_id: "Jogo (id)",
   release_order: "Ordem de lançamento",
   expansion_id: "Expansão (id)",
+  // STAGED / NOT DEPLOYED — metadata gravado pela Query 2181 (Impressão).
+  asset_source_id: "Fonte (id)",
+  raw_field: "Campo externo",
+  external_token: "Token externo",
+  normalized_token: "Token normalizado",
+  trait_ids: "Características de impressão (ids)",
+  supersedes_mapping_id: "Substitui o mapeamento (id)",
+  origin_row_id: "Linha de origem (id)",
+  rows_revalidated: "Linhas revalidadas",
+  rows_still_pending: "Linhas ainda pendentes",
+  jobs_affected: "Importações afetadas",
 };
 
 export function humanizeMetadataKey(key: string): string {
