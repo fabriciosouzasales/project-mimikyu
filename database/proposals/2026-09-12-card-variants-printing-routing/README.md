@@ -3,29 +3,67 @@
 | Campo | Valor |
 |---|---|
 | **Proposta** | `2026-09-12-card-variants-printing-routing` |
-| **Mandato** | `STAGING-GATE-A-01` → `STAGING-REVISION-01` → `STAGING-REVISION-02` → `STAGING-FINAL-AUDIT-01` → `STAGING-CORRECTION-03` → `PHASE-A-EXECUTION-01` → `GATE-A-HARNESS-CORRECTION-01` → `PHASE-B-FINAL-AUDIT-01` → `STAGING-CORRECTION-04` → `STAGING-CORRECTION-05` → **`STAGING-CORRECTION-06`** (rodada atual) |
+| **Mandato** | `STAGING-GATE-A-01` → `STAGING-REVISION-01` → `STAGING-REVISION-02` → `STAGING-FINAL-AUDIT-01` → `STAGING-CORRECTION-03` → `PHASE-A-EXECUTION-01` → `GATE-A-HARNESS-CORRECTION-01` → `PHASE-B-FINAL-AUDIT-01` → `STAGING-CORRECTION-04` → `STAGING-CORRECTION-05` → `STAGING-CORRECTION-06` → `PHASE-B-EXECUTION-01` → `PHASE-C-EDGE-DEPLOY-01` → `PHASE-C-RUNTIME-VALIDATION-01` → `PHASE-D-BACKFILL-EXECUTION-01` → `PHASE-E-EXECUTION-01` → `TECHNICAL-CLOSEOUT-01` → `TECHNICAL-CLOSEOUT-PROMOTION-01` → `CANONICAL-RECONCILIATION-01` → **`DOCUMENTATION-CLOSEOUT-01`** (rodada final) |
 | **Queries** | 2172 – 2187 (16 migrations) · 2824 (harness) |
 | **Depende de** | Proposta `2026-09-12-card-variants-printing-model` (2165–2171, **LIVE**) |
-| **Criado em** | 2026-09-12 · revisado em 2026-09-12 |
+| **Criado em** | 2026-09-12 · **encerrado em 2026-09-13** |
 
-## Estado por fase
+## Estado por fase — **GLOBAL: CLOSED / PASS**
 
-| Fase | Estado | Queries |
-|---|---|---|
-| **PHASE A** | **EXECUTED / CLOSED / VALIDATED** | `2172` `2173` `2174` `2175` `2176` `2177` `2182` |
-| **PHASE B** | **STAGED / NOT EXECUTED** | `2178` `2179` `2187` `2180` `2185` `2186` `2181` |
-| **PHASE C** | **NOT STARTED** (deploy da Edge nova) | — |
-| **PHASE D** | **DEFERRED** | `2183` |
-| **PHASE E** | **DEFERRED** | `2184` |
+| Fase | Estado | Queries | Validação |
+|---|---|---|---|
+| **PHASE A** | **CLOSED / VALIDATED** | `2172` `2173` `2174` `2175` `2176` `2177` `2182` | 2824 BLOCO I |
+| **PHASE B** | **CLOSED / VALIDATED** | `2178` `2179` `2187` `2180` `2185` `2186` `2181` | 2824 BLOCO I completo |
+| **PHASE C** | **CLOSED / LIVE** — Edge `import-card-variants` **v9 ACTIVE** | — | **S22 PASS** |
+| **PHASE D** | **CLOSED** — `UPDATE 5653` | `2183` v1.2 | **S23 PASS** |
+| **PHASE E** | **CLOSED** — constraint final + bridge removido | `2184` v2.0 | **S24 + S25 PASS** |
 
-> **Somente a PHASE A foi executada em LIVE**, em `PHASE-A-EXECUTION-01` (7 migrations,
-> na ordem obrigatória, cada uma individualmente postcheckada) e validada em
-> `GATE-A-HARNESS-CORRECTION-01` (96 asserções Phase-A-only PASS, zero regressão de
-> dados, zero resíduo de fixture).
+> **ROLLOUT GLOBAL: PASS.** As cinco fases foram executadas em LIVE, na ordem, cada uma
+> autorizada pelo PASS do bloco de harness da fase anterior. Nenhuma fase foi pulada,
+> nenhum gate foi relaxado para fazer uma fase passar.
 >
-> **Nenhuma migration da PHASE B / D / E foi aplicada.** Nenhum deploy de Edge. Nenhum
-> backfill. Nenhum `git add/commit/push` — commit e push são feitos por Fabrício pela
-> interface do GitHub, após aprovação.
+> **`card_variant` permanece 7.002 / `printing_profile_id` preenchido = 0** do início ao
+> fim. **O rollout não criou nenhuma Card Variant canônica** — ele construiu e validou o
+> caminho; consumir esse caminho é trabalho editorial, não técnico.
+>
+> Nenhum `git add/commit/push` — commit e push são feitos por Fabrício pela interface do
+> GitHub, após aprovação.
+
+### O que aconteceu em LIVE, em ordem
+
+| # | Evento | Evidência |
+|---|---|---|
+| 1 | 7 migrations da PHASE A aplicadas uma a uma, cada uma postcheckada | `PHASE-A-EXECUTION-01` |
+| 2 | 96 asserções Phase-A-only PASS, zero regressão, zero resíduo | `GATE-A-HARNESS-CORRECTION-01` |
+| 3 | 7 migrations da PHASE B aplicadas na ordem ratificada | `PHASE-B-EXECUTION-01` |
+| 4 | Edge `import-card-variants` **v9** deployada e ACTIVE | `PHASE-C-EDGE-DEPLOY-01` |
+| 5 | Importação real controlada — **BASE3 (Fóssil)**: 177 linhas, 64 `VALID`, 113 `NEEDS_REVIEW`; tri-state medido **48 UUID / 67 null / 62 ausente**, e `chave ausente + variant_type_id presente = 0` | **S22 PASS** |
+| 6 | `2183` v1.2 — `UPDATE 5653` em transação única, `GUARD 0` + `GUARD 1` PASS, postcheck interno PASS | **S23 PASS** (4 asserções) |
+| 7 | `2184` v2.0 — constraint final `convalidated = true`, bridge dropado, migration `20260913181725` | **S24 PASS** (4) + **S25 PASS** (5) |
+| 8 | Promoção 2172–2187 para `schema/`/`seeds/`/`migrations/` | `TECHNICAL-CLOSEOUT-PROMOTION-01` |
+| 9 | Reconciliação canônica de `2138`/`2143`/`2145` | `CANONICAL-RECONCILIATION-01` |
+
+### Baseline operacional ao fim do rollout (2026-09-13, medido)
+
+```
+card_variant ......................... 7.002   (printing_profile_id NOT NULL = 0)
+catalog_variant_import_row (staging) . 6.335
+
+VALID ................................ 5.717
+  printing_profile_id = JSON null .... 5.669
+  printing_profile_id = UUID .........    48
+  chave ausente ......................     0   ← impossível desde a PHASE E
+
+NEEDS_REVIEW ......................... 618
+  chave ausente ......................   567
+  printing_profile_id = JSON null ....    51   ← outcome B legítimo
+  printing_profile_id = UUID .........     0
+  com variant_type_id presente .......     0
+
+jobs STAGED ..........................     5
+bridge ............................... AUSENTE
+constraint final de presença ......... PRESENTE / VALIDADA
+```
 
 ---
 
@@ -278,9 +316,9 @@ Entra na **PHASE E**, não antes — durante A/B ela invalidaria as 5.653 linhas
 | **2185** | `..._widen_catalog_admin_action_log_for_printing_mapping.sql` **v1.3** | B | Contrato de auditoria próprio (R4) + prova **semântica** da matriz de pares antes do `DROP CONSTRAINT` (B-10/B-11) |
 | **2186** | `..._extend_admin_list_catalog_action_log_for_mapping_entities.sql` | B | Contrato de **leitura** do log — labels humanos |
 | **2181** | `..._create_admin_resolve_printing_mapping_function.sql` **v1.2** | B | RPC de ratificação/substituição — origin binding (B-04), NO_CHANGE efetivo (B-05), reconciliação terminal (B-06) |
-| **2183** | `..._backfill_legacy_valid_printing_profile_null.sql` **v1.1** | **D — DEFERRED** | `null` explícito nas 5.653 VALID legadas |
-| **2184** | `..._drop_staging_identity_bridge_index.sql` **v2.0** | **E — DEFERRED** | Invariante final + remoção do bridge |
-| **2824** | `..._validate_card_printing_routing.sql` **v2.5** | — | Harness fail-closed, quatro blocos |
+| **2183** | `..._backfill_legacy_valid_printing_profile_null.sql` **v1.2** | **D — EXECUTADA** | `null` explícito nas VALID legadas — **`UPDATE 5653`** |
+| **2184** | `..._drop_staging_identity_bridge_index.sql` **v2.0** | **E — EXECUTADA** | Invariante final + remoção do bridge — migration `20260913181725` |
+| **2824** | `..._validate_card_printing_routing.sql` **v2.6** | — | Harness fail-closed, quatro blocos — **BLOCO I é phase-scoped**, ver §12-B |
 
 Fora da pasta: `database/validations/960_validate_card_variant.sql` **v2.2** (staged).
 
@@ -440,11 +478,23 @@ quem operou o rollout.
 
 ---
 
-## 5. Contrato da Edge Function — STAGED, NÃO IMPLEMENTADO
+## 5. Contrato da Edge Function — **IMPLEMENTADO / LIVE (v9)**
 
-> Os arquivos TypeScript canônicos de `supabase/functions/` **não** foram alterados.
-> `npm run typecheck` não pôde ser executado nesta sessão (§9); editar código em
-> produção sem verificação de tipos seria pior do que documentar o contrato.
+> **Estado final:** `import-card-variants` **versão 9, ACTIVE**, deployada em
+> `PHASE-C-EDGE-DEPLOY-01` e validada em runtime por **S22 PASS** contra uma importação
+> real (BASE3). A configuração de autenticação anterior foi preservada — nada foi
+> afastado para facilitar o deploy.
+>
+> *(O texto abaixo era o contrato STAGED desta seção quando a frente começou. Ele foi
+> implementado como descrito, com três correções achadas na auditoria pré-deploy
+> `PHASE-C-EDGE-PREDEPLOY-AUDIT-01` e fechadas em `PHASE-C-EDGE-CORRECTION-01`: **C-1**
+> `card_printing_trait.is_active` nunca era lido, impedindo o estado
+> `NEEDS_REVIEW_INACTIVE_TRAIT`; **C-2** a chave de assinatura não aplicava `DISTINCT`,
+> divergindo do `ARRAY(SELECT DISTINCT …)` do SQL e produzindo `"t1,t1,t2"` para
+> multi-token com traits sobrepostos; **C-3** `variant_type_id` sobrevivia a um
+> Printing UNRESOLVED, contradizendo o outcome C da Query 2181 — provado corrigido em
+> runtime: 62 linhas no estado C, `chave ausente + variant_type_id = 0`. Uma quarta
+> correção, **L-1**, tornou fail-closed o mapping ativo com composição vazia.)*
 
 ### 5.1 `services/database.ts`
 
@@ -651,8 +701,8 @@ Distribuição das 16 migrations por fase:
 | Fase | Qtd | Queries |
 |---|---|---|
 | **PHASE A** — executada | **7** | `2172` `2173` `2174` `2175` `2176` `2177` `2182` |
-| **PHASE B** — staged | **7** | `2178` `2179` `2187` `2180` `2185` `2186` `2181` |
-| **DEFERRED D/E** | **2** | `2183` (D) · `2184` (E) |
+| **PHASE B** — executada | **7** | `2178` `2179` `2187` `2180` `2185` `2186` `2181` |
+| **PHASE D / E** — executadas | **2** | `2183` (D) · `2184` (E) |
 
 **Fora da proposta — 2 arquivos:**
 
@@ -665,24 +715,51 @@ Distribuição das 16 migrations por fase:
 
 ---
 
-## 12-B. Estado
+## 12-B. Estado — **FRENTE ENCERRADA**
 
-| Fase | Estado |
-|---|---|
-| **PHASE A** | **EXECUTED / CLOSED / VALIDATED** |
-| **PHASE B** | **STAGED / NOT EXECUTED** |
-| **PHASE C** | **NOT STARTED** |
-| **PHASE D / E** | **DEFERRED** |
+Todas as cinco fases estão **CLOSED / VALIDATED**; o quadro completo está no topo deste
+documento. As Queries foram **promovidas** em `TECHNICAL-CLOSEOUT-PROMOTION-01`, uma
+única pasta por Query, conforme a natureza de cada uma:
 
-**O que já aconteceu em LIVE:** as 7 migrations da PHASE A, aplicadas uma a uma na
-ordem obrigatória em `PHASE-A-EXECUTION-01`, cada uma individualmente postcheckada;
-mais 96 asserções Phase-A-only do harness 2824, com zero regressão de dados e zero
-resíduo de fixture (`GATE-A-HARNESS-CORRECTION-01`).
+| Destino | Queries | Status gravado no arquivo promovido |
+|---|---|---|
+| `database/schema/` | `2172` `2173` `2174` `2176` `2181` | `CANÔNICA — CONFIRMADO EXECUTADO / LIVE / PROMOVIDO` |
+| `database/seeds/` | `2175` | `CANÔNICA — CONFIRMADO EXECUTADO / LIVE / PROMOVIDO` |
+| `database/migrations/` | `2177` `2178` `2179` `2180` `2182` `2183` `2184` `2185` `2186` `2187` | `MIGRATION — CONFIRMADO EXECUTADO / LIVE` |
+| permanece só aqui | `2824` | harness phase-scoped — ver §8 e o aviso abaixo |
 
-**O que NÃO aconteceu:** nenhuma migration da PHASE B, D ou E aplicada · nenhum deploy
-de Edge · nenhum backfill · nenhuma linha de `card_variant` alterada · nenhum
-`git add/commit/push`. Commit e push são feitos por Fabrício pela interface do GitHub,
-após aprovação.
+**As proposals NÃO foram apagadas nem movidas.** Os 16 SQL originais continuam nesta
+pasta como evidência histórica; a promoção foi **cópia**, e a única alteração permitida
+no arquivo promovido foi cabeçalho/Status/Revision History. O corpo executável é o
+mesmo artefato aplicado em LIVE.
+
+### Reconciliação canônica — `CANONICAL-RECONCILIATION-01`
+
+Três definições canônicas passaram a representar o estado terminal numa **instalação
+limpa**, sem reproduzir mecanismo transitório de rollout:
+
+| Query | v | O que passou a representar |
+|---|---|---|
+| `2138` | **2.0** | Identidade de staging de dois eixos já na forma final — os dois índices parciais e as duas constraints de contrato, esta última nascendo VALIDADA no `CREATE TABLE`. **O bridge não é criado.** |
+| `2143` | **2.0** | `internal.write_card_variant()` com seis argumentos, `p_printing_profile_id` **sem DEFAULT**, sem overload de cinco. |
+| `2145` | **2.0** | `admin_confirm_catalog_variant_import()` com o hardening bulk da `2164` + o Printing da `2179`, **sem o ramo de compatibilidade legada** — inalcançável desde a PHASE E. |
+
+As migrations históricas (`2164`/`2177`/`2178`/`2179`/`2183`/`2184`/`2187`) **não foram
+alteradas**: elas continuam registrando como o banco atual chegou ao estado terminal.
+
+### ⚠ Aviso sobre o harness 2824 — leitura obrigatória antes de reexecutar
+
+O **BLOCO I** é **phase-scoped**: várias asserções dele medem baselines que só eram
+verdadeiros no Gate A, antes de a Edge nova rodar. Reexecutá-lo hoje produz FAIL **por
+desenho**, não por regressão. Os números abaixo são **evidência histórica**, não
+invariantes:
+
+```
+S15.00 = 5653   S21.13 = 6158   S21.14 = 5653   S21.15 = 505   S21.16 = 0   S21.18 = 4
+```
+
+Os blocos **II (S22)**, **III (S23)** e **IV (S24/S25)** são os que descrevem o estado
+terminal e passaram contra ele.
 
 ---
 
@@ -697,4 +774,5 @@ após aprovação.
 | 5.0 | **`GATE-A-HARNESS-CORRECTION-01`, 2026-09-12.** Corrige a fixture da S11, que colidia com dado real durante o SETUP (falso FAIL, não defeito LIVE): seleção da tripla `(job, card, variant_type)` passa a ser data-independent, por `NOT EXISTS` contra os três namespaces, com precondições fail-loud e regression guard. Cobertura de 3 → 9 asserções (H17 e H18 comportamentais entram; H19 vira censo dos três namespaces). Acrescenta S15.00, S16.06, S17.04 (não-vacuidade) e S21.12–.20. **PHASE A executada e validada em LIVE**: 7 migrations aplicadas, 96 asserções Phase-A-only PASS, zero regressão, zero resíduo. |
 | 6.0 | **`STAGING-CORRECTION-04`, 2026-09-12.** Fecha B-04/B-05/B-06/B-07/B-08 e a decisão D-01, achados por `PHASE-B-FINAL-AUDIT-01`. **2181 v1.2**: origin-row binding — o token tem que existir por igualdade canônica exata na `raw_data` da linha informada, sem LIKE/substring/prefixo/fuzzy, validado DEPOIS do payload puro e ANTES do lock; NO_CHANGE passa a comparar a composição **efetiva** (selada **ou** N:N transacional), fechando o mesmo buraco do B-01 em outro ponto; e TODA linha atingida é reconciliada em um de três estados terminais (A: VALID com as duas chaves; B: NEEDS_REVIEW sem `variant_type_id`, com perfil explícito; C: NEEDS_REVIEW sem nenhuma das duas), com invariante de contagem fail-closed. **2187 nova**: remove o `DEFAULT NULL` de `internal.write_card_variant()` logo após a 2179, com guards de estado inicial, de caller e de estado final. **2185 v1.1**: guard anti-drift passa a casar o literal quoted completo. **2824 v2.3**: S12 prova `pronargdefaults = 0`; S14 ganha fixture data-independent para a identidade FINAL e fixture própria com token sintético (o mapping real de 1ST-EDITION deixa de ser tocado); S13b ganha asserção de ordem de validação; S28 nova cobre B-06 (casos A/B) e OB1–OB6. **Ordem da PHASE B ratificada: 2178 → 2179 → 2187 → 2180 → 2185 → 2186 → 2181.** Nada executado. |
 | 7.0 | **`STAGING-CORRECTION-05`, 2026-09-12.** Correção final do staging, fechando B-09/B-10/D-02 de `PHASE-B-FINAL-AUDIT-01`. **2824 v2.4**: S14 PARTE 2 ganha par `(job, card)` PRÓPRIO, selecionado por `NOT EXISTS` contra a identidade final da composição A — a v2.3 reusava o par da PARTE 1, cuja identidade `(job, card, variant_type, printing_profile)` a PARTE 1 acabara de ocupar, o que faria a primeira propagação da PARTE 2 colidir no namespace B dentro da própria transação (falso FAIL); três guardas fecham o caso: candidato existe, é diferente do par da PARTE 1, e a identidade final está livre. S19 passa a provar o contrato de auditoria ESTRUTURALMENTE — três CHECKs presentes, 12 ramos, 30 pares, nenhum literal fora do universo ratificado —, sem depender de linha gravada. S28 passa a derivar `v_sig_no_profile` com `ORDER BY t.id`, a mesma ordenação canônica de `traits_signature`. **2185 v1.2**: o guard anti-drift passa a cobrir a TERCEIRA CHECK (`action_entity_match`), que era dropada e recriada sem prova prévia; a janela era real — outra frente podia ter permitido um par novo sem que nenhuma linha o usasse, e a prova por rows é cega para permissão não exercida. **README** reconciliado com o estado real: estado por fase, mandato até esta rodada, Queries 2172–2187, inventário 18 + 2 = 20 arquivos conferido fisicamente, Revision History cronológica. Nada executado nesta rodada. |
+| 9.0 | **`DOCUMENTATION-CLOSEOUT-01`, 2026-09-13 — FRENTE ENCERRADA.** Reconcilia este README com o estado real executado, depois de `PHASE-B-EXECUTION-01`, `PHASE-C-EDGE-DEPLOY-01`, `PHASE-C-RUNTIME-VALIDATION-01`, `PHASE-D-BACKFILL-EXECUTION-01`, `PHASE-E-EXECUTION-01`, `TECHNICAL-CLOSEOUT-01/-PROMOTION-01` e `CANONICAL-RECONCILIATION-01`. **Todas as cinco fases passam a CLOSED / VALIDATED; ROLLOUT GLOBAL PASS.** Quadro de fases reescrito com a validação de cada uma (BLOCO I · S22 · S23 · S24+S25); cronologia do que aconteceu em LIVE em nove eventos; baseline operacional medido em 2026-09-13 (staging 6.335; VALID 5.717 = 5.669 null + 48 UUID + 0 ausente; NEEDS_REVIEW 618 = 567 ausente + 51 null + 0 UUID, com `variant_type_id` presente = 0; jobs STAGED 5; `card_variant` 7.002 / perfil preenchido 0). §5 passa de "Contrato da Edge Function — STAGED, NÃO IMPLEMENTADO" para **IMPLEMENTADO / LIVE (v9)**, registrando as três correções pré-deploy (C-1 trait inativo nunca lido; C-2 falta de `DISTINCT` na chave de assinatura; C-3 `variant_type_id` sobrevivendo a Printing UNRESOLVED) mais L-1, e preservando o contrato original como texto histórico. §12-B passa a "FRENTE ENCERRADA", com a matriz de promoção (uma única pasta por Query), a reconciliação canônica de `2138`/`2143`/`2145` v2.0 e o **aviso de que o BLOCO I do harness 2824 é phase-scoped** — S15.00/S21.13/S21.14/S21.15/S21.16/S21.18 são evidência histórica do Gate A e reexecutar o bloco hoje produz FAIL por desenho. **Baselines históricos do BLOCO I preservados, não reescritos.** A divergência `docs/log.md` [2026-08-16] × `database/schema/2127` (§0-A) permanece registrada e **não resolvida** — fora do escopo desta rodada. Rodada exclusivamente documental: nenhum SQL, nenhum deploy, nenhuma alteração funcional. |
 | 8.0 | **`STAGING-CORRECTION-06`, 2026-09-12.** Fecha B-11, F-12 e os resíduos de D-03. **B-11 — a prova por contagem era um falso FAIL garantido.** A 2185 v1.2 e a S19 v2.4 provavam o contrato da terceira CHECK (`action_entity_match`) contando ocorrências de literais quoted no TEXTO da definição, exigindo ocorrência = 1 por token em dois laços independentes. Mas `'CATALOG_IMPORT_JOB'` é ao mesmo tempo um `entity_type` e uma `action` do universo ratificado na Query 2159 — o literal aparece DUAS vezes na definição **correta**, e as duas contagens abortariam contra a baseline correta. A correção NÃO especializa o token: a contagem foi abandonada e substituída por avaliação **semântica** — `pg_get_expr(conbin, conrelid)` renderiza a expressão real com as colunas não-qualificadas `entity_type`/`action`, `format()` a injeta sobre uma tabela derivada que expõe exatamente esses dois nomes, e `EXECUTE` deixa o próprio PostgreSQL decidir cada par do produto cartesiano completo (2185 v1.3: 11 × 29 = 319 pares, 29 esperados, antes do `DROP CONSTRAINT`; 2824 S19: 12 × 30 = 360 pares, 30 esperados, no estado final). Sem parsing e sem contagem, a posição sintática do token é respeitada por construção e a colisão léxica deixa de ser representável. Duas provas nominais em cada ponto: regressão do B-11 (`CATALOG_IMPORT_JOB` × `CATALOG_IMPORT_JOB` DEVE ser aceito) e cross-pair inválido (`GAME` × `CARD_CREATED` DEVE ser recusado); a S19 acrescenta ainda a exclusividade de domínio entre os dois mappings. As listas planas `action_valid` e `entity_type_valid` continuam verificadas por extração textual, agora por **igualdade de conjuntos** nos dois sentidos — ali é legítimo, porque são `IN (...)` de coluna única, sem papel sintático a confundir; a distinção está registrada em comentário no próprio arquivo. **F-12**: a S19 terminava com duas linhas de resumo consecutivas (a nova e a obsoleta, de '7 assercoes'); a obsoleta foi removida e a contagem foi conferida contra os rótulos reais — S19.00 a S19.15, 16 asserções, sem lacuna e sem duplicidade. **D-03**: mapa de arquivos e heading da §8 reconciliados com as versões correntes (2185 v1.3, 2824 v2.5); versões históricas preservadas nas entradas anteriores desta tabela. As três `ADD CONSTRAINT` da 2185 permanecem byte a byte inalteradas (30 actions / 12 entity_types / 12 ramos) — nenhuma mudança de contrato, apenas de prova. Nada executado nesta rodada. |

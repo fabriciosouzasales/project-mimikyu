@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 1.99 |
+| **Versão** | 2.0 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -23,7 +23,49 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
-> **Estado corrente (2026-09-12, `PRINTING-MODEL-STAGING-01 / PROMOTION-CLOSEOUT-PREP-01`).**
+> **Estado corrente (2026-09-13, `CARD-VARIANTS — PRINTING-ROUTING / DOCUMENTATION-CLOSEOUT-01`).**
+>
+> ## `PRINTING MODEL` = **IMPLEMENTED / LIVE / VALIDATED / CLOSED**
+> ## `PRINTING ROUTING` = **IMPLEMENTED / LIVE / VALIDATED / CLOSED**
+>
+> `card_variant` tem **dois eixos**: acabamento em `variant_type_id`, impressão em
+> `printing_profile_id`. Modelo **C2 — Print Profile + Print Traits**, ratificado em
+> `ADR-028` revisão `1.6`. O caminho de entrada existe: uma assinatura externa da TCGdex
+> é roteada em **Printing** + **assinatura residual**, e só a residual alimenta o Variant
+> Type — o defeito taxonômico que misturava acabamento e impressão está eliminado.
+>
+> **Gates, todos PASS:**
+>
+> | Gate | Escopo | Resultado |
+> |---|---|---|
+> | **Model** | `2165`–`2171` · harness `2823` v1.2 | **12 / 0 / 0**, zero resíduo |
+> | **Routing A/B** | `2172`–`2182` · `2178`–`2187` · harness `2824` **BLOCO I** | **PASS integral** |
+> | **Routing C** | Edge `import-card-variants` **v9 ACTIVE** · **S22** | **PASS** (importação real BASE3) |
+> | **Routing D** | `2183` v1.2 — `UPDATE 5653` · **S23** | **PASS** (4 asserções) |
+> | **Routing E** | `2184` v2.0 — constraint final + bridge removido · **S24 + S25** | **PASS** (4 + 5) |
+> | **Closeout** | promoção `2172`–`2187` · canonical reconciliation `2138`/`2143`/`2145` v2.0 | **concluído** |
+>
+> **Baseline terminal medido (2026-09-13):** `card_variant` **7.002**,
+> `printing_profile_id` preenchido **0**. Staging **6.335** — `VALID` **5.717**
+> (5.669 null · 48 UUID · **0 ausente**), `NEEDS_REVIEW` **618** (567 ausente · 51 null ·
+> 0 UUID), jobs `STAGED` **5**. Bridge **AUSENTE**; constraint final de presença
+> **PRESENTE / VALIDADA**.
+>
+> **O rollout NÃO criou nenhuma Card Variant canônica** — e isso é o resultado correto.
+> Ele construiu e validou o caminho; **consumir** esse caminho é trabalho editorial.
+> Rollout técnico fechado **não** significa variantes editorialmente resolvidas.
+>
+> Detalhe físico em `docs/05b-cartas-e-raridade.md`, seções "Printing (Impressão)" e
+> "Printing Routing / External Mapping"; decisão arquitetural em `ADR-028` revisão `1.6`.
+>
+> **NEXT: `CARD-VARIANTS — EDITORIAL CONVERGENCE / NEEDS_REVIEW RESOLUTION`.** Foco:
+> trabalhar os **jobs já existentes** (BASE1 / BASE3 e os demais como laboratório),
+> estabilizar a taxonomia, resolver mappings reaproveitáveis e reduzir `NEEDS_REVIEW`
+> com qualidade editorial. **Não** abrir campanha ampla de todos os Sets antes de a
+> taxonomia estar estável. **Não** avançar para Collections automaticamente — a
+> sequência continua sendo definida por Fabrício.
+
+> **Registro anterior (2026-09-12, `PRINTING-MODEL-STAGING-01 / PROMOTION-CLOSEOUT-PREP-01`). Superado pelo bloco acima: o Model foi promovido e o Routing, que este registro dava como inexistente, está CLOSED/LIVE.**
 >
 > **`PRINTING MODEL FOUNDATION` = EXECUTED / VALIDATED / READY FOR PROMOTION.** `card_variant` ganhou o **segundo eixo**: acabamento continua em `variant_type_id`; impressão passa a viver no domínio **Printing**, com `card_printing_trait` (átomo), `card_printing_profile` (agregado) e a N:N `card_printing_profile_trait` como fonte semântica da composição. Modelo ratificado: **C2 — Print Profile + Print Traits**, escolhido para evitar a explosão combinatória que o tipo composto produziria em cada Set da era WOTC.
 >

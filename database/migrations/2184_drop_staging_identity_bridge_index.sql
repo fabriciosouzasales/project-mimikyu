@@ -33,9 +33,12 @@
 Projeto.....: Project Mimikyu
 Query.......: 2184 - Finalize Staging Identity and Drop Compatibility Bridge
 Versão......: 2.0
-Status......: CONFIRMADO EXECUTADO / LIVE — PHASE E CLOSED
+Status......: MIGRATION — CONFIRMADO EXECUTADO / LIVE — PHASE E CLOSED
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-12
+Promovida...: 2026-09-13 — TECHNICAL-CLOSEOUT-PROMOTION-01
+Origem......: database/proposals/2026-09-12-card-variants-printing-routing/
+              2184_drop_staging_identity_bridge_index.sql
 Mandato.....: CARD-VARIANTS — PRINTING-ROUTING — STAGING-GATE-A-01 (§12)
                + STAGING-REVISION-01 (R1, R2-D, R5, R6)
 Fase........: PHASE E do rollout — ULTIMA migration da frente
@@ -127,6 +130,21 @@ Pré-requisitos:
 - Query 2177 - criou o bridge e os dois índices canônicos.
 - Query 2183 - reconciliou o legado (PHASE D).
 - Edge Function nova em produção como writer vigente (PHASE C).
+
+-------------------------------------------------------------------------------
+REVISION HISTORY
+-------------------------------------------------------------------------------
+| 1.0 | **Versão inicial (2026-09-12).** Removia apenas o bridge.
+        Substituída antes da execução: remover a proteção transitória sem
+        fechar o estado deixaria o buraco aberto. |
+| 2.0 | **Constraint final + seis guards + escopo ampliado (2026-09-12).**
+        Esta é a versão executada e confirmada no banco físico em
+        2026-09-13, via apply_migration (version 20260913181725). |
+|     | **PROMOÇÃO (2026-09-13, TECHNICAL-CLOSEOUT-PROMOTION-01).** Copiada
+        de database/proposals/ para database/migrations/ nesta mesma versão
+        2.0. O SQL executável permanece idêntico ao artefato executado no
+        LIVE; só o cabeçalho registra o estado final (Status, Promovida,
+        Origem). A proposal original é preservada como histórico. |
 ===============================================================================
 */
 

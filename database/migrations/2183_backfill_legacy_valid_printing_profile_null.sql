@@ -27,9 +27,12 @@
 Projeto.....: Project Mimikyu
 Query.......: 2183 - Backfill Legacy VALID with Explicit printing_profile_id null
 Versão......: 1.2
-Status......: CONFIRMADO EXECUTADO / LIVE — PHASE D CLOSED
+Status......: MIGRATION — CONFIRMADO EXECUTADO / LIVE — PHASE D CLOSED
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-12
+Promovida...: 2026-09-13 — TECHNICAL-CLOSEOUT-PROMOTION-01
+Origem......: database/proposals/2026-09-12-card-variants-printing-routing/
+              2183_backfill_legacy_valid_printing_profile_null.sql
 Mandato.....: CARD-VARIANTS — PRINTING-ROUTING — STAGING-GATE-A-01 (§13)
                + STAGING-REVISION-01 (R1)
                + PHASE-D-STAGING-CORRECTION-01 (§1, §2) — BLOCKER D-1
@@ -312,4 +315,10 @@ COMMIT;
 --       corrigido. Premissas de cardinalidade historica ("VALID com token
 --       ratificado = 0", "505 NEEDS_REVIEW") substituidas pelo invariante
 --       do candidate set. Revision History criada.
+--
+--       PROMOCAO (2026-09-13, TECHNICAL-CLOSEOUT-PROMOTION-01). Copiada de
+--       database/proposals/ para database/migrations/ nesta mesma versao
+--       1.2. O SQL executavel permanece identico ao artefato executado no
+--       LIVE; so o cabecalho registra o estado final (Status, Promovida,
+--       Origem). A proposal original e preservada como historico.
 -- ============================================================================

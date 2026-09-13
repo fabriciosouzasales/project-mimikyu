@@ -2,10 +2,46 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2824 - Validate Card Printing Routing
-Versão......: 2.5
-Status......: BLOCO I PARCIALMENTE EXECUTADO — subconjunto Phase-A-only
-               validado em LIVE (ver ORDEM DE EXECUÇÃO abaixo).
-               Seções Phase-B/C/D/E: PROPOSTA — NÃO EXECUTADAS.
+Versão......: 2.6
+Status......: ROLLOUT COMPLETO — TODOS OS BLOCOS EXECUTADOS E PASS (2026-09-13)
+
+               BLOCO I   (S1..S21, S26..S28) .. PASS HISTORICO — GATE A
+               BLOCO II  (S22) ................ PASS — PHASE C
+               BLOCO III (S23) ................ PASS — PHASE D
+               BLOCO IV  (S24, S25) ........... PASS — PHASE E
+
+-------------------------------------------------------------------------------
+AVISO OPERACIONAL — O BLOCO I E PHASE-SCOPED. NAO REEXECUTAR.
+-------------------------------------------------------------------------------
+O BLOCO I foi escrito para o GATE A e trava BASELINES ABSOLUTOS daquele
+momento — entre outros:
+
+    S15.00 .. VALID = 5653
+    S21.13 .. staging rows = 6158
+    S21.14 .. VALID = 5653
+    S21.15 .. NEEDS_REVIEW = 505
+    S21.16 .. rows com a chave de Impressao = 0
+    S21.18 .. jobs STAGED = 4
+
+Esses numeros NAO sao invariantes do sistema: sao a fotografia do banco
+antes da PHASE C. O rollout mudou todos eles POR DESENHO — a Edge v9
+importou BASE3 (+177 rows, +1 job), a Query 2183 gravou 5.653 chaves, e a
+S21.16 em particular afirma o oposto do contrato atual ("durante o GATE A
+ela nao existe em nenhuma row"; hoje existe em 5.768).
+
+Consequencia pratica: REEXECUTAR O BLOCO I HOJE PRODUZIRIA FAIL. Esse
+FAIL seria ESPERADO e nao indicaria regressao nenhuma — indicaria apenas
+que o baseline historico foi legitimamente superado.
+
+Os baselines NAO foram atualizados de proposito. Eles sao EVIDENCIA
+HISTORICA do GATE A e perderiam esse valor se fossem reescritos com os
+numeros de hoje. A logica das assercoes tambem permanece intacta.
+
+O ESTADO TERMINAL do sistema e provado por S22, S23, S24 e S25 — nao pelo
+BLOCO I. Essas quatro secoes nao dependem de contagem absoluta alguma:
+todas provam invariantes de ausencia ou tentam violar o contrato e exigem
+que o banco recuse.
+-------------------------------------------------------------------------------
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-12
 Mandato.....: CARD-VARIANTS — PRINTING-ROUTING — STAGING-GATE-A-01 (§26)
@@ -16,7 +52,42 @@ Mandato.....: CARD-VARIANTS — PRINTING-ROUTING — STAGING-GATE-A-01 (§26)
                + STAGING-CORRECTION-04 (§7..§12) — B-04/B-06/B-07/B-08
                + STAGING-CORRECTION-05 (§1, §2, §5, §6) — B-09/B-10
                + STAGING-CORRECTION-06 (§1..§5) — B-11/F-12
+               + PHASE-D-STAGING-CORRECTION-01 (§3, §5) — BLOCKER D-2
 Valida......: Queries 2172-2187
+
+-------------------------------------------------------------------------------
+Alterações da versão 2.6 (PHASE-D-STAGING-CORRECTION-01, BLOCKER D-2)
+-------------------------------------------------------------------------------
+- S23.03 — DE SINTOMA PARA CONSEQUENCIA. A v2.5 proibia globalmente
+  `NEEDS_REVIEW + printing_profile_id = JSON null`, sob a premissa de que
+  so um backfill em massa poderia ter escrito esse estado. A premissa era
+  verdadeira enquanto NENHUM produtor gravava perfil em NEEDS_REVIEW.
+  A PHASE C a derrubou: o outcome B da Query 2181 v1.2 exige, para
+  "Impressao resolvida + Variant Type nao resolvido", exatamente
+  `variant_type_id REMOVIDO + printing_profile_id explicito`. A Edge v9
+  passou a produzir esse estado por CONTRATO — 51 rows na primeira
+  execucao real (BASE3). A assercao antiga acusaria como defeito a saida
+  correta do modelo.
+
+  A correcao NAO isenta a Edge por nome, job_id, created_at nem cutoff de
+  deploy: isso seria uma excecao ao dado de hoje, que envelheceria na
+  proxima frente exatamente como a premissa anterior envelheceu.
+
+  A v2.6 troca o alvo. O valor gravado (`null`) e um SINTOMA que as duas
+  origens — a legitima e a ilegitima — compartilham. A CONSEQUENCIA que
+  so a origem ilegitima produz e outra: uma row NEEDS_REVIEW que continua
+  carregando `variant_type_id`. Os outcomes B e C exigem, os dois, o
+  variant_type_id AUSENTE; logo sua presenca em NEEDS_REVIEW viola o
+  contrato inteiro e nenhum produtor legitimo consegue cria-la.
+  A assercao passa a provar isso — propriedade ESTRUTURAL, valida para
+  qualquer row de qualquer origem, hoje e depois.
+
+- S23 permanece com 4 assercoes. S23.01, S23.02 e S23.04 nao foram
+  tocadas: continuam corretas e continuam falhando ANTES da Query 2183,
+  que e o comportamento desejado de um gate de saida da PHASE D.
+
+- Nenhuma mudanca em S1..S22 e S24..S28. Nenhuma mudanca de baseline do
+  BLOCO I.
 
 -------------------------------------------------------------------------------
 Alterações da versão 2.5 (STAGING-CORRECTION-06)
@@ -2808,14 +2879,77 @@ BEGIN
         RAISE EXCEPTION 'S23.02 FALHOU: % row(s) VALID com printing_profile_id de tipo invalido.', v_bad_shape;
     END IF;
 
-    -- As NEEDS_REVIEW nao podem ter recebido null em massa.
+    -- -------------------------------------------------------------------
+    -- S23.03 — NEEDS_REVIEW NAO CARREGA IDENTIDADE CANONICA (v2.6)
+    --
+    -- A v2.5 proibia globalmente NEEDS_REVIEW + printing_profile_id null.
+    -- A premissa era: "so um backfill em massa poderia ter escrito isso".
+    -- Verdadeira enquanto NENHUM produtor gravava perfil em NEEDS_REVIEW.
+    -- A PHASE C acabou com isso: o outcome B da Query 2181 v1.2 manda,
+    -- literalmente, "variant_type_id REMOVIDO + printing_profile_id
+    -- explicito (JSON null ou UUID)" quando a Impressao resolve e o
+    -- Variant Type nao. Perfil explicito em NEEDS_REVIEW virou CONTRATO.
+    --
+    -- Proibir o valor gravado nunca foi o alvo certo — e um sintoma que
+    -- duas origens opostas compartilham. O alvo certo e a CONSEQUENCIA
+    -- que so a origem ilegitima produz.
+    --
+    -- Contrato A/B/C (Query 2181 v1.2), lado a lado:
+    --
+    --   A  VALID          variant_type_id PRESENTE   perfil null|UUID
+    --   B  NEEDS_REVIEW   variant_type_id AUSENTE    perfil null|UUID
+    --   C  NEEDS_REVIEW   variant_type_id AUSENTE    perfil AUSENTE
+    --
+    -- Nos dois desfechos de NEEDS_REVIEW o variant_type_id esta AUSENTE.
+    -- Logo: NEEDS_REVIEW com variant_type_id viola B e C simultaneamente,
+    -- e nenhum produtor legitimo consegue cria-lo. E o que um backfill
+    -- descuidado produziria — e e o que esta assercao passa a caçar.
+    --
+    -- A propriedade e ESTRUTURAL, nao temporal: nao depende de job_id,
+    -- created_at, cutoff de deploy nem de excecao nominal para a Edge v9.
+    -- Vale para toda row, de qualquer origem, hoje e depois.
+    --
+    -- -------------------------------------------------------------------
+    -- KNOWN DEBT — PROVENANCE (registrado em 2026-09-13, NAO resolvido)
+    --
+    -- Severidade: MEDIA / NAO BLOQUEANTE.
+    --
+    -- Esta assercao NAO consegue distinguir:
+    --
+    --   (a) outcome B LEGITIMO — NEEDS_REVIEW que recebeu
+    --       printing_profile_id null porque o roteamento resolveu a
+    --       Impressao e o Variant Type nao resolveu; de
+    --
+    --   (b) uma row do outcome C que tivesse recebido
+    --       printing_profile_id null por uma escrita externa indevida.
+    --
+    -- Os dois estados sao byte a byte identicos: mesmo status, mesmo
+    -- variant_type_id ausente, mesmo null. Nenhum predicado read-only
+    -- estrutural os separa. So provenance (metadado de origem gravado na
+    -- propria row) ou reavaliacao pelo roteamento — que e o que a Query
+    -- 2181 faz sob demanda — resolveria.
+    --
+    -- Por que isso NAO bloqueia:
+    --   1. A Query 2183 nao consegue produzir (b): o WHERE dela so
+    --      alcanca rows VALID.
+    --   2. Esta assercao pega a variante MAIS GRAVE do mesmo erro — o
+    --      backfill descuidado que tambem mantivesse variant_type_id.
+    --   3. O confirm (2179) nao e enganado: sem variant_type_id a row nao
+    --      tem identidade canonica e nao chega a criar card_variant.
+    --
+    -- A v2.5 "pegava" (b) por acidente historico: proibia o estado B
+    -- inteiro, que na epoca nao existia. Era cobertura obtida ao preco de
+    -- rejeitar o contrato vigente — e foi o que travou a PHASE D.
+    --
+    -- Endereçar isto exige provenance, NUNCA excecao temporal.
+    -- -------------------------------------------------------------------
     SELECT count(*) INTO v_needs_review_with_key
       FROM public.catalog_variant_import_row
      WHERE validation_status = 'NEEDS_REVIEW'
-       AND jsonb_typeof(normalized_data -> 'printing_profile_id') = 'null';
+       AND normalized_data ? 'variant_type_id';
 
     IF v_needs_review_with_key <> 0 THEN
-        RAISE EXCEPTION 'S23.03 FALHOU: % row(s) NEEDS_REVIEW receberam "sem perfil" explicito. Elas deveriam ser reavaliadas pelo routing, nao declaradas.', v_needs_review_with_key;
+        RAISE EXCEPTION 'S23.03 FALHOU: % row(s) NEEDS_REVIEW carregam variant_type_id. Os outcomes B e C da Query 2181 v1.2 exigem variant_type_id AUSENTE em toda row NEEDS_REVIEW — sem Impressao resolvida o residual nao e identidade canonica confiavel, e com Impressao resolvida mas sem Variant Type nao ha o que gravar. ATENCAO: perfil explicito (null ou UUID) em NEEDS_REVIEW e o outcome B LEGITIMO e nao e erro; o que esta assercao proibe e a identidade canonica sobreviver a uma row que nao a tem.', v_needs_review_with_key;
     END IF;
 
     -- A constraint final PODE ser validada agora.

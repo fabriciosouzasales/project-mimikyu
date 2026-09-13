@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1818,15 +1818,141 @@ Garantido em duas camadas: entre Profile e Trait, **estruturalmente**, por FKs c
 
 Total: **5 traits · 6 profiles · 10 vínculos**. Seed idempotente (`ON CONFLICT DO NOTHING`), sem ids literais — resolve por `(game.code, code)`. Só Game `POKEMON`.
 
-## Fora de escopo — routing NÃO existe
+---
 
-**O routing semântico ainda NÃO está implementado.** Não existe `card_printing_external_mapping`; `import-card-variants` não foi alterado; nenhuma RPC de Printing foi criada; nenhuma `card_variant` recebeu `printing_profile_id`; as 505 linhas `NEEDS_REVIEW` e BASE1 permanecem intocadas.
+# Printing Routing / External Mapping — **CLOSED / LIVE / VALIDATED** (2026-09-13)
 
-**Próximo passo técnico:** `PRINTING ROUTING / EXTERNAL MAPPING`.
+O Printing Model (acima) criou o **domínio**. O Routing é o **caminho de entrada**: como
+uma assinatura externa vinda da TCGdex (`type` · `foil` · `subtype` · `stamp[]`) deixa de
+ser texto e vira **dois resultados independentes**.
+
+```
+assinatura RAW  ──►  Print Profile        [eixo IMPRESSÃO]
+                └─►  assinatura RESIDUAL  ──►  Variant Type   [eixo ACABAMENTO]
+```
+
+**`type` e `foil` SEMPRE permanecem no resíduo** — acabamento nunca vira Impressão.
+Somente `subtype` e `stamp[]` podem ser consumidos pelo Printing.
+
+## Os dois eixos de `card_variant`
+
+| Eixo | Coluna | Domínio | Significa |
+|---|---|---|---|
+| **1 — Acabamento** | `variant_type_id` | `card_variant_type` | como a carta foi *apresentada* (STANDARD, HOLO, REVERSE …) |
+| **2 — Impressão** | `printing_profile_id` | `card_printing_profile` | em que *tiragem* foi impressa (Shadowless, 1ª edição, copyright 1999-2000 …) |
+
+São **independentes**. Uma mesma Card pode ter a mesma apresentação em tiragens
+diferentes — e são Card Variants distintas.
+
+## Tabelas do domínio Printing
+
+| Papel | Tabela |
+|---|---|
+| Átomo — **Print Trait** | `card_printing_trait` |
+| Agregado — **Print Profile** | `card_printing_profile` |
+| Composição do Profile (N:N) | `card_printing_profile_trait` |
+| Cabeçalho do routing externo | `card_printing_external_mapping` |
+| Composição do mapping (N:N) | `card_printing_external_mapping_trait` |
+
+**Print Trait** é a característica atômica e indivisível (`SHADOWLESS`,
+`FIRST_EDITION`, `RED_CHEEK`). **Print Profile** é a composição canônica — um
+**conjunto exato** de traits, nunca um prefixo nem um superconjunto. Um perfil *é* o seu
+conjunto de traits: a resolução é por igualdade exata de `traits_signature`, jamais por
+código construído, substring ou concatenação.
+
+**`card_printing_external_mapping`** liga um token externo (`raw_field` +
+`normalized_token`) a um conjunto de traits. Histórico é permitido; **exatamente um
+mapping ativo por token**, imposto por índice único parcial
+(`uq_card_printing_external_mapping_active_token ... WHERE is_active`). Substituição =
+desativar o antigo + inserir um novo com `supersedes_mapping_id`. **Reativação é
+proibida.**
+
+## `card_variant.printing_profile_id` — o que `NULL` significa
+
+`NULL` significa **exatamente** "sem perfil de impressão declarado". **Não** é Unlimited
+· **não** é padrão · **não** é desconhecido · **não** é erro. `UNLIMITED` só é atribuído
+quando a fonte declara o token explicitamente; ausência de token nunca implica
+`UNLIMITED`.
+
+## Identidade final de uma Card Variant
+
+```
+(card, variant_type, NULL)        →  uq_card_variant_card_type_no_printing
+(card, variant_type, profile)     →  uq_card_variant_card_type_printing
+```
+
+Os dois universos não se sobrepõem e sua união cobre a tabela inteira.
+
+## Staging — contrato **tri-estado** de `normalized_data.printing_profile_id`
+
+Em `catalog_variant_import_row`, a chave tem **três estados mutuamente exclusivos**, e os
+três só são distinguíveis por `jsonb_typeof` — `->>` colapsa os dois primeiros em SQL
+`NULL`:
+
+| | Documento | `jsonb_typeof(nd -> k)` | Significa |
+|---|---|---|---|
+| **A** | `{"printing_profile_id": null}` | `'null'` | Impressão **resolvida, sem perfil** |
+| **B** | `{"printing_profile_id": "uuid"}` | `'string'` | Impressão **resolvida, com perfil** |
+| **C** | chave **ausente** | SQL `NULL` | Impressão **NÃO resolvida** → `NEEDS_REVIEW` |
+
+**Chave ausente NUNCA significa `NULL`.** É por isso que a identidade de staging são
+**dois** índices parciais, e não um estendido: `NULL` em UNIQUE composto não representa
+"sem perfil", representa ausência de informação, e o Postgres nunca considera dois
+`NULL` iguais. Uma linha no estado C não cai em nenhum dos dois índices.
+
+### Invariante final
+
+```
+VALID  →  a chave printing_profile_id está obrigatoriamente PRESENTE
+```
+
+Garantido fisicamente por `ck_catalog_variant_import_row_valid_requires_printing_key`
+(presença) somada a `ck_catalog_variant_import_row_printing_profile_shape` (forma: JSON
+null ou string UUID válida). `NEEDS_REVIEW` **pode** manter a chave ausente — "ainda não
+sei" é estado legítimo.
+
+## Três estados de token externo
+
+| Estado | Situação | Resultado |
+|---|---|---|
+| **A** | mapping ATIVO existe | usa o mapping |
+| **B** | só histórico INATIVO | `NEEDS_REVIEW` — **não** volta ao resíduo |
+| **C** | nunca conhecido | vai ao resíduo (vira acabamento) |
+
+**Rejeitado explicitamente:** "mapping inativo → token volta ao resíduo". Isso
+transformaria de novo um conceito de Impressão em Variant Type — exatamente o defeito
+taxonômico que esta frente existe para eliminar. "Conhecido porém sem routing ativo" é
+estado editorial, não desconhecimento.
+
+**Igualdade exata de token, sem exceção:** `subtype` inteiro-ou-nada · `stamp` token a
+token. Nenhum prefixo, substring, `LIKE`, fuzzy ou quebra por hífen.
+`1st-edition-error` **≠** `1st-edition`.
+
+## Sobre o índice-ponte — **mecanismo histórico, removido**
+
+`uq_cvir_job_card_type_bridge_legacy` **não faz parte da estrutura atual**. Ele existiu
+apenas entre a Query `2177` e a Query `2184`, para proteger linhas gravadas pelo writer
+antigo durante a janela em que banco e Edge Function ainda não estavam sincronizados.
+Foi **removido pela `2184`** na PHASE E. Numa instalação limpa ele **nunca é criado** —
+ver `database/schema/2138` v2.0.
+
+## Estado terminal medido (2026-09-13)
+
+```
+card_variant ......................... 7.002   (printing_profile_id NOT NULL = 0)
+staging .............................. 6.335
+  VALID .............................. 5.717   (5.669 null · 48 UUID · 0 ausente)
+  NEEDS_REVIEW ....................... 618     (567 ausente · 51 null · 0 UUID)
+jobs STAGED ..........................     5
+```
+
+**O rollout não criou nenhuma Card Variant canônica.** Ele construiu e validou o
+caminho; consumir esse caminho é a próxima frente, e é editorial.
 
 ## Queries associadas
 
 ```
+--- Printing Model ---
 2165 - Create Card Printing Trait Table                    (CONFIRMADO EXECUTADO — 2026-09-12)
 2166 - Create Card Printing Profile Table (v1.1)           (CONFIRMADO EXECUTADO — 2026-09-12)
 2167 - Create Card Printing Profile Trait Table            (CONFIRMADO EXECUTADO — 2026-09-12)
@@ -1835,7 +1961,39 @@ Total: **5 traits · 6 profiles · 10 vínculos**. Seed idempotente (`ON CONFLIC
 2170 - Add printing_profile_id to Card Variant             (CONFIRMADO EXECUTADO — 2026-09-12)
 2171 - Reconcile Card Variant Uniqueness for Printing      (CONFIRMADO EXECUTADO — 2026-09-12)
 2823 - Validate Card Printing Model (v1.2)                 (VALIDATED / PASS — 12/0/0)
+
+--- Printing Routing (PHASE A) ---
+2172 - Create Card Printing External Mapping Table         (CANÔNICA / LIVE — schema)
+2173 - Create Card Printing External Mapping Trait Table   (CANÔNICA / LIVE — schema)
+2174 - Create Card Printing External Mapping Guards        (CANÔNICA / LIVE — schema)
+2175 - Seed Card Printing External Mappings                (CANÔNICA / LIVE — seeds)
+2176 - Create compute_variant_residual_signature() (v1.1)  (CANÔNICA / LIVE — schema)
+2177 - Reconcile Variant Import Row Staging Identity       (MIGRATION / LIVE)
+2182 - Grant service_role Read Access for Printing Routing (MIGRATION / LIVE)
+
+--- Printing Routing (PHASE B) ---
+2178 - Extend internal.write_card_variant() for Printing   (MIGRATION / LIVE)
+2179 - Extend admin_confirm ... for Printing (v1.1)        (MIGRATION / LIVE)
+2187 - Remove write_card_variant() Printing DEFAULT (v1.1) (MIGRATION / LIVE)
+2180 - Reconcile Variant Type Mapping Writers to Residual  (MIGRATION / LIVE)
+2185 - Widen Catalog Admin Action Log ... (v1.3)           (MIGRATION / LIVE)
+2186 - Extend admin_list_catalog_action_log ...            (MIGRATION / LIVE)
+2181 - Create admin_resolve ... printing_mapping() (v1.2)  (CANÔNICA / LIVE — schema)
+
+--- Printing Routing (PHASE D / E) ---
+2183 - Backfill Legacy VALID with null (v1.2)              (MIGRATION / LIVE — UPDATE 5653)
+2184 - Finalize Staging Identity + Drop Bridge (v2.0)      (MIGRATION / LIVE — 20260913181725)
+
+--- Harness ---
+2824 - Validate Card Printing Routing (v2.6)               (S22/S23/S24/S25 PASS; BLOCO I phase-scoped)
+
+--- Reconciliação canônica (CANONICAL-RECONCILIATION-01) ---
+2138 v2.0 - Catalog Variant Import Row Table               (identidade de dois eixos, sem bridge)
+2143 v2.0 - internal.write_card_variant()                  (6 args, sem DEFAULT)
+2145 v2.0 - admin_confirm_catalog_variant_import()         (bulk + Printing, sem ramo legado)
 ```
+
+**Edge Function:** `import-card-variants` **versão 9, ACTIVE**.
 
 ---
 

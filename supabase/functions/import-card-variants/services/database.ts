@@ -153,10 +153,66 @@ export async function listVariantTypeExternalMappings(
   );
 }
 
-// Mapa `${card_id}|${variant_type_id}` -> card_variant.id, para
-// classificar match_status (NEW/MATCHED) sem uma consulta por linha.
-// Filtrado só pelas Cards realmente correlacionadas neste job — nunca
-// carrega card_variant inteiro.
+// Sentinela de "sem perfil de impressão declarado" nas chaves compostas
+// em memória. `~` (0x7E) NAO pertence ao alfabeto de um UUID canônico
+// (hex + hífen), então nenhum UUID real pode colidir com ele.
+//
+// É o que dá, do lado do JS, a semântica de `IS NOT DISTINCT FROM` que a
+// Query 2179 usa no matching triplo do confirm: NULL casa com NULL, UUID
+// casa apenas com o MESMO UUID. Um `Map` comum não tem essa semântica
+// sozinho — `undefined`/`null` interpolados em template string virariam
+// "undefined"/"null", strings que, por azar, também seriam comparáveis
+// entre si por caminhos diferentes. O sentinela explícito elimina isso.
+export const NO_PRINTING_PROFILE_KEY = "~";
+
+export function buildPrintingProfileKeyPart(printingProfileId: string | null | undefined): string {
+  return printingProfileId ?? NO_PRINTING_PROFILE_KEY;
+}
+
+// Ordem canônica da assinatura de traits.
+//
+// O banco grava card_printing_external_mapping.traits_signature e
+// card_printing_profile.traits_signature como UUID[] ORDENADO ASCENDENTE
+// por trait_id (Query 2174, selo deferido) — e a Query 2176 monta a
+// composição efetiva com o mesmo `ORDER BY trait_id`. Comparar aqui por
+// outra ordenação (por exemplo por `code`) produziria "profile
+// inexistente" para um conjunto que EXISTE, exatamente a fragilidade que
+// a Seção S28 do harness eliminou do lado SQL.
+//
+// Para UUID em forma canônica minúscula, a ordem lexicográfica da string
+// coincide com a ordem byte-a-byte do valor — daí o toLowerCase() antes
+// do sort, que torna a coincidência uma garantia e não uma suposição
+// sobre como a fonte devolveu o dado.
+//
+// DISTINCT (correção C-2, PHASE-C-EDGE-CORRECTION-01): a assinatura é um
+// CONJUNTO, não uma lista. A Query 2176 canoniza com
+// `ARRAY(SELECT DISTINCT t FROM unnest(v_traits) t ORDER BY t)`; sem o
+// mesmo DISTINCT aqui, dois tokens de Impressão que compartilhassem um
+// trait produziriam "t1,t1,t2" — uma chave que NENHUM perfil possui — e a
+// Edge devolveria NO_EXACT_PROFILE para uma composição que o banco resolve
+// sem hesitar. O defeito só aparece em combinação multi-token, que é
+// justamente o caso que o Model C2 existe para servir.
+//
+// A deduplicação é inofensiva do lado do perfil: `traits_signature` já
+// chega selada, distinta e ordenada (Query 2168), então aplicar Set+sort
+// sobre ela é idempotente. Um único ponto de canonicalização serve aos
+// dois lados da comparação — que é o que garante que eles comparem igual.
+export function buildTraitsSignatureKey(traitIds: readonly string[] | null | undefined): string {
+  if (!traitIds || traitIds.length === 0) return "";
+  return [...new Set(traitIds.map((id) => String(id).toLowerCase()))].sort().join(",");
+}
+
+// Mapa `${card_id}|${variant_type_id}|${printing_profile_id ?? '~'}` ->
+// card_variant.id, para classificar match_status (NEW/MATCHED) sem uma
+// consulta por linha. Filtrado só pelas Cards realmente correlacionadas
+// neste job — nunca carrega card_variant inteiro.
+//
+// A chave era `${card_id}|${variant_type_id}` até a PHASE C. Sem o
+// perfil ela reproduz o BLOCKER B2 do lado da Edge: uma Card com
+// STANDARD-sem-perfil e STANDARD-com-SHADOWLESS colidiria na mesma
+// entrada e a segunda variante — REAL e DISTINTA — seria classificada
+// MATCHED contra a primeira. É o mesmo defeito que a Query 2179 fechou
+// no confirm com `IS NOT DISTINCT FROM`.
 export async function listExistingCardVariantsMap(
   supabase: any,
   cardIds: string[],
@@ -165,7 +221,7 @@ export async function listExistingCardVariantsMap(
 
   const { data, error } = await supabase
     .from("card_variant")
-    .select("id, card_id, variant_type_id")
+    .select("id, card_id, variant_type_id, printing_profile_id")
     .in("card_id", cardIds);
 
   if (error) {
@@ -174,8 +230,131 @@ export async function listExistingCardVariantsMap(
   }
 
   return new Map<string, string>(
-    (data ?? []).map((row: any) => [`${row.card_id}|${row.variant_type_id}`, row.id]),
+    (data ?? []).map((row: any) => [
+      `${row.card_id}|${row.variant_type_id}|${buildPrintingProfileKeyPart(row.printing_profile_id)}`,
+      row.id,
+    ]),
   );
+}
+
+// ---------------------------------------------------------------------
+// PRINTING ROUTING — dois preloads, duas queries, zero consulta por row.
+// ---------------------------------------------------------------------
+
+export type PrintingExternalMappingRow = {
+  id: string;
+  game_id: string;
+  asset_source_id: string;
+  raw_field: string;
+  normalized_token: string;
+  traits_signature: string[] | null;
+  is_active: boolean;
+};
+
+// TODOS os mappings do Game+Fonte, ativos E inativos — em UMA query.
+//
+// O filtro de is_active NAO acontece aqui de propósito: a distinção entre
+// "token com mapping ativo" e "token historicamente conhecido, porém sem
+// mapping ativo" é justamente o que separa RESOLVED de
+// NEEDS_REVIEW_INACTIVE_MAPPING (Seção S8 do harness). Filtrar no banco
+// apagaria o segundo caso e o token voltaria ao residual — o que o
+// reclassificaria como ACABAMENTO, recriando a explosão combinatória que
+// o modelo de Printing existe para eliminar.
+//
+// traits_signature basta como composição: o selo (Query 2174) é DEFERIDO
+// mas comita junto com o cabeçalho, então todo mapping já visível a um
+// leitor externo está selado. Ler a N:N aqui seria uma query a mais sem
+// nenhuma informação nova.
+export async function listPrintingExternalMappings(
+  supabase: any,
+  gameId: string,
+  assetSourceId: string,
+): Promise<PrintingExternalMappingRow[]> {
+  const { data, error } = await supabase
+    .from("card_printing_external_mapping")
+    .select("id, game_id, asset_source_id, raw_field, normalized_token, traits_signature, is_active")
+    .eq("game_id", gameId)
+    .eq("asset_source_id", assetSourceId);
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_PRINTING_EXTERNAL_MAPPING_QUERY_FAILED");
+  }
+
+  return (data ?? []) as PrintingExternalMappingRow[];
+}
+
+export type PrintingProfileRow = {
+  id: string;
+  game_id: string;
+  traits_signature: string[] | null;
+  is_active: boolean;
+};
+
+// Perfis ATIVOS do Game — em UMA query. Aqui o filtro de is_active é
+// correto e desejado: um perfil inativo não é resolução válida, e a
+// ausência de perfil exato é um estado terminal próprio (NEEDS_REVIEW,
+// chave ausente), nunca um convite a criar perfil automaticamente.
+export async function listActivePrintingProfiles(
+  supabase: any,
+  gameId: string,
+): Promise<PrintingProfileRow[]> {
+  const { data, error } = await supabase
+    .from("card_printing_profile")
+    .select("id, game_id, traits_signature, is_active")
+    .eq("game_id", gameId)
+    .eq("is_active", true);
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_PRINTING_PROFILE_QUERY_FAILED");
+  }
+
+  return (data ?? []) as PrintingProfileRow[];
+}
+
+export type PrintingTraitRow = {
+  id: string;
+  game_id: string;
+  is_active: boolean;
+};
+
+// TODAS as Características de Impressão do Game — ativas E inativas — em
+// UMA query (correção C-1, PHASE-C-EDGE-CORRECTION-01).
+//
+// Por que a Edge precisa disto: a Query 2176 tem um estado terminal
+// próprio, NEEDS_REVIEW_INACTIVE_TRAIT, avaliado DEPOIS de montar a
+// composição e ANTES de procurar o perfil. Sem esta leitura a Edge não
+// tinha como reproduzi-lo: um trait desativado deixa o perfil que o
+// contém ATIVO (nenhum guard acopla card_printing_trait.is_active a
+// card_printing_profile.is_active), então a Edge resolvia com perfil e
+// marcava VALID exatamente a linha que o banco recusa. A linha nasceria
+// VALID e mudaria de estado na primeira ação editorial, sem que ninguém
+// tivesse decidido nada sobre ela.
+//
+// A Query 2182 já previa este consumidor: ela concede SELECT em
+// card_printing_trait ao service_role e diz, textualmente, "SÓ para saber
+// is_active (estado 3: trait inativo -> NEEDS_REVIEW)". O grant existia;
+// faltava exercê-lo.
+//
+// Só id/game_id/is_active: nome, código e ordem de exibição são assunto
+// de tela administrativa, não de roteamento. Nenhuma leitura da N:N — a
+// composição continua vindo das assinaturas seladas.
+export async function listPrintingTraits(
+  supabase: any,
+  gameId: string,
+): Promise<PrintingTraitRow[]> {
+  const { data, error } = await supabase
+    .from("card_printing_trait")
+    .select("id, game_id, is_active")
+    .eq("game_id", gameId);
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_PRINTING_TRAIT_QUERY_FAILED");
+  }
+
+  return (data ?? []) as PrintingTraitRow[];
 }
 
 // Cria o job já em PROCESSING (RECEIVED é instantâneo demais para

@@ -40,6 +40,8 @@ profundidade de colchetes, limitado aos 4 campos que interessam.
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import {
+  buildPrintingProfileKeyPart,
+  buildTraitsSignatureKey,
   createVariantJobProcessing,
   failVariantJob,
   findAssetSourceByCode,
@@ -47,8 +49,11 @@ import {
   findCardSetWithGame,
   finalizeVariantJobStaged,
   insertVariantImportRows,
+  listActivePrintingProfiles,
   listCardExternalReferencesMap,
   listExistingCardVariantsMap,
+  listPrintingExternalMappings,
+  listPrintingTraits,
   listVariantTypeExternalMappings,
   buildVariantComboKey,
   updateVariantJobProgressStep,
@@ -106,6 +111,256 @@ type CardFileResult = {
   combos: ExternalVariantCombo[];
   fetchError: string | null;
 };
+
+// =====================================================================
+// PHASE C — ROTEAMENTO DE IMPRESSÃO (Printing)
+//
+// Espelho, em memória, do contrato que
+// internal.compute_variant_residual_signature() (Query 2176 v1.1) já
+// aplica no banco. As duas implementações precisam concordar: a Edge
+// produz o staging, e a RPC de ratificação reavalia o MESMO dado depois.
+// Divergência entre elas apareceria como linha que muda de estado sem
+// nenhuma decisão editorial no meio.
+//
+// Só `subtype` e `stamp` são elegíveis. `type` e `foil` são ACABAMENTO e
+// nunca viram Impressão — é a fronteira que impede o modelo de Printing
+// de reabsorver a taxonomia que ele existe para simplificar.
+// =====================================================================
+
+type PrintingState = "RESOLVED_NO_PRINTING" | "RESOLVED_WITH_PROFILE" | "UNRESOLVED";
+
+type PrintingIndex = {
+  // chave -> assinatura de traits do mapping ATIVO daquele token
+  activeTraitsByToken: Map<string, string[]>;
+  // todo token que o catálogo CONHECE, ativo ou historicamente inativo
+  knownTokens: Set<string>;
+  // assinatura canônica de traits -> id do Print Profile ATIVO
+  profileBySignature: Map<string, string>;
+  // traits do Game que estão DESATIVADOS (em minúsculas canônicas)
+  inactiveTraitIds: Set<string>;
+};
+
+type PrintingRouting = {
+  state: PrintingState;
+  printingProfileId: string | null;
+  residualSubtype: string | null;
+  residualStamp: string[] | null;
+  // Diagnóstico, não identidade: por que ficou UNRESOLVED. Os quatro
+  // motivos espelham os quatro estados de recusa da Query 2176 que a Edge
+  // consegue observar em dado já comitado.
+  unresolvedReason:
+    | "INACTIVE_MAPPING"
+    | "INVALID_PRINTING_MAPPING"
+    | "INACTIVE_TRAIT"
+    | "NO_EXACT_PROFILE"
+    | null;
+};
+
+function printingTokenKey(
+  gameId: string,
+  assetSourceId: string,
+  rawField: string,
+  normalizedToken: string,
+): string {
+  return `${gameId}|${assetSourceId}|${rawField}|${normalizedToken}`;
+}
+
+function buildPrintingIndex(
+  mappings: Array<{
+    game_id: string;
+    asset_source_id: string;
+    raw_field: string;
+    normalized_token: string;
+    traits_signature: string[] | null;
+    is_active: boolean;
+  }>,
+  profiles: Array<{ id: string; traits_signature: string[] | null }>,
+  traits: Array<{ id: string; is_active: boolean }>,
+): PrintingIndex {
+  const activeTraitsByToken = new Map<string, string[]>();
+  const knownTokens = new Set<string>();
+
+  for (const mapping of mappings) {
+    const key = printingTokenKey(
+      mapping.game_id,
+      mapping.asset_source_id,
+      mapping.raw_field,
+      mapping.normalized_token,
+    );
+    // knownTokens recebe ativos E inativos: é o que permite distinguir
+    // "token desconhecido" (volta ao residual) de "token conhecido porém
+    // sem mapping ativo" (consumido, mas Printing não resolvido).
+    knownTokens.add(key);
+
+    if (mapping.is_active) {
+      activeTraitsByToken.set(key, (mapping.traits_signature ?? []).map((id) => String(id)));
+    }
+  }
+
+  const profileBySignature = new Map<string, string>();
+  for (const profile of profiles) {
+    profileBySignature.set(buildTraitsSignatureKey(profile.traits_signature), profile.id);
+  }
+
+  // Guardamos os INATIVOS, não os ativos: a pergunta do roteamento é
+  // "algum trait desta composição está desativado?", e responder isso
+  // contra o conjunto dos inativos é uma checagem direta. Minúsculas
+  // canônicas, mesma disciplina de buildTraitsSignatureKey.
+  const inactiveTraitIds = new Set<string>();
+  for (const trait of traits) {
+    if (!trait.is_active) inactiveTraitIds.add(String(trait.id).toLowerCase());
+  }
+
+  return { activeTraitsByToken, knownTokens, profileBySignature, inactiveTraitIds };
+}
+
+// Consome os tokens de Impressão da assinatura bruta e devolve o resíduo
+// de acabamento + o estado do eixo de Impressão.
+//
+// Regra central, e a razão de o token consumido NUNCA voltar ao resíduo
+// mesmo quando o Printing não resolve: um token que o catálogo conhece
+// pertence ao eixo de Impressão por decisão editorial. Devolvê-lo ao
+// resíduo o reclassificaria como acabamento e produziria um Variant Type
+// composto — exatamente a explosão combinatória que o Model C2 elimina.
+// A Seção S8 do harness prova isso do lado SQL.
+function routePrinting(
+  index: PrintingIndex,
+  gameId: string,
+  assetSourceId: string,
+  normalizedSubtype: string | null,
+  normalizedStampSorted: string[] | null,
+): PrintingRouting {
+  const traitIds: string[] = [];
+  let sawInactiveOnlyToken = false;
+
+  // --- subtype (0 ou 1 token) ---
+  let residualSubtype = normalizedSubtype;
+  if (normalizedSubtype !== null) {
+    const key = printingTokenKey(gameId, assetSourceId, "subtype", normalizedSubtype);
+    const activeTraits = index.activeTraitsByToken.get(key);
+
+    if (activeTraits !== undefined) {
+      residualSubtype = null;
+      // COMPOSIÇÃO EFETIVA VAZIA (correção L-1). Mapping ATIVO sem nenhum
+      // trait não é "sem Impressão": o token TEM routing, e o routing está
+      // quebrado. A Query 2176 devolve
+      // NEEDS_REVIEW_INVALID_PRINTING_MAPPING e retorna na hora; aqui é o
+      // mesmo. Hoje isso é inalcançável — o GUARD C da Query 2174 levanta
+      // CARD_PRINTING_EXTERNAL_MAPPING_EMPTY_COMPOSITION no COMMIT, e a
+      // Edge só lê dado comitado —, mas a Edge não deve DEPENDER de uma
+      // invariante de outro sistema para não afirmar uma bobagem.
+      if (activeTraits.length === 0) {
+        return {
+          state: "UNRESOLVED",
+          printingProfileId: null,
+          residualSubtype,
+          residualStamp: null,
+          unresolvedReason: "INVALID_PRINTING_MAPPING",
+        };
+      }
+      traitIds.push(...activeTraits);
+    } else if (index.knownTokens.has(key)) {
+      residualSubtype = null;
+      sawInactiveOnlyToken = true;
+    }
+    // token nunca conhecido: permanece intocado no resíduo.
+  }
+
+  // --- stamp (0..N tokens) ---
+  const residualStampTokens: string[] = [];
+  for (const token of normalizedStampSorted ?? []) {
+    const key = printingTokenKey(gameId, assetSourceId, "stamp", token);
+    const activeTraits = index.activeTraitsByToken.get(key);
+
+    if (activeTraits !== undefined) {
+      // Mesma regra do ramo de subtype (correção L-1).
+      if (activeTraits.length === 0) {
+        return {
+          state: "UNRESOLVED",
+          printingProfileId: null,
+          residualSubtype,
+          residualStamp: null,
+          unresolvedReason: "INVALID_PRINTING_MAPPING",
+        };
+      }
+      traitIds.push(...activeTraits);
+    } else if (index.knownTokens.has(key)) {
+      sawInactiveOnlyToken = true;
+    } else {
+      residualStampTokens.push(token);
+    }
+  }
+  const residualStamp = residualStampTokens.length > 0 ? residualStampTokens : null;
+
+  // Token conhecido sem mapping ativo tem precedência: o eixo de
+  // Impressão está pendente de decisão editorial, e nenhum perfil
+  // derivado dos OUTROS tokens descreveria a carta corretamente.
+  if (sawInactiveOnlyToken) {
+    return {
+      state: "UNRESOLVED",
+      printingProfileId: null,
+      residualSubtype,
+      residualStamp,
+      unresolvedReason: "INACTIVE_MAPPING",
+    };
+  }
+
+  if (traitIds.length === 0) {
+    return {
+      state: "RESOLVED_NO_PRINTING",
+      printingProfileId: null,
+      residualSubtype,
+      residualStamp,
+      unresolvedReason: null,
+    };
+  }
+
+  // TRAIT INATIVO (correção C-1) — avaliado DEPOIS de montar a composição
+  // e ANTES de procurar o perfil, exatamente na posição em que a Query
+  // 2176 avalia NEEDS_REVIEW_INACTIVE_TRAIT.
+  //
+  // A ordem importa e não é estética: um perfil ATIVO cuja assinatura
+  // contenha um trait DESATIVADO continua existindo e continua casando
+  // por igualdade exata. Se a busca viesse primeiro, a Edge resolveria
+  // com perfil e marcaria VALID justamente a linha que o banco recusa —
+  // e nenhum guard impede esse estado, porque desativar um trait não
+  // desativa os perfis que o contêm.
+  //
+  // Trait inativo NUNCA é tratado como se o trait não existisse: é uma
+  // decisão editorial pendente, e o desfecho é chamar o editor.
+  if (traitIds.some((id) => index.inactiveTraitIds.has(String(id).toLowerCase()))) {
+    return {
+      state: "UNRESOLVED",
+      printingProfileId: null,
+      residualSubtype,
+      residualStamp,
+      unresolvedReason: "INACTIVE_TRAIT",
+    };
+  }
+
+  // Perfil por conjunto EXATAMENTE igual — mesma cardinalidade, mesmos
+  // ids. Nada de subset/superset: um perfil que contém os traits da
+  // carta mais um outro descreve OUTRA impressão.
+  const profileId = index.profileBySignature.get(buildTraitsSignatureKey(traitIds)) ?? null;
+
+  if (profileId === null) {
+    return {
+      state: "UNRESOLVED",
+      printingProfileId: null,
+      residualSubtype,
+      residualStamp,
+      unresolvedReason: "NO_EXACT_PROFILE",
+    };
+  }
+
+  return {
+    state: "RESOLVED_WITH_PROFILE",
+    printingProfileId: profileId,
+    residualSubtype,
+    residualStamp,
+    unresolvedReason: null,
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -194,10 +449,25 @@ Deno.serve(async (req) => {
     }
 
     await updateVariantJobProgressStep(supabase, jobId, "FETCHING_CARD_FILES");
-    const [cardExternalReferences, variantTypeMappings] = await Promise.all([
-      listCardExternalReferencesMap(supabase, assetSource.id, externalSetId),
-      listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id),
-    ]);
+    // PRELOAD — número FIXO de queries por job, nunca por linha. Os dois
+    // datasets de Printing entram aqui, no mesmo Promise.all dos que já
+    // existiam: o roteamento inteiro acontece depois, em memória.
+    const [
+      cardExternalReferences,
+      variantTypeMappings,
+      printingMappings,
+      printingProfiles,
+      printingTraits,
+    ] = await Promise
+      .all([
+        listCardExternalReferencesMap(supabase, assetSource.id, externalSetId),
+        listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id),
+        listPrintingExternalMappings(supabase, cardSet.game_id, assetSource.id),
+        listActivePrintingProfiles(supabase, cardSet.game_id),
+        listPrintingTraits(supabase, cardSet.game_id),
+      ]);
+
+    const printingIndex = buildPrintingIndex(printingMappings, printingProfiles, printingTraits);
 
     // Falha de UM arquivo (rede, 404, extração malformada) vira um
     // registro isolado com fetchError — nunca derruba o Set inteiro.
@@ -245,6 +515,8 @@ Deno.serve(async (req) => {
     const resolvedRows: ResolvedVariantRow[] = [];
     const seenComboByCard = new Set<string>();
     let duplicateResolvedSkipped = 0;
+    let printingUnresolvedRows = 0;
+    let printingWithProfileRows = 0;
 
     for (const result of correlated) {
       const cardId = result.cardId as string;
@@ -255,43 +527,125 @@ Deno.serve(async (req) => {
         const normalizedSubtype = combo.subtype ? normalizeExternalCatalogValue(combo.subtype) : null;
         const normalizedStamp = normalizeAndSortStamp(combo.stamp);
 
-        const comboKey = buildVariantComboKey(normalizedType, normalizedFoil, normalizedSubtype, normalizedStamp);
-        const variantTypeId = variantTypeMappings.get(comboKey) ?? null;
+        // Assinatura BRUTA — preservada para o dedupe de linhas sem
+        // identidade canônica (ver abaixo) e para o diagnóstico editorial.
+        const rawComboKey = buildVariantComboKey(normalizedType, normalizedFoil, normalizedSubtype, normalizedStamp);
 
-        // Dedup em memória por card_id + combinação normalizada — SEMPRE,
-        // não só quando já mapeada (correção de 2026-08-15, incidente
-        // real em SV8.5: Lugia ex 082/131 tinha a MESMA combinação
-        // normal+set-logo listada duas vezes na fonte, e por só dedupear
-        // combinações já resolvidas, as duas viravam duas linhas
-        // NEEDS_REVIEW idênticas em catalog_variant_import_row. Isso não
-        // violava nenhum índice na hora do INSERT (o índice único parcial
-        // da Query 2138 só cobre variant_type_id NOT NULL), mas quebrava
-        // depois: ao resolver o mapeamento da combinação
-        // (admin_resolve_catalog_variant_import_mapping, Query 2150), a
-        // revalidação em lote tentava gravar o MESMO variant_type_id nas
-        // duas linhas — job_id+card_id repetidos — e violava
-        // uq_catalog_variant_import_row_job_card_variant_type, derrubando
-        // a chamada inteira (erro genérico de Postgres, sem o padrão
-        // CODIGO: mensagem, exibido cru ao admin). Uma combinação
-        // repetida na própria fonte nunca deveria virar duas linhas de
-        // staging, resolvida ou não — dedupe por combinação, não por
-        // resolução.
-        const dedupeKey = `${cardId}|${comboKey}`;
+        // EIXO DE IMPRESSÃO primeiro: ele consome os tokens que lhe
+        // pertencem e só o RESÍDUO é oferecido ao Variant Type.
+        const printing = routePrinting(
+          printingIndex,
+          cardSet.game_id,
+          assetSource.id,
+          normalizedSubtype,
+          normalizedStamp,
+        );
+
+        const residualComboKey = buildVariantComboKey(
+          normalizedType,
+          normalizedFoil,
+          printing.residualSubtype,
+          printing.residualStamp,
+        );
+        const variantTypeId = variantTypeMappings.get(residualComboKey) ?? null;
+
+        const printingResolved = printing.state !== "UNRESOLVED";
+        // VALID exige os DOIS eixos. Variant Type resolvido sozinho não
+        // basta: sem Impressão decidida, o resíduo não é identidade
+        // canônica confiável.
+        const isValid = printingResolved && variantTypeId !== null;
+
+        // ---------------------------------------------------------------
+        // DEDUPE — dois espaços, porque são duas naturezas diferentes.
+        //
+        // R (resolvida): a linha TEM identidade canônica completa, e essa
+        // identidade INCLUI o perfil. Deduplicar só por card+type juntaria
+        // STANDARD-sem-perfil com STANDARD-SHADOWLESS — duas variantes
+        // REAIS e distintas — e descartaria uma delas silenciosamente.
+        //
+        // U (não resolvida): não há identidade canônica em que confiar. A
+        // única chave honesta é a combinação BRUTA inteira: duas
+        // combinações diferentes que ambas falham precisam virar duas
+        // linhas de revisão, cada uma com a sua evidência.
+        //
+        // LIÇÃO PRESERVADA (correção de 2026-08-15, incidente real em
+        // SV8.5): Lugia ex 082/131 trazia a MESMA combinação
+        // normal+set-logo duas vezes na fonte. Enquanto o dedupe só cobria
+        // combinações JÁ resolvidas, as duas viravam linhas NEEDS_REVIEW
+        // idênticas. O INSERT passava (o índice parcial da Query 2138 só
+        // cobre variant_type_id NOT NULL), mas a resolução posterior do
+        // mapeamento (Query 2150) tentava gravar o mesmo variant_type_id
+        // nas duas — job_id+card_id repetidos — e derrubava a chamada
+        // inteira com erro cru de Postgres. Uma combinação repetida na
+        // própria fonte nunca deve virar duas linhas de staging, resolvida
+        // ou não. A regra sobrevive intacta: combinação idêntica repetida
+        // cai na MESMA chave, nos dois espaços.
+        // ---------------------------------------------------------------
+        const dedupeKey = isValid
+          ? `R|${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}`
+          : `U|${cardId}|${rawComboKey}`;
+
         if (seenComboByCard.has(dedupeKey)) {
           duplicateResolvedSkipped++;
           continue;
         }
         seenComboByCard.add(dedupeKey);
 
-        const matchedVariantId = variantTypeId
-          ? existingVariantsByCardAndType.get(`${cardId}|${variantTypeId}`) ?? null
+        // MATCHING TRIPLO — só linhas com identidade canônica completa
+        // participam. Uma linha com Impressão pendente não tem perfil
+        // definido, e casá-la contra uma variante existente afirmaria uma
+        // identidade que ainda não foi decidida.
+        const matchedVariantId = isValid
+          ? existingVariantsByCardAndType.get(
+            `${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}`,
+          ) ?? null
           : null;
+
+        // TRI-STATE de normalized_data — os três desfechos da Query 2181
+        // v1.2, na mesma ordem (correção C-3).
+        //
+        //   A. Printing resolvido + Variant Type resolvido
+        //      -> as duas chaves presentes, VALID.
+        //
+        //   B. Printing resolvido + Variant Type NÃO resolvido
+        //      -> só printing_profile_id (JSON null ou UUID), NEEDS_REVIEW.
+        //      O perfil resolvido permanece explícito; o variant_type_id
+        //      é que fica de fora.
+        //
+        //   C. Printing NÃO resolvido
+        //      -> AS DUAS chaves ausentes, NEEDS_REVIEW.
+        //
+        // O porquê de C ser mais severo do que parece à primeira vista: o
+        // eixo de Impressão consome os tokens que lhe pertencem ANTES de
+        // o resíduo ser oferecido ao Variant Type. Se a Impressão não
+        // resolveu, o resíduo foi derivado de uma premissa que não se
+        // sustenta, e o variant_type_id encontrado a partir dele é uma
+        // conclusão correta tirada de premissa inválida. Gravá-lo seria
+        // preservar a conclusão e jogar fora a dúvida.
+        //
+        // Isto NÃO é hipótese remota: quando um token é consumido por um
+        // mapping inativo, ele SAI do resíduo, e o resíduo reduzido
+        // (NORMAL|||, HOLOFOIL|||) casa com os mapeamentos existentes com
+        // facilidade. Era exatamente por aí que os dois produtores de
+        // normalized_data discordavam.
+        //
+        // Ausência nunca significa null: `jsonb_typeof` distingue os dois,
+        // `->>` não, e é sobre essa distinção que os índices de identidade
+        // da Query 2177 e o guard da Query 2179 se apoiam.
+        const normalizedData: Record<string, unknown> = {};
+        if (printingResolved) {
+          if (variantTypeId !== null) normalizedData.variant_type_id = variantTypeId;
+          normalizedData.printing_profile_id = printing.printingProfileId;
+        }
+
+        if (!printingResolved) printingUnresolvedRows++;
+        if (printing.state === "RESOLVED_WITH_PROFILE") printingWithProfileRows++;
 
         resolvedRows.push({
           card_id: cardId,
           raw_data: { type: combo.type, foil: combo.foil, subtype: combo.subtype, stamp: combo.stamp },
-          normalized_data: variantTypeId ? { variant_type_id: variantTypeId } : {},
-          validation_status: variantTypeId ? "VALID" : "NEEDS_REVIEW",
+          normalized_data: normalizedData,
+          validation_status: isValid ? "VALID" : "NEEDS_REVIEW",
           match_status: matchedVariantId ? "MATCHED" : "NEW",
           decision_status: matchedVariantId ? "SKIPPED" : "PENDING",
           matched_variant_id: matchedVariantId,
@@ -321,13 +675,19 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
-      version: "1.0.0",
+      version: "2.0.0",
       job: { id: jobId, card_set_id: cardSetId, external_set_id: externalSetId },
       set: { serie: setSerieName.serieName, name: setSerieName.name, card_files: cardFiles.length },
       rows: {
         total: resolvedRows.length,
         valid: validRows,
         needs_review: needsReviewRows,
+      },
+      printing: {
+        mappings_loaded: printingMappings.length,
+        active_profiles_loaded: printingProfiles.length,
+        rows_with_profile: printingWithProfileRows,
+        rows_unresolved: printingUnresolvedRows,
       },
       cards: {
         correlated: correlatedCardIds.length,
