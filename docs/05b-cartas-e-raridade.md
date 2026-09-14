@@ -1993,7 +1993,19 @@ caminho; consumir esse caminho é a próxima frente, e é editorial.
 2145 v2.0 - admin_confirm_catalog_variant_import()         (bulk + Printing, sem ramo legado)
 ```
 
-**Edge Function:** `import-card-variants` **versão 9, ACTIVE**.
+**Edge Function:** `import-card-variants` **versão 10, ACTIVE** (`verify_jwt = true`) — a v10 incorporou o lookup com precedência `scoped > global` (SOURCE-SET-SCOPED FOUNDATION, 2026-09-14).
+
+**Migrations de escopo aplicadas em 2026-09-14 (CONFIRMADO EXECUTADO):**
+
+```
+2191 - Source-Set Scope em card_variant_type_external_mapping
+2192 - Contrato de leitura (resolve_scope + impact + decision)
+2193 - internal.apply_variant_type_mapping() (worker único)
+2194 - admin_preview_catalog_variant_import_mapping() (leitura pura)
+2195 - RPCs públicas reconciliadas (GLOBAL intacta + _for_set nova)
+2196 - internal.lookup_variant_type_for_row() + consumidor 1
+2197 - consumidor 2 (admin_resolve_..._printing_mapping)
+```
 
 ---
 
@@ -2020,16 +2032,55 @@ CREATE TABLE public.card_variant_type_external_mapping (
     created_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    -- >>> SOURCE-SET SCOPE (Query 2191, LIVE 2026-09-14) <<<
+    external_set_id    TEXT,          -- NULL = GLOBAL · preenchido = SOURCE_SET_SCOPED
+
     -- normalized_type não pode ser vazio; external_stamp/normalized_stamp, quando presentes,
     -- não podem ser array vazio nem conter elemento NULL (4 CHECKs dedicados)
-    CONSTRAINT uq_card_variant_type_external_mapping_combo
-        UNIQUE (game_id, asset_source_id, normalized_type,
-                COALESCE(normalized_foil, ''), COALESCE(normalized_subtype, ''),
-                COALESCE(normalized_stamp, '{}'))
+    CONSTRAINT ck_card_variant_type_external_mapping_external_set_id_not_blank
+        CHECK (external_set_id IS NULL OR btrim(external_set_id) <> ''),
+
+    -- FK COMPOSTA, MATCH SIMPLE INTENCIONAL: asset_source_id é NOT NULL e
+    -- external_set_id é NULL nos mappings globais; sob MATCH SIMPLE qualquer coluna
+    -- NULL satisfaz a FK sem checagem, então a linha global passa e a scoped é
+    -- validada. MATCH FULL rejeitaria TODA linha global.
+    CONSTRAINT fk_card_variant_type_external_mapping_source_set
+        FOREIGN KEY (asset_source_id, external_set_id)
+        REFERENCES public.card_set_external_reference (asset_source_id, external_set_id)
+        MATCH SIMPLE ON DELETE RESTRICT
 );
+
+-- Unicidade por DOIS índices parciais DISJUNTOS (substituíram a UNIQUE única da 2140).
+-- uq_..._combo_global  WHERE external_set_id IS NULL
+-- uq_..._combo_scoped  WHERE external_set_id IS NOT NULL  (external_set_id na chave)
+-- ix_..._scope_lookup  (game_id, asset_source_id, external_set_id)
 ```
 
-Cada linha é um mapeamento **canônico por Game+Fonte+combinação normalizada** (não por job nem por Card Set) — resolver uma combinação uma vez a resolve para todos os jobs presentes e futuros daquele Game/Fonte. Normalização via `normalize_external_catalog_value()` (`STABLE`, `upper(regexp_replace(trim(unaccent(valor)), '\s+', ' ', 'g'))`) — mesma função para os 4 campos (type/foil/subtype/cada elemento de stamp). Hoje: **33 mapeamentos, cobrindo 1 única Fonte** (TCGdex).
+Cada linha é um mapeamento **canônico por Game+Fonte+combinação normalizada**, agora com um
+**escopo opcional de source-set**. Normalização via `normalize_external_catalog_value()`
+(`STABLE`, `upper(regexp_replace(trim(unaccent(valor)), '\s+', ' ', 'g'))`) — mesma função
+para os 4 campos (type/foil/subtype/cada elemento de stamp).
+
+**Precedência de UM nível, sem cascata: `scoped` > `global` > `NEEDS_REVIEW`.**
+Implementada em **um único ponto do banco**, `internal.lookup_variant_type_for_row()`
+(Query 2196), consumido pelos dois consumidores SQL (2196 e 2197) e espelhado na Edge
+`import-card-variants`. O determinismo não é convenção: os dois índices parciais garantem
+no máximo 2 candidatos, e `ORDER BY (external_set_id IS NULL) ASC LIMIT 1` é total sobre
+esse conjunto. **Nunca** se desempata por `created_at`, `updated_at`, `display_order`,
+`is_active` ou `id`.
+
+A autoridade do escopo é `card_set_external_reference` com `is_active = true` — **nunca**
+`catalog_variant_import_job.external_set_id`, que é dado de operação. Divergência declarada
+entre os dois é fail-closed (`SCOPE_MISMATCH`).
+
+Coexistência, não substituição: criar um override **jamais** faz `UPDATE` do mapping global.
+Remover a linha scoped restaura o comportamento global.
+
+**Estado LIVE (2026-09-14): 71 mapeamentos — 70 GLOBAL + 1 SOURCE_SET_SCOPED**, cobrindo 1
+única Fonte (TCGdex). O único scoped é o primeiro override editorial real:
+`TCGDEX/base3 · HOLO|GALAXY|NULL|{} → HOLO` (`142528df-085e-47a0-a9e0-21cee4f474ba`), que
+reinterpretou 30 linhas de staging de BASE3 sem tocar nos 3 `card_variant` canônicos
+modernos (SV3.5/SV5/SV6) que seguem em `GALAXY_HOLO` pelo mapping global.
 
 ## `catalog_variant_import_job` / `catalog_variant_import_row` — staging
 

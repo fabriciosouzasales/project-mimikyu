@@ -1,0 +1,174 @@
+{
+  "$schema_note": "Vetores COMPARTILHADOS de precedência do mapping de Card Variant Type. Arquivo ÚNICO, consumido por DOIS runners: (1) o harness SQL 2826, Seção 4; (2) o teste offline Deno da Edge import-card-variants. Os expected values existem SÓ aqui — nenhum runner pode declarar o seu. Se os dois runners divergirem em qualquer vetor, a paridade Edge x SQL está quebrada e o GATE-B falha.",
+  "version": "1.0",
+  "status": "PROPOSTA — NAO EXECUTADO",
+  "mandato": "CARD-VARIANTS — EDITORIAL-CONVERGENCE-16 / SOURCE-SET-SCOPED-FOUNDATION / GATE-A-REV-03",
+
+  "contract": {
+    "precedence": ["scoped", "global", "none"],
+    "tie_breakers_forbidden": ["created_at", "updated_at", "display_order", "is_active", "id"],
+    "cascade_levels": 1,
+    "scope_authority": "card_set_external_reference (is_active = true)",
+    "scope_authority_forbidden": "catalog_variant_import_job.external_set_id",
+    "no_match_outcome": "NEEDS_REVIEW"
+  },
+
+  "bindings": {
+    "$note": "ACRESCENTADO EM GATE-A-REV-01. Como cada simbolo abstrato dos vetores vira objeto fisico. Os DOIS runners (harness SQL 2826 Secao 4 e teste offline Deno) aplicam EXATAMENTE estas regras. Sem este bloco, cada runner inventaria a sua propria ligacao e a paridade seria afirmada, nao verificada.",
+
+    "$why_foil_substitution": "Os combos dos vetores P1-P7 (HOLO|GALAXY, NORMAL|GALAXY) COLIDEM com dado real: existe um mapping GLOBAL TCGDEX HOLO|GALAXY -> GALAXY_HOLO no catalogo de producao (medido em 2026-09-14, mapping a30ab1d7-461d-490a-adac-6bd4f69e24d7). Executar os vetores sinteticos literalmente devolveria o mapping de producao, e o vetor 'passaria' provando outra coisa. Por isso o foil dos vetores SINTETICOS e substituido por HARNESSFOIL2826, combo provado livre (zero mappings) na Secao 0 do harness. A estrutura RELACIONAL do vetor — mesmo combo no mapping e no lookup, escopos distintos, Fontes distintas — e preservada integralmente. O `type` NAO e substituido: HOLO e NORMAL continuam distinguindo P1/P2/P3 de P4/P5.",
+
+    "synthetic_vectors": ["P1", "P2", "P3", "P4", "P5", "P6", "P7"],
+    "real_corpus_vectors": ["P8", "P9", "P10"],
+
+    "combo": {
+      "synthetic": { "foil": "HARNESSFOIL2826", "type": "literal do vetor", "subtype": "literal do vetor", "stamp": "NULL" },
+      "real_corpus": "sem substituicao — combo literal do vetor"
+    },
+
+    "variant_type": {
+      "VT_*": "simbolo de fixture. O runner CRIA um card_variant_type com code = o proprio simbolo, dentro da sentinela, e o destroi no rollback. code respeita ^[A-Z][A-Z0-9_]*$ (CHECK ck_card_variant_type_code_format) e recebe display_order = max(display_order do Game) + n.",
+      "outros": "code REAL, ja existente em card_variant_type do Game POKEMON (ex.: HOLO, GALAXY_HOLO). Nunca criado, apenas resolvido."
+    },
+
+    "source": {
+      "default": "TCGDEX",
+      "SRC_A": "TCGDEX",
+      "SRC_B": "POKEMON_TCG_API",
+      "$note": "POKEMON_TCG_API existe em asset_source e tem ZERO card_set_external_reference (medido), entao a referencia de fixture de P7 nasce sem conflito com dado real."
+    },
+
+    "scope": {
+      "set-alpha": { "card_set": "ME5.5", "criacao": "INSERT de card_set_external_reference na sentinela" },
+      "set-beta":  { "card_set": "RC",    "criacao": "INSERT de card_set_external_reference na sentinela" },
+      "null":      { "card_set": "SP",    "criacao": "nenhuma — o Set fica SEM referencia ativa, que e o cenario de P6" },
+      "base3":     { "card_set": "BASE3", "criacao": "referencia REAL ja existente e ativa" },
+      "sv03.5 | sv05 | sv06": { "criacao": "referencias REAIS ja existentes e ativas" },
+      "$why_insert_only": "trg_020_govern_card_set_external_reference torna external_set_id IMUTAVEL em UPDATE (levanta CARD_SET_EXTERNAL_REFERENCE_EXTERNAL_SET_ID_IMMUTABLE). Logo escopo de fixture SO pode nascer por INSERT, e so em Card Set que ainda nao tenha referencia para aquela Fonte — por causa do UNIQUE (card_set_id, asset_source_id). ME5.5, RC e SP foram escolhidos por serem exatamente os 3 Card Sets sem referencia TCGDEX (medido em 2026-09-14). Se isso mudar, o runner FALHA declarando rebase de bindings, em vez de adaptar em silencio."
+    },
+
+    "isolation": "Cada vetor roda limpo: o runner apaga, ao fim de cada vetor, todos os mappings de fixture (foil HARNESSFOIL2826, variant_type VT_*, escopos set-alpha/set-beta, e o override base3 dos vetores reais). O vetor seguinte nao herda estado do anterior."
+  },
+
+  "notes": [
+    "combo = (normalized_type, normalized_foil, normalized_subtype, normalized_stamp) RESIDUAL, nunca bruto.",
+    "`mappings` descreve o estado do catálogo de mapping no momento do lookup.",
+    "`expected.variant_type` null significa: nenhum mapping casa -> a linha permanece NEEDS_REVIEW.",
+    "Os vetores P8/P9/P10 referenciam o corpus REAL (BASE3 e os três modernos) e servem de ponte entre o teste sintético e o gabarito de produção."
+  ],
+
+  "vectors": [
+    {
+      "id": "P1",
+      "title": "sem scoped, global existe -> global",
+      "job_scope": "set-alpha",
+      "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": null, "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_GLOBAL" }
+      ],
+      "expected": { "variant_type": "VT_GLOBAL", "matched_scope": "GLOBAL" }
+    },
+    {
+      "id": "P2",
+      "title": "scoped e global existem -> scoped VENCE",
+      "job_scope": "set-alpha",
+      "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": null, "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_GLOBAL" },
+        { "scope": "set-alpha", "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_SCOPED" }
+      ],
+      "expected": { "variant_type": "VT_SCOPED", "matched_scope": "SOURCE_SET" }
+    },
+    {
+      "id": "P3",
+      "title": "scoped existe para OUTRO Set -> global (isolamento entre Sets)",
+      "job_scope": "set-alpha",
+      "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": null, "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_GLOBAL" },
+        { "scope": "set-beta", "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_SCOPED_BETA" }
+      ],
+      "expected": { "variant_type": "VT_GLOBAL", "matched_scope": "GLOBAL" }
+    },
+    {
+      "id": "P4",
+      "title": "scoped existe e global NAO -> scoped",
+      "job_scope": "set-alpha",
+      "combo": { "type": "NORMAL", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": "set-alpha", "combo": { "type": "NORMAL", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_SCOPED" }
+      ],
+      "expected": { "variant_type": "VT_SCOPED", "matched_scope": "SOURCE_SET" }
+    },
+    {
+      "id": "P5",
+      "title": "nenhum mapping -> NEEDS_REVIEW",
+      "job_scope": "set-alpha",
+      "combo": { "type": "NORMAL", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [],
+      "expected": { "variant_type": null, "matched_scope": null, "validation_status": "NEEDS_REVIEW" }
+    },
+    {
+      "id": "P6",
+      "title": "Card Set SEM referencia externa ativa -> somente GLOBAL e considerado",
+      "job_scope": null,
+      "job_scope_note": "card_set_external_reference ausente ou is_active = false. O escopo NAO e inventado, nem lido do job.",
+      "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": null, "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_GLOBAL" },
+        { "scope": "set-alpha", "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_SCOPED" }
+      ],
+      "expected": { "variant_type": "VT_GLOBAL", "matched_scope": "GLOBAL" }
+    },
+    {
+      "id": "P7",
+      "title": "mesma external_set_id em Fonte DIFERENTE -> nao cruza source",
+      "job_scope": "set-alpha",
+      "job_source": "SRC_A",
+      "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": "set-alpha", "source": "SRC_B", "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "VT_SCOPED_OTHER_SOURCE" }
+      ],
+      "expected": { "variant_type": null, "matched_scope": null, "validation_status": "NEEDS_REVIEW" }
+    },
+    {
+      "id": "P8",
+      "title": "CASO REAL — TCGDEX / base3 / HOLO|GALAXY -> HOLO",
+      "job_scope": "base3",
+      "job_source": "TCGDEX",
+      "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": null, "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "GALAXY_HOLO" },
+        { "scope": "base3", "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "HOLO" }
+      ],
+      "expected": { "variant_type": "HOLO", "matched_scope": "SOURCE_SET" },
+      "corpus_note": "30 rows LIVE em BASE3 (15 sem FIRST_EDITION + 15 com). NAO criar este override no GATE-A."
+    },
+    {
+      "id": "P9",
+      "title": "CASO REAL — modernos preservados no GLOBAL",
+      "job_scope": ["sv03.5", "sv05", "sv06"],
+      "job_source": "TCGDEX",
+      "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": null, "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "GALAXY_HOLO" },
+        { "scope": "base3", "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "HOLO" }
+      ],
+      "expected": { "variant_type": "GALAXY_HOLO", "matched_scope": "GLOBAL" },
+      "corpus_note": "SV3.5 #094 Gengar, SV5 #121 Miraidon, SV6 #022 Sinistcha — 3 card_variant canonicos. O override de base3 NAO pode toca-los."
+    },
+    {
+      "id": "P10",
+      "title": "CASO REAL — TCGDEX / base3 / NORMAL|GALAXY sem override -> NEEDS_REVIEW",
+      "job_scope": "base3",
+      "job_source": "TCGDEX",
+      "combo": { "type": "NORMAL", "foil": "GALAXY", "subtype": null, "stamp": null },
+      "mappings": [
+        { "scope": null, "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "GALAXY_HOLO" },
+        { "scope": "base3", "combo": { "type": "HOLO", "foil": "GALAXY", "subtype": null, "stamp": null }, "variant_type": "HOLO" }
+      ],
+      "expected": { "variant_type": null, "matched_scope": null, "validation_status": "NEEDS_REVIEW" },
+      "corpus_note": "As 92 rows NORMAL|GALAXY de BASE3 seguem NEEDS_REVIEW. Decisao editorial separada e ainda em aberto (EDITORIAL-CONVERGENCE-11 a 13). Este vetor prova que a foundation NAO as toca por efeito colateral."
+    }
+  ]
+}

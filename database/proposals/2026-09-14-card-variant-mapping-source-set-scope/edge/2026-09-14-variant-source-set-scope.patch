@@ -1,0 +1,216 @@
+# =============================================================================
+# Project Mimikyu — Edge `import-card-variants`
+# Patch: lookup de Card Variant Type com SOURCE_SET scope
+#
+# Mandato...: CARD-VARIANTS — EDITORIAL-CONVERGENCE-16 /
+#             SOURCE-SET-SCOPED-FOUNDATION / GATE-A-REV-01 §9
+# Data......: 2026-09-14
+# Status....: APLICADO em 2026-09-14 (GATE-B-EDGE-IMPLEMENTATION-01).
+#             Os dois hunks entraram em supabase/functions/import-card-variants/
+#             (services/database.ts e index.ts); nenhum terceiro arquivo tocado.
+#             Precheck: os dois pre-images batiam byte a byte com o estado
+#             canônico, sem drift. Deploy: v10 ACTIVE, verify_jwt=true
+#             (GATE-B-EDGE-DEPLOY-01). Mantido aqui como evidência histórica
+#             do diff — não reaplicar.
+#
+# -----------------------------------------------------------------------------
+# COMO APLICAR (GATE-B)
+# -----------------------------------------------------------------------------
+#   cd <raiz do repo>
+#   git apply --check database/proposals/2026-09-14-card-variant-mapping-source-set-scope/edge/2026-09-14-variant-source-set-scope.patch
+#   git apply         database/proposals/.../2026-09-14-variant-source-set-scope.patch
+#
+# O `--check` é obrigatório: se os arquivos derivarem entre o staging e a
+# aplicação, o patch NÃO aplica e isso precisa virar rebase explícito, não
+# resolução manual no olho.
+#
+# -----------------------------------------------------------------------------
+# DECISÃO DE ESCAPING DO POSTGREST — exigida pelo §9
+# -----------------------------------------------------------------------------
+# O desenho original previa estreitar a query no servidor:
+#
+#     .or(`external_set_id.is.null,external_set_id.eq.${scopeExternalSetId}`)
+#
+# Três opções foram consideradas:
+#
+#   A. Interpolar o valor cru.
+#      REJEITADA. A gramática do `.or()` do PostgREST usa vírgula como
+#      separador de condições e parênteses como agrupadores; um valor que
+#      contenha esses caracteres muda a ÁRVORE do predicado, não apenas o
+#      literal. `external_set_id` é TEXT livre do lado da fonte — o CHECK só
+#      proíbe string em branco. Não temos prova de que todo valor possível é
+#      inofensivo, e o mandato veda interpolar sem essa prova.
+#
+#   B. Quotar com aspas duplas e escapar `"` e `\` internos.
+#      REJEITADA. Funciona, mas amarra o código a um detalhe do dialeto de
+#      quoting do PostgREST que não está sob nosso controle e não tem teste
+#      próprio. Passa a exigir um teste de escaping para uma otimização que
+#      não precisamos.
+#
+#   C. NÃO filtrar escopo no servidor; particionar no cliente.  <<< ESCOLHIDA
+#      A query continua `.eq(game_id).eq(asset_source_id)` — exatamente a de
+#      hoje, mais a coluna `external_set_id` no SELECT. A partição
+#      global/scoped/descartado é feita em memória, pela MESMA regra que o SQL
+#      aplica.
+#
+#      Custo medido: 70 mappings no LIVE em 2026-09-14. Trazer os escopos
+#      alheios é irrelevante nessa ordem de grandeza, e continua sendo UMA
+#      query por job — zero round-trip novo.
+#      Ganho: superfície de escaping = ZERO. Não há valor de dado que possa
+#      alterar a consulta.
+#
+# -----------------------------------------------------------------------------
+# CORREÇÃO DE UMA PREMISSA MINHA ANTERIOR — medida, não inferida
+# -----------------------------------------------------------------------------
+# `edge/EDGE-STAGING-NOTES.md` (v1.0) afirmava que a Edge "já possui o
+# external_set_id do job em memória e usar o valor à mão seria a escolha
+# natural e ERRADA", e previa um guard `VARIANT_IMPORT_SCOPE_MISMATCH` na Edge.
+#
+# Auditado no código real em 2026-09-14:
+#   - index.ts:418  chama findCardSetExternalReference(cardSetId, assetSource.id)
+#   - database.ts:67-74  essa função filtra `.eq("is_active", true)`
+#   - index.ts:425  externalSetId := referência canônica ATIVA
+#   - index.ts:429  o job é CRIADO com esse valor
+#
+# Ou seja: a Edge JÁ trata `card_set_external_reference` como autoridade, e o
+# `job.external_set_id` NASCE dela. O valor "à mão" É o canônico. Não há, no
+# caminho de criação, divergência possível a guardar — o guard de mismatch
+# seria código morto aqui.
+#
+# O guard de mismatch permanece necessário apenas no SQL (contrato 2192), que
+# roda sobre jobs JÁ GRAVADOS e pode encontrar um job adulterado por fora da
+# Edge. É lá que o caso N do harness 2826 o exercita.
+#
+# CONSEQUÊNCIA: este patch toca DOIS arquivos, não três. `types.ts` não é
+# alterado — auditado: não existe tipo declarado para a linha de mapping
+# (o `.map((row: any) => ...)` é untyped), então não há tipo a estender.
+#
+# -----------------------------------------------------------------------------
+# PARIDADE EDGE × SQL
+# -----------------------------------------------------------------------------
+# O teste offline `variant-scope-vectors.test.ts` (neste mesmo diretório)
+# consome `../test-vectors/variant-type-mapping-scope-vectors.json` — o MESMO
+# arquivo que o runner SQL da Seção 4 do harness 2826, com o MESMO bloco
+# `bindings`. Nenhum dos dois runners declara expected próprio.
+# =============================================================================
+
+--- a/supabase/functions/import-card-variants/services/database.ts
++++ b/supabase/functions/import-card-variants/services/database.ts
+@@ -126,29 +126,56 @@
+     (normalizedStampSorted ?? []).join(","),
+   ].join("|");
+ }
+
+-// Mapa chave-composta -> variant_type_id, pré-carregado uma vez por job
+-// (1 query) — nunca uma consulta por combinação.
+-export async function listVariantTypeExternalMappings(
+-  supabase: any,
+-  gameId: string,
+-  assetSourceId: string,
+-): Promise<Map<string, string>> {
+-  const { data, error } = await supabase
+-    .from("card_variant_type_external_mapping")
+-    .select("normalized_type, normalized_foil, normalized_subtype, normalized_stamp, variant_type_id")
+-    .eq("game_id", gameId)
+-    .eq("asset_source_id", assetSourceId);
+-
+-  if (error) {
+-    console.error(error);
+-    throw new Error("CARD_VARIANT_TYPE_EXTERNAL_MAPPING_QUERY_FAILED");
+-  }
+-
+-  return new Map<string, string>(
+-    (data ?? []).map((row: any) => [
+-      buildVariantComboKey(row.normalized_type, row.normalized_foil, row.normalized_subtype, row.normalized_stamp),
+-      row.variant_type_id,
+-    ]),
+-  );
+-}
++// Mapas chave-composta -> variant_type_id, pré-carregados uma vez por job
++// (1 query) — nunca uma consulta por combinação.
++//
++// >>> ESCOPO (GATE-A-REV-01) <<<
++// Devolve DOIS mapas, particionados por escopo. A chave composta NÃO muda:
++// o escopo separa os MAPAS, não entra na CHAVE. Assim a correspondência 1:1
++// entre buildVariantComboKey() e a expressão dos índices parciais da Query
++// 2191 fica preservada, e a única função já provada contra a UNIQUE não
++// precisa ser reescrita.
++//
++// A partição é feita NO CLIENTE, de propósito. Filtrar no servidor exigiria
++// `.or("external_set_id.is.null,external_set_id.eq.<valor>")` com o valor
++// interpolado na gramática do PostgREST, onde vírgula e parênteses são
++// ESTRUTURA e não literal — superfície de escaping que não temos como provar
++// correta para todo external_set_id possível. Continua sendo UMA query por
++// job; o conjunto é pequeno (70 mappings no LIVE em 2026-09-14).
++export async function listVariantTypeExternalMappings(
++  supabase: any,
++  gameId: string,
++  assetSourceId: string,
++  scopeExternalSetId: string | null,
++): Promise<{ globalMap: Map<string, string>; scopedMap: Map<string, string> }> {
++  const { data, error } = await supabase
++    .from("card_variant_type_external_mapping")
++    .select("normalized_type, normalized_foil, normalized_subtype, normalized_stamp, external_set_id, variant_type_id")
++    .eq("game_id", gameId)
++    .eq("asset_source_id", assetSourceId);
++
++  if (error) {
++    console.error(error);
++    throw new Error("CARD_VARIANT_TYPE_EXTERNAL_MAPPING_QUERY_FAILED");
++  }
++
++  const globalMap = new Map<string, string>();
++  const scopedMap = new Map<string, string>();
++
++  for (const row of (data ?? []) as any[]) {
++    const key = buildVariantComboKey(
++      row.normalized_type,
++      row.normalized_foil,
++      row.normalized_subtype,
++      row.normalized_stamp,
++    );
++    if (row.external_set_id === null || row.external_set_id === undefined) {
++      globalMap.set(key, row.variant_type_id);
++    } else if (scopeExternalSetId !== null && row.external_set_id === scopeExternalSetId) {
++      scopedMap.set(key, row.variant_type_id);
++    }
++    // Escopos de OUTROS Sets sao descartados: nunca entram em nenhum mapa.
++    // E o espelho exato do isolamento provado pelo vetor P3.
++  }
++
++  return { globalMap, scopedMap };
++}
+
+--- a/supabase/functions/import-card-variants/index.ts
++++ b/supabase/functions/import-card-variants/index.ts
+@@ -455,14 +455,14 @@
+     const [
+       cardExternalReferences,
+-      variantTypeMappings,
++      variantTypeMaps,
+       printingMappings,
+       printingProfiles,
+       printingTraits,
+     ] = await Promise
+       .all([
+         listCardExternalReferencesMap(supabase, assetSource.id, externalSetId),
+-        listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id),
++        listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id, externalSetId),
+         listPrintingExternalMappings(supabase, cardSet.game_id, assetSource.id),
+         listActivePrintingProfiles(supabase, cardSet.game_id),
+         listPrintingTraits(supabase, cardSet.game_id),
+       ]);
+@@ -548,5 +548,11 @@
+           printing.residualStamp,
+         );
+-        const variantTypeId = variantTypeMappings.get(residualComboKey) ?? null;
++        // >>> PRECEDÊNCIA COM ESCOPO (GATE-A-REV-01) <<<
++        // scoped > global > NEEDS_REVIEW. UM nível, sem cascata.
++        // `??` e nao `||`: so null/undefined caem para o fallback; um id
++        // valido nunca e descartado. Precedencia identica a do SQL
++        // (internal.lookup_variant_type_for_row) por construcao.
++        const variantTypeId = variantTypeMaps.scopedMap.get(residualComboKey)
++          ?? variantTypeMaps.globalMap.get(residualComboKey)
++          ?? null;
+
+         const printingResolved = printing.state !== "UNRESOLVED";

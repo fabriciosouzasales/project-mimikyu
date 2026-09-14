@@ -454,14 +454,14 @@ Deno.serve(async (req) => {
     // existiam: o roteamento inteiro acontece depois, em memória.
     const [
       cardExternalReferences,
-      variantTypeMappings,
+      variantTypeMaps,
       printingMappings,
       printingProfiles,
       printingTraits,
     ] = await Promise
       .all([
         listCardExternalReferencesMap(supabase, assetSource.id, externalSetId),
-        listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id),
+        listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id, externalSetId),
         listPrintingExternalMappings(supabase, cardSet.game_id, assetSource.id),
         listActivePrintingProfiles(supabase, cardSet.game_id),
         listPrintingTraits(supabase, cardSet.game_id),
@@ -547,7 +547,14 @@ Deno.serve(async (req) => {
           printing.residualSubtype,
           printing.residualStamp,
         );
-        const variantTypeId = variantTypeMappings.get(residualComboKey) ?? null;
+        // >>> PRECEDÊNCIA COM ESCOPO (GATE-A-REV-01) <<<
+        // scoped > global > NEEDS_REVIEW. UM nível, sem cascata.
+        // `??` e nao `||`: so null/undefined caem para o fallback; um id
+        // valido nunca e descartado. Precedencia identica a do SQL
+        // (internal.lookup_variant_type_for_row) por construcao.
+        const variantTypeId = variantTypeMaps.scopedMap.get(residualComboKey)
+          ?? variantTypeMaps.globalMap.get(residualComboKey)
+          ?? null;
 
         const printingResolved = printing.state !== "UNRESOLVED";
         // VALID exige os DOIS eixos. Variant Type resolvido sozinho não

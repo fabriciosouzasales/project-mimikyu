@@ -127,16 +127,31 @@ export function buildVariantComboKey(
   ].join("|");
 }
 
-// Mapa chave-composta -> variant_type_id, pré-carregado uma vez por job
+// Mapas chave-composta -> variant_type_id, pré-carregados uma vez por job
 // (1 query) — nunca uma consulta por combinação.
+//
+// >>> ESCOPO (GATE-A-REV-01) <<<
+// Devolve DOIS mapas, particionados por escopo. A chave composta NÃO muda:
+// o escopo separa os MAPAS, não entra na CHAVE. Assim a correspondência 1:1
+// entre buildVariantComboKey() e a expressão dos índices parciais da Query
+// 2191 fica preservada, e a única função já provada contra a UNIQUE não
+// precisa ser reescrita.
+//
+// A partição é feita NO CLIENTE, de propósito. Filtrar no servidor exigiria
+// `.or("external_set_id.is.null,external_set_id.eq.<valor>")` com o valor
+// interpolado na gramática do PostgREST, onde vírgula e parênteses são
+// ESTRUTURA e não literal — superfície de escaping que não temos como provar
+// correta para todo external_set_id possível. Continua sendo UMA query por
+// job; o conjunto é pequeno (70 mappings no LIVE em 2026-09-14).
 export async function listVariantTypeExternalMappings(
   supabase: any,
   gameId: string,
   assetSourceId: string,
-): Promise<Map<string, string>> {
+  scopeExternalSetId: string | null,
+): Promise<{ globalMap: Map<string, string>; scopedMap: Map<string, string> }> {
   const { data, error } = await supabase
     .from("card_variant_type_external_mapping")
-    .select("normalized_type, normalized_foil, normalized_subtype, normalized_stamp, variant_type_id")
+    .select("normalized_type, normalized_foil, normalized_subtype, normalized_stamp, external_set_id, variant_type_id")
     .eq("game_id", gameId)
     .eq("asset_source_id", assetSourceId);
 
@@ -145,12 +160,26 @@ export async function listVariantTypeExternalMappings(
     throw new Error("CARD_VARIANT_TYPE_EXTERNAL_MAPPING_QUERY_FAILED");
   }
 
-  return new Map<string, string>(
-    (data ?? []).map((row: any) => [
-      buildVariantComboKey(row.normalized_type, row.normalized_foil, row.normalized_subtype, row.normalized_stamp),
-      row.variant_type_id,
-    ]),
-  );
+  const globalMap = new Map<string, string>();
+  const scopedMap = new Map<string, string>();
+
+  for (const row of (data ?? []) as any[]) {
+    const key = buildVariantComboKey(
+      row.normalized_type,
+      row.normalized_foil,
+      row.normalized_subtype,
+      row.normalized_stamp,
+    );
+    if (row.external_set_id === null || row.external_set_id === undefined) {
+      globalMap.set(key, row.variant_type_id);
+    } else if (scopeExternalSetId !== null && row.external_set_id === scopeExternalSetId) {
+      scopedMap.set(key, row.variant_type_id);
+    }
+    // Escopos de OUTROS Sets sao descartados: nunca entram em nenhum mapa.
+    // E o espelho exato do isolamento provado pelo vetor P3.
+  }
+
+  return { globalMap, scopedMap };
 }
 
 // Sentinela de "sem perfil de impressão declarado" nas chaves compostas
