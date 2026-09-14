@@ -2076,11 +2076,42 @@ entre os dois é fail-closed (`SCOPE_MISMATCH`).
 Coexistência, não substituição: criar um override **jamais** faz `UPDATE` do mapping global.
 Remover a linha scoped restaura o comportamento global.
 
-**Estado LIVE (2026-09-14): 71 mapeamentos — 70 GLOBAL + 1 SOURCE_SET_SCOPED**, cobrindo 1
-única Fonte (TCGdex). O único scoped é o primeiro override editorial real:
-`TCGDEX/base3 · HOLO|GALAXY|NULL|{} → HOLO` (`142528df-085e-47a0-a9e0-21cee4f474ba`), que
-reinterpretou 30 linhas de staging de BASE3 sem tocar nos 3 `card_variant` canônicos
-modernos (SV3.5/SV5/SV6) que seguem em `GALAXY_HOLO` pelo mapping global.
+**Estado LIVE (2026-09-14): 72 mapeamentos — 70 GLOBAL + 2 SOURCE_SET_SCOPED**, cobrindo 1
+única Fonte (TCGdex). Os dois scoped são overrides editoriais reais de `base3`:
+
+| mapping | combinação | alvo | linhas reinterpretadas |
+|---|---|---|---|
+| `142528df-085e-47a0-a9e0-21cee4f474ba` | `TCGDEX/base3 · HOLO\|GALAXY\|NULL\|{}` | `HOLO` | 30 |
+| `1934d809-084e-4495-9473-2def2f2f64c4` | `TCGDEX/base3 · NORMAL\|GALAXY\|NULL\|{}` | `STANDARD` | 92 |
+
+Nenhum dos dois tocou os 3 `card_variant` canônicos modernos (SV3.5/SV5/SV6), que seguem em
+`GALAXY_HOLO` pelo mapping global — é exatamente o isolamento que o escopo existe para dar.
+
+**Por que `SOURCE_SET` e não `GLOBAL` nos dois casos.** A auditoria editorial que precedeu o
+segundo override (`BASE3-RESIDUAL-AUDIT-01`, 2026-09-14) mediu que a anotação `foil: galaxy`
+sobre linhas `type: normal` é **artefato de anotação da fonte em `base3`**, sem contrapartida
+semântica: a carta **Kabuto #50** funciona como **controle interno** — a fonte registra, para
+ela, as mesmas variantes lógicas das outras 46 (1st edition, unlimited, linha de copyright)
+com `foil: null` em vez de `galaxy`, e só a versão sem anotação validava. A distribuição 46/47
+é assinatura de artefato de dado, não de processo físico de impressão. Corroboração externa ao
+Set: **BASE1** (415 linhas em staging) não tem **nenhuma** ocorrência de `galaxy`, nem em
+`normal` nem em `holo`; e o combo `NORMAL|GALAXY` não ocorre em nenhum outro Set do corpus
+medido (BASE1/BASEP/SV5/SVE). Um mapping GLOBAL afirmaria algo sobre Sets modernos onde
+`galaxy` significa outra coisa (`GALAXY_HOLO`). Preview prévio: 92 linhas, 92 classe A,
+0 classe B, 0 classe C, `would_apply = true`, `block_reason = null`, 1 job afetado,
+**0 colisões de identidade** `(card, variant_type, printing_profile)` — a estrutura resultante
+das 46 cartas passa a coincidir com a que Kabuto #50 já tinha.
+
+**BASE3 NÃO está fechado.** Seguem 5 resíduos em `NEEDS_REVIEW`, sem decisão editorial:
+`HOLO|COSMOS|{PRE-RELEASE}`, `HOLO|COSMOS|1999-COPYRIGHT`, `HOLO|GALAXY|EVOLUTION-BOX-ERROR`,
+`HOLO|STARLIGHT|{PRE-RELEASE}` e `NORMAL|{WOTC}` — classificados como HUMAN_REVIEW /
+investigação semântica de fonte. Dois deles dependem de decisões anteriores que ainda não
+existem: a política transversal de **erros de impressão** (que também alcança ≥ 7 linhas de
+BASEP) e o **eixo** de `pre-release` (Variant Type ou Printing). O token `1999-copyright`
+convive, na mesma carta e no mesmo `foil`, com o já mapeado `1999-2000-copyright` — pertence
+ao eixo **Printing**, e resolvê-lo por Variant Type seria erro de eixo. Não há checklist de
+referência de `base3` em `assets/reference-sources/`, de modo que a TCGdex é fonte única para
+os 5 — e a pergunta, nos cinco casos, é justamente se a fonte está correta.
 
 ## `catalog_variant_import_job` / `catalog_variant_import_row` — staging
 
