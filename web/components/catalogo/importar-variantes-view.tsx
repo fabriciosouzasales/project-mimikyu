@@ -48,26 +48,48 @@ const INITIAL_STATE: IniciarImportacaoVariantesActionState = { error: null, jobI
  * acoplado a essa continuação (dois idiomas, retry, polling de
  * asset_import_run) — nada disso se aplica a variantes.
  */
-function useAnalyzeVariantsJob() {
+function useAnalyzeVariantsJob(resumeJobId: string | null = null) {
   const [state, formAction, isPending] = useActionState(iniciarImportacaoVariantes, INITIAL_STATE);
   const [jobState, setJobState] = useState<{
     job: CatalogVariantImportJobStatus | null;
     rows: CatalogVariantImportRowView[];
     cardVariantTypes: CardVariantTypeOption[];
   }>({ job: null, rows: [], cardVariantTypes: [] });
-  const [fetchingJob, setFetchingJob] = useState(false);
+  // Semeado com `true` quando já sabemos que existe job ativo: a retomada
+  // começa "carregando" no primeiro render, sem uma janela em que a tela diz
+  // "Selecione uma Coleção" nem em que o botão fica clicável por engano.
+  // `resumeJobId` é estável por montagem porque `page.tsx` usa
+  // `key={selectedCardSet?.id}` — trocar de Coleção remonta o componente.
+  const [fetchingJob, setFetchingJob] = useState(Boolean(resumeJobId));
   const fetchedJobIdRef = useRef<string | null>(null);
 
+  // >>> RETOMADA FIRST-CLASS (2026-09-14) <<<
+  // O read-model agora entrega `activeVariantJobId`. Quando ele existe, o job
+  // é carregado DIRETAMENTE por `getImportacaoVariantesJobData` — a mesma
+  // função que o caminho de análise já usava. Não se chama a Edge para
+  // descobrir algo que já sabemos, e portanto não se usa mais
+  // deliberadamente o par 409 `JOB_ALREADY_ACTIVE_FOR_CARD_SET` + recuperação
+  // como fluxo NORMAL de retomada.
+  //
+  // Esse par continua intacto em `actions.ts` e segue sendo o caminho correto
+  // para a corrida real: se o job terminar entre a renderização da página e o
+  // clique, `activeVariantJobId` estará obsoleto e a submissão do formulário
+  // resolve — criando job novo (se o anterior virou terminal) ou recuperando o
+  // ativo (se outro apareceu). `state.jobId` tem precedência sobre
+  // `resumeJobId` justamente para que o resultado da ação real prevaleça
+  // sobre o snapshot da renderização.
+  const jobIdToLoad = state.jobId ?? resumeJobId;
+
   useEffect(() => {
-    if (state.jobId && fetchedJobIdRef.current !== state.jobId) {
-      fetchedJobIdRef.current = state.jobId;
+    if (jobIdToLoad && fetchedJobIdRef.current !== jobIdToLoad) {
+      fetchedJobIdRef.current = jobIdToLoad;
       setFetchingJob(true);
-      getImportacaoVariantesJobData(state.jobId).then((data) => {
+      getImportacaoVariantesJobData(jobIdToLoad).then((data) => {
         setJobState(data);
         setFetchingJob(false);
       });
     }
-  }, [state.jobId]);
+  }, [jobIdToLoad]);
 
   const refreshJob = useCallback(async () => {
     if (!jobState.job) return;
@@ -426,12 +448,12 @@ export function ImportarVariantesView({
   cardSets,
   selectedCardSet,
 }: {
-  /** Coleções com pelo menos uma carta cadastrada e cardsSemVariante > 0 (filtro aplicado em page.tsx, ver getCardSetsForVariantes). */
+  /** Coleções com pelo menos uma carta cadastrada E (cardsSemVariante > 0 OU job TCGDEX ativo/revisável) — filtro aplicado em page.tsx, ver getCardSetsForVariantes. */
   cardSets: CatalogoVariantCardSetRow[];
   selectedCardSet: CatalogoVariantCardSetRow | null;
 }) {
   const router = useRouter();
-  const analyzeJob = useAnalyzeVariantsJob();
+  const analyzeJob = useAnalyzeVariantsJob(selectedCardSet?.activeVariantJobId ?? null);
 
   function navigate(next: { cardSetId?: string | null }) {
     const params = new URLSearchParams();
@@ -441,8 +463,37 @@ export function ImportarVariantesView({
     router.push(query ? `/catalogo/importar-variantes?${query}` : "/catalogo/importar-variantes");
   }
 
-  const canAnalyzeHere = !!selectedCardSet && !analyzeJob.started;
+  // Fail-closed: com mais de um job TCGDEX ativo para o mesmo Card Set, nem
+  // retomada (o read-model já entrega `activeVariantJobId = null`) nem nova
+  // análise. Bloquear o submit aqui é o que impede o único caminho restante
+  // de arbitrar sozinho: a Edge responderia 409 e a recuperação em
+  // `actions.ts` escolheria o job mais recente — exatamente a decisão que
+  // ninguém autorizou.
+  const jobConflict = selectedCardSet?.activeVariantJobConflict ?? false;
+  const canAnalyzeHere = !!selectedCardSet && !analyzeJob.started && !jobConflict;
+
+  // Três grandezas independentes, em três unidades que NUNCA se somam:
+  //   Sets · Cards · linhas de staging a revisar.
+  // `cardsSemVariante` segue com o significado de sempre (Cards sem nenhuma
+  // card_variant) — o que mudou foi deixar de tratá-la como proxy de backlog
+  // editorial, que agora tem métrica própria.
   const totalCardsSemVariante = cardSets.reduce((sum, cardSet) => sum + cardSet.cardsSemVariante, 0);
+  const totalVariacoesARevisar = cardSets.reduce((sum, cardSet) => sum + cardSet.variacoesARevisar, 0);
+
+  /** Microcópia do CTA — nunca "Analisar" quando já existe job ativo conhecido, e nunca "revisão" enquanto o job ainda processa. */
+  const ctaLabel = (() => {
+    if (jobConflict) return "Conflito de importações ativas";
+    switch (selectedCardSet?.activeVariantJobStatus) {
+      case "STAGED":
+      case "CONFIRMING":
+        return "Retomar revisão";
+      case "RECEIVED":
+      case "PROCESSING":
+        return "Acompanhar processamento";
+      default:
+        return "Analisar";
+    }
+  })();
 
   return (
     <div className="space-y-4">
@@ -458,17 +509,24 @@ export function ImportarVariantesView({
 
       <StatsRow>
         <StatCard
-          label="Coleções Pendentes"
+          label="Coleções com pendência"
           value={formatNumber(cardSets.length)}
-          caption="com cartas sem variante"
+          caption="sem variante ou com revisão aberta"
           icon={AlertTriangle}
           tone="danger"
         />
         <StatCard
-          label="Cards Sem Variante"
+          label="Cards sem variante"
           value={formatNumber(totalCardsSemVariante)}
-          caption="nas coleções pendentes"
+          caption="nas coleções listadas"
           icon={Copy}
+          tone="danger"
+        />
+        <StatCard
+          label="Variações a revisar"
+          value={formatNumber(totalVariacoesARevisar)}
+          caption="em importações abertas"
+          icon={ListChecks}
           tone="danger"
         />
       </StatsRow>
@@ -486,7 +544,7 @@ export function ImportarVariantesView({
             <form action={analyzeJob.formAction}>
               <input type="hidden" name="card_set_id" value={selectedCardSet?.id ?? ""} />
               <Button type="submit" disabled={!canAnalyzeHere}>
-                Analisar
+                {ctaLabel}
               </Button>
             </form>
           </div>
@@ -494,6 +552,21 @@ export function ImportarVariantesView({
           <div className="space-y-4 border-t border-border pt-4">
             {!selectedCardSet ? (
               <p className="text-sm text-muted-foreground">Selecione uma Coleção acima para continuar.</p>
+            ) : jobConflict ? (
+              // Estado excepcional, tratado com o mínimo necessário: uma
+              // mensagem explícita, nenhuma ação automática, nenhuma escolha
+              // feita pelo sistema. Não há infraestrutura nova para isto.
+              <div className="space-y-1">
+                <p className="flex items-center gap-2 text-sm font-medium text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  Conflito de importações ativas — revisão necessária
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Esta Coleção tem mais de uma importação de variantes em aberto ao mesmo tempo. O sistema não
+                  escolhe qual delas continuar: retomar a errada levaria a revisar e confirmar dados do job errado.
+                  Resolva as importações duplicadas antes de prosseguir — nenhuma análise nova será iniciada aqui.
+                </p>
+              </div>
             ) : (
               <>
                 {analyzeJob.error && <p className="text-sm text-destructive">{analyzeJob.error}</p>}
@@ -579,10 +652,63 @@ function CardSetCombobox({
 
   const disabled = cardSets.length === 0;
 
+  /**
+   * Legenda do item — três grandezas independentes, em segmentos separados por
+   * `·`, nunca somadas entre si:
+   *   cobertura de Card  ·  Cards sem variante  ·  pendência editorial/estado do job
+   *
+   * Os cinco casos possíveis:
+   *   1. só Cards sem Variant ....... `279 cards sem variante`
+   *   2. só pendência editorial ..... `24/24 cards com variante · 48 variações a revisar`
+   *   3. ambos ...................... `47/53 cards com variante · 6 sem variante · 27 variações a revisar`
+   *   4. RECEIVED/PROCESSING ........ `24/24 cards com variante · análise em andamento`
+   *   5. CONFIRMING ................. `24/24 cards com variante · confirmação em andamento`
+   *
+   * Em 4 e 5 o job ainda não é revisável, então NÃO se fala em "revisar" — o
+   * segmento comunica estado operacional, não backlog.
+   */
   function legend(cardSet: CatalogoVariantCardSetRow): string {
-    return cardSet.cardsComVariante > 0
-      ? `${formatNumber(cardSet.cardsComVariante)}/${formatNumber(cardSet.cardsCatalogados)} cards com variante — ${formatNumber(cardSet.cardsSemVariante)} pendentes`
-      : `${formatNumber(cardSet.cardsSemVariante)} cards sem variante`;
+    const partes: string[] = [];
+
+    if (cardSet.cardsComVariante > 0) {
+      partes.push(
+        `${formatNumber(cardSet.cardsComVariante)}/${formatNumber(cardSet.cardsCatalogados)} cards com variante`,
+      );
+      if (cardSet.cardsSemVariante > 0) {
+        partes.push(`${formatNumber(cardSet.cardsSemVariante)} sem variante`);
+      }
+    } else {
+      partes.push(`${formatNumber(cardSet.cardsSemVariante)} cards sem variante`);
+    }
+
+    // Fail-closed antes de tudo: sob conflito não há status eleito para
+    // descrever, e `variacoesARevisar` está neutralizado em 0 — mostrar
+    // qualquer número aqui seria exibir dados de um job escolhido a esmo.
+    if (cardSet.activeVariantJobConflict) {
+      partes.push("conflito de importações ativas");
+      return partes.join(" · ");
+    }
+
+    switch (cardSet.activeVariantJobStatus) {
+      case "RECEIVED":
+      case "PROCESSING":
+        partes.push("análise em andamento");
+        break;
+      case "CONFIRMING":
+        partes.push("confirmação em andamento");
+        break;
+      case "STAGED":
+        if (cardSet.variacoesARevisar > 0) {
+          partes.push(`${formatNumber(cardSet.variacoesARevisar)} variações a revisar`);
+        } else {
+          partes.push("revisão aberta");
+        }
+        break;
+      default:
+        break;
+    }
+
+    return partes.join(" · ");
   }
 
   return (

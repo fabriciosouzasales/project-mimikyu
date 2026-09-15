@@ -2076,8 +2076,9 @@ entre os dois é fail-closed (`SCOPE_MISMATCH`).
 Coexistência, não substituição: criar um override **jamais** faz `UPDATE` do mapping global.
 Remover a linha scoped restaura o comportamento global.
 
-**Estado LIVE (2026-09-14): 72 mapeamentos — 70 GLOBAL + 2 SOURCE_SET_SCOPED**, cobrindo 1
-única Fonte (TCGdex). Os dois scoped são overrides editoriais reais de `base3`:
+**Estado LIVE (2026-09-14, pós-fechamento de SVE): 76 mapeamentos — 74 GLOBAL + 2
+SOURCE_SET_SCOPED**, cobrindo 1 única Fonte (TCGdex). Os dois scoped são overrides
+editoriais reais de `base3`:
 
 | mapping | combinação | alvo | linhas reinterpretadas |
 |---|---|---|---|
@@ -2112,6 +2113,65 @@ convive, na mesma carta e no mesmo `foil`, com o já mapeado `1999-2000-copyrigh
 ao eixo **Printing**, e resolvê-lo por Variant Type seria erro de eixo. Não há checklist de
 referência de `base3` em `assets/reference-sources/`, de modo que a TCGdex é fonte única para
 os 5 — e a pergunta, nos cinco casos, é justamente se a fonte está correta.
+
+### SVE — **CLOSED** dentro da Editorial Convergence (2026-09-14)
+
+**SVE (Energias Escarlate e Violeta) é o primeiro Card Set a zerar seus resíduos.** Job
+`8f5b9dba-fefa-41cc-ae47-5d9c84cf76f0` **COMPLETED**: 112 linhas, 112 `VALID`,
+**`NEEDS_REVIEW` = 0**, `failed_rows` 0, `unchanged_rows` 0. Quatro decisões editoriais,
+**todas GLOBAL**:
+
+| combinação residual | alvo | VT | linhas / jobs |
+|---|---|---|---|
+| `REVERSE\|COSMOS\|{PLAYER-REWARDS-PROGRAM}` | `COSMOS_REWARDS_REVERSE` | **novo**, ordem 81 | 17 / 2 |
+| `REVERSE\|COSMOS\|{PROFESSOR-PROGRAM}` | `COSMOS_PROFESSOR_REVERSE` | **novo**, ordem 82 | 16 / 1 |
+| `REVERSE\|CRACKED-ICE` | `CRACKED_ICE_HOLO` | **reaproveitado** (ordem 43) | 8 / 1 |
+| `REVERSE\|TINSEL` | `TINSEL_REVERSE` | **novo**, ordem 83 | 8 / 1 |
+
+`CRACKED_ICE_HOLO` já existia — criado pela migration `3924` para receber o qualificador
+JustTCG `"(Cracked Ice Holo)"`, cujas 8 identidades `CONFIRMED` são exatamente as cartas
+SVE #009–#016. Duas fontes externas independentes convergindo sobre os mesmos 8 objetos
+físicos é prova de identidade, e por isso o VT foi **reaproveitado, não renomeado** — a
+grafia sem acentos do seu `name`/`description` fica preservada como ruído histórico.
+`REVERSE|TINSEL` **não** foi mapeado para `TINSEL_HOLO`: o corpus mantém conjuntos
+disjuntos de VT por `type` (nenhum dos 76 mappings é alvo simultâneo de `HOLO` e
+`REVERSE`), e `TINSEL_HOLO` já é alvo de `HOLO|TINSEL` em SV10.5B/SV10.5W.
+
+**O `card_variant` do SVE é 112 — acumulado do job, não criado de uma vez:** 64 já haviam
+sido materializadas em 2026-09-12 e 48 o foram na conclusão atual (global 7.413 → 7.461).
+
+**A Editorial Convergence permanece ABERTA.** Baseline global **54 `NEEDS_REVIEW`**:
+BASEP 27 · SV5 19 · BASE3 5 · BASE1 3 · **SVE 0**.
+
+Ordem operacional registrada — **nenhum Card Set com resíduo é pulado**:
+
+1. **SV5** (19) — próximo front imediato.
+2. **BASEP** (27) e **BASE1** (3) — permanecem **dentro** da Editorial Convergence; a ordem
+   entre as duas será definida conforme a evidência de cada uma.
+3. **BASE3** (5) — **candidato a fechamento mais tardio**: seus resíduos são os mais
+   ambíguos do corpus e dois deles dependem de políticas transversais inexistentes.
+   Ser o último da fila **não** o torna a frente seguinte a SV5.
+4. **Somente após o fechamento formal da Editorial Convergence** — isto é, com SV5, BASEP,
+   BASE1 e BASE3 resolvidos e validados — retoma-se o trabalho histórico restante de
+   `CATALOG-HISTORICAL-BOOTSTRAP-03` (Cards + Assets).
+
+### Cobertura de Card ≠ pendência editorial de Variant Import
+
+Decisão semântica registrada em 2026-09-14, a partir de um defeito real: o seletor de
+`/catalogo/importar-variantes` usava **apenas** `cardsSemVariante > 0` e, com isso,
+escondia Card Sets com 100% das Cards já cobertas mas com **job editorial ainda ativo** —
+exatamente o caso do SVE ao fim da revisão. As duas grandezas são independentes e nunca
+devem ser usadas uma como proxy da outra: cobertura é `card_variant` por Card; pendência
+editorial é linha de staging aguardando decisão.
+
+Um Card Set é elegível ao fluxo quando há **Cards sem Variant OU job TCGDEX ativo**, sendo
+"ativo" o conjunto canônico `RECEIVED` / `PROCESSING` / `STAGED` / `CONFIRMING` — o mesmo
+já atestado por `uq_catalog_variant_import_job_fingerprint_active` e pelo índice parcial
+`ix_catalog_variant_import_job_active`. Job ativo conhecido é retomado diretamente; o
+recovery por `409 JOB_ALREADY_ACTIVE_FOR_CARD_SET` permanece **só** como fallback de
+concorrência, nunca como caminho normal. Mais de um job ativo para o mesmo Card Set é
+tratado **fail-closed** — a UI sinaliza conflito e bloqueia, em vez de arbitrar qual job
+continuar. Correção sem alteração de banco.
 
 ## `catalog_variant_import_job` / `catalog_variant_import_row` — staging
 

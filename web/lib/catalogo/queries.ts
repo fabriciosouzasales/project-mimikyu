@@ -103,6 +103,37 @@ async function fetchAllRows(
   return all;
 }
 
+/**
+ * Variante **fail-closed** de `fetchAllRows` — mesma paginação, mas **lança**
+ * em vez de encerrar silenciosamente quando uma página falha.
+ *
+ * `fetchAllRows` trata erro como fim de dados (`if (error || ...) break`).
+ * Isso é tolerável numa listagem, onde uma página a menos degrada a exibição
+ * de forma visível. **Não** é tolerável numa contagem: erro na primeira página
+ * viraria `0`, erro numa página posterior viraria contagem parcial — e nos
+ * dois casos uma falha de leitura seria apresentada ao administrador como
+ * *ausência de pendência*, que é a afirmação oposta. Aqui, erro é erro: quem
+ * chama decide o que fazer, e a página falha em vez de mentir.
+ *
+ * Deliberadamente **aditiva**: não substitui nem altera `fetchAllRows`, porque
+ * isso mudaria o comportamento de todos os consumidores existentes — que não
+ * foram auditados para tolerar exceção nesta rodada.
+ */
+async function fetchAllRowsStrict(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<unknown[]> {
+  const all: unknown[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildQuery(from, from + SUPABASE_MAX_ROWS_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    from += data.length;
+  }
+  return all;
+}
+
 type CardSetRow = {
   id: string;
   code: string;
@@ -2433,11 +2464,72 @@ export async function getCatalogImportRows(
 // 2136-2139) — não uma exceção ao padrão.
 // ---------------------------------------------------------------------------
 
+/**
+ * Os quatro status de `catalog_variant_import_job` que representam trabalho de
+ * Variant Import **em aberto** — nem terminal, nem abandonado. Não é uma
+ * definição nova: é a MESMA lista que já vive, de forma independente e
+ * concordante, em três lugares do banco/código —
+ *   1. `uq_catalog_variant_import_job_fingerprint_active` (UNIQUE parcial);
+ *   2. `ix_catalog_variant_import_job_active` (índice parcial);
+ *   3. a recuperação de `JOB_ALREADY_ACTIVE_FOR_CARD_SET` em
+ *      `importar-variantes/actions.ts`.
+ *
+ * `COMPLETED`/`COMPLETED_WITH_ERRORS`/`FAILED`/`CANCELLED` ficam de fora **por
+ * decisão desta correção mínima**, não por afirmação universal de que nunca
+ * existirá cenário de retry para um Set 100% coberto: hoje um job terminal que
+ * deixou Cards descobertas já reaparece pelo critério de cobertura
+ * (`cardsSemVariante > 0`), e incluir `COMPLETED` tornaria permanentemente
+ * visível todo Set já importado.
+ */
+const ACTIVE_VARIANT_JOB_STATUSES = ["RECEIVED", "PROCESSING", "STAGED", "CONFIRMING"] as const;
+
 export type CatalogoVariantCardSetRow = CatalogoCardSetRow & {
   /** `catalog_card_set_variant_coverage.cards_com_variante` — Cards do Card Set com pelo menos uma Card Variant cadastrada. */
   cardsComVariante: number;
   /** `catalog_card_set_variant_coverage.cards_sem_variante` — Cards do Card Set ainda sem nenhuma Card Variant. */
   cardsSemVariante: number;
+  /**
+   * `catalog_variant_import_job.id` do job TCGDEX ativo/revisável deste Card
+   * Set, quando existe **e é inequívoco**. Permite retomada direta, sem passar
+   * pelo 409 da Edge. É `null` quando não há job ativo **ou** quando há mais de
+   * um (ver `activeVariantJobConflict`) — nesse caso o sistema não escolhe.
+   */
+  activeVariantJobId: string | null;
+  /** `catalog_variant_import_job.status` do mesmo job — um de ACTIVE_VARIANT_JOB_STATUSES. `null` também sob conflito. */
+  activeVariantJobStatus: (typeof ACTIVE_VARIANT_JOB_STATUSES)[number] | null;
+  /**
+   * **Fail-closed:** `true` quando a leitura bulk encontrou MAIS DE UM job
+   * TCGDEX ativo/revisável para este Card Set — estado que não deveria
+   * ocorrer e que o sistema **não arbitra**. Ver a prova de unicidade em
+   * `loadCatalogoVariantCardSets`. Sob conflito, `activeVariantJobId`,
+   * `activeVariantJobStatus` e `variacoesARevisar` ficam neutros
+   * (`null`/`null`/`0`), a Coleção continua VISÍVEL — o administrador precisa
+   * enxergar o problema — mas a retomada e o disparo de nova análise ficam
+   * bloqueados na UI.
+   */
+  activeVariantJobConflict: boolean;
+  /**
+   * **Linhas/propostas de staging ainda a revisar** (`validation_status =
+   * 'NEEDS_REVIEW'`) no job ativo — NÃO é a quantidade de combinações
+   * residuais distintas. Em 2026-09-14 o LIVE tinha 103 linhas a revisar
+   * correspondendo a apenas 42 combinações distintas; chamar 103 de
+   * "combinações" seria errado.
+   *
+   * **Contada diretamente em `catalog_variant_import_row` por
+   * `validation_status = 'NEEDS_REVIEW'`** — que É a definição da grandeza,
+   * não uma aproximação dela.
+   *
+   * NÃO derivar de `total_rows - valid_rows - rejected_rows`. Os contadores do
+   * job não formam uma partição: pela Query `2145` (recálculo por agregação),
+   * `valid_rows` conta `validation_status = 'VALID'` e `rejected_rows` conta
+   * `decision_status = 'REJECTED'` — **eixos independentes**. Uma linha VALID
+   * e REJECTED é contada nos dois, e a subtração a desconta duas vezes;
+   * `validation_status` ainda admite `PENDING` e `INVALID`, que a subtração
+   * somaria aqui como se fossem "a revisar". A fórmula só coincidia com a
+   * realidade porque `rejected_rows = 0` nos jobs ativos medidos — coincidência
+   * de corpus, não identidade estrutural.
+   */
+  variacoesARevisar: number;
 };
 
 /**
@@ -2451,9 +2543,35 @@ export type CatalogoVariantCardSetRow = CatalogoCardSetRow & {
  * — cada chamador decide o recorte que precisa.
  */
 async function loadCatalogoVariantCardSets(supabase: SupabaseClient): Promise<CatalogoVariantCardSetRow[]> {
-  const [cardSets, coverageResult] = await Promise.all([
+  const [cardSets, coverageResult, activeJobRows] = await Promise.all([
     getCardSetsForCartas(supabase),
     supabase.from("catalog_card_set_variant_coverage").select("card_set_id, cards_com_variante, cards_sem_variante"),
+    // Terceira leitura bulk — a primeira das DUAS acrescentadas por este
+    // incremento (antes dele esta função fazia só as duas leituras acima).
+    // Continua no MESMO Promise.all, então não custa round-trip sequencial, e
+    // não é N+1: uma consulta cobre todos os Card Sets. Coberta pelo índice
+    // parcial `ix_catalog_variant_import_job_active`, que existe exatamente
+    // sobre estes quatro status. Cardinalidade limitada pelo número de jobs
+    // ativos, não pelo de Card Sets (ver prova de unicidade abaixo). Devolve só
+    // identidade e estado do job: os contadores agregados NÃO são lidos aqui
+    // porque nenhum deles responde "quantas linhas faltam revisar" (ver
+    // `variacoesARevisar` no tipo, acima, e a quarta leitura adiante).
+    //
+    // `fetchAllRowsStrict` por DOIS motivos, ambos fail-closed:
+    //   1. Erro não pode virar lista vazia. Sem job ativo lido, um Card Set com
+    //      cobertura 100% e job editorial aberto volta a sumir do seletor —
+    //      exatamente o defeito que este incremento existe para corrigir.
+    //      Falhar a página é preferível a esconder trabalho pendente.
+    //   2. Paginação. Sem `.range()`, o `db-max-rows` do PostgREST cortaria a
+    //      lista em silêncio, e os jobs além do corte seriam invisíveis.
+    fetchAllRowsStrict((from, to) =>
+      supabase
+        .from("catalog_variant_import_job")
+        .select("id, card_set_id, status")
+        .eq("source", "TCGDEX")
+        .in("status", ACTIVE_VARIANT_JOB_STATUSES as unknown as string[])
+        .range(from, to),
+    ),
   ]);
 
   const coverage = new Map<string, { comVariante: number; semVariante: number }>();
@@ -2465,26 +2583,145 @@ async function loadCatalogoVariantCardSets(supabase: SupabaseClient): Promise<Ca
     coverage.set(row.card_set_id, { comVariante: row.cards_com_variante, semVariante: row.cards_sem_variante });
   }
 
+  // >>> UNICIDADE DO JOB ATIVO POR CARD SET — E O QUE FAZER SE FALHAR <<<
+  // `uq_catalog_variant_import_job_fingerprint_active` é UNIQUE sobre
+  // `(card_set_id, external_set_id)` restrito a estes mesmos quatro status, e
+  // `uq_card_set_external_reference_card_set_source` é UNIQUE — TOTAL, não
+  // parcial — sobre `(card_set_id, asset_source_id)`. Logo existe no máximo
+  // UMA referência externa TCGDEX por Card Set, e a Edge sempre deriva
+  // `external_set_id` dela: num dado instante, todo job TCGDEX de um Card Set
+  // nasce com o MESMO `external_set_id`, e o UNIQUE parcial impede o segundo
+  // job ativo. Medido no LIVE (2026-09-14): 0 Card Sets com mais de um job
+  // TCGDEX ativo.
+  //
+  // Mas a duplicidade NÃO é estruturalmente impossível: se `external_set_id`
+  // da referência for editado enquanto um job antigo segue ativo, dois jobs
+  // ativos passam a caber no mesmo `card_set_id`.
+  //
+  // Nesse caso o read-model é FAIL-CLOSED: não existe regra de arbitragem.
+  // Escolher "o mais novo" (ou o mais antigo) seria inventar uma política de
+  // desempate que ninguém decidiu — e poderia levar o administrador a revisar
+  // e confirmar o job errado. Então o Card Set é marcado com
+  // `activeVariantJobConflict = true`, `activeVariantJobId` fica `null`, e a
+  // UI bloqueia retomada e nova análise até que um humano resolva. Sem
+  // ordenação na consulta, justamente porque nenhuma ordem é usada para
+  // decidir nada.
+  const activeJobs = new Map<string, { id: string; status: string; total: number }>();
+  for (const row of activeJobRows as {
+    id: string;
+    card_set_id: string;
+    status: string;
+  }[]) {
+    const existente = activeJobs.get(row.card_set_id);
+    if (existente) {
+      // Segundo (ou enésimo) job ativo para o mesmo Card Set: só contamos.
+      // Nada substitui o que já está no Map — e nada do que está no Map será
+      // usado, porque `total > 1` neutraliza os três campos abaixo.
+      existente.total += 1;
+      continue;
+    }
+    activeJobs.set(row.card_set_id, { id: row.id, status: row.status, total: 1 });
+  }
+
+  // >>> CONTAGEM EXATA DE LINHAS A REVISAR <<<
+  // Quarta leitura, em LOTE e CONDICIONAL — uma única consulta para TODOS os
+  // jobs ativos, nunca uma por Card Set: não há N+1. Só dispara quando existe
+  // pelo menos um job elegível, então a Visão de um catálogo sem job ativo
+  // segue com as mesmas três leituras de antes.
+  //
+  // Precisa ser sequencial (não cabe no Promise.all acima) porque o filtro
+  // depende dos `job_id` que a terceira leitura acabou de devolver. O custo é
+  // um round-trip, e só nesse caso — o preço de contar a grandeza certa em vez
+  // de derivá-la de contadores que medem outros eixos (ver o comentário de
+  // `variacoesARevisar` no tipo, acima).
+  //
+  // Jobs em CONFLITO ficam fora do filtro de propósito: sob conflito o campo é
+  // neutralizado de qualquer forma, e não faz sentido pagar leitura por um
+  // número que não será exibido.
+  //
+  // Paginada porque a contagem é feita linha a linha: o PostgREST corta em
+  // `db-max-rows` e um job grande pode ultrapassar uma página — sem paginação,
+  // um Set com muitas pendências exibiria um número truncado.
+  //
+  // `fetchAllRowsStrict` e NÃO `fetchAllRows`: o helper original encerra o laço
+  // em erro, o que aqui produziria `0` (erro na primeira página) ou contagem
+  // parcial (erro adiante) — falha de leitura exibida como "nada a revisar".
+  // A versão estrita propaga o erro e a página falha, que é o comportamento
+  // correto para um número que o administrador usa para decidir trabalho.
+  const jobIdsElegiveis = [...activeJobs.values()].filter((job) => job.total === 1).map((job) => job.id);
+  const aRevisarPorJob = new Map<string, number>();
+  if (jobIdsElegiveis.length > 0) {
+    const linhasARevisar = await fetchAllRowsStrict((from, to) =>
+      supabase
+        .from("catalog_variant_import_row")
+        .select("job_id")
+        .eq("validation_status", "NEEDS_REVIEW")
+        .in("job_id", jobIdsElegiveis)
+        .range(from, to),
+    );
+    for (const row of linhasARevisar as { job_id: string }[]) {
+      aRevisarPorJob.set(row.job_id, (aRevisarPorJob.get(row.job_id) ?? 0) + 1);
+    }
+  }
+
   return cardSets.map((cardSet) => {
     const cov = coverage.get(cardSet.id);
+    const job = activeJobs.get(cardSet.id);
+    const conflito = (job?.total ?? 0) > 1;
+
     return {
       ...cardSet,
       cardsComVariante: cov?.comVariante ?? 0,
       cardsSemVariante: cov?.semVariante ?? cardSet.cardsCatalogados,
+      // Sob conflito os três campos ficam neutros DE PROPÓSITO: nenhum job é
+      // eleito, nenhum contador de um job arbitrário é exibido.
+      activeVariantJobId: job && !conflito ? job.id : null,
+      activeVariantJobStatus:
+        job && !conflito ? (job.status as CatalogoVariantCardSetRow["activeVariantJobStatus"]) : null,
+      variacoesARevisar: job && !conflito ? (aRevisarPorJob.get(job.id) ?? 0) : 0,
+      activeVariantJobConflict: conflito,
     };
   });
 }
 
 /**
- * Card Sets elegíveis para Importar Variantes — filtro: só Coleções com pelo
- * menos uma carta cadastrada (Importar Variantes pressupõe Importar Cartas já
- * concluído — a própria Edge Function import-card-variants recusa sem
- * card_set_external_reference) E com cardsSemVariante > 0 (nada pendente,
- * nada para importar).
+ * Card Sets elegíveis para Importar Variantes.
+ *
+ * Pré-requisito preservado: só Coleções com pelo menos uma carta cadastrada
+ * (Importar Variantes pressupõe Importar Cartas já concluído — a própria Edge
+ * Function import-card-variants recusa sem card_set_external_reference).
+ *
+ * >>> ELEGIBILIDADE (correção de 2026-09-14) <<<
+ * Antes: `cardsSemVariante > 0` apenas — isto é, **cobertura de Card** usada
+ * como proxy de "não há trabalho a fazer". A premissa é falsa: SVE tinha 24/24
+ * Cards com Variant (cobertura completa, métrica correta) e, ao mesmo tempo,
+ * 48 linhas `NEEDS_REVIEW` num job STAGED. O Set sumia do seletor e o
+ * administrador não tinha como retomar a revisão pela UI. Não era caso
+ * isolado: SVE, SV5 e BASE1 — 71 das 103 linhas a revisar, 69% do backlog
+ * editorial — estavam inalcançáveis.
+ *
+ * São TRÊS grandezas distintas, e o seletor só consultava a primeira:
+ *   A. Cobertura de Card ....... `cardsSemVariante`      (unidade: Cards)
+ *   B. Pendência editorial ..... `variacoesARevisar`     (unidade: linhas de staging)
+ *   C. Estado operacional ...... `activeVariantJobStatus` (unidade: job)
+ *
+ * `cardsSemVariante` NÃO muda de significado — continua sendo "Cards sem
+ * nenhuma card_variant". O que muda é parar de usá-la como proxy de B e C.
+ *
+ * A regra é uma AMPLIAÇÃO por OR: `A OR C` é superconjunto estrito de `A`,
+ * logo nenhum Card Set que aparecia antes deixa de aparecer (173 → 176).
  */
 export async function getCardSetsForVariantes(supabase: SupabaseClient): Promise<CatalogoVariantCardSetRow[]> {
   const all = await loadCatalogoVariantCardSets(supabase);
-  return all.filter((cardSet) => cardSet.cardsCatalogados > 0 && cardSet.cardsSemVariante > 0);
+  return all.filter(
+    (cardSet) =>
+      cardSet.cardsCatalogados > 0 &&
+      // Conflito de jobs ativos TAMBÉM mantém a Coleção listada: esconder o
+      // Card Set esconderia justamente o problema que precisa de intervenção
+      // humana. `activeVariantJobId` é `null` sob conflito, por isso a
+      // condição é explícita e não redundante.
+      (cardSet.cardsSemVariante > 0 || cardSet.activeVariantJobId !== null || cardSet.activeVariantJobConflict),
+  );
 }
 
 /**
