@@ -7,10 +7,15 @@ import {
   getCardVariantTypesForJob,
   getCatalogVariantImportJobStatus,
   getCatalogVariantImportRows,
+  getCatalogVariantImportScopeCounters,
   type CardVariantTypeOption,
   type CatalogVariantImportJobStatus,
   type CatalogVariantImportRowView,
 } from "@/lib/catalogo/queries";
+import {
+  deriveVariantImportScopeCounters,
+  type VariantImportScopeCounters,
+} from "@/lib/catalogo/variant-size-scope";
 
 /**
  * Server Actions do fluxo Importar Variantes (Incremento 4, ADR-028),
@@ -114,18 +119,67 @@ export async function iniciarImportacaoVariantes(
  * buscado quando o job é revisável, mesmo critério já usado para `rows` —
  * evita uma leitura sem uso nos estados PROCESSING/COMPLETED/FAILED.
  */
-export async function getImportacaoVariantesJobData(jobId: string): Promise<{
+export type ImportacaoVariantesJobData = {
   job: CatalogVariantImportJobStatus | null;
   rows: CatalogVariantImportRowView[];
   cardVariantTypes: CardVariantTypeOption[];
-}> {
+  /**
+   * Contadores de escopo por tamanho. `null` SIGNIFICA "não foi possível
+   * apurar" — nunca zero. Ver dataError.
+   */
+  counters: VariantImportScopeCounters | null;
+  /**
+   * Mensagem quando a leitura das linhas falhou. `counters === null` se e
+   * somente se `dataError !== null`.
+   */
+  dataError: string | null;
+};
+
+export async function getImportacaoVariantesJobData(jobId: string): Promise<ImportacaoVariantesJobData> {
   const supabase = await createClient();
   const job = await getCatalogVariantImportJobStatus(supabase, jobId);
   const reviewable = job?.status === "STAGED" || job?.status === "CONFIRMING";
-  const [rows, cardVariantTypes] = reviewable
-    ? await Promise.all([getCatalogVariantImportRows(supabase, jobId), getCardVariantTypesForJob(supabase, jobId)])
-    : [[], []];
-  return { job, rows, cardVariantTypes };
+
+  try {
+    if (reviewable) {
+      const [rows, cardVariantTypes] = await Promise.all([
+        getCatalogVariantImportRows(supabase, jobId),
+        getCardVariantTypesForJob(supabase, jobId),
+      ]);
+      // >>> FONTE ÚNICA <<< As linhas já estão aqui, completas e paginadas.
+      // Derivar os contadores delas custa zero round-trip e torna impossível
+      // o painel discordar da tabela — que conta a mesma coleção com a mesma
+      // função pura.
+      return { job, rows, cardVariantTypes, counters: deriveVariantImportScopeCounters(rows), dataError: null };
+    }
+
+    if (!job) return { job: null, rows: [], cardVariantTypes: [], counters: null, dataError: null };
+
+    // Job não revisável (COMPLETED / COMPLETED_WITH_ERRORS / FAILED /
+    // PROCESSING): a tabela não é renderizada, mas o painel de conclusão
+    // precisa dos três números. Leitura mínima, paginada e strict — a menor
+    // alternativa coerente, e ainda assim classificada pelo mesmo predicado.
+    return {
+      job,
+      rows: [],
+      cardVariantTypes: [],
+      counters: await getCatalogVariantImportScopeCounters(supabase, jobId),
+      dataError: null,
+    };
+  } catch (error) {
+    // FAIL-CLOSED. Antes, uma falha de leitura virava `[]` + zeros e a tela
+    // anunciava sucesso. Agora o job continua sendo exibido (status, código do
+    // Set), mas a tela sabe que NÃO sabe: counters null + dataError.
+    console.error("getImportacaoVariantesJobData", error);
+    return {
+      job,
+      rows: [],
+      cardVariantTypes: [],
+      counters: null,
+      dataError:
+        "Não foi possível ler as linhas desta importação. Os números abaixo não puderam ser apurados — recarregue a página antes de concluir qualquer coisa a partir desta tela.",
+    };
+  }
 }
 
 export type ResolverMapeamentoVarianteResult = {
@@ -235,6 +289,34 @@ export async function decidirLinhasVariantes(
   }
 
   const supabase = await createClient();
+
+  // >>> AUTORIDADE DA DECISÃO: A RPC, NÃO ESTA AÇÃO (2026-09-16, BLOCKER-4) <<<
+  // A Correction-01 tinha posto aqui um precheck `.in("id", rowIds)` para
+  // barrar linhas SIZE_OUT_OF_SCOPE antes da chamada. Foi removido, por três
+  // razões concretas:
+  //
+  //   1. DUPLICAÇÃO DE REGRA. A Query 2199 põe o mesmo invariante DENTRO de
+  //      `admin_decide_catalog_variant_import_row`, que é SECURITY DEFINER e
+  //      o único writer de `decision_status`. Duas cópias da mesma regra em
+  //      camadas diferentes divergem com o tempo — e a cópia de fora é a que
+  //      ninguém lembra de atualizar.
+  //   2. CONTRATO DE LOTE. A RPC aceita até 10.000 UUIDs por chamada (teto da
+  //      Query 2163). Um `.in()` com 10.000 UUIDs vira querystring de ~370 KB
+  //      no PostgREST — acima do limite usual de linha de requisição — e
+  //      acrescentaria um round-trip a CADA decisão. Preservar isso exigiria
+  //      chunking arbitrário do lado da aplicação, complexidade que a RPC já
+  //      resolve em uma instrução atômica.
+  //   3. ATOMICIDADE. O precheck e o UPDATE eram duas transações distintas:
+  //      entre a leitura e a chamada, nada impedia a linha de mudar. O guard
+  //      da 2199 avalia e escreve na MESMA transação.
+  //
+  // O que sobra, e é suficiente: a UI não deixa selecionar nem acionar a
+  // linha travada (isVariantRowSelectable / canDecideVariantRow), e a RPC
+  // recusa o lote inteiro se um id fora de escopo chegar mesmo assim.
+  //
+  // DEPENDÊNCIA DE SEQUÊNCIA: enquanto a 2199 não estiver LIVE, a única
+  // barreira é a da UI. Isto está registrado como blocker de ordem de
+  // implantação — a 2199 precede o deploy do frontend.
   const { error } = await supabase.rpc("admin_decide_catalog_variant_import_row", {
     p_row_ids: rowIds,
     p_decision_status: decisionStatus,

@@ -66,6 +66,7 @@ import {
   listSetCardFiles,
 } from "./services/github-source.ts";
 import { normalizeExternalCatalogValue } from "../_shared/catalog-normalization/mod.ts";
+import { classifyVariantSize } from "./services/size-scope.ts";
 import type { ExternalVariantCombo, RequestBody, ResolvedVariantRow } from "./types.ts";
 
 const ASSET_SOURCE_CODE = "TCGDEX";
@@ -517,6 +518,8 @@ Deno.serve(async (req) => {
     let duplicateResolvedSkipped = 0;
     let printingUnresolvedRows = 0;
     let printingWithProfileRows = 0;
+    let sizeOutOfScopeRows = 0;
+    let sizeUnsupportedRows = 0;
 
     for (const result of correlated) {
       const cardId = result.cardId as string;
@@ -530,6 +533,79 @@ Deno.serve(async (req) => {
         // Assinatura BRUTA — preservada para o dedupe de linhas sem
         // identidade canônica (ver abaixo) e para o diagnóstico editorial.
         const rawComboKey = buildVariantComboKey(normalizedType, normalizedFoil, normalizedSubtype, normalizedStamp);
+
+        // raw_data preserva `size` para TODA linha, inclusive as de fluxo
+        // legado (null explícito) — é a evidência que o guard server-side da
+        // Query 2198 lê. `->> 'size' IS NULL` cobre chave ausente E JSON
+        // null, então gravar null é bit a bit equivalente ao comportamento
+        // anterior para o motor.
+        const rawData: Record<string, unknown> = {
+          type: combo.type,
+          foil: combo.foil,
+          subtype: combo.subtype,
+          stamp: combo.stamp,
+          size: combo.size ?? null,
+        };
+
+        // ===============================================================
+        // GATE DE ESCOPO POR TAMANHO — ANTES de qualquer roteamento.
+        //
+        // Precede deliberadamente routePrinting E o dedupe. Uma linha fora
+        // de escopo não pode consumir mapeamentos de Impressão, não pode
+        // adquirir identidade canônica e não pode disputar espaço de
+        // dedupe com linhas em escopo. Espelha a Query 2198, que fecha o
+        // mesmo portão no servidor — aqui é economia e clareza editorial,
+        // lá é a garantia.
+        //
+        // DEDUPE EM ESPAÇO PRÓPRIO (`X|`), com o size normalizado na
+        // chave: sem ele, uma combinação `size` desconhecido colidiria com
+        // a sua gêmea sem `size` e uma das duas sumiria silenciosamente —
+        // exatamente o modo de falha que originou este incidente.
+        // ===============================================================
+        const sizeScope = classifyVariantSize(combo.size);
+
+        if (sizeScope.kind !== "IN_SCOPE") {
+          const sizeDedupeKey = `X|${cardId}|${rawComboKey}|${sizeScope.normalizedSize}`;
+          if (seenComboByCard.has(sizeDedupeKey)) {
+            duplicateResolvedSkipped++;
+            continue;
+          }
+          seenComboByCard.add(sizeDedupeKey);
+
+          if (sizeScope.kind === "OUT_OF_SCOPE") {
+            // JUMBO — fora do escopo do sistema. NÃO é erro de importação e
+            // NÃO é pendência editorial: decision_status SKIPPED tira a
+            // linha da fila de decisão, e persistence_status fica no
+            // default PENDING do banco (a confirmação a trata como
+            // UNCHANGED/CONTINUE, auditado LIVE).
+            sizeOutOfScopeRows++;
+            resolvedRows.push({
+              card_id: cardId,
+              raw_data: rawData,
+              normalized_data: { size: sizeScope.normalizedSize, skip_reason: sizeScope.skipReason },
+              validation_status: "INVALID",
+              match_status: "NEW",
+              decision_status: "SKIPPED",
+              matched_variant_id: null,
+            });
+          } else {
+            // Valor desconhecido — fail closed. Vira revisão HUMANA, não
+            // pendência de mapeamento: não existe "mapeamento de tamanho",
+            // e oferecer um seria converter uma decisão de escopo em
+            // tradução de vocabulário.
+            sizeUnsupportedRows++;
+            resolvedRows.push({
+              card_id: cardId,
+              raw_data: rawData,
+              normalized_data: { size: sizeScope.normalizedSize, review_reason: sizeScope.reviewReason },
+              validation_status: "NEEDS_REVIEW",
+              match_status: "NEW",
+              decision_status: "PENDING",
+              matched_variant_id: null,
+            });
+          }
+          continue;
+        }
 
         // EIXO DE IMPRESSÃO primeiro: ele consome os tokens que lhe
         // pertencem e só o RESÍDUO é oferecido ao Variant Type.
@@ -650,7 +726,7 @@ Deno.serve(async (req) => {
 
         resolvedRows.push({
           card_id: cardId,
-          raw_data: { type: combo.type, foil: combo.foil, subtype: combo.subtype, stamp: combo.stamp },
+          raw_data: rawData,
           normalized_data: normalizedData,
           validation_status: isValid ? "VALID" : "NEEDS_REVIEW",
           match_status: matchedVariantId ? "MATCHED" : "NEW",
@@ -671,6 +747,13 @@ Deno.serve(async (req) => {
     if (uncorrelated.length > 0) errorSummaryParts.push(`CARDS_NAO_CORRELACIONADAS(${uncorrelated.length}): ${uncorrelated.slice(0, 10).join(", ")}`);
     if (fetchFailed.length > 0) errorSummaryParts.push(`ARQUIVOS_COM_FALHA_DE_FETCH(${fetchFailed.length}): ${fetchFailed.slice(0, 10).join(", ")}`);
     if (duplicateResolvedSkipped > 0) errorSummaryParts.push(`COMBINACOES_DUPLICADAS_IGNORADAS: ${duplicateResolvedSkipped}`);
+    // DELIBERADAMENTE FORA do error_summary: nem "fora de escopo" nem
+    // "tamanho desconhecido" são falha de importação, e a tela renderiza
+    // error_summary em vermelho. Escrevê-los aqui pintaria de erro um job
+    // perfeitamente sadio — o oposto do que este guard existe para fazer.
+    // As contagens reais chegam à UI pelas próprias linhas de staging
+    // (mappingPendingRows / unsupportedSizeRows / outOfScopeRows) e à
+    // automação pelo bloco `rows` da resposta, logo abaixo.
     const errorSummary = errorSummaryParts.length > 0 ? errorSummaryParts.join(" | ") : null;
 
     await finalizeVariantJobStaged(
@@ -689,6 +772,12 @@ Deno.serve(async (req) => {
         total: resolvedRows.length,
         valid: validRows,
         needs_review: needsReviewRows,
+        // needs_review acima INCLUI size_unsupported: as duas contagens
+        // respondem perguntas diferentes (quantas linhas precisam de decisão
+        // humana vs. quantas delas são por tamanho). size_out_of_scope é
+        // disjunto de ambas — aquelas linhas são INVALID.
+        size_out_of_scope: sizeOutOfScopeRows,
+        size_unsupported: sizeUnsupportedRows,
       },
       printing: {
         mappings_loaded: printingMappings.length,

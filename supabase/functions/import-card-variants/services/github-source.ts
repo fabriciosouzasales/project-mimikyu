@@ -120,6 +120,11 @@ export function extractVariantsFromSource(source: string): ExternalVariantCombo[
       foil: extractStringField(obj, "foil"),
       subtype: extractStringField(obj, "subtype"),
       stamp: extractStampArray(obj),
+      // size (2026-09-15, incidente JUMBO): antes era descartado aqui, o que
+      // fazia uma variante `size: "jumbo"` entrar no pipeline como se fosse
+      // padrão. Preservado bruto, sem interpretação — a classificação de
+      // escopo acontece no index.ts.
+      size: extractStringField(obj, "size"),
     }))
     .filter((combo): combo is ExternalVariantCombo => typeof combo.type === "string" && combo.type.length > 0);
 }

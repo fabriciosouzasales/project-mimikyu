@@ -26,8 +26,10 @@ import { RevisaoImportacaoVariantesTable } from "@/components/catalogo/revisao-i
 import {
   getImportacaoVariantesJobData,
   iniciarImportacaoVariantes,
+  type ImportacaoVariantesJobData,
   type IniciarImportacaoVariantesActionState,
 } from "@/app/catalogo/importar-variantes/actions";
+import type { VariantImportScopeCounters } from "@/lib/catalogo/variant-size-scope";
 import type {
   CardVariantTypeOption,
   CatalogVariantImportJobStatus,
@@ -50,11 +52,13 @@ const INITIAL_STATE: IniciarImportacaoVariantesActionState = { error: null, jobI
  */
 function useAnalyzeVariantsJob(resumeJobId: string | null = null) {
   const [state, formAction, isPending] = useActionState(iniciarImportacaoVariantes, INITIAL_STATE);
-  const [jobState, setJobState] = useState<{
-    job: CatalogVariantImportJobStatus | null;
-    rows: CatalogVariantImportRowView[];
-    cardVariantTypes: CardVariantTypeOption[];
-  }>({ job: null, rows: [], cardVariantTypes: [] });
+  const [jobState, setJobState] = useState<ImportacaoVariantesJobData>({
+    job: null,
+    rows: [],
+    cardVariantTypes: [],
+    counters: null,
+    dataError: null,
+  });
   // Semeado com `true` quando já sabemos que existe job ativo: a retomada
   // começa "carregando" no primeiro render, sem uma janela em que a tela diz
   // "Selecione uma Coleção" nem em que o botão fica clicável por engano.
@@ -179,9 +183,14 @@ const CONCLUSION_LABEL: Record<JobPhase, string> = {
 function ImportProgressVariantes({
   isPending,
   job,
+  counters,
+  dataError,
 }: {
   isPending: boolean;
   job: CatalogVariantImportJobStatus | null | undefined;
+  /** `null` = não foi possível apurar (ver dataError). NUNCA zeros por omissão. */
+  counters: VariantImportScopeCounters | null;
+  dataError: string | null;
 }) {
   const [percent, setPercent] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -224,11 +233,23 @@ function ImportProgressVariantes({
     status: finished || index < stepIndex ? "done" : index === stepIndex ? "active" : "pending",
   }));
 
-  const needsReview = job ? Math.max(job.totalRows - job.validRows, 0) : 0;
+  // Três naturezas, três números — nunca `totalRows - validRows` (2026-09-15)
+  // e nunca zeros por omissão (2026-09-16, BLOCKER-2). Os contadores vêm
+  // derivados da coleção COMPLETA de linhas, e `null` significa literalmente
+  // "não foi possível apurar" — não "nenhuma pendência".
+  const pendenciasEditoriais = counters ? counters.mappingPendingRows + counters.unsupportedSizeRows : null;
   // "com pendência" só é relevante para o resultado de fato concluído
   // (STAGED/COMPLETED/COMPLETED_WITH_ERRORS) — um job ainda em andamento
-  // não tem `needsReview`/`failedRows` significativos ainda.
-  const hasIssues = Boolean(job && (job.failedRows > 0 || needsReview > 0));
+  // não tem pendências/`failedRows` significativos ainda.
+  //
+  // outOfScopeRows NÃO entra: uma variante JUMBO não é problema a resolver, e
+  // marcá-la como "issue" acenderia o alerta de um job perfeitamente sadio.
+  //
+  // dataError entra: se não conseguimos ler as linhas, a tela NÃO pode exibir
+  // o ícone de sucesso. Sem saber, o estado honesto é "atenção".
+  const hasIssues = Boolean(
+    dataError || (job && (job.failedRows > 0 || (pendenciasEditoriais !== null && pendenciasEditoriais > 0))),
+  );
 
   const conclusionIcon: LucideIcon =
     phase === "failed" ? AlertTriangle : phase === "in_progress" ? Loader2 : hasIssues ? AlertTriangle : CheckCircle2;
@@ -248,9 +269,18 @@ function ImportProgressVariantes({
       ) : (
         <>
           <p>
-            {formatNumber(job.totalRows)} variantes propostas · {formatNumber(job.validRows)} válidas ·{" "}
-            {formatNumber(needsReview)} a revisar (sem mapeamento)
+            {formatNumber(job.totalRows)} variantes propostas · {formatNumber(job.validRows)} válidas
+            {counters ? (
+              <>
+                {counters.mappingPendingRows > 0 &&
+                  ` · ${formatNumber(counters.mappingPendingRows)} a revisar (sem mapeamento)`}
+                {counters.unsupportedSizeRows > 0 &&
+                  ` · ${formatNumber(counters.unsupportedSizeRows)} com tamanho desconhecido`}
+                {counters.outOfScopeRows > 0 && ` · ${formatNumber(counters.outOfScopeRows)} fora de escopo (JUMBO)`}
+              </>
+            ) : null}
           </p>
+          {dataError && <p className="text-destructive">{dataError}</p>}
           {(phase === "completed" || phase === "completed_with_errors") && (
             <p>
               {formatNumber(job.insertedRows)} inseridas · {formatNumber(job.unchangedRows)} inalteradas ·{" "}
@@ -364,20 +394,42 @@ const CONCLUSION_META: Record<
  * Classificação em três estados, pela ordem pedida (sucesso completo /
  * concluído com pendências / concluído com erros): `errors` quando o
  * status é COMPLETED_WITH_ERRORS (houve failed_rows); senão `pending`
- * quando restou alguma linha sem mapeamento (needsReview = total_rows -
- * valid_rows — conta linhas NEEDS_REVIEW mesmo já decididas como
- * REJECTED/SKIPPED, porque nenhuma ficou mapeada); senão `success`.
+ * quando restou pendência editorial real — falta de mapeamento OU tamanho
+ * desconhecido, contadas nas próprias linhas (job.mappingPendingRows /
+ * job.unsupportedSizeRows), inclusive as já decididas como
+ * REJECTED/SKIPPED, porque nenhuma delas ficou mapeada; senão `success`.
+ *
+ * 2026-09-15: linhas fora de escopo por tamanho (JUMBO) NÃO entram nessa
+ * conta. Antes, o contador era `total_rows - valid_rows`, e a primeira
+ * importação com uma variante JUMBO teria deixado o job eternamente
+ * "concluído com pendências" — com um botão convidando o administrador a
+ * resolver um mapeamento que não existe.
  */
 function ImportConclusionPanel({
   job,
+  counters,
+  dataError,
   onImportarOutra,
 }: {
   job: CatalogVariantImportJobStatus;
+  /** `null` = não apurado. O painel NÃO declara sucesso nesse caso. */
+  counters: VariantImportScopeCounters | null;
+  dataError: string | null;
   onImportarOutra: () => void;
 }) {
-  const needsReview = Math.max(job.totalRows - job.validRows, 0);
+  const semMapeamento = counters?.mappingPendingRows ?? 0;
+  const tamanhoDesconhecido = counters?.unsupportedSizeRows ?? 0;
+  const foraDeEscopo = counters?.outOfScopeRows ?? 0;
+  const pendenciasEditoriais = semMapeamento + tamanhoDesconhecido;
   const aprovadas = Math.max(job.totalRows - job.rejectedRows - job.skippedRows, 0);
-  const state: ConclusionState = job.status === "COMPLETED_WITH_ERRORS" ? "errors" : needsReview > 0 ? "pending" : "success";
+  // FAIL-CLOSED: sem contadores, o estado NUNCA é `success`. Declarar sucesso
+  // a partir de uma leitura que falhou é exatamente o BLOCKER-2.
+  const state: ConclusionState =
+    job.status === "COMPLETED_WITH_ERRORS" || !counters
+      ? "errors"
+      : pendenciasEditoriais > 0
+        ? "pending"
+        : "success";
   const meta = CONCLUSION_META[state];
   const Icon = meta.icon;
 
@@ -389,7 +441,11 @@ function ImportConclusionPanel({
     { label: "Rejeitadas", value: job.rejectedRows },
     { label: "Falhas", value: job.failedRows },
   ];
-  if (needsReview > 0) stats.push({ label: "Sem mapeamento", value: needsReview });
+  // Cada natureza ganha seu próprio card, e só quando existe — a tela
+  // continua enxuta nos jobs em que nada disso aconteceu.
+  if (semMapeamento > 0) stats.push({ label: "Sem mapeamento", value: semMapeamento });
+  if (tamanhoDesconhecido > 0) stats.push({ label: "Tamanho desconhecido", value: tamanhoDesconhecido });
+  if (foraDeEscopo > 0) stats.push({ label: "Fora de escopo", value: foraDeEscopo });
 
   return (
     <Card>
@@ -407,6 +463,7 @@ function ImportConclusionPanel({
               {job.cardSetCode} — {job.cardSetName}
             </p>
             {job.errorSummary && <p className="text-xs text-destructive">{job.errorSummary}</p>}
+            {dataError && <p className="text-xs text-destructive">{dataError}</p>}
           </div>
         </div>
 
@@ -420,7 +477,10 @@ function ImportConclusionPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-          {needsReview > 0 && (
+          {/* O botão leva a Card Variant Type, que só resolve FALTA DE
+              MAPEAMENTO. Tamanho desconhecido é pendência, mas não desta
+              tela — oferecê-la seria mandar o administrador ao lugar errado. */}
+          {semMapeamento > 0 && (
             <Button asChild size="sm">
               <Link href="/catalogo/tipos-variacao">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -428,7 +488,7 @@ function ImportConclusionPanel({
               </Link>
             </Button>
           )}
-          <Button asChild size="sm" variant={needsReview > 0 ? "outline" : "default"}>
+          <Button asChild size="sm" variant={semMapeamento > 0 ? "outline" : "default"}>
             <Link href={`/catalogo/cartas?set=${encodeURIComponent(job.cardSetCode)}`}>
               <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
               Ver cartas da coleção
@@ -574,6 +634,8 @@ export function ImportarVariantesView({
                   <ImportProgressVariantes
                     isPending={analyzeJob.isPending || analyzeJob.fetchingJob}
                     job={analyzeJob.jobState.job}
+                    counters={analyzeJob.jobState.counters}
+                    dataError={analyzeJob.jobState.dataError}
                   />
                 )}
               </>
@@ -594,6 +656,8 @@ export function ImportarVariantesView({
       {analyzeJob.jobState.job && TERMINAL_STATUSES.has(analyzeJob.jobState.job.status) && (
         <ImportConclusionPanel
           job={analyzeJob.jobState.job}
+          counters={analyzeJob.jobState.counters}
+          dataError={analyzeJob.jobState.dataError}
           onImportarOutra={() => {
             // Reset explícito, só disparado por ação do usuário — nunca
             // automático. Limpa `cardSetId` da URL: `selectedCardSet` volta

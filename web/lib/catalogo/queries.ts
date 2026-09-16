@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { deriveVariantImportScopeCounters, type VariantImportScopeCounters } from "./variant-size-scope";
+
 /**
  * Camada de leitura da Visão Geral do Catálogo Editorial (/catalogo).
  *
@@ -122,6 +124,20 @@ async function fetchAllRows(
 async function fetchAllRowsStrict(
   buildQuery: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
 ): Promise<unknown[]> {
+  // >>> CONTRATO DO CHAMADOR — ORDENAÇÃO TOTAL OBRIGATÓRIA <<<
+  // (2026-09-16, BLOCKER-3). `.range(from, to)` é OFFSET/LIMIT: o servidor só
+  // devolve a mesma população entre páginas se a ordenação for TOTAL, isto é,
+  // se nenhuma linha empatar com outra em todas as colunas de ordenação. Com
+  // empate, a ordem relativa entre as linhas empatadas é indefinida e uma
+  // linha pode aparecer em duas páginas — ou em nenhuma.
+  //
+  // Isso não é hipótese: em BASE1 as 415 linhas compartilham o MESMO
+  // `created_at`, e o maior grupo de `created_at` idêntico no LIVE tem 507
+  // linhas. `order('created_at')` sozinho é um empate de 415 (ou 507) linhas.
+  //
+  // Todo `buildQuery` passado aqui DEVE terminar com uma coluna única
+  // (tipicamente `id`) como último critério de ordenação.
+
   const all: unknown[] = [];
   let from = 0;
   for (;;) {
@@ -2570,6 +2586,9 @@ async function loadCatalogoVariantCardSets(supabase: SupabaseClient): Promise<Ca
         .select("id, card_set_id, status")
         .eq("source", "TCGDEX")
         .in("status", ACTIVE_VARIANT_JOB_STATUSES as unknown as string[])
+        // `id` = ordenação TOTAL (BLOCKER-3). Sem ela, `.range()` pagina sobre
+        // uma ordem indefinida e um job pode se repetir ou sumir entre páginas.
+        .order("id", { ascending: true })
         .range(from, to),
     ),
   ]);
@@ -2654,12 +2673,18 @@ async function loadCatalogoVariantCardSets(supabase: SupabaseClient): Promise<Ca
     const linhasARevisar = await fetchAllRowsStrict((from, to) =>
       supabase
         .from("catalog_variant_import_row")
-        .select("job_id")
+        // `id` junto com `job_id` porque a ordenação precisa ser TOTAL
+        // (BLOCKER-3) e esta é exatamente a tabela onde o empate é massivo:
+        // 415 linhas com o mesmo `created_at` em BASE1. Sem a coluna única,
+        // esta contagem linha a linha poderia contar a mesma linha duas vezes
+        // ou perder outra — e o número exibido no seletor seria falso.
+        .select("id, job_id")
         .eq("validation_status", "NEEDS_REVIEW")
         .in("job_id", jobIdsElegiveis)
+        .order("id", { ascending: true })
         .range(from, to),
     );
-    for (const row of linhasARevisar as { job_id: string }[]) {
+    for (const row of linhasARevisar as { id: string; job_id: string }[]) {
       aRevisarPorJob.set(row.job_id, (aRevisarPorJob.get(row.job_id) ?? 0) + 1);
     }
   }
@@ -2807,6 +2832,57 @@ export async function getCatalogVariantImportJobStatus(
   };
 }
 
+/**
+ * Contadores de escopo por tamanho de um job, quando as linhas completas NÃO
+ * foram carregadas (painel de conclusão: o job já não é revisável, a tabela
+ * não é renderizada, e ainda assim os três números precisam ser exatos).
+ *
+ * FONTE DE VERDADE ÚNICA, apesar de ser uma segunda leitura: a contagem é
+ * feita por `deriveVariantImportScopeCounters` — a MESMA função pura que a
+ * tabela usa sobre as linhas já carregadas. As duas rotas só diferem em como
+ * obtêm a população; as duas são completas (paginadas) e classificam pelo
+ * mesmo predicado, então não têm como divergir.
+ *
+ * FAIL-CLOSED por construção (`fetchAllRowsStrict`): erro em qualquer página
+ * LANÇA. O desenho anterior — três `HEAD count` com `count ?? 0` — convertia
+ * falha de leitura em "zero pendências", e a tela então anunciava sucesso num
+ * job que podia ter centenas de linhas pendentes. Aqui, quem chama decide o
+ * que mostrar; o que não acontece é a tela afirmar o oposto do que sabe.
+ *
+ * Projeção mínima de propósito: sem join com `card`, sem resolver nomes de
+ * Card Variant Type. Só as três colunas de que a classificação depende.
+ */
+export async function getCatalogVariantImportScopeCounters(
+  supabase: SupabaseClient,
+  jobId: string,
+): Promise<VariantImportScopeCounters> {
+  const raw = (await fetchAllRowsStrict((from, to) =>
+    supabase
+      .from("catalog_variant_import_row")
+      .select("id, validation_status, normalized_data")
+      .eq("job_id", jobId)
+      // ORDENAÇÃO TOTAL (BLOCKER-3): `created_at` empata para o job inteiro
+      // (BASE1: 415/415 linhas com o mesmo valor), então `id` é o que torna a
+      // paginação determinística. Sem ele, os contadores poderiam contar uma
+      // linha duas vezes e perder outra — silenciosamente.
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  )) as {
+    id: string;
+    validation_status: string;
+    normalized_data: { skip_reason?: string | null; review_reason?: string | null } | null;
+  }[];
+
+  return deriveVariantImportScopeCounters(
+    raw.map((r) => ({
+      validationStatus: r.validation_status,
+      skipReason: r.normalized_data?.skip_reason ?? null,
+      reviewReason: r.normalized_data?.review_reason ?? null,
+    })),
+  );
+}
+
 export type CatalogVariantImportRowView = {
   id: string;
   cardName: string;
@@ -2817,19 +2893,45 @@ export type CatalogVariantImportRowView = {
   rawFoil: string | null;
   rawSubtype: string | null;
   rawStamp: string[] | null;
+  /**
+   * raw_data.size — tamanho bruto da variante no dataset-fonte (2026-09-15).
+   * null para todo o acervo importado antes do guard de escopo, e para toda
+   * variante cujo dataset não declara `size`.
+   */
+  rawSize: string | null;
   /** Nome do card_variant_type já resolvido (normalized_data.variant_type_id) — null quando NEEDS_REVIEW (sem mapeamento). */
   variantTypeName: string | null;
   validationStatus: string;
   matchStatus: string;
   decisionStatus: string;
   persistenceStatus: string;
+  /**
+   * normalized_data.size — tamanho normalizado, gravado apenas nas linhas
+   * barradas pelo guard de escopo. `size` NÃO integra a identidade da
+   * variante; está aqui para explicar a decisão ao administrador.
+   */
+  normalizedSize: string | null;
+  /** normalized_data.skip_reason — SIZE_OUT_OF_SCOPE nas linhas JUMBO. */
+  skipReason: string | null;
+  /** normalized_data.review_reason — UNSUPPORTED_SIZE_VALUE em `size` desconhecido. */
+  reviewReason: string | null;
   errorDetail: string | null;
 };
 
 type CatalogVariantImportRowRawRow = {
   id: string;
-  raw_data: { type?: string; foil?: string | null; subtype?: string | null; stamp?: string[] | null } | null;
-  normalized_data: { variant_type_id?: string } | null;
+  raw_data:
+    | {
+      type?: string;
+      foil?: string | null;
+      subtype?: string | null;
+      stamp?: string[] | null;
+      size?: string | null;
+    }
+    | null;
+  normalized_data:
+    | { variant_type_id?: string; size?: string | null; skip_reason?: string | null; review_reason?: string | null }
+    | null;
   validation_status: string;
   match_status: string;
   decision_status: string;
@@ -2852,32 +2954,62 @@ type CatalogVariantImportRowRawRow = {
  * getCatalogImportRows) e, dentro da mesma Carta, pelo nome do tipo de
  * variante — mais de uma variante proposta por Carta é o caso comum aqui
  * (diferente de Importar Cartas, uma linha por Carta).
+ *
+ * PAGINADO E FAIL-CLOSED (2026-09-16, RISCO-3 da auditoria
+ * SIZE-SCOPE-EDGE-UI-DIFF-AUDIT-01). Antes: um `.select()` sem `.range()`,
+ * truncado em silêncio no teto do PostgREST, e `if (error || !data) return []`
+ * — uma falha de leitura chegava à tela como "job sem linhas". Os dois vícios
+ * foram corrigidos de uma vez por `fetchAllRowsStrict`:
+ *
+ *   - completude: pagina até esgotar, então um job com mais de 1000 linhas
+ *     alimenta a tabela E os contadores derivados com a população inteira;
+ *   - honestidade: erro LANÇA. Quem chama trata; o que não acontece mais é a
+ *     ausência de dados ser apresentada como ausência de pendências.
+ *
+ * Isto é o que faz painel e tabela concordarem por construção: os contadores
+ * de escopo do painel são derivados DESTA mesma coleção quando ela existe
+ * (ver getImportacaoVariantesJobData), não de uma contagem paralela.
  */
 export async function getCatalogVariantImportRows(
   supabase: SupabaseClient,
   jobId: string,
 ): Promise<CatalogVariantImportRowView[]> {
-  const { data, error } = await supabase
-    .from("catalog_variant_import_row")
-    .select(
-      "id, raw_data, normalized_data, validation_status, match_status, decision_status, persistence_status, error_detail, card:card_id(name, collector_number, collector_total)",
-    )
-    .eq("job_id", jobId)
-    .order("created_at", { ascending: true });
-
-  if (error || !data) {
-    return [];
-  }
-
-  const rawRows = data as unknown as CatalogVariantImportRowRawRow[];
+  const rawRows = (await fetchAllRowsStrict((from, to) =>
+    supabase
+      .from("catalog_variant_import_row")
+      .select(
+        "id, raw_data, normalized_data, validation_status, match_status, decision_status, persistence_status, error_detail, card:card_id(name, collector_number, collector_total)",
+      )
+      .eq("job_id", jobId)
+      // ORDENAÇÃO TOTAL (BLOCKER-3). `created_at` sozinho é um empate de job
+      // inteiro nesta tabela; `id` é o desempate único que torna `.range()`
+      // determinístico. O critério de EXIBIÇÃO continua sendo o sort por
+      // collector_number aplicado no fim desta função — este par existe só
+      // para a paginação ser estável.
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  )) as unknown as CatalogVariantImportRowRawRow[];
 
   const variantTypeIds = Array.from(
     new Set(rawRows.map((row) => row.normalized_data?.variant_type_id).filter((id): id is string => Boolean(id))),
   );
   const variantTypeNames = new Map<string, string>();
   if (variantTypeIds.length > 0) {
-    const { data: variantTypes } = await supabase.from("card_variant_type").select("id, name").in("id", variantTypeIds);
-    for (const type of (variantTypes ?? []) as { id: string; name: string }[]) {
+    // Também paginado/strict: `card_variant_type` é pequeno hoje (89 linhas),
+    // mas o mesmo truncamento silencioso se aplicaria, e um nome faltando
+    // viraria "sem mapeamento" na tela — outra mentira barata de evitar.
+    const variantTypes = (await fetchAllRowsStrict((from, to) =>
+      supabase
+        .from("card_variant_type")
+        .select("id, name")
+        .in("id", variantTypeIds)
+        // `id` basta: a ordem não tem significado aqui (o resultado vira um
+        // Map), mas precisa ser TOTAL para a paginação não repetir/perder.
+        .order("id", { ascending: true })
+        .range(from, to),
+    )) as { id: string; name: string }[];
+    for (const type of variantTypes) {
       variantTypeNames.set(type.id, type.name);
     }
   }
@@ -2893,11 +3025,15 @@ export async function getCatalogVariantImportRows(
       rawFoil: row.raw_data?.foil ?? null,
       rawSubtype: row.raw_data?.subtype ?? null,
       rawStamp: row.raw_data?.stamp ?? null,
+      rawSize: row.raw_data?.size ?? null,
       variantTypeName: variantTypeId ? (variantTypeNames.get(variantTypeId) ?? null) : null,
       validationStatus: row.validation_status,
       matchStatus: row.match_status,
       decisionStatus: row.decision_status,
       persistenceStatus: row.persistence_status,
+      normalizedSize: row.normalized_data?.size ?? null,
+      skipReason: row.normalized_data?.skip_reason ?? null,
+      reviewReason: row.normalized_data?.review_reason ?? null,
       errorDetail: row.error_detail,
     };
   });

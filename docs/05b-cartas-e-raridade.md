@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.1 |
+| **Versão** | 1.2 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant. |
+| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -2141,7 +2141,7 @@ disjuntos de VT por `type` (nenhum dos 76 mappings é alvo simultâneo de `HOLO`
 sido materializadas em 2026-09-12 e 48 o foram na conclusão atual (global 7.413 → 7.461).
 
 **A Editorial Convergence permanece ABERTA.** Baseline global **54 `NEEDS_REVIEW`**:
-BASEP 27 · SV5 19 · BASE3 5 · BASE1 3 · **SVE 0**.
+BASEP 27 · SV5 19 · BASE3 5 · BASE1 3 · **SVE 0**. *(Superado em 2026-09-16 — ver "Eixo de escopo por tamanho (incidente JUMBO)", ao final deste documento: **BASE1 passou a 0** porque os 3 resíduos que constavam eram 3 dos **4** JUMBO do Set, nunca pendência editorial; **SV5 está em 10**.)*
 
 Ordem operacional registrada — **nenhum Card Set com resíduo é pulado**:
 
@@ -2314,3 +2314,106 @@ Arquivos históricos (`860A`–`860E` de `ME1`–`ME4`) foram consolidados e rem
 
 ---
 
+
+# Eixo de escopo por tamanho (incidente JUMBO)
+
+Status: **Fechado tecnicamente em 2026-09-16** (`CARD-VARIANTS — JUMBO INCIDENT`).
+Migrations `2198` e `2199` LIVE; harnesses `2827` (29/29) e `2828` (`COMPLETE`)
+executados; Edge `import-card-variants` **v11 ACTIVE**. Staging, harnesses e o
+fechamento detalhado em `database/proposals/2026-09-15-card-variant-size-scope-guard/`.
+
+## O problema
+
+A fonte TCGdex modela **`size`** dentro do objeto de variante (`size: "jumbo"`). O
+extractor histórico da Edge lia apenas `type`/`foil`/`subtype`/`stamp` e **descartava
+`size` silenciosamente**. Consequência: uma variante JUMBO entrava no pipeline
+**indistinguível da sua gêmea STANDARD**.
+
+O defeito tinha duas faces, e a segunda demorou a aparecer:
+
+1. **falsa pendência editorial** — a linha JUMBO caía em `NEEDS_REVIEW` por outro
+   motivo (tipicamente `NORMAL` + um token de stamp), e um administrador tentaria
+   resolvê-la criando um mapeamento que não resolve nada;
+2. **falsa classificação válida** — quando a combinação residual já tinha mapeamento,
+   a linha JUMBO era aceita como **variante legítima**.
+
+Em BASE1 as duas faces coexistiam: Bulbasaur #044, Charmander #046 e Squirtle #063
+estavam na face (1); **Pikachu #058** — `size=jumbo`, `normal`, **sem stamp e sem
+subtype** — estava na face (2).
+
+## Contrato — três ramos
+
+| `size` normalizado | Classificação | Efeito |
+|---|---|---|
+| ausente / `null` / string em branco | `IN_SCOPE` | fluxo legado, **bit a bit** |
+| `STANDARD` | `IN_SCOPE` | fluxo legado, **bit a bit** |
+| `JUMBO` | `OUT_OF_SCOPE` | decisão automática do sistema |
+| qualquer outro valor não vazio | `UNSUPPORTED` | **fail-closed**, revisão humana |
+
+`UNSUPPORTED` é pendência **humana**, não de mapeamento: **não existe "mapeamento de
+tamanho"**. Oferecer resolução por mapping converteria uma decisão de **escopo** em
+tradução de **vocabulário**.
+
+## Invariantes
+
+1. **`size` não é identidade.** Nunca entra na assinatura residual — é *estado de
+   escopo*. Por isso a propagação de mapping (Query `2193`) não o filtra.
+2. **O guard precede `routePrinting` e o dedupe.** Uma linha fora de escopo não
+   consome mapeamento de Impressão, não adquire identidade canônica e não disputa
+   espaço de dedupe com linhas em escopo — dedupa em espaço próprio.
+3. **A decisão de uma linha `SIZE_OUT_OF_SCOPE` é imutável** (GUARD 7 da `2199`):
+   `APPROVED`, `REJECTED` e `PENDING` são recusados; `SKIPPED` é aceito como no-op
+   idempotente; um lote misto **falha inteiro**, nunca aplica metade em silêncio.
+4. **`validation_status = INVALID` passou a ter significado próprio** — fora de escopo
+   por tamanho — e **deixou de ser sinônimo de erro**. Qualquer contador que derive
+   pendência de `total_rows - valid_rows` reintroduz o defeito: contar pelos
+   **marcadores** (`skip_reason` / `review_reason`).
+
+## Estado de uma linha JUMBO
+
+| Momento | `validation` / `match` / `decision` / `persistence` |
+|---|---|
+| staging | `INVALID` / `NEW` / `SKIPPED` / `PENDING` |
+| após confirmação | `INVALID` / `NEW` / `SKIPPED` / `UNCHANGED` |
+
+`normalized_data.skip_reason = 'SIZE_OUT_OF_SCOPE'`; `raw_data.size` preservado em
+**toda** linha (inclusive `null` explícito no fluxo legado), porque é a evidência que o
+guard server-side lê. **Nunca materializa `card_variant`** — `matched_variant_id` e
+`resulting_variant_id` permanecem `NULL`.
+
+## Onde o contrato vive
+
+| Camada | Arquivo / objeto | Papel |
+|---|---|---|
+| Banco (routing) | `internal.compute_variant_residual_signature` (Query `2198`, `20260916012057`) | devolve `BLOCKED_SIZE_OUT_OF_SCOPE` / `BLOCKED_SIZE_UNSUPPORTED`, ambos fora da whitelist `RESOLVED_*` |
+| Banco (decisão) | `public.admin_decide_catalog_variant_import_row` (Query `2199`, `20260916170733`) | GUARD 7 — imutabilidade da decisão |
+| Edge | `supabase/functions/import-card-variants/services/size-scope.ts` | espelho puro da `2198`; gate antes de `routePrinting` |
+| UI | `web/lib/catalogo/variant-size-scope.ts` | classificação, lock de linha, contadores por natureza |
+
+O contrato é **espelhado**, não duplicado: a garantia é server-side (`2198`/`2199`); a
+Edge economiza trabalho e a UI comunica — nenhuma das duas é autoridade.
+
+## Estado LIVE após o fechamento (2026-09-16)
+
+BASE1 reimportado no job `c4d185ad-4971-4be6-af10-0b3e66466536`: 415 linhas, **411
+`VALID`**, **4 `INVALID` (todas `SIZE_OUT_OF_SCOPE`)**, **0 `NEEDS_REVIEW`**; confirmação
+`COMPLETED` com inserted 0 / **unchanged 415** / failed 0 / skipped 4. `card_variant`
+permaneceu **7461** — o rerun não materializou nenhuma variante nova.
+
+O job histórico `af230406-9055-4df3-ac17-b837a4865e76` foi **preservado com as 415 rows
+intactas** e apenas teve `status` alterado `STAGED → CANCELLED` para liberar o escopo.
+
+**Efeito na Editorial Convergence: BASE1 passa a ter `0 NEEDS_REVIEW`.** Os "3 resíduos
+de BASE1" que a documentação anterior registrava eram 3 dos **4** JUMBO — nunca foram
+pendência editorial.
+
+## Queries associadas
+
+```text
+2198 - internal.compute_variant_residual_signature — size guard    (CONFIRMADO EXECUTADO — 2026-09-16, 20260916012057)
+2199 - admin_decide_catalog_variant_import_row — GUARD 7           (CONFIRMADO EXECUTADO — 2026-09-16, 20260916170733)
+2827 - Validate Variant Size Scope Guard (harness)                 (EXECUTADO — 29 PASS / 0 FAIL)
+2828 - Validate SIZE_OUT_OF_SCOPE Decision Immutability (harness)  (EXECUTADO — gate_state = COMPLETE)
+```
+
+---
