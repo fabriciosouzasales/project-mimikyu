@@ -276,6 +276,7 @@ function ImportProgressVariantes({
                   ` · ${formatNumber(counters.mappingPendingRows)} a revisar (sem mapeamento)`}
                 {counters.unsupportedSizeRows > 0 &&
                   ` · ${formatNumber(counters.unsupportedSizeRows)} com tamanho desconhecido`}
+                {counters.deferredRows > 0 && ` · ${formatNumber(counters.deferredRows)} deferidas`}
                 {counters.outOfScopeRows > 0 && ` · ${formatNumber(counters.outOfScopeRows)} fora de escopo (JUMBO)`}
               </>
             ) : null}
@@ -395,9 +396,17 @@ const CONCLUSION_META: Record<
  * concluído com pendências / concluído com erros): `errors` quando o
  * status é COMPLETED_WITH_ERRORS (houve failed_rows); senão `pending`
  * quando restou pendência editorial real — falta de mapeamento OU tamanho
- * desconhecido, contadas nas próprias linhas (job.mappingPendingRows /
- * job.unsupportedSizeRows), inclusive as já decididas como
- * REJECTED/SKIPPED, porque nenhuma delas ficou mapeada; senão `success`.
+ * desconhecido, contadas nas próprias linhas (counters.mappingPendingRows /
+ * counters.unsupportedSizeRows); senão `success`.
+ *
+ * 2026-09-16 (SV5-DEFERRED-UI-SEMANTICS-01): pendência passou a exigir
+ * `decision_status = PENDING`. A redação anterior dizia "inclusive as já
+ * decididas como REJECTED/SKIPPED, porque nenhuma delas ficou mapeada" — e
+ * era falsa no sentido que importa. Em SV5 o administrador DEFERIU 12 linhas
+ * conscientemente (SKIPPED), o job fechou COMPLETED, e a tela anunciava
+ * "Concluído com pendências" + "11 sem mapeamento" + um botão para resolver
+ * mapeamentos que ninguém queria resolver. Linha decidida não é pendência:
+ * SKIPPED tem contador próprio ("Deferidas") e REJECTED já tinha o seu.
  *
  * 2026-09-15: linhas fora de escopo por tamanho (JUMBO) NÃO entram nessa
  * conta. Antes, o contador era `total_rows - valid_rows`, e a primeira
@@ -420,6 +429,10 @@ function ImportConclusionPanel({
   const semMapeamento = counters?.mappingPendingRows ?? 0;
   const tamanhoDesconhecido = counters?.unsupportedSizeRows ?? 0;
   const foraDeEscopo = counters?.outOfScopeRows ?? 0;
+  const deferidas = counters?.deferredRows ?? 0;
+  // `deferidas` NÃO entra: deferir é decisão, não pendência. Somá-la aqui
+  // devolveria exatamente o bug que esta rodada corrige (SV5: job COMPLETED,
+  // 12 linhas conscientemente puladas, e a tela dizendo "com pendências").
   const pendenciasEditoriais = semMapeamento + tamanhoDesconhecido;
   const aprovadas = Math.max(job.totalRows - job.rejectedRows - job.skippedRows, 0);
   // FAIL-CLOSED: sem contadores, o estado NUNCA é `success`. Declarar sucesso
@@ -445,6 +458,7 @@ function ImportConclusionPanel({
   // continua enxuta nos jobs em que nada disso aconteceu.
   if (semMapeamento > 0) stats.push({ label: "Sem mapeamento", value: semMapeamento });
   if (tamanhoDesconhecido > 0) stats.push({ label: "Tamanho desconhecido", value: tamanhoDesconhecido });
+  if (deferidas > 0) stats.push({ label: "Deferidas", value: deferidas });
   if (foraDeEscopo > 0) stats.push({ label: "Fora de escopo", value: foraDeEscopo });
 
   return (

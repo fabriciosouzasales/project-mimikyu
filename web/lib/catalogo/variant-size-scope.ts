@@ -40,6 +40,15 @@ export type VariantRowScope = "IN_SCOPE" | "OUT_OF_SCOPE" | "UNSUPPORTED_SIZE";
 /** Subconjunto mínimo de CatalogVariantImportRowView de que este contrato depende. */
 export type VariantRowScopeInput = {
   validationStatus: string;
+  /**
+   * PENDING | APPROVED | REJECTED | SKIPPED.
+   *
+   * Acrescentado em 2026-09-16 (SV5-DEFERRED-UI-SEMANTICS-01). Sem ele, este
+   * contrato não conseguia distinguir "ainda não decidida" de "decidida, e a
+   * decisão foi deferir" — e contava as duas como pendência. Ver DEFERIMENTO,
+   * abaixo.
+   */
+  decisionStatus: string;
   skipReason: string | null;
   reviewReason: string | null;
 };
@@ -66,7 +75,32 @@ export function classifyVariantRowScope(row: VariantRowScopeInput): VariantRowSc
  * uma decisão de escopo em tradução de vocabulário.
  */
 export function isVariantRowMappingPending(row: VariantRowScopeInput): boolean {
-  return row.validationStatus === "NEEDS_REVIEW" && classifyVariantRowScope(row) === "IN_SCOPE";
+  return (
+    row.validationStatus === "NEEDS_REVIEW" &&
+    // DEFERIMENTO (2026-09-16). Pendência é o que ainda espera decisão. Uma
+    // linha já decidida — SKIPPED (deferida) ou REJECTED — não é pendência,
+    // por mais que continue sem mapeamento: a ausência de mapeamento virou
+    // consequência de uma escolha, não uma tarefa em aberto.
+    row.decisionStatus === "PENDING" &&
+    classifyVariantRowScope(row) === "IN_SCOPE"
+  );
+}
+
+/**
+ * A linha foi DEFERIDA por decisão humana consciente?
+ *
+ * `decision_status = SKIPPED` fora do eixo de tamanho. É decisão FINAL, e
+ * ganha contador próprio justamente para não ser confundida com pendência
+ * nem desaparecer da tela: "12 deferidas" é informação; "12 sem mapeamento"
+ * num job COMPLETED é mentira.
+ *
+ * OUT_OF_SCOPE (JUMBO) também chega SKIPPED, mas fica FORA daqui: é decisão
+ * do SISTEMA, não do administrador, e já tem contador próprio
+ * (`outOfScopeRows`). Misturar as duas apagaria a diferença entre "o sistema
+ * não cataloga isso" e "eu decidi não catalogar isso agora".
+ */
+export function isVariantRowDeferred(row: VariantRowScopeInput): boolean {
+  return row.decisionStatus === "SKIPPED" && classifyVariantRowScope(row) !== "OUT_OF_SCOPE";
 }
 
 /**
@@ -157,12 +191,23 @@ export function canDecideVariantRow(row: VariantRowScopeInput, status: VariantDe
 }
 
 export type VariantImportScopeCounters = {
-  /** NEEDS_REVIEW que a tela de Card Variant Type consegue resolver. */
+  /**
+   * PENDÊNCIA de mapeamento: NEEDS_REVIEW + decisão ainda PENDING + IN_SCOPE.
+   * É a única população que a tela de Card Variant Type consegue atender.
+   */
   mappingPendingRows: number;
-  /** NEEDS_REVIEW por `size` desconhecido — decisão humana, sem mapeamento. */
+  /**
+   * PENDÊNCIA de escopo: `size` desconhecido + decisão ainda PENDING.
+   * Decisão humana, sem mapeamento a resolver.
+   */
   unsupportedSizeRows: number;
-  /** INVALID por JUMBO — decisão automática, não é pendência. */
+  /** INVALID por JUMBO — decisão automática do sistema, não é pendência. */
   outOfScopeRows: number;
+  /**
+   * DEFERIDAS: decisão humana FINAL de pular (SKIPPED), fora do eixo JUMBO.
+   * Não é pendência e não é erro — é escolha registrada.
+   */
+  deferredRows: number;
 };
 
 /**
@@ -182,19 +227,32 @@ export function deriveVariantImportScopeCounters(rows: VariantRowScopeInput[]): 
   let mappingPendingRows = 0;
   let unsupportedSizeRows = 0;
   let outOfScopeRows = 0;
+  let deferredRows = 0;
 
   for (const row of rows) {
-    switch (classifyVariantRowScope(row)) {
-      case "OUT_OF_SCOPE":
-        outOfScopeRows++;
-        break;
-      case "UNSUPPORTED_SIZE":
-        unsupportedSizeRows++;
-        break;
-      default:
-        if (row.validationStatus === "NEEDS_REVIEW") mappingPendingRows++;
+    // 1. JUMBO primeiro e incondicionalmente: decisão automática do sistema,
+    //    contador próprio, nunca reclassificada por decisão humana.
+    if (classifyVariantRowScope(row) === "OUT_OF_SCOPE") {
+      outOfScopeRows++;
+      continue;
     }
+
+    // 2. Deferida: decisão humana FINAL. Precede as pendências de propósito —
+    //    uma linha SKIPPED não é pendência de nada, seja qual for o motivo
+    //    que a levou a NEEDS_REVIEW.
+    if (isVariantRowDeferred(row)) {
+      deferredRows++;
+      continue;
+    }
+
+    // 3. As duas naturezas de PENDÊNCIA — ambas exigem decisão ainda em
+    //    aberto. REJECTED cai fora das duas: é decisão final e já aparece no
+    //    contador "Rejeitadas" do painel.
+    if (row.decisionStatus !== "PENDING") continue;
+
+    if (classifyVariantRowScope(row) === "UNSUPPORTED_SIZE") unsupportedSizeRows++;
+    else if (row.validationStatus === "NEEDS_REVIEW") mappingPendingRows++;
   }
 
-  return { mappingPendingRows, unsupportedSizeRows, outOfScopeRows };
+  return { mappingPendingRows, unsupportedSizeRows, outOfScopeRows, deferredRows };
 }

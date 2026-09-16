@@ -243,6 +243,7 @@ export function RevisaoImportacaoVariantesTable({
   const summary = useMemo(() => {
     let aprovadas = 0;
     let rejeitadas = 0;
+    let deferidas = 0;
     let pendentes = 0;
     for (const row of rows) {
       // Fora de escopo é contada só na sua própria coluna. Ela chega já
@@ -253,7 +254,13 @@ export function RevisaoImportacaoVariantesTable({
 
       if (row.decisionStatus === "APPROVED") aprovadas++;
       else if (row.decisionStatus === "REJECTED") rejeitadas++;
-      else pendentes++; // PENDING ou SKIPPED — nenhuma decisão final ainda
+      // SKIPPED saiu de "Pendentes" em 2026-09-16
+      // (SV5-DEFERRED-UI-SEMANTICS-01). Pular é decisão FINAL do
+      // administrador, tão final quanto aprovar ou rejeitar — contá-la como
+      // pendência mantinha na tela um número que nenhuma ação zeraria, e foi
+      // exatamente o que fez um job COMPLETED aparecer "com pendências".
+      else if (row.decisionStatus === "SKIPPED") deferidas++;
+      else pendentes++; // só PENDING — decisão ainda em aberto
     }
     // >>> MESMA FUNÇÃO DO PAINEL <<< (2026-09-16, BLOCKER-2/RISCO-3). Os três
     // números de escopo saem de deriveVariantImportScopeCounters sobre `rows`
@@ -266,6 +273,7 @@ export function RevisaoImportacaoVariantesTable({
       aprovadas,
       rejeitadas,
       pendentes,
+      deferidas,
       semMapeamento: escopo.mappingPendingRows,
       tamanhoDesconhecido: escopo.unsupportedSizeRows,
       foraDeEscopo: escopo.outOfScopeRows,
@@ -448,6 +456,11 @@ export function RevisaoImportacaoVariantesTable({
               <SummaryStat label="Aprovadas" value={summary.aprovadas} className="text-success" />
               <SummaryStat label="Rejeitadas" value={summary.rejeitadas} className="text-destructive" />
               <SummaryStat label="Pendentes" value={summary.pendentes} className="text-warning" />
+              {/* Tom `muted`, como "Fora de escopo": deferir é decisão
+                  registrada, não alerta. Só aparece quando existe. */}
+              {summary.deferidas > 0 && (
+                <SummaryStat label="Deferidas" value={summary.deferidas} className="text-muted-foreground" />
+              )}
               <SummaryStat label="Sem Mapeamento" value={summary.semMapeamento} className="text-destructive" />
               {summary.tamanhoDesconhecido > 0 && (
                 <SummaryStat label="Tamanho Desconhecido" value={summary.tamanhoDesconhecido} className="text-warning" />

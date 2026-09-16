@@ -2859,7 +2859,9 @@ export async function getCatalogVariantImportScopeCounters(
   const raw = (await fetchAllRowsStrict((from, to) =>
     supabase
       .from("catalog_variant_import_row")
-      .select("id, validation_status, normalized_data")
+      // `decision_status` entrou em 2026-09-16 (SV5-DEFERRED-UI-SEMANTICS-01):
+      // sem ele a classificação não distingue "ainda pendente" de "deferida".
+      .select("id, validation_status, decision_status, normalized_data")
       .eq("job_id", jobId)
       // ORDENAÇÃO TOTAL (BLOCKER-3): `created_at` empata para o job inteiro
       // (BASE1: 415/415 linhas com o mesmo valor), então `id` é o que torna a
@@ -2871,12 +2873,14 @@ export async function getCatalogVariantImportScopeCounters(
   )) as {
     id: string;
     validation_status: string;
+    decision_status: string;
     normalized_data: { skip_reason?: string | null; review_reason?: string | null } | null;
   }[];
 
   return deriveVariantImportScopeCounters(
     raw.map((r) => ({
       validationStatus: r.validation_status,
+      decisionStatus: r.decision_status,
       skipReason: r.normalized_data?.skip_reason ?? null,
       reviewReason: r.normalized_data?.review_reason ?? null,
     })),
