@@ -30,17 +30,60 @@ import {
 
 /** Linha IN_SCOPE sem mapeamento, ainda sem decisão. */
 function pendingUnmapped(): VariantRowScopeInput {
-  return { validationStatus: "NEEDS_REVIEW", decisionStatus: "PENDING", skipReason: null, reviewReason: null };
+  return {
+    validationStatus: "NEEDS_REVIEW",
+    decisionStatus: "PENDING",
+    matchStatus: "NEW",
+    skipReason: null,
+    reviewReason: null,
+  };
 }
 
-/** Mesma linha, mas DEFERIDA pelo administrador. */
+/** Mesma linha, mas DEFERIDA pelo administrador (variante NOVA que ele pulou). */
 function deferredUnmapped(): VariantRowScopeInput {
-  return { validationStatus: "NEEDS_REVIEW", decisionStatus: "SKIPPED", skipReason: null, reviewReason: null };
+  return {
+    validationStatus: "NEEDS_REVIEW",
+    decisionStatus: "SKIPPED",
+    matchStatus: "NEW",
+    skipReason: null,
+    reviewReason: null,
+  };
+}
+
+/**
+ * Variante que JÁ EXISTE no catálogo: o importador marca MATCHED e pula
+ * AUTOMATICAMENTE (SKIPPED). Não é deferimento — ninguém decidiu nada.
+ */
+function matchedSkipped(): VariantRowScopeInput {
+  return {
+    validationStatus: "VALID",
+    decisionStatus: "SKIPPED",
+    matchStatus: "MATCHED",
+    skipReason: null,
+    reviewReason: null,
+  };
 }
 
 /** Linha válida e aprovada — não é pendência de nada. */
 function approvedValid(): VariantRowScopeInput {
-  return { validationStatus: "VALID", decisionStatus: "APPROVED", skipReason: null, reviewReason: null };
+  return {
+    validationStatus: "VALID",
+    decisionStatus: "APPROVED",
+    matchStatus: "NEW",
+    skipReason: null,
+    reviewReason: null,
+  };
+}
+
+/** Linha válida, nova, ainda sem decisão — pronta para APPROVED. */
+function pendingValidNew(): VariantRowScopeInput {
+  return {
+    validationStatus: "VALID",
+    decisionStatus: "PENDING",
+    matchStatus: "NEW",
+    skipReason: null,
+    reviewReason: null,
+  };
 }
 
 /** JUMBO: decisão AUTOMÁTICA do sistema (INVALID + SKIPPED). */
@@ -48,6 +91,7 @@ function outOfScope(): VariantRowScopeInput {
   return {
     validationStatus: "INVALID",
     decisionStatus: "SKIPPED",
+    matchStatus: "NEW",
     skipReason: VARIANT_SKIP_REASON_SIZE_OUT_OF_SCOPE,
     reviewReason: null,
   };
@@ -58,6 +102,7 @@ function pendingUnsupportedSize(): VariantRowScopeInput {
   return {
     validationStatus: "NEEDS_REVIEW",
     decisionStatus: "PENDING",
+    matchStatus: "NEW",
     skipReason: null,
     reviewReason: VARIANT_REVIEW_REASON_UNSUPPORTED_SIZE,
   };
@@ -81,6 +126,7 @@ test("linha REJECTED sem mapeamento também não é pendência", () => {
   const row: VariantRowScopeInput = {
     validationStatus: "NEEDS_REVIEW",
     decisionStatus: "REJECTED",
+    matchStatus: "NEW",
     skipReason: null,
     reviewReason: null,
   };
@@ -107,6 +153,17 @@ test("JUMBO chega SKIPPED mas NÃO é deferida — é decisão do sistema", () =
 
 test("PENDING não é deferida", () => {
   assert.equal(isVariantRowDeferred(pendingUnmapped()), false);
+});
+
+test("REGRESSÃO SEMANTICS-02: MATCHED + SKIPPED NÃO é deferida", () => {
+  // O bug: o importador pula automaticamente toda variante que já existe
+  // (MATCHED). A primeira versão do predicado só excluía JUMBO, e um job com
+  // 414 linhas MATCHED/SKIPPED apareceu como "414 deferidas".
+  assert.equal(isVariantRowDeferred(matchedSkipped()), false);
+});
+
+test("MATCHED + SKIPPED também não é pendência de mapeamento", () => {
+  assert.equal(isVariantRowMappingPending(matchedSkipped()), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -156,6 +213,44 @@ test("CENÁRIO SV5 REAL: 416 aprovadas + 12 deferidas ⇒ zero pendência", () =
 
   // E o botão "Resolver mapeamentos pendentes" depende de mappingPendingRows.
   assert.equal(c.mappingPendingRows > 0, false, "o botão não deve ser renderizado");
+});
+
+test("CENÁRIO SV5 JOB NOVO (SEMANTICS-02): 414 MATCHED/SKIPPED não são deferidas", () => {
+  // Job real de 432 linhas que revelou a regressão:
+  //   414 VALID / MATCHED / SKIPPED          (já existentes — decisão do importador)
+  //    11 NEEDS_REVIEW / NEW / PENDING       (pendência de mapeamento real)
+  //     6 INVALID / NEW / SKIPPED / JUMBO    (fora de escopo)
+  //     1 VALID / NEW / PENDING              (pronta para aprovar)
+  const rows: VariantRowScopeInput[] = [
+    ...Array.from({ length: 414 }, matchedSkipped),
+    ...Array.from({ length: 11 }, pendingUnmapped),
+    ...Array.from({ length: 6 }, outOfScope),
+    pendingValidNew(),
+  ];
+  assert.equal(rows.length, 432, "total do job");
+
+  const c = deriveVariantImportScopeCounters(rows);
+  assert.equal(c.deferredRows, 0, "NENHUMA deferida — era o bug (mostrava 414)");
+  assert.equal(c.mappingPendingRows, 11, "as 11 pendências reais permanecem");
+  assert.equal(c.outOfScopeRows, 6, "os 6 JUMBO no contador próprio");
+  assert.equal(c.unsupportedSizeRows, 0);
+
+  // "Pendentes" da tabela de revisão: PENDING, excluindo as travadas (JUMBO).
+  const pendentes = rows.filter(
+    (r) => classifyVariantRowScope(r) !== "OUT_OF_SCOPE" && r.decisionStatus === "PENDING",
+  ).length;
+  assert.equal(pendentes, 12, "11 sem mapeamento + 1 VALID pronta para aprovar");
+
+  // E as 414 MATCHED/SKIPPED não caem em NENHUMA das quatro categorias.
+  const semCategoria = rows.filter(
+    (r) =>
+      classifyVariantRowScope(r) !== "OUT_OF_SCOPE" &&
+      !isVariantRowDeferred(r) &&
+      r.decisionStatus !== "PENDING" &&
+      r.decisionStatus !== "APPROVED" &&
+      r.decisionStatus !== "REJECTED",
+  ).length;
+  assert.equal(semCategoria, 414, "já existentes: visíveis só em 'Analisadas'");
 });
 
 test("job sem nada decidido continua acusando pendência (não mascarar)", () => {

@@ -2861,7 +2861,10 @@ export async function getCatalogVariantImportScopeCounters(
       .from("catalog_variant_import_row")
       // `decision_status` entrou em 2026-09-16 (SV5-DEFERRED-UI-SEMANTICS-01):
       // sem ele a classificação não distingue "ainda pendente" de "deferida".
-      .select("id, validation_status, decision_status, normalized_data")
+      // `match_status` entrou logo em seguida (SEMANTICS-02): SKIPPED também
+      // é usado AUTOMATICAMENTE para linhas MATCHED (variante já existente),
+      // e sem o match a tela contava 414 dessas como "deferidas".
+      .select("id, validation_status, decision_status, match_status, normalized_data")
       .eq("job_id", jobId)
       // ORDENAÇÃO TOTAL (BLOCKER-3): `created_at` empata para o job inteiro
       // (BASE1: 415/415 linhas com o mesmo valor), então `id` é o que torna a
@@ -2874,6 +2877,7 @@ export async function getCatalogVariantImportScopeCounters(
     id: string;
     validation_status: string;
     decision_status: string;
+    match_status: string;
     normalized_data: { skip_reason?: string | null; review_reason?: string | null } | null;
   }[];
 
@@ -2881,6 +2885,7 @@ export async function getCatalogVariantImportScopeCounters(
     raw.map((r) => ({
       validationStatus: r.validation_status,
       decisionStatus: r.decision_status,
+      matchStatus: r.match_status,
       skipReason: r.normalized_data?.skip_reason ?? null,
       reviewReason: r.normalized_data?.review_reason ?? null,
     })),

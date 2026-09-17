@@ -49,6 +49,15 @@ export type VariantRowScopeInput = {
    * abaixo.
    */
   decisionStatus: string;
+  /**
+   * NEW | MATCHED | CONFLICT.
+   *
+   * Acrescentado em 2026-09-16 (SV5-DEFERRED-UI-SEMANTICS-02). Sem ele,
+   * `decision_status = SKIPPED` era ambíguo: o importador usa SKIPPED tanto
+   * para "o administrador decidiu pular" quanto, AUTOMATICAMENTE, para
+   * "esta variante já existe no catálogo" (MATCHED). Ver DEFERIMENTO.
+   */
+  matchStatus: string;
   skipReason: string | null;
   reviewReason: string | null;
 };
@@ -89,18 +98,31 @@ export function isVariantRowMappingPending(row: VariantRowScopeInput): boolean {
 /**
  * A linha foi DEFERIDA por decisão humana consciente?
  *
- * `decision_status = SKIPPED` fora do eixo de tamanho. É decisão FINAL, e
- * ganha contador próprio justamente para não ser confundida com pendência
- * nem desaparecer da tela: "12 deferidas" é informação; "12 sem mapeamento"
- * num job COMPLETED é mentira.
+ * DEFINIÇÃO CANÔNICA (2026-09-16, SV5-DEFERRED-UI-SEMANTICS-02):
  *
- * OUT_OF_SCOPE (JUMBO) também chega SKIPPED, mas fica FORA daqui: é decisão
- * do SISTEMA, não do administrador, e já tem contador próprio
- * (`outOfScopeRows`). Misturar as duas apagaria a diferença entre "o sistema
- * não cataloga isso" e "eu decidi não catalogar isso agora".
+ *     SKIPPED  +  match NEW  +  scope != OUT_OF_SCOPE
+ *
+ * `decision_status = SKIPPED` sozinho NÃO basta. O importador usa SKIPPED
+ * para TRÊS coisas diferentes, e só uma delas é deferimento editorial:
+ *
+ *   MATCHED + SKIPPED       a variante JÁ EXISTE no catálogo. Decisão
+ *                           automática do importador, não do administrador.
+ *                           Nada foi adiado — nada havia a decidir.
+ *   OUT_OF_SCOPE + SKIPPED  JUMBO. Decisão automática do sistema, com
+ *                           contador próprio (`outOfScopeRows`).
+ *   NEW + SKIPPED + IN_SCOPE  ← ÚNICO deferimento real: variante nova, que o
+ *                           administrador olhou e decidiu não catalogar agora.
+ *
+ * A primeira versão desta função (DEFERRED-UI-SEMANTICS-01) só excluía
+ * JUMBO, e um job SV5 com 414 linhas MATCHED/SKIPPED apareceu na tela como
+ * "414 deferidas" — trocando "já tenho tudo isso" por "adiei 414 decisões".
  */
 export function isVariantRowDeferred(row: VariantRowScopeInput): boolean {
-  return row.decisionStatus === "SKIPPED" && classifyVariantRowScope(row) !== "OUT_OF_SCOPE";
+  return (
+    row.decisionStatus === "SKIPPED" &&
+    row.matchStatus === "NEW" &&
+    classifyVariantRowScope(row) !== "OUT_OF_SCOPE"
+  );
 }
 
 /**
@@ -204,8 +226,10 @@ export type VariantImportScopeCounters = {
   /** INVALID por JUMBO — decisão automática do sistema, não é pendência. */
   outOfScopeRows: number;
   /**
-   * DEFERIDAS: decisão humana FINAL de pular (SKIPPED), fora do eixo JUMBO.
-   * Não é pendência e não é erro — é escolha registrada.
+   * DEFERIDAS: decisão humana FINAL de pular uma variante NOVA (SKIPPED +
+   * match NEW), fora do eixo JUMBO. Não é pendência e não é erro — é escolha
+   * registrada. Linhas MATCHED/SKIPPED (já existentes no catálogo) NÃO
+   * entram aqui: ver `isVariantRowDeferred`.
    */
   deferredRows: number;
 };

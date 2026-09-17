@@ -40,6 +40,7 @@ import {
   canResolveVariantRowMapping,
   classifyVariantRowScope,
   deriveVariantImportScopeCounters,
+  isVariantRowDeferred,
   isVariantRowMappingPending,
   isVariantRowScopeLocked,
   isVariantRowSelectable,
@@ -259,8 +260,14 @@ export function RevisaoImportacaoVariantesTable({
       // administrador, tão final quanto aprovar ou rejeitar — contá-la como
       // pendência mantinha na tela um número que nenhuma ação zeraria, e foi
       // exatamente o que fez um job COMPLETED aparecer "com pendências".
-      else if (row.decisionStatus === "SKIPPED") deferidas++;
-      else pendentes++; // só PENDING — decisão ainda em aberto
+      //
+      // 2026-09-16 (SEMANTICS-02): o predicado é isVariantRowDeferred, NÃO
+      // `decisionStatus === "SKIPPED"`. Linha MATCHED + SKIPPED é variante
+      // que JÁ EXISTE — decisão automática do importador. Ela não é deferida
+      // (ninguém adiou nada) e também não é pendente (não há o que decidir):
+      // fica fora das quatro categorias, visível apenas em "Analisadas".
+      else if (isVariantRowDeferred(row)) deferidas++;
+      else if (row.decisionStatus === "PENDING") pendentes++;
     }
     // >>> MESMA FUNÇÃO DO PAINEL <<< (2026-09-16, BLOCKER-2/RISCO-3). Os três
     // números de escopo saem de deriveVariantImportScopeCounters sobre `rows`
