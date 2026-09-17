@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.2 |
+| **Versão** | 1.3 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`). |
+| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`) e o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -2154,6 +2154,82 @@ Ordem operacional registrada — **nenhum Card Set com resíduo é pulado**:
 4. **Somente após o fechamento formal da Editorial Convergence** — isto é, com SV5, BASEP,
    BASE1 e BASE3 resolvidos e validados — retoma-se o trabalho histórico restante de
    `CATALOG-HISTORICAL-BOOTSTRAP-03` (Cards + Assets).
+
+### SV5 — **CLOSED** dentro da Editorial Convergence (2026-09-16)
+
+**Segundo Card Set a fechar.** Job canônico `601f7c96-8118-4b97-a0f3-cbbf418e8c21`
+**COMPLETED**: 428 linhas · 417 `VALID` · **11 `NEEDS_REVIEW` preservadas** · 416
+`APPROVED/INSERTED` · 12 `SKIPPED/UNCHANGED` · 0 `PENDING` · 0 `FAILED`. Não há job
+`STAGED` de SV5.
+
+O que distingue este fechamento do SVE: **SV5 não fechou por resolução de todos os
+resíduos, e sim por decisão consciente sobre eles.** Das 428 linhas, 12 foram
+**deferidas** — 11 por evidência externa insuficiente e uma (`POKEMON_DAY_COSMOS_HOLO`)
+`VALID`, porém deferida por falta de prova específica do acabamento COSMOS.
+
+**Correção Master Ball / COSMOS.** O mapping SCOPED `sv05 · NORMAL + {MASTER-BALL-LEAGUE}
+→ MASTER_BALL_LEAGUE_COSMOS_HOLO` afirmava um acabamento que **nenhuma evidência
+sustentava**: a pesquisa externa (`SV5-EXTERNAL-EVIDENCE-AUDIT-02`) foi encerrada como
+`EVIDENCE EXHAUSTED`, a única atestação de "Cosmos Holo" localizada pertencia a **outro
+produto** (Play! Prize Pack Series) e a única atestação específica do selo dizia "Holo".
+Agravante medido: o **mesmo selo** já tinha interpretação anterior no corpus — mapping
+GLOBAL `holo + {master-ball-league} → MASTER_BALL_HOLO` (2026-08-15). A migration **`2200`
+v1.1** (LIVE `20260916212542`) removeu o mapping, devolveu a linha a `NEEDS_REVIEW` e
+recalculou `valid_rows`; o Variant Type foi **desativado** pela RPC canônica
+`admin_deactivate_card_variant_type`, **não removido** — ausência de prova não é prova de
+ausência, e a hipótese fica arquivada e reativável. **Nenhum `card_variant` chegou a ser
+materializado por esse VT.**
+
+**Job de validação.** `e575fed9-055c-4a35-b661-dea1f627033c` (`CANCELLED`, 432 rows
+preservadas) existiu **apenas** para validar regressões de UI e **não teve impacto no
+catálogo**. Os dois jobs têm papéis distintos e nenhum substitui o outro: o canônico
+carrega as decisões editoriais; o de validação é evidência de teste.
+
+### Deferimento editorial (`DEFERRED`)
+
+Estado terminal registrado a partir do fechamento de SV5. **Deferir é decidir** — tão
+final quanto aprovar ou rejeitar — e significa exatamente isto:
+
+> A variante foi analisada, a evidência disponível **não** foi suficiente para afirmar sua
+> identidade, e a decisão consciente foi **não catalogá-la agora**.
+
+**O que `DEFERRED` NÃO significa:**
+
+- **não é rejeição** — a variante não foi julgada inexistente, inválida ou fora de escopo;
+- **não é conclusão semântica futura** — não fecha a questão nem antecipa qual será a
+  resposta quando houver evidência;
+- **não é pendência** — não há tarefa em aberto associada, e nenhum contador de pendência
+  deve incluí-la;
+- **não é erro** — não sinaliza defeito de dado, de fonte ou de pipeline.
+
+**Contrato físico.** Uma linha deferida é `decision_status = 'SKIPPED'` com
+`match_status = 'NEW'`, fora do eixo de tamanho. As três condições são necessárias porque
+`SKIPPED` é usado pelo importador para **três coisas diferentes**, e só uma é deferimento:
+
+| Combinação | Significado | Quem decidiu |
+|---|---|---|
+| `MATCHED` + `SKIPPED` | variante **já existe** no catálogo | importador (automático) |
+| `OUT_OF_SCOPE` + `SKIPPED` | JUMBO — fora de escopo por tamanho | sistema (automático) |
+| **`NEW` + `SKIPPED` + `IN_SCOPE`** | **deferimento editorial** | **administrador** |
+
+Após a confirmação do job, a linha deferida fica `persistence_status = 'UNCHANGED'` e
+**nunca materializa `card_variant`** — mesma garantia da linha fora de escopo, por motivo
+diferente. O `raw_data` é preservado integralmente: é a evidência de origem, e é o que
+torna a reabertura possível quando surgir prova nova.
+
+**Contrato de leitura (UI).** O ponto único é `web/lib/catalogo/variant-size-scope.ts`
+(`isVariantRowDeferred`, `deriveVariantImportScopeCounters`). Pendência de mapeamento
+exige `NEEDS_REVIEW` **+** `decision_status = PENDING` **+** `IN_SCOPE`; deferidas têm
+contador próprio ("Deferidas"); JUMBO mantém o seu ("Fora de escopo"); linhas já
+existentes (`MATCHED/SKIPPED`) não entram em nenhum dos quatro. Um job cujo único resíduo
+são linhas deferidas é **sucesso**, não "concluído com pendências", e não oferece o botão
+"Resolver mapeamentos pendentes" — não há mapeamento a resolver.
+
+**Reabertura.** Uma variante deferida volta ao fluxo pelo caminho canônico assim que
+existir evidência: nova importação do Set a recoloca em `NEEDS_REVIEW`, e a resolução
+segue por `admin_resolve_catalog_variant_import_mapping[_for_set]` como qualquer outra.
+Deferir não cria dívida técnica nem trava estrutural — cria um registro honesto de que a
+pergunta continua aberta.
 
 ### Cobertura de Card ≠ pendência editorial de Variant Import
 
