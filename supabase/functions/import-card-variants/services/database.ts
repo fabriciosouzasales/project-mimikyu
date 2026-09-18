@@ -196,40 +196,30 @@ const LINEAGE_MAX_PAGES = 200;
  * em silêncio. G0 fecha exatamente esse buraco, e é o único guard aqui que
  * depende de um dado fora do par job/row.
  */
-export async function listCardLineageCorrelationMap(
+/**
+ * Universo de Cards que REALMENTE pertencem a um Card Set — a AUTORIDADE
+ * canônica de `public.card`, não `total_set_size`, não a contagem de
+ * arquivos do GitHub, não o snapshot de `catalog_import_row`, não a
+ * contagem de referências externas.
+ *
+ * Extraída de `listCardLineageCorrelationMap()` em SOURCE-VARIANT-SAFETY-01
+ * / CORRECTION-01 porque passou a ter DOIS consumidores: o G0 do fallback de
+ * lineage (pertença) e o guard de cobertura da Edge (completude). A mesma
+ * leitura serve aos dois — `listCardLineageCorrelationMap` aceita o conjunto
+ * já carregado no 4º parâmetro, então o número de consultas por job NÃO
+ * aumentou: continua sendo UMA leitura de `card` por Set.
+ *
+ * Paginada e fail-closed pelo mesmo motivo do lineage: um universo truncado
+ * é indistinguível de um universo completo, e aqui ele decidiria se um Set
+ * inteiro é aprovado ou reprovado.
+ */
+export async function listCardIdsOfCardSet(
   supabase: any,
   cardSetId: string,
-  externalSetId: string,
-): Promise<Map<string, string>> {
-  const empty = new Map<string, string>();
-  if (!cardSetId || !externalSetId) return empty;
-
-  // Passo 1 — jobs elegíveis do PRÓPRIO Card Set. Ancorar em card_set_id E
-  // external_set_id (e não em um só) é deliberado: são duas âncoras
-  // independentes para a mesma verdade, e o LIVE de 2026-09-18 mostra
-  // 0 divergências entre elas em 17.632 linhas.
-  const { data: jobs, error: jobsError } = await supabase
-    .from("catalog_import_job")
-    .select("id")
-    .eq("card_set_id", cardSetId)
-    .eq("source", "TCGDEX")
-    .eq("external_set_id", externalSetId)
-    .in("status", ["COMPLETED", "COMPLETED_WITH_ERRORS"]);
-
-  if (jobsError) {
-    console.error(jobsError);
-    throw new Error("CATALOG_IMPORT_JOB_LINEAGE_QUERY_FAILED");
-  }
-
-  const jobIds = (jobs ?? []).map((job: any) => job.id).filter(Boolean);
-  if (jobIds.length === 0) return empty;
-
-  // Passo 2 — universo de Cards que REALMENTE pertencem a este Card Set
-  // (base do G0). Uma leitura paginada, não uma por linha: o conjunto é
-  // carregado inteiro e a checagem de pertença vira um `Set.has()` em
-  // memória. Custo: 1 consulta (279 Cards no maior Set elegível do LIVE em
-  // 2026-09-18, muito abaixo de uma página).
+): Promise<Set<string>> {
   const cardIdsOfSet = new Set<string>();
+  if (!cardSetId) return cardIdsOfSet;
+
   for (let page = 0; page < LINEAGE_MAX_PAGES; page += 1) {
     const from = page * LINEAGE_PAGE_SIZE;
     const { data, error } = await supabase
@@ -259,6 +249,51 @@ export async function listCardLineageCorrelationMap(
       );
     }
   }
+
+  return cardIdsOfSet;
+}
+
+export async function listCardLineageCorrelationMap(
+  supabase: any,
+  cardSetId: string,
+  externalSetId: string,
+  // Conjunto de pertença já carregado (ou a Promise dele) — permite ao
+  // chamador reaproveitar a MESMA leitura em vez de duplicá-la. Omitido,
+  // a função carrega por conta própria e o comportamento é idêntico ao
+  // anterior, bit a bit.
+  cardIdsOfSetPrefetch?: Set<string> | Promise<Set<string>>,
+): Promise<Map<string, string>> {
+  const empty = new Map<string, string>();
+  if (!cardSetId || !externalSetId) return empty;
+
+  // Passo 1 — jobs elegíveis do PRÓPRIO Card Set. Ancorar em card_set_id E
+  // external_set_id (e não em um só) é deliberado: são duas âncoras
+  // independentes para a mesma verdade, e o LIVE de 2026-09-18 mostra
+  // 0 divergências entre elas em 17.632 linhas.
+  const { data: jobs, error: jobsError } = await supabase
+    .from("catalog_import_job")
+    .select("id")
+    .eq("card_set_id", cardSetId)
+    .eq("source", "TCGDEX")
+    .eq("external_set_id", externalSetId)
+    .in("status", ["COMPLETED", "COMPLETED_WITH_ERRORS"]);
+
+  if (jobsError) {
+    console.error(jobsError);
+    throw new Error("CATALOG_IMPORT_JOB_LINEAGE_QUERY_FAILED");
+  }
+
+  const jobIds = (jobs ?? []).map((job: any) => job.id).filter(Boolean);
+  if (jobIds.length === 0) return empty;
+
+  // Passo 2 — universo de Cards que REALMENTE pertencem a este Card Set
+  // (base do G0). Reaproveita a leitura já feita pelo chamador quando ela
+  // existe; senão carrega por conta própria. Em ambos os casos o conjunto é
+  // carregado inteiro e a checagem de pertença vira um `Set.has()` em
+  // memória — nunca uma consulta por linha.
+  const cardIdsOfSet = cardIdsOfSetPrefetch !== undefined
+    ? await cardIdsOfSetPrefetch
+    : await listCardIdsOfCardSet(supabase, cardSetId);
 
   if (cardIdsOfSet.size === 0) return empty;
 

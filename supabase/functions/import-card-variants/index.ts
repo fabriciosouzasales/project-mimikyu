@@ -51,6 +51,7 @@ import {
   insertVariantImportRows,
   listActivePrintingProfiles,
   listCardExternalReferencesMap,
+  listCardIdsOfCardSet,
   listCardLineageCorrelationMap,
   listExistingCardVariantsMap,
   listPrintingExternalMappings,
@@ -62,10 +63,11 @@ import {
 import { resolveSetSerieName } from "./services/tcgdex.ts";
 import {
   deriveLocalIdFromFilename,
-  extractVariantsFromSource,
   fetchCardFileSource,
   listSetCardFiles,
+  parseVariantSource,
 } from "./services/github-source.ts";
+import type { VariantSourceShape } from "./services/github-source.ts";
 import { normalizeExternalCatalogValue } from "../_shared/catalog-normalization/mod.ts";
 import { classifyVariantSize } from "./services/size-scope.ts";
 import type { ExternalVariantCombo, RequestBody, ResolvedVariantRow } from "./types.ts";
@@ -114,6 +116,10 @@ type CardFileResult = {
   // e telemetria, NUNCA identidade. `card_variant` não sabe — nem precisa
   // saber — por qual dos dois mapas a Card foi encontrada.
   correlationSource: "REFERENCE" | "LINEAGE" | null;
+  // Shape da fonte (SOURCE-VARIANT-SAFETY-01). `null` só quando o arquivo
+  // nem chegou a ser lido (fetchError) — nesse caso a Card entra em
+  // `fetchFailed` e nunca chega ao guard de cobertura.
+  sourceShape: VariantSourceShape | null;
   combos: ExternalVariantCombo[];
   fetchError: string | null;
 };
@@ -368,7 +374,94 @@ function routePrinting(
   };
 }
 
+// =====================================================================
+// CORS — SUPORTE MÍNIMO PARA INVOCAÇÃO PELO BROWSER
+// (CORS-BROWSER-INVOKE-01, 2026-09-18)
+//
+// POR QUE EXISTE. Até aqui, esta function só era chamada server-side (a
+// Server Action `iniciarImportacaoVariantes` faz o `fetch` no servidor do
+// Next, sem Origin). A primeira campanha `BULK-STAGING-01 / CANARY` tentou
+// invocá-la do browser e abortou no preflight — "No 'Access-Control-Allow-
+// Origin' header" —, corretamente, ANTES de qualquer escrita (postcheck
+// LIVE: SV2/SM12/SV4 com 0 jobs, EX5.5 preservado, card_variant = 7.671).
+//
+// O QUE ISTO **NÃO** MUDA. Nada da fronteira de identidade: `verify_jwt =
+// true` continua em config.toml, `auth.getUser()` e `rpc("is_admin")`
+// continuam sendo a autorização real, `service_role` segue interno à
+// function. CORS é um contrato de NAVEGADOR — ele decide se o browser
+// ENTREGA a resposta ao JavaScript da página, e não tem poder algum sobre
+// quem pode executar. Um cliente não-browser (curl, Server Action) ignora
+// CORS por completo, então relaxar ou apertar isto não amplia nem reduz a
+// superfície de autorização.
+//
+// ALLOWLIST EXPLÍCITA, nunca `*`. Origin ausente (Server Action de hoje) =
+// sem headers CORS, comportamento byte-a-byte idêntico ao anterior. Origin
+// presente e não listado = sem `Access-Control-Allow-Origin`, e o browser
+// bloqueia — a superfície de confiança não cresce.
+// =====================================================================
+
+const CORS_ALLOWED_ORIGINS = new Set<string>([
+  "https://mmkyu.vercel.app",
+]);
+
+const CORS_ALLOW_METHODS = "POST, OPTIONS";
+const CORS_ALLOW_HEADERS = "authorization, apikey, content-type, x-client-info";
+
+/**
+ * Devolve os headers CORS aplicáveis a ESTA requisição.
+ *
+ * - sem `Origin`            → `{}` (nada é acrescentado; caminho do Server Action)
+ * - `Origin` não permitido  → só `Vary: Origin` (correção de cache; NUNCA `ACAO`)
+ * - `Origin` permitido      → `ACAO` + `Vary`
+ *
+ * `Vary: Origin` é obrigatório sempre que a resposta PODE variar por Origin:
+ * sem ele, um cache intermediário poderia servir a um origin a resposta
+ * calculada para outro.
+ */
+function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin");
+  if (origin === null) return {};
+  if (!CORS_ALLOWED_ORIGINS.has(origin)) return { Vary: "Origin" };
+  return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
+}
+
+/**
+ * PONTO DE ENTRADA. Faz três coisas, nesta ordem, e nada mais:
+ *   1. calcula os headers CORS desta requisição;
+ *   2. responde ao preflight `OPTIONS` de origin permitido SEM entrar na
+ *      lógica de negócio (nenhuma linha de `handleImportRequest` roda);
+ *   3. delega ao handler intacto e aplica os headers CORS à resposta, seja
+ *      ela qual for — 200, 400, 401, 403, 404, 405, 409 ou 500.
+ *
+ * Centralizar aqui é deliberado: os 11 `Response.json(...)` do handler
+ * permanecem EXATAMENTE como estavam, sem um único header duplicado à mão.
+ * Status, corpo e contrato de request/response ficam inalterados.
+ */
 Deno.serve(async (req) => {
+  const cors = corsHeadersFor(req);
+
+  // (2) Preflight: curto-circuito ANTES de qualquer lógica de negócio.
+  //     `OPTIONS` de origin NÃO permitido não entra aqui — segue o fluxo
+  //     normal e recebe o mesmo 405 de sempre, comportamento preservado.
+  if (req.method === "OPTIONS" && cors["Access-Control-Allow-Origin"] !== undefined) {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        ...cors,
+        "Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
+        "Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  }
+
+  // (3) Handler intocado + CORS uniforme em TODA resposta.
+  const response = await handleImportRequest(req);
+  for (const [key, value] of Object.entries(cors)) response.headers.set(key, value);
+  return response;
+});
+
+async function handleImportRequest(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return Response.json({ success: false, error: "METHOD_NOT_ALLOWED" }, { status: 405, headers: { Allow: "POST" } });
   }
@@ -458,8 +551,19 @@ Deno.serve(async (req) => {
     // PRELOAD — número FIXO de queries por job, nunca por linha. Os dois
     // datasets de Printing entram aqui, no mesmo Promise.all dos que já
     // existiam: o roteamento inteiro acontece depois, em memória.
+    // AUTORIDADE DE COMPLETUDE (SOURCE-VARIANT-SAFETY-01/CORRECTION-01):
+    // `public.card` do próprio Card Set — nunca `total_set_size`, nunca a
+    // contagem de arquivos do GitHub, nunca o snapshot de importação, nunca
+    // a contagem de referências externas.
+    //
+    // A MESMA Promise é injetada em `listCardLineageCorrelationMap`, que já
+    // precisava desse conjunto para o G0 (pertença). Uma leitura, dois
+    // consumidores: o número de consultas por job NÃO aumentou.
+    const cardIdsOfSetPromise = listCardIdsOfCardSet(supabase, cardSetId);
+
     const [
       cardExternalReferences,
+      expectedCardIds,
       cardLineageCorrelations,
       variantTypeMaps,
       printingMappings,
@@ -468,12 +572,13 @@ Deno.serve(async (req) => {
     ] = await Promise
       .all([
         listCardExternalReferencesMap(supabase, assetSource.id, externalSetId),
+        cardIdsOfSetPromise,
         // FALLBACK de correlação (VARIANT-CARD-CORRELATION-FALLBACK-01):
         // subordinado por construção — só é consultado onde o mapa primário
         // não responde. Entra no MESMO Promise.all porque tem o mesmo
         // perfil dos demais preloads: número fixo de queries por job,
         // nunca por linha.
-        listCardLineageCorrelationMap(supabase, cardSetId, externalSetId),
+        listCardLineageCorrelationMap(supabase, cardSetId, externalSetId, cardIdsOfSetPromise),
         listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id, externalSetId),
         listPrintingExternalMappings(supabase, cardSet.game_id, assetSource.id),
         listActivePrintingProfiles(supabase, cardSet.game_id),
@@ -507,12 +612,26 @@ Deno.serve(async (req) => {
 
         try {
           const source = await fetchCardFileSource(file.downloadUrl);
-          const combos = extractVariantsFromSource(source);
-          return { externalCardId, cardId, correlationSource, combos, fetchError: null };
+          const parsed = parseVariantSource(source);
+          return {
+            externalCardId,
+            cardId,
+            correlationSource,
+            sourceShape: parsed.shape,
+            combos: parsed.combos,
+            fetchError: null,
+          };
         } catch (error) {
           const message = error instanceof Error ? error.message : "UNEXPECTED_ERROR";
           console.error(`GITHUB_SOURCE_FETCH_FAILED ${externalCardId}:`, message);
-          return { externalCardId, cardId, correlationSource, combos: [], fetchError: `GITHUB_SOURCE_FETCH_FAILED: ${message}` };
+          return {
+            externalCardId,
+            cardId,
+            correlationSource,
+            sourceShape: null,
+            combos: [],
+            fetchError: `GITHUB_SOURCE_FETCH_FAILED: ${message}`,
+          };
         }
       },
     );
@@ -532,6 +651,135 @@ Deno.serve(async (req) => {
       }
       return true;
     });
+
+    // Amostra compartilhada pelos três guards abaixo. O error_summary é
+    // renderizado na tela e lido por humano: despejar um Set inteiro ali o
+    // tornaria ilegível e inútil. Contagem completa + amostra curta.
+    const SOURCE_SHAPE_SAMPLE_LIMIT = 10;
+
+    // =================================================================
+    // GUARD 1 — FETCH FALHO DE CARD CORRELACIONADA (CORRECTION-01)
+    //
+    // `correlated` EXCLUI quem tem `fetchError`, então sem este guard uma
+    // Card MMKYU conhecida cujo arquivo falhou no fetch sumiria do universo
+    // examinado e o job terminaria STAGED com staging parcial.
+    //
+    // Roda ANTES do guard de cobertura de propósito: uma Card que falhou no
+    // fetch também está ausente da cobertura, e reportá-la como
+    // `CARD_COVERAGE_INCOMPLETE` (PERMANENTE) seria diagnóstico errado —
+    // falha de rede é TRANSITÓRIA e tem retry persistido. A ordem dos
+    // guards é, ela própria, a classificação correta do erro.
+    //
+    // Arquivo EXTRA sem `cardId` que falhou no fetch NÃO entra aqui: não
+    // reduz a cobertura de nenhuma Card MMKYU. Segue como diagnóstico em
+    // `cards.fetch_failed`.
+    // =================================================================
+    const fetchFailedCorrelated = fileResults.filter((r) => r.cardId !== null && r.fetchError !== null);
+    if (fetchFailedCorrelated.length > 0) {
+      const causas = new Map<string, number>();
+      for (const r of fetchFailedCorrelated) {
+        const causa = String(r.fetchError).split(":").slice(0, 2).join(":").trim();
+        causas.set(causa, (causas.get(causa) ?? 0) + 1);
+      }
+      const amostra = fetchFailedCorrelated.slice(0, SOURCE_SHAPE_SAMPLE_LIMIT).map((r) => r.externalCardId);
+      throw new Error(
+        "VARIANT_SOURCE_FETCH_FAILED_FOR_CORRELATED_CARDS: " +
+          `cards_correlacionadas_com_falha=${fetchFailedCorrelated.length}; ` +
+          `causas=${[...causas].map(([c, n]) => `${c} x${n}`).join(" | ")}; ` +
+          `amostra(${amostra.length}/${fetchFailedCorrelated.length}): ${amostra.join(", ")}`,
+      );
+    }
+
+    // =================================================================
+    // GUARD 2 — COBERTURA CANÔNICA DE CARDS (CORRECTION-01)
+    //
+    // `expected_card_ids` MINUS `cards representadas na fonte` = ∅.
+    //
+    // A autoridade é `public.card` do Card Set. Este guard pega o caso que
+    // nenhum outro pega: uma Card MMKYU cujo ARQUIVO simplesmente sumiu da
+    // listagem do GitHub — ela não aparece em `uncorrelated` (não há arquivo
+    // para correlacionar), não aparece em `fetch_failed` (não houve fetch) e
+    // não aparece no guard de shape (não está em `correlated`). Sem isto,
+    // sumiria sem deixar rastro e o job iria a STAGED incompleto.
+    //
+    // Arquivos EXTRA da fonte sem Card MMKYU correspondente não são blocker
+    // de completude — a direção testada é uma só, e é a que importa.
+    // =================================================================
+    const representedCardIds = new Set(correlated.map((r) => r.cardId as string));
+    const missingCardIds = [...expectedCardIds].filter((id) => !representedCardIds.has(id));
+    if (missingCardIds.length > 0) {
+      const amostra = missingCardIds.slice(0, SOURCE_SHAPE_SAMPLE_LIMIT);
+      throw new Error(
+        "VARIANT_SOURCE_CARD_COVERAGE_INCOMPLETE: " +
+          `cards_canonicas=${expectedCardIds.size}; representadas=${representedCardIds.size}; ` +
+          `ausentes=${missingCardIds.length}; ` +
+          `amostra_card_id(${amostra.length}/${missingCardIds.length}): ${amostra.join(", ")}`,
+      );
+    }
+
+    // =================================================================
+    // GUARD 3 — COBERTURA DE FONTE (SOURCE-VARIANT-SAFETY-01, 2026-09-18)
+    //
+    // Fecha as DUAS falhas que a CANARY expôs, e que eram indistinguíveis
+    // de sucesso porque o job terminava STAGED com error_summary nulo:
+    //
+    //   sucesso vazio    — SM12: 271 Cards correlacionadas, 0 rows. Todas
+    //                      as fontes eram ABSENT; nada a extrair.
+    //   sucesso parcial  — Sets MIXED: parte das Cards em ARRAY, parte em
+    //     SILENCIOSO       ABSENT. `resolvedRows.length === 0` não detecta
+    //                      isso, porque as ARRAY produzem linhas.
+    //
+    // Por isso o critério é POR CARD, não por total de linhas: TODA Card
+    // correlacionada precisa estar em shape ARRAY *e* ter ao menos um combo
+    // extraível. Qualquer outra coisa falha o job de forma determinística e
+    // PERSISTIDA (o throw cai em failVariantJob → status FAILED, que está
+    // fora do índice único parcial e portanto é retentável).
+    //
+    // O guard roda ANTES de qualquer leitura de mapeamento e antes de
+    // qualquer escrita de linha: um Set sem cobertura não consome nem
+    // query nem staging.
+    //
+    // Nota: `correlated.length === 0` não dispara este guard — nenhuma
+    // Card correlacionada significa falha de CORRELAÇÃO, não de fonte, e
+    // já é reportada por `uncorrelated`/`fetch_failed`.
+    // =================================================================
+    const shapeTally = {
+      ARRAY: 0,
+      ARRAY_SEM_VARIANTE: 0,
+      ARRAY_EMPTY: 0,
+      OBJECT: 0,
+      ABSENT: 0,
+      UNSUPPORTED: 0,
+    };
+    const unsupportedSample: string[] = [];
+
+    for (const result of correlated) {
+      if (result.sourceShape === "ARRAY" && result.combos.length > 0) {
+        shapeTally.ARRAY += 1;
+        continue;
+      }
+      if (result.sourceShape === "ARRAY") shapeTally.ARRAY_SEM_VARIANTE += 1;
+      else if (result.sourceShape === "ARRAY_EMPTY") shapeTally.ARRAY_EMPTY += 1;
+      else if (result.sourceShape === "OBJECT") shapeTally.OBJECT += 1;
+      else if (result.sourceShape === "ABSENT") shapeTally.ABSENT += 1;
+      else shapeTally.UNSUPPORTED += 1;
+      // Amostra LIMITADA — nunca despejar o Set inteiro no error_summary.
+      if (unsupportedSample.length < SOURCE_SHAPE_SAMPLE_LIMIT) {
+        unsupportedSample.push(result.externalCardId);
+      }
+    }
+
+    const semCobertura = correlated.length - shapeTally.ARRAY;
+    if (semCobertura > 0) {
+      throw new Error(
+        "VARIANT_SOURCE_UNSUPPORTED_FOR_CORRELATED_CARDS: " +
+          `correlacionadas=${correlated.length}; sem_variante_extraivel=${semCobertura}; ` +
+          `ARRAY=${shapeTally.ARRAY}; ARRAY_SEM_VARIANTE=${shapeTally.ARRAY_SEM_VARIANTE}; ` +
+          `ARRAY_EMPTY=${shapeTally.ARRAY_EMPTY}; OBJECT=${shapeTally.OBJECT}; ` +
+          `ABSENT=${shapeTally.ABSENT}; UNSUPPORTED=${shapeTally.UNSUPPORTED}; ` +
+          `amostra(${unsupportedSample.length}/${semCobertura}): ${unsupportedSample.join(", ")}`,
+      );
+    }
 
     const correlatedCardIds = Array.from(new Set(correlated.map((r) => r.cardId as string)));
 
@@ -843,4 +1091,4 @@ Deno.serve(async (req) => {
     if (jobId) await failVariantJob(supabase, jobId, message);
     return Response.json({ success: false, error: message }, { status: 500 });
   }
-});
+}

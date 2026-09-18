@@ -106,17 +106,86 @@ export function deriveLocalIdFromFilename(filename: string): string {
   return filename.replace(/\.ts$/, "");
 }
 
-// Extração estrutural por profundidade de colchetes — nunca eval/Function.
-// Assume a mesma sintaxe observada em todos os arquivos-fonte reais
-// testados nesta frente (chaves sem aspas, aspas simples ou duplas em
-// valores, vírgulas finais permitidas).
-export function extractVariantsFromSource(source: string): ExternalVariantCombo[] {
-  const block = extractBracketBlock(source, "variants");
-  if (!block) return [];
+// =====================================================================
+// SHAPE DA FONTE DE VARIANTE (SOURCE-VARIANT-SAFETY-01, 2026-09-18)
+//
+// A TCGdex tem mais de uma forma real para `variants` dentro de
+// `data/<Serie>/<Set>/*.ts`, e a auditoria SOURCE-VARIANT-SCHEMA-
+// COVERAGE-AUDIT-01 mediu a distribuição nos 169 Card Sets elegíveis:
+//
+//   ARRAY        `variants: [ {type,foil,subtype,stamp,size}, ... ]`
+//                → 113 Sets puros. ÚNICA forma que este parser extrai.
+//   OBJECT       `variants: { normal, reverse, holo, firstEdition }`
+//                → 2 Sets (SWSH1, SWSH3.5). NÃO convertida aqui: o objeto
+//                  não carrega `foil` nem `subtype` (os dois eixos do
+//                  modelo C2, ADR-028) e fixa `size` em "standard".
+//                  Converter fabricaria significado editorial.
+//   ABSENT       sem a chave `variants` → 46 Sets. O compilador da TCGdex
+//                (server/compiler/utils/cardUtil.ts) preenche o vazio com
+//                `normal: true` hardcoded e marca `variantId:"generated"`.
+//                Isso é SUPOSIÇÃO do compilador, não dado da fonte.
+//   ARRAY_EMPTY  `variants: []` — array presente e deliberadamente vazio.
+//                Distinto de ABSENT: aqui a fonte AFIRMA que não há
+//                variante; em ABSENT ela apenas não diz nada.
+//   UNSUPPORTED  qualquer outra forma (valor que não é `[` nem `{`,
+//                array não terminado). Fail-closed por construção.
+//
+// POR QUE A ÂNCORA IMPORTA (fail-open fechado nesta rodada): a versão
+// anterior fazia `indexOf("variants:")` e depois `indexOf("[", …)` — ou
+// seja, pegava o PRÓXIMO colchete do arquivo, não o valor de `variants`.
+// Num arquivo OBJECT, o próximo `[` é de OUTRO campo, e se esse campo for
+// um array de objetos com a chave `type` (`weaknesses`, `abilities`,
+// `resistances`) o parser devolvia variantes FABRICADAS — provado:
+// `variants:{…} + weaknesses:[{type:"Fire"}]` → `[{type:"Fire"}]`.
+// Nos arquivos reais o `variants` vem depois desses campos, então o bug
+// nunca disparou — segurança por sorte de ordenação, não por contrato.
+// Agora o valor é lido EXATAMENTE na posição que segue os dois-pontos.
+//
+// Continua valendo: extração estrutural por profundidade de colchetes,
+// NUNCA eval/Function (rodar código de terceiro dentro de uma Edge
+// Function com service role é inaceitável).
+// =====================================================================
 
-  return splitTopLevelObjects(block)
-    .map((obj) => ({
-      type: extractStringField(obj, "type"),
+export type VariantSourceShape = "ARRAY" | "ARRAY_EMPTY" | "OBJECT" | "ABSENT" | "UNSUPPORTED";
+
+export type VariantSourceParse = {
+  shape: VariantSourceShape;
+  /** Só pode ser não-vazio quando `shape === "ARRAY"`. */
+  combos: ExternalVariantCombo[];
+};
+
+export function parseVariantSource(source: string): VariantSourceParse {
+  const valueAt = locateVariantsValue(source);
+  if (valueAt === null) return { shape: "ABSENT", combos: [] };
+
+  const ch = source[valueAt];
+  if (ch === "{") return { shape: "OBJECT", combos: [] };
+  if (ch !== "[") return { shape: "UNSUPPORTED", combos: [] };
+
+  const block = readBracketBlockAt(source, valueAt);
+  if (block === null) return { shape: "UNSUPPORTED", combos: [] };
+  if (block.trim() === "") return { shape: "ARRAY_EMPTY", combos: [] };
+
+  // ALL-OR-NOTHING (CORRECTION-01). Antes, um array com um objeto válido e
+  // outro ilegível devolvia `ARRAY` com os combos que deram certo — sucesso
+  // PARCIAL silencioso, exatamente a classe de erro que esta frente existe
+  // para eliminar. Agora: ou TODOS os objetos top-level são reconhecidos e
+  // têm `type` string não-vazia, ou o array inteiro é UNSUPPORTED.
+  const objects = splitTopLevelObjects(block);
+
+  // Bloco não vazio que não produz nenhum objeto top-level: há conteúdo ali
+  // que este parser não sabe ler (array de escalares, sintaxe nova, lixo).
+  // Fail-closed — nunca tratar como "sem variantes".
+  if (objects.length === 0) return { shape: "UNSUPPORTED", combos: [] };
+
+  const combos: ExternalVariantCombo[] = [];
+  for (const obj of objects) {
+    const type = extractStringField(obj, "type");
+    if (typeof type !== "string" || type.length === 0) {
+      return { shape: "UNSUPPORTED", combos: [] };
+    }
+    combos.push({
+      type,
       foil: extractStringField(obj, "foil"),
       subtype: extractStringField(obj, "subtype"),
       stamp: extractStampArray(obj),
@@ -125,16 +194,44 @@ export function extractVariantsFromSource(source: string): ExternalVariantCombo[
       // padrão. Preservado bruto, sem interpretação — a classificação de
       // escopo acontece no index.ts.
       size: extractStringField(obj, "size"),
-    }))
-    .filter((combo): combo is ExternalVariantCombo => typeof combo.type === "string" && combo.type.length > 0);
+    });
+  }
+
+  // INVARIANTE: `shape === "ARRAY"` ⇒ `combos.length >= 1`. Um array vazio
+  // já saiu como ARRAY_EMPTY; qualquer objeto ilegível já saiu como
+  // UNSUPPORTED. `thirdParty` e quaisquer outros campos aninhados não
+  // integram identidade e são simplesmente ignorados — a contagem de
+  // profundidade de `splitTopLevelObjects` os mantém dentro do objeto pai.
+  return { shape: "ARRAY", combos };
 }
 
-function extractBracketBlock(source: string, key: string): string | null {
-  const keyIndex = source.indexOf(`${key}:`);
-  if (keyIndex === -1) return null;
-  const start = source.indexOf("[", keyIndex);
-  if (start === -1) return null;
+/** Compatibilidade: mesma saída de antes para quem só precisa dos combos. */
+export function extractVariantsFromSource(source: string): ExternalVariantCombo[] {
+  return parseVariantSource(source).combos;
+}
 
+/**
+ * Devolve o índice do primeiro caractere do VALOR de `variants`, ou null se
+ * a chave não existir. Âncora estrutural:
+ *   - `(?:^|[^A-Za-z0-9_$])` impede casar sufixo de outro identificador;
+ *   - exige `:` logo após o nome, tolerando whitespace dos dois lados
+ *     (`variants:`, `variants :`, `variants\n\t:` são equivalentes);
+ *   - por exigir o `:` colado ao nome, `variants_detailed:` NUNCA casa.
+ */
+function locateVariantsValue(source: string): number | null {
+  const match = /(?:^|[^A-Za-z0-9_$])variants[ \t\r\n]*:[ \t\r\n]*/.exec(source);
+  if (!match) return null;
+  const valueAt = match.index + match[0].length;
+  return valueAt < source.length ? valueAt : null;
+}
+
+/**
+ * Lê o bloco `[...]` que COMEÇA exatamente em `start`. Nunca procura um
+ * colchete adiante: se `source[start]` não for `[`, é erro do chamador.
+ * Devolve null quando o array não é terminado (fonte malformada).
+ */
+function readBracketBlockAt(source: string, start: number): string | null {
+  if (source[start] !== "[") return null;
   let depth = 0;
   for (let i = start; i < source.length; i++) {
     const ch = source[i];

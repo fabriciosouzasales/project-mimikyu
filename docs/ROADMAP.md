@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.6 |
+| **Versão** | 2.7 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -36,32 +36,58 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > (75 GLOBAL · 8 `sv05` · 6 `basep` · 5 `base3`) · 9 traits · 11 profiles · 10 printing
 > mappings · **7.671** `card_variant`.
 >
-> ## FRENTE ATUAL = `CARD VARIANTS — HISTORICAL BULK IMPORT`
+> ## `CARD VARIANTS — HISTORICAL BULK IMPORT` = **STAGING CLOSED** (2026-09-18)
 >
-> É a **etapa restante** de `CATALOG-HISTORICAL-BOOTSTRAP-03`. Universo elegível medido em
-> 2026-09-18: **169 Card Sets** (170 com Cards e zero Variants, menos `ME5.5`, fora do
-> denominador operacional) · **16.705** Cards. Baseline **datado, não contrato rígido**.
-> Cards e Assets residuais permanecem `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING` —
-> **não são frente atual e não são próximo passo.** Nada inicia sem mandato explícito de
-> Fabrício. Detalhamento adiante, na seção "Próxima frente do projeto".
+> É a **etapa restante** de `CATALOG-HISTORICAL-BOOTSTRAP-03`. O **staging em massa está
+> concluído e validado em LIVE**; o que resta da frente é o **consumo editorial** do
+> staging, que é a frente seguinte (`BULK-STP-01`). Cards e Assets residuais permanecem
+> `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING` — **não são frente atual e não são
+> próximo passo.** Nada inicia sem mandato explícito de Fabrício.
 >
 > ### Pré-requisitos da frente — estado
 >
 > | Incremento | Estado |
 > |---|---|
-> | `SOURCE-PROBE-01` | **`CLOSED` / read-only** — 169/169 `SOURCE_READY`, 16.705/16.705 Cards com arquivo correspondente na fonte, 0 `SOURCE_UNAVAILABLE`, 0 `TRANSIENT_FAILURE`. |
-> | `VARIANT-CARD-CORRELATION-FALLBACK-01` | **`LIVE VALIDATED`** (2026-09-18) — Edge `import-card-variants` **v12**, `verify_jwt=true`. Correlação desacoplada de Asset Import: `card_external_reference` > lineage > `null`. **727 Cards destravadas sem backfill.** Canário `EX5.5` `STAGED` (5/5 por lineage). Nenhuma migration, nenhum SQL. **Ainda não `COMMITTED`/`PUSHED`.** |
-> | **`BULK-STAGING-01`** | **PRÓXIMO PASSO — não iniciado.** Nada executa sem mandato explícito. |
+> | `SOURCE-PROBE-01` | **`CLOSED` / read-only** — 169/169 `SOURCE_READY`, 16.705/16.705 Cards com arquivo correspondente na fonte, 0 `SOURCE_UNAVAILABLE`, 0 `TRANSIENT_FAILURE`. **Reconciliação:** `SOURCE_READY` mede a existência do arquivo, **não** a existência de variante declarada nele — ver `SOURCE-VARIANT-SAFETY-01`. |
+> | `VARIANT-CARD-CORRELATION-FALLBACK-01` | **`LIVE VALIDATED`** (2026-09-18). Correlação desacoplada de Asset Import: `card_external_reference` > lineage > `null`. **727 Cards destravadas sem backfill.** Nenhuma migration, nenhum SQL. |
+> | `CORS-BROWSER-INVOKE-01` | **`LIVE VALIDATED`** (2026-09-18). CORS mínimo na Edge: allowlist de origin única, **sem wildcard**, preflight `OPTIONS` que não entra na lógica de negócio, chamada sem `Origin` byte-a-byte inalterada. **Fronteira de identidade intocada** — `verify_jwt=true`, `auth.getUser()`, `rpc("is_admin")`, `service_role` interno. |
+> | `SOURCE-VARIANT-SAFETY-01` | **`LIVE VALIDATED`** (2026-09-18). Parser ancorado por shape (`ARRAY`/`ARRAY_EMPTY`/`OBJECT`/`ABSENT`/`UNSUPPORTED`, `ARRAY` all-or-nothing) + três guards de cobertura fail-closed antes de qualquer staging. Fecha **sucesso vazio** e **sucesso parcial silencioso**. 243 casos de teste, 0 FAIL. |
+> | **`BULK-STAGING-01`** | **`EXECUTED / LIVE VALIDATED` — FULL concluído.** **113/113 TARGET `STAGED`** · **56 `DEFERRED_SOURCE_COVERAGE`** · **18.940** staging rows · **`card_variant` 7.671, inalterado** · 0 `FAILED` correntes, 0 em voo. |
 >
-> **Pré-condição obrigatória registrada para `BULK-STAGING-01` (`B6`):** a Contents API do
-> GitHub tem teto de **60 req/h sem autenticação** e a Edge faz **1 chamada por Set** — 169
-> Sets excedem o teto. O runner deverá fazer *pacing*/retry automático, preservando a
-> experiência **1 ação inicia/retoma → zero clique por Set → zero babysitting**.
-> `github-source.ts` permanece intocado.
+> ### Manifesto de cobertura de fonte — 113 TARGET / 56 DEFERRED
 >
-> **O job canário `EX5.5` deve permanecer `STAGED`** — não confirmar, rejeitar, excluir nem
-> recriar. `BULK-STAGING-01` o trata como estado já existente, dentro do desenho
-> resumable/idempotente.
+> | Classe | Sets | Cards | Destino |
+> |---|---:|---:|---|
+> | `ARRAY_SUPPORTED` puro | **113** | 10.301 | **TARGET** — processado |
+> | `MIXED` (`ARRAY` + `ABSENT` no mesmo Set) | 8 | 1.182 | `DEFERRED` |
+> | `ABSENT` (a fonte não declara variante) | 46 | 4.926 | `DEFERRED` |
+> | `OBJECT_BOOLEAN` (SWSH1, SWSH3.5) | 2 | 296 | `DEFERRED` |
+> | **Total** | **169** | **16.705** | |
+>
+> `MIXED` ficou fora por decisão explícita: um Set parcialmente extraível produziria staging
+> incompleto **indistinguível** de staging completo. **Os 56 `DEFERRED` permanecem
+> explicitamente fora do escopo de materialização** até tratamento futuro próprio — não são
+> pendência, são escopo excluído, e não entram em nenhum denominador de conclusão.
+> Evidência Set a Set congelada em
+> `database/proposals/2026-09-18-bulk-staging-01/source-variant-coverage-169.md`.
+>
+> ### Baseline terminal do staging (postcheck READ-ONLY externo)
+>
+> **18.940** rows nos TARGET — `VALID` **17.222** · `NEEDS_REVIEW` **1.642** · `INVALID`
+> **76**; por decisão: `PENDING` **18.864** · `SKIPPED` **76**. **A campanha não
+> materializou nenhuma Card Variant** — construiu o staging; consumi-lo é trabalho
+> editorial. Um retry real registrado: `TK-DP-M` falhou com
+> `TCGDEX_SET_METADATA_HTTP_503` (0 rows) e fechou `STAGED` 12/12 `VALID` na retentativa.
+>
+> **O job canário `EX5.5` permaneceu `STAGED`** o tempo todo — nunca confirmado, rejeitado,
+> excluído ou recriado; entrou no FULL como `ALREADY_STAGED`, junto de `SV2` e `SV4`.
+> **`SM12` permanece preservado como `DEFERRED`/`ABSENT` com job `STAGED` de 0 rows.**
+>
+> **Nota histórica (`B6`, resolvida):** a Contents API do GitHub tem teto de 60 req/h sem
+> autenticação e a Edge faz 1 chamada por Set. O runner resolveu com *pacing* de 65 s,
+> cooldown de 65 min em rate limit e retry persistido — preservando **1 ação inicia/retoma →
+> zero clique por Set → zero babysitting**. `github-source.ts` recebeu apenas o parser
+> ancorado de `SOURCE-VARIANT-SAFETY-01`.
 
 ---
 
@@ -300,7 +326,16 @@ Nota de escopo já registrada na fonte anterior (`ADR-014`, Substituído): Rule-
 > fechamento formal da frente" — está **satisfeita**. A regra de autorização permanece:
 > nada começa sem mandato explícito de Fabrício.
 
-**Próxima frente do projeto: `CATALOG-HISTORICAL-BOOTSTRAP-03` — etapa restante = `CARD VARIANTS — HISTORICAL BULK IMPORT`.**
+**Próxima frente do projeto: `BULK-STP-01` — consumo editorial do staging de Variantes.**
+
+> **Atualização (2026-09-18, `BULK-STAGING-01-CLOSEOUT-DOCS-01`).** O staging em massa está
+> **concluído**: 113/113 TARGET `STAGED`, 18.940 rows, `card_variant` inalterada em 7.671.
+> O que resta de `CATALOG-HISTORICAL-BOOTSTRAP-03` deixou de ser *produzir* staging e passou
+> a ser **consumi-lo** — decidir e confirmar as 18.864 linhas `PENDING` (17.222 `VALID` +
+> 1.642 `NEEDS_REVIEW`), trabalho editorial, não de importação. **`BULK-STP-01` é a próxima
+> frente.** Os 56 `DEFERRED` **não** entram nela: seguem fora do escopo de materialização
+> até tratamento futuro próprio. O bloco abaixo permanece como registro do baseline datado
+> que orientou a campanha.
 
 > **Reconciliação operacional (2026-09-18).** A descrição anterior — "`BOOTSTRAP-03` —
 > **CARDS + ASSETS PT-BR/EN**" — está **desatualizada operacionalmente**. Cards e Assets

@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.5 |
+| **Versão** | 1.6 |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`) e o **contrato de correlação Card ↔ fonte externa** do Variant Import, com o fallback determinístico por lineage (revisão `1.5`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -2425,7 +2425,7 @@ Ambas as tabelas têm gatilhos de normalização (`UPPER(BTRIM(...))` em todos o
 
 **Máquina de estados da linha**: `validation_status` (`NEEDS_REVIEW` quando a combinação normalizada não tem mapeamento em `card_variant_type_external_mapping`; `VALID` quando tem) → `decision_status` (`PENDING`/`APPROVED`/`REJECTED`/`SKIPPED`, decidido pelo administrador — só linhas `VALID` podem ser `APPROVED`) → `persistence_status` (`PENDING`/`INSERTED`/`UNCHANGED`/`FAILED`, resultado real da confirmação). `match_status` (`NEW`/`MATCHED`/`CONFLICT`) registra se a combinação já corresponde a uma `card_variant` existente da Card.
 
-## Edge Function `import-card-variants` (versão 3, ativa)
+## Edge Function `import-card-variants` (versão **14**, ativa — `verify_jwt = true`)
 
 Recebe `{ card_set_id }` (não `{ job_id }` — diferente de `import-catalog-cards`, porque ainda não existe tela dedicada de pré-criação do job para variantes), cria o próprio `catalog_variant_import_job` internamente, resolve o `external_set_id` do dataset TCGdex via `card_set_external_reference` já gravada por Importar Cartas, busca os arquivos de carta do Set inteiro (não carta a carta), correlaciona cada Card externa com a Card MMKYU via `card_external_reference`, extrai as combinações `variants[]`, resolve o mapeamento externo e grava **somente em `catalog_variant_import_row`** (staging) — nunca em `card_variant` diretamente, mesmo Princípio da Fonte Canônica de `ADR-024`. Não cria RPC de confirmação própria, não infere `is_default`/`variant_order` (resolvidos só na confirmação, por `admin_confirm_catalog_variant_import()`), não modela vintage/promo.
 
@@ -2528,6 +2528,125 @@ já existente dentro do desenho resumable/idempotente.
 **Dívida registrada, não mascarada:** `listCardExternalReferencesMap` (intocada por
 não-regressão) não pagina e hoje lê no máximo 558 linhas por Set — 56% do teto padrão do
 PostgREST. Não é problema agora; fica anotado para quem mexer ali.
+
+### Shape da fonte de variante e guards de cobertura (`LIVE VALIDATED`, 2026-09-18)
+
+`SOURCE-VARIANT-SAFETY-01`. A CANARY de `BULK-STAGING-01` terminou tecnicamente 3/3
+`STAGED` — e expôs um blocker semântico: **`SOURCE_READY` ≠ `VARIANT_SOURCE_READY`.**
+SM12 (Cosmic Eclipse) produziu **0 rows com 271 Cards correlacionadas** e foi para
+`STAGED` com `error_summary` nulo, **indistinguível de sucesso**.
+
+**Causa.** O campo `variants` tem mais de uma forma real no dataset-fonte da TCGdex, e o
+parser só extraía uma. Distribuição medida nos 169 Card Sets elegíveis:
+
+| Shape na fonte | Sets | Cards | Tratamento |
+|---|---:|---:|---|
+| `ARRAY` — `variants: [ {type,foil,subtype,stamp,size} ]` | **113** | 10.301 | única forma extraída |
+| `MIXED` — `ARRAY` e `ABSENT` no mesmo Set | 8 | 1.182 | fora do escopo |
+| `ABSENT` — sem a chave `variants` | 46 | 4.926 | fora do escopo |
+| `OBJECT_BOOLEAN` — `variants: { normal, reverse, holo, firstEdition }` | 2 | 296 | fora do escopo |
+| `UNKNOWN` | 0 | 0 | — |
+
+**`OBJECT_BOOLEAN` não é convertido — decisão, não omissão.** O objeto não carrega `foil`
+nem `subtype` (os dois eixos do modelo C2, `ADR-028`) e fixa `size` em `"standard"`;
+`firstEdition`/`wPromo` são **stamps**, não types. Converter entregaria `type` com o resto
+fabricado. Existem exatamente **dois** Sets nesse formato no repositório inteiro — SWSH1
+(239 arquivos) e Champion's Path (80), aritmética fechada contra 311 ocorrências.
+
+**`ABSENT` não é derivado — a superfície compilada é suposição, não dado.** Quando o
+arquivo não declara `variants`, o compilador da TCGdex
+(`server/compiler/utils/cardUtil.ts`, `variantsToVariantsDetailed()`) preenche o vazio com
+`normal: true` **hardcoded** e marca `variantId: "generated"`. Usar isso fabricaria
+significado editorial — mesma classe de erro já rejeitada em `EXTERNAL-REF-RECOVERY-01`.
+
+**Contrato final do parser** (`parseVariantSource`, `services/github-source.ts`), ancorado
+na posição que segue os dois-pontos — nunca mais "o próximo `[` do arquivo":
+
+| Entrada | Shape | `combos` |
+|---|---|---|
+| `variants: [ … ]` com **todos** os objetos tendo `type` não-vazio | `ARRAY` | ≥ 1 |
+| `variants: []` | `ARRAY_EMPTY` | 0 |
+| `variants: { … }` | `OBJECT` | 0 |
+| chave ausente | `ABSENT` | 0 |
+| valor ≠ `[`/`{`; array não terminado; **qualquer** objeto sem `type`; conteúdo sem objetos | `UNSUPPORTED` | 0 |
+
+`ARRAY` é **all-or-nothing**: um único objeto ilegível invalida o array inteiro. `ARRAY_EMPTY`
+é distinguido de `ABSENT` de propósito — `[]` é a fonte **afirmando** que não há variante;
+ausência é a fonte calando. Invariante: `ARRAY ⇒ combos ≥ 1`.
+
+**Fail-open fechado nesta rodada.** A versão anterior fazia `indexOf("variants:")` e depois
+`indexOf("[", …)`: num arquivo `OBJECT`, capturava o array de **outro** campo, e se esse
+campo fosse `weaknesses`/`abilities`/`resistances` (objetos com chave `type`) devolvia
+**variantes fabricadas**. Nos arquivos reais o `variants` vem depois desses campos — a
+segurança era sorte de ordenação, não contrato.
+
+**Três guards de cobertura**, todos antes de qualquer leitura de mapeamento ou escrita de
+linha, e nesta ordem — que é ela própria a classificação correta do erro:
+
+| # | Erro canônico | Critério | Classe |
+|---|---|---|---|
+| 1 | `VARIANT_SOURCE_FETCH_FAILED_FOR_CORRELATED_CARDS` | Card com `cardId` e `fetchError` | **TRANSITÓRIO** (a Edge persiste o job `FAILED`; retry 30 s → 120 s → terminal) |
+| 2 | `VARIANT_SOURCE_CARD_COVERAGE_INCOMPLETE` | `expected_card_ids` MINUS representadas ≠ ∅ | PERMANENTE |
+| 3 | `VARIANT_SOURCE_UNSUPPORTED_FOR_CORRELATED_CARDS` | alguma Card correlacionada fora de `ARRAY` com combo | PERMANENTE |
+
+A **autoridade de completude é `public.card`** do próprio Card Set — nunca
+`total_set_size`, nunca a contagem de arquivos do GitHub, nunca o snapshot de
+`catalog_import_row`, nunca a contagem de referências externas. A leitura de pertença
+(`listCardIdsOfCardSet()`) serve simultaneamente ao G0 do fallback de lineage e a este
+guard: **uma leitura, dois consumidores, zero consulta adicional por Set.** Arquivo extra
+da fonte sem Card MMKYU correspondente **não** é blocker de completude — a direção testada
+é uma só. O guard 1 precede o 2 porque uma Card com fetch falho também sumiria da
+cobertura, e reportá-la como PERMANENTE perderia o retry.
+
+Os três `error_summary` trazem contagem total, contagem por shape/causa e **amostra
+limitada a 10** — nunca o Set inteiro.
+
+**Gates locais:** `variant-source-shape.test.ts` 74/74 · `cors.test.ts` 29/29 ·
+`lineage-correlation.test.ts` 59/59 · `size-scope.test.ts` 81/81 — **243 casos, 0 FAIL**.
+**Deploy:** `import-card-variants` versão **14** LIVE, `verify_jwt = true`, com suporte
+CORS mínimo (`CORS-BROWSER-INVOKE-01`: allowlist de origin única, **sem wildcard**,
+preflight `OPTIONS` que não entra na lógica de negócio, chamada sem `Origin` byte-a-byte
+inalterada). **Nenhuma migration, nenhum SQL, nenhum backfill.**
+
+### `BULK-STAGING-01` — FULL concluído (`EXECUTED / LIVE VALIDATED`, 2026-09-18)
+
+Staging em massa dos **113 TARGET**, via runner descartável de DevTools com sessão
+administrativa real (`database/proposals/2026-09-18-bulk-staging-01/`). Sem
+`service_role` manual, sem JWT fabricado, sem `SET ROLE`, sem cron, sem tabela de
+orquestração, sem frontend permanente.
+
+**Baseline terminal medido por postcheck READ-ONLY externo ao runner:**
+
+| Fato | Valor |
+|---|---:|
+| Card Sets elegíveis | **169** |
+| TARGET `STAGED` | **113 / 113** |
+| `DEFERRED_SOURCE_COVERAGE` (fora do denominador) | **56** |
+| Staging rows nos TARGET | **18.940** |
+| — `VALID` | 17.222 |
+| — `NEEDS_REVIEW` | 1.642 |
+| — `INVALID` | 76 |
+| — `PENDING` (decisão) | 18.864 |
+| — `SKIPPED` (decisão) | 76 |
+| `card_variant` | **7.671 — inalterado** |
+| Jobs `FAILED` correntes · em voo | **0 · 0** |
+
+**A campanha NÃO materializou nenhuma Card Variant — e esse é o resultado correto.** Ela
+construiu o staging; **consumir** esse staging é trabalho editorial, da frente seguinte.
+
+**Um retry real, registrado:** `TK-DP-M` falhou na primeira invocação com
+`TCGDEX_SET_METADATA_HTTP_503` e 0 rows; a retentativa posterior fechou `STAGED` com
+**12/12 `VALID`**. O caminho transitório do runner (backoff persistido, reconstruído do
+banco) funcionou em condição real, não só em teste.
+
+**SM12 permanece `DEFERRED` / `ABSENT` com job `STAGED` de 0 rows** — preservado
+deliberadamente, não alterado, não cancelado, não excluído. Seu tratamento é decisão
+editorial separada.
+
+**Os 56 `DEFERRED` estão explicitamente FORA do escopo de materialização** até tratamento
+futuro próprio. Não são pendência da campanha nem entram em nenhum denominador de
+conclusão: são escopo excluído por decisão, com evidência Set a Set congelada em
+`database/proposals/2026-09-18-bulk-staging-01/source-variant-coverage-169.md`.
 
 ## Funções administrativas do fluxo de revisão/confirmação
 
