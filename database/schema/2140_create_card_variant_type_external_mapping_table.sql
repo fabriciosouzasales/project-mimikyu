@@ -2,8 +2,8 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2140 - Create card_variant_type_external_mapping Table
-Versão......: 1.1
-Status......: CONFIRMADO EXECUTADO
+Versão......: 2.0
+Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / RECONCILIADA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-15
 
@@ -11,7 +11,8 @@ Descrição...:
 Cria public.card_variant_type_external_mapping — traduz a combinação
 bruta de variante de uma Fonte externa (type/foil/subtype/stamp da
 TCGdex) para o Card Variant Type canônico correspondente, por
-Game+Fonte. Mesmo espírito de rarity_external_mapping (Query 2096,
+Game+Fonte e, opcionalmente, restrito a um Card Set da Fonte
+(external_set_id). Mesmo espírito de rarity_external_mapping (Query 2096,
 emenda 2026-08-07 do ADR-024), generalizado para 4 dimensões em vez
 de 1 — a raridade é um único valor de texto; uma variante é uma
 combinação de até 4 campos, e o mapeamento precisa distinguir a
@@ -40,10 +41,45 @@ outra decisão já aprovada foi alterada:
    tratava NULL como sempre distinto, nunca detectando de fato uma
    combinação repetida quando foil/subtype/stamp eram nulos) e o
    ÍNDICE ÚNICO com COALESCE que já existia para cobrir esse caso.
-   Mantido só o índice com COALESCE
-   (uq_card_variant_type_external_mapping_combo) como único mecanismo
-   de unicidade — é o único que de fato garante a regra de negócio
+   Naquela versão passou a ser mantido só o índice com COALESCE
+   (uq_card_variant_type_external_mapping_combo) como mecanismo de
+   unicidade — era o único que de fato garantia a regra de negócio
    (combinação completa, inclusive quando algum campo é ausente).
+   *(Parágrafo redigido no pretérito porque é REGISTRO HISTÓRICO da
+   v1.1: esse índice NÃO EXISTE MAIS. A v2.0 o substituiu por dois
+   índices únicos parciais — ver a seção seguinte. O raciocínio do
+   COALESCE, esse sim, continua vigente e foi preservado nos dois.)*
+
+--------------------------------------------------------------
+ESCOPO DO MAPEAMENTO (v2.0) — GLOBAL vs SOURCE_SET_SCOPED
+--------------------------------------------------------------
+A coluna external_set_id define o escopo de cada linha, e é o que
+particiona a identidade da tabela:
+
+  external_set_id IS NULL      -> mapeamento GLOBAL para o par
+                                  Game+Fonte.
+  external_set_id preenchido   -> mapeamento SOURCE_SET_SCOPED,
+                                  válido só dentro daquele Card Set
+                                  da Fonte.
+
+Os dois escopos COEXISTEM para a mesma combinação externa — é
+justamente o caso que motivou a mudança: a TCGdex usa foil: galaxy
+com sentidos editoriais incompatíveis entre Card Sets. A unicidade
+deixou de ser um índice único global e passou a ser DOIS índices
+únicos PARCIAIS e mutuamente exclusivos, mais um índice de lookup
+por escopo:
+
+  uq_card_variant_type_external_mapping_combo_global
+      WHERE external_set_id IS NULL
+  uq_card_variant_type_external_mapping_combo_scoped
+      WHERE external_set_id IS NOT NULL
+  ix_card_variant_type_external_mapping_scope_lookup
+      (game_id, asset_source_id, external_set_id)
+
+A PRECEDÊNCIA (SOURCE_SET > GLOBAL) não vive aqui: é resolvida em
+internal.lookup_variant_type_for_row() (Query 2192 v2.0), ponto
+único do banco onde ela existe. Esta tabela apenas torna a
+coexistência possível.
 
 Regras de Negócio:
 - external_type/external_foil/external_subtype/external_stamp
@@ -58,14 +94,22 @@ Regras de Negócio:
   rarity_external_mapping: normalização é responsabilidade de quem
   grava (função futura ou, nesta Query, a seed), não de um trigger da
   tabela.
+- external_set_id define o ESCOPO da linha: NULL = GLOBAL para o par
+  Game+Fonte; preenchido = SOURCE_SET_SCOPED, restrito àquele Card Set
+  da Fonte. Não tem FK própria — a autoridade do escopo é
+  card_set_external_reference ativa, verificada por quem escreve
+  (Query 2193), nunca por esta tabela.
 - Unicidade por (game_id, asset_source_id, normalized_type,
   COALESCE(normalized_foil,''), COALESCE(normalized_subtype,''),
-  COALESCE(normalized_stamp, '{}'::TEXT[])) — único mecanismo de
-  unicidade da tabela (ver Correção v1.1, item 2). Distingue a
-  combinação completa, não só o tipo. COALESCE necessário porque NULL
-  <> NULL no Postgres tornaria duas linhas com o mesmo type mas
-  foil/stamp ausentes indistinguíveis de duplicatas sem essa
-  normalização defensiva.
+  COALESCE(normalized_stamp, '{}'::TEXT[])) — **particionada por
+  external_set_id em DOIS índices únicos parciais** (`..._combo_global`
+  e `..._combo_scoped`), únicos mecanismos de unicidade da tabela.
+  Distingue a combinação completa, não só o tipo. COALESCE necessário
+  porque NULL <> NULL no Postgres tornaria duas linhas com o mesmo type
+  mas foil/stamp ausentes indistinguíveis de duplicatas sem essa
+  normalização defensiva. Os dois índices são mutuamente exclusivos
+  por predicado, e é isso que permite a mesma combinação externa ter
+  uma leitura global e uma leitura específica de Card Set.
 - CHECKs de guarda em external_stamp/normalized_stamp: quando não
   nulo, o array não pode ser vazio (cardinality > 0 — vazio e NULL
   seriam duas formas redundantes de dizer "sem stamp") nem conter
@@ -90,6 +134,23 @@ Pré-requisitos:
 - Query 150 - Create Card Variant Type Table.
 - Query 2095 - Create normalize_external_catalog_value() Function.
 ================================================================
+
+----------------------------------------------------------------
+REVISION HISTORY
+----------------------------------------------------------------
+| 1.0 | **Criação da tabela de mapeamento externo de Variant Type (2026-08-15).**
+        Escopo único por Game+Fonte; um índice único com COALESCE. |
+| 2.0 | **Escopo de Card Set — GLOBAL + SOURCE_SET (2026-09-18, BULK-STP-01-
+        CANONICAL-RECONCILIATION-IMPLEMENTATION-01).** Fold-in do estado
+        terminal introduzido pela migration **`2191`** (ledger
+        `20260914024650`): entra a coluna `external_set_id`; o índice único
+        `uq_card_variant_type_external_mapping_combo` **deixa de existir** e é
+        substituído por dois índices parciais mutuamente exclusivos
+        (`..._combo_global` / `..._combo_scoped`), mais
+        `ix_..._scope_lookup`. Numa instalação limpa a tabela nasce já assim —
+        não há o índice antigo a derrubar. Mesmo desenho já adotado em
+        `2138` v2.0 e `2171`. A migration `2191` permanece em
+        `database/migrations/` como histórico. |
 */
 
 BEGIN;
@@ -110,6 +171,17 @@ CREATE TABLE public.card_variant_type_external_mapping (
     normalized_stamp TEXT[],
 
     variant_type_id UUID NOT NULL REFERENCES public.card_variant_type (id) ON DELETE RESTRICT,
+
+    -- ------------------------------------------------------------
+    -- ESCOPO DO MAPEAMENTO (Query 2191, ledger 20260914024650).
+    -- NULL  = mapeamento GLOBAL para o par Game+Fonte.
+    -- valor = mapeamento SOURCE_SET_SCOPED, restrito ao Card Set
+    --         externo identificado por este external_set_id.
+    -- A precedência (SOURCE_SET > GLOBAL) é resolvida em
+    -- internal.lookup_variant_type_for_row() (Query 2192 v2.0); esta
+    -- tabela apenas permite a coexistência dos dois escopos.
+    -- ------------------------------------------------------------
+    external_set_id TEXT,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -132,19 +204,56 @@ CREATE TABLE public.card_variant_type_external_mapping (
 -- cabeçalho) — COALESCE trata a ausência de foil/subtype/stamp como um
 -- valor comparável, não como "sempre distinto" (comportamento padrão
 -- de NULL numa UNIQUE constraint comum).
-CREATE UNIQUE INDEX uq_card_variant_type_external_mapping_combo
+-- ---------------------------------------------------------------------------
+-- IDENTIDADE DE MAPEAMENTO — DOIS ÍNDICES PARCIAIS MUTUAMENTE EXCLUSIVOS.
+--
+-- O índice único original (uq_card_variant_type_external_mapping_combo, v1.0)
+-- não existe mais: ele impedia que a MESMA combinação externa tivesse um
+-- mapeamento global e um mapeamento restrito a um Card Set. A Query 2191
+-- substituiu-o por dois índices parciais, particionados por external_set_id.
+--
+-- COALESCE em foil/subtype/stamp continua sendo o mecanismo que trata "campo
+-- ausente" como valor comparável, e não como "sempre distinto" (comportamento
+-- padrão de NULL numa UNIQUE constraint comum).
+-- ---------------------------------------------------------------------------
+
+-- A. MAPEAMENTO GLOBAL (sem Card Set de escopo).
+CREATE UNIQUE INDEX uq_card_variant_type_external_mapping_combo_global
     ON public.card_variant_type_external_mapping (
         game_id, asset_source_id, normalized_type,
         COALESCE(normalized_foil, ''),
         COALESCE(normalized_subtype, ''),
         COALESCE(normalized_stamp, '{}'::TEXT[])
-    );
+    )
+ WHERE external_set_id IS NULL;
+
+-- B. MAPEAMENTO RESTRITO A UM CARD SET DA FONTE.
+CREATE UNIQUE INDEX uq_card_variant_type_external_mapping_combo_scoped
+    ON public.card_variant_type_external_mapping (
+        game_id, asset_source_id, external_set_id, normalized_type,
+        COALESCE(normalized_foil, ''),
+        COALESCE(normalized_subtype, ''),
+        COALESCE(normalized_stamp, '{}'::TEXT[])
+    )
+ WHERE external_set_id IS NOT NULL;
+
+CREATE INDEX ix_card_variant_type_external_mapping_scope_lookup
+    ON public.card_variant_type_external_mapping (game_id, asset_source_id, external_set_id);
 
 CREATE INDEX ix_card_variant_type_external_mapping_variant_type
     ON public.card_variant_type_external_mapping (variant_type_id);
 
+COMMENT ON COLUMN public.card_variant_type_external_mapping.external_set_id IS
+    'Escopo do mapeamento. NULL = GLOBAL para o par Game+Fonte; valor = restrito ao Card Set externo correspondente (SOURCE_SET_SCOPED). A precedencia SOURCE_SET > GLOBAL e resolvida em internal.lookup_variant_type_for_row().';
+
+COMMENT ON INDEX public.uq_card_variant_type_external_mapping_combo_global IS
+    'Identidade do mapeamento GLOBAL. Parcial em external_set_id IS NULL — e o que permite a mesma combinacao externa coexistir com um mapeamento restrito a Card Set.';
+
+COMMENT ON INDEX public.uq_card_variant_type_external_mapping_combo_scoped IS
+    'Identidade do mapeamento restrito a um Card Set da Fonte. Parcial em external_set_id IS NOT NULL.';
+
 COMMENT ON TABLE public.card_variant_type_external_mapping IS
-    'Traduz a combinação bruta de variante (type/foil/subtype/stamp) de uma Fonte externa para o Card Variant Type canônico, por Game+Fonte. Incremento 1 do bloco Card Variant, ADR-028.';
+    'Traduz a combinação bruta de variante (type/foil/subtype/stamp) de uma Fonte externa para o Card Variant Type canônico, por Game+Fonte e, opcionalmente, restrito a um Card Set da Fonte (external_set_id: NULL = GLOBAL, preenchido = SOURCE_SET_SCOPED). Os dois escopos coexistem para a mesma combinação; a precedencia SOURCE_SET > GLOBAL e resolvida em internal.lookup_variant_type_for_row(). Incremento 1 do bloco Card Variant, ADR-028.';
 
 COMMENT ON COLUMN public.card_variant_type_external_mapping.external_stamp IS
     'Array bruto de stamps da fonte (ex. TCGdex), preservado integralmente — zero, um ou múltiplos elementos. Não usado por nenhuma seed desta Query (vintage em aberto).';
@@ -181,4 +290,11 @@ COMMIT;
 -- pela combinação reverse+foil:pokeball confirma Index Scan via
 -- uq_card_variant_type_external_mapping_combo (Total Cost 7.1), sem
 -- Seq Scan.
+--
+-- NOTA DE ESCOPO (2026-09-18): o parágrafo acima é o registro da
+-- validação da v1.0/v1.1 e cita o índice uq_card_variant_type_external_
+-- mapping_combo, que NÃO EXISTE MAIS. Desde a v2.0 a busca equivalente
+-- é atendida por uq_card_variant_type_external_mapping_combo_global
+-- (predicado external_set_id IS NULL) ou por ..._combo_scoped, conforme
+-- o escopo da linha. Mantido como histórico, não como estado vigente.
 -- ================================================================

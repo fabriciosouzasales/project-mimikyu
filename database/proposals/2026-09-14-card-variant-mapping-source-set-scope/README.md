@@ -403,3 +403,39 @@ Ordem de carga, consequência da FK composta:
 **Correção importante, acatada do §16 do mandato:** os mappings GLOBAIS (`external_set_id = NULL`) **não** dependem de existir linha correspondente em `card_set_external_reference` — `MATCH SIMPLE` dispensa a checagem quando qualquer coluna da FK é NULL. A **tabela** referenciada precisa existir; as **197 linhas**, não. Só os overrides SCOPED as exigem.
 
 Os 70 mappings atuais nascem GLOBAL. Zero mudança semântica, provado pelo índice GLOBAL ser a expressão do índice removido mais o predicado.
+
+---
+
+## Reconciliação canônica — 2026-09-18
+
+`BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01` classificou cada Query
+deste ciclo por **natureza**, e não em bloco. Esta pasta permanece como
+**evidência histórica** do staging; a fonte executável passou a ser:
+
+| Query | Natureza | Destino |
+|---|---|---|
+| `2191` | alteração incremental (coluna + troca de índices) | `database/migrations/2191_...` · dobrada em `database/schema/2140_...` **v2.0** |
+| `2192` | criação canônica (read contract de escopo) | `database/schema/2192_...` **v2.0** — agora também abriga `internal.lookup_variant_type_for_row()` |
+| `2193` | criação canônica (worker) | `database/schema/2193_...` |
+| `2194` | criação canônica (RPC de prévia) | `database/schema/2194_...` |
+| `2195` | mista: reescreve a RPC GLOBAL + cria a `_for_set` | `database/migrations/2195_...` · dobrada em `database/schema/2150_...` **v2.0**, que passa a representar **GLOBAL + SOURCE_SET** |
+| `2196` | mista: cria `lookup_variant_type_for_row` + altera o worker de Perfil | `database/migrations/2196_...` · o lookup vive em `schema/2192_...` v2.0; a alteração do worker, em `schema/2189_...` v3.0 |
+| `2197` | alteração de função canônica | `database/migrations/2197_...` · dobrada em `database/schema/2181_...` **v2.0** |
+
+**Decisão explícita de Fabrício (2026-09-18):** NÃO criar Queries `2203`/`2204`
+para os dois objetos que nasceram sem Query canônica própria
+(`admin_resolve_catalog_variant_import_mapping_for_set` e
+`internal.lookup_variant_type_for_row`). O repositório já admite múltiplos
+objetos semanticamente coesos numa mesma Query canônica — os dois foram
+incorporados a `2150` v2.0 e `2192` v2.0, respectivamente.
+
+**Nota de segurança registrada:** a `2197`, por ser reconciliação de corpo
+(`CREATE OR REPLACE`), não repetia `REVOKE`/`GRANT` — corretos numa migration,
+pois os grants já existiam no LIVE. Ao dobrar em `2181` v2.0 o par
+`REVOKE ... FROM PUBLIC/anon` + `GRANT EXECUTE ... TO authenticated` foi
+**reincorporado** da `2181` v1.2: sem ele, uma instalação limpa nasceria com
+grants divergentes do LIVE.
+
+Nada foi reexecutado contra o Supabase nesta rodada — promoção canônica e
+fold-in são alteração de arquivo, não execução (ver `database/README.md`,
+seção "Queries `CANÔNICA` vs. `MIGRATION`").

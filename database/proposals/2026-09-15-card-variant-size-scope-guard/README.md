@@ -492,3 +492,20 @@ mapeamento; checkbox bloqueado; job apenas com OUT_OF_SCOPE classificado como
 > **a validação visual pós-deploy permanece como último postcheck operacional**, ainda
 > não realizado. Nada neste documento afirma que a UI corrigida já foi validada em
 > produção.
+
+---
+
+## Reconciliação canônica — 2026-09-18
+
+`BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01` classificou cada Query
+deste ciclo por **natureza**, e não em bloco. Esta pasta permanece como
+**evidência histórica** do staging; a fonte executável passou a ser:
+
+| Query | Natureza | Destino |
+|---|---|---|
+| `2198` | alteração de função canônica (`internal.compute_variant_residual_signature`) | `database/migrations/2198_...` · dobrada em `database/schema/2176_...` **v2.0** |
+| `2199` | alteração de função canônica (`admin_decide_catalog_variant_import_row`) | `database/migrations/2199_...` · dobrada em `database/schema/2144_...` **v2.0**, junto com a `2163` |
+
+Nada foi reexecutado contra o Supabase nesta rodada — promoção canônica e
+fold-in são alteração de arquivo, não execução (ver `database/README.md`,
+seção "Queries `CANÔNICA` vs. `MIGRATION`").

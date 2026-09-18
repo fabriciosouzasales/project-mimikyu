@@ -1,146 +1,211 @@
 /*
-===============================================================================
+================================================================
 Projeto.....: Project Mimikyu
-Query.......: 2190 - Fix Card Printing Profile Backfill UUID Aggregate
+Query.......: 2196 - Reconcile Variant Type Mapping LOOKUPS
+              for Source-Set Scope (precedência determinística)
 Versão......: 1.0
-Status......: CONFIRMADO EXECUTADO — LIVE em 2026-09-14 (ledger 20260914000431)
+Status......: MIGRATION / CONFIRMADO EXECUTADO / LIVE
+              Precheck de rebase PASSOU: md5(prosrc) do consumidor 1 era
+              4ce5cc4ca573955c744ffe376eb03ca4 antes da aplicacao.
+              Pos-aplicacao: ea56488f9805858ab2b1839de2a85515 (16.211 chars,
+              366 linhas) — hash conferido pelo caso AE do harness 2826.
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-09-13
-Corrigido...: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01.
-              O cabeçalho declarava PROPOSTA — NÃO EXECUTADA, contradizendo o
-              ledger LIVE. Corrigido; nenhuma linha de SQL alterada.
-Cópia canônica: database/migrations/2190_... (histórico) · dobrada em
-              database/schema/2189_... v3.0
-Mandato.....: CARD-VARIANTS — EDITORIAL-CONVERGENCE-10 /
-              FIRST-EDITION-PROFILE-IMPLEMENTATION-01 /
-              GATE-B-CORRECTION-04 / UUID-AGGREGATE-FIX
+Data........: 2026-09-14
+Executado...: 2026-09-14, via apply_migration (MCP Supabase), projeto
+              qjfutqujxrbzgrtkpgkg. Ledger: 20260914025208 /
+              2196_reconcile_variant_type_mapping_lookups_for_scope
+Reclassif..: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01
+Canônica....: internal.lookup_variant_type_for_row() vive em
+              database/schema/2192_..._scope_read_contract.sql v2.0; a parte
+              alteradora do worker de Perfil de Impressão vive em
+              database/schema/2189_..._with_backfill_function.sql v3.0
+Mandato.....: CARD-VARIANTS — EDITORIAL-CONVERGENCE-16 /
+              SOURCE-SET-SCOPED-FOUNDATION / GATE-A-STAGING-01
 
--------------------------------------------------------------------------------
-POR QUE ESTA QUERY EXISTE
--------------------------------------------------------------------------------
-A Query 2189 v2.1 foi aplicada no LIVE em 2026-09-13 e está ESTRUTURALMENTE
-correta (assinatura, SECURITY DEFINER, search_path, grants, guards, selo,
-elegibilidade, locks, contadores, action log, contrato NEW-only). Mas está
-FUNCIONALMENTE QUEBRADA por uma única expressão, no GUARD 4:
+Descrição...:
+Faz os consumidores SQL do mapping enxergarem o escopo, com
+precedência determinística de UM nível.
 
-    SELECT count(DISTINCT ct.game_id), min(ct.game_id) ...
+--------------------------------------------------------------
+DESENHO: UM HELPER, NÃO TRÊS CÓPIAS
+--------------------------------------------------------------
+A auditoria (EDITORIAL-CONVERGENCE-14) mapeou EXATAMENTE dois
+consumidores SQL do mapping em caminho de lookup:
 
-PostgreSQL NÃO possui o agregado min(uuid). O tipo uuid tem opclass btree —
-por isso DISTINCT e ORDER BY funcionam — mas min/max não são registrados para
-ele. Toda chamada ao worker aborta com:
+  1. internal.create_card_printing_profile_with_backfill()
+     (Queries 2189 v2.1 -> 2190, linhas 258-264: LEFT JOIN vm)
+  2. public.admin_resolve_catalog_variant_import_printing_mapping()
+     (Query 2181, linhas 195-201: LEFT JOIN vm)
 
-    function min(uuid) does not exist
+A tentação seria colar o novo LATERAL com precedência nos dois.
+Isso criaria a TERCEIRA e a QUARTA cópia da mesma regra (a Edge
+é a segunda) — exatamente a classe de divergência que esta frente
+inteira existe para eliminar.
 
-Isso foi descoberto pela PRIMEIRA EXECUÇÃO REAL do harness 2825 (GATE-B-
-EXECUTION-02, 12 PASS / 17 FAIL). Cinco rodadas de revisão estática não o
-pegaram porque a função nunca havia sido executada. O harness fez exatamente o
-que existe para fazer.
+Em vez disso, esta Query cria UM helper —
+`internal.lookup_variant_type_for_row()` — e os dois consumidores
+passam a chamá-lo. A regra de precedência existe em UM lugar no
+banco.
 
-PRECEDENTE NO PRÓPRIO REPOSITÓRIO: o mesmo erro ocorreu nas Queries 5129/5130/
-5133 (Binder Layout Foundation, 2026-09-06), onde `min(p.layout_id)` sobre UUID
-foi classificado como BLOCKER REAL e corrigido. O comentário daquelas Queries
-registra literalmente "PostgreSQL NÃO possui min(uuid) built-in". A lição
-estava escrita no repositório e foi repetida assim mesmo — registro isso aqui
-para que a próxima frente não precise redescobrir.
+ESTE ARQUIVO CONTÉM o helper + o CONSUMIDOR 1.
+O CONSUMIDOR 2 vive na Query 2197 (arquivo separado, gerado
+mecanicamente a partir do prosrc LIVE).
 
--------------------------------------------------------------------------------
-ESCOPO — MÍNIMO POSSÍVEL
--------------------------------------------------------------------------------
-Esta Query substitui SOMENTE a definição de
-internal.create_card_printing_profile_with_backfill(...).
+>>> DIFF EXECUTÁVEL DO CONSUMIDOR 1, PARA REVISÃO BARATA <<<
 
-NÃO toca em:
-  - public.admin_create_card_printing_profile_with_backfill() — intacta;
-  - assinatura do worker (mesmos 6 parâmetros, mesmo RETURNS TABLE);
-  - SECURITY DEFINER / search_path = '';
-  - grants (CREATE OR REPLACE PRESERVA a ACL — ver nota abaixo);
-  - nenhum outro objeto do schema.
+  create_card_printing_profile_with_backfill (base: Query 2190):
+     - `touched` passa a expor cs.id AS card_set_id;
+     - o LEFT JOIN de 6 linhas contra o mapping some;
+     - `classified` ganha LEFT JOIN LATERAL que resolve o helper
+       UMA vez por row.
+     Nada mais muda: guards, selo, locks, contadores, action log,
+     contrato NEW-only e o array_agg da Query 2190 permanecem
+     byte-idênticos.
 
-NOTA SOBRE GRANTS, DELIBERADA: esta Query NÃO repete os quatro REVOKE da 2189.
-CREATE OR REPLACE FUNCTION preserva a ACL existente, então repeti-los seria
-redundante — e pior: mascararia uma eventual perda de ACL que o postcheck
-precisa ser capaz de detectar. A ACL é VERIFICADA depois, não reafirmada aqui.
+--------------------------------------------------------------
+PRECEDÊNCIA — PROVA DE DETERMINISMO
+--------------------------------------------------------------
+    ORDER BY (external_set_id IS NULL) ASC
+    LIMIT 1
 
--------------------------------------------------------------------------------
-DIFF EXECUTÁVEL — UMA EXPRESSÃO
--------------------------------------------------------------------------------
-DE (2189 v2.1, GUARD 4):
+- o conjunto candidato tem NO MÁXIMO 2 elementos: um scoped e um
+  global. Garantido pelos DOIS índices parciais únicos da Query
+  2191, não por convenção;
+- a expressão de ordenação é booleana e TOTAL sobre esse conjunto:
+  FALSE (scoped) vem antes de TRUE (global);
+- portanto não há empate possível, e o LIMIT 1 é determinístico.
 
-    SELECT count(DISTINCT ct.game_id), min(ct.game_id)
-      INTO v_game_count, v_game_id
-      FROM public.card_printing_trait ct
-     WHERE ct.id = ANY(p_trait_ids);
+NUNCA se usa timestamp, display_order ou is_active como critério
+de desempate. Não há cascata: um nível só.
 
-PARA (2190 v1.0):
+>>> FONTE CANÔNICA DO ESCOPO <<<
+O helper resolve o source-set por `internal.resolve_variant_mapping_scope`
+(Query 2192), que lê `card_set_external_reference` ATIVA — NUNCA
+`catalog_variant_import_job.external_set_id`. Se o Card Set não
+tiver referência ativa, `v_scope` é NULL e o lookup considera
+somente mappings GLOBAIS. Nunca se inventa escopo.
 
-    SELECT count(DISTINCT ct.game_id),
-           (array_agg(DISTINCT ct.game_id ORDER BY ct.game_id))[1]
-      INTO v_game_count, v_game_id
-      FROM public.card_printing_trait ct
-     WHERE ct.id = ANY(p_trait_ids);
+Pré-requisitos:
+- Query 2191 - coluna/índices de escopo.
+- Query 2192 - internal.resolve_variant_mapping_scope().
+- Query 2190 - versão vigente do worker de Printing Profile.
+- Query 2181 - versão vigente do resolvedor de Printing Mapping.
 
-Tudo o mais é byte-a-byte o corpo aprovado da 2189 v2.1.
-
--------------------------------------------------------------------------------
-PROVA DE SEMÂNTICA — 0 / 1 / >1 GAMES
--------------------------------------------------------------------------------
-array_agg(DISTINCT x ORDER BY x) usa o operador de ordenação btree de uuid, que
-EXISTE. O resultado é o conjunto distinto, ordenado ascendentemente; [1] é o
-primeiro elemento. Comparando com a intenção original (min = menor elemento),
-é o MESMO valor — apenas obtido por um caminho que o PostgreSQL sabe executar.
-
-  0 traits correspondentes (conjunto vazio)
-      array_agg sobre zero linhas devolve NULL; NULL[1] é NULL.
-      count(DISTINCT) = 0, logo v_game_count = 0 <> 1 e o guard levanta
-      MIXED_GAME. Idêntico ao comportamento pretendido pela 2189 — e, na
-      prática, inalcançável: o GUARD 4 já provou acima que todos os ids
-      existem (TRAIT_NOT_FOUND) e que p_trait_ids não é vazio (MISSING_TRAITS).
-
-  1 game
-      count(DISTINCT ct.game_id) = 1;
-      array_agg(DISTINCT ...) devolve um array de UM elemento;
-      [1] = esse UUID único. v_game_id fica EXATAMENTE igual ao que min()
-      teria devolvido. Este é o único caminho que prossegue.
-
-  >1 games
-      count(DISTINCT ct.game_id) > 1 → v_game_count <> 1 → RAISE MIXED_GAME
-      na linha seguinte, ANTES de v_game_id ser lido por qualquer instrução.
-      O valor escolhido é irrelevante ao fluxo válido; ainda assim é
-      determinístico (menor UUID), não arbitrário.
-
-Conclusão: nenhuma mudança funcional além de tornar o SQL executável. O
-conjunto de desfechos possíveis do GUARD 4 é o mesmo; o que muda é que o
-caminho de 1 game deixa de abortar.
-
--------------------------------------------------------------------------------
-COMO EXECUTAR
--------------------------------------------------------------------------------
-apply_migration, mantendo BEGIN/COMMIT (padrão canônico STD-001 §504 e
-precedente direto 2185/2189).
-
-Como validar:
-  Query 2825 - Validate Card Printing Profile Creation Backfill, v3.6.
-  Exigir 29 PASS / 0 FAIL.
-
--------------------------------------------------------------------------------
-REVISION HISTORY
--------------------------------------------------------------------------------
-| 1.0 | **Correção do agregado UUID (2026-09-13, GATE-B-CORRECTION-04).**
-        Substitui min(ct.game_id) por (array_agg(DISTINCT ct.game_id ORDER BY
-        ct.game_id))[1] no GUARD 4 do worker. Único diff executável. Nenhum
-        outro contrato alterado. NÃO EXECUTADA. |
-===============================================================================
+>>> AVISO DE ORDEM DE APLICAÇÃO <<<
+Esta Query faz CREATE OR REPLACE de duas funções LIVE. Os corpos
+abaixo partem das versões vigentes em 2026-09-14 (2190 e 2181).
+Se qualquer uma delas for alterada entre o staging e a aplicação,
+este arquivo precisa ser rebaseado — o harness 2826 (caso Y) e o
+GATE-B precheck confrontam o corpo LIVE antes de aplicar.
+================================================================
 */
 
 BEGIN;
 
--- =============================================================================
--- WORKER — internal.create_card_printing_profile_with_backfill()
+-- =============================================================
+-- 0. PRECHECK DE REBASE — ANTES DE QUALQUER ESCRITA
 --
--- Corpo idêntico ao da Query 2189 v2.1 EXCETO a expressão do GUARD 4.
--- Superfície OWNER-ONLY. Não conhece auth.uid(): o administrador autorizador
--- chega como p_actor_id e é validado contra public.admin_user.
--- =============================================================================
+-- >>> ACRESCENTADO EM GATE-A-REV-03 §5 <<<
+--
+-- Havia uma inconsistência real: o harness 2826 exige a 2196 JÁ
+-- aplicada (o caso AA confronta o md5 do consumidor 2), logo o
+-- caso AE NÃO podia servir de precheck pré-2196 — ele só roda
+-- depois. Chamar de "proteção pre-apply" algo que só executa
+-- depois da aplicação é afirmar uma proteção que não existe.
+--
+-- O precheck passa a viver AQUI, no próprio artefato executável,
+-- antes do primeiro CREATE OR REPLACE. Se o corpo LIVE do
+-- consumidor 1 não for a baseline da qual este arquivo partiu, a
+-- transação aborta e NADA é escrito — nem o helper novo.
+--
+-- Baseline medida no LIVE em 2026-09-14:
+--   internal.create_card_printing_profile_with_backfill
+--   md5(prosrc) = 4ce5cc4ca573955c744ffe376eb03ca4
+--   15.868 caracteres, 356 linhas
+--
+-- Depois da aplicação, o caso AE do harness 2826 atua como
+-- POSTCHECK por propriedades — não como precheck.
+-- =============================================================
+DO $precheck2196$
+DECLARE
+    v_n   INTEGER;
+    v_md5 TEXT;
+BEGIN
+    SELECT count(*) INTO v_n
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'internal'
+       AND p.proname = 'create_card_printing_profile_with_backfill';
+
+    IF v_n <> 1 THEN
+        RAISE EXCEPTION
+          'REBASE_REQUIRED: esperada EXATAMENTE 1 internal.create_card_printing_profile_with_backfill, encontradas %. A Query 2196 substitui o corpo inteiro dessa funcao; sobrecarga ou ausencia invalida o diff. NADA foi escrito.',
+          v_n;
+    END IF;
+
+    SELECT md5(p.prosrc) INTO v_md5
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'internal'
+       AND p.proname = 'create_card_printing_profile_with_backfill';
+
+    IF v_md5 <> '4ce5cc4ca573955c744ffe376eb03ca4' THEN
+        RAISE EXCEPTION
+          'REBASE_REQUIRED: md5(prosrc) do consumidor 1 e %, esperado 4ce5cc4ca573955c744ffe376eb03ca4 (baseline de 2026-09-14). O corpo LIVE mudou entre o staging e a aplicacao — este arquivo partiu de outra versao. REBASEAR o corpo do consumidor 1 contra o prosrc atual antes de aplicar. NADA foi escrito.',
+          v_md5;
+    END IF;
+END;
+$precheck2196$;
+
+-- =============================================================
+-- 1. HELPER ÚNICO DE LOOKUP COM PRECEDÊNCIA
+-- =============================================================
+
+CREATE OR REPLACE FUNCTION internal.lookup_variant_type_for_row(
+    p_game_id          UUID,
+    p_asset_source_id  UUID,
+    p_card_set_id      UUID,
+    p_residual_type    TEXT,
+    p_residual_foil    TEXT,
+    p_residual_subtype TEXT,
+    p_residual_stamp   TEXT[]
+)
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    WITH escopo AS (
+        SELECT s.external_set_id
+          FROM internal.resolve_variant_mapping_scope(p_card_set_id, p_asset_source_id) s
+    )
+    SELECT vm.variant_type_id
+      FROM public.card_variant_type_external_mapping vm
+      LEFT JOIN escopo ON TRUE
+     WHERE vm.game_id         = p_game_id
+       AND vm.asset_source_id = p_asset_source_id
+       AND (vm.external_set_id IS NULL
+            OR vm.external_set_id = escopo.external_set_id)
+       AND vm.normalized_type = p_residual_type
+       AND COALESCE(vm.normalized_foil, '')            = COALESCE(p_residual_foil, '')
+       AND COALESCE(vm.normalized_subtype, '')         = COALESCE(p_residual_subtype, '')
+       AND COALESCE(vm.normalized_stamp, '{}'::TEXT[]) = COALESCE(p_residual_stamp, '{}'::TEXT[])
+     ORDER BY (vm.external_set_id IS NULL) ASC
+     LIMIT 1;
+$$;
+
+COMMENT ON FUNCTION internal.lookup_variant_type_for_row(UUID, UUID, UUID, TEXT, TEXT, TEXT, TEXT[]) IS
+    'UNICO ponto do banco onde a precedencia scoped > global do mapping de Card Variant Type e implementada. Determinismo garantido pelos dois indices parciais unicos da Query 2191: o conjunto candidato tem no maximo 2 elementos e ORDER BY (external_set_id IS NULL) e total sobre ele. Escopo vem de card_set_external_reference ATIVA, nunca do job.';
+
+REVOKE ALL ON FUNCTION internal.lookup_variant_type_for_row(UUID, UUID, UUID, TEXT, TEXT, TEXT, TEXT[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION internal.lookup_variant_type_for_row(UUID, UUID, UUID, TEXT, TEXT, TEXT, TEXT[]) FROM anon, authenticated, service_role;
+
+-- =============================================================
+-- 2. CONSUMIDOR 1 — WORKER DE PRINTING PROFILE (base: Query 2190)
+--
+-- Único diff executável: `touched` expõe card_set_id; o LEFT JOIN
+-- contra o mapping vira chamada ao helper em `classified`.
+-- =============================================================
+
 CREATE OR REPLACE FUNCTION internal.create_card_printing_profile_with_backfill(
     p_actor_id      UUID,
     p_code          TEXT,
@@ -189,9 +254,7 @@ DECLARE
     v_jobs        INTEGER := 0;
     v_reconciled  INTEGER := 0;
 BEGIN
-    -- =====================================================================
     -- GUARD 1 — ATOR. Primeira instrução.
-    -- =====================================================================
     IF p_actor_id IS NULL THEN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_MISSING_ACTOR: p_actor_id é obrigatório. Toda criação de Perfil precisa de um administrador autorizador nomeado.';
     END IF;
@@ -200,9 +263,7 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_ACTOR_NOT_ADMIN: p_actor_id (%) não corresponde a um administrador cadastrado em public.admin_user.', p_actor_id;
     END IF;
 
-    -- =====================================================================
     -- GUARD 2 — ESCALARES.
-    -- =====================================================================
     v_code        := upper(btrim(coalesce(p_code, '')));
     v_name        := btrim(coalesce(p_name, ''));
     v_description := btrim(coalesce(p_description, ''));
@@ -220,9 +281,7 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_INVALID_DISPLAY_ORDER: ordem inválida (%). Precisa ser inteiro positivo.', p_display_order;
     END IF;
 
-    -- =====================================================================
     -- GUARD 3 — FORMA DO ARRAY DE TRAITS.
-    -- =====================================================================
     IF p_trait_ids IS NULL THEN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_MISSING_TRAITS: p_trait_ids é obrigatório e não pode ser vazio.';
     END IF;
@@ -251,18 +310,9 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_DUPLICATE_TRAIT: p_trait_ids tem % elementos mas apenas % distintos. Composição é um CONJUNTO.', v_trait_count, v_distinct_count;
     END IF;
 
-    -- =====================================================================
-    -- GUARD 4 — EXISTÊNCIA, ATIVIDADE E GAME ÚNICO. game_id é derivado aqui.
-    --
-    -- >>> ÚNICO PONTO ALTERADO PELA QUERY 2190. <<<
-    -- A 2189 v2.1 usava min(ct.game_id). PostgreSQL não tem min(uuid): o tipo
-    -- tem opclass btree (DISTINCT/ORDER BY funcionam), mas os agregados
-    -- min/max não são registrados para ele. Toda chamada abortava aqui.
-    -- array_agg(DISTINCT ... ORDER BY ...) usa o mesmo operador de ordenação
-    -- e devolve o conjunto ordenado; [1] é o menor — exatamente o valor que
-    -- min() pretendia. Sem aggregate customizado e sem cast para text.
-    -- Mesmo caminho de correção das Queries 5129/5130/5133.
-    -- =====================================================================
+    -- GUARD 4 — EXISTÊNCIA, ATIVIDADE E GAME ÚNICO.
+    -- array_agg(DISTINCT ... ORDER BY ...)[1] preservado da Query
+    -- 2190: PostgreSQL não tem min(uuid).
     SELECT count(*) INTO v_unknown
       FROM unnest(p_trait_ids) AS t(id)
      WHERE NOT EXISTS (SELECT 1 FROM public.card_printing_trait ct WHERE ct.id = t.id);
@@ -289,9 +339,7 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_MIXED_GAME: os traits informados pertencem a % Games distintos. Um Perfil pertence a exatamente um Game.', v_game_count;
     END IF;
 
-    -- =====================================================================
     -- GUARD 5 — UNICIDADE.
-    -- =====================================================================
     IF EXISTS (SELECT 1 FROM public.card_printing_profile p
                 WHERE p.game_id = v_game_id AND p.code = v_code) THEN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_DUPLICATE_CODE: já existe um Perfil de Impressão com o código % para este Game.', v_code;
@@ -309,30 +357,21 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_DUPLICATE_SIGNATURE: já existe um Perfil de Impressão com exatamente esta composição neste Game. Composição é identidade — reutilize o Perfil existente.';
     END IF;
 
-    -- =====================================================================
-    -- PASSO 1 — CRIAR O PERFIL "EM MONTAGEM" (traits_signature = NULL).
-    -- =====================================================================
+    -- PASSO 1 — CRIAR O PERFIL "EM MONTAGEM".
     INSERT INTO public.card_printing_profile
         (game_id, code, name, description, display_order)
     VALUES
         (v_game_id, v_code, v_name, v_description, p_display_order)
     RETURNING id INTO v_profile_id;
 
-    -- =====================================================================
-    -- PASSO 2 — COMPOSIÇÃO. Liberada enquanto a assinatura for NULL.
-    -- =====================================================================
+    -- PASSO 2 — COMPOSIÇÃO.
     INSERT INTO public.card_printing_profile_trait (profile_id, trait_id, game_id)
     SELECT v_profile_id, t, v_game_id FROM unnest(v_expected) AS t;
 
-    -- =====================================================================
     -- PASSO 3 — FORÇAR O SELO.
-    -- Sem esta linha o backfill abaixo casaria ZERO linhas, em silêncio.
-    -- =====================================================================
     SET CONSTRAINTS public.trg_card_printing_profile_seal IMMEDIATE;
 
-    -- =====================================================================
-    -- PASSOS 4 e 5 — RELER E PROVAR O SELO. Fail-closed.
-    -- =====================================================================
+    -- PASSOS 4 e 5 — RELER E PROVAR O SELO.
     SELECT p.traits_signature, p.is_active
       INTO v_sealed, v_active
       FROM public.card_printing_profile p
@@ -354,9 +393,7 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_NOT_ACTIVE: o Perfil recém-criado não está ativo. Estado estruturalmente inesperado. STOP.';
     END IF;
 
-    -- =====================================================================
-    -- PASSO 6 — SELEÇÃO DAS CANDIDATAS. Derivada do Perfil, nunca de literal.
-    -- =====================================================================
+    -- PASSO 6 — SELEÇÃO DAS CANDIDATAS.
     SELECT ARRAY(
         SELECT r.id
           FROM public.catalog_variant_import_row r
@@ -376,7 +413,6 @@ BEGIN
     ) INTO v_row_ids;
 
     IF v_row_ids IS NULL OR cardinality(v_row_ids) = 0 THEN
-        -- Nenhuma linha a reconciliar é desfecho LEGÍTIMO.
         v_row_ids := ARRAY[]::UUID[];
         v_job_ids := ARRAY[]::UUID[];
     ELSE
@@ -387,9 +423,7 @@ BEGIN
              ORDER BY 1
         ) INTO v_job_ids;
 
-        -- =================================================================
-        -- PASSO 7 — LOCKS. Ordem JOB -> ROW, determinística nos dois níveis.
-        -- =================================================================
+        -- PASSO 7 — LOCKS. Ordem JOB -> ROW.
         PERFORM 1
            FROM public.catalog_variant_import_job j
           WHERE j.id = ANY(v_job_ids)
@@ -402,9 +436,7 @@ BEGIN
           ORDER BY r.id
             FOR UPDATE;
 
-        -- =================================================================
-        -- PASSO 8 — RECONCILIAÇÃO. Set-based, uma única instrução.
-        -- =================================================================
+        -- PASSO 8 — RECONCILIAÇÃO.
         WITH touched AS (
             SELECT r.id,
                    r.job_id,
@@ -415,7 +447,8 @@ BEGIN
                    sig.residual_subtype,
                    sig.residual_stamp,
                    e.game_id AS game_id,
-                   s.id      AS asset_source_id
+                   s.id      AS asset_source_id,
+                   cs.id     AS card_set_id      -- >>> DIFF 2196 <<<
               FROM public.catalog_variant_import_row r
               JOIN public.catalog_variant_import_job j ON j.id = r.job_id
               JOIN public.card_set cs    ON cs.id = j.card_set_id
@@ -430,33 +463,44 @@ BEGIN
                AND r.persistence_status = 'PENDING'
         ),
         classified AS (
+            -- >>> DIFF 2196: lookup com precedência scoped > global.
+            -- Substitui o LEFT JOIN direto contra
+            -- card_variant_type_external_mapping.
+            --
+            -- >>> CORRIGIDO EM GATE-A-REV-01 <<<
+            -- A v1.0 chamava o helper DUAS vezes por row (uma para
+            -- a coluna, outra dentro do CASE). O helper resolve o
+            -- escopo e varre o mapping — duplicar a chamada dobra o
+            -- trabalho por linha sem nenhum ganho, e o planner não
+            -- tem como deduplicar com segurança uma função STABLE
+            -- em contextos distintos da mesma projeção.
+            --
+            -- LEFT JOIN LATERAL resolve UMA vez por row e o valor é
+            -- reutilizado nos dois pontos. Semântica idêntica:
+            -- LATERAL sobre função escalar produz exatamente uma
+            -- linha (NULL inclusive), então nenhuma row de `touched`
+            -- é perdida nem duplicada.
             SELECT t.id,
                    t.job_id,
                    t.printing_profile_id,
-                   vm.variant_type_id,
+                   lk.variant_type_id,
                    CASE
                      WHEN t.printing_state NOT IN ('RESOLVED_NO_PRINTING', 'RESOLVED_WITH_PROFILE')
                           THEN 'C'
-                     WHEN vm.variant_type_id IS NOT NULL
+                     WHEN lk.variant_type_id IS NOT NULL
                           THEN 'A'
                      ELSE 'B'
                    END AS outcome
               FROM touched t
-              LEFT JOIN public.card_variant_type_external_mapping vm
-                ON vm.game_id = t.game_id
-               AND vm.asset_source_id = t.asset_source_id
-               AND vm.normalized_type = t.residual_type
-               AND COALESCE(vm.normalized_foil, '')    = COALESCE(t.residual_foil, '')
-               AND COALESCE(vm.normalized_subtype, '') = COALESCE(t.residual_subtype, '')
-               AND COALESCE(vm.normalized_stamp, '{}'::TEXT[]) = COALESCE(t.residual_stamp, '{}'::TEXT[])
+              LEFT JOIN LATERAL (
+                  SELECT internal.lookup_variant_type_for_row(
+                             t.game_id, t.asset_source_id, t.card_set_id,
+                             t.residual_type, t.residual_foil,
+                             t.residual_subtype, t.residual_stamp
+                         ) AS variant_type_id
+              ) lk ON TRUE
         ),
-        -- ---------------------------------------------------------------
-        -- CONTRATO NEW-ONLY (GATE-A-REV-03). Preservado da 2189 v2.1.
-        --
-        -- Não há lookup em public.card_variant aqui, e não pode haver.
-        -- Um Printing Profile RECÉM-CRIADO não pode possuir card_variant
-        -- preexistente referenciando seu UUID.
-        -- ---------------------------------------------------------------
+        -- CONTRATO NEW-ONLY (GATE-A-REV-03): sem lookup em public.card_variant.
         updated AS (
             UPDATE public.catalog_variant_import_row r
                SET normalized_data =
@@ -499,9 +543,6 @@ BEGIN
             (SELECT count(DISTINCT job_id) FROM updated)
           INTO v_touched, v_reconciled, v_revalidated, v_pending, v_jobs;
 
-        -- =================================================================
-        -- GUARDS DE RECONCILIAÇÃO.
-        -- =================================================================
         IF v_reconciled IS DISTINCT FROM v_touched THEN
             RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_RECONCILIATION_GAP: % linha(s) atingidas, % reconciliadas. Alguma linha ficou sem estado terminal definido.',
                 v_touched, v_reconciled;
@@ -512,10 +553,7 @@ BEGIN
                 v_revalidated, v_pending, v_touched;
         END IF;
 
-        -- =================================================================
         -- PASSO 9 — CONTADORES DOS JOBS AFETADOS.
-        -- SOMENTE total_rows e valid_rows.
-        -- =================================================================
         UPDATE public.catalog_variant_import_job j
            SET total_rows = (SELECT count(*) FROM public.catalog_variant_import_row r
                               WHERE r.job_id = j.id),
@@ -524,15 +562,10 @@ BEGIN
          WHERE j.id = ANY(v_job_ids);
     END IF;
 
-    -- =====================================================================
     -- PASSO 10 — RESTAURAR O MODO DIFERIDO DO SELO.
-    -- =====================================================================
     SET CONSTRAINTS public.trg_card_printing_profile_seal DEFERRED;
 
-    -- =====================================================================
-    -- PASSO 11 — AUDITORIA. Exatamente 1 evento por Perfil criado.
-    -- actor_id = p_actor_id, nunca uma identidade inferida.
-    -- =====================================================================
+    -- PASSO 11 — AUDITORIA.
     INSERT INTO public.catalog_admin_action_log
         (actor_id, action, entity_type, entity_id, metadata)
     VALUES (
@@ -559,13 +592,34 @@ BEGIN
 END;
 $worker$;
 
+-- ACL preservada por CREATE OR REPLACE. Os REVOKEs da Query 2189
+-- NÃO são repetidos aqui, de propósito e pelo mesmo motivo da
+-- Query 2190: repeti-los mascararia uma eventual perda de ACL que
+-- o postcheck precisa ser capaz de detectar.
+
+-- =============================================================
+-- ESCOPO DESTE ARQUIVO — UM CONSUMIDOR, NÃO DOIS
+--
+-- Corrigido em GATE-A-REV-01: a v1.0 anunciava no cabeçalho um
+-- "Consumidor 2" que o arquivo NÃO continha fisicamente, deixando
+-- uma promessa em comentário. Promessa em comentário não é
+-- artefato.
+--
+-- Esta Query contém, de fato:
+--   1. internal.lookup_variant_type_for_row()  — o helper único
+--   2. internal.create_card_printing_profile_with_backfill()
+--
+-- O segundo consumidor —
+-- public.admin_resolve_catalog_variant_import_printing_mapping —
+-- vive na Query 2197, gerada mecanicamente a partir do prosrc
+-- LIVE, com diff textual exaustivo. Arquivo separado, real,
+-- versionado.
+-- =============================================================
+
 COMMIT;
 
--- ============================================================================
--- Resultado esperado:
---   1 função substituída (internal). A RPC pública NÃO é tocada.
---   ACL preservada por CREATE OR REPLACE — VERIFICAR, não presumir.
---
--- Como validar:
---   Query 2825 v3.6 — exigir 29 PASS / 0 FAIL.
--- ============================================================================
+-- ================================================================
+-- CONFIRMADO EXECUTADO em 2026-09-14 (GATE-B-EXECUTION-01). O precheck de
+-- rebase da Seção 0 passou na aplicação real. Cópia mantida em proposals/
+-- como evidência histórica do ciclo.
+-- ================================================================

@@ -3,14 +3,15 @@
 Projeto.....: Project Mimikyu
 Query.......: 2188 - Widen Catalog Admin Action Log for Printing Profile
 Versão......: 1.0
-Status......: CONFIRMADO EXECUTADO — LIVE em 2026-09-13 (ledger 20260913234544)
+Status......: MIGRATION / CONFIRMADO EXECUTADO / LIVE
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-13
-Corrigido...: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01.
-              O cabeçalho declarava PROPOSTA — NÃO EXECUTADA, contradizendo o
-              ledger LIVE. Corrigido; nenhuma linha de SQL alterada.
-Cópia canônica: database/migrations/2188_... (histórico) · estado terminal em
-              database/schema/2010_... v2.0
+Executado...: 2026-09-13, via apply_migration (MCP Supabase), projeto
+              qjfutqujxrbzgrtkpgkg. Ledger: 20260913234544 /
+              2188_widen_catalog_admin_action_log_for_printing_profile
+Reclassif..: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01
+Canônica....: o estado TERMINAL das três CHECK vive em
+              database/schema/2010_create_catalog_admin_action_log.sql v2.0
 Mandato.....: CARD-VARIANTS — EDITORIAL-CONVERGENCE-10 /
               FIRST-EDITION-PROFILE-IMPLEMENTATION-01 / GATE-A-STAGING-01 (§1)
 

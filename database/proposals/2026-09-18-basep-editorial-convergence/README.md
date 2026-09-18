@@ -128,3 +128,19 @@ Controle negativo — `stamp:1ST-EDITION` (token vizinho, já mapeado): 268 rows
   (`SOURCE_OMISSION / FINISH NOT SAFELY DERIVABLE`).
 - `holo + pikachu-tail` (#24) — `DEFER_CANDIDATE` (`SOURCE_CONTRADICTION`).
 - Documentação canônica (`docs/`) — closeout em rodada própria.
+
+---
+
+## Reconciliação canônica — 2026-09-18
+
+`BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01` classificou cada Query
+deste ciclo por **natureza**, e não em bloco. Esta pasta permanece como
+**evidência histórica** do staging; a fonte executável passou a ser:
+
+| Query | Natureza | Destino |
+|---|---|---|
+| `2201` | **seed / reference data** (3 `card_printing_trait`) | `database/seeds/2201_add_basep_printing_traits.sql` — precedente de destino: `database/seeds/2175`. |
+
+Nada foi reexecutado contra o Supabase nesta rodada — promoção canônica e
+fold-in são alteração de arquivo, não execução (ver `database/README.md`,
+seção "Queries `CANÔNICA` vs. `MIGRATION`").

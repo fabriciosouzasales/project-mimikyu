@@ -256,3 +256,26 @@ produzia colisões **falsas** (175/177, 2 grupos). Corrigido na `v1.1`: a chave 
   `COSMOS_HOLO + NULL` — o modelo não registra que é especificamente a tiragem
   Cosmos ©1999. Inambíguo hoje dentro de BASE3; análogo à limitação de idioma
   aceita em `STANDARD_PIKACHU_WORLD_2000` (BASEP).
+
+---
+
+## Reconciliação canônica — 2026-09-18
+
+`BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01` classificou cada Query
+deste ciclo por **natureza**, e não em bloco. Esta pasta permanece como
+**evidência histórica** do staging; a fonte executável passou a ser:
+
+| Query | Natureza | Destino |
+|---|---|---|
+| `2202` | **seed / reference data** (1 `card_printing_trait`) | `database/seeds/2202_add_base3_evolution_box_error_trait.sql` |
+
+**Execução direta, sem ledger — declarado, não mascarado.** A `2202` foi aplicada
+por `execute_sql` direto em 2026-09-18 02:51:27 UTC e **não possui entrada** em
+`supabase_migrations.schema_migrations`. Nenhuma entrada de migration foi
+fabricada para encobrir isso. Prova independente por dado, e não por cabeçalho:
+`public.card_printing_trait.code = 'EVOLUTION_BOX_ERROR'` tem
+`created_at = 2026-09-18 02:51:27.65747+00`, exatamente o timestamp declarado.
+
+Nada foi reexecutado contra o Supabase nesta rodada — promoção canônica e
+fold-in são alteração de arquivo, não execução (ver `database/README.md`,
+seção "Queries `CANÔNICA` vs. `MIGRATION`").

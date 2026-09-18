@@ -188,3 +188,25 @@ Esse caminho registra `CARD_VARIANT_TYPE_DEACTIVATED` / `_REACTIVATED` no `catal
 | EXECUTION-02 (2026-09-16) | 1.1 | **SUCESSO.** Delta executável provado: exatamente 1 linha alterada (`GROUP BY 1` → `GROUP BY r.decision_status, r.persistence_status`); md5 de constantes, guards, escritas e de todas as demais linhas idênticos entre v1.0 e v1.1. Registrada como `20260916212542`. G01–G26 PASS. |
 
 A v1.0 nunca chegou ao LIVE. O comportamento do abort é evidência direta de que o desenho atômico funciona: um defeito descoberto **depois** das escritas não deixou estado intermediário.
+
+---
+
+## Reconciliação canônica — 2026-09-18
+
+`BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01` classificou cada Query
+deste ciclo por **natureza**, e não em bloco. Esta pasta permanece como
+**evidência histórica** do staging; a fonte executável passou a ser:
+
+| Query | Natureza | Destino |
+|---|---|---|
+| `2200` | **correção de dado** (DELETE de mapping + UPDATE de rows/job) | `database/migrations/2200_...`. **Nenhuma canônica** — instalação limpa não revoga um mapeamento que nunca criou. |
+
+**Nota de ledger:** a entrada correspondente em
+`supabase_migrations.schema_migrations` é `20260916212542 /
+revoke_sv5_master_ball_league_cosmos_mapping` — **sem o prefixo numérico
+`2200`**, divergindo da convenção `NNNN_nome` de todas as demais. Irreversível;
+registrado como nota histórica.
+
+Nada foi reexecutado contra o Supabase nesta rodada — promoção canônica e
+fold-in são alteração de arquivo, não execução (ver `database/README.md`,
+seção "Queries `CANÔNICA` vs. `MIGRATION`").

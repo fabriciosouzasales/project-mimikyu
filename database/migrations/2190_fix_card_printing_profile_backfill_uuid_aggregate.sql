@@ -3,14 +3,15 @@
 Projeto.....: Project Mimikyu
 Query.......: 2190 - Fix Card Printing Profile Backfill UUID Aggregate
 Versão......: 1.0
-Status......: CONFIRMADO EXECUTADO — LIVE em 2026-09-14 (ledger 20260914000431)
+Status......: MIGRATION / CONFIRMADO EXECUTADO / LIVE
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-13
-Corrigido...: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01.
-              O cabeçalho declarava PROPOSTA — NÃO EXECUTADA, contradizendo o
-              ledger LIVE. Corrigido; nenhuma linha de SQL alterada.
-Cópia canônica: database/migrations/2190_... (histórico) · dobrada em
-              database/schema/2189_... v3.0
+Executado...: 2026-09-14, via apply_migration (MCP Supabase), projeto
+              qjfutqujxrbzgrtkpgkg. Ledger: 20260914000431 /
+              2190_fix_card_printing_profile_backfill_uuid_aggregate
+Reclassif..: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01
+Canônica....: dobrada em database/schema/2189_create_admin_create_card_
+              printing_profile_with_backfill_function.sql v3.0
 Mandato.....: CARD-VARIANTS — EDITORIAL-CONVERGENCE-10 /
               FIRST-EDITION-PROFILE-IMPLEMENTATION-01 /
               GATE-B-CORRECTION-04 / UUID-AGGREGATE-FIX

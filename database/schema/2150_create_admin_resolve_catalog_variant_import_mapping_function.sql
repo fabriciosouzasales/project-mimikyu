@@ -2,37 +2,72 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2150 - Create admin_resolve_catalog_variant_import_mapping() Function
-Versão......: 1.0
-Status......: CONFIRMADO EXECUTADO
+Versão......: 2.0
+Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / RECONCILIADA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-15
 
 Descrição...:
-Cria admin_resolve_catalog_variant_import_mapping(), função pública
-SECURITY DEFINER — permite ao administrador resolver, a partir de
-uma linha NEEDS_REVIEW de catalog_variant_import_row (Query 2138),
-uma combinação externa (type/foil/subtype/stamp) sem mapeamento,
-associando-a a um card_variant_type canônico já existente. Cadastra
-o mapeamento em card_variant_type_external_mapping (Query 2140) e
-revalida, no mesmo statement, todas as linhas NEEDS_REVIEW
-compatíveis em qualquer job ainda revisável do mesmo Game+Fonte —
-mesmo espírito de admin_create_rarity_external_mapping() (Query
-2101), mas com revalidação embutida (lá, a revalidação de
-catalog_import_row é feita por uma Edge Function separada,
-revalidate-catalog-import-rows, porque depende de lógica adicional
-em TypeScript — aqui a resolução é puramente relacional, cabe
-inteira numa função SQL).
+Esta Query canoniza as DUAS RPCs públicas do mesmo contrato de
+resolução de mapeamento de Card Variant Type, ambas SECURITY
+DEFINER, ambas partindo de uma linha NEEDS_REVIEW de
+catalog_variant_import_row (Query 2138):
 
+  A. admin_resolve_catalog_variant_import_mapping(row, type)
+     -> escopo GLOBAL (external_set_id NULL). Assinatura, retorno e
+        mensagens de erro preservados literalmente desde a v1.0.
+
+  B. admin_resolve_catalog_variant_import_mapping_for_set(row, type)
+     -> escopo SOURCE_SET. É OPT-IN EXPLÍCITO: uma RPC própria, e
+        não um parâmetro da RPC global. Quem quer escopo restrito
+        precisa dizer isso escolhendo a função — nunca por engano,
+        nunca por default.
+
+--------------------------------------------------------------
+DELEGAÇÃO — ONDE A REGRA REALMENTE VIVE
+--------------------------------------------------------------
+NENHUMA das duas contém a lógica de resolução. As duas resolvem a
+identidade da sessão (auth.uid()) e delegam ao WORKER ÚNICO
+internal.apply_variant_type_mapping() (Query 2193), passando
+'GLOBAL' ou 'SOURCE_SET' como scope_kind. O worker cria o mapping
+em card_variant_type_external_mapping (Query 2140 v2.0) e propaga
+a revalidação na MESMA transação, reemitindo os mesmos códigos de
+erro de antes (NOT_NEEDS_REVIEW, VARIANT_TYPE_MISMATCH,
+PRINTING_UNRESOLVED, DUPLICATE, SCOPE_MISMATCH).
+
+Isso é uma mudança de estado, não de contrato: até a v1.0 a
+resolução era relacional inline, inteira dentro desta função. Ela
+NÃO é mais — descrever assim ensinaria um contrato que não existe
+mais no banco.
+
+O external_set_id do caminho SOURCE_SET é DERIVADO do contrato
+canônico — internal.resolve_variant_mapping_scope() sobre a
+card_set_external_reference ativa da linha de origem —, jamais
+informado livremente pelo chamador. Divergência entre o escopo
+derivado e o declarado é fail-closed (SCOPE_MISMATCH).
+
+--------------------------------------------------------------
+ALCANCE DA REVALIDAÇÃO
+--------------------------------------------------------------
 Diferença deliberada frente à revalidação de raridade: o mapeamento
-recém-criado é canônico para Game+Fonte+combinação — não apenas
-para o job que originou a ação (decisão explícita de Fabrício,
-2026-08-15). Por isso a revalidação aqui é cross-job/cross-Card Set
-dentro do mesmo Game+Fonte, não restrita ao job_id da linha
-original: resolver holo+cosmos->COSMOS_HOLO uma única vez destrava
-automaticamente qualquer outro staging já existente com a mesma
-combinação, em qualquer Card Set daquele Game+Fonte.
+recém-criado é canônico para Game+Fonte+combinação (mais o Card Set,
+no caminho SOURCE_SET) — não apenas para o job que originou a ação
+(decisão explícita de Fabrício, 2026-08-15). Por isso a revalidação
+é cross-job/cross-Card Set dentro do mesmo Game+Fonte, não restrita
+ao job_id da linha original: resolver holo+cosmos->COSMOS_HOLO uma
+única vez destrava automaticamente qualquer outro staging já
+existente com a mesma combinação. Mesmo espírito de
+admin_create_rarity_external_mapping() (Query 2101), mas com
+revalidação embutida — lá ela é feita por uma Edge Function
+separada, revalidate-catalog-import-rows, porque depende de lógica
+adicional em TypeScript.
 
 Regras de Negócio:
+*(As regras abaixo descrevem o CONTRATO do conjunto — as duas RPCs
+públicas mais o worker. Desde a v2.0 a IMPLEMENTAÇÃO de quase todas
+elas vive em internal.apply_variant_type_mapping() e no read
+contract da Query 2192 v2.0, não no corpo destas funções; o
+contrato observável pelo chamador não mudou.)*
 - Só um administrador pode chamar esta função (is_admin()).
 - Só aceita linhas com validation_status = 'NEEDS_REVIEW' —
   resolver uma linha já VALID não faz sentido (já tem mapeamento).
@@ -53,10 +88,13 @@ Regras de Negócio:
   2140 v1.1): normalize_external_catalog_value() nos três campos de
   texto; stamp normalizado elemento a elemento e ORDENADO, tratando
   a combinação como conjunto, não sequência.
-- Verificação explícita de duplicidade contra o índice único de
-  combinação (uq_card_variant_type_external_mapping_combo, Query
-  2140) antes do INSERT, com erro dedicado — mesmo padrão de
-  admin_create_rarity_external_mapping (Query 2101).
+- Verificação explícita de duplicidade antes do INSERT, com erro
+  dedicado — mesmo padrão de admin_create_rarity_external_mapping
+  (Query 2101). Desde a v2.0 a checagem é contra o índice único
+  PARCIAL correspondente ao escopo pedido: ..._combo_global no
+  caminho GLOBAL, ..._combo_scoped no caminho SOURCE_SET (Query
+  2140 v2.0). O índice único da v1.0
+  (uq_card_variant_type_external_mapping_combo) não existe mais.
 - Revalidação set-based, um único UPDATE (sem loop, sem N+1):
   atualiza normalized_data.variant_type_id e validation_status =
   'VALID' em toda catalog_variant_import_row cuja combinação
@@ -102,218 +140,153 @@ Pré-requisitos:
 - Query 2140 - Create card_variant_type_external_mapping Table.
 - Query 2151 - Widen Catalog Admin Action Log for Variant Mapping.
 - Query 1060 - Create is_admin() Function.
+----------------------------------------------------------------
+REVISION HISTORY
+----------------------------------------------------------------
+| 1.0 | **Criação da RPC de resolução de mapping (2026-08-15).** Resolução
+        relacional inline, escopo único (canônico por Game+Fonte+combinação),
+        revalidação set-based embutida. |
+| 2.0 | **Duas RPCs públicas do mesmo contrato — GLOBAL + SOURCE_SET
+        (2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01).**
+        Estado terminal introduzido pela migration **`2195`** (ledger
+        `20260914025027`): a lógica relacional inline da v1.0 **não existe
+        mais no LIVE** — as duas RPCs delegam para o worker único
+        `internal.apply_variant_type_mapping()` (Query 2193), que reemite os
+        mesmos códigos de erro. Esta Query canônica passa a representar as
+        **duas** entradas públicas do contrato:
+        · `admin_resolve_catalog_variant_import_mapping()` — escopo `GLOBAL`;
+        · `admin_resolve_catalog_variant_import_mapping_for_set()` — escopo
+          `SOURCE_SET`.
+        Decisão explícita de Fabrício (2026-09-18): não criar Query nova para
+        a segunda RPC — o repositório já admite múltiplos objetos
+        semanticamente coesos numa mesma Query canônica. A migration `2195`
+        permanece em `database/migrations/` como histórico. |
 ================================================================
 */
 
+BEGIN;
+
+-- =============================================================
+-- A. CAMINHO GLOBAL — ASSINATURA E RETORNO INTACTOS
+--
+-- CREATE OR REPLACE preserva OID e ACL. Nenhum DROP.
+-- =============================================================
+
 CREATE OR REPLACE FUNCTION public.admin_resolve_catalog_variant_import_mapping(
-    p_row_id UUID,
+    p_row_id          UUID,
     p_variant_type_id UUID
 )
-RETURNS TABLE (
-    mapping_id UUID,
-    rows_updated INTEGER,
-    jobs_affected INTEGER
+RETURNS TABLE(
+    mapping_id     UUID,
+    rows_updated   INTEGER,
+    jobs_affected  INTEGER
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $$
+AS $global$
 DECLARE
-    v_row public.catalog_variant_import_row%ROWTYPE;
-    v_job_source TEXT;
-    v_game_id UUID;
-    v_asset_source_id UUID;
-    v_type TEXT;
-    v_foil TEXT;
-    v_subtype TEXT;
-    v_stamp TEXT[];
-    v_normalized_type TEXT;
-    v_normalized_foil TEXT;
-    v_normalized_subtype TEXT;
-    v_normalized_stamp TEXT[];
-    v_mapping_id UUID;
-    v_rows_updated INTEGER;
-    v_jobs_affected INTEGER;
+    v RECORD;
 BEGIN
     IF NOT public.is_admin() THEN
         RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_FORBIDDEN: apenas administradores podem resolver um mapeamento de variante.';
     END IF;
 
     IF p_row_id IS NULL OR p_variant_type_id IS NULL THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_MISSING_IDS: p_row_id e p_variant_type_id são obrigatórios.';
+        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_MISSING_IDS: p_row_id e p_variant_type_id sao obrigatorios.';
     END IF;
 
-    SELECT r.* INTO v_row FROM public.catalog_variant_import_row r WHERE r.id = p_row_id;
+    -- Delegação. Todos os guards herdados (NOT_NEEDS_REVIEW,
+    -- VARIANT_TYPE_MISMATCH, PRINTING_UNRESOLVED, DUPLICATE) são
+    -- avaliados pelo contrato único e re-emitidos pelo worker com
+    -- as MESMAS mensagens de erro de antes.
+    SELECT * INTO v
+      FROM internal.apply_variant_type_mapping(
+               (select auth.uid()), p_row_id, p_variant_type_id, 'GLOBAL');
 
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_ROW_NOT_FOUND: nenhuma linha encontrada para o id informado (%).', p_row_id;
-    END IF;
-
-    SELECT j.source INTO v_job_source FROM public.catalog_variant_import_job j WHERE j.id = v_row.job_id;
-
-    IF v_job_source IS NULL THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_JOB_NOT_FOUND: não foi possível resolver o job desta linha.';
-    END IF;
-
-    IF v_row.validation_status <> 'NEEDS_REVIEW' THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_NOT_NEEDS_REVIEW: só linhas sem mapeamento (NEEDS_REVIEW) podem ser resolvidas por aqui.';
-    END IF;
-
-    -- game_id resolvido a partir da própria linha (card -> card_set ->
-    -- expansion -> game) — nunca recebido como parâmetro.
-    SELECT e.game_id INTO v_game_id
-    FROM public.card c
-    JOIN public.card_set cs ON cs.id = c.card_set_id
-    JOIN public.expansion e ON e.id = cs.expansion_id
-    WHERE c.id = v_row.card_id;
-
-    IF v_game_id IS NULL THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_GAME_NOT_FOUND: não foi possível resolver o Game desta linha.';
-    END IF;
-
-    SELECT id INTO v_asset_source_id FROM public.asset_source WHERE code = v_job_source;
-
-    IF v_asset_source_id IS NULL THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_SOURCE_NOT_FOUND: nenhuma Fonte encontrada para o código % do job desta linha.', v_job_source;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM public.card_variant_type WHERE id = p_variant_type_id AND game_id = v_game_id) THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_VARIANT_TYPE_MISMATCH: o Card Variant Type informado não existe ou não pertence ao Game desta combinação.';
-    END IF;
-
-    v_type := v_row.raw_data ->> 'type';
-    v_foil := v_row.raw_data ->> 'foil';
-    v_subtype := v_row.raw_data ->> 'subtype';
-
-    IF v_type IS NULL OR btrim(v_type) = '' THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_MISSING_TYPE: raw_data.type ausente nesta linha — dado inconsistente.';
-    END IF;
-
-    IF jsonb_typeof(v_row.raw_data -> 'stamp') = 'array' THEN
-        SELECT array_agg(elem) INTO v_stamp FROM jsonb_array_elements_text(v_row.raw_data -> 'stamp') elem;
-    ELSE
-        v_stamp := NULL;
-    END IF;
-
-    v_normalized_type := public.normalize_external_catalog_value(v_type);
-    v_normalized_foil := CASE WHEN v_foil IS NULL THEN NULL ELSE public.normalize_external_catalog_value(v_foil) END;
-    v_normalized_subtype := CASE WHEN v_subtype IS NULL THEN NULL ELSE public.normalize_external_catalog_value(v_subtype) END;
-
-    IF v_stamp IS NULL THEN
-        v_normalized_stamp := NULL;
-    ELSE
-        SELECT array_agg(public.normalize_external_catalog_value(elem) ORDER BY public.normalize_external_catalog_value(elem))
-            INTO v_normalized_stamp
-            FROM unnest(v_stamp) AS elem;
-    END IF;
-
-    IF EXISTS (
-        SELECT 1 FROM public.card_variant_type_external_mapping
-        WHERE game_id = v_game_id
-          AND asset_source_id = v_asset_source_id
-          AND normalized_type = v_normalized_type
-          AND COALESCE(normalized_foil, '') = COALESCE(v_normalized_foil, '')
-          AND COALESCE(normalized_subtype, '') = COALESCE(v_normalized_subtype, '')
-          AND COALESCE(normalized_stamp, '{}'::TEXT[]) = COALESCE(v_normalized_stamp, '{}'::TEXT[])
-    ) THEN
-        RAISE EXCEPTION 'ADMIN_RESOLVE_CATALOG_VARIANT_IMPORT_MAPPING_DUPLICATE: já existe um mapeamento para esta combinação nesta Fonte/Game.';
-    END IF;
-
-    INSERT INTO public.card_variant_type_external_mapping (
-        game_id, asset_source_id,
-        external_type, external_foil, external_subtype, external_stamp,
-        normalized_type, normalized_foil, normalized_subtype, normalized_stamp,
-        variant_type_id
-    ) VALUES (
-        v_game_id, v_asset_source_id,
-        v_type, v_foil, v_subtype, v_stamp,
-        v_normalized_type, v_normalized_foil, v_normalized_subtype, v_normalized_stamp,
-        p_variant_type_id
-    ) RETURNING id INTO v_mapping_id;
-
-    -- Revalidação set-based, cross-job/cross-Card Set dentro do mesmo
-    -- Game+Fonte — o mapeamento é canônico, não fica preso ao job que
-    -- originou a resolução (decisão explícita de Fabrício, 2026-08-15).
-    WITH updated AS (
-        UPDATE public.catalog_variant_import_row r
-        SET normalized_data = jsonb_set(r.normalized_data, '{variant_type_id}', to_jsonb(p_variant_type_id::TEXT), true),
-            validation_status = 'VALID'
-        FROM public.catalog_variant_import_job j
-        WHERE r.job_id = j.id
-          AND j.status = 'STAGED'
-          AND j.source = v_job_source
-          AND j.card_set_id IN (
-              SELECT cs2.id FROM public.card_set cs2
-              JOIN public.expansion e2 ON e2.id = cs2.expansion_id
-              WHERE e2.game_id = v_game_id
-          )
-          AND r.decision_status = 'PENDING'
-          AND r.validation_status = 'NEEDS_REVIEW'
-          AND public.normalize_external_catalog_value(r.raw_data ->> 'type') = v_normalized_type
-          AND COALESCE(
-                CASE WHEN r.raw_data ->> 'foil' IS NULL THEN NULL ELSE public.normalize_external_catalog_value(r.raw_data ->> 'foil') END,
-                ''
-              ) = COALESCE(v_normalized_foil, '')
-          AND COALESCE(
-                CASE WHEN r.raw_data ->> 'subtype' IS NULL THEN NULL ELSE public.normalize_external_catalog_value(r.raw_data ->> 'subtype') END,
-                ''
-              ) = COALESCE(v_normalized_subtype, '')
-          AND COALESCE(
-                (
-                    SELECT array_agg(public.normalize_external_catalog_value(elem) ORDER BY public.normalize_external_catalog_value(elem))
-                    FROM jsonb_array_elements_text(
-                        CASE WHEN jsonb_typeof(r.raw_data -> 'stamp') = 'array' THEN r.raw_data -> 'stamp' ELSE '[]'::JSONB END
-                    ) elem
-                ),
-                '{}'::TEXT[]
-              ) = COALESCE(v_normalized_stamp, '{}'::TEXT[])
-        RETURNING r.id, r.job_id
-    )
-    SELECT count(*), count(DISTINCT job_id) INTO v_rows_updated, v_jobs_affected FROM updated;
-
-    INSERT INTO public.catalog_admin_action_log (actor_id, action, entity_type, entity_id, metadata)
-        VALUES (
-            auth.uid(), 'CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED', 'CARD_VARIANT_TYPE_EXTERNAL_MAPPING', v_mapping_id,
-            jsonb_build_object(
-                'game_id', v_game_id, 'asset_source_id', v_asset_source_id, 'variant_type_id', p_variant_type_id,
-                'external_type', v_type, 'external_foil', v_foil, 'external_subtype', v_subtype, 'external_stamp', v_stamp,
-                'origin_row_id', p_row_id, 'rows_updated', v_rows_updated, 'jobs_affected', v_jobs_affected
-            )
-        );
-
-    RETURN QUERY SELECT v_mapping_id, v_rows_updated, v_jobs_affected;
+    -- Retorno idêntico ao histórico: 3 colunas, mesmos nomes.
+    -- `rows_updated` continua significando "linhas revalidadas".
+    RETURN QUERY SELECT v.mapping_id, v.rows_reclassified, v.jobs_affected;
 END;
-$$;
+$global$;
+
+COMMENT ON FUNCTION public.admin_resolve_catalog_variant_import_mapping(UUID, UUID) IS
+    'Cria mapping GLOBAL de Card Variant Type a partir de uma linha de staging NEEDS_REVIEW. Assinatura, retorno e mensagens de erro PRESERVADOS da versao anterior (Query 2150). Passou a delegar ao worker unico internal.apply_variant_type_mapping(..., GLOBAL) - Query 2193. Para escopo por source-set use admin_resolve_catalog_variant_import_mapping_for_set().';
+
+-- =============================================================
+-- B. CAMINHO SOURCE_SET — NOVO, EXPLÍCITO, OPT-IN
+--
+-- O admin NÃO digita external_set_id. O escopo é DERIVADO do
+-- Card Set do job da linha de origem, via card_set_external_reference
+-- (decisão 4 + §15 do mandato).
+-- =============================================================
+
+CREATE OR REPLACE FUNCTION public.admin_resolve_catalog_variant_import_mapping_for_set(
+    p_row_id          UUID,
+    p_variant_type_id UUID
+)
+RETURNS TABLE(
+    mapping_id          UUID,
+    scope_kind          TEXT,
+    external_set_id     TEXT,
+    rows_total          INTEGER,
+    rows_reclassified   INTEGER,
+    rows_still_pending  INTEGER,
+    jobs_affected       INTEGER
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $scoped$
+DECLARE
+    v RECORD;
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'ADMIN_RESOLVE_VARIANT_IMPORT_MAPPING_FOR_SET_FORBIDDEN: apenas administradores podem resolver um mapeamento de variante.';
+    END IF;
+
+    IF p_row_id IS NULL OR p_variant_type_id IS NULL THEN
+        RAISE EXCEPTION 'ADMIN_RESOLVE_VARIANT_IMPORT_MAPPING_FOR_SET_MISSING_IDS: p_row_id e p_variant_type_id sao obrigatorios.';
+    END IF;
+
+    SELECT * INTO v
+      FROM internal.apply_variant_type_mapping(
+               (select auth.uid()), p_row_id, p_variant_type_id, 'SOURCE_SET');
+
+    RETURN QUERY SELECT v.mapping_id, v.scope_kind, v.external_set_id,
+                        v.rows_total, v.rows_reclassified,
+                        v.rows_still_pending, v.jobs_affected;
+END;
+$scoped$;
+
+COMMENT ON FUNCTION public.admin_resolve_catalog_variant_import_mapping_for_set(UUID, UUID) IS
+    'Cria mapping SOURCE_SET_SCOPED de Card Variant Type. Opt-in EXPLICITO: e uma funcao separada, nunca um parametro da RPC global. O external_set_id NAO e digitado - e DERIVADO do Card Set do job da linha de origem via card_set_external_reference ATIVA. Delega ao worker unico da Query 2193. Coexiste com o mapping global; removendo a linha, o comportamento global e restaurado.';
+
+-- =============================================================
+-- C. ACL — least-privilege nas duas
+-- =============================================================
 
 REVOKE ALL ON FUNCTION public.admin_resolve_catalog_variant_import_mapping(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_resolve_catalog_variant_import_mapping(UUID, UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.admin_resolve_catalog_variant_import_mapping(UUID, UUID) TO authenticated;
 
--- ================================================================
--- Confirmado executado (2026-08-15, via execute_sql/MCP do Supabase,
--- projeto qjfutqujxrbzgrtkpgkg), depois de dry-run em BEGIN...ROLLBACK
--- contra dado real (job BASEP cf829d56-..., job SV10 cf38d2ea-...):
--- chamador não-admin -> FORBIDDEN; caso obrigatório holo+cosmos ->
--- COSMOS_HOLO resolveu rows_updated=10/jobs_affected=2, confirmado por
--- SELECT independente (10/10 linhas VALID com o variant_type_id
--- correto); linha com a mesma combinação MAIS stamp:eb-games
--- corretamente NÃO tocada (combinação diferente, permanece
--- NEEDS_REVIEW); segunda tentativa da mesma combinação -> DUPLICATE;
--- catalog_admin_action_log gravado com rows_updated/jobs_affected no
--- metadata. Execução real repetiu a mesma chamada (mapping_id
--- 1558d092-b768-473b-9abf-fc1e869c67af): 3 linhas de BASEP + 7 de
--- SV10 = 10 linhas em 2 jobs, reverificado por SELECT independente
--- pós-commit — a linha SV10 com stamp:eb-games permanece NEEDS_REVIEW,
--- como esperado (não é a mesma combinação externa).
--- role_routine_grants confirma EXECUTE só para 'authenticated' (além
--- do owner 'postgres'), nenhum grant para anon/PUBLIC.
--- ================================================================
+REVOKE ALL ON FUNCTION public.admin_resolve_catalog_variant_import_mapping_for_set(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_resolve_catalog_variant_import_mapping_for_set(UUID, UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.admin_resolve_catalog_variant_import_mapping_for_set(UUID, UUID) TO authenticated;
+
+COMMIT;
 
 -- ================================================================
--- Como validar:
--- SELECT routine_name, security_type FROM information_schema.routines
--- WHERE routine_name = 'admin_resolve_catalog_variant_import_mapping';
--- Esperado: security_type = 'DEFINER'.
--- SELECT grantee, privilege_type FROM information_schema.role_routine_grants
--- WHERE routine_name = 'admin_resolve_catalog_variant_import_mapping';
--- Esperado: só 'authenticated' com EXECUTE, nenhum grant para anon/PUBLIC.
+-- CONFIRMADO EXECUTADO / LIVE.
+--
+-- Esta Query CANÔNICA foi reconciliada em 2026-09-18
+-- (BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01): o corpo passou a
+-- representar o ESTADO TERMINAL LIVE, provado equivalente por
+-- md5(prosrc) normalizado contra pg_get_functiondef do Supabase
+-- (projeto qjfutqujxrbzgrtkpgkg).
+--
+-- NÃO foi reexecutada contra o LIVE — fold-in canônico é alteração de
+-- arquivo, não execução (database/README.md, "Queries CANÔNICA vs. MIGRATION").
+-- As migrations que introduziram cada camada seguem preservadas em
+-- database/migrations/ como histórico.
 -- ================================================================

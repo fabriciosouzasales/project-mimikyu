@@ -1,113 +1,144 @@
 /*
 ================================================================
 Projeto.....: Project Mimikyu
-Query.......: 2144 - Create admin_decide_catalog_variant_import_row() Function
-Versão......: 2.0
-Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / RECONCILIADA
+Query.......: 2199 - Guard SIZE_OUT_OF_SCOPE Decision Immutability
+Versão......: 1.0
+Status......: MIGRATION / CONFIRMADO EXECUTADO / LIVE
+              Fechamento documental: DOCUMENTATION-CLOSEOUT-01 (2026-09-16).
+              md5(pg_get_functiondef) pré-aplicação.: 8495aa378ff34a568bd9c23db4370a42 (corpo da 2163)
+              md5(pg_get_functiondef) pós-aplicação.: bc2e5f378a95e02fbcc8b10819451f52
+              Delta de dados na aplicação: ZERO (14 fingerprints idênticos).
+              Validada pelo harness 2828 v2.0 — gate_state = COMPLETE
+              (18 estruturais PASS / 0 FAIL · 5 E2E autenticados PASS / 0 PENDING).
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-08-15
+Data........: 2026-09-16
+Executado...: 2026-09-16, via apply_migration (MCP Supabase), projeto
+              qjfutqujxrbzgrtkpgkg. Ledger: 20260916170733 /
+              2199_guard_size_out_of_scope_decision_immutability
+Reclassif..: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01
+Canônica....: dobrada em database/schema/2144_create_admin_decide_catalog_
+              variant_import_row_function.sql v2.0, junto com a 2163
+Mandato.....: CARD-VARIANTS — JUMBO INCIDENT /
+               SIZE-SCOPE-EDGE-UI-CORRECTION-01 (OBJETIVO 1)
+               Aplicada em SIZE-SCOPE-DECISION-GUARD-2199-EXECUTE-01.
+Diagnóstico.: SIZE-SCOPE-EDGE-UI-DIFF-AUDIT-01 — BLOCKER-1
 
-Descrição...:
-Cria admin_decide_catalog_variant_import_row(), função pública
-SECURITY DEFINER — único caminho pelo qual decision_status de uma
-ou mais catalog_variant_import_row (Query 2138) é alterado.
-Equivalente exata de admin_decide_catalog_import_row() (Query 2081)
-para o bloco Card Variant (Incremento 3, ADR-028). Não persiste
-nada em public.card_variant — só ajusta o estado de staging. A
-persistência real acontece em
-admin_confirm_catalog_variant_import() (Query 2145).
+-------------------------------------------------------------------------------
+POR QUE ESTA MIGRATION EXISTE
+-------------------------------------------------------------------------------
+A Query 2198 (LIVE) fechou o eixo de ESCOPO POR TAMANHO no ponto único de
+routing: `size` normalizado fora de {NULL, STANDARD} devolve
+BLOCKED_SIZE_OUT_OF_SCOPE / BLOCKED_SIZE_UNSUPPORTED, e nenhum writer
+consegue produzir identidade canônica a partir da linha.
 
-Regras de Negócio:
-- Só um administrador pode chamar esta função (is_admin()).
-- Aceita array de ids — decisão única ou em massa, mesma função.
-- Sem parâmetro de correção de dado (diferença deliberada frente à
-  Query 2081): normalized_data de uma linha de variante só contém
-  variant_type_id, já resolvido automaticamente contra
-  card_variant_type_external_mapping no processamento — não há
-  campo livre para um administrador corrigir manualmente nesta
-  rodada.
-- Só decide linhas cujo job ainda está em status = 'STAGED' — mesmo
-  raciocínio da Query 2081.
-- decision_status restrito a PENDING, APPROVED, REJECTED ou SKIPPED.
-- Regra própria deste bloco: decision_status = 'APPROVED' é
-  recusado para qualquer linha com validation_status <> 'VALID'
-  (ou seja, NEEDS_REVIEW) — uma linha sem card_variant_type
-  resolvido não tem o que confirmar; precisa primeiro ganhar um
-  mapeamento em card_variant_type_external_mapping e ser
-  reprocessada, nunca ser aprovada "no escuro". REJECTED/SKIPPED
-  continuam permitidos para NEEDS_REVIEW (descartar ou pular uma
-  linha sem mapeamento é uma decisão legítima).
-- Não grava em catalog_admin_action_log — mesmo raciocínio da Query
-  2081 (decisão reversível, de baixo risco).
-- Retorna a quantidade de linhas efetivamente atualizadas.
+A Edge (import-card-variants) passou a materializar essa decisão no staging:
 
---------------------------------------------------------------
-CONTRATO DE LOTE (incorporado da Query 2163)
---------------------------------------------------------------
-p_row_ids é validado como PAYLOAD antes de qualquer acesso a
-tabela e antes de qualquer lock:
+    normalized_data.skip_reason = 'SIZE_OUT_OF_SCOPE'
+      -> validation_status = 'INVALID'
+      -> decision_status   = 'SKIPPED'
 
-- FORMA: precisa ser um array de UMA ÚNICA DIMENSÃO
-  (array_ndims = 1). Um array multidimensional chegaria aqui como
-  um payload silenciosamente diferente do pretendido, e `= ANY()`
-  o aceitaria sem reclamar.
-- NÃO VAZIO: cardinality() conta ELEMENTOS REAIS — diferente de
-  array_length(), que devolve NULL para o array vazio e faria um
-  lote vazio passar como se fosse "sem filtro".
-- TETO: c_max_row_ids CONSTANT INTEGER := 10000 ids por chamada.
-  JUSTIFICATIVA DO TETO: um array desse tamanho já atravessa o
-  PostgREST como corpo JSON (não como querystring), e o UPDATE
-  correspondente cabe numa única transação curta; acima disso o
-  lote deixa de ser uma decisão administrativa e vira uma
-  operação de carga, que não é o contrato desta função. Dividir
-  em lotes menores é responsabilidade de quem chama.
-- ORDEM FAIL-CLOSED DOS GUARDS, e a ordem importa: autorização ->
-  ids presentes -> dimensionalidade -> não vazio -> teto ->
-  decision_status válido -> job STAGED -> APPROVED exige VALID ->
-  imutabilidade de SIZE_OUT_OF_SCOPE -> UPDATE. Validação de
-  payload vem antes de tocar em tabela; validação de estado vem
-  antes de escrever; a escrita é a última coisa que acontece.
+Essa tripla é decisão AUTOMÁTICA, tomada pelo sistema no momento da
+importação. Não é decisão editorial em aberto.
 
---------------------------------------------------------------
-IMUTABILIDADE DE SIZE_OUT_OF_SCOPE (incorporado da Query 2199)
---------------------------------------------------------------
-Uma linha marcada com normalized_data.skip_reason =
-'SIZE_OUT_OF_SCOPE' (incidente JUMBO — ver Query 2176 v2.0) teve
-sua decisão tomada pelo SISTEMA, não por um administrador. Ela é
-imutável aqui:
+A auditoria SIZE-SCOPE-EDGE-UI-DIFF-AUDIT-01 provou que ela era reversível:
+`admin_decide_catalog_variant_import_row` só protege APPROVED (recusado para
+`validation_status <> 'VALID'`). Para REJECTED, SKIPPED e PENDING a única
+pré-condição é `job.status = 'STAGED'`. Um clique em "Rejeitar" na tela de
+revisão — ou um "Selecionar todas" que arrastasse a linha — mudava
+`decision_status` de SKIPPED para REJECTED, com estes efeitos reais:
 
-- APPROVED, REJECTED e PENDING são RECUSADOS para essas linhas;
-- SKIPPED é aceito como no-op idempotente (é o estado em que ela
-  já está);
-- um lote MISTO falha INTEIRO — nunca aplica parcialmente.
+  1. a linha sai do universo `decision_status IN ('APPROVED','SKIPPED')` da
+     confirmação (Queries 2145 / 2164 / 2179) e NUNCA é processada, ficando
+     com `persistence_status = 'PENDING'` indefinidamente;
+  2. `rejected_rows` (2145, linha 419) passa a contar variantes que o sistema
+     decidiu não catalogar, misturando decisão humana com decisão automática;
+  3. a evidência de "pulada por escopo" sobrevive só em
+     `normalized_data.skip_reason` — nenhum contador a reflete.
 
-Sem esse guard, um lote grande "aprovar todas as selecionadas"
-poderia promover uma variante fora de escopo a card_variant real.
+ARQUITETURA DE DEFESA — DUAS CAMADAS, NÃO TRÊS
+(atualizado em 2026-09-16 pela Correction-02; a redação anterior deste
+parágrafo descrevia uma terceira camada que deixou de existir)
 
-Pré-requisitos:
-- Query 2138 - Create Catalog Variant Import Row Table.
-- Query 2136 - Create Catalog Variant Import Job Table.
-- Query 2176 - compute_variant_residual_signature() v2.0 (origem do
-  marcador SIZE_OUT_OF_SCOPE).
-- Query 1060 - Create is_admin() Function.
-----------------------------------------------------------------
-REVISION HISTORY
-----------------------------------------------------------------
-| 1.0 | **Criação da função de decisão (2026-08-15).** Contrato original:
-        array de ids sem teto, guard de job STAGED, recusa de APPROVED para
-        linha não-VALID. |
-| 2.0 | **Estado terminal consolidado (2026-09-18, BULK-STP-01-CANONICAL-
-        RECONCILIATION-IMPLEMENTATION-01).** Consolida no próprio arquivo,
-        com versão incrementada, as duas camadas que o LIVE já possuía e que
-        esta Query canônica ainda não refletia:
-        · **`2163`** (`migrations/`) — hardening de contrato de lote:
-          `c_max_row_ids CONSTANT INTEGER := 10000`, validação de forma do
-          array e conjunto efetivo congelado;
-        · **`2199`** (`migrations/`, ledger `20260916170733`) — imutabilidade
-          de decisão para linhas fora do escopo de `size`.
-        Mesmo procedimento já aplicado na Query 2145 v2.0. As duas migrations
-        permanecem em `database/migrations/` como histórico e passam a ser
-        lidas como `MIGRATION`, não como fonte canônica. |
+  UI (web/components/catalogo/revisao-importacao-variantes-table.tsx)
+    - a linha fora de escopo NÃO é selecionável (isVariantRowSelectable);
+    - os handlers de decisão filtram defensivamente (canDecideVariantRow),
+      de modo que nenhum id travado é sequer enviado;
+    - é conveniência e evita a viagem — não é garantia.
+
+  RPC (esta função, a partir da 2199)
+    - AUTORIDADE FINAL E ATÔMICA. Único writer de decision_status.
+
+NÃO existe mais um precheck na Server Action. A Correction-02 removeu o
+`.in("id", rowIds)` que a Correction-01 havia colocado em
+`decidirLinhasVariantes`, por três razões registradas lá: duplicação da
+mesma regra de negócio em duas camadas; incompatibilidade com o teto de
+10.000 UUIDs por chamada (uma querystring de ~370 KB, mais um round-trip por
+decisão, ou chunking arbitrário); e ausência de atomicidade, já que o
+precheck e o UPDATE eram transações distintas.
+
+DEPENDÊNCIA DE SEQUÊNCIA: enquanto esta migration não estiver LIVE, a única
+barreira contra REJECTED/PENDING sobre uma linha SIZE_OUT_OF_SCOPE é a da
+UI. Logo, a 2199 precede o deploy do frontend.
+
+-------------------------------------------------------------------------------
+AUDITORIA DE WRITERS — POR QUE SÓ ESTA FUNÇÃO
+-------------------------------------------------------------------------------
+Varredura de `SET decision_status` / `INSERT ... decision_status` em
+database/schema/ e database/migrations/ (2026-09-16):
+
+  2138  DEFAULT 'PENDING' na criação da tabela        (não é writer de decisão)
+  2139  trigger BEFORE: UPPER(BTRIM(...)) normaliza   (normalizador, não writer)
+  2144  UPDATE ... SET decision_status                 (SUPERSEDED por 2163)
+  2163  UPDATE ... SET decision_status                 <-- ÚNICO WRITER LIVE
+
+  2145 / 2164 / 2179 (confirm)     -> persistence_status, match_status, error_detail
+  2150 / 2180 / 2181 / 2183        -> normalized_data
+  2189 / 2190 / 2193 / 2196 / 2197 -> normalized_data
+  (nenhum deles toca decision_status)
+
+Logo, o hardening mínimo é um único CREATE OR REPLACE sobre
+`admin_decide_catalog_variant_import_row`.
+
+LIMITE CONHECIDO E DELIBERADO: um UPDATE direto na tabela pelo papel
+`postgres` (MCP / SQL Editor) continua podendo alterar a coluna. Fechar isso
+exigiria um trigger na tabela — superfície maior, que afetaria os harnesses
+de fixture (2827, 2822, 2824) e caminhos não auditados neste incidente.
+Mandato: "hardening mínimo". Registrado como dívida, não silenciado.
+
+-------------------------------------------------------------------------------
+CONTRATO ACRESCENTADO
+-------------------------------------------------------------------------------
+GUARD 7 (novo). Se QUALQUER linha do lote tem
+`normalized_data ->> 'skip_reason' = 'SIZE_OUT_OF_SCOPE'` e o
+`decision_status` pedido NÃO é 'SKIPPED', a chamada INTEIRA falha com
+ADMIN_DECIDE_CATALOG_VARIANT_IMPORT_ROW_SIZE_OUT_OF_SCOPE. Nenhuma linha é
+alterada — mesma semântica "tudo ou nada" já usada pelo guard de APPROVED.
+
+'SKIPPED' é aceito DE PROPÓSITO: a linha já nasce SKIPPED, então a chamada é
+um no-op idempotente. Recusá-la obrigaria todo caller a conhecer o eixo de
+tamanho antes de pedir a decisão que já é a vigente — contrato pior, sem
+ganho de integridade.
+
+Ordem dos guards preservada e estendida:
+  is_admin < NULL < ndims < cardinality < teto < status válido <
+  job STAGED < APPROVED-needs-review < SIZE_OUT_OF_SCOPE
+
+O guard novo entra POR ÚLTIMO entre as validações e ANTES do UPDATE. Motivo:
+os anteriores são sobre a FORMA da chamada (autorização, contrato do array,
+estado do job); este é sobre o CONTEÚDO das linhas, e só faz sentido depois
+de o lote ter sido aceito como bem formado. Isso também mantém as mensagens
+de erro já existentes com precedência inalterada.
+
+NADA MAIS MUDA. Todo o resto do corpo é idêntico ao da Query 2163.
+
+-------------------------------------------------------------------------------
+NÃO TOCA / NÃO REAPLICA
+-------------------------------------------------------------------------------
+- Não altera a Query 2198 (guard de residual signature) — nem reaplica.
+- Não altera `catalog_variant_import_row` (nenhum DDL de tabela).
+- Não altera a confirmação (2145/2164/2179).
+- Não altera grants: reafirmados idênticos, por idempotência.
+- Não altera a assinatura da função.
 ================================================================
 */
 
@@ -288,19 +319,4 @@ GRANT EXECUTE ON FUNCTION public.admin_decide_catalog_variant_import_row(UUID[],
 --   reconferir o mesmo md5 IMEDIATAMENTE antes de aplicar. O baseline acima
 --   e de 2026-09-16; se o corpo LIVE tiver mudado desde entao, esta migration
 --   NAO deve ser aplicada sem nova auditoria do diff.
--- ================================================================
-
--- ================================================================
--- CONFIRMADO EXECUTADO / LIVE.
---
--- Esta Query CANÔNICA foi reconciliada em 2026-09-18
--- (BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01): o corpo passou a
--- representar o ESTADO TERMINAL LIVE, provado equivalente por
--- md5(prosrc) normalizado contra pg_get_functiondef do Supabase
--- (projeto qjfutqujxrbzgrtkpgkg).
---
--- NÃO foi reexecutada contra o LIVE — fold-in canônico é alteração de
--- arquivo, não execução (database/README.md, "Queries CANÔNICA vs. MIGRATION").
--- As migrations que introduziram cada camada seguem preservadas em
--- database/migrations/ como histórico.
 -- ================================================================

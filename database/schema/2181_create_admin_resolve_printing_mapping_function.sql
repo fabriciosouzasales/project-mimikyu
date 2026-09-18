@@ -2,14 +2,18 @@
 ===============================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2181 - Create admin_resolve_catalog_variant_import_printing_mapping()
-Versão......: 1.2
-Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / PROMOVIDO
+Versão......: 2.0
+Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / RECONCILIADA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-12
 Promovida...: 2026-09-13 — TECHNICAL-CLOSEOUT-PROMOTION-01
-Origem......: database/proposals/2026-09-12-card-variants-printing-routing/
+Reconciliada: 2026-09-18 — BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01
+              (v2.0: corpo terminal = migration 2197, ledger 20260914025324)
+Origem......: v1.x — database/proposals/2026-09-12-card-variants-printing-routing/
               2181_create_admin_resolve_printing_mapping_function.sql
-Mandato.....: CARD-VARIANTS — PRINTING-ROUTING — STAGING-GATE-A-01 (§7, §20, §21)
+              v2.0 — database/migrations/2197_reconcile_variant_type_mapping_
+              printing_lookup_for_scope.sql (histórico do ciclo de 2026-09-14)
+Mandato.....: v1.x — CARD-VARIANTS — PRINTING-ROUTING — STAGING-GATE-A-01 (§7, §20, §21)
                + STAGING-REVISION-01 (R4)
                + STAGING-CORRECTION-04 (§1, §2, §3, §4)
 
@@ -216,9 +220,38 @@ Se uma correcao de mapping implicar que uma card_variant confirmada
 ficou com o perfil errado, isso e OUTRO procedimento editorial
 explicito — reconciliacao de catalogo —, nunca efeito colateral daqui.
 
+--------------------------------------------------------------
+LOOKUP SOURCE_SET-AWARE (v2.0, incorporado da 2197)
+--------------------------------------------------------------
+Desde a v2.0 esta RPC não resolve mais o Variant Type de uma linha
+por conta própria: ela consome internal.lookup_variant_type_for_row()
+(Query 2192 v2.0), o PONTO ÚNICO do banco onde a precedência de
+escopo existe.
+
+  PRECEDÊNCIA, DE UM NÍVEL, SEM CASCATA:
+      scoped (external_set_id da linha)  >  global (NULL)  >  NEEDS_REVIEW
+
+É determinística por construção — os dois índices parciais da Query
+2140 v2.0 garantem no máximo dois candidatos, e a ordenação é total
+sobre eles. NÃO há desempate por timestamp, display_order, is_active
+ou id.
+
+Consequência prática para o eixo Impressão: uma linha cujo
+acabamento foi reinterpretado por um mapping SOURCE_SET passa a ser
+avaliada com esse Variant Type, e não com o global — o que mantém os
+dois eixos (acabamento e impressão) coerentes entre si. Sem isso, a
+ratificação de Impressão poderia propagar sobre um acabamento que o
+escopo já havia substituído.
+
+O restante do contrato editorial de Impressão (raw_field, traits,
+auditoria própria, origin-row binding, composição efetiva) permanece
+INALTERADO — a mudança da v2.0 é apenas de onde vem o Variant Type.
+
 Regras de Negócio:
 - Admin-only, primeira instrucao.
 - raw_field restrito a 'subtype'/'stamp'.
+- Variant Type da linha resolvido por internal.lookup_variant_type_
+  for_row(), com precedencia scoped > global > NEEDS_REVIEW.
 - p_trait_ids nao pode ser vazio nem conter NULL nem duplicatas.
 - Todos os traits precisam existir, ser do mesmo Game e estar ATIVOS.
 - Token normalizado por normalize_external_catalog_value().
@@ -249,48 +282,35 @@ REVISION HISTORY
         (TECHNICAL-CLOSEOUT-PROMOTION-01). O SQL executável permanece
         idêntico ao artefato executado; só o cabeçalho registra o estado
         final. A proposal original é preservada como histórico. |
+| 2.0 | **Lookup de Impressão ciente de escopo (2026-09-18, BULK-STP-01-
+        CANONICAL-RECONCILIATION-IMPLEMENTATION-01).** Fold-in do estado
+        terminal introduzido pela migration **`2196`/`2197`** (ledger
+        `20260914025324`): a resolução do eixo Impressão passa a respeitar o
+        escopo `GLOBAL` vs `SOURCE_SET` do mapping de acabamento, coerente com
+        `external_set_id` (Query 2140 v2.0). A migration `2197` permanece em
+        `database/migrations/` como histórico. |
 ===============================================================================
 */
 
 BEGIN;
 
--- =========================================================================
--- GUARD DE DEPENDÊNCIA — a ordem de aplicação é a ordem das FASES do
--- README, não a ordem numérica. Este guard torna a única dependência
--- real (2185 antes de 2181) auto-verificável: sem ele, a função seria
--- criada com sucesso e só falharia na primeira chamada editorial real,
--- em produção, no meio de uma transação de resolução.
--- =========================================================================
-DO $dep$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_catalog.pg_constraint c
-         WHERE c.conrelid = 'public.catalog_admin_action_log'::regclass
-           AND c.conname = 'ck_catalog_admin_action_log_action_valid'
-           AND position('CARD_PRINTING_EXTERNAL_MAPPING_CREATED' IN pg_get_constraintdef(c.oid)) > 0
-    ) THEN
-        RAISE EXCEPTION 'PRINTING_MAPPING_RPC_MISSING_ACTION_LOG_CONTRACT: catalog_admin_action_log ainda não aceita CARD_PRINTING_EXTERNAL_MAPPING_CREATED. Aplicar a Query 2185 ANTES desta. STOP.';
-    END IF;
-END;
-$dep$;
-
 CREATE OR REPLACE FUNCTION public.admin_resolve_catalog_variant_import_printing_mapping(
-    p_row_id UUID,
-    p_raw_field TEXT,
-    p_token TEXT,
-    p_trait_ids UUID[]
+    p_row_id     UUID,
+    p_raw_field  TEXT,
+    p_token      TEXT,
+    p_trait_ids  UUID[]
 )
-RETURNS TABLE (
-    mapping_id UUID,
+RETURNS TABLE(
+    mapping_id            UUID,
     superseded_mapping_id UUID,
-    rows_updated INTEGER,
-    rows_still_pending INTEGER,
-    jobs_affected INTEGER
+    rows_updated          INTEGER,
+    rows_still_pending    INTEGER,
+    jobs_affected         INTEGER
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $$
+AS $printing$
 DECLARE
     c_max_traits CONSTANT INTEGER := 20;
 
@@ -300,14 +320,14 @@ DECLARE
     v_asset_source_id UUID;
     v_token TEXT;
     v_signature UUID[];
-    v_active_sig UUID[];                 -- (v1.2/B-05) composicao EFETIVA do ativo
+    v_active_sig UUID[];
     v_old_mapping_id UUID;
     v_new_mapping_id UUID;
     v_rows_updated INTEGER;
     v_rows_pending INTEGER;
     v_jobs_affected INTEGER;
-    v_touched_total INTEGER;             -- (v1.2/§4) invariante de contagem
-    v_reconciled_total INTEGER;          -- (v1.2/§4) invariante de contagem
+    v_touched_total INTEGER;
+    v_reconciled_total INTEGER;
 BEGIN
     IF NOT public.is_admin() THEN
         RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_FORBIDDEN: apenas administradores podem resolver um mapeamento de impressão.';
@@ -321,7 +341,6 @@ BEGIN
         RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_INVALID_FIELD: p_raw_field deve ser subtype ou stamp (recebido: %). type e foil são acabamento e nunca são roteados para Impressão.', p_raw_field;
     END IF;
 
-    -- Validacao pura de payload, antes de qualquer lock.
     IF array_ndims(p_trait_ids) <> 1 THEN
         RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_INVALID_ARRAY_SHAPE: p_trait_ids deve ser um array de uma única dimensão (recebido: % dimensões).', array_ndims(p_trait_ids);
     END IF;
@@ -338,8 +357,6 @@ BEGIN
         RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_NULL_TRAIT: p_trait_ids contém NULL.';
     END IF;
 
-    -- Conjunto canonico: distinto e ordenado. Duplicata no payload e
-    -- rejeitada explicitamente em vez de silenciosamente colapsada.
     v_signature := ARRAY(SELECT DISTINCT t FROM unnest(p_trait_ids) t ORDER BY t);
 
     IF cardinality(v_signature) <> cardinality(p_trait_ids) THEN
@@ -371,9 +388,6 @@ BEGIN
         RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_SOURCE_NOT_FOUND: nenhuma Fonte encontrada para o código % do job desta linha.', v_job_source;
     END IF;
 
-    -- Traits: existencia, same-Game e ATIVIDADE. Trait inativo nao pode
-    -- entrar num mapping novo — seria criar routing que ja nasce levando
-    -- a NEEDS_REVIEW.
     IF (SELECT count(*) FROM public.card_printing_trait t
          WHERE t.id = ANY (v_signature) AND t.game_id = v_game_id AND t.is_active)
        <> cardinality(v_signature) THEN
@@ -385,25 +399,6 @@ BEGIN
         RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_EMPTY_TOKEN: o token normalizado ficou vazio (recebido: %).', p_token;
     END IF;
 
-    -- =================================================================
-    -- ORIGIN-ROW BINDING (v1.2 / B-04)
-    --
-    -- A linha de origem tem que ser EVIDENCIA REAL da combinacao que
-    -- esta sendo ratificada. Sem esta prova, p_row_id seria apenas um
-    -- portador de contexto (Game/Fonte) e o origin_row_id gravado no
-    -- action log seria uma afirmacao NAO VERIFICADA.
-    --
-    -- Comparacao por IGUALDADE do valor CANONICO normalizado, nos dois
-    -- lados. Nunca LIKE, substring, prefixo, split ou fuzzy — pelo mesmo
-    -- motivo que a Query 2176 nao os usa: '1st-edition-error' nao e
-    -- '1st-edition', e nenhuma heuristica pode decidir que e.
-    --
-    -- POSICAO DESTE BLOCO E CONTRATUAL: ele vem DEPOIS das validacoes
-    -- puras de payload (EMPTY_TRAITS, DUPLICATE_TRAIT, NULL_TRAIT,
-    -- TOO_MANY_TRAITS, INVALID_FIELD) e ANTES do lock. Payload invalido
-    -- continua sendo rejeitado sem que a origem seja sequer consultada —
-    -- contrato do qual a Secao S13b da Query 2824 depende.
-    -- =================================================================
     IF p_raw_field = 'subtype' THEN
         IF public.normalize_external_catalog_value(v_row.raw_data ->> 'subtype')
            IS DISTINCT FROM v_token THEN
@@ -411,7 +406,6 @@ BEGIN
                 p_token, v_token, p_row_id;
         END IF;
     ELSE
-        -- p_raw_field = 'stamp' (o dominio ja foi restrito acima).
         IF jsonb_typeof(v_row.raw_data -> 'stamp') IS DISTINCT FROM 'array'
            OR NOT EXISTS (
                SELECT 1
@@ -423,9 +417,6 @@ BEGIN
         END IF;
     END IF;
 
-    -- =================================================================
-    -- PASSO 1 — lock do ativo atual, se existir.
-    -- =================================================================
     SELECT m.id INTO v_old_mapping_id
       FROM public.card_printing_external_mapping m
      WHERE m.game_id = v_game_id
@@ -435,19 +426,6 @@ BEGIN
        AND m.is_active
      FOR UPDATE;
 
-    -- =================================================================
-    -- NO_CHANGE POR COMPOSICAO EFETIVA (v1.2 / B-05)
-    --
-    -- A v1.1 lia m.traits_signature CRUA. O selo e DEFERIDO: se o ativo
-    -- tiver nascido nesta MESMA transacao, a assinatura ainda e NULL e
-    -- `NULL = v_signature` devolve NULL — o guard nao dispara e uma
-    -- substituicao por composicao IDENTICA passa silenciosamente.
-    --
-    -- Composicao EFETIVA = assinatura selada OU, quando ela ainda for
-    -- NULL, a N:N transacional ordenada. Mesmo contrato semantico da
-    -- Query 2176 v1.1. Aqui NAO se resolve perfil nem se reimplementa
-    -- roteamento: so se le a composicao atual do mapping existente.
-    -- =================================================================
     IF v_old_mapping_id IS NOT NULL THEN
         SELECT COALESCE(
                    m.traits_signature,
@@ -459,32 +437,21 @@ BEGIN
           FROM public.card_printing_external_mapping m
          WHERE m.id = v_old_mapping_id;
 
-        -- Header ACTIVE com composicao efetiva vazia e estado
-        -- ESTRUTURALMENTE INVALIDO — nao e "composicao diferente".
-        -- Fail-closed: nao substituir por cima de um estado que nao
-        -- deveria existir.
         IF v_active_sig IS NULL OR cardinality(v_active_sig) = 0 THEN
             RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_INVALID_ACTIVE_COMPOSITION: o mapeamento ativo % deste token está com composição efetiva vazia — estado estruturalmente inválido. Corrigir a integridade do mapeamento antes de substituí-lo.', v_old_mapping_id;
         END IF;
 
-        -- Substituir por um conjunto IDENTICO seria ruido editorial puro.
         IF v_active_sig = v_signature THEN
             RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_NO_CHANGE: o mapeamento ativo deste token já tem exatamente esta composição.';
         END IF;
     END IF;
 
-    -- =================================================================
-    -- PASSO 2 — aposenta o antigo ANTES de inserir o novo.
-    -- =================================================================
     IF v_old_mapping_id IS NOT NULL THEN
         UPDATE public.card_printing_external_mapping
            SET is_active = FALSE
          WHERE id = v_old_mapping_id;
     END IF;
 
-    -- =================================================================
-    -- PASSO 3 — cabecalho novo ACTIVE.
-    -- =================================================================
     INSERT INTO public.card_printing_external_mapping
         (game_id, asset_source_id, raw_field, normalized_token, external_token,
          is_active, supersedes_mapping_id)
@@ -493,28 +460,11 @@ BEGIN
          TRUE, v_old_mapping_id)
     RETURNING id INTO v_new_mapping_id;
 
-    -- =================================================================
-    -- PASSO 4 — composicao COMPLETA.
-    -- =================================================================
     INSERT INTO public.card_printing_external_mapping_trait (mapping_id, trait_id, game_id)
     SELECT v_new_mapping_id, t, v_game_id FROM unnest(v_signature) t;
 
-    -- =================================================================
-    -- PASSO 5 — propagacao cross-job COM RECONCILIACAO COMPLETA
-    --           (v1.2 / B-06)
-    --
-    -- compute_variant_residual_signature() ja enxerga o mapping novo
-    -- (mesma transacao) via card_printing_external_mapping_trait — e NAO
-    -- via traits_signature, que so sera gravada no COMMIT.
-    --
-    -- Reavalia rows STAGED do mesmo Game+Fonte, inclusive as que ja
-    -- estavam VALID pelo mapping anterior. TODAS as atingidas sao
-    -- reconciliadas: a v1.1 so escrevia nas que RESOLVIAM, e por isso
-    -- uma row que deixasse de resolver conservava VALID + o perfil
-    -- ANTIGO — identidade canonica obsoleta que o confirm aceitaria.
-    -- =================================================================
     WITH touched AS (
-        SELECT r.id, r.job_id, s.*
+        SELECT r.id, r.job_id, j.card_set_id, s.*
         FROM public.catalog_variant_import_row r
         JOIN public.catalog_variant_import_job j ON j.id = r.job_id
         CROSS JOIN LATERAL internal.compute_variant_residual_signature(
@@ -528,11 +478,7 @@ BEGIN
               WHERE e2.game_id = v_game_id
           )
           AND r.decision_status = 'PENDING'
-          -- EXCLUSAO DELIBERADA E DOCUMENTADA (ver cabecalho):
-          -- PENDING e INVALID nao sao reavaliadas por uma decisao de
-          -- Impressao. Elas nao entram em nenhum dos dois contadores.
           AND r.validation_status IN ('VALID', 'NEEDS_REVIEW')
-          -- Atingidas pelo TOKEN: e o escopo minimo correto.
           AND (
               (p_raw_field = 'subtype'
                AND public.normalize_external_catalog_value(r.raw_data ->> 'subtype') = v_token)
@@ -545,37 +491,31 @@ BEGIN
                ))
           )
     ),
-    -- Classificacao em A / B / C. O LEFT JOIN permite distinguir
-    -- "Variant Type nao encontrado" (B) de "Printing nao resolvido" (C);
-    -- o CASE e avaliado em ordem, entao C tem precedencia sobre B.
-    -- O par aceito e testado por PERTENCIMENTO: qualquer estado futuro
-    -- de Printing cai em C automaticamente.
     classified AS (
         SELECT t.id,
                t.job_id,
                t.printing_profile_id,
-               vm.variant_type_id,
+               lk.variant_type_id,
                CASE
                  WHEN t.printing_state NOT IN ('RESOLVED_NO_PRINTING', 'RESOLVED_WITH_PROFILE')
                       THEN 'C'
-                 WHEN vm.variant_type_id IS NOT NULL
+                 WHEN lk.variant_type_id IS NOT NULL
                       THEN 'A'
                  ELSE 'B'
                END AS outcome
         FROM touched t
-        LEFT JOIN public.card_variant_type_external_mapping vm
-          ON vm.game_id = v_game_id
-         AND vm.asset_source_id = v_asset_source_id
-         AND vm.normalized_type = t.residual_type
-         AND COALESCE(vm.normalized_foil, '')    = COALESCE(t.residual_foil, '')
-         AND COALESCE(vm.normalized_subtype, '') = COALESCE(t.residual_subtype, '')
-         AND COALESCE(vm.normalized_stamp, '{}'::TEXT[]) = COALESCE(t.residual_stamp, '{}'::TEXT[])
+        LEFT JOIN LATERAL (
+            SELECT internal.lookup_variant_type_for_row(
+                       v_game_id, v_asset_source_id, t.card_set_id,
+                       t.residual_type, t.residual_foil,
+                       t.residual_subtype, t.residual_stamp
+                   ) AS variant_type_id
+        ) lk ON TRUE
     ),
     updated AS (
         UPDATE public.catalog_variant_import_row r
         SET normalized_data =
                 CASE c.outcome
-                    -- A: Printing e Variant Type resolvidos.
                     WHEN 'A' THEN
                         jsonb_set(
                             jsonb_set(r.normalized_data,
@@ -586,9 +526,6 @@ BEGIN
                                  THEN 'null'::JSONB
                                  ELSE to_jsonb(c.printing_profile_id::TEXT) END,
                             true)
-                    -- B: Printing resolvido, Variant Type nao. O
-                    -- variant_type_id antigo e REMOVIDO; o perfil
-                    -- resolvido permanece explicito.
                     WHEN 'B' THEN
                         jsonb_set(
                             r.normalized_data - 'variant_type_id',
@@ -597,8 +534,6 @@ BEGIN
                                  THEN 'null'::JSONB
                                  ELSE to_jsonb(c.printing_profile_id::TEXT) END,
                             true)
-                    -- C: Printing nao resolvido. O residual deixa de ser
-                    -- identidade canonica confiavel — as DUAS chaves saem.
                     ELSE
                         (r.normalized_data - 'variant_type_id') - 'printing_profile_id'
                 END,
@@ -617,10 +552,6 @@ BEGIN
       INTO v_rows_updated, v_rows_pending, v_jobs_affected,
            v_touched_total, v_reconciled_total;
 
-    -- INVARIANTE DE CONTAGEM (§4). Toda row atingida termina em
-    -- exatamente um estado terminal, e os dois contadores particionam o
-    -- universo. Se isto falhar, alguma row escapou da reconciliacao —
-    -- fail-closed, nunca silenciar num contador residual.
     IF v_reconciled_total IS DISTINCT FROM v_touched_total THEN
         RAISE EXCEPTION 'ADMIN_RESOLVE_PRINTING_MAPPING_RECONCILIATION_GAP: % linha(s) atingidas, % reconciliadas. Alguma linha ficou sem estado terminal definido.',
             v_touched_total, v_reconciled_total;
@@ -631,11 +562,6 @@ BEGIN
             v_rows_updated, v_rows_pending, v_touched_total;
     END IF;
 
-    -- Contrato PRÓPRIO de auditoria (Query 2185). entity_id = id do
-    -- mapping NOVO: ele e a entidade criada. A substituicao esta
-    -- integralmente descrita aqui — nao ha evento separado de
-    -- SUPERSEDED porque nao ha ato separado: tudo acontece nesta
-    -- transacao.
     INSERT INTO public.catalog_admin_action_log (actor_id, action, entity_type, entity_id, metadata)
         VALUES (
             auth.uid(), 'CARD_PRINTING_EXTERNAL_MAPPING_CREATED',
@@ -655,30 +581,72 @@ BEGIN
     RETURN QUERY SELECT v_new_mapping_id, v_old_mapping_id,
                         v_rows_updated, v_rows_pending, v_jobs_affected;
 END;
-$$;
+$printing$;
 
+-- ACL preservada por CREATE OR REPLACE. Os REVOKE/GRANT da Query
+-- 2181 NÃO são repetidos aqui, pelo mesmo motivo da Query 2190:
+-- repeti-los mascararia uma eventual perda de ACL que o postcheck
+-- precisa ser capaz de detectar.
+
+
+-- ---------------------------------------------------------------------------
+-- SEGURANÇA. Reincorporado da Query 2181 v1.2: a migration 2197, por ser
+-- reconciliação de corpo (CREATE OR REPLACE), não repetia os grants — eles já
+-- existiam no LIVE. Numa INSTALAÇÃO LIMPA, porém, a função nasceria sem
+-- REVOKE/GRANT explícitos, o que divergiria do LIVE (EXECUTE só para
+-- authenticated, nenhum grant para anon/PUBLIC).
+-- ---------------------------------------------------------------------------
 REVOKE ALL ON FUNCTION public.admin_resolve_catalog_variant_import_printing_mapping(UUID, TEXT, TEXT, UUID[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_resolve_catalog_variant_import_printing_mapping(UUID, TEXT, TEXT, UUID[]) FROM anon;
 GRANT EXECUTE ON FUNCTION public.admin_resolve_catalog_variant_import_printing_mapping(UUID, TEXT, TEXT, UUID[]) TO authenticated;
 
 COMMIT;
 
--- ============================================================================
--- Resultado esperado:
---   CREATE FUNCTION, REVOKE, GRANT.
+/*
+================================================================
+VERIFICAÇÃO — reexecutável, read-only
+================================================================
+GATE-B, ANTES de aplicar este arquivo:
+
+    SELECT md5(p.prosrc) = '2063b34d552766ff8cb220c9c6099f40' AS baseline_ok
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname = 'admin_resolve_catalog_variant_import_printing_mapping';
+
+Se baseline_ok = FALSE, a função mudou entre o staging e a
+aplicação: **STOP** e rebasear o diff. O harness 2826 carrega o
+caso AA dedicado a esta checagem.
+
+GATE-B, DEPOIS de aplicar:
+
+    SELECT md5(p.prosrc) = 'b98f96a287f7c4d270c4239433bb6f2c' AS resultado_ok,
+           length(p.prosrc) = 12524                           AS tamanho_ok
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname = 'admin_resolve_catalog_variant_import_printing_mapping';
+
+Ambos TRUE ⟹ o corpo aplicado é exatamente o prosrc anterior com
+os quatro diffs declarados, e nada mais. É prova de diff exaustivo
+por igualdade de hash — não por leitura visual.
+================================================================
+CONFIRMADO EXECUTADO em 2026-09-14 (GATE-B-EXECUTION-01). As duas checagens
+acima foram rodadas de verdade: baseline_ok = TRUE antes, resultado_ok = TRUE
+e tamanho_ok = TRUE depois. Cópia mantida em proposals/ como evidência
+histórica do ciclo.
+================================================================
+*/
+
+-- ================================================================
+-- CONFIRMADO EXECUTADO / LIVE.
 --
--- catalog_admin_action_log (contrato FECHADO na v1.1):
---   action      = CARD_PRINTING_EXTERNAL_MAPPING_CREATED
---   entity_type = CARD_PRINTING_EXTERNAL_MAPPING
---   entity_id   = id do mapping novo
---   Ambos criados pela Query 2185, obrigatoriamente ANTERIOR.
+-- Esta Query CANÔNICA foi reconciliada em 2026-09-18
+-- (BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01): o corpo passou a
+-- representar o ESTADO TERMINAL LIVE, provado equivalente por
+-- md5(prosrc) normalizado contra pg_get_functiondef do Supabase
+-- (projeto qjfutqujxrbzgrtkpgkg).
 --
--- Como validar:
---   Query 2824 - Validate Card Printing Routing (BLOCO I / GATE-A):
---     Secao S13 — H13, duplicata e conjunto vazio (comportamental);
---                 e a ORDEM: payload invalido falha ANTES do origin binding
---     Secao S14 — H27, substituicao nao toca card_variant;
---                 NO_CHANGE antes do selo diferido (B-05)
---     Secao S19 — R4, contrato de auditoria
---     Secao S28 — B-06 (reconciliacao terminal A/B/C) e
---                 OB1..OB6 (origin-row binding, B-04)
--- ============================================================================
+-- NÃO foi reexecutada contra o LIVE — fold-in canônico é alteração de
+-- arquivo, não execução (database/README.md, "Queries CANÔNICA vs. MIGRATION").
+-- As migrations que introduziram cada camada seguem preservadas em
+-- database/migrations/ como histórico.
+-- ================================================================

@@ -3,9 +3,19 @@
 Projeto.....: Project Mimikyu
 Query.......: 2159 - Widen Catalog Admin Action Log for Card Primary Species
 Versão......: 1.1 (CONFIRMADO EXECUTADO E PROMOVIDO)
-Status......: CONFIRMADO EXECUTADO
+Status......: MIGRATION / CONFIRMADO EXECUTADO / LIVE
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-05 (staging em
+Executado...: 2026-09-05, via apply_migration (MCP Supabase), projeto
+              qjfutqujxrbzgrtkpgkg. Ledger: 20260905192310 /
+              2159_widen_catalog_admin_action_log_for_card_primary_species
+Reclassif..: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01.
+              Este arquivo estava indevidamente em database/schema/: é
+              alteração incremental de objeto já existente (alarga três CHECK
+              de uma tabela criada pela Query 2010), não criação canônica.
+              Movido para database/migrations/ conforme database/README.md.
+Canônica....: o estado TERMINAL das três CHECK vive em
+              database/schema/2010_create_catalog_admin_action_log.sql v2.0
                COLLECTIONS-POKEDEX-FATIA-C-PHYSICAL-MODELING-REVISION-01;
                corrigido em ...-PREMISE-DIVERGENCE-FIX-01; executada no
                banco real em ...-IMPLEMENTATION-01-RESUME; promovida para

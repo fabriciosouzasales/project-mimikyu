@@ -1,224 +1,54 @@
 /*
-===============================================================================
+================================================================
 Projeto.....: Project Mimikyu
-Query.......: 2189 - Create Card Printing Profile with Backfill (worker + RPC)
-Versão......: 2.1
-Status......: CONFIRMADO EXECUTADO — LIVE em 2026-09-13 (ledger 20260913234802)
+Query.......: 2189 - Create admin_create_card_printing_profile_with_backfill()
+              (+ worker internal.create_card_printing_profile_with_backfill)
+Versão......: 3.0
+Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / RECONCILIADA
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-09-13
-Corrigido...: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01.
-              O cabeçalho declarava PROPOSTA — NÃO EXECUTADA, contradizendo o
-              ledger LIVE. Corrigido; nenhuma linha de SQL alterada.
-Cópia canônica: database/schema/2189_... v3.0 (canônica)
-Mandato.....: CARD-VARIANTS — EDITORIAL-CONVERGENCE-10 /
-              FIRST-EDITION-PROFILE-IMPLEMENTATION-01 / GATE-A-STAGING-01 (§2–§11)
-              + GATE-A-REV-01 (§2–§5, §12) + GATE-A-REV-02 (§1)
-              + GATE-A-REV-03 (§1) — contrato NEW-only
+Data........: 2026-09-13 (execução) · 2026-09-18 (promoção canônica)
+Ledger......: 20260913234802 / 2189_create_admin_create_card_printing_profile_with_backfill_function_v21
+Promovida...: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01
 
--------------------------------------------------------------------------------
-Alterações da versão 2.1 (GATE-A-REV-03) — ÚNICA mudança executável desta rodada
--------------------------------------------------------------------------------
-Removido o lookup em public.card_variant do PASSO 8. O CTE `matched` deixou de
-existir e o UPDATE passa a fixar, para toda linha tocada:
+Descrição...:
+Cadastro de um Perfil de Impressão (card_printing_profile) com sua
+composição de traços, em uma única transação, seguido de backfill e
+revalidação das linhas de staging afetadas.
 
-    match_status       = 'NEW'
-    matched_variant_id = NULL
+Dois objetos, um contrato:
+- internal.create_card_printing_profile_with_backfill() — worker, recebe
+  o ator já resolvido; nunca exposto a nenhuma role;
+- public.admin_create_card_printing_profile_with_backfill() — RPC
+  SECURITY DEFINER; resolve a identidade da sessão (auth.uid()) e delega.
 
-Motivo: MATCHED era inalcançável POR CONTRATO, não apenas descoberto. Esta
-função cria o Perfil, sela, seleciona só linhas que resolvem para esse Perfil
-recém-criado e nunca cria card_variant — logo nenhuma card_variant pode
-referenciar o UUID em questão no instante do backfill.
+Esta é a forma que uma INSTALAÇÃO LIMPA deve executar. As cópias dos
+ciclos originais permanecem em database/proposals/ como evidência
+histórica, e as migrations em database/migrations/.
 
-`card_id` saiu das projeções de `touched` e `classified` junto: seu único
-consumidor era o lookup removido.
+Pré-requisitos:
+- Query 2165/2166/2167 - Card Printing Trait / Profile / Profile Trait.
+- Query 2176 - compute_variant_residual_signature() (v2.0).
+- Query 2188 - Widen catalog_admin_action_log for Printing Profile.
+- Query 1060 - Create is_admin() Function.
 
-Preservados sem alteração: outcomes A/B/C, normalized_data, validation_status,
-error_detail = NULL, resulting_variant_id intocado, contadores, action log,
-guards, selo, elegibilidade e locks.
-
--------------------------------------------------------------------------------
-Alterações da versão 2.0 (GATE-A-REV-01)
--------------------------------------------------------------------------------
-A v1.0 tinha UMA função pública que acumulava fronteira de autorização e
-núcleo transacional. Consequência prática, apontada na revisão:
-
-  - o único caminho de execução exigia auth.uid()/is_admin();
-  - esta frente NÃO tem UI nem Edge Function que invoque a RPC;
-  - portanto o teste POSITIVO e a execução REAL só aconteceriam forjando
-    request.jwt.claims — técnica que o ambiente operacional desta sessão
-    recusou explicitamente (Security Weaken) durante PokéTour/BASE1.
-
-Promover um desenho cujo caminho feliz depende de fabricar contexto de
-sessão é promover um desenho que não pode ser executado nem testado
-honestamente. A v2.0 corta isso na raiz SEPARANDO as duas coisas:
-
-    internal.create_card_printing_profile_with_backfill(p_actor_id, ...)
-        -> TODO o núcleo transacional. Owner-only. NÃO usa auth.uid().
-           p_actor_id é PARÂMETRO EXPLÍCITO DE AUDITORIA, validado contra
-           public.admin_user.
-
-    public.admin_create_card_printing_profile_with_backfill(...)
-        -> fronteira FINA: is_admin() -> auth.uid() -> delega ao worker.
-           Zero lógica de Profile/backfill.
-
-Nenhuma semântica aprovada mudou: elegibilidade, locks JOB->ROW, tri-state,
-outcomes A/B/C, match_status, contadores, reconciliação e o tratamento
-IMMEDIATE -> provas -> DEFERRED são byte-a-byte os mesmos da v1.0, apenas
-realocados para dentro do worker.
-
-Ganho colateral: passa a existir um caminho de manutenção legítimo — o owner
-chama o worker informando QUAL administrador autorizou a operação. Isso é
-mais honesto que impersonar uma sessão: o log grava o autorizador real, e não
-uma identidade fabricada.
-
--------------------------------------------------------------------------------
-Descrição resumida
--------------------------------------------------------------------------------
-Criação de Perfil de Impressão + reconciliação do staging de Card Variants que
-a existência desse Perfil passa a resolver, numa transação única.
-
-GENÉRICA. Nada de FIRST_EDITION aparece na lógica: a composição é o parâmetro
-p_trait_ids e o universo do backfill é DERIVADO do Perfil recém-criado.
-
--------------------------------------------------------------------------------
-POR QUE ESTA FUNÇÃO EXISTE (lacuna G-2)
--------------------------------------------------------------------------------
-- criar MAPEAMENTO externo de Impressão tem RPC com backfill (Query 2181);
-- criar MAPEAMENTO de Variant Type tem o mesmo (Queries 2150/2158);
-- criar um PERFIL não tinha nada. Os 6 Perfis vieram da seed 2169.
-
-Medido em 2026-09-13: 62 linhas de BASE3 presas em NEEDS_REVIEW_NO_PROFILE
-com assinatura {FIRST_EDITION}, sem caminho editorial nenhum.
-
--------------------------------------------------------------------------------
-O SELO É DIFERIDO — E ISSO DECIDE O DESENHO
--------------------------------------------------------------------------------
-Leia antes de alterar qualquer coisa.
-
-trg_card_printing_profile_seal (Query 2168) é
-`CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED`: só dispara no COMMIT.
-Antes disso card_printing_profile.traits_signature É NULL.
-
-E internal.compute_variant_residual_signature() (Query 2176, linhas 162-165)
-procura o Perfil por:
-
-    WHERE p.game_id = p_game_id AND p.traits_signature = v_sig
-
-Um backfill na MESMA transação, sem forçar o selo, encontraria NULL, casaria
-ZERO linhas e retornaria rows_touched = 0 SEM ERRO — parecendo ter funcionado.
-
-Mitigação obrigatória, dentro do worker:
-
-    SET CONSTRAINTS public.trg_card_printing_profile_seal IMMEDIATE;
-
-`SET CONSTRAINTS` é comando utilitário (não é controle transacional) e é
-permitido em plpgsql. Depois dele: assinatura materializada,
-CARD_PRINTING_PROFILE_EMPTY_COMPOSITION já teria abortado, e
-uq_card_printing_profile_game_signature já rejeitou composição duplicada.
-Todos os modos de falha do Perfil acontecem ANTES do backfill.
-
-RESTAURAÇÃO. Ao final o worker executa
-
-    SET CONSTRAINTS public.trg_card_printing_profile_seal DEFERRED;
-
-porque `SET CONSTRAINTS` tem escopo de TRANSAÇÃO, não de função. Sem
-restaurar, uma transação externa que continuasse criando Perfis por outro
-caminho teria o selo disparando a cada INSERT — comportamento diferente do
-contratado pela Query 2168.
-
--------------------------------------------------------------------------------
-CONTRATO DE CRIAÇÃO (Queries 2166/2167/2168)
--------------------------------------------------------------------------------
-1. INSERT card_printing_profile com traits_signature = NULL ("em montagem")
-2. INSERT card_printing_profile_trait (1..N)   (liberado enquanto NULL)
-3. SET CONSTRAINTS ... IMMEDIATE  -> sela, valida, deduplica
-4. reler e PROVAR o selo
-5. só então reconciliar o staging
-
-traits_signature NUNCA é escrita pela função — aceitá-la como parâmetro seria
-convidar o selo falsificado que enforce_printing_profile_signature_write
-existe para impedir. is_active também não é parâmetro (DEFAULT true).
-game_id é DERIVADO dos traits: transforma o same-game guard estrutural (FKs
-compostas da 2167) em validação de entrada com mensagem legível.
-
--------------------------------------------------------------------------------
-ELEGIBILIDADE DO BACKFILL
--------------------------------------------------------------------------------
-    job.status             = 'STAGED'
-AND row.decision_status    = 'PENDING'
-AND row.persistence_status = 'PENDING'
-
-Os dois últimos NÃO são redundantes. Em 2026-09-13 havia 931 linhas em jobs
-STAGED já decididas e persistidas (BASE1 412, SV5 408, SVE 64, BASEP 47) —
-linhas com card_variant REAL. Recomputar o validation_status delas produziria
-registro que contradiz o fato físico.
-
-Diferente do precedente de Cards (2105/2106), que preserva decisões por
-OMISSÃO DE COLUNA e recalcula todas as linhas do job, aqui o filtro é de
-LINHA. Omissão de coluna preserva a decisão; só o filtro preserva a coerência
-entre registro e persistência.
-
--------------------------------------------------------------------------------
-OUTCOMES — o backfill NÃO é "NR -> VALID"
--------------------------------------------------------------------------------
-A. Printing resolvido + Variant Type resolvido
-   -> variant_type_id UUID, printing_profile_id UUID/JSON null, VALID
-B. Printing resolvido + Variant Type NÃO resolvido
-   -> variant_type_id REMOVIDO, printing_profile_id gravado, NEEDS_REVIEW
-C. Printing NÃO resolvido
-   -> as DUAS chaves removidas, NEEDS_REVIEW
-
-O outcome B é o coração do contrato: a linha recebe o Perfil e CONTINUA
-NEEDS_REVIEW porque o outro eixo não fechou. O backfill materializa o que
-ficou provado, não só o que ficou completo.
-
-Para {FIRST_EDITION} em 2026-09-13: 62 touched = 16 A + 46 B + 0 C.
-
-C é estruturalmente inalcançável pelo critério de seleção (só entram linhas
-cujo Printing resolveu PARA este Perfil), mas está implementado porque o
-estado pode mudar entre a seleção e a escrita sob lock — e aí o desfecho
-honesto é remover as duas chaves, não preservar conclusão tirada de premissa
-inválida (mesmo raciocínio do tri-state da Query 2181).
-
--------------------------------------------------------------------------------
-TRI-STATE (contrato final, Queries 2177/2181)
--------------------------------------------------------------------------------
-    resolvido sem perfil  -> printing_profile_id : null   (JSON null)
-    resolvido com perfil  -> printing_profile_id : "uuid" (string)
-    não resolvido         -> chave AUSENTE
-
-Ausência NUNCA significa null. jsonb_typeof distingue; `->>` não.
-
--------------------------------------------------------------------------------
-Pré-requisitos
--------------------------------------------------------------------------------
-- Query 2165/2166/2167/2168 - Printing Trait, Profile, composição e guards.
-- Query 2176 - internal.compute_variant_residual_signature().
-- Query 2177 - identidade de staging (índices parciais do tri-state).
-- Query 2188 - widen do action log para CARD_PRINTING_PROFILE (APLICAR ANTES).
-- Query 2140 - card_variant_type_external_mapping.
-- Query 2000 - schema internal.
-
--------------------------------------------------------------------------------
+----------------------------------------------------------------
 REVISION HISTORY
--------------------------------------------------------------------------------
-| 1.0 | **Versão inicial (2026-09-13).** Função pública única acumulando
-        autorização e núcleo transacional. NÃO EXECUTADA. |
-| 2.0 | **Separação worker/fronteira (2026-09-13, GATE-A-REV-01).** Núcleo
-        movido para internal.create_card_printing_profile_with_backfill(),
-        owner-only, com p_actor_id explícito e sem auth.uid(). A RPC pública
-        vira fronteira fina (is_admin + auth.uid + delegação). Motivo: o
-        caminho positivo da v1.0 só era executável/testável forjando
-        request.jwt.claims. Nenhuma semântica de Profile/backfill alterada.
-        Ainda NÃO EXECUTADA. |
-| 2.1 | **Contrato NEW-only (2026-09-13, GATE-A-REV-03).** Removido o lookup em
-        public.card_variant no PASSO 8 (CTE `matched`) e fixados match_status =
-        'NEW' e matched_variant_id = NULL para toda linha tocada. Motivo: um
-        Printing Profile recém-criado não pode ter card_variant preexistente
-        apontando para seu UUID — MATCHED era inalcançável por contrato, não
-        apenas não coberto por teste. `card_id` saiu de `touched`/`classified`
-        por ter perdido o único consumidor. Nada mais mudou. NÃO EXECUTADA. |
-===============================================================================
+----------------------------------------------------------------
+| 1.0 | **Criação do par worker + RPC (2026-09-13).** Não promovida: o
+        arquivo do ciclo permaneceu em proposals/. |
+| 2.1 | **Versão efetivamente executada no LIVE (2026-09-13, ledger
+        `20260913234802`).** É o `_v21` do nome no ledger. |
+| 3.0 | **Estado terminal consolidado (2026-09-18, BULK-STP-01-CANONICAL-
+        RECONCILIATION-IMPLEMENTATION-01).** Promoção canônica com fold-in das
+        duas camadas posteriores que o LIVE já possuía:
+        · **`2190`** (`migrations/`, ledger `20260914000431`) — correção da
+          agregação UUID no backfill;
+        · **`2196`** (`migrations/`, ledger `20260914025208`) — parte
+          alteradora do worker, para respeitar escopo `GLOBAL`/`SOURCE_SET`.
+        O corpo do worker aqui é o de `2196`, terminal e provado equivalente
+        ao LIVE. As duas migrations permanecem em `database/migrations/`
+        como histórico. |
+================================================================
 */
 
 BEGIN;
@@ -251,8 +81,6 @@ SECURITY DEFINER
 SET search_path = ''
 AS $worker$
 DECLARE
-    -- Teto de composição. Um Perfil real tem 1..3 traits; 64 é folga ampla e
-    -- mantém custo previsível. Mesma disciplina de teto das Queries 2163/6115.
     c_max_trait_ids CONSTANT INTEGER := 64;
 
     v_code        TEXT;
@@ -280,17 +108,7 @@ DECLARE
     v_jobs        INTEGER := 0;
     v_reconciled  INTEGER := 0;
 BEGIN
-    -- =====================================================================
     -- GUARD 1 — ATOR. Primeira instrução.
-    --
-    -- O worker NÃO consulta auth.uid(). Quem autoriza chega por parâmetro e
-    -- precisa ser um administrador REAL. Isso serve aos dois caminhos:
-    -- a RPC pública passa auth.uid() (sessão real verificada lá), e a
-    -- manutenção por owner passa o admin que explicitamente autorizou.
-    --
-    -- public.admin_user.id referencia auth.users, então existir aqui já
-    -- implica usuário válido — não há como injetar um UUID arbitrário.
-    -- =====================================================================
     IF p_actor_id IS NULL THEN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_MISSING_ACTOR: p_actor_id é obrigatório. Toda criação de Perfil precisa de um administrador autorizador nomeado.';
     END IF;
@@ -299,15 +117,12 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_ACTOR_NOT_ADMIN: p_actor_id (%) não corresponde a um administrador cadastrado em public.admin_user.', p_actor_id;
     END IF;
 
-    -- =====================================================================
     -- GUARD 2 — ESCALARES.
-    -- =====================================================================
     v_code        := upper(btrim(coalesce(p_code, '')));
     v_name        := btrim(coalesce(p_name, ''));
     v_description := btrim(coalesce(p_description, ''));
     IF v_description = '' THEN v_description := NULL; END IF;
 
-    -- Mesmo formato da CHECK ck_card_printing_profile_code_format.
     IF v_code = '' OR v_code !~ '^[A-Z][A-Z0-9_]*$' THEN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_INVALID_CODE: código inválido (%). Esperado ^[A-Z][A-Z0-9_]*$.', p_code;
     END IF;
@@ -320,13 +135,7 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_INVALID_DISPLAY_ORDER: ordem inválida (%). Precisa ser inteiro positivo.', p_display_order;
     END IF;
 
-    -- =====================================================================
     -- GUARD 3 — FORMA DO ARRAY DE TRAITS.
-    --
-    -- array_ndims ANTES de qualquer ANY(): um array multidimensional passa
-    -- por array_length(...,1) reportando só a primeira dimensão, enquanto
-    -- ANY() varre TODOS os elementos. Fail-closed, lição da Query 2163.
-    -- =====================================================================
     IF p_trait_ids IS NULL THEN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_MISSING_TRAITS: p_trait_ids é obrigatório e não pode ser vazio.';
     END IF;
@@ -355,9 +164,9 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_DUPLICATE_TRAIT: p_trait_ids tem % elementos mas apenas % distintos. Composição é um CONJUNTO.', v_trait_count, v_distinct_count;
     END IF;
 
-    -- =====================================================================
-    -- GUARD 4 — EXISTÊNCIA, ATIVIDADE E GAME ÚNICO. game_id é derivado aqui.
-    -- =====================================================================
+    -- GUARD 4 — EXISTÊNCIA, ATIVIDADE E GAME ÚNICO.
+    -- array_agg(DISTINCT ... ORDER BY ...)[1] preservado da Query
+    -- 2190: PostgreSQL não tem min(uuid).
     SELECT count(*) INTO v_unknown
       FROM unnest(p_trait_ids) AS t(id)
      WHERE NOT EXISTS (SELECT 1 FROM public.card_printing_trait ct WHERE ct.id = t.id);
@@ -374,7 +183,8 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_TRAIT_INACTIVE: Característica(s) de Impressão inativa(s) na composição: %. Um Perfil ativo não pode ser composto por trait desativado.', v_inactive;
     END IF;
 
-    SELECT count(DISTINCT ct.game_id), min(ct.game_id)
+    SELECT count(DISTINCT ct.game_id),
+           (array_agg(DISTINCT ct.game_id ORDER BY ct.game_id))[1]
       INTO v_game_count, v_game_id
       FROM public.card_printing_trait ct
      WHERE ct.id = ANY(p_trait_ids);
@@ -383,10 +193,7 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_MIXED_GAME: os traits informados pertencem a % Games distintos. Um Perfil pertence a exatamente um Game.', v_game_count;
     END IF;
 
-    -- =====================================================================
-    -- GUARD 5 — UNICIDADE (mensagem amigável; as constraints continuam sendo
-    -- a autoridade final e decidem sob concorrência).
-    -- =====================================================================
+    -- GUARD 5 — UNICIDADE.
     IF EXISTS (SELECT 1 FROM public.card_printing_profile p
                 WHERE p.game_id = v_game_id AND p.code = v_code) THEN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_DUPLICATE_CODE: já existe um Perfil de Impressão com o código % para este Game.', v_code;
@@ -397,8 +204,6 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_DUPLICATE_DISPLAY_ORDER: já existe um Perfil de Impressão com a ordem % para este Game.', p_display_order;
     END IF;
 
-    -- Assinatura canônica: conjunto ordenado ascendente pelo próprio id —
-    -- mesma ordem que seal_printing_profile_composition() vai calcular.
     v_expected := ARRAY(SELECT DISTINCT t FROM unnest(p_trait_ids) AS t ORDER BY t);
 
     IF EXISTS (SELECT 1 FROM public.card_printing_profile p
@@ -406,30 +211,21 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_DUPLICATE_SIGNATURE: já existe um Perfil de Impressão com exatamente esta composição neste Game. Composição é identidade — reutilize o Perfil existente.';
     END IF;
 
-    -- =====================================================================
-    -- PASSO 1 — CRIAR O PERFIL "EM MONTAGEM" (traits_signature = NULL).
-    -- =====================================================================
+    -- PASSO 1 — CRIAR O PERFIL "EM MONTAGEM".
     INSERT INTO public.card_printing_profile
         (game_id, code, name, description, display_order)
     VALUES
         (v_game_id, v_code, v_name, v_description, p_display_order)
     RETURNING id INTO v_profile_id;
 
-    -- =====================================================================
-    -- PASSO 2 — COMPOSIÇÃO. Liberada enquanto a assinatura for NULL.
-    -- =====================================================================
+    -- PASSO 2 — COMPOSIÇÃO.
     INSERT INTO public.card_printing_profile_trait (profile_id, trait_id, game_id)
     SELECT v_profile_id, t, v_game_id FROM unnest(v_expected) AS t;
 
-    -- =====================================================================
-    -- PASSO 3 — FORÇAR O SELO. VER O CABEÇALHO.
-    -- Sem esta linha o backfill abaixo casaria ZERO linhas, em silêncio.
-    -- =====================================================================
+    -- PASSO 3 — FORÇAR O SELO.
     SET CONSTRAINTS public.trg_card_printing_profile_seal IMMEDIATE;
 
-    -- =====================================================================
-    -- PASSOS 4 e 5 — RELER E PROVAR O SELO. Fail-closed.
-    -- =====================================================================
+    -- PASSOS 4 e 5 — RELER E PROVAR O SELO.
     SELECT p.traits_signature, p.is_active
       INTO v_sealed, v_active
       FROM public.card_printing_profile p
@@ -451,14 +247,7 @@ BEGIN
         RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_NOT_ACTIVE: o Perfil recém-criado não está ativo. Estado estruturalmente inesperado. STOP.';
     END IF;
 
-    -- =====================================================================
     -- PASSO 6 — SELEÇÃO DAS CANDIDATAS.
-    --
-    -- Derivada do Perfil, nunca de literal: entram as linhas elegíveis cujo
-    -- roteamento de Impressão resolve PARA ESTE profile_id. Passa pela
-    -- máquina de estados inteira da Query 2176 — trait inativo, mapping
-    -- inativo e perfil inativo continuam excluindo a linha, de graça.
-    -- =====================================================================
     SELECT ARRAY(
         SELECT r.id
           FROM public.catalog_variant_import_row r
@@ -478,8 +267,6 @@ BEGIN
     ) INTO v_row_ids;
 
     IF v_row_ids IS NULL OR cardinality(v_row_ids) = 0 THEN
-        -- Nenhuma linha a reconciliar é desfecho LEGÍTIMO: um Perfil pode ser
-        -- cadastrado antes de existir staging que o use. Segue para o log.
         v_row_ids := ARRAY[]::UUID[];
         v_job_ids := ARRAY[]::UUID[];
     ELSE
@@ -490,18 +277,7 @@ BEGIN
              ORDER BY 1
         ) INTO v_job_ids;
 
-        -- =================================================================
-        -- PASSO 7 — LOCKS. Ordem JOB -> ROW, determinística nos dois níveis.
-        --
-        -- JOB antes de ROW é a mesma ordem de
-        -- admin_confirm_catalog_variant_import (2145/2179): os dois
-        -- serializam em vez de deadlockar. ORDER BY id evita deadlock contra
-        -- qualquer outro caminho que trave as mesmas linhas.
-        --
-        -- O lock de ROW é indispensável: admin_decide_catalog_variant_import_
-        -- row (2144/2163) NÃO trava o job — opera por p_row_ids — e portanto
-        -- o lock de job sozinho não a serializa.
-        -- =================================================================
+        -- PASSO 7 — LOCKS. Ordem JOB -> ROW.
         PERFORM 1
            FROM public.catalog_variant_import_job j
           WHERE j.id = ANY(v_job_ids)
@@ -514,13 +290,7 @@ BEGIN
           ORDER BY r.id
             FOR UPDATE;
 
-        -- =================================================================
-        -- PASSO 8 — RECONCILIAÇÃO. Set-based, uma única instrução.
-        --
-        -- A elegibilidade é REAVALIADA sob o lock e o roteamento é
-        -- RECOMPUTADO — não se reaproveita o resultado da seleção. Se algo
-        -- mudou nesse intervalo, o desfecho reflete o estado real.
-        -- =================================================================
+        -- PASSO 8 — RECONCILIAÇÃO.
         WITH touched AS (
             SELECT r.id,
                    r.job_id,
@@ -531,7 +301,8 @@ BEGIN
                    sig.residual_subtype,
                    sig.residual_stamp,
                    e.game_id AS game_id,
-                   s.id      AS asset_source_id
+                   s.id      AS asset_source_id,
+                   cs.id     AS card_set_id      -- >>> DIFF 2196 <<<
               FROM public.catalog_variant_import_row r
               JOIN public.catalog_variant_import_job j ON j.id = r.job_id
               JOIN public.card_set cs    ON cs.id = j.card_set_id
@@ -546,46 +317,44 @@ BEGIN
                AND r.persistence_status = 'PENDING'
         ),
         classified AS (
+            -- >>> DIFF 2196: lookup com precedência scoped > global.
+            -- Substitui o LEFT JOIN direto contra
+            -- card_variant_type_external_mapping.
+            --
+            -- >>> CORRIGIDO EM GATE-A-REV-01 <<<
+            -- A v1.0 chamava o helper DUAS vezes por row (uma para
+            -- a coluna, outra dentro do CASE). O helper resolve o
+            -- escopo e varre o mapping — duplicar a chamada dobra o
+            -- trabalho por linha sem nenhum ganho, e o planner não
+            -- tem como deduplicar com segurança uma função STABLE
+            -- em contextos distintos da mesma projeção.
+            --
+            -- LEFT JOIN LATERAL resolve UMA vez por row e o valor é
+            -- reutilizado nos dois pontos. Semântica idêntica:
+            -- LATERAL sobre função escalar produz exatamente uma
+            -- linha (NULL inclusive), então nenhuma row de `touched`
+            -- é perdida nem duplicada.
             SELECT t.id,
                    t.job_id,
                    t.printing_profile_id,
-                   vm.variant_type_id,
+                   lk.variant_type_id,
                    CASE
                      WHEN t.printing_state NOT IN ('RESOLVED_NO_PRINTING', 'RESOLVED_WITH_PROFILE')
                           THEN 'C'
-                     WHEN vm.variant_type_id IS NOT NULL
+                     WHEN lk.variant_type_id IS NOT NULL
                           THEN 'A'
                      ELSE 'B'
                    END AS outcome
               FROM touched t
-              LEFT JOIN public.card_variant_type_external_mapping vm
-                ON vm.game_id = t.game_id
-               AND vm.asset_source_id = t.asset_source_id
-               AND vm.normalized_type = t.residual_type
-               AND COALESCE(vm.normalized_foil, '')    = COALESCE(t.residual_foil, '')
-               AND COALESCE(vm.normalized_subtype, '') = COALESCE(t.residual_subtype, '')
-               AND COALESCE(vm.normalized_stamp, '{}'::TEXT[]) = COALESCE(t.residual_stamp, '{}'::TEXT[])
+              LEFT JOIN LATERAL (
+                  SELECT internal.lookup_variant_type_for_row(
+                             t.game_id, t.asset_source_id, t.card_set_id,
+                             t.residual_type, t.residual_foil,
+                             t.residual_subtype, t.residual_stamp
+                         ) AS variant_type_id
+              ) lk ON TRUE
         ),
-        -- ---------------------------------------------------------------
-        -- CONTRATO NEW-ONLY (GATE-A-REV-03).
-        --
-        -- Não há lookup em public.card_variant aqui, e não pode haver.
-        -- Um Printing Profile RECÉM-CRIADO não pode possuir card_variant
-        -- preexistente referenciando seu UUID: esta mesma função cria o
-        -- Perfil (PASSO 4), sela (PASSO 5), seleciona apenas linhas cujo
-        -- roteamento resolve PARA ESSE Perfil (PASSO 6) e nunca cria
-        -- card_variant. Nenhuma instrução externa se interpõe entre a
-        -- criação e este backfill — estão na mesma chamada.
-        --
-        -- Portanto esta operação SEMPRE produz match_status = 'NEW' com
-        -- matched_variant_id = NULL. O ramo MATCHED que existia aqui era
-        -- inalcançável por contrato e foi removido: mantê-lo sugeriria uma
-        -- cobertura de teste que nenhuma fixture segura consegue exercitar.
-        --
-        -- Se no futuro existir revalidação sobre um Profile JÁ EXISTENTE,
-        -- MATCHED pertence ÀQUELA operação — que enxerga card_variant
-        -- preexistentes — e não a esta.
-        -- ---------------------------------------------------------------
+        -- CONTRATO NEW-ONLY (GATE-A-REV-03): sem lookup em public.card_variant.
         updated AS (
             UPDATE public.catalog_variant_import_row r
                SET normalized_data =
@@ -628,11 +397,6 @@ BEGIN
             (SELECT count(DISTINCT job_id) FROM updated)
           INTO v_touched, v_reconciled, v_revalidated, v_pending, v_jobs;
 
-        -- =================================================================
-        -- GUARDS DE RECONCILIAÇÃO. Toda linha atingida precisa ter recebido
-        -- estado terminal, e a soma dos desfechos precisa fechar o universo.
-        -- Mesma disciplina da Query 2181.
-        -- =================================================================
         IF v_reconciled IS DISTINCT FROM v_touched THEN
             RAISE EXCEPTION 'CREATE_CARD_PRINTING_PROFILE_RECONCILIATION_GAP: % linha(s) atingidas, % reconciliadas. Alguma linha ficou sem estado terminal definido.',
                 v_touched, v_reconciled;
@@ -643,18 +407,7 @@ BEGIN
                 v_revalidated, v_pending, v_touched;
         END IF;
 
-        -- =================================================================
         -- PASSO 9 — CONTADORES DOS JOBS AFETADOS.
-        --
-        -- Recalculados na MESMA transação, ao contrário de 2150 e 2181.
-        -- Motivo empírico: a rodada PokéTour de 2026-09-13 deixou
-        -- catalog_variant_import_job.valid_rows de BASE1 defasado (411 vs
-        -- 412) até o confirm reconciliar. Precedente do lado de Cards:
-        -- svc_apply_catalog_import_revalidation (2106) já recalcula.
-        --
-        -- SOMENTE total_rows e valid_rows. inserted/unchanged/failed e status
-        -- pertencem a admin_confirm_catalog_variant_import e NÃO são tocados.
-        -- =================================================================
         UPDATE public.catalog_variant_import_job j
            SET total_rows = (SELECT count(*) FROM public.catalog_variant_import_row r
                               WHERE r.job_id = j.id),
@@ -663,20 +416,10 @@ BEGIN
          WHERE j.id = ANY(v_job_ids);
     END IF;
 
-    -- =====================================================================
     -- PASSO 10 — RESTAURAR O MODO DIFERIDO DO SELO.
-    --
-    -- SET CONSTRAINTS tem escopo de TRANSAÇÃO, não de função. Sem restaurar,
-    -- uma transação externa que continuasse criando Perfis por outro caminho
-    -- teria o selo disparando a cada INSERT.
-    -- =====================================================================
     SET CONSTRAINTS public.trg_card_printing_profile_seal DEFERRED;
 
-    -- =====================================================================
-    -- PASSO 11 — AUDITORIA. Exatamente 1 evento por Perfil criado.
-    -- Contrato ampliado pela Query 2188. actor_id = p_actor_id, o
-    -- administrador autorizador — nunca uma identidade inferida.
-    -- =====================================================================
+    -- PASSO 11 — AUDITORIA.
     INSERT INTO public.catalog_admin_action_log
         (actor_id, action, entity_type, entity_id, metadata)
     VALUES (
@@ -825,3 +568,16 @@ COMMIT;
 -- Como validar:
 --   Query 2825 - Validate Card Printing Profile Creation Backfill.
 -- ============================================================================
+
+-- ================================================================
+-- CONFIRMADO EXECUTADO / LIVE.
+--
+-- Esta Query CANÔNICA foi promovida/reconciliada em 2026-09-18
+-- (BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01): o corpo
+-- representa o ESTADO TERMINAL LIVE, provado equivalente por md5(prosrc)
+-- normalizado contra pg_get_functiondef do Supabase (qjfutqujxrbzgrtkpgkg).
+--
+-- NÃO foi reexecutada contra o LIVE — promoção/fold-in canônico é alteração
+-- de arquivo, não execução. As migrations históricas seguem preservadas em
+-- database/migrations/.
+-- ================================================================

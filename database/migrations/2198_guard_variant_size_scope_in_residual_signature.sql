@@ -1,201 +1,123 @@
 /*
 ===============================================================================
 Projeto.....: Project Mimikyu
-Query.......: 2176 - Create compute_variant_residual_signature() Function
-Versão......: 2.0
-Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / RECONCILIADA
+Query.......: 2198 - Guard Variant Size Scope in Residual Signature
+Versão......: 1.0
+Status......: MIGRATION / CONFIRMADO EXECUTADO / LIVE
+              Fechamento documental: DOCUMENTATION-CLOSEOUT-01 (2026-09-16).
+              md5(pg_get_functiondef) pós-aplicação: 1c5b8352ab53b1e6d4f1c08537824a4b
+              md5(prosrc) pós-aplicação..............: b15a527d3b6adb1e50cbaafae22431bc
+              Validada pelo harness 2827 v1.1.1 — 29 PASS / 0 FAIL.
 Autor.......: Fabrício Sales / Claude
-Data........: 2026-09-12
-Promovida...: 2026-09-13 — TECHNICAL-CLOSEOUT-PROMOTION-01
-Origem......: database/proposals/2026-09-12-card-variants-printing-routing/
-              2176_create_compute_variant_residual_signature_function.sql
-Mandato.....: CARD-VARIANTS — PRINTING-ROUTING — STAGING-GATE-A-01 (§8, §14)
-               + STAGING-CORRECTION-03 (§1, §2, §3) — BLOCKER B-01
+Data........: 2026-09-15
+Executado...: 2026-09-16, via apply_migration (MCP Supabase), projeto
+              qjfutqujxrbzgrtkpgkg. Ledger: 20260916012057 /
+              2198_guard_variant_size_scope_in_residual_signature
+Reclassif..: 2026-09-18, BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01
+Canônica....: dobrada em database/schema/2176_create_compute_variant_
+              residual_signature_function.sql v2.0
+Origem......: derivada de database/schema/
+              2176_create_compute_variant_residual_signature_function.sql v1.1
+              (CANÔNICA / LIVE — md5 do pg_get_functiondef medido em
+               2026-09-15: 5411b79a6b8e8c8d739a1f282bc43868)
+Mandato.....: CARD-VARIANTS — JUMBO INCIDENT /
+              SIZE-SCOPE-SERVER-GUARD-STAGING-01
 
 -------------------------------------------------------------------------------
-VERSÃO 1.1 — BLOCKER B-01: O SELO É DEFERIDO, A COMPOSIÇÃO NÃO
+POR QUE ESTA MIGRATION EXISTE
 -------------------------------------------------------------------------------
-A v1.0 usava `m.traits_signature` para DUAS coisas ao mesmo tempo:
+A TCGdex modela `size` no objeto de variante (`size: "jumbo"`). O extractor da
+Edge `import-card-variants` lê apenas type/foil/subtype/stamp — `size` era
+descartado silenciosamente (incidente JUMBO, 2026-09-15).
 
-    (a) obter a composição do mapping;
-    (b) decidir se existe mapping ATIVO para o token.
+A correção do extractor (Gate A) passa a PRESERVAR `size` em `raw_data`. Mas
+preservar não basta, e o motivo é estrutural:
 
-As duas estão erradas dentro da transação que CRIA o mapping.
+    `size` está FORA da assinatura residual — por decisão editorial aprovada.
 
-trg_card_printing_external_mapping_seal é CONSTRAINT TRIGGER DEFERRABLE
-INITIALLY DEFERRED: traits_signature só é gravada no COMMIT. Logo, na
-propagação da Query 2181 — que roda na MESMA transação da criação — o
-cabeçalho novo tem traits_signature NULL, mesmo com a N:N já completa.
+Logo uma linha com `size` desconhecido tem assinatura residual IDÊNTICA à da
+sua gêmea sem `size`. Sem guard server-side:
 
-Consequência real, medida na auditoria STAGING-FINAL-AUDIT-01:
+  RISCO 1  ela pode ser ORIGEM de um mapping de Variant Type
+           (variant_type_mapping_decision só exige NEEDS_REVIEW, e ela É
+            NEEDS_REVIEW).
 
-    v_active_sig = NULL
-      -> o teste `IS NOT NULL` falha
-      -> cai no ramo "token já conhecido?"
-      -> o PRÓPRIO mapping recém-criado satisfaz a busca
-      -> retorna NEEDS_REVIEW_INACTIVE_MAPPING
-      -> a CTE `resolved` da 2181 descarta tudo
-      -> rows_revalidated = 0, SEM ERRO NENHUM
+  RISCO 2  um mapping legítimo criado por OUTRA linha, com a mesma assinatura
+           residual, a captura no universo de propagação e a promove a VALID.
+           Ocorre mesmo com a UI perfeita.
 
-A ratificação editorial comitava criando o mapping e propagando NADA,
-silenciosamente. Era exatamente a armadilha que o CONTRACT-CORRECTION §7
-mandou fechar.
-
-Correção — separar (a) de (b):
-
-    (b) EXISTÊNCIA passa a ser decidida por m.id. Um mapping ativo existe
-        se a linha existe, ponto. Nunca mais por um campo derivado que
-        pode legitimamente estar NULL.
-
-    (a) COMPOSIÇÃO passa a ser a ASSINATURA EFETIVA:
-
-            COALESCE(traits_signature, composição atual da N:N ordenada)
-
-        Selada -> usa a selada. Em montagem -> usa a N:N da própria
-        transação. A fonte da verdade sempre foi a N:N; traits_signature
-        é materialização.
-
-E um estado novo, porque o caso patológico é REAL e distinto:
-
-    mapping ATIVO + assinatura efetiva VAZIA
-      -> NEEDS_REVIEW_INVALID_PRINTING_MAPPING
-
-Não é RESOLVED_NO_PRINTING (o token TEM routing, só está quebrado) e não
-é NEEDS_REVIEW_INACTIVE_MAPPING (o mapping está ATIVO; o defeito é a
-composição). Fail-closed, com o nome certo.
-
-Descrição resumida:
-PONTO UNICO do routing: assinatura externa bruta -> Printing + assinatura
-residual. Toda escrita SQL do pipeline passa por aqui.
-
-Descrição:
-Esta funcao existe para que NENHUM writer volte a raciocinar sobre a
-assinatura RAW. Depois desta frente:
-
-    RAW  -> (esta funcao) -> traits + profile   [eixo Printing]
-                          -> residual           [eixo Acabamento]
-
-Ter um ponto unico e o que fecha o blocker B3: a Query 2180 passa a
-construir mapping de Variant Type a partir do RESIDUAL, e a 2158, que e
-wrapper da 2180, herda a correcao sem logica paralela.
+  RISCO 3/4  os DOIS writers do eixo Printing
+           (admin_resolve_catalog_variant_import_printing_mapping e
+            internal.create_card_printing_profile_with_backfill)
+           também promovem a VALID por conta própria, e nenhum dos dois
+           filtrava a linha.
 
 -------------------------------------------------------------------------------
-ALGORITMO
+POR QUE AQUI, E NÃO EM CADA WRITER
 -------------------------------------------------------------------------------
-type  -> SEMPRE preservado no residual. Acabamento nunca vira Printing.
-foil  -> SEMPRE preservado no residual. Idem.
+Auditoria LIVE de 2026-09-15 — os SEIS consumidores desta função, e como cada
+um trata `printing_state`:
 
-subtype -> token INTEIRO ou nada. Igualdade exata, jamais parse.
-    mapping ACTIVE            -> traits += ; residual_subtype := NULL
-    so historico INACTIVE     -> NEEDS_REVIEW (token NAO volta ao residual)
-    nunca conhecido           -> permanece no residual
+  internal.variant_type_mapping_decision ......... l.81  NOT IN (RESOLVED_*) -> bloqueia
+  internal.variant_type_mapping_impact ........... l.68  IN (RESOLVED_*)     -> filtra universo
+  internal.apply_variant_type_mapping ............ l.101 IN (RESOLVED_*)     -> filtra universo
+  internal.create_card_printing_profile_with_backfill l.266 NOT IN (RESOLVED_*) -> outcome C
+  public.admin_resolve_catalog_variant_import_printing_mapping l.193 NOT IN (RESOLVED_*) -> outcome C
+  public.admin_confirm_catalog_variant_import .... l.151 IS DISTINCT FROM
+                                                   'RESOLVED_NO_PRINTING' -> RAISE
 
-stamp -> token a token, mesma regra.
-    tokens consumidos saem; o resto e normalizado e ORDENADO.
+TODOS tratam o par ('RESOLVED_NO_PRINTING','RESOLVED_WITH_PROFILE') como
+WHITELIST — nenhum enumera os estados de erro. É a mesma propriedade que a
+v1.1 já usou para introduzir NEEDS_REVIEW_INVALID_PRINTING_MAPPING de forma
+aditiva (ver 2176 v1.1, seção "ESTADOS DE RETORNO").
 
--------------------------------------------------------------------------------
-POR QUE "SO HISTORICO INATIVO" NAO VOLTA AO RESIDUAL
--------------------------------------------------------------------------------
-CONTRACT-CORRECTION-02, §2. Se um token desativado voltasse ao residual,
-ele seria reclassificado silenciosamente como ACABAMENTO — e um mapping
-de Variant Type nasceria a partir dele, recriando dentro de
-card_variant_type exatamente a composicao taxonomica que o Gate A do
-modelo de Printing existe para impedir.
-
-"Conhecido porem sem routing ativo" e um estado editorial, nao um estado
-de desconhecimento. Fail-closed: para tudo e chama o editor.
+Portanto UM estado novo fora da whitelist cobre os quatro riscos, sem tocar em
+nenhum writer e sem espalhar exceções independentes que possam divergir.
 
 -------------------------------------------------------------------------------
-ESTADOS DE RETORNO (printing_state)
+CONTRATO DE `size` — QUATRO RAMOS, FAIL-CLOSED
 -------------------------------------------------------------------------------
-RESOLVED_NO_PRINTING    nenhum token Printing -> profile NULL, VALID possivel
-RESOLVED_WITH_PROFILE   traits -> profile exato e ativo -> VALID possivel
-NEEDS_REVIEW_INACTIVE_MAPPING        token so com historico inativo
-NEEDS_REVIEW_INVALID_PRINTING_MAPPING  mapping ATIVO com composicao efetiva
-                                       vazia — estado estruturalmente
-                                       invalido (v1.1)
-NEEDS_REVIEW_INACTIVE_TRAIT     trait resolvido porem inativo
-NEEDS_REVIEW_NO_PROFILE         traits validos, nenhum profile com assinatura exata
-NEEDS_REVIEW_INACTIVE_PROFILE   profile encontrado porem inativo
+size ausente / JSON null / string vazia -> comportamento atual, bit a bit
+size normalizado = 'STANDARD'           -> comportamento atual, bit a bit
+size normalizado = 'JUMBO'              -> BLOCKED_SIZE_OUT_OF_SCOPE
+qualquer outro valor não vazio          -> BLOCKED_SIZE_UNSUPPORTED
 
-Todos os consumidores (2179, 2180, 2181) testam por PERTENCIMENTO ao par
-aceito ('RESOLVED_NO_PRINTING','RESOLVED_WITH_PROFILE'), nunca por
-enumeracao fechada dos estados de erro. O estado novo e, portanto,
-aditivo: cai automaticamente no lado da recusa.
+O quarto ramo é o que impede o incidente de se repetir com um valor novo da
+fonte: desconhecido NÃO segue o fluxo normal. Fail-closed, ruidoso, editorial.
 
-Trait/profile inativo NUNCA e tratado como se o mapping nao existisse.
-Nenhuma inferencia, nenhuma criacao automatica de Print Profile.
+-------------------------------------------------------------------------------
+ONDE O GUARD ENTRA — E POR QUE EXATAMENTE AÍ
+-------------------------------------------------------------------------------
+DEPOIS da normalização de type/foil/subtype/stamp: o residual devolvido
+precisa ser COERENTE (mesmo type, mesmo foil, mesmo subtype, mesmo array de
+stamp normalizado e ordenado) para que preview e diagnóstico editorial mostrem
+a combinação real da linha.
 
---------------------------------------------------------------
-EIXO DE ESCOPO POR TAMANHO — `size` (v2.0, incorporado da 2198)
---------------------------------------------------------------
-A fonte TCGdex emite `size` dentro do objeto de variante
-(ex.: size: "jumbo"). O extractor histórico o DESCARTAVA, e o
-resultado era pior do que uma pendência: uma variante JUMBO ficava
-indistinguível da sua gêmea STANDARD e podia ser absorvida como se
-fosse ela (incidente JUMBO, 2026-09-16).
+ANTES do roteamento de Printing: uma linha fora de escopo não pode consumir
+tokens do eixo de Impressão, nem encostar em card_printing_external_mapping,
+nem gerar traits. Economiza trabalho e, mais importante, não produz efeito
+colateral de roteamento.
 
-`size` é METADADO DE ESCOPO, não identidade. Ele NÃO entra na
-assinatura residual — duas variantes não passam a ser diferentes por
-causa do tamanho; o que muda é se a linha está ou não dentro do
-escopo do catálogo. Por isso o guard vive AQUI, no ponto único de
-routing, e é avaliado ANTES do roteamento de Impressão e antes do
-dedupe.
-
-Semântica, bit a bit:
-
-  ausente / null / string vazia / 'STANDARD'
-      -> IN_SCOPE. Fluxo normal, assinatura residual normal.
-  'JUMBO'
-      -> BLOCKED_SIZE_OUT_OF_SCOPE. A linha é marcada com
-         skip_reason = 'SIZE_OUT_OF_SCOPE' e NUNCA materializa
-         card_variant. A decisão sobre ela é do sistema, e é
-         imutável em admin_decide_catalog_variant_import_row()
-         (Query 2144 v2.0).
-  qualquer outro valor não vazio
-      -> BLOCKED_SIZE_UNSUPPORTED. FAIL-CLOSED: um tamanho que o
-         modelo não conhece nunca é tratado como se fosse STANDARD.
-
-Os dois estados BLOCKED_* bloqueiam a assinatura em vez de deixá-la
-ser absorvida silenciosamente — é essa a diferença que a 2198
-introduziu.
-
-Regras de Negócio:
-- Match de token por igualdade EXATA do valor normalizado.
-- Print Profile por igualdade EXATA de traits_signature (UUID[] ordenado).
-- Zero criacao automatica de Profile.
-- STABLE: nao escreve nada; so le catalogo.
-- `size` fora da identidade residual; guard de escopo antes do
-  routing de Impressão e do dedupe; BLOCKED_SIZE_OUT_OF_SCOPE e
-  BLOCKED_SIZE_UNSUPPORTED, este último fail-closed (ver acima).
-- O restante do contrato de Printing Routing permanece INALTERADO
-  pela v2.0 — o guard de `size` é aditivo.
-
-Pré-requisitos:
-- Query 2095 - normalize_external_catalog_value().
-- Query 2165/2166 - Print Trait / Print Profile.
-- Query 2172/2173/2174 - external mapping + composicao + guards.
+-------------------------------------------------------------------------------
+O QUE ESTA MIGRATION NÃO FAZ
+-------------------------------------------------------------------------------
+- NÃO altera a assinatura residual: `size` continua fora de
+  (residual_type, residual_foil, residual_subtype, residual_stamp).
+- NÃO altera nenhum dos seis consumidores.
+- NÃO altera constraint, índice, tabela ou grant.
+- NÃO escreve um único dado: é CREATE OR REPLACE FUNCTION, mais nada.
+- NÃO tem efeito sobre o corpus atual: medido em 2026-09-15,
+  catalog_variant_import_row tem 6340 linhas e ZERO com a chave
+  raw_data.size. Todas caem no ramo "ausente" -> comportamento idêntico.
 
 -------------------------------------------------------------------------------
 REVISION HISTORY
 -------------------------------------------------------------------------------
-| 1.0 | **Versão inicial da função (2026-09-12).** Ponto único do routing de
-        Printing. Substituída antes da execução por conta do BLOCKER B-01. |
-| 1.1 | **Assinatura efetiva e estado INVALID_PRINTING_MAPPING (2026-09-12).**
-        Separa existência (por `m.id`) de composição (COALESCE entre o selo e
-        a N:N da própria transação), fechando o BLOCKER B-01. Esta é a versão
-        executada e confirmada no banco físico. Promovida de
-        database/proposals/ para database/schema/ em 2026-09-13
-        (TECHNICAL-CLOSEOUT-PROMOTION-01). O SQL executável permanece
-        idêntico ao artefato executado; só o cabeçalho registra o estado
-        final. A proposal original é preservada como histórico. |
-| 2.0 | **Guard de size-scope na assinatura residual (2026-09-18, BULK-STP-01-
-        CANONICAL-RECONCILIATION-IMPLEMENTATION-01).** Fold-in do estado
-        terminal introduzido pela migration **`2198`** (ledger
-        `20260916012057`): traços de `size` fora do escopo suportado passam a
-        bloquear a assinatura (`BLOCKED_SIZE_*`) em vez de serem absorvidos
-        silenciosamente. A migration `2198` permanece em
-        `database/migrations/` como histórico. |
+| 1.0 | **Guard de escopo de `size` no ponto único do routing (2026-09-15).**
+        Deriva da v1.1 canônica sem alterar uma linha do algoritmo existente:
+        acrescenta apenas a declaração de `v_size`, a normalização e o bloco
+        de guard entre a normalização e o eixo de Printing. Dois estados
+        novos, ambos deliberadamente fora da whitelist RESOLVED_*. |
 ===============================================================================
 */
 
@@ -500,18 +422,3 @@ COMMIT;
 -- Como validar:
 --   Query 2827 - Validate Variant Size Scope Guard (casos A-J + regressao).
 -- ============================================================================
-
--- ================================================================
--- CONFIRMADO EXECUTADO / LIVE.
---
--- Esta Query CANÔNICA foi reconciliada em 2026-09-18
--- (BULK-STP-01-CANONICAL-RECONCILIATION-IMPLEMENTATION-01): o corpo passou a
--- representar o ESTADO TERMINAL LIVE, provado equivalente por
--- md5(prosrc) normalizado contra pg_get_functiondef do Supabase
--- (projeto qjfutqujxrbzgrtkpgkg).
---
--- NÃO foi reexecutada contra o LIVE — fold-in canônico é alteração de
--- arquivo, não execução (database/README.md, "Queries CANÔNICA vs. MIGRATION").
--- As migrations que introduziram cada camada seguem preservadas em
--- database/migrations/ como histórico.
--- ================================================================
