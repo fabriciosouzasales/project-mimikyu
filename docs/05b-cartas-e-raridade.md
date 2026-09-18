@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.3 |
+| **Versão** | 1.4 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`) e o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`). |
+| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`) e o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -2140,7 +2140,18 @@ disjuntos de VT por `type` (nenhum dos 76 mappings é alvo simultâneo de `HOLO`
 **O `card_variant` do SVE é 112 — acumulado do job, não criado de uma vez:** 64 já haviam
 sido materializadas em 2026-09-12 e 48 o foram na conclusão atual (global 7.413 → 7.461).
 
-**A Editorial Convergence permanece ABERTA.** Baseline global **54 `NEEDS_REVIEW`**:
+> ## ⛔ SUPERADO EM 2026-09-18 — **Editorial Convergence `CLOSED`**
+>
+> **O bloco abaixo é um snapshot histórico de 2026-09-14 e NÃO descreve o estado corrente.**
+> A frente **fechou**: SVE · SV5 · BASEP · BASE3 todos `CLOSED`, BASE1 sem pendência
+> editorial, **0 `NEEDS_REVIEW`** e **0 jobs `STAGED`** no sistema. A ordem operacional
+> listada abaixo (SV5 → BASEP/BASE1 → BASE3 → `BOOTSTRAP-03` Cards + Assets) **foi cumprida
+> e está encerrada**; a descrição do `BOOTSTRAP-03` como "Cards + Assets" também está
+> superada — a etapa restante é **`CARD VARIANTS — HISTORICAL BULK IMPORT`**.
+> **Ver a seção `Editorial Convergence — CLOSED`, adiante neste documento.**
+> Preservado apenas como registro do que se sabia naquela data.
+
+**A Editorial Convergence permanece ABERTA.** *(afirmação de 2026-09-14 — **SUPERADA**, ver o aviso acima.)* Baseline global **54 `NEEDS_REVIEW`**:
 BASEP 27 · SV5 19 · BASE3 5 · BASE1 3 · **SVE 0**. *(Superado em 2026-09-16 — ver "Eixo de escopo por tamanho (incidente JUMBO)", ao final deste documento: **BASE1 passou a 0** porque os 3 resíduos que constavam eram 3 dos **4** JUMBO do Set, nunca pendência editorial; **SV5 está em 10**.)*
 
 Ordem operacional registrada — **nenhum Card Set com resíduo é pulado**:
@@ -2184,6 +2195,112 @@ materializado por esse VT.**
 preservadas) existiu **apenas** para validar regressões de UI e **não teve impacto no
 catálogo**. Os dois jobs têm papéis distintos e nenhum substitui o outro: o canônico
 carrega as decisões editoriais; o de validação é evidência de teste.
+
+### BASEP — **CLOSED** dentro da Editorial Convergence (2026-09-18)
+
+**Terceiro Card Set a fechar.** Job `cf829d56-921c-4e97-983d-0aec56690464` **COMPLETED**:
+74 linhas · 72 `VALID` · **2 `NEEDS_REVIEW` deferidas** · 72 `APPROVED/INSERTED` ·
+2 `SKIPPED/UNCHANGED` · 0 `FAILED`. Cobertura de Card: **53/53** (72 variantes).
+
+Os 27 resíduos originais caíram em **12 assinaturas** de `raw_data`. Fecharam 25; as 2
+deferidas são `holo + {pikachu-tail}` (`SOURCE_CONTRADICTION` — a fonte diverge sobre o
+acabamento) e `holo + subtype:missing-hp` (`SOURCE_OMISSION / FINISH NOT SAFELY
+DERIVABLE`).
+
+**Três correções de premissa registradas durante a auditoria, todas feitas por Fabrício
+sobre conclusões minhas — cada uma evitou uma decisão errada:**
+
+1. **"Erro/misprint não tem eixo" era inferência, não prova.** Zero mappings usando
+   `subtype` provava **ausência de precedente**, nunca ausência de capacidade estrutural.
+   Mesma classe de inversão do Master Ball (`SV5`): afirmar o que a evidência não
+   sustenta. Reclassificado como `SEMANTIC AXIS UNDETERMINED`; blocker = **nenhum**.
+2. **Proveniência de distribuição não é Variant Type.** `jr-stamp-rally` resolveu para o
+   `STANDARD` existente — o evento de distribuição não marca a carta fisicamente.
+3. **`PROMO_STAMPED` genérico é impossível por restrição física**, não por preferência:
+   a Card #04 tem três assinaturas residuais distintas, e um VT genérico as colapsaria na
+   mesma identidade.
+
+Objetos criados: 3 Printing traits (`GREY_STAR_SYMBOL` 6, `GLOSSY_STOCK` 7, `AOKI_CREDIT`
+8, Query `2201`), 3 Printing profiles, 4 Printing mappings, 5 Variant Types (ordens 90–94)
+e 6 VT mappings **SCOPED `basep`**.
+
+### BASE3 — **CLOSED** dentro da Editorial Convergence (2026-09-18)
+
+**Quarto e último Card Set da frente.** Job `d5b7a148-0459-40fd-a32f-13fdcb845026`
+**COMPLETED**: 177 linhas · **177 `VALID`** · **0 `NEEDS_REVIEW`** · 177
+`APPROVED/INSERTED` · 0 `SKIPPED` · 0 `REJECTED` · 0 `UNCHANGED` · 0 `FAILED` ·
+`error_summary = null`. Cobertura de Card: **62/62** (177 variantes). `card_variant`
+7.494 → **7.671**.
+
+**Único Set da frente a fechar com zero deferimento.** Os 5 resíduos eram os mais ambíguos
+do corpus e todos foram resolvidos com evidência externa fechada:
+
+| resíduo | Card | decisão | eixo |
+|---|---|---|---|
+| `HOLO\|STARLIGHT\|{PRE-RELEASE}` | #01 Aerodactyl | VT novo `PRERELEASE_HOLO` | Variant Type · `SOURCE_SET base3` |
+| `HOLO\|COSMOS\|{PRE-RELEASE}` | #01 Aerodactyl | VT novo `PRERELEASE_COSMOS_HOLO` | Variant Type · `SOURCE_SET base3` |
+| `HOLO\|GALAXY\|EVOLUTION-BOX-ERROR` | #15 Zapdos | trait+profile novos `EVOLUTION_BOX_ERROR` | **Printing** |
+| `HOLO\|COSMOS\|1999-COPYRIGHT` | #15 Zapdos | reutiliza `COSMOS_HOLO` | Variant Type · `SOURCE_SET base3` |
+| `NORMAL\|{WOTC}` | #50 Kabuto | VT novo `W_PROMO_STAMPED` | Variant Type · **GLOBAL** |
+
+**Evidência externa — fatos, não inferências.** Bulbapedia (*Aerodactyl (Fossil 1)*):
+*"A Prerelease Holofoil print was released as a Pokémon League promo in July 1999. The US
+promotional print has the Starlight Holofoil, while the European print has the Cosmos
+Holofoil"* — duas cartas físicas distintas, com dois spec numbers próprios na PSA.
+Bulbapedia (*Zapdos (Fossil 15)*): o print alternativo do Thunderstorm Theme Deck *"changes
+the final copyright from ©1999 Wizards to ©1999-2000 Wizards"* — a linha de copyright é o
+discriminante literal entre as duas tiragens Cosmos. Bulbapedia (*W Promotional cards*):
+o selo é um **"gold foil W stamp"**, parte do logotipo original da Wizards of the Coast,
+em **7 cartas de 6 expansões** entre set./1999 e mar./2001 — Kabuto (Fossil 50) está
+listado nominalmente, via *Top Deck Magazine* (dezembro de 1999).
+
+**Duas premissas históricas do repositório foram revogadas por esta rodada:**
+
+1. **"`evolution-box-error` está bloqueado pela ausência de política transversal de erros
+   de impressão".** Superada: BASEP resolveu erros **caso a caso**, sem política
+   transversal, e BASEP fechou — o acoplamento deixou de existir. O erro é variedade de
+   tiragem (Bulbapedia: *"mass produced for unlimited print"* **e** *"mass produced as a
+   corrected unlimited print"*) e a PSA reconhece **as duas** variações
+   (*"Zapdos-Holo Corrected & Uncorrected Foil"*, com certificados correntes rotulados
+   `CORRECTED FOIL`). Alinhamento completo com o precedente `AOKI_CREDIT`.
+2. **"`1999-copyright` pertence ao eixo Printing".** Corrigida: `©1999 Wizards` é a linha
+   **padrão de todo o Set Fossil** — não identifica variedade alguma. O discriminante real
+   é o **foil Cosmos**, que é eixo Variant Type. O token é desambiguador **da fonte**, não
+   trait físico; por isso resolve reutilizando `COSMOS_HOLO`, sem criar objeto novo.
+
+**Achado de vocabulário da fonte, registrado como limitação conhecida.** `galaxy` e
+`starlight` nomeiam **o mesmo padrão holográfico** dentro de BASE3 — Bulbapedia define
+*Starlight* como o padrão de Base/Jungle/Fossil; o vocabulário de colecionador chama o
+mesmo padrão de *Galaxy*. A TCGdex troca de termo justamente na linha do Prerelease. É
+inconsistência **de vocabulário**, não diferença física — e é a razão de os três mappings
+de BASE3 serem `SOURCE_SET` e não `GLOBAL`: um mapping global sobre `STARLIGHT` herdaria
+a inconsistência. Lição `2200` / Master Ball: ampliar depois é barato, revogar é caro.
+
+**Limitação de domínio aceita.** A identidade do Zapdos Cosmos ©1999 fica
+`COSMOS_HOLO + NULL` — o modelo não registra que é *especificamente* a tiragem Cosmos
+©1999. Inambíguo hoje dentro de BASE3; análogo à limitação de idioma aceita em
+`STANDARD_PIKACHU_WORLD_2000` (BASEP).
+
+### Editorial Convergence — **CLOSED** (2026-09-18)
+
+A frente encerra com os quatro Card Sets trabalhados fechados: **SVE** (2026-09-14),
+**SV5** (2026-09-16, 12 deferidas), **BASEP** (2026-09-18, 2 deferidas) e **BASE3**
+(2026-09-18, **0 deferidas**). **BASE1** ficou com `0 NEEDS_REVIEW` pelo eixo de escopo por
+tamanho — nunca teve pendência editorial.
+
+Taxonomia resultante, medida no LIVE: **97** `card_variant_type` · **94**
+`card_variant_type_external_mapping` (**75 GLOBAL** · 8 `sv05` · 6 `basep` · 5 `base3`) ·
+**9** `card_printing_trait` · **11** `card_printing_profile` · **10**
+`card_printing_external_mapping` · **7.671** `card_variant`.
+
+**BASEP e BASE3 foram laboratório editorial**, não fins em si: estabilizaram a taxonomia,
+o transporte autenticado e a disciplina de gate que a **campanha histórica de Variants em
+escala** vai reutilizar. O que foi aprendido e passa a valer como regra: identificar linhas
+por **assinatura imutável de `raw_data`**, nunca por `validation_status` (que muda a cada
+mapping que faz COMMIT); provar **ausência de colisão de identidade antes da primeira
+escrita**; e escolher `GLOBAL` vs `SOURCE_SET` **por semântica**, nunca por frequência
+medida — cross-job zero no corpus atual é ausência de ocorrência, não licença para
+generalizar.
 
 ### Deferimento editorial (`DEFERRED`)
 

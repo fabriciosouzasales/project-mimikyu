@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.4 |
+| **Versão** | 2.5 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -23,7 +23,37 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
-> **Estado corrente (2026-09-13, `CARD-VARIANTS — PRINTING-ROUTING / DOCUMENTATION-CLOSEOUT-01`).**
+> # ESTADO CORRENTE — 2026-09-18
+>
+> *(`BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`. Este é o bloco
+> vigente. Tudo abaixo dele é registro anterior.)*
+>
+> ## `CARD-VARIANTS — EDITORIAL CONVERGENCE` = **CLOSED**
+>
+> SVE (14/09) · SV5 (16/09, 12 `DEFERRED`) · BASEP (18/09, 2 `DEFERRED`) · BASE3 (18/09,
+> **0 `DEFERRED`**) · BASE1 sem pendência editorial. **Zero jobs `STAGED` no sistema.**
+> Taxonomia terminal: **97** `card_variant_type` · **94** `card_variant_type_external_mapping`
+> (75 GLOBAL · 8 `sv05` · 6 `basep` · 5 `base3`) · 9 traits · 11 profiles · 10 printing
+> mappings · **7.671** `card_variant`.
+>
+> ## FRENTE ATUAL = `CARD VARIANTS — HISTORICAL BULK IMPORT`
+>
+> É a **etapa restante** de `CATALOG-HISTORICAL-BOOTSTRAP-03`. Universo elegível medido em
+> 2026-09-18: **169 Card Sets** (170 com Cards e zero Variants, menos `ME5.5`, fora do
+> denominador operacional) · **16.705** Cards. Baseline **datado, não contrato rígido**.
+> Cards e Assets residuais permanecem `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING` —
+> **não são frente atual e não são próximo passo.** Nada inicia sem mandato explícito de
+> Fabrício. Detalhamento adiante, na seção "Próxima frente do projeto".
+
+---
+
+> ### REGISTRO ANTERIOR — **SUPERADO como estado corrente**
+>
+> *(O bloco abaixo era o "Estado corrente" até 2026-09-18. Permanece **inteiro** como
+> registro histórico do fechamento de `PRINTING MODEL` / `PRINTING ROUTING`, que seguem
+> `CLOSED` e válidos — o que foi superado é o **papel de estado corrente**, não o conteúdo.)*
+
+> **Registro anterior (2026-09-13, `CARD-VARIANTS — PRINTING-ROUTING / DOCUMENTATION-CLOSEOUT-01`).**
 >
 > ## `PRINTING MODEL` = **IMPLEMENTED / LIVE / VALIDATED / CLOSED**
 > ## `PRINTING ROUTING` = **IMPLEMENTED / LIVE / VALIDATED / CLOSED**
@@ -237,23 +267,62 @@ Nota de escopo já registrada na fonte anterior (`ADR-014`, Substituído): Rule-
 
 - **Card Variants — `SV5` **CLOSED** dentro da Editorial Convergence (2026-09-16, cadeia `SV5-RESIDUAL-AUDIT-01` → `SV5-EXTERNAL-EVIDENCE-AUDIT-02` → `SV5-MASTER-BALL-MAPPING-FORENSIC-01` → `-CORRECTION-STAGING-01` → `-EXECUTION-01/02` → `SV5-MASTER-BALL-VT-DEACTIVATION-01` → `SV5-CLOSEOUT-PLAN-01` → `SV5-DEFERRED-UI-SEMANTICS-01/02` → `SV5-VALIDATION-JOB-RETIREMENT-01` → `SV5-EDITORIAL-CONVERGENCE-CLOSEOUT-01`).** **Segundo Card Set a fechar**, e o primeiro a fechar **por decisão consciente sobre os resíduos, não por resolução de todos eles.** Job canônico `601f7c96-8118-4b97-a0f3-cbbf418e8c21` **COMPLETED**: 428 linhas · 417 `VALID` · **11 `NEEDS_REVIEW` preservadas** · 416 `APPROVED/INSERTED` · 12 `SKIPPED/UNCHANGED` · 0 `PENDING` · 0 `FAILED`. **Não há job `STAGED` de SV5.** **As decisões comprovadas foram materializadas; as não comprovadas foram DEFERIDAS.** As 12 deferidas são 11 variantes sem evidência externa suficiente (Championships Europe/North America/Latin America nas faixas Staff/Top 8/Champion, Master Ball League base e Judge) mais **`POKEMON_DAY_COSMOS_HOLO`**, `VALID` porém deferida por **falta de prova específica do acabamento COSMOS**. **`DEFERRED` não é rejeição nem conclusão semântica futura** — é o registro honesto de que a pergunta continua aberta, e a variante volta ao fluxo canônico assim que houver evidência. **Correção Master Ball / COSMOS:** a auditoria externa foi encerrada como **`EVIDENCE EXHAUSTED`** (níveis 1–2 da hierarquia não documentam as variantes; a única atestação de "Cosmos Holo" localizada pertencia a **outro produto** — Play! Prize Pack Series; a única específica do selo dizia "Holo"), e o corpus já continha interpretação **anterior e diferente** do mesmo selo (mapping GLOBAL `holo + {master-ball-league} → MASTER_BALL_HOLO`, 2026-08-15). A migration **`2200` v1.1** (LIVE `20260916212542`, bloco `DO` único com 14 guards de pré-condição + 12 de pós-condição, incluindo prova de não-toque por fingerprint md5) removeu o mapping falso, devolveu a linha a `NEEDS_REVIEW` e recalculou `valid_rows`; o VT `MASTER_BALL_LEAGUE_COSMOS_HOLO` foi **desativado** pela RPC canônica `admin_deactivate_card_variant_type` — **não removido**, porque ausência de prova não é prova de ausência —, e **nenhum `card_variant` chegou a ser materializado por ele**. Registro de honestidade: a primeira execução da `2200` (v1.0) **abortou** por defeito do próprio guard `G22` (`GROUP BY 1` sobre expressão com agregado); o desenho atômico funcionou e o rollback foi **TOTAL**, provado por fingerprint e pelo `updated_at` original da linha. **Job de validação** `e575fed9-055c-4a35-b661-dea1f627033c` (`CANCELLED`, 432 rows preservadas) serviu **apenas** para validar regressões de UI e **não teve impacto no catálogo** — papéis distintos, nenhum substitui o outro. **UI:** a semântica de `DEFERRED` foi fechada no contrato único (`web/lib/catalogo/variant-size-scope.ts`), distinguindo deferimento editorial (`NEW + SKIPPED + IN_SCOPE`) de variante **já existente** (`MATCHED + SKIPPED`, decisão automática do importador) e de **JUMBO** (`OUT_OF_SCOPE + SKIPPED`, decisão automática do sistema) — as três usam `SKIPPED`, e confundi-las produziu duas regressões reais, ambas corrigidas com testes de regressão dedicados (suíte `variant-size-scope.test.ts`, 15/15, `node:test` nativo). **Validação visual em produção = PASS.** Commits `41fbe40` e `ee5b17a`. **Consequência para a frente: próximo foco volta para `BASEP` (27); `BASE3` (5) vem depois de `BASEP`, não em paralelo**, conforme o roadmap vigente — nenhuma das duas autorizada a iniciar sem mandato explícito. Detalhamento normativo em `05b-cartas-e-raridade.md`, seções "SV5 — **CLOSED** dentro da Editorial Convergence" e "Deferimento editorial (`DEFERRED`)"; migration e provas em `database/proposals/2026-09-16-sv5-master-ball-mapping-correction/`.
 
+- **Card Variants — `BASEP` e `BASE3` **CLOSED**; `EDITORIAL CONVERGENCE` **CLOSED** (2026-09-18, cadeia `BASEP-EDITORIAL-CONVERGENCE-AUDIT-01` → `EXTERNAL-EVIDENCE-AUDIT-01/02` → `STAMP-IDENTITY-DECISION-01` → `FINAL-RECONCILIATION-01` → `IMPLEMENTATION-TRANSPORT-AUDIT-01` → `HYBRID-AUTHENTICATED-EXECUTION-BRIDGE-01` → `IMPLEMENTATION-STAGING-01` → `RUNNER-CORRECTION-01/02` → `IMPLEMENTATION-EXECUTION-01`; e `BASE3-EDITORIAL-CONVERGENCE-AUDIT-01` → `EXTERNAL-EVIDENCE-AUDIT-01` → `FINAL-EDITORIAL-RECONCILIATION-01` → `IMPLEMENTATION-STAGING-01` → `-CORRECTION-01`).** **Terceiro e quarto Card Sets a fechar — e o encerramento da frente.** `BASEP`: job `cf829d56` `COMPLETED`, 74 / 72 `VALID` / 2 `DEFERRED` (`holo+{pikachu-tail}` por `SOURCE_CONTRADICTION`; `holo+subtype:missing-hp` por `SOURCE_OMISSION`), 53/53 Cards, 72 variantes. `BASE3`: job `d5b7a148` `COMPLETED`, **177 / 177 `VALID` / 0 `NEEDS_REVIEW` / 177 `APPROVED`+`INSERTED` / 0 `SKIPPED` / 0 `FAILED`**, 62/62 Cards, 177 variantes — **único Set da frente a fechar com zero deferimento**. `card_variant` **7.469 → 7.671**. Taxonomia terminal: 97 `card_variant_type` · **94** `card_variant_type_external_mapping` (75 GLOBAL · 8 `sv05` · 6 `basep` · 5 `base3`) · 9 traits · 11 profiles · 10 printing mappings. Três correções de premissa feitas por Fabrício durante BASEP (erro/misprint **não** tinha eixo provado; proveniência de distribuição **não** é Variant Type; `PROMO_STAMPED` genérico impossível por restrição física) e duas premissas históricas revogadas em BASE3 (o bloqueio por "política transversal de erros" caiu; `1999-copyright` **não** é trait de Printing — o discriminante é o foil Cosmos, e `©1999` é a linha padrão de todo o Set). Evidência externa fechada em Bulbapedia + PSA + Elite Fourum. Detalhamento em `05b-cartas-e-raridade.md`, revisão `1.4`.
+
 > **Nota de reconciliação (2026-09-14, `FINAL-CLOSEOUT-CORRECTION-02`, atualizada em `BASE3-NORMAL-GALAXY-CLOSEOUT-01` e em `SVE-AND-IMPORT-UI-CHECKPOINT-01`).** O parágrafo abaixo descreve a **sequência macro planejada**, não uma autorização de execução. A retomada prevista continua sendo a **Editorial Convergence**, agora com **SVE fechado** e **54 resíduos em aberto**. Ordem: **(1) SV5** (19) como próximo front imediato; **(2) BASEP** (27) e **BASE1** (3) — permanecem **dentro** da Editorial Convergence, com ordem posterior a definir conforme a evidência de cada um, e **não são puladas**; **(3) BASE3** (5) — os mais ambíguos do corpus, **candidato a fechamento mais tardio**, sem resolução por conveniência, e **só poderá ser considerado fechado após resolução e validação deles**. **`CATALOG-HISTORICAL-BOOTSTRAP-03` só é retomado após o fechamento formal da Editorial Convergence** — ele e qualquer outra campanha histórica em escala também dependem de decisão explícita de Fabrício; constar desta sequência não autoriza início. O detalhamento operacional está em `docs/history/development/HANDOFF-2026-09-09.md` (superado em 2026-09-16), seção "Próximos passos". O texto original segue preservado abaixo.
 
-> **Nota de reconciliação (2026-09-16, `CARD-VARIANTS — JUMBO INCIDENT / DOCUMENTATION-CLOSEOUT-01`,
-> atualizada em `SV5 — EDITORIAL CONVERGENCE CLOSEOUT-01`).**
-> Os números de resíduos citados acima estão **superados**. Estado corrente da Editorial
-> Convergence: **SVE `CLOSED`** · **BASE1 `0`** (fechado pelo eixo de escopo por tamanho — os
-> 3 resíduos que constavam eram 3 dos **4** JUMBO do Set, nunca pendência editorial) ·
-> **SV5 `CLOSED`** (fechado **com 12 variantes deliberadamente `DEFERRED`**, não por
-> resolução de todas — ver o bullet de SV5 abaixo) · **BASEP `27`** · **BASE3 `5`**
-> (mantido para etapa posterior, resíduos mais ambíguos do corpus). **Próximo foco da frente:
-> `BASEP` (27). Depois de `BASEP`, e somente depois: `BASE3` (5)** — as duas frentes são
-> **sequenciais, não paralelas nem equivalentes**, conforme a ordem já registrada.
-> A ordem e as condições de autorização
-> permanecem como descritas: nada começa sem mandato explícito de Fabrício, e
-> `CATALOG-HISTORICAL-BOOTSTRAP-03` só é retomado após o fechamento formal da frente.
+> **Nota de reconciliação (2026-09-18, `BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`).
+> Supera integralmente as duas notas acima.**
+> **A `CARD-VARIANTS — EDITORIAL CONVERGENCE` está `CLOSED`.** Todos os números de resíduos
+> citados acima estão **superados e encerrados**. Estado terminal: **SVE `CLOSED`**
+> (2026-09-14) · **BASE1 `0`** (fechado pelo eixo de escopo por tamanho — nunca teve
+> pendência editorial) · **SV5 `CLOSED`** (2026-09-16, 12 `DEFERRED`) · **BASEP `CLOSED`**
+> (2026-09-18, 2 `DEFERRED`) · **BASE3 `CLOSED`** (2026-09-18, **0 `DEFERRED`**).
+> A condição que congelava `CATALOG-HISTORICAL-BOOTSTRAP-03` — "só é retomado após o
+> fechamento formal da frente" — está **satisfeita**. A regra de autorização permanece:
+> nada começa sem mandato explícito de Fabrício.
 
-**Próxima frente do projeto: `CATALOG-HISTORICAL-BOOTSTRAP-03` — CARDS + ASSETS PT-BR/EN** — importação em massa das Cards do catálogo histórico do TCGdex e dos seus assets nos dois idiomas, agora que a camada `Expansion → Card Set` está fechada e estável. **Ainda não modelada.** Sequência macro **congelada** restante: `CATALOG-HISTORICAL-BOOTSTRAP-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`; depois UX Read Models/Contracts → UX Flows/Wireframes → Frontend Collections. UX-01 permanece como alternativa em aberto, também não iniciada.Pokémon Region Foundation, o contrato de Pokémon Catalog Sourcing, a Fatia B, a Fatia C e a Fatia D já `COMMITTED / PUSHED` (commits `73f7ddd9ff22e9e267a9aba71692a8be273ee89a`, `0e032cbcc2b903a4859838acc98e069f9543588d`, `c28a7700e9a9219aed746d56068ba6e360a6cac0` — Fatia B —, `ff613066c2d5892d4a69755a50486c86677dffe9` — Fatia C — e `e2a5458da366a3eeda619b60514d409e3cc3dd3b` — Fatia D); todos os incrementos físicos do Pokédex (Fatias A–D) estão `COMMITTED/PUSHED` no remote `main`.
+**Próxima frente do projeto: `CATALOG-HISTORICAL-BOOTSTRAP-03` — etapa restante = `CARD VARIANTS — HISTORICAL BULK IMPORT`.**
+
+> **Reconciliação operacional (2026-09-18).** A descrição anterior — "`BOOTSTRAP-03` —
+> **CARDS + ASSETS PT-BR/EN**" — está **desatualizada operacionalmente**. Cards e Assets
+> históricos já foram majoritariamente carregados; o que resta da frente é **Variants**.
+
+Baseline LIVE medido em **2026-09-18** (e é baseline datado, **não contrato rígido** — a
+campanha deve remedir antes de executar):
+
+| grandeza | valor |
+|---|---|
+| Card Sets | **200** |
+| Cards | **20.941** |
+| Card Assets | **30.261** |
+| Card Variants | **7.671** |
+| Sets com Cards | **196** |
+| Sets com alguma Variant | **26** |
+| Sets com Cards e **zero** Variants | **170** |
+| **Universo elegível da campanha** | **169** (170 − ME5.5) · **16.705** Cards |
+
+**`ME5.5 — Celebração de 30 Anos` fica FORA do denominador operacional**, por decisão
+explícita: lançamento muito recente, cadastrada manualmente por Fabrício, e a TCGdex ainda
+não tem 100% das Cards (LIVE: **2 Cards / 0 Variants**). Continua existindo no catálogo
+total; **não** aparece como pendência, gap ou Set elegível enquanto a fonte não amadurecer.
+
+**Os 4 Sets sem Cards (`CEL25CC`, `EXU`, `RC`, `SP`) e os Assets residuais são
+`KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`** — já foi concluído que a TCGdex **não
+oferece hoje** os dados faltantes. **Não são frente atual e não são próximo passo.**
+
+Objetivo da etapa restante: importar Variants **em lote** para os Sets históricos
+elegíveis, **reutilizando a taxonomia e os mappings estabilizados**, materializando
+automaticamente o que já é conhecido e deixando em `NEEDS_REVIEW` **apenas resíduo
+semântico real** — sem tratamento artesanal Set a Set. **BASEP e BASE3 foram o laboratório
+editorial** que estabilizou essa campanha para escala.
+
+Sequência macro **congelada** restante: `CARD VARIANTS — HISTORICAL BULK IMPORT` →
+`VARIANT-DISPLAY-SEMANTICS-01` → `CATALOG-HISTORICAL-BOOTSTRAP-03` closeout →
+`CATALOG-VARIANT-DEFAULT-BACKFILL-01` → **gate final de Card Variants** → retorno a
+Collections (`BULK-04` → `BULK-05` → `BULK-06`; depois UX Read Models/Contracts → UX
+Flows/Wireframes → Frontend Collections). UX-01 permanece como alternativa em aberto,
+também não iniciada.Pokémon Region Foundation, o contrato de Pokémon Catalog Sourcing, a Fatia B, a Fatia C e a Fatia D já `COMMITTED / PUSHED` (commits `73f7ddd9ff22e9e267a9aba71692a8be273ee89a`, `0e032cbcc2b903a4859838acc98e069f9543588d`, `c28a7700e9a9219aed746d56068ba6e360a6cac0` — Fatia B —, `ff613066c2d5892d4a69755a50486c86677dffe9` — Fatia C — e `e2a5458da366a3eeda619b60514d409e3cc3dd3b` — Fatia D); todos os incrementos físicos do Pokédex (Fatias A–D) estão `COMMITTED/PUSHED` no remote `main`.
 
 ---
 
@@ -430,3 +499,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.2 | **`SVE` CLOSED dentro da Editorial Convergence + correção do seletor de `/catalogo/importar-variantes` (2026-09-14, `SVE-AND-IMPORT-UI-CHECKPOINT-01`).** Bullet novo em "Now" registrando o **primeiro Card Set a zerar seus resíduos**: job `8f5b9dba` COMPLETED, 112/112 `VALID`, `NEEDS_REVIEW` 0, e as quatro decisões editoriais **todas GLOBAL** (`COSMOS_REWARDS_REVERSE` ordem 81, `COSMOS_PROFESSOR_REVERSE` ordem 82, `CRACKED_ICE_HOLO` **reaproveitado** — não renomeado —, `TINSEL_REVERSE` ordem 83). Baseline global atualizada para **54 `NEEDS_REVIEW`** (BASEP 27 · SV5 19 · BASE3 5 · BASE1 3 · SVE 0), **83 Variant Types**, **76 mappings = 74 GLOBAL + 2 SOURCE_SET**, `card_variant` **7.461** — este último **acumulado do job** (64 materializadas em 12/09 + 48 na conclusão atual), nunca "112 novas nesta rodada". Corrigida em `05b` a contagem de mappings, que estava parada em **72**. Registrada a decisão semântica da correção de UI — **cobertura de Card ≠ pendência editorial de Variant Import** — sem transformar o checkpoint em documentação de frontend. **Editorial Convergence permanece ABERTA**; próxima frente recomendada **SV5**, com **BASE3 candidato a fechamento mais tardio**. Rodada exclusivamente documental: nenhum SQL, nenhuma migration, nenhuma Edge, nenhuma alteração dos 2 arquivos funcionais já implementados. |
 | 2.3 | **`CARD-VARIANTS — JUMBO SIZE-SCOPE INCIDENT` `IMPLEMENTED / LIVE / VALIDATED / CLOSED tecnicamente` (2026-09-16, `DOCUMENTATION-CLOSEOUT-01`).** Bullet novo em "Now" registrando a causa raiz (`size` da TCGdex descartado pelo extractor histórico da Edge), a semântica final de três ramos (`IN_SCOPE` / `OUT_OF_SCOPE` / `UNSUPPORTED` fail-closed) com **`size` fora da identidade residual** e o guard **antes** de `routePrinting` e do dedupe, o estado de uma linha JUMBO (`INVALID/NEW/SKIPPED/PENDING` → `UNCHANGED` após confirmação, **nunca materializa `card_variant`**), as migrations `2198` (`20260916012057`) e `2199` (`20260916170733`, delta de dados ZERO), os gates `2827` **29/29** e `2828` **`COMPLETE`** (18 estruturais + **5 E2E autenticados em sessão admin real**, fixture removida com zero resíduo), a suíte lógica **Deno 81/81** e a **Edge v11 ACTIVE**. Registra o rerun real de BASE1 (`0 NEEDS_REVIEW`, `card_variant` inalterado em 7461, job histórico preservado com 415 rows) e a **descoberta de que são QUATRO JUMBO, não três** — Pikachu #058 vinha sendo **silenciosamente absorvido como variante válida**, provando que o incidente produzia também **falsa classificação válida**, não só falsa pendência. Nota de reconciliação nova com o estado corrente da Editorial Convergence (**SVE `CLOSED` · BASE1 `0` · SV5 `10` · BASEP `27` · BASE3 `5`**) e o campo NEXT anotado para remover BASE1 da lista de laboratórios. **Frontend registrado como `READY / INCLUDED IN CLOSEOUT`, NÃO publicado** — validação visual pós-deploy é o último postcheck operacional em aberto. Rodada exclusivamente documental: nenhum SQL, nenhuma migration, nenhum deploy, nenhuma alteração funcional. |
 | 2.4 | **`CARD-VARIANTS — SV5` `CLOSED` dentro da Editorial Convergence (2026-09-16, `SV5-EDITORIAL-CONVERGENCE-CLOSEOUT-01`).** Bullet novo em "Now" registrando o **segundo Card Set a fechar** e o **primeiro a fechar por decisão consciente sobre os resíduos, não por resolução de todos**: job canônico `601f7c96` **COMPLETED** (428 / 417 `VALID` / **11 `NEEDS_REVIEW` preservadas** / 416 `APPROVED/INSERTED` / 12 `SKIPPED/UNCHANGED` / 0 `PENDING` / 0 `FAILED`), **sem job `STAGED` de SV5**. Registra as **12 variantes DEFERIDAS** — 11 por evidência externa insuficiente e `POKEMON_DAY_COSMOS_HOLO` por falta de prova específica de COSMOS — e a regra de que **`DEFERRED` não é rejeição nem conclusão semântica futura**. Registra a **correção Master Ball / COSMOS**: auditoria externa encerrada como `EVIDENCE EXHAUSTED`, migration **`2200` v1.1** (`20260916212542`) removendo o mapping falso com rollback TOTAL provado na tentativa v1.0 que abortou, VT **desativado e não removido**, zero `card_variant` materializado. Registra o **job de validação** `e575fed9` (`CANCELLED`, 432 rows preservadas, sem impacto no catálogo) e o papel distinto dos dois jobs. Registra o fechamento da semântica de `DEFERRED` na UI (contrato único; `MATCHED/SKIPPED` ≠ deferida ≠ JUMBO), **validação visual em produção PASS**, commits `41fbe40` e `ee5b17a`. Nota de reconciliação atualizada: **SV5 `CLOSED`**, **próximo foco `BASEP` (27), com `BASE3` (5) depois de `BASEP`** — frentes sequenciais, não paralelas. Detalhamento normativo novo em `05b-cartas-e-raridade.md` revisão `1.3`, seções "SV5 — CLOSED dentro da Editorial Convergence" e "Deferimento editorial (`DEFERRED`)". Rodada exclusivamente documental: nenhum código, nenhum SQL, nenhuma execução no banco. |
+| 2.5 | **`CARD-VARIANTS — BASEP` e `BASE3` `CLOSED`; `EDITORIAL CONVERGENCE` `CLOSED` (2026-09-18, `BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`).** Bullet novo em "Now" registrando o fechamento dos dois últimos Card Sets da frente e o encerramento dela: `BASEP` `COMPLETED` (74/72/2 `DEFERRED`, 53/53 Cards) e `BASE3` `COMPLETED` (**177/177/0**, 62/62 Cards, **zero deferimento**), `card_variant` 7.469 → **7.671**, taxonomia terminal com **94** `card_variant_type_external_mapping` (75 GLOBAL · 8 `sv05` · 6 `basep` · 5 `base3`). **Nota de reconciliação nova que supera as duas anteriores** (2026-09-14 e 2026-09-16): a condição que congelava `CATALOG-HISTORICAL-BOOTSTRAP-03` está satisfeita. **Reconciliação operacional do `BOOTSTRAP-03`:** a descrição "CARDS + ASSETS PT-BR/EN" está desatualizada — Cards e Assets já foram majoritariamente carregados e a etapa restante passa a ser explicitamente **`CARD VARIANTS — HISTORICAL BULK IMPORT`**, com baseline LIVE datado (200 Sets / 20.941 Cards / 30.261 Assets / 7.671 Variants; 196 com Cards; 26 com alguma Variant; 170 com Cards e zero Variants; **169 elegíveis** após excluir `ME5.5`, **16.705** Cards). `ME5.5 — Celebração de 30 Anos` **fora do denominador operacional** (2 Cards / 0 Variants, fonte imatura); 4 Sets sem Cards (`CEL25CC`/`EXU`/`RC`/`SP`) e Assets residuais reclassificados como **`KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`**, explicitamente **não** próximo passo. Sequência macro atualizada preservando `VARIANT-DISPLAY-SEMANTICS-01`. Rodada exclusivamente documental. |
