@@ -107,6 +107,229 @@ export async function listCardExternalReferencesMap(
   );
 }
 
+// =====================================================================
+// FALLBACK DE CORRELAÇÃO POR LINEAGE (VARIANT-CARD-CORRELATION-FALLBACK-01,
+// 2026-09-18)
+//
+// POR QUE ISTO EXISTE. `card_external_reference` não tem writer SQL algum
+// (0 funções com INSERT nela, verificado no LIVE): quem a escreve é a Edge
+// Function `import-card-assets`. Consequência medida: 34 Card Sets nunca
+// rodaram Importar Imagens e, por isso, 727 Cards ficaram sem referência —
+// travando Importar Variantes por um motivo que nada tem a ver com
+// Variantes. Isto acoplava indevidamente Variant Import a Asset Import.
+//
+// POR QUE NÃO UM BACKFILL. `card_external_reference` tem `language_id`
+// NOT NULL dentro das DUAS constraints de unicidade
+// (uq_..._card_source_language e uq_..._source_external_language). Uma
+// linha ali afirma "esta Card tem este id externo NESTE IDIOMA". O lineage
+// (catalog_import_job/row) NÃO tem coluna de idioma em nenhum dos dois
+// níveis — e a cobertura por idioma é desigual no LIVE (en 20.128 /
+// pt-BR 11.981). Criar referências a partir do lineage obrigaria a
+// inventar uma dimensão que o dado de origem não prova. Não inventamos.
+//
+// POR QUE O LINEAGE BASTA AQUI. A correlação de Variantes é
+// language-free de ponta a ponta: o dataset-fonte no GitHub não tem
+// idioma (ver services/tcgdex.ts — "en" é convenção de nome de pasta, não
+// idioma de conteúdo) e `listCardExternalReferencesMap` acima nem sequer
+// filtra `language_id`. Este fallback não introduz essa assimetria — ele a
+// resolve, lendo uma fonte que genuinamente não tem idioma.
+//
+// AUTORIDADE. Este mapa é SEMPRE subordinado: quem consulta tenta primeiro
+// `listCardExternalReferencesMap` e só cai aqui em ausência (ver index.ts,
+// fase CORRELATING_CARDS). Lineage nunca sobrescreve referência existente.
+//
+// EQUIVALÊNCIA PROVADA NO LIVE (2026-09-18, read-only, 169 Sets elegíveis):
+// das 16.705 Cards, 15.978 têm referência E lineage — e as duas concordam
+// em 15.978/15.978, com 0 divergências. As 727 restantes têm apenas
+// lineage. Ambiguidade em qualquer direção: 0. Ou seja, o fallback não é
+// uma aproximação da referência; onde ambos existem, são o mesmo valor.
+// =====================================================================
+
+// Tamanho de página da leitura de lineage. O PostgREST tem um teto padrão
+// de linhas por resposta que NÃO se anuncia: uma leitura que o ultrapasse
+// volta truncada e silenciosamente correta em aparência — e um mapa de
+// correlação truncado vira Card "uncorrelated" sem nenhum erro. Por isso a
+// leitura abaixo pagina explicitamente até exaurir, em vez de confiar no
+// default. Máximo observado no LIVE em 2026-09-18: 567 linhas de lineage
+// em um único Set — folgado hoje, mas isso é uma MEDIÇÃO, não um contrato:
+// reimportações somam linhas ao mesmo Card Set ao longo do tempo.
+const LINEAGE_PAGE_SIZE = 1000;
+
+// Guard de segurança do laço de paginação: nunca fica preso se a fonte
+// devolver páginas cheias indefinidamente. 200 páginas = 200.000 linhas,
+// ~350x o maior Set observado.
+const LINEAGE_MAX_PAGES = 200;
+
+/**
+ * Mapa external_card_id (UPPER/TRIM) -> card_id reconstruído a partir do
+ * lineage de Importar Cartas, para uso EXCLUSIVO como fallback de
+ * correlação quando `card_external_reference` não existe para a Card.
+ *
+ * Filtros de leitura (todos obrigatórios, nenhum opcional):
+ *   - catalog_import_job.source      = 'TCGDEX'
+ *   - catalog_import_job.card_set_id = cardSetId
+ *   - catalog_import_job.external_set_id = externalSetId
+ *   - catalog_import_job.status IN ('COMPLETED','COMPLETED_WITH_ERRORS')
+ *   - catalog_import_row.resulting_card_id IS NOT NULL
+ *   - raw_data->>'id' não nulo e não vazio
+ *
+ * Guards de identidade (fail-closed, nunca "pega o primeiro"):
+ *   G0  resulting_card_id precisa pertencer ao PRÓPRIO cardSetId
+ *   G1  external_id -> exatamente 1 card_id
+ *   G2  card_id     -> exatamente 1 external_id
+ *   G3  external_id precisa começar com "<externalSetId>-"
+ *   G4  qualquer ambiguidade remove a identidade inteira do mapa, dos dois
+ *       lados, resultando em `uncorrelated` lá na frente
+ *
+ * O filtro por status terminal é o que mantém o mapa estável: job em
+ * PROCESSING/STAGED ainda pode mudar de ideia sobre resulting_card_id.
+ *
+ * >>> POR QUE G0 EXISTE E NÃO É REDUNDANTE COM O FILTRO DO JOB <<<
+ * Filtrar `catalog_import_job.card_set_id = cardSetId` prova que o JOB é do
+ * Card Set certo. Não prova nada sobre o destino de cada linha:
+ * `fk_catalog_import_row_resulting_card` é `REFERENCES card(id)`, ou seja,
+ * garante que a Card EXISTE — jamais que ela pertence a este Card Set. Um
+ * job legítimo do Set A com uma linha histórica ou corrompida apontando
+ * para uma Card do Set B passaria por todos os outros guards: o job é do
+ * Set A, o status é terminal, o `raw_data.id` tem o prefixo certo, e a
+ * identidade é 1:1. O resultado seria uma Variante criada na Card errada,
+ * em silêncio. G0 fecha exatamente esse buraco, e é o único guard aqui que
+ * depende de um dado fora do par job/row.
+ */
+export async function listCardLineageCorrelationMap(
+  supabase: any,
+  cardSetId: string,
+  externalSetId: string,
+): Promise<Map<string, string>> {
+  const empty = new Map<string, string>();
+  if (!cardSetId || !externalSetId) return empty;
+
+  // Passo 1 — jobs elegíveis do PRÓPRIO Card Set. Ancorar em card_set_id E
+  // external_set_id (e não em um só) é deliberado: são duas âncoras
+  // independentes para a mesma verdade, e o LIVE de 2026-09-18 mostra
+  // 0 divergências entre elas em 17.632 linhas.
+  const { data: jobs, error: jobsError } = await supabase
+    .from("catalog_import_job")
+    .select("id")
+    .eq("card_set_id", cardSetId)
+    .eq("source", "TCGDEX")
+    .eq("external_set_id", externalSetId)
+    .in("status", ["COMPLETED", "COMPLETED_WITH_ERRORS"]);
+
+  if (jobsError) {
+    console.error(jobsError);
+    throw new Error("CATALOG_IMPORT_JOB_LINEAGE_QUERY_FAILED");
+  }
+
+  const jobIds = (jobs ?? []).map((job: any) => job.id).filter(Boolean);
+  if (jobIds.length === 0) return empty;
+
+  // Passo 2 — universo de Cards que REALMENTE pertencem a este Card Set
+  // (base do G0). Uma leitura paginada, não uma por linha: o conjunto é
+  // carregado inteiro e a checagem de pertença vira um `Set.has()` em
+  // memória. Custo: 1 consulta (279 Cards no maior Set elegível do LIVE em
+  // 2026-09-18, muito abaixo de uma página).
+  const cardIdsOfSet = new Set<string>();
+  for (let page = 0; page < LINEAGE_MAX_PAGES; page += 1) {
+    const from = page * LINEAGE_PAGE_SIZE;
+    const { data, error } = await supabase
+      .from("card")
+      .select("id")
+      .eq("card_set_id", cardSetId)
+      .order("id", { ascending: true })
+      .range(from, from + LINEAGE_PAGE_SIZE - 1);
+
+    if (error) {
+      console.error(error);
+      throw new Error("CARD_SET_MEMBERSHIP_QUERY_FAILED");
+    }
+
+    const batch = data ?? [];
+    for (const card of batch) {
+      if (card?.id) cardIdsOfSet.add(card.id);
+    }
+    if (batch.length < LINEAGE_PAGE_SIZE) break;
+
+    // Mesma disciplina do laço de lineage: nunca truncar em silêncio. Um
+    // universo de pertença incompleto reprovaria Cards legítimas (G0
+    // rejeita o que não conhece) — erro seguro, mas erro. Falhar alto.
+    if (page === LINEAGE_MAX_PAGES - 1) {
+      throw new Error(
+        `CARD_SET_MEMBERSHIP_PAGINATION_EXHAUSTED: mais de ${LINEAGE_MAX_PAGES * LINEAGE_PAGE_SIZE} Cards no Card Set ${cardSetId}.`,
+      );
+    }
+  }
+
+  if (cardIdsOfSet.size === 0) return empty;
+
+  // Passo 3 — linhas desses jobs, paginadas até exaurir.
+  const rows: Array<{ raw_data: any; resulting_card_id: string }> = [];
+  for (let page = 0; page < LINEAGE_MAX_PAGES; page += 1) {
+    const from = page * LINEAGE_PAGE_SIZE;
+    const { data, error } = await supabase
+      .from("catalog_import_row")
+      .select("raw_data, resulting_card_id")
+      .in("job_id", jobIds)
+      .not("resulting_card_id", "is", null)
+      .order("id", { ascending: true })
+      .range(from, from + LINEAGE_PAGE_SIZE - 1);
+
+    if (error) {
+      console.error(error);
+      throw new Error("CATALOG_IMPORT_ROW_LINEAGE_QUERY_FAILED");
+    }
+
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < LINEAGE_PAGE_SIZE) break;
+
+    // Página cheia na última iteração permitida: a leitura PODE estar
+    // incompleta e um mapa incompleto é indistinguível de um mapa correto.
+    // Fail-closed e ruidoso, nunca truncar em silêncio.
+    if (page === LINEAGE_MAX_PAGES - 1) {
+      throw new Error(
+        `CATALOG_IMPORT_ROW_LINEAGE_PAGINATION_EXHAUSTED: mais de ${LINEAGE_MAX_PAGES * LINEAGE_PAGE_SIZE} linhas de lineage para o Card Set ${cardSetId}.`,
+      );
+    }
+  }
+
+  // Passo 4 — normalização + G0 (pertença ao Card Set) + G3 (pertencimento
+  // ao Set externo esperado).
+  const expectedPrefix = `${String(externalSetId).trim().toUpperCase()}-`;
+  const byKey = new Map<string, Set<string>>();
+  const byCard = new Map<string, Set<string>>();
+
+  for (const row of rows) {
+    const cardId = row?.resulting_card_id;
+    if (!cardId) continue;
+    if (!cardIdsOfSet.has(cardId)) continue; // G0
+
+    const rawId = row?.raw_data?.id;
+    if (typeof rawId !== "string") continue;
+
+    const key = rawId.trim().toUpperCase();
+    if (key.length === 0) continue;
+    if (!key.startsWith(expectedPrefix)) continue; // G3
+
+    if (!byKey.has(key)) byKey.set(key, new Set<string>());
+    byKey.get(key)!.add(cardId);
+
+    if (!byCard.has(cardId)) byCard.set(cardId, new Set<string>());
+    byCard.get(cardId)!.add(key);
+  }
+
+  // Passo 5 — G1/G2/G4. Só sobrevive a identidade 1:1 nas DUAS direções.
+  const result = new Map<string, string>();
+  for (const [key, cardIds] of byKey) {
+    if (cardIds.size !== 1) continue; // G1 + G4
+    const cardId = [...cardIds][0];
+    if ((byCard.get(cardId)?.size ?? 0) !== 1) continue; // G2 + G4
+    result.set(key, cardId);
+  }
+
+  return result;
+}
+
 // Chave composta que replica exatamente o mecanismo de unicidade da Query
 // 2140 (uq_card_variant_type_external_mapping_combo): normalized_type +
 // COALESCE(normalized_foil,'') + COALESCE(normalized_subtype,'') +

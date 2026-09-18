@@ -51,6 +51,7 @@ import {
   insertVariantImportRows,
   listActivePrintingProfiles,
   listCardExternalReferencesMap,
+  listCardLineageCorrelationMap,
   listExistingCardVariantsMap,
   listPrintingExternalMappings,
   listPrintingTraits,
@@ -109,6 +110,10 @@ function normalizeAndSortStamp(stamp: string[] | null): string[] | null {
 type CardFileResult = {
   externalCardId: string;
   cardId: string | null;
+  // Origem da correlação (VARIANT-CARD-CORRELATION-FALLBACK-01): diagnóstico
+  // e telemetria, NUNCA identidade. `card_variant` não sabe — nem precisa
+  // saber — por qual dos dois mapas a Card foi encontrada.
+  correlationSource: "REFERENCE" | "LINEAGE" | null;
   combos: ExternalVariantCombo[];
   fetchError: string | null;
 };
@@ -455,6 +460,7 @@ Deno.serve(async (req) => {
     // existiam: o roteamento inteiro acontece depois, em memória.
     const [
       cardExternalReferences,
+      cardLineageCorrelations,
       variantTypeMaps,
       printingMappings,
       printingProfiles,
@@ -462,6 +468,12 @@ Deno.serve(async (req) => {
     ] = await Promise
       .all([
         listCardExternalReferencesMap(supabase, assetSource.id, externalSetId),
+        // FALLBACK de correlação (VARIANT-CARD-CORRELATION-FALLBACK-01):
+        // subordinado por construção — só é consultado onde o mapa primário
+        // não responde. Entra no MESMO Promise.all porque tem o mesmo
+        // perfil dos demais preloads: número fixo de queries por job,
+        // nunca por linha.
+        listCardLineageCorrelationMap(supabase, cardSetId, externalSetId),
         listVariantTypeExternalMappings(supabase, cardSet.game_id, assetSource.id, externalSetId),
         listPrintingExternalMappings(supabase, cardSet.game_id, assetSource.id),
         listActivePrintingProfiles(supabase, cardSet.game_id),
@@ -478,16 +490,29 @@ Deno.serve(async (req) => {
       async (file) => {
         const localId = deriveLocalIdFromFilename(file.name);
         const externalCardId = `${externalSetId}-${localId}`;
-        const cardId = cardExternalReferences.get(externalCardId.toUpperCase()) ?? null;
+        const correlationKey = externalCardId.toUpperCase();
+
+        // PRECEDÊNCIA (VARIANT-CARD-CORRELATION-FALLBACK-01). A referência
+        // primária é a autoridade e é consultada primeiro, sempre. O
+        // lineage só responde onde ela não respondeu — nunca sobrescreve.
+        // Onde as duas existiriam elas concordam (15.978/15.978 no LIVE de
+        // 2026-09-18, 0 divergências), então a ordem preserva o
+        // comportamento anterior bit a bit em vez de apenas empatar com ele.
+        const referenceCardId = cardExternalReferences.get(correlationKey) ?? null;
+        const lineageCardId = referenceCardId ? null : (cardLineageCorrelations.get(correlationKey) ?? null);
+        const cardId = referenceCardId ?? lineageCardId;
+        const correlationSource: CardFileResult["correlationSource"] = referenceCardId
+          ? "REFERENCE"
+          : (lineageCardId ? "LINEAGE" : null);
 
         try {
           const source = await fetchCardFileSource(file.downloadUrl);
           const combos = extractVariantsFromSource(source);
-          return { externalCardId, cardId, combos, fetchError: null };
+          return { externalCardId, cardId, correlationSource, combos, fetchError: null };
         } catch (error) {
           const message = error instanceof Error ? error.message : "UNEXPECTED_ERROR";
           console.error(`GITHUB_SOURCE_FETCH_FAILED ${externalCardId}:`, message);
-          return { externalCardId, cardId, combos: [], fetchError: `GITHUB_SOURCE_FETCH_FAILED: ${message}` };
+          return { externalCardId, cardId, correlationSource, combos: [], fetchError: `GITHUB_SOURCE_FETCH_FAILED: ${message}` };
         }
       },
     );
@@ -509,6 +534,19 @@ Deno.serve(async (req) => {
     });
 
     const correlatedCardIds = Array.from(new Set(correlated.map((r) => r.cardId as string)));
+
+    // Telemetria aditiva (VARIANT-CARD-CORRELATION-FALLBACK-01). Contadas
+    // por card_id DISTINTO, exatamente como `correlated` acima — é o que
+    // torna a invariante verdadeira por construção, e não por sorte:
+    //   correlated === correlated_by_reference + correlated_by_lineage
+    // Os dois conjuntos são disjuntos porque `correlationSource` é decidido
+    // por um único `??` na correlação: nenhuma Card pode ter as duas origens.
+    const cardIdsByReference = new Set(
+      correlated.filter((r) => r.correlationSource === "REFERENCE").map((r) => r.cardId as string),
+    );
+    const cardIdsByLineage = new Set(
+      correlated.filter((r) => r.correlationSource === "LINEAGE").map((r) => r.cardId as string),
+    );
     const existingVariantsByCardAndType = await listExistingCardVariantsMap(supabase, correlatedCardIds);
 
     await updateVariantJobProgressStep(supabase, jobId, "RESOLVING_VARIANT_MAPPING");
@@ -787,6 +825,13 @@ Deno.serve(async (req) => {
       },
       cards: {
         correlated: correlatedCardIds.length,
+        // Aditivos (VARIANT-CARD-CORRELATION-FALLBACK-01). Nenhum campo
+        // acima ou abaixo mudou de nome, tipo ou significado.
+        // INVARIANTE: correlated === correlated_by_reference + correlated_by_lineage.
+        // Em Card Set com referência completa, correlated_by_lineage é 0 —
+        // é a prova de não-regressão que a própria resposta carrega.
+        correlated_by_reference: cardIdsByReference.size,
+        correlated_by_lineage: cardIdsByLineage.size,
         uncorrelated: uncorrelated.length,
         fetch_failed: fetchFailed.length,
       },

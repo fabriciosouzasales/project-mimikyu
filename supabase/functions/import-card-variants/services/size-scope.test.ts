@@ -37,6 +37,7 @@ import {
   isVariantRowScopeLocked,
   isVariantRowSelectable,
   variantRowScopeLabel,
+  type VariantRowScopeInput,
 } from "../../../../web/lib/catalogo/variant-size-scope.ts";
 
 export type Resultado = { caso: string; ok: boolean; detalhe: string };
@@ -219,22 +220,34 @@ export function runSizeScopeTests(): Resultado[] {
   // Comportamental, sobre o contrato puro que a tela consome.
   // -------------------------------------------------------------------------
   {
-    const semMapeamento = {
+    const semMapeamento: VariantRowScopeInput = {
       validationStatus: "NEEDS_REVIEW",
+      decisionStatus: "PENDING",
+      matchStatus: "NEW",
       skipReason: null,
       reviewReason: null,
     };
-    const tamanhoDesconhecido = {
+    const tamanhoDesconhecido: VariantRowScopeInput = {
       validationStatus: "NEEDS_REVIEW",
+      decisionStatus: "PENDING",
+      matchStatus: "NEW",
       skipReason: null,
       reviewReason: UNSUPPORTED_SIZE_VALUE,
     };
-    const foraDeEscopo = {
+    const foraDeEscopo: VariantRowScopeInput = {
       validationStatus: "INVALID",
+      decisionStatus: "SKIPPED",
+      matchStatus: "NEW",
       skipReason: SIZE_OUT_OF_SCOPE,
       reviewReason: null,
     };
-    const valida = { validationStatus: "VALID", skipReason: null, reviewReason: null };
+    const valida: VariantRowScopeInput = {
+      validationStatus: "VALID",
+      decisionStatus: "PENDING",
+      matchStatus: "NEW",
+      skipReason: null,
+      reviewReason: null,
+    };
 
     assert(r, "F classificacao — sem mapeamento e IN_SCOPE",
       classifyVariantRowScope(semMapeamento) === "IN_SCOPE");
@@ -272,14 +285,55 @@ export function runSizeScopeTests(): Resultado[] {
   // SIZE-SCOPE-EDGE-UI-CORRECTION-01, OBJETIVO 3.
   // ===========================================================================
 
-  const rowSemMapeamento = { validationStatus: "NEEDS_REVIEW", skipReason: null, reviewReason: null };
-  const rowTamanhoDesconhecido = {
+  // >>> CONTRATO COMPLETO, TIPADO EXPLICITAMENTE (REGRESSION-SUITE REPAIR-01,
+  // 2026-09-18) <<<
+  //
+  // Estas fixtures nasceram antes de `VariantRowScopeInput` ganhar
+  // `decisionStatus` e `matchStatus` (2026-09-16, SV5-DEFERRED-UI-SEMANTICS-01
+  // e -02). Como eram objetos-literais SEM anotação de tipo, o TypeScript
+  // aceitava-as por inferência estrutural até o momento da chamada — e o
+  // arquivo simplesmente parou de type-checar quando o contrato cresceu,
+  // derrubando a suíte inteira antes de executar um único caso.
+  //
+  // A anotação `: VariantRowScopeInput` existe para que isso não se repita em
+  // silêncio: qualquer campo novo no contrato passa a falhar AQUI, na
+  // declaração da fixture, com a mensagem apontando para o campo que falta —
+  // em vez de falhar espalhado por dezenas de call sites.
+  //
+  // As semânticas validadas NÃO mudaram: nenhuma assertion foi alterada. Os
+  // valores de `decisionStatus`/`matchStatus` abaixo são os estados canônicos
+  // reais de cada classe de linha, não valores escolhidos para fazer o teste
+  // passar. `foraDeEscopo` é a única com `decisionStatus = SKIPPED`, porque é
+  // exatamente isso que o importador grava: a decisão é do SISTEMA (eixo de
+  // escopo, Query 2198/2199), não uma pendência editorial em aberto.
+  const rowSemMapeamento: VariantRowScopeInput = {
     validationStatus: "NEEDS_REVIEW",
+    decisionStatus: "PENDING",
+    matchStatus: "NEW",
+    skipReason: null,
+    reviewReason: null,
+  };
+  const rowTamanhoDesconhecido: VariantRowScopeInput = {
+    validationStatus: "NEEDS_REVIEW",
+    decisionStatus: "PENDING",
+    matchStatus: "NEW",
     skipReason: null,
     reviewReason: UNSUPPORTED_SIZE_VALUE,
   };
-  const rowForaDeEscopo = { validationStatus: "INVALID", skipReason: SIZE_OUT_OF_SCOPE, reviewReason: null };
-  const rowValida = { validationStatus: "VALID", skipReason: null, reviewReason: null };
+  const rowForaDeEscopo: VariantRowScopeInput = {
+    validationStatus: "INVALID",
+    decisionStatus: "SKIPPED",
+    matchStatus: "NEW",
+    skipReason: SIZE_OUT_OF_SCOPE,
+    reviewReason: null,
+  };
+  const rowValida: VariantRowScopeInput = {
+    validationStatus: "VALID",
+    decisionStatus: "PENDING",
+    matchStatus: "NEW",
+    skipReason: null,
+    reviewReason: null,
+  };
 
   // -------------------------------------------------------------------------
   // G — OUT_OF_SCOPE é decisão automática IMUTÁVEL (BLOCKER-1)

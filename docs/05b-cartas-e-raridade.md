@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.4 |
+| **Versão** | 1.5 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`) e o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`). |
+| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`) e o **contrato de correlação Card ↔ fonte externa** do Variant Import, com o fallback determinístico por lineage (revisão `1.5`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -2430,6 +2430,104 @@ Ambas as tabelas têm gatilhos de normalização (`UPPER(BTRIM(...))` em todos o
 Recebe `{ card_set_id }` (não `{ job_id }` — diferente de `import-catalog-cards`, porque ainda não existe tela dedicada de pré-criação do job para variantes), cria o próprio `catalog_variant_import_job` internamente, resolve o `external_set_id` do dataset TCGdex via `card_set_external_reference` já gravada por Importar Cartas, busca os arquivos de carta do Set inteiro (não carta a carta), correlaciona cada Card externa com a Card MMKYU via `card_external_reference`, extrai as combinações `variants[]`, resolve o mapeamento externo e grava **somente em `catalog_variant_import_row`** (staging) — nunca em `card_variant` diretamente, mesmo Princípio da Fonte Canônica de `ADR-024`. Não cria RPC de confirmação própria, não infere `is_default`/`variant_order` (resolvidos só na confirmação, por `admin_confirm_catalog_variant_import()`), não modela vintage/promo.
 
 **Resiliência (fix real, incidente SV10, 2026-08-15)**: as três chamadas de rede externas (`resolveSetSerieName()`/`listSetCardFiles()`/`fetchCardFileSource()`) usam `AbortController` com timeout de 15s cada — antes, um `fetch()` sem timeout podia deixar a invocação presa até a plataforma matá-la por estouro do teto de execução (~150s), sem que o `catch()`/marcação de falha do job rodasse, deixando o job preso em `PROCESSING` indefinidamente. **Dedupe (fix real, incidente SV8.5, 2026-08-15)**: a função deduplica combinações repetidas da mesma fonte antes de gravar em `catalog_variant_import_row` (reforçado pela `UNIQUE` parcial da tabela, acima) — antes, uma combinação duplicada na fonte externa derrubava a resolução de mapeamento com erro genérico.
+
+### Correlação Card ↔ fonte externa — referência primária + fallback por lineage (`LIVE VALIDATED`, 2026-09-18)
+
+`VARIANT-CARD-CORRELATION-FALLBACK-01`. A etapa `CORRELATING_CARDS` da Edge deixa de
+depender exclusivamente de `card_external_reference`.
+
+**O problema real, medido.** `card_external_reference` **não tem writer SQL algum** — zero
+funções com `INSERT` nela, verificado no LIVE. Quem a escreve é a Edge Function
+**`import-card-assets`** (Importar Imagens). Consequência: 34 Card Sets que nunca rodaram
+Importar Imagens ficaram com **727 Cards sem referência** e, por isso, com Importar
+Variantes travado — por um motivo que nada tem a ver com Variantes. Correlação de
+`asset_import_run` × cobertura de referência: grupo com gap = 35 Sets / **34 sem nenhum
+run**; grupo completo = 134 Sets / **0 sem run**.
+
+**Por que não houve backfill.** `card_external_reference` tem `language_id` `NOT NULL`
+dentro das **duas** constraints de unicidade (`uq_..._card_source_language` e
+`uq_..._source_external_language`). Uma linha ali afirma *"esta Card tem este id externo
+**neste idioma**"* — e a cobertura por idioma é desigual no LIVE (`en` 20.128 / `pt-BR`
+11.981). `catalog_import_job` e `catalog_import_row` **não têm coluna de idioma em nenhum
+dos dois níveis**. Criar referências a partir do lineage obrigaria a inventar uma dimensão
+que o dado de origem não prova. A proposta `EXTERNAL-REF-RECOVERY-01` foi **revogada** por
+isso.
+
+**Por que o lineage basta aqui.** A correlação de Variantes é language-free de ponta a
+ponta: o dataset-fonte no GitHub não tem idioma (`services/tcgdex.ts` — `"en"` é convenção
+de nome de pasta, não idioma de conteúdo) e `listCardExternalReferencesMap` **nem sequer
+filtra `language_id`**. O fallback não introduz essa assimetria — ele a resolve.
+
+**Precedência canônica, em um nível, sem desempate:**
+
+```
+card_external_reference  >  catalog lineage  >  null (uncorrelated)
+```
+
+O lineage é consultado **somente** em miss da referência primária; nunca sobrescreve.
+
+**Contrato de leitura do lineage** (`listCardLineageCorrelationMap`): `catalog_import_job`
+com `source = 'TCGDEX'` **e** `card_set_id` **e** `external_set_id` esperados **e** `status
+IN ('COMPLETED','COMPLETED_WITH_ERRORS')`; `catalog_import_row` com `resulting_card_id NOT
+NULL` e `raw_data->>'id'` não vazio. Chave normalizada `UPPER(TRIM(...))`, a mesma dos dois
+lados.
+
+**Guards, todos fail-closed:**
+
+| Guard | Regra |
+|---|---|
+| `G0` | `resulting_card_id` precisa pertencer ao **próprio** `card_set_id`. Não é redundante com o filtro do job: `fk_catalog_import_row_resulting_card` é `REFERENCES card(id)` e prova **existência**, jamais pertença — um job legítimo do Set A com linha histórica apontando para Card do Set B passaria por todos os outros guards. |
+| `G1` | `external_id` → exatamente 1 `card_id`. |
+| `G2` | `card_id` → exatamente 1 `external_id`. |
+| `G3` | `external_id` precisa começar com `<external_set_id>-`. |
+| `G4` | Ambiguidade em qualquer direção **remove a identidade inteira** dos dois lados — nunca "pega o primeiro". |
+
+**Leitura completa, nunca truncada.** Os dois laços paginados (universo de pertença e
+linhas de lineage) usam `range()` explícito e **lançam** ao esgotar o teto
+(`CARD_SET_MEMBERSHIP_PAGINATION_EXHAUSTED` / `CATALOG_IMPORT_ROW_LINEAGE_PAGINATION_EXHAUSTED`)
+em vez de devolver mapa incompleto — um mapa truncado é indistinguível de um mapa correto.
+**Contrato de custo — por superfície, não por número fixo de queries.** A leitura usa
+**3 superfícies** por Set, sempre nesta ordem: `catalog_import_job` → `card` →
+`catalog_import_row`. **Cada superfície pode exigir paginação**, e o número de páginas
+depende do volume real daquele Set — **não há garantia de "3 queries sempre"**. No corpus
+LIVE de 2026-09-18 cada superfície normalmente cabe em **uma** página (máximos observados:
+279 Cards e 567 linhas de lineage num único Set, ambos abaixo do tamanho de página), mas
+isso é **medição datada, não contrato**. O que é contrato: **nenhuma consulta por linha**,
+e a paginação permanece **fail-closed** — nenhuma superfície devolve resultado truncado em
+silêncio.
+
+**Telemetria aditiva** no bloco `cards` da resposta: `correlated_by_reference` e
+`correlated_by_lineage`, contadas por `card_id` distinto. Invariante verdadeira por
+construção — os dois conjuntos são disjuntos porque a origem é decidida por um único `??`:
+
+```
+correlated === correlated_by_reference + correlated_by_lineage
+```
+
+Em Card Set com referência completa, `correlated_by_lineage = 0` — a prova de não-regressão
+viaja na própria resposta.
+
+**Prova LIVE read-only (2026-09-18, 169 Sets elegíveis / 16.705 Cards):** 16.705/16.705 com
+lineage; 15.978 pela referência primária; **727 somente por lineage**; **0** divergências
+onde ambos existem (15.978/15.978 concordam); **0** ambiguidades em cada direção; **0**
+reprovadas por `G0`; **0** Cards sem correlação. Sobreposição primário ∩ fallback = **0**,
+o que torna a não-regressão uma identidade aritmética, não uma política.
+
+**Canário LIVE — `EX5.5` (5 Cards, `card_external_reference` 0/5):** job final `STAGED`,
+5 rows, 5 `VALID`, 5 `NEW`, 5 `PENDING`, 5 Cards distintas, `error_summary` `null` ⇒
+`correlated = 5` · `correlated_by_reference = 0` · `correlated_by_lineage = 5` ·
+`uncorrelated = 0` · `fetch_failed = 0`. **O job canário permanece `STAGED` por decisão** —
+não confirmar, rejeitar, excluir nem recriar; `BULK-STAGING-01` deve tratá-lo como estado
+já existente dentro do desenho resumable/idempotente.
+
+**Gates locais:** `size-scope.test.ts` 81/81 PASS · `lineage-correlation.test.ts` 59/59 PASS
+(casos A–N, incluindo `M` — job correto com linha apontando para Card de outro Set) ·
+`deno check index.ts` PASS. **Deploy:** `import-card-variants` versão **12** LIVE,
+`verify_jwt=true`. **Nenhuma migration, nenhum SQL, nenhum backfill.**
+
+**Dívida registrada, não mascarada:** `listCardExternalReferencesMap` (intocada por
+não-regressão) não pagina e hoje lê no máximo 558 linhas por Set — 56% do teto padrão do
+PostgREST. Não é problema agora; fica anotado para quem mexer ali.
 
 ## Funções administrativas do fluxo de revisão/confirmação
 
