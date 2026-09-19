@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.6 |
+| **Versão** | 1.7 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`) e o **contrato de correlação Card ↔ fonte externa** do Variant Import, com o fallback determinístico por lineage (revisão `1.5`). |
+| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`), o **contrato de correlação Card ↔ fonte externa** do Variant Import com o fallback determinístico por lineage (revisão `1.5`) e o **consumo do staging pela Classe A** — `BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED`, `card_variant` 7.671 → 24.893 (revisão `1.7`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -2647,6 +2647,96 @@ editorial separada.
 futuro próprio. Não são pendência da campanha nem entram em nenhum denominador de
 conclusão: são escopo excluído por decisão, com evidência Set a Set congelada em
 `database/proposals/2026-09-18-bulk-staging-01/source-variant-coverage-169.md`.
+
+### `BULK-STP-01 / CLASS A` — consumo concluído (`EXECUTED / LIVE VALIDATED / CLOSED`, 2026-09-18)
+
+O staging construído acima foi **consumido**. A Classe A — as linhas `VALID` com decisão
+e persistência ainda `PENDING` — foi aprovada e confirmada em massa por runner efêmero
+de DevTools com sessão administrativa real
+(`database/proposals/2026-09-18-bulk-stp-01-class-a/`), reaproveitando **exclusivamente**
+os dois contratos que já estavam LIVE: `admin_decide_catalog_variant_import_row` (`2144`
+v2.0) e `admin_confirm_catalog_variant_import` (`2145` v2.0). **Nenhuma tabela, RPC,
+Edge Function, policy, grant ou migration nova.**
+
+**Baseline terminal medido por postcheck READ-ONLY externo ao runner:**
+
+| Fato | Valor |
+|---|---:|
+| TARGET (manifesto congelado) | **113** |
+| — `COMPLETED` | **51** |
+| — `STAGED` (retêm `NEEDS_REVIEW`) | **62** |
+| — `CONFIRMING` · `COMPLETED_WITH_ERRORS` · `FAILED` | **0 · 0 · 0** |
+| `card_variant` | **7.671 → 24.893** |
+| `persistence = INSERTED` | **17.222** |
+| `persistence = UNCHANGED` | **76** |
+| Classe A remanescente | **0** |
+| `NEEDS_REVIEW` | **1.642 — intactas** |
+| Identidades duplicadas | **0** |
+| `is_default = true` criado | **0** |
+
+**Executada em duas fases, com baselines mode-aware — o FULL nunca usou 7.671 como
+baseline físico:**
+
+| Execução | Escopo | Δ `card_variant` | Acumulado | Baseline de entrada |
+|---|---|---:|---:|---:|
+| `CANARY` | 4 jobs / 488 linhas (`FUT2020`, `NEO3`, `NEO1`, `BASE2`) | **+488** | +488 | 7.671 |
+| `FULL` | pós-CANARY | **+16.734** | **+17.222** | 8.159 |
+
+**As 76 linhas `SKIPPED` consolidaram em `UNCHANGED`** — JUMBO fora de escopo por
+`SIZE_OUT_OF_SCOPE` (`2199`) não vira Variante, e esse é o desfecho correto: o conjunto
+foi *fechado*, não materializado.
+
+**Garantias operacionais da campanha, verificadas e não apenas assumidas:** pertencimento
+decidido pelo **manifesto congelado dos 113**, nunca por `status` (`SM12` ficou fora por
+asserção explícita, não por consequência de filtro); `confirm` sempre com `p_row_ids`
+**explícito**, nunca `NULL`, de modo que o runner só escreveu o que enumerou e provou;
+deltas medidos por snapshot PRE/POST, nunca pelos contadores acumulados da RPC;
+`persistence_status = 'FAILED'` tratado como estado de primeira classe, **sem retry
+automático**. A premissa de concorrência (`CAMPAIGN FREEZE`) foi um **controle operacional
+aceito apenas para esta campanha efêmera** — não há lock no banco, a garantia era
+disciplina humana, e o runner a verificava em vez de confiar nela. **Encerrada com este
+closeout.**
+
+**O que permanece aberto — por decisão, não por pendência:**
+
+- **1.642 `NEEDS_REVIEW`** nos 62 TARGET ainda `STAGED`. São o resíduo taxonômico real:
+  combinações da fonte sem mapeamento para um `card_variant_type` canônico. Frente
+  editorial própria, **destravada por `VARIANT-DISPLAY-SEMANTICS-01`** — resolver
+  identidade e semântica de exibição antes de decidir caso a caso.
+- **56 `DEFERRED_SOURCE_COVERAGE`** seguem fora do escopo de materialização: 55 sem job
+  e `SM12` `STAGED` com 0 rows, preservado.
+
+### Nota de precisão — resíduo global fora dos 113 TARGET
+
+**Os dois eixos `PENDING` não coincidem e nunca devem ser citados sem qualificação.**
+`decision_status` e `persistence_status` são colunas distintas e independentes de
+`catalog_variant_import_row`: uma linha `SKIPPED` já está **decidida** e ainda assim
+permanece `persistence_status = 'PENDING'` até ser **confirmada**. Citar "`PENDING`" sem
+dizer de qual coluna se trata produz números que não fecham entre si.
+
+**2.077 linhas com `persistence_status = 'PENDING'` no total, sendo 1.642 nos TARGET e
+435 fora do manifesto.** Composição das 435:
+
+| Composição | Linhas |
+|---|---:|
+| `VALID` / `decision = SKIPPED` | **414** |
+| `NEEDS_REVIEW` / `decision = PENDING` | **14** |
+| `INVALID` / `decision = SKIPPED` | **6** |
+| `VALID` / `decision = PENDING` | **1** |
+| **Total** | **435** |
+
+Pelo eixo de decisão: **1.657 linhas com `decision_status = 'PENDING'` no total, sendo
+1.642 nos TARGET e apenas 15 fora do manifesto** (as 14 `NEEDS_REVIEW` + a 1 `VALID`
+acima). As 420 restantes das 435 já estão decididas como `SKIPPED` — aguardam apenas
+confirmação, não decisão editorial.
+
+Existem ainda **8** jobs históricos em `FAILED`, **todos com 0 rows** (jobs que falharam
+na abertura, não jobs com linhas falhadas); nenhum é o job corrente de um TARGET.
+`persistence_status = 'FAILED'` é **0 na tabela inteira**.
+
+Nada disso pertence a `BULK-STP-01 / CLASS A`, cujo escopo é o manifesto congelado dos
+113 — está registrado aqui para que o resíduo global não seja confundido com pendência
+da frente.
 
 ## Funções administrativas do fluxo de revisão/confirmação
 
