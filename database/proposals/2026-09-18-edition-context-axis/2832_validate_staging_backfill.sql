@@ -210,21 +210,68 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- V7 — ESTADOS E COUNTERS INALTERADOS (comparacao estrutural, nao numerica).
 -- ---------------------------------------------------------------------------
+-- CORRECAO DE PREMISSA (LINEAGE-SEMANTICS-CORRECTION-01).
+--
+-- A v3.1 afirmava "toda row INSERTED/UNCHANGED tem lineage". Isso e FALSO
+-- contra o contrato canonico do confirm (2145, e o futuro 2218):
+--
+--     decision_status = 'SKIPPED'
+--       -> persistence_status = 'UNCHANGED'
+--       -> CONTINUE (o loop pula a row)
+--       -> NENHUMA materializacao de card_variant
+--       -> lineage NAO e obrigatorio, por desenho.
+--
+-- SKIPPED significa "o administrador decidiu NAO persistir". Uma row assim
+-- termina em UNCHANGED sem nunca ter apontado para card_variant — e isso e o
+-- comportamento correto, nao um defeito. O gate antigo media 95 rows reais
+-- (todas SKIPPED+UNCHANGED, todas anteriores ao Batch 6) e abortava o harness
+-- inteiro sobre dado saudavel.
+--
+-- CONTRATO CORRETO, por classe:
+--   INSERTED sem resulting_variant_id .................... FAIL
+--     materializou Variant; o ponteiro TEM de existir.
+--   UNCHANGED + APPROVED sem resulting E sem matched ..... FAIL
+--     foi aprovada e reconciliada contra Variant existente; sem lineage,
+--     a reconciliacao nao aconteceu.
+--   UNCHANGED + SKIPPED sem lineage ...................... PERMITIDO
+--     contrato canonico; nao ha o que apontar.
+--   PENDING com resulting_variant_id ..................... FAIL (inalterado)
+--
+-- A correcao NAO enfraquece o caminho que materializa ou matcheia: INSERTED
+-- segue coberto integralmente, e UNCHANGED segue coberto em tudo que NAO for
+-- SKIPPED. O que sai da rede e exatamente — e somente — a combinacao que o
+-- contrato declara sem lineage.
 DO $$
 DECLARE v_n INT;
 BEGIN
-    -- Nenhuma row INSERTED/UNCHANGED perdeu lineage.
+    -- V7.a — INSERTED SEMPRE tem resulting_variant_id. Materializou, aponta.
     SELECT COUNT(*) INTO v_n FROM public.catalog_variant_import_row
-     WHERE persistence_status IN ('INSERTED','UNCHANGED')
-       AND resulting_variant_id IS NULL AND matched_variant_id IS NULL;
-    IF v_n <> 0 THEN RAISE EXCEPTION 'V7_FAIL: % rows terminais sem lineage.', v_n; END IF;
+     WHERE persistence_status = 'INSERTED' AND resulting_variant_id IS NULL;
+    IF v_n <> 0 THEN
+        RAISE EXCEPTION 'V7_FAIL: % rows INSERTED sem resulting_variant_id. Materializacao sem ponteiro.', v_n;
+    END IF;
 
-    -- Nenhuma row PENDING com lineage (state machine intacta).
+    -- V7.b — UNCHANGED que NAO foi SKIPPED precisa de lineage. APPROVED sem
+    -- resulting nem matched significa reconciliacao que nao aconteceu.
+    SELECT COUNT(*) INTO v_n FROM public.catalog_variant_import_row
+     WHERE persistence_status = 'UNCHANGED'
+       AND decision_status <> 'SKIPPED'
+       AND resulting_variant_id IS NULL AND matched_variant_id IS NULL;
+    IF v_n <> 0 THEN
+        RAISE EXCEPTION 'V7_FAIL: % rows UNCHANGED NAO-SKIPPED sem resulting/matched. SKIPPED+UNCHANGED sem lineage e contrato (2145); qualquer outra combinacao UNCHANGED sem lineage e defeito.', v_n;
+    END IF;
+
+    -- V7.c — nenhuma row PENDING com lineage (state machine intacta). INALTERADO.
     SELECT COUNT(*) INTO v_n FROM public.catalog_variant_import_row
      WHERE persistence_status = 'PENDING' AND resulting_variant_id IS NOT NULL;
     IF v_n <> 0 THEN RAISE EXCEPTION 'V7_FAIL: % rows PENDING com resulting_variant_id.', v_n; END IF;
 
-    RAISE NOTICE 'V7 OK — state machine e lineage intactos.';
+    -- EVIDENCIA (nao gate): quantas rows exercem o contrato SKIPPED+UNCHANGED.
+    -- Medida, nunca comparada com constante — o numero muda com a operacao.
+    SELECT COUNT(*) INTO v_n FROM public.catalog_variant_import_row
+     WHERE persistence_status = 'UNCHANGED' AND decision_status = 'SKIPPED'
+       AND resulting_variant_id IS NULL AND matched_variant_id IS NULL;
+    RAISE NOTICE 'V7 OK — state machine e lineage intactos. % rows SKIPPED+UNCHANGED legitimamente sem lineage (contrato 2145).', v_n;
 END $$;
 
 -- ---------------------------------------------------------------------------

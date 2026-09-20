@@ -51,6 +51,20 @@ SELECT j.status                                                      AS job_stat
        COUNT(*) FILTER (WHERE NOT jsonb_exists(r.normalized_data,'edition_context_profile_id')) AS sem_chave,
        COUNT(*) FILTER (WHERE r.resulting_variant_id IS NOT NULL)    AS com_resulting,
        COUNT(*) FILTER (WHERE r.matched_variant_id   IS NOT NULL)    AS com_matched,
+       -- MEDIDA EXATA DE AUSENCIA DE LINEAGE (LINEAGE-SEMANTICS-CORRECTION-02).
+       -- `com_resulting` e `com_matched` sao contagens INDEPENDENTES e a mesma
+       -- row pode entrar nas DUAS: o caminho APPROVED -> MATCHED -> UNCHANGED
+       -- grava resulting_variant_id E matched_variant_id. Logo a soma
+       -- (com_resulting + com_matched) NAO e uma contagem de rows com lineage
+       -- — e uma soma de ponteiros, e pode exceder `rows`. Usa-la como prova
+       -- de cobertura MASCARA rows sem lineage nenhum:
+       --     rows=10, com_resulting=9, com_matched=9  ->  9+9 >= 10  ->  PASS
+       --     ainda que UMA row esteja com os dois IDs NULL.
+       -- No LIVE ha 715 rows UNCHANGED com AMBOS os ids preenchidos — massa
+       -- de sobra para mascarar. Esta coluna conta ROWS, nao ponteiros, e e a
+       -- unica base legitima para o SM3.
+       COUNT(*) FILTER (WHERE r.resulting_variant_id IS NULL
+                          AND r.matched_variant_id   IS NULL)        AS sem_lineage,
        -- ===== COLUNAS DERIVADAS DO CONTRATO CANONICO 2145 =====
        -- pode_mutar: o job ainda aceita trabalho sobre a row.
        (j.status IN ('RECEIVED','PROCESSING','STAGED','CONFIRMING')
@@ -95,12 +109,47 @@ BEGIN
     v_pass := v_pass + 1;
 
     -- SM3 — nenhuma row terminal sem efeito registrado.
+    --
+    -- CORRECAO DE PREMISSA (LINEAGE-SEMANTICS-CORRECTION-01). A versao
+    -- anterior exigia lineage de TODA row UNCHANGED. Isso contraria o contrato
+    -- canonico do confirm (2145:314, e o futuro 2218):
+    --
+    --     decision_status = 'SKIPPED' -> persistence_status = 'UNCHANGED'
+    --       -> CONTINUE -> NENHUMA materializacao de card_variant
+    --       -> lineage NAO e obrigatorio.
+    --
+    -- A propria coluna derivada `pode_confirmar` acima ja documenta essa linha
+    -- do contrato; o gate e que nao a respeitava. Mesma semantica agora
+    -- aplicada em 2830 (V7/M2) e 2832 (V7).
+    --
+    --   INSERTED sem resulting ........................... FAIL
+    --   UNCHANGED + decision <> SKIPPED sem lineage ...... FAIL
+    --   UNCHANGED + SKIPPED sem lineage .................. PERMITIDO
+    --
+    -- Nao enfraquece o caminho que materializa/matcheia: INSERTED segue
+    -- integralmente coberto, e UNCHANGED segue coberto em tudo que nao for
+    -- SKIPPED.
+    --
+    -- CORRECAO ARITMETICA (LINEAGE-SEMANTICS-CORRECTION-02). A medida do ramo
+    -- UNCHANGED era `(com_resulting + com_matched) < rows`. Isso e INSEGURO:
+    -- as duas colunas contam ROWS independentemente e a MESMA row entra nas
+    -- duas quando o caminho APPROVED -> MATCHED -> UNCHANGED grava os dois
+    -- ids. A soma conta PONTEIROS, nao rows cobertas, e uma row sem lineage
+    -- nenhum fica mascarada pelas demais:
+    --     rows=10 · com_resulting=9 · com_matched=9 -> 18 >= 10 -> falso PASS
+    -- Contraexemplo minimo verificado: rows=2, com_resulting=1, com_matched=1
+    -- (uma row com AMBOS, outra com NENHUM) -> soma=2, 2 < 2 e FALSO -> o gate
+    -- antigo NAO dispara; `sem_lineage=1 > 0` -> o gate novo DISPARA.
+    -- A prova passa a ser a contagem EXATA de rows sem os dois ids.
     SELECT COALESCE(SUM(rows),0) INTO v_n FROM sm_matrix
      WHERE persistence_status = 'INSERTED' AND com_resulting < rows;
     IF v_n <> 0 THEN RAISE EXCEPTION 'SM3_FAIL: % rows INSERTED sem resulting_variant_id.', v_n; END IF;
-    SELECT COALESCE(SUM(rows),0) INTO v_n FROM sm_matrix
-     WHERE persistence_status = 'UNCHANGED' AND (com_resulting + com_matched) < rows;
-    IF v_n <> 0 THEN RAISE EXCEPTION 'SM3_FAIL: % rows UNCHANGED sem resulting/matched.', v_n; END IF;
+    SELECT COALESCE(SUM(sem_lineage),0) INTO v_n FROM sm_matrix
+     WHERE persistence_status = 'UNCHANGED'
+       AND decision_status <> 'SKIPPED';
+    IF v_n <> 0 THEN
+        RAISE EXCEPTION 'SM3_FAIL: % rows UNCHANGED NAO-SKIPPED sem resulting_variant_id E sem matched_variant_id. SKIPPED+UNCHANGED sem lineage e contrato (2145:314); qualquer outra combinacao e defeito.', v_n;
+    END IF;
     v_pass := v_pass + 1;
 
     -- SM4 — nenhuma row confirmavel ja persistida.

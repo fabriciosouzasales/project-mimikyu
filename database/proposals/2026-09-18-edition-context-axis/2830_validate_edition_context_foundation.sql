@@ -374,7 +374,15 @@
 --        chave. Zero delas significaria que a regra global teria bastado —
 --        e o predicado operacional não estaria sendo exercitado
 --   V6   coerência total: destino observado = destino recomputado, row a row
---   V7   estados e lineage inalterados (terminal tem lineage; PENDING não)
+--   V7   estados e lineage inalterados, **por CLASSE** (corrigido em
+--        `LINEAGE-SEMANTICS-CORRECTION-01`): `INSERTED` sem
+--        `resulting_variant_id` → FAIL · `UNCHANGED` com `decision_status`
+--        ≠ `SKIPPED` e sem `resulting`/`matched` → FAIL · **`UNCHANGED` +
+--        `SKIPPED` sem lineage → PERMITIDO** (contrato canônico 2145:314 —
+--        `SKIPPED` vira `UNCHANGED` por `CONTINUE`, sem materializar
+--        `card_variant`) · `PENDING` com `resulting_variant_id` → FAIL.
+--        A redação anterior — "terminal tem lineage" — era genérica demais e
+--        reprovava dado saudável
 --   V8   **lineage 1:N**: Variants com várias rows de mesmo raw_data não
 --        podem ter destinos divergentes — o destino vem da ROW, não da
 --        Variant. Nenhum DISTINCT ON, nenhuma "uma row por Variant"
@@ -396,8 +404,15 @@
 --   M1   vocabulário de persistence_status é conhecido (PENDING · INSERTED ·
 --        UNCHANGED · FAILED · SKIPPED). Um valor novo invalida a dicotomia
 --        OPERACIONAL/TERMINAL e aborta
---   M2   nenhuma row TERMINAL sem efeito: INSERTED tem resulting_variant_id;
---        UNCHANGED tem resulting ou matched
+--   M2   nenhuma row TERMINAL sem efeito, **por CLASSE** (corrigido em
+--        `LINEAGE-SEMANTICS-CORRECTION-01`): `INSERTED` tem
+--        `resulting_variant_id`; `UNCHANGED` com `decision_status` ≠
+--        `SKIPPED` tem `resulting` ou `matched`. **`UNCHANGED` + `SKIPPED`
+--        é exceção de CONTRATO**, não de dado: 2145:314 faz `SKIPPED` virar
+--        `UNCHANGED` por `CONTINUE`, sem materializar `card_variant` — não
+--        existe lineage a apontar. A redação anterior — "UNCHANGED tem
+--        resulting ou matched", sem qualificar — era genérica demais.
+--        Implementado em `2833` (SM3) e espelhado em `2832` (V7)
 --   M3   nenhuma row PENDING com resulting_variant_id
 --   M4   COBERTURA: toda combinação cai em OPERACIONAL ou TERMINAL
 --   M5   o predicado **não atinge** nenhuma combinação terminal — é esta a
