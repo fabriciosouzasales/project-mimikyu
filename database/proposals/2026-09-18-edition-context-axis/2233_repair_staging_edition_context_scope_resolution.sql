@@ -203,8 +203,63 @@ END $$;
 -- routing (2211) e a AUTORIDADE DE ESCOPO (resolve_variant_mapping_scope).
 -- A segunda e a correcao inteira desta Query — sem ela nao ha o que reparar.
 DO $$
-DECLARE v_t INT; v_p INT; v_m INT; v_scoped INT;
+DECLARE v_t INT; v_p INT; v_m INT; v_scoped INT; v_led INT;
 BEGIN
+    -- ------------------------------------------------------------------
+    -- PROVENANCE DO LEDGER (PUBLICATION-GATE-CORRECTION-01).
+    --
+    -- Ate aqui a Secao 2 do cabecalho DOCUMENTAVA a provenance — 2212 uma
+    -- unica vez, 2214 ainda nao executada — mas nada a VERIFICAVA. Prosa nao
+    -- e gate. Se o LIVE divergir do que o cabecalho afirma, o reparo estaria
+    -- operando sobre um mundo diferente do que a premissa descreve, e os
+    -- gates numericos seguintes (1026/616/0, delta 66) poderiam ate passar
+    -- por coincidencia sobre um estado de origem distinta.
+    --
+    -- Duas assercoes, ambas fail-closed, ambas ANTES de qualquer write.
+    -- ------------------------------------------------------------------
+
+    -- LEDGER-1 — a 2212 rodou EXATAMENTE 1x, e essa 1x foi a versao
+    -- registrada. Sao DUAS condicoes, e uma nao implica a outra.
+    --
+    -- CORRECAO (PUBLICATION-GATE-CORRECTION-02). A versao anterior media
+    -- apenas o par (version, name) e exigia = 1. Isso prova que a combinacao
+    -- exata ocorreu uma vez, mas NAO prova unicidade da migration: uma
+    -- SEGUNDA entrada com o MESMO name e OUTRA version — reexecucao
+    -- reetiquetada, replay, aplicacao manual — passaria em silencio, que e
+    -- exatamente o defeito que este gate existe para pegar.
+    --
+    -- 1a) CARDINALIDADE POR NAME. O universo e o name, nao o par. Aqui se
+    --     prova "executada exatamente uma vez", qualquer que seja a version.
+    SELECT COUNT(*) INTO v_led
+      FROM supabase_migrations.schema_migrations m
+     WHERE m.name = '2212_backfill_staging_edition_context_key';
+    IF v_led <> 1 THEN
+        RAISE EXCEPTION 'RP_LEDGER_2212_CARDINALITY: esperada EXATAMENTE 1 entrada no ledger com name=''2212_backfill_staging_edition_context_key'' (qualquer version); encontradas %. 0 = nao executada; >1 = executada mais de uma vez, violando o contrato de rollout de 1x. PARAR.', v_led;
+    END IF;
+
+    -- 1b) IDENTIDADE DA VERSION. Provada a unicidade, resta provar que a
+    --     unica entrada e a versao que o contrato nomeia. Se for outra, o
+    --     estado 1026/616/0 tem origem diferente da premissa deste reparo.
+    SELECT COUNT(*) INTO v_led
+      FROM supabase_migrations.schema_migrations m
+     WHERE m.version = '20260920172947'
+       AND m.name    = '2212_backfill_staging_edition_context_key';
+    IF v_led <> 1 THEN
+        RAISE EXCEPTION 'RP_LEDGER_2212_PROVENANCE: a unica entrada de ''2212_backfill_staging_edition_context_key'' NAO tem version=''20260920172947'' (encontradas % com esse par). A provenance do estado LIVE nao confere com a premissa deste reparo. PARAR.', v_led;
+    END IF;
+
+    -- LEDGER-2 — a 2214 NAO rodou. Redundante por desenho com
+    -- RP_GUARD_ALREADY_PROMOTED (que inspeciona o prosrc do guard), e isso e
+    -- deliberado: uma evidencia e o REGISTRO da execucao, a outra e o EFEITO
+    -- dela no objeto. Se as duas discordarem, o ledger e o objeto estao
+    -- fora de sincronia — condicao que tambem merece PARAR.
+    SELECT COUNT(*) INTO v_led
+      FROM supabase_migrations.schema_migrations m
+     WHERE m.name = '2214_promote_valid_requires_edition_context_key';
+    IF v_led <> 0 THEN
+        RAISE EXCEPTION 'RP_LEDGER_2214_ALREADY_RUN: encontradas % entradas no ledger para ''2214_promote_valid_requires_edition_context_key''; esperado ZERO. O guard ESTRITO (Batch 8-BIS) ja foi promovido e este reparo do Batch 6 esta fora de ordem. PARAR.', v_led;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                     WHERE n.nspname='internal' AND p.proname='resolve_variant_row_axes') THEN
         RAISE EXCEPTION 'RP_ROUTING_MISSING: internal.resolve_variant_row_axes() ausente. Rode a Query 2211 antes.';
