@@ -444,17 +444,69 @@ SELECT count(*) AS nao_nulas FROM public.card_variant             -- 0
 
 ---
 
-## Batch 5 — STAGING: resolução + provas + guard
+## Batch 5 — IDENTIDADE DE STAGING + ROUTING
+
+> **REORDENADO (`ROLLOUT-DEPENDENCY-CORRECTION-01`).** Até esta correção, o
+> Batch 5 executava a `2212` e o Batch 6 instalava `2210`/`2211` — ou seja, o
+> plano rodava a `2212` **antes** dos seus dois predecessores. Isso é
+> impossível por construção, e os próprios artefatos dizem: a `2212` aborta com
+> `ROUTING_MISSING: rode a Query 2211 antes` e chama
+> `internal.resolve_variant_row_axes()`, que nasce na `2211`; e a sua PROVA DE
+> NÃO-COLISÃO pressupõe `uq_cvir_row_identity`, que nasce na `2210`. O `DAG.md`
+> já declarava `2212 → predecessores 2210 · 2211 · 2232`: a tabela estava
+> certa, a projeção operacional é que estava invertida. Batches 5 e 6 trocaram
+> de conteúdo; a numeração foi preservada.
+
+| Ordem | Artefato |
+|---|---|
+| 1 | `2210` · `axis_identity_token` + `uq_cvir_row_identity` + guard permissivo |
+| 2 | `2211` · `resolve_variant_row_axes()` — contrato terminal |
+
+**Postcheck:**
+```sql
+SELECT count(*) AS idx FROM pg_class                       -- 1
+ WHERE relname='uq_cvir_row_identity';
+
+SELECT p.proname, p.prosecdef, p.proconfig                 -- resolve: secdef=t, search_path
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname='internal'
+   AND p.proname IN ('axis_identity_token','resolve_variant_row_axes');
+
+SELECT count(*) AS grant_indevido                          -- 0
+  FROM information_schema.role_routine_grants
+ WHERE routine_schema='internal' AND routine_name='resolve_variant_row_axes'
+   AND grantee IN ('anon','authenticated','PUBLIC');
+```
+**Prosseguir se:** idx=1 · as 2 funções presentes · `resolve_variant_row_axes`
+com `prosecdef=true` e `search_path` · grant_indevido=0.
+
+---
+
+## Batch 6 — RESOLUÇÃO OPERACIONAL + PROVAS
 
 | Ordem | Artefato | Natureza |
 |---|---|---|
 | 1 | `2212` | **write** — resolução operacional |
 | 2 | `2832` | prova, `ROLLBACK` |
 | 3 | `2833` | prova, `ROLLBACK` |
-| 4 | `2214` | **write** — guard de transição |
 
-`2832`/`2833` rodam **entre** o backfill e o guard, de propósito: provam o
-predicado contra as combinações reais **antes** de ele virar obrigatório.
+Pré-condição dura: **`2210` e `2211` LIVE** (Batch 5) e **`2232` LIVE**
+(Batch 2). A `2212` os verifica ela mesma — `ROUTING_MISSING` e
+`VOCABULARY_MISSING` — e aborta antes de qualquer write.
+
+**O guard `2214` saiu deste batch** e passou ao **Batch 8-BIS**, depois da
+Edge. Ver a nota de posicionamento lá: promover o guard estrito antes de
+existir um produtor capaz de gerar a chave nova tornaria a própria importação
+irrecuperável durante a janela.
+
+`2832`/`2833` rodam **entre** a resolução e o guard, de propósito: provam o
+predicado contra as combinações reais **antes** de ele virar obrigatório —
+agora com o guard duas etapas adiante, não uma.
+
+**A `2212` é executável VERBATIM** desde a v3.1: o `PASSO 0` resolve
+`game.code='POKEMON'` e `asset_source.code='TCGDEX'` por consulta, com
+preflight fail-loud de exatamente-um. Não há UUID a colar, e **nenhuma edição
+manual do arquivo durante a execução**.
 
 **Postcheck:**
 ```sql
@@ -487,36 +539,10 @@ SELECT
 | `2833` | 11/11 |
 | `cancelled_sem_chave_total` | **847 → 847** (idêntico a B3.2) |
 | `cancelled_valid_pending_sem_chave` | **415 → 415** (idêntico a B3.2) |
+| `bf_params` | resolvido por code, **1 linha**, zero NULL (`BF_GAME_REFERENCE` / `BF_SOURCE_REFERENCE` / `BF_PARAMS_CARDINALITY` não dispararam) |
 
 Os dois números de `CANCELLED` são comparados **separadamente**. Qualquer um
 que mude prova que a `2212` vazou para o histórico terminal — **STOP**.
-
----
-
-## Batch 6 — IDENTIDADE DE STAGING + ROUTING
-
-| Ordem | Artefato |
-|---|---|
-| 1 | `2210` · `axis_identity_token` + `uq_cvir_row_identity` + guard permissivo |
-| 2 | `2211` · `resolve_variant_row_axes()` — contrato terminal |
-
-**Postcheck:**
-```sql
-SELECT count(*) AS idx FROM pg_class                       -- 1
- WHERE relname='uq_cvir_row_identity';
-
-SELECT p.proname, p.prosecdef, p.proconfig                 -- resolve: secdef=t, search_path
-  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
- WHERE n.nspname='internal'
-   AND p.proname IN ('axis_identity_token','resolve_variant_row_axes');
-
-SELECT count(*) AS grant_indevido                          -- 0
-  FROM information_schema.role_routine_grants
- WHERE routine_schema='internal' AND routine_name='resolve_variant_row_axes'
-   AND grantee IN ('anon','authenticated','PUBLIC');
-```
-**Prosseguir se:** idx=1 · as 2 funções presentes · `resolve_variant_row_axes`
-com `prosecdef=true` e `search_path` · grant_indevido=0.
 
 ---
 
@@ -556,6 +582,62 @@ Só aqui: antes, as tabelas que o preload lê não existiam.
 mesmo `edition-context-axis-vectors.json`**.
 
 **Prosseguir se:** DB e Edge concordam vetor a vetor.
+
+---
+
+## Batch 8-BIS — GUARD ESTRITO (`2214`)
+
+> **REPOSICIONADO (`ROLLOUT-DEPENDENCY-CORRECTION-01`).** A `2214` estava no
+> Batch 5, **antes** dos consumidores e da Edge. O `DAG.md` já declarava
+> `2214 → predecessores 2833 · Edge deployada`: de novo, a tabela estava certa
+> e a projeção operacional divergia.
+>
+> **Por que a ordem importa, e não é formalidade.** A `2214` é o guard que
+> passa a **exigir** a chave de contexto de toda row operacional
+> `PENDING + VALID`. Promovê-la antes da Edge capaz de produzir essa chave
+> cria uma janela em que o produtor ainda escreve no contrato antigo e o banco
+> já recusa o contrato antigo — importação quebrada, e quebrada de um jeito
+> que o FREEZE esconde em vez de proteger, porque o defeito só apareceria no
+> UNFREEZE. Com a Edge LIVE e validada vetor a vetor (Batch 8), o guard passa
+> a exigir algo que já existe.
+
+| Ordem | Artefato | Natureza |
+|---|---|---|
+| 1 | `2214` | **write** — guard de transição operacional |
+
+Pré-condição dura: **`2833` PASS** (Batch 6) **e Edge LIVE e validada**
+(Batch 8). A semântica do guard não mudou — continua job-aware, continua
+exigindo a chave só do universo operacional, e continua não tocando histórico.
+
+**Postcheck:**
+```sql
+-- Guard instalado e job-aware. Esperado: 1 trigger, BEFORE, ROW.
+SELECT t.tgname, (t.tgtype & 1)::bool AS is_row, (t.tgtype & 2)::bool AS is_before
+  FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+ WHERE NOT t.tgisinternal AND c.relname = 'catalog_variant_import_row'
+   AND t.tgname LIKE '%edition_context%';
+
+-- Nenhuma row OPERACIONAL VALID sem a chave — o guard não teria o que recusar.
+SELECT count(*) AS operacional_sem_chave                    -- esperado: 0
+  FROM public.catalog_variant_import_row r
+  JOIN public.catalog_variant_import_job j ON j.id = r.job_id
+ WHERE j.status IN ('RECEIVED','PROCESSING','STAGED','CONFIRMING')
+   AND r.persistence_status='PENDING' AND r.validation_status='VALID'
+   AND NOT (r.normalized_data ? 'edition_context_profile_id');
+
+-- Histórico terminal segue intocado — os MESMOS dois predicados do Batch 3.
+SELECT
+  count(*)                                                   AS cancelled_sem_chave_total,          -- 847
+  count(*) FILTER (WHERE r.validation_status = 'VALID'
+                     AND r.persistence_status = 'PENDING')    AS cancelled_valid_pending_sem_chave   -- 415
+  FROM public.catalog_variant_import_row r
+  JOIN public.catalog_variant_import_job j ON j.id = r.job_id
+ WHERE j.status = 'CANCELLED'
+   AND NOT (r.normalized_data ? 'edition_context_profile_id');
+```
+
+**Prosseguir se:** guard presente · `operacional_sem_chave = 0` ·
+`847 → 847` e `415 → 415`.
 
 ---
 

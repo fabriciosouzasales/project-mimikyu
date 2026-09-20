@@ -1,7 +1,25 @@
 -- ============================================================================
 -- Query 2212 — RESOLUÇÃO DO UNIVERSO OPERACIONAL (ex-backfill global)
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.0
+-- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.1
 -- CORREÇÕES 4 e 7 da OPERATIONAL-BOUNDARY-CORRECTION-01
+--          + ROLLOUT-DEPENDENCY-CORRECTION-01 (v3.1, BLOCKER C)
+--
+-- v3.1 — bf_params DETERMINISTICO. Unica mudanca funcional: o PASSO 0 deixa de
+--   nascer NULL e abortar em BF_PARAMS_UNSET, e passa a resolver as duas
+--   referencias canonicas por code ('POKEMON' / 'TCGDEX'), com preflight
+--   fail-loud de exatamente-um ANTES de qualquer write. O arquivo passa a ser
+--   executavel VERBATIM, sem edicao manual durante a execucao.
+--   Nada mais mudou: universo operacional, routing, gates, provas e o
+--   tratamento de CANCELLED/historico sao byte a byte os da v3.0.
+--
+-- PREDECESSORES OBRIGATORIOS (ROLLOUT-DEPENDENCY-CORRECTION-01):
+--   2210 — uq_cvir_row_identity + axis_identity_token. A PROVA DE NAO-COLISAO
+--          desta Query pressupoe o indice ja existente (ver linha ~290).
+--   2211 — internal.resolve_variant_row_axes(). O PASSO 1 aborta com
+--          ROUTING_MISSING sem ela, e o PASSO 3 a chama diretamente.
+--   2232 — vocabulario ativo (gate VOCABULARY_MISSING no PASSO 1).
+--   Esta Query NAO pode preceder nenhum dos tres. Ordem operacional vigente:
+--   Batch 5 (2210 -> 2211) ANTES do Batch 6 (2212 -> 2832 -> 2833).
 --
 -- ============================================================================
 -- O BACKFILL GLOBAL FOI ELIMINADO
@@ -55,13 +73,57 @@
 BEGIN;
 
 -- ---------------------------------------------------------------- PASSO 0 ---
-CREATE TEMP TABLE bf_params ON COMMIT DROP AS
-SELECT NULL::UUID AS game_id, NULL::UUID AS asset_source_id;
-
+-- PREFLIGHT DE REFERENCIAS + bf_params DETERMINISTICO
+-- (ROLLOUT-DEPENDENCY-CORRECTION-01, BLOCKER C)
+--
+-- A versao anterior criava bf_params com game_id/asset_source_id NULL e
+-- abortava imediatamente em BF_PARAMS_UNSET. O arquivo NAO era executavel
+-- verbatim: exigia que alguem editasse o SQL no meio da execucao para colar
+-- dois UUID. Isso contraria o proprio contrato de rollout — artefato publicado
+-- roda como esta, ou nao roda.
+--
+-- Correcao: resolver as duas referencias canonicas POR CODE, exatamente como
+-- 2230/2231/2232 passaram a fazer em BATCH2-GAME-CODE-CORRECTION-01. Sem UUID
+-- hardcoded — o valor vem do banco, nao do arquivo.
+--
+-- O preflight roda ANTES de bf_params existir e exige EXATAMENTE UM de cada:
+--   0  -> referencia ausente; sem ela o CROSS JOIN LATERAL da PASSO 3
+--         resolveria o eixo contra parametro NULL;
+--   >1 -> ambiguo; bf_params teria N linhas e o CROSS JOIN multiplicaria o
+--         plano de backfill por N. E por isso que o teste e <> 1, nao > 0.
+--
+-- Nenhum objeto permanente, nenhuma mudanca no modelo multi-Game: e assercao
+-- local, do tamanho do problema, com excecao NOMEADA por referencia.
 DO $$
+DECLARE v_game INT; v_src INT;
 BEGIN
+    SELECT COUNT(*) INTO v_game FROM public.game         WHERE code = 'POKEMON';
+    IF v_game <> 1 THEN
+        RAISE EXCEPTION 'BF_GAME_REFERENCE (2212): esperado EXATAMENTE 1 Game com code=''POKEMON'', encontrado %. Abortado antes de qualquer escrita.', v_game;
+    END IF;
+
+    SELECT COUNT(*) INTO v_src FROM public.asset_source WHERE code = 'TCGDEX';
+    IF v_src <> 1 THEN
+        RAISE EXCEPTION 'BF_SOURCE_REFERENCE (2212): esperado EXATAMENTE 1 asset_source com code=''TCGDEX'', encontrado %. Abortado antes de qualquer escrita.', v_src;
+    END IF;
+END $$;
+
+CREATE TEMP TABLE bf_params ON COMMIT DROP AS
+SELECT (SELECT id FROM public.game         WHERE code = 'POKEMON') AS game_id,
+       (SELECT id FROM public.asset_source WHERE code = 'TCGDEX')  AS asset_source_id;
+
+-- Defesa redundante: o preflight acima ja garante a resolucao. Este gate
+-- permanece porque e barato e porque prova, no proprio artefato, que
+-- bf_params tem UMA linha REAL — nunca NULL, nunca duplicada.
+DO $$
+DECLARE v_n INT;
+BEGIN
+    SELECT COUNT(*) INTO v_n FROM bf_params;
+    IF v_n <> 1 THEN
+        RAISE EXCEPTION 'BF_PARAMS_CARDINALITY: bf_params deveria ter EXATAMENTE 1 linha, tem %.', v_n;
+    END IF;
     IF EXISTS (SELECT 1 FROM bf_params WHERE game_id IS NULL OR asset_source_id IS NULL) THEN
-        RAISE EXCEPTION 'BF_PARAMS_UNSET: preencher bf_params.game_id e asset_source_id.';
+        RAISE EXCEPTION 'BF_PARAMS_UNSET: bf_params.game_id ou asset_source_id resolveu NULL apesar do preflight.';
     END IF;
 END $$;
 

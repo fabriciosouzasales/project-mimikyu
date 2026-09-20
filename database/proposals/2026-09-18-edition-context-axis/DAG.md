@@ -60,15 +60,15 @@ coluna existe do lado de `card_variant`.
                   2833 matriz de state machine (11) — job-aware
                                    │
                                    ▼
-                     2214 guard de TRANSIÇÃO OPERACIONAL
-                                   │
-                                   ▼
                  2219–2222  consumidores B  (classe B)
                            │
                            ▼
                  EDGE patch + 7 testes Deno
                            │
                            ▼
+            2214 guard de TRANSIÇÃO OPERACIONAL   ◀── DEPOIS da Edge:
+                           │                          o guard exige a chave
+                           ▼                          que só a Edge produz
                  2217  EXPAND   cria a de 7 · preserva a de 6
                            │
                            ▼
@@ -89,7 +89,7 @@ coluna existe do lado de `card_variant`.
                  2830 harness completo
                            │
                            ▼
-                 read models C  ──▶  UNFREEZE
+                      UNFREEZE
                            │
                            ▼
                  2831 simulação ──▶ 2213 migration real (285)
@@ -107,7 +107,13 @@ coluna existe do lado de `card_variant`.
 | `2206` | 2205 | 2231 | ❌ |
 | `2207` | 2203 | 2211 · 2232 | ✅ com 2204–2206 |
 | `2208` | — | 2210 · 2217 · 2209 | ✅ com 2203–2207 |
-| `2230` | 2203 · 2208 | 2231 | ✅ com 2210/2211 |
+<!-- `2230` NÃO depende de `2208` (ROLLOUT-DEPENDENCY-CORRECTION-01): a tabela
+     declarava `2230 | 2203 · 2208`, dependência falsa. `2230` semeia
+     card_edition_context_trait e não lê nem escreve card_variant. Prova pelo
+     executado: `2230`/`2231`/`2232` entraram LIVE no Batch 2 e a `2208` só no
+     Batch 4 — a ordem real já contradizia a aresta. -->
+
+| `2230` | 2203 | 2231 | ✅ com 2210/2211 |
 | `2231` | 2230 · 2204 · 2205 · 2206 | 2232 | ❌ |
 | `2232` | 2231 · 2207 | 2211 (routing útil) | ❌ |
 | `2210` | 2208 | 2212 | ✅ com 2211 e com o seed |
@@ -134,14 +140,38 @@ coluna existe do lado de `card_variant`.
 
 ## Ordem topológica válida
 
-`2840` (probe T1) → `2203` → `2204` → `2205` → `2206` → `2207` → `2208` →
-`2210` → `2211` → `2230` → `2231` → `2232` → **`0 FREEZE`** → *baseline* →
-`2212` → `2832` → `2833` → `2219`…`2222` → **Edge** → `2214` →
-**`2217` (EXPAND)** → **`2218` (SWITCH)** → **`2223` (CONTRACT)** →
-`2209` → `2215` → `2216` → `2830` → read models C → `UNFREEZE` →
-`2831` → `2213`
+> **RECONCILIADA COM O EXECUTADO (`ROLLOUT-DEPENDENCY-CORRECTION-01`).** A
+> sequência abaixo é a ordem **efetivamente seguida** até aqui, e a ordem
+> **planejada** daqui para a frente. A versão anterior punha `2210`/`2211`
+> antes dos seeds e a `2208` antes de todos eles; o LIVE fez diferente — e o
+> LIVE está correto. Não se reescreve histórico: o que foi executado está
+> marcado, e o que resta é projeção.
 
-**28 passos.** Todo predecessor da tabela acima aparece antes de seu sucessor.
+**JÁ EXECUTADO** — `2840` (probe T1, 7/7) → `2203` → `2204` → `2205` →
+`2206` → `2207` *(Batch 1)* → `2230` → `2231` → `2232` *(Batch 2)* →
+**`FREEZE`** → *baseline `1642` / `847` / `415`* *(Batch 3)* → `2208`
+*(Batch 4)*
+
+**A EXECUTAR** — `2210` → `2211` *(Batch 5)* → `2212` → `2832` → `2833`
+*(Batch 6)* → `2219`…`2222` → `2834` *(Batch 7)* → **Edge** *(Batch 8)* →
+`2214` *(Batch 8-BIS)* → **`2217` (EXPAND)** → **`2218` (SWITCH)** →
+**`2223` (CONTRACT)** *(Batch 9)* → `2209` *(Batch 10)* → `2215` → `2216`
+*(Batch 11)* → `2830` → `UNFREEZE` *(Batch 12)* → `2831` → `2213`
+
+**27 passos.** Todo predecessor da tabela acima aparece antes de seu sucessor.
+
+**Duas correções de ordem nesta rodada**, ambas porque a projeção operacional
+divergia da tabela de dependências — que já estava certa nos dois casos:
+
+- **`2212` desceu para depois de `2210`/`2211`.** Ela aborta com
+  `ROUTING_MISSING` sem a `2211` e a sua prova de não-colisão pressupõe
+  `uq_cvir_row_identity`, da `2210`.
+- **`2214` desceu para depois da Edge.** O guard estrito só pode exigir a
+  chave nova depois de existir um produtor capaz de gerá-la.
+
+A etapa *"read models C"* saiu da sequência: foi removida em
+`ROLLOUT-PREFLIGHT-CORRECTION-01` por não ter artefato, arquivo nem ação — a
+linha aqui era resíduo.
 
 ### Mudança de ordem na `BACKFILL-SEMANTICS-CORRECTION-01`
 
