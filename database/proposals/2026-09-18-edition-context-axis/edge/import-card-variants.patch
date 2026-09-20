@@ -1,0 +1,592 @@
+EDGE PATCH — supabase/functions/import-card-variants/
+EDGE-D3-FINAL-CORRECTION-01 · rev 3.0
+  rev 2.0 (WRITE-PATH-STAGING-01) fechou D3 mas era FAIL-OPEN para mapping
+  conhecido sem routing ativo. rev 3.0 corrige: dois estados novos, universo
+  de escopo explicito, e paridade amarrada a uma fixture compartilhada.
+Status: PROPOSTA — NÃO APLICADA. Nenhum arquivo real de supabase/ foi tocado.
+
+Formato: unified diff reproduzível, com âncoras verificadas no arquivo real
+do repositório. Aplicar com `git apply` a partir da raiz.
+
+ÂNCORAS CONFERIDAS (index.ts, estado atual do repositório):
+  · 125–140  cabeçalho "PHASE C — ROTEAMENTO DE IMPRESSÃO"
+  · 142–177  tipos PrintingState / PrintingIndex / PrintingRouting
+  · 180–224  buildPrintingIndex()
+  · 238–33x  routePrinting()
+  · 575–588  Promise.all de preloads + buildPrintingIndex()
+  · 895–925  routePrinting() + variantTypeId + printingResolved + isValid
+  · 954/969  chaves de dedupe R| e de matching
+  · 1004–1011 montagem de normalized_data + telemetria
+
+================================================================================
+CORREÇÃO DE PREMISSA — a rev 1.0 deste patch estava errada sobre a arquitetura
+================================================================================
+
+A rev 1.0 afirmava, no DIFF 3:
+
+    "editionContext NÃO é resolvido em TypeScript. Vem do contrato terminal
+     único do servidor — internal.resolve_variant_row_axes() (Query 2211)."
+
+**É falso para esta Edge Function.** O cabeçalho da PHASE C (index.ts:128-134)
+declara literalmente o contrário para o eixo de Impressão:
+
+    "Espelho, em memória, do contrato que
+     internal.compute_variant_residual_signature() (Query 2176 v1.1) já
+     aplica no banco. As duas implementações precisam concordar: a Edge
+     produz o staging, e a RPC de ratificação reavalia o MESMO dado depois."
+
+Ou seja: a Edge JÁ é uma segunda implementação do roteamento, por decisão
+arquitetural documentada, com a reconciliação no servidor como rede de
+segurança. Propor o eixo 3 como "consumidor de contrato" enquanto o eixo 1
+é espelho criaria DUAS arquiteturas diferentes para dois eixos do mesmo
+roteamento — pior que qualquer uma das duas isolada.
+
+================================================================================
+D3 — DECISÃO FECHADA: espelho em memória (opção A)
+================================================================================
+
+  | Opção | Round-trips | Autoridade | Veredito |
+  |---|---|---|---|
+  | **A. espelho em memória, simétrico à PHASE C** | +3 preloads por JOB | dupla, reconciliada no servidor | ✅ **ESCOLHIDA** |
+  | B. RPC `resolve_variant_row_axes` por LINHA | +1 por ROW (~400 num Set) | única | ❌ |
+  | C. RPC de resolução em lote | +1 por lote | única | ❌ nesta rodada |
+
+**Por que A.** É o padrão já vigente e já auditado desta função. O custo de
+preload é por JOB e não por linha — o mesmo perfil dos seis preloads que já
+existem no `Promise.all` de index.ts:570-587. A divergência TS↔SQL é um risco
+já assumido e já gerenciado: a confirmação (2218) e os workers (2219/2221/2222)
+re-derivam pelo contrato do servidor, então uma divergência aparece como
+mudança de estado da linha — visível e auditável —, nunca como corrupção
+silenciosa.
+
+**Por que não B.** Um Set típico tem centenas de linhas; uma RPC por linha
+transforma um job de segundos em minutos e multiplica a superfície de falha
+de rede por N. O ganho — autoridade única — é anulado na prática: o staging
+produzido continua sendo reavaliado no servidor de qualquer forma.
+
+**Por que não C.** Seria um artefato SQL novo, fora do escopo deste mandato,
+e o pacote já tem 5 artefatos de caminho de escrita a estabilizar. Fica
+registrada como evolução possível se a medição de custo do preload mudar —
+e apenas nesse caso.
+
+**Dívida que A cria, declarada:** um terceiro espelho a manter em sincronia
+com 2211.
+
+**Mitigação concreta, e é ela que torna a opção A defensável.** Os dois lados
+consomem UMA fixture canônica —
+`test-vectors/edition-context-axis-vectors.json`, 17 vetores, 8/8 estados do
+vocabulário cobertos. Os `expected` existem SÓ nesse arquivo; nenhum runner
+declara o seu. O runner SQL é o `2834`; o runner TypeScript é
+`edge/edition-context.test.ts`. Precedente idêntico:
+`2026-09-14-card-variant-mapping-source-set-scope` (harness `2826` Seção 4 +
+`variant-scope-vectors.test.ts`).
+
+> "harness SQL passa E testes TS passam" NÃO é prova de paridade quando os
+> expected são independentes — cada lado provaria a própria opinião. A
+> fixture única é o que transforma duas suítes verdes em uma afirmação sobre
+> equivalência.
+
+================================================================================
+DIFF 1 — services/database.ts : chave de matching 3 -> 4 componentes
+================================================================================
+
+--- a/supabase/functions/import-card-variants/services/database.ts
++++ b/supabase/functions/import-card-variants/services/database.ts
+@@
+ export const NO_PRINTING_PROFILE_KEY = "~";
+
+ export function buildPrintingProfileKeyPart(printingProfileId: string | null | undefined): string {
+   return printingProfileId ?? NO_PRINTING_PROFILE_KEY;
+ }
++
++// Sentinela do TERCEIRO eixo. Mesma razão, mesmo alfabeto: `~` (0x7E) não
++// pertence a um UUID canônico, então nenhum UUID real colide com ele.
++//
++// Um sentinela SEPARADO do de Printing não é preciosismo: as duas partes
++// ocupam posições distintas na chave e precisam ser lidas de forma
++// independente em telemetria e log. Reaproveitar a mesma constante tornaria
++// impossível distinguir "sem tiragem" de "sem contexto" ao inspecionar a
++// chave crua.
++export const NO_EDITION_CONTEXT_KEY = "~";
++
++export function buildEditionContextKeyPart(
++  editionContextProfileId: string | null | undefined,
++): string {
++  return editionContextProfileId ?? NO_EDITION_CONTEXT_KEY;
++}
+@@
+ export async function listExistingCardVariantsMap(
+   supabase: any,
+   cardIds: string[],
+ ): Promise<Map<string, string>> {
+   if (cardIds.length === 0) return new Map();
+
+   const { data, error } = await supabase
+     .from("card_variant")
+-    .select("id, card_id, variant_type_id, printing_profile_id")
++    .select("id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id")
+     .in("card_id", cardIds);
+
+   if (error) {
+     console.error(error);
+     throw new Error("CARD_VARIANT_QUERY_FAILED");
+   }
+
+   return new Map<string, string>(
+     (data ?? []).map((row: any) => [
+-      `${row.card_id}|${row.variant_type_id}|${buildPrintingProfileKeyPart(row.printing_profile_id)}`,
++      `${row.card_id}|${row.variant_type_id}|${buildPrintingProfileKeyPart(row.printing_profile_id)}|${buildEditionContextKeyPart(row.edition_context_profile_id)}`,
+       row.id,
+     ]),
+   );
+ }
+
+ POR QUE ISTO É BLOQUEANTE, E NÃO COSMÉTICO
+ A chave de 3 partes é usada para decidir MATCHED × NEW. Com o eixo novo em
+ vigor, duas Variants reais da mesma Card que difiram só em contexto de
+ edição produzem a MESMA chave de 3 partes — a segunda seria classificada
+ MATCHED contra a primeira e nunca seria criada. É literalmente o defeito
+ que o comentário da Query 2179 já descreve para o eixo de Printing,
+ repetido um eixo adiante.
+
+================================================================================
+DIFF 1b — services/database.ts : preloads do eixo 3
+================================================================================
+
++// Preloads do eixo de Contexto de Edição. MESMO PERFIL dos preloads de
++// Printing: número fixo de queries por JOB, jamais por linha.
++//
++// O de mappings traz ativos E inativos, e traz `external_set_id`, porque a
++// precedência escopado > global é resolvida em memória — exatamente como a
++// Query 2211 a resolve em SQL.
++export async function listEditionContextExternalMappings(
++  supabase: any,
++  gameId: string,
++  assetSourceId: string,
++) {
++  const { data, error } = await supabase
++    .from("card_edition_context_external_mapping")
++    .select("game_id, asset_source_id, external_set_id, raw_field, normalized_token, traits_signature, is_active")
++    .eq("game_id", gameId)
++    .eq("asset_source_id", assetSourceId);
++  if (error) { console.error(error); throw new Error("EDITION_CONTEXT_MAPPING_QUERY_FAILED"); }
++  return data ?? [];
++}
++
++export async function listActiveEditionContextProfiles(supabase: any, gameId: string) {
++  const { data, error } = await supabase
++    .from("card_edition_context_profile")
++    .select("id, traits_signature, is_active")
++    .eq("game_id", gameId);
++  if (error) { console.error(error); throw new Error("EDITION_CONTEXT_PROFILE_QUERY_FAILED"); }
++  return data ?? [];
++}
++
++export async function listEditionContextTraits(supabase: any, gameId: string) {
++  const { data, error } = await supabase
++    .from("card_edition_context_trait")
++    .select("id, is_active")
++    .eq("game_id", gameId);
++  if (error) { console.error(error); throw new Error("EDITION_CONTEXT_TRAIT_QUERY_FAILED"); }
++  return data ?? [];
++}
+
+================================================================================
+DIFF 2 — index.ts : PHASE C-bis, o espelho do eixo 3
+================================================================================
+
+  Inserir LOGO APÓS routePrinting() (index.ts, após o fecho da função que
+  começa na linha 238). Os estados são LITERALMENTE os OITO da Query 2211 —
+  um vocabulário divergente aqui tornaria os dois lados incomparáveis.
+
++// =====================================================================
++// PHASE C-bis — ROTEAMENTO DE CONTEXTO DE EDIÇÃO (Edition Context)
++//
++// Espelho, em memória, do terceiro eixo da Query 2211, pela MESMA razão e
++// com a MESMA disciplina da PHASE C acima.
++//
++// A ordem é normativa e não é negociável: este eixo consome o RESÍDUO que
++// Printing deixou, nunca a assinatura bruta. Um token já consumido por
++// Impressão não pode ser reinterpretado como contexto de edição — seria
++// contar o mesmo sinal duas vezes, em dois eixos, e produzir duas
++// identidades para a mesma carta.
++//
++// FAIL-CLOSED PARA MAPPING CONHECIDO SEM ROUTING ATIVO. Esta é a regra
++// menos óbvia e a mais importante deste bloco. Ver 2211:127-144 (subtype)
++// e 2211:171-184 (stamp): quando um token NÃO tem mapping ativo, 2211 faz
++// uma SEGUNDA busca, sem o filtro `is_active`, no MESMO universo de escopo.
++// Se o token é conhecido, o retorno é NEEDS_REVIEW_INACTIVE_EC_MAPPING, na
++// hora, e o token NÃO volta ao resíduo de Finish.
++//
++// Deixá-lo voltar seria fail-OPEN: o token viraria acabamento, o Variant
++// Type seria procurado sobre um resíduo contaminado, e a linha poderia
++// virar VALID com a identidade errada. É o achado A3 do GATE-A-01, que a
++// 2211 corrigiu do lado SQL — e que uma Edge ingênua reintroduziria.
++// =====================================================================
++
++type EditionContextState =
++  | "NOT_EVALUATED"
++  | "RESOLVED_NO_EDITION_CONTEXT"
++  | "RESOLVED_WITH_EC_PROFILE"
++  | "NEEDS_REVIEW_INVALID_EC_MAPPING"
++  | "NEEDS_REVIEW_INACTIVE_EC_MAPPING"
++  | "NEEDS_REVIEW_INACTIVE_EC_TRAIT"
++  | "NEEDS_REVIEW_NO_EC_PROFILE"
++  | "NEEDS_REVIEW_INACTIVE_EC_PROFILE";
++
++const EDITION_CONTEXT_TERMINAL_STATES: ReadonlySet<EditionContextState> = new Set([
++  "RESOLVED_NO_EDITION_CONTEXT",
++  "RESOLVED_WITH_EC_PROFILE",
++]);
++
++function isEditionContextResolved(state: EditionContextState): boolean {
++  return EDITION_CONTEXT_TERMINAL_STATES.has(state);
++}
++
++type EditionContextIndex = {
++  // ATIVOS, separados por escopo — a precedência opera SÓ entre ativos,
++  // porque o WHERE de 2211:109/157 filtra is_active ANTES do ORDER BY.
++  activeTraitsByScopedToken: Map<string, string[]>;
++  activeTraitsByGlobalToken: Map<string, string[]>;
++  // CONHECIDOS: ativos E inativos. É o universo da segunda busca de
++  // 2211:131-136 / 172-177. Separados por escopo pelo mesmo motivo do
++  // par acima: um mapping escopado a OUTRO Set não é "conhecido" aqui.
++  knownScopedTokens: Set<string>;
++  knownGlobalTokens: Set<string>;
++  profileBySignature: Map<string, string>;
++  inactiveProfileIds: Set<string>;
++  inactiveTraitIds: Set<string>;
++};
++
++type EditionContextRouting = {
++  state: EditionContextState;
++  editionContextProfileId: string | null;
++  editionContextTraitIds: string[];
++  residualSubtype: string | null;
++  residualStamp: string[] | null;
++};
++
++function ecTokenKey(rawField: string, normalizedToken: string): string {
++  return `${rawField}|${normalizedToken}`;
++}
++
++function buildEditionContextIndex(
++  mappings: Array<{
++    external_set_id: string | null;
++    raw_field: string;
++    normalized_token: string;
++    traits_signature: string[] | null;
++    is_active: boolean;
++  }>,
++  profiles: Array<{ id: string; traits_signature: string[] | null; is_active: boolean }>,
++  traits: Array<{ id: string; is_active: boolean }>,
++  externalSetId: string | null,
++): EditionContextIndex {
++  const activeTraitsByScopedToken = new Map<string, string[]>();
++  const activeTraitsByGlobalToken = new Map<string, string[]>();
++  const knownScopedTokens = new Set<string>();
++  const knownGlobalTokens = new Set<string>();
++
++  for (const m of mappings) {
++    // UNIVERSO DE ESCOPO (2211:110-111): { global } ∪ { escopado a ESTE Set,
++    // e só quando o job TEM escopo }. Um mapping de outro Set é descartado
++    // ANTES de qualquer outra consideração — nem ativo, nem conhecido.
++    const isGlobal = m.external_set_id === null;
++    const isThisScope = externalSetId !== null && m.external_set_id === externalSetId;
++    if (!isGlobal && !isThisScope) continue;
++
++    const key = ecTokenKey(m.raw_field, m.normalized_token);
++
++    // CONHECIDO recebe ativos E inativos. É o que permite distinguir
++    // "token desconhecido" (volta ao resíduo) de "token conhecido porém
++    // sem routing ativo" (fail-closed). Mesma disciplina de
++    // buildPrintingIndex.knownTokens.
++    if (isGlobal) knownGlobalTokens.add(key);
++    else knownScopedTokens.add(key);
++
++    if (!m.is_active) continue;
++
++    const sig = (m.traits_signature ?? []).map((id) => String(id));
++    if (isGlobal) activeTraitsByGlobalToken.set(key, sig);
++    else activeTraitsByScopedToken.set(key, sig);
++  }
++
++  const profileBySignature = new Map<string, string>();
++  const inactiveProfileIds = new Set<string>();
++  for (const p of profiles) {
++    // Sem filtro de is_active, como 2211:204-206: o perfil é ENCONTRADO por
++    // assinatura e só depois recusado, para que a mensagem seja
++    // "perfil inativo" e não "perfil inexistente".
++    profileBySignature.set(buildTraitsSignatureKey(p.traits_signature), p.id);
++    if (!p.is_active) inactiveProfileIds.add(String(p.id));
++  }
++
++  const inactiveTraitIds = new Set<string>();
++  for (const t of traits) {
++    if (!t.is_active) inactiveTraitIds.add(String(t.id).toLowerCase());
++  }
++
++  return {
++    activeTraitsByScopedToken,
++    activeTraitsByGlobalToken,
++    knownScopedTokens,
++    knownGlobalTokens,
++    profileBySignature,
++    inactiveProfileIds,
++    inactiveTraitIds,
++  };
++}
++
++function routeEditionContext(
++  index: EditionContextIndex,
++  residualSubtype: string | null,
++  residualStampSorted: string[] | null,
++): EditionContextRouting {
++  // RETORNO ANTECIPADO: devolve o resíduo PÓS-PRINTING **INTACTO**.
++  // 2211:122/140/167/182 devolvem p.residual_subtype / p.residual_stamp, e
++  // não as variáveis parciais do eixo 3. A diferença é observável: um token
++  // já consumido antes do aborto NÃO some do resíduo devolvido.
++  const untouched = (state: EditionContextState): EditionContextRouting => ({
++    state,
++    editionContextProfileId: null,
++    editionContextTraitIds: [],
++    residualSubtype,
++    residualStamp: residualStampSorted,
++  });
++
++  const traitIds: string[] = [];
++
++  // Precedência escopado > global, UM nível, sem cascata — e SÓ entre
++  // ativos, espelhando o ORDER BY de 2211:115/160 sobre um WHERE que já
++  // filtrou is_active.
++  const lookupActive = (key: string): string[] | undefined =>
++    index.activeTraitsByScopedToken.get(key) ?? index.activeTraitsByGlobalToken.get(key);
++
++  const isKnown = (key: string): boolean =>
++    index.knownScopedTokens.has(key) || index.knownGlobalTokens.has(key);
++
++  let outSubtype = residualSubtype;
++  if (residualSubtype !== null && residualSubtype.trim() !== "") {
++    const key = ecTokenKey("subtype", residualSubtype);
++    const sig = lookupActive(key);
++    if (sig !== undefined) {
++      // COMPOSIÇÃO EFETIVA VAZIA (2211:119-124). Mapping ATIVO sem nenhum
++      // trait não é "sem contexto": o token TEM routing, e o routing está
++      // quebrado. Mesmo princípio da correção L-1 de routePrinting.
++      if (sig.length === 0) return untouched("NEEDS_REVIEW_INVALID_EC_MAPPING");
++      traitIds.push(...sig);
++      outSubtype = null;
++    } else if (isKnown(key)) {
++      return untouched("NEEDS_REVIEW_INACTIVE_EC_MAPPING");
++    }
++    // Token DESCONHECIDO: permanece no resíduo de Finish, e o eixo segue.
++  }
++
++  const outStampTokens: string[] = [];
++  for (const token of residualStampSorted ?? []) {
++    const key = ecTokenKey("stamp", token);
++    const sig = lookupActive(key);
++    if (sig !== undefined) {
++      if (sig.length === 0) return untouched("NEEDS_REVIEW_INVALID_EC_MAPPING");
++      traitIds.push(...sig);
++    } else if (isKnown(key)) {
++      // RETORNO IMEDIATO DE DENTRO DO LOOP, como 2211:180-183. Os tokens
++      // seguintes NÃO são avaliados. Marcar um flag e continuar produziria
++      // uma composição parcial que a 2211 nunca produz.
++      return untouched("NEEDS_REVIEW_INACTIVE_EC_MAPPING");
++    } else {
++      outStampTokens.push(token);
++    }
++  }
++  // 2211:189 ordena o resíduo remanescente.
++  const outStamp = outStampTokens.length > 0 ? [...outStampTokens].sort() : null;
++
++  if (traitIds.length === 0) {
++    return {
++      state: "RESOLVED_NO_EDITION_CONTEXT",
++      editionContextProfileId: null,
++      editionContextTraitIds: [],
++      residualSubtype: outSubtype,
++      residualStamp: outStamp,
++    };
++  }
++
++  // 2211:198 — DISTINCT + ORDER BY. buildTraitsSignatureKey é
++  // Set + lowercase + sort + join, equivalente por construção.
++  const signatureKey = buildTraitsSignatureKey(traitIds);
++  const signature = signatureKey.length > 0 ? signatureKey.split(",") : [];
++
++  // RETORNO FINAL: devolve o resíduo PÓS-DOIS-EIXOS (2211:218-220).
++  const final = (
++    state: EditionContextState,
++    profileId: string | null,
++  ): EditionContextRouting => ({
++    state,
++    editionContextProfileId: profileId,
++    editionContextTraitIds: signature,
++    residualSubtype: outSubtype,
++    residualStamp: outStamp,
++  });
++
++  // Trait inativo ANTES da busca de perfil (2211:200-202). A ordem importa:
++  // o perfil pode existir, e ainda assim o estado é INACTIVE_EC_TRAIT.
++  if (signature.some((id) => index.inactiveTraitIds.has(id))) {
++    return final("NEEDS_REVIEW_INACTIVE_EC_TRAIT", null);
++  }
++
++  const profileId = index.profileBySignature.get(signatureKey);
++
++  // JAMAIS criar Perfil durante a importação (2211:208).
++  if (profileId === undefined) return final("NEEDS_REVIEW_NO_EC_PROFILE", null);
++
++  // 2211:209-212 — encontrado por assinatura, recusado por inatividade,
++  // e o id é zerado explicitamente.
++  if (index.inactiveProfileIds.has(profileId)) {
++    return final("NEEDS_REVIEW_INACTIVE_EC_PROFILE", null);
++  }
++
++  return final("RESOLVED_WITH_EC_PROFILE", profileId);
++}
+
+  TABELA DE PARIDADE — cada ramo desta função e sua âncora em 2211
+
+  | Situação                                  | Estado                            | 2211      |
+  |-------------------------------------------|-----------------------------------|-----------|
+  | Printing não terminal                     | NOT_EVALUATED                     | 86-91     |
+  | nenhum token de contexto                  | RESOLVED_NO_EDITION_CONTEXT       | 191-196   |
+  | token ativo, composição vazia             | NEEDS_REVIEW_INVALID_EC_MAPPING   | 119, 164  |
+  | token conhecido, nenhum ativo             | NEEDS_REVIEW_INACTIVE_EC_MAPPING  | 137, 178  |
+  | token desconhecido                        | fica no resíduo, eixo prossegue   | 143, 185  |
+  | scoped inativo + global ativo             | resolve pelo GLOBAL               | 109, 157  |
+  | scoped ativo + global ativo               | scoped vence                      | 115, 160  |
+  | job sem escopo + mapping escopado         | fora do universo: desconhecido    | 110-111   |
+  | trait inativo na composição               | NEEDS_REVIEW_INACTIVE_EC_TRAIT    | 200-202   |
+  | perfil ausente                            | NEEDS_REVIEW_NO_EC_PROFILE        | 207-208   |
+  | perfil encontrado porém inativo           | NEEDS_REVIEW_INACTIVE_EC_PROFILE  | 209-212   |
+  | resolvido                                 | RESOLVED_WITH_EC_PROFILE          | 214       |
+
+================================================================================
+DIFF 3 — index.ts : preload (linha ~587)
+================================================================================
+
+--- a/supabase/functions/import-card-variants/index.ts
++++ b/supabase/functions/import-card-variants/index.ts
+@@
+         listPrintingExternalMappings(supabase, cardSet.game_id, assetSource.id),
+         listActivePrintingProfiles(supabase, cardSet.game_id),
+         listPrintingTraits(supabase, cardSet.game_id),
++        listEditionContextExternalMappings(supabase, cardSet.game_id, assetSource.id),
++        listActiveEditionContextProfiles(supabase, cardSet.game_id),
++        listEditionContextTraits(supabase, cardSet.game_id),
+       ]);
+
+     const printingIndex = buildPrintingIndex(printingMappings, printingProfiles, printingTraits);
++    const editionContextIndex = buildEditionContextIndex(
++      ecMappings, ecProfiles, ecTraits, externalSetId,
++    );
+
+  (a desestruturação do `Promise.all` ganha `ecMappings, ecProfiles, ecTraits`
+   nas três últimas posições, na mesma ordem das três chamadas acima.)
+
+================================================================================
+DIFF 4 — index.ts : roteamento, validade e identidade (linhas ~895-1011)
+================================================================================
+
+--- a/supabase/functions/import-card-variants/index.ts
++++ b/supabase/functions/import-card-variants/index.ts
+@@
+         const printing = routePrinting(
+           printingIndex,
+           cardSet.game_id,
+           assetSource.id,
+           normalizedSubtype,
+           normalizedStamp,
+         );
+
++        // EIXO 3, sobre o RESÍDUO de Impressão — nunca sobre o bruto.
++        const editionContext = routeEditionContext(
++          editionContextIndex,
++          printing.residualSubtype,
++          printing.residualStamp,
++        );
++        // Predicado ÚNICO, exportado da PHASE C-bis. A rev 2.0 o repetia
++        // inline aqui — com 8 estados no vocabulário, uma lista literal
++        // duplicada é uma lista que diverge. Espelha 2211: só os DOIS
++        // estados RESOLVED_* são terminais; os cinco NEEDS_REVIEW_* e
++        // NOT_EVALUATED não são.
++        const editionContextResolved = isEditionContextResolved(editionContext.state);
++
+         const residualComboKey = buildVariantComboKey(
+           normalizedType,
+           normalizedFoil,
+-          printing.residualSubtype,
+-          printing.residualStamp,
++          // O Variant Type recebe o resíduo PÓS-DOIS-EIXOS. Usar o resíduo
++          // pós-um-eixo casaria contra combos que ainda carregam o token de
++          // contexto — a contaminação que este pacote existe para eliminar.
++          editionContext.residualSubtype,
++          editionContext.residualStamp,
+         );
+@@
+         const printingResolved = printing.state !== "UNRESOLVED";
+-        // VALID exige os DOIS eixos. Variant Type resolvido sozinho não
+-        // basta: sem Impressão decidida, o resíduo não é identidade
+-        // canônica confiável.
+-        const isValid = printingResolved && variantTypeId !== null;
++        // VALID exige os TRÊS. O raciocínio do eixo 1 vale idêntico para o
++        // eixo 3: sem Contexto de Edição decidido, o resíduo não é
++        // identidade canônica confiável.
++        const isValid = printingResolved && editionContextResolved && variantTypeId !== null;
+@@
+-          ? `R|${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}`
++          ? `R|${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}|${buildEditionContextKeyPart(editionContext.editionContextProfileId)}`
+@@
+-            `${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}`,
++            `${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}|${buildEditionContextKeyPart(editionContext.editionContextProfileId)}`,
+@@
+         const normalizedData: Record<string, unknown> = {};
+-        if (printingResolved) {
++        // OS DOIS EIXOS, JUNTOS. Gravar a chave do eixo 3 quando ele NÃO
++        // resolveu — ainda que como `null` — seria afirmar "resolvido sem
++        // contexto" sobre uma linha cujo contexto é indeterminado: o
++        // defeito semântico que a BACKFILL-SEMANTICS-CORRECTION-01
++        // eliminou do lado SQL, reintroduzido pela Edge.
++        //
++        // Com os dois resolvidos, as TRÊS chaves saem juntas ou nenhuma
++        // sai. É o mesmo contrato dos outcomes A/B/C das Queries 2221/2222.
++        if (printingResolved && editionContextResolved) {
+           if (variantTypeId !== null) normalizedData.variant_type_id = variantTypeId;
+           normalizedData.printing_profile_id = printing.printingProfileId;
++          normalizedData.edition_context_profile_id = editionContext.editionContextProfileId;
+         }
+@@
+         if (!printingResolved) printingUnresolvedRows++;
+         if (printing.state === "RESOLVED_WITH_PROFILE") printingWithProfileRows++;
++        if (!editionContextResolved) editionContextUnresolvedRows++;
++        if (editionContext.state === "RESOLVED_WITH_EC_PROFILE") editionContextWithProfileRows++;
+
+  NOTA sobre `editionContext.editionContextProfileId` sem `?? null`: o tipo
+  já é `string | null` e, nos dois estados resolvidos, `null` significa
+  "resolvido SEM contexto". O `?? null` da rev 1.0 mascararia um
+  `undefined` — que só apareceria se o roteador tivesse um caminho de
+  retorno sem o campo. Sem o coalesce, esse defeito falha alto no teste T8
+  em vez de virar um `null` plausível.
+
+================================================================================
+ORDEM DE APLICAÇÃO (ver DAG.md)
+================================================================================
+
+  O deploy da Edge é a etapa 8 do rollout: DEPOIS de 2203-2207 (tabelas do
+  eixo) e 2211 existirem, DEPOIS de os consumidores B migrarem (etapa 7), e
+  ANTES de a identidade ser estreitada (etapa 10). Inverter deixaria a Edge
+  emitindo uma chave que o servidor ainda não entende, ou a identidade
+  exigindo um componente que a Edge ainda não emite.
+
+  Pré-requisito rígido: a Query 2214 (guard estrito) só pode entrar DEPOIS
+  deste deploy. Antes disso, toda row VALID produzida pela Edge antiga seria
+  rejeitada.
+
+  Pré-requisito de DADO: as seeds 2230-2232 precisam estar aplicadas antes
+  do deploy. Sem elas, `activeTraitsByGlobalToken` nasce vazio e TODA linha
+  cai em RESOLVED_NO_EDITION_CONTEXT — tecnicamente válido, semanticamente
+  uma afirmação falsa em massa.

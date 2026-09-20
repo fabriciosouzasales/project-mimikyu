@@ -1,0 +1,506 @@
+{
+  "$schema_note": "Vetores COMPARTILHADOS do eixo de Contexto de Edicao. Arquivo UNICO, consumido por DOIS runners: (1) o harness SQL 2834; (2) o teste offline Deno edge/edition-context.test.ts. Os expected values existem SO aqui — nenhum runner pode declarar o seu. Se os dois runners divergirem em qualquer vetor, a paridade Edge x SQL esta quebrada e o rollout do eixo 3 falha. Precedente: database/proposals/2026-09-14-card-variant-mapping-source-set-scope/test-vectors/variant-type-mapping-scope-vectors.json.",
+  "version": "1.0",
+  "status": "PROPOSTA — NAO EXECUTADO",
+  "mandato": "EDITION-CONTEXT-AXIS-EDGE-D3-FINAL-CORRECTION-01",
+
+  "authority": {
+    "$note": "A autoridade do comportamento e a Query 2211 (internal.resolve_variant_row_axes), linhas 95-220. Os expected abaixo foram DERIVADOS da leitura literal daquele corpo, nao de intencao. Cada regra aponta a linha.",
+
+    "eixo_3_so_roda_se_printing_terminal": "2211:86-91 — printing_state fora de (RESOLVED_NO_PRINTING, RESOLVED_WITH_PROFILE) devolve edition_context_state = 'NOT_EVALUATED' e retorna na hora.",
+    "universo_de_escopo": "2211:110-111, 134-135, 158-159, 175-176 — { m.external_set_id IS NULL } UNIAO { m.external_set_id = p_external_set_id, so quando p_external_set_id NAO e NULL }. Mapping escopado a OUTRO Set NUNCA entra, nem na busca de ativo nem na de conhecido.",
+    "precedencia": "2211:115, 160 — ORDER BY (m.external_set_id IS NOT NULL) DESC, m.id. Aplica-se SOMENTE entre mappings ATIVOS, porque o WHERE ja filtrou m.is_active.",
+    "mapping_ativo_composicao_vazia": "2211:119-124, 164-169 — NEEDS_REVIEW_INVALID_EC_MAPPING, RETORNO IMEDIATO.",
+    "mapping_conhecido_sem_ativo": "2211:127-144 (subtype), 171-184 (stamp) — segunda busca SEM o filtro is_active, no MESMO universo de escopo. Se encontrar: NEEDS_REVIEW_INACTIVE_EC_MAPPING, RETORNO IMEDIATO. O token NAO volta ao residual de Finish.",
+    "token_desconhecido": "2211:143, 185 — FAIL CLOSED por omissao: permanece no residual de Finish, e o eixo 3 segue avaliando os demais tokens.",
+    "residual_devolvido": "DUAS formas, e a diferenca importa. Retornos ANTECIPADOS do eixo 3 (INVALID_EC_MAPPING, INACTIVE_EC_MAPPING) devolvem p.residual_subtype / p.residual_stamp — o residual POS-PRINTING, INTACTO (2211:122, 140, 167, 182). O retorno FINAL (2211:218-220) e o de RESOLVED_NO_EDITION_CONTEXT (2211:192-195) devolvem v_res_st / v_res_sp — o residual POS-DOIS-EIXOS, com os tokens consumidos removidos.",
+    "assinatura": "2211:198 — DISTINCT + ORDER BY. O lado TS usa buildTraitsSignatureKey (Set + lowercase + sort + join), equivalente por construcao.",
+    "trait_inativo": "2211:200-202 — avaliado DEPOIS de montar a composicao completa. NEEDS_REVIEW_INACTIVE_EC_TRAIT, profile NULL, trait_ids = a composicao montada.",
+    "profile_ausente": "2211:207-208 — NEEDS_REVIEW_NO_EC_PROFILE. JAMAIS criar profile na importacao.",
+    "profile_inativo": "2211:209-212 — NEEDS_REVIEW_INACTIVE_EC_PROFILE, e v_profile e zerado explicitamente."
+  },
+
+  "bindings": {
+    "$note": "Como cada simbolo abstrato dos vetores vira objeto fisico. Os DOIS runners aplicam EXATAMENTE estas regras. Sem este bloco, cada runner inventaria a sua propria ligacao e a paridade seria afirmada, nao verificada.",
+
+    "game": "POKEMON",
+    "asset_source": "TCGDEX",
+
+    "scope": {
+      "set-alpha": "p_external_set_id = 'VEC2834A'. No runner SQL, uma card_set_external_reference de fixture criada dentro da sentinela; no runner TS, o valor literal passado a buildEditionContextIndex.",
+      "null": "p_external_set_id = NULL — job sem referencia externa ativa."
+    },
+
+    "tokens": {
+      "$why_synthetic": "Os tokens sao SINTETICOS e prefixados VEC2834 para nao colidir com o corpus real de producao. Executar vetores com tokens reais devolveria mappings de producao e o vetor 'passaria' provando outra coisa — o mesmo defeito que o bloco $why_foil_substitution do precedente 2826 descreve.",
+      "TOK_CTX_A": "VEC2834CTXA",
+      "TOK_CTX_B": "VEC2834CTXB",
+      "TOK_CTX_C": "VEC2834CTXC",
+      "TOK_UNKNOWN": "VEC2834NOSUCHTOKEN",
+      "TOK_PRINTING": "VEC2834PRINTTOK — token que pertence ao eixo de IMPRESSAO. Usado so no vetor E17."
+    },
+
+    "traits": {
+      "T_A": "card_edition_context_trait code = VEC2834_T_A",
+      "T_B": "card_edition_context_trait code = VEC2834_T_B",
+      "T_OFF": "card_edition_context_trait code = VEC2834_T_OFF, is_active = FALSE"
+    },
+
+    "profiles": {
+      "PF_A": "card_edition_context_profile code = VEC2834_PF_A, traits_signature = {T_A}",
+      "PF_B": "card_edition_context_profile code = VEC2834_PF_B, traits_signature = {T_B}",
+      "PF_AB": "card_edition_context_profile code = VEC2834_PF_AB, traits_signature = {T_A, T_B}",
+      "PF_OFF": "card_edition_context_profile code = VEC2834_PF_OFF, traits_signature = {T_A}, is_active = FALSE. NOTA: E5 e o unico vetor que o usa, e nele PF_A nao existe — os dois nao podem coexistir, pois 2204/2206 impoem assinatura unica por Game."
+    },
+
+    "isolation": "Cada vetor roda limpo. O runner SQL cria o estado do vetor, executa, mede, e apaga TODO o estado de fixture antes do proximo — nenhum vetor herda estado do anterior. O runner TS constroi um EditionContextIndex novo por vetor.",
+
+    "printing_input": {
+      "$note": "O eixo 1 NAO e reexecutado pelos vetores. Cada vetor declara o RESULTADO de Printing como entrada, porque o objeto sob teste e o eixo 3 e o encadeamento entre eles. O runner SQL monta um raw_data que produz aquele estado; o runner TS injeta o objeto de roteamento diretamente.",
+      "states": ["RESOLVED_NO_PRINTING", "RESOLVED_WITH_PROFILE", "UNRESOLVED"]
+    }
+  },
+
+  "expected_field_contract": {
+    "edition_context_state": "literal, um dos 7 do vocabulario: NOT_EVALUATED | RESOLVED_NO_EDITION_CONTEXT | RESOLVED_WITH_EC_PROFILE | NEEDS_REVIEW_INVALID_EC_MAPPING | NEEDS_REVIEW_INACTIVE_EC_MAPPING | NEEDS_REVIEW_INACTIVE_EC_TRAIT | NEEDS_REVIEW_NO_EC_PROFILE | NEEDS_REVIEW_INACTIVE_EC_PROFILE",
+    "edition_context_profile": "simbolo de profile ou null",
+    "edition_context_trait_ids": "lista ORDENADA de simbolos de trait; [] quando nada foi consumido",
+    "residual_subtype": "o que o eixo 3 DEVOLVE (ver authority.residual_devolvido)",
+    "residual_stamp": "idem, lista ordenada",
+    "edge_emits_axis_keys": "true quando printing_state e terminal E edition_context_state e terminal. Quando true, normalized_data carrega printing_profile_id E edition_context_profile_id (mais variant_type_id, se houver). Quando false, NENHUMA das tres chaves e emitida. Contrato dos outcomes A/B/C das Queries 2221/2222."
+  },
+
+  "vocabulary": [
+    "NOT_EVALUATED",
+    "RESOLVED_NO_EDITION_CONTEXT",
+    "RESOLVED_WITH_EC_PROFILE",
+    "NEEDS_REVIEW_INVALID_EC_MAPPING",
+    "NEEDS_REVIEW_INACTIVE_EC_MAPPING",
+    "NEEDS_REVIEW_INACTIVE_EC_TRAIT",
+    "NEEDS_REVIEW_NO_EC_PROFILE",
+    "NEEDS_REVIEW_INACTIVE_EC_PROFILE"
+  ],
+
+  "vectors": [
+    {
+      "id": "E1",
+      "title": "sem token de contexto -> RESOLVED_NO_EDITION_CONTEXT",
+      "covers": "sem contexto",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": null, "stamp": [] },
+      "ec_traits": [],
+      "ec_profiles": [],
+      "ec_mappings": [],
+      "expected": {
+        "edition_context_state": "RESOLVED_NO_EDITION_CONTEXT",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": true
+      }
+    },
+    {
+      "id": "E2",
+      "title": "token global ativo com profile -> RESOLVED_WITH_EC_PROFILE",
+      "covers": "profile resolvido",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_A"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "RESOLVED_WITH_EC_PROFILE",
+        "edition_context_profile": "PF_A",
+        "edition_context_trait_ids": ["T_A"],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": true
+      }
+    },
+    {
+      "id": "E3",
+      "title": "composicao sem profile correspondente -> NEEDS_REVIEW_NO_EC_PROFILE",
+      "covers": "profile ausente",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_WITH_PROFILE", "profile": "PP_X" },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_NO_EC_PROFILE",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": ["T_A"],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": false
+      },
+      "$note": "residual_subtype = null porque o token FOI consumido pelo eixo 3 antes de a composicao falhar. Este e um retorno FINAL (2211:218), nao antecipado — devolve v_res_st."
+    },
+    {
+      "id": "E4",
+      "title": "trait inativo na composicao -> NEEDS_REVIEW_INACTIVE_EC_TRAIT",
+      "covers": "trait inativo",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_OFF", "is_active": false }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_OFF"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_OFF"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_INACTIVE_EC_TRAIT",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": ["T_OFF"],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": false
+      },
+      "$note": "O trait inativo tem precedencia sobre a busca de profile: 2211:200-202 avalia o trait ANTES do SELECT do profile, e o profile aqui EXISTE. Se a ordem fosse invertida, o estado seria RESOLVED_WITH_EC_PROFILE — este vetor trava a ordem."
+    },
+    {
+      "id": "E5",
+      "title": "profile existente porem inativo -> NEEDS_REVIEW_INACTIVE_EC_PROFILE",
+      "covers": "profile inativo",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_OFF", "traits": ["T_A"], "is_active": false }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_INACTIVE_EC_PROFILE",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": ["T_A"],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": false
+      },
+      "$note": "O profile e ENCONTRADO por assinatura (2211:204-206 nao filtra is_active) e so depois recusado. profile devolvido e NULL por zeragem explicita (2211:212)."
+    },
+    {
+      "id": "E6",
+      "title": "mapping GLOBAL inativo, sem scoped -> NEEDS_REVIEW_INACTIVE_EC_MAPPING",
+      "covers": "mapping inativo · global inativo",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_A"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": false }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_INACTIVE_EC_MAPPING",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": "TOK_CTX_A",
+        "residual_stamp": [],
+        "edge_emits_axis_keys": false
+      },
+      "$note": "ESTE E O VETOR DO BLOCKER A3. O token NAO volta ao residual como se o mapping nunca tivesse existido — ele volta INTACTO (retorno antecipado devolve p.residual_subtype), mas o ESTADO e NEEDS_REVIEW, o que impede a linha de virar VALID e impede o Variant Type de ser consultado sobre um residual contaminado."
+    },
+    {
+      "id": "E7",
+      "title": "mapping SCOPED inativo, sem global -> NEEDS_REVIEW_INACTIVE_EC_MAPPING",
+      "covers": "scoped inativo sem global",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_A"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": "set-alpha", "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": false }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_INACTIVE_EC_MAPPING",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": "TOK_CTX_A",
+        "residual_stamp": [],
+        "edge_emits_axis_keys": false
+      }
+    },
+    {
+      "id": "E8",
+      "title": "scoped INATIVO + global ATIVO -> resolve pelo GLOBAL",
+      "covers": "scoped inativo x global ativo",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [
+        { "id": "T_A", "is_active": true },
+        { "id": "T_B", "is_active": true }
+      ],
+      "ec_profiles": [
+        { "id": "PF_A", "traits": ["T_A"], "is_active": true },
+        { "id": "PF_B", "traits": ["T_B"], "is_active": true }
+      ],
+      "ec_mappings": [
+        { "scope": "set-alpha", "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_B"], "is_active": false },
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "RESOLVED_WITH_EC_PROFILE",
+        "edition_context_profile": "PF_A",
+        "edition_context_trait_ids": ["T_A"],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": true
+      },
+      "$note": "A PRECEDENCIA scoped > global so opera entre ATIVOS — o WHERE de 2211:109 filtra m.is_active ANTES do ORDER BY. Um scoped inativo nao 'reserva' o token nem rebaixa o global. Os traits sao deliberadamente DIFERENTES (T_B no scoped, T_A no global) para que o profile devolvido prove QUAL mapping venceu; com traits iguais o vetor passaria dos dois jeitos."
+    },
+    {
+      "id": "E9",
+      "title": "scoped ATIVO + global ATIVO -> scoped vence",
+      "covers": "scoped > global",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [
+        { "id": "T_A", "is_active": true },
+        { "id": "T_B", "is_active": true }
+      ],
+      "ec_profiles": [
+        { "id": "PF_A", "traits": ["T_A"], "is_active": true },
+        { "id": "PF_B", "traits": ["T_B"], "is_active": true }
+      ],
+      "ec_mappings": [
+        { "scope": "set-alpha", "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_B"], "is_active": true },
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "RESOLVED_WITH_EC_PROFILE",
+        "edition_context_profile": "PF_B",
+        "edition_context_trait_ids": ["T_B"],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": true
+      }
+    },
+    {
+      "id": "E10",
+      "title": "job SEM escopo + mapping scoped ATIVO -> scoped NAO entra no universo",
+      "covers": "isolamento de escopo (achado A1)",
+      "job_scope": null,
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_B", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_B", "traits": ["T_B"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": "set-alpha", "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_B"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "RESOLVED_NO_EDITION_CONTEXT",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": "TOK_CTX_A",
+        "residual_stamp": [],
+        "edge_emits_axis_keys": true
+      },
+      "$note": "Com p_external_set_id NULL, a clausula 2211:110-111 reduz o universo a { global }. O mapping escopado nao existe para este job — nem como ativo nem como CONHECIDO. Logo o token e DESCONHECIDO e permanece no residual, com estado TERMINAL. Este vetor distingue 'fora do escopo' de 'inativo', que e a distincao que E6/E7 travam do outro lado."
+    },
+    {
+      "id": "E11",
+      "title": "token desconhecido permanece no residual, eixo 3 resolve terminal",
+      "covers": "token desconhecido",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_UNKNOWN", "stamp": [] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_A"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "RESOLVED_NO_EDITION_CONTEXT",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": "TOK_UNKNOWN",
+        "residual_stamp": [],
+        "edge_emits_axis_keys": true
+      }
+    },
+    {
+      "id": "E12",
+      "title": "mapping ATIVO com composicao VAZIA -> NEEDS_REVIEW_INVALID_EC_MAPPING",
+      "covers": "mapping invalido",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [],
+      "ec_profiles": [],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": [], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_INVALID_EC_MAPPING",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": "TOK_CTX_A",
+        "residual_stamp": [],
+        "edge_emits_axis_keys": false
+      },
+      "$note": "Hoje inalcancavel pelo caminho normal — os guards de 2206/2207 recusam composicao vazia no COMMIT. Mas a Edge nao deve DEPENDER de invariante de outro sistema para nao afirmar uma bobagem; mesmo principio da correcao L-1 de routePrinting. O runner SQL cria este estado desligando temporariamente o guard dentro da sentinela, ou declara o vetor como SKIP_SQL_UNREACHABLE — nunca como PASS."
+    },
+    {
+      "id": "E13",
+      "title": "mapping inativo em STAMP -> mesma regra do subtype",
+      "covers": "mapping inativo · stamp · simetria",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": null, "stamp": ["TOK_CTX_A"] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_A"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "stamp", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": false }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_INACTIVE_EC_MAPPING",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": null,
+        "residual_stamp": ["TOK_CTX_A"],
+        "edge_emits_axis_keys": false
+      }
+    },
+    {
+      "id": "E14",
+      "title": "stamp: token inativo ABORTA o loop, mesmo com token ativo depois",
+      "covers": "mapping inativo · retorno imediato no loop",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": null, "stamp": ["TOK_CTX_A", "TOK_CTX_B"] },
+      "ec_traits": [
+        { "id": "T_A", "is_active": true },
+        { "id": "T_B", "is_active": true }
+      ],
+      "ec_profiles": [{ "id": "PF_B", "traits": ["T_B"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "stamp", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": false },
+        { "scope": null, "raw_field": "stamp", "token": "TOK_CTX_B", "traits": ["T_B"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "NEEDS_REVIEW_INACTIVE_EC_MAPPING",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": null,
+        "residual_stamp": ["TOK_CTX_A", "TOK_CTX_B"],
+        "edge_emits_axis_keys": false
+      },
+      "$note": "O loop de 2211:148-187 faz RETURN dentro da iteracao (linha 180-183). TOK_CTX_B nunca chega a ser avaliado, e o residual devolvido e p.residual_stamp INTACTO — com os DOIS tokens. Uma implementacao que apenas marcasse um flag e continuasse o loop devolveria trait_ids = {T_B}; este vetor a reprova."
+    },
+    {
+      "id": "E15",
+      "title": "duas Editions diferentes na mesma Card -> dois profiles, duas identidades",
+      "covers": "duas editions diferentes",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_NO_PRINTING", "profile": null },
+      "residual_after_printing": { "subtype": null, "stamp": [] },
+      "ec_traits": [
+        { "id": "T_A", "is_active": true },
+        { "id": "T_B", "is_active": true }
+      ],
+      "ec_profiles": [
+        { "id": "PF_A", "traits": ["T_A"], "is_active": true },
+        { "id": "PF_B", "traits": ["T_B"], "is_active": true }
+      ],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true },
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_B", "traits": ["T_B"], "is_active": true }
+      ],
+      "sub_cases": [
+        {
+          "label": "E15a",
+          "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+          "expected": {
+            "edition_context_state": "RESOLVED_WITH_EC_PROFILE",
+            "edition_context_profile": "PF_A",
+            "edition_context_trait_ids": ["T_A"],
+            "residual_subtype": null,
+            "residual_stamp": [],
+            "edge_emits_axis_keys": true
+          }
+        },
+        {
+          "label": "E15b",
+          "residual_after_printing": { "subtype": "TOK_CTX_B", "stamp": [] },
+          "expected": {
+            "edition_context_state": "RESOLVED_WITH_EC_PROFILE",
+            "edition_context_profile": "PF_B",
+            "edition_context_trait_ids": ["T_B"],
+            "residual_subtype": null,
+            "residual_stamp": [],
+            "edge_emits_axis_keys": true
+          }
+        }
+      ],
+      "identity_assertion": {
+        "$note": "Os dois sub-casos tem o MESMO card_id, o MESMO variant_type_id e o MESMO printing_profile_id (null). So o eixo 3 difere. A chave de matching de 4 partes DEVE separa-los; a de 3 partes os colapsaria — e a segunda Variant seria classificada MATCHED e nunca criada.",
+        "expect_keys_distinct": true,
+        "expect_legacy_3part_keys_equal": true
+      }
+    },
+    {
+      "id": "E16",
+      "title": "Printing NAO terminal -> NOT_EVALUATED, eixo 3 nem roda",
+      "covers": "Printing resolvida x indeterminada",
+      "job_scope": "set-alpha",
+      "printing": { "state": "UNRESOLVED", "profile": null },
+      "residual_after_printing": { "subtype": "TOK_CTX_A", "stamp": [] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_A"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "subtype", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true }
+      ],
+      "expected": {
+        "edition_context_state": "NOT_EVALUATED",
+        "edition_context_profile": null,
+        "edition_context_trait_ids": [],
+        "residual_subtype": "TOK_CTX_A",
+        "residual_stamp": [],
+        "edge_emits_axis_keys": false
+      },
+      "$note": "O mapping ATIVO existe e resolveria. Nao e consultado: 2211:86-91 retorna antes. Prova que a ordem dos eixos e normativa e nao uma otimizacao."
+    },
+    {
+      "id": "E17",
+      "title": "token consumido por Printing NAO realimenta o eixo 3",
+      "covers": "residual pos-Printing",
+      "job_scope": "set-alpha",
+      "printing": { "state": "RESOLVED_WITH_PROFILE", "profile": "PP_X", "consumed_tokens": ["TOK_PRINTING"] },
+      "residual_after_printing": { "subtype": null, "stamp": ["TOK_CTX_A"] },
+      "raw_before_printing": { "subtype": null, "stamp": ["TOK_PRINTING", "TOK_CTX_A"] },
+      "ec_traits": [{ "id": "T_A", "is_active": true }],
+      "ec_profiles": [{ "id": "PF_A", "traits": ["T_A"], "is_active": true }],
+      "ec_mappings": [
+        { "scope": null, "raw_field": "stamp", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true },
+        { "scope": null, "raw_field": "stamp", "token": "TOK_PRINTING", "traits": ["T_B"], "is_active": true }
+      ],
+      "ec_profiles_extra_note": "T_B e PF_AB existem no catalogo mas NAO devem ser alcancados.",
+      "expected": {
+        "edition_context_state": "RESOLVED_WITH_EC_PROFILE",
+        "edition_context_profile": "PF_A",
+        "edition_context_trait_ids": ["T_A"],
+        "residual_subtype": null,
+        "residual_stamp": [],
+        "edge_emits_axis_keys": true
+      },
+      "$note": "ARMADILHA DELIBERADA: existe um mapping de Edition Context ATIVO para TOK_PRINTING. Se o eixo 3 lesse a assinatura BRUTA em vez do residual, consumiria os dois tokens e devolveria a composicao {T_A, T_B} -> PF_AB. O expected e PF_A. Uma implementacao que passe a assinatura bruta ao eixo 3 reprova aqui."
+    }
+  ],
+
+  "roster": ["E1","E2","E3","E4","E5","E6","E7","E8","E9","E10","E11","E12","E13","E14","E15","E16","E17"],
+
+  "parity_rule": "Os DOIS runners leem este arquivo e comparam contra `expected`. Nenhum runner declara expected proprio. Um runner que nao consiga produzir o estado de um vetor deve registra-lo como SKIP com motivo explicito — NUNCA como PASS. Divergencia em qualquer vetor = paridade quebrada = rollout do eixo 3 bloqueado."
+}

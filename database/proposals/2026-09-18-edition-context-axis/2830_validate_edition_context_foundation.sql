@@ -1,0 +1,457 @@
+-- ============================================================================
+-- Query 2830 — Harness de validação da fundação Edition Context
+-- Status: PROPOSTA — NÃO EXECUTADA · Versão 6.0
+--
+-- Versão 6.0 (OPERATIONAL-BOUNDARY-CORRECTION-01): 100 → 114 automaticos
+-- (+ 4 pendentes de 2213 + 3 manuais), em 14 secoes.
+--
+--   A Secao B foi RE-ESCOPADA e a Secao M REESCRITA. O predicado
+--   `VALID + persistence PENDING` atingia 415 rows de jobs CANCELLED e ZERO
+--   operacionais — os casos que o validavam estavam provando a regra errada
+--   pela segunda vez consecutiva.
+--
+--   Secao B: 12 -> 14 (V13 historico intocado · V14 CANCELLED terminal).
+--   Secao M: 8 -> 11 (job_status como dimensao; SM5 mede em vez de afirmar;
+--            SM9 CANCELLED terminal · SM10 universo · SM11 sem exigencia).
+--   Secao G: NOVA, 8 casos — os 7 cenarios de transicao da Correcao 8 + G2.
+--   Secao L: NOVA, 4 casos — lineage 285 atomico, estado hibrido proibido.
+--   Secao D: 7 -> 8 (D8 pre-condicao de 2216 e job-aware).
+--
+-- Versão 5.0 (BACKFILL-SEMANTICS-CORRECTION-01): 89 → 100 casos automáticos,
+-- em 12 secoes (11 automaticas + Secao 6, manual).
+--
+--   A Seção B (backfill) foi REESCRITA. Os casos B1–B10 da v4.0 provavam a
+--   regra ERRADA — "toda row VALID tem a chave" — que era exatamente o
+--   defeito semântico. Um harness que prova a regra errada é pior que um
+--   harness ausente: ele CARIMBA o erro.
+--
+--   Seção B agora tem 12 casos (V1–V12) e prova os TRÊS destinos.
+--   Seção M (state machine, 2833) é nova: 8 casos.
+--   Seção D ganha D7 (pré-condição operacional, não global).
+--
+-- Versão 4.0 (GATE-A-FINAL-CORRECTION-01): 73 → 89 casos automáticos,
+-- em 11 secoes (10 automaticas + Secao 6, manual).
+--
+--   CORREÇÃO 9 — a conta de 73 tinha 8 parcelas para 9 seções declaradas.
+--   A parcela ausente era a **Seção 6**, que contém APENAS casos MANUAIS
+--   (EXPLAIN e probe de tooling) e por isso nunca entrou no total
+--   automático. A v3.0 declarava as 9 seções sem dizer isso. Corrigido:
+--   a contagem agora lista as 10 seções e marca a Seção 6 como manual.
+--
+--   SEÇÕES NOVAS nesta versão:
+--     B — BACKFILL (2212/2832): 10 casos. Cobre "backfill completo ANTES
+--         do guard", que a v3.0 não provava em lugar nenhum.
+--     D — IDENTIDADE TERMINAL (2215/2216): 6 casos. Cobre "índices antigos
+--         removidos" e "somente a nova identidade vigente" — o blocker da
+--         Correção 1, que nenhum caso anterior tocava.
+--
+--   CASO REFORÇADO:
+--     S4 ganha execução também em 2216 PASSO 5, como aceite do DROP: a
+--     coexistência deixa de ser afirmada e passa a ser exercitada no mesmo
+--     ato em que os índices antigos caem.
+--
+--   CASO REMOVIDO:
+--     6.4 (T2, INDEX CONCURRENTLY) — a Correção 2 descartou CONCURRENTLY
+--     em favor de índice normal sob FREEZE. Não há mais o que provar.
+--
+-- Versão 3.0 (EDITION-CONTEXT-AXIS-GATE-A-01): 67 → 73 casos automáticos.
+--   Correções de casos que AFIRMAVAM prova inexistente ou contagem errada:
+--     1.2  contava 9 constraints; pg_constraint devolve 11 (as 9 nomeadas
+--          + PK + FK para game). Corrigido.
+--     S9   afirmava rejeicao de string nao-UUID — o guard v1.0 so checava
+--          jsonb_typeof. O DDL (2210 v1.1) agora implementa; o caso deixa de
+--          ser PASS por ausencia de fixture.
+--     R2   afirmava prova por pg_depend. plpgsql NAO registra dependencia
+--          funcao->funcao em pg_depend. A prova correta e sobre prosrc.
+--   Casos NOVOS, um por defeito encontrado no Gate A:
+--     S2-BIS, R9, R10, R11, R12, K8.
+--
+-- Versão 2.0 (EDITION-CONTEXT-AXIS-STAGING-CORRECTION-01): 41 → 67 casos,
+-- 6 → 9 seções. Seções novas:
+--   S — STAGING (2210): tri-state, shape guard, VALID-requires-key e a prova
+--       exigida literalmente pelo mandato (duas rows do mesmo job coexistindo
+--       quando diferem SOMENTE em edition_context_profile_id).
+--   R — ROUTING (2211): contrato terminal único.
+--   K — CONCORRÊNCIA + GUARDS DE HOLD/PRICING_CONDITIONED.
+--
+-- Alterações em seções existentes:
+--   1.10 REESCRITO — ck_cecem_foil_allowlist deixou de existir (Blocker 6);
+--        o caso agora prova que raw_field='foil' é REJEITADO por completo.
+--   5.2  REESCRITO — o plano de migração são 285 linhas, não 365 (Blocker 5).
+--   6.3/6.4 REMOVIDOS — pg_dump/schema-diff não se aplicam a este projeto
+--        (TOOLING-PROOF.md); substituídos por 6.3 (apply_migration).
+--
+-- Fail-loud: qualquer FAIL aborta. Protocolo: BEGIN ... ROLLBACK por caso.
+-- Gate final exige 114/114.
+--
+-- ============================================================================
+-- SEÇÃO 1 — ESTRUTURAL (12)
+--   1.1  as 5 tabelas existem
+--   1.2  card_edition_context_trait: **11** entradas em pg_constraint
+--        (9 nomeadas no corpo da tabela + PK + FK game). A v2.0 dizia 9 e
+--        teria falhado. NOTA: em PG 17 NOT NULL nao aparece em pg_constraint.
+--   1.3  ck_cect_code_family_prefix rejeita DECK_PLAYER sem prefixo
+--   1.4  uq_cect_game_family_order é por FAMILIA, não global
+--   1.5  uq_cecp_game_signature existe e é parcial (traits_signature NOT NULL)
+--   1.6  ck_cecp_signature_shape rejeita array não ordenado
+--   1.7  ck_cecp_signature_shape rejeita array com duplicata
+--   1.8  N:N tem as DUAS FKs compostas (same-Game)
+--   1.9  ck_cecem_raw_field rejeita 'type' e 'size'
+--   1.10 ck_cecem_raw_field rejeita 'foil' (allowlist NÃO existe — Blocker 6);
+--        prova negativa adicional: nenhuma constraint chamada
+--        ck_cecem_foil_allowlist existe em pg_constraint
+--   1.11 uq_cecem_global e uq_cecem_scoped são disjuntos
+--   1.12 grants: anon sem nada; authenticated só SELECT
+--
+-- SEÇÃO 2 — COMPOSIÇÃO (8)
+--   2.1  INSERT na N:N sela traits_signature distinta e ordenada
+--   2.2  composição vazia ⇒ EDITION_CONTEXT_EMPTY_COMPOSITION
+--   2.3  segundo INSERT em profile selado ⇒ COMPOSITION_IMMUTABLE
+--   2.4  DELETE em profile selado ⇒ COMPOSITION_IMMUTABLE
+--   2.5  trait inativo ⇒ TRAIT_INACTIVE
+--   2.6  trait de outro Game ⇒ violação de FK composta
+--   2.7  dois profiles com mesma assinatura ⇒ uq_cecp_game_signature
+--   2.8  profile com assinatura NULL não colide (índice parcial)
+--
+-- SEÇÃO 3 — ROUTING FAIL-CLOSED (7)
+--   3.1  token sem mapping ativo permanece no residual de Finish
+--   3.2  mapping inativo não resolve
+--   3.3  mapping de outro Game não resolve
+--   3.4  precedência scoped > global, UM nível, sem desempate
+--   3.5  token consumido por Printing NÃO reaparece em Edition Context
+--   3.6  raw_field='type' impossível por CHECK
+--   3.7  SET-LOGO só resolve para contexto em dp1/swsh9/svp (H2)
+--
+-- SEÇÃO 4 — IDENTIDADE card_variant (8)
+--   4.1  uq_card_variant_identity existe com NULLS NOT DISTINCT
+--   4.2  (card, vt, NULL, NULL) duplicado ⇒ 23505
+--   4.3  (card, vt, pp, NULL) duplicado ⇒ 23505
+--   4.4  (card, vt, NULL, ec) duplicado ⇒ 23505
+--   4.5  (card, vt, pp, ec) duplicado ⇒ 23505
+--   4.6  mesma Card, mesmo finish, contextos DIFERENTES ⇒ coexistem
+--   4.7  uq_card_variant_card_order preservado
+--   4.8  uq_card_variant_one_default_per_card preservado
+--
+-- ============================================================================
+-- SEÇÃO S — STAGING / catalog_variant_import_row (2210)              ** (12)
+-- ----------------------------------------------------------------------------
+-- Razão de existir: a identidade de card_variant não vale nada se o staging
+-- continuar deduplicando por 3 componentes. Duas rows legítimas que diferem
+-- só em Edition Context seriam colapsadas ANTES de chegarem ao writer.
+--
+--   S1   internal.axis_identity_token() classifica os três estados:
+--          chave ausente      ⇒ 'A'
+--          chave = JSON null  ⇒ 'N'
+--          chave = "<uuid>"   ⇒ 'U:<uuid>'
+--        E prova o ponto central: para 'A' e 'N', (normalized_data ->> k)
+--        retorna SQL NULL nos DOIS casos — por isso NULLS NOT DISTINCT foi
+--        REJEITADO aqui e o token existe.
+--   S2   axis_identity_token() é IMMUTABLE + PARALLEL SAFE + search_path=''
+--        (pré-requisito para uso em índice de expressão) e **NÃO é STRICT**
+--        (proisstrict = false) — STRICT devolveria NULL para p_data NULL e
+--        quebraria a totalidade da expressão do índice
+--   S2-BIS  **NOVO** — CONTRATO DE ESTABILIDADE documentado: o COMMENT da
+--        função contém a regra de REINDEX obrigatório. Postgres não revalida
+--        índices de expressão quando o corpo de uma IMMUTABLE muda: as linhas
+--        antigas guardam o token ANTIGO e as novas o NOVO, corrompendo o
+--        índice único em silêncio. O Gate A declarou BLOCKER se ausente.
+--        Asserção: obj_description do proc contém 'REINDEX' e 'NAO adicionar
+--        STRICT'.
+--   S3   uq_cvir_row_identity existe, é UNIQUE, tem 5 expressões e substituiu
+--        os DOIS índices parciais medidos no LIVE (prova negativa: os nomes
+--        antigos não existem mais em pg_indexes)
+--
+--   *** S4 — PROVA EXIGIDA LITERALMENTE PELO MANDATO ***
+--        Duas rows do MESMO job_id, MESMO card_id, MESMO variant_type_id e
+--        MESMO printing (JSON null) coexistem quando diferem SOMENTE em
+--        edition_context_profile_id:
+--            row α: {"variant_type_id":T,"printing_profile_id":null,
+--                    "edition_context_profile_id":null}        -- token 'N'
+--            row β: {"variant_type_id":T,"printing_profile_id":null,
+--                    "edition_context_profile_id":"<uuid W23>"} -- token 'U:…'
+--        Asserção: COUNT(*) = 2, zero exceção.
+--        Contraprova no mesmo caso: sob a expressão antiga (3 componentes),
+--        as mesmas duas rows produziriam chave idêntica — computado e
+--        asseverado, para que o caso não passe por acidente.
+--
+--   S5   duplicata REAL ainda colide: duas rows idênticas nos 5 componentes
+--        ⇒ 23505 (o índice não virou permissivo)
+--   S6   'A' × 'N' são distinguidos: {} e {"edition_context_profile_id":null}
+--        com o resto igual ⇒ coexistem (2 rows)
+--   S7   'N' × 'U' são distinguidos (já coberto por S4, reforçado para
+--        printing_profile_id — o eixo antigo também ganhou o token)
+--   S8   guard de forma rejeita tipo inválido: edition_context_profile_id
+--        numérico / array / objeto ⇒ CVIR_NORMALIZED_SHAPE_INVALID
+--   S9   guard de forma rejeita string que NÃO é UUID
+--        ('U:banana' seria uma identidade de staging válida apontando para
+--         nada). Lastro no DDL só a partir de 2210 v1.1 — antes disso este
+--         caso passaria por ausência de implementação, não por prova.
+--   S10  VALID-requires-both-keys: row com status VALID e chave de eixo
+--        AUSENTE ⇒ CVIR_VALID_REQUIRES_AXIS_KEYS
+--   S11  row NÃO-VALID (ex.: NEEDS_REVIEW) PODE ter chave ausente — o guard
+--        não pune o estado intermediário legítimo
+--
+-- ============================================================================
+-- SEÇÃO R — ROUTING TERMINAL ÚNICO (2211)                            ** (12)
+-- ----------------------------------------------------------------------------
+--   R1   internal.resolve_variant_row_axes() existe, é STABLE,
+--        SECURITY DEFINER, search_path='' e retorna as 10 colunas do contrato
+--   R2   NÃO duplica lógica: prova por **prosrc** que a função CHAMA
+--        internal.compute_variant_residual_signature(), em vez de
+--        reimplementar o gate 2198 ou o routing de Printing.
+--        CORREÇÃO: plpgsql NÃO registra dependência função→função em
+--        pg_depend (o corpo é texto resolvido em runtime). Citar pg_depend
+--        era prometer uma prova que o catálogo não dá.
+--   R3   size fora de STANDARD ⇒ BLOCKED_* propagado sem tocar em
+--        Edition Context (o gate de escopo vem ANTES, como em 2198)
+--   R4   token consumido por Printing sai do residual e NÃO alimenta
+--        Edition Context (ordem 2→3 preservada no contrato único)
+--   R5   token consumido por Edition Context sai do residual de Finish
+--   R6   token desconhecido: ambos os estados 'UNRESOLVED', residual intacto,
+--        zero criação automática de trait/profile/mapping
+--   R7   precedência scoped > global aplicada UMA vez; com scoped presente,
+--        o global é ignorado sem desempate implícito
+--   R8   invariante de soma: todo token de entrada aparece EXATAMENTE uma vez
+--        entre (consumido por Printing) ∪ (consumido por EC) ∪ (residual)
+--
+--   ---- NOVOS no GATE-A-01, um por defeito encontrado em 2211 v1.0 ----
+--   R9   **ESCOPO CROSS-SET (achado A1).** Mapping escopado ao Set X NÃO pode
+--        resolver uma row do Set Y. Fixture: mapping scoped='ex7' + chamada
+--        com p_external_set_id = 'ex8' e com NULL. Esperado nos dois casos:
+--        token permanece no residual. Sob a v1.0 (sem filtro no WHERE, só
+--        ORDER BY + LIMIT 1) o mapping de 'ex7' seria eleito — fail-OPEN.
+--   R10  **NULIDADE UPSTREAM (achado A2).** Se compute_variant_residual_
+--        signature não devolver linha, `p.printing_state NOT IN (...)` avalia
+--        NULL e o IF não dispara: a v1.0 seguia para o eixo 3 com estado nulo.
+--        Esperado agora: VARIANT_AXES_UPSTREAM_NO_ROW.
+--   R11  **SIMETRIA subtype × stamp (achado A3).** subtype com mapping
+--        conhecido porém INATIVO deve devolver NEEDS_REVIEW_INACTIVE_EC_
+--        MAPPING, igual ao stamp. Na v1.0 caía no residual de Finish e
+--        produziria um Variant Type errado — fail-OPEN.
+--   R12  **RESIDUAL PRESERVADO (achado A4).** Nas saídas NEEDS_REVIEW_*, os
+--        campos residual_subtype e residual_stamp devem sair com o conteúdo
+--        real, não NULL/'{}'. O revisor precisa ver o token que travou.
+--
+-- ============================================================================
+-- SEÇÃO K — CONCORRÊNCIA E GUARDS DE HOLD                             ** (8)
+-- ----------------------------------------------------------------------------
+--   K1   duas sessões resolvendo a MESMA identidade de 4 componentes:
+--        a segunda bloqueia no FOR UPDATE da Card e, ao liberar, encontra a
+--        linha já criada ⇒ UNCHANGED (corrida benigna)
+--   K2   nenhum SQLSTATE cru escapa: o handler de unique_violation relê pela
+--        identidade e converte em resultado de negócio
+--   K3   unique_violation SEM linha correspondente na releitura ⇒
+--        CARD_VARIANT_IDENTITY_CONFLICT_UNRESOLVED (erro sistêmico nomeado,
+--        nunca 23505 puro)
+--   K4   matching usa IS NOT DISTINCT FROM: (…, NULL, NULL) encontra a linha
+--        existente — com '=' o resultado seria NULL e nasceria duplicata
+--   K5   guard de HOLD: tentativa de decompor card_variant_id da lista
+--        congelada (107) ⇒ aborta com EDITION_CONTEXT_HOLD_VIOLATION
+--   K6   guard PRICING_CONDITIONED: card_variant_id com
+--        pricing_source_card_identity OU pricing_source_variant_mapping
+--        associado ⇒ aborta. Os dois conceitos são checados SEPARADAMENTE,
+--        nunca somados
+--   K7   guard PRICING_CONDITIONED cobre os DOIS tipos condicionados —
+--        STAFF_HOLO (40) e SET_LOGO_REVERSE (40) — total bloqueado 80
+--   K8   **NOVO** — ORDEM DE LOCK determinística: escrita em lote de várias
+--        Cards adquire `FOR UPDATE` com `ORDER BY id`. Duas transações com
+--        lotes que se cruzam (A,B) e (B,A) NÃO podem fechar deadlock.
+--        Prova: inspeção de prosrc exigindo ORDER BY no FOR UPDATE + teste
+--        de duas sessões com lotes invertidos.
+--
+-- ============================================================================
+-- SEÇÃO B — BACKFILL SEMÂNTICO (2212 / 2832)            ** REESCRITA — (12)
+-- ----------------------------------------------------------------------------
+-- A v4.0 provava "toda row VALID tem a chave". Essa regra é FALSA: existem
+-- rows terminalmente VALID que SÃO contexto de edição (SATANDARD_REWARDS,
+-- STAFF_HOLO, SET_LOGO_REVERSE, SET_LOGO_STANDARDS) e rows cuja resolução
+-- permanece indeterminada. Carimbar JSON null nelas seria mentira gravada.
+--
+-- Nenhum caso usa cardinalidade fixa. "24.020" saiu de todos os artefatos —
+-- estava STALE (LIVE media 24.372). Provas são relações, não números.
+--
+--   V1   **UUID** onde o routing devolve RESOLVED_WITH_EC_PROFILE, e o UUID
+--        gravado é EXATAMENTE o resolvido. Exige ≥ 1 ocorrência: zero
+--        significaria vocabulário não semeado
+--   V2   **JSON null SOMENTE** onde o routing confirma RESOLVED_NO_EDITION_
+--        CONTEXT. Qualquer null sem essa confirmação é placeholder de
+--        migração — o defeito que esta seção existe para pegar
+--   V3   **AUSENTE em HOLD**: nenhuma row indeterminada recebeu chave
+--   V4   zero row OPERACIONAL (VALID+PENDING) sem chave ⇒ 2214 pode entrar
+--   V5   **prova de EXISTÊNCIA**: há rows terminais VALID legitimamente sem
+--        chave. Zero delas significaria que a regra global teria bastado —
+--        e o predicado operacional não estaria sendo exercitado
+--   V6   coerência total: destino observado = destino recomputado, row a row
+--   V7   estados e lineage inalterados (terminal tem lineage; PENDING não)
+--   V8   **lineage 1:N**: Variants com várias rows de mesmo raw_data não
+--        podem ter destinos divergentes — o destino vem da ROW, não da
+--        Variant. Nenhum DISTINCT ON, nenhuma "uma row por Variant"
+--   V9   IDEMPOTÊNCIA: reexecutar afeta 0 rows já resolvidas
+--   V10  ORDEM: guard ainda PERMISSIVO quando 2832 roda
+--   V11  **tri-state não degradado**: A/N/U seguem distintos; rows terminais
+--        com token 'A' convivem sem colisão indevida. Prova estrutural: o
+--        índice já existia antes do backfill, logo havia no máximo UMA row
+--        com token 'A' por (job, card, vt, token_pp) — migrar essa única row
+--        de 'A' para 'N'/'U' não pode criar colisão
+--   V12  distribuição UUID/null/ausente × validation × persistence × job —
+--        registrada como EVIDÊNCIA DO MOMENTO, nunca como gate
+--
+-- ============================================================================
+-- SEÇÃO M — STATE MACHINE (2833)                                  ** NOVA (8)
+-- ----------------------------------------------------------------------------
+-- O predicado do guard é CANDIDATO, não premissa. Esta seção o prova.
+--
+--   M1   vocabulário de persistence_status é conhecido (PENDING · INSERTED ·
+--        UNCHANGED · FAILED · SKIPPED). Um valor novo invalida a dicotomia
+--        OPERACIONAL/TERMINAL e aborta
+--   M2   nenhuma row TERMINAL sem efeito: INSERTED tem resulting_variant_id;
+--        UNCHANGED tem resulting ou matched
+--   M3   nenhuma row PENDING com resulting_variant_id
+--   M4   COBERTURA: toda combinação cai em OPERACIONAL ou TERMINAL
+--   M5   o predicado **não atinge** nenhuma combinação terminal — é esta a
+--        prova de que o histórico não precisa mentir
+--   M6   o predicado **cobre** todo VALID operacional — nenhuma row pode ser
+--        confirmada sem Edition Context resolvido
+--   M7   prontidão: zero VALID+PENDING sem chave antes de promover o guard
+--   M8   HOLD histórico quantificado; toda row sem chave é terminal ou
+--        não-VALID
+--
+-- ============================================================================
+-- SEÇÃO D — IDENTIDADE TERMINAL (2215 / 2216)                        ** (6)
+-- ----------------------------------------------------------------------------
+-- Razão de existir: até a v3.0, NENHUM caso verificava se as quatro
+-- identidades antigas tinham sido removidas. Os DROPs estavam comentados e o
+-- pacote se declarava "identidade de 4 componentes" com as de 3 ainda ativas.
+--
+--   D1   uq_card_variant_card_type_no_printing NÃO existe mais
+--   D2   uq_card_variant_card_type_printing NÃO existe mais
+--   D3   uq_cvir_job_card_type_no_printing e uq_cvir_job_card_type_printing
+--        NÃO existem mais
+--   D4   **SOMENTE a nova identidade permanece**: em card_variant existe
+--        EXATAMENTE 1 índice único contendo variant_type_id, e é
+--        uq_card_variant_identity; em catalog_variant_import_row existe
+--        EXATAMENTE 1 índice único contendo job_id, e é uq_cvir_row_identity
+--   D5   ORTOGONAIS PRESERVADOS: uq_card_variant_card_order,
+--        uq_card_variant_one_default_per_card e uq_card_variant_id_card
+--        continuam existindo (1/1/1). Não são identidade e não podem cair junto
+--   D6   PRÉ-CONDIÇÃO respeitada: 2216 recusa rodar se restar row
+--        OPERACIONAL sem a chave (BACKFILL_NOT_DONE), e 2215 recusa se a
+--        nova identidade não existir como CONSTRAINT
+--   D7   a pré-condição de 2216 é OPERACIONAL, não global: rows
+--        terminalmente VALID com a chave ausente (HOLD) NÃO bloqueiam o DROP
+--   D8   **NOVO** — a pré-condição de 2216 é **JOB-AWARE**: com as 415 rows
+--        `CANCELLED` + `VALID` + `PENDING` + chave ausente presentes, 2216
+--        conclui. Sob a versão row-local ela teria abortado com
+--        `BACKFILL_NOT_DONE` por um universo que é histórico terminal
+--
+-- ============================================================================
+-- SEÇÃO G — TRANSIÇÕES OPERACIONAIS (2214 v3.0)                  ** NOVA (8)
+-- ----------------------------------------------------------------------------
+-- Os 7 cenarios da Correcao 8, mais G2. Todos com FIXTURE REAL de job nos
+-- tres regimes (STAGED, CANCELLED, COMPLETED) — sem fixture, os casos 5 e 6
+-- seriam PASS por ausencia, que e proibido.
+--
+--   G1   STAGED · PENDING · NEEDS_REVIEW · chave AUSENTE     ⇒ PERMITIDO
+--   G2   STAGED · PENDING · tentativa VALID · chave AUSENTE  ⇒ BLOQUEADO
+--        (CVIR_OPERATIONAL_VALID_REQUIRES_EDITION_CONTEXT_KEY)
+--   G3   STAGED · PENDING · VALID · JSON null ou UUID        ⇒ PERMITIDO
+--   G4   CONFIRMING · row elegivel · chave AUSENTE           ⇒ RECUSADO
+--        fail-closed, mesmo codigo de erro
+--   G5   COMPLETED/COMPLETED_WITH_ERRORS terminal · AUSENTE  ⇒ PERMITIDO
+--   G6   **CANCELLED · VALID · PENDING · chave AUSENTE       ⇒ PERMITIDO**
+--        Reproduz as 415 rows do LIVE. Sob o predicado v2.0 eram RECUSADAS —
+--        este caso e a prova de que a fronteira foi corrigida.
+--   G7   transicao terminal -> operacional nao passa em silencio: reativar o
+--        job nao e barrado (contrato do job), mas a PRIMEIRA escrita na row
+--        e recusada
+--   G8   NAO-REGRESSAO: remover a chave de row VALID ⇒ BLOQUEADO
+--        (CVIR_EDITION_CONTEXT_KEY_REMOVAL_FORBIDDEN)
+--
+--   G-BIS (no-lockout, dentro de G7): sair de PENDING e SEMPRE permitido,
+--   mesmo sem a chave — prova de que o guard nao cria estado inescapavel.
+--
+-- ============================================================================
+-- SEÇÃO L — LINEAGE × CARD_VARIANT (2213 futuro)                 ** NOVA (4)
+-- ----------------------------------------------------------------------------
+-- Correcoes 5 e 6. Ver LINEAGE-STRATEGY.md.
+--
+--   L1   toda row com resulting_variant_id nas 285 tem, apos 2213,
+--        normalized_data.variant_type_id = finish alvo E
+--        edition_context_profile_id = profile da Variant
+--   L2   **ZERO HIBRIDO**: nenhuma row com edition_context_profile_id
+--        preenchido aponta para Variant com a coluna NULL, e vice-versa
+--   L3   nenhuma row fora das 285 foi tocada por 2213
+--   L4   resulting_variant_id preservado em 100% (UPDATE, nunca DELETE+INSERT)
+--
+--   Estes quatro sao REQUISITO PARA 2213, que ainda nao foi escrita, e por
+--   isso NAO entram no gate automatico de 114. Conta-los como PASS seria
+--   PASS por ausencia de fixture — exatamente o que este harness proibe.
+--   Entram no gate quando a migration existir.
+--
+-- ============================================================================
+-- SEÇÃO 5 — LEGADO / HOLD (6)
+--   5.1  hold_frozen = 107 exato
+--   5.2  READY_STRUCTURAL = 365; READY_UNCONDITIONED = 285;
+--        READY_PRICING_CONDITIONED = 80; 285 + 80 = 365 exato.
+--        O plano de migração real (2213) opera sobre 285.
+--   5.3  zero interseção plano × HOLD
+--   5.4  card_variant.id preservado em 285/285 (2831 PASSO 5 prova por
+--        ausência de id desaparecido — UPDATE nunca vira DELETE+INSERT)
+--   5.5  variant_order e is_default inalterados
+--   5.6  lineage: resulting_variant_id 23.955 e matched_variant_id 1.129 intactos
+--
+-- SEÇÃO 6 — PERFORMANCE + TOOLING (Gate A, não automatizável aqui)
+--   6.1  EXPLAIN de busca por card_id usa uq_card_variant_identity (prefixo)
+--   6.2  decidir remoção de ix_card_variant_card_id com EXPLAIN real
+--   6.3  T1 — apply_migration aceita UNIQUE NULLS NOT DISTINCT     -- MANUAL
+--        Script completo: Query 2840. ÚNICO probe LIVE restante.
+--        (T2/CONCURRENTLY ELIMINADO na Correção 2: 2209 e 2210 passaram a
+--         usar índice normal sob FREEZE. pg_dump/schema-diff já haviam sido
+--         removidos — TOOLING-PROOF.md prova que o projeto não usa nenhum.)
+--
+-- ============================================================================
+-- CONTAGEM
+--   Seção 1 .... 12
+--   Seção 2 ....  8
+--   Seção 3 ....  7
+--   Seção 4 ....  8
+--   Seção S .... 12   (11 + S2-BIS)
+--   Seção R .... 12   (8 + R9 R10 R11 R12)
+--   Seção K ....  8   (7 + K8)
+--   Seção B .... 14   ** RE-ESCOPADA — operacional (V1–V14)
+--   Seção M .... 11   ** REESCRITA — state machine job-aware (SM1–SM11)
+--   Seção G ....  8   ** nova — transições operacionais
+--   Seção L ....  4   ** nova — lineage × card_variant
+--   Seção D ....  8   (7 + D8)
+--   Seção 5 ....  6
+--   Seção 6 ....  3   ** MANUAIS — NAO entram no total automatico.
+--                     RESPOSTA A CORRECAO 9: sao 11 secoes no total, das
+--                     quais 10 tem casos automaticos. A conta de 73 tinha 8
+--                     parcelas para 9 secoes declaradas justamente porque a
+--                     Secao 6 e manual e nunca somou — a v3.0 nao dizia isso.
+--                     Agora diz, e a conta fecha parcela a parcela.
+--   ------------------------------------------------------------------
+--   ------------------------------------------------------------------
+--   ------------------------------------------------------------------
+--   Automáticos . 114  ⇐ GATE: 114/114
+--
+--   Conferencia parcela a parcela — 12 parcelas para as 12 secoes
+--   automaticas, em 14 secoes no total:
+--
+--     Secao 1 ... 12      Secao B ... 14
+--     Secao 2 ...  8      Secao M ... 11
+--     Secao 3 ...  7      Secao G ...  8   ** nova
+--     Secao 4 ...  8      Secao D ...  8
+--     Secao S ... 12      Secao 5 ...  6
+--     Secao R ... 12
+--     Secao K ...  8
+--
+--     12+8+7+8+12+12+8 = 67
+--     67 + 14 = 81 ; + 11 = 92 ; + 8 = 100 ; + 8 = 108 ; + 6 = 114
+--
+--   Pendentes ....  4   Secao L — REQUISITOS de 2213, que ainda NAO existe.
+--                       NAO entram no gate automatico: contar como PASS
+--                       seria PASS por ausencia de fixture. Entram quando a
+--                       migration for escrita.
+--   Manuais ......  3   Secao 6 (6.1 EXPLAIN · 6.2 EXPLAIN · 6.3 T1)
+-- ============================================================================
