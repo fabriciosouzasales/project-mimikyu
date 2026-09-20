@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- Query 2834 — RUNNER SQL DOS VETORES COMPARTILHADOS DO EIXO 3
---              v2.2 — SCAFFOLD `type` NO RAW EXTERNO
---                     (MISSING-TYPE-CORRECTION-01)
+--              v2.3 — FAMILY SCAFFOLD NO TRAIT SINTÉTICO
+--                     (MISSING-FAMILY-CORRECTION-01)
 -- ===========================================================================
 -- STATUS: PROPOSTA — NÃO EXECUTADA. Pacote EDITION-CONTEXT-AXIS.
 --
@@ -173,6 +173,53 @@
 -- mapping de Impressão ou de Edition Context usa `raw_field='type'`, e
 -- nenhum usa `normalized_token='NORMAL'` — os `raw_field` existentes nos dois
 -- catálogos são apenas `stamp` e `subtype`.
+--
+-- ---------------------------------------------------------------------------
+-- O QUE MUDOU NA v2.3 — O SCAFFOLD `family` DO TRAIT SINTÉTICO
+-- ---------------------------------------------------------------------------
+-- REGISTRO DE INCIDENTE — `BATCH7-2834-LIVE-EXECUTION-02` → **STOP**.
+--
+--   Erro: SQLSTATE **23502** — `null value in column "family" of relation
+--   "card_edition_context_trait" violates not-null constraint`.
+--
+--   Causa: os DOIS INSERTs sintéticos de Edition Context Trait — o de traits
+--   declarados e o de traits citados só em mappings/profiles — omitiam
+--   `family`, que é coluna **NOT NULL sem default** no schema atual, com
+--   domínio fechado por CHECK (EVENT, PLACEMENT, ROLE, DECK_PLAYER, CHANNEL,
+--   PROGRAM, CAMPAIGN, ARTWORK_MARK).
+--
+--   Impacto: ZERO persistente, comprovado por postcheck read-only — zero
+--   resíduo `VEC2834*` nas dez tabelas, nenhuma temp table remanescente,
+--   baseline operacional 1642 com Edition Context 1092/550/0 intacto,
+--   CANCELLED 847/415 intacto, catálogos intactos (EC 115/144/122 ·
+--   Printing 9/11/10), `2214` fora do ledger. O erro ocorreu no primeiro
+--   INSERT do primeiro vetor, dentro da subtransação.
+--
+-- Correção: os dois caminhos passam a declarar `family = 'ARTWORK_MARK'`.
+--
+-- `family` É SCAFFOLD FÍSICO DO SCHEMA, NÃO DIMENSÃO DO CONTRATO. Medido
+-- contra o LIVE antes da correção:
+--
+--   · não participa da IDENTIDADE — a PK é `(id)` e a unicidade de negócio é
+--     `uq_cect_game_code`, que não a inclui;
+--   · não participa de `traits_signature` — que é `uuid[]` de `trait_id`;
+--   · não participa do ROUTING — `resolve_variant_row_axes()` e
+--     `compute_variant_residual_signature()` não a citam, e nenhuma função de
+--     selo ou guard de Edition Context a lê;
+--   · não é usada pelo runner Edge.
+--
+-- Por isso a FIXTURE JSON PERMANECE INTACTA: acrescentar `family` a ela faria
+-- o runner TS e o runner SQL negociarem um campo que o eixo 3 não modela —
+-- exatamente o raciocínio já aplicado a `type` na v2.2.
+--
+-- ESCOLHA DE `ARTWORK_MARK`, e por que não há conflito: existe
+-- `uq_cect_game_family_order` UNIQUE em `(game_id, family, display_order)`, e
+-- todos os traits sintéticos caem na MESMA family. Os `display_order` gerados
+-- (`1000 + count(VEC2834*)`) são distintos entre si porque o contador
+-- incrementa a cada INSERT do vetor; distintos do dado real porque a faixa
+-- >= 1000 está vazia para POKEMON em TODAS as famílias (o máximo em
+-- ARTWORK_MARK é 30); e reiniciam em 1000 a cada vetor porque a subtransação
+-- desfaz os anteriores.
 -- ===========================================================================
 
 BEGIN;
@@ -585,8 +632,8 @@ BEGIN
 
         -- traits declarados
         FOR v_trait IN SELECT t FROM jsonb_array_elements(COALESCE(v_vec->'ec_traits','[]'::JSONB)) t LOOP
-            INSERT INTO public.card_edition_context_trait (game_id, code, name, display_order, is_active)
-            VALUES (v_game, 'VEC2834_' || (v_trait->>'id'), 'fixture ' || (v_trait->>'id'),
+            INSERT INTO public.card_edition_context_trait (game_id, family, code, name, display_order, is_active)
+            VALUES (v_game, 'ARTWORK_MARK', 'VEC2834_' || (v_trait->>'id'), 'fixture ' || (v_trait->>'id'),
                     1000 + (SELECT count(*)::INT FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'),
                     (v_trait->>'is_active')::BOOLEAN)
             RETURNING id INTO v_trait_id;
@@ -605,8 +652,8 @@ BEGIN
             ) q
         LOOP
             IF NOT (v_sym2uuid ? v_tok) THEN
-                INSERT INTO public.card_edition_context_trait (game_id, code, name, display_order, is_active)
-                VALUES (v_game, 'VEC2834_' || v_tok, 'fixture ' || v_tok,
+                INSERT INTO public.card_edition_context_trait (game_id, family, code, name, display_order, is_active)
+                VALUES (v_game, 'ARTWORK_MARK', 'VEC2834_' || v_tok, 'fixture ' || v_tok,
                         1000 + (SELECT count(*)::INT FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'),
                         TRUE)
                 RETURNING id INTO v_trait_id;
@@ -1214,7 +1261,7 @@ BEGIN
       INTO v_pass, v_fail, v_skip, v_rows, v_vec_seen
       FROM _res2834;
 
-    RAISE NOTICE '=== 2834 v2.2 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
+    RAISE NOTICE '=== 2834 v2.3 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
         v_pass, v_fail, v_skip, v_rows, v_vec_seen;
     RAISE NOTICE '=== esperado pela fixture: % caso(s), % vetor(es), % estado(s) ===',
         v_n_cases, v_n_vectors, v_n_vocab;

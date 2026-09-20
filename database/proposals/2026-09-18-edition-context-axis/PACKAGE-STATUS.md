@@ -218,7 +218,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** v2.2 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — a 1ª tentativa (`LIVE-EXECUTION-01`) abortou por `raw_data.type` ausente; ver item 4 dos bloqueios |
+| **`2834`** v2.3 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — duas tentativas abortaram (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `LIVE-EXECUTION-02`: `family` NULL); ver itens 4 e 5 dos bloqueios |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -359,13 +359,50 @@ dois:
    (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger. O erro
    ocorreu dentro do `BEGIN … ROLLBACK`, no primeiro vetor.
 
-   *Estado:* correção **v2.2 preparada, ainda NÃO EXECUTADA**. `v_raw` passa a
-   incluir `'type', 'normal'` — precedente canônico dos harnesses `2824` e
-   `2827` — e a Seção 2.2 ganha o gate `PRINTING_TYPE_SCAFFOLD_MISMATCH`, que
-   exige `residual_type = 'NORMAL'` e prova que o campo técnico permaneceu
-   inerte. `size='STANDARD'` preservado. **Fixture JSON não alterada**: `type`
-   é scaffold do raw externo, não dimensão do contrato compartilhado do
-   eixo 3.
+   *Correção:* `v_raw` passa a incluir `'type', 'normal'` — precedente
+   canônico dos harnesses `2824` e `2827` — e a Seção 2.2 ganha o gate
+   `PRINTING_TYPE_SCAFFOLD_MISMATCH`, que exige `residual_type = 'NORMAL'` e
+   prova que o campo técnico permaneceu inerte. `size='STANDARD'` preservado.
+   **Fixture JSON não alterada**: `type` é scaffold do raw externo, não
+   dimensão do contrato compartilhado do eixo 3.
+
+   *Estado:* a **v2.2 foi executada** na `LIVE-EXECUTION-02` e **não abortou
+   por `type`**. Isso ainda NÃO é prova de que a correção funciona: o defeito
+   de `family` (item 5) ocorre no bloco 2.1, **antes** de o gate de Impressão
+   ser alcançado, de modo que `compute_variant_residual_signature()` nunca
+   chegou a ser chamada. A correção de `type` permanece **não exercitada**.
+
+5. **`BATCH7-2834-LIVE-EXECUTION-02` → STOP** *(aberto — correção preparada,
+   ainda não executada)*
+
+   *Erro:* SQLSTATE **23502** — `null value in column "family" of relation
+   "card_edition_context_trait" violates not-null constraint`.
+
+   *Causa:* os DOIS INSERTs sintéticos de Edition Context Trait — o de traits
+   declarados e o de traits citados só em mappings/profiles — omitiam
+   `family`, coluna **NOT NULL sem default** do schema atual, com domínio
+   fechado por CHECK (`EVENT`, `PLACEMENT`, `ROLE`, `DECK_PLAYER`, `CHANNEL`,
+   `PROGRAM`, `CAMPAIGN`, `ARTWORK_MARK`).
+
+   *Impacto:* **ZERO persistente**, comprovado por postcheck read-only —
+   zero resíduo `VEC2834*` nas dez tabelas, nenhuma temp table remanescente,
+   baseline operacional **1642** com Edition Context **1092 / 550 / 0**
+   intacto, CANCELLED **847 / 415** intacto, catálogos intactos
+   (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger. O erro
+   ocorreu no primeiro INSERT do primeiro vetor, dentro da subtransação.
+
+   *Estado:* correção **v2.3 preparada, ainda NÃO EXECUTADA**. Os dois
+   caminhos passam a declarar `family = 'ARTWORK_MARK'`. **Fixture JSON não
+   alterada**: `family` é scaffold físico do schema — não participa da
+   identidade (PK é `(id)`; a unicidade de negócio é `uq_cect_game_code`), não
+   participa de `traits_signature` (`uuid[]` de `trait_id`), não é lida por
+   `resolve_variant_row_axes()` nem por `compute_variant_residual_signature()`
+   nem por qualquer guard/selo de Edition Context, e não é usada pelo Edge.
+   A escolha de `ARTWORK_MARK` foi verificada contra `uq_cect_game_family_order`
+   — UNIQUE em `(game_id, family, display_order)`: a faixa `>= 1000` está
+   vazia para POKEMON em todas as famílias (máximo em ARTWORK_MARK = 30), e os
+   `display_order` sintéticos reiniciam a cada vetor porque a subtransação
+   desfaz os anteriores.
 
 O bloqueio de item 2 (`2213`) não é resolvível por quem escreve SQL: depende
 de decisão de Fabrício sobre o vocabulário e sobre a linhagem.
