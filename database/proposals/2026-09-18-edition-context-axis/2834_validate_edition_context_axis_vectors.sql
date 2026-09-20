@@ -1,6 +1,7 @@
 -- ===========================================================================
 -- Query 2834 — RUNNER SQL DOS VETORES COMPARTILHADOS DO EIXO 3
---              v2.0 — COBERTURA INTEGRAL (FULL-COVERAGE-CORRECTION-01)
+--              v2.1 — SUBTRANSAÇÃO POR VETOR
+--                     (VECTOR-SUBTRANSACTION-CORRECTION-01)
 -- ===========================================================================
 -- STATUS: PROPOSTA — NÃO EXECUTADA. Pacote EDITION-CONTEXT-AXIS.
 --
@@ -67,9 +68,71 @@
 -- ---------------------------------------------------------------------------
 -- O runner escreve: cria traits, profiles e mappings sintéticos de Edition
 -- Context E de Impressão. Todos prefixados `VEC2834`. A transação inteira
--- termina em ROLLBACK, e cada vetor ainda apaga a própria fixture antes do
--- vetor seguinte — de modo que nenhum vetor herda estado do anterior nem
--- depende do ROLLBACK para isolamento.
+-- termina em ROLLBACK, e cada vetor desfaz a própria fixture antes do vetor
+-- seguinte — de modo que nenhum vetor herda estado do anterior nem depende do
+-- ROLLBACK final para isolamento.
+--
+-- ---------------------------------------------------------------------------
+-- O QUE MUDOU NA v2.1 — POR QUE O ISOLAMENTO NÃO PODE SER `DELETE`
+-- ---------------------------------------------------------------------------
+-- A v2.0 isolava os vetores apagando a fixture (blocos 2.0 e 2.3). Isso é
+-- IMPOSSÍVEL, e a impossibilidade é uma propriedade desejada do schema, não um
+-- defeito a contornar. Os dois Perfis sintéticos — Impressão e Edition
+-- Context — precisam estar SELADOS antes da medição, porque tanto
+-- compute_variant_residual_signature() quanto 2211 casam o Perfil por
+-- IGUALDADE EXATA de `traits_signature`. E, uma vez selado, o Perfil não sai:
+--
+--   · filha primeiro  -> card_printing_profile_trait / ..._context_profile_trait
+--                        têm guard BEFORE DELETE que levanta
+--                        CARD_PRINTING_PROFILE_COMPOSITION_SEALED /
+--                        EDITION_CONTEXT_COMPOSITION_IMMUTABLE quando o pai
+--                        existe e já tem assinatura;
+--   · pai primeiro    -> as FKs dessas filhas para o Perfil são ON DELETE
+--                        RESTRICT.
+--
+-- Não existe ordem válida. O ramo "Profile sendo removido na mesma transação"
+-- dos guards só se abriria com ON DELETE CASCADE, que não é o caso aqui.
+--
+-- A v2.1 troca o mecanismo: cada vetor roda dentro de uma SUBTRANSAÇÃO
+-- PL/pgSQL (bloco `BEGIN ... EXCEPTION ... END`), encerrada por um
+-- `RAISE EXCEPTION` DELIBERADO com SQLSTATE exclusivo `P2834`. O handler
+-- captura SOMENTE esse SQLSTATE; qualquer outra exceção propaga e aborta o
+-- runner inteiro. Não há `WHEN OTHERS` em lugar nenhum deste arquivo.
+--
+-- IDENTIDADE DO SENTINEL (v2.1, reforçada). SQLSTATE sozinho não basta: nada
+-- impede que uma exceção interna FUTURA reutilize `P2834` e seja engolida como
+-- se fosse o sentinel. Por isso a mensagem é DETERMINÍSTICA e específica do
+-- vetor — `VEC2834_VECTOR_ROLLBACK:<vector_id>` — calculada ANTES de abrir a
+-- subtransação e comparada por IGUALDADE EXATA (`IS DISTINCT FROM`) contra
+-- `SQLERRM` no handler. Qualquer divergência executa `RAISE;`, que re-levanta
+-- a exceção ORIGINAL intacta. Fail-closed: só o sentinel daquele vetor, com
+-- aquela mensagem, é absorvido.
+--
+-- O que torna isso correto é uma garantia documentada do PL/pgSQL: ao capturar
+-- um erro, "as variáveis locais permanecem como estavam quando o erro
+-- ocorreu, mas todo o estado de banco persistente dentro do bloco é desfeito".
+-- Logo: as linhas físicas do vetor somem — sem DELETE, sem tocar em selo,
+-- guard ou FK — e os resultados já medidos, acumulados em `v_acc` (JSONB em
+-- memória), sobrevivem. Só DEPOIS do handler eles são materializados em
+-- `_res2834`, que é criada FORA da subtransação e por isso não é desfeita.
+--
+-- Consequências normativas:
+--
+--   · o sentinel NÃO é um mecanismo de tratamento de erro. Ele roda depois de
+--     TODOS os casos do vetor terem sido medidos, e sua única função é desfazer
+--     a fixture física. Nenhum FAIL vira exceção: FAIL continua sendo resultado
+--     de caso, entra em `v_acc` e chega à Seção 3;
+--   · os blocos 2.0 e 2.3 deixam de apagar qualquer coisa e passam a ser GATES
+--     DE ZERO RESÍDUO sobre as dez tabelas sintéticas — na entrada e na saída
+--     de cada vetor. Eles agora PROVAM o isolamento em vez de tentarem produzi-lo;
+--   · selos, guards, FKs e imutabilidade permanecem exatamente como estão. O
+--     runner passou a caber no schema; o schema não foi afrouxado para caber no
+--     runner.
+--
+-- NOTA DE LEITURA: o corpo da subtransação NÃO foi reindentado. A mudança é
+-- estrutural (abre `BEGIN`, fecha com sentinel + `EXCEPTION ... END`) e manter
+-- a indentação original faz o diff mostrar exatamente o que mudou de semântica.
+-- Os limites do bloco estão marcados com faixas `######` para leitura.
 -- ===========================================================================
 
 BEGIN;
@@ -303,10 +366,14 @@ $s1$;
 -- ===========================================================================
 -- SEÇÃO 2 — RUNNER
 -- ===========================================================================
+-- Criada FORA da subtransação de vetor e escrita SOMENTE depois que o handler
+-- do sentinel devolve o controle. É por isso que ela não é desfeita junto com
+-- a fixture física: nenhum INSERT nesta tabela acontece dentro do bloco
+-- `BEGIN ... EXCEPTION ... END` de vetor algum.
 CREATE TEMP TABLE _res2834 (
     vector_id   TEXT,
     label       TEXT,
-    status      TEXT,          -- PASS | FAIL   (SKIP é proibido na v2.0)
+    status      TEXT,          -- PASS | FAIL   (SKIP é proibido desde a v2.0)
     detail      TEXT
 ) ON COMMIT DROP;
 
@@ -374,6 +441,21 @@ DECLARE
     v_pre_stamp   TEXT[];
     v_got_pre_stamp TEXT[];
     v_raw_stamp   TEXT[];
+
+    -- ---- v2.1: subtransação por vetor ------------------------------------
+    -- `v_acc` é a estrutura de resultados EM MEMÓRIA do vetor. Declarada aqui,
+    -- fora do bloco `BEGIN ... EXCEPTION ... END`, e preservada pelo PL/pgSQL
+    -- quando a subtransação é desfeita — é esse par (variável sobrevive,
+    -- linha física não) que torna o sentinel utilizável como mecanismo de
+    -- isolamento.
+    v_acc         JSONB;
+    v_residue     TEXT;        -- gate de zero resíduo (entrada e saída)
+    -- Mensagem EXATA do sentinel deste vetor. Calculada fora da subtransação,
+    -- de modo que nada de dentro dela possa influenciar o valor contra o qual
+    -- o handler compara.
+    v_sent_expected TEXT;
+    v_vec_ord     INTEGER := 0;   -- vetores iniciados
+    v_sent_hits   INTEGER := 0;   -- sentinels deliberados capturados
 BEGIN
     SELECT payload INTO p FROM _vec2834;
     SELECT id INTO v_game FROM public.game         WHERE code = p->'bindings'->>'game';
@@ -381,46 +463,79 @@ BEGIN
 
     FOR v_vec IN SELECT v FROM jsonb_array_elements(p->'vectors') v LOOP
 
-        -- ===============================================================
-        -- 2.0 CHÃO LIMPO — garantia ESTRUTURAL do isolamento
-        -- ===============================================================
-        -- O cleanup de 2.3 roda no fim do corpo do laço externo e, por
-        -- semântica de PL/pgSQL, nenhum `CONTINUE` do laço INTERNO consegue
-        -- pulá-lo: `CONTINUE` sem rótulo continua o laço mais interno, e o
-        -- fim do laço interno cai em 2.3.
-        --
-        -- Ainda assim, essa é uma garantia por LEITURA do código. Este bloco
-        -- a torna estrutural: cada vetor começa apagando o que porventura
-        -- exista, de modo que a corretude do vetor N não depende de o vetor
-        -- N-1 ter alcançado o fim do seu corpo. Se alguém no futuro
-        -- acrescentar um `CONTINUE` ao laço EXTERNO — o único desvio capaz de
-        -- pular 2.3 — a contaminação continua impossível.
-        --
-        -- Na primeira iteração é comprovadamente um no-op: a Seção 1 acabou
-        -- de provar ausência total de VEC2834* nos seis catálogos.
-        DELETE FROM public.card_edition_context_external_mapping_trait
-         WHERE mapping_id IN (SELECT id FROM public.card_edition_context_external_mapping
-                               WHERE normalized_token LIKE 'VEC2834%');
-        DELETE FROM public.card_edition_context_external_mapping
-         WHERE normalized_token LIKE 'VEC2834%';
-        DELETE FROM public.card_edition_context_profile_trait
-         WHERE profile_id IN (SELECT id FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%');
-        DELETE FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%';
-        DELETE FROM public.card_edition_context_trait   WHERE code LIKE 'VEC2834%';
+        v_vec_ord := v_vec_ord + 1;
+        v_acc     := '[]'::JSONB;
 
-        DELETE FROM public.card_printing_external_mapping_trait
-         WHERE mapping_id IN (SELECT id FROM public.card_printing_external_mapping
-                               WHERE normalized_token LIKE 'VEC2834%');
-        DELETE FROM public.card_printing_external_mapping
-         WHERE normalized_token LIKE 'VEC2834%';
-        DELETE FROM public.card_printing_profile_trait
-         WHERE profile_id IN (SELECT id FROM public.card_printing_profile WHERE code LIKE 'VEC2834%');
-        DELETE FROM public.card_printing_profile WHERE code LIKE 'VEC2834%';
-        DELETE FROM public.card_printing_trait   WHERE code LIKE 'VEC2834%';
+        -- Identidade do sentinel deste vetor, fixada ANTES de abrir a
+        -- subtransação. É o valor único que o handler aceita.
+        v_sent_expected := 'VEC2834_VECTOR_ROLLBACK:' || (v_vec->>'id');
 
-        -- Nenhum SET CONSTRAINTS aqui. O cleanup é só DELETE: não há
-        -- assinatura a materializar, e os selos têm de permanecer DEFERRED —
-        -- que é o regime em que toda iteração precisa começar.
+        -- ===============================================================
+        -- 2.0 GATE DE ZERO RESÍDUO — ENTRADA DO VETOR
+        -- ===============================================================
+        -- A v2.0 tentava PRODUZIR isolamento aqui, apagando a fixture. Não é
+        -- possível: os Perfis estão selados e o schema recusa tanto a filha
+        -- (guard BEFORE DELETE) quanto o pai (FK ON DELETE RESTRICT) — ver a
+        -- nota "O QUE MUDOU NA v2.1" no cabeçalho. Este bloco agora PROVA o
+        -- isolamento em vez de tentar fabricá-lo.
+        --
+        -- Quem produz o isolamento é o rollback da subtransação de vetor,
+        -- logo abaixo. Este gate é a verificação independente disso: se por
+        -- qualquer motivo o rollback não tiver ocorrido, o vetor seguinte
+        -- não começa.
+        --
+        -- Na primeira iteração é redundante com a Seção 1, que acabou de
+        -- provar ausência total de VEC2834* — e redundância aqui é barata.
+        --
+        -- As duas tabelas N:N não têm coluna de código: são contadas pelos
+        -- pais VEC2834*. Como as FKs para o pai são NOT NULL e RESTRICT,
+        -- filha órfã é impossível — provar pai zerado prova filha zerada. É
+        -- o mesmo argumento que a Seção 1 já usa.
+        SELECT string_agg(t || '=' || c, ', ' ORDER BY t) INTO v_residue FROM (
+            SELECT 'card_edition_context_trait' AS t, count(*) AS c
+              FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_edition_context_profile', count(*)
+              FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_edition_context_profile_trait', count(*)
+              FROM public.card_edition_context_profile_trait pt
+             WHERE EXISTS (SELECT 1 FROM public.card_edition_context_profile pp
+                            WHERE pp.id = pt.profile_id AND pp.code LIKE 'VEC2834%')
+            UNION ALL SELECT 'card_edition_context_external_mapping', count(*)
+              FROM public.card_edition_context_external_mapping WHERE normalized_token LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_edition_context_external_mapping_trait', count(*)
+              FROM public.card_edition_context_external_mapping_trait mt
+             WHERE EXISTS (SELECT 1 FROM public.card_edition_context_external_mapping mm
+                            WHERE mm.id = mt.mapping_id AND mm.normalized_token LIKE 'VEC2834%')
+            UNION ALL SELECT 'card_printing_trait', count(*)
+              FROM public.card_printing_trait WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_printing_profile', count(*)
+              FROM public.card_printing_profile WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_printing_profile_trait', count(*)
+              FROM public.card_printing_profile_trait pt
+             WHERE EXISTS (SELECT 1 FROM public.card_printing_profile pp
+                            WHERE pp.id = pt.profile_id AND pp.code LIKE 'VEC2834%')
+            UNION ALL SELECT 'card_printing_external_mapping', count(*)
+              FROM public.card_printing_external_mapping WHERE normalized_token LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_printing_external_mapping_trait', count(*)
+              FROM public.card_printing_external_mapping_trait mt
+             WHERE EXISTS (SELECT 1 FROM public.card_printing_external_mapping mm
+                            WHERE mm.id = mt.mapping_id AND mm.normalized_token LIKE 'VEC2834%')
+        ) q WHERE c > 0;
+
+        IF v_residue IS NOT NULL THEN
+            RAISE EXCEPTION 'S2 ABORT (%): residuo VEC2834* presente ANTES de montar a fixture deste vetor — %. O rollback da subtransacao do vetor anterior nao ocorreu; avaliar este vetor mediria estado herdado.',
+                v_vec->>'id', v_residue;
+        END IF;
+
+        -- ###############################################################
+        -- ###  INÍCIO DA SUBTRANSAÇÃO DO VETOR                        ###
+        -- ###############################################################
+        -- Tudo o que cria fixture física, sela, mede e avalia vive daqui
+        -- até o `RAISE` do sentinel. Nada dentro deste bloco escreve em
+        -- `_res2834`: os resultados vão para `v_acc`, que sobrevive ao
+        -- rollback do bloco. Corpo NÃO reindentado de propósito — ver a
+        -- NOTA DE LEITURA do cabeçalho.
+        BEGIN
 
         -- ===============================================================
         -- 2.1 MONTAGEM DO ESTADO DO VETOR
@@ -490,11 +605,15 @@ BEGIN
         -- em NEEDS_REVIEW_NO_EC_PROFILE.
         --
         -- Por que ESCOPADO e restaurado: `SET CONSTRAINTS ALL IMMEDIATE`
-        -- mudaria o regime de TODOS os constraint triggers pelo resto da
-        -- transação. Como os 17 vetores compartilham um único BEGIN, o vetor
-        -- seguinte dispararia o selo já no INSERT do cabeçalho do profile,
-        -- antes de a N:N existir. O contrato canônico da 2189 é este:
-        -- IMMEDIATE -> provar -> DEFERRED, por trigger NOMEADO.
+        -- mudaria o regime de TODOS os constraint triggers — inclusive os do
+        -- eixo 1, que o bloco 2.1-B ainda vai montar DENTRO desta mesma
+        -- subtransação, e cujo selo precisa continuar deferido até a N:N
+        -- existir. O contrato canônico da 2189 é este: IMMEDIATE -> provar ->
+        -- DEFERRED, por trigger NOMEADO.
+        --
+        -- O `DEFERRED` logo abaixo é, além disso, redundante entre vetores: o
+        -- aborto da subtransação de 2.3 já reverte qualquer SET CONSTRAINTS
+        -- feito aqui. Redundância barata, e a única que vale dentro do vetor.
         SET CONSTRAINTS public.trg_cecp_seal IMMEDIATE;
 
         -- Prova: nenhum profile de fixture pode ficar sem assinatura selada.
@@ -540,7 +659,8 @@ BEGIN
         -- 2.1-B  FIXTURE DE IMPRESSÃO — NOVA NA v2.0
         -- ===============================================================
         -- Criada DEPOIS da sentinela (Seção 1) e ANTES da medição. Local ao
-        -- vetor: montada aqui, apagada em 2.3.
+        -- vetor: montada aqui, desfeita pelo sentinel de 2.3 e conferida
+        -- pelo gate de zero resíduo de 2.4.
         --
         -- Três classes, conforme o `printing.state` DECLARADO:
         --
@@ -607,12 +727,11 @@ BEGIN
             -- E3/E17 jamais atingiriam RESOLVED_WITH_PROFILE.
             --
             -- Por que NÃO `SET CONSTRAINTS ALL`: isso trocaria o regime de
-            -- TODOS os constraint triggers pelo resto da transação, e os 17
-            -- vetores compartilham um único BEGIN...ROLLBACK. O vetor
-            -- seguinte dispararia o selo no INSERT do CABEÇALHO do profile,
-            -- antes de a sua N:N existir — falha de fixture disfarçada de
-            -- falha de contrato. Padrão canônico da 2189, por trigger
-            -- NOMEADO: IMMEDIATE -> provar -> DEFERRED.
+            -- TODOS os constraint triggers, inclusive os de mapping — que
+            -- este runner deixa deliberadamente deferidos porque lê a N:N
+            -- como fallback — e os do eixo 3 já montados nesta mesma
+            -- subtransação. Padrão canônico da 2189, por trigger NOMEADO:
+            -- IMMEDIATE -> provar -> DEFERRED.
             --
             -- A janela entre IMMEDIATE e DEFERRED é retilínea: só há SELECT e
             -- um RAISE que aborta a transação inteira. Nenhum CONTINUE,
@@ -773,7 +892,11 @@ BEGIN
             END IF;
 
             IF v_errs <> '' THEN
-                INSERT INTO _res2834 VALUES (v_vec->>'id', v_label, 'FAIL', v_errs);
+                -- FAIL é RESULTADO, nunca exceção. Vai para `v_acc` e chega
+                -- intacto à Seção 3 — o sentinel não o consome nem o mascara.
+                v_acc := v_acc || jsonb_build_array(jsonb_build_object(
+                    'vector_id', v_vec->>'id', 'label', v_label,
+                    'status', 'FAIL', 'detail', v_errs));
                 CONTINUE;
             END IF;
 
@@ -788,9 +911,10 @@ BEGIN
             -- coerência entre os dois contratos: o eixo 1 tem de dizer a mesma
             -- coisa nas duas chamadas.
             IF v_ax.printing_state IS DISTINCT FROM v_pre.printing_state THEN
-                INSERT INTO _res2834 VALUES (v_vec->>'id', v_label, 'FAIL',
-                    format('AXIS_CONTRACT_DIVERGENCE: printing_state %s no contrato de 3 eixos != %s no contrato de Impressao, para o MESMO raw_data.',
-                           v_ax.printing_state, v_pre.printing_state));
+                v_acc := v_acc || jsonb_build_array(jsonb_build_object(
+                    'vector_id', v_vec->>'id', 'label', v_label, 'status', 'FAIL',
+                    'detail', format('AXIS_CONTRACT_DIVERGENCE: printing_state %s no contrato de 3 eixos != %s no contrato de Impressao, para o MESMO raw_data.',
+                                     v_ax.printing_state, v_pre.printing_state)));
                 CONTINUE;
             END IF;
 
@@ -834,42 +958,150 @@ BEGIN
             IF v_got_emits   IS DISTINCT FROM (v_exp->>'edge_emits_axis_keys')::BOOLEAN
                 THEN v_errs := v_errs || format('emits: %s != %s; ', v_got_emits, v_exp->>'edge_emits_axis_keys'); END IF;
 
-            INSERT INTO _res2834
-            VALUES (v_vec->>'id', v_label,
-                    CASE WHEN v_errs = '' THEN 'PASS' ELSE 'FAIL' END,
-                    CASE WHEN v_errs = '' THEN v_got_state ELSE v_errs END);
+            -- `detail` de um PASS é o estado do eixo 3 — é essa string que a
+            -- Seção 3 usa para medir cobertura de vocabulário. Contrato
+            -- preservado byte a byte na v2.1.
+            v_acc := v_acc || jsonb_build_array(jsonb_build_object(
+                'vector_id', v_vec->>'id', 'label', v_label,
+                'status', CASE WHEN v_errs = '' THEN 'PASS' ELSE 'FAIL' END,
+                'detail', CASE WHEN v_errs = '' THEN v_got_state ELSE v_errs END));
         END LOOP;
 
         -- ===============================================================
-        -- 2.3 ISOLAMENTO — o vetor seguinte não herda estado deste.
-        -- Filhas antes dos pais; Impressão junto do eixo 3. O ROLLBACK final
-        -- é a segunda linha de defesa, não a primeira.
+        -- 2.3 SENTINEL — DESFAZER A FIXTURE FÍSICA DESTE VETOR
         -- ===============================================================
-        DELETE FROM public.card_edition_context_external_mapping_trait
-         WHERE mapping_id IN (SELECT id FROM public.card_edition_context_external_mapping
-                               WHERE normalized_token LIKE 'VEC2834%');
-        DELETE FROM public.card_edition_context_external_mapping
-         WHERE normalized_token LIKE 'VEC2834%';
-        DELETE FROM public.card_edition_context_profile_trait
-         WHERE profile_id IN (SELECT id FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%');
-        DELETE FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%';
-        DELETE FROM public.card_edition_context_trait   WHERE code LIKE 'VEC2834%';
+        -- Última instrução do corpo da subtransação, sem nenhuma condição em
+        -- volta. Todos os casos do vetor já foram medidos e já estão em
+        -- `v_acc`. O `CONTINUE` do laço de casos continua o laço INTERNO e
+        -- o fim dele cai exatamente aqui — não existe caminho que alcance o
+        -- `END` do bloco sem passar por este RAISE.
+        --
+        -- SQLSTATE 'P2834' é exclusivo hoje — a classe 'P2' não é atribuída
+        -- pelo PostgreSQL (a do PL/pgSQL é 'P0'). Mas SQLSTATE sozinho é uma
+        -- garantia sobre o presente: nada impede que código futuro deste
+        -- pacote reutilize 'P2834' por engano. Por isso a identidade do
+        -- sentinel é a MENSAGEM, determinística e específica do vetor, fixada
+        -- em `v_sent_expected` antes de a subtransação abrir.
+        --
+        -- O formato é `RAISE EXCEPTION '%', v_sent_expected`: a string de
+        -- formato é o literal '%', então `SQLERRM` fica EXATAMENTE igual a
+        -- `v_sent_expected`, caractere por caractere — o que permite comparar
+        -- por igualdade em vez de por prefixo ou substring.
+        --
+        -- NÃO é tratamento de erro. É o único mecanismo capaz de remover uma
+        -- fixture cujos Perfis estão selados sem violar selo, guard ou FK.
+        RAISE EXCEPTION '%', v_sent_expected USING ERRCODE = 'P2834';
 
-        DELETE FROM public.card_printing_external_mapping_trait
-         WHERE mapping_id IN (SELECT id FROM public.card_printing_external_mapping
-                               WHERE normalized_token LIKE 'VEC2834%');
-        DELETE FROM public.card_printing_external_mapping
-         WHERE normalized_token LIKE 'VEC2834%';
-        DELETE FROM public.card_printing_profile_trait
-         WHERE profile_id IN (SELECT id FROM public.card_printing_profile WHERE code LIKE 'VEC2834%');
-        DELETE FROM public.card_printing_profile WHERE code LIKE 'VEC2834%';
-        DELETE FROM public.card_printing_trait   WHERE code LIKE 'VEC2834%';
+        EXCEPTION
+            -- SOMENTE o sentinel. Sem `WHEN OTHERS`: qualquer exceção real —
+            -- S2 ABORT de selo, violação de constraint, erro nas funções sob
+            -- teste — não é capturada aqui, propaga e aborta o 2834 inteiro.
+            WHEN SQLSTATE 'P2834' THEN
+                -- FAIL-CLOSED. Igualdade exata contra a mensagem esperada
+                -- DESTE vetor. Um 'P2834' vindo de qualquer outro ponto —
+                -- inclusive de um vetor diferente — não corresponde e é
+                -- re-levantado intacto por `RAISE;`, abortando o runner.
+                IF SQLERRM IS DISTINCT FROM v_sent_expected THEN
+                    RAISE;
+                END IF;
 
-        -- Sem SET CONSTRAINTS: cleanup é só DELETE, e os dois selos já foram
-        -- restaurados a DEFERRED nos seus próprios blocos. A iteração
-        -- seguinte começa no regime DEFERRED, que é o que 2.1 e 2.1-B
-        -- pressupõem ao inserir cabeçalho antes da N:N.
+                v_sent_hits := v_sent_hits + 1;
+        END;
+        -- ###############################################################
+        -- ###  FIM DA SUBTRANSAÇÃO DO VETOR                           ###
+        -- ###############################################################
+        -- Neste ponto, pela semântica documentada do PL/pgSQL: todo o estado
+        -- de banco escrito dentro do bloco foi desfeito, e as variáveis
+        -- locais — `v_acc` em particular — mantêm os valores que tinham
+        -- quando o sentinel foi levantado.
+        --
+        -- Os `SET CONSTRAINTS` escopados dos dois selos também ficam para
+        -- trás: eles são revertidos pelo aborto da subtransação, além de já
+        -- terem sido restaurados a DEFERRED dentro dos próprios blocos. A
+        -- iteração seguinte começa no regime DEFERRED, que é o que 2.1 e
+        -- 2.1-B pressupõem ao inserir cabeçalho antes da N:N.
+
+        -- ---- prova de que o sentinel foi realmente alcançado -----------
+        -- Se o bloco tivesse terminado por qualquer outro caminho, o handler
+        -- não teria rodado e o contador ficaria para trás do ordinal.
+        IF v_sent_hits <> v_vec_ord THEN
+            RAISE EXCEPTION 'S2 ABORT (%): sentinel nao capturado para este vetor (% sentinel(s) para % vetor(es) iniciado(s)). A fixture fisica pode nao ter sido desfeita.',
+                v_vec->>'id', v_sent_hits, v_vec_ord;
+        END IF;
+
+        -- ---- o vetor precisa ter medido alguma coisa -------------------
+        -- A Seção 0 (G4) já prova que todo vetor da fixture deriva ao menos
+        -- um caso. Um `v_acc` vazio aqui significaria que o laço de casos
+        -- não rodou — falha silenciosa que a v2.0 não teria como acusar,
+        -- porque a contagem global só aparece na Seção 3.
+        IF jsonb_array_length(v_acc) = 0 THEN
+            RAISE EXCEPTION 'S2 ABORT (%): nenhum caso medido para este vetor.', v_vec->>'id';
+        END IF;
+
+        -- ===============================================================
+        -- 2.4 GATE DE ZERO RESÍDUO — SAÍDA DO VETOR
+        -- ===============================================================
+        -- Prova independente de que o rollback da subtransação removeu TODA
+        -- a fixture física, nas dez tabelas sintéticas. É o predicado que
+        -- substitui os DELETEs da v2.0: em vez de mandar apagar e torcer, o
+        -- runner verifica e falha alto. Roda ANTES do próximo vetor e antes
+        -- de qualquer escrita em `_res2834`.
+        SELECT string_agg(t || '=' || c, ', ' ORDER BY t) INTO v_residue FROM (
+            SELECT 'card_edition_context_trait' AS t, count(*) AS c
+              FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_edition_context_profile', count(*)
+              FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_edition_context_profile_trait', count(*)
+              FROM public.card_edition_context_profile_trait pt
+             WHERE EXISTS (SELECT 1 FROM public.card_edition_context_profile pp
+                            WHERE pp.id = pt.profile_id AND pp.code LIKE 'VEC2834%')
+            UNION ALL SELECT 'card_edition_context_external_mapping', count(*)
+              FROM public.card_edition_context_external_mapping WHERE normalized_token LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_edition_context_external_mapping_trait', count(*)
+              FROM public.card_edition_context_external_mapping_trait mt
+             WHERE EXISTS (SELECT 1 FROM public.card_edition_context_external_mapping mm
+                            WHERE mm.id = mt.mapping_id AND mm.normalized_token LIKE 'VEC2834%')
+            UNION ALL SELECT 'card_printing_trait', count(*)
+              FROM public.card_printing_trait WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_printing_profile', count(*)
+              FROM public.card_printing_profile WHERE code LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_printing_profile_trait', count(*)
+              FROM public.card_printing_profile_trait pt
+             WHERE EXISTS (SELECT 1 FROM public.card_printing_profile pp
+                            WHERE pp.id = pt.profile_id AND pp.code LIKE 'VEC2834%')
+            UNION ALL SELECT 'card_printing_external_mapping', count(*)
+              FROM public.card_printing_external_mapping WHERE normalized_token LIKE 'VEC2834%'
+            UNION ALL SELECT 'card_printing_external_mapping_trait', count(*)
+              FROM public.card_printing_external_mapping_trait mt
+             WHERE EXISTS (SELECT 1 FROM public.card_printing_external_mapping mm
+                            WHERE mm.id = mt.mapping_id AND mm.normalized_token LIKE 'VEC2834%')
+        ) q WHERE c > 0;
+
+        IF v_residue IS NOT NULL THEN
+            RAISE EXCEPTION 'S2 ABORT (%): a subtransacao foi desfeita mas restou fixture VEC2834* — %. Isolamento entre vetores NAO demonstrado.',
+                v_vec->>'id', v_residue;
+        END IF;
+
+        -- ===============================================================
+        -- 2.5 MATERIALIZAÇÃO — só agora, e fora da subtransação
+        -- ===============================================================
+        -- `_res2834` foi criada fora do bloco e nunca é escrita dentro dele.
+        -- Por isso estas linhas sobrevivem até a Seção 3 enquanto a fixture
+        -- física já não existe.
+        INSERT INTO _res2834 (vector_id, label, status, detail)
+        SELECT r->>'vector_id', r->>'label', r->>'status', r->>'detail'
+          FROM jsonb_array_elements(v_acc) r;
+
     END LOOP;
+
+    -- Fecho global: um sentinel deliberado por vetor, nem mais nem menos.
+    IF v_sent_hits <> v_vec_ord THEN
+        RAISE EXCEPTION 'S2 ABORT: % sentinel(s) capturado(s) para % vetor(es) percorrido(s).',
+            v_sent_hits, v_vec_ord;
+    END IF;
+
+    RAISE NOTICE 'S2 OK — % vetor(es) medidos, % subtransacao(oes) desfeita(s) pelo sentinel, zero residuo em cada saida.',
+        v_vec_ord, v_sent_hits;
 END
 $s2$;
 
@@ -877,17 +1109,24 @@ $s2$;
 -- ===========================================================================
 -- SEÇÃO 3 — GATE FINAL
 -- ===========================================================================
--- v2.0: o gate deixa de ser "nenhum FAIL" e passa a ser "a fixture inteira foi
--- provada". Quatro condições, todas obrigatórias:
+-- Desde a v2.0 o gate deixou de ser "nenhum FAIL" e passou a ser "a fixture
+-- inteira foi provada". Sete condições, todas obrigatórias:
 --
 --   (1) zero FAIL;
---   (2) zero SKIP — na v2.0 SKIP não é resultado admissível;
---   (3) casos executados == casos derivados da fixture (dinâmico);
---   (4) vector_ids distintos == vetores da fixture;
---   (5) cobertura de vocabulário completa.
+--   (2) zero SKIP — SKIP não é resultado admissível;
+--   (3) casos PASS == casos derivados da fixture (dinâmico);
+--   (4) casos executados == casos derivados da fixture (dinâmico);
+--   (5) todo vector_id do roster com ao menos um caso PASS (nominal);
+--   (6) vector_ids distintos == vetores da fixture;
+--   (7) cobertura de vocabulário completa.
 --
--- A condição (3) é o que impede a regressão que a v1.0 permitia: contar só
--- FAIL deixava passar um runner que simplesmente não rodou parte da fixture.
+-- As condições (3)/(4) são o que impede a regressão que a v1.0 permitia:
+-- contar só FAIL deixava passar um runner que simplesmente não rodou parte da
+-- fixture.
+--
+-- Nada aqui muda na v2.1. A Seção 3 lê `_res2834` exatamente como antes — a
+-- subtransação por vetor alterou COMO as linhas chegam até aqui, nunca o que
+-- elas significam nem o rigor com que são cobradas.
 -- ===========================================================================
 DO $s3$
 DECLARE
@@ -910,7 +1149,7 @@ BEGIN
       INTO v_pass, v_fail, v_skip, v_rows, v_vec_seen
       FROM _res2834;
 
-    RAISE NOTICE '=== 2834 v2.0 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
+    RAISE NOTICE '=== 2834 v2.1 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
         v_pass, v_fail, v_skip, v_rows, v_vec_seen;
     RAISE NOTICE '=== esperado pela fixture: % caso(s), % vetor(es), % estado(s) ===',
         v_n_cases, v_n_vectors, v_n_vocab;

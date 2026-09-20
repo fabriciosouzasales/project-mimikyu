@@ -218,7 +218,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** v2.0 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor. **AINDA NÃO EXECUTADO** |
+| **`2834`** v2.1 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO** |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -305,13 +305,35 @@ dois:
    `NEEDS_REVIEW_NO_EC_PROFILE` — têm **um único vetor cada** (`E16` e `E3`),
    logo a perda não era de 3/17 dos vetores e sim de **2/8 do vocabulário**.
 
-   *Estado agora:* o `2834` **v2.0** monta a fixture sintética de Impressão por
+   *Estado agora:* o `2834` **v2.1** monta a fixture sintética de Impressão por
    vetor, dentro da mesma transação com `ROLLBACK`, e cobre **17 vetores /
    18 casos**, com **zero SKIP planejado** e **8/8 estados**. Os números são
    derivados do JSON em tempo de execução, nunca constantes no SQL. O gate S3
    falha se houver FAIL, se houver SKIP, se a contagem de casos divergir da
    fixture, se algum `vector_id` do roster ficar sem caso PASS, ou se algum
    estado do vocabulário ficar sem cobertura PASS.
+
+   *Correção `BATCH7-2834-VECTOR-SUBTRANSACTION-CORRECTION-01` (v2.0 → v2.1):*
+   o isolamento entre vetores da v2.0 era feito por `DELETE`, o que é
+   **impossível** — os Perfis sintéticos precisam estar selados antes da
+   medição, e depois do selo `card_printing_profile_trait` e
+   `card_edition_context_profile_trait` rejeitam a filha (guard `BEFORE DELETE`
+   de composição selada) enquanto a FK para o pai é `ON DELETE RESTRICT`. Não
+   há ordem válida. A v2.1 roda cada vetor numa **subtransação PL/pgSQL**
+   encerrada por `RAISE EXCEPTION ... USING ERRCODE = 'P2834'` deliberado,
+   capturado por `EXCEPTION WHEN SQLSTATE 'P2834'` — sem `WHEN OTHERS`, de
+   modo que qualquer exceção real continua abortando o runner. O SQLSTATE não
+   é a identidade: a mensagem é determinística e específica do vetor
+   (`VEC2834_VECTOR_ROLLBACK:<vector_id>`), fixada antes de a subtransação
+   abrir, e o handler a compara com `SQLERRM` por **igualdade exata** — um
+   `P2834` vindo de qualquer outra origem executa `RAISE;` e propaga
+   intacto. Fail-closed. Os resultados
+   são acumulados em JSONB na memória (que sobrevive ao rollback do bloco) e
+   só então materializados em `_res2834`, criada fora da subtransação. Os
+   blocos 2.0 e 2.4 deixam de apagar e passam a ser **gates de zero resíduo**
+   sobre as dez tabelas sintéticas, na entrada e na saída de cada vetor.
+   Nenhum FAIL vira exceção; selos, guards, FKs e imutabilidade permanecem
+   exatamente como estão.
 
    **O `2834` continua NÃO EXECUTADO.** Os números acima são a capacidade do
    runner, não um resultado medido. O critério de `EXECUTION-BATCHES.md` —
