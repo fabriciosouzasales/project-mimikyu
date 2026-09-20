@@ -1,8 +1,24 @@
 -- ============================================================================
 -- Query 2231 — SEED dos 144 Edition Context Profiles
--- Status: PROPOSTA — PROPOSAL ONLY · Versao 3.1
+-- Status: PROPOSTA — PROPOSAL ONLY · Versao 3.2
 -- Mandato: EDITION-CONTEXT-AXIS-EDITORIAL-VOCABULARY-FINAL-CORRECTION-01
 --          + EDITION-CONTEXT-AXIS-SECURITY-SEED-HARDENING-01 (v3.1, B1)
+--          + EDITION-CONTEXT-AXIS-BATCH2-GAME-CODE-CORRECTION-01 (v3.2)
+--
+-- v3.2 — GAME CANONICO + PREFLIGHT FAIL-LOUD
+--   Mesma classe de defeito diagnosticada na 2230 durante BATCH2-VOCABULARY-01,
+--   aqui na linha do PASSO 2: o Game era resolvido por `code='PTCG'`, que NAO
+--   EXISTE (os Games reais sao 'LORCANA' e 'POKEMON'). Esta seed nao chegou a
+--   ser executada — o STOP na 2230 a bloqueou —, mas carregava o mesmo erro.
+--
+--   O padrao aqui e identico ao da 2230: `CROSS JOIN LATERAL` sem linha a
+--   direita produz conjunto vazio, e o INSERT teria gravado 0 profiles sem
+--   erro algum.
+--
+--   CORRECAO: literal 'PTCG' -> 'POKEMON', mais um PASSO 0 — PREFLIGHT que
+--   exige EXATAMENTE UM Game antes do primeiro write e aborta com excecao
+--   nomeada. Os gates P1-P8, as 144 composicoes, os 196 links, a aridade
+--   96/44/4 e a regra de nomenclatura seguem INTOCADOS.
 --
 -- v3.1 — B1: name passa a ser o LABEL CANONICO PT-BR
 --   A v3.0 gravava a composicao INGLESA em `name` e a composicao PT-BR em
@@ -71,6 +87,23 @@
 -- ============================================================================
 
 BEGIN;
+
+-- ---------------------------------------------------------------- PASSO 0 ---
+-- PREFLIGHT DE REFERENCIA OBRIGATORIA (v3.2)
+--
+-- Identico em forma ao da 2230, e pela mesma razao: sem exatamente UM Game
+-- 'POKEMON', o CROSS JOIN LATERAL do PASSO 2 gravaria 0 profiles (se 0) ou
+-- multiplicaria as 144 composicoes por N (se >1). Assercao local, antes de
+-- qualquer escrita; nenhum objeto permanente, nenhuma mudanca no modelo
+-- multi-Game.
+DO $$
+DECLARE v_n INT;
+BEGIN
+    SELECT COUNT(*) INTO v_n FROM public.game WHERE code = 'POKEMON';
+    IF v_n <> 1 THEN
+        RAISE EXCEPTION 'SEED_GAME_REFERENCE (2231): esperado EXATAMENTE 1 Game com code=''POKEMON'', encontrado %. Sem essa referencia o INSERT do PASSO 2 gravaria 0 profiles em silencio. Abortado antes de qualquer escrita.', v_n;
+    END IF;
+END $$;
 
 CREATE TEMP TABLE seed_ec_profile (
     code TEXT, name TEXT, description TEXT, display_order INT, arity INT, origem TEXT
@@ -470,7 +503,7 @@ END $$;
 -- ---------------------------------------------------------------- PASSO 2 ---
 INSERT INTO public.card_edition_context_profile (game_id, code, name, description, display_order)
 SELECT g.id, p.code, p.name, p.description, p.display_order
-  FROM seed_ec_profile p CROSS JOIN LATERAL (SELECT id FROM public.game WHERE code='PTCG') g;
+  FROM seed_ec_profile p CROSS JOIN LATERAL (SELECT id FROM public.game WHERE code='POKEMON') g;
 
 INSERT INTO public.card_edition_context_profile_trait (profile_id, trait_id, game_id)
 SELECT p.id, t.id, p.game_id

@@ -309,7 +309,13 @@ SELECT count(*) AS grants_indevidos                      -- 0
 | 3 | `2232` · 122 mappings |
 
 Os gates internos de cada seed já falham alto (`T1`–`T4`, `P1`–`P7`, `M3`, `H2`,
-`C1`). Este postcheck é a confirmação externa.
+`C1`), e a partir de `BATCH2-GAME-CODE-CORRECTION-01` cada seed abre com um
+**PASSO 0 — PREFLIGHT de referência obrigatória**, anterior a qualquer write:
+`SEED_GAME_REFERENCE` em `2230`/`2231`/`2232` e `SEED_SOURCE_REFERENCE` em
+`2232`. Eles existem porque a execução LIVE de `BATCH2-VOCABULARY-01` mostrou
+que referência ausente não falhava — virava `INSERT` de 0 linhas, detectado só
+três passos adiante pelo gate de contagem. Este postcheck é a confirmação
+externa.
 
 **Postcheck:**
 ```sql

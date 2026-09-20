@@ -1,7 +1,30 @@
 -- ============================================================================
 -- Query 2232 — SEED dos 122 Edition Context External Mappings
--- Status: PROPOSTA — PROPOSAL ONLY · Versao 2.0
+-- Status: PROPOSTA — PROPOSAL ONLY · Versao 2.1
 -- Mandato: EDITION-CONTEXT-AXIS-EDITORIAL-VOCABULARY-02
+--          + EDITION-CONTEXT-AXIS-BATCH2-GAME-CODE-CORRECTION-01 (v2.1)
+--
+-- v2.1 — GAME CANONICO + PREFLIGHT FAIL-LOUD
+--   Esta seed carregava DUAS ocorrencias de `code = 'PTCG'` (PASSO 2), code
+--   que NAO EXISTE: os Games reais sao 'LORCANA' e 'POKEMON'. Nao chegou a ser
+--   executada — o STOP na 2230 a bloqueou.
+--
+--   DIFERENCA IMPORTANTE EM RELACAO A 2230/2231: aqui o Game nao vinha de um
+--   CROSS JOIN LATERAL, e sim de uma SUBQUERY ESCALAR. Subquery escalar sem
+--   linha devolve NULL, nao conjunto vazio. Logo o modo de falha nao seria
+--   "0 linhas em silencio" — seria `null value in column "game_id" violates
+--   not-null constraint`, disparado pela constraint da tabela, sem gate
+--   nomeado e sem dizer QUAL referencia faltou. Fail-loud por acidente de
+--   constraint, nao por desenho.
+--
+--   CORRECAO: os dois literais passam a 'POKEMON', e o PASSO 0 ganha um
+--   preflight que prova Game E asset_source ANTES do primeiro write, com
+--   excecao nomeada por referencia. A seed deixa de depender de violacao de
+--   NOT NULL para detectar referencia ausente.
+--
+--   O guard M0 (one-shot) e anterior e permanece INTOCADO, na frente de tudo.
+--   Corpus INTOCADO: 122 mappings, 108 GLOBAL / 14 SCOPED, GUARD H2, gates
+--   M1-M6 e a normalizacao seguem byte a byte iguais a v2.0.
 --
 --   117 tokens de origem -> 122 linhas de mapping
 --   (os SCOPED geram uma linha por Set: set-logo 3, platinum 4, mfb 6, base2 1)
@@ -57,6 +80,29 @@ BEGIN
     IF v_n <> 0 THEN
         RAISE EXCEPTION
           'SEED_MAP_ALREADY_APPLIED (M0): a tabela ja contem % mapping(s) — ativos e/ou historicos. Este seed e ONE-SHOT e recusa reaplicacao deliberadamente. Para corrigir um mapping, aposente o ativo (is_active = FALSE) e crie um novo; nunca reexecute este arquivo.', v_n;
+    END IF;
+END $$;
+
+-- M0-BIS — PREFLIGHT DE REFERENCIAS OBRIGATORIAS (v2.1), tambem ANTES de
+-- qualquer write. Sao DUAS referencias, e cada uma aborta com excecao propria
+-- para que a mensagem diga qual faltou.
+--
+-- Sem este bloco, Game ou asset_source ausente viraria `game_id`/
+-- `asset_source_id` NULL (subquery escalar) e a falha apareceria como violacao
+-- de NOT NULL — correta, porem muda: sem dizer que o problema e a referencia.
+-- Com >1 linha, a subquery escalar levantaria "more than one row returned",
+-- igualmente opaco. Os dois casos passam a ser nomeados aqui.
+DO $$
+DECLARE v_game INT; v_src INT;
+BEGIN
+    SELECT COUNT(*) INTO v_game FROM public.game         WHERE code = 'POKEMON';
+    IF v_game <> 1 THEN
+        RAISE EXCEPTION 'SEED_GAME_REFERENCE (2232): esperado EXATAMENTE 1 Game com code=''POKEMON'', encontrado %. Abortado antes de qualquer escrita — sem isso a falha apareceria como violacao de NOT NULL em game_id.', v_game;
+    END IF;
+
+    SELECT COUNT(*) INTO v_src FROM public.asset_source WHERE code = 'TCGDEX';
+    IF v_src <> 1 THEN
+        RAISE EXCEPTION 'SEED_SOURCE_REFERENCE (2232): esperado EXATAMENTE 1 asset_source com code=''TCGDEX'', encontrado %. Abortado antes de qualquer escrita — sem isso a falha apareceria como violacao de NOT NULL em asset_source_id.', v_src;
     END IF;
 END $$;
 
@@ -249,8 +295,8 @@ END $$;
 -- uq_cecem_active_global / uq_cecem_active_scoped garantem no máximo UM ativo
 -- por identidade: o JOIN abaixo não tem como casar duas linhas.
 WITH ctx AS (
-    SELECT (SELECT id FROM public.game         WHERE code = 'PTCG')   AS game_id,
-           (SELECT id FROM public.asset_source WHERE code = 'TCGDEX') AS asset_source_id
+    SELECT (SELECT id FROM public.game         WHERE code = 'POKEMON') AS game_id,
+           (SELECT id FROM public.asset_source WHERE code = 'TCGDEX')  AS asset_source_id
 )
 INSERT INTO public.card_edition_context_external_mapping
     (game_id, asset_source_id, external_set_id, raw_field, normalized_token)
@@ -261,8 +307,8 @@ INSERT INTO public.card_edition_context_external_mapping_trait (mapping_id, trai
 SELECT mm.id, t.id, mm.game_id
   FROM seed_ec_map s
   CROSS JOIN LATERAL (
-      SELECT (SELECT id FROM public.game         WHERE code = 'PTCG')   AS game_id,
-             (SELECT id FROM public.asset_source WHERE code = 'TCGDEX') AS asset_source_id
+      SELECT (SELECT id FROM public.game         WHERE code = 'POKEMON') AS game_id,
+             (SELECT id FROM public.asset_source WHERE code = 'TCGDEX')  AS asset_source_id
   ) c
   JOIN public.card_edition_context_external_mapping mm
     ON  mm.game_id         = c.game_id

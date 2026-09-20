@@ -1,8 +1,35 @@
 -- ============================================================================
 -- Query 2230 — SEED dos 115 Edition Context Traits
--- Status: PROPOSTA — PROPOSAL ONLY · Versao 2.1
+-- Status: PROPOSTA — PROPOSAL ONLY · Versao 2.2
 -- Mandato: EDITION-CONTEXT-AXIS-EDITORIAL-VOCABULARY-02
 --          + EDITION-CONTEXT-AXIS-SECURITY-SEED-HARDENING-01 (v2.1, B1)
+--          + EDITION-CONTEXT-AXIS-BATCH2-GAME-CODE-CORRECTION-01 (v2.2)
+--
+-- v2.2 — GAME CANONICO + PREFLIGHT FAIL-LOUD
+--   Na execucao LIVE de BATCH2-VOCABULARY-01 esta seed abortou no gate do
+--   PASSO 3 com "SEED_POSTCHECK_COUNT: esperado 115, obtido 0".
+--
+--   CAUSA RAIZ: a v2.1 resolvia o Game por `code='PTCG'`. Esse code NAO EXISTE
+--   no banco. Os Games reais sao 'LORCANA' e 'POKEMON', e o eixo irmao
+--   Printing ja esta ancorado em 'POKEMON' no LIVE (card_printing_trait).
+--   O restante do repositorio tambem usa 'POKEMON' (seeds 830/831/840/850).
+--
+--   POR QUE FALHOU EM SILENCIO ATE O GATE: `CROSS JOIN LATERAL (SELECT ...)`
+--   com ZERO linhas a direita produz zero linhas no total. O INSERT do PASSO 2
+--   executou com sucesso inserindo 0 traits — nenhum erro, nenhuma constraint
+--   violada. So o gate de contagem do PASSO 3, tres passos depois, percebeu.
+--   Ausencia de referencia obrigatoria virou conjunto vazio em vez de erro.
+--
+--   CORRECAO (duas partes, ambas necessarias):
+--     1. literal: code='PTCG' -> code='POKEMON';
+--     2. PASSO 0 — PREFLIGHT: prova a existencia do Game ANTES do primeiro
+--        INSERT real e aborta com excecao NOMEADA. A correcao do literal
+--        sozinha conserta ESTA ocorrencia; o preflight fecha a CLASSE do
+--        defeito — qualquer referencia obrigatoria ausente passa a falhar
+--        alto e cedo, nunca mais como INSERT de 0 rows.
+--
+--   Conteudo editorial INTOCADO: as 115 traits, codes, labels, descriptions,
+--   families, display_order e o mapa de tokens de B sao byte a byte os da v2.1.
 --
 -- v2.1 — B1: name passa a ser o LABEL CANONICO PT-BR
 --   A v2.0 gravava o rotulo INGLES em `name` e o rotulo PT-BR em
@@ -40,6 +67,23 @@
 -- ============================================================================
 
 BEGIN;
+
+-- ---------------------------------------------------------------- PASSO 0 ---
+-- PREFLIGHT DE REFERENCIA OBRIGATORIA (v2.2)
+--
+-- Roda ANTES de qualquer write real. Exige EXATAMENTE UM Game 'POKEMON':
+--   · 0  -> o defeito que derrubou BATCH2-VOCABULARY-01 (viraria INSERT vazio);
+--   · >1 -> ambiguo; o CROSS JOIN LATERAL multiplicaria as 115 traits por N.
+-- Nao cria objeto permanente, nao toca o modelo multi-Game: e uma assercao
+-- local, do tamanho do problema.
+DO $$
+DECLARE v_n INT;
+BEGIN
+    SELECT COUNT(*) INTO v_n FROM public.game WHERE code = 'POKEMON';
+    IF v_n <> 1 THEN
+        RAISE EXCEPTION 'SEED_GAME_REFERENCE (2230): esperado EXATAMENTE 1 Game com code=''POKEMON'', encontrado %. Sem essa referencia o INSERT do PASSO 2 inseriria 0 linhas em silencio. Abortado antes de qualquer escrita.', v_n;
+    END IF;
+END $$;
 
 CREATE TEMP TABLE seed_ec_trait (
     family TEXT, code TEXT, name TEXT, description TEXT, display_order INT
@@ -207,7 +251,7 @@ INSERT INTO public.card_edition_context_trait
     (game_id, family, code, name, description, display_order)
 SELECT g.id, s.family, s.code, s.name, s.description, s.display_order
   FROM seed_ec_trait s
-  CROSS JOIN LATERAL (SELECT id FROM public.game WHERE code='PTCG') g;
+  CROSS JOIN LATERAL (SELECT id FROM public.game WHERE code='POKEMON') g;
 
 -- ---------------------------------------------------------------- PASSO 3 ---
 -- T2 — os 21 tokens exclusivos de B tem destino. Mapa explicito (nao-1:1).
