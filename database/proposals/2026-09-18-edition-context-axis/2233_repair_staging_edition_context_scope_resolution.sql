@@ -495,10 +495,18 @@ CREATE TEMP TABLE rp_league_staff ON COMMIT DROP AS
 SELECT p.*
   FROM rp_plan p
   JOIN rp_operational o ON o.id = p.id
- WHERE public.normalize_external_catalog_value(o.raw_data ->> 'foil') = 'league'
+ -- CAIXA (G8-NORMALIZATION-CORRECTION-01): public.normalize_external_catalog_value()
+ -- devolve o dominio normalizado em MAIUSCULAS. A versao anterior comparava
+ -- contra 'league'/'staff' minusculos — predicado insatisfazivel por
+ -- construcao, que media 0 para qualquer dado e fez o RP_G8 abortar no LIVE.
+ -- Probes read-only no universo operacional: foil='LEAGUE' -> 53 rows;
+ -- stamp contendo 'STAFF' -> 46 rows; combinado -> 7 (o contrato).
+ -- `'array'` e `'null'`/`'string'` seguem MINUSCULOS de proposito: sao
+ -- retornos de jsonb_typeof(), nao da funcao de normalizacao.
+ WHERE public.normalize_external_catalog_value(o.raw_data ->> 'foil') = 'LEAGUE'
    AND jsonb_typeof(o.raw_data -> 'stamp') = 'array'
    AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(o.raw_data -> 'stamp') e
-                WHERE public.normalize_external_catalog_value(e) = 'staff');
+                WHERE public.normalize_external_catalog_value(e) = 'STAFF');
 
 -- ---------------------------------------------------------------- PASSO 4 ---
 -- GATES PRE-WRITE. NADA e escrito antes de todos passarem.
@@ -619,8 +627,11 @@ BEGIN
     -- G8e — o residual de ACABAMENTO das 7 continua carregando o foil pendente.
     -- E o que mantem a linha INDETERMINATE no eixo de Finish, que e o estado
     -- correto e NAO deve ser mascarado por esta Query.
+    -- CAIXA (G8-NORMALIZATION-CORRECTION-01): residual_foil chega do routing
+    -- ja normalizado em MAIUSCULAS. Probe read-only nas 7 rows: 7/7 com
+    -- residual_foil = 'LEAGUE', 0 com 'league'.
     SELECT COUNT(*) INTO v_n FROM rp_league_staff
-     WHERE residual_foil IS DISTINCT FROM 'league';
+     WHERE residual_foil IS DISTINCT FROM 'LEAGUE';
     IF v_n <> 0 THEN
         RAISE EXCEPTION 'RP_G8E_LEAGUE_RESIDUAL: % das 7 rows perderam o foil pendente do residual de acabamento. PARAR.', v_n;
     END IF;
