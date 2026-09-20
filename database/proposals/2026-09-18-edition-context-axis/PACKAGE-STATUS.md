@@ -218,7 +218,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** v2.1 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO** |
+| **`2834`** v2.2 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — a 1ª tentativa (`LIVE-EXECUTION-01`) abortou por `raw_data.type` ausente; ver item 4 dos bloqueios |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -335,13 +335,46 @@ dois:
    Nenhum FAIL vira exceção; selos, guards, FKs e imutabilidade permanecem
    exatamente como estão.
 
-   **O `2834` continua NÃO EXECUTADO.** Os números acima são a capacidade do
-   runner, não um resultado medido. O critério de `EXECUTION-BATCHES.md` —
-   *"`2834` com todos os vetores PASS"* — permanece intacto e é o que decide.
+   **O `2834` continua NÃO EXECUTADO com sucesso.** Os números acima são a
+   capacidade do runner, não um resultado medido. O critério de
+   `EXECUTION-BATCHES.md` — *"`2834` com todos os vetores PASS"* — permanece
+   intacto e é o que decide.
 
-O bloqueio restante (item 2, `2213`) não é resolvível por quem escreve SQL:
-depende de decisão de Fabrício sobre o vocabulário e sobre a linhagem.
+4. **`BATCH7-2834-LIVE-EXECUTION-01` → STOP** *(aberto — correção preparada,
+   ainda não executada)*
 
-**Nenhum artefato foi executado.** Nenhum SQL rodou no LIVE, nenhum deploy
-foi feito, `T1` continua não autorizado, e nada saiu de
+   *Erro:* `COMPUTE_VARIANT_RESIDUAL_SIGNATURE_MISSING_TYPE: raw_data.type
+   ausente.`
+
+   *Causa:* o harness v2.1 construía `raw_data` sem `type`, embora o contrato
+   de Impressão exija esse campo — `internal.compute_variant_residual_
+   signature()` normaliza `raw_data.type` como primeira operação e levanta
+   exceção se vier NULL ou vazio. O defeito nasceu com o gate de medição
+   prévia introduzido na v2.0; a v1.0 não chamava essa função.
+
+   *Impacto:* **ZERO persistente**, comprovado por postcheck read-only —
+   zero resíduo `VEC2834*` nas dez tabelas, nenhuma temp table remanescente,
+   baseline operacional **1642** com Edition Context **1092 / 550 / 0**
+   intacto, CANCELLED **847 / 415** intacto, catálogos intactos
+   (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger. O erro
+   ocorreu dentro do `BEGIN … ROLLBACK`, no primeiro vetor.
+
+   *Estado:* correção **v2.2 preparada, ainda NÃO EXECUTADA**. `v_raw` passa a
+   incluir `'type', 'normal'` — precedente canônico dos harnesses `2824` e
+   `2827` — e a Seção 2.2 ganha o gate `PRINTING_TYPE_SCAFFOLD_MISMATCH`, que
+   exige `residual_type = 'NORMAL'` e prova que o campo técnico permaneceu
+   inerte. `size='STANDARD'` preservado. **Fixture JSON não alterada**: `type`
+   é scaffold do raw externo, não dimensão do contrato compartilhado do
+   eixo 3.
+
+O bloqueio de item 2 (`2213`) não é resolvível por quem escreve SQL: depende
+de decisão de Fabrício sobre o vocabulário e sobre a linhagem.
+
+**Nenhum deploy foi feito**, `T1` continua não autorizado, e nada saiu de
 `database/proposals/2026-09-18-edition-context-axis/`.
+
+> **Correção de registro (`MISSING-TYPE-CORRECTION-01`).** Esta linha dizia
+> *"Nenhum artefato foi executado. Nenhum SQL rodou no LIVE"*. Isso deixou de
+> ser verdade com a tentativa `BATCH7-2834-LIVE-EXECUTION-01`, que **rodou no
+> LIVE** e abortou (item 4 acima) — com efeito persistente ZERO, mas rodou.
+> A afirmação foi estreitada para o que continua verificável.

@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- Query 2834 — RUNNER SQL DOS VETORES COMPARTILHADOS DO EIXO 3
---              v2.1 — SUBTRANSAÇÃO POR VETOR
---                     (VECTOR-SUBTRANSACTION-CORRECTION-01)
+--              v2.2 — SCAFFOLD `type` NO RAW EXTERNO
+--                     (MISSING-TYPE-CORRECTION-01)
 -- ===========================================================================
 -- STATUS: PROPOSTA — NÃO EXECUTADA. Pacote EDITION-CONTEXT-AXIS.
 --
@@ -133,6 +133,46 @@
 -- estrutural (abre `BEGIN`, fecha com sentinel + `EXCEPTION ... END`) e manter
 -- a indentação original faz o diff mostrar exatamente o que mudou de semântica.
 -- Os limites do bloco estão marcados com faixas `######` para leitura.
+--
+-- ---------------------------------------------------------------------------
+-- O QUE MUDOU NA v2.2 — O SCAFFOLD `type` DO RAW EXTERNO
+-- ---------------------------------------------------------------------------
+-- REGISTRO DE INCIDENTE — `BATCH7-2834-LIVE-EXECUTION-01` → **STOP**.
+--
+--   Erro: `COMPUTE_VARIANT_RESIDUAL_SIGNATURE_MISSING_TYPE: raw_data.type
+--   ausente.`
+--
+--   Causa: a v2.1 montava `v_raw` com `size`, `subtype` e `stamp`, mas sem
+--   `type`. O contrato de Impressão — internal.compute_variant_residual_
+--   signature() — normaliza `raw_data.type` como PRIMEIRA operação e levanta
+--   exceção se vier NULL ou vazio. O defeito não existia na v1.0: foi o gate
+--   de medição prévia da v2.0 que passou a chamar essa função.
+--
+--   Impacto: ZERO persistente, comprovado por postcheck read-only — zero
+--   resíduo `VEC2834*` nas dez tabelas, baseline operacional 1642 com
+--   Edition Context 1092/550/0 intacto, CANCELLED 847/415 intacto, catálogos
+--   intactos, `2214` ainda fora do ledger. O erro ocorreu dentro do
+--   `BEGIN … ROLLBACK`, no primeiro vetor.
+--
+-- Correção: `v_raw` passa a incluir `'type', 'normal'`, precedente canônico
+-- dos harnesses de Impressão (`2824`, `2827`). `size` permanece `'STANDARD'`
+-- — `normalize_external_catalog_value()` aplica upper(), logo já é
+-- equivalente ao `standard` daqueles precedentes, e mexer nele seria mudança
+-- sem causa.
+--
+-- `type` É SCAFFOLD, NÃO DIMENSÃO. Ele pertence ao raw externo que o eixo 1
+-- exige; não pertence ao contrato compartilhado do eixo 3. Por isso a fixture
+-- JSON NÃO foi tocada: acrescentar `type` a ela faria o runner TS e o runner
+-- SQL passarem a negociar um campo que o eixo 3 não modela.
+--
+-- Todo campo técnico acrescentado ao raw cria a obrigação de provar que ele
+-- ficou inerte. Daí o gate (0) da Seção 2.2: `residual_type` tem de voltar
+-- exatamente `'NORMAL'`. Se algum dia um mapping passar a consumir esse
+-- token, o vetor vira FAIL com `PRINTING_TYPE_SCAFFOLD_MISMATCH` em vez de
+-- deslocar o residual em silêncio. Medido antes desta correção: nenhum
+-- mapping de Impressão ou de Edition Context usa `raw_field='type'`, e
+-- nenhum usa `normalized_token='NORMAL'` — os `raw_field` existentes nos dois
+-- catálogos são apenas `stamp` e `subtype`.
 -- ===========================================================================
 
 BEGIN;
@@ -812,7 +852,10 @@ BEGIN
                 v_stamp := v_pre_stamp;
             END IF;
 
-            v_raw := jsonb_build_object('size', 'STANDARD')
+            v_raw := jsonb_build_object(
+                         'type', 'normal',
+                         'size', 'STANDARD'
+                     )
                   || CASE WHEN v_sub IS NULL THEN '{}'::JSONB
                           ELSE jsonb_build_object('subtype', v_sub) END
                   || CASE WHEN cardinality(v_stamp) = 0 THEN '{}'::JSONB
@@ -831,6 +874,28 @@ BEGIN
               INTO v_got_pre_stamp;
 
             v_errs := '';
+
+            -- (0) v2.2 — PROVA DO SCAFFOLD `type`.
+            --     `type` NÃO é dimensão do contrato compartilhado do eixo 3:
+            --     a fixture não o declara e nenhum `expected` o menciona. Ele
+            --     existe porque compute_variant_residual_signature() o exige
+            --     como campo do raw externo — foi a ausência dele que abortou
+            --     a BATCH7-2834-LIVE-EXECUTION-01.
+            --
+            --     Acrescentar um campo técnico ao raw cria uma obrigação: provar
+            --     que ele chegou ao contrato como esperado E que permaneceu
+            --     INERTE. `normalize_external_catalog_value()` aplica upper(),
+            --     então 'normal' tem de voltar como 'NORMAL' no residual — nem
+            --     consumido por routing, nem transformado em outra coisa.
+            --
+            --     É FAIL DO CASO, não exceção estrutural: uma divergência aqui
+            --     é um resultado a ser reportado pela Seção 3, como qualquer
+            --     outro, e não um aborto que esconderia os demais vetores.
+            IF v_pre.residual_type IS DISTINCT FROM 'NORMAL' THEN
+                v_errs := v_errs || format(
+                    'PRINTING_TYPE_SCAFFOLD_MISMATCH: residual_type %s != NORMAL; o scaffold tecnico type=normal nao permaneceu inerte; ',
+                    v_pre.residual_type);
+            END IF;
 
             -- (1) o estado medido corresponde ao DECLARADO?
             IF v_pr_state = 'UNRESOLVED' THEN
@@ -1149,7 +1214,7 @@ BEGIN
       INTO v_pass, v_fail, v_skip, v_rows, v_vec_seen
       FROM _res2834;
 
-    RAISE NOTICE '=== 2834 v2.1 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
+    RAISE NOTICE '=== 2834 v2.2 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
         v_pass, v_fail, v_skip, v_rows, v_vec_seen;
     RAISE NOTICE '=== esperado pela fixture: % caso(s), % vetor(es), % estado(s) ===',
         v_n_cases, v_n_vectors, v_n_vocab;
