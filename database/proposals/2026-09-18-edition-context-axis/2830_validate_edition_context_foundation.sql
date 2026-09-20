@@ -386,7 +386,17 @@
 --   V8   **lineage 1:N**: Variants com várias rows de mesmo raw_data não
 --        podem ter destinos divergentes — o destino vem da ROW, não da
 --        Variant. Nenhum DISTINCT ON, nenhuma "uma row por Variant"
---   V9   IDEMPOTÊNCIA: reexecutar afeta 0 rows já resolvidas
+--   V9   IDEMPOTÊNCIA — **write-set operacional de uma reavaliação = 0**
+--        (corrigido em `V9-OPERATIONAL-IDEMPOTENCE-CORRECTION-01`). Conta,
+--        SEM ESCREVER, as rows `operacional` com `observado = 'ABSENT'` e
+--        `esperado IN ('UUID','NULL')` — os **dois** destinos que a `2212`
+--        grava. `ABSENT` esperado é no-op fail-closed e não entra no
+--        write-set. A formulação anterior — "reexecutar afeta 0 rows" —
+--        era GLOBAL: executava um `UPDATE` em `SAVEPOINT` sobre a tabela
+--        inteira e cobrava chave de row histórica, contradizendo o **V5**
+--        (que exige histórico `VALID` sem chave) e a Correção 4 da `2212`
+--        (*"o backfill global foi eliminado"*). Medido no LIVE: write-set
+--        global 387, **operacional 0**
 --   V10  ORDEM: guard ainda PERMISSIVO quando 2832 roda
 --   V11  **tri-state não degradado**: A/N/U seguem distintos; rows terminais
 --        com token 'A' convivem sem colisão indevida. Prova estrutural: o

@@ -7,8 +7,10 @@
 -- fail-loud de exatamente-um (BV_GAME_REFERENCE / BV_SOURCE_REFERENCE) antes
 -- de montar a TEMP TABLE. O arquivo passa a ser executavel VERBATIM.
 -- Os 14 casos, o routing, o universo operacional, a semantica de
--- historico/CANCELLED, o SAVEPOINT do V9 e a fronteira BEGIN...ROLLBACK
--- permanecem byte a byte os da v3.0.
+-- historico/CANCELLED e a fronteira BEGIN...ROLLBACK permanecem byte a byte
+-- os da v3.0.
+-- (O SAVEPOINT do V9 NAO existe mais — ver V9-OPERATIONAL-IDEMPOTENCE-
+--  CORRECTION-01, que tornou o V9 puramente read-only.)
 --
 -- v3.0 (OPERATIONAL-BOUNDARY-CORRECTION-01): o escopo deixou de ser global.
 -- V1-V3 e V6 passam a medir SOMENTE o universo operacional (job vivo +
@@ -23,7 +25,10 @@
 -- SEM CARDINALIDADE FIXA. Nenhum caso compara com constante de staging.
 -- Todas as provas sao invariantes/relacoes. Contagens sao EVIDENCIA.
 --
--- Roda DEPOIS de 2212 e ANTES de 2214. Read-only fora de SAVEPOINT.
+-- Roda DEPOIS de 2212 e ANTES de 2214. **INTEIRAMENTE READ-ONLY**: desde
+-- V9-OPERATIONAL-IDEMPOTENCE-CORRECTION-01 nao ha um unico UPDATE/INSERT/
+-- DELETE no artefato, nem SAVEPOINT. A fronteira BEGIN...ROLLBACK e mantida
+-- como cinto de seguranca redundante, nao como mecanismo de desfazimento.
 -- 14 casos.
 -- ============================================================================
 
@@ -275,27 +280,58 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- V9 — IDEMPOTENCIA: reexecutar o backfill afeta ZERO rows resolvidas.
+-- V9 — IDEMPOTENCIA: o WRITE-SET OPERACIONAL de uma reavaliacao e ZERO.
+--
+-- CORRECAO DE ESCOPO (V9-OPERATIONAL-IDEMPOTENCE-CORRECTION-01).
+--
+-- A versao anterior fazia um UPDATE real dentro de SAVEPOINT e contava as
+-- linhas afetadas. Dois defeitos:
+--
+--   (a) ESCOPO. O UPDATE nao tinha filtro `operacional`. Media a TABELA
+--       INTEIRA, enquanto a 2212 v3.2 escreve SOMENTE em
+--           job vivo + persistence_status = 'PENDING' + chave AUSENTE
+--       e a 2233 reparou apenas esse mesmo universo. Medido no LIVE: o
+--       write-set global era 387 rows, das quais 0 operacionais — 100%
+--       historico que a Correcao 4 da 2212 decidiu NAO tocar. O gate
+--       reprovava o proprio contrato que os outros casos defendem.
+--
+--   (b) CONTRADICAO INTERNA. O V5 EXIGE que existam rows historicas VALID
+--       sem chave (e passa). O V9 antigo reprovava rows historicas sem chave
+--       que o routing resolveria. Os dois nao podem estar certos ao mesmo
+--       tempo; quem estava errado era o V9.
+--
+--   (c) COBERTURA INCOMPLETA. O UPDATE so considerava `esperado = 'UUID'`.
+--       Mas a 2212 grava DOIS destinos — UUID e JSON null — e o write-set
+--       tem de incluir os dois. `ABSENT` esperado e no-op por construcao
+--       (fail-closed) e legitimamente fica de fora.
+--
+-- O gate passa a ser PURAMENTE READ-ONLY: em vez de executar a escrita e
+-- desfaze-la, CONTA o write-set que uma reavaliacao produziria. Mesma
+-- pergunta, sem tocar na tabela — e sem depender de SAVEPOINT para
+-- seguranca. Idempotencia deixa de ser "tentei e nada mudou" e passa a ser
+-- "provei que nao ha nada a mudar".
+--
+-- WRITE-SET OPERACIONAL = operacional AND observado = 'ABSENT'
+--                                     AND esperado IN ('UUID','NULL')
+-- Deve ser ZERO. Qualquer valor > 0 significa resolucao operacional
+-- incompleta: uma reavaliacao AINDA produziria escrita.
 -- ---------------------------------------------------------------------------
-SAVEPOINT v9;
 DO $$
-DECLARE v_n INT;
+DECLARE v_n INT; v_uuid INT; v_null INT;
 BEGIN
-    WITH upd AS (
-        UPDATE public.catalog_variant_import_row r
-           SET normalized_data = r.normalized_data
-                               || jsonb_build_object('edition_context_profile_id', b.esperado_uuid)
-          FROM bv_recheck b
-         WHERE b.id = r.id AND b.esperado = 'UUID'
-           AND NOT jsonb_exists(r.normalized_data,'edition_context_profile_id')
-        RETURNING 1)
-    SELECT COUNT(*) INTO v_n FROM upd;
+    SELECT COUNT(*) FILTER (WHERE esperado = 'UUID'),
+           COUNT(*) FILTER (WHERE esperado = 'NULL')
+      INTO v_uuid, v_null
+      FROM bv_recheck
+     WHERE operacional AND observado = 'ABSENT';
+
+    v_n := v_uuid + v_null;
     IF v_n <> 0 THEN
-        RAISE EXCEPTION 'V9_FAIL: reexecucao afetaria % rows — backfill incompleto ou nao idempotente.', v_n;
+        RAISE EXCEPTION 'V9_FAIL: write-set operacional de uma reavaliacao seria % rows (UUID=%, NULL=%) — resolucao operacional incompleta; a reavaliacao ainda produziria escrita.', v_n, v_uuid, v_null;
     END IF;
-    RAISE NOTICE 'V9 OK — backfill idempotente.';
+
+    RAISE NOTICE 'V9 OK — write-set operacional de uma reavaliacao = 0 (UUID=% + NULL=%). Prova read-only, sem escrita nem SAVEPOINT. Historico deliberadamente FORA do escopo (Correcao 4 da 2212).', v_uuid, v_null;
 END $$;
-ROLLBACK TO SAVEPOINT v9;
 
 -- ---------------------------------------------------------------------------
 -- V10 — ORDEM: o guard ainda esta no estagio PERMISSIVO quando 2832 roda.
