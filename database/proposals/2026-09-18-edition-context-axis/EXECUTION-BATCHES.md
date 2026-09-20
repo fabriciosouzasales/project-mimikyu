@@ -120,9 +120,33 @@ SELECT count(*) AS ec_functions
 --     isso como "universo vazio" era a premissa que mais poderia esconder
 --     uma janela durante os Batches 5-9.
 --
---     Esperado: UMA única linha — STAGED / PENDING / NEEDS_REVIEW / 1642.
---     Qualquer outro estado presente, ou n <> 1642 → **STOP antes de
+--     CORRIGIDO (BATCH3-P7-SCOPE-CORRECTION-01). A versão anterior filtrava
+--     APENAS por `j.status` e exigia "UMA única linha". Essas duas coisas são
+--     incompatíveis: sem `persistence_status = 'PENDING'`, a query agrega o
+--     universo INTEIRO dos jobs vivos — inclusive rows já TERMINALIZADAS —, e
+--     o LIVE devolve três combinações:
+--
+--         APPROVED / VALID   / INSERTED  = 12.314   <- terminal
+--         PENDING  / NEEDS_REVIEW / PENDING = 1.642 <- ALVO
+--         SKIPPED  / INVALID / UNCHANGED =     62   <- terminal
+--
+--     O critério era mais estreito do que a query, e produzia STOP em estado
+--     saudável. A autoridade do universo é a PRÓPRIA 2212, que escreve em
+--     `job vivo + persistence_status = 'PENDING'` — não em "job vivo".
+--     O predicado da 2212 passa a ser o predicado do P7.
+--
+--     `decision_status` e `validation_status` continuam DELIBERADAMENTE FORA
+--     do WHERE: são as colunas de diagnóstico. Mantê-las no GROUP BY é o que
+--     faz o gate revelar qualquer combinação PENDING inesperada em vez de
+--     escondê-la atrás de um filtro.
+--
+--     Esperado: UMA única linha — STAGED / PENDING / NEEDS_REVIEW / PENDING
+--     / 1642. Qualquer OUTRA combinação dentro de
+--     `persistence_status = 'PENDING'`, ou n <> 1642 → **STOP antes de
 --     qualquer write**. NÃO adaptar a expectativa ao que aparecer.
+--
+--     INSERTED e UNCHANGED sob jobs STAGED NÃO são violação: ver a nota
+--     "Estados terminais sob jobs STAGED" logo abaixo do Batch 3.
 SELECT j.status            AS job_status,
        r.decision_status,
        r.validation_status,
@@ -131,6 +155,7 @@ SELECT j.status            AS job_status,
   FROM public.catalog_variant_import_row r
   JOIN public.catalog_variant_import_job j ON j.id = r.job_id
  WHERE j.status IN ('RECEIVED','PROCESSING','STAGED','CONFIRMING')
+   AND r.persistence_status = 'PENDING'
  GROUP BY 1,2,3,4
  ORDER BY 1,2,3,4;
 
@@ -216,7 +241,7 @@ SELECT (SELECT count(*) FROM manifesto)                       AS manifesto,     
 | P4 | 1 linha, `pronargs=6` |
 | P5 | `false` |
 | P6 | `0` |
-| **P7** | **1 linha: STAGED / PENDING / NEEDS_REVIEW / PENDING / 1642** |
+| **P7** | **1 linha: STAGED / PENDING / NEEDS_REVIEW / PENDING / 1642** — dentro de `persistence_status = 'PENDING'`, que é o universo de escrita da `2212`. Rows terminais (`INSERTED`, `UNCHANGED`) sob jobs `STAGED` ficam fora do recorte e não são violação (`BATCH3-P7-SCOPE-CORRECTION-01`) |
 | **P8** | `manifesto=23` · `ja_registradas=1` · `registradas_inesperadas=0` · `r2203=1` · `por_padrao=0` |
 
 Qualquer divergência → **STOP**. O baseline mudou desde esta auditoria.
@@ -349,8 +374,29 @@ baseline com o sistema parado.
 `NEEDS_REVIEW` / `PENDING`) — não é formalidade. Sem ele, os Batches 5–9 têm
 janela de verdade.
 
-**B3.1 — reexecutar P7.** Esperado: a mesma linha única com **1642**.
-Divergência → **STOP**.
+**B3.1 — reexecutar P7** (versão corrigida, com
+`AND r.persistence_status = 'PENDING'`). Esperado: **uma única linha dentro do
+recorte `PENDING`** — `STAGED / PENDING / NEEDS_REVIEW / PENDING / 1642`.
+Qualquer **outra** combinação dentro de `PENDING`, ou n ≠ 1642 → **STOP**.
+
+> **Estados terminais sob jobs `STAGED` — não são violação**
+> (`BATCH3-P7-SCOPE-CORRECTION-01`).
+>
+> O LIVE tem, sob jobs `STAGED`, **12.314** rows `APPROVED / VALID / INSERTED`
+> e **62** rows `SKIPPED / INVALID / UNCHANGED`. São **estados terminais**, e
+> são **compatíveis com o closeout `BULK-STP-01 / CLASS A`**: os jobs
+> permanecem `STAGED` justamente porque ainda **retêm as `NEEDS_REVIEW`** — foi
+> o que aquele closeout registrou ao contabilizar *"51 `COMPLETED` / 62
+> `STAGED`, os que retêm `NEEDS_REVIEW`"*.
+>
+> **Eles não pertencem ao universo de escrita da `2212`**, que opera em
+> `job vivo + persistence_status = 'PENDING'`. Medido no LIVE: o recorte
+> `PENDING` tem **1.642** rows, das quais **0** não são
+> `NEEDS_REVIEW`/`PENDING`, e o alvo do guard `2214`
+> (`job vivo + PENDING + VALID`) é **0**.
+>
+> Nada aqui reabre a Classe A: **nenhuma investigação, nenhuma correção de
+> dados**. É reconciliação do contrato do gate, não do dado.
 
 **B3.2 — capturar a baseline histórica de `CANCELLED`, ANTES da `2212`.**
 
