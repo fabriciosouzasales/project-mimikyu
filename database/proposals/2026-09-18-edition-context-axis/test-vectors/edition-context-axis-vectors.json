@@ -487,7 +487,7 @@
         { "scope": null, "raw_field": "stamp", "token": "TOK_CTX_A", "traits": ["T_A"], "is_active": true },
         { "scope": null, "raw_field": "stamp", "token": "TOK_PRINTING", "traits": ["T_B"], "is_active": true }
       ],
-      "ec_profiles_extra_note": "T_B e PF_AB existem no catalogo mas NAO devem ser alcancados.",
+      "ec_profiles_extra_note": "CORRIGIDO (FULL-COVERAGE-CORRECTION-01). A redacao anterior afirmava que T_B e PF_AB existiam no catalogo. Confrontada com os dados deste proprio vetor, a afirmacao e meio verdadeira: T_B EXISTE — e citado no mapping de TOK_PRINTING em 'ec_mappings', e os dois runners criam automaticamente todo trait citado apenas em mapping ou profile. PF_AB NAO EXISTE — 'ec_profiles' declara somente PF_A. Consequencia para a armadilha: uma implementacao que lesse a assinatura BRUTA consumiria os dois tokens e formaria a composicao {T_A, T_B}; sem perfil com essa assinatura, ela cairia em NEEDS_REVIEW_NO_EC_PROFILE, divergindo do expected (RESOLVED_WITH_EC_PROFILE / PF_A). A armadilha continua detectando o defeito — detecta-o por ausencia de perfil, e nao por resolucao para PF_AB. Apenas esta prosa foi corrigida: nenhum expected, roster ou vocabulary foi alterado.",
       "expected": {
         "edition_context_state": "RESOLVED_WITH_EC_PROFILE",
         "edition_context_profile": "PF_A",
@@ -496,7 +496,7 @@
         "residual_stamp": [],
         "edge_emits_axis_keys": true
       },
-      "$note": "ARMADILHA DELIBERADA: existe um mapping de Edition Context ATIVO para TOK_PRINTING. Se o eixo 3 lesse a assinatura BRUTA em vez do residual, consumiria os dois tokens e devolveria a composicao {T_A, T_B} -> PF_AB. O expected e PF_A. Uma implementacao que passe a assinatura bruta ao eixo 3 reprova aqui."
+      "$note": "ARMADILHA DELIBERADA: existe um mapping de Edition Context ATIVO para TOK_PRINTING. Se o eixo 3 lesse a assinatura BRUTA em vez do residual pos-Impressao, consumiria os DOIS tokens e formaria a composicao {T_A, T_B}. Como este vetor NAO declara um profile com essa assinatura (ec_profiles tem somente PF_A), o resultado seria NEEDS_REVIEW_NO_EC_PROFILE — que diverge do expected RESOLVED_WITH_EC_PROFILE / PF_A. Uma implementacao que passe a assinatura bruta ao eixo 3 reprova aqui, por ausencia de perfil para a composicao contaminada. Correcao de prosa em FULL-COVERAGE-CORRECTION-01: a redacao anterior dizia '-> PF_AB', perfil que os dados deste vetor nunca criaram."
     }
   ],
 

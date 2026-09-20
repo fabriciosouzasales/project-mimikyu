@@ -218,7 +218,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** | **runner SQL da fixture compartilhada do eixo 3** — 14 vetores executáveis, 3 SKIP declarados |
+| **`2834`** v2.0 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor. **AINDA NÃO EXECUTADO** |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -293,18 +293,32 @@ dois:
    e quatro casos do harness dependem dele. **Bloqueio de decisão editorial,
    não de código.**
 
-3. **Paridade parcial no runner SQL (novo, `EDGE-D3-FINAL-CORRECTION-01`).**
-   O `2834` executa **14 dos 17** vetores. Os três restantes — `E3`, `E16`,
-   `E17` — exigem fixture do eixo de **Impressão** (`RESOLVED_WITH_PROFILE`
-   ou `UNRESOLVED`) que este runner não monta, e ficam **SKIP com motivo
-   explícito, nunca PASS**. Consequência medida: dois estados do vocabulário
-   — `NOT_EVALUATED` e `NEEDS_REVIEW_NO_EC_PROFILE` — não têm nenhum vetor
-   PASS do lado SQL. O lado TypeScript cobre os 17. **Bloqueio de cobertura,
-   não de código** — resolve-se estendendo o `2834` com fixture de Impressão
-   numa rodada própria.
+3. **~~Paridade parcial no runner SQL~~ — RESOLVIDO em `BATCH7-2834-FULL-COVERAGE-CORRECTION-01`.**
 
-Nenhum dos dois é resolvível por quem escreve SQL. Ambos dependem de
-decisão de Fabrício sobre o vocabulário e sobre a linhagem.
+   *Registro do que era:* o `2834` v1.0 executava **14 dos 17** vetores. `E3`,
+   `E16` e `E17` exigem fixture do eixo de **Impressão** e ficavam **SKIP**.
+   O cabeçalho da v1.0 afirmava que a fixture de Impressão era criada; o corpo
+   não a criava. E o gate final só falhava para `FAIL > 0`, de modo que
+   *14 PASS / 0 FAIL / 3 SKIP* encerrava sem exceção.
+
+   Custo real medido: dois estados do vocabulário — `NOT_EVALUATED` e
+   `NEEDS_REVIEW_NO_EC_PROFILE` — têm **um único vetor cada** (`E16` e `E3`),
+   logo a perda não era de 3/17 dos vetores e sim de **2/8 do vocabulário**.
+
+   *Estado agora:* o `2834` **v2.0** monta a fixture sintética de Impressão por
+   vetor, dentro da mesma transação com `ROLLBACK`, e cobre **17 vetores /
+   18 casos**, com **zero SKIP planejado** e **8/8 estados**. Os números são
+   derivados do JSON em tempo de execução, nunca constantes no SQL. O gate S3
+   falha se houver FAIL, se houver SKIP, se a contagem de casos divergir da
+   fixture, se algum `vector_id` do roster ficar sem caso PASS, ou se algum
+   estado do vocabulário ficar sem cobertura PASS.
+
+   **O `2834` continua NÃO EXECUTADO.** Os números acima são a capacidade do
+   runner, não um resultado medido. O critério de `EXECUTION-BATCHES.md` —
+   *"`2834` com todos os vetores PASS"* — permanece intacto e é o que decide.
+
+O bloqueio restante (item 2, `2213`) não é resolvível por quem escreve SQL:
+depende de decisão de Fabrício sobre o vocabulário e sobre a linhagem.
 
 **Nenhum artefato foi executado.** Nenhum SQL rodou no LIVE, nenhum deploy
 foi feito, `T1` continua não autorizado, e nada saiu de
