@@ -11,7 +11,8 @@
 --      Criar o guard antes do backfill faria as rows VALID legadas falharem
 --      em qualquer UPDATE. (A cifra "24.020" da v1.x estava STALE — o LIVE
 --      media 24.372. Nenhum artefato compara com constante de staging.)
---        2210 (shape permissivo) -> 2212 (backfill) -> 2832 (prova) -> 2214.
+--        2210 (shape permissivo) -> ... -> 2214 (guard estrito). A cadeia
+--        completa esta no rodape deste arquivo; a AUTORIDADE e o DAG.md.
 -- BLOCKER 1 da CORRECTION-01
 --
 -- v1.1 (EDITION-CONTEXT-AXIS-GATE-A-01):
@@ -208,14 +209,33 @@ GRANT EXECUTE ON FUNCTION internal.axis_identity_token(JSONB, TEXT) TO authentic
 COMMIT;
 
 -- ============================================================================
--- SEQUENCIA OBRIGATORIA A PARTIR DAQUI  (ver DAG.md)
+-- SEQUENCIA OBRIGATORIA A PARTIR DAQUI
+--
+-- AUTORIDADE: DAG.md (grafo) e EXECUTION-BATCHES.md (projecao operacional).
+-- Este rodape e resumo de orientacao — em divergencia, o DAG manda.
+--
+-- RECONCILIADO em BATCH6-PROOF-PARAMS-CORRECTION-01. A versao anterior
+-- encadeava esta Query direto no backfill, omitindo a 2211 (predecessora
+-- obrigatoria da 2212) e posicionando o guard estrito antes dos consumidores
+-- e da Edge. As duas divergencias foram corrigidas em
+-- ROLLOUT-DEPENDENCY-CORRECTION-01; este comentario estava stale.
+--
 --   2210 (esta) .... shape PERMISSIVO + indice novo. Rows VALID legadas
 --                    continuam gravaveis, sem a chave de Edition Context.
+--   2211 ........... ROUTING: internal.resolve_variant_row_axes(). A 2212
+--                    aborta com ROUTING_MISSING sem ela.        [Batch 5]
 --   2212 ........... BACKFILL: grava JSON null nas rows que DEVEM receber e
---                    nao toca nas que NAO PODEM.
+--                    nao toca nas que NAO PODEM.                [Batch 6]
 --   2832 ........... PROVA: zero chave ausente no universo exigido,
 --                    idempotencia, counters e validation_status intactos.
+--   2833 ........... PROVA: matriz de state machine, job-aware.
+--   2219-2222 + 2834  consumidores passam a chamar a 2211.      [Batch 7]
+--   EDGE ........... deploy com as duas chaves + suite Deno.    [Batch 8]
 --   2214 ........... SO ENTAO promove o guard para exigir a chave em VALID.
---   2216 ........... DROP dos dois indices antigos de staging.
+--                    DEPOIS da Edge: exigir a chave antes de existir produtor
+--                    capaz de gera-la quebraria a importacao.   [Batch 8-BIS]
+--   ... (2217/2218/2223, 2209) ...
+--   2216 ........... MAIS ADIANTE: DROP dos dois indices antigos de staging,
+--                    so no Batch 11.
 -- Inverter qualquer par produz falha em massa ou janela desprotegida.
 -- ============================================================================

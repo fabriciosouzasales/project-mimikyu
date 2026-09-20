@@ -1,6 +1,14 @@
 -- ============================================================================
 -- Query 2832 — VALIDAÇÃO do backfill SEMÂNTICO (gate de entrada do 2214)
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.0
+-- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.1
+--
+-- v3.1 (BATCH6-PROOF-PARAMS-CORRECTION-01): UNICA mudanca — bv_params deixa
+-- de nascer NULL e passa a resolver 'POKEMON'/'TCGDEX' por code, com preflight
+-- fail-loud de exatamente-um (BV_GAME_REFERENCE / BV_SOURCE_REFERENCE) antes
+-- de montar a TEMP TABLE. O arquivo passa a ser executavel VERBATIM.
+-- Os 14 casos, o routing, o universo operacional, a semantica de
+-- historico/CANCELLED, o SAVEPOINT do V9 e a fronteira BEGIN...ROLLBACK
+-- permanecem byte a byte os da v3.0.
 --
 -- v3.0 (OPERATIONAL-BOUNDARY-CORRECTION-01): o escopo deixou de ser global.
 -- V1-V3 e V6 passam a medir SOMENTE o universo operacional (job vivo +
@@ -22,13 +30,50 @@
 BEGIN;
 
 -- Parametros: mesmos de 2212 (o recomputo do routing precisa deles).
-CREATE TEMP TABLE bv_params ON COMMIT DROP AS
-SELECT NULL::UUID AS game_id, NULL::UUID AS asset_source_id;
-
+--
+-- PARAMETROS DETERMINISTICOS (BATCH6-PROOF-PARAMS-CORRECTION-01).
+-- A v3.0 criava bv_params com game_id/asset_source_id NULL e abortava em
+-- BV_PARAMS_UNSET. Mesma classe de defeito ja corrigida na 2212 v3.1: o
+-- arquivo nao era executavel verbatim — exigia editar o SQL no meio da
+-- execucao para colar dois UUID.
+--
+-- Correcao: resolver as duas referencias canonicas POR CODE, identico ao que
+-- 2212/2230/2231/2232 fazem. Sem UUID hardcoded — o valor vem do banco.
+-- O preflight roda ANTES de bv_params existir e exige EXATAMENTE UM de cada:
+--   0  -> referencia ausente; o recomputo do routing correria com parametro
+--         NULL e V1-V6 comparariam contra lixo, sem falhar alto;
+--   >1 -> ambiguo; bv_params teria N linhas e o CROSS JOIN multiplicaria
+--         bv_recheck por N. Por isso o teste e <> 1, nao > 0.
 DO $$
+DECLARE v_game INT; v_src INT;
 BEGIN
+    SELECT COUNT(*) INTO v_game FROM public.game         WHERE code = 'POKEMON';
+    IF v_game <> 1 THEN
+        RAISE EXCEPTION 'BV_GAME_REFERENCE (2832): esperado EXATAMENTE 1 Game com code=''POKEMON'', encontrado %. Abortado antes de montar bv_params.', v_game;
+    END IF;
+
+    SELECT COUNT(*) INTO v_src FROM public.asset_source WHERE code = 'TCGDEX';
+    IF v_src <> 1 THEN
+        RAISE EXCEPTION 'BV_SOURCE_REFERENCE (2832): esperado EXATAMENTE 1 asset_source com code=''TCGDEX'', encontrado %. Abortado antes de montar bv_params.', v_src;
+    END IF;
+END $$;
+
+CREATE TEMP TABLE bv_params ON COMMIT DROP AS
+SELECT (SELECT id FROM public.game         WHERE code = 'POKEMON') AS game_id,
+       (SELECT id FROM public.asset_source WHERE code = 'TCGDEX')  AS asset_source_id;
+
+-- Defesa redundante: o preflight acima ja garante a resolucao. Mantida porque
+-- e barata e porque prova, no proprio artefato, que bv_params tem UMA linha
+-- REAL. BV_PARAMS_UNSET preservado como rede final.
+DO $$
+DECLARE v_n INT;
+BEGIN
+    SELECT COUNT(*) INTO v_n FROM bv_params;
+    IF v_n <> 1 THEN
+        RAISE EXCEPTION 'BV_PARAMS_CARDINALITY: bv_params deveria ter EXATAMENTE 1 linha, tem %.', v_n;
+    END IF;
     IF EXISTS (SELECT 1 FROM bv_params WHERE game_id IS NULL OR asset_source_id IS NULL) THEN
-        RAISE EXCEPTION 'BV_PARAMS_UNSET: preencher bv_params antes de executar.';
+        RAISE EXCEPTION 'BV_PARAMS_UNSET: bv_params.game_id ou asset_source_id resolveu NULL apesar do preflight.';
     END IF;
 END $$;
 
