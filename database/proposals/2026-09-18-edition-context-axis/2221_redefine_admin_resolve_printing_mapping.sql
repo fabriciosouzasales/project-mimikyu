@@ -96,13 +96,14 @@ $pre1$;
 -- ---------------------------------------------------------------------------
 DO $pre2$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_proc p
-          JOIN pg_namespace n ON n.oid = p.pronamespace
-         WHERE n.nspname = 'public'
-           AND p.proname = 'admin_resolve_catalog_variant_import_printing_mapping'
-           AND pg_get_function_identity_arguments(p.oid) = 'uuid, text, text, uuid[]'
-    ) THEN
+    -- IDENTIFICACAO POR OID (FUNCTION-IDENTITY-GATE-CORRECTION-01).
+    -- NAO comparar o TEXTO devolvido por pg_get_function_identity_arguments():
+    -- essa funcao INCLUI os nomes dos parametros, de modo que o literal
+    -- 'uuid, text, text, uuid[]' nunca casa com uma funcao de parametros
+    -- nomeados — e esta tem os quatro nomeados. to_regprocedure() resolve
+    -- schema + tipos e devolve NULL (sem levantar excecao) quando o alvo nao
+    -- existe, que e exatamente o teste desejado aqui.
+    IF to_regprocedure('public.admin_resolve_catalog_variant_import_printing_mapping(uuid,text,text,uuid[])') IS NULL THEN
         RAISE EXCEPTION 'PRECONDITION_FAILED_2221_B: public.admin_resolve_catalog_variant_import_printing_mapping(uuid, text, text, uuid[]) nao encontrada com a assinatura esperada.';
     END IF;
 END
@@ -542,13 +543,25 @@ GRANT EXECUTE ON FUNCTION public.admin_resolve_catalog_variant_import_printing_m
 -- ---------------------------------------------------------------------------
 DO $post1$
 DECLARE
+    v_oid REGPROCEDURE;
     v_src TEXT;
 BEGIN
-    SELECT p.prosrc INTO v_src
-      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-     WHERE n.nspname = 'public'
-       AND p.proname = 'admin_resolve_catalog_variant_import_printing_mapping'
-       AND pg_get_function_identity_arguments(p.oid) = 'uuid, text, text, uuid[]';
+    -- IDENTIFICACAO POR OID (FUNCTION-IDENTITY-GATE-CORRECTION-01). O alvo e
+    -- resolvido ANTES da leitura e a ausencia FALHA EXPLICITAMENTE. Com o
+    -- predicado textual anterior o SELECT nao encontrava linha, v_src ficava
+    -- NULL, e `NULL LIKE '%...%'` devolve NULL — de modo que TODO este
+    -- postcheck passava sem verificar coisa alguma. PASS vacuoso e proibido.
+    v_oid := to_regprocedure('public.admin_resolve_catalog_variant_import_printing_mapping(uuid,text,text,uuid[])');
+
+    IF v_oid IS NULL THEN
+        RAISE EXCEPTION 'POSTCHECK_FAILED_2221_A0: alvo public.admin_resolve_catalog_variant_import_printing_mapping(uuid, text, text, uuid[]) nao resolvido apos o CREATE OR REPLACE. Nenhuma prova de routing pode ser considerada satisfeita.';
+    END IF;
+
+    SELECT p.prosrc INTO v_src FROM pg_proc p WHERE p.oid = v_oid;
+
+    IF NOT FOUND OR v_src IS NULL THEN
+        RAISE EXCEPTION 'POSTCHECK_FAILED_2221_A1: prosrc do alvo nao pode ser lido (oid: %). Postcheck de routing NAO satisfeito.', v_oid;
+    END IF;
 
     IF v_src LIKE '%compute_variant_residual_signature%' THEN
         RAISE EXCEPTION 'POSTCHECK_FAILED_2221_A: o corpo ainda chama compute_variant_residual_signature diretamente. O eixo de Contexto de Edicao seria ignorado nesta funcao.';
@@ -569,13 +582,25 @@ $post1$;
 -- ---------------------------------------------------------------------------
 DO $post2$
 DECLARE
+    v_oid REGPROCEDURE;
     v_acl TEXT;
 BEGIN
+    -- IDENTIFICACAO POR OID (FUNCTION-IDENTITY-GATE-CORRECTION-01). Mesma
+    -- classe de defeito do POSTCHECK 1: alvo nao encontrado deixava v_acl
+    -- NULL e as duas comparacoes LIKE devolviam NULL, aprovando a ACL sem
+    -- jamais te-la lido. Aqui a ausencia FALHA.
+    v_oid := to_regprocedure('public.admin_resolve_catalog_variant_import_printing_mapping(uuid,text,text,uuid[])');
+
+    IF v_oid IS NULL THEN
+        RAISE EXCEPTION 'POSTCHECK_FAILED_2221_D0: alvo public.admin_resolve_catalog_variant_import_printing_mapping(uuid, text, text, uuid[]) nao resolvido. A ACL NAO foi verificada.';
+    END IF;
+
     SELECT COALESCE(array_to_string(p.proacl, ','), '<null>') INTO v_acl
-      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-     WHERE n.nspname = 'public'
-       AND p.proname = 'admin_resolve_catalog_variant_import_printing_mapping'
-       AND pg_get_function_identity_arguments(p.oid) = 'uuid, text, text, uuid[]';
+      FROM pg_proc p WHERE p.oid = v_oid;
+
+    IF NOT FOUND OR v_acl IS NULL THEN
+        RAISE EXCEPTION 'POSTCHECK_FAILED_2221_D1: proacl do alvo nao pode ser lida (oid: %). Postcheck de ACL NAO satisfeito.', v_oid;
+    END IF;
 
     IF v_acl LIKE '%anon=%' THEN
         RAISE EXCEPTION 'POSTCHECK_FAILED_2221_D: a role anon tem EXECUTE nesta funcao (acl: %).', v_acl;
