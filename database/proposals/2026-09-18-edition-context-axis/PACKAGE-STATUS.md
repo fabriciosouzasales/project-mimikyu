@@ -218,7 +218,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** v2.3 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — duas tentativas abortaram (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `LIVE-EXECUTION-02`: `family` NULL); ver itens 4 e 5 dos bloqueios |
+| **`2834`** v2.4 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — três tentativas abortaram (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `-02`: `family` NULL · `-03`: colisão de `display_order`); ver itens 4, 5 e 6 dos bloqueios |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -403,6 +403,37 @@ dois:
    vazia para POKEMON em todas as famílias (máximo em ARTWORK_MARK = 30), e os
    `display_order` sintéticos reiniciam a cada vetor porque a subtransação
    desfaz os anteriores.
+
+6. **`BATCH7-2834-LIVE-EXECUTION-03` → STOP** *(aberto — correção preparada,
+   ainda não executada)*
+
+   *Erro:* SQLSTATE **23505** — `duplicate key value violates unique
+   constraint "uq_cecp_game_order"`, chave `(game_id POKEMON,
+   display_order 1000)`.
+
+   *Causa:* a v2.3 usava o literal **1000** como base de `display_order` nos
+   **quatro** objetos sintéticos. O catálogo real de Perfis de Edition Context
+   do POKEMON já ocupa 1000 — `EVENT_WORLDS_2004__PLACEMENT_TOP_16` — e vai
+   até **1440**.
+
+   *Impacto:* **ZERO persistente**, comprovado por postcheck read-only —
+   zero resíduo `VEC2834*` nas dez tabelas, nenhuma temp table remanescente,
+   baseline operacional **1642** com Edition Context **1092 / 550 / 0**
+   intacto, CANCELLED **847 / 415** intacto, catálogos intactos
+   (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger.
+
+   *Estado:* correção **v2.4 preparada, ainda NÃO EXECUTADA**. A correção
+   **fecha a CLASSE**, não apenas o objeto que falhou: as quatro tabelas
+   sintéticas têm UNIQUE sobre `display_order` e as quatro usavam o mesmo
+   literal — só o EC Profile colidiu porque só nele o dado real alcança 1000;
+   as outras três estavam a salvo por acidente de população, não por desenho.
+   Agora cada uma tem base **medida** (`MAX(display_order)+1` do próprio
+   escopo), calculada uma vez antes do laço, com gate preventivo fail-closed
+   sobre o slot inicial. **Sem nova faixa mágica** e **sem captura de 23505**:
+   uma corrida concorrente ainda aborta o runner. **Fixture JSON não
+   alterada** — `display_order` é scaffold físico, como `type` e `family`:
+   não participa da identidade nem de `traits_signature`, e nenhum dos dois
+   contratos o lê (medido: `prosrc ILIKE '%display_order%'` = false).
 
 O bloqueio de item 2 (`2213`) não é resolvível por quem escreve SQL: depende
 de decisão de Fabrício sobre o vocabulário e sobre a linhagem.

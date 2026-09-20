@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- Query 2834 — RUNNER SQL DOS VETORES COMPARTILHADOS DO EIXO 3
---              v2.3 — FAMILY SCAFFOLD NO TRAIT SINTÉTICO
---                     (MISSING-FAMILY-CORRECTION-01)
+--              v2.4 — DYNAMIC DISPLAY_ORDER SCAFFOLD
+--                     (DISPLAY-ORDER-CORRECTION-01)
 -- ===========================================================================
 -- STATUS: PROPOSTA — NÃO EXECUTADA. Pacote EDITION-CONTEXT-AXIS.
 --
@@ -220,6 +220,54 @@
 -- >= 1000 está vazia para POKEMON em TODAS as famílias (o máximo em
 -- ARTWORK_MARK é 30); e reiniciam em 1000 a cada vetor porque a subtransação
 -- desfaz os anteriores.
+--
+-- ---------------------------------------------------------------------------
+-- O QUE MUDOU NA v2.4 — display_order MEDIDO, NÃO ARBITRADO
+-- ---------------------------------------------------------------------------
+-- REGISTRO DE INCIDENTE — `BATCH7-2834-LIVE-EXECUTION-03` → **STOP**.
+--
+--   Erro: SQLSTATE **23505** — `duplicate key value violates unique
+--   constraint "uq_cecp_game_order"`, chave `(game_id POKEMON,
+--   display_order 1000)`.
+--
+--   Causa: a v2.3 usava o literal **1000** como base de display_order nos
+--   QUATRO objetos sintéticos. O catálogo REAL de Perfis de Edition Context
+--   do POKEMON já ocupa 1000 — é o `EVENT_WORLDS_2004__PLACEMENT_TOP_16` —
+--   e chega até 1440.
+--
+--   Impacto: ZERO persistente, comprovado por postcheck read-only — zero
+--   resíduo `VEC2834*` nas dez tabelas, nenhuma temp table remanescente,
+--   baseline operacional 1642 com Edition Context 1092/550/0 intacto,
+--   CANCELLED 847/415 intacto, catálogos intactos (EC 115/144/122 ·
+--   Printing 9/11/10), `2214` fora do ledger.
+--
+-- A CORREÇÃO FECHA A CLASSE, NÃO SÓ O OBJETO QUE FALHOU. As quatro tabelas
+-- sintéticas têm UNIQUE sobre display_order, e as quatro usavam o mesmo
+-- literal. Só o EC Profile colidiu porque só nele o dado real alcança 1000 —
+-- as outras três estavam a salvo por acidente de população, não por desenho:
+--
+--   card_edition_context_trait   uq_cect_game_family_order  (game, family, order)
+--   card_edition_context_profile uq_cecp_game_order         (game, order)
+--   card_printing_trait          uq_card_printing_trait_game_display_order
+--   card_printing_profile        uq_card_printing_profile_game_display_order
+--
+-- Corrigir só o EC Profile deixaria três bombas armadas para o dia em que o
+-- catálogo de Impressão crescer. Por isso as QUATRO passam a ter base
+-- dinâmica, medida uma vez antes do laço (bloco 1.9), com gate preventivo
+-- fail-closed sobre o slot inicial de cada escopo.
+--
+-- NENHUMA FAIXA MÁGICA NOVA. Não há 2000, nem 10000, nem 999999: a base é
+-- `MAX(display_order) + 1` do próprio escopo. Se o catálogo crescer, a base
+-- acompanha. E a UNIQUE continua sendo a última palavra — um 23505 real, de
+-- corrida concorrente, NÃO é capturado: propaga e aborta o 2834. O gate
+-- preventivo não faz retry nem procura outro número sozinho; ele PARA e
+-- nomeia o slot ocupado.
+--
+-- display_order é scaffold FÍSICO, como `type` e `family`: não participa da
+-- identidade, não entra em `traits_signature`, e nem
+-- `resolve_variant_row_axes()` nem `compute_variant_residual_signature()` o
+-- leem (ambos medidos: `prosrc ILIKE '%display_order%'` = false). A fixture
+-- JSON permanece intacta.
 -- ===========================================================================
 
 BEGIN;
@@ -543,10 +591,98 @@ DECLARE
     v_sent_expected TEXT;
     v_vec_ord     INTEGER := 0;   -- vetores iniciados
     v_sent_hits   INTEGER := 0;   -- sentinels deliberados capturados
+
+    -- ---- v2.4: bases dinâmicas de display_order ---------------------------
+    -- `display_order` é scaffold FÍSICO: as quatro tabelas têm UNIQUE sobre
+    -- ele, mas nenhum contrato o lê. A v2.3 usava o literal 1000 nas quatro,
+    -- o que colidiu com dado real (ver "O QUE MUDOU NA v2.4" no cabeçalho).
+    -- Agora cada base é MEDIDA no LIVE, uma vez, antes do laço.
+    v_ec_trait_order_base   INTEGER;
+    v_ec_profile_order_base INTEGER;
+    v_pr_trait_order        INTEGER;
+    v_pr_profile_order      INTEGER;
+    v_slot_taken            TEXT;
 BEGIN
     SELECT payload INTO p FROM _vec2834;
     SELECT id INTO v_game FROM public.game         WHERE code = p->'bindings'->>'game';
     SELECT id INTO v_src  FROM public.asset_source WHERE code = p->'bindings'->>'asset_source';
+
+    -- ===================================================================
+    -- 1.9 (v2.4) BASES DINÂMICAS DE display_order — MEDIDAS, NÃO ARBITRADAS
+    -- ===================================================================
+    -- Cada uma das quatro tabelas sintéticas tem UNIQUE sobre display_order
+    -- no seu próprio escopo:
+    --
+    --   card_edition_context_trait    uq_cect_game_family_order  (game, family, order)
+    --   card_edition_context_profile  uq_cecp_game_order         (game, order)
+    --   card_printing_trait           uq_card_printing_trait_game_display_order
+    --   card_printing_profile         uq_card_printing_profile_game_display_order
+    --
+    -- O literal 1000 da v2.3 era uma aposta sobre o dado real, e a aposta
+    -- perdeu: o catálogo de Perfis de Edition Context do POKEMON já ocupa
+    -- 1000 e chega a 1440. A v2.4 não troca um literal por outro — mede o
+    -- máximo vigente de CADA escopo e começa logo acima. Não há faixa mágica
+    -- reservada: se o catálogo crescer, a base cresce junto.
+    SELECT COALESCE(MAX(display_order), 0) + 1 INTO v_ec_trait_order_base
+      FROM public.card_edition_context_trait
+     WHERE game_id = v_game AND family = 'ARTWORK_MARK';
+
+    SELECT COALESCE(MAX(display_order), 0) + 1 INTO v_ec_profile_order_base
+      FROM public.card_edition_context_profile
+     WHERE game_id = v_game;
+
+    SELECT COALESCE(MAX(display_order), 0) + 1 INTO v_pr_trait_order
+      FROM public.card_printing_trait
+     WHERE game_id = v_game;
+
+    SELECT COALESCE(MAX(display_order), 0) + 1 INTO v_pr_profile_order
+      FROM public.card_printing_profile
+     WHERE game_id = v_game;
+
+    -- ---- GATE PREVENTIVO: as quatro bases têm de ser > 0 ----------------
+    IF v_ec_trait_order_base   IS NULL OR v_ec_trait_order_base   <= 0
+    OR v_ec_profile_order_base IS NULL OR v_ec_profile_order_base <= 0
+    OR v_pr_trait_order        IS NULL OR v_pr_trait_order        <= 0
+    OR v_pr_profile_order      IS NULL OR v_pr_profile_order      <= 0 THEN
+        RAISE EXCEPTION 'S2 ABORT: base de display_order invalida (ec_trait=%, ec_profile=%, pr_trait=%, pr_profile=%). Todas devem ser > 0.',
+            v_ec_trait_order_base, v_ec_profile_order_base, v_pr_trait_order, v_pr_profile_order;
+    END IF;
+
+    -- ---- GATE PREVENTIVO: nenhum slot inicial pode estar ocupado --------
+    -- Verificação no ESCOPO EXATO de cada UNIQUE. Fail-closed e sem retry:
+    -- se algo mudou entre a medição e aqui, o runner PARA e nomeia o slot —
+    -- não procura outro número sozinho. A própria UNIQUE continua sendo a
+    -- última linha de defesa contra corrida concorrente, e NÃO é capturada:
+    -- um 23505 real propaga e aborta o 2834.
+    v_slot_taken := '';
+
+    IF EXISTS (SELECT 1 FROM public.card_edition_context_trait
+                WHERE game_id = v_game AND family = 'ARTWORK_MARK'
+                  AND display_order = v_ec_trait_order_base) THEN
+        v_slot_taken := v_slot_taken || format('card_edition_context_trait(family=ARTWORK_MARK, order=%s); ', v_ec_trait_order_base);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.card_edition_context_profile
+                WHERE game_id = v_game AND display_order = v_ec_profile_order_base) THEN
+        v_slot_taken := v_slot_taken || format('card_edition_context_profile(order=%s); ', v_ec_profile_order_base);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.card_printing_trait
+                WHERE game_id = v_game AND display_order = v_pr_trait_order) THEN
+        v_slot_taken := v_slot_taken || format('card_printing_trait(order=%s); ', v_pr_trait_order);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.card_printing_profile
+                WHERE game_id = v_game AND display_order = v_pr_profile_order) THEN
+        v_slot_taken := v_slot_taken || format('card_printing_profile(order=%s); ', v_pr_profile_order);
+    END IF;
+
+    IF v_slot_taken <> '' THEN
+        RAISE EXCEPTION 'S2 ABORT: slot inicial de display_order ja ocupado — %. O harness NAO escolhe outra faixa sozinho.', v_slot_taken;
+    END IF;
+
+    RAISE NOTICE 'S2 bases de display_order: ec_trait=% ec_profile=% pr_trait=% pr_profile=%',
+        v_ec_trait_order_base, v_ec_profile_order_base, v_pr_trait_order, v_pr_profile_order;
 
     FOR v_vec IN SELECT v FROM jsonb_array_elements(p->'vectors') v LOOP
 
@@ -634,7 +770,7 @@ BEGIN
         FOR v_trait IN SELECT t FROM jsonb_array_elements(COALESCE(v_vec->'ec_traits','[]'::JSONB)) t LOOP
             INSERT INTO public.card_edition_context_trait (game_id, family, code, name, display_order, is_active)
             VALUES (v_game, 'ARTWORK_MARK', 'VEC2834_' || (v_trait->>'id'), 'fixture ' || (v_trait->>'id'),
-                    1000 + (SELECT count(*)::INT FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'),
+                    v_ec_trait_order_base + (SELECT count(*)::INT FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'),
                     (v_trait->>'is_active')::BOOLEAN)
             RETURNING id INTO v_trait_id;
             v_sym2uuid := v_sym2uuid || jsonb_build_object(v_trait->>'id', v_trait_id::TEXT);
@@ -654,7 +790,7 @@ BEGIN
             IF NOT (v_sym2uuid ? v_tok) THEN
                 INSERT INTO public.card_edition_context_trait (game_id, family, code, name, display_order, is_active)
                 VALUES (v_game, 'ARTWORK_MARK', 'VEC2834_' || v_tok, 'fixture ' || v_tok,
-                        1000 + (SELECT count(*)::INT FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'),
+                        v_ec_trait_order_base + (SELECT count(*)::INT FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'),
                         TRUE)
                 RETURNING id INTO v_trait_id;
                 v_sym2uuid := v_sym2uuid || jsonb_build_object(v_tok, v_trait_id::TEXT);
@@ -672,7 +808,7 @@ BEGIN
             INSERT INTO public.card_edition_context_profile
                 (game_id, code, name, display_order, is_active)
             VALUES (v_game, 'VEC2834_' || (v_prof->>'id'), 'fixture ' || (v_prof->>'id'),
-                    1000 + (SELECT count(*)::INT FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%'),
+                    v_ec_profile_order_base + (SELECT count(*)::INT FROM public.card_edition_context_profile WHERE code LIKE 'VEC2834%'),
                     (v_prof->>'is_active')::BOOLEAN)
             RETURNING id INTO v_prof_id;
 
@@ -785,12 +921,12 @@ BEGIN
             END;
 
             INSERT INTO public.card_printing_trait (game_id, code, name, display_order, is_active)
-            VALUES (v_game, 'VEC2834_PT', 'fixture printing trait', 1000, TRUE)
+            VALUES (v_game, 'VEC2834_PT', 'fixture printing trait', v_pr_trait_order, TRUE)
             RETURNING id INTO v_pr_trait_id;
 
             IF v_pr_state = 'RESOLVED_WITH_PROFILE' THEN
                 INSERT INTO public.card_printing_profile (game_id, code, name, display_order, is_active)
-                VALUES (v_game, 'VEC2834_PP_X', 'fixture printing profile', 1000, TRUE)
+                VALUES (v_game, 'VEC2834_PP_X', 'fixture printing profile', v_pr_profile_order, TRUE)
                 RETURNING id INTO v_pr_prof_id;
 
                 INSERT INTO public.card_printing_profile_trait (profile_id, trait_id, game_id)
@@ -1261,7 +1397,7 @@ BEGIN
       INTO v_pass, v_fail, v_skip, v_rows, v_vec_seen
       FROM _res2834;
 
-    RAISE NOTICE '=== 2834 v2.3 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
+    RAISE NOTICE '=== 2834 v2.4 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
         v_pass, v_fail, v_skip, v_rows, v_vec_seen;
     RAISE NOTICE '=== esperado pela fixture: % caso(s), % vetor(es), % estado(s) ===',
         v_n_cases, v_n_vectors, v_n_vocab;
