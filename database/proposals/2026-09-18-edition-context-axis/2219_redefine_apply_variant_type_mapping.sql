@@ -398,7 +398,8 @@ END $$;
 --   CROSS JOIN LATERAL set-based — mesma forma da canônica, sem N+1 novo.
 --   O custo adicional frente à v1.0 é a camada de Edition Context dentro da
 --   própria 2211, que resolve por lookup indexado em
---   card_edition_context_external_mapping (uq_cecem_global / uq_cecem_scoped).
+--   card_edition_context_external_mapping (uq_cecem_active_global /
+--   uq_cecem_active_scoped, parciais em is_active — 2207 v3.0).
 --   Nenhum lookup de trait individual: a assinatura vem do mapping.
 --
 -- ARMADO PARA ROLLOUT (ROLLOUT-EXECUTION-READINESS-01). Terminador COMMIT.

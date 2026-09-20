@@ -479,14 +479,41 @@ SELECT p.id, t.id, p.game_id
   JOIN public.card_edition_context_trait   t ON t.code = s.trait_code AND t.game_id = p.game_id;
 
 -- ---------------------------------------------------------------- PASSO 3 ---
+-- FORÇA O SELO DEFERIDO A DISPARAR AGORA (BATCH1-RUNTIME-CORRECTION-02).
+--
+-- OBRIGATÓRIO, não cosmético. trg_cecp_seal (2206 v2.0) é CONSTRAINT TRIGGER
+-- DEFERRABLE INITIALLY DEFERRED: por padrão ele só roda no COMMIT, DEPOIS de
+-- todo este bloco. Sem esta linha, o gate SEED_SIGNATURE_UNSEALED abaixo leria
+-- traits_signature ainda NULL em 144/144 e abortaria o seed SEMPRE — um falso
+-- negativo garantido, não uma proteção.
+--
+-- SET CONSTRAINTS ALL IMMEDIATE força a execução dos triggers deferidos
+-- pendentes neste ponto. Se qualquer Profile estiver vazio, o EXCEPTION
+-- EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION aborta aqui — fail-loud, ainda
+-- dentro da transação. Se tudo passar, os 144 já estão selados e os gates
+-- abaixo medem estado REAL, não estado intermediário.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 DO $$
-DECLARE v_n INT; v_null INT; v_dup INT; v_sem INT; v_lbl INT; v_len INT;
+DECLARE v_n INT; v_null INT; v_dup INT; v_sem INT; v_lbl INT; v_len INT; v_mis INT;
 BEGIN
     SELECT COUNT(*) INTO v_n FROM public.card_edition_context_profile;
     IF v_n <> 144 THEN RAISE EXCEPTION 'SEED_PROFILE_POSTCHECK: esperado 144, obtido %.', v_n; END IF;
 
     SELECT COUNT(*) INTO v_null FROM public.card_edition_context_profile WHERE traits_signature IS NULL;
     IF v_null <> 0 THEN RAISE EXCEPTION 'SEED_SIGNATURE_UNSEALED: %.', v_null; END IF;
+
+    -- P8 (NOVO) — o selo corresponde EXATAMENTE à N:N, para os 144.
+    -- Não basta "não é NULL": prova que o array selado é idêntico ao conjunto
+    -- canônico recalculado da fonte da verdade (DISTINCT pela PK, ORDER BY).
+    SELECT COUNT(*) INTO v_mis
+      FROM public.card_edition_context_profile p
+     WHERE p.traits_signature IS DISTINCT FROM ARRAY(
+             SELECT t.trait_id FROM public.card_edition_context_profile_trait t
+              WHERE t.profile_id = p.id ORDER BY t.trait_id);
+    IF v_mis <> 0 THEN
+        RAISE EXCEPTION 'SEED_SIGNATURE_MISMATCH_NN (P8): % profiles com selo divergente da N:N.', v_mis;
+    END IF;
 
     SELECT COUNT(*) INTO v_dup FROM (
         SELECT game_id, traits_signature FROM public.card_edition_context_profile

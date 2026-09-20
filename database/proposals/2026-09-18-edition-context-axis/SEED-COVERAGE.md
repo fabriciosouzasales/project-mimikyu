@@ -55,8 +55,19 @@ isso executando o mesmo recorte.
 
 O total de traits coincidir em 115 é **coincidência aritmética**, não
 preservação: 96 e 19 foram derivados de forma independente. O que mudou de
-verdade é a composição (96 + 19 em vez de 94 + 21) e o número de profiles
-(156, não 173).
+verdade é a composição (96 + 19 em vez de 94 + 21) e o número de profiles.
+
+> **DESAMBIGUAÇÃO (`MAPPING-LIFECYCLE-CORRECTION-01`).** A redação anterior
+> encerrava com *"(156, não 173)"*, o que contradizia a própria tabela acima e
+> podia ser lido como "o corpus tem 156 profiles". Os três números, explícitos:
+>
+> | Número | O que é |
+> |---:|---|
+> | **173** | candidatas da união A ∪ B — **medição histórica**, pré-curadoria |
+> | **156** | composições RE-DERIVADAS = 137 (A) + 7 (B PROVEN) + 12 (B DEFERRED) |
+> | **144** | **CORPUS CANÔNICO SEMEADO** = 137 + 7. Os 12 de B ficam `DEFERRED` para a `2213` e **não** são semeados pela `2231` |
+>
+> O número que a `2231` grava, e que todos os gates cobram, é **144**.
 
 ### Por que 117 tokens → 115 traits
 

@@ -17,7 +17,48 @@
 -- ck_cecem_raw_field (2207) — o gate M3 abaixo prova isso no proprio seed.
 -- ============================================================================
 
+-- ============================================================================
+-- SEMÂNTICA DE REAPLICAÇÃO — **ONE-SHOT, RECUSA FAIL-LOUD** (opção B)
+-- Declarada em MAPPING-LIFECYCLE-CORRECTION-02, item 3.
+--
+-- ESTE SEED NÃO É IDEMPOTENTE, E ISSO É DELIBERADO.
+--
+-- POR QUE NÃO IDEMPOTENTE — razão técnica, não preferência:
+--   Tornar o INSERT do cabeçalho idempotente exigiria `ON CONFLICT` com
+--   inferência de índice. Mas a 2207 v3.0+ tem DOIS índices parciais
+--   distintos e mutuamente exclusivos:
+--       uq_cecem_active_global  WHERE external_set_id IS NULL     AND is_active
+--       uq_cecem_active_scoped  WHERE external_set_id IS NOT NULL AND is_active
+--   Um único `ON CONFLICT (...) WHERE ...` só consegue inferir UM deles. As
+--   108 linhas GLOBAL e as 14 SCOPED caem em índices diferentes, então o
+--   statement teria de ser partido em dois só para simular idempotência de
+--   um seed de fundação que roda UMA vez, no Batch 2, sobre tabela vazia.
+--
+-- O QUE MUDA EM RELAÇÃO AO COMPORTAMENTO ANTERIOR:
+--   Antes, reaplicar produzia `unique_violation` cru vindo do índice — um
+--   acidente que *parecia* proteção, e que só apareceria DEPOIS de já ter
+--   escrito parte das linhas. Agora existe o gate M0: a recusa é EXPLÍCITA,
+--   NOMEADA e anterior a qualquer escrita. O mandato proíbe "comportamento
+--   acidental por unique_violation"; é exatamente isso que M0 elimina.
+--
+-- COMO CORRIGIR UM MAPPING DEPOIS DO SEED: não é reexecutar este arquivo.
+--   É o fluxo editorial da 2207 v4.0 — aposentar o ativo (TRUE -> FALSE) e
+--   criar um mapping novo, na mesma transação. Ver bloco LIFECYCLE da 2207.
+-- ============================================================================
+
 BEGIN;
+
+-- ---------------------------------------------------------------- PASSO 0 ---
+-- M0 — RECUSA EXPLÍCITA DE REAPLICAÇÃO (fail-loud, ANTES de qualquer write).
+DO $$
+DECLARE v_n INT;
+BEGIN
+    SELECT COUNT(*) INTO v_n FROM public.card_edition_context_external_mapping;
+    IF v_n <> 0 THEN
+        RAISE EXCEPTION
+          'SEED_MAP_ALREADY_APPLIED (M0): a tabela ja contem % mapping(s) — ativos e/ou historicos. Este seed e ONE-SHOT e recusa reaplicacao deliberadamente. Para corrigir um mapping, aposente o ativo (is_active = FALSE) e crie um novo; nunca reexecute este arquivo.', v_n;
+    END IF;
+END $$;
 
 CREATE TEMP TABLE seed_ec_map (
     raw_field TEXT, normalized_token TEXT, external_set_id TEXT, trait_code TEXT
@@ -190,28 +231,114 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------- PASSO 2 ---
+-- CORRIGIDO EM MAPPING-LIFECYCLE-CORRECTION-01.
+--
+-- A 2207 v3.0 admite HISTÓRICO: o mesmo token pode ter N linhas inativas +
+-- no máximo 1 ativa. O JOIN da versão anterior casava por
+-- (raw_field, normalized_token, external_set_id) e NÃO filtrava is_active —
+-- sob histórico ele associaria os traits a TODOS os mappings daquele token,
+-- inclusive os INATIVOS e SELADOS. Resultado determinístico: o GUARD B da
+-- 2207 abortaria com EDITION_CONTEXT_MAPPING_COMPOSITION_SEALED. O seed
+-- falharia — fail-loud, mas por defeito próprio, não por dado ruim.
+--
+-- Além disso `mm.game_id` não era amarrado a nada: o JOIN dependia de existir
+-- um único Game. Passa a ser explícito.
+--
+-- Contrato desta seed: ela opera SOBRE O MAPPING ATIVO que ela mesma acabou
+-- de criar ou reconhecer — nunca sobre histórico. Determinístico porque
+-- uq_cecem_active_global / uq_cecem_active_scoped garantem no máximo UM ativo
+-- por identidade: o JOIN abaixo não tem como casar duas linhas.
+WITH ctx AS (
+    SELECT (SELECT id FROM public.game         WHERE code = 'PTCG')   AS game_id,
+           (SELECT id FROM public.asset_source WHERE code = 'TCGDEX') AS asset_source_id
+)
 INSERT INTO public.card_edition_context_external_mapping
     (game_id, asset_source_id, external_set_id, raw_field, normalized_token)
-SELECT g.id, a.id, s.external_set_id, s.raw_field, s.normalized_token
-  FROM seed_ec_map s
-  CROSS JOIN LATERAL (SELECT id FROM public.game WHERE code='PTCG') g
-  CROSS JOIN LATERAL (SELECT id FROM public.asset_source WHERE code='TCGDEX') a;
+SELECT c.game_id, c.asset_source_id, s.external_set_id, s.raw_field, s.normalized_token
+  FROM seed_ec_map s CROSS JOIN ctx c;
 
 INSERT INTO public.card_edition_context_external_mapping_trait (mapping_id, trait_id, game_id)
 SELECT mm.id, t.id, mm.game_id
   FROM seed_ec_map s
+  CROSS JOIN LATERAL (
+      SELECT (SELECT id FROM public.game         WHERE code = 'PTCG')   AS game_id,
+             (SELECT id FROM public.asset_source WHERE code = 'TCGDEX') AS asset_source_id
+  ) c
   JOIN public.card_edition_context_external_mapping mm
-    ON mm.raw_field = s.raw_field AND mm.normalized_token = s.normalized_token
-   AND mm.external_set_id IS NOT DISTINCT FROM s.external_set_id
-  JOIN public.card_edition_context_trait t ON t.code = s.trait_code AND t.game_id = mm.game_id;
+    ON  mm.game_id         = c.game_id
+    AND mm.asset_source_id = c.asset_source_id
+    AND mm.raw_field       = s.raw_field
+    AND mm.normalized_token = s.normalized_token
+    AND mm.external_set_id IS NOT DISTINCT FROM s.external_set_id
+    AND mm.is_active                      -- << nunca tocar histórico selado
+  JOIN public.card_edition_context_trait t
+    ON t.code = s.trait_code AND t.game_id = mm.game_id;
 
 -- ---------------------------------------------------------------- PASSO 3 ---
+-- FORÇA O SELO DEFERIDO A DISPARAR AGORA (BATCH1-RUNTIME-CORRECTION-02).
+-- trg_cecem_seal (2207 v2.0) é CONSTRAINT TRIGGER DEFERRABLE INITIALLY
+-- DEFERRED. Sem esta linha, os gates M4/M5 abaixo leriam traits_signature
+-- ainda NULL nos 122 e o seed passaria por engano OU abortaria por engano,
+-- dependendo do gate. Mesma nota da 2231, PASSO 3.
+-- Se qualquer mapping estiver sem vínculo,
+-- EDITION_CONTEXT_EXTERNAL_MAPPING_EMPTY_COMPOSITION aborta AQUI.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 -- C1/C3 — COBERTURA DO CORPUS CANONICO: as 1.085 rows EDITION_CONTEXT.
 DO $$
-DECLARE v_n INT; v_foil INT; v_desc TEXT;
+DECLARE v_n INT; v_foil INT; v_desc TEXT; v_null INT; v_mis INT; v_dup INT;
 BEGIN
-    SELECT COUNT(*) INTO v_n FROM public.card_edition_context_external_mapping;
-    IF v_n <> 122 THEN RAISE EXCEPTION 'SEED_MAP_POSTCHECK: esperado 122, obtido %.', v_n; END IF;
+    -- CONTAGEM SOBRE OS ATIVOS (MAPPING-LIFECYCLE-CORRECTION-01). A 2207 v3.0
+    -- admite histórico inativo; o corpus canônico são os 122 ATIVOS. Contar
+    -- todas as linhas passaria a medir "ativos + histórico", que não é o
+    -- contrato desta seed.
+    SELECT COUNT(*) INTO v_n FROM public.card_edition_context_external_mapping
+     WHERE is_active;
+    IF v_n <> 122 THEN RAISE EXCEPTION 'SEED_MAP_POSTCHECK: esperado 122 ativos, obtido %.', v_n; END IF;
+
+    -- M6 (NOVO) — no máximo UM ativo por identidade, nos dois escopos.
+    -- Redundante com uq_cecem_active_global / uq_cecem_active_scoped, e é
+    -- essa redundância que se quer: se o índice não existir (DDL incompleto),
+    -- o seed detecta aqui em vez de deixar passar.
+    SELECT COUNT(*) INTO v_dup FROM (
+        SELECT game_id, asset_source_id, raw_field, normalized_token, external_set_id
+          FROM public.card_edition_context_external_mapping
+         WHERE is_active
+         GROUP BY 1,2,3,4,5 HAVING COUNT(*) > 1) d;
+    IF v_dup <> 0 THEN
+        RAISE EXCEPTION 'SEED_MAP_MULTIPLE_ACTIVE (M6): % identidades com mais de um mapping ativo.', v_dup;
+    END IF;
+
+    -- M4 (NOVO, BATCH1-RUNTIME-CORRECTION-02) — 122/122 SELADOS.
+    -- É este gate que impede a divergência SQL x Edge: a Edge lê SOMENTE
+    -- mapping.traits_signature e trata NULL como composicao vazia
+    -- (NEEDS_REVIEW_INVALID_EC_MAPPING). Um unico NULL aqui significa que
+    -- aquele mapping resolveria no SQL e falharia na Edge.
+    --
+    -- ESCOPO DELIBERADO: M4 e M5 varrem TODAS as linhas, ativas E inativas —
+    -- NAO filtrar por is_active aqui. Um mapping historico continua selado, e
+    -- seu selo continua tendo que corresponder a sua propria N:N. Restringir
+    -- a is_active enfraqueceria a invariante sem ganho nenhum. Apenas a
+    -- CONTAGEM de 122 (acima) e M6 e que sao sobre os ativos.
+    SELECT COUNT(*) INTO v_null FROM public.card_edition_context_external_mapping
+     WHERE traits_signature IS NULL;
+    IF v_null <> 0 THEN
+        RAISE EXCEPTION 'SEED_MAP_SIGNATURE_UNSEALED (M4): % mappings sem selo. A Edge os leria como composicao vazia.', v_null;
+    END IF;
+
+    -- M5 (NOVO) — o selo corresponde EXATAMENTE a N:N, para os 122.
+    -- Garante que SQL (2211) e Edge recebem a MESMA composicao: a 2211 faz
+    -- COALESCE(traits_signature, ARRAY(SELECT ... FROM N:N ORDER BY trait_id))
+    -- e a Edge le traits_signature. Se os dois lados sao identicos, os dois
+    -- caminhos sao equivalentes por construcao.
+    SELECT COUNT(*) INTO v_mis
+      FROM public.card_edition_context_external_mapping m
+     WHERE m.traits_signature IS DISTINCT FROM ARRAY(
+             SELECT t.trait_id FROM public.card_edition_context_external_mapping_trait t
+              WHERE t.mapping_id = m.id ORDER BY t.trait_id);
+    IF v_mis <> 0 THEN
+        RAISE EXCEPTION 'SEED_MAP_SIGNATURE_MISMATCH_NN (M5): % mappings com selo divergente da N:N.', v_mis;
+    END IF;
 
     -- M3 no BANCO: zero mapping de foil (reforca ck_cecem_raw_field).
     SELECT COUNT(*) INTO v_foil FROM public.card_edition_context_external_mapping
@@ -255,7 +382,7 @@ BEGIN
     IF v_desc IS NOT NULL THEN
         RAISE EXCEPTION 'SEED_EC_COVERAGE_GAP (C1): tokens do corpus sem mapping aplicavel: %.', v_desc; END IF;
 
-    RAISE NOTICE 'SEED 2232 OK — 122 mappings, 1.085/1.085 rows EC cobertas, zero foil, H2 intacto.';
+    RAISE NOTICE 'SEED 2232 OK — 122 mappings SELADOS (M4/M5), 1.085/1.085 rows EC cobertas, zero foil, H2 intacto.';
 END $$;
 
 -- ARMADO PARA ROLLOUT (ROLLOUT-EXECUTION-READINESS-01). Terminador COMMIT.

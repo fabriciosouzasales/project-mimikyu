@@ -31,7 +31,7 @@
 --   Collision gate roda ANTES e simula a identidade NOVA (4 componentes).
 --
 -- PRE-REQUISITO DE EXECUCAO
---   2203-2211 aplicados e os 115 traits / 173 profiles / mappings semeados.
+--   2203-2211 aplicados e os 115 traits / 144 profiles / 122 mappings semeados.
 --   Sem isso, resolve_variant_row_axes devolve UNRESOLVED e o PASSO 2 aborta —
 --   o que e o comportamento desejado: fail-loud, nunca destino silencioso.
 --

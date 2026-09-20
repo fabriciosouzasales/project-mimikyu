@@ -1,4 +1,9 @@
 > ## ⛔ SUPERADO — `EDITORIAL-VOCABULARY-02` (2026-09-19)
+
+> ### ⚠️ DOCUMENTO HISTÓRICO (MAPPING-LIFECYCLE-CORRECTION-01)
+> Registro do gate editorial E1/E2/E3, hoje **FECHADO**. As **173
+> composições** citadas são a medição da união A ∪ B antes da curadoria;
+> o corpus canônico é **144**. Ver **CURRENT STATE** em `PACKAGE-STATUS.md`.
 >
 > **E1 · E2 · E3 estão CLOSED.** Este documento é o registro histórico do STOP
 > que os bloqueava, preservado porque o diagnóstico continua correto: o corpus

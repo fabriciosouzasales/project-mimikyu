@@ -24,6 +24,61 @@ autoridade sobre *por que* cada bloqueio existe.
 > decisão editorial, não de código. O pacote termina deliberadamente em
 > *READY FOR 2213*.
 
+> ### ESTADO DE EXECUÇÃO — Batch 1 parcialmente LIVE (2026-09-19)
+>
+> | Artefato | Estado | Observação |
+> |---|---|---|
+> | **`2203`** | **EXECUTADA / LIVE** | ledger registrado · `card_edition_context_trait` existe · RLS/policy/ACL aprovados. **NÃO reaplicar, NÃO rearmar, NÃO editar** — o SQL fica intocado desde a execução, conforme a convenção das canônicas do projeto |
+> | `2204` | v1.2 · **PENDING** | 1ª tentativa abortou (`0A000`), zero resíduo físico e de ledger |
+> | `2205` | v1.0 · PENDING | inalterada |
+> | `2206` | **v2.0** · PENDING | quatro guards, paridade real com 2168 |
+> | `2207` | **v4.0** · PENDING | **cinco** guards do mapping + índices parciais em `is_active` |
+>
+> Retomada: **`2204` → `2205` → `2206` → `2207`**. Detalhe operacional,
+> precheck P9 e manifesto de ledger revisado em `EXECUTION-BATCHES.md`.
+
+---
+
+# CURRENT STATE × HISTORICAL MEASUREMENT
+
+**Exigido por `MAPPING-LIFECYCLE-CORRECTION-01`, item 4.** Este documento
+acumulou números de rodadas diferentes. A tabela abaixo é a **única autoridade**
+sobre o que vale HOJE. Qualquer número divergente no restante deste arquivo, ou
+em `PENDING-ARTIFACTS.md` / `editorial/`, é **medição histórica** e só pode ser
+lido como registro — nunca como estado.
+
+## CURRENT STATE — vale agora
+
+| Dimensão | Valor CORRENTE | Autoridade |
+|---|---|---|
+| Traits · Profiles · Links · Mappings | **115 · 144 · 196 · 122** | `2230` v2.1 · `2231` v3.1 · `2232` |
+| Cobertura do corpus EC | **1.085 / 1.085** | gate C1 da `2232` |
+| Universo vivo de staging (FREEZE) | **1.642 rows** — STAGED / PENDING / NEEDS_REVIEW / PENDING | precheck **P7** |
+| Harness `2830` | **144 automáticos** (+4 pendentes de `2213`, +3 manuais), 17 seções | `2830` v6.3 |
+| T1 (`2840` `NULLS NOT DISTINCT`) | **CLOSED** — LIVE, 7/7 PASS, zero resíduo físico e de ledger | `ROLLOUT-ORDER.md`, etapa −1 |
+| `2203` | **LIVE / SKIP na retomada** | ledger + bloco acima |
+| Lifecycle do external mapping | **histórico + no máximo 1 ativo · identidade imutável · `is_active` só TRUE→FALSE · token canônico na entrada** (5 guards) | `2207` v4.0 |
+| Índices do mapping | `uq_cecem_active_global` · `uq_cecem_active_scoped` · `ix_cecem_token` | `2207` v4.0 |
+| Artefatos executáveis | **23**, todos armados em `COMMIT;` | `ROLLOUT-ORDER.md` |
+| Arquivos no pacote | **55** (31 `.sql` · 21 `.md` · 2 em `edge/`) | `ls` |
+
+## HISTORICAL MEASUREMENT — registro, NÃO estado
+
+| Número | Onde aparece | Por que não é o estado |
+|---|---|---|
+| **173 profiles** | `README.md` (tabela A ∪ B, marcada ⟨hist.⟩) · `SEED-COVERAGE.md` (tabela 173 → 144) · `PENDING-ARTIFACTS.md` · `editorial/E1-E2-E3-GATE.md` · linhas abaixo neste arquivo | combinações CANDIDATAS medidas na união, **antes** da curadoria. O corpus fechado é 144 |
+| **114 / 126 / 134 automáticos** | histórico de versões do `2830` (v6.0 / v6.1 / v6.2) | superados por 144 (v6.3) |
+| **"universo vivo é vazio"** | corrigido em `ROLLOUT-ORDER.md` etapa 5 | premissa errada; o LIVE tem 1.642 |
+| **classe B bloqueada por vocabulário** | Seção "Veredito" abaixo | resolvida — os três seeds estão preenchidos |
+| **`uq_cecem_global` / `uq_cecem_scoped`** | nota do caso 1.11 no `2830` | renomeados e partializados em `is_active` na `2207` v3.0 |
+| **`2207` com 3 guards** | blocos v2.0 preservados no header da 2207 | a v4.0 tem **5** (paridade com a Query 2174) |
+
+> **Regra de leitura:** da linha abaixo até o fim, este documento é o retrato de
+> `WRITE-PATH-STAGING-01`. Onde ele divergir da tabela CURRENT STATE, a tabela
+> vence.
+
+---
+
 ---
 
 ## As sete classes

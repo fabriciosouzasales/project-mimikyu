@@ -25,7 +25,7 @@ representável que o passo seguinte não saiba ler.
 | 2 | **`2230` → `2231` → `2232`** — **115 traits · 144 profiles · 196 links · 122 mappings**. **ANTES do FREEZE e ANTES do backfill** (Correção 6): o backfill semântico precisa do vocabulário para resolver UUID | vocabulário disponível, ninguém resolve ainda | **não** |
 | 3 | **FREEZE DE IMPORTAÇÃO** + captura de baseline real | idêntico ao atual | — |
 | 4 | `2208` — coluna `edition_context_profile_id` NULL em 24.893. `2208` precede `2210` | todas as Variants "sem contexto" (semanticamente correto) | **não** |
-| 5 | **`2212` RESOLUÇÃO OPERACIONAL** — só `job vivo + PENDING`, pelo routing canônico (UUID / JSON null / AUSENTE). **Hoje o universo é vazio.** Histórico terminal e os 415 `CANCELLED` **não são tocados** | tri-state verdadeiro no universo vivo; histórico intacto | **não** — guard ainda permissivo |
+| 5 | **`2212` RESOLUÇÃO OPERACIONAL** — só `job vivo + PENDING`, pelo routing canônico (UUID / JSON null / AUSENTE). **Universo vivo medido no LIVE: 1.642 rows** (STAGED / PENDING / NEEDS_REVIEW / PENDING) — a afirmação anterior, *"hoje o universo é vazio"*, estava ERRADA e foi corrigida em `PREFLIGHT-CORRECTION-01` (ver precheck P7). Histórico terminal e os 415 `CANCELLED` **não são tocados** | tri-state verdadeiro no universo vivo; histórico intacto | **não** — guard ainda permissivo |
 | 6 | **`2832`** (14 provas) → **`2833`** (11 provas, **job-aware**) — read-only, `ROLLBACK` | predicado provado contra as combinações reais, incluindo `CANCELLED` | **não** — read-only |
 | 7 | **`2214`** guard de **TRANSIÇÃO OPERACIONAL** — `job ∈ (RECEIVED,PROCESSING,STAGED,CONFIRMING)` + `PENDING` + `VALID` exige a chave. Trigger job-aware; `CHECK` não serve | o que pode ser confirmado tem o eixo resolvido; histórico não mente | **não** — recusa promoção se restar row **operacional** sem chave |
 | 8 | `2210` — `axis_identity_token` + `uq_cvir_row_identity` (índice **normal**) + guard **PERMISSIVO** | staging aceita rows legadas sem a chave; os índices antigos ainda existem e só caem na etapa 15 | **não** — o guard ainda não exige a chave, justamente por isso |
@@ -39,7 +39,7 @@ representável que o passo seguinte não saiba ler.
 | 13 | `2209` — `CREATE UNIQUE INDEX` (normal) + `ADD CONSTRAINT … USING INDEX`, **atômicos entre si**. Liberada pelo T1 | identidade nova existe; **as antigas ainda existem e ainda mandam** | **não** — conviver é seguro: as antigas são mais restritivas |
 | 14 | **`2215`** — `DROP` das duas antigas de `card_variant`, com prova antes e depois | **só a identidade nova** — o eixo passa a existir de fato | **não** — `2215` recusa rodar se a nova não for CONSTRAINT válida |
 | 15 | **`2216`** — `DROP` das duas antigas de staging + prova funcional S4 | só a identidade nova | **não** — pré-condição **job-aware**: as 415 `CANCELLED` não bloqueiam |
-| 16 | **`2830`** — harness da fundação (114 automáticos, read-only) | fundação provada ponta a ponta | **não** — read-only |
+| 16 | **`2830`** — harness da fundação (**144** automáticos, read-only) | fundação provada ponta a ponta | **não** — read-only |
 | 17 | **UNFREEZE** | operação normal | — |
 | → | **READY FOR 2213** | — | — |
 | 18 | `2831` → `2213` — decomposição de **READY_UNCONDITIONED (285)** **+ lineage atômico** (L1–L4) | legado decomposto sem estado híbrido | **não** |

@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Query 2830 — Harness de validação da fundação Edition Context
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 6.0
+-- Status: PROPOSTA — NÃO EXECUTADA · Versão 6.3
 --
 -- Versão 6.0 (OPERATIONAL-BOUNDARY-CORRECTION-01): 100 → 114 automaticos
 -- (+ 4 pendentes de 2213 + 3 manuais), em 14 secoes.
@@ -82,7 +82,7 @@
 --        (TOOLING-PROOF.md); substituídos por 6.3 (apply_migration).
 --
 -- Fail-loud: qualquer FAIL aborta. Protocolo: BEGIN ... ROLLBACK por caso.
--- Gate final exige 114/114.
+-- Gate final exige 144/144 (v6.3; 134 na v6.2, 126 na v6.1, 114 ate a v6.0).
 --
 -- ============================================================================
 -- SEÇÃO 1 — ESTRUTURAL (12)
@@ -93,25 +93,117 @@
 --   1.3  ck_cect_code_family_prefix rejeita DECK_PLAYER sem prefixo
 --   1.4  uq_cect_game_family_order é por FAMILIA, não global
 --   1.5  uq_cecp_game_signature existe e é parcial (traits_signature NOT NULL)
---   1.6  ck_cecp_signature_shape rejeita array não ordenado
---   1.7  ck_cecp_signature_shape rejeita array com duplicata
+--   1.6  ck_cecp_signature_not_empty rejeita '{}'  [REESCRITO — v6.1]
+--   1.7  ck_cecp_signature_shape rejeita array 2-D [REESCRITO — v6.1]
 --   1.8  N:N tem as DUAS FKs compostas (same-Game)
 --   1.9  ck_cecem_raw_field rejeita 'type' e 'size'
 --   1.10 ck_cecem_raw_field rejeita 'foil' (allowlist NÃO existe — Blocker 6);
 --        prova negativa adicional: nenhuma constraint chamada
 --        ck_cecem_foil_allowlist existe em pg_constraint
---   1.11 uq_cecem_global e uq_cecem_scoped são disjuntos
+--   1.11 uq_cecem_active_global e uq_cecem_active_scoped são disjuntos E
+--        PARCIAIS em is_active; ix_cecem_token existe e NÃO é parcial
+--        [REESCRITO — v6.2]. Os nomes antigos (uq_cecem_global /
+--        uq_cecem_scoped, sem is_active) deixaram de existir na 2207 v3.0 —
+--        um caso que procurasse por eles passaria a falhar por nome.
 --   1.12 grants: anon sem nada; authenticated só SELECT
 --
--- SEÇÃO 2 — COMPOSIÇÃO (8)
---   2.1  INSERT na N:N sela traits_signature distinta e ordenada
---   2.2  composição vazia ⇒ EDITION_CONTEXT_EMPTY_COMPOSITION
+-- SEÇÃO 2 — COMPOSIÇÃO (14)  [v6.1 — era 8]
+--   2.1  COMMIT sela traits_signature = ARRAY(N:N ORDER BY trait_id)
+--   2.2  profile SEM NENHUMA linha na N:N ⇒ no COMMIT,
+--        EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION  [REESCRITO — v6.1]
+--        Antes o caso era "composição vazia"; agora prova explicitamente o
+--        cenário que a 2206 v1.0 NÃO cobria: nenhum evento na N:N.
 --   2.3  segundo INSERT em profile selado ⇒ COMPOSITION_IMMUTABLE
 --   2.4  DELETE em profile selado ⇒ COMPOSITION_IMMUTABLE
 --   2.5  trait inativo ⇒ TRAIT_INACTIVE
 --   2.6  trait de outro Game ⇒ violação de FK composta
 --   2.7  dois profiles com mesma assinatura ⇒ uq_cecp_game_signature
 --   2.8  profile com assinatura NULL não colide (índice parcial)
+--   ---- NOVOS em v6.1 (BATCH1-RUNTIME-CORRECTION-02) ----
+--   2.9  selo produzido pela 2206 é ORDENADO: inserir a N:N em ordem
+--        decrescente de trait_id e provar que o selo sai ascendente
+--   2.10 selo produzido pela 2206 NÃO tem duplicata: a PK (profile_id,
+--        trait_id) torna a repetição impossível na origem — prova por
+--        INSERT duplicado rejeitado + cardinality(selo) = COUNT(N:N)
+--   2.11 UPDATE direto tentando FALSIFICAR traits_signature de profile em
+--        montagem ⇒ EDITION_CONTEXT_SIGNATURE_MISMATCH
+--   2.12 UPDATE direto tentando ALTERAR selo já gravado ⇒
+--        EDITION_CONTEXT_SIGNATURE_IMMUTABLE
+--   2.13 UPDATE direto tentando voltar selo para NULL ⇒
+--        EDITION_CONTEXT_SIGNATURE_IMMUTABLE
+--   2.14 UPDATE que NÃO toca traits_signature (ex.: name) é permitido
+--
+-- SEÇÃO 2-BIS — COMPOSIÇÃO DO EXTERNAL MAPPING (6)  [NOVA — v6.1]
+--   Espelha 2.1/2.2/2.11/2.12 para card_edition_context_external_mapping,
+--   cujos guards nasceram na 2207 v2.0. Sem esta seção o mapping ficaria
+--   sem cobertura nenhuma no harness.
+--   2B.1 COMMIT sela mapping.traits_signature = ARRAY(N:N ORDER BY trait_id)
+--   2B.2 mapping SEM linha na N:N ⇒ no COMMIT,
+--        EDITION_CONTEXT_EXTERNAL_MAPPING_EMPTY_COMPOSITION
+--   2B.3 UPDATE falsificando selo do mapping ⇒
+--        EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH
+--   2B.4 UPDATE alterando selo já gravado ⇒
+--        EDITION_CONTEXT_MAPPING_SIGNATURE_IMMUTABLE
+--   2B.5 pós-2232: SELECT COUNT(*) FROM ..._external_mapping
+--        WHERE traits_signature IS NULL  ⇒  0   (122/122 selados)
+--   2B.6 EQUIVALÊNCIA SQL x EDGE: para os 122 mappings,
+--        traits_signature = ARRAY(SELECT trait_id FROM N:N ORDER BY trait_id).
+--        É esta igualdade que torna o COALESCE da 2211 (linhas 111/159) e a
+--        leitura direta da Edge (patch, linha 309) equivalentes por
+--        construção — o caso que antes divergia de forma determinística.
+--
+-- SEÇÃO 2-TER — LIFECYCLE DO MAPPING (8)  [NOVA — v6.2]
+--   Prova o contrato "histórico + exatamente um ativo" da 2207 v3.0. Sem
+--   esta seção, o beco sem saída (mapping errado insubstituível) voltaria
+--   sem nenhum caso acusando.
+--   2T.1 FLUXO DE CORREÇÃO COMPLETO, uma transação: M1 ativo selado ->
+--        UPDATE M1 is_active=FALSE -> INSERT M2 ativo com composição
+--        DIFERENTE -> COMMIT. Deve PASSAR. É o caso que a v2.0 tornava
+--        impossível.
+--   2T.2 pós-2T.1: o token tem 2 linhas, exatamente 1 com is_active
+--   2T.3 composição de M1 permanece INTACTA e selada (histórico preservado,
+--        não reescrito)
+--   2T.4 dois ATIVOS GLOBAIS para o mesmo token ⇒ uq_cecem_active_global
+--   2T.5 dois ATIVOS SCOPED para (token, mesmo Set) ⇒ uq_cecem_active_scoped
+--   2T.6 1 ativo GLOBAL + 1 ativo SCOPED do mesmo token COEXISTEM (os dois
+--        índices são disjuntos) e a 2211 escolhe o SCOPED
+--   2T.7 token SÓ com histórico inativo ⇒ 2211 devolve
+--        NEEDS_REVIEW_INACTIVE_EC_MAPPING (nunca residual de Finish)
+--   2T.8 mapping ativo SCOPED de OUTRO Set não conta como "known" neste
+--        Set: a row cai no residual de Finish, não em INACTIVE
+--
+-- SEÇÃO 2-QUATER — LIFECYCLE DO CABEÇALHO (10)  [NOVA — v6.3]
+--   Cobre os GUARDS A e B da 2207 v4.0, que não existiam até a v3.0. Sem
+--   esta seção, "identidade imutável" e "sem ressurreição" seriam afirmações
+--   do header, não invariantes provadas.
+--
+--   -- GUARD B — identidade histórica imutável --
+--   2Q.1 UPDATE de `normalized_token` em mapping selado ⇒
+--        EDITION_CONTEXT_MAPPING_IDENTITY_IMMUTABLE
+--   2Q.2 UPDATE de `external_set_id` (GLOBAL -> SCOPED) ⇒ mesma exceção.
+--        Caso próprio de Edition Context: Printing não tem este eixo, e
+--        migrar de escopo trocaria o índice parcial sob o qual o mapping vive
+--   2Q.3 UPDATE de `raw_field` ('stamp' -> 'subtype') ⇒ mesma exceção
+--   2Q.4 UPDATE de `game_id` ou `asset_source_id` ⇒ mesma exceção
+--
+--   -- GUARD B — lifecycle de is_active --
+--   2Q.5 TRUE -> FALSE **PERMITIDO** (aposentadoria legítima)
+--   2Q.6 FALSE -> TRUE ⇒ EDITION_CONTEXT_MAPPING_REACTIVATION_FORBIDDEN,
+--        **mesmo não existindo nenhum outro ativo para aquele token**.
+--        É o caso que o índice parcial NÃO cobre — e o mais perigoso
+--   2Q.7 TRUE -> TRUE e FALSE -> FALSE são no-ops: passam sem erro
+--
+--   -- GUARD A — normalização canônica --
+--   2Q.8 INSERT com token não-canônico ('set-logo', 'Pokébola',
+--        'BLUE  BORDER') é PERSISTIDO JÁ NORMALIZADO ('SET-LOGO',
+--        'POKEBOLA', 'BLUE BORDER') — prova de que a normalização ocorre na
+--        entrada, não por convenção do seed
+--   2Q.9 INSERT cujo token normaliza para vazio ('   ') ⇒
+--        EDITION_CONTEXT_MAPPING_EMPTY_TOKEN
+--   2Q.10 `external_set_id` é apenas APARADO, nunca uppercased: INSERT com
+--        '  dp1  ' persiste 'dp1' (minúsculo). Prova negativa explícita de
+--        que upper() NÃO é aplicado — se fosse, a junção com
+--        card_set_external_reference quebraria
 --
 -- SEÇÃO 3 — ROUTING FAIL-CLOSED (7)
 --   3.1  token sem mapping ativo permanece no residual de Finish
@@ -384,7 +476,7 @@
 --   L4   resulting_variant_id preservado em 100% (UPDATE, nunca DELETE+INSERT)
 --
 --   Estes quatro sao REQUISITO PARA 2213, que ainda nao foi escrita, e por
---   isso NAO entram no gate automatico de 114. Conta-los como PASS seria
+--   isso NAO entram no gate automatico de 144. Conta-los como PASS seria
 --   PASS por ausencia de fixture — exatamente o que este harness proibe.
 --   Entram no gate quando a migration existir.
 --
@@ -433,21 +525,43 @@
 --   ------------------------------------------------------------------
 --   ------------------------------------------------------------------
 --   ------------------------------------------------------------------
---   Automáticos . 114  ⇐ GATE: 114/114
+--   Automáticos . 144  ⇐ GATE: 144/144
+--   [v6.3 — 134 na v6.2 · 126 na v6.1 · 114 na v6.0]
 --
---   Conferencia parcela a parcela — 12 parcelas para as 12 secoes
---   automaticas, em 14 secoes no total:
+--   Conferencia parcela a parcela — 15 parcelas para as 15 secoes
+--   automaticas, em 17 secoes no total:
 --
---     Secao 1 ... 12      Secao B ... 14
---     Secao 2 ...  8      Secao M ... 11
---     Secao 3 ...  7      Secao G ...  8   ** nova
---     Secao 4 ...  8      Secao D ...  8
---     Secao S ... 12      Secao 5 ...  6
---     Secao R ... 12
---     Secao K ...  8
+--     Secao 1 ..... 12      Secao B ... 14
+--     Secao 2 ..... 14      Secao M ... 11
+--     Secao 2-BIS ..  6      Secao G ...  8
+--     Secao 2-TER ..  8      Secao D ...  8
+--     Secao 2-QUATER 10 **   Secao 5 ...  6
+--     Secao 3 .....  7
+--     Secao 4 .....  8
+--     Secao S ..... 12
+--     Secao R ..... 12
+--     Secao K .....  8
 --
---     12+8+7+8+12+12+8 = 67
---     67 + 14 = 81 ; + 11 = 92 ; + 8 = 100 ; + 8 = 108 ; + 6 = 114
+--     12+14+6+8+10+7+8+12+12+8 = 97
+--     97 + 14 = 111 ; + 11 = 122 ; + 8 = 130 ; + 8 = 138 ; + 6 = 144
+--
+--   ** DELTA v6.3 (MAPPING-LIFECYCLE-CORRECTION-02): +10 automaticos.
+--      Secao 2-QUATER: 0 -> 10 — GUARDS A e B da 2207 v4.0 (normalizacao
+--      canonica na entrada · identidade imutavel · is_active so TRUE->FALSE).
+--      Nenhum caso foi removido nem preservado artificialmente: o total sobe
+--      porque a 2207 ganhou dois guards que antes nao existiam.
+--
+--   DELTA v6.2 (MAPPING-LIFECYCLE-CORRECTION-01): +8 automaticos.
+--      Secao 2-TER: 0 -> 8 — contrato "historico + exatamente um ativo".
+--
+--   ** DELTA v6.1 (BATCH1-RUNTIME-CORRECTION-02): +12 automaticos.
+--      Secao 2:  8 -> 14 (+6)  — 2.9 a 2.14, invariantes REAIS do selo.
+--      Secao 2-BIS: 0 -> 6 (+6) — cobertura nova do external mapping.
+--      Os casos 1.6 e 1.7 NAO foram removidos: foram REESCRITOS no lugar,
+--      porque o que eles afirmavam (CHECK rejeita array nao ordenado / com
+--      duplicata) deixou de ser verdade com a 2204 v1.1. O total nao foi
+--      preservado artificialmente em 114 — ele subiu porque ha mais
+--      invariante provada, nao menos.
 --
 --   Pendentes ....  4   Secao L — REQUISITOS de 2213, que ainda NAO existe.
 --                       NAO entram no gate automatico: contar como PASS

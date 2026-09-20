@@ -1,5 +1,13 @@
 # INVENTÁRIO A / B / C — o que existe, o que falta, o que bloqueia
 
+> ### ⚠️ DOCUMENTO HISTÓRICO (MAPPING-LIFECYCLE-CORRECTION-01)
+> Os bloqueios de vocabulário listados aqui (E1/E2/E3) foram **RESOLVIDOS**:
+> os seeds `2230`/`2231`/`2232` estão preenchidos com **115 traits · 144
+> profiles · 196 links · 122 mappings**. As menções a **173 profiles** são a
+> MEDIÇÃO da união A ∪ B, anterior à curadoria — não o corpus atual.
+> Autoridade sobre o estado corrente: a tabela **CURRENT STATE** em
+> `PACKAGE-STATUS.md`.
+
 **Correção 4 da `GATE-A-FINAL-CORRECTION-01`.**
 
 > **Este pacote NÃO é implementation-ready.** A classe B abaixo é grande e

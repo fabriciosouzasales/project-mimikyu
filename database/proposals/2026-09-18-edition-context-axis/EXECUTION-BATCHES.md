@@ -74,14 +74,35 @@ SELECT p.prosrc LIKE '%edition_context_profile_id%' AS confirm_ja_no_eixo3
  WHERE n.nspname = 'public' AND p.proname = 'admin_confirm_catalog_variant_import';
 
 -- P6  Nenhuma execução PARCIAL do pacote: zero funções do eixo 3.  Esperado: 0
+--
+--     ATUALIZADO (BATCH1-RUNTIME-CORRECTION-02). A lista anterior citava
+--     `seal_edition_context_signature`, que era o selo POR EVENTO NA N:N da
+--     2206 v1.0 — função que a v2.0 NÃO cria mais. Um P6 que procura um nome
+--     inexistente sempre devolve 0 para aquela entrada: deixa de detectar
+--     execução parcial em vez de detectá-la.
+--
+--     REVISADO (MAPPING-LIFECYCLE-CORRECTION-02): a 2207 v4.0 ganhou os
+--     GUARDS A e B do cabeçalho, então são **11** nomes — 4 da 2206 v2.0 +
+--     5 da 2207 v4.0 + 2 de 2210/2211. Uma lista curta aqui volta a
+--     sub-detectar execução parcial.
 SELECT count(*) AS ec_functions
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
  WHERE n.nspname = 'internal'
-   AND p.proname IN ('seal_edition_context_signature',
-                     'guard_edition_context_composition_immutable',
-                     'guard_edition_context_trait_active',
-                     'resolve_variant_row_axes',
-                     'axis_identity_token');
+   AND p.proname IN (
+        -- 2206 v2.0 — guards do PROFILE (4)
+        'seal_edition_context_composition',
+        'guard_edition_context_composition_immutable',
+        'enforce_edition_context_signature_write',
+        'guard_edition_context_trait_active',
+        -- 2207 v4.0 — guards do EXTERNAL MAPPING (5)
+        'normalize_edition_context_external_mapping',
+        'enforce_edition_context_mapping_header',
+        'seal_edition_context_external_mapping',
+        'guard_edition_context_mapping_composition_immutable',
+        'enforce_edition_context_mapping_signature_write',
+        -- 2210 / 2211 (2)
+        'resolve_variant_row_axes',
+        'axis_identity_token');
 
 -- P7  FREEZE: universo operacional de staging — BASELINE REAL.
 --
@@ -125,7 +146,12 @@ SELECT j.status            AS job_status,
 --     Os nomes são os basenames dos arquivos, sem `.sql` — a convenção
 --     `NNNN_nome` do projeto (ver nota histórica na migration 2200, que
 --     registra a ÚNICA divergência conhecida dessa convenção).
---     Esperado: manifesto = 23  E  ja_registradas = 0.
+--     BASELINE REVISADO (BATCH1-RUNTIME-CORRECTION-01). A 2203 FOI EXECUTADA
+--     e ESTÁ no ledger. O gate deixa de ser "ja_registradas = 0" e passa a ser
+--     um conjunto EXATO e nominal: a única migration deste rollout que pode
+--     aparecer no ledger é a 2203. Um contador solto ("<= 1") aceitaria a
+--     registrada errada; o teste abaixo compara o CONJUNTO.
+--     Esperado: manifesto = 23 · ja_registradas = 1 · registradas_inesperadas = 0.
 WITH manifesto(name) AS (VALUES
     ('2203_create_card_edition_context_trait_table'),
     ('2204_create_card_edition_context_profile_table'),
@@ -152,15 +178,30 @@ WITH manifesto(name) AS (VALUES
     ('2232_seed_edition_context_external_mappings'))
 SELECT (SELECT count(*) FROM manifesto)                       AS manifesto,      -- 23
        (SELECT count(*) FROM supabase_migrations.schema_migrations s
-         JOIN manifesto m ON m.name = s.name)                 AS ja_registradas, -- 0
+         JOIN manifesto m ON m.name = s.name)                 AS ja_registradas, -- 1
+       -- A 2203 é a ÚNICA registrada admissível. Qualquer outra do pacote no
+       -- ledger significa que uma execução não documentada aconteceu -> STOP.
+       (SELECT count(*) FROM supabase_migrations.schema_migrations s
+         JOIN manifesto m ON m.name = s.name
+        WHERE m.name <> '2203_create_card_edition_context_trait_table')
+                                             AS registradas_inesperadas,         -- 0
+       -- Confirmação positiva: a 2203 está mesmo lá (se sumiu, o baseline
+       -- não é o que este documento descreve).
+       (SELECT count(*) FROM supabase_migrations.schema_migrations
+         WHERE name = '2203_create_card_edition_context_trait_table')
+                                                              AS r2203,          -- 1
        -- Rede de segurança: qualquer registro do pacote sob nome divergente
        -- da convenção (o risco que a 2200 documentou).
-       (SELECT count(*) FROM supabase_migrations.schema_migrations
-         WHERE name ~ '(edition_context|card_variant_identity|write_card_variant_v3
+       -- O `NOT IN manifesto` é OBRIGATÓRIO desde BATCH1-RUNTIME-CORRECTION-01:
+       -- sem ele, a 2203 — legitimamente registrada — casaria em
+       -- `edition_context` e produziria um STOP falso.
+       (SELECT count(*) FROM supabase_migrations.schema_migrations s
+         WHERE s.name ~ '(edition_context|card_variant_identity|write_card_variant_v3
                         |resolve_variant_row_axes|apply_variant_type_mapping
                         |variant_type_mapping_read_contract
                         |admin_resolve_printing_mapping
-                        |create_card_printing_profile_with_backfill)')
+                        |create_card_printing_profile_with_backfill)'
+           AND s.name NOT IN (SELECT m.name FROM manifesto m))
                                                               AS por_padrao;     -- 0
 ```
 
@@ -176,24 +217,67 @@ SELECT (SELECT count(*) FROM manifesto)                       AS manifesto,     
 | P5 | `false` |
 | P6 | `0` |
 | **P7** | **1 linha: STAGED / PENDING / NEEDS_REVIEW / PENDING / 1642** |
-| **P8** | `manifesto=23` · `ja_registradas=0` · `por_padrao=0` |
+| **P8** | `manifesto=23` · `ja_registradas=1` · `registradas_inesperadas=0` · `r2203=1` · `por_padrao=0` |
 
 Qualquer divergência → **STOP**. O baseline mudou desde esta auditoria.
+
+> **P9 — pré-condição de RETOMADA (`BATCH1-RUNTIME-CORRECTION-01`).** A 1ª
+> tentativa do Batch 1 deixou a `2203` LIVE e abortou na `2204`. Antes de
+> retomar, provar que o resíduo é exatamente esse — uma tabela, não duas:
+>
+> ```sql
+> SELECT count(*) FILTER (WHERE c.relname = 'card_edition_context_trait')   AS t2203, -- 1
+>        count(*) FILTER (WHERE c.relname = 'card_edition_context_profile') AS t2204, -- 0
+>        count(*)                                                           AS total  -- 1
+>   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+>  WHERE n.nspname = 'public' AND c.relkind = 'r'
+>    AND c.relname LIKE 'card_edition_context%';
+> ```
+>
+> **Esperado: `t2203=1` · `t2204=0` · `total=1`.** `t2204 = 1` significaria que
+> a `2204` criou a tabela antes de abortar — contradiz a premissa de zero
+> resíduo e exige investigação antes de qualquer write. `total > 1` idem.
 
 ---
 
 ## Batch 1 — FUNDAÇÃO (aditivo puro, reversível por `DROP`)
 
-| Ordem | Artefato |
-|---|---|
-| 1 | `2203` · trait |
-| 2 | `2204` · profile |
-| 3 | `2205` · N:N |
-| 4 | `2206` · guards de composição |
-| 5 | `2207` · external mapping (+N:N) |
+> ### ⚠️ INCIDENTE DE RUNTIME — 1ª tentativa interrompida (`BATCH1-RUNTIME-CORRECTION-01`)
+>
+> | Artefato | Estado real |
+> |---|---|
+> | `2203` | **EXECUTADA / LIVE** · ledger registrado · `card_edition_context_trait` existe · RLS/policy/ACL aprovados |
+> | `2204` | **1ª tentativa ABORTADA** · `SQLSTATE 0A000` · **sem tabela criada, sem ledger** = zero resíduo · corrigida para **v1.1** |
+> | `2205` · `2206` · `2207` | **PENDING** — nunca executadas. `2207` corrigida **preventivamente** para v1.1 (mesmo defeito) |
+>
+> **Erro:** `cannot use subquery in check constraint`, em
+> `ck_cecp_signature_shape`, que tentava provar canonicalização do array dentro
+> do próprio CHECK. Corrigido em `2204` v1.1 e `2207` v1.1 por dois CHECKs
+> escalares em paridade literal com as Queries **2166** e **2172**, LIVE.
+>
+> **RETOMADA:** `2204` → `2205` → `2206` → `2207`.
+> **NÃO reaplicar a `2203`** — ela está LIVE e no ledger; uma segunda tentativa
+> abortaria por `42P07 duplicate_table` e sujaria o ledger sem necessidade.
 
-**Expected:** 5 tabelas criadas, vazias; 3 trigger functions; 2 triggers; RLS e
-policy em todas as 5.
+| Ordem | Artefato | Retomada |
+|---|---|---|
+| — | `2203` · trait | ✅ **JÁ LIVE — PULAR** |
+| 1 | `2204` · profile **v1.1** | ▶ ponto de partida |
+| 2 | `2205` · N:N | pending |
+| 3 | `2206` · guards de composição | pending |
+| 4 | `2207` · external mapping (+N:N) **v1.1** | pending |
+
+**Expected ao fim da retomada:** 5 tabelas criadas, vazias (a de `2203` já
+existe desde a 1ª tentativa); **9 trigger functions** e **9 triggers** — dos
+quais **2 são CONSTRAINT TRIGGER deferidos** (`trg_cecp_seal`,
+`trg_cecem_seal`); RLS e policy em todas as 5. O postcheck abaixo vale para o
+**estado final do Batch 1 inteiro** — ele não distingue a tabela já criada das
+quatro novas, e é exatamente isso que se quer verificar.
+
+> **Contagem revisada em `MAPPING-LIFECYCLE-CORRECTION-02`** (era "3/2" na
+> v1.0, "7/7" na CORRECTION-02). A 2206 v2.0 tem 4 guards; a 2207 **v4.0**
+> tem **5** — os 3 de composição/selo mais GUARD A (normalização) e GUARD B
+> (identidade imutável + lifecycle de `is_active`). 4 + 5 = 9.
 
 **Postcheck (read-only):**
 ```sql
@@ -234,9 +318,19 @@ SELECT (SELECT count(*) FROM public.card_edition_context_trait)                 
        (SELECT count(*) FROM public.card_edition_context_profile_trait)          AS links,    -- 196
        (SELECT count(*) FROM public.card_edition_context_external_mapping)       AS mappings, -- 122
        (SELECT count(*) FROM public.card_edition_context_profile
-         WHERE traits_signature IS NULL)                                         AS nao_selados; -- 0
+         WHERE traits_signature IS NULL)                            AS profiles_nao_selados, -- 0
+       -- NOVO (BATCH1-RUNTIME-CORRECTION-02). Validar só o profile deixava o
+       -- mapping fora: é ELE que a Edge lê, e um NULL aqui vira
+       -- NEEDS_REVIEW_INVALID_EC_MAPPING em massa.
+       (SELECT count(*) FROM public.card_edition_context_external_mapping
+         WHERE traits_signature IS NULL)                            AS mappings_nao_selados, -- 0
+       -- EQUIVALÊNCIA SQL x EDGE: selo idêntico à N:N nos 122.
+       (SELECT count(*) FROM public.card_edition_context_external_mapping m
+         WHERE m.traits_signature IS DISTINCT FROM ARRAY(
+                 SELECT t.trait_id FROM public.card_edition_context_external_mapping_trait t
+                  WHERE t.mapping_id = m.id ORDER BY t.trait_id))    AS mappings_divergentes; -- 0
 ```
-**Prosseguir se:** 115 / 144 / 196 / 122 / 0.
+**Prosseguir se:** 115 / 144 / 196 / 122 / **0 / 0 / 0**.
 
 ---
 
@@ -488,7 +582,7 @@ SELECT count(*) AS antigos_staging FROM pg_class  -- 0
 
 | Ordem | Item |
 |---|---|
-| 1 | `2830` — harness da fundação (114 automáticos, read-only) |
+| 1 | `2830` — harness da fundação (**144** automáticos, read-only) |
 | 2 | **UNFREEZE** |
 
 > **"READ MODELS C" REMOVIDO (`PREFLIGHT-CORRECTION-01`).** A etapa não tinha
@@ -510,7 +604,7 @@ precisa estar íntegro antes de voltar a receber importação. Com o UNFREEZE, a
 1.642 rows congeladas no Batch 3 voltam a poder ser processadas — agora pelo
 routing do eixo 3.
 
-**Prosseguir se:** `2830` 114/114.
+**Prosseguir se:** `2830` **144/144**.
 
 ---
 

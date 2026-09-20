@@ -19,9 +19,15 @@ O mandato exigiu medir a **união** antes de congelar o modelo. Estava certo em 
 |---|---:|---:|---:|---:|
 | **A** — `NEEDS_REVIEW` classificadas EDITION_CONTEXT | 1.069 | **100%** | 94 | 133 |
 | **B** — legacy `READY_TO_DECOMPOSE` | 365 | **100%** | 35 | 52 |
-| **A ∪ B** | — | **100%** | **115** | **173** |
+| **A ∪ B** | — | **100%** | **115** | **173** ⟨hist.⟩ |
 | Exclusivos de A | — | — | 80 | 121 |
 | Exclusivos de B | — | — | **21** | **40** |
+
+> ⟨hist.⟩ **MEDIÇÃO HISTÓRICA, não o corpus atual.** Os 173 são as combinações
+> candidatas da união A ∪ B, medidas antes da curadoria editorial. O corpus
+> CANÔNICO fechado é **144 profiles** (7 de B PROVEN + 12 DEFERRED — ver
+> `B-PROFILE-AUDIT-19.md` e `SEED-COVERAGE.md`). A tabela acima fica como
+> registro da medição; nenhum artefato executável usa 173.
 
 **Aridade máxima na união: 2.** Nenhuma linha combina mais de dois tokens.
 
@@ -29,7 +35,7 @@ Os 21 traits exclusivos do legado — `WORLDS-2023/2024/2025`, `TOP-EIGHT`, `LEA
 
 **Como B foi derivado sem inventar nada:** as 365 legacy têm **100% de lineage** (`catalog_variant_import_row.resulting_variant_id`), portanto o `raw_data` original está disponível. Os 35 traits de B vêm da **mesma fonte** que os de A, não de leitura do `code` do tipo contaminado.
 
-**Não-explosão preservada:** 173/115 = **1,50**. Um Worlds novo custa **1 trait**, contra **+7 Variant Types** no modelo atual.
+**Não-explosão preservada:** 144/115 = **1,25** no corpus canônico (⟨hist.⟩ 173/115 = 1,50 na medição da união). Um Worlds novo custa **1 trait**, contra **+7 Variant Types** no modelo atual.
 
 ---
 
@@ -117,7 +123,7 @@ RAW (type · foil · subtype · stamp[] · size)
 | `2209` | `uq_card_variant_identity` | identidade de 4 componentes |
 | **`2210`** | **identidade do staging** (`uq_cvir_row_identity` + shape guard) | **NOVO — Blocker 1** |
 | **`2211`** | **`internal.resolve_variant_row_axes()`** | **NOVO — Blocker 2: contrato terminal único** |
-| `2830` | harness de validação | **114 automáticos + 4 pendentes + 3 manuais**, 14 seções |
+| `2830` | harness de validação | **144 automáticos + 4 pendentes + 3 manuais**, 17 seções |
 | **`2212`** v3.0 | **resolução OPERACIONAL** (ex-backfill global) | **OP-BOUNDARY 4·7** |
 | **`2833`** v2.0 | **matriz de state machine job-aware** (11 gates) | **OP-BOUNDARY 1·3** |
 | **`2214`** v3.0 | **guard de transição OPERACIONAL** (job-aware) | **OP-BOUNDARY 1·2·8** |
@@ -125,7 +131,7 @@ RAW (type · foil · subtype · stamp[] · size)
 | **`2216`** | **DROP das 2 identidades antigas de staging** | **Correção 1** |
 | **`2217`** v2.0 | **EXPAND — cria `write_card_variant` de 7 args, sem DEFAULT; preserva a de 6** | Correção 7 · `WRITER-EXPAND-CONTRACT-CORRECTION-01` |
 | **`2223`** | **CONTRACT — prova database-wide de zero caller e `DROP` da de 6 args** | `WRITER-EXPAND-CONTRACT-CORRECTION-01` |
-| **`2230`·`2231`·`2232`** | seeds 115 / 173 / mappings (classe **B**) | Correção 6 |
+| **`2230`·`2231`·`2232`** | seeds **115 traits · 144 profiles · 196 links · 122 mappings** — PREENCHIDOS | Correção 6 · `SECURITY-SEED-HARDENING-01` |
 | **`2832`** | validação do backfill (10 casos) | Correção 5 |
 | **`2840`** | probe **T1** — único probe LIVE restante | Correção 10 |
 | **`edge/*.patch` · `edge/*.test.ts`** | patch reproduzível + 7 testes Deno | Correção 8 |
@@ -696,11 +702,11 @@ intactos (`B4`–`B6`).
 
 ### Correção 6 — seeds
 
-`2230`/`2231`/`2232`: **estruturalmente completos, lexicalmente vazios**, e
-abortam se o vocabulário faltar. Preenchê-los por transliteração de token
-TCGdex violaria a regra que a própria `2203` grava no schema.
-`SEED-COVERAGE.md` lista os gates (115 · 173 · 21 · 40 · 38 · A∪B 100%) e os
-bloqueios **E1 · E2 · E3 · E4**.
+`2230`/`2231`/`2232`: **PREENCHIDOS e selados** — 115 traits · 144 profiles ·
+196 links · 122 mappings, cobertura 1.085/1.085. A descrição anterior
+(*"estruturalmente completos, lexicalmente vazios"*) valia até
+`SECURITY-SEED-HARDENING-01`; hoje está superada.
+`SEED-COVERAGE.md` lista os gates e o histórico da medição (173 → 144).
 
 ### Correção 7 — contratos
 

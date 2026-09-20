@@ -117,8 +117,28 @@ BEGIN
            AND (m.external_set_id IS NULL
                 OR (p_external_set_id IS NOT NULL AND m.external_set_id = p_external_set_id))
            -- PRECEDÊNCIA DE UM NÍVEL: scoped > global. Determinística:
-           -- os dois índices parciais de 2207 garantem no máximo 1 de cada,
-           -- e m.id desempata qualquer caso residual.
+           -- uq_cecem_active_scoped e uq_cecem_active_global (2207 v3.0)
+           -- garantem no máximo 1 ATIVO de cada, e o filtro `m.is_active`
+           -- acima restringe o universo a eles. Logo o candidato é no máximo
+           -- 1 scoped + 1 global, e o ORDER BY decide entre dois.
+           --
+           -- `m.id` é desempate PROVAVELMENTE INALCANÇÁVEL: seria preciso dois
+           -- ativos com o mesmo (escopo, token), que os índices parciais
+           -- proíbem. Mantido como rede determinística — nunca como a regra.
+           --
+           -- CORREÇÃO DE AFIRMAÇÃO (MAPPING-LIFECYCLE-CORRECTION-02).
+           -- A nota escrita na CORRECTION-01 dizia que, antes da
+           -- partialização, "o histórico inativo CONCORRIA neste ORDER BY".
+           -- ISSO ESTAVA ERRADO e foi removido: o predicado `AND m.is_active`
+           -- desta query sempre existiu, então mapping inativo NUNCA
+           -- participou deste ORDER BY, em nenhuma versão.
+           -- O que a partialização mudou é OUTRA coisa: ela impede que dois
+           -- ATIVOS coexistam no mesmo escopo — antes era possível, e aí sim
+           -- o desempate por `m.id` decidiria arbitrariamente entre dois
+           -- mapeamentos igualmente válidos.
+           -- E o `ix_cecem_token` não serve a esta query: ele existe para a
+           -- SEGUNDA busca (a de `v_known`, sem `is_active`), que distingue
+           -- KNOWN/INACTIVE de UNKNOWN/residual.
          ORDER BY (m.external_set_id IS NOT NULL) DESC, m.id
          LIMIT 1;
 
@@ -164,6 +184,11 @@ BEGIN
            AND m.raw_field = 'stamp' AND m.normalized_token = v_tok AND m.is_active
            AND (m.external_set_id IS NULL
                 OR (p_external_set_id IS NOT NULL AND m.external_set_id = p_external_set_id))
+           -- Mesma garantia do bloco de subtype: com `m.is_active` + os dois
+           -- índices parciais da 2207, o universo é no máximo 1 scoped + 1
+           -- global. `m.id` é rede, não regra. Histórico inativo nunca entrou
+           -- aqui — o filtro `is_active` sempre existiu (ver correção de
+           -- afirmação no bloco de subtype).
          ORDER BY (m.external_set_id IS NOT NULL) DESC, m.id
          LIMIT 1;
 
