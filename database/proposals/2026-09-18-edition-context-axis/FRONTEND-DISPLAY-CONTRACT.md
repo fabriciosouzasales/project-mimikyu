@@ -445,9 +445,10 @@ Cruzando os vetos do mandato ("nunca repetir separador" × "não transformar
 tooltip em painel pesado"), **nenhuma das três é limpa**. É por isso que este
 é um ponto de STOP e não uma escolha que eu faça sozinho.
 
-Nota de escopo: das 144 composições de EC, **89 são de aridade 1** e só **4
-são de aridade 3** (`SEED-COVERAGE.md` §3). O caso ruim é raro (8 rows em
-1.085), o que favorece **(b)** — mas a decisão é de Fabrício.
+Nota de escopo: das 144 composições de EC, **96 são de aridade 1**, 44 de
+aridade 2 e só **4 são de aridade 3** (`SEED-COVERAGE.md` §3; as 89 da tabela
+de §3 são só o subconjunto A — somadas aos 7 de B PROVEN dão 96). O caso ruim
+é raro (8 rows em 1.085), o que favorece **(b)** — mas a decisão é de Fabrício.
 
 ### B3 — as tabelas de Edition Context têm `GRANT` sem `RLS`
 

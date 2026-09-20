@@ -124,13 +124,16 @@ O mandato pede regra única. Proposta, e ela é mecânica:
 |---|---|---|
 | **1 trait** | `code` do trait, sem prefixo novo | `name` do trait |
 | **2 traits** | `<A>__<B>`, A e B em ordem **alfabética do code** | `"<name A> · <name B>"` |
+| **3 traits** | `<A>__<B>__<C>`, em ordem **alfabética do code** | `"<name A> · <name B> · <name C>"` |
 
 - A ordem alfabética do `code` torna o `code` do profile **função pura da
   composição** — a mesma dupla nunca gera dois codes.
 - `display_order`: passo **10**, esparso, na ordem `(família do 1º trait,
   code)`. Esparso para que inserção futura não renumere nada.
-- Aridade máxima observada é **2** (`SEED-COVERAGE.md`, gate P4), então a
-  regra cobre 173/173 sem caso de exceção.
+- Aridade máxima observada é **3** (`SEED-COVERAGE.md` §3, gate P4 da `2231`:
+  `SEED_PROFILE_ARITY: esperada 3`), então a regra cobre **144/144** do corpus
+  canônico sem caso de exceção. ⟨hist.⟩ A v1.0 deste arquivo dizia "aridade
+  máxima 2 ... cobre 173/173": ambos os números eram da medição pré-curadoria.
 - **Zero colisão é consequência estrutural**, não verificação: `code` é
   função injetora da composição; `traits_signature` é selada por `2206` com
   `uq_cecp_game_signature`; `display_order` é gerado por ordenação total.

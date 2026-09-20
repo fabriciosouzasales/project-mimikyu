@@ -29,7 +29,12 @@ O mandato exigiu medir a **união** antes de congelar o modelo. Estava certo em 
 > `B-PROFILE-AUDIT-19.md` e `SEED-COVERAGE.md`). A tabela acima fica como
 > registro da medição; nenhum artefato executável usa 173.
 
-**Aridade máxima na união: 2.** Nenhuma linha combina mais de dois tokens.
+**Aridade máxima no corpus canônico: 3.** Distribuição medida (autoridade:
+`2231` gate P4 + `SEED-COVERAGE.md` §3): **96** composições de aridade 1 ·
+**44** de aridade 2 · **4** de aridade 3 = **144**. As 4 de aridade 3 são do
+Set MFB (`ARTWORK_MFB_BLUE_BORDER · ARTWORK_MFB_POKE_BALL ·
+CHANNEL_MFB_DECK_<inicial>`). A regra de nomenclatura de profile cobre
+aridade 1, 2 e 3 sem caso de exceção.
 
 Os 21 traits exclusivos do legado — `WORLDS-2023/2024/2025`, `TOP-EIGHT`, `LEAGUE`, `PLAYER-REWARD`, `POKEMON-CENTER`, `POKEMON-CENTER-NY`, `1ST-MOVIE`, `1ST-MOVIE-INVERTED`, `30TH-POKEDAY`, `ASIA-2023-24`, `GYM-CHALLENGE`, `HORIZONS`, `INTERNATIONAL-CHAMPIONSHIP-EUROPE`, `INTERNATIONAL-CHAMPIONSHIP-NORTH-AMERICA`, `POKEMON-4-EVER`, `POKEMON-TOGETHER`, `POKETOUR-99`, `ULTRA-BALL-LEAGUE`, `WOTC`, `TOP-EIGHT` — não estão no resíduo **porque já foram materializados**. Seriam perdidos se o modelo fosse congelado só sobre A.
 

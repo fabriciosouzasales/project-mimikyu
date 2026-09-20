@@ -103,6 +103,11 @@ Os 9 tokens `SOURCE_SET_SCOPED` geram uma linha por Set:
 > `MIGRATION-MAP-365.md`: **7 PROVEN · 12 NOT_PROVEN**. Os 12 foram removidos
 > da `2231`; os traits e os mappings permanecem. Ver `B-PROFILE-AUDIT-19.md`.
 
+> **Leitura da tabela.** As colunas acima são o subconjunto **A**. Na união
+> canônica de 144, os 7 de B PROVEN são todos de aridade 1, logo a
+> distribuição do corpus é **96 · 44 · 4**. Citar "89 de aridade 1" sobre um
+> denominador de 144 é erro de leitura: 89 é sobre 137.
+
 **Aridade máxima = 3**, confirmando o mandato. As 4 composições de aridade 3
 são do Set MFB: `ARTWORK_MFB_BLUE_BORDER · ARTWORK_MFB_POKE_BALL ·
 CHANNEL_MFB_DECK_<inicial>`.

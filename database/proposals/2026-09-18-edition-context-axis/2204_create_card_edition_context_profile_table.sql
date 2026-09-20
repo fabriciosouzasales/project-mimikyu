@@ -35,7 +35,9 @@
 --   entra na identidade de card_variant, nunca o trait isolado.
 --
 --   144 profiles no corpus CANÔNICO (autoridade: 2231 v3.1 + SEED-COVERAGE).
---   Aridade máxima observada: 2. Fator de combinação 144/115 = 1,25.
+--   Aridade máxima observada: 3. Fator de combinação 144/115 = 1,25.
+--   Distribuição medida (autoridade: 2231 gate P4 + SEED-COVERAGE §3):
+--   96 de aridade 1 · 44 de aridade 2 · 4 de aridade 3 = 144.
 --   NOTA (BATCH1-RUNTIME-CORRECTION-02): a v1.0 dizia "173 profiles medidos
 --   na união A ∪ B (133 de A + 40 exclusivos de B)". 173 era a ESTIMATIVA
 --   pré-curadoria; o corpus fechado tem 144, dos quais 7 de B PROVEN e 12
@@ -111,7 +113,7 @@ CREATE UNIQUE INDEX uq_cecp_game_signature
     WHERE traits_signature IS NOT NULL;
 
 COMMENT ON TABLE public.card_edition_context_profile IS
-'Composição canônica de Edition Context por conjunto exato de traits. Componente de identidade de card_variant. 144 profiles no corpus canonico; aridade maxima 2. Resolucao SEMPRE por igualdade exata de traits_signature.';
+'Composição canônica de Edition Context por conjunto exato de traits. Componente de identidade de card_variant. 144 profiles no corpus canonico; aridade maxima 3. Resolucao SEMPRE por igualdade exata de traits_signature.';
 
 -- ----------------------------------------------------------------------------
 -- SEGURANÇA — paridade EXATA com card_printing_profile (Query 2166)
