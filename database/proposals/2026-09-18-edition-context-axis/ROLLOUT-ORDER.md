@@ -28,7 +28,8 @@ representável que o passo seguinte não saiba ler.
 | 5 | `2210` — `axis_identity_token` + `uq_cvir_row_identity` (índice **normal**) + guard **PERMISSIVO**. **Movida para cá** (`ROLLOUT-DEPENDENCY-CORRECTION-01`): é predecessora da `2212`, que pressupõe `uq_cvir_row_identity` na sua prova de não-colisão | staging aceita rows legadas sem a chave; os índices antigos ainda existem e só caem na etapa 15 | **não** — o guard ainda não exige a chave, justamente por isso |
 | 6 | `2211` — contrato terminal de routing. **Movida para cá**: a `2212` chama `internal.resolve_variant_row_axes()` e aborta com `ROUTING_MISSING` sem ela | resolução centralizada | **não** — ninguém o chama ainda |
 | 7 | **`2212` RESOLUÇÃO OPERACIONAL** — só `job vivo + PENDING`, pelo routing canônico (UUID / JSON null / AUSENTE). **Universo vivo medido no LIVE: 1.642 rows** (STAGED / PENDING / NEEDS_REVIEW / PENDING) — a afirmação anterior, *"hoje o universo é vazio"*, estava ERRADA e foi corrigida em `PREFLIGHT-CORRECTION-01` (ver precheck P7). Histórico terminal e os 415 `CANCELLED` **não são tocados**. **v3.1**: `bf_params` resolve `POKEMON`/`TCGDEX` por code, com preflight fail-loud — executável **verbatim**, sem edição manual | tri-state verdadeiro no universo vivo; histórico intacto | **não** — guard ainda permissivo |
-| 8 | **`2832`** (14 provas) → **`2833`** (11 provas, **job-aware**) — read-only, `ROLLBACK` | predicado provado contra as combinações reais, incluindo `CANCELLED` | **não** — read-only |
+| 7-BIS | **`2233` REPARO DE ESCOPO — `INCIDENT-ONLY`** · **existe SOMENTE no CURRENT LIVE ROLLOUT**. A `2212` foi executada no LIVE na **v3.1**, que passava `cs.code` como `p_external_set_id`; os 14 mappings `SOURCE_SET_SCOPED` ficaram inalcançáveis e **66 rows** receberam JSON `null` no lugar de UUID. A `2212` não pode ser reexecutada (ledger 1×; `bf_operational` só pega rows *sem* a chave → plano vazio), então o reparo é **forward-fix**: 66 rows `NULL → UUID`, **1.026/616/0 → 1.092/550/0**. **NÃO REPLAYAR EM AMBIENTE LIMPO** — ver a nota de bifurcação abaixo | tri-state correto no universo vivo; histórico, `CANCELLED` e as 7 `LEAGUE+STAFF` intocados | **não** — guard ainda permissivo |
+| 8 | **`2832`** (14 provas) → **`2833`** (11 provas, **job-aware**) — read-only, `ROLLBACK`. **Rodam DEPOIS da `2233`**: sobre 1.026/616/0 estariam medindo o dado defeituoso | predicado provado contra as combinações reais, incluindo `CANCELLED` | **não** — read-only |
 | 9 | **Consumidores B — `2219` → `2220` → `2221` → `2222`** — passam a chamar `2211` | routing único; `normalized_data` nasce com os dois eixos | **não** |
 | 9-BIS | **`2834`** — runner dos vetores compartilhados do eixo 3 (read-only, `ROLLBACK`) | DB e Edge provados contra o MESMO JSON | **não** |
 | 10 | **EDGE** — deploy com as duas chaves + suíte Deno | Edge e DB equivalentes | **não** |
@@ -58,10 +59,38 @@ representável que o passo seguinte não saiba ler.
 > como categoria de análise — o que caiu foi a *etapa de rollout*, não a
 > taxonomia.
 
+## DOIS CAMINHOS — `SOURCE-SCOPE-CORRECTION-01`
+
+A etapa **7-BIS** não é uma etapa normal desta ordem de rollout. Ela existe
+por causa de um incidente já materializado no LIVE, e a distinção entre os
+dois caminhos é permanente:
+
+**CURRENT LIVE ROLLOUT** — etapas 1–7 executadas, sendo a 7 na **v3.1**
+defeituosa → **7-BIS (`2233`, reparo)** → 8 (`2832` → `2833`) → 9 em diante.
+
+**CLEAN / CANONICAL PATH** — etapas 1–7, sendo a 7 na **v3.2**, que já
+resolve o escopo por `internal.resolve_variant_mapping_scope()` e nasce com
+1.092 / 550 / 0 → 8 (`2832` → `2833`) → 9 em diante. **A etapa 7-BIS não
+existe.**
+
+A `2233` é **INCIDENT-ONLY / FORWARD-FIX / NÃO REPLAYAR EM AMBIENTE LIMPO**.
+A proteção é mecânica, não documental: o gate `RP_G3_CURRENT_STATE` exige
+estado atual **exatamente 1.026 / 616 / 0**, e o `RP_G5_DELTA_SIZE` exige
+delta **exatamente 66**. Num ambiente onde a v3.2 rodou correta, ambos falham
+alto antes de qualquer escrita — o estado lá é 1.092 / 550 / 0 e o delta é 0.
+
+A `2212` v3.2 **não deve ser reexecutada no LIVE**: já consta no ledger 1× e
+seu próprio cabeçalho traz o bloco `*** NAO REEXECUTAR ***`. A correção do
+arquivo serve à instalação limpa e ao próximo leitor; o LIVE é reconciliado
+pela `2233`.
+
 ## Armamento dos artefatos — `ROLLOUT-EXECUTION-READINESS-01`
 
-Os **23** artefatos executáveis do pacote (`2203`–`2212`, `2214`–`2223`,
-`2230`–`2232`) terminam em **`COMMIT;`**, com fronteira transacional explícita.
+Os **24** artefatos executáveis do pacote (`2203`–`2212`, `2214`–`2223`,
+`2230`–`2232`, `2233`) terminam em **`COMMIT;`**, com fronteira transacional
+explícita. A `2233` entrou em `SOURCE-SCOPE-CORRECTION-01` e é o único deles
+marcado `INCIDENT-ONLY` — é migration de verdade (escreve e commita), mas
+pertence apenas ao CURRENT LIVE ROLLOUT.
 A única alteração de armamento foi `ROLLBACK;` → `COMMIT;`; **nenhum corpo
 auditado foi tocado**. Em `2214` e `2216` o `ROLLBACK TO SAVEPOINT` interno foi
 **preservado** — ele descarta apenas as fixtures do probe embutido, nunca o DDL.

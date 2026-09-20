@@ -1,6 +1,35 @@
 -- ============================================================================
 -- Query 2212 — RESOLUÇÃO DO UNIVERSO OPERACIONAL (ex-backfill global)
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.1
+-- Status: EXECUTADA NO LIVE NA v3.1 · ESTE ARQUIVO ESTA NA v3.2
+--         *** NAO REEXECUTAR *** — ver AUDITABILIDADE abaixo.
+--
+-- ============================================================================
+-- AUDITABILIDADE — O LIVE EXECUTOU A VERSAO ANTERIOR (v3.1)
+-- ============================================================================
+-- Em BATCH6-OPERATIONAL-RESOLUTION-01 esta Query foi aplicada no LIVE e
+-- registrada no ledger como 2212_backfill_staging_edition_context_key
+-- (version 20260920172947), EXATAMENTE 1x. A versao executada foi a v3.1,
+-- publicada no commit d07cbedf7c61830d748d92445f7e2aded9e373fa.
+--
+-- A v3.1 passava `cs.code` como p_external_set_id. Isso e INCORRETO: o
+-- parametro e o identificador externo DA FONTE ('mfb', 'base2', 'dp4'...),
+-- nao o codigo interno do Card Set ('MFB', 'BASE2', 'DP4'...). Consequencia
+-- medida no LIVE: os 14 mappings SOURCE_SET_SCOPED ficaram inalcancaveis e
+-- 66 rows receberam JSON null onde deveriam ter recebido UUID.
+--
+-- A v3.2 corrige o argumento. Mas o arquivo NAO PODE SER REEXECUTADO:
+--   1. ja consta no ledger 1x, e o contrato de rollout exige exatamente 1x;
+--   2. bf_operational so inclui rows SEM a chave — apos a v3.1 as 1.642 ja
+--      tem chave, entao uma reexecucao teria plano VAZIO e nao corrigiria
+--      nada. A idempotencia que protege a Query e a mesma coisa que a torna
+--      incapaz de se auto-reparar.
+--
+-- O UNICO mecanismo de reconciliacao e o FORWARD-FIX:
+--   2233_repair_staging_edition_context_scope_resolution.sql
+-- que opera sobre as 66 rows divergentes, com gates pre-write.
+--
+-- Rastreabilidade da versao executada: commit d07cbedf7c61830d748d92445f7e2aded9e373fa.
+-- ============================================================================
 -- CORREÇÕES 4 e 7 da OPERATIONAL-BOUNDARY-CORRECTION-01
 --          + ROLLOUT-DEPENDENCY-CORRECTION-01 (v3.1, BLOCKER C)
 --
@@ -193,10 +222,17 @@ SELECT o.id, o.validation_status, o.persistence_status,
   FROM bf_operational o
   JOIN public.catalog_variant_import_row r ON r.id = o.id
   JOIN public.card c  ON c.id  = r.card_id
-  JOIN public.card_set cs ON cs.id = c.card_set_id
   CROSS JOIN bf_params pr
+  -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01). `p_external_set_id` e o
+  -- identificador externo DA FONTE, nunca `card_set.code`. A autoridade e
+  -- internal.resolve_variant_mapping_scope(), a mesma ja usada pelo dominio
+  -- de Variant Mapping (2192/2193/2196). LEFT JOIN: Card Set sem referencia
+  -- ativa devolve NULL, que a 2211 interpreta como "sem escopo" e restringe
+  -- o universo aos mappings GLOBAL — fail-closed, nunca cross-set.
+  LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(
+       c.card_set_id, pr.asset_source_id) sc ON TRUE
   CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-       r.raw_data, pr.game_id, pr.asset_source_id, cs.code) ax;
+       r.raw_data, pr.game_id, pr.asset_source_id, sc.external_set_id) ax;
 
 DO $$
 DECLARE v_bad INT;

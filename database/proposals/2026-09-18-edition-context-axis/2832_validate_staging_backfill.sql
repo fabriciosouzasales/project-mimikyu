@@ -100,10 +100,15 @@ SELECT r.id,
   FROM public.catalog_variant_import_row r
   JOIN public.catalog_variant_import_job j ON j.id = r.job_id
   JOIN public.card c  ON c.id  = r.card_id
-  JOIN public.card_set cs ON cs.id = c.card_set_id
   CROSS JOIN bv_params pr
+  -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01). O recomputo precisa usar
+  -- EXATAMENTE o mesmo escopo que a 2212/2233 usam para gravar, senao esta
+  -- Query mede uma resolucao que ninguem produziu. Autoridade:
+  -- internal.resolve_variant_mapping_scope(). NUNCA card_set.code.
+  LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(
+       c.card_set_id, pr.asset_source_id) sc ON TRUE
   CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-       r.raw_data, pr.game_id, pr.asset_source_id, cs.code) ax;
+       r.raw_data, pr.game_id, pr.asset_source_id, sc.external_set_id) ax;
 
 DO $$
 DECLARE v_n INT; v_pass INT := 0;
@@ -130,11 +135,31 @@ BEGIN
     END IF;
     v_pass := v_pass + 1;
 
-    -- V3 — AUSENTE em HOLD/indeterminado. Nenhuma row indeterminada ganhou chave.
+    -- V3 — AUSENTE = routing de Edition Context NAO-TERMINAL.
+    --
+    -- CONTRATO RECONCILIADO (SOURCE-SCOPE-CORRECTION-01). A redacao anterior
+    -- dizia "AUSENTE em HOLD/indeterminado", equivalendo chave ausente a
+    -- "row indeterminada". Essa equivalencia esta SUPERADA e era enganosa.
+    --
+    -- AUSENTE significa UMA coisa so: o eixo de CONTEXTO DE EDICAO nao chegou
+    -- a estado terminal para esta row. A classificacao GLOBAL da row e
+    -- ORTOGONAL a isso — os tres eixos (Acabamento, Impressao, Contexto de
+    -- Edicao) sao independentes, e cada um resolve ou nao resolve por conta
+    -- propria.
+    --
+    -- No baseline atual, AUSENTE = 0: nenhuma row operacional esta com o eixo
+    -- 3 em aberto. As 7 rows foil=LEAGUE + stamp=STAFF sao a ilustracao exata
+    -- da ortogonalidade — permanecem GLOBALMENTE INDETERMINATE pela pendencia
+    -- do foil (eixo de Acabamento), e ao mesmo tempo tem o eixo de Contexto de
+    -- Edicao TERMINALMENTE resolvido por stamp=STAFF. Elas contam como UUID
+    -- aqui, e isso e correto.
+    --
+    -- A LOGICA DESTE CASO NAO MUDOU — so a redacao. O predicado continua
+    -- sendo "esperado = ABSENT implica observado = ABSENT".
     SELECT COUNT(*) INTO v_n FROM bv_recheck
      WHERE operacional AND esperado = 'ABSENT' AND observado <> 'ABSENT';
     IF v_n <> 0 THEN
-        RAISE EXCEPTION 'V3_FAIL: % rows indeterminadas receberam chave. Semantica falsificada.', v_n;
+        RAISE EXCEPTION 'V3_FAIL: % rows com eixo de Contexto de Edicao NAO-TERMINAL receberam chave. Semantica falsificada. (NAO confundir com classificacao global da row: os eixos sao ortogonais.)', v_n;
     END IF;
     v_pass := v_pass + 1;
 

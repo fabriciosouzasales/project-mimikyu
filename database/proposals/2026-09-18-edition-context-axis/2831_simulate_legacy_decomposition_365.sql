@@ -135,8 +135,17 @@ SELECT s.card_variant_id,
        ) AS finish_target_id
   FROM src s
   CROSS JOIN sim_params pr
+  -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01). O 4o argumento do routing e
+  -- o identificador EXTERNO do Card Set na Fonte
+  -- (card_set_external_reference.external_set_id), NUNCA card_set.code. Os dois
+  -- divergem ('base2' vs 'BASE2'), e passar o codigo interno torna todo mapping
+  -- SCOPED inalcancavel. Autoridade unica: resolve_variant_mapping_scope().
+  -- `s.set_code` permanece na projecao de `src` apenas como rotulo de leitura
+  -- humana do plano — NAO e mais usado como escopo.
+  LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(
+       s.card_set_id, pr.asset_source_id) sc ON TRUE
   CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-       s.evidence_raw, pr.game_id, pr.asset_source_id, s.set_code) ax;
+       s.evidence_raw, pr.game_id, pr.asset_source_id, sc.external_set_id) ax;
 
 -- ---------------------------------------------------------------- PASSO 2 ---
 DO $$

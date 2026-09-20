@@ -53,7 +53,13 @@ coluna existe do lado de `card_variant`.
                     2212 RESOLUÇÃO **OPERACIONAL**  ◀── ex-backfill global.
               (job vivo + PENDING = 1.642 rows)      Histórico INTOCADO:
                                    │                     ~23.957 terminais
-                                   ▼                     + 415 CANCELLED
+                                   │                     + 415 CANCELLED
+                                   ▼
+                  2233 REPARO DE ESCOPO (INCIDENT-ONLY) ◀── SÓ no LIVE atual.
+                 66 rows NULL→UUID · 1026/616/0 →        NÃO é etapa do
+                 1092/550/0                              caminho limpo:
+                                   │                     a 2212 v3.2 já
+                                   ▼                     nasce correta.
                           2832 prova (14 casos)
                                    │
                                    ▼
@@ -118,8 +124,9 @@ coluna existe do lado de `card_variant`.
 | `2232` | 2231 · 2207 | 2211 (routing útil) | ❌ |
 | `2210` | 2208 | 2212 | ✅ com 2211 e com o seed |
 | `2211` | 2207 · `2176` (LIVE) | 2218–2222 | ✅ com 2210 |
-| **`2212`** | 2210 · 2211 · 2232 (só se houver universo operacional) | 2832 | ❌ |
-| `2832` | 2212 | 2833 | ❌ |
+| **`2212`** | 2210 · 2211 · 2232 (só se houver universo operacional) | **2233** (só no LIVE atual) · 2832 | ❌ |
+| **`2233`** **INCIDENT-ONLY** | 2212 **v3.1 já executada** · 2211 · `resolve_variant_mapping_scope` | 2832 | ❌ — **não replayar em ambiente limpo** |
+| `2832` | 2212 **e**, no LIVE atual, 2233 | 2833 | ❌ |
 | **`2213`** (futuro) | 2831 PASS · Pricing · **lineage atômico (L1–L4)** | — | ❌ |
 | **`2833`** | 2832 | 2214 | ❌ |
 | `2214` | 2833 · **Edge deployada** | 2216 | ❌ |
@@ -150,9 +157,52 @@ coluna existe do lado de `card_variant`.
 **JÁ EXECUTADO** — `2840` (probe T1, 7/7) → `2203` → `2204` → `2205` →
 `2206` → `2207` *(Batch 1)* → `2230` → `2231` → `2232` *(Batch 2)* →
 **`FREEZE`** → *baseline `1642` / `847` / `415`* *(Batch 3)* → `2208`
-*(Batch 4)*
+*(Batch 4)* → `2210` → `2211` *(Batch 5)* → **`2212` v3.1** *(Batch 6,
+parcial — ver incidente de escopo abaixo)*
 
-**A EXECUTAR** — `2210` → `2211` *(Batch 5)* → `2212` → `2832` → `2833`
+---
+
+## DOIS CAMINHOS — o LIVE atual e a instalação limpa
+
+`SOURCE-SCOPE-CORRECTION-01` criou uma bifurcação permanente neste DAG, e ela
+precisa ficar explícita para nunca mais ser lida errado.
+
+### CURRENT LIVE ROLLOUT (o banco de hoje)
+
+```
+2212 v3.1  ── JÁ EXECUTADA (ledger 20260920172947, 1x, commit d07cbedf)
+             passou cs.code como escopo → 66 rows com JSON null indevido
+   │
+   ▼
+2233       ── INCIDENT REPAIR · PENDENTE
+             66 rows NULL→UUID · 1026/616/0 → 1092/550/0
+   │
+   ▼
+2832 → 2833
+```
+
+### CLEAN / CANONICAL PATH (instalação nova, replay, ambiente novo)
+
+```
+2212 v3.2  ── já contém o source-set canônico
+             (resolve_variant_mapping_scope), nasce com 1092/550/0
+   │
+   ▼
+2832 → 2833
+```
+
+**A `2233` NÃO existe neste caminho.** Ela é
+**INCIDENT-ONLY / FORWARD-FIX / NÃO REPLAYAR EM AMBIENTE LIMPO**.
+
+Isso não depende de disciplina humana: o gate `RP_G3_CURRENT_STATE` exige que
+o estado atual seja **exatamente 1.026 / 616 / 0**. Num ambiente onde a
+`2212` v3.2 rodou corretamente, o estado é 1.092 / 550 / 0 e a `2233`
+**aborta alto**, antes de qualquer escrita, com a mensagem nomeando os dois
+números. O mesmo vale para o `RP_G5_DELTA_SIZE` (delta = 66): num ambiente
+limpo o delta é 0. O replay indevido é impossível por construção, não por
+convenção.
+
+**A EXECUTAR** — `2233` *(reparo de incidente)* → `2832` → `2833`
 *(Batch 6)* → `2219`…`2222` → `2834` *(Batch 7)* → **Edge** *(Batch 8)* →
 `2214` *(Batch 8-BIS)* → **`2217` (EXPAND)** → **`2218` (SWITCH)** →
 **`2223` (CONTRACT)** *(Batch 9)* → `2209` *(Batch 10)* → `2215` → `2216`

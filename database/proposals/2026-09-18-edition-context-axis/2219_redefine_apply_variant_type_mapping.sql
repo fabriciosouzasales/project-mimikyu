@@ -177,7 +177,7 @@ BEGIN
           JOIN public.expansion e  ON e.id  = cs.expansion_id
           LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(cs.id, v_src_id) sc ON TRUE
           CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-              r.raw_data, e.game_id, v_src_id, cs.code) ax
+              r.raw_data, e.game_id, v_src_id, sc.external_set_id) ax
          WHERE j.source  = v_job_source
            AND e.game_id = v_game_id
            AND (v_scope IS NULL OR sc.external_set_id = v_scope)
@@ -205,7 +205,7 @@ BEGIN
           JOIN public.expansion e  ON e.id  = cs.expansion_id
           LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(cs.id, v_src_id) sc ON TRUE
           CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-              r.raw_data, e.game_id, v_src_id, cs.code) ax
+              r.raw_data, e.game_id, v_src_id, sc.external_set_id) ax
          WHERE j.source  = v_job_source
            AND e.game_id = v_game_id
            AND (v_scope IS NULL OR sc.external_set_id = v_scope)
@@ -257,8 +257,12 @@ BEGIN
               JOIN public.catalog_variant_import_job j ON j.id = r.job_id
               JOIN public.card_set  cs ON cs.id = j.card_set_id
               JOIN public.expansion e  ON e.id  = cs.expansion_id
+              -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01): mesmo criterio
+              -- dos dois call sites acima. Sem este LEFT JOIN o argumento de
+              -- escopo seria cs.code, que NUNCA casa com external_set_id.
+              LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(cs.id, v_src_id) sc ON TRUE
               CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-                  r.raw_data, e.game_id, v_src_id, cs.code) ax
+                  r.raw_data, e.game_id, v_src_id, sc.external_set_id) ax
              WHERE r.id = ANY(v_row_ids)
         ),
         atualizado AS (

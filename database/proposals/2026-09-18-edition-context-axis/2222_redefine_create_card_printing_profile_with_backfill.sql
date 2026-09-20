@@ -19,8 +19,13 @@
 -- O QUE MUDA
 -- ---------------------------------------------------------------------------
 --   (a) Os DOIS call sites passam a chamar internal.resolve_variant_row_axes(),
---       com `cs.code` como p_external_set_id — a mesma convenção fixada em
---       2219 e 2221.
+--       com o ESCOPO CANÔNICO como p_external_set_id — o identificador EXTERNO
+--       do Card Set na Fonte, devolvido por
+--       internal.resolve_variant_mapping_scope(card_set_id, asset_source_id).
+--       NÃO é `card_set.code`: o código interno é maiúsculo ('BASE2') e o
+--       identificador da Fonte é minúsculo ('base2'), de modo que passar
+--       `cs.code` tornaria todo mapping SCOPED inalcançável. Mesma convenção
+--       fixada em 2219 e 2221 (SOURCE-SCOPE-CORRECTION-01).
 --   (b) `classified` exige os DOIS eixos terminalmente resolvidos.
 --   (c) `updated` grava a terceira chave em A e B e a remove em C.
 --   (d) metadata do action log ganha `rows_blocked_edition_context` e
@@ -332,7 +337,8 @@ BEGIN
     -- PASSO 6 — SELEÇÃO DAS CANDIDATAS.  >>> CALL SITE 1 de 2, v4.0 <<<
     --
     -- O contrato de DOIS eixos (2176) foi substituído pelo de TRÊS (2211),
-    -- com `cs.code` como escopo de Set. Os nomes das funções NÃO são citados
+    -- com o escopo EXTERNO canônico (SOURCE-SCOPE-CORRECTION-01) — nunca
+    -- `card_set.code`. Os nomes das funções NÃO são citados
     -- neste comentário de propósito: o POSTCHECK 1 varre `prosrc`, que inclui
     -- comentários, e conta as chamadas — citações produziriam falso-positivo.
     --
@@ -351,8 +357,11 @@ BEGIN
           JOIN public.card_set cs    ON cs.id = j.card_set_id
           JOIN public.expansion e    ON e.id  = cs.expansion_id
           JOIN public.asset_source s ON s.code = j.source
+          -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01): identificador EXTERNO
+          -- do Card Set na Fonte, nunca card_set.code.
+          LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(cs.id, s.id) sc ON TRUE
           CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-              r.raw_data, e.game_id, s.id, cs.code
+              r.raw_data, e.game_id, s.id, sc.external_set_id
           ) ax
          WHERE j.status = 'STAGED'
            AND r.decision_status = 'PENDING'
@@ -408,8 +417,11 @@ BEGIN
               JOIN public.card_set cs    ON cs.id = j.card_set_id
               JOIN public.expansion e    ON e.id  = cs.expansion_id
               JOIN public.asset_source s ON s.code = j.source
+              -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01): identificador
+              -- EXTERNO do Card Set na Fonte, nunca card_set.code.
+              LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(cs.id, s.id) sc ON TRUE
               CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-                  r.raw_data, e.game_id, s.id, cs.code
+                  r.raw_data, e.game_id, s.id, sc.external_set_id
               ) ax
              WHERE r.id = ANY(v_row_ids)
                AND j.status = 'STAGED'
@@ -595,8 +607,8 @@ $worker$;
 
 
 COMMENT ON FUNCTION internal.create_card_printing_profile_with_backfill(UUID, TEXT, TEXT, TEXT, INTEGER, UUID[]) IS
-'v4.0 (EDITION-CONTEXT-AXIS). Cria um Perfil de Impressao com sua composicao selada e reconcilia, na mesma transacao, as linhas STAGED que o novo Perfil passa a resolver.
-Os DOIS call sites de resolucao usam internal.resolve_variant_row_axes() — TRES eixos, com cs.code como escopo de Set.
+'v4.1 (EDITION-CONTEXT-AXIS + SOURCE-SCOPE-CORRECTION-01). Cria um Perfil de Impressao com sua composicao selada e reconcilia, na mesma transacao, as linhas STAGED que o novo Perfil passa a resolver.
+Os DOIS call sites de resolucao usam internal.resolve_variant_row_axes() — TRES eixos, com o escopo canonico devolvido por internal.resolve_variant_mapping_scope(card_set_id, asset_source_id): o identificador EXTERNO do Card Set na Fonte, nunca card_set.code.
 SELECAO (PASSO 6) por Impressao apenas; CLASSIFICACAO (PASSO 8) exige os dois eixos terminalmente resolvidos.
 O eixo de Contexto de Edicao e RECALCULADO, nao copiado: criar um Perfil de Impressao muda o residual que o eixo 3 consome. A chave nunca desaparece isoladamente — os tres destinos sao gravados na mesma expressao.
 Assinatura e RETURNS TABLE identicos a v3.0, para que a RPC publica permaneca valida sem alteracao.';

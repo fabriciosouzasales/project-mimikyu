@@ -41,11 +41,49 @@
 -- segurança, não só arrumação.
 BEGIN;
 
+-- ---------------------------------------------------------------------------
+-- CONTRATO DE `p_external_set_id` (reconciliado em SOURCE-SCOPE-CORRECTION-01)
+-- ---------------------------------------------------------------------------
+-- `p_external_set_id` é o identificador do Card Set **NA FONTE EXTERNA** —
+-- exatamente o valor gravado em `card_set_external_reference.external_set_id`
+-- e comparado, sem tradução, contra
+-- `card_edition_context_external_mapping.external_set_id`.
+--
+-- NÃO é `card_set.code`. Os dois são domínios diferentes e divergem em valor:
+-- `card_set.code` é o código INTERNO, maiúsculo ('BASE2', 'MFB', 'SWSH9');
+-- o identificador da Fonte é minúsculo ('base2', 'mfb', 'swsh9'). Passar
+-- `cs.code` faz o predicado `m.external_set_id = p_external_set_id` nunca
+-- casar, tornando TODO mapping SCOPED inalcançável — e, por ser fail-closed,
+-- o defeito é SILENCIOSO: as rows caem no residual de Finish em vez de
+-- levantar erro.
+--
+-- AUTORIDADE ÚNICA do valor, para todo caller real:
+--     internal.resolve_variant_mapping_scope(card_set_id, asset_source_id)
+--        -> TABLE(external_set_id TEXT, reference_id UUID)
+--
+-- Esta função NÃO traduz nem resolve o escopo por conta própria: recebe o
+-- valor já resolvido. A tradução é responsabilidade do chamador, de propósito
+-- — duplicá-la aqui criaria uma segunda autoridade sobre a mesma referência.
+-- Passar NULL continua legítimo e significa "sem escopo": o universo se
+-- restringe aos mappings GLOBAL (ver o filtro de escopo obrigatório abaixo).
+--
+-- ESCOPO DESTA RECONCILIAÇÃO: **zero** mudança executável. Só comentários de
+-- código foram acrescentados. Em particular, a string do `COMMENT ON FUNCTION`
+-- ao final do arquivo foi deixada BYTE A BYTE como está no LIVE — alterá-la
+-- exigiria reexecutar a 2211, o que está fora do mandato desta rodada. O
+-- defeito de escopo NÃO estava nesta função: ela sempre comparou o valor que
+-- recebeu. Estava nos CHAMADORES, que entregavam `card_set.code`. Por isso a
+-- correção é feita neles (2212, 2219, 2220, 2221, 2222, 2831, 2832) e a
+-- reconciliação do dado já gravado no LIVE é feita pela 2233 — nunca por uma
+-- mudança de comportamento aqui.
+-- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION internal.resolve_variant_row_axes(
     p_raw_data        JSONB,
     p_game_id         UUID,
     p_asset_source_id UUID,
-    p_external_set_id TEXT DEFAULT NULL
+    p_external_set_id TEXT DEFAULT NULL   -- identificador EXTERNO da Fonte;
+                                          -- NUNCA card_set.code. Ver contrato
+                                          -- acima.
 )
 RETURNS TABLE (
     printing_state             TEXT,

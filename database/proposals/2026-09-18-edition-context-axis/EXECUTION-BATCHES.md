@@ -486,13 +486,133 @@ com `prosecdef=true` e `search_path` · grant_indevido=0.
 
 | Ordem | Artefato | Natureza |
 |---|---|---|
-| 1 | `2212` | **write** — resolução operacional |
-| 2 | `2832` | prova, `ROLLBACK` |
-| 3 | `2833` | prova, `ROLLBACK` |
+| 1 | `2212` | **write** — resolução operacional · **JÁ EXECUTADA NO LIVE (v3.1, defeituosa)** |
+| 2 | `2233` | **write** — forward-fix do escopo · **PENDENTE** |
+| 3 | `2832` | prova, `ROLLBACK` |
+| 4 | `2833` | prova, `ROLLBACK` |
 
 Pré-condição dura: **`2210` e `2211` LIVE** (Batch 5) e **`2232` LIVE**
 (Batch 2). A `2212` os verifica ela mesma — `ROUTING_MISSING` e
 `VOCABULARY_MISSING` — e aborta antes de qualquer write.
+
+### O defeito de escopo e por que existe uma `2233`
+
+A `2212` foi executada no LIVE na **v3.1** (ledger `20260920172947`, 1×,
+commit `d07cbedf7c61830d748d92445f7e2aded9e373fa`). Aquela versão passava
+`cs.code` como 4º argumento de `internal.resolve_variant_row_axes()`.
+
+O 4º argumento é o identificador do Card Set **na Fonte externa**
+(`card_set_external_reference.external_set_id`), comparado sem tradução contra
+`card_edition_context_external_mapping.external_set_id`. `card_set.code` é o
+código **interno**. Os dois divergem:
+
+| Fonte (TCGdex) | `mfb` | `base2` | `dp1` | `dp4`–`dp7` | `svp` | `swsh9` |
+|---|---|---|---|---|---|---|
+| `card_set.code` | `MFB` | `BASE2` | `DP1` | `DP4`–`DP7` | `SVP` | `SWSH9` |
+
+Resultado medido: **0 de 14** mappings `SOURCE_SET_SCOPED` casam literalmente;
+todos ficaram inalcançáveis. O defeito é **silencioso** porque o eixo é
+fail-closed — token sem mapping ativo no escopo permanece no residual de
+Finish e a linha resolve como `RESOLVED_NO_EDITION_CONTEXT`, que a `2212`
+grava como JSON `null`. Nenhuma exceção é levantada.
+
+As 8 pós-condições internas da `2212` passaram porque ela registrou fielmente
+o que a `2211` resolveu — o defeito estava no que ela **entregou** à `2211`.
+O gate C1 da `2232` não pegou porque ele **traduz** (`LEFT JOIN
+card_set_external_reference … AND cs2.code = k.set_code`); a `2211` roteava
+**sem** traduzir. Essa assimetria era invisível a todos os gates anteriores e
+só apareceu num postcheck **externo**, confrontando a partição semântica.
+
+A `2212` **não pode ser reexecutada**: já consta no ledger 1× e seu
+`bf_operational` só inclui rows *sem* a chave — após a v3.1 todas as 1.642 já
+têm chave, então uma reexecução teria plano vazio. A idempotência que a
+protege é o que a impede de se auto-reparar. Daí o forward-fix `2233`, único
+mecanismo de reconciliação do dado já gravado. A `2212` v3.2 corrige o
+**arquivo** (instalação limpa e próximo leitor), nunca o LIVE, e traz no topo
+o bloco `*** NAO REEXECUTAR ***`.
+
+### DUAS grandezas diferentes — não confundir
+
+Este é o ponto que mais gerou leitura errada e fica registrado aqui em
+definitivo. **1.085 e 1.092 não são o mesmo número medindo a mesma coisa.**
+
+| | Partição semântica | Eixo Edition Context |
+|---|---|---|
+| **O que é** | classificação editorial de qual **eixo** explica o resíduo de cada row | resultado do **routing** (`2211`) sobre cada row |
+| **Onde mora** | `SEMANTIC-PARTITION-DECISIONS-54.md` | `normalized_data.edition_context_profile_id` |
+| **Valores** | FINISH 423 · PRINTING 72 · **EDITION_CONTEXT 1.085** · INDETERMINATE 61 · (1) | **UUID 1.092 · NULL 550 · AUSENTE 0** |
+| **Soma** | 1.642 | 1.642 |
+| **Natureza** | decisão editorial, estável | estado do dado, muda com o vocabulário |
+
+A diferença de **7** é conhecida, explicada e **não é defeito**: são as 7 rows
+`foil=LEAGUE + stamp=STAFF`. A partição as classifica fora de
+`EDITION_CONTEXT` porque o que as mantém pendentes é o eixo de **acabamento**
+(`foil=league` sem Variant Type). Mas o eixo de Contexto de Edição resolve
+legitimamente `stamp=STAFF → papel STAFF`, e por isso elas **têm** perfil.
+Os dois eixos são independentes: indeterminação no Finish não invalida
+resolução no Edition Context. **Decisão fechada por Fabrício: preservar.** A
+`2211` não deve ser alterada para bloquear isso, e o B3 não reabre.
+
+Corolário que vale registrar: **JSON `null` significa apenas "esta row não tem
+Contexto de Edição"** — não significa que a Variant esteja semanticamente
+resolvida. A resolução semântica da Variant depende dos três eixos.
+
+E **`AUSENTE = 0` é comportamento correto**, não lacuna: token desconhecido é
+fail-closed, permanece no residual de Finish, produz `cardinality(v_ec_sig)=0`
+e portanto `RESOLVED_NO_EDITION_CONTEXT`. Os estados `NEEDS_REVIEW_*` só
+ocorrem para token **conhecido-mas-inativo** ou perfil ausente.
+
+### A `2233` é `INCIDENT-ONLY` — dois caminhos, permanentemente
+
+**CURRENT LIVE ROLLOUT** (o banco de hoje):
+`2212` **v3.1** já executada → **`2233`** (reparo) → `2832` → `2833`
+
+**CLEAN / CANONICAL PATH** (instalação nova, replay, ambiente novo):
+`2212` **v3.2**, que já traz o source-set canônico e nasce em 1.092/550/0 →
+`2832` → `2833`. **A `2233` não existe neste caminho.**
+
+> `INCIDENT-ONLY` · `FORWARD-FIX` · **NÃO REPLAYAR EM AMBIENTE LIMPO**
+
+A proteção é mecânica, não documental. O gate `RP_G3_CURRENT_STATE` exige
+estado atual **exatamente 1.026 / 616 / 0**, e o `RP_G5_DELTA_SIZE` exige
+delta **exatamente 66**. Num ambiente onde a v3.2 rodou correta, o estado é
+1.092 / 550 / 0 e o delta é 0 — os dois gates falham alto, antes de qualquer
+escrita, nomeando os números medidos e os esperados. Replay indevido é
+impossível por construção.
+
+### Contrato numérico da `2233`
+
+| Momento | UUID | JSON `null` | AUSENTE | Total |
+|---|---|---|---|---|
+| Após `2212` v3.1 (estado LIVE hoje) | 1.026 | 616 | 0 | 1.642 |
+| Após `2233` (correto) | **1.092** | **550** | **0** | **1.642** |
+| Delta | **+66** | **−66** | 0 | 0 |
+
+As 66 são **todas** `NULL → UUID`. Transições proibidas, provadas como zero
+antes da escrita: `UUID → UUID diferente`, `UUID → NULL`, `qualquer → AUSENTE`.
+Nenhuma das 7 `LEAGUE+STAFF` está entre as 66 — gate `RP_G8D`.
+
+Todos os gates da `2233` são **pré-write**; qualquer divergência levanta
+exceção nomeada e desfaz a transação inteira. Os baselines `1.642`, `847` e
+`415` são **preservados e provados**, nunca recalculados.
+
+### A convenção `cs.code` foi REMOVIDA
+
+Até esta rodada, `2221` e `2222` documentavam no cabeçalho "`cs.code` como
+`p_external_set_id` — a mesma convenção fixada em 2219 e 2221". **Essa
+convenção estava errada e foi eliminada de todos os artefatos CURRENT.** A
+convenção vigente, única, é:
+
+> O 4º argumento de `internal.resolve_variant_row_axes()` vem de
+> `internal.resolve_variant_mapping_scope(card_set_id, asset_source_id)`.
+> Nunca de `card_set.code`.
+
+Os **11 call sites reais** foram corrigidos: `2212` (1) · `2219` (3) ·
+`2220` (2) · `2221` (1) · `2222` (2) · `2831` (1) · `2832` (1). O 12º
+resultado da varredura, `2834:387` (`'VEC2834A'`), é **fixture sintético
+deliberado** — uma `card_set_external_reference` criada dentro da própria
+sentinela — e foi preservado. A Edge não chama a função (faz preload próprio e
+compara contra o ID real da Fonte) e também não foi alterada.
 
 **O guard `2214` saiu deste batch** e passou ao **Batch 8-BIS**, depois da
 Edge. Ver a nota de posicionamento lá: promover o guard estrito antes de
@@ -535,11 +655,17 @@ SELECT
 | Gate | Esperado |
 |---|---|
 | `operacional_sem_chave` | `0` |
+| **tri-estado do universo operacional** | **UUID 1.092 · NULL 550 · AUSENTE 0** (após a `2233`) |
+| `2233` | todos os gates `RP_*` passaram; 66 rows `NULL → UUID` |
 | `2832` | 14/14 |
 | `2833` | 11/11 |
 | `cancelled_sem_chave_total` | **847 → 847** (idêntico a B3.2) |
 | `cancelled_valid_pending_sem_chave` | **415 → 415** (idêntico a B3.2) |
 | `bf_params` | resolvido por code, **1 linha**, zero NULL (`BF_GAME_REFERENCE` / `BF_SOURCE_REFERENCE` / `BF_PARAMS_CARDINALITY` não dispararam) |
+
+> **Ordem obrigatória**: `2832` e `2833` só rodam **depois** da `2233`. Rodar
+> a `2832` sobre o estado 1.026/616/0 mede o dado defeituoso — foi exatamente
+> o que o postcheck externo detectou e o que motivou o STOP do Batch 6.
 
 Os dois números de `CANCELLED` são comparados **separadamente**. Qualquer um
 que mude prova que a `2212` vazou para o histórico terminal — **STOP**.

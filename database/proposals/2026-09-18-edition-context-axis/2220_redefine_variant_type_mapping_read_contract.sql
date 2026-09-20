@@ -155,8 +155,14 @@ BEGIN
           JOIN public.card_set  cs ON cs.id = j.card_set_id
           JOIN public.expansion e  ON e.id  = cs.expansion_id
           LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(cs.id, p_asset_source_id) sc ON TRUE
+          -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01). O 4o argumento do
+          -- routing e o identificador EXTERNO da Fonte (card_set_external_reference
+          -- .external_set_id), NUNCA card_set.code. Os dois nao coincidem: os
+          -- mappings SCOPED gravam o id da Fonte (ex.: 'base2'), enquanto
+          -- card_set.code e o codigo interno ('BASE2'). A autoridade unica e
+          -- internal.resolve_variant_mapping_scope(), ja materializada em `sc`.
           CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-              r.raw_data, e.game_id, p_asset_source_id, cs.code
+              r.raw_data, e.game_id, p_asset_source_id, sc.external_set_id
           ) ax
          WHERE j.source  = v_src_code
            AND e.game_id = p_game_id
@@ -264,7 +270,11 @@ DECLARE
     v_job_source TEXT;
     v_job_scope  TEXT;      -- catalog_variant_import_job.external_set_id (NAO e autoridade)
     v_card_set   UUID;
-    v_card_set_code TEXT;   -- v2.0: 4o argumento do routing
+    -- v2.1 (SOURCE-SCOPE-CORRECTION-01): o 4o argumento do routing e o
+    -- identificador EXTERNO da Fonte, resolvido por
+    -- internal.resolve_variant_mapping_scope(). A variavel antiga
+    -- `v_card_set_code` (card_set.code) foi ELIMINADA: era a origem do defeito
+    -- de escopo — 'BASE2' (interno) nunca casa com 'base2' (Fonte).
     v_game_id    UUID;
     v_src_id     UUID;
     v_canon      TEXT := NULL;
@@ -301,7 +311,7 @@ BEGIN
       INTO v_job_source, v_card_set, v_job_scope
       FROM public.catalog_variant_import_job j WHERE j.id = v_row.job_id;
 
-    SELECT e.game_id, cs.code INTO v_game_id, v_card_set_code
+    SELECT e.game_id INTO v_game_id
       FROM public.card c
       JOIN public.card_set cs ON cs.id = c.card_set_id
       JOIN public.expansion e ON e.id  = cs.expansion_id
@@ -334,8 +344,17 @@ BEGIN
     -- v2.0 — ROUTING TERMINAL ÚNICO: contrato de TRÊS eixos (2211) no lugar do
     -- de DOIS (2176). O nome antigo não é citado aqui — o postcheck varre
     -- `prosrc`, que inclui comentários, e a citação viraria falso-positivo.
+    -- ESCOPO CANONICO (SOURCE-SCOPE-CORRECTION-01). A resolucao de `v_canon`
+    -- foi HOISTADA para ca — antes do routing — porque o 4o argumento de
+    -- resolve_variant_row_axes() e o identificador EXTERNO da Fonte, nao
+    -- card_set.code. A unica autoridade e resolve_variant_mapping_scope().
+    -- O guard de SCOPE_MISMATCH abaixo consome o MESMO `v_canon`; a resolucao
+    -- nao e refeita (chamada STABLE, resultado identico, uma leitura a menos).
+    SELECT s.external_set_id INTO v_canon
+      FROM internal.resolve_variant_mapping_scope(v_card_set, v_src_id) s;
+
     SELECT * INTO v_sig
-      FROM internal.resolve_variant_row_axes(v_row.raw_data, v_game_id, v_src_id, v_card_set_code);
+      FROM internal.resolve_variant_row_axes(v_row.raw_data, v_game_id, v_src_id, v_canon);
 
     IF v_reason IS NULL
        AND v_sig.printing_state NOT IN ('RESOLVED_NO_PRINTING', 'RESOLVED_WITH_PROFILE') THEN
@@ -354,10 +373,8 @@ BEGIN
         v_detail := format('linha pendente pelo eixo de CONTEXTO DE EDICAO (estado: %s). Resolva o mapping de Edition Context antes — criar Variant Type sobre residual contaminado absorveria contexto no acabamento.', v_sig.edition_context_state);
     END IF;
 
-    -- ESCOPO CANÔNICO + GUARD DE MISMATCH. INALTERADO.
-    SELECT s.external_set_id INTO v_canon
-      FROM internal.resolve_variant_mapping_scope(v_card_set, v_src_id) s;
-
+    -- GUARD DE MISMATCH. A resolucao de `v_canon` foi hoistada para antes do
+    -- routing (SOURCE-SCOPE-CORRECTION-01); o guard consome o mesmo valor.
     IF v_reason IS NULL
        AND v_job_scope IS NOT NULL
        AND v_canon IS NOT NULL

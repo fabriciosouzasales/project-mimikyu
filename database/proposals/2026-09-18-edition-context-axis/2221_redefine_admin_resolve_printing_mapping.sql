@@ -49,9 +49,15 @@
 -- ---------------------------------------------------------------------------
 -- NOTA DE FIDELIDADE — o `IN (…)` da linha 476 foi PRESERVADO
 -- ---------------------------------------------------------------------------
--- `resolve_variant_row_axes` recebe `p_external_set_id` (o `card_set.code`),
--- que a CTE canônica não materializava. Para obtê-lo foi necessário juntar
--- `card_set` e `expansion`. Havia duas saídas:
+-- `resolve_variant_row_axes` recebe `p_external_set_id` — o identificador
+-- EXTERNO do Card Set na Fonte (`card_set_external_reference.external_set_id`),
+-- resolvido por `internal.resolve_variant_mapping_scope(card_set_id,
+-- asset_source_id)`. NÃO é `card_set.code`: o código interno é maiúsculo
+-- ('BASE2') e o identificador da Fonte é minúsculo ('base2'), de modo que
+-- passar `cs.code` torna TODO mapping SCOPED inalcançável (corrigido em
+-- SOURCE-SCOPE-CORRECTION-01). A CTE canônica não materializava nenhum dos
+-- dois. Para obter o escopo foi necessário juntar `card_set` e `expansion`.
+-- Havia duas saídas:
 --
 --   A. trocar `j.card_set_id IN (SELECT cs2.id … WHERE e2.game_id = v_game_id)`
 --      pelo predicado equivalente `e.game_id = v_game_id` sobre o novo join;
@@ -305,17 +311,24 @@ BEGIN
         SELECT r.id, r.job_id, j.card_set_id, ax.*
         FROM public.catalog_variant_import_row r
         JOIN public.catalog_variant_import_job j ON j.id = r.job_id
-        -- v2.0: joins ADICIONADOS apenas para materializar cs.code
-        -- (p_external_set_id). FKs NOT NULL de valor único — não alteram a
-        -- cardinalidade de `touched`. Ver NOTA DE FIDELIDADE no cabeçalho.
+        -- v2.0: joins ADICIONADOS apenas para materializar o escopo externo.
+        -- FKs NOT NULL de valor único — não alteram a cardinalidade de
+        -- `touched`. Ver NOTA DE FIDELIDADE no cabeçalho.
         JOIN public.card_set  cs ON cs.id = j.card_set_id
         JOIN public.expansion e  ON e.id  = cs.expansion_id
+        -- v2.1 (SOURCE-SCOPE-CORRECTION-01): ESCOPO CANÔNICO. O 4º argumento
+        -- é o identificador EXTERNO da Fonte (card_set_external_reference
+        -- .external_set_id), NUNCA card_set.code — os dois divergem em caixa e
+        -- em valor ('base2' vs 'BASE2'). Autoridade única:
+        -- internal.resolve_variant_mapping_scope(card_set_id, asset_source_id).
+        LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(
+            cs.id, v_asset_source_id) sc ON TRUE
         -- v2.0: ÚNICA troca de contrato desta CTE. O contrato de DOIS eixos
         -- (2176) foi substituído pelo de TRÊS (2211). O nome antigo NÃO é
         -- citado aqui de propósito: o POSTCHECK 1 varre `prosrc`, que inclui
         -- comentários, e uma citação em comentário produziria falso-positivo.
         CROSS JOIN LATERAL internal.resolve_variant_row_axes(
-            r.raw_data, v_game_id, v_asset_source_id, cs.code
+            r.raw_data, v_game_id, v_asset_source_id, sc.external_set_id
         ) ax
         WHERE j.status = 'STAGED'
           AND j.source = v_job_source
@@ -507,8 +520,9 @@ $printing$;
 
 
 COMMENT ON FUNCTION public.admin_resolve_catalog_variant_import_printing_mapping(UUID, TEXT, TEXT, UUID[]) IS
-'v2.0 (EDITION-CONTEXT-AXIS). Cria o mapeamento externo de Impressao para um token e reavalia, na mesma transacao, as linhas STAGED que o contem.
+'v2.1 (EDITION-CONTEXT-AXIS + SOURCE-SCOPE-CORRECTION-01). Cria o mapeamento externo de Impressao para um token e reavalia, na mesma transacao, as linhas STAGED que o contem.
 A reavaliacao usa internal.resolve_variant_row_axes() — TRES eixos. Uma linha so e promovida a VALID quando Impressao E Contexto de Edicao estao terminalmente resolvidos e o Variant Type e encontrado pelo residual pos-dois-eixos.
+O escopo (4o argumento do routing) vem de internal.resolve_variant_mapping_scope(card_set_id, asset_source_id) — identificador EXTERNO da Fonte, nunca card_set.code.
 Contrato tri-state de normalized_data: chave AUSENTE = eixo indeterminado; JSON null = resolvido sem perfil; string UUID = resolvido com perfil. O outcome C remove as tres chaves.
 A logica de Impressao (supersede + insert do mapping) e identica a v1.2.';
 
