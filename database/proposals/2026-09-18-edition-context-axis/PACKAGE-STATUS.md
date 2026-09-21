@@ -218,7 +218,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** v2.5 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — quatro tentativas abortaram (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `-02`: `family` NULL · `-03`: colisão de `display_order` · `-04`: `external_token` inexistente no mapping de Edition Context); ver itens 4 a 7 dos bloqueios. O item 8 registra um quinto defeito (lifecycle do trait inativo em E4) **encontrado por auditoria, não por execução** |
+| **`2834`** v2.6 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO PROVADO** — quatro tentativas abortaram estruturalmente (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `-02`: `family` NULL · `-03`: colisão de `display_order` · `-04`: `external_token` inexistente no mapping de Edition Context) e a quinta (`-05`) **rodou inteira e parou no S3 com 2 PASS / 16 FAIL**, por bug de JSON `null` na montagem do raw; ver itens 4 a 7 e 9 dos bloqueios. O item 8 registra um sexto defeito (lifecycle do trait inativo em E4) **encontrado por auditoria, não por execução** |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -494,6 +494,50 @@ dois:
    disfarçada de FAIL de caso. Traits **implícitos** — citados só em
    mapping/profile e ausentes de `ec_traits` — continuam nascendo ativos e
    ficam fora do gate. **Fixture JSON não alterada.**
+
+9. **`BATCH7-2834-LIVE-EXECUTION-05` → STOP SEMÂNTICO** *(aberto — correção
+   preparada, ainda não revalidada)*
+
+   **Natureza diferente de todos os anteriores.** Não houve aborto estrutural:
+   o runner v2.5 atravessou S0, S1, S2, montou os 17 vetores, mediu **18 de 18
+   casos com zero SKIP** e parou no gate de cobertura do S3 com **2 PASS /
+   16 FAIL** — passaram apenas E1 e E17.
+
+   *Causa:* **bug do runner**, demonstrado pelo `SEMANTIC-DIAGNOSTIC-01`. O
+   bloco 2.2 monta cada caso com `jsonb_build_object(…, 'raw_before',
+   v_vec->'raw_before_printing', …)`. Para os vetores que não declaram essa
+   chave, o valor é materializado como **JSON `null`** — que não é SQL NULL.
+   O predicado `IF v_case->'raw_before' IS NOT NULL` era portanto **TRUE para
+   todos**, e E1–E16 entravam no ramo exclusivo de E17, montando o raw a
+   partir de um objeto inexistente: subtype e stamp desapareciam, e em
+   E3/E16 o `c_pr_fix_token` nunca era acrescentado — daí a Impressão medir
+   `RESOLVED_NO_PRINTING` contra o que a fixture declarava. Os 16 `detail`
+   recuperados são todos `PRINTING_RESIDUAL_MISMATCH` ou
+   `PRINTING_FIXTURE_MISMATCH`. E1 passou por acidente (seu `expected` é
+   vazio); E17 passou legitimamente (é o único vetor com
+   `raw_before_printing`).
+
+   *Método, para o registro:* a `SEMANTIC-FORENSICS-01` chegou a duas
+   hipóteses e **não conseguiu separá-las estaticamente** — declarou "causa
+   raiz NÃO demonstrada" em vez de eleger a mais plausível. Quem fechou a
+   questão foi o diagnóstico, transportando pela própria exception os
+   `detail` que o runner já calculava e que os NOTICEs não entregavam.
+
+   *Impacto:* **ZERO persistente**, comprovado por postcheck read-only depois
+   da EXECUTION-05 e de novo depois do diagnóstico — zero resíduo `VEC2834*`
+   nas dez tabelas, 1642 operacional, tri-state **1092 / 550 / 0**, CANCELLED
+   **847 / 415**, catálogos EC 115/144/122 e Printing 9/11/10, `2214` = 0.
+
+   *Estado:* correção **v2.6 preparada, ainda NÃO EXECUTADA**. A seleção de
+   ramo passa a usar `jsonb_typeof(…) = 'object'` nos dois sítios que
+   consultavam a chave, mais um gate fail-closed `RAW_BEFORE_TYPE_INVALID`
+   (admissíveis: `object`, `null`). **Fixture não alterada**, `expected` não
+   alterado, `2176`/`2211`/Edge não tocados.
+
+   > **Nada foi revalidado.** Os 16 FAIL estão *explicados*, não *resolvidos*:
+   > a fixture e o contrato do eixo 3 continuam sem prova. Só uma execução
+   > nova da v2.6 dirá o que o contrato realmente faz — e ela pode muito bem
+   > revelar divergências reais que o bug do harness estava mascarando.
 
 O bloqueio de item 2 (`2213`) não é resolvível por quem escreve SQL: depende
 de decisão de Fabrício sobre o vocabulário e sobre a linhagem.

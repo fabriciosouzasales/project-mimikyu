@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- Query 2834 — RUNNER SQL DOS VETORES COMPARTILHADOS DO EIXO 3
---              v2.5 — MODEL RECONCILIATION
---                     (MODELING-CORRECTION-01)
+--              v2.6 — RAW_BEFORE JSON NULL CORRECTION
+--                     (RAW-BEFORE-JSON-NULL-CORRECTION-01)
 -- ===========================================================================
 -- STATUS: PROPOSTA — NÃO EXECUTADA. Pacote EDITION-CONTEXT-AXIS.
 --
@@ -220,6 +220,56 @@
 -- >= 1000 está vazia para POKEMON em TODAS as famílias (o máximo em
 -- ARTWORK_MARK é 30); e reiniciam em 1000 a cada vetor porque a subtransação
 -- desfaz os anteriores.
+--
+-- ---------------------------------------------------------------------------
+-- O QUE MUDOU NA v2.6 — JSON `null` NÃO É SQL NULL
+-- ---------------------------------------------------------------------------
+-- REGISTRO DE INCIDENTE — `BATCH7-2834-LIVE-EXECUTION-05` → **STOP SEMÂNTICO**.
+--
+--   Este é o primeiro STOP que NÃO foi estrutural. O runner v2.5 rodou
+--   inteiro: S0, S1, S2, os 17 vetores montados, **18 de 18 casos medidos,
+--   zero SKIP**, e parou no gate de cobertura do S3 com **2 PASS / 16 FAIL**.
+--   Passaram só E1 e E17; falharam E2–E16.
+--
+--   Causa raiz — DEMONSTRADA, não inferida. A `SEMANTIC-FORENSICS-01` chegou
+--   a duas hipóteses e não conseguiu separá-las estaticamente; quem fechou a
+--   questão foi o `SEMANTIC-DIAGNOSTIC-01`, que transportou pela própria
+--   exception os 16 `detail` já calculados pelo runner. Todos os 16 eram
+--   `PRINTING_RESIDUAL_MISMATCH` ou `PRINTING_FIXTURE_MISMATCH`.
+--
+--   O defeito: o bloco 2.2 monta cada caso com `jsonb_build_object(...,
+--   'raw_before', v_vec->'raw_before_printing', ...)`. Quando o vetor NÃO
+--   declara `raw_before_printing`, o operador `->` devolve SQL NULL, e
+--   `jsonb_build_object` materializa essa chave como **JSON `null`** — que
+--   NÃO é SQL NULL. O teste da v2.5 era
+--
+--       IF v_case->'raw_before' IS NOT NULL THEN
+--
+--   e `'null'::JSONB IS NOT NULL` é **TRUE**. Resultado: E1–E16 entravam no
+--   ramo exclusivo de E17 e montavam o raw a partir de um objeto inexistente
+--   (`'null'::JSONB->>'subtype'` = NULL, `->'stamp'` = NULL → COALESCE para
+--   `[]`). O subtype sumia, o stamp sumia, e em E3/E16 o `c_pr_fix_token`
+--   nunca era acrescentado — por isso a Impressão media `RESOLVED_NO_PRINTING`
+--   onde a fixture declarava outra coisa.
+--
+--   E1 passou por acidente: seu `expected` é vazio, então o raw vazio
+--   coincidiu. E17 passou legitimamente: é o único vetor que declara
+--   `raw_before_printing`, e para ele o ramo estava certo.
+--
+--   Correção: decidir o ramo por `jsonb_typeof(...) = 'object'`, nunca por
+--   SQL-nullness, nos DOIS sítios que consultavam a chave (montagem do raw,
+--   bloco 2.2; assertiva de consumo de Impressão, bloco 2.2 item 4). Mais um
+--   gate fail-closed `RAW_BEFORE_TYPE_INVALID` que aborta se o tipo não for
+--   `object` nem `null` — fixture malformada não chega à medição.
+--
+--   Impacto: **ZERO persistente**, comprovado por postcheck read-only após a
+--   EXECUTION-05 e novamente após o diagnóstico — zero resíduo `VEC2834*`,
+--   1642 operacional, tri-state 1092/550/0, CANCELLED 847/415, catálogos
+--   EC 115/144/122 e Printing 9/11/10, `2214` = 0.
+--
+--   **Nada foi revalidado ainda.** Nem a fixture nem o contrato do eixo 3
+--   estão provados: os 16 FAIL foram explicados pelo defeito do harness, e
+--   só uma execução nova da v2.6 pode dizer o que o contrato realmente faz.
 --
 -- ---------------------------------------------------------------------------
 -- O QUE MUDOU NA v2.5 — RECONCILIAÇÃO DE MODELAGEM
@@ -1154,7 +1204,23 @@ BEGIN
               INTO v_pre_stamp;
 
             -- ---- raw_data de ENTRADA (pré-Impressão) ----------------------
-            IF v_case->'raw_before' IS NOT NULL THEN
+            -- GATE DE TIPO (v2.6) — fail-closed, ANTES da seleção de ramo.
+            -- `jsonb_build_object` materializa a chave ausente como JSON `null`
+            -- (não como SQL NULL). Só `object` e `null` são admissíveis aqui;
+            -- qualquer outro tipo é fixture malformada e não pode ser medida.
+            IF jsonb_typeof(v_case->'raw_before') NOT IN ('object','null') THEN
+                RAISE EXCEPTION 'S2 ABORT (%): RAW_BEFORE_TYPE_INVALID — raw_before do caso %s tem jsonb_typeof=%s; admissiveis: object, null. Fixture malformada NAO pode ser medida.',
+                    v_vec->>'id', v_label, jsonb_typeof(v_case->'raw_before');
+            END IF;
+
+            -- v2.6: decidir por jsonb_typeof, NUNCA por SQL-nullness.
+            -- A v2.5 testava `v_case->'raw_before' IS NOT NULL`, e como o JSON
+            -- `null` NÃO é SQL NULL, E1–E16 entravam no ramo exclusivo de E17.
+            -- Consequência medida pelo SEMANTIC-DIAGNOSTIC-01: o raw era
+            -- montado a partir de `raw_before` inexistente, subtype/stamp
+            -- desapareciam, e os 16 casos reprovavam com
+            -- PRINTING_RESIDUAL_MISMATCH / PRINTING_FIXTURE_MISMATCH.
+            IF jsonb_typeof(v_case->'raw_before') = 'object' THEN
                 -- E17: a fixture declara explicitamente o raw pré-Impressão.
                 v_sub := CASE WHEN v_case->'raw_before'->>'subtype' IS NULL THEN NULL
                               ELSE split_part(p->'bindings'->'tokens'->>(v_case->'raw_before'->>'subtype'), ' ', 1) END;
@@ -1265,7 +1331,10 @@ BEGIN
             --     consumiria os dois tokens. Provar aqui, ANTES do eixo 3, que
             --     TOK_PRINTING saiu e TOK_CTX_A ficou é o que transforma o
             --     resultado do eixo 3 em consequência demonstrada.
-            IF v_case->'raw_before' IS NOT NULL AND v_pr_token IS NOT NULL THEN
+            -- v2.6: mesmo predicado de tipo do ramo de montagem. Com
+            -- `IS NOT NULL` esta assertiva disparava para TODO vetor cujo
+            -- `v_pr_token` existisse, não apenas para E17.
+            IF jsonb_typeof(v_case->'raw_before') = 'object' AND v_pr_token IS NOT NULL THEN
                 IF v_pr_token = ANY(v_got_pre_stamp) THEN
                     v_errs := v_errs || format('PRINTING_CONSUMPTION_MISMATCH: token de Impressao %s permanece no residual %s; ',
                                                v_pr_token, v_got_pre_stamp);
@@ -1534,7 +1603,7 @@ BEGIN
       INTO v_pass, v_fail, v_skip, v_rows, v_vec_seen
       FROM _res2834;
 
-    RAISE NOTICE '=== 2834 v2.5 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
+    RAISE NOTICE '=== 2834 v2.6 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
         v_pass, v_fail, v_skip, v_rows, v_vec_seen;
     RAISE NOTICE '=== esperado pela fixture: % caso(s), % vetor(es), % estado(s) ===',
         v_n_cases, v_n_vectors, v_n_vocab;
