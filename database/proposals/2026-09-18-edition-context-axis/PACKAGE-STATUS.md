@@ -468,7 +468,9 @@ dois:
    *(encontrado pela `MODELING-RECONCILIATION-01`, **antes** de aparecer em
    execução LIVE — nunca chegou a produzir um STOP próprio)*
 
-   A auditoria mecânica dos **onze** DML do runner contra o catálogo canônico
+   A auditoria mecânica do DML do runner contra o catálogo canônico — a v2.4
+   tinha 11 DML, todos INSERT; a v2.5 tem os **12 DML atuais (11 INSERTs +
+   1 UPDATE)**, sendo o UPDATE o passo de lifecycle descrito abaixo —
    encontrou um defeito que nenhuma execução tinha alcançado: o vetor **E4**
    não era montável pela ordem da v2.4. E4 declara `T_OFF` com
    `is_active:false` e o coloca em `PF_A`; a v2.4 criava o trait já inativo e

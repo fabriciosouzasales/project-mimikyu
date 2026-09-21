@@ -252,8 +252,10 @@
 --
 -- SEGUNDO BLOCKER — encontrado pela reconciliação, ANTES de aparecer no LIVE.
 --
---   A `MODELING-RECONCILIATION-01` auditou os ONZE DML do runner contra o
---   catálogo canônico e encontrou um defeito que nenhuma execução tinha
+--   A `MODELING-RECONCILIATION-01` auditou todo o DML do runner contra o
+--   catálogo canônico — a v2.4 tinha 11 DML, todos INSERT; a v2.5 tem os
+--   **12 DML atuais (11 INSERTs + 1 UPDATE)**, sendo o UPDATE o passo de
+--   lifecycle descrito acima — e encontrou um defeito que nenhuma execução tinha
 --   alcançado ainda: o vetor **E4** não era montável pela ordem da v2.4.
 --   E4 declara `T_OFF` com `is_active:false` e o coloca dentro de `PF_A`; a
 --   v2.4 criava o trait já inativo e em seguida inseria a N:N, onde
