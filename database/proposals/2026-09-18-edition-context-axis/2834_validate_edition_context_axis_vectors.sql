@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- Query 2834 — RUNNER SQL DOS VETORES COMPARTILHADOS DO EIXO 3
---              v2.4 — DYNAMIC DISPLAY_ORDER SCAFFOLD
---                     (DISPLAY-ORDER-CORRECTION-01)
+--              v2.5 — MODEL RECONCILIATION
+--                     (MODELING-CORRECTION-01)
 -- ===========================================================================
 -- STATUS: PROPOSTA — NÃO EXECUTADA. Pacote EDITION-CONTEXT-AXIS.
 --
@@ -220,6 +220,63 @@
 -- >= 1000 está vazia para POKEMON em TODAS as famílias (o máximo em
 -- ARTWORK_MARK é 30); e reiniciam em 1000 a cada vetor porque a subtransação
 -- desfaz os anteriores.
+--
+-- ---------------------------------------------------------------------------
+-- O QUE MUDOU NA v2.5 — RECONCILIAÇÃO DE MODELAGEM
+-- ---------------------------------------------------------------------------
+-- REGISTRO DE INCIDENTE — `BATCH7-2834-LIVE-EXECUTION-04` → **STOP**.
+--
+--   Erro: SQLSTATE **42703** — `column "external_token" of relation
+--   "card_edition_context_external_mapping" does not exist`.
+--
+--   Causa: o INSERT do mapping de Edition Context carregava `external_token`,
+--   coluna que pertence EXCLUSIVAMENTE ao modelo de Printing
+--   (`card_printing_external_mapping`) e que nunca existiu no eixo 3. Não foi
+--   erro de digitação: foi a assinatura de uma tabela aplicada a outra. O eixo
+--   3 escopa por Card Set (`external_set_id`); o eixo de Printing identifica
+--   por token externo (`external_token`). A contagem do token nos artefatos
+--   confirma a unanimidade: 2207 = 0, 2232 = 0, 2211 = 0, Edge = 0, e apenas
+--   2172 (DDL de Printing) = 2. O harness era o único artefato do eixo 3 a
+--   mencioná-lo.
+--
+--   Impacto: ZERO persistente, comprovado por postcheck read-only aprovado —
+--   zero resíduo `VEC2834*` nas dez tabelas, nenhuma temp table remanescente,
+--   universo operacional 1642, tri-state 1092/550/0, CANCELLED 847/415,
+--   catálogos EC 115/144/122 e Printing 9/11/10, `2214` = 0 no ledger. A
+--   subtransação por vetor com sentinela P2834 fez o que foi desenhada para
+--   fazer.
+--
+--   Correção: remoção de `external_token` e do segundo `v_tok` SOMENTE no
+--   INSERT de Edition Context. O INSERT de `card_printing_external_mapping`
+--   continua escrevendo `external_token` — lá a coluna existe e é NOT NULL.
+--
+-- SEGUNDO BLOCKER — encontrado pela reconciliação, ANTES de aparecer no LIVE.
+--
+--   A `MODELING-RECONCILIATION-01` auditou os ONZE DML do runner contra o
+--   catálogo canônico e encontrou um defeito que nenhuma execução tinha
+--   alcançado ainda: o vetor **E4** não era montável pela ordem da v2.4.
+--   E4 declara `T_OFF` com `is_active:false` e o coloca dentro de `PF_A`; a
+--   v2.4 criava o trait já inativo e em seguida inseria a N:N, onde
+--   `trg_cecpt_trait_active` (BEFORE INSERT em
+--   `card_edition_context_profile_trait`) levanta
+--   `EDITION_CONTEXT_TRAIT_INACTIVE`. A execução parava em 2.1 no vetor E4 —
+--   depois do ponto onde o 42703 já havia abortado.
+--
+--   A fixture está CORRETA e o guard está CORRETO. E4 representa um profile
+--   HISTÓRICO cujo trait foi inativado DEPOIS de composto, e existe para
+--   travar a ordem de avaliação da 2211 (trait inativo tem precedência sobre
+--   a busca de profile). O que estava errado era só a ordem de montagem do
+--   harness. A v2.5 monta na ordem do domínio:
+--
+--     trait ATIVO -> profile -> N:N -> selo -> aplica is_active declarado
+--     -> gate de estado -> mappings -> medição
+--
+--   Nenhum trigger foi desabilitado, nenhum constraint alterado, nenhum
+--   bypass criado. O guard segue recusando o que sempre recusou.
+--
+--   O gate novo (2.1-A3, `EC_TRAIT_DECLARED_STATE_MISMATCH`) é estrutural e
+--   fail-closed: fixture física incorreta aborta o harness em vez de chegar
+--   à medição disfarçada de FAIL de caso.
 --
 -- ---------------------------------------------------------------------------
 -- O QUE MUDOU NA v2.4 — display_order MEDIDO, NÃO ARBITRADO
@@ -602,6 +659,11 @@ DECLARE
     v_pr_trait_order        INTEGER;
     v_pr_profile_order      INTEGER;
     v_slot_taken            TEXT;
+    -- ---- v2.5: lifecycle do trait inativo ---------------------------------
+    -- `v_state_bad` acumula divergências entre o `is_active` DECLARADO na
+    -- fixture e o `is_active` efetivo no LIVE depois do lifecycle. Ver o gate
+    -- de estado declarado em 2.1-A3.
+    v_state_bad             TEXT;
 BEGIN
     SELECT payload INTO p FROM _vec2834;
     SELECT id INTO v_game FROM public.game         WHERE code = p->'bindings'->>'game';
@@ -766,12 +828,22 @@ BEGIN
         v_sym2uuid := '{}'::JSONB;
         v_uuid2sym := '{}'::JSONB;
 
-        -- traits declarados
+        -- traits declarados — NASCEM ATIVOS (v2.5)
+        -- O `is_active` DECLARADO pela fixture não é aplicado aqui: ele é
+        -- aplicado em 2.1-A2, depois da N:N e depois do selo do profile.
+        -- Razão medida: `trg_cecpt_trait_active` (BEFORE INSERT em
+        -- public.card_edition_context_profile_trait) proíbe criar composição
+        -- NOVA com trait JÁ inativo. E4 declara T_OFF inativo e o coloca em
+        -- PF_A — não para criar composição inválida, mas para representar um
+        -- profile HISTÓRICO cujo trait foi inativado DEPOIS. A ordem antiga
+        -- (inativar -> compor) é a única que o schema recusa; a ordem real do
+        -- domínio (compor -> selar -> inativar) é permitida, e é a que a v2.5
+        -- executa. O guard não é enfraquecido, desabilitado nem contornado.
         FOR v_trait IN SELECT t FROM jsonb_array_elements(COALESCE(v_vec->'ec_traits','[]'::JSONB)) t LOOP
             INSERT INTO public.card_edition_context_trait (game_id, family, code, name, display_order, is_active)
             VALUES (v_game, 'ARTWORK_MARK', 'VEC2834_' || (v_trait->>'id'), 'fixture ' || (v_trait->>'id'),
                     v_ec_trait_order_base + (SELECT count(*)::INT FROM public.card_edition_context_trait WHERE code LIKE 'VEC2834%'),
-                    (v_trait->>'is_active')::BOOLEAN)
+                    TRUE)
             RETURNING id INTO v_trait_id;
             v_sym2uuid := v_sym2uuid || jsonb_build_object(v_trait->>'id', v_trait_id::TEXT);
             v_uuid2sym := v_uuid2sym || jsonb_build_object(v_trait_id::TEXT, v_trait->>'id');
@@ -852,16 +924,79 @@ BEGIN
         -- Restaura ANTES de qualquer outro vetor criar profile.
         SET CONSTRAINTS public.trg_cecp_seal DEFERRED;
 
+        -- ===============================================================
+        -- 2.1-A2  LIFECYCLE DO TRAIT — APLICA O is_active DECLARADO (v2.5)
+        -- ===============================================================
+        -- Este é o ÚNICO ponto em que o `is_active` declarado em `ec_traits`
+        -- é aplicado, e ele fica DEPOIS de três coisas, nesta ordem:
+        --   1. a criação do trait (ativo);
+        --   2. a criação da N:N profile<->trait (trg_cecpt_trait_active
+        --      aprova, porque o trait ainda está ativo);
+        --   3. o selo do profile (traits_signature materializada acima).
+        --
+        -- Ordem de domínio, não conveniência de harness: um profile histórico
+        -- foi composto quando o trait era válido, e o trait foi inativado
+        -- depois. É exatamente o que E4 representa. O caminho inverso
+        -- (inativar antes de compor) é o que o schema recusa — e deve mesmo
+        -- recusar. Nenhum trigger é desabilitado, nenhum constraint alterado.
+        --
+        -- Medido no LIVE: card_edition_context_trait NÃO tem trigger algum
+        -- (nem BEFORE nem AFTER UPDATE), e nenhuma das funções de selo
+        -- (seal_edition_context_composition, seal_edition_context_external_
+        -- mapping) lê `is_active`. Desativar aqui não reabre nem invalida a
+        -- assinatura já selada.
+        UPDATE public.card_edition_context_trait t
+           SET is_active = (x->>'is_active')::BOOLEAN
+          FROM jsonb_array_elements(COALESCE(v_vec->'ec_traits','[]'::JSONB)) x
+         WHERE t.id = (v_sym2uuid->>(x->>'id'))::UUID
+           AND t.is_active IS DISTINCT FROM (x->>'is_active')::BOOLEAN;
+
+        -- ---------------------------------------------------------------
+        -- 2.1-A3  GATE DO ESTADO DECLARADO — FAIL-CLOSED, ESTRUTURAL
+        -- ---------------------------------------------------------------
+        -- Prova, antes dos mappings e antes de qualquer medição, que cada
+        -- trait declarado em `ec_traits` está no LIVE com EXATAMENTE o
+        -- `is_active` que a fixture declarou. Fixture física incorreta não
+        -- pode chegar à medição: isso não é FAIL de caso, é defeito de
+        -- montagem, e por isso levanta exception estrutural nomeada — não
+        -- entra em v_errs, não vira PASS/FAIL de vetor.
+        --
+        -- Traits IMPLÍCITOS — citados só em mapping/profile e ausentes de
+        -- `ec_traits` — permanecem fora deste gate: eles nascem ATIVOS por
+        -- contrato do harness e a fixture não declara estado para eles.
+        SELECT string_agg(format('%s(esperado=%s, efetivo=%s)',
+                                 x->>'id', x->>'is_active', t.is_active), '; ')
+          INTO v_state_bad
+          FROM jsonb_array_elements(COALESCE(v_vec->'ec_traits','[]'::JSONB)) x
+          LEFT JOIN public.card_edition_context_trait t
+                 ON t.id = (v_sym2uuid->>(x->>'id'))::UUID
+         WHERE t.id IS NULL
+            OR t.is_active IS DISTINCT FROM (x->>'is_active')::BOOLEAN;
+
+        IF v_state_bad IS NOT NULL THEN
+            RAISE EXCEPTION 'S2 ABORT (%): EC_TRAIT_DECLARED_STATE_MISMATCH — %. O estado declarado pela fixture nao foi materializado no LIVE; a montagem esta errada e o vetor NAO pode ser medido.',
+                v_vec->>'id', v_state_bad;
+        END IF;
+
         -- mappings
         FOR v_map IN SELECT m FROM jsonb_array_elements(COALESCE(v_vec->'ec_mappings','[]'::JSONB)) m LOOP
             v_tok := split_part(p->'bindings'->'tokens'->>(v_map->>'token'), ' ', 1);
 
+            -- v2.5: SEM `external_token`. Essa coluna não existe em
+            -- card_edition_context_external_mapping e nunca existiu: ela
+            -- pertence a card_printing_external_mapping. O eixo 3 escopa por
+            -- Card Set (`external_set_id`); o eixo de Printing identifica por
+            -- token externo (`external_token`). As duas tabelas não
+            -- compartilham assinatura, e 2207/2232/2211/Edge são unânimes —
+            -- nenhum deles menciona `external_token`. A v2.4 escrevia a
+            -- assinatura de Printing aqui; era a causa do 42703 na
+            -- LIVE-EXECUTION-04.
             INSERT INTO public.card_edition_context_external_mapping
                 (game_id, asset_source_id, external_set_id, raw_field,
-                 normalized_token, external_token, is_active)
+                 normalized_token, is_active)
             VALUES (v_game, v_src,
                     CASE WHEN v_map->>'scope' IS NULL THEN NULL ELSE 'VEC2834A' END,
-                    v_map->>'raw_field', v_tok, v_tok,
+                    v_map->>'raw_field', v_tok,
                     (v_map->>'is_active')::BOOLEAN)
             RETURNING id INTO v_map_id;
 
@@ -1397,7 +1532,7 @@ BEGIN
       INTO v_pass, v_fail, v_skip, v_rows, v_vec_seen
       FROM _res2834;
 
-    RAISE NOTICE '=== 2834 v2.4 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
+    RAISE NOTICE '=== 2834 v2.5 — % PASS / % FAIL / % SKIP em % caso(s), % vetor(es) ===',
         v_pass, v_fail, v_skip, v_rows, v_vec_seen;
     RAISE NOTICE '=== esperado pela fixture: % caso(s), % vetor(es), % estado(s) ===',
         v_n_cases, v_n_vectors, v_n_vocab;

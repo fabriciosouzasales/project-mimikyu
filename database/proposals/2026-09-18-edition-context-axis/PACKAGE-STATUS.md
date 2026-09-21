@@ -218,7 +218,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** v2.4 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — três tentativas abortaram (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `-02`: `family` NULL · `-03`: colisão de `display_order`); ver itens 4, 5 e 6 dos bloqueios |
+| **`2834`** v2.5 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO EXECUTADO COM SUCESSO** — quatro tentativas abortaram (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `-02`: `family` NULL · `-03`: colisão de `display_order` · `-04`: `external_token` inexistente no mapping de Edition Context); ver itens 4 a 7 dos bloqueios. O item 8 registra um quinto defeito (lifecycle do trait inativo em E4) **encontrado por auditoria, não por execução** |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -434,6 +434,64 @@ dois:
    alterada** — `display_order` é scaffold físico, como `type` e `family`:
    não participa da identidade nem de `traits_signature`, e nenhum dos dois
    contratos o lê (medido: `prosrc ILIKE '%display_order%'` = false).
+
+7. **`BATCH7-2834-LIVE-EXECUTION-04` → STOP** *(aberto — correção preparada,
+   ainda não executada)*
+
+   *Erro:* SQLSTATE **42703** — `column "external_token" of relation
+   "card_edition_context_external_mapping" does not exist`.
+
+   *Causa:* **vazamento de modelo entre Edition Context e Printing.** O INSERT
+   do mapping de Edition Context escrevia `external_token`, coluna que existe
+   apenas em `card_printing_external_mapping`. Não é erro de digitação: é a
+   assinatura de uma tabela aplicada a outra. O eixo 3 escopa por Card Set
+   (`external_set_id`); o eixo de Printing identifica por token externo
+   (`external_token`). As duas tabelas **não compartilham assinatura** —
+   `card_edition_context_external_mapping` não tem `external_token`, e
+   `card_printing_external_mapping` não tem `external_set_id`. Medição nos
+   artefatos: `2207` = 0, `2232` = 0, `2211` = 0, Edge = 0, `2172` = 2. O
+   harness era o **único** artefato do eixo 3 a mencionar o token.
+
+   *Impacto:* **ZERO persistente**, comprovado por postcheck read-only
+   aprovado — zero resíduo `VEC2834*` nas dez tabelas, nenhuma temp table
+   remanescente, baseline operacional **1642** com Edition Context
+   **1092 / 550 / 0** intacto, CANCELLED **847 / 415** intacto, catálogos
+   intactos (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger.
+
+   *Estado:* correção **v2.5 preparada, ainda NÃO EXECUTADA**. Remove
+   `external_token` e o segundo `v_tok` **somente** do INSERT de Edition
+   Context; o INSERT de `card_printing_external_mapping` **continua**
+   escrevendo `external_token`, onde a coluna existe e é NOT NULL. Contagem no
+   runner v2.5: EC = 0, Printing = 1.
+
+8. **Blocker preventivo — lifecycle do trait inativo (E4)**
+   *(encontrado pela `MODELING-RECONCILIATION-01`, **antes** de aparecer em
+   execução LIVE — nunca chegou a produzir um STOP próprio)*
+
+   A auditoria mecânica dos **onze** DML do runner contra o catálogo canônico
+   encontrou um defeito que nenhuma execução tinha alcançado: o vetor **E4**
+   não era montável pela ordem da v2.4. E4 declara `T_OFF` com
+   `is_active:false` e o coloca em `PF_A`; a v2.4 criava o trait já inativo e
+   em seguida inseria a N:N, onde `trg_cecpt_trait_active` (BEFORE INSERT em
+   `card_edition_context_profile_trait`) levanta
+   `EDITION_CONTEXT_TRAIT_INACTIVE`. A `LIVE-EXECUTION-04` abortou **antes**
+   desse ponto, no 42703 — por isso o defeito não apareceu lá.
+
+   *Nem a fixture nem o guard estão errados.* E4 representa um profile
+   **histórico** cujo trait foi inativado **depois** de composto, e existe para
+   travar a ordem de avaliação da `2211` (trait inativo tem precedência sobre a
+   busca de profile). Errada era a ordem de montagem do harness.
+
+   *Estado:* corrigido na **v2.5**, que monta na ordem do domínio — trait
+   **ativo** → profile → N:N → selo (`trg_cecp_seal` IMMEDIATE → prova →
+   DEFERRED) → aplica o `is_active` declarado → **gate de estado** → mappings →
+   medição. **Nenhum trigger desabilitado, nenhum constraint alterado, nenhum
+   bypass.** O guard segue recusando exatamente o que sempre recusou. O gate
+   novo (`EC_TRAIT_DECLARED_STATE_MISMATCH`) é estrutural e fail-closed:
+   fixture física incorreta aborta o harness em vez de chegar à medição
+   disfarçada de FAIL de caso. Traits **implícitos** — citados só em
+   mapping/profile e ausentes de `ec_traits` — continuam nascendo ativos e
+   ficam fora do gate. **Fixture JSON não alterada.**
 
 O bloqueio de item 2 (`2213`) não é resolvível por quem escreve SQL: depende
 de decisão de Fabrício sobre o vocabulário e sobre a linhagem.
