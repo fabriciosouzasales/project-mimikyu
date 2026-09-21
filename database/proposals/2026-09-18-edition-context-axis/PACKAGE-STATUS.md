@@ -61,6 +61,13 @@ lido como registro — nunca como estado.
 | Índices do mapping | `uq_cecem_active_global` · `uq_cecem_active_scoped` · `ix_cecem_token` | `2207` v4.0 |
 | Artefatos executáveis | **23**, todos armados em `COMMIT;` | `ROLLOUT-ORDER.md` |
 | Arquivos no pacote | **55** (31 `.sql` · 21 `.md` · 2 em `edge/`) | `ls` |
+| **Batch 7** | **CLOSED** — `2219` · `2220` · `2221` · `2222` no ledger; `2834` **PASS** no LIVE | ledger + `LIVE-EXECUTION-06` |
+| **`2834`** | **contrato funcional VALIDADO NO LIVE / PASS / CLOSED** — 18/18 casos · 17/17 vetores · 8/8 estados · **0 FAIL · 0 SKIP** · zero resíduo persistente. Validado **via envelope transitório v2.7 auditado**, não por execução direta do arquivo canônico | `LIVE-EXECUTION-06` |
+| Runner CANÔNICO do eixo 3 | **`2834` v2.6** (blob `fbabf0bf…`) — autoridade do repositório; **não foi o arquivo literalmente executado** | `BATCH7-2834-LIVE-CLOSEOUT-01` |
+| Artefato EXECUTADO no LIVE | **envelope transitório v2.7** (MD5 `78acff39…`), single-statement, rodado **no SQL Editor**. Auditado: seus 9 `EXECUTE` recompõem exatamente o transient v2.6. **NÃO é autoridade e não deve ser incorporado ao runner** — ver item 10 | `BATCH7-2834-LIVE-CLOSEOUT-01` |
+| FREEZE de importação | **ATIVO** | etapa 3 do `ROLLOUT-ORDER.md` |
+| `2214` (guard estrito) | **NÃO EXECUTADA / BLOQUEADA** — ledger = 0; depende da Edge (Batch 8) | Batch 8-BIS |
+| Próximo estágio | **Batch 8 — EDGE** | `EXECUTION-BATCHES.md` |
 
 ## HISTORICAL MEASUREMENT — registro, NÃO estado
 
@@ -218,7 +225,7 @@ os casos que o mandato mandou cobrir.
 | Artefato | Cobertura |
 |---|---|
 | `2830` v6.0 | 114 casos automáticos em 12 de 14 seções · 4 pendentes de `2213` · 3 manuais |
-| **`2834`** v2.6 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos potencialmente executáveis, ZERO SKIP planejado**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **AINDA NÃO PROVADO** — quatro tentativas abortaram estruturalmente (`LIVE-EXECUTION-01`: `raw_data.type` ausente · `-02`: `family` NULL · `-03`: colisão de `display_order` · `-04`: `external_token` inexistente no mapping de Edition Context) e a quinta (`-05`) **rodou inteira e parou no S3 com 2 PASS / 16 FAIL**, por bug de JSON `null` na montagem do raw; ver itens 4 a 7 e 9 dos bloqueios. O item 8 registra um sexto defeito (lifecycle do trait inativo em E4) **encontrado por auditoria, não por execução** |
+| **`2834`** v2.6 | **runner SQL da fixture compartilhada do eixo 3** — **17 vetores / 18 casos, ZERO SKIP**. Monta fixture sintética de Impressão por vetor, em subtransação PL/pgSQL desfeita por sentinel `P2834`. **LIVE / PASS / CLOSED** na `LIVE-EXECUTION-06`: 18/18 PASS, 17/17 vetores, 8/8 estados, 0 FAIL, 0 SKIP, zero resíduo. Chegar lá custou seis tentativas — `-01` `raw_data.type` ausente · `-02` `family` NULL · `-03` colisão de `display_order` · `-04` `external_token` inexistente no mapping de EC · `-05` STOP semântico (2 PASS / 16 FAIL) por JSON `null` na montagem do raw; ver itens 4 a 7, 9 e 10 dos bloqueios. O item 8 registra um sexto defeito (lifecycle do trait inativo em E4) **encontrado por auditoria, não por execução** |
 | `2831` v2.0 | simulação da decomposição legada; termina em `ROLLBACK` |
 | `2832` v3.0 | 14 casos da resolução operacional |
 | `2833` v2.0 | 11 gates; matriz de state machine job-aware que **mede** em vez de afirmar |
@@ -335,13 +342,17 @@ dois:
    Nenhum FAIL vira exceção; selos, guards, FKs e imutabilidade permanecem
    exatamente como estão.
 
-   **O `2834` continua NÃO EXECUTADO com sucesso.** Os números acima são a
-   capacidade do runner, não um resultado medido. O critério de
-   `EXECUTION-BATCHES.md` — *"`2834` com todos os vetores PASS"* — permanece
-   intacto e é o que decide.
+   > **SUPERADO (`BATCH7-2834-LIVE-CLOSEOUT-01`).** Esta linha dizia *"o
+   > `2834` continua NÃO EXECUTADO com sucesso"* e que os números eram
+   > *"capacidade do runner, não um resultado medido"*. Isso valia até a
+   > `LIVE-EXECUTION-05`. Desde a **`LIVE-EXECUTION-06`** o `2834` está
+   > **LIVE / PASS / CLOSED** e os números são **resultado medido**: 18/18
+   > casos, 17/17 vetores, 8/8 estados, 0 FAIL, 0 SKIP. O critério de
+   > `EXECUTION-BATCHES.md` — *"`2834` com todos os vetores PASS"* —
+   > permaneceu intacto e foi **satisfeito**. Ver item 10.
 
-4. **`BATCH7-2834-LIVE-EXECUTION-01` → STOP** *(aberto — correção preparada,
-   ainda não executada)*
+4. **`BATCH7-2834-LIVE-EXECUTION-01` → STOP** *(HISTÓRICO — fechado pela
+   `LIVE-EXECUTION-06`; registro preservado)*
 
    *Erro:* `COMPUTE_VARIANT_RESIDUAL_SIGNATURE_MISSING_TYPE: raw_data.type
    ausente.`
@@ -372,8 +383,8 @@ dois:
    ser alcançado, de modo que `compute_variant_residual_signature()` nunca
    chegou a ser chamada. A correção de `type` permanece **não exercitada**.
 
-5. **`BATCH7-2834-LIVE-EXECUTION-02` → STOP** *(aberto — correção preparada,
-   ainda não executada)*
+5. **`BATCH7-2834-LIVE-EXECUTION-02` → STOP** *(HISTÓRICO — fechado pela
+   `LIVE-EXECUTION-06`; registro preservado)*
 
    *Erro:* SQLSTATE **23502** — `null value in column "family" of relation
    "card_edition_context_trait" violates not-null constraint`.
@@ -391,7 +402,7 @@ dois:
    (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger. O erro
    ocorreu no primeiro INSERT do primeiro vetor, dentro da subtransação.
 
-   *Estado:* correção **v2.3 preparada, ainda NÃO EXECUTADA**. Os dois
+   *Estado:* correção **v2.3** — superada; fechada na `LIVE-EXECUTION-06` (v2.6). Os dois
    caminhos passam a declarar `family = 'ARTWORK_MARK'`. **Fixture JSON não
    alterada**: `family` é scaffold físico do schema — não participa da
    identidade (PK é `(id)`; a unicidade de negócio é `uq_cect_game_code`), não
@@ -404,8 +415,8 @@ dois:
    `display_order` sintéticos reiniciam a cada vetor porque a subtransação
    desfaz os anteriores.
 
-6. **`BATCH7-2834-LIVE-EXECUTION-03` → STOP** *(aberto — correção preparada,
-   ainda não executada)*
+6. **`BATCH7-2834-LIVE-EXECUTION-03` → STOP** *(HISTÓRICO — fechado pela
+   `LIVE-EXECUTION-06`; registro preservado)*
 
    *Erro:* SQLSTATE **23505** — `duplicate key value violates unique
    constraint "uq_cecp_game_order"`, chave `(game_id POKEMON,
@@ -422,7 +433,7 @@ dois:
    intacto, CANCELLED **847 / 415** intacto, catálogos intactos
    (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger.
 
-   *Estado:* correção **v2.4 preparada, ainda NÃO EXECUTADA**. A correção
+   *Estado:* correção **v2.4** — superada; fechada na `LIVE-EXECUTION-06` (v2.6). A correção
    **fecha a CLASSE**, não apenas o objeto que falhou: as quatro tabelas
    sintéticas têm UNIQUE sobre `display_order` e as quatro usavam o mesmo
    literal — só o EC Profile colidiu porque só nele o dado real alcança 1000;
@@ -435,8 +446,8 @@ dois:
    não participa da identidade nem de `traits_signature`, e nenhum dos dois
    contratos o lê (medido: `prosrc ILIKE '%display_order%'` = false).
 
-7. **`BATCH7-2834-LIVE-EXECUTION-04` → STOP** *(aberto — correção preparada,
-   ainda não executada)*
+7. **`BATCH7-2834-LIVE-EXECUTION-04` → STOP** *(HISTÓRICO — fechado pela
+   `LIVE-EXECUTION-06`; registro preservado)*
 
    *Erro:* SQLSTATE **42703** — `column "external_token" of relation
    "card_edition_context_external_mapping" does not exist`.
@@ -458,7 +469,7 @@ dois:
    **1092 / 550 / 0** intacto, CANCELLED **847 / 415** intacto, catálogos
    intactos (EC 115/144/122 · Printing 9/11/10), `2214` **= 0** no ledger.
 
-   *Estado:* correção **v2.5 preparada, ainda NÃO EXECUTADA**. Remove
+   *Estado:* correção **v2.5** — superada; fechada na `LIVE-EXECUTION-06` (v2.6). Remove
    `external_token` e o segundo `v_tok` **somente** do INSERT de Edition
    Context; o INSERT de `card_printing_external_mapping` **continua**
    escrevendo `external_token`, onde a coluna existe e é NOT NULL. Contagem no
@@ -466,7 +477,8 @@ dois:
 
 8. **Blocker preventivo — lifecycle do trait inativo (E4)**
    *(encontrado pela `MODELING-RECONCILIATION-01`, **antes** de aparecer em
-   execução LIVE — nunca chegou a produzir um STOP próprio)*
+   execução LIVE — nunca chegou a produzir um STOP próprio; **HISTÓRICO**,
+   fechado pela `LIVE-EXECUTION-06`)*
 
    A auditoria mecânica do DML do runner contra o catálogo canônico — a v2.4
    tinha 11 DML, todos INSERT; a v2.5 tem os **12 DML atuais (11 INSERTs +
@@ -495,8 +507,8 @@ dois:
    mapping/profile e ausentes de `ec_traits` — continuam nascendo ativos e
    ficam fora do gate. **Fixture JSON não alterada.**
 
-9. **`BATCH7-2834-LIVE-EXECUTION-05` → STOP SEMÂNTICO** *(aberto — correção
-   preparada, ainda não revalidada)*
+9. **`BATCH7-2834-LIVE-EXECUTION-05` → STOP SEMÂNTICO** *(HISTÓRICO — fechado
+   pela `LIVE-EXECUTION-06`; registro preservado)*
 
    **Natureza diferente de todos os anteriores.** Não houve aborto estrutural:
    o runner v2.5 atravessou S0, S1, S2, montou os 17 vetores, mediu **18 de 18
@@ -528,7 +540,10 @@ dois:
    nas dez tabelas, 1642 operacional, tri-state **1092 / 550 / 0**, CANCELLED
    **847 / 415**, catálogos EC 115/144/122 e Printing 9/11/10, `2214` = 0.
 
-   *Estado:* correção **v2.6 preparada, ainda NÃO EXECUTADA**. A seleção de
+   *Estado:* **v2.6 é a versão CANÔNICA**, e seu **contrato funcional foi
+   VALIDADO NO LIVE** na `LIVE-EXECUTION-06` — via o envelope transitório
+   **v2.7**, auditado como recomposição exata do corpo funcional v2.6. O
+   arquivo v2.6 não foi o arquivo literalmente executado; ver item 10. A seleção de
    ramo passa a usar `jsonb_typeof(…) = 'object'` nos dois sítios que
    consultavam a chave, mais um gate fail-closed `RAW_BEFORE_TYPE_INVALID`
    (admissíveis: `object`, `null`). **Fixture não alterada**, `expected` não
@@ -538,6 +553,49 @@ dois:
    > a fixture e o contrato do eixo 3 continuam sem prova. Só uma execução
    > nova da v2.6 dirá o que o contrato realmente faz — e ela pode muito bem
    > revelar divergências reais que o bug do harness estava mascarando.
+
+10. **`BATCH7-2834-LIVE-EXECUTION-06` → PASS / CLOSED** — **a execução
+    bem-sucedida.** Encerra os itens 4 a 9.
+
+    *Resultado LIVE:* `Success. No rows returned`. O S3 permaneceu intacto e
+    fail-closed, então alcançar o fim sem exception **é** a prova: o gate só
+    deixa passar com **18/18 casos PASS · 17/17 vetores cobertos · 8/8 estados
+    cobertos · 0 FAIL · 0 SKIP**.
+
+    *Postcheck independente, 8/8:* resíduo `VEC2834*` **0** · temp tables **0**
+    · operacional **1.642** · EC UUID/NULL/ABSENT **1.092/550/0** · CANCELLED
+    total/VALID+PENDING **847/415** · catálogos EC **115/144/122** · Printing
+    **9/11/10** · ledger `2214` **0**. **Zero resíduo persistente.**
+
+    *Canal de execução — o que de fato aconteceu.* **A execução final
+    bem-sucedida ocorreu NO SQL EDITOR do Supabase.** O SQL Editor não foi
+    descartado; o que falhou foi o **modo multi-statement**, que não preserva
+    TEMP TABLEs entre statements — provado por probe mínimo independente do
+    `2834` (`42P01 relation "_mmkyu_tx_probe" does not exist`). O caminho
+    `psql` + Session Pooler chegou a ser investigado e **foi abandonado**.
+    Em seguida, **dois probes independentes** provaram que o SQL Editor
+    suporta **single-statement** e **`DO` aninhado**, e foi por aí que a
+    execução passou: o **envelope single-statement v2.7**, que embrulha o
+    mesmo SQL em `EXECUTE` sem alterar uma linha de lógica funcional. O
+    **JIT/Temporary Access foi encerrado ANTES da execução final** —
+    `mappings = 0`, `state = disabled`, `appliedSuccessfully = true`.
+
+    > ### ARTEFATO CANÔNICO × ARTEFATO EXECUTADO — não confundir
+    >
+    > | Artefato | Papel |
+    > |---|---|
+    > | **`2834` v2.6** — blob `fbabf0bf7409d8f6078c215d6250beed5b9dbd48` | **RUNNER CANÔNICO / autoridade do repositório.** Única autoridade sobre a semântica do harness. **NÃO foi o arquivo literalmente executado** |
+    > | **Transient v2.6** — MD5 `21f81b065a1690dded7d9cd248bc7e0c` · SHA-256 `4743baf1…fc924` | **corpo funcional auditado** — a v2.6 com a fixture materializada no placeholder; reversível byte a byte ao v2.6 |
+    > | **Envelope v2.7** — MD5 `78acff393a1c2131867c7217bc064130` · SHA-256 `8e98696d…448a43` | **ARTEFATO OPERACIONAL TRANSITÓRIO — este foi o efetivamente EXECUTADO** no SQL Editor. A auditoria provou que, removido o wrapper, seus **9 `EXECUTE`** recompõem **exatamente** o transient v2.6 funcional |
+    >
+    > **Leitura correta do resultado:** o PASS no LIVE **valida o contrato
+    > funcional canônico da v2.6** — mas o arquivo v2.6 não foi o arquivo
+    > literalmente executado. A ponte entre os dois é a auditoria de
+    > recomposição do v2.7, não uma execução direta do canônico.
+    >
+    > **O v2.7 NÃO vira autoridade canônica** e **não deve ser incorporado ao
+    > runner**, promovido, nem versionado como tal. Qualquer alteração de
+    > fixture ou de semântica do harness exige mandato novo.
 
 O bloqueio de item 2 (`2213`) não é resolvível por quem escreve SQL: depende
 de decisão de Fabrício sobre o vocabulário e sobre a linhagem.

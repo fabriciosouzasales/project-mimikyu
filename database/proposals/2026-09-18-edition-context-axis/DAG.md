@@ -174,7 +174,7 @@ precisa ficar explícita para nunca mais ser lida errado.
              passou cs.code como escopo → 66 rows com JSON null indevido
    │
    ▼
-2233       ── INCIDENT REPAIR · PENDENTE
+2233       ── INCIDENT REPAIR · ✅ EXECUTADA (ledger 20260920195704)
              66 rows NULL→UUID · 1026/616/0 → 1092/550/0
    │
    ▼
@@ -202,13 +202,29 @@ números. O mesmo vale para o `RP_G5_DELTA_SIZE` (delta = 66): num ambiente
 limpo o delta é 0. O replay indevido é impossível por construção, não por
 convenção.
 
-**A EXECUTAR** — `2233` *(reparo de incidente)* → `2832` → `2833`
-*(Batch 6)* → `2219`…`2222` → `2834` *(Batch 7)* → **Edge** *(Batch 8)* →
-`2214` *(Batch 8-BIS)* → **`2217` (EXPAND)** → **`2218` (SWITCH)** →
-**`2223` (CONTRACT)** *(Batch 9)* → `2209` *(Batch 10)* → `2215` → `2216`
-*(Batch 11)* → `2830` → `UNFREEZE` *(Batch 12)* → `2831` → `2213`
+**JÁ EXECUTADO** — `2233` *(reparo de incidente)* → `2832` → `2833`
+*(Batch 6)* → `2219` · `2220` · `2221` · `2222` → **`2834` PASS**
+*(Batch 7 · **CLOSED**)*
+
+**A EXECUTAR** — **Edge** *(Batch 8 · próximo)* → `2214` *(Batch 8-BIS)* →
+**`2217` (EXPAND)** → **`2218` (SWITCH)** → **`2223` (CONTRACT)** *(Batch 9)* →
+`2209` *(Batch 10)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
+*(Batch 12)* → `2831` → `2213`
 
 **27 passos.** Todo predecessor da tabela acima aparece antes de seu sucessor.
+
+> **Fechamento do Batch 7 (`BATCH7-2834-LIVE-CLOSEOUT-01`).** `2219`–`2222` no
+> ledger (`20260920212007` · `20260920212555` · `20260920214852` ·
+> `20260920215837`); `2834` **PASS** no LIVE — 18/18 casos, 17/17 vetores, 8/8
+> estados, 0 FAIL, 0 SKIP, zero resíduo persistente. O **FREEZE segue ATIVO** e
+> a **`2214` segue NÃO EXECUTADA** (ledger = 0): ela é Batch 8-BIS e depende da
+> Edge. **Artefato canônico × artefato executado:** o runner canônico é o
+> **`2834` v2.6** (autoridade do repositório, **não foi o arquivo literalmente
+> executado**); o executado foi o **envelope transitório v2.7**,
+> single-statement, rodado **no próprio SQL Editor** — cuja auditoria provou
+> que, removido o wrapper, seus 9 `EXECUTE` recompõem exatamente o transient
+> v2.6. O PASS valida o **contrato funcional canônico**. O v2.7 **não é
+> autoridade e não deve ser incorporado ao runner**.
 
 **Duas correções de ordem nesta rodada**, ambas porque a projeção operacional
 divergia da tabela de dependências — que já estava certa nos dois casos:

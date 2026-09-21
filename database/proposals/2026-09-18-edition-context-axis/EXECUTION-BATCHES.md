@@ -672,15 +672,43 @@ que mude prova que a `2212` vazou para o histórico terminal — **STOP**.
 
 ---
 
-## Batch 7 — CONSUMIDORES B + VETORES
+## Batch 7 — CONSUMIDORES B + VETORES · ✅ **CLOSED**
 
-| Ordem | Artefato |
-|---|---|
-| 1 | `2219` · `apply_variant_type_mapping` |
-| 2 | `2220` · read contract |
-| 3 | `2221` · `admin_resolve_printing_mapping` |
-| 4 | `2222` · `create_card_printing_profile_with_backfill` |
-| 5 | `2834` · runner dos vetores (read-only, `ROLLBACK`) |
+> **FECHADO em `BATCH7-2834-LIVE-CLOSEOUT-01`.** Os quatro consumidores estão
+> no ledger e o `2834` passou no LIVE. Critério de prosseguir satisfeito;
+> próximo estágio é o **Batch 8 — EDGE**.
+
+| Ordem | Artefato | Estado |
+|---|---|---|
+| 1 | `2219` · `apply_variant_type_mapping` | **CLOSED** — ledger `20260920212007` |
+| 2 | `2220` · read contract | **CLOSED** — ledger `20260920212555` |
+| 3 | `2221` · `admin_resolve_printing_mapping` | **CLOSED** — ledger `20260920214852` |
+| 4 | `2222` · `create_card_printing_profile_with_backfill` | **CLOSED** — ledger `20260920215837` |
+| 5 | `2834` · runner dos vetores (read-only, `ROLLBACK`) | **PASS / CLOSED** — `LIVE-EXECUTION-06` |
+
+**Evidência do `2834`:** 18/18 casos PASS · 17/17 vetores · 8/8 estados ·
+**0 FAIL · 0 SKIP** · zero resíduo persistente (postcheck 8/8). O S3 é
+fail-closed: terminar sem exception já implica todos esses números.
+
+**Canal de execução.** A execução final bem-sucedida ocorreu **no SQL Editor do
+Supabase**. O que falhou foi o **modo multi-statement**, que não preserva TEMP
+TABLEs entre statements — provado por probe mínimo independente do `2834`
+(`42P01 relation "_mmkyu_tx_probe" does not exist`). O caminho `psql` + Session
+Pooler foi investigado e **abandonado**; em seguida **dois probes
+independentes** provaram single-statement e `DO` aninhado no próprio SQL
+Editor, e foi assim que passou: **envelope single-statement v2.7**. O
+JIT/Temporary Access foi **encerrado antes da execução final**.
+
+**Artefato canônico × artefato executado.** O **runner canônico é o `2834`
+v2.6**; o **artefato efetivamente executado foi o envelope v2.7**, cuja
+auditoria provou que, removido o wrapper, seus **9 `EXECUTE`** recompõem
+exatamente o transient v2.6 funcional. O PASS **valida o contrato funcional
+canônico**, mas o arquivo v2.6 não foi o literalmente executado. O v2.7 **não
+vira autoridade canônica e não deve ser incorporado ao runner**.
+
+Seis tentativas até aqui: `-01` `raw_data.type` · `-02` `family` NULL · `-03`
+`display_order` · `-04` `external_token` · `-05` STOP semântico (JSON `null`) ·
+**`-06` PASS**. O histórico completo está em `PACKAGE-STATUS.md`, itens 4 a 10.
 
 Cada um dos quatro traz postcheck fail-loud próprio (sobrecarga = 1).
 
