@@ -131,7 +131,7 @@ coluna existe do lado de `card_variant`.
 | **`2833`** | 2832 | 2214 | ❌ |
 | `2214` | 2833 · **Edge deployada** | 2216 | ❌ |
 | `2219`–`2222` | 2211 | Edge · 2217 | ✅ entre si (funções disjuntas) |
-| **Edge** | 2211 · 2219–2222 | 2214 · 2217 | ❌ |
+| **Edge** ✅ **v15 ACTIVE** | 2211 · 2219–2222 | 2214 · 2217 | ❌ |
 | `2217` **EXPAND** | 2208 | 2218 | ❌ — **não** depende mais da 2218: cria a de 7 e preserva a de 6 |
 | `2218` **SWITCH** | 2211 · 2217 (a de 7 precisa existir) | 2223 | ❌ |
 | `2223` **CONTRACT** | 2218 (confirm já chama com 7) | 2209 | ❌ |
@@ -204,9 +204,10 @@ convenção.
 
 **JÁ EXECUTADO** — `2233` *(reparo de incidente)* → `2832` → `2833`
 *(Batch 6)* → `2219` · `2220` · `2221` · `2222` → **`2834` PASS**
-*(Batch 7 · **CLOSED**)*
+*(Batch 7 · **CLOSED**)* → **Edge DEPLOYADA · v15 ACTIVE**
+*(Batch 8 · **CLOSED**)*
 
-**A EXECUTAR** — **Edge** *(Batch 8 · próximo)* → `2214` *(Batch 8-BIS)* →
+**A EXECUTAR** — `2214` *(Batch 8-BIS · **próximo**)* →
 **`2217` (EXPAND)** → **`2218` (SWITCH)** → **`2223` (CONTRACT)** *(Batch 9)* →
 `2209` *(Batch 10)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
 *(Batch 12)* → `2831` → `2213`
@@ -225,6 +226,28 @@ convenção.
 > que, removido o wrapper, seus 9 `EXECUTE` recompõem exatamente o transient
 > v2.6. O PASS valida o **contrato funcional canônico**. O v2.7 **não é
 > autoridade e não deve ser incorporado ao runner**.
+
+> **Fechamento do Batch 8 (`BATCH8-EDGE-CLOSEOUT-01`).** `import-card-variants`
+> **v15 ACTIVE**, `verify_jwt=true`. O eixo 3 foi para
+> `services/edition-context.ts` — módulo próprio e exportado, **não** inline no
+> `index.ts` como o documento de desenho previa: `index.ts` registra o servidor
+> no topo e não exporta nada, então uma função declarada lá não poderia ser
+> importada por um teste sem subir um listener, e o teste voltaria a precisar de
+> réplica. Provas: `deno check` PASS · **136/136** · **74/74** · **12/12**.
+> Postdeploy **sob FREEZE**: PRE v14 × POST v15 iguais nos cinco probes; D/E
+> param antes do primeiro write; **nenhum job, nenhum SQL, rollback
+> desnecessário**.
+>
+> **O FREEZE segue ATIVO** e a **`2214` segue NÃO EXECUTADA** (ledger = 0) — mas
+> a sua pré-condição *"Edge deployada"* está agora **satisfeita**: ela é o
+> próximo estágio.
+>
+> **Limite declarado:** a compatibilidade funcional com **importação real**
+> permanece **NÃO PROVADA até o UNFREEZE**. Sem job novo, os preloads, o
+> roteamento, o `normalized_data` de três chaves e a identidade de 4
+> componentes **não rodaram contra dado real**. O que existe é **equivalência
+> de contrato** — mesma fixture, dois runners independentes (`2834` no LIVE,
+> suíte Deno agora) —, não concordância observada em produção.
 
 **Duas correções de ordem nesta rodada**, ambas porque a projeção operacional
 divergia da tabela de dependências — que já estava certa nos dois casos:

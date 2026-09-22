@@ -456,6 +456,102 @@ export function buildPrintingProfileKeyPart(printingProfileId: string | null | u
   return printingProfileId ?? NO_PRINTING_PROFILE_KEY;
 }
 
+// Sentinela do TERCEIRO eixo. Mesma razão, mesmo alfabeto: `~` (0x7E) não
+// pertence a um UUID canônico, então nenhum UUID real colide com ele.
+//
+// Um sentinela SEPARADO do de Printing não é preciosismo: as duas partes
+// ocupam posições distintas na chave e precisam ser lidas de forma
+// independente em telemetria e log. Reaproveitar a mesma constante tornaria
+// impossível distinguir "sem tiragem" de "sem contexto" ao inspecionar a
+// chave crua.
+export const NO_EDITION_CONTEXT_KEY = "~";
+
+export function buildEditionContextKeyPart(
+  editionContextProfileId: string | null | undefined,
+): string {
+  return editionContextProfileId ?? NO_EDITION_CONTEXT_KEY;
+}
+
+// IDENTIDADE CANÔNICA DE UMA VARIANTE, EM UM ÚNICO LUGAR.
+//
+// Card + Variant Type + Perfil de Impressão + Perfil de Contexto de Edição.
+// São os QUATRO componentes que a Query 2179 compara com
+// `IS NOT DISTINCT FROM` no confirm, e que a Query 2209 sela como índice
+// único de identidade.
+//
+// POR QUE UM HELPER, E NÃO TRÊS TEMPLATES IGUAIS: esta chave é montada em
+// três lugares — o dedupe de linhas resolvidas, o lookup de matching
+// (MATCHED × NEW) e o mapa de variantes já existentes. Enquanto os três
+// fossem literais independentes, bastava um deles esquecer um componente
+// para que o mapa e o lookup deixassem de casar, em silêncio: toda linha
+// viraria NEW, ou — pior — duas Variants REAIS que diferem só no eixo novo
+// colidiriam na mesma entrada e a segunda seria classificada MATCHED contra
+// a primeira e nunca criada. É o mesmo defeito que a Query 2179 fechou do
+// lado do banco, e é bloqueante, não cosmético. Com um único construtor, a
+// divergência deixa de ser possível por construção.
+//
+// Devolve a chave NUA. Prefixos de espaço de dedupe (`R|`) são
+// responsabilidade de quem deduplica, porque pertencem ao espaço de chaves,
+// não à identidade.
+export function buildVariantIdentityKey(
+  cardId: string,
+  variantTypeId: string | null,
+  printingProfileId: string | null | undefined,
+  editionContextProfileId: string | null | undefined,
+): string {
+  return `${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printingProfileId)}|${
+    buildEditionContextKeyPart(editionContextProfileId)
+  }`;
+}
+
+// TRI-STATE de normalized_data — os três desfechos das Queries 2221/2222, na
+// mesma ordem.
+//
+//   A. Impressão resolvida + Contexto resolvido + Variant Type resolvido
+//      -> as TRÊS chaves presentes, VALID.
+//
+//   B. Impressão e Contexto resolvidos + Variant Type NÃO resolvido
+//      -> os dois perfis permanecem explícitos (JSON null ou UUID); o
+//      variant_type_id é que fica de fora. NEEDS_REVIEW.
+//
+//   C. Impressão OU Contexto não resolvido
+//      -> NENHUMA chave, NEEDS_REVIEW.
+//
+// O porquê de C ser mais severo do que parece: cada eixo consome os tokens
+// que lhe pertencem ANTES de o resíduo seguir adiante. Se um eixo não
+// resolveu, o resíduo foi derivado de uma premissa que não se sustenta, e o
+// variant_type_id encontrado a partir dele é uma conclusão correta tirada de
+// premissa inválida. Gravá-lo seria preservar a conclusão e jogar fora a
+// dúvida.
+//
+// Gravar a chave do eixo 3 quando ele NÃO resolveu — ainda que como `null` —
+// seria afirmar "resolvido sem contexto" sobre uma linha cujo contexto é
+// indeterminado: exatamente o defeito semântico que a
+// BACKFILL-SEMANTICS-CORRECTION-01 eliminou do lado SQL.
+//
+// Ausência nunca significa null: `jsonb_typeof` distingue os dois, `->>` não,
+// e é sobre essa distinção que os índices de identidade da Query 2177 e o
+// guard da Query 2179 se apoiam.
+//
+// Função pura, exportada, e não um bloco inline no index.ts: é o que permite
+// ao teste de vetores provar `edge_emits_axis_keys` contra o código que a
+// produção realmente executa, em vez de contra uma cópia.
+export function buildVariantNormalizedData(
+  variantTypeId: string | null,
+  printingResolved: boolean,
+  printingProfileId: string | null,
+  editionContextResolved: boolean,
+  editionContextProfileId: string | null,
+): Record<string, unknown> {
+  const normalizedData: Record<string, unknown> = {};
+  if (printingResolved && editionContextResolved) {
+    if (variantTypeId !== null) normalizedData.variant_type_id = variantTypeId;
+    normalizedData.printing_profile_id = printingProfileId;
+    normalizedData.edition_context_profile_id = editionContextProfileId;
+  }
+  return normalizedData;
+}
+
 // Ordem canônica da assinatura de traits.
 //
 // O banco grava card_printing_external_mapping.traits_signature e
@@ -489,10 +585,10 @@ export function buildTraitsSignatureKey(traitIds: readonly string[] | null | und
   return [...new Set(traitIds.map((id) => String(id).toLowerCase()))].sort().join(",");
 }
 
-// Mapa `${card_id}|${variant_type_id}|${printing_profile_id ?? '~'}` ->
-// card_variant.id, para classificar match_status (NEW/MATCHED) sem uma
-// consulta por linha. Filtrado só pelas Cards realmente correlacionadas
-// neste job — nunca carrega card_variant inteiro.
+// Mapa de IDENTIDADE CANÔNICA (buildVariantIdentityKey) -> card_variant.id,
+// para classificar match_status (NEW/MATCHED) sem uma consulta por linha.
+// Filtrado só pelas Cards realmente correlacionadas neste job — nunca
+// carrega card_variant inteiro.
 //
 // A chave era `${card_id}|${variant_type_id}` até a PHASE C. Sem o
 // perfil ela reproduz o BLOCKER B2 do lado da Edge: uma Card com
@@ -500,6 +596,12 @@ export function buildTraitsSignatureKey(traitIds: readonly string[] | null | und
 // entrada e a segunda variante — REAL e DISTINTA — seria classificada
 // MATCHED contra a primeira. É o mesmo defeito que a Query 2179 fechou
 // no confirm com `IS NOT DISTINCT FROM`.
+//
+// PHASE C-bis: o mesmo raciocínio, um eixo adiante. Duas Variants reais da
+// mesma Card que difiram só em Contexto de Edição produziriam a MESMA chave
+// de três partes, e a segunda nunca seria criada. A chave passa a ter os
+// QUATRO componentes — e é construída pelo MESMO helper que o dedupe e o
+// lookup do index.ts usam, para que os três não possam divergir.
 export async function listExistingCardVariantsMap(
   supabase: any,
   cardIds: string[],
@@ -508,7 +610,7 @@ export async function listExistingCardVariantsMap(
 
   const { data, error } = await supabase
     .from("card_variant")
-    .select("id, card_id, variant_type_id, printing_profile_id")
+    .select("id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id")
     .in("card_id", cardIds);
 
   if (error) {
@@ -518,7 +620,12 @@ export async function listExistingCardVariantsMap(
 
   return new Map<string, string>(
     (data ?? []).map((row: any) => [
-      `${row.card_id}|${row.variant_type_id}|${buildPrintingProfileKeyPart(row.printing_profile_id)}`,
+      buildVariantIdentityKey(
+        row.card_id,
+        row.variant_type_id,
+        row.printing_profile_id,
+        row.edition_context_profile_id,
+      ),
       row.id,
     ]),
   );
@@ -642,6 +749,125 @@ export async function listPrintingTraits(
   }
 
   return (data ?? []) as PrintingTraitRow[];
+}
+
+// ---------------------------------------------------------------------
+// EDITION CONTEXT ROUTING — três preloads, três queries, zero consulta por
+// row. MESMO PERFIL dos preloads de Printing acima: número fixo de queries
+// por JOB, jamais por linha. O roteamento inteiro acontece depois, em
+// memória (services/edition-context.ts).
+// ---------------------------------------------------------------------
+
+export type EditionContextExternalMappingRow = {
+  id: string;
+  game_id: string;
+  asset_source_id: string;
+  external_set_id: string | null;
+  raw_field: string;
+  normalized_token: string;
+  traits_signature: string[] | null;
+  is_active: boolean;
+};
+
+// TODOS os mappings do Game+Fonte, ativos E inativos, COM `external_set_id`.
+//
+// Ativos E inativos pela mesma razão de listPrintingExternalMappings: sem o
+// universo dos conhecidos não existe NEEDS_REVIEW_INACTIVE_EC_MAPPING, e o
+// token voltaria ao resíduo — fail-OPEN, o achado A3 do GATE-A-01.
+//
+// `external_set_id` porque a precedência escopado > global é resolvida em
+// memória, exatamente como a Query 2211 a resolve em SQL. Diferente do eixo
+// de Impressão, este eixo TEM escopo por Set da fonte.
+export async function listEditionContextExternalMappings(
+  supabase: any,
+  gameId: string,
+  assetSourceId: string,
+): Promise<EditionContextExternalMappingRow[]> {
+  const { data, error } = await supabase
+    .from("card_edition_context_external_mapping")
+    .select(
+      "id, game_id, asset_source_id, external_set_id, raw_field, normalized_token, traits_signature, is_active",
+    )
+    .eq("game_id", gameId)
+    .eq("asset_source_id", assetSourceId);
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_EDITION_CONTEXT_EXTERNAL_MAPPING_QUERY_FAILED");
+  }
+
+  return (data ?? []) as EditionContextExternalMappingRow[];
+}
+
+export type EditionContextProfileRow = {
+  id: string;
+  game_id: string;
+  traits_signature: string[] | null;
+  is_active: boolean;
+};
+
+// Perfis do Game, ativos E inativos — SEM filtro no banco, diferente de
+// listActivePrintingProfiles.
+//
+// A Query 2211:204-206 procura o perfil por assinatura sem filtrar
+// is_active e só depois o recusa, para que o estado seja
+// NEEDS_REVIEW_INACTIVE_EC_PROFILE ("existe, porém inativo") e não
+// NEEDS_REVIEW_NO_EC_PROFILE ("não existe"). São dois estados distintos do
+// vocabulário, e filtrar aqui apagaria o primeiro — a linha seria tratada
+// como composição desconhecida, e a decisão editorial pendente ficaria
+// invisível.
+//
+// NOME vs COMPORTAMENTO: o nome `listActive...` vem do contrato aprovado no
+// readiness e é mantido para rastreabilidade, mas esta função NÃO filtra por
+// is_active — de propósito, pelo motivo acima. `is_active` vem no payload e
+// quem decide é `buildEditionContextIndex`, que separa
+// `profileBySignature` de `inactiveProfileIds`. Quem ler só o nome vai
+// supor errado; está aqui em letras grandes para que não suponha.
+export async function listActiveEditionContextProfiles(
+  supabase: any,
+  gameId: string,
+): Promise<EditionContextProfileRow[]> {
+  const { data, error } = await supabase
+    .from("card_edition_context_profile")
+    .select("id, game_id, traits_signature, is_active")
+    .eq("game_id", gameId);
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_EDITION_CONTEXT_PROFILE_QUERY_FAILED");
+  }
+
+  return (data ?? []) as EditionContextProfileRow[];
+}
+
+export type EditionContextTraitRow = {
+  id: string;
+  game_id: string;
+  is_active: boolean;
+};
+
+// TODAS as Características de Contexto de Edição do Game — ativas E
+// inativas. Mesma razão de listPrintingTraits: a Query 2211:200-202 tem um
+// estado terminal próprio, NEEDS_REVIEW_INACTIVE_EC_TRAIT, avaliado DEPOIS
+// de montar a composição e ANTES de procurar o perfil. Um trait desativado
+// deixa o perfil que o contém ATIVO — nenhum guard acopla os dois —, então
+// sem esta leitura a Edge resolveria com perfil e marcaria VALID exatamente
+// a linha que o banco recusa.
+export async function listEditionContextTraits(
+  supabase: any,
+  gameId: string,
+): Promise<EditionContextTraitRow[]> {
+  const { data, error } = await supabase
+    .from("card_edition_context_trait")
+    .select("id, game_id, is_active")
+    .eq("game_id", gameId);
+
+  if (error) {
+    console.error(error);
+    throw new Error("CARD_EDITION_CONTEXT_TRAIT_QUERY_FAILED");
+  }
+
+  return (data ?? []) as EditionContextTraitRow[];
 }
 
 // Cria o job já em PROCESSING (RECEIVED é instantâneo demais para

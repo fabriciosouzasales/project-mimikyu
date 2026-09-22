@@ -727,15 +727,65 @@ SELECT n.nspname, p.proname, count(*) AS n
 
 ---
 
-## Batch 8 — EDGE
+## Batch 8 — EDGE · ✅ **CLOSED**
 
-Deploy da `import-card-variants` com o patch do eixo 3 + suíte Deno.
+> **FECHADO em `BATCH8-EDGE-CLOSEOUT-01`.** `import-card-variants` **v15
+> ACTIVE**, `verify_jwt=true`, postdeploy validado **sob FREEZE**. Próximo
+> estágio: **Batch 8-BIS — `2214`**.
+
+Deploy da `import-card-variants` com o eixo 3 + suíte Deno.
 Só aqui: antes, as tabelas que o preload lê não existiam.
 
-**Postcheck:** suíte Deno verde + `2834` reexecutado — **os dois lados contra o
-mesmo `edition-context-axis-vectors.json`**.
+**O eixo 3 NÃO entrou inline no `index.ts`**, como o documento de desenho
+previa: foi para `services/edition-context.ts`, exportado. `index.ts` registra
+o servidor no topo do módulo e não exporta nada — uma função declarada lá não
+pode ser importada por um teste sem subir um listener, e o teste voltaria a
+precisar de réplica. Junto vieram dois helpers puros em `services/database.ts`
+(`buildVariantIdentityKey`, `buildVariantNormalizedData`) que eliminaram as
+três montagens independentes da chave de identidade.
 
-**Prosseguir se:** DB e Edge concordam vetor a vetor.
+**Provas offline:** `deno check` PASS · Edition Context **136/136** ·
+`services/` **74/74** · SOURCE_SET **12/12** · `git diff --check` PASS.
+
+**Postdeploy executado — PRE v14 × POST v15, todos iguais:**
+
+| Probe | Resultado |
+|---|---|
+| A · POST sem `Authorization` | `401 UNAUTHORIZED_NO_AUTH_HEADER` |
+| B · POST JWT não-admin | `403 FORBIDDEN_NOT_ADMIN` |
+| C · `OPTIONS` origin permitido | `204` + CORS |
+| D · POST admin + JSON malformado | `400 INVALID_JSON` |
+| E · POST admin + `{}` | `400 CARD_SET_ID_REQUIRED` |
+
+`INVALID_USER_SESSION` intermediários = tokens expirados, descartados após
+renovação. Rollback não foi necessário.
+
+**Zero writes de negócio, por construção:** D e E retornam nas linhas 507/512
+do `index.ts`, antes do primeiro write (`createVariantJobProcessing`, 539) e de
+qualquer leitura de catálogo. Nenhum `card_set_id` real, nenhum job, nenhum SQL.
+
+> ### POSTCHECK ORIGINAL — RECONCILIADO, NÃO CUMPRIDO NO LIVE
+>
+> Este batch previa *"suíte Deno verde + `2834` reexecutado — os dois lados
+> contra o mesmo `edition-context-axis-vectors.json`"*, com o critério de
+> prosseguir *"DB e Edge concordam vetor a vetor"*.
+>
+> **A metade `2834` reexecutado não foi cumprida, e o critério não foi
+> observado no LIVE** — ambos exigiriam criar job de importação, que o FREEZE
+> proíbe. A reexecução do `2834` foi **removida do gate por ausência de
+> justificativa material**: nada do lado SQL mudou nesta rodada (fixture blob
+> `676b9103…` e `2834` blob `fbabf0bf…` intocados).
+>
+> O que existe no lugar: **dois runners independentes contra a MESMA fixture** —
+> `2834` PASS no LIVE (Batch 7) e a suíte Deno 136/136 agora. Isso estabelece
+> **equivalência de contrato**, e é o mais forte disponível sob FREEZE. Não é
+> concordância observada em produção, e este documento não a declara como tal.
+>
+> **A compatibilidade funcional com importação real permanece
+> INTENCIONALMENTE NÃO PROVADA até o UNFREEZE.**
+
+**Prosseguir:** ✅ satisfeito pela equivalência de contrato acima, com a
+limitação declarada.
 
 ---
 

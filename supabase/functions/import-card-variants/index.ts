@@ -40,8 +40,9 @@ profundidade de colchetes, limitado aos 4 campos que interessam.
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import {
-  buildPrintingProfileKeyPart,
   buildTraitsSignatureKey,
+  buildVariantIdentityKey,
+  buildVariantNormalizedData,
   createVariantJobProcessing,
   failVariantJob,
   findAssetSourceByCode,
@@ -49,10 +50,13 @@ import {
   findCardSetWithGame,
   finalizeVariantJobStaged,
   insertVariantImportRows,
+  listActiveEditionContextProfiles,
   listActivePrintingProfiles,
   listCardExternalReferencesMap,
   listCardIdsOfCardSet,
   listCardLineageCorrelationMap,
+  listEditionContextExternalMappings,
+  listEditionContextTraits,
   listExistingCardVariantsMap,
   listPrintingExternalMappings,
   listPrintingTraits,
@@ -60,6 +64,15 @@ import {
   buildVariantComboKey,
   updateVariantJobProgressStep,
 } from "./services/database.ts";
+// EIXO 3 — PHASE C-bis. Mora em módulo próprio, e não aqui, porque este
+// arquivo registra o servidor no topo do módulo e não exporta nada: uma
+// função declarada aqui não poderia ser importada por um teste sem subir um
+// listener. O teste de vetores importa de lá e executa o código REAL.
+import {
+  buildEditionContextIndex,
+  isEditionContextResolved,
+  routeEditionContext,
+} from "./services/edition-context.ts";
 import { resolveSetSerieName } from "./services/tcgdex.ts";
 import {
   deriveLocalIdFromFilename,
@@ -569,6 +582,9 @@ async function handleImportRequest(req: Request): Promise<Response> {
       printingMappings,
       printingProfiles,
       printingTraits,
+      editionContextMappings,
+      editionContextProfiles,
+      editionContextTraits,
     ] = await Promise
       .all([
         listCardExternalReferencesMap(supabase, assetSource.id, externalSetId),
@@ -583,9 +599,23 @@ async function handleImportRequest(req: Request): Promise<Response> {
         listPrintingExternalMappings(supabase, cardSet.game_id, assetSource.id),
         listActivePrintingProfiles(supabase, cardSet.game_id),
         listPrintingTraits(supabase, cardSet.game_id),
+        // EIXO 3 — MESMO Promise.all, MESMO perfil: três queries por JOB,
+        // nunca por linha. O roteamento acontece depois, em memória.
+        listEditionContextExternalMappings(supabase, cardSet.game_id, assetSource.id),
+        listActiveEditionContextProfiles(supabase, cardSet.game_id),
+        listEditionContextTraits(supabase, cardSet.game_id),
       ]);
 
     const printingIndex = buildPrintingIndex(printingMappings, printingProfiles, printingTraits);
+    // O índice do eixo 3 é montado UMA vez por JOB e já carrega o escopo:
+    // a precedência escopado > global é resolvida aqui dentro, em memória,
+    // exatamente como a Query 2211 a resolve em SQL.
+    const editionContextIndex = buildEditionContextIndex(
+      editionContextMappings,
+      editionContextProfiles,
+      editionContextTraits,
+      externalSetId,
+    );
 
     // Falha de UM arquivo (rede, 404, extração malformada) vira um
     // registro isolado com fetchError — nunca derruba o Set inteiro.
@@ -804,6 +834,8 @@ async function handleImportRequest(req: Request): Promise<Response> {
     let duplicateResolvedSkipped = 0;
     let printingUnresolvedRows = 0;
     let printingWithProfileRows = 0;
+    let editionContextUnresolvedRows = 0;
+    let editionContextWithProfileRows = 0;
     let sizeOutOfScopeRows = 0;
     let sizeUnsupportedRows = 0;
 
@@ -903,11 +935,31 @@ async function handleImportRequest(req: Request): Promise<Response> {
           normalizedStamp,
         );
 
+        const printingResolved = printing.state !== "UNRESOLVED";
+
+        // EIXO 3, sobre o RESÍDUO de Impressão — nunca sobre o bruto. O gate
+        // de "Impressão não terminal -> NOT_EVALUATED" está DENTRO de
+        // routeEditionContext (2211:86-91), e por isso é provado pelos
+        // vetores, não por inspeção deste arquivo.
+        const editionContext = routeEditionContext(
+          editionContextIndex,
+          printingResolved,
+          printing.residualSubtype,
+          printing.residualStamp,
+        );
+        // Predicado ÚNICO, importado da PHASE C-bis. Com oito estados no
+        // vocabulário, uma lista literal duplicada aqui seria uma lista que
+        // diverge. Espelha 2211: só os DOIS estados RESOLVED_* são terminais.
+        const editionContextResolved = isEditionContextResolved(editionContext.state);
+
         const residualComboKey = buildVariantComboKey(
           normalizedType,
           normalizedFoil,
-          printing.residualSubtype,
-          printing.residualStamp,
+          // O Variant Type recebe o resíduo PÓS-DOIS-EIXOS. Usar o resíduo
+          // pós-um-eixo casaria contra combos que ainda carregam o token de
+          // contexto — a contaminação que este pacote existe para eliminar.
+          editionContext.residualSubtype,
+          editionContext.residualStamp,
         );
         // >>> PRECEDÊNCIA COM ESCOPO (GATE-A-REV-01) <<<
         // scoped > global > NEEDS_REVIEW. UM nível, sem cascata.
@@ -918,11 +970,10 @@ async function handleImportRequest(req: Request): Promise<Response> {
           ?? variantTypeMaps.globalMap.get(residualComboKey)
           ?? null;
 
-        const printingResolved = printing.state !== "UNRESOLVED";
-        // VALID exige os DOIS eixos. Variant Type resolvido sozinho não
-        // basta: sem Impressão decidida, o resíduo não é identidade
-        // canônica confiável.
-        const isValid = printingResolved && variantTypeId !== null;
+        // VALID exige os TRÊS eixos. O raciocínio do eixo 1 vale idêntico
+        // para o eixo 3: sem Contexto de Edição decidido, o resíduo não é
+        // identidade canônica confiável.
+        const isValid = printingResolved && editionContextResolved && variantTypeId !== null;
 
         // ---------------------------------------------------------------
         // DEDUPE — dois espaços, porque são duas naturezas diferentes.
@@ -951,7 +1002,14 @@ async function handleImportRequest(req: Request): Promise<Response> {
         // cai na MESMA chave, nos dois espaços.
         // ---------------------------------------------------------------
         const dedupeKey = isValid
-          ? `R|${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}`
+          ? `R|${
+            buildVariantIdentityKey(
+              cardId,
+              variantTypeId,
+              printing.printingProfileId,
+              editionContext.editionContextProfileId,
+            )
+          }`
           : `U|${cardId}|${rawComboKey}`;
 
         if (seenComboByCard.has(dedupeKey)) {
@@ -966,49 +1024,32 @@ async function handleImportRequest(req: Request): Promise<Response> {
         // identidade que ainda não foi decidida.
         const matchedVariantId = isValid
           ? existingVariantsByCardAndType.get(
-            `${cardId}|${variantTypeId}|${buildPrintingProfileKeyPart(printing.printingProfileId)}`,
+            buildVariantIdentityKey(
+              cardId,
+              variantTypeId,
+              printing.printingProfileId,
+              editionContext.editionContextProfileId,
+            ),
           ) ?? null
           : null;
 
-        // TRI-STATE de normalized_data — os três desfechos da Query 2181
-        // v1.2, na mesma ordem (correção C-3).
-        //
-        //   A. Printing resolvido + Variant Type resolvido
-        //      -> as duas chaves presentes, VALID.
-        //
-        //   B. Printing resolvido + Variant Type NÃO resolvido
-        //      -> só printing_profile_id (JSON null ou UUID), NEEDS_REVIEW.
-        //      O perfil resolvido permanece explícito; o variant_type_id
-        //      é que fica de fora.
-        //
-        //   C. Printing NÃO resolvido
-        //      -> AS DUAS chaves ausentes, NEEDS_REVIEW.
-        //
-        // O porquê de C ser mais severo do que parece à primeira vista: o
-        // eixo de Impressão consome os tokens que lhe pertencem ANTES de
-        // o resíduo ser oferecido ao Variant Type. Se a Impressão não
-        // resolveu, o resíduo foi derivado de uma premissa que não se
-        // sustenta, e o variant_type_id encontrado a partir dele é uma
-        // conclusão correta tirada de premissa inválida. Gravá-lo seria
-        // preservar a conclusão e jogar fora a dúvida.
-        //
-        // Isto NÃO é hipótese remota: quando um token é consumido por um
-        // mapping inativo, ele SAI do resíduo, e o resíduo reduzido
-        // (NORMAL|||, HOLOFOIL|||) casa com os mapeamentos existentes com
-        // facilidade. Era exatamente por aí que os dois produtores de
-        // normalized_data discordavam.
-        //
-        // Ausência nunca significa null: `jsonb_typeof` distingue os dois,
-        // `->>` não, e é sobre essa distinção que os índices de identidade
-        // da Query 2177 e o guard da Query 2179 se apoiam.
-        const normalizedData: Record<string, unknown> = {};
-        if (printingResolved) {
-          if (variantTypeId !== null) normalizedData.variant_type_id = variantTypeId;
-          normalizedData.printing_profile_id = printing.printingProfileId;
-        }
+        // TRI-STATE de normalized_data — os três desfechos das Queries
+        // 2221/2222, na mesma ordem. A regra inteira (e o porquê de ela ser
+        // mais severa do que parece) mora em buildVariantNormalizedData, em
+        // services/database.ts: função pura, uma só, exercida pelos vetores
+        // do eixo 3 contra ESTE código e não contra uma cópia.
+        const normalizedData = buildVariantNormalizedData(
+          variantTypeId,
+          printingResolved,
+          printing.printingProfileId,
+          editionContextResolved,
+          editionContext.editionContextProfileId,
+        );
 
         if (!printingResolved) printingUnresolvedRows++;
         if (printing.state === "RESOLVED_WITH_PROFILE") printingWithProfileRows++;
+        if (!editionContextResolved) editionContextUnresolvedRows++;
+        if (editionContext.state === "RESOLVED_WITH_EC_PROFILE") editionContextWithProfileRows++;
 
         resolvedRows.push({
           card_id: cardId,
@@ -1070,6 +1111,19 @@ async function handleImportRequest(req: Request): Promise<Response> {
         active_profiles_loaded: printingProfiles.length,
         rows_with_profile: printingWithProfileRows,
         rows_unresolved: printingUnresolvedRows,
+      },
+      // EIXO 3 — bloco aditivo, espelho do de Printing. Nenhum campo acima
+      // ou abaixo mudou de nome, tipo ou significado.
+      //
+      // `profiles_loaded` (e não `active_profiles_loaded`) porque o preload
+      // traz ativos E inativos de propósito: ver
+      // listActiveEditionContextProfiles.
+      edition_context: {
+        mappings_loaded: editionContextMappings.length,
+        profiles_loaded: editionContextProfiles.length,
+        traits_loaded: editionContextTraits.length,
+        rows_with_profile: editionContextWithProfileRows,
+        rows_unresolved: editionContextUnresolvedRows,
       },
       cards: {
         correlated: correlatedCardIds.length,

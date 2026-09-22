@@ -1,14 +1,53 @@
-EDGE PATCH — supabase/functions/import-card-variants/
+EDGE — DOCUMENTO DE DESENHO (histórico) — supabase/functions/import-card-variants/
 EDGE-D3-FINAL-CORRECTION-01 · rev 3.0
   rev 2.0 (WRITE-PATH-STAGING-01) fechou D3 mas era FAIL-OPEN para mapping
   conhecido sem routing ativo. rev 3.0 corrige: dois estados novos, universo
   de escopo explicito, e paridade amarrada a uma fixture compartilhada.
-Status: PROPOSTA — NÃO APLICADA. Nenhum arquivo real de supabase/ foi tocado.
 
-Formato: unified diff reproduzível, com âncoras verificadas no arquivo real
-do repositório. Aplicar com `git apply` a partir da raiz.
+================================================================================
+STATUS (BATCH8-EDGE-IMPLEMENTATION-01, 2026-09-21) — LEIA ANTES DE USAR
+================================================================================
 
-ÂNCORAS CONFERIDAS (index.ts, estado atual do repositório):
+Este arquivo é um DOCUMENTO DE DESENHO. **NÃO é um patch aplicável.**
+
+  · NÃO aplicar com `git apply`. `git apply --check` retorna
+    "error: unrecognized input": os blocos `@@` não carregam ranges e há prosa
+    entre os hunks. A rev 3.0 afirmava "unified diff reproduzível… Aplicar com
+    `git apply` a partir da raiz" — a afirmação era FALSA e foi removida daqui.
+  · O eixo 3 JÁ ESTÁ IMPLEMENTADO no código real. A autoridade executável é o
+    código, não este arquivo:
+        supabase/functions/import-card-variants/services/edition-context.ts
+        supabase/functions/import-card-variants/services/database.ts
+        supabase/functions/import-card-variants/index.ts
+  · A suíte de paridade executável é
+        supabase/functions/import-card-variants/services/edition-context.test.ts
+    O antigo `edge/edition-context.test.ts` (réplica declarada do roteador +
+    caso PARIDADE_FONTE) foi REMOVIDO nesta rodada: ele era uma segunda
+    autoridade executável, provava a própria cópia e não a Edge.
+  · A fixture permanece a autoridade única dos `expected`:
+        test-vectors/edition-context-axis-vectors.json  (INALTERADA)
+
+DIVERGÊNCIAS ENTRE ESTE DESENHO E O CÓDIGO IMPLEMENTADO — todas deliberadas:
+
+  1. A PHASE C-bis NÃO ficou inline no `index.ts` (como o DIFF 2 propunha).
+     Foi para `services/edition-context.ts`, exportada. Motivo: `index.ts`
+     chama `Deno.serve()` no topo e não exporta nada; uma função declarada lá
+     não pode ser importada por um teste sem subir um listener HTTP — e o
+     teste voltaria a precisar de réplica.
+  2. `routeEditionContext` recebe `printingTerminal` como 2º argumento. O gate
+     de 2211:86-91 (Impressão não terminal → NOT_EVALUATED) passou a viver
+     DENTRO da função, em vez de ficar implícito no chamador. Motivo: assim
+     esse estado é exercido pelos vetores, e não por um literal do teste.
+  3. `normalized_data` e a identidade de 4 componentes viraram helpers puros
+     em `services/database.ts` — `buildVariantNormalizedData` e
+     `buildVariantIdentityKey`. O segundo elimina as TRÊS montagens
+     independentes da mesma chave (dedupe, matching, listExistingCardVariants)
+     que este desenho deixava como literais paralelos.
+  4. Os dois contadores de telemetria que o DIFF 4 incrementava sem declarar
+     nem publicar foram declarados e publicados (bloco `edition_context:` da
+     resposta).
+
+ÂNCORAS DA ÉPOCA DA REDAÇÃO (index.ts pré-implementação, valor histórico):
   · 125–140  cabeçalho "PHASE C — ROTEAMENTO DE IMPRESSÃO"
   · 142–177  tipos PrintingState / PrintingIndex / PrintingRouting
   · 180–224  buildPrintingIndex()
@@ -17,6 +56,10 @@ do repositório. Aplicar com `git apply` a partir da raiz.
   · 895–925  routePrinting() + variantTypeId + printingResolved + isValid
   · 954/969  chaves de dedupe R| e de matching
   · 1004–1011 montagem de normalized_data + telemetria
+
+O QUE SEGUE ABAIXO permanece íntegro como registro do raciocínio de desenho
+(decisão D3, tabela de paridade com a 2211, e o porquê de cada ramo). É isso
+que este arquivo continua servindo.
 
 ================================================================================
 CORREÇÃO DE PREMISSA — a rev 1.0 deste patch estava errada sobre a arquitetura

@@ -65,9 +65,13 @@ lido como registro — nunca como estado.
 | **`2834`** | **contrato funcional VALIDADO NO LIVE / PASS / CLOSED** — 18/18 casos · 17/17 vetores · 8/8 estados · **0 FAIL · 0 SKIP** · zero resíduo persistente. Validado **via envelope transitório v2.7 auditado**, não por execução direta do arquivo canônico | `LIVE-EXECUTION-06` |
 | Runner CANÔNICO do eixo 3 | **`2834` v2.6** (blob `fbabf0bf…`) — autoridade do repositório; **não foi o arquivo literalmente executado** | `BATCH7-2834-LIVE-CLOSEOUT-01` |
 | Artefato EXECUTADO no LIVE | **envelope transitório v2.7** (MD5 `78acff39…`), single-statement, rodado **no SQL Editor**. Auditado: seus 9 `EXECUTE` recompõem exatamente o transient v2.6. **NÃO é autoridade e não deve ser incorporado ao runner** — ver item 10 | `BATCH7-2834-LIVE-CLOSEOUT-01` |
-| FREEZE de importação | **ATIVO** | etapa 3 do `ROLLOUT-ORDER.md` |
-| `2214` (guard estrito) | **NÃO EXECUTADA / BLOQUEADA** — ledger = 0; depende da Edge (Batch 8) | Batch 8-BIS |
-| Próximo estágio | **Batch 8 — EDGE** | `EXECUTION-BATCHES.md` |
+| **Batch 8 — EDGE** | **CLOSED** — implementado, deployado, **v15 ACTIVE**, `verify_jwt=true`, postdeploy validado sob FREEZE | `BATCH8-EDGE-CLOSEOUT-01` |
+| Eixo 3 na Edge | `services/edition-context.ts` (módulo próprio, exportado) + `buildVariantIdentityKey` / `buildVariantNormalizedData` em `services/database.ts` + integração em `index.ts` | 6 artefatos auditados |
+| Paridade Edge × SQL | **136/136** na suíte `services/edition-context.test.ts` — 18 casos × 6 asserções, E15 comportamental, 8/8 estados, contra a MESMA fixture do `2834` | `deno test` |
+| Compatibilidade com import REAL | **INTENCIONALMENTE NÃO PROVADA** — ver item 11 | `BATCH8-EDGE-CLOSEOUT-01` |
+| FREEZE de importação | **ATIVO** — inalterado pelo Batch 8 | etapa 3 do `ROLLOUT-ORDER.md` |
+| `2214` (guard estrito) | **NÃO EXECUTADA / BLOQUEADA** — ledger = 0; pré-condição da Edge agora **satisfeita** | Batch 8-BIS |
+| Próximo estágio | **Batch 8-BIS — `2214`** | `EXECUTION-BATCHES.md` |
 
 ## HISTORICAL MEASUREMENT — registro, NÃO estado
 
@@ -597,10 +601,69 @@ dois:
     > runner**, promovido, nem versionado como tal. Qualquer alteração de
     > fixture ou de semântica do harness exige mandato novo.
 
+11. **`BATCH8-EDGE` → IMPLEMENTED / DEPLOYED / POSTDEPLOY VALIDATED / CLOSED** —
+    o terceiro eixo entrou na Edge `import-card-variants`, **v15 ACTIVE**,
+    `verify_jwt=true`.
+
+    **Artefatos (6):** `services/edition-context.ts` *(novo — PHASE C-bis em
+    módulo próprio e exportado; `index.ts` chama o servidor no topo e não
+    exporta nada, então uma função declarada lá não poderia ser importada por
+    um teste sem subir um listener)*; `services/database.ts` *(+`NO_EDITION_
+    CONTEXT_KEY`, `buildEditionContextKeyPart`, `buildVariantIdentityKey`,
+    `buildVariantNormalizedData`, 3 preloads, `listExistingCardVariantsMap`
+    com identidade de 4 componentes)*; `index.ts` *(3 preloads no mesmo
+    `Promise.all`, índice por JOB, roteamento só após Impressão, resíduo
+    pós-dois-eixos ao Variant Type, `isValid` de três eixos, dedupe/matching
+    pelo helper único, `normalized_data` pelo helper puro, 2 contadores
+    declarados/incrementados/publicados)*; `services/edition-context.test.ts`
+    *(novo — **zero réplica**, importa o código real)*; o antigo
+    `edge/edition-context.test.ts` **removido** *(era segunda autoridade
+    executável, com réplica declarada do roteador: provava a cópia, não a
+    Edge)*; `edge/import-card-variants.patch` **reclassificado como documento
+    de desenho** *(não é aplicável por `git apply`; a alegação de "unified diff
+    aplicável" era falsa e foi removida)*.
+
+    **Provas offline:** `deno check` PASS · Edition Context **136/136** ·
+    `services/` **74/74** · SOURCE_SET **12/12** · `git diff --check` PASS.
+
+    **Postdeploy sob FREEZE — PRE v14 × POST v15, cinco probes, todos iguais:**
+    A `401 UNAUTHORIZED_NO_AUTH_HEADER` · B `403 FORBIDDEN_NOT_ADMIN` ·
+    C `204` + CORS · D `400 INVALID_JSON` · E `400 CARD_SET_ID_REQUIRED`.
+    Os `INVALID_USER_SESSION` intermediários foram tokens expirados,
+    descartados após renovação. **Rollback não foi necessário.**
+
+    **Zero writes de negócio, por construção:** D e E retornam nas linhas 507 e
+    512 do `index.ts`, **27 e 22 linhas antes** do primeiro write
+    (`createVariantJobProcessing`, 539) e antes de qualquer leitura de
+    catálogo. Nenhum `card_set_id` real foi enviado; nenhum job criado; nenhum
+    SQL executado; **FREEZE permaneceu ATIVO** do início ao fim.
+
+    > **O QUE ESTE BATCH NÃO PROVA, E É DELIBERADO.** A compatibilidade
+    > funcional com **importação real** permanece **NÃO PROVADA até o
+    > UNFREEZE**. Sem job novo, os 3 preloads, `buildEditionContextIndex`,
+    > `routeEditionContext`, o `normalized_data` de três chaves, a identidade
+    > de 4 componentes e o bloco `edition_context:` da resposta **nunca
+    > rodaram contra dado real**. A prova disponível hoje é **offline**, contra
+    > a mesma fixture que o `2834` consome — o que estabelece **equivalência de
+    > contrato**, não comportamento observado em produção.
+    >
+    > Consequência direta: o postcheck que o `EXECUTION-BATCHES.md` previa para
+    > o Batch 8 — *"`2834` reexecutado · DB e Edge concordam vetor a vetor"* —
+    > **não foi satisfeito no LIVE**, porque exigiria importação. Ele foi
+    > satisfeito **por fixture compartilhada em dois runners independentes**:
+    > `2834` no LIVE (Batch 7) e a suíte Deno agora. A reexecução do `2834`
+    > nesta rodada foi **removida do gate por ausência de justificativa
+    > material** — nada do lado SQL mudou.
+    >
+    > Pendência aberta para o UNFREEZE: a compatibilidade do **caminho de
+    > confirmação** com a chave `edition_context_profile_id` em
+    > `normalized_data` **não foi exercitada** e não é requisito deste deploy.
+
 O bloqueio de item 2 (`2213`) não é resolvível por quem escreve SQL: depende
 de decisão de Fabrício sobre o vocabulário e sobre a linhagem.
 
-**Nenhum deploy foi feito**, `T1` continua não autorizado, e nada saiu de
+`T1` continua não autorizado. **Um deploy foi feito** — a Edge
+`import-card-variants` v15 (item 11); nenhum outro artefato saiu de
 `database/proposals/2026-09-18-edition-context-axis/`.
 
 > **Correção de registro (`MISSING-TYPE-CORRECTION-01`).** Esta linha dizia
