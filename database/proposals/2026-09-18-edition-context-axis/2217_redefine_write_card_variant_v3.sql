@@ -75,10 +75,34 @@
 --   só dropa depois de PROVAR que nenhum caller executável restou. A janela
 --   de coexistência é curta, está sob FREEZE, e tem prova de saída.
 --
--- SAME-GAME: NÃO validado aqui, de propósito — mesma razão da v2.0. A
---   autoridade é `public.validate_card_variant_game_consistency`, que a
---   Query 2220 estende para o terceiro eixo. Duplicar a regra criaria duas
---   fontes de verdade e uma delas ficaria desatualizada.
+-- ----------------------------------------------------------------------------
+-- SAME-GAME: NÃO validado aqui, de propósito — AUTORIDADE É A QUERY 2224
+-- ----------------------------------------------------------------------------
+--   A autoridade do same-Game do terceiro eixo é
+--   `internal.enforce_card_variant_edition_context_profile_game()` +
+--   `trg_card_variant_edition_context_profile_game`, instalados pela
+--   **Query 2224**, que espelha o que a `2170` já faz para Impressão.
+--   Duplicar a regra aqui criaria duas fontes de verdade e uma delas ficaria
+--   desatualizada — esta função valida EXISTÊNCIA e só.
+--
+--   ⚠️ CORREÇÃO DE PREMISSA (`BATCH9-2217-READINESS-CORRECTION-01`). Até a
+--   v2.0, este cabeçalho afirmava que a autoridade era
+--   `public.validate_card_variant_game_consistency`, *"que a Query 2220
+--   estende para o terceiro eixo"*. **As duas metades eram falsas**, e a
+--   auditoria provou mecanicamente:
+--     · `validate_card_variant_game_consistency` (161:60-104) compara Card ×
+--       **Variant Type**, nunca menciona `edition_context_profile_id`, e seu
+--       trigger é `UPDATE OF card_id, variant_type_id` — não acorda para este
+--       eixo;
+--     · a `2220` redefine `variant_type_mapping_impact`/`_decision` — o read
+--       contract do mapping de Variant Type — e não contém `CREATE TRIGGER`
+--       nem toca naquela função.
+--   Consequência: antes da `2224` **não existia** proteção server-side contra
+--   `edition_context_profile_id` de outro Game. A `2224` fecha a lacuna e é
+--   **pré-requisito desta Query** no DAG.
+--
+-- ORDEM NO ROLLOUT: 2224 (GUARD) → 2217 (EXPAND) → 2218 (SWITCH) →
+--   2223 (CONTRACT). O número não é a ordem; o `DAG.md` é a autoridade.
 -- ============================================================================
 
 BEGIN;
@@ -146,8 +170,9 @@ BEGIN
     END IF;
 
     -- v3.0 — MESMA disciplina para o terceiro eixo. Existência SIM; same-Game
-    -- NAO (autoridade em validate_card_variant_game_consistency, Query 2220).
-    -- NENHUMA criacao automatica de profile. Jamais.
+    -- NAO: a autoridade e o trigger da Query 2224
+    -- (internal.enforce_card_variant_edition_context_profile_game), espelho do
+    -- que a 2170 faz para Impressao. NENHUMA criacao automatica. Jamais.
     IF p_edition_context_profile_id IS NOT NULL
        AND NOT EXISTS (
            SELECT 1 FROM public.card_edition_context_profile e WHERE e.id = p_edition_context_profile_id
@@ -172,67 +197,179 @@ REVOKE ALL ON FUNCTION internal.write_card_variant(TEXT, UUID, UUID, UUID, INTEG
 -- ---------------------------------------------------------------- PASSO 3 ---
 -- POSTCHECK DO EXPAND. As DUAS assinaturas devem existir, e ambas limpas.
 -- O DROP da de seis NÃO acontece aqui — pertence à Query 2223 (CONTRACT).
+--
+-- HARDENING B1/B2/B3 (BATCH9-2217-READINESS-CORRECTION-01). A versão anterior
+-- deste bloco provava menos do que o contrato exige, em três frentes:
+--   B1  `v_cfg::TEXT LIKE '%search_path=%'` casava com `search_path=public` —
+--       em SECURITY DEFINER isso é vetor de search-path hijacking. Trocado por
+--       igualdade exata de array. Mesma classe de defeito já corrigida no
+--       `5812` (02F) e já evitada na `2214`.
+--   B2  `information_schema.role_routine_grants` não expressa PUBLIC como
+--       grantee, é filtrada pelo usuário corrente, e NÃO enxerga o caso
+--       decisivo — `proacl IS NULL`, que é ACL padrão = EXECUTE a PUBLIC.
+--       Trocado por `proacl` + `aclexplode` por OID, fail-closed no nulo.
+--       **Endurecido em `CORRECTION-02`:** o critério deixou de ser "não tem
+--       PUBLIC/anon/authenticated" e passou a ser **OWNER-ONLY** —
+--       `count(DISTINCT grantee) = 1` **e** esse grantee `= proowner`.
+--       Barrar por lista de roles proibidas é sempre incompleto: um grant a
+--       `service_role`, a um role de BI ou a qualquer role futura passava e
+--       só gerava `WARNING`. Agora **qualquer** principal além do owner
+--       levanta exceção, em cada assinatura, independentemente.
+--   B3  os gates distinguiam as assinaturas só por `pronargs`. Uma overload
+--       de 7 args com tipos errados passaria. Trocado por resolução via
+--       `to_regprocedure` das DUAS assinaturas exatas.
 DO $$
-DECLARE v_n INT; v_n6 INT; v_n7 INT; v_def INT; v_sec BOOLEAN; v_cfg TEXT[];
+DECLARE
+    c_sig6 CONSTANT TEXT := 'internal.write_card_variant(text,uuid,uuid,uuid,integer,uuid)';
+    c_sig7 CONSTANT TEXT := 'internal.write_card_variant(text,uuid,uuid,uuid,integer,uuid,uuid)';
+    v_oid6      OID;
+    v_oid7      OID;
+    v_n         INT;
+    v_def       INT;
+    v_sec       BOOLEAN;
+    v_cfg       TEXT[];
+    v_acl_nula  BOOLEAN;
+    v_owner     OID;
+    v_own_nome  TEXT;
+    v_own_tem   BOOLEAN;
+    v_n_grantee INT;
+    v_quem6     TEXT;
+    v_quem7     TEXT;
+    v_extras    TEXT;
 BEGIN
-    SELECT COUNT(*) FILTER (WHERE p.pronargs = 6),
-           COUNT(*) FILTER (WHERE p.pronargs = 7),
-           COUNT(*)
-      INTO v_n6, v_n7, v_n
+    -- B3 · E1 — a de SETE nasceu, com os TIPOS EXATOS.
+    v_oid7 := to_regprocedure(c_sig7)::OID;
+    IF v_oid7 IS NULL THEN
+        RAISE EXCEPTION 'EXPAND_V3_MISSING: assinatura % nao existe. Tipos exatos sao parte do contrato — pronargs=7 nao basta.', c_sig7;
+    END IF;
+
+    -- B3 · E2 — a de SEIS foi PRESERVADA, com os TIPOS EXATOS. Se sumiu,
+    -- alguem dropou fora de contrato e o confirm vivo (que ainda chama com
+    -- seis) esta quebrado agora.
+    v_oid6 := to_regprocedure(c_sig6)::OID;
+    IF v_oid6 IS NULL THEN
+        RAISE EXCEPTION 'EXPAND_V3_LEGACY_LOST: a assinatura % deveria estar PRESERVADA neste passo. O DROP pertence a Query 2223.', c_sig6;
+    END IF;
+
+    -- B3 · E3 — exatamente DUAS overloads do nome, nem mais. Qualquer terceira
+    -- assinatura e ambiguidade de resolucao esperando acontecer.
+    SELECT count(*),
+           COALESCE(string_agg(p.oid::REGPROCEDURE::TEXT, ' | ')
+                      FILTER (WHERE p.oid NOT IN (v_oid6, v_oid7)), '(nenhuma)')
+      INTO v_n, v_extras
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'internal' AND p.proname = 'write_card_variant';
 
-    -- E1 — a de SETE nasceu.
-    IF v_n7 <> 1 THEN
-        RAISE EXCEPTION 'EXPAND_V3_MISSING: esperada 1 assinatura de 7 args, encontrada %.', v_n7;
-    END IF;
-
-    -- E2 — a de SEIS foi PRESERVADA. Se sumiu, alguem dropou fora de contrato
-    -- e o confirm vivo (que ainda chama com seis) esta quebrado agora.
-    IF v_n6 <> 1 THEN
-        RAISE EXCEPTION 'EXPAND_V3_LEGACY_LOST: a assinatura de 6 args deveria estar PRESERVADA neste passo (encontrada %). O DROP pertence a Query 2223.', v_n6;
-    END IF;
-
-    -- E3 — exatamente duas, nem mais.
     IF v_n <> 2 THEN
-        RAISE EXCEPTION 'EXPAND_V3_UNEXPECTED_SIGNATURES: esperadas 2 assinaturas durante o EXPAND, encontradas %.', v_n;
+        RAISE EXCEPTION 'EXPAND_V3_UNEXPECTED_SIGNATURES: esperadas exatamente 2 assinaturas durante o EXPAND, encontradas %. Fora do contrato: %.', v_n, v_extras;
+    END IF;
+    IF v_extras <> '(nenhuma)' THEN
+        RAISE EXCEPTION 'EXPAND_V3_UNEXPECTED_SIGNATURES: assinatura(s) fora do contrato presentes: %.', v_extras;
     END IF;
 
-    -- E4 — a de SETE: sem DEFAULT, SECURITY DEFINER, search_path.
+    -- B1 · E4 — a de SETE: 0 DEFAULT, SECURITY DEFINER, search_path EXATO.
     SELECT p.pronargdefaults, p.prosecdef, p.proconfig
       INTO v_def, v_sec, v_cfg
-      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-     WHERE n.nspname = 'internal' AND p.proname = 'write_card_variant'
-       AND p.pronargs = 7;
+      FROM pg_proc p WHERE p.oid = v_oid7;
 
-    IF v_def <> 0 THEN RAISE EXCEPTION 'WRITER_V3_HAS_DEFAULT: nenhum argumento pode ter DEFAULT (obtido %).', v_def; END IF;
-    IF v_sec IS NOT TRUE THEN RAISE EXCEPTION 'WRITER_V3_NOT_SECDEF: SECURITY DEFINER perdido.'; END IF;
-    IF NOT (v_cfg::TEXT LIKE '%search_path=%') THEN
-        RAISE EXCEPTION 'WRITER_V3_NO_SEARCH_PATH: proconfig sem search_path.';
+    IF v_def <> 0 THEN
+        RAISE EXCEPTION 'WRITER_V3_HAS_DEFAULT: nenhum argumento pode ter DEFAULT (obtido %).', v_def;
+    END IF;
+    IF v_sec IS NOT TRUE THEN
+        RAISE EXCEPTION 'WRITER_V3_NOT_SECDEF: SECURITY DEFINER perdido na de 7 args.';
+    END IF;
+    IF v_cfg IS DISTINCT FROM ARRAY['search_path=""']::TEXT[] THEN
+        RAISE EXCEPTION 'WRITER_V3_SEARCH_PATH: a de 7 args deve ter proconfig exatamente ARRAY[''search_path=""''], obtido %.', COALESCE(v_cfg::TEXT, '(NULO)');
     END IF;
 
-    -- E5 — a de SEIS preservou SECURITY DEFINER e search_path (nada foi
-    -- tocado nela, este gate so prova que continua intacta).
-    SELECT p.prosecdef, p.proconfig INTO v_sec, v_cfg
-      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-     WHERE n.nspname = 'internal' AND p.proname = 'write_card_variant'
-       AND p.pronargs = 6;
+    -- B1 · E5 — a de SEIS preservou contrato: 0 DEFAULT, SECDEF, search_path
+    -- EXATO. Nada foi tocado nela; este gate prova que continua intacta.
+    SELECT p.pronargdefaults, p.prosecdef, p.proconfig
+      INTO v_def, v_sec, v_cfg
+      FROM pg_proc p WHERE p.oid = v_oid6;
 
-    IF v_sec IS NOT TRUE THEN RAISE EXCEPTION 'EXPAND_V3_LEGACY_NOT_SECDEF: a de 6 args perdeu SECURITY DEFINER.'; END IF;
-    IF NOT (v_cfg::TEXT LIKE '%search_path=%') THEN
-        RAISE EXCEPTION 'EXPAND_V3_LEGACY_NO_SEARCH_PATH: a de 6 args perdeu search_path.';
+    IF v_def <> 0 THEN
+        RAISE EXCEPTION 'EXPAND_V3_LEGACY_HAS_DEFAULT: a de 6 args ganhou DEFAULT (obtido %) — contrato da 2143 v2.0 violado.', v_def;
+    END IF;
+    IF v_sec IS NOT TRUE THEN
+        RAISE EXCEPTION 'EXPAND_V3_LEGACY_NOT_SECDEF: a de 6 args perdeu SECURITY DEFINER.';
+    END IF;
+    IF v_cfg IS DISTINCT FROM ARRAY['search_path=""']::TEXT[] THEN
+        RAISE EXCEPTION 'EXPAND_V3_LEGACY_SEARCH_PATH: a de 6 args deve ter proconfig exatamente ARRAY[''search_path=""''], obtido %.', COALESCE(v_cfg::TEXT, '(NULO)');
     END IF;
 
-    -- E6 — ACL: NENHUMA das duas pode ter grant publico.
-    IF EXISTS (
-        SELECT 1 FROM information_schema.role_routine_grants
-         WHERE routine_schema = 'internal' AND routine_name = 'write_card_variant'
-           AND grantee IN ('anon','authenticated','PUBLIC')
-    ) THEN
-        RAISE EXCEPTION 'WRITER_V3_GRANT_LEAK: grant indevido para anon/authenticated/PUBLIC em alguma das assinaturas.';
+    -- B2 · E6 — ACL **OWNER-ONLY**, fail-closed, provada INDEPENDENTEMENTE
+    -- para CADA assinatura. `internal.write_card_variant` nao e contrato RPC:
+    -- e alcancavel so por outra funcao SECURITY DEFINER do mesmo owner
+    -- (2143, "Regras de Negocio"). Logo o unico principal que pode ter EXECUTE
+    -- e o proprio owner.
+    --
+    -- Nao se barra por lista de roles proibidas — toda lista e incompleta
+    -- (service_role, um role de BI, qualquer role futura). A prova e por
+    -- CARDINALIDADE + IDENTIDADE: exatamente UM grantee, e esse grantee E o
+    -- proowner. Qualquer outro principal, nomeado ou nao, reprova.
+    --
+    -- ASSIMETRIA NAO E O GATE. Cada ACL e verificada por si; a igualdade entre
+    -- as duas e CONSEQUENCIA de ambas serem owner-only, nunca o criterio —
+    -- duas ACLs igualmente erradas passariam num teste de igualdade.
+
+    -- E6.a — a de SETE.
+    SELECT p.proacl IS NULL, p.proowner, pg_get_userbyid(p.proowner)
+      INTO v_acl_nula, v_owner, v_own_nome
+      FROM pg_proc p WHERE p.oid = v_oid7;
+
+    IF v_acl_nula THEN
+        RAISE EXCEPTION 'WRITER_V3_ACL_DEFAULT: proacl NULL na de 7 args — ACL padrao concede EXECUTE a PUBLIC. O REVOKE nao surtiu efeito.';
     END IF;
 
-    RAISE NOTICE 'EXPAND OK — write_card_variant com 2 assinaturas (6 preservada + 7 nova), 0 defaults, SECDEF, search_path, sem grants publicos. CONTRACT = Query 2223.';
+    SELECT count(DISTINCT a.grantee),
+           COALESCE(bool_or(a.grantee = v_owner), false),
+           COALESCE(string_agg(DISTINCT CASE WHEN a.grantee = 0
+                                             THEN 'PUBLIC'
+                                             ELSE pg_get_userbyid(a.grantee) END, ', '),
+                    '(ninguem)')
+      INTO v_n_grantee, v_own_tem, v_quem7
+      FROM pg_proc p, aclexplode(p.proacl) a
+     WHERE p.oid = v_oid7 AND a.privilege_type = 'EXECUTE';
+
+    IF NOT v_own_tem THEN
+        RAISE EXCEPTION 'WRITER_V3_OWNER_SEM_EXECUTE: o owner (%) nao tem EXECUTE na de 7 args. Mantem EXECUTE: %.', v_own_nome, v_quem7;
+    END IF;
+    IF v_n_grantee <> 1 THEN
+        RAISE EXCEPTION 'WRITER_V3_ACL_NAO_OWNER_ONLY: a de 7 args deve ter EXATAMENTE 1 grantee com EXECUTE (o owner %), encontrados %. Mantem EXECUTE: %. Qualquer principal alem do owner — PUBLIC, anon, authenticated, service_role ou outro — e violacao de contrato.', v_own_nome, v_n_grantee, v_quem7;
+    END IF;
+
+    -- E6.b — a de SEIS, verificada por si mesma, com o MESMO criterio.
+    SELECT p.proacl IS NULL, p.proowner, pg_get_userbyid(p.proowner)
+      INTO v_acl_nula, v_owner, v_own_nome
+      FROM pg_proc p WHERE p.oid = v_oid6;
+
+    IF v_acl_nula THEN
+        RAISE EXCEPTION 'EXPAND_V3_LEGACY_ACL_DEFAULT: proacl NULL na de 6 args — ACL padrao concede EXECUTE a PUBLIC.';
+    END IF;
+
+    SELECT count(DISTINCT a.grantee),
+           COALESCE(bool_or(a.grantee = v_owner), false),
+           COALESCE(string_agg(DISTINCT CASE WHEN a.grantee = 0
+                                             THEN 'PUBLIC'
+                                             ELSE pg_get_userbyid(a.grantee) END, ', '),
+                    '(ninguem)')
+      INTO v_n_grantee, v_own_tem, v_quem6
+      FROM pg_proc p, aclexplode(p.proacl) a
+     WHERE p.oid = v_oid6 AND a.privilege_type = 'EXECUTE';
+
+    IF NOT v_own_tem THEN
+        RAISE EXCEPTION 'EXPAND_V3_LEGACY_OWNER_SEM_EXECUTE: o owner (%) nao tem EXECUTE na de 6 args. Mantem EXECUTE: %.', v_own_nome, v_quem6;
+    END IF;
+    IF v_n_grantee <> 1 THEN
+        RAISE EXCEPTION 'EXPAND_V3_LEGACY_ACL_NAO_OWNER_ONLY: a de 6 args deve ter EXATAMENTE 1 grantee com EXECUTE (o owner %), encontrados %. Mantem EXECUTE: %. O estado canonico registrado na 2143 e "so postgres (owner)".', v_own_nome, v_n_grantee, v_quem6;
+    END IF;
+
+    -- E7 — INFORMATIVO, nao condicao de seguranca. Chegando aqui, ambas ja
+    -- foram provadas owner-only; se os owners diferirem entre as overloads
+    -- isso e anomalia de propriedade, nao de privilegio. Reportado no NOTICE.
+    RAISE NOTICE 'EXPAND OK — exatamente 2 assinaturas EXATAS (% preservada + % nova), 0 defaults nas duas, SECDEF, proconfig = search_path vazio, proacl nao-nulo. ACL OWNER-ONLY provada independentemente em cada uma: 6 args -> unico grantee com EXECUTE = % ; 7 args -> % . CONTRACT = Query 2223.',
+                 c_sig6, c_sig7, v_quem6, v_quem7;
 END $$;
 
 -- ============================================================================

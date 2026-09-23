@@ -911,20 +911,43 @@ SELECT
 
 ---
 
-## Batch 9 — WRITER: EXPAND → SWITCH → CONTRACT · **PRÓXIMO ESTÁGIO**
+## Batch 9 — GUARD → WRITER: EXPAND → SWITCH → CONTRACT · **PRÓXIMO ESTÁGIO**
 
-> **NÃO EXECUTADO.** `2217`, `2218` e `2223` seguem **NÃO EXECUTADAS** — nunca
-> foram autorizadas, e nenhuma rodada deste rollout as tocou. O batch só
-> inicia com **readiness audit** e **mandato explícito de Fabrício**. FREEZE
-> **ATIVO**.
+> **NÃO EXECUTADO.** `2224`, `2217`, `2218` e `2223` seguem **NÃO EXECUTADAS**
+> — nunca foram autorizadas, e nenhuma rodada deste rollout as tocou. O batch
+> só inicia com **readiness audit** e **mandato explícito de Fabrício**.
+> FREEZE **ATIVO**.
+>
+> ### A `2224` entrou na frente (`BATCH9-2217-READINESS-CORRECTION-01`)
+>
+> A `BATCH9-2217-READINESS-AUDIT-01` resultou em **STOP**: a `2217` declarava
+> delegar o same-Game do 3º eixo a `validate_card_variant_game_consistency`,
+> *"que a Query 2220 estende"*. **As duas metades eram falsas** — aquela
+> função (`161:60-104`) compara Card × **Variant Type** e seu trigger é
+> `UPDATE OF card_id, variant_type_id`; a `2220` redefine
+> `variant_type_mapping_impact`/`_decision` e **não a toca**. Ou seja: **não
+> existia** proteção server-side recusando `edition_context_profile_id` de
+> outro Game — a FK da `2208` garante só existência.
+>
+> Decisão: **guard dedicado**, espelhando a `2170` (que já resolveu isto para
+> Impressão). O writer continua sem validar same-Game, de propósito — agora
+> apontando uma autoridade que de fato existe.
 
-**Três artefatos, três STOPs.** Não colapsar em uma chamada.
+**Quatro artefatos, quatro STOPs.** Não colapsar em uma chamada.
 
 | Ordem | Artefato | STOP obrigatório depois |
 |---|---|---|
-| 1 | `2217` EXPAND | **sim** |
-| 2 | `2218` SWITCH | **sim** |
-| 3 | `2223` CONTRACT | **sim** |
+| 1 | **`2224` GUARD same-Game do 3º eixo** | **sim** |
+| 2 | `2217` EXPAND | **sim** |
+| 3 | `2218` SWITCH | **sim** |
+| 4 | `2223` CONTRACT | **sim** |
+
+**Postcheck após `2224`:** 1 função `internal.enforce_card_variant_edition_
+context_profile_game` (SECDEF · `proconfig = ARRAY['search_path=""']` · ACL sem
+PUBLIC/anon/authenticated) · 1 trigger `trg_card_variant_edition_context_
+profile_game` com `tgfoid` = OID dessa função, `tgtype = 23` e `UPDATE OF` =
+`card_id` + `edition_context_profile_id`. O PASSO 5 da própria `2224` prova
+tudo isso, fail-closed.
 
 **Postcheck após `2217`:** 2 assinaturas (6 e 7 args); confirm ainda chama a de 6.
 **Postcheck após `2218`:** confirm chama a de 7; as 2 assinaturas seguem vivas.

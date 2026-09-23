@@ -79,7 +79,22 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 |---|---|---|---:|---|
 | **`2218`** | `public.admin_confirm_catalog_variant_import` | `2145` v2.0 | 519 | ler `normalized_data.edition_context_profile_id` (tri-state) · **matching quádruplo com `IS NOT DISTINCT FROM`** · `FOR UPDATE` na Card com `ORDER BY id` no lote · handler de `unique_violation` · chamar o writer com **7** args |
 | **`2219`** | `internal.apply_variant_type_mapping` | `2193` | 324 | trocar 2 chamadas a `compute_variant_residual_signature` por `resolve_variant_row_axes` · gravar as **duas** chaves de eixo |
-| **`2220`** | `variant_type_mapping_impact` · `_decision` · `lookup_variant_type_for_row` · `validate_card_variant_game_consistency` | `2192` | 563 | residual pós-dois-eixos · impacto contado pela identidade de 4 · **same-Game do 3º eixo** |
+| **`2220`** | `variant_type_mapping_impact` · `_decision` · `lookup_variant_type_for_row` | `2192` | 563 | residual pós-dois-eixos · impacto contado pela identidade de 4 · `EDITION_CONTEXT_UNRESOLVED` no `decision`. **NÃO faz same-Game** — ver nota abaixo |
+| **`2224`** *(nova)* | `internal.enforce_card_variant_edition_context_profile_game` + `trg_card_variant_edition_context_profile_game` | `2170` (padrão) | — | **same-Game do 3º eixo** — guard dedicado, autoridade única |
+
+> ### ⚠️ CORREÇÃO (`BATCH9-2217-READINESS-CORRECTION-01`)
+> A linha da `2220` acima atribuía a ela `validate_card_variant_game_consistency`
+> e o **same-Game do 3º eixo**. **Era falso**, e a auditoria
+> `BATCH9-2217-READINESS-AUDIT-01` provou mecanicamente: o escopo declarado no
+> cabeçalho da própria `2220` é `variant_type_mapping_impact` +
+> `_decision`; o arquivo não contém `CREATE TRIGGER` nem menciona
+> `validate_card_variant_game_consistency`. E aquela função (`161:60-104`)
+> compara Card × **Variant Type**, nunca `edition_context_profile_id`.
+>
+> Até a `2224`, **nenhuma** proteção server-side recusava um
+> `edition_context_profile_id` de outro Game — a FK da `2208` garante apenas
+> existência. A `2224` fecha a lacuna, e é **pré-requisito da `2217`**:
+> **`2224` → `2217` → `2218` → `2223`**. O número não é a ordem; o `DAG.md` é.
 | **`2221`** | `public.admin_resolve_catalog_variant_import_printing_mapping` | `2181` | 652 | revalidação via 2211 (lógica de Printing inalterada) |
 | **`2222`** | `internal.create_card_printing_profile_with_backfill` | `2189` | 583 | backfill **preservar** `edition_context_profile_id` (2 call sites) |
 

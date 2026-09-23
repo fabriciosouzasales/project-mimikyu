@@ -130,6 +130,7 @@ coluna existe do lado de `card_variant`.
 | **`2213`** (futuro) | 2831 PASS · Pricing · **lineage atômico (L1–L4)** | — | ❌ |
 | **`2833`** | 2832 | 2214 | ❌ |
 | `2214` ✅ **LIVE VALIDATED** | 2833 · **Edge deployada** | 2216 | ❌ |
+| **`2224`** *(guard same-Game 3º eixo)* | **2208** · 2204 | **2217** | ❌ — precede o EXPAND |
 | `2219`–`2222` | 2211 | Edge · 2217 | ✅ entre si (funções disjuntas) |
 | **Edge** ✅ **v15 ACTIVE** | 2211 · 2219–2222 | 2214 · 2217 | ❌ |
 | `2217` **EXPAND** | 2208 | 2218 | ❌ — **não** depende mais da 2218: cria a de 7 e preserva a de 6 |
@@ -208,7 +209,8 @@ convenção.
 *(Batch 8 · **CLOSED**)* → **`2214` v3.1 LIVE VALIDATED**
 *(Batch 8-BIS · **CLOSED**)*
 
-**A EXECUTAR** — **`2217` (EXPAND)** *(Batch 9 · **próximo**, NÃO EXECUTADA)* →
+**A EXECUTAR** — **`2224` (GUARD SAME-GAME do 3º eixo)** *(Batch 9 · **próximo**,
+NÃO EXECUTADA)* → **`2217` (EXPAND)** →
 **`2218` (SWITCH)** → **`2223` (CONTRACT)** *(Batch 9)* →
 `2209` *(Batch 10)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
 *(Batch 12)* → `2831` → `2213`
@@ -277,6 +279,26 @@ convenção.
 > declarado do Batch 8 permanece: compatibilidade funcional com importação
 > **real** **NÃO PROVADA até o UNFREEZE** — o guard agora **existe e recusa**,
 > mas sob FREEZE nenhuma importação o exercitou.
+
+> **Aresta nova: `2208 → 2224 → 2217` (`BATCH9-2217-READINESS-CORRECTION-01`).**
+> A `BATCH9-2217-READINESS-AUDIT-01` resultou em **STOP** ao provar que o
+> same-Game do terceiro eixo **não existia**: `validate_card_variant_game_
+> consistency` (`161`) compara Card × **Variant Type** e seu trigger é
+> `UPDATE OF card_id, variant_type_id` — não acorda para
+> `edition_context_profile_id`; e a `2220`, que a documentação apontava como
+> quem a estenderia, **não a toca** (seu escopo é
+> `variant_type_mapping_impact`/`_decision`). A FK da `2208` garante apenas
+> **existência** do profile, não o Game.
+>
+> Decisão de arquitetura: **guard dedicado**, a **`2224`**, espelhando a
+> `2170` — `internal.enforce_card_variant_edition_context_profile_game()` +
+> `trg_card_variant_edition_context_profile_game` `BEFORE INSERT OR UPDATE OF
+> card_id, edition_context_profile_id`. Cada eixo com sua autoridade única; o
+> writer (`2217`) continua validando só existência, de propósito.
+>
+> **A `2224` roda ANTES da `2217`**: o guard tem de existir antes de haver
+> assinatura capaz de gravar a coluna. `2224 > 2223` é acidente de numeração —
+> **este grafo é a autoridade de ordem, não o número do arquivo**.
 
 **Duas correções de ordem nesta rodada**, ambas porque a projeção operacional
 divergia da tabela de dependências — que já estava certa nos dois casos:
