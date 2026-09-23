@@ -911,12 +911,21 @@ SELECT
 
 ---
 
-## Batch 9 — GUARD → WRITER: EXPAND → SWITCH → CONTRACT · **PRÓXIMO ESTÁGIO**
+## Batch 9 — GUARD → WRITER: EXPAND → SWITCH → CONTRACT · **EM CURSO**
 
-> **NÃO EXECUTADO.** `2224`, `2217`, `2218` e `2223` seguem **NÃO EXECUTADAS**
-> — nunca foram autorizadas, e nenhuma rodada deste rollout as tocou. O batch
-> só inicia com **readiness audit** e **mandato explícito de Fabrício**.
+> **PARCIALMENTE EXECUTADO.** A **`2224` está `EXECUTED / LIVE VALIDATED /
+> CLOSED`** (2026-09-22, `BATCH9-2224-CLOSEOUT-01`): blob executado
+> `5bae844bc37022de3bb2ad34e52b5f8ac31da929`, publicado em `2fcd6231`,
+> aplicada **direto no SQL Editor**, POSTCHECK read-only **20/20 GATEs ·
+> GLOBAL PASS**, **zero drift** PRE→POST. **`2217`, `2218` e `2223` seguem
+> **NÃO EXECUTADAS** — cada uma exige **readiness audit** e **mandato
+> explícito de Fabrício**. Próximo estágio: **`2217` EXPAND**.
 > FREEZE **ATIVO**.
+>
+> **`2224` no ledger = 0.** Diagnóstico de RASTREABILIDADE, **não** "não
+> executada": o `supabase_migrations.schema_migrations` é escrito pela CLI,
+> nunca pelo motor do Postgres. A prova física são os catálogos (`pg_proc` /
+> `pg_trigger`), medidos nos 20 gates. Mesma classe da `2202` e da `2214`.
 >
 > ### A `2224` entrou na frente (`BATCH9-2217-READINESS-CORRECTION-01`)
 >
@@ -937,8 +946,8 @@ SELECT
 
 | Ordem | Artefato | STOP obrigatório depois |
 |---|---|---|
-| 1 | **`2224` GUARD same-Game do 3º eixo** | **sim** |
-| 2 | `2217` EXPAND | **sim** |
+| 1 | **`2224` GUARD same-Game do 3º eixo** ✅ **EXECUTADA / LIVE VALIDATED / CLOSED** | **cumprido** |
+| 2 | `2217` EXPAND · **próximo** | **sim** |
 | 3 | `2218` SWITCH | **sim** |
 | 4 | `2223` CONTRACT | **sim** |
 
@@ -948,6 +957,16 @@ PUBLIC/anon/authenticated) · 1 trigger `trg_card_variant_edition_context_
 profile_game` com `tgfoid` = OID dessa função, `tgtype = 23` e `UPDATE OF` =
 `card_id` + `edition_context_profile_id`. O PASSO 5 da própria `2224` prova
 tudo isso, fail-closed.
+
+> ✅ **CUMPRIDO em 2026-09-22.** O POSTCHECK LIVE read-only externo
+> (`BATCH9-2224-LIVE-POSTCHECK-01`) devolveu **20/20 GATEs · GLOBAL PASS**,
+> e foi além do texto acima: ACL **owner-only** provada por `aclexplode`
+> (owner `postgres`, **único** grantee com `EXECUTE` = `postgres` — não
+> apenas "sem PUBLIC/anon/authenticated") · topologia de `card_variant` =
+> **exatamente os 4** triggers canônicos · **duplicação cluster-wide do
+> `tgfoid` = 0** · profile órfão `0` · Game irresolvível `0` · Same-Game
+> mismatch `0` · locks conflitantes `0` · **zero drift** (`card_variant`
+> 24.893 → 24.893, EC não-nulo 0 → 0).
 
 **Postcheck após `2217`:** 2 assinaturas (6 e 7 args); confirm ainda chama a de 6.
 **Postcheck após `2218`:** confirm chama a de 7; as 2 assinaturas seguem vivas.

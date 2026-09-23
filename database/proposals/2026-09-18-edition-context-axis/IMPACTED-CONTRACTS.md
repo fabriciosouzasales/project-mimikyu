@@ -38,7 +38,7 @@ Expõem identidade para UX/progresso. Se ignorarem o eixo, a UI mente.
 |---|---|
 | `public.collection_master_set_scope_positions` | projetar `edition_context_profile_id` |
 | `public.validate_card_variant_game_consistency` | ~~**ESTENDER** — validar same-Game do edition_context~~ · **DESCARTADO** em `BATCH9-2217-READINESS-CORRECTION-01`. Esta função **não é tocada**: permanece validando Card × Variant Type, com seu trigger `UPDATE OF card_id, variant_type_id` intacto. O same-Game do 3º eixo passa a ter **guard dedicado**, a **Query `2224`** — espelho da `2170`, que já resolve o mesmo problema para Impressão. Motivo: `161` é `SECURITY INVOKER` sem `search_path` fixado; estendê-la herdaria padrão de segurança inferior ao vigente, e uma função multi-eixo obriga o `UPDATE OF` a crescer a cada eixo novo — exatamente o modo de falha que deixou este eixo desprotegido |
-| **`internal.enforce_card_variant_edition_context_profile_game`** | **CRIAR (Query `2224`)** — autoridade **única** de same-Game do 3º eixo. `SECURITY DEFINER` · `search_path=''` · retorno imediato em `NULL` · trigger `trg_card_variant_edition_context_profile_game` `BEFORE INSERT OR UPDATE OF card_id, edition_context_profile_id` |
+| **`internal.enforce_card_variant_edition_context_profile_game`** | ✅ **CRIADA E ATIVA NO LIVE** (Query `2224`, 2026-09-22 — `BATCH9-2224-CLOSEOUT-01`) — autoridade **única** de same-Game do 3º eixo. `SECURITY DEFINER` · `search_path=''` · retorno imediato em `NULL` · trigger `trg_card_variant_edition_context_profile_game` `BEFORE INSERT OR UPDATE OF card_id, edition_context_profile_id` |
 | `public.admin_get_pricing_mapping_detail` | expor o eixo (Pricing, mandato separado) |
 | `public.admin_resolve_pricing_mapping` | idem |
 

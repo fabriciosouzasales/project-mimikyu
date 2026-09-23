@@ -130,7 +130,7 @@ coluna existe do lado de `card_variant`.
 | **`2213`** (futuro) | 2831 PASS · Pricing · **lineage atômico (L1–L4)** | — | ❌ |
 | **`2833`** | 2832 | 2214 | ❌ |
 | `2214` ✅ **LIVE VALIDATED** | 2833 · **Edge deployada** | 2216 | ❌ |
-| **`2224`** *(guard same-Game 3º eixo)* | **2208** · 2204 | **2217** | ❌ — precede o EXPAND |
+| **`2224`** ✅ **LIVE VALIDATED** *(guard same-Game 3º eixo)* | **2208** · 2204 | **2217** | ❌ — precede o EXPAND |
 | `2219`–`2222` | 2211 | Edge · 2217 | ✅ entre si (funções disjuntas) |
 | **Edge** ✅ **v15 ACTIVE** | 2211 · 2219–2222 | 2214 · 2217 | ❌ |
 | `2217` **EXPAND** | 2208 | 2218 | ❌ — **não** depende mais da 2218: cria a de 7 e preserva a de 6 |
@@ -207,10 +207,10 @@ convenção.
 *(Batch 6)* → `2219` · `2220` · `2221` · `2222` → **`2834` PASS**
 *(Batch 7 · **CLOSED**)* → **Edge DEPLOYADA · v15 ACTIVE**
 *(Batch 8 · **CLOSED**)* → **`2214` v3.1 LIVE VALIDATED**
-*(Batch 8-BIS · **CLOSED**)*
+*(Batch 8-BIS · **CLOSED**)* → **`2224` GUARD SAME-GAME do 3º eixo
+LIVE VALIDATED** *(Batch 9 · **CLOSED**, 2026-09-22)*
 
-**A EXECUTAR** — **`2224` (GUARD SAME-GAME do 3º eixo)** *(Batch 9 · **próximo**,
-NÃO EXECUTADA)* → **`2217` (EXPAND)** →
+**A EXECUTAR** — **`2217` (EXPAND)** *(Batch 9 · **próximo**, NÃO EXECUTADA)* →
 **`2218` (SWITCH)** → **`2223` (CONTRACT)** *(Batch 9)* →
 `2209` *(Batch 10)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
 *(Batch 12)* → `2831` → `2213`

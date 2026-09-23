@@ -80,7 +80,7 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 | **`2218`** | `public.admin_confirm_catalog_variant_import` | `2145` v2.0 | 519 | ler `normalized_data.edition_context_profile_id` (tri-state) · **matching quádruplo com `IS NOT DISTINCT FROM`** · `FOR UPDATE` na Card com `ORDER BY id` no lote · handler de `unique_violation` · chamar o writer com **7** args |
 | **`2219`** | `internal.apply_variant_type_mapping` | `2193` | 324 | trocar 2 chamadas a `compute_variant_residual_signature` por `resolve_variant_row_axes` · gravar as **duas** chaves de eixo |
 | **`2220`** | `variant_type_mapping_impact` · `_decision` · `lookup_variant_type_for_row` | `2192` | 563 | residual pós-dois-eixos · impacto contado pela identidade de 4 · `EDITION_CONTEXT_UNRESOLVED` no `decision`. **NÃO faz same-Game** — ver nota abaixo |
-| **`2224`** *(nova)* | `internal.enforce_card_variant_edition_context_profile_game` + `trg_card_variant_edition_context_profile_game` | `2170` (padrão) | — | **same-Game do 3º eixo** — guard dedicado, autoridade única |
+| **`2224`** ✅ **EXECUTADA / LIVE VALIDATED / CLOSED** *(2026-09-22)* | `internal.enforce_card_variant_edition_context_profile_game` + `trg_card_variant_edition_context_profile_game` | `2170` (padrão) | — | **same-Game do 3º eixo** — guard dedicado, autoridade única. **Não é mais artefato pendente**: blob executado `5bae844b…`, publicado em `2fcd6231`, POSTCHECK **20/20 GATEs · GLOBAL PASS**, zero drift. Permanece nesta tabela como registro do **motivo de criação** (ver correção abaixo) |
 
 > ### ⚠️ CORREÇÃO (`BATCH9-2217-READINESS-CORRECTION-01`)
 > A linha da `2220` acima atribuía a ela `validate_card_variant_game_consistency`
@@ -95,6 +95,12 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 > `edition_context_profile_id` de outro Game — a FK da `2208` garante apenas
 > existência. A `2224` fecha a lacuna, e é **pré-requisito da `2217`**:
 > **`2224` → `2217` → `2218` → `2223`**. O número não é a ordem; o `DAG.md` é.
+>
+> ✅ **LACUNA FECHADA NO LIVE em 2026-09-22** (`BATCH9-2224-CLOSEOUT-01`).
+> O guard está **ATIVO**: os três eixos passam a ter autoridade same-Game
+> dedicada (`2170` Impressão · `161` Variant Type · `2224` Contexto de
+> Edição). O **pré-requisito da `2217` está SATISFEITO**, e a `2217` passa a
+> ser o **próximo estágio** — ainda `NÃO EXECUTADA`, exigindo mandato.
 | **`2221`** | `public.admin_resolve_catalog_variant_import_printing_mapping` | `2181` | 652 | revalidação via 2211 (lógica de Printing inalterada) |
 | **`2222`** | `internal.create_card_printing_profile_with_backfill` | `2189` | 583 | backfill **preservar** `edition_context_profile_id` (2 call sites) |
 
