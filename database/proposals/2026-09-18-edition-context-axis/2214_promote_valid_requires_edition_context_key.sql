@@ -1,7 +1,91 @@
 -- ============================================================================
 -- Query 2214 — GUARD DE TRANSIÇÃO OPERACIONAL (job-aware)
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.0
+-- Status: ✅ EXECUTADA NO LIVE / LIVE VALIDATED / CLOSED · Versão 3.1
 -- CORREÇÕES 1, 2 e 8 da OPERATIONAL-BOUNDARY-CORRECTION-01
+--
+-- ----------------------------------------------------------------------------
+-- EXECUÇÃO NO LIVE — 2026-09-22 (BATCH8-BIS-2214-CLOSEOUT-01)
+-- ----------------------------------------------------------------------------
+--   CONFIRMADO EXECUTADO, na v3.1.
+--
+--   DOIS BLOBS — NAO CONFUNDIR:
+--     * blob EXECUTADO no LIVE ... 30e19523d91d9bc127dcefe6f4cb09e6c263ab73
+--     * blob ATUAL deste arquivo . DIFERENTE do acima, e deliberadamente NAO
+--       gravado aqui: um arquivo nao pode conter o proprio hash. Obtenha-o com
+--       `git hash-object` neste arquivo quando precisar cita-lo.
+--   Eles diferem porque ESTE bloco de rastreabilidade foi acrescentado ao
+--   cabecalho DEPOIS da execucao. O blob atual NAO e o blob executado e nao
+--   deve ser citado como tal.
+--
+--   O que NAO mudou e o que importa: tudo entre `BEGIN;` e `COMMIT;` permanece
+--   byte a byte o que o Postgres recebeu — md5 do intervalo
+--   db0341940115eab9b73e9d0ed81c74cd, identico antes e depois do closeout.
+--   Nenhuma linha executavel, gate, probe ou comentario interno foi tocado.
+--
+--   COMO RODOU: manualmente, no SQL Editor do Supabase, em uma unica
+--   submissao. Retorno: `Success. No rows returned`.
+--
+--   POSTCHECK LIVE (BATCH8-BIS-2214-LIVE-POSTCHECK-01, read-only, 15 GATEs):
+--   **PASS / LIVE VALIDATED — 15/15.** Trigger unico · tgtype = 23 exato
+--   (BEFORE + ROW + INSERT + UPDATE, sem DELETE/TRUNCATE/INSTEAD) ·
+--   `UPDATE OF` = normalized_data + persistence_status + validation_status ·
+--   `tgfoid` = OID da funcao canonica · G1 e G2 presentes no corpo ·
+--   SECURITY INVOKER · `proconfig = ARRAY['search_path=""']` · ACL sem
+--   EXECUTE para PUBLIC/anon/authenticated · exatamente os 3 triggers
+--   canonicos na tabela · nenhum outro trigger usando o guard · operacional
+--   VALID+PENDING sem a chave = **0** · historico CANCELLED sem chave
+--   **847** e VALID+PENDING **415** PRESERVADOS · jobs em voo = 0 ·
+--   residuo `GUARD2214-%` = 0 (o SAVEPOINT do PASSO 4 reverteu).
+--
+--   LEDGER = 0 — DIVERGENCIA DE RASTREABILIDADE, DECLARADA, NAO MASCARADA.
+--   Nao existe entrada para '2214_promote_valid_requires_edition_context_key'
+--   em `supabase_migrations.schema_migrations`, e isso NAO significa "nao
+--   executada". O ledger e escrito pela CLI do Supabase (`db push` /
+--   `migration up`), nunca pelo motor do Postgres: a execucao pelo SQL Editor
+--   aplica e comita o DDL sem passar por ele. Quem prova o estado fisico sao
+--   os catalogos que o proprio motor mantem (`pg_trigger`, `pg_proc`) — e
+--   foram eles que os 15 gates mediram. A inversa tambem vale: ledger = 1 nao
+--   provaria nada, porque a linha pode ser inserida a mao sem o DDL ter
+--   rodado. Reconciliacao do ledger: FORA DESTA RODADA, por mandato.
+--   Precedente da mesma classe no repositorio: a `2202`, tambem executada
+--   direto no SQL Editor e tambem sem linha no ledger.
+--
+--   ⚠️ CURRENT LIVE — NAO REEXECUTAR sem novo mandato de Fabricio. O arquivo
+--   e estruturalmente reentrante (`CREATE OR REPLACE FUNCTION` +
+--   `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`), mas os gates do PASSO 1 e o
+--   probe do PASSO 4 voltariam a rodar sobre um LIVE ja validado, sem ganho.
+--
+-- ----------------------------------------------------------------------------
+-- v3.1 (BATCH8-BIS-2214-CORRECTION-01) — FIXTURE DO PROBE + ACL
+-- ----------------------------------------------------------------------------
+--   A SEMANTICA DO GUARD NAO MUDOU. G1/G2/G3, escopo job-aware, tri-state
+--   ausencia/JSON null/UUID, timing e eventos do trigger, prechecks, SAVEPOINT
+--   e terminador COMMIT seguem byte-equivalentes a v3.0. Mudaram a fixture do
+--   PASSO 4 e o epilogo de ACL.
+--
+--   B1 — os tres INSERTs de job do probe omitiam `source` e `external_set_id`,
+--   ambos NOT NULL SEM DEFAULT (2136:66-67), e `source` ainda tem
+--   CHECK (source = 'TCGDEX') (2136:98-99). A primeira execucao levantava
+--   23502 not_null_violation, o DO abortava, a transacao inteira abortava e o
+--   guard NAO era instalado. Fail-safe, porem inexecutavel.
+--
+--   B2 — o indice parcial `uq_catalog_variant_import_job_fingerprint_active`
+--   (2136:120-122) e UNIQUE em (card_set_id, external_set_id) WHERE status
+--   nao-terminal. No CASO 7 o job CANCELLED e reativado para STAGED enquanto o
+--   primeiro ja esta em CONFIRMING: com `external_set_id` igual entre as
+--   fixtures, ou igual ao de um job real do mesmo Card Set, isso viraria
+--   23505 unique_violation. O probe tambem nao escolhe um Card Set "sem job
+--   ativo" — e nem deve: precisa valer para qualquer Card retornada.
+--
+--   CORRECAO: cada fixture recebe `source='TCGDEX'` e um `external_set_id`
+--   SINTETICO derivado de um UUID gerado no proprio probe
+--   (`GUARD2214-<uuid>-S|-C|-K`). Unico por execucao, distinto entre as tres, e
+--   fora do espaco de nomes de qualquer `external_set_id` real da fonte.
+--
+--   ACL — a 2210:205 ja faz REVOKE desta funcao, e CREATE OR REPLACE FUNCTION
+--   PRESERVA o ACL existente, entao no LIVE nada regredia. O REVOKE passa a ser
+--   repetido aqui mesmo assim: numa instalacao limpa sem a 2210 antes, a funcao
+--   nasceria executavel por PUBLIC. Idempotente, custo zero.
 --
 -- ----------------------------------------------------------------------------
 -- O DEFEITO DA v2.0
@@ -166,7 +250,13 @@ END;
 $$;
 
 COMMENT ON FUNCTION internal.guard_cvir_normalized_shape() IS
-'Guard de transicao OPERACIONAL (Query 2214 v3.0). G1 presenca: job.status em (RECEIVED,PROCESSING,STAGED,CONFIRMING) + persistence PENDING + validation VALID exige a chave edition_context_profile_id. O escopo e JOB-AWARE porque "operacional" e propriedade do job, nao da row: o predicado anterior (VALID+PENDING, row-local) atingia 415 rows historicas de jobs CANCELLED e zero operacionais. G2 nao-regressao: row VALID que ja tem a chave nunca a perde. G3 forma: tipo e formato UUID. CHECK nao serve — nao enxerga outra tabela.';
+'Guard de transicao OPERACIONAL (Query 2214 v3.1). G1 presenca: job.status em (RECEIVED,PROCESSING,STAGED,CONFIRMING) + persistence PENDING + validation VALID exige a chave edition_context_profile_id. O escopo e JOB-AWARE porque "operacional" e propriedade do job, nao da row: o predicado anterior (VALID+PENDING, row-local) atingia 415 rows historicas de jobs CANCELLED e zero operacionais. G2 nao-regressao: row VALID que ja tem a chave nunca a perde. G3 forma: tipo e formato UUID. CHECK nao serve — nao enxerga outra tabela.';
+
+-- ACL (v3.1). A 2210:205 ja revogou, e CREATE OR REPLACE FUNCTION preserva o
+-- ACL existente — no LIVE isto e no-op. Repetido para que a postura de
+-- seguranca seja EXPLICITA neste arquivo: numa instalacao limpa sem a 2210
+-- antes, a funcao nasceria executavel por PUBLIC.
+REVOKE ALL ON FUNCTION internal.guard_cvir_normalized_shape() FROM PUBLIC, anon, authenticated;
 
 -- ---------------------------------------------------------------- PASSO 3 ---
 DROP TRIGGER IF EXISTS trg_cvir_normalized_shape ON public.catalog_variant_import_row;
@@ -184,6 +274,12 @@ DECLARE
     v_card UUID; v_vt UUID; v_erro TEXT; v_id UUID; v_cs UUID;
     v_job_staged UUID; v_job_cancelled UUID; v_job_completed UUID;
     v_nd_ok JSONB; v_nd_sem JSONB;
+    -- Namespace SINTETICO e unico POR EXECUCAO (v3.1). O UUID nasce aqui, nao
+    -- e lido de lugar nenhum: nenhum `external_set_id` real da fonte pode
+    -- coincidir com ele, e duas execucoes do probe nao colidem entre si.
+    -- O prefixo legivel serve so para quem inspecionar o banco durante um
+    -- aborto; a unicidade vem do UUID, nao dele.
+    v_tag TEXT := 'GUARD2214-' || gen_random_uuid()::TEXT;
 BEGIN
     SELECT c.id, c.card_set_id INTO v_card, v_cs FROM public.card c LIMIT 1;
     SELECT t.id INTO v_vt FROM public.card_variant_type t LIMIT 1;
@@ -193,12 +289,23 @@ BEGIN
 
     -- Fixtures de job nos TRES regimes. Sem eles, os casos 5 e 6 seriam
     -- PASS por ausencia de fixture — proibido.
-    INSERT INTO public.catalog_variant_import_job (card_set_id, status)
-         VALUES (v_cs,'STAGED')    RETURNING id INTO v_job_staged;
-    INSERT INTO public.catalog_variant_import_job (card_set_id, status)
-         VALUES (v_cs,'CANCELLED') RETURNING id INTO v_job_cancelled;
-    INSERT INTO public.catalog_variant_import_job (card_set_id, status)
-         VALUES (v_cs,'COMPLETED') RETURNING id INTO v_job_completed;
+    --
+    -- v3.1: `source` e `external_set_id` sao NOT NULL SEM DEFAULT (2136:66-67)
+    -- e `source` tem CHECK (source='TCGDEX') (2136:98-99) — omiti-los abortava
+    -- a execucao inteira (B1). Os tres `external_set_id` sao SUFIXOS DISTINTOS
+    -- do MESMO namespace unico por execucao, o que fecha B2: o indice parcial
+    -- `uq_catalog_variant_import_job_fingerprint_active` (2136:120-122) e
+    -- UNIQUE em (card_set_id, external_set_id) WHERE status nao-terminal, e no
+    -- CASO 7 a fixture CANCELLED e reativada para STAGED enquanto a primeira
+    -- ja esta em CONFIRMING — duas nao-terminais ao mesmo tempo, do mesmo
+    -- Card Set. Com sufixos distintos elas nao colidem entre si; com o UUID no
+    -- meio, nao colidem com nenhum job real nem com outra execucao do probe.
+    INSERT INTO public.catalog_variant_import_job (card_set_id, source, external_set_id, status)
+         VALUES (v_cs,'TCGDEX', v_tag || '-S','STAGED')    RETURNING id INTO v_job_staged;
+    INSERT INTO public.catalog_variant_import_job (card_set_id, source, external_set_id, status)
+         VALUES (v_cs,'TCGDEX', v_tag || '-C','CANCELLED') RETURNING id INTO v_job_cancelled;
+    INSERT INTO public.catalog_variant_import_job (card_set_id, source, external_set_id, status)
+         VALUES (v_cs,'TCGDEX', v_tag || '-K','COMPLETED') RETURNING id INTO v_job_completed;
 
     v_nd_sem := jsonb_build_object('variant_type_id', v_vt, 'printing_profile_id', NULL);
     v_nd_ok  := v_nd_sem || '{"edition_context_profile_id": null}'::JSONB;
@@ -290,7 +397,7 @@ BEGIN
        SET persistence_status = 'FAILED'
      WHERE job_id = v_job_cancelled;
 
-    RAISE NOTICE 'GUARD OPERACIONAL v3.0 OK — casos 1..7 + G2 + no-lockout.';
+    RAISE NOTICE 'GUARD OPERACIONAL v3.1 OK — casos 1..7 + G2 + no-lockout.';
 END $$;
 ROLLBACK TO SAVEPOINT guard_probe;
 

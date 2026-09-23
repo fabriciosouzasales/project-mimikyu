@@ -69,9 +69,11 @@ lido como registro — nunca como estado.
 | Eixo 3 na Edge | `services/edition-context.ts` (módulo próprio, exportado) + `buildVariantIdentityKey` / `buildVariantNormalizedData` em `services/database.ts` + integração em `index.ts` | 6 artefatos auditados |
 | Paridade Edge × SQL | **136/136** na suíte `services/edition-context.test.ts` — 18 casos × 6 asserções, E15 comportamental, 8/8 estados, contra a MESMA fixture do `2834` | `deno test` |
 | Compatibilidade com import REAL | **INTENCIONALMENTE NÃO PROVADA** — ver item 11 | `BATCH8-EDGE-CLOSEOUT-01` |
-| FREEZE de importação | **ATIVO** — inalterado pelo Batch 8 | etapa 3 do `ROLLOUT-ORDER.md` |
-| `2214` (guard estrito) | **NÃO EXECUTADA / BLOQUEADA** — ledger = 0; pré-condição da Edge agora **satisfeita** | Batch 8-BIS |
-| Próximo estágio | **Batch 8-BIS — `2214`** | `EXECUTION-BATCHES.md` |
+| FREEZE de importação | **ATIVO** — inalterado pelo Batch 8 **e pelo Batch 8-BIS** | etapa 3 do `ROLLOUT-ORDER.md` |
+| **Batch 8-BIS — `2214`** | **CLOSED** — `2214` **v3.1** (blob `30e19523…`) **EXECUTADA NO LIVE** em 2026-09-22, `LIVE VALIDATED` | `BATCH8-BIS-2214-CLOSEOUT-01` |
+| `2214` (guard estrito) | **EXECUTADA / LIVE VALIDATED** — guard **job-aware ATIVO** no LIVE. Postcheck read-only **15/15 GATEs PASS**: trigger único · `tgtype = 23` exato · `UPDATE OF` = `normalized_data` + `persistence_status` + `validation_status` · `tgfoid` = OID da função canônica · G1 **e** G2 no corpo · `SECURITY INVOKER` · `proconfig = ARRAY['search_path=""']` · ACL sem `PUBLIC`/`anon`/`authenticated` · 3 triggers canônicos na tabela, nenhum duplicado · **operacional `VALID+PENDING` sem a chave = 0** · **histórico `CANCELLED` 847 / 415 PRESERVADOS** · jobs em voo = 0 · resíduo `GUARD2214-%` = 0 | `BATCH8-BIS-2214-LIVE-POSTCHECK-01` |
+| `2214` no ledger | **0 entradas — DIAGNÓSTICO DE RASTREABILIDADE, NÃO "não executada"**. Rodou **direto no SQL Editor**, que não escreve em `supabase_migrations.schema_migrations` — só a CLI escreve. O estado físico é provado pelos catálogos (`pg_trigger` / `pg_proc`), medidos nos 15 gates. Mesma classe da `2202`. Reconciliação do ledger fica **fora** deste closeout | `BATCH8-BIS-2214-CLOSEOUT-01` |
+| Próximo estágio | **Batch 9 — `2217` EXPAND** · **NÃO EXECUTADA** — exige readiness audit e mandato explícito de Fabrício | `EXECUTION-BATCHES.md` |
 
 ## HISTORICAL MEASUREMENT — registro, NÃO estado
 

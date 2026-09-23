@@ -789,7 +789,28 @@ limitação declarada.
 
 ---
 
-## Batch 8-BIS — GUARD ESTRITO (`2214`)
+## Batch 8-BIS — GUARD ESTRITO (`2214`) · ✅ **CLOSED**
+
+> **FECHADO em `BATCH8-BIS-2214-CLOSEOUT-01` (2026-09-22).** A `2214` **v3.1**
+> (blob `30e19523d91d9bc127dcefe6f4cb09e6c263ab73`) foi **EXECUTADA NO LIVE**,
+> manualmente pelo **SQL Editor do Supabase**, retorno `Success. No rows
+> returned`. Postcheck read-only `BATCH8-BIS-2214-LIVE-POSTCHECK-01`:
+> **PASS / LIVE VALIDATED — 15/15 GATEs**. O guard job-aware está **ATIVO**.
+> **FREEZE continua ATIVO.** Próximo estágio: **Batch 9 — `2217` EXPAND**,
+> **NÃO EXECUTADA**, exigindo readiness audit e mandato de Fabrício.
+>
+> **Ledger = 0 — divergência de RASTREABILIDADE, declarada, não mascarada.**
+> Não há linha para `2214_promote_valid_requires_edition_context_key` em
+> `supabase_migrations.schema_migrations`. Isso **não** é "não executada": o
+> ledger é escrito pela CLI (`db push` / `migration up`), nunca pelo motor do
+> Postgres, e a execução direta no SQL Editor aplica e comita o DDL sem passar
+> por ele. O estado físico é provado pelos catálogos que o próprio motor
+> mantém — `pg_trigger` e `pg_proc` —, medidos nos 15 gates. A inversa também
+> vale: `ledger = 1` não provaria nada, porque a linha pode ser inserida à mão
+> sem o DDL ter rodado. Mesma classe da `2202`. **Reconciliação do ledger fica
+> fora deste closeout**, por mandato; nada foi inserido.
+>
+> **⚠️ CURRENT LIVE — não reexecutar a `2214` sem novo mandato.**
 
 > **REPOSICIONADO (`ROLLOUT-DEPENDENCY-CORRECTION-01`).** A `2214` estava no
 > Batch 5, **antes** dos consumidores e da Edge. O `DAG.md` já declarava
@@ -815,11 +836,26 @@ exigindo a chave só do universo operacional, e continua não tocando histórico
 
 **Postcheck:**
 ```sql
--- Guard instalado e job-aware. Esperado: 1 trigger, BEFORE, ROW.
-SELECT t.tgname, (t.tgtype & 1)::bool AS is_row, (t.tgtype & 2)::bool AS is_before
-  FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
- WHERE NOT t.tgisinternal AND c.relname = 'catalog_variant_import_row'
-   AND t.tgname LIKE '%edition_context%';
+-- Guard instalado, job-aware e ligado à função canônica.
+-- Esperado: 1 linha, com TODAS as colunas booleanas em `true`.
+SELECT t.tgname,
+       count(*) OVER ()                    AS n_triggers,          -- 1
+       t.tgtype::int = 23                  AS tgtype_exato,        -- BEFORE+ROW+INSERT+UPDATE,
+                                                                   -- sem DELETE/TRUNCATE/INSTEAD
+       t.tgfoid = to_regprocedure('internal.guard_cvir_normalized_shape()')::oid
+                                           AS aponta_para_o_guard, -- vínculo por OID, não por nome
+       (SELECT array_agg(a.attname ORDER BY a.attname)
+          FROM unnest(t.tgattr::int2[]) u(attnum)
+          JOIN pg_attribute a ON a.attrelid = t.tgrelid AND a.attnum = u.attnum)
+         = ARRAY['normalized_data','persistence_status','validation_status']::name[]
+                                           AS update_of_exato
+  FROM pg_trigger   t
+  JOIN pg_class     c  ON c.oid  = t.tgrelid
+  JOIN pg_namespace ns ON ns.oid = c.relnamespace
+ WHERE NOT t.tgisinternal
+   AND ns.nspname = 'public'
+   AND c.relname  = 'catalog_variant_import_row'
+   AND t.tgname   = 'trg_cvir_normalized_shape';
 
 -- Nenhuma row OPERACIONAL VALID sem a chave — o guard não teria o que recusar.
 SELECT count(*) AS operacional_sem_chave                    -- esperado: 0
@@ -840,12 +876,47 @@ SELECT
    AND NOT (r.normalized_data ? 'edition_context_profile_id');
 ```
 
-**Prosseguir se:** guard presente · `operacional_sem_chave = 0` ·
-`847 → 847` e `415 → 415`.
+**Prosseguir se:** 1 linha na primeira query com `tgtype_exato`,
+`aponta_para_o_guard` e `update_of_exato` **todos `true`** ·
+`operacional_sem_chave = 0` · `847 → 847` e `415 → 415`.
+
+> ### O POSTCHECK ACIMA FOI CORRIGIDO NO CLOSEOUT — o original era defeituoso
+>
+> **Registro do defeito, para que não se repita.** A primeira query deste
+> postcheck, como escrita no planejamento, filtrava o trigger por
+> `t.tgname LIKE '%edition_context%'`. O trigger instalado pela `2214` chama-se
+> **`trg_cvir_normalized_shape`** — sem `edition_context` no nome. Rodada como
+> estava, devolveria **zero linhas**, e "zero linhas" seria lido como "guard
+> ausente": um falso STOP. Pior no sentido inverso, se alguém contornasse o
+> zero: ela só olhava dois bits de `tgtype` e **nada** sobre qual função o
+> trigger executa — um trigger canônico apontando para a função errada passaria.
+>
+> **Por que foi substituída em vez de apenas anotada
+> (`BATCH8-BIS-2214-CLOSEOUT-CORRECTION-02`).** Este documento é **autoridade
+> operacional** e pode ser reexecutado num CLEAN / CANONICAL PATH. Deixar SQL
+> defeituoso como bloco normativo, ainda que comentado, é deixar uma armadilha
+> armada. A versão vigente troca heurística de nome por **prova estrutural**:
+> `tgtype` por **identidade exata** (`= 23`), `tgfoid` comparado ao **OID** da
+> função canônica, e `tgattr` resolvido por `attnum` e comparado ao conjunto
+> exato das três colunas. As duas outras queries do bloco **não** tinham
+> defeito — seguem como estavam, com o mesmo predicado do harness LIVE.
+>
+> **Evidência forte do closeout, que este bloco não substitui:**
+> `BATCH8-BIS-2214-LIVE-POSTCHECK-01` (+ `CORRECTION-01`) — bloco único
+> READ-ONLY de **15 GATEs**, todos `OK`, superconjunto estrito do que está
+> acima; e antes dele `BATCH8-BIS-2214-LIVE-PRECHECK-01` (+ `CORRECTION-01`),
+> medindo o LIVE **antes** de autorizar a migration. O postcheck deste
+> documento é a versão **concisa e correta** para reuso; o harness de 15 gates
+> é o que foi efetivamente executado e validou o LIVE.
 
 ---
 
-## Batch 9 — WRITER: EXPAND → SWITCH → CONTRACT
+## Batch 9 — WRITER: EXPAND → SWITCH → CONTRACT · **PRÓXIMO ESTÁGIO**
+
+> **NÃO EXECUTADO.** `2217`, `2218` e `2223` seguem **NÃO EXECUTADAS** — nunca
+> foram autorizadas, e nenhuma rodada deste rollout as tocou. O batch só
+> inicia com **readiness audit** e **mandato explícito de Fabrício**. FREEZE
+> **ATIVO**.
 
 **Três artefatos, três STOPs.** Não colapsar em uma chamada.
 

@@ -131,7 +131,7 @@ RAW (type · foil · subtype · stamp[] · size)
 | `2830` | harness de validação | **144 automáticos + 4 pendentes + 3 manuais**, 17 seções |
 | **`2212`** v3.0 | **resolução OPERACIONAL** (ex-backfill global) | **OP-BOUNDARY 4·7** |
 | **`2833`** v2.0 | **matriz de state machine job-aware** (11 gates) | **OP-BOUNDARY 1·3** |
-| **`2214`** v3.0 | **guard de transição OPERACIONAL** (job-aware) | **OP-BOUNDARY 1·2·8** |
+| **`2214`** **v3.1** ✅ **LIVE VALIDATED** | **guard de transição OPERACIONAL** (job-aware) — **EXECUTADA NO LIVE** em 2026-09-22 (`BATCH8-BIS-2214-CLOSEOUT-01`), blob `30e19523…`, postcheck 15/15. *A v3.0 é a medição desta tabela na rodada original; a v3.1 corrigiu fixture do probe e ACL sem mudar a semântica do guard* | **OP-BOUNDARY 1·2·8** |
 | **`2215`** | **DROP das 2 identidades antigas de `card_variant`** | **Correção 1** |
 | **`2216`** | **DROP das 2 identidades antigas de staging** | **Correção 1** |
 | **`2217`** v2.0 | **EXPAND — cria `write_card_variant` de 7 args, sem DEFAULT; preserva a de 6** | Correção 7 · `WRITER-EXPAND-CONTRACT-CORRECTION-01` |

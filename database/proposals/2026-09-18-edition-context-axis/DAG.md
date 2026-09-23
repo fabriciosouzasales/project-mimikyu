@@ -129,7 +129,7 @@ coluna existe do lado de `card_variant`.
 | `2832` | 2212 **e**, no LIVE atual, 2233 | 2833 | ❌ |
 | **`2213`** (futuro) | 2831 PASS · Pricing · **lineage atômico (L1–L4)** | — | ❌ |
 | **`2833`** | 2832 | 2214 | ❌ |
-| `2214` | 2833 · **Edge deployada** | 2216 | ❌ |
+| `2214` ✅ **LIVE VALIDATED** | 2833 · **Edge deployada** | 2216 | ❌ |
 | `2219`–`2222` | 2211 | Edge · 2217 | ✅ entre si (funções disjuntas) |
 | **Edge** ✅ **v15 ACTIVE** | 2211 · 2219–2222 | 2214 · 2217 | ❌ |
 | `2217` **EXPAND** | 2208 | 2218 | ❌ — **não** depende mais da 2218: cria a de 7 e preserva a de 6 |
@@ -205,10 +205,11 @@ convenção.
 **JÁ EXECUTADO** — `2233` *(reparo de incidente)* → `2832` → `2833`
 *(Batch 6)* → `2219` · `2220` · `2221` · `2222` → **`2834` PASS**
 *(Batch 7 · **CLOSED**)* → **Edge DEPLOYADA · v15 ACTIVE**
-*(Batch 8 · **CLOSED**)*
+*(Batch 8 · **CLOSED**)* → **`2214` v3.1 LIVE VALIDATED**
+*(Batch 8-BIS · **CLOSED**)*
 
-**A EXECUTAR** — `2214` *(Batch 8-BIS · **próximo**)* →
-**`2217` (EXPAND)** → **`2218` (SWITCH)** → **`2223` (CONTRACT)** *(Batch 9)* →
+**A EXECUTAR** — **`2217` (EXPAND)** *(Batch 9 · **próximo**, NÃO EXECUTADA)* →
+**`2218` (SWITCH)** → **`2223` (CONTRACT)** *(Batch 9)* →
 `2209` *(Batch 10)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
 *(Batch 12)* → `2831` → `2213`
 
@@ -248,6 +249,34 @@ convenção.
 > componentes **não rodaram contra dado real**. O que existe é **equivalência
 > de contrato** — mesma fixture, dois runners independentes (`2834` no LIVE,
 > suíte Deno agora) —, não concordância observada em produção.
+
+> **Fechamento do Batch 8-BIS (`BATCH8-BIS-2214-CLOSEOUT-01`, 2026-09-22).** A
+> `2214` **v3.1** (blob `30e19523d91d9bc127dcefe6f4cb09e6c263ab73`) foi
+> **EXECUTADA NO LIVE** e está **LIVE VALIDATED**: o guard de transição
+> operacional job-aware está **ATIVO** no banco. Execução manual, **SQL Editor
+> do Supabase**, `Success. No rows returned`. Postcheck read-only **15/15
+> GATEs PASS** — trigger único · `tgtype = 23` exato · `UPDATE OF` com as três
+> colunas · `tgfoid` = OID da função canônica (vínculo provado por OID, não
+> por nome) · G1 e G2 no corpo · `SECURITY INVOKER` ·
+> `proconfig = ARRAY['search_path=""']` · ACL sem `PUBLIC`/`anon`/
+> `authenticated` · 3 triggers canônicos, nenhum duplicado · **operacional
+> `VALID+PENDING` sem a chave = 0** · **histórico `CANCELLED` 847 / 415
+> preservados** · jobs em voo 0 · resíduo `GUARD2214-%` 0.
+>
+> **Ledger = 0 — diagnóstico de RASTREABILIDADE, não estado de execução.** Não
+> há linha para `2214_promote_valid_requires_edition_context_key` em
+> `supabase_migrations.schema_migrations`, porque o ledger é escrito pela CLI
+> do Supabase e nunca pelo motor do Postgres: a execução direta no SQL Editor
+> aplica e comita o DDL sem passar por ele. Quem prova o estado físico são os
+> catálogos (`pg_trigger`, `pg_proc`), e foram eles que os 15 gates mediram.
+> `ledger = 1` também não provaria nada — a linha pode ser inserida à mão.
+> Mesma classe da `2202`. Reconciliação do ledger **fora** deste closeout.
+>
+> **O FREEZE segue ATIVO.** Próximo estágio: **Batch 9 — `2217` EXPAND**,
+> **NÃO EXECUTADA**, exigindo readiness audit e mandato de Fabrício. O limite
+> declarado do Batch 8 permanece: compatibilidade funcional com importação
+> **real** **NÃO PROVADA até o UNFREEZE** — o guard agora **existe e recusa**,
+> mas sob FREEZE nenhuma importação o exercitou.
 
 **Duas correções de ordem nesta rodada**, ambas porque a projeção operacional
 divergia da tabela de dependências — que já estava certa nos dois casos:
