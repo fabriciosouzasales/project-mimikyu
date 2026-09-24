@@ -133,7 +133,7 @@ coluna existe do lado de `card_variant`.
 | **`2224`** ✅ **LIVE VALIDATED** *(guard same-Game 3º eixo)* | **2208** · 2204 | **2217** | ❌ — precede o EXPAND |
 | `2219`–`2222` | 2211 | Edge · 2217 | ✅ entre si (funções disjuntas) |
 | **Edge** ✅ **v15 ACTIVE** | 2211 · 2219–2222 | 2214 · 2217 | ❌ |
-| `2217` **EXPAND** | 2208 | 2218 | ❌ — **não** depende mais da 2218: cria a de 7 e preserva a de 6 |
+| `2217` ✅ **LIVE VALIDATED** **EXPAND** | 2208 · **2224** | 2218 | ❌ — **não** depende mais da 2218: cria a de 7 e preserva a de 6 |
 | `2218` **SWITCH** | 2211 · 2217 (a de 7 precisa existir) | 2223 | ❌ |
 | `2223` **CONTRACT** | 2218 (confirm já chama com 7) | 2209 | ❌ |
 | `2209` | 2208 · 2223 · Edge | 2215 | ❌ |
@@ -208,10 +208,12 @@ convenção.
 *(Batch 7 · **CLOSED**)* → **Edge DEPLOYADA · v15 ACTIVE**
 *(Batch 8 · **CLOSED**)* → **`2214` v3.1 LIVE VALIDATED**
 *(Batch 8-BIS · **CLOSED**)* → **`2224` GUARD SAME-GAME do 3º eixo
-LIVE VALIDATED** *(Batch 9 · **CLOSED**, 2026-09-22)*
+LIVE VALIDATED** *(Batch 9 · **CLOSED**, 2026-09-22)* → **`2217` EXPAND
+LIVE VALIDATED** *(Batch 9 · 2026-09-23 · exceção documental de terminador
+de linha, ver `EXECUTION-BATCHES.md`)*
 
-**A EXECUTAR** — **`2217` (EXPAND)** *(Batch 9 · **próximo**, NÃO EXECUTADA)* →
-**`2218` (SWITCH)** → **`2223` (CONTRACT)** *(Batch 9)* →
+**A EXECUTAR** — **`2218` (SWITCH)** *(Batch 9 · **próximo**: READINESS,
+NÃO EXECUTADA)* → **`2223` (CONTRACT)** *(Batch 9)* →
 `2209` *(Batch 10)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
 *(Batch 12)* → `2831` → `2213`
 

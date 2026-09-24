@@ -38,7 +38,7 @@ Executáveis assim que as pré-condições do DAG forem satisfeitas.
 | **`2833`** v2.0 | **matriz de state machine job-aware** — 11 gates |
 | **`2215`** | **DROP das 2 identidades antigas de `card_variant`** (novo) |
 | **`2216`** | **DROP das 2 identidades antigas de staging** (novo) |
-| **`2217`** v2.0 | **EXPAND** — cria `write_card_variant` de 7 args, sem DEFAULT; **preserva** a de 6 (novo) |
+| **`2217`** v2.0 | **EXPAND** — cria `write_card_variant` de 7 args, sem DEFAULT; **preserva** a de 6 (novo) · ✅ **EXECUTED / LIVE VALIDATED** 2026-09-23, exceção EOL documentada (`EXECUTION-BATCHES.md`) |
 | **`2223`** | **CONTRACT** — prova database-wide + `DROP` da assinatura de 6 args (novo, `WRITER-EXPAND-CONTRACT-CORRECTION-01`) |
 | **`2840`** | **probe T1** — `apply_migration` × `NULLS NOT DISTINCT` (novo) |
 | `2830` v6.0 · `2831` · `2832` v3.0 | harness (114 + 4 pendentes + 3 manuais) · simulação · prova operacional (14 casos) |
@@ -99,8 +99,13 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 > ✅ **LACUNA FECHADA NO LIVE em 2026-09-22** (`BATCH9-2224-CLOSEOUT-01`).
 > O guard está **ATIVO**: os três eixos passam a ter autoridade same-Game
 > dedicada (`2170` Impressão · `161` Variant Type · `2224` Contexto de
-> Edição). O **pré-requisito da `2217` está SATISFEITO**, e a `2217` passa a
-> ser o **próximo estágio** — ainda `NÃO EXECUTADA`, exigindo mandato.
+> Edição). O **pré-requisito da `2217` está SATISFEITO**.
+>
+> ✅ **`2217` EXECUTED / LIVE VALIDATED em 2026-09-23**
+> (`BATCH9-2217-LIVE-VALIDATION-CLOSEOUT-01`), com exceção documental de
+> terminador de linha (raw DIFFERENT só por CRLF · normalizado EXACT ·
+> divergência semântica NONE). Próximo estágio: **`2218` SWITCH — READINESS**,
+> `NÃO EXECUTADA`, exigindo mandato.
 | **`2221`** | `public.admin_resolve_catalog_variant_import_printing_mapping` | `2181` | 652 | revalidação via 2211 (lógica de Printing inalterada) |
 | **`2222`** | `internal.create_card_printing_profile_with_backfill` | `2189` | 583 | backfill **preservar** `edition_context_profile_id` (2 call sites) |
 

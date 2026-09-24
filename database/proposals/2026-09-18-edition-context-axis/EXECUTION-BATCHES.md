@@ -917,12 +917,15 @@ SELECT
 > CLOSED`** (2026-09-22, `BATCH9-2224-CLOSEOUT-01`): blob executado
 > `5bae844bc37022de3bb2ad34e52b5f8ac31da929`, publicado em `2fcd6231`,
 > aplicada **direto no SQL Editor**, POSTCHECK read-only **20/20 GATEs ·
-> GLOBAL PASS**, **zero drift** PRE→POST. **`2217`, `2218` e `2223` seguem
-> **NÃO EXECUTADAS** — cada uma exige **readiness audit** e **mandato
-> explícito de Fabrício**. Próximo estágio: **`2217` EXPAND**.
+> GLOBAL PASS**, **zero drift** PRE→POST. A **`2217` está `EXECUTED / LIVE
+> VALIDATED`** (2026-09-23, `BATCH9-2217-LIVE-VALIDATION-CLOSEOUT-01`), com
+> **exceção documental explícita de terminador de linha** — ver o bloco
+> "CUMPRIDO" abaixo do postcheck da `2217`. **`2218` e `2223` seguem **NÃO
+> EXECUTADAS** — cada uma exige **readiness audit** e **mandato explícito de
+> Fabrício**. Próximo estágio: **`2218` SWITCH — READINESS** (não iniciada).
 > FREEZE **ATIVO**.
 >
-> **`2224` no ledger = 0.** Diagnóstico de RASTREABILIDADE, **não** "não
+> **`2224` e `2217` no ledger = 0.** Diagnóstico de RASTREABILIDADE, **não** "não
 > executada": o `supabase_migrations.schema_migrations` é escrito pela CLI,
 > nunca pelo motor do Postgres. A prova física são os catálogos (`pg_proc` /
 > `pg_trigger`), medidos nos 20 gates. Mesma classe da `2202` e da `2214`.
@@ -947,8 +950,8 @@ SELECT
 | Ordem | Artefato | STOP obrigatório depois |
 |---|---|---|
 | 1 | **`2224` GUARD same-Game do 3º eixo** ✅ **EXECUTADA / LIVE VALIDATED / CLOSED** | **cumprido** |
-| 2 | `2217` EXPAND · **próximo** | **sim** |
-| 3 | `2218` SWITCH | **sim** |
+| 2 | **`2217` EXPAND** ✅ **EXECUTADA / LIVE VALIDATED** *(exceção EOL documentada)* | **cumprido** |
+| 3 | `2218` SWITCH · **próximo — READINESS** | **sim** |
 | 4 | `2223` CONTRACT | **sim** |
 
 **Postcheck após `2224`:** 1 função `internal.enforce_card_variant_edition_
@@ -969,6 +972,49 @@ tudo isso, fail-closed.
 > 24.893 → 24.893, EC não-nulo 0 → 0).
 
 **Postcheck após `2217`:** 2 assinaturas (6 e 7 args); confirm ainda chama a de 6.
+
+> ✅ **CUMPRIDO em 2026-09-23 — com EXCEÇÃO DOCUMENTAL DE TERMINADOR DE
+> LINHA** (`BATCH9-2217-LIVE-VALIDATION-CLOSEOUT-01`). Artefato: blob
+> `c9abf5d77be5823c888e594f93b754befe8cb991` (publicado, **inalterado**),
+> aplicado pelo SQL Editor. O POSTCHECK LIVE read-only
+> (`BATCH9-2217-LIVE-POSTCHECK-CORRECTION-01`) rodou **via MCP
+> `execute_sql`** — não pelo Dashboard — e devolveu **35/36 GATEs**
+> (estruturais 32/33 · operacionais 3/3), **único STOP = G6.a**:
+>
+> - **exatamente 2** overloads de `internal.write_card_variant` (6 e 7 args);
+>   7 args = `text, uuid, uuid, uuid, integer, uuid, uuid`, sem DEFAULT ·
+>   ACL das duas **owner-only** `{postgres=X/postgres}` · owner writer6 =
+>   writer7 = `admin_confirm` = `postgres`;
+> - corpo de 6 args **byte-idêntico** ao esperado (md5 `d01cfc0b…`, 1.966
+>   bytes) · `admin_confirm_catalog_variant_import` **ainda chama a de 6**;
+> - guard `2224` intacto (`tgfoid` = OID da função, `tgtype = 23`) · jobs em
+>   voo 0 · `card_variant` 24.893 · EC não-nulo 0 · locks conflitantes 0.
+>
+> **Adjudicação do G6.a: TRANSPORT/EOL-ONLY — NÃO MATERIAL.**
+>
+> | Identidade | Resultado |
+> |---|---|
+> | **raw byte identity** do `prosrc` de 7 args | **DIFFERENT — exclusivamente por CRLF**: LIVE md5 `2909175fe2122e0eb461a2416eee0c06`, 2.761 bytes × esperado (LF, derivado do blob) md5 `478aada84470a7fba1c9b6d5254a40f1`, 2.707 bytes. Delta = **54 bytes = 54 LF** do corpo |
+> | **normalized body identity** (CRLF→LF) | **EXACT** — md5 normalizado = `478aada84470a7fba1c9b6d5254a40f1` (G6.b) |
+> | **semantic / functional divergence** | **NONE** — nenhum dos 11 literais de string do corpo atravessa linha; o CR só aparece como whitespace entre tokens PL/pgSQL |
+>
+> Causa: colagem a partir do Windows no SQL Editor converteu LF → CRLF antes
+> do envio. **Não se registra** *"audited = executed byte-identical"*: o que
+> foi provado é identidade **normalizada**, não bruta. O arquivo da `2217`
+> **não** foi alterado para "casar" com o LIVE.
+>
+> **Regra permanente (vale para `2218`, `2223` e execuções futuras):**
+> (1) hash **bruto** diferente com hash **normalizado por EOL** idêntico =
+> exceção documentável de transporte, adjudicada explicitamente; (2) hash
+> **normalizado** diferente **continua sendo STOP**; (3) preferir canal que
+> preserve o payload controlado — **MCP / CLI** — em vez do **Dashboard Query
+> Editor**, que além do EOL já **anexou SQL próprio** ao payload (`ALTER TABLE
+> public ENABLE ROW LEVEL SECURITY;`, causa do 42P01 do primeiro POSTCHECK).
+> Norma em `docs/standards/STD-001-database-standards.md` §10.
+>
+> A validação da `2224` **não** é reaberta: sem nova evidência, permanece
+> `CLOSED / LIVE VALIDATED`. **Ledger da `2217` = 0** — rastreabilidade,
+> não "não executada".
 **Postcheck após `2218`:** confirm chama a de 7; as 2 assinaturas seguem vivas.
 **Postcheck após `2223`:** 1 assinatura, 7 args.
 
