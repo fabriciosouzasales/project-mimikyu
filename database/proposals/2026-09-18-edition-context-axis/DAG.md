@@ -210,11 +210,12 @@ convenção.
 *(Batch 8-BIS · **CLOSED**)* → **`2224` GUARD SAME-GAME do 3º eixo
 LIVE VALIDATED** *(Batch 9 · **CLOSED**, 2026-09-22)* → **`2217` EXPAND
 LIVE VALIDATED** *(Batch 9 · 2026-09-23 · exceção documental de terminador
-de linha, ver `EXECUTION-BATCHES.md`)*
+de linha, ver `EXECUTION-BATCHES.md`)* → **`2218` SWITCH LIVE VALIDATED**
+*(Batch 9 · 2026-09-25 · v1.3)* → **`2223` CONTRACT LIVE VALIDATED**
+*(Batch 9 · 2026-09-25 · v1.1 · Batch 9 **CLOSED**)*
 
-**A EXECUTAR** — **`2218` (SWITCH)** *(Batch 9 · **próximo**: READINESS,
-NÃO EXECUTADA)* → **`2223` (CONTRACT)** *(Batch 9)* →
-`2209` *(Batch 10)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
+**A EXECUTAR** — `2209` *(Batch 10 · **próximo**: READINESS, NÃO
+EXECUTADA)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
 *(Batch 12)* → `2831` → `2213`
 
 **27 passos.** Todo predecessor da tabela acima aparece antes de seu sucessor.

@@ -911,9 +911,22 @@ SELECT
 
 ---
 
-## Batch 9 — GUARD → WRITER: EXPAND → SWITCH → CONTRACT · **EM CURSO**
+## Batch 9 — GUARD → WRITER: EXPAND → SWITCH → CONTRACT · **CLOSED**
 
-> **PARCIALMENTE EXECUTADO.** A **`2224` está `EXECUTED / LIVE VALIDATED /
+> ✅ **BATCH 9 CLOSED em 2026-09-25** (`BATCH9-EDITION-CONTEXT-WRITER-CLOSEOUT-01`).
+> **`2224` → `2217` → `2218` → `2223` todos `EXECUTED / LIVE VALIDATED /
+> CLOSED`** — EXPAND → SWITCH → CONTRACT **completo**. Estado LIVE final:
+> `internal.write_card_variant` com **uma única** assinatura (7 args, sem
+> DEFAULT, SECDEF, `search_path=""`, owner `postgres`, ACL owner-only,
+> corpo LF `478aada8…` 2.707 B / 54 LF); writer de 6 args **AUSENTE**;
+> `admin_confirm_catalog_variant_import` = corpo LF `b83f7708…` 20.095 B /
+> 389 LF, ACL `postgres` + `authenticated` (sem terceiros, sem GRANT OPTION);
+> **1** caller do writer (o confirm); `card_variant` 24.893 · EC não-nulo 0 ·
+> jobs em voo 0 · `session_replication_role = origin`. Ledger de `2218`/`2223`
+> = 0 (rastreabilidade, mesma classe da `2214`/`2224`/`2217`). **FREEZE
+> ATIVO.** Próximo: **Batch 10 / `2209` — READINESS** (não iniciada).
+>
+> *Histórico (texto de 2026-09-23, preservado):* **PARCIALMENTE EXECUTADO.** A **`2224` está `EXECUTED / LIVE VALIDATED /
 > CLOSED`** (2026-09-22, `BATCH9-2224-CLOSEOUT-01`): blob executado
 > `5bae844bc37022de3bb2ad34e52b5f8ac31da929`, publicado em `2fcd6231`,
 > aplicada **direto no SQL Editor**, POSTCHECK read-only **20/20 GATEs ·
@@ -951,8 +964,8 @@ SELECT
 |---|---|---|
 | 1 | **`2224` GUARD same-Game do 3º eixo** ✅ **EXECUTADA / LIVE VALIDATED / CLOSED** | **cumprido** |
 | 2 | **`2217` EXPAND** ✅ **EXECUTADA / LIVE VALIDATED** *(exceção EOL documentada)* | **cumprido** |
-| 3 | `2218` SWITCH · **próximo — READINESS** | **sim** |
-| 4 | `2223` CONTRACT | **sim** |
+| 3 | **`2218` SWITCH** ✅ **EXECUTADA / LIVE VALIDATED / CLOSED** (v1.3) | **cumprido** |
+| 4 | **`2223` CONTRACT** ✅ **EXECUTADA / LIVE VALIDATED / CLOSED** (v1.1) | **cumprido** |
 
 **Postcheck após `2224`:** 1 função `internal.enforce_card_variant_edition_
 context_profile_game` (SECDEF · `proconfig = ARRAY['search_path=""']` · ACL sem
@@ -1016,7 +1029,36 @@ tudo isso, fail-closed.
 > `CLOSED / LIVE VALIDATED`. **Ledger da `2217` = 0** — rastreabilidade,
 > não "não executada".
 **Postcheck após `2218`:** confirm chama a de 7; as 2 assinaturas seguem vivas.
+
+> ✅ **CUMPRIDO em 2026-09-25.** Antes da execução: LIVE PRECHECK Parte 1
+> **38/38 GATEs** e performance **6/6** (`P2.A`/`P2.B`/`P2.C` custom sobre a
+> maior massa real, 507 rows / 284 Cards, e `G2.A`/`G2.B`/`G2.C` generic);
+> faixa 508–1000 rows **não medida empiricamente** (extrapolação registrada,
+> não blocker). 1ª tentativa (v1.2, blob `983dbb63…`) falhou no **parse**
+> (42601: `$$` dentro de comentário no bloco `DO` do PASSO 3) e um probe
+> read-only provou **zero efeito físico**; correção v1.3 trocou só os
+> delimitadores dos dois `DO` por `$pre2218$`/`$post2218$` (4 linhas, corpo da
+> função intacto). **Artefato EXECUTADO:** blob
+> `6f4dbd9c5ffe15bbf093a0747b7e77e8cc525553` · md5 `bedb5e32…` · 49.403 B ·
+> corpo LF `b83f7708…`, via **MCP `execute_sql`**, 1 execução, sem erro. O
+> arquivo no repositório recebeu depois **apenas** um bloco de comentário de
+> closeout (blob documental diferente; executável idêntico — ver HANDOFF
+> §0-SEPTIES). POSTCHECK independente: **LIVE VALIDATED**.
+
 **Postcheck após `2223`:** 1 assinatura, 7 args.
+
+> ✅ **CUMPRIDO em 2026-09-25.** v1.1 endurecida (`CONTRACT-HARDENING-01`):
+> assinaturas exatas, hash físico do confirm, exatamente 1 caller por
+> identidade, dependências formais fail-closed, `DROP … RESTRICT` exato,
+> **sem idempotência**. LIVE PRECHECK **9/9 gates** (regex e varredura
+> textual ampla com a mesma lista; 0 dependências; 0 sessões concorrentes).
+> **Artefato EXECUTADO:** blob `72ba009eb2c76b2683b113910b57c6abe0546956` ·
+> md5 `58ddd68f…` · 19.484 B, via **MCP `execute_sql`**, 1 execução, sem
+> erro. Depois, **apenas** comentário de closeout no arquivo. POSTCHECK
+> independente: writer6 **ausente**, writer7 única (`478aada8…` / 2.707 / 54,
+> owner-only), confirm `b83f7708…` intacto, 1 caller — **LIVE VALIDATED**.
+> As queries abaixo são o esboço original; os harnesses executados são
+> superconjuntos estritos delas.
 
 ```sql
 SELECT p.pronargs, p.pronargdefaults, p.prosecdef
@@ -1033,7 +1075,7 @@ sua etapa. Em nenhum instante existe caller apontando para assinatura ausente.
 
 ---
 
-## Batch 10 — IDENTIDADE NOVA (liberada pelo T1)
+## Batch 10 — IDENTIDADE NOVA (liberada pelo T1) · **PRÓXIMO — READINESS (não iniciada)**
 
 | Ordem | Artefato |
 |---|---|

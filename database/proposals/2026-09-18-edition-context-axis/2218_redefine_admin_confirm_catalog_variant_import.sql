@@ -1,7 +1,21 @@
 -- ============================================================================
 -- Query 2218 — public.admin_confirm_catalog_variant_import() v3.0
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 1.2
+-- Status: EXECUTADA / LIVE VALIDATED / CLOSED · Versão 1.3 (a executada)
 -- WRITE-PATH-STAGING-01 · itens 1, 2, 4, 5, 8
+--
+-- CLOSEOUT (BATCH9-EDITION-CONTEXT-WRITER-CLOSEOUT-01, 2026-09-25):
+--   Executada 1x via Supabase MCP execute_sql em 2026-09-25 (~03:30Z),
+--   retorno sem erro; POSTCHECK independente = LIVE VALIDATED.
+--   Artefato EFETIVAMENTE executado (anterior a este bloco de comentário):
+--     git hash-object 6f4dbd9c5ffe15bbf093a0747b7e77e8cc525553
+--     md5 bedb5e32b3a86853482ea7c6754cab9e · 49403 bytes · 0 CR · 917 LF
+--     corpo LF md5 b83f7708ca2b7498b753b394d768f66e · 20095 bytes · 389 LF
+--   Naquele artefato o cabeçalho ainda dizia "Versão 1.2 / NÃO EXECUTADA";
+--   a v1.3 (PARSE-CORRECTION-01) só trocou os delimitadores dos dois blocos
+--   DO do PASSO 1/PASSO 3 por tags nomeadas. 1ª tentativa (v1.2, blob
+--   983dbb63) falhou no parse com 42601 e não deixou efeito físico
+--   (LIVE-STATE-PROBE-01). Este bloco é o ÚNICO acréscimo do closeout:
+--   nenhuma linha executável foi alterada.
 -- v1.1: BATCH9-2218-SWITCH-CORRECTION-01 (fecha B1/B2/B3 e H1-H4 da
 --       BATCH9-2218-SWITCH-READINESS-AUDIT-01)
 -- v1.2: BATCH9-2218-SWITCH-CORRECTION-02 — ACL de authenticated provada

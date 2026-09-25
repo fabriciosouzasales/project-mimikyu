@@ -104,8 +104,12 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 > ✅ **`2217` EXECUTED / LIVE VALIDATED em 2026-09-23**
 > (`BATCH9-2217-LIVE-VALIDATION-CLOSEOUT-01`), com exceção documental de
 > terminador de linha (raw DIFFERENT só por CRLF · normalizado EXACT ·
-> divergência semântica NONE). Próximo estágio: **`2218` SWITCH — READINESS**,
-> `NÃO EXECUTADA`, exigindo mandato.
+> divergência semântica NONE). ~~Próximo estágio: `2218` SWITCH — READINESS~~
+> *(superado)*.
+>
+> ✅ **`2218` e `2223` EXECUTED / LIVE VALIDATED / CLOSED em 2026-09-25**
+> (`BATCH9-EDITION-CONTEXT-WRITER-CLOSEOUT-01`) — **Batch 9 CLOSED**. Próximo
+> estágio: **Batch 10 / `2209` — READINESS**, `NÃO EXECUTADA`, exigindo mandato.
 | **`2221`** | `public.admin_resolve_catalog_variant_import_printing_mapping` | `2181` | 652 | revalidação via 2211 (lógica de Printing inalterada) |
 | **`2222`** | `internal.create_card_printing_profile_with_backfill` | `2189` | 583 | backfill **preservar** `edition_context_profile_id` (2 call sites) |
 

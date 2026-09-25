@@ -1,7 +1,18 @@
 -- ============================================================================
 -- Query 2223 — CONTRACT: DROP de internal.write_card_variant(6 args)
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 1.1
+-- Status: EXECUTADA / LIVE VALIDATED / CLOSED · Versão 1.1 (a executada)
 -- Mandato: EDITION-CONTEXT-AXIS-WRITER-EXPAND-CONTRACT-CORRECTION-01
+--
+-- CLOSEOUT (BATCH9-EDITION-CONTEXT-WRITER-CLOSEOUT-01, 2026-09-25):
+--   Executada 1x via Supabase MCP execute_sql em 2026-09-25 (~12:20Z),
+--   retorno sem erro; POSTCHECK independente = LIVE VALIDATED (writer6
+--   ausente, writer7 única, confirm intacto, 1 caller).
+--   Artefato EFETIVAMENTE executado (anterior a este bloco de comentário):
+--     git hash-object 72ba009eb2c76b2683b113910b57c6abe0546956
+--     md5 58ddd68f66e6772567a2f048a8a315d8 · 19484 bytes · 0 CR · 386 LF
+--   Naquele artefato o cabeçalho ainda dizia "NÃO EXECUTADA". Este bloco é o
+--   ÚNICO acréscimo do closeout: nenhuma linha executável foi alterada.
+--   NÃO reexecutar: a v1.1 não é idempotente (P1.1 = STOP sem writer6).
 -- v1.1: BATCH9-2223-CONTRACT-HARDENING-01 — gates por ASSINATURA EXATA,
 --       hash físico EXATO do confirm instalado (2218), caller database-wide
 --       por identidade (não por ausência textual), dependências formais
