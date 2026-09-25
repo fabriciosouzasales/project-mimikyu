@@ -108,8 +108,16 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 > *(superado)*.
 >
 > ✅ **`2218` e `2223` EXECUTED / LIVE VALIDATED / CLOSED em 2026-09-25**
-> (`BATCH9-EDITION-CONTEXT-WRITER-CLOSEOUT-01`) — **Batch 9 CLOSED**. Próximo
-> estágio: **Batch 10 / `2209` — READINESS**, `NÃO EXECUTADA`, exigindo mandato.
+> (`BATCH9-EDITION-CONTEXT-WRITER-CLOSEOUT-01`) — **Batch 9 CLOSED**. ~~Próximo
+> estágio: **Batch 10 / `2209` — READINESS**, `NÃO EXECUTADA`, exigindo mandato.~~
+> *(superado)*
+>
+> ✅ **`2209` EXECUTED / LIVE VALIDATED em 2026-09-25**
+> (`BATCH10-2209-LIVE-VALIDATION-CLOSEOUT-01`) — **Batch 10 CLOSED** (técnico).
+> Blob executado `390848500603325b545c944184ac51fb45aeee16`. A UNIQUE(4)
+> `uq_card_variant_identity` está instalada; as duas antigas **coexistem** e
+> seguem mais restritivas até a `2215`. Próximo estágio: **Batch 11 / `2215` —
+> READINESS**, `NÃO EXECUTADA / NÃO AUTORIZADA`. FREEZE ATIVO.
 | **`2221`** | `public.admin_resolve_catalog_variant_import_printing_mapping` | `2181` | 652 | revalidação via 2211 (lógica de Printing inalterada) |
 | **`2222`** | `internal.create_card_printing_profile_with_backfill` | `2189` | 583 | backfill **preservar** `edition_context_profile_id` (2 call sites) |
 

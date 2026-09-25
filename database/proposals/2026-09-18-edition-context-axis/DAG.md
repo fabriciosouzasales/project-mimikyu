@@ -212,10 +212,12 @@ LIVE VALIDATED** *(Batch 9 · **CLOSED**, 2026-09-22)* → **`2217` EXPAND
 LIVE VALIDATED** *(Batch 9 · 2026-09-23 · exceção documental de terminador
 de linha, ver `EXECUTION-BATCHES.md`)* → **`2218` SWITCH LIVE VALIDATED**
 *(Batch 9 · 2026-09-25 · v1.3)* → **`2223` CONTRACT LIVE VALIDATED**
-*(Batch 9 · 2026-09-25 · v1.1 · Batch 9 **CLOSED**)*
+*(Batch 9 · 2026-09-25 · v1.1 · Batch 9 **CLOSED**)* → **`2209` UNIQUE(4)
+LIVE VALIDATED** *(Batch 10 · 2026-09-25 · blob `39084850…` · Batch 10
+**CLOSED**; as duas UNIQUE antigas coexistem até a `2215`)*
 
-**A EXECUTAR** — `2209` *(Batch 10 · **próximo**: READINESS, NÃO
-EXECUTADA)* → `2215` → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
+**A EXECUTAR** — `2215` *(Batch 11 · **próximo**: READINESS, NÃO
+EXECUTADA / NÃO AUTORIZADA)* → `2216` *(Batch 11)* → `2830` → `UNFREEZE`
 *(Batch 12)* → `2831` → `2213`
 
 **27 passos.** Todo predecessor da tabela acima aparece antes de seu sucessor.

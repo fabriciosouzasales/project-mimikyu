@@ -1,6 +1,34 @@
 -- ============================================================================
 -- Query 2209 — Identidade de card_variant em QUATRO componentes
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 2.0
+-- Status: EXECUTADA / LIVE VALIDATED · Versão 2.0 (a executada)
+--
+-- CLOSEOUT (BATCH10-2209-LIVE-VALIDATION-CLOSEOUT-01, 2026-09-25)
+--   Executada 1x em 2026-09-25 (~18:03Z) via Supabase MCP `execute_sql`,
+--   imediatamente apos JIT PRECHECK read-only 15/15 gates + gate_pass = true.
+--   Identidade EXATAMENTE executada (antes deste bloco de comentario):
+--     git blob 390848500603325b545c944184ac51fb45aeee16
+--     md5      4a10e6528d82562c22103bfccf8cad45 · 7.075 B · 0 CR · 117 LF
+--   Depois da execucao este arquivo recebeu SOMENTE comentarios; nenhum
+--   token executavel mudou (inclusive o literal do COMMENT ON CONSTRAINT).
+--   POSTCHECK LIVE: uq_card_variant_identity presente como indice
+--   (OID 221012) e como constraint contype='u', convalidated, nao
+--   deferrable, UNIQUE NULLS NOT DISTINCT (card_id, variant_type_id,
+--   printing_profile_id, edition_context_profile_id); indice unique/valid/
+--   ready/live, indnullsnotdistinct, nao parcial, sem expressao,
+--   1.515.520 B. As duas antigas (uq_card_variant_card_type_no_printing
+--   OID 151290 e uq_card_variant_card_type_printing OID 151291) seguem
+--   presentes e saudaveis. card_variant 24.893 · EC nao-nulo 0 · duplicidade
+--   UNIQUE(4) 0/0 · 11 indices, 0 invalidos · owner/RLS/ACL preservados ·
+--   zero lock/transacao residual. Ledger 2209 = 0 (rastreabilidade: o MCP
+--   nao escreve no ledger; mesma classe de 2214/2224/2217/2218/2223).
+--
+--   ESTADO ENTRE 2209 E 2215 (invariante): TRES garantias UNIQUE ativas
+--   simultaneamente — a nova UNIQUE(4) e as duas antigas. As antigas
+--   continuam MAIS restritivas: duas Variants que diferem so em Edition
+--   Context AINDA sao rejeitadas. Nenhum instante sem protecao de identidade.
+--   A nova identidade ESTA INSTALADA, mas so passa a ser a UNICA autoridade
+--   fisica apos a Query 2215 (nao executada, nao autorizada). FREEZE
+--   permanece obrigatorio ate la.
 --
 -- v2.0 (GATE-A-FINAL-CORRECTION-01):
 --   C1 os DROPs dos indices antigos estavam COMENTADOS — a identidade nova
@@ -38,7 +66,15 @@
 --
 -- POR QUE SEM `CONCURRENTLY` — decisao da GATE-A-FINAL-CORRECTION-01
 --   A. CREATE UNIQUE INDEX normal, sob o FREEZE da etapa 0 do rollout.
---      Toma ShareLock (bloqueia escrita, NAO bloqueia leitura). Volume real:
+--      CORRECAO (closeout 2026-09-25) — o texto original dizia que o passo
+--      "NAO bloqueia leitura"; isso so vale para o CREATE. Locks reais:
+--        CREATE UNIQUE INDEX                      -> ShareLock: bloqueia
+--                                                    escrita, permite leitura.
+--        ALTER TABLE ... ADD CONSTRAINT UNIQUE    -> AccessExclusiveLock ate
+--          USING INDEX                               o COMMIT: bloqueia
+--                                                    TAMBEM a leitura.
+--      Por isso o precheck de concorrencia (zero sessao/lock/transacao)
+--      e obrigatorio antes da execucao. Volume real:
 --      24.893 linhas / 9.064 kB — construcao na casa de centenas de ms. Sob
 --      FREEZE nao ha escrita concorrente a bloquear. Roda DENTRO de transacao
 --      => compativel com apply_migration => revertivel com o resto do passo.
@@ -95,6 +131,10 @@ ALTER TABLE public.card_variant
     ADD CONSTRAINT uq_card_variant_identity
     UNIQUE USING INDEX uq_card_variant_identity;
 
+-- NOTA DE CLOSEOUT (2026-09-25): o literal abaixo diz "Substitui ..." as duas
+-- antigas. Isso so e verdade APOS a Query 2215. Depois da 2209 as tres
+-- garantias coexistem e as antigas continuam mais restritivas. O literal NAO
+-- foi alterado: e parte do statement executado (e do COMMENT gravado no LIVE).
 COMMENT ON CONSTRAINT uq_card_variant_identity ON public.card_variant IS
 'Identidade canonica de Card Variant em quatro componentes: acabamento (variant_type), tiragem (printing_profile), contexto de edicao (edition_context_profile). NULLS NOT DISTINCT porque NULL significa "sem esse eixo" — um valor, nao desconhecido. Substitui uq_card_variant_card_type_no_printing e uq_card_variant_card_type_printing.';
 

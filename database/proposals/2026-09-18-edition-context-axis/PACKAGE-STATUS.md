@@ -81,7 +81,10 @@ lido como registro — nunca como estado.
 | **Batch 9 — `2223`** | **EXECUTED / LIVE VALIDATED / CLOSED** (2026-09-25) — CONTRACT v1.1 via **MCP `execute_sql`**. Artefato **executado**: blob `72ba009eb2c76b2683b113910b57c6abe0546956` · md5 `58ddd68f…`. LIVE: writer de 6 args **AUSENTE**; writer de 7 args **única** (`478aada8…` / 2.707 B / 54 LF, owner-only); confirm intacto; 1 caller. Depois, **só** comentário de closeout no arquivo | `BATCH9-EDITION-CONTEXT-WRITER-CLOSEOUT-01` |
 | `2218` / `2223` no ledger | **0** — rastreabilidade, mesma classe da `2202`/`2214`/`2224`/`2217` | POSTCHECK independente |
 | **Batch 9** | **CLOSED** — EXPAND → SWITCH → CONTRACT completo | `EXECUTION-BATCHES.md` |
-| Próximo estágio | **Batch 10 — `2209` — READINESS** · **NÃO EXECUTADA / readiness NÃO iniciada** — exige readiness audit e mandato explícito de Fabrício. Execução por **MCP/CLI**. **FREEZE ATIVO** | `EXECUTION-BATCHES.md` |
+| **Batch 10 — `2209`** | **EXECUTED / LIVE VALIDATED** (2026-09-25) — UNIQUE(4) `NULLS NOT DISTINCT` via **MCP `execute_sql`**, 1 execução após JIT PRECHECK 15/15 (`gate_pass = true`). Artefato **executado**: blob `390848500603325b545c944184ac51fb45aeee16` · md5 `4a10e652…`. LIVE: `uq_card_variant_identity` índice (OID 221012) + constraint `u`, validada, não deferrable, 4 colunas, `indnullsnotdistinct`, não parcial, 1.515.520 B · antigas `…no_printing`/`…printing` presentes e saudáveis · 24.893 · EC 0 · dup 0/0 · 11 índices, 0 inválidos · owner/RLS/ACL preservados. Depois, **só** comentários no arquivo (inclui correção do registro de lock: `ADD CONSTRAINT … USING INDEX` = `AccessExclusiveLock` até o `COMMIT`) | `BATCH10-2209-LIVE-VALIDATION-CLOSEOUT-01` |
+| `2209` no ledger | **0** — rastreabilidade, mesma classe da `2202`/`2214`/`2224`/`2217`/`2218`/`2223`. Não reconciliar manualmente | POSTCHECK LIVE |
+| **Batch 10** | **CLOSED (técnico)** — pendente só a publicação deste closeout. Entre `2209` e `2215` coexistem **três** garantias UNIQUE; as antigas seguem mais restritivas (Variants que diferem só em Edition Context ainda são rejeitadas) | `EXECUTION-BATCHES.md` |
+| Próximo estágio | **Batch 11 — `2215` — READINESS** · **NÃO EXECUTADA / NÃO AUTORIZADA** — exige readiness audit e mandato explícito de Fabrício. **FREEZE ATIVO** | `EXECUTION-BATCHES.md` |
 
 ## HISTORICAL MEASUREMENT — registro, NÃO estado
 

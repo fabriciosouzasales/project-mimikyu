@@ -924,7 +924,9 @@ SELECT
 > **1** caller do writer (o confirm); `card_variant` 24.893 · EC não-nulo 0 ·
 > jobs em voo 0 · `session_replication_role = origin`. Ledger de `2218`/`2223`
 > = 0 (rastreabilidade, mesma classe da `2214`/`2224`/`2217`). **FREEZE
-> ATIVO.** Próximo: **Batch 10 / `2209` — READINESS** (não iniciada).
+> ATIVO.** ~~Próximo: **Batch 10 / `2209` — READINESS** (não iniciada).~~
+> *(superado: o Batch 10 / `2209` foi executado e validado em 2026-09-25 —
+> ver a seção do Batch 10 abaixo.)*
 >
 > *Histórico (texto de 2026-09-23, preservado):* **PARCIALMENTE EXECUTADO.** A **`2224` está `EXECUTED / LIVE VALIDATED /
 > CLOSED`** (2026-09-22, `BATCH9-2224-CLOSEOUT-01`): blob executado
@@ -1075,11 +1077,46 @@ sua etapa. Em nenhum instante existe caller apontando para assinatura ausente.
 
 ---
 
-## Batch 10 — IDENTIDADE NOVA (liberada pelo T1) · **PRÓXIMO — READINESS (não iniciada)**
+## Batch 10 — IDENTIDADE NOVA (liberada pelo T1) · **CLOSED (técnico)**
+
+> ✅ **BATCH 10 CLOSED tecnicamente em 2026-09-25**
+> (`BATCH10-2209-LIVE-VALIDATION-CLOSEOUT-01`); pendente só a publicação
+> deste closeout. **`2209` `EXECUTED / LIVE VALIDATED`**: executada **1x**
+> via **MCP `execute_sql`** (~18:03Z), logo após o JIT PRECHECK read-only
+> (**15/15 gates**, `gate_pass = true`), que teve auditoria independente.
+> Artefato **exatamente executado**: blob
+> `390848500603325b545c944184ac51fb45aeee16` · md5
+> `4a10e6528d82562c22103bfccf8cad45` · 7.075 B · 0 CR. Depois o arquivo recebeu
+> **só comentários** (prova léxica: 49 tokens, 5 statements e literal
+> idênticos). **POSTCHECK LIVE:**
+> - `uq_card_variant_identity`: índice OID 221012 + constraint `contype='u'`,
+>   `convalidated`, não deferrable, `UNIQUE NULLS NOT DISTINCT (card_id,
+>   variant_type_id, printing_profile_id, edition_context_profile_id)`;
+> - o índice é unique/valid/ready/live com `indnullsnotdistinct`, não é
+>   parcial nem tem expressão, e ocupa 1.515.520 B;
+> - as duas antigas continuam presentes e saudáveis (OID 151290 / 151291);
+> - `card_variant` 24.893 · EC não-nulo 0 · duplicidade UNIQUE(4) 0/0 ·
+>   **11** índices, 0 inválidos · owner/RLS/ACL preservados · jobs em voo 0 ·
+>   zero lock ou transação residual · `session_replication_role = origin`.
+>
+> **Ledger `2209` = 0**: é rastreabilidade (o MCP não escreve no ledger), não
+> reconciliar manualmente.
+>
+> **Locks efetivos:** `CREATE UNIQUE INDEX` toma `ShareLock` (bloqueia
+> escrita); `ADD CONSTRAINT … USING INDEX` toma `AccessExclusiveLock` até o
+> `COMMIT` (bloqueia também leitura, por milissegundos).
+>
+> **Invariante entre `2209` e `2215`:** há **três** garantias UNIQUE ativas.
+> As antigas continuam **mais restritivas**, então duas Variants que diferem só
+> em Edition Context **ainda são rejeitadas**. Não houve instante sem proteção
+> de identidade. **FREEZE ATIVO** e obrigatório.
+>
+> **Próximo: Batch 11 / `2215` — READINESS** — `NÃO EXECUTADA / NÃO
+> AUTORIZADA`.
 
 | Ordem | Artefato |
 |---|---|
-| 1 | `2209` |
+| 1 | `2209` · ✅ EXECUTED / LIVE VALIDATED (2026-09-25) |
 
 `CREATE UNIQUE INDEX` e `ADD CONSTRAINT … USING INDEX` são atômicos entre si.
 
@@ -1095,7 +1132,7 @@ SELECT c.conname, c.contype, i.indnullsnotdistinct, i.indnatts, i.indisvalid
 
 ---
 
-## Batch 11 — RETIRADA DAS IDENTIDADES ANTIGAS
+## Batch 11 — RETIRADA DAS IDENTIDADES ANTIGAS · **PRÓXIMO — `2215` READINESS (não iniciada, NÃO autorizada)**
 
 | Ordem | Artefato |
 |---|---|
