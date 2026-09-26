@@ -1,6 +1,34 @@
 -- ============================================================================
 -- Query 2215 — REMOÇÃO das identidades antigas de card_variant
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 1.1
+-- Status: EXECUTADA / LIVE VALIDATED / CLOSED · Versão 1.1 (a executada)
+--
+-- CLOSEOUT (BATCH11-2215-LIVE-VALIDATION-CLOSEOUT-01, 2026-09-26)
+--   Executada 1x em 2026-09-26 (~01:41Z) via Supabase MCP `execute_sql`,
+--   retorno bruto `[]` (sucesso), imediatamente apos JIT LIVE PRECHECK
+--   read-only (2215_live_precheck_v1, blob e1ce65c5…) 16/16 gates +
+--   gate_pass = true (d_checked_at 2026-09-26 01:40:48.312396+00).
+--   Identidade EXATAMENTE executada (antes deste bloco de comentario), ja
+--   publicada em e375c886f95e1e93d5052dace2080044ad14edcb:
+--     git blob 426b35557be77eeec7a4cddd8c63e3fafea070f1
+--     md5      7fd1ba485a2a0a3e8f8fce9bb1e320a2 · 16.467 B · 0 CR · 283 LF
+--   Depois da execucao este arquivo recebeu SOMENTE comentarios; nenhum
+--   token executavel mudou.
+--   POSTCHECK LIVE independente: as duas antigas AUSENTES (to_regclass NULL;
+--   OIDs 151290/151291 inexistentes); uq_card_variant_identity preservada
+--   (indice OID 221012 unique/valid/ready/live, NULLS NOT DISTINCT, 4 chaves
+--   em ordem, sem predicado/expressao; constraint OID 221013 'u' validada,
+--   nao deferrable/deferred, conindid = 221012); 9 indices, 0 unhealthy;
+--   UNIQUE exatamente {card_variant_pkey, uq_card_variant_card_order,
+--   uq_card_variant_id_card, uq_card_variant_identity,
+--   uq_card_variant_one_default_per_card}; ortogonais exatas; card_variant
+--   24.893 · EC nao-nulo 0 · duplicidade UNIQUE(4) 0/0 · nenhuma row
+--   alterada; jobs em voo 0; zero lock/transacao residual; writer/confirm
+--   preservados. Ledger 2215 = 0: rastreabilidade (o MCP nao escreve no
+--   ledger), NAO "nao executada"; nao reconciliar manualmente.
+--   Efeito: uq_card_variant_identity e a UNICA autoridade fisica de
+--   identidade de card_variant; o eixo Edition Context e fisicamente
+--   expressivo. Isso NAO autoriza importacao/revisao: FREEZE ATIVO ate o
+--   UNFREEZE. A 2216 (identidades antigas do staging) e passo separado.
 -- CORREÇÃO 1 da GATE-A-FINAL-CORRECTION-01
 --
 -- v1.1 (BATCH11-2215-READINESS-CORRECTION-01, 2026-09-25) — hardening

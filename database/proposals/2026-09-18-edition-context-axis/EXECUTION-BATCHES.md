@@ -1080,8 +1080,8 @@ sua etapa. Em nenhum instante existe caller apontando para assinatura ausente.
 ## Batch 10 — IDENTIDADE NOVA (liberada pelo T1) · **CLOSED (técnico)**
 
 > ✅ **BATCH 10 CLOSED tecnicamente em 2026-09-25**
-> (`BATCH10-2209-LIVE-VALIDATION-CLOSEOUT-01`); pendente só a publicação
-> deste closeout. **`2209` `EXECUTED / LIVE VALIDATED`**: executada **1x**
+> (`BATCH10-2209-LIVE-VALIDATION-CLOSEOUT-01`); closeout publicado em
+> `c85c7717…`. **`2209` `EXECUTED / LIVE VALIDATED`**: executada **1x**
 > via **MCP `execute_sql`** (~18:03Z), logo após o JIT PRECHECK read-only
 > (**15/15 gates**, `gate_pass = true`), que teve auditoria independente.
 > Artefato **exatamente executado**: blob
@@ -1106,13 +1106,15 @@ sua etapa. Em nenhum instante existe caller apontando para assinatura ausente.
 > escrita); `ADD CONSTRAINT … USING INDEX` toma `AccessExclusiveLock` até o
 > `COMMIT` (bloqueia também leitura, por milissegundos).
 >
-> **Invariante entre `2209` e `2215`:** há **três** garantias UNIQUE ativas.
+> *(Histórico — vigorou só entre a `2209` e a `2215`; superado pela execução
+> da `2215` em 2026-09-26, ver Batch 11.)* **Invariante entre `2209` e
+> `2215`:** havia **três** garantias UNIQUE ativas.
 > As antigas continuam **mais restritivas**, então duas Variants que diferem só
 > em Edition Context **ainda são rejeitadas**. Não houve instante sem proteção
 > de identidade. **FREEZE ATIVO** e obrigatório.
 >
-> **Próximo: Batch 11 / `2215` — READINESS** — `NÃO EXECUTADA / NÃO
-> AUTORIZADA`.
+> ~~**Próximo: Batch 11 / `2215` — READINESS** — `NÃO EXECUTADA / NÃO
+> AUTORIZADA`.~~ *(superado: `2215` executada em 2026-09-26 — ver Batch 11.)*
 
 | Ordem | Artefato |
 |---|---|
@@ -1132,11 +1134,47 @@ SELECT c.conname, c.contype, i.indnullsnotdistinct, i.indnatts, i.indisvalid
 
 ---
 
-## Batch 11 — RETIRADA DAS IDENTIDADES ANTIGAS · **PRÓXIMO — `2215` READINESS (não iniciada, NÃO autorizada)**
+## Batch 11 — RETIRADA DAS IDENTIDADES ANTIGAS · **ABERTO — `2215` ✅ · PRÓXIMO — `2216` READINESS (NÃO autorizada)**
+
+> ✅ **`2215` v1.1 `EXECUTED / LIVE VALIDATED / CLOSED` em 2026-09-26**
+> (`BATCH11-2215-LIVE-VALIDATION-CLOSEOUT-01`). Executada **1x** via
+> **MCP `execute_sql`** (retorno `[]`), logo após o JIT LIVE PRECHECK
+> read-only (`2215_live_precheck_v1`, **16/16 gates**, `gate_pass = true`,
+> `d_checked_at` 2026-09-26 01:40:48Z). Artefato **exatamente executado**:
+> blob `426b35557be77eeec7a4cddd8c63e3fafea070f1` · md5
+> `7fd1ba485a2a0a3e8f8fce9bb1e320a2`, **publicado antes da execução** em
+> `e375c886…`. Depois o arquivo recebeu **só comentários** (token stream
+> executável idêntico). A v1.1 é fail-closed e **deliberadamente não
+> idempotente**: `DROP … RESTRICT` sem `IF EXISTS`, pré-condição exata e
+> prova terminal por topologia.
+>
+> **POSTCHECK LIVE** (confirmado de novo por leitura independente em
+> 2026-09-26 02:17Z):
+> - as duas antigas de `card_variant` estão **ausentes**;
+> - `uq_card_variant_identity` está preservada: índice OID 221012 +
+>   constraint OID 221013 `u`, validada, imediata, `NULLS NOT DISTINCT`,
+>   4 chaves em ordem;
+> - **9** índices, 0 não saudáveis; conjunto UNIQUE exatamente
+>   `{card_variant_pkey, uq_card_variant_card_order, uq_card_variant_id_card,
+>   uq_card_variant_identity, uq_card_variant_one_default_per_card}`;
+>   ortogonais exatas;
+> - 24.893 · EC 0 · dup 0/0 · nenhuma row alterada · jobs em voo 0 · zero
+>   lock ou transação residual · writer e confirm preservados.
+>
+> **Ledger `2215` = 0**: é rastreabilidade (o MCP não escreve no ledger), não
+> reconciliar manualmente.
+>
+> **Efeito:** a identidade física de `card_variant` tem agora **uma única
+> autoridade** (`uq_card_variant_identity`), e o eixo Edition Context passou a
+> ser fisicamente expressivo. Isso **não** autoriza importação ou revisão:
+> **FREEZE ATIVO** até o UNFREEZE (Batch 12, após `2216` e `2830`).
+>
+> **Batch 11 segue ABERTO.** A `2216` (identidades antigas do **staging**)
+> é passo separado: `NÃO EXECUTADA / NÃO AUTORIZADA`, com READINESS a iniciar.
 
 | Ordem | Artefato |
 |---|---|
-| 1 | `2215` · `DROP` das 2 antigas de `card_variant` |
+| 1 | `2215` · `DROP` das 2 antigas de `card_variant` · ✅ EXECUTED / LIVE VALIDATED (2026-09-26) |
 | 2 | `2216` · `DROP` das 2 antigas de staging |
 
 Só depois do Batch 10: `2215` recusa rodar se a nova não for constraint válida.
