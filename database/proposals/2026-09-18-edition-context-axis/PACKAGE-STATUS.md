@@ -54,7 +54,7 @@ lido como registro — nunca como estado.
 | Traits · Profiles · Links · Mappings | **115 · 144 · 196 · 122** | `2230` v2.1 · `2231` v3.1 · `2232` |
 | Cobertura do corpus EC | **1.085 / 1.085** | gate C1 da `2232` |
 | Universo vivo de staging (FREEZE) | **1.642 rows** — STAGED / PENDING / NEEDS_REVIEW / PENDING | precheck **P7** |
-| Harness `2830` | **144 automáticos** (+4 pendentes de `2213`, +3 manuais), 17 seções | `2830` v6.3 |
+| Harness `2830` | **especificação v7.0**: **135 automáticos + 3 evidências históricas** (gate proposto) · 6 manuais obrigatórios · 9 requisitos da `2213`. Harness executável **não escrito** | `2830` v7.0 |
 | T1 (`2840` `NULLS NOT DISTINCT`) | **CLOSED** — LIVE, 7/7 PASS, zero resíduo físico e de ledger | `ROLLOUT-ORDER.md`, etapa −1 |
 | `2203` | **LIVE / SKIP na retomada** | ledger + bloco acima |
 | Lifecycle do external mapping | **histórico + no máximo 1 ativo · identidade imutável · `is_active` só TRUE→FALSE · token canônico na entrada** (5 guards) | `2207` v4.0 |
@@ -89,14 +89,14 @@ lido como registro — nunca como estado.
 | **Batch 11 — `2216`** | **EXECUTED / LIVE VALIDATED / CLOSED** (2026-09-26) — `DROP … RESTRICT` das duas identidades antigas do staging (`uq_cvir_job_card_type_no_printing` / `…printing`) + prova S4 via **MCP `execute_sql`**, 1 execução (retorno `[]`) após JIT PRECHECK 18/18 (`gate_pass = true`, 18:57:48Z). Artefato **executado**: v4.1, blob `3fc30f42604d7b967f066ded46d13b458f522bd9` · md5 `56e520b0…` · 55.544 B, publicado antes em `a446797d…`. POSTCHECK 29/29: antigas ausentes; `uq_cvir_row_identity` (OID 192899) exata, dependência `pg_proc` = `{internal.axis_identity_token(jsonb,text)}`; 8 índices, 0 não saudáveis; UNIQUE = pkey + `uq_cvir_row_identity`; staging 26.127 sem drift; jobs 145 preservados; resíduo S4 0; owner/RLS/ACL/policy/guard 2214 preservados. Depois, **só** comentários no arquivo | `BATCH11-2216-LIVE-VALIDATION-CLOSEOUT-01` |
 | `2216` no ledger | **0** — lacuna de rastreabilidade (o MCP não escreve no ledger), **não** ausência de execução. Não reconciliar manualmente | POSTCHECK LIVE |
 | **Batch 11** | **EXECUÇÃO CONCLUÍDA · CLOSEOUT DOCUMENTAL REGISTRADO** — `2215` ✅ · `2216` ✅. O eixo Edition Context é fisicamente expressivo em `card_variant` e no staging, mas **não** autoriza importação/revisão: FREEZE ATIVO até o UNFREEZE formal após o Batch 12 | `EXECUTION-BATCHES.md` |
-| Próximo estágio | **Batch 12 — `2830` — READINESS** · **NÃO INICIADA / NÃO AUTORIZADA** — exige readiness audit e mandato explícito de Fabrício. **FREEZE ATIVO** | `EXECUTION-BATCHES.md` |
+| Próximo estágio | **Batch 12 — `2830`**: READINESS AUDIT concluída (**NOT READY / BLOCKED**) · especificação corrigida para **v7.0** · próximo passo: **implementação do harness executável** — **NÃO INICIADA / NÃO AUTORIZADA**, exige mandato explícito de Fabrício. **FREEZE ATIVO** | `EXECUTION-BATCHES.md` |
 
 ## HISTORICAL MEASUREMENT — registro, NÃO estado
 
 | Número | Onde aparece | Por que não é o estado |
 |---|---|---|
 | **173 profiles** | `README.md` (tabela A ∪ B, marcada ⟨hist.⟩) · `SEED-COVERAGE.md` (tabela 173 → 144) · `PENDING-ARTIFACTS.md` · `editorial/E1-E2-E3-GATE.md` · linhas abaixo neste arquivo | combinações CANDIDATAS medidas na união, **antes** da curadoria. O corpus fechado é 144 |
-| **114 / 126 / 134 automáticos** | histórico de versões do `2830` (v6.0 / v6.1 / v6.2) | superados por 144 (v6.3) |
+| **114 / 126 / 134 / 144 automáticos** | histórico de versões do `2830` (v6.0 / v6.1 / v6.2 / v6.3) | superados pela v7.0: 135 automáticos + 3 evidências históricas (os 144 da v6.3 redistribuídos um a um) |
 | **"universo vivo é vazio"** | corrigido em `ROLLOUT-ORDER.md` etapa 5 | premissa errada; o LIVE tem 1.642 |
 | **classe B bloqueada por vocabulário** | Seção "Veredito" abaixo | resolvida — os três seeds estão preenchidos |
 | **`uq_cecem_global` / `uq_cecem_scoped`** | nota do caso 1.11 no `2830` | renomeados e partializados em `is_active` na `2207` v3.0 |
@@ -263,7 +263,7 @@ os casos que o mandato mandou cobrir.
 | `DAG.md` | dependências reais entre artefatos |
 | `ROLLOUT-ORDER.md` | ordem de execução e janelas de FREEZE |
 | `OPERATIONAL-BOUNDARY.md` | o que é row operacional — **1.642** × **0** confirmáveis |
-| `LINEAGE-STRATEGY.md` | proibição de estado híbrido; requisitos L1–L4 |
+| `LINEAGE-STRATEGY.md` | proibição de estado híbrido; requisitos L1–L9 da `2213` |
 | `CONCURRENCY-DESIGN.md` | onde mora o lock e por que não no writer |
 | `IMPACTED-CONTRACTS.md` | os 7 call sites em 5 funções |
 | `MIGRATION-MAP-365.md` | 285 + 80 |

@@ -127,7 +127,7 @@ coluna existe do lado de `card_variant`.
 | **`2212`** | 2210 · 2211 · 2232 (só se houver universo operacional) | **2233** (só no LIVE atual) · 2832 | ❌ |
 | **`2233`** **INCIDENT-ONLY** | 2212 **v3.1 já executada** · 2211 · `resolve_variant_mapping_scope` | 2832 | ❌ — **não replayar em ambiente limpo** |
 | `2832` | 2212 **e**, no LIVE atual, 2233 | 2833 | ❌ |
-| **`2213`** (futuro) | 2831 PASS · Pricing · **lineage atômico (L1–L4)** | — | ❌ |
+| **`2213`** (futuro) | 2831 PASS · Pricing · **lineage atômico + guards de decomposição (L1–L9)** | — | ❌ |
 | **`2833`** | 2832 | 2214 | ❌ |
 | `2214` ✅ **LIVE VALIDATED** | 2833 · **Edge deployada** | 2216 | ❌ |
 | **`2224`** ✅ **LIVE VALIDATED** *(guard same-Game 3º eixo)* | **2208** · 2204 | **2217** | ❌ — precede o EXPAND |
@@ -223,8 +223,9 @@ staging LIVE VALIDATED** *(Batch 11 · 2026-09-26 · v4.1 · blob
 a ser a única identidade única do staging além da PK · Batch 11: execução
 concluída, closeout documental registrado)*
 
-**A EXECUTAR** — `2830` *(Batch 12 · **próximo**: READINESS, NÃO
-INICIADA / NÃO AUTORIZADA)* → `UNFREEZE` *(Batch 12)* → `2831` → `2213`
+**A EXECUTAR** — `2830` *(Batch 12 · READINESS AUDIT: NOT READY / BLOCKED ·
+especificação v7.0 corrigida · **próximo**: implementação do harness
+executável, NÃO INICIADA / NÃO AUTORIZADA)* → `UNFREEZE` *(Batch 12)* → `2831` → `2213`
 
 **27 passos.** Todo predecessor da tabela acima aparece antes de seu sucessor.
 

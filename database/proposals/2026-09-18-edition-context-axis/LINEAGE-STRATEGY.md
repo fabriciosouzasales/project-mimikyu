@@ -111,12 +111,21 @@ a simulação quanto a migração real precisam de **mais duas provas**:
 | # | Prova | Onde |
 |---|---|---|
 | **L1** | toda row com `resulting_variant_id` ∈ (285) tem `normalized_data.variant_type_id` = finish alvo **e** `edition_context_profile_id` = profile da Variant | `2831` · `2213` |
-| **L2** | zero híbrido: nenhuma row cujo `edition_context_profile_id` esteja preenchido aponte para Variant com `edition_context_profile_id IS NULL`, e vice-versa | `2831` · `2213` · `2830` D8 |
+| **L2** | zero híbrido: nenhuma row cujo `edition_context_profile_id` esteja preenchido aponte para Variant com `edition_context_profile_id IS NULL`, e vice-versa | `2831` · `2213` · `2830` L2 |
 | **L3** | nenhuma row fora das 285 foi tocada | `2831` · `2213` |
 | **L4** | `resulting_variant_id` preservado em 100% — `UPDATE`, nunca `DELETE`+`INSERT` | já existe em `2831` PASSO 5 |
+| **L5** | guard de HOLD: decompor `card_variant_id` da lista congelada (107) aborta com `EDITION_CONTEXT_HOLD_VIOLATION` (ex-K5 da `2830`) | `2213` |
+| **L6** | guard PRICING_CONDITIONED: `card_variant_id` ligado a `pricing_source_card_identity` **ou** `pricing_source_variant_mapping` aborta; os dois conceitos checados separadamente (ex-K6) | `2213` |
+| **L7** | o guard cobre STAFF_HOLO (40) e SET_LOGO_REVERSE (40) — total 80 (ex-K7) | `2213` |
+| **L8** | `card_variant.id` preservado em 285/285 (ex-5.4) | `2213` |
+| **L9** | `variant_order` e `is_default` inalterados (ex-5.5) | `2213` |
 
 **Isto é trabalho novo em `2213`, que ainda não foi escrito.** Fica
-registrado como requisito, não como algo pronto.
+registrado como requisito, não como algo pronto. L5–L9 vieram da `2830` v7.0
+(`BATCH12-2830-SPEC-CORRECTION-01`): eram casos do gate automático que só
+passariam por ausência da `2213`. A **exclusão** dos 107 HOLD e dos 80
+PRICING_CONDITIONED do plano continua provada no gate atual (`2830` 5.1, 5.3,
+5.7).
 
 ---
 

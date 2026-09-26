@@ -1183,8 +1183,7 @@ SELECT c.conname, c.contype, i.indnullsnotdistinct, i.indnatts, i.indisvalid
 > Batch 12.
 >
 > **Batch 11: EXECUÇÃO CONCLUÍDA; closeout documental registrado.**
-> **Próximo: Batch 12 / `2830` — READINESS** — `NÃO INICIADA / NÃO
-> AUTORIZADA`.
+> **Próximo: Batch 12 / `2830`** — ver a seção do Batch 12.
 
 > ✅ **`2215` v1.1 `EXECUTED / LIVE VALIDATED / CLOSED` em 2026-09-26**
 > (`BATCH11-2215-LIVE-VALIDATION-CLOSEOUT-01`). Executada **1x** via
@@ -1245,10 +1244,28 @@ SELECT count(*) AS antigos_staging FROM pg_class  -- 0
 
 ## Batch 12 — HARNESS + UNFREEZE
 
+> **READINESS AUDIT concluída — NOT READY / BLOCKED**
+> (`BATCH12-2830-READINESS-AUDIT-01`, 2026-09-26, SELECT-only). A `2830` v6.3
+> era 100% comentário; só B e M tinham código (`2832`/`2833`, desenhados para
+> antes da `2214`). Achados: contratos de erro divergentes do LIVE (S8, S9,
+> S10, K3); K5–K7 sem objeto LIVE; D6–D8 não reexecutáveis; K1/K8 exigem
+> duas sessões; falso PASS em V10, 5.4, 5.5 e nos triggers `DEFERRED`;
+> V12/SM10 sem asserção.
+>
+> **ESPECIFICAÇÃO CORRIGIDA — `2830` v7.0** (`BATCH12-2830-SPEC-CORRECTION-01`,
+> 2026-09-26, comment-only). Os 144 automáticos da v6.3 foram redistribuídos
+> **um a um**: **134 AUTO · 3 HIST (D6–D8) · 2 MANUAL (K1, K2) · 5 `2213`
+> (K5–K7, 5.4, 5.5)**. Novos: `5.7` (AUTO, exclusão dos 80
+> PRICING_CONDITIONED) e `K8b` (MANUAL, duas sessões). O harness é definido
+> como **teste transacional com rollback integral**, não SQL read-only
+> (protocolo P1–P12 no próprio arquivo). O harness executável **não foi
+> escrito**: `NÃO INICIADA / NÃO AUTORIZADA`.
+
 | Ordem | Item |
 |---|---|
-| 1 | `2830` — harness da fundação (**144** automáticos, read-only) |
-| 2 | **UNFREEZE** |
+| 1 | `2830` — harness da fundação (especificação v7.0: **135** automáticos + **3** evidências históricas; teste transacional com rollback integral) |
+| 2 | Manuais obrigatórios antes do UNFREEZE — **nenhum dispensável**: `K1`, **`K2`** (identidade admin real, inclui K3-B/K4-B) e `K8b` (duas sessões, `ROLLBACK`) em **ambiente isolado com paridade provada** contra o LIVE; `6.1`/`6.2` (EXPLAIN); `6.3` já cumprido (`2840`). Nenhum `set_config` de claims no LIVE |
+| 3 | **UNFREEZE** |
 
 > **"READ MODELS C" REMOVIDO (`PREFLIGHT-CORRECTION-01`).** A etapa não tinha
 > artefato, arquivo nem ação — era uma linha sem referente. O
@@ -1269,7 +1286,7 @@ precisa estar íntegro antes de voltar a receber importação. Com o UNFREEZE, a
 1.642 rows congeladas no Batch 3 voltam a poder ser processadas — agora pelo
 routing do eixo 3.
 
-**Prosseguir se:** `2830` **144/144**.
+**Prosseguir se:** `2830` **135/135 automáticos** (sem PASS por vácuo) + **3/3 evidências históricas verificadas** + **6/6 manuais obrigatórios, inclusive `K2`**, com paridade do ambiente isolado provada + baseline de FREEZE inalterado + mandato formal de UNFREEZE. Critérios completos: seção *CRITÉRIOS DE ACEITE* da `2830` v7.0. Requisitos da `2213` (L1–L9) não entram no gate.
 
 ---
 

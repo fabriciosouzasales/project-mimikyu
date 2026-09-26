@@ -128,7 +128,7 @@ RAW (type · foil · subtype · stamp[] · size)
 | `2209` | `uq_card_variant_identity` | identidade de 4 componentes |
 | **`2210`** | **identidade do staging** (`uq_cvir_row_identity` + shape guard) | **NOVO — Blocker 1** |
 | **`2211`** | **`internal.resolve_variant_row_axes()`** | **NOVO — Blocker 2: contrato terminal único** |
-| `2830` | harness de validação | **144 automáticos + 4 pendentes + 3 manuais**, 17 seções |
+| `2830` | especificação do harness de validação (v7.0, comment-only) | **135 automáticos + 3 evidências históricas + 6 manuais + 9 requisitos da `2213`** — os 144 automáticos da v6.3 rastreados um a um |
 | **`2212`** v3.0 | **resolução OPERACIONAL** (ex-backfill global) | **OP-BOUNDARY 4·7** |
 | **`2833`** v2.0 | **matriz de state machine job-aware** (11 gates) | **OP-BOUNDARY 1·3** |
 | **`2214`** **v3.1** ✅ **LIVE VALIDATED** | **guard de transição OPERACIONAL** (job-aware) — **EXECUTADA NO LIVE** em 2026-09-22 (`BATCH8-BIS-2214-CLOSEOUT-01`), blob `30e19523…`, postcheck 15/15. *A v3.0 é a medição desta tabela na rodada original; a v3.1 corrigiu fixture do probe e ACL sem mudar a semântica do guard* | **OP-BOUNDARY 1·2·8** |

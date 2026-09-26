@@ -41,7 +41,7 @@ Executáveis assim que as pré-condições do DAG forem satisfeitas.
 | **`2217`** v2.0 | **EXPAND** — cria `write_card_variant` de 7 args, sem DEFAULT; **preserva** a de 6 (novo) · ✅ **EXECUTED / LIVE VALIDATED** 2026-09-23, exceção EOL documentada (`EXECUTION-BATCHES.md`) |
 | **`2223`** | **CONTRACT** — prova database-wide + `DROP` da assinatura de 6 args (novo, `WRITER-EXPAND-CONTRACT-CORRECTION-01`) |
 | **`2840`** | **probe T1** — `apply_migration` × `NULLS NOT DISTINCT` (novo) |
-| `2830` v6.0 · `2831` · `2832` v3.0 | harness (114 + 4 pendentes + 3 manuais) · simulação · prova operacional (14 casos) |
+| `2830` v7.0 · `2831` · `2832` v3.1 | especificação do harness (**135 automáticos + 3 evidências históricas**; 6 manuais; 9 requisitos da `2213`) · simulação · prova operacional (14 casos) |
 
 **15 artefatos SQL classe A.**
 
@@ -134,9 +134,17 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 > antigas do staging foram removidas; `uq_cvir_row_identity` é a **única**
 > identidade única do staging além da PK; resíduo S4 0; zero drift de dados.
 > Ledger `2216` = 0 (rastreabilidade). **Batch 11: execução concluída,
-> closeout documental registrado.** Próximo estágio: **Batch 12 / `2830` —
-> READINESS**, `NÃO INICIADA / NÃO AUTORIZADA`. FREEZE ATIVO até o UNFREEZE
-> formal após o Batch 12.
+> closeout documental registrado.**
+>
+> **Batch 12 / `2830`:** READINESS AUDIT concluída — **NOT READY / BLOCKED**
+> (`BATCH12-2830-READINESS-AUDIT-01`: nenhum harness executável; contratos de
+> erro divergentes do LIVE; casos sem objeto, não reexecutáveis ou com falso
+> PASS). Especificação corrigida para **`2830` v7.0** (comment-only,
+> `BATCH12-2830-SPEC-CORRECTION-01`): os 144 automáticos da v6.3 foram
+> redistribuídos um a um — **134 AUTO · 3 HIST · 2 MANUAL · 5 `2213`** — mais
+> `5.7` (AUTO) e `K8b` (MANUAL) novos; gate proposto **135/135 AUTO + 3/3
+> HIST**. Próximo: implementação do harness executável, `NÃO INICIADA / NÃO
+> AUTORIZADA`. FREEZE ATIVO até o UNFREEZE formal após o Batch 12.
 | **`2221`** | `public.admin_resolve_catalog_variant_import_printing_mapping` | `2181` | 652 | revalidação via 2211 (lógica de Printing inalterada) |
 | **`2222`** | `internal.create_card_printing_profile_with_backfill` | `2189` | 583 | backfill **preservar** `edition_context_profile_id` (2 call sites) |
 
