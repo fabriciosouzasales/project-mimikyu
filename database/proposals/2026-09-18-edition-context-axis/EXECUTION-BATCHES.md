@@ -1134,7 +1134,57 @@ SELECT c.conname, c.contype, i.indnullsnotdistinct, i.indnatts, i.indisvalid
 
 ---
 
-## Batch 11 — RETIRADA DAS IDENTIDADES ANTIGAS · **ABERTO — `2215` ✅ · PRÓXIMO — `2216` READINESS (NÃO autorizada)**
+## Batch 11 — RETIRADA DAS IDENTIDADES ANTIGAS · **EXECUÇÃO CONCLUÍDA — `2215` ✅ · `2216` ✅ · CLOSEOUT DOCUMENTAL REGISTRADO**
+
+> ✅ **`2216` v4.1 `EXECUTED / LIVE VALIDATED / CLOSED` em 2026-09-26**
+> (`BATCH11-2216-LIVE-VALIDATION-CLOSEOUT-01`). Executada **1x** via
+> **MCP `execute_sql`** (retorno bruto `[]`, `COMMIT` concluído), logo após o
+> JIT LIVE PRECHECK read-only (`2216_live_precheck_v1`, blob `a73adf44…`,
+> **18/18 gates**, `gate_pass = true`, `d_checked_at` 2026-09-26
+> 18:57:48.822115Z), que teve auditoria independente e `EXPLAIN (COSTS OFF)`.
+> Artefato **exatamente executado**: blob
+> `3fc30f42604d7b967f066ded46d13b458f522bd9` · md5
+> `56e520b0d75cfbb19f1ad868b48284ac` · 55.544 B · 907 LF · 0 CR,
+> **publicado antes da execução** em `a446797d…`. Depois o arquivo recebeu
+> **só comentários** (token stream executável idêntico). A v4.1 é fail-closed
+> e **deliberadamente não idempotente**: `DROP … RESTRICT` sem `IF EXISTS`;
+> identidade nova e função de token provadas por estrutura (dependência
+> `pg_proc` = exatamente a função resolvida pela assinatura) e por texto
+> canonicalizado independente de `search_path`; prova S4 (α/β coexistem,
+> γ rejeitada por `uq_cvir_row_identity`) em `SAVEPOINT` desfeito; prova de
+> resíduo zero + topologia terminal antes do `COMMIT`.
+>
+> **POSTCHECK LIVE independente (29/29, 2026-09-26 19:01:39Z):**
+> - `uq_cvir_job_card_type_no_printing` e `uq_cvir_job_card_type_printing`
+>   **ausentes** (OIDs 152493/152494 inexistentes);
+> - `uq_cvir_row_identity` (OID 192899) preservada: unique/valid/ready/live,
+>   5/5 chaves, definição/predicado/expressões exatos, 0 constraints,
+>   dependência `pg_proc` = `{internal.axis_identity_token(jsonb,text)}` `n`;
+>   função e fronteira de segurança (`internal` sem USAGE para
+>   authenticated/anon) preservadas;
+> - **8** índices, 0 não saudáveis; UNIQUE exatamente
+>   `{catalog_variant_import_row_pkey, uq_cvir_row_identity}`; PK e 6 `ix_*`
+>   exatos;
+> - staging 26.127 rows, `max(updated_at)` inalterado (nenhuma row
+>   persistida/alterada) · jobs 145 (63/71/8/3, 0 em voo, `max(updated_at)`
+>   inalterado) · `operational_missing_key` 0 · duplicidade 0 · vt NULL 1.755
+>   / VALID 0;
+> - resíduo S4 **zero** (IDs, marcador `2216-S4`, EC sentinela);
+> - owner/RLS/ACL/policy e guard 2214 preservados; zero sessão, lock ou
+>   transação residual; `session_replication_role = origin`.
+>
+> **Ledger `2216` = 0**: lacuna de rastreabilidade (o MCP não escreve no
+> ledger), **não** ausência de execução; não reconciliar manualmente.
+>
+> **Efeito:** `uq_cvir_row_identity` é a **única** identidade única do
+> staging (além da PK). Com `2215` + `2216`, o eixo Edition Context é
+> fisicamente expressivo em `card_variant` **e** no staging. Isso **não**
+> autoriza importação/revisão: **FREEZE ATIVO** até o UNFREEZE formal após o
+> Batch 12.
+>
+> **Batch 11: EXECUÇÃO CONCLUÍDA; closeout documental registrado.**
+> **Próximo: Batch 12 / `2830` — READINESS** — `NÃO INICIADA / NÃO
+> AUTORIZADA`.
 
 > ✅ **`2215` v1.1 `EXECUTED / LIVE VALIDATED / CLOSED` em 2026-09-26**
 > (`BATCH11-2215-LIVE-VALIDATION-CLOSEOUT-01`). Executada **1x** via
@@ -1169,13 +1219,14 @@ SELECT c.conname, c.contype, i.indnullsnotdistinct, i.indnatts, i.indisvalid
 > ser fisicamente expressivo. Isso **não** autoriza importação ou revisão:
 > **FREEZE ATIVO** até o UNFREEZE (Batch 12, após `2216` e `2830`).
 >
-> **Batch 11 segue ABERTO.** A `2216` (identidades antigas do **staging**)
-> é passo separado: `NÃO EXECUTADA / NÃO AUTORIZADA`, com READINESS a iniciar.
+> ~~**Batch 11 segue ABERTO.** A `2216` (identidades antigas do **staging**)
+> é passo separado: `NÃO EXECUTADA / NÃO AUTORIZADA`, com READINESS a iniciar.~~
+> *(superado: `2216` executada em 2026-09-26 — ver bloco acima.)*
 
 | Ordem | Artefato |
 |---|---|
-| 1 | `2215` · `DROP` das 2 antigas de `card_variant` · ✅ EXECUTED / LIVE VALIDATED (2026-09-26) |
-| 2 | `2216` · `DROP` das 2 antigas de staging |
+| 1 | `2215` · `DROP` das 2 antigas de `card_variant` · ✅ EXECUTED / LIVE VALIDATED / CLOSED / PUBLISHED (2026-09-26) |
+| 2 | `2216` · `DROP` das 2 antigas de staging · ✅ EXECUTED / LIVE VALIDATED / CLOSED (2026-09-26) |
 
 Só depois do Batch 10: `2215` recusa rodar se a nova não for constraint válida.
 

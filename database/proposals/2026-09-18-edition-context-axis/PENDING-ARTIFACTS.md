@@ -123,9 +123,20 @@ Os três **abortam** se o vocabulário estiver vazio. Detalhe em
 > (`BATCH11-2215-LIVE-VALIDATION-CLOSEOUT-01`). Blob executado
 > `426b35557be77eeec7a4cddd8c63e3fafea070f1`, publicado antes em `e375c886…`.
 > As duas identidades antigas de `card_variant` foram removidas;
-> `uq_card_variant_identity` é a **única** autoridade física. **Batch 11
+> `uq_card_variant_identity` é a **única** autoridade física. ~~**Batch 11
 > segue aberto**. Próximo estágio: **Batch 11 / `2216` — READINESS**
-> (staging), `NÃO EXECUTADA / NÃO AUTORIZADA`. FREEZE ATIVO.
+> (staging), `NÃO EXECUTADA / NÃO AUTORIZADA`.~~ *(superado)* FREEZE ATIVO.
+>
+> ✅ **`2216` EXECUTED / LIVE VALIDATED / CLOSED em 2026-09-26**
+> (`BATCH11-2216-LIVE-VALIDATION-CLOSEOUT-01`). v4.1, blob executado
+> `3fc30f42604d7b967f066ded46d13b458f522bd9`, publicado antes em `a446797d…`;
+> JIT PRECHECK 18/18; retorno `[]`; POSTCHECK 29/29. As duas identidades
+> antigas do staging foram removidas; `uq_cvir_row_identity` é a **única**
+> identidade única do staging além da PK; resíduo S4 0; zero drift de dados.
+> Ledger `2216` = 0 (rastreabilidade). **Batch 11: execução concluída,
+> closeout documental registrado.** Próximo estágio: **Batch 12 / `2830` —
+> READINESS**, `NÃO INICIADA / NÃO AUTORIZADA`. FREEZE ATIVO até o UNFREEZE
+> formal após o Batch 12.
 | **`2221`** | `public.admin_resolve_catalog_variant_import_printing_mapping` | `2181` | 652 | revalidação via 2211 (lógica de Printing inalterada) |
 | **`2222`** | `internal.create_card_printing_profile_with_backfill` | `2189` | 583 | backfill **preservar** `edition_context_profile_id` (2 call sites) |
 

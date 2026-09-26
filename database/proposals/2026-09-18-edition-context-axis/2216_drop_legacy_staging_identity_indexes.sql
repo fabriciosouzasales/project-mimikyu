@@ -1,6 +1,46 @@
 -- ============================================================================
 -- Query 2216 — REMOÇÃO das identidades antigas de catalog_variant_import_row
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 4.1
+-- Status: EXECUTADA / LIVE VALIDATED / CLOSED · Versão 4.1 (a executada)
+--
+-- CLOSEOUT (BATCH11-2216-LIVE-VALIDATION-CLOSEOUT-01, 2026-09-26)
+--   Executada 1x em 2026-09-26 via Supabase MCP `execute_sql`, conteudo
+--   integral numa unica chamada, retorno bruto `[]` (COMMIT concluido),
+--   imediatamente apos JIT LIVE PRECHECK read-only (2216_live_precheck_v1,
+--   blob a73adf44…) 18/18 gates + gate_pass = true
+--   (d_checked_at 2026-09-26 18:57:48.822115+00).
+--   Identidade EXATAMENTE executada (antes deste bloco de comentario), ja
+--   publicada ANTES da execucao em a446797df640112d7df0a2c55854ffd0aa1e0713,
+--   onde segue recuperavel:
+--     git blob 3fc30f42604d7b967f066ded46d13b458f522bd9
+--     md5      56e520b0d75cfbb19f1ad868b48284ac · 55.544 B · 907 LF · 0 CR
+--   Depois da execucao este arquivo recebeu SOMENTE comentarios; nenhum
+--   token executavel mudou.
+--   POSTCHECK LIVE independente 29/29 (2026-09-26 19:01:39Z):
+--     antigas AUSENTES — uq_cvir_job_card_type_no_printing e
+--     uq_cvir_job_card_type_printing (to_regclass NULL; OIDs 152493/152494
+--     inexistentes);
+--     uq_cvir_row_identity preservada — OID 192899, unique/valid/ready/live,
+--     5/5 chaves, definicao/predicado/expressoes exatos, 0 constraints,
+--     dependencia pg_proc = {internal.axis_identity_token(jsonb,text)} 'n';
+--     funcao de token e fronteira de seguranca (internal sem USAGE para
+--     authenticated/anon) preservadas;
+--     topologia final: 8 indices, 0 nao saudaveis — pkey,
+--     ix_…_card, ix_…_job, ix_…_job_decision, ix_…_job_persistence,
+--     ix_…_job_validation, ix_…_matched_variant, uq_cvir_row_identity;
+--     UNIQUE exatamente {catalog_variant_import_row_pkey, uq_cvir_row_identity};
+--     zero drift de dados — staging 26.127 rows, max(updated_at) inalterado;
+--     jobs 145 (63/71/8/3, 0 em voo), max(updated_at) inalterado;
+--     operational_missing_key 0; duplicidade 0; vt NULL 1.755 / VALID 0;
+--     zero residuo S4 — IDs sentinela, marcador 2216-S4 e EC sentinela = 0;
+--     owner/RLS/ACL/policy e guard 2214 preservados; zero sessao, lock ou
+--     transacao residual; session_replication_role = origin.
+--   Ledger 2216 = 0: lacuna de RASTREABILIDADE (o MCP nao escreve no
+--   ledger), NAO ausencia de execucao; nao reconciliar manualmente. A prova
+--   fisica acima e a autoridade.
+--   Efeito: uq_cvir_row_identity e a UNICA identidade unica do staging alem
+--   da PK. Isso NAO autoriza importacao/revisao: FREEZE ATIVO ate o UNFREEZE
+--   formal apos o Batch 12. Proximo: Batch 12 / 2830 — READINESS (nao
+--   iniciada / nao autorizada).
 --
 -- v4.1 (BATCH11-2216-V4.1-CORRECTION-01, 2026-09-26) — tres achados da
 -- BATCH11-2216-V4.0-READINESS-RE-AUDIT-01, e somente eles:

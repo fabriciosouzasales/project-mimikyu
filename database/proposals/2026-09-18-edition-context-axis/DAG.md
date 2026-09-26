@@ -137,8 +137,8 @@ coluna existe do lado de `card_variant`.
 | `2218` **SWITCH** | 2211 · 2217 (a de 7 precisa existir) | 2223 | ❌ |
 | `2223` **CONTRACT** | 2218 (confirm já chama com 7) | 2209 | ❌ |
 | `2209` | 2208 · 2223 · Edge | 2215 | ❌ |
-| `2215` | 2209 | 2830 | ✅ com 2216 |
-| `2216` | 2210 · 2212 · 2214 | 2830 | ✅ com 2215 |
+| `2215` ✅ **LIVE VALIDATED** | 2209 | 2830 | ✅ com 2216 |
+| `2216` ✅ **LIVE VALIDATED** | 2210 · 2212 · 2214 | 2830 | ✅ com 2215 |
 | `2830` | todos acima | — | ❌ |
 | `2831` | 2211 · 2232 · 2209 · 2215 | 2213 | ❌ |
 | `2213` | 2831 PASS · Pricing fechado | — | ❌ |
@@ -217,11 +217,14 @@ LIVE VALIDATED** *(Batch 10 · 2026-09-25 · blob `39084850…` · Batch 10
 **CLOSED**; as duas UNIQUE antigas coexistiram até a `2215`)* → **`2215` DROP
 das identidades antigas de `card_variant` LIVE VALIDATED** *(Batch 11 ·
 2026-09-26 · blob `426b3555…` · `uq_card_variant_identity` passa a ser a
-única autoridade física; Batch 11 segue aberto)*
+única autoridade física)* → **`2216` DROP das identidades antigas do
+staging LIVE VALIDATED** *(Batch 11 · 2026-09-26 · v4.1 · blob
+`3fc30f42…`, publicado antes em `a446797d…` · `uq_cvir_row_identity` passa
+a ser a única identidade única do staging além da PK · Batch 11: execução
+concluída, closeout documental registrado)*
 
-**A EXECUTAR** — `2216` *(Batch 11 · **próximo**: READINESS, NÃO
-EXECUTADA / NÃO AUTORIZADA)* → `2830` → `UNFREEZE`
-*(Batch 12)* → `2831` → `2213`
+**A EXECUTAR** — `2830` *(Batch 12 · **próximo**: READINESS, NÃO
+INICIADA / NÃO AUTORIZADA)* → `UNFREEZE` *(Batch 12)* → `2831` → `2213`
 
 **27 passos.** Todo predecessor da tabela acima aparece antes de seu sucessor.
 
