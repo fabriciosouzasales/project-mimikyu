@@ -36,7 +36,7 @@ Ordem de uso, **quando autorizada**: `E00` → envelope → `E99`, um envelope p
 - **P4** não se aplica a E01/E02 (nenhum caso depende de trigger DEFERRED); os eventos deferidos enfileirados pela contraprova 1.9 são descartados pelo rollback da subtransação.
 - **P5** marcador único por execução `H2830_<uuid>` em todo `code`/`normalized_token` de fixture; entidades reais só por código único (`game.code = 'POKEMON'`, `asset_source.code = 'TCGDEX'`, preflight exatamente-um).
 - **P6/P7/P10/P11** em E00/E99 — ver as seções "Dois baselines" e "P7" abaixo.
-- **P8** `SET LOCAL lock_timeout` — **decisão pendente**, não emitido (linha pronta, comentada, no cabeçalho de E01).
+- **P8** `SET LOCAL lock_timeout` — **D-3/A5 decidida: opção (b)** (`BATCH12-2830-D3-A5-DECISION-CLOSEOUT-01`). Não emitido: o E01 roda sem ele, blob `c4118b8c…` preservado (a linha comentada do cabeçalho do E01 continua como histórico). Risco aceito: espera limitada só pelo `statement_timeout` (120 s). D-4 obrigatório.
 - **P13** não aplicável aos 17 casos: todos são asserções de catálogo com cardinalidade exata ou fixtures próprias — nenhum universo de dado LIVE.
 
 ## Matriz caso → asserção → evidência
@@ -155,7 +155,7 @@ Regras: `checked_at(E00) < submissão do envelope < checked_at(E99)`; nenhum out
 ## Dependências e decisões pendentes
 
 1. **Mandato de execução**, por etapa, conforme `LIVE-VALIDATION-PROTOCOL.md`: Etapa 1 (E00 só leitura) → Etapa 2 (E00 → E02 → E99) → Etapa 3 (E00 → E01 → E99). Nenhum envelope foi executado.
-2. **`SET LOCAL lock_timeout = '5s'`** — decisão operacional pendente (P8).
+2. **`SET LOCAL lock_timeout`** (P8) — **decidido: opção (b), sem `SET LOCAL`** (D-3/A5, `BATCH12-2830-D3-A5-DECISION-CLOSEOUT-01`). Aceite do E01 inalterado: `elapsed_ms ≤ 60000`, rollback integral, E99 sem resíduo. D-4: `lock_timeout ≠ '0'` na L1 ⇒ STOP antes do E01, sem alteração automática de sessão. A Etapa 3 continua dependendo de mandato independente e de autorização expressa de escrita transitória sob FREEZE.
 3. **Ambiente isolado** (P14) — **pago: recusado** (decisão do proprietário, 2026-09-26); **alternativa sem custo: PENDENTE** em D-1, com P14 (a, b, c) obrigatório. Não afeta E00/E01/E02/E99; torna K1/K2/K8b e o UNFREEZE da 2830 v7.0 inalcançáveis enquanto a decisão D-1 estiver **PENDENTE** (Batch 12 **ABERTO**, UNFREEZE **BLOQUEADO**, K2 **não dispensado**), e P9b só é cumprido por adaptação (AD-2) — ver `LIVE-VALIDATION-PROTOCOL.md`.
 4. **Premissas a confirmar pelo E00 antes de E01:** estado = baseline canônico do FREEZE; papel executor superusuário ou dono das tabelas EC, sem `FORCE ROW LEVEL SECURITY`; nenhuma sequence nas tabelas tocadas; fecho P7 inteiramente classificado, sem efeito externo, sem SQL dinâmico, sem escrita fora do escopo; nenhuma regra; event trigger habilitado só se casar integralmente com uma das 6 exceções de D-9; papéis `anon`/`authenticated` existentes; PG ≥ 17; marcador ausente; zero concorrência.
 5. **Tempo (P9):** E01/E02 são leves (catálogo + 11 tentativas de INSERT no E01: 4 positivas e 7 negativas); medição formal P9b ainda assim é pré-requisito do critério A2 do contrato.
