@@ -16,6 +16,7 @@
 | `2830H_E02_identity_terminal_D1_D5.sql` | Envelope E02 — casos D1–D5. | não (catálogo) |
 | `2830H_E99_postcheck_residue.sql` | Postcheck: **comparação integral, chave a chave, com o `d_baseline` do E00 da mesma rodada** (md5 = fidelidade da cópia, não origem da rodada; vinculação E00 → envelope → E99 é documental), recheck do canônico do FREEZE, resíduo zero, não persistência de sessão (P10/P8). Um SELECT. | não |
 | `tools/static_check.py` | Verificação estática local (não conecta a banco). | — |
+| `LIVE-STAGE1-EXECUTION-RECORD.md` | Registro das tentativas da Etapa 1. **Nenhum PASS formal.** Ocorrência 01: governança — L1 e tentativa de L3 executadas pelo ChatGPT, fora da atribuição de auditor; a L1 não é evidência; a L3 foi bloqueada pela ferramenta, sem resultado SQL. Tentativa 02 (Claude): STOP em PC-1 por árvore suja, nenhum SQL. Alternativas de canal e retomada. | — |
 | `LIVE-STAGE1-RUNBOOK.md` | Roteiro operacional **proposto** da Etapa 1 (só SELECT): passos, consultas exatas com md5, evidências esperadas, STOP e pontos de decisão. Não autoriza execução. | — |
 | `LIVE-VALIDATION-PROTOCOL.md` | Protocolo **proposto** de validação progressiva no LIVE (ambiente isolado pago recusado; alternativa sem custo pendente em D-1): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-9 e decisões D-1–D-8. | — |
 
