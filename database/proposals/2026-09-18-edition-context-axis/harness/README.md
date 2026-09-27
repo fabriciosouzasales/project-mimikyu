@@ -11,14 +11,17 @@
 
 | Arquivo | Papel | Escreve? |
 |---|---|---|
-| `2830H_E00_precheck_inventory.sql` | Precheck JIT (P11): gate de igualdade com o **baseline canônico do FREEZE**; captura do **baseline da rodada** (`d_baseline` + `d_baseline_md5`) para o E99; inventários de sequences (P6), triggers e efeitos externos **com análise léxica das chamadas (qualificadas e não qualificadas), DML qualificado e não qualificado, identidade fixada da allowlist e `search_path` seguro** (P7), regras, event triggers, publicações, RLS/dono, sessão (P8), concorrência. Um SELECT, `gate_pass`. | não |
+| `2830H_E00_precheck_inventory.sql` | Precheck JIT (P11): gate de igualdade com o **baseline canônico do FREEZE**; captura do **baseline da rodada** (`d_baseline` + `d_baseline_md5`) para o E99; inventários de sequences (P6), triggers e efeitos externos **com análise léxica das chamadas (qualificadas e não qualificadas), DML qualificado e não qualificado, identidade fixada da allowlist e `search_path` seguro** (P7), regras, event triggers, publicações, RLS/dono, sessão (P8), concorrência. Um SELECT, **24 gates**, `gate_pass`. **Versão corrigida localmente** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`, blob `88e9e7a4…`, não commitada, **não compilada nem executada**):<br>• pino P7 com EOL normalizado (D-6);<br>• `g_p7_no_ddl`;<br>• event triggers com inventário completo contra o catálogo (`g_evt_inventory_complete`);<br>• exceção só por identidade de 12 atributos e justificativa não vazia;<br>• `evt_allowlist` vazia. | não |
 | `2830H_E01_section1_structural.sql` | Envelope E01 — casos 1.1–1.12. | **sim** (fixtures desfeitas) |
 | `2830H_E02_identity_terminal_D1_D5.sql` | Envelope E02 — casos D1–D5. | não (catálogo) |
 | `2830H_E99_postcheck_residue.sql` | Postcheck: **comparação integral, chave a chave, com o `d_baseline` do E00 da mesma rodada** (md5 = fidelidade da cópia, não origem da rodada; vinculação E00 → envelope → E99 é documental), recheck do canônico do FREEZE, resíduo zero, não persistência de sessão (P10/P8). Um SELECT. | não |
-| `tools/static_check.py` | Verificação estática local (não conecta a banco). | — |
-| `LIVE-STAGE1-EXECUTION-RECORD.md` | Registro das tentativas da Etapa 1. **Nenhum PASS formal.** Ocorrência 01: governança — L1 e tentativa de L3 executadas pelo ChatGPT, fora da atribuição de auditor; a L1 não é evidência; a L3 foi bloqueada pela ferramenta, sem resultado SQL. Tentativa 02 (Claude): STOP em PC-1 por árvore suja, nenhum SQL. Alternativas de canal e retomada. | — |
-| `LIVE-STAGE1-RUNBOOK.md` | Roteiro operacional **proposto** da Etapa 1 (só SELECT): passos, consultas exatas com md5, evidências esperadas, STOP e pontos de decisão. Não autoriza execução. | — |
-| `LIVE-VALIDATION-PROTOCOL.md` | Protocolo **proposto** de validação progressiva no LIVE (ambiente isolado pago recusado; alternativa sem custo pendente em D-1): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-9 e decisões D-1–D-8. | — |
+| `tools/static_check.py` | Verificação estática local (não conecta a banco). **420/420** na árvore corrigida. | — |
+| `LIVE-STAGE1-EXECUTION-RECORD.md` | Registro das tentativas da Etapa 1. **Nenhum PASS formal.** Ocorrência 01: governança — L1 e tentativa de L3 executadas pelo ChatGPT, fora da atribuição de auditor; a L1 não é evidência; a L3 foi bloqueada pela ferramenta, sem resultado SQL. Tentativa 02 (Claude): STOP em PC-1 por árvore suja, nenhum SQL. Tentativa 03 (Claude, `…-EXECUTION-02`): L1 e L3 conformes; **STOP em S1.3 (E00)** por `g_p7_identity_pinned` (L2: TRANSPORT/EOL-ONLY em `normalize_external_catalog_value`, para D-6) e `g_no_enabled_event_triggers` (6 event triggers habilitados no LIVE); S1.5 não executado. Adjudicação do STOP (sem SQL): D-6 e D-9 pendentes. Alternativas de canal, retomada e saídas integrais. | — |
+| `LIVE-STAGE1-STOP-ADJUDICATION.md` | Adjudicação documental do STOP da Tentativa 03 (sem SQL). **Correções aplicadas localmente** em `…-CORRECTION-01`; ver o estado vigente no Revision History do próprio arquivo. Contém:<br>• evidências integrais;<br>• prova de que `normalize_external_catalog_value` diverge só por CRLF;<br>• origem, eventos e possibilidade de disparo dos 6 event triggers;<br>• tratamento restritivo proposto (D-9/AD-10), implicações, riscos e decisões.<br>**Proposta — não aplicada.** | — |
+| `LIVE-STAGE1-STOP-ADJUDICATION-EVIDENCE.md` | Fechamento das evidências da adjudicação (sem SQL). Contém:<br>• hashes dos artefatos;<br>• L4 com md5 e critérios de interpretação, **só para autorização futura**;<br>• cobertura de `g_p7_no_ddl` e proteção dos envelopes;<br>• fail-closed das exceções de event trigger;<br>• rastreabilidade dos 23 gates;<br>• achados G-1 a G-3 (**resolvidos** em `…-CORRECTION-01`, com G-4 e G-5). | — |
+| `LIVE-STAGE1-STOP-ADJUDICATION.diff` | Diff **integral da correção aplicada localmente** (E00, `tools/static_check.py`, protocolo v1.5, roteiro v1.4) contra o HEAD `b8925ed5`. Substitui a proposta anterior (md5 `a25d3142…`). Não commitado; pendente de auditoria. | — |
+| `LIVE-STAGE1-RUNBOOK.md` | Roteiro operacional da Etapa 1 (só SELECT), **v1.4 corrigida localmente**: passos, consultas exatas com md5 (L1, L3, L2 e L4 revisada), E00 vigente na PC-2, evidências esperadas, STOP e pontos de decisão. Não autoriza execução. | — |
+| `LIVE-VALIDATION-PROTOCOL.md` | Protocolo de validação progressiva no LIVE, **v1.5 corrigida localmente** (ambiente isolado pago recusado; alternativa sem custo pendente em D-1): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-10 e decisões D-1–D-9. | — |
 
 Ordem de uso, **quando autorizada**: `E00` → envelope → `E99`, um envelope por vez, cada um em statement próprio.
 
@@ -89,15 +92,23 @@ Regras: `checked_at(E00) < submissão do envelope < checked_at(E99)`; nenhum out
 - **Chamadas qualificadas** `schema.funcao(`: resolvidas em `pg_proc` e seguidas por fecho transitivo até profundidade 8 (não fechar ⇒ `g_p7_closure_complete` falso). Não resolvida ⇒ **STOP**.
 - **Chamadas não qualificadas** `funcao(`: só passam se forem palavra-chave da linguagem, função de `pg_catalog` fora da lista negra, ou nome de tipo de `pg_catalog` (cast funcional). Qualquer outra ⇒ `UNRESOLVED`; `pg_catalog` na lista negra ⇒ `DENIED`. Ambos ⇒ **STOP** (`g_p7_no_unresolved`). Uma função não qualificada nunca é resolvida por `search_path`.
 - **DML:** alvo qualificado (`INSERT INTO`, `UPDATE`, `DELETE FROM`, `MERGE INTO`, `TRUNCATE`, com ou sem `ONLY`) precisa existir **e** estar no escopo (`g_p7_writes_in_scope`). Alvo **não qualificado** ⇒ sempre **STOP** (`g_p7_no_unqualified_dml`) — sem tentativa de resolução.
-- **Allowlist por identidade, não por nome** (`g_p7_identity_pinned`): cada uma das 12 entradas fixa `identity_args`, linguagem, `prosecdef`, volatilidade, `proconfig` exato e `md5(prosrc)` (funções C: símbolo + pertença à extensão). Qualquer divergência ⇒ `ALLOWLIST_MISMATCH` ⇒ **STOP**. Mesmo nome com outra assinatura ⇒ não classificada (`g_p7_all_classified`).
+- **Allowlist por identidade, não por nome** (`g_p7_identity_pinned`): cada uma das 12 entradas fixa `identity_args`, linguagem, `prosecdef`, volatilidade, `proconfig` exato e o md5 do corpo com **CRLF→LF** (D-6, opção A: normalização nos dois lados; o md5 bruto, `cr_count` e `crlf_count` são exportados e listados em `d_p7_eol_normalized`; CR isolado continua STOP). Funções C: símbolo + pertença à extensão. Qualquer divergência ⇒ `ALLOWLIST_MISMATCH` ⇒ **STOP**. Mesmo nome com outra assinatura ⇒ não classificada (`g_p7_all_classified`).
 - **`search_path` seguro** (`g_p7_search_path_safe`): toda função não-C alcançada tem exatamente uma entrada `search_path` em `proconfig`, igual a `search_path=""`. Ausente, duplicada, com `public`, `pg_temp` ou qualquer outro valor ⇒ **STOP**.
-- **Também STOP:** sinal de efeito externo (`net.`, `http`, `pg_notify`, `dblink`, `pg_net`, `COPY`, `lo_*`, `pg_read_*`, `pg_ls_dir`, `set_config`, `pg_sleep`, terminate/cancel) ou `EXECUTE` dinâmico (`g_p7_no_external_or_dynamic`); regra `pg_rewrite` não-SELECT; event trigger habilitado.
+- **Também STOP:**
+  - sinal de efeito externo (`net.`, `http`, `pg_notify`, `dblink`, `pg_net`, `COPY`, `lo_*`, `pg_read_*`, `pg_ls_dir`, `set_config`, `pg_sleep`, terminate/cancel) ou `EXECUTE` dinâmico (`g_p7_no_external_or_dynamic`);
+  - comando DDL no corpo (`g_p7_no_ddl`: toda a matriz de disparo de event triggers do PG 17; `INTO` em função `sql`);
+  - regra `pg_rewrite` não-SELECT.
+- **Event triggers (P7-EVT):**
+  - inventário integral; `g_evt_inventory_complete` compara com `count(pg_event_trigger)` lido direto do catálogo;
+  - evento não-DDL (`login`) ⇒ STOP sempre (`g_evt_ddl_only`);
+  - evento DDL só com exceção por identidade de 12 atributos e justificativa não vazia (`g_evt_all_adjudicated`). `=` nos atributos obrigatórios; `IS NOT DISTINCT FROM` em tags, `proconfig` e extensão;
+  - `evt_allowlist` **vazia**; os 6 triggers da Tentativa 03 **não** foram inseridos.
 - **Escopo do gate nesta rodada:** as 5 tabelas EC. `card_variant`, staging, job, game e action log são inventariados (`d_p7_*`) para os próximos envelopes, sem bloquear E01/E02.
 - A análise é **conservadora**: qualquer coisa não resolvida ou não modelada gera STOP para classificação humana — nunca PASS.
 
 ## Provas estáticas (`python3 tools/static_check.py`)
 
-**205 / 205 PASS**, incluindo:
+**420 / 420 PASS** na árvore corrigida (`…-CORRECTION-01`; eram 205 antes da adjudicação). Os itens abaixo continuam valendo; os acrescentados na correção estão no fim da lista. Incluindo:
 - um `DO` por envelope, nada executável fora dele, dollar-quote íntegro;
 - ausência de `COMMIT`, `ROLLBACK`, `CREATE`, `ALTER`, `DROP`, `TEMP`, `set_config`, `SET ROLE/LOCAL/SESSION`, `GRANT`, `REVOKE`, `TRUNCATE`, `DELETE`, `UPDATE`, `EXECUTE`, `PERFORM`, `RAISE NOTICE/WARNING/INFO`;
 - casos na ordem e iguais a `c_expected`; `ERRCODE` só `H283C/F/P`; `H283P` exatamente 1 e último;
@@ -105,13 +116,25 @@ Regras: `checked_at(E00) < submissão do envelope < checked_at(E99)`; nenhum out
 - `BEGIN/END`, `IF/END IF` e parênteses balanceados; todo `INSERT` com marcador;
 - 1.12: duas matrizes, cada uma exatamente com os 8 privilégios do PG 17 (inclui `MAINTAIN`), para `anon` e `authenticated`;
 - `BASELINE-BUILDER` e `FREEZE-CANON` idênticos E00 × E99; canon JSON válido, 17 chaves exatas, somas internas coerentes (`staging_status` = 26.127; `jobs_by_status` = 145), sem chaves sem valor canônico; todas as chaves canônicas produzidas pelo builder;
-- E00: 21 gates obrigatórios definidos (9 de P7), `gate_pass` agregando todos com NULL = falha, exporta `d_baseline` + `d_baseline_md5`, P7 recursivo com 4 tipos de raiz;
+- E00: **24** gates obrigatórios definidos e **exatamente** esses 24 no CTE `gates`, cada um com os termos efetivos do seu predicado e sem esvaziamento; `gate_pass` agregando todos com NULL = falha; exporta `d_baseline` + `d_baseline_md5`; P7 recursivo com 4 tipos de raiz;
 - **modelo executável do P7** (`tools/static_check.py`): extrai do próprio E00 os 10 padrões, as palavras-chave, a lista negra e a allowlist e aplica o gate a corpos simulados. **2 controles positivos** (as definições reais de 2095/2206/2207 passam; comentário, literal e `FOR UPDATE` não geram dependência) e **27 controles negativos**, cada um exigindo que o gate específico esperado reprove: chamada não qualificada desconhecida; builtin negado não qualificado; DML não qualificado (`UPDATE`, `INSERT INTO`, `DELETE FROM ONLY`); DML qualificado fora do escopo e para relação inexistente; chamada qualificada não resolvida; allowlist com corpo, assinatura, `SECURITY DEFINER`, linguagem ou símbolo C divergentes; função C fora da extensão; `search_path` ausente, com `public`, duplicado ou com `pg_temp`; função não classificada; `EXECUTE`; E-string; dollar-quote interno; identificador entre aspas; nome em três partes; `x . f(`; chamada aninhada `f(g(x))`; `net.http_post`;
 - E99: comentário declara três marcadores; md5 declarado como fidelidade da cópia e não origem; vinculação documental explícita;
 - E99: 3 marcadores exatamente 1× cada, 9 gates definidos, `gate_pass` agregado, diff sobre a união das chaves;
-- E00/E99: um statement, sem DML/DDL/`SET`/`DO`.
+- E00/E99: um statement, sem DML/DDL/`SET`/`DO`, sem comando da matriz de disparo de event triggers (inclui `INTO`, `COMMENT`, `GRANT`/`REVOKE`, `SECURITY LABEL`);
+- **CORRECTION-01**, acrescentados na correção:
+  - D-6: pinos = md5 LF do repositório; reprodução byte a byte do md5 bruto LIVE; controles de CR isolado, CRLF + conteúdo e CRLF + `SECURITY DEFINER`;
+  - `g_p7_no_ddl`: 12 padrões extraídos; corpos reais sem DDL; 4 controles negativos;
+  - EVT: allowlist vazia com 13 colunas tipadas; validador de linhas futuras (justificativa obrigatória; 8 controles negativos); casamento `=` / `IS NOT DISTINCT FROM` coluna a coluna; modelo com lógica de três valores; 30 controles negativos, incluindo os 3 atributos novos isolados, `NULL`, justificativa e inventário incompleto;
+  - roteiro: PC-2, §0 e §3.3 com o E00 vigente e sem hash antigo; protocolo v1.5 citado; md5 dos 4 blocos SQL conferidos; L4 só leitura, com contagem direta e `LEFT JOIN`.
+  - Total: **72 controles negativos** (34 P7 + 30 EVT + 8 validador).
 
 **Controles negativos do verificador (mutação dos próprios arquivos, CORRECTION-02) — 23 mutações, 22 detectadas diretamente:** `COMMIT` injetado; `RAISE NOTICE`; sinal `H283C` removido; conferência de constraint removida; `set_config`; caso removido do esperado; `MAINTAIN` removido; builder alterado só no E99; canon alterado só no E99; `g_freeze_canonical_equal`, `g_p7_all_classified`, `g_p7_identity_pinned`, `g_p7_no_unqualified_dml`, `g_p7_search_path_safe`, `g_p7_lexically_supported` removidos; padrão de DML não qualificado sem `UPDATE`; pino md5 da allowlist trocado; `gate_pass` sem checagem de NULL; marcador MD5 removido do E99; `g_baseline_equal` removido; comentário do E99 voltando a “dois marcadores”; `d_baseline_md5` não exportado. A única não detectada isoladamente — retirar `pg_notify` do padrão de sinal externo — é camada redundante: o caso continua bloqueado pela lista negra de builtins; retirar **as duas** camadas é detectado.
+
+**Mutação na CORRECTION-01** (scripts e resultados em `LIVE-STAGE1-STOP-ADJUDICATION.md`, Apêndice C):
+- E00: 20/20 mutações detectadas, cada uma enfraquecendo um controle;
+- 24/24 esvaziamentos de predicado de gate detectados;
+- roteiro: 5/5;
+- envelopes com comandos da matriz de disparo injetados: 42/42.
 
 **Limite declarado:** não há parser PL/pgSQL neste ambiente. A compilação real só é provada executando — o que exige mandato. A primeira execução autorizada prevista é a Etapa 1 do protocolo LIVE (só SELECT); um ambiente isolado sem custo só entra se adotado em D-1, com P14 obrigatório.
 

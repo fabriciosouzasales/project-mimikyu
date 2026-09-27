@@ -1,0 +1,821 @@
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/2830H_E00_precheck_inventory.sql
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/2830H_E00_precheck_inventory.sql
+@@ -1,8 +1,11 @@
+ -- ============================================================================
+ -- 2830H · E00 — PRECHECK JIT + INVENTÁRIOS (P6, P7, P8, P10, P11)
+ -- ============================================================================
+--- Status ........ PREPARADO — NÃO EXECUTADO. Somente SELECT: um único
+---                 statement, sem DML, sem DDL, sem set_config, sem TEMP.
++-- Status ........ versão CORRIGIDA (BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01)
++--                 — NÃO EXECUTADA, NÃO COMPILADA no PostgreSQL. A versão
++--                 anterior (blob 97410c3a…) foi executada na Tentativa 03
++--                 (STOP em S1.3). Somente SELECT: um único statement, sem
++--                 DML, sem DDL, sem set_config, sem TEMP.
+ -- Uso ........... rodado IMEDIATAMENTE antes de cada envelope autorizado. O
+ --                 resultado jsonb é registrado INTEGRALMENTE; os campos
+ --                 d_baseline e d_baseline_md5 alimentam o E99 da MESMA rodada.
+@@ -47,8 +50,9 @@
+ --     <classe>  .......... entrada da p7_allowlist COM IDENTIDADE CONFERIDA:
+ --                          schema + nome + argumentos de identidade +
+ --                          linguagem + SECURITY DEFINER + volatilidade +
+---                          proconfig exato + md5(prosrc) (ou símbolo C e
+---                          pertença à extensão, para funções C)
++--                          proconfig exato + md5 do corpo com EOL
++--                          normalizado (ou símbolo C e pertença à
++--                          extensão, para funções C)
+ --     ALLOWLIST_MISMATCH . nome/assinatura listados, mas qualquer pino
+ --                          divergente ⇒ STOP (identidade, não nome)
+ --     DENIED / UNCLASSIFIED ⇒ STOP
+@@ -56,8 +60,33 @@
+ --   precisa ter EXATAMENTE uma entrada search_path em proconfig, igual a
+ --   search_path="" ⇒ senão STOP.
+ --   Também ⇒ STOP: sinal de efeito externo no corpo BRUTO (conservador);
+---   EXECUTE dinâmico; fecho atingindo a profundidade 8; regra pg_rewrite
+---   não-SELECT; event trigger habilitado.
++--   EXECUTE dinâmico; comando DDL no corpo (g_p7_no_ddl — um DDL no fecho
++--   dispararia event triggers); fecho atingindo a profundidade 8; regra
++--   pg_rewrite não-SELECT.
++--   EOL (D-6, BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01): o pino é
++--   md5(replace(prosrc, CRLF, LF)) — normalização determinística e só de
++--   CRLF (CR isolado NÃO é normalizado ⇒ ALLOWLIST_MISMATCH). O md5 BRUTO
++--   continua exportado em d_p7_functions.body_md5, com body_md5_lf,
++--   cr_count e crlf_count; toda função cujo bruto ≠ normalizado é listada
++--   em d_p7_eol_normalized. Nada é aceito em silêncio.
++--   EVENT TRIGGERS (P7-EVT): inventário integral em d_event_triggers
++--   (nome, evento, tags, estado, dono, função, linguagem, dono da função,
++--   SECURITY DEFINER, proconfig, extensão, md5 bruto e LF).
++--   g_evt_inventory_complete: count(pg_event_trigger) lido DIRETO do
++--   catálogo = linhas efetivamente produzidas em evt (G-3: nenhum trigger
++--   some do inventário por JOIN); senão STOP.
++--   g_evt_ddl_only: habilitado com evento fora de ddl_command_start /
++--   ddl_command_end / sql_drop / table_rewrite (ex.: login) ⇒ STOP, sem
++--   exceção possível. g_evt_all_adjudicated: todo event trigger habilitado
++--   precisa casar, por IDENTIDADE COMPLETA de 12 atributos (G-4), com uma
++--   linha de evt_allowlist que tenha justificativa não vazia; exceção só
++--   para evento DDL; senão STOP. Semântica de NULL: '=' (NULL nunca casa)
++--   em name, event, enabled, owner, fn, fn_language, fn_owner, fn_secdef e
++--   fn_md5_lf; IS NOT DISTINCT FROM em tags, fn_config e fn_extension, onde
++--   NULL é um estado real pinado (sem filtro de tag / sem proconfig / sem
++--   extensão), nunca curinga.
++--   evt_allowlist nasce VAZIA: linhas só entram por mandato de correção, a
++--   partir da L4 adjudicada (D-9) — nunca por nome.
+ --   Os pinos md5 foram calculados sobre o corpo das definições no
+ --   repositório (2206, 2207 e schema/2095). Se o LIVE divergir do
+ --   repositório, o resultado é ALLOWLIST_MISMATCH ⇒ STOP para adjudicação —
+@@ -111,7 +140,9 @@
+         $re$\m(insert\s+into|update|delete\s+from|merge\s+into|truncate(\s+table)?)\s+(only\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)$re$ AS qdml,
+         $re$\m(insert\s+into|update|delete\s+from|merge\s+into|truncate(\s+table)?)\s+(only\s+)?([A-Za-z_][A-Za-z0-9_]*)\M(?!\s*\.)$re$ AS udml,
+         $re$(\mnet\.|\mhttp|pg_notify|dblink|pg_net|\mcopy\M|lo_import|lo_export|pg_read_|pg_ls_dir|set_config|pg_sleep|pg_terminate_backend|pg_cancel_backend)$re$ AS signal_raw,
+-        $re$\mexecute\M$re$                                                                             AS dynamic_lexed
++        $re$\mexecute\M$re$                                                                             AS dynamic_lexed,
++        $re$\m(create|alter|drop|grant|revoke|reindex|comment\s+on|security\s+label|refresh\s+materialized|import\s+foreign)\M$re$ AS ddl_lexed,
++        $re$\minto\M$re$                                                                                AS sql_into_lexed
+ ),
+ -- palavras sintáticas que podem preceder "(" sem serem chamadas de função
+ p7_keywords(word) AS (
+@@ -130,7 +161,8 @@
+ -- p7_allowlist — CLASSIFICAÇÃO COM IDENTIDADE (não por nome). Pinos:
+ -- identity_args = pg_get_function_identity_arguments(oid); lang = lanname;
+ -- secdef = prosecdef; vol = provolatile (NULL = não pinado); config =
+--- proconfig exato; body_md5 = md5(prosrc) (calculado do repositório);
++-- proconfig exato; body_md5 = md5(prosrc com CRLF→LF) (calculado do
++-- repositório, que é LF: o valor é o mesmo md5 do corpo do repositório);
+ -- c_symbol / extension para funções C de extensão.
+ -- ------------------------------------------------------------------------
+ p7_allowlist(nsp, proname, identity_args, lang, secdef, vol, config, body_md5, c_symbol, extension, class, justification) AS (
+@@ -216,7 +248,8 @@
+                OR f.prosecdef IS DISTINCT FROM a.secdef
+                OR (a.vol IS NOT NULL AND f.vol IS DISTINCT FROM a.vol)
+                OR (a.config IS NOT NULL AND f.proconfig IS DISTINCT FROM a.config)
+-               OR (a.body_md5 IS NOT NULL AND md5(f.prosrc) IS DISTINCT FROM a.body_md5)
++               OR (a.body_md5 IS NOT NULL
++                   AND md5(replace(f.prosrc, chr(13) || chr(10), chr(10))) IS DISTINCT FROM a.body_md5)
+                OR (a.c_symbol IS NOT NULL AND f.prosrc IS DISTINCT FROM a.c_symbol)
+                OR (a.extension IS NOT NULL AND NOT EXISTS (
+                      SELECT 1 FROM pg_depend d JOIN pg_extension e ON e.oid = d.refobjid
+@@ -240,7 +273,10 @@
+            (c.nspname <> 'pg_catalog' AND c.language NOT IN ('c','internal')
+             AND NOT (c.proconfig IS NOT NULL
+                      AND (SELECT count(*) FROM unnest(c.proconfig) AS e(v) WHERE e.v LIKE 'search_path=%') = 1
+-                     AND 'search_path=""' = ANY (c.proconfig)))                                      AS search_path_unsafe
++                     AND 'search_path=""' = ANY (c.proconfig)))                                      AS search_path_unsafe,
++           (c.language NOT IN ('c','internal')
++            AND (c.lexed ~* (SELECT ddl_lexed FROM p7_re)
++                 OR (c.language = 'sql' AND c.lexed ~* (SELECT sql_into_lexed FROM p7_re))))        AS ddl_statement
+       FROM p7_class c
+ ),
+ -- texto analisável: sem comentários/literais e com FOR UPDATE / DO UPDATE
+@@ -296,8 +332,57 @@
+       FROM rel r JOIN pg_rewrite rw ON rw.ev_class = r.oid
+      WHERE rw.rulename <> '_RETURN'
+ ),
++-- ------------------------------------------------------------------------
++-- P7-EVT — event triggers: inventário integral (identidade completa)
++-- ------------------------------------------------------------------------
+ evt AS (
+-    SELECT evtname::text AS name, evtevent::text AS event, evtenabled::text AS enabled FROM pg_event_trigger
++    SELECT e.evtname::text                                                       AS name,
++           e.evtevent::text                                                      AS event,
++           e.evtenabled::text                                                    AS enabled,
++           e.evttags                                                             AS tags,
++           pg_get_userbyid(e.evtowner)                                           AS owner,
++           n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS fn,
++           l.lanname                                                             AS fn_language,
++           pg_get_userbyid(p.proowner)                                           AS fn_owner,
++           p.prosecdef                                                           AS fn_secdef,
++           p.proconfig                                                           AS fn_config,
++           (SELECT x.extname::text
++              FROM pg_depend d
++              JOIN pg_extension x ON x.oid = d.refobjid
++             WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid
++               AND d.refclassid = 'pg_extension'::regclass AND d.deptype = 'e') AS fn_extension,
++           md5(p.prosrc)                                                         AS fn_md5_raw,
++           md5(replace(p.prosrc, chr(13) || chr(10), chr(10)))                   AS fn_md5_lf
++      FROM pg_event_trigger e
++      JOIN pg_proc p      ON p.oid = e.evtfoid
++      JOIN pg_namespace n ON n.oid = p.pronamespace
++      JOIN pg_language l  ON l.oid = p.prolang
++),
++-- EVT-ALLOWLIST — exceção INDIVIDUAL por identidade completa (12 atributos),
++-- só para evento exclusivamente DDL, cada uma com justificativa própria e
++-- não vazia. VAZIA por construção: linhas só entram por mandato de correção,
++-- a partir da L4 adjudicada (D-9) — nunca pelo nome, nunca em bloco.
++evt_allowlist(name, event, tags, enabled, owner, fn, fn_language, fn_owner, fn_secdef, fn_config, fn_extension, fn_md5_lf, justification) AS (
++    SELECT NULL::text, NULL::text, NULL::text[], NULL::text, NULL::text,
++           NULL::text, NULL::text, NULL::text, NULL::boolean, NULL::text[],
++           NULL::text, NULL::text, NULL::text
++     WHERE false
++),
++evt_unadjudicated AS (
++    SELECT e.*
++      FROM evt e
++     WHERE e.enabled <> 'D'
++       AND NOT EXISTS (SELECT 1 FROM evt_allowlist a
++                        WHERE a.event IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite')
++                          AND a.name = e.name AND a.event = e.event
++                          AND a.tags IS NOT DISTINCT FROM e.tags
++                          AND a.enabled = e.enabled AND a.owner = e.owner
++                          AND a.fn = e.fn AND a.fn_language = e.fn_language
++                          AND a.fn_owner = e.fn_owner AND a.fn_md5_lf = e.fn_md5_lf
++                          AND a.fn_secdef = e.fn_secdef
++                          AND a.fn_config IS NOT DISTINCT FROM e.fn_config
++                          AND a.fn_extension IS NOT DISTINCT FROM e.fn_extension
++                          AND NULLIF(btrim(a.justification), '') IS NOT NULL)
+ ),
+ pub AS (
+     SELECT pt.pubname::text AS publication, pt.tablename::text AS table_name
+@@ -430,6 +515,7 @@
+         'statement_timeout',    current_setting('statement_timeout'),
+         'db_role_setting_rows', (SELECT count(*) FROM pg_db_role_setting),
+         'server_version_num',   current_setting('server_version_num'),
++        'session_replication_role', current_setting('session_replication_role'),
+         'backend_pid',          pg_backend_pid(),
+         'checked_at',           clock_timestamp()
+     ) AS s
+@@ -453,6 +539,7 @@
+         NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND search_path_unsafe)   AS g_p7_search_path_safe,
+         NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND (external_signal OR dynamic_sql))
+                                                                                       AS g_p7_no_external_or_dynamic,
++        NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND ddl_statement)        AS g_p7_no_ddl,
+         NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND unsupported_lexeme)   AS g_p7_lexically_supported,
+         (NOT EXISTS (SELECT 1 FROM p7_unresolved_qualified WHERE gate_scope)
+          AND NOT EXISTS (SELECT 1 FROM p7_unqualified_calls WHERE gate_scope
+@@ -465,7 +552,12 @@
+         NOT EXISTS (SELECT 1 FROM p7_reach WHERE gate_scope AND depth >= 8)           AS g_p7_closure_complete,
+         NOT EXISTS (SELECT 1 FROM p7_rules r JOIN rel ON rel.name = r.table_name
+                      WHERE rel.gate_scope)                                            AS g_no_rules,
+-        NOT EXISTS (SELECT 1 FROM evt WHERE enabled <> 'D')                           AS g_no_enabled_event_triggers,
++        NOT EXISTS (SELECT 1 FROM evt WHERE enabled <> 'D'
++                     AND event NOT IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite'))
++                                                                                      AS g_evt_ddl_only,
++        NOT EXISTS (SELECT 1 FROM evt_unadjudicated)                                  AS g_evt_all_adjudicated,
++        (SELECT count(*) FROM pg_catalog.pg_event_trigger) = (SELECT count(*) FROM evt)
++                                                                                      AS g_evt_inventory_complete,
+         (NOT EXISTS (SELECT 1 FROM own o JOIN rel r ON r.name = o.name WHERE r.touched_now AND o.force_rls)
+          AND ((SELECT s->>'is_superuser' FROM sess)::boolean
+               OR NOT EXISTS (SELECT 1 FROM own o JOIN rel r ON r.name = o.name
+@@ -488,16 +580,28 @@
+                                   'language', f.language, 'root_table', f.table_name, 'via', f.via,
+                                   'depth', f.depth, 'gate_scope', f.gate_scope,
+                                   'body_md5', CASE WHEN f.language NOT IN ('c','internal') THEN md5(f.prosrc) END,
++                                  'body_md5_lf', CASE WHEN f.language NOT IN ('c','internal')
++                                                      THEN md5(replace(f.prosrc, chr(13) || chr(10), chr(10))) END,
++                                  'cr_count', length(f.prosrc) - length(replace(f.prosrc, chr(13), '')),
++                                  'crlf_count', (length(f.prosrc) - length(replace(f.prosrc, chr(13) || chr(10), ''))) / 2,
+                                   'proconfig', f.proconfig, 'external_signal', f.external_signal,
+                                   'dynamic_sql', f.dynamic_sql, 'unsupported_lexeme', f.unsupported_lexeme,
+-                                  'search_path_unsafe', f.search_path_unsafe)
++                                  'search_path_unsafe', f.search_path_unsafe, 'ddl_statement', f.ddl_statement)
+                                   ORDER BY f.gate_scope DESC, f.class, f.fqname) FROM p7_flags f), '[]'::jsonb),
++        'd_p7_eol_normalized', COALESCE((SELECT jsonb_agg(f.fqname || '(' || f.identity_args || ')' ORDER BY f.fqname)
++                                  FROM p7_flags f
++                                 WHERE f.gate_scope AND f.language NOT IN ('c','internal')
++                                   AND md5(f.prosrc) <> md5(replace(f.prosrc, chr(13) || chr(10), chr(10)))), '[]'::jsonb),
+         'd_p7_unresolved_qualified', COALESCE((SELECT jsonb_agg(to_jsonb(u)) FROM p7_unresolved_qualified u), '[]'::jsonb),
+         'd_p7_unqualified_calls',    COALESCE((SELECT jsonb_agg(to_jsonb(u) ORDER BY u.caller, u.name) FROM p7_unqualified_calls u), '[]'::jsonb),
+         'd_p7_writes',               COALESCE((SELECT jsonb_agg(to_jsonb(w) ORDER BY w.writer, w.target) FROM p7_writes w), '[]'::jsonb),
+         'd_p7_unqualified_writes',   COALESCE((SELECT jsonb_agg(to_jsonb(w)) FROM p7_unqualified_writes w), '[]'::jsonb),
+         'd_p7_rules',         COALESCE((SELECT jsonb_agg(to_jsonb(r)) FROM p7_rules r), '[]'::jsonb),
+-        'd_event_triggers',   COALESCE((SELECT jsonb_agg(to_jsonb(e)) FROM evt e), '[]'::jsonb),
++        'd_event_triggers',   COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name) FROM evt e), '[]'::jsonb),
++        'd_evt_catalog_count', (SELECT count(*) FROM pg_catalog.pg_event_trigger),
++        'd_evt_unadjudicated', COALESCE((SELECT jsonb_agg(u.name ORDER BY u.name) FROM evt_unadjudicated u), '[]'::jsonb),
++        'd_evt_allowlist_absent', COALESCE((SELECT jsonb_agg(a.name ORDER BY a.name) FROM evt_allowlist a
++                                  WHERE NOT EXISTS (SELECT 1 FROM evt e WHERE e.name = a.name)), '[]'::jsonb),
+         'd_publications',     COALESCE((SELECT jsonb_agg(to_jsonb(p)) FROM pub p), '[]'::jsonb),
+         'd_ownership_rls',    COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM own o), '[]'::jsonb),
+         'd_objects',          (SELECT o FROM obj),
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/tools/static_check.py
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/tools/static_check.py
+@@ -22,7 +22,9 @@
+     bodyns=nostr(body)
+     stmts_outside=c.split('$'+tag+'$')[0].strip()
+     chk(f+': nada executável fora do DO', stmts_outside.upper().strip()=='DO')
+-    for tok in [r'\bCOMMIT\b',r'\bROLLBACK\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'\bTEMP\b',r'\bTEMPORARY\b',r'SET_CONFIG',r'\bSET\s+ROLE\b',r'\bSET\s+LOCAL\b',r'\bSET\s+SESSION\b',r'\bGRANT\b',r'\bREVOKE\b',r'\bTRUNCATE\b',r'\bDELETE\b',r'\bUPDATE\b',r'PG_SLEEP',r'DBLINK',r'\bNET\.',r'\bPERFORM\b',r'\bEXECUTE\b',r'RAISE\s+NOTICE',r'RAISE\s+WARNING',r'RAISE\s+INFO']:
++    for tok in [r'\bCOMMIT\b',r'\bROLLBACK\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'\bTEMP\b',r'\bTEMPORARY\b',r'SET_CONFIG',r'\bSET\s+ROLE\b',r'\bSET\s+LOCAL\b',r'\bSET\s+SESSION\b',r'\bGRANT\b',r'\bREVOKE\b',r'\bTRUNCATE\b',r'\bDELETE\b',r'\bUPDATE\b',r'PG_SLEEP',r'DBLINK',r'\bNET\.',r'\bPERFORM\b',r'\bEXECUTE\b',r'RAISE\s+NOTICE',r'RAISE\s+WARNING',r'RAISE\s+INFO',
++                r'\bCOMMENT\b',r'\bSECURITY\s+LABEL\b',r'\bREINDEX\b',r'\bREFRESH\b',r'\bIMPORT\b',r'\bLISTEN\b',r'\bNOTIFY\b',
++                r'\bLOAD\b',r'\bCALL\b',r'\bCOPY\b',r'\bLOCK\b',r'\bMERGE\b']:
+         chk(f+f': proibido ausente {tok}', not re.search(tok,bodyns.upper()))
+     cases=re.findall(r"v_case\s*:=\s*'([^']+)'",body)
+     chk(f+': casos na ordem = esperado', cases==exp, str(cases))
+@@ -59,7 +61,9 @@
+     raw=re.sub(r"\$re\$.*?\$re\$","''",(H/f).read_text(encoding='utf-8'),flags=re.S)
+     c=code(raw); U=nostr(c).upper()
+     chk(f+': 1 statement', U.count(';')==1 and U.rstrip().endswith(';'))
+-    for tok in [r'\bINSERT\b',r'\bUPDATE\b',r'\bDELETE\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'SET_CONFIG',r'\bSET\b',r'\bDO\b',r'\bTEMP\b']:
++    for tok in [r'\bINSERT\b',r'\bUPDATE\b',r'\bDELETE\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'SET_CONFIG',r'\bSET\b',r'\bDO\b',r'\bTEMP\b',
++                r'\bINTO\b',r'\bGRANT\b',r'\bREVOKE\b',r'\bCOMMENT\b',r'\bSECURITY\s+LABEL\b',r'\bREINDEX\b',r'\bREFRESH\b',r'\bIMPORT\b',
++                r'\bTRUNCATE\b',r'\bMERGE\b',r'\bCOPY\b',r'\bCALL\b',r'\bLOCK\b',r'\bLISTEN\b',r'\bNOTIFY\b']:
+         chk(f+f': ausente {tok}', not re.search(tok,U))
+     chk(f+': parênteses balanceados', nostr(c).count('(')==nostr(c).count(')'))
+
+@@ -92,9 +96,39 @@
+ chk('CANON: sem chaves sem valor canônico (action_log, mapping_trait, marker_*)', not ({'action_log','mapping_trait','marker_trait','marker_profile','marker_mapping'} & set(canon)))
+ bkeys=set(re.findall(r"^\s*'([a-z_]+)',\s*",block(e00,'BASELINE-BUILDER') or '',re.M))
+ chk('BUILDER: toda chave canônica é produzida pelo builder', req<=bkeys, str(sorted(req-bkeys)))
+-g00=['g_freeze_canonical_equal','g_p7_all_classified','g_p7_no_external_or_dynamic','g_p7_search_path_safe','g_p7_identity_pinned','g_p7_lexically_supported','g_p7_no_unqualified_dml','g_p7_no_unresolved','g_p7_writes_in_scope','g_p7_closure_complete','g_no_rules','g_no_enabled_event_triggers','g_no_sequences_touched_now','g_rls_bypass','g_no_residue','g_no_concurrency','g_roles_1_12','g_pg17_maintain_privilege']
++g00=['g_objects_1x','g_objects_D','g_roles_1_12','g_pg17_maintain_privilege','g_game_source','g_freeze_canonical_equal','g_no_sequences_touched_now',
++     'g_p7_all_classified','g_p7_identity_pinned','g_p7_search_path_safe','g_p7_no_external_or_dynamic','g_p7_no_ddl','g_p7_lexically_supported',
++     'g_p7_no_unresolved','g_p7_no_unqualified_dml','g_p7_writes_in_scope','g_p7_closure_complete','g_no_rules',
++     'g_evt_inventory_complete','g_evt_ddl_only','g_evt_all_adjudicated','g_rls_bypass','g_no_residue','g_no_concurrency']   # G-1: os 24 gates, todos com definição conferida
+ c00=code(e00)
+ for gname in g00: chk(f'E00: gate {gname} definido', re.search(r'AS\s+'+gname+r'\b',c00) is not None)
++_gcte=c00[c00.index('\ngates AS ('):c00.index('\nSELECT to_jsonb(g)')]
++_gdef=re.findall(r'AS\s+(g_[A-Za-z0-9_]+)',_gcte)
++chk('E00: CTE gates define EXATAMENTE os 24 gates reconciliados (sem extra, sem falta, sem duplicata)', sorted(_gdef)==sorted(g00) and len(_gdef)==len(set(_gdef))==24, str(sorted(set(_gdef)^set(g00))))
++# Predicado de cada gate (CORRECTION-01): o nome definido não basta — o segmento que precede 'AS <gate>' precisa conter
++# os termos que o tornam efetivo, e nenhum gate pode ser esvaziado por 'WHERE false' / 'OR true' / 'true AS'.
++_parts=re.split(r'AS\s+(g_[A-Za-z0-9_]+)',_gcte)
++_seg={_parts[i]:_parts[i-1] for i in range(1,len(_parts),2)}
++GATE_TERMS={
++ 'g_objects_1x':["'constraints_1x'","= 7","'indexes_1x'","= 4"], 'g_objects_D':["'indexes_D'","= 5"],
++ 'g_roles_1_12':["'roles_anon_authenticated'","= 2"], 'g_pg17_maintain_privilege':[">= 170000"],
++ 'g_game_source':["'game_pokemon'","'source_tcgdex'","= 1"], 'g_freeze_canonical_equal':["NOT EXISTS (SELECT 1 FROM canon_diff)"],
++ 'g_no_sequences_touched_now':["FROM seq s","r.touched_now"],
++ 'g_p7_all_classified':["gate_scope","class IN ('UNCLASSIFIED','DENIED')"], 'g_p7_identity_pinned':["gate_scope","class = 'ALLOWLIST_MISMATCH'"],
++ 'g_p7_search_path_safe':["gate_scope","search_path_unsafe"], 'g_p7_no_external_or_dynamic':["gate_scope","external_signal OR dynamic_sql"],
++ 'g_p7_no_ddl':["gate_scope","ddl_statement"], 'g_p7_lexically_supported':["gate_scope","unsupported_lexeme"],
++ 'g_p7_no_unresolved':["p7_unresolved_qualified WHERE gate_scope","resolution IN ('UNRESOLVED','DENIED')"],
++ 'g_p7_no_unqualified_dml':["p7_unqualified_writes WHERE gate_scope"], 'g_p7_writes_in_scope':["w.gate_scope","NOT w.target_exists","w.target NOT IN"],
++ 'g_p7_closure_complete':["p7_reach WHERE gate_scope AND depth >= 8"], 'g_no_rules':["FROM p7_rules","rel.gate_scope"],
++ 'g_evt_inventory_complete':["pg_catalog.pg_event_trigger","FROM evt)"], 'g_evt_ddl_only':["FROM evt WHERE enabled <> 'D'"],
++ 'g_evt_all_adjudicated':["FROM evt_unadjudicated"], 'g_rls_bypass':["force_rls","o.owner <> current_user"],
++ 'g_no_residue':["'marker_trait'","'marker_profile'","'marker_mapping'"], 'g_no_concurrency':["'other_sessions_in_txn'","= 0"]}
++chk('E00: termos de predicado declarados para os 24 gates', set(GATE_TERMS)==set(g00))
++for _g,_terms in GATE_TERMS.items():
++    _t=_seg.get(_g,'')
++    chk(f'E00: predicado de {_g} contém {len(_terms)} termo(s) efetivo(s) e não é esvaziado',
++        all(x in _t for x in _terms) and not re.search(r'WHERE\s+false|OR\s+true|^\s*,?\s*true\s*$',_t,re.I|re.M), _g)
++chk('E00: gate antigo g_no_enabled_event_triggers substituído (não coexistem)', re.search(r'AS\s+g_no_enabled_event_triggers\b',c00) is None)
+ chk('E00: gate_pass agrega TODOS os g_* (bool_and + NULL=falha)', 'bool_and(v::boolean) FROM jsonb_each_text(to_jsonb(g))' in c00 and 'WHERE v IS NULL' in c00)
+ chk('E00: exporta d_baseline e d_baseline_md5', "'d_baseline'," in c00 and "'d_baseline_md5'," in c00 and 'md5(b::text)' in c00)
+ chk('E00: P7 fecho recursivo + classificação + UNCLASSIFIED', 'WITH RECURSIVE walk' in c00 and "'UNCLASSIFIED'" in e00 and 'p7_allowlist' in c00)
+@@ -117,9 +151,10 @@
+ import hashlib
+ e00=(H/'2830H_E00_precheck_inventory.sql').read_text(encoding='utf-8')
+ REP=dict((n,v) for v,n in re.findall(r"\$re\$(.*?)\$re\$\s+AS\s+([a-z_]+)",e00,re.S))
+-chk('P7 modelo: 10 padrões extraídos do E00', set(REP)=={'lex','unsupported_raw','unsupported_lexed','lock_or_upsert','qcall','ucall','qdml','udml','signal_raw','dynamic_lexed'}, str(sorted(REP)))
++chk('P7 modelo: 12 padrões extraídos do E00', set(REP)=={'lex','unsupported_raw','unsupported_lexed','lock_or_upsert','qcall','ucall','qdml','udml','signal_raw','dynamic_lexed','ddl_lexed','sql_into_lexed'}, str(sorted(REP)))
+ def are(p): return p.replace(r'\m',r'\b').replace(r'\M',r'\b')
+-R={k:re.compile(are(v),re.I if k in ('lock_or_upsert','qdml','udml','signal_raw','dynamic_lexed') else 0) for k,v in REP.items()}
++R={k:re.compile(are(v),re.I if k in ('lock_or_upsert','qdml','udml','signal_raw','dynamic_lexed','ddl_lexed','sql_into_lexed') else 0) for k,v in REP.items()}
++def lf(src): return src.replace('\r\n','\n')   # D-6: normalização determinística, SÓ CRLF (CR isolado permanece)
+ KW=set(re.findall(r"'([a-z_]+)'",re.search(r"p7_keywords\(word\) AS \(\s*SELECT unnest\(ARRAY\[(.*?)\]\)",e00,re.S).group(1)))
+ DENY=set(re.findall(r"\('([a-z_]+)'\)",re.search(r"p7_denylist\(proname\) AS \(\s*VALUES(.*?)\n\),",e00,re.S).group(1)))
+ ALLOW={}
+@@ -148,7 +183,7 @@
+             if a is None: cls='UNCLASSIFIED'
+             elif (lang!=a['lang'] or secdef!=a['secdef'] or (a['vol'] is not None and vol!=a['vol'])
+                   or (a['config'] is not None and cfg!=a['config'])
+-                  or (a['md5'] is not None and hashlib.md5(src.encode()).hexdigest()!=a['md5'])
++                  or (a['md5'] is not None and hashlib.md5(lf(src).encode()).hexdigest()!=a['md5'])
+                   or (a['csym'] is not None and src!=a['csym'])
+                   or (a['ext'] is not None and k not in ext_members.get(a['ext'],set()))): cls='ALLOWLIST_MISMATCH'
+             else: cls=a['cls']
+@@ -160,6 +195,7 @@
+             reasons.append('g_p7_search_path_safe:'+k)
+         if R['signal_raw'].search(src) or (lang=='plpgsql' and R['dynamic_lexed'].search(lexed)): reasons.append('g_p7_no_external_or_dynamic:'+k)
+         if R['unsupported_raw'].search(src) or R['unsupported_lexed'].search(lexed): reasons.append('g_p7_lexically_supported:'+k)
++        if R['ddl_lexed'].search(lexed) or (lang=='sql' and R['sql_into_lexed'].search(lexed)): reasons.append('g_p7_no_ddl:'+k)
+         t=R['lock_or_upsert'].sub(' ',lexed)
+         for m in R['qcall'].finditer(t):
+             ref=(m.group(1).lower(),m.group(2).lower())
+@@ -219,7 +255,14 @@
+  'nome em três partes':'g_p7_lexically_supported',
+  'espaço entre schema, ponto e função (x . f)':'g_p7_no_unresolved',
+  'chamada aninhada não qualificada (f(g(x)))':'g_p7_no_unresolved',
+- 'sinal de efeito externo (net.http_post)':'g_p7_no_external_or_dynamic'}
++ 'sinal de efeito externo (net.http_post)':'g_p7_no_external_or_dynamic',
++ 'DDL estático no corpo (CREATE TEMP TABLE)':'g_p7_no_ddl',
++ 'DDL estático no corpo (GRANT)':'g_p7_no_ddl',
++ 'DDL estático no corpo (COMMENT ON)':'g_p7_no_ddl',
++ 'função sql com SELECT INTO (cria tabela)':'g_p7_no_ddl',
++ 'EOL: CR isolado (não é CRLF) no corpo pinado':'g_p7_identity_pinned',
++ 'EOL: CRLF + alteração de conteúdo':'g_p7_identity_pinned',
++ 'EOL: CRLF + SECURITY DEFINER divergente':'g_p7_identity_pinned'}
+ def neg(label, fns):
+     ok,why=p7_gate(fns,EXT); exp=EXPECT[label]
+     chk('P7 CONTROLE NEGATIVO bloqueado: '+label+' [gate '+exp+']', (not ok) and any(w.startswith(exp+':') for w in why), 'motivos='+str(why[:3]))
+@@ -269,6 +312,211 @@
+ chk('P7 CONTROLE POSITIVO: comentário, literal e FOR UPDATE não geram dependência', ok, '; '.join(why))
+
+
++# ---------------------------------------------------------------------------
++# STOP-ADJUDICATION-01 (proposta): D-6 (EOL), P7 sem DDL, P7-EVT (event
++# triggers). Sem banco. Os valores LIVE usados abaixo vêm da Tentativa 03
++# (LIVE-STAGE1-EXECUTION-RECORD.md §6) e são citados como evidência, não
++# consultados.
++# ---------------------------------------------------------------------------
++# D-6.1 — pinos = md5 do corpo do repositório normalizado (os dois lados)
++for (nsp,name,ida),a in ALLOW.items():
++    if a['md5'] is None: continue
++    fq=nsp+'.'+name
++    chk(f'D-6: pino de {fq} = md5(LF(corpo do repositório))', fq in real and hashlib.md5(lf(real[fq][7]).encode()).hexdigest()==a['md5'])
++    chk(f'D-6: corpo do repositório de {fq} sem CR', fq in real and '\r' not in real[fq][7])
++chk('D-6: E00 compara md5(replace(prosrc, CRLF, LF)) com o pino', "md5(replace(f.prosrc, chr(13) || chr(10), chr(10))) IS DISTINCT FROM a.body_md5" in c00)
++chk('D-6: E00 não compara mais md5(prosrc) bruto com o pino', 'md5(f.prosrc) IS DISTINCT FROM a.body_md5' not in c00)
++chk('D-6: E00 exporta md5 bruto + LF + cr_count + crlf_count + d_p7_eol_normalized',
++    all(x in c00 for x in ["'body_md5', CASE","'body_md5_lf', CASE","'cr_count',","'crlf_count',","'d_p7_eol_normalized',"]))
++# D-6.2 — reprodução da evidência LIVE (Tentativa 03): o corpo do repositório com LF→CRLF
++nec='public.normalize_external_catalog_value'
++live_nec=real[nec][7].replace('\n','\r\n')
++chk('D-6 EVIDÊNCIA: repo LF→CRLF reproduz md5_raw LIVE 81361bb8… (L2)', hashlib.md5(live_nec.encode()).hexdigest()=='81361bb8f52ce142803d69c2b3028ae8')
++chk('D-6 EVIDÊNCIA: len 104 e cr_count 2 iguais à L2', len(live_nec)==104 and live_nec.count('\r')==2)
++chk('D-6 EVIDÊNCIA: md5 LF do corpo LIVE reconstruído = pino 1fdc2e7e…', hashlib.md5(lf(live_nec).encode()).hexdigest()=='1fdc2e7ebe2297f8db85be4aad2e5d33')
++ok,why=p7_gate(mut_body(nec, live_nec),EXT)
++chk('D-6 CONTROLE POSITIVO: corpo LIVE (CRLF) com demais atributos iguais passa o pino normalizado', ok, '; '.join(why[:3]))
++neg('EOL: CR isolado (não é CRLF) no corpo pinado', mut_body(nec, real[nec][7].replace('\n','\r',1)))
++neg('EOL: CRLF + alteração de conteúdo', mut_body(nec, live_nec.replace("' '","'_'")))
++d=mut_body(nec, live_nec); t=list(d[nec]); t[4]=True; d[nec]=tuple(t)
++neg('EOL: CRLF + SECURITY DEFINER divergente', d)
++# P7 sem DDL — corpos reais sem DDL + controles negativos
++for fq,v in real.items():
++    if v[3] in ('c','internal'): continue
++    lx=R['lex'].sub(' ',v[7])
++    chk(f'P7-DDL: corpo real de {fq} sem comando DDL', not R['ddl_lexed'].search(lx) and not (v[3]=='sql' and R['sql_into_lexed'].search(lx)))
++tg='internal.guard_edition_context_trait_active'
++neg('DDL estático no corpo (CREATE TEMP TABLE)', mut_body(tg, body_with('    CREATE TEMP TABLE x (a int);')))
++neg('DDL estático no corpo (GRANT)', mut_body(tg, body_with('    GRANT SELECT ON public.card_edition_context_trait TO anon;')))
++neg('DDL estático no corpo (COMMENT ON)', mut_body(tg, body_with("    COMMENT ON TABLE public.card_edition_context_trait IS 'x';")))
++neg('função sql com SELECT INTO (cria tabela)', mut_body(nec, "\n    SELECT 1 INTO public.ghost;\n"))
++fine_ddl=body_with("    -- CREATE TABLE em comentário\n    NEW.a := 'DROP TABLE em literal';\n    NEW.created_at := now();")
++key=('internal','guard_edition_context_trait_active',''); saved=dict(ALLOW[key]); ALLOW[key]['md5']=hashlib.md5(fine_ddl.encode()).hexdigest()
++ok,why=p7_gate(mut_body(tg, fine_ddl),EXT); ALLOW[key]=saved
++chk('P7-DDL CONTROLE POSITIVO: DDL em comentário/literal e identificador created_at não disparam', ok, '; '.join(why))
++
++# P7-EVT — event triggers (CORRECTION-01: G-2 lógica de 3 valores, G-3 completude, G-4 identidade de 12 atributos)
++DDL_EVENTS={'ddl_command_start','ddl_command_end','sql_drop','table_rewrite'}
++EVT_EQ=['name','event','enabled','owner','fn','fn_language','fn_owner','fn_secdef','fn_md5_lf']   # '=' do SQL: NULL nunca casa
++EVT_INDF=['tags','fn_config','fn_extension']                                                       # IS NOT DISTINCT FROM: NULL é estado pinado
++EVT_ID=['name','event','tags','enabled','owner','fn','fn_language','fn_owner','fn_secdef','fn_config','fn_extension','fn_md5_lf']
++m=re.search(r"evt_allowlist\((.*?)\) AS \(\s*(.*?)\n\),",e00,re.S)
++chk('EVT: evt_allowlist presente no E00', m is not None)
++EVT_COLS=[x.strip() for x in m.group(1).split(',')] if m else []
++chk('EVT: evt_allowlist = 12 atributos de identidade + justification (G-4)', EVT_COLS==EVT_ID+['justification'], str(EVT_COLS))
++allow_body=m.group(2) if m else ''
++chk('EVT: tipos da allowlist vazia alinhados (boolean em fn_secdef, text[] em tags/fn_config)',
++    re.findall(r"NULL::([a-z\[\]]+)",allow_body)==['text','text','text[]','text','text','text','text','text','boolean','text[]','text','text','text'])
++def allow_rows(txt):
++    """Extrai linhas VALUES (...) de um texto de allowlist; cada linha vira lista de literais."""
++    rows=[]
++    for r in re.findall(r"^\s*\(('(?:[^']|'')*'.*?)\),?\s*$",txt,re.M):
++        f=re.findall(r"ARRAY\[[^\]]*\](?:::text\[\])?|'(?:[^']|'')*'|true|false|NULL(?:::[a-z\[\]]+)?",r)
++        rows.append(f)
++    return rows
++def row_valid(f):
++    """Regras para QUALQUER linha futura: 13 campos; justification não vazia; evento DDL; nenhum atributo de '=' em NULL."""
++    if len(f)!=13: return False
++    d=dict(zip(EVT_ID+['justification'],f))
++    lit=lambda x: None if x.startswith('NULL') else x
++    if lit(d['justification']) is None or not re.sub(r"^'|'$","",d['justification']).strip(): return False
++    if lit(d['event']) is None or d['event'].strip("'") not in DDL_EVENTS: return False
++    if any(lit(d[k]) is None for k in EVT_EQ): return False
++    return True
++ROWS=allow_rows(allow_body)
++chk('EVT: evt_allowlist nasce VAZIA (nenhuma exceção; os 6 triggers NÃO inseridos)', 'WHERE false' in allow_body and len(ROWS)==0, str(len(ROWS)))
++chk('EVT: toda linha presente na allowlist é válida (vácuo verdadeiro com 0 linhas)', all(row_valid(r) for r in ROWS))
++GOOD="  ('pgrst_ddl_watch', 'ddl_command_end', NULL::text[], 'O', 'supabase_admin', 'extensions.pgrst_ddl_watch()', 'plpgsql', 'supabase_admin', true, NULL::text[], NULL, '"+'0'*32+"', 'L4 <prov>; justificativa (a)-(f)'),"
++chk('EVT VALIDADOR controle positivo: linha sintética completa é aceita', row_valid(allow_rows(GOOD)[0]))
++for label,bad in [('justificativa vazia',GOOD.replace("'L4 <prov>; justificativa (a)-(f)'","''")),
++                  ('justificativa só com espaços',GOOD.replace("'L4 <prov>; justificativa (a)-(f)'","'   '")),
++                  ('justificativa NULL',GOOD.replace("'L4 <prov>; justificativa (a)-(f)'","NULL")),
++                  ('evento login',GOOD.replace("'ddl_command_end'","'login'")),
++                  ('fn_md5_lf NULL',GOOD.replace("'"+'0'*32+"'","NULL")),
++                  ('fn_secdef NULL',GOOD.replace(", true,",", NULL,")),
++                  ('owner NULL',GOOD.replace("'O', 'supabase_admin'","'O', NULL")),
++                  ('linha sem justification (12 campos)',GOOD.replace(", 'L4 <prov>; justificativa (a)-(f)'",""))]:
++    chk('EVT VALIDADOR CONTROLE NEGATIVO rejeita linha futura: '+label, not row_valid(allow_rows(bad)[0]))
++un=re.search(r"evt_unadjudicated AS \((.*?)\n\),",c00,re.S).group(1)
++for col in EVT_EQ:
++    chk(f"EVT: casamento a.{col} = e.{col} (NULL nunca casa)", re.search(r'\ba\.'+col+r'\s*=\s*e\.'+col+r'\b',un) is not None)
++for col in EVT_INDF:
++    chk(f"EVT: casamento a.{col} IS NOT DISTINCT FROM e.{col}", ('a.'+col+' IS NOT DISTINCT FROM e.'+col) in un)
++chk("EVT: justificativa obrigatória também no SQL (NULLIF(btrim(a.justification), '') IS NOT NULL)", "NULLIF(btrim(a.justification), '') IS NOT NULL" in un)
++chk("EVT: exceção só para evento DDL (lista literal no casamento)", "a.event IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite')" in un)
++chk("EVT: g_evt_ddl_only com a mesma lista DDL", "event NOT IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite'))" in c00)
++chk('EVT: inventário exporta identidade completa (tags, owner, fn, secdef, proconfig, extensão, md5 bruto e LF)',
++    all(x in c00 for x in ['e.evttags','pg_get_userbyid(e.evtowner)','AS fn_secdef','AS fn_config','AS fn_extension','AS fn_md5_raw','AS fn_md5_lf']))
++_evt=re.search(r"\nevt AS \((.*?)\n\),",c00,re.S).group(1)
++chk('EVT G-3: CTE evt sem filtro — termina nos JOINs (nenhum WHERE fora da subconsulta de extensão)',
++    _evt.rstrip().endswith('JOIN pg_language l  ON l.oid = p.prolang') and len(re.findall(r'\bWHERE\b',_evt))==1 and 'FROM pg_event_trigger e' in _evt)
++chk('EVT G-3: g_evt_inventory_complete compara count(pg_event_trigger) DIRETO com count(evt)',
++    re.search(r"\(SELECT count\(\*\) FROM pg_catalog\.pg_event_trigger\) = \(SELECT count\(\*\) FROM evt\)\s*AS g_evt_inventory_complete",c00) is not None)
++chk("EVT: d_evt_catalog_count, d_evt_unadjudicated e d_evt_allowlist_absent exportados", all(x in c00 for x in ["'d_evt_catalog_count',","'d_evt_unadjudicated',","'d_evt_allowlist_absent',"]))
++def eq3(a,b): return a is not None and b is not None and a==b      # SQL '='
++def indf(a,b): return a==b                                          # IS NOT DISTINCT FROM
++def evt_gate(live, allow, catalog_count=None):
++    """Modelo com semântica SQL (G-2). catalog_count = count(pg_event_trigger) lido direto (G-3)."""
++    reasons=[]
++    if catalog_count is not None and catalog_count!=len(live): reasons.append('g_evt_inventory_complete:'+str(catalog_count)+'!='+str(len(live)))
++    for e in live:
++        if e['enabled']=='D': continue
++        if e['event'] not in DDL_EVENTS: reasons.append('g_evt_ddl_only:'+e['name'])
++        if not any(a['event'] in DDL_EVENTS and all(eq3(a[k],e[k]) for k in EVT_EQ) and all(indf(a[k],e[k]) for k in EVT_INDF)
++                   and a.get('justification') is not None and a['justification'].strip()!='' for a in allow):
++            reasons.append('g_evt_all_adjudicated:'+e['name'])
++    return (not reasons, reasons)
++def evt_join(catalog, procs):
++    """Simula o CTE evt: JOIN interno de pg_event_trigger com pg_proc (trigger sem função some)."""
++    return [dict(t, **procs[t['foid']]) for t in catalog if t['foid'] in procs]
++# inventário da Tentativa 03 (nome, evento, estado = evidência LIVE; demais campos SINTÉTICOS só para o modelo)
++T03=[('issue_graphql_placeholder','sql_drop'),('pgrst_ddl_watch','ddl_command_end'),('pgrst_drop_watch','sql_drop'),
++     ('issue_pg_cron_access','ddl_command_end'),('issue_pg_net_access','ddl_command_end'),('issue_pg_graphql_access','ddl_command_end')]
++live=[dict(name=n,event=ev,enabled='O',tags=None,owner='SYNTH_owner',fn='SYNTH.'+n+'()',fn_language='plpgsql',fn_owner='SYNTH_owner',
++           fn_secdef=False,fn_config=None,fn_extension=None,fn_md5_lf='0'*32) for n,ev in T03]
++ok,why=evt_gate(live,[],6)
++chk('EVT REPRODUÇÃO: 6 habilitados + allowlist vazia ⇒ STOP (igual à Tentativa 03)', (not ok) and len([w for w in why if w.startswith('g_evt_all_adjudicated:')])==6)
++allow=[dict(e,justification='L4 <prov>; justificativa (a)-(f)') for e in live]
++ok,_=evt_gate(live,allow,6); chk('EVT CONTROLE POSITIVO: identidade completa adjudicada, NULL=NULL em tags/fn_config/fn_extension ⇒ passa', ok)
++def evt_neg(label, live2, allow2, gate, cc=None):
++    ok,why=evt_gate(live2,allow2,len(live2) if cc is None else cc)
++    chk('EVT CONTROLE NEGATIVO bloqueado: '+label+' [gate '+gate+']', (not ok) and any(w.startswith(gate+':') for w in why), str(why[:2]))
++def mut(i,**kw):
++    l2=[dict(e) for e in live]; l2[i].update(kw); return l2
++for fld,val in [('fn_md5_lf','f'*32),('fn','extensions.evil()'),('tags',['CREATE EXTENSION']),('owner','postgres'),('fn_owner','postgres'),
++                ('fn_language','sql'),('enabled','A'),('event','ddl_command_start'),('name','renamed_hook')]:
++    evt_neg(f'mesmo trigger, {fld} divergente', mut(1,**{fld:val}), allow, 'g_evt_all_adjudicated')
++# G-4: alterações isoladas dos atributos novos
++evt_neg('fn_secdef false→true (isolado)', mut(2,fn_secdef=True), allow, 'g_evt_all_adjudicated')
++evt_neg('fn_config NULL→{search_path=""} (isolado)', mut(2,fn_config=['search_path=""']), allow, 'g_evt_all_adjudicated')
++a2=[dict(a) for a in allow]; a2[2]['fn_config']=['search_path=""']
++evt_neg('fn_config {search_path=""}→NULL (isolado)', live, a2, 'g_evt_all_adjudicated')
++evt_neg('fn_config {search_path=""}→{search_path=public} (isolado)', mut(2,fn_config=['search_path=public']), a2, 'g_evt_all_adjudicated')
++evt_neg('fn_extension NULL→pg_net (isolado)', mut(2,fn_extension='pg_net'), allow, 'g_evt_all_adjudicated')
++a3=[dict(a) for a in allow]; a3[2]['fn_extension']='pg_graphql'
++evt_neg('fn_extension pg_graphql→NULL (isolado)', live, a3, 'g_evt_all_adjudicated')
++evt_neg('fn_extension pg_graphql→pg_net (isolado)', mut(2,fn_extension='pg_net'), a3, 'g_evt_all_adjudicated')
++# G-2: NULL com semântica SQL
++for k in ['owner','fn','fn_md5_lf','fn_secdef']:
++    a4=[dict(a) for a in allow]; a4[4][k]=None; l4=mut(4,**{k:None})
++    evt_neg(f'NULL em {k} nos dois lados não casa (= do SQL)', l4, a4, 'g_evt_all_adjudicated')
++a5=[dict(a) for a in allow]; a5[1]['tags']=['CREATE EXTENSION']
++evt_neg('evttags: allowlist com tag × LIVE NULL', live, a5, 'g_evt_all_adjudicated')
++evt_neg('evttags: mesma lista em outra ordem', mut(1,tags=['B','A']), [dict(a,tags=['A','B']) if a['name']==live[1]['name'] else a for a in allow], 'g_evt_all_adjudicated')
++# justificativa obrigatória (espelho do NULLIF(btrim(...)))
++for lab,j in [('vazia',''),('só espaços','   '),('NULL',None)]:
++    evt_neg(f'justificativa {lab} não adjudica', live, [dict(a,justification=j) for a in allow], 'g_evt_all_adjudicated')
++evt_neg('trigger novo não adjudicado', live+[dict(live[0],name='evil_ddl_hook')], allow, 'g_evt_all_adjudicated')
++login=dict(live[0],name='on_login_x',event='login')
++evt_neg('evento login mesmo com linha na allowlist', live+[login], allow+[dict(login,justification='x')], 'g_evt_ddl_only')
++evt_neg('evento login: allowlist não o torna adjudicado', live+[login], allow+[dict(login,justification='x')], 'g_evt_all_adjudicated')
++ok,_=evt_gate(live+[dict(live[0],name='disabled_x',enabled='D')],allow,7); chk('EVT CONTROLE POSITIVO: trigger desabilitado (D) é inventariado sem efeito de gate', ok)
++# G-3: incompletude do inventário (JOIN interno perde trigger cuja função não é encontrada)
++cat=[dict(name=n,event=ev,enabled='O',tags=None,owner='SYNTH_owner',foid=i) for i,(n,ev) in enumerate(T03)]
++procs={i:dict(fn='SYNTH.'+n+'()',fn_language='plpgsql',fn_owner='SYNTH_owner',fn_secdef=False,fn_config=None,fn_extension=None,fn_md5_lf='0'*32) for i,(n,ev) in enumerate(T03)}
++inv=evt_join(cat,procs); ok,_=evt_gate(inv,allow,len(cat)); chk('EVT G-3 CONTROLE POSITIVO: catálogo 6 = inventário 6, adjudicado ⇒ passa', ok and len(inv)==6)
++p2=dict(procs); del p2[3]; inv2=evt_join(cat,p2)
++evt_neg('inventário incompleto: função não encontrada some do JOIN (catálogo 6 × evt 5)', inv2, allow, 'g_evt_inventory_complete', cc=len(cat))
++cat2=cat+[dict(name='ghost_hook',event='ddl_command_end',enabled='O',tags=None,owner='x',foid=99)]
++evt_neg('inventário incompleto: trigger adicional sem função resolvida (catálogo 7 × evt 6)', evt_join(cat2,procs), allow, 'g_evt_inventory_complete', cc=len(cat2))
++# Envelopes autorizados não emitem comando da matriz de disparo (DDL/GRANT/COMMENT/SECURITY LABEL/SELECT INTO de SQL puro)
++for f in ['2830H_E00_precheck_inventory.sql','2830H_E99_postcheck_residue.sql']:
++    raw=re.sub(r"\$re\$.*?\$re\$","''",(H/f).read_text(encoding='utf-8'),flags=re.S); U=nostr(code(raw)).upper()
++    chk(f'EVT: {f} (SQL puro) sem comando da matriz de disparo nem SELECT INTO', not re.search(r'\b(CREATE|ALTER|DROP|GRANT|REVOKE|COMMENT|SECURITY\s+LABEL|INTO|REINDEX|REFRESH|IMPORT)\b',U))
++for f,tag in [('2830H_E01_section1_structural.sql','h2830_e01'),('2830H_E02_identity_terminal_D1_D5.sql','h2830_e02')]:
++    body=nostr(code((H/f).read_text(encoding='utf-8')).split('$'+tag+'$')[1]).upper()
++    chk(f'EVT: {f} (PL/pgSQL) sem comando da matriz de disparo (SELECT … INTO é atribuição PL/pgSQL)', not re.search(r'\b(CREATE|ALTER|DROP|GRANT|REVOKE|COMMENT|SECURITY\s+LABEL|REINDEX|REFRESH|IMPORT|EXECUTE)\b',body))
++
++
++# ---------------------------------------------------------------------------
++# CORRECTION-01 (G-5): roteiro reconciliado com o E00 vigente e a L4 revisada
++# ---------------------------------------------------------------------------
++rb=(H/'LIVE-STAGE1-RUNBOOK.md').read_text(encoding='utf-8')
++_e00b=(H/'2830H_E00_precheck_inventory.sql').read_bytes()
++_blob=hashlib.sha1(b'blob %d\x00'%len(_e00b)+_e00b).hexdigest(); _md5=hashlib.md5(_e00b).hexdigest()
++_pc2=[l for l in rb.splitlines() if l.startswith('| PC-2 |')]
++chk('ROTEIRO PC-2: exige o blob e o md5 do E00 VIGENTE (calculados deste arquivo)', len(_pc2)==1 and _blob in _pc2[0] and _md5 in _pc2[0], _blob+' '+_md5)
++chk('ROTEIRO PC-2: nenhum hash antigo do E00 como critério (97410c3a, d00b7cec, a10ffd81, 470db26f)', len(_pc2)==1 and not re.search(r'97410c3a|d00b7cec|a10ffd81|470db26f',_pc2[0]))
++_e00row=[l for l in rb.splitlines() if l.startswith('| **E00** — precheck |')]
++chk('ROTEIRO §0: linha do E00 com blob/md5 vigentes e sem hash antigo', len(_e00row)==1 and _blob in _e00row[0] and _md5 in _e00row[0] and not re.search(r'97410c3a|a10ffd81',_e00row[0]))
++chk('ROTEIRO §3.3: submissão do E00 cita o blob vigente', re.search(r'Submeter o \*\*conteúdo integral\*\* de `2830H_E00_precheck_inventory\.sql` \(blob `'+_blob+'`', rb) is not None)
++chk('ROTEIRO: cabeçalho, PC-4 e P-1 citam o protocolo v1.5',
++    '`LIVE-VALIDATION-PROTOCOL.md` **v1.5**' in rb and re.search(r'^\| PC-4 \|.*protocolo \*\*v1\.5\*\*',rb,re.M) and re.search(r'^\| P-1 \|.*protocolo v1\.5',rb,re.M))
++_blocks=re.findall(r"```sql\n(.*?)```",rb,re.S)
++_md5s=[hashlib.md5(b.encode()).hexdigest() for b in _blocks]
++_decl={k:re.search(r'^\| \*\*'+k+r'\*\*.*?md5[^`]*`([0-9a-f]{32})`',rb,re.M) for k in ['L1','L3','L2','L4']}
++chk('ROTEIRO: 4 blocos SQL (L1, L3, L2, L4)', len(_blocks)==4, str(len(_blocks)))
++chk('ROTEIRO: md5 declarado em §0 = md5 do bloco (L1, L3, L2, L4)', all(_decl[k] and _decl[k].group(1) in _md5s for k in _decl), str(_md5s))
++L4=_blocks[3] if len(_blocks)==4 else ''
++_L4u=re.sub(r"'(?:[^']|'')*'","''",L4).upper()
++chk('L4: um único statement, só leitura (sem DDL/DML/SET/INTO/DO)', _L4u.count(';')==1 and not re.search(r'\b(CREATE|ALTER|DROP|GRANT|REVOKE|COMMENT|INSERT|UPDATE|DELETE|MERGE|TRUNCATE|SET|INTO|DO|EXECUTE|CALL|COPY)\b',_L4u))
++chk('L4: contagem e nomes lidos DIRETO do catálogo', 'count(*)' in L4 and 'jsonb_agg(e.evtname::text ORDER BY e.evtname) AS catalog_names' in L4 and L4.count('FROM pg_catalog.pg_event_trigger e')==2)
++chk('L4: inventário com LEFT JOIN (trigger sem função não some) e fn_resolved', all(x in L4 for x in ['LEFT JOIN pg_proc p','LEFT JOIN pg_namespace n','LEFT JOIN pg_language l',"'fn_resolved',  p.oid IS NOT NULL"]))
++chk('L4: completude e integridade na saída (catalog_count, inventory_count, inventory_complete, triggers_md5)',
++    all("'"+k+"'" in L4 for k in ['catalog_count','catalog_names','inventory_count','inventory_complete','triggers_md5','triggers']))
++chk('L4: exporta os 12 atributos pinados pelo E00', all("'"+k+"'" in L4 for k in ['name','event','tags','enabled','owner','fn','fn_language','fn_owner','fn_secdef','fn_config','fn_extension','fn_md5_lf']))
++
++
+ e99t=(H/'2830H_E99_postcheck_residue.sql').read_text(encoding='utf-8')
+ chk('E99: comentário declara TRÊS marcadores (não dois)', 'EXATAMENTE TRÊS marcadores' in e99t and 'EXATAMENTE dois' not in e99t)
+ chk('E99: md5 declarado como fidelidade da cópia, NÃO origem da rodada', 'NÃO' in e99t and 'prova de QUAL rodada' in e99t)
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-VALIDATION-PROTOCOL.md
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-VALIDATION-PROTOCOL.md
+@@ -3,7 +3,7 @@
+ | Campo | Valor |
+ |---|---|
+ | **Mandato** | `BATCH12-2830-LIVE-VALIDATION-READINESS-01` (2026-09-26) |
+-| **Status** | **PROPOSTO — NÃO EXECUTADO** (v1.4 — corrigido em `…-READINESS-CORRECTION-01`, reconciliado em `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01`, alinhado em `…-READINESS-CLOSEOUT-01` e ajustado em `…-READINESS-CLOSEOUT-02`). Nenhum SQL rodou. Cada etapa abaixo exige mandato próprio. |
++| **Status** | **v1.5 — CORRIGIDO LOCALMENTE** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitado, pendente de auditoria independente. A Etapa 1 foi tentada pela v1.4 (Tentativa 03: STOP em S1.3). O E00 corrigido **não foi compilado nem executado**. Cada etapa exige mandato próprio. |
+ | **Baseline do repositório** | `97380747a18db7e38b10b0720a8b2d1f9b0c28ed` (HEAD confirmado, árvore limpa antes desta rodada) |
+ | **Decisão do proprietário** | **Ambiente isolado pago: recusado.** Validação progressiva de E00/E02/E99/E01 no banco LIVE existente. **Alternativa isolada sem custo** (tecnologia não prescrita; Supabase local é alternativa viável, não exclusiva) **permanece PENDENTE** (D-1), com **P14 (a, b, c) obrigatório** — ver `../2830-V7.1-PROPOSAL-ADMIN-CONCURRENCY.md`. *Redação original (v1.0/v1.1): "Não haverá ambiente isolado"; refinada pela decisão de produto registrada em `BATCH12-2830-ADMIN-CONCURRENCY-REASSESSMENT-01`.* |
+ | **Autoridade** | `2830_validate_edition_context_foundation.sql` v7.0, blob `b4647dcb…` — **imutável**. Este documento **não** a altera: registra, à parte, o que a decisão acima muda e o que continua valendo (seção 7). |
+@@ -14,7 +14,7 @@
+
+ | Artefato | Blob | Natureza |
+ |---|---|---|
+-| `2830H_E00_precheck_inventory.sql` | `97410c3a799d8fdec86cc6d3735993ab224f6c9e` | 1 SELECT |
++| `2830H_E00_precheck_inventory.sql` | vigente: `88e9e7a4c94ac71feef536d6fc18b0e61190479c` (corrigido, 24 gates, não commitado); histórico: `97410c3a…` (executado na Tentativa 03) | 1 SELECT |
+ | `2830H_E02_identity_terminal_D1_D5.sql` | `3357ed46b77e3bfacbe5b1988820e495ce363dd1` | 1 DO, só catálogo, sem DML |
+ | `2830H_E99_postcheck_residue.sql` | `49a71ecb4525697858110ee71a3f61f5eee74a34` | 1 SELECT (3 marcadores a substituir) |
+ | `2830H_E01_section1_structural.sql` | `c4118b8cc13872ecefa600d3c2225cca48f3c1b1` | 1 DO, **escreve fixtures** e desfaz |
+@@ -235,6 +235,13 @@
+   - Entradas com `gate_scope = false` (inventário de `card_variant`, staging, job, action log e game) são registradas, mas não entram nesta comparação — mesmo escopo do gate do E00.
+ - `d_p7_unqualified_calls` sem `UNRESOLVED`/`DENIED`.
+ - `d_p7_writes` com alvos só nas 5 tabelas EC.
++- **EOL (D-6).** O pino de corpo é comparado com `md5(replace(prosrc, CRLF, LF))`. `d_p7_eol_normalized` é registrado; cada item listado tem `body_md5_lf` = pino, `crlf_count = cr_count` e o md5 bruto (`body_md5`) citado como evidência. Nada é aceito em silêncio.
++- **Event triggers (D-9).**
++  - `d_event_triggers` registrado integralmente;
++  - `d_evt_catalog_count` = número de linhas do inventário (`g_evt_inventory_complete`);
++  - `d_evt_unadjudicated = []`;
++  - toda exceção vem de uma linha da `evt_allowlist` com identidade de 12 atributos (nome, evento, tags, estado, dono, função, linguagem, dono da função, `SECURITY DEFINER`, `proconfig`, extensão, md5 LF) e justificativa **não vazia**, só para evento DDL;
++  - evento não-DDL (`login`) habilitado ⇒ STOP sempre.
+ - L3 limpo.
+
+ ### 3.4 STOP da Etapa 1 e única repetição admitida
+@@ -243,7 +250,11 @@
+ |---|---|
+ | E00 com erro de compilação/execução (qualquer SQLSTATE) | STOP · defeito de harness · mandato de correção |
+ | `g_freeze_canonical_equal = false` | STOP · FREEZE violado ou deriva · nunca atualizar constante |
+-| `g_p7_identity_pinned = false` | STOP · L2 **somente para diagnóstico** (S1.4) · a etapa não continua · D-6 |
++| `g_p7_identity_pinned = false` | STOP · L2 **somente para diagnóstico** (S1.4) · a etapa não continua · D-6. Com o pino normalizado (D-6), só diverge por conteúdo, CR isolado ou atributo pinado — nunca por CRLF |
++| `g_p7_no_ddl = false` | STOP · comando DDL no fecho P7: dispararia event triggers e alteraria catálogo · classificação humana |
++| `g_evt_ddl_only = false` | STOP · event trigger habilitado em evento não-DDL (`login` etc.) · sem exceção possível |
++| `g_evt_inventory_complete = false` | STOP · inventário de event triggers diferente da contagem direta de `pg_event_trigger` (trigger perdido no JOIN) · classificação humana · sem repetição |
++| `g_evt_all_adjudicated = false` | STOP · event trigger habilitado sem exceção adjudicada por identidade completa (12 atributos) e justificativa · L4 sob mandato próprio · D-9 · sem repetição |
+ | `g_p7_all_classified` / `g_p7_no_unresolved` / `g_p7_search_path_safe` / `g_p7_lexically_supported` / `g_p7_no_unqualified_dml` / `g_p7_writes_in_scope` / `g_p7_no_external_or_dynamic` / `g_p7_closure_complete` falsos | STOP · classificação humana do item listado em `d_p7_*` |
+ | `g_no_concurrency = false` | **Uma** repetição admitida: L3 → E00 novo, após ≥ 60 s. Persistindo, STOP. As duas saídas são registradas. |
+ | visibilidade de `pg_stat_activity` **não provada** pelas vias 1–3 da L1 (independentemente de `activity_rows_state_hidden`) | STOP · `g_no_concurrency` / `g_no_open_txn_others` poderiam ser **vácuos** (P13) · decisão D-5 |
+@@ -396,7 +407,7 @@
+
+ | # | Risco | Onde | Efeito se ocorrer | Como a etapa detecta |
+ |---|---|---|---|---|
+-| C-1 | Pinos md5 derivados do repositório × `prosrc` LIVE com **CRLF** (precedente real na `2217`) | E00 `p7_allowlist` | `ALLOWLIST_MISMATCH` ⇒ STOP (nunca PASS) | E00; L2 como diagnóstico do STOP, sem continuidade |
++| C-1 | Pinos md5 derivados do repositório × `prosrc` LIVE com **CRLF** (precedente real na `2217`; **ocorrido** na Tentativa 03 em `public.normalize_external_catalog_value`) | E00 `p7_allowlist` | antes de D-6: `ALLOWLIST_MISMATCH` ⇒ STOP. Com D-6: pino comparado ao md5 normalizado (só CRLF); o bruto fica em `d_p7_functions.body_md5` e `d_p7_eol_normalized` | E00; L2 como diagnóstico de STOP de pino |
+ | C-2 | Motor de regex ARE × modelo Python `re`: semântica POSIX "mais longo à esquerda" em alternâncias; lookbehind `(?<!…)` (existe desde PG 9.6); `\m`/`\M` | E00 `p7_re` | falso STOP (classificação `UNRESOLVED`); falso PASS exigiria o padrão **deixar de achar** uma chamada/escrita real | `d_p7_unqualified_calls` / `d_p7_writes` completos no registro permitem conferência humana contra o corpo do repositório — que, com `g_p7_identity_pinned = true`, é byte-idêntico ao LIVE |
+ | C-3 | `gen_random_uuid` como DEFAULT resolvido para `extensions.gen_random_uuid` (pgcrypto) em vez de `pg_catalog` | raízes P7 (default) | função não classificada ⇒ STOP | `d_p7_functions` |
+ | C-4 | Trigger/raiz não prevista nas 5 tabelas EC (ex.: trigger genérico de `updated_at` adicionado fora do repositório) | E00 | `UNCLASSIFIED` ⇒ STOP | `d_p7_functions` |
+@@ -410,6 +421,7 @@
+ - **P7 é o gate.** Função com sinal externo (`net.`, `http`, `pg_notify`, `dblink`, `pg_net`, `COPY`, `lo_*`, `set_config`, `pg_sleep`…) ou SQL dinâmico no fecho ⇒ STOP antes de qualquer escrita.
+ - **Realtime / replicação lógica:** transação abortada não é decodificada; publicações registradas em `d_publications`.
+ - **Webhooks de banco do Supabase** são triggers e, portanto, entram no fecho P7.
++- **Event triggers da plataforma.** O LIVE tem event triggers habilitados (Tentativa 03: 6, em `ddl_command_end`/`sql_drop`). Event triggers só disparam nos comandos da matriz do PostgreSQL (DDL, `GRANT`/`REVOKE`, `COMMENT`, `SECURITY LABEL`, `SELECT INTO`), e o evento `login` na conexão. Os envelopes autorizados não contêm esses comandos (prova estática em `tools/static_check.py`) e o fecho P7 não pode contê-los (`g_p7_no_ddl`). Cada event trigger habilitado precisa de exceção individual, por identidade completa (D-9); `login` nunca é excepcionado. O canal `apply_migration` do MCP executa DDL próprio antes da migration (relato público, não verificado aqui) e é proibido nestas etapas; só `execute_sql` é usado.
+ - **Logs do servidor e `pgaudit`** registram os statements e o marcador. É resíduo de observabilidade, não de dado.
+ - **Nenhuma RPC administrativa** é chamada; `catalog_admin_action_log` entra no baseline e precisa ficar igual.
+
+@@ -451,7 +463,8 @@
+ | AD-5 | P14(d) "dados de fixture sintéticos; ambiente descartado" | descarte do ambiente como garantia final | a garantia final passa a ser o rollback estrutural + E99. Fixtures que envolvem job, row, `card_variant` ou Game sentinela (2.6/3.3) ganham risco maior no LIVE e precisam de readiness própria | nenhum para E01/E02 |
+ | AD-6 | P5 marcador `'H2830-' ‖ uuid` | — | marcador efetivo `H2830_` + uuid sem hífens em maiúsculas, porque os CHECKs de formato de `code` recusam hífen; detecção de resíduo por `LIKE '%H2830%'` cobre as duas formas | nenhum (formaliza o implementado) |
+ | AD-7 | Vinculação E00 → envelope → E99 com marcador | todo envelope tem fixture | para envelopes sem fixture (E02), o item 2 do registro é a mensagem terminal sem marcador | nenhum |
+-| AD-8 | Regra permanente EOL (bruto ≠, normalizado =) × gate de pino bruto do E00 | corpo LIVE byte-idêntico ao repositório | o E00 dá STOP; a L2 só diagnostica; seguir exige adjudicação (D-6), correção formal do harness e novo mandato — nunca edição silenciosa do pino, nunca continuidade automática | nenhum, se não houver CRLF |
++| AD-8 | Regra permanente EOL (bruto ≠, normalizado =) × gate de pino bruto do E00 | corpo LIVE byte-idêntico ao repositório | **proposta D-6:** pino comparado ao md5 com CRLF→LF nos dois lados (o repositório é LF); CR isolado continua STOP; md5 bruto, `cr_count` e `crlf_count` exportados e registrados; `d_p7_eol_normalized` lista cada caso. Vale só após mandato de correção e novo blob do E00 | nenhum |
++| AD-10 | `g_no_enabled_event_triggers` (nenhum event trigger habilitado) | LIVE sem event triggers | **D-9 (corrigido localmente, pendente de aceite):** inventário integral com completude verificada contra a contagem direta do catálogo (`g_evt_inventory_complete`); `login`/evento não-DDL ⇒ STOP sempre; evento DDL só com exceção individual por identidade de 12 atributos (nome, evento, tags, estado, dono, função, linguagem, dono da função, `SECURITY DEFINER`, `proconfig`, extensão, md5 LF) e justificativa não vazia. Semântica de `NULL`: `=` nos atributos obrigatórios; `IS NOT DISTINCT FROM` em tags, `proconfig` e extensão, onde `NULL` é estado pinado. `evt_allowlist` nasce vazia e só recebe linhas por mandato, a partir da L4 | nenhum enquanto a allowlist estiver vazia (comportamento idêntico ao atual) |
+ | AD-9 | P8/G15 "zero sessão concorrente" | visibilidade total de `pg_stat_activity` | exigir superusuário **ou** `pg_read_all_stats` **ou** controle positivo explícito de visibilidade (L1, via 3); `activity_rows_state_hidden = 0` isolado não basta; senão o gate pode ser vácuo (P13) | nenhum, se a visibilidade for provada |
+
+ ---
+@@ -465,8 +478,9 @@
+ | D-3 | `SET LOCAL lock_timeout = '5s'` no E01: (a) sim, com mandato de correção prévio; (b) não | Etapa 3 |
+ | D-4 | Se `lock_timeout` da sessão MCP ≠ `'0'`: corrigir o E99 para comparar com o valor do E00 (mandato de correção) | Etapas 2 e 3 |
+ | D-5 | Se a visibilidade de `pg_stat_activity` não for provada pelas vias 1–3 da L1: conceder `pg_read_all_stats` ao papel do canal ou mudar o canal (decisão de Fabrício; o agente não altera papéis) | Etapas 1–3 |
+-| D-6 | Após STOP por pino, se a L2 (diagnóstico) mostrar TRANSPORT/EOL-ONLY: adjudicação e forma da correção dos pinos; a Etapa 1 só recomeça com novo mandato | Etapas 1–3 |
+-| D-7 | Aceite de AD-3 a AD-9 | registro formal |
++| D-6 | Após STOP por pino, se a L2 (diagnóstico) mostrar TRANSPORT/EOL-ONLY: adjudicação e forma da correção dos pinos; a Etapa 1 só recomeça com novo mandato. **Ocorrido na Tentativa 03** (`public.normalize_external_catalog_value`, só CRLF, provado byte a byte). Proposta: AD-8 (normalização nos dois lados), em `LIVE-STAGE1-STOP-ADJUDICATION.md` | Etapas 1–3 |
++| D-9 | Event triggers habilitados no LIVE (Tentativa 03: 6): autorizar a L4 (só SELECT, mandato próprio, md5 no roteiro §0); adjudicar **individualmente** cada exceção (evento DDL, identidade de 12 atributos, justificativa não vazia); aceitar AD-10 | Etapas 1–3 |
++| D-7 | Aceite de AD-3 a AD-10 | registro formal |
+ | D-8 | Mandato de cada etapa (1, 2 e 3), separados | cada etapa |
+
+ ---
+@@ -493,3 +507,4 @@
+ | 1.2 | **Reconciliação (2026-09-26, `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01`, baseline `1f3b72dc`).** Decisão do proprietário, DIV-1 e D-1 alinhados à decisão refinada: ambiente isolado **pago recusado**; alternativa isolada **sem custo** **PENDENTE** em D-1, com P14 obrigatório. Nenhum critério, consulta, sequência ou STOP das etapas alterado. O roteiro operacional da Etapa 1 está em `LIVE-STAGE1-RUNBOOK.md`. |
+ | 1.3 | **Alinhamento (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-01`).** §3.2 (L3: objetivo, resultado esperado e "Como validar") e §6.3: qualquer outra sessão `client backend` ativa ou em transação implica **STOP**, mesmo identificada como plataforma; a classificação nominal é exclusivamente diagnóstica; `g_no_concurrency = true` segue obrigatório. Elimina o conflito A-4 do roteiro da Etapa 1. SQL e md5 de L1/L2/L3 inalterados; nenhum outro critério alterado. |
+ | 1.4 | **Ajuste referencial (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-02`).** §3.2 (L3, "Como validar"): removida a menção a "query curta", porque a L3 não retorna o texto da query. A classificação nominal passa a citar só os campos efetivamente retornados. Nenhum SQL, md5, critério ou STOP alterado. |
++| 1.5 | **Correção local (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01` → `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitada, pendente de auditoria.** Após o STOP da Tentativa 03:<br>• §3.3: critérios de EOL (D-6, opção A com o bruto como evidência) e de event triggers (D-9: completude, identidade de 12 atributos, justificativa não vazia).<br>• §3.4: `g_p7_no_ddl`, `g_evt_inventory_complete`, `g_evt_ddl_only` e `g_evt_all_adjudicated`.<br>• §6.1 C-1 atualizado (CRLF ocorrido); §6.2 com event triggers da plataforma.<br>• §7: AD-8 reescrita e AD-10 nova. §8: D-6 atualizada, D-9 nova, D-7 passa a cobrir AD-10.<br>• Tabela de artefatos com o blob vigente do E00.<br>2830 v7.0 inalterada. |
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-RUNBOOK.md
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-RUNBOOK.md
+@@ -3,9 +3,9 @@
+ | Campo | Valor |
+ |---|---|
+ | **Mandato de preparação** | `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01` (2026-09-26) |
+-| **Status** | **PROPOSTO — NÃO EXECUTADO.** Este roteiro **não autoriza** a execução. A Etapa 1 exige mandato próprio de execução; a Etapa 2 **não** é autorizada automaticamente por nenhum resultado aqui. |
+-| **Baseline** | `1f3b72dca48e1050500259ddcaacee614bccad2e` (publicado; árvore limpa no início desta rodada) |
+-| **Autoridade** | `LIVE-VALIDATION-PROTOCOL.md` v1.3, seção 3. Em caso de conflito, o protocolo prevalece e o conflito é STOP. |
++| **Status** | **v1.4 — CORRIGIDO LOCALMENTE** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), **não commitado**, pendente de auditoria independente. O E00 corrigido e a L4 **não foram compilados nem executados** no PostgreSQL. A v1.3 foi executada na Tentativa 03 (STOP em S1.3; ver `LIVE-STAGE1-EXECUTION-RECORD.md`) e está **superada**. Este roteiro **não autoriza** a execução. A Etapa 1 exige mandato próprio de execução; a Etapa 2 **não** é autorizada automaticamente por nenhum resultado aqui. |
++| **Baseline** | Correção feita sobre HEAD `b8925ed571127be8f05fac98f6a3afbad5fe74a3`, ainda não commitada. O baseline de execução é o commit que contiver esta correção; ele será fixado pelo mandato de execução (PC-1). |
++| **Autoridade** | `LIVE-VALIDATION-PROTOCOL.md` **v1.5**, seção 3. Em caso de conflito, o protocolo prevalece e o conflito é STOP. |
+ | **Contrato** | 2830 v7.0, blob `b4647dcb59432405c8157e2733fd78678f35540e` — imutável. |
+ | **FREEZE** | ATIVO. |
+
+@@ -19,10 +19,11 @@
+ |---|---|---|
+ | **L1** — canal e sessão | `LIVE-VALIDATION-PROTOCOL.md` §3.2, bloco SQL 1 (reproduzido em §3) | md5 do texto `0836c36a8d3749b1e7718223e064caf9` |
+ | **L3** — concorrência | idem, bloco SQL 3 | md5 `b7bc3700aeef278f6a79bd30e6a8d229` |
+-| **E00** — precheck | `2830H_E00_precheck_inventory.sql`, arquivo **inteiro**, comentários incluídos | blob `97410c3a799d8fdec86cc6d3735993ab224f6c9e` · md5 do arquivo `d00b7cec2523b2ee3de9565a93dbae57` |
++| **E00** — precheck | `2830H_E00_precheck_inventory.sql`, arquivo **inteiro**, comentários incluídos | blob `88e9e7a4c94ac71feef536d6fc18b0e61190479c` · md5 do arquivo `a9352afcb883f072e1baf8a3518536fb` (43.639 B, 24 gates) |
+ | **L2** — pinos, **só diagnóstico** | idem, bloco SQL 2 | md5 `81d3472e69d8490849b16a0918c3e35d` |
++| **L4** — event triggers, **só adjudicação D-9** | este roteiro, §3.5 | md5 `f3670eb8f149064610055720b0636218` (2.416 B). **Fora** da sequência da Etapa 1; exige mandato próprio. |
+
+-Os md5 da tabela são do texto exato de cada bloco SQL deste documento: da linha após a abertura da cerca até a quebra de linha final, inclusive, antes da cerca de fechamento. Esse texto é idêntico ao dos blocos do protocolo v1.2.
++Os md5 da tabela são do texto exato de cada bloco SQL deste documento: da linha após a abertura da cerca até a quebra de linha final, inclusive, antes da cerca de fechamento. O texto de L1, L2 e L3 é idêntico ao dos blocos do protocolo. Os hashes de E00 e L4 anteriores a esta versão (E00 `97410c3a…` / `d00b7cec…`, executado na Tentativa 03; E00 proposto `a10ffd81…`; L4 `6bdc9dc4…`) são **históricos** e **não** são critério vigente.
+
+ ---
+
+@@ -31,10 +32,10 @@
+ | # | Verificação | Evidência a registrar | Falha |
+ |---|---|---|---|
+ | PC-1 | `git rev-parse HEAD` = baseline do mandato de execução; `git status` limpo | saída literal | STOP |
+-| PC-2 | `git hash-object` do E00 = `97410c3a…`; md5 de L1/L3/L2 = tabela §0 | saídas literais | STOP |
++| PC-2 | `git hash-object` do E00 = `88e9e7a4c94ac71feef536d6fc18b0e61190479c` e md5 do arquivo = `a9352afcb883f072e1baf8a3518536fb`; md5 de L1/L3/L2 = tabela §0; `python3 tools/static_check.py` com `FAIL 0` | saídas literais | STOP |
+ | PC-3 | Canal = MCP Supabase `execute_sql`, `project_id = qjfutqujxrbzgrtkpgkg`; nunca Dashboard/SQL Editor | parâmetro `project_id` de cada chamada, registrado | STOP |
+-| PC-4 | Mandato de execução assinado por Fabrício, citando este roteiro e o protocolo v1.3 | referência do mandato | STOP |
+-| PC-5 | Nenhum `SET`/`set_config`/`CREATE TEMP`/sonda adicional; nenhuma consulta fora das quatro da §0 | declaração no registro | STOP |
++| PC-4 | Mandato de execução assinado por Fabrício, citando este roteiro **v1.4**, o protocolo **v1.5** e o blob do E00 da PC-2 | referência do mandato | STOP |
++| PC-5 | Nenhum `SET`/`set_config`/`CREATE TEMP`/sonda adicional; nenhuma consulta fora de L1, L3, E00 e L2 (a L4 só roda sob mandato próprio de adjudicação, nunca dentro da Etapa 1) | declaração no registro | STOP |
+
+ ---
+
+@@ -46,7 +47,7 @@
+ |---|---|---|---|---|
+ | S1.1 | **L1** | PC-1…PC-5 OK | JSON integral `l1_channel` + horário | §4.1 conforme ⇒ S1.2; senão STOP |
+ | S1.2 | **L3** | S1.1 conforme | JSON integral `l3_concurrency` | §4.2 conforme ⇒ S1.3; senão STOP |
+-| S1.3 | **E00** (1ª leitura) | S1.2 conforme | JSON integral `e00_precheck` | §4.3 conforme ⇒ aguardar ≥ 60 s ⇒ S1.5. `g_p7_identity_pinned = false` ⇒ STOP ⇒ S1.4. Único `g_no_concurrency = false` ⇒ S1.3-R. Qualquer outro desvio ⇒ STOP. |
++| S1.3 | **E00** (1ª leitura) | S1.2 conforme | JSON integral `e00_precheck` | §4.3 conforme ⇒ aguardar ≥ 60 s ⇒ S1.5. `g_p7_identity_pinned = false` ⇒ STOP ⇒ S1.4. `g_evt_inventory_complete`, `g_evt_ddl_only` ou `g_evt_all_adjudicated` = `false` ⇒ STOP (sem repetição; D-9). Único `g_no_concurrency = false` ⇒ S1.3-R. Qualquer outro desvio ⇒ STOP. |
+ | S1.3-R | **L3** e, ≥ 60 s após o S1.3, **E00** novo (repetição única, protocolo §3.4) | só se o **único** gate falso do S1.3 foi `g_no_concurrency` | as duas saídas + as do S1.3 | conforme ⇒ este E00 passa a ser a 1ª leitura ⇒ aguardar ≥ 60 s ⇒ S1.5; ainda falso ⇒ STOP |
+ | S1.4 | **L2** — **diagnóstico** | somente após STOP por `g_p7_identity_pinned = false` | tabela integral das 12 linhas | a etapa **permanece em STOP**; resultado vai para D-6 |
+ | S1.5 | **E00** (2ª leitura), ≥ 60 s após a 1ª leitura aceita | 1ª leitura conforme | JSON integral | §4.4 conforme ⇒ `READY FOR STAGE 2` (§5); senão STOP |
+@@ -120,7 +121,7 @@
+
+ ### 3.3 E00 — precheck
+
+-Submeter o **conteúdo integral** de `2830H_E00_precheck_inventory.sql` (blob `97410c3a…`, md5 `d00b7cec2523b2ee3de9565a93dbae57`), sem edição, sem recorte de comentários. O texto não é duplicado aqui, para não criar uma segunda fonte.
++Submeter o **conteúdo integral** de `2830H_E00_precheck_inventory.sql` (blob `88e9e7a4c94ac71feef536d6fc18b0e61190479c`, md5 `a9352afcb883f072e1baf8a3518536fb`), sem edição, sem recorte de comentários. O texto não é duplicado aqui, para não criar uma segunda fonte.
+
+ ### 3.4 L2 — pinos, bruto × EOL (md5 `81d3472e69d8490849b16a0918c3e35d`) — SOMENTE DIAGNÓSTICO, SOMENTE APÓS STOP DE PINO
+
+@@ -149,6 +150,74 @@
+  ORDER BY 1, 2;
+ ```
+
++### 3.5 L4 — event triggers, identidade completa e completude (md5 `f3670eb8f149064610055720b0636218`) — SOMENTE SOB MANDATO DE ADJUDICAÇÃO (D-9), FORA DA ETAPA 1
++
++Objetivo: dar à adjudicação de D-9 a identidade completa de cada event trigger e provar, na **mesma** leitura, que nenhum trigger ficou fora da saída.
++- Identidade: os 12 atributos pinados pelo E00, mais `fn_resolved`, md5 bruto, comprimento e corpo.
++- Completude: `catalog_count` e `catalog_names` são lidos direto de `pg_event_trigger`; o inventário usa `LEFT JOIN`, para que um trigger sem função resolvida apareça com `fn_resolved = false` em vez de sumir.
++- Integridade: `triggers_md5` permite conferir localmente o texto recebido.
++
++Só SELECT. O resultado **não** é critério de aceite de nenhuma etapa: alimenta, linha a linha, a `evt_allowlist` do E00, que só é preenchida por mandato de correção posterior.
++
++```sql
++WITH cat AS (
++    SELECT count(*)                                  AS catalog_count,
++           jsonb_agg(e.evtname::text ORDER BY e.evtname) AS catalog_names
++      FROM pg_catalog.pg_event_trigger e
++),
++inv AS (
++    SELECT jsonb_agg(jsonb_build_object(
++             'name',         e.evtname,
++             'event',        e.evtevent,
++             'enabled',      e.evtenabled,
++             'tags',         e.evttags,
++             'owner',        pg_get_userbyid(e.evtowner),
++             'fn_resolved',  p.oid IS NOT NULL,
++             'fn',           n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')',
++             'fn_language',  l.lanname,
++             'fn_owner',     pg_get_userbyid(p.proowner),
++             'fn_secdef',    p.prosecdef,
++             'fn_config',    p.proconfig,
++             'fn_extension', (SELECT x.extname
++                                FROM pg_depend d
++                                JOIN pg_extension x ON x.oid = d.refobjid
++                               WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid
++                                 AND d.refclassid = 'pg_extension'::regclass AND d.deptype = 'e'),
++             'fn_md5_raw',   md5(p.prosrc),
++             'fn_md5_lf',    md5(replace(p.prosrc, chr(13) || chr(10), chr(10))),
++             'fn_len',       length(p.prosrc),
++             'fn_src',       p.prosrc)
++           ORDER BY e.evtname) AS triggers
++      FROM pg_catalog.pg_event_trigger e
++      LEFT JOIN pg_proc p      ON p.oid = e.evtfoid
++      LEFT JOIN pg_namespace n ON n.oid = p.pronamespace
++      LEFT JOIN pg_language l  ON l.oid = p.prolang
++)
++SELECT jsonb_build_object(
++         'l4_event_triggers', jsonb_build_object(
++           'checked_at',               clock_timestamp(),
++           'session_replication_role', current_setting('session_replication_role'),
++           'catalog_count',            cat.catalog_count,
++           'catalog_names',            COALESCE(cat.catalog_names, '[]'::jsonb),
++           'inventory_count',          jsonb_array_length(COALESCE(inv.triggers, '[]'::jsonb)),
++           'inventory_complete',       cat.catalog_count = jsonb_array_length(COALESCE(inv.triggers, '[]'::jsonb)),
++           'triggers_md5',             md5(COALESCE(inv.triggers, '[]'::jsonb)::text),
++           'triggers',                 COALESCE(inv.triggers, '[]'::jsonb)
++         )
++       ) AS l4
++  FROM cat, inv;
++```
++
++**Validação da saída (qualquer falha ⇒ leitura INVÁLIDA; nada é concluído, nenhuma linha candidata é preparada):**
++1. As chaves `checked_at`, `session_replication_role`, `catalog_count`, `catalog_names`, `inventory_count`, `inventory_complete`, `triggers_md5` e `triggers` estão presentes.
++2. `inventory_complete = true` **e** `catalog_count = inventory_count` = número de elementos de `triggers` = número de elementos de `catalog_names`.
++3. O conjunto dos `name` de `triggers` é igual ao de `catalog_names`.
++4. Todo elemento tem `fn_resolved = true`. Um `false` é divergência a adjudicar e nunca vira exceção.
++5. O md5 recalculado localmente sobre o texto de `triggers`, no formato de texto do `jsonb`, é igual a `triggers_md5`. Se não for, houve truncamento ou alteração no transporte.
++6. `catalog_count` é igual ao número de event triggers do último E00 registrado. Se for diferente, registrar a divergência e adjudicar só depois de uma nova E00.
++
++Os critérios de mérito (evento, tags, donos, `SECURITY DEFINER`, `proconfig`, extensão, corpo) estão em `LIVE-STAGE1-STOP-ADJUDICATION-EVIDENCE.md` §2.3.
++
+ ---
+
+ ## 4. Evidências esperadas e critérios
+@@ -177,11 +246,12 @@
+ ### 4.3 E00 (cada leitura) — conforme se **todos**
+
+ 1. Nenhum erro de execução. Qualquer SQLSTATE ⇒ STOP: defeito de harness, com mandato de correção.
+-2. Os **21** gates presentes e `true`; `gate_pass = true`. Qualquer `false` ou `NULL` ⇒ STOP, com a exceção única de S1.3-R. Os gates são:
++2. Os **24** gates presentes e `true`; `gate_pass = true`. Qualquer `false` ou `NULL` ⇒ STOP, com a exceção única de S1.3-R. Os gates são:
+    - `g_objects_1x`, `g_objects_D`, `g_roles_1_12`, `g_pg17_maintain_privilege`, `g_game_source`;
+    - `g_freeze_canonical_equal`, `g_no_sequences_touched_now`;
+-   - `g_p7_all_classified`, `g_p7_identity_pinned`, `g_p7_search_path_safe`, `g_p7_no_external_or_dynamic`, `g_p7_lexically_supported`, `g_p7_no_unresolved`, `g_p7_no_unqualified_dml`, `g_p7_writes_in_scope`, `g_p7_closure_complete`;
+-   - `g_no_rules`, `g_no_enabled_event_triggers`, `g_rls_bypass`, `g_no_residue`, `g_no_concurrency`.
++   - `g_p7_all_classified`, `g_p7_identity_pinned` (pino com EOL normalizado, D-6), `g_p7_search_path_safe`, `g_p7_no_external_or_dynamic`, `g_p7_no_ddl`, `g_p7_lexically_supported`, `g_p7_no_unresolved`, `g_p7_no_unqualified_dml`, `g_p7_writes_in_scope`, `g_p7_closure_complete`;
++   - `g_no_rules`, `g_evt_inventory_complete`, `g_evt_ddl_only`, `g_evt_all_adjudicated`, `g_rls_bypass`, `g_no_residue`, `g_no_concurrency`.
++   - A saída chama `g_objects_d` (minúsculo) o gate `g_objects_D`: o PostgreSQL dobra o alias não citado. É o mesmo gate.
+ 3. `d_canon_diff = []`. O estado é o canônico do FREEZE:
+    - vocabulário 115 / 144 / 196 / 122; `mapping_null_signature` 0;
+    - `card_variant` 24.893; `card_variant_ec_nonnull` 0;
+@@ -192,7 +262,8 @@
+ 4. **Identidades P7 não-nativas** (`d_p7_functions`, `gate_scope = true`, schema ≠ `pg_catalog`, campo `fn`) = exatamente as 12 da allowlist (protocolo §3.3). A mais ou a menos ⇒ STOP.
+ 5. `d_p7_unqualified_calls` sem `UNRESOLVED`/`DENIED`; `d_p7_writes` com alvos só nas 5 tabelas EC; `d_p7_unresolved_qualified = []`; `d_p7_unqualified_writes = []`.
+ 6. `d_sequences` sem entrada para as 3 tabelas tocadas por E01. O inventário das demais é registrado.
+-7. `d_event_triggers` sem habilitado (`enabled <> 'D'`); `d_p7_rules` sem regra nas 5 tabelas EC; `d_publications` registrado.
++7. `d_event_triggers` registrado **integralmente** (12 atributos de identidade + md5 bruto); `d_evt_catalog_count` = número de linhas de `d_event_triggers`; `d_evt_unadjudicated = []`; cada exceção adjudicada citada no registro com a sua justificativa (D-9); `d_evt_allowlist_absent` registrado (sem efeito de gate); `d_p7_rules` sem regra nas 5 tabelas EC; `d_publications` registrado.
++7a. `d_p7_eol_normalized` registrado. Cada item listado precisa ter `body_md5_lf` = pino e `crlf_count = cr_count` (só CRLF); o registro cita o md5 bruto (`body_md5`) como evidência. Item novo, não adjudicado em D-6, é registrado como observação para auditoria — a identidade já está provada pelo pino normalizado.
+ 8. Saída **não truncada**: presença de `d_baseline`, `d_baseline_md5`, `d_session` e das 17 chaves canônicas em `d_baseline`. Truncada ⇒ rodada inválida (não é FAIL); nova rodada só com novo mandato.
+
+ ### 4.4 Segunda leitura (S1.5) — adicionalmente
+@@ -218,10 +289,10 @@
+
+ | # | Decisão | Recomendação técnica |
+ |---|---|---|
+-| P-1 | Mandato de execução da Etapa 1, citando baseline, este roteiro e o protocolo v1.3 | — |
++| P-1 | Mandato de execução da Etapa 1, citando baseline, este roteiro v1.4, o protocolo v1.5 e o blob do E00 (PC-2) | — |
+ | P-2 | S1.6 (`EXPLAIN (COSTS OFF)` do E00, P9a) | **Fora da Etapa 1.** Executar o E00 **não** prova a forma do plano: a execução só-leitura mede tempo (AD-2), enquanto P9a exige `EXPLAIN (COSTS OFF)` registrado. **P9a permanece PENDENTE** e exige **mandato próprio** antes do aceite de A2. Nenhum resultado da Etapa 1 conta como P9a. |
+ | P-3 | Quem executa: agente via MCP ou Fabrício | agente via MCP, sob mandato (padrão das rodadas anteriores); Fabrício, se preferir o canal manual — o critério PC-3 continua exigindo MCP |
+-| P-4 | Após qualquer STOP: D-4 (lock_timeout), D-5 (visibilidade), D-6 (pinos) ou mandato de correção do harness | por caso |
++| P-4 | Após qualquer STOP: D-4 (lock_timeout), D-5 (visibilidade), D-6 (pinos), D-9 (event triggers) ou mandato de correção do harness | por caso |
+
+ Decisões ainda pendentes e **não** resolvidas aqui: D-1 (ambiente isolado sem custo, P14 obrigatório), D-2, D-3, D-7 e D-8 do protocolo.
+
+@@ -246,3 +317,4 @@
+ | 1.1 | **Correção (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CORRECTION-01`).** (1) L3: qualquer outra sessão `client backend` ativa ou em transação = STOP; a classificação nominal é só registro e não dispensa `g_no_concurrency` (A-4 registra a precedência sobre o protocolo §3.2). (2) P-2: `EXPLAIN` fora da Etapa 1; P9a pendente de mandato próprio antes do aceite de A2; execução não prova a forma do plano. (3) A-3 marcado como corrigido (README). SQL e md5 das consultas inalterados; md5 do E00 = `d00b7cec2523b2ee3de9565a93dbae57`. |
+ | 1.2 | **Fechamento de A-4 (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-01`).** O protocolo foi alinhado (v1.3), e a nota de precedência do §4.2 e o achado A-4 passam a RESOLVIDO. Critérios, sequência, SQL e md5 inalterados. |
+ | 1.3 | **Referências (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-02`).** Cabeçalho (Autoridade), PC-4 e P-1 passam a citar o protocolo **v1.3**, a versão que contém o alinhamento de A-4. As menções históricas a v1.2 (A-4 e revisão 1.2) e a declaração de identidade dos blocos SQL (§0) ficam como estão. Critérios, consultas, md5 e sequência inalterados. |
++| 1.4 | **Correção local (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01` → `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitada, pendente de auditoria.** Após o STOP da Tentativa 03:<br>• E00 corrigido: blob `88e9e7a4…`, md5 `a9352afc…`, **24 gates**. Inclui pino P7 com EOL normalizado (D-6), `g_p7_no_ddl`, `g_evt_inventory_complete` (G-3) e `g_evt_ddl_only` + `g_evt_all_adjudicated` com identidade de 12 atributos (G-4) e justificativa obrigatória.<br>• §3.5 L4 revisada: contagem e nomes lidos direto do catálogo, `LEFT JOIN`, `triggers_md5`, validação de completude; md5 `f3670eb8…`. Só sob mandato de adjudicação (D-9), fora da Etapa 1.<br>• §4.3 itens 2, 7 e 7a.<br>• Cabeçalho, §0, PC-2, PC-4 e P-1 reconciliados com o protocolo v1.5, o E00 novo e a L4 (G-5); os hashes anteriores ficam só como histórico.<br>L1, L2 e L3 inalterados. Compilação PostgreSQL pendente. |

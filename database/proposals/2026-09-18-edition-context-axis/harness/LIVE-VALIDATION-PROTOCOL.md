@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | **Mandato** | `BATCH12-2830-LIVE-VALIDATION-READINESS-01` (2026-09-26) |
-| **Status** | **PROPOSTO — NÃO EXECUTADO** (v1.4 — corrigido em `…-READINESS-CORRECTION-01`, reconciliado em `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01`, alinhado em `…-READINESS-CLOSEOUT-01` e ajustado em `…-READINESS-CLOSEOUT-02`). Nenhum SQL rodou. Cada etapa abaixo exige mandato próprio. |
+| **Status** | **v1.5 — CORRIGIDO LOCALMENTE** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitado, pendente de auditoria independente. A Etapa 1 foi tentada pela v1.4 (Tentativa 03: STOP em S1.3). O E00 corrigido **não foi compilado nem executado**. Cada etapa exige mandato próprio. |
 | **Baseline do repositório** | `97380747a18db7e38b10b0720a8b2d1f9b0c28ed` (HEAD confirmado, árvore limpa antes desta rodada) |
 | **Decisão do proprietário** | **Ambiente isolado pago: recusado.** Validação progressiva de E00/E02/E99/E01 no banco LIVE existente. **Alternativa isolada sem custo** (tecnologia não prescrita; Supabase local é alternativa viável, não exclusiva) **permanece PENDENTE** (D-1), com **P14 (a, b, c) obrigatório** — ver `../2830-V7.1-PROPOSAL-ADMIN-CONCURRENCY.md`. *Redação original (v1.0/v1.1): "Não haverá ambiente isolado"; refinada pela decisão de produto registrada em `BATCH12-2830-ADMIN-CONCURRENCY-REASSESSMENT-01`.* |
 | **Autoridade** | `2830_validate_edition_context_foundation.sql` v7.0, blob `b4647dcb…` — **imutável**. Este documento **não** a altera: registra, à parte, o que a decisão acima muda e o que continua valendo (seção 7). |
@@ -14,7 +14,7 @@ Artefatos cobertos (blobs em `9738074`):
 
 | Artefato | Blob | Natureza |
 |---|---|---|
-| `2830H_E00_precheck_inventory.sql` | `97410c3a799d8fdec86cc6d3735993ab224f6c9e` | 1 SELECT |
+| `2830H_E00_precheck_inventory.sql` | vigente: `88e9e7a4c94ac71feef536d6fc18b0e61190479c` (corrigido, 24 gates, não commitado); histórico: `97410c3a…` (executado na Tentativa 03) | 1 SELECT |
 | `2830H_E02_identity_terminal_D1_D5.sql` | `3357ed46b77e3bfacbe5b1988820e495ce363dd1` | 1 DO, só catálogo, sem DML |
 | `2830H_E99_postcheck_residue.sql` | `49a71ecb4525697858110ee71a3f61f5eee74a34` | 1 SELECT (3 marcadores a substituir) |
 | `2830H_E01_section1_structural.sql` | `c4118b8cc13872ecefa600d3c2225cca48f3c1b1` | 1 DO, **escreve fixtures** e desfaz |
@@ -235,6 +235,13 @@ Todos os itens abaixo, cumulativos:
   - Entradas com `gate_scope = false` (inventário de `card_variant`, staging, job, action log e game) são registradas, mas não entram nesta comparação — mesmo escopo do gate do E00.
 - `d_p7_unqualified_calls` sem `UNRESOLVED`/`DENIED`.
 - `d_p7_writes` com alvos só nas 5 tabelas EC.
+- **EOL (D-6).** O pino de corpo é comparado com `md5(replace(prosrc, CRLF, LF))`. `d_p7_eol_normalized` é registrado; cada item listado tem `body_md5_lf` = pino, `crlf_count = cr_count` e o md5 bruto (`body_md5`) citado como evidência. Nada é aceito em silêncio.
+- **Event triggers (D-9).**
+  - `d_event_triggers` registrado integralmente;
+  - `d_evt_catalog_count` = número de linhas do inventário (`g_evt_inventory_complete`);
+  - `d_evt_unadjudicated = []`;
+  - toda exceção vem de uma linha da `evt_allowlist` com identidade de 12 atributos (nome, evento, tags, estado, dono, função, linguagem, dono da função, `SECURITY DEFINER`, `proconfig`, extensão, md5 LF) e justificativa **não vazia**, só para evento DDL;
+  - evento não-DDL (`login`) habilitado ⇒ STOP sempre.
 - L3 limpo.
 
 ### 3.4 STOP da Etapa 1 e única repetição admitida
@@ -243,7 +250,11 @@ Todos os itens abaixo, cumulativos:
 |---|---|
 | E00 com erro de compilação/execução (qualquer SQLSTATE) | STOP · defeito de harness · mandato de correção |
 | `g_freeze_canonical_equal = false` | STOP · FREEZE violado ou deriva · nunca atualizar constante |
-| `g_p7_identity_pinned = false` | STOP · L2 **somente para diagnóstico** (S1.4) · a etapa não continua · D-6 |
+| `g_p7_identity_pinned = false` | STOP · L2 **somente para diagnóstico** (S1.4) · a etapa não continua · D-6. Com o pino normalizado (D-6), só diverge por conteúdo, CR isolado ou atributo pinado — nunca por CRLF |
+| `g_p7_no_ddl = false` | STOP · comando DDL no fecho P7: dispararia event triggers e alteraria catálogo · classificação humana |
+| `g_evt_ddl_only = false` | STOP · event trigger habilitado em evento não-DDL (`login` etc.) · sem exceção possível |
+| `g_evt_inventory_complete = false` | STOP · inventário de event triggers diferente da contagem direta de `pg_event_trigger` (trigger perdido no JOIN) · classificação humana · sem repetição |
+| `g_evt_all_adjudicated = false` | STOP · event trigger habilitado sem exceção adjudicada por identidade completa (12 atributos) e justificativa · L4 sob mandato próprio · D-9 · sem repetição |
 | `g_p7_all_classified` / `g_p7_no_unresolved` / `g_p7_search_path_safe` / `g_p7_lexically_supported` / `g_p7_no_unqualified_dml` / `g_p7_writes_in_scope` / `g_p7_no_external_or_dynamic` / `g_p7_closure_complete` falsos | STOP · classificação humana do item listado em `d_p7_*` |
 | `g_no_concurrency = false` | **Uma** repetição admitida: L3 → E00 novo, após ≥ 60 s. Persistindo, STOP. As duas saídas são registradas. |
 | visibilidade de `pg_stat_activity` **não provada** pelas vias 1–3 da L1 (independentemente de `activity_rows_state_hidden`) | STOP · `g_no_concurrency` / `g_no_open_txn_others` poderiam ser **vácuos** (P13) · decisão D-5 |
@@ -396,7 +407,7 @@ Nenhum desses é dado de negócio. Sequences: nenhuma — ids UUID, provado por 
 
 | # | Risco | Onde | Efeito se ocorrer | Como a etapa detecta |
 |---|---|---|---|---|
-| C-1 | Pinos md5 derivados do repositório × `prosrc` LIVE com **CRLF** (precedente real na `2217`) | E00 `p7_allowlist` | `ALLOWLIST_MISMATCH` ⇒ STOP (nunca PASS) | E00; L2 como diagnóstico do STOP, sem continuidade |
+| C-1 | Pinos md5 derivados do repositório × `prosrc` LIVE com **CRLF** (precedente real na `2217`; **ocorrido** na Tentativa 03 em `public.normalize_external_catalog_value`) | E00 `p7_allowlist` | antes de D-6: `ALLOWLIST_MISMATCH` ⇒ STOP. Com D-6: pino comparado ao md5 normalizado (só CRLF); o bruto fica em `d_p7_functions.body_md5` e `d_p7_eol_normalized` | E00; L2 como diagnóstico de STOP de pino |
 | C-2 | Motor de regex ARE × modelo Python `re`: semântica POSIX "mais longo à esquerda" em alternâncias; lookbehind `(?<!…)` (existe desde PG 9.6); `\m`/`\M` | E00 `p7_re` | falso STOP (classificação `UNRESOLVED`); falso PASS exigiria o padrão **deixar de achar** uma chamada/escrita real | `d_p7_unqualified_calls` / `d_p7_writes` completos no registro permitem conferência humana contra o corpo do repositório — que, com `g_p7_identity_pinned = true`, é byte-idêntico ao LIVE |
 | C-3 | `gen_random_uuid` como DEFAULT resolvido para `extensions.gen_random_uuid` (pgcrypto) em vez de `pg_catalog` | raízes P7 (default) | função não classificada ⇒ STOP | `d_p7_functions` |
 | C-4 | Trigger/raiz não prevista nas 5 tabelas EC (ex.: trigger genérico de `updated_at` adicionado fora do repositório) | E00 | `UNCLASSIFIED` ⇒ STOP | `d_p7_functions` |
@@ -410,6 +421,7 @@ Nenhum desses é dado de negócio. Sequences: nenhuma — ids UUID, provado por 
 - **P7 é o gate.** Função com sinal externo (`net.`, `http`, `pg_notify`, `dblink`, `pg_net`, `COPY`, `lo_*`, `set_config`, `pg_sleep`…) ou SQL dinâmico no fecho ⇒ STOP antes de qualquer escrita.
 - **Realtime / replicação lógica:** transação abortada não é decodificada; publicações registradas em `d_publications`.
 - **Webhooks de banco do Supabase** são triggers e, portanto, entram no fecho P7.
+- **Event triggers da plataforma.** O LIVE tem event triggers habilitados (Tentativa 03: 6, em `ddl_command_end`/`sql_drop`). Event triggers só disparam nos comandos da matriz do PostgreSQL (DDL, `GRANT`/`REVOKE`, `COMMENT`, `SECURITY LABEL`, `SELECT INTO`), e o evento `login` na conexão. Os envelopes autorizados não contêm esses comandos (prova estática em `tools/static_check.py`) e o fecho P7 não pode contê-los (`g_p7_no_ddl`). Cada event trigger habilitado precisa de exceção individual, por identidade completa (D-9); `login` nunca é excepcionado. O canal `apply_migration` do MCP executa DDL próprio antes da migration (relato público, não verificado aqui) e é proibido nestas etapas; só `execute_sql` é usado.
 - **Logs do servidor e `pgaudit`** registram os statements e o marcador. É resíduo de observabilidade, não de dado.
 - **Nenhuma RPC administrativa** é chamada; `catalog_admin_action_log` entra no baseline e precisa ficar igual.
 
@@ -451,7 +463,8 @@ Cada linha abaixo é uma **proposta** que só vale depois de aceite explícito d
 | AD-5 | P14(d) "dados de fixture sintéticos; ambiente descartado" | descarte do ambiente como garantia final | a garantia final passa a ser o rollback estrutural + E99. Fixtures que envolvem job, row, `card_variant` ou Game sentinela (2.6/3.3) ganham risco maior no LIVE e precisam de readiness própria | nenhum para E01/E02 |
 | AD-6 | P5 marcador `'H2830-' ‖ uuid` | — | marcador efetivo `H2830_` + uuid sem hífens em maiúsculas, porque os CHECKs de formato de `code` recusam hífen; detecção de resíduo por `LIKE '%H2830%'` cobre as duas formas | nenhum (formaliza o implementado) |
 | AD-7 | Vinculação E00 → envelope → E99 com marcador | todo envelope tem fixture | para envelopes sem fixture (E02), o item 2 do registro é a mensagem terminal sem marcador | nenhum |
-| AD-8 | Regra permanente EOL (bruto ≠, normalizado =) × gate de pino bruto do E00 | corpo LIVE byte-idêntico ao repositório | o E00 dá STOP; a L2 só diagnostica; seguir exige adjudicação (D-6), correção formal do harness e novo mandato — nunca edição silenciosa do pino, nunca continuidade automática | nenhum, se não houver CRLF |
+| AD-8 | Regra permanente EOL (bruto ≠, normalizado =) × gate de pino bruto do E00 | corpo LIVE byte-idêntico ao repositório | **proposta D-6:** pino comparado ao md5 com CRLF→LF nos dois lados (o repositório é LF); CR isolado continua STOP; md5 bruto, `cr_count` e `crlf_count` exportados e registrados; `d_p7_eol_normalized` lista cada caso. Vale só após mandato de correção e novo blob do E00 | nenhum |
+| AD-10 | `g_no_enabled_event_triggers` (nenhum event trigger habilitado) | LIVE sem event triggers | **D-9 (corrigido localmente, pendente de aceite):** inventário integral com completude verificada contra a contagem direta do catálogo (`g_evt_inventory_complete`); `login`/evento não-DDL ⇒ STOP sempre; evento DDL só com exceção individual por identidade de 12 atributos (nome, evento, tags, estado, dono, função, linguagem, dono da função, `SECURITY DEFINER`, `proconfig`, extensão, md5 LF) e justificativa não vazia. Semântica de `NULL`: `=` nos atributos obrigatórios; `IS NOT DISTINCT FROM` em tags, `proconfig` e extensão, onde `NULL` é estado pinado. `evt_allowlist` nasce vazia e só recebe linhas por mandato, a partir da L4 | nenhum enquanto a allowlist estiver vazia (comportamento idêntico ao atual) |
 | AD-9 | P8/G15 "zero sessão concorrente" | visibilidade total de `pg_stat_activity` | exigir superusuário **ou** `pg_read_all_stats` **ou** controle positivo explícito de visibilidade (L1, via 3); `activity_rows_state_hidden = 0` isolado não basta; senão o gate pode ser vácuo (P13) | nenhum, se a visibilidade for provada |
 
 ---
@@ -465,8 +478,9 @@ Cada linha abaixo é uma **proposta** que só vale depois de aceite explícito d
 | D-3 | `SET LOCAL lock_timeout = '5s'` no E01: (a) sim, com mandato de correção prévio; (b) não | Etapa 3 |
 | D-4 | Se `lock_timeout` da sessão MCP ≠ `'0'`: corrigir o E99 para comparar com o valor do E00 (mandato de correção) | Etapas 2 e 3 |
 | D-5 | Se a visibilidade de `pg_stat_activity` não for provada pelas vias 1–3 da L1: conceder `pg_read_all_stats` ao papel do canal ou mudar o canal (decisão de Fabrício; o agente não altera papéis) | Etapas 1–3 |
-| D-6 | Após STOP por pino, se a L2 (diagnóstico) mostrar TRANSPORT/EOL-ONLY: adjudicação e forma da correção dos pinos; a Etapa 1 só recomeça com novo mandato | Etapas 1–3 |
-| D-7 | Aceite de AD-3 a AD-9 | registro formal |
+| D-6 | Após STOP por pino, se a L2 (diagnóstico) mostrar TRANSPORT/EOL-ONLY: adjudicação e forma da correção dos pinos; a Etapa 1 só recomeça com novo mandato. **Ocorrido na Tentativa 03** (`public.normalize_external_catalog_value`, só CRLF, provado byte a byte). Proposta: AD-8 (normalização nos dois lados), em `LIVE-STAGE1-STOP-ADJUDICATION.md` | Etapas 1–3 |
+| D-9 | Event triggers habilitados no LIVE (Tentativa 03: 6): autorizar a L4 (só SELECT, mandato próprio, md5 no roteiro §0); adjudicar **individualmente** cada exceção (evento DDL, identidade de 12 atributos, justificativa não vazia); aceitar AD-10 | Etapas 1–3 |
+| D-7 | Aceite de AD-3 a AD-10 | registro formal |
 | D-8 | Mandato de cada etapa (1, 2 e 3), separados | cada etapa |
 
 ---
@@ -493,3 +507,4 @@ Cada linha abaixo é uma **proposta** que só vale depois de aceite explícito d
 | 1.2 | **Reconciliação (2026-09-26, `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01`, baseline `1f3b72dc`).** Decisão do proprietário, DIV-1 e D-1 alinhados à decisão refinada: ambiente isolado **pago recusado**; alternativa isolada **sem custo** **PENDENTE** em D-1, com P14 obrigatório. Nenhum critério, consulta, sequência ou STOP das etapas alterado. O roteiro operacional da Etapa 1 está em `LIVE-STAGE1-RUNBOOK.md`. |
 | 1.3 | **Alinhamento (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-01`).** §3.2 (L3: objetivo, resultado esperado e "Como validar") e §6.3: qualquer outra sessão `client backend` ativa ou em transação implica **STOP**, mesmo identificada como plataforma; a classificação nominal é exclusivamente diagnóstica; `g_no_concurrency = true` segue obrigatório. Elimina o conflito A-4 do roteiro da Etapa 1. SQL e md5 de L1/L2/L3 inalterados; nenhum outro critério alterado. |
 | 1.4 | **Ajuste referencial (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-02`).** §3.2 (L3, "Como validar"): removida a menção a "query curta", porque a L3 não retorna o texto da query. A classificação nominal passa a citar só os campos efetivamente retornados. Nenhum SQL, md5, critério ou STOP alterado. |
+| 1.5 | **Correção local (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01` → `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitada, pendente de auditoria.** Após o STOP da Tentativa 03:<br>• §3.3: critérios de EOL (D-6, opção A com o bruto como evidência) e de event triggers (D-9: completude, identidade de 12 atributos, justificativa não vazia).<br>• §3.4: `g_p7_no_ddl`, `g_evt_inventory_complete`, `g_evt_ddl_only` e `g_evt_all_adjudicated`.<br>• §6.1 C-1 atualizado (CRLF ocorrido); §6.2 com event triggers da plataforma.<br>• §7: AD-8 reescrita e AD-10 nova. §8: D-6 atualizada, D-9 nova, D-7 passa a cobrir AD-10.<br>• Tabela de artefatos com o blob vigente do E00.<br>2830 v7.0 inalterada. |

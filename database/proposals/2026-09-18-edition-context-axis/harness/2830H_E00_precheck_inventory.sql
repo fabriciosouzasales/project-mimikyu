@@ -1,8 +1,11 @@
 -- ============================================================================
 -- 2830H · E00 — PRECHECK JIT + INVENTÁRIOS (P6, P7, P8, P10, P11)
 -- ============================================================================
--- Status ........ PREPARADO — NÃO EXECUTADO. Somente SELECT: um único
---                 statement, sem DML, sem DDL, sem set_config, sem TEMP.
+-- Status ........ versão CORRIGIDA (BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01)
+--                 — NÃO EXECUTADA, NÃO COMPILADA no PostgreSQL. A versão
+--                 anterior (blob 97410c3a…) foi executada na Tentativa 03
+--                 (STOP em S1.3). Somente SELECT: um único statement, sem
+--                 DML, sem DDL, sem set_config, sem TEMP.
 -- Uso ........... rodado IMEDIATAMENTE antes de cada envelope autorizado. O
 --                 resultado jsonb é registrado INTEGRALMENTE; os campos
 --                 d_baseline e d_baseline_md5 alimentam o E99 da MESMA rodada.
@@ -47,8 +50,9 @@
 --     <classe>  .......... entrada da p7_allowlist COM IDENTIDADE CONFERIDA:
 --                          schema + nome + argumentos de identidade +
 --                          linguagem + SECURITY DEFINER + volatilidade +
---                          proconfig exato + md5(prosrc) (ou símbolo C e
---                          pertença à extensão, para funções C)
+--                          proconfig exato + md5 do corpo com EOL
+--                          normalizado (ou símbolo C e pertença à
+--                          extensão, para funções C)
 --     ALLOWLIST_MISMATCH . nome/assinatura listados, mas qualquer pino
 --                          divergente ⇒ STOP (identidade, não nome)
 --     DENIED / UNCLASSIFIED ⇒ STOP
@@ -56,8 +60,33 @@
 --   precisa ter EXATAMENTE uma entrada search_path em proconfig, igual a
 --   search_path="" ⇒ senão STOP.
 --   Também ⇒ STOP: sinal de efeito externo no corpo BRUTO (conservador);
---   EXECUTE dinâmico; fecho atingindo a profundidade 8; regra pg_rewrite
---   não-SELECT; event trigger habilitado.
+--   EXECUTE dinâmico; comando DDL no corpo (g_p7_no_ddl — um DDL no fecho
+--   dispararia event triggers); fecho atingindo a profundidade 8; regra
+--   pg_rewrite não-SELECT.
+--   EOL (D-6, BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01): o pino é
+--   md5(replace(prosrc, CRLF, LF)) — normalização determinística e só de
+--   CRLF (CR isolado NÃO é normalizado ⇒ ALLOWLIST_MISMATCH). O md5 BRUTO
+--   continua exportado em d_p7_functions.body_md5, com body_md5_lf,
+--   cr_count e crlf_count; toda função cujo bruto ≠ normalizado é listada
+--   em d_p7_eol_normalized. Nada é aceito em silêncio.
+--   EVENT TRIGGERS (P7-EVT): inventário integral em d_event_triggers
+--   (nome, evento, tags, estado, dono, função, linguagem, dono da função,
+--   SECURITY DEFINER, proconfig, extensão, md5 bruto e LF).
+--   g_evt_inventory_complete: count(pg_event_trigger) lido DIRETO do
+--   catálogo = linhas efetivamente produzidas em evt (G-3: nenhum trigger
+--   some do inventário por JOIN); senão STOP.
+--   g_evt_ddl_only: habilitado com evento fora de ddl_command_start /
+--   ddl_command_end / sql_drop / table_rewrite (ex.: login) ⇒ STOP, sem
+--   exceção possível. g_evt_all_adjudicated: todo event trigger habilitado
+--   precisa casar, por IDENTIDADE COMPLETA de 12 atributos (G-4), com uma
+--   linha de evt_allowlist que tenha justificativa não vazia; exceção só
+--   para evento DDL; senão STOP. Semântica de NULL: '=' (NULL nunca casa)
+--   em name, event, enabled, owner, fn, fn_language, fn_owner, fn_secdef e
+--   fn_md5_lf; IS NOT DISTINCT FROM em tags, fn_config e fn_extension, onde
+--   NULL é um estado real pinado (sem filtro de tag / sem proconfig / sem
+--   extensão), nunca curinga.
+--   evt_allowlist nasce VAZIA: linhas só entram por mandato de correção, a
+--   partir da L4 adjudicada (D-9) — nunca por nome.
 --   Os pinos md5 foram calculados sobre o corpo das definições no
 --   repositório (2206, 2207 e schema/2095). Se o LIVE divergir do
 --   repositório, o resultado é ALLOWLIST_MISMATCH ⇒ STOP para adjudicação —
@@ -111,7 +140,9 @@ p7_re AS (
         $re$\m(insert\s+into|update|delete\s+from|merge\s+into|truncate(\s+table)?)\s+(only\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)$re$ AS qdml,
         $re$\m(insert\s+into|update|delete\s+from|merge\s+into|truncate(\s+table)?)\s+(only\s+)?([A-Za-z_][A-Za-z0-9_]*)\M(?!\s*\.)$re$ AS udml,
         $re$(\mnet\.|\mhttp|pg_notify|dblink|pg_net|\mcopy\M|lo_import|lo_export|pg_read_|pg_ls_dir|set_config|pg_sleep|pg_terminate_backend|pg_cancel_backend)$re$ AS signal_raw,
-        $re$\mexecute\M$re$                                                                             AS dynamic_lexed
+        $re$\mexecute\M$re$                                                                             AS dynamic_lexed,
+        $re$\m(create|alter|drop|grant|revoke|reindex|comment\s+on|security\s+label|refresh\s+materialized|import\s+foreign)\M$re$ AS ddl_lexed,
+        $re$\minto\M$re$                                                                                AS sql_into_lexed
 ),
 -- palavras sintáticas que podem preceder "(" sem serem chamadas de função
 p7_keywords(word) AS (
@@ -130,7 +161,8 @@ p7_keywords(word) AS (
 -- p7_allowlist — CLASSIFICAÇÃO COM IDENTIDADE (não por nome). Pinos:
 -- identity_args = pg_get_function_identity_arguments(oid); lang = lanname;
 -- secdef = prosecdef; vol = provolatile (NULL = não pinado); config =
--- proconfig exato; body_md5 = md5(prosrc) (calculado do repositório);
+-- proconfig exato; body_md5 = md5(prosrc com CRLF→LF) (calculado do
+-- repositório, que é LF: o valor é o mesmo md5 do corpo do repositório);
 -- c_symbol / extension para funções C de extensão.
 -- ------------------------------------------------------------------------
 p7_allowlist(nsp, proname, identity_args, lang, secdef, vol, config, body_md5, c_symbol, extension, class, justification) AS (
@@ -216,7 +248,8 @@ p7_class AS (
                OR f.prosecdef IS DISTINCT FROM a.secdef
                OR (a.vol IS NOT NULL AND f.vol IS DISTINCT FROM a.vol)
                OR (a.config IS NOT NULL AND f.proconfig IS DISTINCT FROM a.config)
-               OR (a.body_md5 IS NOT NULL AND md5(f.prosrc) IS DISTINCT FROM a.body_md5)
+               OR (a.body_md5 IS NOT NULL
+                   AND md5(replace(f.prosrc, chr(13) || chr(10), chr(10))) IS DISTINCT FROM a.body_md5)
                OR (a.c_symbol IS NOT NULL AND f.prosrc IS DISTINCT FROM a.c_symbol)
                OR (a.extension IS NOT NULL AND NOT EXISTS (
                      SELECT 1 FROM pg_depend d JOIN pg_extension e ON e.oid = d.refobjid
@@ -240,7 +273,10 @@ p7_flags AS (
            (c.nspname <> 'pg_catalog' AND c.language NOT IN ('c','internal')
             AND NOT (c.proconfig IS NOT NULL
                      AND (SELECT count(*) FROM unnest(c.proconfig) AS e(v) WHERE e.v LIKE 'search_path=%') = 1
-                     AND 'search_path=""' = ANY (c.proconfig)))                                      AS search_path_unsafe
+                     AND 'search_path=""' = ANY (c.proconfig)))                                      AS search_path_unsafe,
+           (c.language NOT IN ('c','internal')
+            AND (c.lexed ~* (SELECT ddl_lexed FROM p7_re)
+                 OR (c.language = 'sql' AND c.lexed ~* (SELECT sql_into_lexed FROM p7_re))))        AS ddl_statement
       FROM p7_class c
 ),
 -- texto analisável: sem comentários/literais e com FOR UPDATE / DO UPDATE
@@ -296,8 +332,57 @@ p7_rules AS (
       FROM rel r JOIN pg_rewrite rw ON rw.ev_class = r.oid
      WHERE rw.rulename <> '_RETURN'
 ),
+-- ------------------------------------------------------------------------
+-- P7-EVT — event triggers: inventário integral (identidade completa)
+-- ------------------------------------------------------------------------
 evt AS (
-    SELECT evtname::text AS name, evtevent::text AS event, evtenabled::text AS enabled FROM pg_event_trigger
+    SELECT e.evtname::text                                                       AS name,
+           e.evtevent::text                                                      AS event,
+           e.evtenabled::text                                                    AS enabled,
+           e.evttags                                                             AS tags,
+           pg_get_userbyid(e.evtowner)                                           AS owner,
+           n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS fn,
+           l.lanname                                                             AS fn_language,
+           pg_get_userbyid(p.proowner)                                           AS fn_owner,
+           p.prosecdef                                                           AS fn_secdef,
+           p.proconfig                                                           AS fn_config,
+           (SELECT x.extname::text
+              FROM pg_depend d
+              JOIN pg_extension x ON x.oid = d.refobjid
+             WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid
+               AND d.refclassid = 'pg_extension'::regclass AND d.deptype = 'e') AS fn_extension,
+           md5(p.prosrc)                                                         AS fn_md5_raw,
+           md5(replace(p.prosrc, chr(13) || chr(10), chr(10)))                   AS fn_md5_lf
+      FROM pg_event_trigger e
+      JOIN pg_proc p      ON p.oid = e.evtfoid
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      JOIN pg_language l  ON l.oid = p.prolang
+),
+-- EVT-ALLOWLIST — exceção INDIVIDUAL por identidade completa (12 atributos),
+-- só para evento exclusivamente DDL, cada uma com justificativa própria e
+-- não vazia. VAZIA por construção: linhas só entram por mandato de correção,
+-- a partir da L4 adjudicada (D-9) — nunca pelo nome, nunca em bloco.
+evt_allowlist(name, event, tags, enabled, owner, fn, fn_language, fn_owner, fn_secdef, fn_config, fn_extension, fn_md5_lf, justification) AS (
+    SELECT NULL::text, NULL::text, NULL::text[], NULL::text, NULL::text,
+           NULL::text, NULL::text, NULL::text, NULL::boolean, NULL::text[],
+           NULL::text, NULL::text, NULL::text
+     WHERE false
+),
+evt_unadjudicated AS (
+    SELECT e.*
+      FROM evt e
+     WHERE e.enabled <> 'D'
+       AND NOT EXISTS (SELECT 1 FROM evt_allowlist a
+                        WHERE a.event IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite')
+                          AND a.name = e.name AND a.event = e.event
+                          AND a.tags IS NOT DISTINCT FROM e.tags
+                          AND a.enabled = e.enabled AND a.owner = e.owner
+                          AND a.fn = e.fn AND a.fn_language = e.fn_language
+                          AND a.fn_owner = e.fn_owner AND a.fn_md5_lf = e.fn_md5_lf
+                          AND a.fn_secdef = e.fn_secdef
+                          AND a.fn_config IS NOT DISTINCT FROM e.fn_config
+                          AND a.fn_extension IS NOT DISTINCT FROM e.fn_extension
+                          AND NULLIF(btrim(a.justification), '') IS NOT NULL)
 ),
 pub AS (
     SELECT pt.pubname::text AS publication, pt.tablename::text AS table_name
@@ -430,6 +515,7 @@ sess AS (
         'statement_timeout',    current_setting('statement_timeout'),
         'db_role_setting_rows', (SELECT count(*) FROM pg_db_role_setting),
         'server_version_num',   current_setting('server_version_num'),
+        'session_replication_role', current_setting('session_replication_role'),
         'backend_pid',          pg_backend_pid(),
         'checked_at',           clock_timestamp()
     ) AS s
@@ -453,6 +539,7 @@ gates AS (
         NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND search_path_unsafe)   AS g_p7_search_path_safe,
         NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND (external_signal OR dynamic_sql))
                                                                                       AS g_p7_no_external_or_dynamic,
+        NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND ddl_statement)        AS g_p7_no_ddl,
         NOT EXISTS (SELECT 1 FROM p7_flags WHERE gate_scope AND unsupported_lexeme)   AS g_p7_lexically_supported,
         (NOT EXISTS (SELECT 1 FROM p7_unresolved_qualified WHERE gate_scope)
          AND NOT EXISTS (SELECT 1 FROM p7_unqualified_calls WHERE gate_scope
@@ -465,7 +552,12 @@ gates AS (
         NOT EXISTS (SELECT 1 FROM p7_reach WHERE gate_scope AND depth >= 8)           AS g_p7_closure_complete,
         NOT EXISTS (SELECT 1 FROM p7_rules r JOIN rel ON rel.name = r.table_name
                      WHERE rel.gate_scope)                                            AS g_no_rules,
-        NOT EXISTS (SELECT 1 FROM evt WHERE enabled <> 'D')                           AS g_no_enabled_event_triggers,
+        NOT EXISTS (SELECT 1 FROM evt WHERE enabled <> 'D'
+                     AND event NOT IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite'))
+                                                                                      AS g_evt_ddl_only,
+        NOT EXISTS (SELECT 1 FROM evt_unadjudicated)                                  AS g_evt_all_adjudicated,
+        (SELECT count(*) FROM pg_catalog.pg_event_trigger) = (SELECT count(*) FROM evt)
+                                                                                      AS g_evt_inventory_complete,
         (NOT EXISTS (SELECT 1 FROM own o JOIN rel r ON r.name = o.name WHERE r.touched_now AND o.force_rls)
          AND ((SELECT s->>'is_superuser' FROM sess)::boolean
               OR NOT EXISTS (SELECT 1 FROM own o JOIN rel r ON r.name = o.name
@@ -488,16 +580,28 @@ SELECT to_jsonb(g)
                                   'language', f.language, 'root_table', f.table_name, 'via', f.via,
                                   'depth', f.depth, 'gate_scope', f.gate_scope,
                                   'body_md5', CASE WHEN f.language NOT IN ('c','internal') THEN md5(f.prosrc) END,
+                                  'body_md5_lf', CASE WHEN f.language NOT IN ('c','internal')
+                                                      THEN md5(replace(f.prosrc, chr(13) || chr(10), chr(10))) END,
+                                  'cr_count', length(f.prosrc) - length(replace(f.prosrc, chr(13), '')),
+                                  'crlf_count', (length(f.prosrc) - length(replace(f.prosrc, chr(13) || chr(10), ''))) / 2,
                                   'proconfig', f.proconfig, 'external_signal', f.external_signal,
                                   'dynamic_sql', f.dynamic_sql, 'unsupported_lexeme', f.unsupported_lexeme,
-                                  'search_path_unsafe', f.search_path_unsafe)
+                                  'search_path_unsafe', f.search_path_unsafe, 'ddl_statement', f.ddl_statement)
                                   ORDER BY f.gate_scope DESC, f.class, f.fqname) FROM p7_flags f), '[]'::jsonb),
+        'd_p7_eol_normalized', COALESCE((SELECT jsonb_agg(f.fqname || '(' || f.identity_args || ')' ORDER BY f.fqname)
+                                  FROM p7_flags f
+                                 WHERE f.gate_scope AND f.language NOT IN ('c','internal')
+                                   AND md5(f.prosrc) <> md5(replace(f.prosrc, chr(13) || chr(10), chr(10)))), '[]'::jsonb),
         'd_p7_unresolved_qualified', COALESCE((SELECT jsonb_agg(to_jsonb(u)) FROM p7_unresolved_qualified u), '[]'::jsonb),
         'd_p7_unqualified_calls',    COALESCE((SELECT jsonb_agg(to_jsonb(u) ORDER BY u.caller, u.name) FROM p7_unqualified_calls u), '[]'::jsonb),
         'd_p7_writes',               COALESCE((SELECT jsonb_agg(to_jsonb(w) ORDER BY w.writer, w.target) FROM p7_writes w), '[]'::jsonb),
         'd_p7_unqualified_writes',   COALESCE((SELECT jsonb_agg(to_jsonb(w)) FROM p7_unqualified_writes w), '[]'::jsonb),
         'd_p7_rules',         COALESCE((SELECT jsonb_agg(to_jsonb(r)) FROM p7_rules r), '[]'::jsonb),
-        'd_event_triggers',   COALESCE((SELECT jsonb_agg(to_jsonb(e)) FROM evt e), '[]'::jsonb),
+        'd_event_triggers',   COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name) FROM evt e), '[]'::jsonb),
+        'd_evt_catalog_count', (SELECT count(*) FROM pg_catalog.pg_event_trigger),
+        'd_evt_unadjudicated', COALESCE((SELECT jsonb_agg(u.name ORDER BY u.name) FROM evt_unadjudicated u), '[]'::jsonb),
+        'd_evt_allowlist_absent', COALESCE((SELECT jsonb_agg(a.name ORDER BY a.name) FROM evt_allowlist a
+                                  WHERE NOT EXISTS (SELECT 1 FROM evt e WHERE e.name = a.name)), '[]'::jsonb),
         'd_publications',     COALESCE((SELECT jsonb_agg(to_jsonb(p)) FROM pub p), '[]'::jsonb),
         'd_ownership_rls',    COALESCE((SELECT jsonb_agg(to_jsonb(o)) FROM own o), '[]'::jsonb),
         'd_objects',          (SELECT o FROM obj),
