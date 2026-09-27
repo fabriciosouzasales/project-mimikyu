@@ -3,9 +3,9 @@
 | Campo | Valor |
 |---|---|
 | **Mandato** | `BATCH12-2830-LIVE-VALIDATION-READINESS-01` (2026-09-26) |
-| **Status** | **PROPOSTO — NÃO EXECUTADO** (v1.1, corrigido em `BATCH12-2830-LIVE-VALIDATION-READINESS-CORRECTION-01`). Nenhum SQL rodou. Cada etapa abaixo exige mandato próprio. |
+| **Status** | **PROPOSTO — NÃO EXECUTADO** (v1.4 — corrigido em `…-READINESS-CORRECTION-01`, reconciliado em `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01`, alinhado em `…-READINESS-CLOSEOUT-01` e ajustado em `…-READINESS-CLOSEOUT-02`). Nenhum SQL rodou. Cada etapa abaixo exige mandato próprio. |
 | **Baseline do repositório** | `97380747a18db7e38b10b0720a8b2d1f9b0c28ed` (HEAD confirmado, árvore limpa antes desta rodada) |
-| **Decisão do proprietário** | Não haverá ambiente isolado. Validação progressiva no banco LIVE existente. |
+| **Decisão do proprietário** | **Ambiente isolado pago: recusado.** Validação progressiva de E00/E02/E99/E01 no banco LIVE existente. **Alternativa isolada sem custo** (tecnologia não prescrita; Supabase local é alternativa viável, não exclusiva) **permanece PENDENTE** (D-1), com **P14 (a, b, c) obrigatório** — ver `../2830-V7.1-PROPOSAL-ADMIN-CONCURRENCY.md`. *Redação original (v1.0/v1.1): "Não haverá ambiente isolado"; refinada pela decisão de produto registrada em `BATCH12-2830-ADMIN-CONCURRENCY-REASSESSMENT-01`.* |
 | **Autoridade** | `2830_validate_edition_context_foundation.sql` v7.0, blob `b4647dcb…` — **imutável**. Este documento **não** a altera: registra, à parte, o que a decisão acima muda e o que continua valendo (seção 7). |
 | **FREEZE** | ATIVO. Nenhuma etapa deste protocolo autoriza importação, revisão editorial ou UNFREEZE. |
 | **Batch 12** | **ABERTO.** UNFREEZE **BLOQUEADO**. D-1 **PENDENTE**. K2 **não é dispensado** (seção 8). |
@@ -23,11 +23,12 @@ Artefatos cobertos (blobs em `9738074`):
 
 ## 1. Divergências sinalizadas antes de qualquer etapa
 
-**DIV-1 — Sem ambiente isolado, o UNFREEZE previsto pela 2830 v7.0 fica inalcançável.**
+**DIV-1 — Sem ambiente isolado (pago recusado; sem custo pendente), o UNFREEZE previsto pela 2830 v7.0 fica inalcançável.**
 - Os casos K1, K2 e K8b só podem ser executados no ambiente isolado (P14). O critério D4 exige, além deles, paridade provada desse ambiente.
 - K2 é obrigatório para o UNFREEZE (E2) e não admite dispensa. Ele precisa de identidade admin real, que chama `admin_confirm_catalog_variant_import` e grava em `catalog_admin_action_log`.
 - No LIVE, isso exigiria ou claims injetadas (proibido em qualquer hipótese) ou uma chamada HTTP que **comita** sob FREEZE (proibido).
 - A decisão atual não afeta E00/E01/E02/E99, que não usam P14. Afeta o **fechamento** do Batch 12.
+- A alternativa isolada **sem custo**, se adotada em D-1 com P14 comprovado, é o único caminho registrado para K1/K2/K8b sem violar as proibições acima.
 - **Estado registrado:** D-1 **PENDENTE**; Batch 12 **ABERTO**; UNFREEZE **BLOQUEADO**. K2 continua obrigatório e **não é dispensado** por este protocolo nem por nenhuma de suas etapas. Nenhuma etapa aqui descrita conta como avanço sobre K1/K2/K8b ou D4.
 
 **DIV-2 — P9b ("tempo real … nunca no LIVE") não pode ser cumprido como escrito.**
@@ -176,7 +177,7 @@ SELECT n.nspname || '.' || p.proname                                 AS fn,
 - **Como validar:** contar 12 linhas e confrontar cada md5 com a tabela `p7_allowlist` do E00. O resultado vai ao registro como diagnóstico do STOP.
 
 **Query L3 — Concorrência detalhada**
-- **Objetivo:** dar conteúdo ao `g_no_concurrency` do E00, que só expõe uma contagem. Distinguir escritor real de conexão de plataforma (pooler, Realtime, PostgREST).
+- **Objetivo:** dar conteúdo ao `g_no_concurrency` do E00, que só expõe uma contagem. A identificação nominal de uma sessão (ex.: pooler, Realtime, PostgREST) é **exclusivamente diagnóstica** e não altera o resultado.
 
 ```sql
 SELECT jsonb_build_object(
@@ -202,8 +203,8 @@ SELECT jsonb_build_object(
 ```
 - **Resultado esperado:**
   - `locks_on_scope = []`;
-  - nenhuma sessão `client backend` em `active`, `idle in transaction` ou `idle in transaction (aborted)`, fora eventualmente o próprio MCP.
-- **Como validar:** leitura direta. Uma sessão ativa só é aceita se for classificada como plataforma, com nome, papel e query curta; mesmo assim o gate do E00 continua valendo.
+  - nenhuma **outra** sessão `client backend` em `active`, `idle in transaction` ou `idle in transaction (aborted)`. A própria sessão já é excluída pela consulta (`pid <> pg_backend_pid()`).
+- **Como validar:** leitura direta. **Qualquer** outra sessão `client backend` ativa ou em transação ⇒ **STOP**, **mesmo quando identificada como plataforma**. A classificação nominal — feita só com os campos que a L3 retorna: `usename`, `application_name`, `backend_type`, `state`, `wait_event_type`/`wait_event`, `xact_start`, `state_change` — é registrada só para diagnóstico. Ela **não** dispensa o STOP e **não** dispensa `g_no_concurrency = true` no E00, que continua condição obrigatória.
 
 ### 3.3 Critério de aceite da Etapa 1 — `READY FOR STAGE 2`
 
@@ -415,7 +416,7 @@ Nenhum desses é dado de negócio. Sequences: nenhuma — ids UUID, provado por 
 ### 6.3 Concorrência
 
 - Sob FREEZE não há escritor legítimo. `g_no_concurrency` / `g_no_open_txn_others` provam isso **somente se** o papel do MCP enxergar `pg_stat_activity` de outros papéis. Caso contrário os gates passam **vazios** — risco de falso PASS por vácuo, tratado pela L1 — exige superusuário, `pg_read_all_stats` ou controle positivo explícito (`visible_foreign_sessions ≥ 1`); `activity_rows_state_hidden = 0` sozinho não prova acesso — e pela decisão D-5.
-- Conexões de plataforma (pooler, Realtime, PostgREST) podem estar `active` num instante: falso STOP. Admitida uma repetição (3.4).
+- Conexões de plataforma (pooler, Realtime, PostgREST) podem estar `active` num instante. O resultado é **STOP**, conservador, mesmo com a sessão identificada. A única repetição admitida é a do E00 por `g_no_concurrency = false` (3.4), e ela exige L3 e E00 novos, ambos limpos.
 - As fixtures do E01 tomam, por milissegundos:
   - `RowExclusiveLock` em 3 tabelas EC;
   - entradas novas em índices únicos;
@@ -459,7 +460,7 @@ Cada linha abaixo é uma **proposta** que só vale depois de aceite explícito d
 
 | # | Decisão | Bloqueia |
 |---|---|---|
-| D-1 | **PENDENTE.** Como executar K1/K2/K8b (e D4) sem o ambiente isolado previsto. Enquanto pendente: Batch 12 **ABERTO**, UNFREEZE **BLOQUEADO**. Restrição fixa: **K2 não é dispensado** (2830 E2) — qualquer resolução futura precisa executá-lo com identidade admin real, sem claims injetadas no LIVE e sem commit sob FREEZE. Este protocolo não propõe nem presume a resolução. | fechamento do Batch 12 / UNFREEZE |
+| D-1 | **PENDENTE.** Como executar K1/K2/K8b (e D4) sem ambiente isolado **pago** (recusado). Opção registrada, ainda não decidida: ambiente isolado **sem custo**, tecnologia não prescrita, **P14 (a, b, c) obrigatório** (proposta v7.1, canal CN-1). Enquanto pendente: Batch 12 **ABERTO**, UNFREEZE **BLOQUEADO**. Restrição fixa: **K2 não é dispensado** (2830 E2) — qualquer resolução futura precisa executá-lo com identidade admin real, sem claims injetadas no LIVE e sem commit sob FREEZE. Este protocolo não propõe nem presume a resolução. | fechamento do Batch 12 / UNFREEZE |
 | D-2 | Aceitar AD-2 (tempo medido no LIVE para só-leitura; limites duros para escrita) no lugar de P9b | aceite formal de A2 |
 | D-3 | `SET LOCAL lock_timeout = '5s'` no E01: (a) sim, com mandato de correção prévio; (b) não | Etapa 3 |
 | D-4 | Se `lock_timeout` da sessão MCP ≠ `'0'`: corrigir o E99 para comparar com o valor do E00 (mandato de correção) | Etapas 2 e 3 |
@@ -489,3 +490,6 @@ Cada linha abaixo é uma **proposta** que só vale depois de aceite explícito d
 |---|---|
 | 1.0 | **Criação (2026-09-26, `BATCH12-2830-LIVE-VALIDATION-READINESS-01`).** Protocolo de validação progressiva no LIVE após a decisão do proprietário de não criar ambiente isolado: Etapa 1 (só SELECT: E00 ×2, L1 canal, L2 pinos bruto × EOL, L3 concorrência), Etapa 2 (E00 → E02 → E99), Etapa 3 preparada como mandato futuro (E01 com JIT, rollback estrutural e prova tripla, limites de tempo, STOP e incidente). Divergências DIV-1 a DIV-4 sinalizadas; adaptações AD-1 a AD-9 propostas sem alterar a 2830 v7.0; decisões D-1 a D-8. Nenhum SQL executado. |
 | 1.1 | **Correção documental (2026-09-26, `BATCH12-2830-LIVE-VALIDATION-READINESS-CORRECTION-01`).** (1) L1: a visibilidade de `pg_stat_activity` exige superusuário, `pg_read_all_stats` ou controle positivo explícito (`visible_foreign_sessions ≥ 1`, sessão de papel alheio com `state` visível); `activity_rows_state_hidden = 0` passa a ser só diagnóstico. (2) S1.4/L2: executada somente após STOP por pino, só para diagnóstico; a etapa permanece em STOP, sem continuidade automática; L2 removida do critério de aceite. (3) Critério P7: o conjunto de identidades distintas (`schema.nome(args)`) das funções não nativas alcançadas no escopo do gate deve ser igual às 12 identidades da allowlist; `pg_catalog` excluído da comparação; identidade a mais ou a menos = STOP. (4) D-1 registrada como PENDENTE, Batch 12 ABERTO, UNFREEZE BLOQUEADO, K2 não dispensado; removidas as opções que redefiniam D1–D4/E2. SQL dos envelopes, 2830 e decisões D-2 a D-8 preservados. Nenhum SQL executado. |
+| 1.2 | **Reconciliação (2026-09-26, `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01`, baseline `1f3b72dc`).** Decisão do proprietário, DIV-1 e D-1 alinhados à decisão refinada: ambiente isolado **pago recusado**; alternativa isolada **sem custo** **PENDENTE** em D-1, com P14 obrigatório. Nenhum critério, consulta, sequência ou STOP das etapas alterado. O roteiro operacional da Etapa 1 está em `LIVE-STAGE1-RUNBOOK.md`. |
+| 1.3 | **Alinhamento (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-01`).** §3.2 (L3: objetivo, resultado esperado e "Como validar") e §6.3: qualquer outra sessão `client backend` ativa ou em transação implica **STOP**, mesmo identificada como plataforma; a classificação nominal é exclusivamente diagnóstica; `g_no_concurrency = true` segue obrigatório. Elimina o conflito A-4 do roteiro da Etapa 1. SQL e md5 de L1/L2/L3 inalterados; nenhum outro critério alterado. |
+| 1.4 | **Ajuste referencial (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-02`).** §3.2 (L3, "Como validar"): removida a menção a "query curta", porque a L3 não retorna o texto da query. A classificação nominal passa a citar só os campos efetivamente retornados. Nenhum SQL, md5, critério ou STOP alterado. |

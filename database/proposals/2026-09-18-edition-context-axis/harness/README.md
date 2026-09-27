@@ -16,7 +16,8 @@
 | `2830H_E02_identity_terminal_D1_D5.sql` | Envelope E02 — casos D1–D5. | não (catálogo) |
 | `2830H_E99_postcheck_residue.sql` | Postcheck: **comparação integral, chave a chave, com o `d_baseline` do E00 da mesma rodada** (md5 = fidelidade da cópia, não origem da rodada; vinculação E00 → envelope → E99 é documental), recheck do canônico do FREEZE, resíduo zero, não persistência de sessão (P10/P8). Um SELECT. | não |
 | `tools/static_check.py` | Verificação estática local (não conecta a banco). | — |
-| `LIVE-VALIDATION-PROTOCOL.md` | Protocolo **proposto** de validação progressiva no LIVE (sem ambiente isolado): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-9 e decisões D-1–D-8. | — |
+| `LIVE-STAGE1-RUNBOOK.md` | Roteiro operacional **proposto** da Etapa 1 (só SELECT): passos, consultas exatas com md5, evidências esperadas, STOP e pontos de decisão. Não autoriza execução. | — |
+| `LIVE-VALIDATION-PROTOCOL.md` | Protocolo **proposto** de validação progressiva no LIVE (ambiente isolado pago recusado; alternativa sem custo pendente em D-1): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-9 e decisões D-1–D-8. | — |
 
 Ordem de uso, **quando autorizada**: `E00` → envelope → `E99`, um envelope por vez, cada um em statement próprio.
 
@@ -111,15 +112,15 @@ Regras: `checked_at(E00) < submissão do envelope < checked_at(E99)`; nenhum out
 
 **Controles negativos do verificador (mutação dos próprios arquivos, CORRECTION-02) — 23 mutações, 22 detectadas diretamente:** `COMMIT` injetado; `RAISE NOTICE`; sinal `H283C` removido; conferência de constraint removida; `set_config`; caso removido do esperado; `MAINTAIN` removido; builder alterado só no E99; canon alterado só no E99; `g_freeze_canonical_equal`, `g_p7_all_classified`, `g_p7_identity_pinned`, `g_p7_no_unqualified_dml`, `g_p7_search_path_safe`, `g_p7_lexically_supported` removidos; padrão de DML não qualificado sem `UPDATE`; pino md5 da allowlist trocado; `gate_pass` sem checagem de NULL; marcador MD5 removido do E99; `g_baseline_equal` removido; comentário do E99 voltando a “dois marcadores”; `d_baseline_md5` não exportado. A única não detectada isoladamente — retirar `pg_notify` do padrão de sinal externo — é camada redundante: o caso continua bloqueado pela lista negra de builtins; retirar **as duas** camadas é detectado.
 
-**Limite declarado:** não há parser PL/pgSQL neste ambiente. A compilação real só é provada executando — o que exige mandato. Recomenda-se a primeira execução autorizada em ambiente isolado antes do LIVE.
+**Limite declarado:** não há parser PL/pgSQL neste ambiente. A compilação real só é provada executando — o que exige mandato. A primeira execução autorizada prevista é a Etapa 1 do protocolo LIVE (só SELECT); um ambiente isolado sem custo só entra se adotado em D-1, com P14 obrigatório.
 
 ## Dependências e decisões pendentes
 
 1. **Mandato de execução**, por etapa, conforme `LIVE-VALIDATION-PROTOCOL.md`: Etapa 1 (E00 só leitura) → Etapa 2 (E00 → E02 → E99) → Etapa 3 (E00 → E01 → E99). Nenhum envelope foi executado.
 2. **`SET LOCAL lock_timeout = '5s'`** — decisão operacional pendente (P8).
-3. **Ambiente isolado** (P14) — **não será criado** (decisão do proprietário, 2026-09-26). Não afeta E00/E01/E02/E99; torna K1/K2/K8b e o UNFREEZE da 2830 v7.0 inalcançáveis enquanto a decisão D-1 estiver **PENDENTE** (Batch 12 **ABERTO**, UNFREEZE **BLOQUEADO**, K2 **não dispensado**), e P9b só é cumprido por adaptação (AD-2) — ver `LIVE-VALIDATION-PROTOCOL.md`.
+3. **Ambiente isolado** (P14) — **pago: recusado** (decisão do proprietário, 2026-09-26); **alternativa sem custo: PENDENTE** em D-1, com P14 (a, b, c) obrigatório. Não afeta E00/E01/E02/E99; torna K1/K2/K8b e o UNFREEZE da 2830 v7.0 inalcançáveis enquanto a decisão D-1 estiver **PENDENTE** (Batch 12 **ABERTO**, UNFREEZE **BLOQUEADO**, K2 **não dispensado**), e P9b só é cumprido por adaptação (AD-2) — ver `LIVE-VALIDATION-PROTOCOL.md`.
 4. **Premissas a confirmar pelo E00 antes de E01:** estado = baseline canônico do FREEZE; papel executor superusuário ou dono das tabelas EC, sem `FORCE ROW LEVEL SECURITY`; nenhuma sequence nas tabelas tocadas; fecho P7 inteiramente classificado, sem efeito externo, sem SQL dinâmico, sem escrita fora do escopo; nenhuma regra nem event trigger habilitado; papéis `anon`/`authenticated` existentes; PG ≥ 17; marcador ausente; zero concorrência.
-5. **Tempo (P9):** E01/E02 são leves (catálogo + ≤ 9 inserts); medição formal P9b ainda assim é pré-requisito do critério A2 do contrato.
+5. **Tempo (P9):** E01/E02 são leves (catálogo + 11 tentativas de INSERT no E01: 4 positivas e 7 negativas); medição formal P9b ainda assim é pré-requisito do critério A2 do contrato.
 
 ## Riscos
 
