@@ -1052,3 +1052,548 @@ for title,lst in [('E03-PERFIL',res3),('E03-VERIFICADOR-NEG',negv),('E03-VERIFIC
     bad3=[r for r in lst if not r[1]]
     for n,ok,d in lst: print(('PASS ' if ok else 'FAIL ')+'['+title+'] '+n+(' '+d if d and not ok else ''))
     print(f'{title} TOTAL {len(lst)} PASS {len(lst)-len(bad3)} FAIL {len(bad3)}')
+
+# ===========================================================================
+# BATCH12-2830-P5-L2-FUNCTIONAL-IMPLEMENTATION-01 — PERFIS E04 / E04P (lote L2)
+# Contrato: 2830 v7.0 (blob b4647dcb…), Seções 2-BIS e 2-TER (l. 479–515).
+# Contagem SEPARADA de todos os blocos acima (444 e E03): nada acima desta
+# linha é alterado, e as verificações novas não entram em `res`/`res3`/
+# `negv`/`posv`. Três blocos, cada um com total próprio:
+#   E04-PERFIL ............ regras aplicadas aos arquivos reais (E04, E04P)
+#   E04-VERIFICADOR-NEG ... mutações inseguras que TÊM de ser rejeitadas
+#   E04-VERIFICADOR-POS ... controles positivos do próprio verificador
+# Regras E04-1..E04-19 = generalização das E03-n para as tabelas do mapping;
+# E04-20 = P8/DP-4 generalizado (MESMO preâmbulo canônico LT_PRE_RE, aplicado
+# por regra própria; a E03-20 do perfil E03 não muda); E04-21 = RC da 2211;
+# E04-22 = P13 (universo 2B.5/2B.6); E04-23 = P4 dos casos FX/RO.
+# ===========================================================================
+S2207=(REPO/'proposals/2026-09-18-edition-context-axis/2207_create_card_edition_context_external_mapping.sql').read_text(encoding='utf-8')
+S2203=(REPO/'proposals/2026-09-18-edition-context-axis/2203_create_card_edition_context_trait_table.sql').read_text(encoding='utf-8')
+S2211=(REPO/'proposals/2026-09-18-edition-context-axis/2211_create_resolve_variant_row_axes_contract.sql').read_text(encoding='utf-8')
+S2176=(REPO/'schema/2176_create_compute_variant_residual_signature_function.sql').read_text(encoding='utf-8')
+S2198=(REPO/'migrations/2198_guard_variant_size_scope_in_residual_signature.sql').read_text(encoding='utf-8')
+S2095=(REPO/'schema/2095_create_normalize_external_catalog_value_function.sql').read_text(encoding='utf-8')
+S2233=(REPO/'proposals/2026-09-18-edition-context-axis/2233_repair_staging_edition_context_scope_resolution.sql').read_text(encoding='utf-8')
+C2830=(REPO/'proposals/2026-09-18-edition-context-axis/2830_validate_edition_context_foundation.sql').read_text(encoding='utf-8')
+MAP_T='public.card_edition_context_external_mapping'
+NN_T='public.card_edition_context_external_mapping_trait'
+TR_T='public.card_edition_context_trait'
+TABLES_L2={MAP_T,NN_T,TR_T}
+TOKENS_L2={'EDITION_CONTEXT_EXTERNAL_MAPPING_EMPTY_COMPOSITION','EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH','EDITION_CONTEXT_MAPPING_SIGNATURE_IMMUTABLE'}
+PAIRS_L2={('uq_cecem_active_global','card_edition_context_external_mapping'),('uq_cecem_active_scoped','card_edition_context_external_mapping')}
+RESET_L2=['v_t1','v_t2','v_m1','v_m2','v_mg','v_ms','v_tok','v_set1','v_set2','v_q','v_step','v_raw','v_ps','v_ecs','v_ect','v_rst']
+UPD_L2_RE=re.compile(r"^UPDATE public\.card_edition_context_external_mapping SET (traits_signature = ARRAY\[v_t\d\]|is_active = false) WHERE id = v_m\w* AND normalized_token = v_tok$")
+FORB_L2=FORB3+[r'\bDELETE\b',r'\bLOOP\b',r'\bFOREACH\b',r'\bWHILE\b',r'\bFOR\s+\w+\s+IN\b',r'\bCARD_SET\b',r'\bCODE\s*=\s*V_']
+SPEC_E04=dict(label='E04',tag='h2830_e04',env='E04_SECAO2B_2T_MAPPING',
+              cases=['2B.1','2B.2','2B.3','2B.4','2B.5','2B.6','2T.1','2T.2','2T.3','2T.4','2T.5','2T.6','2T.7','2T.8'],
+              n_imm=12,n_def=13,n_probe=12,n_neg=5,n_upd_sig=2,n_upd_act=4,step_cases=['2B.2'],
+              imm_per_case={'2B.1':1,'2B.2':1,'2B.3':0,'2B.4':1,'2B.5':0,'2B.6':0,'2T.1':2,'2T.2':2,'2T.3':2,'2T.4':0,'2T.5':0,'2T.6':1,'2T.7':1,'2T.8':1},
+              rc_per_case={'2T.6':2,'2T.7':1,'2T.8':2},ro_cases=['2B.5','2B.6'],fx_cases=['2B.3','2T.4','2T.5'])
+# gabarito da sonda do E04 (autoria própria deste perfil; alvo trg_cecem_seal): mapping SEM composição,
+# selo NULL observado, sentinela H283S exata; handlers H283S → H283F RAISE → OTHERS→H283F; pós-checagem.
+PROBE_E04_CANON=norm("""v_qn := v_qn + 1;
+v_qtag := format('H2830_PROBE: envelope=%s caso=%s n=%s marker=%s', c_env, v_case, v_qn, v_marker);
+v_q := NULL;
+v_qok := NULL;
+BEGIN
+INSERT INTO public.card_edition_context_external_mapping (game_id, asset_source_id, external_set_id, raw_field, normalized_token)
+VALUES (v_game, v_src, NULL, 'subtype', v_marker || '_Q' || v_qn)
+RETURNING id INTO v_q;
+SELECT (traits_signature IS NULL) INTO v_qok
+FROM public.card_edition_context_external_mapping WHERE id = v_q;
+IF v_q IS NULL OR v_qok IS DISTINCT FROM true THEN
+RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+'H2830_FAIL: envelope=%s caso=%s sonda n=%s sem efeito observável', c_env, v_case, v_qn);
+END IF;
+RAISE EXCEPTION USING ERRCODE = 'H283S', MESSAGE = v_qtag;
+EXCEPTION
+WHEN SQLSTATE 'H283S' THEN
+GET STACKED DIAGNOSTICS v_msg = MESSAGE_TEXT;
+IF v_msg IS DISTINCT FROM v_qtag THEN
+RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+'H2830_FAIL: envelope=%s caso=%s sentinela de sonda trocada (%s)', c_env, v_case, v_msg);
+END IF;
+WHEN SQLSTATE 'H283F' THEN RAISE;
+WHEN OTHERS THEN
+GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;
+RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+'H2830_FAIL: envelope=%s caso=%s sonda n=%s modo não DEFERRED ou erro inesperado sqlstate=%s msg=%s',
+c_env, v_case, v_qn, v_state, v_msg);
+END;
+SELECT count(*) INTO v_n FROM public.card_edition_context_external_mapping WHERE id = v_q;
+IF v_n <> 0 THEN
+RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+'H2830_FAIL: envelope=%s caso=%s sonda n=%s não descartada', c_env, v_case, v_qn);
+END IF;
+v_q := NULL;""")
+RC_CALL_RE=re.compile(r"SELECT r\.printing_state, r\.edition_context_state, r\.edition_context_trait_ids, r\.residual_subtype INTO STRICT v_ps, v_ecs, v_ect, v_rst FROM internal\.resolve_variant_row_axes\((\w+), (\w+), (\w+), (\w+)\) AS r;")
+RC_EXPECT_RE=re.compile(r"IF v_ps IS DISTINCT FROM 'RESOLVED_NO_PRINTING' OR v_ecs IS DISTINCT FROM '([A-Z_]+)' OR v_ect IS DISTINCT FROM (ARRAY\[v_t\d\]|'\{\}'::uuid\[\]) OR (v_rst IS NOT NULL|v_rst IS DISTINCT FROM v_tok) THEN")
+RC_STATES={'RESOLVED_NO_EDITION_CONTEXT','NEEDS_REVIEW_INACTIVE_EC_MAPPING','NEEDS_REVIEW_NO_EC_PROFILE'}
+
+def e04_rules(src,S=SPEC_E04):
+    out=[]
+    def ck(rule,name,cond,det=''): out.append((f"{S['label']} {rule}: {name}",bool(cond),det))
+    c=code(src); tag=S['tag']
+    parts=c.split('$'+tag+'$')
+    # E04-1 ------------------------------------------------------------------
+    ck('E04-1','um único DO $'+tag+'$ … $'+tag+'$;',len(re.findall(r'\bDO\s+\$',c))==1 and len(parts)==3 and c.rstrip().endswith('$'+tag+'$;'))
+    ck('E04-1','nada executável fora do DO',len(parts)==3 and parts[0].strip().upper()=='DO' and parts[2].strip()==';')
+    body=parts[1] if len(parts)==3 else ''
+    ns=nostr(body); U=ns.upper()
+    lt_ok,body_eff=lt_split(body)
+    ns_eff=nostr(body_eff); U_eff=ns_eff.upper()
+    # E04-20 (P8 / DP-4 generalizado) ----------------------------------------
+    ck('E04-20',"primeira instrução executável do bloco principal = SET LOCAL lock_timeout = '5s' + asserção fail-closed exata (mesmo gabarito LT_PRE_RE do E03), antes de qualquer leitura ou escrita",lt_ok)
+    ck('E04-20',"exatamente 1 SET LOCAL e 1 asserção de lock_timeout no corpo; nenhum outro uso de lock_timeout",
+       len(re.findall(r'\bSET\s+LOCAL\b',U))==1 and len(re.findall(r"current_setting\('lock_timeout'\)",body))==2
+       and len(re.findall(r'lock_timeout',body,re.I))==4,str(len(re.findall(r'lock_timeout',body,re.I))))
+    # E04-2 ------------------------------------------------------------------
+    hits=[t for t in FORB_L2 if re.search(t,U_eff)]
+    ck('E04-2','tokens proibidos ausentes (COMMIT, EXECUTE, TEMP, SET LOCAL/ROLE/SESSION, set_config, DDL, LOCK, DELETE, LOOP/FOR/WHILE, card_set, …)',not hits,str(hits))
+    # E04-3 ------------------------------------------------------------------
+    ups=[norm(x)[:-1] for x in re.findall(r'\bUPDATE\b[^;]*;',ns)]
+    n_sig=sum(1 for u in ups if 'SET traits_signature' in u); n_act=sum(1 for u in ups if 'SET is_active = false' in u)
+    ck('E04-3',f"UPDATE só em mapping de fixture (WHERE id = v_m… AND normalized_token = v_tok): {S['n_upd_sig']} de selo + {S['n_upd_act']} de aposentadoria",
+       all(UPD_L2_RE.match(u) for u in ups) and n_sig==S['n_upd_sig'] and n_act==S['n_upd_act'] and len(ups)==n_sig+n_act,
+       str([u for u in ups if not UPD_L2_RE.match(u)] or (n_sig,n_act)))
+    # E04-4 / E04-14 ----------------------------------------------------------
+    cn=norm(body)
+    act_ok=all(re.match(r"\s*GET DIAGNOSTICS v_n = ROW_COUNT; IF v_n <> 1 THEN",cn[m.end():]) for m in re.finditer(r"SET is_active = false WHERE id = v_m\w* AND normalized_token = v_tok;",cn))
+    ck('E04-14','cada aposentadoria (is_active = false) seguida de GET DIAGNOSTICS v_n = ROW_COUNT e IF v_n <> 1',act_ok and len(re.findall(r'SET is_active = false',cn))==S['n_upd_act'])
+    # E04-5 ------------------------------------------------------------------
+    ns_noup=re.sub(r'\bUPDATE\b[^;]*;',' ',ns_eff)
+    sets=[norm(x) for x in re.findall(r'\bSET\b[^;]*;',ns_noup)]
+    ck('E04-5','todo SET é exatamente SET CONSTRAINTS dos 2 selos IMMEDIATE|DEFERRED',all(s in (IMM_S,DEF_S) for s in sets),str([s for s in sets if s not in (IMM_S,DEF_S)]))
+    ck('E04-5',f"totais: {S['n_imm']} IMMEDIATE e {S['n_def']} DEFERRED",sets.count(IMM_S)==S['n_imm'] and sets.count(DEF_S)==S['n_def'],f'{sets.count(IMM_S)}/{sets.count(DEF_S)}')
+    cases=re.findall(r"v_case\s*:=\s*'([^']+)'",body)
+    segs=[s.split('v_case :=')[0] for s in re.split(r"v_case\s*:=\s*'[^']+'\s*;",body)[1:]]
+    SG=dict(zip(cases,segs))
+    # E04-6 ------------------------------------------------------------------
+    ok6=True; det6=[]
+    for cid,sg in zip(cases,segs):
+        ims=[m.start() for m in re.finditer(re.escape(IMM_S),sg)]; dfs=[m.start() for m in re.finditer(re.escape(DEF_S),sg)]
+        if len(dfs)<len(ims) or ims!=[] and not all(any(d>i for d in dfs) for i in ims): ok6=False; det6.append(cid)
+        if len(ims)!=S['imm_per_case'].get(cid,-1): ok6=False; det6.append(cid+':#imm')
+        for (b,x,e) in _neg_blocks(sg):
+            nb=sg[b:x]; nh=sg[x:e]
+            if IMM_S in nb and not (DEF_S in nb[nb.index(IMM_S):] and DEF_S in nh): ok6=False; det6.append(cid+':neg')
+    ck('E04-6','cada IMMEDIATE seguido de DEFERRED no mesmo caso; negativo com DEFERRED no corpo e no handler; IMMEDIATE por caso = matriz L2',ok6,str(det6))
+    # E04-7 ------------------------------------------------------------------
+    tg=[norm(t) for t in re.findall(r'\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([A-Za-z_\.]+)',ns)]
+    ck('E04-7','alvos de INSERT/UPDATE/DELETE ⊂ {trait, mapping, mapping_trait} (R1, qualificados)',tg and set(tg)<=TABLES_L2,str(sorted(set(tg)-TABLES_L2)))
+    ins_all=re.findall(r'INSERT INTO [^;]*;',cn)
+    ins_tr=re.findall(r"INSERT INTO public\.card_edition_context_trait \(game_id, family, code, name, display_order\) VALUES \(v_game, 'EVENT', v_marker \|\| '_T\d', '[^']*' \|\| v_marker, v_ord_t \+ \d+\) RETURNING id INTO v_t\d;",cn)
+    ins_mp=re.findall(r"INSERT INTO public\.card_edition_context_external_mapping \(game_id, asset_source_id, external_set_id, raw_field, normalized_token\) VALUES \(v_game, v_src, (NULL|v_set\d), 'subtype', (v_tok|v_marker \|\| '_Q' \|\| v_qn)\) RETURNING id INTO (v_m\w*|v_q);",cn)
+    ins_nn=re.findall(r"INSERT INTO public\.card_edition_context_external_mapping_trait \(mapping_id, trait_id, game_id\) VALUES \((v_m\w*), (v_t\d), v_game\);",cn)
+    probe_ins=[x for x in ins_mp if x[2]=='v_q']
+    ok_tok=all((x[1]=='v_tok')==(x[2]!='v_q') for x in ins_mp)
+    assigns=re.findall(r'\b(v_tok|v_set\d)\s*:=\s*([^;]*);',cn)
+    ok_assign=all(r=='NULL' or re.fullmatch(r"v_marker \|\| '_[A-Z0-9]+'",r) for _,r in assigns)
+    ck('E04-7','todo INSERT é trait (marker em code e name), mapping (v_game, v_src, set NULL|v_set…, token v_tok ou marker de sonda) ou N:N de fixture; v_tok/v_set… só := v_marker || \'_…\' ou NULL',
+       len(ins_all)==len(ins_tr)+len(ins_mp)+len(ins_nn) and ok_tok and ok_assign and len(probe_ins)==S['n_probe'],
+       f'ins={len(ins_all)} tr={len(ins_tr)} mp={len(ins_mp)} nn={len(ins_nn)} assign={[a for a in assigns if not (a[1]=="NULL" or a[1].startswith("v_marker"))]}')
+    idas=re.findall(r'\b(v_(?:t\d|m\w*|q))\s*:=\s*([^;]*);',cn)
+    intos=re.findall(r'(\S+ \S+) INTO (v_(?:t\d|m\w*|q))\b',cn)
+    ck('E04-7','ids de fixture (v_t…, v_m…, v_q) só por RETURNING id INTO (atribuição direta só := NULL): UPDATE nunca alcança linha pré-existente',
+       all(r=='NULL' for _,r in idas) and all(pre=='RETURNING id' for pre,_ in intos),str([x for x in idas if x[1]!='NULL']+[x for x in intos if x[0]!='RETURNING id']))
+    # E04-8 / E04-9 ------------------------------------------------------------
+    negs=_neg_blocks(body); ok8=True; det8=[]; used=set(); pairs=set()
+    p0001=re.compile(r"v_state IS NULL OR v_msg IS NULL OR v_state <> 'P0001' OR NOT starts_with\(v_msg, '([A-Z_]+):'\)")
+    p23505=re.compile(r"v_state IS NULL OR v_state <> '23505' OR v_con IS DISTINCT FROM '([a-z_]+)' OR v_tab IS DISTINCT FROM '([a-z_]+)'")
+    for (b,x,e) in negs:
+        if b<0 or e<0 or re.search(r'\bBEGIN\b',body[b+5:x]): ok8=False; det8.append('estrutura'); continue
+        nxt=[p for p in [body.find('v_got := false',e),body.find('BEGIN',e),body.find("v_case :=",e)] if p>=0]
+        seg=body[e:min(nxt) if nxt else len(body)]
+        m1=p0001.search(seg); m2=p23505.search(seg)
+        good=('IF NOT v_got THEN' in seg) and ((m1 and m1.group(1) in TOKENS_L2) or (m2 and (m2.group(1),m2.group(2)) in PAIRS_L2))
+        if m1: used.add(m1.group(1))
+        if m2: pairs.add((m2.group(1),m2.group(2)))
+        if not good: ok8=False; det8.append(seg[:60])
+    ck('E04-8',f"{S['n_neg']} negativos, cada um com IF NOT v_got e checagem estrita (P0001 + starts_with do token completo; ou 23505 + índice + tabela)",
+       ok8 and len(negs)==S['n_neg'],f'{len(negs)} {det8[:2]}')
+    ck('E04-9','tokens usados = os 3 da L2, cada um literal (com ":") na 2207; pares 23505 = os 2 índices parciais declarados na 2207',
+       used==TOKENS_L2 and all((t+':') in S2207 for t in used) and pairs==PAIRS_L2
+       and all(re.search(r'CREATE UNIQUE INDEX '+i+r'\s+ON public\.'+t+r'\b',S2207) for i,t in pairs),str((sorted(used),sorted(pairs))))
+    # E04-10 -----------------------------------------------------------------
+    ck('E04-10','sem LIKE/ILIKE/SIMILAR/~ (tokens só por starts_with; marcador só por strpos)',not re.search(r'\b(I?LIKE|SIMILAR)\b',U) and not re.search(r'!?~',ns))
+    # E04-11 -----------------------------------------------------------------
+    ce=re.search(r"c_expected\s+CONSTANT\s+text\[\]\s*:=\s*ARRAY\[(.*?)\]",body,re.S)
+    cel=re.findall(r"'([^']+)'",ce.group(1)) if ce else []
+    ck('E04-11','casos na ordem contratual = c_expected (14)',cases==S['cases'] and cel==S['cases'],str(cases))
+    ck('E04-11',"c_env = '"+S['env']+"'",re.search(r"c_env\s+CONSTANT\s+text\s*:=\s*'"+S['env']+"';",body) is not None)
+    # E04-12 -----------------------------------------------------------------
+    codes=re.findall(r"ERRCODE\s*=\s*'([A-Z0-9]{5})'",body)
+    ck('E04-12','ERRCODEs só H283C/H283F/H283P/H283S',set(codes)<={'H283C','H283F','H283P','H283S'},str(set(codes)))
+    ck('E04-12','H283P exatamente 1 e último sinal do corpo',codes.count('H283P')==1 and codes and codes[-1]=='H283P')
+    okc=True
+    for cid,sg in zip(cases,segs):
+        if not (len(re.findall(r"ERRCODE\s*=\s*'H283C'",sg))==1 and "WHEN SQLSTATE 'H283C'" in sg and "WHEN SQLSTATE 'H283F' THEN RAISE;" in sg
+                and 'v_done := v_done || v_case' in sg and re.search(r"RAISE EXCEPTION USING ERRCODE = 'H283C', MESSAGE = v_case;\s*EXCEPTION\s*WHEN SQLSTATE 'H283C' THEN",sg)
+                and re.search(r"WHEN OTHERS THEN\s*GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;\s*RAISE EXCEPTION USING ERRCODE = 'H283F'[^;]*erro inesperado sqlstate=%s msg=%s",sg)): okc=False
+    ck('E04-12','estrutura de subtransação por caso (1 H283C final; handlers H283C exato → H283F RAISE → OTHERS→H283F com SQLSTATE e mensagem)',okc and len(cases)==len(S['cases']))
+    pbs=[(m.start(),m.end()) for m in PROBE_BLOCK_RE.finditer(body)]
+    inside=lambda pos: any(a<=pos<b for a,b in pbs)
+    s_raise=[m.start() for m in re.finditer(r"ERRCODE\s*=\s*'H283S'",body)]
+    s_when=[m.start() for m in re.finditer(r"WHEN SQLSTATE 'H283S'",body)]
+    c_in=[m.start() for m in re.finditer(r"'H283C'",body) if inside(m.start())]
+    ck('E04-12','H283S só dentro de bloco de sonda (raise e handler, 1 de cada por sonda); nenhum H283C dentro de sonda',
+       len(s_raise)==len(s_when)==len(pbs)==S['n_probe'] and all(inside(p) for p in s_raise+s_when) and not c_in,f'{len(s_raise)}/{len(s_when)}/{len(pbs)}')
+    tpos=body.rfind("'H283P'")
+    ck('E04-12',f"gate do envelope antes do terminal: v_done = c_expected, v_qn = {S['n_probe']} e universos 2B.5/2B.6",
+       'IF v_done IS DISTINCT FROM c_expected THEN' in body and f"IF v_qn <> {S['n_probe']} THEN" in body
+       and 'IF v_univ5 IS NULL OR v_univ5 <= 0 OR v_univ6 IS DISTINCT FROM v_univ5 THEN' in body
+       and max(body.rfind(f"IF v_qn <> {S['n_probe']} THEN"),body.rfind('IF v_univ5 IS NULL OR v_univ5 <= 0'))<tpos)
+    ck('E04-12','terminal H2830_ROLLBACK_PASS com pass, casos, marker, elapsed_ms e universos (sem caminho de COMMIT)',
+       "'H2830_ROLLBACK_PASS: envelope=%s pass=%s/%s casos=%s marker=%s elapsed_ms=%s universo_2b5=%s universo_2b6=%s'" in body
+       and re.search(r"elapsed_ms.*?v_univ5, v_univ6\);\s*END\s*$",body,re.S) is not None)
+    # E04-13 -----------------------------------------------------------------
+    ok13=all(all(re.search(r'\b'+v+r' := NULL;',sg[:sg.find('BEGIN')]) for v in RESET_L2) for sg in segs)
+    ck('E04-13','reset das variáveis de fixture, RC, v_q e v_step a NULL antes do BEGIN de cada caso',ok13 and segs)
+    # E04-15 -----------------------------------------------------------------
+    ok15=True; det15=[]
+    for cid,sg in zip(cases,segs):
+        pb=[(m.start(),m.end()) for m in PROBE_BLOCK_RE.finditer(sg)]
+        nb=_neg_blocks(sg)
+        ims=[m.start() for m in re.finditer(re.escape(IMM_S),sg)]
+        if len(pb)!=len(ims) or len(pb)!=S['imm_per_case'].get(cid,-1): ok15=False; det15.append(cid+':#'); continue
+        ev=sorted([(i,'I') for i in ims]+[(a,'P') for a,_ in pb])
+        if [k for _,k in ev]!=['I','P']*len(pb): ok15=False; det15.append(cid+':ordem')
+        for a,_ in pb:
+            if any(b<=a<e for b,_,e in nb): ok15=False; det15.append(cid+':dentro-neg')
+            anchors=[m.end() for m in re.finditer(re.escape(DEF_S),sg[:a]) if not any(b<=m.start()<e for b,_,e in nb)]
+            anchors+=[e for b,x,e in nb if e<=a and IMM_S in sg[b:x]]
+            if not anchors: ok15=False; det15.append(cid+':sem-âncora'); continue
+            gap=nostr(sg[max(anchors):a])
+            if re.search(r'\b(INSERT|UPDATE|DELETE|SET)\b',gap): ok15=False; det15.append(cid+':escrita-antes-da-sonda')
+            if max(anchors)<max([i for i in ims if i<a],default=-1): ok15=False; det15.append(cid+':DEFERRED-antes-do-IMMEDIATE')
+    ck('E04-15',f"#sondas = #IMMEDIATE por caso ({S['n_probe']} no total), alternância IMMEDIATE→sonda, nível de caso, fora de negativo/handler, sem escrita nem SET entre DEFERRED/END do negativo e a sonda",
+       ok15 and len(pbs)==S['n_probe'],str(det15))
+    # E04-16 -----------------------------------------------------------------
+    Uc=nostr(c).upper()
+    nb_=len(re.findall(r'\bBEGIN\b',Uc)); ne_=len(re.findall(r'\bEND\b(?!\s+(IF|LOOP))',Uc))
+    n_if=len(re.findall(r'(?<!END )\bIF\b',Uc)); n_eif=len(re.findall(r'\bEND\s+IF\b',Uc))
+    ck('E04-16','BEGIN/END, IF/END IF, parênteses e aspas balanceados',nb_==ne_ and n_if==n_eif and nostr(c).count('(')==nostr(c).count(')') and c.count("'")%2==0,f'{nb_}/{ne_} {n_if}/{n_eif}')
+    # E04-17 -----------------------------------------------------------------
+    blocks=[norm(body[a:b]) for a,b in pbs]
+    ck('E04-17',f"cada bloco de sonda é IDÊNTICO ao gabarito E04 (mapping sem composição, selo NULL, H283S exata; handlers H283S → H283F RAISE → OTHERS→H283F; pós-checagem), {S['n_probe']} blocos",
+       len(blocks)==S['n_probe'] and all(b==PROBE_E04_CANON for b in blocks) and len(re.findall(r'v_qn\s*:=\s*v_qn \+ 1;',body))==S['n_probe'],
+       str([i for i,b in enumerate(blocks) if b!=PROBE_E04_CANON]))
+    # E04-18 -----------------------------------------------------------------
+    rest=PROBE_BLOCK_RE.sub(' ',body)
+    vq=[m for m in re.finditer(r'\bv_q\b',rest)]
+    ck('E04-18','fora dos blocos de sonda, v_q só aparece na declaração e no reset do início do caso',
+       all(re.match(r'v_q\s*:=\s*NULL;|v_q\s+uuid;',rest[m.start():]) for m in vq) and len(vq)==len(S['cases'])+1,str(len(vq)))
+    # E04-19 -----------------------------------------------------------------
+    ok19=True
+    for cid in S['step_cases']:
+        sg=SG.get(cid,'')
+        nn=[(b,x,e) for (b,x,e) in _neg_blocks(sg) if IMM_S in sg[b:x]]
+        if len(nn)!=1: ok19=False; continue
+        b,x,e=nn[0]; nbody=sg[b+5:x]
+        stmts=re.findall(r'(v_step := \'[A-Z0-9_]+\';\s*)?(INSERT INTO|SET CONSTRAINTS)',nbody)
+        acc=re.search(r"IF v_state IS NULL[^\n]*THEN",sg[e:])
+        if not (stmts and all(p for p,_ in stmts) and re.search(r"v_step := 'IMMEDIATE';\s*"+re.escape(IMM_S),nbody)
+                and acc and acc.group(0).endswith("OR v_step IS DISTINCT FROM 'IMMEDIATE' THEN")): ok19=False
+    ck('E04-19',f"negativo com IMMEDIATE ({', '.join(S['step_cases'])}): v_step antes de cada statement, 'IMMEDIATE' imediatamente antes do SET e exigido no aceite",ok19)
+    # E04-21 (RC da 2211) ------------------------------------------------------
+    calls=[(m.start(),m.groups()) for m in RC_CALL_RE.finditer(cn)]
+    raw_as=re.findall(r'\bv_raw\s*:=\s*([^;]*);',cn)
+    ok21=len(re.findall(r'resolve_variant_row_axes',cn))==len(calls)==sum(S['rc_per_case'].values())
+    ok21=ok21 and all(g==('v_raw','v_game','v_src',g[3]) and g[3] in ('v_set1','v_set2') for _,g in calls)
+    ok21=ok21 and all(r=='NULL' or r=="jsonb_build_object('type', 'H2830 TIPO', 'subtype', v_tok)" for r in raw_as)
+    for p,_ in calls:
+        nxt=cn[p:]; e=RC_EXPECT_RE.search(nxt)
+        if not e or e.start()>len(nxt.split(';',1)[0])+5 or e.group(1) not in RC_STATES: ok21=False
+    for cid,sg in zip(cases,segs):
+        if len(re.findall(r'resolve_variant_row_axes',sg))!=S['rc_per_case'].get(cid,0): ok21=False
+        for m in re.finditer(r'resolve_variant_row_axes\(v_raw, v_game, v_src, (v_set\d)\)',norm(sg)):
+            if not re.search(r'\b'+m.group(1)+r" := v_marker \|\| '_S\d';",norm(sg)): ok21=False
+    ck('E04-21',"RC: só em 2T.6/2T.7/2T.8 (2/1/2), INTO STRICT, args (v_raw, v_game, v_src, v_set… DECLARADO da fixture — nunca card_set), v_raw sintético com v_tok, cada chamada seguida do aceite estrito de printing_state/edition_context_state/trait_ids/residual",
+       ok21,str([g for _,g in calls]))
+    # E04-22 (P13) -------------------------------------------------------------
+    s5=norm(SG.get('2B.5','')); s6=norm(SG.get('2B.6',''))
+    ck('E04-22','P13: 2B.5 e 2B.6 medem o universo (v_univ5/v_univ6 por count(*)), reprovam universo <= 0 e contaminação H2830, e o terminal emite os dois',
+       'INTO v_n, v_univ5' in s5 and 'IF v_univ5 IS NULL OR v_univ5 <= 0 THEN' in s5 and 'INTO v_n, v_univ6' in s6
+       and 'IF v_univ6 IS NULL OR v_univ6 <= 0 OR v_univ6 IS DISTINCT FROM v_univ5 THEN' in s6
+       and all("strpos(normalized_token, 'H2830') > 0" in x for x in (s5,s6))
+       and 'm.traits_signature IS DISTINCT FROM ARRAY( SELECT mt.trait_id FROM public.card_edition_context_external_mapping_trait mt WHERE mt.mapping_id = m.id ORDER BY mt.trait_id)' in s6
+       and 'count(*) FILTER (WHERE traits_signature IS NULL)' in s5)
+    # E04-23 (P4 — FX e RO) ----------------------------------------------------
+    ok23=all(IMM_S not in SG.get(c_,'x') and not PROBE_BLOCK_RE.search(SG.get(c_,'')) for c_ in S['fx_cases']+S['ro_cases'])
+    ok23=ok23 and all(not re.search(r'\b(INSERT|UPDATE|DELETE|SET)\b',nostr(SG.get(c_,'x'))) for c_ in S['ro_cases'])
+    ck('E04-23','P4: casos FX sem IMMEDIATE (2B.3, 2T.4, 2T.5) não sondam (evento pendente descartado pelo rollback do caso); RO (2B.5, 2B.6) não escrevem nem mudam modo',ok23)
+    return out
+
+# --------------------------------------------------------------------------
+# PERFIL E04P (SELECT único)
+# --------------------------------------------------------------------------
+G04P=['g_game_pokemon_one','g_source_tcgdex_one','g_l2_triggers','g_no_other_triggers_l2','g_seal_constraint_names_unique',
+      'g_deferrable_only_seal_l2','g_l2_constraints','g_l2_error_tokens','g_l2_function_pins','g_rc_identity','g_rc_executable',
+      'g_l2_no_sequence','g_l2_rls_bypass','g_marker_absent_now','g_universe_positive']
+G04P_TERMS={'g_game_pokemon_one':["public.game WHERE code = 'POKEMON'",") = 1"],
+ 'g_source_tcgdex_one':["public.asset_source WHERE code = 'TCGDEX'",") = 1"],
+ 'g_l2_triggers':["t.tgtype = e.tgtype","t.enabled = 'O'","t.fn_oid = to_regprocedure(e.fn)","t.deferrable = e.is_constraint","t.initdeferred = e.is_constraint","t.attrs = e.attrs",") = 5"],
+ 'g_no_other_triggers_l2':["NOT EXISTS (SELECT 1 FROM trg t","e.tgname = t.tgname AND e.relname = t.relname"],
+ 'g_seal_constraint_names_unique':["conname = 'trg_cecp_seal') = 1","conname = 'trg_cecem_seal') = 1","contype <> 't' OR NOT condeferrable OR NOT condeferred"],
+ 'g_deferrable_only_seal_l2':["WHERE condeferrable","NOT (conname = 'trg_cecem_seal' AND relname = 'card_edition_context_external_mapping')",") = 1"],
+ 'g_l2_constraints':["c.contype = e.contype AND c.convalidated) = 15","indisunique AND indisvalid AND indisready","pred_np = pred_exp AND cols = cols_exp) = 2"],
+ 'g_l2_error_tokens':["FROM fn_tok WHERE present) = 3"],'g_l2_function_pins':["body_md5_lf = pin) = 5","fn_oid IS NOT NULL"],
+ 'g_rc_identity':["FROM rc WHERE ok) = 3","strpos(p.prosrc, k.tok) > 0) = 3"],
+ 'g_rc_executable':["has_function_privilege(current_user","'internal.resolve_variant_row_axes(jsonb,uuid,uuid,text)'), 'EXECUTE')"],
+ 'g_l2_no_sequence':["NOT EXISTS (SELECT 1 FROM l2_seq)"],'g_l2_rls_bypass':["NOT force_rls AND owner = current_user) = 3"],
+ 'g_marker_absent_now':["marker_trait = 0 AND marker_mapping = 0 AND marker_printing_mapping = 0"],
+ 'g_universe_positive':["mapping > 0 AND mapping_trait > 0"]}
+def _fn_body(src,fq):
+    m=re.search(r'CREATE OR REPLACE FUNCTION '+re.escape(fq)+r'\((.*?)\)\s*RETURNS (.*?)LANGUAGE (\w+)(.*?)AS \$\$(.*?)\$\$;',src,re.S)
+    return m
+def _rc_expected(src,fq):
+    m=_fn_body(src,fq)
+    args=[a.strip() for a in re.sub(r'--[^\n]*','',m.group(1)).split(',')]
+    types=','.join(re.sub(r'\s+DEFAULT.*$','',a,flags=re.I).split()[1].lower() for a in args if a)
+    ret=re.sub(r'--[^\n]*','',m.group(2)).strip()
+    tm=re.match(r'TABLE\s*\((.*)\)\s*$',ret,re.S)
+    result=('TABLE('+', '.join(' '.join(x.split()).lower() for x in tm.group(1).split(','))+')') if tm else ret.lower()
+    hdr=m.group(4)
+    return dict(sig=f'{fq}({types})',pin=hashlib.md5(lf(m.group(5)).encode()).hexdigest(),lang=m.group(3).lower(),
+                vol='s' if 'STABLE' in hdr else ('i' if 'IMMUTABLE' in hdr else 'v'),secdef='SECURITY DEFINER' in hdr,
+                cfg=["search_path=\"\""] if re.search(r"SET search_path = ''",hdr) else None,result=result,body=m.group(5))
+RC_REPO=[_rc_expected(S2211,'internal.resolve_variant_row_axes'),_rc_expected(S2176,'internal.compute_variant_residual_signature'),
+         _rc_expected(S2095,'public.normalize_external_catalog_value')]
+def e04p_rules(src):
+    out=[]
+    def ck(rule,name,cond,det=''): out.append((f"E04P {rule}: {name}",bool(cond),det))
+    c=code(src); Un=nostr(c).upper()
+    ck('P-1','1 statement',Un.count(';')==1 and Un.rstrip().endswith(';'))
+    FORBP=[r'\bINSERT\b',r'\bUPDATE\b',r'\bDELETE\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'SET_CONFIG',r'\bSET\b',r'\bDO\b',r'\bTEMP\b',
+           r'\bINTO\b',r'\bGRANT\b',r'\bREVOKE\b',r'\bCOMMENT\b',r'\bSECURITY\s+LABEL\b',r'\bREINDEX\b',r'\bREFRESH\b',r'\bIMPORT\b',
+           r'\bTRUNCATE\b',r'\bMERGE\b',r'\bCOPY\b',r'\bCALL\b',r'\bLOCK\b',r'\bLISTEN\b',r'\bNOTIFY\b',r'\bEXECUTE\b(?!\')',r'PG_SLEEP',r'DBLINK',
+           r'RESOLVE_VARIANT_ROW_AXES\s*\(',r'COMPUTE_VARIANT_RESIDUAL_SIGNATURE\s*\(',r'NORMALIZE_EXTERNAL_CATALOG_VALUE\s*\(']
+    hits=[t for t in FORBP if re.search(t,Un)]
+    ck('P-1','perfil E00/E99: sem DML, DDL, SET, DO, TEMP, INTO, … e sem INVOCAR as funções da RC (só catálogo)',not hits,str(hits))
+    ck('P-1','parênteses balanceados',nostr(c).count('(')==nostr(c).count(')'))
+    gi=c.find('\ngates AS ('); ge=c.find('\nSELECT to_jsonb(g)')
+    gc=c[gi:ge] if gi>=0 and ge>gi else ''
+    gd=re.findall(r'AS\s+(g_[A-Za-z0-9_]+)',gc)
+    ck('P-2',f'CTE gates define EXATAMENTE os {len(G04P)} gates do perfil (sem extra, falta ou duplicata)',sorted(gd)==sorted(G04P) and len(gd)==len(set(gd))==len(G04P),str(sorted(set(gd)^set(G04P))))
+    pt=re.split(r'AS\s+(g_[A-Za-z0-9_]+)',gc); seg={pt[i]:pt[i-1] for i in range(1,len(pt),2)}
+    for g,terms in G04P_TERMS.items():
+        t=seg.get(g,'')
+        ck('P-3',f'predicado de {g} com {len(terms)} termo(s) efetivo(s), não esvaziado',all(x in t for x in terms) and not re.search(r'WHERE\s+false|OR\s+true|>=\s*[0-9]|^\s*,?\s*true\s*$',t,re.I|re.M),g)
+    ck('P-4','gate_pass = bool_and de TODOS os g_* e NULL = falha',"'gate_pass', (SELECT bool_and(v::boolean) FROM jsonb_each_text(to_jsonb(g))" in c and 'WHERE v IS NULL' in c)
+    fe=re.findall(r"\('([a-z_]+)',\s*'([0-9a-f]{32})',\s*ARRAY\[([^\]]*)\]",c)
+    pins={n:p for n,p,_ in fe}; toks={n:set(re.findall(r"'([A-Z_]+):'",t)) for n,_,t in fe}
+    ck('P-5','5 pinos = md5(LF(corpo da 2207)) = pinos do E00 (p7_allowlist)',len(pins)==5 and all(
+        ('internal.'+n) in real and hashlib.md5(lf(real['internal.'+n][7]).encode()).hexdigest()==p and ALLOW.get(('internal',n,''),{}).get('md5')==p for n,p in pins.items()),str(pins))
+    exp_tok={'seal_edition_context_external_mapping':{'EDITION_CONTEXT_EXTERNAL_MAPPING_EMPTY_COMPOSITION'},
+             'enforce_edition_context_mapping_signature_write':{'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH','EDITION_CONTEXT_MAPPING_SIGNATURE_IMMUTABLE'}}
+    ck('P-6','tokens por função = os 3 usados pelo E04, cada um presente no corpo da própria função na 2207',{k:v for k,v in toks.items() if v}==exp_tok and all(
+        all((t+':') in real['internal.'+n][7] for t in ts) for n,ts in toks.items()),str(toks))
+    te=re.findall(r"\('(trg_[a-z_]+)',\s*'([a-z_]+)',\s*(\d+),\s*'([a-z_\.]+\(\))',\s*(true|false),\s*ARRAY\[([^\]]*)\]",c)
+    def tgt(ddl):
+        m=re.search(r'(BEFORE|AFTER) (.*?) ON public\.([a-z_]+)\s',ddl,re.S)
+        ev=m.group(2); t=1+(2 if m.group(1)=='BEFORE' else 0)+(4 if 'INSERT' in ev else 0)+(8 if 'DELETE' in ev else 0)+(16 if 'UPDATE' in ev else 0)
+        cols=re.findall(r'UPDATE OF ([a-z_, ]+)',ev); return t,m.group(3),[x.strip() for x in cols[0].split(',')] if cols else []
+    d07={}
+    for m in re.finditer(r'CREATE (CONSTRAINT )?TRIGGER (trg_[a-z_]+)\n(.*?)EXECUTE FUNCTION ([a-z_\.]+)\(\);',S2207,re.S):
+        t,rel,cols=tgt(m.group(3)); d07[m.group(2)]=(rel,t,m.group(4)+'()',bool(m.group(1)),cols,'DEFERRABLE INITIALLY DEFERRED' in m.group(3))
+    okt=len(te)==5 and all(n in d07 and d07[n][0]==r and d07[n][1]==int(t) and d07[n][2]==f and d07[n][3]==(ic=='true') and d07[n][5]==(ic=='true')
+                           and d07[n][4]==re.findall(r"'([a-z_]+)'",a) for n,r,t,f,ic,a in te) and set(d07)=={n for n,*_ in te}
+    ck('P-7','trg_exp = os 5 CREATE TRIGGER da 2207 (tabela, tgtype calculado, função, constraint/deferrable, UPDATE OF); 2203 sem trigger',
+       okt and not re.search(r'CREATE (CONSTRAINT )?TRIGGER',S2203),str(te))
+    ce=re.findall(r"\('((?:pk|fk|uq|ck)_[a-z_]+)',\s*'([a-z_]+)',\s*'([pfuc])'\)",c)
+    kind={'p':'PRIMARY KEY','f':'FOREIGN KEY','u':'UNIQUE','c':'CHECK'}
+    DDL07=S2203+S2207
+    okc=len(ce)==15 and all(re.search(r'CONSTRAINT '+n+r'\b\s+'+kind[k],DDL07) and
+        re.search(r'CREATE TABLE public\.'+r+r' \((?:(?!CREATE TABLE).)*CONSTRAINT '+n+r'\b',DDL07,re.S) for n,r,k in ce)
+    ck('P-8','con_exp = 15 constraints declaradas nas 2203/2207, na tabela e com o tipo corretos',okc,str(len(ce)))
+    ai=re.findall(r"\('(uq_cecem_active_[a-z]+)', '([^']+)',\s*ARRAY\[([^\]]*)\]\)",c)
+    okx=len(ai)==2
+    for n,pred,cols in ai:
+        m=re.search(r'CREATE UNIQUE INDEX '+n+r'\s+ON public\.card_edition_context_external_mapping\s+\(([^)]*)\)\s+WHERE ([^;]*);',S2207)
+        okx=okx and bool(m) and [x.strip() for x in m.group(1).split(',')]==re.findall(r"'([a-z_]+)'",cols) and ' '.join(m.group(2).split())==pred
+    ck('P-10','act_idx = os 2 índices parciais da 2207 (colunas e predicado literal)',okx,str(ai))
+    re_=re.findall(r"\('([a-z_\.]+\([a-z,]*\))', '([0-9a-f]{32})', '(\w+)', '(\w)', (true|false),\s*ARRAY\['([^']*)'\],\s*'([^']*)'\)",c)
+    okr=len(re_)==3 and len(RC_REPO)==3
+    for (sig,pin,lang,vol,sd,cfg,result),e in zip(re_,RC_REPO):
+        okr=okr and sig==e['sig'] and pin==e['pin'] and lang==e['lang'] and vol==e['vol'] and (sd=='true')==e['secdef'] and [cfg]==e['cfg'] and result==e['result']
+    b2198=_fn_body(S2198,'internal.compute_variant_residual_signature')
+    okr=okr and b2198 is not None and hashlib.md5(lf(b2198.group(5)).encode()).hexdigest()==RC_REPO[1]['pin']
+    okr=okr and ALLOW.get(('public','normalize_external_catalog_value','p_value text'),{}).get('md5')==RC_REPO[2]['pin']
+    okr=okr and not re.search(r'CREATE (OR REPLACE )?FUNCTION internal\.resolve_variant_row_axes',S2233)
+    okr=okr and all(t in RC_REPO[0]['body'] for t in RC_STATES)
+    ck('P-9','rc_exp = identidade do REPOSITÓRIO da 2211/2176/2095 (assinatura, md5 LF, linguagem, volatilidade, SECURITY DEFINER, search_path, resultado); 2176 = corpo da 2198 executada; 2095 = pino do E00; 2233 não redefine a 2211',okr,str(re_)[:200])
+    tb=re.findall(r"\('(card_edition_context_[a-z_]+)'\)",c.split('rel AS')[0])
+    ck('P-11','sequence/RLS/owner avaliados nas 3 tabelas escritas; marcador também em card_printing_external_mapping (pré-condição da RC)',
+       sorted(tb)==sorted(t.split('.')[1] for t in TABLES_L2) and 'FROM public.card_printing_external_mapping WHERE strpos(normalized_token, ' in c,str(tb))
+    return out
+
+# --------------------------------------------------------------------------
+# Execução sobre os arquivos reais
+# --------------------------------------------------------------------------
+res4=[]
+E04F=(H/'2830H_E04_section2b_2t_mapping.sql').read_text(encoding='utf-8')
+E04PF=(H/'2830H_E04P_precheck_section2b2t.sql').read_text(encoding='utf-8')
+res4+=e04_rules(E04F)
+res4+=e04p_rules(E04PF)
+for f in ['2830H_E04_section2b_2t_mapping.sql','2830H_E04P_precheck_section2b2t.sql']:
+    raw=(H/f).read_bytes()
+    res4.append((f'ARQUIVO {f}: LF, sem CR, sem tab, sem espaço no fim de linha, termina em LF',
+                 b'\r' not in raw and b'\t' not in raw and not re.search(rb' +\n',raw) and raw.endswith(b'\n'),''))
+_c2830=re.findall(r'^--\s+(2[BT]\.\d)\s+\[AUTO (FXd\+RC|FXd|FX|RO)\]',C2830,re.M)
+res4.append(('E04 × 2830 v7.0: 14 casos = linhas "-- 2B.x/2T.x [AUTO …]" das Seções 2-BIS e 2-TER, na ordem',
+             [x for x,_ in _c2830]==SPEC_E04['cases'],str(_c2830)))
+_kind=dict(_c2830)
+res4.append(('E04 × 2830 v7.0: classe de cada caso respeitada (FX/FXd sem IMMEDIATE só se FX; RO sem escrita; RC só nos FXd+RC)',
+             all((SPEC_E04['imm_per_case'][k]==0)==(v in ('FX','RO')) for k,v in _kind.items())
+             and set(SPEC_E04['ro_cases'])=={k for k,v in _kind.items() if v=='RO'}
+             and set(SPEC_E04['rc_per_case'])=={k for k,v in _kind.items() if v=='FXd+RC'}
+             and set(SPEC_E04['fx_cases'])=={k for k,v in _kind.items() if v=='FX'},str(_kind)))
+def _blob(p):
+    d=p.read_bytes(); return hashlib.sha1(b'blob %d\x00'%len(d)+d).hexdigest()
+_APPROVED=[('2830H_E00_precheck_inventory.sql','a4dd8438'),('2830H_E99_postcheck_residue.sql','49a71ecb'),
+           ('2830H_E03_section2_profile_composition.sql','ef24a3be'),('2830H_E03P_precheck_section2.sql','0fc2d83d'),
+           ('2830H_E03T_n1_controlled_probe.sql','9523bf23'),('../2830_validate_edition_context_foundation.sql','b4647dcb')]
+res4.append(('E04 × arquivos aprovados: E00, E99, E03, E03P, E03T e 2830 intactos (blob git calculado localmente)',
+             all(_blob(H/f).startswith(b) for f,b in _APPROVED),str([(f,_blob(H/f)[:8]) for f,b in _APPROVED if not _blob(H/f).startswith(b)])))
+
+# --------------------------------------------------------------------------
+# Testes negativos do VERIFICADOR (E04/E04P)
+# --------------------------------------------------------------------------
+negv4=[]; posv4=[]
+def must_fail4(label, mutated, rule, rules=e04_rules, orig=None):
+    r=rules(mutated)
+    failed=[n for n,ok,_ in r if not ok]
+    negv4.append((f'VERIFICADOR rejeita: {label} [{rule}]', any(rule+':' in n for n in failed) and mutated!=(orig if orig is not None else E04F), str(failed[:3])))
+def s1(t,a,b,count=1):
+    assert a in t, a
+    return t.replace(a,b,count)
+_pre='    SELECT id INTO v_src FROM public.asset_source'
+M_UPD_ACT="UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE id = v_m1 AND normalized_token = v_tok;"
+M_UPD_SIG="UPDATE public.card_edition_context_external_mapping SET traits_signature = ARRAY[v_t2] WHERE id = v_m1 AND normalized_token = v_tok;"
+# E04-2
+must_fail4('COMMIT no corpo', s1(E04F,_pre,'    COMMIT;\n'+_pre), 'E04-2')
+must_fail4('SQL dinâmico (EXECUTE)', s1(E04F,_pre,"    EXECUTE 'SELECT 1';\n"+_pre), 'E04-2')
+must_fail4('set_config', s1(E04F,_pre,"    SELECT set_config('x','y',true) INTO v_msg;\n"+_pre), 'E04-2')
+must_fail4('CREATE TEMP TABLE', s1(E04F,_pre,'    CREATE TEMP TABLE x (a int);\n'+_pre), 'E04-2')
+must_fail4('SET ROLE', s1(E04F,_pre,'    SET ROLE authenticated;\n'+_pre), 'E04-2')
+must_fail4('DELETE em N:N (fora da superfície L2)', s1(E04F,M_UPD_ACT,M_UPD_ACT+"\n        DELETE FROM public.card_edition_context_external_mapping_trait WHERE mapping_id = v_m1 AND trait_id = v_t1;"), 'E04-2')
+must_fail4('LOOP (superfície de escrita não finita)', s1(E04F,_pre,'    LOOP EXIT; END LOOP;\n'+_pre), 'E04-2')
+must_fail4('FOR … IN (escrita em laço)', s1(E04F,_pre,'    FOR v_n IN 1..3 LOOP NULL; END LOOP;\n'+_pre), 'E04-2')
+must_fail4('RC com card_set.code (classe do incidente 2212/2233)', s1(E04F,"FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, v_set1) AS r;","FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, (SELECT code FROM public.card_set LIMIT 1)) AS r;"), 'E04-2')
+must_fail4('ON CONFLICT no INSERT de mapping', s1(E04F,"VALUES (v_game, v_src, NULL, 'subtype', v_tok)\n        RETURNING id INTO v_m1;","VALUES (v_game, v_src, NULL, 'subtype', v_tok)\n        ON CONFLICT DO NOTHING\n        RETURNING id INTO v_m1;"), 'E04-2')
+# E04-3 / E04-14
+must_fail4('UPDATE de mapping sem filtro de id (linha pré-existente)', s1(E04F,M_UPD_ACT,"UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE normalized_token = v_tok;"), 'E04-3')
+must_fail4('UPDATE sem filtro de token de fixture', s1(E04F,M_UPD_SIG,"UPDATE public.card_edition_context_external_mapping SET traits_signature = ARRAY[v_t2] WHERE id = v_m1;"), 'E04-3')
+must_fail4('UPDATE em tabela fora da allowlist (profile)', s1(E04F,M_UPD_ACT,"UPDATE public.card_edition_context_profile SET is_active = false WHERE id = v_m1 AND normalized_token = v_tok;"), 'E04-3')
+must_fail4('UPDATE reativando (is_active = true)', s1(E04F,M_UPD_ACT,"UPDATE public.card_edition_context_external_mapping SET is_active = true WHERE id = v_m1 AND normalized_token = v_tok;"), 'E04-3')
+must_fail4('UPDATE de identidade (normalized_token)', s1(E04F,M_UPD_SIG,"UPDATE public.card_edition_context_external_mapping SET normalized_token = 'X' WHERE id = v_m1 AND normalized_token = v_tok;"), 'E04-3')
+must_fail4('ROW_COUNT da aposentadoria não conferido', s1(E04F,M_UPD_ACT+"\n        GET DIAGNOSTICS v_n = ROW_COUNT;",M_UPD_ACT+"\n        v_n := 1;"), 'E04-14')
+# E04-5 / E04-6
+must_fail4('SET CONSTRAINTS ALL', s1(E04F,IMM_S,'SET CONSTRAINTS ALL IMMEDIATE;'), 'E04-5')
+must_fail4('SET CONSTRAINTS só do selo do mapping', s1(E04F,DEF_S,'SET CONSTRAINTS public.trg_cecem_seal DEFERRED;'), 'E04-5')
+must_fail4('DEFERRED removido depois de IMMEDIATE (2B.1)', s1(E04F,"        -- P4 (3): DEFERRED\n        "+DEF_S,"        -- P4 (3): DEFERRED"), 'E04-6')
+must_fail4('DEFERRED removido do handler do negativo 2B.2', E04F.replace("                                    v_tab = TABLE_NAME, v_msg = MESSAGE_TEXT;\n            "+DEF_S,"                                    v_tab = TABLE_NAME, v_msg = MESSAGE_TEXT;",1), 'E04-6')
+must_fail4('IMMEDIATE extra em caso FX (2B.3)', s1(E04F,"        v_got := false; v_state := NULL; v_con := NULL; v_tab := NULL; v_msg := NULL;\n        BEGIN\n            UPDATE","        "+IMM_S+"\n        "+DEF_S+"\n        v_got := false; v_state := NULL; v_con := NULL; v_tab := NULL; v_msg := NULL;\n        BEGIN\n            UPDATE"), 'E04-6')
+# E04-7
+must_fail4('INSERT de trait sem marcador no name', s1(E04F,"'H2830 fixture 2B.1 T1 ' || v_marker","'H2830 fixture 2B.1 T1'"), 'E04-7')
+must_fail4('token de mapping fixo (sem marcador)', s1(E04F,"        v_tok := v_marker || '_K';","        v_tok := 'PROMO';"), 'E04-7')
+must_fail4('external_set_id real (não declarado da fixture)', s1(E04F,"        v_set1 := v_marker || '_S1';","        v_set1 := 'swsh9';"), 'E04-7')
+must_fail4('INSERT de mapping com token literal', s1(E04F,"VALUES (v_game, v_src, NULL, 'subtype', v_tok)\n        RETURNING id INTO v_m1;","VALUES (v_game, v_src, NULL, 'subtype', 'PROMO')\n        RETURNING id INTO v_m1;"), 'E04-7')
+must_fail4('INSERT em profile (fora de R1/L2)', s1(E04F,_pre,"    INSERT INTO public.card_edition_context_profile (game_id, code, name, display_order) VALUES (v_game, v_marker, v_marker, 1);\n"+_pre), 'E04-7')
+must_fail4('id de fixture atribuído de mapping real (SELECT … INTO v_m1)', s1(E04F,"        v_tok := v_marker || '_K';\n","        SELECT id INTO v_m1 FROM public.card_edition_context_external_mapping LIMIT 1;\n        v_tok := v_marker || '_K';\n"), 'E04-7')
+must_fail4('N:N ligando trait real', s1(E04F,"VALUES (v_m1, v_t1, v_game);","VALUES (v_m1, (SELECT id FROM public.card_edition_context_trait LIMIT 1), v_game);"), 'E04-7')
+# E04-8 / E04-9
+must_fail4('negativo aceitando qualquer SQLSTATE', s1(E04F,"v_state IS NULL OR v_msg IS NULL OR v_state <> 'P0001' OR NOT starts_with(v_msg, 'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH:')","NOT starts_with(v_msg, 'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH:')"), 'E04-8')
+must_fail4('23505 sem conferir a tabela', s1(E04F,"v_con IS DISTINCT FROM 'uq_cecem_active_global' OR v_tab IS DISTINCT FROM 'card_edition_context_external_mapping'","v_con IS DISTINCT FROM 'uq_cecem_active_global'"), 'E04-8')
+must_fail4('23505 com índice trocado (global↔scoped)', s1(E04F,"v_con IS DISTINCT FROM 'uq_cecem_active_scoped'","v_con IS DISTINCT FROM 'uq_cecem_active_global'"), 'E04-9')
+must_fail4('negativo sem IF NOT v_got', E04F.replace("        IF NOT v_got THEN","        IF false THEN",1), 'E04-8')
+must_fail4('token do profile no lugar do token do mapping', s1(E04F,"'EDITION_CONTEXT_MAPPING_SIGNATURE_IMMUTABLE:'","'EDITION_CONTEXT_SIGNATURE_IMMUTABLE:'"), 'E04-8')
+must_fail4('token inexistente na 2207', s1(E04F,"'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH:'","'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCHX:'"), 'E04-8')
+# E04-10 / E04-11 / E04-12
+must_fail4('LIKE sobre v_msg', s1(E04F,"NOT starts_with(v_msg, 'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH:')","v_msg NOT LIKE 'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH:%'"), 'E04-10')
+must_fail4('marcador por LIKE no universo', s1(E04F,"strpos(normalized_token, 'H2830') > 0","normalized_token LIKE '%H2830%'"), 'E04-10')
+must_fail4('caso fora do contrato (2Q.1)', s1(E04F,"v_case := '2T.8';","v_case := '2Q.1';"), 'E04-11')
+must_fail4('ordem de casos trocada em c_expected', s1(E04F,"ARRAY['2B.1','2B.2'","ARRAY['2B.2','2B.1'"), 'E04-11')
+must_fail4('sinal novo (H283X)', s1(E04F,"ERRCODE = 'H283S'","ERRCODE = 'H283X'"), 'E04-12')
+must_fail4('H283S fora da sonda', s1(E04F,_pre,"    RAISE EXCEPTION USING ERRCODE = 'H283S', MESSAGE = 'x';\n"+_pre), 'E04-12')
+must_fail4('H283P duplicado', s1(E04F,_pre,"    RAISE EXCEPTION USING ERRCODE = 'H283P', MESSAGE = 'x';\n"+_pre), 'E04-12')
+must_fail4('gate de contagem de sondas removido', s1(E04F,'IF v_qn <> 12 THEN','IF false THEN'), 'E04-12')
+must_fail4('gate de universo removido', s1(E04F,'IF v_univ5 IS NULL OR v_univ5 <= 0 OR v_univ6 IS DISTINCT FROM v_univ5 THEN','IF false THEN'), 'E04-12')
+must_fail4('handler de caso engolindo erro (WHEN OTHERS sem H283F)', E04F.replace("            GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;\n            RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n                'H2830_FAIL: envelope=%s caso=%s erro inesperado","            v_done := v_done || v_case;\n            GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;\n            RAISE EXCEPTION USING ERRCODE = 'H283C', MESSAGE = format(\n                'H2830_FAIL: envelope=%s caso=%s erro inesperado",1), 'E04-12')
+must_fail4('terminal sem universos', s1(E04F,"elapsed_ms=%s universo_2b5=%s universo_2b6=%s'","elapsed_ms=%s'"), 'E04-12')
+# E04-13 / E04-15 / E04-17 / E04-18 / E04-19
+_i26=E04F.index("v_case := '2T.6'"); _j=E04F.index('    v_set1 := NULL;\n',_i26)
+must_fail4('reset de v_set1 removido de um caso (2T.6)', E04F[:_j]+E04F[_j+len('    v_set1 := NULL;\n'):], 'E04-13')
+_p1=E04F.index('        -- SONDA DE MODO'); _p2=E04F.index('        v_q := NULL;\n',E04F.index('não descartada',_p1))+len('        v_q := NULL;\n')
+_blk4=E04F[_p1:_p2]
+must_fail4('sonda removida de um caso (2B.1)', E04F[:_p1]+E04F[_p2:], 'E04-15')
+must_fail4('escrita entre DEFERRED e a sonda', s1(E04F,"        -- P4 (3): DEFERRED\n        "+DEF_S,"        -- P4 (3): DEFERRED\n        "+DEF_S+"\n        UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE id = v_m1 AND normalized_token = v_tok;"), 'E04-15')
+_i22=E04F.index("v_case := '2B.2'"); _a=E04F.index('        -- SONDA DE MODO',_i22)
+_b=E04F.index('        v_q := NULL;\n',E04F.index('não descartada',_a))+len('        v_q := NULL;\n')
+_h=E04F.index('EXCEPTION WHEN OTHERS THEN',_i22); _hd=E04F.index('DEFERRED;\n',_h)+len('DEFERRED;\n')
+must_fail4('sonda movida para DENTRO do handler do negativo 2B.2', E04F[:_hd]+'\n'.join(('    '+l) if l else l for l in E04F[_a:_b].split('\n'))+E04F[_hd:_a]+E04F[_b:], 'E04-15')
+must_fail4('sonda de profile (gabarito E03) no lugar da de mapping', E04F.replace(_blk4,_blk4.replace("INSERT INTO public.card_edition_context_external_mapping (game_id, asset_source_id, external_set_id, raw_field, normalized_token)\n            VALUES (v_game, v_src, NULL, 'subtype', v_marker || '_Q' || v_qn)","INSERT INTO public.card_edition_context_profile (game_id, code, name, display_order)\n            VALUES (v_game, v_marker || '_Q' || v_qn, 'H2830 sonda ' || v_marker, 1)"),1), 'E04-17')
+must_fail4('sonda com composição (selo nunca NULL — sonda vácua)', E04F.replace(_blk4,_blk4.replace("RETURNING id INTO v_q;\n","RETURNING id INTO v_q;\n            INSERT INTO public.card_edition_context_external_mapping_trait (mapping_id, trait_id, game_id)\n            VALUES (v_q, v_t1, v_game);\n",1),1), 'E04-17')
+must_fail4('handler da sentinela sem comparação exata', E04F.replace("IF v_msg IS DISTINCT FROM v_qtag THEN","IF false THEN",1), 'E04-17')
+must_fail4('sonda que não termina em H283S', E04F.replace("            RAISE EXCEPTION USING ERRCODE = 'H283S', MESSAGE = v_qtag;\n","",1), 'E04-17')
+must_fail4('v_q reutilizado fora da sonda', s1(E04F,_pre,'    v_m1 := NULL;\n    v_t1 := v_q;\n'+_pre), 'E04-18')
+must_fail4('aceite do 2B.2 sem v_step', s1(E04F,"'EDITION_CONTEXT_EXTERNAL_MAPPING_EMPTY_COMPOSITION:') OR v_step IS DISTINCT FROM 'IMMEDIATE'","'EDITION_CONTEXT_EXTERNAL_MAPPING_EMPTY_COMPOSITION:')"), 'E04-19')
+must_fail4('BEGIN sem END', s1(E04F,_pre,'    BEGIN\n'+_pre), 'E04-16')
+# E04-20 (P8 generalizado)
+_la=E04F.index(LT_SET_L); _lb=E04F.index('    END IF;\n',_la)+len('    END IF;\n'); _LT4=E04F[_la:_lb]; _E04_NOLT=E04F[:_la]+E04F[_lb:]
+must_fail4('P8: preâmbulo removido', _E04_NOLT, 'E04-20')
+must_fail4('P8: asserção removida (SET LOCAL mantido)', E04F[:_la]+LT_SET_L+E04F[_lb:], 'E04-20')
+must_fail4("P8: SET LOCAL com outro valor ('10s')", s1(E04F,LT_SET_L,"    SET LOCAL lock_timeout = '10s';\n"), 'E04-20')
+must_fail4('P8: asserção com <> no lugar de IS DISTINCT FROM', s1(E04F,LT_IF_L,"    IF current_setting('lock_timeout') <> '5s' THEN\n"), 'E04-20')
+must_fail4('P8: SET LOCAL depois da leitura de preflight', s1(_E04_NOLT,"    SELECT id INTO v_game FROM public.game",_LT4+"    SELECT id INTO v_game FROM public.game"), 'E04-20')
+must_fail4('P8: preâmbulo duplicado', E04F[:_lb]+_LT4+E04F[_lb:], 'E04-20')
+must_fail4('P8: SET de sessão (sem LOCAL)', s1(E04F,LT_SET_L,"    SET lock_timeout = '5s';\n"), 'E04-20')
+must_fail4('P8: set_config no lugar do SET LOCAL', s1(E04F,LT_SET_L,"    SELECT set_config('lock_timeout', '5s', true) INTO v_msg;\n"), 'E04-2')
+must_fail4('P8: SET LOCAL statement_timeout adicional', s1(E04F,_pre,"    SET LOCAL statement_timeout = '0';\n"+_pre), 'E04-2')
+# E04-21 (RC)
+must_fail4('RC sem STRICT (linha ausente passaria como NULL)', s1(E04F,'  INTO STRICT v_ps, v_ecs, v_ect, v_rst','  INTO v_ps, v_ecs, v_ect, v_rst'), 'E04-21')
+must_fail4('RC com p_external_set_id NULL em vez do Set declarado', s1(E04F,"resolve_variant_row_axes(v_raw, v_game, v_src, v_set1) AS r;","resolve_variant_row_axes(v_raw, v_game, v_src, NULL) AS r;"), 'E04-21')
+must_fail4('RC sem aceite do estado (IF removido)', s1(E04F,"IF v_ps IS DISTINCT FROM 'RESOLVED_NO_PRINTING' OR v_ecs IS DISTINCT FROM 'NEEDS_REVIEW_INACTIVE_EC_MAPPING'","IF false AND v_ecs IS DISTINCT FROM 'NEEDS_REVIEW_INACTIVE_EC_MAPPING'"), 'E04-21')
+must_fail4('RC com estado esperado fora do contrato', s1(E04F,"v_ecs IS DISTINCT FROM 'NEEDS_REVIEW_INACTIVE_EC_MAPPING'","v_ecs IS DISTINCT FROM 'RESOLVED_WITH_EC_PROFILE'"), 'E04-21')
+must_fail4('RC chamada fora de 2T.6–2T.8 (2B.1)', s1(E04F,"        -- P4 (3): DEFERRED\n        "+DEF_S,"        v_raw := jsonb_build_object('type', 'H2830 TIPO', 'subtype', v_tok);\n        SELECT r.printing_state, r.edition_context_state, r.edition_context_trait_ids, r.residual_subtype\n          INTO STRICT v_ps, v_ecs, v_ect, v_rst\n          FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, v_set1) AS r;\n        -- P4 (3): DEFERRED\n        "+DEF_S), 'E04-21')
+must_fail4('raw_data real (não sintético)', s1(E04F,"v_raw := jsonb_build_object('type', 'H2830 TIPO', 'subtype', v_tok);","v_raw := (SELECT raw_data FROM public.catalog_variant_import_row LIMIT 1);"), 'E04-21')
+must_fail4('controle anti-vácuo do 2T.8 removido', E04F[:E04F.index("        v_ps := NULL; v_ecs := NULL; v_ect := NULL; v_rst := NULL;\n",E04F.index("v_case := '2T.8'"))]+E04F[E04F.index("        RAISE EXCEPTION USING ERRCODE = 'H283C'",E04F.index("v_case := '2T.8'")):], 'E04-21')
+# E04-22 / E04-23
+must_fail4('P13: universo de 2B.5 não exigido > 0', s1(E04F,'IF v_univ5 IS NULL OR v_univ5 <= 0 THEN','IF v_univ5 IS NULL THEN'), 'E04-22')
+must_fail4('P13: 2B.6 comparando selo sem ORDER BY', s1(E04F,'WHERE mt.mapping_id = m.id ORDER BY mt.trait_id)),','WHERE mt.mapping_id = m.id)),'), 'E04-22')
+must_fail4('P13: contaminação por fixture não verificada', E04F.replace("WHERE strpos(normalized_token, 'H2830') > 0 OR strpos(COALESCE(external_set_id, ''), 'H2830') > 0;","WHERE false;",1), 'E04-22')
+must_fail4('RO escrevendo (2B.5)', s1(E04F,'  INTO v_n, v_univ5\n','  INTO v_n, v_univ5\n          FROM public.card_edition_context_external_mapping;\n        UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE id = v_m1 AND normalized_token = v_tok;\n        SELECT count(*) FILTER (WHERE traits_signature IS NULL), count(*)\n          INTO v_n, v_univ5\n'), 'E04-23')
+# E04P
+_o=E04PF
+def mf4p(label,mut,rule): must_fail4(label,mut,rule,e04p_rules,_o)
+mf4p('E04P: gate flexibilizado (>= 5)', _o.replace('AND t.attrs = e.attrs) = 5','AND t.attrs = e.attrs) >= 5',1), 'P-3')
+mf4p('E04P: gate esvaziado (OR true)', _o.replace('NOT EXISTS (SELECT 1 FROM l2_seq)','NOT EXISTS (SELECT 1 FROM l2_seq) OR true',1), 'P-3')
+mf4p('E04P: g_rc_identity removido', re.sub(r'\n        \(\(SELECT count\(\*\) FROM rc WHERE ok\) = 3.*?AS g_rc_identity,','',_o,flags=re.S), 'P-2')
+mf4p('E04P: pino da 2207 divergente', _o.replace('49a4ea4b34ccf06a4efdcf06270c52eb','49a4ea4b34ccf06a4efdcf06270c52ec',1), 'P-5')
+mf4p('E04P: pino da 2211 ajustado (identidade inventada)', _o.replace('f10af378c2d5d9fdfd207d9c7d9ff046','f10af378c2d5d9fdfd207d9c7d9ff047',1), 'P-9')
+mf4p('E04P: 2211 sem SECURITY DEFINER esperado', _o.replace("'plpgsql', 's', true,\n            ARRAY['search_path=\"\"'],\n            'TABLE(printing_state","'plpgsql', 's', false,\n            ARRAY['search_path=\"\"'],\n            'TABLE(printing_state",1), 'P-9')
+mf4p('E04P: resultado da 2211 truncado', _o.replace(', residual_stamp text[])\'),\n           (\'internal.compute',')\'),\n           (\'internal.compute',1), 'P-9')
+mf4p('E04P: gate de identidade da RC sem exigir as 3', _o.replace('FROM rc WHERE ok) = 3','FROM rc WHERE ok) >= 1',1), 'P-3')
+mf4p('E04P: token trocado', _o.replace("'EDITION_CONTEXT_MAPPING_SIGNATURE_MISMATCH:'","'EDITION_CONTEXT_MAPPING_SIGNATURE_WRONG:'",1), 'P-6')
+mf4p('E04P: tgtype errado', _o.replace("'card_edition_context_external_mapping_trait', 31,","'card_edition_context_external_mapping_trait', 23,",1), 'P-7')
+mf4p('E04P: SET no SELECT', _o.replace('WITH\ntbl(name)',"SET LOCAL x = 1;\nWITH\ntbl(name)",1), 'P-1')
+mf4p('E04P: invoca a 2211 (efeito fora do catálogo)', _o.replace("'d_session',","'d_call', (SELECT count(*) FROM internal.resolve_variant_row_axes('{}'::jsonb, NULL, NULL, NULL)),\n        'd_session',",1), 'P-1')
+mf4p('E04P: gate_pass sem tratar NULL', _o.replace('WHERE v IS NULL','WHERE false',1), 'P-4')
+mf4p('E04P: constraint exigida inexistente', _o.replace("('ck_cect_family',                  'card_edition_context_trait',","('ck_cect_familyx',                 'card_edition_context_trait',",1), 'P-8')
+mf4p('E04P: constraint na tabela errada', _o.replace("('uq_cecem_id_game',                'card_edition_context_external_mapping',       'u'),","('uq_cecem_id_game',                'card_edition_context_trait',                  'u'),",1), 'P-8')
+mf4p('E04P: predicado de índice parcial trocado', _o.replace("('uq_cecem_active_global', 'external_set_id IS NULL AND is_active',","('uq_cecem_active_global', 'external_set_id IS NULL',",1), 'P-10')
+mf4p('E04P: sequence da N:N não avaliada', _o.replace("           ('card_edition_context_external_mapping_trait')\n),","\n),",1).replace("('card_edition_context_external_mapping'),\n","('card_edition_context_external_mapping')\n",1), 'P-11')
+mf4p('E04P: marcador sem card_printing_external_mapping', _o.replace('AND marker_printing_mapping = 0',' ',1), 'P-3')
+# controles positivos
+posv4.append(('VERIFICADOR positivo: E04 real passa todas as regras', all(ok for _,ok,_ in e04_rules(E04F)), str([n for n,ok,_ in e04_rules(E04F) if not ok])))
+posv4.append(('VERIFICADOR positivo: E04P real passa todas as regras', all(ok for _,ok,_ in e04p_rules(E04PF)), str([n for n,ok,_ in e04p_rules(E04PF) if not ok])))
+posv4.append(('VERIFICADOR positivo: linhas em branco/comentário a mais entre casos não reprovam', all(ok for _,ok,_ in e04_rules(E04F.replace('\n    -- ======','\n\n    -- ======'))), ''))
+posv4.append(('VERIFICADOR positivo: P8 com comentário e linha em branco no preâmbulo não reprova', all(ok for _,ok,_ in e04_rules(E04F.replace(LT_SET_L,'\n    -- comentário\n'+LT_SET_L+'\n',1))), ''))
+posv4.append(('VERIFICADOR positivo: comentário citando LIKE/DELETE/card_set não reprova (só código conta)', all(ok for _,ok,_ in e04_rules(E04F.replace('    -- PREFLIGHT','    -- nota: nunca LIKE, DELETE, LOOP ou card_set.code aqui\n    -- PREFLIGHT',1))), ''))
+posv4.append(('VERIFICADOR positivo: o perfil E03 continua reprovando o E04 (perfis independentes; E03-20 não foi generalizado in loco)', not all(ok for _,ok,_ in e03_rules(E04F,dict(SPEC_E03,tag='h2830_e04'))), ''))
+posv4.append(('VERIFICADOR positivo: lt_split reconhece o preâmbulo do E04 real', lt_split(code(E04F).split('$h2830_e04$')[1])[0], ''))
+
+for title,lst in [('E04-PERFIL',res4),('E04-VERIFICADOR-NEG',negv4),('E04-VERIFICADOR-POS',posv4)]:
+    bad4=[r for r in lst if not r[1]]
+    for n,ok,d in lst: print(('PASS ' if ok else 'FAIL ')+'['+title+'] '+n+(' '+d if d and not ok else ''))
+    print(f'{title} TOTAL {len(lst)} PASS {len(lst)-len(bad4)} FAIL {len(bad4)}')

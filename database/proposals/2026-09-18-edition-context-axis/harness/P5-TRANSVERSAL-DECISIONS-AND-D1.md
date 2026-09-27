@@ -4,7 +4,7 @@
 |---|---|
 | **Documento** | `BATCH12-2830-P5-TRANSVERSAL-DECISIONS-AND-D1-01` (2026-09-27), baseline HEAD `e6af59c18e53b656a54410e80a8b070c4e292a89`. |
 | **Natureza** | Auditoria de estado, matriz de decisões e análise técnica, **documental e local**. Nenhum SQL (nem SELECT), nenhum acesso ao LIVE, nenhum ambiente provisionado, nenhuma cópia de dados, nenhum envelope ou verificador alterado, contrato 2830 intacto. |
-| **Estado** | **PROPOSTA — para auditoria independente e deliberação de Fabrício.** Nenhuma alternativa registrada como aprovada. Nenhuma autorização de escrita LIVE para L2–L13. D-1 **não resolvida**. **FREEZE ATIVO.** |
+| **Estado** | **v1.2 — decisões de engenharia registradas** (`BATCH12-2830-P5-ENGINEERING-DECISIONS-01`, §9): D-2 = C, DP-2 = B, DP-3 = C, DP-4 = A, DP-5 = B; preparação de proposta v7.1 para A2/E1/R-P9 aberta; P7 em via 4 (bloqueio) com investigação das vias 2 e 3; D-1 com arquitetura CN-1/I-L adotada como **proposta**, P14 **não** cumprido. DV-1 **encerrada** (§1.2). A 2830 v7.0 segue vigente e inalterada; nenhuma autorização de escrita LIVE; L2 não implementado. **v1.0/v1.1 (histórico):** proposta sem decisões. **FREEZE ATIVO.** |
 | **Autoridades** | 2830 v7.0 (blob `b4647dcb…`, P1–P14, CRITÉRIOS A–E) · `LIVE-VALIDATION-PROTOCOL.md` (`abe806d6…`, §7 AD-1..AD-10, §8 D-1..D-9) · `PHASE5-AUTOMATED-COVERAGE-READINESS.md` (`1aa8d71d…`, §3–§8) · `2830-V7.1-PROPOSAL-ADMIN-CONCURRENCY.md` (proposta, não aprovada; CN-1..CN-6) · registros LIVE do harness · `EXECUTION-BATCHES.md` (Batch 12). Em divergência, prevalecem as autoridades; este documento não cria critério. |
 | **Convenção** | **[F]** fato comprovado nesta rodada (arquivo, blob, saída registrada) · **[V]** decisão anterior vigente · **[P]** proposta nova · **[E]** pendência de evidência · **[B]** blocker material. |
 
@@ -23,10 +23,11 @@
 | `static_check` | [F] `444/444` · `88/88` · `79/79` · `6/6` (blob `79c4fd42…` inalterado) |
 | Contrato 2830 | [F] `b4647dcb…`, inalterado |
 
-### 1.2 Divergência documental (sinalizada, sem STOP)
+### 1.2 Divergência documental (sinalizada, sem STOP) — **encerrada na v1.2**
 
 - **DV-1 [F]:** o mandato declara E03 **CLOSED, auditado** e cobertura **30/135**. O commit `e6af59c` confirma o fechamento pela mensagem, mas o conteúdo publicado ainda diz o contrário: o registro do E03 (blob `65de509c…`) tem Estado "v1.0 — para auditoria independente" e "cobertura declarada 17/135 até o parecer"; a linha do README e a do `docs/log.md` dizem o mesmo; nenhum documento do repositório registra o parecer PASS nem 30/135.
-- **Tratamento:** este documento adota **30/135 como decisão vigente de Fabrício** (mandato + commit de fechamento) [V], e registra DV-1 como pendência documental. A correção (Revision History 1.1 do registro com o parecer, README, log e, se for o caso, `PHASE5` §3) **não é feita aqui**: está fora do escopo desta rodada. Não afeta segurança, integridade nem os lotes.
+- **Encerramento (v1.2):** `LIVE-L1-E03-EXECUTION-RECORD.md` v1.1 incorpora o parecer PASS e a cobertura 30/135 (novo §8), com o texto da v1.0 preservado; README e log alinhados.
+- **Tratamento (v1.0, histórico):** este documento adota **30/135 como decisão vigente de Fabrício** (mandato + commit de fechamento) [V], e registra DV-1 como pendência documental. A correção (Revision History 1.1 do registro com o parecer, README, log e, se for o caso, `PHASE5` §3) **não é feita aqui**: está fora do escopo desta rodada. Não afeta segurança, integridade nem os lotes.
 
 ### 1.3 Cobertura e posições
 
@@ -237,7 +238,7 @@ Níveis de risco propostos para a política (B): **R1** só EC (L2, L3, L4, L8);
 
 **L2** (2B.1–2B.6, 2T.1–2T.8; 14 casos) [P]: primeiro lote do Grupo A na ordem contratual; escreve só em tabelas EC; reaproveita E00, E99, o padrão E03/E03P, o protocolo S0–S7 e a classificação vigente; precisa de I-2 (perfil no `static_check`) e da generalização da regra E03-20. Condições para o **mandato de implementação** (não de execução): DP-3 (opção A para o Grupo A) e DP-4 (opção A) decididas; readiness de implementação do L2 própria. A execução exige, depois, D-2 (ao menos AD-2 para o L2), DP-5 do lote e mandato próprio.
 
-## 8. Proposta de deliberação conjunta (campos em branco)
+## 8. Proposta de deliberação conjunta (campos em branco — histórico da v1.0/v1.1; a deliberação está no §9)
 
 | # | Decisão | Recomendação técnica | Deliberação de Fabrício |
 |---|---|---|---|
@@ -253,6 +254,66 @@ Níveis de risco propostos para a política (B): **R1** só EC (L2, L3, L4, L8);
 
 Nenhum campo acima está preenchido. Nenhuma autorização de escrita LIVE é criada por este documento.
 
+## 9. Decisões de engenharia registradas (v1.2)
+
+Registro literal do mandato `BATCH12-2830-P5-ENGINEERING-DECISIONS-01` (baseline `36a3bc06`). Nenhuma decisão abaixo altera a 2830 v7.0, autoriza escrita LIVE ou implementa lote.
+
+| # | Decisão | Conteúdo registrado | O que **não** decide |
+|---|---|---|---|
+| 1 | **D-2 = C** | estratégia híbrida: AD-2 operacional (nível 1) para lotes leves; P9b literal para **L10, L11, L13**. A 2830 v7.0 permanece vigente. **AD-2 não satisfaz A2/E1** | não cumpre A2; não satisfaz E1; não muda R-P9 |
+| 1a | **D-2 contratual** | abrir a **preparação** de proposta v7.1 para A2, E1 e R-P9 (nível 4) | não altera nem aprova a 2830 vigente; a v7.1 exige mandato de especificação, auditoria e publicação |
+| 2 | **DP-2 = B** | ordem por infraestrutura; Grupo A **L2 → L3 → L4 → L8 → L9**; Grupo B segundo as dependências documentadas (§4) | não autoriza nenhum lote |
+| 3 | **DP-3 = C** | E00/E99 intactos + precheck específico por lote no Grupo A; sucessores versionados para o Grupo B **só depois** de resolvidos os bloqueios P7 | não cria o sucessor; não altera E00/E99 |
+| 3a | **P7** | **via 4** — bloqueio preservado; investigar a via 2 (correção efetiva) e a via 3 (reformulação demonstrável). Identidade pinada não elimina `search_path` inseguro. Nenhum gate artificialmente verdadeiro | não aprova exceção contratual (via 1); não autoriza DDL |
+| 4 | **DP-4 = A** | P8 transacional (`SET LOCAL lock_timeout = '5s'` + asserção fail-closed) em cada envelope aplicável; **verificador específico por lote**; K1/K8b fora dessa política | não altera o E03 nem a regra E03-20 existente |
+| 5 | **DP-5 = B** | política R0–R4; autorização operacional concreta **sempre por lote**, identificando blob e superfície exata de escrita | não cria autorização coletiva |
+| 6 | **D-1** | adotar **CN-1 / I-L** (Supabase local via CLI e Docker) como **arquitetura proposta**; escopo **K1, K2, K8b, P14 e preparação para P9b** | não declara P14 cumprido; não provisiona; não copia dados |
+| 7 | **DV-1** | encerrada nesta rodada (§1.2) | não reabre o E03 |
+
+**Consequência para o protocolo LIVE [F]:** `LIVE-VALIDATION-PROTOCOL.md` §8 continua registrando D-1 e D-2 como "PENDENTE"; o protocolo não foi alterado nesta rodada (fora do escopo). O estado vigente das duas decisões está neste §9.
+
+## 10. Plano integrado de trabalho (L2, D-1, P7, v7.1)
+
+Quatro trilhas independentes; cada passo exige mandato próprio. Nenhum passo abaixo está autorizado.
+
+| Trilha | Passo | Entrega | Gate de entrada | Gate de saída (STOP se falhar) |
+|---|---|---|---|---|
+| **T1 — L2** | T1.1 readiness de implementação do L2 | contrato literal 2B/2T × 2207/2211, matriz caso → operação → aceite, contrato do E04P e do perfil E04 | §9 registrado e publicado | auditoria independente PASS |
+| | T1.2 implementação local | `2830H_E04P_*.sql`, `2830H_E04_*.sql`, perfil E04 no `static_check` com controles negativos e positivos | T1.1 PASS | `static_check` com perfis E03 e E04 verdes; 444/444 preservado; E03 inalterado |
+| | T1.3 readiness de execução + plano | S0–S7 do L2, DP-5 (R1) do lote | T1.2 auditado e publicado | auditoria PASS |
+| | T1.4 execução LIVE | registro do L2 | mandato de execução próprio | CONFORME + ÍNTEGRO + auditoria ⇒ 44/135 |
+| **T2 — D-1** | T2.1 especificação do ambiente | lista ordenada dos blobs executados (com hash), `config.toml` proposto (PG 17), consulta de impressão digital P14a com md5, roteiro P14c | §9 item 6 | auditoria PASS |
+| | T2.2 provisionamento local | stack de pé na máquina de Fabrício | mandato próprio; Docker disponível [E] | major 17; nenhuma conexão ao LIVE |
+| | T2.3 paridade | P14a nos dois lados (1 SELECT no LIVE, mandato próprio) | T2.2 | impressão digital igual (regra EOL D-6) |
+| | T2.4 canal e K | P14c; K2 (b1), K1/K8b (b2) | T2.3 | critérios D1–D4 da 2830 |
+| | T2.5 P9b (se escopo mantido) | cópia seletiva de catálogo/staging (mandato próprio, sem dados de usuário) e medição de L10, L11, L13 | T2.3 e lotes implementados | P9b literal; regra R-P9 vigente |
+| **T3 — P7** | T3.1 investigação das 4 funções `search_path_unsafe` | para cada uma: corpo (repositório × E00), referências não qualificadas, efeito de `search_path = ''`, chamadores | §9 item 3a | documento de investigação auditado |
+| | T3.2 via 2 ou via 3 | proposta de DDL corretiva (via 2) **ou** demonstração estática de que os casos não disparam a função (via 3) | T3.1 | aprovação expressa; nenhuma mudança cosmética no verificador |
+| | T3.3 sucessor E00′/E99′ | só depois de T3.2 concluída | T3.2 | auditoria PASS |
+| **T4 — v7.1** | T4.1 proposta de especificação | texto proposto para A2, E1 e R-P9, sem aplicar | §9 item 1a | auditoria PASS; aprovação expressa de Fabrício |
+
+**Dependências entre trilhas [P]:** T1 não depende de T2, T3 ou T4 (L2 é Grupo A, AD-2). T3 bloqueia L6, L7, L11, L12. T2 bloqueia K1/K2/K8b, D4 e a P9b de L10, L11, L13. T4 condiciona a forma de cumprir A2/E1 (sem T4, só a P9b literal). O UNFREEZE depende de T2 e de A2 (T2.5 ou T4).
+
+## 11. Minuta do próximo mandato de implementação LOCAL do L2 (não implementado)
+
+**Identificador proposto:** `BATCH12-2830-P5-L2-IMPLEMENTATION-READINESS-01` (fase T1.1), seguido de `BATCH12-2830-P5-L2-IMPLEMENTATION-01` (fase T1.2), por mandatos separados, como no L1.
+
+**Escopo [F, 2830 l. 480–515 e matriz `PHASE5` §2]:** 14 casos — 2B.1 (FXd), 2B.2 (FXd), 2B.3 (FX), 2B.4 (FXd), 2B.5 (RO), 2B.6 (RO), 2T.1–2T.3 (FXd), 2T.4–2T.5 (FX, 23505 em `uq_cecem_active_global` / `uq_cecem_active_scoped`), 2T.6–2T.8 (FXd + chamada à 2211).
+
+**Condições técnicas a tratar na readiness [P/E]:**
+1. fixtures só em `card_edition_context_trait`, `card_edition_context_external_mapping` e `card_edition_context_external_mapping_trait` (R1); UPDATE só em mapping de fixture; nenhuma linha pré-existente tocada;
+2. P4 com `trg_cecem_seal` (IMMEDIATE → medir → DEFERRED) e sondas de modo autocontidas no padrão do E03;
+3. o fecho P7 de `external_mapping`/`mapping_trait` já está no `gate_scope` do E00 e classificado [F, E00 do E03]: `normalize_edition_context_external_mapping`, `enforce_edition_context_mapping_header`, `seal_edition_context_external_mapping`, `enforce_edition_context_mapping_signature_write`, `guard_edition_context_mapping_composition_immutable`, `public.normalize_external_catalog_value` (EOL normalizado, D-6) e `extensions.unaccent` — **não** é afetado pelos bloqueios P7 do Grupo B;
+4. `mapping_trait` tem `touched_now = false` no E00: o E04P precisa provar ausência de sequence nela (padrão `g_nn_no_sequence` do E03P);
+5. 2T.6–2T.8 chamam `internal.resolve_variant_row_axes` (2211; no repositório `STABLE SECURITY DEFINER`, sem DML) com `p_external_set_id` declarado da fixture (via `resolve_variant_mapping_scope`, v7.0): o E04P deve pinar a identidade LIVE da função (md5 com EOL normalizado) [E]; a versão LIVE efetiva (2211 × 2233) tem de ser confirmada;
+6. 2B.5/2B.6 emitem universo (122 esperados) e reprovam com universo 0 sem controle negativo (P13);
+7. DP-4 = A: preâmbulo P8 e generalização da regra E03-20 como regra do perfil E04, sem alterar o comportamento do perfil E03;
+8. D-2 = C: L2 é lote leve (AD-2), aceite `elapsed_ms ≤ 60000`, sem efeito sobre A2/E1.
+
+**Proibições do mandato proposto:** nenhum SQL, nenhum LIVE, nenhum DDL; E00, E99, E03, E03P, E03T e 2830 inalterados; nenhum gate verdadeiro por alteração cosmética; sem `git add`, commit ou push.
+
+**Critério de saída da fase T1.1:** readiness auditada, com fontes pinadas por blob (2207, 2211/2233, 2830) e lista de STOP; nenhum código escrito.
+
 ---
 
 **Fontes externas (consultadas só para fatos de custo e configuração):**
@@ -267,3 +328,4 @@ Nenhum campo acima está preenchido. Nenhuma autorização de escrita LIVE é cr
 |---|---|
 | 1.0 | **Criação (2026-09-27, `BATCH12-2830-P5-TRANSVERSAL-DECISIONS-AND-D1-01`, baseline `e6af59c1`), documental, sem SQL e sem LIVE.**<br>• gate de entrada conforme; divergência documental DV-1 (30/135 e parecer do E03 ainda não registrados no repositório) sinalizada, sem STOP;<br>• estado efetivo de D-1, D-2, DP-2 a DP-6 (decisões do E01/E03T/E03 não se estendem);<br>• matriz de decisões D-2, DP-2, DP-3, DP-4, DP-5 com opções, impactos, reaproveitamento do E03 e recomendação; ponto crítico: AD-2 não cumpre A2/E1 sem cláusula expressa; risco R-P9;<br>• achado [B]: 8 funções `UNCLASSIFIED` (4 `search_path_unsafe`, 4 com CRLF) no fecho P7 de `card_variant`/job/row, que impedem estender o E00 ao Grupo B sem adjudicação;<br>• D-1: alternativas I-L, I-F, I-B, I-P, I-S (I-X rejeitada), proposta D1-0..D1-3 com aceite e STOP; D-1 não resolvida;<br>• matriz dos 12 lotes (Grupo A 45 casos, Grupo B 60), caminho crítico, critérios históricos/manuais, próximo lote L2, deliberação conjunta em branco. FREEZE ATIVO. |
 | 1.1 | **Correção da auditoria independente (2026-09-27, `BATCH12-2830-P5-TRANSVERSAL-AUDIT-CORRECTION-01`, baseline `e6af59c1`), documental, sem SQL e sem LIVE.**<br>• A-1: D-2 separa adaptação operacional (nível 1), cumprimento literal de P9b/A2 (nível 2), satisfação de E1 (nível 3) e alteração formal da 2830 (nível 4); retirada a ideia de que uma deliberação operacional faz AD-2 cumprir A2/E1 ou troca a regra R-P9; R-P9 preservado até alteração formal; §3.4, §5 e §8 alinhados;<br>• A-2: identidade pinada não corrige `search_path` inseguro; vias 1 (exceção contratual formal), 2 (correção da função), 3 (reformulação demonstrada) e 4 (manter bloqueio); proibição de gate verdadeiro por alteração cosmética do verificador; recomendação: via 4 até 2 ou 3 demonstradas;<br>• A-3: DP-2 = B com 45 casos (Grupo A 45, Grupo B 60, total 105).<br>Demais opções, recomendações e evidências inalteradas. FREEZE ATIVO. |
+| 1.2 | **Decisões de engenharia (2026-09-27, `BATCH12-2830-P5-ENGINEERING-DECISIONS-01`, baseline `36a3bc06`), documental, sem SQL e sem LIVE.**<br>• §9: D-2 = C (AD-2 operacional nos leves, P9b literal em L10/L11/L13; 2830 v7.0 vigente; AD-2 não satisfaz A2/E1); preparação de proposta v7.1 para A2/E1/R-P9 aberta; DP-2 = B; DP-3 = C; P7 em via 4 com investigação das vias 2 e 3; DP-4 = A com verificador por lote; DP-5 = B; D-1 com CN-1/I-L como arquitetura proposta (P14 não cumprido);<br>• DV-1 encerrada (registro do E03 v1.1, README e log);<br>• §10 plano integrado T1 (L2), T2 (D-1), T3 (P7), T4 (v7.1) com gates; §11 minuta do mandato LOCAL do L2 (não implementado);<br>• §1–§8 preservados como histórico (§8 com campos em branco). FREEZE ATIVO. |

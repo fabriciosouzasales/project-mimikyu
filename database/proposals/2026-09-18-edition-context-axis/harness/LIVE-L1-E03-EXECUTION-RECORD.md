@@ -6,8 +6,8 @@
 | **Mandato** | `BATCH12-2830-P5-L1-E03-LIVE-EXECUTION-01`. Baseline HEAD `3a089e08c17b8c790d991b584dd9301c69739117`. Decisões DP-1 = A, DP-4 = A, DP-5 = A, `MAX_L3_D = 2`, reconhecimento contratual = SIM. |
 | **Autorização** | Expressa e limitada, de Fabrício, no mandato: só as escritas transitórias do E03 blob `ef24a3be7d7fd2f1081b1d13e6bf2d000d451d7e` (DP-5 = A), com rollback obrigatório e verificação posterior, numa única execução. Não contempla L2 nem outro lote, alteração de SQL, migration, limpeza, retry ou alteração de configuração. **Esgotada nesta execução.** |
 | **Resultado** | **CONFORME.** `H283P`, `pass=13/13`, casos `2.1,2.2,2.3,2.4,2.5,2.7,2.8,2.9,2.10,2.11,2.12,2.13,2.14`, marcador `H2830_DB0A64F6039349658EA013D218D2C452`, contexto `line 1703`, `elapsed_ms=202`. Postcheck **ÍNTEGRO** (E99 9/9, `d_diff = []`, `d_canon_diff = []`; L3 final limpa). Fluxo normal, sem L3-D. |
-| **Efeito contratual** | **Proposta** `2.1–2.5, 2.7–2.14 PASS`, **sujeita à auditoria independente do ChatGPT**. Cobertura LIVE declarada: **17/135** até o parecer (30/135 só depois dele). |
-| **Estado** | **v1.0 — para auditoria independente.** Registro não publicado (sem `git add`, commit ou push). **FREEZE ATIVO.** |
+| **Efeito contratual** | **v1.1 (vigente):** `2.1–2.5, 2.7–2.14 PASS` **reconhecidos** após a auditoria independente; cobertura LIVE **30/135** (§8). **v1.0 (histórico):** proposta sujeita à auditoria; cobertura declarada 17/135 até o parecer. |
+| **Estado** | **v1.1 — CLOSED** (`BATCH12-2830-P5-ENGINEERING-DECISIONS-01`): auditoria independente **PASS**; registro publicado em `e6af59c1`; 13 PASS contratuais reconhecidos; cobertura LIVE **30/135** (§8). **v1.0 (histórico):** "para auditoria independente; registro não publicado". **FREEZE ATIVO.** |
 | **Papéis** | **Claude**: executor. **ChatGPT**: auditor independente. **Fabrício**: autorizações, commit e push. |
 
 ---
@@ -168,6 +168,14 @@ E99 completo com todos os critérios **e** L3 final completa, sem lock no escopo
 - Não executados: L2, L3-D, L4, E01, E02, E03T, qualquer outro lote.
 - Sem `git add`, commit ou push. Este registro, a linha do README e a linha do `docs/log.md` ficam para auditoria e publicação por Fabrício.
 - A autorização de escrita transitória do E03 (DP-5 = A) limitou-se a esta execução e está esgotada. **FREEZE ATIVO.**
+
+## 8. Fechamento (v1.1) — parecer independente e cobertura
+
+- **Parecer:** auditoria técnica independente (ChatGPT) **PASS** sobre este registro, comunicada por Fabrício nos mandatos `BATCH12-2830-P5-TRANSVERSAL-DECISIONS-AND-D1-01` ("E03 CLOSED, auditado e publicado; cobertura contratual reconhecida: 30/135") e `BATCH12-2830-P5-ENGINEERING-DECISIONS-01`, e refletida no commit `e6af59c18e53b656a54410e80a8b070c4e292a89` ("close out audited E03 live execution with 13 contractual passes"). O texto integral do parecer não está no repositório; fica registrado o resultado.
+- **Efeito contratual vigente:** `2.1, 2.2, 2.3, 2.4, 2.5, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14 PASS`. Cobertura LIVE **30/135** = 1.1–1.12 (Etapa 3) + D1–D5 (Etapa 2) + os 13 acima. `2.6` continua reservado ao lote L5.
+- **Desvio D-1 (§6):** permanece registrado como estava; o registro auditado já o continha. Nenhuma ressalva adicional consta do repositório.
+- **Texto histórico preservado:** §5 ("efeito contratual proposto, não declarado"), §6 e §7 ("17/135 até o parecer") descrevem o estado da v1.0, antes do parecer, e não foram alterados.
+- **Sem reabertura:** nenhum envelope, texto submetido ou resultado da execução foi alterado. A autorização DP-5 do E03 continua esgotada. **FREEZE ATIVO.**
 
 ---
 
@@ -425,3 +433,4 @@ Ver §3 (resposta integral do canal).
 | Versão | Descrição |
 |---|---|
 | 1.0 | **Execução e registro (2026-09-27, `BATCH12-2830-P5-L1-E03-LIVE-EXECUTION-01`, baseline `3a089e08`).** 7 chamadas `execute_sql` (L1 → L3 → E00 → E03P → E03 → E99 → L3 final), sem L3-D. E03 `ef24a3be…`: `H283P`, `pass=13/13`, 13 casos na ordem, marcador `H2830_DB0A64F6039349658EA013D218D2C452`, contexto `line 1703`, `elapsed_ms=202`. E99 9/9, `d_diff = []`; L3 final limpa; postcheck ÍNTEGRO; classificação **CONFORME**. Proposta `2.1–2.5, 2.7–2.14 PASS`, sujeita à auditoria independente; cobertura declarada 17/135 até o parecer. Desvio D-1 (S6 e S7 despachados no mesmo lote; ordem provada pelos horários do banco). DP-5 esgotada. FREEZE ATIVO. |
+| 1.1 | **Fechamento (2026-09-27, `BATCH12-2830-P5-ENGINEERING-DECISIONS-01`, baseline `36a3bc06`), documental, sem SQL e sem LIVE.** Encerra a divergência DV-1: incorpora o parecer independente PASS (comunicado por Fabrício; commit `e6af59c1`) e a cobertura reconhecida **30/135** (novo §8; campos Estado e Efeito contratual com v1.1 vigente e v1.0 histórica). Execução, textos submetidos, saídas e §1–§7 preservados; E03 não reaberto. FREEZE ATIVO. |
