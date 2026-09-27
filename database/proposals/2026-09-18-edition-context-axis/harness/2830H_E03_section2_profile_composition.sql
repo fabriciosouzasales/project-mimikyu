@@ -4,9 +4,12 @@
 --   (2.6 reservado ao lote L5 — NÃO implementado aqui)
 -- ============================================================================
 -- Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO, NÃO COMPILADO no
---                 PostgreSQL (BATCH12-2830-P5-L1-E03-IMPLEMENTATION-01).
---                 Execução exige mandato próprio, E00 e E03P com gate_pass e
---                 as decisões DP-1, DP-4, DP-5 (e DP-7 para o E03T).
+--                 PostgreSQL (BATCH12-2830-P5-L1-E03-IMPLEMENTATION-01;
+--                 DP-4 = A implementada em
+--                 BATCH12-2830-P5-L1-E03-DECISION-AND-IMPLEMENTATION-01).
+--                 Execução exige auditoria deste blob, publicação, mandato
+--                 próprio e E00 e E03P com gate_pass (DP-1 = A, DP-4 = A,
+--                 DP-5 = A decididas para o E03).
 -- Contrato ...... 2830_validate_edition_context_foundation.sql v7.0 · blob
 --                 b4647dcb59432405c8157e2733fd78678f35540e (l. 453–477;
 --                 autoridade imutável; este arquivo a implementa, não a altera)
@@ -46,10 +49,18 @@
 --   trait WHERE profile_id = v_p AND trait_id = v_t1 (2.4). Tabelas com id
 --   UUID (gen_random_uuid): sem sequence (E03P g_nn_no_sequence + E00).
 --
--- P8 lock_timeout — DECISÃO PENDENTE (DP-4). Se autorizada, uma linha
---   'SET LOCAL lock_timeout' passa a ser a PRIMEIRA instrução do corpo, com
---   asserção inicial e ajuste do perfil E03 do static_check. Enquanto não
---   autorizada, NÃO é emitida.
+-- P8 lock_timeout — DP-4 = A (decisão de Fabrício, E03 apenas). A PRIMEIRA
+--   instrução executável do corpo (depois do DECLARE) é
+--   SET LOCAL lock_timeout = '5s', seguida da asserção fail-closed
+--   current_setting('lock_timeout') = '5s' (senão H283F caso=PREFLIGHT),
+--   antes de qualquer leitura de fixture ou escrita. Escopo: a transação do
+--   DO. O bloco principal não tem EXCEPTION, então o SET não fica numa
+--   subtransação: vale para todos os casos (subtransações herdam o valor e o
+--   abort de cada uma restaura o valor do seu início, 5s) e é desfeito pelo
+--   término SEMPRE em exceção (H283P/H283F). Não persistência provada fora:
+--   E99 g_lock_timeout_default ('0') e g_role_setting_unchanged. Nunca SET
+--   de sessão, set_config ou ALTER ROLE/DATABASE. Espera de lock > 5s ⇒
+--   55P03 ⇒ H2830_FAIL (nunca PASS), sem retry.
 -- ============================================================================
 DO $h2830_e03$
 DECLARE
@@ -89,6 +100,15 @@ DECLARE
     v_q        uuid;
     v_qok      boolean;
 BEGIN
+    -- ------------------------------------------------------------------ --
+    -- P8 / DP-4 = A: lock_timeout transacional, primeira instrução executável
+    -- ------------------------------------------------------------------ --
+    SET LOCAL lock_timeout = '5s';
+    IF current_setting('lock_timeout') IS DISTINCT FROM '5s' THEN
+        RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+            'H2830_FAIL: envelope=%s caso=PREFLIGHT lock_timeout=%s (esperado 5s)', c_env, current_setting('lock_timeout'));
+    END IF;
+
     -- ------------------------------------------------------------------ --
     -- PREFLIGHT (não é caso; falha = H2830_FAIL, nunca PASS)
     -- ------------------------------------------------------------------ --

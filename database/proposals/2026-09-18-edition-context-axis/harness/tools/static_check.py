@@ -589,7 +589,8 @@ print(f'TOTAL {len(res)} PASS {len(res)-len(bad)} FAIL {len(bad)}')
 # ===========================================================================
 # BATCH12-2830-P5-L1-E03-IMPLEMENTATION-01 — PERFIS E03 / E03T / E03P
 # Contrato: L1-E03-IMPLEMENTATION-READINESS.md v1.1 (blob 220fbd8b…), §5 e §6
-# (regras E03-1 a E03-19). Contagem SEPARADA do baseline acima (444): as
+# (regras E03-1 a E03-19; E03-20 = P8/DP-4 em
+# BATCH12-2830-P5-L1-E03-DECISION-AND-IMPLEMENTATION-01). Contagem SEPARADA do baseline acima (444): as
 # verificações novas não entram em `res`, para o baseline continuar
 # reproduzível byte a byte. Três blocos, cada um com total próprio:
 #   E03-PERFIL ............ regras aplicadas aos arquivos reais (E03, E03T, E03P)
@@ -626,10 +627,11 @@ PROBE_BLOCK_RE=re.compile(r"v_qn\s*:=\s*v_qn \+ 1;.*?END IF;\s*v_q\s*:=\s*NULL;"
 SPEC_E03=dict(label='E03',tag='h2830_e03',env='E03_SECAO2_COMPOSICAO_PROFILE',
               cases=['2.1','2.2','2.3','2.4','2.5','2.7','2.8','2.9','2.10','2.11','2.12','2.13','2.14'],
               n_imm=11,n_def=13,n_probe=11,n_neg=9,n_update=4,n_delete=1,tokens=TOKENS5,rowcount_case='2.14',step_cases=['2.2','2.7'],
-              imm_per_case={'2.1':1,'2.2':1,'2.3':1,'2.4':1,'2.5':0,'2.7':2,'2.8':0,'2.9':1,'2.10':1,'2.11':0,'2.12':1,'2.13':1,'2.14':1})
+              imm_per_case={'2.1':1,'2.2':1,'2.3':1,'2.4':1,'2.5':0,'2.7':2,'2.8':0,'2.9':1,'2.10':1,'2.11':0,'2.12':1,'2.13':1,'2.14':1},
+              lock_timeout=True)
 SPEC_E03T=dict(label='E03T',tag='h2830_e03t',env='E03T_N1_CONTROLE',cases=['T1','T2','T3'],
                n_imm=4,n_def=5,n_probe=4,n_neg=1,n_update=0,n_delete=0,tokens={'EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION'},
-               rowcount_case=None,step_cases=['T2'],imm_per_case={'T1':1,'T2':1,'T3':2})
+               rowcount_case=None,step_cases=['T2'],imm_per_case={'T1':1,'T2':1,'T3':2},lock_timeout=False)
 
 def _neg_blocks(cs):
     """Sub-blocos negativos: (begin, exc, end_handler_exclusive). Padrão E01: BEGIN … EXCEPTION WHEN OTHERS THEN v_got := true; … END;"""
@@ -639,6 +641,27 @@ def _neg_blocks(cs):
         e=cs.find('END;',m.end())
         out.append((b,m.start(),e+4 if e>=0 else -1))
     return out
+
+# --------------------------------------------------------------------------
+# DP-4 = A (BATCH12-2830-P5-L1-E03-DECISION-AND-IMPLEMENTATION-01), SÓ para o
+# E03: o preâmbulo P8 é a PRIMEIRA instrução executável do bloco principal,
+# exatamente como abaixo (espaços livres; texto e ordem exatos). Somente este
+# SET LOCAL é excluído do E03-2/E03-5; qualquer outro SET LOCAL, SET de sessão,
+# set_config ou ALTER continua reprovando. O E03T (DP-4 = B) continua sem SET
+# LOCAL algum.
+# --------------------------------------------------------------------------
+LT_PRE_RE=re.compile(r"BEGIN\s*SET LOCAL lock_timeout = '5s';\s*"
+                     r"IF current_setting\('lock_timeout'\) IS DISTINCT FROM '5s' THEN\s*"
+                     r"RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format\(\s*"
+                     r"'H2830_FAIL: envelope=%s caso=PREFLIGHT lock_timeout=%s \(esperado 5s\)', c_env, current_setting\('lock_timeout'\)\);\s*"
+                     r"END IF;")
+def lt_split(body):
+    """(preâmbulo canônico no início exato do bloco principal?, corpo sem ele)."""
+    m0=re.search(r'\bBEGIN\b',body)
+    if not m0: return False,body
+    m=LT_PRE_RE.match(body,m0.start())
+    if not m: return False,body
+    return True,body[:m0.start()]+'BEGIN'+body[m.end():]
 
 def e03_rules(src,S):
     out=[]
@@ -650,8 +673,19 @@ def e03_rules(src,S):
     ck('E03-1','nada executável fora do DO',len(parts)==3 and parts[0].strip().upper()=='DO' and parts[2].strip()==';')
     body=parts[1] if len(parts)==3 else ''
     ns=nostr(body); U=ns.upper()
+    lt_ok,body_eff=lt_split(body) if S.get('lock_timeout') else (False,body)
+    ns_eff=nostr(body_eff); U_eff=ns_eff.upper()
+    # E03-20 (DP-4) ----------------------------------------------------------
+    if S.get('lock_timeout'):
+        ck('E03-20',"primeira instrução executável do bloco principal = SET LOCAL lock_timeout = '5s' seguida da asserção fail-closed exata (IS DISTINCT FROM '5s' ⇒ H283F caso=PREFLIGHT), antes de qualquer leitura ou escrita",lt_ok)
+        ck('E03-20',"exatamente 1 SET LOCAL e 1 asserção de lock_timeout no corpo; nenhum outro uso de lock_timeout",
+           len(re.findall(r'\bSET\s+LOCAL\b',U))==1 and len(re.findall(r"current_setting\('lock_timeout'\)",body))==2
+           and len(re.findall(r'lock_timeout',body,re.I))==4,str(len(re.findall(r'lock_timeout',body,re.I))))
+    else:
+        ck('E03-20',"sem SET LOCAL e sem lock_timeout (DP-4 = B vale só para este envelope)",
+           not re.search(r'\bSET\s+LOCAL\b',U) and not re.search(r'lock_timeout',body,re.I))
     # E03-2 ------------------------------------------------------------------
-    hits=[t for t in FORB3 if re.search(t,U)]
+    hits=[t for t in FORB3 if re.search(t,U_eff)]
     ck('E03-2','tokens proibidos ausentes (COMMIT, EXECUTE, TEMP, SET LOCAL/ROLE/SESSION, set_config, DDL, LOCK, …)',not hits,str(hits))
     # E03-3 / E03-4 --------------------------------------------------------------
     ups=[norm(x)[:-1] for x in re.findall(r'\bUPDATE\b[^;]*;',ns)]
@@ -661,7 +695,7 @@ def e03_rules(src,S):
     ck('E03-4',f"DELETE só na N:N de fixture (profile_id = v_p… AND trait_id = v_t…), {S['n_delete']} esperados",
        len(dels)==S['n_delete'] and all(DELETE_RE.match(d) for d in dels),str([d for d in dels if not DELETE_RE.match(d)] or len(dels)))
     # E03-5 ------------------------------------------------------------------
-    ns_noup=re.sub(r'\bUPDATE\b[^;]*;',' ',ns)
+    ns_noup=re.sub(r'\bUPDATE\b[^;]*;',' ',ns_eff)
     sets=[norm(x) for x in re.findall(r'\bSET\b[^;]*;',ns_noup)]
     ck('E03-5','todo SET é exatamente SET CONSTRAINTS dos 2 selos IMMEDIATE|DEFERRED',all(s in (IMM_S,DEF_S) for s in sets),str([s for s in sets if s not in (IMM_S,DEF_S)]))
     ck('E03-5',f"totais: {S['n_imm']} IMMEDIATE e {S['n_def']} DEFERRED",sets.count(IMM_S)==S['n_imm'] and sets.count(DEF_S)==S['n_def'],f'{sets.count(IMM_S)}/{sets.count(DEF_S)}')
@@ -913,7 +947,7 @@ def sub1(t,a,b,count=1):
 _seg27=E03F[E03F.index("v_case := '2.7'"):]
 must_fail('COMMIT no corpo', sub1(E03F,'    SELECT id INTO v_game','    COMMIT;\n    SELECT id INTO v_game'), 'E03-2')
 must_fail('SQL dinâmico (EXECUTE)', sub1(E03F,'    SELECT id INTO v_game',"    EXECUTE 'SELECT 1';\n    SELECT id INTO v_game"), 'E03-2')
-must_fail('SET LOCAL lock_timeout (DP-4 não decidida)', sub1(E03F,'    SELECT id INTO v_game',"    SET LOCAL lock_timeout = '5s';\n    SELECT id INTO v_game"), 'E03-2')
+must_fail('SET LOCAL lock_timeout adicional, fora da posição canônica', sub1(E03F,'    SELECT id INTO v_game',"    SET LOCAL lock_timeout = '5s';\n    SELECT id INTO v_game"), 'E03-2')
 must_fail('set_config', sub1(E03F,'    SELECT id INTO v_game',"    SELECT set_config('x','y',true) INTO v_msg;\n    SELECT id INTO v_game"), 'E03-2')
 must_fail('CREATE TEMP TABLE', sub1(E03F,'    SELECT id INTO v_game','    CREATE TEMP TABLE x (a int);\n    SELECT id INTO v_game'), 'E03-2')
 must_fail('SET ROLE', sub1(E03F,'    SELECT id INTO v_game','    SET ROLE authenticated;\n    SELECT id INTO v_game'), 'E03-2')
@@ -966,6 +1000,36 @@ must_fail('v_q reutilizado fora da sonda', sub1(E03F,'    SELECT id INTO v_game'
 must_fail('aceite do 2.7 sem v_step', sub1(E03F,"v_tab IS DISTINCT FROM 'card_edition_context_profile' OR v_step IS DISTINCT FROM 'IMMEDIATE'","v_tab IS DISTINCT FROM 'card_edition_context_profile'"), 'E03-19')
 must_fail("v_step 'IMMEDIATE' fora de posição no 2.2", E03F.replace("                v_step := 'IMMEDIATE';\n","",1).replace("            v_step := 'IMMEDIATE';\n","",1), 'E03-19')
 must_fail('BEGIN sem END', sub1(E03F,'    SELECT id INTO v_game','    BEGIN\n    SELECT id INTO v_game'), 'E03-16')
+# --- DP-4 = A: preâmbulo P8 (E03-20) e rejeição de variantes inseguras ---
+LT_SET_L="    SET LOCAL lock_timeout = '5s';\n"
+LT_IF_L="    IF current_setting('lock_timeout') IS DISTINCT FROM '5s' THEN\n"
+_lt_a=E03F.index(LT_SET_L); _lt_b=E03F.index('    END IF;\n',_lt_a)+len('    END IF;\n')
+LT_BLOCK=E03F[_lt_a:_lt_b]
+E03_NOLT=E03F[:_lt_a]+E03F[_lt_b:]
+_ins21=E03F.index('RETURNING id INTO v_t1;\n',E03F.index("v_case := '2.1'"))+len('RETURNING id INTO v_t1;\n')
+must_fail('P8: preâmbulo removido (sem SET LOCAL e sem asserção)', E03_NOLT, 'E03-20')
+must_fail('P8: asserção removida (SET LOCAL mantido)', E03F[:_lt_a]+LT_SET_L+E03F[_lt_b:], 'E03-20')
+must_fail('P8: asserção neutralizada (IF false)', sub1(E03F,LT_IF_L,"    IF false THEN\n"), 'E03-20')
+must_fail("P8: SET LOCAL com outro valor ('10s')", sub1(E03F,LT_SET_L,"    SET LOCAL lock_timeout = '10s';\n"), 'E03-20')
+must_fail("P8: asserção com outro valor ('0')", sub1(E03F,LT_IF_L,"    IF current_setting('lock_timeout') IS DISTINCT FROM '0' THEN\n"), 'E03-20')
+must_fail('P8: asserção com <> no lugar de IS DISTINCT FROM', sub1(E03F,LT_IF_L,"    IF current_setting('lock_timeout') <> '5s' THEN\n"), 'E03-20')
+must_fail('P8: asserção sem H283F (H283C)', E03F[:_lt_a]+LT_BLOCK.replace("'H283F'","'H283C'")+E03F[_lt_b:], 'E03-20')
+must_fail('P8: SET LOCAL deslocado para depois da primeira escrita (2.1)', E03_NOLT[:E03_NOLT.index('RETURNING id INTO v_t1;\n',E03_NOLT.index("v_case := '2.1'"))+len('RETURNING id INTO v_t1;\n')]+LT_BLOCK+E03_NOLT[E03_NOLT.index('RETURNING id INTO v_t1;\n',E03_NOLT.index("v_case := '2.1'"))+len('RETURNING id INTO v_t1;\n'):], 'E03-20')
+must_fail('P8: SET LOCAL deslocado para depois da leitura de preflight', sub1(E03_NOLT,'    SELECT id INTO v_game FROM public.game',LT_BLOCK+'    SELECT id INTO v_game FROM public.game'), 'E03-20')
+must_fail('P8: SET LOCAL deslocado para depois da primeira escrita (2.1) — E03-2', E03_NOLT[:E03_NOLT.index('RETURNING id INTO v_t1;\n',E03_NOLT.index("v_case := '2.1'"))+len('RETURNING id INTO v_t1;\n')]+LT_BLOCK+E03_NOLT[E03_NOLT.index('RETURNING id INTO v_t1;\n',E03_NOLT.index("v_case := '2.1'"))+len('RETURNING id INTO v_t1;\n'):], 'E03-2')
+must_fail('P8: preâmbulo duplicado', E03F[:_lt_b]+LT_BLOCK+E03F[_lt_b:], 'E03-20')
+must_fail('P8: preâmbulo duplicado — E03-2', E03F[:_lt_b]+LT_BLOCK+E03F[_lt_b:], 'E03-2')
+must_fail('P8: SET LOCAL statement_timeout adicional', sub1(E03F,'    SELECT id INTO v_game',"    SET LOCAL statement_timeout = '0';\n    SELECT id INTO v_game"), 'E03-2')
+must_fail('P8: SET de sessão (sem LOCAL) no lugar do SET LOCAL', sub1(E03F,LT_SET_L,"    SET lock_timeout = '5s';\n"), 'E03-20')
+must_fail('P8: SET de sessão (sem LOCAL) — E03-5', sub1(E03F,LT_SET_L,"    SET lock_timeout = '5s';\n"), 'E03-5')
+must_fail('P8: SET SESSION lock_timeout', sub1(E03F,LT_SET_L,"    SET SESSION lock_timeout = '5s';\n"), 'E03-2')
+must_fail('P8: set_config no lugar do SET LOCAL', sub1(E03F,LT_SET_L,"    SELECT set_config('lock_timeout', '5s', true) INTO v_msg;\n"), 'E03-2')
+must_fail('P8: set_config no lugar do SET LOCAL — E03-20', sub1(E03F,LT_SET_L,"    SELECT set_config('lock_timeout', '5s', true) INTO v_msg;\n"), 'E03-20')
+must_fail('P8: ALTER ROLE … SET lock_timeout', sub1(E03F,'    SELECT id INTO v_game',"    ALTER ROLE postgres SET lock_timeout = '5s';\n    SELECT id INTO v_game"), 'E03-2')
+must_fail('P8: SET LOCAL dentro de um caso (subtransação)', sub1(E03F,"        SELECT COALESCE(max(display_order), 0) INTO v_ord_t","        SET LOCAL lock_timeout = '5s';\n        SELECT COALESCE(max(display_order), 0) INTO v_ord_t"), 'E03-2')
+must_fail('P8: SET CONSTRAINTS alterado para ALL junto do preâmbulo', sub1(E03F,LT_SET_L,LT_SET_L+"    SET CONSTRAINTS ALL DEFERRED;\n"), 'E03-5')
+must_fail('P8 no E03T: SET LOCAL canônico inserido (DP-4 = B só E03T)', sub1(E03TF,"    SELECT count(*) INTO v_n FROM public.game WHERE code = 'POKEMON';","    SET LOCAL lock_timeout = '5s';\n    SELECT count(*) INTO v_n FROM public.game WHERE code = 'POKEMON';"), 'E03-2', e03_rules, SPEC_E03T)
+must_fail('P8 no E03T: SET LOCAL canônico inserido — E03-20', sub1(E03TF,"    SELECT count(*) INTO v_n FROM public.game WHERE code = 'POKEMON';","    SET LOCAL lock_timeout = '5s';\n    SELECT count(*) INTO v_n FROM public.game WHERE code = 'POKEMON';"), 'E03-20', e03_rules, SPEC_E03T)
 # E03P
 must_fail('E03P: gate flexibilizado (>= 4)', E03PF.replace('AND t.attrs = e.attrs) = 4','AND t.attrs = e.attrs) >= 4',1), 'P-3', e03p_rules, None)
 must_fail('E03P: gate esvaziado (OR true)', E03PF.replace('NOT EXISTS (SELECT 1 FROM nn_seq)','NOT EXISTS (SELECT 1 FROM nn_seq) OR true',1), 'P-3', e03p_rules, None)
@@ -981,6 +1045,8 @@ posv.append(('VERIFICADOR positivo: E03 real passa todas as regras', all(ok for 
 posv.append(('VERIFICADOR positivo: E03T real passa todas as regras', all(ok for _,ok,_ in e03_rules(E03TF,SPEC_E03T)), ''))
 posv.append(('VERIFICADOR positivo: E03P real passa todas as regras', all(ok for _,ok,_ in e03p_rules(E03PF)), ''))
 posv.append(('VERIFICADOR positivo: whitespace/comentário irrelevante não reprova (E03 reindentado)', all(ok for _,ok,_ in e03_rules(E03F.replace('\n    -- ======','\n\n    -- ======'),SPEC_E03)), ''))
+posv.append(('VERIFICADOR positivo: P8 com comentário e linhas em branco a mais no preâmbulo não reprova', all(ok for _,ok,_ in e03_rules(E03F.replace(LT_SET_L,'\n    -- comentário\n'+LT_SET_L+'\n',1),SPEC_E03)), ''))
+posv.append(('VERIFICADOR positivo: lt_split reconhece o preâmbulo do E03 real e não reconhece o do E03T', lt_split(code(E03F).split('$h2830_e03$')[1])[0] and not lt_split(code(E03TF).split('$h2830_e03t$')[1])[0], ''))
 
 for title,lst in [('E03-PERFIL',res3),('E03-VERIFICADOR-NEG',negv),('E03-VERIFICADOR-POS',posv)]:
     bad3=[r for r in lst if not r[1]]
