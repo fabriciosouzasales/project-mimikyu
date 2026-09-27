@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | **Natureza** | Registro das tentativas da Etapa 1 do `LIVE-VALIDATION-PROTOCOL.md` v1.4, executadas pelo `LIVE-STAGE1-RUNBOOK.md` v1.3. |
-| **Estado atual** | **Etapa 1 não concluída. Nenhum PASS formal registrado.** Ocorrência 01: governança, consultas feitas fora da atribuição. Tentativa 02: STOP em PC-1, sem SQL. Tentativa 03: **STOP em S1.3 (E00)** — `g_p7_identity_pinned = false` (L2: TRANSPORT/EOL-ONLY) e `g_no_enabled_event_triggers = false`; adjudicação documental feita. **Correção do harness aplicada localmente** (`…-CORRECTION-01`), não commitada e não compilada no PostgreSQL. D-9 pendente e `evt_allowlist` vazia. Etapa 2 **não autorizada**. |
+| **Estado atual** | **Etapa 1 não concluída. Nenhum PASS formal registrado.** Ocorrência 01: governança, consultas feitas fora da atribuição. Tentativa 02: STOP em PC-1, sem SQL. Tentativa 03: **STOP em S1.3 (E00)** — `g_p7_identity_pinned = false` (L2: TRANSPORT/EOL-ONLY) e `g_no_enabled_event_triggers = false`; adjudicação documental feita. Correção do harness publicada em `9a4cff16` (`…-CORRECTION-01`), ainda não compilada no PostgreSQL. **L4 executada** (`…-L4-EVENT-TRIGGER-INVENTORY-01`): saída válida pelos 6 critérios. **D-9 APROVADA** e incorporada localmente (`…-D9-EVENT-TRIGGER-ALLOWLIST-01`, sem SQL): `evt_allowlist` com as 6 exceções, não commitada, não compilada. Tentativa 04 **não iniciada**. Etapa 2 **não autorizada**. |
 | **Papéis** | **Claude**: único executor autorizado. **ChatGPT**: auditor independente, sem atribuição de execução. **Fabrício**: autorizações, commit e push. |
 | **FREEZE** | ATIVO. |
 
@@ -266,6 +266,152 @@ Detalhes, hashes e scripts: `LIVE-STAGE1-STOP-ADJUDICATION.md` §9. Diff integra
 
 ---
 
+## L4 — inventário de event triggers — `BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01`
+
+**Data:** 2026-09-27 02:08:42.895092 UTC (`checked_at`, relógio do banco). **Executor:** Claude. **Canal:** MCP `execute_sql`, projeto `qjfutqujxrbzgrtkpgkg`, **uma** chamada. **Natureza:** evidência para D-9. **Não** é passo da Etapa 1, não produz PASS e não autoriza a Etapa 2.
+
+### 1. Pré-condições
+
+| Item | Resultado |
+|---|---|
+| HEAD | `9a4cff16a4796845db4d1947db52df24183baa56` (= baseline do mandato) |
+| Árvore | limpa (`git status --porcelain` = 0 linhas) |
+| Bloco L4 (roteiro v1.4 §3.5) | md5 `f3670eb8f149064610055720b0636218`, 2.416 B — igual ao declarado no §0 do roteiro |
+| `static_check.py` | 420/420 |
+| Texto submetido | o bloco integral, sem edição |
+
+### 2. Validação da saída (roteiro §3.5)
+
+| # | Critério | Resultado |
+|---|---|---|
+| 1 | Chaves obrigatórias presentes | **OK** (as 8) |
+| 2 | `inventory_complete = true`; `catalog_count` = `inventory_count` = elementos de `triggers` = elementos de `catalog_names` | **OK**: `true`; 6 = 6 = 6 = 6 |
+| 3 | Nomes de `triggers` = `catalog_names` | **OK** |
+| 4 | Todo `fn_resolved = true` | **OK** (6/6) |
+| 5 | md5 local do texto de `triggers` (formato `jsonb::text`) = `triggers_md5` | **OK**: `3b42b3148691f7cf68bae72733739308` = `3b42b3148691f7cf68bae72733739308` |
+| 6 | `catalog_count` = contagem do último E00 registrado (Tentativa 03: 6) | **OK**: 6. Nomes, eventos e estados iguais aos de `d_event_triggers` |
+
+Verificações adicionais, locais, sobre a saída:
+- em cada trigger, `fn_len` é igual ao comprimento de `fn_src`;
+- o md5 de `fn_src` é igual a `fn_md5_raw`;
+- `fn_md5_raw = fn_md5_lf`, 0 CR.
+
+`session_replication_role = origin`: com `enabled = O`, os 6 disparam.
+
+**Resultado: LEITURA VÁLIDA.** Sem SQLSTATE, sem truncamento, inventário completo e integridade comprovada. Nenhuma consulta adicional. Nenhuma linha inserida na `evt_allowlist`.
+
+### 3. Identidade completa (12 atributos pinados pelo E00)
+
+Comum aos 6:
+- `enabled = O`;
+- `owner` e `fn_owner` = `supabase_admin`;
+- `fn_language = plpgsql`;
+- `fn_secdef = false` (SECURITY INVOKER);
+- `fn_config = {search_path=""}`;
+- `fn_extension = NULL` (não pertencem a extensão).
+
+| `name` | `event` | `tags` | `fn` | `fn_md5_lf` |
+|---|---|---|---|---|
+| `issue_graphql_placeholder` | `sql_drop` | `{DROP EXTENSION}` | `extensions.set_graphql_placeholder()` | `a2bc2d00b2cc2f5e8d2d6b8d73e2c360` |
+| `issue_pg_cron_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_cron_access()` | `3a3917aad6ddd66182bf45b7490c3029` |
+| `issue_pg_graphql_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_graphql_access()` | `dd3f3e2bb94cff45ef24b9cecb6af1c8` |
+| `issue_pg_net_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_net_access()` | `2ee4e6920eeba3068bcfa838105352e2` |
+| `pgrst_ddl_watch` | `ddl_command_end` | `NULL` | `extensions.pgrst_ddl_watch()` | `7f27b8118fea5c88b0164331292859e3` |
+| `pgrst_drop_watch` | `sql_drop` | `NULL` | `extensions.pgrst_drop_watch()` | `bc09cc3003d66f91844af4cb05e203b7` |
+
+### 4. Análise individual para D-9 (critérios I-3 a I-9 de `LIVE-STAGE1-STOP-ADJUDICATION-EVIDENCE.md` §2.3)
+
+"Alcançável pelos envelopes" considera o texto de L1–L4, E00, E02, E99 e E01, e o fecho P7. Nenhum deles emite comando da matriz de disparo; `CREATE EXTENSION` e `DROP EXTENSION` não aparecem em lugar nenhum.
+
+| Trigger | Efeito do corpo (lido na L4) | Superfície | Alcançável pelos envelopes? | Classificação I-3…I-9 |
+|---|---|---|---|---|
+| `pgrst_ddl_watch` | `NOTIFY pgrst, 'reload schema'` para uma lista de command tags (inclui `CREATE/ALTER TABLE`, `COMMENT`, `SELECT INTO`), fora de `pg_temp`. Sem escrita, sem SQL dinâmico. | **Ampla**: `tags = NULL`, qualquer DDL | Não. Só por DDL, que os envelopes não emitem. Um `NOTIFY` numa transação abortada não é entregue. | **Elegível para análise.** A justificativa precisa tratar explicitamente `tags = NULL` (I-4). |
+| `pgrst_drop_watch` | `NOTIFY pgrst, 'reload schema'` para drops não temporários de schema, tabela, view, função, trigger, tipo ou regra. | **Ampla**: `tags = NULL`, qualquer drop | Não | **Elegível para análise.** Mesma exigência do I-4. |
+| `issue_pg_cron_access` | Se o objeto criado for a extensão `pg_cron`: `GRANT`/`REVOKE` e `ALTER DEFAULT PRIVILEGES` no schema `cron` para `postgres`. | Estreita: só `CREATE EXTENSION`, e só `pg_cron` | Não | **Elegível para análise.** Efeitos de privilégio em schema da plataforma. |
+| `issue_graphql_placeholder` | Se `graphql_public` for afetado por `DROP EXTENSION`: `CREATE OR REPLACE FUNCTION graphql_public.graphql(...)` (placeholder). | Estreita: só `DROP EXTENSION` | Não | **Análise separada (I-8):** cria função, efeito fora de GRANT/NOTIFY/ALTER FUNCTION. Schema da plataforma; não toca `public` nem as tabelas EC. |
+| `issue_pg_graphql_access` | Se a extensão criada for `pg_graphql`: `DROP`/`CREATE OR REPLACE FUNCTION graphql_public.graphql`, `ALTER EXTENSION … ADD FUNCTION`, `GRANT USAGE/EXECUTE` a `anon`, `authenticated`, `service_role` e `postgres`. | Estreita: só `CREATE EXTENSION`, e só `pg_graphql` | Não | **Análise separada (I-8):** DDL de função e `ALTER EXTENSION`; concede a papéis de API. |
+| `issue_pg_net_access` | Se a extensão criada for `pg_net`: pode executar `CREATE USER supabase_functions_admin`; `GRANT USAGE` em `net` a papéis de API. Em versões antigas do `pg_net`: `ALTER FUNCTION net.http_* SECURITY DEFINER`, `REVOKE`/`GRANT EXECUTE` a `anon`/`authenticated`. | Estreita: só `CREATE EXTENSION`, e só `pg_net` | Não | **Análise separada (I-8):** cria papel e concede acesso de rede a papéis de API. É a de maior impacto potencial, mas inalcançável sem `CREATE EXTENSION pg_net`. |
+
+Notas de risco:
+- **R-L4-1:** os 6 são SECURITY INVOKER. Rodam com o papel de quem executa o DDL. Um DDL alheio em `postgres` executaria os GRANTs como `postgres`. Não afeta os envelopes.
+- **R-L4-2:** `pgrst_*` dispara em qualquer DDL de terceiros durante uma rodada, por exemplo `apply_migration` ou migrations da plataforma. O efeito é só `NOTIFY`, fora da transação do envelope. Não altera dados.
+- **R-L4-3:** as tags diferem do script de inicialização original (cron: `CREATE EXTENSION`, não `CREATE SCHEMA`), o que é consistente com o rescope de PR #2478. Se a plataforma alterar tags ou corpo, o E00 corrigido reprova sozinho, porque a identidade é pinada.
+- **[OBS]** Corpos com dollar-quote aninhado (`$$`) em `set_graphql_placeholder` e `grant_pg_graphql_access`. Isso é irrelevante para o P7, porque essas funções não estão no fecho das tabelas EC.
+
+**Nenhuma exceção foi criada.** As linhas candidatas (os 12 atributos da §3, copiados literalmente da saída) só entram na `evt_allowlist` por decisão D-9 de Fabrício e mandato de correção, cada uma com justificativa (a)–(f).
+
+### 5. Saída integral
+
+A saída está como retornada pelo `execute_sql`, sem o invólucro de dados não confiáveis. md5 deste texto: `fc0d8cf7595bbcb84f544211612cede4`, 10.393 B.
+
+```json
+[{"l4":{"l4_event_triggers":{"triggers":[{"fn":"extensions.set_graphql_placeholder()","name":"issue_graphql_placeholder","tags":["DROP EXTENSION"],"event":"sql_drop","owner":"supabase_admin","fn_len":1573,"fn_src":"\n    DECLARE\n    graphql_is_dropped bool;\n    BEGIN\n    graphql_is_dropped = (\n        SELECT ev.schema_name = 'graphql_public'\n        FROM pg_event_trigger_dropped_objects() AS ev\n        WHERE ev.schema_name = 'graphql_public'\n    );\n\n    IF graphql_is_dropped\n    THEN\n        create or replace function graphql_public.graphql(\n            \"operationName\" text default null,\n            query text default null,\n            variables jsonb default null,\n            extensions jsonb default null\n        )\n            returns jsonb\n            language plpgsql\n            set search_path to ''\n        as $$\n            DECLARE\n                server_version float;\n            BEGIN\n                server_version = (SELECT (SPLIT_PART((select version()), ' ', 2))::float);\n\n                IF server_version >= 14 THEN\n                    RETURN jsonb_build_object(\n                        'errors', jsonb_build_array(\n                            jsonb_build_object(\n                                'message', 'pg_graphql extension is not enabled.'\n                            )\n                        )\n                    );\n                ELSE\n                    RETURN jsonb_build_object(\n                        'errors', jsonb_build_array(\n                            jsonb_build_object(\n                                'message', 'pg_graphql is only available on projects running Postgres 14 onwards.'\n                            )\n                        )\n                    );\n                END IF;\n            END;\n        $$;\n    END IF;\n\n    END;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"a2bc2d00b2cc2f5e8d2d6b8d73e2c360","fn_secdef":false,"fn_md5_raw":"a2bc2d00b2cc2f5e8d2d6b8d73e2c360","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.grant_pg_cron_access()","name":"issue_pg_cron_access","tags":["CREATE EXTENSION"],"event":"ddl_command_end","owner":"supabase_admin","fn_len":1194,"fn_src":"\nBEGIN\n  IF EXISTS (\n    SELECT\n    FROM pg_event_trigger_ddl_commands() AS ev\n    JOIN pg_extension AS ext\n    ON ev.objid = ext.oid\n    WHERE ext.extname = 'pg_cron'\n  )\n  THEN\n    grant usage on schema cron to postgres with grant option;\n\n    alter default privileges in schema cron grant all on tables to postgres with grant option;\n    alter default privileges in schema cron grant all on functions to postgres with grant option;\n    alter default privileges in schema cron grant all on sequences to postgres with grant option;\n\n    alter default privileges for user supabase_admin in schema cron grant all\n        on sequences to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on tables to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on functions to postgres with grant option;\n\n    grant all privileges on all tables in schema cron to postgres with grant option;\n    revoke all on table cron.job from postgres;\n    grant select on table cron.job to postgres with grant option;\n    revoke trigger on cron.job_run_details from postgres;\n  END IF;\nEND;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"3a3917aad6ddd66182bf45b7490c3029","fn_secdef":false,"fn_md5_raw":"3a3917aad6ddd66182bf45b7490c3029","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.grant_pg_graphql_access()","name":"issue_pg_graphql_access","tags":["CREATE EXTENSION"],"event":"ddl_command_end","owner":"supabase_admin","fn_len":1357,"fn_src":"\nbegin\n    if not exists (\n        select 1\n        from pg_catalog.pg_event_trigger_ddl_commands() ev\n        join pg_catalog.pg_extension e on ev.objid = e.oid\n        where e.extname = 'pg_graphql'\n    ) then\n        return;\n    end if;\n\n    drop function if exists graphql_public.graphql;\n    create or replace function graphql_public.graphql(\n        \"operationName\" text default null,\n        query text default null,\n        variables jsonb default null,\n        extensions jsonb default null\n    )\n        returns jsonb\n        language sql\n    as $$\n        select graphql.resolve(\n            query := query,\n            variables := coalesce(variables, '{}'),\n            \"operationName\" := \"operationName\",\n            extensions := extensions\n        );\n    $$;\n\n    -- Attach the wrapper to the extension so DROP EXTENSION cascades to it,\n    -- which in turn triggers set_graphql_placeholder to reinstall the \"not enabled\" stub.\n    alter extension pg_graphql add function graphql_public.graphql(text, text, jsonb, jsonb);\n\n    grant usage on schema graphql to postgres, anon, authenticated, service_role;\n    grant execute on function graphql.resolve to postgres, anon, authenticated, service_role;\n    grant usage on schema graphql to postgres with grant option;\n    grant usage on schema graphql_public to postgres with grant option;\nend;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"dd3f3e2bb94cff45ef24b9cecb6af1c8","fn_secdef":false,"fn_md5_raw":"dd3f3e2bb94cff45ef24b9cecb6af1c8","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.grant_pg_net_access()","name":"issue_pg_net_access","tags":["CREATE EXTENSION"],"event":"ddl_command_end","owner":"supabase_admin","fn_len":1999,"fn_src":"\nBEGIN\n  IF EXISTS (\n    SELECT 1\n    FROM pg_event_trigger_ddl_commands() AS ev\n    JOIN pg_extension AS ext\n    ON ev.objid = ext.oid\n    WHERE ext.extname = 'pg_net'\n  )\n  THEN\n    IF NOT EXISTS (\n      SELECT 1\n      FROM pg_roles\n      WHERE rolname = 'supabase_functions_admin'\n    )\n    THEN\n      CREATE USER supabase_functions_admin NOINHERIT CREATEROLE LOGIN NOREPLICATION;\n    END IF;\n\n    GRANT USAGE ON SCHEMA net TO supabase_functions_admin, postgres, anon, authenticated, service_role;\n\n    IF EXISTS (\n      SELECT FROM pg_extension\n      WHERE extname = 'pg_net'\n      -- all versions in use on existing projects as of 2025-02-20\n      -- version 0.12.0 onwards don't need these applied\n      AND extversion IN ('0.2', '0.6', '0.7', '0.7.1', '0.8.0', '0.10.0', '0.11.0')\n    ) THEN\n      ALTER function net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) SECURITY DEFINER;\n      ALTER function net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) SECURITY DEFINER;\n\n      ALTER function net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) SET search_path = net;\n      ALTER function net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) SET search_path = net;\n\n      REVOKE ALL ON FUNCTION net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) FROM PUBLIC;\n      REVOKE ALL ON FUNCTION net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) FROM PUBLIC;\n\n      GRANT EXECUTE ON FUNCTION net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) TO supabase_functions_admin, postgres, anon, authenticated, service_role;\n      GRANT EXECUTE ON FUNCTION net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) TO supabase_functions_admin, postgres, anon, authenticated, service_role;\n    END IF;\n  END IF;\nEND;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"2ee4e6920eeba3068bcfa838105352e2","fn_secdef":false,"fn_md5_raw":"2ee4e6920eeba3068bcfa838105352e2","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.pgrst_ddl_watch()","name":"pgrst_ddl_watch","tags":null,"event":"ddl_command_end","owner":"supabase_admin","fn_len":729,"fn_src":"\nDECLARE\n  cmd record;\nBEGIN\n  FOR cmd IN SELECT * FROM pg_event_trigger_ddl_commands()\n  LOOP\n    IF cmd.command_tag IN (\n      'CREATE SCHEMA', 'ALTER SCHEMA'\n    , 'CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE'\n    , 'CREATE FOREIGN TABLE', 'ALTER FOREIGN TABLE'\n    , 'CREATE VIEW', 'ALTER VIEW'\n    , 'CREATE MATERIALIZED VIEW', 'ALTER MATERIALIZED VIEW'\n    , 'CREATE FUNCTION', 'ALTER FUNCTION'\n    , 'CREATE TRIGGER'\n    , 'CREATE TYPE', 'ALTER TYPE'\n    , 'CREATE RULE'\n    , 'COMMENT'\n    )\n    -- don't notify in case of CREATE TEMP table or other objects created on pg_temp\n    AND cmd.schema_name is distinct from 'pg_temp'\n    THEN\n      NOTIFY pgrst, 'reload schema';\n    END IF;\n  END LOOP;\nEND; ","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"7f27b8118fea5c88b0164331292859e3","fn_secdef":false,"fn_md5_raw":"7f27b8118fea5c88b0164331292859e3","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.pgrst_drop_watch()","name":"pgrst_drop_watch","tags":null,"event":"sql_drop","owner":"supabase_admin","fn_len":412,"fn_src":"\nDECLARE\n  obj record;\nBEGIN\n  FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects()\n  LOOP\n    IF obj.object_type IN (\n      'schema'\n    , 'table'\n    , 'foreign table'\n    , 'view'\n    , 'materialized view'\n    , 'function'\n    , 'trigger'\n    , 'type'\n    , 'rule'\n    )\n    AND obj.is_temporary IS false -- no pg_temp objects\n    THEN\n      NOTIFY pgrst, 'reload schema';\n    END IF;\n  END LOOP;\nEND; ","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"bc09cc3003d66f91844af4cb05e203b7","fn_secdef":false,"fn_md5_raw":"bc09cc3003d66f91844af4cb05e203b7","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null}],"checked_at":"2026-09-27T02:08:42.895092+00:00","triggers_md5":"3b42b3148691f7cf68bae72733739308","catalog_count":6,"catalog_names":["issue_graphql_placeholder","issue_pg_cron_access","issue_pg_graphql_access","issue_pg_net_access","pgrst_ddl_watch","pgrst_drop_watch"],"inventory_count":6,"inventory_complete":true,"session_replication_role":"origin"}}}]
+```
+
+## D-9 — incorporação local da allowlist — `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01` (sem SQL)
+
+**Decisão de Fabrício:** D-9 APROVADA. Baseline publicado `9a4cff16a4796845db4d1947db52df24183baa56`. Nenhum SQL executado, LIVE não acessado, nenhum event trigger alterado ou desabilitado, Tentativa 04 não iniciada, nenhum commit. FREEZE ATIVO.
+
+### 1. As 6 linhas incorporadas (fonte: seção L4 deste registro, itens 3 e 5; saída md5 `fc0d8cf7…`)
+
+Atributos comuns às 6 linhas, copiados literalmente: `enabled = 'O'`, `owner = fn_owner = 'supabase_admin'`, `fn_language = 'plpgsql'`, `fn_secdef = false`, `fn_config = ARRAY['search_path=""']::text[]`, `fn_extension = NULL::text`.
+
+| Trigger | Evento | Tags | Função | `fn_md5_lf` | Aceite |
+|---|---|---|---|---|---|
+| `issue_graphql_placeholder` | `sql_drop` | `{DROP EXTENSION}` | `extensions.set_graphql_placeholder()` | `a2bc2d00b2cc2f5e8d2d6b8d73e2c360` | EXCEPCIONAL — criação da função placeholder |
+| `issue_pg_cron_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_cron_access()` | `3a3917aad6ddd66182bf45b7490c3029` | EXCEPCIONAL — inclui `ALTER DEFAULT PRIVILEGES` |
+| `issue_pg_graphql_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_graphql_access()` | `dd3f3e2bb94cff45ef24b9cecb6af1c8` | EXCEPCIONAL — DDLs e concessões de privilégio |
+| `issue_pg_net_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_net_access()` | `2ee4e6920eeba3068bcfa838105352e2` | EXCEPCIONAL — inclui `CREATE USER` e concessões de acesso de rede |
+| `pgrst_ddl_watch` | `ddl_command_end` | `NULL` | `extensions.pgrst_ddl_watch()` | `7f27b8118fea5c88b0164331292859e3` | ORDINÁRIO — inclui tags amplas `NULL` |
+| `pgrst_drop_watch` | `sql_drop` | `NULL` | `extensions.pgrst_drop_watch()` | `bc09cc3003d66f91844af4cb05e203b7` | ORDINÁRIO — inclui tags amplas `NULL` |
+
+Cada linha traz justificativa individual (a)–(f) no próprio E00:
+- (a) evidência L4: mandato, `checked_at`, HEAD, md5 da L4, `triggers_md5`, inventário 6 = catálogo 6 e o `fn_md5_lf` da linha;
+- (b) origem: plataforma Supabase, dono, schema da função, SECURITY INVOKER, `search_path` vazio, sem extensão;
+- (c) evento e tags, e a condição em que a função age;
+- (d) efeito real da função e a categoria do aceite;
+- (e) ausência de caminho de disparo pelos envelopes atuais, que não emitem comando da matriz de disparo; o fecho P7 não contém DDL (`g_p7_no_ddl`). Em seguida vem a frase fixa "Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL.";
+- (f) condição de reavaliação: qualquer atributo mudar, envelope passar a emitir DDL ou comando de extensão, ou antes de nova operação ou migration.
+
+**AD-10/D-9** foram registradas como aprovadas no protocolo v1.6, **restritas aos envelopes atuais**. Não é uma autorização genérica. Linha nova só entra com nova L4, nova decisão e mandato de correção; nunca por nome.
+
+### 2. Artefatos (árvore local, não commitada)
+
+| Artefato | Blob | md5 | Bytes |
+|---|---|---|---|
+| E00 | `a4dd84381b928727611a51147ba1a4c1d11b89ab` (antes `88e9e7a4…`) | `45b6c35cca849ffbf49d22ec18e8283c` | 53.803 |
+| `tools/static_check.py` | `378154507fadcb4f351c1a05ec475a1c32e272aa` | `e6a6b9ab5fc0e632dfc2ac293631b9ab` | 53.271 |
+| Roteiro v1.5 | `9f454a9632f579607acadef1bfa076e3e5331e95` | `9ee3e8440ad86aeaa5aec51110a8a8e5` | 27.111 |
+| Protocolo v1.6 | `f8d5218ba3aa446f7f76f2b99d4eab3a36bb152a` | `47a89b3a10aa8fc5e63c5681d0cd8557` | 48.077 |
+
+### 3. Provas (sem banco)
+
+- `static_check.py`: **444/444 PASS**. Inclui:
+  - 6 linhas com os 12 atributos e os tipos SQL pinados;
+  - justificativas (a)–(f) com categoria e termos por trigger;
+  - proveniência contra a seção L4, item 5 (md5 do bloco, identidades e `triggers_md5` recalculado);
+  - controle positivo com a allowlist real e o inventário real;
+  - 72/72 alterações isoladas de atributo reprovadas;
+  - trigger adicional, linha removida, justificativa vazia, inventário 7×6 e `login` reprovados.
+- Mutação:
+  - E00 29/29, com alteração isolada de identidade, trigger adicional (7ª linha), linha removida, justificativa sem (f) e categoria trocada;
+  - esvaziamento de predicado 24/24;
+  - roteiro 5/5;
+  - envelopes 42/42;
+  - DDL no corpo 10/10;
+  - adulteração de 1 md5 no bloco da L4 deste registro ⇒ 5 FAIL.
+- Preservação:
+  - `BASELINE-BUILDER` (sha256 `77b4cdb7…`, 4.106 B) e `FREEZE-CANON` (sha256 `71550139…`, 979 B) idênticos entre o E00 do HEAD, o E00 D-9 e o E99;
+  - E01 `c4118b8c…`, E02 `3357ed46…`, E99 `49a71ecb…` e 2830 `b4647dcb…` inalterados.
+
+### 4. BLOCKER e dependências
+
+- **Nenhum BLOCKER real** para a auditoria desta incorporação.
+- **Dependência de commit:** a verificação de proveniência lê o bloco da L4 deste registro (seção L4, ainda não commitada). O commit precisa levar este registro junto com o E00; sem ele, o `static_check.py` reprova.
+- **Compilação no PostgreSQL pendente**, como antes: a comparação `text = name` (owner, `fn_language`, `fn_owner`) é válida no PG ≥ 12, mas só é provada executando. Isso exige mandato, e a Tentativa 04 começa em S1.0.
+
+---
+
 ## Revision History
 
 | Versão | Descrição |
@@ -275,3 +421,5 @@ Detalhes, hashes e scripts: `LIVE-STAGE1-STOP-ADJUDICATION.md` §9. Diff integra
 | 1.2 | **Tentativa 03 (2026-09-27 UTC, `BATCH12-2830-LIVE-STAGE1-EXECUTION-02`, HEAD `b8925ed5`).** Claude executou a Etapa 1 desde S1.0: PC-1…PC-5 PASS; L1 e L3 conformes (a L3 não foi bloqueada pela ferramenta); E00, 1ª leitura: **STOP**, com `g_p7_identity_pinned = false` e `g_no_enabled_event_triggers = false` (6 event triggers habilitados no LIVE). L2 (diagnóstico): TRANSPORT/EOL-ONLY em `public.normalize_external_catalog_value` (`cr_count` 2, md5 LF = pino), para D-6. `d_canon_diff = []`. S1.5, E01, E02, E99 e a Etapa 2 não foram executados. Saídas integrais anexadas. Nenhuma alteração em harness, consultas, pinos ou 2830. |
 | 1.3 | **Adjudicação do STOP da Tentativa 03 (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01`, sem SQL).** Nova seção com 12 registros tipados (OBS / EVID / PROP):<br>• prova byte a byte de que `normalize_external_catalog_value` diverge só por CRLF;<br>• origem, eventos e habilitação dos 6 event triggers, e impossibilidade estática de disparo pelos envelopes;<br>• achado do P7 sem detecção de DDL estático;<br>• propostas D-6 (normalização) e D-9 / AD-10 (allowlist por identidade, vazia), com L4;<br>• pendências de decisão.<br>Correções não aplicadas: diff em `LIVE-STAGE1-STOP-ADJUDICATION.diff`. Estado atual atualizado. |
 | 1.4 | **Correção local do harness (2026-09-26, `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`, sem SQL).** Registros 13 a 19:<br>• D-6 (opção A) e G-1 a G-5;<br>• 24 gates;<br>• L4 revisada;<br>• E00 vigente na PC-2;<br>• provas estáticas e de mutação;<br>• preservação;<br>• compilação pendente.<br>Estado atual atualizado. |
+| 1.5 | **L4 executada (2026-09-27 UTC, `BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01`, HEAD `9a4cff16`).** Uma chamada MCP.<br>• Saída válida pelos 6 critérios do roteiro §3.5: 6 = 6, `triggers_md5` recalculado igual, `fn_resolved` 6/6.<br>• Identidade completa dos 6 event triggers.<br>• Análise para D-9: 3 elegíveis para análise (`pgrst_ddl_watch`, `pgrst_drop_watch`, `issue_pg_cron_access`) e 3 com análise separada por I-8 (`issue_graphql_placeholder`, `issue_pg_graphql_access`, `issue_pg_net_access`); nenhum alcançável pelos envelopes.<br>• Saída integral anexada.<br>Nenhuma linha na allowlist; nada executado além da L4. |
+| 1.6 | **D-9 incorporada localmente (2026-09-27, `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`, sem SQL, baseline `9a4cff16`).** Nova seção D-9:<br>• 6 exceções copiadas literalmente da L4 (12 atributos, md5 integral), com justificativa (a)–(f), `pgrst_*` ordinários e `issue_*` excepcionais;<br>• AD-10/D-9 aprovadas e restritas aos envelopes atuais;<br>• E00 `a4dd8438…`, roteiro v1.5, protocolo v1.6;<br>• 444/444 estático; mutações 29/29, 24/24, 5/5, 42/42, 10/10;<br>• preservação de BUILDER/CANON/E01/E02/E99/2830.<br>Tentativa 04 não iniciada. Estado atual atualizado. |

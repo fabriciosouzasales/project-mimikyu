@@ -1,0 +1,706 @@
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/2830H_E00_precheck_inventory.sql
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/2830H_E00_precheck_inventory.sql
+@@ -85,8 +85,11 @@
+ --   fn_md5_lf; IS NOT DISTINCT FROM em tags, fn_config e fn_extension, onde
+ --   NULL é um estado real pinado (sem filtro de tag / sem proconfig / sem
+ --   extensão), nunca curinga.
+---   evt_allowlist nasce VAZIA: linhas só entram por mandato de correção, a
+---   partir da L4 adjudicada (D-9) — nunca por nome.
++--   evt_allowlist: as 6 exceções aprovadas em D-9 (BATCH12-2830-D9-EVENT-
++--   TRIGGER-ALLOWLIST-01), identidades copiadas literalmente da L4
++--   (BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01), cada uma com
++--   justificativa (a)-(f). Aceite RESTRITO aos envelopes atuais; nova linha
++--   só por nova L4 + nova decisão + mandato de correção — nunca por nome.
+ --   Os pinos md5 foram calculados sobre o corpo das definições no
+ --   repositório (2206, 2207 e schema/2095). Se o LIVE divergir do
+ --   repositório, o resultado é ALLOWLIST_MISMATCH ⇒ STOP para adjudicação —
+@@ -360,13 +363,18 @@
+ ),
+ -- EVT-ALLOWLIST — exceção INDIVIDUAL por identidade completa (12 atributos),
+ -- só para evento exclusivamente DDL, cada uma com justificativa própria e
+--- não vazia. VAZIA por construção: linhas só entram por mandato de correção,
+--- a partir da L4 adjudicada (D-9) — nunca pelo nome, nunca em bloco.
++-- não vazia. Conteúdo: EXATAMENTE as 6 identidades aprovadas em D-9, copiadas
++-- literalmente da saída da L4 (LIVE-STAGE1-EXECUTION-RECORD.md rev. 1.5,
++-- md5 da saída fc0d8cf7…). Qualquer alteração de atributo no LIVE, trigger
++-- adicional ou linha nova sem nova L4/decisão/mandato ⇒ STOP.
+ evt_allowlist(name, event, tags, enabled, owner, fn, fn_language, fn_owner, fn_secdef, fn_config, fn_extension, fn_md5_lf, justification) AS (
+-    SELECT NULL::text, NULL::text, NULL::text[], NULL::text, NULL::text,
+-           NULL::text, NULL::text, NULL::text, NULL::boolean, NULL::text[],
+-           NULL::text, NULL::text, NULL::text
+-     WHERE false
++    VALUES
++    ('issue_graphql_placeholder', 'sql_drop', ARRAY['DROP EXTENSION']::text[], 'O', 'supabase_admin', 'extensions.set_graphql_placeholder()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=""']::text[], NULL::text, 'a2bc2d00b2cc2f5e8d2d6b8d73e2c360', 'D-9 APROVADA, ACEITE EXCEPCIONAL. (a) Evidência L4 BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01 (2026-09-27T02:08:42Z, HEAD 9a4cff16, L4 md5 f3670eb8, triggers_md5 3b42b3148691f7cf68bae72733739308, inventário 6 = catálogo 6), identidade de 12 atributos copiada literalmente, fn_md5_lf a2bc2d00b2cc2f5e8d2d6b8d73e2c360. (b) Origem: event trigger da plataforma Supabase (supabase/postgres), dono supabase_admin, função em extensions, SECURITY INVOKER, search_path vazio, sem extensão. (c) Evento sql_drop, tags {DROP EXTENSION}, e age só se objetos do schema graphql_public forem removidos. (d) Efeito real: CREATE OR REPLACE FUNCTION graphql_public.graphql (função placeholder que devolve erro pg_graphql não habilitado). Aceite excepcional pela criação da função placeholder. Não toca public nem as tabelas EC. (e) Os envelopes atuais (L1, L2, L3, L4, E00, E01, E02, E99) não emitem comando da matriz de disparo de event triggers e o fecho P7 não contém DDL (g_p7_no_ddl), portanto não há caminho de disparo pelos envelopes atuais. Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL. (f) Reavaliar se qualquer dos 12 atributos mudar (o gate g_evt_all_adjudicated reprova sozinho), se um envelope passar a emitir DDL ou comando de extensão, ou antes de qualquer nova operação ou migration.'),
++    ('issue_pg_cron_access', 'ddl_command_end', ARRAY['CREATE EXTENSION']::text[], 'O', 'supabase_admin', 'extensions.grant_pg_cron_access()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=""']::text[], NULL::text, '3a3917aad6ddd66182bf45b7490c3029', 'D-9 APROVADA, ACEITE EXCEPCIONAL. (a) Evidência L4 BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01 (2026-09-27T02:08:42Z, HEAD 9a4cff16, L4 md5 f3670eb8, triggers_md5 3b42b3148691f7cf68bae72733739308, inventário 6 = catálogo 6), identidade de 12 atributos copiada literalmente, fn_md5_lf 3a3917aad6ddd66182bf45b7490c3029. (b) Origem: event trigger da plataforma Supabase (supabase/postgres), dono supabase_admin, função em extensions, SECURITY INVOKER, search_path vazio, sem extensão. (c) Evento ddl_command_end, tags {CREATE EXTENSION}, e age só se a extensão criada for pg_cron. (d) Efeito real: GRANT USAGE no schema cron, ALTER DEFAULT PRIVILEGES no schema cron (inclusive FOR USER supabase_admin), GRANT ALL nas tabelas de cron, REVOKE e GRANT SELECT em cron.job e REVOKE TRIGGER em cron.job_run_details, tudo para postgres. Aceite excepcional incluindo ALTER DEFAULT PRIVILEGES. (e) Os envelopes atuais (L1, L2, L3, L4, E00, E01, E02, E99) não emitem comando da matriz de disparo de event triggers e o fecho P7 não contém DDL (g_p7_no_ddl), portanto não há caminho de disparo pelos envelopes atuais. Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL. (f) Reavaliar se qualquer dos 12 atributos mudar (o gate g_evt_all_adjudicated reprova sozinho), se um envelope passar a emitir DDL ou comando de extensão, ou antes de qualquer nova operação ou migration.'),
++    ('issue_pg_graphql_access', 'ddl_command_end', ARRAY['CREATE EXTENSION']::text[], 'O', 'supabase_admin', 'extensions.grant_pg_graphql_access()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=""']::text[], NULL::text, 'dd3f3e2bb94cff45ef24b9cecb6af1c8', 'D-9 APROVADA, ACEITE EXCEPCIONAL. (a) Evidência L4 BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01 (2026-09-27T02:08:42Z, HEAD 9a4cff16, L4 md5 f3670eb8, triggers_md5 3b42b3148691f7cf68bae72733739308, inventário 6 = catálogo 6), identidade de 12 atributos copiada literalmente, fn_md5_lf dd3f3e2bb94cff45ef24b9cecb6af1c8. (b) Origem: event trigger da plataforma Supabase (supabase/postgres), dono supabase_admin, função em extensions, SECURITY INVOKER, search_path vazio, sem extensão. (c) Evento ddl_command_end, tags {CREATE EXTENSION}, e age só se a extensão criada for pg_graphql. (d) Efeito real: DROP FUNCTION IF EXISTS e CREATE OR REPLACE FUNCTION graphql_public.graphql, ALTER EXTENSION pg_graphql ADD FUNCTION, GRANT USAGE nos schemas graphql e graphql_public e GRANT EXECUTE em graphql.resolve para postgres, anon, authenticated e service_role. Aceite excepcional pelos DDLs e pelas concessões de privilégios. (e) Os envelopes atuais (L1, L2, L3, L4, E00, E01, E02, E99) não emitem comando da matriz de disparo de event triggers e o fecho P7 não contém DDL (g_p7_no_ddl), portanto não há caminho de disparo pelos envelopes atuais. Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL. (f) Reavaliar se qualquer dos 12 atributos mudar (o gate g_evt_all_adjudicated reprova sozinho), se um envelope passar a emitir DDL ou comando de extensão, ou antes de qualquer nova operação ou migration.'),
++    ('issue_pg_net_access', 'ddl_command_end', ARRAY['CREATE EXTENSION']::text[], 'O', 'supabase_admin', 'extensions.grant_pg_net_access()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=""']::text[], NULL::text, '2ee4e6920eeba3068bcfa838105352e2', 'D-9 APROVADA, ACEITE EXCEPCIONAL. (a) Evidência L4 BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01 (2026-09-27T02:08:42Z, HEAD 9a4cff16, L4 md5 f3670eb8, triggers_md5 3b42b3148691f7cf68bae72733739308, inventário 6 = catálogo 6), identidade de 12 atributos copiada literalmente, fn_md5_lf 2ee4e6920eeba3068bcfa838105352e2. (b) Origem: event trigger da plataforma Supabase (supabase/postgres), dono supabase_admin, função em extensions, SECURITY INVOKER, search_path vazio, sem extensão. (c) Evento ddl_command_end, tags {CREATE EXTENSION}, e age só se a extensão criada for pg_net. (d) Efeito real: pode executar CREATE USER supabase_functions_admin, GRANT USAGE no schema net para supabase_functions_admin, postgres, anon, authenticated e service_role e, nas versões antigas do pg_net, ALTER FUNCTION net.http_get e net.http_post SECURITY DEFINER com search_path net, REVOKE de PUBLIC e GRANT EXECUTE aos mesmos papéis. Aceite excepcional incluindo CREATE USER e as concessões de acesso à rede. (e) Os envelopes atuais (L1, L2, L3, L4, E00, E01, E02, E99) não emitem comando da matriz de disparo de event triggers e o fecho P7 não contém DDL (g_p7_no_ddl), portanto não há caminho de disparo pelos envelopes atuais. Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL. (f) Reavaliar se qualquer dos 12 atributos mudar (o gate g_evt_all_adjudicated reprova sozinho), se um envelope passar a emitir DDL ou comando de extensão, ou antes de qualquer nova operação ou migration.'),
++    ('pgrst_ddl_watch', 'ddl_command_end', NULL::text[], 'O', 'supabase_admin', 'extensions.pgrst_ddl_watch()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=""']::text[], NULL::text, '7f27b8118fea5c88b0164331292859e3', 'D-9 APROVADA, ACEITE ORDINÁRIO. (a) Evidência L4 BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01 (2026-09-27T02:08:42Z, HEAD 9a4cff16, L4 md5 f3670eb8, triggers_md5 3b42b3148691f7cf68bae72733739308, inventário 6 = catálogo 6), identidade de 12 atributos copiada literalmente, fn_md5_lf 7f27b8118fea5c88b0164331292859e3. (b) Origem: event trigger da plataforma Supabase (supabase/postgres), dono supabase_admin, função em extensions, SECURITY INVOKER, search_path vazio, sem extensão. (c) Evento ddl_command_end, tags NULL: dispara em qualquer DDL (superfície ampla, aceita expressamente). (d) Efeito real: NOTIFY pgrst reload schema para os command tags de schema, tabela, tabela estrangeira, view, view materializada, função, trigger, tipo, regra e COMMENT fora de pg_temp. Sem escrita em tabela, sem SQL dinâmico, sem rede. (e) Os envelopes atuais (L1, L2, L3, L4, E00, E01, E02, E99) não emitem comando da matriz de disparo de event triggers e o fecho P7 não contém DDL (g_p7_no_ddl), portanto não há caminho de disparo pelos envelopes atuais. Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL. (f) Reavaliar se qualquer dos 12 atributos mudar (o gate g_evt_all_adjudicated reprova sozinho), se um envelope passar a emitir DDL ou comando de extensão, ou antes de qualquer nova operação ou migration.'),
++    ('pgrst_drop_watch', 'sql_drop', NULL::text[], 'O', 'supabase_admin', 'extensions.pgrst_drop_watch()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=""']::text[], NULL::text, 'bc09cc3003d66f91844af4cb05e203b7', 'D-9 APROVADA, ACEITE ORDINÁRIO. (a) Evidência L4 BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01 (2026-09-27T02:08:42Z, HEAD 9a4cff16, L4 md5 f3670eb8, triggers_md5 3b42b3148691f7cf68bae72733739308, inventário 6 = catálogo 6), identidade de 12 atributos copiada literalmente, fn_md5_lf bc09cc3003d66f91844af4cb05e203b7. (b) Origem: event trigger da plataforma Supabase (supabase/postgres), dono supabase_admin, função em extensions, SECURITY INVOKER, search_path vazio, sem extensão. (c) Evento sql_drop, tags NULL: dispara em qualquer drop (superfície ampla, aceita expressamente). (d) Efeito real: NOTIFY pgrst reload schema para drops não temporários de schema, tabela, tabela estrangeira, view, view materializada, função, trigger, tipo e regra. Sem escrita em tabela, sem SQL dinâmico, sem rede. (e) Os envelopes atuais (L1, L2, L3, L4, E00, E01, E02, E99) não emitem comando da matriz de disparo de event triggers e o fecho P7 não contém DDL (g_p7_no_ddl), portanto não há caminho de disparo pelos envelopes atuais. Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL. (f) Reavaliar se qualquer dos 12 atributos mudar (o gate g_evt_all_adjudicated reprova sozinho), se um envelope passar a emitir DDL ou comando de extensão, ou antes de qualquer nova operação ou migration.')
+ ),
+ evt_unadjudicated AS (
+     SELECT e.*
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-EXECUTION-RECORD.md
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-EXECUTION-RECORD.md
+@@ -3,7 +3,7 @@
+ | Campo | Valor |
+ |---|---|
+ | **Natureza** | Registro das tentativas da Etapa 1 do `LIVE-VALIDATION-PROTOCOL.md` v1.4, executadas pelo `LIVE-STAGE1-RUNBOOK.md` v1.3. |
+-| **Estado atual** | **Etapa 1 não concluída. Nenhum PASS formal registrado.** Ocorrência 01: governança, consultas feitas fora da atribuição. Tentativa 02: STOP em PC-1, sem SQL. Tentativa 03: **STOP em S1.3 (E00)** — `g_p7_identity_pinned = false` (L2: TRANSPORT/EOL-ONLY) e `g_no_enabled_event_triggers = false`; adjudicação documental feita. **Correção do harness aplicada localmente** (`…-CORRECTION-01`), não commitada e não compilada no PostgreSQL. D-9 pendente e `evt_allowlist` vazia. Etapa 2 **não autorizada**. |
++| **Estado atual** | **Etapa 1 não concluída. Nenhum PASS formal registrado.** Ocorrência 01: governança, consultas feitas fora da atribuição. Tentativa 02: STOP em PC-1, sem SQL. Tentativa 03: **STOP em S1.3 (E00)** — `g_p7_identity_pinned = false` (L2: TRANSPORT/EOL-ONLY) e `g_no_enabled_event_triggers = false`; adjudicação documental feita. Correção do harness publicada em `9a4cff16` (`…-CORRECTION-01`), ainda não compilada no PostgreSQL. **L4 executada** (`…-L4-EVENT-TRIGGER-INVENTORY-01`): saída válida pelos 6 critérios. **D-9 APROVADA** e incorporada localmente (`…-D9-EVENT-TRIGGER-ALLOWLIST-01`, sem SQL): `evt_allowlist` com as 6 exceções, não commitada, não compilada. Tentativa 04 **não iniciada**. Etapa 2 **não autorizada**. |
+ | **Papéis** | **Claude**: único executor autorizado. **ChatGPT**: auditor independente, sem atribuição de execução. **Fabrício**: autorizações, commit e push. |
+ | **FREEZE** | ATIVO. |
+
+@@ -266,6 +266,152 @@
+
+ ---
+
++## L4 — inventário de event triggers — `BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01`
++
++**Data:** 2026-09-27 02:08:42.895092 UTC (`checked_at`, relógio do banco). **Executor:** Claude. **Canal:** MCP `execute_sql`, projeto `qjfutqujxrbzgrtkpgkg`, **uma** chamada. **Natureza:** evidência para D-9. **Não** é passo da Etapa 1, não produz PASS e não autoriza a Etapa 2.
++
++### 1. Pré-condições
++
++| Item | Resultado |
++|---|---|
++| HEAD | `9a4cff16a4796845db4d1947db52df24183baa56` (= baseline do mandato) |
++| Árvore | limpa (`git status --porcelain` = 0 linhas) |
++| Bloco L4 (roteiro v1.4 §3.5) | md5 `f3670eb8f149064610055720b0636218`, 2.416 B — igual ao declarado no §0 do roteiro |
++| `static_check.py` | 420/420 |
++| Texto submetido | o bloco integral, sem edição |
++
++### 2. Validação da saída (roteiro §3.5)
++
++| # | Critério | Resultado |
++|---|---|---|
++| 1 | Chaves obrigatórias presentes | **OK** (as 8) |
++| 2 | `inventory_complete = true`; `catalog_count` = `inventory_count` = elementos de `triggers` = elementos de `catalog_names` | **OK**: `true`; 6 = 6 = 6 = 6 |
++| 3 | Nomes de `triggers` = `catalog_names` | **OK** |
++| 4 | Todo `fn_resolved = true` | **OK** (6/6) |
++| 5 | md5 local do texto de `triggers` (formato `jsonb::text`) = `triggers_md5` | **OK**: `3b42b3148691f7cf68bae72733739308` = `3b42b3148691f7cf68bae72733739308` |
++| 6 | `catalog_count` = contagem do último E00 registrado (Tentativa 03: 6) | **OK**: 6. Nomes, eventos e estados iguais aos de `d_event_triggers` |
++
++Verificações adicionais, locais, sobre a saída:
++- em cada trigger, `fn_len` é igual ao comprimento de `fn_src`;
++- o md5 de `fn_src` é igual a `fn_md5_raw`;
++- `fn_md5_raw = fn_md5_lf`, 0 CR.
++
++`session_replication_role = origin`: com `enabled = O`, os 6 disparam.
++
++**Resultado: LEITURA VÁLIDA.** Sem SQLSTATE, sem truncamento, inventário completo e integridade comprovada. Nenhuma consulta adicional. Nenhuma linha inserida na `evt_allowlist`.
++
++### 3. Identidade completa (12 atributos pinados pelo E00)
++
++Comum aos 6:
++- `enabled = O`;
++- `owner` e `fn_owner` = `supabase_admin`;
++- `fn_language = plpgsql`;
++- `fn_secdef = false` (SECURITY INVOKER);
++- `fn_config = {search_path=""}`;
++- `fn_extension = NULL` (não pertencem a extensão).
++
++| `name` | `event` | `tags` | `fn` | `fn_md5_lf` |
++|---|---|---|---|---|
++| `issue_graphql_placeholder` | `sql_drop` | `{DROP EXTENSION}` | `extensions.set_graphql_placeholder()` | `a2bc2d00b2cc2f5e8d2d6b8d73e2c360` |
++| `issue_pg_cron_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_cron_access()` | `3a3917aad6ddd66182bf45b7490c3029` |
++| `issue_pg_graphql_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_graphql_access()` | `dd3f3e2bb94cff45ef24b9cecb6af1c8` |
++| `issue_pg_net_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_net_access()` | `2ee4e6920eeba3068bcfa838105352e2` |
++| `pgrst_ddl_watch` | `ddl_command_end` | `NULL` | `extensions.pgrst_ddl_watch()` | `7f27b8118fea5c88b0164331292859e3` |
++| `pgrst_drop_watch` | `sql_drop` | `NULL` | `extensions.pgrst_drop_watch()` | `bc09cc3003d66f91844af4cb05e203b7` |
++
++### 4. Análise individual para D-9 (critérios I-3 a I-9 de `LIVE-STAGE1-STOP-ADJUDICATION-EVIDENCE.md` §2.3)
++
++"Alcançável pelos envelopes" considera o texto de L1–L4, E00, E02, E99 e E01, e o fecho P7. Nenhum deles emite comando da matriz de disparo; `CREATE EXTENSION` e `DROP EXTENSION` não aparecem em lugar nenhum.
++
++| Trigger | Efeito do corpo (lido na L4) | Superfície | Alcançável pelos envelopes? | Classificação I-3…I-9 |
++|---|---|---|---|---|
++| `pgrst_ddl_watch` | `NOTIFY pgrst, 'reload schema'` para uma lista de command tags (inclui `CREATE/ALTER TABLE`, `COMMENT`, `SELECT INTO`), fora de `pg_temp`. Sem escrita, sem SQL dinâmico. | **Ampla**: `tags = NULL`, qualquer DDL | Não. Só por DDL, que os envelopes não emitem. Um `NOTIFY` numa transação abortada não é entregue. | **Elegível para análise.** A justificativa precisa tratar explicitamente `tags = NULL` (I-4). |
++| `pgrst_drop_watch` | `NOTIFY pgrst, 'reload schema'` para drops não temporários de schema, tabela, view, função, trigger, tipo ou regra. | **Ampla**: `tags = NULL`, qualquer drop | Não | **Elegível para análise.** Mesma exigência do I-4. |
++| `issue_pg_cron_access` | Se o objeto criado for a extensão `pg_cron`: `GRANT`/`REVOKE` e `ALTER DEFAULT PRIVILEGES` no schema `cron` para `postgres`. | Estreita: só `CREATE EXTENSION`, e só `pg_cron` | Não | **Elegível para análise.** Efeitos de privilégio em schema da plataforma. |
++| `issue_graphql_placeholder` | Se `graphql_public` for afetado por `DROP EXTENSION`: `CREATE OR REPLACE FUNCTION graphql_public.graphql(...)` (placeholder). | Estreita: só `DROP EXTENSION` | Não | **Análise separada (I-8):** cria função, efeito fora de GRANT/NOTIFY/ALTER FUNCTION. Schema da plataforma; não toca `public` nem as tabelas EC. |
++| `issue_pg_graphql_access` | Se a extensão criada for `pg_graphql`: `DROP`/`CREATE OR REPLACE FUNCTION graphql_public.graphql`, `ALTER EXTENSION … ADD FUNCTION`, `GRANT USAGE/EXECUTE` a `anon`, `authenticated`, `service_role` e `postgres`. | Estreita: só `CREATE EXTENSION`, e só `pg_graphql` | Não | **Análise separada (I-8):** DDL de função e `ALTER EXTENSION`; concede a papéis de API. |
++| `issue_pg_net_access` | Se a extensão criada for `pg_net`: pode executar `CREATE USER supabase_functions_admin`; `GRANT USAGE` em `net` a papéis de API. Em versões antigas do `pg_net`: `ALTER FUNCTION net.http_* SECURITY DEFINER`, `REVOKE`/`GRANT EXECUTE` a `anon`/`authenticated`. | Estreita: só `CREATE EXTENSION`, e só `pg_net` | Não | **Análise separada (I-8):** cria papel e concede acesso de rede a papéis de API. É a de maior impacto potencial, mas inalcançável sem `CREATE EXTENSION pg_net`. |
++
++Notas de risco:
++- **R-L4-1:** os 6 são SECURITY INVOKER. Rodam com o papel de quem executa o DDL. Um DDL alheio em `postgres` executaria os GRANTs como `postgres`. Não afeta os envelopes.
++- **R-L4-2:** `pgrst_*` dispara em qualquer DDL de terceiros durante uma rodada, por exemplo `apply_migration` ou migrations da plataforma. O efeito é só `NOTIFY`, fora da transação do envelope. Não altera dados.
++- **R-L4-3:** as tags diferem do script de inicialização original (cron: `CREATE EXTENSION`, não `CREATE SCHEMA`), o que é consistente com o rescope de PR #2478. Se a plataforma alterar tags ou corpo, o E00 corrigido reprova sozinho, porque a identidade é pinada.
++- **[OBS]** Corpos com dollar-quote aninhado (`$$`) em `set_graphql_placeholder` e `grant_pg_graphql_access`. Isso é irrelevante para o P7, porque essas funções não estão no fecho das tabelas EC.
++
++**Nenhuma exceção foi criada.** As linhas candidatas (os 12 atributos da §3, copiados literalmente da saída) só entram na `evt_allowlist` por decisão D-9 de Fabrício e mandato de correção, cada uma com justificativa (a)–(f).
++
++### 5. Saída integral
++
++A saída está como retornada pelo `execute_sql`, sem o invólucro de dados não confiáveis. md5 deste texto: `fc0d8cf7595bbcb84f544211612cede4`, 10.393 B.
++
++```json
++[{"l4":{"l4_event_triggers":{"triggers":[{"fn":"extensions.set_graphql_placeholder()","name":"issue_graphql_placeholder","tags":["DROP EXTENSION"],"event":"sql_drop","owner":"supabase_admin","fn_len":1573,"fn_src":"\n    DECLARE\n    graphql_is_dropped bool;\n    BEGIN\n    graphql_is_dropped = (\n        SELECT ev.schema_name = 'graphql_public'\n        FROM pg_event_trigger_dropped_objects() AS ev\n        WHERE ev.schema_name = 'graphql_public'\n    );\n\n    IF graphql_is_dropped\n    THEN\n        create or replace function graphql_public.graphql(\n            \"operationName\" text default null,\n            query text default null,\n            variables jsonb default null,\n            extensions jsonb default null\n        )\n            returns jsonb\n            language plpgsql\n            set search_path to ''\n        as $$\n            DECLARE\n                server_version float;\n            BEGIN\n                server_version = (SELECT (SPLIT_PART((select version()), ' ', 2))::float);\n\n                IF server_version >= 14 THEN\n                    RETURN jsonb_build_object(\n                        'errors', jsonb_build_array(\n                            jsonb_build_object(\n                                'message', 'pg_graphql extension is not enabled.'\n                            )\n                        )\n                    );\n                ELSE\n                    RETURN jsonb_build_object(\n                        'errors', jsonb_build_array(\n                            jsonb_build_object(\n                                'message', 'pg_graphql is only available on projects running Postgres 14 onwards.'\n                            )\n                        )\n                    );\n                END IF;\n            END;\n        $$;\n    END IF;\n\n    END;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"a2bc2d00b2cc2f5e8d2d6b8d73e2c360","fn_secdef":false,"fn_md5_raw":"a2bc2d00b2cc2f5e8d2d6b8d73e2c360","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.grant_pg_cron_access()","name":"issue_pg_cron_access","tags":["CREATE EXTENSION"],"event":"ddl_command_end","owner":"supabase_admin","fn_len":1194,"fn_src":"\nBEGIN\n  IF EXISTS (\n    SELECT\n    FROM pg_event_trigger_ddl_commands() AS ev\n    JOIN pg_extension AS ext\n    ON ev.objid = ext.oid\n    WHERE ext.extname = 'pg_cron'\n  )\n  THEN\n    grant usage on schema cron to postgres with grant option;\n\n    alter default privileges in schema cron grant all on tables to postgres with grant option;\n    alter default privileges in schema cron grant all on functions to postgres with grant option;\n    alter default privileges in schema cron grant all on sequences to postgres with grant option;\n\n    alter default privileges for user supabase_admin in schema cron grant all\n        on sequences to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on tables to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on functions to postgres with grant option;\n\n    grant all privileges on all tables in schema cron to postgres with grant option;\n    revoke all on table cron.job from postgres;\n    grant select on table cron.job to postgres with grant option;\n    revoke trigger on cron.job_run_details from postgres;\n  END IF;\nEND;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"3a3917aad6ddd66182bf45b7490c3029","fn_secdef":false,"fn_md5_raw":"3a3917aad6ddd66182bf45b7490c3029","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.grant_pg_graphql_access()","name":"issue_pg_graphql_access","tags":["CREATE EXTENSION"],"event":"ddl_command_end","owner":"supabase_admin","fn_len":1357,"fn_src":"\nbegin\n    if not exists (\n        select 1\n        from pg_catalog.pg_event_trigger_ddl_commands() ev\n        join pg_catalog.pg_extension e on ev.objid = e.oid\n        where e.extname = 'pg_graphql'\n    ) then\n        return;\n    end if;\n\n    drop function if exists graphql_public.graphql;\n    create or replace function graphql_public.graphql(\n        \"operationName\" text default null,\n        query text default null,\n        variables jsonb default null,\n        extensions jsonb default null\n    )\n        returns jsonb\n        language sql\n    as $$\n        select graphql.resolve(\n            query := query,\n            variables := coalesce(variables, '{}'),\n            \"operationName\" := \"operationName\",\n            extensions := extensions\n        );\n    $$;\n\n    -- Attach the wrapper to the extension so DROP EXTENSION cascades to it,\n    -- which in turn triggers set_graphql_placeholder to reinstall the \"not enabled\" stub.\n    alter extension pg_graphql add function graphql_public.graphql(text, text, jsonb, jsonb);\n\n    grant usage on schema graphql to postgres, anon, authenticated, service_role;\n    grant execute on function graphql.resolve to postgres, anon, authenticated, service_role;\n    grant usage on schema graphql to postgres with grant option;\n    grant usage on schema graphql_public to postgres with grant option;\nend;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"dd3f3e2bb94cff45ef24b9cecb6af1c8","fn_secdef":false,"fn_md5_raw":"dd3f3e2bb94cff45ef24b9cecb6af1c8","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.grant_pg_net_access()","name":"issue_pg_net_access","tags":["CREATE EXTENSION"],"event":"ddl_command_end","owner":"supabase_admin","fn_len":1999,"fn_src":"\nBEGIN\n  IF EXISTS (\n    SELECT 1\n    FROM pg_event_trigger_ddl_commands() AS ev\n    JOIN pg_extension AS ext\n    ON ev.objid = ext.oid\n    WHERE ext.extname = 'pg_net'\n  )\n  THEN\n    IF NOT EXISTS (\n      SELECT 1\n      FROM pg_roles\n      WHERE rolname = 'supabase_functions_admin'\n    )\n    THEN\n      CREATE USER supabase_functions_admin NOINHERIT CREATEROLE LOGIN NOREPLICATION;\n    END IF;\n\n    GRANT USAGE ON SCHEMA net TO supabase_functions_admin, postgres, anon, authenticated, service_role;\n\n    IF EXISTS (\n      SELECT FROM pg_extension\n      WHERE extname = 'pg_net'\n      -- all versions in use on existing projects as of 2025-02-20\n      -- version 0.12.0 onwards don't need these applied\n      AND extversion IN ('0.2', '0.6', '0.7', '0.7.1', '0.8.0', '0.10.0', '0.11.0')\n    ) THEN\n      ALTER function net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) SECURITY DEFINER;\n      ALTER function net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) SECURITY DEFINER;\n\n      ALTER function net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) SET search_path = net;\n      ALTER function net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) SET search_path = net;\n\n      REVOKE ALL ON FUNCTION net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) FROM PUBLIC;\n      REVOKE ALL ON FUNCTION net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) FROM PUBLIC;\n\n      GRANT EXECUTE ON FUNCTION net.http_get(url text, params jsonb, headers jsonb, timeout_milliseconds integer) TO supabase_functions_admin, postgres, anon, authenticated, service_role;\n      GRANT EXECUTE ON FUNCTION net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer) TO supabase_functions_admin, postgres, anon, authenticated, service_role;\n    END IF;\n  END IF;\nEND;\n","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"2ee4e6920eeba3068bcfa838105352e2","fn_secdef":false,"fn_md5_raw":"2ee4e6920eeba3068bcfa838105352e2","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.pgrst_ddl_watch()","name":"pgrst_ddl_watch","tags":null,"event":"ddl_command_end","owner":"supabase_admin","fn_len":729,"fn_src":"\nDECLARE\n  cmd record;\nBEGIN\n  FOR cmd IN SELECT * FROM pg_event_trigger_ddl_commands()\n  LOOP\n    IF cmd.command_tag IN (\n      'CREATE SCHEMA', 'ALTER SCHEMA'\n    , 'CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE'\n    , 'CREATE FOREIGN TABLE', 'ALTER FOREIGN TABLE'\n    , 'CREATE VIEW', 'ALTER VIEW'\n    , 'CREATE MATERIALIZED VIEW', 'ALTER MATERIALIZED VIEW'\n    , 'CREATE FUNCTION', 'ALTER FUNCTION'\n    , 'CREATE TRIGGER'\n    , 'CREATE TYPE', 'ALTER TYPE'\n    , 'CREATE RULE'\n    , 'COMMENT'\n    )\n    -- don't notify in case of CREATE TEMP table or other objects created on pg_temp\n    AND cmd.schema_name is distinct from 'pg_temp'\n    THEN\n      NOTIFY pgrst, 'reload schema';\n    END IF;\n  END LOOP;\nEND; ","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"7f27b8118fea5c88b0164331292859e3","fn_secdef":false,"fn_md5_raw":"7f27b8118fea5c88b0164331292859e3","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null},{"fn":"extensions.pgrst_drop_watch()","name":"pgrst_drop_watch","tags":null,"event":"sql_drop","owner":"supabase_admin","fn_len":412,"fn_src":"\nDECLARE\n  obj record;\nBEGIN\n  FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects()\n  LOOP\n    IF obj.object_type IN (\n      'schema'\n    , 'table'\n    , 'foreign table'\n    , 'view'\n    , 'materialized view'\n    , 'function'\n    , 'trigger'\n    , 'type'\n    , 'rule'\n    )\n    AND obj.is_temporary IS false -- no pg_temp objects\n    THEN\n      NOTIFY pgrst, 'reload schema';\n    END IF;\n  END LOOP;\nEND; ","enabled":"O","fn_owner":"supabase_admin","fn_config":["search_path=\"\""],"fn_md5_lf":"bc09cc3003d66f91844af4cb05e203b7","fn_secdef":false,"fn_md5_raw":"bc09cc3003d66f91844af4cb05e203b7","fn_language":"plpgsql","fn_resolved":true,"fn_extension":null}],"checked_at":"2026-09-27T02:08:42.895092+00:00","triggers_md5":"3b42b3148691f7cf68bae72733739308","catalog_count":6,"catalog_names":["issue_graphql_placeholder","issue_pg_cron_access","issue_pg_graphql_access","issue_pg_net_access","pgrst_ddl_watch","pgrst_drop_watch"],"inventory_count":6,"inventory_complete":true,"session_replication_role":"origin"}}}]
++```
++
++## D-9 — incorporação local da allowlist — `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01` (sem SQL)
++
++**Decisão de Fabrício:** D-9 APROVADA. Baseline publicado `9a4cff16a4796845db4d1947db52df24183baa56`. Nenhum SQL executado, LIVE não acessado, nenhum event trigger alterado ou desabilitado, Tentativa 04 não iniciada, nenhum commit. FREEZE ATIVO.
++
++### 1. As 6 linhas incorporadas (fonte: seção L4 deste registro, itens 3 e 5; saída md5 `fc0d8cf7…`)
++
++Atributos comuns às 6 linhas, copiados literalmente: `enabled = 'O'`, `owner = fn_owner = 'supabase_admin'`, `fn_language = 'plpgsql'`, `fn_secdef = false`, `fn_config = ARRAY['search_path=""']::text[]`, `fn_extension = NULL::text`.
++
++| Trigger | Evento | Tags | Função | `fn_md5_lf` | Aceite |
++|---|---|---|---|---|---|
++| `issue_graphql_placeholder` | `sql_drop` | `{DROP EXTENSION}` | `extensions.set_graphql_placeholder()` | `a2bc2d00b2cc2f5e8d2d6b8d73e2c360` | EXCEPCIONAL — criação da função placeholder |
++| `issue_pg_cron_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_cron_access()` | `3a3917aad6ddd66182bf45b7490c3029` | EXCEPCIONAL — inclui `ALTER DEFAULT PRIVILEGES` |
++| `issue_pg_graphql_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_graphql_access()` | `dd3f3e2bb94cff45ef24b9cecb6af1c8` | EXCEPCIONAL — DDLs e concessões de privilégio |
++| `issue_pg_net_access` | `ddl_command_end` | `{CREATE EXTENSION}` | `extensions.grant_pg_net_access()` | `2ee4e6920eeba3068bcfa838105352e2` | EXCEPCIONAL — inclui `CREATE USER` e concessões de acesso de rede |
++| `pgrst_ddl_watch` | `ddl_command_end` | `NULL` | `extensions.pgrst_ddl_watch()` | `7f27b8118fea5c88b0164331292859e3` | ORDINÁRIO — inclui tags amplas `NULL` |
++| `pgrst_drop_watch` | `sql_drop` | `NULL` | `extensions.pgrst_drop_watch()` | `bc09cc3003d66f91844af4cb05e203b7` | ORDINÁRIO — inclui tags amplas `NULL` |
++
++Cada linha traz justificativa individual (a)–(f) no próprio E00:
++- (a) evidência L4: mandato, `checked_at`, HEAD, md5 da L4, `triggers_md5`, inventário 6 = catálogo 6 e o `fn_md5_lf` da linha;
++- (b) origem: plataforma Supabase, dono, schema da função, SECURITY INVOKER, `search_path` vazio, sem extensão;
++- (c) evento e tags, e a condição em que a função age;
++- (d) efeito real da função e a categoria do aceite;
++- (e) ausência de caminho de disparo pelos envelopes atuais, que não emitem comando da matriz de disparo; o fecho P7 não contém DDL (`g_p7_no_ddl`). Em seguida vem a frase fixa "Aceite restrito aos envelopes atuais: não autoriza novas operações, migrations nem DDL.";
++- (f) condição de reavaliação: qualquer atributo mudar, envelope passar a emitir DDL ou comando de extensão, ou antes de nova operação ou migration.
++
++**AD-10/D-9** foram registradas como aprovadas no protocolo v1.6, **restritas aos envelopes atuais**. Não é uma autorização genérica. Linha nova só entra com nova L4, nova decisão e mandato de correção; nunca por nome.
++
++### 2. Artefatos (árvore local, não commitada)
++
++| Artefato | Blob | md5 | Bytes |
++|---|---|---|---|
++| E00 | `a4dd84381b928727611a51147ba1a4c1d11b89ab` (antes `88e9e7a4…`) | `45b6c35cca849ffbf49d22ec18e8283c` | 53.803 |
++| `tools/static_check.py` | `378154507fadcb4f351c1a05ec475a1c32e272aa` | `e6a6b9ab5fc0e632dfc2ac293631b9ab` | 53.271 |
++| Roteiro v1.5 | `9f454a9632f579607acadef1bfa076e3e5331e95` | `9ee3e8440ad86aeaa5aec51110a8a8e5` | 27.111 |
++| Protocolo v1.6 | `f8d5218ba3aa446f7f76f2b99d4eab3a36bb152a` | `47a89b3a10aa8fc5e63c5681d0cd8557` | 48.077 |
++
++### 3. Provas (sem banco)
++
++- `static_check.py`: **444/444 PASS**. Inclui:
++  - 6 linhas com os 12 atributos e os tipos SQL pinados;
++  - justificativas (a)–(f) com categoria e termos por trigger;
++  - proveniência contra a seção L4, item 5 (md5 do bloco, identidades e `triggers_md5` recalculado);
++  - controle positivo com a allowlist real e o inventário real;
++  - 72/72 alterações isoladas de atributo reprovadas;
++  - trigger adicional, linha removida, justificativa vazia, inventário 7×6 e `login` reprovados.
++- Mutação:
++  - E00 29/29, com alteração isolada de identidade, trigger adicional (7ª linha), linha removida, justificativa sem (f) e categoria trocada;
++  - esvaziamento de predicado 24/24;
++  - roteiro 5/5;
++  - envelopes 42/42;
++  - DDL no corpo 10/10;
++  - adulteração de 1 md5 no bloco da L4 deste registro ⇒ 5 FAIL.
++- Preservação:
++  - `BASELINE-BUILDER` (sha256 `77b4cdb7…`, 4.106 B) e `FREEZE-CANON` (sha256 `71550139…`, 979 B) idênticos entre o E00 do HEAD, o E00 D-9 e o E99;
++  - E01 `c4118b8c…`, E02 `3357ed46…`, E99 `49a71ecb…` e 2830 `b4647dcb…` inalterados.
++
++### 4. BLOCKER e dependências
++
++- **Nenhum BLOCKER real** para a auditoria desta incorporação.
++- **Dependência de commit:** a verificação de proveniência lê o bloco da L4 deste registro (seção L4, ainda não commitada). O commit precisa levar este registro junto com o E00; sem ele, o `static_check.py` reprova.
++- **Compilação no PostgreSQL pendente**, como antes: a comparação `text = name` (owner, `fn_language`, `fn_owner`) é válida no PG ≥ 12, mas só é provada executando. Isso exige mandato, e a Tentativa 04 começa em S1.0.
++
++---
++
+ ## Revision History
+
+ | Versão | Descrição |
+@@ -275,3 +421,5 @@
+ | 1.2 | **Tentativa 03 (2026-09-27 UTC, `BATCH12-2830-LIVE-STAGE1-EXECUTION-02`, HEAD `b8925ed5`).** Claude executou a Etapa 1 desde S1.0: PC-1…PC-5 PASS; L1 e L3 conformes (a L3 não foi bloqueada pela ferramenta); E00, 1ª leitura: **STOP**, com `g_p7_identity_pinned = false` e `g_no_enabled_event_triggers = false` (6 event triggers habilitados no LIVE). L2 (diagnóstico): TRANSPORT/EOL-ONLY em `public.normalize_external_catalog_value` (`cr_count` 2, md5 LF = pino), para D-6. `d_canon_diff = []`. S1.5, E01, E02, E99 e a Etapa 2 não foram executados. Saídas integrais anexadas. Nenhuma alteração em harness, consultas, pinos ou 2830. |
+ | 1.3 | **Adjudicação do STOP da Tentativa 03 (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01`, sem SQL).** Nova seção com 12 registros tipados (OBS / EVID / PROP):<br>• prova byte a byte de que `normalize_external_catalog_value` diverge só por CRLF;<br>• origem, eventos e habilitação dos 6 event triggers, e impossibilidade estática de disparo pelos envelopes;<br>• achado do P7 sem detecção de DDL estático;<br>• propostas D-6 (normalização) e D-9 / AD-10 (allowlist por identidade, vazia), com L4;<br>• pendências de decisão.<br>Correções não aplicadas: diff em `LIVE-STAGE1-STOP-ADJUDICATION.diff`. Estado atual atualizado. |
+ | 1.4 | **Correção local do harness (2026-09-26, `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`, sem SQL).** Registros 13 a 19:<br>• D-6 (opção A) e G-1 a G-5;<br>• 24 gates;<br>• L4 revisada;<br>• E00 vigente na PC-2;<br>• provas estáticas e de mutação;<br>• preservação;<br>• compilação pendente.<br>Estado atual atualizado. |
++| 1.5 | **L4 executada (2026-09-27 UTC, `BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01`, HEAD `9a4cff16`).** Uma chamada MCP.<br>• Saída válida pelos 6 critérios do roteiro §3.5: 6 = 6, `triggers_md5` recalculado igual, `fn_resolved` 6/6.<br>• Identidade completa dos 6 event triggers.<br>• Análise para D-9: 3 elegíveis para análise (`pgrst_ddl_watch`, `pgrst_drop_watch`, `issue_pg_cron_access`) e 3 com análise separada por I-8 (`issue_graphql_placeholder`, `issue_pg_graphql_access`, `issue_pg_net_access`); nenhum alcançável pelos envelopes.<br>• Saída integral anexada.<br>Nenhuma linha na allowlist; nada executado além da L4. |
++| 1.6 | **D-9 incorporada localmente (2026-09-27, `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`, sem SQL, baseline `9a4cff16`).** Nova seção D-9:<br>• 6 exceções copiadas literalmente da L4 (12 atributos, md5 integral), com justificativa (a)–(f), `pgrst_*` ordinários e `issue_*` excepcionais;<br>• AD-10/D-9 aprovadas e restritas aos envelopes atuais;<br>• E00 `a4dd8438…`, roteiro v1.5, protocolo v1.6;<br>• 444/444 estático; mutações 29/29, 24/24, 5/5, 42/42, 10/10;<br>• preservação de BUILDER/CANON/E01/E02/E99/2830.<br>Tentativa 04 não iniciada. Estado atual atualizado. |
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-RUNBOOK.md
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-RUNBOOK.md
+@@ -3,9 +3,9 @@
+ | Campo | Valor |
+ |---|---|
+ | **Mandato de preparação** | `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01` (2026-09-26) |
+-| **Status** | **v1.4 — CORRIGIDO LOCALMENTE** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), **não commitado**, pendente de auditoria independente. O E00 corrigido e a L4 **não foram compilados nem executados** no PostgreSQL. A v1.3 foi executada na Tentativa 03 (STOP em S1.3; ver `LIVE-STAGE1-EXECUTION-RECORD.md`) e está **superada**. Este roteiro **não autoriza** a execução. A Etapa 1 exige mandato próprio de execução; a Etapa 2 **não** é autorizada automaticamente por nenhum resultado aqui. |
++| **Status** | **v1.5 — D-9 incorporada LOCALMENTE** (`BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), **não commitada**, pendente de auditoria independente. A v1.4 foi publicada em `9a4cff16` e está superada. O E00 vigente **não foi compilado nem executado** no PostgreSQL. A v1.3 foi executada na Tentativa 03 (STOP em S1.3; ver `LIVE-STAGE1-EXECUTION-RECORD.md`). Este roteiro **não autoriza** a execução. |
+ | **Baseline** | Correção feita sobre HEAD `b8925ed571127be8f05fac98f6a3afbad5fe74a3`, ainda não commitada. O baseline de execução é o commit que contiver esta correção; ele será fixado pelo mandato de execução (PC-1). |
+-| **Autoridade** | `LIVE-VALIDATION-PROTOCOL.md` **v1.5**, seção 3. Em caso de conflito, o protocolo prevalece e o conflito é STOP. |
++| **Autoridade** | `LIVE-VALIDATION-PROTOCOL.md` **v1.6**, seção 3. Em caso de conflito, o protocolo prevalece e o conflito é STOP. |
+ | **Contrato** | 2830 v7.0, blob `b4647dcb59432405c8157e2733fd78678f35540e` — imutável. |
+ | **FREEZE** | ATIVO. |
+
+@@ -19,11 +19,11 @@
+ |---|---|---|
+ | **L1** — canal e sessão | `LIVE-VALIDATION-PROTOCOL.md` §3.2, bloco SQL 1 (reproduzido em §3) | md5 do texto `0836c36a8d3749b1e7718223e064caf9` |
+ | **L3** — concorrência | idem, bloco SQL 3 | md5 `b7bc3700aeef278f6a79bd30e6a8d229` |
+-| **E00** — precheck | `2830H_E00_precheck_inventory.sql`, arquivo **inteiro**, comentários incluídos | blob `88e9e7a4c94ac71feef536d6fc18b0e61190479c` · md5 do arquivo `a9352afcb883f072e1baf8a3518536fb` (43.639 B, 24 gates) |
++| **E00** — precheck | `2830H_E00_precheck_inventory.sql`, arquivo **inteiro**, comentários incluídos | blob `a4dd84381b928727611a51147ba1a4c1d11b89ab` · md5 do arquivo `45b6c35cca849ffbf49d22ec18e8283c` (53.803 B, 24 gates; `evt_allowlist` com as 6 exceções de D-9) |
+ | **L2** — pinos, **só diagnóstico** | idem, bloco SQL 2 | md5 `81d3472e69d8490849b16a0918c3e35d` |
+ | **L4** — event triggers, **só adjudicação D-9** | este roteiro, §3.5 | md5 `f3670eb8f149064610055720b0636218` (2.416 B). **Fora** da sequência da Etapa 1; exige mandato próprio. |
+
+-Os md5 da tabela são do texto exato de cada bloco SQL deste documento: da linha após a abertura da cerca até a quebra de linha final, inclusive, antes da cerca de fechamento. O texto de L1, L2 e L3 é idêntico ao dos blocos do protocolo. Os hashes de E00 e L4 anteriores a esta versão (E00 `97410c3a…` / `d00b7cec…`, executado na Tentativa 03; E00 proposto `a10ffd81…`; L4 `6bdc9dc4…`) são **históricos** e **não** são critério vigente.
++Os md5 da tabela são do texto exato de cada bloco SQL deste documento: da linha após a abertura da cerca até a quebra de linha final, inclusive, antes da cerca de fechamento. O texto de L1, L2 e L3 é idêntico ao dos blocos do protocolo. Os hashes de E00 e L4 anteriores a esta versão (E00 `97410c3a…` / `d00b7cec…`, executado na Tentativa 03; E00 proposto `a10ffd81…`; E00 `88e9e7a4…` / `a9352afc…`, publicado em `9a4cff16` com `evt_allowlist` vazia; L4 `6bdc9dc4…`) são **históricos** e **não** são critério vigente.
+
+ ---
+
+@@ -32,9 +32,9 @@
+ | # | Verificação | Evidência a registrar | Falha |
+ |---|---|---|---|
+ | PC-1 | `git rev-parse HEAD` = baseline do mandato de execução; `git status` limpo | saída literal | STOP |
+-| PC-2 | `git hash-object` do E00 = `88e9e7a4c94ac71feef536d6fc18b0e61190479c` e md5 do arquivo = `a9352afcb883f072e1baf8a3518536fb`; md5 de L1/L3/L2 = tabela §0; `python3 tools/static_check.py` com `FAIL 0` | saídas literais | STOP |
++| PC-2 | `git hash-object` do E00 = `a4dd84381b928727611a51147ba1a4c1d11b89ab` e md5 do arquivo = `45b6c35cca849ffbf49d22ec18e8283c`; md5 de L1/L3/L2 = tabela §0; `python3 tools/static_check.py` com `FAIL 0` | saídas literais | STOP |
+ | PC-3 | Canal = MCP Supabase `execute_sql`, `project_id = qjfutqujxrbzgrtkpgkg`; nunca Dashboard/SQL Editor | parâmetro `project_id` de cada chamada, registrado | STOP |
+-| PC-4 | Mandato de execução assinado por Fabrício, citando este roteiro **v1.4**, o protocolo **v1.5** e o blob do E00 da PC-2 | referência do mandato | STOP |
++| PC-4 | Mandato de execução assinado por Fabrício, citando este roteiro **v1.5**, o protocolo **v1.6** e o blob do E00 da PC-2 | referência do mandato | STOP |
+ | PC-5 | Nenhum `SET`/`set_config`/`CREATE TEMP`/sonda adicional; nenhuma consulta fora de L1, L3, E00 e L2 (a L4 só roda sob mandato próprio de adjudicação, nunca dentro da Etapa 1) | declaração no registro | STOP |
+
+ ---
+@@ -121,7 +121,7 @@
+
+ ### 3.3 E00 — precheck
+
+-Submeter o **conteúdo integral** de `2830H_E00_precheck_inventory.sql` (blob `88e9e7a4c94ac71feef536d6fc18b0e61190479c`, md5 `a9352afcb883f072e1baf8a3518536fb`), sem edição, sem recorte de comentários. O texto não é duplicado aqui, para não criar uma segunda fonte.
++Submeter o **conteúdo integral** de `2830H_E00_precheck_inventory.sql` (blob `a4dd84381b928727611a51147ba1a4c1d11b89ab`, md5 `45b6c35cca849ffbf49d22ec18e8283c`), sem edição, sem recorte de comentários. O texto não é duplicado aqui, para não criar uma segunda fonte.
+
+ ### 3.4 L2 — pinos, bruto × EOL (md5 `81d3472e69d8490849b16a0918c3e35d`) — SOMENTE DIAGNÓSTICO, SOMENTE APÓS STOP DE PINO
+
+@@ -262,7 +262,7 @@
+ 4. **Identidades P7 não-nativas** (`d_p7_functions`, `gate_scope = true`, schema ≠ `pg_catalog`, campo `fn`) = exatamente as 12 da allowlist (protocolo §3.3). A mais ou a menos ⇒ STOP.
+ 5. `d_p7_unqualified_calls` sem `UNRESOLVED`/`DENIED`; `d_p7_writes` com alvos só nas 5 tabelas EC; `d_p7_unresolved_qualified = []`; `d_p7_unqualified_writes = []`.
+ 6. `d_sequences` sem entrada para as 3 tabelas tocadas por E01. O inventário das demais é registrado.
+-7. `d_event_triggers` registrado **integralmente** (12 atributos de identidade + md5 bruto); `d_evt_catalog_count` = número de linhas de `d_event_triggers`; `d_evt_unadjudicated = []`; cada exceção adjudicada citada no registro com a sua justificativa (D-9); `d_evt_allowlist_absent` registrado (sem efeito de gate); `d_p7_rules` sem regra nas 5 tabelas EC; `d_publications` registrado.
++7. `d_event_triggers` registrado **integralmente** (12 atributos de identidade + md5 bruto); os 6 event triggers aprovados em D-9 casam com as 6 linhas da `evt_allowlist`; `d_evt_catalog_count` = número de linhas de `d_event_triggers`; `d_evt_unadjudicated = []`; cada exceção adjudicada citada no registro com a sua justificativa (D-9); `d_evt_allowlist_absent` registrado (sem efeito de gate); `d_p7_rules` sem regra nas 5 tabelas EC; `d_publications` registrado.
+ 7a. `d_p7_eol_normalized` registrado. Cada item listado precisa ter `body_md5_lf` = pino e `crlf_count = cr_count` (só CRLF); o registro cita o md5 bruto (`body_md5`) como evidência. Item novo, não adjudicado em D-6, é registrado como observação para auditoria — a identidade já está provada pelo pino normalizado.
+ 8. Saída **não truncada**: presença de `d_baseline`, `d_baseline_md5`, `d_session` e das 17 chaves canônicas em `d_baseline`. Truncada ⇒ rodada inválida (não é FAIL); nova rodada só com novo mandato.
+
+@@ -289,7 +289,7 @@
+
+ | # | Decisão | Recomendação técnica |
+ |---|---|---|
+-| P-1 | Mandato de execução da Etapa 1, citando baseline, este roteiro v1.4, o protocolo v1.5 e o blob do E00 (PC-2) | — |
++| P-1 | Mandato de execução da Etapa 1, citando baseline, este roteiro v1.5, o protocolo v1.6 e o blob do E00 (PC-2) | — |
+ | P-2 | S1.6 (`EXPLAIN (COSTS OFF)` do E00, P9a) | **Fora da Etapa 1.** Executar o E00 **não** prova a forma do plano: a execução só-leitura mede tempo (AD-2), enquanto P9a exige `EXPLAIN (COSTS OFF)` registrado. **P9a permanece PENDENTE** e exige **mandato próprio** antes do aceite de A2. Nenhum resultado da Etapa 1 conta como P9a. |
+ | P-3 | Quem executa: agente via MCP ou Fabrício | agente via MCP, sob mandato (padrão das rodadas anteriores); Fabrício, se preferir o canal manual — o critério PC-3 continua exigindo MCP |
+ | P-4 | Após qualquer STOP: D-4 (lock_timeout), D-5 (visibilidade), D-6 (pinos), D-9 (event triggers) ou mandato de correção do harness | por caso |
+@@ -318,3 +318,4 @@
+ | 1.2 | **Fechamento de A-4 (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-01`).** O protocolo foi alinhado (v1.3), e a nota de precedência do §4.2 e o achado A-4 passam a RESOLVIDO. Critérios, sequência, SQL e md5 inalterados. |
+ | 1.3 | **Referências (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-02`).** Cabeçalho (Autoridade), PC-4 e P-1 passam a citar o protocolo **v1.3**, a versão que contém o alinhamento de A-4. As menções históricas a v1.2 (A-4 e revisão 1.2) e a declaração de identidade dos blocos SQL (§0) ficam como estão. Critérios, consultas, md5 e sequência inalterados. |
+ | 1.4 | **Correção local (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01` → `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitada, pendente de auditoria.** Após o STOP da Tentativa 03:<br>• E00 corrigido: blob `88e9e7a4…`, md5 `a9352afc…`, **24 gates**. Inclui pino P7 com EOL normalizado (D-6), `g_p7_no_ddl`, `g_evt_inventory_complete` (G-3) e `g_evt_ddl_only` + `g_evt_all_adjudicated` com identidade de 12 atributos (G-4) e justificativa obrigatória.<br>• §3.5 L4 revisada: contagem e nomes lidos direto do catálogo, `LEFT JOIN`, `triggers_md5`, validação de completude; md5 `f3670eb8…`. Só sob mandato de adjudicação (D-9), fora da Etapa 1.<br>• §4.3 itens 2, 7 e 7a.<br>• Cabeçalho, §0, PC-2, PC-4 e P-1 reconciliados com o protocolo v1.5, o E00 novo e a L4 (G-5); os hashes anteriores ficam só como histórico.<br>L1, L2 e L3 inalterados. Compilação PostgreSQL pendente. |
++| 1.5 | **D-9 incorporada localmente (2026-09-27, `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), não commitada, pendente de auditoria.**<br>• E00 com as 6 exceções aprovadas em D-9 na `evt_allowlist`: blob `a4dd8438…`, md5 `45b6c35c…`.<br>• Cabeçalho, §0, PC-2, PC-4, §3.3, §4.3 item 7 e P-1 reconciliados com o protocolo v1.6; o E00 `88e9e7a4…` fica só como histórico.<br>L1, L2, L3 e L4 inalterados. Compilação PostgreSQL pendente. |
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-STOP-ADJUDICATION.md
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-STAGE1-STOP-ADJUDICATION.md
+@@ -4,9 +4,9 @@
+ |---|---|
+ | **Mandato** | `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01` (2026-09-26). Só auditoria documental e preparação de proposta. |
+ | **SQL nesta rodada** | **Nenhum.** O LIVE não foi consultado nem modificado. Nenhum event trigger foi desabilitado. |
+-| **Estado** | Etapa 1 **STOP** (Tentativa 03, S1.3). Etapa 2 **não autorizada**. FREEZE **ATIVO**. |
++| **Estado** | Etapa 1 **STOP** (Tentativa 03, S1.3). Correção publicada em `9a4cff16`; L4 executada; **D-9 APROVADA e incorporada localmente** (§10). Tentativa 04 **não iniciada**. Etapa 2 **não autorizada**. FREEZE **ATIVO**. |
+ | **Baseline** | HEAD `b8925ed571127be8f05fac98f6a3afbad5fe74a3`. A árvore contém as alterações ainda não commitadas da Tentativa 03 (registro v1.2, README do harness e `docs/log.md`). |
+-| **Correções** | **Aplicadas LOCALMENTE** em `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`: não commitadas, **não compiladas nem executadas** no PostgreSQL, pendentes de auditoria independente. `LIVE-STAGE1-STOP-ADJUDICATION.diff` passou a ser o diff integral da correção contra o HEAD `b8925ed5`. **Estado vigente: §9.** Onde as seções 0–8 divergirem da §9 (23 gates, hashes de E00, L4 e diff, "proposta não aplicada"), vale a §9. |
++| **Correções** | **Aplicadas LOCALMENTE** em `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`: não commitadas, **não compiladas nem executadas** no PostgreSQL, pendentes de auditoria independente. `LIVE-STAGE1-STOP-ADJUDICATION.diff` passou a ser o diff integral da correção contra o HEAD `b8925ed5`. **Estado vigente: §9, e §10 para D-9.** Onde as seções 0–8 divergirem da §9 (23 gates, hashes de E00, L4 e diff, "proposta não aplicada"), vale a §9; onde a §9 divergir da §10 (allowlist vazia, D-9 pendente, blob `88e9e7a4…`, 420/420), vale a §10. |
+ | **2830 canônica** | Blob `b4647dcb…`, inalterado. |
+
+ Rótulos usados neste documento:
+@@ -569,6 +569,164 @@
+ print(f'TOTAL {len(res)} PASS {len(res)-len(bad)} FAIL {len(bad)}')
+ ```
+
++## 10. D-9 — incorporação local da allowlist — `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01` (estado vigente de D-9)
++
++**Decisão de Fabrício:** D-9 APROVADA, sobre o baseline publicado `9a4cff16`. Sem SQL, sem acesso ao LIVE, nenhum event trigger alterado ou desabilitado, Tentativa 04 não iniciada, sem commit. FREEZE ATIVO.
++
++### 10.1 O que mudou
++
++- **E00** (blob `a4dd8438…`, md5 `45b6c35c…`, 53.803 B): a `evt_allowlist` deixa de ser vazia e passa a conter **exatamente 6 linhas**. Os 12 atributos de cada linha são copiados literalmente da saída da L4 executada (registro de execução, rev. 1.5, md5 `fc0d8cf7…`), preservando tipos SQL, arrays, `NULL` e o md5 integral. Nenhum gate, CTE, predicado ou bloco BUILDER/CANON foi alterado; os 24 gates são os mesmos.
++- **Justificativa (a)–(f)** por linha: (a) evidência L4; (b) origem; (c) evento/tags; (d) efeito real; (e) ausência de caminho de disparo pelos envelopes atuais; (f) condição de reavaliação.
++- **Categorias**, conforme o mandato:
++  - `pgrst_ddl_watch` e `pgrst_drop_watch`: aceite **ordinário**, incluindo tags amplas `NULL` (efeito só `NOTIFY pgrst`);
++  - `issue_pg_cron_access`: aceite **excepcional**, incluindo `ALTER DEFAULT PRIVILEGES`;
++  - `issue_graphql_placeholder`: aceite **excepcional** pela criação da função placeholder;
++  - `issue_pg_graphql_access`: aceite **excepcional** por DDLs e concessões de privilégio;
++  - `issue_pg_net_access`: aceite **excepcional**, incluindo `CREATE USER` e concessões de acesso de rede.
++- **AD-10/D-9** (protocolo v1.6): APROVADAS, **restritas aos envelopes atuais** (L1–L4, E00, E01, E02, E99). Não são autorização genérica para novas operações, migrations ou DDL. Uma linha nova exige nova L4, nova decisão e mandato de correção — nunca por nome.
++- **`tools/static_check.py`**: as checagens de allowlist vazia foram substituídas pela validação das 6 linhas, dos pinos, das justificativas e da proveniência contra a L4 registrada, mais o modelo real (§10.3). Os controles negativos continuam.
++- **Roteiro v1.5 / protocolo v1.6 / README / registro de execução / log:** reconciliados com os novos blobs.
++
++### 10.2 Identidade dos artefatos
++
++| Artefato | Blob | md5 | Bytes |
++|---|---|---|---|
++| E00 | `a4dd84381b928727611a51147ba1a4c1d11b89ab` | `45b6c35cca849ffbf49d22ec18e8283c` | 53.803 |
++| `tools/static_check.py` | `378154507fadcb4f351c1a05ec475a1c32e272aa` | `e6a6b9ab5fc0e632dfc2ac293631b9ab` | 53.271 |
++| Roteiro v1.5 | `9f454a9632f579607acadef1bfa076e3e5331e95` | `9ee3e8440ad86aeaa5aec51110a8a8e5` | 27.111 |
++| Protocolo v1.6 | `f8d5218ba3aa446f7f76f2b99d4eab3a36bb152a` | `47a89b3a10aa8fc5e63c5681d0cd8557` | 48.077 |
++| E01 / E02 / E99 | `c4118b8c…` / `3357ed46…` / `49a71ecb…` | inalterados | — |
++| 2830 v7.0 | `b4647dcb59432405c8157e2733fd78678f35540e` | inalterado | 75.013 |
++
++Diff integral contra `9a4cff16`: `LIVE-STAGE1-D9-ALLOWLIST.diff`.
++
++### 10.3 Provas (sem banco)
++
++| Prova | Resultado |
++|---|---|
++| `static_check.py` | **444 / 444 PASS** |
++| Controle positivo: allowlist real × inventário real da L4 ⇒ `g_evt_all_adjudicated` e `g_evt_inventory_complete` verdadeiros | PASS |
++| Alteração isolada de cada um dos 12 atributos em cada uma das 6 linhas do inventário | **72 / 72 reprovam** |
++| Trigger adicional habilitado; linha removida; justificativa vazia; inventário 7×6; evento `login` | todos reprovam |
++| Trigger adicional **desabilitado** (inventariado) | não reprova, como especificado |
++| Mutação do E00 (Apêndice D.1): identidade alterada, tags, `enabled`, `fn_secdef`, `fn_extension`, linha removida, 7ª linha, justificativa sem (f), `pgrst` sem "tags NULL", categoria trocada, além dos controles da §9 | **29 / 29 detectadas** |
++| Esvaziamento do predicado de cada um dos 24 gates | **24 / 24 detectados** |
++| Mutação do roteiro (Apêndice D.2) | **5 / 5** |
++| Envelopes com comandos da matriz de disparo (Apêndice B de `…-EVIDENCE.md`, md5 `9c3d523a…`) | **42 / 42** |
++| DDL no corpo das funções (Apêndice C.3, md5 `22150a13…`) | **10 / 10** |
++| Adulteração de um md5 dentro do bloco da L4 no registro de execução | **5 FAIL** (proveniência + controle positivo) |
++| `BASELINE-BUILDER` / `FREEZE-CANON` E00 HEAD × E00 D-9 × E99 | idênticos (sha256 `77b4cdb7…` 4.106 B / `71550139…` 979 B) |
++
++### 10.4 BLOCKER
++
++**Nenhum BLOCKER real.** Duas dependências foram declaradas:
++
++1. O commit precisa incluir o registro de execução, cuja seção L4 ainda não foi commitada. A proveniência verificada pelo `static_check.py` depende dela.
++2. A compilação e a execução no PostgreSQL continuam pendentes. As comparações `text = name` são válidas no PG ≥ 12, mas só ficam provadas executando, o que exige mandato. A Tentativa 04 começa desde S1.0.
++
++### 10.5 Decisões pendentes
++
++1. Auditoria independente desta incorporação. Se aprovada, commit por Fabrício.
++2. Mandato da Tentativa 04, desde S1.0, com o E00 `a4dd8438…`.
++
++### Apêndice D.1 — `e00_mut_v2.py` (md5 `5858fe7a8615ecd268eeb2d53835bbbb`)
++
++Executado como `python3 e00_mut_v2.py <cópia da árvore>`.
++
++```python
++# Mutação do E00 corrigido: cada mutação enfraquece um controle; o static_check.py corrigido precisa reprovar.
++import sys,shutil,subprocess
++root=sys.argv[1]; H='/database/proposals/2026-09-18-edition-context-axis/harness/'
++E00=open(root+H+'2830H_E00_precheck_inventory.sql',encoding='utf-8').read()
++import re as _re
++R0=[l for l in E00.splitlines() if l.startswith("    ('pgrst_ddl_watch'")][0]
++RN=[l for l in E00.splitlines() if l.startswith("    ('issue_pg_net_access'")][0]
++MUT=[
++ ('G-4 remove casamento fn_secdef',"                          AND a.fn_secdef = e.fn_secdef\n",""),
++ ('G-4 remove casamento fn_config',"                          AND a.fn_config IS NOT DISTINCT FROM e.fn_config\n",""),
++ ('G-4 remove casamento fn_extension',"                          AND a.fn_extension IS NOT DISTINCT FROM e.fn_extension\n",""),
++ ('G-4 fn_config com = (NULL deixaria de casar estado pinado)',"a.fn_config IS NOT DISTINCT FROM e.fn_config","a.fn_config = e.fn_config"),
++ ('G-2 owner com IS NOT DISTINCT FROM (NULL casaria NULL)',"AND a.owner = e.owner","AND a.owner IS NOT DISTINCT FROM e.owner"),
++ ('G-2 tags com = ',"a.tags IS NOT DISTINCT FROM e.tags","a.tags = e.tags"),
++ ('remove casamento fn_md5_lf'," AND a.fn_md5_lf = e.fn_md5_lf",""),
++ ('remove justificativa obrigatória'," AND NULLIF(btrim(a.justification), '') IS NOT NULL",""),
++ ('D-9: md5 de uma identidade alterado',"'7f27b8118fea5c88b0164331292859e3', 'D-9","'7f27b8118fea5c88b0164331292859e4', 'D-9"),
++ ('D-9: tags de linha com filtro trocadas por NULL',"ARRAY['DROP EXTENSION']::text[]","NULL::text[]"),
++ ('D-9: enabled O→A numa linha',"'issue_pg_cron_access', 'ddl_command_end', ARRAY['CREATE EXTENSION']::text[], 'O'","'issue_pg_cron_access', 'ddl_command_end', ARRAY['CREATE EXTENSION']::text[], 'A'"),
++ ('D-9: fn_secdef false→true numa linha',"'extensions.grant_pg_net_access()', 'plpgsql', 'supabase_admin', false","'extensions.grant_pg_net_access()', 'plpgsql', 'supabase_admin', true"),
++ ('D-9: fn_extension NULL→pg_net numa linha',"'extensions.grant_pg_net_access()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=\"\"']::text[], NULL::text","'extensions.grant_pg_net_access()', 'plpgsql', 'supabase_admin', false, ARRAY['search_path=\"\"']::text[], 'pg_net'"),
++ ('D-9: linha removida (pg_net)',RN+"\n",""),
++ ('D-9: 7ª linha acrescentada',R0+"\n",R0+"\n"+R0.replace("('pgrst_ddl_watch'","('pgrst_extra_watch'")+"\n"),
++ ('D-9: justificativa de pg_net sem (f)',RN,RN.replace("(f) Reavaliar","Reavaliar")),
++ ('D-9: justificativa de pgrst_ddl_watch sem "tags NULL"',R0,R0.replace("tags NULL","tags ausentes")),
++ ('D-9: categoria de pg_net trocada para ORDINÁRIO',RN,RN.replace('ACEITE EXCEPCIONAL','ACEITE ORDINÁRIO')),
++ ('G-3 remove g_evt_inventory_complete',"""        (SELECT count(*) FROM pg_catalog.pg_event_trigger) = (SELECT count(*) FROM evt)
++                                                                                      AS g_evt_inventory_complete,
++""",""),
++ ('G-3 inventário comparado consigo mesmo',"(SELECT count(*) FROM pg_catalog.pg_event_trigger) = (SELECT count(*) FROM evt)","(SELECT count(*) FROM evt) = (SELECT count(*) FROM evt)"),
++ ('G-3 evt filtra desabilitados (esconde triggers)',"      JOIN pg_language l  ON l.oid = p.prolang\n),\n-- EVT-ALLOWLIST","      JOIN pg_language l  ON l.oid = p.prolang\n     WHERE e.evtenabled <> 'D'\n),\n-- EVT-ALLOWLIST"),
++ ('login deixa de ser STOP',"event NOT IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite'))","event NOT IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite','login'))"),
++ ('exceção deixa de exigir evento DDL',"WHERE a.event IN ('ddl_command_start','ddl_command_end','sql_drop','table_rewrite')","WHERE true"),
++ ('D-6 volta a comparar md5 bruto',"md5(replace(f.prosrc, chr(13) || chr(10), chr(10))) IS DISTINCT FROM a.body_md5","md5(f.prosrc) IS DISTINCT FROM a.body_md5"),
++ ('g_p7_no_ddl esvaziado',"WHERE gate_scope AND ddl_statement)","WHERE false)"),
++ ('G-1 remove g_game_source',"AS g_game_source,","AS g_game_source_x,"),
++ ('24 → 25 gates (gate extra)',"AS g_no_concurrency\n","AS g_no_concurrency,\n        true AS g_extra\n"),
++ ('BASELINE-BUILDER alterado só no E00',"'jobs_in_flight',         (SELECT count(*)","'jobs_in_flight',         (SELECT count(1)"),
++ ('FREEZE-CANON alterado só no E00','"jobs_in_flight": 0','"jobs_in_flight": 1'),
++]
++tot=det=0
++for label,a,b in MUT:
++    assert E00.count(a)==1, label
++    t='/tmp/e00mut_tree'; shutil.rmtree(t,ignore_errors=True); shutil.copytree(root,t)
++    open(t+H+'2830H_E00_precheck_inventory.sql','w',encoding='utf-8').write(E00.replace(a,b))
++    p=subprocess.run(['python3',t+H+'tools/static_check.py'],capture_output=True,text=True)
++    fails=[l for l in p.stdout.splitlines() if l.startswith('FAIL')]; crash=p.returncode!=0 and not fails and 'Traceback' in p.stderr
++    tot+=1; hit=bool(fails) or crash; det+=hit
++    print(('DETECTADA ' if hit else 'NÃO DETECTADA ')+label+' | '+(fails[0][:110] if fails else ('crash: '+p.stderr.strip().splitlines()[-1][:80] if crash else '')))
++print(f'MUTAÇÕES E00 DETECTADAS {det}/{tot}')
++# Esvaziamento genérico: para cada um dos 24 gates, apaga o 1º termo efetivo do seu predicado (só dentro do segmento do gate).
++import io,contextlib,re
++ns={'__file__':root+H+'tools/static_check.py'}
++with contextlib.redirect_stdout(io.StringIO()): exec(open(root+H+'tools/static_check.py',encoding='utf-8').read(),ns)
++gcte=ns['_gcte']; seg=ns['_seg']; terms=ns['GATE_TERMS']
++d2=t2=0
++for g,tl in terms.items():
++    sg=seg[g]; assert E00.count(sg)==1, g
++    mutated=E00.replace(sg, sg.replace(tl[0],'/*removido*/ TRUE',1))
++    t='/tmp/e00mut_tree'; shutil.rmtree(t,ignore_errors=True); shutil.copytree(root,t)
++    open(t+H+'2830H_E00_precheck_inventory.sql','w',encoding='utf-8').write(mutated)
++    p=subprocess.run(['python3',t+H+'tools/static_check.py'],capture_output=True,text=True)
++    hit=any(l.startswith('FAIL') for l in p.stdout.splitlines()) or ('Traceback' in p.stderr)
++    t2+=1; d2+=hit
++    if not hit: print('NÃO DETECTADA: esvaziamento de',g)
++print(f'ESVAZIAMENTO DE PREDICADO DETECTADO {d2}/{t2}')
++```
++
++### Apêndice D.2 — `rb_mut.py` (md5 `4f0ccc71e1848273dc2c9017fcc58e38`)
++
++`/tmp/q_L4v2.sql` é a L4 revisada extraída do roteiro (md5 `f3670eb8…`).
++
++```python
++import sys,shutil,subprocess
++root=sys.argv[1]; H='/database/proposals/2026-09-18-edition-context-axis/harness/'
++RB=open(root+H+'LIVE-STAGE1-RUNBOOK.md',encoding='utf-8').read()
++L4=open('/tmp/q_L4v2.sql',encoding='utf-8').read()
++MUT=[('PC-2 volta ao blob anterior (88e9e7a4)','`a4dd84381b928727611a51147ba1a4c1d11b89ab` e md5','`88e9e7a4c94ac71feef536d6fc18b0e61190479c` e md5'),
++ ('PC-4 cita protocolo v1.5','o protocolo **v1.6** e o blob','o protocolo **v1.5** e o blob'),
++ ('L4 perde contagem direta',"           'inventory_complete',       cat.catalog_count = jsonb_array_length(COALESCE(inv.triggers, '[]'::jsonb)),\n",""),
++ ('L4 volta a JOIN interno','      LEFT JOIN pg_proc p      ON p.oid = e.evtfoid','      JOIN pg_proc p      ON p.oid = e.evtfoid'),
++ ('L4 editada sem recalcular md5',"'fn_src',       p.prosrc)","'fn_src',       left(p.prosrc, 10))")]
++det=0
++for lab,a,b in MUT:
++    assert RB.count(a)==1, lab
++    t='/tmp/rbmut'; shutil.rmtree(t,ignore_errors=True); shutil.copytree(root,t)
++    open(t+H+'LIVE-STAGE1-RUNBOOK.md','w',encoding='utf-8').write(RB.replace(a,b))
++    p=subprocess.run(['python3',t+H+'tools/static_check.py'],capture_output=True,text=True)
++    f=[l for l in p.stdout.splitlines() if l.startswith('FAIL')]; det+=bool(f)
++    print(('DETECTADA ' if f else 'NÃO DETECTADA ')+lab+' | '+(f[0][:100] if f else ''))
++print(f'MUTAÇÕES ROTEIRO DETECTADAS {det}/{len(MUT)}')
++```
++
+ ---
+
+ ## Revision History
+@@ -577,3 +735,4 @@
+ |---|---|
+ | 1.0 | **Criação (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01`).** Adjudicação documental do STOP da Tentativa 03, sem SQL:<br>• evidências integrais de L1, L3, E00 e L2;<br>• prova byte a byte de que `normalize_external_catalog_value` diverge só por CRLF;<br>• origem, eventos e possibilidade de disparo dos 6 event triggers;<br>• achado do P7 sem detecção de DDL estático;<br>• tratamento restritivo (D-9/AD-10);<br>• implicações, riscos e diff proposto de 4 arquivos, não aplicado. |
+ | 1.1 | **Correção local (2026-09-26, `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`, sem SQL).** Nova §9 (estado vigente):<br>• G-1 a G-5 incorporados;<br>• 24 gates, com `g_evt_inventory_complete`;<br>• identidade do event trigger com 12 atributos e justificativa obrigatória;<br>• L4 revisada (md5 `f3670eb8…`);<br>• roteiro reconciliado;<br>• novos blobs e hashes;<br>• 420/420 estático;<br>• mutação: 20/20, 24/24, 5/5 e 42/42;<br>• preservação de BUILDER/CANON/E01/E02/E99/2830.<br>Cabeçalho aponta para a §9. Compilação PostgreSQL pendente. |
++| 1.2 | **D-9 incorporada localmente (2026-09-27, `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`, sem SQL, baseline `9a4cff16`).** Nova §10 (estado vigente de D-9):<br>• 6 exceções da L4 com justificativa (a)–(f);<br>• categorias ordinária/excepcional conforme o mandato;<br>• AD-10/D-9 aprovadas e restritas aos envelopes atuais;<br>• novos blobs;<br>• 444/444 estático;<br>• mutação 29/29, 24/24, 5/5, 42/42, 10/10;<br>• preservação;<br>• apêndices D.1 e D.2.<br>Cabeçalho aponta para a §10. Nenhum BLOCKER real; compilação PostgreSQL pendente. |
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-VALIDATION-PROTOCOL.md
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/LIVE-VALIDATION-PROTOCOL.md
+@@ -3,7 +3,7 @@
+ | Campo | Valor |
+ |---|---|
+ | **Mandato** | `BATCH12-2830-LIVE-VALIDATION-READINESS-01` (2026-09-26) |
+-| **Status** | **v1.5 — CORRIGIDO LOCALMENTE** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitado, pendente de auditoria independente. A Etapa 1 foi tentada pela v1.4 (Tentativa 03: STOP em S1.3). O E00 corrigido **não foi compilado nem executado**. Cada etapa exige mandato próprio. |
++| **Status** | **v1.6 — D-9 incorporada LOCALMENTE** (`BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), não commitada, pendente de auditoria independente. A v1.5 foi publicada em `9a4cff16`. A Etapa 1 foi tentada pela v1.4 (Tentativa 03: STOP em S1.3). O E00 vigente **não foi compilado nem executado**. Cada etapa exige mandato próprio. |
+ | **Baseline do repositório** | `97380747a18db7e38b10b0720a8b2d1f9b0c28ed` (HEAD confirmado, árvore limpa antes desta rodada) |
+ | **Decisão do proprietário** | **Ambiente isolado pago: recusado.** Validação progressiva de E00/E02/E99/E01 no banco LIVE existente. **Alternativa isolada sem custo** (tecnologia não prescrita; Supabase local é alternativa viável, não exclusiva) **permanece PENDENTE** (D-1), com **P14 (a, b, c) obrigatório** — ver `../2830-V7.1-PROPOSAL-ADMIN-CONCURRENCY.md`. *Redação original (v1.0/v1.1): "Não haverá ambiente isolado"; refinada pela decisão de produto registrada em `BATCH12-2830-ADMIN-CONCURRENCY-REASSESSMENT-01`.* |
+ | **Autoridade** | `2830_validate_edition_context_foundation.sql` v7.0, blob `b4647dcb…` — **imutável**. Este documento **não** a altera: registra, à parte, o que a decisão acima muda e o que continua valendo (seção 7). |
+@@ -14,7 +14,7 @@
+
+ | Artefato | Blob | Natureza |
+ |---|---|---|
+-| `2830H_E00_precheck_inventory.sql` | vigente: `88e9e7a4c94ac71feef536d6fc18b0e61190479c` (corrigido, 24 gates, não commitado); histórico: `97410c3a…` (executado na Tentativa 03) | 1 SELECT |
++| `2830H_E00_precheck_inventory.sql` | vigente: `a4dd84381b928727611a51147ba1a4c1d11b89ab` (24 gates, `evt_allowlist` com as 6 exceções de D-9, não commitado); histórico: `88e9e7a4…` (publicado em `9a4cff16`, allowlist vazia) e `97410c3a…` (executado na Tentativa 03) | 1 SELECT |
+ | `2830H_E02_identity_terminal_D1_D5.sql` | `3357ed46b77e3bfacbe5b1988820e495ce363dd1` | 1 DO, só catálogo, sem DML |
+ | `2830H_E99_postcheck_residue.sql` | `49a71ecb4525697858110ee71a3f61f5eee74a34` | 1 SELECT (3 marcadores a substituir) |
+ | `2830H_E01_section1_structural.sql` | `c4118b8cc13872ecefa600d3c2225cca48f3c1b1` | 1 DO, **escreve fixtures** e desfaz |
+@@ -240,6 +240,7 @@
+   - `d_event_triggers` registrado integralmente;
+   - `d_evt_catalog_count` = número de linhas do inventário (`g_evt_inventory_complete`);
+   - `d_evt_unadjudicated = []`;
++  - a `evt_allowlist` contém **exatamente** as 6 exceções aprovadas em D-9 (identidades literais da L4);
+   - toda exceção vem de uma linha da `evt_allowlist` com identidade de 12 atributos (nome, evento, tags, estado, dono, função, linguagem, dono da função, `SECURITY DEFINER`, `proconfig`, extensão, md5 LF) e justificativa **não vazia**, só para evento DDL;
+   - evento não-DDL (`login`) habilitado ⇒ STOP sempre.
+ - L3 limpo.
+@@ -464,7 +465,7 @@
+ | AD-6 | P5 marcador `'H2830-' ‖ uuid` | — | marcador efetivo `H2830_` + uuid sem hífens em maiúsculas, porque os CHECKs de formato de `code` recusam hífen; detecção de resíduo por `LIKE '%H2830%'` cobre as duas formas | nenhum (formaliza o implementado) |
+ | AD-7 | Vinculação E00 → envelope → E99 com marcador | todo envelope tem fixture | para envelopes sem fixture (E02), o item 2 do registro é a mensagem terminal sem marcador | nenhum |
+ | AD-8 | Regra permanente EOL (bruto ≠, normalizado =) × gate de pino bruto do E00 | corpo LIVE byte-idêntico ao repositório | **proposta D-6:** pino comparado ao md5 com CRLF→LF nos dois lados (o repositório é LF); CR isolado continua STOP; md5 bruto, `cr_count` e `crlf_count` exportados e registrados; `d_p7_eol_normalized` lista cada caso. Vale só após mandato de correção e novo blob do E00 | nenhum |
+-| AD-10 | `g_no_enabled_event_triggers` (nenhum event trigger habilitado) | LIVE sem event triggers | **D-9 (corrigido localmente, pendente de aceite):** inventário integral com completude verificada contra a contagem direta do catálogo (`g_evt_inventory_complete`); `login`/evento não-DDL ⇒ STOP sempre; evento DDL só com exceção individual por identidade de 12 atributos (nome, evento, tags, estado, dono, função, linguagem, dono da função, `SECURITY DEFINER`, `proconfig`, extensão, md5 LF) e justificativa não vazia. Semântica de `NULL`: `=` nos atributos obrigatórios; `IS NOT DISTINCT FROM` em tags, `proconfig` e extensão, onde `NULL` é estado pinado. `evt_allowlist` nasce vazia e só recebe linhas por mandato, a partir da L4 | nenhum enquanto a allowlist estiver vazia (comportamento idêntico ao atual) |
++| AD-10 | `g_no_enabled_event_triggers` (nenhum event trigger habilitado) | LIVE sem event triggers | **APROVADA (D-9, `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), restrita aos envelopes atuais.** Inventário integral com completude contra a contagem direta do catálogo (`g_evt_inventory_complete`); `login`/evento não-DDL ⇒ STOP sempre; evento DDL só com exceção individual por identidade de 12 atributos e justificativa não vazia. A `evt_allowlist` contém exatamente as 6 exceções da L4 (`pgrst_ddl_watch` e `pgrst_drop_watch`: aceite ordinário, inclusive `tags` NULL; `issue_pg_cron_access`, `issue_graphql_placeholder`, `issue_pg_graphql_access` e `issue_pg_net_access`: aceite excepcional). **Não** autoriza novas operações, migrations nem DDL; nova linha exige nova L4, nova decisão e mandato de correção | nenhum: com a identidade LIVE igual à L4, `g_evt_all_adjudicated` passa; qualquer divergência reprova |
+ | AD-9 | P8/G15 "zero sessão concorrente" | visibilidade total de `pg_stat_activity` | exigir superusuário **ou** `pg_read_all_stats` **ou** controle positivo explícito de visibilidade (L1, via 3); `activity_rows_state_hidden = 0` isolado não basta; senão o gate pode ser vácuo (P13) | nenhum, se a visibilidade for provada |
+
+ ---
+@@ -479,7 +480,7 @@
+ | D-4 | Se `lock_timeout` da sessão MCP ≠ `'0'`: corrigir o E99 para comparar com o valor do E00 (mandato de correção) | Etapas 2 e 3 |
+ | D-5 | Se a visibilidade de `pg_stat_activity` não for provada pelas vias 1–3 da L1: conceder `pg_read_all_stats` ao papel do canal ou mudar o canal (decisão de Fabrício; o agente não altera papéis) | Etapas 1–3 |
+ | D-6 | Após STOP por pino, se a L2 (diagnóstico) mostrar TRANSPORT/EOL-ONLY: adjudicação e forma da correção dos pinos; a Etapa 1 só recomeça com novo mandato. **Ocorrido na Tentativa 03** (`public.normalize_external_catalog_value`, só CRLF, provado byte a byte). Proposta: AD-8 (normalização nos dois lados), em `LIVE-STAGE1-STOP-ADJUDICATION.md` | Etapas 1–3 |
+-| D-9 | Event triggers habilitados no LIVE (Tentativa 03: 6): autorizar a L4 (só SELECT, mandato próprio, md5 no roteiro §0); adjudicar **individualmente** cada exceção (evento DDL, identidade de 12 atributos, justificativa não vazia); aceitar AD-10 | Etapas 1–3 |
++| D-9 | **APROVADA por Fabrício (`BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), restrita aos envelopes atuais.** L4 executada (`…-L4-EVENT-TRIGGER-INVENTORY-01`, leitura válida). As 6 exceções foram incorporadas à `evt_allowlist` com identidade de 12 atributos e justificativa (a)–(f). **Não** é autorização genérica para novas operações ou migrations | — (resolvida) |
+ | D-7 | Aceite de AD-3 a AD-10 | registro formal |
+ | D-8 | Mandato de cada etapa (1, 2 e 3), separados | cada etapa |
+
+@@ -508,3 +509,4 @@
+ | 1.3 | **Alinhamento (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-01`).** §3.2 (L3: objetivo, resultado esperado e "Como validar") e §6.3: qualquer outra sessão `client backend` ativa ou em transação implica **STOP**, mesmo identificada como plataforma; a classificação nominal é exclusivamente diagnóstica; `g_no_concurrency = true` segue obrigatório. Elimina o conflito A-4 do roteiro da Etapa 1. SQL e md5 de L1/L2/L3 inalterados; nenhum outro critério alterado. |
+ | 1.4 | **Ajuste referencial (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-02`).** §3.2 (L3, "Como validar"): removida a menção a "query curta", porque a L3 não retorna o texto da query. A classificação nominal passa a citar só os campos efetivamente retornados. Nenhum SQL, md5, critério ou STOP alterado. |
+ | 1.5 | **Correção local (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01` → `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitada, pendente de auditoria.** Após o STOP da Tentativa 03:<br>• §3.3: critérios de EOL (D-6, opção A com o bruto como evidência) e de event triggers (D-9: completude, identidade de 12 atributos, justificativa não vazia).<br>• §3.4: `g_p7_no_ddl`, `g_evt_inventory_complete`, `g_evt_ddl_only` e `g_evt_all_adjudicated`.<br>• §6.1 C-1 atualizado (CRLF ocorrido); §6.2 com event triggers da plataforma.<br>• §7: AD-8 reescrita e AD-10 nova. §8: D-6 atualizada, D-9 nova, D-7 passa a cobrir AD-10.<br>• Tabela de artefatos com o blob vigente do E00.<br>2830 v7.0 inalterada. |
++| 1.6 | **D-9 aprovada e incorporada localmente (2026-09-27, `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), não commitada, pendente de auditoria.** AD-10 e D-9 registradas como APROVADAS, restritas aos envelopes atuais, sem autorização genérica para novas operações ou migrations. §3.3 com a `evt_allowlist` de 6 linhas e a tabela de artefatos com o blob vigente do E00. 2830 v7.0 inalterada. |
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/README.md
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/README.md
+@@ -11,17 +11,18 @@
+
+ | Arquivo | Papel | Escreve? |
+ |---|---|---|
+-| `2830H_E00_precheck_inventory.sql` | Precheck JIT (P11): gate de igualdade com o **baseline canônico do FREEZE**; captura do **baseline da rodada** (`d_baseline` + `d_baseline_md5`) para o E99; inventários de sequences (P6), triggers e efeitos externos **com análise léxica das chamadas (qualificadas e não qualificadas), DML qualificado e não qualificado, identidade fixada da allowlist e `search_path` seguro** (P7), regras, event triggers, publicações, RLS/dono, sessão (P8), concorrência. Um SELECT, **24 gates**, `gate_pass`. **Versão corrigida localmente** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`, blob `88e9e7a4…`, não commitada, **não compilada nem executada**):<br>• pino P7 com EOL normalizado (D-6);<br>• `g_p7_no_ddl`;<br>• event triggers com inventário completo contra o catálogo (`g_evt_inventory_complete`);<br>• exceção só por identidade de 12 atributos e justificativa não vazia;<br>• `evt_allowlist` vazia. | não |
++| `2830H_E00_precheck_inventory.sql` | Precheck JIT (P11): gate de igualdade com o **baseline canônico do FREEZE**; captura do **baseline da rodada** (`d_baseline` + `d_baseline_md5`) para o E99; inventários de sequences (P6), triggers e efeitos externos **com análise léxica das chamadas (qualificadas e não qualificadas), DML qualificado e não qualificado, identidade fixada da allowlist e `search_path` seguro** (P7), regras, event triggers, publicações, RLS/dono, sessão (P8), concorrência. Um SELECT, **24 gates**, `gate_pass`. **Versão local D-9** (`BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`, blob `a4dd8438…`, não commitada, **não compilada nem executada**; base publicada `9a4cff16`, blob `88e9e7a4…`):<br>• pino P7 com EOL normalizado (D-6);<br>• `g_p7_no_ddl`;<br>• event triggers com inventário completo contra o catálogo (`g_evt_inventory_complete`);<br>• exceção só por identidade de 12 atributos e justificativa não vazia;<br>• `evt_allowlist` com **exatamente as 6 exceções aprovadas em D-9**, copiadas literalmente da L4 executada, cada uma com justificativa (a)–(f); aceite restrito aos envelopes atuais. | não |
+ | `2830H_E01_section1_structural.sql` | Envelope E01 — casos 1.1–1.12. | **sim** (fixtures desfeitas) |
+ | `2830H_E02_identity_terminal_D1_D5.sql` | Envelope E02 — casos D1–D5. | não (catálogo) |
+ | `2830H_E99_postcheck_residue.sql` | Postcheck: **comparação integral, chave a chave, com o `d_baseline` do E00 da mesma rodada** (md5 = fidelidade da cópia, não origem da rodada; vinculação E00 → envelope → E99 é documental), recheck do canônico do FREEZE, resíduo zero, não persistência de sessão (P10/P8). Um SELECT. | não |
+-| `tools/static_check.py` | Verificação estática local (não conecta a banco). **420/420** na árvore corrigida. | — |
+-| `LIVE-STAGE1-EXECUTION-RECORD.md` | Registro das tentativas da Etapa 1. **Nenhum PASS formal.** Ocorrência 01: governança — L1 e tentativa de L3 executadas pelo ChatGPT, fora da atribuição de auditor; a L1 não é evidência; a L3 foi bloqueada pela ferramenta, sem resultado SQL. Tentativa 02 (Claude): STOP em PC-1 por árvore suja, nenhum SQL. Tentativa 03 (Claude, `…-EXECUTION-02`): L1 e L3 conformes; **STOP em S1.3 (E00)** por `g_p7_identity_pinned` (L2: TRANSPORT/EOL-ONLY em `normalize_external_catalog_value`, para D-6) e `g_no_enabled_event_triggers` (6 event triggers habilitados no LIVE); S1.5 não executado. Adjudicação do STOP (sem SQL): D-6 e D-9 pendentes. Alternativas de canal, retomada e saídas integrais. | — |
+-| `LIVE-STAGE1-STOP-ADJUDICATION.md` | Adjudicação documental do STOP da Tentativa 03 (sem SQL). **Correções aplicadas localmente** em `…-CORRECTION-01`; ver o estado vigente no Revision History do próprio arquivo. Contém:<br>• evidências integrais;<br>• prova de que `normalize_external_catalog_value` diverge só por CRLF;<br>• origem, eventos e possibilidade de disparo dos 6 event triggers;<br>• tratamento restritivo proposto (D-9/AD-10), implicações, riscos e decisões.<br>**Proposta — não aplicada.** | — |
++| `tools/static_check.py` | Verificação estática local (não conecta a banco). **444/444** na árvore D-9. | — |
++| `LIVE-STAGE1-EXECUTION-RECORD.md` | Registro das tentativas da Etapa 1. **Nenhum PASS formal.** Ocorrência 01: governança — L1 e tentativa de L3 executadas pelo ChatGPT, fora da atribuição de auditor; a L1 não é evidência; a L3 foi bloqueada pela ferramenta, sem resultado SQL. Tentativa 02 (Claude): STOP em PC-1 por árvore suja, nenhum SQL. Tentativa 03 (Claude, `…-EXECUTION-02`): L1 e L3 conformes; **STOP em S1.3 (E00)** por `g_p7_identity_pinned` (L2: TRANSPORT/EOL-ONLY em `normalize_external_catalog_value`, para D-6) e `g_no_enabled_event_triggers` (6 event triggers habilitados no LIVE); S1.5 não executado. Adjudicação do STOP (sem SQL); correção do harness publicada em `9a4cff16`. L4 executada (`…-L4-EVENT-TRIGGER-INVENTORY-01`): leitura válida; identidade dos 6 event triggers registrada. **D-9 APROVADA** e incorporada localmente (`…-D9-EVENT-TRIGGER-ALLOWLIST-01`, sem SQL); Tentativa 04 não iniciada. Alternativas de canal, retomada e saídas integrais. | — |
++| `LIVE-STAGE1-STOP-ADJUDICATION.md` | Adjudicação documental do STOP da Tentativa 03 (sem SQL). **Correções aplicadas localmente** em `…-CORRECTION-01`; ver o estado vigente no Revision History do próprio arquivo. Contém:<br>• evidências integrais;<br>• prova de que `normalize_external_catalog_value` diverge só por CRLF;<br>• origem, eventos e possibilidade de disparo dos 6 event triggers;<br>• tratamento restritivo (D-9/AD-10), implicações, riscos e decisões.<br>**D-9 APROVADA e incorporada localmente** (§10). | — |
+ | `LIVE-STAGE1-STOP-ADJUDICATION-EVIDENCE.md` | Fechamento das evidências da adjudicação (sem SQL). Contém:<br>• hashes dos artefatos;<br>• L4 com md5 e critérios de interpretação, **só para autorização futura**;<br>• cobertura de `g_p7_no_ddl` e proteção dos envelopes;<br>• fail-closed das exceções de event trigger;<br>• rastreabilidade dos 23 gates;<br>• achados G-1 a G-3 (**resolvidos** em `…-CORRECTION-01`, com G-4 e G-5). | — |
+-| `LIVE-STAGE1-STOP-ADJUDICATION.diff` | Diff **integral da correção aplicada localmente** (E00, `tools/static_check.py`, protocolo v1.5, roteiro v1.4) contra o HEAD `b8925ed5`. Substitui a proposta anterior (md5 `a25d3142…`). Não commitado; pendente de auditoria. | — |
+-| `LIVE-STAGE1-RUNBOOK.md` | Roteiro operacional da Etapa 1 (só SELECT), **v1.4 corrigida localmente**: passos, consultas exatas com md5 (L1, L3, L2 e L4 revisada), E00 vigente na PC-2, evidências esperadas, STOP e pontos de decisão. Não autoriza execução. | — |
+-| `LIVE-VALIDATION-PROTOCOL.md` | Protocolo de validação progressiva no LIVE, **v1.5 corrigida localmente** (ambiente isolado pago recusado; alternativa sem custo pendente em D-1): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-10 e decisões D-1–D-9. | — |
++| `LIVE-STAGE1-STOP-ADJUDICATION.diff` | Diff **integral da correção** (E00, `tools/static_check.py`, protocolo v1.5, roteiro v1.4) contra o HEAD `b8925ed5`. Publicado em `9a4cff16`; histórico. | — |
++| `LIVE-STAGE1-D9-ALLOWLIST.diff` | Diff **integral da incorporação local de D-9** contra o HEAD `9a4cff16`: E00, `tools/static_check.py`, protocolo v1.6, roteiro v1.5, registro de execução (inclui a seção L4 ainda não commitada), adjudicação, README e `docs/log.md`. Não commitado; pendente de auditoria. | — |
++| `LIVE-STAGE1-RUNBOOK.md` | Roteiro operacional da Etapa 1 (só SELECT), **v1.5 (D-9, local)**: passos, consultas exatas com md5 (L1, L3, L2 e L4 revisada), E00 vigente na PC-2, evidências esperadas, STOP e pontos de decisão. Não autoriza execução. | — |
++| `LIVE-VALIDATION-PROTOCOL.md` | Protocolo de validação progressiva no LIVE, **v1.6 (D-9 APROVADA, local)** (ambiente isolado pago recusado; alternativa sem custo pendente em D-1): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-10 (AD-10 aprovada) e decisões D-1–D-9 (D-9 aprovada). | — |
+
+ Ordem de uso, **quando autorizada**: `E00` → envelope → `E99`, um envelope por vez, cada um em statement próprio.
+
+@@ -102,13 +103,14 @@
+   - inventário integral; `g_evt_inventory_complete` compara com `count(pg_event_trigger)` lido direto do catálogo;
+   - evento não-DDL (`login`) ⇒ STOP sempre (`g_evt_ddl_only`);
+   - evento DDL só com exceção por identidade de 12 atributos e justificativa não vazia (`g_evt_all_adjudicated`). `=` nos atributos obrigatórios; `IS NOT DISTINCT FROM` em tags, `proconfig` e extensão;
+-  - `evt_allowlist` **vazia**; os 6 triggers da Tentativa 03 **não** foram inseridos.
++  - `evt_allowlist` com **exatamente as 6 exceções de D-9** (`issue_graphql_placeholder`, `issue_pg_cron_access`, `issue_pg_graphql_access`, `issue_pg_net_access`, `pgrst_ddl_watch`, `pgrst_drop_watch`), 12 atributos copiados literalmente da L4 executada (registro rev. 1.5); `pgrst_*` como aceite ordinário (inclui tags `NULL`) e `issue_*` como aceite excepcional;
++  - aceite **restrito aos envelopes atuais** (E00/E01/E02/E99): nenhuma autorização genérica para novas operações, migrations ou DDL; linha nova só com nova L4 + nova decisão + mandato de correção, nunca por nome; qualquer atributo divergente, trigger adicional ou linha removida ⇒ STOP.
+ - **Escopo do gate nesta rodada:** as 5 tabelas EC. `card_variant`, staging, job, game e action log são inventariados (`d_p7_*`) para os próximos envelopes, sem bloquear E01/E02.
+ - A análise é **conservadora**: qualquer coisa não resolvida ou não modelada gera STOP para classificação humana — nunca PASS.
+
+ ## Provas estáticas (`python3 tools/static_check.py`)
+
+-**420 / 420 PASS** na árvore corrigida (`…-CORRECTION-01`; eram 205 antes da adjudicação). Os itens abaixo continuam valendo; os acrescentados na correção estão no fim da lista. Incluindo:
++**444 / 444 PASS** na árvore D-9 (`…-D9-EVENT-TRIGGER-ALLOWLIST-01`; 420 na `…-CORRECTION-01`; 205 antes da adjudicação). Os itens abaixo continuam valendo; os acrescentados na correção estão no fim da lista. Incluindo:
+ - um `DO` por envelope, nada executável fora dele, dollar-quote íntegro;
+ - ausência de `COMMIT`, `ROLLBACK`, `CREATE`, `ALTER`, `DROP`, `TEMP`, `set_config`, `SET ROLE/LOCAL/SESSION`, `GRANT`, `REVOKE`, `TRUNCATE`, `DELETE`, `UPDATE`, `EXECUTE`, `PERFORM`, `RAISE NOTICE/WARNING/INFO`;
+ - casos na ordem e iguais a `c_expected`; `ERRCODE` só `H283C/F/P`; `H283P` exatamente 1 e último;
+@@ -124,12 +126,19 @@
+ - **CORRECTION-01**, acrescentados na correção:
+   - D-6: pinos = md5 LF do repositório; reprodução byte a byte do md5 bruto LIVE; controles de CR isolado, CRLF + conteúdo e CRLF + `SECURITY DEFINER`;
+   - `g_p7_no_ddl`: 12 padrões extraídos; corpos reais sem DDL; 4 controles negativos;
+-  - EVT: allowlist vazia com 13 colunas tipadas; validador de linhas futuras (justificativa obrigatória; 8 controles negativos); casamento `=` / `IS NOT DISTINCT FROM` coluna a coluna; modelo com lógica de três valores; 30 controles negativos, incluindo os 3 atributos novos isolados, `NULL`, justificativa e inventário incompleto;
++  - EVT: allowlist com 13 colunas tipadas; validador de linhas (justificativa obrigatória; 8 controles negativos); casamento `=` / `IS NOT DISTINCT FROM` coluna a coluna; modelo com lógica de três valores; 30 controles negativos, incluindo os 3 atributos novos isolados, `NULL`, justificativa e inventário incompleto;
+   - roteiro: PC-2, §0 e §3.3 com o E00 vigente e sem hash antigo; protocolo v1.5 citado; md5 dos 4 blocos SQL conferidos; L4 só leitura, com contagem direta e `LEFT JOIN`.
+   - Total: **72 controles negativos** (34 P7 + 30 EVT + 8 validador).
++- **D-9**, acrescentados na incorporação da allowlist:
++  - exatamente 6 linhas, com os 6 nomes; 12 atributos e tipos SQL por linha iguais aos pinos (`NULL`, arrays e md5 integral);
++  - justificativa (a)–(f) por linha, com categoria (ORDINÁRIO/EXCEPCIONAL), `D-9 APROVADA`, mandato e md5 da L4, restrição aos envelopes atuais e termos específicos de cada trigger;
++  - proveniência: bloco integral da L4 no registro com md5 `fc0d8cf7…`; cada linha = identidade da L4; `triggers_md5` recalculado;
++  - modelo real: allowlist real × inventário real da L4 passa; 72/72 alterações isoladas de atributo reprovam; trigger adicional, linha removida, justificativa vazia, inventário 7×6 e evento `login` reprovam; trigger adicional desabilitado não reprova.
+
+ **Controles negativos do verificador (mutação dos próprios arquivos, CORRECTION-02) — 23 mutações, 22 detectadas diretamente:** `COMMIT` injetado; `RAISE NOTICE`; sinal `H283C` removido; conferência de constraint removida; `set_config`; caso removido do esperado; `MAINTAIN` removido; builder alterado só no E99; canon alterado só no E99; `g_freeze_canonical_equal`, `g_p7_all_classified`, `g_p7_identity_pinned`, `g_p7_no_unqualified_dml`, `g_p7_search_path_safe`, `g_p7_lexically_supported` removidos; padrão de DML não qualificado sem `UPDATE`; pino md5 da allowlist trocado; `gate_pass` sem checagem de NULL; marcador MD5 removido do E99; `g_baseline_equal` removido; comentário do E99 voltando a “dois marcadores”; `d_baseline_md5` não exportado. A única não detectada isoladamente — retirar `pg_notify` do padrão de sinal externo — é camada redundante: o caso continua bloqueado pela lista negra de builtins; retirar **as duas** camadas é detectado.
+
++**Mutação na D-9** (scripts em `LIVE-STAGE1-STOP-ADJUDICATION.md`, §10 e Apêndice D): E00 29/29 (inclui alteração isolada de identidade, trigger adicional, linha removida, justificativa sem (f)); 24/24 esvaziamentos de predicado; roteiro 5/5; envelopes 42/42; DDL do corpo 10/10; proveniência da L4 adulterada no registro ⇒ 5 FAIL.
++
+ **Mutação na CORRECTION-01** (scripts e resultados em `LIVE-STAGE1-STOP-ADJUDICATION.md`, Apêndice C):
+ - E00: 20/20 mutações detectadas, cada uma enfraquecendo um controle;
+ - 24/24 esvaziamentos de predicado de gate detectados;
+@@ -143,7 +152,7 @@
+ 1. **Mandato de execução**, por etapa, conforme `LIVE-VALIDATION-PROTOCOL.md`: Etapa 1 (E00 só leitura) → Etapa 2 (E00 → E02 → E99) → Etapa 3 (E00 → E01 → E99). Nenhum envelope foi executado.
+ 2. **`SET LOCAL lock_timeout = '5s'`** — decisão operacional pendente (P8).
+ 3. **Ambiente isolado** (P14) — **pago: recusado** (decisão do proprietário, 2026-09-26); **alternativa sem custo: PENDENTE** em D-1, com P14 (a, b, c) obrigatório. Não afeta E00/E01/E02/E99; torna K1/K2/K8b e o UNFREEZE da 2830 v7.0 inalcançáveis enquanto a decisão D-1 estiver **PENDENTE** (Batch 12 **ABERTO**, UNFREEZE **BLOQUEADO**, K2 **não dispensado**), e P9b só é cumprido por adaptação (AD-2) — ver `LIVE-VALIDATION-PROTOCOL.md`.
+-4. **Premissas a confirmar pelo E00 antes de E01:** estado = baseline canônico do FREEZE; papel executor superusuário ou dono das tabelas EC, sem `FORCE ROW LEVEL SECURITY`; nenhuma sequence nas tabelas tocadas; fecho P7 inteiramente classificado, sem efeito externo, sem SQL dinâmico, sem escrita fora do escopo; nenhuma regra nem event trigger habilitado; papéis `anon`/`authenticated` existentes; PG ≥ 17; marcador ausente; zero concorrência.
++4. **Premissas a confirmar pelo E00 antes de E01:** estado = baseline canônico do FREEZE; papel executor superusuário ou dono das tabelas EC, sem `FORCE ROW LEVEL SECURITY`; nenhuma sequence nas tabelas tocadas; fecho P7 inteiramente classificado, sem efeito externo, sem SQL dinâmico, sem escrita fora do escopo; nenhuma regra; event trigger habilitado só se casar integralmente com uma das 6 exceções de D-9; papéis `anon`/`authenticated` existentes; PG ≥ 17; marcador ausente; zero concorrência.
+ 5. **Tempo (P9):** E01/E02 são leves (catálogo + 11 tentativas de INSERT no E01: 4 positivas e 7 negativas); medição formal P9b ainda assim é pré-requisito do critério A2 do contrato.
+
+ ## Riscos
+--- a/database/proposals/2026-09-18-edition-context-axis/harness/tools/static_check.py
++++ b/database/proposals/2026-09-18-edition-context-axis/harness/tools/static_check.py
+@@ -365,8 +365,6 @@
+ EVT_COLS=[x.strip() for x in m.group(1).split(',')] if m else []
+ chk('EVT: evt_allowlist = 12 atributos de identidade + justification (G-4)', EVT_COLS==EVT_ID+['justification'], str(EVT_COLS))
+ allow_body=m.group(2) if m else ''
+-chk('EVT: tipos da allowlist vazia alinhados (boolean em fn_secdef, text[] em tags/fn_config)',
+-    re.findall(r"NULL::([a-z\[\]]+)",allow_body)==['text','text','text[]','text','text','text','text','text','boolean','text[]','text','text','text'])
+ def allow_rows(txt):
+     """Extrai linhas VALUES (...) de um texto de allowlist; cada linha vira lista de literais."""
+     rows=[]
+@@ -384,7 +382,49 @@
+     if any(lit(d[k]) is None for k in EVT_EQ): return False
+     return True
+ ROWS=allow_rows(allow_body)
+-chk('EVT: evt_allowlist nasce VAZIA (nenhuma exceção; os 6 triggers NÃO inseridos)', 'WHERE false' in allow_body and len(ROWS)==0, str(len(ROWS)))
++# D-9 APROVADA (BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01): EXATAMENTE as 6 identidades da L4, pinadas aqui e
++# conferidas contra a saída integral da L4 registrada em LIVE-STAGE1-EXECUTION-RECORD.md (proveniência).
++def lit2py(x):
++    x=x.strip()
++    if x.startswith('NULL'): return None
++    if x in ('true','false'): return x=='true'
++    if x.startswith('ARRAY['): return [v.replace("''","'") for v in re.findall(r"'((?:[^']|'')*)'",x)]
++    return x[1:-1].replace("''","'")
++_A=('supabase_admin','plpgsql',False,['search_path=""'],None)
++D9_AUTH={
++ 'issue_graphql_placeholder':('sql_drop',['DROP EXTENSION'],'extensions.set_graphql_placeholder()','a2bc2d00b2cc2f5e8d2d6b8d73e2c360','EXCEPCIONAL',['CREATE OR REPLACE FUNCTION graphql_public.graphql','placeholder']),
++ 'issue_pg_cron_access':('ddl_command_end',['CREATE EXTENSION'],'extensions.grant_pg_cron_access()','3a3917aad6ddd66182bf45b7490c3029','EXCEPCIONAL',['ALTER DEFAULT PRIVILEGES','pg_cron']),
++ 'issue_pg_graphql_access':('ddl_command_end',['CREATE EXTENSION'],'extensions.grant_pg_graphql_access()','dd3f3e2bb94cff45ef24b9cecb6af1c8','EXCEPCIONAL',['DROP FUNCTION','ALTER EXTENSION','GRANT EXECUTE','concessões de privilégios']),
++ 'issue_pg_net_access':('ddl_command_end',['CREATE EXTENSION'],'extensions.grant_pg_net_access()','2ee4e6920eeba3068bcfa838105352e2','EXCEPCIONAL',['CREATE USER','acesso à rede','SECURITY DEFINER']),
++ 'pgrst_ddl_watch':('ddl_command_end',None,'extensions.pgrst_ddl_watch()','7f27b8118fea5c88b0164331292859e3','ORDINÁRIO',['tags NULL','NOTIFY pgrst','superfície ampla']),
++ 'pgrst_drop_watch':('sql_drop',None,'extensions.pgrst_drop_watch()','bc09cc3003d66f91844af4cb05e203b7','ORDINÁRIO',['tags NULL','NOTIFY pgrst','superfície ampla'])}
++def d9_ident(n):
++    ev,tags,fn,md5,_,_t=D9_AUTH[n]
++    return dict(name=n,event=ev,tags=tags,enabled='O',owner=_A[0],fn=fn,fn_language=_A[1],fn_owner=_A[0],fn_secdef=_A[2],fn_config=_A[3],fn_extension=_A[4],fn_md5_lf=md5)
++ALLOW_PY=[dict(zip(EVT_ID+['justification'],[lit2py(x) for x in r])) for r in ROWS]
++chk('D-9: evt_allowlist tem EXATAMENTE 6 linhas, sem nome repetido', len(ROWS)==6 and len({a['name'] for a in ALLOW_PY})==6, str(len(ROWS)))
++chk('D-9: conjunto de nomes = os 6 aprovados', {a['name'] for a in ALLOW_PY}==set(D9_AUTH))
++for a in ALLOW_PY:
++    n=a['name']
++    if n not in D9_AUTH: continue
++    exp=d9_ident(n)
++    chk(f'D-9 {n}: 12 atributos = pino aprovado (tipos, arrays, NULL e md5 integral)', all(a[k]==exp[k] and type(a[k])==type(exp[k]) for k in EVT_ID), str([k for k in EVT_ID if a[k]!=exp[k]]))
++    j=a['justification'] or ''
++    cat,terms=D9_AUTH[n][4],D9_AUTH[n][5]
++    chk(f'D-9 {n}: justificativa (a)-(f), L4, md5, categoria {cat}, restrição aos envelopes atuais e termos obrigatórios',
++        all(t in j for t in ['(a)','(b)','(c)','(d)','(e)','(f)','D-9 APROVADA','ACEITE '+cat,'BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01',exp['fn_md5_lf'],'Aceite restrito aos envelopes atuais','não autoriza novas operações, migrations nem DDL','Reavaliar']+terms), n)
++_rows_txt=[l for l in allow_body.splitlines() if l.strip().startswith("('")]
++chk('D-9: tipagem explícita em todas as linhas (text[] em tags/fn_config, NULL::text em fn_extension, booleano literal)',
++    len(_rows_txt)==6 and all(('::text[]' in l and ", false, ARRAY[" in l and "NULL::text, '" in l) for l in _rows_txt))
++# proveniência: pinos = saída integral da L4 registrada
++_rec=(H/'LIVE-STAGE1-EXECUTION-RECORD.md').read_text(encoding='utf-8')
++_l4sec=_rec[_rec.index('## L4 — inventário de event triggers'):] if '## L4 — inventário de event triggers' in _rec else ''
++_l4blk=re.findall(r"```json\n(.*?)\n```",_l4sec,re.S)
++chk('D-9 PROVENIÊNCIA: saída integral da L4 presente no registro (md5 fc0d8cf7…)', bool(_l4blk) and hashlib.md5(_l4blk[0].encode()).hexdigest()=='fc0d8cf7595bbcb84f544211612cede4')
++_L4=json.loads(_l4blk[0])[0]['l4']['l4_event_triggers'] if _l4blk else {'triggers':[]}
++_L4ID={t['name']:{k:t[k] for k in EVT_ID} for t in _L4['triggers']}
++chk('D-9 PROVENIÊNCIA: cada linha da allowlist = identidade da L4 (12 atributos, literal)', len(_L4ID)==6 and all(_L4ID.get(a['name'])=={k:a[k] for k in EVT_ID} for a in ALLOW_PY))
++chk('D-9 PROVENIÊNCIA: L4 íntegra (triggers_md5 recalculado)', bool(_L4['triggers']) and hashlib.md5(json.dumps(_L4['triggers'],ensure_ascii=False,separators=(', ',': ')).encode()).hexdigest()==_L4.get('triggers_md5'))
+ chk('EVT: toda linha presente na allowlist é válida (vácuo verdadeiro com 0 linhas)', all(row_valid(r) for r in ROWS))
+ GOOD="  ('pgrst_ddl_watch', 'ddl_command_end', NULL::text[], 'O', 'supabase_admin', 'extensions.pgrst_ddl_watch()', 'plpgsql', 'supabase_admin', true, NULL::text[], NULL, '"+'0'*32+"', 'L4 <prov>; justificativa (a)-(f)'),"
+ chk('EVT VALIDADOR controle positivo: linha sintética completa é aceita', row_valid(allow_rows(GOOD)[0]))
+@@ -487,6 +527,25 @@
+     body=nostr(code((H/f).read_text(encoding='utf-8')).split('$'+tag+'$')[1]).upper()
+     chk(f'EVT: {f} (PL/pgSQL) sem comando da matriz de disparo (SELECT … INTO é atribuição PL/pgSQL)', not re.search(r'\b(CREATE|ALTER|DROP|GRANT|REVOKE|COMMENT|SECURITY\s+LABEL|REINDEX|REFRESH|IMPORT|EXECUTE)\b',body))
+
++# D-9 — modelo com a allowlist REAL do E00 contra o inventário REAL da L4
++REAL_LIVE=[dict(v) for v in _L4ID.values()]
++ok,why=evt_gate(REAL_LIVE,ALLOW_PY,len(REAL_LIVE))
++chk('D-9 CONTROLE POSITIVO: allowlist real × inventário real da L4 ⇒ g_evt_all_adjudicated e g_evt_inventory_complete passam', ok and len(REAL_LIVE)==6, str(why[:2]))
++ALT={'name':'x_renamed','event':'ddl_command_start','tags':['ALTER TABLE'],'enabled':'A','owner':'postgres','fn':'extensions.evil()','fn_language':'sql',
++     'fn_owner':'postgres','fn_secdef':True,'fn_config':['search_path=public'],'fn_extension':'pg_net','fn_md5_lf':'f'*32}
++_n=_f=0
++for i,t in enumerate(REAL_LIVE):
++    for k in EVT_ID:
++        l2=[dict(x) for x in REAL_LIVE]; l2[i][k]=ALT[k]
++        if k=='tags' and t['tags'] is not None: l2[i][k]=None          # tags com filtro → NULL (superfície ampliada)
++        ok,why=evt_gate(l2,ALLOW_PY,len(l2)); _n+=1; _f+= (not ok) and any(w.startswith('g_evt_all_adjudicated:') for w in why)
++chk(f'D-9 CONTROLE NEGATIVO: alteração isolada de cada um dos 12 atributos em cada um dos 6 triggers reais reprova ({_f}/{_n})', _f==_n==72)
++evt_neg('D-9 real: trigger adicional além dos 6', REAL_LIVE+[dict(REAL_LIVE[4],name='pgrst_extra_watch')], ALLOW_PY, 'g_evt_all_adjudicated')
++evt_neg('D-9 real: linha removida da allowlist (5 de 6)', REAL_LIVE, [a for a in ALLOW_PY if a['name']!='issue_pg_net_access'], 'g_evt_all_adjudicated')
++evt_neg('D-9 real: justificativa esvaziada', REAL_LIVE, [dict(a,justification='  ') if a['name']=='pgrst_ddl_watch' else a for a in ALLOW_PY], 'g_evt_all_adjudicated')
++evt_neg('D-9 real: inventário incompleto (catálogo 7 × evt 6)', REAL_LIVE, ALLOW_PY, 'g_evt_inventory_complete', cc=7)
++evt_neg('D-9 real: evento login adicionado, mesmo copiando identidade para a allowlist', REAL_LIVE+[dict(REAL_LIVE[0],name='on_login',event='login')], ALLOW_PY+[dict(ALLOW_PY[0],name='on_login',event='login')], 'g_evt_ddl_only')
++ok,_=evt_gate(REAL_LIVE+[dict(REAL_LIVE[0],name='disabled_hook',enabled='D')],ALLOW_PY,7); chk('D-9 CONTROLE POSITIVO: trigger adicional DESABILITADO não reprova (inventariado)', ok)
+
+ # ---------------------------------------------------------------------------
+ # CORRECTION-01 (G-5): roteiro reconciliado com o E00 vigente e a L4 revisada
+@@ -496,12 +555,12 @@
+ _blob=hashlib.sha1(b'blob %d\x00'%len(_e00b)+_e00b).hexdigest(); _md5=hashlib.md5(_e00b).hexdigest()
+ _pc2=[l for l in rb.splitlines() if l.startswith('| PC-2 |')]
+ chk('ROTEIRO PC-2: exige o blob e o md5 do E00 VIGENTE (calculados deste arquivo)', len(_pc2)==1 and _blob in _pc2[0] and _md5 in _pc2[0], _blob+' '+_md5)
+-chk('ROTEIRO PC-2: nenhum hash antigo do E00 como critério (97410c3a, d00b7cec, a10ffd81, 470db26f)', len(_pc2)==1 and not re.search(r'97410c3a|d00b7cec|a10ffd81|470db26f',_pc2[0]))
++chk('ROTEIRO PC-2: nenhum hash antigo do E00 como critério (97410c3a, d00b7cec, a10ffd81, 470db26f, 88e9e7a4, a9352afc)', len(_pc2)==1 and not re.search(r'97410c3a|d00b7cec|a10ffd81|470db26f|88e9e7a4|a9352afc',_pc2[0]))
+ _e00row=[l for l in rb.splitlines() if l.startswith('| **E00** — precheck |')]
+-chk('ROTEIRO §0: linha do E00 com blob/md5 vigentes e sem hash antigo', len(_e00row)==1 and _blob in _e00row[0] and _md5 in _e00row[0] and not re.search(r'97410c3a|a10ffd81',_e00row[0]))
++chk('ROTEIRO §0: linha do E00 com blob/md5 vigentes e sem hash antigo', len(_e00row)==1 and _blob in _e00row[0] and _md5 in _e00row[0] and not re.search(r'97410c3a|a10ffd81|88e9e7a4',_e00row[0]))
+ chk('ROTEIRO §3.3: submissão do E00 cita o blob vigente', re.search(r'Submeter o \*\*conteúdo integral\*\* de `2830H_E00_precheck_inventory\.sql` \(blob `'+_blob+'`', rb) is not None)
+-chk('ROTEIRO: cabeçalho, PC-4 e P-1 citam o protocolo v1.5',
+-    '`LIVE-VALIDATION-PROTOCOL.md` **v1.5**' in rb and re.search(r'^\| PC-4 \|.*protocolo \*\*v1\.5\*\*',rb,re.M) and re.search(r'^\| P-1 \|.*protocolo v1\.5',rb,re.M))
++chk('ROTEIRO: cabeçalho, PC-4 e P-1 citam o protocolo v1.6',
++    '`LIVE-VALIDATION-PROTOCOL.md` **v1.6**' in rb and re.search(r'^\| PC-4 \|.*protocolo \*\*v1\.6\*\*',rb,re.M) and re.search(r'^\| P-1 \|.*protocolo v1\.6',rb,re.M))
+ _blocks=re.findall(r"```sql\n(.*?)```",rb,re.S)
+ _md5s=[hashlib.md5(b.encode()).hexdigest() for b in _blocks]
+ _decl={k:re.search(r'^\| \*\*'+k+r'\*\*.*?md5[^`]*`([0-9a-f]{32})`',rb,re.M) for k in ['L1','L3','L2','L4']}
+--- a/docs/log.md
++++ b/docs/log.md
+@@ -2695,3 +2695,5 @@
+ ## [2026-09-26] docs | BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01: adjudicacao documental do STOP da Tentativa 03, sem SQL — normalize_external_catalog_value diverge so por CRLF (repo LF->CRLF reproduz md5_raw LIVE 81361bb8; TRANSPORT/EOL-ONLY); 6 event triggers da plataforma (ddl_command_end/sql_drop, enabled O), identidade LIVE nao lida, disparo pelos envelopes nao possivel por analise estatica; achado: P7 sem deteccao de DDL estatico. Propostas D-6 (pino com EOL normalizado nos dois lados) e D-9/AD-10 (allowlist por identidade completa, vazia; L4 so SELECT sob mandato) em harness/LIVE-STAGE1-STOP-ADJUDICATION.md + .diff (nao aplicado; static_check 342/342 na copia). Etapa 1 STOP; Etapa 2 nao autorizada. FREEZE ATIVO.
+ ## [2026-09-26] docs | BATCH12-2830-STOP-ADJUDICATION-EVIDENCE-GATE-01: fechamento das evidencias da adjudicacao, sem SQL (harness/LIVE-STAGE1-STOP-ADJUDICATION-EVIDENCE.md) — hashes do .md/.diff entregues; L4 md5 6bdc9dc4 com criterios de interpretacao, nao executada; g_p7_no_ddl cobre a matriz PG17 e todo o fecho (150/150); mutacao dos envelopes 32/42 no verificador vigente e 42/42 no proposto; fail-closed das excecoes 42/42 (lista vazia, identidade completa, evttags NULL); rastreabilidade dos 23 gates; achados G-1 (definicao de 3 gates nao verificada), G-2 (modelo evt_gate aceita NULL=NULL), G-3 (JOIN interno em evt). Diff nao aplicado; nenhuma excecao criada; E00 vigente, 2830, LIVE e FREEZE preservados.
+ ## [2026-09-26] fix | BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01: correcao LOCAL do harness 2830H, sem SQL e nao commitada — D-6 opcao A (pino md5 CRLF->LF, bruto como evidencia); G-1..G-5: 24 gates com g_evt_inventory_complete (contagem direta de pg_event_trigger), identidade de event trigger com 12 atributos (+fn_secdef/fn_config/fn_extension, semantica NULL SQL), justificativa obrigatoria, modelo 3VL, roteiro v1.4/protocolo v1.5 reconciliados (E00 blob 88e9e7a4, L4 md5 f3670eb8); evt_allowlist vazia, nenhuma excecao; static_check 420/420, mutacao E00 20/20 + predicados 24/24 + roteiro 5/5 + envelopes 42/42; BASELINE-BUILDER, FREEZE-CANON, E01, E02, E99 e 2830 preservados. Compilacao PostgreSQL pendente. Etapa 1 STOP; FREEZE ATIVO.
++## [2026-09-27] ingest | BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01: L4 executada uma vez via MCP (HEAD 9a4cff16, md5 f3670eb8) — leitura valida pelos 6 criterios (catalogo 6 = inventario 6, fn_resolved 6/6, triggers_md5 3b42b314 recalculado igual, nomes = E00 T03); identidade dos 6 event triggers (supabase_admin, plpgsql, SECURITY INVOKER, search_path="", sem extensao) e analise D-9: 3 elegiveis para analise (pgrst_ddl_watch, pgrst_drop_watch, issue_pg_cron_access), 3 com analise separada I-8 (graphql_placeholder, pg_graphql_access, pg_net_access); nenhum alcancavel pelos envelopes. Nenhuma excecao criada; harness inalterado; Etapa 1 STOP; FREEZE ATIVO.
++## [2026-09-27] fix | BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01: D-9 APROVADA incorporada LOCALMENTE, sem SQL e nao commitada (baseline 9a4cff16) — evt_allowlist do E00 com as 6 excecoes copiadas literalmente da L4 (12 atributos, md5 integral), justificativa (a)-(f) por linha; pgrst_* aceite ordinario (tags NULL), issue_* aceite excepcional; AD-10/D-9 aprovadas e restritas aos envelopes atuais; E00 a4dd8438, roteiro v1.5, protocolo v1.6; static_check 444/444; mutacoes 29/29, 24/24, 5/5, 42/42, 10/10; BUILDER/CANON/E01/E02/E99/2830 preservados; Tentativa 04 nao iniciada (harness/LIVE-STAGE1-STOP-ADJUDICATION.md §10, LIVE-STAGE1-EXECUTION-RECORD.md rev 1.6, LIVE-STAGE1-D9-ALLOWLIST.diff)

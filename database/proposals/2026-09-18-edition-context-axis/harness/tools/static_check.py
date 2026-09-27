@@ -365,8 +365,6 @@ chk('EVT: evt_allowlist presente no E00', m is not None)
 EVT_COLS=[x.strip() for x in m.group(1).split(',')] if m else []
 chk('EVT: evt_allowlist = 12 atributos de identidade + justification (G-4)', EVT_COLS==EVT_ID+['justification'], str(EVT_COLS))
 allow_body=m.group(2) if m else ''
-chk('EVT: tipos da allowlist vazia alinhados (boolean em fn_secdef, text[] em tags/fn_config)',
-    re.findall(r"NULL::([a-z\[\]]+)",allow_body)==['text','text','text[]','text','text','text','text','text','boolean','text[]','text','text','text'])
 def allow_rows(txt):
     """Extrai linhas VALUES (...) de um texto de allowlist; cada linha vira lista de literais."""
     rows=[]
@@ -384,7 +382,49 @@ def row_valid(f):
     if any(lit(d[k]) is None for k in EVT_EQ): return False
     return True
 ROWS=allow_rows(allow_body)
-chk('EVT: evt_allowlist nasce VAZIA (nenhuma exceção; os 6 triggers NÃO inseridos)', 'WHERE false' in allow_body and len(ROWS)==0, str(len(ROWS)))
+# D-9 APROVADA (BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01): EXATAMENTE as 6 identidades da L4, pinadas aqui e
+# conferidas contra a saída integral da L4 registrada em LIVE-STAGE1-EXECUTION-RECORD.md (proveniência).
+def lit2py(x):
+    x=x.strip()
+    if x.startswith('NULL'): return None
+    if x in ('true','false'): return x=='true'
+    if x.startswith('ARRAY['): return [v.replace("''","'") for v in re.findall(r"'((?:[^']|'')*)'",x)]
+    return x[1:-1].replace("''","'")
+_A=('supabase_admin','plpgsql',False,['search_path=""'],None)
+D9_AUTH={
+ 'issue_graphql_placeholder':('sql_drop',['DROP EXTENSION'],'extensions.set_graphql_placeholder()','a2bc2d00b2cc2f5e8d2d6b8d73e2c360','EXCEPCIONAL',['CREATE OR REPLACE FUNCTION graphql_public.graphql','placeholder']),
+ 'issue_pg_cron_access':('ddl_command_end',['CREATE EXTENSION'],'extensions.grant_pg_cron_access()','3a3917aad6ddd66182bf45b7490c3029','EXCEPCIONAL',['ALTER DEFAULT PRIVILEGES','pg_cron']),
+ 'issue_pg_graphql_access':('ddl_command_end',['CREATE EXTENSION'],'extensions.grant_pg_graphql_access()','dd3f3e2bb94cff45ef24b9cecb6af1c8','EXCEPCIONAL',['DROP FUNCTION','ALTER EXTENSION','GRANT EXECUTE','concessões de privilégios']),
+ 'issue_pg_net_access':('ddl_command_end',['CREATE EXTENSION'],'extensions.grant_pg_net_access()','2ee4e6920eeba3068bcfa838105352e2','EXCEPCIONAL',['CREATE USER','acesso à rede','SECURITY DEFINER']),
+ 'pgrst_ddl_watch':('ddl_command_end',None,'extensions.pgrst_ddl_watch()','7f27b8118fea5c88b0164331292859e3','ORDINÁRIO',['tags NULL','NOTIFY pgrst','superfície ampla']),
+ 'pgrst_drop_watch':('sql_drop',None,'extensions.pgrst_drop_watch()','bc09cc3003d66f91844af4cb05e203b7','ORDINÁRIO',['tags NULL','NOTIFY pgrst','superfície ampla'])}
+def d9_ident(n):
+    ev,tags,fn,md5,_,_t=D9_AUTH[n]
+    return dict(name=n,event=ev,tags=tags,enabled='O',owner=_A[0],fn=fn,fn_language=_A[1],fn_owner=_A[0],fn_secdef=_A[2],fn_config=_A[3],fn_extension=_A[4],fn_md5_lf=md5)
+ALLOW_PY=[dict(zip(EVT_ID+['justification'],[lit2py(x) for x in r])) for r in ROWS]
+chk('D-9: evt_allowlist tem EXATAMENTE 6 linhas, sem nome repetido', len(ROWS)==6 and len({a['name'] for a in ALLOW_PY})==6, str(len(ROWS)))
+chk('D-9: conjunto de nomes = os 6 aprovados', {a['name'] for a in ALLOW_PY}==set(D9_AUTH))
+for a in ALLOW_PY:
+    n=a['name']
+    if n not in D9_AUTH: continue
+    exp=d9_ident(n)
+    chk(f'D-9 {n}: 12 atributos = pino aprovado (tipos, arrays, NULL e md5 integral)', all(a[k]==exp[k] and type(a[k])==type(exp[k]) for k in EVT_ID), str([k for k in EVT_ID if a[k]!=exp[k]]))
+    j=a['justification'] or ''
+    cat,terms=D9_AUTH[n][4],D9_AUTH[n][5]
+    chk(f'D-9 {n}: justificativa (a)-(f), L4, md5, categoria {cat}, restrição aos envelopes atuais e termos obrigatórios',
+        all(t in j for t in ['(a)','(b)','(c)','(d)','(e)','(f)','D-9 APROVADA','ACEITE '+cat,'BATCH12-2830-LIVE-L4-EVENT-TRIGGER-INVENTORY-01',exp['fn_md5_lf'],'Aceite restrito aos envelopes atuais','não autoriza novas operações, migrations nem DDL','Reavaliar']+terms), n)
+_rows_txt=[l for l in allow_body.splitlines() if l.strip().startswith("('")]
+chk('D-9: tipagem explícita em todas as linhas (text[] em tags/fn_config, NULL::text em fn_extension, booleano literal)',
+    len(_rows_txt)==6 and all(('::text[]' in l and ", false, ARRAY[" in l and "NULL::text, '" in l) for l in _rows_txt))
+# proveniência: pinos = saída integral da L4 registrada
+_rec=(H/'LIVE-STAGE1-EXECUTION-RECORD.md').read_text(encoding='utf-8')
+_l4sec=_rec[_rec.index('## L4 — inventário de event triggers'):] if '## L4 — inventário de event triggers' in _rec else ''
+_l4blk=re.findall(r"```json\n(.*?)\n```",_l4sec,re.S)
+chk('D-9 PROVENIÊNCIA: saída integral da L4 presente no registro (md5 fc0d8cf7…)', bool(_l4blk) and hashlib.md5(_l4blk[0].encode()).hexdigest()=='fc0d8cf7595bbcb84f544211612cede4')
+_L4=json.loads(_l4blk[0])[0]['l4']['l4_event_triggers'] if _l4blk else {'triggers':[]}
+_L4ID={t['name']:{k:t[k] for k in EVT_ID} for t in _L4['triggers']}
+chk('D-9 PROVENIÊNCIA: cada linha da allowlist = identidade da L4 (12 atributos, literal)', len(_L4ID)==6 and all(_L4ID.get(a['name'])=={k:a[k] for k in EVT_ID} for a in ALLOW_PY))
+chk('D-9 PROVENIÊNCIA: L4 íntegra (triggers_md5 recalculado)', bool(_L4['triggers']) and hashlib.md5(json.dumps(_L4['triggers'],ensure_ascii=False,separators=(', ',': ')).encode()).hexdigest()==_L4.get('triggers_md5'))
 chk('EVT: toda linha presente na allowlist é válida (vácuo verdadeiro com 0 linhas)', all(row_valid(r) for r in ROWS))
 GOOD="  ('pgrst_ddl_watch', 'ddl_command_end', NULL::text[], 'O', 'supabase_admin', 'extensions.pgrst_ddl_watch()', 'plpgsql', 'supabase_admin', true, NULL::text[], NULL, '"+'0'*32+"', 'L4 <prov>; justificativa (a)-(f)'),"
 chk('EVT VALIDADOR controle positivo: linha sintética completa é aceita', row_valid(allow_rows(GOOD)[0]))
@@ -487,6 +527,25 @@ for f,tag in [('2830H_E01_section1_structural.sql','h2830_e01'),('2830H_E02_iden
     body=nostr(code((H/f).read_text(encoding='utf-8')).split('$'+tag+'$')[1]).upper()
     chk(f'EVT: {f} (PL/pgSQL) sem comando da matriz de disparo (SELECT … INTO é atribuição PL/pgSQL)', not re.search(r'\b(CREATE|ALTER|DROP|GRANT|REVOKE|COMMENT|SECURITY\s+LABEL|REINDEX|REFRESH|IMPORT|EXECUTE)\b',body))
 
+# D-9 — modelo com a allowlist REAL do E00 contra o inventário REAL da L4
+REAL_LIVE=[dict(v) for v in _L4ID.values()]
+ok,why=evt_gate(REAL_LIVE,ALLOW_PY,len(REAL_LIVE))
+chk('D-9 CONTROLE POSITIVO: allowlist real × inventário real da L4 ⇒ g_evt_all_adjudicated e g_evt_inventory_complete passam', ok and len(REAL_LIVE)==6, str(why[:2]))
+ALT={'name':'x_renamed','event':'ddl_command_start','tags':['ALTER TABLE'],'enabled':'A','owner':'postgres','fn':'extensions.evil()','fn_language':'sql',
+     'fn_owner':'postgres','fn_secdef':True,'fn_config':['search_path=public'],'fn_extension':'pg_net','fn_md5_lf':'f'*32}
+_n=_f=0
+for i,t in enumerate(REAL_LIVE):
+    for k in EVT_ID:
+        l2=[dict(x) for x in REAL_LIVE]; l2[i][k]=ALT[k]
+        if k=='tags' and t['tags'] is not None: l2[i][k]=None          # tags com filtro → NULL (superfície ampliada)
+        ok,why=evt_gate(l2,ALLOW_PY,len(l2)); _n+=1; _f+= (not ok) and any(w.startswith('g_evt_all_adjudicated:') for w in why)
+chk(f'D-9 CONTROLE NEGATIVO: alteração isolada de cada um dos 12 atributos em cada um dos 6 triggers reais reprova ({_f}/{_n})', _f==_n==72)
+evt_neg('D-9 real: trigger adicional além dos 6', REAL_LIVE+[dict(REAL_LIVE[4],name='pgrst_extra_watch')], ALLOW_PY, 'g_evt_all_adjudicated')
+evt_neg('D-9 real: linha removida da allowlist (5 de 6)', REAL_LIVE, [a for a in ALLOW_PY if a['name']!='issue_pg_net_access'], 'g_evt_all_adjudicated')
+evt_neg('D-9 real: justificativa esvaziada', REAL_LIVE, [dict(a,justification='  ') if a['name']=='pgrst_ddl_watch' else a for a in ALLOW_PY], 'g_evt_all_adjudicated')
+evt_neg('D-9 real: inventário incompleto (catálogo 7 × evt 6)', REAL_LIVE, ALLOW_PY, 'g_evt_inventory_complete', cc=7)
+evt_neg('D-9 real: evento login adicionado, mesmo copiando identidade para a allowlist', REAL_LIVE+[dict(REAL_LIVE[0],name='on_login',event='login')], ALLOW_PY+[dict(ALLOW_PY[0],name='on_login',event='login')], 'g_evt_ddl_only')
+ok,_=evt_gate(REAL_LIVE+[dict(REAL_LIVE[0],name='disabled_hook',enabled='D')],ALLOW_PY,7); chk('D-9 CONTROLE POSITIVO: trigger adicional DESABILITADO não reprova (inventariado)', ok)
 
 # ---------------------------------------------------------------------------
 # CORRECTION-01 (G-5): roteiro reconciliado com o E00 vigente e a L4 revisada
@@ -496,12 +555,12 @@ _e00b=(H/'2830H_E00_precheck_inventory.sql').read_bytes()
 _blob=hashlib.sha1(b'blob %d\x00'%len(_e00b)+_e00b).hexdigest(); _md5=hashlib.md5(_e00b).hexdigest()
 _pc2=[l for l in rb.splitlines() if l.startswith('| PC-2 |')]
 chk('ROTEIRO PC-2: exige o blob e o md5 do E00 VIGENTE (calculados deste arquivo)', len(_pc2)==1 and _blob in _pc2[0] and _md5 in _pc2[0], _blob+' '+_md5)
-chk('ROTEIRO PC-2: nenhum hash antigo do E00 como critério (97410c3a, d00b7cec, a10ffd81, 470db26f)', len(_pc2)==1 and not re.search(r'97410c3a|d00b7cec|a10ffd81|470db26f',_pc2[0]))
+chk('ROTEIRO PC-2: nenhum hash antigo do E00 como critério (97410c3a, d00b7cec, a10ffd81, 470db26f, 88e9e7a4, a9352afc)', len(_pc2)==1 and not re.search(r'97410c3a|d00b7cec|a10ffd81|470db26f|88e9e7a4|a9352afc',_pc2[0]))
 _e00row=[l for l in rb.splitlines() if l.startswith('| **E00** — precheck |')]
-chk('ROTEIRO §0: linha do E00 com blob/md5 vigentes e sem hash antigo', len(_e00row)==1 and _blob in _e00row[0] and _md5 in _e00row[0] and not re.search(r'97410c3a|a10ffd81',_e00row[0]))
+chk('ROTEIRO §0: linha do E00 com blob/md5 vigentes e sem hash antigo', len(_e00row)==1 and _blob in _e00row[0] and _md5 in _e00row[0] and not re.search(r'97410c3a|a10ffd81|88e9e7a4',_e00row[0]))
 chk('ROTEIRO §3.3: submissão do E00 cita o blob vigente', re.search(r'Submeter o \*\*conteúdo integral\*\* de `2830H_E00_precheck_inventory\.sql` \(blob `'+_blob+'`', rb) is not None)
-chk('ROTEIRO: cabeçalho, PC-4 e P-1 citam o protocolo v1.5',
-    '`LIVE-VALIDATION-PROTOCOL.md` **v1.5**' in rb and re.search(r'^\| PC-4 \|.*protocolo \*\*v1\.5\*\*',rb,re.M) and re.search(r'^\| P-1 \|.*protocolo v1\.5',rb,re.M))
+chk('ROTEIRO: cabeçalho, PC-4 e P-1 citam o protocolo v1.6',
+    '`LIVE-VALIDATION-PROTOCOL.md` **v1.6**' in rb and re.search(r'^\| PC-4 \|.*protocolo \*\*v1\.6\*\*',rb,re.M) and re.search(r'^\| P-1 \|.*protocolo v1\.6',rb,re.M))
 _blocks=re.findall(r"```sql\n(.*?)```",rb,re.S)
 _md5s=[hashlib.md5(b.encode()).hexdigest() for b in _blocks]
 _decl={k:re.search(r'^\| \*\*'+k+r'\*\*.*?md5[^`]*`([0-9a-f]{32})`',rb,re.M) for k in ['L1','L3','L2','L4']}

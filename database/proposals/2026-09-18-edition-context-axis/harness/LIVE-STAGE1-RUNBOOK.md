@@ -3,9 +3,9 @@
 | Campo | Valor |
 |---|---|
 | **Mandato de preparação** | `BATCH12-2830-LIVE-STAGE1-EXECUTION-READINESS-01` (2026-09-26) |
-| **Status** | **v1.4 — CORRIGIDO LOCALMENTE** (`BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), **não commitado**, pendente de auditoria independente. O E00 corrigido e a L4 **não foram compilados nem executados** no PostgreSQL. A v1.3 foi executada na Tentativa 03 (STOP em S1.3; ver `LIVE-STAGE1-EXECUTION-RECORD.md`) e está **superada**. Este roteiro **não autoriza** a execução. A Etapa 1 exige mandato próprio de execução; a Etapa 2 **não** é autorizada automaticamente por nenhum resultado aqui. |
+| **Status** | **v1.5 — D-9 incorporada LOCALMENTE** (`BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), **não commitada**, pendente de auditoria independente. A v1.4 foi publicada em `9a4cff16` e está superada. O E00 vigente **não foi compilado nem executado** no PostgreSQL. A v1.3 foi executada na Tentativa 03 (STOP em S1.3; ver `LIVE-STAGE1-EXECUTION-RECORD.md`). Este roteiro **não autoriza** a execução. |
 | **Baseline** | Correção feita sobre HEAD `b8925ed571127be8f05fac98f6a3afbad5fe74a3`, ainda não commitada. O baseline de execução é o commit que contiver esta correção; ele será fixado pelo mandato de execução (PC-1). |
-| **Autoridade** | `LIVE-VALIDATION-PROTOCOL.md` **v1.5**, seção 3. Em caso de conflito, o protocolo prevalece e o conflito é STOP. |
+| **Autoridade** | `LIVE-VALIDATION-PROTOCOL.md` **v1.6**, seção 3. Em caso de conflito, o protocolo prevalece e o conflito é STOP. |
 | **Contrato** | 2830 v7.0, blob `b4647dcb59432405c8157e2733fd78678f35540e` — imutável. |
 | **FREEZE** | ATIVO. |
 
@@ -19,11 +19,11 @@ Todo texto é submetido **verbatim**, uma consulta por chamada `execute_sql`. O 
 |---|---|---|
 | **L1** — canal e sessão | `LIVE-VALIDATION-PROTOCOL.md` §3.2, bloco SQL 1 (reproduzido em §3) | md5 do texto `0836c36a8d3749b1e7718223e064caf9` |
 | **L3** — concorrência | idem, bloco SQL 3 | md5 `b7bc3700aeef278f6a79bd30e6a8d229` |
-| **E00** — precheck | `2830H_E00_precheck_inventory.sql`, arquivo **inteiro**, comentários incluídos | blob `88e9e7a4c94ac71feef536d6fc18b0e61190479c` · md5 do arquivo `a9352afcb883f072e1baf8a3518536fb` (43.639 B, 24 gates) |
+| **E00** — precheck | `2830H_E00_precheck_inventory.sql`, arquivo **inteiro**, comentários incluídos | blob `a4dd84381b928727611a51147ba1a4c1d11b89ab` · md5 do arquivo `45b6c35cca849ffbf49d22ec18e8283c` (53.803 B, 24 gates; `evt_allowlist` com as 6 exceções de D-9) |
 | **L2** — pinos, **só diagnóstico** | idem, bloco SQL 2 | md5 `81d3472e69d8490849b16a0918c3e35d` |
 | **L4** — event triggers, **só adjudicação D-9** | este roteiro, §3.5 | md5 `f3670eb8f149064610055720b0636218` (2.416 B). **Fora** da sequência da Etapa 1; exige mandato próprio. |
 
-Os md5 da tabela são do texto exato de cada bloco SQL deste documento: da linha após a abertura da cerca até a quebra de linha final, inclusive, antes da cerca de fechamento. O texto de L1, L2 e L3 é idêntico ao dos blocos do protocolo. Os hashes de E00 e L4 anteriores a esta versão (E00 `97410c3a…` / `d00b7cec…`, executado na Tentativa 03; E00 proposto `a10ffd81…`; L4 `6bdc9dc4…`) são **históricos** e **não** são critério vigente.
+Os md5 da tabela são do texto exato de cada bloco SQL deste documento: da linha após a abertura da cerca até a quebra de linha final, inclusive, antes da cerca de fechamento. O texto de L1, L2 e L3 é idêntico ao dos blocos do protocolo. Os hashes de E00 e L4 anteriores a esta versão (E00 `97410c3a…` / `d00b7cec…`, executado na Tentativa 03; E00 proposto `a10ffd81…`; E00 `88e9e7a4…` / `a9352afc…`, publicado em `9a4cff16` com `evt_allowlist` vazia; L4 `6bdc9dc4…`) são **históricos** e **não** são critério vigente.
 
 ---
 
@@ -32,9 +32,9 @@ Os md5 da tabela são do texto exato de cada bloco SQL deste documento: da linha
 | # | Verificação | Evidência a registrar | Falha |
 |---|---|---|---|
 | PC-1 | `git rev-parse HEAD` = baseline do mandato de execução; `git status` limpo | saída literal | STOP |
-| PC-2 | `git hash-object` do E00 = `88e9e7a4c94ac71feef536d6fc18b0e61190479c` e md5 do arquivo = `a9352afcb883f072e1baf8a3518536fb`; md5 de L1/L3/L2 = tabela §0; `python3 tools/static_check.py` com `FAIL 0` | saídas literais | STOP |
+| PC-2 | `git hash-object` do E00 = `a4dd84381b928727611a51147ba1a4c1d11b89ab` e md5 do arquivo = `45b6c35cca849ffbf49d22ec18e8283c`; md5 de L1/L3/L2 = tabela §0; `python3 tools/static_check.py` com `FAIL 0` | saídas literais | STOP |
 | PC-3 | Canal = MCP Supabase `execute_sql`, `project_id = qjfutqujxrbzgrtkpgkg`; nunca Dashboard/SQL Editor | parâmetro `project_id` de cada chamada, registrado | STOP |
-| PC-4 | Mandato de execução assinado por Fabrício, citando este roteiro **v1.4**, o protocolo **v1.5** e o blob do E00 da PC-2 | referência do mandato | STOP |
+| PC-4 | Mandato de execução assinado por Fabrício, citando este roteiro **v1.5**, o protocolo **v1.6** e o blob do E00 da PC-2 | referência do mandato | STOP |
 | PC-5 | Nenhum `SET`/`set_config`/`CREATE TEMP`/sonda adicional; nenhuma consulta fora de L1, L3, E00 e L2 (a L4 só roda sob mandato próprio de adjudicação, nunca dentro da Etapa 1) | declaração no registro | STOP |
 
 ---
@@ -121,7 +121,7 @@ SELECT jsonb_build_object(
 
 ### 3.3 E00 — precheck
 
-Submeter o **conteúdo integral** de `2830H_E00_precheck_inventory.sql` (blob `88e9e7a4c94ac71feef536d6fc18b0e61190479c`, md5 `a9352afcb883f072e1baf8a3518536fb`), sem edição, sem recorte de comentários. O texto não é duplicado aqui, para não criar uma segunda fonte.
+Submeter o **conteúdo integral** de `2830H_E00_precheck_inventory.sql` (blob `a4dd84381b928727611a51147ba1a4c1d11b89ab`, md5 `45b6c35cca849ffbf49d22ec18e8283c`), sem edição, sem recorte de comentários. O texto não é duplicado aqui, para não criar uma segunda fonte.
 
 ### 3.4 L2 — pinos, bruto × EOL (md5 `81d3472e69d8490849b16a0918c3e35d`) — SOMENTE DIAGNÓSTICO, SOMENTE APÓS STOP DE PINO
 
@@ -262,7 +262,7 @@ Os critérios de mérito (evento, tags, donos, `SECURITY DEFINER`, `proconfig`, 
 4. **Identidades P7 não-nativas** (`d_p7_functions`, `gate_scope = true`, schema ≠ `pg_catalog`, campo `fn`) = exatamente as 12 da allowlist (protocolo §3.3). A mais ou a menos ⇒ STOP.
 5. `d_p7_unqualified_calls` sem `UNRESOLVED`/`DENIED`; `d_p7_writes` com alvos só nas 5 tabelas EC; `d_p7_unresolved_qualified = []`; `d_p7_unqualified_writes = []`.
 6. `d_sequences` sem entrada para as 3 tabelas tocadas por E01. O inventário das demais é registrado.
-7. `d_event_triggers` registrado **integralmente** (12 atributos de identidade + md5 bruto); `d_evt_catalog_count` = número de linhas de `d_event_triggers`; `d_evt_unadjudicated = []`; cada exceção adjudicada citada no registro com a sua justificativa (D-9); `d_evt_allowlist_absent` registrado (sem efeito de gate); `d_p7_rules` sem regra nas 5 tabelas EC; `d_publications` registrado.
+7. `d_event_triggers` registrado **integralmente** (12 atributos de identidade + md5 bruto); os 6 event triggers aprovados em D-9 casam com as 6 linhas da `evt_allowlist`; `d_evt_catalog_count` = número de linhas de `d_event_triggers`; `d_evt_unadjudicated = []`; cada exceção adjudicada citada no registro com a sua justificativa (D-9); `d_evt_allowlist_absent` registrado (sem efeito de gate); `d_p7_rules` sem regra nas 5 tabelas EC; `d_publications` registrado.
 7a. `d_p7_eol_normalized` registrado. Cada item listado precisa ter `body_md5_lf` = pino e `crlf_count = cr_count` (só CRLF); o registro cita o md5 bruto (`body_md5`) como evidência. Item novo, não adjudicado em D-6, é registrado como observação para auditoria — a identidade já está provada pelo pino normalizado.
 8. Saída **não truncada**: presença de `d_baseline`, `d_baseline_md5`, `d_session` e das 17 chaves canônicas em `d_baseline`. Truncada ⇒ rodada inválida (não é FAIL); nova rodada só com novo mandato.
 
@@ -289,7 +289,7 @@ Nenhum caso da 2830 é declarado PASS nesta etapa.
 
 | # | Decisão | Recomendação técnica |
 |---|---|---|
-| P-1 | Mandato de execução da Etapa 1, citando baseline, este roteiro v1.4, o protocolo v1.5 e o blob do E00 (PC-2) | — |
+| P-1 | Mandato de execução da Etapa 1, citando baseline, este roteiro v1.5, o protocolo v1.6 e o blob do E00 (PC-2) | — |
 | P-2 | S1.6 (`EXPLAIN (COSTS OFF)` do E00, P9a) | **Fora da Etapa 1.** Executar o E00 **não** prova a forma do plano: a execução só-leitura mede tempo (AD-2), enquanto P9a exige `EXPLAIN (COSTS OFF)` registrado. **P9a permanece PENDENTE** e exige **mandato próprio** antes do aceite de A2. Nenhum resultado da Etapa 1 conta como P9a. |
 | P-3 | Quem executa: agente via MCP ou Fabrício | agente via MCP, sob mandato (padrão das rodadas anteriores); Fabrício, se preferir o canal manual — o critério PC-3 continua exigindo MCP |
 | P-4 | Após qualquer STOP: D-4 (lock_timeout), D-5 (visibilidade), D-6 (pinos), D-9 (event triggers) ou mandato de correção do harness | por caso |
@@ -318,3 +318,4 @@ Decisões ainda pendentes e **não** resolvidas aqui: D-1 (ambiente isolado sem 
 | 1.2 | **Fechamento de A-4 (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-01`).** O protocolo foi alinhado (v1.3), e a nota de precedência do §4.2 e o achado A-4 passam a RESOLVIDO. Critérios, sequência, SQL e md5 inalterados. |
 | 1.3 | **Referências (2026-09-26, `BATCH12-2830-LIVE-STAGE1-READINESS-CLOSEOUT-02`).** Cabeçalho (Autoridade), PC-4 e P-1 passam a citar o protocolo **v1.3**, a versão que contém o alinhamento de A-4. As menções históricas a v1.2 (A-4 e revisão 1.2) e a declaração de identidade dos blocos SQL (§0) ficam como estão. Critérios, consultas, md5 e sequência inalterados. |
 | 1.4 | **Correção local (2026-09-26, `BATCH12-2830-LIVE-STAGE1-STOP-ADJUDICATION-01` → `BATCH12-2830-STOP-ADJUDICATION-CORRECTION-01`), não commitada, pendente de auditoria.** Após o STOP da Tentativa 03:<br>• E00 corrigido: blob `88e9e7a4…`, md5 `a9352afc…`, **24 gates**. Inclui pino P7 com EOL normalizado (D-6), `g_p7_no_ddl`, `g_evt_inventory_complete` (G-3) e `g_evt_ddl_only` + `g_evt_all_adjudicated` com identidade de 12 atributos (G-4) e justificativa obrigatória.<br>• §3.5 L4 revisada: contagem e nomes lidos direto do catálogo, `LEFT JOIN`, `triggers_md5`, validação de completude; md5 `f3670eb8…`. Só sob mandato de adjudicação (D-9), fora da Etapa 1.<br>• §4.3 itens 2, 7 e 7a.<br>• Cabeçalho, §0, PC-2, PC-4 e P-1 reconciliados com o protocolo v1.5, o E00 novo e a L4 (G-5); os hashes anteriores ficam só como histórico.<br>L1, L2 e L3 inalterados. Compilação PostgreSQL pendente. |
+| 1.5 | **D-9 incorporada localmente (2026-09-27, `BATCH12-2830-D9-EVENT-TRIGGER-ALLOWLIST-01`), não commitada, pendente de auditoria.**<br>• E00 com as 6 exceções aprovadas em D-9 na `evt_allowlist`: blob `a4dd8438…`, md5 `45b6c35c…`.<br>• Cabeçalho, §0, PC-2, PC-4, §3.3, §4.3 item 7 e P-1 reconciliados com o protocolo v1.6; o E00 `88e9e7a4…` fica só como histórico.<br>L1, L2, L3 e L4 inalterados. Compilação PostgreSQL pendente. |
