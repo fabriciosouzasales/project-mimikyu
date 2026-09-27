@@ -2,11 +2,11 @@
 
 | Campo | Valor |
 |---|---|
-| **Natureza** | Preparação técnica e prova estática. **Sem implementação e sem execução**: o E03 e o E03P **não** foram escritos; nenhum SQL executado; nenhum acesso ao LIVE; nenhuma alteração em envelopes, schema, migrations, funções ou validações. |
-| **Mandato** | `BATCH12-2830-P5-L1-IMPLEMENTATION-READINESS-01` (v1.0) e `BATCH12-2830-P5-L1-IMPLEMENTATION-READINESS-CORRECTION-01` (v1.1, blocker B-1). Baseline HEAD `10eef142d46f8bd14e8008cae4e556444e3862cf`. |
+| **Natureza** | Preparação técnica e prova estática. **Sem implementação e sem execução**: o E03 e o E03P **não** foram escritos nesta preparação (foram implementados depois, localmente e sem execução, em `BATCH12-2830-P5-L1-E03-IMPLEMENTATION-01`; ver `harness/README.md`); nenhum SQL executado; nenhum acesso ao LIVE; nenhuma alteração em envelopes, schema, migrations, funções ou validações. |
+| **Mandato** | `BATCH12-2830-P5-L1-IMPLEMENTATION-READINESS-01` (v1.0) e `BATCH12-2830-P5-L1-IMPLEMENTATION-READINESS-CORRECTION-01` (v1.1, blocker B-1), baseline HEAD `10eef142d46f8bd14e8008cae4e556444e3862cf`; `BATCH12-2830-P5-L1-E03-IMPLEMENTATION-CORRECTION-01` (v1.2, achado D-1, só documental), baseline HEAD `1467583206f221308bbb9a237fe0c08a2f4ea5e4`. |
 | **Autoridades** | 2830 v7.0 (blob `b4647dcb…`, imutável) · `PHASE5-AUTOMATED-COVERAGE-READINESS.md` (blob `1aa8d71d…`) · `LIVE-VALIDATION-PROTOCOL.md` (blob `abe806d6…`) · E00 `a4dd8438…`, E01 `c4118b8c…`, E02 `3357ed46…`, E99 `49a71ecb…`. |
 | **Escopo** | **Exclusivamente** 2.1, 2.2, 2.3, 2.4, 2.5, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14 (13). **2.6 permanece reservado ao L5.** |
-| **Estado** | **PROPOSTA v1.1 — para auditoria independente.** Blocker B-1 (sonda de modo contaminando o IMMEDIATE seguinte) corrigido por sonda autocontida em subtransação própria (§2.6). N-1 fundamentado estaticamente, **não comprovado em runtime**. N-2 resolvido por correspondência demonstrada. Nenhum PASS novo. DP-1, DP-4, DP-5 e DP-7 **não decididas**. **FREEZE ATIVO.** |
+| **Estado** | **v1.2 — correção documental do achado D-1, para auditoria independente.** A v1.1 (blob `220fbd8b…`) foi aprovada e é a versão contra a qual E03, E03P e E03T foram implementados; a v1.2 não altera critério de caso, desenho da sonda nem regra de PASS/FAIL. Blocker B-1 (sonda de modo contaminando o IMMEDIATE seguinte) corrigido por sonda autocontida em subtransação própria (§2.6). N-1 fundamentado estaticamente, **não comprovado em runtime**. N-2 resolvido por correspondência demonstrada. Nenhum PASS novo. DP-1, DP-4, DP-5 e DP-7 **não decididas**. **FREEZE ATIVO.** |
 
 ---
 
@@ -23,6 +23,8 @@
 **STOP: não houve.** A análise não encontrou risco material de segurança, integridade, semântica, concorrência, performance ou perda de dados. As escritas previstas são transitórias, só em linhas de fixture de 3 tabelas EC, sempre desfeitas por subtransação e pelo término em exceção. Qualquer execução continua dependendo de DP-5.
 
 **Blocker B-1 (auditoria da v1.0): corrigido na v1.1.** A sonda de modo da v1.0 deixava um evento diferido pendente na subtransação do caso, e em 2.7 esse evento seria processado pelo IMMEDIATE de Pb. A sonda passa a rodar em subtransação própria, encerrada sempre por uma sentinela exclusiva (`H283S`), e a matriz de eventos do §2.6.4–§2.6.5 mostra que cada IMMEDIATE processa exatamente os eventos previstos. Nenhum blocker novo; as limitações remanescentes estão no §2.6.6.
+
+**Achado D-1 (auditoria da implementação): corrigido na v1.2, só no texto.** A função de selo da 2206 (l. 70–74) retorna sem efeito quando o profile do evento não existe mais. Um evento hipotético de sonda que sobrevivesse ao rollback da sonda não levantaria `EMPTY_COMPOSITION`: seria um no-op. O §2.6.4, o §2.6.6, o §2.8, o §3.3 e o §8 foram ajustados, e o §2.6.7 separa o que é esperado, o que é observável pelo E03T e o que continua não comprovado. A conclusão de isolamento não muda.
 
 > Nota de nomenclatura: neste documento, **"L1 (canal)"** é a consulta de canal do protocolo (md5 `0836c36a…`). **"Lote L1"** é este conjunto de 13 casos.
 
@@ -180,7 +182,7 @@ Três camadas garantem DEFERRED ao entrar em cada caso:
 
 - Na v1.0, a sonda inseria um profile sem N:N **diretamente na subtransação do caso**. Em modo DEFERRED esse INSERT enfileira um evento de `trg_cecp_seal`, que só seria descartado pelo `H283C` no fim do caso.
 - Em 2.7, esse evento ainda estaria pendente quando o sub-bloco negativo executasse `SET … IMMEDIATE` para Pb. Ao passar a IMMEDIATE, o comando verifica **todos** os eventos pendentes dos constraints nomeados (docs *SET CONSTRAINTS*), não só os de Pb.
-- O evento da sonda, sem composição, levanta `EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION` (2206 l. 88). O resultado de 2.7 passaria a depender da ordem de processamento da fila, que não é contrato documentado. Na ordem de enfileiramento, o evento da sonda vem antes do de Pb e o caso receberia `P0001` em vez de `23505`/`uq_cecp_game_signature`.
+- Na v1.0 a linha da sonda **continuava existindo** (só seria desfeita pelo `H283C`), então o selo passava pelo teste de existência (2206 l. 70–74) e levantava `EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION` (2206 l. 88). O resultado de 2.7 passaria a depender da ordem de processamento da fila, que não é contrato documentado. Na ordem de enfileiramento, o evento da sonda vem antes do de Pb e o caso receberia `P0001` em vez de `23505`/`uq_cecp_game_signature`.
 - **Efeito:** a sonda alterava a pré-condição que devia proteger. Nos demais casos FXd a sonda da v1.0 não era seguida de outro IMMEDIATE, mas o padrão era inseguro por construção.
 
 #### 2.6.2 Estrutura corrigida
@@ -235,7 +237,7 @@ v_q := NULL;
 |---|---|---|---|---|
 | 1 | Confirmar DEFERRED | O INSERT da sonda termina sem erro e o selo continua `NULL`. Em IMMEDIATE, o constraint trigger `AFTER ROW` dispararia no fim do INSERT e levantaria `EMPTY_COMPOSITION` (2206 l. 88), capturado pelo `WHEN OTHERS` da sonda e convertido em `H283F`. | docs *CREATE TRIGGER* (constraint trigger: fim do statement ou fim da transação, conforme o modo) e *SET CONSTRAINTS*; `tgenabled = 'O'` exigido pelo E03P (`g_s2_triggers`) | sim: o próprio INSERT |
 | 2 | Descartar a fixture da sonda | O corpo de Q não tem saída normal: termina em `H283S` ou em erro. Toda saída de Q por exceção desfaz as alterações feitas dentro do bloco. | docs PG 17 §41.6.8 ("all changes to persistent database state within the block are rolled back") | sim: `count(*) … WHERE id = v_q` = 0 após o `END` (a variável conserva o id, §41.6.8) |
-| 3 | Nenhum evento da sonda sobrevive | O evento é enfileirado dentro de Q. No abort de uma subtransação, a fila de eventos volta ao estado do início dela. | comentários de `trigger.c` (`AfterTriggersTransData.events`) | indireta no E03 (§2.6.4: um vazamento só pode gerar FAIL); direta no E03T T3 (§2.8, DP-7) |
+| 3 | Nenhum evento da sonda sobrevive | O evento é enfileirado dentro de Q. No abort de uma subtransação, a fila de eventos volta ao estado do início dela. | comentários de `trigger.c` (`AfterTriggersTransData.events`) | **não observável diretamente** (v1.2): um evento remanescente encontraria a linha já desfeita e seria no-op (2206 l. 70–74). O E03T T3 observa só a ausência de contaminação do IMMEDIATE posterior (§2.6.7) |
 | 4 | Não desfazer as fixtures do caso | O rollback de Q volta ao ponto de entrada de Q. O que o caso escreveu antes (T1, T2, Pa e o selo de Pa) fica fora do bloco. O evento de Pa, disparado em C antes de Q, mantém a marca de processado: só eventos disparados dentro da subtransação abortada são desmarcados. | docs §41.6.8 (exemplo: o INSERT anterior ao bloco não é desfeito); `trigger.c` (`firing_counter`) | sim: asserções pós-sonda (Pa selado e igual; contagem das fixtures) |
 | 5 | Sentinela capturada por identidade exata, sem mascarar erro | O handler aceita só `SQLSTATE 'H283S'` **e** `MESSAGE_TEXT` igual a `v_qtag` (envelope, caso, número da sonda, marcador da execução). `H283F` é repassado. Todo o resto cai no `WHEN OTHERS` e vira `H283F`. `H283S` só é levantado pelo último statement de Q: as funções da 2206 levantam sem `ERRCODE` (`P0001`, §1.2) e o PostgreSQL não usa a classe `H2`. `57014` e `P0004` não são capturados por `OTHERS` (docs §41.6.8) e abortam o envelope. | docs §41.6.8; §1.2 | sim: sentinela com mensagem diferente vira `H283F` |
 | 6 | `H283C`, `H283F` e `H283P` exclusivos | `H283S` é um sinal novo do harness, na mesma classe `H283x` declarada no cabeçalho do E01 (l. 20–23), usado só na sonda. `H283C` continua só no fim de caso, `H283F` só em falha e `H283P` só no fim do envelope. `H283S` nunca sai da sonda; se saísse (defeito), o `WHEN OTHERS` do caso o converteria em `H283F`. | E01 l. 20–25; regras E03-12 e E03-17 (§6) | estática (static_check) |
@@ -264,7 +266,8 @@ Notação: **E** = transação do envelope; **C** = subtransação do caso (fim 
 
 **Por que a sonda não pode interferir no resultado de 2.7:**
 - **Pela estrutura:** na etapa 9 a fila contém exatamente ev(Pb). ev(Pa) já foi processado na etapa 3, ev(q1) saiu com Q1 na etapa 6, e nada mais enfileira evento (§2.5).
-- **Pelo aceite, mesmo num vazamento hipotético:** o resultado aceito (`23505` em `uq_cecp_game_signature`, com `v_step = 'IMMEDIATE'`) só pode vir do selo de um profile cuja composição seja igual à de Pa. Só Pb tem essa composição. Um evento de sonda vazado, sem composição, só pode produzir `EMPTY_COMPOSITION` (`P0001`), que é FAIL. Um vazamento nunca gera PASS falso, em qualquer ordem de fila.
+- **Pelo aceite, mesmo num vazamento hipotético (corrigido na v1.2):** o resultado aceito (`23505` em `uq_cecp_game_signature`, com `v_step = 'IMMEDIATE'`) só pode vir do selo de um profile cuja composição seja igual à de Pa. Só Pb tem essa composição. Um evento de sonda que sobrevivesse ao rollback da sonda encontraria a linha q1 já desfeita e o selo retornaria sem efeito (2206 l. 70–74): **não** levantaria `EMPTY_COMPOSITION`, não selaria nada e não alteraria o erro de Pb. Um vazamento não gera PASS falso nem FAIL, em qualquer ordem de fila.
+- **Estado esperado × observável:** a coluna "Eventos pendentes" registra o estado **esperado** pela semântica transacional do PostgreSQL (§2.4, `trigger.c`). O E03 **não observa** a fila; observa só os efeitos (selo, contagens, SQLSTATE, `v_step`). Ver §2.6.7.
 - **Após o negativo:** Q2 fica pendente só dentro de Q2 e sai com ela. Não há IMMEDIATE depois de Q2.
 
 #### 2.6.5 Demais casos: eventos processados por IMMEDIATE
@@ -287,10 +290,24 @@ Total: 11 IMMEDIATE, 13 `SET … DEFERRED` (9 de caminho normal e 4 nos 2 negati
 
 #### 2.6.6 Limites da correção
 
-- **Estático, não runtime:** a remoção do evento no abort de Q vem dos comentários de `trigger.c`, não de execução. No E03 ela só é observada indiretamente (§2.6.4). A detecção direta é o caso T3 do E03T (§2.8), sujeito a DP-7.
+- **Estático, não runtime:** a remoção do evento no abort de Q vem da semântica de subtransação do PostgreSQL e dos comentários de `trigger.c`, não de execução. **Não há detecção direta** (v1.2): nem o E03 nem o E03T T3 distinguem "evento removido" de "evento remanescente executado como no-op", porque o selo da 2206 não faz nada quando o profile não existe (l. 70–74). O que pode ser observado é a ausência de contaminação (§2.6.7).
 - **Só `trg_cecp_seal` é sondado.** O modo de `trg_cecem_seal` muda no mesmo comando, mas não é observável no lote L1, que não cria mapping (e por isso também não o afeta).
 - **`H283S` é sinal novo do harness.** Não é código da 2830 nem do protocolo, e nunca chega ao canal: o protocolo continua vendo só `H283P` ou `H283F`. A aceitação do sinal fica com a auditoria.
 - **Custo:** 11 subtransações, 11 INSERTs e 22 leituras a mais no envelope, todas desfeitas. O limite de tempo continua o do §7 (`elapsed_ms ≤ 60000`).
+
+#### 2.6.7 Esperado, observável e não comprovado (v1.2)
+
+| Afirmação | Esperado pela semântica do PostgreSQL | Observável pelo E03T (T1–T3) | Ainda não comprovado em runtime |
+|---|---|---|---|
+| A sonda confirma DEFERRED | Em DEFERRED o constraint trigger não dispara no fim do INSERT; em IMMEDIATE dispararia e levantaria `EMPTY_COMPOSITION` | Sim: o INSERT da sonda termina sem erro e o selo continua `NULL` (T1, T2, T3) | Todo o padrão, até a primeira execução autorizada |
+| A linha da sonda é desfeita | O rollback do bloco desfaz o que foi escrito nele (docs §41.6.8) | Sim: `count(*) … WHERE id = v_q` = 0 depois do `END` | Idem |
+| O evento da sonda é removido da fila | O abort da subtransação devolve a fila ao estado do início dela (`trigger.c`) | **Não.** Removido e remanescente-no-op produzem o mesmo resultado observável | **Sim — NÃO DEMONSTRADO e não demonstrável por SQL** neste harness |
+| O IMMEDIATE posterior à sonda não é contaminado | Nenhum evento pendente; se houvesse um evento da sonda, ele seria no-op (2206 l. 70–74) | Sim, em T3: o segundo IMMEDIATE termina sem erro, o selo continua igual e nenhuma linha de sonda é visível | Idem |
+| As fixtures do caso ficam intactas depois da sonda | O rollback de Q volta ao ponto de entrada de Q | Sim: asserções pós-sonda do selo e das contagens | Idem |
+| No 2.7, o IMMEDIATE de Pb processa só ev(Pb) | Pela matriz do §2.6.4 | Só indiretamente (no E03): `23505` + `uq_cecp_game_signature` + `v_step`; o E03T não cobre o 2.7 | Idem |
+
+- A garantia de que a sonda não altera o resultado de nenhum caso **não depende** de observar a remoção do evento: pela estrutura, o evento sai com a sonda; e, mesmo que ficasse, seria no-op (§2.6.4).
+- Nada nesta tabela é PASS. A cobertura continua **17/135**.
 
 ### 2.7 Conclusão N-1 e limitação
 
@@ -306,15 +323,15 @@ Total: 11 IMMEDIATE, 13 `SET … DEFERRED` (9 de caminho normal e 4 nos 2 negati
   - para reduzir risco antes do E03 completo, há o teste controlado opcional **E03T** (§2.8), sujeito a DP-7.
 - **Nota de contexto:** um commit do PostgreSQL de 2026-08-19 corrigiu o contexto de disparo em subtransação após erro capturado em `AfterTriggerSetState`. A mensagem declara backpatch só até a versão 19, porque a correção envolve campos do fast path de RI em lote. O LIVE é 17.6 (`server_version_num = 170006`, P9A-00). O código-fonte da 17 **não** foi inspecionado nesse ponto; o risco é declarado e as sondas do §2.6 cobrem o sintoma observável.
 
-### 2.8 Teste controlado E03T (proposto, para mandato posterior; não escrito)
+### 2.8 Teste controlado E03T (implementado localmente em `…-P5-L1-E03-IMPLEMENTATION-01`; não executado)
 
 - **Forma:** um DO, mesma estrutura de sinais do E01.
 - **Casos** (todas as sondas no formato do §2.6.2):
   - T1: 2.1 reduzido (selo via IMMEDIATE + sonda);
   - T2: 2.2 reduzido (IMMEDIATE que falha capturado + sonda);
-  - T3: reprodução mínima de B-1 — profile selado por IMMEDIATE, `SET … DEFERRED`, sonda Q, depois novo `SET … IMMEDIATE` e `SET … DEFERRED` sem outro evento pendente. O segundo IMMEDIATE deve ser no-op: se o evento de Q tivesse sobrevivido, ele levantaria `EMPTY_COMPOSITION` e o caso falharia. É a detecção direta do requisito 3 do §2.6.3. Termina com uma segunda sonda.
+  - T3: reprodução mínima de B-1 — profile selado por IMMEDIATE, `SET … DEFERRED`, sonda Q, depois novo `SET … IMMEDIATE` e `SET … DEFERRED` sem outro evento pendente. O segundo IMMEDIATE deve terminar sem erro, com o selo intacto e nenhuma linha de sonda visível. **Corrigido na v1.2:** isso prova que o IMMEDIATE posterior não é contaminado, mas **não** detecta diretamente a remoção do evento de Q: se ele sobrevivesse, encontraria a linha desfeita e seria no-op (2206 l. 70–74), com o mesmo resultado observável (limite L-1, §2.6.7). Termina com uma segunda sonda.
 - **Aceite:** `H283P pass=3/3` e E99 limpo.
-- **Função:** isolar N-1 com o mínimo de escrita. Não conta como caso da 2830.
+- **Função:** isolar N-1 com o mínimo de escrita: provar em runtime que `SET CONSTRAINTS` funciona dentro do DO, que a sonda confirma DEFERRED e que não há contaminação observável. Não conta como caso da 2830.
 - **Decisão:** DP-7. A alternativa é aceitar que o próprio E03 carrega as sondas.
 
 ## 3. Gate C — isolamento das fixtures
@@ -363,7 +380,7 @@ Notação: **Q1/Q2** = sonda autocontida do §2.6.2 (linha e evento próprios, d
   - T2 é ativo, do mesmo Game e não duplica a PK. O único erro possível é o do guard de imutabilidade, que dispara primeiro (§1.5).
 - **2.7.**
   - Pa é selado **antes**, fora do sub-bloco. A sonda Q1, entre o selo de Pa e o sub-bloco de Pb, roda e é desfeita na própria subtransação. No IMMEDIATE de Pb a fila contém **exatamente** o evento de Pb, e o desfecho é determinístico (§2.6.4).
-  - Mesmo num vazamento hipotético do evento de Q1, o resultado aceito só pode vir do selo de Pb: um evento de sonda só produz `EMPTY_COMPOSITION`, que é FAIL (§2.6.4).
+  - Mesmo num vazamento hipotético do evento de Q1, o resultado aceito só pode vir do selo de Pb: o evento de sonda encontraria a linha desfeita e seria no-op (2206 l. 70–74; corrigido na v1.2, §2.6.4).
   - `code` e `display_order` distintos afastam `uq_cecp_game_code` e `uq_cecp_game_order`. Os traits de fixture são UUIDs novos, então nenhum profile do LIVE tem a mesma assinatura.
   - A constraint exigida é só `uq_cecp_game_signature`. Numa violação de índice único, `CONSTRAINT_NAME` é o nome do índice; isso é esperado, mas **não** foi observado neste harness. Divergência vira FAIL, nunca PASS.
 - **2.10.**
@@ -414,7 +431,7 @@ Notação: **Q1/Q2** = sonda autocontida do §2.6.2 (linha e evento próprios, d
 
 **Perfil estático do E03P:** o mesmo do E00/E99 (`tools/static_check.py`, l. 60–67): 1 statement; sem INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, `SET`, `DO`, `TEMP`, `INTO`, GRANT, REVOKE, COMMENT, COPY, CALL, LOCK, LISTEN ou NOTIFY; parênteses balanceados.
 
-## 6. Gate D — perfil E03 no `tools/static_check.py` (a implementar)
+## 6. Gate D — perfil E03 no `tools/static_check.py` (implementado localmente em `…-P5-L1-E03-IMPLEMENTATION-01`)
 
 | # | Regra (falha = FAIL do static_check) |
 |---|---|
@@ -485,12 +502,12 @@ Notação: **Q1/Q2** = sonda autocontida do §2.6.2 (linha e evento próprios, d
 | DP-1 | Estender a adaptação AD-2 (tempo medido no LIVE, limite de 120 s, aceite ≤ 60 s) ao lote L1, ou exigir P9b | sem ela, a letra do P9(b) exige medição em ambiente isolado antes do LIVE |
 | DP-4 | `SET LOCAL lock_timeout` no E03. A decisão D-3 cobriu só o E01. A opção (a) exige incluir `SET LOCAL` no allowlist E03-5 e uma asserção inicial | define o E03 e o perfil E03 |
 | DP-5 | Autorização expressa de escrita transitória com rollback integral: INSERT em trait, profile e profile_trait; UPDATE só em profile de fixture; DELETE só em profile_trait de fixture | sem ela, nada vai ao LIVE |
-| DP-7 | Rodar o teste controlado E03T (§2.8) antes do E03, ou aceitar as sondas embutidas no E03. Desde a v1.1, o E03T T3 é a única detecção **direta** de que o evento de uma sonda não sobrevive (§2.6.6) | ordem da execução futura |
+| DP-7 | Rodar o teste controlado E03T (§2.8) antes do E03, ou aceitar as sondas embutidas no E03. O E03T prova em runtime o padrão N-1 e a ausência de contaminação observável; **não** detecta diretamente a remoção do evento da sonda (corrigido na v1.2, §2.6.7) | ordem da execução futura |
 | DP-3 | Para este lote, o próprio mandato fixa o E03P como companheiro do E00, sem alterá-lo. A decisão continua aberta para os lotes seguintes | nenhum no lote L1 |
 
 ## 9. Limites desta rodada
 
-- Nenhum SQL, nenhum acesso ao LIVE; nada implementado; nenhum arquivo além deste documento, do README e do log.
+- Nenhum SQL, nenhum acesso ao LIVE; nada implementado nas rodadas desta readiness; nenhum arquivo além deste documento, do README e do log. A v1.2 também é só documental: E03, E03P, E03T e `tools/static_check.py` não foram alterados.
 - Fatos de PostgreSQL vêm da documentação oficial da versão 17 e de comentários do código-fonte. As evidências do LIVE são históricas (Etapa 3). **Nada** aqui foi observado em runtime para o padrão `SET CONSTRAINTS`.
 - Nenhum caso declarado PASS.
 
@@ -511,3 +528,4 @@ Notação: **Q1/Q2** = sonda autocontida do §2.6.2 (linha e evento próprios, d
 |---|---|
 | 1.0 | **Criação (2026-09-27, `BATCH12-2830-P5-L1-IMPLEMENTATION-READINESS-01`, baseline `10eef142`), preparação técnica e prova estática, sem SQL e sem LIVE.**<br>• Gate A: 13 casos × 2206, com identidade md5 repositório = E00 = LIVE (Etapa 3) e dependências só dos 4 triggers conhecidos;<br>• Gate B: N-1 fundamentado estaticamente (docs PG 17 + `trigger.c`), não comprovado em runtime; sondas de modo e teste controlado E03T opcional;<br>• N-2: cada nome abreviado corresponde a exatamente um token implementado, comparado por `starts_with` com `:`;<br>• Gate C: matriz caso → IDs → operações → aceite → rollback;<br>• Gate D: E03P (11 gates) e perfil E03 (16 regras);<br>• Gate E: protocolo S0–S7 com STOP;<br>• decisões DP-1, DP-4, DP-5, DP-7 e DP-3.<br>Sem STOP. FREEZE ATIVO. |
 | 1.1 | **Correção do blocker B-1 (2026-09-27, `BATCH12-2830-P5-L1-IMPLEMENTATION-READINESS-CORRECTION-01`, baseline `10eef142`), sem SQL e sem LIVE.** A sonda de modo da v1.0 deixava um evento de `trg_cecp_seal` pendente na subtransação do caso, que em 2.7 seria processado pelo IMMEDIATE de Pb (`EMPTY_COMPOSITION` em vez de `23505`).<br>• §2.6 reescrito: sonda autocontida em subtransação própria, encerrada pela sentinela exclusiva `H283S` com mensagem exata; gabarito estrutural; os 7 requisitos do mandato × estrutura; matriz de eventos pendentes do 2.7 (14 etapas) e dos demais casos; limites;<br>• §2.3: atribuição do erro ao IMMEDIATE por `v_step`; sonda proibida dentro de sub-bloco negativo;<br>• §2.5: única constraint `DEFERRABLE` no lote é `trg_cecp_seal`;<br>• §2.8: E03T T3 passa a ser a reprodução mínima de B-1;<br>• §3: regras F-3, F-4 e F-10 e matriz caso → IDs com Q1/Q2;<br>• §5: gate `g_deferrable_only_seal` (12 gates);<br>• §6: E03-6, E03-12, E03-13 e E03-15 revistas; E03-17 a E03-19 novas (19 regras);<br>• §7: tratamento de `H283F` de sonda; §8: DP-7 atualizada.<br>13 casos preservados; 2.6 continua no L5. N-1 continua não comprovado em runtime. Sem STOP. FREEZE ATIVO. |
+| 1.2 | **Correção documental do achado D-1 (2026-09-27, `BATCH12-2830-P5-L1-E03-IMPLEMENTATION-CORRECTION-01`, baseline `14675832`), sem SQL e sem LIVE.** A função de selo da 2206 (l. 70–74) retorna sem efeito quando o profile do evento não existe mais; um evento remanescente de sonda seria no-op, não `EMPTY_COMPOSITION`.<br>• §2.6.4 e §3.3: vazamento hipotético corrigido (no-op, nem PASS falso nem FAIL); "Eventos pendentes" declarado como estado esperado, não observado;<br>• §2.6.1: esclarecido que na v1.0 a linha da sonda existia, por isso o B-1 produzia `EMPTY_COMPOSITION`;<br>• §2.6.3 (requisito 3), §2.6.6, §2.8 e §8 (DP-7): o E03T T3 prova ausência de contaminação, não a remoção do evento (limite L-1);<br>• §2.6.7 novo: esperado × observável pelo E03T × não comprovado;<br>• cabeçalho, §0, §2.8, §6 e §9: estado dos artefatos reconciliado.<br>Sem alteração dos 13 casos, dos critérios de PASS/FAIL, do desenho da sonda `H283S`, das matrizes §2.6.4/§2.6.5/§3.2/§4 nem das regras §5/§6. N-1 continua não comprovado em runtime. Sem STOP. FREEZE ATIVO. |

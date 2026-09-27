@@ -584,3 +584,405 @@ chk('E99: vinculação documental E00 → envelope → E99 explícita', 'VINCULA
 bad=[r for r in res if not r[1]]
 for n,ok,d in res: print(('PASS ' if ok else 'FAIL ')+n+(' '+d if d and not ok else ''))
 print(f'TOTAL {len(res)} PASS {len(res)-len(bad)} FAIL {len(bad)}')
+
+
+# ===========================================================================
+# BATCH12-2830-P5-L1-E03-IMPLEMENTATION-01 — PERFIS E03 / E03T / E03P
+# Contrato: L1-E03-IMPLEMENTATION-READINESS.md v1.1 (blob 220fbd8b…), §5 e §6
+# (regras E03-1 a E03-19). Contagem SEPARADA do baseline acima (444): as
+# verificações novas não entram em `res`, para o baseline continuar
+# reproduzível byte a byte. Três blocos, cada um com total próprio:
+#   E03-PERFIL ............ regras aplicadas aos arquivos reais (E03, E03T, E03P)
+#   E03-VERIFICADOR-NEG ... mutações deliberadamente inseguras que TÊM de
+#                           ser rejeitadas pela regra indicada
+#   E03-VERIFICADOR-POS ... controles positivos do próprio verificador
+# ===========================================================================
+READINESS=(H/'L1-E03-IMPLEMENTATION-READINESS.md').read_text(encoding='utf-8')
+S2206=(REPO/'proposals/2026-09-18-edition-context-axis/2206_create_edition_context_composition_guards.sql').read_text(encoding='utf-8')
+DDL=''.join((REPO/('proposals/2026-09-18-edition-context-axis/'+f)).read_text(encoding='utf-8') for f in
+            ['2203_create_card_edition_context_trait_table.sql','2204_create_card_edition_context_profile_table.sql',
+             '2205_create_card_edition_context_profile_trait_table.sql'])
+IMM_S='SET CONSTRAINTS public.trg_cecp_seal, public.trg_cecem_seal IMMEDIATE;'
+DEF_S='SET CONSTRAINTS public.trg_cecp_seal, public.trg_cecem_seal DEFERRED;'
+TOKENS5={'EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION','EDITION_CONTEXT_COMPOSITION_IMMUTABLE','EDITION_CONTEXT_TRAIT_INACTIVE',
+         'EDITION_CONTEXT_SIGNATURE_MISMATCH','EDITION_CONTEXT_SIGNATURE_IMMUTABLE'}
+PAIRS_23505={('uq_cecp_game_signature','card_edition_context_profile'),('pk_cecpt','card_edition_context_profile_trait')}
+TABLES3={'public.card_edition_context_trait','public.card_edition_context_profile','public.card_edition_context_profile_trait'}
+RESET_REQ=['v_t1','v_t2','v_t3','v_ti','v_p','v_pa','v_pb','v_code_p','v_code_pa','v_code_pb','v_q','v_step']
+UPDATE_RE=re.compile(r"^UPDATE public\.card_edition_context_profile SET (traits_signature = (ARRAY\[v_t\w+\]|NULL)|name = [^;]+) WHERE id = v_p\w* AND code = v_code_p\w*$")
+DELETE_RE=re.compile(r"^DELETE FROM public\.card_edition_context_profile_trait WHERE profile_id = v_p\w* AND trait_id = v_t\w*$")
+FORB3=[r'\bCOMMIT\b',r'\bROLLBACK\b',r'\bSAVEPOINT\b',r'\bRELEASE\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'\bTEMP\b',r'\bTEMPORARY\b',
+       r'SET_CONFIG',r'\bSET\s+ROLE\b',r'\bSET\s+LOCAL\b',r'\bSET\s+SESSION\b',r'\bSET\s+TRANSACTION\b',r'\bRESET\b',r'\bGRANT\b',r'\bREVOKE\b',
+       r'\bTRUNCATE\b',r'PG_SLEEP',r'DBLINK',r'\bNET\.',r'\bPERFORM\b',r'\bEXECUTE\b',r'RAISE\s+NOTICE',r'RAISE\s+WARNING',r'RAISE\s+INFO',
+       r'RAISE\s+LOG',r'RAISE\s+DEBUG',r'\bCOMMENT\b',r'\bSECURITY\s+LABEL\b',r'\bREINDEX\b',r'\bREFRESH\b',r'\bIMPORT\b',r'\bLISTEN\b',
+       r'\bNOTIFY\b',r'\bLOAD\b',r'\bCALL\b',r'\bCOPY\b',r'\bLOCK\b',r'\bMERGE\b',r'\bDISCARD\b',r'\bPREPARE\b',r'\bVACUUM\b',
+       r'\bANALYZE\b',r'\bCLUSTER\b',r'\bDO\b',r'\bON\s+CONFLICT\b',r'\bFOR\s+UPDATE\b',r'\bFOR\s+SHARE\b']
+def norm(s): return ' '.join(s.split())
+# gabarito da sonda: extraído da PRÓPRIA readiness v1.1 (§2.6.2) + a atribuição de v_order_q descrita no mesmo parágrafo
+_g=re.search(r"#### 2\.6\.2.*?```sql\n(.*?)```",READINESS,re.S)
+PROBE_CANON=norm(code(_g.group(1))).replace('v_qok := NULL; BEGIN','v_qok := NULL; v_order_q := v_ord_p + 1090; BEGIN') if _g else ''
+PROBE_BLOCK_RE=re.compile(r"v_qn\s*:=\s*v_qn \+ 1;.*?END IF;\s*v_q\s*:=\s*NULL;",re.S)
+
+SPEC_E03=dict(label='E03',tag='h2830_e03',env='E03_SECAO2_COMPOSICAO_PROFILE',
+              cases=['2.1','2.2','2.3','2.4','2.5','2.7','2.8','2.9','2.10','2.11','2.12','2.13','2.14'],
+              n_imm=11,n_def=13,n_probe=11,n_neg=9,n_update=4,n_delete=1,tokens=TOKENS5,rowcount_case='2.14',step_cases=['2.2','2.7'],
+              imm_per_case={'2.1':1,'2.2':1,'2.3':1,'2.4':1,'2.5':0,'2.7':2,'2.8':0,'2.9':1,'2.10':1,'2.11':0,'2.12':1,'2.13':1,'2.14':1})
+SPEC_E03T=dict(label='E03T',tag='h2830_e03t',env='E03T_N1_CONTROLE',cases=['T1','T2','T3'],
+               n_imm=4,n_def=5,n_probe=4,n_neg=1,n_update=0,n_delete=0,tokens={'EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION'},
+               rowcount_case=None,step_cases=['T2'],imm_per_case={'T1':1,'T2':1,'T3':2})
+
+def _neg_blocks(cs):
+    """Sub-blocos negativos: (begin, exc, end_handler_exclusive). Padrão E01: BEGIN … EXCEPTION WHEN OTHERS THEN v_got := true; … END;"""
+    out=[]
+    for m in re.finditer(r'EXCEPTION WHEN OTHERS THEN\s+v_got := true;',cs):
+        b=max((x.start() for x in re.finditer(r'\bBEGIN\b',cs[:m.start()])),default=-1)
+        e=cs.find('END;',m.end())
+        out.append((b,m.start(),e+4 if e>=0 else -1))
+    return out
+
+def e03_rules(src,S):
+    out=[]
+    def ck(rule,name,cond,det=''): out.append((f"{S['label']} {rule}: {name}",bool(cond),det))
+    c=code(src); tag=S['tag']
+    # E03-1 ------------------------------------------------------------------
+    parts=c.split('$'+tag+'$')
+    ck('E03-1','um único DO $'+tag+'$ … $'+tag+'$;',len(re.findall(r'\bDO\s+\$',c))==1 and len(parts)==3 and c.rstrip().endswith('$'+tag+'$;'))
+    ck('E03-1','nada executável fora do DO',len(parts)==3 and parts[0].strip().upper()=='DO' and parts[2].strip()==';')
+    body=parts[1] if len(parts)==3 else ''
+    ns=nostr(body); U=ns.upper()
+    # E03-2 ------------------------------------------------------------------
+    hits=[t for t in FORB3 if re.search(t,U)]
+    ck('E03-2','tokens proibidos ausentes (COMMIT, EXECUTE, TEMP, SET LOCAL/ROLE/SESSION, set_config, DDL, LOCK, …)',not hits,str(hits))
+    # E03-3 / E03-4 --------------------------------------------------------------
+    ups=[norm(x)[:-1] for x in re.findall(r'\bUPDATE\b[^;]*;',ns)]
+    ck('E03-3',f"UPDATE só em profile de fixture (WHERE id = v_p… AND code = v_code_p…), {S['n_update']} esperados",
+       len(ups)==S['n_update'] and all(UPDATE_RE.match(u) for u in ups),str([u for u in ups if not UPDATE_RE.match(u)] or len(ups)))
+    dels=[norm(x)[:-1] for x in re.findall(r'\bDELETE\b[^;]*;',ns)]
+    ck('E03-4',f"DELETE só na N:N de fixture (profile_id = v_p… AND trait_id = v_t…), {S['n_delete']} esperados",
+       len(dels)==S['n_delete'] and all(DELETE_RE.match(d) for d in dels),str([d for d in dels if not DELETE_RE.match(d)] or len(dels)))
+    # E03-5 ------------------------------------------------------------------
+    ns_noup=re.sub(r'\bUPDATE\b[^;]*;',' ',ns)
+    sets=[norm(x) for x in re.findall(r'\bSET\b[^;]*;',ns_noup)]
+    ck('E03-5','todo SET é exatamente SET CONSTRAINTS dos 2 selos IMMEDIATE|DEFERRED',all(s in (IMM_S,DEF_S) for s in sets),str([s for s in sets if s not in (IMM_S,DEF_S)]))
+    ck('E03-5',f"totais: {S['n_imm']} IMMEDIATE e {S['n_def']} DEFERRED",sets.count(IMM_S)==S['n_imm'] and sets.count(DEF_S)==S['n_def'],f'{sets.count(IMM_S)}/{sets.count(DEF_S)}')
+    # segmentação por caso (mesma regra do perfil E01)
+    cases=re.findall(r"v_case\s*:=\s*'([^']+)'",body)
+    segs=[s.split('v_case :=')[0] for s in re.split(r"v_case\s*:=\s*'[^']+'\s*;",body)[1:]]
+    # E03-6 ------------------------------------------------------------------
+    ok6=True; det6=[]
+    for cid,sg in zip(cases,segs):
+        ims=[m.start() for m in re.finditer(re.escape(IMM_S),sg)]; dfs=[m.start() for m in re.finditer(re.escape(DEF_S),sg)]
+        negs=_neg_blocks(sg)
+        if len(dfs)<len(ims) or ims!=[] and not all(any(d>i for d in dfs) for i in ims): ok6=False; det6.append(cid)
+        if len(ims)!=S['imm_per_case'].get(cid,-1): ok6=False; det6.append(cid+':#imm')
+        for (b,x,e) in negs:
+            nb=sg[b:x]; nh=sg[x:e]
+            if IMM_S in nb and not (DEF_S in nb[nb.index(IMM_S):] and DEF_S in nh): ok6=False; det6.append(cid+':neg')
+    ck('E03-6','cada IMMEDIATE seguido de DEFERRED no mesmo caso; negativo com DEFERRED no corpo e no handler; IMMEDIATE por caso = matriz §2.6.5',ok6,str(det6))
+    # E03-7 ------------------------------------------------------------------
+    tg=[norm(t) for t in re.findall(r'\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([A-Za-z_\.]+)',ns)]
+    ck('E03-7','alvos de INSERT/UPDATE/DELETE ⊂ {trait, profile, profile_trait} (qualificados)',tg and set(tg)<=TABLES3,str(sorted(set(tg)-TABLES3)))
+    cn=norm(body)
+    ins_all=re.findall(r'INSERT INTO [^;]*;',cn)
+    ins_tp=re.findall(r"INSERT INTO public\.(card_edition_context_trait|card_edition_context_profile) \(([^)]*)\) VALUES \((.*?)\) RETURNING id INTO (v_\w+);",cn)
+    ins_nn=re.findall(r"INSERT INTO public\.card_edition_context_profile_trait \(profile_id, trait_id, game_id\) VALUES \((v_p\w*), (v_t\w+|v_arr\[\d\]), v_game\);",cn)
+    def _split(v):
+        o=[];d=0;cur=''
+        for ch in v:
+            if ch=='(' : d+=1
+            if ch==')' : d-=1
+            if ch==',' and d==0: o.append(cur.strip()); cur=''
+            else: cur+=ch
+        o.append(cur.strip()); return o
+    okm=True; detm=[]
+    for tbl,cols,vals,var in ins_tp:
+        mp=dict(zip([x.strip() for x in cols.split(',')],_split(vals)))
+        cv=mp.get('code',''); nv=mp.get('name','')
+        if not ('v_marker' in nv and ('v_marker' in cv or re.fullmatch(r'v_code_p\w*',cv))) or mp.get('game_id')!='v_game': okm=False; detm.append(var)
+    assigns=re.findall(r'\b(v_code_p\w*)\s*:=\s*([^;]*);',cn)
+    ok_assign=all(r=='NULL' or r.startswith("v_marker || '") for _,r in assigns)
+    ck('E03-7','todo INSERT é trait/profile com v_marker em code e name (code = v_marker… ou v_code_p… := v_marker…) ou N:N de fixture (v_p…, v_t…|v_arr[n], v_game)',
+       len(ins_all)==len(ins_tp)+len(ins_nn) and okm and ok_assign,f'ins={len(ins_all)} tp={len(ins_tp)} nn={len(ins_nn)} {detm}')
+    idas=re.findall(r'\b(v_(?:t\d|ti|p|pa|pb|q))\s*:=\s*([^;]*);',cn)
+    intos=re.findall(r'(\S+ \S+) INTO (v_(?:t\d|ti|p|pa|pb|q))\b',cn)
+    ck('E03-7','ids de fixture só por RETURNING id INTO (atribuição direta só := NULL): UPDATE/DELETE nunca alcançam linha pré-existente',
+       all(r=='NULL' for _,r in idas) and all(pre=='RETURNING id' for pre,_ in intos),str([x for x in idas if x[1]!='NULL']+[x for x in intos if x[0]!='RETURNING id']))
+    # E03-8 ------------------------------------------------------------------
+    negs=_neg_blocks(body); ok8=True; det8=[]; used=set()
+    p0001=re.compile(r"v_state IS NULL OR v_msg IS NULL OR v_state <> 'P0001' OR NOT starts_with\(v_msg, '([A-Z_]+):'\)")
+    p23505=re.compile(r"v_state IS NULL OR v_state <> '23505' OR v_con IS DISTINCT FROM '([a-z_]+)' OR v_tab IS DISTINCT FROM '([a-z_]+)'")
+    for (b,x,e) in negs:
+        if b<0 or e<0 or re.search(r'\bBEGIN\b',body[b+5:x]): ok8=False; det8.append('estrutura'); continue
+        nxt=[p for p in [body.find('v_got := false',e),body.find('BEGIN',e),body.find("v_case :=",e)] if p>=0]
+        seg=body[e:min(nxt) if nxt else len(body)]
+        m1=p0001.search(seg); m2=p23505.search(seg)
+        good=('IF NOT v_got THEN' in seg) and ((m1 and m1.group(1) in TOKENS5) or (m2 and (m2.group(1),m2.group(2)) in PAIRS_23505))
+        if m1: used.add(m1.group(1))
+        if not good: ok8=False; det8.append(seg[:60])
+    ck('E03-8',f"{S['n_neg']} negativos, cada um com IF NOT v_got e checagem estrita (P0001 + starts_with do token completo; ou 23505 + constraint + tabela)",
+       ok8 and len(negs)==S['n_neg'],f'{len(negs)} {det8[:2]}')
+    # E03-9 ------------------------------------------------------------------
+    ck('E03-9','tokens usados = conjunto esperado ⊂ os 5 do §1.2, e cada um existe literalmente (com ":") na 2206',
+       used==S['tokens'] and all((t+':') in S2206 for t in used),str(sorted(used)))
+    # E03-10 -----------------------------------------------------------------
+    ck('E03-10','sem LIKE/ILIKE/SIMILAR/~ (tokens só por starts_with)',not re.search(r'\b(I?LIKE|SIMILAR)\b',U) and not re.search(r'v_msg\s*!?~',ns))
+    # E03-11 -----------------------------------------------------------------
+    ce=re.search(r"c_expected\s+CONSTANT\s+text\[\]\s*:=\s*ARRAY\[(.*?)\]",body,re.S)
+    cel=re.findall(r"'([^']+)'",ce.group(1)) if ce else []
+    ck('E03-11','casos na ordem contratual = c_expected; 2.6 ausente',cases==S['cases'] and cel==S['cases'] and '2.6' not in cases+cel,str(cases))
+    ck('E03-11',"c_env = '"+S['env']+"'",re.search(r"c_env\s+CONSTANT\s+text\s*:=\s*'"+S['env']+"';",body) is not None)
+    # E03-12 -----------------------------------------------------------------
+    codes=re.findall(r"ERRCODE\s*=\s*'([A-Z0-9]{5})'",body)
+    ck('E03-12','ERRCODEs só H283C/H283F/H283P/H283S',set(codes)<={'H283C','H283F','H283P','H283S'},str(set(codes)))
+    ck('E03-12','H283P exatamente 1 e último sinal do corpo',codes.count('H283P')==1 and codes and codes[-1]=='H283P')
+    okc=True
+    for cid,sg in zip(cases,segs):
+        if not (len(re.findall(r"ERRCODE\s*=\s*'H283C'",sg))==1 and "WHEN SQLSTATE 'H283C'" in sg and "WHEN SQLSTATE 'H283F' THEN RAISE;" in sg
+                and 'v_done := v_done || v_case' in sg and re.search(r"RAISE EXCEPTION USING ERRCODE = 'H283C', MESSAGE = v_case;\s*EXCEPTION\s*WHEN SQLSTATE 'H283C' THEN",sg)): okc=False
+    ck('E03-12','estrutura de subtransação por caso igual à do E01 (1 H283C final, handlers H283C/H283F/OTHERS)',okc and len(cases)==len(S['cases']))
+    pbs=[(m.start(),m.end()) for m in PROBE_BLOCK_RE.finditer(body)]
+    inside=lambda pos: any(a<=pos<b for a,b in pbs)
+    s_raise=[m.start() for m in re.finditer(r"ERRCODE\s*=\s*'H283S'",body)]
+    s_when=[m.start() for m in re.finditer(r"WHEN SQLSTATE 'H283S'",body)]
+    c_in=[m.start() for m in re.finditer(r"'H283C'",body) if inside(m.start())]
+    ck('E03-12','H283S só dentro de bloco de sonda (raise e handler, 1 de cada por sonda); nenhum H283C dentro de sonda',
+       len(s_raise)==len(s_when)==len(pbs)==S['n_probe'] and all(inside(p) for p in s_raise+s_when) and not c_in,f'{len(s_raise)}/{len(s_when)}/{len(pbs)}')
+    ck('E03-12',f"gate do envelope: v_done = c_expected e v_qn = {S['n_probe']} antes do terminal",
+       'IF v_done IS DISTINCT FROM c_expected THEN' in body and f"IF v_qn <> {S['n_probe']} THEN" in body and body.rfind(f"IF v_qn <> {S['n_probe']} THEN")<body.rfind("'H283P'"))
+    ck('E03-12','terminal H2830_ROLLBACK_PASS com pass, casos, marker e elapsed_ms (sem caminho de COMMIT)',
+       "'H2830_ROLLBACK_PASS: envelope=%s pass=%s/%s casos=%s marker=%s elapsed_ms=%s'" in body and re.search(r"elapsed_ms.*?\)\);\s*END\s*$",body,re.S) is not None)
+    # E03-13 -----------------------------------------------------------------
+    ok13=all(all(re.search(r'\b'+v+r' := NULL;',sg[:sg.find('BEGIN')]) for v in RESET_REQ) for sg in segs)
+    ck('E03-13','reset das variáveis de fixture, v_q e v_step a NULL antes do BEGIN de cada caso',ok13 and segs)
+    # E03-14 -----------------------------------------------------------------
+    if S['rowcount_case']:
+        sg=dict(zip(cases,segs)).get(S['rowcount_case'],'')
+        ck('E03-14',S['rowcount_case']+': GET DIAGNOSTICS v_n = ROW_COUNT seguido de IF v_n <> 1',re.search(r'GET DIAGNOSTICS v_n = ROW_COUNT;\s*IF v_n <> 1 THEN',sg) is not None)
+    # E03-15 -----------------------------------------------------------------
+    ok15=True; det15=[]
+    for cid,sg in zip(cases,segs):
+        pb=[(m.start(),m.end()) for m in PROBE_BLOCK_RE.finditer(sg)]
+        negs=_neg_blocks(sg)
+        ims=[m.start() for m in re.finditer(re.escape(IMM_S),sg)]
+        if len(pb)!=len(ims) or len(pb)!=S['imm_per_case'].get(cid,-1): ok15=False; det15.append(cid+':#'); continue
+        ev=sorted([(i,'I') for i in ims]+[(a,'P') for a,_ in pb])
+        if [k for _,k in ev]!=['I','P']*len(pb): ok15=False; det15.append(cid+':ordem')
+        for a,_ in pb:
+            if any(b<=a<e for b,_,e in negs): ok15=False; det15.append(cid+':dentro-neg')
+            anchors=[m.end() for m in re.finditer(re.escape(DEF_S),sg[:a]) if not any(b<=m.start()<e for b,_,e in negs)]
+            anchors+=[e for b,x,e in negs if e<=a and IMM_S in sg[b:x]]
+            if not anchors: ok15=False; det15.append(cid+':sem-âncora'); continue
+            gap=nostr(sg[max(anchors):a])
+            if re.search(r'\b(INSERT|UPDATE|DELETE|SET)\b',gap): ok15=False; det15.append(cid+':escrita-antes-da-sonda')
+            lastimm=max([i for i in ims if i<a],default=-1)
+            if max(anchors)<lastimm: ok15=False; det15.append(cid+':DEFERRED-antes-do-IMMEDIATE')
+    ck('E03-15',f"#sondas = #IMMEDIATE por caso ({S['n_probe']} no total), alternância IMMEDIATE→sonda, nível de caso, fora de negativo/handler, sem escrita nem SET entre DEFERRED/END do negativo e a sonda",
+       ok15 and len(pbs)==S['n_probe'],str(det15))
+    # E03-16 -----------------------------------------------------------------
+    Uc=nostr(c).upper()
+    nb=len(re.findall(r'\bBEGIN\b',Uc)); ne=len(re.findall(r'\bEND\b(?!\s+(IF|LOOP))',Uc))
+    n_if=len(re.findall(r'(?<!END )\bIF\b',Uc)); n_eif=len(re.findall(r'\bEND\s+IF\b',Uc))
+    ck('E03-16','BEGIN/END, IF/END IF, parênteses e aspas balanceados',nb==ne and n_if==n_eif and nostr(c).count('(')==nostr(c).count(')') and c.count("'")%2==0,f'{nb}/{ne} {n_if}/{n_eif}')
+    # E03-17 -----------------------------------------------------------------
+    blocks=[norm(body[a:b]) for a,b in pbs]
+    ck('E03-17','gabarito da sonda extraído da readiness v1.1 §2.6.2',bool(PROBE_CANON) and 'H283S' in PROBE_CANON)
+    ck('E03-17',f"cada bloco de sonda é IDÊNTICO ao gabarito (INSERT/SELECT/IF/RAISE H283S; handlers H283S exato → H283F RAISE → OTHERS→H283F; pós-checagem), {S['n_probe']} blocos",
+       len(blocks)==S['n_probe'] and all(b==PROBE_CANON for b in blocks) and len(re.findall(r'v_qn\s*:=\s*v_qn \+ 1;',body))==S['n_probe'],
+       str([i for i,b in enumerate(blocks) if b!=PROBE_CANON]))
+    # E03-18 -----------------------------------------------------------------
+    rest=PROBE_BLOCK_RE.sub(' ',body)
+    vq=[m for m in re.finditer(r'\bv_q\b',rest)]
+    ck('E03-18','fora dos blocos de sonda, v_q só aparece na declaração e no reset do início do caso',
+       all(re.match(r'v_q\s*:=\s*NULL;|v_q\s+uuid;',rest[m.start():]) for m in vq) and len(vq)==len(S['cases'])+1,str(len(vq)))
+    # E03-19 -----------------------------------------------------------------
+    ok19=True
+    for cid in S['step_cases']:
+        sg=dict(zip(cases,segs)).get(cid,'')
+        nn=[(b,x,e) for (b,x,e) in _neg_blocks(sg) if IMM_S in sg[b:x]]
+        if len(nn)!=1: ok19=False; continue
+        b,x,e=nn[0]; nbody=sg[b+5:x]
+        stmts=re.findall(r'(v_step := \'[A-Z0-9_]+\';\s*)?(INSERT INTO|SET CONSTRAINTS)',nbody)
+        acc=re.search(r"IF v_state IS NULL[^\n]*THEN",sg[e:])
+        if not (stmts and all(p for p,_ in stmts) and re.search(r"v_step := 'IMMEDIATE';\s*"+re.escape(IMM_S),nbody)
+                and acc and acc.group(0).endswith("OR v_step IS DISTINCT FROM 'IMMEDIATE' THEN")): ok19=False
+    ck('E03-19',f"negativos com IMMEDIATE ({', '.join(S['step_cases'])}): v_step antes de cada statement, 'IMMEDIATE' imediatamente antes do SET e exigido no aceite",ok19)
+    return out
+
+# --------------------------------------------------------------------------
+# PERFIL E03P (SELECT único) — mesmo perfil E00/E99 + gates e pinos
+# --------------------------------------------------------------------------
+G03P=['g_game_pokemon_one','g_s2_triggers','g_no_other_triggers_l1','g_seal_constraint_names_unique','g_deferrable_only_seal',
+      'g_s2_constraints','g_s2_error_tokens','g_s2_function_pins','g_nn_no_sequence','g_nn_rls_bypass','g_marker_absent_now']
+G03P_TERMS={'g_game_pokemon_one':["public.game WHERE code = 'POKEMON'",") = 1"],
+ 'g_s2_triggers':["t.tgtype = e.tgtype","t.enabled = 'O'","t.fn_oid = to_regprocedure(e.fn)","t.deferrable = e.is_constraint","t.initdeferred = e.is_constraint","t.attrs = e.attrs",") = 4"],
+ 'g_no_other_triggers_l1':["NOT EXISTS (SELECT 1 FROM trg t","e.tgname = t.tgname AND e.relname = t.relname"],
+ 'g_seal_constraint_names_unique':["conname = 'trg_cecp_seal') = 1","conname = 'trg_cecem_seal') = 1","contype <> 't' OR NOT condeferrable OR NOT condeferred"],
+ 'g_deferrable_only_seal':["WHERE condeferrable","NOT (conname = 'trg_cecp_seal' AND relname = 'card_edition_context_profile')",") = 1"],
+ 'g_s2_constraints':["c.contype = e.contype AND c.convalidated) = 11","indisunique AND indisvalid AND indisready","pred = '(traits_signature IS NOT NULL)'","cols = ARRAY['game_id','traits_signature']"],
+ 'g_s2_error_tokens':["FROM fn_tok WHERE present) = 5"],'g_s2_function_pins':["body_md5_lf = pin) = 4","fn_oid IS NOT NULL"],
+ 'g_nn_no_sequence':["NOT EXISTS (SELECT 1 FROM nn_seq)"],'g_nn_rls_bypass':["NOT force_rls AND owner = current_user) = 1"],
+ 'g_marker_absent_now':["marker_trait = 0 AND marker_profile = 0"]}
+def e03p_rules(src):
+    out=[]
+    def ck(rule,name,cond,det=''): out.append((f"E03P {rule}: {name}",bool(cond),det))
+    c=code(src); Un=nostr(c).upper()
+    ck('P-1','1 statement',Un.count(';')==1 and Un.rstrip().endswith(';'))
+    FORBP=[r'\bINSERT\b',r'\bUPDATE\b',r'\bDELETE\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'SET_CONFIG',r'\bSET\b',r'\bDO\b',r'\bTEMP\b',
+           r'\bINTO\b',r'\bGRANT\b',r'\bREVOKE\b',r'\bCOMMENT\b',r'\bSECURITY\s+LABEL\b',r'\bREINDEX\b',r'\bREFRESH\b',r'\bIMPORT\b',
+           r'\bTRUNCATE\b',r'\bMERGE\b',r'\bCOPY\b',r'\bCALL\b',r'\bLOCK\b',r'\bLISTEN\b',r'\bNOTIFY\b',r'\bEXECUTE\b',r'PG_SLEEP',r'DBLINK']
+    hits=[t for t in FORBP if re.search(t,Un)]
+    ck('P-1','perfil E00/E99: sem DML, DDL, SET, DO, TEMP, INTO, …',not hits,str(hits))
+    ck('P-1','parênteses balanceados',nostr(c).count('(')==nostr(c).count(')'))
+    gi=c.find('\ngates AS ('); ge=c.find('\nSELECT to_jsonb(g)')
+    gc=c[gi:ge] if gi>=0 and ge>gi else ''
+    gd=re.findall(r'AS\s+(g_[A-Za-z0-9_]+)',gc)
+    ck('P-2','CTE gates define EXATAMENTE os 11 gates da readiness §5 (sem extra, falta ou duplicata)',sorted(gd)==sorted(G03P) and len(gd)==len(set(gd))==11,str(sorted(set(gd)^set(G03P))))
+    pt=re.split(r'AS\s+(g_[A-Za-z0-9_]+)',gc); seg={pt[i]:pt[i-1] for i in range(1,len(pt),2)}
+    for g,terms in G03P_TERMS.items():
+        t=seg.get(g,'')
+        ck('P-3',f'predicado de {g} com {len(terms)} termo(s) efetivo(s), não esvaziado',all(x in t for x in terms) and not re.search(r'WHERE\s+false|OR\s+true|>=\s*[0-9]|^\s*,?\s*true\s*$',t,re.I|re.M),g)
+    ck('P-4','gate_pass = bool_and de TODOS os g_* e NULL = falha',"'gate_pass', (SELECT bool_and(v::boolean) FROM jsonb_each_text(to_jsonb(g))" in c and 'WHERE v IS NULL' in c)
+    fe=re.findall(r"\('([a-z_]+)',\s*'([0-9a-f]{32})',\s*ARRAY\[([^\]]*)\]\)",c)
+    pins={n:p for n,p,_ in fe}; toks={n:set(re.findall(r"'([A-Z_]+):'",t)) for n,_,t in fe}
+    ck('P-5','4 pinos = md5(LF(corpo da 2206)) = pinos do E00 (p7_allowlist)',len(pins)==4 and all(
+        ('internal.'+n) in real and hashlib.md5(lf(real['internal.'+n][7]).encode()).hexdigest()==p and ALLOW.get(('internal',n,''),{}).get('md5')==p for n,p in pins.items()),str(pins))
+    exp_tok={'seal_edition_context_composition':{'EDITION_CONTEXT_PROFILE_EMPTY_COMPOSITION'},
+             'guard_edition_context_composition_immutable':{'EDITION_CONTEXT_COMPOSITION_IMMUTABLE'},
+             'enforce_edition_context_signature_write':{'EDITION_CONTEXT_SIGNATURE_MISMATCH','EDITION_CONTEXT_SIGNATURE_IMMUTABLE'},
+             'guard_edition_context_trait_active':{'EDITION_CONTEXT_TRAIT_INACTIVE'}}
+    ck('P-6','tokens por função = §1.2 (5 no total) e cada um presente no corpo da própria função na 2206',toks==exp_tok and all(
+        all((t+':') in real['internal.'+n][7] for t in ts) for n,ts in toks.items()),str(toks))
+    te=re.findall(r"\('(trg_[a-z_]+)',\s*'([a-z_]+)',\s*(\d+),\s*'([a-z_\.]+\(\))',\s*(true|false),\s*ARRAY\[([^\]]*)\]",c)
+    def tgt(ddl):
+        m=re.search(r'(BEFORE|AFTER) (.*?) ON public\.([a-z_]+)\s',ddl,re.S)
+        ev=m.group(2); t=1+(2 if m.group(1)=='BEFORE' else 0)+(4 if 'INSERT' in ev else 0)+(8 if 'DELETE' in ev else 0)+(16 if 'UPDATE' in ev else 0)
+        cols=re.findall(r'UPDATE OF ([a-z_, ]+)',ev); return t,m.group(3),[x.strip() for x in cols[0].split(',')] if cols else []
+    d06={}
+    for m in re.finditer(r'CREATE (CONSTRAINT )?TRIGGER (trg_[a-z_]+)\n(.*?)EXECUTE FUNCTION ([a-z_\.]+)\(\);',S2206,re.S):
+        t,rel,cols=tgt(m.group(3)); d06[m.group(2)]=(rel,t,m.group(4)+'()',bool(m.group(1)),cols,'DEFERRABLE INITIALLY DEFERRED' in m.group(3))
+    okt=len(te)==4 and all(n in d06 and d06[n][0]==r and d06[n][1]==int(t) and d06[n][2]==f and d06[n][3]==(ic=='true') and d06[n][5]==(ic=='true')
+                           and d06[n][4]==re.findall(r"'([a-z_]+)'",a) for n,r,t,f,ic,a in te) and set(d06)=={n for n,*_ in te}
+    ck('P-7','trg_exp = os 4 CREATE TRIGGER da 2206 (tabela, tgtype calculado, função, constraint/deferrable, UPDATE OF)',okt,str(te))
+    ce=re.findall(r"\('((?:pk|fk|uq|ck)_[a-z_]+)',\s*'([a-z_]+)',\s*'([pfuc])'\)",c)
+    kind={'p':'PRIMARY KEY','f':'FOREIGN KEY','u':'UNIQUE','c':'CHECK'}
+    okc=len(ce)==11 and all(re.search(r'CONSTRAINT '+n+r'\b\s+'+kind[k],DDL) for n,_,k in ce)
+    ck('P-8','con_exp = 11 constraints declaradas nas 2203–2205 com o tipo correto',okc,str(len(ce)))
+    return out
+
+# --------------------------------------------------------------------------
+# Execução sobre os arquivos reais
+# --------------------------------------------------------------------------
+res3=[]
+E03F=(H/'2830H_E03_section2_profile_composition.sql').read_text(encoding='utf-8')
+E03TF=(H/'2830H_E03T_n1_controlled_probe.sql').read_text(encoding='utf-8')
+E03PF=(H/'2830H_E03P_precheck_section2.sql').read_text(encoding='utf-8')
+res3+=e03_rules(E03F,SPEC_E03)
+res3+=e03_rules(E03TF,SPEC_E03T)
+res3+=e03p_rules(E03PF)
+for f in ['2830H_E03_section2_profile_composition.sql','2830H_E03T_n1_controlled_probe.sql','2830H_E03P_precheck_section2.sql']:
+    raw=(H/f).read_bytes()
+    res3.append((f'ARQUIVO {f}: LF, sem CR, sem tab, sem espaço no fim de linha, termina em LF',
+                 b'\r' not in raw and b'\t' not in raw and not re.search(rb' +\n',raw) and raw.endswith(b'\n'),''))
+res3.append(('E03 × 2830: 13 casos = linhas "-- 2.x" da 2830 v7.0 l. 453–477 exceto 2.6',
+             sorted(SPEC_E03['cases'],key=lambda x:int(x.split('.')[1]))==[x for x in re.findall(r'^--\s+(2\.\d+)\b',
+             '\n'.join((REPO/'proposals/2026-09-18-edition-context-axis/2830_validate_edition_context_foundation.sql').read_text(encoding='utf-8').splitlines()[452:477]),re.M) if x!='2.6'],''))
+res3.append(('E03 × readiness v1.1: casos = §3.2 e §4 (13, 2.6 fora)',
+             re.findall(r'^\| \*\*(2\.\d+)\*\* \|',READINESS.split('### 3.2')[1].split('### 3.3')[0],re.M)==SPEC_E03['cases']
+             and re.findall(r'^\| (2\.\d+) \|',READINESS.split('## 4.')[1].split('## 5.')[0],re.M)==SPEC_E03['cases'],''))
+
+_m265=READINESS.split('#### 2.6.5')[1].split('#### 2.6.6')[0] if '#### 2.6.5' in READINESS else ''
+_imm265={}
+for _row in re.findall(r'^\| ([0-9., ]+?)(?: \(FX\))? \| (\d+|nenhum)\b',_m265,re.M):
+    for _c in [x.strip() for x in _row[0].split(',')]:
+        _imm265[_c]=0 if _row[1]=='nenhum' else int(_row[1])
+res3.append(('E03 × readiness v1.1 §2.6.5: IMMEDIATE por caso = matriz de eventos (e portanto sondas por caso)',
+             _imm265==SPEC_E03['imm_per_case'], str(_imm265)))
+
+# --------------------------------------------------------------------------
+# Testes negativos do VERIFICADOR: cada mutação insegura TEM de reprovar a
+# regra indicada (e o arquivo real continua passando — controle positivo)
+# --------------------------------------------------------------------------
+negv=[]; posv=[]
+def must_fail(label, mutated, rule, rules=e03_rules, spec=SPEC_E03):
+    r=rules(mutated,spec) if spec is not None else rules(mutated)
+    failed=[n for n,ok,_ in r if not ok]
+    negv.append((f'VERIFICADOR rejeita: {label} [{rule}]', any(rule+':' in n for n in failed) and mutated!=(E03F if spec is SPEC_E03 else E03PF), str(failed[:3])))
+def sub1(t,a,b,count=1):
+    assert a in t, a
+    return t.replace(a,b,count)
+_seg27=E03F[E03F.index("v_case := '2.7'"):]
+must_fail('COMMIT no corpo', sub1(E03F,'    SELECT id INTO v_game','    COMMIT;\n    SELECT id INTO v_game'), 'E03-2')
+must_fail('SQL dinâmico (EXECUTE)', sub1(E03F,'    SELECT id INTO v_game',"    EXECUTE 'SELECT 1';\n    SELECT id INTO v_game"), 'E03-2')
+must_fail('SET LOCAL lock_timeout (DP-4 não decidida)', sub1(E03F,'    SELECT id INTO v_game',"    SET LOCAL lock_timeout = '5s';\n    SELECT id INTO v_game"), 'E03-2')
+must_fail('set_config', sub1(E03F,'    SELECT id INTO v_game',"    SELECT set_config('x','y',true) INTO v_msg;\n    SELECT id INTO v_game"), 'E03-2')
+must_fail('CREATE TEMP TABLE', sub1(E03F,'    SELECT id INTO v_game','    CREATE TEMP TABLE x (a int);\n    SELECT id INTO v_game'), 'E03-2')
+must_fail('SET ROLE', sub1(E03F,'    SELECT id INTO v_game','    SET ROLE authenticated;\n    SELECT id INTO v_game'), 'E03-2')
+must_fail('UPDATE sem filtro de id (linha pré-existente)', sub1(E03F,'SET traits_signature = NULL WHERE id = v_p AND code = v_code_p;','SET traits_signature = NULL WHERE code = v_code_p;'), 'E03-3')
+must_fail('UPDATE em tabela fora da allowlist', sub1(E03F,'UPDATE public.card_edition_context_profile SET name','UPDATE public.card_variant SET name'), 'E03-3')
+must_fail('UPDATE de coluna não prevista (is_active)', sub1(E03F,"SET traits_signature = NULL WHERE","SET is_active = false WHERE"), 'E03-3')
+must_fail('DELETE sem trait_id', sub1(E03F,'WHERE profile_id = v_p AND trait_id = v_t1;','WHERE profile_id = v_p;'), 'E03-4')
+must_fail('DELETE em profile', sub1(E03F,'DELETE FROM public.card_edition_context_profile_trait WHERE profile_id = v_p AND trait_id = v_t1;','DELETE FROM public.card_edition_context_profile WHERE id = v_p;'), 'E03-4')
+must_fail('SET CONSTRAINTS ALL', sub1(E03F,IMM_S,'SET CONSTRAINTS ALL IMMEDIATE;'), 'E03-5')
+must_fail('SET CONSTRAINTS de um só trigger', sub1(E03F,DEF_S,'SET CONSTRAINTS public.trg_cecp_seal DEFERRED;'), 'E03-5')
+must_fail('DEFERRED removido depois de IMMEDIATE (caminho normal)', sub1(E03F,"        -- P4 (3): DEFERRED\n        "+DEF_S,"        -- P4 (3): DEFERRED"), 'E03-6')
+must_fail('DEFERRED removido do handler do negativo', E03F.replace("                                    v_tab = TABLE_NAME, v_msg = MESSAGE_TEXT;\n            "+DEF_S,"                                    v_tab = TABLE_NAME, v_msg = MESSAGE_TEXT;",1), 'E03-6')
+must_fail('INSERT de trait sem marcador no name', sub1(E03F,"'H2830 fixture 2.1 T1 ' || v_marker","'H2830 fixture 2.1 T1'"), 'E03-7')
+must_fail('code de profile sem marcador', sub1(E03F,"v_code_p := v_marker || '_P';","v_code_p := 'FIXED_P';"), 'E03-7')
+must_fail('INSERT em tabela fora do escopo', sub1(E03F,'    SELECT id INTO v_game',"    INSERT INTO public.card_variant (id) VALUES (NULL);\n    SELECT id INTO v_game"), 'E03-7')
+must_fail('id de fixture atribuído de linha real (SELECT … INTO v_p)', sub1(E03F,'    SELECT id INTO v_game','    SELECT id INTO v_game FROM public.game LIMIT 1;\n    SELECT id INTO v_p FROM public.card_edition_context_profile LIMIT 1;\n    SELECT id INTO v_game'), 'E03-7')
+must_fail('negativo aceitando qualquer SQLSTATE (sem v_state)', sub1(E03F,"v_state IS NULL OR v_msg IS NULL OR v_state <> 'P0001' OR NOT starts_with(v_msg, 'EDITION_CONTEXT_TRAIT_INACTIVE:')","NOT starts_with(v_msg, 'EDITION_CONTEXT_TRAIT_INACTIVE:')"), 'E03-8')
+must_fail('negativo com token abreviado (novo código)', sub1(E03F,"'EDITION_CONTEXT_TRAIT_INACTIVE:'","'TRAIT_INACTIVE:'"), 'E03-8')
+must_fail('23505 sem conferir a tabela', sub1(E03F," OR v_tab IS DISTINCT FROM 'card_edition_context_profile_trait'",""), 'E03-8')
+must_fail('23505 com constraint trocada', sub1(E03F,"v_con IS DISTINCT FROM 'pk_cecpt'","v_con IS DISTINCT FROM 'uq_cecp_game_code'"), 'E03-8')
+must_fail('negativo sem IF NOT v_got', E03F.replace("        IF NOT v_got THEN","        IF false THEN",1), 'E03-8')
+must_fail('token inexistente na 2206', sub1(E03F,"'EDITION_CONTEXT_SIGNATURE_MISMATCH:'","'EDITION_CONTEXT_SIGNATURE_MISMATCHX:'"), 'E03-9')
+must_fail('LIKE sobre v_msg', sub1(E03F,"NOT starts_with(v_msg, 'EDITION_CONTEXT_TRAIT_INACTIVE:')","v_msg NOT LIKE 'EDITION_CONTEXT_TRAIT_INACTIVE:%'"), 'E03-10')
+must_fail('caso 2.6 incluído', sub1(E03F,"v_case := '2.7';","v_case := '2.6';"), 'E03-11')
+must_fail('ordem de casos trocada em c_expected', sub1(E03F,"ARRAY['2.1','2.2'","ARRAY['2.2','2.1'"), 'E03-11')
+must_fail('sinal novo (H283X)', sub1(E03F,"ERRCODE = 'H283S'","ERRCODE = 'H283X'"), 'E03-12')
+must_fail('H283S fora da sonda', sub1(E03F,'    SELECT id INTO v_game',"    RAISE EXCEPTION USING ERRCODE = 'H283S', MESSAGE = 'x';\n    SELECT id INTO v_game"), 'E03-12')
+must_fail('H283P duplicado', sub1(E03F,'    SELECT id INTO v_game',"    RAISE EXCEPTION USING ERRCODE = 'H283P', MESSAGE = 'x';\n    SELECT id INTO v_game"), 'E03-12')
+must_fail('gate de contagem de sondas removido', sub1(E03F,'IF v_qn <> 11 THEN','IF false THEN'), 'E03-12')
+_i27=E03F.index("v_case := '2.7'"); _j=E03F.index('    v_step := NULL;\n',_i27)
+must_fail('reset de v_step removido de um caso (2.7)', E03F[:_j]+E03F[_j+len('    v_step := NULL;\n'):], 'E03-13')
+must_fail('ROW_COUNT não conferido em 2.14', sub1(E03F,'GET DIAGNOSTICS v_n = ROW_COUNT;','v_n := 1;'), 'E03-14')
+_p1=E03F.index('-- SONDA DE MODO'); _p2=E03F.index('v_q := NULL;\n',E03F.index('não descartada',_p1))+len('v_q := NULL;\n')
+must_fail('sonda removida de um caso (2.1)', E03F[:_p1]+E03F[_p2:], 'E03-15')
+_n27=_seg27.index('-- etapa 11')
+must_fail('escrita entre DEFERRED e a sonda', sub1(E03F,"        -- P4 (3): DEFERRED\n        "+DEF_S,"        -- P4 (3): DEFERRED\n        "+DEF_S+"\n        UPDATE public.card_edition_context_profile SET name = 'x' || v_marker WHERE id = v_p AND code = v_code_p;"), 'E03-15')
+_i22=E03F.index("v_case := '2.2'"); _a=E03F.index('        -- SONDA DE MODO',_i22)
+_b=E03F.index('        v_q := NULL;\n',E03F.index('não descartada',_a))+len('        v_q := NULL;\n')
+_blk=E03F[_a:_b]
+must_fail('sonda removida do caso 2.2 (IMMEDIATE sem sonda)', E03F[:_a]+E03F[_b:], 'E03-15')
+_h=E03F.index('EXCEPTION WHEN OTHERS THEN',_i22); _hd=E03F.index('DEFERRED;\n',_h)+len('DEFERRED;\n')
+_in=E03F[:_hd]+'\n'.join(('    '+l) if l else l for l in _blk.split('\n'))+E03F[_hd:_a]+E03F[_b:]
+must_fail('sonda movida para DENTRO do handler do negativo 2.2 (máscara pelo WHEN OTHERS)', _in, 'E03-15')
+must_fail('handler da sentinela sem comparação exata', E03F.replace("IF v_msg IS DISTINCT FROM v_qtag THEN","IF false THEN",1), 'E03-17')
+must_fail('WHEN OTHERS antes do handler H283S (máscara)', E03F.replace("        EXCEPTION\n            WHEN SQLSTATE 'H283S' THEN","        EXCEPTION\n            WHEN OTHERS THEN NULL;\n            WHEN SQLSTATE 'H283S' THEN",1), 'E03-17')
+must_fail('sonda sem repassar H283F', E03F.replace("            WHEN SQLSTATE 'H283F' THEN RAISE;\n            WHEN OTHERS THEN\n                GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;\n                RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n                    'H2830_FAIL: envelope=%s caso=%s sonda","            WHEN OTHERS THEN\n                GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;\n                RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n                    'H2830_FAIL: envelope=%s caso=%s sonda",1), 'E03-17')
+must_fail('sonda que não termina em H283S (commit implícito da fixture)', E03F.replace("            RAISE EXCEPTION USING ERRCODE = 'H283S', MESSAGE = v_qtag;\n","",1), 'E03-17')
+must_fail('pós-checagem de ausência da sonda removida', E03F.replace("        SELECT count(*) INTO v_n FROM public.card_edition_context_profile WHERE id = v_q;\n","",1), 'E03-17')
+must_fail('v_q reutilizado fora da sonda', sub1(E03F,'    SELECT id INTO v_game','    SELECT id INTO v_game FROM public.game LIMIT 1;\n    v_p := v_q;\n    SELECT id INTO v_game'), 'E03-18')
+must_fail('aceite do 2.7 sem v_step', sub1(E03F,"v_tab IS DISTINCT FROM 'card_edition_context_profile' OR v_step IS DISTINCT FROM 'IMMEDIATE'","v_tab IS DISTINCT FROM 'card_edition_context_profile'"), 'E03-19')
+must_fail("v_step 'IMMEDIATE' fora de posição no 2.2", E03F.replace("                v_step := 'IMMEDIATE';\n","",1).replace("            v_step := 'IMMEDIATE';\n","",1), 'E03-19')
+must_fail('BEGIN sem END', sub1(E03F,'    SELECT id INTO v_game','    BEGIN\n    SELECT id INTO v_game'), 'E03-16')
+# E03P
+must_fail('E03P: gate flexibilizado (>= 4)', E03PF.replace('AND t.attrs = e.attrs) = 4','AND t.attrs = e.attrs) >= 4',1), 'P-3', e03p_rules, None)
+must_fail('E03P: gate esvaziado (OR true)', E03PF.replace('NOT EXISTS (SELECT 1 FROM nn_seq)','NOT EXISTS (SELECT 1 FROM nn_seq) OR true',1), 'P-3', e03p_rules, None)
+must_fail('E03P: g_deferrable_only_seal removido', re.sub(r'\n        \(NOT EXISTS \(SELECT 1 FROM con\n.*?AS g_deferrable_only_seal,','',E03PF,flags=re.S), 'P-2', e03p_rules, None)
+must_fail('E03P: pino divergente da 2206', E03PF.replace('6077409ac2b5de7f788076e3b4b3f0c0','6077409ac2b5de7f788076e3b4b3f0c1',1), 'P-5', e03p_rules, None)
+must_fail('E03P: token trocado', E03PF.replace("'EDITION_CONTEXT_TRAIT_INACTIVE:'","'EDITION_CONTEXT_TRAIT_DISABLED:'",1), 'P-6', e03p_rules, None)
+must_fail('E03P: tgtype errado', E03PF.replace("'card_edition_context_profile_trait', 7,","'card_edition_context_profile_trait', 23,",1), 'P-7', e03p_rules, None)
+must_fail('E03P: SET no SELECT', E03PF.replace('WITH\ntbl(name)',"SET LOCAL x = 1;\nWITH\ntbl(name)",1), 'P-1', e03p_rules, None)
+must_fail('E03P: gate_pass sem tratar NULL', E03PF.replace('WHERE v IS NULL','WHERE false',1), 'P-4', e03p_rules, None)
+must_fail('E03P: constraint exigida removida', E03PF.replace("           ('ck_cecp_code_format',         'card_edition_context_profile',       'c')","           ('ck_cecp_code_format_x',       'card_edition_context_profile',       'c')",1), 'P-8', e03p_rules, None)
+# controles positivos do verificador
+posv.append(('VERIFICADOR positivo: E03 real passa todas as regras', all(ok for _,ok,_ in e03_rules(E03F,SPEC_E03)), ''))
+posv.append(('VERIFICADOR positivo: E03T real passa todas as regras', all(ok for _,ok,_ in e03_rules(E03TF,SPEC_E03T)), ''))
+posv.append(('VERIFICADOR positivo: E03P real passa todas as regras', all(ok for _,ok,_ in e03p_rules(E03PF)), ''))
+posv.append(('VERIFICADOR positivo: whitespace/comentário irrelevante não reprova (E03 reindentado)', all(ok for _,ok,_ in e03_rules(E03F.replace('\n    -- ======','\n\n    -- ======'),SPEC_E03)), ''))
+
+for title,lst in [('E03-PERFIL',res3),('E03-VERIFICADOR-NEG',negv),('E03-VERIFICADOR-POS',posv)]:
+    bad3=[r for r in lst if not r[1]]
+    for n,ok,d in lst: print(('PASS ' if ok else 'FAIL ')+'['+title+'] '+n+(' '+d if d and not ok else ''))
+    print(f'{title} TOTAL {len(lst)} PASS {len(lst)-len(bad3)} FAIL {len(bad3)}')
