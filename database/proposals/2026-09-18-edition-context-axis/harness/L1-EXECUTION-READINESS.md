@@ -3,16 +3,16 @@
 | Campo | Valor |
 |---|---|
 | **Natureza** | Preparação operacional e matriz de decisão. **Nenhum SQL executado nesta rodada**, nem SELECT de preflight; nenhum acesso ao LIVE; nenhum envelope, schema, migration, função ou validação alterado. |
-| **Mandato** | `BATCH12-2830-P5-L1-EXECUTION-READINESS-01`. Baseline HEAD `7bb44ca4934e9ac81a5ebdf93f795edbc198da4a`. |
+| **Mandato** | `BATCH12-2830-P5-L1-EXECUTION-READINESS-01`. Baseline HEAD `7bb44ca4934e9ac81a5ebdf93f795edbc198da4a`. v1.3 (registro das decisões): `BATCH12-2830-P5-L1-E03T-DECISION-RECORD-01`, baseline HEAD `d9e1b10ed47319e78e9ba06dccc99c1b65b5e034`. |
 | **Autoridades** | 2830 v7.0 (blob `b4647dcb…`, imutável) · `L1-E03-IMPLEMENTATION-READINESS.md` v1.2 (blob `4a93a545…`) · `PHASE5-AUTOMATED-COVERAGE-READINESS.md` (blob `1aa8d71d…`) · `LIVE-VALIDATION-PROTOCOL.md` (blob `abe806d6…`) · registros das Etapas 2 (`4ec35e78…`) e 3 (`974674f9…`) · `P9A-READINESS.md`. |
-| **Estado** | **PROPOSTA v1.2 — para auditoria independente** (v1.1: fechamento fail-closed do §4.4–§5, `…-EXECUTION-READINESS-CORRECTION-01`; v1.2: ordem L3 diagnóstica → E99 → L3 final no fluxo excepcional, `…-CORRECTION-02`). DP-1, DP-4, DP-5 e DP-7 **não decididas**; nenhuma aprovação presumida. Nenhum PASS novo: cobertura LIVE **17/135**. **FREEZE ATIVO.** |
+| **Estado** | **v1.3 — decisões registradas, para auditoria independente** (v1.1: fechamento fail-closed do §4.4–§5, `…-EXECUTION-READINESS-CORRECTION-01`; v1.2: ordem L3 diagnóstica → E99 → L3 final no fluxo excepcional, `…-CORRECTION-02`; v1.3: registro das decisões, `BATCH12-2830-P5-L1-E03T-DECISION-RECORD-01`). **DP-1 = A′, DP-4 = B, DP-5 = A, DP-7 = A**, decididas por Fabrício e válidas **só para o E03T** (§2.5). Execução LIVE do E03T **não autorizada**: depende de mandato próprio (plano em `L1-E03T-LIVE-EXECUTION-PLAN.md`). E03 **não autorizado**. E03T **não executado**. Nenhum PASS novo: cobertura LIVE **17/135**. **FREEZE ATIVO.** |
 
 ---
 
 ## 0. Resultado
 
 - **STOP: não houve.** Não foi encontrado blocker de segurança, integridade, semântica, concorrência, performance ou perda de dados nos artefatos publicados.
-- **Execução hoje: não permitida.** Faltam as quatro decisões do §2 e um mandato de execução próprio (§8). Este documento é insumo de decisão, não autorização.
+- **Execução hoje: não permitida.** As quatro decisões do §2 estão registradas desde a v1.3, só para o E03T; falta o mandato de execução próprio (§8). O plano operacional está em `L1-E03T-LIVE-EXECUTION-PLAN.md`. Nem ele nem este documento autorizam execução.
 - **Três níveis de evidência** são separados em todo o texto (resumo no §7): **H** = histórica (LIVE, Etapas 1–3); **E** = estática, reproduzida nesta rodada sem banco; **R** = depende de runtime, ainda não demonstrada.
 
 ## 1. Gate A — identidade e integridade (E, reproduzido nesta rodada)
@@ -68,7 +68,9 @@ Pontos de consistência conferidos à mão nesta rodada:
 - o E99 detecta o marcador por `code LIKE '%H2830%'` em trait e profile: cobre as fixtures e as linhas de sonda (`v_marker ‖ '_Q' ‖ n`);
 - a L3 cobre as tabelas escritas e `game` (FK).
 
-## 2. Gate B — decisões pendentes (para Fabrício; nenhuma decidida aqui)
+## 2. Gate B — decisões (DP-1, DP-4, DP-5 e DP-7 decididas por Fabrício; registro na v1.3)
+
+As matrizes abaixo são a análise que precedeu as decisões e ficam como estavam. A deliberação está no fim de cada subseção; o estado consolidado, no §2.5.
 
 ### 2.1 DP-1 — medição de tempo (P9)
 
@@ -92,7 +94,11 @@ Pontos de consistência conferidos à mão nesta rodada:
 | **B** — exigir P9b em ambiente isolado antes de qualquer envelope do L1 | **literal** | nenhuma: ambiente inexistente | nenhum risco LIVE; lote parado | L1 bloqueado até D-1 resolvida |
 | **C** — aceitar formalmente D-2 (AD-2 no lugar de P9b) para todos os lotes leves | por adaptação, de alcance amplo | idem A | alcance maior que o do L1; seções pesadas (B, M, 5.x) continuam exigindo readiness própria (AD-2) | decisão de protocolo, não só do lote |
 
-**Deliberação de Fabrício — DP-1:** `____` (não preenchida).
+**Deliberação de Fabrício — DP-1: A′** (registrada na v1.3, `BATCH12-2830-P5-L1-E03T-DECISION-RECORD-01`). Texto aprovado:
+> Autorizar, exclusivamente para o E03T, a adaptação AD-2: medição direta de tempo no LIVE, com statement_timeout previamente comprovado de 120 segundos e aceite condicionado a elapsed_ms ≤ 60000. Essa adaptação não cumpre literalmente P9b, que exige medição prévia em ambiente isolado representativo. Não estender a decisão ao E03 nem a outros lotes.
+
+- **Aplicação:** "previamente comprovado" = L1 da própria rodada (S1) com `statement_timeout = '2min'`, a forma que o PostgreSQL devolve para 120 s (valor observado nas Etapas 1–3). Qualquer outro valor, inclusive `0` ou maior, é STOP antes do E00; não se ajusta a sessão (DP-4). O aceite `elapsed_ms ≤ 60000` usa o valor da mensagem terminal, medido dentro do bloco.
+- **Alcance:** só o E03T. D-2 do protocolo (§8) continua **pendente**; A2 e P9b continuam **não cumpridos literalmente**. O E03 exige nova DP-1 (§6, T-5); o `elapsed_ms` do E03T será só indício.
 
 ### 2.2 DP-4 — `lock_timeout` (P8 / A5)
 
@@ -109,7 +115,12 @@ Pontos de consistência conferidos à mão nesta rodada:
 | **B** — rodar sem `lock_timeout`, como no E01, com controles operacionais **sem SQL novo**: L3 imediatamente antes do E00 com `locks_on_scope = []`; E00 com `g_no_concurrency = true`; FREEZE; teto 120 s; `57014` = FAIL e STOP | sim (A5 "roda sem ele, decisão registrada") | H: L1 da Etapa 3 com `lock_timeout = '0'`, `statement_timeout = 2min`; L3 da Etapa 3 sem locks no escopo | uma espera por lock (improvável sob FREEZE) só termina em 120 s, com rollback integral | nenhum artefato muda; decisão registrada para E03T e E03 |
 | **C** — `SET lock_timeout` de sessão via chamada separada, ou `set_config`, ou `ALTER ROLE` | **não** (protocolo §2.3; configuração persistente/ de sessão) | — | — | rejeitada |
 
-**Deliberação de Fabrício — DP-4:** `____` (não preenchida). Em qualquer opção, D-4 continua obrigatório: `lock_timeout ≠ '0'` na L1 ⇒ STOP.
+**Deliberação de Fabrício — DP-4: B** (registrada na v1.3, `BATCH12-2830-P5-L1-E03T-DECISION-RECORD-01`). Texto aprovado:
+> Autorizar o E03T publicado sem SET LOCAL lock_timeout. Preservar os controles L1, L3, E00 e FREEZE, com lock_timeout = 0 e statement_timeout = 120 segundos. Nenhuma configuração persistente ou de sessão pode ser introduzida. Não presumir autorização equivalente para o E03.
+
+- **Aplicação:** blob do E03T `9523bf23…` sem alteração; L1 com `lock_timeout = '0'` e `statement_timeout = '2min'`; L3 sem locks no escopo; E00 com `g_no_concurrency = true`; E99 com `g_lock_timeout_default = true`. Nenhum `SET`, `set_config` ou `ALTER ROLE`. D-4 continua obrigatório: `lock_timeout ≠ '0'` na L1 ⇒ STOP.
+- **Alcance:** só o E03T. O E03 exige nova DP-4.
+- **Texto histórico no SQL:** o cabeçalho do E03T ainda diz "P8 lock_timeout — DECISÃO PENDENTE (DP-4); NÃO emitido". O blob é imutável e não é alterado; a decisão vale por este registro, como no precedente do E01 (Etapa 3).
 
 ### 2.3 DP-5 — escritas transitórias
 
@@ -124,7 +135,11 @@ Pontos de consistência conferidos à mão nesta rodada:
 - **Evidência:** H — a Etapa 3 escreveu no LIVE sob autorização equivalente e o E99 provou `d_diff = []`; E — o perfil estático prova que UPDATE/DELETE só atingem ids criados por `RETURNING id INTO` no próprio caso (E03-7) e que nenhum caminho do `DO` termina sem exceção (E03-12).
 - **Risco residual:** §3.3.
 
-**Deliberação de Fabrício — DP-5:** `____` (não preenchida).
+**Deliberação de Fabrício — DP-5: A** (registrada na v1.3, `BATCH12-2830-P5-L1-E03T-DECISION-RECORD-01`). Texto aprovado:
+> Autorizar exclusivamente as escritas transitórias previstas no E03T publicado, sob rollback obrigatório e verificação posterior. Escopo previsto: 7 INSERTs de fixture; 4 INSERTs de sonda; 2 selos; 8 subtransações. Restringir as operações às três tabelas EC previstas no contrato. Nenhuma autorização de escrita para o E03.
+
+- **Conferência com o §3.1 (E):** 7 INSERTs de fixture = 2 em `card_edition_context_trait` + 3 em `card_edition_context_profile` + 2 em `card_edition_context_profile_trait`; 4 INSERTs de sonda em `card_edition_context_profile`; 2 UPDATEs pelo selo da 2206 em profile de fixture; 8 subtransações (3 de caso + 4 de sonda + 1 negativo); 11 `INSERT INTO` no arquivo. Tabelas: as três acima; `game` só é lida (FK). Nenhum UPDATE ou DELETE do envelope.
+- **Alcance:** só o blob `9523bf23…`, uma execução, sob mandato de execução próprio. O E03 não tem autorização de escrita.
 
 ### 2.4 DP-7 — execução do E03T
 
@@ -144,7 +159,22 @@ Pontos de consistência conferidos à mão nesta rodada:
 
 - **Risco residual:** o mesmo do §3.3, em escala menor que o E03.
 
-**Deliberação de Fabrício — DP-7:** `____` (não preenchida). A execução depende de autorização explícita.
+**Deliberação de Fabrício — DP-7: A** (registrada na v1.3, `BATCH12-2830-P5-L1-E03T-DECISION-RECORD-01`). Texto aprovado:
+> Aprovar a realização de E03T antes de considerar o E03. E03T é diagnóstico T1–T3, fora dos 135 casos da 2830. Não gera PASS contratual nem altera a cobertura LIVE. Preservar o limite L-1: o T3 demonstra ausência de contaminação observável, não a remoção direta do evento diferido da fila.
+
+- **Aplicação:** a alternativa B (ir direto ao E03) fica descartada; T-1 do §6 passa a exigir o registro de execução do E03T. Aprovar a realização não é autorizar a execução: esta depende do mandato próprio (§8).
+
+### 2.5 Estado consolidado das decisões (v1.3)
+
+| Item | Decisão operacional | Implementação publicada | Autorização de execução | Evidência runtime |
+|---|---|---|---|---|
+| DP-1 — tempo | **A′ aprovada**, só E03T: AD-2 no LIVE, `statement_timeout` 120 s comprovado na L1, aceite `elapsed_ms ≤ 60000` | o E03T mede `elapsed_ms` no próprio bloco (blob `9523bf23…`) | **pendente** (mandato de execução) | **inexistente** |
+| DP-4 — `lock_timeout` | **B aprovada**, só E03T: sem `SET LOCAL`; `lock_timeout = '0'`, `statement_timeout` 120 s | blob `9523bf23…` sem `SET LOCAL` (perfil E03-2 proíbe) | **pendente** | **inexistente** |
+| DP-5 — escrita transitória | **A aprovada**, só E03T: 7 + 4 INSERTs, 2 selos, 8 subtransações, 3 tabelas EC | superfície do §3.1, provada estaticamente (E03-7, E03-12) | **pendente** | **inexistente** |
+| DP-7 — E03T antes do E03 | **A aprovada** | E03T implementado, não executado | **pendente** | **inexistente** (N-1 não demonstrado) |
+| E03 | nenhuma decisão aplicável | E03 implementado, não executado | **não autorizado** | **inexistente** |
+
+Nenhuma decisão altera SQL, protocolo canônico, contrato 2830, critérios de PASS/FAIL ou a classificação fail-closed dos §4.4–§5. Nenhuma se estende ao E03 ou a outros lotes.
 
 ## 3. Superfície de escrita — E03T × E03 (E, contado dos arquivos)
 
@@ -198,7 +228,7 @@ Ausência de erro **não** é prova de rollback, e `H283P` sozinho não é aceit
 
 ### 4.1 Pré-condições do mandato de execução
 
-1. DP-1, DP-4, DP-5 (para o E03T) e DP-7 decididas por Fabrício e registradas.
+1. DP-1, DP-4, DP-5 (para o E03T) e DP-7 decididas por Fabrício e registradas — **cumprida na v1.3** (§2.5).
 2. Mandato de execução próprio, com baseline HEAD declarado.
 3. Canal: MCP Supabase `execute_sql`, projeto `qjfutqujxrbzgrtkpgkg`; uma chamada = um statement; nunca Dashboard; nunca `apply_migration`.
 4. Nenhum `SET` de sessão, nenhuma sonda experimental, nenhum retry automático.
@@ -208,7 +238,7 @@ Ausência de erro **não** é prova de rollback, e `H283P` sozinho não é aceit
 | Passo | Chamada | Pré-condição | Critério de continuidade | Saída integral a preservar |
 |---|---|---|---|---|
 | S0 | verificação local | mandato vigente | HEAD = baseline do mandato; `git status` limpo; blobs do §1.2 conferidos por `git hash-object`; `static_check` 444 + 85 + 56 + 4 PASS | saída de `git` e do `static_check` |
-| S1 | **L1** (md5 `0836c36a…`) | S0 conforme | `transaction_read_only = off`; `default_transaction_read_only = off`; `in_recovery = false`; `lock_timeout = '0'` (D-4); `server_version_num ≥ 170000`; donos EC = `current_user`; visibilidade de sessões provada (`reads_all_stats` ou equivalente, AD-9) | JSON integral |
+| S1 | **L1** (md5 `0836c36a…`) | S0 conforme | `transaction_read_only = off`; `default_transaction_read_only = off`; `in_recovery = false`; `lock_timeout = '0'` (D-4); `statement_timeout = '2min'` (DP-1/DP-4, v1.3); `server_version_num ≥ 170000`; donos EC = `current_user`; visibilidade de sessões provada (`reads_all_stats` ou equivalente, AD-9) | JSON integral |
 | S2 | **L3** (md5 `b7bc3700…`) | S1 conforme | `locks_on_scope = []`; nenhuma sessão `active` ou `idle in transaction` além da própria | JSON integral |
 | S3 | **E00** verbatim (`a4dd8438…`) | S2 conforme | `gate_pass = true` (24 gates), incluindo `g_no_residue`, `g_no_sequences_touched_now`, `g_rls_bypass`, `g_no_concurrency`, `g_freeze_canonical_equal`; `d_canon_diff = []` | JSON integral; `d_baseline`, `d_baseline_md5`, `db_role_setting_rows`, `checked_at` |
 | S4 | **E03P** verbatim (`0fc2d83d…`) | S3 conforme | `gate_pass = true` (11 gates + `gate_pass`) | JSON integral; `d_session.checked_at` |
@@ -253,7 +283,7 @@ Ausência de erro **não** é prova de rollback, e `H283P` sozinho não é aceit
 | Evento | Classificação | Ação |
 |---|---|---|
 | S0 divergente | — | não conectar |
-| L1 fora dos critérios (read-only, `lock_timeout ≠ '0'`, visibilidade não provada, réplica) | STOP | não submeter o E00 |
+| L1 fora dos critérios (read-only, `lock_timeout ≠ '0'`, `statement_timeout ≠ '2min'`, visibilidade não provada, réplica) | STOP | não submeter o E00 |
 | L3 com lock no escopo ou sessão em transação | STOP | não submeter o E00 |
 | E00 com qualquer gate falso ou NULL | STOP | não submeter o E03P; única repetição admitida só pelo protocolo §3.4 (`g_no_concurrency`), com L3 e E00 novos |
 | E03P com gate falso ou NULL | STOP | não submeter o E03T; E99 **não** é necessário (nada foi escrito), mas é recomendado para o registro |
@@ -298,7 +328,7 @@ O resultado do E03T **não** autoriza o E03. O E03 só pode ser considerado em m
 | T-2 | E03T `CONFORME` (§5) | mensagem terminal, E03P, E99 e L3 integrais | `NÃO CONFORME`/`INCONCLUSIVO` ⇒ análise e mandato de correção antes de qualquer E03 |
 | T-3 | postcheck íntegro | E99 com `d_diff = []`, marcador ausente, `d_baseline_now_md5` igual | incidente; E03 bloqueado |
 | T-4 | anomalias analisadas de forma independente | parecer da auditoria sobre o registro do E03T (inclui `elapsed_ms` e qualquer desvio de contexto ou canal) | E03 bloqueado |
-| T-5 | decisões aplicáveis ao E03 | DP-1 para o E03 (o `elapsed_ms` do E03T é só indício); DP-4 para o E03; DP-5 para o E03 | E03 bloqueado |
+| T-5 | decisões aplicáveis ao E03 | DP-1 para o E03 (o `elapsed_ms` do E03T é só indício); DP-4 para o E03; DP-5 para o E03. As decisões da v1.3 valem só para o E03T | E03 bloqueado |
 | T-6 | autorização expressa de Fabrício | mandato de execução do E03, com baseline e blobs | E03 não roda |
 
 A sequência do E03 é a da readiness v1.2 §7 (S0 → L1 → L3 → E00 → E03P → E03 → E99 → L3), com aceite `H283P` `pass=13/13` e as mesmas regras de §4.4–§4.5.
@@ -322,11 +352,11 @@ A sequência do E03 é a da readiness v1.2 §7 (S0 → L1 → L3 → E00 → E03
 
 ## 8. Pendências que impedem a execução segura
 
-1. **DP-1** (medição de tempo) — não decidida.
-2. **DP-4** (`lock_timeout`) — não decidida; a opção A exige mandato de implementação antes.
-3. **DP-5** (escritas transitórias) — não decidida, por envelope.
-4. **DP-7** (E03T) — não decidida.
-5. **Mandato de execução** próprio, separado para E03T e E03.
+1. **DP-1** — decidida para o E03T (A′, v1.3); pendente para o E03.
+2. **DP-4** — decidida para o E03T (B, v1.3); pendente para o E03.
+3. **DP-5** — decidida para o E03T (A, v1.3); nenhuma autorização de escrita para o E03.
+4. **DP-7** — decidida (A, v1.3).
+5. **Mandato de execução** próprio do E03T — **pendente**; o plano `L1-E03T-LIVE-EXECUTION-PLAN.md` termina no gate "AGUARDANDO AUTORIZAÇÃO DE FABRÍCIO PARA EXECUÇÃO LIVE". O E03 exige mandato separado e as condições do §6.
 6. Não há pendência técnica nos artefatos: nenhum blocker encontrado.
 
 ## 9. Limites desta rodada
@@ -344,3 +374,4 @@ A sequência do E03 é a da readiness v1.2 §7 (S0 → L1 → L3 → E00 → E03
 | 1.0 | **Criação (2026-09-27, `BATCH12-2830-P5-L1-EXECUTION-READINESS-01`, baseline `7bb44ca4`), documental, sem SQL e sem LIVE.**<br>• Gate A: HEAD e blobs dos artefatos publicados conferidos; árvore limpa; `static_check` 444 + 85 + 56 + 4; textos a submeter com hashes completos;<br>• Gate B: matriz DP-1/DP-4/DP-5/DP-7 com alternativas, evidência, risco e campo de deliberação em branco;<br>• inventário de superfície de escrita E03T × E03;<br>• Gate C: protocolo S0–S7 do E03T, resposta esperada, vínculo E00 → E03T → E99, STOP/CONTINUE;<br>• critérios e limites do E03T (inclui L-1);<br>• Gate D: transição E03T → E03 em 6 condições.<br>Nenhuma decisão tomada. Sem STOP. FREEZE ATIVO. |
 | 1.1 | **Fechamento fail-closed do protocolo (2026-09-27, `BATCH12-2830-P5-L1-EXECUTION-READINESS-CORRECTION-01`, baseline `7bb44ca4`), documental, sem SQL e sem LIVE.**<br>• §4.4: postcheck classificado em ÍNTEGRO, REPROVADO ou NÃO CONCLUÍDO; resíduo zero só com ÍNTEGRO; sem retry automático do postcheck;<br>• §4.5: tratamento explícito de E99 com `gate_pass` falso ou NULL, E99 com erro, vazio, truncado ou timeout, divergência na integridade dos marcadores, L3 final com falha, retorno incompleto, sessão ou lock inesperado, e verificação impossível após timeout ou perda de conexão do E03T; regra de classificação final INCIDENTE > NÃO CONFORME > INCONCLUSIVO > CONFORME;<br>• §5: CONFORME exige postcheck ÍNTEGRO; nenhum resultado autoriza o E03.<br>Regras de não reenviar o E03T e de não limpar sem mandato preservadas. DP-1/4/5/7 inalteradas e não decididas. FREEZE ATIVO. |
 | 1.2 | **Ordem do fluxo excepcional (2026-09-27, `BATCH12-2830-P5-L1-EXECUTION-READINESS-CORRECTION-02`, baseline `7bb44ca4`), documental, sem SQL e sem LIVE.**<br>• §4.4: três consultas distintas — L3 diagnóstica (L3-D, só após resposta ambígua do E03T, antes de qualquer E99), S6/E99 (só com encerramento confirmado) e S7/L3 final (sempre depois do E99); critério de encerramento suficiente; sem confirmação: nem E99 nem S7, INCONCLUSIVO, resíduo não verificado, STOP;<br>• §4.2: S6 sem o "sempre"; S7 nunca substituído pela L3-D;<br>• §4.5: linhas de timeout, resposta ambígua, (4) e (5) reordenadas;<br>• §5: L3-D não sustenta resíduo zero nem substitui o S7.<br>Nenhuma classe nova; critérios de ÍNTEGRO/REPROVADO/NÃO CONCLUÍDO e de classificação final inalterados. Proibições de reenvio do E03T, de repetir postcheck malsucedido e de limpeza sem mandato preservadas. DP-1/4/5/7 inalteradas. FREEZE ATIVO. |
+| 1.3 | **Registro das decisões DP-1, DP-4, DP-5 e DP-7 (2026-09-27, `BATCH12-2830-P5-L1-E03T-DECISION-RECORD-01`, baseline `d9e1b10e`), documental, sem SQL e sem LIVE.**<br>• §2: deliberações de Fabrício registradas literalmente — DP-1 = A′, DP-4 = B, DP-5 = A, DP-7 = A — todas restritas ao E03T; novo §2.5 separa decisão aprovada, implementação publicada, autorização de execução (pendente) e evidência runtime (inexistente);<br>• §4.2 S1 e §4.5: `statement_timeout = '2min'` passa a ser gate da L1, por DP-1/DP-4;<br>• §0, §4.1, §6 T-5 e §8 atualizados para o estado decidido;<br>• plano operacional em documento separado, `L1-E03T-LIVE-EXECUTION-PLAN.md`.<br>Matrizes de análise, histórico das versões anteriores, critérios de PASS/FAIL e classificação fail-closed inalterados. SQL, protocolo e 2830 inalterados. E03 não autorizado; E03T não executado; 17/135. FREEZE ATIVO. |
