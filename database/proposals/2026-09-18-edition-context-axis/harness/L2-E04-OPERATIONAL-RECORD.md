@@ -3,8 +3,8 @@
 | Campo | Valor |
 |---|---|
 | **Documento** | Registro operacional mínimo do lote L2 para uma FUTURA execução LIVE |
-| **Versão** | 1.0 |
-| **Status** | IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO, NÃO COMPILADO no PostgreSQL. Aguarda auditoria independente e mandato próprio de execução. |
+| **Versão** | 1.1 |
+| **Status** | **EXECUTADO NO LIVE e CLOSED (v1.1):** execução única CONFORME, postcheck ÍNTEGRO, parecer independente PASS, 14 casos PASS, cobertura 44/135 — ver `LIVE-L2-E04-EXECUTION-RECORD.md` v1.1. As limitações do §5 sobre compilação e identidade da RC foram superadas pela execução (compilou; identidade LIVE da 2211/2176/2095 demonstrada pelo E04P).<br>Histórico (v1.0): implementado localmente, não executado, não compilado; aguardava auditoria e mandato. |
 | **Mandato** | BATCH12-2830-P5-L2-FUNCTIONAL-IMPLEMENTATION-01 (baseline Git `36a3bc06`) |
 | **Contrato** | `2830_validate_edition_context_foundation.sql` v7.0, blob `b4647dcb…`, l. 479–515 (inalterado) |
 
@@ -70,3 +70,4 @@ Sem LOOP/FOR/WHILE: a superfície é estática e finita. Nenhuma outra tabela é
 | Versão | Descrição |
 |---|---|
 | 1.0 | **Criação (2026-09-27).** Registro operacional mínimo do lote L2 (E04P + E04), produzido junto da implementação local em BATCH12-2830-P5-L2-FUNCTIONAL-IMPLEMENTATION-01. |
+| 1.1 | **Fechamento (2026-09-27, `BATCH12-2830-P5-L2-CLOSEOUT-AND-L3-IMPLEMENTATION-01`).** Status atualizado para executado e fechado (CONFORME, ÍNTEGRO, PASS independente, 44/135); texto da v1.0 preservado como histórico. |
