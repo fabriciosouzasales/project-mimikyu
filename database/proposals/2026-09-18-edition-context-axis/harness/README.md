@@ -16,6 +16,7 @@
 | `2830H_E02_identity_terminal_D1_D5.sql` | Envelope E02 — casos D1–D5. | não (catálogo) |
 | `2830H_E99_postcheck_residue.sql` | Postcheck: **comparação integral, chave a chave, com o `d_baseline` do E00 da mesma rodada** (md5 = fidelidade da cópia, não origem da rodada; vinculação E00 → envelope → E99 é documental), recheck do canônico do FREEZE, resíduo zero, não persistência de sessão (P10/P8). Um SELECT. | não |
 | `tools/static_check.py` | Verificação estática local (não conecta a banco). | — |
+| `LIVE-VALIDATION-PROTOCOL.md` | Protocolo **proposto** de validação progressiva no LIVE (sem ambiente isolado): Etapa 1 só SELECT, Etapa 2 E02+E99, Etapa 3 E01 (mandato futuro), riscos, adaptações AD-1–AD-9 e decisões D-1–D-8. | — |
 
 Ordem de uso, **quando autorizada**: `E00` → envelope → `E99`, um envelope por vez, cada um em statement próprio.
 
@@ -114,9 +115,9 @@ Regras: `checked_at(E00) < submissão do envelope < checked_at(E99)`; nenhum out
 
 ## Dependências e decisões pendentes
 
-1. **Mandato de execução** (E00 → E01 → E99 → E00 → E02 → E99). Nenhum envelope foi executado.
+1. **Mandato de execução**, por etapa, conforme `LIVE-VALIDATION-PROTOCOL.md`: Etapa 1 (E00 só leitura) → Etapa 2 (E00 → E02 → E99) → Etapa 3 (E00 → E01 → E99). Nenhum envelope foi executado.
 2. **`SET LOCAL lock_timeout = '5s'`** — decisão operacional pendente (P8).
-3. **Ambiente isolado** (P14) — não necessário para E01/E02; necessário para K1/K2/K8b e para a medição de tempo P9b dos envelopes pesados.
+3. **Ambiente isolado** (P14) — **não será criado** (decisão do proprietário, 2026-09-26). Não afeta E00/E01/E02/E99; torna K1/K2/K8b e o UNFREEZE da 2830 v7.0 inalcançáveis enquanto a decisão D-1 estiver **PENDENTE** (Batch 12 **ABERTO**, UNFREEZE **BLOQUEADO**, K2 **não dispensado**), e P9b só é cumprido por adaptação (AD-2) — ver `LIVE-VALIDATION-PROTOCOL.md`.
 4. **Premissas a confirmar pelo E00 antes de E01:** estado = baseline canônico do FREEZE; papel executor superusuário ou dono das tabelas EC, sem `FORCE ROW LEVEL SECURITY`; nenhuma sequence nas tabelas tocadas; fecho P7 inteiramente classificado, sem efeito externo, sem SQL dinâmico, sem escrita fora do escopo; nenhuma regra nem event trigger habilitado; papéis `anon`/`authenticated` existentes; PG ≥ 17; marcador ausente; zero concorrência.
 5. **Tempo (P9):** E01/E02 são leves (catálogo + ≤ 9 inserts); medição formal P9b ainda assim é pré-requisito do critério A2 do contrato.
 
