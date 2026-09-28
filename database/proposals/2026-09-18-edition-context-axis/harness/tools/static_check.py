@@ -1900,3 +1900,340 @@ for title,lst in [('E05-PERFIL',res5),('E05-VERIFICADOR-NEG',negv5),('E05-VERIFI
     bad5=[r for r in lst if not r[1]]
     for n,ok,d in lst: print(('PASS ' if ok else 'FAIL ')+'['+title+'] '+n+(' '+d if d and not ok else ''))
     print(f'{title} TOTAL {len(lst)} PASS {len(lst)-len(bad5)} FAIL {len(bad5)}')
+
+# ===========================================================================
+# BATCH12-2830-P5-L3-CLOSEOUT-AND-L4-IMPLEMENTATION-01 — PERFIS E06 / E06P (L4)
+# Contrato: 2830 v7.0 (blob b4647dcb…), Seção 3 (l. 539–551), sem 3.3 (L5).
+# Contagem SEPARADA de todos os blocos acima (444, E03, E04, E05): nada acima
+# desta linha é alterado. Três blocos com total próprio: E06-PERFIL,
+# E06-VERIFICADOR-NEG, E06-VERIFICADOR-POS. E06-20 = P8 (mesmo gabarito
+# LT_PRE_RE); E06-21 = RC da 2211 (10 colunas, INTO STRICT, asserção integral);
+# E06-22 = escopo real de 3.7 só pela 2192; E06-23 = candidato de 3.5 = E06P;
+# E06-24 = classe de cada caso (RC sem escrita; FX sem RC); E06-25 = sem
+# IMMEDIATE/sonda (nenhum caso FXd no L4).
+# ===========================================================================
+SPEC_E06=dict(label='E06',tag='h2830_e06',env='E06_SECAO3_ROUTING_FAIL_CLOSED',
+              cases=['3.1','3.2','3.4','3.5','3.6','3.7'],
+              rc_per_case={'3.1':2,'3.2':2,'3.4':5,'3.5':1,'3.6':0,'3.7':5},
+              rc_cases=['3.1','3.5','3.7'],fx_rc_cases=['3.2','3.4'],fx_cases=['3.6'])
+RESET_L4=['v_t1','v_t2','v_t3','v_m1','v_mg','v_ms1','v_ms2','v_tok','v_set1','v_set2','v_set3','v_ord_t',
+          'v_raw','v_txt','v_sig','v_prof','v_cs','v_scope','v_rf','v_ov']
+NEG_L4={('23505','uq_cecem_active_scoped','card_edition_context_external_mapping'),
+        ('23514','ck_cecem_raw_field','card_edition_context_external_mapping')}
+FORB_L4=FORB3+[r'\bDELETE\b',r'\bLOOP\b',r'\bFOREACH\b',r'\bWHILE\b',r'\bFOR\s+\w+\s+IN\b',r'\bCARD_SET\b',r'\bCODE\s*=\s*V_',
+               r'SET\s+CONSTRAINTS',r"'H283S'",r'\bCARD_SET_EXTERNAL_REFERENCE\s+SET\b',r'\bCOMPUTE_VARIANT_RESIDUAL_SIGNATURE\s*\(']
+RC_COLS=("SELECT r.printing_state, r.printing_profile_id, r.printing_trait_ids, r.edition_context_state, r.edition_context_profile_id, "
+         "r.edition_context_trait_ids, r.residual_type, r.residual_foil, r.residual_subtype, r.residual_stamp "
+         "INTO STRICT v_ps, v_pp, v_pt, v_ecs, v_ecp, v_ect, v_rty, v_rfo, v_rst, v_rsp "
+         "FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, ")
+RC_ARGS={'NULL','v_set1','v_set2','v_set3','v_scope'}
+C35_CORE=["FROM public.card_printing_external_mapping m",
+          "m.game_id = {g} AND m.asset_source_id = {s} AND m.is_active AND m.raw_field IN ('subtype', 'stamp')",
+          "COALESCE(m.traits_signature, ARRAY(SELECT mt.trait_id FROM public.card_printing_external_mapping_trait mt WHERE mt.mapping_id = m.id ORDER BY mt.trait_id)) AS sig",
+          "pp.is_active AND pp.traits_signature = c.sig",
+          "cardinality(c.sig) > 0",
+          "NOT EXISTS (SELECT 1 FROM public.card_printing_trait t WHERE t.id = ANY (c.sig) AND NOT t.is_active)",
+          "public.normalize_external_catalog_value(c.normalized_token) = c.normalized_token",
+          "e.raw_field = c.raw_field AND e.normalized_token = c.normalized_token AND e.is_active AND e.external_set_id IS NULL",
+          "DESC, c.id LIMIT 1"]
+def c35_core(n,g,s): return [x.format(g=g,s=s) for x in C35_CORE if x.format(g=g,s=s) not in n]
+
+def e06_rules(src,S=SPEC_E06):
+    out=[]
+    def ck(rule,name,cond,det=''): out.append((f"{S['label']} {rule}: {name}",bool(cond),det))
+    c=code(src); tag=S['tag']; parts=c.split('$'+tag+'$')
+    ck('E06-1','um único DO $'+tag+'$ … $'+tag+'$;',len(re.findall(r'\bDO\s+\$',c))==1 and len(parts)==3 and c.rstrip().endswith('$'+tag+'$;'))
+    ck('E06-1','nada executável fora do DO',len(parts)==3 and parts[0].strip().upper()=='DO' and parts[2].strip()==';')
+    body=parts[1] if len(parts)==3 else ''
+    ns=nostr(body); U=ns.upper(); nb=norm(body)
+    lt_ok,body_eff=lt_split(body); U_eff=nostr(body_eff).upper()
+    ck('E06-20',"primeira instrução executável = SET LOCAL lock_timeout = '5s' + asserção fail-closed exata (gabarito LT_PRE_RE)",lt_ok)
+    ck('E06-20','exatamente 1 SET LOCAL e 1 asserção de lock_timeout; nenhum outro uso',
+       len(re.findall(r'\bSET\s+LOCAL\b',U))==1 and len(re.findall(r"current_setting\('lock_timeout'\)",body))==2 and len(re.findall(r'lock_timeout',body,re.I))==4)
+    hits=[t for t in FORB_L4 if re.search(t,U_eff)]
+    ck('E06-2','tokens proibidos ausentes (COMMIT, EXECUTE, TEMP, SET LOCAL/ROLE/SESSION, SET CONSTRAINTS, H283S, DDL, LOCK, DELETE, LOOP/FOR/WHILE, card_set, chamada direta da 2176, …)',not hits,str(hits))
+    cases=re.findall(r"v_case\s*:=\s*'([^']+)'",body)
+    segs=[s.split('v_case :=')[0] for s in re.split(r"v_case\s*:=\s*'[^']+'\s*;",body)[1:]]
+    SG=dict(zip(cases,segs))
+    # E06-3 (UPDATE) ---------------------------------------------------------
+    ups=[norm(x)[:-1] for x in re.findall(r'\bUPDATE public\.[^;]*;',body)]
+    s32=SG.get('3.2','')
+    ok3=(ups==['UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE id = v_m1 AND normalized_token = v_tok']
+         and re.search(r"UPDATE public\.card_edition_context_external_mapping SET is_active = false WHERE id = v_m1 AND normalized_token = v_tok;\s*GET DIAGNOSTICS v_n = ROW_COUNT;\s*IF v_n <> 1 THEN",s32) is not None
+         and "AND raw_field = 'subtype' AND normalized_token = v_tok AND NOT is_active;" in norm(s32)
+         and all(not re.search(r'\bUPDATE\b',nostr(SG.get(k,''))) for k in S['cases'] if k!='3.2'))
+    ck('E06-3','único UPDATE = aposentadoria de M1 de fixture em 3.2 (WHERE id = v_m1 AND normalized_token = v_tok), com ROW_COUNT = 1 e identidade reconferida',ok3,str(ups))
+    # E06-7 (superfície) -----------------------------------------------------
+    tg=[norm(t) for t in re.findall(r'\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([A-Za-z_\.]+)',ns)]
+    ck('E06-7','alvos de escrita ⊂ {trait, mapping, mapping_trait} (R1)',tg and set(tg)<=TABLES_L2,str(sorted(set(tg)-TABLES_L2)))
+    ins_all=re.findall(r'INSERT INTO [^;]*;',nb)
+    ins_tr=re.findall(r"INSERT INTO public\.card_edition_context_trait \(game_id, family, code, name, display_order\) VALUES \(v_game, 'EVENT', v_marker \|\| '_T([123])', '[^']*' \|\| v_marker, v_ord_t \+ 100\1\) RETURNING id INTO v_t\1;",nb)
+    ins_mp=re.findall(r"INSERT INTO public\.card_edition_context_external_mapping \(game_id, asset_source_id, external_set_id, raw_field, normalized_token\) VALUES \(v_game, v_src, (NULL|v_set1|v_set2), '(subtype|stamp|type)', v_tok\) RETURNING id INTO (v_m1|v_mg|v_ms1|v_ms2);",nb)
+    ins_nn=re.findall(r"INSERT INTO public\.card_edition_context_external_mapping_trait \(mapping_id, trait_id, game_id\) VALUES \((v_m1|v_mg|v_ms1|v_ms2), (v_t[123]), v_game\);",nb)
+    assigns=re.findall(r'\b(v_tok|v_set[123])\s*:=\s*([^;]*);',norm(body))
+    ok_as=all(r=='NULL' or r==f"v_marker || '_{('K' if v=='v_tok' else 'S'+v[-1])}'" for v,r in assigns)
+    ck('E06-7',"todo INSERT é trait marcado, N:N de fixture ou mapping com token/Set marcados (v_tok, NULL/v_set1/v_set2); v_tok/v_setN só := marcador",
+       len(ins_all)==len(ins_tr)+len(ins_mp)+len(ins_nn) and ok_as and len(ins_tr)==4 and len(ins_mp)==7 and len(ins_nn)==4,
+       f'ins={len(ins_all)} tr={len(ins_tr)} mp={len(ins_mp)} nn={len(ins_nn)} as={assigns}')
+    idas=re.findall(r'\b(v_(?:t[123]|m1|mg|ms1|ms2))\s*:=\s*([^;]*);',nb); intos=re.findall(r'(\S+ \S+) INTO (v_(?:t[123]|m1|mg|ms1|ms2))\b',nb)
+    ck('E06-7','ids de fixture só por RETURNING id INTO (atribuição direta só := NULL)',
+       all(r=='NULL' for _,r in idas) and all(pre=='RETURNING id' for pre,_ in intos),str([x for x in intos if x[0]!='RETURNING id']))
+    typ=[(cid) for cid,sg in SG.items() if "'type', v_tok" in norm(sg)]
+    ck('E06-7',"raw_field 'type' só na tentativa negativa de 3.6",typ==['3.6'] and nb.count("'type', v_tok")==1)
+    # E06-8 (negativos) -------------------------------------------------------
+    negs=_neg_blocks(body); ok8=True; used=set()
+    for (b,x,e) in negs:
+        if b<0 or e<0 or re.search(r'\bBEGIN\b',body[b+5:x]): ok8=False; continue
+        blk=norm(body[b:x])
+        if not re.fullmatch(r"BEGIN INSERT INTO public\.card_edition_context_external_mapping \(game_id, asset_source_id, external_set_id, raw_field, normalized_token\) VALUES \(v_game, v_src, (v_set1|NULL), '(subtype|type)', v_tok\) RETURNING id INTO v_(m1|mg); ",blk+' '): ok8=False
+        nxt=[p for p in [body.find('v_got := false',e),body.find("v_case :=",e)] if p>=0]
+        seg=body[e:min(nxt) if nxt else len(body)]
+        m=re.search(r"IF v_state IS NULL OR v_state <> '(\d{5})' OR v_con IS DISTINCT FROM '([a-z_]+)' OR v_tab IS DISTINCT FROM '([a-z_]+)' THEN",seg)
+        if not ('IF NOT v_got THEN' in seg and m): ok8=False
+        if m: used.add(m.groups())
+    ck('E06-8','2 negativos (só INSERT de fixture), cada um com IF NOT v_got e (SQLSTATE, constraint, tabela) exatos',ok8 and len(negs)==2,str(len(negs)))
+    ck('E06-9','negativos = {23505 uq_cecem_active_scoped, 23514 ck_cecem_raw_field}, ambos nomeados na 2207',used==NEG_L4 and all(k[1] in S2207 for k in used),str(sorted(used)))
+    ck('E06-10','sem LIKE/ILIKE/SIMILAR/~',not re.search(r'\b(I?LIKE|SIMILAR)\b',U) and not re.search(r'!?~',ns))
+    ce=re.search(r"c_expected\s+CONSTANT\s+text\[\]\s*:=\s*ARRAY\[(.*?)\]",body,re.S); cel=re.findall(r"'([^']+)'",ce.group(1)) if ce else []
+    ck('E06-11','casos na ordem contratual = c_expected (6; 3.3 fora)',cases==S['cases'] and cel==S['cases'],str(cases))
+    ck('E06-11',"c_env = '"+S['env']+"'",re.search(r"c_env\s+CONSTANT\s+text\s*:=\s*'"+S['env']+"';",body) is not None)
+    # E06-12 -------------------------------------------------------------------
+    codes=re.findall(r"ERRCODE\s*=\s*'([A-Z0-9]{5})'",body)
+    ck('E06-12','ERRCODEs só H283C/F/P; H283P único e último',set(codes)<={'H283C','H283F','H283P'} and codes.count('H283P')==1 and codes[-1]=='H283P')
+    okc=all(len(re.findall(r"ERRCODE\s*=\s*'H283C'",sg))==1 and "WHEN SQLSTATE 'H283F' THEN RAISE;" in sg and 'v_done := v_done || v_case' in sg
+            and re.search(r"WHEN OTHERS THEN\s*GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;\s*RAISE EXCEPTION USING ERRCODE = 'H283F'[^;]*erro inesperado sqlstate=%s msg=%s",sg) for sg in segs)
+    ck('E06-12','estrutura de subtransação por caso (H283C final; H283F RAISE; OTHERS→H283F com SQLSTATE e mensagem)',okc and len(segs)==len(S['cases']))
+    ck('E06-12','gate: v_done = c_expected e evidência (c35_token, c35_overlap, u37 = 3) antes do terminal; terminal com pass/casos/marker/elapsed_ms/c35/u37',
+       'IF v_done IS DISTINCT FROM c_expected THEN' in body and 'IF v_c35_tok IS NULL OR v_c35_ov IS NULL OR v_u37 IS DISTINCT FROM 3 THEN' in body
+       and body.rfind('v_u37 IS DISTINCT FROM 3 THEN')<body.rfind("'H283P'")
+       and "'H2830_ROLLBACK_PASS: envelope=%s pass=%s/%s casos=%s marker=%s elapsed_ms=%s c35_token=%s c35_overlap=%s u37=%s'," in body
+       and re.search(r"\* 1000\), v_c35_tok, v_c35_ov, v_u37\);\s*END\s*$",body) is not None)
+    ok13=all(all(re.search(r'\b'+v+r' := NULL;',sg[:sg.find('BEGIN')]) for v in RESET_L4) for sg in segs)
+    ck('E06-13','reset das variáveis de fixture/leitura a NULL antes do BEGIN de cada caso',ok13 and segs)
+    fm=[m.start() for m in re.finditer(r"MESSAGE = format\(\s*'H2830_",body)]
+    ok16b=all(re.match(r"MESSAGE = format\(\s*'H2830_(?:[^']|'')*',\s*c_env\b",body[p:]) for p in fm) and len(fm)==body.count("'H2830_FAIL:")+body.count("'H2830_ROLLBACK_PASS:")
+    ck('E06-16','toda mensagem H2830_* é UM literal bem formado (aspas internas escapadas) seguido de c_env',ok16b and fm,str(len(fm)))
+    Uc=nostr(c).upper()
+    ck('E06-16','BEGIN/END, IF/END IF, parênteses e aspas balanceados',len(re.findall(r'\bBEGIN\b',Uc))==len(re.findall(r'\bEND\b(?!\s+(IF|LOOP))',Uc))
+       and len(re.findall(r'(?<!END )\bIF\b',Uc))==len(re.findall(r'\bEND\s+IF\b',Uc)) and nostr(c).count('(')==nostr(c).count(')') and c.count("'")%2==0)
+    # E06-21 (RC) ----------------------------------------------------------------
+    ok21=True; det=[]
+    for cid in S['cases']:
+        sg=norm(SG.get(cid,''))
+        calls=[m.start() for m in re.finditer(re.escape(RC_COLS),sg)]
+        allcalls=len(re.findall(r'resolve_variant_row_axes\s*\(',sg))
+        if len(calls)!=S['rc_per_case'][cid] or allcalls!=len(calls): ok21=False; det.append((cid,len(calls),allcalls)); continue
+        for p in calls:
+            q=p+len(RC_COLS); arg=sg[q:sg.find(')',q)]
+            tail=sg[q:q+900]
+            if arg not in RC_ARGS or not re.match(re.escape(arg)+r"\) AS r; IF v_ps IS DISTINCT FROM '[A-Z_]+' OR v_pp (IS NOT NULL|IS DISTINCT FROM v_prof) OR v_pt IS DISTINCT FROM [^ ]+ OR v_ecs IS DISTINCT FROM '[A-Z_]+' OR v_ecp (IS NOT NULL|IS DISTINCT FROM v_prof) OR v_ect IS DISTINCT FROM .+? OR v_rty IS DISTINCT FROM 'H2830 TIPO' OR v_rfo IS NOT NULL OR v_rst (IS NOT NULL|IS DISTINCT FROM v_tok) OR v_rsp IS DISTINCT FROM .+? THEN RAISE EXCEPTION USING ERRCODE = 'H283F'",tail):
+                ok21=False; det.append((cid,arg))
+            pre=sg[max(0,p-200):p]
+            if 'v_ps := NULL; v_pp := NULL; v_pt := NULL; v_ecs := NULL; v_ecp := NULL; v_ect := NULL; v_rty := NULL; v_rfo := NULL; v_rst := NULL; v_rsp := NULL;' not in pre: ok21=False; det.append((cid,'reset'))
+    ck('E06-21','RC: nº de chamadas da 2211 por caso = matriz L4 (2/2/5/1/0/5); cada uma INTO STRICT das 10 colunas, 4º argumento ∈ {NULL, Set de fixture, escopo resolvido}, zerada antes e asserida por inteiro logo depois',ok21,str(det))
+    # E06-22 (3.7) -------------------------------------------------------------------
+    s37=norm(SG.get('3.7',''))
+    lits=[k for k in ["'dp1'","'swsh9'","'svp'","'SET-LOGO'","'set-logo'"] for cid,sg in SG.items() if cid!='3.7' and k in norm(sg)]
+    ok22=(len(re.findall(r"SELECT s\.external_set_id INTO STRICT v_scope FROM internal\.resolve_variant_mapping_scope\(v_cs, v_src\) AS s;",s37))==4
+          and all(f"SELECT r.card_set_id INTO STRICT v_cs FROM public.card_set_external_reference r WHERE r.asset_source_id = v_src AND r.external_set_id = '{x}' AND r.is_active;" in s37
+                  and f"IF v_scope IS DISTINCT FROM '{x}' THEN" in s37 for x in ['dp1','swsh9','svp'])
+          and "IF v_u37 <> 3 THEN" in s37 and "(external_set_id IS NULL OR external_set_id NOT IN ('dp1', 'swsh9', 'svp'))" in s37
+          and "v_raw := jsonb_build_object('type', 'H2830 TIPO', 'stamp', jsonb_build_array('set-logo'));" in s37
+          and s37.count("'RESOLVED_WITH_EC_PROFILE' OR v_ecp IS DISTINCT FROM v_prof OR v_ect IS DISTINCT FROM v_sig")==3
+          and s37.count("v_rsp IS DISTINCT FROM ARRAY['SET-LOGO']")==2
+          and "r.external_set_id NOT IN ('dp1', 'swsh9', 'svp') ORDER BY r.card_set_id, r.id LIMIT 1;" in s37
+          and not lits and not re.search(r'resolve_variant_mapping_scope',norm(''.join(v for k,v in SG.items() if k!='3.7'))))
+    ck('E06-22','3.7: escopo dos 3 Sets H2 e do controle SÓ via resolve_variant_mapping_scope a partir de card_set_external_reference (INTO STRICT), universo H2 = 3 asserido, resolve com profile em dp1/swsh9/svp e fica no residual fora/sem escopo; literais H2 só em 3.7',ok22,str(lits))
+    # E06-23 (3.5) ----------------------------------------------------------------------
+    s35=norm(SG.get('3.5',''))
+    ok23=(not c35_core(s35,'v_game','v_src') and "ORDER BY 5 DESC, c.id LIMIT 1;" in s35 and "IF v_txt IS NULL OR v_rf IS NULL OR v_prof IS NULL OR v_ov IS NULL THEN" in s35
+          and "'RESOLVED_WITH_PROFILE' OR v_pp IS DISTINCT FROM v_prof OR v_pt IS DISTINCT FROM v_sig OR v_ecs IS DISTINCT FROM 'RESOLVED_NO_EDITION_CONTEXT'" in s35)
+    ck('E06-23','3.5: candidato de Printing pela consulta núcleo (= E06P), sem candidato ⇒ H283F; Printing RESOLVED_WITH_PROFILE (profile/traits do candidato) e EC RESOLVED_NO_EDITION_CONTEXT',ok23,str(c35_core(s35,'v_game','v_src')))
+    # E06-24 / E06-25 / E06-26 --------------------------------------------------------------
+    wr=lambda sg: re.search(r'\b(INSERT|UPDATE|DELETE)\b',nostr(sg)) is not None
+    ok24=(all(not wr(SG.get(k,'')) for k in S['rc_cases']) and all(wr(SG.get(k,'')) and S['rc_per_case'][k]>0 for k in S['fx_rc_cases'])
+          and all(wr(SG.get(k,'')) and S['rc_per_case'][k]==0 for k in S['fx_cases']))
+    ck('E06-24','classe por caso: RC (3.1, 3.5, 3.7) sem escrita; FX+RC (3.2, 3.4) escrevem e chamam a 2211; FX (3.6) escreve sem RC',ok24)
+    ck('E06-25','P4: nenhum SET CONSTRAINTS, nenhuma sonda (sem caso FXd no L4); evento de selo pendente descartado pelo H283C do caso',
+       'SET CONSTRAINTS' not in U_eff and not PROBE_BLOCK_RE.search(body) and 'v_qn' not in body)
+    s31=norm(SG.get('3.1','')); s34=norm(SG.get('3.4',''))
+    g31a=s31.find('FROM public.card_edition_context_external_mapping WHERE normalized_token IN (v_tok,'); g31b=s31.find('FROM public.card_printing_external_mapping WHERE normalized_token IN (v_tok,')
+    f31=s31.find('resolve_variant_row_axes'); g34=s34.find('WHERE normalized_token = v_tok; IF v_n <> 0 THEN'); f34=s34.find('INSERT INTO public.card_edition_context_external_mapping ')
+    ck('E06-26','guardas: 3.1 prova ausência de mapping (EC e Printing) dos tokens ANTES da RC; 3.4 prova token livre ANTES dos INSERTs',
+       0<=g31a<f31 and 0<=g31b<f31 and 0<=g34<f34 and s31.count('IF v_n <> 0 THEN')==2)
+    ck('E06-26','3.2: controle positivo (mapping ATIVO ⇒ [T1]) ANTES da aposentadoria; depois ⇒ NEEDS_REVIEW_INACTIVE_EC_MAPPING com token no residual',
+       0<=norm(s32).find("'NEEDS_REVIEW_NO_EC_PROFILE' OR v_ecp IS NOT NULL OR v_ect IS DISTINCT FROM ARRAY[v_t1]")<norm(s32).find('UPDATE public.')
+       <norm(s32).find("'NEEDS_REVIEW_INACTIVE_EC_MAPPING' OR v_ecp IS NOT NULL OR v_ect IS DISTINCT FROM '{}'::uuid[]")
+       and "v_rst IS DISTINCT FROM v_tok" in norm(s32))
+    ck('E06-26','3.4: S1→[T2], S2→[T3], S3→[T1], NULL→[T1] e S1→[T2] de novo depois do 23505',
+       [m.group(1) for m in re.finditer(r"v_ect IS DISTINCT FROM ARRAY\[(v_t\d)\]",s34)]==['v_t2','v_t3','v_t1','v_t1','v_t2']
+       and [m.group(1) for m in re.finditer(re.escape('FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, ')+r'(\w+)\)',s34)]==['v_set1','v_set2','v_set3','NULL','v_set1'])
+    return out
+
+G06P=['g_game_pokemon_one','g_source_tcgdex_one','g_l4_triggers','g_no_other_triggers_l4','g_seal_constraint_names_unique',
+      'g_deferrable_only_seal_l4','g_l4_constraints','g_36_raw_field_check','g_rc_identity','g_rc_executable','g_35_candidate',
+      'g_37_h2','g_37_scope_resolvable','g_37_profile','g_37_no_printing','g_37_out_of_scope_control','g_37_normalization',
+      'g_l4_no_sequence','g_l4_rls_bypass','g_marker_absent_now']
+G06P_TERMS={'g_game_pokemon_one':["public.game WHERE code = 'POKEMON') = 1"],'g_source_tcgdex_one':["code = 'TCGDEX') = 1"],
+            'g_l4_triggers':["AND t.attrs = e.attrs) = 5","JOIN trg_exp e ON e.tgname = t.tgname) = 5"],
+            'g_no_other_triggers_l4':["WHERE e.tgname = t.tgname AND e.relname = t.relname"],
+            'g_seal_constraint_names_unique':["conname = 'trg_cecp_seal') = 1","conname = 'trg_cecem_seal') = 1","OR NOT condeferrable OR NOT condeferred"],
+            'g_deferrable_only_seal_l4':["relname = 'card_edition_context_external_mapping') = 1"],
+            'g_l4_constraints':["c.convalidated) = 15","pred_np = pred_exp AND cols = cols_exp) = 2"],
+            'g_36_raw_field_check':["c.conname = 'ck_cecem_raw_field' AND c.contype = 'c' AND c.convalidated","'''type''') = 0) = 1"],
+            'g_rc_identity':["FROM rc WHERE ok) = 4","strpos(p.prosrc, k.tok) > 0) = 4"],
+            'g_rc_executable':["resolve_variant_row_axes(jsonb,uuid,uuid,text)'), 'EXECUTE')","resolve_variant_mapping_scope(uuid,uuid)'), 'EXECUTE')"],
+            'g_35_candidate':["FROM cand35) = 1"],
+            'g_37_h2':["WHERE is_active) = 3","external_set_id IS NULL) = 0","NOT IN ('dp1', 'swsh9', 'svp')) = 0","cardinality(traits_signature) >= 1) = 3"],
+            'g_37_scope_resolvable':["refs = 1 AND n_scope = 1 AND scope = external_set_id) = 3"],
+            'g_37_profile':["profiles = 1 AND traits_active) = 3"],
+            'g_37_no_printing':["m.normalized_token = 'SET-LOGO') = 0"],
+            'g_37_out_of_scope_control':["FROM out37 WHERE n_scope = 1) = 1"],
+            'g_37_normalization':["normalize_external_catalog_value('set-logo')) = 'SET-LOGO'"],
+            'g_l4_no_sequence':["NOT EXISTS (SELECT 1 FROM l3_seq)"],'g_l4_rls_bypass':["NOT force_rls AND owner = current_user) = 3"],
+            'g_marker_absent_now':["marker_trait = 0 AND marker_mapping = 0 AND marker_printing_mapping = 0"]}
+S2192=(REPO/'schema/2192_create_variant_type_mapping_scope_read_contract.sql').read_text(encoding='utf-8')
+S2232=(REPO/'proposals/2026-09-18-edition-context-axis/2232_seed_edition_context_external_mappings.sql').read_text(encoding='utf-8')
+def _body(src,fname):
+    i=src.find('FUNCTION '+fname); j=src.find('AS $$',i); k=src.find('$$;',j+5)
+    return lf(src[j+5:k]) if i>=0 and j>=0 and k>=0 else ''
+def e06p_rules(src):
+    out=[]
+    def ck(rule,name,cond,det=''): out.append((f"E06P {rule}: {name}",bool(cond),det))
+    c=code(src); Un=nostr(c).upper()
+    ck('P-1','1 statement',Un.count(';')==1 and Un.rstrip().endswith(';'))
+    FORBP=[r'\bINSERT\b',r'\bUPDATE\b',r'\bDELETE\b',r'\bCREATE\b',r'\bALTER\b',r'\bDROP\b',r'SET_CONFIG',r'\bSET\b',r'\bDO\b',r'\bTEMP\b',
+           r'\bINTO\b',r'\bGRANT\b',r'\bREVOKE\b',r'\bCOMMENT\b',r'\bTRUNCATE\b',r'\bMERGE\b',r'\bCOPY\b',r'\bCALL\b',r'\bLOCK\b',r'\bNOTIFY\b',
+           r'\bEXECUTE\b(?!\')',r'PG_SLEEP',r'DBLINK',r'RESOLVE_VARIANT_ROW_AXES\s*\(',r'COMPUTE_VARIANT_RESIDUAL_SIGNATURE\s*\(']
+    hits=[t for t in FORBP if re.search(t,Un)]
+    calls=re.findall(r'\b([a-z_]+)\.([a-z_]+)\s*\(',nostr(c))
+    ck('P-1','sem DML/DDL/SET/DO/TEMP/INTO; funções de domínio invocadas ⊂ {2095 (pura), 2192 (leitura de escopo)}; 2211/2176 nunca chamadas',
+       not hits and {f'{a}.{b}' for a,b in calls}-{'public.normalize_external_catalog_value','internal.resolve_variant_mapping_scope'}==set(),str(hits or calls))
+    ck('P-1','parênteses balanceados',nostr(c).count('(')==nostr(c).count(')'))
+    gi=c.find('\ngates AS ('); ge=c.find('\nSELECT to_jsonb(g)'); gc=c[gi:ge] if gi>=0 and ge>gi else ''
+    gd=re.findall(r'AS\s+(g_[A-Za-z0-9_]+)',gc)
+    ck('P-2',f'CTE gates define EXATAMENTE os {len(G06P)} gates do perfil',sorted(gd)==sorted(G06P) and len(gd)==len(set(gd)),str(sorted(set(gd)^set(G06P))))
+    pt=re.split(r'AS\s+(g_[A-Za-z0-9_]+)',gc); seg={pt[i]:pt[i-1] for i in range(1,len(pt),2)}
+    for g in G06P:
+        terms=G06P_TERMS.get(g,['__sem_termos__']); t=seg.get(g,'')
+        ck('P-3',f'predicado de {g} com {len(terms)} termo(s) efetivo(s), não esvaziado',all(x in t for x in terms) and not re.search(r'WHERE\s+false|OR\s+true|>=\s*[02-9]|^\s*,?\s*true\s*$',t,re.I|re.M),g)
+    ck('P-4','gate_pass = bool_and de TODOS os g_* e NULL = falha',"'gate_pass', (SELECT bool_and(v::boolean) FROM jsonb_each_text(to_jsonb(g))" in c and 'WHERE v IS NULL' in c)
+    pins=dict(re.findall(r"\('((?:internal|public)\.[a-z_]+\([a-z,]*\))', '([0-9a-f]{32})'",c))
+    md=lambda b: hashlib.md5(b.encode()).hexdigest()
+    exp={'internal.resolve_variant_row_axes(jsonb,uuid,uuid,text)':md(_body(S2211,'internal.resolve_variant_row_axes')),
+         'internal.compute_variant_residual_signature(jsonb,uuid,uuid)':md(_body(S2176,'internal.compute_variant_residual_signature')),
+         'public.normalize_external_catalog_value(text)':ALLOW.get(('public','normalize_external_catalog_value','p_value text'),{}).get('md5'),
+         'internal.resolve_variant_mapping_scope(uuid,uuid)':md(_body(S2192,'internal.resolve_variant_mapping_scope'))}
+    ck('P-5','4 pinos da RC/escopo = md5(LF(corpo no repositório)): 2211, 2176 v2.0, 2095 (= E00) e 2192',pins==exp and pins['internal.resolve_variant_row_axes(jsonb,uuid,uuid,text)']=='f10af378c2d5d9fdfd207d9c7d9ff046',str(pins))
+    blk=lambda t,n: (re.search(r'\n'+re.escape(n)+r' AS \((.*?)\n\),',t,re.S) or re.search('x^',''))
+    ck('P-7','trg_exp, con_exp e act_idx idênticos ao E04P; l3_seq e l3_own idênticos ao E05P',
+       all(blk(c,n) and blk(E04PF,n) and blk(c,n).group(1)==blk(E04PF,n).group(1) for n in ['trg_exp(tgname, relname, tgtype, fn, is_constraint, attrs)','con_exp(conname, relname, contype)','act_idx(idxname, pred, cols)'])
+       and all(blk(c,n) and blk(E05PF,n) and blk(c,n).group(1)==blk(E05PF,n).group(1) for n in ['l3_seq','l3_own']))
+    nc=norm(c)
+    ck('P-8','candidato de 3.5: consulta núcleo idêntica à do E06 (mesmos filtros, preferência por overlap EC GLOBAL, desempate por id, LIMIT 1)',
+       not c35_core(nc,'gs.game_id','gs.src_id') and 'ORDER BY 6 DESC, c.id LIMIT 1' in nc,str(c35_core(nc,'gs.game_id','gs.src_id')))
+    h2=re.findall(r"'([a-z0-9]+)'",(re.search(r'h2\(external_set_id\) AS \((.*?)\n\),',c,re.S) or re.search('x','x')).group(1) if re.search(r'h2\(external_set_id\) AS \(',c) else '')
+    ck('P-9',"H2 = (dp1, swsh9, svp), igual ao guard H2 da seed 2232 e ao contrato 3.7",h2==['dp1','swsh9','svp']
+       and "external_set_id NOT IN ('dp1','swsh9','svp')" in S2232 and 'dp1/swsh9/svp' in C2830,str(h2))
+    ck('P-11','marcador em trait.code, mapping (token E external_set_id) e Printing (token)',
+       "strpos(COALESCE(external_set_id, ''), 'H2830') > 0" in c and "FROM public.card_printing_external_mapping WHERE strpos(normalized_token, 'H2830') > 0" in c)
+    return out
+
+res6=[]
+E06F=(H/'2830H_E06_section3_routing_fail_closed.sql').read_text(encoding='utf-8')
+E06PF=(H/'2830H_E06P_precheck_section3.sql').read_text(encoding='utf-8')
+res6+=e06_rules(E06F); res6+=e06p_rules(E06PF)
+for f in ['2830H_E06_section3_routing_fail_closed.sql','2830H_E06P_precheck_section3.sql']:
+    raw=(H/f).read_bytes()
+    res6.append((f'ARQUIVO {f}: LF, sem CR, sem tab, sem espaço no fim de linha, termina em LF',
+                 b'\r' not in raw and b'\t' not in raw and not re.search(rb' +\n',raw) and raw.endswith(b'\n'),''))
+_c3=re.findall(r'^--\s+(3\.\d+)\s+\[AUTO (FX\+RC|RC|FX)\]',C2830,re.M)
+_kind6={k:v for k,v in _c3}
+res6.append(('E06 × 2830 v7.0: Seção 3 tem 3.1–3.7; E06 = todos menos 3.3 (L5), na ordem; classe RC/FX+RC/FX de cada caso respeitada',
+             [x for x,_ in _c3]==['3.1','3.2','3.3','3.4','3.5','3.6','3.7'] and [x for x,_ in _c3 if x!='3.3']==SPEC_E06['cases']
+             and {k for k,v in _kind6.items() if v=='RC'}==set(SPEC_E06['rc_cases'])
+             and {k for k,v in _kind6.items() if v=='FX+RC' and k!='3.3'}==set(SPEC_E06['fx_rc_cases'])
+             and {k for k,v in _kind6.items() if v=='FX'}==set(SPEC_E06['fx_cases']),str(_c3)))
+_P5=(H/'PHASE5-AUTOMATED-COVERAGE-READINESS.md').read_text(encoding='utf-8')
+res6.append(('E06 × PHASE5: lote L4 = 3.1, 3.2, 3.4–3.7 (6), envelope E06 + E06P; 3.3 no L5',
+             '| **L4** | 3.1, 3.2, 3.4–3.7 (6) | E06 + E06P |' in _P5 and all(f'| `{k}` |' in _P5 and re.search(r'\| `'+re.escape(k)+r'` \|[^\n]*\| L4 \|\s*$',_P5,re.M) for k in SPEC_E06['cases'])
+             and re.search(r'\| `3\.3` \|[^\n]*\| L5 \|\s*$',_P5,re.M) is not None,''))
+_APPROVED6=_APPROVED5+[('2830H_E05_section2q_mapping_header.sql','03a9ff02'),('2830H_E05P_precheck_section2q.sql','e5c27a56')]
+res6.append(('E06 × arquivos aprovados: E00, E99, E03, E03P, E03T, E04, E04P, E05, E05P e 2830 intactos',all(_blob(H/f).startswith(b) for f,b in _APPROVED6),
+             str([f for f,b in _APPROVED6 if not _blob(H/f).startswith(b)])))
+
+negv6=[]; posv6=[]
+def mf6(label, mutated, rule, rules=e06_rules, orig=None):
+    r=rules(mutated); failed=[n for n,ok,_ in r if not ok]
+    negv6.append((f'VERIFICADOR rejeita: {label} [{rule}]', any(rule+':' in n for n in failed) and mutated!=(orig if orig is not None else E06F), str(failed[:3])))
+_p6='    SELECT id INTO v_src FROM public.asset_source'
+UA6="UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE id = v_m1 AND normalized_token = v_tok;"
+mf6('COMMIT no corpo', s1(E06F,_p6,'    COMMIT;\n'+_p6), 'E06-2')
+mf6('EXECUTE dinâmico', s1(E06F,_p6,"    EXECUTE 'SELECT 1';\n"+_p6), 'E06-2')
+mf6('DELETE de mapping', s1(E06F,_p6,"    DELETE FROM public.card_edition_context_external_mapping WHERE id = v_m1;\n"+_p6), 'E06-2')
+mf6('LOOP', s1(E06F,_p6,'    LOOP EXIT; END LOOP;\n'+_p6), 'E06-2')
+mf6('SET CONSTRAINTS IMMEDIATE', s1(E06F,_p6,'    SET CONSTRAINTS public.trg_cecp_seal, public.trg_cecem_seal IMMEDIATE;\n'+_p6), 'E06-2')
+mf6('leitura de card_set por code', s1(E06F,_p6,"    SELECT id INTO v_cs FROM public.card_set WHERE code = 'DP1';\n"+_p6), 'E06-2')
+mf6('chamada direta da 2176', s1(E06F,_p6,"    SELECT count(*) INTO v_n FROM internal.compute_variant_residual_signature('{}'::jsonb, v_game, v_src);\n"+_p6), 'E06-2')
+mf6('UPDATE sem filtro de token', s1(E06F,UA6,"UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE id = v_m1;"), 'E06-3')
+mf6('UPDATE em mapping real (SET-LOGO)', s1(E06F,UA6,"UPDATE public.card_edition_context_external_mapping SET is_active = false WHERE normalized_token = 'SET-LOGO';"), 'E06-3')
+mf6('ROW_COUNT não conferido', s1(E06F,UA6+"\n        GET DIAGNOSTICS v_n = ROW_COUNT;",UA6+"\n        v_n := 1;"), 'E06-3')
+mf6('identidade não reconferida depois da aposentadoria', s1(E06F,"   AND raw_field = 'subtype' AND normalized_token = v_tok AND NOT is_active;","   AND raw_field = 'subtype' AND normalized_token = v_tok;"), 'E06-3')
+mf6('UPDATE em caso RC (3.7)', s1(E06F,"        v_raw := jsonb_build_object('type', 'H2830 TIPO', 'stamp', jsonb_build_array('set-logo'));","        "+UA6+"\n        v_raw := jsonb_build_object('type', 'H2830 TIPO', 'stamp', jsonb_build_array('set-logo'));"), 'E06-3')
+mf6('mapping de fixture com token literal real', s1(E06F,"VALUES (v_game, v_src, v_set1, 'subtype', v_tok)\n        RETURNING id INTO v_ms1;","VALUES (v_game, v_src, v_set1, 'subtype', 'SET-LOGO')\n        RETURNING id INTO v_ms1;"), 'E06-7')
+mf6("mapping de fixture em Set real ('dp1')", s1(E06F,"VALUES (v_game, v_src, v_set2, 'subtype', v_tok)","VALUES (v_game, v_src, 'dp1', 'subtype', v_tok)"), 'E06-7')
+_i34=E06F.index("v_case := '3.4'")
+mf6('v_set1 sem marcador (3.4)', E06F[:_i34]+E06F[_i34:].replace("        v_set1 := v_marker || '_S1';","        v_set1 := 'swsh9';",1), 'E06-7')
+mf6('id de fixture lido de mapping real', s1(E06F,"        v_tok := v_marker || '_K';\n        INSERT","        SELECT id INTO v_m1 FROM public.card_edition_context_external_mapping LIMIT 1;\n        v_tok := v_marker || '_K';\n        INSERT"), 'E06-7')
+mf6('escrita em card_edition_context_profile', s1(E06F,_p6,"    INSERT INTO public.card_edition_context_profile (game_id) VALUES (v_game);\n"+_p6), 'E06-7')
+mf6("raw_field 'type' fora do negativo", s1(E06F,"VALUES (v_game, v_src, NULL, 'stamp', v_tok)","VALUES (v_game, v_src, NULL, 'type', v_tok)"), 'E06-7')
+mf6('negativo aceitando qualquer SQLSTATE', s1(E06F,"IF v_state IS NULL OR v_state <> '23514' OR v_con IS DISTINCT FROM 'ck_cecem_raw_field' OR v_tab IS DISTINCT FROM 'card_edition_context_external_mapping' THEN","IF v_state IS NULL THEN"), 'E06-8')
+mf6('negativo sem IF NOT v_got', E06F.replace("        IF NOT v_got THEN","        IF false THEN",1), 'E06-8')
+mf6('constraint trocada (global em vez de scoped)', s1(E06F,"v_con IS DISTINCT FROM 'uq_cecem_active_scoped'","v_con IS DISTINCT FROM 'uq_cecem_active_global'"), 'E06-9')
+mf6('LIKE sobre v_msg', s1(E06F,_p6,"    IF v_msg LIKE 'x%' THEN v_n := 0; END IF;\n"+_p6), 'E06-10')
+mf6('caso 3.3 incluído', s1(E06F,"v_case := '3.6';","v_case := '3.3';"), 'E06-11')
+mf6('H283P duplicado', s1(E06F,_p6,"    RAISE EXCEPTION USING ERRCODE = 'H283P', MESSAGE = 'x';\n"+_p6), 'E06-12')
+mf6('gate de evidência removido', s1(E06F,'IF v_c35_tok IS NULL OR v_c35_ov IS NULL OR v_u37 IS DISTINCT FROM 3 THEN','IF false THEN'), 'E06-12')
+_i1=E06F.index("v_case := '3.1'"); _j=E06F.index('    v_set1 := NULL;\n',_i1)
+mf6('reset de v_set1 removido (3.1)', E06F[:_j]+E06F[_j+len('    v_set1 := NULL;\n'):], 'E06-13')
+mf6('BEGIN sem END', s1(E06F,_p6,'    BEGIN\n'+_p6), 'E06-16')
+mf6('aspas simples sem escape em mensagem', s1(E06F,"'H2830_FAIL: envelope=%s caso=%s aposentadoria de v_m1 afetou","'H2830_FAIL: envelope=%s caso=%s 'v_m1' afetou"), 'E06-16')
+_la6=E06F.index(LT_SET_L); _lb6=E06F.index('    END IF;\n',_la6)+len('    END IF;\n')
+mf6('P8: preâmbulo removido', E06F[:_la6]+E06F[_lb6:], 'E06-20')
+mf6("P8: '10s'", s1(E06F,LT_SET_L,"    SET LOCAL lock_timeout = '10s';\n"), 'E06-20')
+mf6('RC sem STRICT', s1(E06F,'INTO STRICT v_ps','INTO v_ps'), 'E06-21')
+mf6('RC com card_set.code como escopo', s1(E06F,"FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, v_scope) AS r;","FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, 'DP1') AS r;"), 'E06-21')
+mf6('asserção parcial (residual de stamp não conferido)', s1(E06F,"OR v_rsp IS DISTINCT FROM ARRAY[v_marker || '_P1', v_marker || '_P2'] THEN","THEN"), 'E06-21')
+mf6('RC removida (3.4, S3)', E06F.replace("FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, v_set3) AS r;","FROM internal.resolve_variant_row_axes(v_raw, v_game, v_src, v_set1) AS r;",1), 'E06-26')
+mf6('3.7: escopo sem a 2192 (external_set_id direto)', s1(E06F,"        SELECT s.external_set_id INTO STRICT v_scope FROM internal.resolve_variant_mapping_scope(v_cs, v_src) AS s;\n        IF v_scope IS DISTINCT FROM 'swsh9' THEN","        v_scope := 'swsh9';\n        IF v_scope IS DISTINCT FROM 'swsh9' THEN"), 'E06-22')
+mf6('3.7: universo H2 não asserido', s1(E06F,'IF v_u37 <> 3 THEN','IF false THEN'), 'E06-22')
+mf6('3.7: fora de escopo aceitando resolução', s1(E06F,"'RESOLVED_NO_PRINTING' OR v_pp IS NOT NULL OR v_pt IS DISTINCT FROM '{}'::uuid[]\n           OR v_ecs IS DISTINCT FROM 'RESOLVED_NO_EDITION_CONTEXT' OR v_ecp IS NOT NULL OR v_ect IS DISTINCT FROM '{}'::uuid[]\n           OR v_rty IS DISTINCT FROM 'H2830 TIPO' OR v_rfo IS NOT NULL\n           OR v_rst IS NOT NULL OR v_rsp IS DISTINCT FROM ARRAY['SET-LOGO'] THEN\n            RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n                'H2830_FAIL: envelope=%s caso=%s 2211 (SET-LOGO fora de escopo)","'RESOLVED_NO_PRINTING' THEN\n            RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n                'H2830_FAIL: envelope=%s caso=%s 2211 (SET-LOGO fora de escopo)"), 'E06-22')
+mf6("3.7: Set H2 literal em outro caso", s1(E06F,"        v_set2 := v_marker || '_S2';","        v_set2 := 'dp1';"), 'E06-22')
+mf6('3.5: candidato sem filtro de trait ativo', s1(E06F,"           AND NOT EXISTS (SELECT 1 FROM public.card_printing_trait t WHERE t.id = ANY (c.sig) AND NOT t.is_active)\n           AND public.normalize_external_catalog_value(c.normalized_token) = c.normalized_token\n         ORDER BY 5","           AND public.normalize_external_catalog_value(c.normalized_token) = c.normalized_token\n         ORDER BY 5"), 'E06-23')
+mf6('3.5: sem candidato não bloqueia', s1(E06F,'IF v_txt IS NULL OR v_rf IS NULL OR v_prof IS NULL OR v_ov IS NULL THEN','IF false THEN'), 'E06-23')
+mf6('3.5: INSERT em caso RC', s1(E06F,"        v_c35_tok := v_txt;","        INSERT INTO public.card_edition_context_external_mapping_trait (mapping_id, trait_id, game_id)\n        VALUES (v_m1, v_t1, v_game);\n        v_c35_tok := v_txt;"), 'E06-24')
+mf6('3.1: guarda de ausência de Printing removida', E06F.replace("        SELECT count(*) INTO v_n FROM public.card_printing_external_mapping\n         WHERE normalized_token IN (v_tok, v_marker || '_P1', v_marker || '_P2');\n        IF v_n <> 0 THEN","        IF false THEN",1), 'E06-26')
+mf6('3.2: sem controle positivo', E06F.replace("'NEEDS_REVIEW_NO_EC_PROFILE' OR v_ecp IS NOT NULL OR v_ect IS DISTINCT FROM ARRAY[v_t1]","'NEEDS_REVIEW_NO_EC_PROFILE' OR v_ecp IS NOT NULL OR v_ect IS DISTINCT FROM v_ect",1), 'E06-26')
+_o6=E06PF
+def mf6p(label,mut,rule): mf6(label,mut,rule,e06p_rules,_o6)
+mf6p('E06P: gate flexibilizado (>= 3)', _o6.replace('WHERE refs = 1 AND n_scope = 1 AND scope = external_set_id) = 3','WHERE refs = 1 AND n_scope = 1 AND scope = external_set_id) >= 3',1), 'P-3')
+mf6p('E06P: g_37_h2 removido', re.sub(r'\n        \(\(SELECT count\(\*\) FROM sl WHERE is_active\) = 3.*?AS g_37_h2,','',_o6,flags=re.S), 'P-2')
+mf6p('E06P: pino da 2192 ajustado', _o6.replace('21a57ebf7e0d15fc14e576999523cd51','21a57ebf7e0d15fc14e576999523cd52',1), 'P-5')
+mf6p('E06P: pino da 2211 ajustado', _o6.replace('f10af378c2d5d9fdfd207d9c7d9ff046','f10af378c2d5d9fdfd207d9c7d9ff047',1), 'P-5')
+mf6p('E06P: invoca a 2211', _o6.replace("'d_session',","'d_x', (SELECT count(*) FROM internal.resolve_variant_row_axes('{}'::jsonb, NULL, NULL, NULL)),\n        'd_session',",1), 'P-1')
+mf6p('E06P: SET no SELECT', _o6.replace('WITH\ntbl(name)',"SET LOCAL x = 1;\nWITH\ntbl(name)",1), 'P-1')
+mf6p('E06P: gate_pass sem NULL', _o6.replace('WHERE v IS NULL','WHERE false',1), 'P-4')
+mf6p('E06P: tgtype errado', _o6.replace("'card_edition_context_external_mapping_trait', 31,","'card_edition_context_external_mapping_trait', 23,",1), 'P-7')
+mf6p('E06P: candidato 3.5 divergente do E06 (sem profile ativo)', _o6.replace('pp.is_active AND pp.traits_signature = c.sig','pp.traits_signature = c.sig',1), 'P-8')
+mf6p('E06P: H2 com Set a mais', _o6.replace("VALUES ('dp1'), ('swsh9'), ('svp')","VALUES ('dp1'), ('swsh9'), ('svp'), ('base1')",1), 'P-9')
+mf6p('E06P: marcador de Printing ignorado', _o6.replace(" AND marker_printing_mapping = 0",'',1).replace("\n           (SELECT count(*) FROM public.card_printing_external_mapping WHERE strpos(normalized_token, 'H2830') > 0) AS marker_printing_mapping",'',1).replace(' AS marker_mapping,',' AS marker_mapping',1), 'P-11')
+posv6.append(('VERIFICADOR positivo: E06 real passa todas as regras', all(ok for _,ok,_ in e06_rules(E06F)), str([n for n,ok,_ in e06_rules(E06F) if not ok])))
+posv6.append(('VERIFICADOR positivo: E06P real passa todas as regras', all(ok for _,ok,_ in e06p_rules(E06PF)), str([n for n,ok,_ in e06p_rules(E06PF) if not ok])))
+posv6.append(('VERIFICADOR positivo: linhas em branco entre casos não reprovam', all(ok for _,ok,_ in e06_rules(E06F.replace('\n    -- ======','\n\n    -- ======'))), ''))
+posv6.append(('VERIFICADOR positivo: comentário citando DELETE/LIKE/card_set não reprova', all(ok for _,ok,_ in e06_rules(E06F.replace('    -- PREFLIGHT','    -- nota: nunca DELETE, LIKE ou card_set.code\n    -- PREFLIGHT',1))), ''))
+posv6.append(('VERIFICADOR positivo: perfil E05 reprova o E06 (perfis independentes)', not all(ok for _,ok,_ in e05_rules(E06F,dict(SPEC_E05,tag='h2830_e06'))), ''))
+posv6.append(('VERIFICADOR positivo: lt_split reconhece o preâmbulo do E06', lt_split(code(E06F).split('$h2830_e06$')[1])[0], ''))
+for title,lst in [('E06-PERFIL',res6),('E06-VERIFICADOR-NEG',negv6),('E06-VERIFICADOR-POS',posv6)]:
+    bad6=[r for r in lst if not r[1]]
+    for n,ok,d in lst: print(('PASS ' if ok else 'FAIL ')+'['+title+'] '+n+(' '+d if d and not ok else ''))
+    print(f'{title} TOTAL {len(lst)} PASS {len(lst)-len(bad6)} FAIL {len(bad6)}')

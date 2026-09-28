@@ -3,8 +3,8 @@
 | Campo | Valor |
 |---|---|
 | **Documento** | Readiness + registro operacional do lote L3 (lifecycle do cabeçalho do external mapping) para uma FUTURA execução LIVE |
-| **Versão** | 1.0 |
-| **Status** | IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO, NÃO COMPILADO no PostgreSQL. Aguarda auditoria independente e mandato próprio de execução. |
+| **Versão** | 1.2 |
+| **Status** | **CLOSED (v1.2):** parecer independente PASS; 2Q.1–2Q.10 PASS; cobertura vigente 54/135; autorização do E05 esgotada.<br>**EXECUTADO NO LIVE (v1.1)** uma única vez por `BATCH12-2830-P5-L3-LIVE-EXECUTION-01` (HEAD `89736a60`): E05P 14/14, E05 `H283P` `pass=10/10` (`line 1302`), E99 9/9; postcheck ÍNTEGRO; CONFORME proposto; autorização esgotada; auditoria independente pendente (`LIVE-L3-E05-EXECUTION-RECORD.md`).<br>Histórico (v1.0): implementado localmente, não executado, não compilado. |
 | **Mandato** | BATCH12-2830-P5-L2-CLOSEOUT-AND-L3-IMPLEMENTATION-01 (baseline Git `8e13354f`) |
 | **Contrato** | `2830_validate_edition_context_foundation.sql` v7.0, blob `b4647dcb…`, l. 518–537 (inalterado) |
 | **Decisões vigentes** | D-2 = C (AD-2: `elapsed_ms ≤ 60000` operacional), DP-2 = B, DP-3 = C (E00 + precheck do lote), DP-4 = A (preâmbulo P8), DP-5 = B (tier R1) |
@@ -76,3 +76,5 @@ Sem LOOP: superfície estática. Depois de cada um dos 11 UPDATEs a identidade i
 | Versão | Descrição |
 |---|---|
 | 1.0 | **Criação (2026-09-27, `BATCH12-2830-P5-L2-CLOSEOUT-AND-L3-IMPLEMENTATION-01`, baseline `8e13354f`).** Readiness e registro operacional do L3 (E05P + E05, 2Q.1–2Q.10), produzidos junto da implementação local. Nada executado. FREEZE ATIVO. |
+| 1.1 | **Execução LIVE registrada (2026-09-27, `BATCH12-2830-P5-L3-LIVE-EXECUTION-01`, HEAD `89736a60`).** Status atualizado; conteúdo do §1–§6 preservado e confirmado na execução (sequência S0–S7, CONTEXT `line 1302`, superfície R1 transitória, N-3 provado por contagem 122 = 122). Detalhes em `LIVE-L3-E05-EXECUTION-RECORD.md`. |
+| 1.2 | **Fechamento (2026-09-27, `BATCH12-2830-P5-L3-CLOSEOUT-AND-L4-IMPLEMENTATION-01`).** Parecer independente PASS incorporado; L3 CLOSED; cobertura vigente 54/135. |
