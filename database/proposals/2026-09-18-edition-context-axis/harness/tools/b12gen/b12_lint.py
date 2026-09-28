@@ -166,7 +166,8 @@ def lint(name, src, cat):
         ck('L-2', 'IF/END IF pareados', n_if == n_endif, f'{n_if}/{n_endif}')
         ck('L-2', 'BEGIN + CASE = END', n_begin + n_case == n_end, f'{n_begin}+{n_case}/{n_end}')
         decl = re.search(r'\bDECLARE\b(.*?)\bBEGIN\b', body, re.S | re.I).group(1)
-        declared = set(re.findall(r'^\s*([vc]_\w+)\s', decl, re.M))
+        # declaração = início de cada statement do DECLARE (uma por linha ou várias na mesma linha)
+        declared = set(re.findall(r'(?:^|;)\s*([vc]_\w+)\s', decl))
         used = set(re.findall(r'\b([vc]_[a-z0-9_]+)\b', body))
         # colunas de tabela que começam com v_/c_ não existem no escopo usado
         ck('L-3', 'toda variável usada está declarada', used <= declared, str(sorted(used - declared)))
@@ -288,12 +289,104 @@ def lint(name, src, cat):
     return out
 
 
+# ---------------------------------------------------------------------------
+# M — estrutura integral de migration transacional com blocos DO (2234)
+#   M-1  parênteses: cada statement (topo e PL/pgSQL) nunca negativo e fecha em 0
+#   M-2  dollar-quotes pareados; todo DO tem corpo delimitado
+#   M-3  cada corpo DO passa L-1..L-10 (mesmas regras dos envelopes)
+#   M-4  LOOP/END LOOP pareados em cada corpo DO
+#   M-5  RAISE: nº de % no molde = nº de argumentos
+#   M-6  topo: BEGIN; primeiro, COMMIT; último, exatamente um de cada
+# (motivo: 2234 v1.1, blob c3a8cbce, falhou no LIVE com 42601 por um ')'
+#  excedente no DO $post$ — incidente BATCH12-2234-LIVE-01)
+# ---------------------------------------------------------------------------
+def strip_block_comments(t):
+    out, i, n = [], 0, len(t)
+    while i < n:
+        if t.startswith('/*', i):
+            j = t.find('*/', i + 2)
+            i = n if j < 0 else j + 2
+            continue
+        if t[i] == "'":
+            j = i + 1
+            while j < n:
+                if t[j] == "'" and (j + 1 >= n or t[j + 1] != "'"):
+                    break
+                j += 2 if t[j] == "'" else 1
+            out.append(t[i:j + 1]); i = j + 1
+            continue
+        if t.startswith('--', i):
+            j = t.find('\n', i)
+            j = n if j < 0 else j
+            out.append(t[i:j]); i = j
+            continue
+        out.append(t[i]); i += 1
+    return ''.join(out)
+
+
+def _stmt_balance(text):
+    """[(índice, saldo_final, mínimo)] por statement separado por ';' (texto sem literais)"""
+    res = []
+    for k, st in enumerate(text.split(';')):
+        d, lo = 0, 0
+        for ch in st:
+            d += ch == '('; d -= ch == ')'
+            lo = min(lo, d)
+        res.append((k, d, lo, ' '.join(st.split())[:70]))
+    return res
+
+
+def lint_migration(name, src, cat):
+    out = []
+    ck = lambda r, n, ok, d='': out.append((f'{name} {r}: {n}', bool(ok), d))
+    t = strip_comments(strip_block_comments(src.replace('\r\n', '\n')))
+    tags = re.findall(r'\$(\w*)\$', t)
+    blocks = list(re.finditer(r'\bDO\s+\$(\w*)\$(.*?)\$\1\$\s*;', t, re.S))
+    ck('M-2', 'dollar-quotes pareados e todo DO delimitado',
+       len(tags) % 2 == 0 and len(tags) == 2 * len(blocks) and len(blocks) == len(re.findall(r'\bDO\s+\$', t)),
+       f'tags={len(tags)} blocos={len(blocks)}')
+    top = nolit(re.sub(r'\bDO\s+\$(\w*)\$.*?\$\1\$', 'DO', t, flags=re.S))
+    bad = [(k, d, lo, s) for k, d, lo, s in _stmt_balance(top) if d or lo < 0]
+    ck('M-1', 'parênteses por statement de topo', not bad, str(bad[:2]))
+    stmts = [' '.join(s.split()) for s in top.split(';') if s.strip()]
+    ck('M-6', 'BEGIN; primeiro, COMMIT; último, um de cada',
+       stmts[:1] == ['BEGIN'] and stmts[-1:] == ['COMMIT'] and stmts.count('BEGIN') == 1 and stmts.count('COMMIT') == 1,
+       str(stmts[:1] + stmts[-1:]))
+    for b in blocks:
+        tag, body = b.group(1), b.group(2)
+        nb = nolit(body)
+        bad = [(k, d, lo, s) for k, d, lo, s in _stmt_balance(nb) if d or lo < 0]
+        ck('M-1', f'parênteses por statement PL/pgSQL em DO ${tag}$', not bad, str(bad[:2]))
+        U = nb.upper()
+        n_loop = len(re.findall(r'(?<!END)\s+LOOP\b', U)) + len(re.findall(r'^LOOP\b', U))
+        n_endloop = len(re.findall(r'\bEND\s+LOOP\b', U))
+        ck('M-4', f'LOOP/END LOOP pareados em DO ${tag}$', n_loop == n_endloop, f'{n_loop}/{n_endloop}')
+        badr = []
+        for m in re.finditer(r"\bRAISE\s+(?:EXCEPTION|NOTICE|WARNING)\s+('(?:[^']|'')*')(.*?);", body, re.S | re.I):
+            n_ph = len(re.findall(r'%', m.group(1).replace('%%', '')))
+            rest = m.group(2).strip()
+            n_arg = len(split_top(rest[1:])) if rest.startswith(',') else 0
+            if n_ph != n_arg:
+                badr.append(f'{n_ph}≠{n_arg}: {m.group(1)[:50]}')
+        ck('M-5', f'RAISE: marcadores = argumentos em DO ${tag}$', not badr, str(badr[:2]))
+        t2 = tag or 'do'
+        lb = body if re.search(r'\bDECLARE\b', body, re.I) else 'DECLARE\n' + body
+        for n, ok, d in lint(f'DO ${t2}$', f'DO ${t2}$' + lb + f'${t2}$;', cat):
+            ck('M-3', n, ok, d)
+    return out
+
+
+MIGRATIONS = ['2234_harden_search_path_edition_context_write_surface.sql']
+
+
 def run():
     cat = build_catalog()
     targets = sorted(H.glob('2830H_E0[3-9]*.sql')) + sorted(H.glob('2830H_E1[0-5]*.sql')) + [H / '2830H_E98_postcheck_extended_residue.sql']
     res = []
     for f in targets:
         res += lint(f.name, f.read_text(encoding='utf-8'), cat)
+    for m in MIGRATIONS:
+        res += lint_migration(m[:4], (EC / m).read_text(encoding='utf-8'), cat)
     return res, cat
 
 

@@ -22,13 +22,13 @@
 | E14 | L12 | `2830H_E14_section_g_guard_2214.sql` | 8 | 741 | `28bc469d…` |
 | E15 | L13 | `2830H_E15_section5_legacy_hold.sql` | 5 | 395 | `6db3d4a7…` |
 | E07P–E14P, E15P, E98, P9A, P9B | — | prechecks, medição A4, resíduo estendido, plano, tempo (isolado) | — | — | manifesto |
-| 2234 | D-P7X | `../2234_harden_search_path_edition_context_write_surface.sql` (PROPOSTA v1.1, não executada) | — | — | `a44486c5…` |
+| 2234 | D-P7X | `../2234_harden_search_path_edition_context_write_surface.sql` (PROPOSTA v1.1 + CORRECTION-01, não aplicada; 1ª submissão LIVE abortada, §10) | — | — | `991d77fd…` |
 
 ## 2. Validação
 
 | Classe | Resultado |
 |---|---|
-| **Automática** | `python3 tools/static_check.py` rc = 0. Blocos anteriores idênticos (444; E03 88/79/6; E04 65/94/7; E05 58/54/6; E06 64/54/6). **B12-PERFIL 520/520 · B12-VERIFICADOR-NEG 48/48 · B12-VERIFICADOR-POS 16/16** (inclui o lint; +R-27/R-28 e 6 mutações dos gates finais). |
+| **Automática** | `python3 tools/static_check.py` rc = 0. Blocos anteriores idênticos (444; E03 88/79/6; E04 65/94/7; E05 58/54/6; E06 64/54/6). **B12-PERFIL 552/552 · B12-VERIFICADOR-NEG 52/52 · B12-VERIFICADOR-POS 21/21** (inclui o lint; +R-27/R-28 e 6 mutações dos gates finais; +lint de migration da 2234 — R-30, 31 regras M/L, 4 mutações e 5 controles positivos 2212/2230–2233 executadas no LIVE). |
 | **Lint (substituto declarado de compilação)** | L-1 parênteses · L-2 BEGIN/END, IF/END IF, CASE · L-3 variáveis declaradas · L-4 `format()` marcadores = argumentos · L-5 `SELECT … INTO` expressões = alvos · L-6 `jsonb_build_object` par e ≤ 100 · L-7 relações · L-8 colunas (alias, INSERT, UPDATE) · L-9 funções e aridade · L-10 constraints/índices/triggers, contra o DDL do repositório. Calibrado: E03, E04, E05, E06 e E06P — compilados e executados no LIVE — passam em todas as regras; 10 mutações (uma por regra) são rejeitadas. **Não substitui compilação**: tipos de expressão, resolução de sobrecarga e semântica de planner não são verificados. |
 | **Por inspeção** | semântica caso a caso contra 2830 v7.0, 2832 v3.1, 2833 v2.0, 2214 v3.1, 2218, 2211, 2176, 2831; tipos das UNIONs de controle (VREC/SMREC/V8/V11); INTO no fim de `WITH … SELECT` (aceito pelo PL/pgSQL: primeiro INTO de nível superior). |
 | **Pendente** | compilação/execução PostgreSQL; P9A (forma do plano); P9B (tempo, ambiente isolado); medição A4 (E15P). |
@@ -88,3 +88,5 @@ S0 HEAD + `static_check` rc = 0 · S1 L1 · S2 L3 · S3 E00 24/24 · S4 precheck
 ## 10. Incidente de processo (registrado)
 
 Na rodada INTEGRATED COMPLETION foi executado `git add -N` (intent-to-add) e revertido na hora com `git reset -q` (índice = HEAD). Nenhum commit ou push.
+
+**Incidente BATCH12-2234-LIVE-01 (2026-09-28).** A 2234 v1.1 publicada (blob `c3a8cbce…`) foi submetida uma vez ao LIVE (`apply_migration`, HEAD `696caed2`) após L1/L3/E00/ledger/V0 conformes e falhou com `42601 syntax error at or near ")"` no `DO $post$`: um `)` excedente no `SELECT concat_ws('#', …) INTO v_dep`. Transação abortada integralmente: V1/V2 = V0 (4 funções com proconfig original, 51 triggers), ledger sem 2234; efeitos não transacionais: XID, WAL e ERROR no log. Causa de não detecção: R-26/R-27 só conferiam presença de trechos e o lint não cobria migrations. **CORRECTION-01:** removido só esse `)` (blob `447d9996…`); `b12_lint.lint_migration` (M-1 parênteses por statement de topo e PL/pgSQL, M-2 dollar-quotes, M-3 L-1..L-10 por bloco DO, M-4 LOOP, M-5 RAISE, M-6 BEGIN/COMMIT) + R-30; mutação que reintroduz o `)` = artefato anterior byte a byte ⇒ rejeitada (M-1); L-3 passou a reconhecer declarações na mesma linha do DECLARE. Nova execução exige nova autorização.

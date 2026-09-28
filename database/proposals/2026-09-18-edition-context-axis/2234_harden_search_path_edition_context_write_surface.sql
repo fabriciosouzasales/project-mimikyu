@@ -213,7 +213,7 @@ BEGIN
                  AND d.refobjid IN (to_regprocedure('public.set_updated_at()'),
                                     to_regprocedure('public.validate_card_variant_game_consistency()'),
                                     to_regprocedure('public.normalize_catalog_variant_import_job()'),
-                                    to_regprocedure('public.normalize_catalog_variant_import_row()')))))
+                                    to_regprocedure('public.normalize_catalog_variant_import_row()'))))
       INTO v_dep;
     IF v_fn IS DISTINCT FROM current_setting('mmkyu.p2234_fn', true) THEN
         RAISE EXCEPTION '2234_POSTCONDITION: metadados das funções mudaram além de proconfig';

@@ -344,6 +344,8 @@ def run():
                                           'public.normalize_catalog_variant_import_job()', 'public.normalize_catalog_variant_import_row()'])
                 and all(pin in q2234 for fn, pin in pins if fn.startswith('public.'))
                 and code(q2234).count('BEGIN;') == 1 and code(q2234).count('COMMIT;') == 1 and 'PROPOSTA — NÃO EXECUTADA' in q2234, str(alters)))
+    res.append(('B12 R-30: 2234 — estrutura SQL integral verificada (lint_migration: M-1..M-6 e L-1..L-10 por bloco DO)',
+                all(ok for _, ok, _ in b12_lint.lint_migration('2234', q2234, b12_lint.build_catalog())), ''))
     res.append(('B12 R-27: 2234 prova alcance de set_updated_at (updated_at TIMESTAMPTZ em todo trigger) e preserva metadados/triggers/pg_depend',
                 r27_ok(q2234), ''))
     # 9. lint estrutural (substituto declarado de compilação)
@@ -437,6 +439,18 @@ def run():
     neg.append(('VERIFICADOR rejeita: impressão digital de A adulterada (nomeado 51 → 50) [R-28]',
                 not fp_map_ok([(c, n - 1 if i == 0 else n) for i, (c, n) in enumerate(l13.MAP_NAMED)], l13.MAP_FP), ''))
 
+    # 2234 — estrutura integral (lint_migration); incidente BATCH12-2234-LIVE-01
+    fixed_tail = "normalize_catalog_variant_import_row()'))))\n      INTO v_dep;"
+    def mm(label, mutated, rule):
+        failed = [n for n, ok, _ in b12_lint.lint_migration('2234', mutated, cat) if not ok]
+        neg.append((f'VERIFICADOR rejeita (2234): {label} [{rule}]', mutated != q2234 and any(f' {rule}:' in n for n in failed), str(failed[:2])))
+    mm("v1.1 publicada (blob c3a8cbce): ')' excedente no SELECT concat_ws do DO $post$ (42601 no LIVE)",
+       q2234.replace(fixed_tail, "normalize_catalog_variant_import_row()')))))\n      INTO v_dep;", 1), 'M-1')
+    mm("')' faltante no set_config do DO $pre$",
+       q2234.replace("normalize_catalog_variant_import_row()'))))), true);", "normalize_catalog_variant_import_row()')))), true);", 1), 'M-1')
+    mm('dollar-quote desemparelhado ($post$ → $pst$)', q2234.replace('$post$;', '$pst$;', 1), 'M-2')
+    mm('RAISE com marcador a mais', q2234.replace("'2234_POSTCONDITION: % de 4 funções", "'2234_POSTCONDITION: % % de 4 funções", 1), 'M-5')
+
     # -------------------------------------------------------------------
     # VERIFICADOR-POS
     # -------------------------------------------------------------------
@@ -451,6 +465,12 @@ def run():
               '2830H_E06_section3_routing_fail_closed.sql', '2830H_E06P_precheck_section3.sql']:
         r = b12_lint.lint(f, (H / f).read_text(encoding='utf-8'), cat)
         pos.append((f'VERIFICADOR positivo (lint): {f} (compilado e executado no LIVE) passa todas as regras', all(ok for _, ok, _ in r),
+                    str([n for n, ok, _ in r if not ok])))
+    for f in ['2212_backfill_staging_edition_context_key.sql', '2230_seed_edition_context_traits.sql',
+              '2231_seed_edition_context_profiles.sql', '2232_seed_edition_context_external_mappings.sql',
+              '2233_repair_staging_edition_context_scope_resolution.sql']:
+        r = b12_lint.lint_migration(f[:4], (H.parent / f).read_text(encoding='utf-8'), cat)
+        pos.append((f'VERIFICADOR positivo (lint de migration): {f} (executada no LIVE) passa M-1..M-6 e L-1..L-10', all(ok for _, ok, _ in r),
                     str([n for n, ok, _ in r if not ok])))
     return res, neg, pos
 
