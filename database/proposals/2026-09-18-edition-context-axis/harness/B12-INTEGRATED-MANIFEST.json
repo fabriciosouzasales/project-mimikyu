@@ -177,7 +177,7 @@
       "lot": "L13",
       "file": "2830H_E15_section5_legacy_hold.sql",
       "kind": "envelope",
-      "context_line": 395,
+      "context_line": 473,
       "cases": [
         "5.1",
         "5.2",
@@ -186,8 +186,8 @@
         "5.7"
       ],
       "n": 5,
-      "md5": "6db3d4a7f488e83cd812c89e1a6bab04",
-      "bytes": 28974
+      "md5": "55521eaffa5eab2695e20494c6bcbd25",
+      "bytes": 35378
     },
     {
       "id": "E07P",
@@ -250,8 +250,8 @@
       "lot": "L13",
       "file": "2830H_E15P_measure_section5.sql",
       "kind": "precheck",
-      "md5": "152b5354885c3304d3ca5c8c86ae7a66",
-      "bytes": 18976
+      "md5": "f9fc6d81cd2c6272a04079368a46a49d",
+      "bytes": 25601
     },
     {
       "id": "E98",
@@ -266,16 +266,16 @@
       "lot": "L10/L11/L13",
       "file": "2830H_P9A_heavy_sections_explain.sql",
       "kind": "explain",
-      "md5": "ac6811c08d943980a13a38065b7df079",
-      "bytes": 27280
+      "md5": "1d5a6a90f21f6cc6c93a5d21f9d84b8c",
+      "bytes": 32301
     },
     {
       "id": "P9B",
       "lot": "L10/L11/L13",
       "file": "2830H_P9B_isolated_timing.sql",
       "kind": "timing-isolated",
-      "md5": "6df4f0cd18daee39b67ea27e996121f5",
-      "bytes": 28484
+      "md5": "f2ac7ff49decd9812b4eae177e73e768",
+      "bytes": 33505
     }
   ]
 }

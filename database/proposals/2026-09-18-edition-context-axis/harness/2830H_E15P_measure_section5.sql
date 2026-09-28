@@ -4,7 +4,8 @@
 -- Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO.
 -- Função ........ instrumento de ADJUDICAÇÃO do B-5X: mede, com o bloco DERIV-5X
 --                 idêntico ao E15, HOLD, lineage e as duas leituras de
---                 READY_STRUCTURAL (C0 predicado 2841, C1 literal-2831, C2 semântica)
+--                 READY_STRUCTURAL (C0 predicado 2841, C1 literal-2831, C2 semântica,
+--                 C3 seletor histórico de 2026-09-19 — STOP-7; não adjudicado)
 --                 contra a impressão digital MIGRATION-MAP-365 de A (63 tipos) e a
 --                 composição por tipo. gate_pass só é true com READY adjudicado
 --                 (g_5x_ready_adjudicated) e constantes medidas = contrato.
@@ -63,6 +64,36 @@ d5_map(code, n) AS (
            ('STANDARDS_HORIZONS', 3),
            ('GYM_CHALLENGE_HOLO', 3)
 ),
+d5_finish(code) AS (
+    VALUES ('STANDARD'),
+           ('HOLO'),
+           ('COSMOS_HOLO'),
+           ('REVERSE_HOLO'),
+           ('ENERGY_REVERSE'),
+           ('POKE_BALL_REVERSE'),
+           ('LOVE_BALL_REVERSE'),
+           ('FRIEND_BALL_REVERSE'),
+           ('QUICK_BALL_REVERSE'),
+           ('DUSK_BALL_REVERSE'),
+           ('ROCKET_REVERSE'),
+           ('MASTER_BALL_REVERSE'),
+           ('GOLD_HOLO'),
+           ('TINSEL_HOLO'),
+           ('TINSEL_REVERSE'),
+           ('CRACKED_ICE_HOLO'),
+           ('GALAXY_HOLO'),
+           ('RAINBOW_HOLO'),
+           ('METAL'),
+           ('METAL_GOLD'),
+           ('LENTICULAR'),
+           ('COSMOS_REVERSE'),
+           ('MASTER_BALL_PATTERN'),
+           ('POKE_BALL_PATTERN'),
+           ('MASTER_BALL_HOLO'),
+           ('SNOWFLAKE_COSMOS_HOLO'),
+           ('STANDARDS_SNOWFLAKE'),
+           ('SHOWFLAKE_HOLO')
+),
 d5_c0 AS (
     SELECT cv.id, cv.variant_type_id, c.card_set_id
       FROM public.card_variant cv
@@ -89,6 +120,17 @@ d5_c2 AS (
      WHERE (jsonb_exists(e.raw_data, 'subtype') OR jsonb_exists(e.raw_data, 'stamp'))
        AND ax.edition_context_state = 'RESOLVED_WITH_EC_PROFILE'
 ),
+d5_c3 AS (
+    SELECT cv.id, cv.variant_type_id, c.card_set_id
+      FROM public.card_variant cv
+      JOIN public.card_variant_type vt ON vt.id = cv.variant_type_id
+      JOIN public.card c  ON c.id  = cv.card_id
+      JOIN public.card_set cs ON cs.id = c.card_set_id
+     WHERE vt.code NOT IN (SELECT code FROM d5_finish)
+       AND NOT (vt.code LIKE 'SET_LOGO%' AND cs.code ~ '^EX(7|8|9|10|11|12|13|14|15|16)$')
+       AND NOT (vt.code LIKE 'SET_LOGO%' AND cs.code NOT IN ('DP1','SWSH9','SVP'))
+       AND vt.code <> 'PROMO_STAMPED'
+),
 d5_c0_bt AS (
     SELECT vt.code, count(*) AS n FROM d5_c0 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id GROUP BY vt.code
 ),
@@ -98,8 +140,12 @@ d5_c1_bt AS (
 d5_c2_bt AS (
     SELECT vt.code, count(*) AS n FROM d5_c2 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id GROUP BY vt.code
 ),
+d5_c3_bt AS (
+    SELECT vt.code, count(*) AS n FROM d5_c3 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id GROUP BY vt.code
+),
 d5_m AS (
     SELECT (SELECT count(*) FROM d5_hold) AS hold,
+           (SELECT count(*) FROM (SELECT vt.code FROM public.card_variant_type vt GROUP BY vt.code HAVING count(*) > 1) z) AS type_code_dup,
            (SELECT count(*) FROM d5_ev) AS lineage_not_hold,
            (SELECT count(*) FROM d5_c0) AS c0_structural,
            (SELECT count(*) FROM d5_c0 s WHERE s.id NOT IN (SELECT id FROM d5_pricing)) AS c0_unconditioned,
@@ -117,6 +163,7 @@ d5_m AS (
            (SELECT count(*) FROM d5_c0_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c0_fp_worlds_types,
            (SELECT COALESCE(sum(n), 0) FROM d5_c0_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c0_fp_worlds_n,
            (SELECT count(*) FROM d5_c0_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c0_fp_single_types,
+           (SELECT COALESCE(sum(n), 0) FROM d5_c0_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c0_fp_single_n,
            (SELECT count(*) FROM d5_c0_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)' AND b.n <> 1) AS c0_fp_single_non1,
            (SELECT count(*) FROM d5_c0 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
               JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_REVERSE' AND cs.code = 'SVP') AS c0_fp_slr_svp,
@@ -140,6 +187,7 @@ d5_m AS (
            (SELECT count(*) FROM d5_c1_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c1_fp_worlds_types,
            (SELECT COALESCE(sum(n), 0) FROM d5_c1_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c1_fp_worlds_n,
            (SELECT count(*) FROM d5_c1_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c1_fp_single_types,
+           (SELECT COALESCE(sum(n), 0) FROM d5_c1_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c1_fp_single_n,
            (SELECT count(*) FROM d5_c1_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)' AND b.n <> 1) AS c1_fp_single_non1,
            (SELECT count(*) FROM d5_c1 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
               JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_REVERSE' AND cs.code = 'SVP') AS c1_fp_slr_svp,
@@ -163,6 +211,7 @@ d5_m AS (
            (SELECT count(*) FROM d5_c2_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c2_fp_worlds_types,
            (SELECT COALESCE(sum(n), 0) FROM d5_c2_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c2_fp_worlds_n,
            (SELECT count(*) FROM d5_c2_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c2_fp_single_types,
+           (SELECT COALESCE(sum(n), 0) FROM d5_c2_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c2_fp_single_n,
            (SELECT count(*) FROM d5_c2_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)' AND b.n <> 1) AS c2_fp_single_non1,
            (SELECT count(*) FROM d5_c2 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
               JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_REVERSE' AND cs.code = 'SVP') AS c2_fp_slr_svp,
@@ -170,15 +219,40 @@ d5_m AS (
               JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_REVERSE' AND cs.code = 'DP1') AS c2_fp_slr_dp1,
            (SELECT count(*) FROM d5_c2 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
               JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_STANDARDS' AND cs.code = 'DP1') AS c2_fp_sls_dp1,
+           (SELECT count(*) FROM d5_c3) AS c3_structural,
+           (SELECT count(*) FROM d5_c3 s WHERE s.id NOT IN (SELECT id FROM d5_pricing)) AS c3_unconditioned,
+           (SELECT count(*) FROM d5_c3 s WHERE s.id IN (SELECT id FROM d5_pricing)) AS c3_conditioned,
+           (SELECT count(*) FROM d5_c3 s WHERE s.id NOT IN (SELECT id FROM d5_pricing) AND s.id IN (SELECT id FROM d5_hold)) AS c3_plan_x_hold,
+           (SELECT count(*) FROM d5_c3 s WHERE s.id NOT IN (SELECT id FROM d5_pricing) AND s.id IN (SELECT id FROM d5_pricing)) AS c3_plan_x_pricing,
+           (SELECT count(*) FROM d5_c3 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
+             WHERE s.id IN (SELECT id FROM d5_pricing) AND vt.code = 'STAFF_HOLO') AS c3_cond_staff_holo,
+           (SELECT count(*) FROM d5_c3 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
+             WHERE s.id IN (SELECT id FROM d5_pricing) AND vt.code = 'SET_LOGO_REVERSE') AS c3_cond_set_logo_reverse,
+           (SELECT count(*) FROM d5_c3 s WHERE s.id IN (SELECT id FROM d5_pscid)) AS c3_cond_by_pscid,
+           (SELECT count(*) FROM d5_c3 s WHERE s.id IN (SELECT id FROM d5_psvm)) AS c3_cond_by_psvm,
+           (SELECT count(*) FROM d5_c3_bt) AS c3_fp_n_types,
+           (SELECT count(*) FROM d5_map m LEFT JOIN d5_c3_bt b ON b.code = m.code WHERE COALESCE(b.n, 0) <> m.n) AS c3_fp_named_bad,
+           (SELECT count(*) FROM d5_c3_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c3_fp_worlds_types,
+           (SELECT COALESCE(sum(n), 0) FROM d5_c3_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS c3_fp_worlds_n,
+           (SELECT count(*) FROM d5_c3_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c3_fp_single_types,
+           (SELECT COALESCE(sum(n), 0) FROM d5_c3_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS c3_fp_single_n,
+           (SELECT count(*) FROM d5_c3_bt b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)' AND b.n <> 1) AS c3_fp_single_non1,
+           (SELECT count(*) FROM d5_c3 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
+              JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_REVERSE' AND cs.code = 'SVP') AS c3_fp_slr_svp,
+           (SELECT count(*) FROM d5_c3 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
+              JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_REVERSE' AND cs.code = 'DP1') AS c3_fp_slr_dp1,
+           (SELECT count(*) FROM d5_c3 s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
+              JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_STANDARDS' AND cs.code = 'DP1') AS c3_fp_sls_dp1,
            (SELECT count(*) FROM public.catalog_variant_import_row WHERE resulting_variant_id IS NOT NULL) AS lineage_resulting,
            (SELECT count(*) FROM public.catalog_variant_import_row WHERE matched_variant_id IS NOT NULL) AS lineage_matched
 ),
 d5_scope AS (
-    SELECT e.card_set_id, count(sc.*) AS n
-      FROM d5_ev e
+    SELECT s.card_set_id,
+           (SELECT count(*) FROM public.card_set_external_reference r
+             WHERE r.card_set_id = s.card_set_id AND r.asset_source_id = gs.src_id AND r.is_active) AS n_active,
+           (SELECT count(*) FROM internal.resolve_variant_mapping_scope(s.card_set_id, gs.src_id)) AS n_fn
+      FROM (SELECT DISTINCT e.card_set_id FROM d5_ev e) s
       CROSS JOIN gs
-      LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(e.card_set_id, gs.src_id) sc ON true
-     GROUP BY e.card_set_id
 ),
 gates AS (
     SELECT
@@ -188,9 +262,10 @@ gates AS (
         (SELECT m.hold = 107
              AND m.lineage_resulting = 23955
              AND m.lineage_matched = 1129 FROM d5_m m)                                                   AS g_5x_constants_measured,
-        (SELECT (CASE WHEN (m.c0_fp_named_bad = 0 AND m.c0_fp_n_types = 63 AND m.c0_fp_worlds_types = 16 AND m.c0_fp_worlds_n = 21 AND m.c0_fp_single_types = 24 AND m.c0_fp_single_non1 = 0 AND m.c0_fp_slr_svp = 38 AND m.c0_fp_slr_dp1 = 2 AND m.c0_fp_sls_dp1 = 4) AND m.c0_structural = 365 AND m.c0_unconditioned = 285 AND m.c0_conditioned = 80 AND m.c0_cond_staff_holo = 40 AND m.c0_cond_set_logo_reverse = 40 AND m.c0_plan_x_hold = 0 AND m.c0_plan_x_pricing = 0 THEN 1 ELSE 0 END) + (CASE WHEN (m.c1_fp_named_bad = 0 AND m.c1_fp_n_types = 63 AND m.c1_fp_worlds_types = 16 AND m.c1_fp_worlds_n = 21 AND m.c1_fp_single_types = 24 AND m.c1_fp_single_non1 = 0 AND m.c1_fp_slr_svp = 38 AND m.c1_fp_slr_dp1 = 2 AND m.c1_fp_sls_dp1 = 4) AND m.c1_structural = 365 AND m.c1_unconditioned = 285 AND m.c1_conditioned = 80 AND m.c1_cond_staff_holo = 40 AND m.c1_cond_set_logo_reverse = 40 AND m.c1_plan_x_hold = 0 AND m.c1_plan_x_pricing = 0 THEN 1 ELSE 0 END) + (CASE WHEN (m.c2_fp_named_bad = 0 AND m.c2_fp_n_types = 63 AND m.c2_fp_worlds_types = 16 AND m.c2_fp_worlds_n = 21 AND m.c2_fp_single_types = 24 AND m.c2_fp_single_non1 = 0 AND m.c2_fp_slr_svp = 38 AND m.c2_fp_slr_dp1 = 2 AND m.c2_fp_sls_dp1 = 4) AND m.c2_structural = 365 AND m.c2_unconditioned = 285 AND m.c2_conditioned = 80 AND m.c2_cond_staff_holo = 40 AND m.c2_cond_set_logo_reverse = 40 AND m.c2_plan_x_hold = 0 AND m.c2_plan_x_pricing = 0 THEN 1 ELSE 0 END) FROM d5_m m) = 1                                                  AS g_5x_unique_candidate_equals_a,
+        (SELECT (CASE WHEN (m.c0_fp_named_bad = 0 AND m.c0_fp_n_types = 63 AND m.c0_fp_worlds_types = 21 AND m.c0_fp_worlds_n = 21 AND m.c0_fp_single_types = 19 AND m.c0_fp_single_n = 24 AND m.c0_fp_single_non1 = 5 AND m.c0_fp_slr_svp = 38 AND m.c0_fp_slr_dp1 = 2 AND m.c0_fp_sls_dp1 = 4) AND m.c0_structural = 365 AND m.c0_unconditioned = 285 AND m.c0_conditioned = 80 AND m.c0_cond_staff_holo = 40 AND m.c0_cond_set_logo_reverse = 40 AND m.c0_plan_x_hold = 0 AND m.c0_plan_x_pricing = 0 THEN 1 ELSE 0 END) + (CASE WHEN (m.c1_fp_named_bad = 0 AND m.c1_fp_n_types = 63 AND m.c1_fp_worlds_types = 21 AND m.c1_fp_worlds_n = 21 AND m.c1_fp_single_types = 19 AND m.c1_fp_single_n = 24 AND m.c1_fp_single_non1 = 5 AND m.c1_fp_slr_svp = 38 AND m.c1_fp_slr_dp1 = 2 AND m.c1_fp_sls_dp1 = 4) AND m.c1_structural = 365 AND m.c1_unconditioned = 285 AND m.c1_conditioned = 80 AND m.c1_cond_staff_holo = 40 AND m.c1_cond_set_logo_reverse = 40 AND m.c1_plan_x_hold = 0 AND m.c1_plan_x_pricing = 0 THEN 1 ELSE 0 END) + (CASE WHEN (m.c2_fp_named_bad = 0 AND m.c2_fp_n_types = 63 AND m.c2_fp_worlds_types = 21 AND m.c2_fp_worlds_n = 21 AND m.c2_fp_single_types = 19 AND m.c2_fp_single_n = 24 AND m.c2_fp_single_non1 = 5 AND m.c2_fp_slr_svp = 38 AND m.c2_fp_slr_dp1 = 2 AND m.c2_fp_sls_dp1 = 4) AND m.c2_structural = 365 AND m.c2_unconditioned = 285 AND m.c2_conditioned = 80 AND m.c2_cond_staff_holo = 40 AND m.c2_cond_set_logo_reverse = 40 AND m.c2_plan_x_hold = 0 AND m.c2_plan_x_pricing = 0 THEN 1 ELSE 0 END) + (CASE WHEN (m.c3_fp_named_bad = 0 AND m.c3_fp_n_types = 63 AND m.c3_fp_worlds_types = 21 AND m.c3_fp_worlds_n = 21 AND m.c3_fp_single_types = 19 AND m.c3_fp_single_n = 24 AND m.c3_fp_single_non1 = 5 AND m.c3_fp_slr_svp = 38 AND m.c3_fp_slr_dp1 = 2 AND m.c3_fp_sls_dp1 = 4) AND m.c3_structural = 365 AND m.c3_unconditioned = 285 AND m.c3_conditioned = 80 AND m.c3_cond_staff_holo = 40 AND m.c3_cond_set_logo_reverse = 40 AND m.c3_plan_x_hold = 0 AND m.c3_plan_x_pricing = 0 THEN 1 ELSE 0 END) FROM d5_m m) = 1                                                  AS g_5x_unique_candidate_equals_a,
         false           AS g_5x_adjudicated_candidate_ok,
-        (SELECT COALESCE(max(n), 0) <= 1 FROM d5_scope)                                 AS g_scope_unique,
+        (SELECT bool_and(n_active <= 1 AND n_fn = n_active) FROM d5_scope)              AS g_scope_unique,
+        (SELECT m.type_code_dup = 0 FROM d5_m m)                                        AS g_5x_type_code_unique,
         (to_regclass('public.pricing_source_card_identity') IS NOT NULL
          AND to_regclass('public.pricing_source_variant_mapping') IS NOT NULL)          AS g_pricing_tables
 )
@@ -201,8 +276,9 @@ SELECT to_jsonb(g)
         'd_5x_measured',    (SELECT to_jsonb(m) FROM d5_m m),
         'd_5x_expected',    jsonb_build_object('hold', 107, 'structural', 365, 'unconditioned', 285, 'conditioned', 80, 'staff', 40, 'slr', 40, 'resulting', 23955, 'matched', 1129),
         'd_5x_ready_def',   NULL::text,
-        'd_5x_candidate_ok', (SELECT jsonb_build_object('c0', ((m.c0_fp_named_bad = 0 AND m.c0_fp_n_types = 63 AND m.c0_fp_worlds_types = 16 AND m.c0_fp_worlds_n = 21 AND m.c0_fp_single_types = 24 AND m.c0_fp_single_non1 = 0 AND m.c0_fp_slr_svp = 38 AND m.c0_fp_slr_dp1 = 2 AND m.c0_fp_sls_dp1 = 4) AND m.c0_structural = 365 AND m.c0_unconditioned = 285 AND m.c0_conditioned = 80 AND m.c0_cond_staff_holo = 40 AND m.c0_cond_set_logo_reverse = 40 AND m.c0_plan_x_hold = 0 AND m.c0_plan_x_pricing = 0), 'c1', ((m.c1_fp_named_bad = 0 AND m.c1_fp_n_types = 63 AND m.c1_fp_worlds_types = 16 AND m.c1_fp_worlds_n = 21 AND m.c1_fp_single_types = 24 AND m.c1_fp_single_non1 = 0 AND m.c1_fp_slr_svp = 38 AND m.c1_fp_slr_dp1 = 2 AND m.c1_fp_sls_dp1 = 4) AND m.c1_structural = 365 AND m.c1_unconditioned = 285 AND m.c1_conditioned = 80 AND m.c1_cond_staff_holo = 40 AND m.c1_cond_set_logo_reverse = 40 AND m.c1_plan_x_hold = 0 AND m.c1_plan_x_pricing = 0), 'c2', ((m.c2_fp_named_bad = 0 AND m.c2_fp_n_types = 63 AND m.c2_fp_worlds_types = 16 AND m.c2_fp_worlds_n = 21 AND m.c2_fp_single_types = 24 AND m.c2_fp_single_non1 = 0 AND m.c2_fp_slr_svp = 38 AND m.c2_fp_slr_dp1 = 2 AND m.c2_fp_sls_dp1 = 4) AND m.c2_structural = 365 AND m.c2_unconditioned = 285 AND m.c2_conditioned = 80 AND m.c2_cond_staff_holo = 40 AND m.c2_cond_set_logo_reverse = 40 AND m.c2_plan_x_hold = 0 AND m.c2_plan_x_pricing = 0)) FROM d5_m m),
+        'd_5x_candidate_ok', (SELECT jsonb_build_object('c0', ((m.c0_fp_named_bad = 0 AND m.c0_fp_n_types = 63 AND m.c0_fp_worlds_types = 21 AND m.c0_fp_worlds_n = 21 AND m.c0_fp_single_types = 19 AND m.c0_fp_single_n = 24 AND m.c0_fp_single_non1 = 5 AND m.c0_fp_slr_svp = 38 AND m.c0_fp_slr_dp1 = 2 AND m.c0_fp_sls_dp1 = 4) AND m.c0_structural = 365 AND m.c0_unconditioned = 285 AND m.c0_conditioned = 80 AND m.c0_cond_staff_holo = 40 AND m.c0_cond_set_logo_reverse = 40 AND m.c0_plan_x_hold = 0 AND m.c0_plan_x_pricing = 0), 'c1', ((m.c1_fp_named_bad = 0 AND m.c1_fp_n_types = 63 AND m.c1_fp_worlds_types = 21 AND m.c1_fp_worlds_n = 21 AND m.c1_fp_single_types = 19 AND m.c1_fp_single_n = 24 AND m.c1_fp_single_non1 = 5 AND m.c1_fp_slr_svp = 38 AND m.c1_fp_slr_dp1 = 2 AND m.c1_fp_sls_dp1 = 4) AND m.c1_structural = 365 AND m.c1_unconditioned = 285 AND m.c1_conditioned = 80 AND m.c1_cond_staff_holo = 40 AND m.c1_cond_set_logo_reverse = 40 AND m.c1_plan_x_hold = 0 AND m.c1_plan_x_pricing = 0), 'c2', ((m.c2_fp_named_bad = 0 AND m.c2_fp_n_types = 63 AND m.c2_fp_worlds_types = 21 AND m.c2_fp_worlds_n = 21 AND m.c2_fp_single_types = 19 AND m.c2_fp_single_n = 24 AND m.c2_fp_single_non1 = 5 AND m.c2_fp_slr_svp = 38 AND m.c2_fp_slr_dp1 = 2 AND m.c2_fp_sls_dp1 = 4) AND m.c2_structural = 365 AND m.c2_unconditioned = 285 AND m.c2_conditioned = 80 AND m.c2_cond_staff_holo = 40 AND m.c2_cond_set_logo_reverse = 40 AND m.c2_plan_x_hold = 0 AND m.c2_plan_x_pricing = 0), 'c3', ((m.c3_fp_named_bad = 0 AND m.c3_fp_n_types = 63 AND m.c3_fp_worlds_types = 21 AND m.c3_fp_worlds_n = 21 AND m.c3_fp_single_types = 19 AND m.c3_fp_single_n = 24 AND m.c3_fp_single_non1 = 5 AND m.c3_fp_slr_svp = 38 AND m.c3_fp_slr_dp1 = 2 AND m.c3_fp_sls_dp1 = 4) AND m.c3_structural = 365 AND m.c3_unconditioned = 285 AND m.c3_conditioned = 80 AND m.c3_cond_staff_holo = 40 AND m.c3_cond_set_logo_reverse = 40 AND m.c3_plan_x_hold = 0 AND m.c3_plan_x_pricing = 0)) FROM d5_m m),
         'd_5x_c0_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM d5_c0_bt), '{}'::jsonb),
+        'd_5x_c3_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM d5_c3_bt), '{}'::jsonb),
         'd_5x_c2_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM (SELECT vt.code, count(*) AS n FROM d5_c2 s
                                   JOIN public.card_variant_type vt ON vt.id = s.variant_type_id GROUP BY vt.code) z), '{}'::jsonb),
         'd_5x_c1_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM (SELECT vt.code, count(*) AS n FROM d5_c1 s

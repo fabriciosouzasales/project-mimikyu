@@ -221,8 +221,56 @@ def r21_ok(e15, e15p):
             and re.search(r'\bfalse\s+AS g_5x_ready_adjudicated', e15p) is not None
             and re.search(r'\bfalse\s+AS g_5x_adjudicated_candidate_ok', e15p) is not None
             and 'AS g_5x_unique_candidate_equals_a' in e15p and "'d_5x_candidate_ok'" in e15p
-            and all(f'd5_{c} AS (' in l13.DERIV and f'd5_{c}_bt AS (' in l13.DERIV for c in ('c0', 'c1', 'c2'))
-            and 'IF NOT COALESCE(' in c52 and "_fp_named_bad')::bigint = 0" in c52)
+            and all(f'd5_{c} AS (' in l13.DERIV and f'd5_{c}_bt AS (' in l13.DERIV for c in ('c0', 'c1', 'c2', 'c3'))
+            and 'AS g_5x_type_code_unique' in e15p
+            and "IF (v_agg->>'type_code_dup')::bigint IS DISTINCT FROM 0 THEN" in e15
+            and 'IF NOT COALESCE(' in c52 and "_fp_named_bad')::bigint = 0" in c52
+            and all(f"_fp_{k}')::bigint = {l13.MAP_FP[k]}" in c52
+                    for k in ('worlds_types', 'worlds_n', 'single_types', 'single_n', 'single_non1')))
+
+
+# Cópia INDEPENDENTE (verificador) da lista FINISH do seletor histórico,
+# LIVE 2026-09-19T02:04:20Z — não importada do gerador.
+HIST_FINISH = ['STANDARD', 'HOLO', 'COSMOS_HOLO', 'REVERSE_HOLO', 'ENERGY_REVERSE', 'POKE_BALL_REVERSE', 'LOVE_BALL_REVERSE',
+               'FRIEND_BALL_REVERSE', 'QUICK_BALL_REVERSE', 'DUSK_BALL_REVERSE', 'ROCKET_REVERSE', 'MASTER_BALL_REVERSE',
+               'GOLD_HOLO', 'TINSEL_HOLO', 'TINSEL_REVERSE', 'CRACKED_ICE_HOLO', 'GALAXY_HOLO', 'RAINBOW_HOLO', 'METAL',
+               'METAL_GOLD', 'LENTICULAR', 'COSMOS_REVERSE', 'MASTER_BALL_PATTERN', 'POKE_BALL_PATTERN', 'MASTER_BALL_HOLO',
+               'SNOWFLAKE_COSMOS_HOLO', 'STANDARDS_SNOWFLAKE', 'SHOWFLAKE_HOLO']
+HIST_C3 = """d5_c3 AS (
+    SELECT cv.id, cv.variant_type_id, c.card_set_id
+      FROM public.card_variant cv
+      JOIN public.card_variant_type vt ON vt.id = cv.variant_type_id
+      JOIN public.card c  ON c.id  = cv.card_id
+      JOIN public.card_set cs ON cs.id = c.card_set_id
+     WHERE vt.code NOT IN (SELECT code FROM d5_finish)
+       AND NOT (vt.code LIKE 'SET_LOGO%' AND cs.code ~ '^EX(7|8|9|10|11|12|13|14|15|16)$')
+       AND NOT (vt.code LIKE 'SET_LOGO%' AND cs.code NOT IN ('DP1','SWSH9','SVP'))
+       AND vt.code <> 'PROMO_STAMPED'
+),"""
+
+
+def r29_ok(deriv):
+    """C3 = seletor histórico verbatim: bloco d5_c3 idêntico ao do verificador e
+    lista d5_finish = os 28 códigos FINISH na ordem original, sem acréscimo"""
+    fin = re.search(r"d5_finish\(code\) AS \(\n    VALUES (.*?)\n\),", deriv, re.S)
+    codes = re.findall(r"\('([A-Z_]+)'\)", fin.group(1)) if fin else None
+    return (fin is not None and codes == HIST_FINISH and len(codes) == 28
+            and deriv.count(HIST_C3) == 1 and deriv.count('d5_c3 AS (') == 1
+            and 'type_code_dup' in deriv)
+
+
+def r31_ok(e15p):
+    """g_scope_unique mede a unicidade EFETIVA por Card Set distinto (fonte +
+    função), nunca linhas da função por variant"""
+    sc = e15p[e15p.index('d5_scope AS ('):]
+    sc = sc[:sc.index('\n),') + 3]
+    return ('FROM (SELECT DISTINCT e.card_set_id FROM d5_ev e) s' in sc
+            and 'FROM public.card_set_external_reference r' in sc
+            and 'r.card_set_id = s.card_set_id AND r.asset_source_id = gs.src_id AND r.is_active' in sc
+            and 'FROM internal.resolve_variant_mapping_scope(s.card_set_id, gs.src_id)) AS n_fn' in sc
+            and 'count(sc.*)' not in sc and 'GROUP BY' not in sc
+            and '(SELECT bool_and(n_active <= 1 AND n_fn = n_active) FROM d5_scope)' in e15p
+            and 'AS g_scope_unique' in e15p)
 
 
 def r22_ok(e10):
@@ -234,11 +282,18 @@ def r22_ok(e10):
 
 
 def fp_map_ok(named, fp):
-    """impressão digital MIGRATION-MAP-365 consistente: 23 nomeados = 320;
-    320 + WORLDS/ASIA + singletons = 365; 23 + 16 + 24 = 63 tipos"""
+    """impressão digital de A consistente, TIPOS separados de VARIANTES (STOP-7):
+    variantes 320 + 21 + 24 = 365; tipos 23 + 21 + 19 = 63; WORLDS/ASIA 21
+    tipos × 1 = 21; residual 19 tipos = 14 unitários + 5 duplos = 24 (com
+    single_non1 tipos de n >= 2 e soma single_n, os não unitários são
+    exatamente 2 cada)"""
     return (len(named) == 23 and len({c for c, _ in named}) == 23 and sum(n for _, n in named) == fp['named_sum'] == 320
-            and fp['named_sum'] + fp['worlds_n'] + fp['single_types'] == 365
+            and fp['named_sum'] + fp['worlds_n'] + fp['single_n'] == 365
             and len(named) + fp['worlds_types'] + fp['single_types'] == fp['n_types'] == 63
+            and fp['worlds_types'] == fp['worlds_n'] == 21
+            and fp['single_types'] == 19 and fp['single_n'] == 24 and fp['single_non1'] == 5
+            and 0 <= fp['single_non1'] <= fp['single_types']
+            and (fp['single_types'] - fp['single_non1']) + 2 * fp['single_non1'] == fp['single_n']
             and fp['slr_svp'] + fp['slr_dp1'] == dict(named).get('SET_LOGO_REVERSE', -1)
             and fp['sls_dp1'] <= dict(named).get('SET_LOGO_STANDARDS', -1))
 
@@ -320,8 +375,12 @@ def run():
     pre15 = e15[:e15.index("v_case := 'DERIV-5X'")]
     res.append(('B12 R-21: B-5X — E15 fail-closed antes de qualquer caso (READY_DEF não adjudicado)',
                 r21_ok(e15, F('2830H_E15P_measure_section5.sql')), ''))
-    res.append(('B12 R-28: B-5X — impressão digital MIGRATION-MAP-365 de A consistente (23 nomeados = 320; 63 tipos; 365)',
+    res.append(('B12 R-28: B-5X — impressão digital de A consistente (variantes 320 + 21 + 24 = 365; tipos 23 + 21 + 19 = 63; residual 14×1 + 5×2)',
                 fp_map_ok(l13.MAP_NAMED, l13.MAP_FP), ''))
+    res.append(('B12 R-29: B-5X — C3 = seletor histórico verbatim (FINISH 28 literal + regras SET_LOGO + PROMO_STAMPED) e gate de unicidade de code',
+                r29_ok(l13.DERIV) and r29_ok(F('2830H_E15P_measure_section5.sql')), ''))
+    res.append(('B12 R-31: E15P g_scope_unique = unicidade efetiva por Card Set distinto (fonte ativa + função), não linhas por variant',
+                r31_ok(F('2830H_E15P_measure_section5.sql')), ''))
     e10 = F('2830H_E10_section_r_routing_2211.sql')
     r12 = e10[e10.index("v_case := 'R12'"):]
     res.append(('B12 R-22: R12 cobre as 4 saídas A4 + contraprovas (residual integral após consumo; terminal NO_EC_PROFILE consome)',
@@ -438,6 +497,38 @@ def run():
                 not r27_ok(q2234.replace("'pg_catalog.timestamptz'::pg_catalog.regtype", "'pg_catalog.timestamp'::pg_catalog.regtype", 1)), ''))
     neg.append(('VERIFICADOR rejeita: impressão digital de A adulterada (nomeado 51 → 50) [R-28]',
                 not fp_map_ok([(c, n - 1 if i == 0 else n) for i, (c, n) in enumerate(l13.MAP_NAMED)], l13.MAP_FP), ''))
+    for k, bad, why in [('worlds_types', 16, 'WORLDS/ASIA 21 → 16 (leitura antiga)'),
+                        ('single_types', 24, 'residual 19 → 24 tipos (tipos ≡ variantes)'),
+                        ('single_n', 23, 'residual 24 → 23 variantes'),
+                        ('single_non1', 0, 'duplos 5 → 0 (singletons puros)')]:
+        neg.append((f'VERIFICADOR rejeita: MAP_FP {why} [R-28]', not fp_map_ok(l13.MAP_NAMED, dict(l13.MAP_FP, **{k: bad})), ''))
+    e15p_real = F('2830H_E15P_measure_section5.sql')
+    neg.append(('VERIFICADOR rejeita: 5.2 com single_non1 = 0 (constante antiga) [R-21]',
+                not r21_ok(F('2830H_E15_section5_legacy_hold.sql').replace("_fp_single_non1')::bigint = 5", "_fp_single_non1')::bigint = 0", 1), e15p_real), ''))
+    neg.append(('VERIFICADOR rejeita: E15P sem gate de unicidade de code [R-21]',
+                not r21_ok(F('2830H_E15_section5_legacy_hold.sql'), e15p_real.replace('AS g_5x_type_code_unique', 'AS g_5x_type_code_uniq', 1)), ''))
+    old_scope = ("""d5_scope AS (
+    SELECT e.card_set_id, count(sc.*) AS n
+      FROM d5_ev e
+      CROSS JOIN gs
+      LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(e.card_set_id, gs.src_id) sc ON true
+     GROUP BY e.card_set_id
+),""")
+    cur_scope = e15p_real[e15p_real.index('d5_scope AS ('):]
+    cur_scope = cur_scope[:cur_scope.index('\n),') + 3]
+    neg.append(('VERIFICADOR rejeita: d5_scope por variant com count(sc.*) (cardinalidade repetida por Set) [R-31]',
+                not r31_ok(e15p_real.replace(cur_scope, old_scope, 1)
+                           .replace('(SELECT bool_and(n_active <= 1 AND n_fn = n_active) FROM d5_scope)', '(SELECT COALESCE(max(n), 0) <= 1 FROM d5_scope)', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: g_scope_unique sem conferir função × fonte (n_fn = n_active removido) [R-31]',
+                not r31_ok(e15p_real.replace('bool_and(n_active <= 1 AND n_fn = n_active)', 'bool_and(n_active <= 1)', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: d5_scope sem DISTINCT por Card Set [R-31]',
+                not r31_ok(e15p_real.replace('FROM (SELECT DISTINCT e.card_set_id FROM d5_ev e) s', 'FROM (SELECT e.card_set_id FROM d5_ev e) s', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: C3 sem SHOWFLAKE_HOLO na lista FINISH [R-29]',
+                not r29_ok(l13.DERIV.replace(",\n           ('SHOWFLAKE_HOLO')", '', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: C3 sem exclusão de PROMO_STAMPED [R-29]',
+                not r29_ok(l13.DERIV.replace("\n       AND vt.code <> 'PROMO_STAMPED'\n),", '\n),', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: C3 com regime SET_LOGO alterado (SWSH9 removido) [R-29]',
+                not r29_ok(l13.DERIV.replace("cs.code NOT IN ('DP1','SWSH9','SVP'))\n       AND vt.code <> 'PROMO_STAMPED'", "cs.code NOT IN ('DP1','SVP'))\n       AND vt.code <> 'PROMO_STAMPED'", 1)), ''))
 
     # 2234 — estrutura integral (lint_migration); incidente BATCH12-2234-LIVE-01
     fixed_tail = "normalize_catalog_variant_import_row()'))))\n      INTO v_dep;"

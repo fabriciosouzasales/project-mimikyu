@@ -28,21 +28,37 @@
 #      eixo 3 é RESOLVED_NO_EDITION_CONTEXT.
 #   A (lista de tipos) = exige extrair e aprovar a lista dos 63 tipos (LIVE
 #      read-only + decisão editorial); não implementável sem ela.
+#   C3 (seletor histórico, STOP-7) = o seletor ORIGINAL da classificação
+#      READY 365/63, recuperado VERBATIM do registro de 2026-09-19 (LIVE, MCP
+#      02:04:20Z/02:08:14Z/02:24:10Z): complemento da lista FINISH literal (28
+#      códigos) ∖ SET_LOGO EX7–EX16 ∖ SET_LOGO fora de DP1/SWSH9/SVP ∖
+#      PROMO_STAMPED. Sem escopo de Game, como o original ⇒ exige o gate
+#      fail-closed de unicidade de variant_type.code (type_code_dup = 0).
+#      NÃO adjudicado aqui: READY_DEF continua None até o E15P provar no LIVE
+#      que C3 é o ÚNICO candidato ≡ A. C0/C1/C2 permanecem como contraprovas.
+#   PENDÊNCIA OBRIGATÓRIA (readiness final do E15): as asserções 5.3
+#      (plano ∩ HOLD = 0) e 5.7 (plano ∩ PRICING_CONDITIONED = 0) são
+#      tautológicas por construção de {c}_unconditioned/_plan_x_*; não provam
+#      exclusão. Não alteradas nesta rodada (correção mínima do STOP-7).
 from lib import *
 import pre
 
 C = dict(hold=107, structural=365, unconditioned=285, conditioned=80, staff=40, slr=40, resulting=23955, matched=1129)
-READY_DEF = None      # 'C0' | 'C1' | 'C2' — pendente (B-5X); só o candidato ≡ A no LIVE. None ⇒ E15 fail-closed.
+READY_DEF = None      # 'C0' | 'C1' | 'C2' | 'C3' — pendente (B-5X); só o candidato ≡ A no LIVE. None ⇒ E15 fail-closed.
 
 GAME = "(SELECT id FROM public.game WHERE code = 'POKEMON')"
 SRC = "(SELECT id FROM public.asset_source WHERE code = 'TCGDEX')"
 
-# Impressão digital de A (população original de 63 tipos / 365), tal como
-# publicada em MIGRATION-MAP-365.md: 23 tipos nomeados com contagem exata
-# (Σ 320) + 16 tipos WORLDS/ASIA (Σ 21) + 24 tipos singletons (Σ 24) = 63
-# tipos / 365, e as restrições por Set SET_LOGO_REVERSE = SVP 38 + DP1 2,
-# SET_LOGO_STANDARDS = DP1 4. Um candidato só é equivalente a A se reproduzir
-# TODA a impressão digital no LIVE (medida pelo E15P, nunca presumida).
+# Impressão digital de A (população original de 63 tipos / 365). Os 23
+# nomeados e as restrições por Set vêm do MIGRATION-MAP-365.md (SET_LOGO_REVERSE
+# = SVP 38 + DP1 2, SET_LOGO_STANDARDS = DP1 4). WORLDS/ASIA e residual vêm do
+# censo nominal LIVE de 2026-09-19T01:27:53Z sob o seletor histórico (STOP-7):
+# 23 nomeados (Σ 320) + 21 WORLDS/ASIA (Σ 21, 1 cada) + 19 residuais (Σ 24 =
+# 14 unitários + 5 duplos) = 63 tipos / 365. A leitura anterior "16 WORLDS/ASIA
+# + 24 singletons" confundia tipos com variantes (inconsistência aritmética do
+# MIGRATION-MAP, documento histórico preservado). Um candidato só é equivalente
+# a A se reproduzir TODA a impressão digital no LIVE (medida pelo E15P, nunca
+# presumida).
 MAP_NAMED = [('SATANDARD_REWARDS', 51), ('STAFF_HOLO', 40), ('SET_LOGO_REVERSE', 40), ('REWARDS_HOLO', 30),
              ('POKEMON_CENTER_HOLO', 19), ('COSMOS_REWARDS_HOLO', 18), ('COSMOS_REWARDS_REVERSE', 17),
              ('COSMOS_PROFESSOR_REVERSE', 16), ('STANDARDS_TEACHER_PROGRAM', 14), ('STANDARD_GYM_CHALLENGE', 9),
@@ -50,11 +66,18 @@ MAP_NAMED = [('SATANDARD_REWARDS', 51), ('STAFF_HOLO', 40), ('SET_LOGO_REVERSE',
              ('STANDARD_PIKACHU_WORLD_2000', 6), ('W_PROMO_STAMPED', 6), ('SET_LOGO_STANDARDS', 4),
              ('STANDARD_FIRST_MOVIE', 4), ('STANDARD_FIRST_MOVIE_INVERTED', 4), ('STANDARD_REGIONAL_CHAMPIONSHIPS_STAFF', 4),
              ('STANDARDS_LEAGUE', 4), ('STANDARD_WORLDS_2024', 3), ('STANDARDS_HORIZONS', 3), ('GYM_CHALLENGE_HOLO', 3)]
-MAP_FP = dict(named_sum=320, worlds_types=16, worlds_n=21, single_types=24, n_types=63,
+MAP_FP = dict(named_sum=320, worlds_types=21, worlds_n=21, single_types=19, single_n=24, single_non1=5, n_types=63,
               slr_svp=38, slr_dp1=2, sls_dp1=4)
-CANDS = ['c0', 'c1', 'c2']
+# Lista FINISH literal do seletor histórico (LIVE 2026-09-19T02:04:20Z), na ordem original.
+FINISH_T0 = ['STANDARD', 'HOLO', 'COSMOS_HOLO', 'REVERSE_HOLO', 'ENERGY_REVERSE', 'POKE_BALL_REVERSE', 'LOVE_BALL_REVERSE',
+             'FRIEND_BALL_REVERSE', 'QUICK_BALL_REVERSE', 'DUSK_BALL_REVERSE', 'ROCKET_REVERSE', 'MASTER_BALL_REVERSE',
+             'GOLD_HOLO', 'TINSEL_HOLO', 'TINSEL_REVERSE', 'CRACKED_ICE_HOLO', 'GALAXY_HOLO', 'RAINBOW_HOLO', 'METAL',
+             'METAL_GOLD', 'LENTICULAR', 'COSMOS_REVERSE', 'MASTER_BALL_PATTERN', 'POKE_BALL_PATTERN', 'MASTER_BALL_HOLO',
+             'SNOWFLAKE_COSMOS_HOLO', 'STANDARDS_SNOWFLAKE', 'SHOWFLAKE_HOLO']
+CANDS = ['c0', 'c1', 'c2', 'c3']
 
 _map_values = ',\n           '.join(f"('{c}', {n})" for c, n in MAP_NAMED)
+_finish_values = ',\n           '.join(f"('{c}')" for c in FINISH_T0)
 
 
 def _fp(c):
@@ -82,6 +105,7 @@ def _m(c):
            (SELECT count(*) FROM {bt} b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS {c}_fp_worlds_types,
            (SELECT COALESCE(sum(n), 0) FROM {bt} b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code ~ '(WORLDS|ASIA)') AS {c}_fp_worlds_n,
            (SELECT count(*) FROM {bt} b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS {c}_fp_single_types,
+           (SELECT COALESCE(sum(n), 0) FROM {bt} b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)') AS {c}_fp_single_n,
            (SELECT count(*) FROM {bt} b WHERE b.code NOT IN (SELECT code FROM d5_map) AND b.code !~ '(WORLDS|ASIA)' AND b.n <> 1) AS {c}_fp_single_non1,
            (SELECT count(*) FROM d5_{c} s JOIN public.card_variant_type vt ON vt.id = s.variant_type_id
               JOIN public.card_set cs ON cs.id = s.card_set_id WHERE vt.code = 'SET_LOGO_REVERSE' AND cs.code = 'SVP') AS {c}_fp_slr_svp,
@@ -96,7 +120,8 @@ def fp_ok(c, ref='m.'):
     """predicado ÚNICO da impressão digital (E15P e E15)"""
     f = MAP_FP
     return (f"({ref}{c}_fp_named_bad = 0 AND {ref}{c}_fp_n_types = {f['n_types']} AND {ref}{c}_fp_worlds_types = {f['worlds_types']}"
-            f" AND {ref}{c}_fp_worlds_n = {f['worlds_n']} AND {ref}{c}_fp_single_types = {f['single_types']} AND {ref}{c}_fp_single_non1 = 0"
+            f" AND {ref}{c}_fp_worlds_n = {f['worlds_n']} AND {ref}{c}_fp_single_types = {f['single_types']}"
+            f" AND {ref}{c}_fp_single_n = {f['single_n']} AND {ref}{c}_fp_single_non1 = {f['single_non1']}"
             f" AND {ref}{c}_fp_slr_svp = {f['slr_svp']} AND {ref}{c}_fp_slr_dp1 = {f['slr_dp1']} AND {ref}{c}_fp_sls_dp1 = {f['sls_dp1']})")
 
 
@@ -132,6 +157,9 @@ d5_pricing AS (
 d5_map(code, n) AS (
     VALUES {_map_values}
 ),
+d5_finish(code) AS (
+    VALUES {_finish_values}
+),
 d5_c0 AS (
     SELECT cv.id, cv.variant_type_id, c.card_set_id
       FROM public.card_variant cv
@@ -158,8 +186,20 @@ d5_c2 AS (
      WHERE (jsonb_exists(e.raw_data, 'subtype') OR jsonb_exists(e.raw_data, 'stamp'))
        AND ax.edition_context_state = 'RESOLVED_WITH_EC_PROFILE'
 ),
+d5_c3 AS (
+    SELECT cv.id, cv.variant_type_id, c.card_set_id
+      FROM public.card_variant cv
+      JOIN public.card_variant_type vt ON vt.id = cv.variant_type_id
+      JOIN public.card c  ON c.id  = cv.card_id
+      JOIN public.card_set cs ON cs.id = c.card_set_id
+     WHERE vt.code NOT IN (SELECT code FROM d5_finish)
+       AND NOT (vt.code LIKE 'SET_LOGO%' AND cs.code ~ '^EX(7|8|9|10|11|12|13|14|15|16)$')
+       AND NOT (vt.code LIKE 'SET_LOGO%' AND cs.code NOT IN ('DP1','SWSH9','SVP'))
+       AND vt.code <> 'PROMO_STAMPED'
+),
 """ + ''.join(_fp(c) + '\n' for c in CANDS) + """d5_m AS (
     SELECT (SELECT count(*) FROM d5_hold) AS hold,
+           (SELECT count(*) FROM (SELECT vt.code FROM public.card_variant_type vt GROUP BY vt.code HAVING count(*) > 1) z) AS type_code_dup,
            (SELECT count(*) FROM d5_ev) AS lineage_not_hold,
 """ + ''.join(_m(c) for c in CANDS) + """           (SELECT count(*) FROM public.catalog_variant_import_row WHERE resulting_variant_id IS NOT NULL) AS lineage_resulting,
            (SELECT count(*) FROM public.catalog_variant_import_row WHERE matched_variant_id IS NOT NULL) AS lineage_matched
@@ -189,6 +229,12 @@ PRE = """
         RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
             'H2830_FAIL: envelope=%s caso=DERIV-5X derivação falhou sqlstate=%s msg=%s', c_env, v_state, v_msg);
     END;
+    -- C3 não tem escopo de Game (seletor histórico verbatim): fail-closed se
+    -- variant_type.code não for único.
+    IF (v_agg->>'type_code_dup')::bigint IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+            'H2830_FAIL: envelope=%s caso=DERIV-5X variant_type.code não único (type_code_dup=%s); C3 sem escopo de Game é inválido', c_env, v_agg->>'type_code_dup');
+    END IF;
 """
 
 P = (READY_DEF or 'c2').lower()
@@ -227,6 +273,10 @@ HEAD = header(['2830H · ENVELOPE E15 — SEÇÃO 5 (LEGADO / HOLD / EXCLUSÃO) 
     '                NÃO alterado), sem TEMP, bloco DERIV-5X idêntico ao E15P.',
     'Escrita ....... NENHUMA. Término em exceção por uniformidade (P2).',
     'P8 ............ SET LOCAL lock_timeout = \'5s\' + asserção (DP-4 = A).',
+    'Pendência ..... OBRIGATÓRIA para a readiness final do E15 (STOP-7): 5.3',
+    '                (plano ∩ HOLD) e 5.7 (plano ∩ PRICING_CONDITIONED) são',
+    '                tautológicas por construção do plano (plano = estrutural ∖',
+    '                PRICING; C3 exclui HOLD por definição). Reescrever antes do LIVE.',
 ])
 
 
@@ -243,7 +293,8 @@ PHEAD = header(['2830H · E15P — MEDIÇÃO A4 + PRECHECK DO LOTE L13 (Seção 
     'Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO.',
     'Função ........ instrumento de ADJUDICAÇÃO do B-5X: mede, com o bloco DERIV-5X',
     '                idêntico ao E15, HOLD, lineage e as duas leituras de',
-    '                READY_STRUCTURAL (C0 predicado 2841, C1 literal-2831, C2 semântica)',
+    '                READY_STRUCTURAL (C0 predicado 2841, C1 literal-2831, C2 semântica,',
+    '                C3 seletor histórico de 2026-09-19 — STOP-7; não adjudicado)',
     '                contra a impressão digital MIGRATION-MAP-365 de A (63 tipos) e a',
     '                composição por tipo. gate_pass só é true com READY adjudicado',
     '                (g_5x_ready_adjudicated) e constantes medidas = contrato.',
@@ -253,12 +304,20 @@ PHEAD = header(['2830H · E15P — MEDIÇÃO A4 + PRECHECK DO LOTE L13 (Seção 
 
 
 def e15p():
+    # Unicidade EFETIVA do escopo por Card Set (STOP-7 scope correction):
+    # resolve_variant_mapping_scope() tem LIMIT 1 (0..1 linha por chamada) e lê
+    # card_set_external_reference ativa; contar as linhas da função por variant
+    # agregava o mesmo escopo várias vezes e nunca detectaria duplicidade real
+    # (o LIMIT 1 a mascara). Mede-se por Card Set DISTINTO: n_active = refs
+    # ativas na fonte que a função lê; n_fn = linhas da função. Gate: n_active
+    # <= 1 E n_fn = n_active em TODOS os Sets (NULL ⇒ gate_pass false).
     ctes = [pre.GS, DERIV, """d5_scope AS (
-    SELECT e.card_set_id, count(sc.*) AS n
-      FROM d5_ev e
+    SELECT s.card_set_id,
+           (SELECT count(*) FROM public.card_set_external_reference r
+             WHERE r.card_set_id = s.card_set_id AND r.asset_source_id = gs.src_id AND r.is_active) AS n_active,
+           (SELECT count(*) FROM internal.resolve_variant_mapping_scope(s.card_set_id, gs.src_id)) AS n_fn
+      FROM (SELECT DISTINCT e.card_set_id FROM d5_ev e) s
       CROSS JOIN gs
-      LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(e.card_set_id, gs.src_id) sc ON true
-     GROUP BY e.card_set_id
 ),"""]
     checks = "\n             AND ".join(f"m.{k} = {v}" for k, v in [
         ('hold', C['hold']), ('lineage_resulting', C['resulting']), ('lineage_matched', C['matched'])])
@@ -268,7 +327,8 @@ def e15p():
         (SELECT {checks} FROM d5_m m)                                                   AS g_5x_constants_measured,
         (SELECT {uniq} FROM d5_m m) = 1                                                  AS g_5x_unique_candidate_equals_a,
         {('(SELECT ' + cand_ok(P) + ' FROM d5_m m)') if READY_DEF else 'false'}           AS g_5x_adjudicated_candidate_ok,
-        (SELECT COALESCE(max(n), 0) <= 1 FROM d5_scope)                                 AS g_scope_unique,
+        (SELECT bool_and(n_active <= 1 AND n_fn = n_active) FROM d5_scope)              AS g_scope_unique,
+        (SELECT m.type_code_dup = 0 FROM d5_m m)                                        AS g_5x_type_code_unique,
         (to_regclass('public.pricing_source_card_identity') IS NOT NULL
          AND to_regclass('public.pricing_source_variant_mapping') IS NOT NULL)          AS g_pricing_tables,"""
     det = """        'd_5x_measured',    (SELECT to_jsonb(m) FROM d5_m m),
@@ -276,6 +336,7 @@ def e15p():
         'd_5x_ready_def',   """ + (q(READY_DEF) if READY_DEF else 'NULL::text') + """,
         'd_5x_candidate_ok', (SELECT jsonb_build_object(""" + ', '.join(f"'{c}', ({cand_ok(c)})" for c in CANDS) + """) FROM d5_m m),
         'd_5x_c0_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM d5_c0_bt), '{}'::jsonb),
+        'd_5x_c3_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM d5_c3_bt), '{}'::jsonb),
         'd_5x_c2_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM (SELECT vt.code, count(*) AS n FROM d5_c2 s
                                   JOIN public.card_variant_type vt ON vt.id = s.variant_type_id GROUP BY vt.code) z), '{}'::jsonb),
         'd_5x_c1_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM (SELECT vt.code, count(*) AS n FROM d5_c1 s
