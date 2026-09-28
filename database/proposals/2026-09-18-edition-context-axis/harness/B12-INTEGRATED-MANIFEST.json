@@ -1,0 +1,281 @@
+{
+  "package": "BATCH12-INTEGRATED-COMPLETION",
+  "baseline_head": "945caa32",
+  "status": "IMPLEMENTADO LOCALMENTE - NAO EXECUTADO",
+  "automatic_cases_new": 75,
+  "automatic_cases_prior": 60,
+  "automatic_cases_total": 135,
+  "artifacts": [
+    {
+      "id": "E07",
+      "lot": "L5",
+      "file": "2830H_E07_game_sentinel_2_6_3_3.sql",
+      "kind": "envelope",
+      "context_line": 234,
+      "cases": [
+        "2.6",
+        "3.3"
+      ],
+      "n": 2,
+      "md5": "8a31b5a6d37dd164a3df96a4a2fade7e",
+      "bytes": 15234
+    },
+    {
+      "id": "E08",
+      "lot": "L6",
+      "file": "2830H_E08_section4_card_variant_identity.sql",
+      "kind": "envelope",
+      "context_line": 639,
+      "cases": [
+        "4.1",
+        "4.2",
+        "4.3",
+        "4.4",
+        "4.5",
+        "4.6",
+        "4.7",
+        "4.8"
+      ],
+      "n": 8,
+      "md5": "237468822d1298ea49d7e141f74500d9",
+      "bytes": 35516
+    },
+    {
+      "id": "E09",
+      "lot": "L7",
+      "file": "2830H_E09_section_s_staging.sql",
+      "kind": "envelope",
+      "context_line": 1148,
+      "cases": [
+        "S1",
+        "S2",
+        "S2-BIS",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11"
+      ],
+      "n": 12,
+      "md5": "e4266fd60f92eb5cdb5f8611adfb38e5",
+      "bytes": 67006
+    },
+    {
+      "id": "E10",
+      "lot": "L8",
+      "file": "2830H_E10_section_r_routing_2211.sql",
+      "kind": "envelope",
+      "context_line": 1615,
+      "cases": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9",
+        "R10",
+        "R11",
+        "R12"
+      ],
+      "n": 12,
+      "md5": "c810a76e294feb2244fcae0ca63fb414",
+      "bytes": 94699
+    },
+    {
+      "id": "E11",
+      "lot": "L9",
+      "file": "2830H_E11_section_k_confirm_static.sql",
+      "kind": "envelope",
+      "context_line": 260,
+      "cases": [
+        "K3",
+        "K4",
+        "K8"
+      ],
+      "n": 3,
+      "md5": "9ddaf49cfdec5e045737178aefe0011c",
+      "bytes": 17535
+    },
+    {
+      "id": "E12",
+      "lot": "L10",
+      "file": "2830H_E12_section_b_backfill_semantic.sql",
+      "kind": "envelope",
+      "context_line": 712,
+      "cases": [
+        "V1",
+        "V2",
+        "V3",
+        "V4",
+        "V5",
+        "V6",
+        "V7",
+        "V8",
+        "V9",
+        "V10",
+        "V11",
+        "V12",
+        "V13",
+        "V14"
+      ],
+      "n": 14,
+      "md5": "232b857087aa63732a7be5ade55108f8",
+      "bytes": 45250
+    },
+    {
+      "id": "E13",
+      "lot": "L11",
+      "file": "2830H_E13_section_m_state_machine.sql",
+      "kind": "envelope",
+      "context_line": 960,
+      "cases": [
+        "SM1",
+        "SM2",
+        "SM3",
+        "SM4",
+        "SM5",
+        "SM6",
+        "SM7",
+        "SM8",
+        "SM9",
+        "SM10",
+        "SM11"
+      ],
+      "n": 11,
+      "md5": "5907e85df7fbe9545e97c4584b446827",
+      "bytes": 57430
+    },
+    {
+      "id": "E14",
+      "lot": "L12",
+      "file": "2830H_E14_section_g_guard_2214.sql",
+      "kind": "envelope",
+      "context_line": 741,
+      "cases": [
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G6",
+        "G7",
+        "G8"
+      ],
+      "n": 8,
+      "md5": "28bc469d08a07004033a254f48fddd30",
+      "bytes": 45126
+    },
+    {
+      "id": "E15",
+      "lot": "L13",
+      "file": "2830H_E15_section5_legacy_hold.sql",
+      "kind": "envelope",
+      "context_line": 395,
+      "cases": [
+        "5.1",
+        "5.2",
+        "5.3",
+        "5.6",
+        "5.7"
+      ],
+      "n": 5,
+      "md5": "6db3d4a7f488e83cd812c89e1a6bab04",
+      "bytes": 28974
+    },
+    {
+      "id": "E07P",
+      "lot": "L5",
+      "file": "2830H_E07P_precheck_game_sentinel.sql",
+      "kind": "precheck",
+      "md5": "d136f6fc206d43383a8978a73f14e727",
+      "bytes": 17711
+    },
+    {
+      "id": "E08P",
+      "lot": "L6",
+      "file": "2830H_E08P_precheck_section4.sql",
+      "kind": "precheck",
+      "md5": "584235ca1cebfdec51e0ad668a0c52c7",
+      "bytes": 14170
+    },
+    {
+      "id": "E09P",
+      "lot": "L7",
+      "file": "2830H_E09P_precheck_section_s.sql",
+      "kind": "precheck",
+      "md5": "617067ee167e31e2edffbe66ebfffb25",
+      "bytes": 16930
+    },
+    {
+      "id": "E10P",
+      "lot": "L8",
+      "file": "2830H_E10P_precheck_section_r.sql",
+      "kind": "precheck",
+      "md5": "0fc18fc07c1dff3d4e2cf85ce32c8700",
+      "bytes": 16163
+    },
+    {
+      "id": "E12P",
+      "lot": "L10",
+      "file": "2830H_E12P_precheck_section_b.sql",
+      "kind": "precheck",
+      "md5": "79a647ec2f03e3a94f09f2e2e07f5c9a",
+      "bytes": 10267
+    },
+    {
+      "id": "E13P",
+      "lot": "L11",
+      "file": "2830H_E13P_precheck_section_m.sql",
+      "kind": "precheck",
+      "md5": "50b5c1227b69f59f417b68bd42eb0a6f",
+      "bytes": 16963
+    },
+    {
+      "id": "E14P",
+      "lot": "L12",
+      "file": "2830H_E14P_precheck_section_g.sql",
+      "kind": "precheck",
+      "md5": "951361b7f1d47dd3edeec35d31dd2b5f",
+      "bytes": 16913
+    },
+    {
+      "id": "E15P",
+      "lot": "L13",
+      "file": "2830H_E15P_measure_section5.sql",
+      "kind": "precheck",
+      "md5": "152b5354885c3304d3ca5c8c86ae7a66",
+      "bytes": 18976
+    },
+    {
+      "id": "E98",
+      "lot": "*",
+      "file": "2830H_E98_postcheck_extended_residue.sql",
+      "kind": "postcheck",
+      "md5": "094d1bc4db7d6abee6f91f6a236ab708",
+      "bytes": 5118
+    },
+    {
+      "id": "P9A",
+      "lot": "L10/L11/L13",
+      "file": "2830H_P9A_heavy_sections_explain.sql",
+      "kind": "explain",
+      "md5": "ac6811c08d943980a13a38065b7df079",
+      "bytes": 27280
+    },
+    {
+      "id": "P9B",
+      "lot": "L10/L11/L13",
+      "file": "2830H_P9B_isolated_timing.sql",
+      "kind": "timing-isolated",
+      "md5": "6df4f0cd18daee39b67ea27e996121f5",
+      "bytes": 28484
+    }
+  ]
+}

@@ -2237,3 +2237,19 @@ for title,lst in [('E06-PERFIL',res6),('E06-VERIFICADOR-NEG',negv6),('E06-VERIFI
     bad6=[r for r in lst if not r[1]]
     for n,ok,d in lst: print(('PASS ' if ok else 'FAIL ')+'['+title+'] '+n+(' '+d if d and not ok else ''))
     print(f'{title} TOTAL {len(lst)} PASS {len(lst)-len(bad6)} FAIL {len(bad6)}')
+# ===========================================================================
+# BATCH12 — INTEGRATED COMPLETION — PERFIL B12 (E07–E15, prechecks, E98, P9A)
+# Implementação em tools/b12gen/b12_check.py (gerador + verificador únicos).
+# Nada acima desta linha é alterado. Três blocos com total próprio:
+# B12-PERFIL, B12-VERIFICADOR-NEG, B12-VERIFICADOR-POS. Qualquer FAIL no
+# perfil B12 encerra com código de saída 1.
+# ===========================================================================
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / 'b12gen'))
+import b12_check
+_b12_bad = 0
+for title, lst in zip(['B12-PERFIL', 'B12-VERIFICADOR-NEG', 'B12-VERIFICADOR-POS'], b12_check.run()):
+    bad12 = [r for r in lst if not r[1]]
+    _b12_bad += len(bad12)
+    for n, ok, d in lst: print(('PASS ' if ok else 'FAIL ') + '[' + title + '] ' + n + (' ' + d if d and not ok else ''))
+    print(f'{title} TOTAL {len(lst)} PASS {len(lst)-len(bad12)} FAIL {len(bad12)}')
+if _b12_bad: sys.exit(1)

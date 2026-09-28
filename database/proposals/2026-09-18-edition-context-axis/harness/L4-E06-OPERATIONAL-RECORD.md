@@ -3,8 +3,8 @@
 | Campo | Valor |
 |---|---|
 | **Documento** | Readiness + registro operacional do lote L4 (routing fail-closed da 2211) para uma FUTURA execução LIVE |
-| **Versão** | 1.0 |
-| **Status** | IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO, NÃO COMPILADO no PostgreSQL. Aguarda auditoria independente e mandato próprio de execução. |
+| **Versão** | 1.1 |
+| **Status** | **EXECUTADO NO LIVE (v1.1)** uma única vez por `BATCH12-2830-P5-L4-LIVE-EXECUTION-01` (HEAD `945caa32`): E00 24/24, E06P 20/20 (identidade da 2192 demonstrada), E06 `H283P` `pass=6/6` (`line 807`, `c35_token=GLOSSY`, `c35_overlap=f`, `u37=3`), E99 9/9, L3 final limpa; CONFORME proposto, postcheck ÍNTEGRO; autorização esgotada; aguardando auditoria independente (`LIVE-L4-E06-EXECUTION-RECORD.md`).<br>Histórico (v1.0): implementado localmente, não executado, não compilado. |
 | **Mandato** | BATCH12-2830-P5-L3-CLOSEOUT-AND-L4-IMPLEMENTATION-01 (baseline Git `89736a60`) |
 | **Contrato** | `2830_validate_edition_context_foundation.sql` v7.0, blob `b4647dcb…`, l. 539–551 (inalterado); matriz `PHASE5-AUTOMATED-COVERAGE-READINESS.md` (L4 = 3.1, 3.2, 3.4–3.7; 3.3 no L5) |
 | **Decisões vigentes** | D-2 = C (AD-2: `elapsed_ms ≤ 60000` operacional), DP-2 = B (3.3 no L5), DP-3 = C (E00 + precheck do lote), DP-4 = A (preâmbulo P8), DP-5 = B (tier R1) |
@@ -74,3 +74,4 @@ Leitura sem escrita: `card_printing_*` (3.1 e 3.5), `card_edition_context_profil
 | Versão | Descrição |
 |---|---|
 | 1.0 | **Criação (2026-09-27, `BATCH12-2830-P5-L3-CLOSEOUT-AND-L4-IMPLEMENTATION-01`, baseline `89736a60`).** Readiness e registro operacional do L4 (E06P + E06, 3.1, 3.2, 3.4–3.7), produzidos junto da implementação local. Nada executado. FREEZE ATIVO. |
+| 1.1 | **Execução LIVE registrada (2026-09-27, `BATCH12-2830-P5-L4-LIVE-EXECUTION-01`, HEAD `945caa32`).** Status atualizado; §1–§5 preservados e confirmados na execução (sequência S0–S7, CONTEXT `line 807`, superfície R1 transitória, trait/mapping/mapping_trait iguais ao E00). Limitações do §6 resolvidas no LIVE: E06/E06P compilaram; identidade da 2192 = pino; dados reais de 3.5/3.7 presentes. |
