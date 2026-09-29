@@ -2,9 +2,9 @@
 -- 2830H · ENVELOPE E15 — SEÇÃO 5 (LEGADO / HOLD / EXCLUSÃO) · lote L13, 5 casos: 5.1 5.2 5.3 5.6 5.7
 -- ============================================================================
 -- Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO, NÃO COMPILADO no
---                 PostgreSQL. BLOQUEADO por B-5X: o PREFLIGHT levanta H2830_FAIL
---                 enquanto READY_STRUCTURAL não for adjudicado (C0/C1/C2 ≡ A); o gerador
---                 só remove o bloqueio com READY_DEF definido.
+--                 PostgreSQL. BLOQUEADO pela pendência 5.3/5.7: READY_DEF = C3
+--                 adjudicado (B5X-C3-ADJUDICATION-RECORD.md), mas o PREFLIGHT levanta
+--                 H2830_FAIL enquanto E15_BLOCKED_53_57 = True no gerador.
 -- Contrato ...... 2830 v7.0 Seção 5; derivação 2831 v2.0 PASSO 0/0B/1 (arquivo
 --                 NÃO alterado), sem TEMP, bloco DERIV-5X idêntico ao E15P.
 -- Escrita ....... NENHUMA. Término em exceção por uniformidade (P2).
@@ -60,10 +60,11 @@ BEGIN
     SELECT id INTO v_src FROM public.asset_source WHERE code = 'TCGDEX';
 
     -- ------------------------------------------------------------------ --
-    -- B-5X: READY_STRUCTURAL não adjudicado ⇒ nenhum caso roda (fail-closed)
+    -- B-5X: sem READY_DEF adjudicado, ou com 5.3/5.7 ainda tautológicas,
+    -- nenhum caso roda (fail-closed)
     -- ------------------------------------------------------------------ --
     RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_STRUCTURAL não adjudicado (C2 ou A); E15 bloqueado', c_env);
+        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado, mas 5.3/5.7 tautológicas por construção (pendência obrigatória); E15 bloqueado', c_env, 'c3');
 
     -- ------------------------------------------------------------------ --
     -- DERIV-5X (bloco idêntico ao E15P) — subtransação própria
@@ -344,21 +345,21 @@ BEGIN
     -- ================================================================== --
     v_case := '5.2';
     BEGIN
-        IF (v_agg->>'c2_structural')::bigint IS DISTINCT FROM 365 THEN
+        IF (v_agg->>'c3_structural')::bigint IS DISTINCT FROM 365 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s READY_STRUCTURAL: medido=%s esperado=365 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_structural')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s READY_STRUCTURAL: medido=%s esperado=365 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_structural')::bigint);
         END IF;
-        IF (v_agg->>'c2_unconditioned')::bigint IS DISTINCT FROM 285 THEN
+        IF (v_agg->>'c3_unconditioned')::bigint IS DISTINCT FROM 285 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s READY_UNCONDITIONED: medido=%s esperado=285 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_unconditioned')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s READY_UNCONDITIONED: medido=%s esperado=285 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_unconditioned')::bigint);
         END IF;
-        IF (v_agg->>'c2_conditioned')::bigint IS DISTINCT FROM 80 THEN
+        IF (v_agg->>'c3_conditioned')::bigint IS DISTINCT FROM 80 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s READY_PRICING_CONDITIONED: medido=%s esperado=80 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_conditioned')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s READY_PRICING_CONDITIONED: medido=%s esperado=80 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_conditioned')::bigint);
         END IF;
-        IF NOT COALESCE(((v_agg->>'c2_fp_named_bad')::bigint = 0 AND (v_agg->>'c2_fp_n_types')::bigint = 63 AND (v_agg->>'c2_fp_worlds_types')::bigint = 21 AND (v_agg->>'c2_fp_worlds_n')::bigint = 21 AND (v_agg->>'c2_fp_single_types')::bigint = 19 AND (v_agg->>'c2_fp_single_n')::bigint = 24 AND (v_agg->>'c2_fp_single_non1')::bigint = 5 AND (v_agg->>'c2_fp_slr_svp')::bigint = 38 AND (v_agg->>'c2_fp_slr_dp1')::bigint = 2 AND (v_agg->>'c2_fp_sls_dp1')::bigint = 4), false) THEN
+        IF NOT COALESCE(((v_agg->>'c3_fp_named_bad')::bigint = 0 AND (v_agg->>'c3_fp_n_types')::bigint = 63 AND (v_agg->>'c3_fp_worlds_types')::bigint = 21 AND (v_agg->>'c3_fp_worlds_n')::bigint = 21 AND (v_agg->>'c3_fp_single_types')::bigint = 19 AND (v_agg->>'c3_fp_single_n')::bigint = 24 AND (v_agg->>'c3_fp_single_non1')::bigint = 5 AND (v_agg->>'c3_fp_slr_svp')::bigint = 38 AND (v_agg->>'c3_fp_slr_dp1')::bigint = 2 AND (v_agg->>'c3_fp_sls_dp1')::bigint = 4), false) THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s impressão digital de A (MIGRATION-MAP-365) não reproduzida pelo candidato c2', c_env, v_case);
+                'H2830_FAIL: envelope=%s caso=%s impressão digital de A (MIGRATION-MAP-365) não reproduzida pelo candidato c3', c_env, v_case);
         END IF;
 
         RAISE EXCEPTION USING ERRCODE = 'H283C', MESSAGE = v_case;
@@ -382,13 +383,13 @@ BEGIN
     -- ================================================================== --
     v_case := '5.3';
     BEGIN
-        IF (v_agg->>'c2_plan_x_hold')::bigint IS DISTINCT FROM 0 THEN
+        IF (v_agg->>'c3_plan_x_hold')::bigint IS DISTINCT FROM 0 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s plano ∩ HOLD: medido=%s esperado=0 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_plan_x_hold')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s plano ∩ HOLD: medido=%s esperado=0 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_plan_x_hold')::bigint);
         END IF;
-        IF (v_agg->>'c2_unconditioned')::bigint IS DISTINCT FROM 285 THEN
+        IF (v_agg->>'c3_unconditioned')::bigint IS DISTINCT FROM 285 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s universo do plano (P13): medido=%s esperado=285 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_unconditioned')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s universo do plano (P13): medido=%s esperado=285 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_unconditioned')::bigint);
         END IF;
 
         RAISE EXCEPTION USING ERRCODE = 'H283C', MESSAGE = v_case;
@@ -442,21 +443,21 @@ BEGIN
     -- ================================================================== --
     v_case := '5.7';
     BEGIN
-        IF (v_agg->>'c2_plan_x_pricing')::bigint IS DISTINCT FROM 0 THEN
+        IF (v_agg->>'c3_plan_x_pricing')::bigint IS DISTINCT FROM 0 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s plano ∩ PRICING_CONDITIONED: medido=%s esperado=0 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_plan_x_pricing')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s plano ∩ PRICING_CONDITIONED: medido=%s esperado=0 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_plan_x_pricing')::bigint);
         END IF;
-        IF (v_agg->>'c2_conditioned')::bigint IS DISTINCT FROM 80 THEN
+        IF (v_agg->>'c3_conditioned')::bigint IS DISTINCT FROM 80 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s PRICING_CONDITIONED em READY_STRUCTURAL: medido=%s esperado=80 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_conditioned')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s PRICING_CONDITIONED em READY_STRUCTURAL: medido=%s esperado=80 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_conditioned')::bigint);
         END IF;
-        IF (v_agg->>'c2_cond_staff_holo')::bigint IS DISTINCT FROM 40 THEN
+        IF (v_agg->>'c3_cond_staff_holo')::bigint IS DISTINCT FROM 40 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s STAFF_HOLO: medido=%s esperado=40 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_cond_staff_holo')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s STAFF_HOLO: medido=%s esperado=40 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_cond_staff_holo')::bigint);
         END IF;
-        IF (v_agg->>'c2_cond_set_logo_reverse')::bigint IS DISTINCT FROM 40 THEN
+        IF (v_agg->>'c3_cond_set_logo_reverse')::bigint IS DISTINCT FROM 40 THEN
             RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-                'H2830_FAIL: envelope=%s caso=%s SET_LOGO_REVERSE: medido=%s esperado=40 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c2_cond_set_logo_reverse')::bigint);
+                'H2830_FAIL: envelope=%s caso=%s SET_LOGO_REVERSE: medido=%s esperado=40 (STOP e adjudicação; nunca reajuste)', c_env, v_case, (v_agg->>'c3_cond_set_logo_reverse')::bigint);
         END IF;
 
         RAISE EXCEPTION USING ERRCODE = 'H283C', MESSAGE = v_case;
@@ -489,6 +490,6 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = 'H283P', MESSAGE = format(
         'H2830_ROLLBACK_PASS: envelope=%s pass=%s/%s casos=%s marker=%s elapsed_ms=%s hold=%s structural=%s unconditioned=%s conditioned=%s by_pscid=%s by_psvm=%s',
         c_env, cardinality(v_done), cardinality(c_expected), array_to_string(v_done, ','),
-        v_marker, round(extract(epoch FROM clock_timestamp() - v_t0) * 1000), v_agg->>'hold', v_agg->>'c2_structural', v_agg->>'c2_unconditioned', v_agg->>'c2_conditioned', v_agg->>'c2_cond_by_pscid', v_agg->>'c2_cond_by_psvm');
+        v_marker, round(extract(epoch FROM clock_timestamp() - v_t0) * 1000), v_agg->>'hold', v_agg->>'c3_structural', v_agg->>'c3_unconditioned', v_agg->>'c3_conditioned', v_agg->>'c3_cond_by_pscid', v_agg->>'c3_cond_by_psvm');
 END
 $h2830_e15$;

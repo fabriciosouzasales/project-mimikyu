@@ -34,8 +34,12 @@
 #      códigos) ∖ SET_LOGO EX7–EX16 ∖ SET_LOGO fora de DP1/SWSH9/SVP ∖
 #      PROMO_STAMPED. Sem escopo de Game, como o original ⇒ exige o gate
 #      fail-closed de unicidade de variant_type.code (type_code_dup = 0).
-#      NÃO adjudicado aqui: READY_DEF continua None até o E15P provar no LIVE
-#      que C3 é o ÚNICO candidato ≡ A. C0/C1/C2 permanecem como contraprovas.
+#      ADJUDICADO (2026-09-28): o E15P LIVE (S5) provou C3 como ÚNICO candidato
+#      ≡ A (63/63 contra o censo de 19/09); decisão documental em
+#      harness/B5X-C3-ADJUDICATION-RECORD.md. C0/C1/C2 permanecem contraprovas.
+#      APLICAÇÃO OPERACIONAL (BATCH12-B5X-C3-OPERATIONAL-APPLICATION-01):
+#      READY_DEF = 'c3'. A definição de C3 é o bloco d5_finish/d5_c3 do DERIV
+#      (inalterado; o mesmo texto executado no LIVE).
 #   PENDÊNCIA OBRIGATÓRIA (readiness final do E15): as asserções 5.3
 #      (plano ∩ HOLD = 0) e 5.7 (plano ∩ PRICING_CONDITIONED = 0) são
 #      tautológicas por construção de {c}_unconditioned/_plan_x_*; não provam
@@ -44,7 +48,15 @@ from lib import *
 import pre
 
 C = dict(hold=107, structural=365, unconditioned=285, conditioned=80, staff=40, slr=40, resulting=23955, matched=1129)
-READY_DEF = None      # 'C0' | 'C1' | 'C2' | 'C3' — pendente (B-5X); só o candidato ≡ A no LIVE. None ⇒ E15 fail-closed.
+READY_DEF = 'c3'      # adjudicado: B5X-C3-ADJUDICATION-RECORD.md (C3 = seletor histórico de 2026-09-19).
+# Bloqueio INDEPENDENTE do E15 enquanto 5.3/5.7 forem tautológicas por construção
+# (pendência obrigatória da readiness do E15). A adjudicação de READY_DEF NÃO libera
+# o E15: só a reescrita de 5.3/5.7, sob mandato próprio, pode desligar este bloqueio.
+E15_BLOCKED_53_57 = True
+# O E15P é o instrumento EXECUTADO no LIVE (S5, 2026-09-28, md5 f9fc6d81…) e fica
+# como evidência histórica imutável: é gerado com o READY_DEF vigente na execução
+# (None), independentemente do READY_DEF adjudicado.
+E15P_READY_DEF = None
 
 GAME = "(SELECT id FROM public.game WHERE code = 'POKEMON')"
 SRC = "(SELECT id FROM public.asset_source WHERE code = 'TCGDEX')"
@@ -212,11 +224,14 @@ def deriv_select():
 
 PRE = """
     -- ------------------------------------------------------------------ --
-    -- B-5X: READY_STRUCTURAL não adjudicado ⇒ nenhum caso roda (fail-closed)
+    -- B-5X: sem READY_DEF adjudicado, ou com 5.3/5.7 ainda tautológicas,
+    -- nenhum caso roda (fail-closed)
     -- ------------------------------------------------------------------ --
 """ + ("""    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
         'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_STRUCTURAL não adjudicado (C2 ou A); E15 bloqueado', c_env);
-""" if READY_DEF is None else "") + """
+""" if READY_DEF is None else """    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado, mas 5.3/5.7 tautológicas por construção (pendência obrigatória); E15 bloqueado', c_env, '""" + READY_DEF + """');
+""" if E15_BLOCKED_53_57 else "") + """
     -- ------------------------------------------------------------------ --
     -- DERIV-5X (bloco idêntico ao E15P) — subtransação própria
     -- ------------------------------------------------------------------ --
@@ -266,9 +281,9 @@ CASES = [
 
 HEAD = header(['2830H · ENVELOPE E15 — SEÇÃO 5 (LEGADO / HOLD / EXCLUSÃO) · lote L13, 5 casos: 5.1 5.2 5.3 5.6 5.7'], [
     'Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO, NÃO COMPILADO no',
-    '                PostgreSQL. BLOQUEADO por B-5X: o PREFLIGHT levanta H2830_FAIL',
-    '                enquanto READY_STRUCTURAL não for adjudicado (C0/C1/C2 ≡ A); o gerador',
-    '                só remove o bloqueio com READY_DEF definido.',
+    '                PostgreSQL. BLOQUEADO pela pendência 5.3/5.7: READY_DEF = C3',
+    '                adjudicado (B5X-C3-ADJUDICATION-RECORD.md), mas o PREFLIGHT levanta',
+    '                H2830_FAIL enquanto E15_BLOCKED_53_57 = True no gerador.',
     'Contrato ...... 2830 v7.0 Seção 5; derivação 2831 v2.0 PASSO 0/0B/1 (arquivo',
     '                NÃO alterado), sem TEMP, bloco DERIV-5X idêntico ao E15P.',
     'Escrita ....... NENHUMA. Término em exceção por uniformidade (P2).',
@@ -323,17 +338,17 @@ def e15p():
         ('hold', C['hold']), ('lineage_resulting', C['resulting']), ('lineage_matched', C['matched'])])
     uniq = ' + '.join(f"(CASE WHEN {cand_ok(c)} THEN 1 ELSE 0 END)" for c in CANDS)
     gates = pre.GS_GATE + f"""
-        {'true' if READY_DEF else 'false'}                                                AS g_5x_ready_adjudicated,
+        {'true' if E15P_READY_DEF else 'false'}                                                AS g_5x_ready_adjudicated,
         (SELECT {checks} FROM d5_m m)                                                   AS g_5x_constants_measured,
         (SELECT {uniq} FROM d5_m m) = 1                                                  AS g_5x_unique_candidate_equals_a,
-        {('(SELECT ' + cand_ok(P) + ' FROM d5_m m)') if READY_DEF else 'false'}           AS g_5x_adjudicated_candidate_ok,
+        {('(SELECT ' + cand_ok(P) + ' FROM d5_m m)') if E15P_READY_DEF else 'false'}           AS g_5x_adjudicated_candidate_ok,
         (SELECT bool_and(n_active <= 1 AND n_fn = n_active) FROM d5_scope)              AS g_scope_unique,
         (SELECT m.type_code_dup = 0 FROM d5_m m)                                        AS g_5x_type_code_unique,
         (to_regclass('public.pricing_source_card_identity') IS NOT NULL
          AND to_regclass('public.pricing_source_variant_mapping') IS NOT NULL)          AS g_pricing_tables,"""
     det = """        'd_5x_measured',    (SELECT to_jsonb(m) FROM d5_m m),
         'd_5x_expected',    """ + "jsonb_build_object(" + ', '.join(f"'{k}', {v}" for k, v in C.items()) + """),
-        'd_5x_ready_def',   """ + (q(READY_DEF) if READY_DEF else 'NULL::text') + """,
+        'd_5x_ready_def',   """ + (q(E15P_READY_DEF) if E15P_READY_DEF else 'NULL::text') + """,
         'd_5x_candidate_ok', (SELECT jsonb_build_object(""" + ', '.join(f"'{c}', ({cand_ok(c)})" for c in CANDS) + """) FROM d5_m m),
         'd_5x_c0_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM d5_c0_bt), '{}'::jsonb),
         'd_5x_c3_by_type',  COALESCE((SELECT jsonb_object_agg(code, n) FROM d5_c3_bt), '{}'::jsonb),

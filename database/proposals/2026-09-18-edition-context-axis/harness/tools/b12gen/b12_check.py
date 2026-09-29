@@ -214,10 +214,29 @@ def r27_ok(q):
             and 'RESET search_path' in q and 'SET search_path = public, pg_temp;' in q)
 
 
-def r21_ok(e15, e15p):
+# Bloqueio do E15 após a adjudicação (BATCH12-B5X-C3-OPERATIONAL-APPLICATION-01):
+# READY_DEF = 'c3' adjudicado, mas 5.3/5.7 tautológicas ⇒ RAISE incondicional no
+# PREFLIGHT, antes do DERIV-5X e de qualquer caso.
+E15_PEND_RAISE = ("    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n"
+                  "        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado, mas 5.3/5.7 "
+                  "tautológicas por construção (pendência obrigatória); E15 bloqueado', c_env, 'c3');\n")
+
+
+def e15_blocked_ok(e15):
     pre15 = e15[:e15.index("v_case := 'DERIV-5X'")]
+    if '-- B-5X: sem READY_DEF adjudicado' not in pre15:
+        return False
+    blk = pre15[pre15.index('-- B-5X: sem READY_DEF adjudicado'):]
+    cases = e15[e15.index("v_case := '5.1'"):]
+    return (l13.READY_DEF == 'c3' and l13.E15_BLOCKED_53_57 is True
+            and blk.count(E15_PEND_RAISE) == 1 and 'IF ' not in blk and 'EXCEPTION WHEN' not in blk
+            and "(v_agg->>'c3_structural')" in cases
+            and not any(f"'{c}_" in cases for c in ('c0', 'c1', 'c2')))
+
+
+def r21_ok(e15, e15p):
     c52 = e15[e15.index("v_case := '5.2'"):e15.index("v_case := '5.3'")]
-    return (l13.READY_DEF is None and 'B-5X: READY_STRUCTURAL não adjudicado' in pre15
+    return (e15_blocked_ok(e15)
             and re.search(r'\bfalse\s+AS g_5x_ready_adjudicated', e15p) is not None
             and re.search(r'\bfalse\s+AS g_5x_adjudicated_candidate_ok', e15p) is not None
             and 'AS g_5x_unique_candidate_equals_a' in e15p and "'d_5x_candidate_ok'" in e15p
@@ -227,6 +246,16 @@ def r21_ok(e15, e15p):
             and 'IF NOT COALESCE(' in c52 and "_fp_named_bad')::bigint = 0" in c52
             and all(f"_fp_{k}')::bigint = {l13.MAP_FP[k]}" in c52
                     for k in ('worlds_types', 'worlds_n', 'single_types', 'single_n', 'single_non1')))
+
+
+# Identidade do E15P EXECUTADO no LIVE (S5, 2026-09-28) — constante independente do
+# gerador. O arquivo versionado é evidência histórica imutável (B5X-C3-ADJUDICATION-RECORD.md).
+E15P_EXECUTED_MD5 = 'f9fc6d81cd2c6272a04079368a46a49d'
+
+
+def r32_ok(e15p):
+    return (hashlib.md5(e15p.encode()).hexdigest() == E15P_EXECUTED_MD5 and l13.E15P_READY_DEF is None
+            and "'d_5x_ready_def',   NULL::text," in e15p)
 
 
 # Cópia INDEPENDENTE (verificador) da lista FINISH do seletor histórico,
@@ -364,7 +393,7 @@ def run():
     for tag, row in sm_ctrl_rows():
         res.append((f'B12 R-16: controle SM {tag} dispara o próprio predicado', ev(l11.P[tag], row), sql_pred(l11.P[tag])))
     res.append(('B12 R-17: SM8 declarado = SM7 (mesmo texto)', l11.P['sm8'] == l11.P['sm7'], ''))
-    res.append(('B12 R-18: E15 marcado BLOQUEADO por B-5X no cabeçalho', 'BLOQUEADO por B-5X' in F('2830H_E15_section5_legacy_hold.sql'), ''))
+    res.append(('B12 R-18: E15 marcado BLOQUEADO pela pendência 5.3/5.7 no cabeçalho', 'BLOQUEADO pela pendência 5.3/5.7' in F('2830H_E15_section5_legacy_hold.sql'), ''))
 
     # 8. INTEGRATED TECHNICAL RESOLUTION — B-5X, D-P7X, D-V1, R6, R12, P9B, 2234
     allow = pre.P7X[pre.P7X.index('p7x_allow('):pre.P7X.index('p7x_fn AS (')]
@@ -373,8 +402,10 @@ def run():
                 and 'g_p7x_search_path_empty' in pre.P7X_GATES and 'g_p7x_legacy_sp_mitigated' not in ''.join(files.values()), ''))
     e15 = F('2830H_E15_section5_legacy_hold.sql')
     pre15 = e15[:e15.index("v_case := 'DERIV-5X'")]
-    res.append(('B12 R-21: B-5X — E15 fail-closed antes de qualquer caso (READY_DEF não adjudicado)',
+    res.append(('B12 R-21: B-5X — READY_DEF = c3 aplicado nos casos; E15 fail-closed antes de qualquer caso (5.3/5.7 pendentes)',
                 r21_ok(e15, F('2830H_E15P_measure_section5.sql')), ''))
+    res.append(('B12 R-32: E15P = instrumento executado no LIVE (md5 f9fc6d81…), imutável; d_5x_ready_def histórico NULL',
+                r32_ok(F('2830H_E15P_measure_section5.sql')), ''))
     res.append(('B12 R-28: B-5X — impressão digital de A consistente (variantes 320 + 21 + 24 = 365; tipos 23 + 21 + 19 = 63; residual 14×1 + 5×2)',
                 fp_map_ok(l13.MAP_NAMED, l13.MAP_FP), ''))
     res.append(('B12 R-29: B-5X — C3 = seletor histórico verbatim (FINISH 28 literal + regras SET_LOGO + PROMO_STAMPED) e gate de unicidade de code',
@@ -503,6 +534,29 @@ def run():
                         ('single_non1', 0, 'duplos 5 → 0 (singletons puros)')]:
         neg.append((f'VERIFICADOR rejeita: MAP_FP {why} [R-28]', not fp_map_ok(l13.MAP_NAMED, dict(l13.MAP_FP, **{k: bad})), ''))
     e15p_real = F('2830H_E15P_measure_section5.sql')
+    e15r = F('2830H_E15_section5_legacy_hold.sql')
+    neg.append(('VERIFICADOR rejeita: E15 sem o bloqueio 5.3/5.7 no PREFLIGHT (liberação prematura) [R-21]',
+                not r21_ok(e15r.replace(E15_PEND_RAISE, '', 1), e15p_real), ''))
+    neg.append(('VERIFICADOR rejeita: bloqueio 5.3/5.7 condicionado (IF) em vez de incondicional [R-21]',
+                not r21_ok(e15r.replace(E15_PEND_RAISE, '    IF v_n = 0 THEN\n' + E15_PEND_RAISE + '    END IF;\n', 1), e15p_real), ''))
+    neg.append(('VERIFICADOR rejeita: casos do E15 lendo c2 em vez de c3 [R-21]',
+                not r21_ok(e15r.replace("(v_agg->>'c3_structural')", "(v_agg->>'c2_structural')"), e15p_real), ''))
+    _flag = l13.E15_BLOCKED_53_57
+    try:
+        l13.E15_BLOCKED_53_57 = False
+        neg.append(('VERIFICADOR rejeita: gerador com E15_BLOCKED_53_57 = False [R-21]', not r21_ok(e15r, e15p_real), ''))
+    finally:
+        l13.E15_BLOCKED_53_57 = _flag
+    _rd = l13.READY_DEF
+    try:
+        l13.READY_DEF = 'c2'
+        neg.append(('VERIFICADOR rejeita: READY_DEF diferente do adjudicado (c2) [R-21]', not r21_ok(e15r, e15p_real), ''))
+    finally:
+        l13.READY_DEF = _rd
+    neg.append(('VERIFICADOR rejeita: E15P regenerado com d_5x_ready_def = c3 (evidência alterada) [R-32]',
+                not r32_ok(e15p_real.replace("'d_5x_ready_def',   NULL::text,", "'d_5x_ready_def',   'c3',", 1)), ''))
+    neg.append(('VERIFICADOR rejeita: E15P com g_5x_ready_adjudicated = true (evidência alterada) [R-32]',
+                not r32_ok(re.sub(r'\bfalse(\s+AS g_5x_ready_adjudicated)', r'true\1', e15p_real, count=1)), ''))
     neg.append(('VERIFICADOR rejeita: 5.2 com single_non1 = 0 (constante antiga) [R-21]',
                 not r21_ok(F('2830H_E15_section5_legacy_hold.sql').replace("_fp_single_non1')::bigint = 5", "_fp_single_non1')::bigint = 0", 1), e15p_real), ''))
     neg.append(('VERIFICADOR rejeita: E15P sem gate de unicidade de code [R-21]',
