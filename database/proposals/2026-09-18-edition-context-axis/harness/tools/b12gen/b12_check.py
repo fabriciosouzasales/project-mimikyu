@@ -95,7 +95,7 @@ def env_rules(eid, src, ctx_expected=None):
     ck('B-7', 'P8: SET LOCAL lock_timeout 5s + asserção é a 1ª instrução', body.split('BEGIN\n', 1)[-1].lstrip('\n').split('\n', 3)[-1].startswith(LT)
        or LT in body.split('-- PREFLIGHT', 1)[0])
     cases = re.findall(r"\n    v_case := '([^']+)';", body)
-    cases = [x for x in cases if x not in ('VREC', 'SMREC', 'DERIV-5X')]
+    cases = [x for x in cases if x not in ('VREC', 'SMREC', 'DERIV-5X', 'DERIV-D1X')]
     exp = re.search(r"c_expected CONSTANT text\[\] := ARRAY\[(.*?)\];", c)
     exp = [x.strip("'") for x in exp.group(1).split(',')] if exp else []
     ck('B-8', 'casos = contrato 2830 v7.0, na ordem, uma vez', cases == CONTRACT[eid] and exp == CONTRACT[eid], str(cases))
@@ -214,12 +214,12 @@ def r27_ok(q):
             and 'RESET search_path' in q and 'SET search_path = public, pg_temp;' in q)
 
 
-# Bloqueio do E15 após a adjudicação (BATCH12-B5X-C3-OPERATIONAL-APPLICATION-01):
-# READY_DEF = 'c3' adjudicado, mas 5.3/5.7 tautológicas ⇒ RAISE incondicional no
-# PREFLIGHT, antes do DERIV-5X e de qualquer caso.
+# Bloqueio do E15 após a adjudicação (BATCH12-B5X-C3-OPERATIONAL-APPLICATION-01) e a
+# reescrita de 5.3/5.7 (BATCH12-E15-53-57-IMPLEMENTATION-01): RAISE incondicional no
+# PREFLIGHT, antes do DERIV-5X e de qualquer caso, até auditoria independente.
 E15_PEND_RAISE = ("    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n"
-                  "        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado, mas 5.3/5.7 "
-                  "tautológicas por construção (pendência obrigatória); E15 bloqueado', c_env, 'c3');\n")
+                  "        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado; 5.3/5.7 "
+                  "reescritas (D1X) aguardam auditoria independente; E15 bloqueado', c_env, 'c3');\n")
 
 
 def e15_blocked_ok(e15):
@@ -330,6 +330,130 @@ def fp_map_ok(named, fp):
 # ---------------------------------------------------------------------------
 # execução
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 5.3 / 5.7 sobre a evidência D1 (BATCH12-E15-53-57-IMPLEMENTATION-01)
+# Fontes independentes do gerador: a resposta bruta S2 e o instrumento executado,
+# lidos do pacote versionado evidence/D1-2026-09-29 (md5 conferidos aqui).
+# ---------------------------------------------------------------------------
+D1_DIR = H / 'evidence' / 'D1-2026-09-29'
+D1_RAW_MD5 = '7fed42bb0b1dcdd53552d37fac7d3336'       # S2/raw_response.txt
+D1_INSTR_MD5 = 'efb3217e4b5ce9d227f412739c3e1b18'     # instrument/D1-ID-IDENTITY.sql = S2/statement_submitted.sql
+D1_MD5_COL = dict(hold='md5_hold', plan='md5_plan', ready='md5_ready', conditioned='md5_cond')
+G53 = ['g_join_complete', 'g_type_code_unique', 'g_universe_19_09', 'g_uraw_1027', 'g_partition_counts', 'g_partition_exact',
+       'g_ready_by_type_19_09', 'g_hold_by_type_set_19_09', 'g_nc_by_type_set_19_09', 'g_plan_x_hold_zero']
+G57 = ['g_plan_contract_285', 'g_plan_equivalence', 'g_plan_x_pscid_zero', 'g_plan_x_psvm_zero', 'g_h6_types',
+       'g_conditioned_80_40_40']
+TAUT = ['plan_x_pricing', "'c3_plan_x_hold'", "'c3_unconditioned'", 'NOT IN (SELECT id FROM d5_pricing)', "v_agg->>"]
+
+
+def d1_identity(raw):
+    o = json.loads(raw.decode('utf-8'))['result']
+    a, b = o.index('\n[{'), o.rindex('}]') + 2
+    return json.loads(o[a + 1:b])[0]['d1_identity']
+
+
+def d1_block_of(instr):
+    t = instr.decode('utf-8')
+    return t[t.index('\nWITH\n') + 6:t.index('\nSELECT pg_catalog.jsonb_build_object(')]
+
+
+def case_seg(e15, cid, nxt):
+    """corpo do caso cid até o próximo caso (ou até o GATE DO ENVELOPE, se último)"""
+    i = e15.index(f"v_case := '{cid}'")
+    return e15[i:e15.index(f"v_case := '{nxt}'") if nxt else e15.index('-- GATE DO ENVELOPE', i)]
+
+
+def r33_ok(e15, raw, instr, digests):
+    """5.3/5.7 não tautológicas: fonte D1 íntegra, bloco verbatim, digests = evidência,
+    toda leitura fail-closed, pscid/psvm separados e nenhum termo derivado do plano."""
+    try:
+        if hashlib.md5(raw).hexdigest() != D1_RAW_MD5 or hashlib.md5(instr).hexdigest() != D1_INSTR_MD5:
+            return False
+        d = d1_identity(raw)
+        if d.get('gate_pass') is not True or len(d['gates']) != 16 or not all(v is True for v in d['gates'].values()):
+            return False
+        ident, meas = d['d1_identity'], d['d1_measured']
+        for k, (n, h) in digests.items():
+            if ident[k]['n'] != n or ident[k]['md5'] != h or meas[D1_MD5_COL[k]] != h:
+                return False
+        if meas['md5_plan_derived'] != digests['plan'][1] or meas['plan_symdiff'] != 0:
+            return False
+        blk = d1_block_of(instr)
+        stmt = 'WITH ' + l13.DERIV + '\n' + blk + '\nSELECT pg_catalog.jsonb_build_object('
+        if lib.ind(stmt, 8) not in e15 or e15.count(lib.ind(blk, 8)) != 1:
+            return False
+        dx = e15[e15.index("v_case := 'DERIV-D1X'"):e15.index("v_case := '5.1'")]
+        tail = dx[dx.index("SELECT pg_catalog.jsonb_build_object(\n            'g'"):]
+        if (any(x in tail for x in ('d5_m', 'd5_c2', 'd5_ev', 'resolve_variant_row_axes', 'd5_pricing'))
+                or 'FROM d5_hold)' not in tail or 'FROM d5_c3))' not in tail or 'INTO STRICT v_d1;' not in dx):
+            return False
+        c53, c57 = case_seg(e15, '5.3', '5.6'), case_seg(e15, '5.7', None)
+        for seg, gs, keys in ((c53, G53, ('hold', 'ready')), (c57, G57, ('plan', 'conditioned'))):
+            if any(x in seg for x in TAUT):
+                return False
+            if any(f"IF NOT COALESCE((v_d1->'g'->>'{g}')::boolean, false) THEN" not in seg for g in gs):
+                return False
+            if seg.count("(v_d1->'g'->>") != seg.count("NOT COALESCE((v_d1->'g'->>"):
+                return False
+            for k in keys:
+                if f"IF (v_d1->'m'->>'{D1_MD5_COL[k]}') IS DISTINCT FROM '{digests[k][1]}' THEN" not in seg:
+                    return False
+        if ("IF (v_d1->>'x_md5_hold_deriv') IS DISTINCT FROM (v_d1->'m'->>'md5_hold') THEN" not in c53
+                or "IF (v_d1->>'x_md5_ready_c3') IS DISTINCT FROM (v_d1->'m'->>'md5_ready') THEN" not in c53
+                or f"IF (v_d1->'m'->>'md5_plan_derived') IS DISTINCT FROM '{digests['plan'][1]}' THEN" not in c57
+                or c57.index("'g_plan_x_pscid_zero'") > c57.index("'g_plan_x_psvm_zero'")):
+            return False
+        return True
+    except (ValueError, KeyError, TypeError, IndexError):
+        return False
+
+
+_MODEL_CACHE = {}
+D1_MODEL_MD5 = 'd14cfc1deb9b2ed37c55b029c640022b'    # instrument/d1_model.py (histórico, versionado)
+D1_MODEL_PATH = D1_DIR / 'instrument' / 'd1_model.py'
+
+
+def d1_model_run(model_path=None):
+    """executa o modelo offline versionado (evidence/D1-2026-09-29/instrument/d1_model.py);
+    retorna (PASS?, {CP: digests alterados}) só para os CP que nenhum gate de contagem pega.
+    Integridade: os bytes do modelo e do instrumento são lidos e conferidos contra os md5
+    históricos A CADA chamada, antes de qualquer uso do cache; divergência ⇒ (False, {}) sem
+    executar nada. O subprocess roda uma cópia temporária feita desses mesmos bytes
+    conferidos (sem janela entre a verificação e a execução)."""
+    mb = pathlib.Path(model_path or D1_MODEL_PATH).read_bytes()
+    ib = (D1_DIR / 'instrument' / 'D1-ID-IDENTITY.sql').read_bytes()
+    if hashlib.md5(mb).hexdigest() != D1_MODEL_MD5 or hashlib.md5(ib).hexdigest() != D1_INSTR_MD5:
+        return (False, {})
+    key = (hashlib.md5(mb).hexdigest(), hashlib.md5(ib).hexdigest())
+    if key not in _MODEL_CACHE:
+        import subprocess, tempfile
+        with tempfile.TemporaryDirectory() as td:
+            tm, ti = pathlib.Path(td) / 'd1_model.py', pathlib.Path(td) / 'D1-ID-IDENTITY.sql'
+            tm.write_bytes(mb)
+            ti.write_bytes(ib)
+            p = subprocess.run([sys.executable, '-B', str(tm), str(ti), str(H / 'evidence' / 'B5X-E15P-2026-09-28')],
+                               capture_output=True, text=True, timeout=300)
+        cps = {}
+        for line in p.stdout.splitlines():
+            m = re.match(r"(CP-\w+) .*gates_FAIL=—\s+digests_MUDAM=\[(.*)\]", line)
+            if m:
+                cps[m.group(1)] = {x.strip().strip("'") for x in m.group(2).split(',') if x.strip()}
+        _MODEL_CACHE[key] = (p.returncode == 0 and 'MODELO: todas as asserções PASS' in p.stdout, cps)
+    return _MODEL_CACHE[key]
+
+
+def r34_ok(e15, digests, model_path=None):
+    """toda troca compensada invisível às contagens (CP-1, CP-2, CP-2b, CP-5b, CP-6, CP-7)
+    altera ao menos um digest que o E15 congela em 5.3/5.7 (modelo com md5 histórico)"""
+    ok, cps = d1_model_run(model_path)
+    seg = case_seg(e15, '5.3', '5.6') + case_seg(e15, '5.7', None)
+    name = dict(hold='hold', plan='plan', ready='ready', conditioned='cond')
+    asserted = {name[k] for k, (_, h) in digests.items() if f"IS DISTINCT FROM '{h}' THEN" in seg}
+    need = {'CP-1', 'CP-2', 'CP-2b', 'CP-5b', 'CP-6', 'CP-7'}
+    return ok and need <= set(cps) and all(cps[c] & asserted for c in need)
+
+
 def run():
     res, neg, pos = [], [], []
     files, meta, total = gen_all.build()
@@ -404,6 +528,12 @@ def run():
     pre15 = e15[:e15.index("v_case := 'DERIV-5X'")]
     res.append(('B12 R-21: B-5X — READY_DEF = c3 aplicado nos casos; E15 fail-closed antes de qualquer caso (5.3/5.7 pendentes)',
                 r21_ok(e15, F('2830H_E15P_measure_section5.sql')), ''))
+    d1raw = (D1_DIR / 'S2' / 'raw_response.txt').read_bytes()
+    d1ins = (D1_DIR / 'instrument' / 'D1-ID-IDENTITY.sql').read_bytes()
+    res.append(('B12 R-33: 5.3/5.7 sobre o D1 — digests = S2 bruta, bloco do instrumento executado verbatim, gates fail-closed, pscid/psvm separados, sem termo tautológico',
+                r33_ok(e15, d1raw, d1ins, l13.D1_DIGESTS), ''))
+    res.append(('B12 R-34: contraprovas CP-1/CP-2/CP-2b/CP-5b/CP-6/CP-7 (trocas compensadas) detectadas pelos digests congelados no E15; modelo executado só com md5 histórico d14cfc1d…',
+                r34_ok(e15, l13.D1_DIGESTS), str(d1_model_run()[1])))
     res.append(('B12 R-32: E15P = instrumento executado no LIVE (md5 f9fc6d81…), imutável; d_5x_ready_def histórico NULL',
                 r32_ok(F('2830H_E15P_measure_section5.sql')), ''))
     res.append(('B12 R-28: B-5X — impressão digital de A consistente (variantes 320 + 21 + 24 = 365; tipos 23 + 21 + 19 = 63; residual 14×1 + 5×2)',
@@ -595,6 +725,58 @@ def run():
        q2234.replace("normalize_catalog_variant_import_row()'))))), true);", "normalize_catalog_variant_import_row()')))), true);", 1), 'M-1')
     mm('dollar-quote desemparelhado ($post$ → $pst$)', q2234.replace('$post$;', '$pst$;', 1), 'M-2')
     mm('RAISE com marcador a mais', q2234.replace("'2234_POSTCONDITION: % de 4 funções", "'2234_POSTCONDITION: % % de 4 funções", 1), 'M-5')
+
+    # --- 5.3 / 5.7 (D1X): mutações que TÊM de ser rejeitadas [R-33 / R-34] ---
+    dg = l13.D1_DIGESTS
+    h_hold, h_plan, h_ready, h_cond = (dg[k][1] for k in ('hold', 'plan', 'ready', 'conditioned'))
+    flip = lambda h: h[:-1] + ('0' if h[-1] != '0' else '1')
+    r33n = lambda e=e15r, raw=d1raw, ins=d1ins, dig=dg: not r33_ok(e, raw, ins, dig)
+    neg.append(('VERIFICADOR rejeita: digest HOLD congelado ≠ evidência S2 [R-33]', r33n(dig=dict(dg, hold=(107, flip(h_hold)))), ''))
+    neg.append(('VERIFICADOR rejeita: digest CONDITIONED congelado ≠ evidência S2 [R-33]', r33n(dig=dict(dg, conditioned=(80, flip(h_cond)))), ''))
+    neg.append(('VERIFICADOR rejeita: n do PLAN congelado ≠ evidência (284) [R-33]', r33n(dig=dict(dg, plan=(284, h_plan))), ''))
+    neg.append(('VERIFICADOR rejeita: resposta bruta S2 adulterada (1 byte) [R-33]',
+                r33n(raw=d1raw.replace(h_ready.encode(), flip(h_ready).encode(), 1)), ''))
+    neg.append(('VERIFICADOR rejeita: instrumento D1 adulterado (HOLD sem PROMO_STAMPED) [R-33]',
+                r33n(ins=d1ins.replace(b"(vt.code = 'PROMO_STAMPED'\n            OR ", b'(', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: bloco D1 do E15 divergente do instrumento executado (HOLD sem PROMO_STAMPED) [R-33]',
+                r33n(e=e15r.replace("(vt.code = 'PROMO_STAMPED'\n                    OR ", '(', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: 5.3 sem a âncora READY por id [R-33]',
+                r33n(e=e15r.replace(f"IS DISTINCT FROM '{h_ready}' THEN", 'IS DISTINCT FROM NULL THEN', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: 5.7 sem a âncora CONDITIONED por id [R-33]',
+                r33n(e=e15r.replace(f"IS DISTINCT FROM '{h_cond}' THEN", 'IS DISTINCT FROM NULL THEN', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: 5.7 com a tautologia plan_x_pricing reintroduzida (CP-3) [R-33]',
+                r33n(e=e15r.replace("    v_case := '5.7';\n    BEGIN\n",
+                                    "    v_case := '5.7';\n    BEGIN\n        IF (v_agg->>'c3_plan_x_pricing')::bigint IS DISTINCT FROM 0 THEN\n            RAISE EXCEPTION 'x';\n        END IF;\n", 1)), ''))
+    neg.append(('VERIFICADOR rejeita: 5.3 lendo o plano derivado do DERIV (c3_plan_x_hold) [R-33]',
+                r33n(e=e15r.replace("    v_case := '5.3';\n    BEGIN\n",
+                                    "    v_case := '5.3';\n    BEGIN\n        IF (v_agg->>'c3_plan_x_hold')::bigint IS DISTINCT FROM 0 THEN\n            RAISE EXCEPTION 'x';\n        END IF;\n", 1)), ''))
+    neg.append(('VERIFICADOR rejeita: pscid e psvm fundidos (g_plan_x_psvm_zero removido) [R-33]',
+                r33n(e=e15r.replace("IF NOT COALESCE((v_d1->'g'->>'g_plan_x_psvm_zero')::boolean, false) THEN", 'IF false THEN', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: gate D1 lido sem COALESCE (NULL passaria) [R-33]',
+                r33n(e=e15r.replace("IF NOT COALESCE((v_d1->'g'->>'g_partition_exact')::boolean, false) THEN",
+                                    "IF NOT ((v_d1->'g'->>'g_partition_exact')::boolean) THEN", 1)), ''))
+    neg.append(('VERIFICADOR rejeita: ligação HOLD 2831 ≡ HOLD D1 removida [R-33]',
+                r33n(e=e15r.replace("IF (v_d1->>'x_md5_hold_deriv') IS DISTINCT FROM (v_d1->'m'->>'md5_hold') THEN", 'IF false THEN', 1)), ''))
+    neg.append(('VERIFICADOR rejeita: DERIV-D1X referenciando d5_m (avaliaria C2/2211) [R-33]',
+                r33n(e=e15r.replace('FROM d5_hold),\n', "FROM d5_hold),\n            'x_m', (SELECT to_jsonb(z) FROM d5_m z),\n", 1)), ''))
+    neg.append(('VERIFICADOR rejeita: E15 sem as âncoras READY e CONDITIONED — CP-7 indetectável [R-34]',
+                not r34_ok(e15r.replace(f"IS DISTINCT FROM '{h_ready}' THEN", 'IS DISTINCT FROM NULL THEN')
+                           .replace(f"IS DISTINCT FROM '{h_cond}' THEN", 'IS DISTINCT FROM NULL THEN'), dg), ''))
+    _mb = D1_MODEL_PATH.read_bytes()
+    _i = _mb.index(b'# Modelo')
+    _mut = _mb[:_i] + bytes([_mb[_i] ^ 0x01]) + _mb[_i + 1:]
+    import tempfile
+    with tempfile.TemporaryDirectory() as _td:
+        _fx = pathlib.Path(_td) / 'd1_model.py'
+        _fx.write_bytes(_mut)
+        neg.append(('VERIFICADOR rejeita: modelo D1 adulterado (1 byte, fixture temporária) antes da execução [R-34]',
+                    _mut != _mb and len(_mut) == len(_mb) and hashlib.md5(_mb).hexdigest() == D1_MODEL_MD5
+                    and d1_model_run(_fx) == (False, {}) and not r34_ok(e15r, dg, _fx)
+                    and d1_model_run()[0] is True, ''))
+    neg.append(('VERIFICADOR rejeita: E15 só com a âncora HOLD — CP-6 indetectável [R-34]',
+                not r34_ok(e15r.replace(f"IS DISTINCT FROM '{h_ready}' THEN", 'IS DISTINCT FROM NULL THEN')
+                           .replace(f"IS DISTINCT FROM '{h_cond}' THEN", 'IS DISTINCT FROM NULL THEN')
+                           .replace(f"IS DISTINCT FROM '{h_plan}' THEN", 'IS DISTINCT FROM NULL THEN'), dg), ''))
 
     # -------------------------------------------------------------------
     # VERIFICADOR-POS

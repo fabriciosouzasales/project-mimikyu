@@ -75,7 +75,7 @@
 
 | Id | Estado | Saída |
 |---|---|---|
-| B-5X | **medido e adjudicado documentalmente (`READY_DEF = C3`, 2026-09-28)**; STOP-5/STOP-7 encerrados documentalmente — `B5X-C3-ADJUDICATION-RECORD.md`. C3 aplicado no gerador em `c74c55ae` (E15 regenerado, `E15_BLOCKED_53_57 = True`). **D1 (identidade por id de HOLD/PLAN/READY/CONDITIONED) medido no LIVE em 2026-09-29: `gate_pass = true`, 16/16; composições iguais às de 19/09; D2 (SLS 11 / SLR 59) confirmada** — `evidence/D1-2026-09-29/RELATORIO-EVIDENCIAS.md` | fixação dos quatro digests (53-d) e reescrita de 5.3/5.7 sob mandato próprio; E15 segue fail-closed até lá |
+| B-5X | **medido e adjudicado documentalmente (`READY_DEF = C3`, 2026-09-28)**; STOP-5/STOP-7 encerrados documentalmente — `B5X-C3-ADJUDICATION-RECORD.md`. C3 aplicado no gerador em `c74c55ae` (E15 regenerado, `E15_BLOCKED_53_57 = True`). **D1 (identidade por id de HOLD/PLAN/READY/CONDITIONED) medido no LIVE em 2026-09-29: `gate_pass = true`, 16/16; composições iguais às de 19/09; D2 (SLS 11 / SLR 59) confirmada** — `evidence/D1-2026-09-29/RELATORIO-EVIDENCIAS.md` | **5.3/5.7 reescritas localmente sobre o D1 (`BATCH12-E15-53-57-IMPLEMENTATION-01`)**: bloco DERIV-D1X = DERIV-5X inalterado + instrumento D1 executado, byte a byte; quatro digests congelados em `l13.D1_DIGESTS`; regras R-33/R-34 e 16 contraprovas negativas. **Aguarda auditoria independente**; `E15_BLOCKED_53_57 = True`, E15 segue fail-closed; E15P inalterado (`f9fc6d81…`) |
 | D-P7X | **resolvido tecnicamente**; execução pendente | autorização específica para a 2234 (DDL) |
 | R12 escopo | **resolvido (A4)** | só reabre por mudança de contrato |
 | Compilação | não realizável aqui | primeiro contato no ambiente isolado (P9B) ou FAIL-closed no LIVE |

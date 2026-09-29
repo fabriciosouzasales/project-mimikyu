@@ -40,19 +40,66 @@
 #      APLICAÇÃO OPERACIONAL (BATCH12-B5X-C3-OPERATIONAL-APPLICATION-01):
 #      READY_DEF = 'c3'. A definição de C3 é o bloco d5_finish/d5_c3 do DERIV
 #      (inalterado; o mesmo texto executado no LIVE).
-#   PENDÊNCIA OBRIGATÓRIA (readiness final do E15): as asserções 5.3
-#      (plano ∩ HOLD = 0) e 5.7 (plano ∩ PRICING_CONDITIONED = 0) são
-#      tautológicas por construção de {c}_unconditioned/_plan_x_*; não provam
-#      exclusão. Não alteradas nesta rodada (correção mínima do STOP-7).
+#   5.3/5.7 REESCRITAS (BATCH12-E15-53-57-IMPLEMENTATION-01): as asserções
+#      antigas (plano ∩ HOLD e plano ∩ PRICING a partir de {c}_unconditioned /
+#      {c}_plan_x_*) eram tautológicas por construção. Os casos passam a ler o
+#      bloco D1X: o CTE body do instrumento D1 executado no LIVE (evidence/
+#      D1-2026-09-29, md5 efb3217e…), incorporado byte a byte, sobre o DERIV-5X
+#      histórico inalterado (o E15P e o DERIV não mudam). Provas: universo
+#      independente U_raw, partição exata, composição HOLD/NC por (tipo, Set),
+#      plano contratual por código (sem Pricing) ≡ plano derivado por id,
+#      pscid/psvm separados, e âncoras por identidade = os quatro digests D1
+#      congelados. plano ∩ HOLD permanece só como consistência de código.
+#      O E15 continua bloqueado (E15_BLOCKED_53_57) até a auditoria independente.
+import pathlib, hashlib
 from lib import *
 import pre
 
 C = dict(hold=107, structural=365, unconditioned=285, conditioned=80, staff=40, slr=40, resulting=23955, matched=1129)
 READY_DEF = 'c3'      # adjudicado: B5X-C3-ADJUDICATION-RECORD.md (C3 = seletor histórico de 2026-09-19).
-# Bloqueio INDEPENDENTE do E15 enquanto 5.3/5.7 forem tautológicas por construção
-# (pendência obrigatória da readiness do E15). A adjudicação de READY_DEF NÃO libera
-# o E15: só a reescrita de 5.3/5.7, sob mandato próprio, pode desligar este bloqueio.
+# Bloqueio INDEPENDENTE do E15. 5.3/5.7 foram reescritas (D1X), mas o desbloqueio
+# exige auditoria independente e mandato próprio: permanece True nesta rodada.
 E15_BLOCKED_53_57 = True
+
+# ---------------------------------------------------------------------------
+# D1 — evidência LIVE versionada (2026-09-29): instrumento e digests congelados.
+# Os digests foram lidos de evidence/D1-2026-09-29/S2/raw_response.txt
+# (d1_identity) e conferidos com RELATORIO-EVIDENCIAS.md §4; o b12_check os
+# confronta de novo com a resposta bruta a cada verificação.
+# ---------------------------------------------------------------------------
+D1_EVID = pathlib.Path(__file__).resolve().parent.parent.parent / 'evidence' / 'D1-2026-09-29'
+D1_INSTRUMENT_MD5 = 'efb3217e4b5ce9d227f412739c3e1b18'
+D1_DIGESTS = dict(hold=(107, '0e56dfffc8cc9ef09b66d4f5fe958d91'),
+                  plan=(285, 'a53343fa38bbbe6f45fea7a4dba4bbdb'),
+                  ready=(365, 'ee0e4c54336179431797e602a358bb0e'),
+                  conditioned=(80, '288f9b45b8e95bfb7123fe9e8693d3a3'))
+D1_MD5_COL = dict(hold='md5_hold', plan='md5_plan', ready='md5_ready', conditioned='md5_cond')
+D1_N_COL = dict(hold='n_hold', plan='n_plan_contract', ready='n_ready', conditioned='n_cond')
+
+
+def d1_block():
+    """CTE body do instrumento D1 executado (h_finish … gates), byte a byte.
+    Falha a geração se o instrumento versionado não tiver o md5 executado."""
+    raw = (D1_EVID / 'instrument' / 'D1-ID-IDENTITY.sql').read_bytes()
+    if hashlib.md5(raw).hexdigest() != D1_INSTRUMENT_MD5:
+        raise SystemExit('D1: instrumento versionado diverge do executado (md5)')
+    t = raw.decode('utf-8')
+    a = t.index('\nWITH\n') + len('\nWITH\n')
+    b = t.index('\nSELECT pg_catalog.jsonb_build_object(')
+    return t[a:b]
+
+
+def d1x_select():
+    """DERIV-5X histórico (texto idêntico, CTEs não referenciadas não são
+    avaliadas: nenhuma chamada à 2211) + bloco D1 verbatim + ligação por id
+    entre os seletores históricos (d5_hold, d5_c3) e os conjuntos do D1."""
+    x = "pg_catalog.md5(COALESCE(pg_catalog.string_agg(id::text, ',' ORDER BY id), ''))"
+    return ('WITH ' + DERIV + '\n' + d1_block() + '\nSELECT pg_catalog.jsonb_build_object(\n'
+            "    'g', pg_catalog.to_jsonb(g),\n"
+            "    'm', pg_catalog.to_jsonb(m),\n"
+            f"    'x_md5_hold_deriv', (SELECT {x} FROM d5_hold),\n"
+            f"    'x_md5_ready_c3', (SELECT {x} FROM d5_c3))\n"
+            '  FROM gates g CROSS JOIN d1_m m')
 # O E15P é o instrumento EXECUTADO no LIVE (S5, 2026-09-28, md5 f9fc6d81…) e fica
 # como evidência histórica imutável: é gerado com o READY_DEF vigente na execução
 # (None), independentemente do READY_DEF adjudicado.
@@ -224,13 +271,13 @@ def deriv_select():
 
 PRE = """
     -- ------------------------------------------------------------------ --
-    -- B-5X: sem READY_DEF adjudicado, ou com 5.3/5.7 ainda tautológicas,
-    -- nenhum caso roda (fail-closed)
+    -- B-5X: sem READY_DEF adjudicado, ou com 5.3/5.7 sem auditoria
+    -- independente do desbloqueio, nenhum caso roda (fail-closed)
     -- ------------------------------------------------------------------ --
 """ + ("""    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
         'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_STRUCTURAL não adjudicado (C2 ou A); E15 bloqueado', c_env);
 """ if READY_DEF is None else """    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado, mas 5.3/5.7 tautológicas por construção (pendência obrigatória); E15 bloqueado', c_env, '""" + READY_DEF + """');
+        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado; 5.3/5.7 reescritas (D1X) aguardam auditoria independente; E15 bloqueado', c_env, '""" + READY_DEF + """');
 """ if E15_BLOCKED_53_57 else "") + """
     -- ------------------------------------------------------------------ --
     -- DERIV-5X (bloco idêntico ao E15P) — subtransação própria
@@ -250,6 +297,21 @@ PRE = """
         RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
             'H2830_FAIL: envelope=%s caso=DERIV-5X variant_type.code não único (type_code_dup=%s); C3 sem escopo de Game é inválido', c_env, v_agg->>'type_code_dup');
     END IF;
+    -- ------------------------------------------------------------------ --
+    -- DERIV-D1X (5.3/5.7): DERIV-5X histórico + bloco do instrumento D1
+    -- executado no LIVE (evidence/D1-2026-09-29), byte a byte. Só lê: HOLD
+    -- (d5_hold) e C3 (d5_c3) do DERIV; o restante do DERIV (inclusive C2 e a
+    -- 2211) não é referenciado e não é avaliado. Subtransação própria.
+    -- ------------------------------------------------------------------ --
+    v_case := 'DERIV-D1X';
+    BEGIN
+""" + ind(d1x_select(), 8) + """
+          INTO STRICT v_d1;
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT;
+        RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
+            'H2830_FAIL: envelope=%s caso=DERIV-D1X derivação falhou sqlstate=%s msg=%s', c_env, v_state, v_msg);
+    END;
 """
 
 P = (READY_DEF or 'c2').lower()
@@ -263,6 +325,65 @@ def eq(k, v, label):
     return iff(f"{g(k)} IS DISTINCT FROM {v}", f'{label}: medido=%s esperado={v} (STOP e adjudicação; nunca reajuste)', g(k))
 
 
+
+# ---------------------------------------------------------------------------
+# 5.3 / 5.7 sobre o bloco D1X (v_d1). Toda leitura é fail-closed: NULL ou
+# ausência ⇒ IS DISTINCT FROM / COALESCE(false) ⇒ H2830_FAIL. Nenhuma asserção
+# é derivada da própria construção do plano (contraprova CP-3 / regra R-33).
+# ---------------------------------------------------------------------------
+def d1g(k, label):
+    return iff(f"NOT COALESCE((v_d1->'g'->>'{k}')::boolean, false)", f'{label}: gate D1 {k} falso ou ausente (STOP; nunca reajuste)')
+
+
+def d1n(col, v, label):
+    e = f"(v_d1->'m'->>'{col}')::bigint"
+    return iff(f"{e} IS DISTINCT FROM {v}", f'{label}: medido=%s esperado={v} (STOP; nunca reajuste)', e)
+
+
+def d1md5(key, label):
+    n, h = D1_DIGESTS[key]
+    e = f"(v_d1->'m'->>'{D1_MD5_COL[key]}')"
+    return (d1n(D1_N_COL[key], n, label + ' (n)')
+            + iff(f"{e} IS DISTINCT FROM '{h}'", f'{label}: md5 medido=%s congelado={h} (troca compensada ou deriva; STOP)', e))
+
+
+def d1x(key, col, label):
+    return iff(f"(v_d1->>'{key}') IS DISTINCT FROM (v_d1->'m'->>'{col}')",
+               f'{label}: seletor histórico do DERIV-5X difere do conjunto D1 por id (%s × %s)', f"v_d1->>'{key}', v_d1->'m'->>'{col}'")
+
+
+def case53():
+    return (d1g('g_join_complete', 'join card_variant × tipo × card × set completo')
+            + d1g('g_type_code_unique', 'variant_type.code único')
+            + d1g('g_universe_19_09', 'universo 24.893 / FINISH 23.866')
+            + d1g('g_uraw_1027', 'universo pré-exclusão U_raw = 1.027 (independente do plano)')
+            + d1g('g_partition_counts', 'partição READY 365 + HOLD 107 + NÃO_CONT 555 = U_raw')
+            + d1g('g_partition_exact', 'partição exata (cada variante em exatamente 1 classe)')
+            + d1g('g_ready_by_type_19_09', 'composição READY por tipo = 19/09')
+            + d1g('g_hold_by_type_set_19_09', 'composição HOLD por (tipo, Set) = 19/09 (D2)')
+            + d1g('g_nc_by_type_set_19_09', 'composição NÃO_CONT por (tipo, Set) = 19/09')
+            + d1md5('hold', 'âncora HOLD por id')
+            + d1md5('ready', 'âncora READY por id')
+            + d1x('x_md5_hold_deriv', 'md5_hold', 'HOLD 2831 PASSO 0 (d5_hold) ≡ HOLD D1')
+            + d1x('x_md5_ready_c3', 'md5_ready', 'C3 adjudicado (d5_c3) ≡ READY D1')
+            + d1g('g_plan_x_hold_zero', 'plano ∩ HOLD = 0 (consistência de código, não prova)')
+            + d1n('n_plan_contract', D1_DIGESTS['plan'][0], 'universo do plano não vazio (P13)'))
+
+
+def case57():
+    return (d1g('g_plan_contract_285', 'plano contratual por código (sem Pricing) = 285')
+            + d1md5('plan', 'âncora PLAN por id')
+            + d1g('g_plan_equivalence', 'plano contratual ≡ plano derivado de Pricing por id')
+            + d1n('plan_symdiff', 0, 'diferença simétrica plano contratual × derivado')
+            + iff(f"(v_d1->'m'->>'md5_plan_derived') IS DISTINCT FROM '{D1_DIGESTS['plan'][1]}'",
+                  f"plano derivado: md5 medido=%s congelado={D1_DIGESTS['plan'][1]} (STOP)", "(v_d1->'m'->>'md5_plan_derived')")
+            + d1g('g_plan_x_pscid_zero', 'plano ∩ tipos com pricing_source_card_identity = 0 (pscid)')
+            + d1g('g_plan_x_psvm_zero', 'plano ∩ tipos com pricing_source_variant_mapping = 0 (psvm)')
+            + d1g('g_h6_types', 'H6: padrão pscid/psvm por tipo READY = 19/09')
+            + d1g('g_conditioned_80_40_40', 'PRICING_CONDITIONED 80 = STAFF_HOLO 40 + SET_LOGO_REVERSE 40')
+            + d1md5('conditioned', 'âncora CONDITIONED por id'))
+
+
 CASES = [
     ('5.1', '5.1 [AUTO RO] hold_frozen = 107 exato (PASSO 0 da 2831)', eq('hold', C['hold'], 'hold_frozen')),
     ('5.2', '5.2 [AUTO RO] READY_STRUCTURAL 365 = UNCONDITIONED 285 + PRICING_CONDITIONED 80',
@@ -270,34 +391,35 @@ CASES = [
      + eq(f'{P}_conditioned', C['conditioned'], 'READY_PRICING_CONDITIONED')
      + iff('NOT COALESCE(' + fp_ok(P, '').replace(P + '_', "(v_agg->>'" + P + '_').replace(' =', "')::bigint =").replace(' <>', "')::bigint <>") + ', false)',
            'impressão digital de A (MIGRATION-MAP-365) não reproduzida pelo candidato ' + P)),
-    ('5.3', '5.3 [AUTO RO] plano (285) ∩ HOLD (107) = 0 — prova de EXCLUSÃO do HOLD',
-     eq(f'{P}_plan_x_hold', 0, 'plano ∩ HOLD') + eq(f'{P}_unconditioned', C['unconditioned'], 'universo do plano (P13)')),
+    ('5.3', '5.3 [AUTO RO] exclusão do HOLD — universo independente, partição exata, composição e âncoras por id (D1)', case53()),
     ('5.6', '5.6 [AUTO RO] lineage intacto: resulting 23.955 · matched 1.129 (baseline de FREEZE)',
      eq('lineage_resulting', C['resulting'], 'resulting_variant_id') + eq('lineage_matched', C['matched'], 'matched_variant_id')),
-    ('5.7', '5.7 [AUTO RO] plano ∩ PRICING_CONDITIONED = 0; 80 = STAFF_HOLO 40 + SET_LOGO_REVERSE 40; conceitos separados',
-     eq(f'{P}_plan_x_pricing', 0, 'plano ∩ PRICING_CONDITIONED') + eq(f'{P}_conditioned', C['conditioned'], 'PRICING_CONDITIONED em READY_STRUCTURAL')
-     + eq(f'{P}_cond_staff_holo', C['staff'], 'STAFF_HOLO') + eq(f'{P}_cond_set_logo_reverse', C['slr'], 'SET_LOGO_REVERSE')),
+    ('5.7', '5.7 [AUTO RO] exclusão de PRICING_CONDITIONED — plano contratual ≡ plano derivado por id; pscid e psvm separados (D1)', case57()),
 ]
 
 HEAD = header(['2830H · ENVELOPE E15 — SEÇÃO 5 (LEGADO / HOLD / EXCLUSÃO) · lote L13, 5 casos: 5.1 5.2 5.3 5.6 5.7'], [
     'Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO, NÃO COMPILADO no',
     '                PostgreSQL. BLOQUEADO pela pendência 5.3/5.7: READY_DEF = C3',
-    '                adjudicado (B5X-C3-ADJUDICATION-RECORD.md), mas o PREFLIGHT levanta',
-    '                H2830_FAIL enquanto E15_BLOCKED_53_57 = True no gerador.',
+    '                adjudicado (B5X-C3-ADJUDICATION-RECORD.md); 5.3/5.7 reescritas',
+    '                sobre o D1 (D1X) aguardam auditoria independente. O PREFLIGHT',
+    '                levanta H2830_FAIL enquanto E15_BLOCKED_53_57 = True no gerador.',
     'Contrato ...... 2830 v7.0 Seção 5; derivação 2831 v2.0 PASSO 0/0B/1 (arquivo',
     '                NÃO alterado), sem TEMP, bloco DERIV-5X idêntico ao E15P.',
     'Escrita ....... NENHUMA. Término em exceção por uniformidade (P2).',
     'P8 ............ SET LOCAL lock_timeout = \'5s\' + asserção (DP-4 = A).',
-    'Pendência ..... OBRIGATÓRIA para a readiness final do E15 (STOP-7): 5.3',
-    '                (plano ∩ HOLD) e 5.7 (plano ∩ PRICING_CONDITIONED) são',
-    '                tautológicas por construção do plano (plano = estrutural ∖',
-    '                PRICING; C3 exclui HOLD por definição). Reescrever antes do LIVE.',
+    '5.3/5.7 ....... DERIV-D1X = DERIV-5X histórico (inalterado) + bloco do',
+    '                instrumento D1 executado no LIVE em 2026-09-29, byte a byte',
+    '                (evidence/D1-2026-09-29, md5 efb3217e…). Provas: universo U_raw',
+    '                independente, partição exata, composição HOLD/NC por (tipo, Set),',
+    '                plano contratual por código ≡ plano derivado por id, pscid e psvm',
+    '                separados, HOLD/C3 do DERIV ≡ D1 por id e as quatro âncoras',
+    '                congeladas (HOLD, PLAN, READY, CONDITIONED).',
 ])
 
 
 def e15():
     spec = dict(tag='h2830_e15', env='E15_SECAO_5_LEGADO_HOLD', header=HEAD,
-                decl=[('v_agg', 'jsonb', None)], preflight_extra=PRE, cases=CASES,
+                decl=[('v_agg', 'jsonb', None), ('v_d1', 'jsonb', None)], preflight_extra=PRE, cases=CASES,
                 term_fields=[('hold', "v_agg->>'hold'"), ('structural', f"v_agg->>'{P}_structural'"),
                              ('unconditioned', f"v_agg->>'{P}_unconditioned'"), ('conditioned', f"v_agg->>'{P}_conditioned'"),
                              ('by_pscid', f"v_agg->>'{P}_cond_by_pscid'"), ('by_psvm', f"v_agg->>'{P}_cond_by_psvm'")])
