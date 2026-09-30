@@ -216,27 +216,38 @@ def r27_ok(q):
 
 # Bloqueio do E15 após a adjudicação (BATCH12-B5X-C3-OPERATIONAL-APPLICATION-01) e a
 # reescrita de 5.3/5.7 (BATCH12-E15-53-57-IMPLEMENTATION-01): RAISE incondicional no
-# PREFLIGHT, antes do DERIV-5X e de qualquer caso, até auditoria independente.
+# PREFLIGHT. Mantido aqui só para as mutações negativas (reintrodução do bloqueio).
 E15_PEND_RAISE = ("    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(\n"
                   "        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado; 5.3/5.7 "
                   "reescritas (D1X) aguardam auditoria independente; E15 bloqueado', c_env, 'c3');\n")
 
+# Identidade do E15 DESBLOQUEADO executado no B3H (Protocolo B, PG17 local isolado,
+# 2026-09-30; evidência B3H-LOCAL-EVIDENCE-20260930T231252.zip md5 5bec60ad…, PASS-LOCAL
+# por auditoria independente). Constante INDEPENDENTE do gerador: o E15 versionado tem de
+# ser byte a byte o artefato testado (L_E15_unblocked.sql).
+E15_RELEASED_MD5 = '83e4d5d9a83958282cbc731725c8a298'
+B3H_EVIDENCE_ZIP_MD5 = '5bec60ad514c1de6efa84d12adce2fc5'
 
-def e15_blocked_ok(e15):
+
+def e15_released_ok(e15):
+    """E15 liberado (BATCH12-E15-B3H-PASS-LOCAL-CLOSEOUT-AND-RELEASE-PREP-01): gerador com
+    E15_BLOCKED_53_57 = False, nenhum RAISE entre o bloco B-5X e o DERIV-5X, casos sobre c3
+    e md5 = artefato executado no B3H."""
     pre15 = e15[:e15.index("v_case := 'DERIV-5X'")]
     if '-- B-5X: sem READY_DEF adjudicado' not in pre15:
         return False
     blk = pre15[pre15.index('-- B-5X: sem READY_DEF adjudicado'):]
     cases = e15[e15.index("v_case := '5.1'"):]
-    return (l13.READY_DEF == 'c3' and l13.E15_BLOCKED_53_57 is True
-            and blk.count(E15_PEND_RAISE) == 1 and 'IF ' not in blk and 'EXCEPTION WHEN' not in blk
+    return (l13.READY_DEF == 'c3' and l13.E15_BLOCKED_53_57 is False
+            and 'RAISE' not in blk and 'IF ' not in blk and 'EXCEPTION WHEN' not in blk
             and "(v_agg->>'c3_structural')" in cases
-            and not any(f"'{c}_" in cases for c in ('c0', 'c1', 'c2')))
+            and not any(f"'{c}_" in cases for c in ('c0', 'c1', 'c2'))
+            and hashlib.md5(e15.encode()).hexdigest() == E15_RELEASED_MD5)
 
 
 def r21_ok(e15, e15p):
     c52 = e15[e15.index("v_case := '5.2'"):e15.index("v_case := '5.3'")]
-    return (e15_blocked_ok(e15)
+    return (e15_released_ok(e15)
             and re.search(r'\bfalse\s+AS g_5x_ready_adjudicated', e15p) is not None
             and re.search(r'\bfalse\s+AS g_5x_adjudicated_candidate_ok', e15p) is not None
             and 'AS g_5x_unique_candidate_equals_a' in e15p and "'d_5x_candidate_ok'" in e15p
@@ -517,7 +528,7 @@ def run():
     for tag, row in sm_ctrl_rows():
         res.append((f'B12 R-16: controle SM {tag} dispara o próprio predicado', ev(l11.P[tag], row), sql_pred(l11.P[tag])))
     res.append(('B12 R-17: SM8 declarado = SM7 (mesmo texto)', l11.P['sm8'] == l11.P['sm7'], ''))
-    res.append(('B12 R-18: E15 marcado BLOQUEADO pela pendência 5.3/5.7 no cabeçalho', 'BLOQUEADO pela pendência 5.3/5.7' in F('2830H_E15_section5_legacy_hold.sql'), ''))
+    res.append(('B12 R-18: E15 = artefato executado no B3H PASS-LOCAL (md5 83e4d5d9…); cabeçalho histórico preservado byte a byte', hashlib.md5(F('2830H_E15_section5_legacy_hold.sql').encode()).hexdigest() == E15_RELEASED_MD5, ''))
 
     # 8. INTEGRATED TECHNICAL RESOLUTION — B-5X, D-P7X, D-V1, R6, R12, P9B, 2234
     allow = pre.P7X[pre.P7X.index('p7x_allow('):pre.P7X.index('p7x_fn AS (')]
@@ -526,7 +537,7 @@ def run():
                 and 'g_p7x_search_path_empty' in pre.P7X_GATES and 'g_p7x_legacy_sp_mitigated' not in ''.join(files.values()), ''))
     e15 = F('2830H_E15_section5_legacy_hold.sql')
     pre15 = e15[:e15.index("v_case := 'DERIV-5X'")]
-    res.append(('B12 R-21: B-5X — READY_DEF = c3 aplicado nos casos; E15 fail-closed antes de qualquer caso (5.3/5.7 pendentes)',
+    res.append(('B12 R-21: B-5X — READY_DEF = c3 aplicado nos casos; E15 liberado (sem RAISE no PREFLIGHT B-5X) = artefato B3H PASS-LOCAL',
                 r21_ok(e15, F('2830H_E15P_measure_section5.sql')), ''))
     d1raw = (D1_DIR / 'S2' / 'raw_response.txt').read_bytes()
     d1ins = (D1_DIR / 'instrument' / 'D1-ID-IDENTITY.sql').read_bytes()
@@ -665,18 +676,26 @@ def run():
         neg.append((f'VERIFICADOR rejeita: MAP_FP {why} [R-28]', not fp_map_ok(l13.MAP_NAMED, dict(l13.MAP_FP, **{k: bad})), ''))
     e15p_real = F('2830H_E15P_measure_section5.sql')
     e15r = F('2830H_E15_section5_legacy_hold.sql')
-    neg.append(('VERIFICADOR rejeita: E15 sem o bloqueio 5.3/5.7 no PREFLIGHT (liberação prematura) [R-21]',
-                not r21_ok(e15r.replace(E15_PEND_RAISE, '', 1), e15p_real), ''))
-    neg.append(('VERIFICADOR rejeita: bloqueio 5.3/5.7 condicionado (IF) em vez de incondicional [R-21]',
-                not r21_ok(e15r.replace(E15_PEND_RAISE, '    IF v_n = 0 THEN\n' + E15_PEND_RAISE + '    END IF;\n', 1), e15p_real), ''))
+    _deriv_anchor = "    -- ------------------------------------------------------------------ --\n    -- DERIV-5X"
+    neg.append(('VERIFICADOR rejeita: E15 com o bloqueio B-5X reintroduzido no PREFLIGHT [R-21]',
+                not r21_ok(e15r.replace(_deriv_anchor, E15_PEND_RAISE + _deriv_anchor, 1), e15p_real), ''))
+    neg.append(('VERIFICADOR rejeita: RAISE condicional (IF) no PREFLIGHT B-5X [R-21]',
+                not r21_ok(e15r.replace(_deriv_anchor, '    IF v_n = 0 THEN\n' + E15_PEND_RAISE + '    END IF;\n' + _deriv_anchor, 1), e15p_real), ''))
     neg.append(('VERIFICADOR rejeita: casos do E15 lendo c2 em vez de c3 [R-21]',
                 not r21_ok(e15r.replace("(v_agg->>'c3_structural')", "(v_agg->>'c2_structural')"), e15p_real), ''))
+    neg.append(('VERIFICADOR rejeita: E15 divergente do artefato B3H em 1 byte de comentário [R-21/R-18]',
+                not r21_ok(e15r.replace('-- B-5X: sem READY_DEF adjudicado', '-- B-5X: sem READY_DEF adjudicad0', 1), e15p_real), ''))
     _flag = l13.E15_BLOCKED_53_57
     try:
-        l13.E15_BLOCKED_53_57 = False
-        neg.append(('VERIFICADOR rejeita: gerador com E15_BLOCKED_53_57 = False [R-21]', not r21_ok(e15r, e15p_real), ''))
+        l13.E15_BLOCKED_53_57 = True
+        neg.append(('VERIFICADOR rejeita: gerador com E15_BLOCKED_53_57 = True sobre o E15 liberado [R-21]', not r21_ok(e15r, e15p_real), ''))
     finally:
         l13.E15_BLOCKED_53_57 = _flag
+    # E15 bloqueado histórico reconstruído a partir do liberado: RAISE no ponto exato do HEAD c19161b3.
+    _b5x_end = 'nenhum caso roda (fail-closed)\n    -- ------------------------------------------------------------------ --\n'
+    _e15_hist = e15r.replace(_b5x_end, _b5x_end + E15_PEND_RAISE, 1)
+    neg.append(('VERIFICADOR rejeita: E15 bloqueado histórico (e9fd0227…) como artefato liberado [R-21/R-18]',
+                hashlib.md5(_e15_hist.encode()).hexdigest() == 'e9fd022713bdb97894591ac98513a90c' and not r21_ok(_e15_hist, e15p_real), ''))
     _rd = l13.READY_DEF
     try:
         l13.READY_DEF = 'c2'

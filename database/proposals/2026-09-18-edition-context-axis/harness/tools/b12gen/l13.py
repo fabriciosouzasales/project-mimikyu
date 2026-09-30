@@ -50,16 +50,28 @@
 #      plano contratual por código (sem Pricing) ≡ plano derivado por id,
 #      pscid/psvm separados, e âncoras por identidade = os quatro digests D1
 #      congelados. plano ∩ HOLD permanece só como consistência de código.
-#      O E15 continua bloqueado (E15_BLOCKED_53_57) até a auditoria independente.
+#      O E15 ficou bloqueado (E15_BLOCKED_53_57 = True) até a auditoria independente.
+#   DESBLOQUEIO (BATCH12-E15-B3H-PASS-LOCAL-CLOSEOUT-AND-RELEASE-PREP-01): o B3H
+#      (Protocolo B, PG17 local isolado, histograma B1H do LIVE) executou o E15
+#      desbloqueado — L_E15_unblocked.sql md5 83e4d5d9… — com H283P
+#      ROLLBACK_PASS 5/5 (casos 5.1,5.2,5.3,5.6,5.7), gate de representatividade
+#      18/18, D1 16/16, quatro digests = LIVE, C2 never executed (evidência
+#      B3H-LOCAL-EVIDENCE-20260930T231252.zip md5 5bec60ad…; auditoria
+#      independente = PASS-LOCAL). Com E15_BLOCKED_53_57 = False o gerador
+#      reproduz EXATAMENTE esse artefato testado (mesmo md5): só as duas linhas
+#      do RAISE do PREFLIGHT saem; o cabeçalho e os comentários do bloco B-5X
+#      ficam byte a byte como testados (texto histórico, não reescrito para não
+#      alterar o md5 validado). Liberação LOCAL: execução no LIVE exige mandato
+#      próprio; FREEZE continua ativo.
 import pathlib, hashlib
 from lib import *
 import pre
 
 C = dict(hold=107, structural=365, unconditioned=285, conditioned=80, staff=40, slr=40, resulting=23955, matched=1129)
 READY_DEF = 'c3'      # adjudicado: B5X-C3-ADJUDICATION-RECORD.md (C3 = seletor histórico de 2026-09-19).
-# Bloqueio INDEPENDENTE do E15. 5.3/5.7 foram reescritas (D1X), mas o desbloqueio
-# exige auditoria independente e mandato próprio: permanece True nesta rodada.
-E15_BLOCKED_53_57 = True
+# Bloqueio INDEPENDENTE do E15. 5.3/5.7 reescritas (D1X); desbloqueado após o
+# B3H PASS-LOCAL auditado (ver cabeçalho do módulo). False ⇒ E15 = md5 83e4d5d9….
+E15_BLOCKED_53_57 = False
 
 # ---------------------------------------------------------------------------
 # D1 — evidência LIVE versionada (2026-09-29): instrumento e digests congelados.

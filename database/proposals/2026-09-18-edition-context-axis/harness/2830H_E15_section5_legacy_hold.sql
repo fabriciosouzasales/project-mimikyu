@@ -68,8 +68,6 @@ BEGIN
     -- B-5X: sem READY_DEF adjudicado, ou com 5.3/5.7 sem auditoria
     -- independente do desbloqueio, nenhum caso roda (fail-closed)
     -- ------------------------------------------------------------------ --
-    RAISE EXCEPTION USING ERRCODE = 'H283F', MESSAGE = format(
-        'H2830_FAIL: envelope=%s caso=PREFLIGHT B-5X: READY_DEF=%s adjudicado; 5.3/5.7 reescritas (D1X) aguardam auditoria independente; E15 bloqueado', c_env, 'c3');
 
     -- ------------------------------------------------------------------ --
     -- DERIV-5X (bloco idêntico ao E15P) — subtransação própria
