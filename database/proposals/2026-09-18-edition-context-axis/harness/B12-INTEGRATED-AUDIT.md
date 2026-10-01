@@ -2,13 +2,16 @@
 
 | Campo | Valor |
 |---|---|
-| **Mandatos** | BATCH12 — INTEGRATED COMPLETION · INTEGRATED TECHNICAL RESOLUTION · INTEGRATED FINAL TECHNICAL GATES. Baseline HEAD `945caa32` + alterações locais do L4 (preservadas). |
-| **Natureza** | Implementação LOCAL. Nenhum SQL (nem SELECT), nenhum acesso LIVE, nenhuma DDL, nenhum `git add/commit/push`. FREEZE ATIVO. |
-| **Estado** | **IMPLEMENTADO — NÃO EXECUTADO — NÃO COMPILADO no PostgreSQL** (sem servidor e sem parser SQL/PL-pgSQL no ambiente; ver §2). |
-| **Cobertura** | 75 casos automáticos novos (E07–E15). Reconhecida 60/135. Executáveis hoje: E11 e E12 (sem dependência de decisão); E07/E08/E09/E13/E14 exigem a 2234; E10 sem dependência; E15 bloqueado por B-5X. |
+| **ESTADO VIGENTE** (2026-10-01, `BATCH12-E15-FINAL-LIVE-EVIDENCE-CLOSEOUT-01`) | **135/135 automáticos**; **E15 FINAL LIVE = PASS** (execução única, `H283P` `pass=5/5`, evidência `cfdf7e14…` — `LIVE-L13-E15-EXECUTION-RECORD.md`); **Batch 12 — harness automático CLOSED**; **Batch 12 global OPEN** até o gate completo HARNESS + UNFREEZE (evidências históricas, manuais/performance, baseline de FREEZE e mandato formal de UNFREEZE — `../EXECUTION-BATCHES.md`, Batch 12); **FREEZE ATIVO**. As linhas abaixo e as seções seguintes são o snapshot histórico da implementação integrada, salvo indicação. |
+| **Mandatos** (histórico) | BATCH12 — INTEGRATED COMPLETION · INTEGRATED TECHNICAL RESOLUTION · INTEGRATED FINAL TECHNICAL GATES. Baseline HEAD `945caa32` + alterações locais do L4 (preservadas). |
+| **Natureza** (snapshot histórico da implementação integrada) | Implementação LOCAL. Nenhum SQL (nem SELECT), nenhum acesso LIVE, nenhuma DDL, nenhum `git add/commit/push`. FREEZE ATIVO. |
+| **Estado** (snapshot histórico da implementação integrada) | **IMPLEMENTADO — NÃO EXECUTADO — NÃO COMPILADO no PostgreSQL** (sem servidor e sem parser SQL/PL-pgSQL no ambiente; ver §2). |
+| **Cobertura** | **Vigente: 135/135** (ver ESTADO VIGENTE). Snapshot histórico: 75 casos automáticos novos (E07–E15). Reconhecida 60/135. Executáveis hoje: E11 e E12 (sem dependência de decisão); E07/E08/E09/E13/E14 exigem a 2234; E10 sem dependência; E15 bloqueado por B-5X. |
 | **Fonte única** | `tools/b12gen/` (gerador, verificador `b12_check.py`, lint `b12_lint.py`). Todo `.sql` do pacote = saída byte a byte do gerador (R-1). Manifesto: `B12-INTEGRATED-MANIFEST.json`. |
 
 ## 1. Inventário
+
+> **Snapshot histórico da implementação integrada — não revalidado nesta rodada.** Valores de md5 e de CONTEXT podem divergir dos artefatos atuais (ex.: E15 é hoje `83e4d5d9…`, linha 1080). A identidade vigente dos artefatos é a do `B12-INTEGRATED-MANIFEST.json`.
 
 | Id | Lote | Arquivo | Casos | CONTEXT do H283P | md5 |
 |---|---|---|---|---|---|
@@ -75,7 +78,7 @@
 
 | Id | Estado | Saída |
 |---|---|---|
-| B-5X | **medido e adjudicado documentalmente (`READY_DEF = C3`, 2026-09-28)**; STOP-5/STOP-7 encerrados documentalmente — `B5X-C3-ADJUDICATION-RECORD.md`. C3 aplicado no gerador em `c74c55ae` (E15 regenerado, `E15_BLOCKED_53_57 = True`). **D1 (identidade por id de HOLD/PLAN/READY/CONDITIONED) medido no LIVE em 2026-09-29: `gate_pass = true`, 16/16; composições iguais às de 19/09; D2 (SLS 11 / SLR 59) confirmada** — `evidence/D1-2026-09-29/RELATORIO-EVIDENCIAS.md` | **5.3/5.7 reescritas localmente sobre o D1 (`BATCH12-E15-53-57-IMPLEMENTATION-01`)**: bloco DERIV-D1X = DERIV-5X inalterado + instrumento D1 executado, byte a byte; quatro digests congelados em `l13.D1_DIGESTS`; regras R-33/R-34 e 16 contraprovas negativas. **B3H local = PASS-LOCAL** (auditoria independente, 2026-09-30; `H283P` `pass=5/5`, gate 18/18, D1 16/16, C2 `never executed`): **E15 liberado localmente** (`E15_BLOCKED_53_57 = False`; E15 = artefato testado `83e4d5d9…`) — `B3H-PASS-LOCAL-RECORD.md`; **E15 LIVE não executado** (mandato próprio); E15P inalterado (`f9fc6d81…`) |
+| B-5X | **medido e adjudicado documentalmente (`READY_DEF = C3`, 2026-09-28)**; STOP-5/STOP-7 encerrados documentalmente — `B5X-C3-ADJUDICATION-RECORD.md`. C3 aplicado no gerador em `c74c55ae` (E15 regenerado, `E15_BLOCKED_53_57 = True`). **D1 (identidade por id de HOLD/PLAN/READY/CONDITIONED) medido no LIVE em 2026-09-29: `gate_pass = true`, 16/16; composições iguais às de 19/09; D2 (SLS 11 / SLR 59) confirmada** — `evidence/D1-2026-09-29/RELATORIO-EVIDENCIAS.md` | **5.3/5.7 reescritas localmente sobre o D1 (`BATCH12-E15-53-57-IMPLEMENTATION-01`)**: bloco DERIV-D1X = DERIV-5X inalterado + instrumento D1 executado, byte a byte; quatro digests congelados em `l13.D1_DIGESTS`; regras R-33/R-34 e 16 contraprovas negativas. **B3H local = PASS-LOCAL** (auditoria independente, 2026-09-30; `H283P` `pass=5/5`, gate 18/18, D1 16/16, C2 `never executed`): **E15 liberado localmente** (`E15_BLOCKED_53_57 = False`; E15 = artefato testado `83e4d5d9…`) — `B3H-PASS-LOCAL-RECORD.md`; **E15 FINAL LIVE = PASS** (2026-10-01, `BATCH12-E15-FINAL-LIVE-EXECUTION-02`, execução única, auditoria independente PASS): `H283P` `pass=5/5`, casos 5.1/5.2/5.3/5.6/5.7, evidência `cfdf7e14…` — `LIVE-L13-E15-EXECUTION-RECORD.md`; **B-5X encerrado**; E15P inalterado (`f9fc6d81…`) |
 | D-P7X | **resolvido tecnicamente**; execução pendente | autorização específica para a 2234 (DDL) |
 | R12 escopo | **resolvido (A4)** | só reabre por mudança de contrato |
 | Compilação | não realizável aqui | primeiro contato no ambiente isolado (P9B) ou FAIL-closed no LIVE |

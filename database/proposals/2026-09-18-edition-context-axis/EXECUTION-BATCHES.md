@@ -1244,6 +1244,15 @@ SELECT count(*) AS antigos_staging FROM pg_class  -- 0
 
 ## Batch 12 — HARNESS + UNFREEZE
 
+> **ESTADO VIGENTE (2026-10-01, `BATCH12-E15-FINAL-LIVE-EVIDENCE-CLOSEOUT-01`):**
+> `2830` **135/135 automáticos** — último lote L13/E15 executado uma única vez
+> no LIVE, **PASS** (`H283P` `pass=5/5`, casos 5.1/5.2/5.3/5.6/5.7; evidência
+> `E15-LIVE-EVIDENCE-02-20261001T002021Z.zip` md5 `cfdf7e14a1583299855a4ef95d5de10d`;
+> `harness/LIVE-L13-E15-EXECUTION-RECORD.md`), com auditoria independente PASS.
+> **Batch 12 — harness automático CLOSED; Batch 12 global OPEN.** FREEZE **ATIVO**: o UNFREEZE
+> (ordem 3 abaixo) continua dependendo do gate completo desta seção e de
+> mandato próprio. O texto abaixo é o histórico da especificação.
+
 > **READINESS AUDIT concluída — NOT READY / BLOCKED**
 > (`BATCH12-2830-READINESS-AUDIT-01`, 2026-09-26, SELECT-only). A `2830` v6.3
 > era 100% comentário; só B e M tinham código (`2832`/`2833`, desenhados para
