@@ -1,0 +1,12 @@
+{
+    "tag":  "parity",
+    "refs_checked":  23,
+    "missing_in_executed":  {
+
+                            },
+    "canonical_external_dependencies":  "2830H_E00_precheck_inventory.sql:447:public.catalog_admin_action_log",
+    "canonical_uncovered":  [
+
+                            ],
+    "pass":  true
+}

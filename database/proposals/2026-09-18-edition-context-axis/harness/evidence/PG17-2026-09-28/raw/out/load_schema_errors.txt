@@ -1,0 +1,6 @@
+psql:/work/dump/schema.sql:42: ERROR:  schema "public" already exists
+psql:/work/dump/schema.sql:6867: ERROR:  type "public.card_primary_species" does not exist
+psql:/work/dump/schema.sql:6870: ERROR:  function public.admin_resolve_card_primary_species(uuid, uuid, jsonb) does not exist
+psql:/work/dump/schema.sql:6876: ERROR:  function public.admin_resolve_card_primary_species(uuid, uuid, jsonb) does not exist
+psql:/work/dump/schema.sql:24823: ERROR:  function public.admin_resolve_card_primary_species(uuid, uuid, jsonb) does not exist
+psql:/work/dump/schema.sql:24824: ERROR:  function public.admin_resolve_card_primary_species(uuid, uuid, jsonb) does not exist

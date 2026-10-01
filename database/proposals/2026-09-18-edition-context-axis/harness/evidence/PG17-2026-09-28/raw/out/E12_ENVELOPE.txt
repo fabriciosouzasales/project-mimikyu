@@ -1,0 +1,2 @@
+psql:/work/sql/2830H_E12_section_b_backfill_semantic.sql:733: ERROR:  H2830_ROLLBACK_PASS: envelope=E12_SECAO_B_BACKFILL_SEMANTICO pass=14/14 casos=V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14 marker=H2830_6B73C7582B6740B09D704B65E0B31CE3 elapsed_ms=402 u_total=26127 u_op=1642 u_rechecked=1642 u_v1_occ=1092 v1_occ_total=1092 u_v5=24372 u_hist_null=0 u_cancel_vp=415 v7_skip=95
+CONTEXT:  PL/pgSQL function inline_code_block line 712 at RAISE

@@ -10,3 +10,12 @@
 # Snapshots operacionais locais do Pokémon Catalog Sourcing (DRY_RUN/APPLY)
 # — artefato de execução, não código/documentação; nunca versionado.
 .pokemon-catalog-sourcing-snapshots/
+
+# Python: cache de bytecode
+__pycache__/
+*.pyc
+
+# Workspace local da réplica PG17 (Batch 12); evidência homologada em harness/evidence/PG17-2026-09-28/
+database/proposals/2026-09-18-edition-context-axis/harness/local-pg17/
+# Exceção: log primário preservado como evidência (não é log de execução local)
+!database/proposals/2026-09-18-edition-context-axis/harness/evidence/PG17-2026-09-28/raw/out/ckrepair.log

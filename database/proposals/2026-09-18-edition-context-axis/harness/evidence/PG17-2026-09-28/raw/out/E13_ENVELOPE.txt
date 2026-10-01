@@ -1,0 +1,2 @@
+psql:/work/sql/2830H_E13_section_m_state_machine.sql:981: ERROR:  H2830_ROLLBACK_PASS: envelope=E13_SECAO_M_STATE_MACHINE pass=11/11 casos=SM1,SM2,SM3,SM4,SM5,SM6,SM7,SM8,SM9,SM10,SM11 marker=H2830_A82D47E9C25D4162803E4EDB7DD69C7B elapsed_ms=78 u_rows=26127 u_mut=1642 u_conf=0 u_nr_mut=1642 u_hist_nokey=24485 u_cancel=847
+CONTEXT:  PL/pgSQL function inline_code_block line 960 at RAISE

@@ -1,0 +1,53 @@
+# MANIFEST — evidência PG17 de 2026-09-28 (harness/evidence/PG17-2026-09-28)
+# Formato TSV: md5<TAB>bytes<TAB>arquivo_preservado<TAB>origem<TAB>source_mtime_utc (mtime do original; ordem cronológica)
+# Verificação: para cada linha, md5(arquivo_preservado) = md5. Gerado a partir dos bytes preservados.
+bc11f919941e449381a1000d5730c217	12858	raw/sql/parity_fingerprint.sql	C:\b12-pg17\sql\parity_fingerprint.sql	2026-09-28T14:27:32.410160Z
+c22184178c803922d6b6173fdbbedb61	39708	raw/out/fp_live.json	C:\b12-pg17\out\fp_live.json	2026-09-28T17:03:54.974256Z
+6b3d3179357bb0d4e610b241062ca999	666	raw/out/load_schema_errors.txt	C:\b12-pg17\out\load_schema_errors.txt	2026-09-28T17:47:04.019004Z
+9da8bd45ce76adc1bcbca0922ccea8f3	16328	raw/sql/P9B_M1_M3.sql	C:\b12-pg17\sql\P9B_M1_M3.sql	2026-09-28T17:56:53.062322Z
+324974c878b1cb09fe87c9ef8d85362a	893	raw/out/md5_in_container.txt	C:\b12-pg17\out\md5_in_container.txt	2026-09-28T17:56:57.181221Z
+b13a245739d1b113ee744476744bc17c	126449	raw/runner/B12-LOCAL-PG17.ps1	harness/local-pg17/B12-LOCAL-PG17.ps1 (workspace local; sem cópia em C:\b12-pg17)	2026-09-28T18:06:35.438309Z
+cf474a960cf5bb6fbbc4952dbf4fbe7f	2885	raw/sql/run/ckrepair.sql	C:\b12-pg17\sql\run\ckrepair.sql	2026-09-28T18:15:42.273287Z
+f0353940148c4e2f6e5e04b8eabc891d	234	raw/sql/run/ckrepair.sh	C:\b12-pg17\sql\run\ckrepair.sh	2026-09-28T18:15:42.274790Z
+0d162ce121d9cdf92e03684dbedd07b2	81	raw/out/ckrepair.log	C:\b12-pg17\out\ckrepair.log	2026-09-28T18:15:42.410425Z
+88c37bc6a259ceb63d5ac080f95ee350	3570	raw/out/ck_repair.json	C:\b12-pg17\out\ck_repair.json	2026-09-28T18:21:53.399689Z
+e87bc74fcc1deeeabae26f997ac65f44	304	raw/out/deps_parity.json	C:\b12-pg17\out\deps_parity.json	2026-09-28T18:22:03.034931Z
+8ddf964eb9fd041c0569ed49981306f5	767	raw/sql/run/parity.sh	C:\b12-pg17\sql\run\parity.sh	2026-09-28T18:22:03.039889Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/fp_local.err	C:\b12-pg17\out\fp_local.err	2026-09-28T18:22:03.134686Z
+5e6be4e32138d64b8e4fad8a8f2d0c30	39700	raw/out/fp_local.json	C:\b12-pg17\out\fp_local.json	2026-09-28T18:22:03.929147Z
+706a66485fd7b7d86f1a6ef79a5277cf	16088	raw/out/parity_result.json	C:\b12-pg17\out\parity_result.json	2026-09-28T18:22:04.448977Z
+cc9c015748840388f727f9f03879c184	232	raw/sql/run/p9b.sh	C:\b12-pg17\sql\run\p9b.sh	2026-09-28T18:23:57.161143Z
+0460fcc38ffe348905bc1182c782e7aa	13278	raw/out/p9b.txt	C:\b12-pg17\out\p9b.txt	2026-09-28T18:23:58.283721Z
+1ef1771ba01173a798bdd36efe4764f5	224	raw/out/p9b_result.json	C:\b12-pg17\out\p9b_result.json	2026-09-28T18:23:58.347953Z
+8539badcf7a637e59948858538dfcca7	53713	raw/sql/L_E00_precheck_inventory.sql	C:\b12-pg17\sql\L_E00_precheck_inventory.sql	2026-09-28T18:24:49.519267Z
+4fbb939b2b805ef3007f83afda1cbbe4	12199	raw/sql/L_E99_postcheck_residue.sql	C:\b12-pg17\sql\L_E99_postcheck_residue.sql	2026-09-28T18:24:49.523776Z
+adc5379c1c9f843f65d45a729f25e543	510	raw/out/deps_envelopes.json	C:\b12-pg17\out\deps_envelopes.json	2026-09-28T18:24:50.064805Z
+9ee3cb8811fe17ea611144967ce59113	274	raw/sql/run/json_E12_E00.sh	C:\b12-pg17\sql\run\json_E12_E00.sh	2026-09-28T18:24:50.071258Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/E12_E00.err	C:\b12-pg17\out\E12_E00.err	2026-09-28T18:24:50.203354Z
+8144b061158ad9c5c8f78fea864a017e	20057	raw/out/E12_E00.json	C:\b12-pg17\out\E12_E00.json	2026-09-28T18:24:50.254666Z
+008e6f0b696b71bfe572a617480d4975	279	raw/sql/run/json_E12_PRE.sh	C:\b12-pg17\sql\run\json_E12_PRE.sh	2026-09-28T18:24:50.346005Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/E12_PRE.err	C:\b12-pg17\out\E12_PRE.err	2026-09-28T18:24:50.467488Z
+c0419828f6c675058ee5a9cfa76337ad	5148	raw/out/E12_PRE.json	C:\b12-pg17\out\E12_PRE.json	2026-09-28T18:24:50.521135Z
+410644d0ffd08ffbcdab0fd89454ba1a	253	raw/sql/run/env_E12.sh	C:\b12-pg17\sql\run\env_E12.sh	2026-09-28T18:24:50.558793Z
+ed5cc2f8941906bc25aa6bbf185f16a0	445	raw/out/E12_ENVELOPE.txt	C:\b12-pg17\out\E12_ENVELOPE.txt	2026-09-28T18:24:51.085758Z
+928109cb5810a9250c302e742180c210	13008	raw/sql/run/E12_E99.sql	C:\b12-pg17\sql\run\E12_E99.sql	2026-09-28T18:24:51.509003Z
+1b17ee888db45e804845191349d8bae3	261	raw/sql/run/json_E12_E99.sh	C:\b12-pg17\sql\run\json_E12_E99.sh	2026-09-28T18:24:51.509559Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/E12_E99.err	C:\b12-pg17\out\E12_E99.err	2026-09-28T18:24:51.627566Z
+68fdbef1eb0c80e72863aab6c96d9c20	1373	raw/out/E12_E99.json	C:\b12-pg17\out\E12_E99.json	2026-09-28T18:24:51.653515Z
+ed4df7dc0397584ff04e080bcaf3f603	274	raw/sql/run/json_E13_E00.sh	C:\b12-pg17\sql\run\json_E13_E00.sh	2026-09-28T18:24:51.671332Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/E13_E00.err	C:\b12-pg17\out\E13_E00.err	2026-09-28T18:24:51.788786Z
+a732abfda2438ecaf850e437dd51575c	20057	raw/out/E13_E00.json	C:\b12-pg17\out\E13_E00.json	2026-09-28T18:24:51.841126Z
+830b8c22d69fffeb511ee0681ec5a4c2	279	raw/sql/run/json_E13_PRE.sh	C:\b12-pg17\sql\run\json_E13_PRE.sh	2026-09-28T18:24:51.857296Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/E13_PRE.err	C:\b12-pg17\out\E13_PRE.err	2026-09-28T18:24:51.990711Z
+7f2518012e51df62de9b141e92c68bed	6541	raw/out/E13_PRE.json	C:\b12-pg17\out\E13_PRE.json	2026-09-28T18:24:52.024800Z
+d3bd1448e1b6f837d5024ea2783171c2	249	raw/sql/run/env_E13.sh	C:\b12-pg17\sql\run\env_E13.sh	2026-09-28T18:24:52.042018Z
+f46a786a948ca44abce5ee032f5ade1d	388	raw/out/E13_ENVELOPE.txt	C:\b12-pg17\out\E13_ENVELOPE.txt	2026-09-28T18:24:52.263977Z
+928109cb5810a9250c302e742180c210	13008	raw/sql/run/E13_E99.sql	C:\b12-pg17\sql\run\E13_E99.sql	2026-09-28T18:24:52.731992Z
+b299476219fa18dae876fd5072dd19cd	261	raw/sql/run/json_E13_E99.sh	C:\b12-pg17\sql\run\json_E13_E99.sh	2026-09-28T18:24:52.732514Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/E13_E99.err	C:\b12-pg17\out\E13_E99.err	2026-09-28T18:24:52.830075Z
+a6d38837ef5cd0e7cd12baca6aa6ae65	1372	raw/out/E13_E99.json	C:\b12-pg17\out\E13_E99.json	2026-09-28T18:24:52.855400Z
+f92293dffc1406bbebe39e1e41cdb895	5493	raw/sql/run/E13_E98.sql	C:\b12-pg17\sql\run\E13_E98.sql	2026-09-28T18:24:53.152795Z
+4c4c0519772061a43c8d851ed3c2c055	261	raw/sql/run/json_E13_E98.sh	C:\b12-pg17\sql\run\json_E13_E98.sh	2026-09-28T18:24:53.153844Z
+d41d8cd98f00b204e9800998ecf8427e	0	raw/out/E13_E98.err	C:\b12-pg17\out\E13_E98.err	2026-09-28T18:24:53.275707Z
+72754fb905e31afc90ca743e8cfe9b25	725	raw/out/E13_E98.json	C:\b12-pg17\out\E13_E98.json	2026-09-28T18:24:53.293375Z
+53c18d06c9300326be937e005bc62477	5136	raw/out/envelopes_result.json	C:\b12-pg17\out\envelopes_result.json	2026-09-28T18:24:53.313372Z

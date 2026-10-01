@@ -1,0 +1,180 @@
+Timing is on.
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=9636044405.92..9636044405.93 rows=1 width=32) (actual time=211.531..211.541 rows=1 loops=1)
+   Buffers: shared hit=17990 read=12 dirtied=2, temp read=755 written=755
+   CTE base
+     ->  Hash Join  (cost=863.00..2873.99 rows=26127 width=234) (actual time=2.905..15.966 rows=26127 loops=1)
+           Hash Cond: (r_1.card_id = c.id)
+           Buffers: shared hit=1476
+           ->  Hash Join  (cost=7.26..1427.12 rows=26127 width=262) (actual time=0.043..5.690 rows=26127 loops=1)
+                 Hash Cond: (r_1.job_id = j.id)
+                 Buffers: shared hit=1092
+                 ->  Seq Scan on catalog_variant_import_row r_1  (cost=0.00..1349.27 rows=26127 width=270) (actual time=0.005..1.398 rows=26127 loops=1)
+                       Buffers: shared hit=1088
+                 ->  Hash  (cost=5.45..5.45 rows=145 width=24) (actual time=0.027..0.028 rows=145 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 17kB
+                       Buffers: shared hit=4
+                       ->  Seq Scan on catalog_variant_import_job j  (cost=0.00..5.45 rows=145 width=24) (actual time=0.003..0.012 rows=145 loops=1)
+                             Buffers: shared hit=4
+           ->  Hash  (cost=593.66..593.66 rows=20966 width=32) (actual time=2.781..2.782 rows=20966 loops=1)
+                 Buckets: 32768  Batches: 1  Memory Usage: 1567kB
+                 Buffers: shared hit=384
+                 ->  Seq Scan on card c  (cost=0.00..593.66 rows=20966 width=32) (actual time=0.005..1.065 rows=20966 loops=1)
+                       Buffers: shared hit=384
+   CTE rc
+     ->  Nested Loop  (cost=3.63..782375033.96 rows=26062000000 width=80) (actual time=3.183..152.271 rows=1642 loops=1)
+           Buffers: shared hit=16514 read=12 dirtied=2, temp read=586 written=1
+           InitPlan 2
+             ->  Seq Scan on asset_source  (cost=0.00..1.05 rows=1 width=16) (actual time=0.008..0.009 rows=1 loops=1)
+                   Filter: (code = 'TCGDEX'::text)
+                   Rows Removed by Filter: 3
+                   Buffers: shared hit=1
+           InitPlan 3
+             ->  Seq Scan on game  (cost=0.00..1.02 rows=1 width=16) (actual time=0.004..0.005 rows=1 loops=1)
+                   Filter: ((code)::text = 'POKEMON'::text)
+                   Rows Removed by Filter: 1
+                   Buffers: shared hit=1
+           InitPlan 4
+             ->  Seq Scan on asset_source asset_source_1  (cost=0.00..1.05 rows=1 width=16) (actual time=0.003..0.004 rows=1 loops=1)
+                   Filter: (code = 'TCGDEX'::text)
+                   Rows Removed by Filter: 3
+                   Buffers: shared hit=1
+           ->  Nested Loop Left Join  (cost=0.26..515030.59 rows=26062000 width=80) (actual time=0.404..4.393 rows=1642 loops=1)
+                 Buffers: shared hit=266, temp read=586 written=1
+                 ->  CTE Scan on base b_1  (cost=0.00..587.86 rows=26062 width=64) (actual time=0.022..2.531 rows=1642 loops=1)
+                       Filter: (op OR (obs <> 'ABSENT'::text))
+                       Rows Removed by Filter: 24485
+                       Buffers: temp read=586 written=1
+                 ->  Memoize  (cost=0.26..10.26 rows=1000 width=32) (actual time=0.001..0.001 rows=1 loops=1642)
+                       Cache Key: b_1.card_set_id
+                       Cache Mode: binary
+                       Hits: 1580  Misses: 62  Evictions: 0  Overflows: 0  Memory Usage: 8kB
+                       Buffers: shared hit=266
+                       ->  Function Scan on resolve_variant_mapping_scope sc  (cost=0.25..10.25 rows=1000 width=32) (actual time=0.014..0.014 rows=1 loops=62)
+                             Buffers: shared hit=266
+           ->  Function Scan on resolve_variant_row_axes ax  (cost=0.25..10.25 rows=1000 width=48) (actual time=0.089..0.089 rows=1 loops=1642)
+                 Buffers: shared hit=16248 read=12 dirtied=2
+   InitPlan 6
+     ->  Aggregate  (cost=586395000.00..586395000.01 rows=1 width=8) (actual time=0.111..0.111 rows=1 loops=1)
+           ->  CTE Scan on rc  (cost=0.00..521240000.00 rows=26062000000 width=0) (actual time=0.001..0.063 rows=1642 loops=1)
+   InitPlan 7
+     ->  Aggregate  (cost=6986557709.36..6986557709.37 rows=1 width=8) (actual time=0.381..0.381 rows=1 loops=1)
+           ->  Sort  (cost=6856247709.36..6921402709.36 rows=26062000000 width=16) (actual time=0.264..0.313 rows=1642 loops=1)
+                 Sort Key: rc_1.id
+                 Sort Method: quicksort  Memory: 49kB
+                 ->  CTE Scan on rc rc_1  (cost=0.00..521240000.00 rows=26062000000 width=16) (actual time=0.000..0.070 rows=1642 loops=1)
+   ->  Append  (cost=1717.13..1280706208.58 rows=26138 width=322) (actual time=36.572..194.266 rows=26138 loops=1)
+         Buffers: shared hit=17990 read=12 dirtied=2, temp read=755 written=755
+         ->  Subquery Scan on "*SELECT* 1"  (cost=1717.13..1280706077.67 rows=26127 width=322) (actual time=36.571..193.009 rows=26127 loops=1)
+               Buffers: shared hit=17990 read=12 dirtied=2, temp read=755 written=755
+               ->  Hash Right Join  (cost=1717.13..1280705816.40 rows=26127 width=322) (actual time=36.570..191.277 rows=26127 loops=1)
+                     Hash Cond: (r.id = b.id)
+                     Buffers: shared hit=17990 read=12 dirtied=2, temp read=755 written=755
+                     ->  CTE Scan on rc r  (cost=0.00..521240000.00 rows=26062000000 width=80) (actual time=3.185..152.977 rows=1642 loops=1)
+                           Buffers: shared hit=16514 read=12 dirtied=2, temp read=586 written=1
+                     ->  Hash  (cost=522.54..522.54 rows=26127 width=241) (actual time=33.343..33.343 rows=26127 loops=1)
+                           Buckets: 16384  Batches: 2  Memory Usage: 1583kB
+                           Buffers: shared hit=1476, temp written=746
+                           ->  CTE Scan on base b  (cost=0.00..522.54 rows=26127 width=241) (actual time=2.908..28.500 rows=26127 loops=1)
+                                 Buffers: shared hit=1476, temp written=585
+         ->  Values Scan on "*VALUES*"  (cost=0.00..0.22 rows=11 width=322) (actual time=0.018..0.026 rows=11 loops=1)
+ Planning:
+   Buffers: shared hit=749 read=6
+ Planning Time: 1.568 ms
+ Execution Time: 212.219 ms
+(82 rows)
+
+Time: 215.696 ms
+                                                                           QUERY PLAN                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=211585532.82..211585532.83 rows=1 width=8) (actual time=722.587..722.590 rows=1 loops=1)
+   Buffers: shared hit=18920
+   InitPlan 1
+     ->  Seq Scan on asset_source  (cost=0.00..1.05 rows=1 width=16) (actual time=0.006..0.007 rows=1 loops=1)
+           Filter: (code = 'TCGDEX'::text)
+           Rows Removed by Filter: 3
+           Buffers: shared hit=1
+   InitPlan 2
+     ->  Seq Scan on game  (cost=0.00..1.02 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+           Filter: ((code)::text = 'POKEMON'::text)
+           Rows Removed by Filter: 1
+           Buffers: shared hit=1
+   InitPlan 3
+     ->  Seq Scan on asset_source asset_source_1  (cost=0.00..1.05 rows=1 width=16) (actual time=0.001..0.002 rows=1 loops=1)
+           Filter: (code = 'TCGDEX'::text)
+           Rows Removed by Filter: 3
+           Buffers: shared hit=1
+   ->  Nested Loop  (cost=863.51..211375329.69 rows=84080000 width=0) (actual time=3.126..722.491 rows=387 loops=1)
+         Buffers: shared hit=18920
+         ->  Nested Loop Left Join  (cost=863.26..334529.44 rows=16816000 width=107) (actual time=2.741..32.166 rows=24485 loops=1)
+               Buffers: shared hit=1733
+               ->  Hash Join  (cost=863.00..2369.62 rows=16816 width=91) (actual time=2.588..21.714 rows=24485 loops=1)
+                     Hash Cond: (r.card_id = c.id)
+                     Buffers: shared hit=1476
+                     ->  Hash Join  (cost=7.26..1469.73 rows=16816 width=91) (actual time=0.035..12.075 rows=24485 loops=1)
+                           Hash Cond: (r.job_id = j.id)
+                           Join Filter: ((j.status <> ALL ('{RECEIVED,PROCESSING,STAGED,CONFIRMING}'::text[])) OR (r.persistence_status <> 'PENDING'::text))
+                           Buffers: shared hit=1092
+                           ->  Seq Scan on catalog_variant_import_row r  (cost=0.00..1414.59 rows=17418 width=115) (actual time=0.006..5.449 rows=24485 loops=1)
+                                 Filter: (NOT jsonb_exists(normalized_data, 'edition_context_profile_id'::text))
+                                 Rows Removed by Filter: 1642
+                                 Buffers: shared hit=1088
+                           ->  Hash  (cost=5.45..5.45 rows=145 width=24) (actual time=0.023..0.023 rows=145 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 17kB
+                                 Buffers: shared hit=4
+                                 ->  Seq Scan on catalog_variant_import_job j  (cost=0.00..5.45 rows=145 width=24) (actual time=0.002..0.011 rows=145 loops=1)
+                                       Buffers: shared hit=4
+                     ->  Hash  (cost=593.66..593.66 rows=20966 width=32) (actual time=2.524..2.524 rows=20966 loops=1)
+                           Buckets: 32768  Batches: 1  Memory Usage: 1567kB
+                           Buffers: shared hit=384
+                           ->  Seq Scan on card c  (cost=0.00..593.66 rows=20966 width=32) (actual time=0.003..1.091 rows=20966 loops=1)
+                                 Buffers: shared hit=384
+               ->  Memoize  (cost=0.26..10.26 rows=1000 width=32) (actual time=0.000..0.000 rows=1 loops=24485)
+                     Cache Key: c.card_set_id
+                     Cache Mode: binary
+                     Hits: 24357  Misses: 128  Evictions: 0  Overflows: 0  Memory Usage: 15kB
+                     Buffers: shared hit=257
+                     ->  Function Scan on resolve_variant_mapping_scope sc  (cost=0.25..10.25 rows=1000 width=32) (actual time=0.011..0.011 rows=1 loops=128)
+                           Buffers: shared hit=257
+         ->  Function Scan on resolve_variant_row_axes ax  (cost=0.25..12.75 rows=5 width=0) (actual time=0.028..0.028 rows=0 loops=24485)
+               Filter: (edition_context_state = 'RESOLVED_WITH_EC_PROFILE'::text)
+               Rows Removed by Filter: 1
+               Buffers: shared hit=17187
+ Planning:
+   Buffers: shared hit=24
+ Planning Time: 0.369 ms
+ Execution Time: 722.642 ms
+(57 rows)
+
+Time: 723.733 ms
+                                                                           QUERY PLAN                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=15315.51..15315.53 rows=1 width=32) (actual time=47.266..47.270 rows=1 loops=1)
+   Buffers: shared hit=1092, temp read=344 written=345
+   ->  Sort  (cost=4926.85..4992.19 rows=26135 width=128) (actual time=17.522..19.223 rows=26135 loops=1)
+         Sort Key: "*SELECT* 1".job_status
+         Sort Method: external merge  Disk: 2752kB
+         Buffers: shared hit=1092, temp read=344 written=345
+         ->  Append  (cost=7.26..2015.12 rows=26135 width=128) (actual time=0.031..11.080 rows=26135 loops=1)
+               Buffers: shared hit=1092
+               ->  Subquery Scan on "*SELECT* 1"  (cost=7.26..1884.34 rows=26127 width=128) (actual time=0.030..9.954 rows=26127 loops=1)
+                     Buffers: shared hit=1092
+                     ->  Hash Join  (cost=7.26..1623.07 rows=26127 width=128) (actual time=0.030..8.498 rows=26127 loops=1)
+                           Hash Cond: (r.job_id = j.id)
+                           Buffers: shared hit=1092
+                           ->  Seq Scan on catalog_variant_import_row r  (cost=0.00..1349.27 rows=26127 width=163) (actual time=0.003..1.289 rows=26127 loops=1)
+                                 Buffers: shared hit=1088
+                           ->  Hash  (cost=5.45..5.45 rows=145 width=24) (actual time=0.023..0.023 rows=145 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 17kB
+                                 Buffers: shared hit=4
+                                 ->  Seq Scan on catalog_variant_import_job j  (cost=0.00..5.45 rows=145 width=24) (actual time=0.002..0.011 rows=145 loops=1)
+                                       Buffers: shared hit=4
+               ->  Values Scan on "*VALUES*"  (cost=0.00..0.10 rows=8 width=226) (actual time=0.005..0.011 rows=8 loops=1)
+ Planning:
+   Buffers: shared hit=10
+ Planning Time: 0.264 ms
+ Execution Time: 47.715 ms
+(25 rows)
+
+Time: 48.550 ms

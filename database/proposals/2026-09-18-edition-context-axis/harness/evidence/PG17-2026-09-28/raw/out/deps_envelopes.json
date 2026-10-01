@@ -1,0 +1,15 @@
+{
+    "tag":  "envelopes",
+    "refs_checked":  20,
+    "missing_in_executed":  {
+
+                            },
+    "canonical_external_dependencies":  [
+                                            "2830H_E00_precheck_inventory.sql:447:public.catalog_admin_action_log",
+                                            "2830H_E99_postcheck_residue.sql:103:public.catalog_admin_action_log"
+                                        ],
+    "canonical_uncovered":  [
+
+                            ],
+    "pass":  true
+}
