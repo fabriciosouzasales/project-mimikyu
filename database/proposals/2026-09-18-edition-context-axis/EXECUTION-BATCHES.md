@@ -1252,6 +1252,12 @@ SELECT count(*) AS antigos_staging FROM pg_class  -- 0
 > **Batch 12 — harness automático CLOSED; Batch 12 global OPEN.** FREEZE **ATIVO**: o UNFREEZE
 > (ordem 3 abaixo) continua dependendo do gate completo desta seção e de
 > mandato próprio. O texto abaixo é o histórico da especificação.
+>
+> **A2 / P9(b) — sucessora v7.2 (2026-10-03, `BATCH12-PHASE6-A2-P9B-V72-FORMALIZATION-01`):**
+> `2830-V7.2-SUCCESSOR-A2-P9B.md` é delta normativo sobre a v7.0 (que permanece imutável),
+> limitado a P9(b), R-P9 e ao componente de performance de A2. **P9(b) v7.0 e A2 v7.0 =
+> NOT SATISFIED AS WRITTEN** (permanente) · **P9(b)′ v7.2 = CLOSED** (gate de evidência sem
+> nova execução; BR-1 e BR-2 CLOSED) · **P9(a) OPEN** · **A2′ OPEN** · **E1 OPEN** · FREEZE ATIVO.
 
 ### Gate global — estado vigente (2026-10-01, reconciliação final do gate global do Batch 12)
 
@@ -1287,7 +1293,7 @@ Rodada só documental. Nenhum SQL foi executado, nenhum teste foi executado e n�
 | **6.2** | decisão sobre `ix_card_variant_card_id` com EXPLAIN real | P9A-04 registrado (cenário pequeno, N ≤ 3) | OPEN | decisão separada de Fabrício: MANTER, ADIAR ou REMOVER FUTURAMENTE (não escolhida aqui). É independente do 6.1 e não o fecha |
 | **6.3** | `apply_migration` aceita UNIQUE NULLS NOT DISTINCT | 2840 v2.0, 7/7 PASS (Batch 10) | CLOSED | — |
 | **P9a** | EXPLAIN (COSTS OFF) no LIVE das consultas pesadas | E00/E99 REGISTRADO (`17857efb`); seções B, M e 5.2/5.3/5.7 sem EXPLAIN LIVE registrado (BL-2); o artefato `2830H_P9A_heavy_sections_explain.sql` existe e não tem registro de execução | PARTIAL | executar o P9A das seções pesadas, só leitura, com mandato próprio |
-| **P9b / A2** | A2 é **pré-requisito do harness**. P9(b): cada envelope executado integralmente 3×, 1 com cache frio, em ambiente isolado representativo (P14a), ANALYZE, pior caso ≤ 60 s, medição registrada antes do LIVE ("nenhum envelope vai ao LIVE sem a medição registrada"); R-P9: pior tempo no LIVE acima do medido no ambiente = FAIL de harness | **P9B LOCAL 28/09 = PASS (preservado)**: M1–M3 uma execução; E12 e E13 uma execução cada na réplica; B3H (E15) uma execução, `elapsed_ms=964`. Os envelopes já executados no LIVE rodaram sem a medição literal prévia, sob adaptações autorizadas (AD-2/D-2 = C). E15: LIVE 6.027 ms × B3H local 964 ms | OPEN — **A2 / P9(b) global v7.0** | uma medição futura **não** torna retroativamente cumprida a condição temporal da v7.0 (medição antes do LIVE). O fechamento contratual de A2/E1 exige **alteração formal da especificação** (v7.1 ou sucessora) que adjudique explicitamente: as execuções LIVE feitas sob adaptações autorizadas, o requisito temporal do P9b, as evidências de performance existentes, a R-P9 (incluindo E15 LIVE 6.027 ms × local 964 ms) e o critério A2/E1. Medições adicionais podem ser exigidas como prova de performance, mas sozinhas não fecham o A2 v7.0. A v7.1 não é criada nem alterada nesta rodada |
+| **P9b / A2** | A2 é **pré-requisito do harness**. P9(b): cada envelope executado integralmente 3×, 1 com cache frio, em ambiente isolado representativo (P14a), ANALYZE, pior caso ≤ 60 s, medição registrada antes do LIVE ("nenhum envelope vai ao LIVE sem a medição registrada"); R-P9: pior tempo no LIVE acima do medido no ambiente = FAIL de harness | **P9B LOCAL 28/09 = PASS (preservado)**: M1–M3 uma execução; E12 e E13 uma execução cada na réplica; B3H (E15) uma execução, `elapsed_ms=964`. Os envelopes já executados no LIVE rodaram sem a medição literal prévia, sob adaptações autorizadas (AD-2/D-2 = C). E15: LIVE 6.027 ms × B3H local 964 ms | **P9(b) v7.0 / A2 v7.0: NOT SATISFIED AS WRITTEN** (permanente) · **P9(b)′ v7.2: CLOSED** (2026-10-03) · **A2′: OPEN** (aguarda P9a) | *2026-10-03: alteração formal publicada como `2830-V7.2-SUCCESSOR-A2-P9B.md` (P9(b)′ CLOSED por adjudicação sucessora, sem nova execução; R-P9/E15 = FINDING de calibração, sem fator k). Resta o P9a (linha P9a) para A2′.* Texto anterior: uma medição futura **não** torna retroativamente cumprida a condição temporal da v7.0 (medição antes do LIVE). O fechamento contratual de A2/E1 exige **alteração formal da especificação** (v7.1 ou sucessora) que adjudique explicitamente: as execuções LIVE feitas sob adaptações autorizadas, o requisito temporal do P9b, as evidências de performance existentes, a R-P9 (incluindo E15 LIVE 6.027 ms × local 964 ms) e o critério A2/E1. Medições adicionais podem ser exigidas como prova de performance, mas sozinhas não fecham o A2 v7.0. A v7.1 não é criada nem alterada nesta rodada |
 | **P14a** | paridade por impressão digital (confirm, writer, guards 2214/2224, `axis_identity_token`, `resolve_variant_row_axes`, índices, constraints, triggers) | Parity 28/09 PASS (`4f035e12…`) no escopo E12/E13 (37 funções, md5 de `prosrc` LF); **não** inclui o confirm nem o writer e roda em réplica sem Auth/PostgREST | PARTIAL | nova prova P14a no ambiente de K1/K2/K8b, com a lista literal |
 | **P14b** | (b1) HTTP com admin real; (b2) conexões Postgres persistentes | nenhuma (a réplica é `supabase/postgres` sem Auth/PostgREST) | OPEN | montar o CN-1 (D-1 decidida: Supabase local via CLI + Docker) e provar b1/b2 |
 | **P14c** | prova de canal antes de K1/K8b (pid, txid, `idle in transaction`, `auth.uid()`, `is_admin()`) | nenhuma | OPEN | executar no ambiente CN-1, antes de K1/K8b |
@@ -1296,7 +1302,7 @@ Rodada só documental. Nenhum SQL foi executado, nenhum teste foi executado e n�
 | **Baseline de FREEZE** | inalterado entre o precheck e o UNFREEZE | E00 LIVE 2026-10-01T00:22:57Z: 24/24, `d_baseline_md5 5c329d5e…`; E99 00:29:50Z `d_diff=[]` | PARTIAL | re-provar no precheck do mandato de UNFREEZE |
 | **Zero jobs em voo** | E3 | E00 de 2026-10-01 conforme | PARTIAL | idem |
 | **Zero locks / sessões** | E3 | L3 2026-10-01T00:30:20Z limpa | PARTIAL | L3 imediatamente antes do UNFREEZE |
-| **E1** | A, B, C e D integralmente satisfeitos e registrados | B CLOSED; A2 (só por alteração formal), C1–C3, K1/K2/K8b, D4, 6.1 e 6.2 pendentes | OPEN | consequência dos itens acima |
+| **E1** | A, B, C e D integralmente satisfeitos e registrados | B CLOSED; A2′ (P9(b)′ CLOSED pela v7.2; P9a OPEN), C1–C3, K1/K2/K8b, D4, 6.1 e 6.2 pendentes | OPEN | consequência dos itens acima |
 | **E2** | K2 executado e aceito | — | BLOCKED | K2 no CN-1, após P14 homologado |
 | **E3** | baseline inalterado, zero job em voo, zero lock residual | snapshot de 2026-10-01 | PARTIAL | re-provar no UNFREEZE |
 | **E4** | mandato formal de UNFREEZE de Fabrício | — | OPEN | último passo |
@@ -1307,7 +1313,7 @@ Rodada só documental. Nenhum SQL foi executado, nenhum teste foi executado e n�
 **Menor sequência restante até a elegibilidade ao UNFREEZE:**
 
 1. **P14 / K1 / K2 / K8b** — D-1 decidida (CN-1/I-L). Montar o CN-1 (CN1-0 a CN1-6) e homologar P14a com a lista literal, P14b e P14c; depois K2, K1 e K8b.
-2. **A2 / R-P9** — tratamento formal em versão sucessora da 2830 (v7.1 ou sucessora), com mandato de especificação próprio; medições adicionais só como prova de performance.
+2. **A2 / R-P9** — *2026-10-03: tratado formalmente pela v7.2 (`2830-V7.2-SUCCESSOR-A2-P9B.md`): P9(b)′ CLOSED; A2′ fecha com o P9a (item 6).* Texto anterior: tratamento formal em versão sucessora da 2830 (v7.1 ou sucessora), com mandato de especificação próprio; medições adicionais só como prova de performance.
 3. **6.1** — nova evidência em que o planner use `uq_card_variant_identity`, ou alteração formal do requisito.
 4. **6.2** — decisão de Fabrício: MANTER, ADIAR ou REMOVER FUTURAMENTE.
 5. **C1 / C2 / C3** — registro formal do C1 (local); SELECT LIVE do C2; adjudicação documental do C3.
