@@ -1,0 +1,5 @@
+# MANIFEST — evidência B3H de 2026-09-30 (harness/evidence/B3H-2026-09-30)
+# Formato TSV: md5<TAB>bytes<TAB>arquivo_preservado<TAB>origem<TAB>source_mtime_utc (mtime do original; ordem cronológica)
+# Verificação: para cada linha, md5(arquivo_preservado) = md5. Gerado a partir dos bytes preservados.
+3a0b1075e66ac2c6bb3075f04b3a1121	12872	raw/B3H-LOCAL-RUN-BOM.ps1	C:\b12-pg17\B3H-LOCAL-RUN-BOM.ps1	2026-09-30T22:59:35.155335Z
+5bec60ad514c1de6efa84d12adce2fc5	16582	raw/B3H-LOCAL-EVIDENCE-20260930T231252.zip	C:\b12-pg17\B3H-LOCAL-EVIDENCE-20260930T231252.zip	2026-09-30T23:12:52.580428Z

@@ -5,8 +5,9 @@
 | Mandato | `BATCH12-E15-B3H-PASS-LOCAL-CLOSEOUT-AND-RELEASE-PREP-01` (2026-09-30) |
 | Baseline | `c19161b3cc8a9deda01062a4dadab1885bfc2d47` |
 | Execução | Protocolo B local, B3H representativo, **uma única execução**, por Fabrício, em PG17 isolado (`b12-pg17`), sem acesso ao LIVE |
-| Evidência | `B3H-LOCAL-EVIDENCE-20260930T231252.zip`, md5 `5bec60ad514c1de6efa84d12adce2fc5` (fora do repositório) |
+| Evidência | `B3H-LOCAL-EVIDENCE-20260930T231252.zip`, md5 `5bec60ad514c1de6efa84d12adce2fc5`. **Preservada no repositório desde 2026-10-03**, byte a byte, junto com o runner executado `3a0b1075…`: `evidence/B3H-2026-09-30/` (ver §5) |
 | Origem dos números | **relatados pela auditoria independente.** O agente não abriu o ZIP; nada aqui foi reexecutado |
+| Auditoria do ZIP (2026-10-03) | ZIP aberto e auditado sem reexecução (`BATCH12-PHASE6-A2-P9B-BR1-EVIDENCE-READINESS-01` / `-PRESERVATION-01`). Fato A `elapsed_ms=964` = **prova primária direta**. Fato B, E15 executado = `83e4d5d9…`, = **cadeia de custódia fail-closed indireta, aceita por adjudicação** (§5) |
 | Decisão | **B3H = PASS-LOCAL** (auditoria independente) |
 | Estado | E15 liberado **localmente** (artefato de release = artefato testado) · **E15 LIVE NÃO executado** · FREEZE ATIVO · 130/135 |
 
@@ -68,3 +69,24 @@ A mesma linha foi corrigida em `PROTOCOL-B-EXPORT-PROPOSAL.md` §7 (fora do repo
 - Nenhum `git add`/commit/push.
 - Digests não fixados além do que já está em `l13.D1_DIGESTS`.
 - FREEZE ativo.
+
+## 5. Preservação e auditoria da evidência (2026-10-03, BR-1 do P9(b)′)
+
+Mandatos: `BATCH12-PHASE6-A2-P9B-BR1-EVIDENCE-READINESS-01` e `-PRESERVATION-01`. Nenhum SQL, nenhum acesso ao LIVE, nada reexecutado.
+
+**Preservação.** O ZIP de evidências (`5bec60ad…`, 16.582 B) e o runner executado `B3H-LOCAL-RUN-BOM.ps1` (`3a0b1075…`, 12.872 B) foram copiados byte a byte para `evidence/B3H-2026-09-30/raw/`. Origem = destino por bytes, MD5 e SHA-256. A pasta tem `MANIFEST.md5` no formato PG17 e `.gitattributes` com `raw/** -text`. O relatório completo está em `evidence/B3H-2026-09-30/RELATORIO-EVIDENCIAS.md`. Antes, a evidência ficava fora do repositório e os números acima eram só relatados; agora o ZIP foi aberto e auditado.
+
+**Fato A — `elapsed_ms=964`: prova primária direta.**
+- Fonte: linha 1 de `B3H_run.stderr` dentro do ZIP (md5 `bb6c067d…`), com o terminal `H283P` do envelope E15 (`pass=5/5`, rollback intencional).
+- 964 ms é o relógio do servidor dentro do DO. 969,330 ms (cliente psql) e 1412 ms (wall do runner) não o substituem.
+
+**Fato B — E15 executado = `83e4d5d9…`: cadeia de custódia fail-closed indireta, aceita por adjudicação.**
+- O md5 **não** está dentro do ZIP.
+- O runner preservado pina o E15 em `83e4d5d9…` (linha 40) e compara o arquivo real contra o pino no GATE A 3 (linha 61), com `$ErrorActionPreference = 'Stop'` e sem `try` até a execução. A única chamada do B3H (linha 114) só é alcançada depois desse gate, e o `B3H_run.stderr` do ZIP prova que ela foi alcançada.
+- Corroboração, sem valor de prova primária:
+  - pacote C03 `cae73876…` = `PKG_MD5`, com a entrada `e15a/L_E15_unblocked.sql` = `83e4d5d9…`;
+  - o E15 canônico versionado tem o mesmo md5.
+
+**Verdict.** O `STOP` de `B3H_verdict.txt` continua sendo o falso negativo da §2 e foi preservado sem correção. A adjudicação vigente segue **B3H = PASS-LOCAL**, que **não** é P9(b) v7.0 PASS. A afirmação da §2 sobre a linhagem `6c2492ed… → 3a0b1075…` (não provada) permanece inalterada.
+
+**Estado.** **BR-1 = CLOSED por auditoria independente em 2026-10-03** (`BATCH12-PHASE6-A2-P9B-BR1-EVIDENCE-CLOSEOUT-01`). O BR-2 segue aberto.
