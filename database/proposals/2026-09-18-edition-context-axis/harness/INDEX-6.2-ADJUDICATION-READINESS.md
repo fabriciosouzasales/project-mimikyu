@@ -5,7 +5,7 @@
 | **Natureza** | Proposta documental de adjudicação. **Sem execução**: nenhum SQL, nenhum acesso ao LIVE, nenhuma alteração de índice, tabela ou função. |
 | **Mandato** | `BATCH12-2830-INDEX-6.2-ADJUDICATION-READINESS-01`. Baseline HEAD `1c565c431d804b2c98239e5cb5c77f1a20e230e0`. |
 | **Autoridades** | 2830 v7.0 (blob `b4647dcb…`, imutável): Seção 6 (6.1, 6.2), critérios D e E.<br>`P9A-READINESS.md` v1.2 (blob `99c32f78…`): §4, §6.2, §6.3, BL-4.<br>`LIVE-P9A-EXECUTION-RECORD.md` v1.0 (blob `b1507378…`): §5, §6, §7, Apêndice B. |
-| **Estado** | **PROPOSTA — NÃO APROVADA.** Nenhuma alternativa foi escolhida ou registrada como aprovada.<br>• 6.1: **NÃO DEMONSTRADO** (não FAIL);<br>• 6.2: **EVIDÊNCIA — CENÁRIO PEQUENO**, aguardando decisão de Fabrício;<br>• P9A-05: não autorizado, não executado;<br>• P9a não está globalmente concluído; A2 não está cumprido.<br>**FREEZE ATIVO.** |
+| **Estado** | **DECIDIDO (2026-10-03, `BATCH12-PHASE6-6.2-DECISION-MAINTAIN-01`): MANTER `ix_card_variant_card_id`** (§9).<br>• 6.2 = **CLOSED**; D5′ = **CLOSED** (6.1′ + 6.2);<br>• 6.1 v7.0 = NOT SATISFIED AS WRITTEN; 6.1′ (v7.3) = CLOSED;<br>• P9a OPEN/PARTIAL; A2′ OPEN; E1 OPEN.<br>**FREEZE ATIVO.**<br>*Estado original da v1.1 (histórico, superado): "PROPOSTA — NÃO APROVADA"; 6.1 NÃO DEMONSTRADO; 6.2 EVIDÊNCIA — CENÁRIO PEQUENO, aguardando decisão; P9A-05 não autorizado nem executado; P9a não concluído; A2 não cumprido.* |
 | **Papéis** | **Fabrício**: decisão. **Claude**: preparação desta análise. **ChatGPT**: auditoria independente. |
 
 ---
@@ -210,8 +210,36 @@ A lacuna A foi dividida em A.a e A.b em `…-CORRECTION-01`. Onde "A" aparece co
 - Nenhum SQL executado, nenhum acesso ao LIVE, nenhum índice, tabela ou função alterados; P9A-05 não executado.
 - A 2830 v7.0, o readiness v1.2, o registro LIVE e os artefatos canônicos não foram modificados.
 - Nenhuma alternativa registrada como aprovada.
-- Nada é declarado cumprido: nem 6.1 PASS, nem 6.2 CUMPRIDO, nem P9a global concluído, nem A2 cumprido.
+- *Estado desta readiness antes da decisão de 2026-10-03 (histórico):* nada era declarado cumprido; nem 6.1 PASS, nem 6.2 CUMPRIDO, nem P9a global concluído, nem A2 cumprido. **Estado vigente (§9):** 6.1 v7.0 continua NOT SATISFIED AS WRITTEN; 6.1′ (v7.3) está CLOSED; 6.2 está CLOSED (MANTER); P9a e A2′ continuam abertos.
 - Os fatos de PostgreSQL citados (locks de `DROP INDEX`/`CREATE INDEX`, `CONCURRENTLY` fora de transação, índice parcial restrito ao seu predicado, índice não único sem papel em constraints) são comportamento documentado do motor. **Não** foram observados no LIVE nesta rodada.
+
+## 9. Decisão registrada (2026-10-03)
+
+| Campo | Valor |
+|---|---|
+| **Identificador** | `BATCH12-PHASE6-6.2-DECISION-MAINTAIN-01` (preparação em `BATCH12-PHASE6-6.2-DECISION-READINESS-02`, baseline `7af7c277`) |
+| **Data** | 2026-10-03 |
+| **Decisor** | Fabrício |
+| **Objeto** | 2830 v7.0, requisito 6.2 (l. 989): "decisão sobre `ix_card_variant_card_id` com EXPLAIN real" |
+| **Alternativa escolhida** | ☒ **MANTER** ☐ ADIAR ☐ REMOVER no futuro |
+| **Justificativa** | A evidência atual não sustenta a remoção:<br>• no EXPLAIN real do LIVE, o planner escolheu o índice simples para a busca por `card_id`;<br>• não há contrafactual nem equivalência de desempenho demonstrada;<br>• o benefício potencial da remoção, em storage e escrita, não foi medido.<br>Segurança, integridade e, sobretudo, desempenho são inegociáveis: um ganho não medido de escrita ou storage não justifica um risco não medido de leitura. |
+| **Evidência considerada** | ☒ P9A-03 (registro §5; B.3 md5 `03963bcf…`)<br>☒ P9A-04 (registro §5; B.4 md5 `45308e3a…`): `Index Scan using ix_card_variant_card_id`, `Index Cond` em `card_id`<br>☒ inventário de índices P9A-00 (a)/(b) (registro §5 e §6)<br>☒ consumidor estático (§2.4) |
+| **Limitações aceitas** | ☒ cenário pequeno (N ≤ 3), literais sintéticos<br>☒ canal dono, sem RLS; consumidor com service role<br>☒ estatísticas de 2026-09-19 (`card_variant`)<br>☒ sem contrafactual (plano sem o índice não observado)<br>☒ sem medição de tempo (P9a ≠ P9b)<br>☒ `idx_scan` acumulado, não atribuível<br>☒ cardinalidade de `correlatedCardIds` não medida<br>☒ P9A-05 não executado<br>☒ inventário de consumidores não exaustivo |
+| **Alcance** | A decisão MANTER:<br>• **não** prova indispensabilidade do índice;<br>• **não** prova redundância;<br>• **não** autoriza remoção futura;<br>• **não** exige P9A-05, novo EXPLAIN nem novo ambiente isolado;<br>• **não** altera a v7.3 nem qualquer índice. |
+| **Estado de 6.2 após o registro** | ☒ **CLOSED / CUMPRIDO** (decisão registrada com referência à evidência e aos seus limites, nos termos de `P9A-READINESS.md` §6.3, l. 359) |
+| **Estado de 6.1 após o registro** | 6.1 v7.0 = NOT SATISFIED AS WRITTEN (permanente); 6.1′ (v7.3) = CLOSED. Inalterados por esta decisão. |
+| **Efeito sobre D5 / E1** | D5′ = 6.1′ + 6.2 → **CLOSED**. E1 continua **OPEN** pelos demais itens: P14(a/e), D1–D4, E2, A2′/P9a, C1–C3. |
+| **Evidência complementar exigida** | Nenhuma para esta decisão. |
+| **Mandatos subsequentes necessários** | Nenhum para manter. |
+| **Condição de revisão** | Uma remoção futura só pode ocorrer em **novo mandato**, com evidência de desempenho adequada (itens A–F do §4) e DDL fora do FREEZE. |
+| **Assinatura** | Fabrício (decisão comunicada no mandato `BATCH12-PHASE6-6.2-DECISION-MAINTAIN-01`) |
+
+**Premissas históricas superadas.** As premissas abaixo valiam quando a v1.0/v1.1 foi redigida. Ficam no texto só como registro histórico e não descrevem o estado vigente:
+
+- **6.1 NÃO DEMONSTRADO / Q2–Q3:** resolvidas pela sucessora v7.3 (`../2830-V7.3-SUCCESSOR-6.1.md`): 6.1′ CLOSED; D5′ = 6.1′ + 6.2.
+- **D-1 PENDENTE** (§3.1 e §4, linhas D e E): D-1 foi decidida em 2026-10-01 (CN-1/I-L). O CN-1 foi usado e depois descartado.
+- **Q1** (se "adiar" conta como decisão): sem objeto, porque a alternativa escolhida foi MANTER.
+- **Minuta do §6:** substituída por este §9. O §6 fica como modelo histórico, não assinado.
 
 ---
 
@@ -221,3 +249,4 @@ A lacuna A foi dividida em A.a e A.b em `…-CORRECTION-01`. Onde "A" aparece co
 |---|---|
 | 1.0 | **Criação (2026-09-27, `BATCH12-2830-INDEX-6.2-ADJUDICATION-READINESS-01`, baseline `1c565c43`), documental, sem SQL e sem acesso ao LIVE.**<br>• Rastreabilidade literal de 6.1, 6.2, D5 e E1;<br>• inventário das evidências de P9a com referências;<br>• matriz MANTER / ADIAR / REMOVER no futuro;<br>• lacunas A–F com a evidência necessária;<br>• sinalizações S1–S3;<br>• minuta de decisão não assinada;<br>• questões Q1–Q5.<br>Nenhuma alternativa aprovada. 6.1 NÃO DEMONSTRADO; 6.2 aguardando decisão. FREEZE ATIVO. |
 | 1.1 | **Correção localizada (2026-09-27, `BATCH12-2830-INDEX-6.2-ADJUDICATION-READINESS-CORRECTION-01`), documental, sem SQL e sem acesso ao LIVE.** Ponto da auditoria independente na lacuna A do §4:<br>• A dividida em A.a (`card_id` reais e cardinalidades diferentes, no canal `postgres`) e A.b (papel efetivo do consumidor);<br>• P9A-05 mantido como evidência complementar, não conclusiva, restrito a A.a; registrado que ele não comprova a forma do plano sob o papel do consumidor;<br>• A.b exige readiness e mandato próprios, se for considerada necessária;<br>• nota de leitura de "A" como grupo;<br>• S2 com encaminhamento à preparação da fase 5, sem alterar a 960.<br>Matriz de alternativas, minuta e Q1–Q5 inalteradas; contratos canônicos inalterados. FREEZE ATIVO. |
+| 1.2 | **Decisão registrada (2026-10-03, `BATCH12-PHASE6-6.2-DECISION-MAINTAIN-01`, baseline `7af7c277`), documental, sem SQL, sem LIVE, sem EXPLAIN e sem DDL.**<br>• Fabrício decidiu **MANTER `ix_card_variant_card_id`**;<br>• §9 criado com a decisão preenchida (evidência, todas as limitações, alcance, condição de revisão);<br>• cabeçalho Estado atualizado (6.2 CLOSED; D5′ CLOSED); premissas da v1.0/v1.1 marcadas como históricas.<br>A decisão não prova indispensabilidade nem redundância e não autoriza remoção. v7.0, v7.3, índices e raws inalterados. FREEZE ATIVO. |
