@@ -465,6 +465,24 @@ def r34_ok(e15, digests, model_path=None):
     return ok and need <= set(cps) and all(cps[c] & asserted for c in need)
 
 
+def p9a_rules(p9, F):
+    # R-9 / R-10 do P9A (BATCH12-PHASE6-P9A-D1X-COVERAGE-IMPLEMENTATION-01):
+    # 4 statements; cada consulta é o texto INTEGRAL da função-fonte e o mesmo
+    # texto está no envelope correspondente (E12/E13/E15P/E15).
+    return [
+        ('B12 R-9: P9A usa o mesmo texto de VREC / SMREC / DERIV-5X / DERIV-D1X dos envelopes',
+         l10.vrec(gen_all.GAME, gen_all.SRC) in p9 and l11.smrec() in p9 and l13.deriv_select() in p9
+         and l13.d1x_select() in p9
+         and lib.ind(l10.vrec('v_game', 'v_src'), 8) in F('2830H_E12_section_b_backfill_semantic.sql')
+         and lib.ind(l11.smrec(), 8) in F('2830H_E13_section_m_state_machine.sql')
+         and l13.DERIV in F('2830H_E15P_measure_section5.sql')
+         and lib.ind(l13.deriv_select(), 8) in F('2830H_E15_section5_legacy_hold.sql')
+         and lib.ind(l13.d1x_select(), 8) in F('2830H_E15_section5_legacy_hold.sql'), ''),
+        ('B12 R-10: P9A só EXPLAIN (COSTS OFF) — exatamente 4 —, sem ANALYZE',
+         code(p9).count('EXPLAIN (COSTS OFF)') == 4 and 'ANALYZE' not in code(p9).upper(), str(code(p9).count('EXPLAIN (COSTS OFF)'))),
+    ]
+
+
 def run():
     res, neg, pos = [], [], []
     files, meta, total = gen_all.build()
@@ -500,13 +518,7 @@ def run():
     res.append(('B12 R-8: blocos estruturais do E10P extraídos LITERALMENTE do E06P (executado no L4)',
                 all(b in e06p and b in F('2830H_E10P_precheck_section_r.sql') for b in blocks), ''))
     p9 = F('2830H_P9A_heavy_sections_explain.sql')
-    res.append(('B12 R-9: P9A usa o mesmo texto de VREC/SMREC/DERIV-5X dos envelopes',
-                l10.vrec(gen_all.GAME, gen_all.SRC) in p9 and l11.smrec() in p9 and l13.deriv_select() in p9
-                and lib.ind(l10.vrec('v_game', 'v_src'), 8) in F('2830H_E12_section_b_backfill_semantic.sql')
-                and lib.ind(l11.smrec(), 8) in F('2830H_E13_section_m_state_machine.sql')
-                and l13.DERIV in F('2830H_E15P_measure_section5.sql')
-                and lib.ind(l13.deriv_select(), 8) in F('2830H_E15_section5_legacy_hold.sql'), ''))
-    res.append(('B12 R-10: P9A só EXPLAIN (COSTS OFF), sem ANALYZE', code(p9).count('EXPLAIN (COSTS OFF)') == 3 and 'ANALYZE' not in code(p9).upper(), ''))
+    res += p9a_rules(p9, F)
     # 5. pinos = corpos do repositório
     pins = re.findall(r"\('([\w.]+)\((?:[^)]*)\)',\s+'\w+',\s+\w+,\s+'\w',\s+[^,]+(?:,[^,]+)?,\s+'([0-9a-f]{32})'", pre.P7X)
     res.append(('B12 R-11: P7X tem 8 pinos', len(pins) == 8, str(len(pins))))
@@ -598,6 +610,16 @@ def run():
     mf('EXECUTE dinâmico', 'E13', ins('E13', "    EXECUTE 'SELECT 1';\n"), 'B-2')
     mf('RAISE NOTICE', 'E12', ins('E12', "    RAISE NOTICE 'x';\n"), 'B-2')
     mf('DELETE em row', 'E14', ins('E14', '    DELETE FROM public.catalog_variant_import_row WHERE id = v_r1;\n'), 'B-2')
+    # P9A (D1X coverage): o perfil TEM de rejeitar P9A sem o statement D1X,
+    # com D1X divergente de l13.d1x_select() e com ANALYZE no D1X.
+    def mp(label, mutated, rule):
+        failed = [n for n, ok, _ in p9a_rules(mutated, F) if not ok]
+        neg.append((f'VERIFICADOR rejeita (P9A): {label} [{rule}]', mutated != p9 and any(n.startswith(f'B12 {rule}:') for n in failed), str(failed[:2])))
+    d1x_stmt = '\n-- P9A-D1X (E15 · DERIV-D1X · casos 5.3/5.7)\nEXPLAIN (COSTS OFF)\n' + l13.d1x_select() + ';\n'
+    mp('P9A sem o statement D1X', p9.replace(d1x_stmt, '\n'), 'R-9')
+    mp('P9A sem o statement D1X (contagem de EXPLAIN)', p9.replace(d1x_stmt, '\n'), 'R-10')
+    mp('P9A-D1X divergente de l13.d1x_select()', p9.replace(l13.d1x_select(), l13.d1x_select().replace('FROM d1_m m', 'FROM d1_m m WHERE false', 1)), 'R-9')
+    mp('P9A-D1X com ANALYZE', p9.replace('EXPLAIN (COSTS OFF)\n' + l13.d1x_select(), 'EXPLAIN (ANALYZE, COSTS OFF)\n' + l13.d1x_select()), 'R-10')
     mf('chamada do confirm', 'E11', ins('E11', "    SELECT count(*) INTO v_n FROM public.admin_confirm_catalog_variant_import(NULL, NULL);\n"), 'B-2')
     mf('LOOP', 'E13', ins('E13', '    LOOP EXIT; END LOOP;\n'), 'B-2')
     mf('INSERT fora do write-set (card_variant no L12)', 'E14', ins('E14', '    INSERT INTO public.card_variant (card_id) VALUES (v_card);\n'), 'B-3')

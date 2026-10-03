@@ -36,21 +36,25 @@ SRC = "(SELECT id FROM public.asset_source WHERE code = 'TCGDEX')"
 
 def p9a():
     head = lib.header(['2830H · P9A — FORMA DO PLANO DAS SEÇÕES PESADAS (B, M, 5.x) · EXPLAIN (COSTS OFF), sem ANALYZE'], [
-        'Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO. 3 statements independentes.',
+        'Status ........ IMPLEMENTADO LOCALMENTE — NÃO EXECUTADO. 4 statements independentes.',
         'Origem ........ P9(a)/AD-2: seções pesadas B, M e 5.2/5.3/5.7. Cada consulta é o',
         '                texto GERADO pela mesma função que produz o envelope (VREC, SMREC,',
-        '                DERIV-5X); as variáveis PL/pgSQL são trocadas por subconsultas por',
-        '                code. EXPLAIN não executa: nenhum gate, nenhuma prova de resíduo.',
+        '                DERIV-5X, DERIV-D1X); as variáveis PL/pgSQL são trocadas por',
+        '                subconsultas por code. DERIV-D1X (l13.d1x_select) é a base dos',
+        '                casos 5.3/5.7 do E15. EXPLAIN não executa: nenhum gate, nenhuma',
+        '                prova de resíduo.',
         'Registro ...... saída integral + md5 de cada plano; nós de acesso por relação.',
-        'Limite ........ não mede tempo (P9b continua pendente, A2).',
+        'Limite ........ não mede tempo; P9(b)′ já está CLOSED pela v7.2; A2′ aguarda P9(a).',
     ])
     vrec = l10.vrec(GAME, SRC)
     smrec = l11.smrec()
     deriv = l13.deriv_select()
+    d1x = l13.d1x_select()
     out = [head,
            '-- P9A-B  (E12 · VREC)\nEXPLAIN (COSTS OFF)\n' + vrec + ';\n',
            '-- P9A-M  (E13 · SMREC)\nEXPLAIN (COSTS OFF)\n' + smrec + ';\n',
-           '-- P9A-5X (E15/E15P · DERIV-5X)\nEXPLAIN (COSTS OFF)\n' + deriv + ';\n']
+           '-- P9A-5X (E15/E15P · DERIV-5X)\nEXPLAIN (COSTS OFF)\n' + deriv + ';\n',
+           '-- P9A-D1X (E15 · DERIV-D1X · casos 5.3/5.7)\nEXPLAIN (COSTS OFF)\n' + d1x + ';\n']
     return '\n'.join(out)
 
 
