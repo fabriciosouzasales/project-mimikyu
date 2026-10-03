@@ -1,0 +1,789 @@
+Result
+  CTE d5_hold
+    ->  Hash Join
+          Hash Cond: (c.card_set_id = cs.id)
+          Join Filter: (((vt.code)::text = 'PROMO_STAMPED'::text) OR (((vt.code)::text ~~ 'SET_LOGO%'::text) AND ((cs.code)::text !~ '^EX(7|8|9|10|11|12|13|14|15|16)$'::text) AND ((cs.code)::text <> ALL ('{DP1,SWSH9,SVP}'::text[]))))
+          ->  Nested Loop
+                ->  Nested Loop
+                      ->  Seq Scan on card_variant_type vt
+                            Filter: (((code)::text = 'PROMO_STAMPED'::text) OR ((code)::text ~~ 'SET_LOGO%'::text))
+                      ->  Index Scan using ix_card_variant_variant_type_id on card_variant cv
+                            Index Cond: (variant_type_id = vt.id)
+                ->  Index Scan using card_pkey on card c
+                      Index Cond: (id = cv.card_id)
+          ->  Hash
+                ->  Seq Scan on card_set cs
+  CTE d5_pscid
+    ->  Nested Loop
+          ->  HashAggregate
+                Group Key: x.card_variant_type_id
+                ->  Index Only Scan using ix_pricing_source_card_identity_card_variant_type_id on pricing_source_card_identity x
+          ->  Index Scan using ix_card_variant_variant_type_id on card_variant cv_1
+                Index Cond: (variant_type_id = x.card_variant_type_id)
+  CTE d5_psvm
+    ->  Hash Join
+          Hash Cond: (cv_2.variant_type_id = x_1.variant_type_id)
+          ->  Seq Scan on card_variant cv_2
+          ->  Hash
+                ->  HashAggregate
+                      Group Key: x_1.variant_type_id
+                      ->  Seq Scan on pricing_source_variant_mapping x_1
+  CTE d5_pricing
+    ->  HashAggregate
+          Group Key: d5_pscid.id
+          ->  Append
+                ->  CTE Scan on d5_pscid
+                ->  CTE Scan on d5_psvm
+  CTE d5_map
+    ->  Values Scan on "*VALUES*"
+  CTE d5_c0
+    ->  Hash Join
+          Hash Cond: (cv_3.card_id = c_1.id)
+          ->  Hash Semi Join
+                Hash Cond: (cv_3.id = r.resulting_variant_id)
+                ->  Seq Scan on card_variant cv_3
+                      Filter: (printing_profile_id IS NULL)
+                ->  Hash
+                      ->  Seq Scan on catalog_variant_import_row r
+          ->  Hash
+                ->  Seq Scan on card c_1
+  CTE d5_ev
+    ->  Unique
+          ->  Sort
+                Sort Key: cv_4.id, r_1.created_at, r_1.id
+                ->  Hash Join
+                      Hash Cond: (cv_4.card_id = c_2.id)
+                      ->  Hash Join
+                            Hash Cond: (r_1.resulting_variant_id = cv_4.id)
+                            ->  Seq Scan on catalog_variant_import_row r_1
+                            ->  Hash
+                                  ->  Seq Scan on card_variant cv_4
+                                        Filter: (NOT (ANY (id = (hashed SubPlan 7).col1)))
+                                        SubPlan 7
+                                          ->  CTE Scan on d5_hold
+                      ->  Hash
+                            ->  Seq Scan on card c_2
+  CTE d5_c1
+    ->  CTE Scan on d5_ev e
+  CTE d5_c2
+    ->  Nested Loop
+          InitPlan 10
+            ->  Index Scan using uq_asset_source_code on asset_source
+                  Index Cond: (code = 'TCGDEX'::text)
+          InitPlan 11
+            ->  Index Scan using uq_game_code on game
+                  Index Cond: ((code)::text = 'POKEMON'::text)
+          InitPlan 12
+            ->  Index Scan using uq_asset_source_code on asset_source asset_source_1
+                  Index Cond: (code = 'TCGDEX'::text)
+          ->  Nested Loop Left Join
+                ->  CTE Scan on d5_ev e_1
+                      Filter: (jsonb_exists(raw_data, 'subtype'::text) OR jsonb_exists(raw_data, 'stamp'::text))
+                ->  Function Scan on resolve_variant_mapping_scope sc
+          ->  Function Scan on resolve_variant_row_axes ax
+                Filter: (edition_context_state = 'RESOLVED_WITH_EC_PROFILE'::text)
+  CTE d5_c3
+    ->  Hash Join
+          Hash Cond: (c_3.card_set_id = cs_1.id)
+          Join Filter: ((((vt_1.code)::text !~~ 'SET_LOGO%'::text) OR ((cs_1.code)::text !~ '^EX(7|8|9|10|11|12|13|14|15|16)$'::text)) AND (((vt_1.code)::text !~~ 'SET_LOGO%'::text) OR ((cs_1.code)::text = ANY ('{DP1,SWSH9,SVP}'::text[]))))
+          ->  Hash Join
+                Hash Cond: (cv_5.card_id = c_3.id)
+                ->  Hash Join
+                      Hash Cond: (cv_5.variant_type_id = vt_1.id)
+                      ->  Seq Scan on card_variant cv_5
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_1
+                                  Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 14).col1))) AND ((code)::text <> 'PROMO_STAMPED'::text))
+                                  SubPlan 14
+                                    ->  Values Scan on "*VALUES*_1"
+                ->  Hash
+                      ->  Seq Scan on card c_3
+          ->  Hash
+                ->  Seq Scan on card_set cs_1
+  CTE d5_c0_bt
+    ->  HashAggregate
+          Group Key: vt_2.code
+          ->  Hash Join
+                Hash Cond: (s.variant_type_id = vt_2.id)
+                ->  CTE Scan on d5_c0 s
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_2
+  CTE d5_c1_bt
+    ->  HashAggregate
+          Group Key: vt_3.code
+          ->  Hash Join
+                Hash Cond: (s_1.variant_type_id = vt_3.id)
+                ->  CTE Scan on d5_c1 s_1
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_3
+  CTE d5_c2_bt
+    ->  HashAggregate
+          Group Key: vt_4.code
+          ->  Hash Join
+                Hash Cond: (s_2.variant_type_id = vt_4.id)
+                ->  CTE Scan on d5_c2 s_2
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_4
+  CTE d5_c3_bt
+    ->  HashAggregate
+          Group Key: vt_5.code
+          ->  Hash Join
+                Hash Cond: (s_3.variant_type_id = vt_5.id)
+                ->  CTE Scan on d5_c3 s_3
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_5
+  InitPlan 20
+    ->  Aggregate
+          ->  CTE Scan on d5_hold d5_hold_1
+  InitPlan 21
+    ->  Aggregate
+          ->  HashAggregate
+                Group Key: vt_6.code
+                Filter: (count(*) > 1)
+                ->  Seq Scan on card_variant_type vt_6
+  InitPlan 22
+    ->  Aggregate
+          ->  CTE Scan on d5_ev
+  InitPlan 23
+    ->  Aggregate
+          ->  CTE Scan on d5_c0
+  InitPlan 25
+    ->  Aggregate
+          ->  CTE Scan on d5_c0 s_4
+                Filter: (NOT (ANY (id = (hashed SubPlan 24).col1)))
+                SubPlan 24
+                  ->  CTE Scan on d5_pricing
+  InitPlan 26
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_5.id = d5_pricing_1.id)
+                ->  CTE Scan on d5_c0 s_5
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_1.id
+                            ->  CTE Scan on d5_pricing d5_pricing_1
+  InitPlan 28
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_6.id = d5_hold_2.id)
+                ->  CTE Scan on d5_c0 s_6
+                      Filter: (NOT (ANY (id = (hashed SubPlan 27).col1)))
+                      SubPlan 27
+                        ->  CTE Scan on d5_pricing d5_pricing_2
+                ->  Hash
+                      ->  CTE Scan on d5_hold d5_hold_2
+  InitPlan 30
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_7.id = d5_pricing_4.id)
+                ->  CTE Scan on d5_c0 s_7
+                      Filter: (NOT (ANY (id = (hashed SubPlan 29).col1)))
+                      SubPlan 29
+                        ->  CTE Scan on d5_pricing d5_pricing_3
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_4.id
+                            ->  CTE Scan on d5_pricing d5_pricing_4
+  InitPlan 31
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_8.id = d5_pricing_5.id)
+                ->  Hash Join
+                      Hash Cond: (s_8.variant_type_id = vt_7.id)
+                      ->  CTE Scan on d5_c0 s_8
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_7
+                                  Filter: ((code)::text = 'STAFF_HOLO'::text)
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_5.id
+                            ->  CTE Scan on d5_pricing d5_pricing_5
+  InitPlan 32
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_9.id = d5_pricing_6.id)
+                ->  Hash Join
+                      Hash Cond: (s_9.variant_type_id = vt_8.id)
+                      ->  CTE Scan on d5_c0 s_9
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_8
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_6.id
+                            ->  CTE Scan on d5_pricing d5_pricing_6
+  InitPlan 33
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_10.id = d5_pscid_1.id)
+                ->  CTE Scan on d5_c0 s_10
+                ->  Hash
+                      ->  CTE Scan on d5_pscid d5_pscid_1
+  InitPlan 34
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_11.id = d5_psvm_1.id)
+                ->  CTE Scan on d5_c0 s_11
+                ->  Hash
+                      ->  CTE Scan on d5_psvm d5_psvm_1
+  InitPlan 35
+    ->  Aggregate
+          ->  CTE Scan on d5_c0_bt
+  InitPlan 36
+    ->  Aggregate
+          ->  Hash Right Join
+                Hash Cond: ((b.code)::text = m.code)
+                Filter: (COALESCE(b.n, '0'::bigint) <> m.n)
+                ->  CTE Scan on d5_c0_bt b
+                ->  Hash
+                      ->  CTE Scan on d5_map m
+  InitPlan 38
+    ->  Aggregate
+          ->  CTE Scan on d5_c0_bt b_1
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 37).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 37
+                  ->  CTE Scan on d5_map
+  InitPlan 40
+    ->  Aggregate
+          ->  CTE Scan on d5_c0_bt b_2
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 39).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 39
+                  ->  CTE Scan on d5_map d5_map_1
+  InitPlan 42
+    ->  Aggregate
+          ->  CTE Scan on d5_c0_bt b_3
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 41).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 41
+                  ->  CTE Scan on d5_map d5_map_2
+  InitPlan 44
+    ->  Aggregate
+          ->  CTE Scan on d5_c0_bt b_4
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 43).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 43
+                  ->  CTE Scan on d5_map d5_map_3
+  InitPlan 46
+    ->  Aggregate
+          ->  CTE Scan on d5_c0_bt b_5
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 45).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text) AND (n <> 1))
+                SubPlan 45
+                  ->  CTE Scan on d5_map d5_map_4
+  InitPlan 47
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_12.card_set_id = cs_2.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_2
+                      Index Cond: ((code)::text = 'SVP'::text)
+                ->  Hash Join
+                      Hash Cond: (s_12.variant_type_id = vt_9.id)
+                      ->  CTE Scan on d5_c0 s_12
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_9
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 48
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_13.card_set_id = cs_3.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_3
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_13.variant_type_id = vt_10.id)
+                      ->  CTE Scan on d5_c0 s_13
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_10
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 49
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_14.card_set_id = cs_4.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_4
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_14.variant_type_id = vt_11.id)
+                      ->  CTE Scan on d5_c0 s_14
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_11
+                                  Filter: ((code)::text = 'SET_LOGO_STANDARDS'::text)
+  InitPlan 50
+    ->  Aggregate
+          ->  CTE Scan on d5_c1
+  InitPlan 52
+    ->  Aggregate
+          ->  CTE Scan on d5_c1 s_15
+                Filter: (NOT (ANY (id = (hashed SubPlan 51).col1)))
+                SubPlan 51
+                  ->  CTE Scan on d5_pricing d5_pricing_7
+  InitPlan 53
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_16.id = d5_pricing_8.id)
+                ->  CTE Scan on d5_c1 s_16
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_8.id
+                            ->  CTE Scan on d5_pricing d5_pricing_8
+  InitPlan 55
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_17.id = d5_hold_3.id)
+                ->  CTE Scan on d5_c1 s_17
+                      Filter: (NOT (ANY (id = (hashed SubPlan 54).col1)))
+                      SubPlan 54
+                        ->  CTE Scan on d5_pricing d5_pricing_9
+                ->  Hash
+                      ->  CTE Scan on d5_hold d5_hold_3
+  InitPlan 57
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_18.id = d5_pricing_11.id)
+                ->  CTE Scan on d5_c1 s_18
+                      Filter: (NOT (ANY (id = (hashed SubPlan 56).col1)))
+                      SubPlan 56
+                        ->  CTE Scan on d5_pricing d5_pricing_10
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_11.id
+                            ->  CTE Scan on d5_pricing d5_pricing_11
+  InitPlan 58
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_19.id = d5_pricing_12.id)
+                ->  Hash Join
+                      Hash Cond: (s_19.variant_type_id = vt_12.id)
+                      ->  CTE Scan on d5_c1 s_19
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_12
+                                  Filter: ((code)::text = 'STAFF_HOLO'::text)
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_12.id
+                            ->  CTE Scan on d5_pricing d5_pricing_12
+  InitPlan 59
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_20.id = d5_pricing_13.id)
+                ->  Hash Join
+                      Hash Cond: (s_20.variant_type_id = vt_13.id)
+                      ->  CTE Scan on d5_c1 s_20
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_13
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_13.id
+                            ->  CTE Scan on d5_pricing d5_pricing_13
+  InitPlan 60
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_21.id = d5_pscid_2.id)
+                ->  CTE Scan on d5_c1 s_21
+                ->  Hash
+                      ->  CTE Scan on d5_pscid d5_pscid_2
+  InitPlan 61
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_22.id = d5_psvm_2.id)
+                ->  CTE Scan on d5_c1 s_22
+                ->  Hash
+                      ->  CTE Scan on d5_psvm d5_psvm_2
+  InitPlan 62
+    ->  Aggregate
+          ->  CTE Scan on d5_c1_bt
+  InitPlan 63
+    ->  Aggregate
+          ->  Hash Right Join
+                Hash Cond: ((b_6.code)::text = m_1.code)
+                Filter: (COALESCE(b_6.n, '0'::bigint) <> m_1.n)
+                ->  CTE Scan on d5_c1_bt b_6
+                ->  Hash
+                      ->  CTE Scan on d5_map m_1
+  InitPlan 65
+    ->  Aggregate
+          ->  CTE Scan on d5_c1_bt b_7
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 64).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 64
+                  ->  CTE Scan on d5_map d5_map_5
+  InitPlan 67
+    ->  Aggregate
+          ->  CTE Scan on d5_c1_bt b_8
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 66).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 66
+                  ->  CTE Scan on d5_map d5_map_6
+  InitPlan 69
+    ->  Aggregate
+          ->  CTE Scan on d5_c1_bt b_9
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 68).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 68
+                  ->  CTE Scan on d5_map d5_map_7
+  InitPlan 71
+    ->  Aggregate
+          ->  CTE Scan on d5_c1_bt b_10
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 70).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 70
+                  ->  CTE Scan on d5_map d5_map_8
+  InitPlan 73
+    ->  Aggregate
+          ->  CTE Scan on d5_c1_bt b_11
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 72).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text) AND (n <> 1))
+                SubPlan 72
+                  ->  CTE Scan on d5_map d5_map_9
+  InitPlan 74
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_23.card_set_id = cs_5.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_5
+                      Index Cond: ((code)::text = 'SVP'::text)
+                ->  Hash Join
+                      Hash Cond: (s_23.variant_type_id = vt_14.id)
+                      ->  CTE Scan on d5_c1 s_23
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_14
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 75
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_24.card_set_id = cs_6.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_6
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_24.variant_type_id = vt_15.id)
+                      ->  CTE Scan on d5_c1 s_24
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_15
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 76
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_25.card_set_id = cs_7.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_7
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_25.variant_type_id = vt_16.id)
+                      ->  CTE Scan on d5_c1 s_25
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_16
+                                  Filter: ((code)::text = 'SET_LOGO_STANDARDS'::text)
+  InitPlan 77
+    ->  Aggregate
+          ->  CTE Scan on d5_c2
+  InitPlan 79
+    ->  Aggregate
+          ->  CTE Scan on d5_c2 s_26
+                Filter: (NOT (ANY (id = (hashed SubPlan 78).col1)))
+                SubPlan 78
+                  ->  CTE Scan on d5_pricing d5_pricing_14
+  InitPlan 80
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_27.id = d5_pricing_15.id)
+                ->  CTE Scan on d5_c2 s_27
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_15.id
+                            ->  CTE Scan on d5_pricing d5_pricing_15
+  InitPlan 82
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_28.id = d5_hold_4.id)
+                ->  CTE Scan on d5_c2 s_28
+                      Filter: (NOT (ANY (id = (hashed SubPlan 81).col1)))
+                      SubPlan 81
+                        ->  CTE Scan on d5_pricing d5_pricing_16
+                ->  Hash
+                      ->  CTE Scan on d5_hold d5_hold_4
+  InitPlan 84
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_29.id = d5_pricing_18.id)
+                ->  CTE Scan on d5_c2 s_29
+                      Filter: (NOT (ANY (id = (hashed SubPlan 83).col1)))
+                      SubPlan 83
+                        ->  CTE Scan on d5_pricing d5_pricing_17
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_18.id
+                            ->  CTE Scan on d5_pricing d5_pricing_18
+  InitPlan 85
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_30.variant_type_id = vt_17.id)
+                ->  Hash Join
+                      Hash Cond: (s_30.id = d5_pricing_19.id)
+                      ->  CTE Scan on d5_c2 s_30
+                      ->  Hash
+                            ->  HashAggregate
+                                  Group Key: d5_pricing_19.id
+                                  ->  CTE Scan on d5_pricing d5_pricing_19
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_17
+                            Filter: ((code)::text = 'STAFF_HOLO'::text)
+  InitPlan 86
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_31.variant_type_id = vt_18.id)
+                ->  Hash Join
+                      Hash Cond: (s_31.id = d5_pricing_20.id)
+                      ->  CTE Scan on d5_c2 s_31
+                      ->  Hash
+                            ->  HashAggregate
+                                  Group Key: d5_pricing_20.id
+                                  ->  CTE Scan on d5_pricing d5_pricing_20
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_18
+                            Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 87
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_32.id = d5_pscid_3.id)
+                ->  CTE Scan on d5_c2 s_32
+                ->  Hash
+                      ->  CTE Scan on d5_pscid d5_pscid_3
+  InitPlan 88
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_33.id = d5_psvm_3.id)
+                ->  CTE Scan on d5_c2 s_33
+                ->  Hash
+                      ->  CTE Scan on d5_psvm d5_psvm_3
+  InitPlan 89
+    ->  Aggregate
+          ->  CTE Scan on d5_c2_bt
+  InitPlan 90
+    ->  Aggregate
+          ->  Hash Right Join
+                Hash Cond: ((b_12.code)::text = m_2.code)
+                Filter: (COALESCE(b_12.n, '0'::bigint) <> m_2.n)
+                ->  CTE Scan on d5_c2_bt b_12
+                ->  Hash
+                      ->  CTE Scan on d5_map m_2
+  InitPlan 92
+    ->  Aggregate
+          ->  CTE Scan on d5_c2_bt b_13
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 91).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 91
+                  ->  CTE Scan on d5_map d5_map_10
+  InitPlan 94
+    ->  Aggregate
+          ->  CTE Scan on d5_c2_bt b_14
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 93).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 93
+                  ->  CTE Scan on d5_map d5_map_11
+  InitPlan 96
+    ->  Aggregate
+          ->  CTE Scan on d5_c2_bt b_15
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 95).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 95
+                  ->  CTE Scan on d5_map d5_map_12
+  InitPlan 98
+    ->  Aggregate
+          ->  CTE Scan on d5_c2_bt b_16
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 97).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 97
+                  ->  CTE Scan on d5_map d5_map_13
+  InitPlan 100
+    ->  Aggregate
+          ->  CTE Scan on d5_c2_bt b_17
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 99).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text) AND (n <> 1))
+                SubPlan 99
+                  ->  CTE Scan on d5_map d5_map_14
+  InitPlan 101
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_34.card_set_id = cs_8.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_8
+                      Index Cond: ((code)::text = 'SVP'::text)
+                ->  Hash Join
+                      Hash Cond: (s_34.variant_type_id = vt_19.id)
+                      ->  CTE Scan on d5_c2 s_34
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_19
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 102
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_35.card_set_id = cs_9.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_9
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_35.variant_type_id = vt_20.id)
+                      ->  CTE Scan on d5_c2 s_35
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_20
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 103
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_36.card_set_id = cs_10.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_10
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_36.variant_type_id = vt_21.id)
+                      ->  CTE Scan on d5_c2 s_36
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_21
+                                  Filter: ((code)::text = 'SET_LOGO_STANDARDS'::text)
+  InitPlan 104
+    ->  Aggregate
+          ->  CTE Scan on d5_c3
+  InitPlan 106
+    ->  Aggregate
+          ->  CTE Scan on d5_c3 s_37
+                Filter: (NOT (ANY (id = (hashed SubPlan 105).col1)))
+                SubPlan 105
+                  ->  CTE Scan on d5_pricing d5_pricing_21
+  InitPlan 107
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_38.id = d5_pricing_22.id)
+                ->  CTE Scan on d5_c3 s_38
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_22.id
+                            ->  CTE Scan on d5_pricing d5_pricing_22
+  InitPlan 109
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_39.id = d5_hold_5.id)
+                ->  CTE Scan on d5_c3 s_39
+                      Filter: (NOT (ANY (id = (hashed SubPlan 108).col1)))
+                      SubPlan 108
+                        ->  CTE Scan on d5_pricing d5_pricing_23
+                ->  Hash
+                      ->  CTE Scan on d5_hold d5_hold_5
+  InitPlan 111
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_40.id = d5_pricing_25.id)
+                ->  CTE Scan on d5_c3 s_40
+                      Filter: (NOT (ANY (id = (hashed SubPlan 110).col1)))
+                      SubPlan 110
+                        ->  CTE Scan on d5_pricing d5_pricing_24
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_25.id
+                            ->  CTE Scan on d5_pricing d5_pricing_25
+  InitPlan 112
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_41.id = d5_pricing_26.id)
+                ->  Hash Join
+                      Hash Cond: (s_41.variant_type_id = vt_22.id)
+                      ->  CTE Scan on d5_c3 s_41
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_22
+                                  Filter: ((code)::text = 'STAFF_HOLO'::text)
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_26.id
+                            ->  CTE Scan on d5_pricing d5_pricing_26
+  InitPlan 113
+    ->  Aggregate
+          ->  Hash Join
+                Hash Cond: (s_42.id = d5_pricing_27.id)
+                ->  Hash Join
+                      Hash Cond: (s_42.variant_type_id = vt_23.id)
+                      ->  CTE Scan on d5_c3 s_42
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_23
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+                ->  Hash
+                      ->  HashAggregate
+                            Group Key: d5_pricing_27.id
+                            ->  CTE Scan on d5_pricing d5_pricing_27
+  InitPlan 114
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_43.id = d5_pscid_4.id)
+                ->  CTE Scan on d5_c3 s_43
+                ->  Hash
+                      ->  CTE Scan on d5_pscid d5_pscid_4
+  InitPlan 115
+    ->  Aggregate
+          ->  Hash Semi Join
+                Hash Cond: (s_44.id = d5_psvm_4.id)
+                ->  CTE Scan on d5_c3 s_44
+                ->  Hash
+                      ->  CTE Scan on d5_psvm d5_psvm_4
+  InitPlan 116
+    ->  Aggregate
+          ->  CTE Scan on d5_c3_bt
+  InitPlan 117
+    ->  Aggregate
+          ->  Hash Right Join
+                Hash Cond: ((b_18.code)::text = m_3.code)
+                Filter: (COALESCE(b_18.n, '0'::bigint) <> m_3.n)
+                ->  CTE Scan on d5_c3_bt b_18
+                ->  Hash
+                      ->  CTE Scan on d5_map m_3
+  InitPlan 119
+    ->  Aggregate
+          ->  CTE Scan on d5_c3_bt b_19
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 118).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 118
+                  ->  CTE Scan on d5_map d5_map_15
+  InitPlan 121
+    ->  Aggregate
+          ->  CTE Scan on d5_c3_bt b_20
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 120).col1))) AND ((code)::text ~ '(WORLDS|ASIA)'::text))
+                SubPlan 120
+                  ->  CTE Scan on d5_map d5_map_16
+  InitPlan 123
+    ->  Aggregate
+          ->  CTE Scan on d5_c3_bt b_21
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 122).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 122
+                  ->  CTE Scan on d5_map d5_map_17
+  InitPlan 125
+    ->  Aggregate
+          ->  CTE Scan on d5_c3_bt b_22
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 124).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text))
+                SubPlan 124
+                  ->  CTE Scan on d5_map d5_map_18
+  InitPlan 127
+    ->  Aggregate
+          ->  CTE Scan on d5_c3_bt b_23
+                Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 126).col1))) AND ((code)::text !~ '(WORLDS|ASIA)'::text) AND (n <> 1))
+                SubPlan 126
+                  ->  CTE Scan on d5_map d5_map_19
+  InitPlan 128
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_45.card_set_id = cs_11.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_11
+                      Index Cond: ((code)::text = 'SVP'::text)
+                ->  Hash Join
+                      Hash Cond: (s_45.variant_type_id = vt_24.id)
+                      ->  CTE Scan on d5_c3 s_45
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_24
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 129
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_46.card_set_id = cs_12.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_12
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_46.variant_type_id = vt_25.id)
+                      ->  CTE Scan on d5_c3 s_46
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_25
+                                  Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+  InitPlan 130
+    ->  Aggregate
+          ->  Nested Loop
+                Join Filter: (s_47.card_set_id = cs_13.id)
+                ->  Index Scan using uq_card_set_expansion_code on card_set cs_13
+                      Index Cond: ((code)::text = 'DP1'::text)
+                ->  Hash Join
+                      Hash Cond: (s_47.variant_type_id = vt_26.id)
+                      ->  CTE Scan on d5_c3 s_47
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_26
+                                  Filter: ((code)::text = 'SET_LOGO_STANDARDS'::text)
+  InitPlan 131
+    ->  Aggregate
+          ->  Seq Scan on catalog_variant_import_row
+                Filter: (resulting_variant_id IS NOT NULL)
+  InitPlan 132
+    ->  Aggregate
+          ->  Index Only Scan using ix_catalog_variant_import_row_matched_variant on catalog_variant_import_row catalog_variant_import_row_1

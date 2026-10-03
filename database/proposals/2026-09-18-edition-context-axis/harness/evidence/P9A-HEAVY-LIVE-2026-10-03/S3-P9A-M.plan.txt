@@ -1,0 +1,11 @@
+Aggregate
+  ->  Sort
+        Sort Key: "*SELECT* 1".job_status
+        ->  Append
+              ->  Subquery Scan on "*SELECT* 1"
+                    ->  Hash Join
+                          Hash Cond: (r.job_id = j.id)
+                          ->  Seq Scan on catalog_variant_import_row r
+                          ->  Hash
+                                ->  Seq Scan on catalog_variant_import_job j
+              ->  Values Scan on "*VALUES*"

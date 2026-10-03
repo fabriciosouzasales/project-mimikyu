@@ -1,0 +1,430 @@
+Nested Loop
+  CTE d5_hold
+    ->  Hash Join
+          Hash Cond: (c.card_set_id = cs.id)
+          Join Filter: (((vt.code)::text = 'PROMO_STAMPED'::text) OR (((vt.code)::text ~~ 'SET_LOGO%'::text) AND ((cs.code)::text !~ '^EX(7|8|9|10|11|12|13|14|15|16)$'::text) AND ((cs.code)::text <> ALL ('{DP1,SWSH9,SVP}'::text[]))))
+          ->  Nested Loop
+                ->  Nested Loop
+                      ->  Seq Scan on card_variant_type vt
+                            Filter: (((code)::text = 'PROMO_STAMPED'::text) OR ((code)::text ~~ 'SET_LOGO%'::text))
+                      ->  Index Scan using ix_card_variant_variant_type_id on card_variant cv
+                            Index Cond: (variant_type_id = vt.id)
+                ->  Index Scan using card_pkey on card c
+                      Index Cond: (id = cv.card_id)
+          ->  Hash
+                ->  Seq Scan on card_set cs
+  CTE d5_pscid
+    ->  Nested Loop
+          ->  HashAggregate
+                Group Key: x.card_variant_type_id
+                ->  Index Only Scan using ix_pricing_source_card_identity_card_variant_type_id on pricing_source_card_identity x
+          ->  Index Scan using ix_card_variant_variant_type_id on card_variant cv_1
+                Index Cond: (variant_type_id = x.card_variant_type_id)
+  CTE d5_psvm
+    ->  Hash Join
+          Hash Cond: (cv_2.variant_type_id = x_1.variant_type_id)
+          ->  Seq Scan on card_variant cv_2
+          ->  Hash
+                ->  HashAggregate
+                      Group Key: x_1.variant_type_id
+                      ->  Seq Scan on pricing_source_variant_mapping x_1
+  CTE d5_pricing
+    ->  HashAggregate
+          Group Key: d5_pscid.id
+          ->  Append
+                ->  CTE Scan on d5_pscid
+                ->  CTE Scan on d5_psvm
+  CTE d5_map
+    ->  Values Scan on "*VALUES*"
+  CTE d5_c0
+    ->  Hash Join
+          Hash Cond: (cv_3.card_id = c_1.id)
+          ->  Hash Semi Join
+                Hash Cond: (cv_3.id = r.resulting_variant_id)
+                ->  Seq Scan on card_variant cv_3
+                      Filter: (printing_profile_id IS NULL)
+                ->  Hash
+                      ->  Seq Scan on catalog_variant_import_row r
+          ->  Hash
+                ->  Seq Scan on card c_1
+  CTE d5_ev
+    ->  Unique
+          ->  Sort
+                Sort Key: cv_4.id, r_1.created_at, r_1.id
+                ->  Hash Join
+                      Hash Cond: (cv_4.card_id = c_2.id)
+                      ->  Hash Join
+                            Hash Cond: (r_1.resulting_variant_id = cv_4.id)
+                            ->  Seq Scan on catalog_variant_import_row r_1
+                            ->  Hash
+                                  ->  Seq Scan on card_variant cv_4
+                                        Filter: (NOT (ANY (id = (hashed SubPlan 7).col1)))
+                                        SubPlan 7
+                                          ->  CTE Scan on d5_hold
+                      ->  Hash
+                            ->  Seq Scan on card c_2
+  CTE d5_c1
+    ->  CTE Scan on d5_ev e
+  CTE d5_c2
+    ->  Nested Loop
+          InitPlan 10
+            ->  Index Scan using uq_asset_source_code on asset_source
+                  Index Cond: (code = 'TCGDEX'::text)
+          InitPlan 11
+            ->  Index Scan using uq_game_code on game
+                  Index Cond: ((code)::text = 'POKEMON'::text)
+          InitPlan 12
+            ->  Index Scan using uq_asset_source_code on asset_source asset_source_1
+                  Index Cond: (code = 'TCGDEX'::text)
+          ->  Nested Loop Left Join
+                ->  CTE Scan on d5_ev e_1
+                      Filter: (jsonb_exists(raw_data, 'subtype'::text) OR jsonb_exists(raw_data, 'stamp'::text))
+                ->  Function Scan on resolve_variant_mapping_scope sc
+          ->  Function Scan on resolve_variant_row_axes ax
+                Filter: (edition_context_state = 'RESOLVED_WITH_EC_PROFILE'::text)
+  CTE d5_c3
+    ->  Hash Join
+          Hash Cond: (c_3.card_set_id = cs_1.id)
+          Join Filter: ((((vt_1.code)::text !~~ 'SET_LOGO%'::text) OR ((cs_1.code)::text !~ '^EX(7|8|9|10|11|12|13|14|15|16)$'::text)) AND (((vt_1.code)::text !~~ 'SET_LOGO%'::text) OR ((cs_1.code)::text = ANY ('{DP1,SWSH9,SVP}'::text[]))))
+          ->  Hash Join
+                Hash Cond: (cv_5.card_id = c_3.id)
+                ->  Hash Join
+                      Hash Cond: (cv_5.variant_type_id = vt_1.id)
+                      ->  Seq Scan on card_variant cv_5
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_1
+                                  Filter: ((NOT (ANY ((code)::text = (hashed SubPlan 14).col1))) AND ((code)::text <> 'PROMO_STAMPED'::text))
+                                  SubPlan 14
+                                    ->  Values Scan on "*VALUES*_1"
+                ->  Hash
+                      ->  Seq Scan on card c_3
+          ->  Hash
+                ->  Seq Scan on card_set cs_1
+  CTE d5_c0_bt
+    ->  HashAggregate
+          Group Key: vt_2.code
+          ->  Hash Join
+                Hash Cond: (s.variant_type_id = vt_2.id)
+                ->  CTE Scan on d5_c0 s
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_2
+  CTE d5_c1_bt
+    ->  HashAggregate
+          Group Key: vt_3.code
+          ->  Hash Join
+                Hash Cond: (s_1.variant_type_id = vt_3.id)
+                ->  CTE Scan on d5_c1 s_1
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_3
+  CTE d5_c2_bt
+    ->  HashAggregate
+          Group Key: vt_4.code
+          ->  Hash Join
+                Hash Cond: (s_2.variant_type_id = vt_4.id)
+                ->  CTE Scan on d5_c2 s_2
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_4
+  CTE d5_c3_bt
+    ->  HashAggregate
+          Group Key: vt_5.code
+          ->  Hash Join
+                Hash Cond: (s_3.variant_type_id = vt_5.id)
+                ->  CTE Scan on d5_c3 s_3
+                ->  Hash
+                      ->  Seq Scan on card_variant_type vt_5
+  CTE h_finish
+    ->  Values Scan on "*VALUES*_2"
+  CTE h_ready
+    ->  Values Scan on "*VALUES*_3"
+  CTE h_hold
+    ->  Values Scan on "*VALUES*_4"
+  CTE h_nc
+    ->  Values Scan on "*VALUES*_5"
+  CTE h_h6
+    ->  Values Scan on "*VALUES*_6"
+  CTE d1_cv
+    ->  Hash Join
+          Hash Cond: (c_4.card_set_id = cs_2.id)
+          ->  Hash Join
+                Hash Cond: (cv_6.card_id = c_4.id)
+                ->  Hash Join
+                      Hash Cond: (cv_6.variant_type_id = vt_6.id)
+                      ->  Seq Scan on card_variant cv_6
+                      ->  Hash
+                            ->  Seq Scan on card_variant_type vt_6
+                ->  Hash
+                      ->  Seq Scan on card c_4
+          ->  Hash
+                ->  Seq Scan on card_set cs_2
+          SubPlan 25
+            ->  CTE Scan on h_finish
+          SubPlan 26
+            ->  CTE Scan on h_finish h_finish_1
+  CTE d1_cls
+    ->  CTE Scan on d1_cv d
+  CTE d1_pscid
+    ->  HashAggregate
+          Group Key: x_2.card_variant_type_id
+          ->  Seq Scan on pricing_source_card_identity x_2
+  CTE d1_psvm
+    ->  HashAggregate
+          Group Key: x_3.variant_type_id
+          ->  Seq Scan on pricing_source_variant_mapping x_3
+  CTE d1_ready
+    ->  CTE Scan on d1_cls
+          Filter: is_ready
+  CTE d1_hold
+    ->  CTE Scan on d1_cls d1_cls_1
+          Filter: is_hold
+  CTE d1_plan_contract
+    ->  CTE Scan on d1_ready
+          Filter: ((code)::text <> ALL ('{STAFF_HOLO,SET_LOGO_REVERSE}'::text[]))
+  CTE d1_plan_derived
+    ->  Hash Anti Join
+          Hash Cond: (r_2.type_id = s_4.type_id)
+          ->  Hash Right Anti Join
+                Hash Cond: (v.type_id = r_2.type_id)
+                ->  CTE Scan on d1_psvm v
+                ->  Hash
+                      ->  CTE Scan on d1_ready r_2
+          ->  Hash
+                ->  CTE Scan on d1_pscid s_4
+  CTE d1_cond
+    ->  CTE Scan on d1_ready r_3
+          Filter: ((ANY (type_id = (hashed SubPlan 36).col1)) OR (ANY (type_id = (hashed SubPlan 38).col1)))
+          SubPlan 36
+            ->  CTE Scan on d1_pscid s_5
+          SubPlan 38
+            ->  CTE Scan on d1_psvm v_1
+  CTE d1_ready_pr
+    ->  HashAggregate
+          Group Key: r_4.code
+          Filter: ((COALESCE(max(s_6.n), '0'::bigint) + COALESCE(max(v_2.n), '0'::bigint)) > 0)
+          ->  Hash Left Join
+                Hash Cond: (r_4.type_id = s_6.type_id)
+                ->  Hash Right Join
+                      Hash Cond: (v_2.type_id = r_4.type_id)
+                      ->  CTE Scan on d1_psvm v_2
+                      ->  Hash
+                            ->  CTE Scan on d1_ready r_4
+                ->  Hash
+                      ->  CTE Scan on d1_pscid s_6
+  CTE d1_ready_bt
+    ->  HashAggregate
+          Group Key: d1_ready_1.code
+          ->  CTE Scan on d1_ready d1_ready_1
+  CTE d1_hold_bk
+    ->  HashAggregate
+          Group Key: CASE WHEN ((d1_hold.code)::text = 'PROMO_STAMPED'::text) THEN (d1_hold.code)::text ELSE (((d1_hold.code)::text || '@'::text) || (d1_hold.set_code)::text) END
+          ->  CTE Scan on d1_hold
+  CTE d1_nc_bk
+    ->  HashAggregate
+          Group Key: (((d1_cls_2.code)::text || '@'::text) || (d1_cls_2.set_code)::text)
+          ->  CTE Scan on d1_cls d1_cls_2
+                Filter: is_nc
+  CTE d1_m
+    ->  Result
+          InitPlan 44
+            ->  Aggregate
+                  ->  Index Only Scan using ix_card_variant_variant_type_id on card_variant
+          InitPlan 45
+            ->  Aggregate
+                  ->  CTE Scan on d1_cls d1_cls_3
+          InitPlan 46
+            ->  Aggregate
+                  ->  HashAggregate
+                        Group Key: card_variant_type.code
+                        Filter: (count(*) > 1)
+                        ->  Seq Scan on card_variant_type
+          InitPlan 47
+            ->  Aggregate
+                  ->  CTE Scan on d1_cls d1_cls_4
+                        Filter: is_finish
+          InitPlan 48
+            ->  Aggregate
+                  ->  CTE Scan on d1_cls d1_cls_5
+                        Filter: (NOT COALESCE(is_finish, false))
+          InitPlan 49
+            ->  Aggregate
+                  ->  CTE Scan on d1_cls d1_cls_6
+                        Filter: is_ready
+          InitPlan 50
+            ->  Aggregate
+                  ->  CTE Scan on d1_cls d1_cls_7
+                        Filter: is_hold
+          InitPlan 51
+            ->  Aggregate
+                  ->  CTE Scan on d1_cls d1_cls_8
+                        Filter: is_nc
+          InitPlan 52
+            ->  Aggregate
+                  ->  CTE Scan on d1_cls d1_cls_9
+                        Filter: (n_cls <> 1)
+          InitPlan 53
+            ->  Aggregate
+                  ->  Append
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 1_1"
+                                                ->  CTE Scan on d1_ready_bt
+                                          ->  Subquery Scan on "*SELECT* 2_1"
+                                                ->  CTE Scan on h_ready
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 3"
+                                                ->  CTE Scan on h_ready h_ready_1
+                                          ->  Subquery Scan on "*SELECT* 4"
+                                                ->  CTE Scan on d1_ready_bt d1_ready_bt_1
+          InitPlan 54
+            ->  Aggregate
+                  ->  Append
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 1_2"
+                                                ->  CTE Scan on d1_hold_bk
+                                          ->  Subquery Scan on "*SELECT* 2_2"
+                                                ->  CTE Scan on h_hold
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 3_1"
+                                                ->  CTE Scan on h_hold h_hold_1
+                                          ->  Subquery Scan on "*SELECT* 4_1"
+                                                ->  CTE Scan on d1_hold_bk d1_hold_bk_1
+          InitPlan 55
+            ->  Aggregate
+                  ->  Append
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 1_3"
+                                                ->  CTE Scan on d1_nc_bk
+                                          ->  Subquery Scan on "*SELECT* 2_3"
+                                                ->  CTE Scan on h_nc
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 3_2"
+                                                ->  CTE Scan on h_nc h_nc_1
+                                          ->  Subquery Scan on "*SELECT* 4_2"
+                                                ->  CTE Scan on d1_nc_bk d1_nc_bk_1
+          InitPlan 56
+            ->  Aggregate
+                  ->  Append
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 1_4"
+                                                ->  CTE Scan on d1_ready_pr
+                                          ->  Subquery Scan on "*SELECT* 2_4"
+                                                ->  CTE Scan on h_h6
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 3_3"
+                                                ->  CTE Scan on h_h6 h_h6_1
+                                          ->  Subquery Scan on "*SELECT* 4_3"
+                                                ->  CTE Scan on d1_ready_pr d1_ready_pr_1
+          InitPlan 57
+            ->  Aggregate
+                  ->  CTE Scan on d1_cond
+          InitPlan 58
+            ->  Aggregate
+                  ->  CTE Scan on d1_cond d1_cond_1
+                        Filter: ((code)::text = 'STAFF_HOLO'::text)
+          InitPlan 59
+            ->  Aggregate
+                  ->  CTE Scan on d1_cond d1_cond_2
+                        Filter: ((code)::text = 'SET_LOGO_REVERSE'::text)
+          InitPlan 60
+            ->  Aggregate
+                  ->  CTE Scan on d1_plan_contract
+          InitPlan 61
+            ->  Aggregate
+                  ->  CTE Scan on d1_plan_derived
+          InitPlan 62
+            ->  Aggregate
+                  ->  Hash Join
+                        Hash Cond: (p.id = r_5.id)
+                        ->  CTE Scan on d1_plan_contract p
+                        ->  Hash
+                              ->  Hash Semi Join
+                                    Hash Cond: (r_5.type_id = s_7.type_id)
+                                    ->  CTE Scan on d1_ready r_5
+                                    ->  Hash
+                                          ->  CTE Scan on d1_pscid s_7
+          InitPlan 63
+            ->  Aggregate
+                  ->  Hash Join
+                        Hash Cond: (p_1.id = r_6.id)
+                        ->  CTE Scan on d1_plan_contract p_1
+                        ->  Hash
+                              ->  Hash Semi Join
+                                    Hash Cond: (r_6.type_id = v_3.type_id)
+                                    ->  CTE Scan on d1_ready r_6
+                                    ->  Hash
+                                          ->  CTE Scan on d1_psvm v_3
+          InitPlan 64
+            ->  Aggregate
+                  ->  Append
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 1_5"
+                                                ->  CTE Scan on d1_plan_contract d1_plan_contract_1
+                                          ->  Subquery Scan on "*SELECT* 2_5"
+                                                ->  CTE Scan on d1_plan_derived d1_plan_derived_1
+                        ->  Result
+                              ->  HashSetOp Except
+                                    ->  Append
+                                          ->  Subquery Scan on "*SELECT* 3_4"
+                                                ->  CTE Scan on d1_plan_derived d1_plan_derived_2
+                                          ->  Subquery Scan on "*SELECT* 4_4"
+                                                ->  CTE Scan on d1_plan_contract d1_plan_contract_2
+          InitPlan 65
+            ->  Aggregate
+                  ->  Hash Join
+                        Hash Cond: (h.id = p_2.id)
+                        ->  CTE Scan on d1_hold h
+                        ->  Hash
+                              ->  CTE Scan on d1_plan_contract p_2
+          InitPlan 66
+            ->  Aggregate
+                  ->  Sort
+                        Sort Key: d1_hold_1.id
+                        ->  CTE Scan on d1_hold d1_hold_1
+          InitPlan 67
+            ->  Aggregate
+                  ->  Sort
+                        Sort Key: d1_plan_contract_3.id
+                        ->  CTE Scan on d1_plan_contract d1_plan_contract_3
+          InitPlan 68
+            ->  Aggregate
+                  ->  Sort
+                        Sort Key: d1_plan_derived_3.id
+                        ->  CTE Scan on d1_plan_derived d1_plan_derived_3
+          InitPlan 69
+            ->  Aggregate
+                  ->  Sort
+                        Sort Key: d1_ready_2.id
+                        ->  CTE Scan on d1_ready d1_ready_2
+          InitPlan 70
+            ->  Aggregate
+                  ->  Sort
+                        Sort Key: d1_cond_3.id
+                        ->  CTE Scan on d1_cond d1_cond_3
+  InitPlan 72
+    ->  Aggregate
+          ->  Sort
+                Sort Key: d5_hold_1.id
+                ->  CTE Scan on d5_hold d5_hold_1
+  InitPlan 73
+    ->  Aggregate
+          ->  Sort
+                Sort Key: d5_c3.id
+                ->  CTE Scan on d5_c3
+  ->  CTE Scan on d1_m m_1
+  ->  CTE Scan on d1_m m

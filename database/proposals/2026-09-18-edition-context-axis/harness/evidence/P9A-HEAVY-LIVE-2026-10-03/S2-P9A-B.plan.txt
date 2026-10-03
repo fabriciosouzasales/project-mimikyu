@@ -1,0 +1,46 @@
+Aggregate
+  CTE base
+    ->  Hash Join
+          Hash Cond: (r_1.card_id = c.id)
+          ->  Hash Join
+                Hash Cond: (r_1.job_id = j.id)
+                ->  Seq Scan on catalog_variant_import_row r_1
+                ->  Hash
+                      ->  Seq Scan on catalog_variant_import_job j
+          ->  Hash
+                ->  Seq Scan on card c
+  CTE rc
+    ->  Nested Loop
+          InitPlan 2
+            ->  Index Scan using uq_asset_source_code on asset_source
+                  Index Cond: (code = 'TCGDEX'::text)
+          InitPlan 3
+            ->  Index Scan using uq_game_code on game
+                  Index Cond: ((code)::text = 'POKEMON'::text)
+          InitPlan 4
+            ->  Index Scan using uq_asset_source_code on asset_source asset_source_1
+                  Index Cond: (code = 'TCGDEX'::text)
+          ->  Nested Loop Left Join
+                ->  CTE Scan on base b_1
+                      Filter: (op OR (obs <> 'ABSENT'::text))
+                ->  Memoize
+                      Cache Key: b_1.card_set_id
+                      Cache Mode: binary
+                      ->  Function Scan on resolve_variant_mapping_scope sc
+          ->  Function Scan on resolve_variant_row_axes ax
+  InitPlan 6
+    ->  Aggregate
+          ->  CTE Scan on rc
+  InitPlan 7
+    ->  Aggregate
+          ->  Sort
+                Sort Key: rc_1.id
+                ->  CTE Scan on rc rc_1
+  ->  Append
+        ->  Subquery Scan on "*SELECT* 1"
+              ->  Hash Right Join
+                    Hash Cond: (r.id = b.id)
+                    ->  CTE Scan on rc r
+                    ->  Hash
+                          ->  CTE Scan on base b
+        ->  Values Scan on "*VALUES*"
