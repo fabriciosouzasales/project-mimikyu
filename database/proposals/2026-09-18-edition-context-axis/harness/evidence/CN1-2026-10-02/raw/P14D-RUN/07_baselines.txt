@@ -1,0 +1,7 @@
+﻿b12-pg17=status=running health=healthy started=2026-10-02T11:42:37.774075531Z restarts=0 image=supabase/postgres:17.6.1.147 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"55432"}]}
+volume=b12-pg17-data local /var/lib/docker/volumes/b12-pg17-data/_data 2026-09-28T14:32:01Z
+dir(metadados)=files=258 bytes=24486789 max_mtime_ticks=639264207026855852
+repo head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 porcelain=0
+env_hits=
+access_token=False
+

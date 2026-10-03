@@ -1,0 +1,5 @@
+﻿>> SELECT 'PROBE1', pg_backend_pid();
+<< PROBE1|22637
+>> SELECT 'PROBE2', pg_backend_pid();
+<< PROBE2|22637
+

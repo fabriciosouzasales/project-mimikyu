@@ -1,0 +1,4 @@
+﻿executado: setup S (COMMIT do fixture K1), cenario K1 A/B/C com COMMIT de A e de B (D3); estado K1 PERSISTIDO (sem teardown)
+confirm chamado 2x (A: JA; B: JB), ambos como authenticated + claims do admin real
+NAO executado: K2, K8b, P9b/A2, HTTP RPC, LIVE, repo/git (somente leitura de HEAD/status)
+

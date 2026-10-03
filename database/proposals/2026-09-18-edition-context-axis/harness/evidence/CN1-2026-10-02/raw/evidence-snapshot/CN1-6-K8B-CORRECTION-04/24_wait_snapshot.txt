@@ -1,0 +1,52 @@
+﻿Q1 pg_stat_activity / Q2 pg_blocking_pids / Q3 pg_locks / Q4 ctid,xmax / Q5 deadlock_timeout
+colunas L: tag|pid|locktype|relation|is_public_card|page|tuple|transactionid|virtualxid|mode|granted
+colunas XY: tag|id|ctid|xmax
+W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.148|t
+WA|33516|idle in transaction|1120
+L|33516|relation|idx_card_category_id|f|||||RowShareLock|t
+L|33516|relation|uq_card_card_set_collector_order|f|||||RowShareLock|t
+L|33516|relation|uq_card_card_set_collector_number|f|||||RowShareLock|t
+L|33516|relation|card_pkey|f|||||RowShareLock|t
+L|33516|relation|card|t|||||RowShareLock|t
+L|33516|relation|ix_card_collector_number_normalized|f|||||RowShareLock|t
+L|33516|relation|ix_card_name_trgm|f|||||RowShareLock|t
+L|33516|relation|idx_card_rarity_id|f|||||RowShareLock|t
+L|33516|transactionid||f|||1120||ExclusiveLock|t
+L|33516|virtualxid||f||||92/53|ExclusiveLock|t
+L|33518|transactionid||f|||1120||ShareLock|f
+L|33518|relation|ix_catalog_variant_import_row_matched_variant|f|||||AccessShareLock|t
+L|33518|relation|ix_catalog_variant_import_row_job|f|||||AccessShareLock|t
+L|33518|relation|ix_catalog_variant_import_row_card|f|||||AccessShareLock|t
+L|33518|relation|catalog_variant_import_row_pkey|f|||||AccessShareLock|t
+L|33518|relation|catalog_variant_import_row|f|||||AccessShareLock|t
+L|33518|relation|uq_card_set_expansion_promo|f|||||AccessShareLock|t
+L|33518|relation|uq_card_set_expansion_release_order|f|||||AccessShareLock|t
+L|33518|relation|uq_card_set_expansion_code|f|||||AccessShareLock|t
+L|33518|relation|card_set_pkey|f|||||AccessShareLock|t
+L|33518|relation|card_set|f|||||AccessShareLock|t
+L|33518|relation|admin_user_pkey|f|||||AccessShareLock|t
+L|33518|relation|admin_user|f|||||AccessShareLock|t
+L|33518|relation|uq_cvir_row_identity|f|||||AccessShareLock|t
+L|33518|relation|ix_catalog_variant_import_row_job_persistence|f|||||AccessShareLock|t
+L|33518|relation|ix_catalog_variant_import_row_job_decision|f|||||AccessShareLock|t
+L|33518|relation|ix_catalog_variant_import_row_job_validation|f|||||AccessShareLock|t
+L|33518|relation|ix_catalog_variant_import_job_card_set|f|||||RowShareLock|t
+L|33518|relation|ix_catalog_variant_import_job_active|f|||||RowShareLock|t
+L|33518|relation|card_pkey|f|||||RowShareLock|t
+L|33518|relation|idx_card_rarity_id|f|||||RowShareLock|t
+L|33518|relation|idx_card_category_id|f|||||RowShareLock|t
+L|33518|relation|uq_card_card_set_collector_order|f|||||RowShareLock|t
+L|33518|relation|uq_card_card_set_collector_number|f|||||RowShareLock|t
+L|33518|relation|ix_card_name_trgm|f|||||RowShareLock|t
+L|33518|relation|card|t|||||RowShareLock|t
+L|33518|relation|ix_card_collector_number_normalized|f|||||RowShareLock|t
+L|33518|relation|uq_catalog_variant_import_job_fingerprint_active|f|||||RowShareLock|t
+L|33518|relation|catalog_variant_import_job_pkey|f|||||RowShareLock|t
+L|33518|relation|catalog_variant_import_job|f|||||RowShareLock|t
+L|33518|transactionid||f|||1121||ExclusiveLock|t
+L|33518|tuple|card|t|0|5|||AccessExclusiveLock|t
+L|33518|virtualxid||f||||96/51|ExclusiveLock|t
+XY|c16b8b00-0000-4000-8000-000000000021|(0,5)|1120
+XY|c16b8b00-0000-4000-8000-000000000022|(0,6)|1119
+DT|1000
+

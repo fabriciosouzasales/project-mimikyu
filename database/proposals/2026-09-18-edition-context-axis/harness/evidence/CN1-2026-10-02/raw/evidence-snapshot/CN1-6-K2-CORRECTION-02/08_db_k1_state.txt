@@ -1,0 +1,10 @@
+﻿auth.users|admin_user|action_log|admin_match_auth|admin_uuid|catalogo_total=1|1|2|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|12 rc=0 (esperado 1|1|2|1|<admin>|12)
+uuid_cn1_3=6afeaf71-8e6f-4954-8a43-14a21c1deb93
+K1CHK (variants|variants K1 C|logs|logs K1 admin)=K1CHK|1|1|2|2 (esperado K1CHK|1|1|2|2)
+K1IMG=K1IMG|14|a25b063c890e73c51ce3895ea9c72cdb (14 linhas K1)
+fixture K2 presente=0 (esperado 0)
+sessoes cn1-6-* pre-existentes=0
+confirm HTTP ativo=HACT|0
+setup_sql_md5=b50a6177f24376113b9ccd8345d8cb3e (esperado b50a6177f24376113b9ccd8345d8cb3e)
+teardown_sql_md5=9ecd7c2ba395ed04e8975a975206d9d0 (esperado 9ecd7c2ba395ed04e8975a975206d9d0)
+

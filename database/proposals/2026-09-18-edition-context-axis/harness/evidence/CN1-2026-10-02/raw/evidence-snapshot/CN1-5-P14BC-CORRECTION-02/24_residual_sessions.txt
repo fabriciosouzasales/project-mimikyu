@@ -1,0 +1,4 @@
+﻿sessoes A/B restantes vistas pela observadora apos \q=LEFT|0
+exit A/B/OBS=0/0/0
+sessoes cn1-5-* apos encerrar todas=0 rc=0
+

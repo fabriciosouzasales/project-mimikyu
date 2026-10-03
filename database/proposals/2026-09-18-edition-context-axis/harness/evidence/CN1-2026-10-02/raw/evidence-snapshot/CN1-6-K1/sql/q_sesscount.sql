@@ -1,0 +1,1 @@
+select count(*) from pg_catalog.pg_stat_activity where application_name like 'cn1-6-%' and pid <> pg_backend_pid();

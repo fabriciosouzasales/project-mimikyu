@@ -1,0 +1,4 @@
+﻿executado: setup S (COMMIT do fixture K2); K2.d, K2.b+K2.a, K2.c via HTTP/JWT real (cada request comitou); D comitou 2 UPDATEs de fixture K2 apos prova do bloqueio; K2.e verificado
+NAO executado: K1, K8b, cleanup/descarte do CN1 (P14(d) separado), LIVE, repo/git (somente leitura de HEAD/status)
+raw_23505_to_http: K2.d=False K2.b=False K2.c=False
+

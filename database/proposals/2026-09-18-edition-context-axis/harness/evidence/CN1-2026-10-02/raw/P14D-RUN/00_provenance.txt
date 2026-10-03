@@ -1,0 +1,11 @@
+﻿script=CN1-P14D-DISPOSAL-RUNNER-CORRECTION-02
+script_path=C:\Users\Administrador\Downloads\CN1-P14D-DISPOSAL-RUNNER-CORRECTION-02.ps1
+script_md5=8f41e742122cce050a429ee60f7c8803
+workdir=C:\b12-cn1
+archive=C:\b12-archive\CN1-P14D
+snapshot=C:\b12-archive\CN1-P14D\evidence-snapshot
+start_utc=2026-10-03T02:32:23.3422486Z
+base K2=CN1-6-K2-RUNNER-CORRECTION-02 md5 7aaefe324ccc1f44118eeec5a7d5bb65
+CN1-0: nenhum diretorio autonomo de evidencia on-disk existia
+failed_attempt=C:\b12-cn1.failed-attempt-20261002T011523Z
+

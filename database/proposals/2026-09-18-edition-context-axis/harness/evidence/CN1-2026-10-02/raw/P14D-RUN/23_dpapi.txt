@@ -1,0 +1,2 @@
+﻿arquivo=C:\b12-cn1\secrets\cn1-3-admin.dpapi acao=removida presente_apos=False (conteudo nunca arquivado nem exibido)
+

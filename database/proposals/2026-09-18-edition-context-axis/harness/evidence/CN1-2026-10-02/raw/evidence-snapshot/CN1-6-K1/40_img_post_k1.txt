@@ -1,0 +1,18 @@
+﻿IMAGEM POS-K1 (estado COMITADO que PERMANECE no CN1 para o K2; acumulado action_log=2)
+IMG|auth.users(id,updated_at,last_sign_in_at)|1|9977587748bf15de857c531c09069645
+IMG|public.admin_user|1|110ffb1292e6e942e905de16898bf11a
+IMG|public.card|1|9dce358fcf8e7d9dabac4f8a3b22b2be
+IMG|public.card_category|1|42bc2bf5919dc9848f072079244f2960
+IMG|public.card_set|1|0eb3323056095b2039e57bc7ad8bdc0a
+IMG|public.card_variant|1|3778a75f24b2a6ccdb075259d4bd6156
+IMG|public.card_variant_type|1|182bf662132835f37716d5f542e77e27
+IMG|public.catalog_admin_action_log|2|7da894c052b72ad2b4652ef69f6c4b0c
+IMG|public.catalog_variant_import_job|2|66cb4d8a52086e79e57d448d1fd8d7f3
+IMG|public.catalog_variant_import_row|2|e6e17d39dc88976a3e292932c337c260
+IMG|public.expansion|1|1f52b12db5d02959a59fd3c546ed89e4
+IMG|public.game|1|e984d795081dd3f0a35fe53a25293717
+IMG|public.rarity|1|733bf9ca84cdae9c0b724e1d197ca6c4
+GLOBAL|auth.audit_log_entries=3,auth.custom_oauth_providers=0,auth.flow_state=0,auth.identities=1,auth.instances=0,auth.mfa_amr_claims=2,auth.mfa_challenges=0,auth.mfa_factors=0,auth.oauth_authorizations=0,auth.oauth_client_states=0,auth.oauth_clients=0,auth.oauth_consents=0,auth.one_time_tokens=0,auth.refresh_tokens=2,auth.saml_providers=0,auth.saml_relay_states=0,auth.schema_migrations=77,auth.sessions=2,auth.sso_domains=0,auth.sso_providers=0,auth.users=1,auth.webauthn_challenges=0,auth.webauthn_credentials=0,public.admin_user=1,public.asset_source=0,public.card=1,public.card_category=1,public.card_edition_context_external_mapping=0,public.card_edition_context_external_mapping_trait=0,public.card_edition_context_profile=0,public.card_edition_context_profile_trait=0,public.card_edition_context_trait=0,public.card_printing_external_mapping=0,public.card_printing_external_mapping_trait=0,public.card_printing_profile=0,public.card_printing_profile_trait=0,public.card_printing_trait=0,public.card_set=1,public.card_set_external_reference=0,public.card_variant=1,public.card_variant_type=1,public.catalog_admin_action_log=2,public.catalog_variant_import_job=2,public.catalog_variant_import_row=2,public.expansion=1,public.game=1,public.rarity=1
+estado=1|1|2|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|12
+divergencias=
+

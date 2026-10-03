@@ -1,0 +1,4 @@
+﻿antes: b12-cn1-localhost
+acao: b12-cn1-localhost rc=0
+depois: 
+

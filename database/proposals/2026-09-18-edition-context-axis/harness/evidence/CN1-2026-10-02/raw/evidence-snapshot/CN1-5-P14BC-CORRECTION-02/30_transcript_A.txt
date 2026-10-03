@@ -1,0 +1,16 @@
+﻿>> SELECT 'PRE', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE'), current_setting('transaction_read_only'), current_setting('idle_in_transaction_session_timeout');
+<< PRE|22681|supabase_admin||NONE|on|0
+>> BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT 'CLAIMS', length(set_config('request.jwt.claims', '{"aud":"authenticated","sub":"6afeaf71-8e6f-4954-8a43-14a21c1deb93","role":"authenticated"}', true)) > 0;
+<< CLAIMS|t
+>> SELECT 'IN1', pg_backend_pid(), txid_current(), txid_current() % 4294967296, now(), clock_timestamp(), coalesce(auth.uid()::text, 'NULL'), public.is_admin(), current_user, session_user;
+<< IN1|22681|1105|1105|2026-10-02 20:15:38.163351+00|2026-10-02 20:15:38.166265+00|6afeaf71-8e6f-4954-8a43-14a21c1deb93|t|authenticated|supabase_admin
+>> SELECT 'IN2', pg_backend_pid(), txid_current(), txid_current() % 4294967296, now(), clock_timestamp(), coalesce(auth.uid()::text, 'NULL'), public.is_admin(), current_user, session_user;
+<< IN2|22681|1105|1105|2026-10-02 20:15:38.163351+00|2026-10-02 20:15:39.372376+00|6afeaf71-8e6f-4954-8a43-14a21c1deb93|t|authenticated|supabase_admin
+>> SELECT 'END', pg_backend_pid(), txid_current(), now();
+ROLLBACK;
+SELECT 'POST', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE');
+<< END|22681|1105|2026-10-02 20:15:38.163351+00
+<< POST|22681|supabase_admin||NONE
+

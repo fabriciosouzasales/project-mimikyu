@@ -1,0 +1,1 @@
+select 'RT|' || r.rolname || '|' || coalesce((select array_to_string(s.setconfig, ',') from pg_catalog.pg_db_role_setting s where s.setrole = r.oid and s.setdatabase in (0, (select d.oid from pg_catalog.pg_database d where d.datname = current_database())) limit 1), '') from pg_catalog.pg_roles r where r.rolname in ('anon', 'authenticated', 'authenticator') order by r.rolname;

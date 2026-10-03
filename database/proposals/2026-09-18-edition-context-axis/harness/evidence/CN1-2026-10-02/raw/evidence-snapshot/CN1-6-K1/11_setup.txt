@@ -1,0 +1,5 @@
+﻿arquivo=sql\k1_setup.sql md5=327a0f4660df09e2dc5ab563c2d0cd10
+rc=0
+K1_SETUP_OK
+fixture_presente=11 (esperado 11)
+

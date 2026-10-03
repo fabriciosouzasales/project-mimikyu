@@ -1,0 +1,6 @@
+﻿auth.users|admin_user|action_log|admin_match_auth|admin_uuid|catalogo_total=1|1|0|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|0 rc=0
+uuid_cn1_3=6afeaf71-8e6f-4954-8a43-14a21c1deb93
+sessoes cn1-6-* pre-existentes=0
+setup_sql_md5=327a0f4660df09e2dc5ab563c2d0cd10 (esperado 327a0f4660df09e2dc5ab563c2d0cd10)
+teardown_sql_md5=1bf0f2254f1614e6b4afd65cb8186f64 (esperado 1bf0f2254f1614e6b4afd65cb8186f64)
+

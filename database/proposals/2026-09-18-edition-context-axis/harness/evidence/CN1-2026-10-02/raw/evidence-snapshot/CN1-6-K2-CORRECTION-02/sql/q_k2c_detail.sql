@@ -1,0 +1,1 @@
+select coalesce(r.error_detail, 'NULL') from public.catalog_variant_import_row r where r.id = 'c16b0200-0000-4000-8000-000000000043'::uuid;

@@ -1,0 +1,5 @@
+﻿arquivo=C:\Users\Administrador\Downloads\P14A_FINGERPRINT.sql
+md5=2738566c55f7a4792159362ce29bb3e0 pin=2738566c55f7a4792159362ce29bb3e0
+bytes=14610 pin=14610
+cr=0
+

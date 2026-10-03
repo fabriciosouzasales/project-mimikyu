@@ -1,0 +1,16 @@
+﻿IMG|auth.users(id,updated_at,last_sign_in_at)|1|9977587748bf15de857c531c09069645
+IMG|public.admin_user|1|110ffb1292e6e942e905de16898bf11a
+IMG|public.card|2|d1c77d9edc3f3464354db85205a4ddec
+IMG|public.card_category|1|292e3539ee2dcc9bb2466779bfdfcab3
+IMG|public.card_set|1|e7662dcd13a16f518e9d62edf9c59517
+IMG|public.card_variant|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.card_variant_type|1|55d95bbb25182e44d004046a5b061015
+IMG|public.catalog_admin_action_log|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.catalog_variant_import_job|1|c9311c13cca4458a83b358290a465e18
+IMG|public.catalog_variant_import_row|2|f7a64d2da135dde3eeede749b0250826
+IMG|public.expansion|1|a0bf408137b17e17a893c7c06de5163a
+IMG|public.game|1|ec4642ed546ac1ed6385d593bb006e5e
+IMG|public.rarity|1|41e9c79fac3f344ff42c2ea2d481dbe3
+GLOBAL|auth.audit_log_entries=3,auth.custom_oauth_providers=0,auth.flow_state=0,auth.identities=1,auth.instances=0,auth.mfa_amr_claims=2,auth.mfa_challenges=0,auth.mfa_factors=0,auth.oauth_authorizations=0,auth.oauth_client_states=0,auth.oauth_clients=0,auth.oauth_consents=0,auth.one_time_tokens=0,auth.refresh_tokens=2,auth.saml_providers=0,auth.saml_relay_states=0,auth.schema_migrations=77,auth.sessions=2,auth.sso_domains=0,auth.sso_providers=0,auth.users=1,auth.webauthn_challenges=0,auth.webauthn_credentials=0,public.admin_user=1,public.asset_source=0,public.card=2,public.card_category=1,public.card_edition_context_external_mapping=0,public.card_edition_context_external_mapping_trait=0,public.card_edition_context_profile=0,public.card_edition_context_profile_trait=0,public.card_edition_context_trait=0,public.card_printing_external_mapping=0,public.card_printing_external_mapping_trait=0,public.card_printing_profile=0,public.card_printing_profile_trait=0,public.card_printing_trait=0,public.card_set=1,public.card_set_external_reference=0,public.card_variant=0,public.card_variant_type=1,public.catalog_admin_action_log=0,public.catalog_variant_import_job=1,public.catalog_variant_import_row=2,public.expansion=1,public.game=1,public.rarity=1
+divergencias=
+

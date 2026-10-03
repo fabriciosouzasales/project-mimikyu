@@ -1,0 +1,6 @@
+﻿POST /rest/v1/rpc/admin_confirm_catalog_variant_import job=c16b0200-0000-4000-8000-000000000031 (JWT real)
+http=200 ms=19 erro=[]
+corpo=[{"inserted_count":0,"unchanged_count":1,"failed_count":0,"pending_count":0,"job_status":"COMPLETED"}]
+tupla=0|1|0|0|COMPLETED (esperado 0|1|0|0|COMPLETED)
+raw_23505_to_http=False
+

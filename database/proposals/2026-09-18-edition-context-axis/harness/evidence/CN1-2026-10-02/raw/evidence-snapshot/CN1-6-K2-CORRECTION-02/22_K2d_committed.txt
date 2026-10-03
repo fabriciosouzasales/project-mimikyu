@@ -1,0 +1,5 @@
+﻿obtido = KD|UNCHANGED:MATCHED:c16b0200-0000-4000-8000-000000000051:c16b0200-0000-4000-8000-000000000051|1|1|c16b0200-0000-4000-8000-000000000051|NULL|COMPLETED:1:0:1:0|1:COMPLETED|3
+esperado= KD|UNCHANGED:MATCHED:c16b0200-0000-4000-8000-000000000051:c16b0200-0000-4000-8000-000000000051|1|1|c16b0200-0000-4000-8000-000000000051|NULL|COMPLETED:1:0:1:0|1:COMPLETED|3
+colunas: tag|RD persist:match:resulting:matched|variants Card D|identidade (D,TD,NULL,NULL)|ids|error_detail|JD status:total:ins:unch:fail|log JD (admin):final_status|log total
+nota: VD tem printing/EC NULL; o match por IS NOT DISTINCT FROM e o tratamento benigno do handler produzem o mesmo resultado por desenho (2218); a prova estatica do codigo e o K4-S.
+

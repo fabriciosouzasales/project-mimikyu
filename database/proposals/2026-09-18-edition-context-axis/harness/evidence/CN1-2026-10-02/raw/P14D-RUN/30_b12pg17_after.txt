@@ -1,0 +1,8 @@
+﻿antes=status=running health=healthy started=2026-10-02T11:42:37.774075531Z restarts=0 image=supabase/postgres:17.6.1.147 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"55432"}]}
+depois=status=running health=healthy started=2026-10-02T11:42:37.774075531Z restarts=0 image=supabase/postgres:17.6.1.147 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"55432"}]}
+volume antes=b12-pg17-data local /var/lib/docker/volumes/b12-pg17-data/_data 2026-09-28T14:32:01Z
+volume depois=b12-pg17-data local /var/lib/docker/volumes/b12-pg17-data/_data 2026-09-28T14:32:01Z
+dir antes=files=258 bytes=24486789 max_mtime_ticks=639264207026855852
+dir depois=files=258 bytes=24486789 max_mtime_ticks=639264207026855852
+imagens identicas=True
+

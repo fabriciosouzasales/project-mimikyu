@@ -1,0 +1,9 @@
+﻿tentativa_anterior=CN1-6-K8B-RUNNER-CORRECTION-03 pasta=C:\b12-cn1\evidence\CN1-6-K8B-CORRECTION-03 (IMUTAVEL)
+fingerprint_inicio=files=38 md5=7b3894e1ff44077f75d78e34072b0b70
+script_md5_esperado=e08a659dc1c9db097d8784d7e9c59252 ok=True
+verdict=VERDICT: CN1-6 K8b = STOP  (erro de script: Não é possível chamar um método em uma expressão de valor nulo.)
+stop_por_erro_de_script=True
+K8B-6 PASS e K8B-7 nao PASS=True
+teardown_restaurou(rc=0, fixture_restante=0, teardown_commit=True)=True
+(baseline atual reconferido em P8: catalogo vazio, action_log=0)
+

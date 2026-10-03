@@ -1,0 +1,11 @@
+﻿pre ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|0.007|t
+W1 t_cliente_ms=0 (inicio da espera observada) query_start=2026-10-03T00:14:18.249006Z bloqueador={33516} W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|0.007|t
+W2 t_cliente_ms=1117 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.138|t
+SNAP t_cliente_ms<=1147 waitsame=True W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.148|t
+WL t_cliente_ms=1282 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.299|t
+WL t_cliente_ms=1550 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.567|t
+WL t_cliente_ms=1814 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.831|t
+WL t_cliente_ms=2081 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|2.101|t
+WL t_cliente_ms=2347 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|2.364|t
+W3 t_cliente_ms=2377 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|2.394|t
+

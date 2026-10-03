@@ -1,0 +1,3 @@
+﻿COMMIT de D somente apos a prova do bloqueio. POST=POST|38098|supabase_admin||NONE
+POST|38098|supabase_admin||NONE
+

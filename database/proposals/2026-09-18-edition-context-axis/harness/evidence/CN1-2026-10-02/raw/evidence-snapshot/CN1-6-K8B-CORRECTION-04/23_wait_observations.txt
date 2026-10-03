@@ -1,0 +1,8 @@
+﻿colunas W: tag|pid|state|wait_event_type|wait_event|backend_xid|pg_blocking_pids|query_start|state_change|waited_s|query_is_confirm
+autoridade temporal K8B-7 = t_cliente_ms (Stopwatch); waited_s = evidencia complementar
+pre ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|0.007|t
+W1 t_cliente_ms=0 (inicio da espera observada) query_start=2026-10-03T00:14:18.249006Z bloqueador={33516} W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|0.007|t
+W2 t_cliente_ms=1117 ok=True motivo=[] W=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.138|t
+W1=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|0.007|t
+W2=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.138|t
+

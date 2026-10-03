@@ -1,0 +1,5 @@
+﻿colunas: tag|pid|current_user|claims|xid|transaction_read_only|default_transaction_read_only|statement_timeout(ms)|lock_timeout(ms)|idle_in_transaction_session_timeout(ms)|deadlock_timeout(ms)|application_name
+A=PRE|33516|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-A
+B=PRE|33518|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-B
+C=PRE|33517|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-C
+

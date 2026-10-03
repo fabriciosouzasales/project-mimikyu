@@ -1,0 +1,12 @@
+﻿pasta=C:\b12-cn1\evidence\CN1-6-K2 (IMUTAVEL) fingerprint_inicial=files=31 md5=3573f82d8e3ae40554a19f5b52a4dc3f
+script_md5_esperado=112e219413cade7c5ba7bc74d5165b62
+md5_ok=True
+gates_lidos=41 (esperado 41) duplicados=0
+P1..P12 PASS (13 gates)=True
+P13_http_timeout_budget=STOP: True
+S0 em diante NOT_RUN (27 gates)=True
+VERDICT STOP em P13_http_timeout_budget=True
+setup_commit=False setup_validated=False functional_commit_attempted=False teardown_attempted=False teardown_commit=False: True
+cenarios K2.d/K2.b/K2.c=NOT_RUN: True
+P8 estado=1|1|2|1|<admin>|12: True
+

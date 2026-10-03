@@ -1,0 +1,6 @@
+﻿observador independente (psql novo, autocommit)
+obtido = K1POST|1|1|4a8153a7-4905-4860-ac1b-bc2f33022856|COMPLETED:1:1:0:0|COMPLETED:1:0:1:0|INSERTED:NEW:4a8153a7-4905-4860-ac1b-bc2f33022856:NULL:NULL|UNCHANGED:MATCHED:4a8153a7-4905-4860-ac1b-bc2f33022856:4a8153a7-4905-4860-ac1b-bc2f33022856:NULL|2|2|2|0
+esperado= K1POST|1|1|4a8153a7-4905-4860-ac1b-bc2f33022856|COMPLETED:1:1:0:0|COMPLETED:1:0:1:0|INSERTED:NEW:4a8153a7-4905-4860-ac1b-bc2f33022856:NULL:NULL|UNCHANGED:MATCHED:4a8153a7-4905-4860-ac1b-bc2f33022856:4a8153a7-4905-4860-ac1b-bc2f33022856:NULL|2|2|2|0
+colunas: tag|variants identidade|variants total|ids|JA status:total:ins:unch:fail|JB idem|RA persist:match:resulting:matched:error|RB idem|log total|log K1 (admin, COMPLETED)|jobs distintos no log|log com actor <> admin
+rc=0
+

@@ -1,0 +1,4 @@
+﻿head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615
+git status --short:
+
+

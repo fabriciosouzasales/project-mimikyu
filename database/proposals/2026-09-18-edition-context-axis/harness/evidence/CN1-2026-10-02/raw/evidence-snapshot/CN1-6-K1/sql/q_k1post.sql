@@ -1,0 +1,12 @@
+select 'K1POST|' ||
+  (select count(*) from public.card_variant v WHERE v.card_id = 'c16b0100-0000-4000-8000-000000000021'::uuid AND v.variant_type_id = 'c16b0100-0000-4000-8000-000000000011'::uuid AND v.printing_profile_id IS NULL AND v.edition_context_profile_id IS NULL)::text || '|' ||
+  (select count(*) from public.card_variant)::text || '|' ||
+  coalesce((select string_agg(v.id::text, ',' order by v.id) from public.card_variant v), '') || '|' ||
+  coalesce((select j.status || ':' || j.total_rows || ':' || j.inserted_rows || ':' || j.unchanged_rows || ':' || j.failed_rows from public.catalog_variant_import_job j where j.id = 'c16b0100-0000-4000-8000-000000000031'::uuid), 'NULL') || '|' ||
+  coalesce((select j.status || ':' || j.total_rows || ':' || j.inserted_rows || ':' || j.unchanged_rows || ':' || j.failed_rows from public.catalog_variant_import_job j where j.id = 'c16b0100-0000-4000-8000-000000000032'::uuid), 'NULL') || '|' ||
+  coalesce((select r.persistence_status || ':' || r.match_status || ':' || coalesce(r.resulting_variant_id::text, 'NULL') || ':' || coalesce(r.matched_variant_id::text, 'NULL') || ':' || coalesce(r.error_detail, 'NULL') from public.catalog_variant_import_row r where r.id = 'c16b0100-0000-4000-8000-000000000041'::uuid), 'NULL') || '|' ||
+  coalesce((select r.persistence_status || ':' || r.match_status || ':' || coalesce(r.resulting_variant_id::text, 'NULL') || ':' || coalesce(r.matched_variant_id::text, 'NULL') || ':' || coalesce(r.error_detail, 'NULL') from public.catalog_variant_import_row r where r.id = 'c16b0100-0000-4000-8000-000000000042'::uuid), 'NULL') || '|' ||
+  (select count(*) from public.catalog_admin_action_log)::text || '|' ||
+  (select count(*) from public.catalog_admin_action_log l where l.entity_id in ('c16b0100-0000-4000-8000-000000000031'::uuid, 'c16b0100-0000-4000-8000-000000000032'::uuid) and l.actor_id = '6afeaf71-8e6f-4954-8a43-14a21c1deb93'::uuid AND l.action = 'CARD_VARIANT_IMPORT_CONFIRMED' AND l.entity_type = 'CATALOG_VARIANT_IMPORT_JOB' AND l.metadata ->> 'final_status' = 'COMPLETED')::text || '|' ||
+  (select count(distinct l.entity_id) from public.catalog_admin_action_log l where l.entity_id in ('c16b0100-0000-4000-8000-000000000031'::uuid, 'c16b0100-0000-4000-8000-000000000032'::uuid))::text || '|' ||
+  (select count(*) from public.catalog_admin_action_log l where l.actor_id is distinct from '6afeaf71-8e6f-4954-8a43-14a21c1deb93'::uuid)::text;

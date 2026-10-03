@@ -1,0 +1,5 @@
+﻿CONFIRM=2|0|0|0|COMPLETED
+linhas=
+CONFIRM|2|0|0|0|COMPLETED
+duracao_total_confirm_ms=2413
+

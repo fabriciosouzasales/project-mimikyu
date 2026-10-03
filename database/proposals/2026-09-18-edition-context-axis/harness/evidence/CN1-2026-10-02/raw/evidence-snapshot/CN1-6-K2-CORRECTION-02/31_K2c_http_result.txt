@@ -1,0 +1,5 @@
+﻿http=200 ms=713 erro=[]
+corpo=[{"inserted_count":0,"unchanged_count":0,"failed_count":1,"pending_count":0,"job_status":"COMPLETED_WITH_ERRORS"}]
+tupla=0|0|1|0|COMPLETED_WITH_ERRORS (esperado 0|0|1|0|COMPLETED_WITH_ERRORS)
+raw_23505_to_http=False
+

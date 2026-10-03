@@ -1,0 +1,3 @@
+﻿executado: b1 (token, /auth/v1/user, rpc/is_admin JWT/anon/adulterado/intercalado) e b2/c (3 conexoes persistentes, BEGIN/SET LOCAL ROLE/claims/ROLLBACK, observadora)
+NAO executado: admin_confirm_catalog_variant_import, fixtures, K1, K2, K8b, P9b/A2, qualquer escrita, LIVE
+

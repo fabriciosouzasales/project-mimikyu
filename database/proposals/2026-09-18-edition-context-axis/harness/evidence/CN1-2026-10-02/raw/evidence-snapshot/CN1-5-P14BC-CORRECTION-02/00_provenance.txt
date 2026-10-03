@@ -1,0 +1,9 @@
+﻿script=CN1-5-P14BC-CHANNEL-PROOF-CORRECTION-02
+script_path=C:\Users\Administrador\Downloads\CN1-5-P14BC-CHANNEL-PROOF-CORRECTION-02.ps1
+script_md5=7a3b39ac29fe68f7b642e90a2b895f96
+workdir=C:\b12-cn1
+db_container=supabase_db_b12-cn1
+start_utc=2026-10-02T20:15:31.9666783Z
+tentativa_anterior=C:\b12-cn1\evidence\CN1-5-P14BC fingerprint=files=13 md5=1783e283dac7cbcac8d7e9b578788b91
+linha_P9_anterior=P9_persistent_tooling                  STOP |
+

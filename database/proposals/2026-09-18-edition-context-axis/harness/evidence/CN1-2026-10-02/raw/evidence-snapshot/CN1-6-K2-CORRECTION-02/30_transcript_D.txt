@@ -1,0 +1,26 @@
+﻿>> \set VERBOSITY verbose
+SELECT 'PRE', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE'),
+       current_setting('transaction_read_only'), current_setting('default_transaction_read_only'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'statement_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'lock_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'idle_in_transaction_session_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'deadlock_timeout'),
+       current_setting('application_name');
+<< PRE|38098|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K2-D
+>> BEGIN;
+UPDATE public.card_variant SET variant_type_id = 'c16b0200-0000-4000-8000-000000000012'::uuid WHERE id = 'c16b0200-0000-4000-8000-000000000052'::uuid AND card_id = 'c16b0200-0000-4000-8000-000000000022'::uuid AND variant_type_id = 'c16b0200-0000-4000-8000-000000000013'::uuid AND variant_order = 1 RETURNING 'DUPD', id::text, card_id::text, variant_type_id::text, variant_order::text;
+SELECT 'DX', pg_backend_pid(), (txid_current() % 4294967296)::text;
+<< DUPD|c16b0200-0000-4000-8000-000000000052|c16b0200-0000-4000-8000-000000000022|c16b0200-0000-4000-8000-000000000012|1
+<< DX|38098|1136
+>> COMMIT;
+SELECT 'POST', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE');
+<< POST|38098|supabase_admin||NONE
+>> BEGIN;
+UPDATE public.card_variant SET variant_order = 2 WHERE id = 'c16b0200-0000-4000-8000-000000000053'::uuid AND card_id = 'c16b0200-0000-4000-8000-000000000023'::uuid AND variant_type_id = 'c16b0200-0000-4000-8000-000000000012'::uuid AND variant_order = 1 RETURNING 'DUPD', id::text, card_id::text, variant_type_id::text, variant_order::text;
+SELECT 'DX', pg_backend_pid(), (txid_current() % 4294967296)::text;
+<< DUPD|c16b0200-0000-4000-8000-000000000053|c16b0200-0000-4000-8000-000000000023|c16b0200-0000-4000-8000-000000000012|2
+<< DX|38098|1139
+>> COMMIT;
+SELECT 'POST', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE');
+<< POST|38098|supabase_admin||NONE
+

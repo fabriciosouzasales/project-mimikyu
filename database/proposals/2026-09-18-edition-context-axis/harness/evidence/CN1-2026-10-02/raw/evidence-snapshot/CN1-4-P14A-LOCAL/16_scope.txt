@@ -1,0 +1,4 @@
+﻿executado: P14A_FINGERPRINT.sql (md5 2738566c55f7a4792159362ce29bb3e0) no CN1, como postgres, sessao read-only
+NAO executado: captura LIVE, comparacao/veredito de paridade, P14b/c, K1/K2/K8b, P9b/A2, qualquer escrita
+credencial DPAPI do CN1-3: nao lida, nao referenciada
+

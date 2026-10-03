@@ -1,0 +1,7 @@
+﻿containers CN1 restantes:
+
+volumes CN1 restantes:
+
+redes CN1 restantes:
+b12-cn1-localhost
+

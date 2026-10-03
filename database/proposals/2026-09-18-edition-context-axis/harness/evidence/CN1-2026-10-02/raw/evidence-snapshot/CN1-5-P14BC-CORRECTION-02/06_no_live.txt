@@ -1,0 +1,7 @@
+﻿env_hits=
+access_token_file=False
+link_artifacts=
+api_url=http://127.0.0.1:54321
+db_url_host_loopback=True
+anon_key_present=True
+

@@ -1,0 +1,7 @@
+﻿D restante vista por OBS=LEFTD|0
+exit D/OBS=0/0
+sessoes cn1-6-* restantes=0
+confirm HTTP ainda ativo=HACT|0
+deadlocks antes=0 depois=0
+40P01 (saidas D/OBS + corpos HTTP)=False
+

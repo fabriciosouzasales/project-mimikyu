@@ -1,0 +1,16 @@
+﻿IMG|auth.users(id,updated_at,last_sign_in_at)|1|9977587748bf15de857c531c09069645
+IMG|public.admin_user|1|110ffb1292e6e942e905de16898bf11a
+IMG|public.card|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.card_category|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.card_set|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.card_variant|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.card_variant_type|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.catalog_admin_action_log|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.catalog_variant_import_job|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.catalog_variant_import_row|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.expansion|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.game|0|d41d8cd98f00b204e9800998ecf8427e
+IMG|public.rarity|0|d41d8cd98f00b204e9800998ecf8427e
+GLOBAL|auth.audit_log_entries=3,auth.custom_oauth_providers=0,auth.flow_state=0,auth.identities=1,auth.instances=0,auth.mfa_amr_claims=2,auth.mfa_challenges=0,auth.mfa_factors=0,auth.oauth_authorizations=0,auth.oauth_client_states=0,auth.oauth_clients=0,auth.oauth_consents=0,auth.one_time_tokens=0,auth.refresh_tokens=2,auth.saml_providers=0,auth.saml_relay_states=0,auth.schema_migrations=77,auth.sessions=2,auth.sso_domains=0,auth.sso_providers=0,auth.users=1,auth.webauthn_challenges=0,auth.webauthn_credentials=0,public.admin_user=1,public.asset_source=0,public.card=0,public.card_category=0,public.card_edition_context_external_mapping=0,public.card_edition_context_external_mapping_trait=0,public.card_edition_context_profile=0,public.card_edition_context_profile_trait=0,public.card_edition_context_trait=0,public.card_printing_external_mapping=0,public.card_printing_external_mapping_trait=0,public.card_printing_profile=0,public.card_printing_profile_trait=0,public.card_printing_trait=0,public.card_set=0,public.card_set_external_reference=0,public.card_variant=0,public.card_variant_type=0,public.catalog_admin_action_log=0,public.catalog_variant_import_job=0,public.catalog_variant_import_row=0,public.expansion=0,public.game=0,public.rarity=0
+DL0=0
+

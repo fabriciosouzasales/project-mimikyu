@@ -1,0 +1,6 @@
+﻿colunas W: tag|pid|state|wait_event_type|wait_event|backend_xid|pg_blocking_pids|query_start|state_change|waited_s|query_is_confirm
+pre ok=True motivo=[] W=W|35463|active|Lock|transactionid|1129|{35464}|2026-10-03T00:54:46.072420Z|2026-10-03T00:54:46.072422Z|0.006|t
+W1 t_cliente_ms=0 (inicio da espera observada) query_start=2026-10-03T00:54:46.072420Z bloqueador={35464} W=W|35463|active|Lock|transactionid|1129|{35464}|2026-10-03T00:54:46.072420Z|2026-10-03T00:54:46.072422Z|0.006|t
+W2 t_cliente_ms=1123 ok=True motivo=[] W=W|35463|active|Lock|transactionid|1129|{35464}|2026-10-03T00:54:46.072420Z|2026-10-03T00:54:46.072422Z|1.140|t
+SNAP t_cliente_ms<=1163 waitsame=True W=W|35463|active|Lock|transactionid|1129|{35464}|2026-10-03T00:54:46.072420Z|2026-10-03T00:54:46.072422Z|1.153|t
+

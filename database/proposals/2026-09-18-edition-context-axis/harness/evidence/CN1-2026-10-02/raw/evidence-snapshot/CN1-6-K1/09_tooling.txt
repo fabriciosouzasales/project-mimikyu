@@ -1,0 +1,2 @@
+﻿psql --version (no container): psql (PostgreSQL) 17.6
+

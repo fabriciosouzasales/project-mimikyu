@@ -1,0 +1,5 @@
+﻿AV=AV|1|4a8153a7-4905-4860-ac1b-bc2f33022856|1|1|COMPLETED:1:1:0:0|1|1|1127
+colunas: tag|row A INSERTED/NEW/resulting/matched NULL|VA|variants da identidade (C,T,NULL,NULL)|VA = (C,T,ord1,NULL,NULL,!default)|JA status:total:inserted:unchanged:failed|log JA (admin, COMPLETED)|log total|A_xid32
+esperado: AV|1|<VA>|1|1|COMPLETED:1:1:0:0|1|1|<xid>
+A permanece ABERTA (sem COMMIT)
+

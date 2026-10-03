@@ -1,0 +1,35 @@
+﻿caminho exato exigido=C:\b12-cn1.failed-attempt-20261002T011523Z
+encontradas b12-cn1.failed-attempt-*: C:\b12-cn1.failed-attempt-20261002T011523Z
+isolada (fora de repo/C:\b12-cn1/C:\b12-pg17/arquivo)=True
+prova de reparse (raiz + descendentes)=raiz=normal descendentes_reparse=0 erros_enumeracao=0
+nomes proibidos=
+contem evidence\CN1-1\RESULT.txt=True
+contem supabase\config.toml + config.toml.init-original=True
+fingerprint congelado=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6
+manifesto (md5  bytes  caminho; inclui ocultos):
+02d0c7c64d5a302b2fcf721434315023  14  evidence\CN1-1\02_cli_version.txt
+29a5e20df5c1eb452a4af3ca5f4773dd  2258  evidence\CN1-1\07_start_help.txt
+2c540056d8985245a57133607e9af5a2  178  evidence\CN1-1\05_config_changes.txt
+3fd3089b4616a0391a1daffe01c16bc4  74  evidence\CN1-1\15_bindings.txt
+453a86a587303a931be1a0413790f8c2  34  evidence\CN1-1\17_status_sanitized.txt
+574acd298b8f45f5110ea83841265906  813  evidence\CN1-1\10_start_output.txt
+64daf4a10b7bc900ff26b71d1a1bce25  73  evidence\CN1-1\21_repo_after.txt
+752c78808268674be3e2f74ba76e0217  70  evidence\CN1-1\00_repo_before.txt
+752d09904fbebc0db8494240f579cad5  32  evidence\CN1-1\04_init.txt
+797f34425b7080744cd7933bbf551874  36  evidence\CN1-1\03_docker_version.txt
+7b33045d20179b31e8ce7ab9f76f254a  15588  supabase\config.toml.init-original
+83b79a13cf41309a6d731d2dfb59cd04  171  evidence\CN1-1\01_b12pg17_before.txt
+83b79a13cf41309a6d731d2dfb59cd04  171  evidence\CN1-1\20_b12pg17_after.txt
+8cce0b6a4e64b476e3aea5273352cd11  16020  supabase\config.toml
+988607de7ed347aad95a8cc0f422b453  208  evidence\CN1-1\18_http_probes.txt
+ac043029d89e5dd1b0175bc566118ea6  906  evidence\CN1-1\16_postgres_version.txt
+b18bc99dd6a193d83c2bd88f94a3dea3  97  evidence\CN1-1\09_start_cmd.txt
+b3a0a75d36326222828eb5b63b893bfc  109  evidence\CN1-1\19_live_isolation.txt
+df4ff23b225143a034a2cb7b9efd9637  7  evidence\CN1-1\11_health.txt
+df4ff23b225143a034a2cb7b9efd9637  7  evidence\CN1-1\12_docker_ps.txt
+df4ff23b225143a034a2cb7b9efd9637  7  evidence\CN1-1\13_docker_inspect_cn1.txt
+df4ff23b225143a034a2cb7b9efd9637  7  evidence\CN1-1\14_images.txt
+ef283fb0b2a801aac25837a2e9ee5cf1  1730  evidence\CN1-1\RESULT.txt
+ef5d16718b62eb125de63eb8ed6100e3  15711  evidence\CN1-1\06_config_effective_sanitized.toml
+ff6b29c8f877f69ca45cc919c08bb3cc  207  evidence\CN1-1\08_exclusions.txt
+

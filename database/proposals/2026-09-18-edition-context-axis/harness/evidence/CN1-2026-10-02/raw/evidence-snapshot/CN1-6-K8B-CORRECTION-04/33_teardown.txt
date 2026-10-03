@@ -1,0 +1,5 @@
+﻿arquivo=sql\k8b_teardown.sql md5=52b6b461acaf77407cf838a3537fd5b6
+rc=0
+K8B_TEARDOWN_OK
+fixture_restante=0
+

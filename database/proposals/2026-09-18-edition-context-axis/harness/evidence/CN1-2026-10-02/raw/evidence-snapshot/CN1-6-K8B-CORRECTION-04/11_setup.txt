@@ -1,0 +1,5 @@
+﻿arquivo=sql\k8b_setup.sql md5=594d045dc73fe7d5e42ad625fb217b1c
+rc=0
+K8B_SETUP_OK
+fixture_presente=11 (esperado 11)
+

@@ -1,0 +1,8 @@
+﻿>> SELECT 'PRE', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE'), current_setting('transaction_read_only'), current_setting('idle_in_transaction_session_timeout');
+<< PRE|22682|supabase_admin||NONE|on|0
+>> SELECT 'OBS', a.application_name, a.pid, a.state, coalesce(a.backend_xid::text, 'NULL'), a.xact_start, a.usename FROM pg_catalog.pg_stat_activity a WHERE a.application_name IN ('cn1-5-A', 'cn1-5-B') ORDER BY a.application_name;
+<< OBS|cn1-5-A|22681|idle in transaction|1105|2026-10-02 20:15:38.163351+00|supabase_admin
+<< OBS|cn1-5-B|22683|idle in transaction|1106|2026-10-02 20:15:39.381635+00|supabase_admin
+>> SELECT 'LEFT', count(*) FROM pg_catalog.pg_stat_activity WHERE application_name IN ('cn1-5-A', 'cn1-5-B');
+<< LEFT|0
+

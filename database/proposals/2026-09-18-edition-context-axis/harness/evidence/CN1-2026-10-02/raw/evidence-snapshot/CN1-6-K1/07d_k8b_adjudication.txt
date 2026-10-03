@@ -1,0 +1,12 @@
+﻿pasta=C:\b12-cn1\evidence\CN1-6-K8B-CORRECTION-04 (IMUTAVEL) fingerprint=files=54 md5=bc527a3a77517ec69d02c9fea4ed1948
+script_md5_esperado=29ce3c0aae139a24ff4ffc5999fcc45b ok=True
+gates_lidos=38 (esperado 38)
+nao_PASS=V5_no_secrets_in_evidence=STOP (esperado somente V5_no_secrets_in_evidence=STOP)
+K8B-1..K8B-12 + V1..V4 + V6 PASS=True
+unico_STOP_V5_e_VERDICT=True
+IMG3=IMG0 + estado 1|1|0|1|<admin>|0 + delta_deadlocks=0 (K8B-12 e K8B-10)=True
+rechecagem local: POSTGRES_PASSWORD == literal 'postgres'=True (valor nao impresso)
+ANON_HIT_FILES=0 JWT_HIT_FILES=0
+arquivos com 'postgres'=04_b12pg17_before.txt,09_tooling.txt,42_b12pg17_after.txt,RESULT.txt permitidos=04_b12pg17_before.txt,09_tooling.txt,42_b12pg17_after.txt,RESULT.txt ok=True
+linhas somente referencias operacionais (supabase/postgres:, psql (PostgreSQL))=True
+

@@ -1,0 +1,11 @@
+﻿pasta=C:\b12-cn1\evidence\CN1-6-K1 (IMUTAVEL) fingerprint=files=50 md5=02a1d1eba944f18c9610f598aab06828
+script_md5_esperado=ea6230b015402d5787ee800cdb687261
+md5_ok=True
+VERDICT PASS=True
+gates_lidos=34 (esperado 34) nao_PASS=
+K1-0..K1-11 + V1..V6 PASS=True
+commit_A=OK commit_B=OK functional_commit_attempted=True: True
+estado_K1_persistido_no_CN1=True: True
+delta_deadlocks K1 = 0: True
+K1-11 estado=1|1|2|1|<admin>|12: True
+

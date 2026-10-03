@@ -1,0 +1,3 @@
+﻿ALOCK=ALOCK|c16b8b00-0000-4000-8000-000000000021|33516|1120
+colunas: tag|card_id|pid|xid32 (A_xid)
+

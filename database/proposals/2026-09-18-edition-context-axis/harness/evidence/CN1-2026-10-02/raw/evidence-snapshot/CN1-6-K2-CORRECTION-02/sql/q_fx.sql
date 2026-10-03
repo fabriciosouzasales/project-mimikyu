@@ -1,0 +1,10 @@
+select 'FX|' || ((select count(*) from public.game where id in ('c16b0200-0000-4000-8000-000000000001'))
+  + (select count(*) from public.expansion where id in ('c16b0200-0000-4000-8000-000000000002'))
+  + (select count(*) from public.card_set where id in ('c16b0200-0000-4000-8000-000000000003'))
+  + (select count(*) from public.rarity where id in ('c16b0200-0000-4000-8000-000000000004'))
+  + (select count(*) from public.card_category where id in ('c16b0200-0000-4000-8000-000000000005'))
+  + (select count(*) from public.card_variant_type where id in ('c16b0200-0000-4000-8000-000000000011', 'c16b0200-0000-4000-8000-000000000012', 'c16b0200-0000-4000-8000-000000000013'))
+  + (select count(*) from public.card where id in ('c16b0200-0000-4000-8000-000000000021', 'c16b0200-0000-4000-8000-000000000022', 'c16b0200-0000-4000-8000-000000000023'))
+  + (select count(*) from public.card_variant where id in ('c16b0200-0000-4000-8000-000000000051', 'c16b0200-0000-4000-8000-000000000052', 'c16b0200-0000-4000-8000-000000000053'))
+  + (select count(*) from public.catalog_variant_import_job where id in ('c16b0200-0000-4000-8000-000000000031', 'c16b0200-0000-4000-8000-000000000032', 'c16b0200-0000-4000-8000-000000000033'))
+  + (select count(*) from public.catalog_variant_import_row where id in ('c16b0200-0000-4000-8000-000000000041', 'c16b0200-0000-4000-8000-000000000042', 'c16b0200-0000-4000-8000-000000000043')))::text;

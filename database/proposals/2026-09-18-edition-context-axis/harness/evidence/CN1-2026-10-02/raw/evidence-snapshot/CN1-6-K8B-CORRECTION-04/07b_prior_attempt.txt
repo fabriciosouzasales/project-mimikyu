@@ -1,0 +1,8 @@
+﻿tentativa_anterior=CN1-6-K8B-RUNNER-CORRECTION-02 pasta=C:\b12-cn1\evidence\CN1-6-K8B (IMUTAVEL)
+fingerprint_inicio=files=34 md5=ee6f99d048ac080c1451bf4fbd9fbf63
+script_md5_esperado=66f62b9dead1c280cf8f2923cc4888a4 ok=True
+verdict=VERDICT: CN1-6 K8b = STOP  (K8B-6 : xmax(X)=1108 A_xid=1108 backend_xid(A)=1108; xmax(Y)=1107 backend_xid(B)=1109 (esperado xmax(Y)=0))
+stop_em_K8B_6=True
+teardown_restaurou(rc=0, fixture_restante=0, teardown_commit=True)=True
+(baseline atual reconferido em P8: catalogo vazio, action_log=0)
+

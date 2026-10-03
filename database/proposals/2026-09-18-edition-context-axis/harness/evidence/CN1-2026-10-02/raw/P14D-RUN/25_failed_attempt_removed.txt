@@ -1,0 +1,2 @@
+﻿caminho exato=C:\b12-cn1.failed-attempt-20261002T011523Z reparse=[raiz=normal descendentes_reparse=0 erros_enumeracao=0] acao=removida presente_apos=False (copia preservada em C:\b12-archive\CN1-P14D\failed-attempt-snapshot\b12-cn1.failed-attempt-20261002T011523Z)
+

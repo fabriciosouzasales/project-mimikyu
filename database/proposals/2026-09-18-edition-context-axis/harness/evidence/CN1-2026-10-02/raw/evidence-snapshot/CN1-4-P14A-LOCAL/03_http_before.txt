@@ -1,0 +1,4 @@
+﻿/auth/v1/health -> HTTP 200
+/rest/v1/ -> HTTP 200
+(apikey so em memoria)
+

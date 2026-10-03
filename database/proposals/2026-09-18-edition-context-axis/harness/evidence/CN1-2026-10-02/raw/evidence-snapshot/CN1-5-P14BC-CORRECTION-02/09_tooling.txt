@@ -1,0 +1,3 @@
+﻿psql --version (no container): psql (PostgreSQL) 17.6
+(stdbuf NAO e requisito; a entrega da saida e provada no P10)
+

@@ -1,0 +1,7 @@
+﻿POST /auth/v1/token?grant_type=password (credencial do CN1-3 em memoria) http=200 token_type=bearer user_id_igual_admin=True
+claims: sub_igual_admin=True role=authenticated aud=authenticated exp=2026-10-03T02:45:32Z (>= 10 min de validade=True)
+GET /auth/v1/user http=200 id_igual_admin=True
+rpc/is_admin JWT http=200 body=true (exigido 200/true)
+rpc/is_admin anon http=200 body=false (exigido 200/false)
+(JWT/refresh/e-mail/senha/anon nao registrados)
+

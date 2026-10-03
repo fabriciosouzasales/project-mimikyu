@@ -1,0 +1,5 @@
+﻿destino=C:\b12-archive\CN1-P14D\evidence-snapshot
+pastas=18
+divergencias:
+
+

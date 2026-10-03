@@ -1,0 +1,1 @@
+select 'CANCEL|' || count(pg_catalog.pg_cancel_backend(a.pid))::text from pg_catalog.pg_stat_activity a where a.backend_type = 'client backend' and a.usename = 'authenticator' and a.state = 'active' and position('admin_confirm_catalog_variant_import' in a.query) > 0 and coalesce(a.application_name, '') not like 'cn1-6-%' and a.pid <> pg_backend_pid();

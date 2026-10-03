@@ -1,0 +1,7 @@
+﻿alg=ES256
+sub_matches_admin_uuid=True
+role=authenticated
+aud=authenticated
+iat=2026-10-02T20:15:37Z
+exp=2026-10-02T21:15:37Z
+

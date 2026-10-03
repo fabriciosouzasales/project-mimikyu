@@ -1,0 +1,4 @@
+﻿executado: preservacao (copia+manifesto+varredura) em C:\b12-archive\CN1-P14D; supabase stop --no-backup; rede b12-cn1-localhost; DPAPI; supabase\ e secrets\ de C:\b12-cn1; tentativa falha C:\b12-cn1.failed-attempt-20261002T011523Z (caminho exato, apos preservacao em C:\b12-archive\CN1-P14D\failed-attempt-snapshot\b12-cn1.failed-attempt-20261002T011523Z)
+NAO executado: remocao de C:\b12-cn1\evidence (originais intactos), prune, rmi, alteracao do b12-pg17, git write, LIVE
+CN1-0: nenhum diretorio autonomo de evidencia on-disk existia
+

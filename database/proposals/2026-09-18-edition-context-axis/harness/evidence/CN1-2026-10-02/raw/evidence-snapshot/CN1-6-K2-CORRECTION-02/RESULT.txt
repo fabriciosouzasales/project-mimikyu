@@ -1,0 +1,60 @@
+﻿CN1-6-K2-RUNNER-CORRECTION-02  RESULT  utc=2026-10-03T01:45:40.3168315Z
+script_md5=7aaefe324ccc1f44118eeec5a7d5bb65
+setup_sql_md5=b50a6177f24376113b9ccd8345d8cb3e teardown_sql_md5=9ecd7c2ba395ed04e8975a975206d9d0 setup_commit=True setup_validated=True functional_commit_attempted=True teardown_attempted=False teardown_commit=False
+cenarios: K2.d=PASS K2.b=PASS K2.c=PASS
+raw_23505_to_http: K2.d=False K2.b=False K2.c=False
+estado_K1_K2_persistido_no_CN1=True (sem cleanup do CN1; descarte definitivo = P14(d), etapa separada)
+
+P1_stack_healthy                         PASS | supabase_db_b12-cn1=running/healthy supabase_auth_b12-cn1=running/healthy supabase_rest_b12-cn1=running/nohc supabase_kong_b12-cn1=running/healthy
+P2_listeners_loopback                    PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+P3_auth_rest_http200                     PASS | /auth/v1/health=200 /rest/v1/=200
+P4_b12pg17_running_healthy               PASS | status=running health=healthy started=2026-10-02T11:42:37.774075531Z restarts=0 image=supabase/postgres:17.6.1.147 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"55432"}]}
+P5_repo_head_clean                       PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+P6_no_live_dependency                    PASS | env_hits=0 access_token=False link=0 api=http://127.0.0.1:54321 db_loopback=True
+P7_prior_pass_provenance                 PASS | cn1_3_pass_dirs=1 uuid3_ok=True cn1_5_c02_pass=True
+P7e_k1_pass_adjudicated                  PASS | md5_ok=True verdict_pass=True gates=34 nao_pass=0 commits_ok=True persistido=True dl0=True final_ok=True
+P7f_k2_c01_stop_adjudicated              PASS | md5_ok=True gates=41 p1_p12_pass=True p13_stop=True s0_em_diante_not_run=True verdict_stop_p13=True flags_false=True cenarios_not_run=True p8_ok=True fp=files=31 md5=3573f82d8e3ae40554a19f5b52a4dc3f
+P8_db_k1_state                           PASS | state=1|1|2|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|12 k1chk=K1CHK|1|1|2|2 k1img=K1IMG|14|a25b063c890e73c51ce3895ea9c72cdb fx_k2=0 sessoes_cn1_6=0 http_ativo=HACT|0 setup_md5_ok=True teardown_md5_ok=True
+P9_credential_acl_and_dpapi              PASS | acl_ok=True dpapi_ok=True
+P10_jwt_real_admin                       PASS | token=200 uid_ok=True claims_ok=True user=200 is_admin_jwt=200/true is_admin_anon=200/false
+P11_persistent_tooling                   PASS | psql (PostgreSQL) 17.6
+P12_streaming_probe                      PASS | pid=PROBE1|38021|off|off/PROBE2|38021 exit=0 residual=0
+P13_http_timeout_budget                  PASS | budget_relevante_ms=8000 authenticated=8000 ok=True authenticator=8000 ok=True anon_diagnostico_ms=3000
+S0_baseline_image                        PASS | img_lines=14 deadlocks0=0
+S1_setup_commit                          PASS | rc=0 fixture=20
+S2_setup_postcheck_img1                  PASS | fixture K2 somente; K1 intacto; divergencias=nenhuma
+K2_PRE_sessions                          PASS | D=PRE|38098|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K2-D ; OBS=PRE|38099|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K2-OBS
+K2.d-1_http_confirm                      PASS | http=200 tupla=0|1|0|0|COMPLETED raw_23505_to_http=False
+K2.d-2_committed_state                   PASS | obtido=KD|UNCHANGED:MATCHED:c16b0200-0000-4000-8000-000000000051:c16b0200-0000-4000-8000-000000000051|1|1|c16b0200-0000-4000-8000-000000000051|NULL|COMPLETED:1:0:1:0|1:COMPLETED|3
+K2.b-1_D_pending_update                  PASS | UPDATE linhas=1 D_xid=1136
+K2.b-2_http_blocked_on_D                 PASS | http_pid=37863 usename=authenticator wait=Lock/transactionid pg_blocking_pids={38098} espera transactionid=D_xid(1136) granted=f; 2 observacoes >= 500 ms
+K2.b-3_D_commit                          PASS | POST=POST|38098|supabase_admin||NONE
+K2.a_http_200_no_raw_23505_identity      PASS | http=200 tupla=0|1|0|0|COMPLETED raw_23505_to_http=False
+K2.b-4_committed_state                   PASS | obtido=KB|UNCHANGED:MATCHED:c16b0200-0000-4000-8000-000000000052:c16b0200-0000-4000-8000-000000000052|NULL|1|1|c16b0200-0000-4000-8000-000000000052:c16b0200-0000-4000-8000-000000000012:1|COMPLETED:1:0:1:0|1:COMPLETED|4
+K2.c-1_D_pending_update                  PASS | UPDATE linhas=1 D_xid=1139
+K2.c-2_http_blocked_on_D                 PASS | http_pid=37863 usename=authenticator wait=Lock/transactionid pg_blocking_pids={38098} espera transactionid=D_xid(1139) granted=f; 2 observacoes >= 500 ms
+K2.c-3_D_commit                          PASS | POST=POST|38098|supabase_admin||NONE
+K2.c-4_http_200_no_raw_23505_order       PASS | http=200 tupla=0|0|1|0|COMPLETED_WITH_ERRORS raw_23505_to_http=False
+K2.c-5_committed_state                   PASS | obtido=KC|FAILED:NEW:NULL:NULL|true:true:true:true|1|0|c16b0200-0000-4000-8000-000000000053:c16b0200-0000-4000-8000-000000000012:2|COMPLETED_WITH_ERRORS:1:0:0:1|1:COMPLETED_WITH_ERRORS|5
+K2.e_action_log                          PASS | obtido=KE|5|3|3|c16b0200-0000-4000-8000-000000000031=COMPLETED,c16b0200-0000-4000-8000-000000000032=COMPLETED,c16b0200-0000-4000-8000-000000000033=COMPLETED_WITH_ERRORS|0|2
+K2_no_deadlock                           PASS | 40P01=False delta_deadlocks=0
+R_no_residual_sessions                   PASS | left_D=LEFTD|0 exit=0/0 residual=0 http_ativo=HACT|0
+K2_K1_intact                             PASS | K1IMG identico=True k1chk=K1CHK|4|1|5|2
+K2_final_image                           PASS | frente a IMG1: action_log +3, nenhuma variant nova, estrutura inalterada; estado=1|1|5|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|32; divergencias=nenhuma
+V1_auth_rest_healthy                     PASS | /auth/v1/health=200 /rest/v1/=200
+V2_listeners_loopback_after              PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+V3_b12pg17_untouched                     PASS | estado identico antes/depois
+V4_repo_unchanged                        PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+V5_no_secrets_in_evidence                PASS | segredos=0 jwt_like=0 postgres_password_pesquisado=False (literal local 'postgres' nao e segredo pesquisavel)
+V6_prior_evidence_preserved              PASS | dirs=17 identico=True K1_identico=True K2_C01_identico=True
+
+VERDICT: CN1-6 K2 = PASS (K2.a/K2.b/K2.c/K2.d/K2.e provados via HTTP/JWT real; action_log=5; nenhum 23505 cru ao HTTP; K1 intacto; CN1 NAO descartado)
+
+--- execution log ---
+[01:45:24.387] start CN1-6-K2-RUNNER-CORRECTION-02 md5=7aaefe324ccc1f44118eeec5a7d5bb65
+[01:45:33.187] sessao PROBE aberta (processo local pid 34268)
+[01:45:34.603] sessao D aberta (processo local pid 26416)
+[01:45:34.610] sessao OBS aberta (processo local pid 47940)
+[01:45:34.756] HTTP confirm iniciado job=c16b0200-0000-4000-8000-000000000031
+[01:45:35.131] HTTP confirm iniciado job=c16b0200-0000-4000-8000-000000000032
+[01:45:36.072] HTTP confirm iniciado job=c16b0200-0000-4000-8000-000000000033

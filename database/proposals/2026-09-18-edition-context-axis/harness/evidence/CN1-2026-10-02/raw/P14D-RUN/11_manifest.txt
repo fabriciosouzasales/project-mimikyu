@@ -1,0 +1,3 @@
+﻿manifest=C:\b12-archive\CN1-P14D\MANIFEST.md5.txt md5=5d4897b27c440836af3f90a421656e52 arquivos=605 (origem 580 + falha 25) bytes=5114977 (origem 5060449 + falha 54528) releitura_igual=True recalculo_igual=True
+meta=C:\b12-archive\CN1-P14D\MANIFEST.meta.txt md5=66d388512718ea5f09bf566d74398938 (congelado)
+

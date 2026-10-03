@@ -1,0 +1,2 @@
+﻿origem apos a copia fp=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6 congelado=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6 identica=True
+

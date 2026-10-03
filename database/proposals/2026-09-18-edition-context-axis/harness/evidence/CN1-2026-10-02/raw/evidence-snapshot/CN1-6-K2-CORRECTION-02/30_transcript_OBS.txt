@@ -1,0 +1,295 @@
+﻿>> \set VERBOSITY verbose
+SELECT 'PRE', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE'),
+       current_setting('transaction_read_only'), current_setting('default_transaction_read_only'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'statement_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'lock_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'idle_in_transaction_session_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'deadlock_timeout'),
+       current_setting('application_name');
+<< PRE|38099|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K2-OBS
+>> SELECT 'H', a.pid, a.usename, coalesce(a.application_name, ''), a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''),
+       coalesce(a.backend_xid::text, 'NULL'), pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       replace(replace(replace(left(a.query, 160), chr(10), ' '), chr(13), ' '), '|', '/')
+  FROM pg_catalog.pg_stat_activity a
+ WHERE a.backend_type = 'client backend' AND a.pid <> pg_backend_pid() AND a.datname = current_database()
+   AND position('admin_confirm_catalog_variant_import' in a.query) > 0 AND a.state <> 'idle'
+   AND coalesce(a.application_name, '') NOT LIKE 'cn1-6-%';
+<< H|37863|authenticator|PostgREST 14.14|active|Lock|transactionid|1137|{38098}|2026-10-03T01:45:35.133066Z|t|0.007|WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT "p_job_id", "p_row_ids" FROM json_to_record(pgrst_paylo
+>> SELECT 'H', a.pid, a.usename, coalesce(a.application_name, ''), a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''),
+       coalesce(a.backend_xid::text, 'NULL'), pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       replace(replace(replace(left(a.query, 160), chr(10), ' '), chr(13), ' '), '|', '/')
+  FROM pg_catalog.pg_stat_activity a
+ WHERE a.backend_type = 'client backend' AND a.pid <> pg_backend_pid() AND a.datname = current_database()
+   AND position('admin_confirm_catalog_variant_import' in a.query) > 0 AND a.state <> 'idle'
+   AND coalesce(a.application_name, '') NOT LIKE 'cn1-6-%';
+<< H|37863|authenticator|PostgREST 14.14|active|Lock|transactionid|1137|{38098}|2026-10-03T01:45:35.133066Z|t|0.545|WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT "p_job_id", "p_row_ids" FROM json_to_record(pgrst_paylo
+>> SELECT 'HL', l.pid, l.locktype, coalesce(l.relation::regclass::text, ''), coalesce(l.transactionid::text, ''), l.mode, l.granted FROM pg_catalog.pg_locks l WHERE l.pid IN (37863, 38098) ORDER BY l.pid, l.granted, l.locktype, l.mode;
+SELECT 'HD', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.pid = 38098;
+<< HL|37863|transactionid||1136|ShareLock|f
+<< HL|37863|relation|ix_card_variant_edition_context||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_type_game_code||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_card_order||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_variant_type_id||AccessShareLock|t
+<< HL|37863|relation|card_variant_type_pkey||AccessShareLock|t
+<< HL|37863|relation|card_edition_context_profile||AccessShareLock|t
+<< HL|37863|relation|expansion||AccessShareLock|t
+<< HL|37863|relation|idx_card_category_id||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_type_game_display_order||AccessShareLock|t
+<< HL|37863|relation|uq_cvir_row_identity||AccessShareLock|t
+<< HL|37863|relation|uq_expansion_game_release_order||AccessShareLock|t
+<< HL|37863|relation|card_printing_profile||AccessShareLock|t
+<< HL|37863|relation|expansion_pkey||AccessShareLock|t
+<< HL|37863|relation|uq_expansion_game_code||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_one_default_per_card||AccessShareLock|t
+<< HL|37863|relation|card_variant||AccessShareLock|t
+<< HL|37863|relation|card_variant_pkey||AccessShareLock|t
+<< HL|37863|relation|ix_card_name_trgm||AccessShareLock|t
+<< HL|37863|relation|uq_card_card_set_collector_number||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_card_id||AccessShareLock|t
+<< HL|37863|relation|card||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_type_game_id||AccessShareLock|t
+<< HL|37863|relation|card_pkey||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_matched_variant||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_printing_profile_id||AccessShareLock|t
+<< HL|37863|relation|card_variant_type||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_card||AccessShareLock|t
+<< HL|37863|relation|catalog_variant_import_row_pkey||AccessShareLock|t
+<< HL|37863|relation|catalog_variant_import_row||AccessShareLock|t
+<< HL|37863|relation|uq_card_set_expansion_promo||AccessShareLock|t
+<< HL|37863|relation|uq_card_set_expansion_release_order||AccessShareLock|t
+<< HL|37863|relation|uq_card_set_expansion_code||AccessShareLock|t
+<< HL|37863|relation|card_set_pkey||AccessShareLock|t
+<< HL|37863|relation|card_set||AccessShareLock|t
+<< HL|37863|relation|ix_card_collector_number_normalized||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_identity||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_persistence||AccessShareLock|t
+<< HL|37863|relation|admin_user_pkey||AccessShareLock|t
+<< HL|37863|relation|admin_user||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_validation||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_decision||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_id_card||AccessShareLock|t
+<< HL|37863|relation|uq_card_card_set_collector_order||AccessShareLock|t
+<< HL|37863|relation|idx_card_rarity_id||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_edition_context||RowExclusiveLock|t
+<< HL|37863|relation|uq_catalog_variant_import_job_fingerprint_active||RowExclusiveLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_card_set||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_one_default_per_card||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_card_order||RowExclusiveLock|t
+<< HL|37863|relation|ix_card_variant_card_id||RowExclusiveLock|t
+<< HL|37863|relation|card_variant||RowExclusiveLock|t
+<< HL|37863|relation|card_variant_pkey||RowExclusiveLock|t
+<< HL|37863|relation|catalog_variant_import_job_pkey||RowExclusiveLock|t
+<< HL|37863|relation|ix_card_variant_variant_type_id||RowExclusiveLock|t
+<< HL|37863|relation|catalog_variant_import_job||RowExclusiveLock|t
+<< HL|37863|relation|ix_card_variant_printing_profile_id||RowExclusiveLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_active||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_id_card||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_identity||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_card_set_collector_number||RowShareLock|t
+<< HL|37863|relation|uq_catalog_variant_import_job_fingerprint_active||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_card_set||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_active||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_job_pkey||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_job||RowShareLock|t
+<< HL|37863|relation|idx_card_rarity_id||RowShareLock|t
+<< HL|37863|relation|uq_cvir_row_identity||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_card||RowShareLock|t
+<< HL|37863|relation|idx_card_category_id||RowShareLock|t
+<< HL|37863|relation|card||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_row_pkey||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job||RowShareLock|t
+<< HL|37863|relation|ix_card_name_trgm||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_row||RowShareLock|t
+<< HL|37863|relation|uq_card_card_set_collector_order||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_decision||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_validation||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_matched_variant||RowShareLock|t
+<< HL|37863|relation|card_pkey||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_persistence||RowShareLock|t
+<< HL|37863|relation|ix_card_collector_number_normalized||RowShareLock|t
+<< HL|37863|transactionid||1137|ExclusiveLock|t
+<< HL|37863|transactionid||1138|ExclusiveLock|t
+<< HL|37863|virtualxid|||ExclusiveLock|t
+<< HL|38098|relation|ix_card_collector_number_normalized||AccessShareLock|t
+<< HL|38098|relation|uq_card_variant_type_game_code||AccessShareLock|t
+<< HL|38098|relation|ix_card_variant_type_game_id||AccessShareLock|t
+<< HL|38098|relation|uq_expansion_game_release_order||AccessShareLock|t
+<< HL|38098|relation|uq_expansion_game_code||AccessShareLock|t
+<< HL|38098|relation|card_variant_type||AccessShareLock|t
+<< HL|38098|relation|uq_card_set_expansion_promo||AccessShareLock|t
+<< HL|38098|relation|expansion_pkey||AccessShareLock|t
+<< HL|38098|relation|uq_card_set_expansion_code||AccessShareLock|t
+<< HL|38098|relation|card_set||AccessShareLock|t
+<< HL|38098|relation|uq_card_set_expansion_release_order||AccessShareLock|t
+<< HL|38098|relation|idx_card_category_id||AccessShareLock|t
+<< HL|38098|relation|ix_card_name_trgm||AccessShareLock|t
+<< HL|38098|relation|card_set_pkey||AccessShareLock|t
+<< HL|38098|relation|expansion||AccessShareLock|t
+<< HL|38098|relation|uq_card_card_set_collector_order||AccessShareLock|t
+<< HL|38098|relation|idx_card_rarity_id||AccessShareLock|t
+<< HL|38098|relation|card_variant_type_pkey||AccessShareLock|t
+<< HL|38098|relation|card_pkey||AccessShareLock|t
+<< HL|38098|relation|card||AccessShareLock|t
+<< HL|38098|relation|uq_card_variant_type_game_display_order||AccessShareLock|t
+<< HL|38098|relation|uq_card_card_set_collector_number||AccessShareLock|t
+<< HL|38098|relation|uq_card_variant_id_card||RowExclusiveLock|t
+<< HL|38098|relation|card_variant||RowExclusiveLock|t
+<< HL|38098|relation|card_variant_pkey||RowExclusiveLock|t
+<< HL|38098|relation|uq_card_variant_card_order||RowExclusiveLock|t
+<< HL|38098|relation|uq_card_variant_one_default_per_card||RowExclusiveLock|t
+<< HL|38098|relation|uq_card_variant_identity||RowExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_card_id||RowExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_edition_context||RowExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_printing_profile_id||RowExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_variant_type_id||RowExclusiveLock|t
+<< HL|38098|relation|card_variant_type||RowShareLock|t
+<< HL|38098|relation|uq_card_variant_type_game_code||RowShareLock|t
+<< HL|38098|relation|uq_card_variant_type_game_display_order||RowShareLock|t
+<< HL|38098|relation|card_variant_type_pkey||RowShareLock|t
+<< HL|38098|relation|ix_card_variant_type_game_id||RowShareLock|t
+<< HL|38098|transactionid||1136|ExclusiveLock|t
+<< HL|38098|virtualxid|||ExclusiveLock|t
+<< HD|38098|idle in transaction|1136
+>> SELECT 'H', a.pid, a.usename, coalesce(a.application_name, ''), a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''),
+       coalesce(a.backend_xid::text, 'NULL'), pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       replace(replace(replace(left(a.query, 160), chr(10), ' '), chr(13), ' '), '|', '/')
+  FROM pg_catalog.pg_stat_activity a
+ WHERE a.backend_type = 'client backend' AND a.pid <> pg_backend_pid() AND a.datname = current_database()
+   AND position('admin_confirm_catalog_variant_import' in a.query) > 0 AND a.state <> 'idle'
+   AND coalesce(a.application_name, '') NOT LIKE 'cn1-6-%';
+>> SELECT 'H', a.pid, a.usename, coalesce(a.application_name, ''), a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''),
+       coalesce(a.backend_xid::text, 'NULL'), pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       replace(replace(replace(left(a.query, 160), chr(10), ' '), chr(13), ' '), '|', '/')
+  FROM pg_catalog.pg_stat_activity a
+ WHERE a.backend_type = 'client backend' AND a.pid <> pg_backend_pid() AND a.datname = current_database()
+   AND position('admin_confirm_catalog_variant_import' in a.query) > 0 AND a.state <> 'idle'
+   AND coalesce(a.application_name, '') NOT LIKE 'cn1-6-%';
+<< H|37863|authenticator|PostgREST 14.14|active|Lock|transactionid|1140|{38098}|2026-10-03T01:45:36.074726Z|t|0.165|WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT "p_job_id", "p_row_ids" FROM json_to_record(pgrst_paylo
+>> SELECT 'H', a.pid, a.usename, coalesce(a.application_name, ''), a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''),
+       coalesce(a.backend_xid::text, 'NULL'), pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       replace(replace(replace(left(a.query, 160), chr(10), ' '), chr(13), ' '), '|', '/')
+  FROM pg_catalog.pg_stat_activity a
+ WHERE a.backend_type = 'client backend' AND a.pid <> pg_backend_pid() AND a.datname = current_database()
+   AND position('admin_confirm_catalog_variant_import' in a.query) > 0 AND a.state <> 'idle'
+   AND coalesce(a.application_name, '') NOT LIKE 'cn1-6-%';
+<< H|37863|authenticator|PostgREST 14.14|active|Lock|transactionid|1140|{38098}|2026-10-03T01:45:36.074726Z|t|0.677|WITH pgrst_source AS (SELECT "pgrst_call".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT "p_job_id", "p_row_ids" FROM json_to_record(pgrst_paylo
+>> SELECT 'HL', l.pid, l.locktype, coalesce(l.relation::regclass::text, ''), coalesce(l.transactionid::text, ''), l.mode, l.granted FROM pg_catalog.pg_locks l WHERE l.pid IN (37863, 38098) ORDER BY l.pid, l.granted, l.locktype, l.mode;
+SELECT 'HD', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.pid = 38098;
+<< HL|37863|transactionid||1139|ShareLock|f
+<< HL|37863|relation|idx_card_category_id||AccessShareLock|t
+<< HL|37863|relation|card||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_edition_context||AccessShareLock|t
+<< HL|37863|relation|uq_expansion_game_release_order||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_card_id||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_type_game_id||AccessShareLock|t
+<< HL|37863|relation|card_pkey||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_matched_variant||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_printing_profile_id||AccessShareLock|t
+<< HL|37863|relation|card_variant_type||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_card||AccessShareLock|t
+<< HL|37863|relation|catalog_variant_import_row_pkey||AccessShareLock|t
+<< HL|37863|relation|catalog_variant_import_row||AccessShareLock|t
+<< HL|37863|relation|uq_card_set_expansion_promo||AccessShareLock|t
+<< HL|37863|relation|uq_card_set_expansion_release_order||AccessShareLock|t
+<< HL|37863|relation|uq_card_set_expansion_code||AccessShareLock|t
+<< HL|37863|relation|card_set_pkey||AccessShareLock|t
+<< HL|37863|relation|card_set||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_validation||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_decision||AccessShareLock|t
+<< HL|37863|relation|uq_card_card_set_collector_order||AccessShareLock|t
+<< HL|37863|relation|card_edition_context_profile||AccessShareLock|t
+<< HL|37863|relation|admin_user_pkey||AccessShareLock|t
+<< HL|37863|relation|admin_user||AccessShareLock|t
+<< HL|37863|relation|expansion||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_id_card||AccessShareLock|t
+<< HL|37863|relation|ix_card_collector_number_normalized||AccessShareLock|t
+<< HL|37863|relation|idx_card_rarity_id||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_one_default_per_card||AccessShareLock|t
+<< HL|37863|relation|ix_card_variant_variant_type_id||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_identity||AccessShareLock|t
+<< HL|37863|relation|card_variant_type_pkey||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_type_game_code||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_type_game_display_order||AccessShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_persistence||AccessShareLock|t
+<< HL|37863|relation|uq_cvir_row_identity||AccessShareLock|t
+<< HL|37863|relation|card_variant||AccessShareLock|t
+<< HL|37863|relation|card_printing_profile||AccessShareLock|t
+<< HL|37863|relation|expansion_pkey||AccessShareLock|t
+<< HL|37863|relation|uq_expansion_game_code||AccessShareLock|t
+<< HL|37863|relation|ix_card_name_trgm||AccessShareLock|t
+<< HL|37863|relation|card_variant_pkey||AccessShareLock|t
+<< HL|37863|relation|uq_card_card_set_collector_number||AccessShareLock|t
+<< HL|37863|relation|uq_card_variant_card_order||AccessShareLock|t
+<< HL|37863|relation|catalog_variant_import_job_pkey||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_id_card||RowExclusiveLock|t
+<< HL|37863|relation|ix_card_variant_variant_type_id||RowExclusiveLock|t
+<< HL|37863|relation|catalog_variant_import_job||RowExclusiveLock|t
+<< HL|37863|relation|card_variant_pkey||RowExclusiveLock|t
+<< HL|37863|relation|ix_card_variant_edition_context||RowExclusiveLock|t
+<< HL|37863|relation|ix_card_variant_card_id||RowExclusiveLock|t
+<< HL|37863|relation|uq_catalog_variant_import_job_fingerprint_active||RowExclusiveLock|t
+<< HL|37863|relation|card_variant||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_one_default_per_card||RowExclusiveLock|t
+<< HL|37863|relation|ix_card_variant_printing_profile_id||RowExclusiveLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_active||RowExclusiveLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_card_set||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_card_order||RowExclusiveLock|t
+<< HL|37863|relation|uq_card_variant_identity||RowExclusiveLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_card||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_active||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_job_card_set||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_decision||RowShareLock|t
+<< HL|37863|relation|uq_catalog_variant_import_job_fingerprint_active||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_validation||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job_persistence||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_matched_variant||RowShareLock|t
+<< HL|37863|relation|card_pkey||RowShareLock|t
+<< HL|37863|relation|ix_card_collector_number_normalized||RowShareLock|t
+<< HL|37863|relation|idx_card_category_id||RowShareLock|t
+<< HL|37863|relation|card||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_row_pkey||RowShareLock|t
+<< HL|37863|relation|uq_card_card_set_collector_number||RowShareLock|t
+<< HL|37863|relation|ix_catalog_variant_import_row_job||RowShareLock|t
+<< HL|37863|relation|ix_card_name_trgm||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_row||RowShareLock|t
+<< HL|37863|relation|uq_cvir_row_identity||RowShareLock|t
+<< HL|37863|relation|idx_card_rarity_id||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_job||RowShareLock|t
+<< HL|37863|relation|catalog_variant_import_job_pkey||RowShareLock|t
+<< HL|37863|relation|uq_card_card_set_collector_order||RowShareLock|t
+<< HL|37863|transactionid||1141|ExclusiveLock|t
+<< HL|37863|transactionid||1140|ExclusiveLock|t
+<< HL|37863|virtualxid|||ExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_edition_context||RowExclusiveLock|t
+<< HL|38098|relation|card_variant_pkey||RowExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_printing_profile_id||RowExclusiveLock|t
+<< HL|38098|relation|card_variant||RowExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_variant_type_id||RowExclusiveLock|t
+<< HL|38098|relation|uq_card_variant_id_card||RowExclusiveLock|t
+<< HL|38098|relation|ix_card_variant_card_id||RowExclusiveLock|t
+<< HL|38098|relation|uq_card_variant_card_order||RowExclusiveLock|t
+<< HL|38098|relation|uq_card_variant_identity||RowExclusiveLock|t
+<< HL|38098|relation|uq_card_variant_one_default_per_card||RowExclusiveLock|t
+<< HL|38098|transactionid||1139|ExclusiveLock|t
+<< HL|38098|virtualxid|||ExclusiveLock|t
+<< HD|38098|idle in transaction|1139
+>> SELECT 'LEFTD', count(*) FROM pg_catalog.pg_stat_activity WHERE application_name = 'cn1-6-K2-D';
+<< LEFTD|0
+

@@ -1,0 +1,8 @@
+﻿executor=postgres (PGOPTIONS default_transaction_read_only=on)
+sql_md5_no_container=2738566c55f7a4792159362ce29bb3e0 pin=2738566c55f7a4792159362ce29bb3e0
+start_utc=2026-10-02T17:10:39.1350556Z
+end_utc=2026-10-02T17:10:39.2595936Z
+rc=0
+stderr=
+saida=C:\b12-cn1\evidence\CN1-4-P14A-LOCAL\P14A_CN1_OUTPUT.csv existe=True md5=07cbe1369cf2768f00a72f17bd5dfdb3
+

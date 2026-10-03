@@ -1,0 +1,17 @@
+﻿IMG|auth.users(id,updated_at,last_sign_in_at)|1|341075a2d210faad4a194a6b6f86e88f
+IMG|public.admin_user|1|110ffb1292e6e942e905de16898bf11a
+IMG|public.card|4|45634b82662a5a213d97d27e0b731fbf
+IMG|public.card_category|2|74823f1a70f65589d980b593221e0155
+IMG|public.card_set|2|0fe39c82c52c97282bf341fa57155ef3
+IMG|public.card_variant|4|2e7ce7b16311eac1e3640eedf3069e7d
+IMG|public.card_variant_type|4|aef483a3ef0cfe8b8ef364aa952ba646
+IMG|public.catalog_admin_action_log|2|7da894c052b72ad2b4652ef69f6c4b0c
+IMG|public.catalog_variant_import_job|5|bebb1593b23d616999a7830916d91fed
+IMG|public.catalog_variant_import_row|5|5b62fe60f7feeaaed436f3d229db11d2
+IMG|public.expansion|2|2475e36def4bd2ad225ec459da825345
+IMG|public.game|2|b4a31dc1240641c63ba5336c490c005c
+IMG|public.rarity|2|9bfd576ae66e163057f02b53c5823c9f
+GLOBAL|auth.audit_log_entries=5,auth.custom_oauth_providers=0,auth.flow_state=0,auth.identities=1,auth.instances=0,auth.mfa_amr_claims=4,auth.mfa_challenges=0,auth.mfa_factors=0,auth.oauth_authorizations=0,auth.oauth_client_states=0,auth.oauth_clients=0,auth.oauth_consents=0,auth.one_time_tokens=0,auth.refresh_tokens=4,auth.saml_providers=0,auth.saml_relay_states=0,auth.schema_migrations=77,auth.sessions=4,auth.sso_domains=0,auth.sso_providers=0,auth.users=1,auth.webauthn_challenges=0,auth.webauthn_credentials=0,public.admin_user=1,public.asset_source=0,public.card=4,public.card_category=2,public.card_edition_context_external_mapping=0,public.card_edition_context_external_mapping_trait=0,public.card_edition_context_profile=0,public.card_edition_context_profile_trait=0,public.card_edition_context_trait=0,public.card_printing_external_mapping=0,public.card_printing_external_mapping_trait=0,public.card_printing_profile=0,public.card_printing_profile_trait=0,public.card_printing_trait=0,public.card_set=2,public.card_set_external_reference=0,public.card_variant=4,public.card_variant_type=4,public.catalog_admin_action_log=2,public.catalog_variant_import_job=5,public.catalog_variant_import_row=5,public.expansion=2,public.game=2,public.rarity=2
+K1IMG=K1IMG|14|a25b063c890e73c51ce3895ea9c72cdb
+divergencias=
+

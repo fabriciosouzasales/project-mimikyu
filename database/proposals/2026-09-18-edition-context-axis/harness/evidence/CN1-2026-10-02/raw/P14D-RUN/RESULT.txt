@@ -1,0 +1,47 @@
+﻿CN1-P14D-DISPOSAL-RUNNER-CORRECTION-02  RESULT  utc=2026-10-03T02:32:49.7562926Z
+script_md5=8f41e742122cce050a429ee60f7c8803
+fase_final=D archive_criado=True descarte_iniciado=True
+passos: B_copy=OK B_manifest=OK C1_stop=rc=0 C3_network=OK C4_dpapi=OK C5_dirs=OK B_failed_copy=OK C6_failed=OK
+manifest_md5=5d4897b27c440836af3f90a421656e52 manifest_files=605 manifest_bytes=5114977
+archive=C:\b12-archive\CN1-P14D (fora de C:\b12-cn1, fora do repo, fora de C:\b12-pg17)
+
+A1_paths_isolated                        PASS | wd=C:\b12-cn1 archive=C:\b12-archive\CN1-P14D (novo; fora de C:\b12-cn1, do repo e de C:\b12-pg17)
+A2_k2_pass_adjudicated                   PASS | md5_ok=True gates=42 todos_pass=True verdict=True cenarios=True raw23505_false=True estado_32=True log5=True sess0=True dl0=True k1=True
+A3_evidence_inventory_pinned             PASS | pastas=18/18 nomes_ok=True pin_divergentes=0 ocultos=0 proibidos=0 bytes=5060449
+A4_workdir_layout                        PASS | top_ok=True secrets_ok=True link_artifacts=0 config_toml=True
+A4f_failed_attempt_frozen                PASS | encontradas=1 exata=True isolada=True reparse=0 proibidos=0 result_cn1_1=True config=True fp=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6
+A5_stack_cli_loopback                    PASS | cli=2.109.1 stack=supabase_db_b12-cn1=running/healthy supabase_auth_b12-cn1=running/healthy supabase_rest_b12-cn1=running/nohc supabase_kong_b12-cn1=running/healthy auth=200 rest=200 listeners=127.0.0.1:54321 pid=36932,127.0.0.1:54322 pid=36932
+A6_docker_inventory_cn1                  PASS | containers=4 ok=True volumes=2 ok=True redes=b12-cn1-localhost ok=True b12pg17_fora=True
+A7_db_final_state                        PASS | estado=1|1|5|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|32 k1chk=K1CHK|4|1|5|2 k1img_ok=True sess=SESS|0|0 HACT|0 DL|0 img_igual_k2=True
+A8_b12pg17_repo_nolive_baseline          PASS | pg17_ok=True vol=True head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0 env_hits=0 token=False
+A9_credential_acl_and_dpapi              PASS | acl_ok=True dpapi_ok=True
+A10_sources_secret_clean_before_archive  PASS | arquivos=605/605 segredos=0 jwt_like=0 sb_keys=0 erros=0 valores_carregados=7
+B1_archive_copy_verified                 PASS | pastas=18 divergencias=0 (fingerprint por pasta: caminho|bytes|md5 de cada arquivo)
+B1f_failed_attempt_copy_verified         PASS | reparse_pre_copia=[raiz=normal descendentes_reparse=0 erros_enumeracao=0] origem=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6 copia=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6 erro=[]
+B2_manifest_written_verified             PASS | manifest_md5=5d4897b27c440836af3f90a421656e52 arquivos=605 bytes=5114977
+B3_archive_no_secrets                    PASS | arquivos=621 segredos=0 jwt_like=0 sb_keys=0 proibidos=0 valores_carregados=7
+B4_originals_unchanged_after_copy        PASS | 18 pastas identicas=True
+B4f_failed_origin_unchanged              PASS | fp=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6 identica_ao_congelado=True
+B5_archive_readonly                      PASS | arquivos ainda gravaveis=0 (evidence-snapshot + failed-attempt-snapshot + MANIFEST + meta marcados somente leitura)
+C1_supabase_stop_no_backup               PASS | rc=0
+C2_cn1_containers_volumes_absent         PASS | containers=0 volumes=0 (residuo => STOP, sem remocao improvisada)
+C3_cn1_network_removed                   PASS | redes_restantes= acao=[b12-cn1-localhost rc=0]
+C4_dpapi_removed                         PASS | acao=removida
+C5_operational_dirs_removed              PASS | secrets removido; supabase removido
+C6_failed_attempt_removed                PASS | acao=removida
+D1_no_cn1_docker_objects                 PASS | containers=0 volumes=0 redes=0 nomes_inventariados_ainda_existentes=0
+D2_no_cn1_listeners                      PASS | listeners 54320-54329=
+D3_no_cn1_processes                      PASS | processos com 'b12-cn1' na linha de comando=
+D4_workdir_evidence_only                 PASS | C:\b12-cn1 contem=evidence (somente evidencia, intocada)
+D5_evidence_originals_intact             PASS | 18 pastas originais identicas ao inicio=True
+D6_archive_intact                        PASS | recalculo_igual=True manifest_md5_ok=True meta_md5_ok=True ev_gravaveis=0 fa_gravaveis=0 manifest_ro=True meta_ro=True
+D7_b12pg17_intact                        PASS | container_identico=True volume_identico=True dir_identico=True imagens_identicas=True
+D8_repo_unchanged                        PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+D9_no_live                               PASS | env_hits=0 token=False (runner sem link/db push/--linked; unico host 127.0.0.1)
+D10_no_secrets_in_p14d_evidence          PASS | arquivos=27 segredos=0 jwt_like=0 sb_keys=0
+D11_no_failed_attempt_dirs               PASS | b12-cn1.failed-attempt-* restantes= (listagem somente leitura)
+
+VERDICT: CN1 P14(d) = PASS (evidencia preservada e manifestada fora da area operacional; DPAPI removida; containers/volumes/rede/config/dados do CN1 e a tentativa falha (preservada antes) descartados; zero b12-cn1.failed-attempt-*; b12-pg17 e repo intactos; nenhum LIVE)
+
+--- execution log ---
+[02:32:23.328] start CN1-P14D-DISPOSAL-RUNNER-CORRECTION-02 md5=8f41e742122cce050a429ee60f7c8803

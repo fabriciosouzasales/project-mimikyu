@@ -1,0 +1,25 @@
+﻿CN1-4-P14A-LOCAL-CAPTURE-01  RESULT  utc=2026-10-02T17:10:40.4719504Z
+script_md5=f3f70799d9767fb1ccf384084572a3f9
+p14a_sql_md5_pin=2738566c55f7a4792159362ce29bb3e0
+
+P1_stack_healthy                 PASS | supabase_db_b12-cn1=running/healthy supabase_auth_b12-cn1=running/healthy supabase_rest_b12-cn1=running/nohc supabase_kong_b12-cn1=running/healthy
+P2_listeners_loopback            PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+P3_auth_rest_http200             PASS | /auth/v1/health=200 /rest/v1/=200
+P4_b12pg17_running_healthy       PASS | status=running health=healthy started=2026-10-02T11:42:37.774075531Z restarts=0 image=supabase/postgres:17.6.1.147 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"55432"}]}
+P5_repo_head_clean               PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+P6_sql_pinned                    PASS | md5=2738566c55f7a4792159362ce29bb3e0 bytes=14610 cr=0
+P7_no_live_dependency            PASS | env_hits=0 access_token=False link=0 api=http://127.0.0.1:54321 db_loopback=True
+P8_db_state_cn1_3                PASS | state=1|1|0|1|on
+C1_capture_readonly_rc0          PASS | rc=0 ctr_md5_ok=True output=True
+C2_capture_shape                 PASS | itens_esperados=31/31 extras=0 context=1 aggregates=2 status: ABSENT_OK=4 PRESENT=27
+V1_db_state_unchanged            PASS | before=1|1|0|1|on after=1|1|0|1|on
+V2_auth_rest_healthy             PASS | /auth/v1/health=200 /rest/v1/=200
+V3_listeners_loopback_after      PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+V4_b12pg17_untouched             PASS | estado identico antes/depois
+V5_repo_unchanged                PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+V6_no_secrets_in_evidence        PASS | segredos=0 jwt_like=0
+
+VERDICT: CN1-4 CAPTURE = PASS (saida CN1 de P14A capturada; paridade NAO decidida: requer captura LIVE e comparacao)
+
+--- execution log ---
+[17:10:34] start CN1-4-P14A-LOCAL-CAPTURE-01 md5=f3f70799d9767fb1ccf384084572a3f9

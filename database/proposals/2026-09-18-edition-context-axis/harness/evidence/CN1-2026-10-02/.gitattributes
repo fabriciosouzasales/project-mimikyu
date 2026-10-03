@@ -1,0 +1,2 @@
+# Evidência primária: bytes preservados como estão (sem normalização de fim de linha).
+raw/** -text

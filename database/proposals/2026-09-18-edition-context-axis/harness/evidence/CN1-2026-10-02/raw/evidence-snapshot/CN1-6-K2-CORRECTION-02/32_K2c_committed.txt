@@ -1,0 +1,6 @@
+﻿obtido = KC|FAILED:NEW:NULL:NULL|true:true:true:true|1|0|c16b0200-0000-4000-8000-000000000053:c16b0200-0000-4000-8000-000000000012:2|COMPLETED_WITH_ERRORS:1:0:0:1|1:COMPLETED_WITH_ERRORS|5
+esperado= KC|FAILED:NEW:NULL:NULL|true:true:true:true|1|0|c16b0200-0000-4000-8000-000000000053:c16b0200-0000-4000-8000-000000000012:2|COMPLETED_WITH_ERRORS:1:0:0:1|1:COMPLETED_WITH_ERRORS|5
+colunas: tag|RC persist:match:resulting:matched|prefixo UNRESOLVED:constraint=uq_card_variant_card_order:writer_attempted=true:table=card_variant|variants Card C|variants (C,T2)|variant:tipo:ordem|JC|log JC (admin):final_status|log total
+error_detail completo:
+CARD_VARIANT_UNIQUE_VIOLATION_UNRESOLVED: viola├º├úo de unicidade na Card c16b0200-0000-4000-8000-000000000023 n├úo classific├ível como corrida benigna pela identidade de 4 componentes. writer_attempted=true schema=public table=card_variant constraint=uq_card_variant_card_order Detalhe: duplicate key value violates unique constraint "uq_card_variant_card_order"
+

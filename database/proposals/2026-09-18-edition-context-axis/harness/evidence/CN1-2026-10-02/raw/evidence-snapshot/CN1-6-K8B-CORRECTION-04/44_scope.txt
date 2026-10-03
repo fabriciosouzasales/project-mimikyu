@@ -1,0 +1,4 @@
+﻿executado: setup S (COMMIT somente do fixture K8b), cenario K8b A/B/C sem COMMIT (A/C/B ROLLBACK), teardown T (COMMIT da remocao exata do fixture)
+confirm chamado 1x por B (authenticated + claims do admin real, revertido)
+NAO executado: K1, K2, P9b/A2, HTTP RPC, LIVE, repo/git (somente leitura de HEAD/status)
+

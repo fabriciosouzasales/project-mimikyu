@@ -1,0 +1,8 @@
+﻿mecanismo: Open-Session (o mesmo de A/B/OBS), sem stdbuf, sem transacao, sem claims
+PROBE1: ok=True linha=PROBE1|22637 ms=162
+PROBE2: ok=True linha=PROBE2|22637 ms=2
+mesmo_backend=True
+exit_code_apos_q=0
+sessao_residual_cn1-5-PROBE=0 rc=0
+timeout_por_marcador_ms=30000
+

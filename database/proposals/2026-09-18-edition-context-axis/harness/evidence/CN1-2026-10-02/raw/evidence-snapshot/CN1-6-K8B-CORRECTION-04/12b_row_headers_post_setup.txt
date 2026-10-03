@@ -1,0 +1,5 @@
+﻿colunas: HDR|id|ctid|xmin|xmax (capturado em autocommit apos S2, antes do cenario)
+rc=0
+HDR|c16b8b00-0000-4000-8000-000000000021|(0,5)|1119|1119
+HDR|c16b8b00-0000-4000-8000-000000000022|(0,6)|1119|1119
+

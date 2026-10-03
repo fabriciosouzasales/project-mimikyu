@@ -1,0 +1,13 @@
+﻿pasta=C:\b12-cn1\evidence\CN1-6-K2-CORRECTION-02 (IMUTAVEL)
+script_md5_esperado=7aaefe324ccc1f44118eeec5a7d5bb65 md5_ok=True
+gates_lidos=42 (esperado 42) duplicados=0 todos_PASS=True
+VERDICT PASS=True
+cenarios K2.d/K2.b/K2.c=PASS: True
+raw_23505_to_http=False nos 3: True
+estado final 1|1|5|1|<admin>|32: True
+action_log=5 (K2.e): True
+sessoes residuais=0 e HACT|0: True
+delta_deadlocks=0: True
+K1 intacto (K1IMG identico, K1CHK|4|1|5|2): True
+V1..V6 incluidos nos 42 gates PASS
+

@@ -1,0 +1,5 @@
+﻿A=PRE|22681|supabase_admin||NONE|on|0
+B=PRE|22683|supabase_admin||NONE|on|0
+OBS=PRE|22682|supabase_admin||NONE|on|0
+(PRE fora de transacao: current_user=supabase_admin, claims vazias, nenhum xid atribuido, read_only=on)
+

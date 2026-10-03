@@ -1,0 +1,5 @@
+﻿evidencia_anterior=C:\b12-cn1\evidence\CN1-5-P14BC
+antes=files=13 md5=1783e283dac7cbcac8d7e9b578788b91
+depois=files=13 md5=1783e283dac7cbcac8d7e9b578788b91
+linha_P9_anterior=P9_persistent_tooling                  STOP |
+

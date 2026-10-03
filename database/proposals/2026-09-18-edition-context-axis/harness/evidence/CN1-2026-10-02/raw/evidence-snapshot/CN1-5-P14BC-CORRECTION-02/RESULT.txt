@@ -1,0 +1,47 @@
+﻿CN1-5-P14BC-CHANNEL-PROOF-CORRECTION-02  RESULT  utc=2026-10-02T20:15:42.0569965Z
+script_md5=7a3b39ac29fe68f7b642e90a2b895f96
+tentativa_anterior=CN1-5-P14BC-CHANNEL-PROOF-01 (CORRECTION-01): STOP em P9_persistent_tooling (stdbuf ausente) antes de B1/B2; evidencia preservada em C:\b12-cn1\evidence\CN1-5-P14BC ; linha P9 registrada=P9_persistent_tooling                  STOP |
+
+P1_stack_healthy                       PASS | supabase_db_b12-cn1=running/healthy supabase_auth_b12-cn1=running/healthy supabase_rest_b12-cn1=running/nohc supabase_kong_b12-cn1=running/healthy
+P2_listeners_loopback                  PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+P3_auth_rest_http200                   PASS | /auth/v1/health=200 /rest/v1/=200
+P4_b12pg17_running_healthy             PASS | status=running health=healthy started=2026-10-02T11:42:37.774075531Z restarts=0 image=supabase/postgres:17.6.1.147 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"55432"}]}
+P5_repo_head_clean                     PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+P6_no_live_dependency                  PASS | env_hits=0 access_token=False link=0 api=http://127.0.0.1:54321 db_loopback=True
+P7_db_state_cn1_3                      PASS | state=1|1|0|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93
+P8_credential_acl_and_dpapi            PASS | acl_ok=True dpapi_ok=True
+P9_persistent_tooling                  PASS | psql (PostgreSQL) 17.6
+P10_streaming_probe                    PASS | probe1_ok=True probe2_ok=True pid=PROBE1|22637/PROBE2|22637 exit=0 residual=0
+B1_1_jwt_real_auth                     PASS | http=200 user_id_match=True
+B1_2_jwt_claims                        PASS | sub_match=True role=authenticated aud=authenticated exp=2026-10-02T21:15:37Z
+B1_3_auth_user_endpoint                PASS | http=200
+B1_4_rpc_is_admin_jwt_true             PASS | http=200 body=true
+B1_5_anon_not_admin                    PASS | http=200 body=false (exigido: 200/false)
+B1_6_tampered_rejected                 PASS | http=401
+B1_7_per_request_isolation             PASS | jwt:200/true ; anon:200/false ; jwt:200/true ; anon:200/false ; jwt:200/true ; anon:200/false (exigido: 3x jwt:200/true e 3x anon:200/false)
+B2_1_sessions_open_pre_state           PASS | A=PRE|22681|supabase_admin||NONE|on|0 ; B=PRE|22683|supabase_admin||NONE|on|0 ; OBS=PRE|22682|supabase_admin||NONE|on|0 pids_distintos=3
+B2_2_A_identity_in_tx                  PASS | uid=True/True is_admin=t/t current_user=authenticated/authenticated
+B2_3_A_persistence                     PASS | pid=22681/22681/22681 txid=1105/1105 now_eq=True clock_diff=True
+B2_4_B_identity_in_tx                  PASS | uid=True/True is_admin=t/t current_user=authenticated/authenticated
+B2_5_B_persistence                     PASS | pid=22683/22683/22683 txid=1106/1106 now_eq=True clock_diff=True
+C1_observer_idle_in_tx_backend_xid     PASS | linhas=2 A=True B=True
+C2_sessions_distinct                   PASS | pid A/B/OBS=22681/22683/22682 txid A/B=1105/1106
+R1_rollback_reconfirm                  PASS | A: END=END|22681|1105|2026-10-02 20:15:38.163351+00 POST=POST|22681|supabase_admin||NONE ; B: END=END|22683|1106|2026-10-02 20:15:39.381635+00 POST=POST|22683|supabase_admin||NONE
+R2_no_residual_sessions                PASS | left=LEFT|0 exit=0/0/0 residual=0
+V1_db_state_unchanged                  PASS | before=1|1|0|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93 after=1|1|0|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93
+V2_auth_rest_healthy                   PASS | /auth/v1/health=200 /rest/v1/=200
+V3_listeners_loopback_after            PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+V4_b12pg17_untouched                   PASS | estado identico antes/depois
+V5_repo_unchanged                      PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+V6_no_secrets_in_evidence              PASS | segredos=0 jwt_like=0
+V7_prior_evidence_preserved            PASS | before=files=13 md5=1783e283dac7cbcac8d7e9b578788b91 after=files=13 md5=1783e283dac7cbcac8d7e9b578788b91
+
+VERDICT: CN1-5 P14(b1)+(b2)/(c) = PASS (canais provados no CN1; K1/K2/K8b NAO executados)
+
+--- execution log ---
+[20:15:31.877] start CN1-5-P14BC-CHANNEL-PROOF-CORRECTION-02 md5=7a3b39ac29fe68f7b642e90a2b895f96
+[20:15:31.963] evidencia anterior C:\b12-cn1\evidence\CN1-5-P14BC fingerprint=files=13 md5=1783e283dac7cbcac8d7e9b578788b91 (somente leitura)
+[20:15:37.218] sessao PROBE aberta (processo local pid 24800)
+[20:15:37.984] sessao A aberta (processo local pid 48056)
+[20:15:37.984] sessao B aberta (processo local pid 26824)
+[20:15:37.999] sessao OBS aberta (processo local pid 40016)

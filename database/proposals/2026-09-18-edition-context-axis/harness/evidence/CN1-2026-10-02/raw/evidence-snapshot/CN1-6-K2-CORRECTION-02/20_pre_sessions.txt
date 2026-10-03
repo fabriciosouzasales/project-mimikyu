@@ -1,0 +1,4 @@
+﻿D e OBS: supabase_admin, SEM claims, sem read-only; nunca chamam o confirm
+D=PRE|38098|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K2-D
+OBS=PRE|38099|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K2-OBS
+

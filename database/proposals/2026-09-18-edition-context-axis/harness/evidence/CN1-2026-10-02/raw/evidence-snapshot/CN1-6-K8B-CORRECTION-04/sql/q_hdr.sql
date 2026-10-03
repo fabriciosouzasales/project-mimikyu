@@ -1,0 +1,1 @@
+select 'HDR|' || c.id::text || '|' || c.ctid::text || '|' || c.xmin::text || '|' || c.xmax::text from public.card c where c.id in ('c16b8b00-0000-4000-8000-000000000021'::uuid, 'c16b8b00-0000-4000-8000-000000000022'::uuid) order by c.id;

@@ -1,0 +1,5 @@
+﻿arquivo=sql\k2_setup.sql md5=b50a6177f24376113b9ccd8345d8cb3e
+rc=0
+K2_SETUP_OK
+fixture_presente=20 (esperado 20)
+

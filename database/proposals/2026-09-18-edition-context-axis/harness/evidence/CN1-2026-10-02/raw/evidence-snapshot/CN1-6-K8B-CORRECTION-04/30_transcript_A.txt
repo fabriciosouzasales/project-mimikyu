@@ -1,0 +1,16 @@
+﻿>> \set VERBOSITY verbose
+SELECT 'PRE', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE'),
+       current_setting('transaction_read_only'), current_setting('default_transaction_read_only'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'statement_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'lock_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'idle_in_transaction_session_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'deadlock_timeout'),
+       current_setting('application_name');
+<< PRE|33516|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-A
+>> BEGIN;
+SELECT 'ALOCK', c.id::text, pg_backend_pid(), (txid_current() % 4294967296)::text FROM public.card c WHERE c.id = 'c16b8b00-0000-4000-8000-000000000021'::uuid FOR UPDATE;
+<< ALOCK|c16b8b00-0000-4000-8000-000000000021|33516|1120
+>> ROLLBACK;
+SELECT 'POST', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE');
+<< POST|33516|supabase_admin||NONE
+

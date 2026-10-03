@@ -1,0 +1,4 @@
+﻿CN1-3 PASS dirs=CN1-3-CORRECTION-03
+CN1-3 uuid (10_u1_auth_create.txt)=6afeaf71-8e6f-4954-8a43-14a21c1deb93
+CN1-5 dir=C:\b12-cn1\evidence\CN1-5-P14BC-CORRECTION-02 script_md5_esperado=7a3b39ac29fe68f7b642e90a2b895f96 pass=True
+

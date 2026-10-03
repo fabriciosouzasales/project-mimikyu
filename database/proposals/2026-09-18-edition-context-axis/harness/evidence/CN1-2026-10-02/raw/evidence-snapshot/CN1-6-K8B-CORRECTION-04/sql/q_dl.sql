@@ -1,0 +1,1 @@
+select 'DL|' || deadlocks::text from pg_catalog.pg_stat_database where datname = current_database();

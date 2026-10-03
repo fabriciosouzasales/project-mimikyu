@@ -1,0 +1,8 @@
+﻿recalculo ArchManifest == manText: True
+MANIFEST.md5.txt md5 atual=5d4897b27c440836af3f90a421656e52 congelado=5d4897b27c440836af3f90a421656e52
+MANIFEST.meta.txt md5 atual=66d388512718ea5f09bf566d74398938 congelado=66d388512718ea5f09bf566d74398938
+evidence-snapshot gravaveis=0
+failed-attempt-snapshot gravaveis=0
+MANIFEST somente leitura=True
+meta somente leitura=True
+

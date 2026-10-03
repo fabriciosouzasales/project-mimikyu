@@ -1,0 +1,7 @@
+﻿CLAIMS=CLAIMS|t
+IN1=IN1|22683|1106|1106|2026-10-02 20:15:39.381635+00|2026-10-02 20:15:39.383702+00|6afeaf71-8e6f-4954-8a43-14a21c1deb93|t|authenticated|supabase_admin
+IN2=IN2|22683|1106|1106|2026-10-02 20:15:39.381635+00|2026-10-02 20:15:40.594179+00|6afeaf71-8e6f-4954-8a43-14a21c1deb93|t|authenticated|supabase_admin
+colunas IN: tag|pg_backend_pid|txid_current|xid32|now|clock_timestamp|auth.uid|is_admin|current_user|session_user
+identidade: auth.uid=UUID admin real, is_admin=t, current_user=authenticated (claims via set_config(..., true) DENTRO da transacao)
+persistencia: pid PRE=IN1=IN2, txid IN1=IN2, now IN1=IN2, clock_timestamp IN1<>IN2 (statements separados, 1,2 s de intervalo)
+

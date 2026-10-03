@@ -1,0 +1,6 @@
+﻿colunas: tag|application_name|pid|state|backend_xid|xact_start|usename
+OBS|cn1-5-A|22681|idle in transaction|1105|2026-10-02 20:15:38.163351+00|supabase_admin
+OBS|cn1-5-B|22683|idle in transaction|1106|2026-10-02 20:15:39.381635+00|supabase_admin
+esperado A: pid=22681 state=idle in transaction backend_xid=1105 xact_start=2026-10-02 20:15:38.163351+00
+esperado B: pid=22683 state=idle in transaction backend_xid=1106 xact_start=2026-10-02 20:15:39.381635+00
+

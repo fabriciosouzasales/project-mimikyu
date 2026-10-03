@@ -1,0 +1,4 @@
+﻿K1IMG inicio=K1IMG|14|a25b063c890e73c51ce3895ea9c72cdb
+K1IMG final =K1IMG|14|a25b063c890e73c51ce3895ea9c72cdb
+K1CHK final=K1CHK|4|1|5|2 (variants totais|variants K1 C|logs totais|logs K1 admin; esperado K1CHK|4|1|5|2)
+

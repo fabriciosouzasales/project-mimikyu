@@ -1,0 +1,12 @@
+﻿cli=2.109.1
+supabase_db_b12-cn1=running/healthy
+supabase_auth_b12-cn1=running/healthy
+supabase_rest_b12-cn1=running/nohc
+supabase_kong_b12-cn1=running/healthy
+api_url=http://127.0.0.1:54321
+/auth/v1/health=200 /rest/v1/=200
+listeners 54320-54329:
+127.0.0.1:54321 pid=36932
+127.0.0.1:54322 pid=36932
+segredos do status carregados SO em memoria para varredura: 5
+

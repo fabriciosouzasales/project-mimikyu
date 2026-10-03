@@ -1,0 +1,11 @@
+﻿pg_db_role_setting (anon/authenticated/authenticator):
+anon=[statement_timeout=3s]
+authenticated=[statement_timeout=8s]
+authenticator=[session_preload_libraries=supautils, safeupdate,statement_timeout=8s,lock_timeout=8s]
+bloqueantes (caminho do confirm K2 via JWT real role=authenticated): authenticated=8000 ok=True authenticator=8000 ok=True
+(codigos: -3 papel ausente, -2 statement_timeout ausente, -1 nao reconhecido; 0 = sem limite)
+anon_statement_timeout_ms=3000 (DIAGNOSTICO; anon so participa do probe negativo de is_admin, nao do confirm; fora do criterio)
+budget_relevante_ms=8000 (0 = sem limite); exigido para cada papel bloqueante: 0 ou >= 4000 ms
+orcamento do runner: 1a observacao <= 3000 ms + 2a observacao ~500 ms + snapshot + COMMIT de D imediato
+nenhuma configuracao de role/database alterada
+

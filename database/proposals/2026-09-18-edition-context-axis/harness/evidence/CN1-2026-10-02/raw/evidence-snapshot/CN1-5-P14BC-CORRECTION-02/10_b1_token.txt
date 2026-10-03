@@ -1,0 +1,7 @@
+﻿POST http://127.0.0.1:54321/auth/v1/token?grant_type=password (credencial do CN1-3 em memoria)
+http=200
+token_type=bearer
+user_id=6afeaf71-8e6f-4954-8a43-14a21c1deb93
+user_id_matches_admin_uuid=True
+(JWT/refresh nao registrados)
+

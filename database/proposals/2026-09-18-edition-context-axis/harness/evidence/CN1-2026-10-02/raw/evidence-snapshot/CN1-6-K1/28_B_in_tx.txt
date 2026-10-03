@@ -1,0 +1,4 @@
+﻿BV=BV|1|4a8153a7-4905-4860-ac1b-bc2f33022856|4a8153a7-4905-4860-ac1b-bc2f33022856|1|1|COMPLETED:1:0:1:0|1|2|2
+colunas: tag|row B UNCHANGED/MATCHED|matched|resulting|variants da identidade|variants da Card C|JB status:total:inserted:unchanged:failed|log JB (admin, COMPLETED)|log total|log K1 (JA+JB, admin, COMPLETED)
+esperado: BV|1|4a8153a7-4905-4860-ac1b-bc2f33022856|4a8153a7-4905-4860-ac1b-bc2f33022856|1|1|COMPLETED:1:0:1:0|1|2|2
+

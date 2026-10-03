@@ -1,0 +1,8 @@
+﻿origem=C:\b12-cn1.failed-attempt-20261002T011523Z
+destino=C:\b12-archive\CN1-P14D\failed-attempt-snapshot\b12-cn1.failed-attempt-20261002T011523Z
+prova de reparse antes da copia: raiz=normal descendentes_reparse=0 erros_enumeracao=0
+erro=[]
+origem fp=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6
+copia fp=files=25 bytes=54528 md5=25e504b4ec2b6048f132ea722ebd30e6
+identico por caminho/bytes/md5=True
+

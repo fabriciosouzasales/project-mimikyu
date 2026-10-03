@@ -1,0 +1,4 @@
+﻿A: END=END|22681|1105|2026-10-02 20:15:38.163351+00 POST=POST|22681|supabase_admin||NONE
+B: END=END|22683|1106|2026-10-02 20:15:39.381635+00 POST=POST|22683|supabase_admin||NONE
+END: pid/txid/now iguais aos de IN2 antes do ROLLBACK; POST: mesmo pid, current_user=supabase_admin, claims vazias, nenhum xid (transacao encerrada por ROLLBACK)
+

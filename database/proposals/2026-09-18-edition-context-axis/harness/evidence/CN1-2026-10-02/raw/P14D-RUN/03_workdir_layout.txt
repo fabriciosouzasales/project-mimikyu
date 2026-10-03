@@ -1,0 +1,10 @@
+﻿top-level=evidence,secrets,supabase (esperado: evidence,secrets,supabase)
+secrets=\cn1-3-admin.dpapi
+artefatos de vinculo=
+supabase\ (md5  bytes  caminho; conteudo nao copiado):
+29689201c3cecf8e28b5b662bb74fc45  15593  config.toml
+353d5deaaad0edf6cf41bef74488800f  926464  .temp\pgdelta\catalog-local-migrations-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-1790903807094.json
+7b33045d20179b31e8ce7ab9f76f254a  15588  config.toml.init-original
+ddf3cfc4872f30e44f1a638404957ec3  8  .temp\cli-latest
+fad58de7366495db4650cfefac2fcd61  4  .branches\_current_branch
+

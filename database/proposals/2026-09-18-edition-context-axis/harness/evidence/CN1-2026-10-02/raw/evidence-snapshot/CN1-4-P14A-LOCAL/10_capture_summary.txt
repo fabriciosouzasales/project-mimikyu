@@ -1,0 +1,41 @@
+﻿itens_esperados=31 (contrato=31) extras=0
+status: ABSENT_OK=4 PRESENT=27
+context: search_path="\$user", public, extensions server_version_num=170006
+agg_raw=6e2ef02eb70c4c47103bb89d813288cd agg_lf=e926f44dc930f08cb81a65d8a72e1549
+itens_com_CR: FUNCTION:internal.write_card_variant, FUNCTION:internal.guard_cvir_normalized_shape, FUNCTION:internal.enforce_card_variant_edition_context_profile_game
+
+por item (tipo | schema.tabela | nome | assinatura | expectativa | status | md5_raw | md5_lf | bytes):
+FUNCTION | public. | admin_confirm_catalog_variant_import | uuid, uuid[] | PRESENT | PRESENT | 7f44620286540623cdcc93f0b26948ef | 7f44620286540623cdcc93f0b26948ef | 20429
+FUNCTION | internal. | write_card_variant | text, uuid, uuid, uuid, integer, uuid, uuid | PRESENT | PRESENT | cd4d1f204176d4b740d6a367d81180a6 | 41779a26659b5c2ea81708f391c582f9 | 3073
+FUNCTION | internal. | guard_cvir_normalized_shape |  | PRESENT | PRESENT | fa775c39bf062d271f872735c253eac1 | 3f44cea5c7b447793837b467ce6a9c87 | 3828
+FUNCTION | internal. | enforce_card_variant_edition_context_profile_game |  | PRESENT | PRESENT | 63ea94e477e56040a92e082773507e74 | e0a721dacef40bc46ca23c9feba2700f | 1614
+FUNCTION | internal. | axis_identity_token | jsonb, text | PRESENT | PRESENT | c883e99b15c0a6927aa0ba81b2a8320e | c883e99b15c0a6927aa0ba81b2a8320e | 499
+FUNCTION | internal. | resolve_variant_row_axes | jsonb, uuid, uuid, text | PRESENT | PRESENT | cce8ee981fbddf4372a81405921e02f6 | cce8ee981fbddf4372a81405921e02f6 | 10770
+INDEX | public.card_variant | card_variant_pkey |  | PRESENT | PRESENT | 01d36b3d6c2cdfdca91060b141a6dafe | 01d36b3d6c2cdfdca91060b141a6dafe | 77
+INDEX | public.card_variant | uq_card_variant_card_order |  | PRESENT | PRESENT | 0e3f1d2d078d9fb0c072628849ebd138 | 0e3f1d2d078d9fb0c072628849ebd138 | 106
+INDEX | public.card_variant | uq_card_variant_id_card |  | PRESENT | PRESENT | 6fcdd801db9b350cc3909212e56955ce | 6fcdd801db9b350cc3909212e56955ce | 92
+INDEX | public.card_variant | uq_card_variant_identity |  | PRESENT | PRESENT | 51ae4dc2185061c8ba0a62aeba031da0 | 51ae4dc2185061c8ba0a62aeba031da0 | 174
+INDEX | public.card_variant | uq_card_variant_one_default_per_card |  | PRESENT | PRESENT | d235534e67bc2f1d2a78eb433cbb5859 | d235534e67bc2f1d2a78eb433cbb5859 | 127
+INDEX | public.catalog_variant_import_row | catalog_variant_import_row_pkey |  | PRESENT | PRESENT | 1ae3e085a5ffb18aafda54479797fec8 | 1ae3e085a5ffb18aafda54479797fec8 | 105
+INDEX | public.catalog_variant_import_row | uq_cvir_row_identity |  | PRESENT | PRESENT | ad46a9fedb3517431ecbbb0324d959c9 | ad46a9fedb3517431ecbbb0324d959c9 | 381
+INDEX | public.card_variant | uq_card_variant_card_type_no_printing |  | ABSENT | ABSENT_OK |  |  | 0
+INDEX | public.card_variant | uq_card_variant_card_type_printing |  | ABSENT | ABSENT_OK |  |  | 0
+INDEX | public.catalog_variant_import_row | uq_cvir_job_card_type_no_printing |  | ABSENT | ABSENT_OK |  |  | 0
+INDEX | public.catalog_variant_import_row | uq_cvir_job_card_type_printing |  | ABSENT | ABSENT_OK |  |  | 0
+CONSTRAINT | public.card_variant | card_variant_pkey |  | PRESENT | PRESENT | 4c6419b3704337bbfe50f018842a9ad3 | 4c6419b3704337bbfe50f018842a9ad3 | 16
+CONSTRAINT | public.card_variant | uq_card_variant_card_order |  | PRESENT | PRESENT | 897ec07d1362ff661d03636a44cb8f00 | 897ec07d1362ff661d03636a44cb8f00 | 31
+CONSTRAINT | public.card_variant | uq_card_variant_id_card |  | PRESENT | PRESENT | d79c38299976e19944d08259d8d20330 | d79c38299976e19944d08259d8d20330 | 20
+CONSTRAINT | public.card_variant | uq_card_variant_identity |  | PRESENT | PRESENT | c634fadb16025cefff08653aca11ed46 | c634fadb16025cefff08653aca11ed46 | 101
+CONSTRAINT | public.catalog_variant_import_row | catalog_variant_import_row_pkey |  | PRESENT | PRESENT | 4c6419b3704337bbfe50f018842a9ad3 | 4c6419b3704337bbfe50f018842a9ad3 | 16
+TRIGGER | public.card_variant | trg_card_variant_edition_context_profile_game |  | PRESENT | PRESENT | 9395792744286f4efdbb7fca2cade1c9 | 9395792744286f4efdbb7fca2cade1c9 | 237
+TRIGGER | public.card_variant | trg_card_variant_printing_profile_game |  | PRESENT | PRESENT | da2e10593fb315b6bba654d018bf1aca | da2e10593fb315b6bba654d018bf1aca | 216
+TRIGGER | public.card_variant | trg_card_variant_set_updated_at |  | PRESENT | PRESENT | 7310feac0d88be08a6ae3c3f647fc9f8 | 7310feac0d88be08a6ae3c3f647fc9f8 | 130
+TRIGGER | public.card_variant | trg_card_variant_validate_game_consistency |  | PRESENT | PRESENT | b708d3347904d89b1ffcc782fe2fb365 | b708d3347904d89b1ffcc782fe2fb365 | 203
+TRIGGER | public.catalog_variant_import_job | trg_catalog_variant_import_job_normalize |  | PRESENT | PRESENT | 169b952f9a529225f3339f08b361a33a | 169b952f9a529225f3339f08b361a33a | 185
+TRIGGER | public.catalog_variant_import_job | trg_catalog_variant_import_job_set_updated_at |  | PRESENT | PRESENT | d31b290f0a947b2bdaf7c33c1bbd48f7 | d31b290f0a947b2bdaf7c33c1bbd48f7 | 158
+TRIGGER | public.catalog_variant_import_row | trg_catalog_variant_import_row_normalize |  | PRESENT | PRESENT | 412395f40956ab01d2628c0948b1a269 | 412395f40956ab01d2628c0948b1a269 | 185
+TRIGGER | public.catalog_variant_import_row | trg_catalog_variant_import_row_set_updated_at |  | PRESENT | PRESENT | 58b6186ec4af10de610d0c1aab4ae72d | 58b6186ec4af10de610d0c1aab4ae72d | 158
+TRIGGER | public.catalog_variant_import_row | trg_cvir_normalized_shape |  | PRESENT | PRESENT | bb3f2c88a8857ab3b2a3e85bb58cb841 | bb3f2c88a8857ab3b2a3e85bb58cb841 | 228
+
+NOTA: resumo LOCAL do CN1. Nao e veredito de paridade; a classificacao EXACT/EOL_ONLY/DIVERGENT/MISSING exige a captura LIVE do MESMO SQL.
+

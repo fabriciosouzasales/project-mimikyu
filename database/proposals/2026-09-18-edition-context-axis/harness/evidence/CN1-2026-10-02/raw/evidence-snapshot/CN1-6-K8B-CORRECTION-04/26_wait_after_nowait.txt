@@ -1,0 +1,6 @@
+﻿W3=W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|2.394|t
+WA=WA|33516|idle in transaction|1120
+t_cliente_ms(W3, antes do envio)=2377 ok=True motivo=[]
+deadlock_timeout_ms=1000 limiar_ms=2300 (2 x deadlock_timeout + 300)
+evidencia complementar (nao autoridade): query_start=2026-10-03T00:14:18.249006Z state_change=2026-10-03T00:14:18.249008Z waited_s=2.394
+

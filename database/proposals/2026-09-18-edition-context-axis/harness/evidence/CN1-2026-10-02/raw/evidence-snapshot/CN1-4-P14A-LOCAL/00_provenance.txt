@@ -1,0 +1,7 @@
+﻿script=CN1-4-P14A-LOCAL-CAPTURE-01
+script_path=C:\Users\Administrador\Downloads\CN1-4-P14A-LOCAL-CAPTURE-01.ps1
+script_md5=f3f70799d9767fb1ccf384084572a3f9
+workdir=C:\b12-cn1
+db_container=supabase_db_b12-cn1
+start_utc=2026-10-02T17:10:34.2893767Z
+

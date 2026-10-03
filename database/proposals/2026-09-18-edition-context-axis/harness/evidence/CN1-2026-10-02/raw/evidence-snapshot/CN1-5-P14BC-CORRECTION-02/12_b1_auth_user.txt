@@ -1,0 +1,4 @@
+﻿GET /auth/v1/user (JWT real)
+http=200
+id_matches_admin_uuid=True
+

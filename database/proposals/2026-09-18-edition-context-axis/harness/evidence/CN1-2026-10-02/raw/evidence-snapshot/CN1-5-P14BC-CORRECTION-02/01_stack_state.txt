@@ -1,0 +1,5 @@
+﻿supabase_db_b12-cn1=running/healthy
+supabase_auth_b12-cn1=running/healthy
+supabase_rest_b12-cn1=running/nohc
+supabase_kong_b12-cn1=running/healthy
+

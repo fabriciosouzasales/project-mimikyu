@@ -1,0 +1,52 @@
+﻿CN1-6-K8B-RUNNER-CORRECTION-04  RESULT  utc=2026-10-03T00:14:23.2316836Z
+script_md5=29ce3c0aae139a24ff4ffc5999fcc45b
+setup_sql_md5=594d045dc73fe7d5e42ad625fb217b1c teardown_sql_md5=52b6b461acaf77407cf838a3537fd5b6 setup_commit=True setup_validated=True teardown_attempted=True teardown_commit=True
+
+P1_stack_healthy                       PASS | supabase_db_b12-cn1=running/healthy supabase_auth_b12-cn1=running/healthy supabase_rest_b12-cn1=running/nohc supabase_kong_b12-cn1=running/healthy
+P2_listeners_loopback                  PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+P3_auth_rest_http200                   PASS | /auth/v1/health=200 /rest/v1/=200
+P4_b12pg17_running_healthy             PASS | status=running health=healthy started=2026-10-02T11:42:37.774075531Z restarts=0 image=supabase/postgres:17.6.1.147 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"55432"}]}
+P5_repo_head_clean                     PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+P6_no_live_dependency                  PASS | env_hits=0 access_token=False link=0 api=http://127.0.0.1:54321 db_loopback=True
+P7_prior_pass_provenance               PASS | cn1_3_pass_dirs=1 uuid3_ok=True cn1_5_c02_pass=True
+P7b_prior_attempt_c02                  PASS | fingerprint=files=34 md5=ee6f99d048ac080c1451bf4fbd9fbf63 md5_ok=True stop_K8B_6=True teardown_ok=True
+P7c_prior_attempt_c03                  PASS | fingerprint=files=38 md5=7b3894e1ff44077f75d78e34072b0b70 md5_ok=True stop_erro_script=True k6_pass_k7_open=True teardown_ok=True
+P8_db_baseline                         PASS | state=1|1|0|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|0 uuid_eq_cn1_3=True sessoes_cn1_6=0 setup_md5_ok=True teardown_md5_ok=True
+P9_persistent_tooling                  PASS | psql (PostgreSQL) 17.6
+P10_streaming_probe                    PASS | pid=PROBE1|33434|off|off/PROBE2|33434 exit=0 residual=0
+S0_baseline_image                      PASS | img_lines=14 deadlocks0=0
+S1_setup_commit                        PASS | rc=0 fixture=11
+S2_setup_postcheck_img1                PASS | fixture somente; divergencias=nenhuma
+S3_row_headers_post_setup              PASS | X0=HDR|c16b8b00-0000-4000-8000-000000000021|(0,5)|1119|1119 Y0=HDR|c16b8b00-0000-4000-8000-000000000022|(0,6)|1119|1119
+K8B_PRE_sessions                       PASS | A=PRE|33516|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-A ; B=PRE|33518|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-B ; C=PRE|33517|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-C pids_distintos=3
+K8B-1                                  PASS | pids A/B/C=33516/33518/33517 distintos; nao read-only; B: uid_ok=True is_admin=t current_user=authenticated
+K8B-2                                  PASS | [apos ROLLBACK] A travou somente X (c16b8b00-0000-4000-8000-000000000021) pid=33516 A_xid=1120; transcricao completa de A sem Y=True; ROLLBACK ok=True
+K8B-3                                  PASS | B state=active wait=Lock/transactionid query_is_confirm=t
+K8B-4                                  PASS | pg_blocking_pids(B)={33516} esperado={33516}
+K8B-5                                  PASS | B espera transactionid=A_xid(1120) granted=f: 1; B tuple lock em ctid(X)=(0,5): 1; B lock em ctid(Y)=(0,6): 0
+K8B-6                                  PASS | xmax(X)=1120 A_xid=1120 backend_xid(A)=1120; Y: ctid=(0,6) (Y0 (0,6)) xmax=1119 (Y0 1119) backend_xid(B)=1121 (exigido: header de Y = Y0 e xmax(Y) <> xid de B)
+K8B-7                                  PASS | espera continua observada no cliente=2377 ms (limiar 2300 ms = 2 x 1000 + 300); W3 motivo=[]; todas as observacoes WaitSame=True; mesmo query_start=2026-10-03T00:14:18.249006Z; complementar waited_s=2.394 state_change=2026-10-03T00:14:18.249008Z
+K8B-8                                  PASS | NOWAIT_Y linhas=1 id_ok=True erros=0 C_pos_rollback_xid=NONE
+K8B-9                                  PASS | retorno=2|0|0|0|COMPLETED (esperado 2|0|0|0|COMPLETED) erros=0
+K8B-9X_in_tx_effects                   PASS | BV=2|1|1|2|COMPLETED:2:2:0:0|1|1
+K8B-10                                 PASS | 40P01=False 55P03=False delta_deadlocks=0
+R_no_residual_sessions                 PASS | left_AB=LEFTAB|0 exit=0/0/0 residual=0
+K8B-11                                 PASS | IMG2=IMG1:True (action_log liquido 0, 0 variants, job/rows no estado pos-setup)
+T1_teardown_commit                     PASS | rc=0 fixture_restante=0
+K8B-12                                 PASS | IMG3=IMG0:True estado=1|1|0|1|6afeaf71-8e6f-4954-8a43-14a21c1deb93|0 delta_deadlocks=0
+V1_auth_rest_healthy                   PASS | /auth/v1/health=200 /rest/v1/=200
+V2_listeners_loopback_after            PASS | listeners=127.0.0.1:54322,127.0.0.1:54321
+V3_b12pg17_untouched                   PASS | estado identico antes/depois
+V4_repo_unchanged                      PASS | head=e449bdd544aba5e53e0ae24ac4fc28e4c1990615 lines=0
+V5_no_secrets_in_evidence              STOP | segredos=3 jwt_like=0
+V6_prior_evidence_preserved            PASS | dirs=14 identico=True CN1-6-K8B identico=True CN1-6-K8B-CORRECTION-03 identico=True
+
+VERDICT: CN1-6 K8b = STOP  (V5_no_secrets_in_evidence : segredos=3 jwt_like=0)
+
+--- execution log ---
+[00:14:09.722] start CN1-6-K8B-RUNNER-CORRECTION-04 md5=29ce3c0aae139a24ff4ffc5999fcc45b
+[00:14:16.581] sessao PROBE aberta (processo local pid 45008)
+[00:14:18.068] sessao A aberta (processo local pid 46216)
+[00:14:18.068] sessao B aberta (processo local pid 47100)
+[00:14:18.081] sessao C aberta (processo local pid 47764)
+[00:14:18.249] B: confirm enviado (marcador __CN16_B_3__)

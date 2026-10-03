@@ -1,0 +1,161 @@
+﻿>> \set VERBOSITY verbose
+SELECT 'PRE', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE'),
+       current_setting('transaction_read_only'), current_setting('default_transaction_read_only'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'statement_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'lock_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'idle_in_transaction_session_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'deadlock_timeout'),
+       current_setting('application_name');
+<< PRE|33517|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-C
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|0.007|t
+<< WA|33516|idle in transaction|1120
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.138|t
+<< WA|33516|idle in transaction|1120
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+SELECT 'L', l.pid, l.locktype, coalesce(l.relation::regclass::text, ''), coalesce(l.relation = 'public.card'::regclass, false),
+       coalesce(l.page::text, ''), coalesce(l.tuple::text, ''), coalesce(l.transactionid::text, ''), coalesce(l.virtualxid, ''), l.mode, l.granted
+  FROM pg_catalog.pg_locks l WHERE l.pid IN (33516, 33518) ORDER BY l.pid, l.granted, l.locktype, l.mode;
+SELECT 'XY', c.id::text, c.ctid::text, c.xmax::text FROM public.card c WHERE c.id IN ('c16b8b00-0000-4000-8000-000000000021'::uuid, 'c16b8b00-0000-4000-8000-000000000022'::uuid) ORDER BY c.id;
+SELECT 'DT', setting FROM pg_catalog.pg_settings WHERE name = 'deadlock_timeout';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.148|t
+<< WA|33516|idle in transaction|1120
+<< L|33516|relation|idx_card_category_id|f|||||RowShareLock|t
+<< L|33516|relation|uq_card_card_set_collector_order|f|||||RowShareLock|t
+<< L|33516|relation|uq_card_card_set_collector_number|f|||||RowShareLock|t
+<< L|33516|relation|card_pkey|f|||||RowShareLock|t
+<< L|33516|relation|card|t|||||RowShareLock|t
+<< L|33516|relation|ix_card_collector_number_normalized|f|||||RowShareLock|t
+<< L|33516|relation|ix_card_name_trgm|f|||||RowShareLock|t
+<< L|33516|relation|idx_card_rarity_id|f|||||RowShareLock|t
+<< L|33516|transactionid||f|||1120||ExclusiveLock|t
+<< L|33516|virtualxid||f||||92/53|ExclusiveLock|t
+<< L|33518|transactionid||f|||1120||ShareLock|f
+<< L|33518|relation|ix_catalog_variant_import_row_matched_variant|f|||||AccessShareLock|t
+<< L|33518|relation|ix_catalog_variant_import_row_job|f|||||AccessShareLock|t
+<< L|33518|relation|ix_catalog_variant_import_row_card|f|||||AccessShareLock|t
+<< L|33518|relation|catalog_variant_import_row_pkey|f|||||AccessShareLock|t
+<< L|33518|relation|catalog_variant_import_row|f|||||AccessShareLock|t
+<< L|33518|relation|uq_card_set_expansion_promo|f|||||AccessShareLock|t
+<< L|33518|relation|uq_card_set_expansion_release_order|f|||||AccessShareLock|t
+<< L|33518|relation|uq_card_set_expansion_code|f|||||AccessShareLock|t
+<< L|33518|relation|card_set_pkey|f|||||AccessShareLock|t
+<< L|33518|relation|card_set|f|||||AccessShareLock|t
+<< L|33518|relation|admin_user_pkey|f|||||AccessShareLock|t
+<< L|33518|relation|admin_user|f|||||AccessShareLock|t
+<< L|33518|relation|uq_cvir_row_identity|f|||||AccessShareLock|t
+<< L|33518|relation|ix_catalog_variant_import_row_job_persistence|f|||||AccessShareLock|t
+<< L|33518|relation|ix_catalog_variant_import_row_job_decision|f|||||AccessShareLock|t
+<< L|33518|relation|ix_catalog_variant_import_row_job_validation|f|||||AccessShareLock|t
+<< L|33518|relation|ix_catalog_variant_import_job_card_set|f|||||RowShareLock|t
+<< L|33518|relation|ix_catalog_variant_import_job_active|f|||||RowShareLock|t
+<< L|33518|relation|card_pkey|f|||||RowShareLock|t
+<< L|33518|relation|idx_card_rarity_id|f|||||RowShareLock|t
+<< L|33518|relation|idx_card_category_id|f|||||RowShareLock|t
+<< L|33518|relation|uq_card_card_set_collector_order|f|||||RowShareLock|t
+<< L|33518|relation|uq_card_card_set_collector_number|f|||||RowShareLock|t
+<< L|33518|relation|ix_card_name_trgm|f|||||RowShareLock|t
+<< L|33518|relation|card|t|||||RowShareLock|t
+<< L|33518|relation|ix_card_collector_number_normalized|f|||||RowShareLock|t
+<< L|33518|relation|uq_catalog_variant_import_job_fingerprint_active|f|||||RowShareLock|t
+<< L|33518|relation|catalog_variant_import_job_pkey|f|||||RowShareLock|t
+<< L|33518|relation|catalog_variant_import_job|f|||||RowShareLock|t
+<< L|33518|transactionid||f|||1121||ExclusiveLock|t
+<< L|33518|tuple|card|t|0|5|||AccessExclusiveLock|t
+<< L|33518|virtualxid||f||||96/51|ExclusiveLock|t
+<< XY|c16b8b00-0000-4000-8000-000000000021|(0,5)|1120
+<< XY|c16b8b00-0000-4000-8000-000000000022|(0,6)|1119
+<< DT|1000
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.299|t
+<< WA|33516|idle in transaction|1120
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.567|t
+<< WA|33516|idle in transaction|1120
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|1.831|t
+<< WA|33516|idle in transaction|1120
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|2.101|t
+<< WA|33516|idle in transaction|1120
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|2.364|t
+<< WA|33516|idle in transaction|1120
+>> BEGIN;
+\set ON_ERROR_STOP off
+SELECT 'NOWAIT_Y', c.id::text, pg_backend_pid() FROM public.card c WHERE c.id = 'c16b8b00-0000-4000-8000-000000000022'::uuid FOR UPDATE NOWAIT;
+\set ON_ERROR_STOP on
+ROLLBACK;
+SELECT 'NOWAIT_POST', coalesce(txid_current_if_assigned()::text, 'NONE');
+<< NOWAIT_Y|c16b8b00-0000-4000-8000-000000000022|33517
+<< NOWAIT_POST|NONE
+>> SELECT 'W', a.pid, a.state, coalesce(a.wait_event_type, ''), coalesce(a.wait_event, ''), coalesce(a.backend_xid::text, 'NULL'),
+       pg_catalog.pg_blocking_pids(a.pid)::text,
+       to_char(a.query_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       to_char(a.state_change AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+       round(extract(epoch FROM (clock_timestamp() - a.query_start))::numeric, 3),
+       (position('admin_confirm_catalog_variant_import' in a.query) > 0)
+  FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-B';
+SELECT 'WA', a.pid, a.state, coalesce(a.backend_xid::text, 'NULL') FROM pg_catalog.pg_stat_activity a WHERE a.application_name = 'cn1-6-K8B-A';
+<< W|33518|active|Lock|transactionid|1121|{33516}|2026-10-03T00:14:18.249006Z|2026-10-03T00:14:18.249008Z|2.394|t
+<< WA|33516|idle in transaction|1120
+>> SELECT 'LEFTAB', count(*) FROM pg_catalog.pg_stat_activity WHERE application_name IN ('cn1-6-K8B-A', 'cn1-6-K8B-B');
+<< LEFTAB|0
+

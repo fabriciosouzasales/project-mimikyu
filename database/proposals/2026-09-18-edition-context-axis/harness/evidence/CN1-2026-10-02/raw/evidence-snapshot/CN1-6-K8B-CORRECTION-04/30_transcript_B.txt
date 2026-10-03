@@ -1,0 +1,35 @@
+﻿>> \set VERBOSITY verbose
+SELECT 'PRE', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE'),
+       current_setting('transaction_read_only'), current_setting('default_transaction_read_only'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'statement_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'lock_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'idle_in_transaction_session_timeout'),
+       (SELECT setting FROM pg_catalog.pg_settings WHERE name = 'deadlock_timeout'),
+       current_setting('application_name');
+<< PRE|33518|supabase_admin||NONE|off|off|0|0|0|1000|cn1-6-K8B-B
+>> BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT 'CLAIMS', length(set_config('request.jwt.claims', '{"aud":"authenticated","sub":"6afeaf71-8e6f-4954-8a43-14a21c1deb93","role":"authenticated"}', true)) > 0;
+SELECT 'IN1', pg_backend_pid(), coalesce(auth.uid()::text, 'NULL'), public.is_admin(), current_user, session_user, current_setting('transaction_read_only'), current_setting('statement_timeout'), current_setting('lock_timeout');
+<< CLAIMS|t
+<< IN1|33518|6afeaf71-8e6f-4954-8a43-14a21c1deb93|t|authenticated|supabase_admin|off|0|0
+>> SELECT 'CONFIRM', inserted_count, unchanged_count, failed_count, pending_count, job_status FROM public.admin_confirm_catalog_variant_import('c16b8b00-0000-4000-8000-000000000031'::uuid, NULL::uuid[]);
+<< CONFIRM|2|0|0|0|COMPLETED
+>> RESET ROLE;
+SELECT 'BV',
+  (SELECT count(*) FROM public.catalog_variant_import_row r WHERE r.job_id = 'c16b8b00-0000-4000-8000-000000000031'::uuid AND r.persistence_status = 'INSERTED' AND r.match_status = 'NEW'
+      AND r.resulting_variant_id IS NOT NULL AND r.matched_variant_id IS NULL AND r.error_detail IS NULL),
+  (SELECT count(*) FROM public.card_variant v WHERE v.card_id = 'c16b8b00-0000-4000-8000-000000000021'::uuid),
+  (SELECT count(*) FROM public.card_variant v WHERE v.card_id = 'c16b8b00-0000-4000-8000-000000000022'::uuid),
+  (SELECT count(*) FROM public.card_variant v JOIN public.catalog_variant_import_row r ON r.resulting_variant_id = v.id AND r.card_id = v.card_id
+      WHERE r.job_id = 'c16b8b00-0000-4000-8000-000000000031'::uuid AND v.variant_type_id = 'c16b8b00-0000-4000-8000-000000000011'::uuid AND v.variant_order = 1 AND v.printing_profile_id IS NULL
+        AND v.edition_context_profile_id IS NULL AND v.is_default = false),
+  (SELECT j.status || ':' || j.total_rows || ':' || j.inserted_rows || ':' || j.unchanged_rows || ':' || j.failed_rows FROM public.catalog_variant_import_job j WHERE j.id = 'c16b8b00-0000-4000-8000-000000000031'::uuid),
+  (SELECT count(*) FROM public.catalog_admin_action_log l WHERE l.entity_id = 'c16b8b00-0000-4000-8000-000000000031'::uuid AND l.actor_id = '6afeaf71-8e6f-4954-8a43-14a21c1deb93'::uuid
+      AND l.action = 'CARD_VARIANT_IMPORT_CONFIRMED' AND l.entity_type = 'CATALOG_VARIANT_IMPORT_JOB' AND l.metadata ->> 'final_status' = 'COMPLETED'),
+  (SELECT count(*) FROM public.catalog_admin_action_log);
+<< BV|2|1|1|2|COMPLETED:2:2:0:0|1|1
+>> ROLLBACK;
+SELECT 'POST', pg_backend_pid(), current_user, coalesce(current_setting('request.jwt.claims', true), ''), coalesce(txid_current_if_assigned()::text, 'NONE');
+<< POST|33518|supabase_admin||NONE
+

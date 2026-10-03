@@ -1,0 +1,9 @@
+﻿POST http://127.0.0.1:54321/rest/v1/rpc/is_admin
+[JWT real] http=200 body=true
+[anon] http=200 body=false (exigido 200/false)
+[assinatura adulterada] http=401
+[intercalado JWT/anon x3] jwt:200/true ; anon:200/false ; jwt:200/true ; anon:200/false ; jwt:200/true ; anon:200/false
+nota: cada requisicao HTTP do PostgREST roda em transacao propria com claims transaction-local; a alternancia sem vazamento e a prova observavel.
+nota: este canal NAO e usado para provar continuidade transacional (isso e b2/c).
+admin_confirm_catalog_variant_import: NAO chamada.
+

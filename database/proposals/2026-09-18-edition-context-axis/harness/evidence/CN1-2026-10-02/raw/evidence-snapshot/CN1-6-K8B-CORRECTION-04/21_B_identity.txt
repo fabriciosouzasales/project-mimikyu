@@ -1,0 +1,5 @@
+﻿CLAIMS=CLAIMS|t
+IN1=IN1|33518|6afeaf71-8e6f-4954-8a43-14a21c1deb93|t|authenticated|supabase_admin|off|0|0
+colunas IN1: tag|pid|auth.uid|is_admin|current_user|session_user|transaction_read_only|statement_timeout|lock_timeout
+uuid_admin=6afeaf71-8e6f-4954-8a43-14a21c1deb93 (= CN1-3 PASS)
+

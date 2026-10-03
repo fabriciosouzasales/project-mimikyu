@@ -1,0 +1,4 @@
+﻿BV=BV|2|1|1|2|COMPLETED:2:2:0:0|1|1
+colunas: tag|rows INSERTED/NEW/resulting|variants X|variants Y|variants da identidade (T,ord1,NULL,NULL,!default)|job status:total:inserted:unchanged:failed|log do JB (admin, COMPLETED)|log total
+esperado: BV|2|1|1|2|COMPLETED:2:2:0:0|1|1
+

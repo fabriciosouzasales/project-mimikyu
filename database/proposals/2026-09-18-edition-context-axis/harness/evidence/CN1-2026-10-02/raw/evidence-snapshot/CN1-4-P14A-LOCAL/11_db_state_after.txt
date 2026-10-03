@@ -1,0 +1,2 @@
+﻿auth.users|admin_user|catalog_admin_action_log|admin_user_match_auth|transaction_read_only=1|1|0|1|on rc=0
+

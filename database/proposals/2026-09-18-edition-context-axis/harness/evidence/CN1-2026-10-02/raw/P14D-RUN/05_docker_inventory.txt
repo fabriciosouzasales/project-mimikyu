@@ -1,0 +1,19 @@
+﻿containers CN1 (label com.supabase.cli.project=b12-cn1 + nome _b12-cn1):
+supabase_auth_b12-cn1
+supabase_db_b12-cn1
+supabase_kong_b12-cn1
+supabase_rest_b12-cn1
+volumes CN1:
+supabase_db_b12-cn1
+supabase_edge_runtime_b12-cn1
+redes CN1:
+b12-cn1-localhost
+conectados a b12-cn1-localhost: supabase_rest_b12-cn1,supabase_db_b12-cn1,supabase_kong_b12-cn1,supabase_auth_b12-cn1
+imagens (registro; nenhuma sera removida):
+public.ecr.aws/supabase/edge-runtime:v1.74.2 sha256:a82676277615aee03c4f288cbbbf68dedb5ba8693073e567ab8dbfdd11ba5d45
+public.ecr.aws/supabase/gotrue:v2.192.0 sha256:b252efb680be37d4a8bf77c210cf0439c19b63a4b51929233a65dd101d25bdab
+public.ecr.aws/supabase/kong:2.8.1 sha256:1b53405d8680a09d6f44494b7990bf7da2ea43f84a258c59717d4539abf09f6d
+public.ecr.aws/supabase/postgres:17.6.1.143 sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453
+public.ecr.aws/supabase/postgrest:v14.14 sha256:d2009b5c9deffc210c8a5592698472fede14fd9f6ca89823c8474ca54d58c012
+supabase/postgres:17.6.1.147 sha256:ac581882596ed0e46937ea6dd53a627d09f53e005d7264c2082a7ff7b62eaaca
+

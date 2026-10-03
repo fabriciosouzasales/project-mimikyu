@@ -1,0 +1,1 @@
+select count(*) from pg_catalog.pg_stat_activity where application_name = 'cn1-6-K1-PROBE';
