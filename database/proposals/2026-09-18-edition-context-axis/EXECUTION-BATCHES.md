@@ -1244,6 +1244,11 @@ SELECT count(*) AS antigos_staging FROM pg_class  -- 0
 
 ## Batch 12 — HARNESS + UNFREEZE
 
+> **ESTADO CORRENTE (2026-10-04, `BATCH12-FORMAL-UNFREEZE-CLOSEOUT-01`):** Fabrício autorizou formalmente o UNFREEZE ("Autorizo formalmente o UNFREEZE.", sobre o HEAD `1c10ef23`) — `harness/UNFREEZE-AUTHORIZATION-RECORD.md`.
+> **A, B, C, D CLOSED · E1, E2, E3 CLOSED · E4 SATISFIED · BATCH 12 / `2830` CLOSED · FREEZE do `EDITION-CONTEXT-AXIS` ENCERRADO · UNFREEZE FORMALMENTE AUTORIZADO / COMPLETED.**
+> Nenhum SQL, LIVE, importação ou canary foi executado neste closeout; a compatibilidade do eixo 3 com importação real continua não provada.
+> **NEXT = CANARY REAL PÓS-UNFREEZE** (mandato próprio). `2831` → `2213` só depois do canary aprovado. Os blocos abaixo são histórico.
+
 > **ESTADO VIGENTE (2026-10-01, `BATCH12-E15-FINAL-LIVE-EVIDENCE-CLOSEOUT-01`):**
 > `2830` **135/135 automáticos** — último lote L13/E15 executado uma única vez
 > no LIVE, **PASS** (`H283P` `pass=5/5`, casos 5.1/5.2/5.3/5.6/5.7; evidência
@@ -1332,10 +1337,10 @@ Rodada só documental. Nenhum SQL foi executado, nenhum teste foi executado e n�
 | **E1** | A, B, C e D integralmente satisfeitos e **registrados na documentação (EXECUTION-BATCHES, HANDOFF, log)** | **Reavaliação 2026-10-04 (`BATCH12-P14A-P14E-D4-E1-INDEPENDENT-CLOSEOUT-01`):** **A** — A1, A3, A4, A5 CLOSED; A2 v7.0 NOT SATISFIED AS WRITTEN (permanente), sucedido por **A2′ CLOSED** (v7.2 + P9(a)). **B** — 135/135 CLOSED. **C** — C1/D6, C2/D7, C3/D8 CLOSED. **D** — D1/K1, D2/K2, D3/K8b CLOSED / CONTRACTUALLY ACCEPTED; D4 CLOSED (P14(a) + P14(c)); D5 v7.0 sucedido por **D5′ CLOSED** (6.1′ v7.3 + 6.2 MANTER); D6 (6.3) CLOSED. P14(a)–(e) CLOSED. Registro: EXECUTION-BATCHES, `docs/log.md` e **HANDOFF** (`docs/development/HANDOFF-2026-09-16.md` v1.21, §0-DUODECIES, `BATCH12-E1-HANDOFF-REGISTRATION-CLOSEOUT-01`) | **CLOSED** (2026-10-04) — A/B/C/D CLOSED + registrados em EXECUTION-BATCHES, HANDOFF e log; sem sucessora para E1 | — *(Texto anterior: P14(a)/(e), D1–D4 e E2 PARTIAL/OPEN; depois, em 2026-10-04, OPEN só pelo registro no HANDOFF — superado.)* |
 | **E2** | K2 executado e aceito | K2 executado no CN-1: EXECUTION PASS (`harness/evidence/CN1-2026-10-02/`); D4 CLOSED (2026-10-04) ⇒ K2 contratualmente aceito | **CLOSED** (2026-10-04, `BATCH12-P14A-P14E-D4-E1-INDEPENDENT-CLOSEOUT-01`) | — *(texto anterior: executado, ainda não aceito contratualmente; a aceitação dependia de D4)* |
 | **E3** | baseline inalterado, zero job em voo, zero lock residual | E3 JIT 2026-10-04: S1 L1 PASS · S2 L3 inicial PASS · S3 E00 PASS por adjudicação (FREEZE-CANON íntegro; `action_log` +2 NON-BLOCKING / OUTSIDE FREEZE-CANON) · S4 L3 final PASS; auditoria independente PASS — `harness/LIVE-E3-JIT-EXECUTION-RECORD.md`; evidência `harness/evidence/E3-JIT-FINAL-PRECHECK-2026-10-04/` (18/18 + 24/24) | **CLOSED** (2026-10-04, `BATCH12-E3-INDEPENDENT-CLOSEOUT-01`) | — *(texto anterior: snapshot de 2026-10-01; PARTIAL; re-provar no UNFREEZE)* |
-| **E4** | mandato formal de UNFREEZE de Fabrício | — | **NÃO SATISFEITO** — aguarda a decisão formal de UNFREEZE por Fabrício | **critério de autorização, não work item**: é satisfeito pela própria decisão de Fabrício, se autorizada; nenhum UNFREEZE ocorreu *(texto anterior: OPEN; último passo)* |
+| **E4** | mandato formal de UNFREEZE de Fabrício | Fabrício, 2026-10-04: "Autorizo formalmente o UNFREEZE." — `harness/UNFREEZE-AUTHORIZATION-RECORD.md` | **SATISFIED** (2026-10-04, `BATCH12-FORMAL-UNFREEZE-CLOSEOUT-01`) | critério de autorização, não work item *(texto anterior: NÃO SATISFEITO — aguardava a decisão formal; antes disso: OPEN; último passo)* |
 | **E5** | requisitos da 2213 (L1–L9) **não** são condição | definição contratual | CLOSED | — |
 
-**Estado:** harness automático CLOSED; **Batch 12 global OPEN**; **FREEZE ATIVO**; UNFREEZE **não autorizado**.
+**Estado (2026-10-04):** **Batch 12 / `2830` CLOSED**; E4 SATISFIED; **FREEZE ENCERRADO**; **UNFREEZE COMPLETED**; canary não executado. *(Texto anterior: harness automático CLOSED; Batch 12 global OPEN; FREEZE ATIVO; UNFREEZE não autorizado.)*
 
 **Menor sequência restante até a elegibilidade ao UNFREEZE:**
 
@@ -1347,8 +1352,9 @@ Rodada só documental. Nenhum SQL foi executado, nenhum teste foi executado e n�
 6. **P9a** — **CONCLUÍDO (2026-10-03)**: EXPLAIN (COSTS OFF) LIVE das seções B, M e 5.2/5.3/5.7 (P9A-B, P9A-M, P9A-5X, P9A-D1X), L3 PASS, auditoria independente PASS — `harness/LIVE-P9A-HEAVY-EXECUTION-RECORD.md`; evidência `harness/evidence/P9A-HEAVY-LIVE-2026-10-03/`. P9(a) CLOSED ⇒ A2′ CLOSED ⇒ **FASE 6 — CLOSED**.
 7. **Registro de E1 no HANDOFF** — **CONCLUÍDO (2026-10-04)**, `BATCH12-E1-HANDOFF-REGISTRATION-CLOSEOUT-01`: `HANDOFF-2026-09-16.md` v1.21 (§0-DUODECIES) registra A/B/C/D CLOSED; com isso **E1 CLOSED**.
 8. **E3 JIT — precheck final do FREEZE** — **CONCLUÍDO (2026-10-04)**, `BATCH12-E3-INDEPENDENT-CLOSEOUT-01`: S1–S4 PASS (S3 por adjudicação), E3 CLOSED — `harness/LIVE-E3-JIT-EXECUTION-RECORD.md`. *(Texto anterior: próxima frente vigente, não executado.)*
-9. **Decisão formal de UNFREEZE por Fabrício** — **próximo (2026-10-04)**. Se autorizada, satisfaz o critério E4 da 2830; E4 não é tarefa separada. Nenhum UNFREEZE ocorreu. *(Texto anterior: "Mandato formal de UNFREEZE de Fabrício (E4)".)*
-   Depois do UNFREEZE, sequência já definida (`ROLLOUT-ORDER.md` etapas 17–18; HANDOFF: importação real não provada sob FREEZE): canary real pós-UNFREEZE → `2831` → `2213` → Variant Display / roadmap vigente.
+9. **Decisão formal de UNFREEZE por Fabrício** — **CONCLUÍDO (2026-10-04)**, `BATCH12-FORMAL-UNFREEZE-CLOSEOUT-01`: "Autorizo formalmente o UNFREEZE." — E4 SATISFIED; FREEZE encerrado; Batch 12 / `2830` CLOSED (`harness/UNFREEZE-AUTHORIZATION-RECORD.md`). *(Texto anterior: próximo; nenhum UNFREEZE ocorrera.)*
+10. **Canary real pós-UNFREEZE** — **NEXT**; mandato próprio; não executado. Prova a compatibilidade do eixo 3 com importação real.
+   Depois do canary aprovado: `2831` → `2213` → Variant Display / roadmap vigente (`ROLLOUT-ORDER.md` etapa 18).
 
 > **READINESS AUDIT concluída — NOT READY / BLOCKED**
 > (`BATCH12-2830-READINESS-AUDIT-01`, 2026-09-26, SELECT-only). A `2830` v6.3
