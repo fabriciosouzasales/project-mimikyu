@@ -94,3 +94,11 @@ Os registros também contêm, sem valor secreto: caminhos locais, PIDs, xids, UU
 - Uma execução por cenário, no CN-1 local. Não é prova no LIVE.
 - **P14(a) e P14(e) abertos.** A paridade LIVE×CN1 não está provada no repositório. A 2830 v7.0 diz: "Divergência = K1/K2/K8b não aceitos". A D4 faz de P14(a)+P14(c) condição de validade de D1–D3. Por isso, K1/K2/K8b ficam em **EXECUTION PASS · CONTRACTUAL ACCEPTANCE OPEN**: D1/D2/D3 PARTIAL/OPEN, D4 PARTIAL/OPEN, E2 PARTIAL/OPEN.
 - Se a evidência LIVE original da P14(a) for encontrada, a reavaliação exige mandato próprio.
+
+## 7. Nota de sucessão (2026-10-04, `BATCH12-P14A-P14E-D4-E1-INDEPENDENT-CLOSEOUT-01`)
+
+As seções 4 e 6 registram o estado desta preservação em 2026-10-03 e continuam valendo como fato histórico: naquela data o lado LIVE da P14(a) faltava, e a captura LIVE original **continua não recuperável**.
+
+Em 2026-10-04 a lacuna foi sanada por uma **nova captura LIVE** (`BATCH12-P14A-LIVE-CAPTURE-EXECUTION-01`), com o **mesmo SQL pinado** do CN1-4 (`P14A_FINGERPRINT.sql`, md5 `2738566c55f7a4792159362ce29bb3e0`, submetido byte-idêntico). A comparação LIVE × CN1 contra o `P14A_CN1_OUTPUT.csv` desta pasta (md5 `07cbe136…`) deu **`PASS_EXACT`**: 31/31 EXACT, contexto igual, `agg_raw` e `agg_lf` iguais. Auditoria independente PASS. Registro: `../../LIVE-P14A-EXECUTION-RECORD.md`; evidência: `../P14A-LIVE-CAPTURE-2026-10-04/`.
+
+Estado contratual resultante: **P14(a) CLOSED · P14(e) CLOSED · D4 CLOSED · D1/D2/D3 CLOSED / CONTRACTUALLY ACCEPTED · E2 CLOSED** (E1 conforme `../../../EXECUTION-BATCHES.md`). A execução CN-1 não muda: os RESULT brutos desta pasta, inclusive o STOP por V5 do K8b, ficam como estão. Nenhum arquivo de `raw/` foi alterado.

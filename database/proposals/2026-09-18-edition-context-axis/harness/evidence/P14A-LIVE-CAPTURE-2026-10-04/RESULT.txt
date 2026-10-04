@@ -1,0 +1,14 @@
+BATCH12-P14A-LIVE-CAPTURE-EXECUTION-01 — 2026-10-04 (UTC)
+Baseline repo: HEAD b95f57e584a3c7899c8c09f02ba8cf3567ca5d1a, árvore e índice limpos (antes e depois).
+Canal: MCP Supabase execute_sql, projeto qjfutqujxrbzgrtkpgkg. Exatamente 2 chamadas LIVE.
+S1 L3   envio 2026-10-04T00:58:26.615Z (cliente) · checked_at servidor 2026-10-04T00:56:32.228183Z
+        submetido == L3.sql (md5 b7bc3700aeef278f6a79bd30e6a8d229, 1526 B) · PASS
+        locks_on_scope=[]; 25 client backend, todas idle, xact_start=null.
+S2 P14A envio 2026-10-04T00:59:21.075Z (cliente)
+        submetido == P14A_FINGERPRINT.sql byte a byte (md5 2738566c55f7a4792159362ce29bb3e0, 14610 B, CR=0, LF final)
+        34 linhas: ITEM 31 · CONTEXT 1 (session/90001) · AGGREGATE 2 (agg_raw/90002, agg_lf/90003)
+Comparador p14a_compare.py (md5 c1feb5076e281deaf0a67e722871900c) vs cn1 P14A_CN1_OUTPUT.csv (md5 07cbe1369cf2768f00a72f17bd5dfdb3)
+        VERDICT PASS_EXACT · rc=0 · EXACT 31/31 · contexto igual · agg_raw e agg_lf iguais ao CN1.
+Integridade: zero escrita, zero DDL, zero SET, zero retry; nenhuma alteração do repo.
+Estado: P14(a) EVIDENCE COMPLETE — PASS_EXACT / AWAITING INDEPENDENT CLOSEOUT
+Nada aqui fecha P14(a)/P14(e)/D4/D1–D3/E2/E1. FREEZE ATIVO.

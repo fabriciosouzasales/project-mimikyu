@@ -1,0 +1,39 @@
+baseline_cn1: items=31 status={'PRESENT': 27, 'ABSENT_OK': 4} agg_recomputed_ok=True
+live_shape_ok=True 
+live: items=31 matched=31 extra=0 agg_integrity=True
+counts={'EXACT': 31}
+context_equal=True cn1=('search_path="\\$user", public, extensions', 'server_version_num=170006') live=('search_path="\\$user", public, extensions', 'server_version_num=170006')
+agg_raw: cn1=6e2ef02eb70c4c47103bb89d813288cd live=6e2ef02eb70c4c47103bb89d813288cd equal=True
+agg_lf: cn1=e926f44dc930f08cb81a65d8a72e1549 live=e926f44dc930f08cb81a65d8a72e1549 equal=True
+ 10001 EXACT       FUNCTION   public. admin_confirm_catalog_variant_import (uuid, uuid[]) 
+ 10002 EXACT       FUNCTION   internal. write_card_variant (text, uuid, uuid, uuid, integer, uuid, uuid) 
+ 10003 EXACT       FUNCTION   internal. guard_cvir_normalized_shape () 
+ 10004 EXACT       FUNCTION   internal. enforce_card_variant_edition_context_profile_game () 
+ 10005 EXACT       FUNCTION   internal. axis_identity_token (jsonb, text) 
+ 10006 EXACT       FUNCTION   internal. resolve_variant_row_axes (jsonb, uuid, uuid, text) 
+ 20001 EXACT       INDEX      public.card_variant card_variant_pkey () 
+ 20002 EXACT       INDEX      public.card_variant uq_card_variant_card_order () 
+ 20003 EXACT       INDEX      public.card_variant uq_card_variant_id_card () 
+ 20004 EXACT       INDEX      public.card_variant uq_card_variant_identity () 
+ 20005 EXACT       INDEX      public.card_variant uq_card_variant_one_default_per_card () 
+ 20006 EXACT       INDEX      public.catalog_variant_import_row catalog_variant_import_row_pkey () 
+ 20007 EXACT       INDEX      public.catalog_variant_import_row uq_cvir_row_identity () 
+ 20008 EXACT       INDEX      public.card_variant uq_card_variant_card_type_no_printing () 
+ 20009 EXACT       INDEX      public.card_variant uq_card_variant_card_type_printing () 
+ 20010 EXACT       INDEX      public.catalog_variant_import_row uq_cvir_job_card_type_no_printing () 
+ 20011 EXACT       INDEX      public.catalog_variant_import_row uq_cvir_job_card_type_printing () 
+ 30001 EXACT       CONSTRAINT public.card_variant card_variant_pkey () 
+ 30002 EXACT       CONSTRAINT public.card_variant uq_card_variant_card_order () 
+ 30003 EXACT       CONSTRAINT public.card_variant uq_card_variant_id_card () 
+ 30004 EXACT       CONSTRAINT public.card_variant uq_card_variant_identity () 
+ 30005 EXACT       CONSTRAINT public.catalog_variant_import_row catalog_variant_import_row_pkey () 
+ 40001 EXACT       TRIGGER    public.card_variant trg_card_variant_edition_context_profile_game () 
+ 40002 EXACT       TRIGGER    public.card_variant trg_card_variant_printing_profile_game () 
+ 40003 EXACT       TRIGGER    public.card_variant trg_card_variant_set_updated_at () 
+ 40004 EXACT       TRIGGER    public.card_variant trg_card_variant_validate_game_consistency () 
+ 40005 EXACT       TRIGGER    public.catalog_variant_import_job trg_catalog_variant_import_job_normalize () 
+ 40006 EXACT       TRIGGER    public.catalog_variant_import_job trg_catalog_variant_import_job_set_updated_at () 
+ 40007 EXACT       TRIGGER    public.catalog_variant_import_row trg_catalog_variant_import_row_normalize () 
+ 40008 EXACT       TRIGGER    public.catalog_variant_import_row trg_catalog_variant_import_row_set_updated_at () 
+ 40009 EXACT       TRIGGER    public.catalog_variant_import_row trg_cvir_normalized_shape () 
+VERDICT: PASS_EXACT
