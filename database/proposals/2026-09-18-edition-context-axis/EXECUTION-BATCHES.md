@@ -1265,7 +1265,13 @@ SELECT count(*) AS antigos_staging FROM pg_class  -- 0
 > com o mesmo instrumento pinado (`2738566c…`): L3 PASS, `PASS_EXACT` 31/31 contra o CN1, auditoria independente PASS
 > (`harness/LIVE-P14A-EXECUTION-RECORD.md`). **P14(a) CLOSED · P14(e) CLOSED · D4 CLOSED · D1/D2/D3 CLOSED / CONTRACTUALLY
 > ACCEPTED · E2 CLOSED** · **E1 CLOSED** (A/B/C/D CLOSED e registrados em EXECUTION-BATCHES, HANDOFF v1.21 e log) · **E3 não executado** ·
-> **E4 OPEN** · FREEZE ATIVO; UNFREEZE não autorizado. **Próxima frente: E3 JIT → E4.**
+> **E4 OPEN** · FREEZE ATIVO; UNFREEZE não autorizado. *(Próxima frente então: E3 JIT — concluído em 2026-10-04, ver abaixo.)*
+>
+> **E3 — closeout (2026-10-04, `BATCH12-E3-INDEPENDENT-CLOSEOUT-01`):** E3 JIT em 4 chamadas read-only — S1 L1 PASS · S2 L3 inicial PASS ·
+> S3 E00 PASS por adjudicação independente (24/24, `gate_pass`, FREEZE-CANON íntegro, `d_canon_diff = []`, `jobs_in_flight = 0`; `action_log`
+> 1352 → 1354 = NON-BLOCKING / OUTSIDE FREEZE-CANON) · S4 L3 final PASS; auditoria independente PASS — `harness/LIVE-E3-JIT-EXECUTION-RECORD.md`; evidência `harness/evidence/E3-JIT-FINAL-PRECHECK-2026-10-04/` (18/18 + 24/24).
+> **E1 CLOSED · E2 CLOSED · E3 CLOSED** · FREEZE ATIVO; UNFREEZE não autorizado. **Próximo: decisão formal de UNFREEZE por Fabrício**
+> (é o que a 2830 chama de critério **E4** — critério de autorização, não work item).
 >
 > **6.1 — sucessora v7.3 (2026-10-03, `BATCH12-PHASE6-6.1-V73-FORMALIZATION-01`):** `2830-V7.3-SUCCESSOR-6.1.md`,
 > delta restrito a 6.1 e ao componente de D5. **6.1 v7.0 = NOT SATISFIED AS WRITTEN** (permanente) ·
@@ -1320,13 +1326,13 @@ Rodada só documental. Nenhum SQL foi executado, nenhum teste foi executado e n�
 | **D4** | paridade (P14a) e prova de canal (P14c) — condições de validade de D1–D3 | P14(c) CLOSED (2026-10-03) + P14(a) CLOSED (2026-10-04, `PASS_EXACT`) | **CLOSED** (2026-10-04, `BATCH12-P14A-P14E-D4-E1-INDEPENDENT-CLOSEOUT-01`) | — *(texto anterior: depende de P14a; mantinha D1–D3 em PARTIAL/OPEN)* |
 | **A1, A3, A4, A5** | mandatos; precheck JIT; constantes; `lock_timeout` | cumpridos lote a lote (registros LIVE, B-5X/D1) | CLOSED | — |
 | **B (135/135)** | todos os automáticos PASS, sem vácuo, resíduo zero | homologado | CLOSED | — |
-| **Baseline de FREEZE** | inalterado entre o precheck e o UNFREEZE | E00 LIVE 2026-10-01T00:22:57Z: 24/24, `d_baseline_md5 5c329d5e…`; E99 00:29:50Z `d_diff=[]` | PARTIAL | re-provar no precheck do mandato de UNFREEZE |
-| **Zero jobs em voo** | E3 | E00 de 2026-10-01 conforme | PARTIAL | idem |
-| **Zero locks / sessões** | E3 | L3 2026-10-01T00:30:20Z limpa | PARTIAL | L3 imediatamente antes do UNFREEZE |
+| **Baseline de FREEZE** | inalterado entre o precheck e o UNFREEZE | E00 LIVE 2026-10-01T00:22:57Z: 24/24, `d_baseline_md5 5c329d5e…`; E99 00:29:50Z `d_diff=[]`. **E3 JIT 2026-10-04:** E00 24/24, `g_freeze_canonical_equal = true`, `d_canon_diff = []` (só `action_log` 1352 → 1354 no `d_baseline` amplo, fora do FREEZE-CANON) — `harness/LIVE-E3-JIT-EXECUTION-RECORD.md`; evidência `harness/evidence/E3-JIT-FINAL-PRECHECK-2026-10-04/` (18/18 + 24/24) | **CLOSED** (2026-10-04) | — *(texto anterior: PARTIAL; re-provar no precheck do mandato de UNFREEZE)* |
+| **Zero jobs em voo** | E3 | E00 de 2026-10-01 conforme. **E3 JIT 2026-10-04:** `jobs_in_flight = 0` (145 = 63/71/8/3) | **CLOSED** (2026-10-04) | — *(texto anterior: PARTIAL)* |
+| **Zero locks / sessões** | E3 | L3 2026-10-01T00:30:20Z limpa. **E3 JIT 2026-10-04:** L3 inicial e final limpas (`locks_on_scope = []`; 13/13 `client backend` `idle`, sem transação) | **CLOSED** (2026-10-04) | — *(texto anterior: PARTIAL; L3 imediatamente antes do UNFREEZE)* |
 | **E1** | A, B, C e D integralmente satisfeitos e **registrados na documentação (EXECUTION-BATCHES, HANDOFF, log)** | **Reavaliação 2026-10-04 (`BATCH12-P14A-P14E-D4-E1-INDEPENDENT-CLOSEOUT-01`):** **A** — A1, A3, A4, A5 CLOSED; A2 v7.0 NOT SATISFIED AS WRITTEN (permanente), sucedido por **A2′ CLOSED** (v7.2 + P9(a)). **B** — 135/135 CLOSED. **C** — C1/D6, C2/D7, C3/D8 CLOSED. **D** — D1/K1, D2/K2, D3/K8b CLOSED / CONTRACTUALLY ACCEPTED; D4 CLOSED (P14(a) + P14(c)); D5 v7.0 sucedido por **D5′ CLOSED** (6.1′ v7.3 + 6.2 MANTER); D6 (6.3) CLOSED. P14(a)–(e) CLOSED. Registro: EXECUTION-BATCHES, `docs/log.md` e **HANDOFF** (`docs/development/HANDOFF-2026-09-16.md` v1.21, §0-DUODECIES, `BATCH12-E1-HANDOFF-REGISTRATION-CLOSEOUT-01`) | **CLOSED** (2026-10-04) — A/B/C/D CLOSED + registrados em EXECUTION-BATCHES, HANDOFF e log; sem sucessora para E1 | — *(Texto anterior: P14(a)/(e), D1–D4 e E2 PARTIAL/OPEN; depois, em 2026-10-04, OPEN só pelo registro no HANDOFF — superado.)* |
 | **E2** | K2 executado e aceito | K2 executado no CN-1: EXECUTION PASS (`harness/evidence/CN1-2026-10-02/`); D4 CLOSED (2026-10-04) ⇒ K2 contratualmente aceito | **CLOSED** (2026-10-04, `BATCH12-P14A-P14E-D4-E1-INDEPENDENT-CLOSEOUT-01`) | — *(texto anterior: executado, ainda não aceito contratualmente; a aceitação dependia de D4)* |
-| **E3** | baseline inalterado, zero job em voo, zero lock residual | snapshot de 2026-10-01 | PARTIAL | re-provar no UNFREEZE |
-| **E4** | mandato formal de UNFREEZE de Fabrício | — | OPEN | último passo |
+| **E3** | baseline inalterado, zero job em voo, zero lock residual | E3 JIT 2026-10-04: S1 L1 PASS · S2 L3 inicial PASS · S3 E00 PASS por adjudicação (FREEZE-CANON íntegro; `action_log` +2 NON-BLOCKING / OUTSIDE FREEZE-CANON) · S4 L3 final PASS; auditoria independente PASS — `harness/LIVE-E3-JIT-EXECUTION-RECORD.md`; evidência `harness/evidence/E3-JIT-FINAL-PRECHECK-2026-10-04/` (18/18 + 24/24) | **CLOSED** (2026-10-04, `BATCH12-E3-INDEPENDENT-CLOSEOUT-01`) | — *(texto anterior: snapshot de 2026-10-01; PARTIAL; re-provar no UNFREEZE)* |
+| **E4** | mandato formal de UNFREEZE de Fabrício | — | **NÃO SATISFEITO** — aguarda a decisão formal de UNFREEZE por Fabrício | **critério de autorização, não work item**: é satisfeito pela própria decisão de Fabrício, se autorizada; nenhum UNFREEZE ocorreu *(texto anterior: OPEN; último passo)* |
 | **E5** | requisitos da 2213 (L1–L9) **não** são condição | definição contratual | CLOSED | — |
 
 **Estado:** harness automático CLOSED; **Batch 12 global OPEN**; **FREEZE ATIVO**; UNFREEZE **não autorizado**.
@@ -1340,8 +1346,9 @@ Rodada só documental. Nenhum SQL foi executado, nenhum teste foi executado e n�
 5. **C1 / C2 / C3** — *2026-10-03: concluídos (`BATCH12-PHASE6-C1-C2-C3-DOCUMENTAL-CLOSEOUT-01`): C1/D6, C2/D7 e C3/D8 CLOSED com evidência existente, sem SQL e sem chamada LIVE. Com isso, **P9a é a única frente restante da Fase 6**.* Texto anterior: registro formal do C1 (local); SELECT LIVE do C2; adjudicação documental do C3.
 6. **P9a** — **CONCLUÍDO (2026-10-03)**: EXPLAIN (COSTS OFF) LIVE das seções B, M e 5.2/5.3/5.7 (P9A-B, P9A-M, P9A-5X, P9A-D1X), L3 PASS, auditoria independente PASS — `harness/LIVE-P9A-HEAVY-EXECUTION-RECORD.md`; evidência `harness/evidence/P9A-HEAVY-LIVE-2026-10-03/`. P9(a) CLOSED ⇒ A2′ CLOSED ⇒ **FASE 6 — CLOSED**.
 7. **Registro de E1 no HANDOFF** — **CONCLUÍDO (2026-10-04)**, `BATCH12-E1-HANDOFF-REGISTRATION-CLOSEOUT-01`: `HANDOFF-2026-09-16.md` v1.21 (§0-DUODECIES) registra A/B/C/D CLOSED; com isso **E1 CLOSED**.
-8. **E3 JIT — precheck final do FREEZE** — baseline inalterado, zero job em voo, zero lock/sessão residual. **Próxima frente vigente (2026-10-04)**; não executado; exige mandato próprio e auditoria independente. *(Até 2026-10-03 o texto dizia: "Próxima frente vigente: E3 + reconciliação final da matriz (P14(a)/(e), D1–D4, E2, E1)"; a reconciliação foi concluída em 2026-10-04, itens 1 e 7.)*
-9. **Mandato formal de UNFREEZE** de Fabrício (E4).
+8. **E3 JIT — precheck final do FREEZE** — **CONCLUÍDO (2026-10-04)**, `BATCH12-E3-INDEPENDENT-CLOSEOUT-01`: S1–S4 PASS (S3 por adjudicação), E3 CLOSED — `harness/LIVE-E3-JIT-EXECUTION-RECORD.md`. *(Texto anterior: próxima frente vigente, não executado.)*
+9. **Decisão formal de UNFREEZE por Fabrício** — **próximo (2026-10-04)**. Se autorizada, satisfaz o critério E4 da 2830; E4 não é tarefa separada. Nenhum UNFREEZE ocorreu. *(Texto anterior: "Mandato formal de UNFREEZE de Fabrício (E4)".)*
+   Depois do UNFREEZE, sequência já definida (`ROLLOUT-ORDER.md` etapas 17–18; HANDOFF: importação real não provada sob FREEZE): canary real pós-UNFREEZE → `2831` → `2213` → Variant Display / roadmap vigente.
 
 > **READINESS AUDIT concluída — NOT READY / BLOCKED**
 > (`BATCH12-2830-READINESS-AUDIT-01`, 2026-09-26, SELECT-only). A `2830` v6.3

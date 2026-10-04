@@ -1,0 +1,9 @@
+BATCH12-E3-JIT-FINAL-FREEZE-PRECHECK-CORRECTION-01 — 2026-10-04 (UTC)
+Adjudicacao independente (mandato): S3/E00 = PASS; action_log 1352 -> 1354 = NON-BLOCKING / OUTSIDE FREEZE-CANON.
+RESULT.txt da execucao parcial preservado sem alteracao (registro historico do STOP pelo criterio original).
+Repo: HEAD e1ac679b18c81b73a39d0d69af8679633e4dabd5, arvore limpa. Evidencia anterior 18/18 OK (MANIFEST.md5 md5 9c3df129...).
+S4 L3 final: 1 chamada LIVE, submetido == L3-final.sql (b7bc3700, 1526 B), PASS:
+   locks_on_scope=[]; 13 client backend, 13/13 idle, xact_start=null; nao-client: pg_cron launcher, pg_net worker (diagnostico).
+Consolidado: S1 L1 PASS · S2 L3 inicial PASS · S3 E00 PASS (24/24, gate_pass, FREEZE-CANON intacto, d_canon_diff=[], jobs_in_flight=0;
+   action_log +2 nao bloqueante, fora do FREEZE-CANON) · S4 L3 final PASS.
+Estado: E3 EVIDENCE COMPLETE / AWAITING INDEPENDENT CLOSEOUT. E4 OPEN; FREEZE ATIVO; UNFREEZE nao autorizado.

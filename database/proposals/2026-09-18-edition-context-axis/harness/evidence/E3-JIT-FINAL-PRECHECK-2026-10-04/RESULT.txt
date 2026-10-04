@@ -1,0 +1,14 @@
+BATCH12-E3-JIT-FINAL-FREEZE-PRECHECK-01 — 2026-10-04 (UTC) — STOP
+Repo: HEAD e1ac679b18c81b73a39d0d69af8679633e4dabd5 ("docs(batch12): close P14 E1 and prepare E3 JIT"), arvore/indice limpos.
+Canal: MCP Supabase execute_sql, projeto qjfutqujxrbzgrtkpgkg. Chamadas executadas: 3 de 4 autorizadas.
+S1 L1          envio 01:53:43.170Z  submetido == L1.sql (0836c36a, 2458 B)   PASS (in_recovery=false, 170006, scs=on, lock_timeout=0, reads_all_stats=true; checked_at 01:51:49.330217Z)
+S2 L3 inicial  envio 01:53:54.976Z  submetido == L3-initial.sql (b7bc3700, 1526 B)   PASS (locks_on_scope=[]; 13 client backend, 13/13 idle, xact_start=null; checked_at 01:52:01.227806Z)
+S3 E00         envio 01:56:51.612Z  submetido == E00.sql (45b6c35c, 53803 B, blob a4dd8438)
+               gate_pass=true; 24/24 gates true; d_canon_diff=[]; jobs_in_flight=0; g_freeze_canonical_equal=true; g_no_residue=true; g_no_concurrency=true
+               d_baseline_md5 = 2bf4558adc533374592670bf6494f2e3  != exigido 5c329d5e38a7e369cc100ab08953e1a7  => STOP (criterio do mandato §5)
+               Diagnostico minimo: unica chave diferente do d_baseline de referencia = action_log 1352 -> 1354 (+2).
+               Prova: recalculo local de md5(jsonb::text) com o d_baseline LIVE desta rodada -> 2bf4558a...; trocando so action_log para 1352 -> 5c329d5e...
+               action_log NAO e chave do baseline canonico do FREEZE (por isso d_canon_diff=[]), mas integra o d_baseline/d_baseline_md5 exigido.
+S4 L3 final    NAO EXECUTADA (STOP no S3; mandato: L3 final somente se E00 = PASS integral).
+Integridade: zero escrita, zero DDL, zero SET, zero retry; repo inalterado.
+Estado: E3 NAO fecha. E1 CLOSED, E2 CLOSED, E3 NOT YET CLOSED, E4 OPEN, FREEZE ATIVO, UNFREEZE nao autorizado.
