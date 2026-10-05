@@ -44,9 +44,9 @@ Todos vêm do `raw_data` original, acessível porque as 365 têm **100% de linea
 
 ## Invariantes da migração real (`2213`) — e da simulação `2831`
 
-1. `UPDATE` puro — `card_variant.id` preservado em 365/365.
+1. `UPDATE` puro — `card_variant.id` preservado em 365/365. *(Nota 2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`: o plano executável é **285** (item 6); a prova vigente é `card_variant.id` preservado em 285/285 — L8.)*
 2. `variant_order` e `is_default` **não aparecem no `SET`**.
-3. Lineage intacto por consequência (o `id` não muda).
+3. ~~Lineage intacto por consequência (o `id` não muda).~~ **SUPERSEDED (2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`) pela Correção 6 de `LINEAGE-STRATEGY.md`.** Continua válido só o vínculo: `resulting_variant_id` não muda, porque `card_variant.id` é preservado (L4). Deixou de valer o conteúdo: as rows com `resulting_variant_id` ∈ (285) **têm de ser reconciliadas** na mesma transação — `normalized_data.variant_type_id` = finish alvo e `normalized_data.edition_context_profile_id` = profile da Variant (L1), zero híbrido (L2), nenhuma outra row tocada (L3). Implementado na `2831` v3.0 (simulação) e exigido da `2213`.
 4. `WHERE cv.id NOT IN (hold_frozen)` — H1 inelegível por construção.
 5. **Collision gate roda ANTES** e simula a identidade nova (4 componentes);
    qualquer colisão não prevista ⇒ `RAISE EXCEPTION`, transação inteira aborta.
@@ -55,6 +55,10 @@ Todos vêm do `raw_data` original, acessível porque as 365 têm **100% de linea
    `SET_LOGO_REVERSE` 40. A migration real opera sobre **285**.
 7. O arquivo `2831` é **SIMULAÇÃO** (termina em `ROLLBACK`). A migration real
    será `2213`, escrita somente após o Gate A.
+8. *(2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`)* O plano é derivado pela definição **adjudicada**
+   `READY_DEF = C3` (`harness/B5X-C3-ADJUDICATION-RECORD.md`) menos os
+   PRICING_CONDITIONED, ancorado no conjunto exato de 285 ids medido no LIVE
+   (D1, `md5_plan = a53343fa…`). A `2831` v2.0 não aplicava esse recorte.
 
 ## Conferência aritmética (GATE-A-01)
 

@@ -73,6 +73,15 @@ As únicas referências reais são **lineage de catálogo**, com `ON DELETE SET
 NULL` e — decisivo — `2213` é `UPDATE` puro que **preserva `card_variant.id`**
 (invariante 1 do `MIGRATION-MAP-365`), então nem essas são tocadas.
 
+> **Nota de correção (2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`).** "Nem essas são tocadas"
+> vale para os **vínculos** (`resulting_variant_id`, `matched_variant_id`,
+> FKs), não para o **conteúdo** das rows. Pela Correção 6 de
+> `LINEAGE-STRATEGY.md`, posterior a esta decisão, a `2213` reconcilia
+> `normalized_data` das rows com `resulting_variant_id` ∈ (285), na mesma
+> transação. O veredito (`NOT CRITICAL PATH` · `DEFERRED LEGACY
+> RECONCILIATION`) **não muda**: nenhuma referência de negócio é afetada, e o
+> requisito de integridade do lineage fica **mais** forte, não mais fraco.
+
 `inventory` tem 3 rows, mas não referencia `card_variant`: é o contêiner de
 posse, e `physical_card` (que faria a ponte) está vazia.
 
@@ -177,3 +186,74 @@ Na rodada de `2213`, uma das duas: ou o token entra na lista congelada e o
 trait é criado, ou a linha do `MIGRATION-MAP-365` é reconciliada. Enquanto não
 for resolvido, essas 6 variants ficam fora do plano de decomposição — o que é
 seguro, porque `2213` é fail-closed por escopo.
+
+> **Correção (2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`).** A frase acima ("essas 6 variants
+> ficam fora do plano") **não está implementada** em nenhum artefato: o plano
+> contratual continua 285 (âncora `a53343fa…`, reproduzida no LIVE) e as 6
+> estão nele. O bloqueio real é mais amplo — ver §8.
+
+---
+
+## 8. B-SEMANTIC — Gate A semantic readiness (2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`)
+
+**BLOCKER.** Resolvedor vigente (`2211`/`2233` + `lookup_variant_type_for_row`)
+aplicado à evidência (row de lineage mais antiga) das 285, LIVE read-only
+(`checked_at 2026-10-04T22:51:57Z`):
+
+| Medida | Valor |
+|---|---:|
+| `RESOLVED_WITH_EC_PROFILE` | 241 |
+| `NEEDS_REVIEW_NO_EC_PROFILE` | 33 |
+| `RESOLVED_NO_EDITION_CONTEXT` | 11 |
+| `edition_context_profile_id` NULL | 44 (= 33 + 11) |
+| `finish_target_id` NULL | 2 (fora das 44) |
+| destino de acabamento não puro | 11 (as mesmas 11 sem EC) |
+| **sem destino determinístico** | **46 / 285** (239 OK) |
+
+Escopo C3 **não derivou**: READY 365 · condicionadas 80 · plano 285 · md5
+`a53343fa…` (mesma medição). Lineage-alvo: 336 rows; 51 Variants com mais de
+uma row; **0** Variants com destinos distintos entre as próprias rows;
+`card_id` row × Variant divergente = 0.
+
+### 8.1 Matriz causal nominal (para adjudicação; nada corrigido)
+
+Token = `raw_data` da evidência (`type` / `foil` / `stamp`); traits = os que o
+mapping resolveu; profile = composição exata existente.
+
+| Classe | Legacy type | n | Tokens | Traits mapeados | Profile | Finish | Causa |
+|---|---|---:|---|---|---|---|---|
+| FINISH NULL | `GAMESTOP_HOLO` | 1 | reverse / galaxy / `gamestop` | `CHANNEL_GAMESTOP` | sim | NULL | sem Variant Type para o residual `reverse`+`galaxy` |
+| FINISH NULL | `PRERELEASE_HOLO` | 1 | holo / starlight / `pre-release` | `EVENT_PRERELEASE` | sim | NULL | sem Variant Type para o residual `holo`+`starlight` |
+| NO_EC | `STANDARD_PIKACHU_WORLD_2000` | 6 | normal / — / `pikachu-tail` | — | — | o próprio legado | token `PIKACHU-TAIL` em `HOLD_EDITORIAL` (`SEED-COVERAGE.md`), sem mapping |
+| NO_EC | `STANDARDS_LEAGUE` | 4 | normal / `league` / — | — | — | o próprio legado | conceito em `foil`, fora do domínio de mapping (H3 / B3) |
+| NO_EC | `PLAYER_REWARD_REVERSE` | 1 | reverse / `player-reward` / — | — | — | o próprio legado | idem (H3 / B3) |
+| NO_PROFILE | `INTERNATIONAL_CHAMPIONSHIPS_EUROPE_HOLO` | 1 | `international-championship-europe` | `EVENT_INTERNATIONALS_EUROPE` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `INTERNATIONAL_CHAMPIONSHIPS_NORTH_AMERICA_REVERSE` | 1 | `international-championship-north-america` | `EVENT_INTERNATIONALS_NORTH_AMERICA` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `INTL_CHAMPIONSHIPS_NORTH_AMERICA_REVERSE_STAFF` | 1 | idem + `staff` | `…_NORTH_AMERICA` + `ROLE_STAFF` | ausente | STANDARD | composição não provada |
+| NO_PROFILE | `POKEDAY_HOLO` | 1 | `30th-pokeday` | `CAMPAIGN_POKEMON_DAY_30TH` | ausente | HOLO | trait diferido B |
+| NO_PROFILE | `STANDARD_POKEMON_4EVER` | 2 | `pokemon-4-ever` | `CAMPAIGN_POKEMON_4EVER` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARD_POKEMON_CENTER_NY` | 2 | `pokemon-center-ny` | `CHANNEL_POKEMON_CENTER_NY` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARD_POKETOUR_1999` | 1 | `poketour-99` | `EVENT_POKETOUR_99` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARD_ULTRA_BALL_LEAGUE` | 1 | `ultra-ball-league` | `PROGRAM_LEAGUE_ULTRA_BALL` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARDS_ASIA_2023_2024` | 1 | `asia-2023-24` | `CHANNEL_ASIA_2023_24` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARDS_POKEMON_TOGETHER` | 2 | `pokemon-together` | `CAMPAIGN_POKEMON_TOGETHER` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARDS_WORLDS_2023` | 1 | `worlds-2023` | `EVENT_WORLDS_2023` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARDS_WORLDS_2023_{STAFF,TOP_16,TOP_2,TOP_32,TOP_4,TOP_8}` | 6 | `worlds-2023` + `staff` / `top-sixteen` / `finalist` / `top-thirty-two` / `semi-finalist` / `top-eight` | `EVENT_WORLDS_2023` + `ROLE_STAFF` / `PLACEMENT_*` | ausente | STANDARD | composição não provada |
+| NO_PROFILE | `STANDARDS_WORLDS_2024_{STAFF,TOP_16,TOP_2,TOP_32,TOP_4,TOP_8}` | 6 | `worlds-2024` + idem | `EVENT_WORLDS_2024` + `ROLE_STAFF` / `PLACEMENT_*` | ausente | STANDARD | composição não provada (trait 2024 é PROVEN só em aridade 1) |
+| NO_PROFILE | `STANDARDS_WORLDS_2025` | 1 | `worlds-2025` | `EVENT_WORLDS_2025` | ausente | STANDARD | trait diferido B |
+| NO_PROFILE | `STANDARDS_WORLDS_2025_{STAFF,TOP_16,TOP_2,TOP_32,TOP_4}` + `STANDARDS_WORLDS_2026_TOP_8` | 6 | `worlds-2025` + idem (o `…_2026_TOP_8` carrega `worlds-2025` + `top-eight`) | `EVENT_WORLDS_2025` + `ROLE_STAFF` / `PLACEMENT_*` | ausente | STANDARD | composição não provada; nome do tipo legado diverge do ano do token |
+
+Σ: FINISH NULL 2 · NO_EC 11 · NO_PROFILE 33 (= 14 de aridade 1 + 19 compostas) = **46**.
+
+Os 12 traits diferidos de `B-PROFILE-AUDIT-19.md` aparecem **todos** entre os
+33, mas os 33 **não** se reduzem a eles: 19 Variants dependem de composições
+de aridade 2 (`ROLE_STAFF`, `PLACEMENT_*`, `EVENT_WORLDS_2024 + …`) que também
+não têm profile. As 6 `STANDARD_PIKACHU_WORLD_2000` são **uma** subclasse —
+e o token real delas é `pikachu-tail`, não um token "Pikachu World 2000".
+
+### 8.2 O que esta seção NÃO decide
+
+Nenhum seed, mapping, trait, profile, `READY_DEF`, âncora ou exclusão do plano
+foi alterado. Plano = 285, âncora = `a53343fa…`. Excluir Variants só para o
+gate ficar verde é proibido. Próximo passo: adjudicação das 46 por classe
+(Fabrício), e só então autorização para executar a `2831`.

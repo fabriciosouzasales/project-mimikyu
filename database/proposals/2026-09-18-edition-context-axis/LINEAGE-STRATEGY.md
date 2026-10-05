@@ -105,7 +105,9 @@ Nem Variant, nem lineage, nem chave. Já era a regra; segue.
 
 ## Consequências para `2831` e `2213`
 
-`2831` (simulação) hoje cobre apenas `card_variant`. Com a Correção 6, tanto
+*(Estado em 2026-10-04: a `2831` **v3.0** (`BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`, proposta, **não executada**) implementa a reconciliação atômica e as provas L1–L4, além de L8/L9 como pós-condição da simulação. O texto a seguir, que descrevia a v2.0 como "só `card_variant`", fica como registro de origem.)*
+
+`2831` (simulação) **na v2.0** cobria apenas `card_variant`. Com a Correção 6, tanto
 a simulação quanto a migração real precisam de **mais duas provas**:
 
 | # | Prova | Onde |
@@ -113,7 +115,7 @@ a simulação quanto a migração real precisam de **mais duas provas**:
 | **L1** | toda row com `resulting_variant_id` ∈ (285) tem `normalized_data.variant_type_id` = finish alvo **e** `edition_context_profile_id` = profile da Variant | `2831` · `2213` |
 | **L2** | zero híbrido: nenhuma row cujo `edition_context_profile_id` esteja preenchido aponte para Variant com `edition_context_profile_id IS NULL`, e vice-versa | `2831` · `2213` · `2830` L2 |
 | **L3** | nenhuma row fora das 285 foi tocada | `2831` · `2213` |
-| **L4** | `resulting_variant_id` preservado em 100% — `UPDATE`, nunca `DELETE`+`INSERT` | já existe em `2831` PASSO 5 |
+| **L4** | `resulting_variant_id` preservado em 100% — `UPDATE`, nunca `DELETE`+`INSERT` | `2831` v3.0 PASSO 5 · `2213`. *(Correção 2026-10-04: a v2.0 só provava `card_variant.id` não perdido — isso é L8, não L4. A afirmação anterior "já existe em `2831` PASSO 5" era imprecisa.)* |
 | **L5** | guard de HOLD: decompor `card_variant_id` da lista congelada (107) aborta com `EDITION_CONTEXT_HOLD_VIOLATION` (ex-K5 da `2830`) | `2213` |
 | **L6** | guard PRICING_CONDITIONED: `card_variant_id` ligado a `pricing_source_card_identity` **ou** `pricing_source_variant_mapping` aborta; os dois conceitos checados separadamente (ex-K6) | `2213` |
 | **L7** | o guard cobre STAFF_HOLO (40) e SET_LOGO_REVERSE (40) — total 80 (ex-K7) | `2213` |
@@ -128,6 +130,26 @@ PRICING_CONDITIONED do plano continua provada no gate atual (`2830` 5.1, 5.3,
 5.7).
 
 ---
+
+## Nota de implementação — `2831` v3.0 (2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`)
+
+- **Escopo do lineage:** só `resulting_variant_id` ∈ plano. Rows que apenas
+  *casaram* (`matched_variant_id`) com uma Variant do plano **não** são
+  reconciliadas — ficam provadamente intactas (L3) e são contadas num aviso.
+  Se esse recorte precisar crescer, é decisão de contrato, não de artefato.
+- **Destino:** o mesmo da Variant (evidência = row mais antiga). Toda row-alvo
+  é resolvida também pelo próprio `raw_data`; divergência aborta
+  (`LINEAGE_EVIDENCE_DIVERGENT`).
+- **JSON:** padrão da `2219` — `jsonb_set` encadeado só nas duas chaves, UUID
+  como string JSON, demais chaves preservadas e provadas (L3 por row).
+- **Ordem:** lock `card_variant` → lock lineage → gates → `UPDATE`
+  `card_variant` → `UPDATE` lineage. Nenhum guard cruza as tabelas; os guards
+  por linha (2214, 2224, game consistency, `uq_card_variant_identity`,
+  `uq_cvir_row_identity`) aceitam cada estado intermediário, provado por gates
+  de pré-condição (nenhuma Variant do plano e nenhuma row-alvo já tem EC).
+  Nenhum trigger é desabilitado.
+- **`updated_at`** das rows-alvo muda pelo trigger `set_updated_at` — metadado,
+  não conteúdo; L3 por row exclui só essa coluna.
 
 ## O que NÃO muda
 
