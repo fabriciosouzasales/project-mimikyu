@@ -5,6 +5,8 @@ Sem LIVE — toda a evidência é `MIGRATION-MAP-365.md`, que está versionado.
 
 **Resultado: 7 PROVEN · 12 NOT_PROVEN.** Os 12 foram removidos da `2231`.
 
+> **SUPERSEDED (2026-10-04, `BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01`) quanto ao `NOT_PROVEN` / `DEFERRED`.** Pela decisão **D2** de Fabrício (APPROVED), o `raw_data` imutável da lineage é prova de composição para o legado B. As assinaturas B efetivamente consumidas pelo plano — 11 de aridade 1 e 19 compostas de aridade 2, medidas no `raw_data` — passam a ter profile criado pela `2236_forward_fix_b_semantic_edition_context_catalog.sql` (proposta, não executada), sem editar a `2231`. O achado `CAMPAIGN_PIKACHU_WORLD_2000` foi decidido por **D1(a′)**. Ver `2213-CRITICAL-PATH-DECISION.md` §9. O texto abaixo fica como histórico do critério vigente na época.
+
 ---
 
 ## 0. O defeito

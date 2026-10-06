@@ -192,6 +192,8 @@ seguro, porque `2213` é fail-closed por escopo.
 > contratual continua 285 (âncora `a53343fa…`, reproduzida no LIVE) e as 6
 > estão nele. O bloqueio real é mais amplo — ver §8.
 
+> **SUPERSEDED (2026-10-04, `BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01`) por D1(a′), §9.1.** O trait é criado pela `2236`; as 6 ficam nas 285 e são resolvidas pela camada histórica da `2831` v3.1, sem mapping operacional `PIKACHU-TAIL`.
+
 ---
 
 ## 8. B-SEMANTIC — Gate A semantic readiness (2026-10-04, `BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01`)
@@ -257,3 +259,104 @@ Nenhum seed, mapping, trait, profile, `READY_DEF`, âncora ou exclusão do plano
 foi alterado. Plano = 285, âncora = `a53343fa…`. Excluir Variants só para o
 gate ficar verde é proibido. Próximo passo: adjudicação das 46 por classe
 (Fabrício), e só então autorização para executar a `2831`.
+
+> **Atualização (2026-10-04, `BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01`).** A adjudicação foi feita (`BATCH13-2831-B-SEMANTIC-ADJUDICATION-01`) e as decisões estão em §9.
+
+---
+
+## 9. B-SEMANTIC — decisões aprovadas e candidato de remediação (2026-10-04, `BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01`)
+
+### 9.1 Decisões de Fabrício — **APPROVED**
+
+| # | Decisão | Escopo |
+|---|---|---|
+| **D1(a′)** | `PIKACHU-TAIL` **é** Edition Context = `CAMPAIGN_PIKACHU_WORLD_2000`. As 6 `STANDARD_PIKACHU_WORLD_2000` permanecem nas 285. | Uso **histórico e escopado** (camada histórica da `2831`/`2213`). **Nenhum** mapping operacional `PIKACHU-TAIL`. BASEP #24 (holo, fonte contraditória) e BASE2 #60 **não** são liberados. |
+| **D2** | O `raw_data` imutável da lineage é **prova de composição** para o legado B. | Supera, neste escopo, o `DEFERRED` / `B_UNPROVEN` da `2231` e de `B-PROFILE-AUDIT-19.md` / `SEED-COVERAGE.md` §7 (que eram ausência de prova, não decisão contrária). `2230`–`2232` não são editadas: a mudança é a `2236`, nova e versionada. |
+| **D3** | Resíduo sv05 Koraidon #119 GameStop `REVERSE\|GALAXY\|NULL\|{}` → `COSMOS_REVERSE`. | **SOURCE_SET** `sv05` apenas. Nenhum `GALAXY = COSMOS` global. |
+| **D4** | SV5 #144 Buddy-Buddy Poffin / Poffin de Colega, legado `PLAYER_REWARD_REVERSE`, raw `reverse` / foil `player-reward` / subtype NULL / stamp NULL: `PLAYER-REWARD` é Edition Context histórico → `PROGRAM_PLAYER_REWARDS`; residual estrutural `REVERSE`, cujo lookup operacional SV5 `REVERSE\|NULL\|NULL\|{}` = `REVERSE_HOLO`. Destino: **`REVERSE_HOLO` + `PROGRAM_PLAYER_REWARDS`**, 1 Variant. | **HISTORICAL RECONCILIATION** apenas (`2831` v3.1 e futura `2213`, depois do Gate A). Nenhum mapping EC `raw_field=foil`, nenhum mapping de finish `PLAYER-REWARD`, nenhuma exceção no resolvedor/lookup, `ck_cecem_raw_field` intocado. |
+
+### 9.2 Prova quantitativa (LIVE read-only, 2026-10-04)
+
+**Provas independentes da auditoria (SELECT read-only, base de D4 — não são POST LIVE; `2236`/`2237` ainda não foram aplicadas):** bloqueio baseline = 46; projetado após `2236` + `2237` = 11; projetado após a camada histórica incluindo D4 = 0. Para a identidade futura das 285: alvos não resolvidos = 0; grupos de colisão intra-plano = 0; colisão com Variant externa = 0.
+
+33 Variants NO_PROFILE = 14 de aridade 1 + 19 compostas → **30 assinaturas únicas** = 11 + 19 (3 assinaturas de aridade 1 servem 2 Variants cada: `CAMPAIGN_POKEMON_4EVER`, `CAMPAIGN_POKEMON_TOGETHER`, `CHANNEL_POKEMON_CENTER_NY`). Resolução atual das 33 conferida uma a uma: todas `NEEDS_REVIEW_NO_EC_PROFILE` com a assinatura esperada. Nenhuma assinatura-alvo tem profile; nenhum trait inativo.
+
+### 9.3 Arquitetura
+
+| Camada | Artefato | O que faz |
+|---|---|---|
+| A — catálogo | `2236_forward_fix_b_semantic_edition_context_catalog.sql` | +1 trait (`CAMPAIGN_PIKACHU_WORLD_2000`, CAMPAIGN, ordem 140) · +31 profiles (1 D1 + 30 D2, ordens 1450–1750) · +50 links. 0 mappings. |
+| B — finish | `2237_forward_fix_b_semantic_finish_mappings.sql` | +2 mappings SOURCE_SET: base3 `HOLO\|STARLIGHT` → `HOLO` (05b: starlight = galaxy em BASE3); sv05 `REVERSE\|GALAXY` → `COSMOS_REVERSE` (D3). 0 GLOBAL. |
+| C — histórica | `2831` v3.1 (e a futura `2213`) | Camada HISTORICAL OVERRIDE só na simulação: Pikachu 6, League 4, Player Reward 1. Nunca no resolvedor, no lookup, em `ck_cecem_raw_field` ou no routing. |
+
+Os três arquivos estão **PROPOSTOS, NÃO EXECUTADOS**.
+
+### 9.4 Os 30 profiles D2 (nomes derivados dos traits no LIVE pela regra da `2231`)
+
+| Code | Aridade | Variants | Legado consumidor |
+|---|---:|---:|---|
+| `CAMPAIGN_POKEMON_4EVER` | 1 | 2 | `STANDARD_POKEMON_4EVER` |
+| `CAMPAIGN_POKEMON_DAY_30TH` | 1 | 1 | `POKEDAY_HOLO` |
+| `CAMPAIGN_POKEMON_TOGETHER` | 1 | 2 | `STANDARDS_POKEMON_TOGETHER` |
+| `CHANNEL_ASIA_2023_24` | 1 | 1 | `STANDARDS_ASIA_2023_2024` |
+| `CHANNEL_POKEMON_CENTER_NY` | 1 | 2 | `STANDARD_POKEMON_CENTER_NY` |
+| `EVENT_INTERNATIONALS_EUROPE` | 1 | 1 | `INTERNATIONAL_CHAMPIONSHIPS_EUROPE_HOLO` |
+| `EVENT_INTERNATIONALS_NORTH_AMERICA` | 1 | 1 | `INTERNATIONAL_CHAMPIONSHIPS_NORTH_AMERICA_REVERSE` |
+| `EVENT_POKETOUR_99` | 1 | 1 | `STANDARD_POKETOUR_1999` |
+| `EVENT_WORLDS_2023` | 1 | 1 | `STANDARDS_WORLDS_2023` |
+| `EVENT_WORLDS_2025` | 1 | 1 | `STANDARDS_WORLDS_2025` |
+| `PROGRAM_LEAGUE_ULTRA_BALL` | 1 | 1 | `STANDARD_ULTRA_BALL_LEAGUE` |
+| `EVENT_INTERNATIONALS_NORTH_AMERICA__ROLE_STAFF` | 2 | 1 | `INTL_CHAMPIONSHIPS_NORTH_AMERICA_REVERSE_STAFF` |
+| `EVENT_WORLDS_2023__PLACEMENT_FINALIST` | 2 | 1 | `STANDARDS_WORLDS_2023_TOP_2` |
+| `EVENT_WORLDS_2023__PLACEMENT_SEMI_FINALIST` | 2 | 1 | `STANDARDS_WORLDS_2023_TOP_4` |
+| `EVENT_WORLDS_2023__PLACEMENT_TOP_16` | 2 | 1 | `STANDARDS_WORLDS_2023_TOP_16` |
+| `EVENT_WORLDS_2023__PLACEMENT_TOP_32` | 2 | 1 | `STANDARDS_WORLDS_2023_TOP_32` |
+| `EVENT_WORLDS_2023__PLACEMENT_TOP_8` | 2 | 1 | `STANDARDS_WORLDS_2023_TOP_8` |
+| `EVENT_WORLDS_2023__ROLE_STAFF` | 2 | 1 | `STANDARDS_WORLDS_2023_STAFF` |
+| `EVENT_WORLDS_2024__PLACEMENT_FINALIST` | 2 | 1 | `STANDARDS_WORLDS_2024_TOP_2` |
+| `EVENT_WORLDS_2024__PLACEMENT_SEMI_FINALIST` | 2 | 1 | `STANDARDS_WORLDS_2024_TOP_4` |
+| `EVENT_WORLDS_2024__PLACEMENT_TOP_16` | 2 | 1 | `STANDARDS_WORLDS_2024_TOP_16` |
+| `EVENT_WORLDS_2024__PLACEMENT_TOP_32` | 2 | 1 | `STANDARDS_WORLDS_2024_TOP_32` |
+| `EVENT_WORLDS_2024__PLACEMENT_TOP_8` | 2 | 1 | `STANDARDS_WORLDS_2024_TOP_8` |
+| `EVENT_WORLDS_2024__ROLE_STAFF` | 2 | 1 | `STANDARDS_WORLDS_2024_STAFF` |
+| `EVENT_WORLDS_2025__PLACEMENT_FINALIST` | 2 | 1 | `STANDARDS_WORLDS_2025_TOP_2` |
+| `EVENT_WORLDS_2025__PLACEMENT_SEMI_FINALIST` | 2 | 1 | `STANDARDS_WORLDS_2025_TOP_4` |
+| `EVENT_WORLDS_2025__PLACEMENT_TOP_16` | 2 | 1 | `STANDARDS_WORLDS_2025_TOP_16` |
+| `EVENT_WORLDS_2025__PLACEMENT_TOP_32` | 2 | 1 | `STANDARDS_WORLDS_2025_TOP_32` |
+| `EVENT_WORLDS_2025__PLACEMENT_TOP_8` | 2 | 1 | `STANDARDS_WORLDS_2026_TOP_8` (typo — §9.7) |
+| `EVENT_WORLDS_2025__ROLE_STAFF` | 2 | 1 | `STANDARDS_WORLDS_2025_STAFF` |
+| **Σ** | 11 + 19 | **33** | |
+
+### 9.5 Efeito esperado
+
+| | Baseline | Após 2236 + 2237 (genérico) | Após camada histórica (2831 v3.1) |
+|---|---:|---:|---:|
+| NO_PROFILE | 33 | **0** | 0 |
+| FINISH NULL | 2 | **0** | 0 |
+| NO_EC | 11 | 11 | **0** |
+| Bloqueio total | 46 | **11** | **0** |
+| Determinístico | 239/285 | **274/285** | **285/285** |
+
+Plano = 285 e âncora `a53343fa38bbbe6f45fea7a4dba4bbdb` inalterados. Isto é contrato projetado, **não** Gate A PASS.
+
+A `2831` v3.1 prova isso como gate (`B_SEMANTIC_RESIDUAL` = exatamente as 11 das regras) e aborta se divergir.
+
+### 9.6 Camada histórica e D1 HOLD-safe
+
+| Regra | n | Forma exata do raw | Destino |
+|---|---:|---|---|
+| H-PIKACHU | 6 | legado `STANDARD_PIKACHU_WORLD_2000`, `normal`, stamp `["pikachu-tail"]` | `STANDARD` + `CAMPAIGN_PIKACHU_WORLD_2000` |
+| H-LEAGUE | 4 | legado `STANDARDS_LEAGUE`, `normal`, foil `league` | `STANDARD` + `PROGRAM_LEAGUE` |
+| H-PLAYER-REWARD | 1 | legado `PLAYER_REWARD_REVERSE`, `reverse`, foil `player-reward`, sem subtype, sem stamp | `REVERSE_HOLO` + `PROGRAM_PLAYER_REWARDS` (D4) |
+
+Finish das 11 = lookup operacional do `type` residual sem o token histórico, conferido contra o código declarado (`H_OVERRIDE_FINISH_DRIFT`; nenhuma regra sem finish — `HISTORICAL_RULE_FINISH_UNDECLARED`). D4 tem gate positivo próprio, `D4_PLAYER_REWARD_FINISH_DRIFT`: 1 Variant, SV5, forma exata, profile esperado, lookup do residual `REVERSE` = `REVERSE_HOLO` = finish declarado, e a resolução genérica da mesma evidência continua no tipo legado (routing não ampliado). **HOLD-safe:** a `2236` não cria mapping `PIKACHU-TAIL`; as 8 rows `pikachu-tail` do LIVE (6 de lineage + BASEP #24 holo + BASE2 #60) seguem `RESOLVED_NO_EDITION_CONTEXT` com residual `{PIKACHU-TAIL}` — postcheck da `2236` exige exatamente isso; na `2831` só as 6 do plano casam a regra (gate `D1_PIKACHU_SCOPE`).
+
+### 9.7 H-PLAYER-REWARD-FINISH (CLOSED) e dívidas
+
+- **H-PLAYER-REWARD-FINISH — SUPERSEDED / CLOSED por D4.** Registro da candidata anterior (`BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01`, não publicada), preservado: SV5 #144 Poffin de Colega: EC `PROGRAM_PLAYER_REWARDS` é suportado; o finish não. O residual sem token dá `REVERSE_HOLO`, mas o mapping sv05 `PLAYER_REWARD_REVERSE` nunca foi auditado externamente e não há evidência de impressão inglesa equivalente. Não se inventa destino para zerar o gate: a `2831` v3.1 abortava neste ponto até Fabrício decidir o finish com prova (localizado em 1/285). **Encerrado** em `BATCH13-2831-B-SEMANTIC-REMEDIATION-CORRECTION-02`: D4 APPROVED → `REVERSE_HOLO` + `PROGRAM_PLAYER_REWARDS`; o STOP foi substituído pelo gate positivo `D4_PLAYER_REWARD_FINISH_DRIFT`.
+- **Dívida de catálogo — typo `STANDARDS_WORLDS_2026_TOP_8`.** Nome "Padrão Worlds 2025 - Top 8", raw/mapping `worlds-2025`, SVP #224. O destino vem do raw (`EVENT_WORLDS_2025__PLACEMENT_TOP_8`); o code legado não é renomeado nesta rodada.
+- **Dívida de auditoria — `2237`** grava por INSERT direto (o writer canônico exige ator admin e row NEEDS_REVIEW), sem linha em `catalog_admin_action_log` (precedente `2200`).
+
+### 9.8 Próximo passo
+
+Auditar/publicar `2236` + `2237` + `2831` v3.1 + documentação → mandato LIVE próprio para a `2236` → postcheck → mandato LIVE próprio para a `2237` → postcheck → provar B-SEMANTIC genérico 46 → 11 → PRE JIT da `2831` v3.1 → só então considerar autorizar a simulação (com `ROLLBACK`). **Gate A não declarado PASS. `2213` continua posterior ao Gate A.**

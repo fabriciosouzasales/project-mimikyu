@@ -170,6 +170,8 @@ versionada (`DEFER_CANDIDATE` / `SOURCE_CONTRADICTION`, staging BASEP). Ele
 **não pertence ao corpus EC** e por isso não tem trait nem mapping. O gate C1
 o exclui explicitamente — 1 row (0,06 % das 1.642) não bloqueia nada.
 
+> **SUPERSEDED em parte (2026-10-04, `BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01`, D1(a′) APPROVED).** `PIKACHU-TAIL` **é** Edition Context = `CAMPAIGN_PIKACHU_WORLD_2000`: o trait e o profile entram pela `2236`. Continua valendo o isolamento operacional: **nenhum mapping** `PIKACHU-TAIL` é criado, BASE2 #60 e BASEP #24 seguem em HOLD, e o uso do conceito é só histórico (camada da `2831`/`2213` para as 6 `STANDARD_PIKACHU_WORLD_2000`). B3 (`foil` fora de `ck_cecem_raw_field`) também segue intacto; LEAGUE e PLAYER-REWARD do legado são resolvidos pela mesma camada histórica, nunca por mapping.
+
 O blocker **B3** também segue intacto: `raw_field='foil'` está fora do
 `ck_cecem_raw_field` de `2207`, logo as 57 rows de `foil`-programa
 (`LEAGUE`, `PLAYER-REWARD`, `PROFESSOR-PROGRAM`) permanecem `INDETERMINATE` e
@@ -199,3 +201,5 @@ Nada disso afeta a cobertura de A: **1.085/1.085**.
 Detalhe linha a linha, com o Variant Type que sustenta cada PROVEN e a razão
 de cada NOT_PROVEN, em **`B-PROFILE-AUDIT-19.md`** — que também registra um
 achado adicional não corrigido nesta rodada (`CAMPAIGN_PIKACHU_WORLD_2000`).
+
+> **SUPERSEDED (2026-10-04, `BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01`, D2 APPROVED).** O `DEFERRED_TO_2213` desta seção é substituído pela `2236` (proposta, não executada): 30 assinaturas B (11 de aridade 1 + 19 compostas) provadas pelo `raw_data` da lineage, mais o profile D1. `2230`–`2232` permanecem como executadas. Ver `2213-CRITICAL-PATH-DECISION.md` §9.

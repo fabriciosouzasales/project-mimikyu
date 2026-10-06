@@ -3,7 +3,37 @@
 --              card_variant + lineage, ATÔMICO (LINEAGE-STRATEGY Correção 6)
 -- ESTE ARQUIVO NAO E MIGRATION. Termina em ROLLBACK por contrato.
 -- A migration real sera numerada 2213 e escrita SOMENTE apos Gate A.
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.0
+-- Status: PROPOSTA — NÃO EXECUTADA · Versão 3.1
+--
+-- v3.1 (BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01) — fecha B-SEMANTIC sem
+-- reduzir o plano (285) e sem tocar resolvedor/lookup/ck_cecem_raw_field:
+--   R1  PRÉ-REQUISITO 2236 + 2237 (forward-fixes de catálogo, propostos, não
+--       executados). Gate FORWARD_FIX_*_NOT_APPLIED aborta se ausentes.
+--       Depois deles, a resolução GENÉRICA (operacional) resolve 274/285:
+--       NO_PROFILE 33→0 (2236/D2), FINISH NULL 2→0 (2237/D3+05b), e sobram
+--       EXATAMENTE as 11 NO_EC — provado no gate B_SEMANTIC_RESIDUAL.
+--   R2  CAMADA HISTORICAL OVERRIDE, só dentro desta simulação (e da futura
+--       2213): regras explícitas, por Variant Type legado + forma exata do
+--       raw_data, com cardinalidade fixa. Nunca vira routing operacional.
+--         H-PIKACHU        6  normal + stamp exatamente [pikachu-tail]
+--                             → STANDARD + CAMPAIGN_PIKACHU_WORLD_2000 (D1(a′))
+--         H-LEAGUE         4  normal + foil league → STANDARD + PROGRAM_LEAGUE
+--         H-PLAYER-REWARD  1  reverse + foil player-reward
+--                             → REVERSE_HOLO + PROGRAM_PLAYER_REWARDS (D4)
+--       O finish de TODAS as regras vem do lookup OPERACIONAL do residual
+--       estrutural sem o token histórico (type apenas) e é conferido contra o
+--       código declarado na regra (H_OVERRIDE_FINISH_DRIFT). Nenhuma regra tem
+--       finish NULL (HISTORICAL_RULE_FINISH_UNDECLARED).
+--   D4  (Fabrício, APPROVED) SV5 #144 Poffin de Colega, legado
+--       PLAYER_REWARD_REVERSE, raw reverse / player-reward / sem subtype / sem
+--       stamp → REVERSE_HOLO + PROGRAM_PLAYER_REWARDS. Gate positivo
+--       D4_PLAYER_REWARD_FINISH_DRIFT. Encerra o STOP H-PLAYER-REWARD-FINISH
+--       da candidata PREP-01 (não publicada).
+--   R3  D1 HOLD-safe: a regra Pikachu exige type=normal e stamp exatamente
+--       [pikachu-tail], Variant legado STANDARD_PIKACHU_WORLD_2000 do plano;
+--       BASEP #24 (holo) e BASE2 #60 não são Variants do plano e continuam sem
+--       mapping (2236 não cria nenhum). Gate D1_PIKACHU_SCOPE.
+--   Todo o hardening da v3.0 permanece inalterado.
 --
 -- v3.0 (BATCH13-2831-READINESS-CONTRACT-RECONCILIATION-01) — a v2.0 tinha
 -- quatro defeitos reais contra o contrato vigente:
@@ -42,15 +72,18 @@
 --
 -- PRE-REQUISITO DE EXECUCAO
 --   2203-2224 + 2233/2234 aplicados; 115 traits / 144 profiles / 122 mappings
---   semeados (LIVE já satisfaz). Execução só com mandato próprio, após
---   auditoria independente desta versão, com PRE JIT e L3 (concorrência).
+--   semeados (LIVE já satisfaz). v3.1: 2236 e 2237 aplicados (NÃO satisfeito
+--   hoje — o PASSO 1C aborta em FORWARD_FIX_2236_NOT_APPLIED). Execução só com
+--   mandato próprio, após auditoria independente desta versão, com PRE JIT e
+--   L3 (concorrência).
 --
--- BLOQUEIO SEMÂNTICO CONHECIDO (B-SEMANTIC — 2213-CRITICAL-PATH-DECISION.md)
---   Medido read-only no LIVE em 2026-10-04: das 285, 46 ainda não têm destino
---   determinístico (33 NEEDS_REVIEW_NO_EC_PROFILE · 11 RESOLVED_NO_EDITION_CONTEXT
---   · 2 finish_target NULL). Enquanto isso valer, este arquivo ABORTA no PASSO 2
---   (PLAN_NON_DETERMINISTIC_CONTEXT), e é o comportamento correto. O plano (285)
---   e a âncora NÃO são reduzidos para tornar o gate verde.
+-- BLOQUEIO SEMÂNTICO (B-SEMANTIC — 2213-CRITICAL-PATH-DECISION.md §8–§9)
+--   Baseline LIVE 2026-10-04: 46 de 285 sem destino determinístico (33
+--   NEEDS_REVIEW_NO_EC_PROFILE · 11 RESOLVED_NO_EDITION_CONTEXT · 2 finish NULL).
+--   v3.1: 2236/2237 fecham 35 (generic 274/285); a camada histórica fecha as
+--   11 restantes (D1(a′) 6 · League 4 · D4 1) → 285/285 determinísticas,
+--   46 → 11 → 0. O plano (285) e a âncora NÃO são reduzidos para tornar o
+--   gate verde.
 --
 -- ORDEM DOS UPDATEs E GUARDS (prova em LINEAGE-STRATEGY.md, nota v3.0)
 --   card_variant primeiro, lineage depois, na mesma transação. Nenhum guard
@@ -73,8 +106,12 @@
 --   PASSO 0B   congelar PRICING_CONDITIONED — derivado do LIVE
 --   PASSO 0C   READY_STRUCTURAL = C3 adjudicado; plano = C3 ∖ Pricing
 --   PASSO 0D   lock das Variants do plano + gates de cardinalidade e âncora
---   PASSO 1    evidência via lineage + eixos + destino de acabamento
---   PASSO 1B   lineage-alvo: lock, snapshot PRE, fingerprints L3
+--   PASSO 1    evidência via lineage + eixos GENÉRICOS + destino de acabamento
+--   PASSO 1A   (v3.1) regras HISTORICAL OVERRIDE + plano efetivo
+--   PASSO 1C   (v3.1) GATES: 2236/2237 aplicados, resíduo = 11, regras 6/4/1,
+--              finish declarado, D1 HOLD-safe, D4 Player Reward
+--   PASSO 1B   lineage-alvo: lock, snapshot PRE, fingerprints L3 (eixos por
+--              row com a MESMA camada histórica)
 --   PASSO 2    GATES do plano e do lineage
 --   PASSO 3    GATES de colisão (card_variant e staging), antes de escrever
 --   PASSO 4A   UPDATE card_variant (contagem exata)
@@ -261,7 +298,9 @@ BEGIN
     END IF;
 END $$;
 
-CREATE TEMP TABLE plan_ready ON COMMIT DROP AS
+-- v3.1: resolução GENÉRICA = exatamente a operacional (resolvedor + lookup),
+-- sem nenhuma exceção. A camada histórica só é aplicada no PASSO 1A.
+CREATE TEMP TABLE plan_generic ON COMMIT DROP AS
 SELECT p.card_variant_id,
        cv.card_id,
        c.card_set_id,
@@ -273,9 +312,11 @@ SELECT p.card_variant_id,
        cv.is_default           AS pre_is_default,
        e.game_id               AS card_game_id,
        p.evidence_row_id,
+       p.evidence_raw,
        ax.edition_context_state,
        ax.edition_context_profile_id,
        ax.printing_profile_id  AS axis_printing_profile_id,
+       ax.residual_type,
        internal.lookup_variant_type_for_row(
            pr.game_id, pr.asset_source_id, c.card_set_id,
            ax.residual_type, ax.residual_foil, ax.residual_subtype, ax.residual_stamp
@@ -292,6 +333,253 @@ SELECT p.card_variant_id,
   LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(c.card_set_id, pr.asset_source_id) sc ON TRUE
   CROSS JOIN LATERAL internal.resolve_variant_row_axes(
        p.evidence_raw, pr.game_id, pr.asset_source_id, sc.external_set_id) ax;
+
+-- --------------------------------------------------------------- PASSO 1A ---
+-- (v3.1) CAMADA HISTORICAL OVERRIDE — exclusiva da reconciliação histórica
+-- (2831/2213). NÃO é routing: nenhuma tabela de mapping, nenhum resolvedor,
+-- nenhum lookup e nenhuma constraint (ck_cecem_raw_field) é alterada. Cada
+-- regra casa por (Variant Type legado, forma EXATA do raw_data) e só se aplica
+-- onde a resolução genérica deu RESOLVED_NO_EDITION_CONTEXT. Cardinalidade
+-- fixa por regra (PASSO 1C). Toda regra declara finish_code (gate
+-- HISTORICAL_RULE_FINISH_UNDECLARED); o id vem do lookup, nunca de UUID fixo.
+CREATE TEMP TABLE historical_override_rule ON COMMIT DROP AS
+SELECT * FROM (VALUES
+    -- D1(a′) — Fabrício 2026-10-04. stamp EXATAMENTE ["pikachu-tail"].
+    ('H-PIKACHU',       'STANDARD_PIKACHU_WORLD_2000', 'normal',  NULL::TEXT,      '["pikachu-tail"]'::JSONB,
+     'CAMPAIGN_PIKACHU_WORLD_2000', 'STANDARD'::TEXT, 6),
+    -- foil-programa LEAGUE (HOLD-MANIFEST H3: EC por migração via lineage).
+    ('H-LEAGUE',        'STANDARDS_LEAGUE',            'normal',  'league',        NULL::JSONB,
+     'PROGRAM_LEAGUE',              'STANDARD'::TEXT, 4),
+    -- D4 — Fabrício. foil-programa PLAYER-REWARD (H3: EC via lineage);
+    -- residual estrutural REVERSE → REVERSE_HOLO.
+    ('H-PLAYER-REWARD', 'PLAYER_REWARD_REVERSE',       'reverse', 'player-reward', NULL::JSONB,
+     'PROGRAM_PLAYER_REWARDS',      'REVERSE_HOLO'::TEXT, 1)
+) r(rule, legacy_type, raw_type, raw_foil, raw_stamp, ec_profile_code, finish_code, expected_n);
+
+-- Variants do plano que casam uma regra. Forma exata do raw: type, foil,
+-- subtype vazio e stamp (NULL/[] quando a regra não declara stamp).
+CREATE TEMP TABLE plan_override ON COMMIT DROP AS
+SELECT g.card_variant_id,
+       h.rule,
+       h.finish_code,
+       (SELECT x.id FROM public.card_edition_context_profile x
+         WHERE x.code = h.ec_profile_code AND x.game_id = pr.game_id) AS override_ec_profile_id,
+       CASE WHEN h.finish_code IS NULL THEN NULL
+            ELSE internal.lookup_variant_type_for_row(
+                     pr.game_id, pr.asset_source_id, g.card_set_id,
+                     g.residual_type, NULL, NULL, NULL)
+       END AS override_finish_id
+  FROM plan_generic g
+  JOIN historical_override_rule h ON h.legacy_type = g.legacy_type
+  CROSS JOIN sim_params pr
+ WHERE g.edition_context_state = 'RESOLVED_NO_EDITION_CONTEXT'
+   AND g.edition_context_profile_id IS NULL
+   AND (g.evidence_raw ->> 'type') = h.raw_type
+   AND (g.evidence_raw ->> 'foil') IS NOT DISTINCT FROM h.raw_foil
+   AND COALESCE(g.evidence_raw ->> 'subtype', '') = ''
+   AND CASE WHEN h.raw_stamp IS NULL
+            THEN COALESCE(jsonb_typeof(g.evidence_raw -> 'stamp'), 'null') = 'null'
+                 OR (g.evidence_raw -> 'stamp') = '[]'::JSONB
+            ELSE (g.evidence_raw -> 'stamp') = h.raw_stamp
+       END;
+
+-- Plano EFETIVO = genérico, com a camada histórica onde (e só onde) casou.
+CREATE TEMP TABLE plan_ready ON COMMIT DROP AS
+SELECT g.card_variant_id, g.card_id, g.card_set_id,
+       g.legacy_variant_type_id, g.legacy_type,
+       g.cv_printing_profile_id, g.cv_edition_context_profile_id,
+       g.pre_variant_order, g.pre_is_default, g.card_game_id, g.evidence_row_id,
+       CASE WHEN o.card_variant_id IS NULL THEN g.edition_context_state
+            ELSE 'RESOLVED_WITH_EC_PROFILE' END                      AS edition_context_state,
+       COALESCE(o.override_ec_profile_id, g.edition_context_profile_id) AS edition_context_profile_id,
+       g.axis_printing_profile_id,
+       CASE WHEN o.card_variant_id IS NULL THEN g.finish_target_id
+            ELSE o.override_finish_id END                            AS finish_target_id,
+       o.rule                                                        AS historical_rule
+  FROM plan_generic g
+  LEFT JOIN plan_override o ON o.card_variant_id = g.card_variant_id;
+
+-- Resíduo da resolução GENÉRICA (o que a operação sozinha não decide).
+CREATE TEMP TABLE generic_unresolved ON COMMIT DROP AS
+SELECT g.card_variant_id FROM plan_generic g
+ WHERE g.edition_context_state IS DISTINCT FROM 'RESOLVED_WITH_EC_PROFILE'
+    OR g.edition_context_profile_id IS NULL
+    OR g.finish_target_id IS NULL
+    OR NOT EXISTS (SELECT 1 FROM public.card_variant_type t
+                    WHERE t.id = g.finish_target_id AND t.code IN (SELECT code FROM finish_codes));
+
+-- --------------------------------------------------------------- PASSO 1C ---
+DO $$
+DECLARE v_n INT; v_m INT; v_txt TEXT; pr sim_params%ROWTYPE;
+BEGIN
+    SELECT * INTO pr FROM sim_params;
+
+    -- R1 — pré-requisitos de catálogo.
+    SELECT COUNT(*) INTO v_n
+      FROM public.card_edition_context_profile p
+      JOIN public.card_edition_context_trait t
+        ON t.code = 'CAMPAIGN_PIKACHU_WORLD_2000' AND t.game_id = pr.game_id AND t.is_active
+     WHERE p.code = 'CAMPAIGN_PIKACHU_WORLD_2000' AND p.game_id = pr.game_id
+       AND p.traits_signature = ARRAY[t.id];
+    IF v_n <> 1 THEN
+        RAISE EXCEPTION 'FORWARD_FIX_2236_NOT_APPLIED: trait/profile CAMPAIGN_PIKACHU_WORLD_2000 ausente ou com assinatura divergente.';
+    END IF;
+    SELECT COUNT(*) INTO v_n
+      FROM public.card_variant_type_external_mapping m
+      JOIN public.card_variant_type vt ON vt.id = m.variant_type_id
+     WHERE m.game_id = pr.game_id AND m.asset_source_id = pr.asset_source_id
+       AND m.normalized_subtype IS NULL AND m.normalized_stamp IS NULL
+       AND ((m.external_set_id = 'base3' AND m.normalized_type = 'HOLO'    AND m.normalized_foil = 'STARLIGHT' AND vt.code = 'HOLO')
+         OR (m.external_set_id = 'sv05'  AND m.normalized_type = 'REVERSE' AND m.normalized_foil = 'GALAXY'    AND vt.code = 'COSMOS_REVERSE'));
+    IF v_n <> 2 THEN
+        RAISE EXCEPTION 'FORWARD_FIX_2237_NOT_APPLIED: esperado 2 mappings SOURCE_SET da 2237, encontrado %.', v_n;
+    END IF;
+
+    -- Regras: profile de destino existe, aridade 1, traço homônimo.
+    SELECT string_agg(h.rule, ', ') INTO v_txt
+      FROM historical_override_rule h
+     WHERE (SELECT COUNT(*) FROM public.card_edition_context_profile p
+              JOIN public.card_edition_context_trait t ON t.code = h.ec_profile_code AND t.game_id = pr.game_id
+             WHERE p.code = h.ec_profile_code AND p.game_id = pr.game_id
+               AND p.traits_signature = ARRAY[t.id]) <> 1;
+    IF v_txt IS NOT NULL THEN
+        RAISE EXCEPTION 'HISTORICAL_RULE_PROFILE: profile de destino ausente/composto para %.', v_txt;
+    END IF;
+
+    -- Cardinalidade por regra (6/4/1) e nenhuma Variant em duas regras.
+    SELECT string_agg(h.rule || '=' || COALESCE(c.n, 0) || '/' || h.expected_n, ', ') INTO v_txt
+      FROM historical_override_rule h
+      LEFT JOIN (SELECT rule, COUNT(*) n FROM plan_override GROUP BY rule) c ON c.rule = h.rule
+     WHERE COALESCE(c.n, 0) <> h.expected_n;
+    IF v_txt IS NOT NULL THEN
+        RAISE EXCEPTION 'HISTORICAL_RULE_CARDINALITY: %.', v_txt;
+    END IF;
+    IF (SELECT COUNT(*) FROM plan_override) <> (SELECT COUNT(DISTINCT card_variant_id) FROM plan_override) THEN
+        RAISE EXCEPTION 'HISTORICAL_RULE_OVERLAP: Variant casada por mais de uma regra.';
+    END IF;
+    -- Toda Variant do plano com tipo legado de regra casou a forma exata.
+    SELECT COUNT(*) INTO v_n FROM plan_generic g
+     WHERE g.legacy_type IN (SELECT legacy_type FROM historical_override_rule)
+       AND g.card_variant_id NOT IN (SELECT card_variant_id FROM plan_override);
+    IF v_n <> 0 THEN
+        RAISE EXCEPTION 'HISTORICAL_RULE_SHAPE: % Variants com tipo legado de regra fora da forma exata do raw.', v_n;
+    END IF;
+
+    -- R1 — resíduo genérico = EXATAMENTE as 11 Variants das regras.
+    SELECT COUNT(*) INTO v_n FROM generic_unresolved;
+    SELECT COUNT(*) INTO v_m FROM (
+        SELECT card_variant_id FROM generic_unresolved
+        EXCEPT SELECT card_variant_id FROM plan_override
+        UNION ALL
+        (SELECT card_variant_id FROM plan_override
+         EXCEPT SELECT card_variant_id FROM generic_unresolved)) d;
+    IF v_n <> 11 OR v_m <> 0 THEN
+        RAISE EXCEPTION 'B_SEMANTIC_RESIDUAL: resíduo genérico % (esperado 11), divergência com as regras históricas %.', v_n, v_m;
+    END IF;
+
+    -- Toda regra declara finish (D4 fechou a última sem destino).
+    SELECT string_agg(rule, ', ') INTO v_txt
+      FROM historical_override_rule WHERE finish_code IS NULL;
+    IF v_txt IS NOT NULL THEN
+        RAISE EXCEPTION 'HISTORICAL_RULE_FINISH_UNDECLARED: regra(s) sem finish declarado: %.', v_txt;
+    END IF;
+
+    -- Finish de TODAS as 11 = lookup operacional do residual estrutural,
+    -- igual ao código declarado (H-PIKACHU/H-LEAGUE STANDARD, H-PLAYER-REWARD
+    -- REVERSE_HOLO).
+    SELECT COUNT(*) INTO v_n
+      FROM plan_override o
+     WHERE o.override_finish_id IS NULL
+        OR (SELECT t.code FROM public.card_variant_type t WHERE t.id = o.override_finish_id)
+           IS DISTINCT FROM o.finish_code;
+    IF v_n <> 0 THEN
+        RAISE EXCEPTION 'H_OVERRIDE_FINISH_DRIFT: % Variants com finish histórico diferente do declarado.', v_n;
+    END IF;
+
+    -- R3 — D1 HOLD-safe. As 6 são BASEP e são as ÚNICAS rows pikachu-tail
+    -- com resulting_variant_id no plano; as demais rows pikachu-tail do LIVE
+    -- (BASEP #24 holo, BASE2 #60) ficam fora do plano e intocadas (L3).
+    SELECT COUNT(*) INTO v_n
+      FROM plan_override o JOIN plan_generic g ON g.card_variant_id = o.card_variant_id
+      JOIN public.card_set cs ON cs.id = g.card_set_id
+     WHERE o.rule = 'H-PIKACHU' AND cs.code = 'BASEP';
+    SELECT COUNT(*) INTO v_m
+      FROM public.catalog_variant_import_row r
+     WHERE jsonb_typeof(r.raw_data -> 'stamp') = 'array'
+       AND (r.raw_data -> 'stamp') ? 'pikachu-tail'
+       AND r.resulting_variant_id IN (SELECT card_variant_id FROM plan_ids);
+    IF v_n <> 6 OR v_m <> 6 THEN
+        RAISE EXCEPTION 'D1_PIKACHU_SCOPE: Variants H-PIKACHU em BASEP %, rows pikachu-tail no plano % (esperado 6/6).', v_n, v_m;
+    END IF;
+
+    -- D4 — PLAYER_REWARD_REVERSE → REVERSE_HOLO + PROGRAM_PLAYER_REWARDS
+    -- (Fabrício, APPROVED; substitui o STOP H-PLAYER-REWARD-FINISH da candidata
+    -- PREP-01). Prova positiva, fail-loud: exatamente 1 Variant, SV5, forma
+    -- exata do raw, residual estrutural REVERSE, profile esperado, lookup do
+    -- residual = REVERSE_HOLO = finish declarado, e o routing OPERACIONAL não
+    -- foi ampliado (a resolução genérica da mesma evidência continua NO_EC com
+    -- foil PLAYER-REWARD residual e lookup no próprio tipo legado).
+    --
+    -- NULL-SAFE (CORRECTION-03): v_m conta VIOLAÇÕES. Cada termo é
+    -- "valor IS DISTINCT FROM esperado" ou "IS [NOT] NULL" — predicados que
+    -- NUNCA retornam NULL (só TRUE/FALSE). Um valor ausente/NULL onde se espera
+    -- um código é DISTINTO do código ⇒ TRUE ⇒ violação. Cada termo vira 0/1
+    -- (::INT), a soma é um inteiro não nulo, e FILTER (WHERE d4_violations > 0)
+    -- nunca avalia NULL. Nenhuma premissa quebrada pode deixar de ser contada.
+    SELECT COUNT(*),
+           COUNT(*) FILTER (WHERE d.d4_violations > 0)
+      INTO v_n, v_m
+      FROM (
+        SELECT
+            ( (x.set_code               IS DISTINCT FROM 'SV5')::INT
+            + (x.legacy_type            IS DISTINCT FROM 'PLAYER_REWARD_REVERSE')::INT
+            + (x.raw_type               IS DISTINCT FROM 'reverse')::INT
+            + (x.raw_foil               IS DISTINCT FROM 'player-reward')::INT
+            + (x.raw_subtype            IS NOT NULL)::INT
+            + (x.raw_stamp_type         IS DISTINCT FROM 'null')::INT
+            + (x.residual_type          IS DISTINCT FROM 'REVERSE')::INT
+            + (x.generic_ec_state       IS DISTINCT FROM 'RESOLVED_NO_EDITION_CONTEXT')::INT
+            + (x.generic_ec_profile_id  IS NOT NULL)::INT
+            + (x.finish_code            IS DISTINCT FROM 'REVERSE_HOLO')::INT
+            + (x.expected_ec_profile_id IS NULL)::INT
+            + (x.override_ec_profile_id IS DISTINCT FROM x.expected_ec_profile_id)::INT
+            + (x.structural_lookup_code IS DISTINCT FROM 'REVERSE_HOLO')::INT
+            + (x.override_finish_code   IS DISTINCT FROM 'REVERSE_HOLO')::INT
+            + (x.generic_finish_code    IS DISTINCT FROM 'PLAYER_REWARD_REVERSE')::INT
+            ) AS d4_violations
+          FROM (
+            SELECT cs.code                                   AS set_code,
+                   g.legacy_type,
+                   g.evidence_raw ->> 'type'                 AS raw_type,
+                   g.evidence_raw ->> 'foil'                 AS raw_foil,
+                   g.evidence_raw ->> 'subtype'              AS raw_subtype,
+                   -- chave ausente e JSON null ⇒ 'null'; qualquer valor ⇒ outro tipo
+                   COALESCE(jsonb_typeof(g.evidence_raw -> 'stamp'), 'null') AS raw_stamp_type,
+                   g.residual_type,
+                   g.edition_context_state                   AS generic_ec_state,
+                   g.edition_context_profile_id              AS generic_ec_profile_id,
+                   o.finish_code,
+                   o.override_ec_profile_id,
+                   (SELECT p.id FROM public.card_edition_context_profile p
+                     WHERE p.code = 'PROGRAM_PLAYER_REWARDS' AND p.game_id = pr.game_id) AS expected_ec_profile_id,
+                   (SELECT t.code FROM public.card_variant_type t
+                     WHERE t.id = internal.lookup_variant_type_for_row(
+                                      pr.game_id, pr.asset_source_id, g.card_set_id,
+                                      'REVERSE', NULL, NULL, NULL))          AS structural_lookup_code,
+                   (SELECT t.code FROM public.card_variant_type t
+                     WHERE t.id = o.override_finish_id)                      AS override_finish_code,
+                   (SELECT t.code FROM public.card_variant_type t
+                     WHERE t.id = g.finish_target_id)                        AS generic_finish_code
+              FROM plan_override o
+              JOIN plan_generic g ON g.card_variant_id = o.card_variant_id
+              LEFT JOIN public.card_set cs ON cs.id = g.card_set_id
+             WHERE o.rule = 'H-PLAYER-REWARD'
+          ) x
+      ) d;
+    IF v_n <> 1 OR v_m <> 0 THEN
+        RAISE EXCEPTION 'D4_PLAYER_REWARD_FINISH_DRIFT: H-PLAYER-REWARD casou % Variant(s) (esperado 1), % fora do contrato D4 (esperado 0).', v_n, v_m;
+    END IF;
+END $$;
 
 -- --------------------------------------------------------------- PASSO 1B ---
 -- Lineage-alvo = rows com resulting_variant_id ∈ plano (escopo estrito da
@@ -324,10 +612,14 @@ SELECT r.id                         AS row_id,
 
 -- Resolução por ROW: cada row-alvo resolvida com o próprio raw_data. Só para o
 -- gate de coerência — o destino gravado é sempre o da Variant (Correção 6).
-CREATE TEMP TABLE lineage_axes ON COMMIT DROP AS
+CREATE TEMP TABLE lineage_axes_generic ON COMMIT DROP AS
 SELECT t.row_id,
+       t.resulting_variant_id,
+       t.raw_data,
+       c.card_set_id,
        ax.edition_context_state,
        ax.edition_context_profile_id,
+       ax.residual_type,
        internal.lookup_variant_type_for_row(
            pr.game_id, pr.asset_source_id, c.card_set_id,
            ax.residual_type, ax.residual_foil, ax.residual_subtype, ax.residual_stamp
@@ -338,6 +630,38 @@ SELECT t.row_id,
   LEFT JOIN LATERAL internal.resolve_variant_mapping_scope(c.card_set_id, pr.asset_source_id) sc ON TRUE
   CROSS JOIN LATERAL internal.resolve_variant_row_axes(
        t.raw_data, pr.game_id, pr.asset_source_id, sc.external_set_id) ax;
+
+-- (v3.1) A MESMA camada histórica, por ROW: só se a Variant da row casou a
+-- regra (plan_override) E o raw da própria row tem a forma exata da regra E a
+-- resolução genérica da row deu NO_EC. Row que não casar fica genérica e o
+-- gate LINEAGE_EVIDENCE_DIVERGENT aborta.
+CREATE TEMP TABLE lineage_axes ON COMMIT DROP AS
+SELECT a.row_id,
+       CASE WHEN h.rule IS NULL THEN a.edition_context_state
+            ELSE 'RESOLVED_WITH_EC_PROFILE' END                    AS edition_context_state,
+       CASE WHEN h.rule IS NULL THEN a.edition_context_profile_id
+            ELSE o.override_ec_profile_id END                      AS edition_context_profile_id,
+       CASE WHEN h.rule IS NULL THEN a.finish_target_id
+            WHEN h.finish_code IS NULL THEN NULL
+            ELSE internal.lookup_variant_type_for_row(
+                     pr.game_id, pr.asset_source_id, a.card_set_id,
+                     a.residual_type, NULL, NULL, NULL)
+       END                                                         AS finish_target_id
+  FROM lineage_axes_generic a
+  CROSS JOIN sim_params pr
+  LEFT JOIN plan_override o ON o.card_variant_id = a.resulting_variant_id
+  LEFT JOIN historical_override_rule h
+         ON h.rule = o.rule
+        AND a.edition_context_state = 'RESOLVED_NO_EDITION_CONTEXT'
+        AND a.edition_context_profile_id IS NULL
+        AND (a.raw_data ->> 'type') = h.raw_type
+        AND (a.raw_data ->> 'foil') IS NOT DISTINCT FROM h.raw_foil
+        AND COALESCE(a.raw_data ->> 'subtype', '') = ''
+        AND CASE WHEN h.raw_stamp IS NULL
+                 THEN COALESCE(jsonb_typeof(a.raw_data -> 'stamp'), 'null') = 'null'
+                      OR (a.raw_data -> 'stamp') = '[]'::JSONB
+                 ELSE (a.raw_data -> 'stamp') = h.raw_stamp
+            END;
 
 -- Fingerprints PRE de tudo que NÃO pode mudar (L3). Hash por linha, agregado
 -- por id: custo O(N) com ~32 bytes por linha.
@@ -764,7 +1088,8 @@ BEGIN
     END IF;
 
     SELECT COUNT(*) INTO v_n FROM lineage_target;
-    RAISE NOTICE '2831_SIMULATION_PASS: 285 Variants + % rows de lineage reconciliadas; L1 L2 L3 L4 L8 L9 PASS. ROLLBACK a seguir.', v_n;
+    RAISE NOTICE '2831_SIMULATION_PASS (v3.1): 285 Variants (274 genéricas + % históricas) + % rows de lineage reconciliadas; L1 L2 L3 L4 L8 L9 PASS. ROLLBACK a seguir.',
+        (SELECT COUNT(*) FROM plan_override), v_n;
 END $$;
 
 -- READY_PRICING_CONDITIONED (80) fica FORA por guard executavel do PASSO 0B:
