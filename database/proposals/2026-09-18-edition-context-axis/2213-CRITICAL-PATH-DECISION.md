@@ -289,7 +289,7 @@ gate ficar verde é proibido. Próximo passo: adjudicação das 46 por classe
 | B — finish | `2237_forward_fix_b_semantic_finish_mappings.sql` | +2 mappings SOURCE_SET: base3 `HOLO\|STARLIGHT` → `HOLO` (05b: starlight = galaxy em BASE3); sv05 `REVERSE\|GALAXY` → `COSMOS_REVERSE` (D3). 0 GLOBAL. |
 | C — histórica | `2831` v3.1 (e a futura `2213`) | Camada HISTORICAL OVERRIDE só na simulação: Pikachu 6, League 4, Player Reward 1. Nunca no resolvedor, no lookup, em `ck_cecem_raw_field` ou no routing. |
 
-Os três arquivos estão **PROPOSTOS, NÃO EXECUTADOS**.
+Os três arquivos estão **PROPOSTOS, NÃO EXECUTADOS**. *(Atualização 2026-10-06: a `2236` está **APPLIED / PASS** — ver §9.9. `2237` e `2831` v3.1 seguem propostas, não executadas.)*
 
 ### 9.4 Os 30 profiles D2 (nomes derivados dos traits no LIVE pela regra da `2231`)
 
@@ -359,4 +359,25 @@ Finish das 11 = lookup operacional do `type` residual sem o token histórico, co
 
 ### 9.8 Próximo passo
 
-Auditar/publicar `2236` + `2237` + `2831` v3.1 + documentação → mandato LIVE próprio para a `2236` → postcheck → mandato LIVE próprio para a `2237` → postcheck → provar B-SEMANTIC genérico 46 → 11 → PRE JIT da `2831` v3.1 → só então considerar autorizar a simulação (com `ROLLBACK`). **Gate A não declarado PASS. `2213` continua posterior ao Gate A.**
+*(SUPERSEDED pela §9.9 quanto ao NEXT — a `2236` já foi aplicada.)* Auditar/publicar `2236` + `2237` + `2831` v3.1 + documentação → mandato LIVE próprio para a `2236` → postcheck → mandato LIVE próprio para a `2237` → postcheck → provar B-SEMANTIC genérico 46 → 11 → PRE JIT da `2831` v3.1 → só então considerar autorizar a simulação (com `ROLLBACK`). **Gate A não declarado PASS. `2213` continua posterior ao Gate A.**
+
+### 9.9 Estado LIVE — `2236` APPLIED / PASS (2026-10-06, `BATCH13-2236-LIVE-APPLY-01`)
+
+Registro completo: `harness/LIVE-2236-APPLY-RECORD.md` (auditoria independente PASS).
+
+- **`2236` = APPLIED / PASS.** Blob `d3acb581…` executado uma vez via `execute_sql` (conteúdo exato, `BEGIN`/`COMMIT` do próprio artefato; não `apply_migration`), sem retry; objetos com `created_at = 2026-10-06 00:39:00.38976+00`.
+- Counts PRE → POST: traits 115 → 116 · profiles 144 → 175 · links 196 → 246 · external mappings 122 → 122 · links de mapping 122 → 122.
+- **D2 provada LIVE:** as 33 Variants consumidoras resolvem `RESOLVED_WITH_EC_PROFILE` 33/33, no profile esperado uma a uma. Os 31 profiles novos (1 D1 + 11 + 19) têm selo = N:N, sem duplicata.
+- **D1(a′) HOLD-safe após aplicação:** 0 mapping `PIKACHU-TAIL`; as 8 rows `pikachu-tail` seguem `RESOLVED_NO_EDITION_CONTEXT`, sem profile, residual `{PIKACHU-TAIL}`. BASEP #24 e BASE2 #60 continuam sem Variant; BASE2 #60 **não** foi resolvida.
+
+**Funil real (fato × projeção):**
+
+| Componente das 46 | Baseline | Estado LIVE após a `2236` | Depende de |
+|---|---:|---|---|
+| NO_PROFILE | 33 | **0 — fato** | — |
+| FINISH NULL | 2 | 2 — inalterado | `2237` (não aplicada) |
+| NO_EC | 11 | 11 — inalterado | camada histórica da `2831` v3.1 |
+
+O 46 → 11 genérico **ainda não é fato LIVE**: falta a `2237` e a prova genérica pós-2237. 46 → 11 → 0 continua projeção.
+
+**NEXT:** publicar este closeout → PRE read-only da `2237` → mandato próprio → POST → só então provar B-SEMANTIC genérico = 11 → PRE JIT da `2831` v3.1. Gate A não declarado PASS; `2213` posterior ao Gate A.
