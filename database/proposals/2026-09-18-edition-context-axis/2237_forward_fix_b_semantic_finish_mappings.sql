@@ -1,7 +1,24 @@
 -- ============================================================================
 -- Query 2237 — FORWARD-FIX B-SEMANTIC: mappings de finish (SOURCE_SET)
--- Status: PROPOSTA — NÃO EXECUTADA · Versão 1.0
--- Mandato: BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01
+-- Status: PROPOSTA — NÃO EXECUTADA · Versão 1.1
+-- Mandato: BATCH13-2831-B-SEMANTIC-REMEDIATION-PREP-01 (v1.0) ·
+--          BATCH13-2237-POST-FINGERPRINT-CORRECTION-01 (v1.1)
+--
+-- HISTÓRICO
+--   v1.1  Correção null-safe do gate POST de fingerprint, após a tentativa
+--         LIVE da v1.0. O conjunto PRE passa a ser identificado pelos próprios
+--         ids (fm_pre.ids) em vez de por um predicado sobre external_set_id /
+--         type / foil. Semântica, alvos, escopo e demais gates INALTERADOS.
+--         Estado: PROPOSTA / NÃO EXECUTADA.
+--   v1.0  ATTEMPTED / ROLLED BACK / SUPERSEDED. Submetida uma vez no LIVE em
+--         2026-10-06 (BATCH13-2237-LIVE-APPLY-01); abortou no gate
+--         2237_POST_EXISTING_CHANGED (P0001); ROLLBACK integral, zero delta
+--         LIVE (mappings 94/75/19, fingerprint aba31a17… preservados).
+--         Causa: o filtro NOT (external_set_id IN (…) AND … AND
+--         (normalized_type, normalized_foil) IN (…)) avalia NULL para os 2
+--         mappings GLOBAL HOLO|NULL e REVERSE|NULL, que sumiam do fingerprint
+--         POST (92 rows contra 94 no PRE). Registro:
+--         harness/LIVE-2237-FAILED-ATTEMPT-RECORD.md.
 --
 -- O QUE FAZ — exatamente 2 INSERTs em card_variant_type_external_mapping,
 -- ambos ESCOPADOS por Card Set (external_set_id NOT NULL). Nenhum GLOBAL.
@@ -99,10 +116,13 @@ BEGIN
     END IF;
 END $$;
 
+-- v1.1: o conjunto PRE é identificado pelos próprios ids (null-safe), não por
+-- um predicado sobre a forma dos 2 alvos.
 CREATE TEMP TABLE fm_pre ON COMMIT DROP AS
 SELECT COUNT(*) AS n,
        COUNT(*) FILTER (WHERE external_set_id IS NULL) AS n_global,
-       md5(string_agg(id::TEXT || '|' || variant_type_id::TEXT, ',' ORDER BY id)) AS fp
+       md5(string_agg(id::TEXT || '|' || variant_type_id::TEXT, ',' ORDER BY id)) AS fp,
+       array_agg(id ORDER BY id) AS ids
   FROM public.card_variant_type_external_mapping;
 
 -- ---------------------------------------------------------------- PASSO 2 ---
@@ -121,7 +141,7 @@ SELECT p.game_id, p.src_id, t.external_set_id,
 
 -- ---------------------------------------------------------------- PASSO 3 ---
 DO $$
-DECLARE v_n INT; f fm_pre%ROWTYPE; p fm_params%ROWTYPE;
+DECLARE v_n INT; v_fp TEXT; f fm_pre%ROWTYPE; p fm_params%ROWTYPE;
 BEGIN
     SELECT * INTO f FROM fm_pre;
     SELECT * INTO p FROM fm_params;
@@ -131,13 +151,18 @@ BEGIN
     IF (SELECT COUNT(*) FROM public.card_variant_type_external_mapping WHERE external_set_id IS NULL) <> f.n_global THEN
         RAISE EXCEPTION '2237_POST_GLOBAL_TOUCHED: nenhum mapping GLOBAL pode ser criado.'; END IF;
 
-    -- Nada pré-existente mudou (id → variant_type_id das rows antigas).
-    IF (SELECT md5(string_agg(id::TEXT || '|' || variant_type_id::TEXT, ',' ORDER BY id))
-          FROM public.card_variant_type_external_mapping
-         WHERE NOT (external_set_id IN ('base3', 'sv05')
-                    AND normalized_subtype IS NULL AND normalized_stamp IS NULL
-                    AND (normalized_type, normalized_foil) IN (('HOLO','STARLIGHT'), ('REVERSE','GALAXY'))))
-       IS DISTINCT FROM f.fp THEN
+    -- Nada pré-existente mudou: TODAS as rows do conjunto PRE (identificadas
+    -- pelos próprios ids) continuam presentes com o mesmo id → variant_type_id.
+    -- v1.1: seleção por id = ANY(f.ids) — null-safe, independente da forma dos
+    -- 2 alvos; as 2 rows novas ficam de fora por não estarem em f.ids.
+    SELECT COUNT(*),
+           md5(string_agg(m.id::TEXT || '|' || m.variant_type_id::TEXT, ',' ORDER BY m.id))
+      INTO v_n, v_fp
+      FROM public.card_variant_type_external_mapping m
+     WHERE m.id = ANY(f.ids);
+    IF v_n <> f.n THEN
+        RAISE EXCEPTION '2237_POST_EXISTING_MISSING: % de % mappings pré-existentes presentes.', v_n, f.n; END IF;
+    IF v_fp IS DISTINCT FROM f.fp THEN
         RAISE EXCEPTION '2237_POST_EXISTING_CHANGED: mapping pré-existente alterado.'; END IF;
 
     -- Lookup operacional agora resolve exatamente o destino, só no escopo.

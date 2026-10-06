@@ -381,3 +381,16 @@ Registro completo: `harness/LIVE-2236-APPLY-RECORD.md` (auditoria independente P
 O 46 → 11 genérico **ainda não é fato LIVE**: falta a `2237` e a prova genérica pós-2237. 46 → 11 → 0 continua projeção.
 
 **NEXT:** publicar este closeout → PRE read-only da `2237` → mandato próprio → POST → só então provar B-SEMANTIC genérico = 11 → PRE JIT da `2831` v3.1. Gate A não declarado PASS; `2213` posterior ao Gate A.
+
+### 9.10 Estado LIVE — `2237` v1.0 ATTEMPTED / ROLLED BACK (2026-10-06, `BATCH13-2237-LIVE-APPLY-01`)
+
+Registro completo: `harness/LIVE-2237-FAILED-ATTEMPT-RECORD.md`.
+
+- **`2236` = APPLIED / PASS / DOCUMENTED** (§9.9).
+- **`2237` v1.0 = ATTEMPTED / ROLLED BACK / NOT APPLIED.** Submetida uma vez; abortou em `2237_POST_EXISTING_CHANGED` (P0001); ROLLBACK integral; mappings 94 / 75 GLOBAL / 19 SOURCE_SET e fingerprint `aba31a17…` preservados; 0 rows-alvo; zero retry.
+- **Causa:** gate POST de fingerprint não null-safe — o filtro por exclusão da forma dos alvos avaliava NULL nos 2 mappings GLOBAL `HOLO|NULL` e `REVERSE|NULL` (92 TRUE / 2 NULL), e o fingerprint filtrado nunca igualava o PRE.
+- **`2237` v1.1 = CORRECTION CANDIDATE / NÃO EXECUTADA:** conjunto PRE identificado por `id = ANY(fm_pre.ids)`; semântica, alvos e demais gates inalterados.
+
+**B-SEMANTIC LIVE (fato, inalterado):** NO_PROFILE 0 · NO_EC 11 · FINISH NULL 2 · blocked 13 · determinísticas 272/285. Os efeitos 13 → 11 e 272 → 274 continuam **projeção** da `2237`, não fato.
+
+**NEXT:** auditar candidata v1.1 → publicar → novo PRE LIVE read-only → nova autorização explícita → novo APPLY. `2831` não executada; `2213` não criada.
