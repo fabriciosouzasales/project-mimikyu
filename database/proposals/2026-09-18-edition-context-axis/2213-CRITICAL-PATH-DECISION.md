@@ -394,3 +394,24 @@ Registro completo: `harness/LIVE-2237-FAILED-ATTEMPT-RECORD.md`.
 **B-SEMANTIC LIVE (fato, inalterado):** NO_PROFILE 0 · NO_EC 11 · FINISH NULL 2 · blocked 13 · determinísticas 272/285. Os efeitos 13 → 11 e 272 → 274 continuam **projeção** da `2237`, não fato.
 
 **NEXT:** auditar candidata v1.1 → publicar → novo PRE LIVE read-only → nova autorização explícita → novo APPLY. `2831` não executada; `2213` não criada.
+
+### 9.11 Estado LIVE — `2237` v1.1 APPLIED / PASS (2026-10-06, `BATCH13-2237-V11-LIVE-APPLY-01`)
+
+Registro completo: `harness/LIVE-2237-V11-APPLY-RECORD.md` (auditoria independente PASS).
+
+- **`2236` = APPLIED / PASS / DOCUMENTED** (§9.9).
+- **`2237` v1.0 = ATTEMPTED / ROLLED BACK / SUPERSEDED** (§9.10).
+- **`2237` v1.1 = APPLIED / PASS.** Blob `3ddc54f1…` executado uma vez via `execute_sql` (conteúdo exato, `BEGIN`/`COMMIT` do próprio artefato; não `apply_migration`), sem retry; rows com `created_at = 2026-10-06 02:38:59.15009+00`.
+- Mappings 94 → 96 (GLOBAL 75 → 75, SOURCE_SET 19 → 21): M1 `9428e2ea…` base3 `HOLO|STARLIGHT|NULL|NULL` → `HOLO`; M2 `65fdd081…` sv05 `REVERSE|GALAXY|NULL|NULL` → `COSMOS_REVERSE`. As 94 rows PRE preservadas (ids md5 `cc4b339a…`, fingerprint `aba31a17…`). Lookup só no escopo; zero vazamento global.
+
+**Funil real (fato × projeção):**
+
+| Componente das 46 | Baseline | Estado LIVE após `2236` + `2237` | Depende de |
+|---|---:|---|---|
+| NO_PROFILE | 33 | **0 — fato** | — |
+| FINISH NULL | 2 | **0 — fato** | — |
+| NO_EC | 11 | 11 — inalterado | camada histórica da `2831` v3.1 |
+
+**46 → 11 agora é fato LIVE** do estágio genérico (`2236` + `2237`): plano 285, blocked genérico 11, determinísticas genéricas **274/285**. As 11 restantes são exatamente 6 `STANDARD_PIKACHU_WORLD_2000` + 4 `STANDARDS_LEAGUE` + 1 `PLAYER_REWARD_REVERSE`. **11 → 0 continua NÃO sendo fato LIVE**: depende do HISTORICAL OVERRIDE da `2831` v3.1 (e da `2213` só após o Gate A).
+
+**NEXT:** auditar/publicar o closeout da `2237` → PRE JIT próprio da `2831` v3.1 → nova autorização explícita → executar somente a simulação (`ROLLBACK`) → Gate A. Gate A não declarado PASS; `2213` posterior ao Gate A.
