@@ -415,3 +415,22 @@ Registro completo: `harness/LIVE-2237-V11-APPLY-RECORD.md` (auditoria independen
 **46 → 11 agora é fato LIVE** do estágio genérico (`2236` + `2237`): plano 285, blocked genérico 11, determinísticas genéricas **274/285**. As 11 restantes são exatamente 6 `STANDARD_PIKACHU_WORLD_2000` + 4 `STANDARDS_LEAGUE` + 1 `PLAYER_REWARD_REVERSE`. **11 → 0 continua NÃO sendo fato LIVE**: depende do HISTORICAL OVERRIDE da `2831` v3.1 (e da `2213` só após o Gate A).
 
 **NEXT:** auditar/publicar o closeout da `2237` → PRE JIT próprio da `2831` v3.1 → nova autorização explícita → executar somente a simulação (`ROLLBACK`) → Gate A. Gate A não declarado PASS; `2213` posterior ao Gate A.
+
+### 9.12 `2831` v3.1 SIMULATION PASS / ROLLED BACK — Gate A FINAL PASS (2026-10-06/07, `BATCH13-2831-V31-LIVE-SIMULATION-01`)
+
+Registro completo: `harness/LIVE-2831-V31-SIMULATION-RECORD.md` (auditoria independente PASS).
+
+- **`2236` = CLOSED / APPLIED / PASS / DOCUMENTED** · **`2237` v1.1 = CLOSED / APPLIED / PASS / DOCUMENTED.**
+- **`2831` v3.1 = EXECUTED / SIMULATION PASS / ROLLED BACK / ZERO PERSISTENT DELTA.** Blob `65149642…` submetido uma vez via `execute_sql` (autorização de Fabrício só para a simulação com `ROLLBACK`); retorno `[]`, sem erro; NOTICE **não** devolvido pelo canal. Como o artefato é fail-loud, a ausência de exception implica que nenhum gate abortou (285 Variants e 336 rows de lineage atualizadas, colisões 0, L1/L2/L3/L4/L8/L9), e a transação terminou no `ROLLBACK` do próprio blob. POST externo: todos os fingerprints iguais ao PRE.
+- D1 HOLD-safe intacto (BASE2 #60 e BASEP #24 fora do plano, md5 inalterados; mapping `PIKACHU-TAIL` 0). Forward-fixes intactos.
+
+**B-SEMANTIC — não confundir os dois estados:**
+
+| Estado | Determinísticas | Bloqueadas |
+|---|---:|---:|
+| Persistente no LIVE (`2236` + `2237`) | 274/285 | 11 (6 Pikachu + 4 League + 1 Player Reward) |
+| Provado dentro da simulação (camada HISTORICAL OVERRIDE) | 285/285 | 0 |
+
+**Gate A = FINAL PASS.** Gate A PASS **não** autoriza a `2213`, que segue **NÃO CRIADA**.
+
+**NEXT:** closeout publicado → especificar/preparar a `2213` → auditoria independente da `2213` → mandato próprio futuro.
