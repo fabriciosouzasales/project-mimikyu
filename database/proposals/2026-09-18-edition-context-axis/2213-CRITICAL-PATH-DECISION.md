@@ -434,3 +434,24 @@ Registro completo: `harness/LIVE-2831-V31-SIMULATION-RECORD.md` (auditoria indep
 **Gate A = FINAL PASS.** Gate A PASS **não** autoriza a `2213`, que segue **NÃO CRIADA**.
 
 **NEXT:** closeout publicado → especificar/preparar a `2213` → auditoria independente da `2213` → mandato próprio futuro.
+
+### 9.13 `2213` v1.0 APPLIED / FINAL PASS (2026-10-07, `BATCH13-2213-V10-LIVE-EXECUTION-01`)
+
+Registro completo: `harness/LIVE-2213-V10-APPLY-RECORD.md` (auditoria independente PASS). Sucede o "`2213` NÃO CRIADA" da §9.12: a `2213` v1.0 foi preparada (`BATCH13-2213-MIGRATION-PREP-01` + correção do contrato L5), publicada em `c7848edb` e executada com mandato próprio.
+
+- **`2236` = CLOSED** · **`2237` v1.1 = CLOSED** · **`2831` v3.1 = SIMULATION PASS / Gate A FINAL PASS** (§9.12).
+- **`2213` v1.0 = APPLIED / FINAL PASS.** Autorização de Fabrício: "Autorizo a execução LIVE da migration 2213 v1.0, blob 4318ac9567b6489ca441e487e3ae8ebda0247ea6." Blob `4318ac95…` submetido uma vez via `execute_sql` (não `apply_migration`), sem retry; retorno `[]`, sem SQLSTATE; NOTICE não devolvido pelo canal. Timestamp transacional único das 285: `2026-10-07 02:21:39.898181 UTC` (205,07 s após o último gate de concorrência; limite de 60 s SUPERSEDED só para esta execução).
+- **285 READY_UNCONDITIONED = materializadas:** POST CV `c14f6fdb…` = esperado congelado; ids 285/285 preservados; EC não-NULL 285/285 (global 285); `card_variant` 24.893.
+- **336 rows de lineage = reconciliadas:** POST lineage `a4b21ecd…` = esperado congelado; ids 336/336; híbrido L2 0.
+- Fora do escopo idêntico ao PRE (25.903 / `d801514d…` · 24.608 / `dd7108a9…` · 23.955 · 1.193). **READY_UNCONDITIONED residual 0.** **Pricing 80 protegidas** (STAFF_HOLO 40 + SET_LOGO_REVERSE 40, EC não-NULL 0). D1 HOLD-safe e forward-fixes intactos.
+
+**B-SEMANTIC — distinguir os dois momentos:**
+
+| Momento | Estado persistente |
+|---|---|
+| Antes da `2213` | 274/285 genericamente determinísticas + 11 pela camada histórica (6/4/1); nenhuma decomposta |
+| Depois da `2213` | **285/285 fisicamente decompostas** (EC + finish puro); 336/336 rows de lineage reconciliadas |
+
+READY_PRICING_CONDITIONED (80) segue fora do escopo, bloqueada até `PRICING-CATALOG-VARIANT-RECONCILIATION-01`; HOLD 107 intocado.
+
+**Batch 13 não é declarado CLOSED aqui.** **NEXT:** publicar o closeout da `2213` → auditoria de encerramento do Batch 13 → só depois a próxima frente do roadmap.
