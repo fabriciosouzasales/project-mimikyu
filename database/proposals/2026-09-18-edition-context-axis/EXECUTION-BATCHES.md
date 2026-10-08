@@ -1408,6 +1408,40 @@ routing do eixo 3.
 
 ---
 
+## Batch 13 — `2831` → `2213` / Legacy Decomposition · ✅ **CLOSED**
+
+> **ESTADO (2026-10-07, `BATCH13-FINAL-CLOSEOUT-01`): CLOSED.** Registro de encerramento: `harness/BATCH13-FINAL-CLOSEOUT-RECORD.md` (critério A–K 11/11).
+
+**Escopo:** decompor as 285 READY_UNCONDITIONED legadas (Finish + Edition Context) com o lineage reconciliado na mesma transação, incluindo os pré-requisitos semânticos `2236`, `2237`, `2831` v3.1 e `2213` v1.0.
+
+| Artefato | Estado | Registro |
+|---|---|---|
+| `2236` | CLOSED / APPLIED / PASS | `harness/LIVE-2236-APPLY-RECORD.md` |
+| `2237` v1.0 | ATTEMPTED / FAILED INTERNAL POST / ROLLED BACK / ZERO LIVE DELTA / SUPERSEDED | `harness/LIVE-2237-FAILED-ATTEMPT-RECORD.md` |
+| `2237` v1.1 | CLOSED / APPLIED / PASS | `harness/LIVE-2237-V11-APPLY-RECORD.md` |
+| `2831` v3.1 | SIMULATION PASS / ROLLED BACK / ZERO PERSISTENT DELTA / GATE A FINAL PASS | `harness/LIVE-2831-V31-SIMULATION-RECORD.md` |
+| `2213` v1.0 | APPLIED / FINAL PASS | `harness/LIVE-2213-V10-APPLY-RECORD.md` |
+
+**Sequência causal:**
+
+1. A readiness de B-SEMANTIC encontrou 46/285 bloqueadas.
+2. Adjudicação D1(a′)/D2/D3/D4.
+3. `2236` aplicada (NO_PROFILE 33 → 0).
+4. `2237` v1.0 falhou no POST interno e sofreu rollback.
+5. `2237` v1.1 aplicada (FINISH NULL 2 → 0).
+6. Genérico 274/285, resíduo 11 (6 Pikachu + 4 League + 1 Player Reward).
+7. `2831` v3.1 SIMULATION PASS / Gate A FINAL PASS.
+8. `2213` preparada e auditada.
+9. `2213` aplicada.
+10. POST definitivo 285/285 (CV `c14f6fdb…`) + 336/336 (lineage `a4b21ecd…`), zero drift fora do escopo.
+11. Batch 13 CLOSED.
+
+**Resultado:** READY_UNCONDITIONED residual **0**; `card_variant` 24.893; D1 HOLD-safe intacto (mapping `PIKACHU-TAIL` 0); forward-fixes intactos.
+
+**Limites:** as 80 READY_PRICING_CONDITIONED (40 `STAFF_HOLO` + 40 `SET_LOGO_REVERSE`, EC 0) seguem **protegidas e fora do escopo** — `PRICING-CATALOG-VARIANT-RECONCILIATION-01`, etapa 19 do `ROLLOUT-ORDER.md`. Também não pertencem ao Batch 13: `VARIANT-DISPLAY-SEMANTICS-01`, `NEEDS_REVIEW` editorial, `CATALOG-HISTORICAL-BOOTSTRAP-03`, `CATALOG-VARIANT-DEFAULT-BACKFILL-01`, `BULK-04`/`05`/`06`, Collections UX e Frontend.
+
+---
+
 ## Estado final
 
 ```
@@ -1420,3 +1454,14 @@ Fora deste rollout, como dívida rotulada: `2831`→`2213` (285
 Pricing) · 12 composições de B (`DEFERRED_TO_2213`) ·
 `CAMPAIGN_PIKACHU_WORLD_2000` · frontend (`FRONTEND-DISPLAY-CONTRACT.md`,
 `DEFERRED UNTIL AFTER 2213`).
+
+> **Atualização (2026-10-07, `BATCH13-FINAL-CLOSEOUT-01`).** Da dívida rotulada acima, o Batch 13 (CLOSED) fechou:
+>
+> - `2831`→`2213`: 285/285 decompostas;
+> - as 12 composições de B: substituídas pela `2236`, D2;
+> - `CAMPAIGN_PIKACHU_WORLD_2000`: trait criado pela `2236` e as 6 resolvidas pela camada histórica, sem mapping operacional.
+>
+> Continuam como dívida de frentes próprias:
+>
+> - as 80 `READY_PRICING_CONDITIONED`, bloqueadas por Pricing;
+> - o frontend de exibição (`FRONTEND-DISPLAY-CONTRACT.md`), agora com a condição "depois da `2213`" satisfeita.

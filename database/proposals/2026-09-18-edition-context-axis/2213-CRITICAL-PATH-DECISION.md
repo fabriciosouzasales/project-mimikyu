@@ -455,3 +455,7 @@ Registro completo: `harness/LIVE-2213-V10-APPLY-RECORD.md` (auditoria independen
 READY_PRICING_CONDITIONED (80) segue fora do escopo, bloqueada até `PRICING-CATALOG-VARIANT-RECONCILIATION-01`; HOLD 107 intocado.
 
 **Batch 13 não é declarado CLOSED aqui.** **NEXT:** publicar o closeout da `2213` → auditoria de encerramento do Batch 13 → só depois a próxima frente do roadmap.
+
+### 9.14 Batch 13 CLOSED (2026-10-07, `BATCH13-FINAL-CLOSEOUT-01`)
+
+Encerramento documental: `harness/BATCH13-FINAL-CLOSEOUT-RECORD.md` (critério A–K 11/11). Os fatos materiais estão em §9.13 e em `harness/LIVE-2213-V10-APPLY-RECORD.md` e não são repetidos aqui. As 80 de Pricing seguem fora do escopo, sem Pricing CLOSED. **NEXT:** `VARIANT-DISPLAY-SEMANTICS-01` + experiência editorial de `NEEDS_REVIEW`, não iniciados.
