@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Eye, EyeOff, FileUp, Layers, Pencil, Plus, Search } from "lucide-react";
+import { CreditCard, Eye, EyeOff, FileUp, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type CSSProperties } from "react";
@@ -13,6 +13,7 @@ import { SetTypeTag } from "@/components/catalogo/set-type-tag";
 import { CardImagePreview } from "@/components/card/card-image-preview";
 import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
 import { CardPriceSummary } from "@/components/card/card-price-summary";
+import { CartaVariantsSummary } from "@/components/catalogo/carta-variants-summary";
 import { HoloCard } from "@/components/card/holo-card";
 import { usePricingBatch } from "@/hooks/use-pricing-batch";
 import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
@@ -23,7 +24,6 @@ import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import { Select } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAdminListState } from "@/hooks/use-admin-list-state";
 import { useInfiniteReveal } from "@/hooks/use-infinite-reveal";
 import { formatarData } from "@/lib/format-date";
@@ -1194,41 +1194,16 @@ function CartaGridCard({
                 ficar visualmente colados. */}
             <div className="flex shrink-0 items-center gap-0.5">
               <RaritySymbol symbolCode={carta.raritySymbolCode} />
-              {/* Tag de Card Variants (CV-02, 2026-08-15, pedido de Fabrício)
-                  — só renderizada quando há pelo menos 1 variante cadastrada
-                  (sem tag = sem variante, inclusive o caso de exatamente 1
-                  variante ainda mostra a tag, por pedido explícito).
-                  Monocromática/discreta por pedido explícito: sem cor, sem
-                  badge preenchido, sem texto "variações" no card — só ícone
-                  + quantidade, mesma paleta neutra do badge "Inativa"
-                  (`bg-surface-muted`/`text-muted-foreground`). Nomes no
-                  tooltip vêm de `carta.variantNames`, já ordenados por
-                  `card_variant_type.display_order` em `getCartasCompletas`
-                  (`queries.ts`) — não por `variant_order`, ver comentário
-                  lá. */}
-              {carta.variantNames.length > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-surface-muted px-1.5 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
-                      <Layers className="h-2.5 w-2.5" aria-hidden="true" />
-                      {carta.variantNames.length}
-                    </span>
-                  </TooltipTrigger>
-                  {/* Formato "Variações cadastradas" + lista com marcador —
-                      pedido explícito de Fabrício na mesma rodada, em vez do
-                      texto corrido separado por vírgula da primeira versão. */}
-                  <TooltipContent>
-                    <p className="font-semibold">Variações cadastradas</p>
-                    <ul className="mt-0.5">
-                      {/* Chave = `card_variant.id` (VARIANT-GALLERY-REACT-KEY-01):
-                          Variants distintas podem ter o mesmo nome de tipo. */}
-                      {carta.variants.map((variant) => (
-                        <li key={variant.id}>• {variant.name}</li>
-                      ))}
-                    </ul>
-                  </TooltipContent>
-                </Tooltip>
-              )}
+              {/* Indicador de variantes — Nível 2 (VARIANT-DISPLAY-SEMANTICS-01 / F2.2).
+                  Mesmo pill discreto do CV-02 (ícone + quantidade, sem cor,
+                  só quando há variante), agora alimentado por `variantView`
+                  (F2.1): contagem = `rawCount` (G-COMP PASS) e popover com a
+                  identidade completa de cada variante (acabamento + tiragem +
+                  Edition Context, separador " / " — D1). Erro da F1 mostra a
+                  contagem bruta + "Detalhes indisponíveis" (D2), sem cair
+                  para os nomes legados. Detalhe em `carta-variants-summary.tsx`
+                  e `docs/architecture/variant-display-semantics.md`. */}
+              <CartaVariantsSummary cardId={carta.id} cartaName={carta.name} view={carta.variantView} />
               {/* Pill de preço (P12, último ajuste visual, 2026-08-18) —
                   posicionado imediatamente após o indicador de variantes, pedido
                   explícito de Fabrício: "[indicador de variantes] [pill de

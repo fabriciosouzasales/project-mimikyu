@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.9 |
+| **Versão** | 2.10 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -349,7 +349,9 @@ Nota de escopo já registrada na fonte anterior (`ADR-014`, Substituído): Rule-
 > - **P9 (payload) PASS**: ME2.5 com 295 cartas / 630 variantes; HTML +5,14 % e RSC +7,24 % gzip, ambos abaixo de 10 % e de 50.000 B;
 > - **G-COMP PASS** (2026-10-09): `rawCount` é igual ao banco (ME2.5, BASE5, SVE e casos F0) e pode ser exibido como total.
 >
-> **Próximas fases:** F2.2 (galeria, Nível 2), F2.3 (relatório "Variantes por carta") e F2.4 opcional. Cada uma exige mandato.
+> **F2.2 concluída** (2026-10-09): a galeria mostra a identidade completa de cada variante num popover acessível.
+>
+> **Próximas fases:** F2.3 (relatório "Variantes por carta") e F2.4 opcional. Cada uma exige mandato.
 >
 > As 1.642 `NEEDS_REVIEW` seguem como frente editorial posterior.
 >
@@ -602,3 +604,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.7 | **`BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED` (2026-09-18, `BULK-STP-01-CLASS-A-CLOSEOUT-01`).** Bloco novo de atualizacao em "Now" e troca da proxima frente: de `BULK-STP-01` para **`VARIANT-DISPLAY-SEMANTICS-01`**. A Classe A (17.222 linhas `VALID` / `PENDING` / `PENDING`) foi consumida em duas fases com baselines mode-aware — `CANARY` **+488** (4 jobs: `FUT2020`, `NEO3`, `NEO1`, `BASE2`) e `FULL` pos-CANARY **+16.734** sobre baseline 8.159, acumulado **+17.222** —, levando `card_variant` de **7.671 a 24.893**; as **76** linhas `SKIPPED` (JUMBO `SIZE_OUT_OF_SCOPE`) consolidaram em `UNCHANGED` sem virar Variante. Estado terminal dos 113 TARGET: **51 `COMPLETED`**, **62 `STAGED`** (os que retem `NEEDS_REVIEW`), **0** em `CONFIRMING`/`COMPLETED_WITH_ERRORS`/`FAILED`, **0** identidades duplicadas, **0** `is_default = true` criado. Reaproveitou exclusivamente `2144` v2.0 e `2145` v2.0 — nenhuma tabela, RPC, Edge Function, policy, grant ou migration nova. **`CAMPAIGN FREEZE` encerrado.** Permanecem abertos **por decisao**: **1.642** `NEEDS_REVIEW` (residuo taxonomico, frente editorial propria, destravada por `VARIANT-DISPLAY-SEMANTICS-01`) e os **56** `DEFERRED` (fora do escopo de materializacao; 55 sem job, `SM12` `STAGED` com 0 rows). Rodada exclusivamente documental. |
 | 2.8 | **`VARIANT-DISPLAY-SEMANTICS-01` em andamento — F1, REACT-KEY e F2.1 concluídas; P9 PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).** O título "Próxima frente" passou a "Frente em andamento", com um bloco de atualização novo: F1 `2b83b98`, REACT-KEY `94b64ba`, decisões D1–D3 e F2.1 (integração de dados sem mudança visual). Gates da F2.1: testes 50/50, build PASS, P9 payload PASS (HTML +5,14 %, RSC +7,24 % gzip; ME2.5 295/630); G-COMP pendente. Próximas: F2.2, F2.3 e F2.4 opcional, cada uma sob mandato. Contrato em `docs/architecture/variant-display-semantics.md`. |
 | 2.9 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** O bloco da frente passou a registrar o G-COMP como PASS: `rawCount` liberado para exibição como total. Detalhe em `docs/architecture/variant-display-semantics.md` v1.1. |
+| 2.10 | **F2.2 concluída (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.2-GALLERY-N2-01`).** Galeria, Nível 2 entregue. Próxima: F2.3. Detalhe no contrato v1.2. |

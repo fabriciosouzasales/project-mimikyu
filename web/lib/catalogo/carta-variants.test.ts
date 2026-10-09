@@ -79,10 +79,15 @@ test("K5: entrada nula/vazia e não mutação da entrada", () => {
   assert.equal(JSON.stringify(rows), snapshot);
 });
 
-test("K6: a galeria usa o id como chave, nunca o nome", () => {
+test("K6: a lista de variantes da galeria usa o id como chave, nunca o nome", () => {
+  // Desde a F2.2 a lista mora em `carta-variants-summary.tsx` (linha = card_variant.id).
   const here = dirname(fileURLToPath(import.meta.url));
-  const src = readFileSync(resolve(here, "../../components/catalogo/cartas-gallery.tsx"), "utf8");
-  assert.ok(src.includes("key={variant.id}"));
-  assert.ok(!src.includes("key={variantName}"));
-  assert.ok(!/key=\{variant\.name\}/.test(src));
+  const gallery = readFileSync(resolve(here, "../../components/catalogo/cartas-gallery.tsx"), "utf8");
+  const summary = readFileSync(resolve(here, "../../components/catalogo/carta-variants-summary.tsx"), "utf8");
+  assert.ok(gallery.includes("<CartaVariantsSummary"));
+  assert.ok(summary.includes("key={line.id}"));
+  for (const src of [gallery, summary]) {
+    assert.ok(!src.includes("key={variantName}"));
+    assert.ok(!/key=\{(variant|line)\.(name|label)\}/.test(src));
+  }
 });

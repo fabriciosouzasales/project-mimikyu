@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.86 |
+| **Versão** | 1.87 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -109,7 +109,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 |---|---|
 | [`architecture/README.md`](architecture/README.md) | Visão geral da pasta de documentação arquitetural. |
 | [`architecture/ubiquitous-language.md`](architecture/ubiquitous-language.md) | Glossário de linguagem ubíqua do domínio. |
-| [`architecture/variant-display-semantics.md`](architecture/variant-display-semantics.md) | Contrato de frontend da frente `VARIANT-DISPLAY-SEMANTICS-01`: decisões M1–M3 e D1–D3, contrato de três camadas da F2.1 (`variantView`), fases F1→F2.4 e gates P1–P12. P9 payload PASS e G-COMP PASS em 2026-10-09. |
+| [`architecture/variant-display-semantics.md`](architecture/variant-display-semantics.md) | Contrato de frontend da frente `VARIANT-DISPLAY-SEMANTICS-01`: decisões M1–M3 e D1–D3, contrato de três camadas da F2.1 (`variantView`), fases F1→F2.4 e gates P1–P12. P9 payload PASS, G-COMP PASS e F2.2 (galeria, Nível 2) concluída em 2026-10-09. |
 
 ## Operations
 
@@ -242,3 +242,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.84 | **`BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED` (2026-09-18, `BULK-STP-01-CLASS-A-CLOSEOUT-01`).** O staging construido por `BULK-STAGING-01` foi **consumido**. Resumo de [`05b-cartas-e-raridade.md`](05b-cartas-e-raridade.md) atualizado para a revisao `1.7` — secao nova **"`BULK-STP-01 / CLASS A` — consumo concluido"** com o baseline terminal medido por postcheck READ-ONLY externo ao runner: `card_variant` **7.671 -> 24.893**, `INSERTED` **17.222**, `UNCHANGED` **76**, Classe A remanescente **0**, B/C/F/stray C **0**, `NEEDS_REVIEW` **1.642 intactas**, TARGET **51 `COMPLETED` / 62 `STAGED`**, **0** em `CONFIRMING`/`COMPLETED_WITH_ERRORS`/`FAILED`, **0** identidades duplicadas, **0** `is_default = true` criado. Executado em duas fases com baselines **mode-aware**: `CANARY` **+488** (`FUT2020`, `NEO3`, `NEO1`, `BASE2`, baseline 7.671) e `FULL` pos-CANARY **+16.734** (baseline 8.159), acumulado **+17.222** — os numeros previstos no desenho conferiram um a um, sem ajuste retroativo. As **76** `SKIPPED` (JUMBO `SIZE_OUT_OF_SCOPE`) consolidaram em `UNCHANGED`, sem virar Variante. Reaproveitou exclusivamente `2144` v2.0 e `2145` v2.0 — **nenhuma tabela, RPC, Edge Function, policy, grant ou migration nova**. **`CAMPAIGN FREEZE` encerrado**, com o registro de que foi controle operacional de campanha efemera e **nao e precedente para bulk permanente multi-admin**. [`ROADMAP.md`](ROADMAP.md) revisao `2.7` e [`README.md`](README.md) com linha nova de placar "Variant Import — consumo"; [`development/HANDOFF-2026-09-16.md`](development/HANDOFF-2026-09-16.md) revisao `1.7` com a secao `0-BIS` e o estado do repositorio corrigido (`origin/main` em `61a2d7d`). **Proxima frente alterada de `BULK-STP-01` para `VARIANT-DISPLAY-SEMANTICS-01`** — as **1.642 `NEEDS_REVIEW`** residuais so devem ser decididas depois que identidade e semantica de exibicao estiverem fechadas; os **56 `DEFERRED`** seguem fora do escopo de materializacao. README da proposal `2026-09-18-bulk-stp-01-class-a` atualizado para `EXECUTED / LIVE VALIDATED / CLOSED`. Rodada exclusivamente documental: nenhum SQL, nenhuma migration, nenhum deploy, nenhuma escrita LIVE. Ver `docs/log.md`. |
 | 1.85 | **`VARIANT-DISPLAY-SEMANTICS-01` F2.1 — documentação (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).** Duas entradas novas: `architecture/variant-display-semantics.md` (contrato canônico da frente) e a evidência P9 em `history/development/variant-display-semantics-01/p9-2026-10-09/`. O resumo do handoff vigente ganhou o estado da revisão `1.35`. |
 | 1.86 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** Entrada nova para a evidência `gcomp-2026-10-09/`; o resumo de `architecture/variant-display-semantics.md` foi atualizado (G-COMP PASS). |
+| 1.87 | **F2.2 concluída (2026-10-09).** Resumo de `architecture/variant-display-semantics.md` atualizado. |
