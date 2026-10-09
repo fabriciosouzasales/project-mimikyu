@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.7 |
+| **Versão** | 2.8 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -333,7 +333,27 @@ Nota de escopo já registrada na fonte anterior (`ADR-014`, Substituído): Rule-
 > fechamento formal da frente" — está **satisfeita**. A regra de autorização permanece:
 > nada começa sem mandato explícito de Fabrício.
 
-**Próxima frente do projeto: `VARIANT-DISPLAY-SEMANTICS-01` — identidade e semântica de exibição de Variante.**
+**Frente em andamento: `VARIANT-DISPLAY-SEMANTICS-01` — identidade e semântica de exibição de Variante.**
+
+> **Atualização (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).**
+> A frente está **em andamento**. Concluídas:
+>
+> - **F1** (`2b83b98`): biblioteca semântica pura `card-variant-display.ts`.
+> - **REACT-KEY** (`94b64ba`): `card_variant.id` como chave React na galeria.
+> - **F2.0**: decisões D1 `" / "`, D2 contagem bruta + "Detalhes indisponíveis", D3 legado só no servidor.
+> - **F2.1**: integração de dados, sem mudança visual. `CartaCompletaRow.variantView` traz a identidade completa (Finish + Printing + Edition Context) até o cliente.
+>
+> Gates da F2.1:
+>
+> - testes 50/50 e P8 (build) PASS;
+> - **P9 (payload) PASS**: ME2.5 com 295 cartas / 630 variantes; HTML +5,14 % e RSC +7,24 % gzip, ambos abaixo de 10 % e de 50.000 B;
+> - **G-COMP pendente**: bloqueia só a exibição de `rawCount` como total.
+>
+> **Próximas fases:** F2.2 (galeria, Nível 2), F2.3 (relatório "Variantes por carta") e F2.4 opcional. Cada uma exige mandato.
+>
+> As 1.642 `NEEDS_REVIEW` seguem como frente editorial posterior.
+>
+> Contrato canônico: `docs/architecture/variant-display-semantics.md`.
 
 > **Atualização (2026-09-18, `BULK-STP-01-CLASS-A-CLOSEOUT-01`).** `BULK-STP-01 / CLASS A`
 > está **`EXECUTED / LIVE VALIDATED / CLOSED`**. A Classe A — as 17.222 linhas `VALID` com
@@ -580,3 +600,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.5 | **`CARD-VARIANTS — BASEP` e `BASE3` `CLOSED`; `EDITORIAL CONVERGENCE` `CLOSED` (2026-09-18, `BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`).** Bullet novo em "Now" registrando o fechamento dos dois últimos Card Sets da frente e o encerramento dela: `BASEP` `COMPLETED` (74/72/2 `DEFERRED`, 53/53 Cards) e `BASE3` `COMPLETED` (**177/177/0**, 62/62 Cards, **zero deferimento**), `card_variant` 7.469 → **7.671**, taxonomia terminal com **94** `card_variant_type_external_mapping` (75 GLOBAL · 8 `sv05` · 6 `basep` · 5 `base3`). **Nota de reconciliação nova que supera as duas anteriores** (2026-09-14 e 2026-09-16): a condição que congelava `CATALOG-HISTORICAL-BOOTSTRAP-03` está satisfeita. **Reconciliação operacional do `BOOTSTRAP-03`:** a descrição "CARDS + ASSETS PT-BR/EN" está desatualizada — Cards e Assets já foram majoritariamente carregados e a etapa restante passa a ser explicitamente **`CARD VARIANTS — HISTORICAL BULK IMPORT`**, com baseline LIVE datado (200 Sets / 20.941 Cards / 30.261 Assets / 7.671 Variants; 196 com Cards; 26 com alguma Variant; 170 com Cards e zero Variants; **169 elegíveis** após excluir `ME5.5`, **16.705** Cards). `ME5.5 — Celebração de 30 Anos` **fora do denominador operacional** (2 Cards / 0 Variants, fonte imatura); 4 Sets sem Cards (`CEL25CC`/`EXU`/`RC`/`SP`) e Assets residuais reclassificados como **`KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`**, explicitamente **não** próximo passo. Sequência macro atualizada preservando `VARIANT-DISPLAY-SEMANTICS-01`. Rodada exclusivamente documental. |
 | 2.6 | **`VARIANT-CARD-CORRELATION-FALLBACK-01` `LIVE VALIDATED` (2026-09-18, `CLOSEOUT-DOCS-01`).** Bloco novo "Pré-requisitos da frente — estado" no topo de "Now", registrando os dois incrementos que antecedem `BULK-STAGING-01`. **`SOURCE-PROBE-01` `CLOSED` / read-only**: 169/169 `SOURCE_READY`, 16.705/16.705 Cards com arquivo correspondente na fonte, 0 `SOURCE_UNAVAILABLE`, 0 `TRANSIENT_FAILURE`. **`VARIANT-CARD-CORRELATION-FALLBACK-01` `LIVE VALIDATED`**: a correlação Card ↔ fonte externa do Variant Import deixa de depender exclusivamente de `card_external_reference` — precedência canônica **`card_external_reference` > catalog lineage > `null`**, lineage consultado **somente** em miss da referência primária, guards `G0`–`G4` fail-closed, paginação que **lança** em vez de truncar, **3 superfícies de leitura por Set** (`catalog_import_job` → `card` → `catalog_import_row`) — cada uma podendo exigir paginação, **sem garantia de "3 queries sempre"** — e **nenhuma consulta por linha**, telemetria aditiva `correlated_by_reference`/`correlated_by_lineage`. **`EXTERNAL-REF-RECOVERY-01` revogado**: `card_external_reference` tem `language_id` `NOT NULL` nas duas constraints de unicidade e o lineage não tem coluna de idioma em nenhum dos dois níveis — um backfill inventaria uma dimensão que o dado de origem não prova. **727 Cards destravadas sem backfill**; universo passa a 169/169 Sets homogêneos. Edge `import-card-variants` **v12** LIVE, `verify_jwt=true`; gates locais `size-scope.test.ts` 81/81, `lineage-correlation.test.ts` 59/59, `deno check` PASS; canário LIVE `EX5.5` `STAGED` (5 rows / 5 `VALID` / `correlated_by_lineage = 5` / `uncorrelated = 0`), **que deve permanecer `STAGED`**. Pré-condição `B6` registrada para `BULK-STAGING-01`: Contents API do GitHub a 60 req/h sem autenticação × 1 chamada por Set × 169 Sets ⇒ runner com *pacing*/retry automático. **Nenhuma migration, nenhum SQL, nenhum backfill; `BULK-STAGING-01` não iniciado.** Detalhamento normativo em `05b-cartas-e-raridade.md` revisão `1.5`, seção "Correlação Card ↔ fonte externa". |
 | 2.7 | **`BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED` (2026-09-18, `BULK-STP-01-CLASS-A-CLOSEOUT-01`).** Bloco novo de atualizacao em "Now" e troca da proxima frente: de `BULK-STP-01` para **`VARIANT-DISPLAY-SEMANTICS-01`**. A Classe A (17.222 linhas `VALID` / `PENDING` / `PENDING`) foi consumida em duas fases com baselines mode-aware — `CANARY` **+488** (4 jobs: `FUT2020`, `NEO3`, `NEO1`, `BASE2`) e `FULL` pos-CANARY **+16.734** sobre baseline 8.159, acumulado **+17.222** —, levando `card_variant` de **7.671 a 24.893**; as **76** linhas `SKIPPED` (JUMBO `SIZE_OUT_OF_SCOPE`) consolidaram em `UNCHANGED` sem virar Variante. Estado terminal dos 113 TARGET: **51 `COMPLETED`**, **62 `STAGED`** (os que retem `NEEDS_REVIEW`), **0** em `CONFIRMING`/`COMPLETED_WITH_ERRORS`/`FAILED`, **0** identidades duplicadas, **0** `is_default = true` criado. Reaproveitou exclusivamente `2144` v2.0 e `2145` v2.0 — nenhuma tabela, RPC, Edge Function, policy, grant ou migration nova. **`CAMPAIGN FREEZE` encerrado.** Permanecem abertos **por decisao**: **1.642** `NEEDS_REVIEW` (residuo taxonomico, frente editorial propria, destravada por `VARIANT-DISPLAY-SEMANTICS-01`) e os **56** `DEFERRED` (fora do escopo de materializacao; 55 sem job, `SM12` `STAGED` com 0 rows). Rodada exclusivamente documental. |
+| 2.8 | **`VARIANT-DISPLAY-SEMANTICS-01` em andamento — F1, REACT-KEY e F2.1 concluídas; P9 PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).** O título "Próxima frente" passou a "Frente em andamento", com um bloco de atualização novo: F1 `2b83b98`, REACT-KEY `94b64ba`, decisões D1–D3 e F2.1 (integração de dados sem mudança visual). Gates da F2.1: testes 50/50, build PASS, P9 payload PASS (HTML +5,14 %, RSC +7,24 % gzip; ME2.5 295/630); G-COMP pendente. Próximas: F2.2, F2.3 e F2.4 opcional, cada uma sob mandato. Contrato em `docs/architecture/variant-display-semantics.md`. |

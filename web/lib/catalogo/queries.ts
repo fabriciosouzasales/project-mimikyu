@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { mapCartaVariants, type CartaVariantRawRow, type CartaVariantRef } from "./carta-variants";
+import {
+  buildCartaVariantView,
+  mapCartaVariants,
+  readCardSetCode,
+  type CartaVariantRef,
+  type CartaVariantSemanticRawRow,
+  type CartaVariantViewState,
+} from "./carta-variants";
 import { deriveVariantImportScopeCounters, type VariantImportScopeCounters } from "./variant-size-scope";
 
 /**
@@ -1940,6 +1947,16 @@ export type CartaCompletaRow = {
    * Variants distintas (mesmo tipo, outro Printing/Edition Context).
    */
   variants: CartaVariantRef[];
+  /**
+   * F2.1 (VARIANT-DISPLAY-SEMANTICS-01) — projeção de cliente do estado
+   * semântico da F1, calculado carta a carta no servidor
+   * (`buildCartaVariantView`, `carta-variants.ts`). Ordem canônica da F1;
+   * sem classificação de legado (D3). `rawCount` = linhas recebidas nesta
+   * consulta, não o total cadastrado (gate G-COMP pendente). Ainda não
+   * consumido por nenhuma superfície: galeria e relatórios continuam em
+   * `variants`/`variantNames` até a F2.2/F2.3.
+   */
+  variantView: CartaVariantViewState;
 };
 
 type CartaCompletaAssetRawRow = {
@@ -1949,8 +1966,8 @@ type CartaCompletaAssetRawRow = {
   language: { code: string } | null;
 };
 
-/** Card Variant embutida na consulta de `getCartasCompletas` (CV-02) — `id` (identidade, chave React — VARIANT-GALLERY-REACT-KEY-01) + nome e ordem canônica do tipo. Tela somente leitura. */
-type CartaCompletaVariantRawRow = CartaVariantRawRow;
+/** Card Variant embutida na consulta de `getCartasCompletas` — identidade, ids dos três eixos e os eixos embutidos (F2.1). Superconjunto da linha usada pela regra legada `mapCartaVariants`. Tela somente leitura. */
+type CartaCompletaVariantRawRow = CartaVariantSemanticRawRow;
 
 type CartaCompletaRawRow = {
   id: string;
@@ -1962,6 +1979,7 @@ type CartaCompletaRawRow = {
   rarity: { id: string; code: string; name: string; symbol_code: string; display_order: number } | null;
   card_category: { id: string; code: string; name: string; display_order: number } | null;
   card_asset: CartaCompletaAssetRawRow[] | null;
+  card_set: { code: string } | null;
   card_variant: CartaCompletaVariantRawRow[] | null;
 };
 
@@ -2030,7 +2048,7 @@ export async function getCartasCompletas(
       // para `authenticated` (confirmado: `getCartasCatalogoStats()` já lê
       // esta tabela em produção) e RLS admin-only (`catalog_admin_select`,
       // ADR-028) — nenhuma migration necessária.
-      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_variant(id, card_variant_type(name, display_order))",
+      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_set(code), card_variant(id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id, card_variant_type(id, code, name, display_order), card_printing_profile(id, name, display_order), card_edition_context_profile(id, name, display_order))",
     )
     .eq("card_set_id", cardSetId);
 
@@ -2052,6 +2070,10 @@ export async function getCartasCompletas(
     // — ver comentário de `variantNames` em `CartaCompletaRow`.
     const variants = mapCartaVariants(card.card_variant);
     const variantNames = variants.map((variant) => variant.name);
+    // F2.1 — estado semântico F1 por carta, projetado para o cliente. Calculado
+    // a partir da linha bruta (nunca dos campos legados acima) e isolado por
+    // carta: um erro aqui não afeta outra carta nem os campos legados.
+    const variantView = buildCartaVariantView(card.card_variant, readCardSetCode(card.card_set));
     return {
       id: card.id,
       collectorNumber: card.collector_number,
@@ -2072,6 +2094,7 @@ export async function getCartasCompletas(
       imageUrlEn: pathEn ? (supabase.storage.from("card-front").getPublicUrl(pathEn).data.publicUrl ?? null) : null,
       variantNames,
       variants,
+      variantView,
     };
   });
 }

@@ -1,0 +1,205 @@
+{
+  "limits": {
+    "maxRelIncrease": 0.1,
+    "maxAbsIncreaseBytes": 50000,
+    "maxSpreadRel": 0.05,
+    "measuredRounds": 5,
+    "warmupRounds": 1
+  },
+  "targetSet": "ME2.5",
+  "setSelectionMethod": "S1",
+  "scenarios": {
+    "A": {
+      "verdict": "PASS",
+      "absIncreaseBytes": 4305,
+      "relIncrease": 0.05140666794038976,
+      "withinRel": true,
+      "withinAbs": true,
+      "reasons": [],
+      "baseline": {
+        "n": 5,
+        "invalidSamples": 0,
+        "encodings": [
+          "gzip"
+        ],
+        "compressed": [
+          83744,
+          83750,
+          83735,
+          83746,
+          83743
+        ],
+        "decompressed": [
+          710892,
+          710892,
+          710892,
+          710892,
+          710892
+        ],
+        "functional": {
+          "selectedCode": "ME2.5",
+          "cartas": 295,
+          "legacyVariants": 630,
+          "cardIdsSha256": "726585cea36861942981ce642a4c588c89d3cb2573a5784a433972db3d028359",
+          "legacyPairsSha256": "93268591669112c4c97d0de270405a762ab111cd202b40d71cd288812174ef86",
+          "cardsCatalogadosDoSet": 295,
+          "variantView": {
+            "absent": 295,
+            "ok": 0,
+            "none": 0,
+            "error": 0,
+            "invalid": 0,
+            "sumRawCount": 0,
+            "okLegacyIdMismatch": 0,
+            "noneLegacyNonEmpty": 0
+          }
+        },
+        "compressedMedian": 83744,
+        "compressedSpreadRel": 0.00017911730989682843,
+        "decompressedMedian": 710892
+      },
+      "f21": {
+        "n": 5,
+        "invalidSamples": 0,
+        "encodings": [
+          "gzip"
+        ],
+        "compressed": [
+          88047,
+          88049,
+          88053,
+          88051,
+          88045
+        ],
+        "decompressed": [
+          830842,
+          830842,
+          830842,
+          830842,
+          830842
+        ],
+        "functional": {
+          "selectedCode": "ME2.5",
+          "cartas": 295,
+          "legacyVariants": 630,
+          "cardIdsSha256": "726585cea36861942981ce642a4c588c89d3cb2573a5784a433972db3d028359",
+          "legacyPairsSha256": "93268591669112c4c97d0de270405a762ab111cd202b40d71cd288812174ef86",
+          "cardsCatalogadosDoSet": 295,
+          "variantView": {
+            "absent": 0,
+            "ok": 295,
+            "none": 0,
+            "error": 0,
+            "invalid": 0,
+            "sumRawCount": 630,
+            "okLegacyIdMismatch": 0,
+            "noneLegacyNonEmpty": 0
+          }
+        },
+        "compressedMedian": 88049,
+        "compressedSpreadRel": 0.00009085849924473872,
+        "decompressedMedian": 830842
+      }
+    },
+    "B": {
+      "verdict": "PASS",
+      "absIncreaseBytes": 4170,
+      "relIncrease": 0.0724448845572523,
+      "withinRel": true,
+      "withinAbs": true,
+      "reasons": [],
+      "baseline": {
+        "n": 5,
+        "invalidSamples": 0,
+        "encodings": [
+          "gzip"
+        ],
+        "compressed": [
+          57563,
+          57555,
+          57562,
+          57558,
+          57561
+        ],
+        "decompressed": [
+          402779,
+          402779,
+          402779,
+          402779,
+          402779
+        ],
+        "functional": {
+          "selectedCode": "ME2.5",
+          "cartas": 295,
+          "legacyVariants": 630,
+          "cardIdsSha256": "726585cea36861942981ce642a4c588c89d3cb2573a5784a433972db3d028359",
+          "legacyPairsSha256": "93268591669112c4c97d0de270405a762ab111cd202b40d71cd288812174ef86",
+          "cardsCatalogadosDoSet": 295,
+          "variantView": {
+            "absent": 295,
+            "ok": 0,
+            "none": 0,
+            "error": 0,
+            "invalid": 0,
+            "sumRawCount": 0,
+            "okLegacyIdMismatch": 0,
+            "noneLegacyNonEmpty": 0
+          }
+        },
+        "compressedMedian": 57561,
+        "compressedSpreadRel": 0.00013898299195635934,
+        "decompressedMedian": 402779
+      },
+      "f21": {
+        "n": 5,
+        "invalidSamples": 0,
+        "encodings": [
+          "gzip"
+        ],
+        "compressed": [
+          61731,
+          61731,
+          61733,
+          61730,
+          61729
+        ],
+        "decompressed": [
+          508439,
+          508439,
+          508439,
+          508439,
+          508439
+        ],
+        "functional": {
+          "selectedCode": "ME2.5",
+          "cartas": 295,
+          "legacyVariants": 630,
+          "cardIdsSha256": "726585cea36861942981ce642a4c588c89d3cb2573a5784a433972db3d028359",
+          "legacyPairsSha256": "93268591669112c4c97d0de270405a762ab111cd202b40d71cd288812174ef86",
+          "cardsCatalogadosDoSet": 295,
+          "variantView": {
+            "absent": 0,
+            "ok": 295,
+            "none": 0,
+            "error": 0,
+            "invalid": 0,
+            "sumRawCount": 630,
+            "okLegacyIdMismatch": 0,
+            "noneLegacyNonEmpty": 0
+          }
+        },
+        "compressedMedian": 61731,
+        "compressedSpreadRel": 0.00006479726555539356,
+        "decompressedMedian": 508439
+      }
+    }
+  },
+  "aggregate": {
+    "note": "Informativo. A+B não representa uma navegação real e não altera o veredito.",
+    "baseline": 141305,
+    "f21": 149780
+  },
+  "overall": "PASS",
+  "overallReasons": [],
+  "analysisComplete": true
+}

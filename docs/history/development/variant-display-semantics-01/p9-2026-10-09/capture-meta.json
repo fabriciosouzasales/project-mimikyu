@@ -1,0 +1,40 @@
+{
+ "method": "P9-B (navegador embutido, fetch same-origin, Resource Timing)",
+ "envs": {
+  "baseline": {
+   "origin": "http://127.0.0.1:3101",
+   "commit": "94b64ba3796e2f6d73db20ee7d0d77d8932d8996",
+   "buildIdFlight": "JQtcMuYg6MbbYaCanNpMw"
+  },
+  "f21": {
+   "origin": "http://127.0.0.1:3102",
+   "commit": "94b64ba + working tree F2.1",
+   "buildIdFlight": "CoxlLMPXijHlnKCyBIYoL"
+  }
+ },
+ "targetSet": "ME2.5",
+ "setSelectionMethod": "S1",
+ "expected": {
+  "cartas": 295,
+  "variants": 630
+ },
+ "order": "r0..r5; rodadas pares baseline primeiro, ímpares f21 primeiro",
+ "scenarioB": {
+  "computed": true,
+  "crossEnvEqual": true,
+  "url": "/catalogo/cartas?set=ME2.5&_rsc=NNfcYhoFWiYSdCZj",
+  "headers": {
+   "rsc": "1",
+   "next-url": null,
+   "next-router-prefetch": null,
+   "next-router-state-tree": "[\"\",{\"children\":[\"catalogo\",{\"children\":[\"cartas\",{\"children\":[\"__PAGE__\",{},null,\"refetch\"]},null,null]},null,null]},null,null] (URI-encoded)"
+  },
+  "browserCheck": {
+   "validated": true,
+   "reasons": [],
+   "how": "headers observados no fetch do roteador ao trocar o seletor ME2→ME2.5, independentemente em cada porta; valores idênticos"
+  }
+ },
+ "injectedCodeSha256": "7df16e9471c562bdc6bb41583fc282f443bda7234d67a1d0d853d0226975512f",
+ "noCookiesRead": true
+}
