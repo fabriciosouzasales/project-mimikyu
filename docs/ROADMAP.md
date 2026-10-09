@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.11 |
+| **Versão** | 2.12 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -423,8 +423,7 @@ editorial** que estabilizou essa campanha para escala.
 >
 > ```
 > 5. VARIANT-DISPLAY-SEMANTICS-01
->      F1 · REACT-KEY · F2.1 · G-COMP · F2.2 — CONCLUÍDAS
->      F2.3 (relatório + filtros) — próxima
+>      F1 · REACT-KEY · F2.1 · G-COMP · F2.2 · F2.3 — CONCLUÍDAS (F2.4 opcional)
 >    + experiência editorial das NEEDS_REVIEW (remedir o resíduo antes de desenhar)
 > 6. CATALOG-ME5.5-IMPORT-01  (nova)
 >    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout
@@ -630,3 +629,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.9 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** O bloco da frente passou a registrar o G-COMP como PASS: `rawCount` liberado para exibição como total. Detalhe em `docs/architecture/variant-display-semantics.md` v1.1. |
 | 2.10 | **F2.2 concluída (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.2-GALLERY-N2-01`).** Galeria, Nível 2 entregue. Próxima: F2.3. Detalhe no contrato v1.2. |
 | 2.11 | **Reconciliação da sequência (2026-10-09, `ROADMAP-SEQUENCE-RECONCILIATION-01`, decisão de Fabrício).** Bloco novo "Sequência vigente": a etapa já concluída `HISTORICAL BULK IMPORT` saiu da lista; entraram `PRICING-CATALOG-VARIANT-RECONCILIATION-01` antes do gate final e `CATALOG-ME5.5-IMPORT-01` no início do item 6, o que revoga a exclusão da ME5.5 de 2026-09-18. A sequência congelada anterior foi preservada como histórico. |
+| 2.12 | **F2.3 concluída (2026-10-09).** Semântica de exibição fechada (F2.4 opcional). Próximo: experiência editorial das `NEEDS_REVIEW`. |

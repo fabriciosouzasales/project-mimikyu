@@ -18,6 +18,12 @@ import {
 } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import {
+  buildVariantSummaryModel,
+  cartaVariantCount,
+  hasCartaVariants,
+  VARIANT_LABEL_SEPARATOR,
+} from "@/lib/catalogo/carta-variant-summary";
 import type { CartaCompletaRow } from "@/lib/catalogo/queries";
 import { getCardSetByCode, getCardSetsForCartas, getCartasCompletas } from "@/lib/catalogo/queries";
 import { cn, formatNumber } from "@/lib/utils";
@@ -114,6 +120,13 @@ function RelatorioVariantesFiltro({ cardSetCode, ativo }: { cardSetCode: string;
  * client-side de `/catalogo/cartas` — a diferença aqui é que a filtragem
  * roda no servidor (parâmetro de URL), não no cliente, para não fugir do
  * padrão 100% server-rendered do resto deste módulo.
+ *
+ * F2.3 (VARIANT-DISPLAY-SEMANTICS-01, 2026-10-09): coluna, quantidade, filtro
+ * e totais passaram a usar `carta.variantView` (F2.1) no lugar de
+ * `variantNames`. Cada variante sai numa linha com a identidade completa
+ * (acabamento / tiragem / Edition Context, D1); erro da F1 mostra "Detalhes
+ * indisponíveis" (D2); quantidade = `rawCount` (G-COMP PASS). Ver
+ * `docs/architecture/variant-display-semantics.md`.
  */
 export default async function RelatorioVariantesPorCartaPage({
   searchParams,
@@ -136,17 +149,25 @@ export default async function RelatorioVariantesPorCartaPage({
   // Cards desativadas junto com as vigentes.
   const cartas = cardSet ? await getCartasCompletas(supabase, cardSet.id) : [];
 
+  // F2.3 (VARIANT-DISPLAY-SEMANTICS-01): presença e contagem vêm de
+  // `variantView` (F2.1). `rawCount` = `count(card_variant)` por G-COMP PASS.
+  // Carta com ERROR conta como "com variante" (há linhas, com dados
+  // incompletos — D2), nunca como "sem".
   const cartasFiltradas = cartas.filter((carta) => {
-    if (filtro === "com") return carta.variantNames.length > 0;
-    if (filtro === "sem") return carta.variantNames.length === 0;
+    if (filtro === "com") return hasCartaVariants(carta.variantView);
+    if (filtro === "sem") return !hasCartaVariants(carta.variantView);
     return true;
   });
 
-  const totalSemVariante = cartas.filter((carta) => carta.variantNames.length === 0).length;
+  const totalSemVariante = cartas.filter((carta) => !hasCartaVariants(carta.variantView)).length;
   // Soma da coluna Quantidade — sobre `cartasFiltradas` (respeita o filtro
   // Todas/Com/Sem ativo), não sobre `cartas`: pedido de Fabrício foi a soma
   // da coluna tal como exibida na tabela, não um total fixo da Coleção.
-  const totalVariantesFiltradas = cartasFiltradas.reduce((soma, carta) => soma + carta.variantNames.length, 0);
+  const contagensFiltradas = cartasFiltradas.map((carta) => cartaVariantCount(carta.variantView));
+  const totalVariantesFiltradas = contagensFiltradas.reduce<number>((soma, n) => soma + (n ?? 0), 0);
+  // Contagem desconhecida (ERROR sem lista) não pode ser somada como zero
+  // silenciosamente: o total ganha "+" e uma nota abaixo da tabela.
+  const totalIncompleto = contagensFiltradas.some((n) => n === null);
 
   return (
     <AppShell title="Catálogo editorial" icon={BookOpen}>
@@ -233,7 +254,8 @@ export default async function RelatorioVariantesPorCartaPage({
                     // de uma célula vazia — sem depender só de cor, mesmo
                     // cuidado de acessibilidade/impressão P&B já aplicado à
                     // tag monocromática de `/catalogo/cartas` (CV-02).
-                    const semVariante = carta.variantNames.length === 0;
+                    const resumo = buildVariantSummaryModel(carta.variantView, carta.name);
+                    const quantidade = cartaVariantCount(carta.variantView);
                     return (
                       <DataTableRow key={carta.id} className={cn(index % 2 === 1 && "bg-[#F7F5ED]")}>
                         <DataTableCell className="py-1.5 pl-6 text-xs tabular-nums text-neutral-500 print:pl-0">
@@ -241,13 +263,40 @@ export default async function RelatorioVariantesPorCartaPage({
                         </DataTableCell>
                         <DataTableCell className="py-1.5 text-xs text-neutral-900">{carta.name}</DataTableCell>
                         <DataTableCell className="py-1.5 text-xs text-neutral-500">
-                          {semVariante ? <span className="italic text-neutral-400">Sem variante</span> : carta.variantNames.join(", ")}
+                          {resumo.kind === "HIDDEN" ? (
+                            <span className="italic text-neutral-400">Sem variante</span>
+                          ) : resumo.kind === "UNAVAILABLE" ? (
+                            // D2: sem fallback para os nomes legados.
+                            <span className="italic text-neutral-500">Detalhes indisponíveis</span>
+                          ) : (
+                            // Uma linha por variante, na ordem da F1; acabamento em
+                            // tom principal, tiragem/Edition Context como
+                            // qualificadores (mesma leitura do popover da galeria).
+                            <ul className="space-y-px">
+                              {resumo.lines.map((line) => (
+                                <li key={line.id}>
+                                  {line.parts.map((part, i) => (
+                                    <span
+                                      key={part.axis}
+                                      className={part.emphasis === "primary" ? "text-neutral-700" : "text-neutral-500"}
+                                    >
+                                      {i > 0 ? VARIANT_LABEL_SEPARATOR : null}
+                                      {part.text}
+                                    </span>
+                                  ))}
+                                  {line.repeatedLabel ? (
+                                    <span className="ml-1 text-[10px] italic text-neutral-400">(rótulo repetido)</span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </DataTableCell>
                         <DataTableCell
                           align="center"
                           className="py-1.5 pr-6 text-xs tabular-nums text-neutral-500 last:pr-6 print:pr-0 print:last:pr-0"
                         >
-                          {carta.variantNames.length}
+                          {quantidade ?? "—"}
                         </DataTableCell>
                       </DataTableRow>
                     );
@@ -267,6 +316,7 @@ export default async function RelatorioVariantesPorCartaPage({
                       className="py-1.5 pr-6 text-xs tabular-nums text-neutral-900 last:pr-6 print:pr-0 print:last:pr-0"
                     >
                       {formatNumber(totalVariantesFiltradas)}
+                      {totalIncompleto ? "+" : ""}
                     </DataTableCell>
                   </tr>
                 </tbody>
@@ -277,6 +327,9 @@ export default async function RelatorioVariantesPorCartaPage({
               <p className="px-6 pb-4 text-xs text-muted-foreground print:px-0">
                 {formatNumber(totalSemVariante)} de {formatNumber(cartas.length)} Cards desta Coleção ainda sem
                 nenhuma Card Variant cadastrada.
+                {totalIncompleto
+                  ? " O total marcado com “+” exclui Cards cuja quantidade não pôde ser lida (Detalhes indisponíveis)."
+                  : ""}
               </p>
             )}
 

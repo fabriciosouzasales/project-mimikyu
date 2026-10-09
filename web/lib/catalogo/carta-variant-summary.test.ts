@@ -4,7 +4,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildVariantSummaryModel, VARIANT_LABEL_SEPARATOR } from "./carta-variant-summary.ts";
+import {
+  buildVariantSummaryModel,
+  cartaVariantCount,
+  hasCartaVariants,
+  VARIANT_LABEL_SEPARATOR,
+} from "./carta-variant-summary.ts";
 import { buildCartaVariantView, CARD_VARIANT_LABEL_SEPARATOR, type CartaVariantViewState } from "./carta-variants.ts";
 
 const CARD = "11111111-1111-4111-8111-111111111111";
@@ -123,4 +128,24 @@ test("M8: contagem = rawCount = número de linhas (G-COMP)", () => {
   if (model.kind !== "LIST") return;
   assert.equal(model.count, 3);
   assert.equal(model.lines.length, 3);
+});
+
+// F2.3 — presença e contagem para filtros e totais do relatório.
+
+test("M9: presença — NONE/ausente = sem; OK e ERROR = com", () => {
+  assert.equal(hasCartaVariants(undefined), false);
+  assert.equal(hasCartaVariants(null), false);
+  assert.equal(hasCartaVariants({ status: "NONE", rawCount: 0 }), false);
+  assert.equal(hasCartaVariants(buildCartaVariantView([row(V1, null, null)], "BASE5")), true);
+  assert.equal(hasCartaVariants(buildCartaVariantView(null, "BASE5")), true);
+});
+
+test("M10: contagem — rawCount; 0 sem variante; null quando desconhecida", () => {
+  assert.equal(cartaVariantCount(undefined), 0);
+  assert.equal(cartaVariantCount({ status: "NONE", rawCount: 0 }), 0);
+  assert.equal(cartaVariantCount(buildCartaVariantView([row(V1, null, null), row(V2, FIRST_ED, null)], "BASE5")), 2);
+  const err = buildCartaVariantView([row(V1, null, null), { ...row(V2, null, null), card_variant_type: null }], "BASE5");
+  assert.equal(err.status, "ERROR");
+  assert.equal(cartaVariantCount(err), 2);
+  assert.equal(cartaVariantCount(buildCartaVariantView(null, "BASE5")), null);
 });

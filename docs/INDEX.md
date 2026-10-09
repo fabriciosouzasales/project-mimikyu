@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.87 |
+| **Versão** | 1.88 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -109,7 +109,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 |---|---|
 | [`architecture/README.md`](architecture/README.md) | Visão geral da pasta de documentação arquitetural. |
 | [`architecture/ubiquitous-language.md`](architecture/ubiquitous-language.md) | Glossário de linguagem ubíqua do domínio. |
-| [`architecture/variant-display-semantics.md`](architecture/variant-display-semantics.md) | Contrato de frontend da frente `VARIANT-DISPLAY-SEMANTICS-01`: decisões M1–M3 e D1–D3, contrato de três camadas da F2.1 (`variantView`), fases F1→F2.4 e gates P1–P12. P9 payload PASS, G-COMP PASS e F2.2 (galeria, Nível 2) concluída em 2026-10-09. |
+| [`architecture/variant-display-semantics.md`](architecture/variant-display-semantics.md) | Contrato de frontend da frente `VARIANT-DISPLAY-SEMANTICS-01`: decisões M1–M3 e D1–D3, contrato de três camadas da F2.1 (`variantView`), fases F1→F2.4 e gates P1–P12. P9 payload PASS, G-COMP PASS, F2.2 (galeria) e F2.3 (relatório e filtros) concluídas em 2026-10-09. |
 
 ## Operations
 
@@ -243,3 +243,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.85 | **`VARIANT-DISPLAY-SEMANTICS-01` F2.1 — documentação (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).** Duas entradas novas: `architecture/variant-display-semantics.md` (contrato canônico da frente) e a evidência P9 em `history/development/variant-display-semantics-01/p9-2026-10-09/`. O resumo do handoff vigente ganhou o estado da revisão `1.35`. |
 | 1.86 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** Entrada nova para a evidência `gcomp-2026-10-09/`; o resumo de `architecture/variant-display-semantics.md` foi atualizado (G-COMP PASS). |
 | 1.87 | **F2.2 concluída (2026-10-09).** Resumo de `architecture/variant-display-semantics.md` atualizado. |
+| 1.88 | **F2.3 concluída (2026-10-09).** Resumo do contrato atualizado. |

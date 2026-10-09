@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Arquitetura de frontend — semântica e contrato de exibição de Card Variant |
 | **Arquivo** | `docs/architecture/variant-display-semantics.md` |
-| **Versão** | 1.2 |
-| **Status** | **EM ANDAMENTO** — F1, REACT-KEY, F2.1 e F2.2 concluídas; G-COMP PASS; F2.3 não iniciada |
+| **Versão** | 1.3 |
+| **Status** | **EM ANDAMENTO** — F1, REACT-KEY, F2.1, F2.2 e F2.3 concluídas; G-COMP PASS. Restam a F2.4 (opcional) e a experiência editorial das `NEEDS_REVIEW` |
 | **Criado em** | 2026-10-09, em `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01` |
 | **Objetivo** | Registrar de forma canônica as decisões, o contrato de dados e o estado das fases da frente que leva a identidade completa de Card Variant (Finish + Printing + Edition Context) até a interface. |
 | **Dependências** | [`ADR-028`](../adr/ADR-028-card-variant-governance.md), [`05b-cartas-e-raridade.md`](../05b-cartas-e-raridade.md), [`STD-004`](../standards/STD-004-frontend-standards.md), `database/proposals/2026-09-18-edition-context-axis/FRONTEND-DISPLAY-CONTRACT.md` (diagnóstico de origem) |
@@ -49,8 +49,8 @@ A unicidade que sustenta o modelo é `uq_card_variant_identity` (Query `2209`): 
 | Módulo | Papel |
 |---|---|
 | `web/lib/catalogo/card-variant-display.ts` (F1) | Biblioteca pura, sem React, Supabase ou rede. Valida, ordena, monta partes do rótulo, detecta colisões e classifica legado. Ponto de entrada: `buildCardVariantDisplays()`. |
-| `web/lib/catalogo/carta-variants.ts` | `mapCartaVariants` (legado). Desde a F2.2 só alimenta os filtros "Com/Sem variantes" da galeria e o relatório (até a F2.3). Desde a F2.1, também contém o adaptador PostgREST → F1 e as projeções. |
-| `web/lib/catalogo/carta-variant-summary.ts` (F2.2) | Modelo puro do indicador. Decide o que o pill e o popover mostram a partir do `variantView`: linhas com acabamento primário e qualificadores, rótulo D1, sinal de rótulo repetido e estado D2. Não reimplementa regra da F1. |
+| `web/lib/catalogo/carta-variants.ts` | `mapCartaVariants` (legado). Desde a F2.3 não tem consumidor de UI: os campos `variants`/`variantNames` continuam em `CartaCompletaRow` por compatibilidade. Desde a F2.1, também contém o adaptador PostgREST → F1 e as projeções. |
+| `web/lib/catalogo/carta-variant-summary.ts` (F2.2/F2.3) | Modelo puro do indicador, mais `hasCartaVariants` (filtros; ERROR conta como "com") e `cartaVariantCount` (`rawCount`; `null` = desconhecida). Decide o que o pill e o popover mostram a partir do `variantView`: linhas com acabamento primário e qualificadores, rótulo D1, sinal de rótulo repetido e estado D2. Não reimplementa regra da F1. |
 | `web/components/catalogo/carta-variants-summary.tsx` (F2.2) | Indicador da galeria, Nível 2. É um botão focável (pill ícone + quantidade) com popover ancorado (`useAnchoredPopover`, mesmo padrão do pill de preço). Abre por hover, foco ou toque e fecha com Esc (o foco volta ao gatilho) ou clique fora. |
 | `web/lib/catalogo/queries.ts` → `getCartasCompletas` | Consulta única por Card Set. Desde a F2.1, lê os três eixos e `card_set(code)` e preenche `CartaCompletaRow.variantView`. |
 
@@ -93,7 +93,7 @@ Regras do adaptador:
 | **F2.0** | Decisões D1, D2 e D3 (Fabrício) | **CLOSED** |
 | **F2.1** | Integração de dados: adaptador, estados, projeção `variantView` e consulta ampliada. Nenhum consumidor visual (sem mudança de UI). | **CONCLUÍDA** (2026-10-09). Gates na §6 |
 | **F2.2** | Galeria, Nível 2: popover acessível, uma linha por variante na ordem da F1, Finish em peso normal e Printing/EC como qualificadores, `aria-label` com D1, erro D2, contagem = `rawCount` | **CONCLUÍDA** (2026-10-09), §6.1. Commit desta rodada |
-| **F2.3** | Relatório "Variantes por carta": estrutura por eixos e total pela contagem bruta | **NÃO INICIADA** |
+| **F2.3** | Relatório "Card Variants por Carta": uma variante por linha com a identidade completa, D2, quantidade e total por `rawCount` (total marcado com "+" quando há contagem desconhecida); filtros Com/Sem variantes do relatório e da galeria via `variantView` | **CONCLUÍDA** (2026-10-09), §6.2. Commit desta rodada |
 | **F2.4** | (Opcional) Nível 3 no detalhe/zoom da carta | **NÃO INICIADA** |
 
 Fora desta frente:
@@ -131,6 +131,19 @@ Fora desta frente:
 | `next lint` / `next build` | **NÃO EXECUTADOS** no sandbox | rodar na máquina de Fabrício |
 
 O estado ERROR (D2) é coberto por teste (M6 e M7). Não foi observado nos dados reais, porque o G-COMP deu 0 ERROR.
+
+### 6.2 Gates da F2.3
+
+| Critério | Estado | Evidência |
+|---|---|---|
+| Testes | **PASS** — 76/76 | M9 (presença) e M10 (contagem, inclusive ERROR e contagem desconhecida) |
+| `tsc --noEmit` | **PASS** | exit 0 |
+| Relatório BASE1 | **PASS** (inspeção, print de Fabrício) | Holográfica / Tiragem Ilimitada · / Sem Sombra · / Sem Sombra · 1ª Edição · / Copyright 1999–2000; quantidade 4. O "·" do nome da tiragem não se confunde com o separador D1 |
+| Relatório BASE5 | **PASS** | 83 linhas; total 167 = G-COMP; 0 sem variante; Dark Alakazam #01 e #18 com 2 linhas cada |
+| Filtro "Sem variantes" | **PASS** | SVE (relatório): estado vazio; BASE5 (galeria): 0 cartas |
+| Filtro "Com variantes" (galeria) | **PASS** | BASE5: 83 de 83 |
+| Nenhum consumidor de UI de `variantNames` | **PASS** | grep em `app/` e `components/` (fora de `experimental/`) |
+| `next lint` / `next build` | **NÃO EXECUTADOS** no sandbox | rodar na máquina de Fabrício |
 
 ## 7. Gate de payload (P9) — resultado
 
@@ -183,3 +196,4 @@ Evidência sanitizada (só números, enums e hashes; sem cookie, token ou corpo 
 | 1.0 | **Criação (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).** Consolida as decisões M1–M3 (F1) e D1–D3 (F2.0), o contrato de três camadas da F2.1, o estado das fases (F1 `2b83b98` e REACT-KEY `94b64ba` publicadas; F2.1 concluída localmente, a publicar no commit desta rodada) e os gates P1–P12. Destaques: P9 **PASS** (A +5,14 % / +4.305 B; B +7,24 % / +4.170 B; ME2.5, 295/630) e P8 PASS por build de produção isolado. P10 não foi executado isoladamente; G-COMP está pendente. |
 | 1.1 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** P11 passou de pendente a PASS: banco e aplicação coincidem em cartas e Σ `rawCount` para ME2.5, BASE5 e SVE, e os casos F0 dão 2/2/6/6/6. R7 foi reclassificado como mitigado, com gatilho de revisão em ~1.000 cartas por Set. Agora `rawCount` pode ser exibido como total na F2.2/F2.3. |
 | 1.2 | **F2.2 concluída (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.2-GALLERY-N2-01`).** A galeria passou a usar `variantView`. O tooltip legado foi trocado por `CartaVariantsSummary`, um popover acessível com a identidade completa de cada variante; o modelo puro fica em `carta-variant-summary.ts`. Gates na §6.1: testes 74/74 (9 novos + K6 ajustado), `tsc` exit 0 e validação visual em dark, light, viewport estreito e teclado. Os filtros Com/Sem variantes e o relatório continuam no legado até a F2.3. |
+| 1.3 | **F2.3 concluída (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.3-REPORT-01`).** O relatório e os filtros Com/Sem variantes migraram para `variantView`; nenhuma UI usa mais `variantNames`. Funções novas: `hasCartaVariants` e `cartaVariantCount`. Testes 76/76, `tsc` exit 0, validação na tela em BASE1, BASE5 e SVE (§6.2). |

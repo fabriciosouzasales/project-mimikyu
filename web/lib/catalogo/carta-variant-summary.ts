@@ -9,6 +9,7 @@
 //         nunca os nomes legados (I8, sem fallback);
 //   - G-COMP PASS (2026-10-09): `rawCount` é a contagem cadastrada.
 // Sem dependência de React, Supabase ou rede — testável com node:test.
+// Usado também no servidor pelo relatório "Card Variants por Carta" (F2.3).
 
 import type { CartaVariantViewState } from "./carta-variants.ts";
 import type { CardVariantLabelAxis } from "./card-variant-display.ts";
@@ -40,6 +41,26 @@ export type VariantSummaryModel =
 
 function plural(count: number): string {
   return count === 1 ? "1 variação cadastrada" : `${count} variações cadastradas`;
+}
+
+/**
+ * F2.3 — presença de variante para filtros "Com/Sem variantes".
+ * Ausência de projeção ou NONE = sem variante. OK e ERROR = com variante:
+ * um ERROR significa que há linhas, só que com dados incompletos (D2), então
+ * nunca é tratado como "sem variante".
+ */
+export function hasCartaVariants(view: CartaVariantViewState | null | undefined): boolean {
+  return !!view && view.status !== "NONE";
+}
+
+/**
+ * F2.3 — quantidade cadastrada para relatórios e totais (G-COMP PASS:
+ * `rawCount` = `count(card_variant)`). `null` só quando a contagem é
+ * desconhecida (ERROR sem lista); quem soma deve tratar esse caso à parte.
+ */
+export function cartaVariantCount(view: CartaVariantViewState | null | undefined): number | null {
+  if (!view || view.status === "NONE") return 0;
+  return typeof view.rawCount === "number" ? view.rawCount : null;
 }
 
 export function buildVariantSummaryModel(view: CartaVariantViewState | null | undefined, cartaName: string): VariantSummaryModel {

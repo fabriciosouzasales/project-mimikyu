@@ -14,6 +14,7 @@ import { CardImagePreview } from "@/components/card/card-image-preview";
 import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
 import { CardPriceSummary } from "@/components/card/card-price-summary";
 import { CartaVariantsSummary } from "@/components/catalogo/carta-variants-summary";
+import { hasCartaVariants } from "@/lib/catalogo/carta-variant-summary";
 import { HoloCard } from "@/components/card/holo-card";
 import { usePricingBatch } from "@/hooks/use-pricing-batch";
 import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
@@ -205,7 +206,8 @@ export function CartasGallery({
   // Filtro "Variações" (CV-02, 2026-08-15, pedido de Fabrício) — single-select
   // (diferente de Raridade/Categoria, que são multi-seleção via `Set`), por
   // isso um estado próprio de 3 valores em vez de reaproveitar o padrão de
-  // `toggleRarity`/`toggleCategory`. 100% client-side sobre `carta.variantNames`
+  // `toggleRarity`/`toggleCategory`. 100% client-side sobre `carta.variantView`
+  // (F2.3 — antes `carta.variantNames`)
   // (já vem embutido em `getCartasCompletas`, sem consulta nova) — mesmo
   // princípio dos demais filtros desta tela.
   const [varianteFilter, setVarianteFilter] = useState<"all" | "with" | "without">("all");
@@ -402,15 +404,16 @@ export function CartasGallery({
   // aplicado ao alternador PT/EN e ao toggle "Mostrar inativas": um Card Set
   // sem nenhuma Card Variant cadastrada tornaria "Com variantes"/"Sem
   // variantes" indistinguíveis de "Todas".
-  const hasAnyVariants = useMemo(() => visibleCartas.some((carta) => carta.variantNames.length > 0), [visibleCartas]);
+  const hasAnyVariants = useMemo(() => visibleCartas.some((carta) => hasCartaVariants(carta.variantView)), [visibleCartas]);
 
   const query = search.trim().toLowerCase();
   const filtered = useMemo(() => {
     return visibleCartas.filter((carta) => {
       if (selectedRarities.size > 0 && !selectedRarities.has(carta.rarityCode)) return false;
       if (selectedCategories.size > 0 && !selectedCategories.has(carta.categoryCode)) return false;
-      if (varianteFilter === "with" && carta.variantNames.length === 0) return false;
-      if (varianteFilter === "without" && carta.variantNames.length > 0) return false;
+      // F2.3: presença de variante vem de `variantView` (ERROR conta como "com").
+      if (varianteFilter === "with" && !hasCartaVariants(carta.variantView)) return false;
+      if (varianteFilter === "without" && hasCartaVariants(carta.variantView)) return false;
       if (query) {
         const matchesName = carta.name.toLowerCase().includes(query);
         // Busca por número — bug reportado por Fabrício (2026-07-31, print
