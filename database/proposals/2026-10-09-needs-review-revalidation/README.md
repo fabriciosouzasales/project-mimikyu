@@ -98,7 +98,7 @@ O runner é `NRR-CONFIRM-01_decide_confirm_revalidated_rows.sql`. Ele usa só as
 |---|---|
 | Checagem semântica prévia | 0 identidades duplicadas no plano. As novas variantes não repetem as legadas da mesma carta: carta de World Championship Deck com o carimbo do jogador é variante diferente da base, e `REVERSE_HOLO` + logo do Set em DP1/SWSH9 não existia como legado. As 48 `VALID` do canary SVE ficaram **fora do escopo**. |
 | **CANARY** (COL1, 1 linha) | **EXECUTADO**. 1 linha `INSERTED`, 1 Card Variant nova (`STANDARD` + `ROLE_STAFF`). `card_variant` foi de 24.893 para 24.894. 0 FAILED. |
-| **FULL** (1.084 linhas, 58 jobs) | **PENDENTE**. A execução pelo agente foi bloqueada pelo controle de permissões, porque é uma escrita grande em recurso compartilhado. Está pronto para colar em `NRR-CONFIRM-01_FULL_ready.sql`. |
+| **FULL** (1.084 linhas, 58 jobs) | **EXECUTADO por Fabrício no SQL Editor** (2026-10-09; o editor mostra só “Success. No rows returned”, porque o NOTICE não aparece ali). |
 
 Para rodar o FULL:
 
@@ -106,3 +106,17 @@ Para rodar o FULL:
 2. O sucesso aparece como o NOTICE `NRR_CONFIRM_OK` com os totais.
 3. Qualquer gate que falhar desfaz a transação inteira.
 4. O esperado é `rows` = 1084, `inserted` + `unchanged` = 1084 e `card_variant_after` = 24.894 + `inserted`.
+
+### Pós-check do NRR-CONFIRM-01 (canary + full), conferido por leitura
+
+| Verificação | Resultado |
+|---|---|
+| `card_variant` | **24.893 → 25.978 (+1.085)** |
+| Por tipo | `STANDARD` 897 · `HOLO` 164 · `REVERSE_HOLO` 16 · `COSMOS_HOLO` 4 · `COSMOS_REVERSE` 4. Todas com Edition Context. |
+| Linhas dos 59 jobs | `VALID/APPROVED/INSERTED` 12.887 · `INVALID/SKIPPED/UNCHANGED` 57 · `NEEDS_REVIEW/PENDING` 551. **0** `VALID/PENDING`. |
+| Jobs | **27 `COMPLETED`**, cada um com `CARD_VARIANT_IMPORT_CONFIRMED` no log. 32 seguem `STAGED`, porque ainda têm `NEEDS_REVIEW`. |
+| Identidade duplicada em `card_variant` | **0** |
+| `FAILED` no staging | **0** |
+| Staging `STAGED`/`PENDING` restante | `NEEDS_REVIEW` 557 · `VALID/PENDING` 48 (canary SVE, fora do escopo) · `VALID/SKIPPED` 64 |
+
+**NEEDS-REVIEW-REVALIDATION-01 está CONCLUÍDA.**
