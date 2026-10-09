@@ -18,6 +18,7 @@ import {
   mapCartaVariants,
   projectCartaVariantView,
   readCardSetCode,
+  toCardVariantDisplayInput,
   type CartaVariantRawRow,
   type CartaVariantSemanticRawRow,
 } from "./carta-variants.ts";
