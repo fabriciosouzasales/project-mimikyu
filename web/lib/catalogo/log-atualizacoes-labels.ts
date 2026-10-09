@@ -71,6 +71,8 @@ export const ACTION_OPTIONS: { value: string; label: string }[] = [
   { value: "CARD_VARIANT_TYPE_UPDATED", label: "Tipo de variação atualizado" },
   { value: "CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED", label: "Mapeamento externo criado" },
   { value: "CARD_VARIANT_IMPORT_CONFIRMED", label: "Importação de variações confirmada" },
+  // Query 2238/2239 (NEEDS-REVIEW-REVALIDATION-01), LIVE desde 2026-10-09.
+  { value: "CARD_VARIANT_IMPORT_ROWS_REVALIDATED", label: "Variações em revisão reavaliadas" },
   // STAGED / NOT DEPLOYED — ver comentário em ENTITY_TYPE_OPTIONS.
   { value: "CARD_PRINTING_EXTERNAL_MAPPING_CREATED", label: "Mapeamento de impressão criado" },
 ];
@@ -132,6 +134,10 @@ export const METADATA_KEY_LABEL: Record<string, string> = {
   supersedes_mapping_id: "Substitui o mapeamento (id)",
   origin_row_id: "Linha de origem (id)",
   rows_revalidated: "Linhas revalidadas",
+  by_variant_type: "Por tipo de variação",
+  run_totals: "Totais da execução",
+  excluded_hold_h2: "Retidas (H2)",
+  excluded_hold_h3: "Retidas (H3)",
   rows_still_pending: "Linhas ainda pendentes",
   jobs_affected: "Importações afetadas",
 };

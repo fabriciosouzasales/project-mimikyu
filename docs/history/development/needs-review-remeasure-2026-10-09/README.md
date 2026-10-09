@@ -78,3 +78,11 @@ A classe B se reduz a **27 unidades de decisão** (assinaturas residuais):
 | `stamp:pikachu-tail` | 1 | HOLD_EDITORIAL |
 
 **Leitura:** dois terços do resíduo não exigem decisão editorial. Eles precisam apenas de uma **reavaliação** com o vocabulário vigente. As decisões que restam são poucas e grandes: as duas retenções (H2 e H3), que somam 439 linhas, e o vocabulário de tiragem para os `subtype` de erro.
+
+## Depois da reavaliação (2026-10-09)
+
+A `NEEDS-REVIEW-REVALIDATION-01` (Queries `2238`/`2239`, validação `2843`) promoveu **1.085** linhas a `VALID`. A linha automática que sobrou é a retida em H3.
+
+**Residual atual: 557 `NEEDS_REVIEW`.** São 556 linhas nas 27 unidades da classe B mais 1 linha de H3.
+
+Detalhes em `database/proposals/2026-10-09-needs-review-revalidation/README.md`.

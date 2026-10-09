@@ -2,7 +2,7 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 2010 - Create Catalog Admin Action Log Table
-Versão......: 2.0
+Versão......: 2.1
 Status......: CANÔNICA — CONFIRMADO EXECUTADO / LIVE / RECONCILIADA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-07-26 (v1.1: 2026-07-26, v1.2: 2026-07-31, v1.3: 2026-08-01,
@@ -40,7 +40,7 @@ Regras de Negócio:
   estrutural pelo qual não há uma única tabela-alvo possível. É
   NOT NULL: toda ação registrada aqui sempre tem exatamente uma
   entidade concreta como alvo, nunca uma ação global.
-- action restrito por CHECK. **Estado terminal LIVE: 31 ações.**
+- action restrito por CHECK. **Estado terminal LIVE: 32 ações** (v2.1).
   A v1.0 desta Query nasceu com as 10 ações da fase inicial de
   ADR-023; a lista foi ampliada por migrations sucessivas
   (ingestão de Cards, raridade, Card Variant Type e seu mapeamento
@@ -139,6 +139,11 @@ REVISION HISTORY
         camada permanecem em `database/migrations/` como histórico e passam a
         ser lidas como `MIGRATION`, não como fonte canônica — inclusive a
         `2159`, que até esta data estava indevidamente em `database/schema/`. |
+| 2.1 | **+1 action `CARD_VARIANT_IMPORT_ROWS_REVALIDATED` (2026-10-09, Query 2238,
+        ledger `20261009231911`, NEEDS-REVIEW-REVALIDATION-01).** O ramo
+        `CATALOG_VARIANT_IMPORT_JOB` passa a aceitar também essa action
+        (auditoria da reavaliação de staging da Query 2239). Estado terminal:
+        **32 ações · 13 entity_types · 13 ramos**. |
 */
 
 CREATE TABLE public.catalog_admin_action_log (
@@ -153,7 +158,7 @@ CREATE TABLE public.catalog_admin_action_log (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     -- ------------------------------------------------------------
-    -- ESTADO TERMINAL LIVE (2026-09-18). 31 ações · 13 entity_types ·
+    -- ESTADO TERMINAL LIVE (2026-10-09, Query 2238). 32 ações · 13 entity_types ·
     -- 13 ramos de correspondência. Acumulado de todas as migrations de
     -- alargamento até 2188 — ver REVISION HISTORY 2.0.
     -- ------------------------------------------------------------
@@ -171,6 +176,7 @@ CREATE TABLE public.catalog_admin_action_log (
                 'RARITY_EXTERNAL_MAPPING_CREATED', 'RARITY_EXTERNAL_MAPPING_UPDATED',
                 'CARD_ASSET_MANUAL_IMPORT_COMPLETED',
                 'CARD_VARIANT_IMPORT_CONFIRMED',
+                'CARD_VARIANT_IMPORT_ROWS_REVALIDATED',
                 'CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED',
                 'CARD_VARIANT_TYPE_CREATED', 'CARD_VARIANT_TYPE_UPDATED',
                 'CARD_VARIANT_TYPE_DEACTIVATED', 'CARD_VARIANT_TYPE_REACTIVATED',
@@ -210,7 +216,9 @@ CREATE TABLE public.catalog_admin_action_log (
             OR (entity_type = 'RARITY_EXTERNAL_MAPPING' AND action IN (
                     'RARITY_EXTERNAL_MAPPING_CREATED', 'RARITY_EXTERNAL_MAPPING_UPDATED'
                 ))
-            OR (entity_type = 'CATALOG_VARIANT_IMPORT_JOB' AND action = 'CARD_VARIANT_IMPORT_CONFIRMED')
+            OR (entity_type = 'CATALOG_VARIANT_IMPORT_JOB' AND action IN (
+                    'CARD_VARIANT_IMPORT_CONFIRMED', 'CARD_VARIANT_IMPORT_ROWS_REVALIDATED'
+                ))
             OR (entity_type = 'CARD_VARIANT_TYPE_EXTERNAL_MAPPING' AND action = 'CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED')
             OR (entity_type = 'CARD_VARIANT_TYPE' AND action IN (
                     'CARD_VARIANT_TYPE_CREATED', 'CARD_VARIANT_TYPE_UPDATED',
@@ -231,7 +239,7 @@ COMMENT ON COLUMN public.catalog_admin_action_log.actor_id IS
     'Administrador que executou a ação. Anulável: sobrevive à exclusão futura do usuário.';
 
 COMMENT ON COLUMN public.catalog_admin_action_log.action IS
-    'Ação administrativa executada. Estado terminal LIVE: 31 ações — ver a CHECK ck_catalog_admin_action_log_action_valid. A lista nasceu em ADR-023 e foi ampliada por migrations sucessivas.';
+    'Ação administrativa executada. Estado terminal LIVE: 32 ações — ver a CHECK ck_catalog_admin_action_log_action_valid. A lista nasceu em ADR-023 e foi ampliada por migrations sucessivas.';
 
 COMMENT ON COLUMN public.catalog_admin_action_log.entity_type IS
     'Tipo da entidade afetada. Estado terminal LIVE: 13 valores — ver a CHECK ck_catalog_admin_action_log_entity_type_valid.';

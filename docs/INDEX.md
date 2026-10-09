@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.88 |
+| **Versão** | 1.89 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -124,6 +124,8 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`history/pipeline-sprint-log.md`](history/pipeline-sprint-log.md) | Diário histórico da evolução sprint a sprint do pipeline de importação. |
 | [`history/development/variant-display-semantics-01/p9-2026-10-09/README.md`](history/development/variant-display-semantics-01/p9-2026-10-09/README.md) | Evidência sanitizada do gate P9 (payload) da F2.1: amostras, metadados de captura e decisão `p9-decide` PASS, com `MANIFEST.sha256`. |
 | [`history/development/variant-display-semantics-01/gcomp-2026-10-09/README.md`](history/development/variant-display-semantics-01/gcomp-2026-10-09/README.md) | Evidência do gate G-COMP: query read-only `G-COMP-DB-01` com o resultado, leitura da galeria no lado da aplicação e comparação (PASS), com `MANIFEST.sha256`. |
+| [`history/development/needs-review-remeasure-2026-10-09/README.md`](history/development/needs-review-remeasure-2026-10-09/README.md) | Remedição read-only das 1.642 `NEEDS_REVIEW` (NR-REMEASURE-01/02) e dry-run NR-DRYRUN-01: 1.086 automáticas e 556 em 27 unidades de acabamento, com `MANIFEST.sha256`. |
+| [`../database/proposals/2026-10-09-needs-review-revalidation/README.md`](../database/proposals/2026-10-09-needs-review-revalidation/README.md) | NEEDS-REVIEW-REVALIDATION-01 — **executada em 2026-10-09**: widen `2238` e função `2239` (hoje em `database/migrations` e `database/schema`), validação `2843` com rollback garantido; 1.085 linhas promovidas, resíduo 557. |
 | [`history/development/HANDOFF-2026-07-26.md`](history/development/HANDOFF-2026-07-26.md) | Handoff superado (26/07). |
 | [`history/development/HANDOFF-2026-07-31.md`](history/development/HANDOFF-2026-07-31.md) | Handoff superado (31/07). |
 | [`history/development/HANDOFF-2026-08-02.md`](history/development/HANDOFF-2026-08-02.md) | Handoff superado (02/08). |
@@ -244,3 +246,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.86 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** Entrada nova para a evidência `gcomp-2026-10-09/`; o resumo de `architecture/variant-display-semantics.md` foi atualizado (G-COMP PASS). |
 | 1.87 | **F2.2 concluída (2026-10-09).** Resumo de `architecture/variant-display-semantics.md` atualizado. |
 | 1.88 | **F2.3 concluída (2026-10-09).** Resumo do contrato atualizado. |
+| 1.89 | **NEEDS_REVIEW — evidência e proposta de reavaliação (2026-10-09).** Duas entradas novas: a evidência da remedição/dry-run em `history/development/needs-review-remeasure-2026-10-09/` e a proposta `database/proposals/2026-10-09-needs-review-revalidation/` (2238/2239/2843, executadas no mesmo dia: 1.085 promovidas, resíduo 557). |
