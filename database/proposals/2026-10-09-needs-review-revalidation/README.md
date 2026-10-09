@@ -120,3 +120,24 @@ Para rodar o FULL:
 | Staging `STAGED`/`PENDING` restante | `NEEDS_REVIEW` 557 · `VALID/PENDING` 48 (canary SVE, fora do escopo) · `VALID/SKIPPED` 64 |
 
 **NEEDS-REVIEW-REVALIDATION-01 está CONCLUÍDA.**
+
+## Decisão H2 — `set-logo` em EX7–EX10 (2026-10-09)
+
+**Decisão de Fabrício:** classificar como **Reverse Holo comum** (`REVERSE_HOLO`), com escopo apenas em EX7–EX10.
+
+**Por que:**
+
+- Nesses Sets a fonte só tem `normal`, `holo` e `reverse + set-logo`. Não existe reverse sem logo, então o logo não distingue nenhuma variante.
+- Antes desta decisão, nenhuma das cartas tinha Reverse Holo no catálogo.
+- Bulbapedia (EX Team Rocket Returns): a partir dessa expansão, toda Reverse Holofoil traz o logo do Set no canto inferior direito da arte.
+- Com isso não se cria tipo composto.
+
+**Execução:**
+
+- O preview oficial (`2194`) devolveu 379 linhas (EX7 95, EX8 95, EX9 89, EX10 100), todas da classe A, sem bloqueio.
+- Foram criados 4 mappings `SOURCE_SET` (`ex7`..`ex10`): `REVERSE` + `SET-LOGO` → `REVERSE_HOLO`. O caminho foi a RPC oficial `admin_resolve_catalog_variant_import_mapping_for_set`, com o administrador real como ator e 4 linhas de auditoria `CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED`.
+- As 379 linhas foram para `VALID/PENDING`. O `NEEDS_REVIEW` total caiu de 557 para **178**.
+
+**Confirmação:** o script `NRR-CONFIRM-02_H2_ready.sql` está pronto para colar no SQL Editor; o esperado é `rows` = 379.
+
+**Inconsistência registrada, não tratada aqui:** em EX11–EX16 a fonte codifica a mesma reverse com logo como `normal + set-logo` e `holo + set-logo`. Esses casos viraram os tipos legados `SET_LOGO_STANDARDS` (449 variantes) e `SET_LOGO_REVERSE` (86). A reconciliação fica com a decisão D2 e com o Pricing 80, em frente própria.
