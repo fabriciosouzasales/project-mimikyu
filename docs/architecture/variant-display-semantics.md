@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Arquitetura de frontend — semântica e contrato de exibição de Card Variant |
 | **Arquivo** | `docs/architecture/variant-display-semantics.md` |
-| **Versão** | 1.0 |
-| **Status** | **EM ANDAMENTO** — F1, REACT-KEY e F2.1 concluídas; F2.2 não iniciada |
+| **Versão** | 1.1 |
+| **Status** | **EM ANDAMENTO** — F1, REACT-KEY e F2.1 concluídas; G-COMP PASS; F2.2 não iniciada |
 | **Criado em** | 2026-10-09, em `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01` |
 | **Objetivo** | Registrar de forma canônica as decisões, o contrato de dados e o estado das fases da frente que leva a identidade completa de Card Variant (Finish + Printing + Edition Context) até a interface. |
 | **Dependências** | [`ADR-028`](../adr/ADR-028-card-variant-governance.md), [`05b-cartas-e-raridade.md`](../05b-cartas-e-raridade.md), [`STD-004`](../standards/STD-004-frontend-standards.md), `database/proposals/2026-09-18-edition-context-axis/FRONTEND-DISPLAY-CONTRACT.md` (diagnóstico de origem) |
@@ -75,8 +75,7 @@ Regras do adaptador:
 
 **`rawCount`** é o número de linhas `card_variant` **recebidas na consulta**, antes de qualquer transformação. Não é a contagem persistida no banco.
 
-- Exibi-lo como "variantes cadastradas" depende do gate **G-COMP** (§6).
-- Na F2.1, `rawCount` não é exibido em lugar nenhum.
+- **G-COMP PASS (2026-10-09):** `rawCount` é igual à contagem persistida e pode ser exibido como "variantes cadastradas" (§6). Na F2.1 ele ainda não é exibido.
 
 **Segurança.** Sem RLS, GRANT, policy ou migration nova:
 
@@ -91,7 +90,7 @@ Regras do adaptador:
 | **REACT-KEY** | `card_variant.id` como chave React na galeria; o mapper preserva o id | **CONCLUÍDA**, commit `94b64ba` |
 | **F2.0** | Decisões D1, D2 e D3 (Fabrício) | **CLOSED** |
 | **F2.1** | Integração de dados: adaptador, estados, projeção `variantView` e consulta ampliada. Nenhum consumidor visual (sem mudança de UI). | **CONCLUÍDA** (2026-10-09). Gates na §6 |
-| **F2.2** | Galeria, Nível 2: popover/tooltip acessível, uma linha por variante na ordem da F1, Finish em peso normal e Printing/EC como qualificadores, `aria-label` com D1, erro D2 | **NÃO INICIADA**; exige mandato. Exibir `rawCount` como total depende do G-COMP |
+| **F2.2** | Galeria, Nível 2: popover/tooltip acessível, uma linha por variante na ordem da F1, Finish em peso normal e Printing/EC como qualificadores, `aria-label` com D1, erro D2 | **NÃO INICIADA**; exige mandato. G-COMP PASS: `rawCount` pode ser exibido como total |
 | **F2.3** | Relatório "Variantes por carta": estrutura por eixos e total pela contagem bruta | **NÃO INICIADA** |
 | **F2.4** | (Opcional) Nível 3 no detalhe/zoom da carta | **NÃO INICIADA** |
 
@@ -113,7 +112,7 @@ Fora desta frente:
 | P8 | `next build` aceita o import `./card-variant-display.ts` | **PASS** | `next build` de produção da árvore F2.1 em cópia isolada (protocolo P9, Fase 4), seguido de `next start` servindo a galeria |
 | P9 | Gate de payload real | **PASS** | §7 |
 | P10 | `next lint` isolado | **NÃO EXECUTADO** | `next lint` não roda no sandbox do agente (sem binário SWC); fica para a máquina de Fabrício |
-| P11 | **G-COMP**: completude de `rawCount` | **PENDENTE** (bloqueia só a exibição de `rawCount` como total na F2.2) | G-COMP-1: Σ `rawCount` = `count(card_variant)` do Set · G-COMP-2: cartas devolvidas = `count(card)` do Set · G-COMP-3: casos F0 = 2/6/6/6. Exige leitura read-only autorizada à parte |
+| P11 | **G-COMP**: completude de `rawCount` | **PASS** (2026-10-09) | G-COMP-1 (Σ `rawCount`) e G-COMP-2 (cartas devolvidas) iguais ao banco em ME2.5 (295/630), BASE5 (83/167) e SVE (24/112). G-COMP-3: casos F0 = 2/2/6/6/6 nos dois lados. Banco: `G-COMP-DB-01` (1 SELECT, autorizado). Aplicação: galeria lida no navegador. Evidência: [`gcomp-2026-10-09/`](../history/development/variant-display-semantics-01/gcomp-2026-10-09/README.md) |
 | P12 | Sem exceção não tratada; isolamento entre cartas | PASS | S13, S22–S28 |
 
 ## 7. Gate de payload (P9) — resultado
@@ -153,7 +152,7 @@ Evidência sanitizada (só números, enums e hashes; sem cookie, token ou corpo 
 
 | ID | Item | Tratamento |
 |---|---|---|
-| R7 | `max-rows` do PostgREST sobre raiz/embeds não verificado | Coberto pelo G-COMP antes de exibir totais |
+| R7 | `max-rows` do PostgREST sobre a raiz | **Mitigado (G-COMP):** o maior Set tem 300 cartas (SWSHP) e nenhum passa de 1.000; o máximo é 9 variantes por carta. Gatilho de revisão: um Set acima de ~1.000 cartas exige paginação ou `range()` em `getCartasCompletas` |
 | A1-L1 | A F1 não distingue `finish.code` ausente de `null`; o impacto fica só na classificação de legado, que é interna (D3) | Teste S21 fixa o comportamento. "Modo estrito" na F1 = melhoria futura |
 | A1-L2 | A F1 não tem código para exceção inesperada | Sinalizada à parte como `fault`, sem fabricar código F1 |
 | — | Payload: +~4,2 KB gzip por página de Set grande | Dentro do limite. Nova medição se a projeção ganhar campos |
@@ -165,3 +164,4 @@ Evidência sanitizada (só números, enums e hashes; sem cookie, token ou corpo 
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | **Criação (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).** Consolida as decisões M1–M3 (F1) e D1–D3 (F2.0), o contrato de três camadas da F2.1, o estado das fases (F1 `2b83b98` e REACT-KEY `94b64ba` publicadas; F2.1 concluída localmente, a publicar no commit desta rodada) e os gates P1–P12. Destaques: P9 **PASS** (A +5,14 % / +4.305 B; B +7,24 % / +4.170 B; ME2.5, 295/630) e P8 PASS por build de produção isolado. P10 não foi executado isoladamente; G-COMP está pendente. |
+| 1.1 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** P11 passou de pendente a PASS: banco e aplicação coincidem em cartas e Σ `rawCount` para ME2.5, BASE5 e SVE, e os casos F0 dão 2/2/6/6/6. R7 foi reclassificado como mitigado, com gatilho de revisão em ~1.000 cartas por Set. Agora `rawCount` pode ser exibido como total na F2.2/F2.3. |

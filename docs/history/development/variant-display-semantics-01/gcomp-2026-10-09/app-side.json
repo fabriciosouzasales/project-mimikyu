@@ -1,0 +1,7 @@
+{"source":"galeria /catalogo/cartas (getCartasCompletas com incluirInativas: true), HTML servido por next dev em 127.0.0.1:3000, HEAD cdb2e5d, lido no navegador embutido autenticado por Fabrício (fetch same-origin; sem cookie lido)","date":"2026-10-09",
+"note":"Em modo dev o payload Flight traz 1 linha de modelo vazia e um 2º elemento CartasGallery sem props (artefatos de depuração do React em dev); a análise usa o único elemento com props.cartas.",
+"sets":{
+ "BASE5":{"selectedCode":"BASE5","cartas":83,"inativas":0,"legacyVariants":167,"sumRawCount":167,"variantView":{"ok":83,"none":0,"error":0,"invalid":0},"rawCountDiffersFromLegacyPerCard":0,"cardIdsSha256_prefix":"11c576c3a1fb"},
+ "SVE":{"selectedCode":"SVE","cartas":24,"inativas":0,"legacyVariants":112,"sumRawCount":112,"variantView":{"ok":24,"none":0,"error":0,"invalid":0},"rawCountDiffersFromLegacyPerCard":0,"cardIdsSha256_prefix":"ca6479df4cf3"},
+ "ME2.5":{"selectedCode":"ME2.5","cartas":295,"inativas":0,"legacyVariants":630,"sumRawCount":630,"variantView":{"ok":295,"none":0,"error":0,"invalid":0},"rawCountDiffersFromLegacyPerCard":0,"cardIdsSha256_prefix":"726585cea368"}},
+"f0":[{"set":"BASE5","n":"01","name":"Dark Alakazam","rawCount":2,"status":"OK"},{"set":"BASE5","n":"18","name":"Dark Alakazam","rawCount":2,"status":"OK"},{"set":"SVE","n":"001","name":"Energia de Grama","rawCount":6,"status":"OK"},{"set":"SVE","n":"015","name":"Energia de Escuridão","rawCount":6,"status":"OK"},{"set":"SVE","n":"016","name":"Energia de Metal","rawCount":6,"status":"OK"}]}
