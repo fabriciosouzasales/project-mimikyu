@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.10 |
+| **Versão** | 2.11 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -406,6 +406,7 @@ campanha deve remedir antes de executar):
 explícita: lançamento muito recente, cadastrada manualmente por Fabrício, e a TCGdex ainda
 não tem 100% das Cards (LIVE: **2 Cards / 0 Variants**). Continua existindo no catálogo
 total; **não** aparece como pendência, gap ou Set elegível enquanto a fonte não amadurecer.
+*(Revogado em 2026-10-09 por decisão de Fabrício: a ME5.5 passa a ter atividade própria, `CATALOG-ME5.5-IMPORT-01`, no início do item 6 da sequência vigente abaixo. O denominador da campanha histórica de Variants fica preservado como registro.)*
 
 **Os 4 Sets sem Cards (`CEL25CC`, `EXU`, `RC`, `SP`) e os Assets residuais são
 `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`** — já foi concluído que a TCGdex **não
@@ -417,12 +418,35 @@ automaticamente o que já é conhecido e deixando em `NEEDS_REVIEW` **apenas res
 semântico real** — sem tratamento artesanal Set a Set. **BASEP e BASE3 foram o laboratório
 editorial** que estabilizou essa campanha para escala.
 
-Sequência macro **congelada** restante: `CARD VARIANTS — HISTORICAL BULK IMPORT` →
+> **Sequência vigente (atualizada em 2026-10-09, `ROADMAP-SEQUENCE-RECONCILIATION-01`, decisão de Fabrício).**
+> Supera a sequência congelada abaixo, que fica preservada como histórico.
+>
+> ```
+> 5. VARIANT-DISPLAY-SEMANTICS-01
+>      F1 · REACT-KEY · F2.1 · G-COMP · F2.2 — CONCLUÍDAS
+>      F2.3 (relatório + filtros) — próxima
+>    + experiência editorial das NEEDS_REVIEW (remedir o resíduo antes de desenhar)
+> 6. CATALOG-ME5.5-IMPORT-01  (nova)
+>    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout
+>    → CATALOG-VARIANT-DEFAULT-BACKFILL-01
+>    → PRICING-CATALOG-VARIANT-RECONCILIATION-01 (80 READY_PRICING_CONDITIONED, etapa 19)
+>    → gate final de Card Variants
+> 7. CARD VARIANTS — CLOSED
+> 8. Collections: BULK-04 → BULK-05 → BULK-06 → UX Read Models/Contracts → UX Flows/Wireframes → Frontend Collections
+> ```
+>
+> Diferenças em relação à sequência anterior:
+> - `CARD VARIANTS — HISTORICAL BULK IMPORT` sai da lista: foi concluída pelo `BULK-STP-01 / CLASS A` (2026-09-18).
+> - `PRICING-CATALOG-VARIANT-RECONCILIATION-01` entra antes do gate final. Vem do rollout `EDITION-CONTEXT-AXIS` (etapa 19); sem ela o gate de Card Variants não fecha. Não depende da semântica de exibição e pode correr em paralelo, desde que feche antes do gate.
+> - `CATALOG-ME5.5-IMPORT-01` entra no início do item 6. Revoga a exclusão da ME5.5 (ver acima): a coleção tem 158 cartas (128 base + 30 secretas), mas só 2 foram importadas. Fica antes do default backfill e do gate final para que as cartas e variantes da ME5.5 já estejam no catálogo quando essas etapas rodarem.
+> - O primeiro passo da ME5.5 é um diagnóstico read-only da causa, que decide a estratégia: cobertura da fonte TCGdex ou falha no pipeline (mapeamento do Set, idioma pt/en, id externo).
+> - UX-01 permanece como alternativa em aberto, não iniciada.
+
+*(Histórico — sequência congelada de 2026-09-18, superada pelo bloco acima:)* `CARD VARIANTS — HISTORICAL BULK IMPORT` →
 `VARIANT-DISPLAY-SEMANTICS-01` → `CATALOG-HISTORICAL-BOOTSTRAP-03` closeout →
 `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → **gate final de Card Variants** → retorno a
 Collections (`BULK-04` → `BULK-05` → `BULK-06`; depois UX Read Models/Contracts → UX
-Flows/Wireframes → Frontend Collections). UX-01 permanece como alternativa em aberto,
-também não iniciada.Pokémon Region Foundation, o contrato de Pokémon Catalog Sourcing, a Fatia B, a Fatia C e a Fatia D já `COMMITTED / PUSHED` (commits `73f7ddd9ff22e9e267a9aba71692a8be273ee89a`, `0e032cbcc2b903a4859838acc98e069f9543588d`, `c28a7700e9a9219aed746d56068ba6e360a6cac0` — Fatia B —, `ff613066c2d5892d4a69755a50486c86677dffe9` — Fatia C — e `e2a5458da366a3eeda619b60514d409e3cc3dd3b` — Fatia D); todos os incrementos físicos do Pokédex (Fatias A–D) estão `COMMITTED/PUSHED` no remote `main`.
+Flows/Wireframes → Frontend Collections).Pokémon Region Foundation, o contrato de Pokémon Catalog Sourcing, a Fatia B, a Fatia C e a Fatia D já `COMMITTED / PUSHED` (commits `73f7ddd9ff22e9e267a9aba71692a8be273ee89a`, `0e032cbcc2b903a4859838acc98e069f9543588d`, `c28a7700e9a9219aed746d56068ba6e360a6cac0` — Fatia B —, `ff613066c2d5892d4a69755a50486c86677dffe9` — Fatia C — e `e2a5458da366a3eeda619b60514d409e3cc3dd3b` — Fatia D); todos os incrementos físicos do Pokédex (Fatias A–D) estão `COMMITTED/PUSHED` no remote `main`.
 
 ---
 
@@ -605,3 +629,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.8 | **`VARIANT-DISPLAY-SEMANTICS-01` em andamento — F1, REACT-KEY e F2.1 concluídas; P9 PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.1-DOCUMENTATION-CLOSEOUT-01`).** O título "Próxima frente" passou a "Frente em andamento", com um bloco de atualização novo: F1 `2b83b98`, REACT-KEY `94b64ba`, decisões D1–D3 e F2.1 (integração de dados sem mudança visual). Gates da F2.1: testes 50/50, build PASS, P9 payload PASS (HTML +5,14 %, RSC +7,24 % gzip; ME2.5 295/630); G-COMP pendente. Próximas: F2.2, F2.3 e F2.4 opcional, cada uma sob mandato. Contrato em `docs/architecture/variant-display-semantics.md`. |
 | 2.9 | **G-COMP PASS (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-G-COMP-01`).** O bloco da frente passou a registrar o G-COMP como PASS: `rawCount` liberado para exibição como total. Detalhe em `docs/architecture/variant-display-semantics.md` v1.1. |
 | 2.10 | **F2.2 concluída (2026-10-09, `VARIANT-DISPLAY-SEMANTICS-01-F2.2-GALLERY-N2-01`).** Galeria, Nível 2 entregue. Próxima: F2.3. Detalhe no contrato v1.2. |
+| 2.11 | **Reconciliação da sequência (2026-10-09, `ROADMAP-SEQUENCE-RECONCILIATION-01`, decisão de Fabrício).** Bloco novo "Sequência vigente": a etapa já concluída `HISTORICAL BULK IMPORT` saiu da lista; entraram `PRICING-CATALOG-VARIANT-RECONCILIATION-01` antes do gate final e `CATALOG-ME5.5-IMPORT-01` no início do item 6, o que revoga a exclusão da ME5.5 de 2026-09-18. A sequência congelada anterior foi preservada como histórico. |
