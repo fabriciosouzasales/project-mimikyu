@@ -1220,8 +1220,10 @@ function CartaGridCard({
                   <TooltipContent>
                     <p className="font-semibold">Variações cadastradas</p>
                     <ul className="mt-0.5">
-                      {carta.variantNames.map((variantName) => (
-                        <li key={variantName}>• {variantName}</li>
+                      {/* Chave = `card_variant.id` (VARIANT-GALLERY-REACT-KEY-01):
+                          Variants distintas podem ter o mesmo nome de tipo. */}
+                      {carta.variants.map((variant) => (
+                        <li key={variant.id}>• {variant.name}</li>
                       ))}
                     </ul>
                   </TooltipContent>

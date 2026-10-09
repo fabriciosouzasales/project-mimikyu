@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { mapCartaVariants, type CartaVariantRawRow, type CartaVariantRef } from "./carta-variants";
 import { deriveVariantImportScopeCounters, type VariantImportScopeCounters } from "./variant-size-scope";
 
 /**
@@ -1932,6 +1933,13 @@ export type CartaCompletaRow = {
    * display_order)`).
    */
   variantNames: string[];
+  /**
+   * Mesmas Card Variants de `variantNames`, na mesma ordem, com a identidade
+   * persistente (`card_variant.id`) — VARIANT-GALLERY-REACT-KEY-01. Usado
+   * como chave React na tooltip da galeria: nomes podem se repetir entre
+   * Variants distintas (mesmo tipo, outro Printing/Edition Context).
+   */
+  variants: CartaVariantRef[];
 };
 
 type CartaCompletaAssetRawRow = {
@@ -1941,10 +1949,8 @@ type CartaCompletaAssetRawRow = {
   language: { code: string } | null;
 };
 
-/** Card Variant embutida na consulta de `getCartasCompletas` (CV-02) — só os dois campos usados pela tag/tooltip da galeria (nome + ordem canônica de exibição). Nenhum outro campo de `card_variant`/`card_variant_type` é necessário aqui (tela somente leitura). */
-type CartaCompletaVariantRawRow = {
-  card_variant_type: { name: string; display_order: number } | null;
-};
+/** Card Variant embutida na consulta de `getCartasCompletas` (CV-02) — `id` (identidade, chave React — VARIANT-GALLERY-REACT-KEY-01) + nome e ordem canônica do tipo. Tela somente leitura. */
+type CartaCompletaVariantRawRow = CartaVariantRawRow;
 
 type CartaCompletaRawRow = {
   id: string;
@@ -2024,7 +2030,7 @@ export async function getCartasCompletas(
       // para `authenticated` (confirmado: `getCartasCatalogoStats()` já lê
       // esta tabela em produção) e RLS admin-only (`catalog_admin_select`,
       // ADR-028) — nenhuma migration necessária.
-      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_variant(card_variant_type(name, display_order))",
+      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_variant(id, card_variant_type(name, display_order))",
     )
     .eq("card_set_id", cardSetId);
 
@@ -2044,10 +2050,8 @@ export async function getCartasCompletas(
     // Ordenado por `card_variant_type.display_order` (ordem canônica do
     // tipo dentro do Game), não por `variant_order` da linha `card_variant`
     // — ver comentário de `variantNames` em `CartaCompletaRow`.
-    const variantNames = (card.card_variant ?? [])
-      .filter((variant): variant is { card_variant_type: { name: string; display_order: number } } => variant.card_variant_type !== null)
-      .sort((a, b) => a.card_variant_type.display_order - b.card_variant_type.display_order)
-      .map((variant) => variant.card_variant_type.name);
+    const variants = mapCartaVariants(card.card_variant);
+    const variantNames = variants.map((variant) => variant.name);
     return {
       id: card.id,
       collectorNumber: card.collector_number,
@@ -2067,6 +2071,7 @@ export async function getCartasCompletas(
       imageUrlPt: pathPt ? (supabase.storage.from("card-front").getPublicUrl(pathPt).data.publicUrl ?? null) : null,
       imageUrlEn: pathEn ? (supabase.storage.from("card-front").getPublicUrl(pathEn).data.publicUrl ?? null) : null,
       variantNames,
+      variants,
     };
   });
 }
