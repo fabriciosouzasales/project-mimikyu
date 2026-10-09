@@ -89,3 +89,20 @@ Os scripts só entram em `database/migrations` / `database/schema` depois de **c
 - **Concorrência com o worker `2219`.** Locks JOB → ROW na mesma ordem determinística da `2219`.
 - **CHECK do log mudou desde a `2188`.** O guard da `2238` aborta antes de qualquer DDL.
 - **Volume.** O plano tem cerca de 1,6 mil linhas, recalculadas em uma chamada (a mesma ordem de grandeza da `NR-DRYRUN-01`, que respondeu normalmente).
+
+## NRR-CONFIRM-01 — decidir e confirmar as 1.085 linhas (2026-10-09)
+
+O runner é `NRR-CONFIRM-01_decide_confirm_revalidated_rows.sql`. Ele usa só as RPCs que já estão LIVE (`2144` decide e `2145`/`2218` confirm), com o administrador real como ator: as claims ficam locais à transação.
+
+| Etapa | Estado |
+|---|---|
+| Checagem semântica prévia | 0 identidades duplicadas no plano. As novas variantes não repetem as legadas da mesma carta: carta de World Championship Deck com o carimbo do jogador é variante diferente da base, e `REVERSE_HOLO` + logo do Set em DP1/SWSH9 não existia como legado. As 48 `VALID` do canary SVE ficaram **fora do escopo**. |
+| **CANARY** (COL1, 1 linha) | **EXECUTADO**. 1 linha `INSERTED`, 1 Card Variant nova (`STANDARD` + `ROLE_STAFF`). `card_variant` foi de 24.893 para 24.894. 0 FAILED. |
+| **FULL** (1.084 linhas, 58 jobs) | **PENDENTE**. A execução pelo agente foi bloqueada pelo controle de permissões, porque é uma escrita grande em recurso compartilhado. Está pronto para colar em `NRR-CONFIRM-01_FULL_ready.sql`. |
+
+Para rodar o FULL:
+
+1. Cole `NRR-CONFIRM-01_FULL_ready.sql` no SQL Editor do Supabase e execute.
+2. O sucesso aparece como o NOTICE `NRR_CONFIRM_OK` com os totais.
+3. Qualquer gate que falhar desfaz a transação inteira.
+4. O esperado é `rows` = 1084, `inserted` + `unchanged` = 1084 e `card_variant_after` = 24.894 + `inserted`.
