@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.90 |
+| **Versão** | 1.91 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -126,6 +126,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`history/development/variant-display-semantics-01/gcomp-2026-10-09/README.md`](history/development/variant-display-semantics-01/gcomp-2026-10-09/README.md) | Evidência do gate G-COMP: query read-only `G-COMP-DB-01` com o resultado, leitura da galeria no lado da aplicação e comparação (PASS), com `MANIFEST.sha256`. |
 | [`history/development/needs-review-remeasure-2026-10-09/README.md`](history/development/needs-review-remeasure-2026-10-09/README.md) | Remedição read-only das 1.642 `NEEDS_REVIEW` (NR-REMEASURE-01/02) e dry-run NR-DRYRUN-01: 1.086 automáticas e 556 em 27 unidades de acabamento, com `MANIFEST.sha256`. |
 | [`../database/proposals/2026-10-09-needs-review-revalidation/README.md`](../database/proposals/2026-10-09-needs-review-revalidation/README.md) | NEEDS-REVIEW-REVALIDATION-01 — **executada em 2026-10-09**: widen `2238` e função `2239` (hoje em `database/migrations` e `database/schema`), validação `2843` com rollback garantido; 1.085 linhas promovidas, resíduo 557. Revisão editorial das 557 **encerrada** no mesmo dia (`NRR-CONFIRM-01`…`07`, seeds `2240`–`2242`/`2244`, migrations `2243`/`2245`): 546 materializadas, **11 retidas**; `card_variant` 26.524. |
+| [`../database/proposals/2026-10-09-d2-legacy-finish-reconciliation/README.md`](../database/proposals/2026-10-09-d2-legacy-finish-reconciliation/README.md) | D2 — reconciliação dos tipos legados de Finish, **executada em 2026-10-09** (`D2-01`/`02`/`03`): 758 variantes decompostas nos três eixos, 33 PROMO_STAMPED removidas, rotas de importação reconciliadas, 69 tipos desativados; `card_variant` 26.491. |
 | [`history/development/HANDOFF-2026-07-26.md`](history/development/HANDOFF-2026-07-26.md) | Handoff superado (26/07). |
 | [`history/development/HANDOFF-2026-07-31.md`](history/development/HANDOFF-2026-07-31.md) | Handoff superado (31/07). |
 | [`history/development/HANDOFF-2026-08-02.md`](history/development/HANDOFF-2026-08-02.md) | Handoff superado (02/08). |
@@ -248,3 +249,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.88 | **F2.3 concluída (2026-10-09).** Resumo do contrato atualizado. |
 | 1.89 | **NEEDS_REVIEW — evidência e proposta de reavaliação (2026-10-09).** Duas entradas novas: a evidência da remedição/dry-run em `history/development/needs-review-remeasure-2026-10-09/` e a proposta `database/proposals/2026-10-09-needs-review-revalidation/` (2238/2239/2843, executadas no mesmo dia: 1.085 promovidas, resíduo 557). |
 | 1.90 | **Lint pós-revisão das `NEEDS_REVIEW` (2026-10-09, `NEEDS-REVIEW-LINT-01`).** Resumo da proposta `2026-10-09-needs-review-revalidation` atualizado (revisão encerrada: 546 materializadas, 11 retidas; seeds `2240`–`2242`/`2244`, migrations `2243`/`2245`); `05b` v1.8, README v2.60, ROADMAP v2.13, handoff v1.40. |
+| 1.91 | **D2 concluída (2026-10-09).** Nova entrada para a proposta `2026-10-09-d2-legacy-finish-reconciliation`. |
