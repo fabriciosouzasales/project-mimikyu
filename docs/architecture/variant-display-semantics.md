@@ -98,7 +98,7 @@ Regras do adaptador:
 
 Fora desta frente:
 - os 5 consumidores mapeados em `FRONTEND-DISPLAY-CONTRACT.md` §1 (inclusive Pricing), cada um com mandato próprio;
-- a experiência editorial das 1.642 `NEEDS_REVIEW`.
+- a experiência editorial das 1.642 `NEEDS_REVIEW` — **concluída em 2026-10-09** (11 retidas de propósito; ver `05b`, revisão `1.8`).
 
 ## 6. Gates da F2.1
 
