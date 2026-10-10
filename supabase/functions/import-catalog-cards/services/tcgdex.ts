@@ -47,8 +47,16 @@ export type TcgdexCardDetail = {
 // parte do núcleo compartilhado de normalização (que só resolve o que dá
 // para recalcular a partir de dado já em mãos). Fica junto ao cliente
 // TCGdex, de onde o dado vem.
+//
+// 2026-10-10 (ME5.5CC, TCGdex `30th-c`): a TCGdex devolve `official: 0` para
+// subconjuntos sem numeração oficial própria. `??` só cai para `total` em
+// null/undefined, então 0 passava adiante e todas as 30 cartas falharam em
+// ck_card_collector_total_positive. Só valores positivos contam.
 export function resolveCollectorTotal(set: TcgdexSetDetail): number | null {
-  return set.cardCount?.official ?? set.cardCount?.total ?? null;
+  const official = set.cardCount?.official ?? 0;
+  if (official > 0) return official;
+  const total = set.cardCount?.total ?? 0;
+  return total > 0 ? total : null;
 }
 
 export class TcgdexClient {

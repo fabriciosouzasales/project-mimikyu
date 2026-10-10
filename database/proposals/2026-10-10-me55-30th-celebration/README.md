@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Em andamento: importador corrigido e deployado; Card Set ME5.5CC criado; falta reimportar as cartas pela UI |
+| **Status** | Cartas completas (ME5.5 158, ME5.5CC 30); pendentes imagens, nomes pt, Mew RGB, Pokédex e variantes |
 | **Mandato** | Fabrício, 2026-10-10: "Vamos em frente com esse plano!" |
 | **Card Sets** | ME5.5 `3aa3fcf6-5826-4a13-b6a2-8f652a2b485a` (TCGdex `30th`); ME5.5CC `21add268-7159-4b22-9b67-d9699a7a99f0` (TCGdex `30th-c`) |
 
@@ -23,11 +23,22 @@
 | Importador | `import-catalog-cards` Versão 7, deployada (v24): se a lista `pt` tem menos cartas que a oficial, a lista `en` vira o conjunto e cada carta vem em `pt` quando existe lá, em `en` quando não. |
 | Card Set | `ME5.5CC` "Celebração de 30 Anos Coleção Clássica", SPECIAL, ordem 10, 30 cartas, 16/09/2026, via `admin_create_card_set`. |
 
-## Próximos passos (pela UI, Fabrício)
+## Importação (Fabrício, 2026-10-10) e recuperação (2252)
 
-1. ME5.5 → Importar Cartas (TCGdex). Esperado: ~158 linhas; 001/002 em pt, demais em en. Conferir NEEDS_REVIEW.
-2. ME5.5CC → Importar Cartas. A localização automática não acha pelo código; na busca manual, procurar
-   "Classic Collection" e escolher o Set de **30** cartas (`30th-c`), não o de 25 (CEL25CC).
-3. Importar Imagens dos dois Sets.
-4. Depois da confirmação: raridade da ME5.5CC passa de NONE para CLASSIC_COLLECTION (mesmo tratamento da CEL25CC).
-5. Variantes: a TCGdex marca as cartas com carimbo `30th-anniversary`; decisão de contexto de edição pendente.
+| Job | Resultado da UI | Causa | Correção |
+|---|---|---|---|
+| ME5.5 `cfe7b926` | 124 inseridas, 2 inalteradas, 32 FAILED | Raridades `Pikachu Rare` (023–052) e `Futuristic Rare` (157–158) sem mapeamento | `PIKACHU_RARE` "Rara Pikachu" e `FUTURISTIC_RARE` "Rara Futurista" + mapeamentos; 32 cartas criadas |
+| ME5.5CC `9c54c1d9` | 30 FAILED (`ck_card_collector_total_positive`) | TCGdex devolve `cardCount.official = 0` para `30th-c` | Importador Versão 7.1 (deploy v25); 30 cartas criadas com total 30 e raridade CLASSIC_COLLECTION |
+
+Script: `database/migrations/2252_recover_me55_failed_rows.sql` (dry-run PASS, depois aplicado).
+Resultado: ME5.5 **158** cartas (1..158), ME5.5CC **30** cartas (1..30), os 2 jobs COMPLETED.
+
+## Pendências
+
+1. **Nomes em português.** A TCGdex só tem 001 e 002 traduzidas; as demais 156 + 30 ficaram em inglês.
+   Quando a TCGdex publicar a tradução, uma nova importação traz os nomes como CONFLICT para aprovar.
+2. **Imagens.** Importar Imagens dos dois Sets (ME5.5CC não tinha cartas, por isso falhou antes). Em pt-BR não
+   haverá imagem; a continuação automática em `en` cobre.
+3. **Mew RGB (3 cartas).** A API da TCGdex ainda não serve; entram numa importação futura.
+4. **Pokédex.** A TCGdex ainda não publica `dexId` para `30th`/`30th-c`; Primary Species = 0. Reprocessar depois.
+5. **Variantes.** Carimbo `30th-anniversary`; decisão de contexto de edição pendente.

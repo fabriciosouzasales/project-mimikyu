@@ -39,6 +39,9 @@ removido — resolveCollectorTotal (específico do Set da TCGdex, não do
 núcleo compartilhado) mudou para services/tcgdex.ts.
 Versão 7 (2026-10-10): tradução parcial "pt" (lista menor que a oficial) passa
 a usar a lista "en" como conjunto, com cada carta em "pt" quando existir.
+Versão 7.1 (2026-10-10): collector_total ignora `official: 0` da TCGdex
+(resolveCollectorTotal, services/tcgdex.ts) — ME5.5CC falhou inteira em
+ck_card_collector_total_positive.
 Processador
 TCGdex do Ciclo 2 (ADR-024): recebe um catalog_import_job (aberto por
 admin_start_catalog_import(), Query 2080, com source='TCGDEX' e
