@@ -65,6 +65,7 @@ Nada foi gravado como pt-BR para não rotular imagem inglesa como portuguesa.
 4. **Pokédex.** Resolvido por `database/migrations/2254_resolve_primary_species_me55_classic.sql` (dry-run
    PASS, 180 cartas): ME5.5 155/155 e ME5.5CC 25/28 com Primary Species, via `admin_resolve_card_primary_species`
    (basis EDITORIAL_RECONCILIATION, evidência pokemontcg.io + repositório TCGdex, gates de nome e cobertura).
-   Ficam sem espécie, pela regra de dexId múltiplo: ME5.5CC 008 Pikachu & Zekrom GX [25, 644] e 019/020
-   Darkrai & Cresselia LEGEND [491, 488] — mesmo estado das cartas originais em SM9/SMP/HGSS4.
+   As 3 multi-Pokémon foram decididas por Fabrício e gravadas pela 2255: 008 Pikachu & Zekrom GX → Pikachu (25),
+   019 Darkrai & Cresselia LENDA → Darkrai (491), 020 → Cresselia (488). ME5.5CC 28/28. As cartas originais
+   equivalentes (SM9/SMP Pikachu & Zekrom GX, HGSS4 Darkrai & Cresselia LEGEND) continuam sem espécie.
 5. **Variantes.** Carimbo `30th-anniversary`; decisão de contexto de edição pendente.
