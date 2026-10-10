@@ -138,6 +138,39 @@ Para rodar o FULL:
 - Foram criados 4 mappings `SOURCE_SET` (`ex7`..`ex10`): `REVERSE` + `SET-LOGO` → `REVERSE_HOLO`. O caminho foi a RPC oficial `admin_resolve_catalog_variant_import_mapping_for_set`, com o administrador real como ator e 4 linhas de auditoria `CARD_VARIANT_TYPE_EXTERNAL_MAPPING_CREATED`.
 - As 379 linhas foram para `VALID/PENDING`. O `NEEDS_REVIEW` total caiu de 557 para **178**.
 
-**Confirmação:** o script `NRR-CONFIRM-02_H2_ready.sql` está pronto para colar no SQL Editor; o esperado é `rows` = 379.
+**Confirmação:** Fabrício executou `NRR-CONFIRM-02_H2_ready.sql` no SQL Editor em 2026-10-09. A verificação por leitura mostrou:
+
+- **379 linhas** `VALID/APPROVED/INSERTED`.
+- **379 Reverse Holo novas**: EX7 95, EX8 95, EX9 89, EX10 100.
+- `card_variant` foi de 25.978 para **26.357**.
+- Os 4 jobs ficaram **COMPLETED**.
+- 0 identidades duplicadas e 0 linhas FAILED.
+- `NEEDS_REVIEW` restante: **178**.
 
 **Inconsistência registrada, não tratada aqui:** em EX11–EX16 a fonte codifica a mesma reverse com logo como `normal + set-logo` e `holo + set-logo`. Esses casos viraram os tipos legados `SET_LOGO_STANDARDS` (449 variantes) e `SET_LOGO_REVERSE` (86). A reconciliação fica com a decisão D2 e com o Pricing 80, em frente própria.
+
+## Decisão H3 — `foil` de programa (League / Player Rewards / Professor) (2026-10-09)
+
+**Decisão de Fabrício:** modelar como **acabamento + Edition Context**, sem tipo composto:
+
+- o tipo da fonte define o acabamento (`reverse` → `REVERSE_HOLO`, `holo` → `HOLO`, `normal` → `STANDARD`);
+- o `foil` define o programa (`league` → `PROGRAM_LEAGUE`, `player-reward` → `PROGRAM_PLAYER_REWARDS`, `professor-program` → `PROGRAM_PROFESSOR`), combinado com `staff` quando houver.
+
+**Sequência:** a H3 fica para depois das unidades que só precisam de mapping, como mini-frente própria. Hoje o eixo de Edition Context lê apenas `stamp` e `subtype` (CHECK de `raw_field`), então a H3 exige uma migration estrutural para que o eixo passe a ler `foil`.
+
+**Escopo:** 57 linhas, todas da era DP / Platinum / HGSS. As 57 continuam retidas.
+
+## Cracked Ice — `holo` + `foil cracked-ice` (2026-10-09)
+
+**Classificação:** acabamento `CRACKED_ICE_HOLO`, sem Edition Context. O tipo já existe e está em uso: 20 variantes em PL2, PL4, POP8 e SVE, todas sem EC.
+
+**Lacuna encontrada:** existia apenas o mapping GLOBAL `REVERSE` + `CRACKED-ICE`. As linhas com `holo` + `cracked-ice` ficavam sem resolução.
+
+**Execução:**
+
+- O preview `2194` (GLOBAL) devolveu 38 linhas em 12 jobs, todas resolvíveis e sem conflito.
+- Foi criado o mapping GLOBAL `HOLO` + `CRACKED-ICE` → `CRACKED_ICE_HOLO` pela RPC oficial `admin_resolve_catalog_variant_import_mapping`, com o administrador real como ator.
+- As 38 linhas foram para `VALID/PENDING`. Os Sets são DP3, EX5, HGSS1–4, HGSSP, PL3, POP8, SM3, SWSH3 e SWSH4.
+- Nenhuma dessas cartas tinha Cracked Ice no catálogo.
+
+**Confirmação:** `NRR-CONFIRM-03_cracked_ice_ready.sql`, com escopo por linha, porque os jobs também têm linhas H3 retidas. Fica para Fabrício executar no SQL Editor; a escrita direta foi bloqueada pelo classificador de permissões.
