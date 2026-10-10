@@ -1,0 +1,413 @@
+{
+  "snapshot": "pokemontcg-snapshot-2026-10-09",
+  "source": "Pokémon TCG API v2 (api.pokemontcg.io), endpoint público, sem chave",
+  "fetched_at": "2026-10-09",
+  "request": "GET /v2/cards?q=set.id:<set_id>&orderBy=number&select=id,number,rarity,tcgplayer (paginado)",
+  "completeness_rule": "número de cartas == totalCount da resposta",
+  "fields_kept": "id, number, rarity, chaves ordenadas de tcgplayer.prices (valores de preço descartados)",
+  "sets": 50,
+  "cards": 6733,
+  "cards_without_price_keys": 101,
+  "files": [
+    {
+      "set_id": "bw1",
+      "total_count": 115,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw1.json",
+      "sha256": "aa6d5205833d29f14ba76c6cb005efa27cf1df1189e9e74b17d9bf9a8ae09144",
+      "transfer_check_sha256": "4a5e504c3931e2711314dd991280e098e960324c067588e5050862dfcfbe4d4e"
+    },
+    {
+      "set_id": "bw10",
+      "total_count": 105,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw10.json",
+      "sha256": "033e9d64ffe42d11f19fbdc0cd402283fe0197fa1d01a5e8827a78b2c0a73751",
+      "transfer_check_sha256": "ee3823a75d49aab770cdccf5bf36d26868fb15c5b46f84553f0bcd7f8694a91e"
+    },
+    {
+      "set_id": "bw11",
+      "total_count": 140,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw11.json",
+      "sha256": "fc165d44579a126191f82648cdd9219a43caf9a5376ca3ebc59f025c1eb37737",
+      "transfer_check_sha256": "5dcb5372e9cef1a1dbf7149049802e95ed04c2874ddfe90ac59642bc4b2ecfe0"
+    },
+    {
+      "set_id": "bw2",
+      "total_count": 98,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw2.json",
+      "sha256": "a81c963d8edda9e6b9b098db9e446104053b3de63beafbb5fe603ce9a7396fff",
+      "transfer_check_sha256": "954d61e0492601d0d7e513706e8daf46c67e4168a76b8c7b86d4679170c6de0f"
+    },
+    {
+      "set_id": "bw3",
+      "total_count": 102,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw3.json",
+      "sha256": "077a28eec3a87a3a2bb31787f5e58dd37a1f82167ffdf203e62b07157e688d4c",
+      "transfer_check_sha256": "b6062c9d19eebff063eb23a00b69457e79accd5acf2b50528db3aee71f9fc2fe"
+    },
+    {
+      "set_id": "bw4",
+      "total_count": 103,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw4.json",
+      "sha256": "178740988d1bb7eee35e135c0028b33b330bcbb39396b4f34d6442c5aaf38049",
+      "transfer_check_sha256": "b686f4134c8dfd2070c760a2cec0c938317e10e4ad29de3e280a545bcff10d69"
+    },
+    {
+      "set_id": "bw5",
+      "total_count": 111,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw5.json",
+      "sha256": "fadabe8824ca2837df88b59146adc3c870f0711c763ece73cba96f46e31963fb",
+      "transfer_check_sha256": "ad380d2918fd00e5d1d8bc67ca3241ae5d1da2ec8943bf5f0696699f82bdc0b2"
+    },
+    {
+      "set_id": "bw6",
+      "total_count": 128,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw6.json",
+      "sha256": "eb3065127594696542044781b31cabf7cfd930f319f0c4229c43f3a533f225bd",
+      "transfer_check_sha256": "1ae8daa13082669129998ba4e47f55b15160788113801050cde827c6aaec6412"
+    },
+    {
+      "set_id": "bw7",
+      "total_count": 153,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw7.json",
+      "sha256": "9f3629fdb00980ad069183a6c278f5167f135c234da29cd771ca661f69ae6481",
+      "transfer_check_sha256": "e650341d8d5d546f04d30caecb9e84ef953d3cb9d4fb423553dfdae4cda140ea"
+    },
+    {
+      "set_id": "bw8",
+      "total_count": 138,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw8.json",
+      "sha256": "c074f12792beef92fb4ec96e26a17dc39c8e6d6df0bc02bc91b6628b892a837c",
+      "transfer_check_sha256": "80c050aec8a224f1769845f7da425bebdc822c3c3c71c6c498e2d765b59d35f7"
+    },
+    {
+      "set_id": "bw9",
+      "total_count": 122,
+      "cards_without_price_keys": 0,
+      "file": "sets/bw9.json",
+      "sha256": "51874e6371cefe3fd23fb5493250821eb222b8140b2fb2ef26b87e212fba2575",
+      "transfer_check_sha256": "ed70ea4abb458925af204bb725b6c281642c3a10f9be65d24c1e4219bc326c39"
+    },
+    {
+      "set_id": "bwp",
+      "total_count": 101,
+      "cards_without_price_keys": 2,
+      "file": "sets/bwp.json",
+      "sha256": "ad0696072327412060ceaa7f509a95b60b028131e1496be787ee71d33b138f92",
+      "transfer_check_sha256": "a1b8da935251496ab338508f04e16cf47941cb1f6ee53dfd28cabb9b41e91d24"
+    },
+    {
+      "set_id": "cel25c",
+      "total_count": 25,
+      "cards_without_price_keys": 0,
+      "file": "sets/cel25c.json",
+      "sha256": "854db430631171b3717c494f40a1159dec8ddaa174ea7d373a4893700511bcc4",
+      "transfer_check_sha256": "05f38affb75a8abf78f13249585f059f413e5f82bdc976a2572dfad6e3a31c54"
+    },
+    {
+      "set_id": "dc1",
+      "total_count": 34,
+      "cards_without_price_keys": 0,
+      "file": "sets/dc1.json",
+      "sha256": "68059f90b8a1728955ebdfca3cb4136f3536fcaa503b626af83b65904db5e53f",
+      "transfer_check_sha256": "b6eafe5dd086c7127d71052c1017f965a526b0e01b7646c21ec7455f1270ca6d"
+    },
+    {
+      "set_id": "det1",
+      "total_count": 18,
+      "cards_without_price_keys": 0,
+      "file": "sets/det1.json",
+      "sha256": "f7927b13d5500f57cc93759c6f4c3b025dbd372ba63b6cf183ea52ca091db82f",
+      "transfer_check_sha256": "506c4da0f33c4bcc6dd2966abd7c15af1380fa0fbda1488a7c8e6b5b9a4427c0"
+    },
+    {
+      "set_id": "dv1",
+      "total_count": 21,
+      "cards_without_price_keys": 0,
+      "file": "sets/dv1.json",
+      "sha256": "8c0b5d7fce388c88ff42ca24f23679ee2168920967b1ba8ba2e3de0afa1d06c5",
+      "transfer_check_sha256": "492090a587f7f53276017aacf24d6a0781811a9aabc8aa0ed1096cfc5bb3886a"
+    },
+    {
+      "set_id": "g1",
+      "total_count": 117,
+      "cards_without_price_keys": 2,
+      "file": "sets/g1.json",
+      "sha256": "62d604e21fc8dd7bb803c32590b86b5a87e1633bba12196c0aebd10c7212e20f",
+      "transfer_check_sha256": "5e2ef103bfe117582ae899d70aebc57c52c8735a05f08ef394868301bb87547a"
+    },
+    {
+      "set_id": "sm1",
+      "total_count": 173,
+      "cards_without_price_keys": 10,
+      "file": "sets/sm1.json",
+      "sha256": "1274a345e484000477aa37b35ec7edeb58eb0a7f6dfa58de34face8bf6f04af2",
+      "transfer_check_sha256": "9fbbf920fb72fe51384c90a02881ea965a1cb9d2ac05d8aa8c9fbb6f6d66d744"
+    },
+    {
+      "set_id": "sm10",
+      "total_count": 238,
+      "cards_without_price_keys": 4,
+      "file": "sets/sm10.json",
+      "sha256": "883e61ad1ed06b1a8b2644ae7c77101976c4df1fd7f6dbcafa2f20ec5e282e94",
+      "transfer_check_sha256": "dfac02cac4089fdb9b71cd31e9bd075bd2152cbd38d89c56a21e1578abe1c481"
+    },
+    {
+      "set_id": "sm11",
+      "total_count": 261,
+      "cards_without_price_keys": 3,
+      "file": "sets/sm11.json",
+      "sha256": "e504041a2a4022e1a684055684427884da73c56b0c802f5b1a77cd38ff454fbd",
+      "transfer_check_sha256": "039044e40f40f65cc35028c2f4b9c558c446a16139e47c7a65e12f617cfe7e09"
+    },
+    {
+      "set_id": "sm115",
+      "total_count": 69,
+      "cards_without_price_keys": 0,
+      "file": "sets/sm115.json",
+      "sha256": "fa77752f6cd1c3f183e601fde5e7a02d543dbdd12e493bcdf906c78a5b69219c",
+      "transfer_check_sha256": "4513de08c9a17d222570e4bb09e8090195ae7eb39b6f0f482f1b83dd67c1d5b2"
+    },
+    {
+      "set_id": "sm12",
+      "total_count": 272,
+      "cards_without_price_keys": 1,
+      "file": "sets/sm12.json",
+      "sha256": "33b6f8dec0a364587c21ca084ccfed1c80b0dcf020d906e45d73bb42c275a163",
+      "transfer_check_sha256": "c5b4517644fff972bb2b6482721e3c987a1ab8f983a43275eb280b04dab3571b"
+    },
+    {
+      "set_id": "sm2",
+      "total_count": 180,
+      "cards_without_price_keys": 11,
+      "file": "sets/sm2.json",
+      "sha256": "e498b0270569882601257bd664daaa7507db9ebf6eab0a3dc630da7a3638fe74",
+      "transfer_check_sha256": "5c5934a2e565e7bd34e65babd876a01e5948d2e727ff724e1c001a8c36d97647"
+    },
+    {
+      "set_id": "sm35",
+      "total_count": 81,
+      "cards_without_price_keys": 3,
+      "file": "sets/sm35.json",
+      "sha256": "46ba4378a680e3a713b2fe3dcae80186ed2d24da3d3672f6ce2d136f06de6412",
+      "transfer_check_sha256": "98ff25f7e475c02bdb0b4c5f6b6f33cb366e63e147db8f71df908b3a176ead52"
+    },
+    {
+      "set_id": "sm4",
+      "total_count": 126,
+      "cards_without_price_keys": 2,
+      "file": "sets/sm4.json",
+      "sha256": "d489851baf915a30fb3bb45e58a68392b3f013e8bc19433fb283f7f565b4a6af",
+      "transfer_check_sha256": "a091443ef72a66ed1752682c90ebac1478a4fcdf0e6fcac3d49cb937e23c52f4"
+    },
+    {
+      "set_id": "sm5",
+      "total_count": 178,
+      "cards_without_price_keys": 5,
+      "file": "sets/sm5.json",
+      "sha256": "a81acf04fefaf67fb0755c38e57d09a82cf58cda5001967f154e3ddd68c5bd99",
+      "transfer_check_sha256": "5c3b0b0f28390fd034180748ae0f2047ad8bc792b5122127b89564fdb2921aef"
+    },
+    {
+      "set_id": "sm6",
+      "total_count": 150,
+      "cards_without_price_keys": 4,
+      "file": "sets/sm6.json",
+      "sha256": "9dde9f1ae4100a7f110dc4a1b16eb6b121491b3a7696f95d9b04eebc5e732989",
+      "transfer_check_sha256": "26abce4cf9ad25c5c358aaa2121d727936ed1339bbb333ebcc46bcd713f8a156"
+    },
+    {
+      "set_id": "sm7",
+      "total_count": 187,
+      "cards_without_price_keys": 4,
+      "file": "sets/sm7.json",
+      "sha256": "18c3e2f0c6cb2ebd4b29c6f1b9ccdcb0fde557cb64be367ec724ae38de25daf0",
+      "transfer_check_sha256": "948d99db50f5da9abd434775f648b7866160f9e2de8ccaceb24844268308ba09"
+    },
+    {
+      "set_id": "sm75",
+      "total_count": 80,
+      "cards_without_price_keys": 2,
+      "file": "sets/sm75.json",
+      "sha256": "b2432d40b8de2faaae70110909cdcbe177b44757446f94a8762f226cf4bf1841",
+      "transfer_check_sha256": "4440594bee813529ba5e3ee7b75610768fd005e53993c899615c2241bce2e2df"
+    },
+    {
+      "set_id": "sm8",
+      "total_count": 240,
+      "cards_without_price_keys": 4,
+      "file": "sets/sm8.json",
+      "sha256": "217d8dd00765158ab5caedfc0845965c7f29460546286c45452182e63c8a0e81",
+      "transfer_check_sha256": "bf3e62f52974341f1d855559e851a1932aa7d8368ade04e84b0b2d0a94d5444a"
+    },
+    {
+      "set_id": "sm9",
+      "total_count": 198,
+      "cards_without_price_keys": 2,
+      "file": "sets/sm9.json",
+      "sha256": "2e3f33f2a1efbe78232dc14ef813041ff2b655463924db257b48fcaf2bfa513f",
+      "transfer_check_sha256": "704e7af3c4a3b22477fe5d495f5328fe621e95570fdd8215111e2fb52f8b6120"
+    },
+    {
+      "set_id": "sma",
+      "total_count": 94,
+      "cards_without_price_keys": 0,
+      "file": "sets/sma.json",
+      "sha256": "4cbb02de3a0ea4bc91235076479df2f79e84e7911966116cd9eee0568ce93805",
+      "transfer_check_sha256": "09729b4055698cb207e860988734c120f489cb54239af229809471c4a25398f9"
+    },
+    {
+      "set_id": "svp",
+      "total_count": 200,
+      "cards_without_price_keys": 16,
+      "file": "sets/svp.json",
+      "sha256": "78570ff18f4c732dd194ec983383ebbafc4836d856b29d65b289e6a4d641e6e1",
+      "transfer_check_sha256": "d172783d7f8c595d846a9ed872ccb8e200862e72186385e2eb8a059f6fa71840"
+    },
+    {
+      "set_id": "swsh1",
+      "total_count": 216,
+      "cards_without_price_keys": 0,
+      "file": "sets/swsh1.json",
+      "sha256": "ed123a2e2803d84ffd25a0f0f687d363acaaf56b9cb0bb5833b969300facf250",
+      "transfer_check_sha256": "6b74ec0d8f3735822ab8c4372d05fb9c2a1a9e47f78aa8cc21af6b1f17d0f76d"
+    },
+    {
+      "set_id": "swsh35",
+      "total_count": 80,
+      "cards_without_price_keys": 0,
+      "file": "sets/swsh35.json",
+      "sha256": "dc11fa695ca36fe8b13731f5b5391cfa43b906089e353427ccabdb22f721830f",
+      "transfer_check_sha256": "b5b4962d0f725e7218df2ad0c5f915144551eb4a64b5d0f90554a84b1663a000"
+    },
+    {
+      "set_id": "swshp",
+      "total_count": 304,
+      "cards_without_price_keys": 4,
+      "file": "sets/swshp.json",
+      "sha256": "af4ba8bc230bd648923d20ed2a7269abc43104370fc42b0eeeeb5f6b0a7f8da0",
+      "transfer_check_sha256": "88244a238850fc3cc2a6f36e80251f01367e68858f8992974e3307a96908acb8"
+    },
+    {
+      "set_id": "xy0",
+      "total_count": 39,
+      "cards_without_price_keys": 0,
+      "file": "sets/xy0.json",
+      "sha256": "df178115ae3972d5d34180257533b7a3b03e43b9a53610ac8f31d3dca54e61b2",
+      "transfer_check_sha256": "9172740f1de1c14247f8601c57f3cf9b1415edef647b81d82e9e8513cb450205"
+    },
+    {
+      "set_id": "xy1",
+      "total_count": 146,
+      "cards_without_price_keys": 0,
+      "file": "sets/xy1.json",
+      "sha256": "ca0fded5c65c848d6c4e85f58125df527b1b6e496a2592e4c7791d6f8c09ca17",
+      "transfer_check_sha256": "b81052d2cc71b70b67cff87af9eec1563aa422fcfb07917c1fde153e8b62c3f4"
+    },
+    {
+      "set_id": "xy10",
+      "total_count": 129,
+      "cards_without_price_keys": 4,
+      "file": "sets/xy10.json",
+      "sha256": "c187830d032e41dd389191c84146bc19c90e8e72fd151755f77e94601b237fad",
+      "transfer_check_sha256": "5b831c6fd846b119ed8fc211f2cf67c0145d4768b87f5cf7b3140845dac57ad1"
+    },
+    {
+      "set_id": "xy11",
+      "total_count": 116,
+      "cards_without_price_keys": 0,
+      "file": "sets/xy11.json",
+      "sha256": "414dc6b4ca53410a079b83f267a95da97f73c0c106d4a56f6d68fed5d923d138",
+      "transfer_check_sha256": "4652a1e83c386a66dec141cc8234a46f0a516c06d51d453dc19f29173e18a2ac"
+    },
+    {
+      "set_id": "xy12",
+      "total_count": 113,
+      "cards_without_price_keys": 0,
+      "file": "sets/xy12.json",
+      "sha256": "346a1659d3dab420ccc7b94923e9d16dcddb880c66a8fa5a91f29b44b1d9d465",
+      "transfer_check_sha256": "efa74abb9221d546623252e3d2d7c60d8e4e086a24add32fa02b6c8558222865"
+    },
+    {
+      "set_id": "xy2",
+      "total_count": 110,
+      "cards_without_price_keys": 1,
+      "file": "sets/xy2.json",
+      "sha256": "8e860e566a7dcbfb6dcf6b1114372fb8e65d31f6958d13fe18c127bd904baa3d",
+      "transfer_check_sha256": "4def046fcf505b8b923a45481e8664a98df3e07a975d5f78c94d7e75ccf58589"
+    },
+    {
+      "set_id": "xy3",
+      "total_count": 114,
+      "cards_without_price_keys": 1,
+      "file": "sets/xy3.json",
+      "sha256": "2bc5f6e21d79a8ee75c2550c1e1b47205111d90d6d91088bdab033f27d3cbbbe",
+      "transfer_check_sha256": "57248dba96a752c3a1e555e2efb5022b6ef520ca18f5b3cf0ec097720573b71c"
+    },
+    {
+      "set_id": "xy4",
+      "total_count": 124,
+      "cards_without_price_keys": 2,
+      "file": "sets/xy4.json",
+      "sha256": "aba86aeaa580691007d810006ed0700a67fea24f1ead8f58720d85d85f242fe9",
+      "transfer_check_sha256": "eec3ce1906eb49c26fb54902bc86597a0f25ac3342ffa7b248597344f07fedbe"
+    },
+    {
+      "set_id": "xy5",
+      "total_count": 164,
+      "cards_without_price_keys": 0,
+      "file": "sets/xy5.json",
+      "sha256": "35cf870d5aaffa5b894e417f13b717a2b0efd712a46c276a71253245d1834291",
+      "transfer_check_sha256": "d9ad262654cdecc1bb7cade381c2e6d94555bf6db7ac9e8ef8ad7fae6036c85b"
+    },
+    {
+      "set_id": "xy6",
+      "total_count": 112,
+      "cards_without_price_keys": 2,
+      "file": "sets/xy6.json",
+      "sha256": "08b169e34c3ea526a6bb0b1f011d39be3540f26f0ea9f8a5e80ec99bfa810f1d",
+      "transfer_check_sha256": "723920cb50a5a81df268c917306a28345b9c25b29c0833a0aa5f4240ccbbf535"
+    },
+    {
+      "set_id": "xy7",
+      "total_count": 101,
+      "cards_without_price_keys": 1,
+      "file": "sets/xy7.json",
+      "sha256": "7b6fa1356410569002196678cdc3e35858318d463ae008196241eb6107fb9d42",
+      "transfer_check_sha256": "df374d5410e62f26b0ec956cc521258e89aaad6a8cc55c3a661bb23fd953c919"
+    },
+    {
+      "set_id": "xy8",
+      "total_count": 165,
+      "cards_without_price_keys": 1,
+      "file": "sets/xy8.json",
+      "sha256": "9762a299c2a24b41789fe15644cfcbab9117a344c072cdc5edfd74205486ac55",
+      "transfer_check_sha256": "8d4cf8df6465eb438ce0eb54458adb534acee28f256990ca4a91a967b3b750a1"
+    },
+    {
+      "set_id": "xy9",
+      "total_count": 126,
+      "cards_without_price_keys": 3,
+      "file": "sets/xy9.json",
+      "sha256": "e8c5872a7557d75d6108373793019beba66b3e70bafe71a8c8ee164dbeaedf9c",
+      "transfer_check_sha256": "7419970edebc1c4b2884930d5295cf1606e0271459b07744d03a1f4feeafe2fe"
+    },
+    {
+      "set_id": "xyp",
+      "total_count": 216,
+      "cards_without_price_keys": 7,
+      "file": "sets/xyp.json",
+      "sha256": "4331f0666ddd7417f70078899003ca9af3bee0cb0f0ba6a21385b9415f3202c0",
+      "transfer_check_sha256": "9156cfd17bd95afe1cbb34534dd24c57cc5c961b030c3ed2fe174289cc325dbf"
+    }
+  ]
+}

@@ -56,6 +56,7 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | [ADR-031](ADR-031-scheduled-pricing-orchestration.md) | Orquestração Programada de Pricing | Aprovado |
 | [ADR-032](ADR-032-scheduled-justtcg-price-refresh.md) | Orquestração Programada de Preços JustTCG | Aprovado |
 | [ADR-033](ADR-033-echarts-visualization-standard.md) | Apache ECharts como Padrão de Visualização Analítica/Interativa | Aprovado |
+| [ADR-034](ADR-034-second-variant-source-pokemontcg.md) | Segunda fonte de Card Variants: Pokémon TCG API (snapshot congelado) | Aprovado |
 
 ---
 

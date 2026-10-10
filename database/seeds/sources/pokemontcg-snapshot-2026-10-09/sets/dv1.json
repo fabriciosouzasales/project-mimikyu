@@ -1,0 +1,27 @@
+{
+  "set_id": "dv1",
+  "total_count": 21,
+  "cards": [
+    {"id": "dv1-1", "number": "1", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-2", "number": "2", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-3", "number": "3", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-4", "number": "4", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-5", "number": "5", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-6", "number": "6", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-7", "number": "7", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-8", "number": "8", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-9", "number": "9", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-10", "number": "10", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-11", "number": "11", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-12", "number": "12", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-13", "number": "13", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-14", "number": "14", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-15", "number": "15", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-16", "number": "16", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-17", "number": "17", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-18", "number": "18", "rarity": null, "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-19", "number": "19", "rarity": null, "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-20", "number": "20", "rarity": "Rare Holo", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "dv1-21", "number": "21", "rarity": null, "tcgplayer_price_keys": ["holofoil"]}
+  ]
+}

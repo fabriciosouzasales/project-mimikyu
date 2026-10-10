@@ -1,0 +1,31 @@
+{
+  "set_id": "cel25c",
+  "total_count": 25,
+  "cards": [
+    {"id": "cel25c-2_A", "number": "2", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-4_A", "number": "4", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-15_A1", "number": "15", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-15_A2", "number": "15", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-15_A3", "number": "15", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-15_A4", "number": "15", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-73_A", "number": "73", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-8_A", "number": "8", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-24_A", "number": "24", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-20_A", "number": "20", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-66_A", "number": "66", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-9_A", "number": "9", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-86_A", "number": "86", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-88_A", "number": "88", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-93_A", "number": "93", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-17_A", "number": "17", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-109_A", "number": "109", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-145_A", "number": "145", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-107_A", "number": "107", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-113_A", "number": "113", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-114_A", "number": "114", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-54_A", "number": "54", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-97_A", "number": "97", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-76_A", "number": "76", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]},
+    {"id": "cel25c-60_A", "number": "60", "rarity": "Classic Collection", "tcgplayer_price_keys": ["holofoil"]}
+  ]
+}

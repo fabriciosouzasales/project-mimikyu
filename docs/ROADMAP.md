@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.15 |
+| **Versão** | 2.16 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -455,7 +455,8 @@ editorial** que estabilizou essa campanha para escala.
 > 5c. CATALOG-VARIANT-COVERAGE-GAP-01  (nova, 2026-10-09) — 6.727 Cards sem nenhuma Card Variant (6.726 + MEP 028 após a D2)
 >      (55 Sets DEFERRED_SOURCE_COVERAGE BW/XY/SM/SWSH1 + SM12 = 6.429; SWSHP 287; SVP 8; ME5.5 2).
 >      Sem variante a carta não entra em Collections (physical_card.card_variant_id NOT NULL).
->      1º passo: diagnóstico read-only da cobertura por regra era × raridade (D2 concluída).
+>      Fonte decidida: Pokémon TCG API como 2ª fonte, em snapshot congelado (ADR-034 v0.2).
+     Feito: diagnóstico, snapshot (50 coleções) e F1 (6.422/6.454 casadas). Próximo: F2 (SQL).
 > 6. CATALOG-ME5.5-IMPORT-01  (nova)
 >    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout
 >    → CATALOG-VARIANT-DEFAULT-BACKFILL-01
@@ -664,3 +665,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.13 | **Experiência editorial das `NEEDS_REVIEW` concluída (2026-10-09, `NEEDS-REVIEW-LINT-01`).** Bloco "Estado corrente" novo no topo de "Now": 1.642 → 11 retidas de propósito; `card_variant` 24.893 → 26.524. Os blocos de 2026-09-18 viram histórico. Na "Sequência vigente", o item 5 foi marcado como concluído e entrou o 5b (D2). |
 | 2.14 | **Nova frente `CATALOG-VARIANT-COVERAGE-GAP-01` (2026-10-09, decisão de Fabrício).** Item 5c da sequência vigente, depois da D2: 6.726 Cards sem Card Variant (bloqueiam Collections). |
 | 2.15 | **D2 concluída (2026-10-09).** Item 5b marcado como concluído (D2-01/02/03); `card_variant` 26.491; próximo = 5c `CATALOG-VARIANT-COVERAGE-GAP-01`. |
+| 2.16 | **5c: fonte e correspondência (2026-10-09).** ADR-034 aprovado (v0.2, snapshot congelado); snapshot de 50 coleções versionado; F1: 6.422 de 6.454 cartas casadas, 0 ambíguas. Próximo = F2. |
