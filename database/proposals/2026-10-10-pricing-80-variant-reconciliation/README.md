@@ -2,9 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Contrato implantado; 48.316 de 50.470 produtos ligados (96%); fila residual de 2.154 aguardando decisão de regra |
+| **Status** | Contrato implantado; 49.899 de 50.470 produtos ligados (98,9%); fila residual de 571 para revisão editorial / lacuna de catálogo |
 | **Mandato** | Fabrício, 2026-10-10: vínculo direto com `card_variant`, escopo "todos os desalinhamentos"; plano revisado (vínculo no produto) "Plano aprovado!" |
-| **Migrations** | `3973` vocabulário · `3974` regra/RPC/trigger · `3975` backfill · `3976` aposentar tipos legados |
+| **Migrations** | `3973` vocabulário · `3974` regra/RPC/trigger · `3975` backfill · `3976` aposentar tipos legados · `3977` regras de fallback |
 
 ## Diagnóstico (LIVE)
 
@@ -51,7 +51,30 @@ Produto ligado a variante de outra carta: 0. Reexecução: 0 novos (idempotente)
 Testes (transação desfeita): não-admin recebe `FORBIDDEN`; dry-run não grava; produto novo inserido é ligado
 pelo trigger.
 
-## Fila residual (decisão pendente)
+## Regras de fallback (3977, Fabrício: "Aplique as duas regras do grupo 1 e 2")
+
+Só para produto sem qualificador, só quando a regra principal deu `NO_CANDIDATE`, só variante sem
+Edition Context e só com exatamente uma candidata (`UNIQUE_FALLBACK`):
+
+1. **Família holo:** "Holofoil"/"Unlimited Holofoil" também aceitam `RAINBOW_HOLO`, `GOLD_HOLO`, `COSMOS_HOLO`
+   (tabela `pricing_source_printing_finish_fallback`).
+2. **Impressão base:** rótulos sem Printing aceitam `UNLIMITED` quando não há variante base
+   (`pricing_source_printing_mapping.fallback_printing_profile_id`).
+
+Resultado: +1.583 produtos (1.153 "Holofoil" + 430 "Normal"); total 49.899/50.470; carta errada 0.
+
+## Fila residual (571 produtos, revisão editorial ou lacuna de catálogo)
+
+| Grupo | Produtos | Cartas | Natureza |
+|---|---:|---:|---|
+| Base sem candidata (ME2.5 reverse sem padrão, "Normal" em carta só HOLO etc.) | 252 | 120 | Revisão editorial |
+| Promos com carimbo e produto sem qualificador (`UNIQUE_CONTEXT_ONLY`) | 190 | 43 | Revisão editorial |
+| `cosmos holo`/`cosmo holo` sem variante Cosmos | 50 | 10 | Lacuna de catálogo |
+| MEP Staff | 38 | 12 | Lacuna de catálogo |
+| `AMBIGUOUS` (BASEP/SVP) | 25 | 5 | Revisão editorial |
+| MEP Pokémon Center | 16 | 5 | Lacuna de catálogo |
+
+## Fila residual original (antes da 3977, histórico)
 
 | Grupo | Cartas | Proposta |
 |---|---:|---|

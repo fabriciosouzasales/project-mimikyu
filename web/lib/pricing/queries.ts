@@ -59,6 +59,8 @@ export type PricingAdminOverview = {
     pricing_source_code: string;
     pricing_source_name: string;
     frequency_days: number;
+    /** Migration 3978: frequência por Expansão que sobrepõe `frequency_days` (padrão da fonte). */
+    expansion_overrides?: Array<{ expansion_code: string; expansion_name: string; frequency_days: number }>;
   }>;
   dispatcher: { active: boolean; schedule: string } | null;
 };

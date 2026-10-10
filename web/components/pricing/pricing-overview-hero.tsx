@@ -100,6 +100,11 @@ const STATUS_HALO: Record<PricingOverviewStatus["level"], string> = {
 export function PricingOverviewHero({ overview, status }: { overview: PricingAdminOverview; status: PricingOverviewStatus }) {
   const { coverage, sets, dispatcher, last_sync_run, refresh_policy } = overview;
   const policyPrincipal = refresh_policy[0] ?? null;
+  // Migration 3978: Expansões com frequência própria (ex.: ME/SV/SWSH/SM diárias, demais a cada 3 dias).
+  const dailyExpansions = (policyPrincipal?.expansion_overrides ?? [])
+    .filter((o) => o.frequency_days === 1)
+    .map((o) => o.expansion_code);
+  const frequencyLabel = (days: number) => `${days} ${days === 1 ? "dia" : "dias"}`;
   const Icon = STATUS_ICON[status.level];
   const coveragePct = coverage.eligible_total > 0 ? (coverage.covered / coverage.eligible_total) * 100 : undefined;
 
@@ -139,7 +144,13 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
           label="Atualização Automática"
           value={
             dispatcher?.active
-              ? `Ativa${policyPrincipal ? ` · a cada ${policyPrincipal.frequency_days} ${policyPrincipal.frequency_days === 1 ? "dia" : "dias"}` : ""}`
+              ? `Ativa${
+                  policyPrincipal
+                    ? dailyExpansions.length > 0 && policyPrincipal.frequency_days !== 1
+                      ? ` · diária (${dailyExpansions.join(", ")}) · demais a cada ${frequencyLabel(policyPrincipal.frequency_days)}`
+                      : ` · a cada ${frequencyLabel(policyPrincipal.frequency_days)}`
+                    : ""
+                }`
               : "Inativa"
           }
           valueClassName={dispatcher?.active ? "text-success" : "text-warning"}
