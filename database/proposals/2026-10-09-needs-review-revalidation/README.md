@@ -261,6 +261,18 @@ Fabrício aprovou 8 famílias com evidência forte ou documentada. As fracas fic
 - Magikarp com erro de raridade (EX6, normal);
 - Pikachu tail (BASE2, já estava em HOLD).
 
+**Atualização 2026-10-10 — Pinsir e Pikachu reavaliados e aprovados por Fabrício:**
+
+| Linha | Evidência nova | Resultado |
+|---|---|---|
+| Pinsir 9/64 (BASE2), stamp `1st-edition-scratch-error` | PSA tem spec própria ("1st edition-scratch error", spec 7961534); PSA Set Registry lista o card entre os erros da Jungle | `HOLO` + perfil `FIRST_EDITION_SCRATCH_ERROR` (seed `2248`, perfil ordem 23, mapping de `stamp`) |
+| Pikachu 60/64 (BASE2), stamp `pikachu-tail` | Bulbapedia: a Jungle Pikachu 60/64 é uma das 9 reimpressões do Pikachu World Collection 2000 (carimbo dourado de cauda; versão em chinês) | `STANDARD` + EC `CAMPAIGN_PIKACHU_WORLD_2000` (rota EC `base2` igual à da BASEP no D2-02) |
+
+Execução direta pelo agente (MCP), num único bloco com gates: trait + perfil + mapping + rota EC,
+revalidação 2245 apply (1 linha) e decide/confirm das 2 linhas. Job BASE2 `7744b44c` COMPLETED;
+`card_variant` 37.307 → 37.309. Continuam DEFERRED: Charmander tinta (BASE5) e Magikarp raridade (EX6),
+além das 2 linhas energy EX6 (Dewgong, Drowzee). `NEEDS_REVIEW` em jobs abertos: **5**.
+
 **Execução (pelo agente, via MCP):**
 
 - Seed `2242`: 7 traits, total de 12 para 19. Sem ledger; promovida para `database/seeds/`.
