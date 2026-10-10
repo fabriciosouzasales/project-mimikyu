@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Fonte decidida (ADR-034 v0.2, snapshot congelado). **Snapshot obtido** e **F1 (correspondência) concluída**, sem escrita no LIVE. **F2-01 EXECUTADO** por Fabrício (2026-10-09). Próximo: F3 (carregador do snapshot). |
+| **Status** | Fonte decidida (ADR-034 v0.2, snapshot congelado). **Snapshot obtido** e **F1 (correspondência) concluída**, sem escrita no LIVE. **F2-01 EXECUTADO** por Fabrício (2026-10-09). **F3-01 aplicado e XY1 em staging** (job `686f4ed4…`, 269 linhas, 2026-10-10). **Piloto XY1 CONCLUÍDO** (F5-01 executado: 269 variantes, `card_variant` 26.760). **F6 (campanha) CONCLUÍDA** (2026-10-10): 49 jobs COMPLETED, 10.812 variantes, `card_variant` **37.303**, cartas sem variante **330**. |
 | **Sequência** | Item 5c do `docs/ROADMAP.md` |
 | **Por que importa** | `physical_card.card_variant_id` é `NOT NULL`: sem variante, a carta não entra em Collections. |
 
@@ -114,10 +114,10 @@ segredo e o retry em tempo de execução: a tabela de fatias abaixo foi revisada
 | **S** | Snapshot da fonte no repositório (50 coleções, 6.733 cartas, manifest com contagem e hash). | Não | **Feito** |
 | **F1** | Prova de correspondência Set + número normalizado contra as cartas sem variante (`F1/match.py`). | Não | **Feito** (abaixo) |
 | **F2** | `F2-01_second_source_foundation_ready.sql` (detalhe abaixo). | Sim (script com dry-run) | **Executado** |
-| **F3** | Carregador do snapshot (no lugar da Edge com rede): lê `sets/<id>.json`, correlaciona por Set + número e grava uma linha de staging por chave de preço com `raw_data = {type: <chave>, foil: null, subtype: null, stamp: [], size: "standard", ptcg_card_id, ptcg_rarity}`. Mesmos guards de cobertura do import do TCGdex. Testes offline. | Sim (staging) | Pendente |
-| **F4** | Checagem cruzada com a regra era × raridade (comum/incomum = STANDARD + REVERSE; ultra/secreta = HOLO). Divergências vão para revisão antes do confirm. | Não | Pendente |
-| **F5** | Piloto em XY1 (146 cartas): stage → revisão → confirm → leitura. | Sim | Pendente |
-| **F6** | Campanha nas demais coleções, em lotes. | Sim | Pendente |
+| **F3** | `F3-01_stage_function_ready.sql` (função) + `F3/stage_<set>.sql` (49 chamadas, uma por coleção, com o arquivo do snapshot embutido). Detalhe abaixo. | Sim (staging) | **Pronto, prova PASS** |
+| **F4** | Checagem cruzada com a regra era × raridade (comum/incomum = STANDARD + REVERSE; ultra/secreta = HOLO). Divergências vão para revisão antes do confirm. | Não | **Feito** (pós-campanha, abaixo) |
+| **F5** | Piloto em XY1 (146 cartas): `F3/stage_xy1.sql` (executado: job `686f4ed4-28df-4ca1-81d9-fd2f0639249f`, STAGED, 269 linhas) → `F5-01_confirm_xy1_ready.sql` (decide + confirm, dry-run PASS: 269 inseridas, `card_variant` 26.491 → 26.760, XY1 sem variante 0). | Sim | **Concluído** (2026-10-10) |
+| **F6** | Campanha nas 48 coleções restantes em 4 lotes: `F6/stage_{A_bw,B_xy,C_sm,D_outros}_{dryrun,apply}.sql` (uma consulta por lote; falha em qualquer coleção desfaz o lote) + `F6/confirm_staged_ready.sql` (decide + confirm de todo job STAGED da 2ª fonte, mesmos gates do F5-01). | Sim | **Concluída** (2026-10-10, execução direta, abaixo) |
 
 ### Resultado da F1 (2026-10-09, só leitura)
 
@@ -176,6 +176,80 @@ afetado; fonte e identidade imutáveis) e as 3 rotas resolvem para STANDARD/HOLO
 **Observação para a UI:** a consulta de job ativo por carta (`web/lib/catalogo/queries.ts`) filtra
 `source = 'TCGDEX'`, e o rótulo da fonte só traduz `TCGDEX`. Jobs da 2ª fonte aparecem com o código cru.
 Ajuste de exibição fica para a fatia do carregador.
+
+### F3 — carregador (2026-10-10)
+
+`internal.stage_pokemontcg_snapshot_set(p_snapshot_text, p_apply)`, executada no SQL Editor:
+
+- **Integridade:** o SHA-256 do texto recebido (sem CR) precisa bater com o `snapshot_sha256` gravado na
+  referência da coleção na F2-01, e a contagem com `total_count`. Texto adulterado é recusado.
+- **Correspondência:** cartas da coleção sem nenhuma variante × cartas do snapshot, pelo número normalizado.
+  Só pares 1 para 1; número repetido em qualquer lado fica de fora como ambíguo.
+- **Staging:** uma linha por chave de preço (VALID / NEW / PENDING), já resolvida pelos 3 eixos. Carta
+  casada sem chave não gera linha. `raw_data` guarda `ptcg_card_id`, `ptcg_number`, `ptcg_rarity` e o
+  nome do snapshot. Sem rede, sem chave de API.
+- **Recusa:** job ativo na coleção (também impede rodar duas vezes), rota que não resolve, plano vazio
+  (nenhum job é criado).
+- **Saída:** contagens, linhas por tipo e a checagem cruzada F4 (combinação de chaves por raridade nossa).
+- `F3/stage_<set>.sql`: 49 scripts gerados a partir do snapshot, um por coleção, em DRY_RUN por padrão.
+  A decisão e o confirm seguem pelo mesmo runner do NRR-CONFIRM (admin real como ator).
+
+**Prova (2026-10-10, transação desfeita):** função criada e chamada com o arquivo `xy1.json`. DRY_RUN não
+gravou nada; texto adulterado recusado (`F3_SNAPSHOT_HASH`); texto com CRLF aceito; APPLY criou o job STAGED
+com 269 linhas, todas VALID/PENDING; segunda chamada recusada (`F3_ACTIVE_JOB`). Nada ficou no LIVE.
+
+Plano do piloto **XY1**: 146 de 146 cartas casadas, 0 ambíguas, 0 órfãs, 0 sem chave → **269 linhas**
+(STANDARD 116, REVERSE_HOLO 123, HOLO 30). Checagem cruzada: COMMON `normal+reverse` 39 e `normal` 9
+(energias); UNCOMMON `normal+reverse` 42; RARE `normal+reverse` 26 e `holo+reverse` 16 (a distinção que
+faltava em pt-BR); ULTRA_RARE `holofoil` 14. Nenhuma divergência da regra era × raridade.
+
+### F5 — piloto XY1 (2026-10-10)
+
+Executado por Fabrício. Leitura posterior: job `686f4ed4…` COMPLETED, 269 INSERTED, 0 FAILED;
+`card_variant` 26.491 → **26.760**; 0 cartas da XY1 sem variante; 0 duplicidade de identidade;
+cartas sem variante no catálogo 6.727 → **6.581**.
+
+### F6 — campanha (2026-10-10)
+
+**Execução direta pelo agente, a pedido de Fabrício** ("isso reduz bastante a possibilidade de eu rodar algo
+errado"), via `execute_sql` no projeto `qjfutqujxrbzgrtkpgkg`. Os arquivos `F6/stage_*` continuam válidos
+para reexecução manual, mas não foram usados.
+
+- **Staging sem redigitar o snapshot.** Cada chamada leva as cartas num formato compacto
+  (`número|raridade|chaves`) e um bloco DO reconstrói o texto JSON exato do arquivo do snapshot antes de
+  chamar `internal.stage_pokemontcg_snapshot_set`. A função recusa qualquer texto cujo SHA-256 não bata com a
+  referência gravada na F2-01, então a fidelidade da reconstrução fica provada pelo próprio servidor. O bloco
+  também aborta (desfazendo a chamada inteira) se `rows_planned` ou `matched` divergirem do plano da F1.
+- **Confirm:** o corpo de `F6/confirm_staged_ready.sql` com `v_apply = true`, uma vez por lote.
+- **Ordem:** D (DC1, DET1, DV1, G1, SWSH1, SWSH3.5, SWSHP, SVP) → A (12 BW) → B (13 XY) → C (15 SM).
+
+| Lote | Jobs | Linhas | `card_variant` depois |
+|---|---:|---:|---:|
+| Piloto XY1 | 1 | 269 | 26.760 |
+| D | 8 | 1.088 | 27.848 |
+| A | 12 | 2.539 | 30.387 |
+| B | 13 | 2.687 | 33.074 |
+| C | 15 | 4.229 | **37.303** |
+| **Total** | **49** | **10.812** | |
+
+**Leitura final (LIVE):** 49 jobs da 2ª fonte, todos COMPLETED; 10.812 linhas INSERTED, 0 em outro estado;
+0 linhas FAILED no staging inteiro; 10.812 variantes distintas, 0 duplicidade carta × tipo; por tipo
+STANDARD 3.969, REVERSE_HOLO 4.409, HOLO 2.434. Cartas sem variante: 6.727 → **330** (Trainer Kits 270,
+CEL25CC 25, as 25 casadas sem chave de preço, SVP 7, ME5.5/MEP 3).
+
+### F4 — checagem cruzada era × raridade (pós-campanha, só leitura)
+
+Combinação de tipos por raridade nossa, nas 6.397 cartas que ganharam variante. Padrão esperado em quase
+tudo: COMMON/UNCOMMON `STANDARD+REVERSE_HOLO` 3.049; RARE `STANDARD+REVERSE_HOLO` 817 e `HOLO+REVERSE_HOLO`
+513; ULTRA/SECRET/SHINY/V/VMAX `HOLO` 1.157; PROMO `HOLO` 478. Fora do padrão, 102 cartas, todas explicadas:
+
+| Caso | Cartas | Leitura |
+|---|---:|---|
+| BWP com raridade nossa COMMON/UNCOMMON/RARE | 58 | A fonte diz `Promo`; a raridade nossa é que está fora. Achado de catálogo (raridade), não de variante. |
+| BW11 e G1 (Radiant Collection), DET1, DV1: comum/incomum só HOLO | 40 | Correto: essas cartas só existem holo. |
+| XY12 109–113 `Rare Secret` só STANDARD | 5 | A fonte só tem preço `normal`. Fica registrado para revisão editorial. |
+
+Nenhuma divergência pede desfazer variante.
 
 ### Pontos que o desenho fecha
 
