@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Fonte decidida (ADR-034 v0.2, snapshot congelado). **Snapshot obtido** e **F1 (correspondência) concluída**, ambos sem escrita no LIVE (2026-10-09). Próximo: F2 (SQL). |
+| **Status** | Fonte decidida (ADR-034 v0.2, snapshot congelado). **Snapshot obtido** e **F1 (correspondência) concluída**, sem escrita no LIVE. **F2-01 EXECUTADO** por Fabrício (2026-10-09). Próximo: F3 (carregador do snapshot). |
 | **Sequência** | Item 5c do `docs/ROADMAP.md` |
 | **Por que importa** | `physical_card.card_variant_id` é `NOT NULL`: sem variante, a carta não entra em Collections. |
 
@@ -113,7 +113,7 @@ segredo e o retry em tempo de execução: a tabela de fatias abaixo foi revisada
 | ~~F0~~ | ~~Chave de API como segredo da Edge.~~ Substituída pelo snapshot. | — | Superada |
 | **S** | Snapshot da fonte no repositório (50 coleções, 6.733 cartas, manifest com contagem e hash). | Não | **Feito** |
 | **F1** | Prova de correspondência Set + número normalizado contra as cartas sem variante (`F1/match.py`). | Não | **Feito** (abaixo) |
-| **F2** | SQL: (a) CHECK de `catalog_variant_import_job.source` aceita `POKEMON_TCG_API`; (b) `card_set_external_reference` das 48 coleções casadas; (c) 3 mappings de Finish do asset_source (NORMAL/HOLOFOIL/REVERSEHOLOFOIL); (d) guard de servidor "carta sem variante" no staging e no confirm; (e) revalidação (2239/2245) restrita a jobs `TCGDEX`, porque hoje ela fixa o asset_source no código. | Sim (scripts, com dry-run) | Próximo |
+| **F2** | `F2-01_second_source_foundation_ready.sql` (detalhe abaixo). | Sim (script com dry-run) | **Executado** |
 | **F3** | Carregador do snapshot (no lugar da Edge com rede): lê `sets/<id>.json`, correlaciona por Set + número e grava uma linha de staging por chave de preço com `raw_data = {type: <chave>, foil: null, subtype: null, stamp: [], size: "standard", ptcg_card_id, ptcg_rarity}`. Mesmos guards de cobertura do import do TCGdex. Testes offline. | Sim (staging) | Pendente |
 | **F4** | Checagem cruzada com a regra era × raridade (comum/incomum = STANDARD + REVERSE; ultra/secreta = HOLO). Divergências vão para revisão antes do confirm. | Não | Pendente |
 | **F5** | Piloto em XY1 (146 cartas): stage → revisão → confirm → leitura. | Sim | Pendente |
@@ -147,6 +147,35 @@ Combinações de chaves nas 6.397: `normal + reverseHolofoil` 3.866; `holofoil` 
    versões com sufixo são cartas diferentes e sem preço. Parece defeito de importação do catálogo, não
    da fonte. Essas 10 casam com a versão "a" e entram nas 25 sem chave. Fica fora desta frente, como
    achado à parte.
+
+### F2 — `F2-01` (decisão de Fabrício, 2026-10-09: CEL25CC fica sem variante)
+
+**Correção da contagem:** são **49** coleções, não 48. A SVP entra porque 1 das 8 cartas dela casa
+(SVP 102); as outras 7 seguem sem fonte. Fica de fora só a CEL25CC.
+
+| Passo | O quê |
+|---|---|
+| S1 | CHECK de `catalog_variant_import_job.source` passa a aceitar `POKEMON_TCG_API` |
+| S2 | 49 `card_set_external_reference` da fonte, cada uma com o SHA-256 do arquivo do snapshot em `metadata` |
+| S3 | 3 rotas de Finish GLOBAIS: NORMAL → STANDARD, HOLOFOIL → HOLO, REVERSEHOLOFOIL → REVERSE_HOLO |
+| S4 | Guard `trg_cvir_second_source` (só para jobs da 2ª fonte). No staging: carta do Card Set do job, carta sem nenhuma variante, só `VALID`, `type` dentro das 3 chaves. No confirm: se a carta ganhou variante de outra origem depois do staging, a linha falha e nada é gravado. `card_id`/`job_id` imutáveis. Guard `trg_cvij_source_immutable`: a fonte do job não muda. |
+| S5 | Cancela o job TCGDEX vazio da SM12 (0 linhas, STAGED desde 2026-09-18), que ocupava o índice de job ativo da coleção |
+
+**Revalidação (2239/2245) não muda.** Ela só toca linhas `NEEDS_REVIEW`, e o guard impede que uma linha
+da 2ª fonte seja outra coisa além de `VALID`. Uma chave fora das 3 é recusada no staging em vez de ir para
+revisão; como o snapshot é imutável e só tem as 3 chaves, nenhum caso real cai nisso (ADR-034 v0.3).
+
+**Dry-run (2026-10-09, transação desfeita):** todos os gates passaram; provas T1–T10 (aceite em carta sem
+variante; recusa de NEEDS_REVIEW, de carta de outra coleção, de carta com variante, de chave fora do
+vocabulário; duas variantes da mesma carta no mesmo job; corrida com outra origem no confirm; job TCGDEX não
+afetado; fonte e identidade imutáveis) e as 3 rotas resolvem para STANDARD/HOLO/REVERSE_HOLO.
+`card_variant` 26.491 inalterado; leitura posterior confirmou que nada ficou gravado.
+
+**Execução (2026-10-09):** Fabrício rodou com `v_apply = true`. Leitura posterior: CHECK aceita as duas fontes; 49 referências; 3 rotas (normal→STANDARD, holofoil→HOLO, reverseHolofoil→REVERSE_HOLO); os 2 triggers ativos; job da SM12 CANCELLED; 0 jobs da 2ª fonte; `card_variant` 26.491; 6.727 cartas sem variante; `anon` sem EXECUTE no guard.
+
+**Observação para a UI:** a consulta de job ativo por carta (`web/lib/catalogo/queries.ts`) filtra
+`source = 'TCGDEX'`, e o rótulo da fonte só traduz `TCGDEX`. Jobs da 2ª fonte aparecem com o código cru.
+Ajuste de exibição fica para a fatia do carregador.
 
 ### Pontos que o desenho fecha
 

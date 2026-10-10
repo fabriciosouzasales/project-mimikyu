@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Aprovado (2026-10-09, Fabrício) — revisado no mesmo dia para fonte congelada (v0.2) |
+| **Status** | Aprovado (2026-10-09, Fabrício) — revisado no mesmo dia para fonte congelada (v0.2) e refinado na F2 (v0.3) |
 | **Decisão de origem** | Fabrício, 2026-10-09: "pokemontcg.io como 2ª fonte" (`CATALOG-VARIANT-COVERAGE-GAP-01`) |
 | **Relaciona** | ADR-028 (governança de Card Variant), proposta `2026-10-09-variant-coverage-gap` |
 
@@ -25,8 +25,9 @@ lista as variantes por carta em 98,6% das cartas medidas.
    alterada ou duplicada por esta fonte.
 3. **Sinal de variante:** as chaves de `tcgplayer.prices` da carta. O dado bruto é preservado na
    linha. O vocabulário entra por `card_variant_type_external_mapping` do asset_source:
-   `NORMAL`→STANDARD, `HOLOFOIL`→HOLO, `REVERSEHOLOFOIL`→REVERSE_HOLO. Qualquer outra chave
-   (`1STEDITION*`, `UNLIMITED*`, novas) não tem mapping e cai em `NEEDS_REVIEW`.
+   `NORMAL`→STANDARD, `HOLOFOIL`→HOLO, `REVERSEHOLOFOIL`→REVERSE_HOLO. Qualquer outra chave é
+   recusada no staging pelo guard de servidor (v0.3; antes: `NEEDS_REVIEW`). O snapshot só tem as 3
+   chaves, e linhas da 2ª fonte só existem como `VALID`, o que as mantém fora da revalidação do TCGdex.
 4. **Carta sem preço não ganha variante padrão.** Ela é registrada como sem fonte e fica na lista.
 5. **Correspondência:** `card_set_external_reference` explícita (coleção nossa ↔ `set.id` deles,
    curada e versionada) + número de coleção normalizado (maiúsculas, zeros à esquerda removidos em
@@ -46,6 +47,8 @@ lista as variantes por carta em 98,6% das cartas medidas.
 
 - Fecha a maior parte do gap: BW/XY/SM, especiais, promos BW/XY/SWSH/SV e SWSH1/SWSH3.5.
 - **Trainer Kits (270)** continuam sem fonte e ficam fora desta decisão.
+- **CEL25CC (25)** fica sem variante por enquanto (decisão de Fabrício, 2026-10-09): a numeração da
+  fonte não casa com a nossa e não há tabela de correspondência curada.
 - `catalog_variant_import_job.source` deixa de ser só `TCGDEX`: o CHECK passa a aceitar
   `POKEMON_TCG_API`. Callers que filtram `source = 'TCGDEX'` continuam corretos.
 - As chaves de preço são um proxy de variantes impressas. Erros pontuais da fonte entram como
@@ -64,3 +67,4 @@ lista as variantes por carta em 98,6% das cartas medidas.
 |---|---|
 | 0.1 | **Proposta (2026-10-09).** Criada a partir da sonda de cobertura (`CATALOG-VARIANT-COVERAGE-GAP-01`). |
 | 0.2 | **Aprovada e revisada (2026-10-09).** A API foi descontinuada (aviso oficial; chaves só até 01/03/2027). Por decisão de Fabrício, a fonte vira snapshot único versionado no repositório; saem a chave/segredo e o retry em tempo de execução. |
+| 0.3 | **Refinada na F2 (2026-10-09).** Chave fora do vocabulário é recusada no staging (não vai para `NEEDS_REVIEW`); CEL25CC fora por decisão de Fabrício. |
