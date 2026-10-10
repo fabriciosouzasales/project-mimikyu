@@ -62,5 +62,9 @@ Nada foi gravado como pt-BR para não rotular imagem inglesa como portuguesa.
    Quando a TCGdex publicar a tradução, uma nova importação traz os nomes como CONFLICT para aprovar.
 2. **Imagens.** Resolvido: ME5.5 158/158 (TCGdex), ME5.5CC 30/30 e CEL25CC 25/25 (pokemontcg, acima).
 3. **Mew RGB (3 cartas).** A API da TCGdex ainda não serve; entram numa importação futura.
-4. **Pokédex.** A TCGdex ainda não publica `dexId` para `30th`/`30th-c`; Primary Species = 0. Reprocessar depois.
+4. **Pokédex.** Resolvido por `database/migrations/2254_resolve_primary_species_me55_classic.sql` (dry-run
+   PASS, 180 cartas): ME5.5 155/155 e ME5.5CC 25/28 com Primary Species, via `admin_resolve_card_primary_species`
+   (basis EDITORIAL_RECONCILIATION, evidência pokemontcg.io + repositório TCGdex, gates de nome e cobertura).
+   Ficam sem espécie, pela regra de dexId múltiplo: ME5.5CC 008 Pikachu & Zekrom GX [25, 644] e 019/020
+   Darkrai & Cresselia LEGEND [491, 488] — mesmo estado das cartas originais em SM9/SMP/HGSS4.
 5. **Variantes.** Carimbo `30th-anniversary`; decisão de contexto de edição pendente.
