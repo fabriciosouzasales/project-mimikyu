@@ -36,4 +36,21 @@ export interface SetMatchingPreviewPort {
     cardSetId: string,
     pricingSourceId: string,
   ): Promise<ExistingSetMappingInfo | null>;
+  // Modo batch (Fase 3, 2026-10-10) — Sets elegíveis sem mapping CONFIRMED para a fonte
+  // (RPC pricing_set_discovery_targets, migration 3980, só service_role).
+  listDiscoveryTargets(pricingSourceId: string): Promise<DiscoveryTarget[]>;
+  // external_set_id -> código do Set local que já o usa (CONFIRMED).
+  listConfirmedExternalSets(pricingSourceId: string): Promise<Map<string, string>>;
 }
+
+export type DiscoveryTarget = {
+  cardSetId: string;
+  cardSetCode: string;
+  cardSetName: string;
+  releaseDate: string | null;
+  expansionCode: string;
+  expansionName: string;
+  expansionReleaseOrder: number | null;
+  activeCardCount: number;
+  currentMatchStatus: string | null;
+};

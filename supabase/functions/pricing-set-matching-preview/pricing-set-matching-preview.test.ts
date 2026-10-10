@@ -9,7 +9,7 @@
 
 import { JustTcgClient } from "../_shared/pricing-justtcg/mod.ts";
 import { handlePricingSetMatchingPreviewRequest, type AdminVerification, type HandlerDeps } from "./handler.ts";
-import type { EligibleCardSetInfo, ExistingSetMappingInfo, SetMatchingPreviewPort } from "./port.ts";
+import type { DiscoveryTarget, EligibleCardSetInfo, ExistingSetMappingInfo, SetMatchingPreviewPort } from "./port.ts";
 
 let failures = 0;
 function assert(label: string, condition: boolean): void {
@@ -29,6 +29,8 @@ type FakePortSeed = {
   cardSet: EligibleCardSetInfo | null;
   activeSource: { id: string; code: string } | null;
   existingMapping: ExistingSetMappingInfo | null;
+  discoveryTargets?: DiscoveryTarget[];
+  confirmedExternal?: Map<string, string>;
 };
 
 function buildFakePort(seed: FakePortSeed): { port: SetMatchingPreviewPort; calls: string[] } {
@@ -45,6 +47,14 @@ function buildFakePort(seed: FakePortSeed): { port: SetMatchingPreviewPort; call
     async findExistingSetMapping(cardSetId: string, pricingSourceId: string) {
       calls.push(`findExistingSetMapping(${cardSetId},${pricingSourceId})`);
       return seed.existingMapping;
+    },
+    async listDiscoveryTargets(pricingSourceId: string) {
+      calls.push(`listDiscoveryTargets(${pricingSourceId})`);
+      return seed.discoveryTargets ?? [];
+    },
+    async listConfirmedExternalSets(pricingSourceId: string) {
+      calls.push(`listConfirmedExternalSets(${pricingSourceId})`);
+      return seed.confirmedExternal ?? new Map();
     },
   };
   return { port, calls };
@@ -352,6 +362,58 @@ async function main() {
     });
     const res = await handlePricingSetMatchingPreviewRequest(badReq, deps);
     assert("13. Auth checada antes do corpo -> 403, nunca 400 mesmo com JSON quebrado", res.status === 403);
+  }
+
+  // ---- Modo batch (PRICING-MODULE-RECOVERY-01, Fase 3, 2026-10-10) ----
+  {
+    const target = (code: string, date: string | null): DiscoveryTarget => ({
+      cardSetId: `id-${code}`, cardSetCode: code, cardSetName: code, releaseDate: date,
+      expansionCode: "SWSH", expansionName: "Sword & Shield", expansionReleaseOrder: 8,
+      activeCardCount: 10, currentMatchStatus: null,
+    });
+    const externalSets = { data: [
+      { id: "safe-1", name: "Safe One", release_date: "2022-01-01T00:00:00Z" },
+      { id: "amb-a", name: "Amb A", release_date: "2022-02-02" },
+      { id: "amb-b", name: "Amb B", release_date: "2022-02-02" },
+      { id: "dup", name: "Shared", release_date: "2022-03-03" },
+      { id: "taken-x", name: "Taken", release_date: "2022-04-04" },
+      { id: "near", name: "Near Date", release_date: "2022-05-20" },
+    ] };
+    const { deps, callCount } = buildDeps(
+      {
+        cardSet: null, activeSource: JUSTTCG_SOURCE, existingMapping: null,
+        discoveryTargets: [
+          target("S1", "2022-01-01"), target("A1", "2022-02-02"), target("D1", "2022-03-03"),
+          target("D2", "2022-03-03"), target("T1", "2022-04-04"), target("N1", "2022-05-01"), target("Z1", null),
+        ],
+        confirmedExternal: new Map([["taken-x", "OLD"]]),
+      },
+      [{ status: 200, body: externalSets }],
+    );
+    const res = await handlePricingSetMatchingPreviewRequest(req({ mode: "batch" }), deps);
+    const json = await res.json();
+    // deno-lint-ignore no-explicit-any
+    const by = (c: string) => json.items.find((i: any) => i.card_set_code === c);
+    assert("B1. batch -> 200 BATCH", res.status === 200 && json.state === "BATCH");
+    assert("B1. batch -> 1 única requisição à JustTCG", callCount() === 1);
+    assert("B2. data única -> SAFE_CANDIDATE", by("S1").state === "SAFE_CANDIDATE" && by("S1").candidate.external_set_id === "safe-1");
+    assert("B3. 2 candidatos -> AMBIGUOUS com 2 sugestões", by("A1").state === "AMBIGUOUS" && by("A1").suggestions.length === 2);
+    assert("B4. 2 Sets locais no mesmo candidato -> CONFLICT nos dois", by("D1").state === "CONFLICT" && by("D2").state === "CONFLICT" && by("D1").conflict_with[0] === "D2");
+    assert("B5. candidato já CONFIRMED em outro Set -> TAKEN", by("T1").state === "TAKEN" && by("T1").conflict_with[0] === "OLD");
+    assert("B6. sem data exata -> NOT_FOUND com sugestão por data próxima", by("N1").state === "NOT_FOUND" && by("N1").suggestions[0]?.external_set_id === "near" && by("N1").suggestions[0]?.days_apart === 19);
+    assert("B7. Set sem release_date -> NOT_FOUND sem sugestões", by("Z1").state === "NOT_FOUND" && by("Z1").suggestions.length === 0);
+    // deno-lint-ignore no-explicit-any
+    assert("B8. external_sets marca taken_by", json.external_sets.find((e: any) => e.external_set_id === "taken-x").taken_by === "OLD");
+  }
+  {
+    const { deps, callCount } = buildDeps({ cardSet: null, activeSource: JUSTTCG_SOURCE, existingMapping: null }, [], ADMIN_FORBIDDEN);
+    const res = await handlePricingSetMatchingPreviewRequest(req({ mode: "batch" }), deps);
+    assert("B9. batch não admin -> 403 e zero JustTCG", res.status === 403 && callCount() === 0);
+  }
+  {
+    const { deps } = buildDeps({ cardSet: null, activeSource: JUSTTCG_SOURCE, existingMapping: null }, []);
+    const res = await handlePricingSetMatchingPreviewRequest(req({ mode: "tudo" }), deps);
+    assert("B10. mode desconhecido -> 400 INVALID_MODE", res.status === 400);
   }
 
   console.log(`\n${failures === 0 ? "TODOS OS TESTES PASSARAM" : `${failures} FALHA(S)`}`);

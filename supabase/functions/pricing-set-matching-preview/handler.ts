@@ -20,6 +20,7 @@
 
 import type { JustTcgClient } from "../_shared/pricing-justtcg/mod.ts";
 import { previewSetMatching } from "./core.ts";
+import { previewSetMatchingBatch } from "./batch-core.ts";
 import type { SetMatchingPreviewPort } from "./port.ts";
 import type { PreviewResult } from "./types.ts";
 
@@ -144,11 +145,50 @@ export async function handlePricingSetMatchingPreviewRequest(
   // 3. Corpo — { card_set_id } é o ÚNICO parâmetro de negócio aceito (Seção 4 do pedido:
   // "o servidor resolve nome/código/release_date/jogo/fonte aplicável por conta própria —
   // nunca confia em nome/código enviados pelo frontend como fonte de verdade").
-  let body: { card_set_id?: unknown };
+  let body: { card_set_id?: unknown; mode?: unknown };
   try {
     body = await req.json();
   } catch {
     return jsonResponse({ success: false, error: "INVALID_JSON" }, 400);
+  }
+
+  // Modo batch (Fase 3, 2026-10-10): { mode: "batch" } — classifica todos os Sets elegíveis
+  // sem mapping CONFIRMED com 1 única GET /v1/sets. Nenhum outro parâmetro é aceito.
+  if (body.mode === "batch") {
+    try {
+      const result = await previewSetMatchingBatch(deps.port, deps.buildClient());
+      switch (result.kind) {
+        case "NO_ACTIVE_SOURCE":
+          return jsonResponse({ success: true, state: "NO_ACTIVE_SOURCE" }, 200);
+        case "JUSTTCG_AUTH_FAILURE":
+          logError("PRICING_SET_MATCHING_PREVIEW_BATCH_JUSTTCG_AUTH_FAILURE");
+          return jsonResponse({ success: false, error: "JUSTTCG_AUTH_FAILURE" }, 502);
+        case "JUSTTCG_BUDGET_STOPPED":
+          logError("PRICING_SET_MATCHING_PREVIEW_BATCH_JUSTTCG_BUDGET_STOPPED");
+          return jsonResponse({ success: false, error: "JUSTTCG_BUDGET_STOPPED" }, 503);
+        case "JUSTTCG_TECHNICAL_FAILURE":
+          logError("PRICING_SET_MATCHING_PREVIEW_BATCH_JUSTTCG_TECHNICAL_FAILURE", { hadDetail: Boolean(result.detail) });
+          return jsonResponse({ success: false, error: "JUSTTCG_TECHNICAL_FAILURE" }, 502);
+        case "OK":
+          return jsonResponse(
+            {
+              success: true,
+              state: "BATCH",
+              pricing_source_id: result.pricing_source_id,
+              generated_at: result.generated_at,
+              items: result.items,
+              external_sets: result.external_sets,
+            },
+            200,
+          );
+      }
+    } catch {
+      logError("PRICING_SET_MATCHING_PREVIEW_BATCH_INTERNAL_ERROR");
+      return jsonResponse({ success: false, error: "INTERNAL_ERROR" }, 500);
+    }
+  }
+  if (body.mode !== undefined) {
+    return jsonResponse({ success: false, error: "INVALID_MODE" }, 400);
   }
 
   const cardSetId = typeof body.card_set_id === "string" ? body.card_set_id.trim() : "";

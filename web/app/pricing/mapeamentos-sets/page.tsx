@@ -1,8 +1,10 @@
-import { Layers } from "lucide-react";
+import { Layers, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { requirePricingAdmin } from "@/components/pricing/pricing-guard";
 import { MapeamentosSetsTable } from "@/components/pricing/mapeamentos-sets-table";
-import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
+import { Button } from "@/components/ui/button";
+import { PageActions, PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import {
   PRICING_SET_MAPPINGS_PAGE_SIZE,
   getPricingSetMappings,
@@ -79,6 +81,15 @@ export default async function PricingMapeamentosSetsPage({
               Gerencie a correspondência entre os Sets do catálogo e os identificadores utilizados por cada fonte de preço.
             </PageDescription>
           </PageHeading>
+          {/* Fase 3 do PRICING-MODULE-RECOVERY-01 (2026-10-10): descoberta em lote. */}
+          <PageActions>
+            <Button asChild variant="outline-primary" size="sm">
+              <Link href="/pricing/mapeamentos-sets/descoberta">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Descobrir correspondências
+              </Link>
+            </Button>
+          </PageActions>
         </PageHeader>
 
         <MapeamentosSetsTable

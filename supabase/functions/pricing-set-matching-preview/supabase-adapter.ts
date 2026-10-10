@@ -9,7 +9,12 @@
 // deno-lint-ignore no-explicit-any
 type SupabaseClientLike = any;
 
-import type { EligibleCardSetInfo, ExistingSetMappingInfo, SetMatchingPreviewPort } from "./port.ts";
+import type {
+  DiscoveryTarget,
+  EligibleCardSetInfo,
+  ExistingSetMappingInfo,
+  SetMatchingPreviewPort,
+} from "./port.ts";
 
 export function buildSetMatchingPreviewSupabaseAdapter(
   supabase: SupabaseClientLike,
@@ -69,6 +74,40 @@ export function buildSetMatchingPreviewSupabaseAdapter(
         externalSetName: (data.external_set_name as string | null) ?? null,
         lastCheckedAt: (data.last_checked_at as string | null) ?? null,
       };
+    },
+
+    async listDiscoveryTargets(pricingSourceId: string): Promise<DiscoveryTarget[]> {
+      const { data, error } = await supabase.rpc("pricing_set_discovery_targets", {
+        p_pricing_source_id: pricingSourceId,
+      });
+      if (error) throw new Error("DISCOVERY_TARGETS_READ_FAILED");
+      // deno-lint-ignore no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        cardSetId: r.card_set_id as string,
+        cardSetCode: r.card_set_code as string,
+        cardSetName: r.card_set_name as string,
+        releaseDate: (r.release_date as string | null) ?? null,
+        expansionCode: r.expansion_code as string,
+        expansionName: r.expansion_name as string,
+        expansionReleaseOrder: (r.expansion_release_order as number | null) ?? null,
+        activeCardCount: Number(r.active_card_count ?? 0),
+        currentMatchStatus: (r.current_match_status as string | null) ?? null,
+      }));
+    },
+
+    async listConfirmedExternalSets(pricingSourceId: string): Promise<Map<string, string>> {
+      const { data, error } = await supabase
+        .from("pricing_set_mapping")
+        .select("external_set_id, card_set:card_set_id(code)")
+        .eq("pricing_source_id", pricingSourceId)
+        .eq("match_status", "CONFIRMED");
+      if (error) throw new Error("CONFIRMED_SETS_READ_FAILED");
+      const map = new Map<string, string>();
+      // deno-lint-ignore no-explicit-any
+      for (const r of (data ?? []) as any[]) {
+        if (r.external_set_id) map.set(r.external_set_id as string, (r.card_set?.code as string) ?? "?");
+      }
+      return map;
     },
   };
 }

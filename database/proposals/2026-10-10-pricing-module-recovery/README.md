@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Diagnóstico concluído · **Fase 2 (frequência, 3978) e Fase 1 (destravar, 3979) EXECUTADAS 2026-10-10** · Fases 3–5 pendentes |
+| **Status** | Diagnóstico concluído · **Fase 2 (3978) e Fase 1 (3979) EXECUTADAS 2026-10-10** · **Fase 3: ferramenta de descoberta em lote entregue (3980 + Edge + UI); confirmações pendentes de execução por Fabrício** · Fases 4–5 pendentes |
 | **Gatilho** | Tela "Visão Geral" do Valor de Mercado em ATENÇÃO após a expansão do catálogo |
 | **Fonte** | JustTCG, plano Starter: 10.000 req/mês · 1.000 req/dia · 50 req/min · até 100 cartas/req |
 
@@ -107,3 +107,32 @@ Decisão de Fabrício: **Mega Evolution, Scarlet & Violet, Sword & Shield e Sun 
 - **Limpeza:** 30 jobs `justtcg-price-refresh-wave-*` (inativos) removidos do pg_cron.
 - Novas ações no `pricing_admin_action_log`: `PRICING_SET_BOOTSTRAP_REOPENED`, `PRICING_SET_REFRESH_PAUSED`.
 - Resultado na Visão Geral: Sets com refresh atrasado > 1 h = **0** (era 3); pausados = 1 (MFB).
+
+### Fase 3 — Descoberta de correspondências em lote (3980, CONFIRMADO EXECUTADO 2026-10-10)
+
+Em vez de 152 diálogos "Sincronizar" (2 requisições cada, ~300 no total), uma revisão única:
+
+- **3980** `public.pricing_set_discovery_targets(p_pricing_source_id)`: Sets POKEMON sem mapping CONFIRMED,
+  com Expansão, data, cartas ativas e status atual. STABLE, SECURITY INVOKER, `EXECUTE` só para `service_role`.
+- **Edge `pricing-set-matching-preview` v2** (deploy 2026-10-10, `verify_jwt` + `is_admin` inalterados): novo corpo
+  `{ "mode": "batch" }` → **1 única GET /sets** classifica todos os Sets com a mesma regra do modo single
+  (`resolveSetMatchV2`, data de lançamento exata). Proteções novas do lote:
+  `CONFLICT` (2+ Sets locais no mesmo candidato, ex.: Set principal e Galeria de Treinador) e
+  `TAKEN` (candidato já CONFIRMED para outro Set — o índice `uq_pricing_set_mapping_source_external_confirmed`
+  recusaria). `NOT_FOUND` traz sugestões por data próxima (±45 dias), nunca confirmadas automaticamente.
+  Modo single intacto. Suíte offline: 13 cenários antigos + 10 novos (B1–B10) passando
+  (executada com Node `--experimental-transform-types`; Deno não disponível no sandbox). O bundle publicado é
+  equivalente ao código do repositório, com os módulos só-de-tipo inlinados.
+- **Server Actions** (`web/app/pricing/mapeamentos-sets/descoberta/actions.ts`): `descobrirCorrespondenciasEmLote`
+  (somente leitura) e `confirmarCorrespondenciasEmLote` — refaz a consulta no servidor (+1 requisição) e só grava,
+  via `admin_confirm_pricing_set_mapping` com a sessão do admin, o que continua válido: Set ainda sem CONFIRMED,
+  Set externo existente e livre, sem o mesmo externo duas vezes no lote. Nome/método/evidência vêm do servidor;
+  `match_method` = `RELEASE_DATE_EXACT_MATCH` (seguro) ou `ADMIN_MANUAL_SELECTION` (escolha do admin);
+  `match_evidence.flow = BATCH_DISCOVERY`. Resultado por item (falha parcial não interrompe), teto de 200 por lote.
+- **UI** `/pricing/mapeamentos-sets/descoberta` (botão "Descobrir correspondências" em Mapeamentos de Sets):
+  três grupos — Prontos para confirmar (pré-selecionados), Revisar (escolha entre opções), Sem correspondência
+  (sugestões por data + lista completa sob demanda) —, busca, barra de confirmação fixa com contagem de cartas e
+  confirmação em dois passos. Typecheck `web` OK; validação visual (light/dark/mobile) pendente com Fabrício.
+- Custo: 1 requisição por consulta + 1 por confirmação. Cada Set confirmado entra no bootstrap existente
+  (1 Set a cada 5 min, ~1–3 requisições por Set).
+- **Pendente:** executar a descoberta e as confirmações pela UI (exige a sessão do admin), revisar MFB.
