@@ -244,3 +244,38 @@ export function classifyCardMatch(local: LocalCard, externalIndex: Map<string, J
     },
   };
 }
+
+// PRICING-MODULE-RECOVERY-01 / 3981 (2026-10-10) — Set externo COMPARTILHADO (N Sets locais
+// -> 1 Set JustTCG, ex.: os dois decks de um Trainer Kit publicados juntos). A numeração se
+// repete entre os decks, então número sozinho não identifica a carta. Regra, só para Sets
+// marcados is_shared_external: entre os candidatos de mesmo número, SAFE apenas se
+// EXATAMENTE UM tiver nome compatível (isNameCompatible). Zero candidatos -> ABSENT; nenhum ou
+// 2+ nomes compatíveis -> AMBIGUOUS (fica PENDING para revisão). Nunca promove por número
+// sozinho — inclusive com 1 único candidato, que precisa ter nome compatível.
+export function classifyCardMatchShared(local: LocalCard, externalIndex: Map<string, JustTcgCard[]>, externalSetId: string): CardMatchResult {
+  const METHOD = "SHARED_SET_COLLECTOR_NUMBER_AND_NAME_UNIQUE";
+  const localNumNorm = normalizeNumber(local.collector_number);
+  const candidates = externalIndex.get(localNumNorm) ?? [];
+  const base = { external_set_id: externalSetId, numero_local: local.collector_number, numero_normalizado: localNumNorm || null, nome_local: local.name, set_externo_compartilhado: true };
+
+  if (candidates.length === 0) {
+    return { classification: "ABSENT", matched: null, method: METHOD, evidence: { ...base, nome_externo: null } };
+  }
+  const compatible = candidates.filter((c) => isNameCompatible(local.name, c.name));
+  const candidatos = candidates.map((c) => ({ id: c.id, name: c.name, number: c.number ?? null, nome_compativel: isNameCompatible(local.name, c.name) }));
+  if (compatible.length === 1) {
+    const m = compatible[0];
+    return {
+      classification: "SAFE",
+      matched: m,
+      method: METHOD,
+      evidence: { ...base, numero_externo: m.number ?? null, nome_externo: m.name, candidatos, total_candidatos: candidates.length },
+    };
+  }
+  return {
+    classification: "AMBIGUOUS",
+    matched: null,
+    method: METHOD,
+    evidence: { ...base, candidatos, total_candidatos: candidates.length, nomes_compativeis: compatible.length },
+  };
+}

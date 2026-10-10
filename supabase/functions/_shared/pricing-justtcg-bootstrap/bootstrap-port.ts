@@ -135,6 +135,10 @@ export interface BootstrapPort {
   // ---- Leitura — só usada na fase de matching (status=MATCHING), nunca durante aquisição.
   loadFullStaging(pricingSetMappingId: string): Promise<StagedCardRow[]>;
   loadLocalActiveCards(cardSetId: string): Promise<LocalActiveCard[]>;
+  // 3981 (2026-10-10): true quando o Set local divide o Set externo com outros Sets locais
+  // (pricing_set_mapping.is_shared_external) — o matching passa a exigir número + nome.
+  // Opcional: ausente = false (comportamento anterior, inalterado).
+  loadSetMappingShared?(pricingSetMappingId: string): Promise<boolean>;
 
   // ---- Escrita — só pricing_card_mapping e pricing_source_card_identity (RPC
   // persist_pricing_bootstrap_card_batch, 3958) — nunca pricing_product/pricing_observation

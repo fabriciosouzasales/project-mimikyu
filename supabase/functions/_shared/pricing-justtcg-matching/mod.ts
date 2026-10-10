@@ -48,6 +48,6 @@ export {
 
 export { classifySetForExpansionPlan, resolveSetMatchV2 } from "./set-matching.ts";
 
-export { buildExternalNumberIndex, classifyCardMatch, isNameCompatible } from "./card-matching.ts";
+export { buildExternalNumberIndex, classifyCardMatch, classifyCardMatchShared, isNameCompatible } from "./card-matching.ts";
 
 export { decideMappingUpsert } from "./mapping-upsert.ts";

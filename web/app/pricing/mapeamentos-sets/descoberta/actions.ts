@@ -132,7 +132,13 @@ export async function descobrirCorrespondenciasEmLote(): Promise<DescobertaLoteR
   return mapBody(res.body);
 }
 
-export type DecisaoLote = { cardSetId: string; externalSetId: string };
+/**
+ * `shared` (3981): o admin declarou que este Set local divide o Set externo com outros
+ * Sets locais (ex.: os dois decks de um Trainer Kit). Só assim o mesmo Set externo pode
+ * ser escolhido mais de uma vez ou reaproveitar um Set externo já compartilhado; o banco
+ * recusa misturar vínculo compartilhado com vínculo comum.
+ */
+export type DecisaoLote = { cardSetId: string; externalSetId: string; shared?: boolean };
 
 export type ResultadoItemLote = {
   cardSetId: string;
@@ -153,6 +159,8 @@ const RPC_ERRORS: Record<string, string> = {
   ADMIN_CONFIRM_PRICING_SET_MAPPING_SET_NOT_ELIGIBLE: "Set não elegível para preços.",
   ADMIN_CONFIRM_PRICING_SET_MAPPING_SOURCE_NOT_ACTIVE: "A fonte JustTCG não está mais ativa.",
   ADMIN_CONFIRM_PRICING_SET_MAPPING_ALREADY_CONFIRMED_DIFFERENT_CANDIDATE: "Já confirmado com outro Set externo.",
+  PRICING_SET_MAPPING_SHARED_EXTERNAL_CONFLICT:
+    "Este Set da JustTCG já está vinculado a um Set sem compartilhamento — só decks do mesmo produto podem dividi-lo.",
 };
 
 export async function confirmarCorrespondenciasEmLote(decisoes: DecisaoLote[]): Promise<ConfirmacaoLoteResult> {
@@ -186,11 +194,12 @@ export async function confirmarCorrespondenciasEmLote(decisoes: DecisaoLote[]): 
       results.push({ cardSetId: d.cardSetId, cardSetCode: code, ok: false, error: "Set externo não existe mais na JustTCG." });
       continue;
     }
-    if (external.takenBy) {
+    const shared = d.shared === true;
+    if (external.takenBy && !shared) {
       results.push({ cardSetId: d.cardSetId, cardSetCode: code, ok: false, error: `Set externo já usado por ${external.takenBy}.` });
       continue;
     }
-    if ((externalCount.get(d.externalSetId) ?? 0) > 1) {
+    if ((externalCount.get(d.externalSetId) ?? 0) > 1 && !shared) {
       results.push({ cardSetId: d.cardSetId, cardSetCode: code, ok: false, error: "O mesmo Set externo foi escolhido para mais de um Set." });
       continue;
     }
@@ -205,6 +214,7 @@ export async function confirmarCorrespondenciasEmLote(decisoes: DecisaoLote[]): 
       external_set_id: external.externalSetId,
       external_set_name: external.externalSetName,
       external_release_date: external.releaseDate,
+      shared_external: shared,
     };
 
     const { error } = await supabase.rpc("admin_confirm_pricing_set_mapping", {
@@ -214,9 +224,10 @@ export async function confirmarCorrespondenciasEmLote(decisoes: DecisaoLote[]): 
       p_external_set_name: external.externalSetName,
       p_match_method: method,
       p_match_evidence: evidence,
+      p_shared_external: shared,
     });
     if (error) {
-      const codeMatch = error.message.match(/^([A-Z][A-Z0-9_]*):/);
+      const codeMatch = error.message.match(/([A-Z][A-Z0-9_]{8,}):/);
       const msg =
         (codeMatch?.[1] ? RPC_ERRORS[codeMatch[1]] : undefined) ||
         (error.code === "23505" ? "Set externo já confirmado para outro Set." : "Não foi possível confirmar.");

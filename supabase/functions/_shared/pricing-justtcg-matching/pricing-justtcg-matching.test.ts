@@ -20,6 +20,7 @@ import type { JustTcgSet } from "../pricing-justtcg/mod.ts";
 import {
   buildExternalNumberIndex,
   classifyCardMatch,
+  classifyCardMatchShared,
   classifySetForExpansionPlan,
   decideMappingUpsert,
   type LocalCard,
@@ -354,6 +355,33 @@ export async function runPricingJusttcgMatchingTests(): Promise<TestSuiteResult>
     "idempotência: PENDING permanece PENDING quando a nova classificação também é ambígua",
     decideMappingUpsert({ id: "m4", match_status: "PENDING" }, "PENDING") === "NOOP_SAME_STATUS",
   );
+
+  // ---- 3981: Set externo compartilhado (Trainer Kit com 2 decks) ----
+  {
+    const ext = [
+      { id: "b25", name: "Potion", number: "25/30", variants: [] },
+      { id: "w25", name: "Jigglypuff", number: "25/30", variants: [] },
+      { id: "b2", name: "Metal Energy", number: "2/30", variants: [] },
+      { id: "w2", name: "Pidgeotto", number: "2/30", variants: [] },
+      { id: "x9a", name: "Potion", number: "9/30", variants: [] },
+      { id: "x9b", name: "Potion", number: "9/30", variants: [] },
+      { id: "s7", name: "Clefairy", number: "7/30", variants: [] },
+    ];
+    // deno-lint-ignore no-explicit-any
+    const idx = buildExternalNumberIndex(ext as any);
+    const r1 = classifyCardMatchShared({ card_id: "c1", name: "Potion", collector_number: "25", collector_total: 30 }, idx, "tk");
+    assert("3981 shared: número repetido + 1 nome compatível -> SAFE no deck certo", r1.classification === "SAFE" && r1.matched?.id === "b25");
+    const r2 = classifyCardMatchShared({ card_id: "c2", name: "Pidgeotto", collector_number: "02", collector_total: 30 }, idx, "tk");
+    assert("3981 shared: outro deck no mesmo número -> SAFE no candidato do nome", r2.classification === "SAFE" && r2.matched?.id === "w2");
+    const r3 = classifyCardMatchShared({ card_id: "c3", name: "Potion", collector_number: "9", collector_total: 30 }, idx, "tk");
+    assert("3981 shared: 2 nomes compatíveis -> AMBIGUOUS", r3.classification === "AMBIGUOUS" && r3.matched === null);
+    const r4 = classifyCardMatchShared({ card_id: "c4", name: "Fletchling", collector_number: "7", collector_total: 30 }, idx, "tk");
+    assert("3981 shared: 1 candidato com nome diferente -> AMBIGUOUS (nunca por número sozinho)", r4.classification === "AMBIGUOUS");
+    const r5 = classifyCardMatchShared({ card_id: "c5", name: "Bisharp", collector_number: "30", collector_total: 30 }, idx, "tk");
+    assert("3981 shared: sem candidato no número -> ABSENT", r5.classification === "ABSENT");
+    const r6 = classifyCardMatch({ card_id: "c1", name: "Potion", collector_number: "25", collector_total: 30 }, idx, "tk");
+    assert("3981 regressão: modo normal inalterado (2 candidatos mesma identidade -> AMBIGUOUS)", r6.classification === "AMBIGUOUS");
+  }
 
   const failedCount = assertions.filter(([, ok]) => !ok).length;
   return { assertions, failedCount };

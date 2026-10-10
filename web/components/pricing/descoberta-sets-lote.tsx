@@ -98,6 +98,8 @@ export function DescobertaSetsLote({ pendingSets, pendingCards }: { pendingSets:
   const [busca, setBusca] = useState("");
   const [escolha, setEscolha] = useState<Map<string, string>>(new Map());
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  // 3981: Sets locais marcados como "divide o Set externo com outro deck" (Trainer Kits).
+  const [compartilhados, setCompartilhados] = useState<Set<string>>(new Set());
   const [confirmando, setConfirmando] = useState(false);
   const [resultado, setResultado] = useState<{ confirmed: number; falhas: ResultadoItemLote[] } | null>(null);
   const [consultando, startConsulta] = useTransition();
@@ -202,8 +204,26 @@ export function DescobertaSetsLote({ pendingSets, pendingCards }: { pendingSets:
     });
   }
 
+  function alternarCompartilhado(cardSetId: string, valor: boolean) {
+    setConfirmando(false);
+    setCompartilhados((prev) => {
+      const next = new Set(prev);
+      if (valor) next.add(cardSetId);
+      else next.delete(cardSetId);
+      return next;
+    });
+  }
+
   function confirmar() {
-    const decisoes = selecionadosValidos.map((it) => ({ cardSetId: it.cardSetId, externalSetId: escolha.get(it.cardSetId)! }));
+    // Basta marcar "compartilhado" em uma das linhas: todo Set que escolheu o mesmo Set
+    // externo neste lote segue como compartilhado (o banco recusa misturar).
+    const externosCompartilhados = new Set(
+      selecionadosValidos.filter((it) => compartilhados.has(it.cardSetId)).map((it) => escolha.get(it.cardSetId)!),
+    );
+    const decisoes = selecionadosValidos.map((it) => {
+      const externalSetId = escolha.get(it.cardSetId)!;
+      return { cardSetId: it.cardSetId, externalSetId, shared: externosCompartilhados.has(externalSetId) };
+    });
     startGravacao(async () => {
       const res = await confirmarCorrespondenciasEmLote(decisoes);
       setConfirmando(false);
@@ -350,6 +370,8 @@ export function DescobertaSetsLote({ pendingSets, pendingCards }: { pendingSets:
                     escolhido={escolha.get(it.cardSetId) ?? ""}
                     marcado={selecionados.has(it.cardSetId)}
                     externoEscolhidoPor={externoEscolhidoPor}
+                    compartilhado={compartilhados.has(it.cardSetId)}
+                    onCompartilhar={(v) => alternarCompartilhado(it.cardSetId, v)}
                     onToggle={() => alternar(it.cardSetId)}
                     onEscolher={(ext) => escolher(it.cardSetId, ext)}
                   />
@@ -461,6 +483,8 @@ function LinhaSet({
   escolhido,
   marcado,
   externoEscolhidoPor,
+  compartilhado,
+  onCompartilhar,
   onToggle,
   onEscolher,
 }: {
@@ -469,6 +493,8 @@ function LinhaSet({
   escolhido: string;
   marcado: boolean;
   externoEscolhidoPor: Map<string, string>;
+  compartilhado: boolean;
+  onCompartilhar: (valor: boolean) => void;
   onToggle: () => void;
   onEscolher: (externalSetId: string) => void;
 }) {
@@ -477,13 +503,24 @@ function LinhaSet({
   // Lista completa (~250 Sets) só é montada quando pedida — evita milhares de <option> no DOM.
   const [listaCompleta, setListaCompleta] = useState(Boolean(escolhido) && !sugestaoIds.has(escolhido));
   const externoPorId = useMemo(() => new Map(externalSets.map((e) => [e.externalSetId, e])), [externalSets]);
-  const desabilitar = (id: string) => {
+  // Ocupado = já vinculado a outro Set ou escolhido para outro Set neste lote. Com
+  // "compartilhado" marcado a opção fica disponível e o rótulo explica com quem divide.
+  const ocupadoPor = (id: string): string | null => {
     const ext = externoPorId.get(id);
-    if (ext?.takenBy) return `em uso por ${ext.takenBy}`;
+    if (ext?.takenBy) return ext.takenBy;
     const outro = externoEscolhidoPor.get(id);
-    if (outro && outro !== item.cardSetCode) return `escolhido para ${outro}`;
+    if (outro && outro !== item.cardSetCode) return outro;
     return null;
   };
+  const rotulo = (id: string) => {
+    const quem = ocupadoPor(id);
+    if (!quem) return { bloqueado: false, sufixo: "" };
+    return compartilhado
+      ? { bloqueado: false, sufixo: ` — compartilhar com ${quem}` }
+      : { bloqueado: true, sufixo: ` — em uso por ${quem}` };
+  };
+  const temOcupado =
+    item.suggestions.some((s) => ocupadoPor(s.externalSetId)) || (Boolean(escolhido) && Boolean(ocupadoPor(escolhido)));
 
   return (
     <DataTableRow className={cn(marcado && "bg-primary/[0.04]")}>
@@ -546,12 +583,12 @@ function LinhaSet({
               {item.suggestions.length > 0 && (
                 <optgroup label={item.state === "AMBIGUOUS" ? "Lançados no mesmo dia" : "Datas mais próximas"}>
                   {item.suggestions.map((s) => {
-                    const motivo = desabilitar(s.externalSetId);
+                    const r = rotulo(s.externalSetId);
                     return (
-                      <option key={s.externalSetId} value={s.externalSetId} disabled={Boolean(motivo)}>
+                      <option key={s.externalSetId} value={s.externalSetId} disabled={r.bloqueado}>
                         {s.externalSetName} · {formatData(s.releaseDate)}
                         {item.state !== "AMBIGUOUS" ? ` (${diasTexto(s.daysApart)})` : ""}
-                        {motivo ? ` — ${motivo}` : ""}
+                        {r.sufixo}
                       </option>
                     );
                   })}
@@ -562,11 +599,11 @@ function LinhaSet({
                 {externalSets
                   .filter((e) => !sugestaoIds.has(e.externalSetId))
                   .map((e) => {
-                    const motivo = desabilitar(e.externalSetId);
+                    const r = rotulo(e.externalSetId);
                     return (
-                      <option key={e.externalSetId} value={e.externalSetId} disabled={Boolean(motivo)}>
+                      <option key={e.externalSetId} value={e.externalSetId} disabled={r.bloqueado}>
                         {e.externalSetName} · {formatData(e.releaseDate)}
-                        {motivo ? ` — ${motivo}` : ""}
+                        {r.sufixo}
                       </option>
                     );
                   })}
@@ -575,6 +612,21 @@ function LinhaSet({
                 <option value={VER_TODOS}>Ver todos os Sets da JustTCG…</option>
               )}
             </Select>
+            {(temOcupado || compartilhado || listaCompleta) && (
+              <label className="flex w-fit cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 accent-primary"
+                  checked={compartilhado}
+                  onChange={(e) => {
+                    onCompartilhar(e.target.checked);
+                    // Desmarcar com uma escolha que depende do compartilhamento limpa a escolha.
+                    if (!e.target.checked && escolhido && ocupadoPor(escolhido)) onEscolher("");
+                  }}
+                />
+                Set da JustTCG compartilhado com outro deck do mesmo produto
+              </label>
+            )}
           </div>
         )}
       </DataTableCell>

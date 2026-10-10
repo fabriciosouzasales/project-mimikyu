@@ -53,6 +53,7 @@ import type { Clock } from "../pricing-justtcg-refresh/deadline.ts";
 import {
   buildExternalNumberIndex,
   classifyCardMatch,
+  classifyCardMatchShared,
 } from "../pricing-justtcg-matching/mod.ts";
 import type { LocalCard } from "../pricing-justtcg-matching/mod.ts";
 import {
@@ -288,10 +289,12 @@ async function runMatchingPhase(
   // TRANSIENT_ERROR/COMPLETED_WITH_ERRORS sem inventar nenhum dado.
   let stagingRows: Awaited<ReturnType<BootstrapPort["loadFullStaging"]>>;
   let localCards: Awaited<ReturnType<BootstrapPort["loadLocalActiveCards"]>>;
+  let sharedExternal = false;
   try {
-    [stagingRows, localCards] = await Promise.all([
+    [stagingRows, localCards, sharedExternal] = await Promise.all([
       port.loadFullStaging(pricingSetMappingId),
       port.loadLocalActiveCards(cardSetId),
+      port.loadSetMappingShared ? port.loadSetMappingShared(pricingSetMappingId) : Promise.resolve(false),
     ]);
   } catch {
     const closeResult = await port.closeAttempt(
@@ -342,7 +345,10 @@ async function runMatchingPhase(
       collector_number: local.collectorNumber,
       collector_total: local.collectorTotal,
     };
-    const result = classifyCardMatch(localCard, externalIndex, externalSetId);
+    // 3981: Set externo compartilhado exige número + nome (classifyCardMatchShared).
+    const result = sharedExternal
+      ? classifyCardMatchShared(localCard, externalIndex, externalSetId)
+      : classifyCardMatch(localCard, externalIndex, externalSetId);
     if (result.classification === "SAFE") cardsSafe++;
     else if (result.classification === "AMBIGUOUS") cardsAmbiguous++;
     else cardsAbsent++;

@@ -135,4 +135,34 @@ Em vez de 152 diálogos "Sincronizar" (2 requisições cada, ~300 no total), uma
   confirmação em dois passos. Typecheck `web` OK; validação visual (light/dark/mobile) pendente com Fabrício.
 - Custo: 1 requisição por consulta + 1 por confirmação. Cada Set confirmado entra no bootstrap existente
   (1 Set a cada 5 min, ~1–3 requisições por Set).
-- **Pendente:** executar a descoberta e as confirmações pela UI (exige a sessão do admin), revisar MFB.
+- **Execução (Fabrício, UI, 2026-10-10 ~15:50 BRT):** 87 Sets confirmados (66 por data exata, 21 por escolha manual — SWSH9–12 e Galerias,
+  Crown Zenith/GG, ME5.5/ME5.5CC, CEL25CC, SM1, SM8, BW1, BW11/RC, G1, DP1/DPP). Conferência LIVE: nomes externos coerentes com
+  os Sets locais; única diferença de data relevante é DP1 → "Diamond and Pearl" (22 dias, correto). Mapeamentos CONFIRMED: 49 → 136.
+  Bootstrap das cartas em fila (1 Set a cada 5 min, ~7 h).
+- **Restante:** 65 Sets (15 para revisar, 50 sem correspondência por data), na maioria POP, Trainer Kits, McDonald's,
+  promos (NP/HGSSP/BWP/XYP/SMP) e alguns principais (EX1/EX4–EX6/EX8/EX10/EX16, DP2–DP7, HGSS2, SM9, SM115/SMA). Sets sem
+  cartas ativas (SP, EXU) não devem ser vinculados. MFB segue pausado.
+
+### Fase 3b — Set externo compartilhado (3981, CONFIRMADO EXECUTADO 2026-10-10)
+
+Achado de Fabrício: a JustTCG publica os **dois decks de cada Trainer Kit num único Set** (ex.: "XY Trainer Kit:
+Bisharp & Wigglytuff"), enquanto o catálogo tem um Set por deck (TK-XY-B, TK-XY-W). O índice único
+`(fonte, Set externo)` impedia o 2º vínculo, e a numeração das cartas (1–30) se repete entre os decks.
+Decisão de Fabrício (2026-10-10): **permitir Set compartilhado**, com opt-in explícito e matching por número + nome.
+
+- **3981:** `pricing_set_mapping.is_shared_external` (default false); o índice único passa a valer só para vínculos
+  não compartilhados; trigger `trg_pricing_set_mapping_shared_external` impede misturar vínculo compartilhado com
+  comum no mesmo Set externo (advisory lock por par); `admin_confirm_pricing_set_mapping` ganha
+  `p_shared_external` (default false — chamadas antigas inalteradas). Testes transacionais (rollback):
+  dois compartilhados OK; compartilhar Set já usado sem compartilhamento (XY4) bloqueado; comum sobre compartilhado
+  bloqueado; dois comuns bloqueado.
+- **Matching:** `classifyCardMatchShared` (`_shared/pricing-justtcg-matching/card-matching.ts`) — em Set compartilhado,
+  SAFE só quando exatamente um candidato de mesmo número tem nome compatível; nunca promove por número sozinho; empate
+  vira PENDING. O bootstrap lê a flag do mapping (`loadSetMappingShared`) e escolhe a regra. Segurança no nível da carta
+  segue no índice `uq_pricing_card_mapping_source_external_confirmed`. Refresh não muda: ele filtra por Set local, então
+  cartas do outro deck são ignoradas (custo: o Set externo é lido uma vez por deck).
+- **Edge `justtcg-set-bootstrap` v2** publicada (bundle equivalente ao repositório, sem comentários). Testes: matching
+  50/50 (6 novos para Set compartilhado), bootstrap e preview completos passando (Node `--experimental-transform-types`).
+- **UI:** em Revisar/Sem correspondência, quando a opção desejada está em uso aparece "Set da JustTCG compartilhado com
+  outro deck do mesmo produto"; marcado numa linha, vale para todos os Sets do lote que escolheram o mesmo Set externo.
+- Escopo esperado: 10 pares de Trainer Kits (20 Sets, ~510 cartas).

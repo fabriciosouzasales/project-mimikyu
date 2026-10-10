@@ -208,6 +208,19 @@ export function buildBootstrapSupabaseAdapter(
       }));
     },
 
+    async loadSetMappingShared(pricingSetMappingId: string): Promise<boolean> {
+      const { data, error } = await supabase
+        .from("pricing_set_mapping")
+        .select("is_shared_external")
+        .eq("id", pricingSetMappingId)
+        .maybeSingle();
+      if (error) {
+        logError("PRICING_SET_BOOTSTRAP_LOAD_SHARED_FLAG_FAILED", { pricingSetMappingId });
+        throw new Error("PRICING_SET_BOOTSTRAP_LOAD_SHARED_FLAG_FAILED");
+      }
+      return (data as { is_shared_external?: boolean } | null)?.is_shared_external === true;
+    },
+
     async persistMatchingBatch(
       pricingSourceId: string,
       syncRunId: string,
