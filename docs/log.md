@@ -2838,3 +2838,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-10] feature | PRICING-MODULE-RECOVERY-01 Fase 3b - 3981: Set externo compartilhado (Trainer Kits com 2 decks num Set da JustTCG); matching numero+nome no bootstrap (Edge justtcg-set-bootstrap v2); opcao na tela de descoberta
 ## [2026-10-10] fix | Descoberta em lote: Sets sem cartas ativas nao sao selecionaveis (ex.: EXU); opcao em uso indica como usar "compartilhado"
 ## [2026-10-10] fix | PRICING-MODULE-RECOVERY-01 Fase 3c - validacao de 56 confirmacoes manuais (193 Sets CONFIRMED); flag compartilhado revertida em SWSH4.5SV/SMP; 3982: bootstrap prioriza MATCHING; 6 Sets sem fonte na JustTCG documentados
+## [2026-10-10] feature | PRICING-MODULE-RECOVERY-01 Fase 4 - 3983: get_card_variants_pricing_summary (preco por Card Variant, VARIANT/CARD_FALLBACK) validado no LIVE; 05f 1.67 (Revision History 1.65/1.66 movidas do cabecalho para a tabela)

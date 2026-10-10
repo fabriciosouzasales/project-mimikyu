@@ -179,3 +179,20 @@ Decisão de Fabrício (2026-10-10): **permitir Set compartilhado**, com opt-in e
   EX5.5 (5), TK-EX-LATIA (10), TK-EX-LATIO (10). Sem cartas no catálogo (nada a vincular): SP, EXU.
 - **3982 (CONFIRMADO EXECUTADO):** `open_pricing_set_bootstrap_attempt` prioriza Sets em MATCHING — antes, com ~140 Sets
   confirmados no mesmo minuto, o dispatcher fazia todas as aquisições antes de qualquer matching (preço só ~20 h depois).
+
+### Fase 4 — Preço por Card Variant (3983, CONFIRMADO EXECUTADO 2026-10-10)
+
+- **`get_card_variants_pricing_summary(uuid[])`**: contrato de leitura por variante, base da avaliação de Collection
+  (Physical Card referencia `card_variant_id`). Retorna `price_basis`:
+  - `VARIANT` — observação MARKET/NM mais recente de produto ativo ligado à própria variante;
+  - `CARD_FALLBACK` — sem preço da variante, usa `get_cards_pricing_summary` (hierarquia de printing + manual);
+  - `NULL` — sem preço (`has_pricing=false`).
+- Segurança idêntica ao resumo por carta: SECURITY DEFINER, `search_path` vazio, `auth.uid()` obrigatório, ≤100 ids,
+  array 1-D; EXECUTE só para `authenticated` (anon sem acesso). Não expõe ids externos.
+- **Validação LIVE:** amostras dos 3 caminhos (VARIANT, CARD_FALLBACK, sem mapping) corretas; 5 guards
+  (sem auth, vazio, NULL, 2-D, 101 ids) com os códigos `VARIANT_PRICING_SUMMARY_*`; 100 ids ≈ 13 ms a quente
+  (1ª chamada fria ≈ 1,1 s, igual ao resumo por carta).
+- **Residual — catálogo/editorial, não defeito de Pricing** (LIVE 2026-10-10, cresce enquanto o bootstrap roda):
+  870 produtos ativos sem variante ligada de 53.425 — `UNIQUE_CONTEXT_ONLY` 440, `NO_CANDIDATE` 405 (variante ausente
+  no catálogo: SVP Holofoil, SVE, ME2.5 Reverse, MEP, BASEP, 2022SWSH, GYM2 1st Ed…), `AMBIGUOUS` 25; 52 cartas
+  `NOT_FOUND`. Essas variantes recebem `CARD_FALLBACK` até a revisão editorial (UI de resolução existente).
