@@ -33,12 +33,34 @@
 Script: `database/migrations/2252_recover_me55_failed_rows.sql` (dry-run PASS, depois aplicado).
 Resultado: ME5.5 **158** cartas (1..158), ME5.5CC **30** cartas (1..30), os 2 jobs COMPLETED.
 
+## Imagens das Coleções Clássicas (ME5.5CC + CEL25CC, 2026-10-10)
+
+A TCGdex não publica imagem para `30th-c` nem `cel25cc` (0 de 55, em qualquer idioma; testados 17 caminhos
+alternativos no servidor de assets). O pokemontcg.io publica as duas em subconjuntos que mantêm o número da
+carta ORIGINAL homenageada: `me55c-4` (Charizard), `me55c-106p` (Palkia LV.X), `cel25c-15_A4` (Claydol).
+A correspondência com os nossos 001–030 / CC001–CC025 foi conferida carta a carta pelo nome.
+
+Importação pontual aprovada por Fabrício ("Importação pontual das 30. Veja se isso se aplica também para a
+classic collection de 25 anos"): Edge Function `import-classic-collection-assets` (sem entrada do chamador,
+mapa fixo, portão `oneshot_operation_gate` consumido antes de agir, migration 2253).
+
+| Set | Imagens | Fonte | Caminho | Tamanho |
+|---|---|---|---|---|
+| ME5.5CC | 30/30 | `images.scrydex.com/pokemon/me55c-<n>/large` | `card-front/me5.5cc/en/001.png` | 596 KB – 1,5 MB, 654×914 |
+| CEL25CC | 25/25 | `images.pokemontcg.io/cel25c/<n>_hires.png` | `card-front/cel25cc/en/CC001.png` | 330 – 905 KB |
+
+Cada carta ganhou `card_asset` (CARD_FRONT, en, `source_code` POKEMON_TCG_API, checksum SHA-256) e
+`card_external_reference` (asset_source POKEMON_TCG_API, `image_source_url` = URL de origem). Conferência
+visual: Charizard e Palkia (ME5.5CC) e Blastoise (CEL25CC) corretos, com carimbo comemorativo.
+
+**Português:** nenhuma fonte publica estas cartas em pt (TCGdex `pt/cel25cc` tem 0 cartas; pokemontcg é só en).
+Nada foi gravado como pt-BR para não rotular imagem inglesa como portuguesa.
+
 ## Pendências
 
 1. **Nomes em português.** A TCGdex só tem 001 e 002 traduzidas; as demais 156 + 30 ficaram em inglês.
    Quando a TCGdex publicar a tradução, uma nova importação traz os nomes como CONFLICT para aprovar.
-2. **Imagens.** Importar Imagens dos dois Sets (ME5.5CC não tinha cartas, por isso falhou antes). Em pt-BR não
-   haverá imagem; a continuação automática em `en` cobre.
+2. **Imagens.** Resolvido: ME5.5 158/158 (TCGdex), ME5.5CC 30/30 e CEL25CC 25/25 (pokemontcg, acima).
 3. **Mew RGB (3 cartas).** A API da TCGdex ainda não serve; entram numa importação futura.
 4. **Pokédex.** A TCGdex ainda não publica `dexId` para `30th`/`30th-c`; Primary Species = 0. Reprocessar depois.
 5. **Variantes.** Carimbo `30th-anniversary`; decisão de contexto de edição pendente.
