@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.17 |
+| **Versão** | 2.18 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -458,7 +458,8 @@ editorial** que estabilizou essa campanha para escala.
 >      Fonte decidida: Pokémon TCG API como 2ª fonte, em snapshot congelado (ADR-034 v0.2).
      CONCLUÍDA a carga (2026-10-10): F2/F3/piloto XY1/F6, 49 coleções, 10.812 variantes;
      card_variant 37.303; cartas sem variante 6.727 → 330 (Trainer Kits 270, CEL25CC 25, 25 sem
-     chave de preço, SVP 7, ME5.5/MEP 3). Falta o fechamento: exibição da 2ª fonte na UI e achados.
+     chave de preço, SVP 7, ME5.5/MEP 3). FECHADA em 2026-10-10 (2246/2247 canônicos, UI traduz a
+     2ª fonte, achados restantes registrados no README da proposta). Próximo: Pricing 80.
 > 6. CATALOG-ME5.5-IMPORT-01  (nova)
 >    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout
 >    → CATALOG-VARIANT-DEFAULT-BACKFILL-01
@@ -669,3 +670,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.15 | **D2 concluída (2026-10-09).** Item 5b marcado como concluído (D2-01/02/03); `card_variant` 26.491; próximo = 5c `CATALOG-VARIANT-COVERAGE-GAP-01`. |
 | 2.16 | **5c: fonte e correspondência (2026-10-09).** ADR-034 aprovado (v0.2, snapshot congelado); snapshot de 50 coleções versionado; F1: 6.422 de 6.454 cartas casadas, 0 ambíguas. Próximo = F2. |
 | 2.17 | **5c: carga concluída (2026-10-10).** F2-01, F3-01, piloto XY1 e F6 (lotes D/A/B/C, executada pelo agente a pedido de Fabrício): 49 jobs COMPLETED, 10.812 variantes, `card_variant` 37.303, 330 cartas sem variante. Próximo = fechamento da 5c (UI da 2ª fonte + achados), depois Pricing 80. |
+| 2.18 | **5c fechada (2026-10-10).** F2-01/F3-01 promovidos (`migrations/2246`, `schema/2247`), fonte `POKEMON_TCG_API` traduzida na UI, job SVE da reimportação confirmado (112 UNCHANGED), achados restantes registrados. Próximo = Pricing 80. |

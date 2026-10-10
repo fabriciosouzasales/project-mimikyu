@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Fonte decidida (ADR-034 v0.2, snapshot congelado). **Snapshot obtido** e **F1 (correspondência) concluída**, sem escrita no LIVE. **F2-01 EXECUTADO** por Fabrício (2026-10-09). **F3-01 aplicado e XY1 em staging** (job `686f4ed4…`, 269 linhas, 2026-10-10). **Piloto XY1 CONCLUÍDO** (F5-01 executado: 269 variantes, `card_variant` 26.760). **F6 (campanha) CONCLUÍDA** (2026-10-10): 49 jobs COMPLETED, 10.812 variantes, `card_variant` **37.303**, cartas sem variante **330**. |
+| **Status** | Fonte decidida (ADR-034 v0.2, snapshot congelado). **Snapshot obtido** e **F1 (correspondência) concluída**, sem escrita no LIVE. **F2-01 EXECUTADO** por Fabrício (2026-10-09). **F3-01 aplicado e XY1 em staging** (job `686f4ed4…`, 269 linhas, 2026-10-10). **Piloto XY1 CONCLUÍDO** (F5-01 executado: 269 variantes, `card_variant` 26.760). **F6 (campanha) CONCLUÍDA** (2026-10-10): 49 jobs COMPLETED, 10.812 variantes, `card_variant` **37.303**, cartas sem variante **330**. **Frente FECHADA** (2026-10-10): F2-01/F3-01 promovidos (2246/2247), UI traduz a 2ª fonte, achados restantes registrados. |
 | **Sequência** | Item 5c do `docs/ROADMAP.md` |
 | **Por que importa** | `physical_card.card_variant_id` é `NOT NULL`: sem variante, a carta não entra em Collections. |
 
@@ -250,6 +250,39 @@ tudo: COMMON/UNCOMMON `STANDARD+REVERSE_HOLO` 3.049; RARE `STANDARD+REVERSE_HOLO
 | XY12 109–113 `Rare Secret` só STANDARD | 5 | A fonte só tem preço `normal`. Fica registrado para revisão editorial. |
 
 Nenhuma divergência pede desfazer variante.
+
+### Fechamento (2026-10-10)
+
+**Promoção canônica** (corpos das funções conferidos contra o LIVE: md5 do `prosrc` sem CR idêntico aos arquivos):
+
+| Arquivo canônico | Origem | Conteúdo |
+|---|---|---|
+| `database/migrations/2246_second_variant_source_foundation.sql` | `F2-01` (com `v_apply = true`, forma executada) | CHECK de source, 49 refs, 3 rotas, guards `trg_cvir_second_source`/`trg_cvij_source_immutable`, cancelamento do job vazio da SM12. One-shot. |
+| `database/schema/2247_create_stage_pokemontcg_snapshot_set_function.sql` | `F3-01` | `internal.stage_pokemontcg_snapshot_set` |
+
+`F3/stage_<set>.sql`, `F5-01` e `F6/*` ficam aqui como registro de execução (operações de dado).
+
+**UI:** `web/lib/catalogo/queries.ts` passou a traduzir a fonte `POKEMON_TCG_API` ("Pokémon TCG API", contexto
+`SYSTEM`). A leitura de job ativo do seletor de Importar Variantes continua só TCGDEX, de propósito: os jobs
+da 2ª fonte nascem e são confirmados no banco, nenhum fica ativo para retomar na tela. `tsc --noEmit` limpo.
+
+**SVE:** o job TCGDEX `dcef3bd2` (reimportação de 04/10, preparada antes do Batch 13) foi confirmado por
+Fabrício pela UI: 112 `UNCHANGED`, 0 inseridas. As 48 linhas que pareciam novas já existiam desde 12–15/09.
+
+**Fica fora desta frente (achados registrados, sem dono ainda):**
+
+| Achado | Cartas | Natureza |
+|---|---:|---|
+| Trainer Kits sem fonte | 270 | Sem variante; nenhuma das duas fontes cobre |
+| CEL25CC | 25 | Sem variante por decisão (numeração `CC001`–`CC025` × número original) |
+| Casadas sem chave de preço | 25 | XYP 7, SWSHP 4, as 10 XY abaixo, BWP 2, G1 2 |
+| Numeração suspeita (XY2/4/6/7/9/10) | 10 | Carta com sufixo no lugar da base; defeito provável de importação do catálogo |
+| SVP 191–226 | 7 | Números que a fonte não tem |
+| ME5.5 / MEP | 3 | Frente própria (`CATALOG-ME5.5-IMPORT-01`) |
+| BWP com raridade COMMON/UNCOMMON/RARE | 58 | Raridade do catálogo, não variante |
+| XY12 109–113 secreta só STANDARD | 5 | Revisão editorial |
+
+**Estado da frente:** carga concluída e fechada. `card_variant` 37.303; 330 cartas sem variante, todas listadas acima.
 
 ### Pontos que o desenho fecha
 

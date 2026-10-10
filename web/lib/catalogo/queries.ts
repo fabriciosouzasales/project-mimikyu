@@ -2612,6 +2612,11 @@ async function loadCatalogoVariantCardSets(supabase: SupabaseClient): Promise<Ca
       supabase
         .from("catalog_variant_import_job")
         .select("id, card_set_id, status")
+        // Só TCGDEX de propósito: esta tela opera o fluxo da Edge
+        // import-card-variants (TCGdex). Jobs da 2ª fonte (POKEMON_TCG_API,
+        // ADR-034) nascem e são confirmados no banco pelo carregador do
+        // snapshot (F3/F6); nenhum fica ativo para ser retomado aqui. Medido
+        // em 2026-10-10: 49 jobs dessa fonte, todos COMPLETED.
         .eq("source", "TCGDEX")
         .in("status", ACTIVE_VARIANT_JOB_STATUSES as unknown as string[])
         // `id` = ordenação TOTAL (BLOCKER-3). Sem ela, `.range()` pagina sobre
@@ -3239,14 +3244,26 @@ type CatalogVariantImportJobActivityRow = {
  * `atividade-recente.tsx` — passou a distinguir pipeline/idioma, não mais
  * `execution_context`). 'PDF' fica sem tradução (canal encerrado, ADR-024
  * Ciclos 3/4) — aparece com o texto bruto onde ainda for exibido.
+ *
+ * 'POKEMON_TCG_API' (só em catalog_variant_import_job, ADR-034): a carga não
+ * chama API nenhuma em tempo de execução — lê um snapshot congelado no
+ * repositório e roda no banco, disparada pelo administrador. Por isso
+ * 'SYSTEM', não 'API'.
  */
 function mapCatalogImportJobSourceParaExecutionContext(source: string): string {
-  return source === "TCGDEX" ? "API" : source;
+  if (source === "TCGDEX") return "API";
+  if (source === "POKEMON_TCG_API") return "SYSTEM";
+  return source;
 }
 
-/** Nome de exibição de `catalog_import_job.source` para a coluna "Fonte" (/catalogo/importacoes) — mesmo papel de `asset_source.name` para asset_import_run. */
+/**
+ * Nome de exibição de `source` para a coluna "Fonte" (/catalogo/importacoes) — mesmo papel de `asset_source.name` para asset_import_run.
+ * Vale para catalog_import_job e catalog_variant_import_job; 'POKEMON_TCG_API' é a 2ª fonte de variantes (ADR-034).
+ */
 function nomeFonteCatalogImportJob(source: string): string {
-  return source === "TCGDEX" ? "TCGdex" : source;
+  if (source === "TCGDEX") return "TCGdex";
+  if (source === "POKEMON_TCG_API") return "Pokémon TCG API";
+  return source;
 }
 
 /**
