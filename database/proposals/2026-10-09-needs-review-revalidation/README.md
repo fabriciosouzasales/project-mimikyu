@@ -273,6 +273,16 @@ revalidação 2245 apply (1 linha) e decide/confirm das 2 linhas. Job BASE2 `774
 `card_variant` 37.307 → 37.309. Continuam DEFERRED: Charmander tinta (BASE5) e Magikarp raridade (EX6),
 além das 2 linhas energy EX6 (Dewgong, Drowzee). `NEEDS_REVIEW` em jobs abertos: **5**.
 
+**Atualização 2026-10-10 — EX6 (4 linhas) aprovada por Fabrício:**
+
+| Linha | Evidência | Resultado |
+|---|---|---|
+| Dewgong 3/112 e Drowzee 32/112, `holo` + foil `energy` | Eram as únicas cartas não-ex da EX6 sem `ENERGY_REVERSE`; as outras 101 vêm como `reverse` + `energy`; o mercado lista ambas em reverse holo; o padrão só ocorre nessas 2 linhas | Rota de Finish `ex6`: HOLO + ENERGY → `ENERGY_REVERSE` |
+| Magikarp 67/112, subtype `rarity-error` (normal e reverse energy) | Bulbapedia: primeiras tiragens com símbolo de Incomum, corrigido depois; cópias CGC "error rarity" | `STANDARD` e `ENERGY_REVERSE` + perfil `RARITY_SYMBOL_ERROR` (seed `2249`, perfil ordem 24, mapping de `subtype`) |
+
+Execução direta pelo agente (MCP), dry-run + apply com gates; revalidação 2245 (2 linhas) e confirm das 4.
+Job EX6 `40fe6b7e` COMPLETED; `card_variant` 37.309 → 37.313. Resta 1 `NEEDS_REVIEW`: Charmander tinta (BASE5).
+
 **Execução (pelo agente, via MCP):**
 
 - Seed `2242`: 7 traits, total de 12 para 19. Sem ledger; promovida para `database/seeds/`.
