@@ -283,6 +283,13 @@ além das 2 linhas energy EX6 (Dewgong, Drowzee). `NEEDS_REVIEW` em jobs abertos
 Execução direta pelo agente (MCP), dry-run + apply com gates; revalidação 2245 (2 linhas) e confirm das 4.
 Job EX6 `40fe6b7e` COMPLETED; `card_variant` 37.309 → 37.313. Resta 1 `NEEDS_REVIEW`: Charmander tinta (BASE5).
 
+**Atualização 2026-10-10 — Charmander 50/82 (BASE5) aprovado por Fabrício:** subtype `d-ink-dot-error` =
+"Black Dot Error" da Team Rocket Charmander Unlimited (Bulbapedia, "Error cards"; cópia CGC "Black Dot").
+`STANDARD` + perfil `INK_DOT_ERROR` (seed `2250`, perfil ordem 25, mapping de `subtype`). Job BASE5 `02d44b45`
+COMPLETED; `card_variant` 37.314.
+
+**Fila de revisão ZERADA:** 0 `NEEDS_REVIEW` e 0 jobs STAGED em todo o catálogo (2026-10-10).
+
 **Execução (pelo agente, via MCP):**
 
 - Seed `2242`: 7 traits, total de 12 para 19. Sem ledger; promovida para `database/seeds/`.
