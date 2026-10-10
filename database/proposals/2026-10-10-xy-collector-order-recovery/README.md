@@ -21,6 +21,21 @@ Resultado: `card_variant` 37.314 → **37.335**; cartas sem variante 330 → **3
 Pendentes desta lista (12 cartas, pesquisa/decisão): BWP BW77/BW78 (cancelados em inglês), XYP XY176/XY202,
 SVP 191/192/213/214/215/225/226, MEP 028.
 
+## Passo B — 12 promos restantes (EXECUTADO, 2026-10-10, aprovado por Fabrício)
+
+| Carta | Gravado | Evidência |
+|---|---|---|
+| XYP XY202 Pikachu | HOLO | Promo de liga (Evolutions); mercado só lista holofoil |
+| XYP XY176 Champions Festival | STANDARD | Participação Worlds 2016, não holo; versões carimbadas por colocação ficam para depois |
+| SVP 191 Sprigatito, 192 Fuecoco | HOLO | Grand Adventure Collection (nov/2024), Bulbapedia |
+| SVP 213, 214, 215 | STANDARD | Illustration Contest 2024, não holo |
+| SVP 225 Pikachu | STANDARD + `EVENT_WORLDS_2025` | Worlds 2025, não holo; mesmo formato da SVP 224. Versão "WINNER" fica para depois |
+| MEP 028 Celebratory Fanfare | STANDARD | Ace Trainer 2024-25; lojas com base TCGplayer dizem Normal (fontes divergem) |
+| BWP BW77 Pikachu, BW78 Raichu | STANDARD | Cancelados em inglês; Fabrício decidiu manter com STANDARD |
+| SVP 226 Terapagos & Friends | **inativada** (`admin_deactivate_card`) | Carta jumbo (oversized); o catálogo não modela tamanho |
+
+`card_variant` 37.357 → **37.368**. Cartas ativas sem variante: **297** = Trainer Kits 270 + CEL25CC 25 + ME5.5 2.
+
 ## R1 — 15 cartas que não existem no catálogo (dry-run PASS)
 
 **Causa.** Na carga TCGdex pt-BR de 11/09 a regra antiga `deriveCollectorOrder()` deu às cartas com sufixo a
