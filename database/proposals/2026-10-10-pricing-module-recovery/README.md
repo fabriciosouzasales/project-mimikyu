@@ -166,3 +166,16 @@ Decisão de Fabrício (2026-10-10): **permitir Set compartilhado**, com opt-in e
 - **UI:** em Revisar/Sem correspondência, quando a opção desejada está em uso aparece "Set da JustTCG compartilhado com
   outro deck do mesmo produto"; marcado numa linha, vale para todos os Sets do lote que escolheram o mesmo Set externo.
 - Escopo esperado: 10 pares de Trainer Kits (20 Sets, ~510 cartas).
+
+### Fase 3c — Validação das confirmações manuais e fila do bootstrap (2026-10-10)
+
+- **Validação (LIVE):** 56 Sets confirmados manualmente após a 1ª rodada — McDonald's 2015–2019/2023/2024, Detective
+  Pikachu, 8 pares de Trainer Kits (compartilhados), DP2–DP7, EX1/EX4/EX5/EX6/EX8/EX10/EX16, HGSS2, SM9, SM115, SMA,
+  SWSH4.5SV, BWP, HGSSP, XYP, SMP, NP, RU1, POP1–POP9. Nomes externos coerentes com os Sets locais; diferenças de data
+  ≤ 3 meses (fonte com datas próprias para promos). Total CONFIRMED: **193 Sets**.
+- **Correção:** SWSH4.5SV e SMP estavam marcados como compartilhados sem dividir o Set externo com ninguém (isso só
+  endureceria o matching). Flag revertida antes do bootstrap, com registro em `pricing_admin_action_log`.
+- **Sem correspondência na JustTCG (ficam sem preço, documentado):** FUT2020 (5), TK-EX-M (12), TK-EX-P (12),
+  EX5.5 (5), TK-EX-LATIA (10), TK-EX-LATIO (10). Sem cartas no catálogo (nada a vincular): SP, EXU.
+- **3982 (CONFIRMADO EXECUTADO):** `open_pricing_set_bootstrap_attempt` prioriza Sets em MATCHING — antes, com ~140 Sets
+  confirmados no mesmo minuto, o dispatcher fazia todas as aquisições antes de qualquer matching (preço só ~20 h depois).

@@ -121,7 +121,7 @@ export function DescobertaSetsLote({ pendingSets, pendingCards }: { pendingSets:
       const preEscolha = new Map<string, string>();
       const preSel = new Set<string>();
       for (const it of res.items) {
-        if (it.state === "SAFE_CANDIDATE" && it.candidate) {
+        if (it.state === "SAFE_CANDIDATE" && it.candidate && it.activeCardCount > 0) {
           preEscolha.set(it.cardSetId, it.candidate.externalSetId);
           preSel.add(it.cardSetId);
         }
@@ -159,7 +159,7 @@ export function DescobertaSetsLote({ pendingSets, pendingCards }: { pendingSets:
   }, [escolha, selecionados, items]);
 
   const selecionadosValidos = useMemo(
-    () => (items ?? []).filter((it) => selecionados.has(it.cardSetId) && escolha.has(it.cardSetId)),
+    () => (items ?? []).filter((it) => selecionados.has(it.cardSetId) && escolha.has(it.cardSetId) && it.activeCardCount > 0),
     [items, selecionados, escolha],
   );
   const cartasSelecionadas = selecionadosValidos.reduce((acc, it) => acc + it.activeCardCount, 0);
@@ -180,7 +180,7 @@ export function DescobertaSetsLote({ pendingSets, pendingCards }: { pendingSets:
     setSelecionados((prev) => {
       const next = new Set(prev);
       for (const it of visiveis) {
-        if (!escolha.has(it.cardSetId)) continue;
+        if (!escolha.has(it.cardSetId) || it.activeCardCount === 0) continue;
         if (marcar) next.add(it.cardSetId);
         else next.delete(it.cardSetId);
       }
@@ -499,6 +499,8 @@ function LinhaSet({
   onEscolher: (externalSetId: string) => void;
 }) {
   const seguro = item.state === "SAFE_CANDIDATE";
+  // Set sem cartas ativas no catálogo: não há o que precificar — nada a vincular.
+  const semCartas = item.activeCardCount === 0;
   const sugestaoIds = new Set(item.suggestions.map((s) => s.externalSetId));
   // Lista completa (~250 Sets) só é montada quando pedida — evita milhares de <option> no DOM.
   const [listaCompleta, setListaCompleta] = useState(Boolean(escolhido) && !sugestaoIds.has(escolhido));
@@ -517,7 +519,7 @@ function LinhaSet({
     if (!quem) return { bloqueado: false, sufixo: "" };
     return compartilhado
       ? { bloqueado: false, sufixo: ` — compartilhar com ${quem}` }
-      : { bloqueado: true, sufixo: ` — em uso por ${quem}` };
+      : { bloqueado: true, sufixo: ` — em uso por ${quem} (marque "compartilhado" para usar)` };
   };
   const temOcupado =
     item.suggestions.some((s) => ocupadoPor(s.externalSetId)) || (Boolean(escolhido) && Boolean(ocupadoPor(escolhido)));
@@ -529,7 +531,7 @@ function LinhaSet({
           type="checkbox"
           className="h-3.5 w-3.5 accent-primary disabled:opacity-40"
           checked={marcado}
-          disabled={!escolhido}
+          disabled={!escolhido || semCartas}
           onChange={onToggle}
           aria-label={`Selecionar ${item.cardSetCode} ${item.cardSetName}`}
         />
@@ -554,7 +556,11 @@ function LinhaSet({
         <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
       </DataTableCell>
       <DataTableCell className="min-w-[14rem]">
-        {seguro && item.candidate ? (
+        {semCartas ? (
+          <p className="text-[11px] text-muted-foreground">
+            Sem cartas no catálogo — não precisa de vínculo por enquanto.
+          </p>
+        ) : seguro && item.candidate ? (
           <div className="min-w-0">
             <p className="truncate text-sm text-foreground">{item.candidate.externalSetName}</p>
             <p className="text-[11px] text-success">Mesma data de lançamento</p>
