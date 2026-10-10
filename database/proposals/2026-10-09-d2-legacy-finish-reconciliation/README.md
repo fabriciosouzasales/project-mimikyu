@@ -125,4 +125,4 @@ variante e entra na lista de cartas sem variante (6.726 → 6.727), tratada em
 - 709 + 49 variantes decompostas nos três eixos, sempre no lugar (mesmos ids); 33 removidas.
 - 69 tipos de Finish desativados; restam 28 ativos (acabamentos reais + `STAFF_HOLO`/`SET_LOGO_REVERSE`, mantidos pelo Pricing).
 - Rotas de importação reproduzem 100% das variantes com carimbo/foil.
-- Pendências que saem daqui: 18 identidades de Pricing → Pricing 80; MEP 028 sem variante → `CATALOG-VARIANT-COVERAGE-GAP-01`; 5 NEEDS_REVIEW agora resolvíveis (4 set-logo SV + 1 pikachu-tail) → próxima revalidação.
+- Pendências que saem daqui: 18 identidades de Pricing → Pricing 80; MEP 028 sem variante → `CATALOG-VARIANT-COVERAGE-GAP-01`; 5 NEEDS_REVIEW agora resolvíveis (4 set-logo SV + 1 pikachu-tail) → próxima revalidação. **As 4 set-logo SV foram concluídas em 2026-10-10** (revalidação 2245, run `f009686c`, + confirm): REVERSE_HOLO + ARTWORK_SET_LOGO em SV3 (Espeon, Umbreon) e SV4 (Mariposa Férrea, Asa Rasteira); jobs SV3/SV4 COMPLETED; `card_variant` 37.307.
