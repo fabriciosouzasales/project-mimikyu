@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Diagnóstico concluído · **Fase 2 (frequência) EXECUTADA 2026-10-10 (3978)** · demais fases pendentes |
+| **Status** | Diagnóstico concluído · **Fase 2 (frequência, 3978) e Fase 1 (destravar, 3979) EXECUTADAS 2026-10-10** · Fases 3–5 pendentes |
 | **Gatilho** | Tela "Visão Geral" do Valor de Mercado em ATENÇÃO após a expansão do catálogo |
 | **Fonte** | JustTCG, plano Starter: 10.000 req/mês · 1.000 req/dia · 50 req/min · até 100 cartas/req |
 
@@ -88,3 +88,22 @@ Decisão de Fabrício: **Mega Evolution, Scarlet & Violet, Sword & Shield e Sun 
   "Ativa · diária (ME, SM, SV, SWSH) · demais a cada 3 dias". Typecheck `web` OK.
 - O formulário de política em /pricing/sincronizacoes continua editando só o padrão da fonte; overrides por
   Expansão são alterados por migration (sem UI nesta rodada).
+
+### Fase 1 — Destravar (3979, CONFIRMADO EXECUTADO 2026-10-10)
+
+- `internal.reopen_stale_pricing_set_bootstraps()`: reabre o bootstrap COMPLETE de Set CONFIRMED que tenha
+  carta ativa sem `pricing_card_mapping` **criada depois** da última conclusão (sem loop; matching idempotente).
+  Agendada no pg_cron diariamente às 05:15 UTC (`pricing-reopen-stale-set-bootstraps`), só SQL — sem custo de API.
+- Execução imediata (gate exato `SM12:271, SWSH10.5:88`). O dispatcher existente processou em ~20 min:
+
+| Set | Cartas confirmadas | Pendentes | Produtos | Ligados à variante (trigger 3974) | 1º refresh |
+|---|---:|---:|---:|---:|---|
+| SM12 | 271 | 0 | 1.988 | 1.988 | SUCCESS 15:25 UTC |
+| SWSH10.5 | 85 | 3 | 630 | 630 | SUCCESS 15:20 UTC |
+
+  Custo: ~5 requisições de bootstrap + o refresh normal.
+- **MFB:** a JustTCG não devolveu nenhuma das 34 cartas → refresh pausado (`MANUAL_PAUSE`, log
+  `PRICING_SET_REFRESH_PAUSED`); reversível pela UI. Revisão do mapeamento do Set fica na Fase 3.
+- **Limpeza:** 30 jobs `justtcg-price-refresh-wave-*` (inativos) removidos do pg_cron.
+- Novas ações no `pricing_admin_action_log`: `PRICING_SET_BOOTSTRAP_REOPENED`, `PRICING_SET_REFRESH_PAUSED`.
+- Resultado na Visão Geral: Sets com refresh atrasado > 1 h = **0** (era 3); pausados = 1 (MFB).
