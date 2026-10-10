@@ -173,4 +173,177 @@ Para rodar o FULL:
 - As 38 linhas foram para `VALID/PENDING`. Os Sets são DP3, EX5, HGSS1–4, HGSSP, PL3, POP8, SM3, SWSH3 e SWSH4.
 - Nenhuma dessas cartas tinha Cracked Ice no catálogo.
 
-**Confirmação:** `NRR-CONFIRM-03_cracked_ice_ready.sql`, com escopo por linha, porque os jobs também têm linhas H3 retidas. Fica para Fabrício executar no SQL Editor; a escrita direta foi bloqueada pelo classificador de permissões.
+**Confirmação:** Fabrício executou `NRR-CONFIRM-03_cracked_ice_ready.sql` no SQL Editor em 2026-10-09. O escopo foi por linha, porque os jobs também têm linhas H3 retidas. A verificação por leitura mostrou:
+
+- **38 linhas** `VALID/APPROVED/INSERTED`, com 0 pendente.
+- `CRACKED_ICE_HOLO` foi de 20 para **58** variantes.
+- `card_variant` foi de 26.357 para **26.395**.
+- 0 identidades duplicadas e 0 linhas FAILED.
+- `NEEDS_REVIEW` restante: **140**; jobs STAGED: 27.
+
+## Erros de impressão — `no-e-reader` e `missing-expansion-symbol` (2026-10-09)
+
+**Decisão de Fabrício:** criar Printing para as duas famílias grandes agora. Os ~12 erros avulsos de 1–2 linhas (`text-error`, `rarity-error`, `phanphy-error`, `no-holo-error`, `d-ink-dot-error` etc.) continuam retidos para decisão individual.
+
+**Evidência:**
+
+- `NO_E_READER`: segundo a Bulbapedia, as reimpressões de EX Ruby & Sapphire e EX Sandstorm no EX Battle Stadium saíram sem a faixa de dot code do e-Reader e sem o logo "e". São 41 linhas: EX1, EX2 e NP.
+- `MISSING_EXPANSION_SYMBOL`: as 16 holos de Jungle de uma tiragem inicial Unlimited saíram sem o símbolo da expansão. Fontes de colecionadores (checklists e fóruns) dizem que a PSA gradua essa versão como "No Symbol"; não achei confirmação da própria PSA. São 16 linhas de BASE2.
+- Mesma classe semântica de `AOKI_CREDIT` e `EVOLUTION_BOX_ERROR`: variedade de tiragem, não defeito do exemplar.
+
+**Execução (pelo agente, via MCP):**
+
+1. `2240` (seed de traits, SQL direto; sem ledger, mesmo regime da `2202`): `card_printing_trait` POKEMON passou de 9 para 11. Promovida para `database/seeds/`.
+2. Profiles `NO_E_READER` (ordem 12) e `MISSING_EXPANSION_SYMBOL` (ordem 13), criados por `admin_create_card_printing_profile_with_backfill`.
+3. Mappings de `subtype`, criados por `admin_resolve_catalog_variant_import_printing_mapping`:
+   - `no-e-reader`: 41 linhas em 3 jobs, 0 pendentes;
+   - `missing-expansion-symbol`: 16 linhas em 1 job, 0 pendentes.
+
+**Resultado:** 57 linhas em `VALID/PENDING`:
+
+- STANDARD + NO_E_READER: 37;
+- HOLO + NO_E_READER: 2;
+- REVERSE_HOLO + NO_E_READER: 2;
+- HOLO + MISSING_EXPANSION_SYMBOL: 16.
+
+Nenhuma dessas identidades já existia em `card_variant`. `NEEDS_REVIEW` caiu de 140 para **83**.
+
+**Confirmação:** Fabrício executou `NRR-CONFIRM-04_printing_errors_ready.sql` no SQL Editor em 2026-10-09. A verificação por leitura mostrou:
+
+- **57 linhas** `INSERTED`, com 0 pendente;
+- 41 variantes `NO_E_READER` e 16 `MISSING_EXPANSION_SYMBOL`;
+- `card_variant` de 26.395 para **26.452**;
+- 0 duplicidade e 0 FAILED;
+- `NEEDS_REVIEW` em **83** e 25 jobs STAGED.
+
+## Famílias não-erro — cosmos, peelable-ditto, set-logo SV, energy EX6 (2026-10-09)
+
+Política de Fabrício para os erros únicos: avaliar a evidência caso a caso. Só vira Printing o que tiver reconhecimento externo; o resto fica retido (DEFERRED). As decisões por família foram:
+
+| Família | Linhas | Decisão | Execução |
+|---|---|---|---|
+| Cosmos SV3 (Pawniard 148, `normal` + `cosmos`) | 1 | `COSMOS_HOLO`, só em sv03 | Mapping `SOURCE_SET` sv03 `NORMAL` + `COSMOS` → `COSMOS_HOLO` via `admin_resolve_catalog_variant_import_mapping_for_set` (preview `2194`: 1 linha, sem conflito). Evidência na Bulbapedia: versão Cosmos Holo no Shrouded Fable Kingambit Illustration Collection. |
+| Peelable Ditto SWSH10.5 (Spinarak, Numel, Bidoof) | 3 | `REVERSE_HOLO` + Printing `PEELABLE_DITTO` | Seed `2241` (traits 11 → 12, sem ledger, em `database/seeds/`), profile `PEELABLE_DITTO` (ordem 14) e mapping de `subtype` `peelable-ditto` (3 linhas, 1 job). |
+| Set-logo SV3/SV4 (Espeon, Umbreon, Iron Moth, Slither Wing) | 4 | **Retido até a D2** | Reverse com carimbo do nome da coleção, brinde de varejo. Espeon já tem a variante legada `SET_LOGO_REVERSE`; a sobreposição é da D2. |
+| Energy EX6 (Dewgong, Drowzee holo; Magikarp reverse + rarity-error) | 3 | **Retido (DEFERRED)** | Sem evidência externa clara para "holo + energy" em FireRed & LeafGreen. |
+
+**Resultado:** 4 linhas em `VALID/PENDING`, todas identidades inéditas em `card_variant`. `NEEDS_REVIEW` caiu de 83 para **79**: H3 57 + set-logo SV 4 + energy 3 + 15 erros únicos.
+
+**Achado:** os jobs STAGED ainda têm 48 linhas `VALID/PENDING` e 64 `VALID/SKIPPED` que não vieram desta frente; são o resíduo deferido do BULK-STP. Os scripts de confirmação desta frente usam escopo por linha e não tocam nessas linhas.
+
+**Confirmação:** Fabrício executou `NRR-CONFIRM-05_cosmos_ditto_ready.sql` em 2026-10-09. A verificação por leitura mostrou:
+
+- 4 linhas `INSERTED` (3 `PEELABLE_DITTO` e 1 `COSMOS_HOLO`);
+- `card_variant` de 26.452 para **26.456**;
+- 0 duplicidade e 0 FAILED;
+- `NEEDS_REVIEW` em 79 e 24 jobs STAGED;
+- 48 linhas `VALID/PENDING` do resíduo BULK-STP intactas.
+
+## Erros únicos — evidência caso a caso (2026-10-09)
+
+Fabrício aprovou 8 famílias com evidência forte ou documentada. As fracas ficam DEFERRED.
+
+| Família | Linhas | Evidência | Resultado |
+|---|---|---|---|
+| Dark Dragonite sem holo (BASE5) | 2 | PSA e CGC graduam a variedade | `HOLO` + `NO_HOLO_ERROR` / `FIRST_EDITION_NO_HOLO_ERROR`. Decisão de Fabrício: manter o acabamento do slot 5/82. |
+| Butterfree "d Edition" (BASE2) | 1 | PSA "D EDITION ERROR" | `STANDARD` + `D_EDITION_ERROR` (mapping de `stamp`) |
+| Blaine's Charizard, símbolo de energia (GYM2) | 1 | Artigo PSA; corrigido na Unlimited | `HOLO` + `ENERGY_SYMBOL_ERROR` |
+| Pichu e Hoppip, verso japonês (ECARD1) | 2 | Bulbapedia: pré-lançamento da E3 2002 | `STANDARD` + `JAPANESE_BACK` |
+| Phanpy "Phanphy" (COL1) | 2 | Bulbapedia / PokeBeach | `STANDARD` e `REVERSE_HOLO` + `TEXT_ERROR` |
+| Rocket's Minefield Gym (GYM2) | 1 | Bulbapedia, lista de erros corrigidos | `STANDARD` + `TEXT_ERROR` |
+| Marill sem custo de recuo (EX2) | 1 | Bulbapedia; ruling PUI | `STANDARD` + `MISSING_RETREAT_COST` |
+| Exeggcute, energia deslocada (LC) | 1 | Lista de erros graduados pela CGC | `REVERSE_HOLO` + `SHIFTED_ENERGY_COST` |
+
+**DEFERRED (evidência fraca, só anúncios):**
+
+- Charmander com mancha de tinta (BASE5);
+- Pinsir scratch 1ª Ed. (BASE2);
+- Magikarp com erro de raridade (EX6, normal);
+- Pikachu tail (BASE2, já estava em HOLD).
+
+**Execução (pelo agente, via MCP):**
+
+- Seed `2242`: 7 traits, total de 12 para 19. Sem ledger; promovida para `database/seeds/`.
+- 8 perfis (ordens 15–22) via `admin_create_card_printing_profile_with_backfill`.
+- 8 mappings via `admin_resolve_catalog_variant_import_printing_mapping`:
+  - `stamp` `d-edition-error`;
+  - 7 de `subtype`: `phanphy-error` e `text-error` vão para o mesmo trait `TEXT_ERROR`.
+
+**Resultado:** 11 linhas em `VALID/PENDING`, todas identidades inéditas. `NEEDS_REVIEW` caiu de 79 para **68**:
+
+- H3: 57;
+- set-logo SV: 4;
+- energy EX6: 3;
+- DEFERRED fracos: 4.
+
+**Confirmação:** Fabrício executou `NRR-CONFIRM-06_documented_errors_ready.sql` em 2026-10-09. A verificação por leitura mostrou:
+
+- **11 linhas** `INSERTED`;
+- `card_variant` de 26.456 para **26.467**;
+- 0 duplicidade e 0 FAILED;
+- `NEEDS_REVIEW` em **68** e 19 jobs STAGED;
+- as 48 linhas `VALID/PENDING` do resíduo BULK-STP continuam intactas.
+
+## H3 — pacote estrutural (2026-10-09, EXECUTADO após autorização de Fabrício)
+
+**Execução:**
+
+- `2243` via `apply_migration` (ledger `20261010003718`);
+- `2244` via `execute_sql`, sem ledger;
+- `2245` via `apply_migration` (ledger `20261010003802`). A aplicação foi por substituição textual do ramo H3 sobre a definição LIVE da 2239; os grants foram reconfirmados (`authenticated` sem EXECUTE).
+- Os três arquivos foram promovidos para `database/migrations`, `database/seeds` e `database/schema`.
+
+**Revalidação:** dry-run com plano de 57 linhas, 0 conflitos e 0 em H3. Apply no run `4627505e-3a74-4c03-9f4e-099aacaef87f`: 57 linhas em 12 jobs. Resultado:
+
+| Acabamento | Edition Context | Linhas |
+|---|---|---|
+| REVERSE_HOLO | PROGRAM_LEAGUE | 40 |
+| HOLO | PROGRAM_LEAGUE | 6 |
+| REVERSE_HOLO | PROGRAM_LEAGUE__ROLE_STAFF | 5 |
+| REVERSE_HOLO | PROGRAM_PLAYER_REWARDS | 2 |
+| REVERSE_HOLO | PROGRAM_PROFESSOR | 2 |
+| HOLO | PROGRAM_LEAGUE__ROLE_STAFF | 1 |
+| STANDARD | PROGRAM_LEAGUE__ROLE_STAFF | 1 |
+
+Nenhuma dessas identidades existia antes. `NEEDS_REVIEW` caiu de 68 para **11**, todas retidas de propósito:
+
+- set-logo SV3/SV4: 4;
+- energy EX6: 3;
+- erros fracos DEFERRED: 4.
+
+**Confirmação:** Fabrício executou `NRR-CONFIRM-07_h3_program_ready.sql` em 2026-10-09. A verificação por leitura mostrou:
+
+- **57 linhas** `INSERTED`; com as 5 persistidas antes, o total de linhas de programa fica em 62;
+- `card_variant` foi de 26.467 para **26.524**;
+- 0 duplicidade e 0 FAILED;
+- `NEEDS_REVIEW` em **11**, com 7 jobs STAGED.
+
+## Encerramento da revisão das 557 (2026-10-09)
+
+Das 557 linhas `NEEDS_REVIEW` que restavam depois da revalidação inicial, **546 foram materializadas** e **11 ficaram retidas de propósito**:
+
+- set-logo em SV3/SV4: 4, aguardam a D2;
+- energy foil de EX6: 3, DEFERRED;
+- erros com evidência fraca: 4, DEFERRED.
+
+Nos jobs STAGED ainda há 48 linhas `VALID/PENDING` e 64 `VALID/SKIPPED`. Elas são resíduo deferido do BULK-STP e ficam fora desta frente.
+
+`card_variant` foi de 25.978 para **26.524** ao longo da revisão (+546).
+
+### Proposta original (mantida como registro)
+
+| Arquivo | O que faz |
+|---|---|
+| `2243_edition_context_axis_reads_foil.sql` | Amplia o CHECK `ck_cecem_raw_field` para incluir `foil`. Na `internal.resolve_variant_row_axes`, cria um bloco de `foil` no eixo 3, com o mesmo contrato do bloco de `subtype`. Sem mapping de `foil`, o comportamento é idêntico ao atual. |
+| `2244_seed_edition_context_foil_program_mappings.sql` | Cria 3 mappings GLOBAIS de `foil` (`LEAGUE` → `PROGRAM_LEAGUE`, `PLAYER-REWARD` → `PROGRAM_PLAYER_REWARDS`, `PROFESSOR-PROGRAM` → `PROGRAM_PROFESSOR`) e o profile `PROGRAM_LEAGUE__ROLE_STAFF`. |
+| `2245_revalidate_needs_review_lift_hold_h3.sql` | Cria a v2 da 2239: remove o HOLD H3; o resto fica idêntico. |
+
+**Impacto medido:**
+
+- Linhas não persistidas com esses `foil`: 57 (H3) mais 2 em jobs CANCELLED. Nenhum `card_variant` existente muda.
+- Efeito permanente em importações futuras:
+  - `normal + league` deixa de cair em `STANDARDS_LEAGUE` e passa a `STANDARD + PROGRAM_LEAGUE`;
+  - `reverse + player-reward` em sv05 deixa de cair em `PLAYER_REWARD_REVERSE`.
+- A reconciliação desses tipos legados vai para a D2.
+
+**Resultado esperado após aplicar e revalidar:** as 57 linhas passam a VALID com acabamento pelo `type` e Edition Context pelo programa (Liga, Liga·Staff, Player Rewards ou Professor).
