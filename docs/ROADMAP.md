@@ -460,6 +460,10 @@ editorial** que estabilizou essa campanha para escala.
      card_variant 37.303; cartas sem variante 6.727 → 330 (Trainer Kits 270, CEL25CC 25, 25 sem
      chave de preço, SVP 7, ME5.5/MEP 3). FECHADA em 2026-10-10 (2246/2247 canônicos, UI traduz a
      2ª fonte, achados restantes registrados no README da proposta). Próximo: Pricing 80.
+> 5e. PRICING-CATALOG-VARIANT-RECONCILIATION-01 (Pricing 80) — CONTRATO IMPLANTADO em 2026-10-10
+     (3973–3976): pricing_product.card_variant_id por regra única (Finish + Printing + Edition Context);
+     48.316/50.470 produtos ligados, trigger liga produtos novos, 4 tipos legados desativados.
+     Pendente: fila residual de 2.154 (fallback de família holo, Base Set UNLIMITED, promos carimbadas).
 > 6. CATALOG-ME5.5-IMPORT-01  (nova)
 >    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout
 >    → CATALOG-VARIANT-DEFAULT-BACKFILL-01
