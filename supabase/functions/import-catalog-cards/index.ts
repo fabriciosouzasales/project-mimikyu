@@ -37,6 +37,8 @@ consulta rarity_external_mapping (Query 2096), cadastrável em tela
 (/catalogo/raridades, "Resolver raridade"). services/normalize.ts foi
 removido — resolveCollectorTotal (específico do Set da TCGdex, não do
 núcleo compartilhado) mudou para services/tcgdex.ts.
+Versão 7 (2026-10-10): tradução parcial "pt" (lista menor que a oficial) passa
+a usar a lista "en" como conjunto, com cada carta em "pt" quando existir.
 Processador
 TCGdex do Ciclo 2 (ADR-024): recebe um catalog_import_job (aberto por
 admin_start_catalog_import(), Query 2080, com source='TCGDEX' e
@@ -258,6 +260,33 @@ try {
   set = await tcgdex.getSet(job.external_set_id);
 }
 
+// Versão 7 (2026-10-10, ME5.5): tradução PARCIAL. O fallback acima só cobre a
+// lista "pt" vazia; com 2 de 128 cartas traduzidas (Celebração de 30 Anos) a
+// lista curta era aceita em silêncio e 10 importações seguidas trouxeram só
+// as mesmas 2 cartas. Agora, se a lista "pt" tem menos cartas que a oficial,
+// a lista "en" passa a ser a autoridade do CONJUNTO, e cada carta continua
+// vindo em "pt" quando existir lá (nome em português), em "en" quando não.
+// `cardLanguageById` registra a escolha por carta (log + raw_data intacto).
+const cardLanguageById = new Map<string, string>();
+let fallbackClient: TcgdexClient | null = null;
+if (tcgdexLanguage === TCGDEX_PRIMARY_LANGUAGE) {
+  const officialCount = set.cardCount?.official ?? set.cardCount?.total ?? 0;
+  if (officialCount > 0 && set.cards.length < officialCount) {
+    fallbackClient = new TcgdexClient(TCGDEX_FALLBACK_LANGUAGE);
+    const enSet = await fallbackClient.getSet(job.external_set_id);
+    if (enSet.cards.length > set.cards.length) {
+      const ptIds = new Set(set.cards.map((c) => c.id));
+      for (const c of enSet.cards) {
+        cardLanguageById.set(c.id, ptIds.has(c.id) ? TCGDEX_PRIMARY_LANGUAGE : TCGDEX_FALLBACK_LANGUAGE);
+      }
+      console.warn(
+        `TCGDEX_PARTIAL_TRANSLATION: ${job.external_set_id} pt=${set.cards.length} en=${enSet.cards.length} oficial=${officialCount}; lista en adotada, pt por carta quando houver.`,
+      );
+      set = { ...set, cards: enSet.cards };
+    }
+  }
+}
+
     await updateProgressStep(supabase, jobId, "EXTRACTING_CARDS");
 
     const collectorTotal = resolveCollectorTotal(set);
@@ -270,7 +299,10 @@ try {
       CARD_DETAIL_BATCH_SIZE,
       async (summary): Promise<{ detail: TcgdexCardDetail; fetchError: string | null }> => {
         try {
-          return { detail: await tcgdex.getCard(summary.id), fetchError: null };
+          const client = cardLanguageById.get(summary.id) === TCGDEX_FALLBACK_LANGUAGE && fallbackClient
+            ? fallbackClient
+            : tcgdex;
+          return { detail: await client.getCard(summary.id), fetchError: null };
         } catch (error) {
           const message = error instanceof Error ? error.message : "UNEXPECTED_ERROR";
           console.error(`TCGDEX getCard FAILED ${summary.id}:`, message);
