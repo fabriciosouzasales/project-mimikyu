@@ -221,3 +221,19 @@ Falsos alarmes encontrados no LIVE e corrigidos:
   Sets sem fonte, Sets sem cartas e produtos sem variante), `pricing-overview-hero.tsx` + `hero-fact.tsx` (`hint`),
   `pricing-overview-status.ts` (`notes`, regras novas). Typecheck OK. Validação visual (light/dark, mobile): pendente
   na máquina do Fabrício.
+
+### Pós-Fase 5 — Produtos com variante única "só por contexto" (3985, CONFIRMADO EXECUTADO 2026-10-10)
+
+- Fila `UNIQUE_CONTEXT_ONLY` (cresceu de 440 para 560 com o bootstrap) auditada carta a carta por grupo:
+  SVP Prerelease 169 (nome externo "(Prerelease)"; a outra variante é a Staff), McDonald's 2021 (250) / 2012 (60) /
+  2014 (60), Worlds 2023–2025 (8, versão base sem colocação) e BASEP Pokémon 4Ever (10) — em todos, o catálogo
+  **não tem variante sem Edition Context**: o contexto é a identidade da carta.
+- Exceção: SWSH4 League Staff (3) — o catálogo tem a versão comum (sem contexto) e só o Reverse com `ROLE_STAFF`;
+  o produto "Reverse Holofoil" deve ser o reverse comum, que falta no catálogo. **Não vinculado** (fica no fallback
+  da carta) — pendência editorial: provável variante REVERSE_HOLO sem contexto ausente / trait aplicado ao Reverse errado.
+- Regra permanente `UNIQUE_INHERENT_CONTEXT` no resolver; aceita pelo trigger de inserção e pelo
+  `admin_reconcile_pricing_product_variants` (produtos novos desses Sets já entram ligados).
+- Execução: dry-run 557/3 → apply **557** (log `PRICING_PRODUCT_VARIANT_RECONCILED`, rule 3974+3977+3985). Produtos
+  ativos sem variante: 1.029 → **472** (NO_CANDIDATE 444, AMBIGUOUS 25, UNIQUE_CONTEXT_ONLY 3). Prova: 0 produtos
+  ligados a variante de outra carta; `get_card_variants_pricing_summary` devolve VARIANT nas variantes vinculadas e
+  CARD_FALLBACK nas Staff/colocações (sem produto próprio na fonte).
