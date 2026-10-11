@@ -553,6 +553,7 @@ export function ImportarVariantesView({
   // editorial, que agora tem métrica própria.
   const totalCardsSemVariante = cardSets.reduce((sum, cardSet) => sum + cardSet.cardsSemVariante, 0);
   const totalVariacoesARevisar = cardSets.reduce((sum, cardSet) => sum + cardSet.variacoesARevisar, 0);
+  const catalogoEmDia = cardSets.length === 0 && !selectedCardSet;
 
   /** Microcópia do CTA — nunca "Analisar" quando já existe job ativo conhecido, e nunca "revisão" enquanto o job ainda processa. */
   const ctaLabel = (() => {
@@ -587,76 +588,103 @@ export function ImportarVariantesView({
           value={formatNumber(cardSets.length)}
           caption="sem variante ou com revisão aberta"
           icon={AlertTriangle}
-          tone="danger"
+          // Tom de alerta só quando há o que resolver: zero pendência em
+          // vermelho comunica um problema que não existe.
+          tone={cardSets.length > 0 ? "danger" : "default"}
         />
         <StatCard
           label="Cards sem variante"
           value={formatNumber(totalCardsSemVariante)}
           caption="nas coleções listadas"
           icon={Copy}
-          tone="danger"
+          tone={totalCardsSemVariante > 0 ? "danger" : "default"}
         />
         <StatCard
           label="Variações a revisar"
           value={formatNumber(totalVariacoesARevisar)}
           caption="em importações abertas"
           icon={ListChecks}
-          tone="danger"
+          tone={totalVariacoesARevisar > 0 ? "danger" : "default"}
         />
       </StatsRow>
 
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="space-y-4">
-            <div className="min-w-0 max-w-[500px] space-y-1">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Selecione a Coleção para importar variantes
-              </label>
-              <CardSetCombobox cardSets={cardSets} selected={selectedCardSet} onSelect={(id) => navigate({ cardSetId: id })} />
-            </div>
-
-            <form action={analyzeJob.formAction}>
-              <input type="hidden" name="card_set_id" value={selectedCardSet?.id ?? ""} />
-              <Button type="submit" disabled={!canAnalyzeHere}>
-                {ctaLabel}
-              </Button>
-            </form>
-          </div>
-
-          <div className="space-y-4 border-t border-border pt-4">
-            {!selectedCardSet ? (
-              <p className="text-sm text-muted-foreground">Selecione uma Coleção acima para continuar.</p>
-            ) : jobConflict ? (
-              // Estado excepcional, tratado com o mínimo necessário: uma
-              // mensagem explícita, nenhuma ação automática, nenhuma escolha
-              // feita pelo sistema. Não há infraestrutura nova para isto.
+      {catalogoEmDia ? (
+        // Nenhuma Coleção pendente e nenhuma selecionada: não há o que
+        // analisar. Em vez de seletor desabilitado + botão morto + "Selecione
+        // uma Coleção", a tela diz o estado real e o que a faria mudar.
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3" role="status">
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success/10 text-success"
+                aria-hidden="true"
+              >
+                <CheckCircle2 className="h-5 w-5" />
+              </span>
               <div className="space-y-1">
-                <p className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  Conflito de importações ativas — revisão necessária
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Esta Coleção tem mais de uma importação de variantes em aberto ao mesmo tempo. O sistema não
-                  escolhe qual delas continuar: retomar a errada levaria a revisar e confirmar dados do job errado.
-                  Resolva as importações duplicadas antes de prosseguir — nenhuma análise nova será iniciada aqui.
+                <p className="text-sm font-medium text-foreground">Catálogo em dia</p>
+                <p className="max-w-prose text-sm text-muted-foreground">
+                  Todas as cartas ativas têm ao menos uma variante e não há importação de variantes aberta. Quando
+                  uma Coleção receber cartas novas sem variante, ela aparece aqui para análise.
                 </p>
               </div>
-            ) : (
-              <>
-                {analyzeJob.error && <p className="text-sm text-destructive">{analyzeJob.error}</p>}
-                {analyzeJob.started && (
-                  <ImportProgressVariantes
-                    isPending={analyzeJob.isPending || analyzeJob.fetchingJob}
-                    job={analyzeJob.jobState.job}
-                    counters={analyzeJob.jobState.counters}
-                    dataError={analyzeJob.jobState.dataError}
-                  />
-                )}
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <div className="space-y-4">
+              <div className="min-w-0 max-w-[500px] space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Selecione a Coleção para importar variantes
+                </label>
+                <CardSetCombobox cardSets={cardSets} selected={selectedCardSet} onSelect={(id) => navigate({ cardSetId: id })} />
+              </div>
+
+              <form action={analyzeJob.formAction}>
+                <input type="hidden" name="card_set_id" value={selectedCardSet?.id ?? ""} />
+                <Button type="submit" disabled={!canAnalyzeHere}>
+                  {ctaLabel}
+                </Button>
+              </form>
+            </div>
+
+            <div className="space-y-4 border-t border-border pt-4">
+              {!selectedCardSet ? (
+                <p className="text-sm text-muted-foreground">Selecione uma Coleção acima para continuar.</p>
+              ) : jobConflict ? (
+                // Estado excepcional, tratado com o mínimo necessário: uma
+                // mensagem explícita, nenhuma ação automática, nenhuma escolha
+                // feita pelo sistema. Não há infraestrutura nova para isto.
+                <div className="space-y-1">
+                  <p className="flex items-center gap-2 text-sm font-medium text-destructive">
+                    <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    Conflito de importações ativas — revisão necessária
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Esta Coleção tem mais de uma importação de variantes em aberto ao mesmo tempo. O sistema não
+                    escolhe qual delas continuar: retomar a errada levaria a revisar e confirmar dados do job errado.
+                    Resolva as importações duplicadas antes de prosseguir — nenhuma análise nova será iniciada aqui.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {analyzeJob.error && <p className="text-sm text-destructive">{analyzeJob.error}</p>}
+                  {analyzeJob.started && (
+                    <ImportProgressVariantes
+                      isPending={analyzeJob.isPending || analyzeJob.fetchingJob}
+                      job={analyzeJob.jobState.job}
+                      counters={analyzeJob.jobState.counters}
+                      dataError={analyzeJob.jobState.dataError}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {analyzeJob.jobState.job && REVIEWABLE_STATUSES.has(analyzeJob.jobState.job.status) && (
         <RevisaoImportacaoVariantesTable

@@ -2776,6 +2776,8 @@ Empate real na primeira posição = a carta **fica sem padrão** e vai para deci
 
 **Cargas futuras (migration `2259`, 2026-10-11):** `internal.pick_card_variant_default(uuid[])` é a fonte única desta regra; o trigger `trg_card_variant_assign_default` (AFTER INSERT, por comando, em `card_variant`) aplica a regra às cartas das linhas inseridas que ainda não têm padrão. Nunca troca padrão existente, empate fica sem padrão, conflito concorrente não bloqueia a importação. Consequência conhecida: se a primeira variante a chegar for só reverse, ela vira padrão e continua sendo quando a STANDARD chegar depois (correção editorial).
 
+**Cobertura de variantes só sobre cartas ativas (migration `2260`, 2026-10-11).** A view `catalog_card_set_variant_coverage` contava também cartas desativadas; a única carta sem variante do banco (SVP 226, desativada em 2026-10-10) aparecia como pendência impossível em Importar Variantes. Agora `cards_cadastradas`, `cards_com_variante` e `cards_sem_variante` consideram só cartas ativas (mesmas colunas). Na mesma rodada a tela passou a mostrar "Catálogo em dia" quando não há Coleção pendente.
+
 ## Funções administrativas do fluxo de revisão/confirmação
 
 | Função | Query | O que faz |
