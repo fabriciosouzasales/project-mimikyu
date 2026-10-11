@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Cartas completas (ME5.5 158, ME5.5CC 30); pendentes imagens, nomes pt, Mew RGB, Pokédex e variantes |
+| **Status** | **CLOSED (2026-10-10)** — cartas, imagens, Pokédex e variantes completas; ficam só nomes pt e Mew RGB (dependem da TCGdex) |
 | **Mandato** | Fabrício, 2026-10-10: "Vamos em frente com esse plano!" |
 | **Card Sets** | ME5.5 `3aa3fcf6-5826-4a13-b6a2-8f652a2b485a` (TCGdex `30th`); ME5.5CC `21add268-7159-4b22-9b67-d9699a7a99f0` (TCGdex `30th-c`) |
 
@@ -68,4 +68,11 @@ Nada foi gravado como pt-BR para não rotular imagem inglesa como portuguesa.
    As 3 multi-Pokémon foram decididas por Fabrício e gravadas pela 2255: 008 Pikachu & Zekrom GX → Pikachu (25),
    019 Darkrai & Cresselia LENDA → Darkrai (491), 020 → Cresselia (488). ME5.5CC 28/28. As cartas originais
    equivalentes (SM9/SMP Pikachu & Zekrom GX, HGSS4 Darkrai & Cresselia LEGEND) continuam sem espécie.
-5. **Variantes.** Carimbo `30th-anniversary`; decisão de contexto de edição pendente.
+5. **Variantes.** Os jobs TCGdex de variantes (ME5.5 `b414d8ab`, 158 linhas; ME5.5CC `77884e64`, 30) estavam
+   STAGED com 100% NEEDS_REVIEW: a TCGdex marca todas as cartas com o carimbo `30th-anniversary`, sem rota de
+   Edition Context. Resolvido no mesmo desenho do `25TH-CELEBRATION` → `CAMPAIGN_25TH_ANNIVERSARY`:
+   seed `database/seeds/2256_seed_edition_context_30th_anniversary.sql` (trait + perfil
+   `CAMPAIGN_30TH_ANNIVERSARY` "Celebração de 30 Anos" + rota GLOBAL stamp `30TH-ANNIVERSARY`).
+   Revalidação `internal.revalidate_needs_review_variant_rows` (dry-run 188/0 conflito → apply, run `5ba7f307`):
+   188 linhas VALID (STANDARD 86, HOLO 102), todas com o perfil de 30 anos. Confirmados por Fabrício pela UI: os 2 jobs **COMPLETED**, 188 INSERTED,
+   0 duplicidade; ME5.5 158/158 e ME5.5CC 30/30 cartas com variante; card_variant 37.556.

@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.18 |
+| **Versão** | 2.19 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -464,7 +464,8 @@ editorial** que estabilizou essa campanha para escala.
      (3973–3976): pricing_product.card_variant_id por regra única (Finish + Printing + Edition Context);
      49.899/50.470 produtos ligados (3977: fallback família holo + UNLIMITED), trigger liga produtos novos,
      4 tipos legados desativados. Pendente: 571 (revisão editorial 467 + lacuna de catálogo MEP/Cosmos 104).
-> 6. CATALOG-ME5.5-IMPORT-01  (nova)
+> 6. CATALOG-ME5.5-IMPORT-01  — CONCLUÍDA em 2026-10-10 (ME5.5 158 + ME5.5CC 30 cartas, imagens, Pokédex e
+>    188 variantes com o contexto Celebração de 30 Anos, seed 2256; pendentes externos: nomes pt e Mew RGB na TCGdex)
 >    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout
 >    → CATALOG-VARIANT-DEFAULT-BACKFILL-01
 >    → PRICING-CATALOG-VARIANT-RECONCILIATION-01 (80 READY_PRICING_CONDITIONED, etapa 19)
@@ -675,3 +676,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.16 | **5c: fonte e correspondência (2026-10-09).** ADR-034 aprovado (v0.2, snapshot congelado); snapshot de 50 coleções versionado; F1: 6.422 de 6.454 cartas casadas, 0 ambíguas. Próximo = F2. |
 | 2.17 | **5c: carga concluída (2026-10-10).** F2-01, F3-01, piloto XY1 e F6 (lotes D/A/B/C, executada pelo agente a pedido de Fabrício): 49 jobs COMPLETED, 10.812 variantes, `card_variant` 37.303, 330 cartas sem variante. Próximo = fechamento da 5c (UI da 2ª fonte + achados), depois Pricing 80. |
 | 2.18 | **5c fechada (2026-10-10).** F2-01/F3-01 promovidos (`migrations/2246`, `schema/2247`), fonte `POKEMON_TCG_API` traduzida na UI, job SVE da reimportação confirmado (112 UNCHANGED), achados restantes registrados. Próximo = Pricing 80. |
+| 2.19 | **CATALOG-ME5.5-IMPORT-01 concluída (2026-10-10).** Variantes de ME5.5/ME5.5CC fechadas: seed `2256` (Edition Context `CAMPAIGN_30TH_ANNIVERSARY` + rota stamp `30TH-ANNIVERSARY`), revalidação das 188 NEEDS_REVIEW e confirmação dos 2 jobs pela UI (188 INSERTED). Item 6 da sequência vigente segue com BOOTSTRAP-03 closeout → DEFAULT-BACKFILL-01 → gate final. Pricing 80 praticamente fechado (3977/3985; 472 produtos sem variante em fila editorial). |
