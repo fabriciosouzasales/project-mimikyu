@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 1.95 |
+| **Versão** | 1.96 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -128,6 +128,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-10-09-needs-review-revalidation/README.md`](../database/proposals/2026-10-09-needs-review-revalidation/README.md) | NEEDS-REVIEW-REVALIDATION-01 — **executada em 2026-10-09**: widen `2238` e função `2239` (hoje em `database/migrations` e `database/schema`), validação `2843` com rollback garantido; 1.085 linhas promovidas, resíduo 557. Revisão editorial das 557 **encerrada** no mesmo dia (`NRR-CONFIRM-01`…`07`, seeds `2240`–`2242`/`2244`, migrations `2243`/`2245`): 546 materializadas, **11 retidas**; `card_variant` 26.524. |
 | [`../database/proposals/2026-10-09-d2-legacy-finish-reconciliation/README.md`](../database/proposals/2026-10-09-d2-legacy-finish-reconciliation/README.md) | D2 — reconciliação dos tipos legados de Finish, **executada em 2026-10-09** (`D2-01`/`02`/`03`): 758 variantes decompostas nos três eixos, 33 PROMO_STAMPED removidas, rotas de importação reconciliadas, 69 tipos desativados; `card_variant` 26.491. |
 | [`../database/proposals/2026-10-09-variant-coverage-gap/README.md`](../database/proposals/2026-10-09-variant-coverage-gap/README.md) | `CATALOG-VARIANT-COVERAGE-GAP-01` — diagnóstico das 6.727 cartas sem variante, sonda da Pokémon TCG API (98,6% de cobertura) fonte em snapshot congelado (ADR-034 v0.2), resultado da F1 (6.422/6.454 casadas), fatias F2–F6 (todas executadas: 49 coleções, 10.812 variantes, `card_variant` 37.303) checagem cruzada F4 e fechamento (canônicos `2246`/`2247`, achados restantes). |
+| [`../database/proposals/2026-10-11-bootstrap-03-closeout/README.md`](../database/proposals/2026-10-11-bootstrap-03-closeout/README.md) | CATALOG-HISTORICAL-BOOTSTRAP-03 closeout — **executado em 2026-10-11**: diagnóstico dos jobs FAILED/linhas PENDING (inertes) e migration `2257` com 295 variantes (Trainer Kits HS/XY via Scrydex, CEL25CC via snapshot); 0 cartas sem variante. |
 | [`../database/proposals/2026-10-10-scrydex-card-assets/README.md`](../database/proposals/2026-10-10-scrydex-card-assets/README.md) | CATALOG-ASSETS-SCRYDEX-01 — **executada em 2026-10-10**: diagnóstico das 905 cartas sem imagem (TCGdex não publica), tabela fixa conferida por nome e Edge `import-scrydex-assets` em lotes; **863 imagens importadas**, restam 42 (MFB 34 + ECARD2 a/b 8) para o canal manual. |
 | [`../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md`](../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md) | Snapshot imutável da Pokémon TCG API (2026-10-09): 50 coleções, 6.733 cartas, chaves de preço por carta; manifest com contagem e SHA-256. Fonte da 2ª origem de variantes (ADR-034). |
 | [`history/development/HANDOFF-2026-07-26.md`](history/development/HANDOFF-2026-07-26.md) | Handoff superado (26/07). |
@@ -257,3 +258,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.93 | **F6 concluída (2026-10-10).** Resumo da proposta `2026-10-09-variant-coverage-gap` atualizado. |
 | 1.94 | **COVERAGE-GAP fechada (2026-10-10).** Resumo da proposta atualizado. |
 | 1.95 | **CATALOG-ASSETS-SCRYDEX-01 (2026-10-10).** Nova entrada para `database/proposals/2026-10-10-scrydex-card-assets/` (863 imagens importadas da Scrydex). |
+| 1.96 | **BOOTSTRAP-03 closeout (2026-10-11).** Nova entrada para `database/proposals/2026-10-11-bootstrap-03-closeout/`. |

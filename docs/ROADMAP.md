@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.20 |
+| **Versão** | 2.21 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -468,7 +468,9 @@ editorial** que estabilizou essa campanha para escala.
      4 tipos legados desativados. Pendente: 571 (revisão editorial 467 + lacuna de catálogo MEP/Cosmos 104).
 > 6. CATALOG-ME5.5-IMPORT-01  — CONCLUÍDA em 2026-10-10 (ME5.5 158 + ME5.5CC 30 cartas, imagens, Pokédex e
 >    188 variantes com o contexto Celebração de 30 Anos, seed 2256; pendentes externos: nomes pt e Mew RGB na TCGdex)
->    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout
+>    → CATALOG-HISTORICAL-BOOTSTRAP-03 closeout — CONCLUÍDO em 2026-10-11 (migration 2257: 295 variantes para os 9 Trainer
+>      Kits HS/XY via Scrydex e a CEL25CC via snapshot cel25c; cartas sem variante 295 → 0; 1.129 produtos de preço ligados;
+>      11 jobs FAILED e 15 linhas PENDING são histórico inerte de jobs substituídos)
 >    → CATALOG-VARIANT-DEFAULT-BACKFILL-01
 >    → PRICING-CATALOG-VARIANT-RECONCILIATION-01 (80 READY_PRICING_CONDITIONED, etapa 19)
 >    → gate final de Card Variants
@@ -680,3 +682,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.18 | **5c fechada (2026-10-10).** F2-01/F3-01 promovidos (`migrations/2246`, `schema/2247`), fonte `POKEMON_TCG_API` traduzida na UI, job SVE da reimportação confirmado (112 UNCHANGED), achados restantes registrados. Próximo = Pricing 80. |
 | 2.19 | **CATALOG-ME5.5-IMPORT-01 concluída (2026-10-10).** Variantes de ME5.5/ME5.5CC fechadas: seed `2256` (Edition Context `CAMPAIGN_30TH_ANNIVERSARY` + rota stamp `30TH-ANNIVERSARY`), revalidação das 188 NEEDS_REVIEW e confirmação dos 2 jobs pela UI (188 INSERTED). Item 6 da sequência vigente segue com BOOTSTRAP-03 closeout → DEFAULT-BACKFILL-01 → gate final. Pricing 80 praticamente fechado (3977/3985; 472 produtos sem variante em fila editorial). |
 | 2.20 | **CATALOG-ASSETS-SCRYDEX-01 (2026-10-10).** 863 das 905 cartas sem imagem receberam imagem da Scrydex (Edge `import-scrydex-assets`, 8 lotes, 0 falha); restam 42 (MFB 34 + ECARD2 a/b 8) para o canal manual. Nota adicionada ao bloco `ASSETS-FINAL-CLOSEOUT`. |
+| 2.21 | **CATALOG-HISTORICAL-BOOTSTRAP-03 closeout concluído (2026-10-11).** Migration `2257`: 295 cartas sem variante (9 Trainer Kits HS/XY pela Scrydex, CEL25CC pelo snapshot cel25c, decisões de Fabrício) → 0; ADR-034 v0.4; 1.129 produtos JustTCG ligados. Próximo: DEFAULT-BACKFILL-01 (20.240 cartas sem default). |

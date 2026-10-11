@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Aprovado (2026-10-09, Fabrício) — revisado no mesmo dia para fonte congelada (v0.2) e refinado na F2 (v0.3) |
+| **Status** | Aprovado (2026-10-09, Fabrício) — revisado no mesmo dia para fonte congelada (v0.2), refinado na F2 (v0.3) e emendado em 2026-10-11 (v0.4) |
 | **Decisão de origem** | Fabrício, 2026-10-09: "pokemontcg.io como 2ª fonte" (`CATALOG-VARIANT-COVERAGE-GAP-01`) |
 | **Relaciona** | ADR-028 (governança de Card Variant), proposta `2026-10-09-variant-coverage-gap` |
 
@@ -61,6 +61,18 @@ lista as variantes por carta em 98,6% das cartas medidas.
 - Variante padrão (STANDARD) para todas: fabrica identidade e omite as reversas.
 - TCGdex em inglês: separa a Rara, mas continua sem variantes.
 
+## Emenda 2026-10-11 — Scrydex como fonte pontual (BOOTSTRAP-03 closeout)
+
+Decisão de Fabrício (2026-10-11, "Usar a Scrydex"): para os 9 Trainer Kits HS/XY (270 cartas) que nem
+a TCGdex nem o snapshot da Pokémon TCG API cobrem, a variante foi lida da página pública de expansão da
+Scrydex (`?variant=normal|holofoil` por carta; normal → STANDARD, holofoil → HOLO). Não é uma fonte de
+pipeline: não há job de staging, a carga é a migration `2257` (tabela fixa conferida por nome, fail closed)
+e o rastro fica em `catalog_admin_action_log` (1 linha por Card Set, `metadata.source`). Uso futuro da
+Scrydex exige nova decisão.
+
+Na mesma rodada, a CEL25CC (25) deixou de ficar sem variante (revoga a exclusão da v0.3): HOLO pelo snapshot
+`cel25c`, casada pela tabela CC001–CC025 conferida carta a carta.
+
 ## Revision History
 
 | Versão | Descrição |
@@ -68,3 +80,4 @@ lista as variantes por carta em 98,6% das cartas medidas.
 | 0.1 | **Proposta (2026-10-09).** Criada a partir da sonda de cobertura (`CATALOG-VARIANT-COVERAGE-GAP-01`). |
 | 0.2 | **Aprovada e revisada (2026-10-09).** A API foi descontinuada (aviso oficial; chaves só até 01/03/2027). Por decisão de Fabrício, a fonte vira snapshot único versionado no repositório; saem a chave/segredo e o retry em tempo de execução. |
 | 0.3 | **Refinada na F2 (2026-10-09).** Chave fora do vocabulário é recusada no staging (não vai para `NEEDS_REVIEW`); CEL25CC fora por decisão de Fabrício. |
+| 0.4 | **Emenda (2026-10-11).** Scrydex como fonte pontual dos 9 Trainer Kits HS/XY (migration `2257`); CEL25CC volta ao escopo (HOLO pelo snapshot `cel25c`). |
