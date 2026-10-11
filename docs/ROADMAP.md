@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.22 |
+| **Versão** | 2.23 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -474,7 +474,9 @@ editorial** que estabilizou essa campanha para escala.
 >    → CATALOG-VARIANT-DEFAULT-BACKFILL-01 — CONCLUÍDO em 2026-10-11 (migration 2258: regra STANDARD > HOLO > outros >
 >      reverse, sem selo > com selo, tiragem base > outras; 20.227 padrões, 21.153 no total; 13 empates sem padrão em
 >      decisão editorial; pendente para o gate: aplicar a regra nas cargas futuras)
->    → PRICING-CATALOG-VARIANT-RECONCILIATION-01 (80 READY_PRICING_CONDITIONED, etapa 19)
+>    → PRICING-CATALOG-VARIANT-RECONCILIATION-01 (80 READY_PRICING_CONDITIONED, etapa 19) — CLOSED para o gate em
+>      2026-10-11 (remedição 2.342 sem variante; 3986: R1 família reverse, R2 família holo, R3 impressão única →
+>      1.626 ligados; 155.852/156.568 = 99,5%; fila residual de 716 documentada, não bloqueia)
 >    → gate final de Card Variants
 > 7. CARD VARIANTS — CLOSED
 > 8. Collections: BULK-04 → BULK-05 → BULK-06 → UX Read Models/Contracts → UX Flows/Wireframes → Frontend Collections
@@ -686,3 +688,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.20 | **CATALOG-ASSETS-SCRYDEX-01 (2026-10-10).** 863 das 905 cartas sem imagem receberam imagem da Scrydex (Edge `import-scrydex-assets`, 8 lotes, 0 falha); restam 42 (MFB 34 + ECARD2 a/b 8) para o canal manual. Nota adicionada ao bloco `ASSETS-FINAL-CLOSEOUT`. |
 | 2.21 | **CATALOG-HISTORICAL-BOOTSTRAP-03 closeout concluído (2026-10-11).** Migration `2257`: 295 cartas sem variante (9 Trainer Kits HS/XY pela Scrydex, CEL25CC pelo snapshot cel25c, decisões de Fabrício) → 0; ADR-034 v0.4; 1.129 produtos JustTCG ligados. Próximo: DEFAULT-BACKFILL-01 (20.240 cartas sem default). |
 | 2.22 | **CATALOG-VARIANT-DEFAULT-BACKFILL-01 concluído (2026-10-11).** Migration `2258`: regra da variante padrão (acabamento > Edition Context > Printing; reverse só quando única; empate fica sem padrão — decisões de Fabrício), 20.227 padrões atribuídos, 13 cartas em decisão editorial; 05b revisão 1.9. Próximo: Pricing 80 (remedir 1.811 produtos sem variante). |
+| 2.23 | **Pricing 80 fechado para o gate (2026-10-11).** Remedição: 2.342 produtos sem variante. Query `3986` (decisão de Fabrício: "As três"): família reverse, família holo e impressão única (`UNIQUE_SINGLE_PRINTING`) → 1.626 produtos ligados, carta errada 0; 99,5% dos produtos ligados. Fila residual de 716 documentada por grupo, não bloqueia (decisão de Fabrício). Próximo: gate final de Card Variants. |
