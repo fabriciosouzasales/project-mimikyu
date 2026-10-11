@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.9 |
+| **Versão** | 1.10 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`), o **contrato de correlação Card ↔ fonte externa** do Variant Import com o fallback determinístico por lineage (revisão `1.5`) e o **consumo do staging pela Classe A** — `BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED`, `card_variant` 7.671 → 24.893 (revisão `1.7`), e o **encerramento da experiência editorial das `NEEDS_REVIEW`** — 1.642 → 11 retidas, `card_variant` 26.524 (revisão `1.8`), e a **regra e o backfill da variante padrão** — 20.227 padrões, 13 empates em decisão editorial (revisão `1.9`). |
+| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`), o **contrato de correlação Card ↔ fonte externa** do Variant Import com o fallback determinístico por lineage (revisão `1.5`) e o **consumo do staging pela Classe A** — `BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED`, `card_variant` 7.671 → 24.893 (revisão `1.7`), e o **encerramento da experiência editorial das `NEEDS_REVIEW`** — 1.642 → 11 retidas, `card_variant` 26.524 (revisão `1.8`), e a **regra e o backfill da variante padrão** — 20.227 padrões, 13 empates em decisão editorial (revisão `1.9`); trigger de padrão para cargas futuras e **CARD VARIANTS — CLOSED** (revisão `1.10`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -2774,7 +2774,7 @@ Empate real na primeira posição = a carta **fica sem padrão** e vai para deci
 | `card_variant` com `is_default` | **21.153** |
 | Cartas sem padrão (empates, lista em `database/proposals/2026-10-11-default-backfill/README.md`) | **13** |
 
-Variantes criadas depois desta data nascem sem padrão; atribuí-lo em cargas futuras é pendência registrada na proposta (aplicar a mesma regra no fechamento de cada importação).
+**Cargas futuras (migration `2259`, 2026-10-11):** `internal.pick_card_variant_default(uuid[])` é a fonte única desta regra; o trigger `trg_card_variant_assign_default` (AFTER INSERT, por comando, em `card_variant`) aplica a regra às cartas das linhas inseridas que ainda não têm padrão. Nunca troca padrão existente, empate fica sem padrão, conflito concorrente não bloqueia a importação. Consequência conhecida: se a primeira variante a chegar for só reverse, ela vira padrão e continua sendo quando a STANDARD chegar depois (correção editorial).
 
 ## Funções administrativas do fluxo de revisão/confirmação
 

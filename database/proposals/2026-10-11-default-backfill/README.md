@@ -67,8 +67,9 @@ select count(*) from public.card c where c.is_active and not exists
 
 Para fechar uma delas: escolher a variante e marcar `is_default = true` (uma linha por carta).
 
-## 5. Pendência para o gate final
+## 5. Cargas futuras — resolvido pela `2259` (2026-10-11)
 
-Variantes criadas depois de 2026-10-11 (novas importações) nascem com `is_default = false`. Uma carta
-nova com variantes ficará sem padrão até alguém aplicar a regra. Antes de fechar Card Variants é
-preciso decidir como a regra roda nas cargas futuras (por exemplo, no fechamento de cada importação).
+Decisão de Fabrício: "Trigger no banco". A `2259` cria `internal.pick_card_variant_default(uuid[])` (fonte
+única da regra acima) e o trigger `trg_card_variant_assign_default` (AFTER INSERT, por comando) em
+`card_variant`: quando uma carta recebe variantes e ainda não tem padrão, a regra é aplicada; empate deixa
+sem padrão; padrão existente nunca é trocado; a importação nunca é bloqueada.
