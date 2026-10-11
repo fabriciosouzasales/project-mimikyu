@@ -4,9 +4,9 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Cartas e Raridade |
 | **Arquivo** | `docs/05b-cartas-e-raridade.md` |
-| **Versão** | 1.8 |
+| **Versão** | 1.9 |
 | **Status** | Em elaboração |
-| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`), o **contrato de correlação Card ↔ fonte externa** do Variant Import com o fallback determinístico por lineage (revisão `1.5`) e o **consumo do staging pela Classe A** — `BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED`, `card_variant` 7.671 → 24.893 (revisão `1.7`), e o **encerramento da experiência editorial das `NEEDS_REVIEW`** — 1.642 → 11 retidas, `card_variant` 26.524 (revisão `1.8`). |
+| **Objetivo** | Modelo lógico e físico de Rarity (Raridade), Card Category, Card (Carta), Card Translation, Card Variant Type e Card Variant — incluindo o **eixo de escopo por tamanho** (incidente JUMBO, revisão `1.2`), o estado terminal **`DEFERRED`** de deferimento editorial (revisão `1.3`), o **encerramento da Editorial Convergence** com BASEP e BASE3 `CLOSED` (revisão `1.4`), o **contrato de correlação Card ↔ fonte externa** do Variant Import com o fallback determinístico por lineage (revisão `1.5`) e o **consumo do staging pela Classe A** — `BULK-STP-01 / CLASS A` `EXECUTED / LIVE VALIDATED / CLOSED`, `card_variant` 7.671 → 24.893 (revisão `1.7`), e o **encerramento da experiência editorial das `NEEDS_REVIEW`** — 1.642 → 11 retidas, `card_variant` 26.524 (revisão `1.8`), e a **regra e o backfill da variante padrão** — 20.227 padrões, 13 empates em decisão editorial (revisão `1.9`). |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
 | **Dependências** | `04-domain-model.md`, `standards/STD-001-database-standards.md`, `05-modelo-de-dados.md` |
 
@@ -2751,6 +2751,30 @@ As 1.642 `NEEDS_REVIEW` citadas acima são registro histórico de 2026-09-18. Es
 | FAILED / duplicidade | 0 / 0 |
 
 Mudanças de modelo no ciclo: Printing ganhou 10 traits (seeds `2240`–`2242`) e 11 profiles; o eixo Edition Context passou a ler o campo `foil` (`2243`, `raw_field` ∈ stamp/subtype/foil) com 3 mappings de programa (`2244`); a revalidação deixou de reter H3 (`2245`). Efeito permanente: `normal + league` futuro resolve para STANDARD + `PROGRAM_LEAGUE`; os tipos legados de Finish (`STANDARDS_LEAGUE`, `PLAYER_REWARD_REVERSE`, `SET_LOGO_*`) vão para a D2. Detalhe: `database/proposals/2026-10-09-needs-review-revalidation/README.md`.
+
+### Variante padrão (`is_default`) — `CATALOG-VARIANT-DEFAULT-BACKFILL-01` (2026-10-11, revisão `1.9`)
+
+A variante padrão é a versão "base" de uma carta: a que o colecionador tem quando diz que tem a carta, e a que operações por Set (ex.: registrar um Set inteiro) usam quando ninguém escolhe outra. No máximo uma por carta (índice único parcial). Os importadores **nunca** a definem (`2143`); ela é editorial.
+
+**Regra** (estende a regra das seeds `860`/`860a`/`860b`: STANDARD quando existir, HOLO na ausência de STANDARD, reverse nunca), ordem lexicográfica:
+
+1. **Acabamento:** `STANDARD` → `HOLO` → outros acabamentos não-reverse (`RAINBOW_HOLO`, `GOLD_HOLO`, `COSMOS_HOLO`, `CRACKED_ICE_HOLO`…) → família reverse. A reverse só é padrão quando é a **única** versão da carta (decisão de Fabrício, 2026-10-11; ex.: shinies PL `SH`, Southern Islands, BOG).
+2. **Edition Context:** sem contexto → contexto simples → contexto composto (mais componentes `__`; ex.: `ARTWORK_SET_LOGO` antes de `ARTWORK_SET_LOGO__ROLE_STAFF`, `EVENT_WORLDS_2010` antes de `..._PLACEMENT_*`).
+3. **Printing:** sem perfil ou `UNLIMITED` → qualquer outro (1ª edição, shadowless, erros).
+
+Empate real na primeira posição = a carta **fica sem padrão** e vai para decisão editorial (decisão de Fabrício: nada é escolhido por acaso).
+
+**Execução (migration `2258`, CONFIRMADO EXECUTADO 2026-10-11):**
+
+| Fato | Valor |
+|---|---:|
+| Cartas ativas sem padrão (antes) | 20.240 |
+| Padrões atribuídos | **20.227** (STANDARD 12.952 · HOLO 6.908 · outros 338 · só-reverse 29) |
+| Já existentes, preservados (seeds `860`) | 926 |
+| `card_variant` com `is_default` | **21.153** |
+| Cartas sem padrão (empates, lista em `database/proposals/2026-10-11-default-backfill/README.md`) | **13** |
+
+Variantes criadas depois desta data nascem sem padrão; atribuí-lo em cargas futuras é pendência registrada na proposta (aplicar a mesma regra no fechamento de cada importação).
 
 ## Funções administrativas do fluxo de revisão/confirmação
 
