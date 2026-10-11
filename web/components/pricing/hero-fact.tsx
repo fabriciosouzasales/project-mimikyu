@@ -17,12 +17,15 @@ export function HeroFact({
   value,
   valueClassName,
   progressPct,
+  hint,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   valueClassName?: string;
   progressPct?: number;
+  /** 3984 — contexto curto sob o valor (ex.: "+137 em implantação"); nunca substitui o valor. */
+  hint?: string;
 }) {
   return (
     <div className="space-y-1">
@@ -39,6 +42,7 @@ export function HeroFact({
           />
         </div>
       )}
+      {hint ? <p className="text-xs leading-snug text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

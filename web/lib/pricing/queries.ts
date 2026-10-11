@@ -25,8 +25,56 @@ export type PricingAdminOverview = {
    * `eligible_total` já vem filtrado pela regra de elegibilidade (jogo suportado pela fonte
    * ativa) — nunca `count(*) FROM card_set` cru.
    */
-  coverage: { eligible_total: number; covered: number };
+  coverage: {
+    eligible_total: number;
+    covered: number;
+    /**
+     * Migration 3984 — detalhamento. Elegível passou a exigir ≥1 carta ativa; `without_cards` são
+     * Sets vazios no catálogo (fora do denominador), `not_found` são Sets que a fonte não publica
+     * (tratamento explícito), `unconfigured` é a única pendência acionável (sem mapping ou PENDING).
+     * Opcionais para tolerar payload anterior à 3984.
+     */
+    confirmed?: number;
+    not_found?: number;
+    unconfigured?: number;
+    without_cards?: number;
+  };
   products_count: number;
+  /** 3984 — produtos ativos ainda sem Card Variant ligada (fila editorial; preço cai no fallback da carta). */
+  products_without_variant?: number;
+  /** 3984 — cartas ativas em Sets já implantados sem mapping de preço (reaberto diariamente às 05:15 UTC). */
+  cards_without_mapping?: number;
+  /** 3984 — fila de implantação (bootstrap) dos Sets confirmados. */
+  onboarding?: {
+    pending: number;
+    acquiring: number;
+    matching: number;
+    complete: number;
+    paused: number;
+    total: number;
+    /** Requisições de aquisição ainda previstas (páginas de 100 cartas). */
+    remaining_requests: number;
+    last_progress_at: string | null;
+    /** Aproximação: 1 Set por tick de 5 min (aquisição + casamento). */
+    eta_minutes: number;
+    /** Fila ativa sem nenhuma implantação concluída há mais de 2 h. */
+    stalled: boolean;
+  };
+  /** 3984 — orçamento da API da fonte ativa (mês civil UTC). `null` sem fonte ativa. */
+  api_budget?: {
+    pricing_source_code: string;
+    monthly_limit: number | null;
+    daily_limit: number | null;
+    month_to_date: number;
+    today: number;
+    /** Requisições/dia em regime (último refresh de cada Set ÷ frequência). */
+    steady_daily_estimate: number;
+    onboarding_remaining: number;
+    days_in_month: number;
+    day_of_month: number;
+    /** Consumo do mês + regime até o fim do mês + implantação restante. */
+    projected_month: number;
+  } | null;
   observations_count: number;
   last_sync_run: {
     id: string;

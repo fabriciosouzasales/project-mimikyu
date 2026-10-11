@@ -107,6 +107,17 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
   const frequencyLabel = (days: number) => `${days} ${days === 1 ? "dia" : "dias"}`;
   const Icon = STATUS_ICON[status.level];
   const coveragePct = coverage.eligible_total > 0 ? (coverage.covered / coverage.eligible_total) * 100 : undefined;
+  // 3984: "Cobertura" continua medindo Sets com tratamento explícito; o hint separa os que têm
+  // fonte de preço dos que a fonte não publica (NOT_FOUND), para 100% não parecer "tudo com preço".
+  const semFonte = coverage.not_found ?? 0;
+  const coverageHint =
+    semFonte > 0 && coverage.confirmed !== undefined
+      ? `${formatNumber(coverage.confirmed)} com preço · ${formatNumber(semFonte)} sem fonte`
+      : undefined;
+  // 3984: Set em implantação ainda não tem refresh — fica fora do denominador da saúde, com hint.
+  const emImplantacao = sets.onboarding_pending;
+  const setsEmOperacao = Math.max(0, sets.total - emImplantacao);
+  const saudeHint = emImplantacao > 0 ? `+${formatNumber(emImplantacao)} em implantação` : undefined;
 
   return (
     <Panel className="p-4 sm:p-6">
@@ -127,6 +138,12 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
                 {motivo}
               </li>
             ))}
+            {/* 3984: contexto neutro (implantação em andamento) — não muda o nível, por isso sem cor semântica. */}
+            {status.notes.map((nota) => (
+              <li key={nota} className="text-sm text-muted-foreground/80">
+                {nota}
+              </li>
+            ))}
           </ul>
         </div>
       </div>
@@ -137,8 +154,14 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
           label="Cobertura"
           value={`${formatNumber(coverage.covered)}/${formatNumber(coverage.eligible_total)}`}
           progressPct={coveragePct}
+          hint={coverageHint}
         />
-        <HeroFact icon={ShieldCheck} label="Saúde dos Sets" value={`${formatNumber(sets.healthy)}/${formatNumber(sets.total)}`} />
+        <HeroFact
+          icon={ShieldCheck}
+          label="Saúde dos Sets"
+          value={`${formatNumber(sets.healthy)}/${formatNumber(setsEmOperacao)}`}
+          hint={saudeHint}
+        />
         <HeroFact
           icon={RefreshCw}
           label="Atualização Automática"

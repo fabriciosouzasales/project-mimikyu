@@ -1,13 +1,14 @@
-import { AlertTriangle, ChevronRight, Clock, Globe, RefreshCw, ScrollText, Activity, Settings2 } from "lucide-react";
+import { AlertTriangle, ChevronRight, Clock, Globe, Hourglass, Link2Off, RefreshCw, ScrollText, Activity, Settings2 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/catalogo/panel";
+import { PricingApiBudget } from "@/components/pricing/pricing-api-budget";
 import { PricingApiUsageChart } from "@/components/pricing/pricing-api-usage-chart";
 import { PricingCoverageTrendChart } from "@/components/pricing/pricing-coverage-trend-chart";
 import { PricingOverviewHero } from "@/components/pricing/pricing-overview-hero";
 import { PricingSyncRunChart } from "@/components/pricing/pricing-sync-run-chart";
-import { computePricingOverviewStatus } from "@/lib/pricing/pricing-overview-status";
+import { computePricingOverviewStatus, formatApproxDuration } from "@/lib/pricing/pricing-overview-status";
 import type {
   PricingAdminOverview,
   PricingApiUsagePoint,
@@ -148,13 +149,21 @@ export function PricingOverviewStats({
 
   const status = computePricingOverviewStatus(overview, syncDaily);
   const proximaAtualizacao = deriveProximaAtualizacaoTile(sets.next_due_at, Boolean(dispatcher?.active));
-  // P16.1 (2026-08-24): Sets elegíveis do Catálogo ainda sem nenhum tratamento em
-  // `pricing_set_mapping` (nem CONFIRMED, nem PENDING, nem NOT_FOUND — a linha nem existe).
-  // Só aparece quando `coverage.covered < coverage.eligible_total`; hoje (SWSH8) = 1. É uma
-  // pendência CADASTRAL/operacional de onboarding, não uma falha de sincronização — por isso
-  // aponta para Mapeamentos de Sets, nunca para Sincronizações/Saúde.
-  const setsAguardandoConfiguracao = coverage.eligible_total - coverage.covered;
+  // 3984 (Fase 5): "Sets aguardando configuração" conta SÓ pendência acionável — Set com cartas e
+  // sem mapping (ou PENDING). Antes era `eligible_total - covered`, que misturava Sets vazios no
+  // catálogo e Sets que a fonte não publica. Fallback para a conta antiga com payload pré-3984.
+  const setsAguardandoConfiguracao = coverage.unconfigured ?? coverage.eligible_total - coverage.covered;
   const temSetsAguardandoConfiguracao = setsAguardandoConfiguracao > 0;
+
+  // 3984: implantação de Sets (bootstrap) — tile operacional enquanto houver fila; vira acionável
+  // (acento de atenção) só se a fila parar.
+  const onboarding = overview.onboarding;
+  const emImplantacao = onboarding ? onboarding.pending + onboarding.acquiring + onboarding.matching : 0;
+  const temImplantacao = Boolean(onboarding) && emImplantacao > 0;
+
+  const totalTiles = 4 + (temSetsAguardandoConfiguracao ? 1 : 0) + (temImplantacao ? 1 : 0);
+  const colunasTiles =
+    totalTiles >= 6 ? "lg:grid-cols-3 2xl:grid-cols-6" : totalTiles === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4";
 
   return (
     <div className="space-y-6">
@@ -180,6 +189,9 @@ export function PricingOverviewStats({
         <PricingApiUsageChart points={apiUsage} />
       </div>
 
+      {/* 3984 (Fase 5): orçamento do mês contra o plano — faixa própria para não quebrar a linha de 3 gráficos. */}
+      {overview.api_budget ? <PricingApiBudget budget={overview.api_budget} /> : null}
+
       {/*
         Atenções e Ações — linha própria, largura total, 4 blocos clicáveis
         (era pareada com o gráfico de Execuções na v3 inicial). v3.6
@@ -204,18 +216,36 @@ export function PricingOverviewStats({
         </PanelHeader>
         <PanelContent className="overflow-hidden rounded-b-lg p-0">
           <div
-            className={cn(
-              "grid grid-cols-1 gap-px bg-border sm:grid-cols-2",
-              temSetsAguardandoConfiguracao ? "lg:grid-cols-5" : "lg:grid-cols-4",
-            )}
+            className={cn("grid grid-cols-1 gap-px bg-border sm:grid-cols-2", colunasTiles)}
           >
             {temSetsAguardandoConfiguracao ? (
               <AcaoTile
                 enfase="acionavel"
-                href="/pricing/mapeamentos-sets"
+                href="/pricing/mapeamentos-sets/descoberta"
                 icone={<Settings2 className="h-3.5 w-3.5 text-warning" aria-hidden="true" />}
                 label="Sets aguardando configuração"
                 valor={formatNumber(setsAguardandoConfiguracao)}
+              />
+            ) : null}
+            {onboarding && temImplantacao ? (
+              <AcaoTile
+                enfase={onboarding.stalled ? "acionavel" : "operacional"}
+                href="/pricing/sincronizacoes"
+                icone={
+                  onboarding.stalled ? (
+                    <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+                  ) : (
+                    <Hourglass className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                  )
+                }
+                label="Implantação de Sets"
+                valor={`${formatNumber(onboarding.complete)} de ${formatNumber(onboarding.total)} prontos`}
+                detalhe={
+                  onboarding.stalled
+                    ? "Sem progresso há mais de 2 h"
+                    : `${formatNumber(emImplantacao)} na fila · ${formatApproxDuration(onboarding.eta_minutes)}`
+                }
+                progressoPct={onboarding.total > 0 ? (onboarding.complete / onboarding.total) * 100 : undefined}
               />
             ) : null}
             <AcaoTile
@@ -274,6 +304,23 @@ export function PricingOverviewStats({
           <Activity className="h-3 w-3" aria-hidden="true" />
           {formatNumber(observations_count)} observações de preço
         </span>
+        {/* 3984: estados explicados, não acionáveis aqui — Sets que a fonte não publica e Sets vazios no catálogo. */}
+        {coverage.not_found ? (
+          <Link href="/pricing/mapeamentos-sets?status=NOT_FOUND" className="inline-flex items-center gap-1 hover:text-foreground hover:underline">
+            <Link2Off className="h-3 w-3" aria-hidden="true" />
+            {formatNumber(coverage.not_found)} {coverage.not_found === 1 ? "Set sem fonte" : "Sets sem fonte"} na {overview.api_budget?.pricing_source_code === "JUSTTCG" ? "JustTCG" : "fonte"}
+          </Link>
+        ) : null}
+        {coverage.without_cards ? (
+          <span className="inline-flex items-center gap-1">
+            {formatNumber(coverage.without_cards)} {coverage.without_cards === 1 ? "Set sem cartas" : "Sets sem cartas"} no catálogo
+          </span>
+        ) : null}
+        {overview.products_without_variant ? (
+          <span className="inline-flex items-center gap-1" title="Preço desses produtos usa o valor da carta até a variante ser ligada.">
+            {formatNumber(overview.products_without_variant)} produtos sem variante ligada
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -304,12 +351,18 @@ function AcaoTile({
   label,
   valor,
   enfase,
+  detalhe,
+  progressoPct,
 }: {
   href: string;
   icone: ReactNode;
   label: string;
   valor: ReactNode;
   enfase: "acionavel" | "operacional";
+  /** 3984 — linha secundária curta (ex.: fila e ETA da implantação). */
+  detalhe?: string;
+  /** 3984 — progresso discreto (0–100) no rodapé do tile, mesmo tom do progresso de Cobertura do Hero. */
+  progressoPct?: number;
 }) {
   const acionavel = enfase === "acionavel";
   return (
@@ -331,6 +384,15 @@ function AcaoTile({
           aria-hidden="true"
         />
       </span>
+      {detalhe ? <span className="text-xs text-muted-foreground">{detalhe}</span> : null}
+      {progressoPct !== undefined ? (
+        <span className="mt-0.5 block h-1 w-full overflow-hidden rounded-full bg-surface-muted" aria-hidden="true">
+          <span
+            className="block h-full rounded-full bg-primary/60"
+            style={{ width: `${Math.min(100, Math.max(0, progressoPct))}%` }}
+          />
+        </span>
+      ) : null}
     </Link>
   );
 }

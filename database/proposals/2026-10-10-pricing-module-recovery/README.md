@@ -196,3 +196,28 @@ Decisão de Fabrício (2026-10-10): **permitir Set compartilhado**, com opt-in e
   870 produtos ativos sem variante ligada de 53.425 — `UNIQUE_CONTEXT_ONLY` 440, `NO_CANDIDATE` 405 (variante ausente
   no catálogo: SVP Holofoil, SVE, ME2.5 Reverse, MEP, BASEP, 2022SWSH, GYM2 1st Ed…), `AMBIGUOUS` 25; 52 cartas
   `NOT_FOUND`. Essas variantes recebem `CARD_FALLBACK` até a revisão editorial (UI de resolução existente).
+
+### Fase 5 — Saúde contínua: alertas recalibrados + orçamento da API (3984, CONFIRMADO EXECUTADO 2026-10-10)
+
+Falsos alarmes encontrados no LIVE e corrigidos:
+
+| Antes | Causa | Agora |
+|---|---|---|
+| Visão Geral em "Atenção" com 139 Sets "aguardando primeira sincronização" | implantação (bootstrap) tratada como problema | nota neutra no Hero ("Implantação em andamento: X de Y prontos, ≈ N h"); Atenção só se a fila parar > 2 h (`onboarding.stalled`) |
+| "Fila de atualização atrasada há mais de 1 hora" | `next_due_at` incluía Sets ainda sem 1º refresh (hora da confirmação) | só Sets que já tiveram o 1º refresh entram |
+| "Sets aguardando configuração: 8" | 6 Sets que a JustTCG não publica + 2 Sets sem cartas (SP, EXU) | 6 registrados como `pricing_set_mapping` NOT_FOUND (log `PRICING_SET_MAPPING_NOT_FOUND`, reversível pela confirmação manual); Sets sem cartas fora do denominador; tile só conta pendência real e leva à Descoberta |
+| "Saúde dos Sets 53/193" | denominador incluía Sets em implantação | `saudáveis / em operação` + "+N em implantação" |
+| sem visão de orçamento | — | faixa "Orçamento da API": consumido no mês, projeção até o fim do mês (% do plano), hoje × limite diário, barra contra o limite mensal |
+
+- `pricing_source.monthly_request_limit` / `daily_request_limit` (JUSTTCG 10.000 / 1.000, ADR-029).
+- `get_pricing_admin_overview()` ganhou `coverage.{confirmed,not_found,unconfigured,without_cards}`, `onboarding`,
+  `api_budget`, `cards_without_mapping`, `products_without_variant` (payload anterior preservado).
+- Projeção = consumo do mês (UTC) + regime diário estimado (custo do último refresh de cada Set ÷ frequência; sem
+  histórico, páginas de 100 cartas) até o fim do mês + aquisições restantes da implantação. LIVE 10/10: 1.309
+  consumidas, regime ≈ 241/dia, projeção ≈ 6.583 (66% do plano).
+- Atenção de orçamento: projeção > 90% do plano ou consumo do dia > 90% do limite diário.
+- UI (skill impeccable, polish): `pricing-api-budget.tsx` (novo, Server Component), `pricing-overview-stats.tsx`
+  (tiles condicionais "Sets aguardando configuração" → Descoberta e "Implantação de Sets" com progresso/ETA; rodapé com
+  Sets sem fonte, Sets sem cartas e produtos sem variante), `pricing-overview-hero.tsx` + `hero-fact.tsx` (`hint`),
+  `pricing-overview-status.ts` (`notes`, regras novas). Typecheck OK. Validação visual (light/dark, mobile): pendente
+  na máquina do Fabrício.
