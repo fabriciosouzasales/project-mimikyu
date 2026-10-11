@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.19 |
+| **Versão** | 2.20 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -226,6 +226,8 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > A última frente aberta era o alias de asset-path dos 6 subsets SWSH, recuperados **integralmente em EN** (`SWSH4.5SV` 122/122, `SWSH12.5GG` 70/70, `SWSH9TG`/`SWSH10TG`/`SWSH11TG`/`SWSH12TG` 30/30 cada) — **312 Assets EN**. Gates: smoke `SV001` PASS, harness de alias `140/140`, harness de integridade de promoção `12/12`.
 >
 > **Decisão explícita de escopo — não haverá nova busca por fonte externa neste momento.** A cobertura residual (Cards sem Asset em um ou nos dois idiomas) fica registrada como **dívida conhecida, fora do escopo desta fase**, e **não** como omissão. Não abrir nova investigação de Assets — nem novas APIs, nem novos aliases, nem varredura de gaps — sem mandato explícito de Fabrício. Cobertura perfeita não é critério de encerramento deste macrobloco; o critério é pipeline correto, governado e com resíduo declarado.
+>
+> **Atualização 2026-10-10 (`CATALOG-ASSETS-SCRYDEX-01`, mandato explícito de Fabrício).** As 905 cartas ativas sem imagem (TCGdex não publica) foram tratadas: **863 imagens importadas da Scrydex** por tabela fixa conferida por nome (Edge `import-scrydex-assets`). Restam **42** (My First Battle 34 + Aquapolis a/b 8) para o canal manual (ADR-026). Ver `database/proposals/2026-10-10-scrydex-card-assets/README.md`.
 >
 > **Próximo macrobloco, na ordem aprovada à época:** `PRIMARY SPECIES` → `CARD VARIANTS` → `VARIANT DEFAULT BACKFILL` → `COLLECTIONS / BULK-04`. (`PRIMARY SPECIES` foi encerrado em 2026-09-12 — ver bloco "Estado corrente" no topo; a próxima frente é `CARD VARIANTS — GLOBAL RECONCILIATION`.)
 >
@@ -677,3 +679,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.17 | **5c: carga concluída (2026-10-10).** F2-01, F3-01, piloto XY1 e F6 (lotes D/A/B/C, executada pelo agente a pedido de Fabrício): 49 jobs COMPLETED, 10.812 variantes, `card_variant` 37.303, 330 cartas sem variante. Próximo = fechamento da 5c (UI da 2ª fonte + achados), depois Pricing 80. |
 | 2.18 | **5c fechada (2026-10-10).** F2-01/F3-01 promovidos (`migrations/2246`, `schema/2247`), fonte `POKEMON_TCG_API` traduzida na UI, job SVE da reimportação confirmado (112 UNCHANGED), achados restantes registrados. Próximo = Pricing 80. |
 | 2.19 | **CATALOG-ME5.5-IMPORT-01 concluída (2026-10-10).** Variantes de ME5.5/ME5.5CC fechadas: seed `2256` (Edition Context `CAMPAIGN_30TH_ANNIVERSARY` + rota stamp `30TH-ANNIVERSARY`), revalidação das 188 NEEDS_REVIEW e confirmação dos 2 jobs pela UI (188 INSERTED). Item 6 da sequência vigente segue com BOOTSTRAP-03 closeout → DEFAULT-BACKFILL-01 → gate final. Pricing 80 praticamente fechado (3977/3985; 472 produtos sem variante em fila editorial). |
+| 2.20 | **CATALOG-ASSETS-SCRYDEX-01 (2026-10-10).** 863 das 905 cartas sem imagem receberam imagem da Scrydex (Edge `import-scrydex-assets`, 8 lotes, 0 falha); restam 42 (MFB 34 + ECARD2 a/b 8) para o canal manual. Nota adicionada ao bloco `ASSETS-FINAL-CLOSEOUT`. |
