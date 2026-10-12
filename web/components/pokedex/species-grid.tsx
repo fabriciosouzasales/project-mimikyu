@@ -1,15 +1,16 @@
 import { Pokeball } from "@/components/icons/pokeball-icon";
+import { SpeciesArtwork } from "@/components/pokedex/species-artwork";
+import { PRIORITY_ARTWORK_COUNT, speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import type { PokedexGeneration, PokedexSpecies } from "@/lib/pokedex/queries";
 import { formatCount, formatDexNumber, generationLabel } from "@/lib/pokedex/format";
 
 /**
  * Grade da Pokédex Nacional (Pokédex P1), agrupada por geração.
  *
- * Arte: as imagens oficiais das espécies entram no incremento de importação
- * (D1 — PokéAPI, armazenadas na infraestrutura do MMKYU). Até lá cada
- * espécie ocupa uma moldura de arte neutra, com a mesma proporção que a
- * imagem terá — a troca futura não altera layout (sem CLS) e não usa cartas
- * TCG como substituto (decisão D1).
+ * Arte (P2 Lote C): quando a função devolve `artwork_path`, a moldura mostra o
+ * WebP da espécie (bucket próprio, D1); sem arte ou se a imagem falhar, a
+ * moldura neutra com a Pokébola — mesma proporção nos dois casos (sem CLS) e
+ * nunca imagem de carta TCG como substituto.
  *
  * Performance: renderizada inteira no servidor (sem JavaScript por item);
  * cada geração usa `content-visibility: auto`, então o navegador só faz
@@ -24,6 +25,9 @@ export function SpeciesGrid({
   generations: PokedexGeneration[];
 }) {
   const regionByCode = new Map(generations.map((generation) => [generation.generation_code, generation]));
+  // Posição de cada espécie na grade renderizada — só o topo visível carrega
+  // com prioridade; o resto é lazy (e fica fora do paint por content-visibility).
+  const positionByNumber = new Map(species.map((item, index) => [item.national_dex_number, index]));
   const groups: { code: string; items: PokedexSpecies[] }[] = [];
   for (const item of species) {
     const current = groups[groups.length - 1];
@@ -62,7 +66,11 @@ export function SpeciesGrid({
 
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
               {group.items.map((item) => (
-                <SpeciesTile key={item.national_dex_number} species={item} />
+                <SpeciesTile
+                  key={item.national_dex_number}
+                  species={item}
+                  priority={(positionByNumber.get(item.national_dex_number) ?? Infinity) < PRIORITY_ARTWORK_COUNT}
+                />
               ))}
             </ul>
           </section>
@@ -72,8 +80,9 @@ export function SpeciesGrid({
   );
 }
 
-function SpeciesTile({ species }: { species: PokedexSpecies }) {
+function SpeciesTile({ species, priority }: { species: PokedexSpecies; priority: boolean }) {
   const number = formatDexNumber(species.national_dex_number);
+  const artworkUrl = speciesArtworkUrl(species.artwork_path);
   return (
     <li>
       <article
@@ -84,10 +93,17 @@ function SpeciesTile({ species }: { species: PokedexSpecies }) {
           className="relative flex aspect-square items-center justify-center overflow-hidden bg-gradient-to-b from-surface-muted/90 to-surface-muted/30 dark:from-surface-muted/50 dark:to-transparent"
           aria-hidden="true"
         >
-          <Pokeball className="h-1/3 w-1/3 text-foreground/[0.07] dark:text-foreground/[0.09]" strokeWidth={1.25} />
-          <span className="absolute bottom-2 right-3 font-heading text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground/[0.06] dark:text-foreground/[0.08]">
-            {species.national_dex_number}
-          </span>
+          {artworkUrl ? (
+            // Arte da espécie (WebP do bucket próprio) — volta à Pokébola se falhar.
+            <SpeciesArtwork src={artworkUrl} priority={priority} />
+          ) : (
+            <>
+              <Pokeball className="h-1/3 w-1/3 text-foreground/[0.07] dark:text-foreground/[0.09]" strokeWidth={1.25} />
+              <span className="absolute bottom-2 right-3 font-heading text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground/[0.06] dark:text-foreground/[0.08]">
+                {species.national_dex_number}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex flex-1 flex-col gap-0.5 px-3 pb-3 pt-2.5">
           <span className="text-[11px] font-medium tabular-nums tracking-wide text-muted-foreground">Nº {number}</span>

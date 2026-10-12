@@ -28,6 +28,12 @@ export type PokedexSpecies = {
   species_name: string;
   generation_code: string;
   generation_ordinal: number;
+  /**
+   * Caminho da versão WebP da arte no bucket `pokemon-species-artwork` (Query 6132),
+   * só quando a imagem foi importada; `null`/ausente = moldura com a Pokébola.
+   * Convertido em URL por `speciesArtworkUrl` (lib/pokedex/artwork.ts).
+   */
+  artwork_path?: string | null;
 };
 
 /** Limite espelhado da função SQL (64 caracteres) — evita enviar texto que o banco descartaria. */

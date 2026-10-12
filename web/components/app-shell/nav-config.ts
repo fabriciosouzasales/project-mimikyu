@@ -11,6 +11,7 @@ import {
   Globe,
   History,
   ImagePlus,
+  Images,
   Layers,
   LayoutDashboard,
   LayoutGrid,
@@ -226,7 +227,12 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Pokédex",
     icon: Pokeball,
     href: "/pokedex",
-    children: [{ href: "/pokedex", label: "Pokédex Nacional", section: "Explorar", icon: LayoutGrid }],
+    children: [
+      { href: "/pokedex", label: "Pokédex Nacional", section: "Explorar", icon: LayoutGrid },
+      // Pokédex P2 Lote E (2026-10-12) — cobertura, diagnóstico e
+      // reprocessamento pontual das imagens das espécies. Só administradores.
+      { href: "/pokedex/imagens", label: "Imagens", section: "Cadastro", icon: Images, adminOnly: true },
+    ],
   },
 ];
 
