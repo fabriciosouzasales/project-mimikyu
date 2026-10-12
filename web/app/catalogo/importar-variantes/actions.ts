@@ -16,6 +16,17 @@ import {
   deriveVariantImportScopeCounters,
   type VariantImportScopeCounters,
 } from "@/lib/catalogo/variant-size-scope";
+import {
+  effectiveScope,
+  parseAxisPreview,
+  parseRowDiagnosis,
+  type AxisPreview,
+  type AxisProfileOption,
+  type MappingAxis,
+  type MappingDraft,
+  type NamedRef,
+  type RowDiagnosis,
+} from "@/lib/catalogo/axis-resolution";
 
 /**
  * Server Actions do fluxo Importar Variantes (Incremento 4, ADR-028),
@@ -265,6 +276,213 @@ export async function criarTipoVariacaoEResolverMapeamento(
     mappingId: result?.mapping_id as string | undefined,
     rowsUpdated: result?.rows_updated as number | undefined,
     jobsAffected: result?.jobs_affected as number | undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// P3b — Impressão e Contexto de Edição na revisão (Queries 2271–2274)
+// ---------------------------------------------------------------------------
+//
+// Toda decisão passa pelas RPCs administrativas (SECURITY DEFINER, is_admin()
+// no banco). As actions só repassam a intenção do administrador; o jogo, o Set
+// e o escopo efetivo são resolvidos pelo próprio banco a partir da linha.
+
+export type DiagnosticarLinhaResult = { error: string | null; diagnosis: RowDiagnosis | null };
+
+/** Diagnóstico dos três eixos de uma linha (Query 2271, só leitura). */
+export async function diagnosticarLinhaVariante(rowId: string): Promise<DiagnosticarLinhaResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_explain_catalog_variant_import_row", { p_row_id: rowId });
+  if (error) return { error: traduzirErroCatalogo(error.message), diagnosis: null };
+  return { error: null, diagnosis: parseRowDiagnosis(data) };
+}
+
+export type AxisTraitOption = NamedRef & { family: string | null; displayOrder: number };
+
+export type CatalogoEixoResult = {
+  error: string | null;
+  traits: AxisTraitOption[];
+  profiles: AxisProfileOption[];
+};
+
+const AXIS_TABLES: Record<MappingAxis, { trait: string; profile: string; traitColumns: string }> = {
+  PRINTING: {
+    trait: "card_printing_trait",
+    profile: "card_printing_profile",
+    traitColumns: "id, code, name, display_order",
+  },
+  EDITION_CONTEXT: {
+    trait: "card_edition_context_trait",
+    profile: "card_edition_context_profile",
+    traitColumns: "id, code, name, display_order, family",
+  },
+};
+
+/**
+ * Características e perfis ATIVOS do eixo, no jogo da linha. Leitura sob a
+ * RLS admin-only dessas tabelas; carregada uma vez por eixo e reaproveitada
+ * pelo diálogo enquanto a tela estiver aberta.
+ */
+export async function carregarCatalogoEixo(rowId: string, axis: MappingAxis): Promise<CatalogoEixoResult> {
+  const supabase = await createClient();
+  const { data: row, error: rowError } = await supabase
+    .from("catalog_variant_import_row")
+    .select("card:card_id(card_set:card_set_id(expansion:expansion_id(game_id)))")
+    .eq("id", rowId)
+    .maybeSingle();
+  const gameId = (row as unknown as { card: { card_set: { expansion: { game_id: string } } } } | null)?.card?.card_set
+    ?.expansion?.game_id;
+  if (rowError || !gameId) {
+    return { error: "Não foi possível identificar o jogo desta linha.", traits: [], profiles: [] };
+  }
+
+  const tables = AXIS_TABLES[axis];
+  const [traitsRes, profilesRes] = await Promise.all([
+    supabase
+      .from(tables.trait)
+      .select(tables.traitColumns)
+      .eq("game_id", gameId)
+      .eq("is_active", true)
+      .order("display_order", { ascending: true }),
+    supabase
+      .from(tables.profile)
+      .select("id, code, name, display_order, traits_signature")
+      .eq("game_id", gameId)
+      .eq("is_active", true)
+      .order("display_order", { ascending: true }),
+  ]);
+  if (traitsRes.error || profilesRes.error) {
+    return { error: "Não foi possível carregar características e perfis deste eixo.", traits: [], profiles: [] };
+  }
+
+  type TraitRow = { id: string; code: string; name: string; display_order: number; family?: string | null };
+  type ProfileRow = { id: string; code: string; name: string; display_order: number; traits_signature: string[] | null };
+  return {
+    error: null,
+    traits: ((traitsRes.data ?? []) as unknown as TraitRow[]).map((t) => ({
+      id: t.id,
+      code: t.code,
+      name: t.name,
+      family: t.family ?? null,
+      displayOrder: t.display_order,
+    })),
+    profiles: ((profilesRes.data ?? []) as unknown as ProfileRow[])
+      // Perfil sem selo não tem identidade utilizável — não é oferecido.
+      .filter((p) => Array.isArray(p.traits_signature) && p.traits_signature.length > 0)
+      .map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        displayOrder: p.display_order,
+        traitIds: p.traits_signature ?? [],
+      })),
+  };
+}
+
+export type SimularMapeamentoEixoResult = { error: string | null; preview: AxisPreview | null };
+
+/**
+ * Prévia (Query 2272). Executa a RPC de escrita real numa subtransação e a
+ * desfaz — tem custo de escrita e trava as linhas atingidas por instantes.
+ * Chamada apenas por ação explícita do administrador, nunca a cada digitação.
+ */
+export async function simularMapeamentoEixo(rowId: string, draft: MappingDraft): Promise<SimularMapeamentoEixoResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_preview_catalog_variant_import_axis_mapping", {
+    p_row_id: rowId,
+    p_axis: draft.axis,
+    p_raw_field: draft.field,
+    p_token: draft.token,
+    p_trait_ids: draft.traitIds,
+    p_scope: effectiveScope(draft.axis, draft.scope),
+  });
+  if (error) return { error: traduzirErroCatalogo(error.message), preview: null };
+  const preview = parseAxisPreview(data);
+  if (preview.error) preview.error = traduzirErroCatalogo(preview.error);
+  return { error: null, preview };
+}
+
+export type NovoPerfilEixo = { code: string; name: string; description: string | null; displayOrder: number };
+
+export type ResolverMapeamentoEixoResult = {
+  error: string | null;
+  /** Perfil criado nesta chamada — informado mesmo quando o mapeamento falha depois. */
+  createdProfileName?: string;
+  rowsTouched?: number;
+  rowsRevalidated?: number;
+  rowsStillPending?: number;
+  jobsAffected?: number;
+};
+
+/**
+ * Grava a decisão. Com perfil novo, cria o perfil primeiro
+ * (admin_create_card_*_profile_with_backfill: composição selada, sem linha
+ * atingida ainda) e depois o mapeamento — nessa ordem, nenhuma linha válida
+ * passa por um estado "sem perfil". Se o mapeamento falhar, o perfil criado
+ * continua existindo e é informado: é reutilizável na próxima tentativa.
+ */
+export async function resolverMapeamentoEixo(
+  rowId: string,
+  draft: MappingDraft,
+  novoPerfil: NovoPerfilEixo | null,
+): Promise<ResolverMapeamentoEixoResult> {
+  const supabase = await createClient();
+  let createdProfileName: string | undefined;
+
+  if (novoPerfil) {
+    const fn =
+      draft.axis === "PRINTING"
+        ? "admin_create_card_printing_profile_with_backfill"
+        : "admin_create_card_edition_context_profile_with_backfill";
+    const { error } = await supabase.rpc(fn, {
+      p_code: novoPerfil.code,
+      p_name: novoPerfil.name,
+      p_description: novoPerfil.description,
+      p_display_order: novoPerfil.displayOrder,
+      p_trait_ids: draft.traitIds,
+    });
+    if (error) return { error: traduzirErroCatalogo(error.message) };
+    createdProfileName = novoPerfil.name;
+  }
+
+  const { data, error } =
+    draft.axis === "PRINTING"
+      ? await supabase.rpc("admin_resolve_catalog_variant_import_printing_mapping", {
+          p_row_id: rowId,
+          p_raw_field: draft.field,
+          p_token: draft.token,
+          p_trait_ids: draft.traitIds,
+        })
+      : await supabase.rpc("admin_resolve_catalog_variant_import_edition_context_mapping", {
+          p_row_id: rowId,
+          p_raw_field: draft.field,
+          p_token: draft.token,
+          p_trait_ids: draft.traitIds,
+          p_scope: effectiveScope(draft.axis, draft.scope),
+        });
+
+  revalidatePath("/catalogo/importar-variantes");
+  if (error) {
+    const message = traduzirErroCatalogo(error.message);
+    return {
+      error: createdProfileName
+        ? `O perfil "${createdProfileName}" foi criado, mas o mapeamento não foi gravado: ${message}`
+        : message,
+      createdProfileName,
+    };
+  }
+
+  const r = (Array.isArray(data) ? data[0] : data) as Record<string, number> | null;
+  // A RPC de Impressão (2181) devolve rows_updated; a de Contexto (2273), rows_touched/rows_revalidated.
+  const touched = r?.rows_touched ?? r?.rows_updated ?? 0;
+  const pending = r?.rows_still_pending ?? 0;
+  return {
+    error: null,
+    createdProfileName,
+    rowsTouched: touched,
+    rowsRevalidated: r?.rows_revalidated ?? Math.max(touched - pending, 0),
+    rowsStillPending: pending,
+    jobsAffected: r?.jobs_affected ?? 0,
   };
 }
 
