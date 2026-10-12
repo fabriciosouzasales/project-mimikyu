@@ -103,6 +103,21 @@ A modelagem lógica completa de Pokémon Species/Generation/Form-Variety e sua r
 
 ---
 
+# Atualização — Dados de Referência da Pokédex (v1.4, 2026-10-12)
+
+Pokédex P3a (decisão D1 de Fabrício). A emenda de AP-017 (`02-architecture-principles.md` v1.10) distingue dois escopos:
+
+1. **Catálogo Pokémon TCG** — inalterado: nenhuma mecânica de batalha (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio, texto de regras) é estruturada em Card ou entidades do catálogo de cartas.
+2. **Pokédex** — pode armazenar informações de referência das espécies para identificação, exploração, pesquisa e apresentação visual: classificação, descrição selecionada da Pokédex, indicadores lendário/mítico/bebê (espécie); tipos, altura e peso (forma padrão); vocabulário dos 18 tipos elementais.
+
+Consequências:
+- **Pokémon Form / Variety** (LDM-175) ganha a primeira estrutura física, `pokemon_form`, restrita à forma padrão (uma por espécie), identificada pela referência oficial da PokéAPI e conferida pelo vínculo espécie → variedade padrão → Pokémon. Formas regionais, alternativas, Mega e Gigantamax continuam fora.
+- Habilidades, estatísticas-base, golpes e cadeias evolutivas continuam fora de escopo.
+- Textos de terceiros (classificação e descrição) são guardados com idioma, versão de origem e situação de direitos (`THIRD_PARTY_UNLICENSED`), como a arte das espécies; traduções editoriais futuras ficam identificadas como conteúdo MMKYU, nunca como oficiais.
+- Estrutura física proposta em `database/proposals/2026-10-12-pokedex-p3a-species-enrichment/` (Query 6133). Texto de v1.0–v1.3 preservado inalterado.
+
+---
+
 # Alternatives Considered
 
 ## Modelar o domínio completo da franquia Pokémon
@@ -134,3 +149,4 @@ Rejeitada por impedir relacionar todas as Cards que representam o mesmo Pokémon
 | 1.1 | Adicionada "Atualização — Escopo de Pokémon Card Details Esvaziado": Fabrício determinou diretamente que mecânica de jogo (HP, ataques, habilidades, fraqueza, resistência, custo de recuo, estágio) não deve ser estruturada, formalizado em AP-017. O padrão Card Details/Pokémon Card Details/Trainer Card Details permanece válido como arquitetura, mas sem conteúdo de jogo planejado; a entidade Pokémon mínima deixa de ser item da primeira versão da Card. |
 | 1.2 | **Revogação do adiamento da entidade Pokémon, 2026-09-03** (`COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`). Adicionada "Atualização — Revogação do Adiamento da Entidade Pokémon / Registro de Pokémon Species (v1.2)": a condição que v1.1 estabelecia para reverter o adiamento ("necessidade concreta de identificação/pesquisa/agrupamento") se confirmou com a frente Collections Pokédex/`REFERENCE_POSITION` (ver `docs/domain-modeling/collections/logical-model.md`, LDM-175 a LDM-185). Entidade renomeada para **Pokémon Species** (convergência com PokéAPI), com **Generation** e **Pokémon Form/Variety** registrados como conceitos subordinados. Sourcing formalizado: PokéAPI (Species/Generation/Form/Pokédex) + TCGdex (Card/`dexId`, já integrada) + reconciliação editorial MMKYU, sem dependência de runtime (consistente com ADR-008). O adiamento de mecânica de jogo (AP-017) **não é afetado** — permanece integralmente em vigor. Texto de v1.0/v1.1 preservado inalterado. Nenhuma estrutura física criada nesta rodada. |
 | 1.3 | **Pokémon Region como entidade canônica própria, 2026-09-04** (`POKEMON-REGION-DOMAIN-MODELING-AUDIT-01` → `POKEMON-REGION-FOUNDATION-PHYSICAL-IMPLEMENTATION-01`/`-CANONICAL-PROMOTION-01`). Adicionada "Atualização — Pokémon Region (v1.3)": Region confirmada como entidade-raiz de catálogo independente de Generation (existem Regiões sem Main Generation — Orre, Hisui), cardinalidade Generation → Main Region é N:1. Fundação física (`pokemon_region`/`pokemon_region_external_reference`/`pokemon_generation.main_region_id`) **CONFIRMADO EXECUTADO**, sourcing real ainda SUSPENSO. Locations/Areas/Version Groups permanecem fora de escopo. Detalhamento lógico em `logical-model.md`, LDM-186 a LDM-190. Texto de v1.0/v1.1/v1.2 preservado inalterado. |
+| 1.4 | **Dados de referência da Pokédex, 2026-10-12** (Pokédex P3a, decisão D1). Adicionada "Atualização — Dados de Referência da Pokédex (v1.4)": AP-017 preservado para o Catálogo Pokémon TCG; a Pokédex pode estruturar classificação, descrição, lendário/mítico/bebê, tipos, altura e peso da forma padrão e o vocabulário dos 18 tipos. Primeira estrutura física de Pokémon Form (`pokemon_form`, só forma padrão). Habilidades, estatísticas, golpes, evoluções e formas alternativas continuam fora. Texto de v1.0–v1.3 preservado. |

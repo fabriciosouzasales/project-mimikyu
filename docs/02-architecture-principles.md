@@ -4,7 +4,7 @@
 |-|-|
 |**Documento**|Architecture Principles|
 |**Arquivo**|`docs/02-architecture-principles.md`|
-|**Versão**|1.8|
+|**Versão**|1.10|
 |**Status**|Aprovado|
 |**Objetivo**|Definir os princípios permanentes que orientam as decisões arquiteturais do Project Mimikyu.|
 |**Escopo**|Princípios de arquitetura e governança técnica. Não contém regras detalhadas de implementação.|
@@ -126,6 +126,14 @@ Isso vale mesmo para informações que, à primeira vista, parecem estruturávei
 
 Este princípio nasceu de uma correção direta de Fabrício durante a modelagem física da Card: "Não faço questão dessas informações em nossa base de dados. Lembre que essas informações são relevantes para o jogo e não para o colecionismo." Ele reforça e torna permanente — não apenas uma fase inicial (V1) — o lado "Visual Source" do modelo de três níveis já estabelecido em ADR-012 para esse grupo específico de informações.
 
+**Emenda — Escopo da Pokédex (v1.10, 2026-10-12, Pokédex P3a).** AP-017 continua integral para o **Catálogo Pokémon TCG** (Card, Card Variant, Card Set e demais entidades do catálogo de cartas): nenhuma mecânica de batalha — dos videogames ou do TCG — é estruturada ali. O módulo **Pokédex**, por natureza uma referência de identificação das espécies, passa a poder armazenar **informações de referência da espécie** destinadas a identificação, exploração, pesquisa e apresentação visual, limitadas a:
+
+- espécie: classificação (genus), descrição selecionada da Pokédex, indicadores de lendário, mítico e bebê;
+- forma padrão: tipo primário e secundário, altura e peso;
+- vocabulário: os 18 tipos elementais, com código canônico e rótulo por idioma.
+
+Continuam fora de escopo, inclusive na Pokédex: habilidades, estatísticas-base, golpes, cadeias evolutivas, formas alternativas e qualquer outra mecânica de combate. Os dados autorizados vivem só nas estruturas da Pokédex (`pokemon_type`, `pokemon_form`, `pokemon_form_type`, `pokemon_species_profile`, `pokemon_species_text`) e não são copiados para Card ou outros módulos; o "tipo elemental" da espécie não substitui nem se mistura com o tipo de energia impresso na Card. A emenda não flexibiliza AP-017 para nenhum outro módulo — ampliar a lista acima exige nova decisão explícita.
+
 Consequência prática: especializações de conteúdo por categoria de Card (ex.: uma tabela `pokemon_card` para HP/estágio/tipo/fraqueza/resistência/recuo) deixam de ser necessárias — o padrão Card Details / Pokémon Card Details / Trainer Card Details definido em ADR-011 permanece válido como arquitetura de extensão por módulo, mas seu conteúdo concreto de mecânica de jogo fica vazio/adiado indefinidamente, não apenas para a primeira versão.
 
 ## AP-018 — Princípio da Identidade Editorial Real
@@ -160,6 +168,7 @@ Este refinamento nasceu do cadastro real de `MEP`/`MEE` (ver `05-modelo-de-dados
 |1.7|Adicionado AP-018 (Princípio da Identidade Editorial Real): nunca inventar um código editorial quando um identificador oficial real existe ou pode ser pesquisado — nasceu do episódio real `ME0`→`MEP` (ver `ADR-015`, revisão `1.4`).|
 |1.8|Estendido AP-018 para cobrir também `name` (não apenas `code`): o nome de uma entidade editorial deve reproduzir exatamente o nome registrado pela fonte oficial efetivamente consultada, nunca uma tradução ou reformulação criada durante o cadastro — nasceu do cadastro real de `MEP` (nome inicialmente traduzido, corrigido para o nome oficial da TCGdex). Sinalizada, sem resolver unilateralmente, uma discrepância real: os nomes já cadastrados de `ME1`-`ME4`/`ME2.5` estão em português, o que este refinamento classificaria como não-conforme se aplicado retroativamente.|
 |1.9|Convergência terminológica (2026-08-30): exemplo de aplicação de AP-013 atualizado de "Inventory Item" para "Physical Card" (nome canônico vigente, ver `concept-decisions.md` C-47/C-48). Apenas nomenclatura — o princípio em si (o que pertence à Card vs. o que pertence ao exemplar físico) não foi alterado.|
+|1.10|**Emenda do AP-017 — escopo da Pokédex (2026-10-12, Pokédex P3a).** AP-017 preservado integralmente para o Catálogo Pokémon TCG; o módulo Pokédex pode estruturar só informações de referência da espécie (classificação, descrição, lendário/mítico/bebê, tipos, altura e peso da forma padrão e o vocabulário dos 18 tipos). Habilidades, estatísticas, golpes, evoluções e formas alternativas continuam fora. Ver `ADR-011` v1.4.|
 
 
 
