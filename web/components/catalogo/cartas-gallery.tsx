@@ -8,6 +8,7 @@ import { flushSync } from "react-dom";
 import { reactivateCard } from "@/app/catalogo/cartas/actions";
 import { DeactivateCardDialog, EditCardDialog, NewCardDialog } from "@/components/catalogo/carta-dialogs";
 import { CartaDefaultVariantDialog } from "@/components/catalogo/carta-default-variant-dialog";
+import { CartaVariantsManagerDialog } from "@/components/catalogo/carta-variants-manager-dialog";
 import { CartasStats } from "@/components/catalogo/cartas-stats";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import { SetTypeTag } from "@/components/catalogo/set-type-tag";
@@ -234,6 +235,10 @@ export function CartasGallery({
   const [defaultVariantCartaId, setDefaultVariantCartaId] = useState<string | null>(null);
   const defaultVariantCarta = cartas.find((carta) => carta.id === defaultVariantCartaId) ?? null;
   const [defaultVariantNotice, setDefaultVariantNotice] = useState<string | null>(null);
+  // P2a (2026-10-11) — diálogo "Variações" (lista + cadastro). Id no estado,
+  // mesma razão do padrão: a carta é relida de `cartas` após router.refresh().
+  const [variantsCartaId, setVariantsCartaId] = useState<string | null>(null);
+  const variantsCarta = cartas.find((carta) => carta.id === variantsCartaId) ?? null;
   useEffect(() => {
     setDefaultVariantNotice(null);
   }, [state.editingId]);
@@ -856,6 +861,7 @@ export function CartasGallery({
                         onEdit={() => state.startEdit(carta.id)}
                         onDeactivate={() => setDeactivatingCarta(carta)}
                         onManageDefaultVariant={() => setDefaultVariantCartaId(carta.id)}
+                        onManageVariants={() => setVariantsCartaId(carta.id)}
                         onReactivate={() => handleReactivate(carta)}
                         reactivating={reactivatingId === carta.id}
                         pricingEntry={pricingByCard.get(carta.id)}
@@ -885,6 +891,7 @@ export function CartasGallery({
         onCancel={state.cancelEdit}
         onManageDefaultVariant={editingCarta?.isActive ? () => setDefaultVariantCartaId(editingCarta.id) : undefined}
         defaultVariantNotice={defaultVariantNotice}
+        onManageVariants={editingCarta ? () => setVariantsCartaId(editingCarta.id) : undefined}
       />
 
       <NewCardDialog
@@ -907,6 +914,14 @@ export function CartasGallery({
           handleSaved(message, id);
         }}
         onCancel={() => setDeactivatingCarta(null)}
+      />
+
+      {/* P2a — fica aberto após cadastrar; a lista se atualiza com o refresh. */}
+      <CartaVariantsManagerDialog
+        open={variantsCarta !== null}
+        carta={variantsCarta}
+        onSaved={() => router.refresh()}
+        onClose={() => setVariantsCartaId(null)}
       />
 
       {/* Depois do EditCardDialog no JSX: quando aberto a partir dele, fica por cima. */}
@@ -1113,6 +1128,7 @@ function CartaGridCard({
   onDeactivate,
   onReactivate,
   onManageDefaultVariant,
+  onManageVariants,
   reactivating,
   pricingEntry,
 }: {
@@ -1139,6 +1155,8 @@ function CartaGridCard({
   onReactivate: () => void;
   /** P1 (2026-10-11): abre o diálogo de variante padrão desta carta (atalho no popover de variações). */
   onManageDefaultVariant: () => void;
+  /** P2a: abre o diálogo "Variações" desta carta. */
+  onManageVariants: () => void;
   /** `true` enquanto a reativação desta carta específica está em voo — desabilita o botão e troca o ícone. */
   reactivating: boolean;
   /** Resumo de preço já resolvido pelo `usePricingBatch` do grid pai — `undefined` enquanto o lote não chegou; ver `CardPriceSummary`. */
@@ -1289,6 +1307,7 @@ function CartaGridCard({
                 cartaName={carta.name}
                 view={carta.variantView}
                 onManageDefault={carta.isActive ? onManageDefaultVariant : undefined}
+                onManageVariants={onManageVariants}
               />
               {/* Pill de preço (P12, último ajuste visual, 2026-08-18) —
                   posicionado imediatamente após o indicador de variantes, pedido

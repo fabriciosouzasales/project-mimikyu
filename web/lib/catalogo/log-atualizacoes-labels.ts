@@ -61,6 +61,8 @@ export const ACTION_OPTIONS: { value: string; label: string }[] = [
   { value: "CARD_REACTIVATED", label: "Carta reativada" },
   // Query 2264 (P1 — variante padrão manual).
   { value: "CARD_VARIANT_DEFAULT_SET", label: "Variante padrão definida" },
+  // Query 2267 (P2a — cadastro individual de variante).
+  { value: "CARD_VARIANT_CREATED", label: "Variação cadastrada" },
   { value: "CATALOG_IMPORT_JOB", label: "Importação iniciada" },
   { value: "CATALOG_IMPORT_CONFIRMED", label: "Importação confirmada" },
   { value: "CATALOG_IMPORT_ROWS_REVALIDATED", label: "Importação revalidada" },
@@ -147,6 +149,13 @@ export const METADATA_KEY_LABEL: Record<string, string> = {
   label: "Variação padrão",
   previous_card_variant_id: "Variação anterior (id)",
   previous_label: "Variação padrão anterior",
+  // Query 2267 — CARD_VARIANT_CREATED.
+  variant_type_id: "Acabamento (id)",
+  printing_profile_id: "Impressão (id)",
+  edition_context_profile_id: "Contexto de edição (id)",
+  variant_order: "Ordem da variação",
+  is_default: "Virou padrão",
+  pricing: "Ligação de preços",
 };
 
 export function humanizeMetadataKey(key: string): string {

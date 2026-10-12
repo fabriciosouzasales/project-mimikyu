@@ -37,11 +37,14 @@ export function CartaVariantsSummary({
   cartaName,
   view,
   onManageDefault,
+  onManageVariants,
 }: {
   cardId: string;
   cartaName: string;
   view: CartaVariantViewState | null | undefined;
   onManageDefault?: () => void;
+  /** P2a: atalho "Gerenciar variações" (lista + cadastro individual). */
+  onManageVariants?: () => void;
 }) {
   const { anchorRef, contentRef, open, position, scheduleOpen, scheduleClose, openNow, closeNow, toggle } =
     useAnchoredPopover<HTMLButtonElement, HTMLDivElement>();
@@ -138,8 +141,9 @@ export function CartaVariantsSummary({
                 </ul>
               ) : null}
               {model.kind === "LIST" ? (
-                !model.defaultLine || onManageDefault ? (
-                <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+                !model.defaultLine || onManageDefault || onManageVariants ? (
+                <div className="mt-2 space-y-1.5 border-t border-border pt-2">
+                <div className="flex items-center justify-between gap-3">
                   {model.defaultLine ? (
                     <span aria-hidden="true" />
                   ) : (
@@ -161,6 +165,22 @@ export function CartaVariantsSummary({
                       {model.defaultLine ? "Alterar padrão" : "Escolher padrão"}
                     </button>
                   ) : null}
+                </div>
+                {onManageVariants ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        closeNow();
+                        onManageVariants();
+                      }}
+                      className="rounded font-medium text-primary-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Gerenciar variações
+                    </button>
+                  </div>
+                ) : null}
                 </div>
                 ) : null
               ) : (

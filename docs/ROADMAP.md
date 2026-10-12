@@ -486,6 +486,7 @@ editorial** que estabilizou essa campanha para escala.
 >     e no relatório; restam 4 cartas sem padrão (decisão editorial); homologação visual pendente
 >     (os 13 empates passam a ser resolvidos pela tela) → P2/P3 essenciais (gerir variantes da carta;
 >     resolver impressão/contexto de edição na importação)
+>     P2a cadastro individual de variante — frontend implementado; Query 2267 aguardando execução; P2b (desativar/reativar) a seguir
 > 8. Collections: BULK-04 → BULK-05 → BULK-06 → UX Read Models/Contracts → UX Flows/Wireframes → Frontend Collections
 > ```
 >

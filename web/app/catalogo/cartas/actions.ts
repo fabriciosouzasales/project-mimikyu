@@ -208,3 +208,122 @@ export async function setCardVariantDefault(
   }
   return { error: null, changed };
 }
+
+/** P2a (2026-10-11) — opção de um eixo de variante (Acabamento, Impressão ou Contexto de edição). */
+export type VariantAxisOption = { id: string; name: string };
+export type VariantAxisOptions = {
+  finishes: VariantAxisOption[];
+  printings: VariantAxisOption[];
+  editionContexts: VariantAxisOption[];
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * P2a — vocabulário dos 3 eixos para o formulário "Adicionar variação",
+ * buscado sob demanda (só quando o diálogo abre), já filtrado ao Game da
+ * carta e a itens ativos — os mesmos critérios que a RPC aplica no servidor.
+ * Leitura sob RLS admin-only (`catalog_admin_select`).
+ */
+export async function getVariantAxisOptions(
+  cardId: string,
+): Promise<{ error: string | null; options?: VariantAxisOptions }> {
+  if (!UUID_RE.test(cardId)) return { error: "Carta inválida." };
+  const supabase = await createClient();
+
+  const { data: card, error: cardError } = await supabase
+    .from("card")
+    .select("id, card_set!inner(expansion!inner(game_id))")
+    .eq("id", cardId)
+    .maybeSingle();
+  const gameId = (card as { card_set?: { expansion?: { game_id?: string } } } | null)?.card_set?.expansion?.game_id;
+  if (cardError || !gameId) return { error: "Não foi possível identificar o jogo desta carta." };
+
+  const read = (table: string) =>
+    supabase
+      .from(table)
+      .select("id, name, display_order")
+      .eq("game_id", gameId)
+      .eq("is_active", true)
+      .order("display_order", { ascending: true })
+      .order("name", { ascending: true });
+
+  const [finishes, printings, editionContexts] = await Promise.all([
+    read("card_variant_type"),
+    read("card_printing_profile"),
+    read("card_edition_context_profile"),
+  ]);
+  if (finishes.error || printings.error || editionContexts.error) {
+    return { error: "Não foi possível carregar as opções de variação. Tente novamente em instantes." };
+  }
+  const map = (rows: unknown) => ((rows ?? []) as { id: string; name: string }[]).map(({ id, name }) => ({ id, name }));
+  return {
+    error: null,
+    options: {
+      finishes: map(finishes.data),
+      printings: map(printings.data),
+      editionContexts: map(editionContexts.data),
+    },
+  };
+}
+
+/** P2a — resultado da ligação de preços feita logo após o cadastro (sempre separado do cadastro). */
+export type CreateVariantPricing = {
+  status: "OK" | "NO_CANDIDATES" | "ERROR";
+  candidates: number;
+  linked: number;
+  linkedToNew: number;
+};
+
+/**
+ * P2a — cadastra uma Card Variant via `admin_create_card_variant()` (Query
+ * 2267). Admin, carta ativa, eixos válidos/ativos do mesmo Game, duplicata e
+ * ordem são decididos no banco. A ligação de preços é restrita à carta e não
+ * desfaz o cadastro quando falha — o resultado vem à parte em `pricing`.
+ */
+export async function createCardVariant(input: {
+  cardId: string;
+  variantTypeId: string;
+  printingProfileId: string | null;
+  editionContextProfileId: string | null;
+}): Promise<{ error: string | null; label?: string; isDefault?: boolean; pricing?: CreateVariantPricing }> {
+  const ids = [input.cardId, input.variantTypeId, input.printingProfileId, input.editionContextProfileId];
+  if (!UUID_RE.test(input.cardId) || !UUID_RE.test(input.variantTypeId)) {
+    return { error: "Escolha o acabamento da variação." };
+  }
+  if (ids.slice(2).some((id) => id !== null && !UUID_RE.test(id))) {
+    return { error: "Opção de variação inválida." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_create_card_variant", {
+    p_card_id: input.cardId,
+    p_variant_type_id: input.variantTypeId,
+    p_printing_profile_id: input.printingProfileId,
+    p_edition_context_profile_id: input.editionContextProfileId,
+  });
+  if (error) {
+    return { error: traduzirErroCatalogo(error.message) };
+  }
+
+  revalidatePath("/catalogo/cartas");
+  revalidatePath("/catalogo/relatorios/variantes-por-carta");
+
+  const result = (data ?? {}) as {
+    label?: string;
+    is_default?: boolean;
+    pricing?: { status?: string; candidates?: number; linked?: number; linked_to_new?: number };
+  };
+  const status = result.pricing?.status;
+  return {
+    error: null,
+    label: result.label,
+    isDefault: result.is_default === true,
+    pricing: {
+      status: status === "OK" || status === "NO_CANDIDATES" ? status : "ERROR",
+      candidates: result.pricing?.candidates ?? 0,
+      linked: result.pricing?.linked ?? 0,
+      linkedToNew: result.pricing?.linked_to_new ?? 0,
+    },
+  };
+}

@@ -251,6 +251,7 @@ export function EditCardDialog({
   onCancel,
   onManageDefaultVariant,
   defaultVariantNotice,
+  onManageVariants,
 }: {
   open: boolean;
   carta: CartaCompletaRow | null;
@@ -264,6 +265,8 @@ export function EditCardDialog({
   onManageDefaultVariant?: () => void;
   /** P1: confirmação exibida na seção "Variante padrão" depois de uma troca feita a partir daqui. */
   defaultVariantNotice?: string | null;
+  /** P2a (2026-10-11): abre o diálogo "Variações" (lista + adicionar) por cima deste. */
+  onManageVariants?: () => void;
 }) {
   const [pending, setPending] = useState(false);
 
@@ -298,6 +301,7 @@ export function EditCardDialog({
             onPendingChange={setPending}
             onManageDefaultVariant={onManageDefaultVariant}
             defaultVariantNotice={defaultVariantNotice ?? null}
+            onManageVariants={onManageVariants}
           />
         )}
       </DialogContent>
@@ -368,6 +372,42 @@ function DefaultVariantSection({
   );
 }
 
+/**
+ * P2a (2026-10-11) — seção "Variações" do formulário de edição: quantidade
+ * cadastrada + atalho para o diálogo de variações (lista e cadastro
+ * individual). Também é o caminho de teclado/sem variações, já que o
+ * indicador da galeria não aparece em cartas sem variação.
+ */
+function VariantsSection({ carta, onManage }: { carta: CartaCompletaRow; onManage?: () => void }) {
+  const model = buildVariantSummaryModel(carta.variantView, carta.name);
+  const titleId = `edit-card-variants-${carta.id}`;
+  const text =
+    model.kind === "HIDDEN"
+      ? "Nenhuma variação cadastrada"
+      : model.kind === "UNAVAILABLE"
+        ? "Detalhes indisponíveis"
+        : model.count === 1
+          ? "1 variação cadastrada"
+          : `${model.count} variações cadastradas`;
+  return (
+    <section aria-labelledby={titleId} className="rounded-md border border-border px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 space-y-0.5">
+          <p id={titleId} className="text-xs font-medium text-muted-foreground">
+            Variações
+          </p>
+          <p className="text-sm text-foreground">{text}</p>
+        </div>
+        {onManage ? (
+          <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onManage}>
+            Gerenciar
+          </Button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function EditCardForm({
   carta,
   raridades,
@@ -377,6 +417,7 @@ function EditCardForm({
   onPendingChange,
   onManageDefaultVariant,
   defaultVariantNotice,
+  onManageVariants,
 }: {
   carta: CartaCompletaRow;
   raridades: RaridadeRow[];
@@ -386,6 +427,7 @@ function EditCardForm({
   onPendingChange: (pending: boolean) => void;
   onManageDefaultVariant?: () => void;
   defaultVariantNotice: string | null;
+  onManageVariants?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(updateCard, initialState);
 
@@ -461,6 +503,7 @@ function EditCardForm({
           </div>
         </div>
 
+        <VariantsSection carta={carta} onManage={onManageVariants} />
         <DefaultVariantSection carta={carta} onManage={onManageDefaultVariant} notice={defaultVariantNotice} />
 
         {state.error && <InlineFeedback tone="error">{state.error}</InlineFeedback>}
