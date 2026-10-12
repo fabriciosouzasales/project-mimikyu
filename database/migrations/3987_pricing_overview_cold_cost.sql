@@ -3,10 +3,27 @@
 Projeto.....: Project Mimikyu
 Query.......: 3987 - Custo a frio da Visão Geral de Valor de Mercado (get_pricing_admin_overview)
 Versão......: 1.1
-Status......: PROPOSTA — aprovada em conteúdo por Fabrício (2026-10-12), aguardando
-              autorização de execução. Nada aplicado no LIVE.
+Status......: CONFIRMADO EXECUTADO (2026-10-12, 14:21–14:24 UTC) — autorizado por Fabrício.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-12
+
+Registro de execução (LIVE)
+  - Pré-check 14:21 UTC: 0 runs RECEIVED/PROCESSING, 0 leases; índice inexistente.
+    Baseline: vis_pct observation 92% / product 93%; reloptions NULL.
+  - Baseline da RPC (como admin): 5.712 ms (primeira chamada) / 207 ms (quente).
+  - PASSO 1 aplicado; reloptions conferidas.
+  - PASSO 2 (14:22, isolado, CONCURRENTLY): indisvalid/indisready = true, 40 kB;
+    EXPLAIN = Index Only Scan using ix_pricing_product_active_without_variant.
+  - PASSO 3 (pré-check reconfirmado 14:23:30, 0/0): VACUUM pricing_product às 14:23:48.
+  - PASSO 4 (pré-check reconfirmado 14:24:06, 0/0): VACUUM pricing_observation às 14:24:16.
+  - PASSO 5: vis_pct 100% nas duas; n_dead_tup 0 / 8; heap fetches 0 (product) e 201
+    (observation). Buffers: observações 12.048 → 799; produtos 18.654 → 887; produtos sem
+    variante 4.018 → 5.
+  - RPC após a aplicação (como admin): 1.282 ms (primeira chamada) / 142 ms (quente).
+    JSON idêntico ao baseline nos 17 indicadores comparáveis (excluídos só os blocos que
+    variam com o relógio: api_budget, last_sync_run, refresh_policy, dispatcher).
+  - Medição a cache totalmente frio não foi forçada (sem acesso a evicção de cache); fica
+    coberta pelo log de servidor "[pricing] ... falhou" em web/lib/pricing/queries.ts.
 
 Objetivo
   Fazer get_pricing_admin_overview() caber com folga no statement_timeout de 8 s do papel
