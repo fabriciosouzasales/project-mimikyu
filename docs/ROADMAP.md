@@ -487,8 +487,9 @@ editorial** que estabilizou essa campanha para escala.
 >     (os 13 empates passam a ser resolvidos pela tela) → P2/P3 essenciais (gerir variantes da carta;
 >     resolver impressão/contexto de edição na importação)
 >     P2a cadastro individual de variante — Query 2267 executada no LIVE (2026-10-11), homologada e publicada
->     P2b desativar/reativar variante — Queries 2268–2270 executadas no LIVE (2026-10-12); homologação funcional/visual
->       pendente. Dependência registrada para BULK-04: preview_bulk_operation valida variante inativa
+>     P2b desativar/reativar variante — Queries 2268–2270 executadas no LIVE (2026-10-12), homologada e publicada
+>     P3a impressão/contexto de edição na importação (backend) — Queries 2271–2274 propostas; ensaio aguardando
+>       autorização. P3b (interface) a seguir Dependência registrada para BULK-04: preview_bulk_operation valida variante inativa
 > 8. Collections: BULK-04 → BULK-05 → BULK-06 → UX Read Models/Contracts → UX Flows/Wireframes → Frontend Collections
 > ```
 >
