@@ -2853,3 +2853,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-11] feature | CATALOG-ASSETS-SCRYDEX-02 preparada: Edge import-scrydex-assets-2 (119 imagens en: SM3.5 78, SM6 6, SM2 143 confirmada Pandam=Hala, EXU A–Z 26, ECARD2 a/b 8 com imagem compartilhada); aguardando deploy; proposals/2026-10-11-scrydex-card-assets-2
 ## [2026-10-11] feature | CATALOG-ASSETS-SCRYDEX-02 executada: 119 imagens en pela Scrydex (probe 119/119); sem imagem en 153 → 34 e sem imagem nenhuma 68 → 34 (só MFB); ECARD2 a/b com imagem compartilhada (referência externa só no primeiro do par); ROADMAP
 ## [2026-10-11] fix | EXU completo: migration 2263 grava Unown "!"/"?" como EXCL/QUES (opção B), ordem 27/28, espécie e HOLO; plan.ts da Scrydex-02 ganha as 2 imagens (aguarda redeploy); 05b, ROADMAP
+## [2026-10-11] feature | Scrydex-02 rodada 2: imagens das Unown EXCL/QUES importadas (2/2); EXU 28/28 com imagem; sem imagem en = 34 (só MFB)

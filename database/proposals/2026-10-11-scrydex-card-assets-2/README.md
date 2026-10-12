@@ -77,4 +77,4 @@ Pendente: MFB (34, sem fonte, canal manual `ADR-026`).
 
 ## 7. Rodada 2 — Unown EXCL/QUES
 
-Após a migration `2263` (Unown "!" e "?" gravadas como EXCL e QUES), `plan.ts` ganhou 2 linhas (`ex10-exclamation`, `ex10-question`; total 121). Requer redeploy da função e reabertura do portão; a função pula as 119 que já têm imagem en.
+Após a migration `2263` (Unown "!" e "?" gravadas como EXCL e QUES), `plan.ts` ganhou 2 linhas (`ex10-exclamation`, `ex10-question`; total 121). Redeploy pelo Fabrício; portão reaberto; probe 2/2 `DISPONIVEL`; importação **2 `IMPORTADA`**, 0 falha; portão fechado automaticamente. EXU: 28/28 com imagem en. Catálogo: sem imagem en = 34 (só MFB).
