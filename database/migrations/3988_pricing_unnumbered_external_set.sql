@@ -3,7 +3,18 @@
 Projeto.....: Project Mimikyu
 Query.......: 3988 - Set externo sem numeração: casamento de cartas por nome (MFB)
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de execução. Nada aplicado no LIVE.
+Status......: CONFIRMADO EXECUTADO (2026-10-12) — autorizado por Fabrício.
+
+Registro de execução (LIVE)
+  - PASSO 1 (15:2x UTC): coluna + CHECK criados; 1 mapping marcado (MFB, my-first-battle-pokemon).
+  - PASSO 2: Edge justtcg-set-bootstrap publicada por Fabrício (supabase functions deploy).
+  - PASSO 3 (15:31:55): bootstrap do MFB reaberto (log rule 3988).
+  - PASSO 4: aquisição 15:32 — 50 itens da fonte, todos sem número ("N/A"), incluindo 2 kits
+    lacrados (não casam); casamento 15:37 — 32 CONFIRMED, 2 PENDING (Potion, Switch: só versões
+    por deck), 0 NOT_FOUND; todas as confirmadas na versão comum; método UNNUMBERED_SET_NAME_UNIQUE.
+  - PASSO 5 (15:37:50): refresh despausado; 1º refresh 15:45 SUCCESS — 109 produtos (todos
+    ligados a variante), 109 observações; preços conferidos com o TCGplayer (Arcanine 11,70;
+    Bulbasaur 16,23; Pikachu 19,69 USD).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-12
 Mandato.....: Fabrício, 2026-10-12: "Ligar as cartas pelo nome"
