@@ -8,8 +8,8 @@ sem CARD_FRONT em inglês no LIVE, por Set + número, com conferência de nome:
 - SM2 143: catálogo "Pandam" = Scrydex "Hala" — confirmado pelo texto da carta na TCGdex pt
   (sm2-143: "Embaralhe a sua mão no seu baralho. Se você usou o seu ataque GX, compre 7 cartas.
   Caso contrário, compre 4 cartas."), idêntico ao efeito de Hala; 144 Hibi = Hau, 145 Lulú = Mallow.
-- EXU (26): Unown A–Z = ex10-A … ex10-Z. "!" e "?" (ex10-exclamation / ex10-question) ficam
-  fora até a decisão sobre o número da carta.
+- EXU (28): Unown A–Z = ex10-A … ex10-Z. Rodada 2 (2026-10-11, após migration 2263): "!" e "?"
+  gravados no catálogo como EXCL e QUES (decisão de Fabrício, opção B) = ex10-exclamation / ex10-question.
 - ECARD2 a/b (8): a Scrydex publica uma imagem por número; decisão de Fabrício (2026-10-11):
   a mesma imagem vale para as versões a e b.
 
@@ -140,6 +140,8 @@ export const PLAN: Readonly<Record<string, PlanSet>> = {
     ["X", "Unown", "X"],
     ["Y", "Unown", "Y"],
     ["Z", "Unown", "Z"],
+    ["EXCL", "Unown", "exclamation"],
+    ["QUES", "Unown", "question"],
   ] },
   "ECARD2": { sx: "ecard2", rows: [
     ["50a", "Golduck", "50"],
@@ -153,4 +155,4 @@ export const PLAN: Readonly<Record<string, PlanSet>> = {
   ] },
 };
 
-export const PLAN_TOTAL = 119;
+export const PLAN_TOTAL = 121;

@@ -73,4 +73,8 @@ select count(*) from public.card c join public.card_set s on s.id = c.card_set_i
 | Primário duplicado por carta/tipo/idioma | 0 |
 | Portão | `enabled = false` |
 
-Pendentes: MFB (34, sem fonte, canal manual `ADR-026`); Unown "!" e "?" (decisão do número; imagem já localizada em `ex10-exclamation`/`ex10-question`).
+Pendente: MFB (34, sem fonte, canal manual `ADR-026`).
+
+## 7. Rodada 2 — Unown EXCL/QUES
+
+Após a migration `2263` (Unown "!" e "?" gravadas como EXCL e QUES), `plan.ts` ganhou 2 linhas (`ex10-exclamation`, `ex10-question`; total 121). Requer redeploy da função e reabertura do portão; a função pula as 119 que já têm imagem en.
