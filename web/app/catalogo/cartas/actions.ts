@@ -209,6 +209,43 @@ export async function setCardVariantDefault(
   return { error: null, changed };
 }
 
+/**
+ * P2b (2026-10-11, Query 2270) — desativa ou reativa uma variante. Toda regra
+ * (só admin, padrão e última ativa bloqueadas, eixos ativos para reativar) é
+ * validada na RPC; a UI só antecipa os bloqueios para explicar o motivo.
+ */
+export async function setCardVariantActive(
+  cardVariantId: string,
+  active: boolean,
+): Promise<{ error: string | null; changed?: boolean; label?: string; linkedPricingProducts?: number }> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cardVariantId) || typeof active !== "boolean") {
+    return { error: "Variação inválida." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_set_card_variant_active", {
+    p_card_variant_id: cardVariantId,
+    p_active: active,
+  });
+
+  if (error) {
+    return { error: traduzirErroCatalogo(error.message) };
+  }
+
+  const result = (data ?? {}) as { changed?: unknown; label?: unknown; linked_pricing_products?: unknown };
+  const changed = result.changed === true;
+  if (changed) {
+    revalidatePath("/catalogo/cartas");
+    revalidatePath("/catalogo/relatorios/variantes-por-carta");
+  }
+  return {
+    error: null,
+    changed,
+    label: typeof result.label === "string" ? result.label : undefined,
+    linkedPricingProducts: typeof result.linked_pricing_products === "number" ? result.linked_pricing_products : undefined,
+  };
+}
+
 /** P2a (2026-10-11) — opção de um eixo de variante (Acabamento, Impressão ou Contexto de edição). */
 export type VariantAxisOption = { id: string; name: string };
 export type VariantAxisOptions = {

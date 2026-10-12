@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Layers, Star } from "lucide-react";
+import { AlertTriangle, EyeOff, Layers, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
@@ -108,8 +108,10 @@ export function CartaVariantsSummary({
                   {model.lines.map((line) => (
                     <li
                       key={line.id}
-                      aria-label={line.isDefault ? `${line.label}, variante padrão` : line.label}
-                      className="flex items-baseline gap-1.5 leading-snug"
+                      aria-label={[line.label, line.isDefault ? "variante padrão" : null, line.isActive ? null : "inativa"]
+                        .filter(Boolean)
+                        .join(", ")}
+                      className={cn("flex items-baseline gap-1.5 leading-snug", !line.isActive && "text-muted-foreground")}
                     >
                       <span aria-hidden="true" className="text-muted-foreground">
                         •
@@ -124,6 +126,12 @@ export function CartaVariantsSummary({
                             {part.text}
                           </span>
                         ))}
+                        {!line.isActive ? (
+                          <span className="ml-1.5 inline-flex translate-y-[-1px] items-center gap-0.5 rounded-full border border-border bg-surface-muted px-1.5 py-px align-middle text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                            <EyeOff className="h-2.5 w-2.5" aria-hidden="true" />
+                            Inativa
+                          </span>
+                        ) : null}
                         {line.repeatedLabel ? (
                           <span className="ml-1.5 rounded bg-surface-muted px-1 py-px text-[10px] text-muted-foreground">
                             rótulo repetido

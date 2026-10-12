@@ -34,6 +34,8 @@ export type VariantSummaryLine = {
   repeatedLabel: boolean;
   /** P1 (2026-10-11): variante padrão da carta. */
   isDefault: boolean;
+  /** P2b (2026-10-11): `false` = variante desativada (só histórico; sem novos vínculos). */
+  isActive: boolean;
 };
 
 export type VariantSummaryModel =
@@ -44,6 +46,8 @@ export type VariantSummaryModel =
       lines: VariantSummaryLine[];
       /** P1: a linha padrão, ou `null` quando a carta ainda não tem variante padrão. */
       defaultLine: VariantSummaryLine | null;
+      /** P2b: quantas linhas estão inativas. */
+      inactiveCount: number;
       triggerLabel: string;
     }
   | { kind: "UNAVAILABLE"; count: number | null; triggerLabel: string };
@@ -107,16 +111,20 @@ export function buildVariantSummaryModel(view: CartaVariantViewState | null | un
       label: parts.map((part) => part.text).join(VARIANT_LABEL_SEPARATOR),
       repeatedLabel: variant.collidesWith.length > 0 || variant.renderedCollidesWith.length > 0,
       isDefault: variant.isDefault === true,
+      isActive: variant.isActive !== false,
     };
   });
   const defaultLine = lines.find((line) => line.isDefault) ?? null;
   const defaultText = defaultLine ? `padrão: ${defaultLine.label}` : "sem variante padrão";
+  const inactiveCount = lines.filter((line) => !line.isActive).length;
+  const inactiveText = inactiveCount === 0 ? "" : inactiveCount === 1 ? ", 1 inativa" : `, ${inactiveCount} inativas`;
 
   return {
     kind: "LIST",
     count: view.rawCount,
     lines,
     defaultLine,
-    triggerLabel: `Ver variações de ${cartaName}: ${plural(view.rawCount)}, ${defaultText}`,
+    inactiveCount,
+    triggerLabel: `Ver variações de ${cartaName}: ${plural(view.rawCount)}${inactiveText}, ${defaultText}`,
   };
 }

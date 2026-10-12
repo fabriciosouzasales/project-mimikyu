@@ -357,7 +357,8 @@ test("S18 — não-mutação da entrada", () => {
 
 test("S19 — tamanho determinístico da projeção (bytes) nos casos F0", () => {
   // P1 (2026-10-11): +18 B por variante (`,"isDefault":false`).
-  const expected = [399, 1166, 1177, 1177];
+  // P2b (2026-10-11): +16 B por variante (`,"isActive":true`).
+  const expected = [399, 1166, 1177, 1177].map((bytes, i) => bytes + 16 * F0_CASES[i]!.rows.length);
   F0_CASES.forEach((fixture, index) => {
     const bytes = Buffer.byteLength(JSON.stringify(buildCartaVariantView(fixture.rows, fixture.set)));
     assert.equal(bytes, expected[index], `${fixture.name}: ${bytes} B`);

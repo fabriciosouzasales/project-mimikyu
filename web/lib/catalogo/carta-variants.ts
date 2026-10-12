@@ -82,6 +82,8 @@ export type CartaVariantSemanticRawRow = {
   card_edition_context_profile: CartaVariantAxisRaw | null;
   /** P1 (2026-10-11): `card_variant.is_default`. Fora da entrada da F1 — lido à parte por `readDefaultVariantIds`. */
   is_default?: boolean;
+  /** P2b (2026-10-11, Query 2268): `card_variant.is_active`. Lido à parte por `readInactiveVariantIds`. */
+  is_active?: boolean;
 };
 
 /** A F1 não tem código para exceção inesperada (lacuna A1-L2): sinalizada à parte, sem fabricar código F1. */
@@ -123,6 +125,8 @@ export type CartaVariantView = {
   renderedCollidesWith: string[];
   /** P1 (2026-10-11): é a variante padrão da carta (`card_variant.is_default`). No máximo uma por carta. */
   isDefault: boolean;
+  /** P2b (2026-10-11): `card_variant.is_active`. Inativa = só histórico; não aceita vínculos novos. */
+  isActive: boolean;
 };
 
 export type CartaVariantViewError = {
@@ -220,6 +224,7 @@ export function buildCartaVariantDisplayState(rows: unknown, cardSetCode: unknow
 export function projectCartaVariantView(
   state: CartaVariantDisplayState,
   defaultIds: ReadonlySet<string> = new Set(),
+  inactiveIds: ReadonlySet<string> = new Set(),
 ): CartaVariantViewState {
   if (state.status === "NONE") return { status: "NONE", rawCount: 0 };
   if (state.status === "ERROR") {
@@ -239,6 +244,7 @@ export function projectCartaVariantView(
       collidesWith: [...variant.admin.labelCollision.collidingVariantIds],
       renderedCollidesWith: [...(state.renderedLabelCollisions[variant.identity.variantId] ?? [])],
       isDefault: defaultIds.has(variant.identity.variantId),
+      isActive: !inactiveIds.has(variant.identity.variantId),
     })),
   };
 }
@@ -256,10 +262,23 @@ export function readDefaultVariantIds(rows: unknown): Set<string> {
   return ids;
 }
 
+/**
+ * P2b (2026-10-11): ids das linhas com `is_active === false` (estritamente booleano).
+ * Ausência do campo = ativa (estado de todas as variantes antes da Query 2268).
+ */
+export function readInactiveVariantIds(rows: unknown): Set<string> {
+  const ids = new Set<string>();
+  if (!Array.isArray(rows)) return ids;
+  for (const row of rows) {
+    if (isPlainObject(row) && row.is_active === false && typeof row.id === "string") ids.add(row.id);
+  }
+  return ids;
+}
+
 /** Estado completo → projeção, para uma carta. Nunca lança (isolamento entre cartas). */
 export function buildCartaVariantView(rows: unknown, cardSetCode: unknown): CartaVariantViewState {
   try {
-    return projectCartaVariantView(buildCartaVariantDisplayState(rows, cardSetCode), readDefaultVariantIds(rows));
+    return projectCartaVariantView(buildCartaVariantDisplayState(rows, cardSetCode), readDefaultVariantIds(rows), readInactiveVariantIds(rows));
   } catch {
     return {
       status: "ERROR",

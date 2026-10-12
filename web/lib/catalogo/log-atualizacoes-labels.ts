@@ -63,6 +63,9 @@ export const ACTION_OPTIONS: { value: string; label: string }[] = [
   { value: "CARD_VARIANT_DEFAULT_SET", label: "Variante padrão definida" },
   // Query 2267 (P2a — cadastro individual de variante).
   { value: "CARD_VARIANT_CREATED", label: "Variação cadastrada" },
+  // Query 2270 (P2b — desativar/reativar variante).
+  { value: "CARD_VARIANT_DEACTIVATED", label: "Variação desativada" },
+  { value: "CARD_VARIANT_REACTIVATED", label: "Variação reativada" },
   { value: "CATALOG_IMPORT_JOB", label: "Importação iniciada" },
   { value: "CATALOG_IMPORT_CONFIRMED", label: "Importação confirmada" },
   { value: "CATALOG_IMPORT_ROWS_REVALIDATED", label: "Importação revalidada" },
@@ -156,6 +159,8 @@ export const METADATA_KEY_LABEL: Record<string, string> = {
   variant_order: "Ordem da variação",
   is_default: "Virou padrão",
   pricing: "Ligação de preços",
+  // Query 2270 — CARD_VARIANT_DEACTIVATED / CARD_VARIANT_REACTIVATED.
+  linked_pricing_products: "Produtos de preço ligados",
 };
 
 export function humanizeMetadataKey(key: string): string {

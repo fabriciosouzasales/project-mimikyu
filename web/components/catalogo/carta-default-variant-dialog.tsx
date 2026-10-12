@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Star } from "lucide-react";
+import { AlertTriangle, EyeOff, Star } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { setCardVariantDefault } from "@/app/catalogo/cartas/actions";
 import { Button } from "@/components/ui/button";
@@ -117,7 +117,7 @@ function DefaultVariantForm({
   }
 
   const selectedLine = model.lines.find((line) => line.id === selectedId) ?? null;
-  const canSave = selectedLine !== null && selectedLine.id !== currentId && !pending;
+  const canSave = selectedLine !== null && selectedLine.isActive && selectedLine.id !== currentId && !pending;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -191,7 +191,8 @@ function VariantOption({
   return (
     <label
       className={cn(
-        "flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2 transition-colors hover:bg-surface-muted",
+        "flex min-h-11 items-center gap-3 rounded-md border border-border px-3 py-2 transition-colors",
+        line.isActive ? "cursor-pointer hover:bg-surface-muted" : "cursor-not-allowed",
         "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
         checked && "border-primary/40 bg-primary/5 hover:bg-primary/5",
       )}
@@ -202,10 +203,11 @@ function VariantOption({
         value={line.id}
         checked={checked}
         onChange={onSelect}
-        className="h-4 w-4 shrink-0 accent-primary focus-visible:outline-none"
-        aria-describedby={line.isDefault ? `${line.id}-current` : undefined}
+        disabled={!line.isActive}
+        className="h-4 w-4 shrink-0 accent-primary focus-visible:outline-none disabled:opacity-50"
+        aria-describedby={line.isDefault ? `${line.id}-current` : !line.isActive ? `${line.id}-inactive` : undefined}
       />
-      <span className="min-w-0 flex-1 text-sm leading-snug text-foreground">
+      <span className={cn("min-w-0 flex-1 text-sm leading-snug", line.isActive ? "text-foreground" : "text-muted-foreground")}>
         {line.parts.map((part, index) => (
           <span key={part.axis} className={cn(part.emphasis === "qualifier" && "text-muted-foreground")}>
             {index > 0 ? VARIANT_LABEL_SEPARATOR : null}
@@ -219,6 +221,15 @@ function VariantOption({
           </span>
         ) : null}
       </span>
+      {!line.isActive ? (
+        <span
+          id={`${line.id}-inactive`}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          <EyeOff className="h-3 w-3" aria-hidden="true" />
+          Inativa<span className="sr-only">: reative-a em Gerenciar variações para escolhê-la</span>
+        </span>
+      ) : null}
       {line.isDefault ? (
         <span
           id={`${line.id}-current`}

@@ -77,8 +77,8 @@ test("M4: rótulos repetidos são sinalizados e nunca deduplicados (M3 da F1)", 
     status: "OK",
     rawCount: 2,
     variants: [
-      { id: V1, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V2], renderedCollidesWith: [V2], isDefault: false },
-      { id: V2, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V1], renderedCollidesWith: [V1], isDefault: false },
+      { id: V1, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V2], renderedCollidesWith: [V2], isDefault: false, isActive: true },
+      { id: V2, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V1], renderedCollidesWith: [V1], isDefault: false, isActive: true },
     ],
   };
   const model = buildVariantSummaryModel(view, "X");
@@ -93,8 +93,8 @@ test("M5: colisão só do texto renderizado também é sinalizada", () => {
     status: "OK",
     rawCount: 2,
     variants: [
-      { id: V1, parts: [{ axis: "FINISH", text: "A / B" }], collidesWith: [], renderedCollidesWith: [V2], isDefault: false },
-      { id: V2, parts: [{ axis: "FINISH", text: "A" }, { axis: "PRINTING", text: "B" }], collidesWith: [], renderedCollidesWith: [V1], isDefault: false },
+      { id: V1, parts: [{ axis: "FINISH", text: "A / B" }], collidesWith: [], renderedCollidesWith: [V2], isDefault: false, isActive: true },
+      { id: V2, parts: [{ axis: "FINISH", text: "A" }, { axis: "PRINTING", text: "B" }], collidesWith: [], renderedCollidesWith: [V1], isDefault: false, isActive: true },
     ],
   };
   const model = buildVariantSummaryModel(view, "X");
@@ -186,4 +186,35 @@ test("M13: pendência de padrão — só OK com variantes e nenhuma padrão", ()
   assert.equal(cartaNeedsDefaultVariant(semPadrao), true);
   const comPadrao = buildCartaVariantView([row(V1, null, null), { ...row(V2, FIRST_ED, null), is_default: true }], "BASE5");
   assert.equal(cartaNeedsDefaultVariant(comPadrao), false);
+});
+
+// P2b (2026-10-11) — variante inativa.
+
+test("M14: inativa vem só de is_active === false; ausência = ativa; gatilho conta inativas", () => {
+  const view = buildCartaVariantView(
+    [
+      { ...row(V1, null, null), is_default: true, is_active: true },
+      { ...row(V2, FIRST_ED, null), is_active: false },
+      { ...row(V3, null, PLAYER_REWARDS), is_active: "false" },
+    ],
+    "BASE5",
+  );
+  const model = buildVariantSummaryModel(view, "Dark Alakazam");
+  assert.equal(model.kind, "LIST");
+  if (model.kind !== "LIST") return;
+  const activeById = Object.fromEntries(model.lines.map((l) => [l.id, l.isActive]));
+  assert.deepEqual(activeById, { [V1]: true, [V2]: false, [V3]: true });
+  assert.equal(model.inactiveCount, 1);
+  assert.equal(
+    model.triggerLabel,
+    "Ver variações de Dark Alakazam: 3 variações cadastradas, 1 inativa, padrão: Holográfica",
+  );
+});
+
+test("M15: sem inativas o rótulo do gatilho não muda (compatível com a P1)", () => {
+  const model = buildVariantSummaryModel(buildCartaVariantView([row(V1, null, null)], "BASE5"), "X");
+  assert.equal(model.kind, "LIST");
+  if (model.kind !== "LIST") return;
+  assert.equal(model.inactiveCount, 0);
+  assert.equal(model.triggerLabel, "Ver variações de X: 1 variação cadastrada, sem variante padrão");
 });
