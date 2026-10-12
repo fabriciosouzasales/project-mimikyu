@@ -20,6 +20,7 @@ import type { JustTcgSet } from "../pricing-justtcg/mod.ts";
 import {
   buildExternalNumberIndex,
   classifyCardMatch,
+  classifyCardMatchByName,
   classifyCardMatchShared,
   classifySetForExpansionPlan,
   decideMappingUpsert,
@@ -381,6 +382,47 @@ export async function runPricingJusttcgMatchingTests(): Promise<TestSuiteResult>
     assert("3981 shared: sem candidato no número -> ABSENT", r5.classification === "ABSENT");
     const r6 = classifyCardMatch({ card_id: "c1", name: "Potion", collector_number: "25", collector_total: 30 }, idx, "tk");
     assert("3981 regressão: modo normal inalterado (2 candidatos mesma identidade -> AMBIGUOUS)", r6.classification === "AMBIGUOUS");
+  }
+
+  // ---- 3988: Set externo SEM numeração (My First Battle) — casamento por nome ----
+  {
+    // deno-lint-ignore no-explicit-any
+    const ext: any[] = [
+      { id: "bul", name: "Bulbasaur", number: undefined, variants: [] },
+      { id: "bul-bb", name: "Bulbasaur (Blue Border)", number: undefined, variants: [] },
+      { id: "ivy", name: "Ivysaur", number: "N/A", variants: [] },
+      { id: "ge", name: "Basic Grass Energy", number: undefined, variants: [] },
+      { id: "ge-bb", name: "Basic Grass Energy (Blue Border)", number: undefined, variants: [] },
+      { id: "pot-p", name: "Potion (Pikachu)", number: undefined, variants: [] },
+      { id: "pot-c", name: "Potion (Charmander)", number: undefined, variants: [] },
+      { id: "only-q", name: "Magikarp (Blue Border)", number: undefined, variants: [] },
+      { id: "dup", name: "Lapras", number: undefined, variants: [] },
+      { id: "dup", name: "Lapras", number: undefined, variants: [] },
+      { id: "tw1", name: "Raichu", number: undefined, variants: [] },
+      { id: "tw2", name: "Raichu", number: undefined, variants: [] },
+    ];
+    const card = (name: string, n = "01"): LocalCard => ({ card_id: `c-${name}`, name, collector_number: n, collector_total: null });
+    const r1 = classifyCardMatchByName(card("Bulbasaur"), ext, "mfb");
+    assert("3988 sem número: versão comum preferida sobre (Blue Border) -> SAFE", r1.classification === "SAFE" && r1.matched?.id === "bul");
+    const r2 = classifyCardMatchByName(card("Ivysaur"), ext, "mfb");
+    assert("3988 sem número: nome único -> SAFE (número N/A ignorado)", r2.classification === "SAFE" && r2.matched?.id === "ivy");
+    const r3 = classifyCardMatchByName(card("Grass Energy"), ext, "mfb");
+    assert("3988 sem número: 'Basic Grass Energy' ≡ 'Grass Energy' -> SAFE na versão comum", r3.classification === "SAFE" && r3.matched?.id === "ge");
+    const r4 = classifyCardMatchByName(card("Potion"), ext, "mfb");
+    assert("3988 sem número: só versões qualificadas por deck -> AMBIGUOUS", r4.classification === "AMBIGUOUS" && r4.matched === null);
+    const r5 = classifyCardMatchByName(card("Magikarp"), ext, "mfb");
+    assert("3988 sem número: único candidato (mesmo qualificado) -> SAFE", r5.classification === "SAFE" && r5.matched?.id === "only-q");
+    const r6 = classifyCardMatchByName(card("Lapras"), ext, "mfb");
+    assert("3988 sem número: mesmo id repetido conta 1 vez -> SAFE", r6.classification === "SAFE" && r6.matched?.id === "dup");
+    const r7 = classifyCardMatchByName(card("Raichu"), ext, "mfb");
+    assert("3988 sem número: 2 ids distintos sem qualificador -> AMBIGUOUS", r7.classification === "AMBIGUOUS");
+    const r8 = classifyCardMatchByName(card("Charmander"), ext, "mfb");
+    assert("3988 sem número: nome ausente -> ABSENT", r8.classification === "ABSENT" && r8.matched === null);
+    const r9 = classifyCardMatchByName(card("Bulba"), ext, "mfb");
+    assert("3988 sem número: prefixo/parcial nunca casa -> ABSENT", r9.classification === "ABSENT");
+    // deno-lint-ignore no-explicit-any
+    const r10 = classifyCardMatch(card("Bulbasaur"), buildExternalNumberIndex(ext as any), "mfb");
+    assert("3988 regressão: modo por número inalterado (sem número externo -> ABSENT)", r10.classification === "ABSENT");
   }
 
   const failedCount = assertions.filter(([, ok]) => !ok).length;

@@ -139,6 +139,10 @@ export interface BootstrapPort {
   // (pricing_set_mapping.is_shared_external) — o matching passa a exigir número + nome.
   // Opcional: ausente = false (comportamento anterior, inalterado).
   loadSetMappingShared?(pricingSetMappingId: string): Promise<boolean>;
+  // 3988 (2026-10-12): true quando o Set externo não tem numeração de carta
+  // (pricing_set_mapping.external_unnumbered) — o matching passa a ser por nome
+  // (classifyCardMatchByName). Opcional: ausente = false (comportamento anterior, inalterado).
+  loadSetMappingUnnumbered?(pricingSetMappingId: string): Promise<boolean>;
 
   // ---- Escrita — só pricing_card_mapping e pricing_source_card_identity (RPC
   // persist_pricing_bootstrap_card_batch, 3958) — nunca pricing_product/pricing_observation

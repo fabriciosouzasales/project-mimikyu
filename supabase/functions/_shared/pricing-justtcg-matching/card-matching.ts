@@ -279,3 +279,70 @@ export function classifyCardMatchShared(local: LocalCard, externalIndex: Map<str
     evidence: { ...base, candidatos, total_candidatos: candidates.length, nomes_compativeis: compatible.length },
   };
 }
+
+// 3988 (2026-10-12) — Set externo SEM NUMERAÇÃO (pricing_set_mapping.external_unnumbered).
+// Caso real: My First Battle (MFB) — as cartas não têm número impresso e a fonte as publica sem
+// número; o número local (01–34) é artificial (TCGdex), então o índice por número fica vazio e
+// todas as cartas caíam em ABSENT. Só para Sets marcados, o nome passa a ser a identidade:
+//   - nome externo = nome base + qualificador opcional entre parênteses no fim
+//     ("Bulbasaur (Blue Border)", "Potion (Pikachu)");
+//   - equivalência única de energia: "Basic Grass Energy" ≡ "Grass Energy";
+//   - candidatos = cartas externas (dedup por id) cujo nome base é IGUAL ao nome local
+//     (igualdade normalizada, nunca prefixo/fuzzy);
+//   - SAFE se houver exatamente 1 candidato SEM qualificador (a versão comum, preferida sobre
+//     "(Blue Border)" etc.), ou exatamente 1 candidato no total;
+//   - 2+ candidatos e nenhum ou 2+ sem qualificador -> AMBIGUOUS (fica PENDING para revisão;
+//     ex.: "Potion (Pikachu)" × "Potion (Charmander)"); 0 candidatos -> ABSENT.
+// Nunca usa número, nunca promove por semelhança parcial.
+const TRAILING_QUALIFIER = /^(.*?)\s*\(([^()]*)\)\s*$/;
+
+function splitExternalName(raw: string | null | undefined): { base: string; qualifier: string | null } {
+  const text = (raw ?? "").trim();
+  const m = text.match(TRAILING_QUALIFIER);
+  if (m && m[1].trim()) return { base: m[1].trim(), qualifier: m[2].trim() || null };
+  return { base: text, qualifier: null };
+}
+
+function unnumberedNameKey(name: string): string {
+  const n = normalizeName(name);
+  return n.startsWith("basic ") && n.endsWith(" energy") ? n.slice("basic ".length) : n;
+}
+
+export function classifyCardMatchByName(local: LocalCard, externalCards: JustTcgCard[], externalSetId: string): CardMatchResult {
+  const METHOD = "UNNUMBERED_SET_NAME_UNIQUE";
+  const localKey = unnumberedNameKey(local.name);
+  const base = { external_set_id: externalSetId, numero_local: local.collector_number, nome_local: local.name, set_externo_sem_numeracao: true };
+
+  const seen = new Set<string>();
+  const candidates: Array<{ card: JustTcgCard; qualifier: string | null }> = [];
+  if (localKey) {
+    for (const card of externalCards) {
+      if (seen.has(card.id)) continue;
+      const { base: extBase, qualifier } = splitExternalName(card.name);
+      if (unnumberedNameKey(extBase) !== localKey) continue;
+      seen.add(card.id);
+      candidates.push({ card, qualifier });
+    }
+  }
+  const candidatos = candidates.map((c) => ({ id: c.card.id, name: c.card.name, qualificador: c.qualifier }));
+
+  if (candidates.length === 0) {
+    return { classification: "ABSENT", matched: null, method: METHOD, evidence: { ...base, nome_externo: null } };
+  }
+  const unqualified = candidates.filter((c) => c.qualifier === null);
+  const chosen = unqualified.length === 1 ? unqualified[0] : candidates.length === 1 ? candidates[0] : null;
+  if (chosen) {
+    return {
+      classification: "SAFE",
+      matched: chosen.card,
+      method: METHOD,
+      evidence: { ...base, nome_externo: chosen.card.name, candidatos, total_candidatos: candidates.length },
+    };
+  }
+  return {
+    classification: "AMBIGUOUS",
+    matched: null,
+    method: METHOD,
+    evidence: { ...base, candidatos, total_candidatos: candidates.length, sem_qualificador: unqualified.length },
+  };
+}

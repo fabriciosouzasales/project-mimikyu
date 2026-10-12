@@ -53,6 +53,7 @@ import type { Clock } from "../pricing-justtcg-refresh/deadline.ts";
 import {
   buildExternalNumberIndex,
   classifyCardMatch,
+  classifyCardMatchByName,
   classifyCardMatchShared,
 } from "../pricing-justtcg-matching/mod.ts";
 import type { LocalCard } from "../pricing-justtcg-matching/mod.ts";
@@ -290,11 +291,13 @@ async function runMatchingPhase(
   let stagingRows: Awaited<ReturnType<BootstrapPort["loadFullStaging"]>>;
   let localCards: Awaited<ReturnType<BootstrapPort["loadLocalActiveCards"]>>;
   let sharedExternal = false;
+  let unnumberedExternal = false;
   try {
-    [stagingRows, localCards, sharedExternal] = await Promise.all([
+    [stagingRows, localCards, sharedExternal, unnumberedExternal] = await Promise.all([
       port.loadFullStaging(pricingSetMappingId),
       port.loadLocalActiveCards(cardSetId),
       port.loadSetMappingShared ? port.loadSetMappingShared(pricingSetMappingId) : Promise.resolve(false),
+      port.loadSetMappingUnnumbered ? port.loadSetMappingUnnumbered(pricingSetMappingId) : Promise.resolve(false),
     ]);
   } catch {
     const closeResult = await port.closeAttempt(
@@ -346,7 +349,10 @@ async function runMatchingPhase(
       collector_total: local.collectorTotal,
     };
     // 3981: Set externo compartilhado exige número + nome (classifyCardMatchShared).
-    const result = sharedExternal
+    // 3988: Set externo sem numeração casa por nome (classifyCardMatchByName).
+    const result = unnumberedExternal
+      ? classifyCardMatchByName(localCard, externalCards, externalSetId)
+      : sharedExternal
       ? classifyCardMatchShared(localCard, externalIndex, externalSetId)
       : classifyCardMatch(localCard, externalIndex, externalSetId);
     if (result.classification === "SAFE") cardsSafe++;

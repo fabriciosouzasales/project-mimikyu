@@ -221,6 +221,19 @@ export function buildBootstrapSupabaseAdapter(
       return (data as { is_shared_external?: boolean } | null)?.is_shared_external === true;
     },
 
+    async loadSetMappingUnnumbered(pricingSetMappingId: string): Promise<boolean> {
+      const { data, error } = await supabase
+        .from("pricing_set_mapping")
+        .select("external_unnumbered")
+        .eq("id", pricingSetMappingId)
+        .maybeSingle();
+      if (error) {
+        logError("PRICING_SET_BOOTSTRAP_LOAD_UNNUMBERED_FLAG_FAILED", { pricingSetMappingId });
+        throw new Error("PRICING_SET_BOOTSTRAP_LOAD_UNNUMBERED_FLAG_FAILED");
+      }
+      return (data as { external_unnumbered?: boolean } | null)?.external_unnumbered === true;
+    },
+
     async persistMatchingBatch(
       pricingSourceId: string,
       syncRunId: string,

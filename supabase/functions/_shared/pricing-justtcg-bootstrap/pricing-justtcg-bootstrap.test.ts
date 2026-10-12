@@ -156,6 +156,8 @@ type FakePortConfig = {
   ) => PersistBootstrapBatchResult;
   throwOnLoadStaging?: boolean;
   throwOnLoadLocalCards?: boolean;
+  // 3988: quando definido, a porta expõe loadSetMappingUnnumbered com este valor.
+  unnumbered?: boolean;
 };
 
 function buildFakePort(config: FakePortConfig): {
@@ -263,6 +265,12 @@ function buildFakePort(config: FakePortConfig): {
       }
       return Promise.resolve(config.localCards ?? []);
     },
+    ...(config.unnumbered === undefined ? {} : {
+      loadSetMappingUnnumbered(pricingSetMappingId: string) {
+        calls.push(`loadSetMappingUnnumbered(${pricingSetMappingId})`);
+        return Promise.resolve(config.unnumbered === true);
+      },
+    }),
     persistMatchingBatch(pricingSourceId, syncRunId, rows) {
       calls.push(
         `persistMatchingBatch(${pricingSourceId},${syncRunId},n=${rows.length})`,
@@ -974,6 +982,50 @@ async function main() {
       "17b. Ambos os casos chamaram close_ com MATCHING_COMPLETE/COMPLETED",
       closePayloadsOk[0].phaseOutcome === "MATCHING_COMPLETE" &&
         closePayloadsOk[0].runStatus === "COMPLETED",
+    );
+  }
+
+  // 18. 3988 — Set externo sem numeração: com a flag, casa por nome; sem a flag, nada casa.
+  {
+    const staging: StagedCardRow[] = [
+      { externalCardId: "mfb-bul", externalName: "Bulbasaur", externalNumber: null },
+      { externalCardId: "mfb-bul-bb", externalName: "Bulbasaur (Blue Border)", externalNumber: null },
+      { externalCardId: "mfb-ge", externalName: "Basic Grass Energy", externalNumber: null },
+      { externalCardId: "mfb-pot-p", externalName: "Potion (Pikachu)", externalNumber: null },
+      { externalCardId: "mfb-pot-c", externalName: "Potion (Charmander)", externalNumber: null },
+    ] as StagedCardRow[];
+    const localCards: LocalActiveCard[] = [
+      { cardId: "mfb-1", name: "Bulbasaur", collectorNumber: "01", collectorTotal: null },
+      { cardId: "mfb-8", name: "Grass Energy", collectorNumber: "08", collectorTotal: null },
+      { cardId: "mfb-33", name: "Potion", collectorNumber: "33", collectorTotal: null },
+      { cardId: "mfb-9", name: "Charmander", collectorNumber: "09", collectorTotal: null },
+    ];
+    const { fetchImpl } = makeFakeFetch([]);
+    const client = new JustTcgClient("fake-key", fetchImpl, 10);
+
+    const withFlag = buildFakePort({ openQueue: [claimedMatching()], staging, localCards, unnumbered: true });
+    const r1 = await executeBootstrapAttempt(withFlag.port, client, PRICING_SOURCE_ID);
+    const rows = withFlag.persistPayloads[0]?.rows ?? [];
+    const byId = (id: string) => rows.find((r) => r.cardId === id);
+    assert(
+      "18. 3988 com flag -> 2 SAFE, 1 AMBIGUOUS, 1 ABSENT",
+      r1.kind === "MATCHING_CLOSED" && r1.cardsSafe === 2 && r1.cardsAmbiguous === 1 && r1.cardsAbsent === 1,
+    );
+    assert(
+      "18. 3988 com flag -> Bulbasaur na versão comum, energia por equivalência, método por nome",
+      byId("mfb-1")?.externalCardId === "mfb-bul" && byId("mfb-8")?.externalCardId === "mfb-ge" &&
+        byId("mfb-1")?.matchMethod === "UNNUMBERED_SET_NAME_UNIQUE",
+    );
+    assert(
+      "18. 3988 com flag -> flag lida 1x (sem N+1)",
+      withFlag.calls.filter((c) => c.startsWith("loadSetMappingUnnumbered")).length === 1,
+    );
+
+    const noFlag = buildFakePort({ openQueue: [claimedMatching()], staging, localCards, unnumbered: false });
+    const r2 = await executeBootstrapAttempt(noFlag.port, client, PRICING_SOURCE_ID);
+    assert(
+      "18. 3988 regressão: flag false -> casamento por número inalterado (4 ABSENT)",
+      r2.kind === "MATCHING_CLOSED" && r2.cardsSafe === 0 && r2.cardsAbsent === 4,
     );
   }
 
