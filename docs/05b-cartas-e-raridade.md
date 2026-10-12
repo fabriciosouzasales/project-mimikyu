@@ -2821,7 +2821,7 @@ Empate real na primeira posição = a carta **fica sem padrão** e vai para deci
 - **Collections:** lógica das funções inalterada; só a trava acima. Dependência registrada para o BULK-04: `preview_bulk_operation` deve ganhar a mesma validação (`CARD_VARIANT_INACTIVE`) e os seletores de variante devem listar só ativas, para a prévia não divergir da gravação.
 - **Interface:** no diálogo "Variações", cada linha mostra "Inativa" (texto + ícone) e a ação Desativar (confirmação na própria linha) ou Reativar. Bloqueios conhecidos (padrão, única ativa, carta inativa) explicam o motivo ao serem acionados; o servidor valida tudo. O popover da galeria, o relatório e o diálogo da padrão marcam as inativas, e o diálogo da padrão não permite escolhê-las.
 
-**Impressão e Contexto de Edição na importação (P3a, 2026-10-12, revisão 1.15).** Status: Queries `2271`–`2274` **propostas** (`database/proposals/2026-10-12-p3a-axis-resolution/`); interface (P3b) a seguir.
+**Impressão e Contexto de Edição na importação (P3a, 2026-10-12, revisão 1.15).** Status: Queries `2271`–`2274` **propostas**, ensaio transacional PASS e desfeito em 2026-10-12 (`database/proposals/2026-10-12-p3a-axis-resolution/`); interface (P3b) a seguir.
 
 - **Achado:** item de origem sem mapeamento de Impressão nem de Contexto fica na sobra e a linha aparece como "acabamento sem mapeamento". O eixo não pode ser presumido; a decisão é editorial.
 - **Diagnóstico (2271)** `admin_explain_catalog_variant_import_row`: estados dos 3 eixos pelo resolvedor oficial, perfis, sobra do acabamento e, por item, status (`PRINTING`/`EDITION_CONTEXT`/`FINISH`/`UNRECOGNIZED`/`NOT_EVALUATED`) e eixos admitidos (`type` → acabamento; `foil` → acabamento ou contexto; `subtype`/`stamp` → os três).

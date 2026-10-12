@@ -11,7 +11,7 @@ Fixture.....: um job STAGED fictício (TCGDEX) num Card Set com referência exte
                 R4      type 'normal' + stamp 'P3A TEST STAMP 2' (para o perfil novo)
 Cobre.......: S1 privilégios; S2 não-admin (explain, preview, resolve, perfil);
               E1 diagnóstico: item UNRECOGNIZED, eixos admitidos, outcome B, sem presumir eixo;
-              P1 prévia de Contexto (Set): ok, 2 linhas, 2 passam a válidas, nada gravado;
+              P1 prévia de Contexto (Set): ok, 2 linhas, 2 passam a válidas, nada gravado (linhas, job, mapeamentos, log);
               W1 resolver Contexto (Set): mapeamento com escopo do Set, R1/R2 VALID com o perfil,
                  R3 intocada, contadores do job, log;
               N1 NO_CHANGE; C1 conflito de eixos (prévia de Impressão do mesmo item: ok=false +
@@ -20,6 +20,7 @@ Cobre.......: S1 privilégios; S2 não-admin (explain, preview, resolve, perfil)
                  diagnóstico continua mostrando o específico;
               K1 perfil novo: item mapeado para composição sem perfil → R4 NEEDS_REVIEW
                  (NEEDS_REVIEW_NO_EC_PROFILE); criar o perfil → R4 VALID com o perfil novo, log;
+              X1 Contexto do mesmo item em outro Set não é barrado pela trava;
               I1 identidade preservada: card_variant e mapeamentos de Impressão/acabamento intactos.
 ===============================================================================
 */
@@ -123,6 +124,9 @@ BEGIN
 
   -- P1 prévia (nada gravado)
   SELECT count(*) INTO v_logs FROM public.catalog_admin_action_log;
+  SELECT md5(string_agg(r.id::text || r.validation_status || r.normalized_data::text, '|' ORDER BY r.id))
+         || coalesce((SELECT valid_rows::text FROM public.catalog_variant_import_job WHERE id = v_job), '-')
+    INTO v_err FROM public.catalog_variant_import_row r WHERE r.job_id = v_job;
   v_res := public.admin_preview_catalog_variant_import_axis_mapping(v_r1, 'EDITION_CONTEXT', 'stamp', lower(c_tok), ARRAY[v_trait], 'SOURCE_SET');
   IF NOT (v_res ->> 'ok')::boolean
      OR (v_res -> 'impact' ->> 'rows_touched')::int <> 2
@@ -131,9 +135,13 @@ BEGIN
      OR v_res ->> 'external_set_id' <> v_ext
      OR (SELECT validation_status FROM public.catalog_variant_import_row WHERE id = v_r1) <> 'NEEDS_REVIEW'
      OR EXISTS (SELECT 1 FROM public.card_edition_context_external_mapping m WHERE m.normalized_token = c_tok)
-     OR (SELECT count(*) FROM public.catalog_admin_action_log) <> v_logs THEN
+     OR (SELECT count(*) FROM public.catalog_admin_action_log) <> v_logs
+     OR (SELECT md5(string_agg(r.id::text || r.validation_status || r.normalized_data::text, '|' ORDER BY r.id))
+                || coalesce((SELECT valid_rows::text FROM public.catalog_variant_import_job WHERE id = v_job), '-')
+           FROM public.catalog_variant_import_row r WHERE r.job_id = v_job) IS DISTINCT FROM v_err THEN
     RAISE EXCEPTION 'P3A-TEST FAIL P1: %', v_res;
   END IF;
+  v_err := NULL;
 
   -- W1 resolver Contexto no escopo do Set
   SELECT * INTO v_rec FROM public.admin_resolve_catalog_variant_import_edition_context_mapping(v_r1, 'stamp', lower(c_tok), ARRAY[v_trait], 'SOURCE_SET');
@@ -189,6 +197,14 @@ BEGIN
     RAISE EXCEPTION 'P3A-TEST FAIL G1 explain: %', v_res;
   END IF;
 
+  -- X1 Contexto do mesmo item em OUTRO Set: legítimo, a trava MV002 não pode barrar.
+  BEGIN
+    INSERT INTO public.card_edition_context_external_mapping (game_id, asset_source_id, external_set_id, raw_field, normalized_token, is_active)
+    VALUES (v_game, v_src, 'p3a-other-set', 'stamp', c_tok, true);
+  EXCEPTION WHEN SQLSTATE 'MV002' THEN
+    RAISE EXCEPTION 'P3A-TEST FAIL X1: Contexto em outro Set barrado pela trava de eixos';
+  END;
+
   -- K1 composição sem perfil → pendente; criar o perfil → válida
   SELECT * INTO v_rec FROM public.admin_resolve_catalog_variant_import_edition_context_mapping(v_r4, 'stamp', c_tok2, v_pair, 'SOURCE_SET');
   IF v_rec.rows_touched <> 1 OR v_rec.rows_still_pending <> 1
@@ -221,6 +237,6 @@ BEGIN
     RAISE EXCEPTION 'P3A-TEST FAIL I1';
   END IF;
 
-  RAISE EXCEPTION 'P3A-TEST PASS set=% ext=% (S1 S2 E1 P1 W1 N1 C1 G1 K1 I1) — tudo desfeito', v_set, v_ext;
+  RAISE EXCEPTION 'P3A-TEST PASS set=% ext=% (S1 S2 E1 P1 W1 N1 C1 G1 X1 K1 I1) — tudo desfeito', v_set, v_ext;
 END
 $t$;

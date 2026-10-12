@@ -29,7 +29,7 @@ O que faz
      do Contexto, então os escopos SEMPRE se sobrepõem — por isso não há exceção por Set.
      Contexto x Contexto em Sets diferentes, ou específico x global, NÃO é conflito (o
      específico do Set prevalece, mesma precedência do resolvedor). LIVE: 0 sobreposições hoje.
-  4. CHECKs do log: + CARD_EDITION_CONTEXT_EXTERNAL_MAPPING_CREATED
+  4. CHECKs do log (tipo de entidade, ação e par ação×entidade): + CARD_EDITION_CONTEXT_EXTERNAL_MAPPING_CREATED
      (entidade CARD_EDITION_CONTEXT_EXTERNAL_MAPPING) e CARD_EDITION_CONTEXT_PROFILE_CREATED
      (entidade CARD_EDITION_CONTEXT_PROFILE, usada pela 2274).
   5. public.admin_resolve_catalog_variant_import_edition_context_mapping(
@@ -49,7 +49,7 @@ Como validar
          has_function_privilege('authenticated','internal.reconcile_variant_import_rows(uuid[])','EXECUTE') as helper_must_be_false,
          (select count(*) from pg_trigger where tgname in ('trg_card_printing_external_mapping_zz_axis_overlap','trg_cecem_zz_axis_overlap')) as triggers_must_be_2,
          (select count(*) from pg_constraint where conrelid='public.catalog_admin_action_log'::regclass
-            and pg_get_constraintdef(oid) like '%CARD_EDITION_CONTEXT_PROFILE_CREATED%') as checks_must_be_2;
+            and pg_get_constraintdef(oid) like '%CARD_EDITION_CONTEXT_PROFILE%') as checks_must_be_3;
 ===============================================================================
 */
 
@@ -259,8 +259,17 @@ CREATE TRIGGER trg_cecem_zz_axis_overlap
 
 -- 4. Log administrativo
 ALTER TABLE public.catalog_admin_action_log
+  DROP CONSTRAINT ck_catalog_admin_action_log_entity_type_valid,
   DROP CONSTRAINT ck_catalog_admin_action_log_action_valid,
   DROP CONSTRAINT ck_catalog_admin_action_log_action_entity_match;
+
+ALTER TABLE public.catalog_admin_action_log
+  ADD CONSTRAINT ck_catalog_admin_action_log_entity_type_valid CHECK (entity_type = ANY (ARRAY[
+    'GAME', 'EXPANSION', 'CARD_SET', 'CARD', 'CATALOG_IMPORT_JOB', 'RARITY', 'RARITY_EXTERNAL_MAPPING',
+    'CATALOG_VARIANT_IMPORT_JOB', 'CARD_VARIANT_TYPE_EXTERNAL_MAPPING', 'CARD_VARIANT_TYPE',
+    'CARD_PRIMARY_SPECIES', 'CARD_PRINTING_EXTERNAL_MAPPING', 'CARD_PRINTING_PROFILE',
+    'CARD_EDITION_CONTEXT_EXTERNAL_MAPPING', 'CARD_EDITION_CONTEXT_PROFILE'
+  ]::text[]));
 
 ALTER TABLE public.catalog_admin_action_log
   ADD CONSTRAINT ck_catalog_admin_action_log_action_valid CHECK (action = ANY (ARRAY[
