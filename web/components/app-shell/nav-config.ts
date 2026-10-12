@@ -13,6 +13,7 @@ import {
   ImagePlus,
   Layers,
   LayoutDashboard,
+  LayoutGrid,
   PencilLine,
   RefreshCw,
   ScrollText,
@@ -21,6 +22,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { Pokeball } from "@/components/icons/pokeball-icon";
 
 /**
  * `section` agrupa itens do submenu sob um título maiúsculo, com divisória
@@ -36,7 +38,20 @@ import {
  * item do submenu do Catálogo tem ícone. Continua opcional no tipo porque
  * "Lista de usuários" (único filho de Usuários) não usa.
  */
-export type NavChild = { href: string; label: string; section?: string; icon?: LucideIcon };
+export type NavChild = {
+  href: string;
+  label: string;
+  section?: string;
+  icon?: LucideIcon;
+  /**
+   * Item de submenu só para administradores (Pokédex P1, 2026-10-12) — o
+   * primeiro módulo aberto a qualquer usuário autenticado que também terá
+   * blocos administrativos (Gerencial/Cadastro/Operações). Mesma natureza de
+   * `NavSection.adminOnly`: decide só o que MOSTRAR; a página e as funções
+   * do banco continuam negando acesso por conta própria.
+   */
+  adminOnly?: boolean;
+};
 
 export type NavSection = {
   id: string;
@@ -196,11 +211,33 @@ export const NAV_SECTIONS: NavSection[] = [
     // nada nele.
     adminOnly: true,
   },
+  {
+    id: "pokedex",
+    // Pokédex P1 (2026-10-12) — primeiro módulo do produto aberto a todo
+    // usuário autenticado (D2), no mesmo nível de Catálogo Editorial e Valor
+    // de Mercado. Ícone: Pokébola minimalista aprovada (D6, Opção A).
+    //
+    // Menu secundário aprovado: EXPLORAR (Pokédex Nacional, Por Geração,
+    // Pesquisa Avançada) · MINHA POKÉDEX (Meu Progresso, Minha Collection
+    // Pokédex) · GERENCIAL / CADASTRO / OPERAÇÕES (só administradores,
+    // `adminOnly` por item). Regra do projeto: item de menu nunca leva a uma
+    // tela vazia ou 404 — cada item entra aqui no mesmo incremento em que a
+    // sua página fica funcional. Na P1, só a Pokédex Nacional.
+    label: "Pokédex",
+    icon: Pokeball,
+    href: "/pokedex",
+    children: [{ href: "/pokedex", label: "Pokédex Nacional", section: "Explorar", icon: LayoutGrid }],
+  },
 ];
 
 /** Seções visíveis no menu para o usuário atual — filtra `adminOnly` quando `isAdmin` é falso. */
 export function getVisibleNavSections(isAdmin: boolean): NavSection[] {
   return NAV_SECTIONS.filter((section) => !section.adminOnly || isAdmin);
+}
+
+/** Itens de submenu visíveis para o usuário atual — mesma regra, aplicada por item (`NavChild.adminOnly`). */
+export function getVisibleNavChildren(section: NavSection, isAdmin: boolean): NavChild[] {
+  return (section.children ?? []).filter((child) => !child.adminOnly || isAdmin);
 }
 
 /** Determina a seção ativa (e, por consequência, o submenu aberto) a partir do pathname. */

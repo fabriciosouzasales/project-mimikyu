@@ -3,7 +3,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { findActiveSection, getVisibleNavSections } from "./nav-config";
+import { findActiveSection, getVisibleNavChildren, getVisibleNavSections } from "./nav-config";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,7 +43,8 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const activeSection = findActiveSection(pathname);
   const isVisible = getVisibleNavSections(isAdmin).some((section) => section.id === activeSection.id);
-  const hasChildren = isVisible && !!activeSection.children?.length;
+  const children = isVisible ? getVisibleNavChildren(activeSection, isAdmin) : [];
+  const hasChildren = children.length > 0;
 
   return (
     <div
@@ -62,8 +63,8 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
             className="flex-1 space-y-0.5 overflow-y-auto p-2"
             aria-label={`Submenu de ${activeSection.label}`}
           >
-            {activeSection.children!.map((child, index) => {
-              const previous = activeSection.children![index - 1];
+            {children.map((child, index) => {
+              const previous = children[index - 1];
               const isNewSection = !!child.section && child.section !== previous?.section;
               const isChildActive = pathname === child.href;
               const ChildIcon = child.icon;

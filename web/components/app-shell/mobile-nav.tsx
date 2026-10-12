@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Menu, X } from "lucide-react";
-import { findActiveSection, getVisibleNavSections } from "./nav-config";
+import { findActiveSection, getVisibleNavChildren, getVisibleNavSections } from "./nav-config";
 import { SidebarFooter } from "./sidebar-footer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
 
                   {isActive && section.children && (
                     <div className="space-y-0.5 py-1">
-                      {section.children.map((child) => {
+                      {getVisibleNavChildren(section, isAdmin).map((child) => {
                         const ChildIcon = child.icon;
                         return (
                           <Link
