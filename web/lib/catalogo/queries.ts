@@ -2035,11 +2035,31 @@ function pickCardFrontPath(assets: CartaCompletaAssetRawRow[] | null, languageCo
  * `collector_order` livre (Card criada considerando ativas E inativas,
  * mesma regra de duplicidade da Query 2115) sem uma segunda consulta.
  */
-export async function getCartasCompletas(
+/**
+ * Embed de `card_variant` usado pela galeria e pelo relatório de pendências.
+ * `*` (e não a lista explícita) porque a P2b introduz `card_variant.is_active`
+ * (Query 2268) e o frontend não pode depender de uma coluna que ainda não
+ * existe no banco: pedir `is_active` antes da 2268 fazia o PostgREST recusar
+ * a consulta inteira (42703) e a galeria aparecia vazia (regressão de
+ * 2026-10-12). Com `*`, antes da 2268 a chave simplesmente não vem (lida como
+ * "ativa" por `readInactiveVariantIds`) e depois dela passa a vir, sem novo
+ * deploy. As colunas extras (`variant_order`, timestamps) ficam no servidor:
+ * o adaptador da F1 só lê as chaves que conhece e o cliente recebe só a
+ * projeção `variantView`.
+ */
+const CARD_VARIANT_EMBED =
+  "card_variant(*, card_variant_type(id, code, name, display_order), card_printing_profile(id, name, display_order), card_edition_context_profile(id, name, display_order))";
+
+/**
+ * Igual a `getCartasCompletas`, mas devolve o erro de consulta em vez de
+ * escondê-lo como lista vazia — a galeria precisa distinguir "Card Set sem
+ * cartas" de "falha ao carregar cartas".
+ */
+export async function getCartasCompletasResult(
   supabase: SupabaseClient,
   cardSetId: string,
   options?: { incluirInativas?: boolean },
-): Promise<CartaCompletaRow[]> {
+): Promise<{ cartas: CartaCompletaRow[]; error: string | null }> {
   let query = supabase
     .from("card")
     .select(
@@ -2049,7 +2069,7 @@ export async function getCartasCompletas(
       // para `authenticated` (confirmado: `getCartasCatalogoStats()` já lê
       // esta tabela em produção) e RLS admin-only (`catalog_admin_select`,
       // ADR-028) — nenhuma migration necessária.
-      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_set(code), card_variant(id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id, is_default, is_active, card_variant_type(id, code, name, display_order), card_printing_profile(id, name, display_order), card_edition_context_profile(id, name, display_order))",
+      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_set(code), " + CARD_VARIANT_EMBED,
     )
     .eq("card_set_id", cardSetId);
 
@@ -2060,10 +2080,10 @@ export async function getCartasCompletas(
   const { data, error } = await query.order("collector_order", { ascending: true });
 
   if (error || !data) {
-    return [];
+    return { cartas: [], error: error?.message ?? "Consulta sem resultado." };
   }
 
-  return (data as unknown as CartaCompletaRawRow[]).map((card) => {
+  const cartas = (data as unknown as CartaCompletaRawRow[]).map((card) => {
     const pathPt = pickCardFrontPath(card.card_asset, "pt-BR");
     const pathEn = pickCardFrontPath(card.card_asset, "en");
     // Ordenado por `card_variant_type.display_order` (ordem canônica do
@@ -2098,6 +2118,16 @@ export async function getCartasCompletas(
       variantView,
     };
   });
+  return { cartas, error: null };
+}
+
+/** Contrato antigo (lista vazia em caso de erro), mantido para os demais chamadores. */
+export async function getCartasCompletas(
+  supabase: SupabaseClient,
+  cardSetId: string,
+  options?: { incluirInativas?: boolean },
+): Promise<CartaCompletaRow[]> {
+  return (await getCartasCompletasResult(supabase, cardSetId, options)).cartas;
 }
 
 /** P1 (2026-10-11) — carta ativa com variantes e nenhuma variante padrão, em qualquer Coleção. */
@@ -2142,7 +2172,7 @@ export async function getCartasSemVariantePadrao(
   const { data, error } = await supabase
     .from("card")
     .select(
-      "id, collector_number, collector_total, collector_order, name, card_set(code, name), card_variant(id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id, is_default, is_active, card_variant_type(id, code, name, display_order), card_printing_profile(id, name, display_order), card_edition_context_profile(id, name, display_order))",
+      "id, collector_number, collector_total, collector_order, name, card_set(code, name), " + CARD_VARIANT_EMBED,
     )
     .in("id", ids);
   if (error || !data) {

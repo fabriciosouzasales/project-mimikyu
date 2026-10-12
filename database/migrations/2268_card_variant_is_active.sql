@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 2268 - Estado ativo/inativo de Card Variant + trava de novos vínculos — P2b
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício (ensaio e aplicação no LIVE).
+Status......: CONFIRMADO EXECUTADO (2026-10-12, apply_migration no LIVE, versão 20261012031352, autorizado por
+              Fabrício após ensaio PASS 11/11). Validação: 0 inativas, CHECK 1, 4 triggers.
+              Pós-P2b: 37.881 variantes (todas ativas), 156.706 produtos de preço, 715 sem variante,
+              log 2.017, Collections 0 vínculos — iguais ao pré; demais funções inalteradas (hash).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-11
 Mandato.....: Fabrício, 2026-10-11 — P2b aprovada (Queries 2268–2270): desativar/reativar variante

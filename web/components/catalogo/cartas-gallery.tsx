@@ -171,6 +171,7 @@ export function CartasGallery({
   selectedGameId,
   selectedExpansionId,
   cartas,
+  cartasError = null,
   raridades,
   categorias,
   initialVarianteFilter = "all",
@@ -191,6 +192,8 @@ export function CartasGallery({
   /** "" = "Selecionar Todos". */
   selectedExpansionId: string;
   cartas: CartaCompletaRow[];
+  /** Falha ao carregar as cartas do Card Set — nunca exibida como "sem cartas". */
+  cartasError?: string | null;
   /** Raridades canônicas — alimenta o select "Raridade" de `EditCardDialog` (2026-08-07, pedido de Fabrício: "duas cartas cadastradas com a raridade errada"). */
   raridades: RaridadeRow[];
   /** Categorias editoriais — alimenta o select "Categoria" de `EditCardDialog`. */
@@ -732,6 +735,16 @@ export function CartasGallery({
                   title="Nenhuma Coleção cadastrada neste escopo"
                   description="Ajuste o filtro de Jogo/Expansão ou cadastre um Card Set em /catalogo/card-sets."
                 />
+              ) : cartasError ? (
+                <div role="alert" className="space-y-3">
+                  <InlineFeedback tone="error">
+                    Não foi possível carregar as cartas de {selectedCardSet.name}. As cartas não foram alteradas; tente
+                    novamente.
+                  </InlineFeedback>
+                  <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
+                    Tentar novamente
+                  </Button>
+                </div>
               ) : cartas.length === 0 ? (
                 <EmptyState
                   title="Nenhuma carta catalogada neste Card Set"

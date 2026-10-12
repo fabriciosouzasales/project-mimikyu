@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 2270 - Desativar / reativar Card Variant (RPC administrativa) — P2b
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício (ensaio e aplicação no LIVE).
+Status......: CONFIRMADO EXECUTADO (2026-10-12, apply_migration no LIVE, versão 20261012031548, autorizado por
+              Fabrício após ensaio PASS 11/11). Validação: auth_ok true, anon false, 2 CHECKs, SECURITY DEFINER, search_path vazio, lock_timeout 5s.
+              Pós-P2b: 37.881 variantes (todas ativas), 156.706 produtos de preço, 715 sem variante,
+              log 2.017, Collections 0 vínculos — iguais ao pré; demais funções inalteradas (hash).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-11
 Depende.....: 2268 (is_active, CHECK padrão-ativa), 2269, 2267 (listas atuais dos CHECKs do log).

@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 2269 - Consumidores de Card Variant passam a respeitar is_active — P2b
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício (ensaio e aplicação no LIVE).
+Status......: CONFIRMADO EXECUTADO (2026-10-12, apply_migration no LIVE, versão 20261012031506, autorizado por
+              Fabrício após ensaio PASS 11/11). Validação: pendentes 0 (igual ao pré), resolver/link/pick ok.
+              Pós-P2b: 37.881 variantes (todas ativas), 156.706 produtos de preço, 715 sem variante,
+              log 2.017, Collections 0 vínculos — iguais ao pré; demais funções inalteradas (hash).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-11
 Depende.....: 2268 (coluna is_active + trava MV001).

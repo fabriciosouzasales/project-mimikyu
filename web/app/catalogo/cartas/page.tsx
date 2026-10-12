@@ -7,7 +7,7 @@ import {
   getCardSetLogoUrls,
   getCardSetsForCartas,
   getCartasCatalogoStats,
-  getCartasCompletas,
+  getCartasCompletasResult,
   getCategoriaOptions,
   getExpansoes,
   getGameOptions,
@@ -113,7 +113,7 @@ export default async function CartasPage({
   // que "Sem Imagens" seja calculado sobre o mesmo total, sem divergir.
   const totalCartas = cardSets.reduce((sum, cardSet) => sum + cardSet.cardsCatalogados, 0);
 
-  const [logoUrls, cartasStats, cartas] = await Promise.all([
+  const [logoUrls, cartasStats, cartasResult] = await Promise.all([
     getCardSetLogoUrls(supabase, selected?.logoStoragePath ? [selected.logoStoragePath] : []),
     getCartasCatalogoStats(supabase, totalCartas),
     // `incluirInativas: true` — 2026-08-07 (subciclo Card: criação e
@@ -123,7 +123,9 @@ export default async function CartasPage({
     // inativas (mesma regra de duplicidade de `admin_create_card()`,
     // Query 2115). O filtro "ativas por padrão" continua acontecendo no
     // cliente (`CartasGallery`), não no banco.
-    selected ? getCartasCompletas(supabase, selected.id, { incluirInativas: true }) : Promise.resolve([]),
+    selected
+      ? getCartasCompletasResult(supabase, selected.id, { incluirInativas: true })
+      : Promise.resolve({ cartas: [], error: null }),
   ]);
   const selectedLogoUrl = selected?.logoStoragePath ? (logoUrls.get(selected.logoStoragePath) ?? null) : null;
 
@@ -140,7 +142,8 @@ export default async function CartasPage({
           selectedLogoUrl={selectedLogoUrl}
           selectedGameId={selectedGameId}
           selectedExpansionId={selectedExpansionId}
-          cartas={cartas}
+          cartas={cartasResult.cartas}
+          cartasError={cartasResult.error}
           raridades={raridades}
           categorias={categorias}
           initialVarianteFilter={variacoes === "sem-padrao" ? "no-default" : "all"}
