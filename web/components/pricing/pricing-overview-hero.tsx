@@ -1,11 +1,10 @@
 import { Activity, Clock, RefreshCw, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Panel } from "@/components/catalogo/panel";
-import { Badge } from "@/components/ui/badge";
-import { HeroFact } from "@/components/pricing/hero-fact";
 import type { PricingAdminOverview } from "@/lib/pricing/queries";
 import type { PricingOverviewStatus } from "@/lib/pricing/pricing-overview-status";
-import { cn, formatManagerialDateTime, formatNumber } from "@/lib/utils";
+import { cn, formatDateTimeParts, formatNumber } from "@/lib/utils";
 
 const STATUS_ICON: Record<PricingOverviewStatus["level"], LucideIcon> = {
   SAUDAVEL: ShieldCheck,
@@ -14,20 +13,22 @@ const STATUS_ICON: Record<PricingOverviewStatus["level"], LucideIcon> = {
 };
 
 /**
- * Ajuste v3.5 (2026-08-23) — Fabrício aprovou o teste visual "Valores de
- * Mercado" → "Valor de Mercado" (singular) em toda a linguagem visível do
- * módulo, com a manchete alvo explícita "Valor de Mercado está saudável".
- * Reverte a concordância plural do ajuste v3.4 (que existia só porque o
- * sujeito era plural naquele momento — "Valores de Mercado estão
- * saudáveis") de volta ao singular, agora que o sujeito da frase também é
- * singular. `status.label` ("Saudável"/"Atenção"/"Crítico") é o rótulo do
- * badge — não muda, é um substantivo/adjetivo de status isolado, não parte
- * da frase.
+ * v4 (2026-10-12) — a manchete deixou de ser a frase "Valor de Mercado está
+ * em atenção" + badge "Atenção" (o mesmo estado dito duas vezes). Agora é o
+ * nome do módulo como título curto + um único chip de estado, com a
+ * pendência principal (`status.reasons`) como subtítulo. `status.label`
+ * continua sendo o texto do chip — nenhuma regra de status mudou.
  */
-const HEADLINE_ADJETIVO: Record<PricingOverviewStatus["level"], string> = {
-  SAUDAVEL: "saudável",
-  ATENCAO: "em atenção",
-  CRITICO: "crítico",
+const STATUS_CHIP: Record<PricingOverviewStatus["level"], string> = {
+  SAUDAVEL: "bg-success/10 text-success ring-success/25",
+  ATENCAO: "bg-warning/15 text-warning-foreground ring-warning/35 dark:text-warning",
+  CRITICO: "bg-destructive/10 text-destructive ring-destructive/30 dark:text-destructive-foreground",
+};
+
+const STATUS_DOT: Record<PricingOverviewStatus["level"], string> = {
+  SAUDAVEL: "bg-success",
+  ATENCAO: "bg-warning",
+  CRITICO: "bg-destructive",
 };
 
 /**
@@ -51,10 +52,74 @@ const HEADLINE_ADJETIVO: Record<PricingOverviewStatus["level"], string> = {
 
 /** Classes de halo do ícone — mesma paleta semântica do `Badge`/`StatCard tone="danger"`, escaladas para o tamanho de destaque do Hero. */
 const STATUS_HALO: Record<PricingOverviewStatus["level"], string> = {
-  SAUDAVEL: "bg-success/10 text-success",
-  ATENCAO: "bg-warning/10 text-warning",
-  CRITICO: "bg-destructive/10 text-destructive dark:text-destructive-foreground",
+  SAUDAVEL: "bg-success/10 text-success ring-success/20",
+  ATENCAO: "bg-warning/10 text-warning ring-warning/25",
+  CRITICO: "bg-destructive/10 text-destructive ring-destructive/25 dark:text-destructive-foreground",
 };
+
+/**
+ * v4 (2026-10-12) — mini-card de KPI do Hero da Visão Geral. Local a este
+ * arquivo de propósito: `HeroFact` continua servindo `pricing-fontes-hero.tsx`
+ * sem nenhuma mudança (a reformulação vale só para a Visão Geral).
+ * Semântica: `<dt>` = rótulo, `<dd>` = valor + contexto; a barra é decorativa
+ * (`aria-hidden`), o número ao lado já diz o mesmo.
+ */
+function KpiTile({
+  icon: Icon,
+  label,
+  children,
+  detail,
+  progressPct,
+  progressTone = "primary",
+}: {
+  icon: LucideIcon;
+  label: string;
+  children: ReactNode;
+  detail?: ReactNode;
+  progressPct?: number;
+  progressTone?: "primary" | "success" | "warning";
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-border/70 bg-background/60 p-4 dark:bg-surface-muted/40 sm:p-5">
+      <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="truncate">{label}</span>
+      </dt>
+      <dd className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <div className="font-heading text-[26px] font-semibold leading-none tracking-tight tabular-nums text-foreground sm:text-[28px]">
+          {children}
+        </div>
+        {progressPct !== undefined && (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted dark:bg-border/60" aria-hidden="true">
+            <div
+              className={cn(
+                "h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500",
+                progressTone === "success" && "bg-success",
+                progressTone === "warning" && "bg-warning",
+                progressTone === "primary" && "bg-primary",
+              )}
+              style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+            />
+          </div>
+        )}
+        {detail ? <div className="mt-auto space-y-0.5 text-xs leading-snug text-muted-foreground">{detail}</div> : null}
+      </dd>
+    </div>
+  );
+}
+
+/** Fração "N/M" com o denominador recuado — o numerador é o dado; leitores de tela ouvem "N de M". */
+function Fraction({ value, total }: { value: number; total: number }) {
+  return (
+    <>
+      {formatNumber(value)}
+      <span className="text-lg font-medium text-muted-foreground sm:text-xl" aria-hidden="true">
+        /{formatNumber(total)}
+      </span>
+      <span className="sr-only"> de {formatNumber(total)}</span>
+    </>
+  );
+}
 
 /**
  * Bloco 1 da Visão Geral v3 — HERO GERENCIAL (2026-08-23). Substitui o
@@ -119,71 +184,112 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
   const setsEmOperacao = Math.max(0, sets.total - emImplantacao);
   const saudeHint = emImplantacao > 0 ? `+${formatNumber(emImplantacao)} em implantação` : undefined;
 
+  const saudeCompleta = setsEmOperacao > 0 && sets.healthy >= setsEmOperacao;
+  const saudePct = setsEmOperacao > 0 ? (sets.healthy / setsEmOperacao) * 100 : undefined;
+  const lastSync = formatDateTimeParts(last_sync_run?.finished_at ?? null);
+  const atualizacaoAtiva = dispatcher?.active ?? false;
+
   return (
-    <Panel className="p-4 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", STATUS_HALO[status.level])} aria-hidden="true">
+    <Panel className="p-5 sm:p-6">
+      <div className="flex items-start gap-4">
+        <span
+          className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset", STATUS_HALO[status.level])}
+          aria-hidden="true"
+        >
           <Icon className="h-5 w-5" />
         </span>
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="font-heading text-xl font-semibold text-foreground sm:text-2xl">
-              Valor de Mercado está {HEADLINE_ADJETIVO[status.level]}
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Valor de Mercado
             </h2>
-            <Badge variant={status.badgeVariant}>{status.label}</Badge>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset",
+                STATUS_CHIP[status.level],
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[status.level])} aria-hidden="true" />
+              {status.label}
+            </span>
           </div>
-          <ul className="space-y-0.5">
-            {status.reasons.map((motivo) => (
-              <li key={motivo} className="text-sm text-muted-foreground">
-                {motivo}
-              </li>
-            ))}
-            {/* 3984: contexto neutro (implantação em andamento) — não muda o nível, por isso sem cor semântica. */}
-            {status.notes.map((nota) => (
-              <li key={nota} className="text-sm text-muted-foreground/80">
-                {nota}
-              </li>
-            ))}
-          </ul>
+          {status.reasons.length > 0 || status.notes.length > 0 ? (
+            <ul className="space-y-0.5">
+              {status.reasons.map((motivo) => (
+                <li key={motivo} className="text-sm text-foreground/80">
+                  {motivo}
+                </li>
+              ))}
+              {/* 3984: contexto neutro (implantação em andamento) — não muda o nível, por isso sem cor semântica. */}
+              {status.notes.map((nota) => (
+                <li key={nota} className="text-sm text-muted-foreground">
+                  {nota}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Sem pendências operacionais.</p>
+          )}
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 sm:grid-cols-4 sm:gap-4">
-        <HeroFact
+      <dl className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        <KpiTile
           icon={Activity}
           label="Cobertura"
-          value={`${formatNumber(coverage.covered)}/${formatNumber(coverage.eligible_total)}`}
           progressPct={coveragePct}
-          hint={coverageHint}
-        />
-        <HeroFact
+          detail={coverageHint ? <p>{coverageHint}</p> : null}
+        >
+          <Fraction value={coverage.covered} total={coverage.eligible_total} />
+        </KpiTile>
+
+        <KpiTile
           icon={ShieldCheck}
           label="Saúde dos Sets"
-          value={`${formatNumber(sets.healthy)}/${formatNumber(setsEmOperacao)}`}
-          hint={saudeHint}
-        />
-        <HeroFact
+          progressPct={saudePct}
+          progressTone={saudeCompleta ? "success" : "warning"}
+          detail={saudeHint ? <p>{saudeHint}</p> : null}
+        >
+          <Fraction value={sets.healthy} total={setsEmOperacao} />
+        </KpiTile>
+
+        <KpiTile
           icon={RefreshCw}
-          label="Atualização Automática"
-          value={
-            dispatcher?.active
-              ? `Ativa${
-                  policyPrincipal
-                    ? dailyExpansions.length > 0 && policyPrincipal.frequency_days !== 1
-                      ? ` · diária (${dailyExpansions.join(", ")}) · demais a cada ${frequencyLabel(policyPrincipal.frequency_days)}`
-                      : ` · a cada ${frequencyLabel(policyPrincipal.frequency_days)}`
-                    : ""
-                }`
-              : "Inativa"
+          label="Atualização automática"
+          detail={
+            atualizacaoAtiva && policyPrincipal ? (
+              dailyExpansions.length > 0 && policyPrincipal.frequency_days !== 1 ? (
+                <>
+                  <p>
+                    <span className="font-medium text-foreground/80">Diária</span> · {dailyExpansions.join(", ")}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground/80">Demais</span> · a cada {frequencyLabel(policyPrincipal.frequency_days)}
+                  </p>
+                </>
+              ) : (
+                <p>A cada {frequencyLabel(policyPrincipal.frequency_days)}</p>
+              )
+            ) : null
           }
-          valueClassName={dispatcher?.active ? "text-success" : "text-warning"}
-        />
-        <HeroFact
-          icon={Clock}
-          label="Última sincronização"
-          value={last_sync_run?.finished_at ? formatManagerialDateTime(last_sync_run.finished_at) : "—"}
-        />
-      </div>
+        >
+          <span className={cn("inline-flex items-center gap-2", atualizacaoAtiva ? "text-success" : "text-warning-foreground dark:text-warning")}>
+            <span
+              className={cn("h-2 w-2 shrink-0 rounded-full", atualizacaoAtiva ? "bg-success" : "bg-warning")}
+              aria-hidden="true"
+            />
+            {atualizacaoAtiva ? "Ativa" : "Inativa"}
+          </span>
+        </KpiTile>
+
+        <KpiTile icon={Clock} label="Última sincronização" detail={lastSync ? <p>em {lastSync.date}</p> : null}>
+          {lastSync ? (
+            <time dateTime={last_sync_run?.finished_at ?? undefined}>{lastSync.time}</time>
+          ) : (
+            "—"
+          )}
+        </KpiTile>
+      </dl>
     </Panel>
   );
 }
