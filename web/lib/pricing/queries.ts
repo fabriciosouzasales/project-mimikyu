@@ -120,13 +120,34 @@ export type PricingAdminOverview = {
  * sempre falha de rede/RPC, não falta de permissão.
  */
 export async function getPricingAdminOverview(supabase: SupabaseClient): Promise<PricingAdminOverview | null> {
+  const startedAt = Date.now();
   const { data, error } = await supabase.rpc("get_pricing_admin_overview");
 
   if (error || !data) {
+    logPricingReadFailure("get_pricing_admin_overview", startedAt, error);
     return null;
   }
 
   return data as PricingAdminOverview;
+}
+
+/**
+ * Diagnóstico de falha de leitura do Pricing (incidente da primeira carga,
+ * 2026-10-12). As leituras continuam devolvendo `null` para a página mostrar
+ * o alerta amigável, mas a causa real deixa de ser descartada: código
+ * Postgres/PostgREST e duração vão para o log do servidor. `57014` =
+ * cancelada por `statement_timeout` (8 s no papel `authenticated`).
+ * Nada sensível é registrado: só nome da RPC, código, mensagem e tempo.
+ */
+function logPricingReadFailure(
+  rpc: string,
+  startedAt: number,
+  error: { code?: string; message?: string } | null,
+): void {
+  const elapsedMs = Date.now() - startedAt;
+  const code = error?.code ?? "NO_DATA";
+  const kind = code === "57014" ? "statement_timeout" : error ? "rpc_error" : "empty_response";
+  console.error(`[pricing] ${rpc} falhou (${kind}, código ${code}, ${elapsedMs} ms): ${error?.message ?? "sem dados"}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -156,8 +177,12 @@ export async function getPricingCoverageTrend(
   supabase: SupabaseClient,
   days = 30,
 ): Promise<PricingCoverageTrendPoint[] | null> {
+  const startedAt = Date.now();
   const { data, error } = await supabase.rpc("admin_get_pricing_coverage_trend", { p_days: days });
-  if (error || !data) return null;
+  if (error || !data) {
+    logPricingReadFailure("admin_get_pricing_coverage_trend", startedAt, error);
+    return null;
+  }
   return (data as PricingCoverageTrendRawPoint[]).map((row) => ({ day: row.day, cumConfirmed: row.cum_confirmed }));
 }
 
@@ -170,8 +195,12 @@ export async function getPricingSyncRunDaily(
   supabase: SupabaseClient,
   days = 14,
 ): Promise<PricingSyncRunDailyPoint[] | null> {
+  const startedAt = Date.now();
   const { data, error } = await supabase.rpc("admin_get_pricing_sync_run_daily", { p_days: days });
-  if (error || !data) return null;
+  if (error || !data) {
+    logPricingReadFailure("admin_get_pricing_sync_run_daily", startedAt, error);
+    return null;
+  }
   return data as PricingSyncRunDailyPoint[];
 }
 
@@ -193,8 +222,12 @@ export async function getPricingApiUsageDaily(
   supabase: SupabaseClient,
   days = 30,
 ): Promise<PricingApiUsagePoint[] | null> {
+  const startedAt = Date.now();
   const { data, error } = await supabase.rpc("admin_get_pricing_api_usage_daily", { p_days: days });
-  if (error || !data) return null;
+  if (error || !data) {
+    logPricingReadFailure("admin_get_pricing_api_usage_daily", startedAt, error);
+    return null;
+  }
   return (data as PricingApiUsageRawPoint[]).map((row) => ({ day: row.day, requests: row.requests ?? 0 }));
 }
 
