@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Layers } from "lucide-react";
+import { AlertTriangle, Layers, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
@@ -25,17 +25,25 @@ import { cn } from "@/lib/utils";
  *
  * Erro da F1 (D2): mostra a contagem bruta e "Detalhes indisponíveis", sem
  * recorrer aos nomes legados.
+ *
+ * P1 (2026-10-11): a variante padrão aparece marcada com estrela + texto
+ * "Padrão" (nunca só cor); carta sem padrão mostra o aviso "Sem variante
+ * padrão". `onManageDefault` (opcional) acrescenta o atalho para o diálogo
+ * de escolha — caminho de mouse/toque; o caminho de teclado é o diálogo de
+ * edição da carta, que tem a mesma ação.
  */
 export function CartaVariantsSummary({
   cardId,
   cartaName,
   view,
+  onManageDefault,
 }: {
   cardId: string;
   cartaName: string;
   view: CartaVariantViewState | null | undefined;
+  onManageDefault?: () => void;
 }) {
-  const { anchorRef, contentRef, open, position, scheduleOpen, scheduleClose, openNow, toggle } =
+  const { anchorRef, contentRef, open, position, scheduleOpen, scheduleClose, openNow, closeNow, toggle } =
     useAnchoredPopover<HTMLButtonElement, HTMLDivElement>();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -95,7 +103,11 @@ export function CartaVariantsSummary({
               {model.kind === "LIST" ? (
                 <ul className="mt-1.5 space-y-1">
                   {model.lines.map((line) => (
-                    <li key={line.id} aria-label={line.label} className="flex items-baseline gap-1.5 leading-snug">
+                    <li
+                      key={line.id}
+                      aria-label={line.isDefault ? `${line.label}, variante padrão` : line.label}
+                      className="flex items-baseline gap-1.5 leading-snug"
+                    >
                       <span aria-hidden="true" className="text-muted-foreground">
                         •
                       </span>
@@ -114,10 +126,43 @@ export function CartaVariantsSummary({
                             rótulo repetido
                           </span>
                         ) : null}
+                        {line.isDefault ? (
+                          <span className="ml-1.5 inline-flex translate-y-[-1px] items-center gap-0.5 rounded-full border border-primary/40 bg-primary/5 px-1.5 py-px align-middle text-[9px] font-medium uppercase tracking-wide text-primary-ink">
+                            <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" />
+                            Padrão
+                          </span>
+                        ) : null}
                       </span>
                     </li>
                   ))}
                 </ul>
+              ) : null}
+              {model.kind === "LIST" ? (
+                !model.defaultLine || onManageDefault ? (
+                <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+                  {model.defaultLine ? (
+                    <span aria-hidden="true" />
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-warning">
+                      <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                      Sem variante padrão
+                    </span>
+                  )}
+                  {onManageDefault ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        closeNow();
+                        onManageDefault();
+                      }}
+                      className="rounded font-medium text-primary-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {model.defaultLine ? "Alterar padrão" : "Escolher padrão"}
+                    </button>
+                  ) : null}
+                </div>
+                ) : null
               ) : (
                 <div className="mt-1.5 flex items-start gap-1.5 text-muted-foreground">
                   <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />

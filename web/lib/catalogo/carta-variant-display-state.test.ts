@@ -356,7 +356,8 @@ test("S18 — não-mutação da entrada", () => {
 });
 
 test("S19 — tamanho determinístico da projeção (bytes) nos casos F0", () => {
-  const expected = [363, 1058, 1069, 1069];
+  // P1 (2026-10-11): +18 B por variante (`,"isDefault":false`).
+  const expected = [399, 1166, 1177, 1177];
   F0_CASES.forEach((fixture, index) => {
     const bytes = Buffer.byteLength(JSON.stringify(buildCartaVariantView(fixture.rows, fixture.set)));
     assert.equal(bytes, expected[index], `${fixture.name}: ${bytes} B`);

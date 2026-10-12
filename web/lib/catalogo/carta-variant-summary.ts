@@ -32,11 +32,20 @@ export type VariantSummaryLine = {
   label: string;
   /** Outra variante da mesma carta tem o mesmo texto (M3: sinalizar, nunca deduplicar). */
   repeatedLabel: boolean;
+  /** P1 (2026-10-11): variante padrão da carta. */
+  isDefault: boolean;
 };
 
 export type VariantSummaryModel =
   | { kind: "HIDDEN" }
-  | { kind: "LIST"; count: number; lines: VariantSummaryLine[]; triggerLabel: string }
+  | {
+      kind: "LIST";
+      count: number;
+      lines: VariantSummaryLine[];
+      /** P1: a linha padrão, ou `null` quando a carta ainda não tem variante padrão. */
+      defaultLine: VariantSummaryLine | null;
+      triggerLabel: string;
+    }
   | { kind: "UNAVAILABLE"; count: number | null; triggerLabel: string };
 
 function plural(count: number): string {
@@ -87,13 +96,17 @@ export function buildVariantSummaryModel(view: CartaVariantViewState | null | un
       parts,
       label: parts.map((part) => part.text).join(VARIANT_LABEL_SEPARATOR),
       repeatedLabel: variant.collidesWith.length > 0 || variant.renderedCollidesWith.length > 0,
+      isDefault: variant.isDefault === true,
     };
   });
+  const defaultLine = lines.find((line) => line.isDefault) ?? null;
+  const defaultText = defaultLine ? `padrão: ${defaultLine.label}` : "sem variante padrão";
 
   return {
     kind: "LIST",
     count: view.rawCount,
     lines,
-    triggerLabel: `Ver variações de ${cartaName}: ${plural(view.rawCount)}`,
+    defaultLine,
+    triggerLabel: `Ver variações de ${cartaName}: ${plural(view.rawCount)}, ${defaultText}`,
   };
 }

@@ -178,3 +178,32 @@ export async function updateCard(_prevState: CardActionState, formData: FormData
   revalidatePath("/catalogo/cartas");
   return { error: null, success: true, id };
 }
+
+/**
+ * P1 (2026-10-11) — define a variante padrão de uma carta via
+ * `admin_set_card_variant_default()` (Query 2264). O cliente envia só o id da
+ * variante: a carta, a permissão de admin, a carta ativa e a troca atômica do
+ * padrão são decididas no banco. `changed: false` = a variante já era a padrão.
+ */
+export async function setCardVariantDefault(
+  cardVariantId: string,
+): Promise<{ error: string | null; changed?: boolean }> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cardVariantId)) {
+    return { error: "Variação inválida." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_set_card_variant_default", {
+    p_card_variant_id: cardVariantId,
+  });
+
+  if (error) {
+    return { error: traduzirErroCatalogo(error.message) };
+  }
+
+  const changed = (data as { changed?: unknown } | null)?.changed === true;
+  if (changed) {
+    revalidatePath("/catalogo/cartas");
+  }
+  return { error: null, changed };
+}

@@ -2048,7 +2048,7 @@ export async function getCartasCompletas(
       // para `authenticated` (confirmado: `getCartasCatalogoStats()` já lê
       // esta tabela em produção) e RLS admin-only (`catalog_admin_select`,
       // ADR-028) — nenhuma migration necessária.
-      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_set(code), card_variant(id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id, card_variant_type(id, code, name, display_order), card_printing_profile(id, name, display_order), card_edition_context_profile(id, name, display_order))",
+      "id, collector_number, collector_total, collector_order, name, is_active, rarity(id, code, name, symbol_code, display_order), card_category(id, code, name, display_order), card_asset(storage_path, is_primary, card_asset_type(code), language(code)), card_set(code), card_variant(id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id, is_default, card_variant_type(id, code, name, display_order), card_printing_profile(id, name, display_order), card_edition_context_profile(id, name, display_order))",
     )
     .eq("card_set_id", cardSetId);
 

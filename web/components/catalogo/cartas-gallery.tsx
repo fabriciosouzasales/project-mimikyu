@@ -3,10 +3,11 @@
 import { CreditCard, Eye, EyeOff, FileUp, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { reactivateCard } from "@/app/catalogo/cartas/actions";
 import { DeactivateCardDialog, EditCardDialog, NewCardDialog } from "@/components/catalogo/carta-dialogs";
+import { CartaDefaultVariantDialog } from "@/components/catalogo/carta-default-variant-dialog";
 import { CartasStats } from "@/components/catalogo/cartas-stats";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import { SetTypeTag } from "@/components/catalogo/set-type-tag";
@@ -223,6 +224,16 @@ export function CartasGallery({
   const [showInactive, setShowInactive] = useState(false);
   const [deactivatingCarta, setDeactivatingCarta] = useState<CartaCompletaRow | null>(null);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  // P1 (2026-10-11) — variante padrão. O id (não a linha) fica no estado para
+  // que, depois do `router.refresh()`, o diálogo e a seção do Editar leiam a
+  // carta já atualizada de `cartas`. `defaultVariantNotice` é a confirmação
+  // mostrada dentro do Editar quando a troca foi feita a partir dele.
+  const [defaultVariantCartaId, setDefaultVariantCartaId] = useState<string | null>(null);
+  const defaultVariantCarta = cartas.find((carta) => carta.id === defaultVariantCartaId) ?? null;
+  const [defaultVariantNotice, setDefaultVariantNotice] = useState<string | null>(null);
+  useEffect(() => {
+    setDefaultVariantNotice(null);
+  }, [state.editingId]);
   // Erro de uma ação rápida (reativar) sem formulário próprio — separado de
   // `state.successMessage`/`EditCardDialog`/`NewCardDialog` porque não há
   // Dialog nenhum aberto no momento do erro (o clique em "Reativar" age
@@ -817,6 +828,7 @@ export function CartasGallery({
                         onOpen={() => openZoom(carta)}
                         onEdit={() => state.startEdit(carta.id)}
                         onDeactivate={() => setDeactivatingCarta(carta)}
+                        onManageDefaultVariant={() => setDefaultVariantCartaId(carta.id)}
                         onReactivate={() => handleReactivate(carta)}
                         reactivating={reactivatingId === carta.id}
                         pricingEntry={pricingByCard.get(carta.id)}
@@ -844,6 +856,8 @@ export function CartasGallery({
         categorias={categorias}
         onSaved={handleSaved}
         onCancel={state.cancelEdit}
+        onManageDefaultVariant={editingCarta?.isActive ? () => setDefaultVariantCartaId(editingCarta.id) : undefined}
+        defaultVariantNotice={defaultVariantNotice}
       />
 
       <NewCardDialog
@@ -866,6 +880,22 @@ export function CartasGallery({
           handleSaved(message, id);
         }}
         onCancel={() => setDeactivatingCarta(null)}
+      />
+
+      {/* Depois do EditCardDialog no JSX: quando aberto a partir dele, fica por cima. */}
+      <CartaDefaultVariantDialog
+        open={defaultVariantCarta !== null}
+        carta={defaultVariantCarta}
+        onSaved={(message, id) => {
+          setDefaultVariantCartaId(null);
+          if (editingCarta) {
+            setDefaultVariantNotice(message);
+            router.refresh();
+          } else {
+            handleSaved(message, id);
+          }
+        }}
+        onCancel={() => setDefaultVariantCartaId(null)}
       />
     </div>
   );
@@ -1037,6 +1067,7 @@ function CartaGridCard({
   onEdit,
   onDeactivate,
   onReactivate,
+  onManageDefaultVariant,
   reactivating,
   pricingEntry,
 }: {
@@ -1061,6 +1092,8 @@ function CartaGridCard({
   onDeactivate: () => void;
   /** Chama `reactivateCard` direto para esta carta — só renderizado quando `!carta.isActive`. */
   onReactivate: () => void;
+  /** P1 (2026-10-11): abre o diálogo de variante padrão desta carta (atalho no popover de variações). */
+  onManageDefaultVariant: () => void;
   /** `true` enquanto a reativação desta carta específica está em voo — desabilita o botão e troca o ícone. */
   reactivating: boolean;
   /** Resumo de preço já resolvido pelo `usePricingBatch` do grid pai — `undefined` enquanto o lote não chegou; ver `CardPriceSummary`. */
@@ -1206,7 +1239,12 @@ function CartaGridCard({
                   contagem bruta + "Detalhes indisponíveis" (D2), sem cair
                   para os nomes legados. Detalhe em `carta-variants-summary.tsx`
                   e `docs/architecture/variant-display-semantics.md`. */}
-              <CartaVariantsSummary cardId={carta.id} cartaName={carta.name} view={carta.variantView} />
+              <CartaVariantsSummary
+                cardId={carta.id}
+                cartaName={carta.name}
+                view={carta.variantView}
+                onManageDefault={carta.isActive ? onManageDefaultVariant : undefined}
+              />
               {/* Pill de preço (P12, último ajuste visual, 2026-08-18) —
                   posicionado imediatamente após o indicador de variantes, pedido
                   explícito de Fabrício: "[indicador de variantes] [pill de

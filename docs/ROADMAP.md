@@ -480,6 +480,11 @@ editorial** que estabilizou essa campanha para escala.
 >    → gate final de Card Variants — CONCLUÍDO em 2026-10-11 (integridade 0/0/0/0; migration 2259: trigger de
 >      variante padrão para cargas futuras; pendências não bloqueantes em "Débitos Técnicos Registrados")
 > 7. CARD VARIANTS — CLOSED (2026-10-11, decisão de Fabrício)
+> 7a. CARD VARIANTS — GESTÃO ADMINISTRATIVA (decisão de Fabrício, 2026-10-11; auditoria em
+>     database/proposals/2026-10-11-variants-frontend-audit):
+>     P1 variante padrão manual — frontend implementado; Query 2264 aguardando execução no LIVE
+>     (os 13 empates passam a ser resolvidos pela tela) → P2/P3 essenciais (gerir variantes da carta;
+>     resolver impressão/contexto de edição na importação)
 > 8. Collections: BULK-04 → BULK-05 → BULK-06 → UX Read Models/Contracts → UX Flows/Wireframes → Frontend Collections
 > ```
 >

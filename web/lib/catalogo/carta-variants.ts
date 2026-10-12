@@ -80,6 +80,8 @@ export type CartaVariantSemanticRawRow = {
   card_variant_type: (CartaVariantAxisRaw & { code: string | null }) | null;
   card_printing_profile: CartaVariantAxisRaw | null;
   card_edition_context_profile: CartaVariantAxisRaw | null;
+  /** P1 (2026-10-11): `card_variant.is_default`. Fora da entrada da F1 — lido à parte por `readDefaultVariantIds`. */
+  is_default?: boolean;
 };
 
 /** A F1 não tem código para exceção inesperada (lacuna A1-L2): sinalizada à parte, sem fabricar código F1. */
@@ -119,6 +121,8 @@ export type CartaVariantView = {
   collidesWith: string[];
   /** Outras variantes da carta com o mesmo texto renderizado com " / ". */
   renderedCollidesWith: string[];
+  /** P1 (2026-10-11): é a variante padrão da carta (`card_variant.is_default`). No máximo uma por carta. */
+  isDefault: boolean;
 };
 
 export type CartaVariantViewError = {
@@ -213,7 +217,10 @@ export function buildCartaVariantDisplayState(rows: unknown, cardSetCode: unknow
 }
 
 /** Projeção de cliente: identidade, partes do rótulo e colisões; sem legado (D3) e sem mensagens internas. */
-export function projectCartaVariantView(state: CartaVariantDisplayState): CartaVariantViewState {
+export function projectCartaVariantView(
+  state: CartaVariantDisplayState,
+  defaultIds: ReadonlySet<string> = new Set(),
+): CartaVariantViewState {
   if (state.status === "NONE") return { status: "NONE", rawCount: 0 };
   if (state.status === "ERROR") {
     return {
@@ -231,14 +238,28 @@ export function projectCartaVariantView(state: CartaVariantDisplayState): CartaV
       parts: getCardVariantLabelParts(variant),
       collidesWith: [...variant.admin.labelCollision.collidingVariantIds],
       renderedCollidesWith: [...(state.renderedLabelCollisions[variant.identity.variantId] ?? [])],
+      isDefault: defaultIds.has(variant.identity.variantId),
     })),
   };
+}
+
+/**
+ * P1 (2026-10-11): ids das linhas com `is_default === true` (estritamente booleano).
+ * Lido à parte da F1 — o padrão é estado administrativo, não identidade da variante.
+ */
+export function readDefaultVariantIds(rows: unknown): Set<string> {
+  const ids = new Set<string>();
+  if (!Array.isArray(rows)) return ids;
+  for (const row of rows) {
+    if (isPlainObject(row) && row.is_default === true && typeof row.id === "string") ids.add(row.id);
+  }
+  return ids;
 }
 
 /** Estado completo → projeção, para uma carta. Nunca lança (isolamento entre cartas). */
 export function buildCartaVariantView(rows: unknown, cardSetCode: unknown): CartaVariantViewState {
   try {
-    return projectCartaVariantView(buildCartaVariantDisplayState(rows, cardSetCode));
+    return projectCartaVariantView(buildCartaVariantDisplayState(rows, cardSetCode), readDefaultVariantIds(rows));
   } catch {
     return {
       status: "ERROR",

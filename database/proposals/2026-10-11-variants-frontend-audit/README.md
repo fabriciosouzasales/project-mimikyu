@@ -25,8 +25,8 @@
 | Criar perfil de impressão (com backfill) | `admin_create_card_printing_profile_with_backfill` | **Não** |
 | Resolver **contexto de edição** desconhecido na importação | — (só migration) | **Não** |
 | Ver variantes da carta com os 3 eixos | leitura direta | **Sim** — galeria de Cartas, resumo, relatório Variantes por carta |
-| Ver qual é a variante **padrão** | `is_default` | **Só no Pricing** (Resolução de mapeamentos); a página de Cartas não mostra |
-| Definir/trocar a variante padrão de uma carta | — | **Não** (13 cartas com empate dependem disso) |
+| Ver qual é a variante **padrão** | `is_default` | **Sim** (P1) — Cartas (popover, Editar), relatório Variantes por carta e Pricing |
+| Definir/trocar a variante padrão de uma carta | `admin_set_card_variant_default` (Query `2264`, aguardando execução) | **Sim** (P1, 2026-10-11) — popover e Editar da carta |
 | Adicionar, editar ou desativar uma variante de uma carta | — | **Não** (só reimportando o Set) |
 | Gerir perfis de contexto de edição e traits | — | **Não** (só seed/migration) |
 | Ver/editar mapeamentos externos (acabamento, impressão, contexto) | — | **Não** |

@@ -58,7 +58,7 @@ test("M2: Dark Alakazam — duas Holográficas distintas, identidade completa e 
     { axis: "PRINTING", text: "1ª Edição", emphasis: "qualifier" },
   ]);
   assert.equal(model.lines.some((l) => l.repeatedLabel), false);
-  assert.equal(model.triggerLabel, "Ver variações de Dark Alakazam: 2 variações cadastradas");
+  assert.equal(model.triggerLabel, "Ver variações de Dark Alakazam: 2 variações cadastradas, sem variante padrão");
 });
 
 test("M3: Edition Context vira qualificador; singular no rótulo do gatilho", () => {
@@ -68,7 +68,7 @@ test("M3: Edition Context vira qualificador; singular no rótulo do gatilho", ()
   if (model.kind !== "LIST") return;
   assert.equal(model.lines[0]!.label, "Holográfica / Programa Player Rewards");
   assert.equal(model.lines[0]!.parts[1]!.emphasis, "qualifier");
-  assert.equal(model.triggerLabel, "Ver variações de Energia: 1 variação cadastrada");
+  assert.equal(model.triggerLabel, "Ver variações de Energia: 1 variação cadastrada, sem variante padrão");
 });
 
 test("M4: rótulos repetidos são sinalizados e nunca deduplicados (M3 da F1)", () => {
@@ -76,8 +76,8 @@ test("M4: rótulos repetidos são sinalizados e nunca deduplicados (M3 da F1)", 
     status: "OK",
     rawCount: 2,
     variants: [
-      { id: V1, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V2], renderedCollidesWith: [V2] },
-      { id: V2, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V1], renderedCollidesWith: [V1] },
+      { id: V1, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V2], renderedCollidesWith: [V2], isDefault: false },
+      { id: V2, parts: [{ axis: "FINISH", text: "Holográfica" }], collidesWith: [V1], renderedCollidesWith: [V1], isDefault: false },
     ],
   };
   const model = buildVariantSummaryModel(view, "X");
@@ -92,8 +92,8 @@ test("M5: colisão só do texto renderizado também é sinalizada", () => {
     status: "OK",
     rawCount: 2,
     variants: [
-      { id: V1, parts: [{ axis: "FINISH", text: "A / B" }], collidesWith: [], renderedCollidesWith: [V2] },
-      { id: V2, parts: [{ axis: "FINISH", text: "A" }, { axis: "PRINTING", text: "B" }], collidesWith: [], renderedCollidesWith: [V1] },
+      { id: V1, parts: [{ axis: "FINISH", text: "A / B" }], collidesWith: [], renderedCollidesWith: [V2], isDefault: false },
+      { id: V2, parts: [{ axis: "FINISH", text: "A" }, { axis: "PRINTING", text: "B" }], collidesWith: [], renderedCollidesWith: [V1], isDefault: false },
     ],
   };
   const model = buildVariantSummaryModel(view, "X");
@@ -148,4 +148,31 @@ test("M10: contagem — rawCount; 0 sem variante; null quando desconhecida", () 
   assert.equal(err.status, "ERROR");
   assert.equal(cartaVariantCount(err), 2);
   assert.equal(cartaVariantCount(buildCartaVariantView(null, "BASE5")), null);
+});
+
+// P1 (2026-10-11) — variante padrão.
+
+test("M11: padrão vem só de is_default === true; linha e rótulo do gatilho o identificam", () => {
+  const view = buildCartaVariantView(
+    [{ ...row(V1, null, null), is_default: false }, { ...row(V2, FIRST_ED, null), is_default: true }],
+    "BASE5",
+  );
+  const model = buildVariantSummaryModel(view, "Dark Alakazam");
+  assert.equal(model.kind, "LIST");
+  if (model.kind !== "LIST") return;
+  assert.deepEqual(model.lines.map((l) => l.isDefault), [false, true]);
+  assert.equal(model.defaultLine?.id, V2);
+  assert.equal(model.triggerLabel, "Ver variações de Dark Alakazam: 2 variações cadastradas, padrão: Holográfica / 1ª Edição");
+});
+
+test("M12: sem padrão (empate) e valores não booleanos nunca viram padrão", () => {
+  const view = buildCartaVariantView(
+    [{ ...row(V1, null, null), is_default: "true" }, { ...row(V2, FIRST_ED, null), is_default: null }],
+    "BASE5",
+  );
+  const model = buildVariantSummaryModel(view, "X");
+  assert.equal(model.kind, "LIST");
+  if (model.kind !== "LIST") return;
+  assert.equal(model.defaultLine, null);
+  assert.equal(model.lines.some((l) => l.isDefault), false);
 });

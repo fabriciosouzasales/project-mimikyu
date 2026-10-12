@@ -59,6 +59,8 @@ export const ACTION_OPTIONS: { value: string; label: string }[] = [
   { value: "CARD_UPDATED", label: "Carta atualizada" },
   { value: "CARD_DEACTIVATED", label: "Carta desativada" },
   { value: "CARD_REACTIVATED", label: "Carta reativada" },
+  // Query 2264 (P1 — variante padrão manual).
+  { value: "CARD_VARIANT_DEFAULT_SET", label: "Variante padrão definida" },
   { value: "CATALOG_IMPORT_JOB", label: "Importação iniciada" },
   { value: "CATALOG_IMPORT_CONFIRMED", label: "Importação confirmada" },
   { value: "CATALOG_IMPORT_ROWS_REVALIDATED", label: "Importação revalidada" },
@@ -140,6 +142,11 @@ export const METADATA_KEY_LABEL: Record<string, string> = {
   excluded_hold_h3: "Retidas (H3)",
   rows_still_pending: "Linhas ainda pendentes",
   jobs_affected: "Importações afetadas",
+  // Query 2264 — CARD_VARIANT_DEFAULT_SET (source = MANUAL).
+  card_variant_id: "Variação (id)",
+  label: "Variação padrão",
+  previous_card_variant_id: "Variação anterior (id)",
+  previous_label: "Variação padrão anterior",
 };
 
 export function humanizeMetadataKey(key: string): string {

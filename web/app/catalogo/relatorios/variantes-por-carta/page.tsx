@@ -287,6 +287,9 @@ export default async function RelatorioVariantesPorCartaPage({
                                   {line.repeatedLabel ? (
                                     <span className="ml-1 text-[10px] italic text-neutral-400">(rótulo repetido)</span>
                                   ) : null}
+                                  {line.isDefault ? (
+                                    <span className="ml-1 text-[10px] font-medium text-neutral-700">(padrão)</span>
+                                  ) : null}
                                 </li>
                               ))}
                             </ul>

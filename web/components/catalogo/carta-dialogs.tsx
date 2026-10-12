@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Star } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { createCard, deactivateCard, updateCard } from "@/app/catalogo/cartas/actions";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import type { CardActionState } from "@/app/catalogo/cartas/actions";
+import { buildVariantSummaryModel } from "@/lib/catalogo/carta-variant-summary";
 import type { CartaCompletaRow, CategoriaOption, RaridadeRow } from "@/lib/catalogo/queries";
 
 const initialState: CardActionState = { error: null };
@@ -247,6 +249,8 @@ export function EditCardDialog({
   categorias,
   onSaved,
   onCancel,
+  onManageDefaultVariant,
+  defaultVariantNotice,
 }: {
   open: boolean;
   carta: CartaCompletaRow | null;
@@ -256,6 +260,10 @@ export function EditCardDialog({
   categorias: CategoriaOption[];
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
+  /** P1 (2026-10-11): abre o diálogo de variante padrão por cima deste (o formulário não é perdido). */
+  onManageDefaultVariant?: () => void;
+  /** P1: confirmação exibida na seção "Variante padrão" depois de uma troca feita a partir daqui. */
+  defaultVariantNotice?: string | null;
 }) {
   const [pending, setPending] = useState(false);
 
@@ -288,10 +296,75 @@ export function EditCardDialog({
             onSaved={onSaved}
             onCancel={onCancel}
             onPendingChange={setPending}
+            onManageDefaultVariant={onManageDefaultVariant}
+            defaultVariantNotice={defaultVariantNotice ?? null}
           />
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * P1 (2026-10-11) — seção somente leitura "Variante padrão" do formulário de
+ * edição. A troca acontece no diálogo dedicado (`CartaDefaultVariantDialog`),
+ * gravada na hora pela própria RPC — independente do "Salvar" deste
+ * formulário, por isso o botão é `type="button"` e o texto deixa isso claro.
+ */
+function DefaultVariantSection({
+  carta,
+  onManage,
+  notice,
+}: {
+  carta: CartaCompletaRow;
+  onManage?: () => void;
+  notice: string | null;
+}) {
+  const model = buildVariantSummaryModel(carta.variantView, carta.name);
+  const titleId = `edit-card-default-variant-${carta.id}`;
+
+  let body: React.ReactNode;
+  if (model.kind === "HIDDEN") {
+    body = <p className="text-sm text-muted-foreground">Esta carta não tem variações cadastradas.</p>;
+  } else if (model.kind === "UNAVAILABLE") {
+    body = <p className="text-sm text-muted-foreground">Detalhes das variações indisponíveis.</p>;
+  } else if (model.defaultLine) {
+    body = (
+      <p className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
+        <Star className="h-3.5 w-3.5 shrink-0 fill-current text-primary" aria-hidden="true" />
+        <span className="truncate">{model.defaultLine.label}</span>
+      </p>
+    );
+  } else {
+    body = (
+      <p className="flex items-center gap-1.5 text-sm text-warning">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        Nenhuma definida
+      </p>
+    );
+  }
+
+  return (
+    <section aria-labelledby={titleId} className="space-y-1.5 rounded-md border border-border px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 space-y-0.5">
+          <p id={titleId} className="text-xs font-medium text-muted-foreground">
+            Variante padrão
+          </p>
+          {body}
+        </div>
+        {model.kind === "LIST" && onManage ? (
+          <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onManage}>
+            {model.defaultLine ? "Alterar" : "Escolher"}
+          </Button>
+        ) : null}
+      </div>
+      {notice ? (
+        <p role="status" className="text-xs text-success">
+          {notice}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -302,6 +375,8 @@ function EditCardForm({
   onSaved,
   onCancel,
   onPendingChange,
+  onManageDefaultVariant,
+  defaultVariantNotice,
 }: {
   carta: CartaCompletaRow;
   raridades: RaridadeRow[];
@@ -309,6 +384,8 @@ function EditCardForm({
   onSaved: (message: string, id?: string) => void;
   onCancel: () => void;
   onPendingChange: (pending: boolean) => void;
+  onManageDefaultVariant?: () => void;
+  defaultVariantNotice: string | null;
 }) {
   const [state, formAction, pending] = useActionState(updateCard, initialState);
 
@@ -383,6 +460,8 @@ function EditCardForm({
             </Select>
           </div>
         </div>
+
+        <DefaultVariantSection carta={carta} onManage={onManageDefaultVariant} notice={defaultVariantNotice} />
 
         {state.error && <InlineFeedback tone="error">{state.error}</InlineFeedback>}
       </DialogBody>
