@@ -77,11 +77,11 @@ function KpiTile({
   children: ReactNode;
   detail?: ReactNode;
   progressPct?: number;
-  progressTone?: "primary" | "success" | "warning";
+  progressTone?: "primary" | "success" | "warning" | "destructive";
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-border/70 bg-background/60 p-4 dark:bg-surface-muted/40 sm:p-5">
-      <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+      <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-foreground/65">
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span className="truncate">{label}</span>
       </dt>
@@ -97,12 +97,13 @@ function KpiTile({
                 progressTone === "success" && "bg-success",
                 progressTone === "warning" && "bg-warning",
                 progressTone === "primary" && "bg-primary",
+                progressTone === "destructive" && "bg-destructive",
               )}
               style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
             />
           </div>
         )}
-        {detail ? <div className="mt-auto space-y-0.5 text-xs leading-snug text-muted-foreground">{detail}</div> : null}
+        {detail ? <div className="space-y-0.5 text-xs leading-snug text-foreground/70">{detail}</div> : null}
       </dd>
     </div>
   );
@@ -184,7 +185,11 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
   const setsEmOperacao = Math.max(0, sets.total - emImplantacao);
   const saudeHint = emImplantacao > 0 ? `+${formatNumber(emImplantacao)} em implantação` : undefined;
 
-  const saudeCompleta = setsEmOperacao > 0 && sets.healthy >= setsEmOperacao;
+  // Barra de Saúde: mesma semântica de `computePricingOverviewStatus` para Sets — com problema
+  // = crítico, pausado = atenção; o restante (inclusive Sets em processamento normal) é saudável.
+  // Cobertura mantém o dourado MMKYU: é medida de alcance, e o Set não configurado não é, por
+  // regra existente, sinal de atenção.
+  const saudeTone = sets.problem > 0 ? "destructive" : sets.paused > 0 ? "warning" : "success";
   const saudePct = setsEmOperacao > 0 ? (sets.healthy / setsEmOperacao) * 100 : undefined;
   const lastSync = formatDateTimeParts(last_sync_run?.finished_at ?? null);
   const atualizacaoAtiva = dispatcher?.active ?? false;
@@ -247,7 +252,7 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
           icon={ShieldCheck}
           label="Saúde dos Sets"
           progressPct={saudePct}
-          progressTone={saudeCompleta ? "success" : "warning"}
+          progressTone={saudeTone}
           detail={saudeHint ? <p>{saudeHint}</p> : null}
         >
           <Fraction value={sets.healthy} total={setsEmOperacao} />
@@ -261,10 +266,10 @@ export function PricingOverviewHero({ overview, status }: { overview: PricingAdm
               dailyExpansions.length > 0 && policyPrincipal.frequency_days !== 1 ? (
                 <>
                   <p>
-                    <span className="font-medium text-foreground/80">Diária</span> · {dailyExpansions.join(", ")}
+                    <span className="font-medium text-foreground/90">Diária</span> · {dailyExpansions.join(", ")}
                   </p>
                   <p>
-                    <span className="font-medium text-foreground/80">Demais</span> · a cada {frequencyLabel(policyPrincipal.frequency_days)}
+                    <span className="font-medium text-foreground/90">Demais</span> · a cada {frequencyLabel(policyPrincipal.frequency_days)}
                   </p>
                 </>
               ) : (
