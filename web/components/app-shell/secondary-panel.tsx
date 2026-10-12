@@ -3,7 +3,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { findActiveSection, getVisibleNavChildren, getVisibleNavSections } from "./nav-config";
+import { findActiveSection, getVisibleNavChildren, getVisibleNavSections, isNavChildActive } from "./nav-config";
 import { cn } from "@/lib/utils";
 
 /**
@@ -66,7 +66,7 @@ export function SecondaryPanel({ isAdmin }: { isAdmin: boolean }) {
             {children.map((child, index) => {
               const previous = children[index - 1];
               const isNewSection = !!child.section && child.section !== previous?.section;
-              const isChildActive = pathname === child.href;
+              const isChildActive = isNavChildActive(child, pathname);
               const ChildIcon = child.icon;
               return (
                 <Fragment key={child.href}>

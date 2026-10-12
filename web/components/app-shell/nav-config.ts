@@ -52,6 +52,12 @@ export type NavChild = {
    * do banco continuam negando acesso por conta própria.
    */
   adminOnly?: boolean;
+  /**
+   * Rotas filhas que também destacam este item (Pokédex P3b, 2026-10-12): a ficha
+   * /pokedex/[numero] pertence à "Pokédex Nacional". Sem isso o destaque é só por
+   * igualdade exata de pathname.
+   */
+  activePattern?: RegExp;
 };
 
 export type NavSection = {
@@ -228,7 +234,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Pokeball,
     href: "/pokedex",
     children: [
-      { href: "/pokedex", label: "Pokédex Nacional", section: "Explorar", icon: LayoutGrid },
+      { href: "/pokedex", label: "Pokédex Nacional", section: "Explorar", icon: LayoutGrid, activePattern: /^\/pokedex\/\d+$/ },
       // Pokédex P2 Lote E (2026-10-12) — cobertura, diagnóstico e
       // reprocessamento pontual das imagens das espécies. Só administradores.
       { href: "/pokedex/imagens", label: "Imagens", section: "Cadastro", icon: Images, adminOnly: true },
@@ -244,6 +250,11 @@ export function getVisibleNavSections(isAdmin: boolean): NavSection[] {
 /** Itens de submenu visíveis para o usuário atual — mesma regra, aplicada por item (`NavChild.adminOnly`). */
 export function getVisibleNavChildren(section: NavSection, isAdmin: boolean): NavChild[] {
   return (section.children ?? []).filter((child) => !child.adminOnly || isAdmin);
+}
+
+/** Item de submenu ativo: pathname igual ao href ou coberto por `activePattern`. */
+export function isNavChildActive(child: NavChild, pathname: string): boolean {
+  return pathname === child.href || (child.activePattern?.test(pathname) ?? false);
 }
 
 /** Determina a seção ativa (e, por consequência, o submenu aberto) a partir do pathname. */

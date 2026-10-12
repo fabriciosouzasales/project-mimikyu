@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Menu, X } from "lucide-react";
-import { findActiveSection, getVisibleNavChildren, getVisibleNavSections } from "./nav-config";
+import { findActiveSection, getVisibleNavChildren, getVisibleNavSections, isNavChildActive } from "./nav-config";
 import { SidebarFooter } from "./sidebar-footer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -78,10 +78,10 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
                             key={child.href}
                             href={child.href}
                             onClick={() => setOpen(false)}
-                            aria-current={pathname === child.href ? "page" : undefined}
+                            aria-current={isNavChildActive(child, pathname) ? "page" : undefined}
                             className={cn(
                               "ml-9 flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
-                              pathname === child.href
+                              isNavChildActive(child, pathname)
                                 ? "bg-accent font-semibold text-foreground"
                                 : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                             )}

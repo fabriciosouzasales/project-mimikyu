@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { SpeciesArtwork } from "@/components/pokedex/species-artwork";
 import { PRIORITY_ARTWORK_COUNT, speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import type { PokedexGeneration, PokedexSpecies } from "@/lib/pokedex/queries";
-import { formatCount, formatDexNumber, generationLabel } from "@/lib/pokedex/format";
+import { type PokedexContext, formatCount, formatDexNumber, generationLabel, speciesAnchorId, speciesDetailHref } from "@/lib/pokedex/format";
 
 /**
  * Grade da Pokédex Nacional (Pokédex P1), agrupada por geração.
@@ -20,9 +21,12 @@ import { formatCount, formatDexNumber, generationLabel } from "@/lib/pokedex/for
 export function SpeciesGrid({
   species,
   generations,
+  context,
 }: {
   species: PokedexSpecies[];
   generations: PokedexGeneration[];
+  /** Pesquisa/geração atuais — levadas à ficha da espécie e de volta (Pokédex P3b). */
+  context: PokedexContext;
 }) {
   const regionByCode = new Map(generations.map((generation) => [generation.generation_code, generation]));
   // Posição de cada espécie na grade renderizada — só o topo visível carrega
@@ -69,6 +73,7 @@ export function SpeciesGrid({
                 <SpeciesTile
                   key={item.national_dex_number}
                   species={item}
+                  context={context}
                   priority={(positionByNumber.get(item.national_dex_number) ?? Infinity) < PRIORITY_ARTWORK_COUNT}
                 />
               ))}
@@ -80,14 +85,20 @@ export function SpeciesGrid({
   );
 }
 
-function SpeciesTile({ species, priority }: { species: PokedexSpecies; priority: boolean }) {
+/**
+ * Card da espécie — desde a P3b é um link para a ficha (/pokedex/[numero]),
+ * levando o contexto da galeria. O `id` do item é a âncora para a qual o
+ * "voltar" da ficha rola de volta.
+ */
+function SpeciesTile({ species, priority, context }: { species: PokedexSpecies; priority: boolean; context: PokedexContext }) {
   const number = formatDexNumber(species.national_dex_number);
   const artworkUrl = speciesArtworkUrl(species.artwork_path);
   return (
-    <li>
-      <article
+    <li id={speciesAnchorId(species.national_dex_number)} className="scroll-mt-6">
+      <Link
+        href={speciesDetailHref(species.national_dex_number, context)}
         aria-label={`Nº ${number}, ${species.species_name}`}
-        className="flex h-full flex-col overflow-hidden rounded-xl border border-border/80 bg-surface shadow-subtle"
+        className="group flex h-full flex-col overflow-hidden rounded-xl border border-border/80 bg-surface shadow-subtle transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:border-border hover:shadow-panel focus-visible:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
       >
         <div
           className="relative flex aspect-square items-center justify-center overflow-hidden bg-gradient-to-b from-surface-muted/90 to-surface-muted/30 dark:from-surface-muted/50 dark:to-transparent"
@@ -105,13 +116,13 @@ function SpeciesTile({ species, priority }: { species: PokedexSpecies; priority:
             </>
           )}
         </div>
-        <div className="flex flex-1 flex-col gap-0.5 px-3 pb-3 pt-2.5">
+        <div className="flex flex-1 flex-col gap-0.5 px-3 pb-3 pt-2.5" aria-hidden="true">
           <span className="text-[11px] font-medium tabular-nums tracking-wide text-muted-foreground">Nº {number}</span>
-          <h4 className="truncate text-sm font-semibold text-foreground" title={species.species_name}>
+          <span className="truncate text-sm font-semibold text-foreground" title={species.species_name}>
             {species.species_name}
-          </h4>
+          </span>
         </div>
-      </article>
+      </Link>
     </li>
   );
 }

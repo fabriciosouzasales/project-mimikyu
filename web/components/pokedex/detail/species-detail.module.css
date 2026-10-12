@@ -1,0 +1,558 @@
+/*
+ * Página de detalhes da espécie — "palco" (Pokédex P3b, 2026-10-12).
+ * Direção de arte aprovada por Fabrício (protótipos desktop escuro/claro e
+ * mobile). Um único layout; a atmosfera vem das variáveis de tipo definidas
+ * inline por `pokemonTypeStyle()` (lib/pokedex/type-palette.ts):
+ *   --pk-t1-l / --pk-t1-d  (tipo primário, claro/escuro)
+ *   --pk-t2-l / --pk-t2-d  (tipo secundário; igual ao primário quando não há)
+ *
+ * Performance: só gradientes estáticos (sem filter: blur, sem backdrop-filter),
+ * nenhuma animação contínua; a única animação é a entrada da arte (transform +
+ * opacity), desligada com prefers-reduced-motion.
+ */
+
+.stage {
+  --pk-t1: var(--pk-t1-l);
+  --pk-t2: var(--pk-t2-l);
+  --pk-ink: var(--pk-t1-ink-l);
+  /* Texto secundário um pouco mais forte que --muted-foreground: o palco é tingido pelo tipo (AA). */
+  --stage-muted: hsl(40 8% 33%);
+  --glow-a: 0.32;
+  --glow-b: 0.15;
+  --glow-2: 0.1;
+  --rim: 0.16;
+  --top-tint: 0.13;
+  --numeral: rgb(var(--pk-t1) / 0.17);
+  --ring: rgb(var(--pk-t1) / 0.24);
+  --floor: rgb(30 26 20 / 0.2);
+  --art-shadow: drop-shadow(0 22px 24px rgb(30 26 20 / 0.2));
+  --art-y: 30%;
+  --floor-y: 50%;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  /* Ocupa o workspace inteiro: anula o padding do <main> do AppShell. */
+  margin: -1.5rem;
+  min-height: calc(100dvh - 3.5rem);
+  display: flex;
+  flex-direction: column;
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(20% 26% at 50% var(--art-y), rgb(var(--pk-t1) / var(--rim)), transparent 70%),
+    radial-gradient(46% 52% at 50% var(--art-y), rgb(var(--pk-t1) / var(--glow-a)), transparent 70%),
+    radial-gradient(26% 28% at 68% 10%, rgb(var(--pk-t2) / var(--glow-2)), transparent 72%),
+    radial-gradient(56% 18% at 50% var(--floor-y), rgb(var(--pk-t1) / var(--glow-b)), transparent 75%),
+    linear-gradient(180deg, rgb(var(--pk-t1) / var(--top-tint)), transparent 62%);
+  color: hsl(var(--foreground));
+}
+
+:global(.dark) .stage {
+  --pk-t1: var(--pk-t1-d);
+  --pk-t2: var(--pk-t2-d);
+  --pk-ink: var(--pk-t1-ink-d);
+  --stage-muted: hsl(36 12% 72%);
+  --glow-a: 0.4;
+  --glow-b: 0.2;
+  --glow-2: 0.14;
+  --rim: 0.28;
+  --top-tint: 0.16;
+  --numeral: rgb(var(--pk-t1) / 0.2);
+  --ring: rgb(var(--pk-t1) / 0.2);
+  --floor: rgb(0 0 0 / 0.55);
+  --art-shadow: drop-shadow(0 28px 32px rgb(0 0 0 / 0.55));
+}
+
+@media (min-width: 1024px) {
+  .stage {
+    --art-y: 34%;
+    --floor-y: 56%;
+  }
+}
+
+/* ---- barra superior (voltar + posição) ---- */
+.topbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem 0;
+}
+
+@media (min-width: 1024px) {
+  .topbar {
+    padding: 1.25rem 2rem 0;
+  }
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.5rem;
+  padding: 0 0.75rem 0 0.5rem;
+  margin-left: -0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  font: 600 0.875rem/1 var(--font-sans);
+  color: var(--stage-muted);
+  transition: color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.back:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--foreground) / 0.06);
+}
+
+.position {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: 600 0.8125rem/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--stage-muted);
+}
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  padding: 0 0.3rem;
+  border-radius: 0.375rem;
+  font: 600 0.6875rem/1 var(--font-sans);
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.14);
+}
+
+/* ---- linha do herói: anterior | arte | próximo ---- */
+.heroRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0.5rem 1.25rem 0;
+}
+
+@media (min-width: 1024px) {
+  .heroRow {
+    padding: 0.25rem 2rem 0;
+  }
+}
+
+.artZone {
+  position: relative;
+  grid-column: 2;
+  width: min(74vw, 18.75rem);
+  aspect-ratio: 1;
+}
+
+@media (min-width: 640px) {
+  .artZone {
+    width: min(52vw, 21rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .artZone {
+    width: clamp(18rem, 30vw, 27.5rem);
+  }
+}
+
+.numeral {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 2%;
+  transform: translateX(-50%);
+  font: 800 clamp(8.5rem, 27vw, 23.5rem) / 0.8 var(--font-heading);
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.4px var(--numeral);
+  user-select: none;
+  pointer-events: none;
+}
+
+.lens {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: 114%;
+  height: 114%;
+  transform: translate(-50%, -51%);
+  color: var(--ring);
+  pointer-events: none;
+}
+
+.floor {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  bottom: 1%;
+  width: 82%;
+  height: 13%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--floor), transparent);
+  pointer-events: none;
+}
+
+.artFrame {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  animation: rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  filter: var(--art-shadow);
+}
+
+.artFallback {
+  width: 38%;
+  height: 38%;
+  color: hsl(var(--foreground) / 0.12);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artFrame {
+    animation: none;
+  }
+}
+
+/* ---- medidas como anotações do palco (desktop) ---- */
+.callout {
+  position: absolute;
+  top: 46%;
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .callout {
+    display: block;
+  }
+}
+
+.calloutLeft {
+  right: calc(100% + 3.25rem);
+  text-align: right;
+}
+
+.calloutRight {
+  left: calc(100% + 3.25rem);
+  text-align: left;
+}
+
+.calloutLeft::after,
+.calloutRight::after {
+  content: "";
+  position: absolute;
+  top: 1.0625rem;
+  width: 2.5rem;
+  height: 1px;
+}
+
+.calloutLeft::after {
+  left: calc(100% + 0.875rem);
+  background: linear-gradient(90deg, transparent, rgb(var(--pk-t1) / 0.6));
+}
+
+.calloutRight::after {
+  right: calc(100% + 0.875rem);
+  background: linear-gradient(270deg, transparent, rgb(var(--pk-t1) / 0.6));
+}
+
+.measureValue {
+  display: block;
+  font: 700 2.125rem/1 var(--font-heading);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.measureLabel {
+  display: block;
+  margin-top: 0.4375rem;
+  font: 500 0.78125rem/1 var(--font-sans);
+  color: var(--stage-muted);
+}
+
+/* ---- identidade ---- */
+.identity {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.5rem 1.25rem 0;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem 0.625rem;
+  font: 600 0.8125rem/1.2 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--pk-ink);
+}
+
+.metaDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.name {
+  margin-top: 0.625rem;
+  max-width: 100%;
+  font: 800 clamp(2.75rem, 11vw, 5.75rem) / 0.92 var(--font-heading);
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.nameLong {
+  font-size: clamp(2.25rem, 9vw, 4.75rem);
+}
+
+@media (min-width: 1024px) {
+  .name {
+    font-size: clamp(3.5rem, 6.2vw, 5.75rem);
+  }
+  .nameLong {
+    font-size: clamp(3rem, 5.2vw, 4.75rem);
+  }
+}
+
+.genus {
+  margin-top: 0.625rem;
+  font: 500 clamp(1.0625rem, 2.2vw, 1.3125rem) / 1.25 var(--font-heading);
+  color: var(--stage-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.625rem;
+  margin-top: 1.125rem;
+}
+
+/* ---- painel de informações: folha no mobile, integrado ao palco no desktop ---- */
+.sheet {
+  position: relative;
+  margin-top: 1.5rem;
+  flex: 1;
+  padding: 1.5rem 1.5rem 1.75rem;
+  border-radius: 1.75rem 1.75rem 0 0;
+  background: hsl(var(--surface));
+  box-shadow: 0 -1px 0 hsl(var(--foreground) / 0.08);
+}
+
+@media (min-width: 1024px) {
+  .sheet {
+    flex: 1;
+    margin-top: 1.375rem;
+    padding: 0 2rem 4.5rem;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: center;
+  }
+}
+
+.measuresMobile {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid hsl(var(--foreground) / 0.08);
+}
+
+.measuresMobile > div {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.measuresMobile > div + div {
+  padding-left: 1rem;
+  border-left: 1px solid hsl(var(--foreground) / 0.08);
+}
+
+.measuresMobile .measureValue {
+  font-size: 1.375rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 1024px) {
+  .measuresMobile {
+    display: none;
+  }
+}
+
+.description {
+  font: 400 0.9375rem/1.62 var(--font-sans);
+  color: hsl(var(--foreground) / 0.92);
+  max-width: 54ch;
+}
+
+@media (min-width: 1024px) {
+  .description {
+    margin: 0 auto;
+    font-size: 1.03125rem;
+  }
+}
+
+.note {
+  margin-top: 0.625rem;
+  font: 500 0.75rem/1.45 var(--font-sans);
+  color: var(--stage-muted);
+}
+
+/* ---- vizinhos ---- */
+.neighbor {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 2.75rem;
+  border-radius: 1rem;
+  color: hsl(var(--foreground));
+  transition: background-color 150ms ease-out;
+}
+
+.neighbor:hover .neighborRound {
+  background: hsl(var(--foreground) / 0.06);
+}
+
+.neighborNext {
+  justify-self: end;
+  text-align: right;
+}
+
+.neighborPrev {
+  justify-self: start;
+}
+
+.neighborDesktop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .neighborDesktop {
+    display: flex;
+  }
+}
+
+.neighborMobileRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.125rem;
+  border-top: 1px solid hsl(var(--foreground) / 0.08);
+}
+
+@media (min-width: 1024px) {
+  .neighborMobileRow {
+    display: none;
+  }
+}
+
+.neighborText small {
+  display: block;
+  margin-bottom: 0.3125rem;
+  font: 600 0.71875rem/1 var(--font-sans);
+  color: var(--stage-muted);
+}
+
+.neighborText strong {
+  display: block;
+  font: 700 1.0625rem/1.1 var(--font-heading);
+  letter-spacing: -0.01em;
+}
+
+.neighborNumber {
+  margin-right: 0.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--stage-muted);
+}
+
+.neighborRound {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.12);
+  transition: background-color 150ms ease-out;
+}
+
+.neighborThumb {
+  width: 2.25rem;
+  height: 2.25rem;
+  object-fit: contain;
+}
+
+.credit {
+  margin-top: 1.5rem;
+  font: 400 0.6875rem/1.4 var(--font-sans);
+  color: var(--stage-muted);
+}
+
+@media (min-width: 1024px) {
+  .credit {
+    margin-top: 2.5rem;
+  }
+}
+
+/* Selos lendário/mítico/bebê — dourado da marca, usado com parcimônia. */
+.flag {
+  display: inline-flex;
+  align-items: center;
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  font: 700 0.6875rem/1 var(--font-sans);
+  letter-spacing: 0.04em;
+  color: hsl(var(--primary-ink));
+  background: hsl(var(--primary) / 0.1);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.45);
+}
+
+/* Estado de erro dentro do palco neutro. */
+.errorBox {
+  margin: 2rem auto 0;
+  max-width: 32rem;
+  padding: 0 1.25rem;
+}

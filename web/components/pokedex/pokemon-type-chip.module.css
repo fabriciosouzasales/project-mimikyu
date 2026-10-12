@@ -1,0 +1,43 @@
+/*
+ * Chip de tipo Pokémon (Pokédex P3b). As cores vêm de `pokemonTypeStyle()`
+ * (lib/pokedex/type-palette.ts) como variáveis por slot; aqui só o tema decide
+ * qual variante usar. Texto com contraste AA nos dois temas.
+ */
+.chip {
+  --chip-rgb: var(--pk-t1-l);
+  --chip-ink: var(--pk-t1-ink-l);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 2rem;
+  padding: 0 0.875rem 0 0.6875rem;
+  border-radius: 999px;
+  font: 600 0.84375rem/1 var(--font-sans);
+  letter-spacing: 0.005em;
+  color: var(--chip-ink);
+  background: rgb(var(--chip-rgb) / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(var(--chip-rgb) / 0.45);
+  white-space: nowrap;
+}
+
+.secondary {
+  --chip-rgb: var(--pk-t2-l);
+  --chip-ink: var(--pk-t2-ink-l);
+}
+
+:global(.dark) .chip {
+  --chip-rgb: var(--pk-t1-d);
+  --chip-ink: var(--pk-t1-ink-d);
+  background: rgb(var(--chip-rgb) / 0.14);
+}
+
+:global(.dark) .secondary {
+  --chip-rgb: var(--pk-t2-d);
+  --chip-ink: var(--pk-t2-ink-d);
+}
+
+.icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+}

@@ -94,7 +94,7 @@ export function PokedexNationalView({
               </>
             )}
           </p>
-          <SpeciesGrid species={species} generations={generations} />
+          <SpeciesGrid species={species} generations={generations} context={{ query, generation: activeGeneration ? generation : null }} />
         </>
       )}
     </div>
