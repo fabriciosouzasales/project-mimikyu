@@ -5,6 +5,7 @@ Uso.........: depois da 2267, ou junto dela num único envio (ensaio). Termina S
               RAISE EXCEPTION: nada fica gravado. Sucesso = 'P2A-2267-TEST PASS ...'.
 Cobre.......: S1 privilégios; S2 não-admin; I1 acabamento de outro jogo/inativo; I2 duplicata;
               I3 carta inativa; F1 cadastro (ordem max+1, não vira padrão se já há padrão, log);
+              P2 falha simulada do resolvedor de preço (só na transação): cadastro mantido, pricing ERROR;
               P1 Pricing restrito à carta e reportado à parte; T tempo.
 ===============================================================================
 */
@@ -13,7 +14,7 @@ DECLARE
   c_admin constant uuid := 'fe316458-49dd-44e1-aac0-f4b7604ef8f2';
   v_card uuid; v_type uuid; v_dup_type uuid; v_dup_pp uuid; v_dup_ec uuid; v_bad_type uuid;
   v_max int; v_res jsonb; v_err text; v_logs int; v_t0 timestamptz; v_ms numeric;
-  v_other_unlinked_before int; v_other_unlinked_after int;
+  v_other_unlinked_before int; v_other_unlinked_after int; v_type2 uuid; v_res2 jsonb; v_card2 uuid; v_unlinked2_before int;
 BEGIN
   -- Fixture: carta ativa com padrão, com produtos de preço sem variante, e um acabamento ativo do
   -- mesmo jogo ainda não usado por ela (sem perfis).
@@ -100,6 +101,43 @@ BEGIN
     RAISE EXCEPTION 'P2A-2267-TEST FAIL P1: % (outras cartas antes % depois %)', v_res->'pricing', v_other_unlinked_before, v_other_unlinked_after;
   END IF;
 
+  -- P2 isolamento: o resolvedor de preço é substituído (só nesta transação, desfeita no fim) por um
+  --    que falha. Usa uma SEGUNDA carta que ainda tem produtos de preço pendentes (a do F1 pode ter
+  --    tido todos ligados), para garantir que o resolvedor seja de fato chamado. O cadastro precisa
+  --    ser mantido, e o retorno e o log precisam trazer pricing ERROR com a mensagem simulada.
+  SELECT c.id, t.id INTO v_card2, v_type2
+    FROM public.card c
+    JOIN public.card_set cs ON cs.id = c.card_set_id
+    JOIN public.expansion e ON e.id = cs.expansion_id
+    JOIN public.card_variant_type t ON t.game_id = e.game_id AND t.is_active
+   WHERE c.is_active AND c.id <> v_card
+     AND EXISTS (SELECT 1 FROM public.pricing_product pp JOIN public.pricing_card_mapping m ON m.id = pp.pricing_card_mapping_id
+                  WHERE m.card_id = c.id AND pp.card_variant_id IS NULL)
+     AND NOT EXISTS (SELECT 1 FROM public.card_variant x WHERE x.card_id = c.id AND x.variant_type_id = t.id
+                       AND x.printing_profile_id IS NULL AND x.edition_context_profile_id IS NULL)
+   ORDER BY c.id, t.display_order LIMIT 1;
+  IF v_card2 IS NULL THEN RAISE EXCEPTION 'P2A-2267-TEST FAIL P2: sem segunda carta com preço pendente'; END IF;
+  SELECT count(*) INTO v_unlinked2_before
+    FROM public.pricing_product pp JOIN public.pricing_card_mapping m ON m.id = pp.pricing_card_mapping_id
+   WHERE m.card_id = v_card2 AND pp.card_variant_id IS NULL;
+  EXECUTE $ddl$
+    CREATE OR REPLACE FUNCTION internal.resolve_pricing_product_card_variant(p_product_ids uuid[])
+    RETURNS TABLE(pricing_product_id uuid, resolution text, card_variant_id uuid, candidate_count integer)
+    LANGUAGE plpgsql SET search_path = '' AS $b$ BEGIN RAISE EXCEPTION 'SIMULATED_PRICING_FAILURE'; END; $b$
+  $ddl$;
+  v_res2 := public.admin_create_card_variant(v_card2, v_type2, NULL, NULL);
+  IF NOT EXISTS (SELECT 1 FROM public.card_variant WHERE id = (v_res2->>'card_variant_id')::uuid)
+     OR v_res2->'pricing'->>'status' <> 'ERROR'
+     OR (v_res2->'pricing'->>'candidates')::int <> v_unlinked2_before
+     OR coalesce(v_res2->'pricing'->>'error', '') NOT LIKE '%SIMULATED_PRICING_FAILURE%'
+     OR NOT EXISTS (SELECT 1 FROM public.catalog_admin_action_log WHERE action = 'CARD_VARIANT_CREATED'
+                      AND (metadata->>'card_variant_id')::uuid = (v_res2->>'card_variant_id')::uuid
+                      AND metadata->'pricing'->>'status' = 'ERROR')
+     OR (SELECT count(*) FROM public.pricing_product pp JOIN public.pricing_card_mapping m ON m.id = pp.pricing_card_mapping_id
+          WHERE m.card_id = v_card2 AND pp.card_variant_id IS NULL) <> v_unlinked2_before THEN
+    RAISE EXCEPTION 'P2A-2267-TEST FAIL P2: %', v_res2;
+  END IF;
+
   -- I3 carta inativa
   UPDATE public.card SET is_active = false WHERE id = v_card;
   BEGIN
@@ -110,7 +148,7 @@ BEGIN
     IF v_err NOT LIKE 'ADMIN_CREATE_CARD_VARIANT_CARD_INACTIVE%' THEN RAISE EXCEPTION 'P2A-2267-TEST FAIL I3: %', v_err; END IF;
   END;
 
-  RAISE EXCEPTION 'P2A-2267-TEST PASS card=% pricing=% tempo=% ms (S1 S2 I1 I2 I3 F1 P1) — tudo desfeito',
-    v_card, v_res->'pricing', v_ms;
+  RAISE EXCEPTION 'P2A-2267-TEST PASS card=% pricing_F1=% pricing_P2=% tempo=% ms (S1 S2 I1 I2 I3 F1 P1 P2) — tudo desfeito',
+    v_card, v_res->'pricing', v_res2->'pricing', v_ms;
 END
 $t$;

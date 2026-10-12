@@ -3,7 +3,11 @@
 Projeto.....: Project Mimikyu
 Query.......: 2267 - Cadastro individual de Card Variant (RPC administrativa) — P2a
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício para executar no LIVE.
+Status......: CONFIRMADO EXECUTADO (2026-10-11, apply_migration no LIVE, versão 20261012023852,
+              autorizado por Fabrício após ensaio PASS — proposals/2026-10-11-p2a-create-variant/).
+              Validação: auth_ok true, anon false, 2 CHECKs com CARD_VARIANT_CREATED, SECURITY DEFINER,
+              search_path='' e lock_timeout=5s; card_variant 37.879, pricing_product 156.706 e
+              716 sem variante inalterados; resolvedor de preço inalterado (hash).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-11
 Mandato.....: Fabrício, 2026-10-11 — P2a aprovada: cadastrar uma variante por carta pelo Catálogo

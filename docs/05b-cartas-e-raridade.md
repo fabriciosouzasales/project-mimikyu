@@ -2799,7 +2799,7 @@ Empate real na primeira posição = a carta **fica sem padrão** e vai para deci
   - o relatório lê a view `catalog_card_variant_default_pending` (Query `2266`, **CONFIRMADO EXECUTADA** 2026-10-11; `security_invoker`, só `authenticated:SELECT`; ~35 ms contra ~0,9 s do anti-join via PostgREST);
   - Query `2265` (**CONFIRMADO EXECUTADA** 2026-10-11): acento em "Holográfica Cracked Ice" via `admin_update_card_variant_type`, sem mudar id nem `CRACKED_ICE_HOLO`.
 
-**Cadastro individual de variante (P2a, 2026-10-11, revisão 1.13).** Status: frontend implementado; Query `2267` **proposta, aguardando execução** (`database/proposals/2026-10-11-p2a-create-variant/`).
+**Cadastro individual de variante (P2a, 2026-10-11, revisão 1.13).** Status: Query `2267` **CONFIRMADO EXECUTADA** no LIVE (2026-10-11; ensaio com falha de Pricing simulada PASS — `database/proposals/2026-10-11-p2a-create-variant/`); frontend implementado, pendente de homologação.
 
 - **RPC** `public.admin_create_card_variant(card, acabamento, impressão?, contexto?) → jsonb`, mesmo padrão da 2264: só admin; carta existente e ativa; trava `FOR NO KEY UPDATE` (espera máx. 5 s).
 - **Validação:** os três eixos precisam existir, estar ativos e ser do Game da carta (os triggers 2170/2224 seguem como autoridade final). Identidade dos três eixos já cadastrada → erro legível (`uq_card_variant_identity` como barreira final).
