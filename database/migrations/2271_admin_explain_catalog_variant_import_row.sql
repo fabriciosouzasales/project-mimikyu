@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 2271 - Diagnóstico de uma linha da importação de variantes (3 eixos) — P3a
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício (ensaio e aplicação no LIVE).
+Status......: CONFIRMADO EXECUTADO (2026-10-12, apply_migration no LIVE, versão 20261012125112, autorizado por
+              Fabrício após ensaio PASS S1 S2 E1 P1 W1 N1 C1 G1 X1 K1 I1). Validação: auth_ok true, anon false.
+              Pós-P3a: mapeamentos de Impressão 24, de Contexto 152, perfis de Contexto 179,
+              37.881 variantes, 37.239 linhas de importação — idênticos ao pré (hash).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-12
 Mandato.....: Fabrício, 2026-10-12 — P3a aprovada (Queries 2271–2274).

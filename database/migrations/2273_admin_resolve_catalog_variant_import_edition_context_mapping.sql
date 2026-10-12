@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 2273 - Resolução administrativa de Contexto de Edição na importação — P3a
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício (ensaio e aplicação no LIVE).
+Status......: CONFIRMADO EXECUTADO (2026-10-12, apply_migration no LIVE, versão 20261012125414, autorizado por
+              Fabrício após ensaio PASS S1 S2 E1 P1 W1 N1 C1 G1 X1 K1 I1). Validação: auth_ok true, anon false, helper false, triggers 2, checks 3.
+              Pós-P3a: mapeamentos de Impressão 24, de Contexto 152, perfis de Contexto 179,
+              37.881 variantes, 37.239 linhas de importação — idênticos ao pré (hash).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-12
 Depende.....: 2211/2243 (resolve_variant_row_axes), 2196 (lookup_variant_type_for_row), 2193
