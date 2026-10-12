@@ -2796,8 +2796,8 @@ Empate real na primeira posição = a carta **fica sem padrão** e vai para deci
   - critério único (`cartaNeedsDefaultVariant`): carta ativa, com variantes e nenhuma padrão;
   - galeria de Cartas: opção "Sem padrão (N)" no filtro Variações, calculada sobre os dados já carregados e respeitando busca, raridade, categoria e inativas;
   - relatório Variantes por carta: chip "Só cartas sem padrão" lista as pendências do catálogo inteiro, com link "Definir padrão" para a galeria da Coleção já filtrada (`?variacoes=sem-padrao`);
-  - o relatório lê a view `catalog_card_variant_default_pending` (Query `2266`, `security_invoker`; ~35 ms contra ~0,9 s do anti-join via PostgREST) — **proposta, aguardando execução**; até lá o modo mostra erro de carregamento;
-  - Query `2265` (proposta): acento em "Holográfica Cracked Ice" via `admin_update_card_variant_type`, sem mudar id nem `CRACKED_ICE_HOLO`.
+  - o relatório lê a view `catalog_card_variant_default_pending` (Query `2266`, **CONFIRMADO EXECUTADA** 2026-10-11; `security_invoker`, só `authenticated:SELECT`; ~35 ms contra ~0,9 s do anti-join via PostgREST);
+  - Query `2265` (**CONFIRMADO EXECUTADA** 2026-10-11): acento em "Holográfica Cracked Ice" via `admin_update_card_variant_type`, sem mudar id nem `CRACKED_ICE_HOLO`.
 
 ## Funções administrativas do fluxo de revisão/confirmação
 

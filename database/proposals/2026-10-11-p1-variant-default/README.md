@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | **Query 2264 CONFIRMADO EXECUTADA** no LIVE (2026-10-11, autorizada por Fabrício) → `database/migrations/2264_admin_set_card_variant_default.sql`; frontend implementado, pendente de validação visual |
+| **Status** | **Queries 2264, 2265 e 2266 CONFIRMADO EXECUTADAS** no LIVE (2026-10-11, autorizadas por Fabrício) → `database/migrations/`; frontend implementado, pendente de homologação visual |
 | **Mandato** | Fabrício, 2026-10-11: proposta P1 aprovada, com os cuidados de concorrência (trigger 2259) e de origem manual identificável sem campo novo |
 | **Normativo** | `docs/05b-cartas-e-raridade.md`, revisão 1.12 |
 
@@ -12,8 +12,8 @@
 |---|---|
 | `../../migrations/2264_admin_set_card_variant_default.sql` | Migration executada: amplia as 2 CHECKs de ação do log e cria a RPC |
 | `2264_test_rollback.sql` | Testes S1 S2 I1 I2 F1 F2 F3 A1 P1. Termina sempre em `RAISE EXCEPTION`, então nada é gravado. Passou = mensagem `P1-2264-TEST PASS` |
-| `2265_fix_cracked_ice_holo_display_name.sql` | **Proposta.** Acento em "Holográfica Cracked Ice" pela RPC `admin_update_card_variant_type` (id e code inalterados, log CARD_VARIANT_TYPE_UPDATED) |
-| `2266_create_catalog_card_variant_default_pending.sql` | **Proposta.** View das pendências de padrão (security_invoker), usada pelo relatório "Só cartas sem padrão" |
+| `../../migrations/2265_fix_cracked_ice_holo_display_name.sql` | Executada. Acento em "Holográfica Cracked Ice" pela RPC `admin_update_card_variant_type` (id e code inalterados, log CARD_VARIANT_TYPE_UPDATED) |
+| `../../migrations/2266_create_catalog_card_variant_default_pending.sql` | Executada. View das pendências de padrão (security_invoker), usada pelo relatório "Só cartas sem padrão" |
 
 ## Execução (2026-10-11)
 
@@ -21,6 +21,9 @@
 - `apply_migration` 2264: sucesso. Validação: `auth_ok = true`, `anon = false`, 2 CHECKs com a ação nova; log intacto.
 - Reteste sobre o LIVE migrado (desfeito): PASS; 1ª chamada 78 ms, seguinte 10 ms.
 - Security Advisor: só o aviso genérico "SECURITY DEFINER executável por authenticated", o mesmo de todas as RPCs admin (autorização via `is_admin()` dentro da função).
+
+- 2265: nome "Holográfica Cracked Ice"; id, code, description e display_order inalterados; log CARD_VARIANT_TYPE_UPDATED.
+- 2266: `security_invoker=true`; só `authenticated:SELECT`; admin 4 linhas (= contagem direta), não-admin 0, anon recusado.
 
 ## Ordem de execução (planejada)
 

@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 2265 - Acento no nome de exibição do acabamento CRACKED_ICE_HOLO
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício para executar no LIVE.
+Status......: CONFIRMADO EXECUTADO (2026-10-11, apply_migration no LIVE, autorizado por Fabrício).
+              Postcheck: name = 'Holográfica Cracked Ice'; id 9c19476b…, code, description e
+              display_order (43) inalterados; 1 linha CARD_VARIANT_TYPE_UPDATED no log (ator admin).
 Data........: 2026-10-11
 Mandato.....: Fabrício, 2026-10-11 — corrigir "Holografica Cracked Ice" → "Holográfica Cracked Ice",
               sem alterar IDs nem identidades técnicas.

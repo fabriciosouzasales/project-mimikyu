@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 2266 - View de cartas pendentes de variante padrão
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício para executar no LIVE.
+Status......: CONFIRMADO EXECUTADO (2026-10-11, apply_migration no LIVE, autorizado por Fabrício).
+              Postcheck: reloptions {security_invoker=true}; grants authenticated:SELECT (anon e PUBLIC sem
+              privilégio); consulta pela view: admin 4 linhas = contagem direta, não-admin 0 linhas,
+              anon "permission denied".
 Data........: 2026-10-11
 Mandato.....: Fabrício, 2026-10-11 — relatório Variantes por carta › "Só cartas sem padrão"
               (pendências em todo o catálogo).
