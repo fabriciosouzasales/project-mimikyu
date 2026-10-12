@@ -5,21 +5,36 @@ import { GenerationFilter } from "@/components/pokedex/generation-filter";
 import { PokedexSearch } from "@/components/pokedex/pokedex-search";
 import { SpeciesGrid } from "@/components/pokedex/species-grid";
 import { formatCount, generationLabel } from "@/lib/pokedex/format";
-import { POKEDEX_QUERY_MAX_LENGTH, type PokedexGeneration, type PokedexSpecies } from "@/lib/pokedex/queries";
+import { PokedexLens } from "@/components/pokedex/detail/pokedex-lens";
+import {
+  POKEDEX_QUERY_MAX_LENGTH,
+  type PokedexGeneration,
+  type PokedexSpecies,
+  type PokedexSpeciesTypes,
+} from "@/lib/pokedex/queries";
+import styles from "./pokedex-national.module.css";
+
+/** Nove → "nove": números pequenos por extenso no texto do cabeçalho. */
+const NUMBER_WORDS = ["zero", "uma", "duas", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez"];
 
 /**
- * Pokédex Nacional (Pokédex P1, 2026-10-12) — composição da página:
- * cabeçalho do módulo com a pesquisa, filtro por geração, linha de
- * resultado e a grade. Server Component; a única ilha cliente é a pesquisa.
+ * Pokédex Nacional (Pokédex P1; visual premium P3c, 2026-10-12) — composição da
+ * página: cabeçalho com o total em numeral de contorno e a lente da Pokédex (mesmo
+ * vocabulário do palco da ficha), pesquisa em destaque, régua de gerações, linha de
+ * resultado e a grade. Server Component; ilhas cliente: pesquisa, arte (fade-in/
+ * fallback) e o marcador da última ficha.
  */
 export function PokedexNationalView({
   generations,
   species,
+  speciesTypes,
   query,
   generation,
 }: {
   generations: PokedexGeneration[] | null;
   species: PokedexSpecies[] | null;
+  /** Tipos por espécie (Query 6135); `null` = indisponível, cards no tom neutro. */
+  speciesTypes: Map<number, PokedexSpeciesTypes> | null;
   query: string | null;
   generation: number | null;
 }) {
@@ -28,75 +43,86 @@ export function PokedexNationalView({
   const lastRegion = generations?.[generations.length - 1]?.region_name;
   const activeGeneration = generations?.find((item) => item.generation_ordinal === generation) ?? null;
   const isFiltered = query !== null || activeGeneration !== null;
+  const generationCount = generations?.length ?? 0;
+  const generationWord = NUMBER_WORDS[generationCount] ?? String(generationCount);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <section className="relative overflow-hidden rounded-xl border border-border bg-surface p-5 shadow-subtle sm:p-6">
-        <Pokeball
-          className="pointer-events-none absolute -right-10 -top-12 h-56 w-56 text-primary/[0.08]"
-          strokeWidth={1}
-          aria-hidden="true"
-        />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-primary-ink">Explorar</p>
-            <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-[28px]">
-              Pokédex Nacional
-            </h2>
-            {generations ? (
-              <p className="max-w-xl text-sm text-muted-foreground">
-                {formatCount(totalSpecies)} espécies em {generations.length} gerações
-                {firstRegion && lastRegion ? `, de ${firstRegion} a ${lastRegion}` : ""}.
-              </p>
-            ) : null}
-          </div>
-          <div className="w-full lg:max-w-sm">
-            <PokedexSearch initialQuery={query} generation={activeGeneration ? generation : null} maxLength={POKEDEX_QUERY_MAX_LENGTH} />
+    <div className="mx-auto max-w-7xl">
+      <header className={styles.hero}>
+        {generations ? (
+          <span className={styles.numeral} aria-hidden="true">
+            {totalSpecies}
+          </span>
+        ) : null}
+        <PokedexLens className={styles.lens} />
+        <div className={styles.heroContent}>
+          <h2 className={styles.title}>Pokédex Nacional</h2>
+          {generations ? (
+            <p className={styles.lede}>
+              <strong>{formatCount(totalSpecies)} espécies</strong> em {generationWord} {generationCount === 1 ? "geração" : "gerações"}
+              {firstRegion && lastRegion && firstRegion !== lastRegion ? `, de ${firstRegion} a ${lastRegion}` : ""}. Abra
+              qualquer uma para ver a ficha completa.
+            </p>
+          ) : null}
+          <div className={styles.search}>
+            <PokedexSearch
+              initialQuery={query}
+              generation={activeGeneration ? generation : null}
+              maxLength={POKEDEX_QUERY_MAX_LENGTH}
+              size="lg"
+            />
           </div>
         </div>
-      </section>
+      </header>
 
-      {generations ? (
-        <GenerationFilter
-          generations={generations}
-          activeGeneration={activeGeneration ? generation : null}
-          query={query}
-          totalSpecies={totalSpecies}
-        />
-      ) : null}
+      <div className="space-y-6">
+        {generations ? (
+          <GenerationFilter
+            generations={generations}
+            activeGeneration={activeGeneration ? generation : null}
+            query={query}
+            totalSpecies={totalSpecies}
+          />
+        ) : null}
 
-      {species === null || generations === null ? (
-        <Alert variant="destructive">
-          <p className="font-medium">Não foi possível carregar a Pokédex agora.</p>
-          <p className="mt-1 text-sm opacity-90">
-            Isso costuma ser passageiro.{" "}
-            <Link href={currentHref(query, generation)} className="font-medium underline underline-offset-2">
-              Tentar novamente
-            </Link>
-          </p>
-        </Alert>
-      ) : species.length === 0 ? (
-        <EmptyResult query={query} activeGeneration={activeGeneration} />
-      ) : (
-        <>
-          <p className="text-sm text-muted-foreground" aria-live="polite">
-            {isFiltered ? (
-              <>
-                <span className="font-medium tabular-nums text-foreground">{formatCount(species.length)}</span>{" "}
-                {species.length === 1 ? "espécie encontrada" : "espécies encontradas"}
-                {query ? <> para “{query}”</> : null}
-                {activeGeneration ? <> em {generationLabel(activeGeneration.generation_code)}</> : null}
-              </>
-            ) : (
-              <>
-                Todas as <span className="font-medium tabular-nums text-foreground">{formatCount(species.length)}</span> espécies, em
-                ordem de número nacional.
-              </>
-            )}
-          </p>
-          <SpeciesGrid species={species} generations={generations} context={{ query, generation: activeGeneration ? generation : null }} />
-        </>
-      )}
+        {species === null || generations === null ? (
+          <Alert variant="destructive">
+            <p className="font-medium">Não foi possível carregar a Pokédex agora.</p>
+            <p className="mt-1 text-sm opacity-90">
+              Isso costuma ser passageiro.{" "}
+              <Link href={currentHref(query, generation)} className="font-medium underline underline-offset-2">
+                Tentar novamente
+              </Link>
+            </p>
+          </Alert>
+        ) : species.length === 0 ? (
+          <EmptyResult query={query} activeGeneration={activeGeneration} />
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+              {isFiltered ? (
+                <>
+                  <span className="font-medium tabular-nums text-foreground">{formatCount(species.length)}</span>{" "}
+                  {species.length === 1 ? "espécie encontrada" : "espécies encontradas"}
+                  {query ? <> para “{query}”</> : null}
+                  {activeGeneration ? <> em {generationLabel(activeGeneration.generation_code)}</> : null}
+                </>
+              ) : (
+                <>
+                  Todas as <span className="font-medium tabular-nums text-foreground">{formatCount(species.length)}</span> espécies, em
+                  ordem de número nacional.
+                </>
+              )}
+            </p>
+            <SpeciesGrid
+              species={species}
+              generations={generations}
+              speciesTypes={speciesTypes}
+              context={{ query, generation: activeGeneration ? generation : null }}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }

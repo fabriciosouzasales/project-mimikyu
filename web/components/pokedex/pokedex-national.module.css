@@ -1,0 +1,99 @@
+/*
+ * Cabeçalho da Pokédex Nacional (Pokédex P3c, 2026-10-12). Mesmo vocabulário do palco
+ * da ficha: total em numeral de contorno (Manrope 800) e a lente da Pokédex ao fundo,
+ * em tons neutros — a cor de tipo fica nos cards; o dourado, no foco e no filtro ativo.
+ * Estático: nenhuma animação, nenhum filtro.
+ */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: -0.5rem -0.5rem 1.75rem;
+  padding: 2.25rem 0.5rem 0.5rem;
+}
+
+.numeral {
+  position: absolute;
+  z-index: -1;
+  top: 0.75rem;
+  right: -1.25rem;
+  font: 800 clamp(8.5rem, 21vw, 19rem) / 0.78 var(--font-heading);
+  letter-spacing: -0.065em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.5px hsl(var(--foreground) / 0.13);
+  user-select: none;
+}
+
+:global(.dark) .numeral {
+  -webkit-text-stroke-color: hsl(var(--foreground) / 0.16);
+}
+
+.lens {
+  position: absolute;
+  z-index: -2;
+  top: -11rem;
+  right: 8%;
+  width: 35rem;
+  height: 35rem;
+  color: hsl(var(--foreground) / 0.06);
+  pointer-events: none;
+}
+
+.heroContent {
+  position: relative;
+  max-width: 40rem;
+}
+
+.title {
+  font: 800 clamp(2.375rem, 5.2vw, 4rem) / 0.94 var(--font-heading);
+  letter-spacing: -0.04em;
+  color: hsl(var(--foreground));
+}
+
+.lede {
+  margin-top: 1rem;
+  max-width: 44ch;
+  font: 500 1.0625rem/1.5 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.lede strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.search {
+  margin-top: 1.75rem;
+  max-width: 35rem;
+}
+
+@media (max-width: 639px) {
+  .hero {
+    margin-bottom: 1.25rem;
+    padding-top: 1.25rem;
+  }
+
+  .numeral {
+    top: 0.5rem;
+    right: -0.75rem;
+  }
+
+  .lens {
+    top: -7rem;
+    right: -9rem;
+    width: 23rem;
+    height: 23rem;
+  }
+
+  .lede {
+    margin-top: 0.75rem;
+    font-size: 0.9375rem;
+  }
+
+  .search {
+    margin-top: 1.25rem;
+  }
+}

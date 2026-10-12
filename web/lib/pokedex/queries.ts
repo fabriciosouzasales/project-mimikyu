@@ -92,6 +92,71 @@ export async function getPokedexNationalSpecies(
   return [...byNumber.values()].sort((a, b) => a.national_dex_number - b.national_dex_number);
 }
 
+// ---------------------------------------------------------------------------
+// Índice de tipos da galeria (Pokédex P3c, Query 6135)
+// ---------------------------------------------------------------------------
+
+export type PokedexSpeciesTypes = {
+  primaryCode: string;
+  primaryLabel: string;
+  secondaryCode: string | null;
+  secondaryLabel: string | null;
+};
+
+type TypeIndexRow = {
+  national_dex_number: number;
+  primary_type_code: string;
+  primary_type_label: string;
+  secondary_type_code: string | null;
+  secondary_type_label: string | null;
+};
+
+/** PostgREST: função ausente no cache de schema — 6135 ainda não aplicada. */
+const FUNCTION_NOT_FOUND = "PGRST202";
+
+/**
+ * Tipos de todas as espécies com perfil importado, numa leitura em lote (sem N+1),
+ * paginada pelo mesmo teto da galeria. Mesma regra de tipos da ficha (6133).
+ *
+ * Dependência opcional: sem a 6135 (PGRST202) ou em qualquer falha, devolve `null` e a
+ * galeria segue funcionando com os cards no tom neutro — os tipos nunca bloqueiam a
+ * lista de espécies.
+ */
+export async function getPokedexSpeciesTypeIndex(supabase: SupabaseClient): Promise<Map<number, PokedexSpeciesTypes> | null> {
+  const startedAt = Date.now();
+  const index = new Map<number, PokedexSpeciesTypes>();
+
+  for (let from = 0; ; from += SPECIES_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .rpc("get_pokedex_species_type_index", { p_language: "pt-BR" })
+      .order("national_dex_number", { ascending: true })
+      .range(from, from + SPECIES_PAGE_SIZE - 1);
+
+    if (error || !data) {
+      if (error?.code === FUNCTION_NOT_FOUND) {
+        console.warn("[pokedex] get_pokedex_species_type_index indisponível (Query 6135 não aplicada); cards no tom neutro.");
+      } else {
+        logPokedexReadFailure("get_pokedex_species_type_index", startedAt, error);
+      }
+      return null;
+    }
+
+    const page = data as TypeIndexRow[];
+    for (const row of page) {
+      if (!row.primary_type_code || !row.primary_type_label) continue;
+      index.set(row.national_dex_number, {
+        primaryCode: row.primary_type_code,
+        primaryLabel: row.primary_type_label,
+        secondaryCode: row.secondary_type_code ?? null,
+        secondaryLabel: row.secondary_type_code ? row.secondary_type_label ?? row.secondary_type_code : null,
+      });
+    }
+    if (page.length < SPECIES_PAGE_SIZE) break;
+  }
+
+  return index;
+}
+
 function logPokedexReadFailure(
   rpc: string,
   startedAt: number,

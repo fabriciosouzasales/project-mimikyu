@@ -1,0 +1,337 @@
+/*
+ * Grade da Pokédex Nacional — visual premium (Pokédex P3c, 2026-10-12; direção de
+ * arte aprovada por Fabrício: protótipos desktop/mobile, claro/escuro).
+ *
+ * Variáveis de tipo (--pk-t1-l/-d, --pk-t1-ink-l/-d, idem t2) vêm das regras únicas
+ * de PokemonTypeStyles via data-t1/data-t2 — as mesmas usadas no palco da ficha.
+ * Sem tipo (6135 indisponível ou perfil não importado): tom neutro do escopo.
+ *
+ * Performance: só gradientes estáticos (sem filter/blur/backdrop-filter), nenhuma
+ * animação contínua; hover = transform + opacity, neutralizado por
+ * prefers-reduced-motion (regra global) e ausente em telas sem hover.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 2.75rem;
+}
+
+/* ---- seção por geração ---- */
+.section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1600px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid hsl(var(--foreground) / 0.09);
+}
+
+.roman {
+  font: 800 3.5rem/0.8 var(--font-heading);
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground) / 0.14);
+  font-variant-numeric: lining-nums;
+  user-select: none;
+}
+
+.sectionTitle h3 {
+  font: 800 1.625rem/1 var(--font-heading);
+  letter-spacing: -0.025em;
+  color: hsl(var(--foreground));
+}
+
+.sectionTitle p {
+  margin-top: 0.4375rem;
+  font: 500 0.8125rem/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 639px) {
+  .roman {
+    font-size: 2.75rem;
+  }
+
+  .sectionTitle h3 {
+    font-size: 1.375rem;
+  }
+
+  .sectionTitle p {
+    font-size: 0.75rem;
+  }
+}
+
+/* ---- grade ---- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.25rem, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 539px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+}
+
+.item {
+  display: flex;
+  scroll-margin-top: 1.5rem;
+}
+
+/* ---- card ---- */
+.card {
+  --t1: var(--pk-t1-l);
+  --t2: var(--pk-t2-l);
+  --ink1: var(--pk-t1-ink-l);
+  --ink2: var(--pk-t2-ink-l);
+  --tint: 0.08;
+  --glow: 0.2;
+  --glow-hover: 0.3;
+  --floor: rgb(40 30 18 / 0.16);
+  --num-mix: 52%;
+  --lift-shadow: 0 18px 32px -20px rgb(60 40 10 / 0.35);
+
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  container-type: inline-size;
+  border-radius: 1.25rem;
+  color: hsl(var(--foreground));
+  background:
+    radial-gradient(62% 46% at 50% 47%, rgb(var(--t1) / var(--glow)), transparent 72%),
+    radial-gradient(40% 30% at 82% 8%, rgb(var(--t2) / calc(var(--glow) * 0.45)), transparent 70%),
+    linear-gradient(180deg, rgb(var(--t1) / var(--tint)), transparent 58%),
+    hsl(var(--surface));
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.09);
+  transition:
+    box-shadow 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+:global(.dark) .card {
+  --t1: var(--pk-t1-d);
+  --t2: var(--pk-t2-d);
+  --ink1: var(--pk-t1-ink-d);
+  --ink2: var(--pk-t2-ink-d);
+  --tint: 0.11;
+  --glow: 0.3;
+  --glow-hover: 0.42;
+  --floor: rgb(0 0 0 / 0.5);
+  --num-mix: 48%;
+  --lift-shadow: 0 18px 36px -20px rgb(0 0 0 / 0.8);
+}
+
+/* Luz extra do hover numa camada própria: só opacity anima. */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0;
+  background: radial-gradient(58% 44% at 50% 47%, rgb(var(--t1) / var(--glow-hover)), transparent 72%);
+  transition: opacity 250ms ease-out;
+}
+
+.plate {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 0.9;
+}
+
+/* Número nacional em contorno — ornamento de identidade (mesmo tratamento do numeral do
+   palco), discreto para não competir com a arte, o nome e os tipos. */
+.number {
+  position: absolute;
+  top: 0.8125rem;
+  left: 0.875rem;
+  font: 700 1.625rem/0.8 var(--font-heading);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--ink1) var(--num-mix), transparent);
+  user-select: none;
+}
+
+:global(.dark) .number {
+  -webkit-text-stroke-width: 0.9px;
+}
+
+.floor {
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  width: 56%;
+  height: 11%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--floor), transparent);
+}
+
+.art {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 15%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.artImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.fallback {
+  width: 52%;
+  height: 52%;
+  color: rgb(var(--t1) / 0.5);
+}
+
+.meta {
+  position: relative;
+  z-index: 1;
+  display: block;
+  padding: 0 1rem 1rem;
+}
+
+.name {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 700 1.09375rem/1.15 var(--font-heading);
+  letter-spacing: -0.015em;
+}
+
+.types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5625rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.3125rem;
+  padding: 0 0.4375rem 0 0.375rem;
+  border-radius: 999px;
+  font: 600 0.6875rem/1 var(--font-sans);
+  white-space: nowrap;
+  color: var(--ink1);
+  background: rgb(var(--t1) / 0.13);
+  box-shadow: inset 0 0 0 1px rgb(var(--t1) / 0.4);
+}
+
+.chipSecondary {
+  color: var(--ink2);
+  background: rgb(var(--t2) / 0.13);
+  box-shadow: inset 0 0 0 1px rgb(var(--t2) / 0.4);
+}
+
+.chipIcon {
+  width: 0.6875rem;
+  height: 0.6875rem;
+  flex-shrink: 0;
+}
+
+/* Cards estreitos (2 colunas no celular): tipografia compacta; os dois nomes de tipo
+   continuam visíveis e quebram de linha quando não cabem lado a lado. */
+@container (max-width: 179px) {
+  .number {
+    top: 0.625rem;
+    left: 0.6875rem;
+    font-size: 1.3125rem;
+  }
+
+  .meta {
+    padding: 0 0.75rem 0.75rem;
+  }
+
+  .name {
+    font-size: 0.9375rem;
+  }
+
+  .chip {
+    gap: 0.1875rem;
+    height: 1.1875rem;
+    padding: 0 0.375rem 0 0.3125rem;
+    font-size: 0.65625rem;
+  }
+
+  .chipIcon {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+}
+
+/* ---- estados ---- */
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--t1) / 0.55),
+      var(--lift-shadow);
+  }
+
+  .card:hover::after {
+    opacity: 1;
+  }
+
+  .card:hover .art {
+    transform: translateY(-7px) scale(1.045);
+  }
+}
+
+.card:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 3px;
+}
+
+.card:focus-visible::after {
+  opacity: 1;
+}
+
+/* Última ficha aberta: só quando a galeria é aberta pelo "voltar" da ficha (âncora na URL). */
+.card[data-recent] {
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--primary) / 0.7),
+    0 0 0 4px hsl(var(--primary) / 0.14);
+}
+
+.card[data-recent] .plate::before {
+  content: "Última ficha";
+  position: absolute;
+  top: 0.625rem;
+  right: 0.625rem;
+  z-index: 2;
+  height: 1.375rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font: 600 0.6875rem/1.375rem var(--font-sans);
+  color: hsl(var(--primary-ink));
+  background: color-mix(in srgb, hsl(var(--primary)) 14%, hsl(var(--surface)));
+}
+
+@container (max-width: 179px) {
+  .card[data-recent] .plate::before {
+    content: "Última";
+  }
+}

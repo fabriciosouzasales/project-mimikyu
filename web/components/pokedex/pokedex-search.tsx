@@ -23,11 +23,15 @@ export function PokedexSearch({
   initialQuery,
   generation,
   maxLength,
+  size = "md",
 }: {
   initialQuery: string | null;
   generation: number | null;
   maxLength: number;
+  /** "lg": campo de destaque do cabeçalho da Pokédex Nacional (P3c). */
+  size?: "md" | "lg";
 }) {
+  const large = size === "lg";
   const router = useRouter();
   const [value, setValue] = useState(initialQuery ?? "");
   const [isPending, startTransition] = useTransition();
@@ -85,7 +89,10 @@ export function PokedexSearch({
         Pesquisar Pokémon por nome ou número
       </label>
       <Search
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-control-muted-foreground"
+        className={cn(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-control-muted-foreground",
+          large ? "left-4 h-[18px] w-[18px]" : "left-3 h-4 w-4",
+        )}
         aria-hidden="true"
       />
       <Input
@@ -102,11 +109,14 @@ export function PokedexSearch({
           setValue(event.target.value);
           schedule(event.target.value);
         }}
-        className={cn("h-10 pl-9 pr-10 [&::-webkit-search-cancel-button]:hidden")}
+        className={cn(
+          "[&::-webkit-search-cancel-button]:hidden",
+          large ? "h-[3.25rem] rounded-xl pl-12 pr-12 text-base" : "h-10 pl-9 pr-10",
+        )}
       />
       {generation ? <input type="hidden" name="geracao" value={generation} /> : null}
 
-      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center">
+      <div className={cn("absolute top-1/2 flex -translate-y-1/2 items-center", large ? "right-3" : "right-2")}>
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground motion-reduce:animate-none" aria-hidden="true" />
         ) : value ? (

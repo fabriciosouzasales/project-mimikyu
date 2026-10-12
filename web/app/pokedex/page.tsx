@@ -3,7 +3,12 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { PokedexNationalView } from "@/components/pokedex/pokedex-national-view";
 import { parseGenerationParam, parseQueryParam } from "@/lib/pokedex/format";
-import { POKEDEX_QUERY_MAX_LENGTH, getPokedexGenerations, getPokedexNationalSpecies } from "@/lib/pokedex/queries";
+import {
+  POKEDEX_QUERY_MAX_LENGTH,
+  getPokedexGenerations,
+  getPokedexNationalSpecies,
+  getPokedexSpeciesTypeIndex,
+} from "@/lib/pokedex/queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -41,9 +46,12 @@ export default async function PokedexPage({
   // perfil usada pelo Header já começa em paralelo com as leituras da página.
   void getCachedUserProfile().catch(() => {});
 
-  const [generations, species] = await Promise.all([
+  // Tipos (Query 6135) em paralelo, numa leitura em lote; opcionais — sem eles os
+  // cards ficam no tom neutro (Pokédex P3c).
+  const [generations, species, speciesTypes] = await Promise.all([
     getPokedexGenerations(supabase),
     getPokedexNationalSpecies(supabase, { query, generation }),
+    getPokedexSpeciesTypeIndex(supabase),
   ]);
 
   // Geração inexistente num link editado à mão: volta para "todas" em vez de
@@ -54,7 +62,13 @@ export default async function PokedexPage({
 
   return (
     <AppShell title="Pokédex Nacional" icon={Pokeball}>
-      <PokedexNationalView generations={generations} species={species} query={query} generation={generation} />
+      <PokedexNationalView
+        generations={generations}
+        species={species}
+        speciesTypes={speciesTypes}
+        query={query}
+        generation={generation}
+      />
     </AppShell>
   );
 }

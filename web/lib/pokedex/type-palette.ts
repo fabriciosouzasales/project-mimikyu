@@ -89,7 +89,7 @@ export const POKEMON_TYPE_PALETTE: Record<PokemonTypeCode, TypeTone> = {
 };
 
 /** Tom neutro (espécie sem perfil importado): mesma estrutura, sem cor de tipo. */
-const NEUTRAL: Omit<TypeTone, "icon"> = {
+export const NEUTRAL_TYPE_TONE: Omit<TypeTone, "icon"> = {
   light: "150 140 124",
   dark: "150 140 124",
   inkLight: "#55503f",
@@ -102,7 +102,7 @@ export function isPokemonTypeCode(value: string | null | undefined): value is Po
 
 /** Variáveis CSS de um tipo para o "slot" informado (t1 = primário, t2 = secundário). */
 export function pokemonTypeStyle(code: string | null | undefined, slot: "t1" | "t2"): CSSProperties {
-  const tone = isPokemonTypeCode(code) ? POKEMON_TYPE_PALETTE[code] : NEUTRAL;
+  const tone = isPokemonTypeCode(code) ? POKEMON_TYPE_PALETTE[code] : NEUTRAL_TYPE_TONE;
   return {
     [`--pk-${slot}-l`]: tone.light,
     [`--pk-${slot}-d`]: tone.dark,

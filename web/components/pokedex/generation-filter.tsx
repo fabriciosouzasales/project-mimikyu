@@ -1,13 +1,15 @@
 import Link from "next/link";
 import type { PokedexGeneration } from "@/lib/pokedex/queries";
 import { formatCount, generationRoman } from "@/lib/pokedex/format";
-import { cn } from "@/lib/utils";
+import styles from "./generation-filter.module.css";
 
 /**
- * Filtro por geração da Pokédex Nacional (Pokédex P1) — links simples
- * (servidor, sem JavaScript), preservando a pesquisa atual. Em telas
- * estreitas vira uma faixa com rolagem horizontal em vez de quebrar em
- * várias linhas.
+ * Filtro por geração da Pokédex Nacional (Pokédex P1; régua premium P3c, 2026-10-12).
+ *
+ * Links simples (servidor, sem JavaScript), preservando a pesquisa atual. No desktop
+ * é uma régua: a largura de cada geração é proporcional ao número de espécies — a
+ * própria régua mostra o tamanho de cada região. Em telas estreitas vira uma faixa
+ * de pílulas com rolagem horizontal. Ativo em dourado (aria-current="page").
  */
 export function GenerationFilter({
   generations,
@@ -29,31 +31,41 @@ export function GenerationFilter({
   }
 
   return (
-    <nav aria-label="Filtrar por geração" className="-mx-1 overflow-x-auto px-1 pb-1">
-      <ul className="flex w-max gap-2">
-        <li>
-          <Chip href={hrefFor(null)} active={activeGeneration === null} title="Todas" detail={formatCount(totalSpecies)} />
+    <nav aria-label="Filtrar por geração" className={styles.nav}>
+      <ul className={styles.track}>
+        <li className={styles.all}>
+          <Segment
+            href={hrefFor(null)}
+            active={activeGeneration === null}
+            eyebrow="Todas"
+            title="Nacional"
+            detail={formatCount(totalSpecies)}
+            label={`Todas as gerações, ${formatCount(totalSpecies)} espécies`}
+          />
         </li>
-        {generations.map((generation) => (
-          <li key={generation.generation_code}>
-            <Chip
-              href={hrefFor(generation.generation_ordinal)}
-              active={activeGeneration === generation.generation_ordinal}
-              eyebrow={generationRoman(generation.generation_code)}
-              title={generation.region_name ?? `Geração ${generationRoman(generation.generation_code)}`}
-              detail={formatCount(generation.species_count)}
-              label={`Geração ${generationRoman(generation.generation_code)}${
-                generation.region_name ? `, ${generation.region_name}` : ""
-              }, ${formatCount(generation.species_count)} espécies`}
-            />
-          </li>
-        ))}
+        {generations.map((generation) => {
+          const roman = generationRoman(generation.generation_code);
+          return (
+            <li key={generation.generation_code} className={styles.segment} style={{ flexGrow: Math.max(generation.species_count, 1) }}>
+              <Segment
+                href={hrefFor(generation.generation_ordinal)}
+                active={activeGeneration === generation.generation_ordinal}
+                eyebrow={roman}
+                title={generation.region_name ?? `Geração ${roman}`}
+                detail={formatCount(generation.species_count)}
+                label={`Geração ${roman}${generation.region_name ? `, ${generation.region_name}` : ""}, ${formatCount(
+                  generation.species_count,
+                )} espécies`}
+              />
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );
 }
 
-function Chip({
+function Segment({
   href,
   active,
   eyebrow,
@@ -63,32 +75,22 @@ function Chip({
 }: {
   href: string;
   active: boolean;
-  eyebrow?: string;
+  eyebrow: string;
   title: string;
   detail: string;
-  label?: string;
+  label: string;
 }) {
   return (
-    <Link
-      href={href}
-      scroll={false}
-      aria-current={active ? "page" : undefined}
-      aria-label={label}
-      className={cn(
-        "flex h-9 items-center gap-2 whitespace-nowrap rounded-full border px-3.5 text-[13px] transition-colors",
-        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/20",
-        active
-          ? "border-primary/60 bg-primary/10 font-semibold text-foreground"
-          : "border-border bg-surface text-foreground/80 hover:border-foreground/20 hover:text-foreground",
-      )}
-    >
-      {eyebrow ? (
-        <span className={cn("font-heading text-[11px] font-semibold tracking-wide", active ? "text-primary-ink" : "text-muted-foreground")}>
-          {eyebrow}
-        </span>
-      ) : null}
-      <span>{title}</span>
-      <span className="tabular-nums text-xs text-muted-foreground">{detail}</span>
+    <Link href={href} scroll={false} aria-current={active ? "page" : undefined} aria-label={label} className={styles.link}>
+      <span className={styles.eyebrow} aria-hidden="true">
+        {eyebrow}
+      </span>
+      <span className={styles.title} aria-hidden="true">
+        {title}
+      </span>
+      <span className={styles.detail} aria-hidden="true">
+        {detail}
+      </span>
     </Link>
   );
 }
