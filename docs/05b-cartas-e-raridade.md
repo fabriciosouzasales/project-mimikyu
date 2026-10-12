@@ -2780,7 +2780,7 @@ Empate real na primeira posição = a carta **fica sem padrão** e vai para deci
 
 **Importar Cartas — Sets sem cartas (migrations `2261`/`2262`, 2026-10-11, revisão 1.11).** (1) **RC (Radiant Collection, BW)**: a TCGdex publica RC1–RC25 dentro do BW11; o catálogo tinha o Set RC (SPECIAL, 25) vazio e o RC já casado na JustTCG. A `2261` move as 25 cartas para o RC (mesmo id; ordem 1–25, total 25), ajusta o BW11 para 115, remove os 25 vínculos de preço NOT_FOUND decididos contra o Set errado e reabre o bootstrap de preço do RC (concluído: 25 de 25 cartas casadas na JustTCG). Risco: reimportar o BW11 pela TCGdex recriaria RC1–RC25 no BW11; Generations (G1, RC1–RC32) tem o mesmo padrão e não foi tratado. (2) **EXU (Unown Collection)**: o job TCGdex tinha as 28 linhas puladas porque "!" e "?" violam `ck_card_collector_number_format`. A `2262` confirma A–Z pelo caminho oficial (ordem A=1…Z=26), espécie Unown e uma variante HOLO por carta; "!" e "?" entraram depois pela `2263` com os códigos **EXCL** e **QUES** (decisão de Fabrício: código no número, porque a regra de formato não aceita os símbolos e o número compõe o caminho da imagem; o símbolo impresso fica em `normalized_data.printed_number`). EXU completo: 28 cartas. Imagens pela Scrydex (`ex10-*`). (3) **SP (Sample)**: sem dados na TCGdex nem na Pokémon TCG API; segue vazio.
 
-**Escolha manual da variante padrão (P1 — Gestão Administrativa da Variante Padrão, 2026-10-11, revisão 1.12).** Status: frontend implementado; Query `2264` **proposta, aguardando execução no LIVE** (`database/proposals/2026-10-11-p1-variant-default/`).
+**Escolha manual da variante padrão (P1 — Gestão Administrativa da Variante Padrão, 2026-10-11, revisão 1.12).** Status: Query `2264` **CONFIRMADO EXECUTADA** no LIVE (2026-10-11; testes de segurança, integridade e preservação PASS, desfeitos — `database/proposals/2026-10-11-p1-variant-default/`); frontend implementado, pendente de validação visual.
 
 - **RPC** `public.admin_set_card_variant_default(p_card_variant_id uuid) → jsonb`, `SECURITY DEFINER`, `search_path=''`, `EXECUTE` só para `authenticated`. Recusa quem não é admin. Deriva a carta da própria variante, sem `card_id` do cliente. Recusa carta inativa. Escolher a variante que já é padrão não grava nada. A troca acontece numa transação só: limpa o padrão anterior e define o novo, e o índice único parcial continua como barreira final.
 - **Concorrência:** a RPC trava a carta em `FOR NO KEY UPDATE`, o mesmo protocolo do trigger `2259`, compatível com o `FOR UPDATE` da confirmação de importação de variantes. Ela trava uma única carta antes de tocar nas variantes dela, então não há ordem cruzada de travas. A espera pela trava é limitada a 5 s, com erro legível (`..._BUSY`).
@@ -2792,6 +2792,12 @@ Empate real na primeira posição = a carta **fica sem padrão** e vai para deci
   - o diálogo lista o rótulo completo dos três eixos (grupo de rádio nativo), nunca pré-escolhe nada para cartas sem padrão e grava só ao confirmar;
   - o relatório "Variantes por carta" marca "(padrão)";
   - a leitura acrescenta só `is_default` ao embed já existente de `getCartasCompletas`.
+- **Identificar pendências (P1, 2026-10-11):**
+  - critério único (`cartaNeedsDefaultVariant`): carta ativa, com variantes e nenhuma padrão;
+  - galeria de Cartas: opção "Sem padrão (N)" no filtro Variações, calculada sobre os dados já carregados e respeitando busca, raridade, categoria e inativas;
+  - relatório Variantes por carta: chip "Só cartas sem padrão" lista as pendências do catálogo inteiro, com link "Definir padrão" para a galeria da Coleção já filtrada (`?variacoes=sem-padrao`);
+  - o relatório lê a view `catalog_card_variant_default_pending` (Query `2266`, `security_invoker`; ~35 ms contra ~0,9 s do anti-join via PostgREST) — **proposta, aguardando execução**; até lá o modo mostra erro de carregamento;
+  - Query `2265` (proposta): acento em "Holográfica Cracked Ice" via `admin_update_card_variant_type`, sem mudar id nem `CRACKED_ICE_HOLO`.
 
 ## Funções administrativas do fluxo de revisão/confirmação
 

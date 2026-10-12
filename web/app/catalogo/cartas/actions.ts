@@ -204,6 +204,7 @@ export async function setCardVariantDefault(
   const changed = (data as { changed?: unknown } | null)?.changed === true;
   if (changed) {
     revalidatePath("/catalogo/cartas");
+    revalidatePath("/catalogo/relatorios/variantes-por-carta");
   }
   return { error: null, changed };
 }

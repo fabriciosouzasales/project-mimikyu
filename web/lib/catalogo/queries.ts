@@ -8,6 +8,7 @@ import {
   type CartaVariantSemanticRawRow,
   type CartaVariantViewState,
 } from "./carta-variants";
+import { cartaNeedsDefaultVariant } from "./carta-variant-summary";
 import { deriveVariantImportScopeCounters, type VariantImportScopeCounters } from "./variant-size-scope";
 
 /**
@@ -2097,6 +2098,81 @@ export async function getCartasCompletas(
       variantView,
     };
   });
+}
+
+/** P1 (2026-10-11) — carta ativa com variantes e nenhuma variante padrão, em qualquer Coleção. */
+export type CartaSemPadraoRow = {
+  id: string;
+  collectorNumber: string;
+  collectorTotal: number | null;
+  collectorOrder: number;
+  name: string;
+  cardSetCode: string;
+  cardSetName: string;
+  variantView: CartaVariantViewState;
+};
+
+// 150 ids cabem com folga na URL do `.in("id", …)` (~5,5 KB).
+const CARTAS_SEM_PADRAO_LIMITE = 150;
+
+/**
+ * Pendências de variante padrão no catálogo inteiro (P1, relatório
+ * "Variantes por carta" › "Só cartas sem padrão"). Duas leituras pequenas, sem
+ * carregar as ~21 mil cartas: (1) ids pela view `catalog_card_variant_default_pending`
+ * (Query 2266, NOT EXISTS com índice, ~35 ms no LIVE); (2) os detalhes só dessas
+ * cartas, com o mesmo embed de variantes de `getCartasCompletas`. O resultado
+ * ainda passa por `cartaNeedsDefaultVariant` (mesmo critério da galeria). Erro
+ * volta explícito para a tela (não vira lista vazia).
+ */
+export async function getCartasSemVariantePadrao(
+  supabase: SupabaseClient,
+): Promise<{ rows: CartaSemPadraoRow[]; error: string | null; truncated: boolean }> {
+  const pending = await supabase
+    .from("catalog_card_variant_default_pending")
+    .select("card_id")
+    .limit(CARTAS_SEM_PADRAO_LIMITE);
+  if (pending.error) {
+    return { rows: [], error: pending.error.message, truncated: false };
+  }
+  const ids = (pending.data ?? []).map((row: { card_id: string }) => row.card_id);
+  if (ids.length === 0) {
+    return { rows: [], error: null, truncated: false };
+  }
+
+  const { data, error } = await supabase
+    .from("card")
+    .select(
+      "id, collector_number, collector_total, collector_order, name, card_set(code, name), card_variant(id, card_id, variant_type_id, printing_profile_id, edition_context_profile_id, is_default, card_variant_type(id, code, name, display_order), card_printing_profile(id, name, display_order), card_edition_context_profile(id, name, display_order))",
+    )
+    .in("id", ids);
+  if (error || !data) {
+    return { rows: [], error: error?.message ?? "Consulta sem resultado.", truncated: false };
+  }
+
+  type Raw = {
+    id: string;
+    collector_number: string;
+    collector_total: number | null;
+    collector_order: number;
+    name: string;
+    card_set: { code: string; name: string } | null;
+    card_variant: unknown;
+  };
+  const rows = (data as unknown as Raw[])
+    .map((card) => ({
+      id: card.id,
+      collectorNumber: card.collector_number,
+      collectorTotal: card.collector_total,
+      collectorOrder: card.collector_order,
+      name: card.name,
+      cardSetCode: card.card_set?.code ?? "",
+      cardSetName: card.card_set?.name ?? "",
+      variantView: buildCartaVariantView(card.card_variant, readCardSetCode(card.card_set)),
+    }))
+    .filter((row) => row.cardSetCode !== "" && cartaNeedsDefaultVariant(row.variantView))
+    .sort((a, b) => a.cardSetCode.localeCompare(b.cardSetCode, "pt-BR") || a.collectorOrder - b.collectorOrder);
+
+  return { rows, error: null, truncated: ids.length >= CARTAS_SEM_PADRAO_LIMITE };
 }
 
 export type CategoriaOption = { id: string; code: string; name: string; displayOrder: number };

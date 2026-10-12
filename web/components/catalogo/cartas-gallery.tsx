@@ -15,7 +15,7 @@ import { CardImagePreview } from "@/components/card/card-image-preview";
 import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
 import { CardPriceSummary } from "@/components/card/card-price-summary";
 import { CartaVariantsSummary } from "@/components/catalogo/carta-variants-summary";
-import { hasCartaVariants } from "@/lib/catalogo/carta-variant-summary";
+import { cartaNeedsDefaultVariant, hasCartaVariants } from "@/lib/catalogo/carta-variant-summary";
 import { HoloCard } from "@/components/card/holo-card";
 import { usePricingBatch } from "@/hooks/use-pricing-batch";
 import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
@@ -172,6 +172,7 @@ export function CartasGallery({
   cartas,
   raridades,
   categorias,
+  initialVarianteFilter = "all",
 }: {
   /** Todos os Card Sets, mais recentes primeiro — alimenta o seletor "Coleção" e os indicadores (`CartasStats`). */
   cardSets: CatalogoCardSetRow[];
@@ -193,6 +194,8 @@ export function CartasGallery({
   raridades: RaridadeRow[];
   /** Categorias editoriais — alimenta o select "Categoria" de `EditCardDialog`. */
   categorias: CategoriaOption[];
+  /** P1 (2026-10-11): filtro inicial vindo da URL (`?variacoes=sem-padrao`, link do relatório Variantes por carta). */
+  initialVarianteFilter?: VarianteFilter;
 }) {
   const router = useRouter();
   // Estado de edição de Card — mesmo `useAdminListState` já usado em Jogos/
@@ -211,7 +214,7 @@ export function CartasGallery({
   // (F2.3 — antes `carta.variantNames`)
   // (já vem embutido em `getCartasCompletas`, sem consulta nova) — mesmo
   // princípio dos demais filtros desta tela.
-  const [varianteFilter, setVarianteFilter] = useState<"all" | "with" | "without">("all");
+  const [varianteFilter, setVarianteFilter] = useState<VarianteFilter>(initialVarianteFilter);
   const [zoomCarta, setZoomCarta] = useState<CartaCompletaRow | null>(null);
   // Toggle "Mostrar inativas" + confirmação de desativação + estado de
   // reativação — novo em 2026-08-07 (subciclo Card: criação e desativação/
@@ -418,13 +421,13 @@ export function CartasGallery({
   const hasAnyVariants = useMemo(() => visibleCartas.some((carta) => hasCartaVariants(carta.variantView)), [visibleCartas]);
 
   const query = search.trim().toLowerCase();
-  const filtered = useMemo(() => {
+  // P1 (2026-10-11): os filtros que não são "Variações" ficam num passo
+  // próprio para que a contagem "Sem padrão (N)" respeite o mesmo escopo
+  // (busca, raridade, categoria, inativas) da lista exibida.
+  const baseFiltered = useMemo(() => {
     return visibleCartas.filter((carta) => {
       if (selectedRarities.size > 0 && !selectedRarities.has(carta.rarityCode)) return false;
       if (selectedCategories.size > 0 && !selectedCategories.has(carta.categoryCode)) return false;
-      // F2.3: presença de variante vem de `variantView` (ERROR conta como "com").
-      if (varianteFilter === "with" && !hasCartaVariants(carta.variantView)) return false;
-      if (varianteFilter === "without" && hasCartaVariants(carta.variantView)) return false;
       if (query) {
         const matchesName = carta.name.toLowerCase().includes(query);
         // Busca por número — bug reportado por Fabrício (2026-07-31, print
@@ -439,7 +442,20 @@ export function CartasGallery({
       }
       return true;
     });
-  }, [visibleCartas, selectedRarities, selectedCategories, varianteFilter, query]);
+  }, [visibleCartas, selectedRarities, selectedCategories, query]);
+
+  // Pendência de padrão (`isPendingDefault`, mesmo critério do relatório).
+  const pendingDefaultCount = useMemo(() => baseFiltered.filter(isPendingDefault).length, [baseFiltered]);
+
+  const filtered = useMemo(() => {
+    return baseFiltered.filter((carta) => {
+      // F2.3: presença de variante vem de `variantView` (ERROR conta como "com").
+      if (varianteFilter === "with" && !hasCartaVariants(carta.variantView)) return false;
+      if (varianteFilter === "without" && hasCartaVariants(carta.variantView)) return false;
+      if (varianteFilter === "no-default" && !isPendingDefault(carta)) return false;
+      return true;
+    });
+  }, [baseFiltered, varianteFilter]);
 
   // Reseta o lote revelado ao trocar busca/filtros/toggle "Mostrar
   // inativas" — sem isso, rolar até o fim de uma lista grande, depois
@@ -690,7 +706,13 @@ export function CartasGallery({
                       "Todas | Com variantes | Sem variantes" são mutuamente
                       exclusivas, diferente de Raridade/Categoria (onde várias
                       podem estar ativas ao mesmo tempo). */}
-                  {hasAnyVariants && <VarianteFilterGroup value={varianteFilter} onChange={setVarianteFilter} />}
+                  {hasAnyVariants && (
+                    <VarianteFilterGroup
+                      value={varianteFilter}
+                      onChange={setVarianteFilter}
+                      noDefaultCount={pendingDefaultCount}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -719,6 +741,11 @@ export function CartasGallery({
                 <EmptyState
                   title="Todas as cartas deste Card Set estão desativadas"
                   description={`Ative "Mostrar inativas" para ver as ${formatNumber(inactiveCount)} cartas desativadas.`}
+                />
+              ) : filtered.length === 0 && varianteFilter === "no-default" ? (
+                <EmptyState
+                  title="Nenhuma carta sem variante padrão"
+                  description="Todas as cartas com variações nesta seleção já têm padrão definido."
                 />
               ) : filtered.length === 0 ? (
                 <EmptyState title="Nenhuma carta encontrada" description="Ajuste a busca ou os filtros de raridade/categoria." />
@@ -1018,18 +1045,36 @@ function FilterGroup({
  * (uma Card não pode estar simultaneamente "com" e "sem" variantes), então
  * `aria-pressed` reflete `value === option.code` em vez de um `Set`.
  */
+/** P1: carta ativa pendente de variante padrão (inativas ficam de fora — a RPC recusa). */
+function isPendingDefault(carta: CartaCompletaRow): boolean {
+  return carta.isActive && cartaNeedsDefaultVariant(carta.variantView);
+}
+
+export type VarianteFilter = "all" | "with" | "without" | "no-default";
+
+/**
+ * P1 (2026-10-11): 4ª opção "Sem padrão (N)" — cartas com variantes e
+ * nenhuma padrão. Só aparece quando há pendência no escopo atual ou quando
+ * já está ativa (assim, ao resolver a última, o chip continua lá com "(0)"
+ * em vez de sumir sob o cursor). N segue busca/raridade/categoria/inativas.
+ */
 function VarianteFilterGroup({
   value,
   onChange,
+  noDefaultCount,
 }: {
-  value: "all" | "with" | "without";
-  onChange: (value: "all" | "with" | "without") => void;
+  value: VarianteFilter;
+  onChange: (value: VarianteFilter) => void;
+  noDefaultCount: number;
 }) {
-  const options: { code: "all" | "with" | "without"; label: string }[] = [
+  const options: { code: VarianteFilter; label: string }[] = [
     { code: "all", label: "Todas" },
     { code: "with", label: "Com variantes" },
     { code: "without", label: "Sem variantes" },
   ];
+  if (noDefaultCount > 0 || value === "no-default") {
+    options.push({ code: "no-default", label: `Sem padrão (${formatNumber(noDefaultCount)})` });
+  }
 
   return (
     <div className="space-y-1.5">

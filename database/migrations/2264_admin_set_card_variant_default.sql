@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 2264 - Definição manual da variante padrão de uma carta (RPC administrativa)
 Versão......: 1.0
-Status......: PROPOSTA — aguardando autorização de Fabrício para executar no LIVE.
+Status......: CONFIRMADO EXECUTADO (2026-10-11, apply_migration no LIVE qjfutqujxrbzgrtkpgkg, autorizado por
+              Fabrício). Ensaio prévio desfeito e reteste pós-migração desfeito: S1 S2 I1 I2 F1 F2 F3 A1 P1
+              PASS (proposals/2026-10-11-p1-variant-default/2264_test_rollback.sql); validação 2 CHECKs,
+              EXECUTE authenticated sim / anon não; 1ª chamada 78 ms, seguinte 10 ms.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-11
 Mandato.....: Fabrício, 2026-10-11 — P1 "Gestão Administrativa da Variante Padrão" (aprovada):

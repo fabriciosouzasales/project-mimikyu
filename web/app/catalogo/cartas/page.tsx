@@ -62,12 +62,12 @@ import {
 export default async function CartasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ set?: string; game?: string; expansion?: string }>;
+  searchParams: Promise<{ set?: string; game?: string; expansion?: string; variacoes?: string }>;
 }) {
   const { denied, supabase } = await requireCatalogoAdmin("Cartas", CreditCard);
   if (denied) return denied;
 
-  const { set, game, expansion } = await searchParams;
+  const { set, game, expansion, variacoes } = await searchParams;
   const [cardSets, games, expansions, raridades, categorias] = await Promise.all([
     getCardSetsForCartas(supabase),
     getGameOptions(supabase),
@@ -143,6 +143,7 @@ export default async function CartasPage({
           cartas={cartas}
           raridades={raridades}
           categorias={categorias}
+          initialVarianteFilter={variacoes === "sem-padrao" ? "no-default" : "all"}
         />
       </PageContainer>
     </AppShell>

@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import {
   buildVariantSummaryModel,
+  cartaNeedsDefaultVariant,
   cartaVariantCount,
   hasCartaVariants,
   VARIANT_LABEL_SEPARATOR,
@@ -175,4 +176,14 @@ test("M12: sem padrão (empate) e valores não booleanos nunca viram padrão", (
   if (model.kind !== "LIST") return;
   assert.equal(model.defaultLine, null);
   assert.equal(model.lines.some((l) => l.isDefault), false);
+});
+
+test("M13: pendência de padrão — só OK com variantes e nenhuma padrão", () => {
+  assert.equal(cartaNeedsDefaultVariant(undefined), false);
+  assert.equal(cartaNeedsDefaultVariant({ status: "NONE", rawCount: 0 }), false);
+  assert.equal(cartaNeedsDefaultVariant(buildCartaVariantView(null, "BASE5")), false);
+  const semPadrao = buildCartaVariantView([row(V1, null, null), row(V2, FIRST_ED, null)], "BASE5");
+  assert.equal(cartaNeedsDefaultVariant(semPadrao), true);
+  const comPadrao = buildCartaVariantView([row(V1, null, null), { ...row(V2, FIRST_ED, null), is_default: true }], "BASE5");
+  assert.equal(cartaNeedsDefaultVariant(comPadrao), false);
 });

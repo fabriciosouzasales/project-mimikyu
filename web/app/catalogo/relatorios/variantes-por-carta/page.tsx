@@ -1,4 +1,4 @@
-import { BookOpen, Layers } from "lucide-react";
+import { AlertTriangle, ArrowRight, BookOpen, Layers } from "lucide-react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
@@ -17,6 +17,7 @@ import {
   DataTableRow,
 } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InlineFeedback } from "@/components/ui/feedback";
 import { PageContainer, PageDescription, PageHeader, PageHeading, PageTitle } from "@/components/ui/page";
 import {
   buildVariantSummaryModel,
@@ -24,8 +25,13 @@ import {
   hasCartaVariants,
   VARIANT_LABEL_SEPARATOR,
 } from "@/lib/catalogo/carta-variant-summary";
-import type { CartaCompletaRow } from "@/lib/catalogo/queries";
-import { getCardSetByCode, getCardSetsForCartas, getCartasCompletas } from "@/lib/catalogo/queries";
+import type { CartaCompletaRow, CartaSemPadraoRow } from "@/lib/catalogo/queries";
+import {
+  getCardSetByCode,
+  getCardSetsForCartas,
+  getCartasCompletas,
+  getCartasSemVariantePadrao,
+} from "@/lib/catalogo/queries";
 import { cn, formatNumber } from "@/lib/utils";
 
 const TITULO = "Card Variants por Carta";
@@ -34,6 +40,10 @@ const COLUNAS = 4;
 const BASE_PATH = "/catalogo/relatorios/variantes-por-carta";
 
 type VarianteFiltro = "todas" | "com" | "sem";
+
+const TITULO_PENDENCIAS = "Cartas sem variante padrão";
+const SUBTITULO_PENDENCIAS =
+  "Cartas ativas, em todo o catálogo, com variações cadastradas e nenhuma definida como padrão.";
 
 /**
  * "001/086" — mesma lógica de `formatCollectorTotal`/`cartaFullNumber` em
@@ -46,6 +56,61 @@ function formatCollectorNumber(carta: Pick<CartaCompletaRow, "collectorNumber" |
   return carta.collectorTotal
     ? `${carta.collectorNumber}/${String(carta.collectorTotal).padStart(3, "0")}`
     : carta.collectorNumber;
+}
+
+/**
+ * Lista de variantes de uma carta — uma linha por variante, na ordem da F1;
+ * acabamento em tom principal, tiragem/Edition Context como qualificadores
+ * (mesma leitura do popover da galeria). Extraída em P1 (2026-10-11) para a
+ * tabela por Coleção e a de pendências usarem exatamente a mesma célula.
+ */
+function VariantesCadastradas({ view, cartaName }: { view: CartaCompletaRow["variantView"]; cartaName: string }) {
+  const resumo = buildVariantSummaryModel(view, cartaName);
+  if (resumo.kind === "HIDDEN") return <span className="italic text-neutral-400">Sem variante</span>;
+  // D2: sem fallback para os nomes legados.
+  if (resumo.kind === "UNAVAILABLE") return <span className="italic text-neutral-500">Detalhes indisponíveis</span>;
+  return (
+    <ul className="space-y-px">
+      {resumo.lines.map((line) => (
+        <li key={line.id}>
+          {line.parts.map((part, i) => (
+            <span key={part.axis} className={part.emphasis === "primary" ? "text-neutral-700" : "text-neutral-500"}>
+              {i > 0 ? VARIANT_LABEL_SEPARATOR : null}
+              {part.text}
+            </span>
+          ))}
+          {line.repeatedLabel ? <span className="ml-1 text-[10px] italic text-neutral-400">(rótulo repetido)</span> : null}
+          {line.isDefault ? <span className="ml-1 text-[10px] font-medium text-neutral-700">(padrão)</span> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * P1 (2026-10-11) — "Só cartas sem padrão": alterna o relatório entre a
+ * visão por Coleção e a lista de pendências do catálogo inteiro. Link (não
+ * estado de cliente), mesmo princípio de `RelatorioVariantesFiltro`.
+ * Selecionar uma Coleção no seletor sai do modo (o link do seletor não leva
+ * `pendencias`).
+ */
+function RelatorioPendenciasToggle({ ativo, cardSetCode }: { ativo: boolean; cardSetCode?: string }) {
+  const href = ativo ? (cardSetCode ? `${BASE_PATH}?cardSet=${cardSetCode}` : BASE_PATH) : `${BASE_PATH}?pendencias=sem-padrao`;
+  return (
+    <Link
+      href={href}
+      aria-pressed={ativo}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:hidden",
+        ativo
+          ? "border-primary/40 bg-primary/5 text-primary-ink"
+          : "border-border text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+      )}
+    >
+      <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+      Só cartas sem padrão
+    </Link>
+  );
 }
 
 /**
@@ -131,13 +196,22 @@ function RelatorioVariantesFiltro({ cardSetCode, ativo }: { cardSetCode: string;
 export default async function RelatorioVariantesPorCartaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cardSet?: string; variantes?: string }>;
+  searchParams: Promise<{ cardSet?: string; variantes?: string; pendencias?: string }>;
 }) {
   const { denied, supabase } = await requireCatalogoAdmin("Catálogo editorial", BookOpen);
   if (denied) return denied;
 
-  const { cardSet: cardSetCode, variantes } = await searchParams;
+  const { cardSet: cardSetCode, variantes, pendencias } = await searchParams;
   const filtro: VarianteFiltro = variantes === "com" || variantes === "sem" ? variantes : "todas";
+  const modoPendencias = pendencias === "sem-padrao";
+
+  if (modoPendencias) {
+    const [cardSets, pendentes] = await Promise.all([
+      getCardSetsForCartas(supabase),
+      getCartasSemVariantePadrao(supabase),
+    ]);
+    return <RelatorioPendencias cardSets={cardSets} pendentes={pendentes} />;
+  }
 
   const [cardSets, cardSet] = await Promise.all([
     getCardSetsForCartas(supabase),
@@ -184,7 +258,10 @@ export default async function RelatorioVariantesPorCartaPage({
         </PageHeader>
 
         <div className="space-y-3 print:hidden">
-          <RelatorioColecaoSeletor cardSets={cardSets} selectedCode={cardSetCode} basePath={BASE_PATH} />
+          <div className="flex flex-wrap items-center gap-3">
+            <RelatorioColecaoSeletor cardSets={cardSets} selectedCode={cardSetCode} basePath={BASE_PATH} />
+            <RelatorioPendenciasToggle ativo={false} />
+          </div>
           {cardSet && <RelatorioVariantesFiltro cardSetCode={cardSet.code} ativo={filtro} />}
         </div>
 
@@ -254,7 +331,6 @@ export default async function RelatorioVariantesPorCartaPage({
                     // de uma célula vazia — sem depender só de cor, mesmo
                     // cuidado de acessibilidade/impressão P&B já aplicado à
                     // tag monocromática de `/catalogo/cartas` (CV-02).
-                    const resumo = buildVariantSummaryModel(carta.variantView, carta.name);
                     const quantidade = cartaVariantCount(carta.variantView);
                     return (
                       <DataTableRow key={carta.id} className={cn(index % 2 === 1 && "bg-[#F7F5ED]")}>
@@ -263,37 +339,7 @@ export default async function RelatorioVariantesPorCartaPage({
                         </DataTableCell>
                         <DataTableCell className="py-1.5 text-xs text-neutral-900">{carta.name}</DataTableCell>
                         <DataTableCell className="py-1.5 text-xs text-neutral-500">
-                          {resumo.kind === "HIDDEN" ? (
-                            <span className="italic text-neutral-400">Sem variante</span>
-                          ) : resumo.kind === "UNAVAILABLE" ? (
-                            // D2: sem fallback para os nomes legados.
-                            <span className="italic text-neutral-500">Detalhes indisponíveis</span>
-                          ) : (
-                            // Uma linha por variante, na ordem da F1; acabamento em
-                            // tom principal, tiragem/Edition Context como
-                            // qualificadores (mesma leitura do popover da galeria).
-                            <ul className="space-y-px">
-                              {resumo.lines.map((line) => (
-                                <li key={line.id}>
-                                  {line.parts.map((part, i) => (
-                                    <span
-                                      key={part.axis}
-                                      className={part.emphasis === "primary" ? "text-neutral-700" : "text-neutral-500"}
-                                    >
-                                      {i > 0 ? VARIANT_LABEL_SEPARATOR : null}
-                                      {part.text}
-                                    </span>
-                                  ))}
-                                  {line.repeatedLabel ? (
-                                    <span className="ml-1 text-[10px] italic text-neutral-400">(rótulo repetido)</span>
-                                  ) : null}
-                                  {line.isDefault ? (
-                                    <span className="ml-1 text-[10px] font-medium text-neutral-700">(padrão)</span>
-                                  ) : null}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                          <VariantesCadastradas view={carta.variantView} cartaName={carta.name} />
                         </DataTableCell>
                         <DataTableCell
                           align="center"
@@ -333,6 +379,127 @@ export default async function RelatorioVariantesPorCartaPage({
                 {totalIncompleto
                   ? " O total marcado com “+” exclui Cards cuja quantidade não pôde ser lida (Detalhes indisponíveis)."
                   : ""}
+              </p>
+            )}
+
+            <RelatorioRodape />
+          </RelatorioFolha>
+        )}
+      </PageContainer>
+    </AppShell>
+  );
+}
+
+/**
+ * P1 (2026-10-11) — modo "Só cartas sem padrão": pendências do catálogo
+ * inteiro (view `catalog_card_variant_default_pending`, Query 2266), na mesma
+ * folha imprimível do relatório. Cada linha leva à galeria da Coleção já
+ * filtrada em "Sem padrão" (`?variacoes=sem-padrao`), onde o padrão é
+ * definido; ao voltar aqui a carta resolvida já não aparece (página dinâmica).
+ */
+function RelatorioPendencias({
+  cardSets,
+  pendentes,
+}: {
+  cardSets: Awaited<ReturnType<typeof getCardSetsForCartas>>;
+  pendentes: { rows: CartaSemPadraoRow[]; error: string | null; truncated: boolean };
+}) {
+  const { rows, error, truncated } = pendentes;
+  const colecoes = new Set(rows.map((row) => row.cardSetCode)).size;
+  const identificacao =
+    rows.length === 0
+      ? "Todo o catálogo"
+      : `Todo o catálogo · ${formatNumber(rows.length)} ${rows.length === 1 ? "carta" : "cartas"} em ${formatNumber(colecoes)} ${colecoes === 1 ? "Coleção" : "Coleções"}`;
+
+  return (
+    <AppShell title="Catálogo editorial" icon={BookOpen}>
+      <PageContainer width="wide">
+        <PageHeader className="print:hidden">
+          <PageHeading>
+            <div className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              <PageTitle>
+                {TITULO_PENDENCIAS}
+                {error ? "" : ` (${formatNumber(rows.length)})`}
+              </PageTitle>
+            </div>
+            <PageDescription>{SUBTITULO_PENDENCIAS}</PageDescription>
+          </PageHeading>
+          {!error && rows.length > 0 && <RelatorioPrintButton />}
+        </PageHeader>
+
+        <div className="flex flex-wrap items-center gap-3 print:hidden">
+          <RelatorioColecaoSeletor cardSets={cardSets} basePath={BASE_PATH} />
+          <RelatorioPendenciasToggle ativo />
+        </div>
+
+        {error ? (
+          <div role="alert">
+            <InlineFeedback tone="error">Não foi possível carregar as pendências ({error}).</InlineFeedback>
+          </div>
+        ) : (
+          <RelatorioFolha>
+            {rows.length === 0 ? (
+              <>
+                <RelatorioCabecalho titulo={TITULO_PENDENCIAS} subtitulo={SUBTITULO_PENDENCIAS} identificacaoColecao={identificacao} />
+                <div className="px-6 print:px-0">
+                  <EmptyState
+                    title="Nenhuma carta sem variante padrão"
+                    description="Todas as cartas ativas com variações já têm um padrão definido."
+                  />
+                </div>
+              </>
+            ) : (
+              <DataTable>
+                <DataTableHead>
+                  <tr>
+                    <th colSpan={5} className="p-0 text-left font-normal">
+                      <RelatorioCabecalho titulo={TITULO_PENDENCIAS} subtitulo={SUBTITULO_PENDENCIAS} identificacaoColecao={identificacao} />
+                    </th>
+                  </tr>
+                  <DataTableHeadRow className="border-neutral-200 text-neutral-500">
+                    <DataTableHeadCell className="bg-neutral-50 pl-6 print:pl-0">Coleção</DataTableHeadCell>
+                    <DataTableHeadCell className="bg-neutral-50">Número</DataTableHeadCell>
+                    <DataTableHeadCell className="bg-neutral-50">Nome</DataTableHeadCell>
+                    <DataTableHeadCell className="bg-neutral-50">Variantes cadastradas</DataTableHeadCell>
+                    <DataTableHeadCell className="bg-neutral-50 pr-6 last:pr-6 print:hidden">
+                      <span className="sr-only">Ação</span>
+                    </DataTableHeadCell>
+                  </DataTableHeadRow>
+                </DataTableHead>
+                <tbody>
+                  {rows.map((row, index) => (
+                    <DataTableRow key={row.id} className={cn(index % 2 === 1 && "bg-[#F7F5ED]")}>
+                      <DataTableCell className="py-1.5 pl-6 align-top text-xs text-neutral-700 print:pl-0">
+                        <span className="font-medium text-neutral-900">{row.cardSetCode}</span>
+                        <span className="block text-[10px] text-neutral-500">{row.cardSetName}</span>
+                      </DataTableCell>
+                      <DataTableCell className="py-1.5 align-top text-xs tabular-nums text-neutral-500">
+                        {formatCollectorNumber(row)}
+                      </DataTableCell>
+                      <DataTableCell className="py-1.5 align-top text-xs text-neutral-900">{row.name}</DataTableCell>
+                      <DataTableCell className="py-1.5 align-top text-xs text-neutral-500">
+                        <VariantesCadastradas view={row.variantView} cartaName={row.name} />
+                      </DataTableCell>
+                      <DataTableCell className="py-1.5 pr-6 align-top text-right last:pr-6 print:hidden">
+                        <Link
+                          href={`/catalogo/cartas?set=${encodeURIComponent(row.cardSetCode)}&variacoes=sem-padrao`}
+                          aria-label={`Definir variante padrão de ${row.name}, ${row.cardSetCode} ${row.collectorNumber}`}
+                          className="inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs font-medium text-primary-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          Definir padrão
+                          <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                        </Link>
+                      </DataTableCell>
+                    </DataTableRow>
+                  ))}
+                </tbody>
+              </DataTable>
+            )}
+
+            {truncated && (
+              <p className="px-6 pb-4 text-xs text-muted-foreground print:px-0">
+                Mostrando as primeiras {formatNumber(rows.length)} pendências; resolva estas para ver as demais.
               </p>
             )}
 

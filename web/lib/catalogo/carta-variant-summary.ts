@@ -72,6 +72,16 @@ export function cartaVariantCount(view: CartaVariantViewState | null | undefined
   return typeof view.rawCount === "number" ? view.rawCount : null;
 }
 
+/**
+ * P1 (2026-10-11) — carta pendente de variante padrão: tem variantes
+ * cadastradas e nenhuma marcada como padrão. Critério único da galeria
+ * (filtro "Sem padrão") e do relatório "Variantes por carta". ERROR fica de
+ * fora: sem a lista da F1 não há como afirmar que falta padrão nem escolher um.
+ */
+export function cartaNeedsDefaultVariant(view: CartaVariantViewState | null | undefined): boolean {
+  return !!view && view.status === "OK" && view.variants.length > 0 && !view.variants.some((v) => v.isDefault === true);
+}
+
 export function buildVariantSummaryModel(view: CartaVariantViewState | null | undefined, cartaName: string): VariantSummaryModel {
   if (!view || view.status === "NONE") return { kind: "HIDDEN" };
 
