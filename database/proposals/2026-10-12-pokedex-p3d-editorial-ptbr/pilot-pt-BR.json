@@ -291,6 +291,9 @@
     "approved_by": "Fabrício",
     "query": "6136",
     "validation": "6847",
-    "published": false
+    "published": true,
+    "published_at": "2026-10-13T00:45:00Z",
+    "canonical_file": "database/seeds/6136_publish_pokedex_editorial_ptbr_pilot.sql",
+    "validation_result": "6847 PASS"
   }
 }

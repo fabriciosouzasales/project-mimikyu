@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Status** | Piloto **APROVADO** (2026-10-12) para publicação controlada de homologação; Query 6136 e validação 6847 em **PROPOSTA** — nada gravado no LIVE. Experiência bilíngue implementada e homologada visualmente (local). |
+| **Status** | Piloto **APROVADO** e **PUBLICADO** no LIVE (2026-10-12): Query 6136 **CONFIRMADO EXECUTADO** (publicação de dados editoriais, não migration de esquema) e promovida para `database/seeds/6136_publish_pokedex_editorial_ptbr_pilot.sql`; 6847 = **PASS** sobre os dados persistidos. Aguarda homologação no navegador em `/pokedex/1` para encerrar a P3d. |
 | **Data** | 2026-10-12 |
 | **Escopo** | Classificação (GENUS) e descrição (FLAVOR) em pt-BR, autorais do MMKYU, para as 1.025 espécies. Piloto: 10 espécies. |
-| **Arquivos** | este README · `pilot-pt-BR.json` (piloto aprovado, revisão 4, com md5 de cada texto) · `6136_publish_pokedex_editorial_ptbr_pilot.sql` (publicação, PROPOSTA) · `6847_validate_pokedex_editorial_ptbr_pilot.sql` (validação pós-publicação, só leitura) |
+| **Arquivos** | este README · `pilot-pt-BR.json` (piloto aprovado, revisão 4, com md5 de cada texto) · `6136_publish_pokedex_editorial_ptbr_pilot.sql` (publicação — versão de proposta preservada como histórico; canônica em `database/seeds/`) · `6847_validate_pokedex_editorial_ptbr_pilot.sql` (validação pós-publicação, só leitura) |
 
 ## Decisões aprovadas (2026-10-12)
 
@@ -195,7 +195,7 @@
 
 ---
 
-## Publicação controlada do piloto (Query 6136 + validação 6847) — PROPOSTA
+## Publicação controlada do piloto (Query 6136 + validação 6847) — EXECUTADA
 
 **Estado do piloto:** as 10 entradas estão `APROVADO` (revisão 4 do JSON), com o rótulo de publicação "Piloto editorial MMKYU". Os textos são os da v0.2 refinada, incluindo Mewtwo e Unown revisados, e seguem o guia v0.2. Ressalvas mantidas no JSON:
 - classificações e "Equipe Plasma" pendentes de confirmação terminológica;
@@ -235,4 +235,39 @@
 
 **Rollback:** `DELETE` só das linhas `MMKYU_EDITORIAL` pt-BR das 10 espécies (comando no rodapé da 6136). As fichas voltam ao inglês oficial automaticamente, sem mudança de código.
 
-**Promoção:** depois de executada e validada, a 6136 entra no repositório como dado editorial versionado, com destino canônico a decidir (por exemplo `database/seeds/`), já que não é schema.
+**Promoção:** a 6136 entrou no repositório como dado editorial versionado em `database/seeds/` (precedente: seeds 2240–2256, executadas via `execute_sql` sem ledger), não como migration — ver seção "Publicação definitiva" abaixo.
+
+### Ensaio LIVE com rollback integral (2026-10-12) — PASS
+
+- **Pré-checagem:** 6136 e 6847 idênticas às versionadas no commit `57b2021` (sha256 `2ca74344…875b` e `1907ac51…89ee9`). JSON com 10 espécies `APROVADO`. LIVE com 0 linhas `MMKYU_EDITORIAL`, 2.050 linhas `SOURCE` com hash `ca8e9c87…`, ledger de migrations com 419 registros.
+- **Execução:** uma única transação: 6136 e 6847 sem alteração de lógica (só o invólucro BEGIN/COMMIT/ROLLBACK foi adaptado), mais um bloco final de conferência encerrado por exceção, o que garante o rollback integral. Resultado: `6136 OK + 6847 PASS`.
+- **Validação 6847, item a item:**
+  - 20 linhas editoriais, todas das 10 espécies, uma GENUS e uma FLAVOR por espécie;
+  - pt-BR, direitos `MMKYU_EDITORIAL`, sem proveniência de fonte;
+  - md5 dos 20 textos igual ao do JSON;
+  - `SOURCE` intacto (2.050 linhas, mesmo hash);
+  - Bulbasaur em pt-BR devolve o editorial ("Pokémon Semente"), Bulbasaur em `en` devolve o oficial com a versão, e Ivysaur continua com o oficial em `en`.
+- **Funções e permissões:** o hash de todas as funções `public`, com definição e ACL, ficou inalterado; ACL e trigger de `pokemon_species_text` também inalterados.
+- **Leitura independente pós-rollback:** 0 linhas editoriais, 2.050 `SOURCE` com o mesmo hash, 419 migrations, o mesmo hash de funções e de ACL, nenhuma tabela temporária remanescente.
+
+### Publicação definitiva no LIVE (2026-10-12) — 6136 CONFIRMADO EXECUTADO, 6847 PASS
+
+- **Mandato:** autorização expressa de Fabrício para executar a 6136 no LIVE, exclusivamente para as 20 linhas editoriais aprovadas das 10 espécies do piloto.
+- **Pré-condições (todas confirmadas antes da gravação):**
+  - 6136 e 6847 idênticas às ensaiadas e às do commit `57b2021` (sha256 `2ca74344…875b` e `1907ac51…89ee9`);
+  - JSON revisão 4 com 10 entradas `APROVADO` e md5 dos 20 textos conferidos;
+  - LIVE com 0 linhas `MMKYU_EDITORIAL` e 2.050 linhas `SOURCE` com hash `ca8e9c87244160063971bd1a9f808b78`.
+- **Execução:** 6136 verbatim, com o `begin;`/`commit;` do próprio arquivo, via `execute_sql` do MCP Supabase (projeto `qjfutqujxrbzgrtkpgkg`). Gravação em 2026-10-13 00:45:00 UTC, sem erro. Não gera entrada de ledger: `supabase_migrations` continua com 419.
+- **Validação:** 6847 verbatim sobre os dados persistidos terminou sem exceção, o que equivale a `6847 PASS`, já que qualquer divergência lança `6847 FAIL`.
+- **Leitura independente pós-publicação:**
+  - 20 linhas editoriais, de 10 espécies (#1, 25, 150, 201, 493, 649, 721, 905, 906, 1025);
+  - hash do conjunto editorial (número | tipo | md5 do texto) = `6c1653539c8abbb5ed06c1a4159e294b`;
+  - `SOURCE` com 2.050 linhas e hash `ca8e9c87…` idêntico ao baseline;
+  - hash das funções `public` (definição + ACL) `b2b77ca3…` inalterado;
+  - ACL de `pokemon_species_text` `{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}` e 1 trigger, ambos inalterados;
+  - nenhuma tabela temporária remanescente.
+- **Leitura da ficha (6847):** Bulbasaur em pt-BR devolve o editorial ("Pokémon Semente"); Bulbasaur em `en` devolve o oficial com a versão; Ivysaur continua com o oficial em `en`.
+- **Promoção:** cópia canônica em `database/seeds/6136_publish_pokedex_editorial_ptbr_pilot.sql`. Ela só difere da proposta no cabeçalho de status: o sha256 do corpo `begin…commit` é `1b4f5b4c…6b07` nas duas. A 6847 permanece inalterada nesta pasta. No `pilot-pt-BR.json`, só o bloco `publication` foi marcado como publicado; textos e `content_md5` estão intactos.
+- **Rollback (se necessário):** o comando do rodapé da 6136 remove só as 20 linhas editoriais; as fichas voltam ao inglês oficial sem mudança de código.
+
+**Próximo passo:** homologação de Fabrício no navegador em `/pokedex/1`, antes do encerramento da P3d.
