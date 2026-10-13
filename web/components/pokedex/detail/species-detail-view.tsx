@@ -1,21 +1,21 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, PenLine } from "lucide-react";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { PokemonTypeChip } from "@/components/pokedex/pokemon-type-chip";
 import { SpeciesArtwork } from "@/components/pokedex/species-artwork";
 import { PokedexLens } from "@/components/pokedex/detail/pokedex-lens";
+import { SpeciesDescriptionBilingual } from "@/components/pokedex/detail/species-description-bilingual";
 import { SpeciesKeyboardNav } from "@/components/pokedex/detail/species-keyboard-nav";
 import { SpeciesQuickSearch } from "@/components/pokedex/detail/species-quick-search";
 import { cn } from "@/lib/utils";
 import { speciesArtworkUrl, speciesOriginalArtworkUrl } from "@/lib/pokedex/artwork";
 import type { PokedexSpeciesDetail, SpeciesHeroArtwork } from "@/lib/pokedex/detail";
+import { PAGE_LANGUAGE, type SpeciesTextFields, buildDescriptionPresentation } from "@/lib/pokedex/description-presentation";
 import {
   type PokedexContext,
   formatDexNumber,
   formatMeasure,
-  languageName,
   nationalPokedexHref,
-  sourceVersionLabel,
   speciesDetailHref,
 } from "@/lib/pokedex/format";
 import { pokemonTypeStyle } from "@/lib/pokedex/type-palette";
@@ -23,8 +23,6 @@ import styles from "./species-detail.module.css";
 
 export type SpeciesNeighbor = { national_dex_number: number; species_name: string; artwork_path: string | null };
 
-/** Idioma da página — textos em outro idioma ganham `lang` próprio e a nota de origem. */
-const PAGE_LANGUAGE = "pt-BR";
 /** Acima disto o nome usa a escala menor (Crabominable, Squawkabilly...). */
 const LONG_NAME_LENGTH = 10;
 
@@ -40,6 +38,7 @@ const LONG_NAME_LENGTH = 10;
  */
 export function SpeciesDetailView({
   species,
+  original = null,
   hero,
   previous,
   next,
@@ -47,6 +46,8 @@ export function SpeciesDetailView({
   context,
 }: {
   species: PokedexSpeciesDetail;
+  /** Texto oficial em inglês (P3d) — presente só quando a ficha tem descrição editorial pt-BR. */
+  original?: SpeciesTextFields | null;
   hero: SpeciesHeroArtwork | null;
   previous: SpeciesNeighbor | null;
   next: SpeciesNeighbor | null;
@@ -77,9 +78,8 @@ export function SpeciesDetailView({
   const height = species.height_m !== null ? `${formatMeasure(species.height_m)} m` : null;
   const weight = species.weight_kg !== null ? `${formatMeasure(species.weight_kg)} kg` : null;
   const generation = species.generation_ordinal;
-  const descriptionLang = species.description_language ?? PAGE_LANGUAGE;
   const genusLang = species.genus_language ?? PAGE_LANGUAGE;
-  const sourceNote = buildSourceNote(species);
+  const description = buildDescriptionPresentation(species, original);
 
   return (
     <section className={styles.stage} style={stageStyle} aria-labelledby="especie-nome">
@@ -205,12 +205,19 @@ export function SpeciesDetailView({
           </dl>
         ) : null}
 
-        {species.description ? (
+        {description.mode === "bilingual" ? (
+          <SpeciesDescriptionBilingual portuguese={description.portuguese} english={description.english} />
+        ) : description.mode === "single" ? (
           <>
-            <p className={styles.description} lang={descriptionLang !== PAGE_LANGUAGE ? descriptionLang : undefined}>
-              {species.description}
+            <p className={styles.description} lang={description.variant.lang !== PAGE_LANGUAGE ? description.variant.lang : undefined}>
+              {description.variant.text}
             </p>
-            {sourceNote ? <p className={styles.note}>{sourceNote}</p> : null}
+            {description.variant.note ? (
+              <p className={styles.note}>
+                {description.editorial ? <PenLine className={styles.noteIcon} aria-hidden="true" /> : null}
+                {description.variant.note}
+              </p>
+            ) : null}
           </>
         ) : !species.profile_available ? (
           <p className={styles.note}>Os dados de referência desta espécie ainda não foram carregados.</p>
@@ -275,24 +282,4 @@ function NeighborLink({
       {direction === "next" ? round : null}
     </Link>
   );
-}
-
-function buildSourceNote(species: PokedexSpeciesDetail): string | null {
-  const version = sourceVersionLabel(species.description_source_version);
-  const official = species.description_is_official !== false;
-  const genusForeign = !!species.genus_language && species.genus_language !== PAGE_LANGUAGE;
-  const descriptionForeign = !!species.description_language && species.description_language !== PAGE_LANGUAGE;
-  const from = version ? `, de ${version}` : "";
-
-  if (!genusForeign && !descriptionForeign) {
-    return version && official ? `Descrição oficial de ${version}.` : null;
-  }
-  const language = languageName(descriptionForeign ? species.description_language : species.genus_language);
-  if (genusForeign && descriptionForeign) {
-    return `Classificação e descrição ${official ? "oficiais " : ""}em ${language}${from}.`;
-  }
-  if (descriptionForeign) {
-    return `Descrição ${official ? "oficial " : ""}em ${language}${from}.`;
-  }
-  return `Classificação ${species.genus_is_official !== false ? "oficial " : ""}em ${language}.`;
 }

@@ -1,0 +1,296 @@
+{
+  "batch": "P3d-piloto",
+  "guide_version": "0.2",
+  "revision": 4,
+  "updated": "2026-10-12",
+  "status_note": "Piloto editorial MMKYU aprovado para publicação controlada de homologação (2026-10-12). Conteúdo autoral MMKYU — não é tradução nem texto oficial.",
+  "pending_checks": [
+    "Todas as classificações: correspondência com a terminologia brasileira (ex.: TCG Brasil) ainda não verificada.",
+    "'Equipe Plasma' provisória — conferência terminológica pendente.",
+    "Bulbasaur e Pecharunt: avaliação de propriedade intelectual antes de uso comercial."
+  ],
+  "entries": [
+    {
+      "national_dex_number": 1,
+      "species_name": "Bulbasaur",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Semente",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "A semente nas costas de Bulbasaur não é enfeite: é a despensa que sustenta seu crescimento. Enquanto é jovem, ele recorre aos nutrientes guardados ali — um vínculo com o mundo das plantas que acompanha a espécie desde cedo.",
+      "description_length": 223,
+      "facts": [
+        "[EN shield] usa os nutrientes guardados na semente das costas para crescer enquanto jovem",
+        "[EN genus] Seed Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'um vínculo com o mundo das plantas que acompanha a espécie desde cedo' — leitura editorial do fato acima"
+      ],
+      "review_points": [
+        "Redação revisada preservada",
+        "Fato central é o mesmo da descrição oficial: avaliação de propriedade intelectual obrigatória antes de uso comercial"
+      ],
+      "content_md5": {
+        "genus": "d106d48db7cd05b7318ef213e29ea191",
+        "description": "6fa190f58d6d7c9d181dbdf9fa8b029f"
+      }
+    },
+    {
+      "national_dex_number": 25,
+      "species_name": "Pikachu",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Rato",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "As bochechas de Pikachu funcionam como pequenas baterias, onde ele guarda a eletricidade que produz. Engenhoso, encontrou um uso doméstico para esse poder: com um choque certeiro, tosta frutos duros antes de comê-los.",
+      "description_length": 217,
+      "facts": [
+        "[EN legends-arceus] bolsas nas bochechas armazenam eletricidade",
+        "[EN legends-arceus] esperto; tosta frutos duros com descarga elétrica antes de comer",
+        "[EN genus] Mouse Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'pequenas baterias', 'uso doméstico' e 'choque certeiro' — imagens editoriais"
+      ],
+      "review_points": [
+        "'tostar' para 'roasts' — conferir naturalidade",
+        "Não usa fatos de anime/franquia sem base no banco"
+      ],
+      "content_md5": {
+        "genus": "aeebd93bae1f0ffe1fd5d851a5c69f7d",
+        "description": "ff535631f50d1f62ad41e6097fc4eb6e"
+      }
+    },
+    {
+      "national_dex_number": 150,
+      "species_name": "Mewtwo",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Genético",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Mewtwo compartilha com Mew quase todo o seu DNA, mas o parentesco para por aí: no porte e, sobretudo, no temperamento, os dois são profundamente diferentes.",
+      "description_length": 156,
+      "facts": [
+        "[EN lets-go-eevee] DNA quase igual ao de Mew; tamanho e temperamento muito diferentes",
+        "[EN genus] Genetic Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Encerramento interpretativo removido (refinamento 2026-10-12)",
+        "Medidas e status lendário fora do texto (já estão na ficha)"
+      ],
+      "content_md5": {
+        "genus": "59c850213022ef77e8c3fee5abaab90e",
+        "description": "77a4292d419ffa4e7675a9f638af9c72"
+      }
+    },
+    {
+      "national_dex_number": 201,
+      "species_name": "Unown",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Símbolo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Unown chama atenção pelo formato incomum: seus corpos lembram caracteres de escrita, e a espécie se apresenta em muitas formas diferentes.",
+      "description_length": 138,
+      "facts": [
+        "[EN legends-arceus] formas estranhas; muitas formas que lembram escrita",
+        "[EN genus] Symbol Pokémon (classificação ligada a símbolos)"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Relato particular do pesquisador removido (refinamento 2026-10-12); ficam só formato incomum, semelhança com escrita e muitas formas",
+        "Não cita a quantidade de formas (fora da base)",
+        "Texto curto por falta de base factual — aceito pela regra flexível"
+      ],
+      "content_md5": {
+        "genus": "602a3977a95fcc0d5599e3685ece02a1",
+        "description": "1e5fae200a90906ea79405ad638901ab"
+      }
+    },
+    {
+      "national_dex_number": 493,
+      "species_name": "Arceus",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Alfa",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Na mitologia de Hisui, Arceus está acima de tudo: é tido como o criador de todas as coisas e como a fonte de uma luz celeste que guia e protege os Pokémon da região.",
+      "description_length": 165,
+      "facts": [
+        "[EN legends-arceus] fonte celestial da luz que brilha sobre Hisui; guia e protege todos os Pokémon; a mitologia de Hisui diz que é o criador de todas as coisas",
+        "[EN genus] Alpha Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'está acima de tudo' — síntese editorial de 'criador de todas as coisas', dentro do enquadramento mitológico"
+      ],
+      "review_points": [
+        "Todo o conteúdo enquadrado como mitologia",
+        "Ficha mostra Sinnoh (geração); texto cita Hisui (história)",
+        "Texto curto mantido (decisão 2026-10-12: não alongar)"
+      ],
+      "content_md5": {
+        "genus": "4b5972befe205497fcc1223c6e19c713",
+        "description": "2306a6e97fac096a4146f0eeddb03362"
+      }
+    },
+    {
+      "national_dex_number": 649,
+      "species_name": "Genesect",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Paleozoico",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Em Genesect, passado remoto e tecnologia se encontram: a espécie remonta a cerca de 300 milhões de anos, mas foi alterada pela Equipe Plasma. O canhão que carrega nas costas é obra dessa intervenção, não da natureza.",
+      "description_length": 216,
+      "facts": [
+        "[EN alpha-sapphire] existia há 300 milhões de anos; a Team Plasma o alterou e acoplou um canhão às costas",
+        "[EN genus] Paleozoic Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'não da natureza' — inferência direta de 'attached a cannon'"
+      ],
+      "review_points": [
+        "'Equipe Plasma' adotada provisoriamente; conferência terminológica pendente",
+        "'cerca de' suaviza o número exato da fonte"
+      ],
+      "content_md5": {
+        "genus": "15eb9c3d28c0ed3243f9f9d37249b334",
+        "description": "3c39ddbe6f6ca53ef61f4b384c440d81"
+      }
+    },
+    {
+      "national_dex_number": 721,
+      "species_name": "Volcanion",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Vapor",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Volcanion reúne no mesmo corpo fogo e água, duas forças que costumam se anular, e transforma esse encontro em vapor. A pressão é liberada pelos braços que tem nas costas, com potência para arrasar uma montanha.",
+      "description_length": 210,
+      "facts": [
+        "[DB] tipos Fogo / Água",
+        "[EN alpha-sapphire] expele o vapor interno pelos braços das costas; força para arrasar uma montanha",
+        "[EN genus] Steam Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'duas forças que costumam se anular' — leitura editorial da combinação de tipos"
+      ],
+      "review_points": [
+        "Afirmação de exclusividade removida",
+        "Cita os tipos porque são o próprio tema do texto (exceção justificada à regra de não repetir a ficha)"
+      ],
+      "content_md5": {
+        "genus": "3485c9988307a1efcba84ac1314c2a0b",
+        "description": "3aec691ce234c1c25e55b0421cef99e3"
+      }
+    },
+    {
+      "national_dex_number": 905,
+      "species_name": "Enamorus",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Amor-Ódio",
+      "genus_alternative": "Pokémon Amor e Ódio",
+      "genus_terminology_check": "PENDENTE",
+      "description": "Nas lendas de Hisui, Enamorus é o mensageiro da primavera: quando atravessa o mar e chega à região, o inverno rigoroso termina. As mesmas histórias atribuem ao seu afeto o despertar de vida nova pela terra.",
+      "description_length": 206,
+      "facts": [
+        "[EN legends-arceus] ao chegar pelo mar, o inverno rigoroso acaba; segundo a lenda, seu amor faz brotar vida nova em Hisui",
+        "[EN genus] Love-Hate Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'mensageiro da primavera' — síntese editorial (fim do inverno + vida nova), dentro do enquadramento de lenda"
+      ],
+      "review_points": [
+        "Ficha mostra Galar (geração); texto cita Hisui (história)",
+        "Classificação: hífen ou 'Amor e Ódio'"
+      ],
+      "content_md5": {
+        "genus": "903cdcab9a504b1c836323397c451f24",
+        "description": "2961132bc5248df54ff10d3235cc3cb0"
+      }
+    },
+    {
+      "national_dex_number": 906,
+      "species_name": "Sprigatito",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Gato-Planta",
+      "genus_alternative": "Pokémon Gato de Planta",
+      "genus_terminology_check": "PENDENTE",
+      "description": "O trunfo de Sprigatito é discreto: o aroma adocicado que o corpo exala, capaz de encantar quem estiver por perto. Sob o sol, o perfume fica mais intenso — e o encanto também.",
+      "description_length": 174,
+      "facts": [
+        "[EN violet] corpo exala aroma doce que encanta quem está ao redor; mais forte quando está ao sol",
+        "[EN genus] Grass Cat Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'e o encanto também' — inferência leve (aroma mais forte → efeito mais forte)"
+      ],
+      "review_points": [
+        "Fato 'inicial de Paldea' é conhecido mas não está na base — não usado",
+        "Texto curto mantido (decisão 2026-10-12: não alongar)"
+      ],
+      "content_md5": {
+        "genus": "3d4ed43e6b1573197d5a106253b15a3c",
+        "description": "c1bab719d860c5afb06cc003b54ba08f"
+      }
+    },
+    {
+      "national_dex_number": 1025,
+      "species_name": "Pecharunt",
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Dominação",
+      "genus_alternative": "Pokémon Subjugação",
+      "genus_terminology_check": "PENDENTE",
+      "description": "Por trás da aparência de fruta, Pecharunt guarda um perigo: a carapaça em forma de pêssego é um reservatório de veneno potente. É desse estoque que saem os mochis envenenados que ele prepara para oferecer a pessoas e Pokémon.",
+      "description_length": 225,
+      "facts": [
+        "[EN violet] carapaça em forma de pêssego armazena veneno potente; prepara mochi envenenado e serve a pessoas e Pokémon",
+        "[EN genus] Subjugation Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'Por trás da aparência de fruta' — abertura editorial"
+      ],
+      "review_points": [
+        "Redação revisada preservada; classificação 'Dominação' mantida",
+        "Fato central é o mesmo da fonte: avaliação de propriedade intelectual obrigatória antes de uso comercial",
+        "'mochis' conforme glossário"
+      ],
+      "content_md5": {
+        "genus": "c790cbbfb620b3210bae0eb51ec6d1fd",
+        "description": "4cf656088f060510dd78da734f1db26a"
+      }
+    }
+  ],
+  "publication": {
+    "label": "Piloto editorial MMKYU",
+    "origin": "MMKYU_EDITORIAL",
+    "rights_status": "MMKYU_EDITORIAL",
+    "language": "pt-BR",
+    "approved_at": "2026-10-12",
+    "approved_by": "Fabrício",
+    "query": "6136",
+    "validation": "6847",
+    "published": false
+  }
+}

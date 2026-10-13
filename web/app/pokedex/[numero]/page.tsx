@@ -6,7 +6,13 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { SpeciesDetailView, type SpeciesNeighbor } from "@/components/pokedex/detail/species-detail-view";
 import { Alert } from "@/components/ui/alert";
-import { getPokedexSpeciesDetail, getPokedexSpeciesHeroArtwork, type SpeciesDetailResult } from "@/lib/pokedex/detail";
+import {
+  getPokedexSpeciesDetail,
+  getPokedexSpeciesHeroArtwork,
+  getPokedexSpeciesOriginalText,
+  type SpeciesDetailResult,
+} from "@/lib/pokedex/detail";
+import { needsOriginalText } from "@/lib/pokedex/description-presentation";
 import {
   nationalPokedexHref,
   parseGenerationParam,
@@ -71,8 +77,18 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
   void getCachedUserProfile().catch(() => {});
 
   const supabase = await createClient();
-  const [result, hero, previous, next, generations] = await Promise.all([
-    loadSpeciesDetail(nationalDexNumber),
+  // Texto oficial em inglês só quando a ficha veio com descrição editorial pt-BR
+  // (P3d): a leitura `en` começa assim que a ficha chega, em paralelo com as
+  // demais — sem custo para espécies sem conteúdo editorial.
+  const detailPromise = loadSpeciesDetail(nationalDexNumber);
+  const originalPromise = detailPromise.then((detail) =>
+    detail.status === "ok" && needsOriginalText(detail.species)
+      ? getPokedexSpeciesOriginalText(supabase, nationalDexNumber)
+      : null,
+  );
+  const [result, original, hero, previous, next, generations] = await Promise.all([
+    detailPromise,
+    originalPromise,
     getPokedexSpeciesHeroArtwork(supabase, nationalDexNumber),
     nationalDexNumber > 1 ? getPokedexSpeciesDetail(supabase, nationalDexNumber - 1) : Promise.resolve(null),
     getPokedexSpeciesDetail(supabase, nationalDexNumber + 1),
@@ -108,6 +124,7 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
     <AppShell title="Pokédex" icon={Pokeball}>
       <SpeciesDetailView
         species={result.species}
+        original={original}
         hero={hero}
         previous={toNeighbor(previous)}
         next={toNeighbor(next)}

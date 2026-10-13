@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SpeciesTextFields } from "./description-presentation.ts";
 
 /**
  * Leituras da página de detalhes da espécie (Pokédex P3b, 2026-10-12).
@@ -74,6 +75,39 @@ export async function getPokedexSpeciesDetail(supabase: SupabaseClient, national
       height_m: row.height_m === null ? null : Number(row.height_m),
       weight_kg: row.weight_kg === null ? null : Number(row.weight_kg),
     },
+  };
+}
+
+/**
+ * Texto oficial em inglês da espécie (Pokédex P3d) — a mesma função da ficha,
+ * pedindo `en`: a ordenação da 6133 entrega o texto oficial (SOURCE) em inglês
+ * com a versão de origem. Usado só quando a ficha veio com descrição editorial
+ * pt-BR, para a alternância Português | English. Opcional: qualquer falha
+ * devolve `null` e a ficha segue só em português.
+ */
+export async function getPokedexSpeciesOriginalText(
+  supabase: SupabaseClient,
+  nationalDexNumber: number,
+): Promise<SpeciesTextFields | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_pokedex_species_detail", {
+    p_national_dex_number: nationalDexNumber,
+    p_language: "en",
+  });
+  if (error) {
+    logDetailReadFailure("get_pokedex_species_detail(en)", startedAt, error);
+    return null;
+  }
+  const row = (data as PokedexSpeciesDetail[] | null)?.[0];
+  if (!row) return null;
+  return {
+    genus: row.genus,
+    genus_language: row.genus_language,
+    genus_is_official: row.genus_is_official,
+    description: row.description,
+    description_language: row.description_language,
+    description_is_official: row.description_is_official,
+    description_source_version: row.description_source_version,
   };
 }
 
