@@ -1,0 +1,2270 @@
+{
+  "batch": "P3e-lote-01",
+  "guide_version": "0.2",
+  "revision": 11,
+  "updated": "2026-10-12",
+  "status_note": "Lote 01 APROVADO (50/50) e PUBLICADO no LIVE em 2026-10-13 (6137 CONFIRMADO EXECUTADO, 6848 PASS). Conteúdo autoral MMKYU — não é tradução nem texto oficial.",
+  "selection": [
+    4,
+    6,
+    7,
+    39,
+    52,
+    54,
+    94,
+    133,
+    143,
+    151,
+    155,
+    175,
+    197,
+    212,
+    248,
+    249,
+    257,
+    282,
+    359,
+    382,
+    384,
+    385,
+    393,
+    405,
+    445,
+    448,
+    483,
+    491,
+    494,
+    495,
+    530,
+    609,
+    643,
+    658,
+    681,
+    700,
+    701,
+    716,
+    722,
+    745,
+    778,
+    791,
+    823,
+    873,
+    887,
+    888,
+    908,
+    959,
+    998,
+    1000
+  ],
+  "blocks": {
+    "1": [
+      4,
+      6,
+      7,
+      39,
+      52,
+      54,
+      94,
+      133,
+      143,
+      151
+    ],
+    "2": [
+      155,
+      175,
+      197,
+      212,
+      248,
+      249,
+      257,
+      282,
+      359,
+      382
+    ],
+    "3": [
+      384,
+      385,
+      393,
+      405,
+      445,
+      448,
+      483,
+      491,
+      494,
+      495
+    ],
+    "4": [
+      530,
+      609,
+      643,
+      658,
+      681,
+      700,
+      701,
+      716,
+      722,
+      745
+    ],
+    "5": [
+      778,
+      791,
+      823,
+      873,
+      887,
+      888,
+      908,
+      959,
+      998,
+      1000
+    ]
+  },
+  "source_snapshot": "source-snapshot-2026-10-12.json",
+  "units_rule": "Sistema métrico só quando a medida é o próprio tema; valor arredondado com 'cerca de'.",
+  "pending_checks": [
+    "Classificações: correspondência com a terminologia brasileira oficial ainda não verificada (mesma ressalva do piloto).",
+    "Propriedade intelectual: avaliação antes de uso comercial, ampliada às espécies do lote."
+  ],
+  "glossary": [
+    {
+      "source": "Hisui / Hisuian",
+      "pt": "Hisui / de Hisui",
+      "avoid": [
+        "hisuiano",
+        "hisuiana",
+        "hisuianos",
+        "hisuianas"
+      ],
+      "note": "região; não adjetivar"
+    },
+    {
+      "source": "Galarian Meowth",
+      "pt": "Meowth de Galar",
+      "avoid": [
+        "Meowth galariano",
+        "galariano",
+        "galariana"
+      ],
+      "note": "forma regional: 'de <região>'"
+    },
+    {
+      "source": "regional form",
+      "pt": "forma regional",
+      "avoid": [
+        "variante regional"
+      ]
+    },
+    {
+      "source": "evolve / evolution",
+      "pt": "evoluir / evolução",
+      "avoid": [
+        "evolucionar"
+      ]
+    },
+    {
+      "source": "researcher (Legends: Arceus entries)",
+      "pt": "um pesquisador de Hisui",
+      "avoid": [],
+      "note": "voz em 1ª pessoa do original vira relato atribuído"
+    },
+    {
+      "source": "master (pessoa responsável pelo Pokémon)",
+      "pt": "Treinador",
+      "avoid": [
+        "mestre"
+      ],
+      "note": "Aplicar só quando 'master' se refere à pessoa responsável pelo Pokémon; outros sentidos (ex.: Master Ball, maestria) não são substituídos. Confirmado por Fabrício em 2026-10-12."
+    },
+    {
+      "source": "Mega Evolve / Mega Evolution",
+      "pt": "Mega Evolução",
+      "avoid": [
+        "megaevoluir"
+      ],
+      "note": "Termo provisório (decisão de Fabrício, 2026-10-12); forma oficial brasileira a conferir"
+    },
+    {
+      "source": "aura",
+      "pt": "aura",
+      "avoid": [],
+      "note": "termo nomeado no relato de Hisui; usar entre aspas na primeira menção"
+    },
+    {
+      "source": "Hisuian legend",
+      "pt": "lendas de Hisui / mitologia de Hisui",
+      "avoid": [
+        "hisuiana"
+      ],
+      "note": "sempre enquadrar mitologia"
+    },
+    {
+      "source": "throwing star",
+      "pt": "shuriken",
+      "avoid": [
+        "estrela ninja"
+      ],
+      "note": "Aprovado por Fabrício em 2026-10-13"
+    },
+    {
+      "source": "Drill King",
+      "pt": "Rei da Broca",
+      "avoid": [],
+      "note": "Aprovado por Fabrício em 2026-10-13; forma oficial a conferir"
+    },
+    {
+      "source": "Mach speeds",
+      "pt": "velocidade supersônica",
+      "avoid": [],
+      "note": "Aprovado por Fabrício em 2026-10-13"
+    },
+    {
+      "source": "the Beast That Devours the Sun",
+      "pt": "a Fera que Devora o Sol",
+      "avoid": [],
+      "note": "Aprovado provisoriamente por Fabrício em 2026-10-13; forma oficial brasileira a conferir"
+    }
+  ],
+  "entries": [
+    {
+      "national_dex_number": 4,
+      "species_name": "Charmander",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Lagarto",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Charmander já nasce com fogo: uma pequena chama arde na ponta de sua cauda desde o primeiro dia. Ela acompanha a vida inteira do Pokémon e está ligada a ela de forma tão estreita que, se um dia se apagasse, Charmander não sobreviveria.",
+      "description_length": 235,
+      "facts": [
+        "[EN shield] a chama arde na ponta da cauda desde o nascimento",
+        "[EN shield] sua vida terminaria se a chama se apagasse",
+        "[EN genus] Lizard Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'já nasce com fogo' — abertura editorial para o fato do nascimento"
+      ],
+      "review_points": [
+        "Fato central único e muito conhecido: originalidade só pelo enquadramento",
+        "Tema de morte tratado de forma sóbria (condicional)"
+      ],
+      "flags": [],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "d5536d41fd66c97f7e45059a03eb1162",
+        "genus_md5": "7b94628b657ad7735a1648dc12c03a7a"
+      },
+      "content_md5": {
+        "genus": "b24a7e70e2d533ce4eef92e3c3dc1a31",
+        "description": "343335b22fdd573894634e9e19eb0557"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 6,
+      "species_name": "Charizard",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Chama",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Charizard reúne voo e fogo na mesma silhueta. Suas asas o elevam a cerca de 1.400 metros de altitude, e as labaredas que lança chegam a temperaturas altíssimas.",
+      "description_length": 160,
+      "facts": [
+        "[EN shield] as asas o levam perto de 4.600 pés de altitude (≈ 1.402 m, arredondado para cerca de 1.400 m)",
+        "[EN shield] solta fogo em temperaturas muito altas",
+        "[DB] tipos Fogo/Voador (tema do texto)"
+      ],
+      "editorial_interpretation": [
+        "'reúne voo e fogo na mesma silhueta' — leitura editorial da combinação de tipos"
+      ],
+      "review_points": [
+        "Conversão de unidade: 4.600 pés → cerca de 1.400 m",
+        "Espécie de altíssimo valor de marca: avaliação de propriedade intelectual antes de uso comercial"
+      ],
+      "flags": [
+        "UNIDADE_CONVERTIDA",
+        "PI"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "681516f671fcea2c7696bae81364982b",
+        "genus_md5": "edb19fa8c041985be901624e7aca70ee"
+      },
+      "content_md5": {
+        "genus": "9f92472c0938112d9d44f849651ce1bd",
+        "description": "9743cae699f8a3ae3ef23fdcf73a2442"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 7,
+      "species_name": "Squirtle",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Tartaruguinha",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Squirtle tem uma defesa em dois tempos. Diante de uma ameaça, recolhe os membros para dentro do casco e, já protegido, responde com jatos de água disparados pela boca.",
+      "description_length": 167,
+      "facts": [
+        "[EN shield] quando se sente ameaçado, recolhe os membros no casco",
+        "[EN shield] lança água pela boca",
+        "[EN genus] Tiny Turtle Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'defesa em dois tempos' e 'já protegido, responde' — organização editorial da sequência"
+      ],
+      "review_points": [
+        "Base factual curta; texto inevitavelmente segue a ordem dos fatos do original",
+        "Classificação: diminutivo 'Tartaruguinha' vs. 'Pequena Tartaruga' — escolher"
+      ],
+      "flags": [
+        "BASE_CURTA",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "d400d85a3190d70976d37422cb075879",
+        "genus_md5": "0b850c5ece3b9682594ed91c93c8c295"
+      },
+      "content_md5": {
+        "genus": "33407a53a4904f248cc7e8b01cca01f9",
+        "description": "5b112eade7decef9ecbf35c1d8012127"
+      },
+      "genus_alternative_rejected": "Pokémon Pequena Tartaruga",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente",
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 39,
+      "species_name": "Jigglypuff",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Balão",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "O instrumento de Jigglypuff é a própria voz, que ele modula à vontade. Dessa afinação nasce uma melodia enigmática, capaz de fazer adormecer quem a escuta.",
+      "description_length": 155,
+      "facts": [
+        "[EN shield] muda livremente o comprimento de onda da voz",
+        "[EN shield] canta uma melodia misteriosa que dá sono a quem ouve",
+        "[EN genus] Balloon Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'O instrumento de Jigglypuff é a própria voz' — imagem editorial"
+      ],
+      "review_points": [
+        "Original afirma efeito sobre 'qualquer' ouvinte; texto atenua para 'capaz de'"
+      ],
+      "flags": [
+        "ABSOLUTO_ATENUADO"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "62b0632b2e0ba3535720291822a39dba",
+        "genus_md5": "9f7f1cdd9a24ead9c107aa3cb4590bf1"
+      },
+      "content_md5": {
+        "genus": "2e32f89c3ee9b7d452ab45405054edcf",
+        "description": "532b3cca9c2aa60d7ea3a54e28cd5b5c"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 52,
+      "species_name": "Meowth",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Gato-Arranhador",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Meowth lava o rosto com frequência para manter impecável a moeda que traz na testa. Com o Meowth de Galar, sua forma regional, a convivência não costuma ser boa.",
+      "description_length": 161,
+      "facts": [
+        "[EN shield] lava o rosto regularmente para manter a moeda da testa sem manchas",
+        "[EN shield] não se dá bem com o Meowth de Galar",
+        "[EN genus] Scratch Cat Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: atribuição de vaidade retirada; só comportamento factual",
+        "Forma regional citada: 'Meowth de Galar' (glossário)"
+      ],
+      "flags": [
+        "FORMA_REGIONAL",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "30c7878ccf9b150442ecf6c11ef989c5",
+        "genus_md5": "1665b6da39aad157e5ad37e68a7160e4"
+      },
+      "content_md5": {
+        "genus": "309165673409905f16cf135cb3ade0fa",
+        "description": "64470b6b27a745546826a812de143479"
+      },
+      "revision": 2,
+      "genus_alternative_rejected": "Pokémon Gato Arisco",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente",
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 54,
+      "species_name": "Psyduck",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Pato",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Psyduck convive com dores de cabeça que não dão trégua. Quando o incômodo passa do limite, um poder latente escapa à revelia dele — e foi esse sofrimento que levou um pesquisador de Hisui a buscar maneiras de aliviá-lo.",
+      "description_length": 219,
+      "facts": [
+        "[EN legends-arceus] sofre de dores de cabeça constantes",
+        "[EN legends-arceus] se a dor fica intensa demais, um poder latente irrompe contra a vontade de Psyduck",
+        "[EN legends-arceus] o autor do registro (pesquisador de Hisui) estuda formas de aliviar a dor"
+      ],
+      "editorial_interpretation": [
+        "Voz em primeira pessoa do original convertida em relato atribuído a 'um pesquisador de Hisui'"
+      ],
+      "review_points": [
+        "Atribuição: o registro de Legends: Arceus é escrito por um pesquisador — confirmar formulação"
+      ],
+      "flags": [
+        "PRIMEIRA_PESSOA_CONVERTIDA",
+        "HISUI"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "baaae8e311d3c5bc0bd100b34edfe34f",
+        "genus_md5": "58b2adba4754e0c3a1d4d318f033d32c"
+      },
+      "content_md5": {
+        "genus": "5e4beb323ec546b053ece35cad31fe77",
+        "description": "533dd3ec252fb9854aba6083835b8a14"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 94,
+      "species_name": "Gengar",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Sombra",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Registros de Hisui associam Gengar às sombras: segundo eles, o Pokémon se apossa da sombra de outros seres para lhes tirar a vida. Os mesmos registros orientam quem perceber a própria sombra rindo a recorrer a um amuleto de proteção.",
+      "description_length": 233,
+      "facts": [
+        "[EN legends-arceus] apossa-se das sombras de vítimas em potencial para roubar-lhes a vida",
+        "[EN legends-arceus] se a sombra começar a rir, recorrer a um amuleto de proteção"
+      ],
+      "editorial_interpretation": [
+        "Enquadrado como registro de Hisui; conselho reescrito em terceira pessoa (sem 'você')"
+      ],
+      "review_points": [
+        "Revisão 2: tom sóbrio — 'vítimas' → 'outros seres', 'roubar' → 'tirar', urgência retirada",
+        "Fato mantido como registro, não convertido em lenda"
+      ],
+      "flags": [
+        "TEMA_SOMBRIO",
+        "HISUI"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "e19c52f193e3ba2e5d65e0346b39808a",
+        "genus_md5": "3ccf8b91fc1ba831435f55d16651a6b9"
+      },
+      "content_md5": {
+        "genus": "58a039a54d455f2d5dd3e0348a40dcfc",
+        "description": "830c01f7f5b764e8274369299b3f5c97"
+      },
+      "revision": 2,
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 133,
+      "species_name": "Eevee",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Evolução",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "A marca de Eevee é a versatilidade: sua evolução pode seguir por caminhos diferentes e levar a formas bem variadas. Essa abertura fez dele, para um pesquisador de Hisui, uma chave para os mistérios da evolução Pokémon.",
+      "description_length": 218,
+      "facts": [
+        "[EN legends-arceus] tem potencial para evoluir para múltiplas formas",
+        "[EN legends-arceus] o autor do registro afirma, em primeira pessoa, que Eevee guarda a chave dos mistérios da evolução"
+      ],
+      "editorial_interpretation": [
+        "'A marca de Eevee é a versatilidade' — leitura editorial do fato evolutivo",
+        "Atribuição ao pesquisador mantida porque a convicção é explícita no original"
+      ],
+      "review_points": [
+        "Revisão 2: protagonismo na capacidade evolutiva; pesquisador reduzido a atribuição",
+        "Não cita quantas evoluções nem quais (fora da base)"
+      ],
+      "flags": [
+        "PRIMEIRA_PESSOA_CONVERTIDA",
+        "HISUI"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "0b82b21fa815181166ad56d522ec4a2c",
+        "genus_md5": "14ab2ab97a4c96993c3e5fbae6a07d4e"
+      },
+      "content_md5": {
+        "genus": "a41190d264d3703c2f84dac2868111fc",
+        "description": "7eeeae80d9ec1e6190d0a3658ca42c97"
+      },
+      "revision": 2,
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 143,
+      "species_name": "Snorlax",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Dorminhoco",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Nos vilarejos de Hisui, Snorlax aparecia sem aviso e devorava celeiros inteiros de arroz. Para comunidades que dependiam dessas reservas, sua chegada era motivo de grande preocupação.",
+      "description_length": 183,
+      "facts": [
+        "[EN legends-arceus] glutão que aparece em vilarejos sem aviso",
+        "[EN legends-arceus] devora celeiros de arroz inteiros",
+        "[EN legends-arceus] esses episódios eram contados entre os desastres graves"
+      ],
+      "editorial_interpretation": [
+        "'motivo de grande preocupação' — formulação sóbria do peso atribuído aos episódios no original"
+      ],
+      "review_points": [
+        "Revisão 2: 'piores desastres' retirado; contexto dos celeiros de Hisui preservado"
+      ],
+      "flags": [
+        "HISUI",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "e555c12bbf3ba699ee928e39dfbd87fc",
+        "genus_md5": "61e691add8a1b9c7a48a530c3efcd8f7"
+      },
+      "content_md5": {
+        "genus": "b44b3c01e5af5be6a5af1cc1108d0ce2",
+        "description": "61c6f59e35995f73487c5288b95238c1"
+      },
+      "revision": 2,
+      "genus_alternative_rejected": "Pokémon Adormecido",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente",
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 151,
+      "species_name": "Mew",
+      "block": 1,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Nova Espécie",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Mew guarda uma surpresa para quem o observa de perto: ao microscópio, seu corpo revela pelos curtos, finos e delicados.",
+      "description_length": 119,
+      "facts": [
+        "[EN lets-go-eevee] ao microscópio, veem-se pelos curtos, finos e delicados",
+        "[EN genus] New Species Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'guarda uma surpresa para quem o observa de perto' — enquadramento editorial"
+      ],
+      "review_points": [
+        "Base factual insuficiente para um texto mais rico; mantido curto por decisão (sem fontes externas)",
+        "Relação com Mewtwo não usada (fora da base)"
+      ],
+      "flags": [
+        "BASE_CURTA",
+        "MITICO"
+      ],
+      "source_basis": {
+        "flavor_version": "lets-go-eevee",
+        "flavor_md5": "298bd41f15dc4885f24c4e3c7e99e278",
+        "genus_md5": "d058f409117f11fba01ed11c00b8ce1f"
+      },
+      "content_md5": {
+        "genus": "18d8ec6a20b3a3b3288bfa72bf0ce058",
+        "description": "c69bd73a6d87c7709bf0bbc428ddd0f6"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 155,
+      "species_name": "Cyndaquil",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Rato de Fogo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Tímido por natureza, Cyndaquil costuma ficar enrolado como uma bola. A postura recolhida, porém, esconde um poder de fogo notável.",
+      "description_length": 130,
+      "facts": [
+        "[EN legends-arceus] temperamento tímido; costuma ficar enrolado como uma bola",
+        "[EN legends-arceus] abriga um enorme poder de fogo",
+        "[EN genus] Fire Mouse Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "'Hails from the Johto region' não usado: a região de origem já aparece na ficha",
+        "Classificação: locução 'Rato de Fogo' vs. composto 'Rato-de-Fogo'"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "862f6a751c8dfc00bd51b88087a21958",
+        "genus_md5": "840c5a8c32942aabac00f745524000a9"
+      },
+      "content_md5": {
+        "genus": "0245650b1405a4c97af318d9a5e88cba",
+        "description": "a3f4634e0ea6313cc8174c3cb5dfaa3d"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Rato-de-Fogo",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)"
+    },
+    {
+      "national_dex_number": 175,
+      "species_name": "Togepi",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Bola de Espinhos",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Quem cruza com Togepi em campos ou montanhas pode achar que viu um ovo andando — engano frequente, por causa de seu corpo ovalado. O sorriso ingênuo que exibe tem efeito tranquilizador.",
+      "description_length": 185,
+      "facts": [
+        "[EN legends-arceus] corpo ovalado; frequentemente confundido com um ovo em movimento nos campos e montanhas",
+        "[EN legends-arceus] seu sorriso ingênuo acalma quem o vê",
+        "[EN genus] Spike Ball Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Status de bebê não citado (já está na ficha)",
+        "Classificação: 'Bola de Espinhos' vs. 'Bola Espinhosa'"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "3b90ac9ed6dc38e0ea03ffbe02781c79",
+        "genus_md5": "2a9d3b4019f58309edbf1a43bc9210d8"
+      },
+      "content_md5": {
+        "genus": "0f3dc2d6d7063b5060d1afa2a194a2a0",
+        "description": "01f3aae0593caef4476048cbfe633bd5"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Bola Espinhosa",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)"
+    },
+    {
+      "national_dex_number": 197,
+      "species_name": "Umbreon",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Luar",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Umbreon é uma criatura da madrugada: sua atividade se intensifica quando o luar se espalha pela paisagem. Os olhos grandes atravessam a escuridão e permitem enxergar presas com nitidez.",
+      "description_length": 185,
+      "facts": [
+        "[EN legends-arceus] mais ativo de madrugada, quando o luar banha a terra",
+        "[EN legends-arceus] olhos grandes enxergam presas no escuro com clareza total",
+        "[EN genus] Moonlight Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'criatura da madrugada' — formulação editorial do hábito noturno"
+      ],
+      "review_points": [
+        "'absolute clarity' atenuado para 'nitidez'",
+        "Espécie de alto valor no TCG: avaliação de propriedade intelectual antes de uso comercial"
+      ],
+      "flags": [
+        "ABSOLUTO_ATENUADO",
+        "PI",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "5d9e38b36a807ead539eadccbfbb33dd",
+        "genus_md5": "a8fdc9fa0807a5ff9caae0d6907c7b16"
+      },
+      "content_md5": {
+        "genus": "a1a4bf3659f9f6585b829fba950fdd5a",
+        "description": "bfcf5738cfe3c4c75b036ef907ece037"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Luz da Lua",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)"
+    },
+    {
+      "national_dex_number": 212,
+      "species_name": "Scizor",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Pinça",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "O corpo de Scizor é protegido por uma carapaça cuja resistência já se mostrou superior à do aço forjado.",
+      "description_length": 104,
+      "facts": [
+        "[EN legends-arceus] a carapaça que cobre o corpo mostrou-se mais resistente que aço forjado",
+        "[EN genus] Pincer Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: 'item curioso' retirado; evolução omitida porque a fonte não acrescenta informação além de 'um item'",
+        "Texto curto por decisão (base factual limitada)"
+      ],
+      "flags": [
+        "BASE_CURTA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "a9d3c8c445ece6d99269866d14c6e166",
+        "genus_md5": "b8d41293761b3d8afc37ad2d01ba5b91"
+      },
+      "content_md5": {
+        "genus": "9f4618b8cc507be88a55f517dc86843b",
+        "description": "cf89ebf61f640f83f54f7ec24bf2ce87"
+      },
+      "genus_decision": "Mantida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)",
+      "revision": 2,
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 248,
+      "species_name": "Tyranitar",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Armadura",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Tyranitar é capaz de alterar a paisagem por onde passa. Seus passos provocam tremores que podem abalar até grandes montanhas e modificar o terreno ao redor.",
+      "description_length": 156,
+      "facts": [
+        "[EN shield] os tremores de seus passos fazem ruir até grandes montanhas e mudam o terreno ao redor",
+        "[EN genus] Armor Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: 'derrubar' → 'abalar' e 'são capazes de' → 'podem' para reduzir o tom categórico; atenuação, não contradição — confirmar",
+        "Característica tratada como descrição da espécie, sem enquadramento de lenda",
+        "'abalar' aprovado por Fabrício como atenuação editorial aceitável (2026-10-12)"
+      ],
+      "flags": [
+        "ABSOLUTO_ATENUADO",
+        "BASE_CURTA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "1e853c533680ae7b12e25a339264307c",
+        "genus_md5": "6512f5458e6f051cff0d3414977f0480"
+      },
+      "content_md5": {
+        "genus": "3c6dbcff474e09bed96c55ff2c4b49b7",
+        "description": "4c8d023f2e23fd1c72c9c528996c20f6"
+      },
+      "genus_decision": "Mantida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)",
+      "revision": 2,
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 249,
+      "species_name": "Lugia",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Mergulhador",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Lugia vive longe dos olhares, nas profundezas do mar — escolha ligada à força das próprias asas. Um simples bater delas basta para pôr abaixo casas comuns.",
+      "description_length": 155,
+      "facts": [
+        "[EN alpha-sapphire] um leve bater de asas pode destruir casas comuns",
+        "[EN alpha-sapphire] por isso, vive escondido nas profundezas do mar",
+        "[EN genus] Diving Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Classificação: 'Diving' como 'Mergulhador' (natural) vs. 'Mergulho' (literal)",
+        "Lendário de alto valor de marca: avaliação de propriedade intelectual"
+      ],
+      "flags": [
+        "TERMINOLOGIA",
+        "PI",
+        "LENDARIO"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "48a4335e489e0d3be13edbe61b719858",
+        "genus_md5": "17a83cf49a89bde299e5e6b35aa0a4df"
+      },
+      "content_md5": {
+        "genus": "3ddcfcadb80e30bc48d5974ce5c52d48",
+        "description": "d48621e41565e76701d805e8560cfccc"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Mergulho",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)"
+    },
+    {
+      "national_dex_number": 257,
+      "species_name": "Blaziken",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Labareda",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "A força de Blaziken está nas pernas, capazes de levá-lo por cima de um prédio de 30 andares em um só salto. Já os socos, envoltos em chamas, deixam os adversários chamuscados.",
+      "description_length": 175,
+      "facts": [
+        "[EN alpha-sapphire] pernas fortíssimas; transpõe um prédio de 30 andares em um salto",
+        "[EN alpha-sapphire] socos flamejantes deixam os oponentes chamuscados e enegrecidos",
+        "[EN genus] Blaze Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Medida mantida: '30 andares' é o próprio fato central e já é unidade neutra (sem conversão)",
+        "'Labareda' para Blaze, distinto de 'Chama' (Charizard)"
+      ],
+      "flags": [
+        "MEDIDA"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "2d80e054ad63e0e70bd6ce4e349b1fe0",
+        "genus_md5": "13456e96293b3f2de9ffaba6d0c1c66a"
+      },
+      "content_md5": {
+        "genus": "8b49ff1491b01304d13b468ba7fce892",
+        "description": "c9cb7eb264981b9371586ecdf69ce2fd"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_decision": "Mantida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)"
+    },
+    {
+      "national_dex_number": 282,
+      "species_name": "Gardevoir",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Abraço",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Gardevoir se dedica a proteger o Treinador a quem se afeiçoa. Uma vez estabelecido esse vínculo, coloca a defesa dele acima da própria segurança.",
+      "description_length": 145,
+      "facts": [
+        "[EN legends-arceus] dedica-se a defender o mestre a quem se afeiçoou",
+        "[EN legends-arceus] é descrito como quem está disposto a arriscar a vida"
+      ],
+      "editorial_interpretation": [
+        "'Uma vez estabelecido esse vínculo' — leitura de 'come to adore'",
+        "'master' → 'Treinador' (glossário)"
+      ],
+      "review_points": [
+        "Revisão 2: comparação com vestido de nobreza retirada; ideia de risco citada uma única vez, sem dramatização"
+      ],
+      "flags": [],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "02a53bbfb85d55aa0d40a38e98171086",
+        "genus_md5": "a1961bec294d01066ade733c2e609af0"
+      },
+      "content_md5": {
+        "genus": "ffc965bd4092d93d6db22581044f4db3",
+        "description": "643000e8d65a84f099f1fc176aa8e79e"
+      },
+      "genus_alternative_rejected": null,
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)",
+      "revision": 2,
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 359,
+      "species_name": "Absol",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Desastre",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Absol pressente o perigo — e foi justamente essa sensibilidade que, no passado, levou as pessoas a confundi-lo com um mensageiro da desgraça.",
+      "description_length": 141,
+      "facts": [
+        "[EN shield] tem a capacidade de detectar o perigo",
+        "[EN shield] por isso, as pessoas o tomaram erroneamente por um arauto da desgraça",
+        "[EN genus] Disaster Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'no passado' — leitura do tempo verbal da fonte ('mistook')"
+      ],
+      "review_points": [
+        "Base curta; texto curto por decisão"
+      ],
+      "flags": [
+        "BASE_CURTA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "cd4a883564b15fed9d609260c17c3492",
+        "genus_md5": "3db619538700672f9f8e12f82b3afb2f"
+      },
+      "content_md5": {
+        "genus": "ac79a97a83e1abb5d28b61badc16efae",
+        "description": "ea4f32d6d1f0a9e50d421a3b6f1ed03c"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_decision": "Mantida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)"
+    },
+    {
+      "national_dex_number": 382,
+      "species_name": "Kyogre",
+      "block": 2,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Bacia Oceânica",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Kyogre é tido como a personificação do próprio mar. Segundo as lendas, ele e Groudon se enfrentaram repetidas vezes, cada um em busca do domínio sobre as forças da natureza.",
+      "description_length": 173,
+      "facts": [
+        "[EN alpha-sapphire] diz-se que é a personificação do mar",
+        "[EN alpha-sapphire] as lendas falam de seus muitos confrontos com Groudon, cada um buscando o poder da natureza",
+        "[EN genus] Sea Basin Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Mitologia enquadrada ('é tido como', 'segundo as lendas')",
+        "Cita Groudon (fora do lote), como na fonte",
+        "Classificação: 'Sea Basin' sem equivalente natural consagrado"
+      ],
+      "flags": [
+        "MITOLOGIA",
+        "TERMINOLOGIA",
+        "LENDARIO"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "b547eeb6da454cc460d64eb12220e43d",
+        "genus_md5": "a6b9d9a5b6cd787bcc27da3133ad380e"
+      },
+      "content_md5": {
+        "genus": "0c307a7fc8d7bdbcf277d78ee6d1215f",
+        "description": "37b0a7afa2ec85213627e485e91c23b6"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Fossa Marinha",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente (não bloqueante)"
+    },
+    {
+      "national_dex_number": 384,
+      "species_name": "Rayquaza",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Alto Céu",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "A energia de que Rayquaza precisa para a Mega Evolução vem dos meteoroides que acumula no corpo — seu alimento durante os longos voos pela camada de ozônio.",
+      "description_length": 156,
+      "facts": [
+        "[EN alpha-sapphire] voa pela camada de ozônio (fonte: 'forever')",
+        "[EN alpha-sapphire] alimenta-se de meteoroides",
+        "[EN alpha-sapphire] os meteoroides no corpo dão a energia para a Mega Evolução",
+        "[EN genus] Sky High Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: 'sem pausa' → 'longos voos' (menos absoluto que 'forever')",
+        "Ordem invertida em relação ao original: abre pela energia da Mega Evolução",
+        "'Mega Evolução' termo provisório do glossário"
+      ],
+      "flags": [
+        "MECANICA_DE_JOGO",
+        "TERMINOLOGIA",
+        "LENDARIO",
+        "PI"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "0c1d1580cb997d3673d9aed10c1f1f9c",
+        "genus_md5": "253394aaad343557c75088307956e576"
+      },
+      "content_md5": {
+        "genus": "28610adb538038f02db36666c2e3747c",
+        "description": "274e8bb7e47ced8f09f7b6732d585792"
+      },
+      "genus_alternative_rejected": "Pokémon Céu Elevado",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial",
+      "revision": 2,
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 385,
+      "species_name": "Jirachi",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Desejo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Segundo a crença, Jirachi desperta de um sono de mil anos e, então, realiza os desejos escritos nos bilhetes presos à sua cabeça.",
+      "description_length": 129,
+      "facts": [
+        "[EN shield] acredita-se que, ao acordar de um sono de mil anos, realiza os desejos escritos nas notas presas à cabeça",
+        "[EN genus] Wish Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Todo o fato está sob 'acredita-se' na fonte: enquadrado como crença",
+        "'any wishes' sem o 'qualquer'",
+        "'mil anos' mantido: é o próprio fato e não exige conversão"
+      ],
+      "flags": [
+        "CRENCA",
+        "MITICO",
+        "BASE_CURTA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "6ca1a1650660a0056982aed85ce7c464",
+        "genus_md5": "c4ad1f81c4d50e72dd600a5c217d8251"
+      },
+      "content_md5": {
+        "genus": "f4e99f4a3ff0911c3eff99bc3254bd51",
+        "description": "fb649717e5f546a6c4ac014926aa1916"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 393,
+      "species_name": "Piplup",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Pinguim",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Piplup prefere regiões frias e costuma aparecer no litoral. Por trás da aparência adorável há um temperamento orgulhoso: ele recusa o que as pessoas lhe oferecem.",
+      "description_length": 162,
+      "facts": [
+        "[EN legends-arceus] prefere climas frios e aparece nas costas",
+        "[EN legends-arceus] é adorável, mas orgulhoso e não aceita o que as pessoas lhe dão",
+        "[EN genus] Penguin Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Orgulho e recusa estão na fonte (não é atribuição editorial)",
+        "Comparação 'tão fofo quanto uma criança' omitida"
+      ],
+      "flags": [],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "d59bd03ec7ae0fa5b5db1a5d88085b78",
+        "genus_md5": "30f6703c37f9a6179d93575a57b06166"
+      },
+      "content_md5": {
+        "genus": "7ae75282e5974a837bce7d55cff14583",
+        "description": "de583feff1e0107bb257ba343f25e2e7"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 405,
+      "species_name": "Luxray",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Olhos Brilhantes",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Luxray vive em bandos, cada um conduzido por um macho. Sobre seus olhos, corre uma lenda: quando brilham em dourado, Luxray seria capaz de enxergar através dos objetos.",
+      "description_length": 168,
+      "facts": [
+        "[EN legends-arceus] formam bandos, cada um liderado por um macho",
+        "[EN legends-arceus] lendas dizem que, quando os olhos brilham em dourado, ele vê através de tudo",
+        "[EN genus] Gleam Eyes Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: crença introduzida como lenda ('corre uma lenda') e capacidade no condicional ('seria capaz')",
+        "'anything' → 'através dos objetos'"
+      ],
+      "flags": [
+        "MITOLOGIA",
+        "ABSOLUTO_ATENUADO",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "ee30e3411b401a32b315e3e0081ab13b",
+        "genus_md5": "6f45622390a1fcf6a6432c317b53879e"
+      },
+      "content_md5": {
+        "genus": "2dd4da7ea9a3d0f54d8821bac55f56c3",
+        "description": "96b786fa9c3e113fb93919fe12845d80"
+      },
+      "genus_alternative_rejected": "Pokémon Olhar Cintilante",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial",
+      "revision": 2,
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 445,
+      "species_name": "Garchomp",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Mach",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Garchomp cruza os céus em velocidade vertiginosa. Seu temperamento é selvagem, e encontrá-lo na natureza exige muita cautela.",
+      "description_length": 125,
+      "facts": [
+        "[EN legends-arceus] voa pelos céus em velocidade ofuscante",
+        "[EN legends-arceus] tem temperamento feroz; exige extrema cautela na natureza",
+        "[EN genus] Mach Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Exclamação e 'visão magnífica' do original omitidas (juízo do autor do registro)",
+        "Sem 'pesquisador de Hisui': não há primeira pessoa explícita",
+        "Classificação: estrangeirismo 'Mach' vs. 'Supersônico'"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "0fa1fd41e3300955c7f1914f282b26f1",
+        "genus_md5": "53573ab9067897eb54d4cf3b64a3026f"
+      },
+      "content_md5": {
+        "genus": "65e96af2db4c2e828f710b9c5b5bbf68",
+        "description": "8e635338c33ab41d5357a510071e1a86"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Supersônico",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 448,
+      "species_name": "Lucario",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Aura",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Lucario emite ondas de energia e as controla com precisão, usando-as para perceber outros seres mesmo a grande distância. Um pesquisador de Hisui, ao descrever esse poder, deu-lhe o nome de “aura”.",
+      "description_length": 197,
+      "facts": [
+        "[EN legends-arceus] emite ondas de energia e as controla com precisão para sentir seres distantes",
+        "[EN legends-arceus] o autor do registro afirma, em primeira pessoa, ter dado o nome 'aura' a esse poder",
+        "[EN genus] Aura Pokémon"
+      ],
+      "editorial_interpretation": [
+        "Primeira pessoa explícita na fonte ('I have given the name'): atribuição ao pesquisador fundamentada"
+      ],
+      "review_points": [
+        "'A most gallant-looking creature' omitido (juízo estético do autor)",
+        "Aspas tipográficas em “aura”",
+        "'um pesquisador de Hisui' confirmado por Fabrício: relato original em primeira pessoa (2026-10-12)"
+      ],
+      "flags": [
+        "PRIMEIRA_PESSOA_CONVERTIDA",
+        "HISUI",
+        "PI"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "e53d8d36ef791b44c69fd055c30af4e3",
+        "genus_md5": "3bfc1664ab018febae6e249abdf419b9"
+      },
+      "content_md5": {
+        "genus": "ec8c96672616044281b3139e97babeb9",
+        "description": "fd55b91c878fa2650fcbb099ff809e46"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 483,
+      "species_name": "Dialga",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Temporal",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "As lendas de Hisui reverenciam Dialga como divindade e ligam seu nascimento à origem do tempo: teria sido ele a pôr em curso o grande rio do tempo no mundo.",
+      "description_length": 156,
+      "facts": [
+        "[EN legends-arceus] reverenciado como divindade na lenda de Hisui",
+        "[EN legends-arceus] seu nascimento fez o vasto rio do tempo começar a fluir no mundo",
+        "[EN genus] Temporal Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Mitologia enquadrada ('lendas de Hisui', condicional 'teria sido')",
+        "Abertura distinta da do piloto (Arceus) para evitar texto intercambiável"
+      ],
+      "flags": [
+        "MITOLOGIA",
+        "HISUI",
+        "LENDARIO"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "b9af06f016a71e7d5d5968214c497721",
+        "genus_md5": "9ede5cc30edbfd422181411d08ae4498"
+      },
+      "content_md5": {
+        "genus": "099aabfeece0a97765abeb104dec3751",
+        "description": "cb1196a57b390792bc37ec1dfaccad0f"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon do Tempo",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 491,
+      "species_name": "Darkrai",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Breu",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Um relato conta que, numa noite sem lua, todos os moradores de um vilarejo tiveram pesadelos. Segundo os próprios moradores, Darkrai aparecia nesses sonhos.",
+      "description_length": 156,
+      "facts": [
+        "[EN legends-arceus] numa noite sem lua, todos os habitantes de um vilarejo tiveram pesadelos",
+        "[EN legends-arceus] os moradores afirmaram que Darkrai lhes aparecia nos pesadelos",
+        "[EN genus] Pitch-Black Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Tema sombrio em tom sóbrio; relato atribuído aos moradores, sem conclusão sobre causa",
+        "'todos' vem da fonte ('every one') e se refere a um episódio específico",
+        "Classificação: 'Breu' (natural) vs. 'Escuridão Total'",
+        "'todos os moradores' aceito por Fabrício: episódio delimitado e sustentado pela fonte (2026-10-12)"
+      ],
+      "flags": [
+        "TEMA_SOMBRIO",
+        "RELATO",
+        "TERMINOLOGIA",
+        "MITICO"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "620e6dec7c99ed17ff1d3afe7478d922",
+        "genus_md5": "166b47adaa3b5a90493ea0cc310cf552"
+      },
+      "content_md5": {
+        "genus": "d1a4cf787e901ba0739c9f43ba20afa5",
+        "description": "bcef8b0432a7a340c46753524a7fbc28"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Escuridão Total",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 494,
+      "species_name": "Victini",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Vitória",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Victini gera uma energia descrita como infinita. Quando ele a compartilha, o corpo de quem a recebe passa a transbordar de força.",
+      "description_length": 129,
+      "facts": [
+        "[EN alpha-sapphire] cria energia infinita",
+        "[EN alpha-sapphire] quando a compartilha, o corpo do outro ser transborda de poder",
+        "[EN genus] Victory Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "'infinita' é da fonte; enquadrado como 'descrita como'",
+        "Base curta"
+      ],
+      "flags": [
+        "ABSOLUTO_ATENUADO",
+        "MITICO",
+        "BASE_CURTA"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "aae2ce37330474cbce4eff519998b3b1",
+        "genus_md5": "48a34caaaca93a72198f3bab24d8afd8"
+      },
+      "content_md5": {
+        "genus": "37b7c9340dd9190ef47e9901991b5854",
+        "description": "bb9e8bca29f51e6c7b4700c199b9afb2"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 495,
+      "species_name": "Snivy",
+      "block": 3,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Cobra-Planta",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "A cauda de Snivy funciona como um painel solar: exposta à luz, é por ela que a espécie faz fotossíntese. Também denuncia seu estado — quando Snivy não está bem, a cauda pende.",
+      "description_length": 175,
+      "facts": [
+        "[EN alpha-sapphire] fazem fotossíntese expondo a cauda ao sol",
+        "[EN alpha-sapphire] quando não estão bem, a cauda cai",
+        "[EN genus] Grass Snake Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'painel solar' — imagem editorial para a fotossíntese pela cauda"
+      ],
+      "review_points": [
+        "Classificação segue o padrão do piloto ('Gato-Planta'): 'Cobra-Planta' vs. 'Serpente-Planta'"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "fe1abfdf229a9ab7999b4c4c124cd220",
+        "genus_md5": "857d9ce2e316dec638702ea76773a094"
+      },
+      "content_md5": {
+        "genus": "956d411657ebceb2a97e3b92508403d2",
+        "description": "bc92067e5d138bcc5f9a51f329438c4a"
+      },
+      "approved_at": "2026-10-12",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Serpente-Planta",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-12; conferência terminológica brasileira pendente antes de exploração comercial"
+    },
+    {
+      "national_dex_number": 530,
+      "species_name": "Excadrill",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Subterrâneo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Chamado de Rei da Broca, Excadrill atravessa o subsolo cavando túneis em velocidades acima de 140 km/h.",
+      "description_length": 103,
+      "facts": [
+        "[EN shield] conhecido como 'Drill King'",
+        "[EN shield] cava túneis pelo terreno a mais de 90 mph (≈ 145 km/h; 'acima de 140 km/h' preserva o sentido de mínimo)",
+        "[EN genus] Subterrene Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Conversão: 90 mph → 'acima de 140 km/h' (a velocidade é o próprio fato central)",
+        "'Drill King' → 'Rei da Broca' (glossário)",
+        "Base de uma frase: texto curto",
+        "'acima de 140 km/h' e 'Rei da Broca' aprovados por Fabrício (2026-10-13)"
+      ],
+      "flags": [
+        "UNIDADE_CONVERTIDA",
+        "BASE_CURTA",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "171902212274aee06f8a3995685ebf08",
+        "genus_md5": "e55c1a9d42e768bdea741522b900a6fb"
+      },
+      "content_md5": {
+        "genus": "59fe9b288ffedf4fc2d99ec72009da00",
+        "description": "a18609ef2a68a4f2a23ea56a23102a31"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 609,
+      "species_name": "Chandelure",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Chamariz",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Conta-se que as casas iluminadas por Chandelure, no lugar de lâmpadas comuns, conviviam com funerais frequentes.",
+      "description_length": 112,
+      "facts": [
+        "[EN shield] 'or so it's said': em casas iluminadas por Chandelure em vez de lâmpadas, funerais eram constantes",
+        "[EN genus] Luring Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: frase única e direta; enquadramento de boato ('conta-se'); 'conviviam com' justapõe os fatos sem afirmar causa, como a fonte",
+        "Base de uma frase: texto curto"
+      ],
+      "flags": [
+        "TEMA_SOMBRIO",
+        "RELATO",
+        "BASE_CURTA",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "c07b2a4d19f6e442626816696bcf9d26",
+        "genus_md5": "f85df53a3e595ef6d71f69ce6362f239"
+      },
+      "content_md5": {
+        "genus": "bcee38e4d822db107c2e0ba2c8402561",
+        "description": "edd85d4421a01b1ca0e05db9584b6ae5"
+      },
+      "genus_alternative_rejected": "Pokémon Atração",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente",
+      "revision": 2,
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 643,
+      "species_name": "Reshiram",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Branco Imenso",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "O mito de Reshiram fala de povos que ignoram a verdade e se deixam consumir pela cobiça. A eles, segundo a narrativa, Reshiram chega para incendiar seus reinos.",
+      "description_length": 160,
+      "facts": [
+        "[EN shield] segundo o mito, se as pessoas ignorarem a verdade e forem consumidas pela ganância, Reshiram virá incendiar seus reinos",
+        "[EN genus] Vast White Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: 'responde à ganância' retirado; abertura pela narrativa mitológica; consequência idêntica à da fonte (incendiar os reinos), sem comentário moral"
+      ],
+      "flags": [
+        "MITOLOGIA",
+        "LENDARIO",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "b89859896fb9ba2aea284f3467119881",
+        "genus_md5": "dc873f4e4ab38a421be7dbe1f4da1ad3"
+      },
+      "content_md5": {
+        "genus": "a6173c2914a60e8c720c96a3446a8c90",
+        "description": "55b64b01ad80d61ed845a6b73295f673"
+      },
+      "genus_alternative_rejected": "Pokémon Vastidão Branca",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente",
+      "revision": 2,
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 658,
+      "species_name": "Greninja",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Ninja",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Greninja surge e desaparece com a discrição de um ninja. Em combate, desorienta os adversários com movimentos rápidos enquanto os atinge com shurikens de água afiada.",
+      "description_length": 166,
+      "facts": [
+        "[EN alpha-sapphire] aparece e desaparece com a graça de um ninja",
+        "[EN alpha-sapphire] confunde os inimigos com movimentos ágeis e os corta com estrelas de arremesso de água afiadíssima",
+        "[EN genus] Ninja Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "'sharpest' (superlativo) atenuado para 'afiada'",
+        "'throwing stars' → 'shurikens' (glossário)",
+        "Espécie muito popular: avaliação de propriedade intelectual"
+      ],
+      "flags": [
+        "ABSOLUTO_ATENUADO",
+        "PI"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "0ebc760aae8e080f41e457badae94879",
+        "genus_md5": "6267cb8d6a79af2da79417b01fe686fa"
+      },
+      "content_md5": {
+        "genus": "6d149b1e0e49a30f275486f2022fe3d0",
+        "description": "24be99151c0e78fc2aa080d385de3408"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 681,
+      "species_name": "Aegislash",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Espada Real",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Os poderes espectrais de Aegislash permitem que ele manipule outros seres. Houve um tempo em que os usou para obrigar pessoas e Pokémon a erguer um reino de acordo com sua vontade.",
+      "description_length": 180,
+      "facts": [
+        "[EN shield] poderes espectrais potentes lhe permitem manipular os outros",
+        "[EN shield] certa vez, usou-os para forçar pessoas e Pokémon a construir um reino a seu gosto",
+        "[EN genus] Royal Sword Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "A fonte afirma o episódio como fato ('It once used'): não convertido em lenda"
+      ],
+      "flags": [],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "09d3c730df85ac4e81fa538d38916363",
+        "genus_md5": "2886a677a133916deae660ab265ada2a"
+      },
+      "content_md5": {
+        "genus": "e77121d067bbaade6af979456efeb39c",
+        "description": "36600ea587ef4b06c0d6093ceeccd493"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 700,
+      "species_name": "Sylveon",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Enlace",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Dos apêndices em forma de fita, Sylveon emana uma aura tranquilizadora. Quando há uma briga por perto, enlaça os que discutem com essas fitas, e a tensão se dissipa de imediato.",
+      "description_length": 177,
+      "facts": [
+        "[EN legends-arceus] emite uma aura calmante pelos órgãos em forma de fita",
+        "[EN legends-arceus] envolve os que brigam com esses apêndices e restaura a calma instantaneamente",
+        "[EN genus] Intertwining Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "'aura' aqui é genérico (não o termo nomeado em Lucario)",
+        "Classificação: 'Enlace' vs. 'Entrelaçamento' para 'Intertwining'"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "cf45c7db545cd47593e1eea2a2ba8142",
+        "genus_md5": "8325030596dc7003e81eb2a96207dad9"
+      },
+      "content_md5": {
+        "genus": "f38e45e87bcfabc84ad4a723e702b321",
+        "description": "b3647b17fb2c06d81ef7508058a024c4"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Entrelaçamento",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 701,
+      "species_name": "Hawlucha",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Luta-Livre",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Antes do golpe final, Hawlucha não abre mão de fazer pose. O hábito tem seu preço: há adversários que aproveitam esse instante para contra-atacar.",
+      "description_length": 146,
+      "facts": [
+        "[EN shield] sempre faz pose antes do golpe de finalização",
+        "[EN shield] às vezes os oponentes aproveitam esse momento para contra-atacar",
+        "[EN genus] Wrestling Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'O hábito tem seu preço' — ligação editorial entre os dois fatos"
+      ],
+      "review_points": [
+        "'always' da fonte expresso como hábito ('não abre mão'), sem palavra absoluta"
+      ],
+      "flags": [],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "878fe3caaf260f1735946bcc262a6852",
+        "genus_md5": "66a2b5cbd361d769dc4d2addaa93fe1b"
+      },
+      "content_md5": {
+        "genus": "2ea6571cf6de05029970c31bd1894935",
+        "description": "d029740e1e4c314cd5bda92207e65b44"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 716,
+      "species_name": "Xerneas",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Vida",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Diz-se que Xerneas compartilha a vida eterna — e o sinal seria o brilho de seus chifres, que se acendem em sete cores.",
+      "description_length": 118,
+      "facts": [
+        "[EN alpha-sapphire] quando os chifres brilham em sete cores, diz-se que está compartilhando a vida eterna",
+        "[EN genus] Life Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Crença enquadrada ('diz-se', condicional)",
+        "Base factual muito curta: texto curto por decisão"
+      ],
+      "flags": [
+        "CRENCA",
+        "LENDARIO",
+        "BASE_CURTA"
+      ],
+      "source_basis": {
+        "flavor_version": "alpha-sapphire",
+        "flavor_md5": "648542032eb32e6bcaf8623584c69be8",
+        "genus_md5": "2693369c0fa7d18add86c5895c266699"
+      },
+      "content_md5": {
+        "genus": "81899657afbb581ced2b3e2fecaa3558",
+        "description": "a816cfbd6d77e53e5a9ef1ce1aad68a3"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 722,
+      "species_name": "Rowlet",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Pena-Planta",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "As asas delicadas de Rowlet cumprem dois papéis: permitem um voo silencioso e lançam, com destreza, penas afiadas como punhais.",
+      "description_length": 127,
+      "facts": [
+        "[EN legends-arceus] voa sem ruído com asas delicadas",
+        "[EN legends-arceus] domina a arte de lançar com destreza penas afiadas como adagas dessas mesmas asas",
+        "[EN genus] Grass Quill Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Classificação segue o padrão 'Gato-Planta'/'Cobra-Planta'"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "legends-arceus",
+        "flavor_md5": "746172543f9760bf5957e8babbc73453",
+        "genus_md5": "bac617aa1d8bca38fcb5587dafa0bd02"
+      },
+      "content_md5": {
+        "genus": "6c2590752b6922ff943ac37126a95691",
+        "description": "8290c277cba180981eb618f0e256bc93"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Pena de Folha",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 745,
+      "species_name": "Lycanroc",
+      "block": 4,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Lobo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Lycanroc caça por cerco: com movimentos rápidos, vai encurralando a presa aos poucos. Seus dentes buscam os pontos fracos do adversário.",
+      "description_length": 136,
+      "facts": [
+        "[EN shield] com movimentos rápidos, encurrala a presa gradualmente",
+        "[EN shield] seus caninos sempre miram os pontos fracos dos oponentes",
+        "[EN genus] Wolf Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'caça por cerco' — síntese editorial do encurralamento gradual"
+      ],
+      "review_points": [
+        "'always' omitido",
+        "'dentes' em vez de 'presas' para evitar ambiguidade com 'presa' (caça)",
+        "Texto genérico para a espécie (não distingue as formas de Lycanroc)"
+      ],
+      "flags": [
+        "ABSOLUTO_ATENUADO"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "82ac281e41dbbc5d5f05e0ab184f96f6",
+        "genus_md5": "49e287e6574d47f44f006bbdfb2a097e"
+      },
+      "content_md5": {
+        "genus": "551977e57c69e4026c76f4a153e490fc",
+        "description": "77395ffa87477f8a48383891ce3d6a65"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 778,
+      "species_name": "Mimikyu",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Disfarce",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Sob o trapo velho que lhe serve de disfarce, Mimikyu guarda um mistério. Um relato conta que um cientista espiou por baixo do pano em nome da pesquisa; o mesmo relato registra que ele morreu de uma doença misteriosa.",
+      "description_length": 216,
+      "facts": [
+        "[EN shield] um cientista espiou sob o trapo velho de Mimikyu em nome da pesquisa",
+        "[EN shield] o cientista morreu de uma doença misteriosa",
+        "[EN genus] Disguise Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'Mimikyu guarda um mistério' — abertura editorial sobre o disfarce"
+      ],
+      "review_points": [
+        "Revisão 2: abre pelo disfarce (estrutura distinta da fonte); fatos atribuídos a 'um relato' e apenas justapostos ('registra'), sem afirmar causa",
+        "Nenhuma explicação para a doença ou para o que há sob o pano",
+        "Mesmo rigor das demais espécies; avaliação de propriedade intelectual"
+      ],
+      "flags": [
+        "TEMA_SOMBRIO",
+        "RELATO",
+        "PI"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "573246fb01f3d2c43d0040e260422b7a",
+        "genus_md5": "01f0b2df01385ac642e902e01ec1d5cf"
+      },
+      "content_md5": {
+        "genus": "0ba5cb3bb921f34f0d0dbade25cf1cf9",
+        "description": "7b14a080a87104f91aed12f0cebe752c"
+      },
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente",
+      "revision": 2,
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 791,
+      "species_name": "Solgaleo",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Sol",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Houve um tempo em que Solgaleo era chamado de “a Fera que Devora o Sol”. Seu corpo é uma fonte abundante de energia em forma de luz.",
+      "description_length": 132,
+      "facts": [
+        "[EN shield] foi conhecido como 'the Beast That Devours the Sun'",
+        "[EN shield] energia em forma de luz irradia dele sem limites",
+        "[EN genus] Sunne Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "'Sunne' (forma arcaica de 'Sun') → 'Sol'; alternativa 'Solar'",
+        "Epíteto 'Fera que Devora o Sol': forma oficial brasileira a conferir",
+        "'boundlessly' atenuado para 'abundante'",
+        "Epíteto 'a Fera que Devora o Sol' aprovado provisoriamente por Fabrício (2026-10-13)"
+      ],
+      "flags": [
+        "TERMINOLOGIA",
+        "ABSOLUTO_ATENUADO",
+        "LENDARIO",
+        "PI"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "95d5c461d31b1b746cc6703bc6d1bfea",
+        "genus_md5": "a49f89eb425569dad5906cbd3366f30a"
+      },
+      "content_md5": {
+        "genus": "3c0f18354040cd55a4ac1772b20aa2d4",
+        "description": "fe7f34a958db027ccc1d851229e174e4"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Solar",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 823,
+      "species_name": "Corviknight",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Corvo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Na região de Galar, Corviknight atua como táxi aéreo — um serviço que a inteligência e a habilidade de voo da espécie tornam bem-sucedido.",
+      "description_length": 138,
+      "facts": [
+        "[EN shield] com grande inteligência e habilidade de voo, atuam com muito sucesso como táxi aéreo da região de Galar",
+        "[EN genus] Raven Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "'very successfully' → 'bem-sucedido', sem intensificador"
+      ],
+      "flags": [],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "fa23060ddb1352d11cbb1c798ae132c0",
+        "genus_md5": "58ee21dbe436e2804684957634b30c79"
+      },
+      "content_md5": {
+        "genus": "cd0b8fa23aa708fb8557a7620cee46e7",
+        "description": "b2bc1c6ec0826cc13848e877f458f063"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 873,
+      "species_name": "Frosmoth",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Mariposa de Gelo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Frosmoth não tolera quem desrespeita campos e montanhas. Nesses casos, voa com as asas geladas e provoca uma nevasca para afastar os responsáveis.",
+      "description_length": 146,
+      "facts": [
+        "[EN shield] não tem piedade de quem profana campos e montanhas",
+        "[EN shield] voa com asas geladas causando uma nevasca para afugentar os infratores",
+        "[EN genus] Frost Moth Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Revisão 2: 'profana' → 'desrespeita'; 'infratores' → 'os responsáveis'",
+        "Nenhum comportamento ou motivação além da fonte"
+      ],
+      "flags": [
+        "ABSOLUTO_ATENUADO",
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "d1dc8113197ad11c658808862b2a7751",
+        "genus_md5": "6fc113ab109b70f8aad933b6f600004b"
+      },
+      "content_md5": {
+        "genus": "7a5495843c178fdaec192de83b3d3322",
+        "description": "b4b26eddc8eb2e25a08a00c12d0457af"
+      },
+      "genus_alternative_rejected": "Pokémon Mariposa Gélida",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente",
+      "revision": 2,
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício"
+    },
+    {
+      "national_dex_number": 887,
+      "species_name": "Dragapult",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Furtivo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Dragapult carrega Dreepy nos chifres e os lança em velocidade supersônica. Ao que parece, os Dreepy aguardam esse momento com entusiasmo.",
+      "description_length": 137,
+      "facts": [
+        "[EN shield] os Dreepy ficam dentro dos chifres de Dragapult e são lançados em velocidades Mach",
+        "[EN shield] 'Apparently': os Dreepy esperam ansiosos por esse lançamento",
+        "[EN genus] Stealth Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Entusiasmo dos Dreepy mantido com o 'Ao que parece' da fonte (não é atribuição editorial)",
+        "'Mach speeds' → 'velocidade supersônica'",
+        "Cita Dreepy (fora do lote), como na fonte"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "8346cb547d7dc41ad18c4fc01aa36c78",
+        "genus_md5": "f94ef222363ec55b3a60f918e03c869f"
+      },
+      "content_md5": {
+        "genus": "b756311878629947da37b18c3681a6a5",
+        "description": "4ba35576531137466f3d572cb98add7f"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Furtividade",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 888,
+      "species_name": "Zacian",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Guerreiro",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Zacian passou muitos anos adormecido. Sua ligação com Zamazenta divide opiniões: há quem diga que é a irmã mais velha dele, e há quem os veja como rivais.",
+      "description_length": 154,
+      "facts": [
+        "[EN shield] dormiu por muitos anos",
+        "[EN shield] alguns dizem que é a irmã mais velha de Zamazenta; outros, que os dois são rivais",
+        "[EN genus] Warrior Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Versões concorrentes atribuídas ('há quem diga'), sem tomar partido",
+        "Cita Zamazenta (fora do lote), como na fonte"
+      ],
+      "flags": [
+        "RELATO",
+        "LENDARIO",
+        "PI"
+      ],
+      "source_basis": {
+        "flavor_version": "shield",
+        "flavor_md5": "5905aa1121b90734fef025d618f29815",
+        "genus_md5": "4f865799695de61d1ef61a513550c457"
+      },
+      "content_md5": {
+        "genus": "97d9b0adce09d3abc724fe0a72147a9e",
+        "description": "4b83ce45be82b18cca1cbb39bab94bf4"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 908,
+      "species_name": "Meowscarada",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Ilusionista",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "A arte de Meowscarada é a distração. Enquanto desvia a atenção dos adversários, prende neles bombas de flores carregadas de pólen e as detona antes que percebam o que está acontecendo.",
+      "description_length": 184,
+      "facts": [
+        "[EN violet] com hábil desvio de atenção, prende nos inimigos bombas de flores cheias de pólen",
+        "[EN violet] detona as bombas antes que os inimigos percebam o que acontece",
+        "[EN genus] Magician Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'A arte de Meowscarada é a distração' — síntese editorial de 'skillful misdirection'"
+      ],
+      "review_points": [
+        "Classificação: 'Ilusionista' evita a ambiguidade adjetiva de 'Mágico'",
+        "Evolução final de Sprigatito (piloto), relação não citada (fora da base)"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "violet",
+        "flavor_md5": "6e4c50a5c6933143675810b6f812060f",
+        "genus_md5": "bab49e3554099899c2963f1bb5f0f0ca"
+      },
+      "content_md5": {
+        "genus": "1d6aecc4e311a4a8180f94f13d83852c",
+        "description": "430a452996d9d3040ba7abe46ae3ee46"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Mágico",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 959,
+      "species_name": "Tinkaton",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Martelo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "O martelo de Tinkaton pesa cerca de 100 kg e, mesmo assim, é brandido com facilidade. É com ele que Tinkaton se apodera do que bem entende e carrega o saque para casa.",
+      "description_length": 167,
+      "facts": [
+        "[EN violet] o martelo passa de 220 libras (≈ 100 kg)",
+        "[EN violet] é manejado com facilidade enquanto Tinkaton rouba o que quer e leva o saque para casa",
+        "[EN genus] Hammer Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Conversão: 220 libras → 'cerca de 100 kg' (o peso é o contraste central do texto)",
+        "Sem pronome de gênero para a espécie (dado fora da base)",
+        "Conversão 'cerca de 100 kg' aprovada por Fabrício (2026-10-13)"
+      ],
+      "flags": [
+        "UNIDADE_CONVERTIDA"
+      ],
+      "source_basis": {
+        "flavor_version": "violet",
+        "flavor_md5": "281184e0c44a18a4a68eb4e797556ee3",
+        "genus_md5": "6edf78eeb2e45fb90a33cbea64b34079"
+      },
+      "content_md5": {
+        "genus": "0565b9face192bd0f06e1f0ca4f1401f",
+        "description": "b9c6ed4e83f07733c66ec6d17c86d883"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_decision": "Aprovada por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 998,
+      "species_name": "Baxcalibur",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Dragão de Gelo",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Baxcalibur se lança ao combate de cabeça para baixo, expelindo ar gélido pela boca. Para encerrar a luta, recorre à lâmina dorsal.",
+      "description_length": 130,
+      "facts": [
+        "[EN violet] entra em batalha virando-se de cabeça para baixo e soltando ar gélido pela boca",
+        "[EN violet] finaliza os oponentes com a lâmina dorsal",
+        "[EN genus] Ice Dragon Pokémon"
+      ],
+      "editorial_interpretation": [],
+      "review_points": [
+        "Classificação: locução 'Dragão de Gelo' vs. composto 'Dragão-Gelo'"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "violet",
+        "flavor_md5": "693340dfd2b32689a9ac6fedd614fcdd",
+        "genus_md5": "f4284bd5c3ace03af89da54607be54f5"
+      },
+      "content_md5": {
+        "genus": "0d5d2691d133d5ce1ba14eb406a0b512",
+        "description": "726023d457038935fcc6a3da363a3697"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Dragão-Gelo",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    },
+    {
+      "national_dex_number": 1000,
+      "species_name": "Gholdengo",
+      "block": 5,
+      "language": "pt-BR",
+      "origin": "MMKYU_EDITORIAL",
+      "status": "APROVADO",
+      "genus": "Pokémon Ser de Moedas",
+      "genus_alternative": null,
+      "genus_terminology_check": "PENDENTE",
+      "description": "Moedas empilhadas formam o corpo resistente de Gholdengo — e também são sua munição: em combate, ele as dispara uma após a outra, em rápida sequência, até sobrepujar os adversários.",
+      "description_length": 181,
+      "facts": [
+        "[EN violet] corpo resistente formado por moedas empilhadas",
+        "[EN violet] sobrepuja os inimigos disparando moeda após moeda em rápida sucessão",
+        "[EN genus] Coin Entity Pokémon"
+      ],
+      "editorial_interpretation": [
+        "'também são sua munição' — ligação editorial entre os dois fatos"
+      ],
+      "review_points": [
+        "Classificação 'Coin Entity' sem equivalente natural consagrado"
+      ],
+      "flags": [
+        "TERMINOLOGIA"
+      ],
+      "source_basis": {
+        "flavor_version": "violet",
+        "flavor_md5": "734c418e1ff5f8512d5aa2d7f68a4a7a",
+        "genus_md5": "1c9a4da03bac4eaca61318293236d6bd"
+      },
+      "content_md5": {
+        "genus": "fc79b1400553132e6655197e23376a92",
+        "description": "cda80f8290b76c9500f9437e7e1a3406"
+      },
+      "approved_at": "2026-10-13",
+      "approved_by": "Fabrício",
+      "genus_alternative_rejected": "Pokémon Entidade de Moedas",
+      "genus_decision": "Escolhida por Fabrício em 2026-10-13; conferência terminológica brasileira pendente"
+    }
+  ],
+  "publication": {
+    "label": "Texto editorial MMKYU",
+    "origin": "MMKYU_EDITORIAL",
+    "rights_status": "MMKYU_EDITORIAL",
+    "language": "pt-BR",
+    "query": "6137",
+    "validation": "6848",
+    "published": true,
+    "approved_at": "2026-10-13",
+    "approved_by": "Fabrício",
+    "baseline": {
+      "source_rows": 2050,
+      "source_md5": "ca8e9c87244160063971bd1a9f808b78",
+      "pilot_rows": 20,
+      "pilot_species": 10,
+      "pilot_json": "database/proposals/2026-10-12-pokedex-p3d-editorial-ptbr/pilot-pt-BR.json"
+    },
+    "expected_after": {
+      "editorial_rows": 120,
+      "editorial_species": 60
+    },
+    "published_at": "2026-10-14T01:01:53Z",
+    "canonical_file": "database/seeds/6137_publish_pokedex_editorial_ptbr_lote_01.sql",
+    "validation_result": "6848 PASS",
+    "lot_set_md5": "4a4a08f4930965918f9b093d809ebca2"
+  },
+  "editorial_rules": [
+    "Descrições curtas são aceitas quando a fonte factual é insuficiente (ex.: Mew).",
+    "'Um pesquisador de Hisui' só quando o relato original tiver fundamento explícito em primeira pessoa; nunca como fórmula automática.",
+    "Medidas só quando acrescentam valor editorial; sistema métrico, arredondado com 'cerca de' (Charizard: cerca de 1.400 metros, aprovado).",
+    "Guia v0.2 e glossário do lote preservados."
+  ],
+  "accepted_warnings": [
+    "#0151 DESCRICAO_FAIXA (Mew): aceito por Fabrício em 2026-10-12",
+    "#0212 DESCRICAO_FAIXA (Scizor): aceito por Fabrício em 2026-10-12",
+    "#0491 ABSOLUTO (Darkrai, 'todos os moradores'): aceito por Fabrício em 2026-10-12",
+    "#0530 DESCRICAO_FAIXA (Excadrill): aceito por Fabrício em 2026-10-13",
+    "#0716 DESCRICAO_FAIXA (Xerneas): aceito por Fabrício em 2026-10-13",
+    "#0609 DESCRICAO_FAIXA (Chandelure, 112 caracteres): aceito por Fabrício em 2026-10-13"
+  ]
+}

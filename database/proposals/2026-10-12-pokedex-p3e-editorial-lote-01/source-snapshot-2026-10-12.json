@@ -1,0 +1,408 @@
+{
+  "captured_at": "2026-10-12",
+  "project": "qjfutqujxrbzgrtkpgkg",
+  "query": "source-snapshot.sql",
+  "note": "Leitura só de SELECT no LIVE. md5 sobre o conteúdo SOURCE en (UTF-8), igual ao md5() do Postgres.",
+  "species": [
+    {
+      "national_dex_number": 4,
+      "species_name": "Charmander",
+      "flavor_version": "shield",
+      "flavor_md5": "d5536d41fd66c97f7e45059a03eb1162",
+      "genus_md5": "7b94628b657ad7735a1648dc12c03a7a",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 6,
+      "species_name": "Charizard",
+      "flavor_version": "shield",
+      "flavor_md5": "681516f671fcea2c7696bae81364982b",
+      "genus_md5": "edb19fa8c041985be901624e7aca70ee",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 7,
+      "species_name": "Squirtle",
+      "flavor_version": "shield",
+      "flavor_md5": "d400d85a3190d70976d37422cb075879",
+      "genus_md5": "0b850c5ece3b9682594ed91c93c8c295",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 39,
+      "species_name": "Jigglypuff",
+      "flavor_version": "shield",
+      "flavor_md5": "62b0632b2e0ba3535720291822a39dba",
+      "genus_md5": "9f7f1cdd9a24ead9c107aa3cb4590bf1",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 52,
+      "species_name": "Meowth",
+      "flavor_version": "shield",
+      "flavor_md5": "30c7878ccf9b150442ecf6c11ef989c5",
+      "genus_md5": "1665b6da39aad157e5ad37e68a7160e4",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 54,
+      "species_name": "Psyduck",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "baaae8e311d3c5bc0bd100b34edfe34f",
+      "genus_md5": "58b2adba4754e0c3a1d4d318f033d32c",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 94,
+      "species_name": "Gengar",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "e19c52f193e3ba2e5d65e0346b39808a",
+      "genus_md5": "3ccf8b91fc1ba831435f55d16651a6b9",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 133,
+      "species_name": "Eevee",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "0b82b21fa815181166ad56d522ec4a2c",
+      "genus_md5": "14ab2ab97a4c96993c3e5fbae6a07d4e",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 143,
+      "species_name": "Snorlax",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "e555c12bbf3ba699ee928e39dfbd87fc",
+      "genus_md5": "61e691add8a1b9c7a48a530c3efcd8f7",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 151,
+      "species_name": "Mew",
+      "flavor_version": "lets-go-eevee",
+      "flavor_md5": "298bd41f15dc4885f24c4e3c7e99e278",
+      "genus_md5": "d058f409117f11fba01ed11c00b8ce1f",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 155,
+      "species_name": "Cyndaquil",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "862f6a751c8dfc00bd51b88087a21958",
+      "genus_md5": "840c5a8c32942aabac00f745524000a9",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 175,
+      "species_name": "Togepi",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "3b90ac9ed6dc38e0ea03ffbe02781c79",
+      "genus_md5": "2a9d3b4019f58309edbf1a43bc9210d8",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 197,
+      "species_name": "Umbreon",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "5d9e38b36a807ead539eadccbfbb33dd",
+      "genus_md5": "a8fdc9fa0807a5ff9caae0d6907c7b16",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 212,
+      "species_name": "Scizor",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "a9d3c8c445ece6d99269866d14c6e166",
+      "genus_md5": "b8d41293761b3d8afc37ad2d01ba5b91",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 248,
+      "species_name": "Tyranitar",
+      "flavor_version": "shield",
+      "flavor_md5": "1e853c533680ae7b12e25a339264307c",
+      "genus_md5": "6512f5458e6f051cff0d3414977f0480",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 249,
+      "species_name": "Lugia",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "48a4335e489e0d3be13edbe61b719858",
+      "genus_md5": "17a83cf49a89bde299e5e6b35aa0a4df",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 257,
+      "species_name": "Blaziken",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "2d80e054ad63e0e70bd6ce4e349b1fe0",
+      "genus_md5": "13456e96293b3f2de9ffaba6d0c1c66a",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 282,
+      "species_name": "Gardevoir",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "02a53bbfb85d55aa0d40a38e98171086",
+      "genus_md5": "a1961bec294d01066ade733c2e609af0",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 359,
+      "species_name": "Absol",
+      "flavor_version": "shield",
+      "flavor_md5": "cd4a883564b15fed9d609260c17c3492",
+      "genus_md5": "3db619538700672f9f8e12f82b3afb2f",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 382,
+      "species_name": "Kyogre",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "b547eeb6da454cc460d64eb12220e43d",
+      "genus_md5": "a6b9d9a5b6cd787bcc27da3133ad380e",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 384,
+      "species_name": "Rayquaza",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "0c1d1580cb997d3673d9aed10c1f1f9c",
+      "genus_md5": "253394aaad343557c75088307956e576",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 385,
+      "species_name": "Jirachi",
+      "flavor_version": "shield",
+      "flavor_md5": "6ca1a1650660a0056982aed85ce7c464",
+      "genus_md5": "c4ad1f81c4d50e72dd600a5c217d8251",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 393,
+      "species_name": "Piplup",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "d59bd03ec7ae0fa5b5db1a5d88085b78",
+      "genus_md5": "30f6703c37f9a6179d93575a57b06166",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 405,
+      "species_name": "Luxray",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "ee30e3411b401a32b315e3e0081ab13b",
+      "genus_md5": "6f45622390a1fcf6a6432c317b53879e",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 445,
+      "species_name": "Garchomp",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "0fa1fd41e3300955c7f1914f282b26f1",
+      "genus_md5": "53573ab9067897eb54d4cf3b64a3026f",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 448,
+      "species_name": "Lucario",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "e53d8d36ef791b44c69fd055c30af4e3",
+      "genus_md5": "3bfc1664ab018febae6e249abdf419b9",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 483,
+      "species_name": "Dialga",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "b9af06f016a71e7d5d5968214c497721",
+      "genus_md5": "9ede5cc30edbfd422181411d08ae4498",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 491,
+      "species_name": "Darkrai",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "620e6dec7c99ed17ff1d3afe7478d922",
+      "genus_md5": "166b47adaa3b5a90493ea0cc310cf552",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 494,
+      "species_name": "Victini",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "aae2ce37330474cbce4eff519998b3b1",
+      "genus_md5": "48a34caaaca93a72198f3bab24d8afd8",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 495,
+      "species_name": "Snivy",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "fe1abfdf229a9ab7999b4c4c124cd220",
+      "genus_md5": "857d9ce2e316dec638702ea76773a094",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 530,
+      "species_name": "Excadrill",
+      "flavor_version": "shield",
+      "flavor_md5": "171902212274aee06f8a3995685ebf08",
+      "genus_md5": "e55c1a9d42e768bdea741522b900a6fb",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 609,
+      "species_name": "Chandelure",
+      "flavor_version": "shield",
+      "flavor_md5": "c07b2a4d19f6e442626816696bcf9d26",
+      "genus_md5": "f85df53a3e595ef6d71f69ce6362f239",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 643,
+      "species_name": "Reshiram",
+      "flavor_version": "shield",
+      "flavor_md5": "b89859896fb9ba2aea284f3467119881",
+      "genus_md5": "dc873f4e4ab38a421be7dbe1f4da1ad3",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 658,
+      "species_name": "Greninja",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "0ebc760aae8e080f41e457badae94879",
+      "genus_md5": "6267cb8d6a79af2da79417b01fe686fa",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 681,
+      "species_name": "Aegislash",
+      "flavor_version": "shield",
+      "flavor_md5": "09d3c730df85ac4e81fa538d38916363",
+      "genus_md5": "2886a677a133916deae660ab265ada2a",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 700,
+      "species_name": "Sylveon",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "cf45c7db545cd47593e1eea2a2ba8142",
+      "genus_md5": "8325030596dc7003e81eb2a96207dad9",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 701,
+      "species_name": "Hawlucha",
+      "flavor_version": "shield",
+      "flavor_md5": "878fe3caaf260f1735946bcc262a6852",
+      "genus_md5": "66a2b5cbd361d769dc4d2addaa93fe1b",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 716,
+      "species_name": "Xerneas",
+      "flavor_version": "alpha-sapphire",
+      "flavor_md5": "648542032eb32e6bcaf8623584c69be8",
+      "genus_md5": "2693369c0fa7d18add86c5895c266699",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 722,
+      "species_name": "Rowlet",
+      "flavor_version": "legends-arceus",
+      "flavor_md5": "746172543f9760bf5957e8babbc73453",
+      "genus_md5": "bac617aa1d8bca38fcb5587dafa0bd02",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 745,
+      "species_name": "Lycanroc",
+      "flavor_version": "shield",
+      "flavor_md5": "82ac281e41dbbc5d5f05e0ab184f96f6",
+      "genus_md5": "49e287e6574d47f44f006bbdfb2a097e",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 778,
+      "species_name": "Mimikyu",
+      "flavor_version": "shield",
+      "flavor_md5": "573246fb01f3d2c43d0040e260422b7a",
+      "genus_md5": "01f0b2df01385ac642e902e01ec1d5cf",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 791,
+      "species_name": "Solgaleo",
+      "flavor_version": "shield",
+      "flavor_md5": "95d5c461d31b1b746cc6703bc6d1bfea",
+      "genus_md5": "a49f89eb425569dad5906cbd3366f30a",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 823,
+      "species_name": "Corviknight",
+      "flavor_version": "shield",
+      "flavor_md5": "fa23060ddb1352d11cbb1c798ae132c0",
+      "genus_md5": "58ee21dbe436e2804684957634b30c79",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 873,
+      "species_name": "Frosmoth",
+      "flavor_version": "shield",
+      "flavor_md5": "d1dc8113197ad11c658808862b2a7751",
+      "genus_md5": "6fc113ab109b70f8aad933b6f600004b",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 887,
+      "species_name": "Dragapult",
+      "flavor_version": "shield",
+      "flavor_md5": "8346cb547d7dc41ad18c4fc01aa36c78",
+      "genus_md5": "f94ef222363ec55b3a60f918e03c869f",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 888,
+      "species_name": "Zacian",
+      "flavor_version": "shield",
+      "flavor_md5": "5905aa1121b90734fef025d618f29815",
+      "genus_md5": "4f865799695de61d1ef61a513550c457",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 908,
+      "species_name": "Meowscarada",
+      "flavor_version": "violet",
+      "flavor_md5": "6e4c50a5c6933143675810b6f812060f",
+      "genus_md5": "bab49e3554099899c2963f1bb5f0f0ca",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 959,
+      "species_name": "Tinkaton",
+      "flavor_version": "violet",
+      "flavor_md5": "281184e0c44a18a4a68eb4e797556ee3",
+      "genus_md5": "6edf78eeb2e45fb90a33cbea64b34079",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 998,
+      "species_name": "Baxcalibur",
+      "flavor_version": "violet",
+      "flavor_md5": "693340dfd2b32689a9ac6fedd614fcdd",
+      "genus_md5": "f4284bd5c3ace03af89da54607be54f5",
+      "editorial_rows": 0
+    },
+    {
+      "national_dex_number": 1000,
+      "species_name": "Gholdengo",
+      "flavor_version": "violet",
+      "flavor_md5": "734c418e1ff5f8512d5aa2d7f68a4a7a",
+      "genus_md5": "1c9a4da03bac4eaca61318293236d6bd",
+      "editorial_rows": 0
+    }
+  ]
+}
