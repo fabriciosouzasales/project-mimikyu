@@ -149,3 +149,41 @@ Pendente de homologação no navegador:
 - foco e teclado (←/→ não atravessam a fronteira filtrada — a transição é um link visível);
 - redirecionamento de URL divergente;
 - `npm run lint` e `npm run build`.
+
+## 7. P4b — Identidade dos capítulos por geração (implementada localmente, 2026-10-13)
+
+Base: P4a homologada e publicada (`dbbe8e4`). Só a visão com `?geracao=` muda; a visão nacional mantém o cabeçalho P3c.
+
+**Cabeçalho do capítulo.** Mesmo palco do cabeçalho nacional, mais compacto:
+- o numeral em contorno passa do total nacional para o romano da geração;
+- a lente continua ao fundo;
+- o sobretítulo "Pokédex Nacional · Geração I" mantém a identidade nacional;
+- o título é a região (geração sem região: "Geração N").
+
+Abaixo do título:
+- três indicadores rotulados: **Espécies**, **Números** (0001–0151) e **Tipos presentes** (17 de 18);
+- "Tipos mais frequentes · espécies com o tipo, primário ou secundário", em chips com a cor oficial do tipo e a contagem;
+- os demais tipos num `<details>` nativo ("Ver os outros N tipos"), sem JavaScript.
+
+A pesquisa e a régua continuam onde estavam, sem duplicação.
+
+**Cálculo (puro, `web/lib/pokedex/generation-chapter.ts`).** Usa só dados já carregados pela galeria: a geração (6131) e o índice de tipos (6135).
+- Espécies e intervalo: `species_count`, `first_number`–`last_number` da geração.
+- Composição: para cada número do intervalo, conta o tipo primário e o secundário. Uma espécie de dois tipos conta nos dois, por isso a interface fala em "espécies com o tipo", nunca em porcentagem.
+- Tipos presentes: quantidade de tipos distintos.
+- Ordenação: decrescente, com empate pela ordem canônica dos 18 tipos. O corte de visíveis (6) nunca separa um empate.
+- O índice de tipos não é filtrado pela pesquisa, então o capítulo descreve a geração inteira mesmo com `?q=`.
+- Sem o índice (6135 indisponível), a composição some e o resto permanece.
+- Cobertura parcial é informada ("Tipos disponíveis para X de Y espécies"), nunca preenchida.
+
+**Conferência com o LIVE (leitura).**
+- As 9 gerações são intervalos contínuos de números nacionais (I 1–151 … IX 906–1025).
+- Contagens por tipo da geração I: Venenoso 33, Água 32, Normal 22, Voador 19, Planta/Terrestre/Psíquico 14… — 17 tipos (sem Sombrio).
+- Gerações II–IX: 18 tipos.
+
+**Validação local.**
+- `npm run typecheck` = 0 erros.
+- Testes da Pokédex 43/43 PASS: `generation-chapter` 10 novos; `navigation` 9 (P4a) sem alteração.
+- Nenhuma leitura nova: `page.tsx` e `queries.ts` intactos.
+
+**Pendente de homologação visual:** ver cenários no relatório da rodada. `npm run lint`/`build` ficam com o responsável.

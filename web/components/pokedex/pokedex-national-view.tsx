@@ -4,7 +4,9 @@ import { Alert } from "@/components/ui/alert";
 import { GenerationFilter } from "@/components/pokedex/generation-filter";
 import { PokedexSearch } from "@/components/pokedex/pokedex-search";
 import { SpeciesGrid } from "@/components/pokedex/species-grid";
-import { formatCount, generationLabel } from "@/lib/pokedex/format";
+import { formatCount, formatDexNumber, generationLabel, generationRoman } from "@/lib/pokedex/format";
+import { type ChapterTypeCount, type GenerationChapter, buildGenerationChapter, splitChapterTypes } from "@/lib/pokedex/generation-chapter";
+import { pokemonTypeStyle } from "@/lib/pokedex/type-palette";
 import { PokedexLens } from "@/components/pokedex/detail/pokedex-lens";
 import {
   POKEDEX_QUERY_MAX_LENGTH,
@@ -45,19 +47,29 @@ export function PokedexNationalView({
   const isFiltered = query !== null || activeGeneration !== null;
   const generationCount = generations?.length ?? 0;
   const generationWord = NUMBER_WORDS[generationCount] ?? String(generationCount);
+  // Pokédex P4b: com geração selecionada, o cabeçalho vira o capítulo da geração.
+  const chapter = activeGeneration ? buildGenerationChapter(activeGeneration, speciesTypes) : null;
 
   return (
     <div className="mx-auto max-w-7xl">
-      <header className={styles.hero}>
-        {generations ? (
+      <header className={chapter ? `${styles.hero} ${styles.heroChapter}` : styles.hero}>
+        {chapter ? (
+          <span className={`${styles.numeral} ${styles.numeralChapter}`} aria-hidden="true">
+            {generationRoman(chapter.generationCode)}
+          </span>
+        ) : generations ? (
           <span className={styles.numeral} aria-hidden="true">
             {totalSpecies}
           </span>
         ) : null}
         <PokedexLens className={styles.lens} />
         <div className={styles.heroContent}>
-          <h2 className={styles.title}>Pokédex Nacional</h2>
-          {generations ? (
+          {chapter ? (
+            <ChapterHeading chapter={chapter} />
+          ) : (
+            <h2 className={styles.title}>Pokédex Nacional</h2>
+          )}
+          {chapter ? null : generations ? (
             <p className={styles.lede}>
               <strong>{formatCount(totalSpecies)} espécies</strong> em {generationWord} {generationCount === 1 ? "geração" : "gerações"}
               {firstRegion && lastRegion && firstRegion !== lastRegion ? `, de ${firstRegion} a ${lastRegion}` : ""}. Abra
@@ -127,6 +139,108 @@ export function PokedexNationalView({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Cabeçalho do capítulo da geração (Pokédex P4b, 2026-10-13). Mesmo palco da Pokédex
+ * Nacional (numeral em contorno — agora o romano da geração —, lente ao fundo, mesma
+ * tipografia), com a identidade nacional mantida na linha de sobretítulo. Indicadores:
+ * espécies, intervalo de números e tipos presentes, rotulados para não confundir
+ * espécies com tipos; a composição mostra os tipos mais frequentes e abre o resto num
+ * `<details>` nativo (sem JavaScript). Todos os números vêm de lib/pokedex/generation-chapter.ts.
+ */
+function ChapterHeading({ chapter }: { chapter: GenerationChapter }) {
+  const label = generationLabel(chapter.generationCode);
+  const title = chapter.regionName ?? label;
+  const range =
+    chapter.firstNumber !== null && chapter.lastNumber !== null
+      ? `${formatDexNumber(chapter.firstNumber)}–${formatDexNumber(chapter.lastNumber)}`
+      : null;
+  const composition = chapter.composition;
+  const { visible, hidden } = splitChapterTypes(composition?.types ?? []);
+
+  return (
+    <>
+      <p className={styles.eyebrow}>
+        Pokédex Nacional <span aria-hidden="true">·</span> {label}
+      </p>
+      <h2 className={styles.title}>
+        {chapter.regionName ? (
+          <>
+            <span className="sr-only">{label}, </span>
+            {title}
+          </>
+        ) : (
+          title
+        )}
+      </h2>
+      <dl className={styles.facts}>
+        <div>
+          <dt>Espécies</dt>
+          <dd>{formatCount(chapter.speciesCount)}</dd>
+        </div>
+        {range ? (
+          <div>
+            <dt>Números</dt>
+            <dd>
+              <span className="sr-only">de </span>
+              {range}
+            </dd>
+          </div>
+        ) : null}
+        {composition ? (
+          <div>
+            <dt>Tipos presentes</dt>
+            <dd>
+              {composition.types.length} <span className={styles.factOf}>de 18</span>
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+      {composition ? (
+        <div className={styles.composition}>
+          <p className={styles.compositionLabel} id="capitulo-tipos">
+            Tipos mais frequentes <span className={styles.compositionHint}>· espécies com o tipo, primário ou secundário</span>
+          </p>
+          <ul className={styles.typeList} aria-labelledby="capitulo-tipos">
+            {visible.map((type) => (
+              <ChapterType key={type.code} type={type} />
+            ))}
+          </ul>
+          {hidden.length > 0 ? (
+            <details className={styles.moreTypes}>
+              <summary>
+                Ver os outros {hidden.length} {hidden.length === 1 ? "tipo" : "tipos"}
+              </summary>
+              <ul className={styles.typeList} aria-label="Demais tipos presentes">
+                {hidden.map((type) => (
+                  <ChapterType key={type.code} type={type} />
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          {composition.typedSpecies < chapter.speciesCount ? (
+            <p className={styles.compositionHint}>
+              Tipos disponíveis para {formatCount(composition.typedSpecies)} de {formatCount(chapter.speciesCount)} espécies.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ChapterType({ type }: { type: ChapterTypeCount }) {
+  return (
+    <li className={styles.typeItem} style={pokemonTypeStyle(type.code, "t1")}>
+      <span className={styles.typeDot} aria-hidden="true" />
+      <span className={styles.typeName}>{type.label}</span>
+      <span className={styles.typeCount}>
+        {formatCount(type.count)}
+        <span className="sr-only"> {type.count === 1 ? "espécie" : "espécies"}</span>
+      </span>
+    </li>
   );
 }
 
