@@ -1,0 +1,1185 @@
+{
+  "pack": "pokedex-editorial-factual-pack",
+  "part": 10,
+  "parts_total": 10,
+  "national_dex_range": [
+    957,
+    1024
+  ],
+  "species_count": 65,
+  "source": "public.pokemon_species_text (origin = SOURCE) + public.pokemon_species (LIVE, somente leitura, extraído em 2026-10-13)",
+  "text_rights_status": "THIRD_PARTY_UNLICENSED — texto original em inglês; uso apenas como base factual, nunca reproduzir nem traduzir literalmente",
+  "live_fingerprint_md5": "02c29de8e72bc6af30901fe1ad75494e",
+  "species": [
+    {
+      "national_dex_number": 957,
+      "canonical_name": "Tinkatink",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Metalsmith Pokémon",
+        "content_md5": "af1a12faf3a350fe2a8a1f32f8fc9c4b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This Pokémon pounds iron scraps together to make a hammer. It will remake the hammer again and again until it’s satisfied with the result.",
+        "content_md5": "37a0cdf94a7501065c82c486f4bb6821"
+      }
+    },
+    {
+      "national_dex_number": 958,
+      "canonical_name": "Tinkatuff",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Hammer Pokémon",
+        "content_md5": "6edf78eeb2e45fb90a33cbea64b34079"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "These Pokémon make their homes in piles of scrap metal. They test the strength of each other’s hammers by smashing them together.",
+        "content_md5": "8d6cb77c3eb7659047d42caf3ed1b47a"
+      }
+    },
+    {
+      "national_dex_number": 960,
+      "canonical_name": "Wiglett",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Garden Eel Pokémon",
+        "content_md5": "da3f7523c6816c0ec6eeee7fafe7af88"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Though it looks like Diglett, Wiglett is an entirely different species. The resemblance seems to be a coincidental result of environmental adaptation.",
+        "content_md5": "f1df2463520d31499e414de7d3b1953d"
+      }
+    },
+    {
+      "national_dex_number": 961,
+      "canonical_name": "Wugtrio",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Garden Eel Pokémon",
+        "content_md5": "da3f7523c6816c0ec6eeee7fafe7af88"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "A variety of fish Pokémon, Wugtrio was once considered to be a regional form of Dugtrio.",
+        "content_md5": "8b5cb7ed0bd711eb20b4ca950e65cfc5"
+      }
+    },
+    {
+      "national_dex_number": 962,
+      "canonical_name": "Bombirdier",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Item Drop Pokémon",
+        "content_md5": "46e91ada1ec2a6ea1e2a1e37183c2fdb"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Bombirdier uses the apron on its chest to bundle up food, which it carries back to its nest. It enjoys dropping things that make loud noises.",
+        "content_md5": "88dd572392e5347f19922173313b8e36"
+      }
+    },
+    {
+      "national_dex_number": 963,
+      "canonical_name": "Finizen",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Dolphin Pokémon",
+        "content_md5": "3369318f6d0bcb377680e12b4b94509d"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Its water ring is made from seawater mixed with a sticky fluid that Finizen secretes from its blowhole.",
+        "content_md5": "b0c299bbf971d129cc48828abdbbfebe"
+      }
+    },
+    {
+      "national_dex_number": 964,
+      "canonical_name": "Palafin",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Dolphin Pokémon",
+        "content_md5": "3369318f6d0bcb377680e12b4b94509d"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Its physical capabilities are no different than a Finizen’s, but when its allies are in danger, it transforms and powers itself up.",
+        "content_md5": "207603e5a40c54e66c6488143bbd04f5"
+      }
+    },
+    {
+      "national_dex_number": 965,
+      "canonical_name": "Varoom",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Single-Cyl Pokémon",
+        "content_md5": "7f257cf7c0b5234b7ff5b57cf8306480"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "The steel section is Varoom’s actual body. This Pokémon clings to rocks and converts the minerals within into energy to fuel its activities.",
+        "content_md5": "1eca2474a3d345fce789fb1d8f7f2937"
+      }
+    },
+    {
+      "national_dex_number": 966,
+      "canonical_name": "Revavroom",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Multi-Cyl Pokémon",
+        "content_md5": "343336304c962499582d8695fd40173b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Revavroom viciously threatens others with the sound of its exhaust. It sticks its tongue out from its cylindrical mouth and sprays toxic fluids.",
+        "content_md5": "298e2ce093e2cc6249fbfe8d17638c75"
+      }
+    },
+    {
+      "national_dex_number": 967,
+      "canonical_name": "Cyclizar",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mount Pokémon",
+        "content_md5": "577e8b356e94a791ec71747667632b51"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It can sprint at over 70 mph while carrying a human. The rider’s body heat warms Cyclizar’s back and lifts the Pokémon’s spirit.",
+        "content_md5": "5fb1bf84be0143b6eba1b7044e839787"
+      }
+    },
+    {
+      "national_dex_number": 968,
+      "canonical_name": "Orthworm",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Earthworm Pokémon",
+        "content_md5": "e026db9d2d9843a6527b483a994255f9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This Pokémon lives in arid deserts. It maintains its metal body by consuming iron from the soil.",
+        "content_md5": "c9cc1f98c3f8a9a33bfe3b2b6d8caa97"
+      }
+    },
+    {
+      "national_dex_number": 969,
+      "canonical_name": "Glimmet",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ore Pokémon",
+        "content_md5": "d4ffef5b3c25912283451fdad8486c7f"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Glimmet’s toxic mineral crystals look just like flower petals. This Pokémon scatters poisonous powder like pollen to protect itself.",
+        "content_md5": "5b896c8361ceb2025ed4ff48525d071f"
+      }
+    },
+    {
+      "national_dex_number": 970,
+      "canonical_name": "Glimmora",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ore Pokémon",
+        "content_md5": "d4ffef5b3c25912283451fdad8486c7f"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Glimmora’s petals are made of crystallized poison energy. It has recently become evident that these petals resemble Tera Jewels.",
+        "content_md5": "be8b829d198ddfd0170b150f9d078cb6"
+      }
+    },
+    {
+      "national_dex_number": 971,
+      "canonical_name": "Greavard",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ghost Dog Pokémon",
+        "content_md5": "9a04aead089ad4c0be7d578b0156f41c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This friendly Pokémon doesn’t like being alone. Pay it even the slightest bit of attention, and it will follow you forever.",
+        "content_md5": "6cf88eb9d84d02e79e86b29e55b54c39"
+      }
+    },
+    {
+      "national_dex_number": 972,
+      "canonical_name": "Houndstone",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ghost Dog Pokémon",
+        "content_md5": "9a04aead089ad4c0be7d578b0156f41c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "A lovingly mourned Pokémon was reborn as Houndstone. It doesn’t like anyone touching the protuberance atop its head.",
+        "content_md5": "cd16328be6773f7fbf3e1605b26adf31"
+      }
+    },
+    {
+      "national_dex_number": 973,
+      "canonical_name": "Flamigo",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Synchronize Pokémon",
+        "content_md5": "6d02d71130482e5d1f493d7dc68ab126"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Thanks to a behavior of theirs known as “synchronizing,” an entire flock of these Pokémon can attack simultaneously in perfect harmony.",
+        "content_md5": "033538ccc4adb7917a0d694c108d2885"
+      }
+    },
+    {
+      "national_dex_number": 974,
+      "canonical_name": "Cetoddle",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Terra Whale Pokémon",
+        "content_md5": "2cae84c869849c469a09e5dcbf914ae1"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It lives in frigid regions in pods of five or so individuals. It loves the minerals found in snow and ice.",
+        "content_md5": "939aec68031da36eff97fe3dab8b8beb"
+      }
+    },
+    {
+      "national_dex_number": 975,
+      "canonical_name": "Cetitan",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Terra Whale Pokémon",
+        "content_md5": "2cae84c869849c469a09e5dcbf914ae1"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Ice energy builds up in the horn on its upper jaw, causing the horn to reach cryogenic temperatures that freeze its surroundings.",
+        "content_md5": "b7d3f1b20157990dd358c44ee7abf71d"
+      }
+    },
+    {
+      "national_dex_number": 976,
+      "canonical_name": "Veluza",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Jettison Pokémon",
+        "content_md5": "5c8e2b42aa64788f895f2e4aee4c3ada"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Veluza has excellent regenerative capabilities. It sheds spare flesh from its body to boost its agility, then charges at its prey.",
+        "content_md5": "9459a9563f305d40cca1c1ba007858e6"
+      }
+    },
+    {
+      "national_dex_number": 977,
+      "canonical_name": "Dondozo",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Big Catfish Pokémon",
+        "content_md5": "8d07f9076c50f68cee7327446f221374"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It treats Tatsugiri like its boss and follows it loyally. Though powerful, Dondozo is apparently not very smart.",
+        "content_md5": "9f2e2029542a379fec538dfea61361be"
+      }
+    },
+    {
+      "national_dex_number": 978,
+      "canonical_name": "Tatsugiri",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mimicry Pokémon",
+        "content_md5": "2b18bb823ad9952138969df4670ffcc3"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Tatsugiri is an extremely cunning Pokémon. It feigns weakness to lure in prey, then orders its partner to attack.",
+        "content_md5": "bb256bc1c6d5238d78e6561d3fef056e"
+      }
+    },
+    {
+      "national_dex_number": 979,
+      "canonical_name": "Annihilape",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Rage Monkey Pokémon",
+        "content_md5": "8fd1966dbd0a7216bde9ab050b9f1cc0"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It imbues its fists with the power of the rage that it kept hidden in its heart. Opponents struck by these imbued fists will be shattered to their core.",
+        "content_md5": "30015cf209ed9b92dc298e8f7cb920eb"
+      }
+    },
+    {
+      "national_dex_number": 980,
+      "canonical_name": "Clodsire",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Spiny Fish Pokémon",
+        "content_md5": "0738ba7c9827c3dca71232ac05279934"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It lives at the bottom of ponds and swamps. It will carry Wooper on its back and ferry them across water from one shore to the other.",
+        "content_md5": "f75b7994f82ac6eb94cd26d99ba93e58"
+      }
+    },
+    {
+      "national_dex_number": 981,
+      "canonical_name": "Farigiraf",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Long Neck Pokémon",
+        "content_md5": "bd3907424e964e3eab1bc2aaeb20cec5"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "The hardened head from the tail protects the head of the main body as Farigiraf whips its long neck around to headbutt enemies.",
+        "content_md5": "c1b540521d01c70599cf12674b7d73ca"
+      }
+    },
+    {
+      "national_dex_number": 982,
+      "canonical_name": "Dudunsparce",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Land Snake Pokémon",
+        "content_md5": "c64e989ecb554038dde6a9fae7463675"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It drives enemies out of its nest by sucking in enough air to fill its long, narrow lungs, then releasing the air in an intense blast.",
+        "content_md5": "b0ee2d35b8b616969621701575cdd0fc"
+      }
+    },
+    {
+      "national_dex_number": 983,
+      "canonical_name": "Kingambit",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Big Blade Pokémon",
+        "content_md5": "5c29955f6407d3197da32f00dd38d0b6"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Though it commands a massive army in battle, it’s not skilled at devising complex strategies. It just uses brute strength to keep pushing.",
+        "content_md5": "0e09eccba794b526a0c6c2b446cbeafd"
+      }
+    },
+    {
+      "national_dex_number": 984,
+      "canonical_name": "Great Tusk",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This creature resembles a mysterious Pokémon that, according to a paranormal magazine, has lived since ancient times.",
+        "content_md5": "7bb69450f94ca4aa02a3ae7b53c3200c"
+      }
+    },
+    {
+      "national_dex_number": 985,
+      "canonical_name": "Scream Tail",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It resembles a mysterious Pokémon described in a paranormal magazine as a Jigglypuff from one billion years ago.",
+        "content_md5": "ac562cde2ff22a3c790f724008d84fa3"
+      }
+    },
+    {
+      "national_dex_number": 986,
+      "canonical_name": "Brute Bonnet",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It bears a slight resemblance to a Pokémon described in a dubious magazine as a cross between a dinosaur and a mushroom.",
+        "content_md5": "1c2ee30ab905894a902a57388f6b34d5"
+      }
+    },
+    {
+      "national_dex_number": 987,
+      "canonical_name": "Flutter Mane",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It has similar features to a ghostly pterosaur that was covered in a paranormal magazine, but the two have little else in common.",
+        "content_md5": "2d05665ee448636a28d79c7d6e026bfc"
+      }
+    },
+    {
+      "national_dex_number": 988,
+      "canonical_name": "Slither Wing",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This Pokémon somewhat resembles an ancient form of Volcarona that was introduced in a dubious magazine.",
+        "content_md5": "9b88fcd2980f6322d5bcf598ffbe0423"
+      }
+    },
+    {
+      "national_dex_number": 989,
+      "canonical_name": "Sandy Shocks",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It slightly resembles a Magneton that lived for 10,000 years and was featured in an article in a paranormal magazine.",
+        "content_md5": "bbe0363e941c235affddde01750906bd"
+      }
+    },
+    {
+      "national_dex_number": 990,
+      "canonical_name": "Iron Treads",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Sightings of this Pokémon have occurred in recent years. It resembles a mysterious object described in an old expedition journal.",
+        "content_md5": "40f9dfb5a58197063dd073af27669813"
+      }
+    },
+    {
+      "national_dex_number": 991,
+      "canonical_name": "Iron Bundle",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It resembles a mysterious object mentioned in an old book. There are only two reported sightings of this Pokémon.",
+        "content_md5": "60e5e310e753e972709169c4b4fa7a85"
+      }
+    },
+    {
+      "national_dex_number": 992,
+      "canonical_name": "Iron Hands",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This Pokémon shares many similarities with Iron Hands, an object mentioned in a certain expedition journal.",
+        "content_md5": "c58cd6752843983dc9be671a19c5d45f"
+      }
+    },
+    {
+      "national_dex_number": 993,
+      "canonical_name": "Iron Jugulis",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It’s possible that Iron Jugulis, an object described in an old book, may actually be this Pokémon.",
+        "content_md5": "3a80b439e8d1d7c085c60b68b1528d55"
+      }
+    },
+    {
+      "national_dex_number": 994,
+      "canonical_name": "Iron Moth",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "No records exist of this species being caught. Data is lacking, but the Pokémon’s traits match up with an object described in an old book.",
+        "content_md5": "dd53daa2338bf50a3673d155228fd3c1"
+      }
+    },
+    {
+      "national_dex_number": 995,
+      "canonical_name": "Iron Thorns",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Some of its notable features match those of an object named within a certain expedition journal as Iron Thorns.",
+        "content_md5": "0122cec4c2c009c34969f76ca7d6d284"
+      }
+    },
+    {
+      "national_dex_number": 996,
+      "canonical_name": "Frigibax",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ice Fin Pokémon",
+        "content_md5": "04e2f50b18b0fcf1a07c206cbb8faf88"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This Pokémon lives in forests and craggy areas. Using the power of its dorsal fin, it cools the inside of its nest like a refrigerator.",
+        "content_md5": "86ba3b3e6f9c708aaa9ef95fdb97f3e4"
+      }
+    },
+    {
+      "national_dex_number": 997,
+      "canonical_name": "Arctibax",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ice Fin Pokémon",
+        "content_md5": "04e2f50b18b0fcf1a07c206cbb8faf88"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It attacks with the blade of its frozen dorsal fin by doing a front flip in the air. Arctibax’s strong back and legs allow it to pull off this technique.",
+        "content_md5": "a3b258c2980d0b09b56a2568c8ffc028"
+      }
+    },
+    {
+      "national_dex_number": 999,
+      "canonical_name": "Gimmighoul",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Coin Chest Pokémon",
+        "content_md5": "bad646858a944abc354374491541d9e4"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It lives inside an old treasure chest. Sometimes it gets left in shop corners since no one realizes it’s actually a Pokémon.",
+        "content_md5": "9fe9fccdf4916bfa09298664ec62872c"
+      }
+    },
+    {
+      "national_dex_number": 1001,
+      "canonical_name": "Wo-Chien",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ruinous Pokémon",
+        "content_md5": "34ff5d6cc3d399b7b503a2bae272cc6c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It drains the life-force from vegetation, causing nearby forests to instantly wither and fields to turn barren.",
+        "content_md5": "8ec942a06a10c4eb989e8229b39670aa"
+      }
+    },
+    {
+      "national_dex_number": 1002,
+      "canonical_name": "Chien-Pao",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ruinous Pokémon",
+        "content_md5": "34ff5d6cc3d399b7b503a2bae272cc6c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "The hatred of those who perished by the sword long ago has clad itself in snow and become a Pokémon.",
+        "content_md5": "ea35576721844ebef98fc0e0c5496c2b"
+      }
+    },
+    {
+      "national_dex_number": 1003,
+      "canonical_name": "Ting-Lu",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ruinous Pokémon",
+        "content_md5": "34ff5d6cc3d399b7b503a2bae272cc6c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It slowly brings its exceedingly heavy head down upon the ground, splitting the earth open with huge fissures that run over 160 feet deep.",
+        "content_md5": "1634bf9db88ddac8b5bdb51355cb5918"
+      }
+    },
+    {
+      "national_dex_number": 1004,
+      "canonical_name": "Chi-Yu",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ruinous Pokémon",
+        "content_md5": "34ff5d6cc3d399b7b503a2bae272cc6c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "The envy accumulated within curved beads that sparked multiple conflicts has clad itself in fire and become a Pokémon.",
+        "content_md5": "8a4da13af2c70790bfd02bbdbac50a90"
+      }
+    },
+    {
+      "national_dex_number": 1005,
+      "canonical_name": "Roaring Moon",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "According to an article in a dubious magazine, this Pokémon has some connection to a phenomenon that occurs in a certain region.",
+        "content_md5": "2500115e0c314a274975ea6eb4cc528b"
+      }
+    },
+    {
+      "national_dex_number": 1006,
+      "canonical_name": "Iron Valiant",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It’s possible that this is the object listed as Iron Valiant in a certain expedition journal.",
+        "content_md5": "4fb08879a339749b94562cb51cc8ff61"
+      }
+    },
+    {
+      "national_dex_number": 1007,
+      "canonical_name": "Koraidon",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This Pokémon resembles Cyclizar, but it is far burlier and more ferocious. Nothing is known about its ecology or other features.",
+        "content_md5": "b230f1ad66040778972dee14b8277426"
+      }
+    },
+    {
+      "national_dex_number": 1008,
+      "canonical_name": "Miraidon",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This seems to be the Iron Serpent mentioned in an old book. The Iron Serpent is said to have turned the land to ash with its lightning.",
+        "content_md5": "2f7cb7534d051bee29412470239dd5a6"
+      }
+    },
+    {
+      "national_dex_number": 1009,
+      "canonical_name": "Walking Wake",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It resembles an illustration published in a paranormal magazine, said to be a depiction of a super-ancient Suicune.",
+        "content_md5": "e6cc1b32f2c87d7acc8057a0fa9020ac"
+      }
+    },
+    {
+      "national_dex_number": 1010,
+      "canonical_name": "Iron Leaves",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "According to the few eyewitness accounts that exist, it used its shining blades to julienne large trees and boulders.",
+        "content_md5": "4cf70043c7a608d785b2a6ac346cbb17"
+      }
+    },
+    {
+      "national_dex_number": 1011,
+      "canonical_name": "Dipplin",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Candy Apple Pokémon",
+        "content_md5": "074cf0389151dc4bf06952d6691eb80b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "The head sticking out belongs to the fore-wyrm, while the tail belongs to the core-wyrm. The two share one apple and help each other out.",
+        "content_md5": "20899fa9786367578c4e9f0aa93bb240"
+      }
+    },
+    {
+      "national_dex_number": 1012,
+      "canonical_name": "Poltchageist",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Matcha Pokémon",
+        "content_md5": "cece0d4f26b0b7d3260fa9c7085f82ba"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Poltchageist looks like a regional form of Sinistea, but it was recently discovered that the two Pokémon are entirely unrelated.",
+        "content_md5": "de12c1bae65367cf3c0f32bb6239a03b"
+      }
+    },
+    {
+      "national_dex_number": 1013,
+      "canonical_name": "Sinistcha",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Matcha Pokémon",
+        "content_md5": "cece0d4f26b0b7d3260fa9c7085f82ba"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It prefers cool, dark places, such as the back of a shelf or the space beneath a home's floorboards. It wanders in search of prey after sunset.",
+        "content_md5": "0b4e5ca6259a7119518e68d9e0aecb9c"
+      }
+    },
+    {
+      "national_dex_number": 1014,
+      "canonical_name": "Okidogi",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Retainer Pokémon",
+        "content_md5": "0535d15f9282415df59e6bf4886a85a9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Okidogi is a ruffian with a short temper. It can pulverize anything by swinging around the chain on its neck.",
+        "content_md5": "a8a6954ac53eab1f524bdbf42e6f1f1c"
+      }
+    },
+    {
+      "national_dex_number": 1015,
+      "canonical_name": "Munkidori",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Retainer Pokémon",
+        "content_md5": "0535d15f9282415df59e6bf4886a85a9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Munkidori keeps itself somewhere safe while it toys with its foes, using psychokinesis to induce intense dizziness.",
+        "content_md5": "78295639dbd05e7127f4fa51241c3159"
+      }
+    },
+    {
+      "national_dex_number": 1016,
+      "canonical_name": "Fezandipiti",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Retainer Pokémon",
+        "content_md5": "0535d15f9282415df59e6bf4886a85a9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "Fezandipiti beats its glossy wings to scatter pheromones that captivate people and Pokémon.",
+        "content_md5": "1ec7602f1286e04efa97ee48d3eae768"
+      }
+    },
+    {
+      "national_dex_number": 1017,
+      "canonical_name": "Ogerpon",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mask Pokémon",
+        "content_md5": "0c8a80febdf679dfe7c349967a2477a3"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "This mischief-loving Pokémon is full of curiosity. It battles by drawing out the type-based energy contained within its masks.",
+        "content_md5": "cf65e0010d356032c4b9c2d363da9a6c"
+      }
+    },
+    {
+      "national_dex_number": 1018,
+      "canonical_name": "Archaludon",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Alloy Pokémon",
+        "content_md5": "a13e23074ad142e63579c02742b78b8b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It digs holes on mountains, searching for food. It’s so durable that being caught in a cave-in won’t faze it.",
+        "content_md5": "aa04eed4925b4f34d46c8c71f85a23aa"
+      }
+    },
+    {
+      "national_dex_number": 1019,
+      "canonical_name": "Hydrapple",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Apple Hydra Pokémon",
+        "content_md5": "0801438fc30b34b4ee781f3930cf640b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "These capricious syrpents have banded together. On the rare occasion that their moods align, their true power is unleashed.",
+        "content_md5": "c87d7f12f4bbc45f661cd45370973407"
+      }
+    },
+    {
+      "national_dex_number": 1020,
+      "canonical_name": "Gouging Fire",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It resembles an eerie Pokémon once shown in a paranormal magazine. That Pokémon was said to be an Entei regenerated from a fossil.",
+        "content_md5": "a3e8e0d5dd70c0d1eeb0c91b31807b77"
+      }
+    },
+    {
+      "national_dex_number": 1021,
+      "canonical_name": "Raging Bolt",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It bears resemblance to a Pokémon that became a hot topic for a short while after a paranormal magazine touted it as Raikou's ancestor.",
+        "content_md5": "b1b8e9946487faf12b50fe0107341e41"
+      }
+    },
+    {
+      "national_dex_number": 1022,
+      "canonical_name": "Iron Boulder",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It was named after a mysterious object recorded in an old book. Its body seems to be metallic.",
+        "content_md5": "ba07898d0ae51c76c78341ac3eb50d66"
+      }
+    },
+    {
+      "national_dex_number": 1023,
+      "canonical_name": "Iron Crown",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Paradox Pokémon",
+        "content_md5": "a283e6db26f1367292cfb0794041db0a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "There was supposedly an incident in which it launched shining blades to cut everything around it to pieces. Little else is known about it.",
+        "content_md5": "ee58001c6aaa94347a3be1d2072b87f5"
+      }
+    },
+    {
+      "national_dex_number": 1024,
+      "canonical_name": "Terapagos",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Tera Pokémon",
+        "content_md5": "8196bd1007b12a25d14a17bcb4a0bad2"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "violet",
+        "content": "It’s thought that this Pokémon lived in ancient Paldea until it got caught in seismic shifts and went extinct.",
+        "content_md5": "637d474e5480798582d3cda042a68c0e"
+      }
+    }
+  ]
+}

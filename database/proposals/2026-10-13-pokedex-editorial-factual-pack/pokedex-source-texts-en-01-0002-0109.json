@@ -1,0 +1,1815 @@
+{
+  "pack": "pokedex-editorial-factual-pack",
+  "part": 1,
+  "parts_total": 10,
+  "national_dex_range": [
+    2,
+    109
+  ],
+  "species_count": 100,
+  "source": "public.pokemon_species_text (origin = SOURCE) + public.pokemon_species (LIVE, somente leitura, extraído em 2026-10-13)",
+  "text_rights_status": "THIRD_PARTY_UNLICENSED — texto original em inglês; uso apenas como base factual, nunca reproduzir nem traduzir literalmente",
+  "live_fingerprint_md5": "732a7dcea493d2e2c1ca3ed8aee13c13",
+  "species": [
+    {
+      "national_dex_number": 2,
+      "canonical_name": "Ivysaur",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Seed Pokémon",
+        "content_md5": "ea9812bf267c62e8f3d6a1ba756d823e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Exposure to sunlight adds to its strength. Sunlight also makes the bud on its back grow larger.",
+        "content_md5": "7578a4d6ba9ca022d4781327a655d87e"
+      }
+    },
+    {
+      "national_dex_number": 3,
+      "canonical_name": "Venusaur",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Seed Pokémon",
+        "content_md5": "ea9812bf267c62e8f3d6a1ba756d823e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "A bewitching aroma wafts from its flower. The fragrance becalms those engaged in a battle.",
+        "content_md5": "0f0deabdba4c72cae4ecc113be123d4a"
+      }
+    },
+    {
+      "national_dex_number": 5,
+      "canonical_name": "Charmeleon",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Flame Pokémon",
+        "content_md5": "edb19fa8c041985be901624e7aca70ee"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "If it becomes agitated during battle, it spouts intense flames, incinerating its surroundings.",
+        "content_md5": "483789ebba573f9d38a04b4946a08aba"
+      }
+    },
+    {
+      "national_dex_number": 8,
+      "canonical_name": "Wartortle",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Turtle Pokémon",
+        "content_md5": "ef04d01d5938d8acc62aec8ebff6b1a5"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It cleverly controls its furry ears and tail to maintain its balance while swimming.",
+        "content_md5": "120c444f552fe2cb100e758aa55e41a6"
+      }
+    },
+    {
+      "national_dex_number": 9,
+      "canonical_name": "Blastoise",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Shellfish Pokémon",
+        "content_md5": "1b9755f75606dcb56d7283588be32dc2"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "The rocket cannons on its shell fire jets of water capable of punching holes through thick steel.",
+        "content_md5": "666e8def101aa174cd33384622b318f1"
+      }
+    },
+    {
+      "national_dex_number": 10,
+      "canonical_name": "Caterpie",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Worm Pokémon",
+        "content_md5": "3cf2af82eb435a4d81dfb038afa72f76"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Its short feet are tipped with suction pads that enable it to tirelessly climb slopes and walls.",
+        "content_md5": "8dcd7a23f0445a3a1f5c2c8ca5506635"
+      }
+    },
+    {
+      "national_dex_number": 11,
+      "canonical_name": "Metapod",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Cocoon Pokémon",
+        "content_md5": "d4c8d1be34e610b556f417515269e53b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Even though it is encased in a sturdy shell, the body inside is tender. It can’t withstand a harsh attack.",
+        "content_md5": "6d8553bf512b664baf783bd66e5b6793"
+      }
+    },
+    {
+      "national_dex_number": 12,
+      "canonical_name": "Butterfree",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Butterfly Pokémon",
+        "content_md5": "ed6b8382945db868f0512e25f900e8f9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It collects honey every day. It rubs honey onto the hairs on its legs to carry it back to its nest.",
+        "content_md5": "9fa587d271cde1841b036044dc9b6d75"
+      }
+    },
+    {
+      "national_dex_number": 13,
+      "canonical_name": "Weedle",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Hairy Bug Pokémon",
+        "content_md5": "9beeca8760486f13d4af8fcd67d0165b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Beware of the sharp stinger on its head. It hides in grass and bushes where it eats leaves.",
+        "content_md5": "85023b72d81bc7c4774e5d86449beea7"
+      }
+    },
+    {
+      "national_dex_number": 14,
+      "canonical_name": "Kakuna",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Cocoon Pokémon",
+        "content_md5": "d4c8d1be34e610b556f417515269e53b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Able to move only slightly. When endangered, it may stick out its stinger and poison its enemy.",
+        "content_md5": "c89a49a552e4c0929232f625a44bad78"
+      }
+    },
+    {
+      "national_dex_number": 15,
+      "canonical_name": "Beedrill",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Poison Bee Pokémon",
+        "content_md5": "005c63464e8f5e6e589b4e5a839be52d"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "It has three poisonous stingers on its forelegs and its tail. They are used to jab its enemy repeatedly.",
+        "content_md5": "261e7eb3d3910fb2db4d44760f3d62c0"
+      }
+    },
+    {
+      "national_dex_number": 16,
+      "canonical_name": "Pidgey",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Tiny Bird Pokémon",
+        "content_md5": "e8763d2053cb995ebcc5601505a98f1e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Very docile. If attacked, it will often kick up sand to protect itself rather than fight back.",
+        "content_md5": "f189dc184f10195d1b088d289808aec3"
+      }
+    },
+    {
+      "national_dex_number": 17,
+      "canonical_name": "Pidgeotto",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Bird Pokémon",
+        "content_md5": "ef4e4c53bff71434e532bb86cb35fa57"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "This Pokémon is full of vitality. It constantly flies around its large territory in search of prey.",
+        "content_md5": "7dc26ec1b247282ef442b9086e5b5e49"
+      }
+    },
+    {
+      "national_dex_number": 18,
+      "canonical_name": "Pidgeot",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Bird Pokémon",
+        "content_md5": "ef4e4c53bff71434e532bb86cb35fa57"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "This Pokémon flies at Mach 2 speed, seeking prey. Its large talons are feared as wicked weapons.",
+        "content_md5": "a9b45b190f0f60749ac893e393f548f6"
+      }
+    },
+    {
+      "national_dex_number": 19,
+      "canonical_name": "Rattata",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mouse Pokémon",
+        "content_md5": "cb93bae4ecf80ff7c438f7f934912d42"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Will chew on anything with its fangs. If you see one, you can be certain that 40 more live in the area.",
+        "content_md5": "bdab88639c5d1206dd3c01d9a646510e"
+      }
+    },
+    {
+      "national_dex_number": 20,
+      "canonical_name": "Raticate",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mouse Pokémon",
+        "content_md5": "cb93bae4ecf80ff7c438f7f934912d42"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Its hind feet are webbed. They act as flippers, so it can swim in rivers and hunt for prey.",
+        "content_md5": "2528e6c40b02a2c6237c6d2c2d49249c"
+      }
+    },
+    {
+      "national_dex_number": 21,
+      "canonical_name": "Spearow",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Tiny Bird Pokémon",
+        "content_md5": "e8763d2053cb995ebcc5601505a98f1e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Inept at flying high. However, it can fly around very fast to protect its territory.",
+        "content_md5": "d5bd7c80b931e8a37a6d933a8cf50c19"
+      }
+    },
+    {
+      "national_dex_number": 22,
+      "canonical_name": "Fearow",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Beak Pokémon",
+        "content_md5": "2579dacb1669ad7963582b3d9aae4e68"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "A Pokémon that dates back many years. If it senses danger, it flies high and away, instantly.",
+        "content_md5": "8bfc5d6b3d91c364ba82d3483e784e41"
+      }
+    },
+    {
+      "national_dex_number": 23,
+      "canonical_name": "Ekans",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Snake Pokémon",
+        "content_md5": "03289fbcfc90dd066b1845ff3b903bc9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "The older it gets, the longer it grows. At night, it wraps its long body around tree branches to rest.",
+        "content_md5": "f44da042c72b731e809cf43ac0118f08"
+      }
+    },
+    {
+      "national_dex_number": 24,
+      "canonical_name": "Arbok",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Cobra Pokémon",
+        "content_md5": "01c18744b32a040eec8d364876c9e360"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "The frightening patterns on its belly have been studied. Six variations have been confirmed.",
+        "content_md5": "3781cfe137a24e110c097238f1d6ae9d"
+      }
+    },
+    {
+      "national_dex_number": 26,
+      "canonical_name": "Raichu",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mouse Pokémon",
+        "content_md5": "cb93bae4ecf80ff7c438f7f934912d42"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "It can discharge bursts of electricity exceeding 100,000 volts— a single strike with that amount of power would incapacitate one of the Copperajah of my homeland.",
+        "content_md5": "33b3a5976fecadb62a1161f7dcc35a35"
+      }
+    },
+    {
+      "national_dex_number": 27,
+      "canonical_name": "Sandshrew",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mouse Pokémon",
+        "content_md5": "cb93bae4ecf80ff7c438f7f934912d42"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It burrows into the ground to create its nest. If hard stones impede its tunneling, it uses its sharp claws to shatter them and then carries on digging.",
+        "content_md5": "12c9ebeffff1f3142a64d1caaa32a9c0"
+      }
+    },
+    {
+      "national_dex_number": 28,
+      "canonical_name": "Sandslash",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mouse Pokémon",
+        "content_md5": "cb93bae4ecf80ff7c438f7f934912d42"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It climbs trees by hooking on with its sharp claws. Sandslash shares the berries it gathers, dropping them down to Sandshrew waiting below the tree.",
+        "content_md5": "514fdab9d3eca211cfbe28b65071cd1c"
+      }
+    },
+    {
+      "national_dex_number": 29,
+      "canonical_name": "Nidoran♀",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Poison Pin Pokémon",
+        "content_md5": "03c39608ea4a3a6d2bec5436e465f296"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It uses its hard incisor teeth to crush and eat berries. The tip of a female Nidoran’s horn is a bit more rounded than the tip of a male’s horn.",
+        "content_md5": "9a2f3f3271e36f27188e973280f23147"
+      }
+    },
+    {
+      "national_dex_number": 30,
+      "canonical_name": "Nidorina",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Poison Pin Pokémon",
+        "content_md5": "03c39608ea4a3a6d2bec5436e465f296"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "If the group is threatened, these Pokémon will band together to assault enemies with a chorus of ultrasonic waves.",
+        "content_md5": "4609a4b17c68e3bd02ab716c9132bc03"
+      }
+    },
+    {
+      "national_dex_number": 31,
+      "canonical_name": "Nidoqueen",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Drill Pokémon",
+        "content_md5": "7cccc43a1e0ef3609b06ee0ba7097bf9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It pacifies offspring by placing them in the gaps between the spines on its back. The spines will never secrete poison while young are present.",
+        "content_md5": "5ca24fabf95e313a5be11af29634fb5b"
+      }
+    },
+    {
+      "national_dex_number": 32,
+      "canonical_name": "Nidoran♂",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Poison Pin Pokémon",
+        "content_md5": "03c39608ea4a3a6d2bec5436e465f296"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Small but brave, this Pokémon will hold its ground and even risk its life in battle to protect the female it’s friendly with.",
+        "content_md5": "ee1bdf846f70ac591b6cbdd43c9cc736"
+      }
+    },
+    {
+      "national_dex_number": 33,
+      "canonical_name": "Nidorino",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Poison Pin Pokémon",
+        "content_md5": "03c39608ea4a3a6d2bec5436e465f296"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It’s nervous and quick to act aggressively. The potency of its poison increases along with the level of adrenaline present in its body.",
+        "content_md5": "f11b19a561eeb439e3903df8e9bf8732"
+      }
+    },
+    {
+      "national_dex_number": 34,
+      "canonical_name": "Nidoking",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Drill Pokémon",
+        "content_md5": "7cccc43a1e0ef3609b06ee0ba7097bf9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Nidoking prides itself on its strength. It’s forceful and spirited in battle, making use of its thick tail and diamond-crushing horn.",
+        "content_md5": "38e12f13abdd09497805b7e4968791b0"
+      }
+    },
+    {
+      "national_dex_number": 35,
+      "canonical_name": "Clefairy",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Fairy Pokémon",
+        "content_md5": "c65f25df20a88a330bbc4e1b761a3779"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "It can be found in quiet mountain areas on a full moon's night. Its dancing and its tiny, faintly glowing wings confer upon it a lovely fairylike quality.",
+        "content_md5": "b3e2db706c3b9a5d0fdda5c05992e4f5"
+      }
+    },
+    {
+      "national_dex_number": 36,
+      "canonical_name": "Clefable",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Fairy Pokémon",
+        "content_md5": "c65f25df20a88a330bbc4e1b761a3779"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Legend says that on clear, quiet nights, it listens for the voices of its kin living on the moon. I, too, often think of my homeland, so far away.",
+        "content_md5": "8164652d36d9a1cc2d4df4e56c18de4a"
+      }
+    },
+    {
+      "national_dex_number": 37,
+      "canonical_name": "Vulpix",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Fox Pokémon",
+        "content_md5": "2c1ccba0779898315227d9b889b14b9b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "In its belly burns a fire, which Vulpix spits out in the form of fireballs. When young, this Pokémon has but one white tail. As the Pokémon matures, this single tail splits into six.",
+        "content_md5": "c821217692dd59be785a87b5ab77f30a"
+      }
+    },
+    {
+      "national_dex_number": 38,
+      "canonical_name": "Ninetales",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Fox Pokémon",
+        "content_md5": "2c1ccba0779898315227d9b889b14b9b"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "The coat of gleaming golden fur is quite magnificent. This species is said to store sacred power in its nine long tails and to live for a millennium.",
+        "content_md5": "1620c4f31d9099f400ea91435b1657a8"
+      }
+    },
+    {
+      "national_dex_number": 40,
+      "canonical_name": "Wigglytuff",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Balloon Pokémon",
+        "content_md5": "9f7f1cdd9a24ead9c107aa3cb4590bf1"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It’s proud of its fur, which is fine and delicate. In particular, the curl on its forehead has a texture that’s perfectly heavenly.",
+        "content_md5": "60250bd109f15022e6fe4c54790052d9"
+      }
+    },
+    {
+      "national_dex_number": 41,
+      "canonical_name": "Zubat",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Bat Pokémon",
+        "content_md5": "816be02babccb76a1d245c51f46f9974"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Makes its home in gloomy caves. Atrophied eyes have left this Pokémon blind, so it scans its surroundings via sound waves that it emits from its mouth as it flies.",
+        "content_md5": "b4e7b325c07b67bcae0cb2292e956a8a"
+      }
+    },
+    {
+      "national_dex_number": 42,
+      "canonical_name": "Golbat",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Bat Pokémon",
+        "content_md5": "816be02babccb76a1d245c51f46f9974"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "It sinks its sharp fangs into other creatures and slurps up their blood. A closer look at the fangs reveals that they are hollow and akin to straws.",
+        "content_md5": "307cf0a7af376a149857b92332934945"
+      }
+    },
+    {
+      "national_dex_number": 43,
+      "canonical_name": "Oddish",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Weed Pokémon",
+        "content_md5": "ee6e63fc0393f150c737eef1334c4b65"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "During the day, it stays in the cold underground to avoid the sun. It grows by bathing in moonlight.",
+        "content_md5": "325ce625963ef02e13b47049af53d57e"
+      }
+    },
+    {
+      "national_dex_number": 44,
+      "canonical_name": "Gloom",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Weed Pokémon",
+        "content_md5": "ee6e63fc0393f150c737eef1334c4b65"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "What appears to be drool is actually sweet honey. It is very sticky and clings stubbornly if touched.",
+        "content_md5": "5aa8a63a82385af64f6ab7f57d3adde4"
+      }
+    },
+    {
+      "national_dex_number": 45,
+      "canonical_name": "Vileplume",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Flower Pokémon",
+        "content_md5": "465b46c8f0e5030f8e0952e0e8c2fe55"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "The larger its petals, the more toxic pollen it contains. Its big head is heavy and hard to hold up.",
+        "content_md5": "839825d8c49c2a242b51e0ce53f62eba"
+      }
+    },
+    {
+      "national_dex_number": 46,
+      "canonical_name": "Paras",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mushroom Pokémon",
+        "content_md5": "bb0d164e04c55d36d105f50f6692b34e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Sometimes seen at the foot of trees in humid forests. The mushrooms on its back—called tochukaso—are not present on infant specimens and instead emerge as Paras matures.",
+        "content_md5": "d47a0e74a85a034cb09042a727ff4ff5"
+      }
+    },
+    {
+      "national_dex_number": 47,
+      "canonical_name": "Parasect",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mushroom Pokémon",
+        "content_md5": "bb0d164e04c55d36d105f50f6692b34e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Mushroom-lacking specimens of this Pokémon lie unmoving in the forest, lending credence to the hypothesis that the large mushroom is in control of Parasect's actions.",
+        "content_md5": "bda67e6d7ed8a8107d40f684a2bbcdd9"
+      }
+    },
+    {
+      "national_dex_number": 48,
+      "canonical_name": "Venonat",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Insect Pokémon",
+        "content_md5": "49dcd812d9d218a042395a1411643d8c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Its large eyes act as radar. In a bright place, you can see that they are clusters of many tiny eyes.",
+        "content_md5": "2c4cbf11fd30ba50d9dadc204a7483e8"
+      }
+    },
+    {
+      "national_dex_number": 49,
+      "canonical_name": "Venomoth",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Poison Moth Pokémon",
+        "content_md5": "ce95bc62277ad38a9a91e867adcd6bc1"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "The powdery scales on its wings are hard to remove from skin. They also contain poison that leaks out on contact.",
+        "content_md5": "a2b80ee71e7fa17dcfbe4f7938e2357a"
+      }
+    },
+    {
+      "national_dex_number": 50,
+      "canonical_name": "Diglett",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mole Pokémon",
+        "content_md5": "aec36ea7a21dfd564d0707692498a1e1"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It burrows through the ground at a shallow depth. It leaves raised earth in its wake, making it easy to spot.",
+        "content_md5": "1c111d9767bcb8cda0c9d4040066d86a"
+      }
+    },
+    {
+      "national_dex_number": 51,
+      "canonical_name": "Dugtrio",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Mole Pokémon",
+        "content_md5": "aec36ea7a21dfd564d0707692498a1e1"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "These Diglett triplets dig over 60 miles below sea level. No one knows what it’s like underground.",
+        "content_md5": "20a02d152637c2fd8478155d1c1b3608"
+      }
+    },
+    {
+      "national_dex_number": 53,
+      "canonical_name": "Persian",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Classy Cat Pokémon",
+        "content_md5": "52cd1b2015f4cfe7ad4d7a8f9317d737"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Its elegant and refined behavior clashes with that of the barbaric Perrserker. The relationship between the two is one of mutual disdain.",
+        "content_md5": "e04e32de397994e3ca5f37053e35f6d8"
+      }
+    },
+    {
+      "national_dex_number": 55,
+      "canonical_name": "Golduck",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Duck Pokémon",
+        "content_md5": "58b2adba4754e0c3a1d4d318f033d32c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Its body is strong, and it has webbing on its hands and feet. Golduck can swim easily through rough seas, clawing its way through the high waves.",
+        "content_md5": "cc0eb5aad9db75610bac80ccde3bd394"
+      }
+    },
+    {
+      "national_dex_number": 56,
+      "canonical_name": "Mankey",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Pig Monkey Pokémon",
+        "content_md5": "619e4b59a64cb05f164edf49136948ca"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "An agile Pokémon that lives in trees. It angers easily and will not hesitate to attack anything.",
+        "content_md5": "c32bc94eaf8d8050384b7e149eaa4e29"
+      }
+    },
+    {
+      "national_dex_number": 57,
+      "canonical_name": "Primeape",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Pig Monkey Pokémon",
+        "content_md5": "619e4b59a64cb05f164edf49136948ca"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "It stops being angry only when nobody else is around. To view this moment is very difficult.",
+        "content_md5": "ce250721133a67c90acdb370872a1a97"
+      }
+    },
+    {
+      "national_dex_number": 58,
+      "canonical_name": "Growlithe",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Puppy Pokémon",
+        "content_md5": "d7d4100b9b5c7c0999a48d4131f02b06"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "They patrol their territory in pairs. I believe the igneous rock components in the fur of this species are the result of volcanic activity in its habitat.",
+        "content_md5": "fdbdc5bd939a8740efbf451eb5e9c5d9"
+      }
+    },
+    {
+      "national_dex_number": 59,
+      "canonical_name": "Arcanine",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Legendary Pokémon",
+        "content_md5": "334a6a3276a04c1a5b434c498a069a64"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Snaps at its foes with fangs cloaked in blazing flame. Despite its bulk, it deftly feints every which way, leading opponents on a deceptively merry chase as it all but dances around them.",
+        "content_md5": "1773d636e32cf521398cf76bc72acd18"
+      }
+    },
+    {
+      "national_dex_number": 60,
+      "canonical_name": "Poliwag",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Tadpole Pokémon",
+        "content_md5": "1c461f9dbe0c2629e50c1ed0e28f5b58"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "In rivers with fast-flowing water, this Pokémon will cling to a rock by using its thick lips, which act like a suction cup.",
+        "content_md5": "552519171268c249bd879d98db0ed22c"
+      }
+    },
+    {
+      "national_dex_number": 61,
+      "canonical_name": "Poliwhirl",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Tadpole Pokémon",
+        "content_md5": "1c461f9dbe0c2629e50c1ed0e28f5b58"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "This Pokémon’s sweat is a slimy mucus. When captured, Poliwhirl can slither from its enemies’ grasp and escape.",
+        "content_md5": "0a27e98902b627e92b175fa9ca1dccf9"
+      }
+    },
+    {
+      "national_dex_number": 62,
+      "canonical_name": "Poliwrath",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Tadpole Pokémon",
+        "content_md5": "1c461f9dbe0c2629e50c1ed0e28f5b58"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Poliwrath is skilled at both swimming and martial arts. It uses its well-trained arms to dish out powerful punches.",
+        "content_md5": "f3ec3e7fb8052824bea557dde2f6e3a7"
+      }
+    },
+    {
+      "national_dex_number": 63,
+      "canonical_name": "Abra",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Psi Pokémon",
+        "content_md5": "a26614e0a9c0ecd4657c391503975510"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Spends 18 hours of the day sleeping. Even while asleep, Abra can control its psychic powers—should danger approach, the Pokémon will simply teleport away.",
+        "content_md5": "8e937efc98f3b34974e40a2581fbe0ba"
+      }
+    },
+    {
+      "national_dex_number": 64,
+      "canonical_name": "Kadabra",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Psi Pokémon",
+        "content_md5": "a26614e0a9c0ecd4657c391503975510"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "There are rumors that a child with mystical powers became a Kadabra; however, this remains unverified. I suspect that the spoon Kadabra holds enhances its brain waves.",
+        "content_md5": "fb950dcced394c0559f761ee17a6d5a7"
+      }
+    },
+    {
+      "national_dex_number": 65,
+      "canonical_name": "Alakazam",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Psi Pokémon",
+        "content_md5": "a26614e0a9c0ecd4657c391503975510"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "The longer Alakazam lives, the larger and heavier its head becomes. Our tests have shown that the strength of its psychic powers correlates positively to the weight of its head.",
+        "content_md5": "71eae8c28a2b574c7f9eee19db617c8c"
+      }
+    },
+    {
+      "national_dex_number": 66,
+      "canonical_name": "Machop",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Superpower Pokémon",
+        "content_md5": "ac90cd34633d4057503989b121f4a035"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Though as small as a child, it has strength enough to easily throw a well-built adult. Striving to become ever stronger, Machop trains by carrying a Graveler on its shoulders.",
+        "content_md5": "cd576400040859c9cf36ade3a533fac9"
+      }
+    },
+    {
+      "national_dex_number": 67,
+      "canonical_name": "Machoke",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Superpower Pokémon",
+        "content_md5": "ac90cd34633d4057503989b121f4a035"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "A sturdy creature boasting a robust physique and boundless stamina. Loves training above all else and voluntarily assists with tasks such as construction and clearing land.",
+        "content_md5": "66205741f5b425b9676aeab9ae9fa938"
+      }
+    },
+    {
+      "national_dex_number": 68,
+      "canonical_name": "Machamp",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Superpower Pokémon",
+        "content_md5": "ac90cd34633d4057503989b121f4a035"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "In close combat, its four arms afford it offensive and defensive supremacy. In but a blink, this valiant Pokémon can overwhelm its foes with more than 1,000 blows from its fists.",
+        "content_md5": "c52eaaf228f4b911486fffd4fc1d69c6"
+      }
+    },
+    {
+      "national_dex_number": 69,
+      "canonical_name": "Bellsprout",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Flower Pokémon",
+        "content_md5": "465b46c8f0e5030f8e0952e0e8c2fe55"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Prefers hot and humid places. It ensnares tiny bugs with its vines and devours them.",
+        "content_md5": "f6a0ff669e32bc4609f7c9c1a62ed8af"
+      }
+    },
+    {
+      "national_dex_number": 70,
+      "canonical_name": "Weepinbell",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Flycatcher Pokémon",
+        "content_md5": "9bbae18b4c1d57d79ef0f8ded2a7ec22"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "When hungry, it swallows anything that moves. Its hapless prey is dissolved by strong acids.",
+        "content_md5": "90defff49bec89a41d06e335c63a4eac"
+      }
+    },
+    {
+      "national_dex_number": 71,
+      "canonical_name": "Victreebel",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Flycatcher Pokémon",
+        "content_md5": "9bbae18b4c1d57d79ef0f8ded2a7ec22"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Lures prey with the sweet aroma of honey. Swallowed whole, the prey is dissolved in a day, bones and all.",
+        "content_md5": "66b0880b63b06d753f1bb58d40516e9b"
+      }
+    },
+    {
+      "national_dex_number": 72,
+      "canonical_name": "Tentacool",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Jellyfish Pokémon",
+        "content_md5": "97ccd513b0b7dc0c65bf1fbf14170edb"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "They fire beams from the glassy, magenta orbs that resemble eyes atop their heads, and they drift in shallow seas. During low tide, they can sometimes be found on beaches, desiccated.",
+        "content_md5": "d3485d86ec7797f21d5ac52008589f5e"
+      }
+    },
+    {
+      "national_dex_number": 73,
+      "canonical_name": "Tentacruel",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Jellyfish Pokémon",
+        "content_md5": "97ccd513b0b7dc0c65bf1fbf14170edb"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "It has 80 tentacles, each with a venomous tip. These tentacles are also extendible, lengthening when Tentacruel attempts to catch prey. Use caution.",
+        "content_md5": "508652c995d5cc3f7c367feec5239498"
+      }
+    },
+    {
+      "national_dex_number": 74,
+      "canonical_name": "Geodude",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Rock Pokémon",
+        "content_md5": "d8aad6a4c0c7e8c20481a7bcddcbd52d"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Makes its home in mountainous regions, using its arms to climb along harsh mountain roads. Can be troublesome—carelessly kicking one will cause it to fly into a rage and chase after you.",
+        "content_md5": "5f9aed5ed3b05a0830491c87c99e2431"
+      }
+    },
+    {
+      "national_dex_number": 75,
+      "canonical_name": "Graveler",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Rock Pokémon",
+        "content_md5": "d8aad6a4c0c7e8c20481a7bcddcbd52d"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Dwells in holes dug into sheer walls of stone. It enjoys rolling down slopes as though it were a boulder during a rockfall, so keep an eye upward while traversing mountain roads.",
+        "content_md5": "1b4b3a026d537183ff4575bd56ed16e3"
+      }
+    },
+    {
+      "national_dex_number": 76,
+      "canonical_name": "Golem",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Megaton Pokémon",
+        "content_md5": "77ce3de38bd464673ec8133fd465a857"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "The rocklike shell is shed each year. The cast-off shell then crumbles, reverting to a mass of soil, which can be spread across fields to promote crop growth.",
+        "content_md5": "8b4ecfaf9883c466bc7112ce6d9384d5"
+      }
+    },
+    {
+      "national_dex_number": 77,
+      "canonical_name": "Ponyta",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Fire Horse Pokémon",
+        "content_md5": "12cbdae5eac1e56283a1fb005874a072"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "These Pokémon live in herds out in the grassland. Newborn foals lack their fiery manes, which will develop about an hour after birth.",
+        "content_md5": "58c7c8d90ab1d2e1ad363b8481002c4e"
+      }
+    },
+    {
+      "national_dex_number": 78,
+      "canonical_name": "Rapidash",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Fire Horse Pokémon",
+        "content_md5": "12cbdae5eac1e56283a1fb005874a072"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Fiery mane aglow, Rapidash darts like an arrow across the land. This prodigiously swift creature can traverse the vast region of Hisui in a day and a half.",
+        "content_md5": "a8ad629c05f5011a48f23e9eb5a968c1"
+      }
+    },
+    {
+      "national_dex_number": 79,
+      "canonical_name": "Slowpoke",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Dopey Pokémon",
+        "content_md5": "9044ed954765c5ce769121fe02415f85"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "When this Pokémon’s tail is soaked in water, sweetness seeps from it. Slowpoke uses this trait to lure in and fish up other Pokémon.",
+        "content_md5": "6c2201c32bcaaac68f31caf3f7f57f2b"
+      }
+    },
+    {
+      "national_dex_number": 80,
+      "canonical_name": "Slowbro",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Hermit Crab Pokémon",
+        "content_md5": "87f44f816653688c3c503d6a86836663"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Being bitten by a Shellder shocked this Pokémon into standing on two legs. If the Shellder lets go, it seems Slowbro will turn back into a Slowpoke.",
+        "content_md5": "dea4136c039aafb9552653fd56a2d5b9"
+      }
+    },
+    {
+      "national_dex_number": 81,
+      "canonical_name": "Magnemite",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Magnet Pokémon",
+        "content_md5": "13cb17820bcbf6d81f2c83e1638c9c5e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "A bizarre Pokémon with but a single eye embedded in an iron sphere. I suspect this creature levitates due to the magnetism it emits from its arms, which resemble horseshoe-shaped magnets.",
+        "content_md5": "bae880d9dcfabe192473988771253a06"
+      }
+    },
+    {
+      "national_dex_number": 82,
+      "canonical_name": "Magneton",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Magnet Pokémon",
+        "content_md5": "13cb17820bcbf6d81f2c83e1638c9c5e"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Three Magnemite gathered to evolve into this Pokémon. The source of much vexation on my part, as its powerful magnetism destroys my research equipment.",
+        "content_md5": "b26e1a545d1f4480b4d6bae7dccb5822"
+      }
+    },
+    {
+      "national_dex_number": 83,
+      "canonical_name": "Farfetch’d",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Wild Duck Pokémon",
+        "content_md5": "56389a3b187aec3bcc8bbb7a51145df5"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "They use a plant stalk as a weapon, but not all of them use it in the same way. Several distinct styles of stalk fighting have been observed.",
+        "content_md5": "99fb4943cfffcc0fa470c5f9037cfdf8"
+      }
+    },
+    {
+      "national_dex_number": 84,
+      "canonical_name": "Doduo",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Twin Bird Pokémon",
+        "content_md5": "ec6988e6ad2631d0957869ac79db77e6"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Its short wings make flying difficult. Instead, this Pokémon runs at high speed on developed legs.",
+        "content_md5": "97ceced3a21fbbe057669640a70788b4"
+      }
+    },
+    {
+      "national_dex_number": 85,
+      "canonical_name": "Dodrio",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Triple Bird Pokémon",
+        "content_md5": "1c72aaf831ba6a237d0b030b9c316f27"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "One of Doduo’s two heads splits to form a unique species. It runs close to 40 mph in prairies.",
+        "content_md5": "b367c15c22bd949d2f4172e1160081aa"
+      }
+    },
+    {
+      "national_dex_number": 86,
+      "canonical_name": "Seel",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Sea Lion Pokémon",
+        "content_md5": "2fa94d0862f90babdb7819bd0035ffc9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Loves freezing-cold conditions. Relishes swimming in a frigid climate of around 14 degrees Fahrenheit.",
+        "content_md5": "16d5a755dc6227a983fd5b9e485a635a"
+      }
+    },
+    {
+      "national_dex_number": 87,
+      "canonical_name": "Dewgong",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Sea Lion Pokémon",
+        "content_md5": "2fa94d0862f90babdb7819bd0035ffc9"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Its entire body is a snowy white. Unharmed by even intense cold, it swims powerfully in icy waters.",
+        "content_md5": "8fea5d20427c154145fc029819533e52"
+      }
+    },
+    {
+      "national_dex_number": 88,
+      "canonical_name": "Grimer",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Sludge Pokémon",
+        "content_md5": "72a10d92c519fa88300e8ea0f72d29a5"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Made of congealed sludge. It smells too putrid to touch. Even weeds won’t grow in its path.",
+        "content_md5": "a341f1e9d5f93bb1d7c781d42e1d2e02"
+      }
+    },
+    {
+      "national_dex_number": 89,
+      "canonical_name": "Muk",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Sludge Pokémon",
+        "content_md5": "72a10d92c519fa88300e8ea0f72d29a5"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Smells so awful, it can cause fainting. Through degeneration of its nose, it lost its sense of smell.",
+        "content_md5": "5dea37ab8b2d0f295f32c079b96dab4f"
+      }
+    },
+    {
+      "national_dex_number": 90,
+      "canonical_name": "Shellder",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Bivalve Pokémon",
+        "content_md5": "4adf23d17abe64dd97e3ba4929c36e39"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Its hard shell repels any kind of attack. It is vulnerable only when its shell is open.",
+        "content_md5": "39088f4090bcc6530f3b1219abef8bfd"
+      }
+    },
+    {
+      "national_dex_number": 91,
+      "canonical_name": "Cloyster",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Bivalve Pokémon",
+        "content_md5": "4adf23d17abe64dd97e3ba4929c36e39"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Once it slams its shell shut, it is impossible to open, even by those with superior strength.",
+        "content_md5": "52cc01bdb5293fbd1e43913bb70bed65"
+      }
+    },
+    {
+      "national_dex_number": 92,
+      "canonical_name": "Gastly",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Gas Pokémon",
+        "content_md5": "b626c34fc4226c5234428d050b58578a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Gaseous and completely impalpable. Also highly dangerous— inhaling part of its poisonous body will cause one to faint instantly.",
+        "content_md5": "10bd73ea5c5d6fd640dd9e636ede2175"
+      }
+    },
+    {
+      "national_dex_number": 93,
+      "canonical_name": "Haunter",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Gas Pokémon",
+        "content_md5": "b626c34fc4226c5234428d050b58578a"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "This frightful, malevolent spirit can glide through walls, appearing wherever it likes. According to rumor, victims of a Haunter's lick will wither to death day by day.",
+        "content_md5": "0c084fc0b1a62e017b59d3e14491feae"
+      }
+    },
+    {
+      "national_dex_number": 95,
+      "canonical_name": "Onix",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Rock Snake Pokémon",
+        "content_md5": "90b64b203cf98f2904d7f33bdadc0404"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "This chain of immense stones resembles a giant serpent. Tremors shake the earth above as it burrows deep beneath the ground, feeding on boulders as it goes.",
+        "content_md5": "5de0aed7879207fbf1c7100ea301c6f9"
+      }
+    },
+    {
+      "national_dex_number": 96,
+      "canonical_name": "Drowzee",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Hypnosis Pokémon",
+        "content_md5": "364839aa5401db8953887448e7162f5c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "If you sleep by it all the time, it will sometimes show you dreams it had eaten in the past.",
+        "content_md5": "b3e9968fe4ee03ed3345cabdc6c12049"
+      }
+    },
+    {
+      "national_dex_number": 97,
+      "canonical_name": "Hypno",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Hypnosis Pokémon",
+        "content_md5": "364839aa5401db8953887448e7162f5c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "lets-go-eevee",
+        "content": "Avoid eye contact if you come across one. It will try to put you to sleep by using its pendulum.",
+        "content_md5": "ced79ad623281cdefed5b0232dd5c731"
+      }
+    },
+    {
+      "national_dex_number": 98,
+      "canonical_name": "Krabby",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "River Crab Pokémon",
+        "content_md5": "b898accfe624bca078d43f9d34ed1112"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "If it senses danger approaching, it cloaks itself with bubbles from its mouth so it will look bigger.",
+        "content_md5": "e71dee1ac3225413ab6a12a4a6d727f5"
+      }
+    },
+    {
+      "national_dex_number": 99,
+      "canonical_name": "Kingler",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Pincer Pokémon",
+        "content_md5": "b8d41293761b3d8afc37ad2d01ba5b91"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Its oversized claw is very powerful, but when it’s not in battle, the claw just gets in the way.",
+        "content_md5": "7ddc337edd8f8b282d07e7f6a0128a58"
+      }
+    },
+    {
+      "national_dex_number": 100,
+      "canonical_name": "Voltorb",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ball Pokémon",
+        "content_md5": "16ee349da960019106e384b6b9aee229"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "An enigmatic Pokémon that happens to bear a resemblance to a Poké Ball. When excited, it discharges the electric current it has stored in its belly, then lets out a great, uproarious laugh.",
+        "content_md5": "fe8970100fd5ed4b30107670de12ae91"
+      }
+    },
+    {
+      "national_dex_number": 101,
+      "canonical_name": "Electrode",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Ball Pokémon",
+        "content_md5": "16ee349da960019106e384b6b9aee229"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "The tissue on the surface of its body is curiously similar in composition to an Apricorn. When irritated, this Pokémon lets loose an electric current equal to 20 lightning bolts.",
+        "content_md5": "523c0b5dff5c4a95f83bfd27f62cb3a6"
+      }
+    },
+    {
+      "national_dex_number": 102,
+      "canonical_name": "Exeggcute",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Egg Pokémon",
+        "content_md5": "5c0011bdb6e97621c9d1c61eacec955f"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "These Pokémon get nervous when they’re not in a group of six. The minute even one member of the group goes missing, Exeggcute become cowardly.",
+        "content_md5": "5b23059f98e3450e2615604c496fa959"
+      }
+    },
+    {
+      "national_dex_number": 103,
+      "canonical_name": "Exeggutor",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Coconut Pokémon",
+        "content_md5": "86faca3a66150bca2ca82ba61835c0b7"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "When they work together, Exeggutor’s three heads can put out powerful psychic energy. Cloudy days make this Pokémon sluggish.",
+        "content_md5": "727f30830d2e98606552a8054de28b9b"
+      }
+    },
+    {
+      "national_dex_number": 104,
+      "canonical_name": "Cubone",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Lonely Pokémon",
+        "content_md5": "c508aa5ce320585bb4c3a99e6aba4c8c"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "This Pokémon wears the skull of its deceased mother. Sometimes Cubone’s dreams make it cry, but each tear Cubone sheds makes it stronger.",
+        "content_md5": "c639bf96687432fa5aecde08aff81ccb"
+      }
+    },
+    {
+      "national_dex_number": 105,
+      "canonical_name": "Marowak",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Bone Keeper Pokémon",
+        "content_md5": "4e73601ef77996dc6a6e5230a8fae316"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "When this Pokémon evolved, the skull of its mother fused to it. Marowak’s temperament also turned vicious at the same time.",
+        "content_md5": "35e3b36e44c33ad57d68ad54a410493b"
+      }
+    },
+    {
+      "national_dex_number": 106,
+      "canonical_name": "Hitmonlee",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Kicking Pokémon",
+        "content_md5": "026732494d56a34d101c291f92ed2973"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "The legs freely contract and stretch. The stretchy legs allow it to hit a distant foe with a rising kick.",
+        "content_md5": "3395116bde6304ce7ba68ccc659e6683"
+      }
+    },
+    {
+      "national_dex_number": 107,
+      "canonical_name": "Hitmonchan",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Punching Pokémon",
+        "content_md5": "f280bb7a6f76a988ab3cef87a6d1effa"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "Its punches slice the air. However, it seems to need a short break after fighting for three minutes.",
+        "content_md5": "24ae93a8e7814b1f2809c25ccbd6016a"
+      }
+    },
+    {
+      "national_dex_number": 108,
+      "canonical_name": "Lickitung",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Licking Pokémon",
+        "content_md5": "aa8307c900028fccf46c56593a36b7f7"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "legends-arceus",
+        "content": "Wields its long tongue deftly, as though it were an arm. The Pokémon's viscous saliva, once it has been collected and boiled down, yields a strong and highly useful adhesive.",
+        "content_md5": "2116004ce12865cf3aa663cfe2a59d41"
+      }
+    },
+    {
+      "national_dex_number": 109,
+      "canonical_name": "Koffing",
+      "genus": {
+        "text_kind": "GENUS",
+        "language_code": "en",
+        "source_version": null,
+        "content": "Poison Gas Pokémon",
+        "content_md5": "43c5049fcd8d347492e70cc3d7fe9cea"
+      },
+      "flavor": {
+        "text_kind": "FLAVOR",
+        "language_code": "en",
+        "source_version": "shield",
+        "content": "It adores polluted air. Some claim that Koffing used to be more plentiful in the Galar region than they are now.",
+        "content_md5": "5b83d00357e7424bcbad67d05f073749"
+      }
+    }
+  ]
+}

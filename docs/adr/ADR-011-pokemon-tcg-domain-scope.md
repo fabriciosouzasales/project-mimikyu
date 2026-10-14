@@ -118,6 +118,30 @@ Consequências:
 
 ---
 
+# Atualização — Operação Editorial pt-BR em Paralelo (v1.5, 2026-10-13)
+
+Decisão do responsável pelo MMKYU, após a publicação e homologação da P3e — Lote 01 (commit `54da0a2`; 60 espécies com conteúdo `MMKYU_EDITORIAL` pt-BR) e a extração do pacote factual das 965 espécies restantes (`database/proposals/2026-10-13-pokedex-editorial-factual-pack/`, fingerprint global `f5669eba65c187755d96cea226bb1517`). A produção editorial da Pokédex passa a correr **em paralelo** ao desenvolvimento funcional, em duas frentes:
+
+| Frente | Prioridade | Responsáveis | Escopo |
+|---|---|---|---|
+| **A — Produto e funcionalidades** | Principal | Claude implementa; ChatGPT principal faz consultoria, definição de produto e auditoria; o responsável pelo MMKYU aprova | Exploração por geração, pesquisa avançada, Pokémon Favoritos e evoluções futuras da experiência da Pokédex |
+| **B — Operação editorial pt-BR** | Paralela | Um chat ChatGPT dedicado produz e revisa; o Claude faz integração técnica, validação independente e preparação da publicação quando houver entrega e autorização | Classificações e descrições das 965 espécies restantes, em lotes de ~100, seguindo o guia editorial v0.2 e o glossário aprovados; revisão editorial, identificação de exceções e entrega em JSON estruturado |
+
+Regras de governança:
+
+1. Os 60 textos editoriais publicados não são modificados, e os lotes P3d e P3e não são reabertos.
+2. A Frente A não produz descrições editoriais.
+3. Nenhum lote novo é iniciado por iniciativa própria do Claude; cada lote começa pela entrega da Frente B.
+4. Nenhuma publicação editorial no LIVE sem autorização explícita, mantido o rito ensaio com rollback → publicação → validação → homologação já usado na P3d/P3e.
+5. Rastreabilidade e proveniência preservadas: cada texto continua identificado como conteúdo MMKYU (`origin = MMKYU_EDITORIAL`), nunca como oficial, e cada entrada do lote carrega o `md5` do texto de origem (`source_basis`), conferido pelo validador `scripts/editorial/validate-editorial-lot.ts` antes de qualquer aprovação.
+6. O chat editorial não altera o repositório nem executa SQL; entrega arquivos ao responsável pelo MMKYU, que os encaminha para integração.
+7. As frentes não editam os mesmos arquivos ao mesmo tempo: a Frente B fica restrita à pasta do próprio lote em `database/proposals/` e às respectivas Queries de publicação; a Frente A não toca nessas pastas nem em `scripts/editorial/`.
+8. O desenvolvimento funcional não espera o fim da produção editorial: toda tela da Pokédex continua funcionando para espécies sem texto pt-BR (texto de origem em inglês, já identificado como tal na ficha).
+
+Sem alteração de schema, funções ou dados nesta atualização. Texto de v1.0–v1.4 preservado inalterado.
+
+---
+
 # Alternatives Considered
 
 ## Modelar o domínio completo da franquia Pokémon
@@ -150,3 +174,4 @@ Rejeitada por impedir relacionar todas as Cards que representam o mesmo Pokémon
 | 1.2 | **Revogação do adiamento da entidade Pokémon, 2026-09-03** (`COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`). Adicionada "Atualização — Revogação do Adiamento da Entidade Pokémon / Registro de Pokémon Species (v1.2)": a condição que v1.1 estabelecia para reverter o adiamento ("necessidade concreta de identificação/pesquisa/agrupamento") se confirmou com a frente Collections Pokédex/`REFERENCE_POSITION` (ver `docs/domain-modeling/collections/logical-model.md`, LDM-175 a LDM-185). Entidade renomeada para **Pokémon Species** (convergência com PokéAPI), com **Generation** e **Pokémon Form/Variety** registrados como conceitos subordinados. Sourcing formalizado: PokéAPI (Species/Generation/Form/Pokédex) + TCGdex (Card/`dexId`, já integrada) + reconciliação editorial MMKYU, sem dependência de runtime (consistente com ADR-008). O adiamento de mecânica de jogo (AP-017) **não é afetado** — permanece integralmente em vigor. Texto de v1.0/v1.1 preservado inalterado. Nenhuma estrutura física criada nesta rodada. |
 | 1.3 | **Pokémon Region como entidade canônica própria, 2026-09-04** (`POKEMON-REGION-DOMAIN-MODELING-AUDIT-01` → `POKEMON-REGION-FOUNDATION-PHYSICAL-IMPLEMENTATION-01`/`-CANONICAL-PROMOTION-01`). Adicionada "Atualização — Pokémon Region (v1.3)": Region confirmada como entidade-raiz de catálogo independente de Generation (existem Regiões sem Main Generation — Orre, Hisui), cardinalidade Generation → Main Region é N:1. Fundação física (`pokemon_region`/`pokemon_region_external_reference`/`pokemon_generation.main_region_id`) **CONFIRMADO EXECUTADO**, sourcing real ainda SUSPENSO. Locations/Areas/Version Groups permanecem fora de escopo. Detalhamento lógico em `logical-model.md`, LDM-186 a LDM-190. Texto de v1.0/v1.1/v1.2 preservado inalterado. |
 | 1.4 | **Dados de referência da Pokédex, 2026-10-12** (Pokédex P3a, decisão D1). Adicionada "Atualização — Dados de Referência da Pokédex (v1.4)": AP-017 preservado para o Catálogo Pokémon TCG; a Pokédex pode estruturar classificação, descrição, lendário/mítico/bebê, tipos, altura e peso da forma padrão e o vocabulário dos 18 tipos. Primeira estrutura física de Pokémon Form (`pokemon_form`, só forma padrão). Habilidades, estatísticas, golpes, evoluções e formas alternativas continuam fora. Texto de v1.0–v1.3 preservado. |
+| 1.5 | **Operação editorial pt-BR em paralelo, 2026-10-13** (decisão do responsável pelo MMKYU). Adicionada "Atualização — Operação Editorial pt-BR em Paralelo (v1.5)": Frente A (produto e funcionalidades, prioridade principal) e Frente B (produção editorial das 965 espécies restantes por chat ChatGPT dedicado, lotes de ~100, guia v0.2 e glossário), com responsabilidades e oito regras de governança (60 textos publicados e lotes P3d/P3e intocados, publicação só com autorização, proveniência por `md5` de origem, sem edição simultânea dos mesmos arquivos, funcional não espera o editorial). Sem alteração física. Texto de v1.0–v1.4 preservado. |

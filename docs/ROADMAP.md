@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.24 |
+| **Versão** | 2.25 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -22,6 +22,14 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 ---
 
 # Now — Em Andamento
+
+> # POKÉDEX — DUAS FRENTES EM PARALELO (2026-10-13)
+>
+> Decisão do responsável pelo MMKYU, registrada em `adr/ADR-011-pokemon-tcg-domain-scope.md` v1.5.
+>
+> - **Frente A — Produto e funcionalidades (prioridade principal):** exploração por geração → pesquisa avançada → Pokémon Favoritos → evoluções da experiência. Próximo passo: **P4 — Exploração por Geração**, planejamento em `database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md`, aguardando aprovação.
+> - **Frente B — Operação editorial pt-BR (paralela):** 965 espécies restantes em lotes de ~100, produzidas e revisadas por chat ChatGPT dedicado a partir do pacote factual (`database/proposals/2026-10-13-pokedex-editorial-factual-pack/`, ENCERRADO). Integração, validação e publicação pelo Claude só com entrega e autorização.
+> - Estado: P1–P3c homologadas; P3d (piloto, 10) e P3e (Lote 01, 50) publicadas = 60 espécies com editorial pt-BR (commit `54da0a2`). A Frente A não espera a Frente B.
 
 > # ESTADO CORRENTE — 2026-10-09 (`NEEDS-REVIEW-LINT-01`)
 >
@@ -702,3 +710,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.22 | **CATALOG-VARIANT-DEFAULT-BACKFILL-01 concluído (2026-10-11).** Migration `2258`: regra da variante padrão (acabamento > Edition Context > Printing; reverse só quando única; empate fica sem padrão — decisões de Fabrício), 20.227 padrões atribuídos, 13 cartas em decisão editorial; 05b revisão 1.9. Próximo: Pricing 80 (remedir 1.811 produtos sem variante). |
 | 2.23 | **Pricing 80 fechado para o gate (2026-10-11).** Remedição: 2.342 produtos sem variante. Query `3986` (decisão de Fabrício: "As três"): família reverse, família holo e impressão única (`UNIQUE_SINGLE_PRINTING`) → 1.626 produtos ligados, carta errada 0; 99,5% dos produtos ligados. Fila residual de 716 documentada por grupo, não bloqueia (decisão de Fabrício). Próximo: gate final de Card Variants. |
 | 2.24 | **Gate final de Card Variants — CARD VARIANTS CLOSED (2026-10-11), decisão de Fabrício.** Auditoria LIVE: 21.166 cartas ativas, 37.851 variantes, 0 sem variante, 0 identidade duplicada, 0 com dois padrões, 0 inconsistência de Game, 0 vínculo de preço na carta errada, nenhum job de importação aberto. Migration `2259`: trigger de variante padrão para cargas futuras (regra única do 2258). Pendências não bloqueantes consolidadas em "Débitos Técnicos Registrados". Próximo: Collections — BULK-04. |
+| 2.25 | **Pokédex em duas frentes (2026-10-13).** Bloco novo no topo de "Now": Frente A (produto, prioridade principal; próximo passo P4 — Exploração por Geração, em planejamento) e Frente B (operação editorial pt-BR paralela das 965 espécies restantes). Decisão e regras em `ADR-011` v1.5; pacote factual encerrado. Sem alteração de código ou banco. |

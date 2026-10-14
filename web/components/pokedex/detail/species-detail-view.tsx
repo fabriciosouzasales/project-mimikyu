@@ -15,9 +15,12 @@ import {
   type PokedexContext,
   formatDexNumber,
   formatMeasure,
+  generationLabel,
+  generationRoman,
   nationalPokedexHref,
   speciesDetailHref,
 } from "@/lib/pokedex/format";
+import type { GenerationTransition } from "@/lib/pokedex/navigation";
 import { pokemonTypeStyle } from "@/lib/pokedex/type-palette";
 import styles from "./species-detail.module.css";
 
@@ -42,6 +45,7 @@ export function SpeciesDetailView({
   hero,
   previous,
   next,
+  nextGeneration = null,
   total,
   context,
 }: {
@@ -51,6 +55,11 @@ export function SpeciesDetailView({
   hero: SpeciesHeroArtwork | null;
   previous: SpeciesNeighbor | null;
   next: SpeciesNeighbor | null;
+  /**
+   * Pokédex P4a: na última espécie de uma geração filtrada, a transição explícita
+   * para a próxima geração (no lugar do "próximo"). Sempre `null` no contexto nacional.
+   */
+  nextGeneration?: GenerationTransition | null;
   total: number | null;
   context: PokedexContext;
 }) {
@@ -67,6 +76,21 @@ export function SpeciesDetailView({
   const prevHref = previous ? speciesDetailHref(previous.national_dex_number, context) : null;
   const nextHref = next ? speciesDetailHref(next.national_dex_number, context) : null;
   const backHref = nationalPokedexHref(context, species.national_dex_number);
+  // Pokédex P4a: com geração filtrada, o "voltar" leva à geração (onde a espécie
+  // está) e um segundo link sai para a Pokédex Nacional, mantendo a pesquisa.
+  const filtered = context.generation !== null;
+  const nationalHref = nationalPokedexHref({ query: context.query, generation: null }, species.national_dex_number);
+  const generationName = species.region_name ?? generationLabel(species.generation_code);
+  // Link "explorar esta geração" a partir da ficha: só a geração, sem a pesquisa,
+  // para que a âncora da espécie exista sempre na grade de destino.
+  const generationHref = nationalPokedexHref({ query: null, generation: species.generation_ordinal }, species.national_dex_number);
+  const nextGenerationHref = nextGeneration
+    ? speciesDetailHref(nextGeneration.first.national_dex_number, nextGeneration.context)
+    : null;
+  // Na geração filtrada, os extremos são sinalizados (sem link) para não parecer
+  // que a navegação "sumiu": início da geração e, na última geração, o fim.
+  const startMarker = filtered && !previous ? `Início · ${generationName}` : null;
+  const endMarker = filtered && !next && !nextGeneration ? `Fim · ${generationName}` : null;
 
   const flags = [
     species.is_legendary ? "Lendário" : null,
@@ -86,10 +110,28 @@ export function SpeciesDetailView({
       <SpeciesKeyboardNav prevHref={prevHref} nextHref={nextHref} />
 
       <div className={styles.topbar}>
-        <Link href={backHref} className={styles.back}>
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          Pokédex Nacional
-        </Link>
+        {filtered ? (
+          <nav aria-label="Voltar para a Pokédex" className={styles.trail}>
+            <Link href={nationalHref} className={styles.back}>
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Pokédex </span>Nacional
+            </Link>
+            <span className={styles.trailSeparator} aria-hidden="true">
+              /
+            </span>
+            <Link href={backHref} className={cn(styles.back, styles.trailCurrent)} aria-label={`Voltar para ${generationLabel(species.generation_code)}, ${generationName}`}>
+              <span className={styles.trailRoman} aria-hidden="true">
+                {generationRoman(species.generation_code)}
+              </span>
+              {generationName}
+            </Link>
+          </nav>
+        ) : (
+          <Link href={backHref} className={styles.back}>
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            Pokédex Nacional
+          </Link>
+        )}
         <div className={styles.position}>
           <span className="hidden items-center gap-1 sm:inline-flex" aria-hidden="true">
             <span className={styles.kbd}>←</span>
@@ -102,6 +144,8 @@ export function SpeciesDetailView({
       <div className={styles.heroRow}>
         {previous && prevHref ? (
           <NeighborLink neighbor={previous} href={prevHref} direction="previous" className={cn(styles.neighborDesktop, styles.neighborPrev)} />
+        ) : startMarker ? (
+          <EdgeMarker label={startMarker} className={cn(styles.neighborDesktop, styles.neighborPrev)} />
         ) : (
           <span aria-hidden="true" />
         )}
@@ -146,6 +190,10 @@ export function SpeciesDetailView({
 
         {next && nextHref ? (
           <NeighborLink neighbor={next} href={nextHref} direction="next" className={cn(styles.neighborDesktop, styles.neighborNext)} />
+        ) : nextGeneration && nextGenerationHref ? (
+          <GenerationTransitionLink transition={nextGeneration} href={nextGenerationHref} className={cn(styles.neighborDesktop, styles.neighborNext)} />
+        ) : endMarker ? (
+          <EdgeMarker label={endMarker} className={cn(styles.neighborDesktop, styles.neighborNext)} />
         ) : (
           <span aria-hidden="true" />
         )}
@@ -155,10 +203,10 @@ export function SpeciesDetailView({
         <p className={styles.meta}>
           <span>Nº {number}</span>
           <span className={styles.metaDot} aria-hidden="true" />
-          <span>
+          <Link href={generationHref} className={styles.metaLink} aria-label={`Explorar a ${generation}ª geração${species.region_name ? `, ${species.region_name}` : ""}`}>
             {species.region_name ? `${species.region_name}, ` : ""}
             {generation}ª geração
-          </span>
+          </Link>
           {flags.map((flag) => (
             <span key={flag} className={styles.flag}>
               {flag}
@@ -224,8 +272,20 @@ export function SpeciesDetailView({
         ) : null}
 
         <div className={styles.neighborMobileRow}>
-          {previous && prevHref ? <NeighborLink neighbor={previous} href={prevHref} direction="previous" /> : <span aria-hidden="true" />}
-          {next && nextHref ? <NeighborLink neighbor={next} href={nextHref} direction="next" className={styles.neighborNext} /> : null}
+          {previous && prevHref ? (
+            <NeighborLink neighbor={previous} href={prevHref} direction="previous" />
+          ) : startMarker ? (
+            <EdgeMarker label={startMarker} />
+          ) : (
+            <span aria-hidden="true" />
+          )}
+          {next && nextHref ? (
+            <NeighborLink neighbor={next} href={nextHref} direction="next" className={styles.neighborNext} />
+          ) : nextGeneration && nextGenerationHref ? (
+            <GenerationTransitionLink transition={nextGeneration} href={nextGenerationHref} className={styles.neighborNext} />
+          ) : endMarker ? (
+            <EdgeMarker label={endMarker} className={styles.neighborNext} />
+          ) : null}
         </div>
 
         <p className={styles.credit}>Arte e textos © Nintendo, Creatures, GAME FREAK, The Pokémon Company.</p>
@@ -282,4 +342,45 @@ function NeighborLink({
       {direction === "next" ? round : null}
     </Link>
   );
+}
+
+/**
+ * Transição explícita para a próxima geração (Pokédex P4a). Ocupa o lugar do
+ * "próximo" na última espécie de uma geração filtrada: mesma forma do vizinho,
+ * mas o círculo mostra o numeral romano da geração (nenhuma imagem nova) e o
+ * texto diz para onde vai. Abre a primeira espécie da geração seguinte já com o
+ * contexto (`?geracao=`) atualizado.
+ */
+function GenerationTransitionLink({
+  transition,
+  href,
+  className,
+}: {
+  transition: GenerationTransition;
+  href: string;
+  className?: string;
+}) {
+  const label = generationLabel(transition.generationCode);
+  const name = transition.regionName ? `${label} · ${transition.regionName}` : label;
+  const first = transition.first;
+  return (
+    <Link
+      href={href}
+      aria-label={`Explorar a próxima geração: ${label}${transition.regionName ? `, ${transition.regionName}` : ""}, a partir do Nº ${formatDexNumber(first.national_dex_number)}, ${first.species_name}`}
+      className={cn(styles.neighbor, styles.transition, className)}
+    >
+      <span className={styles.neighborText}>
+        <small>Próxima geração →</small>
+        <strong>{name}</strong>
+      </span>
+      <span className={cn(styles.neighborRound, styles.transitionRound)} aria-hidden="true">
+        {generationRoman(transition.generationCode)}
+      </span>
+    </Link>
+  );
+}
+
+/** Extremo da geração filtrada — texto discreto, sem link (Pokédex P4a). */
+function EdgeMarker({ label, className }: { label: string; className?: string }) {
+  return <span className={cn(styles.edgeMarker, className)}>{label}</span>;
 }

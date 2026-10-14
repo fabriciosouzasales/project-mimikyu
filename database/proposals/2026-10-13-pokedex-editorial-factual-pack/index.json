@@ -1,0 +1,207 @@
+{
+  "pack": "pokedex-editorial-factual-pack",
+  "generated_at": "2026-10-13",
+  "scope": "Espécies sem conteúdo editorial pt-BR publicado (MMKYU_EDITORIAL) no LIVE",
+  "species_total_live": 1025,
+  "species_with_editorial_ptbr": 60,
+  "species_in_pack": 965,
+  "excluded_published_national_dex": [
+    1,
+    4,
+    6,
+    7,
+    25,
+    39,
+    52,
+    54,
+    94,
+    133,
+    143,
+    150,
+    151,
+    155,
+    175,
+    197,
+    201,
+    212,
+    248,
+    249,
+    257,
+    282,
+    359,
+    382,
+    384,
+    385,
+    393,
+    405,
+    445,
+    448,
+    483,
+    491,
+    493,
+    494,
+    495,
+    530,
+    609,
+    643,
+    649,
+    658,
+    681,
+    700,
+    701,
+    716,
+    721,
+    722,
+    745,
+    778,
+    791,
+    823,
+    873,
+    887,
+    888,
+    905,
+    906,
+    908,
+    959,
+    998,
+    1000,
+    1025
+  ],
+  "fields": {
+    "national_dex_number": "pokemon_species.national_dex_number",
+    "canonical_name": "pokemon_species.canonical_name",
+    "genus / flavor": "pokemon_species_text (text_kind GENUS / FLAVOR, origin SOURCE): language_code, source_version, content (verbatim); content_md5 = md5(content) calculado igual ao md5() do Postgres"
+  },
+  "live_global_fingerprint_md5": "f5669eba65c187755d96cea226bb1517",
+  "fingerprint_formula": "md5(string_agg(n||'|'||canonical_name||'|'||md5(genus)||'|'||md5(flavor)||'|'||flavor.source_version, E'\\n' order by n))",
+  "files": [
+    {
+      "file": "pokedex-source-texts-en-01-0002-0109.json",
+      "part": 1,
+      "national_dex_first": 2,
+      "national_dex_last": 109,
+      "species_count": 100,
+      "live_fingerprint_md5": "732a7dcea493d2e2c1ca3ed8aee13c13",
+      "sha256": "7b25f8d9ec4676552917bb518c22456210858b811a2a9a82bf9750ff79dde125"
+    },
+    {
+      "file": "pokedex-source-texts-en-02-0110-0218.json",
+      "part": 2,
+      "national_dex_first": 110,
+      "national_dex_last": 218,
+      "species_count": 100,
+      "live_fingerprint_md5": "87effc83d827a755ae0aa0980b620e35",
+      "sha256": "eaff675de8166a19c13e24cab5effc878b698fce7c47f34c5295228a1def80fa"
+    },
+    {
+      "file": "pokedex-source-texts-en-03-0219-0322.json",
+      "part": 3,
+      "national_dex_first": 219,
+      "national_dex_last": 322,
+      "species_count": 100,
+      "live_fingerprint_md5": "7d11fb4469b3c99774e6393cc48f0a13",
+      "sha256": "871ed4a2bf0a1094ac0bb2504c3cd8c82d96c35caffe47fcbb4e2489af13eb83"
+    },
+    {
+      "file": "pokedex-source-texts-en-04-0323-0428.json",
+      "part": 4,
+      "national_dex_first": 323,
+      "national_dex_last": 428,
+      "species_count": 100,
+      "live_fingerprint_md5": "cd48fe103a512b221bd61964c500d1f4",
+      "sha256": "77f4a4843179f0d8b5ae5ca74f803b0408cb6cd9bcdf42029d46d83e34f6fcd5"
+    },
+    {
+      "file": "pokedex-source-texts-en-05-0429-0536.json",
+      "part": 5,
+      "national_dex_first": 429,
+      "national_dex_last": 536,
+      "species_count": 100,
+      "live_fingerprint_md5": "1a80e020405a5f66eef0af3d5c695191",
+      "sha256": "b33c69c79dcc3580e110da9343de90a6143d595c8e89ea80cfd58e787f6d8db3"
+    },
+    {
+      "file": "pokedex-source-texts-en-06-0537-0637.json",
+      "part": 6,
+      "national_dex_first": 537,
+      "national_dex_last": 637,
+      "species_count": 100,
+      "live_fingerprint_md5": "6515d31cd2f8effa697c2de44e2761a2",
+      "sha256": "60be308b8a1825a45a44ace9c7ca908bb951a31b2b820cb9eee1b5e130d554e4"
+    },
+    {
+      "file": "pokedex-source-texts-en-07-0638-0747.json",
+      "part": 7,
+      "national_dex_first": 638,
+      "national_dex_last": 747,
+      "species_count": 100,
+      "live_fingerprint_md5": "e7b3fed5591590d1afddebdadd162512",
+      "sha256": "db136763c60fce712e313421e16d988ddc1ab364fbf1a2216c699663622f054c"
+    },
+    {
+      "file": "pokedex-source-texts-en-08-0748-0850.json",
+      "part": 8,
+      "national_dex_first": 748,
+      "national_dex_last": 850,
+      "species_count": 100,
+      "live_fingerprint_md5": "373dbee2a1ea89f78050ba787642944c",
+      "sha256": "366640a72d23289ea293883836e828230ad79432cd5f2b403c72ade5f6950eba"
+    },
+    {
+      "file": "pokedex-source-texts-en-09-0851-0956.json",
+      "part": 9,
+      "national_dex_first": 851,
+      "national_dex_last": 956,
+      "species_count": 100,
+      "live_fingerprint_md5": "69b3701b7b89f108781648dd086235f4",
+      "sha256": "66fe2b5ac43e98e30e5e2db97a4c21b13ff57fbacb93f64b4f31958987083fd5"
+    },
+    {
+      "file": "pokedex-source-texts-en-10-0957-1024.json",
+      "part": 10,
+      "national_dex_first": 957,
+      "national_dex_last": 1024,
+      "species_count": 65,
+      "live_fingerprint_md5": "02c29de8e72bc6af30901fe1ad75494e",
+      "sha256": "8854f6b94db4b8fea5caf13b19de8a8651be81a82537ee41564a4b9e30254b91"
+    }
+  ],
+  "flavor_source_version_counts": {
+    "alpha-sapphire": 104,
+    "legends-arceus": 220,
+    "lets-go-eevee": 27,
+    "shield": 437,
+    "ultra-moon": 63,
+    "violet": 114
+  },
+  "absences": {
+    "genus.source_version": "ausente (NULL) nas 965 classificações — não preenchido",
+    "textos_pt_BR_de_origem": "inexistentes — só há texto de origem em inglês (en)",
+    "genus_ou_flavor_vazio": 0
+  },
+  "observations": {
+    "flavor_identico_em_mais_de_uma_especie": [
+      [
+        795,
+        797,
+        798
+      ]
+    ],
+    "espaco_apos_travessao_ou_hifen": [
+      26,
+      92,
+      183,
+      457,
+      526,
+      588
+    ],
+    "aspas_duplas_de_fechamento_abrindo_citacao": [
+      198,
+      390,
+      456,
+      501,
+      904
+    ],
+    "apostrofo_reto_e_curvo_no_mesmo_texto": []
+  }
+}

@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Pokeball } from "@/components/icons/pokeball-icon";
-import { SpeciesDetailView, type SpeciesNeighbor } from "@/components/pokedex/detail/species-detail-view";
+import { SpeciesDetailView } from "@/components/pokedex/detail/species-detail-view";
 import { Alert } from "@/components/ui/alert";
 import {
   getPokedexSpeciesDetail,
@@ -21,6 +21,7 @@ import {
   pokedexContextSearch,
   speciesDetailHref,
 } from "@/lib/pokedex/format";
+import { type NavigationSpecies, isGenerationContextMismatch, resolveSpeciesNavigation } from "@/lib/pokedex/navigation";
 import { POKEDEX_QUERY_MAX_LENGTH, getPokedexGenerations } from "@/lib/pokedex/queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -36,6 +37,14 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
  * Contexto da galeria (`?q=`, `?geracao=`) é validado com os mesmos parsers da
  * Pokédex Nacional e repassado ao "voltar" e aos vizinhos — navegar entre
  * espécies não perde a pesquisa de origem.
+ *
+ * Pokédex P4a (2026-10-13): com `?geracao=`, anterior/próximo ficam dentro da
+ * geração e a fronteira vira uma transição explícita para a próxima geração
+ * (lib/pokedex/navigation.ts). Uma `?geracao=` que não corresponde à espécie
+ * (link antigo, editado à mão ou busca rápida para outra geração) redireciona
+ * para o contexto nacional, mantendo a pesquisa — o "voltar" nunca procura uma
+ * espécie fora da geração filtrada. Nenhuma leitura nova: os vizinhos ±1 já
+ * eram lidos e trazem a geração.
  */
 
 type Params = Promise<{ numero: string }>;
@@ -97,6 +106,10 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
 
   if (result.status === "not_found") notFound();
 
+  if (result.status === "ok" && isGenerationContextMismatch(context, result.species.generation_ordinal)) {
+    redirect(speciesDetailHref(nationalDexNumber, { query: context.query, generation: null }));
+  }
+
   if (result.status === "error") {
     return (
       <AppShell title="Pokédex" icon={Pokeball}>
@@ -119,6 +132,12 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
   }
 
   const total = generations?.reduce((sum, item) => sum + item.species_count, 0) ?? null;
+  const navigation = resolveSpeciesNavigation({
+    current: result.species,
+    previous: toNavigationSpecies(previous),
+    next: toNavigationSpecies(next),
+    context,
+  });
 
   return (
     <AppShell title="Pokédex" icon={Pokeball}>
@@ -126,8 +145,9 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
         species={result.species}
         original={original}
         hero={hero}
-        previous={toNeighbor(previous)}
-        next={toNeighbor(next)}
+        previous={navigation.previous}
+        next={navigation.next}
+        nextGeneration={navigation.nextGeneration}
         total={total}
         context={context}
       />
@@ -135,8 +155,8 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
   );
 }
 
-function toNeighbor(result: SpeciesDetailResult | null): SpeciesNeighbor | null {
+function toNavigationSpecies(result: SpeciesDetailResult | null): NavigationSpecies | null {
   if (!result || result.status !== "ok") return null;
-  const { national_dex_number, species_name, artwork_path } = result.species;
-  return { national_dex_number, species_name, artwork_path };
+  const { national_dex_number, species_name, artwork_path, generation_ordinal, generation_code, region_name } = result.species;
+  return { national_dex_number, species_name, artwork_path, generation_ordinal, generation_code, region_name };
 }

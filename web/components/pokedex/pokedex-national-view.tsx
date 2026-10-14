@@ -120,10 +120,52 @@ export function PokedexNationalView({
               speciesTypes={speciesTypes}
               context={{ query, generation: activeGeneration ? generation : null }}
             />
+            {activeGeneration ? (
+              <ChapterEnd generations={generations} activeGeneration={activeGeneration} query={query} />
+            ) : null}
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Fim do capítulo da geração filtrada (Pokédex P4a): continuar para a próxima
+ * geração — preservando a pesquisa, como a régua — ou voltar à Pokédex Nacional.
+ * Na última geração só resta a saída para a Pokédex Nacional. Links simples,
+ * renderizados no servidor.
+ */
+function ChapterEnd({
+  generations,
+  activeGeneration,
+  query,
+}: {
+  generations: PokedexGeneration[];
+  activeGeneration: PokedexGeneration;
+  query: string | null;
+}) {
+  const following = generations.find((item) => item.generation_ordinal === activeGeneration.generation_ordinal + 1) ?? null;
+  const followingLabel = following ? generationLabel(following.generation_code) : null;
+  return (
+    <nav
+      aria-label="Continuar explorando"
+      className="flex flex-col items-center gap-x-6 gap-y-2 border-t border-border/60 pt-6 text-sm sm:flex-row sm:justify-center"
+    >
+      {following && followingLabel ? (
+        <Link
+          href={currentHref(query, following.generation_ordinal)}
+          className="font-medium text-primary-ink underline-offset-2 hover:underline"
+          aria-label={`Próxima geração: ${followingLabel}${following.region_name ? `, ${following.region_name}` : ""}`}
+        >
+          Próxima geração: {followingLabel}
+          {following.region_name ? ` · ${following.region_name}` : ""} →
+        </Link>
+      ) : null}
+      <Link href={currentHref(query, null)} className="font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+        Ver toda a Pokédex Nacional
+      </Link>
+    </nav>
   );
 }
 
