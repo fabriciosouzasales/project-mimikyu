@@ -4,7 +4,7 @@
 |---|---|
 | Data | 2026-10-13 |
 | Frente | A — Produto e funcionalidades (`docs/adr/ADR-011-pokemon-tcg-domain-scope.md` v1.5) |
-| Status | Alternativa A aprovada (P4a → P4b → P4c). **P4a implementada localmente em 2026-10-13, aguardando homologação.** P4b/P4c não iniciadas. Sem SQL, funções ou contratos novos. |
+| Status | **Ciclo P4 concluído (2026-10-14).** P4a (`dbbe8e4`) e P4b (`7725bae`) homologadas e publicadas; P4c implementada, validada localmente (testes, typecheck, lint, build) e com a barra contextual compacta avaliada positivamente na homologação visual — aguardando commit. Sem SQL, funções ou contratos novos em todo o ciclo. |
 | Base | Código em `web/app/pokedex/`, `web/components/pokedex/`, `web/lib/pokedex/` no commit `54da0a2`; contratos 6131/6132/6133/6134/6135 já no LIVE |
 
 ## 1. O que já existe
@@ -187,3 +187,99 @@ A pesquisa e a régua continuam onde estavam, sem duplicação.
 - Nenhuma leitura nova: `page.tsx` e `queries.ts` intactos.
 
 **Pendente de homologação visual:** ver cenários no relatório da rodada. `npm run lint`/`build` ficam com o responsável.
+
+## 8. P4c — Orientação durante a exploração (implementada localmente, 2026-10-14)
+
+Base: P4b homologada e publicada (`7725bae`). Última etapa do ciclo P4.
+
+**Comportamento.**
+- **Visão nacional, desktop (≥ 1024 px):**
+  - a régua existente fica fixa no topo do contêiner de rolagem (`position: sticky`, fundo opaco do tema, filete inferior);
+  - a geração visível na galeria recebe destaque neutro (filete escuro e textos em primeiro plano) e `aria-current="location"`;
+  - o filtro ativo ("Nacional") continua dourado com `aria-current="page"`, então os dois estados nunca se confundem;
+  - o clique em um item continua filtrando, como antes.
+- **Com geração selecionada:** régua estática, sem destaque de orientação (a ilha nem é montada). P4a/P4b intactas.
+- **Mobile e tablet estreito (< 1024 px):** régua estática como antes, sem orientação. O observador não é criado.
+
+**Como a geração visível é identificada.**
+- Regra pura em `web/lib/pokedex/visible-generation.ts`. Uma "linha de leitura" fica 1 px abaixo da régua; a geração visível é a da seção que cruza essa linha.
+  - Antes da primeira seção: a primeira.
+  - Depois da última: a última.
+  - No espaço entre seções: mantém a anterior (histerese, sem piscar).
+  - Pesquisa sem resultado: nenhuma.
+- Disparo pela ilha `web/components/pokedex/generation-scroll-spy.tsx`:
+  - um `IntersectionObserver` com faixa de 1 px nessa linha, observando ≤ 9 seções;
+  - a cada cruzamento, lê o retângulo das ≤ 9 seções num `requestAnimationFrame`;
+  - `scrollend` (uma vez por gesto) cobre o salto de retorno de uma ficha;
+  - nenhum listener de rolagem contínua, nenhuma consulta, nenhum índice recarregado.
+- Ao voltar de uma ficha, a âncora `#especie-NNNN` tem `scroll-margin-top` de 6,5rem no desktop nacional, para o card não ficar sob a régua.
+
+**Arquivos.**
+- `web/lib/pokedex/visible-generation.ts` e `.test.ts` (novos);
+- `web/components/pokedex/generation-scroll-spy.tsx` (novo);
+- `generation-filter.tsx` e `.module.css`;
+- `species-grid.tsx` (`data-generation` na seção) e `.module.css` (margem da âncora);
+- `pokedex-national-view.tsx`.
+
+**Validação local.**
+- `npm run typecheck` = 0 erros.
+- Testes da Pokédex 52/52 PASS: `visible-generation` 9 novos; os 43 anteriores inalterados.
+- Nenhuma leitura nova (diff sem `.rpc`/`getPokedex*`).
+
+**Pendente de homologação no navegador:** cenários do relatório da rodada (desktop, tablet, mobile; claro/escuro; teclado/leitor de tela; retorno de ficha). `npm run lint`/`build` ficam com o responsável.
+
+### 8.1 Revisão de UX da P4c — barra compacta (2026-10-14)
+
+Homologação visual reprovou a régua completa fixa (excesso de informação persistente, competição com o cabeçalho, interferência nas cartas). Decisão: régua estática no topo e barra contextual compacta durante a rolagem. A régua fixa da seção 8 foi removida (`generation-filter.tsx`/`.module.css` voltam ao estado P3c, com apenas o atributo `data-pk-generation-nav`).
+
+**Comportamento.**
+- **Topo da página:** a régua de gerações aprovada continua estática e é a navegação principal.
+- **Visão nacional, desktop (≥ 1024 px):**
+  - quando a régua sai de vista, surge sobre o topo da área de rolagem uma pílula de uma linha: "Geração II · Johto", a geração visível;
+  - a pílula aparece com opacity/transform, ocupa só a própria largura e não tem altura no fluxo, portanto não desloca o layout;
+  - o botão (`aria-expanded`) abre sob demanda a lista das 9 gerações; escolher uma aplica o filtro, com o mesmo link da régua (preserva `?q=`) e rolagem ao topo do capítulo;
+  - a lista fecha com Esc (foco volta ao botão), clique fora, qualquer rolagem ou quando a barra some.
+- **Com geração filtrada e no mobile:** sem barra; comportamento anterior.
+
+**Reaproveitamento.**
+- A geração visível continua decidida por `resolveVisibleGeneration`, agora com a linha logo abaixo da pílula.
+- O disparo é o mesmo: IntersectionObserver de 1 px e `scrollend`.
+- Um segundo IntersectionObserver detecta a saída da régua.
+- Nenhuma consulta, dependência ou listener de rolagem contínua (o listener de rolagem existe só enquanto a lista está aberta e fecha a lista na primeira rolagem).
+- A âncora de retorno da ficha tem `scroll-margin-top` de 4rem.
+
+**Arquivos (estado final da P4c).**
+- `web/components/pokedex/generation-compact-bar.tsx` e `.module.css` (novos; substituem `generation-scroll-spy.tsx`, removido);
+- `web/lib/pokedex/visible-generation.ts` e `.test.ts`;
+- `generation-filter.tsx` (só o atributo);
+- `species-grid.tsx` (`data-generation`) e `.module.css` (margem da âncora);
+- `pokedex-national-view.tsx`.
+
+**Validação local.** `npm run typecheck` = 0; testes da Pokédex 52/52 PASS; nenhuma leitura nova.
+
+## 9. Fechamento da P4c (2026-10-14)
+
+**Decisão de produto registrada.** A régua completa de nove gerações em formato fixo (seção 8) foi reprovada na homologação visual: informação persistente demais, competição com o cabeçalho, interferência nas cartas. Ela foi substituída pela barra contextual compacta (seção 8.1):
+- régua estática no topo, sem alteração;
+- durante a rolagem, na visão nacional desktop, uma linha com a geração visível e a lista das gerações sob demanda (filtro).
+
+Geração filtrada e mobile seguem sem barra.
+
+**Ganho funcional.** Orientação contínua durante a exploração das 1.025 espécies e troca de geração a partir de qualquer ponto da galeria, sem novas consultas, sem novos contratos de dados, sem dependências e sem listener de rolagem contínua.
+
+**Evidências (validação local e do responsável):**
+- testes da Pokédex 52/52 PASS e `npm run typecheck` PASS;
+- `npm run lint` PASS, com advertências preexistentes, nenhuma nova atribuída à P4c;
+- `npm run build` PASS: compilação em 8,3 s, 71/71 páginas geradas, First Load JS de `/pokedex` = 162 kB.
+
+**Estado da homologação visual (sem presumir o que não foi confirmado):**
+- **Confirmado:** a barra contextual compacta foi avaliada positivamente.
+- **Não registrados como confirmados individualmente nesta rodada:**
+  - leitura por leitor de tela;
+  - retorno de ficha terminando no espaço entre duas gerações;
+  - comportamento no Safari;
+  - temas claro/escuro da lista aberta.
+
+**Limitação conhecida.** O Safari não implementa `scrollend`. Nele, um retorno de ficha cujo salto termine exatamente no espaço entre duas seções pode manter a geração indicada anterior até a próxima rolagem; nas demais situações o IntersectionObserver atualiza normalmente.
+
+**Readiness.** P4c pronta para commit (código e documentação reconciliados; nenhuma pendência técnica bloqueante). Próxima etapa da Frente A: P5 — Pesquisa Avançada, não iniciada (ver `docs/ROADMAP.md`).

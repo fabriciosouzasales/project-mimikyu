@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { Alert } from "@/components/ui/alert";
 import { GenerationFilter } from "@/components/pokedex/generation-filter";
+import { type CompactBarGeneration, GenerationCompactBar } from "@/components/pokedex/generation-compact-bar";
 import { PokedexSearch } from "@/components/pokedex/pokedex-search";
 import { SpeciesGrid } from "@/components/pokedex/species-grid";
 import { formatCount, formatDexNumber, generationLabel, generationRoman } from "@/lib/pokedex/format";
@@ -87,7 +88,10 @@ export function PokedexNationalView({
         </div>
       </header>
 
-      <div className="space-y-6">
+      {/* P4c: na visão nacional (desktop), a barra compacta de orientação surge quando a
+          régua sai de vista; data-pk-compact-nav ajusta a margem de rolagem das âncoras
+          (#especie-NNNN) para o card do "voltar" não ficar sob a barra. */}
+      <div className="space-y-6" data-pk-compact-nav={activeGeneration ? undefined : ""}>
         {generations ? (
           <GenerationFilter
             generations={generations}
@@ -95,6 +99,9 @@ export function PokedexNationalView({
             query={query}
             totalSpecies={totalSpecies}
           />
+        ) : null}
+        {generations && !activeGeneration && species && species.length > 0 ? (
+          <GenerationCompactBar key={query ?? ""} generations={compactBarGenerations(generations)} query={query} />
         ) : null}
 
         {species === null || generations === null ? (
@@ -281,6 +288,18 @@ function ChapterEnd({
       </Link>
     </nav>
   );
+}
+
+/** Dados mínimos da régua para a barra compacta (P4c) — os mesmos rótulos da régua. */
+function compactBarGenerations(generations: PokedexGeneration[]): CompactBarGeneration[] {
+  return generations.map((item) => ({
+    code: item.generation_code,
+    ordinal: item.generation_ordinal,
+    label: generationLabel(item.generation_code),
+    roman: generationRoman(item.generation_code),
+    regionName: item.region_name,
+    speciesCount: formatCount(item.species_count),
+  }));
 }
 
 function EmptyResult({ query, activeGeneration }: { query: string | null; activeGeneration: PokedexGeneration | null }) {

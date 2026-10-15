@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.00 |
+| **Versão** | 2.01 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -131,7 +131,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-10-10-pricing-80-variant-reconciliation/README.md`](../database/proposals/2026-10-10-pricing-80-variant-reconciliation/README.md) | PRICING-CATALOG-VARIANT-RECONCILIATION-01 (Pricing 80) — vínculo `pricing_product → card_variant` (`3973`–`3977`, `3985`, `3986`); **CLOSED para o gate em 2026-10-11**: 99,5% dos produtos ligados, fila residual de 716 documentada por grupo. |
 | [`../database/proposals/2026-10-11-default-backfill/README.md`](../database/proposals/2026-10-11-default-backfill/README.md) | CATALOG-VARIANT-DEFAULT-BACKFILL-01 — **executado em 2026-10-11**: regra da variante padrão, migration `2258` (20.227 padrões), as 13 cartas empatadas em decisão editorial e o trigger `2259` para cargas futuras. |
 | [`../database/proposals/2026-10-13-pokedex-editorial-factual-pack/README.md`](../database/proposals/2026-10-13-pokedex-editorial-factual-pack/README.md) | Pokédex — pacote factual das 965 espécies sem editorial pt-BR (10 JSON + `index.json`, textos en verbatim do LIVE, fingerprint `f5669eba…1517`), **ENCERRADO em 2026-10-13** e entregue à operação editorial paralela (`ADR-011` v1.5). |
-| [`../database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md`](../database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md) | Pokédex P4 — Exploração por Geração: diagnóstico da navegação atual, lacunas, três alternativas e recomendação (capítulos de geração na própria Pokédex); **planejamento aguardando aprovação**, sem código nem SQL. |
+| [`../database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md`](../database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md) | Pokédex P4 — Exploração por Geração: diagnóstico da navegação atual, lacunas, alternativas e registro de P4a (navegação por contexto), P4b (cabeçalho de capítulo) e P4c (barra contextual compacta de orientação); **ciclo P4 concluído**, sem SQL. |
 | [`../database/proposals/2026-10-11-bootstrap-03-closeout/README.md`](../database/proposals/2026-10-11-bootstrap-03-closeout/README.md) | CATALOG-HISTORICAL-BOOTSTRAP-03 closeout — **executado em 2026-10-11**: diagnóstico dos jobs FAILED/linhas PENDING (inertes) e migration `2257` com 295 variantes (Trainer Kits HS/XY via Scrydex, CEL25CC via snapshot); 0 cartas sem variante. |
 | [`../database/proposals/2026-10-10-scrydex-card-assets/README.md`](../database/proposals/2026-10-10-scrydex-card-assets/README.md) | CATALOG-ASSETS-SCRYDEX-01 — **executada em 2026-10-10**: diagnóstico das 905 cartas sem imagem (TCGdex não publica), tabela fixa conferida por nome e Edge `import-scrydex-assets` em lotes; **863 imagens importadas**, restam 42 (MFB 34 + ECARD2 a/b 8) para o canal manual. |
 | [`../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md`](../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md) | Snapshot imutável da Pokémon TCG API (2026-10-09): 50 coleções, 6.733 cartas, chaves de preço por carta; manifest com contagem e SHA-256. Fonte da 2ª origem de variantes (ADR-034). |
@@ -267,3 +267,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 1.98 | **Pricing 80 remedição (2026-10-11).** Proposta `2026-10-10-pricing-80-variant-reconciliation` passa a CLOSED para o gate (regras `3986`, fila residual de 716); 05f revisão 1.70. |
 | 1.99 | **CARD VARIANTS — CLOSED (2026-10-11).** Proposta `2026-10-11-default-backfill` atualizada (cargas futuras via `2259`); 05b revisão 1.10; ROADMAP 2.24; README 2.64. |
 | 2.00 | **Pokédex em duas frentes (2026-10-13).** Entradas novas para o pacote factual editorial (encerrado) e para o planejamento P4 — Exploração por Geração; `ADR-011` v1.5, ROADMAP 2.25. |
+| 2.01 | **Pokédex — ciclo P4 concluído (2026-10-14).** Resumo da entrada P4 atualizado (P4a/P4b/P4c); ROADMAP 2.26 com a sequência P5 → P6 → Collection → P7 → P8 → P9. |

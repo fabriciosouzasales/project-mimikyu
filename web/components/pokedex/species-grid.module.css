@@ -335,3 +335,11 @@
     content: "Última";
   }
 }
+
+/* P4c: com a barra compacta de orientação (visão nacional, desktop), a âncora do
+   "voltar" da ficha (#especie-NNNN) para abaixo da barra em vez de atrás dela. */
+@media (min-width: 1024px) {
+  :global([data-pk-compact-nav]) .item {
+    scroll-margin-top: 4rem;
+  }
+}

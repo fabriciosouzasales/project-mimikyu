@@ -67,7 +67,7 @@ export function SpeciesGrid({
         const headingId = `geracao-${group.code.toLowerCase()}`;
         const roman = generationRoman(group.code);
         return (
-          <section key={group.code} aria-labelledby={headingId} className={styles.section}>
+          <section key={group.code} aria-labelledby={headingId} className={styles.section} data-generation={group.code}>
             <header className={styles.sectionHeader}>
               <span className={styles.roman} aria-hidden="true">
                 {roman}

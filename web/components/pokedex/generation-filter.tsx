@@ -31,7 +31,7 @@ export function GenerationFilter({
   }
 
   return (
-    <nav aria-label="Filtrar por geração" className={styles.nav}>
+    <nav aria-label="Filtrar por geração" className={styles.nav} data-pk-generation-nav="">
       <ul className={styles.track}>
         <li className={styles.all}>
           <Segment
