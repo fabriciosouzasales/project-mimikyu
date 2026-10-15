@@ -1,0 +1,266 @@
+/*
+ * Filtro por tipo da Pokédex Nacional (Pokédex P5a, 2026-10-14).
+ *
+ * Vocabulário da própria Pokédex: pílula com anel interno (como a barra compacta da
+ * P4c e as pílulas da régua no mobile), dourado só no estado ativo e no foco, cores de
+ * tipo só nos chips (PokemonTypeChip, mesma paleta da ficha e dos cards). O painel
+ * abre no fluxo da página — empurra a grade, nunca a cobre. Movimento: só opacity/
+ * transform, desligado em prefers-reduced-motion.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ---- botão "Tipo" ---- */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 2.25rem;
+  padding: 0 0.75rem 0 0.875rem;
+  border-radius: 999px;
+  font: 600 0.84375rem/1 var(--font-sans);
+  color: hsl(var(--foreground));
+  background: transparent;
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.16);
+  transition:
+    box-shadow 150ms ease-out,
+    background-color 150ms ease-out;
+}
+
+.trigger:hover {
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.3);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.trigger[data-active] {
+  box-shadow: inset 0 0 0 1.5px hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+
+.triggerIcon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.trigger[data-active] .triggerIcon {
+  color: hsl(var(--primary-ink));
+}
+
+.triggerCount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3125rem;
+  border-radius: 999px;
+  font: 700 0.71875rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+}
+
+.chevron {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: hsl(var(--muted-foreground));
+  transition: transform 150ms ease-out;
+}
+
+.trigger[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+/* ---- tipos ativos ---- */
+.chips {
+  display: contents;
+}
+
+.chipLink,
+.option {
+  position: relative;
+  display: inline-flex;
+  border-radius: 999px;
+}
+
+.chipLink:focus-visible,
+.option:focus-visible,
+.clear:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Especificidade acima do .chip do PokemonTypeChip (a ordem entre módulos não é garantida). */
+.chipLink .chip {
+  height: 2.25rem;
+  padding-right: 0.625rem;
+}
+
+.chipRemove {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-left: 0.125rem;
+  opacity: 0.7;
+  transition: opacity 150ms ease-out;
+}
+
+.chipLink:hover .chipRemove {
+  opacity: 1;
+}
+
+.clear {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 2.25rem;
+  padding: 0 0.5rem;
+  border-radius: 0.375rem;
+  font: 500 0.8125rem/1 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition:
+    color 150ms ease-out,
+    text-decoration-color 150ms ease-out;
+}
+
+.clear:hover {
+  color: hsl(var(--foreground));
+  text-decoration-color: currentColor;
+}
+
+/* ---- seletor sob demanda ---- */
+.panel {
+  padding: 1rem 1rem 1.125rem;
+  border-radius: 1rem;
+  background: hsl(var(--surface));
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.1);
+  animation: panel-in 160ms ease-out;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.hint {
+  margin: 0 0 0.875rem;
+  font: 500 0.8125rem/1.4 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.25rem, 1fr));
+  gap: 0.5rem;
+}
+
+.option {
+  width: 100%;
+}
+
+.option .optionChip {
+  width: 100%;
+  height: 2.375rem;
+  transition:
+    background-color 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+
+.option:not([data-disabled]):hover .optionChip {
+  background: rgb(var(--chip-rgb) / 0.2);
+}
+
+.option[data-selected] .optionChip {
+  background: rgb(var(--chip-rgb) / 0.24);
+  box-shadow: inset 0 0 0 2px rgb(var(--chip-rgb) / 0.85);
+}
+
+.option[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.optionCount,
+.optionCheck {
+  margin-left: auto;
+}
+
+.optionCount {
+  font: 600 0.75rem/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.optionCheck {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+/* ---- carregamento do link clicado ---- */
+.pending {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  padding: 1px;
+  border-radius: 999px;
+  color: hsl(var(--primary-ink));
+  background: hsl(var(--surface));
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- telas estreitas ---- */
+@media (max-width: 539px) {
+  .panel {
+    padding: 0.875rem;
+  }
+
+  .options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .pending {
+    animation: none;
+  }
+
+  .trigger,
+  .chevron,
+  .chipRemove,
+  .clear,
+  .option .optionChip {
+    transition: none;
+  }
+}

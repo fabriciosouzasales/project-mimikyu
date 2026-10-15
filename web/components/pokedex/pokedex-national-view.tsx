@@ -4,10 +4,12 @@ import { Alert } from "@/components/ui/alert";
 import { GenerationFilter } from "@/components/pokedex/generation-filter";
 import { type CompactBarGeneration, GenerationCompactBar } from "@/components/pokedex/generation-compact-bar";
 import { PokedexSearch } from "@/components/pokedex/pokedex-search";
+import { type ActiveTypeChip, type TypeFilterOption, TypeFilter } from "@/components/pokedex/type-filter";
 import { SpeciesGrid } from "@/components/pokedex/species-grid";
-import { formatCount, formatDexNumber, generationLabel, generationRoman } from "@/lib/pokedex/format";
+import { type PokedexContext, formatCount, formatDexNumber, generationLabel, generationRoman, pokedexHref } from "@/lib/pokedex/format";
 import { type ChapterTypeCount, type GenerationChapter, buildGenerationChapter, splitChapterTypes } from "@/lib/pokedex/generation-chapter";
 import { pokemonTypeStyle } from "@/lib/pokedex/type-palette";
+import { MAX_TYPE_FILTERS, applyTypeFilter, joinTypeLabels, toggleType, typeLabels } from "@/lib/pokedex/type-filter";
 import { PokedexLens } from "@/components/pokedex/detail/pokedex-lens";
 import {
   POKEDEX_QUERY_MAX_LENGTH,
@@ -23,9 +25,14 @@ const NUMBER_WORDS = ["zero", "uma", "duas", "três", "quatro", "cinco", "seis",
 /**
  * Pokédex Nacional (Pokédex P1; visual premium P3c, 2026-10-12) — composição da
  * página: cabeçalho com o total em numeral de contorno e a lente da Pokédex (mesmo
- * vocabulário do palco da ficha), pesquisa em destaque, régua de gerações, linha de
- * resultado e a grade. Server Component; ilhas cliente: pesquisa, arte (fade-in/
- * fallback) e o marcador da última ficha.
+ * vocabulário do palco da ficha), pesquisa em destaque, régua de gerações, filtro por
+ * tipo (P5a), linha de resultado e a grade. Server Component; ilhas cliente: pesquisa,
+ * abrir/fechar do filtro por tipo, arte (fade-in/fallback) e o marcador da última ficha.
+ *
+ * P5a: o filtro por tipo é aplicado aqui, numa passagem sobre a lista que já veio de
+ * 6131 (pesquisa/geração) e o índice 6135 — sem consulta nova. Contagens da régua e
+ * do capítulo continuam totais (decisão D4); sem índice de tipos, o seletor some e um
+ * `?tipo=` da URL é avisado e ignorado, nunca aplicado pela metade.
  */
 export function PokedexNationalView({
   generations,
@@ -33,6 +40,7 @@ export function PokedexNationalView({
   speciesTypes,
   query,
   generation,
+  types,
 }: {
   generations: PokedexGeneration[] | null;
   species: PokedexSpecies[] | null;
@@ -40,12 +48,24 @@ export function PokedexNationalView({
   speciesTypes: Map<number, PokedexSpeciesTypes> | null;
   query: string | null;
   generation: number | null;
+  /** Tipos já canônicos (`?tipo=`, P5a). */
+  types: string[];
 }) {
   const totalSpecies = generations?.reduce((sum, item) => sum + item.species_count, 0) ?? 0;
   const firstRegion = generations?.[0]?.region_name;
   const lastRegion = generations?.[generations.length - 1]?.region_name;
   const activeGeneration = generations?.find((item) => item.generation_ordinal === generation) ?? null;
-  const isFiltered = query !== null || activeGeneration !== null;
+  const contextGeneration = activeGeneration ? generation : null;
+  // P5a: tipos só valem com o índice de tipos; sem ele, `?tipo=` não é aplicado e é avisado.
+  const typeIndexAvailable = speciesTypes !== null;
+  const appliedTypes = typeIndexAvailable ? types : [];
+  const typeUnavailableNotice = !typeIndexAvailable && types.length > 0;
+  const context: PokedexContext = { query, generation: contextGeneration, types };
+  const labels = speciesTypes ? typeLabels(speciesTypes) : null;
+  const typeResult = species && speciesTypes ? applyTypeFilter(species, speciesTypes, appliedTypes) : null;
+  const visibleSpecies = typeResult ? typeResult.species : species;
+  const appliedTypeLabels = appliedTypes.map((code) => labels?.get(code) ?? code);
+  const isFiltered = query !== null || activeGeneration !== null || appliedTypes.length > 0;
   const generationCount = generations?.length ?? 0;
   const generationWord = NUMBER_WORDS[generationCount] ?? String(generationCount);
   // Pokédex P4b: com geração selecionada, o cabeçalho vira o capítulo da geração.
@@ -80,7 +100,8 @@ export function PokedexNationalView({
           <div className={styles.search}>
             <PokedexSearch
               initialQuery={query}
-              generation={activeGeneration ? generation : null}
+              generation={contextGeneration}
+              types={types}
               maxLength={POKEDEX_QUERY_MAX_LENGTH}
               size="lg"
             />
@@ -95,53 +116,88 @@ export function PokedexNationalView({
         {generations ? (
           <GenerationFilter
             generations={generations}
-            activeGeneration={activeGeneration ? generation : null}
+            activeGeneration={contextGeneration}
             query={query}
+            types={types}
             totalSpecies={totalSpecies}
           />
         ) : null}
-        {generations && !activeGeneration && species && species.length > 0 ? (
-          <GenerationCompactBar key={query ?? ""} generations={compactBarGenerations(generations)} query={query} />
+        {generations && !activeGeneration && visibleSpecies && visibleSpecies.length > 0 ? (
+          <GenerationCompactBar
+            key={`${query ?? ""}|${types.join(",")}`}
+            generations={compactBarGenerations(generations)}
+            query={query}
+            types={types}
+          />
         ) : null}
 
-        {species === null || generations === null ? (
+        {typeResult && labels && labels.size > 0 && generations ? (
+          <TypeFilter
+            options={typeFilterOptions(labels, typeResult.counts, appliedTypes, context)}
+            active={appliedTypes.map(
+              (code): ActiveTypeChip => ({
+                code,
+                label: labels.get(code) ?? code,
+                removeHref: pokedexHref({ ...context, types: toggleType(appliedTypes, code) }),
+              }),
+            )}
+            clearHref={pokedexHref({ ...context, types: [] })}
+          />
+        ) : null}
+
+        {typeUnavailableNotice && species !== null ? (
+          <Alert variant="warning">
+            <p className="font-medium">O filtro por tipo está indisponível no momento.</p>
+            <p className="mt-1 text-sm opacity-90">
+              Mostrando as espécies sem esse filtro.{" "}
+              <Link href={pokedexHref(context)} className="font-medium underline underline-offset-2">
+                Tentar novamente
+              </Link>
+              {" · "}
+              <Link href={pokedexHref({ ...context, types: [] })} className="font-medium underline underline-offset-2">
+                Remover filtro de tipo
+              </Link>
+            </p>
+          </Alert>
+        ) : null}
+
+        {visibleSpecies === null || generations === null ? (
           <Alert variant="destructive">
             <p className="font-medium">Não foi possível carregar a Pokédex agora.</p>
             <p className="mt-1 text-sm opacity-90">
               Isso costuma ser passageiro.{" "}
-              <Link href={currentHref(query, generation)} className="font-medium underline underline-offset-2">
+              <Link href={pokedexHref({ query, generation, types })} className="font-medium underline underline-offset-2">
                 Tentar novamente
               </Link>
             </p>
           </Alert>
-        ) : species.length === 0 ? (
-          <EmptyResult query={query} activeGeneration={activeGeneration} />
+        ) : visibleSpecies.length === 0 ? (
+          <EmptyResult context={context} activeGeneration={activeGeneration} typeLabels={appliedTypeLabels} />
         ) : (
           <>
             <p className="text-sm text-muted-foreground" aria-live="polite">
               {isFiltered ? (
                 <>
-                  <span className="font-medium tabular-nums text-foreground">{formatCount(species.length)}</span>{" "}
-                  {species.length === 1 ? "espécie encontrada" : "espécies encontradas"}
+                  <span className="font-medium tabular-nums text-foreground">{formatCount(visibleSpecies.length)}</span>{" "}
+                  {visibleSpecies.length === 1 ? "espécie encontrada" : "espécies encontradas"}
+                  {appliedTypes.length > 0 ? (
+                    <>
+                      {" "}
+                      {appliedTypes.length === 1 ? "do tipo" : "com os tipos"} {joinTypeLabels(appliedTypeLabels)}
+                    </>
+                  ) : null}
                   {query ? <> para “{query}”</> : null}
                   {activeGeneration ? <> em {generationLabel(activeGeneration.generation_code)}</> : null}
                 </>
               ) : (
                 <>
-                  Todas as <span className="font-medium tabular-nums text-foreground">{formatCount(species.length)}</span> espécies, em
+                  Todas as <span className="font-medium tabular-nums text-foreground">{formatCount(visibleSpecies.length)}</span> espécies, em
                   ordem de número nacional.
                 </>
               )}
             </p>
-            <SpeciesGrid
-              species={species}
-              generations={generations}
-              speciesTypes={speciesTypes}
-              context={{ query, generation: activeGeneration ? generation : null }}
-            />
-            {activeGeneration ? (
-              <ChapterEnd generations={generations} activeGeneration={activeGeneration} query={query} />
-            ) : null}
+            <SpeciesGrid species={visibleSpecies} generations={generations} speciesTypes={speciesTypes} context={context} />
+            {activeGeneration ? <ChapterEnd generations={generations} activeGeneration={activeGeneration} context={context} /> : null}
           </>
         )}
       </div>
@@ -260,11 +316,11 @@ function ChapterType({ type }: { type: ChapterTypeCount }) {
 function ChapterEnd({
   generations,
   activeGeneration,
-  query,
+  context,
 }: {
   generations: PokedexGeneration[];
   activeGeneration: PokedexGeneration;
-  query: string | null;
+  context: PokedexContext;
 }) {
   const following = generations.find((item) => item.generation_ordinal === activeGeneration.generation_ordinal + 1) ?? null;
   const followingLabel = following ? generationLabel(following.generation_code) : null;
@@ -275,7 +331,7 @@ function ChapterEnd({
     >
       {following && followingLabel ? (
         <Link
-          href={currentHref(query, following.generation_ordinal)}
+          href={pokedexHref({ ...context, generation: following.generation_ordinal })}
           className="font-medium text-primary-ink underline-offset-2 hover:underline"
           aria-label={`Próxima geração: ${followingLabel}${following.region_name ? `, ${following.region_name}` : ""}`}
         >
@@ -283,7 +339,7 @@ function ChapterEnd({
           {following.region_name ? ` · ${following.region_name}` : ""} →
         </Link>
       ) : null}
-      <Link href={currentHref(query, null)} className="font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+      <Link href={pokedexHref({ ...context, generation: null })} className="font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
         Ver toda a Pokédex Nacional
       </Link>
     </nav>
@@ -302,7 +358,44 @@ function compactBarGenerations(generations: PokedexGeneration[]): CompactBarGene
   }));
 }
 
-function EmptyResult({ query, activeGeneration }: { query: string | null; activeGeneration: PokedexGeneration | null }) {
+/**
+ * Opções do seletor de tipo (P5a), na ordem oficial: cada uma liga/desliga o tipo
+ * preservando pesquisa e geração. Indisponível (sem link) quando já há dois tipos ou
+ * quando acrescentá-la esvaziaria o resultado.
+ */
+function typeFilterOptions(
+  labels: Map<string, string>,
+  counts: Map<string, number>,
+  selected: string[],
+  context: PokedexContext,
+): TypeFilterOption[] {
+  const atLimit = selected.length >= MAX_TYPE_FILTERS;
+  return [...labels].map(([code, label]) => {
+    const isSelected = selected.includes(code);
+    const count = isSelected ? null : (counts.get(code) ?? 0);
+    const enabled = isSelected || (!atLimit && (count ?? 0) > 0);
+    return {
+      code,
+      label,
+      selected: isSelected,
+      count,
+      href: enabled ? pokedexHref({ ...context, types: toggleType(selected, code) }) : null,
+    };
+  });
+}
+
+function EmptyResult({
+  context,
+  activeGeneration,
+  typeLabels: labels,
+}: {
+  context: PokedexContext;
+  activeGeneration: PokedexGeneration | null;
+  typeLabels: string[];
+}) {
+  const { query } = context;
+  const hasTypes = labels.length > 0;
+  const where = activeGeneration ? ` em ${generationLabel(activeGeneration.generation_code)}` : "";
   return (
     <div
       className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-6 py-14 text-center"
@@ -312,28 +405,37 @@ function EmptyResult({ query, activeGeneration }: { query: string | null; active
       <div className="space-y-1">
         <p className="text-base font-medium text-foreground">Nenhum Pokémon encontrado</p>
         <p className="max-w-md text-sm text-muted-foreground">
-          {query ? <>Nada corresponde a “{query}”{activeGeneration ? ` em ${generationLabel(activeGeneration.generation_code)}` : ""}. </> : null}
-          Confira a grafia ou pesquise pelo número nacional, como 25 ou #0025.
+          {query ? (
+            <>
+              Nada corresponde a “{query}”{hasTypes ? ` ${labels.length === 1 ? "do tipo" : "com os tipos"} ${joinTypeLabels(labels)}` : ""}
+              {where}.{" "}
+            </>
+          ) : hasTypes ? (
+            <>
+              Nenhuma espécie {labels.length === 1 ? "do tipo" : "com os tipos"} {joinTypeLabels(labels)}
+              {where}.{" "}
+            </>
+          ) : null}
+          {query ? "Confira a grafia ou pesquise pelo número nacional, como 25 ou #0025." : null}
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm">
-        <Link href={currentHref(null, activeGeneration?.generation_ordinal ?? null)} className="font-medium text-primary-ink underline-offset-2 hover:underline">
-          Limpar pesquisa
-        </Link>
+        {query ? (
+          <Link href={pokedexHref({ ...context, query: null })} className="font-medium text-primary-ink underline-offset-2 hover:underline">
+            Limpar pesquisa
+          </Link>
+        ) : null}
+        {hasTypes ? (
+          <Link href={pokedexHref({ ...context, types: [] })} className="font-medium text-primary-ink underline-offset-2 hover:underline">
+            Remover filtro de tipo
+          </Link>
+        ) : null}
         {activeGeneration ? (
-          <Link href={currentHref(query, null)} className="font-medium text-primary-ink underline-offset-2 hover:underline">
-            Pesquisar em todas as gerações
+          <Link href={pokedexHref({ ...context, generation: null })} className="font-medium text-primary-ink underline-offset-2 hover:underline">
+            {query ? "Pesquisar em todas as gerações" : "Ver em todas as gerações"}
           </Link>
         ) : null}
       </div>
     </div>
   );
-}
-
-function currentHref(query: string | null, generation: number | null): string {
-  const params = new URLSearchParams();
-  if (query) params.set("q", query);
-  if (generation) params.set("geracao", String(generation));
-  const search = params.toString();
-  return search ? `/pokedex?${search}` : "/pokedex";
 }

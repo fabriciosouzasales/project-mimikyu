@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { pokedexHref } from "@/lib/pokedex/format";
 import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 300;
@@ -17,16 +18,19 @@ const DEBOUNCE_MS = 300;
  *   `router.replace`, sem empilhar histórico a cada tecla e sem rolar a
  *   página; o indicador de carregamento acompanha a transição real do
  *   servidor (`useTransition`), não um tempo artificial.
- * - A geração selecionada é preservada.
+ * - A geração e os tipos selecionados (P5a) são preservados.
  */
 export function PokedexSearch({
   initialQuery,
   generation,
+  types = [],
   maxLength,
   size = "md",
 }: {
   initialQuery: string | null;
   generation: number | null;
+  /** Tipos ativos (`?tipo=`, P5a), já canônicos. */
+  types?: readonly string[];
   maxLength: number;
   /** "lg": campo de destaque do cabeçalho da Pokédex Nacional (P3c). */
   size?: "md" | "lg";
@@ -58,13 +62,8 @@ export function PokedexSearch({
     if (query === lastPushed.current) return;
     lastPushed.current = query;
 
-    const params = new URLSearchParams();
-    if (query) params.set("q", query);
-    if (generation) params.set("geracao", String(generation));
-    const search = params.toString();
-
     startTransition(() => {
-      router.replace(search ? `/pokedex?${search}` : "/pokedex", { scroll: false });
+      router.replace(pokedexHref({ query: query || null, generation, types }), { scroll: false });
     });
   }
 
@@ -115,6 +114,7 @@ export function PokedexSearch({
         )}
       />
       {generation ? <input type="hidden" name="geracao" value={generation} /> : null}
+      {types.length > 0 ? <input type="hidden" name="tipo" value={types.join(",")} /> : null}
 
       <div className={cn("absolute top-1/2 flex -translate-y-1/2 items-center", large ? "right-3" : "right-2")}>
         {isPending ? (

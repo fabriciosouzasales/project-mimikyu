@@ -2,13 +2,14 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { PokedexNationalView } from "@/components/pokedex/pokedex-national-view";
-import { parseGenerationParam, parseQueryParam } from "@/lib/pokedex/format";
+import { parseGenerationParam, parseQueryParam, pokedexHref } from "@/lib/pokedex/format";
 import {
   POKEDEX_QUERY_MAX_LENGTH,
   getPokedexGenerations,
   getPokedexNationalSpecies,
   getPokedexSpeciesTypeIndex,
 } from "@/lib/pokedex/queries";
+import { parseTypeParam } from "@/lib/pokedex/type-filter";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -20,9 +21,14 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
  * /login). A autorização real está no banco: as funções da Query 6131
  * recusam chamada sem `auth.uid()` e não existem para `anon`.
  *
- * Estado (pesquisa e geração) vive na URL — `?q=` e `?geracao=` —, então a
- * página é compartilhável, funciona com voltar/avançar do navegador e é
- * renderizada inteira no servidor.
+ * Estado (pesquisa, geração e tipos) vive na URL — `?q=`, `?geracao=` e
+ * `?tipo=` (P5a) —, então a página é compartilhável, funciona com
+ * voltar/avançar do navegador e é renderizada inteira no servidor.
+ *
+ * Pokédex P5a (2026-10-14): `?tipo=` é normalizado (códigos válidos, sem repetição,
+ * ordem oficial, no máximo dois); qualquer outra forma redireciona para a canônica
+ * antes de qualquer leitura. O filtro é aplicado sobre as leituras que a página já
+ * faz (6131 + índice de tipos 6135) — nenhuma consulta nova.
  */
 export default async function PokedexPage({
   searchParams,
@@ -32,6 +38,14 @@ export default async function PokedexPage({
   const params = await searchParams;
   const query = parseQueryParam(params.q, POKEDEX_QUERY_MAX_LENGTH);
   const generation = parseGenerationParam(params.geracao);
+  const typeParam = parseTypeParam(params.tipo);
+  const types = typeParam.types;
+
+  // Link editado à mão (`?tipo=fire`, `?tipo=FLYING,FIRE`, código desconhecido, mais de
+  // dois): uma URL canônica por resultado, sem custo de leitura.
+  if (params.tipo !== undefined && !typeParam.isCanonical) {
+    redirect(pokedexHref({ query, generation, types }));
+  }
 
   const supabase = await createClient();
   const {
@@ -57,7 +71,7 @@ export default async function PokedexPage({
   // Geração inexistente num link editado à mão: volta para "todas" em vez de
   // mostrar uma lista vazia sem explicação.
   if (generation !== null && generations && !generations.some((item) => item.generation_ordinal === generation)) {
-    redirect(query ? `/pokedex?q=${encodeURIComponent(query)}` : "/pokedex");
+    redirect(pokedexHref({ query, generation: null, types }));
   }
 
   return (
@@ -68,6 +82,7 @@ export default async function PokedexPage({
         speciesTypes={speciesTypes}
         query={query}
         generation={generation}
+        types={types}
       />
     </AppShell>
   );

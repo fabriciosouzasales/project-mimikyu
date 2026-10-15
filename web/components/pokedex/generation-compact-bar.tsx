@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { pokedexHref } from "@/lib/pokedex/format";
 import { resolveVisibleGeneration, type SectionBox } from "@/lib/pokedex/visible-generation";
 import styles from "./generation-compact-bar.module.css";
 
@@ -38,7 +39,16 @@ export type CompactBarGeneration = {
  * e `scrollend`; nenhum listener de rolagem contínua, nenhuma consulta. No mobile e com
  * geração filtrada o componente nem é renderizado / não cria observadores.
  */
-export function GenerationCompactBar({ generations, query }: { generations: CompactBarGeneration[]; query: string | null }) {
+export function GenerationCompactBar({
+  generations,
+  query,
+  types,
+}: {
+  generations: CompactBarGeneration[];
+  query: string | null;
+  /** Tipos ativos (P5a) — preservados ao escolher uma geração. */
+  types: readonly string[];
+}) {
   const dockRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -209,7 +219,7 @@ export function GenerationCompactBar({ generations, query }: { generations: Comp
             {generations.map((item) => (
               <li key={item.code}>
                 <Link
-                  href={hrefFor(query, item.ordinal)}
+                  href={pokedexHref({ query, generation: item.ordinal, types })}
                   className={styles.option}
                   aria-current={item.code === active.code ? "location" : undefined}
                   onClick={() => setOpen(false)}
@@ -230,14 +240,6 @@ export function GenerationCompactBar({ generations, query }: { generations: Comp
       </div>
     </div>
   );
-}
-
-/** Mesmo destino da régua: aplica o filtro da geração, preservando a pesquisa. */
-function hrefFor(query: string | null, generation: number): string {
-  const params = new URLSearchParams();
-  if (query) params.set("q", query);
-  params.set("geracao", String(generation));
-  return `/pokedex?${params.toString()}`;
 }
 
 /** Contêiner de rolagem da página (no AppShell, o `<main>` com overflow-y: auto). */

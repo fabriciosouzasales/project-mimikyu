@@ -23,6 +23,7 @@ import {
 } from "@/lib/pokedex/format";
 import { type NavigationSpecies, isGenerationContextMismatch, resolveSpeciesNavigation } from "@/lib/pokedex/navigation";
 import { POKEDEX_QUERY_MAX_LENGTH, getPokedexGenerations } from "@/lib/pokedex/queries";
+import { parseTypeParam } from "@/lib/pokedex/type-filter";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -45,6 +46,12 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
  * para o contexto nacional, mantendo a pesquisa — o "voltar" nunca procura uma
  * espécie fora da geração filtrada. Nenhuma leitura nova: os vizinhos ±1 já
  * eram lidos e trazem a geração.
+ *
+ * Pokédex P5a (2026-10-14): `?tipo=` também é contexto — normalizado com o mesmo
+ * parser da galeria e repassado ao "voltar", aos vizinhos e à busca rápida, para que
+ * o filtro sobreviva à ida e volta. Anterior/próximo não são restringidos por tipo
+ * (seguem a regra nacional/de geração); se a espécie aberta não tem os tipos do
+ * filtro, o "voltar" volta à galeria filtrada sem âncora (a espécie não está lá).
  */
 
 type Params = Promise<{ numero: string }>;
@@ -72,6 +79,7 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
   const context = {
     query: parseQueryParam(query.q, POKEDEX_QUERY_MAX_LENGTH),
     generation: parseGenerationParam(query.geracao),
+    types: parseTypeParam(query.tipo).types,
   };
 
   // URL canônica: /pokedex/0025 -> /pokedex/25 (mesmo contexto).
@@ -107,7 +115,7 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
   if (result.status === "not_found") notFound();
 
   if (result.status === "ok" && isGenerationContextMismatch(context, result.species.generation_ordinal)) {
-    redirect(speciesDetailHref(nationalDexNumber, { query: context.query, generation: null }));
+    redirect(speciesDetailHref(nationalDexNumber, { ...context, generation: null }));
   }
 
   if (result.status === "error") {

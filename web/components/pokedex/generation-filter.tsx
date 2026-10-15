@@ -1,12 +1,12 @@
 import Link from "next/link";
 import type { PokedexGeneration } from "@/lib/pokedex/queries";
-import { formatCount, generationRoman } from "@/lib/pokedex/format";
+import { formatCount, generationRoman, pokedexHref } from "@/lib/pokedex/format";
 import styles from "./generation-filter.module.css";
 
 /**
  * Filtro por geração da Pokédex Nacional (Pokédex P1; régua premium P3c, 2026-10-12).
  *
- * Links simples (servidor, sem JavaScript), preservando a pesquisa atual. No desktop
+ * Links simples (servidor, sem JavaScript), preservando a pesquisa e os tipos (P5a) atuais. No desktop
  * é uma régua: a largura de cada geração é proporcional ao número de espécies — a
  * própria régua mostra o tamanho de cada região. Em telas estreitas vira uma faixa
  * de pílulas com rolagem horizontal. Ativo em dourado (aria-current="page").
@@ -15,19 +15,17 @@ export function GenerationFilter({
   generations,
   activeGeneration,
   query,
+  types,
   totalSpecies,
 }: {
   generations: PokedexGeneration[];
   activeGeneration: number | null;
   query: string | null;
+  types: readonly string[];
   totalSpecies: number;
 }) {
   function hrefFor(generation: number | null) {
-    const params = new URLSearchParams();
-    if (query) params.set("q", query);
-    if (generation) params.set("geracao", String(generation));
-    const search = params.toString();
-    return search ? `/pokedex?${search}` : "/pokedex";
+    return pokedexHref({ query, generation, types });
   }
 
   return (

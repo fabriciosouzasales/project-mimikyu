@@ -54,15 +54,30 @@ export function parseQueryParam(value: string | string[] | undefined, maxLength:
 // Página de detalhes (Pokédex P3b, 2026-10-12)
 // ---------------------------------------------------------------------------
 
-/** Contexto da Pokédex Nacional (pesquisa e geração) levado da galeria à ficha e de volta. */
-export type PokedexContext = { query: string | null; generation: number | null };
+/**
+ * Contexto da Pokédex Nacional (pesquisa, geração e — P5a — tipos) levado da galeria à
+ * ficha e de volta. `types` já vem canônico (lib/pokedex/type-filter.ts); ausente ou
+ * vazio = sem filtro por tipo.
+ */
+export type PokedexContext = { query: string | null; generation: number | null; types?: readonly string[] };
 
+/**
+ * Query string do contexto — fonte única dos links da Pokédex (régua, barra compacta,
+ * pesquisa, filtro por tipo, cards, ficha). Ordem estável: `q`, `geracao`, `tipo`.
+ */
 export function pokedexContextSearch(context: PokedexContext): string {
   const params = new URLSearchParams();
   if (context.query) params.set("q", context.query);
   if (context.generation !== null) params.set("geracao", String(context.generation));
-  const search = params.toString();
+  if (context.types && context.types.length > 0) params.set("tipo", context.types.join(","));
+  // Vírgula legível na URL compartilhada (`tipo=FIRE,FLYING`); é válida em query string.
+  const search = params.toString().replace(/%2C/g, ",");
   return search ? `?${search}` : "";
+}
+
+/** Rota da Pokédex Nacional para um contexto (sem âncora). */
+export function pokedexHref(context: PokedexContext): string {
+  return `/pokedex${pokedexContextSearch(context)}`;
 }
 
 /** Rota da ficha preservando o contexto da galeria. */

@@ -20,6 +20,7 @@ import {
   nationalPokedexHref,
   speciesDetailHref,
 } from "@/lib/pokedex/format";
+import { speciesMatchesTypes } from "@/lib/pokedex/type-filter";
 import type { GenerationTransition } from "@/lib/pokedex/navigation";
 import { pokemonTypeStyle } from "@/lib/pokedex/type-palette";
 import styles from "./species-detail.module.css";
@@ -75,11 +76,16 @@ export function SpeciesDetailView({
 
   const prevHref = previous ? speciesDetailHref(previous.national_dex_number, context) : null;
   const nextHref = next ? speciesDetailHref(next.national_dex_number, context) : null;
-  const backHref = nationalPokedexHref(context, species.national_dex_number);
+  // Pokédex P5a: com filtro por tipo, a âncora só existe na galeria filtrada se a espécie
+  // tem os tipos do filtro; sem isso, o "voltar" leva ao topo da galeria filtrada.
+  const backAnchor = speciesMatchesTypes([species.primary_type_code, species.secondary_type_code], context.types)
+    ? species.national_dex_number
+    : undefined;
+  const backHref = nationalPokedexHref(context, backAnchor);
   // Pokédex P4a: com geração filtrada, o "voltar" leva à geração (onde a espécie
   // está) e um segundo link sai para a Pokédex Nacional, mantendo a pesquisa.
   const filtered = context.generation !== null;
-  const nationalHref = nationalPokedexHref({ query: context.query, generation: null }, species.national_dex_number);
+  const nationalHref = nationalPokedexHref({ ...context, generation: null }, backAnchor);
   const generationName = species.region_name ?? generationLabel(species.generation_code);
   // Link "explorar esta geração" a partir da ficha: só a geração, sem a pesquisa,
   // para que a âncora da espécie exista sempre na grade de destino.

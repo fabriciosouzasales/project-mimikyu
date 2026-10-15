@@ -81,7 +81,8 @@ export function resolveSpeciesNavigation({
           generationCode: next.generation_code,
           regionName: next.region_name,
           first: next,
-          context: { query: context.query, generation: next.generation_ordinal },
+          // Mantém pesquisa e tipos (P5a); só a geração avança.
+          context: { ...context, generation: next.generation_ordinal },
         }
       : null;
 
