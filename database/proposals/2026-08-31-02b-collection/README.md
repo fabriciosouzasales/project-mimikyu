@@ -1,5 +1,7 @@
 # COLLECTIONS-PHYSICAL-INCREMENT-02B — Collection + Default Storage
 
+> **Nota de estado (2026-10-15, `DOC-GATE-01`):** o status de staging registrado abaixo ("proposta / não executado") é **histórico**. O SQL desta pasta foi **CONFIRMADO EXECUTADO no LIVE em 2026-09-01** e promovido para `database/schema/` (`5030`–`5039`); o estado vigente está em `docs/05d-colecoes-e-usuarios.md` (revisão `1.3`). Conteúdo abaixo preservado sem alteração.
+
 Data: 2026-08-31 (`COLLECTIONS-PHYSICAL-INCREMENT-02B-MODELING-01` → `-REVISION-01` → `-FINAL-01`)
 
 **Esta pasta é staging — nada aqui é lido como estado físico real.** Nenhum destes artefatos foi executado no Supabase. `database/schema/` e `database/migrations/` só recebem SQL depois de execução confirmada (ver `database/README.md`) — nunca antes. Mesma governança já usada em `database/proposals/2026-08-31-collections-physical-increment-01a/` (Inventory + Physical Card) e `database/proposals/2026-08-31-02a-storage/` (Storage Foundation).

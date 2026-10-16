@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Domain Model |
 | **Arquivo** | `docs/04-domain-model.md` |
-| **Versão** | 2.11 |
+| **Versão** | 2.12 |
 | **Status** | Em elaboração |
 | **Objetivo** | Definir o modelo conceitual do domínio do Project Mimikyu antes da modelagem lógica e física. |
 | **Escopo** | Modelo conceitual do domínio: entidades, relacionamentos e regras de negócio atualmente vigentes. Não contém SQL, números de Query, versões de Seed, confirmações de execução, nem histórico de discussão de sessões — ver `05-modelo-de-dados.md` para a camada física e de execução, e `06-pipeline-importacao.md` para estratégias de importação. |
@@ -49,6 +49,8 @@ Os seguintes conceitos compõem o núcleo do domínio do sistema, organizados co
 - Collection
 - Collection Entry
 - User Collection
+
+> **Nota de status (2026-10-15, `DOC-GATE-01`):** `Collection Item`, `Storage Location`, `Collection` (na forma desta página), `Collection Entry` e `User Collection` são termos/seções superados — a fonte canônica do domínio do colecionador é `domain-modeling/collections/` (Physical Card, Inventory, Storage Container, Collection, Collection Allocation, Collection Reference, Layout). `Pokémon` foi renomeado para Pokémon Species (ADR-011 v1.2). A lista acima é preservada como registro histórico.
 
 ---
 
@@ -1436,6 +1438,8 @@ Evita a armadilha mais crítica identificada nesta modelagem: uma impressão int
 
 Puramente conceitual nesta rodada — `item_valuation_snapshot` (nome de trabalho) é apenas esboçada em `05f-pricing.md`, sem colunas físicas comprometidas, porque depende de `collection_item_id`, que ainda não existe. Fica para quando Collection for implementada, na sequência já aprovada por Fabrício (`ROADMAP.md`: Card Variant → Pricing → Collection → Analytics/Valuation).
 
+> **Atualização de status (2026-10-15, `DOC-GATE-01`):** as premissas "Ownership ainda não implementado" e "`collection_item_id` ainda não existe" estão superadas — o exemplar físico existe fisicamente como `physical_card` (Physical Card, Queries `5000`–`5012`, 2026-08-31) e o domínio Pricing tem fundação física (ver `05f-pricing.md`). Item Valuation continua **não modelada fisicamente nem implementada** (direção futura, `ROADMAP.md` "Later"); o rascunho em `05f-pricing.md` ainda cita `collection_item_id` e, quando retomado, deve referenciar `physical_card`.
+
 ---
 
 ## Collection Item (Item da Coleção)
@@ -1602,6 +1606,8 @@ Entidades de histórico relacionadas a este conceito (estrutura detalhada penden
 
 ## Storage Location
 
+> **Nota de status (2026-10-15, `DOC-GATE-01`):** termo superado — o conceito vigente é **Storage / Storage Container** (`domain-modeling/collections/concept-decisions.md` C-55–C-66; físico `storage_container`, Queries `5020`–`5024`, 2026-09-01, ver `05d-colecoes-e-usuarios.md`).
+
 *Documentação pendente.*
 
 ---
@@ -1664,3 +1670,4 @@ Nenhuma Open Decision aberta no momento.
 | 2.9 | **Banner da seção Collection Item atualizado (2026-08-30)**, por convergência terminológica registrada em `concept-decisions.md` (C-47/C-48): o nome vigente apontado pelo banner passa de "Inventory Item" (nome citado desde 2026-08-28) para "Physical Card", com a cadeia completa de nomes superados (`Collection Item` → `Inventory Item` → `Physical Card`) explicitada. Nenhuma outra alteração — a prosa histórica da seção (que usa "Collection Item" ao longo de todo o corpo) permanece intocada por rastreabilidade, assim como os demais banners do documento (Collection, Collection Entry, User Collection), que já não citavam um nome específico a ser atualizado. |
 | 2.10 | **Entidade "Pokémon" renomeada para "Pokémon Species", 2026-09-03** (`COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`), decorrente da revogação do adiamento registrada em ADR-011 v1.2. Seção renomeada e reescrita: decisão central (entidade mínima, id/national_dex_number/canonical_name) preservada, adicionado `generation` (geração de introdução, exatamente uma por Species) às características conceituais mínimas, e registrados dois conceitos subordinados sem entidade física própria — Generation e Pokémon Form/Variety (forma/variedade nunca confundida com Card Variant). Diagrama de relacionamento atualizado (`Pokémon` → `Pokémon Species`). Adicionada subseção "Pokédex / REFERENCE_POSITION (nota, 2026-09-03)" apontando para `docs/domain-modeling/collections/logical-model.md` (LDM-175 a LDM-185) como fonte canônica da modelagem de Pokédex, sem duplicar conteúdo aqui. Nota de terminologia explícita registra que outras menções a "Pokémon" no documento (valor de Card Category, rótulo "Pokémon TCG Domain", relações informais "Card → Pokémon" fora desta seção) não foram renomeadas nesta rodada, por se referirem a conceito distinto ou por ausência de necessidade concreta. Header (linha "Versão") corrigido de 2.7 para 2.10, refletindo entradas 2.8/2.9 já existentes na tabela mas não propagadas ao header em rodadas anteriores — divergência de drift pré-existente, não introduzida nesta rodada, corrigida por ser trivial e diretamente adjacente à edição. |
 | 2.11 | **Nova subseção "Pokémon Region (nota, 2026-09-04)"** (`POKEMON-REGION-DOMAIN-MODELING-AUDIT-01` → `POKEMON-REGION-FOUNDATION-PHYSICAL-IMPLEMENTATION-01`/`-CANONICAL-PROMOTION-01`), inserida entre a seção Pokémon Species e a subseção Pokédex/`REFERENCE_POSITION` já existente. Registra Region (Kanto, Johto, Hoenn...) como entidade canônica própria, independente de Generation (existem Regiões sem Main Generation), e a cardinalidade N:1 de Generation → Main Region. Aponta para `docs/domain-modeling/collections/logical-model.md` (LDM-186 a LDM-190) e `ADR-011` v1.3 como fonte canônica completa, sem duplicar conteúdo aqui. Fundação física `CONFIRMADO EXECUTADO` em 2026-09-04; sourcing real ainda SUSPENSO. Nenhuma alteração na seção Pokémon Species em si. |
+| 2.12 | **Notas de status (2026-10-15, `DOC-GATE-01`).** Rodada exclusivamente documental; nenhum conceito alterado. Três notas acrescentadas sem remover texto: (1) após "Core Concepts", indicando que Collection Item/Storage Location/Collection Entry/User Collection são termos superados e apontando `domain-modeling/collections/`; (2) em "Item Valuation", registrando que Physical Card e a fundação física de Pricing já existem e que Item Valuation segue não implementada; (3) em "Storage Location", apontando Storage/Storage Container (C-55–C-66, físico 02A). |

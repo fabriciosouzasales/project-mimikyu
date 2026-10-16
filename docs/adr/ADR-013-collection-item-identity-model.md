@@ -13,6 +13,8 @@
 ---
 
 > ⚠️ **SUBSTITUÍDO em 2026-08-28.** A modelagem de domínio de Collections foi reconciliada em `docs/domain-modeling/collections/` (`concept-decisions.md`, `logical-model.md`, `checkpoint-2026-08-28.md`), que passam a ser a fonte canônica para este domínio. Em particular: o nome vigente da identidade física é **Inventory Item** (não "Collection Item" — a renomeação proposta nesta ADR foi revertida na modelagem nova); Inventory Item referencia Card Variant, mas não carrega mais `owner_user_id` — a posse é transitiva via um novo agregado `Inventory` (1:1 por usuário); Ownership Status/Availability Status como dimensões de status não foram reafirmadas na modelagem nova e não devem ser assumidas como vigentes sem confirmação em `logical-model.md`. Este documento é preservado abaixo, inalterado, por rastreabilidade histórica — não implementar a partir daqui.
+>
+> **Atualização (2026-10-15, `DOC-GATE-01`):** o nome "Inventory Item" citado neste banner também foi superado — em 2026-08-30 o exemplar físico passou a se chamar **Physical Card** (`concept-decisions.md` C-47/C-48; `ubiquitous-language.md` v1.13), e está implementado fisicamente desde 2026-08-31 (`physical_card`, Queries `5000`–`5012`, ver `05d-colecoes-e-usuarios.md`). O texto do banner acima é preservado como registro de 2026-08-28.
 
 # Context
 
@@ -97,3 +99,4 @@ Rejeitada por gerar ambiguidade entre duas perguntas conceitualmente diferentes 
 | 1.0 | Registro da renomeação de Inventory Item para Collection Item, do modelo de identidade individual por exemplar, e da separação entre Ownership Status e Availability Status. |
 | 1.1 | Referências a "Card Finish" atualizadas para "Card Variant" (Decisão, Context, Decision, Alternatives Considered), refletindo a convergência de nomenclatura de ADR-016. Nenhuma decisão desta ADR foi alterada. |
 | 1.2 | **Substituído em 2026-08-28.** Status alterado para Substituído; banner adicionado apontando para `docs/domain-modeling/collections/` como fonte canônica do domínio Collections. Reconciliação motivada por três documentos de modelagem produzidos em paralelo (`concept-decisions.md`, `logical-model.md`, `pkmnbindr-benchmark.md`) e por decisões de simplificação de ownership registradas em `checkpoint-2026-08-28.md`. Conteúdo original preservado abaixo, sem alteração. |
+| 1.3 | **Nota de banner (2026-10-15, `DOC-GATE-01`).** O banner de substituição ainda indicava "Inventory Item" como nome vigente; acrescentada nota apontando o nome canônico vigente (Physical Card, C-47/C-48, 2026-08-30) e a implementação física (`5000`–`5012`). Status (Substituído) e conteúdo original inalterados. |

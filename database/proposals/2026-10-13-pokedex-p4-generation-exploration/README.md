@@ -1,5 +1,7 @@
 # Pokédex P4 — Exploração por Geração (diagnóstico e planejamento)
 
+> **Nota de estado (2026-10-15, `DOC-GATE-01`):** P4c foi publicada no commit `1478323` (2026-10-14); o "aguardando commit" acima é histórico. Ciclo P4 inteiro publicado (P4a `dbbe8e4`, P4b `7725bae`, P4c `1478323`).
+
 | Campo | Valor |
 |---|---|
 | Data | 2026-10-13 |

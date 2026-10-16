@@ -8,9 +8,9 @@ web
 
 ## Users
 
-Today, the platform has two real users: Fabrício (owner/admin) and a small group of testers — both operating the admin side of the product (`/catalogo`, `/usuarios`, `/perfil`, `/configuracoes`), populating and validating the Catálogo Editorial (games, expansions, card sets, cards, variants, assets). There are no external collector users yet.
+Today the platform is operated by Fabrício (owner/admin) and a small group of testers. The admin side (`/catalogo`, `/pricing`, `/usuarios`, `/pokedex/imagens`) is used to populate and validate the Catálogo Editorial, Card Variants, Pricing and Pokédex artwork. Since October 2026 there is also a first **collector-facing surface — the Pokédex** (`/pokedex`, `/pokedex/[numero]`, `/pokedex/favoritos`), available to any authenticated user. The repository records no external (non-tester) collector users.
 
-The committed future audience (Sub-Fase 2 — Coleções, not yet started) is Trading Card Game collectors managing their own physical collections — starting with Pokémon TCG. Design and product decisions made now for admin surfaces should not assume collector-facing needs; decisions for anything collector-facing are still open.
+The committed audience is Trading Card Game collectors managing their own physical collections — starting with Pokémon TCG. The Collection module (the collector's own cards, collections and binders) is the next strategic front; its backend exists, but its collector-facing experience has not been built or decided yet.
 
 ## Product Purpose
 
@@ -22,28 +22,30 @@ Architecture designed from the outset to support multiple Trading Card Games on 
 
 ## Operating Context
 
-- **Catálogo Editorial** (admin-only, in active build): the reference catalog of games, expansions, card sets, cards, variants, and card assets (images), sourced primarily from TCGdex via an automated import pipeline, with a manual fallback path for assets missing at the source. Content is bilingual (`en` + `pt-BR`). Administrative writes go through vertical per-entity cycles (backend → screen → validation): `Game` and `Expansion` are complete; `Card Set` is next; `Card` create/edit and deactivate/reactivate follow.
+- **Catálogo Editorial** (admin-only, formally closed on 2026-08-08; Card Variants closed on 2026-10-11): the reference catalog of games, expansions, card sets, cards, variants and card assets, sourced mainly from TCGdex (plus Pokémon TCG API snapshots and Scrydex for specific gaps), with manual fallbacks. Content is bilingual (`en` + `pt-BR`). Administrative write and ingestion flows for Game, Expansion, Card Set, Card and Card Variant are implemented.
+- **Pricing / "Valor de Mercado"** (admin): functional backend with scheduled refresh, admin screens and reports.
+- **Pokédex** (collector-facing, published October 2026): National Pokédex gallery of 1,025 species, individual species pages, generation exploration, type filter, and personal favorite species (red heart, `/pokedex/favoritos`). Bilingual editorial text exists for 60 species; the remaining pt-BR editorial work runs as a separate, parallel front.
 - **Identity & Access**: Supabase Auth integrated with `public.user_profile` (public identity via `username`, editable profile, avatar in Supabase Storage) and a separate `admin_user` role for administrative capability. Admin actions are logged (`catalog_admin_action_log`, `admin_action_log`).
-- **Collections** (planned, not started): the collector's domain — physical copies owned, collection goals, and the relationship between them. Conceptually modeled and approved but has no physical schema or tables yet. Starts only after the Catálogo Editorial's five fronts (data model, asset pipeline, read UI, admin write, admin ingestion) are all closed.
+- **Collections** (backend implemented, no collector-facing UI yet): the collector's domain — physical cards owned (Physical Card, Inventory), storage, collections, allocation of cards to collections, completion progress (set, master set, Pokédex), binder layout and bulk registration. Conceptually and logically modeled and approved (`docs/domain-modeling/collections/`), and physically implemented and validated in the live database between 2026-08-31 and 2026-09-09 (`docs/05d-colecoes-e-usuarios.md`). No product screen consumes it yet; only experimental UI spikes with mock data exist (`web/app/experimental/*`). Its resumption is the next strategic front, after a documentation gate (`DOC-GATE-01`, 2026-10-15).
 - Infrastructure is a single Supabase project (`mimikyu-core`), PostgreSQL, region `sa-east-1` (São Paulo), timezone `America/Sao_Paulo`.
 
 ## Capabilities and Constraints
 
 - Stack: Next.js (App Router) + React + TypeScript + Tailwind CSS, Supabase (Auth, Storage, Edge Functions, Postgres via `@supabase/ssr`). Technical/code language is English.
 - User-facing UI copy and routes are Portuguese (`/catalogo`, `/catalogo/jogos`, `/catalogo/cartas`, `/catalogo/expansoes`, `/usuarios`, `/perfil`, `/configuracoes`, `/cadastro`, `/login`) — future UI work should default to PT-BR copy unless told otherwise.
-- Every screen that exists today is admin/internal tooling, gated by server-side guards; there is no public/collector-facing surface yet.
-- Catalog tables currently have RLS enabled and admin-only read/write policies (`ADR-022`); nothing in the catalog is publicly readable today.
-- Open/undecided: the public product name and brand (see Brand Commitments); scope and design of collector-facing surfaces (Sub-Fase 2); acquisition/movement tracking and valuation/analytics are listed as probable future direction but not committed.
+- Admin screens are gated by server-side guards. The Pokédex is the only collector-facing surface; it requires an authenticated session (no anonymous access). There is still no public (logged-out) surface.
+- Catalog tables keep RLS with admin-only direct read/write (`ADR-022`); collector-facing reads go through `SECURITY DEFINER` functions that require `auth.uid()` and expose only what the screen needs.
+- Open/undecided: the public product name and brand (see Brand Commitments); scope and design of the Collection experience; valuation/analytics are probable future direction but not committed.
 
 ## Brand Commitments
 
-"Mimikyu" is an internal project codename only, not a confirmed public-facing brand or product name. Future design work must not treat "Mimikyu" (or Pokémon-character branding implied by the name) as settled user-facing identity — the real name is pending a future decision.
+"Mimikyu" is an internal project codename only, not a confirmed public-facing brand or product name. "MMKYU Collector" is the working name used across documents (e.g. `ADR-033`) and the app title is currently "MMKyu TCG Collector" (`web/app/layout.tsx`), but no formal public-brand decision is recorded. Future design work must not treat these names (or Pokémon-character branding implied by them) as settled public identity.
 
 ## Evidence on Hand
 
-- 927 cards catalogued across 7 Card Sets (the `ME` expansion — Mega Evolution).
-- 1,718 card assets imported (`en` + `pt-BR`) for the 5 original collections, 0 failures, via the automated `import-card-assets` pipeline (TCGdex-sourced); manual import path (`source_code = 'MANUAL'`) used for assets confirmed missing at the source.
-- Working admin screens already in the repo: `/catalogo` (overview), `/catalogo/jogos`, `/catalogo/expansoes`, `/catalogo/card-sets` (+ detail), `/catalogo/cartas`, `/catalogo/importacoes`, `/usuarios`, `/perfil`, `/configuracoes`, plus auth flows (`login`, `cadastro`, `recuperar-senha`, `atualizar-senha`).
+- Catalog size (dated baselines, not live counts): 200 Pokémon Card Sets and 30,261 card assets (2026-09-18); 21,166 active cards and 37,851 card variants at the Card Variants closing audit (2026-10-11). See `docs/README.md` and `docs/ROADMAP.md`.
+- Pokédex reference data: 1,025 species with artwork, types and profiles; 60 species with pt-BR editorial text (2026-10-13).
+- Working screens: admin (`/catalogo/*`, `/pricing/*`, `/usuarios`, `/pokedex/imagens`), collector-facing Pokédex (`/pokedex`, `/pokedex/[numero]`, `/pokedex/favoritos`), account (`/perfil`, `/configuracoes`) and auth flows (`login`, `cadastro`, `recuperar-senha`, `atualizar-senha`).
 - No testimonials, pricing, case studies, or external customer evidence exist — none should be fabricated in design work.
 
 ## Product Principles
@@ -53,3 +55,7 @@ Architecture designed from the outset to support multiple Trading Card Games on 
 - Every material decision gets documented (ADRs, standards) before or alongside implementation.
 - Evolution is incremental and vertical (one entity/cycle at a time), not speculative breadth.
 - Quality over speed; each decision should generate more value than effort.
+
+## Document status
+
+This file is product context for the `impeccable` design skill and is **not** a normative source. The current project state lives in `docs/README.md` ("Status Atual do Projeto") and `docs/ROADMAP.md`; the active handoff is `docs/development/HANDOFF-2026-10-15.md`. Last reconciled on 2026-10-15 (`DOC-GATE-01`); before that, the content dated from early August 2026 and stated that Collections had not started and that no collector-facing surface existed — both no longer true.

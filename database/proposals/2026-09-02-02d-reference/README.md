@@ -1,5 +1,7 @@
 # Staging — Collections Physical Increment 02D — Collection Reference Foundation
 
+> **Nota de estado (2026-10-15, `DOC-GATE-01`):** o status de staging registrado abaixo ("proposta / não executado") é **histórico**. O SQL desta pasta foi **CONFIRMADO EXECUTADO no LIVE em 2026-09-02** e promovido para `database/schema/` (`5049`–`5066`); o estado vigente está em `docs/05d-colecoes-e-usuarios.md` (revisão `1.4`). Conteúdo abaixo preservado sem alteração.
+
 | Campo | Valor |
 |--------|-------|
 | **Pasta** | `database/proposals/2026-09-02-02d-reference/` |

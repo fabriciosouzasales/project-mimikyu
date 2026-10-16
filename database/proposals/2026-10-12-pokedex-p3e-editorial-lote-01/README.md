@@ -1,5 +1,12 @@
 # Pokédex P3e — Expansão Editorial pt-BR · Lote 01 (planejamento)
 
+> **Nota de estado (2026-10-15, `DOC-GATE-01` Correction-01).** As menções a "aguarda homologação" abaixo (Status e "Próximo passo") estão **superadas**; o texto original foi preservado. Estado comprovado:
+> 1. **Aprovação editorial:** 50/50 espécies APROVADO (JSON revisão 11; `docs/log.md`, 2026-10-13).
+> 2. **Publicação:** Query 6137 CONFIRMADO EXECUTADO no LIVE, 6848 PASS, commit `54da0a2` (2026-10-13).
+> 3. **Homologação:** registrada pelo ADR-011 v1.5 ("após a publicação e homologação da P3e — Lote 01 (commit `54da0a2`)"; "os lotes P3d e P3e não são reabertos").
+> 4. **Pendências posteriores:** nenhuma específica do Lote 01. Os lotes seguintes pertencem à Frente B editorial (ADR-011 v1.5) e não fazem parte desta proposta.
+
+
 | Campo | Valor |
 |-------|-------|
 | **Status** | Lote 01 **APROVADO e PUBLICADO** no LIVE (2026-10-13): Query 6137 **CONFIRMADO EXECUTADO** (publicação de dados, sem ledger) e promovida para `database/seeds/6137_publish_pokedex_editorial_ptbr_lote_01.sql`; 6848 = **PASS**. Aguarda homologação na aplicação para encerrar o Lote 01. |

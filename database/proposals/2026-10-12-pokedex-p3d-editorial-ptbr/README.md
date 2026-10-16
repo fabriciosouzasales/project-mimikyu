@@ -1,5 +1,12 @@
 # Pokédex P3d — Conteúdo Editorial pt-BR
 
+> **Nota de estado (2026-10-15, `DOC-GATE-01` Correction-01).** As menções a "aguarda homologação" abaixo (Status e "Próximo passo") estão **superadas**; o texto original foi preservado. Estado comprovado:
+> 1. **Aprovação editorial:** piloto de 10 espécies APROVADO em 2026-10-12 (`pilot-pt-BR.json` revisão 4; `docs/log.md`, 2026-10-12).
+> 2. **Publicação:** Query 6136 CONFIRMADO EXECUTADO no LIVE, 6847 PASS, commit `a888b2c` (2026-10-12).
+> 3. **Homologação/encerramento:** a P3e registra "Base: P3d encerrada (piloto de 10 espécies publicado, 6847 PASS, commit `a888b2c`)" (`../2026-10-12-pokedex-p3e-editorial-lote-01/README.md`), e o ADR-011 v1.5 registra "mantido o rito ensaio com rollback → publicação → validação → homologação já usado na P3d/P3e" e determina que "os lotes P3d e P3e não são reabertos". Não há linha própria no `log.md` com a data da homologação da P3d — a evidência é indireta, mas consistente.
+> 4. **Pendências posteriores:** nenhuma específica da P3d. A produção das 965 espécies restantes é a Frente B (ADR-011 v1.5), fora do escopo desta proposta.
+
+
 | Campo | Valor |
 |-------|-------|
 | **Status** | Piloto **APROVADO** e **PUBLICADO** no LIVE (2026-10-12): Query 6136 **CONFIRMADO EXECUTADO** (publicação de dados editoriais, não migration de esquema) e promovida para `database/seeds/6136_publish_pokedex_editorial_ptbr_pilot.sql`; 6847 = **PASS** sobre os dados persistidos. Aguarda homologação no navegador em `/pokedex/1` para encerrar a P3d. |

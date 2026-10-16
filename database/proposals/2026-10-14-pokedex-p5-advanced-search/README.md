@@ -1,5 +1,7 @@
 # Pokédex P5 — Pesquisa Avançada (diagnóstico e planejamento)
 
+> **Nota de estado (2026-10-15, `DOC-GATE-01`):** P5a foi homologada e publicada no commit `449c079` (2026-10-14); o "aguardando homologação" acima é histórico. **P5b continua NÃO iniciada** (possibilidade futura, seção 8.6).
+
 | Campo | Valor |
 |---|---|
 | Data | 2026-10-14 |

@@ -1,5 +1,7 @@
 # Staging — COLLECTIONS-PHYSICAL-INCREMENT-02F — Master_Set Scope & Completion
 
+> **Nota de estado (2026-10-15, `DOC-GATE-01`):** o status de staging registrado abaixo ("proposta / não executado") é **histórico**. O SQL desta pasta foi **CONFIRMADO EXECUTADO no LIVE em 2026-09-02** e promovido para `database/schema/` (`5072`–`5084` (CLOSED)); o estado vigente está em `docs/05d-colecoes-e-usuarios.md` (revisão `1.6–1.7`). Conteúdo abaixo preservado sem alteração.
+
 | Campo | Valor |
 |---|---|
 | Rodada | `COLLECTIONS-PHYSICAL-INCREMENT-02F-STAGING-01` → `-STAGING-REVISION-01` |

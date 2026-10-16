@@ -4,7 +4,7 @@
 |---|---|
 | Data | 2026-10-14 |
 | Frente | A — Produto e funcionalidades (`docs/adr/ADR-011-pokemon-tcg-domain-scope.md`; sequência em `docs/ROADMAP.md` 2.26) |
-| Status | **P6.0 concluída** (conceito registrado em ADR-011 v1.6 e `ubiquitous-language.md` 1.26). **P6.1: artefatos 6136/6137 e 6849 v2.0 (Correction-01) — PROPOSTOS, NÃO EXECUTADOS**; reauditoria estática em `AUDIT-P6.1-STATIC.md` §7. **Ensaio reversível 6850 preparado (PROPOSTO, NÃO EXECUTADO)**; auditoria em `AUDIT-P6.1-DRYRUN.md`; gate final (§10): READY; **execução controlada em 2026-10-14: GATE FAIL por falso negativo na 6849/1.7, reversão confirmada (§5.5); Correction-02 (6849 v2.1, 6850 regenerado, §5.6); reexecução: GATE 6849 e GATE-ENSAIO PASS, zero resíduo (§5.7) ; **P6.2: 6136/6137 IMPLANTADOS no LIVE e validados (6849 GATE PASS), §5.8**; **P6.3: promovidos para `database/migrations/` (2026-10-15)**; **P6.4–P6.6: frontend implementado localmente, aguardando homologação de Fabrício antes do commit (§5.9)**. |
+| Status | **P6.0 concluída** (conceito registrado em ADR-011 v1.6 e `ubiquitous-language.md` 1.26). **P6.1: artefatos 6136/6137 e 6849 v2.0 (Correction-01) — PROPOSTOS, NÃO EXECUTADOS**; reauditoria estática em `AUDIT-P6.1-STATIC.md` §7. **Ensaio reversível 6850 preparado (PROPOSTO, NÃO EXECUTADO)**; auditoria em `AUDIT-P6.1-DRYRUN.md`; gate final (§10): READY; **execução controlada em 2026-10-14: GATE FAIL por falso negativo na 6849/1.7, reversão confirmada (§5.5); Correction-02 (6849 v2.1, 6850 regenerado, §5.6); reexecução: GATE 6849 e GATE-ENSAIO PASS, zero resíduo (§5.7) ; **P6.2: 6136/6137 IMPLANTADOS no LIVE e validados (6849 GATE PASS), §5.8**; **P6.3: promovidos para `database/migrations/` (2026-10-15)**; **P6.4–P6.6 + correções de UX-01 a UX-04: homologados e publicados no commit `9f86d32` (2026-10-15) — P6 CONCLUÍDA (§5.14)**. |
 | Base | Commit `449c079` (P5a publicada); leitura LIVE somente de metadados em 2026-10-14 |
 
 ## 1. Inventário (diagnóstico)
@@ -421,6 +421,14 @@ Composição entre o cabeçalho e a galeria de `/pokedex/favoritos`. Só layout:
 - **Fora do escopo, intocados:** o placeholder do seletor de número da ficha (`species-quick-search.tsx`), a pesquisa administrativa de artes (`artwork-admin-search.tsx`) e a pesquisa global de cartas.
 - **Validação local:** `tsc --noEmit` PASS; `node --test` 84/84; ESLint PASS; `git diff --check` OK.
 
+### 5.14 Fechamento da P6 (2026-10-15) — PUBLICADA
+
+- **Publicação.** Commit `9f86d32` ("Pokédex P6: favoritos pessoais e galeria exclusiva"), em `origin/main`. Inclui `database/migrations/6136`/`6137`, os artefatos desta pasta e o frontend com as correções de UX-01 a UX-04 (§5.10–§5.13). Registrado como concluído em `docs/ROADMAP.md` 2.28 (`DOC-GATE-01`).
+- **Homologação.** Ciclo declarado "encerrado e publicado" por Fabrício (2026-10-15), após as rodadas de homologação visual que motivaram UX-01 a UX-04. Nenhum resultado de medição (First Load JS, tamanho do HTML) foi registrado no repositório.
+- **Decisão posterior (2026-10-15):** não implementar paginação na Pokédex Nacional neste momento (decisão de Fabrício, registrada no `ROADMAP.md` 2.28).
+- **Limitações que permanecem:** 7.7 NOT_PROVEN; L1 (isolamento pelo JWT real) depende da homologação manual registrada acima; destaque do menu na ficha aberta a partir de Favoritos (§6).
+- **Débito de numeração (sem correção nesta rodada):** os números `6136`/`6137` foram usados duas vezes — em `database/seeds/` (`6136_publish_pokedex_editorial_ptbr_pilot.sql`, `6137_publish_pokedex_editorial_ptbr_lote_01.sql`, P3d/P3e) e em `database/migrations/` (Favoritos, P6). Os arquivos estão versionados e o LIVE já os registra; a decisão sobre renumerar ou apenas documentar a colisão está registrada em `docs/ROADMAP.md`, "Débitos Técnicos Registrados".
+
 ## 6. Página própria × navegação existente (compatibilidade)
 
 - **Rota:** `/pokedex/favoritos` é compatível. O App Router resolve segmentos estáticos antes do dinâmico `[numero]` (precedente: `/pokedex/imagens` já convive com `/pokedex/[numero]`). Além disso, `parseNationalNumberParam("favoritos")` já devolve `null`.
@@ -447,7 +455,7 @@ Composição entre o cabeçalho e a galeria de `/pokedex/favoritos`. Só layout:
 | P6.5 | Coração na galeria + página `/pokedex/favoritos` + item de menu + token `--favorite` | **Implementada localmente** (§5.9) |
 | P6.6 | Coração na ficha + "voltar" para a origem | **Implementada localmente** (§5.9) |
 | P6.7 | (fundida em P6.5/P6.6 na rodada de 2026-10-15) | — |
-| P6.8 | Medição (HTML, First Load JS), homologação, commit | **Pendente — Fabrício** |
+| P6.8 | Homologação e commit | **Concluída** — commit `9f86d32` (2026-10-15), §5.14. Medição de First Load JS/HTML não registrada no repositório. |
 
 ## 8. Matriz de testes (completa)
 

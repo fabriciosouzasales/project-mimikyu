@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Documentation Architecture |
 | **Arquivo** | `docs/03-documentation-architecture.md` |
-| **Versão** | 1.13 |
+| **Versão** | 1.14 |
 | **Status** | Aprovado |
 | **Objetivo** | Definir a organização, as responsabilidades e a governança da documentação oficial do Project Mimikyu. |
 | **Escopo** | Toda a documentação mantida no repositório oficial. |
@@ -25,6 +25,8 @@ O repositório oficial é a fonte permanente de verdade para decisões, padrões
 
 ```text
 CLAUDE.md (raiz do repositório, fora de docs/)
+README.md, PRODUCT.md, MMKYU-FRONTEND-REPERTOIRE-DRAFT.md (raiz; contexto não normativo — ver docs/INDEX.md)
+.claude/skills/<skill>/SKILL.md (instruções de agente versionadas)
 docs/
 ├── README.md
 ├── ROADMAP.md
@@ -41,7 +43,9 @@ docs/
 ├── 05c-assets-e-importacao.md
 ├── 05d-colecoes-e-usuarios.md
 ├── 05e-catalogo-editorial.md
+├── 05f-pricing.md
 ├── 06-pipeline-importacao.md
+├── 06a-pokemon-catalog-sourcing.md
 ├── 07-catalogo-editorial.md
 ├── adr/
 │   ├── ADR-INDEX.md
@@ -64,7 +68,8 @@ docs/
 ├── history/
 │   ├── <artefato>.md
 │   └── development/
-│       └── HANDOFF-AAAA-MM-DD.md
+│       ├── HANDOFF-AAAA-MM-DD.md
+│       └── <evidência-de-rodada>/
 └── development/
     └── HANDOFF-AAAA-MM-DD.md
 ```
@@ -227,6 +232,7 @@ Os documentos podem utilizar os seguintes status:
 | 1.8 | **Auditoria documental completa (2026-07-24), a pedido explícito de Fabrício, antes de retomar o desenvolvimento.** Achado nesta rodada: `docs/glossary/` — quarta pasta órfã do mesmo perfil das já identificadas (apenas `.gitkeep`, criada em 2026-07-21, nunca referenciada em nenhum documento nem incluída na árvore de estrutura), passou despercebida nas auditorias anteriores porque a varredura de `1.5` não a havia detectado. Adicionada à nota de pastas órfãs, com a mesma recomendação de remoção manual. Nenhuma outra inconsistência estrutural encontrada nesta auditoria (verificação cruzada de contagens 859/927/1.555/1.653 em todos os documentos, status de ADRs, links internos e conteúdo de `04-domain-model.md`/`07-catalogo-editorial.md`/`architecture/`/`database/README.md`). |
 | 1.9 | **Segunda auditoria (2026-07-24), conduzida por Fabrício sobre o resultado da revisão `1.8`.** `docs/ROADMAP.md` criado e adicionado à árvore de estrutura — primeira fonte única de verdade da trajetória do projeto. **Mudança de regra de manutenção**: `ADR-INDEX.md`/`STD-INDEX.md`, antes deliberadamente congelados até o fim da fase de documentação, passam a ser mantidos ativamente a partir de agora, por decisão explícita de Fabrício — a documentação do passado do projeto está encerrada. Ambos atualizados para refletir o estado real (ver nota própria, acima). `docs/sprint/`/`docs/glossary/` seguem pendentes de remoção manual — nenhuma pasta nova encontrada nesta rodada. |
 | 1.10 | **Exclusão de `docs/sprint/` e `docs/glossary/` confirmada por Fabrício (2026-07-24) e verificada por inspeção direta do repositório — nenhuma das quatro pastas órfãs identificadas ao longo do projeto (`pipelines/`, `editorial/`, `sprint/`, `glossary/`) existe mais.** Nota de "Pastas órfãs" reescrita de recomendação pendente para fato consumado, mesmo padrão já usado para `pipelines/`/`editorial/` na revisão `1.7`. Este item está encerrado. |
-| 1.12 | **Adequação ao padrão LLM Wiki (2026-08-06)**: três artefatos novos (`CLAUDE.md`, `docs/INDEX.md`, `docs/log.md`) e divisão de `05-modelo-de-dados.md` em `05a`–`05e` por área de domínio. Árvore de estrutura, tabela de Artifact Responsibilities e notas atualizadas — ver notas próprias, acima. |
 | 1.11 | **Formalizado o tipo de artefato `development/` (2026-07-26), motivado por auditoria externa conduzida por Fabrício**: `docs/development/HANDOFF-2026-07-26.md` havia sido criado numa sessão anterior sem que a árvore documental o previsse, contrariando a regra "não criar artefatos sem responsabilidade definida". Adicionado à árvore de estrutura (junto com `history/development/`, destino dos handoffs superados); nova linha "Development" na tabela de Artifact Responsibilities; nova nota "Ciclo de vida dos handoffs" — um vigente por vez, decisões permanentes nunca residem só nele, `README.md` aponta para o vigente. **Corrigida também a responsabilidade de `database/`**, que ainda afirmava execução exclusivamente manual via SQL Editor — desatualizada frente ao fluxo real consolidado no projeto (Claude Code executando e validando Queries diretamente no Supabase via MCP, ver `development/HANDOFF-2026-07-26.md`); reescrita para descrever `database/` como o registro versionado e canônico dos scripts, neutro quanto à ferramenta de execução. |
+| 1.12 | **Adequação ao padrão LLM Wiki (2026-08-06)**: três artefatos novos (`CLAUDE.md`, `docs/INDEX.md`, `docs/log.md`) e divisão de `05-modelo-de-dados.md` em `05a`–`05e` por área de domínio. Árvore de estrutura, tabela de Artifact Responsibilities e notas atualizadas — ver notas próprias, acima. |
 | 1.13 | **Formalizado o tipo de artefato `domain-modeling/` (2026-08-28), mesma classe de lacuna já resolvida para `development/` em 2026-07-26**: `docs/domain-modeling/collections/` (`concept-decisions.md`, `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`) havia sido criado na mesma rodada, sem que a árvore documental o previsse. Adicionado à árvore de estrutura; nova linha "Domain Modeling" na tabela de Artifact Responsibilities; nova nota explicando o motivo da lacuna e a estrutura esperada por domínio. Motivado pela incorporação de três documentos de modelagem de Collections produzidos em repositório paralelo, marcando ADR-013/ADR-014 como Substituídos no mesmo ciclo. |
+| 1.14 | **Árvore reconciliada com os diretórios reais (2026-10-15, `DOC-GATE-01`).** Incluídos `05f-pricing.md`, `06a-pokemon-catalog-sourcing.md`, as pastas de evidência em `history/development/` e os arquivos de raiz não normativos (`README.md`, `PRODUCT.md`, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md`) e `.claude/skills/`. Revisões 1.11 e 1.12 reordenadas na tabela (estavam invertidas); conteúdo preservado. Sem mudança de governança. |
