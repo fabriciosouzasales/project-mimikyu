@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { pokedexHref } from "@/lib/pokedex/format";
+import { type PokedexOrigin, pokedexHref } from "@/lib/pokedex/format";
 import { resolveVisibleGeneration, type SectionBox } from "@/lib/pokedex/visible-generation";
 import styles from "./generation-compact-bar.module.css";
 
@@ -43,11 +43,14 @@ export function GenerationCompactBar({
   generations,
   query,
   types,
+  origin = null,
 }: {
   generations: CompactBarGeneration[];
   query: string | null;
   /** Tipos ativos (P5a) — preservados ao escolher uma geração. */
   types: readonly string[];
+  /** P6: origem da galeria (Pokémons Favoritos mantém os links dentro dela). */
+  origin?: PokedexOrigin | null;
 }) {
   const dockRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -219,7 +222,7 @@ export function GenerationCompactBar({
             {generations.map((item) => (
               <li key={item.code}>
                 <Link
-                  href={pokedexHref({ query, generation: item.ordinal, types })}
+                  href={pokedexHref({ query, generation: item.ordinal, types, origin })}
                   className={styles.option}
                   aria-current={item.code === active.code ? "location" : undefined}
                   onClick={() => setOpen(false)}

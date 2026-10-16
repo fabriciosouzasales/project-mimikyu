@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.26 |
+| **Versão** | 2.27 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -28,9 +28,9 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > Decisão do responsável pelo MMKYU, registrada em `adr/ADR-011-pokemon-tcg-domain-scope.md` v1.5.
 >
 > - **Frente A — Produto e funcionalidades (prioridade principal).** Sequência estratégica aprovada (2026-10-14):
->   1. **P4c — Orientação por geração** — concluída (ciclo P4 fechado: P4a `dbbe8e4`, P4b `7725bae`, P4c aguardando commit; ver `database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md`).
->   2. **P5 — Pesquisa Avançada** — próxima, não iniciada.
->   3. **P6 — Favoritos.**
+>   1. **P4c — Orientação por geração** — concluída (ciclo P4 fechado: P4a `dbbe8e4`, P4b `7725bae`, P4c `1478323`; ver `database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md`).
+>   2. **P5 — Pesquisa Avançada** — P5a concluída (filtro por tipo, `449c079`; ver `database/proposals/2026-10-14-pokedex-p5-advanced-search/README.md`).
+>   3. **P6 — Favoritos** — em homologação. Persistência implantada no LIVE e promovida (`database/migrations/6136`/`6137`, P6.2–P6.3); frontend local completo (coração na galeria e na ficha, página `/pokedex/favoritos`), aguardando homologação de Fabrício antes do commit. Ver `database/proposals/2026-10-14-pokedex-p6-favorites/README.md` §5.9.
 >   4. **Módulo Collection** (base funcional).
 >   5. **P7 — Minha Collection Pokédex.**
 >   6. **P8 — Meu Progresso.**
@@ -721,3 +721,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.24 | **Gate final de Card Variants — CARD VARIANTS CLOSED (2026-10-11), decisão de Fabrício.** Auditoria LIVE: 21.166 cartas ativas, 37.851 variantes, 0 sem variante, 0 identidade duplicada, 0 com dois padrões, 0 inconsistência de Game, 0 vínculo de preço na carta errada, nenhum job de importação aberto. Migration `2259`: trigger de variante padrão para cargas futuras (regra única do 2258). Pendências não bloqueantes consolidadas em "Débitos Técnicos Registrados". Próximo: Collections — BULK-04. |
 | 2.25 | **Pokédex em duas frentes (2026-10-13).** Bloco novo no topo de "Now": Frente A (produto, prioridade principal; próximo passo P4 — Exploração por Geração, em planejamento) e Frente B (operação editorial pt-BR paralela das 965 espécies restantes). Decisão e regras em `ADR-011` v1.5; pacote factual encerrado. Sem alteração de código ou banco. |
 | 2.26 | **Pokédex — ciclo P4 fechado e sequência da Frente A (2026-10-14).** Bloco "Pokédex — duas frentes" atualizado: P4c concluída (barra contextual compacta no lugar da régua fixa reprovada; 52/52 testes, typecheck, lint e build PASS; sem novas consultas), sequência aprovada P5 Pesquisa Avançada → P6 Favoritos → Módulo Collection → P7 Minha Collection Pokédex → P8 Meu Progresso → P9 Integração Pokédex × Collection, com P7–P9 condicionadas à base funcional de Collection; Frente B editorial segue paralela e independente. Sem alteração de código ou banco. |
+| 2.27 | **Pokédex — P5a concluída e P6 Favoritos em homologação (2026-10-15).** Bloco "Pokédex — duas frentes" atualizado: P4c `1478323`, P5a `449c079`; P6 com 6136/6137 implantadas no LIVE (P6.2: 6849 v2.1 GATE PASS, postcheck sem resíduos) e promovidas para `database/migrations/` (P6.3), frontend local completo (P6.4–P6.6) aguardando homologação. Sem alteração de banco nesta revisão. |

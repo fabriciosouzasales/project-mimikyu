@@ -59,7 +59,35 @@ export function parseQueryParam(value: string | string[] | undefined, maxLength:
  * ficha e de volta. `types` já vem canônico (lib/pokedex/type-filter.ts); ausente ou
  * vazio = sem filtro por tipo.
  */
-export type PokedexContext = { query: string | null; generation: number | null; types?: readonly string[] };
+export type PokedexContext = {
+  query: string | null;
+  generation: number | null;
+  types?: readonly string[];
+  /**
+   * Pokédex P6 (2026-10-15): origem da galeria. `"favoritos"` = a página Pokémons
+   * Favoritos (`/pokedex/favoritos`); ausente/`null` = Pokédex Nacional. Decide só a
+   * rota base dos links da galeria e o "voltar" da ficha — pesquisa, geração e tipos
+   * seguem iguais nas duas.
+   */
+  origin?: PokedexOrigin | null;
+};
+
+/** Origens possíveis da galeria além da Pokédex Nacional (P6). */
+export type PokedexOrigin = "favoritos";
+
+/** Rota da página Pokémons Favoritos (P6). */
+export const POKEDEX_FAVORITES_PATH = "/pokedex/favoritos";
+
+/** `?origem=` da ficha: só `favoritos` é aceito; qualquer outra coisa = Pokédex Nacional. */
+export function parseOriginParam(value: string | string[] | undefined): PokedexOrigin | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw === "favoritos" ? "favoritos" : null;
+}
+
+/** Rota base da galeria de origem. */
+export function galleryBasePath(context: Pick<PokedexContext, "origin">): string {
+  return context.origin === "favoritos" ? POKEDEX_FAVORITES_PATH : "/pokedex";
+}
 
 /**
  * Query string do contexto — fonte única dos links da Pokédex (régua, barra compacta,
@@ -75,14 +103,24 @@ export function pokedexContextSearch(context: PokedexContext): string {
   return search ? `?${search}` : "";
 }
 
-/** Rota da Pokédex Nacional para um contexto (sem âncora). */
+/**
+ * Rota da galeria para um contexto (sem âncora): Pokédex Nacional ou, com
+ * `origin: "favoritos"` (P6), a página Pokémons Favoritos — régua, barra, pesquisa e
+ * filtro por tipo ficam dentro da página de origem.
+ */
 export function pokedexHref(context: PokedexContext): string {
-  return `/pokedex${pokedexContextSearch(context)}`;
+  return `${galleryBasePath(context)}${pokedexContextSearch(context)}`;
 }
 
-/** Rota da ficha preservando o contexto da galeria. */
+/**
+ * Rota da ficha preservando o contexto da galeria. A origem Favoritos (P6) viaja como
+ * `?origem=favoritos`, depois de `q`/`geracao`/`tipo`, para que o "voltar" e os
+ * vizinhos continuem dentro dela.
+ */
 export function speciesDetailHref(nationalDexNumber: number, context: PokedexContext): string {
-  return `/pokedex/${nationalDexNumber}${pokedexContextSearch(context)}`;
+  const search = pokedexContextSearch(context);
+  const origin = context.origin === "favoritos" ? `${search ? "&" : "?"}origem=favoritos` : "";
+  return `/pokedex/${nationalDexNumber}${search}${origin}`;
 }
 
 /** Âncora do card na galeria — o "voltar" da ficha rola até a espécie de origem. */
@@ -90,9 +128,10 @@ export function speciesAnchorId(nationalDexNumber: number): string {
   return `especie-${formatDexNumber(nationalDexNumber)}`;
 }
 
+/** "Voltar" da ficha: a galeria de origem (Nacional ou Favoritos), com a âncora da espécie. */
 export function nationalPokedexHref(context: PokedexContext, fromNumber?: number): string {
   const hash = fromNumber ? `#${speciesAnchorId(fromNumber)}` : "";
-  return `/pokedex${pokedexContextSearch(context)}${hash}`;
+  return `${galleryBasePath(context)}${pokedexContextSearch(context)}${hash}`;
 }
 
 /** Segmento da rota `/pokedex/[numero]`: só inteiros 1..9999 (zeros à esquerda aceitos e normalizados). */

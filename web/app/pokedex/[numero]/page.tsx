@@ -17,12 +17,12 @@ import {
   nationalPokedexHref,
   parseGenerationParam,
   parseNationalNumberParam,
+  parseOriginParam,
   parseQueryParam,
-  pokedexContextSearch,
   speciesDetailHref,
 } from "@/lib/pokedex/format";
 import { type NavigationSpecies, isGenerationContextMismatch, resolveSpeciesNavigation } from "@/lib/pokedex/navigation";
-import { POKEDEX_QUERY_MAX_LENGTH, getPokedexGenerations } from "@/lib/pokedex/queries";
+import { POKEDEX_QUERY_MAX_LENGTH, getMyPokedexFavorites, getPokedexGenerations } from "@/lib/pokedex/queries";
 import { parseTypeParam } from "@/lib/pokedex/type-filter";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -52,6 +52,13 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
  * o filtro sobreviva à ida e volta. Anterior/próximo não são restringidos por tipo
  * (seguem a regra nacional/de geração); se a espécie aberta não tem os tipos do
  * filtro, o "voltar" volta à galeria filtrada sem âncora (a espécie não está lá).
+ *
+ * Pokédex P6 (2026-10-15): `?origem=favoritos` é contexto — a ficha aberta a partir da
+ * página Pokémons Favoritos volta para ela (com pesquisa, geração e tipos), e os vizinhos
+ * e a busca rápida mantêm a origem. Anterior/próximo NÃO são restringidos a favoritos:
+ * seguem a regra nacional/de geração da P4a, como já acontece com o filtro por tipo. O
+ * coração da ficha usa a mesma leitura agregada da galeria (`get_my_pokedex_favorites`,
+ * em paralelo com as demais) — nenhuma consulta por espécie nova.
  */
 
 type Params = Promise<{ numero: string }>;
@@ -80,6 +87,7 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
     query: parseQueryParam(query.q, POKEDEX_QUERY_MAX_LENGTH),
     generation: parseGenerationParam(query.geracao),
     types: parseTypeParam(query.tipo).types,
+    origin: parseOriginParam(query.origem),
   };
 
   // URL canônica: /pokedex/0025 -> /pokedex/25 (mesmo contexto).
@@ -103,13 +111,14 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
       ? getPokedexSpeciesOriginalText(supabase, nationalDexNumber)
       : null,
   );
-  const [result, original, hero, previous, next, generations] = await Promise.all([
+  const [result, original, hero, previous, next, generations, favorites] = await Promise.all([
     detailPromise,
     originalPromise,
     getPokedexSpeciesHeroArtwork(supabase, nationalDexNumber),
     nationalDexNumber > 1 ? getPokedexSpeciesDetail(supabase, nationalDexNumber - 1) : Promise.resolve(null),
     getPokedexSpeciesDetail(supabase, nationalDexNumber + 1),
     getPokedexGenerations(supabase),
+    getMyPokedexFavorites(supabase),
   ]);
 
   if (result.status === "not_found") notFound();
@@ -126,13 +135,13 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
             <p className="font-medium">Não foi possível carregar esta espécie agora.</p>
             <p className="mt-1 text-sm opacity-90">
               Isso costuma ser passageiro.{" "}
-              <Link href={`/pokedex/${nationalDexNumber}${pokedexContextSearch(context)}`} className="font-medium underline underline-offset-2">
+              <Link href={speciesDetailHref(nationalDexNumber, context)} className="font-medium underline underline-offset-2">
                 Tentar novamente
               </Link>
             </p>
           </Alert>
           <Link href={nationalPokedexHref(context)} className="inline-block text-sm font-medium text-primary-ink underline-offset-2 hover:underline">
-            Voltar para a Pokédex Nacional
+            {context.origin === "favoritos" ? "Voltar para Pokémons Favoritos" : "Voltar para a Pokédex Nacional"}
           </Link>
         </div>
       </AppShell>
@@ -158,6 +167,8 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
         nextGeneration={navigation.nextGeneration}
         total={total}
         context={context}
+        isFavorite={favorites?.has(nationalDexNumber) ?? false}
+        favoritesAvailable={favorites !== null}
       />
     </AppShell>
   );

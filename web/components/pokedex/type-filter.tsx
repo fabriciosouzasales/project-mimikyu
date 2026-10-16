@@ -31,10 +31,13 @@ export function TypeFilter({
   options,
   active,
   clearHref,
+  inline = false,
 }: {
   options: TypeFilterOption[];
   active: ActiveTypeChip[];
   clearHref: string;
+  /** UX-02 (Favoritos): integra a barra de ferramentas da página (ver TypeFilterDisclosure). */
+  inline?: boolean;
 }) {
   const activeLabel = active.length > 0 ? joinTypeLabels(active.map((item) => item.label)) : null;
   const atLimit = active.length >= MAX_TYPE_FILTERS;
@@ -63,7 +66,7 @@ export function TypeFilter({
     ) : null;
 
   return (
-    <TypeFilterDisclosure activeLabel={activeLabel} activeCount={active.length} chips={chips}>
+    <TypeFilterDisclosure activeLabel={activeLabel} activeCount={active.length} chips={chips} inline={inline}>
       <p id={hintId} className={styles.hint}>
         {active.length === 0
           ? "Escolha até dois tipos. Com dois, aparecem só as espécies que têm ambos."

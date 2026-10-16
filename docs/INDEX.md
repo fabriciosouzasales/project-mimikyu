@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.03 |
+| **Versão** | 2.05 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -133,6 +133,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-10-13-pokedex-editorial-factual-pack/README.md`](../database/proposals/2026-10-13-pokedex-editorial-factual-pack/README.md) | Pokédex — pacote factual das 965 espécies sem editorial pt-BR (10 JSON + `index.json`, textos en verbatim do LIVE, fingerprint `f5669eba…1517`), **ENCERRADO em 2026-10-13** e entregue à operação editorial paralela (`ADR-011` v1.5). |
 | [`../database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md`](../database/proposals/2026-10-13-pokedex-p4-generation-exploration/README.md) | Pokédex P4 — Exploração por Geração: diagnóstico da navegação atual, lacunas, alternativas e registro de P4a (navegação por contexto), P4b (cabeçalho de capítulo) e P4c (barra contextual compacta de orientação); **ciclo P4 concluído**, sem SQL. |
 | [`../database/proposals/2026-10-14-pokedex-p5-advanced-search/README.md`](../database/proposals/2026-10-14-pokedex-p5-advanced-search/README.md) | Pokédex P5 — Pesquisa Avançada: inventário da pesquisa atual, dados disponíveis (LIVE), três alternativas, recomendação e escopo; **P5a (filtro por tipo, sem SQL) implementada localmente, aguardando homologação**; P5b como possibilidade futura. |
+| [`../database/proposals/2026-10-14-pokedex-p6-favorites/README.md`](../database/proposals/2026-10-14-pokedex-p6-favorites/README.md) | Pokédex P6 — Favoritos: conceito "Espécie favorita" (ADR-011 v1.6), coração vermelho, página Pokémons Favoritos (`/pokedex/favoritos`), artefatos 6136/6137/6849 (propostos, não executados), matriz de auditoria e plano; **P6.0/P6.1 concluídas, aguardando auditoria**. |
 | [`../database/proposals/2026-10-11-bootstrap-03-closeout/README.md`](../database/proposals/2026-10-11-bootstrap-03-closeout/README.md) | CATALOG-HISTORICAL-BOOTSTRAP-03 closeout — **executado em 2026-10-11**: diagnóstico dos jobs FAILED/linhas PENDING (inertes) e migration `2257` com 295 variantes (Trainer Kits HS/XY via Scrydex, CEL25CC via snapshot); 0 cartas sem variante. |
 | [`../database/proposals/2026-10-10-scrydex-card-assets/README.md`](../database/proposals/2026-10-10-scrydex-card-assets/README.md) | CATALOG-ASSETS-SCRYDEX-01 — **executada em 2026-10-10**: diagnóstico das 905 cartas sem imagem (TCGdex não publica), tabela fixa conferida por nome e Edge `import-scrydex-assets` em lotes; **863 imagens importadas**, restam 42 (MFB 34 + ECARD2 a/b 8) para o canal manual. |
 | [`../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md`](../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md) | Snapshot imutável da Pokémon TCG API (2026-10-09): 50 coleções, 6.733 cartas, chaves de preço por carta; manifest com contagem e SHA-256. Fonte da 2ª origem de variantes (ADR-034). |
@@ -271,3 +272,5 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 2.01 | **Pokédex — ciclo P4 concluído (2026-10-14).** Resumo da entrada P4 atualizado (P4a/P4b/P4c); ROADMAP 2.26 com a sequência P5 → P6 → Collection → P7 → P8 → P9. |
 | 2.02 | **Pokédex P5 — planejamento (2026-10-14).** Entrada nova para o diagnóstico e proposta de Pesquisa Avançada. |
 | 2.03 | **Pokédex P5a (2026-10-14).** Resumo da entrada P5 atualizado: filtro por tipo implementado localmente, aguardando homologação. |
+| 2.04 | **Pokédex P6 — planejamento (2026-10-14).** Entrada nova para o diagnóstico e plano de Favoritos. |
+| 2.05 | **Pokédex P6.0/P6.1 (2026-10-14).** Resumo da entrada P6 atualizado (conceito registrado, artefatos para auditoria). |

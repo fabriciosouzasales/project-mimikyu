@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Architecture Decision Records Index |
 | **Arquivo** | `docs/adr/ADR-INDEX.md` |
-| **Versão** | 2.26 |
+| **Versão** | 2.27 |
 | **Status** | Aprovado |
 | **Objetivo** | Catalogar os Architecture Decision Records do Project Mimikyu. |
 | **Dependências** | `../03-documentation-architecture.md` |
@@ -114,3 +114,4 @@ ADRs registram decisões arquiteturais relevantes e preservam seu contexto, just
 | 2.24 | **`ADR-011` emendado (v1.2, 2026-09-03) — revogação do adiamento da entidade Pokémon, `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`.** Nova seção "Atualização — Revogação do Adiamento da Entidade Pokémon / Registro de Pokémon Species (v1.2)": a condição que a emenda v1.1 (revisão `1.1`) estabelecia para reverter o adiamento da entidade mínima Pokémon ("necessidade concreta de identificação/pesquisa/agrupamento") se confirmou com a frente Collections Pokédex/`REFERENCE_POSITION` (ver `docs/domain-modeling/collections/logical-model.md`, LDM-175 a LDM-185). Entidade renomeada **Pokémon Species** (convergência com PokéAPI); `Generation` e `Pokémon Form/Variety` registrados como conceitos subordinados; sourcing formalizado (PokéAPI + TCGdex + reconciliação editorial MMKYU, sem dependência de runtime, consistente com `ADR-008`). O adiamento de mecânica de jogo (`AP-017`, mesma revisão `1.1`) **não é afetado** — permanece em vigor. Texto de v1.0/v1.1 preservado inalterado. Nenhuma mudança de status do ADR (segue `Aprovado`); nenhuma estrutura física criada. |
 | 2.25 | **`ADR-011` emendado (v1.4, 2026-10-12) — dados de referência da Pokédex (Pokédex P3a).** AP-017 preservado para o Catálogo Pokémon TCG; a Pokédex passa a estruturar classificação, descrição, lendário/mítico/bebê, tipos, altura e peso da forma padrão (`pokemon_form`). Ver `02-architecture-principles.md` v1.10. |
 | 2.26 | **`ADR-011` emendado (v1.5, 2026-10-13) — operação editorial pt-BR em paralelo.** Frente A (produto, prioridade) e Frente B (produção editorial das 965 espécies restantes por chat dedicado), responsabilidades e regras de governança. Corrigido também o campo **Versão** do cabeçalho, que estava em `2.24` apesar da linha `2.25`. |
+| 2.27 | **`ADR-011` emendado (v1.6, 2026-10-14) — Espécie favorita (Pokédex P6.0).** Conceito novo da Pokédex, distinto do `Favorite` de Card (C-82, inalterado) e de carta possuída; símbolo coração vermelho; página Pokémons Favoritos. Status do ADR inalterado (`Aprovado`); nenhuma estrutura física criada. |

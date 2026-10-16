@@ -141,6 +141,11 @@
     --warning: 38 92% 50%;
     --warning-foreground: 26 83% 14%;
 
+    /* Pokédex P6 (2026-10-15) — "Espécie favorita": vermelho do coração, próprio e
+       distinto de --destructive (erro). Rosado-carmim, contraste >= 3:1 (componente
+       gráfico, WCAG 1.4.11) sobre --surface nos dois temas. */
+    --favorite: 350 76% 48%;
+
     --radius: 0.625rem;
 
     /* Só os 4 tokens de navegação sem equivalente genérico (o resto da
@@ -195,6 +200,8 @@
 
     --warning: 38 92% 58%;
     --warning-foreground: 26 83% 10%;
+
+    --favorite: 350 88% 64%;
 
     /* Controles de formulário — mesmo racional do :root acima; --control-radius
        não muda por tema, definido uma única vez em :root. */

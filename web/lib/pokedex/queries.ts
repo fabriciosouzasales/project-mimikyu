@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { toFavoriteSet } from "./favorites.ts";
 
 /**
  * Leituras da Pokédex Nacional (Pokédex P1, 2026-10-12) — contrato das duas
@@ -155,6 +156,48 @@ export async function getPokedexSpeciesTypeIndex(supabase: SupabaseClient): Prom
   }
 
   return index;
+}
+
+// ---------------------------------------------------------------------------
+// Espécies favoritas do usuário da sessão (Pokédex P6, Query 6137)
+// ---------------------------------------------------------------------------
+
+/**
+ * Números nacionais favoritos do usuário da sessão — UMA leitura agregada por página
+ * (galeria, Pokémons Favoritos, ficha), nunca uma chamada por card. A identidade vem de
+ * `auth.uid()` dentro da função; esta camada não envia nenhum identificador.
+ *
+ * Paginada pelo mesmo teto do PostgREST da galeria (um usuário pode favoritar todas as
+ * 1.025 espécies — sem paginar, a resposta seria truncada em 1.000 em silêncio).
+ *
+ * `null` = indisponível (função ausente, sessão inválida ou falha): a galeria continua
+ * funcionando, com os corações desabilitados e um aviso discreto.
+ */
+export async function getMyPokedexFavorites(supabase: SupabaseClient): Promise<Set<number> | null> {
+  const startedAt = Date.now();
+  const rows: { national_dex_number?: unknown }[] = [];
+
+  for (let from = 0; ; from += SPECIES_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .rpc("get_my_pokedex_favorites")
+      .order("national_dex_number", { ascending: true })
+      .range(from, from + SPECIES_PAGE_SIZE - 1);
+
+    if (error || !data) {
+      if (error?.code === FUNCTION_NOT_FOUND) {
+        console.warn("[pokedex] get_my_pokedex_favorites indisponível (Query 6137 ausente); favoritos desabilitados.");
+      } else {
+        logPokedexReadFailure("get_my_pokedex_favorites", startedAt, error);
+      }
+      return null;
+    }
+
+    const page = data as { national_dex_number?: unknown }[];
+    rows.push(...page);
+    if (page.length < SPECIES_PAGE_SIZE) break;
+  }
+
+  return toFavoriteSet(rows);
 }
 
 function logPokedexReadFailure(

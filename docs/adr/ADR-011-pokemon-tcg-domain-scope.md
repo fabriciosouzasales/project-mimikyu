@@ -142,6 +142,25 @@ Sem alteração de schema, funções ou dados nesta atualização. Texto de v1.0
 
 ---
 
+# Atualização — Espécie favorita (v1.6, 2026-10-14)
+
+Decisão do responsável pelo MMKYU na avaliação do diagnóstico da Pokédex P6 (`database/proposals/2026-10-14-pokedex-p6-favorites/README.md`). Registra um conceito novo da Pokédex, sem alterar nenhum conceito existente.
+
+**Espécie favorita** (*Favorite Species*): preferência pessoal de um User por uma **Pokémon Species**.
+
+1. **Binária e sem hierarquia** — a espécie é favorita ou não; sem nota, ordem, prioridade ou níveis. No máximo um registro por par User × espécie.
+2. **Pertence ao User** — criada, lida e removida só pelo próprio User; nunca exposta a outros usuários, a membros de Collections ou publicamente.
+3. **Independente de posse** — não depende de, nem implica, possuir qualquer carta da espécie; não altera Inventory, Physical Card, Collection, Collection Allocation, completion, Pokédex Position nem Wishlist.
+4. **Distinta do `Favorite` de Card** (C-82–C-90, LDM-70–LDM-78) — aquele é a preferência por uma **carta** específica e continua exatamente como aprovado (sem estrutura física). Nenhum dos dois deriva do outro, e favoritar uma espécie não favorita cartas dela (nem o inverso).
+5. **Distinta de carta possuída na Collection** — a carta possuída é um item do acervo do usuário (Physical Card); a espécie favorita é só uma preferência.
+6. **Símbolo oficial: coração vermelho** — contorno quando não favorita, preenchido em vermelho quando favorita. Nunca usado para indicar posse.
+7. **Superfície própria** — página **Pokémons Favoritos** (`/pokedex/favoritos`), no menu secundário da Pokédex, seção EXPLORAR, logo após Pokédex Nacional; reaproveita a galeria e os filtros existentes.
+8. **Fronteira de segurança no banco** — leitura só das próprias linhas; escrita só por função que resolve o dono pela sessão (padrão de `inventory`/`create_collection`). Proposta física: `pokedex_species_favorite` + `get_my_pokedex_favorites()` + `set_pokedex_species_favorite()` (Queries 6136/6137, validação 6849 — **PROPOSTAS, NÃO EXECUTADAS** nesta atualização).
+
+Fora deste conceito: Favorite de Card, Wishlist, compartilhamento, ranking/"grail", P5b, Collection e P7/P8/P9.
+
+---
+
 # Alternatives Considered
 
 ## Modelar o domínio completo da franquia Pokémon
@@ -175,3 +194,4 @@ Rejeitada por impedir relacionar todas as Cards que representam o mesmo Pokémon
 | 1.3 | **Pokémon Region como entidade canônica própria, 2026-09-04** (`POKEMON-REGION-DOMAIN-MODELING-AUDIT-01` → `POKEMON-REGION-FOUNDATION-PHYSICAL-IMPLEMENTATION-01`/`-CANONICAL-PROMOTION-01`). Adicionada "Atualização — Pokémon Region (v1.3)": Region confirmada como entidade-raiz de catálogo independente de Generation (existem Regiões sem Main Generation — Orre, Hisui), cardinalidade Generation → Main Region é N:1. Fundação física (`pokemon_region`/`pokemon_region_external_reference`/`pokemon_generation.main_region_id`) **CONFIRMADO EXECUTADO**, sourcing real ainda SUSPENSO. Locations/Areas/Version Groups permanecem fora de escopo. Detalhamento lógico em `logical-model.md`, LDM-186 a LDM-190. Texto de v1.0/v1.1/v1.2 preservado inalterado. |
 | 1.4 | **Dados de referência da Pokédex, 2026-10-12** (Pokédex P3a, decisão D1). Adicionada "Atualização — Dados de Referência da Pokédex (v1.4)": AP-017 preservado para o Catálogo Pokémon TCG; a Pokédex pode estruturar classificação, descrição, lendário/mítico/bebê, tipos, altura e peso da forma padrão e o vocabulário dos 18 tipos. Primeira estrutura física de Pokémon Form (`pokemon_form`, só forma padrão). Habilidades, estatísticas, golpes, evoluções e formas alternativas continuam fora. Texto de v1.0–v1.3 preservado. |
 | 1.5 | **Operação editorial pt-BR em paralelo, 2026-10-13** (decisão do responsável pelo MMKYU). Adicionada "Atualização — Operação Editorial pt-BR em Paralelo (v1.5)": Frente A (produto e funcionalidades, prioridade principal) e Frente B (produção editorial das 965 espécies restantes por chat ChatGPT dedicado, lotes de ~100, guia v0.2 e glossário), com responsabilidades e oito regras de governança (60 textos publicados e lotes P3d/P3e intocados, publicação só com autorização, proveniência por `md5` de origem, sem edição simultânea dos mesmos arquivos, funcional não espera o editorial). Sem alteração física. Texto de v1.0–v1.4 preservado. |
+| 1.6 | **Espécie favorita, 2026-10-14** (Pokédex P6.0, decisão do responsável pelo MMKYU). Adicionada "Atualização — Espécie favorita (v1.6)": preferência pessoal, binária e privada de um User por uma Pokémon Species; independente de posse e de Collection; distinta do `Favorite` de Card (C-82–C-90, inalterado) e de carta possuída. Símbolo oficial coração vermelho; página própria Pokémons Favoritos (`/pokedex/favoritos`). Persistência proposta em 6136/6137/6849, não executada. Texto de v1.0–v1.5 preservado. |

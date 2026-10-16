@@ -82,6 +82,7 @@
 }
 
 .item {
+  position: relative;
   display: flex;
   scroll-margin-top: 1.5rem;
 }
@@ -342,4 +343,122 @@
   :global([data-pk-compact-nav]) .item {
     scroll-margin-top: 4rem;
   }
+}
+
+/* ---- Espécie favorita (Pokédex P6, 2026-10-15) ----
+   Botão irmão do link, sobre o canto superior direito da prancha. Área de toque de
+   2.75rem (44 px); o desenho visível é pequeno para não competir com a arte.
+   - Não favorita: contorno neutro. Desktop (hover fino): só aparece com hover/foco do
+     card ou do próprio botão. Telas de toque: sempre visível, discreto.
+   - Favorita: preenchida em --favorite (token próprio, não o vermelho de erro), sempre
+     visível.
+   Só transform/opacity animam; prefers-reduced-motion neutraliza pela regra global. */
+.favorite {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.favoriteIcon {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0.3125rem;
+  border-radius: 999px;
+  overflow: visible;
+  fill: transparent;
+  stroke: currentColor;
+  background: color-mix(in srgb, hsl(var(--surface)) 82%, transparent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease-out;
+}
+
+.favorite[aria-pressed="true"] {
+  color: hsl(var(--favorite));
+}
+
+.favorite[aria-pressed="true"] .favoriteIcon {
+  fill: hsl(var(--favorite));
+  transform: scale(1.06);
+}
+
+.favorite[data-pending] .favoriteIcon {
+  opacity: 0.7;
+}
+
+.favorite:disabled {
+  cursor: not-allowed;
+}
+
+.favorite:disabled .favoriteIcon {
+  opacity: 0.45;
+}
+
+.favorite:focus-visible {
+  outline: none;
+}
+
+.favorite:focus-visible .favoriteIcon {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .favorite[aria-pressed="false"] .favoriteIcon {
+    opacity: 0;
+  }
+
+  .item:hover .favorite[aria-pressed="false"] .favoriteIcon,
+  .item:focus-within .favorite[aria-pressed="false"] .favoriteIcon {
+    opacity: 1;
+  }
+
+  .favorite:not(:disabled):hover {
+    color: hsl(var(--favorite));
+  }
+
+  .favorite:not(:disabled):hover .favoriteIcon {
+    transform: scale(1.08);
+  }
+}
+
+@container (max-width: 179px) {
+  .favoriteIcon {
+    width: 1.625rem;
+    height: 1.625rem;
+  }
+}
+
+/* "Última ficha" divide o canto com o coração: o selo recua para a esquerda dele. */
+.item:has(.favorite) .card[data-recent] .plate::before {
+  right: 2.875rem;
+}
+
+/* Página Pokémons Favoritos: o card desfavoritado fica no lugar, atenuado, até a
+   próxima navegação (D4) — sem salto de layout; o coração continua clicável para
+   favoritar de novo. */
+.item[data-fav-removed] .card {
+  opacity: 0.42;
+  filter: saturate(0.35);
+  transition:
+    opacity 220ms ease-out,
+    filter 220ms ease-out;
+}
+
+.item[data-fav-removed] .favorite .favoriteIcon {
+  opacity: 1;
 }

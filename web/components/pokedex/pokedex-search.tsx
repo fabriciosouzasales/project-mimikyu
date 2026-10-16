@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { pokedexHref } from "@/lib/pokedex/format";
+import { type PokedexOrigin, galleryBasePath, pokedexHref } from "@/lib/pokedex/format";
 import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 300;
@@ -26,11 +26,14 @@ export function PokedexSearch({
   types = [],
   maxLength,
   size = "md",
+  origin = null,
 }: {
   initialQuery: string | null;
   generation: number | null;
   /** Tipos ativos (`?tipo=`, P5a), já canônicos. */
   types?: readonly string[];
+  /** P6: pesquisa dentro da página Pokémons Favoritos. */
+  origin?: PokedexOrigin | null;
   maxLength: number;
   /** "lg": campo de destaque do cabeçalho da Pokédex Nacional (P3c). */
   size?: "md" | "lg";
@@ -63,7 +66,7 @@ export function PokedexSearch({
     lastPushed.current = query;
 
     startTransition(() => {
-      router.replace(pokedexHref({ query: query || null, generation, types }), { scroll: false });
+      router.replace(pokedexHref({ query: query || null, generation, types, origin }), { scroll: false });
     });
   }
 
@@ -75,7 +78,7 @@ export function PokedexSearch({
   return (
     <form
       role="search"
-      action="/pokedex"
+      action={galleryBasePath({ origin })}
       method="get"
       className="relative w-full"
       onSubmit={(event) => {
@@ -102,7 +105,7 @@ export function PokedexSearch({
         autoComplete="off"
         spellCheck={false}
         maxLength={maxLength}
-        placeholder="Nome ou número — ex.: Pikachu, 25"
+        placeholder="Nome ou número"
         value={value}
         onChange={(event) => {
           setValue(event.target.value);

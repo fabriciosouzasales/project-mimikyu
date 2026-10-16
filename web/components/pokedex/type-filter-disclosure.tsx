@@ -1,8 +1,8 @@
 "use client";
 
 import { useLinkStatus } from "next/link";
-import { ChevronDown, Loader2, SlidersHorizontal } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react";
+import { ChevronDown, Layers, Loader2, SlidersHorizontal } from "lucide-react";
+import { type KeyboardEvent, type MouseEvent, type ReactNode, useId, useRef, useState } from "react";
 import styles from "./type-filter.module.css";
 
 /**
@@ -14,19 +14,38 @@ import styles from "./type-filter.module.css";
  *   botão (nunca sobre as cartas) e continua aberto enquanto o usuário escolhe o
  *   segundo tipo — o componente não remonta na navegação suave.
  * - Esc dentro do painel fecha e devolve o foco ao botão.
+ *
+ * Pokédex P6, Correção de UX-01 (2026-10-15): o mesmo disclosure serve ao filtro
+ * compacto de geração da página Pokémons Favoritos (`variant="generation"`): rótulo
+ * "Geração", ícone próprio e — escolha única — o painel fecha ao escolher. O padrão
+ * (`variant="type"`) mantém o comportamento aprovado da P5a sem nenhuma mudança.
+ *
+ * UX-02 (2026-10-15): `inline` (só na página Favoritos) deixa o botão e os chips
+ * participarem de uma barra de ferramentas em linha (Geração e Tipo lado a lado) e o
+ * painel abrir abaixo dela, na largura toda. Só layout (CSS); sem `inline`, nada muda.
  */
+const VARIANTS = {
+  type: { name: "Tipo", noun: "tipo", Icon: SlidersHorizontal, closeOnSelect: false },
+  generation: { name: "Geração", noun: "geração", Icon: Layers, closeOnSelect: true },
+} as const;
+
 export function TypeFilterDisclosure({
   activeLabel,
   activeCount,
   chips,
   children,
+  variant = "type",
+  inline = false,
 }: {
   /** "Fogo e Voador" quando há filtro (rótulo acessível do botão). */
   activeLabel: string | null;
   activeCount: number;
   chips: ReactNode;
   children: ReactNode;
+  variant?: keyof typeof VARIANTS;
+  inline?: boolean;
 }) {
+  const { name, noun, Icon, closeOnSelect } = VARIANTS[variant];
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -38,8 +57,13 @@ export function TypeFilterDisclosure({
     buttonRef.current?.focus();
   }
 
+  function onPanelClick(event: MouseEvent<HTMLDivElement>) {
+    if (!closeOnSelect || !(event.target as HTMLElement).closest("a[href]")) return;
+    setOpen(false);
+  }
+
   return (
-    <div className={styles.root}>
+    <div className={styles.root} data-inline={inline ? "" : undefined}>
       <div className={styles.bar}>
         <button
           ref={buttonRef}
@@ -48,11 +72,11 @@ export function TypeFilterDisclosure({
           data-active={activeCount > 0 ? "" : undefined}
           aria-expanded={open}
           aria-controls={panelId}
-          aria-label={activeLabel ? `Tipo: ${activeLabel}. Alterar filtro por tipo` : "Tipo: filtrar por tipo"}
+          aria-label={activeLabel ? `${name}: ${activeLabel}. Alterar filtro por ${noun}` : `${name}: filtrar por ${noun}`}
           onClick={() => setOpen((value) => !value)}
         >
-          <SlidersHorizontal className={styles.triggerIcon} aria-hidden="true" />
-          Tipo
+          <Icon className={styles.triggerIcon} aria-hidden="true" />
+          {name}
           {activeCount > 0 ? (
             <span className={styles.triggerCount} aria-hidden="true">
               {activeCount}
@@ -62,7 +86,7 @@ export function TypeFilterDisclosure({
         </button>
         {chips}
       </div>
-      <div id={panelId} className={styles.panel} hidden={!open} onKeyDown={onPanelKeyDown}>
+      <div id={panelId} className={styles.panel} hidden={!open} onKeyDown={onPanelKeyDown} onClick={onPanelClick}>
         {children}
       </div>
     </div>

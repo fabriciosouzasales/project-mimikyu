@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { PokemonTypeSprite, PokemonTypeStyles, pokemonTypeSymbolId } from "@/components/pokedex/pokemon-type-assets";
+import { FavoriteHeartSprite, FavoriteHeartUse } from "@/components/pokedex/favorite-heart";
 import { RecentSpeciesMarker } from "@/components/pokedex/recent-species-marker";
+import { favoriteToggleLabel } from "@/lib/pokedex/favorites";
 import { SpeciesArtwork } from "@/components/pokedex/species-artwork";
 import { PRIORITY_ARTWORK_COUNT, speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import type { PokedexGeneration, PokedexSpecies, PokedexSpeciesTypes } from "@/lib/pokedex/queries";
@@ -32,19 +34,39 @@ import styles from "./species-grid.module.css";
  * - WebP 320 com prioridade só nas primeiras imagens, o resto lazy;
  * - proporção fixa da área da arte (sem layout shift) e `content-visibility` por
  *   geração (o navegador só faz layout/paint das gerações visíveis).
+ *
+ * Pokédex P6 (2026-10-15): cada card ganha o botão-coração de "Espécie favorita",
+ * IRMÃO do link (botão dentro de link é HTML inválido), renderizado no servidor com o
+ * estado inicial em `aria-pressed`. O desenho do coração existe uma vez (sprite) e os
+ * cliques são tratados por uma única ilha (FavoritesController, por delegação) — nenhum
+ * componente cliente por card.
+ *
+ * Pokédex P6, Correção de UX-01 (2026-10-15): `layout="continuous"` (página Pokémons
+ * Favoritos) — os MESMOS cards numa única grade contínua, na ordem nacional, sem
+ * cabeçalhos nem espaçamentos de capítulo por geração. A geração passa a ser um filtro
+ * (FavoritesGenerationFilter), não uma divisão da grade.
  */
 export function SpeciesGrid({
   species,
   generations,
   speciesTypes,
   context,
+  favorites,
+  layout = "chapters",
 }: {
   species: PokedexSpecies[];
   generations: PokedexGeneration[];
+  /**
+   * Favoritos do usuário (P6). `null` = leitura indisponível: corações visíveis, mas
+   * desabilitados (a galeria continua funcionando).
+   */
+  favorites: ReadonlySet<number> | null;
   /** Tipos por número nacional (Query 6135). `null` = indisponível: cards no tom neutro. */
   speciesTypes: Map<number, PokedexSpeciesTypes> | null;
   /** Pesquisa/geração atuais — levadas à ficha da espécie e de volta (Pokédex P3b). */
   context: PokedexContext;
+  /** "chapters" (Pokédex Nacional): seções por geração. "continuous" (Favoritos): uma grade só. */
+  layout?: "chapters" | "continuous";
 }) {
   const generationByCode = new Map(generations.map((generation) => [generation.generation_code, generation]));
   // Posição de cada espécie na grade renderizada — só o topo visível carrega
@@ -61,8 +83,24 @@ export function SpeciesGrid({
     <div className={styles.root} data-pk-types="">
       <PokemonTypeStyles />
       <PokemonTypeSprite />
+      <FavoriteHeartSprite />
       <RecentSpeciesMarker />
-      {groups.map((group) => {
+      {layout === "continuous" ? (
+        <ul className={styles.grid} aria-label="Pokémons favoritos">
+          {species.map((item, index) => (
+            <SpeciesTile
+              key={item.national_dex_number}
+              species={item}
+              types={speciesTypes?.get(item.national_dex_number) ?? null}
+              context={context}
+              isFavorite={favorites?.has(item.national_dex_number) ?? false}
+              favoritesAvailable={favorites !== null}
+              priority={index < PRIORITY_ARTWORK_COUNT}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {layout === "chapters" && groups.map((group) => {
         const generation = generationByCode.get(group.code);
         const headingId = `geracao-${group.code.toLowerCase()}`;
         const roman = generationRoman(group.code);
@@ -96,6 +134,8 @@ export function SpeciesGrid({
                   species={item}
                   types={speciesTypes?.get(item.national_dex_number) ?? null}
                   context={context}
+                  isFavorite={favorites?.has(item.national_dex_number) ?? false}
+                  favoritesAvailable={favorites !== null}
                   priority={(positionByNumber.get(item.national_dex_number) ?? Infinity) < PRIORITY_ARTWORK_COUNT}
                 />
               ))}
@@ -118,18 +158,22 @@ function SpeciesTile({
   types,
   priority,
   context,
+  isFavorite,
+  favoritesAvailable,
 }: {
   species: PokedexSpecies;
   types: PokedexSpeciesTypes | null;
   priority: boolean;
   context: PokedexContext;
+  isFavorite: boolean;
+  favoritesAvailable: boolean;
 }) {
   const number = formatDexNumber(species.national_dex_number);
   const artworkUrl = speciesArtworkUrl(species.artwork_path);
   const typeText = types ? (types.secondaryLabel ? `${types.primaryLabel} e ${types.secondaryLabel}` : types.primaryLabel) : null;
 
   return (
-    <li id={speciesAnchorId(species.national_dex_number)} className={styles.item}>
+    <li id={speciesAnchorId(species.national_dex_number)} className={styles.item} data-fav-item="">
       <Link
         href={speciesDetailHref(species.national_dex_number, context)}
         aria-label={`Nº ${number}, ${species.species_name}${typeText ? `, ${typeText}` : ""}`}
@@ -168,6 +212,16 @@ function SpeciesTile({
           ) : null}
         </span>
       </Link>
+      <button
+        type="button"
+        className={styles.favorite}
+        data-fav={species.national_dex_number}
+        aria-pressed={isFavorite}
+        aria-label={favoriteToggleLabel(species.species_name)}
+        disabled={!favoritesAvailable}
+      >
+        <FavoriteHeartUse className={styles.favoriteIcon} />
+      </button>
     </li>
   );
 }

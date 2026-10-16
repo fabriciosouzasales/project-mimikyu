@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { PokedexGeneration } from "@/lib/pokedex/queries";
-import { formatCount, generationRoman, pokedexHref } from "@/lib/pokedex/format";
+import { type PokedexOrigin, formatCount, generationRoman, pokedexHref } from "@/lib/pokedex/format";
 import styles from "./generation-filter.module.css";
 
 /**
@@ -17,15 +17,18 @@ export function GenerationFilter({
   query,
   types,
   totalSpecies,
+  origin = null,
 }: {
   generations: PokedexGeneration[];
   activeGeneration: number | null;
   query: string | null;
   types: readonly string[];
   totalSpecies: number;
+  /** P6: na página Pokémons Favoritos, a régua fica dentro dela. */
+  origin?: PokedexOrigin | null;
 }) {
   function hrefFor(generation: number | null) {
-    return pokedexHref({ query, generation, types });
+    return pokedexHref({ query, generation, types, origin });
   }
 
   return (

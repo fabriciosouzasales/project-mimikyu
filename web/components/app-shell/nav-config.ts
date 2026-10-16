@@ -8,6 +8,7 @@ import {
   FileText,
   FileUp,
   Gamepad2,
+  Heart,
   Globe,
   History,
   ImagePlus,
@@ -235,6 +236,11 @@ export const NAV_SECTIONS: NavSection[] = [
     href: "/pokedex",
     children: [
       { href: "/pokedex", label: "Pokédex Nacional", section: "Explorar", icon: LayoutGrid, activePattern: /^\/pokedex\/\d+$/ },
+      // Pokédex P6 (2026-10-15, decisão D8) — página própria das espécies favoritas,
+      // logo abaixo da Pokédex Nacional. A ficha aberta a partir dela (/pokedex/25?…
+      // &origem=favoritos) continua destacando "Pokédex Nacional": o destaque é só por
+      // pathname (decisão aceita na primeira versão — README da proposta P6, §6).
+      { href: "/pokedex/favoritos", label: "Pokémons Favoritos", section: "Explorar", icon: Heart },
       // Pokédex P2 Lote E (2026-10-12) — cobertura, diagnóstico e
       // reprocessamento pontual das imagens das espécies. Só administradores.
       { href: "/pokedex/imagens", label: "Imagens", section: "Cadastro", icon: Images, adminOnly: true },

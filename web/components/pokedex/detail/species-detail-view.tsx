@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, PenLine } from "lucide-react";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { PokemonTypeChip } from "@/components/pokedex/pokemon-type-chip";
 import { SpeciesArtwork } from "@/components/pokedex/species-artwork";
+import { FavoriteToggle } from "@/components/pokedex/detail/favorite-toggle";
 import { PokedexLens } from "@/components/pokedex/detail/pokedex-lens";
 import { SpeciesDescriptionBilingual } from "@/components/pokedex/detail/species-description-bilingual";
 import { SpeciesKeyboardNav } from "@/components/pokedex/detail/species-keyboard-nav";
@@ -39,6 +40,9 @@ const LONG_NAME_LENGTH = 10;
  * em contorno e anel da Pokédex atrás, luz do tipo primário (e do secundário),
  * identidade abaixo, medidas como anotações do palco no desktop e numa folha
  * de informações no mobile.
+ *
+ * Pokédex P6 (2026-10-15): controle de "Espécie favorita" (coração + texto) junto à
+ * identidade; o "voltar" respeita a origem (Pokédex Nacional ou Pokémons Favoritos).
  */
 export function SpeciesDetailView({
   species,
@@ -49,6 +53,8 @@ export function SpeciesDetailView({
   nextGeneration = null,
   total,
   context,
+  isFavorite = false,
+  favoritesAvailable = false,
 }: {
   species: PokedexSpeciesDetail;
   /** Texto oficial em inglês (P3d) — presente só quando a ficha tem descrição editorial pt-BR. */
@@ -63,7 +69,13 @@ export function SpeciesDetailView({
   nextGeneration?: GenerationTransition | null;
   total: number | null;
   context: PokedexContext;
+  /** P6: a espécie é favorita do usuário (leitura agregada da página). */
+  isFavorite?: boolean;
+  /** P6: `false` = leitura de favoritos indisponível. */
+  favoritesAvailable?: boolean;
 }) {
+  const fromFavorites = context.origin === "favoritos";
+  const originLabel = fromFavorites ? "Pokémons Favoritos" : "Pokédex Nacional";
   const number = formatDexNumber(species.national_dex_number);
   const primary = species.profile_available ? species.primary_type_code : null;
   const secondary = species.profile_available ? species.secondary_type_code : null;
@@ -78,9 +90,11 @@ export function SpeciesDetailView({
   const nextHref = next ? speciesDetailHref(next.national_dex_number, context) : null;
   // Pokédex P5a: com filtro por tipo, a âncora só existe na galeria filtrada se a espécie
   // tem os tipos do filtro; sem isso, o "voltar" leva ao topo da galeria filtrada.
-  const backAnchor = speciesMatchesTypes([species.primary_type_code, species.secondary_type_code], context.types)
-    ? species.national_dex_number
-    : undefined;
+  // P6: na origem Favoritos, a âncora só existe se a espécie é favorita.
+  const backAnchor =
+    speciesMatchesTypes([species.primary_type_code, species.secondary_type_code], context.types) && (!fromFavorites || isFavorite)
+      ? species.national_dex_number
+      : undefined;
   const backHref = nationalPokedexHref(context, backAnchor);
   // Pokédex P4a: com geração filtrada, o "voltar" leva à geração (onde a espécie
   // está) e um segundo link sai para a Pokédex Nacional, mantendo a pesquisa.
@@ -89,7 +103,7 @@ export function SpeciesDetailView({
   const generationName = species.region_name ?? generationLabel(species.generation_code);
   // Link "explorar esta geração" a partir da ficha: só a geração, sem a pesquisa,
   // para que a âncora da espécie exista sempre na grade de destino.
-  const generationHref = nationalPokedexHref({ query: null, generation: species.generation_ordinal }, species.national_dex_number);
+  const generationHref = nationalPokedexHref({ query: null, generation: species.generation_ordinal, origin: null }, species.national_dex_number);
   const nextGenerationHref = nextGeneration
     ? speciesDetailHref(nextGeneration.first.national_dex_number, nextGeneration.context)
     : null;
@@ -117,15 +131,27 @@ export function SpeciesDetailView({
 
       <div className={styles.topbar}>
         {filtered ? (
-          <nav aria-label="Voltar para a Pokédex" className={styles.trail}>
+          <nav aria-label={fromFavorites ? "Voltar para Pokémons Favoritos" : "Voltar para a Pokédex"} className={styles.trail}>
             <Link href={nationalHref} className={styles.back}>
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Pokédex </span>Nacional
+              {fromFavorites ? (
+                <>
+                  <span className="hidden sm:inline">Pokémons </span>Favoritos
+                </>
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Pokédex </span>Nacional
+                </>
+              )}
             </Link>
             <span className={styles.trailSeparator} aria-hidden="true">
               /
             </span>
-            <Link href={backHref} className={cn(styles.back, styles.trailCurrent)} aria-label={`Voltar para ${generationLabel(species.generation_code)}, ${generationName}`}>
+            <Link
+              href={backHref}
+              className={cn(styles.back, styles.trailCurrent)}
+              aria-label={`Voltar para ${fromFavorites ? "Favoritos, " : ""}${generationLabel(species.generation_code)}, ${generationName}`}
+            >
               <span className={styles.trailRoman} aria-hidden="true">
                 {generationRoman(species.generation_code)}
               </span>
@@ -135,14 +161,20 @@ export function SpeciesDetailView({
         ) : (
           <Link href={backHref} className={styles.back}>
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            Pokédex Nacional
+            {originLabel}
           </Link>
         )}
         <div className={styles.position}>
-          <span className="hidden items-center gap-1 sm:inline-flex" aria-hidden="true">
-            <span className={styles.kbd}>←</span>
-            <span className={styles.kbd}>→</span>
-          </span>
+          {/* P6 UX-03/UX-04: agrupamento do topo = coração → seletor de número. As
+              antigas indicações ←/→ saíram da tela (UX-04); os atalhos de teclado
+              continuam em SpeciesKeyboardNav. */}
+          <FavoriteToggle
+            key={species.national_dex_number}
+            nationalDexNumber={species.national_dex_number}
+            speciesName={species.species_name}
+            initialFavorite={isFavorite}
+            available={favoritesAvailable}
+          />
           <SpeciesQuickSearch current={species.national_dex_number} total={total} context={context} />
         </div>
       </div>

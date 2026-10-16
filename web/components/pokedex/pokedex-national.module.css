@@ -268,3 +268,67 @@
     font-size: 0.75rem;
   }
 }
+
+/* ---- Pokémons Favoritos — composição entre cabeçalho e galeria (P6, UX-02) ---- */
+.heroFavorites {
+  margin-bottom: 1.25rem;
+}
+
+.favoritesBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Geração e Tipo na mesma linha; quebra só quando falta espaço. Os painéis
+   (order: 1, largura total) abrem abaixo da linha. */
+.favoritesToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem 0.75rem;
+}
+
+.favoritesResults {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Faixa de resultados: separador sutil entre os controles e a galeria. */
+.resultsBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid hsl(var(--foreground) / 0.09);
+  font: 500 0.8125rem/1.4 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.resultsBar strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.resultsOrder span {
+  font-weight: 600;
+  color: hsl(var(--foreground) / 0.8);
+}
+
+@media (max-width: 639px) {
+  .heroFavorites {
+    margin-bottom: 1rem;
+  }
+
+  .favoritesBody {
+    gap: 1rem;
+  }
+
+  .favoritesResults {
+    gap: 0.75rem;
+  }
+}
