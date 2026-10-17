@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.28 |
+| **Versão** | 1.30 |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1214,6 +1214,8 @@ Validação automatizada `5822` v2.1 = **`64 TOTAL / 64 PASS / 0 FAIL / 0 NOT PR
 
 `5822`, o runbook de concorrência e o `README.md` da rodada permanecem **apenas** em `database/proposals/2026-09-08-bulk-02-register-physical-cards/`, como evidência histórica — não são promovidos, seguindo a política canônica.
 
+> **Atualização 2026-10-16.** O contrato público de B1 não mudou, mas os corpos vigentes no LIVE são posteriores: `5152` acrescentou a recusa explícita de Card Variant inativa (`CARD_VARIANT_INACTIVE`, passo 6.2b) e `is_active` no fingerprint (`5149`); `5155` moveu os passos 6 (validação de domínio) e 7 (escrita) de `5150` para o helper compartilhado `5153`, sem mudar mensagens, SQLSTATE nem ordem. Ver a seção "Bulk Operations — BULK-04".
+
 ## Autoridade deste contrato
 
 Esta seção é a **fonte durável** do contrato congelado de B1. Ele foi decidido em `COLLECTIONS-BULK-OPERATIONS-MODELING-FINALIZATION-01`, rodada de modelagem que **não gerou artefato próprio no repositório** — a assinatura, a ordem de locks e o rótulo `I9` viveram apenas no chat até aqui. Dívida documental identificada no GATE A de BULK-02 e quitada nesta seção, por decisão explícita de não criar ADR novo.
@@ -1398,6 +1400,8 @@ O desfecho ser `PREVIEW_STALE` e **não** `collection is archived` prova a ordem
 
 Terceiro incremento da frente Bulk e **interface pública de Preview**. Produz o `preview_fingerprint` que a execução (`5150`) consome, e devolve numa única chamada o resumo do que aconteceria e a lista completa de impedimentos — sem escrever nada e sem tomar lock algum.
 
+> **Atualização 2026-10-16.** O texto desta seção descreve o estado de 2026-09-09. Desde então: `5152` acrescentou o décimo `issues[].code`, `CARD_VARIANT_INACTIVE`; e `5158` passou a **suportar `REGISTER_CARD_SET`** com envelope próprio — a recusa "ainda não suportado" descrita abaixo deixou de valer para esse valor. Ver a seção "Bulk Operations — BULK-04".
+
 ## Assinatura e escopo
 
 ```
@@ -1470,11 +1474,70 @@ Resíduo: **Δ = 0 nas nove tabelas** — as oito de BULK-02 mais `public.game`,
 
 ## Pendências / Próximos Passos
 
-- **Próxima frente canônica: `CATALOG-HISTORICAL-BOOTSTRAP-03` — etapa restante = `CARD VARIANTS — HISTORICAL BULK IMPORT`.** *(Reconciliação operacional, 2026-09-18, `BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`: a descrição anterior — "CARDS + ASSETS PT-BR/EN" — está **desatualizada operacionalmente**. Cards e Assets históricos já foram majoritariamente carregados; o que resta da frente é **Variants**. Baseline LIVE datado: 200 Card Sets / 20.941 Cards / 30.261 Card Assets / 7.671 Card Variants; **169 Sets elegíveis** (170 com Cards e zero Variants, menos `ME5.5`, fora do denominador operacional) e **16.705** Cards. Os 4 Sets sem Cards e os Assets residuais são `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`. A `CARD-VARIANTS — EDITORIAL CONVERGENCE` está `CLOSED`. Detalhamento em [`ROADMAP.md`](ROADMAP.md) e [`05b-cartas-e-raridade.md`](05b-cartas-e-raridade.md) revisão `1.4`.)* `CATALOG-HISTORICAL-BOOTSTRAP-01` (Expansions) e `-02` (Card Sets) já fecharam — 17 Expansions e **199 Card Sets** Pokémon, com índice `uq_card_set_expansion_promo` presente no banco físico e `release_order` definitivo; ver `05a-catalogo-base.md`, seção "Bootstrap histórico do catálogo de Card Sets". Sequência macro congelada restante: `CATALOG-HISTORICAL-BOOTSTRAP-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
-- **`REGISTER_CARD_SET` (B2) sem Preview.** Exigirá função de fingerprint própria e um segundo braço no discriminador; envelope, semântica de erro, teto e matriz de segurança são herdados sem alteração.
+- **`BULK-04` — `REGISTER_CARD_SET`: CONCLUÍDO em 2026-10-16** — ver a seção "Bulk Operations — BULK-04" logo abaixo. **Próxima frente da sequência Bulk: `BULK-05` → `BULK-06`.**
+- *(Histórico)* **Próxima frente canônica (2026-10-16, decisão de Fabrício): `BULK-04` — `REGISTER_CARD_SET`**, com o `5152` como pré-requisito LIVE (ver o item B2 abaixo). O item seguinte, sobre `CATALOG-HISTORICAL-BOOTSTRAP-03`, é registro histórico: o catálogo de Card Variants foi fechado em 2026-10-11 (`ROADMAP.md` 2.24).
+- *(Histórico)* **Próxima frente canônica: `CATALOG-HISTORICAL-BOOTSTRAP-03` — etapa restante = `CARD VARIANTS — HISTORICAL BULK IMPORT`.** *(Reconciliação operacional, 2026-09-18, `BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`: a descrição anterior — "CARDS + ASSETS PT-BR/EN" — está **desatualizada operacionalmente**. Cards e Assets históricos já foram majoritariamente carregados; o que resta da frente é **Variants**. Baseline LIVE datado: 200 Card Sets / 20.941 Cards / 30.261 Card Assets / 7.671 Card Variants; **169 Sets elegíveis** (170 com Cards e zero Variants, menos `ME5.5`, fora do denominador operacional) e **16.705** Cards. Os 4 Sets sem Cards e os Assets residuais são `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`. A `CARD-VARIANTS — EDITORIAL CONVERGENCE` está `CLOSED`. Detalhamento em [`ROADMAP.md`](ROADMAP.md) e [`05b-cartas-e-raridade.md`](05b-cartas-e-raridade.md) revisão `1.4`.)* `CATALOG-HISTORICAL-BOOTSTRAP-01` (Expansions) e `-02` (Card Sets) já fecharam — 17 Expansions e **199 Card Sets** Pokémon, com índice `uq_card_set_expansion_promo` presente no banco físico e `release_order` definitivo; ver `05a-catalogo-base.md`, seção "Bootstrap histórico do catálogo de Card Sets". Sequência macro congelada restante: `CATALOG-HISTORICAL-BOOTSTRAP-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
+- **`REGISTER_CARD_SET` (B2 / `BULK-04`) — contrato de produto decidido por Fabrício em 2026-10-16 (`BULK04-READINESS-01`); implementado e LIVE no mesmo dia (seção "Bulk Operations — BULK-04").**
+  - **Q1 — prioridade:** `BULK-04` é o próximo trabalho prioritário.
+  - **Q2 — pré-requisito:** o `5152` (recusa explícita de variante inativa em B1/Preview) entra no LIVE antes de B2, que herda essa regra. Em 2026-10-16 está autorizada somente a preparação da implantação.
+  - **Q3 — o que é criado:** uma Physical Card por Card ativo (`card.is_active`) do Card Set, na variante padrão do Card (`card_variant.is_default`).
+  - **Q4 — abrangência:** o Set inteiro na V1, inclusive Cards que o usuário já possui (duplicatas são permitidas, `C-21`). Completar parte de um Set continua sendo feito por B1 com Preview.
+  - **Q5 — idioma:** um único `language_id` por operação.
+  - **Q6 — Card sem variante padrão ou com variante inativa:** contrato vigente preservado — a operação inteira é recusada com a lista dos ofensores, nunca com descarte silencioso. A variante padrão é sempre ativa (`ck_card_variant_default_active`, `2268`).
+  - **Q7 — envelope, erros, teto e segurança:** herdados de B1 sem alteração (semântica de erro, teto `1000`, matriz de segurança, claim/replay D9). Correção desta revisão: o texto anterior dizia que o *envelope* era herdado sem alteração, o que não é possível literalmente — por Q3/Q5, B2 identifica o Card Set e o idioma no lugar de `items`; os demais campos (`idempotency_key`, `preview_fingerprint`, `collection_id`, `storage_container_id`) e suas regras são os de B1. A forma exata fecha na rodada de modelagem.
+  - **Q8 — Preview:** função de fingerprint própria e um segundo braço no discriminador de `preview_bulk_operation` (`5151`).
+  - **Q9 — fonte única:** hash (`5147`), ordem de locks (`5148`, I9), claim/complete (`5144`/`5145`) e replay (D9) são os da família; B2 expande o Set em itens no servidor e reusa a validação e a escrita de B1, sem segunda implementação.
 - **Constante `1000` duplicada** entre `5151` e `5150` — ver "Cardinalidade".
 - **Sem rate limiting na camada de banco.** Não-objetivo declarado desta frente: a proteção é o teto, o `EXECUTE` restrito a `authenticated` e o escopo por Owner; debounce é responsabilidade do cliente.
 - **Sem prova de concorrência** — ao contrário de BULK-02, aqui a afirmação se sustenta: Preview não toma lock, não escreve e não serializa nada. Não há blocker concreto a provar.
+
+---
+
+# Bulk Operations — BULK-04: `REGISTER_CARD_SET` (B2) e hardening `5152`
+
+| Campo | Valor |
+|---|---|
+| **Status** | **`EXECUTED / VALIDATED / PROMOTED / CLOSED`** (2026-10-16) |
+| **Queries** | `5152` (ledger `20261016234129`) · `5153` `20261016235518` · `5154` `20261016235536` · `5155` `20261016235631` · `5156` `20261016235645` · `5157` `20261016235726` · `5158` `20261016235910` |
+| **Validação LIVE** | `5824` 30/29/0/1 (v1.0 após `5152`; v1.1 após `5158`) · `5822` 64/64/0/0 · `5823` 60/60/0/0 (v2.2 após `5152`; v2.3 após `5158`) · `5826` **56/56/0/0** |
+| **Resíduo** | zero (postcheck externo após cada rodada) |
+| **Promoção** | `5152`–`5158` em `database/schema/`, corpo SQL idêntico ao aplicado (md5 de `prosrc` conferido no LIVE); evidência em `database/proposals/2026-10-16-bulk-active-variant-hardening/` e `database/proposals/2026-10-16-bulk-04-register-card-set/` |
+
+## `5152` — variante inativa em B1 e no Preview
+
+Pré-requisito de B2 (Q2). `5149` inclui `is_active` no catálogo hasheado (desativar ou reativar a variante depois do Preview gera `PREVIEW_STALE`); `5150` ganha o passo 6.2b, antes de qualquer escrita (`CARD_VARIANT_INACTIVE`, `22023`, contagem + 10 primeiros + `DETAIL` com a lista completa); `5151` ganha o issue `BLOCKING` `CARD_VARIANT_INACTIVE`. Sem lock novo: a corrida entre 6.2b e o `INSERT` continua barrada pelo trigger de `2268` (`MV001`, transação inteira desfeita). Replay (D9) inalterado.
+
+## B2 — `register_card_set_bulk(p_request jsonb) → jsonb`
+
+Registra o Card Set inteiro: **uma Physical Card por Card ativo, na variante padrão**, inclusive Cards já possuídos, num único idioma (Q3–Q5).
+
+- **Envelope fechado:** `idempotency_key`, `preview_fingerprint`, `card_set_id`, `language_id` (obrigatórios); `collection_id`, `storage_container_id` (opcionais).
+- **Sequência:** guards estruturais → `request_hash` da **intenção** (Set, idioma, destino; não a expansão) → claim `REGISTER_CARD_SET` (`5144`; namespace por tipo, independente de B1) → locks `5148` (I9) → expansão `5154` → fingerprint `5156` / `PREVIEW_STALE` → validações próprias (`card set not found`; `CARD_DEFAULT_VARIANT_MISSING` com lista; `card set has no active cards`; teto 1000 com a mesma mensagem de B1) → validação de domínio e escrita via `5153` → `complete` (`5145`). `result_summary` acrescenta `card_set_id` e `language_id`.
+- **Segurança:** `SECURITY DEFINER`, owner `postgres`, `search_path` vazio, `EXECUTE` só para `authenticated`.
+
+## Fonte única (I1 / Q9)
+
+| Objeto | Papel | Segurança |
+|---|---|---|
+| `5153` `bulk_register_physical_card_items` | validação de domínio + escrita de Physical Cards, usada por B1 (`5155`) e B2 (`5157`); corpo = passos 6–7 de `5150` na versão de `5152`, literal | `INVOKER`, `VOLATILE`, `EXECUTE` revogado de `PUBLIC`/`anon`/`authenticated`/`service_role` |
+| `5154` `bulk_expand_card_set` | expansão do Set (item por Card ativo na variante padrão, ordenado por `card_id`) e lista de Cards ativos sem padrão | idem |
+| `5156` `preview_fingerprint_register_card_set` | hash de {Set, existência, idioma, Cards sem padrão, fingerprint `5149` sobre a expansão}, rótulo `PREVIEW:REGISTER_CARD_SET` (token de B1 nunca vale em B2) | idem |
+| `5155` | `5150` passa a chamar `5153`; contrato, mensagens, SQLSTATE e ordem de B1 inalterados | inalterada |
+| `5158` | `preview_bulk_operation` com braço B2: envelope próprio `{operation_type, card_set_id, language_id, collection_id, storage_container_id}`, reaproveita o Preview de B1 sobre os itens expandidos e acrescenta `CARD_SET_NOT_FOUND`, `CARD_SET_EMPTY`, `CARD_DEFAULT_VARIANT_MISSING`; caminho de B1 inalterado | inalterada |
+
+## Segurança — decisões registradas
+
+- **Security Advisor:** um único alerta novo após `5153`–`5158` — `authenticated_security_definer_function_executable` para `public.register_card_set_bulk(p_request jsonb)`. **Aceito por Fabrício em 2026-10-16 como risco conhecido, exclusivamente para esta função** (mesma classe de `register_physical_cards_bulk` e `preview_bulk_operation`; dono derivado de `auth.uid()`; atua só no Inventory/Collection/Storage do chamador; `anon` sem `EXECUTE`). A aceitação não se estende a outros alertas. `5152` não gerou alerta novo.
+- **`K01`** (desativação comitada entre a validação e o `INSERT`): **NOT PROVEN / ACCEPTED RISK** — exige duas sessões persistentes; no pior caso o erro vem do trigger `2268` (`MV001`) em vez de `22023`, sempre com a transação inteira desfeita.
+
+## Validação e performance
+
+Offline (PostgreSQL 17 isolado, sem rede) e LIVE com os mesmos gates. `5826` cobre estrutura, ACL e prova de runtime `42501` dos helpers, guards com SQLSTATE, Preview do B2 (12 casos), caminho feliz (variantes padrão, duplicatas permitidas, Collection/Storage, Reference elegível), idempotência (REPLAY, CONFLICT, namespace por tipo), `PREVIEW_STALE` e as validações na confirmação, e atomicidade (falhas não consomem a chave). Medição observacional do Preview de B1 com 1000 variantes reais no LIVE: 1212 ms (após `5152`) e 982 ms (após `5158`); sem SLO.
+
+## Pendências / Próximos Passos
+
+- **Riscos conhecidos, não defeitos:** Card desativado entre a expansão e o `INSERT` não é barrado por guard próprio (mesmo comportamento de B1); o Preview de B2 calcula o fingerprint de `5149` duas vezes.
+- **Próxima frente da sequência Bulk:** `BULK-05` → `BULK-06`.
 
 ---
 
@@ -1725,3 +1788,5 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.26 | **`PRIMARY SPECIES` encerrado — sourcing dos Card Sets ME* (2026-09-12, `PRIMARY-SPECIES-ME-SOURCING-01 / DOCUMENTATION-CLOSEOUT-01`).** Nova subseção "Sourcing ME* e fechamento de Primary Species" sob "Card → Primary Species (Fatia C)". Cobertura **16.657 → 17.409 / 17.536 = 99,28 %**; residual **879 → 127**; Card Sets ME* de 0 % a **752/752 = 100 %** (751 `AUTOMATIC_DEXID` pela Query `6129`, a partir de evidência TCGdex congelada de 752 pares lida pelo contrato já existente do projeto; 1 `EDITORIAL_RECONCILIATION` pela Query `6130`, `me01-086` → Absol / National Dex 359). Gates `B1`–`B10` **10/10 PASS** e `C1`–`C7` **7/7 PASS**; duplicidade global de Primary Species = 0; universo elegível POKEMON = 17.536 inalterado. `me01-086` registrado como **`SOURCE_DATA_ERROR` da TCGdex** (fonte publica `Mega Absol ex` com `dexId 351`/Castform): o `351` observado ficou preservado ao lado da decisão editorial, e o payload automático da `6115` nunca foi falsificado. Os **127** residuais passam a **`KNOWN / INTENTIONAL UNRESOLVED`** e **`DEFERRED TO FUTURE EDITORIAL UI`** por decisão de produto — 8 SVP + 119 ambiguidades históricas, preservados de propósito como massa real de teste da futura UI editorial, **não bloqueantes para Card Variants**. Consolidada como **regra de domínio permanente**: *coverage nunca prevalece sobre correctness*; `UNRESOLVED`/`AMBIGUOUS` é estado válido; associação automática só com evidência determinística; `SOURCE_DATA_ERROR` (Species conhecida, fonte errada) nunca se confunde com ambiguidade (Species indeterminável). O parágrafo anterior de cobertura (16.657 / 94,99 % / residual 879) foi mantido, apenas marcado como "antes do sourcing ME*". `6129`/`6130` promovidas para `database/migrations/` (transformações de dados, não schema); `6842` permanece só em `proposals/`. Nenhum ADR/Standard criado nesta rodada. Ver `06a-pokemon-catalog-sourcing.md` revisão `1.6` (causa-raiz de sourcing) e `docs/log.md`. |
 | 1.27 | **Reconciliação operacional do `CATALOG-HISTORICAL-BOOTSTRAP-03` (2026-09-18, `BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`).** Único ponto alterado: o primeiro item de "Pendências / Próximos Passos" descrevia a próxima frente canônica como "CARDS + ASSETS PT-BR/EN" — descrição **desatualizada operacionalmente**, já que Cards e Assets históricos foram majoritariamente carregados. A etapa restante passa a ser explicitamente **`CARD VARIANTS — HISTORICAL BULK IMPORT`**, com baseline LIVE datado (200 Sets / 20.941 Cards / 30.261 Assets / 7.671 Variants; **169** Sets elegíveis / **16.705** Cards, `ME5.5` fora do denominador) e os 4 Sets sem Cards + Assets residuais como `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`. Registra também que a `CARD-VARIANTS — EDITORIAL CONVERGENCE` está `CLOSED`. Nenhuma outra seção tocada; nenhum SQL executado. |
 | 1.28 | **Ordem da tabela de Revision History corrigida (2026-10-15, `DOC-GATE-01`).** As entradas 1.10 e 1.11 estavam invertidas; reordenadas em ordem ascendente sem alterar conteúdo. Este documento é confirmado como a fonte prevalente do estado físico de Collection, referenciada pelo novo cabeçalho de `domain-modeling/collections/logical-model.md` (1.19) e pelo `HANDOFF-2026-10-15.md`. |
+| 1.29 | **Contrato de produto do `BULK-04` (`REGISTER_CARD_SET`) decidido (2026-10-16, `BULK04-READINESS-01`).** "Pendências / Próximos Passos": a próxima frente canônica passa a ser `BULK-04`, com o `5152` como pré-requisito LIVE; o item sobre `CATALOG-HISTORICAL-BOOTSTRAP-03` foi marcado como histórico (catálogo de Card Variants fechado em 2026-10-11). O item B2 registra as decisões Q1–Q9 de Fabrício (Physical Card por Card ativo na variante padrão; Set inteiro, inclusive cartas já possuídas; idioma único; contratos de B1 preservados) e corrige uma imprecisão objetiva: o envelope de B2 não pode ser literalmente o de B1, porque identifica o Card Set e o idioma no lugar de `items`. Nenhum SQL executado; implementação não iniciada. |
+| 1.30 | **`BULK-04` (`REGISTER_CARD_SET`, B2) e hardening `5152` — `EXECUTED / VALIDATED / PROMOTED / CLOSED` (2026-10-16, autorização de Fabrício).** Seção nova "Bulk Operations — BULK-04": `5152` (variante inativa em B1/Preview) e `5153`–`5158` (helper compartilhado de escrita, expansão do Set, refatoração de B1, fingerprint e RPC `register_card_set_bulk`, braço B2 do Preview) aplicadas no LIVE, ledgers registrados, corpos idênticos ao LIVE e promovidos para `database/schema/`. Harnesses LIVE: `5826` 56/56/0/0, `5823` v2.3 60/60/0/0, `5822` 64/64/0/0, `5824` v1.1 30/29/0/1; resíduo zero. `K01` registrado como NOT PROVEN / ACCEPTED RISK; alerta do Security Advisor para `register_card_set_bulk` aceito por Fabrício exclusivamente para essa função. Notas de atualização nas seções B1 e BULK-03; Pendências: BULK-04 concluído, próxima frente da sequência Bulk `BULK-05` → `BULK-06`. |

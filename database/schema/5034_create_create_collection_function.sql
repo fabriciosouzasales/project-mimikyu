@@ -2,7 +2,10 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 5034 - Create create_collection Function
-Versão......: 1.1
+Versão......: 1.2 (2026-10-16: correção apenas de comentário — a
+               sequência asterisco+barra em "(C-* / LDM-*)", antes
+               sem espaço, encerrava este cabeçalho antes da hora e
+               quebrava a execução do arquivo; corpo SQL inalterado)
 Status......: CANÔNICA
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-08-31 (aplicado em 2026-09-01,
@@ -27,7 +30,7 @@ herdada por analogia indevida do padrão real de card.is_active
 (ADR-023), nunca de fato existente em game. Confirmado por leitura
 direta do schema físico (information_schema.columns) que
 public.game tem apenas id/code/name/created_at/updated_at — nenhuma
-decisão conceitual deste incremento (C-*/LDM-*) documenta um estado
+decisão conceitual deste incremento (C-* / LDM-*) documenta um estado
 ativo/inativo para Game. Removida a dependência: create_collection()
 agora exige apenas que p_game_id corresponda a um Game existente
 (mesmo texto de erro 'game not found'); não há mais caso "game is

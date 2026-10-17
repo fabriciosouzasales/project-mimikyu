@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.07 |
+| **Versão** | 2.08 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -55,7 +55,7 @@ Documentos físicos/SQL por área (divisão de 2026-08-06):
 | [`05a-catalogo-base.md`](05a-catalogo-base.md) | Física do catálogo-base (Game, Expansion, Card Set, idiomas, bootstrap histórico). |
 | [`05b-cartas-e-raridade.md`](05b-cartas-e-raridade.md) | Física de Card, raridade e Card Variant (governança, importação de variantes, convergência editorial). |
 | [`05c-assets-e-importacao.md`](05c-assets-e-importacao.md) | Física de Card Asset e do pipeline de importação de imagens. |
-| [`05d-colecoes-e-usuarios.md`](05d-colecoes-e-usuarios.md) | Física de usuários e de Collections — fonte prevalente do estado físico de Collection (01B–02F, Pokédex A–E, Binder/Layout, BULK-01 a 03). |
+| [`05d-colecoes-e-usuarios.md`](05d-colecoes-e-usuarios.md) | Física de usuários e de Collections — fonte prevalente do estado físico de Collection (01B–02F, Pokédex A–E, Binder/Layout, BULK-01 a 04). |
 | [`05e-catalogo-editorial.md`](05e-catalogo-editorial.md) | Física do Catálogo Editorial administrativo (escrita, ingestão, Módulo Gerencial). |
 | [`05f-pricing.md`](05f-pricing.md) | Modelo lógico e físico do domínio Pricing. |
 
@@ -301,3 +301,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 2.05 | **Pokédex P6.0/P6.1 (2026-10-14).** Resumo da entrada P6 atualizado (conceito registrado, artefatos para auditoria). |
 | 2.06 | **`DOC-GATE-01` (2026-10-15).** Seção nova "Raiz do repositório e instruções de agentes" (`CLAUDE.md`, `README.md` raiz, `PRODUCT.md` marcado não normativo, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md`, skill `mmkyu-frontend-experience`); tabela dos documentos físicos `05a`–`05f` (`05c` e `05e` não estavam indexados); `ADR-034` adicionado à lista rápida; `p9-2026-10-09/summary.md` indexado; handoff vigente passa a ser `development/HANDOFF-2026-10-15.md` e `HANDOFF-2026-09-16.md` vai para histórico (links atualizados). Resumos das propostas P5 e P6 atualizados (P5a publicada; P6 concluída). A duplicidade histórica de duas linhas `1.15` nesta tabela foi mantida. |
 | 2.07 | **`DOC-GATE-01` — fechamento (2026-10-16).** Entrada nova em Domain Modeling para `domain-modeling/collections/checkpoint-2026-10-15.md` (diagnóstico integral de Collection, histórico-factual, não normativo). |
+| 2.08 | **`BULK-04` concluído (2026-10-16).** Resumo de `05d-colecoes-e-usuarios.md` passa a citar BULK-01 a 04 (seção nova "Bulk Operations — BULK-04", revisão 1.30). Nenhum documento novo. |
