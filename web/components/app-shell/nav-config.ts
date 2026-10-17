@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   Library,
+  LibraryBig,
   PencilLine,
   RefreshCw,
   ScrollText,
@@ -253,12 +254,22 @@ export const NAV_SECTIONS: NavSection[] = [
     // aberto a todo usuário autenticado (mesmo nível da Pokédex). Estrutura aprovada em
     // COLLECTION UX FOUNDATION-01: GERENCIAR (Meu acervo, Minhas coleções) · ORGANIZAR
     // (Onde guardo). Regra do projeto: item de menu nunca leva a tela vazia ou 404 —
-    // nesta rodada só "Meu acervo" funciona, então só ele entra.
+    // "Onde guardo" só entra quando existir. Minhas coleções: MY-COLLECTIONS-FRONTEND-01
+    // (2026-10-17); a página de uma coleção (/colecoes/colecoes/<id>) destaca o mesmo item.
     label: "Coleções",
     icon: Library,
     // `/colecoes` (redireciona para o acervo) para que todo `/colecoes/*` destaque a seção.
     href: "/colecoes",
-    children: [{ href: "/colecoes/acervo", label: "Meu acervo", section: "Gerenciar", icon: Layers }],
+    children: [
+      { href: "/colecoes/acervo", label: "Meu acervo", section: "Gerenciar", icon: Layers },
+      {
+        href: "/colecoes/colecoes",
+        label: "Minhas coleções",
+        section: "Gerenciar",
+        icon: LibraryBig,
+        activePattern: /^\/colecoes\/colecoes\/[0-9a-f-]{36}$/i,
+      },
+    ],
   },
 ];
 

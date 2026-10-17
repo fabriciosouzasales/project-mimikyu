@@ -1,0 +1,350 @@
+/*
+ * Capa do fichário (MY-COLLECTIONS-LIBRARY-VISUAL-02).
+ *
+ * Geometria 3D igual à do Binder fechado aprovado (binder-cover-closed.tsx,
+ * Rodada 9+): `perspective` no palco, `preserve-3d` no objeto, face em
+ * translateZ(D/2) e lombada nascendo encostada (`left: 100%`) girando em torno
+ * da própria aresta (`transform-origin: 0 50%`, rotateY(90deg) translateX(-D/2)).
+ * Unidades `cqw` (container = palco) para a proporção valer em qualquer tamanho.
+ *
+ * Acabamentos por `data-finish` — um objeto físico não muda de cor com o tema,
+ * então os valores são próprios da capa (como os do Binder aprovado), não
+ * tokens de tema. Dourado só na placa/selo/foil.
+ *
+ * Performance: nenhum filter/backdrop-filter; textura = imagem SVG estática
+ * (data URI, decodificada uma vez); movimento só em transform.
+ */
+
+.stage {
+  --d: 10cqw; /* espessura do fichário */
+  position: relative;
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: 26 / 33;
+}
+
+/* `perspective` num filho do container, para `cqw` medir o palco. */
+.scene {
+  position: absolute;
+  inset: 0;
+  perspective: 420cqw;
+}
+
+.object {
+  /* acabamento padrão (ônix); sobrescrito por data-finish */
+  --leather: 30 5% 15%;
+  --leather-deep: 30 6% 6%;
+  --leather-hi: 30 8% 26%;
+  --stitch: 40 30% 72%;
+  --foil: 40 64% 62%;
+  --foil-deep: 36 58% 38%;
+  --mark: 0 0% 0%;
+  --paper: 42 30% 93%;
+  --ink: 30 12% 14%;
+
+  position: absolute;
+  inset: 0 var(--d) 0 0;
+  transform-style: preserve-3d;
+  transform: rotateY(-24deg);
+  transition: transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.object[data-finish="vinho"] {
+  --leather: 350 46% 27%;
+  --leather-deep: 350 52% 12%;
+  --leather-hi: 352 40% 38%;
+  --stitch: 30 40% 74%;
+}
+
+.object[data-finish="floresta"] {
+  --leather: 156 30% 20%;
+  --leather-deep: 160 38% 8%;
+  --leather-hi: 152 24% 30%;
+  --stitch: 45 34% 70%;
+}
+
+.object[data-finish="marinho"] {
+  --leather: 220 42% 25%;
+  --leather-deep: 222 50% 10%;
+  --leather-hi: 216 34% 37%;
+  --stitch: 210 20% 78%;
+  --foil: 210 14% 84%;
+  --foil-deep: 212 10% 52%;
+}
+
+.object[data-finish="caramelo"] {
+  --leather: 27 50% 38%;
+  --leather-deep: 22 56% 17%;
+  --leather-hi: 30 52% 52%;
+  --stitch: 38 52% 84%;
+  --foil: 42 74% 76%;
+  --foil-deep: 34 60% 44%;
+  --mark: 22 60% 10%;
+}
+
+.object[data-finish="perola"] {
+  --leather: 40 26% 86%;
+  --leather-deep: 34 16% 62%;
+  --leather-hi: 40 40% 96%;
+  --stitch: 32 18% 46%;
+  --foil: 38 62% 46%;
+  --foil-deep: 34 60% 30%;
+  --mark: 30 20% 30%;
+  --paper: 40 30% 98%;
+}
+
+/* ---- face ---- */
+
+.face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 3.2cqw 4.4cqw 4.4cqw 3.2cqw;
+  transform: translateZ(calc(var(--d) / 2));
+  background:
+    radial-gradient(120% 80% at 18% 0%, hsl(var(--leather-hi) / 0.55), transparent 58%),
+    linear-gradient(162deg, hsl(var(--leather)) 0%, hsl(var(--leather)) 46%, hsl(var(--leather-deep)) 100%);
+  box-shadow:
+    inset 0 0 0 1px hsl(0 0% 100% / 0.06),
+    inset 2.4cqw 0 2.6cqw -1.6cqw hsl(0 0% 0% / 0.55),
+    inset 0 -3cqw 6cqw -3cqw hsl(0 0% 0% / 0.45);
+}
+
+/* Textura de couro: ruído fractal estático (SVG), opacidade baixa. */
+.grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  pointer-events: none;
+}
+
+.stitch {
+  position: absolute;
+  inset: 4.2cqw;
+  border: 0.55cqw dashed hsl(var(--stitch) / 0.42);
+  border-radius: 2cqw 2.8cqw 2.8cqw 2cqw;
+  box-shadow: 0 0.3cqw 0 hsl(0 0% 0% / 0.25);
+  pointer-events: none;
+}
+
+/* Janela da placa: recorte rebaixado no couro + inserto de papel. */
+.plate {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 25%;
+  height: 34%;
+  display: grid;
+  place-items: center;
+  padding: 5cqw;
+  border-radius: 2.4cqw;
+  background:
+    linear-gradient(155deg, hsl(0 0% 100% / 0.55) 0%, transparent 38%),
+    linear-gradient(180deg, hsl(var(--paper)) 0%, hsl(var(--paper) / 0.92) 100%);
+  box-shadow:
+    0 0 0 1.1cqw hsl(var(--leather-deep) / 0.55),
+    0 0 0 1.5cqw hsl(var(--stitch) / 0.18),
+    inset 0 1.2cqw 2.4cqw hsl(0 0% 0% / 0.28),
+    inset 0 -0.4cqw 0 hsl(0 0% 100% / 0.6);
+}
+
+/* Brilho da capa plástica sobre o papel. */
+.plate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(118deg, transparent 30%, hsl(0 0% 100% / 0.35) 44%, transparent 56%);
+  pointer-events: none;
+}
+
+/* Com logo: sem inserto de papel — o logo do Set fica direto sobre o couro,
+   como uma aplicação na capa, ocupando uma área maior. A sombra curta é só
+   para o logo não "afundar" em couros escuros ou claros. */
+.plate[data-kind="logo"] {
+  left: 20%;
+  right: 20%;
+  top: 27%;
+  height: 26%;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.plate[data-kind="logo"]::after {
+  content: none;
+}
+
+.plate[data-kind="logo"] .logo {
+  filter: drop-shadow(0 0.6cqw 1.2cqw hsl(0 0% 0% / 0.45));
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.plateType {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.4cqw;
+  text-align: center;
+}
+
+.plateTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  font: 800 6.8cqw/1.06 var(--font-heading);
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  color: hsl(var(--ink));
+}
+
+.plateCode {
+  padding: 0.6cqw 2.6cqw;
+  border-radius: 99cqw;
+  background: hsl(var(--ink));
+  font: 700 4.4cqw/1.3 var(--font-sans);
+  letter-spacing: 0.14em;
+  color: hsl(var(--paper));
+}
+
+/* Código do Set estampado em foil abaixo da janela (quando há logo). */
+.foilCode {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 60%;
+  text-align: center;
+  font: 800 7cqw/1 var(--font-sans);
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: hsl(var(--foil));
+  background: linear-gradient(180deg, hsl(var(--foil)) 30%, hsl(var(--foil-deep)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Selo "completa": adesivo de foil sobre o canto da placa. */
+.seal {
+  position: absolute;
+  z-index: 3;
+  top: 20%;
+  right: 8%;
+  display: grid;
+  place-items: center;
+  width: 12cqw;
+  height: 12cqw;
+  border-radius: 999px;
+  color: hsl(var(--foil-deep) / 1);
+  background: radial-gradient(circle at 35% 30%, hsl(var(--foil) / 1) 0%, hsl(var(--foil)) 45%, hsl(var(--foil-deep)) 100%);
+  box-shadow: 0 0.8cqw 2cqw hsl(0 0% 0% / 0.45), inset 0 0.4cqw 0 hsl(0 0% 100% / 0.45);
+}
+
+.seal svg {
+  color: hsl(var(--leather-deep));
+}
+
+.mark {
+  position: absolute;
+  left: 9%;
+  bottom: 7%;
+  font: 800 4.6cqw/1 var(--font-heading);
+  letter-spacing: 0.3em;
+  color: hsl(var(--mark) / 0.42);
+  text-shadow: 0 0.25cqw 0 hsl(0 0% 100% / 0.1);
+  user-select: none;
+}
+
+/* ---- lombada do zíper (face lateral 3D) ---- */
+
+.edge {
+  position: absolute;
+  top: 1.2%;
+  bottom: 1.2%;
+  left: 100%;
+  width: var(--d);
+  transform-origin: 0 50%;
+  transform: rotateY(90deg) translateX(calc(var(--d) / -2));
+  border-radius: 2cqw;
+  background: linear-gradient(90deg, hsl(var(--leather-deep)) 0%, hsl(var(--leather)) 45%, hsl(var(--leather-deep)) 100%);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 0% / 0.35);
+}
+
+.zipper {
+  position: absolute;
+  top: 4%;
+  bottom: 4%;
+  left: 50%;
+  width: 1.4cqw;
+  transform: translateX(-50%);
+  border-radius: 1cqw;
+  background:
+    repeating-linear-gradient(180deg, hsl(0 0% 62%) 0 0.5cqw, hsl(0 0% 20%) 0.5cqw 1.1cqw);
+  opacity: 0.85;
+}
+
+/* Sombra de contato no "chão" da estante. */
+.floor {
+  position: absolute;
+  left: 6%;
+  right: 4%;
+  bottom: -5cqw;
+  height: 8cqw;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, hsl(0 0% 0% / 0.32), transparent);
+  transform: translateZ(0);
+  pointer-events: none;
+  transition: opacity 420ms ease, transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:global(.dark) .floor {
+  background: radial-gradient(closest-side, hsl(0 0% 0% / 0.7), transparent);
+}
+
+/* Interação: o gatilho (link da estante) gira o fichário de frente e o levanta. */
+@media (hover: hover) {
+  .trigger:hover .object {
+    transform: rotateY(-6deg) translateY(-2.5cqw);
+  }
+
+  .trigger:hover .floor {
+    opacity: 0.65;
+    transform: scale(0.92);
+  }
+}
+
+.trigger:focus-visible .object {
+  transform: rotateY(-6deg) translateY(-2.5cqw);
+}
+
+.stage[data-size="compact"] .object {
+  transform: rotateY(-14deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .object,
+  .floor {
+    transition: none;
+  }
+
+  .trigger:hover .object,
+  .trigger:focus-visible .object {
+    transform: rotateY(-24deg);
+  }
+
+  .trigger:hover .floor {
+    opacity: 1;
+    transform: none;
+  }
+}

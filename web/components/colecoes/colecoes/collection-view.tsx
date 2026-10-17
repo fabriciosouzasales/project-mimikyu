@@ -1,0 +1,345 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { AlertTriangle, ArrowLeft, Check, Trophy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PRIORITY_CARD_COUNT, cardFrontUrl, formatCollectorNumber, formatCount } from "@/lib/colecoes/acervo";
+import {
+  COLECOES_PATH,
+  type PositionFilter,
+  collectionHref,
+  collectionKindLabel,
+  missingCount,
+  pickHeroCards,
+  progressPercent,
+} from "@/lib/colecoes/colecoes";
+import type { CollectionPosition, CollectionSummary, PositionsPage } from "@/lib/colecoes/colecoes-queries";
+import { CardArt } from "../acervo/card-art";
+import acervoStyles from "../acervo/acervo.module.css";
+import { BinderCover } from "./binder-cover";
+import { CollectionHeroBackdrop, CollectionHeroFan } from "./collection-hero-fan";
+import heroStyles from "./collection-hero.module.css";
+import { CollectionTitle } from "./collection-title";
+import { CoverFinishPicker } from "./cover-finish-picker";
+import { LinkCardsLauncher } from "./link-cards";
+import styles from "./colecoes.module.css";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
+
+/**
+ * Uma coleção (Server Component): progresso "X de Y" (N10) em destaque, a
+ * alternância Todas · Tenho · Faltam na URL (`?ver=`) e o Set inteiro em
+ * cartas reais. A carta que falta aparece apagada — e, se o acervo tem uma
+ * fora de coleção, a etiqueta diz isso. Repetidas aparecem como contagem
+ * (N12), sem inflar o progresso.
+ *
+ * Ações: "Renomear" (título, 5035) e "Adicionar as que já tenho" (R3 + 5046), só em coleção ativa e
+ * quando existe algo a adicionar.
+ */
+export function CollectionView({
+  collection,
+  filter,
+  positions,
+  linkable,
+  logoUrl,
+  heroPositions,
+}: {
+  collection: CollectionSummary;
+  /** Cartas do Set inteiro (R2 sem filtro) para os destaques do hero. */
+  heroPositions: readonly CollectionPosition[];
+  /** Logo do Set assinado; `null` quando a sessão não pode lê-lo. */
+  logoUrl: string | null;
+  filter: PositionFilter;
+  positions: PositionsPage | null;
+  /** `null` = leitura falhou (ação some, nada finge funcionar). */
+  linkable: number | null;
+}) {
+  const total = collection.totalPositions;
+  const owned = collection.satisfiedPositions;
+  const missing = missingCount(owned, total);
+  const percent = progressPercent(owned, total);
+  const active = collection.lifecycleStatus === "ACTIVE";
+  const setCode = collection.cardSetCode;
+  const canLink = active && setCode !== null && linkable !== null && linkable > 0;
+
+  const segments: { key: PositionFilter; label: string; count: number }[] = [
+    { key: "todas", label: "Todas", count: total },
+    { key: "tenho", label: "Tenho", count: owned },
+    { key: "faltam", label: "Faltam", count: missing },
+  ];
+
+  const hero = pickHeroCards(heroPositions, 5, collection.cardSetCode);
+  const shown = positions?.total ?? 0;
+  const currentSegment = segments.find((segment) => segment.key === filter);
+
+  return (
+    <div className={acervoStyles.root}>
+      <header className={`${acervoStyles.hero} ${heroStyles.hero}`} data-has-fan={hero.cards.length > 0 || undefined}>
+        <div className={acervoStyles.stageGlow} aria-hidden="true" />
+        <CollectionHeroBackdrop selection={hero} />
+        <Link href={COLECOES_PATH} className={styles.backLink}>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Minhas coleções
+        </Link>
+        <div className={heroStyles.stage}>
+          <div className={heroStyles.text}>
+            <div className={heroStyles.identity}>
+              <div className={heroStyles.identityCover}>
+                <BinderCover
+                  finish={collection.finish}
+                  setName={collection.cardSetName}
+                  setCode={collection.cardSetCode}
+                  logoUrl={logoUrl}
+                  fallbackTitle={collection.name}
+                  complete={collection.isComplete}
+                  size="compact"
+                  priority
+                />
+              </div>
+              <div className={heroStyles.identityText}>
+                <div className={heroStyles.title}>
+                  <CollectionTitle collectionId={collection.id} name={collection.name} editable={active} />
+                </div>
+                <p className={heroStyles.setLine}>
+                  {setCode ? <span className={heroStyles.setCode}>{setCode.toUpperCase()}</span> : null}
+                  {/* O título já é o nome do Set na maioria das coleções; só repete quando difere. */}
+                  {collection.cardSetName && collection.cardSetName !== collection.name ? (
+                    <strong>{collection.cardSetName}</strong>
+                  ) : null}
+                  <span>
+                    {collectionKindLabel(collection.completionPolicy)}
+                    {!active ? " · Arquivada" : null}
+                  </span>
+                </p>
+                {collection.finishEditable && active ? (
+                  <CoverFinishPicker collectionId={collection.id} value={collection.finish} />
+                ) : null}
+              </div>
+            </div>
+
+            <section className={heroStyles.progress} aria-label="Progresso da coleção">
+              <div className={styles.progressFigure}>
+                <span className={heroStyles.progressBig}>{formatCount(owned)}</span>
+                <span className={styles.progressOf}>de {formatCount(total)}</span>
+                <span className={styles.progressPct}>{collection.isComplete ? "100%" : `${percent}%`}</span>
+              </div>
+              <div
+                className={`${styles.track} ${heroStyles.track}`}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-valuenow={owned}
+                aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} cartas`}
+              >
+                <div
+                  className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
+              <div className={styles.progressFoot}>
+                {collection.isComplete ? (
+                  <span className={styles.completeNote}>
+                    <Trophy className="h-4 w-4" aria-hidden="true" />
+                    Set completo
+                  </span>
+                ) : (
+                  <span>
+                    Faltam <strong>{formatCount(missing)}</strong>
+                  </span>
+                )}
+                <span>
+                  <strong>{formatCount(collection.copiesCount)}</strong>{" "}
+                  {collection.copiesCount === 1 ? "carta" : "cartas"} na coleção
+                </span>
+              </div>
+            </section>
+
+          </div>
+
+          <CollectionHeroFan selection={hero} />
+        </div>
+      </header>
+
+      <section className={heroStyles.gallery} aria-labelledby="colecao-cartas">
+        <div className={heroStyles.galleryHead}>
+          <div className={heroStyles.galleryHeadText}>
+            <h2 id="colecao-cartas" className={heroStyles.galleryTitle}>
+              Cartas da coleção
+            </h2>
+            {positions !== null ? (
+              <p className={heroStyles.galleryMeta}>
+                {currentSegment?.label} · {formatCount(shown)} {shown === 1 ? "carta" : "cartas"}
+              </p>
+            ) : null}
+          </div>
+          <div className={heroStyles.galleryTools}>
+            <nav className={styles.segmented} aria-label="Mostrar cartas">
+              {segments.map((segment) => (
+                <Link
+                  key={segment.key}
+                  href={collectionHref(collection.id, segment.key)}
+                  scroll={false}
+                  className={styles.segment}
+                  aria-current={segment.key === filter ? "page" : undefined}
+                >
+                  {segment.label}
+                  <span className={styles.segmentCount}>{formatCount(segment.count)}</span>
+                </Link>
+              ))}
+            </nav>
+            {canLink && setCode ? <LinkCardsLauncher collectionId={collection.id} setCode={setCode} linkable={linkable} /> : null}
+          </div>
+        </div>
+
+      {positions === null ? (
+        <ReadError retryHref={collectionHref(collection.id, filter)} />
+      ) : positions.items.length === 0 ? (
+        <EmptyFilter
+          filter={filter}
+          collection={collection}
+          linkLauncher={
+            canLink && setCode ? (
+              <LinkCardsLauncher collectionId={collection.id} setCode={setCode} linkable={linkable} layout="empty" />
+            ) : null
+          }
+        />
+      ) : (
+        <ul className={acervoStyles.grid} aria-label={`Cartas — ${segments.find((segment) => segment.key === filter)?.label}`}>
+          {positions.items.map((position, index) => (
+            <li key={position.cardId}>
+              <PositionTile position={position} priority={index < PRIORITY_CARD_COUNT} setCode={setCode} />
+            </li>
+          ))}
+        </ul>
+      )}
+      </section>
+    </div>
+  );
+}
+
+function PositionTile({ position, priority, setCode }: { position: CollectionPosition; priority: boolean; setCode: string | null }) {
+  const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
+  const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
+  const repeated = position.isSatisfied ? position.copiesAvailable : 0;
+  const status = position.isSatisfied
+    ? "na coleção"
+    : position.copiesAvailable > 0
+      ? "falta na coleção, mas você tem no acervo"
+      : "falta";
+
+  return (
+    <article className={acervoStyles.tile} aria-label={`${position.cardName}, ${caption}, ${status}`}>
+      <div className={acervoStyles.artWrap}>
+        <div className={position.isSatisfied ? acervoStyles.art : `${acervoStyles.art} ${styles.missing}`}>
+          <CardArt
+            src={cardFrontUrl(SUPABASE_URL, position.imagePath)}
+            alt=""
+            name={position.cardName}
+            caption={caption}
+            priority={priority}
+            sizes={GRID_SIZES}
+          />
+          {!position.isSatisfied ? (
+            <span
+              className={position.copiesAvailable > 0 ? `${styles.missingTag} ${styles.availableTag}` : styles.missingTag}
+              aria-hidden="true"
+            >
+              {position.copiesAvailable > 0 ? "No seu acervo" : "Falta"}
+            </span>
+          ) : null}
+        </div>
+        {position.copiesInCollection > 1 ? (
+          <span className={acervoStyles.qty} aria-hidden="true">
+            ×{formatCount(position.copiesInCollection)}
+          </span>
+        ) : null}
+      </div>
+      <div className={acervoStyles.meta} aria-hidden="true">
+        <div className={acervoStyles.name}>{position.cardName}</div>
+        <div className={acervoStyles.sub}>
+          <span>{caption}</span>
+          {position.isSatisfied ? (
+            <span className={acervoStyles.tag}>
+              <Check className="mr-0.5 inline h-3 w-3" />
+              Tenho
+            </span>
+          ) : null}
+          {repeated > 0 ? (
+            <span className={acervoStyles.tag}>
+              {repeated === 1 ? "1 repetida" : `${formatCount(repeated)} repetidas`}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function EmptyFilter({
+  filter,
+  collection,
+  linkLauncher,
+}: {
+  filter: PositionFilter;
+  collection: CollectionSummary;
+  linkLauncher: ReactNode;
+}) {
+  if (filter === "faltam") {
+    return (
+      <section className={acervoStyles.state} aria-labelledby="colecao-completa">
+        <div className={acervoStyles.stateIcon} aria-hidden="true">
+          <Trophy className="h-6 w-6" />
+        </div>
+        <h2 id="colecao-completa" className={acervoStyles.stateTitle}>
+          Não falta nenhuma carta
+        </h2>
+        <p className={acervoStyles.stateText}>{collection.name} está completa — uma de cada carta do Set.</p>
+      </section>
+    );
+  }
+  if (filter === "tenho") {
+    return (
+      <section className={acervoStyles.state} aria-labelledby="colecao-vazia">
+        <h2 id="colecao-vazia" className={acervoStyles.stateTitle}>
+          Esta coleção ainda não tem cartas
+        </h2>
+        <p className={acervoStyles.stateText}>
+          {linkLauncher
+            ? "Você já tem cartas deste Set no acervo. Adicione uma de cada para começar o progresso."
+            : "Quando você registrar cartas deste Set no acervo, poderá adicioná-las aqui."}
+        </p>
+        {linkLauncher}
+      </section>
+    );
+  }
+  return (
+    <section className={acervoStyles.state} aria-labelledby="colecao-indisponivel">
+      <h2 id="colecao-indisponivel" className={acervoStyles.stateTitle}>
+        Esta coleção ainda não pode ser exibida aqui
+      </h2>
+      <p className={acervoStyles.stateText}>Por enquanto, só coleções de Set padrão mostram as cartas nesta tela.</p>
+      <Button asChild variant="outline" className={acervoStyles.stateAction}>
+        <Link href={COLECOES_PATH}>Voltar às coleções</Link>
+      </Button>
+    </section>
+  );
+}
+
+function ReadError({ retryHref }: { retryHref: string }) {
+  return (
+    <section className={acervoStyles.state} role="alert" aria-labelledby="colecao-erro">
+      <div className={`${acervoStyles.stateIcon} ${acervoStyles.stateIconDanger}`} aria-hidden="true">
+        <AlertTriangle className="h-6 w-6" />
+      </div>
+      <h2 id="colecao-erro" className={acervoStyles.stateTitle}>
+        Não conseguimos carregar as cartas desta coleção
+      </h2>
+      <p className={acervoStyles.stateText}>Nada foi perdido. Tente novamente em instantes.</p>
+      <Button asChild className={acervoStyles.stateAction}>
+        <Link href={retryHref} prefetch={false}>
+          Tentar novamente
+        </Link>
+      </Button>
+    </section>
+  );
+}

@@ -1,0 +1,428 @@
+/*
+ * Página de uma coleção — hero e região da galeria
+ * (COLLECTION DETAIL UX REFINEMENT-01).
+ *
+ * Hero: título dominante (escala da Pokédex), identidade do Set, progresso
+ * aberto (sem caixa) e, à direita, os destaques do Set em leque — cartas reais
+ * com sobreposição, escala e giro. A arte da carta da frente, desfocada, tinge
+ * o palco com a cor do Set. REFINEMENT-02: fichário 3D de volta ao lado do
+ * título, com as seis cores diretamente abaixo do nome (mesmo seletor/contrato);
+ * hero mais compacto (identidade + régua empilhadas, leque sem legenda).
+ * FAN REFINEMENT-03: sempre cinco cartas quando há cinco elegíveis, todas
+ * inteiras em qualquer viewport (escala limitada pela coluna, sem esconder
+ * as extremidades).
+ *
+ * Galeria: mesma moldura editorial da Biblioteca ("Minha biblioteca") — fio de
+ * borda a borda com marca dourada e superfície sutil —, reaproveitada por
+ * `composes`, sem copiar regras.
+ *
+ * Desempenho: as imagens são as mesmas URLs da grade (cache); o desfoque é um
+ * único elemento estático; a entrada em leque usa só transform/opacity e some
+ * com prefers-reduced-motion.
+ */
+
+/* ---- Hero ---- */
+
+.hero {
+  /* Folga para a sombra das cartas assentar antes da borda do hero (o espaço
+     sai da margem da galeria: a distância total até o fio não muda). */
+  padding-bottom: 1rem;
+}
+
+/*
+ * Halo com a cor do Set. Fica inteiro dentro do hero e se dissolve por
+ * completo antes de qualquer borda (closest-side): sem corte reto embaixo ou
+ * em cima. No claro usa multiply — tinge o fundo em vez de clareá-lo, para as
+ * cartas não "afundarem" num retângulo esbranquiçado.
+ */
+.backdrop {
+  position: absolute;
+  z-index: -2;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 58%;
+  pointer-events: none;
+  opacity: 0.3;
+  mix-blend-mode: multiply;
+  -webkit-mask-image: radial-gradient(closest-side at 58% 44%, #000 0%, rgb(0 0 0 / 0.5) 45%, transparent 100%);
+  mask-image: radial-gradient(closest-side at 58% 44%, #000 0%, rgb(0 0 0 / 0.5) 45%, transparent 100%);
+}
+
+.backdrop img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(56px) saturate(1.35);
+  transform: scale(1.1);
+}
+
+:global(.dark) .backdrop {
+  opacity: 0.26;
+  mix-blend-mode: normal;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 30rem);
+  grid-template-areas: "text fan";
+  align-items: center;
+  gap: 1rem 3rem;
+}
+
+.hero:not([data-has-fan]) .stage {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "text";
+}
+
+.text {
+  grid-area: text;
+  min-width: 0;
+}
+
+.title h1 {
+  font-size: clamp(2.25rem, 4.4vw, 3.75rem);
+  line-height: 0.95;
+}
+
+.setLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  font-size: 0.9375rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.setLine strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.setCode {
+  padding: 0.0625rem 0.4375rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  font: 600 0.6875rem / 1.5 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  max-width: 30rem;
+  margin-top: 1rem;
+}
+
+.progressBig {
+  font: 800 clamp(2.5rem, 4vw, 3.25rem) / 1 var(--font-heading);
+  letter-spacing: -0.045em;
+  color: hsl(var(--foreground));
+}
+
+.track {
+  height: 0.5rem;
+}
+
+/* ---- Identidade: fichário 3D ao lado do título, cores logo abaixo ---- */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.identityCover {
+  flex: none;
+  width: clamp(5.5rem, 8vw, 7.25rem);
+}
+
+.identityText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+/* O seletor de cor (mesmo componente de antes) encosta no nome: pertence ao fichário ao lado. */
+.identityText > fieldset {
+  margin-top: 0.125rem;
+}
+
+/* ---- Destaques do Set em leque ---- */
+
+.fan {
+  grid-area: fan;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  /* A largura da carta respeita a coluna do leque: as cinco cabem inteiras. */
+  container-type: inline-size;
+}
+
+/*
+ * Geometria (FAN REFINEMENT-03; cartas maiores na rodada seguinte): com giro
+ * na base (50% 100%), a envoltória das cinco cartas mede 2,75 × --card-w de
+ * largura e 1,50 × de altura (incluindo o canto que desce ao girar). Por isso
+ * --card-w nunca passa de 35% da coluna (≈ 96% de ocupação) e o palco tem 1,52 ×: nenhuma borda é
+ * cortada. Os tetos de --fan-max mantêm a altura ≤ à da rodada anterior.
+ */
+.fanStage {
+  --fan-max: clamp(8.5rem, 12.5vw, 11.2rem);
+  --card-w: min(var(--fan-max), 35cqw);
+  position: relative;
+  width: 100%;
+  height: calc(var(--card-w) * 1.52);
+  /*
+   * Base do leque (POLISH-05). As sombras das cartas são curtas e se
+   * dissipam antes da borda do hero (o canto girado das cartas externas fica
+   * a ~2px do chão do palco + 1rem de folga): nada é recortado pelo
+   * overflow do hero. A profundidade longa vem da sombra de chão, que vive
+   * inteira dentro do palco e esmaece em elipse até zero.
+   */
+  --fan-shadow:
+    0 1px 2px hsl(30 25% 12% / 0.12),
+    0 4px 10px -3px hsl(30 25% 12% / 0.18),
+    0 10px 18px -9px hsl(30 30% 10% / 0.26);
+  --fan-shadow-lead:
+    0 1px 2px hsl(30 25% 12% / 0.14),
+    0 6px 14px -5px hsl(30 25% 12% / 0.22),
+    0 16px 26px -14px hsl(30 30% 10% / 0.34);
+  --fan-floor-core: hsl(30 30% 12% / 0.2);
+  --fan-floor-mid: hsl(30 30% 12% / 0.09);
+}
+
+:global(.dark) .fanStage {
+  --fan-shadow:
+    0 1px 2px rgb(0 0 0 / 0.5),
+    0 4px 10px -3px rgb(0 0 0 / 0.5),
+    0 10px 18px -9px rgb(0 0 0 / 0.7);
+  --fan-shadow-lead:
+    0 1px 2px rgb(0 0 0 / 0.55),
+    0 6px 14px -5px rgb(0 0 0 / 0.6),
+    0 16px 26px -14px rgb(0 0 0 / 0.8);
+  --fan-floor-core: rgb(0 0 0 / 0.5);
+  --fan-floor-mid: rgb(0 0 0 / 0.22);
+}
+
+/* Sombra de chão: elipse larga e baixa sob o leque, com núcleo suave e
+   dissipação longa — as cartas repousam sobre ela, sem borda visível. */
+.fanStage::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: calc(var(--card-w) * 2.7);
+  height: calc(var(--card-w) * 0.2);
+  transform: translateX(-50%);
+  background: radial-gradient(
+    closest-side,
+    var(--fan-floor-core) 0%,
+    var(--fan-floor-mid) 45%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.fanCard {
+  --tx: 0px;
+  --rot: 0deg;
+  --s: 1;
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--card-w) * 0.1);
+  width: var(--card-w);
+  aspect-ratio: 367 / 512;
+  overflow: hidden;
+  border-radius: 4.6% / 3.4%;
+  background: hsl(var(--surface-muted));
+  box-shadow: var(--fan-shadow);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) translateX(var(--tx)) rotate(var(--rot)) scale(var(--s));
+  animation: hero-fan-in 720ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+.fanCard img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fanCard[data-slot="0"] {
+  z-index: 5;
+  box-shadow:
+    var(--fan-shadow-lead),
+    0 0 0 1px hsl(var(--primary) / 0.35);
+}
+
+.fanCard[data-slot="1"] {
+  --tx: calc(var(--card-w) * -0.43);
+  --rot: -7deg;
+  --s: 0.86;
+  z-index: 4;
+}
+
+.fanCard[data-slot="2"] {
+  --tx: calc(var(--card-w) * 0.43);
+  --rot: 7deg;
+  --s: 0.86;
+  z-index: 4;
+}
+
+.fanCard[data-slot="3"] {
+  --tx: calc(var(--card-w) * -0.78);
+  --rot: -14deg;
+  --s: 0.72;
+  z-index: 3;
+}
+
+.fanCard[data-slot="4"] {
+  --tx: calc(var(--card-w) * 0.78);
+  --rot: 14deg;
+  --s: 0.72;
+  z-index: 3;
+}
+
+/* Carta do Set que o colecionador ainda não tem: velada (camada, não filter). */
+.fanCard:not([data-owned])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--background) / 0.42);
+  pointer-events: none;
+}
+
+@keyframes hero-fan-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0.75rem) rotate(0deg) scale(0.9);
+  }
+}
+
+/* ---- Região da galeria (moldura da Biblioteca) ---- */
+
+.gallery {
+  composes: region from "./library-modes.module.css";
+  /* SPATIAL REFINEMENT-04: a régua já fecha o hero; a moldura da galeria
+     (fio + marca dourada) fica mais perto sem perder a pausa editorial. */
+  margin-top: 1.25rem;
+}
+
+.galleryHead {
+  composes: head from "./library-modes.module.css";
+}
+
+.galleryHeadText {
+  min-width: 0;
+}
+
+.galleryTitle {
+  composes: headTitle from "./library-modes.module.css";
+}
+
+.galleryMeta {
+  composes: headMeta from "./library-modes.module.css";
+}
+
+.galleryTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+/* ---- Responsivo ---- */
+
+/* Telas largas: a coluna do leque cresce um pouco (o título tem folga). */
+@media (min-width: 1280px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 32rem);
+  }
+}
+
+@media (max-width: 1023px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem);
+    gap: 1.5rem 1.5rem;
+  }
+
+  .fanStage {
+    --fan-max: clamp(7.5rem, 15vw, 8.9rem);
+  }
+}
+
+@media (max-width: 767px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "fan"
+      "text";
+    gap: 0.75rem;
+  }
+
+  .backdrop {
+    left: 0;
+    width: auto;
+    bottom: auto;
+    height: 20rem;
+  }
+
+  .fanStage {
+    --fan-max: clamp(6.5rem, 30vw, 8.5rem);
+  }
+
+  .title h1 {
+    font-size: clamp(1.75rem, 8vw, 2.5rem);
+  }
+
+  /* Celular: fichário ao lado do nome e do código; as seis cores ganham a
+     largura toda logo abaixo, numa linha só. */
+  .identity {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem 1rem;
+  }
+
+  .identityCover {
+    grid-row: span 2;
+    width: 4.5rem;
+  }
+
+  .identityText {
+    display: contents;
+  }
+
+  .identityText > fieldset {
+    grid-column: 1 / -1;
+    margin-top: 0.25rem;
+  }
+
+  .progress {
+    margin-top: 1rem;
+  }
+
+  .gallery {
+    margin-top: 1rem;
+  }
+
+  .galleryTools {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fanCard {
+    animation: none;
+  }
+}

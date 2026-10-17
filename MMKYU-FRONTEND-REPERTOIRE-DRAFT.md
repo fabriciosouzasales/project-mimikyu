@@ -288,4 +288,6 @@ Depois do discovery ThreeUI (seção 12), a avaliação visual direta de COLLECT
 
 **Registrado como baseline aprovado** — ver `.claude/skills/mmkyu-frontend-experience/SKILL.md`, seção 6. **Esta decisão encerra a frente visual da Collection Library** — qualquer novo modo, ou reabertura de Hero Card/Hero Artwork/Complete Shelf/Wave para este contexto, exige pedido explícito novo de Fabrício.
 
+**Nota de evolução (2026-10-17, `COLLECTIONS-NORMATIVE-REALIGNMENT-01`; o texto acima é preservado como registro de 29/08).** O item "identidade passou a vir só de nome+código" foi evoluído pela North Star **NS-16**: a capa mantém o fichário 3D premium com zíper e identidade MMKYU e passa a admitir cor persistente por coleção, identidade oficial do Set (logo) quando disponível e fallback tipográfico. Os itens 1–9 continuam vigentes — em especial o item 8 (carta como capa: `AVOID`). Os três modos continuam requisito (NS-17). Paleta fechada de seis cores aprovada (decisão K12, 2026-10-17); acabamento final depende de homologação (B2).
+
 Implementação de referência: `web/components/experimental/collection-library-view-modes-01/` (`collection-library-view-modes-view.tsx`, `collection-list-view.tsx`) + `web/components/experimental/collection-gallery-spike-01/premium-grid.tsx` (refinado) + `web/public/ui-elements/collection-library-carousel-mmkyu-{6,12,24}{,-light}.html`.

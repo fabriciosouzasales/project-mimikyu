@@ -1,0 +1,499 @@
+/**
+ * Minhas coleções — regras puras de apresentação, URL e tradução de erros
+ * (MY-COLLECTIONS-FRONTEND-01).
+ *
+ * Sem React, sem Supabase, sem rede: testável com
+ * `node --experimental-strip-types --test lib/colecoes/colecoes.test.ts`.
+ *
+ * Contratos (LIVE, 5166–5170): CT-01 `create_my_card_set_collection`,
+ * R1 `get_my_collections`, R2 `get_my_collection_positions`,
+ * R3 `get_my_collection_link_candidates`. A escrita do vínculo continua sendo
+ * `allocate_physical_cards_to_collection` (5046). Nenhuma regra de domínio
+ * mora aqui — só forma, texto e decisões de interface.
+ */
+
+export const COLECOES_PATH = "/colecoes/colecoes";
+/** Página da Biblioteca — R1 aceita até 100. */
+export const LIBRARY_PAGE_SIZE = 48;
+/** R2 aceita até 500; o maior Set do catálogo tem 300 cartas — uma página basta. */
+export const POSITIONS_PAGE_SIZE = 500;
+/** Teto por chamada de 5046 e de R3. */
+export const LINK_BATCH_SIZE = 500;
+/** Limite de nome no formulário (o banco só exige não vazio). */
+export const COLLECTION_NAME_MAX = 80;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SET_CODE = /^[A-Za-z0-9.-]{1,32}$/;
+const MAX_PAGE = 2000;
+
+type Params = Record<string, string | string[] | undefined>;
+
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export function isCollectionId(value: unknown): value is string {
+  return typeof value === "string" && UUID.test(value);
+}
+
+export function isSetCode(value: unknown): value is string {
+  return typeof value === "string" && SET_CODE.test(value);
+}
+
+// ---------------------------------------------------------------------------
+// URL
+// ---------------------------------------------------------------------------
+
+/** Filtro da coleção: Todas · Tenho · Faltam (N10). Valor na URL em pt-BR. */
+export type PositionFilter = "todas" | "tenho" | "faltam";
+
+export function parseLibraryPage(params: Params): number {
+  const raw = first(params.pagina) ?? "";
+  const page = /^\d{1,4}$/.test(raw) ? Number(raw) : 1;
+  return Math.min(Math.max(page, 1), MAX_PAGE);
+}
+
+export function libraryHref(page = 1): string {
+  return page > 1 ? `${COLECOES_PATH}?pagina=${page}` : COLECOES_PATH;
+}
+
+/**
+ * Modo de visualização da Biblioteca (North Star NS-17): Cards (padrão), Lista
+ * e Carrossel. Os três mostram os mesmos dados da mesma página — trocar de modo
+ * não consulta nada. A preferência fica na URL (`?modo=`) e num cookie do
+ * próprio navegador (sem banco, sem configuração de conta); a URL vence o cookie.
+ */
+export const LIBRARY_MODES = ["cards", "lista", "carrossel"] as const;
+export type LibraryMode = (typeof LIBRARY_MODES)[number];
+export const LIBRARY_MODE_PARAM = "modo";
+export const LIBRARY_MODE_COOKIE = "mmkyu_colecoes_modo";
+
+export function isLibraryMode(value: unknown): value is LibraryMode {
+  return typeof value === "string" && (LIBRARY_MODES as readonly string[]).includes(value);
+}
+
+/** URL primeiro, depois o cookie; qualquer valor estranho cai em Cards. */
+export function resolveLibraryMode(params: Params, cookieValue: string | undefined): LibraryMode {
+  const fromUrl = first(params[LIBRARY_MODE_PARAM]);
+  if (isLibraryMode(fromUrl)) return fromUrl;
+  return isLibraryMode(cookieValue) ? cookieValue : "cards";
+}
+
+/** Busca da URL com o modo aplicado (Cards some da URL), preservando os demais parâmetros. */
+export function librarySearchWithMode(search: string, mode: LibraryMode): string {
+  const params = new URLSearchParams(search);
+  if (mode === "cards") params.delete(LIBRARY_MODE_PARAM);
+  else params.set(LIBRARY_MODE_PARAM, mode);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export function parsePositionFilter(params: Params): PositionFilter {
+  const raw = first(params.ver);
+  return raw === "tenho" || raw === "faltam" ? raw : "todas";
+}
+
+export function collectionHref(id: string, filter: PositionFilter = "todas"): string {
+  const base = `${COLECOES_PATH}/${id}`;
+  return filter === "todas" ? base : `${base}?ver=${filter}`;
+}
+
+/** Filtro da interface → parâmetro de R2. */
+export function toPositionsRpcFilter(filter: PositionFilter): "ALL" | "OWNED" | "MISSING" {
+  if (filter === "tenho") return "OWNED";
+  if (filter === "faltam") return "MISSING";
+  return "ALL";
+}
+
+export function libraryTotalPages(total: number): number {
+  return Math.max(1, Math.ceil(total / LIBRARY_PAGE_SIZE));
+}
+
+// ---------------------------------------------------------------------------
+// Texto
+// ---------------------------------------------------------------------------
+
+/** "146 de 158" (N10). */
+export function progressLabel(satisfied: number, total: number): string {
+  const format = new Intl.NumberFormat("pt-BR");
+  return `${format.format(satisfied)} de ${format.format(total)}`;
+}
+
+/** Percentual inteiro para leitura e para a barra (0–100, nunca arredonda 99,6 para 100). */
+export function progressPercent(satisfied: number, total: number): number {
+  if (total <= 0) return 0;
+  if (satisfied >= total) return 100;
+  return Math.min(99, Math.floor((satisfied / total) * 100));
+}
+
+/**
+ * Resumo do conjunto para o cabeçalho da Biblioteca. Só existe quando a página
+ * contém TODAS as coleções (total ≤ tamanho da página): somar uma página parcial
+ * mostraria números errados, então nesse caso devolve `null` e o cabeçalho
+ * mostra só o total (que vem do banco). Coleções sem universo (Coleção livre)
+ * não entram no progresso geral.
+ */
+export type LibrarySummary = {
+  collections: number;
+  ownedCards: number;
+  targetCards: number;
+  overallPercent: number;
+  complete: number;
+};
+
+export function librarySummary(
+  items: readonly { satisfiedPositions: number; totalPositions: number; isComplete: boolean }[],
+  total: number,
+): LibrarySummary | null {
+  if (total <= 0 || items.length < total) return null;
+  let ownedCards = 0;
+  let targetCards = 0;
+  let complete = 0;
+  for (const item of items) {
+    if (item.totalPositions > 0) {
+      ownedCards += Math.min(item.satisfiedPositions, item.totalPositions);
+      targetCards += item.totalPositions;
+    }
+    if (item.isComplete) complete += 1;
+  }
+  return { collections: total, ownedCards, targetCards, overallPercent: progressPercent(ownedCards, targetCards), complete };
+}
+
+/**
+ * Leitura do progresso de uma coleção para Lista e Carrossel. Coleção sem
+ * universo (Coleção livre, 0 posições) não tem meta: mostra quantas cartas
+ * reúne em vez de "0 de 0".
+ */
+export type CollectionProgressView =
+  | { kind: "goal"; percent: number; label: string; complete: boolean }
+  | { kind: "free"; copies: number };
+
+export function collectionProgressView(collection: {
+  totalPositions: number;
+  satisfiedPositions: number;
+  isComplete: boolean;
+  copiesCount: number;
+}): CollectionProgressView {
+  if (collection.totalPositions <= 0) return { kind: "free", copies: Math.max(0, collection.copiesCount) };
+  return {
+    kind: "goal",
+    percent: progressPercent(collection.satisfiedPositions, collection.totalPositions),
+    label: progressLabel(collection.satisfiedPositions, collection.totalPositions),
+    complete: collection.isComplete,
+  };
+}
+
+/** "Base Set · BS" ou, sem Set, o tipo da coleção em linguagem de colecionador. */
+export function collectionSubtitle(collection: {
+  cardSetName: string | null;
+  cardSetCode: string | null;
+  completionPolicy: string | null;
+}): string {
+  const code = collection.cardSetCode?.toUpperCase() ?? null;
+  if (collection.cardSetName) return `${collection.cardSetName}${code ? ` · ${code}` : ""}`;
+  return collectionKindLabel(collection.completionPolicy);
+}
+
+/**
+ * Cartas do hero de uma coleção (COLLECTION DETAIL UX REFINEMENT-01).
+ *
+ * Determinístico e só com dados já lidos (R2): não há raridade em R2, então
+ * "secreta" = número de colecionador numérico acima do total impresso
+ * (ex.: 158/128). Ordem: secretas do número mais alto para o mais baixo (o fim
+ * do Set concentra as artes especiais); com menos de 5 secretas, completa com
+ * as cartas de número mais alto (FAN REFINEMENT-03). Só entram cartas com imagem.
+ * Representa o Set, não a posse: cada item informa se o colecionador já tem a
+ * carta, para a interface não sugerir posse que não existe.
+ */
+export type HeroCardSource = {
+  cardId: string;
+  cardName: string;
+  collectorNumber: string;
+  collectorTotal: number | null;
+  imagePath: string | null;
+  isSatisfied: boolean;
+};
+
+export type HeroSelection<T extends HeroCardSource> = { cards: T[]; secret: number };
+
+function numericCollector(value: string): number | null {
+  return /^\d+$/.test(value) ? Number(value) : null;
+}
+
+/**
+ * Curadoria editorial do hero por Card Set (código em minúsculas → números de
+ * colecionador, na ordem dos slots: frente, esquerda, direita, extrema
+ * esquerda, extrema direita). Só escolhe entre cartas do próprio Set que têm
+ * imagem; o que faltar é completado pela regra automática. Vale para qualquer
+ * coleção do Set — representa o Set, não a posse.
+ */
+const HERO_CURATION: Readonly<Record<string, readonly number[]>> = {
+  // Celebração de 30 Anos: 158 no lugar da 156 e 149 no lugar da 158 (2026-10-17).
+  "me5.5": [149, 157, 158, 155, 154],
+  // Coleção Clássica 30 Anos: 030 no lugar da 028 e 001 no lugar da 030 (2026-10-17).
+  "me5.5cc": [1, 29, 30, 27, 26],
+};
+
+/**
+ * Seleção determinística (FAN REFINEMENT-03): até `max` cartas distintas com
+ * imagem — primeiro a curadoria do Set (se houver), depois as secretas (número
+ * > total impresso), as de número mais alto e por último as de número não
+ * numérico (ex.: TG01), em ordem estável. Nunca repete nem inventa: com menos
+ * elegíveis, devolve só as que há.
+ */
+export function pickHeroCards<T extends HeroCardSource>(
+  positions: readonly T[],
+  max = 5,
+  setCode: string | null = null,
+): HeroSelection<T> {
+  const withArt = positions.filter((position) => position.imagePath);
+  const ranked = withArt
+    .map((position) => ({ position, number: numericCollector(position.collectorNumber) }))
+    .filter((entry): entry is { position: T; number: number } => entry.number !== null)
+    .sort((a, b) => b.number - a.number || a.position.cardId.localeCompare(b.position.cardId));
+  const isSecret = (entry: { position: T; number: number }) =>
+    entry.position.collectorTotal !== null && entry.position.collectorTotal > 0 && entry.number > entry.position.collectorTotal;
+  const secretIds = new Set(ranked.filter(isSecret).map((entry) => entry.position.cardId));
+  const curated = (setCode ? HERO_CURATION[setCode.toLowerCase()] : undefined) ?? [];
+  const byNumber = new Map<number, T>();
+  for (const entry of ranked) if (!byNumber.has(entry.number)) byNumber.set(entry.number, entry.position);
+  const candidates = [
+    ...curated.map((number) => byNumber.get(number)).filter((position): position is T => position !== undefined),
+    ...ranked.filter(isSecret).map((entry) => entry.position),
+    ...ranked.map((entry) => entry.position),
+    ...withArt
+      .filter((position) => numericCollector(position.collectorNumber) === null)
+      .sort((a, b) => a.collectorNumber.localeCompare(b.collectorNumber) || a.cardId.localeCompare(b.cardId)),
+  ];
+  const cards: T[] = [];
+  const seen = new Set<string>();
+  for (const position of candidates) {
+    if (cards.length >= max) break;
+    if (seen.has(position.cardId)) continue;
+    seen.add(position.cardId);
+    cards.push(position);
+  }
+  return { cards, secret: cards.filter((card) => secretIds.has(card.cardId)).length };
+}
+
+export function missingCount(satisfied: number, total: number): number {
+  return Math.max(0, total - satisfied);
+}
+
+/** NS-14: STANDARD_SET aparece para o colecionador assim — nunca o enum. */
+export function collectionKindLabel(policy: string | null): string {
+  if (policy === "STANDARD_SET") return "Set padrão — uma de cada carta";
+  if (policy === "MASTER_SET") return "Set completo";
+  if (policy === "NONE") return "Coleção livre";
+  return "Coleção";
+}
+
+/** Nome sugerido no formulário: o próprio nome do Set. */
+export function suggestCollectionName(setName: string | null | undefined): string {
+  return (setName ?? "").trim().slice(0, COLLECTION_NAME_MAX);
+}
+
+/** Nome pronto para envio, ou `null` se vazio. */
+export function normalizeCollectionName(raw: string): string | null {
+  const name = raw.replace(/\s+/g, " ").trim();
+  if (name === "") return null;
+  return name.slice(0, COLLECTION_NAME_MAX);
+}
+
+// ---------------------------------------------------------------------------
+// Regra D-A (local) — decisão de interface espelhando CT-01
+// ---------------------------------------------------------------------------
+
+export type StorageOption = { id: string; name: string };
+
+/**
+ * D-A (Fabrício, 2026-10-17): sem nenhum local, CT-01 cria "Local padrão" e a
+ * interface não pergunta nada; com um ou mais locais, a escolha é explícita —
+ * sem pré-seleção, nem quando só existe um. O banco reconfere (55000).
+ */
+export function storageStep(locations: readonly StorageOption[]): "auto" | "choose" {
+  return locations.length === 0 ? "auto" : "choose";
+}
+
+export function canSubmitCreate(input: {
+  setCode: string | null;
+  name: string;
+  locations: readonly StorageOption[];
+  storageId: string | null;
+}): boolean {
+  if (!input.setCode || normalizeCollectionName(input.name) === null) return false;
+  if (storageStep(input.locations) === "choose") {
+    return input.storageId !== null && input.locations.some((location) => location.id === input.storageId);
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Vínculo "1 de cada" (D-C) — alternativas
+// ---------------------------------------------------------------------------
+
+/** Um grupo do acervo (variante + idioma) ainda fora de coleção. */
+export type LinkOption = {
+  cardVariantId: string;
+  languageCode: string;
+  languageName: string;
+  variantLabel: string | null;
+  isDefaultVariant: boolean;
+  copies: number;
+  imagePath: string | null;
+};
+
+export type LinkCandidate = {
+  physicalCardId: string;
+  cardId: string;
+  collectorNumber: string;
+  cardName: string;
+  languageCode: string | null;
+};
+
+export type LinkChoice = {
+  cardId: string;
+  collectorNumber: string;
+  cardName: string;
+  options: LinkOption[];
+  /** Grupo que R3 escolheria (variante padrão, depois o exemplar mais antigo). */
+  suggestedKey: string;
+};
+
+export function optionKey(option: Pick<LinkOption, "cardVariantId" | "languageCode">): string {
+  return `${option.cardVariantId}.${option.languageCode}`;
+}
+
+/**
+ * Cartas com mais de um grupo elegível (outra variante ou outro idioma) — só
+ * essas pedem escolha. Exemplares do mesmo grupo são equivalentes para o
+ * progresso e não viram pergunta. A ligação entre R3 e os grupos do acervo é
+ * pelo número de colecionador dentro do Set (os dois vêm do mesmo Set).
+ */
+export function findAlternatives(
+  candidates: readonly LinkCandidate[],
+  groups: readonly (LinkOption & { collectorNumber: string })[],
+): LinkChoice[] {
+  const byNumber = new Map<string, (LinkOption & { collectorNumber: string })[]>();
+  for (const group of groups) {
+    const list = byNumber.get(group.collectorNumber) ?? [];
+    list.push(group);
+    byNumber.set(group.collectorNumber, list);
+  }
+  const choices: LinkChoice[] = [];
+  for (const candidate of candidates) {
+    const options = byNumber.get(candidate.collectorNumber) ?? [];
+    if (options.length < 2) continue;
+    const ordered = [...options].sort(
+      (a, b) =>
+        Number(b.isDefaultVariant) - Number(a.isDefaultVariant) ||
+        Number(b.languageCode === candidate.languageCode) - Number(a.languageCode === candidate.languageCode),
+    );
+    const suggested =
+      ordered.find((option) => option.isDefaultVariant && option.languageCode === candidate.languageCode) ?? ordered[0];
+    if (!suggested) continue;
+    choices.push({
+      cardId: candidate.cardId,
+      collectorNumber: candidate.collectorNumber,
+      cardName: candidate.cardName,
+      options: ordered.map((option) => ({
+        cardVariantId: option.cardVariantId,
+        languageCode: option.languageCode,
+        languageName: option.languageName,
+        variantLabel: option.variantLabel,
+        isDefaultVariant: option.isDefaultVariant,
+        copies: option.copies,
+        imagePath: option.imagePath,
+      })),
+      suggestedKey: optionKey(suggested),
+    });
+  }
+  return choices;
+}
+
+/** Escolhas que diferem da sugestão — só essas viajam para o servidor. */
+export function changedChoices(
+  choices: readonly LinkChoice[],
+  selected: Readonly<Record<string, string>>,
+): { cardId: string; collectorNumber: string; cardVariantId: string; languageCode: string }[] {
+  const changed: { cardId: string; collectorNumber: string; cardVariantId: string; languageCode: string }[] = [];
+  for (const choice of choices) {
+    const key = selected[choice.cardId];
+    if (!key || key === choice.suggestedKey) continue;
+    const option = choice.options.find((candidate) => optionKey(candidate) === key);
+    if (!option) continue;
+    changed.push({
+      cardId: choice.cardId,
+      collectorNumber: choice.collectorNumber,
+      cardVariantId: option.cardVariantId,
+      languageCode: option.languageCode,
+    });
+  }
+  return changed;
+}
+
+export function chunk<T>(items: readonly T[], size: number): T[][] {
+  if (size < 1) throw new Error("size must be >= 1");
+  const out: T[][] = [];
+  for (let index = 0; index < items.length; index += size) out.push(items.slice(index, index + size));
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Erros
+// ---------------------------------------------------------------------------
+
+export type CollectionFailure =
+  | "not_authenticated"
+  | "storage_required"
+  | "storage_invalid"
+  | "set_not_found"
+  | "set_empty"
+  | "conflict"
+  | "invalid"
+  | "already_linked"
+  | "not_found"
+  | "unavailable";
+
+/**
+ * Classifica pelo SQLSTATE e pelo prefixo estável da mensagem (CT-01 usa
+ * códigos em maiúsculas; 5046 usa mensagens fixas). O texto cru nunca chega
+ * ao usuário.
+ */
+export function classifyCollectionFailure(code: string | null | undefined, message: string | null | undefined): CollectionFailure {
+  const text = message ?? "";
+  if (code === "28000" || code === "42501" || text === "authentication required") return "not_authenticated";
+  if (code === "55000" || text.startsWith("STORAGE_CONTAINER_REQUIRED")) return "storage_required";
+  if (text.startsWith("STORAGE_CONTAINER_INVALID")) return "storage_invalid";
+  if (text.startsWith("CARD_SET_NOT_FOUND") || text === "card_set not found") return "set_not_found";
+  if (text.startsWith("IDEMPOTENCY_KEY_REUSED")) return "conflict";
+  if (code === "23505" || text.includes("já está alocad") || text.includes("already allocated")) return "already_linked";
+  if (text.startsWith("collection not found") || text.startsWith("collection is archived")) return "not_found";
+  if (code === "22023" || code === "22P02") return "invalid";
+  return "unavailable";
+}
+
+export function collectionFailureMessage(reason: CollectionFailure): string {
+  switch (reason) {
+    case "not_authenticated":
+      return "Sua sessão expirou. Entre novamente para continuar.";
+    case "storage_required":
+      return "Escolha onde esta coleção fica guardada para continuar.";
+    case "storage_invalid":
+      return "Esse local não está mais disponível. Escolha outro.";
+    case "set_not_found":
+      return "Não encontramos esse Set no catálogo. Escolha outro.";
+    case "set_empty":
+      return "Esse Set ainda não tem cartas no catálogo.";
+    case "conflict":
+      return "Este envio já foi usado para outro pedido. Revise e tente de novo.";
+    case "already_linked":
+      return "Algumas cartas mudaram desde a revisão (provavelmente já entraram em uma coleção). Revise de novo para continuar.";
+    case "not_found":
+      return "Esta coleção não está disponível para receber cartas.";
+    case "invalid":
+      return "Algo no pedido não está certo. Revise e tente de novo.";
+    default:
+      return "Não foi possível concluir agora. Nada foi alterado — tente novamente em instantes.";
+  }
+}

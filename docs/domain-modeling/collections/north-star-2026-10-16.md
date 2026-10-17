@@ -4,9 +4,9 @@
 |---|---|
 | **Documento** | Referência normativa de experiência do módulo Collection (visão, fluxos, nomenclatura, critérios de base funcional) |
 | **Arquivo** | `docs/domain-modeling/collections/north-star-2026-10-16.md` |
-| **Versão** | 1.4 |
-| **Status** | **NORMATIVO** — aprovado por Fabrício em 2026-10-16 (`COLLECTION-NORTH-STAR-02`, decisões D1–D4). Itens marcados **[H]**, entradas **PENDENTE** e as recomendações R1–R4 (§0.2, `COLLECTION-NORTH-STAR-03`) **não são normativos** até homologação formal de Fabrício. |
-| **Rodadas** | `COLLECTION-NORTH-STAR-01` (proposta, v0.1–0.2) → `COLLECTION-NORTH-STAR-02` (consolidação normativa, v1.0) |
+| **Versão** | 1.6 |
+| **Status** | **NORMATIVO** — aprovado por Fabrício em 2026-10-16 (`COLLECTION-NORTH-STAR-02`, decisões D1–D4). Itens marcados **[H]**, entradas **PENDENTE** e as recomendações ainda abertas do §0.2 **não são normativos** até homologação formal de Fabrício. |
+| **Rodadas** | `COLLECTION-NORTH-STAR-01` (proposta, v0.1–0.2) → `COLLECTION-NORTH-STAR-02` (consolidação normativa, v1.0) → … → `COLLECTIONS-NORMATIVE-REALIGNMENT-01` (v1.5: NS-15–NS-18 e matriz de rastreabilidade §7) |
 | **Fontes** | `concept-decisions.md` (C-01–C-186), `logical-model.md`, `checkpoint-2026-08-28.md` §7, `checkpoint-2026-08-29.md`, `ux-exploration-2026-08-29.md`, `checkpoint-2026-10-15.md`, `05d-colecoes-e-usuarios.md`, `architecture/ubiquitous-language.md`, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13 |
 | **Legenda** | **[D]** decisão anterior aprovada e vigente · **[NS]** decisão normativa desta North Star · **[F]** fato do repositório/LIVE · **[H]** hipótese, não normativa |
 | **Fora de escopo** | Implementação, SQL, migrations, contratos técnicos (registrados apenas como necessidade), novos spikes visuais, BULK-05/06 (não autorizados). |
@@ -17,7 +17,7 @@
 
 1. **Autoridade.** Este documento é a referência normativa da **experiência** de Collection: o que o usuário vê, faz, lê e como a qualidade da entrega é aprovada.
 2. **Precedência.** Em **domínio** (entidades, invariantes, regras de dados), as decisões `C-*` e `LDM-*` prevalecem sempre. Se uma regra desta North Star contradisser uma `C-*`/`LDM-*`, vale a `C-*`/`LDM-*` e esta North Star deve ser corrigida. Nenhuma `C-*`/`LDM-*` é alterada por este documento.
-3. **Escopo normativo.** São normativos: as decisões **NS-01–NS-12** (§0.1), a visão (§1), as jornadas dos fluxos (§2), as entradas de nomenclatura com status **HOMOLOGADO** (§3) e os critérios **B1–B8** (§4). Itens **[H]**, entradas **PENDENTE** e o §5.2 não são normativos.
+3. **Escopo normativo.** São normativos: as decisões **NS-01–NS-18** (§0.1), a visão (§1), as jornadas dos fluxos (§2), as entradas de nomenclatura com status **HOMOLOGADO** (§3) e os critérios **B1–B8** (§4). Itens **[H]**, entradas **PENDENTE** e o §5.2 não são normativos.
 4. **Contratos técnicos.** Necessidades técnicas são registradas aqui só quando indispensáveis (hoje, apenas CT-01, §2.6). Cada contrato exige proposta própria, harness, gate de segurança e aprovação de Fabrício antes de qualquer implementação.
 5. **Alteração.** Mudanças neste documento exigem aprovação de Fabrício, nova entrada de Revision History e linha correspondente em `docs/log.md`.
 
@@ -39,6 +39,10 @@
 | NS-12 | Segurança (B7), performance (B4), responsividade (B3) e acessibilidade (B5) são requisitos obrigatórios, não melhorias. | **D3** |
 | NS-13 | Local padrão (K8, caminho 1): o CT-01 cria um local físico com nome provisório **"Local padrão"**, que representa um lugar físico real ainda não identificado pelo usuário. Nenhuma carta recebe localização não confirmada: o local padrão nunca é destino automático. **Toda operação que atribui carta ao local padrão — inclusive Fluxo 2, Fluxo 5 e mudança de local (`5024`) — exige confirmação explícita do usuário antes de gravar.** A presença de cartas no local **não** é evidência de confirmação física. Como não existe, nem é criado nesta rodada, registro persistente de confirmação, a confirmação é pedida em cada operação de atribuição ao local padrão (o que cobre a primeira). Cartas sem local exibem **"Sem localização definida"** (C-26). | K8 (`COLLECTION-NORTH-STAR-K8`), corrigida em `COLLECTION-NORTH-STAR-05` |
 | NS-14 | N8: `STANDARD_SET` é apresentado como **Set padrão**, subtítulo "uma de cada carta". | `COLLECTION-NORTH-STAR-05` |
+| NS-15 | **Regra D-A — local da coleção na criação (fecha R4/P4).** Se o usuário **não possui nenhum local**, o CT-01 cria o "Local padrão" atomicamente com a coleção, sem pergunta. Se possui **um ou mais locais**, ele **escolhe explicitamente** um deles, mesmo quando houver apenas um; o sistema nunca escolhe automaticamente (nem o mais antigo, nem o único). A criação **nunca** atribui localização física a cartas. O local escolhido é o **local padrão da coleção** (Default Storage Container, C-36: destino sugerido, alterável), distinto da **localização física individual de cada exemplar** (C-26, C-28), que só muda por operação explícita com as confirmações de NS-13. | Decisão de Fabrício em `MY-COLLECTIONS-FOUNDATION-01` (2026-10-17, implementada em `5167`), consolidada em `COLLECTIONS-NORMATIVE-REALIGNMENT-01` |
+| NS-16 | **Capa do fichário — evolução da direção visual aprovada.** Preserva o objeto fichário tridimensional, com acabamento premium, zíper e identidade MMKYU (baseline `binder-cover-closed.tsx`, 29/08). Passa a admitir **cor personalizável e persistente por coleção**. Em coleções de Set, a capa usa a **identidade oficial do Set** (logo) quando disponível; sem imagem oficial, usa **identidade tipográfica** adequada (nome/código do Set, ou o nome da coleção quando não há Set). **Nenhuma imagem de carta individual é usada automaticamente como capa** (Hero Card / Hero Artwork continuam AVOID). A mesma capa aparece na Biblioteca e na página da coleção. **Paleta aprovada para a versão atual (decisão K12, Fabrício, 2026-10-17):** vocabulário **fechado** de seis cores — Ônix (`onix`), Vinho (`vinho`), Floresta (`floresta`), Marinho (`marinho`), Caramelo (`caramelo`) e Pérola (`perola`) —, idêntico ao CHECK da proposta 5171, à validação da RPC 5172 e a `BINDER_FINISHES` no frontend. A paleta pode evoluir no futuro, mas qualquer ampliação exige nova decisão e mudança conjunta dos três pontos; nenhuma outra personalização (textura, material, imagem própria) está no escopo atual. **Ainda não decidido:** detalhes de acabamento (placa do logo, foil do código, materiais), pendentes de homologação B2. Persistência de cor e leitura de logos dependem da proposta não executada `2026-10-17-collection-cover-finish` (5171–5174, 5831). | Direção aprovada por Fabrício em `MY-COLLECTIONS-LIBRARY-VISUAL-02` (2026-10-17), consolidada em `COLLECTIONS-NORMATIVE-REALIGNMENT-01`. Substitui, só neste ponto, "identidade só por nome + código" (`MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13) |
+| NS-17 | **Biblioteca em três modos permanece requisito.** Cards (padrão), Lista e Carrossel (N3, B1, B2). Implementação parcial não altera o conceito; o Carrossel é aprovado como experiência e deve ser nativo (a implementação em iframe do spike não é base). | Reafirmação de [D 29/08] em `COLLECTIONS-NORMATIVE-REALIGNMENT-01` |
+| NS-18 | **Taxonomia de criação reafirmada.** A criação oferece **"Completar um Set"**, **"Coleção livre"** e, somente após a liberação da P7, **"Completar a Pokédex"** (sem opção desabilitada visível antes disso). **Master Set não é tipo de criação:** é política de completude de uma coleção de Set, configurada em "Ajustes da coleção" (C-23, LDM-21/22, Fluxo 3.4, NS-03). | Reafirmação do Fluxo 1 e de N5–N9 em `COLLECTIONS-NORMATIVE-REALIGNMENT-01` |
 
 ### 0.2 Recomendações registradas para homologação formal (`COLLECTION-NORTH-STAR-03`)
 
@@ -49,7 +53,7 @@ Decididas por Fabrício como **recomendadas para homologação**. Ficam registra
 | R1 | N8: `STANDARD_SET` apresentado como **Set padrão**, subtítulo "uma de cada carta" | **Homologada como NS-14** |
 | R2 | N25: nome inicial "Local padrão" e exibição "Sem localização definida" | **Consolidada como NS-13** (K8 fechado; compatibilidade com C-26, C-36, C-55 e C-59 verificada) |
 | R3 | B4 (e toda métrica com volume representativo) medida em **ambiente isolado com dados sintéticos representativos**, sem contaminar dados reais | Aguarda homologação formal. Aplicada ao §4.1 como definição |
-| R4 | CT-01: a regra de seleção do local quando o usuário já possui locais permanece **pendente para a proposta técnica** | Aguarda a proposta técnica de CT-01 |
+| R4 | CT-01: a regra de seleção do local quando o usuário já possui locais permanece **pendente para a proposta técnica** | **Resolvida como NS-15** (regra D-A, `5167`) |
 
 ---
 
@@ -89,14 +93,15 @@ As jornadas abaixo são normativas. Tratamentos visuais marcados **[H]** são hi
 **Objetivo do usuário:** sair da tela vazia para uma coleção com sentido em menos de um minuto.
 
 1. **Estado vazio** que explica o valor (registro rápido, progresso, fichário) e oferece **uma** ação principal: "Criar minha primeira coleção".
-2. **Escolha do tipo**, em linguagem de colecionador:
+2. **Escolha do tipo**, em linguagem de colecionador [NS-18]:
    - "Completar um Set" → Collection com referência Card Set [D C-02, LDM-04–07];
-   - "Completar a Pokédex" → Collection Pokédex [D LDM-177] — só quando P7 for liberada;
-   - "Coleção livre" → curadoria aberta, sem progresso [D C-20].
-3. **Escolha do Set** com busca visual (logo, nome, código). A referência é definida **antes** da primeira carta, porque a primeira alocação a consolida [D C-11].
-4. **Nome sugerido** a partir do Set, editável; nome não é identidade nem único [D C-07, C-34].
-5. **Nenhuma pergunta sobre local físico** [NS-06] — ver §2.6.
-6. Sucesso leva direto ao Fluxo 2 ou ao Fluxo 5, nunca a uma tela neutra.
+   - "Coleção livre" → curadoria aberta, sem progresso [D C-20];
+   - "Completar a Pokédex" → Collection Pokédex [D LDM-177] — só quando P7 for liberada.
+   Master Set não aparece aqui (Fluxo 3.4).
+3. **Configuração pertinente ao tipo:** "Completar um Set" → escolha do Set com busca visual (logo, nome, código); a referência é definida **antes** da primeira carta, porque a primeira alocação a consolida [D C-11]. "Coleção livre" → nenhuma configuração além do nome. "Completar a Pokédex" → Pokédex e escopo (inteira ou gerações, LDM-177), quando liberada.
+4. **Nome sugerido** a partir do Set (ou do tipo), editável; nome não é identidade nem único [D C-07, C-34].
+5. **Local da coleção** segundo NS-15: sem nenhum local, nenhuma pergunta [NS-06]; com locais, escolha explícita — ver §2.6.
+6. Sucesso leva direto ao Fluxo 2 (todas as coleções) ou ao Fluxo 5 (coleção de Set), nunca a uma tela neutra.
 
 **Backend existente:** `create_storage_container` (`5022`), `create_collection` (`5034`/`5068`), `create_reference_based_card_set_collection` (`5065`/`5069`) [F]. **Necessário:** CT-01 (§2.6); leitura da Biblioteca; busca de Sets para o usuário.
 
@@ -154,7 +159,7 @@ As jornadas abaixo são normativas. Tratamentos visuais marcados **[H]** são hi
 
 **Experiência normativa:**
 
-1. O usuário só vê: tipo → Set → nome → **"Criar coleção"**.
+1. O usuário só vê: tipo → configuração do tipo (Set, quando houver) → nome → **"Criar coleção"**. Quem já possui locais vê também a escolha explícita do local da coleção, sem pré-seleção (NS-15).
 2. Um único botão, uma única espera; durante o processamento o botão mostra progresso e fica inerte; o formulário preserva tudo o que foi preenchido.
 3. **Sucesso:** a coleção aparece em "Minhas coleções" e o usuário segue para o Fluxo 2 ou 5.
 4. **Falha:** "Não conseguimos criar sua coleção. Nada foi salvo. Tente novamente." — mesmo formulário preenchido, ação "Tentar novamente". O usuário nunca vê coleção pela metade nem local físico órfão.
@@ -173,7 +178,8 @@ Requisitos mínimos que a proposta técnica de CT-01 deverá atender:
 3. Respeitar integralmente C-36 (Default Storage Container na criação), C-57 (container mediado pelo Inventory do usuário), C-11 (referência consolidada pela primeira alocação) e as regras de `5034`/`5065`.
 4. Não alterar nem substituir `5022`, `5034`, `5065` ou qualquer contrato existente.
 5. Padrão de segurança vigente: `SECURITY DEFINER` com `search_path` vazio, dono derivado de `auth.uid()`, `EXECUTE` só para `authenticated`, mensagens que não revelam dados de outros usuários.
-6. Regra **determinística** para escolher o local padrão quando o usuário já possui um ou mais locais (reaproveitar ou criar) — **pendente para a proposta técnica** (R4).
+6. Regra **determinística** para escolher o local padrão quando o usuário já possui um ou mais locais (reaproveitar ou criar) — **resolvida por NS-15** (escolha explícita do usuário; sem escolha automática).
+8. *(Nota de rastreabilidade, 2026-10-17.)* A primeira implementação do CT-01 (`5167`, `create_my_card_set_collection`) cobre só coleção de Set (Set padrão). O requisito 1 vale também para coleção **sem** referência (Coleção livre): sua extensão é contrato aditivo ainda não proposto.
 7. Harness com isolamento entre usuários, idempotência, falha induzida (prova de ausência de estado parcial) e concorrência de duplo envio.
 
 ---
@@ -342,14 +348,15 @@ Critério: **homologado** = aprovado por Fabrício e registrado; **hipótese** =
 |---|---|
 | Biblioteca em três modos (Lista, Cards, Carrossel), mesmo núcleo de dados, Cards como padrão | `docs/log.md` 29/08 (`COLLECTION-LIBRARY-VIEW-MODES-01`); `checkpoint-2026-08-29.md` §3 |
 | Nomes "Lista / Cards / Carrossel" na UI | `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13 |
-| Capa "Binder MMKYU" como referência visual | Aprovação após 23 rodadas; `checkpoint-2026-10-15.md` §D |
+| Capa "Binder MMKYU" como referência visual | Aprovação após 23 rodadas; `checkpoint-2026-10-15.md` §D; `.claude/skills/mmkyu-frontend-experience/SKILL.md` §6. **Evoluída por NS-16** (cor por coleção, identidade oficial do Set, fallback tipográfico) — direção aprovada, implementação pendente de homologação |
 | Carrossel com engine Character Filmstrip e skin Binder MMKYU — **como experiência**; a implementação atual em iframe não é base | log 29/08; `checkpoint-2026-10-15.md` §D |
 | Navegação explícita entre páginas do fichário (sem virada física) | Decisão de 28/08 |
 | Bandeja como estado transitório da sessão de edição, descartada ao sair | C-45 |
 | Fixação protege o bolso, não a carta | C-43 |
 | Fichário independente da ordem do catálogo; spread é só apresentação | C-24, C-39 |
+| Hero da página interna da coleção como baseline visual: fichário 3D com seleção direta das seis cores, título e identidade, régua de evolução, leque das cinco cartas do Set (curadoria por Set quando definida), sombras e enquadramento, separação editorial hero/galeria. Novos microajustes só com problema concreto identificado na homologação | `docs/log.md` 17/10 (`COLLECTION DETAIL HERO — ENCERRAMENTO VISUAL`); `05d` (nota da página da coleção). Validações funcionais e responsivas no navegador continuam pendentes |
 | Direção visual-first, premium, manipulação direta, ações rápidas, lote | `checkpoint-2026-08-28.md` §7 |
-| Visão, públicos, cinco fluxos, fichário opcional, primeira coleção sem configuração física, nomenclatura homologada, B1–B8 | **Esta North Star (NS-01–NS-12)** |
+| Visão, públicos, cinco fluxos, fichário opcional, primeira coleção sem configuração física, nomenclatura homologada, B1–B8 | **Esta North Star (NS-01–NS-12; complementada por NS-13–NS-18)** |
 
 Correção de fidelidade, não decisão de UX: proporção 8:11 medida em assets reais [F].
 
@@ -366,6 +373,7 @@ Correção de fidelidade, não decisão de UX: proporção 8:11 medida em assets
 | Tool Rail com botões sempre visíveis, inclusive desabilitados | `binder-nav-01` | Conflita com NS-03 (K6) |
 | Navegação por borda durante arraste (~650 ms) | `binder-nav-01` | Teclado não atravessa páginas [F] |
 | Abertura do fichário com View Transition | `binder-spike`, `collection-space` | Cumprir B4 e B5 |
+| Acabamento da capa: placa do logo e foil do código *(a paleta de 6 cores saiu desta lista — aprovada na decisão K12, NS-16)* | `MY-COLLECTIONS-LIBRARY-VISUAL-02` (`web/components/colecoes/colecoes/binder-cover.tsx`) | Homologação B2 |
 | Bandeja sobrevivendo à troca de páginas na mesma sessão | `binder-nav-01` | Não adotada; vale a C-45 |
 | Máquina de estados Estante → Foco → Abrir | `mmkyu-shelf` | Só para Showcase/perfil futuro |
 | Wave em Social/Perfil | `collection-wave-spike-01` | Fora do escopo de Collection |
@@ -399,10 +407,47 @@ Fora da classificação de UX: o componente `binder-pages-nav.tsx` (1.848 linhas
 | P1 | N8 — nome de STANDARD_SET | **Resolvido** (NS-14) |
 | P2 | N25 — nome do local padrão e exibição de carta sem local | **Resolvido** (NS-13) |
 | P3 | Ambiente de dados para VR (B4) | **Recomendado (R3):** ambiente isolado com dados sintéticos; forma concreta a definir antes da primeira medição |
-| P4 | CT-01 — regra de seleção do local | **Pendente para a proposta técnica (R4)** |
+| P4 | CT-01 — regra de seleção do local | **Resolvido (NS-15, regra D-A).** *(Antes: pendente para a proposta técnica, R4.)* |
 | K8 | Local padrão × C-26, C-36, C-55, C-59 | **Resolvido** (`COLLECTION-NORTH-STAR-K8`, caminho 1 → NS-13). **C-36:** o local é criado junto com a coleção e segue como destino sugerido, alterável. **C-55:** representa um lugar físico real; o nome é só atributo descritivo (`5020`), e nenhuma decisão exige que o lugar esteja identificado na criação. **C-59:** container pode existir vazio, e nenhuma carta recebe localização não confirmada, logo toda localização registrada é confiável. **C-26:** carta sem local continua sem Storage. Requisito para propostas futuras: toda tela que atribui carta ao local padrão (Fluxo 2, Fluxo 5, `5024`) pede confirmação explícita a cada operação; a presença de cartas não comprova confirmação; o backend não a impõe |
 
+| K9 | Capa: "identidade só por nome + código" (`MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13, 29/08) × cor por coleção e logo do Set (`MY-COLLECTIONS-LIBRARY-VISUAL-02`, 17/10) | **Resolvido (NS-16).** O registro de 29/08 é preservado como histórico, com nota de evolução no DRAFT §13 e no SKILL §6 |
+| K10 | NS-06/§2.6 "nenhuma pergunta sobre local físico" × regra D-A da `5167` (escolha explícita quando há locais) | **Resolvido (NS-15).** NS-06 vale integralmente para quem não tem locais |
+| K11 | Comentário da R1 (`5168`) descreve um campo de "capa" com a arte da carta alocada mais recentemente | **Pendente, não bloqueante.** O campo existe no contrato LIVE, mas pela NS-16 nunca é usado como capa automática. Corrigir o comentário exige nova versão da função (fora desta rodada) ou anotação em 05d (feita) |
+| K12 | Proposta `5171` fixa por CHECK um vocabulário fechado de 6 cores × NS-16 (paleta não decidida) | **Resolvido (decisão K12, 2026-10-17):** Fabrício aprovou a paleta fechada de seis cores da 5171 para a versão atual (NS-16). *(Antes: pendente — proposta não executável sem fechar a paleta.)* |
+| K13 | Coleção livre: tipo homologado (N5) × README de `my-collections-foundation` ("não indispensável nesta rodada") | **Resolvido.** O recorte foi só de rodada de implementação; N5/NS-18 permanecem vigentes |
+
 Bandeja: C-45 vigente, sem extensão. Preenchimento em lote do fichário: limitação conhecida, não requisito do BULK-06.
+
+---
+
+## 7. Rastreabilidade conceito → experiência → implementação
+
+**Governança desta seção.** Colunas "Decisão/fonte" e "Referência visual" são normativas (alteração segue §0.5). Colunas "Implementação", "Homologação" e "Dependência" são **informativas**: devem ser atualizadas no mesmo ciclo de qualquer implementação de Collection, com linha em `docs/log.md`, sem nova versão normativa. Estado físico detalhado continua em `05d-colecoes-e-usuarios.md`.
+
+Legenda — Implementação: **LIVE** (backend no banco) · **FE-pub** (frontend publicado) · **FE-local** (frontend local, não commitado) · **—** (não implementado). Homologação: **HOM** (homologação expressa registrada) · **dir.** (direção aprovada, sem homologação final) · **pend.** (pendente) · **n/a**.
+
+| Capacidade | Decisão / fonte normativa | Referência visual / spike | Implementação (2026-10-17) | Homologação | Dependência / lacuna |
+|---|---|---|---|---|---|
+| Biblioteca — Cards (padrão) | N2, N3, NS-17; log 29/08 | `collection-library-view-modes-01`; `premium-grid.tsx` | FE-local (`library-view.tsx`) | pend. | B2 |
+| Biblioteca — Lista | N3, NS-17 | `collection-list-view.tsx` | FE-local (`library-list.tsx`, seletor `library-modes.tsx`) | pend. | Só frontend (R1 existente); homologação visual B2 |
+| Biblioteca — Carrossel | N3, NS-17; NS §5.1 (experiência, não iframe) | `collection-library-carousel-mmkyu-*.html` (referência) | FE-local, nativo (`library-carousel.tsx`, motor do Filmstrip, capa do fichário) | pend. | Só frontend (R1 existente); homologação visual e de interação (mouse, teclado, toque) |
+| Tipos de criação | NS-18; Fluxo 1.2; N5–N7 | — | Parcial: só "Completar um Set", sem passo de tipo | pend. | Coleção livre exige CT-01 estendido |
+| Criação atômica e idempotente | NS-06, NS-07, D1, CT-01 | — | LIVE `5166`/`5167` (Set); FE-local | pend. | Extensão do CT-01 para Coleção livre |
+| Local da coleção na criação | NS-13, NS-15 (D-A), C-36 | — | LIVE `5167`; FE-local | pend. | — |
+| Continuidade após criar (Fluxo 2/5) | Fluxo 1.6 | — | — (termina em texto + "Adicionar as que já tenho") | pend. | Reaproveitar ações do Meu acervo (contratos LIVE) |
+| Adicionar cartas (Fluxo 2) | Fluxo 2; N14, N15 | `binder-nav-01` (combobox, [H]) | FE-pub no Meu acervo (sem alocação à coleção) | dir. | Na coleção: envelope de alocação de `5150` (LIVE) |
+| Adicionar o Set inteiro (Fluxo 5) | Fluxo 5; N16 | — | FE-pub no Meu acervo (sem alocação à coleção) | dir. | Na coleção: envelope de `5157` (LIVE) |
+| Vincular exemplares que já tenho | C-03, C-19, C-04; Fluxo 3.5 | — | LIVE `5170`/`5046`; FE-local ("1 de cada", D-C) | pend. | Master Set/Pokédex sem leitura de candidatos |
+| Progresso / Tenho · Faltam / repetidas | C-19–C-21; Fluxo 3; N10, N12 | — | LIVE `5168`/`5169`; FE-local | pend. | Tenho/Faltam é [H] |
+| Coleção livre | N5, NS-18; C-20 (sem progresso) | — | Backend parcial: `5034` (exige local; não atômico com ele); R1 já devolve progresso nulo | n/a | **SQL:** CT-01 para coleção sem referência. Conteúdo: `5159` filtrada (LIVE) |
+| Ajustes da coleção — nome | C-07, C-34 | — | FE-local (`5035`) | pend. | — |
+| Ajustes — Onde guardo | Fluxo 3/§2.6.5; N24; NS-13 | — | LIVE `5036`; — FE | n/a | Só frontend |
+| Ajustes — Set padrão ↔ Master Set | C-23; LDM-21/22; Fluxo 3.4; N8/N9 | — | LIVE `5080`–`5084`; — FE | n/a | **SQL:** leitura das versões do Set para o colecionador (escopo explícito) e posições com imagem |
+| Coleção Pokédex | LDM-175–185; N7; NS-18 | — | LIVE Fatias A–E; — FE | n/a | **Bloqueada:** P7 / B1–B8 |
+| Capa do fichário (fechado) | NS-16; SKILL §6 (baseline 29/08) | `binder-cover-closed.tsx` (aprovado); `binder-cover.tsx` (evolução) | FE-local; LIVE `5171`–`5174` (cor persistida, logos legíveis) | dir. + paleta aprovada / pend. (acabamento, B2) | Homologação visual B2 |
+| Fichário aberto | NS-05; Fluxo 4; navegação explícita [D 28/08]; virada física rejeitada | `binder-nav-01` (hipóteses) | LIVE Layout `5104`–`5141`; — FE | n/a | Leitura do fichário com dados de carta; fora da base funcional |
+| Manipulação no fichário | C-41–C-46; N19–N23 | `binder-nav-01` (DnD, Tool Rail, Bandeja = [H]) | LIVE (RPCs de Layout); — FE | n/a | Homologação no Fluxo 4; K6; Bandeja conforme C-45 |
+| Organização física (Onde guardo / local dos exemplares) | C-55–C-66; C-26; NS-09, NS-13 | `collection-space` (superado) | LIVE `5020`–`5024`; — FE dedicado | n/a | Confirmação a cada atribuição ao local padrão |
 
 ---
 
@@ -417,3 +462,5 @@ Bandeja: C-45 vigente, sem extensão. Preenchimento em lote do fichário: limita
 | 1.2 | **Correção de nomenclatura N25 (2026-10-16, `COLLECTION-NORTH-STAR-04`).** R2 revisada: nome inicial "Local padrão" para o local criado pelo CT-01, sem atribuição automática de cartas; "Sem localização definida" para cartas sem local (C-26). K8 passa a STOP parcial: compatível com C-26 e C-36; contradição residual com C-55/C-59 registrada, sem homologação. R1, R3 e R4 inalteradas; nenhuma `C-*`/`LDM-*` alterada. |
 | 1.3 | **K8 fechado (2026-10-16, `COLLECTION-NORTH-STAR-K8`).** Caminho 1 adotado e verificado compatível com C-26, C-36, C-55 e C-59; consolidado como NS-13 ("Local padrão" como nome provisório de um lugar real, confirmação antes da primeira carta, nenhuma atribuição automática, "Sem localização definida" para carta sem local). R2, N25, §2.6, P2 e K8 atualizados. Nenhuma `C-*`/`LDM-*` alterada. |
 | 1.4 | **Fechamento (2026-10-16, `COLLECTION-NORTH-STAR-05`).** N8 homologado como "Set padrão — uma de cada carta" (NS-14; R1 e P1 encerrados). NS-13 corrigida: a presença de cartas deixa de valer como evidência de confirmação; confirmação explícita exigida em toda operação de atribuição ao local padrão (Fluxos 2 e 5, `5024`), sem campo novo. K8 segue resolvido; R3 e R4 mantidas. Nenhuma `C-*`/`LDM-*` alterada. |
+| 1.5 | **Realinhamento normativo (2026-10-17, `COLLECTIONS-NORMATIVE-REALIGNMENT-01`, decisões D1–D6 de Fabrício).** Novas NS-15 (regra D-A do local na criação; fecha R4/P4; distingue local padrão da coleção de localização física do exemplar), NS-16 (capa: fichário 3D premium com zíper e identidade MMKYU, cor persistente por coleção, identidade oficial do Set quando disponível, fallback tipográfico, nunca carta como capa automática; paleta e acabamento **não** decididos, pendentes de B2), NS-17 (Biblioteca em três modos permanece requisito) e NS-18 (taxonomia de criação: Set, Coleção livre, Pokédex só com P7; Master Set é ajuste, não tipo). Fluxo 1 e §2.6 ajustados (configuração por tipo, local conforme NS-15, continuidade Fluxo 2/5); nota de rastreabilidade do CT-01 (requisito 1 inclui coleção sem referência). §5.1/§5.2 anotados; conflitos K9–K13 registrados (K9, K10 e K13 resolvidos; K11 e K12 pendentes, não bloqueantes). §7 novo: matriz de rastreabilidade com colunas normativas e informativas. Fluxo 4/fichário: sem mudança (D6 preserva a classificação do §5). Nenhuma `C-*`/`LDM-*` alterada. **Adendo (2026-10-17, decisão K12 de Fabrício):** paleta fechada de seis cores (Ônix, Vinho, Floresta, Marinho, Caramelo, Pérola) aprovada para a versão atual e registrada na NS-16, com evolução futura condicionada a nova decisão; §5.2 deixa de listar a paleta como hipótese; K12 resolvido; matriz §7 atualizada. Capa e logos não reabertos. |
+| 1.6 | **Hero da coleção aprovado como baseline visual (2026-10-17, `COLLECTION DETAIL HERO — ENCERRAMENTO VISUAL`).** §5.1: nova linha homologando a composição do hero da página interna (fichário 3D + seis cores, título/identidade, régua, cinco cartas, sombras/enquadramento, separação hero/galeria). Encerra as rodadas de refinamento estético desse componente; homologação funcional/responsiva no navegador segue pendente. |

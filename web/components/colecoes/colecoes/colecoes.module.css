@@ -1,0 +1,759 @@
+/*
+ * Minhas coleções (MY-COLLECTIONS-FRONTEND-01) — superfície customer-facing.
+ *
+ * Vocabulário herdado de Meu acervo (acervo.module.css: palco, título, grade
+ * de cartas 8:11, estados, painel lateral) — este arquivo só acrescenta o que
+ * é próprio das coleções: a capa "Binder" da Biblioteca, a régua de progresso
+ * e o tratamento "falta" das cartas da coleção.
+ *
+ * A capa é um OBJETO (como o Binder fechado aprovado): grafite quase preto,
+ * costura discreta, faixa do zíper à direita e o wordmark gravado — igual nos
+ * dois temas, porque um fichário não muda de cor com o tema. Dourado só no
+ * progresso, no foco e na coleção completa.
+ *
+ * Performance: nada de filter/backdrop-filter na grade; hover = transform +
+ * box-shadow; tudo desligado por prefers-reduced-motion.
+ */
+
+/* ---- Cabeçalho da Biblioteca (palco) ----
+ * Mesma família do palco de Meu acervo e da Pokédex Nacional (stageGlow, numeral de
+ * contorno, título Manrope 800, painel de números). O que é próprio desta página:
+ * o elemento cenográfico — uma estante com vários fichários (lombadas de alturas
+ * diferentes, uma inclinada, uma capa de frente com zíper), sugerindo o conjunto
+ * mesmo com uma única coleção — e o título na escala da Pokédex (a página-índice
+ * de um universo, não uma listagem). Sem animação; traço na cor do texto.
+ */
+.libraryHero {
+  padding-top: 2rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.libraryHero h1 {
+  font-size: clamp(2.375rem, 5.2vw, 4rem);
+}
+
+.libraryHero p {
+  max-width: 52ch;
+}
+
+.heroShelf {
+  position: absolute;
+  z-index: -2;
+  top: -1.5rem;
+  right: 3%;
+  width: 34rem;
+  height: auto;
+  color: hsl(var(--foreground) / 0.075);
+  pointer-events: none;
+}
+
+:global(.dark) .heroShelf {
+  color: hsl(var(--foreground) / 0.09);
+}
+
+/* Total único (página parcial ou só Coleções livres): o painel não estica vazio. */
+.ledgerSolo {
+  flex: 0 1 auto;
+  grid-template-columns: minmax(14rem, auto);
+}
+
+/* ---- Biblioteca: estante de fichários ----
+ * O fichário (binder-cover.module.css) é o protagonista; nome e progresso
+ * ficam abaixo, em tipografia contida. Grade larga para cada objeto respirar.
+ */
+
+.library {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  gap: 3.25rem 2.5rem;
+  margin-top: 2rem;
+}
+
+.shelfItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1.375rem;
+  border-radius: 1rem;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+
+.shelfItem:focus-visible .shelfName {
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--primary));
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.shelfMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  /* alinha com a face do fichário (a lombada ocupa ~10% à direita) */
+  padding-right: 10%;
+}
+
+.shelfName {
+  font: 700 1.0625rem/1.25 var(--font-heading);
+  letter-spacing: -0.015em;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.shelfKind {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.shelfProgress {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 0.375rem;
+}
+
+.shelfTrack {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: hsl(var(--border));
+  overflow: hidden;
+}
+
+.shelfCount {
+  flex: none;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.shelfCount strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* ---- Progresso (régua) ---- */
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.progressLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.progressLine strong {
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.track {
+  position: relative;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: hsl(var(--surface-muted));
+  overflow: hidden;
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.75), hsl(var(--primary)));
+  transform-origin: left center;
+  animation: colecoes-fill-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.fillComplete {
+  background: hsl(var(--primary));
+}
+
+@keyframes colecoes-fill-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ---- Cabeçalho da coleção ---- */
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  border-radius: 0.375rem;
+}
+
+.backLink:hover {
+  color: hsl(var(--foreground));
+}
+
+.backLink:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.collectionHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
+  gap: 1.5rem 2.5rem;
+  /* Título logo abaixo de "Minhas coleções"; o painel de progresso alinha pelo
+     topo. (Com `end`, o título descia até a base do painel, mais alto que ele.) */
+  align-items: start;
+}
+
+/* ---- Identidade da coleção (capa compacta + título) ---- */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.identityCover {
+  flex: none;
+  width: clamp(5.5rem, 9vw, 7.5rem);
+}
+
+.identityText {
+  min-width: 0;
+}
+
+/* ---- Seletor da cor do fichário ---- */
+
+.finishPicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.875rem;
+  border: 0;
+  padding: 0;
+}
+
+.finishLegend {
+  float: left;
+  margin-right: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.finishSwatches {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.finishSwatch {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.finishChip {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--chip);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.12), 0 1px 2px hsl(0 0% 0% / 0.3);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.finishSwatch:has(input:checked) .finishChip {
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary));
+}
+
+.finishSwatch:has(input:focus-visible) .finishChip {
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+}
+
+@media (hover: hover) {
+  .finishSwatch:hover .finishChip {
+    transform: scale(1.08);
+  }
+}
+
+.finishSwatch[data-finish="onix"] { --chip: linear-gradient(160deg, hsl(30 8% 26%), hsl(30 6% 8%)); }
+.finishSwatch[data-finish="vinho"] { --chip: linear-gradient(160deg, hsl(352 40% 38%), hsl(350 52% 14%)); }
+.finishSwatch[data-finish="floresta"] { --chip: linear-gradient(160deg, hsl(152 24% 30%), hsl(160 38% 10%)); }
+.finishSwatch[data-finish="marinho"] { --chip: linear-gradient(160deg, hsl(216 34% 37%), hsl(222 50% 12%)); }
+.finishSwatch[data-finish="caramelo"] { --chip: linear-gradient(160deg, hsl(30 52% 52%), hsl(22 56% 20%)); }
+.finishSwatch[data-finish="perola"] { --chip: linear-gradient(160deg, hsl(40 40% 96%), hsl(34 16% 66%)); }
+
+.finishName {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- Título com "Renomear" ---- */
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.renameButton {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.625rem;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.renameButton:hover {
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--foreground));
+}
+
+.renameButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.renameSaved {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--primary-ink));
+}
+
+.renameSaved:empty {
+  display: none;
+}
+
+.renameForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  max-width: 44rem;
+}
+
+.renameInput {
+  flex: 1 1 18rem;
+  height: 3rem;
+  font: 700 1.25rem/1.2 var(--font-heading);
+  letter-spacing: -0.02em;
+}
+
+.renameActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.renameActions > button {
+  min-height: 2.75rem;
+}
+
+.renameHint,
+.renameError {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.renameError {
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .renameError {
+  color: hsl(var(--destructive-foreground));
+}
+
+.collectionKind {
+  margin-top: 0.625rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.collectionKind strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.progressPanel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.125rem 1.25rem 1.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background: linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--surface) / 0.72) 100%);
+  box-shadow: 0 18px 40px -28px hsl(var(--foreground) / 0.35);
+  overflow: hidden;
+}
+
+.progressPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 4%, hsl(var(--primary) / 0.55) 22%, hsl(var(--primary) / 0.12) 60%, transparent 92%);
+}
+
+.progressFigure {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.progressBig {
+  font: 800 2.5rem/1 var(--font-heading);
+  letter-spacing: -0.045em;
+  color: hsl(var(--foreground));
+}
+
+.progressOf {
+  font: 600 1.0625rem/1 var(--font-heading);
+  color: hsl(var(--muted-foreground));
+}
+
+.progressPct {
+  margin-left: auto;
+  font: 700 1rem/1 var(--font-heading);
+  color: hsl(var(--primary-ink));
+}
+
+.progressPanel .track {
+  height: 0.5rem;
+}
+
+.progressFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.progressFoot strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.completeNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 600;
+  color: hsl(var(--primary-ink));
+}
+
+/* ---- Barra: Todas / Tenho / Faltam + ação ---- */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-top: 1.75rem;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 0.25rem;
+  border: 1px solid hsl(var(--control-border));
+  border-radius: 0.75rem;
+  background: hsl(var(--control-surface));
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.segment:hover {
+  color: hsl(var(--foreground));
+}
+
+.segment[aria-current="page"] {
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--foreground));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.5);
+}
+
+.segment:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.segmentCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* ---- Cartas da coleção ---- */
+
+/* Carta que falta: a arte aparece apagada e dessaturada por camada, não por filter (custo) */
+.missing {
+  position: relative;
+}
+
+.missing::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: hsl(var(--background) / 0.72);
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+  pointer-events: none;
+}
+
+.missingTag {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 0.625rem;
+  transform: translateX(-50%);
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+  background: hsl(var(--surface));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.12);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: hsl(var(--muted-foreground));
+}
+
+.availableTag {
+  color: hsl(var(--primary-ink));
+}
+
+/* ---- Painel de criação / vínculo ---- */
+
+.stepLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: hsl(var(--muted-foreground));
+}
+
+.kindCard {
+  display: flex;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid hsl(var(--primary) / 0.5);
+  border-radius: 0.75rem;
+  background: hsl(var(--primary) / 0.08);
+}
+
+.kindIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--primary) / 0.16);
+  color: hsl(var(--primary-ink));
+}
+
+.kindTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.kindText {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.setGroupLabel {
+  padding: 0.5rem 0.75rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.setOwned {
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary-ink));
+}
+
+.fieldHint {
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.autoLocation {
+  display: flex;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--surface-muted));
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.autoLocation strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.choiceList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.choice {
+  padding: 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+}
+
+.choiceHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
+}
+
+.choiceName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.choiceNumber {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.choiceOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.suggested {
+  margin-left: auto;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 999px;
+  background: hsl(var(--surface-muted));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- Responsivo ---- */
+
+@media (max-width: 1023px) {
+  .collectionHero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .libraryHero {
+    padding-top: 0.75rem;
+  }
+
+  .heroShelf {
+    top: -0.5rem;
+    right: -7rem;
+    width: 21rem;
+  }
+
+  .identity {
+    gap: 1rem;
+  }
+
+  .library {
+    grid-template-columns: repeat(auto-fill, minmax(9.75rem, 1fr));
+    gap: 2.25rem 1.25rem;
+  }
+
+  .shelfName {
+    font-size: 0.9375rem;
+  }
+
+  .shelfProgress {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+  }
+
+  .bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .segmented {
+    display: flex;
+  }
+
+  .segment {
+    flex: 1;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0 0.5rem;
+  }
+
+  .progressBig {
+    font-size: 2.125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    animation: none;
+  }
+}
