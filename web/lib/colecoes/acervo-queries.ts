@@ -170,7 +170,7 @@ export async function getAcervoItemDetail(
   const rows = data as CopyRow[];
   const first = rows[0];
   if (!first) return undefined;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- campos de galeria, ausentes no detalhe
+  // copiesCount e lastAddedAt são campos de galeria, ausentes no detalhe.
   const { copiesCount, lastAddedAt, ...item } = toItem(first);
   return {
     item,
