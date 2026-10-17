@@ -1,0 +1,1283 @@
+/*
+ * Meu acervo (MY-INVENTORY-IMPLEMENTATION-01) — superfície customer-facing.
+ * Referência: protótipo aprovado meu-acervo-prototipo-01 (sem o eyebrow, banido
+ * pelo craft floor). Carta é o protagonista: a interface fica neutra em volta
+ * dela; dourado só na seleção/foco e no filtro ativo.
+ *
+ * Tokens só do Design System (globals.css). As duas variáveis locais abaixo
+ * (sombra da carta e luz do palco) são exclusivas desta superfície — mesmo
+ * critério da Pokédex (species-grid.module.css), que também tem a sua.
+ *
+ * Performance: nada de filter/backdrop-filter na grade; hover = transform +
+ * box-shadow em 180 ms, desligado por prefers-reduced-motion (regra global) e
+ * ausente em telas sem hover. Proporção fixa da carta (8:11, B2) = zero CLS.
+ */
+
+.root {
+  --acervo-card-shadow: 0 1px 2px hsl(var(--foreground) / 0.08), 0 8px 18px -10px hsl(var(--foreground) / 0.35);
+  --acervo-card-shadow-hover: 0 2px 4px hsl(var(--foreground) / 0.1), 0 18px 32px -14px hsl(var(--foreground) / 0.45);
+  --acervo-card-radius: 4.6% / 3.4%;
+  /* Respiro lateral próprio da página, somado ao p-6 do <main>: o conteúdo não
+     encosta no menu lateral. Some no celular (ver media query). */
+  --acervo-gutter: clamp(0.75rem, 2vw, 2.5rem);
+  position: relative;
+  margin: 0 auto;
+  padding-inline: var(--acervo-gutter);
+  /* MY-INVENTORY-LAYOUT-REFINEMENT-01: a página ocupa a área útil real (antes,
+     teto de 80rem deixava ~300px vazios em 1920). O teto só existe para monitores
+     ultralargos; a grade decide quantas colunas cabem. */
+  max-width: 120rem;
+}
+
+:global(.dark) .root {
+  --acervo-card-shadow: 0 1px 2px hsl(0 0% 0% / 0.5), 0 10px 22px -10px hsl(0 0% 0% / 0.8);
+  --acervo-card-shadow-hover: 0 2px 6px hsl(0 0% 0% / 0.55), 0 22px 40px -14px hsl(0 0% 0% / 0.9);
+}
+
+/* ---- cabeçalho (palco) ----
+ * Mesmo vocabulário do cabeçalho da Pokédex Nacional (pokedex-national.module.css):
+ * título Manrope 800 grande, total em numeral de contorno e um elemento cenográfico
+ * neutro ao fundo — aqui, três silhuetas de carta em leque, no lugar da lente. A luz
+ * do palco é um gradiente estático; o dourado aparece só num fio de brilho do painel
+ * de números. Nenhuma animação no cabeçalho.
+ */
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: -0.5rem -0.5rem 0;
+  padding: 1.25rem 0.5rem 0.25rem;
+  container: acervo-hero / inline-size;
+}
+
+.stageGlow {
+  position: absolute;
+  z-index: -3;
+  inset: -6rem -4rem auto -4rem;
+  height: 30rem;
+  pointer-events: none;
+  background:
+    radial-gradient(38rem 18rem at 78% 28%, hsl(var(--primary) / 0.07), transparent 70%),
+    radial-gradient(30rem 16rem at 12% 0%, hsl(var(--foreground) / 0.035), transparent 70%);
+}
+
+.numeral {
+  position: absolute;
+  z-index: -1;
+  top: 0.75rem;
+  right: -1rem;
+  font: 800 clamp(8rem, 19vw, 17rem) / 0.78 var(--font-heading);
+  letter-spacing: -0.065em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.5px hsl(var(--foreground) / 0.12);
+  user-select: none;
+}
+
+:global(.dark) .numeral {
+  -webkit-text-stroke-color: hsl(var(--foreground) / 0.15);
+}
+
+.heroCards {
+  position: absolute;
+  z-index: -2;
+  top: -2.5rem;
+  right: 4%;
+  width: 26rem;
+  height: auto;
+  color: hsl(var(--foreground) / 0.07);
+  pointer-events: none;
+}
+
+:global(.dark) .heroCards {
+  color: hsl(var(--foreground) / 0.085);
+}
+
+.heroContent {
+  position: relative;
+  max-width: 44rem;
+}
+
+.title {
+  font: 800 clamp(2.125rem, 4vw, 3.25rem) / 0.94 var(--font-heading);
+  letter-spacing: -0.04em;
+  color: hsl(var(--foreground));
+}
+
+.lede {
+  margin-top: 0.5rem;
+  /* Uma linha no desktop (a frase tem ~60 caracteres); o teto real é o
+     .heroContent. No celular quebra naturalmente, sem palavra órfã. */
+  max-width: 68ch;
+  text-wrap: pretty;
+  font: 500 1.0625rem/1.5 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.lede strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* ---- painel de números ----
+ * Um painel único (não quatro cartões): o total em destaque à esquerda e as três
+ * medidas derivadas à direita, cada uma com a frase do que mede. Superfície levemente
+ * acima do workspace, borda fina e um fio dourado de 1 px no topo (assinatura da marca,
+ * não preenchimento). Números tabulares para não "dançarem".
+ */
+/* Números e ações na mesma faixa quando há largura (as ações descem sozinhas
+   quando não cabem) — economiza uma linha inteira do cabeçalho. */
+.heroRow {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.875rem 1.25rem;
+  margin-top: 1.125rem;
+}
+
+.ledger {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.15fr) repeat(3, minmax(0, 1fr));
+  flex: 1 1 40rem;
+  max-width: 62rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--surface) / 0.72) 100%);
+  box-shadow: 0 1px 0 hsl(var(--foreground) / 0.03), 0 18px 40px -28px hsl(var(--foreground) / 0.35);
+  overflow: hidden;
+}
+
+:global(.dark) .ledger {
+  box-shadow: 0 1px 0 hsl(0 0% 100% / 0.03) inset, 0 22px 48px -30px hsl(0 0% 0% / 0.9);
+}
+
+.ledger::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 4%, hsl(var(--primary) / 0.55) 22%, hsl(var(--primary) / 0.12) 60%, transparent 92%);
+}
+
+.ledgerItem {
+  display: flex;
+  flex-direction: column-reverse; /* <dt> antes do <dd> no DOM; número em cima na tela */
+  justify-content: flex-end;
+  gap: 0.3125rem;
+  padding: 0.875rem 1.25rem 0.8125rem;
+  border-left: 1px solid hsl(var(--border) / 0.8);
+}
+
+.ledgerItem:first-child {
+  border-left: 0;
+  padding-left: 1.5rem;
+}
+
+.ledgerValue {
+  font: 800 1.625rem/1 var(--font-heading);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: hsl(var(--foreground));
+}
+
+.ledgerLead .ledgerValue {
+  font-size: 2.25rem;
+  letter-spacing: -0.045em;
+}
+
+.ledgerLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+}
+
+.ledgerName {
+  font: 600 0.8125rem/1.2 var(--font-sans);
+  color: hsl(var(--foreground));
+}
+
+.ledgerHint {
+  font: 400 0.75rem/1.35 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+/* Acervo vazio: os números ficam em segundo plano — o palco é do estado vazio. */
+.ledgerQuiet .ledgerValue {
+  color: hsl(var(--muted-foreground) / 0.75);
+}
+
+/* ---- barra de ferramentas ---- */
+.toolbar {
+  position: sticky;
+  top: -1.5rem; /* compensa o p-6 do <main> do AppShell */
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  /* A faixa fixa continua de borda a borda do <main>, atravessando o respiro. */
+  margin: 1rem calc(-1.5rem - var(--acervo-gutter)) 0;
+  padding: 0.75rem calc(1.5rem + var(--acervo-gutter));
+  background: hsl(var(--background));
+  border-bottom: 1px solid hsl(var(--border) / 0.7);
+}
+
+.search {
+  flex: 1 1 14rem;
+  max-width: 24rem;
+}
+
+.filterGroup {
+  display: contents;
+}
+
+.filterSelect {
+  width: auto;
+  min-width: 9rem;
+  max-width: 14rem;
+}
+
+.grow {
+  flex: 1;
+}
+
+.count {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.filtersButton {
+  display: none;
+}
+
+/* Ordenação: separada dos filtros por um divisor e com rótulo visível. */
+.sortGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: 0.875rem;
+  border-left: 1px solid hsl(var(--border) / 0.8);
+}
+
+.sortLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: hsl(var(--muted-foreground));
+}
+
+.sortSelect {
+  width: auto;
+  min-width: 9.5rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding: 0 0.375rem 0 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: hsl(var(--primary-ink));
+  background: hsl(var(--primary) / 0.12);
+  border: 1px solid hsl(var(--primary) / 0.35);
+}
+
+.chipRemove {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  color: inherit;
+}
+
+.chipRemove:hover {
+  background: hsl(var(--primary) / 0.18);
+}
+
+.chipRemove:focus-visible,
+.chipClear:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.chipClear {
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- grade ----
+ * Colunas decididas pela largura real do conteúdo (auto-fill), nunca fixas.
+ * Mínimo de 10.5rem por carta: 6 colunas a 1440 px e 8 a 1920 px com rail +
+ * painel abertos, sem cair abaixo de ~168 px de largura (nome e número legíveis);
+ * o 1fr nunca deixa a carta passar de ~2× o mínimo. Proporção 8:11 vem de .art.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.925rem, 1fr)); /* aprovado por Fabrício (−15% de 10.5rem) */
+  gap: 1.5rem 1.125rem;
+  margin-top: 1rem;
+}
+
+.tile {
+  display: block;
+  border-radius: 0.75rem;
+  outline: none;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tile:focus-visible .art {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 4px;
+}
+
+.artWrap {
+  position: relative;
+}
+
+.art {
+  position: relative;
+  aspect-ratio: 8 / 11;
+  border-radius: var(--acervo-card-radius);
+  overflow: hidden;
+  background: hsl(var(--surface-muted));
+  box-shadow: var(--acervo-card-shadow);
+  transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 180ms ease;
+}
+
+@media (hover: hover) {
+  .tile:hover .art {
+    transform: translateY(-4px) rotate(-0.4deg);
+    box-shadow: var(--acervo-card-shadow-hover);
+  }
+}
+
+.artImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.artImage[data-state="loaded"] {
+  opacity: 1;
+}
+
+.artFallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  border: 1px dashed hsl(var(--border));
+  border-radius: inherit;
+}
+
+.artFallback small {
+  font-weight: 500;
+  font-size: 0.6875rem;
+}
+
+.artFallbackWindow {
+  flex: 1;
+  margin: 0.5rem 0;
+  border-radius: 4px;
+  background: hsl(var(--foreground) / 0.04);
+}
+
+/* Pilha atrás da carta quando há mais de um exemplar. */
+.stack::before,
+.stack::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--acervo-card-radius);
+  background: hsl(var(--surface-muted));
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--acervo-card-shadow);
+}
+
+.stack::before {
+  transform: translate(5px, 5px) rotate(1.6deg);
+}
+
+.stack::after {
+  transform: translate(9px, 9px) rotate(3deg);
+  opacity: 0.7;
+}
+
+.artWrap.stack {
+  isolation: isolate;
+}
+
+.qty {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 2.125rem;
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 100%);
+  background: hsl(30 30% 6% / 0.78);
+  border: 1px solid hsl(0 0% 100% / 0.18);
+}
+
+.meta {
+  margin-top: 0.75rem;
+  padding: 0 0.125rem;
+}
+
+.name {
+  overflow: hidden;
+  font-size: 0.84375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: hsl(var(--foreground));
+}
+
+.sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.1875rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: 1.125rem;
+  padding: 0 0.375rem;
+  overflow: hidden;
+  border-radius: 5px;
+  font-size: 0.65625rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: hsl(var(--foreground) / 0.85);
+  background: hsl(var(--surface-muted));
+  border: 1px solid hsl(var(--border));
+}
+
+/* ---- paginação ---- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 2.5rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- estados ---- */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 29rem;
+  margin: 3.5rem auto 0;
+  text-align: center;
+}
+
+.stateTitle {
+  margin-top: 1.375rem;
+  font: 700 1.375rem/1.25 var(--font-heading);
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+}
+
+.stateText {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground));
+}
+
+.stateAction {
+  margin-top: 1.375rem;
+}
+
+/* ---- estado vazio (acervo novo) ----
+ * Uma "página de fichário" à espera das cartas: grade 3 × 3 de encaixes 8:11 em
+ * contorno, com o encaixe central iluminado. Ao lado, o que o acervo vai mostrar.
+ * Palco emoldurado com trama de grade muito sutil e luz quente ao centro. Único
+ * movimento autoral: um reflexo atravessa o encaixe central uma vez (transform/
+ * opacity), desligado com prefers-reduced-motion.
+ */
+.emptyStage {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  /* Duas colunas só quando cabem (página + texto); senão empilha, sem media query. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  margin-top: 1.75rem;
+  padding: clamp(2rem, 4.5vw, 3.5rem);
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.25rem;
+  background: hsl(var(--surface) / 0.55);
+  overflow: hidden;
+}
+
+.emptyStage::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(26rem 20rem at 26% 50%, hsl(var(--primary) / 0.08), transparent 70%),
+    linear-gradient(hsl(var(--foreground) / 0.035) 1px, transparent 1px) 0 0 / 2.5rem 2.5rem,
+    linear-gradient(90deg, hsl(var(--foreground) / 0.035) 1px, transparent 1px) 0 0 / 2.5rem 2.5rem;
+  -webkit-mask-image: radial-gradient(ellipse at 35% 50%, #000 30%, transparent 85%);
+  mask-image: radial-gradient(ellipse at 35% 50%, #000 30%, transparent 85%);
+}
+
+.binderPage {
+  justify-self: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem;
+  width: min(100%, 19rem);
+  padding: 0.875rem;
+  border-radius: 0.875rem;
+  background: hsl(var(--background) / 0.6);
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 30px 60px -36px hsl(var(--foreground) / 0.45);
+  transform: rotate(-2deg);
+}
+
+:global(.dark) .binderPage {
+  box-shadow: 0 34px 70px -34px hsl(0 0% 0% / 0.95);
+}
+
+.socket {
+  aspect-ratio: 8 / 11;
+  border-radius: 6px;
+  border: 1px dashed hsl(var(--foreground) / 0.16);
+  background: hsl(var(--foreground) / 0.02);
+}
+
+.socketLit {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid hsl(var(--primary) / 0.55);
+  background:
+    radial-gradient(120% 80% at 50% 0%, hsl(var(--primary) / 0.16), transparent 70%),
+    hsl(var(--surface));
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.07), 0 12px 24px -12px hsl(var(--primary) / 0.45);
+}
+
+.socketLit::after {
+  content: "";
+  position: absolute;
+  inset: -20% -60%;
+  background: linear-gradient(105deg, transparent 40%, hsl(0 0% 100% / 0.22) 50%, transparent 60%);
+  transform: translateX(-70%);
+  opacity: 0;
+  animation: acervo-socket-shine 1600ms 500ms cubic-bezier(0.2, 0.7, 0.2, 1) 1 both;
+}
+
+@keyframes acervo-socket-shine {
+  0% {
+    transform: translateX(-70%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(70%);
+    opacity: 0;
+  }
+}
+
+.emptyCopy {
+  max-width: 30rem;
+}
+
+.emptyTitle {
+  font: 800 clamp(1.625rem, 2.8vw, 2.125rem) / 1.08 var(--font-heading);
+  letter-spacing: -0.03em;
+  color: hsl(var(--foreground));
+}
+
+.emptyText {
+  margin-top: 0.75rem;
+  font: 400 0.9375rem/1.6 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.promiseList {
+  display: grid;
+  gap: 0.875rem;
+  margin-top: 1.5rem;
+  padding-top: 1.375rem;
+  border-top: 1px solid hsl(var(--border) / 0.8);
+}
+
+.promise {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr;
+  gap: 0.875rem;
+  align-items: start;
+}
+
+.promiseIcon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  color: hsl(var(--foreground) / 0.8);
+  background: hsl(var(--surface-muted));
+  border: 1px solid hsl(var(--border));
+}
+
+.promiseTitle {
+  font: 600 0.875rem/1.3 var(--font-sans);
+  color: hsl(var(--foreground));
+}
+
+.promiseText {
+  margin-top: 0.125rem;
+  font: 400 0.8125rem/1.45 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.stateIcon {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--surface-muted));
+}
+
+.stateIconDanger {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.12);
+}
+
+:global(.dark) .stateIconDanger {
+  color: hsl(var(--destructive-foreground));
+}
+
+/* ---- esqueleto (formato do conteúdo final, sem atraso artificial) ---- */
+.skeletonArt {
+  aspect-ratio: 8 / 11;
+  border-radius: var(--acervo-card-radius);
+}
+
+/* ---- painel de detalhe ---- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: hsl(var(--foreground) / 0.25);
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  width: min(32.5rem, 100%);
+  background: hsl(var(--surface));
+  border-left: 1px solid hsl(var(--border));
+  box-shadow: -30px 0 60px -30px hsl(0 0% 0% / 0.6);
+  outline: none;
+}
+
+.drawer[data-state="open"] {
+  animation: acervo-drawer-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.overlay[data-state="open"] {
+  animation: acervo-fade-in 160ms ease-out;
+}
+
+@keyframes acervo-drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes acervo-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.drawerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.375rem;
+}
+
+.detailHero {
+  display: grid;
+  grid-template-columns: 12.5rem 1fr;
+  gap: 1.375rem;
+  align-items: start;
+}
+
+.detailHero .art {
+  box-shadow: var(--acervo-card-shadow-hover);
+}
+
+.detailName {
+  font: 700 1.5rem/1.15 var(--font-heading);
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+}
+
+.detailSub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.375rem 0.875rem;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+}
+
+.facts dt {
+  color: hsl(var(--muted-foreground));
+}
+
+.facts dd {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+/* Quantidade (INVENTORY-COPY-QUANTITY-01): pergunta direta + stepper; a
+   diferença aparece só quando o número muda, com a confirmação ao lado. */
+.quantity {
+  display: grid;
+  gap: 0.625rem;
+  margin-top: 1.375rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted) / 0.45);
+}
+
+.quantityRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.quantityLabel {
+  font: 600 0.875rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  height: 2.5rem;
+  border: 1px solid hsl(var(--control-border));
+  border-radius: 0.625rem;
+  background: hsl(var(--background));
+  overflow: hidden;
+}
+
+.stepperButton {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  color: hsl(var(--foreground));
+  transition: background-color 140ms ease;
+}
+
+.stepperButton:hover:not(:disabled) {
+  background: hsl(var(--surface-muted));
+}
+
+.stepperButton:disabled {
+  color: hsl(var(--muted-foreground) / 0.5);
+  cursor: not-allowed;
+}
+
+.stepperButton:focus-visible,
+.stepperInput:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.stepperInput {
+  width: 3.5rem;
+  border-inline: 1px solid hsl(var(--border));
+  background: transparent;
+  text-align: center;
+  font: 700 1rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.quantityChange {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--primary) / 0.08);
+}
+
+.quantityChange[data-tone="remove"] {
+  background: hsl(var(--destructive) / 0.07);
+}
+
+:global(.dark) .quantityChange[data-tone="remove"] {
+  background: hsl(4 72% 46% / 0.1);
+  box-shadow: inset 0 0 0 1px hsl(4 72% 46% / 0.35);
+}
+
+.quantityChangeText {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground));
+}
+
+.quantityHint,
+.quantityError {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.quantityError {
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .quantityError {
+  color: hsl(4 90% 70%);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 1.625rem;
+}
+
+.sectionTitle {
+  font: 600 0.9375rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.copies {
+  margin-top: 0.625rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.copy {
+  display: grid;
+  grid-template-columns: 1.875rem 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.copy:last-child {
+  border-bottom: 0;
+}
+
+/* Lixeira por exemplar (INVENTORY-REMOVE-COPY-01): discreta até o hover/foco;
+   vermelho só no próprio ícone e no botão de confirmação. */
+.copyRemove,
+.copyRemoveDisabled {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.5rem -0.375rem -0.5rem 0;
+  border-radius: 0.5rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.copyRemove {
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.copyRemove:hover {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .copyRemove:hover {
+  background: hsl(4 72% 46% / 0.16);
+  color: hsl(4 90% 70%);
+}
+
+.copyRemove:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 0;
+}
+
+.copyRemoveDisabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.copyConfirm {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--destructive) / 0.07);
+}
+
+/*
+ * Modo escuro: o token --destructive escuro (6 64% 20%) é um fundo de erro
+ * discreto e quase some sobre o grafite do painel. Aqui a ação é destrutiva e
+ * precisa ser lida de imediato, então o vermelho é local e mais vivo:
+ * botão 4 72% 46% (texto branco 5.4:1; 3:1 contra o painel), texto de erro
+ * 4 90% 70% (>= 4.8:1). O token global não muda.
+ */
+:global(.dark) .copyConfirm {
+  background: hsl(4 72% 46% / 0.1);
+  box-shadow: inset 0 0 0 1px hsl(4 72% 46% / 0.35);
+}
+
+:global(.dark) .copyConfirmRemove {
+  background: hsl(4 72% 46%);
+  color: hsl(0 0% 100%);
+}
+
+:global(.dark) .copyConfirmRemove:hover {
+  background: hsl(4 72% 42%);
+}
+
+.copyConfirmText {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground));
+}
+
+.copyConfirmError {
+  font-size: 0.75rem;
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .copyConfirmError {
+  color: hsl(4 90% 70%);
+}
+
+.copyConfirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.copyConfirmActions > button {
+  min-height: 2.25rem;
+}
+
+.copyNumber {
+  display: grid;
+  place-items: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--foreground));
+}
+
+.copyTitle {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.copyFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.copyFacts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.unset {
+  font-style: italic;
+}
+
+.detailNote {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- responsivo ----
+ * O painel de números responde à largura do próprio cabeçalho (container query),
+ * não à janela: com rail + sidebar abertos, a área útil fica estreita mesmo em
+ * telas médias.
+ */
+@container acervo-hero (max-width: 46rem) {
+  .ledger {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ledgerItem {
+    padding: 0.75rem;
+    border-left: 0;
+    border-top: 1px solid hsl(var(--border) / 0.8);
+  }
+
+  .ledgerItem:first-child {
+    grid-column: 1 / -1;
+    border-top: 0;
+    padding-left: 1rem;
+  }
+
+  .ledgerItem:nth-child(3),
+  .ledgerItem:nth-child(4) {
+    border-left: 1px solid hsl(var(--border) / 0.8);
+  }
+
+  .ledgerValue {
+    font-size: 1.375rem;
+  }
+
+  .ledgerHint {
+    display: none;
+  }
+
+  .ledgerLead .ledgerHint {
+    display: block;
+  }
+
+  .ledgerLead .ledgerValue {
+    font-size: 2.25rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .root {
+    --acervo-gutter: 0px;
+  }
+
+  .hero {
+    padding-top: 0.75rem;
+  }
+
+  .numeral {
+    top: 0.5rem;
+    right: -0.5rem;
+  }
+
+  .heroCards {
+    top: -1rem;
+    right: -6rem;
+    width: 17rem;
+  }
+
+  .lede {
+    margin-top: 0.75rem;
+    font-size: 0.9375rem;
+  }
+
+  .heroRow {
+    margin-top: 0.875rem;
+  }
+
+  .ledger {
+    flex-basis: 100%;
+  }
+
+  .emptyStage {
+    margin-top: 1.25rem;
+  }
+
+  .binderPage {
+    width: min(78%, 15rem);
+  }
+
+  .toolbar {
+    top: -1rem;
+    margin: 0.875rem -1rem 0;
+    padding: 0.625rem 1rem;
+  }
+
+  .search {
+    max-width: none;
+  }
+
+  .filtersButton {
+    display: inline-flex;
+  }
+
+  /* No mobile os filtros abrem sob o botão "Filtros" (mesmos controles). */
+  .filterGroup {
+    display: none;
+  }
+
+  .filterGroup[data-open="true"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .filterGroup[data-open="true"] .filterSelect {
+    max-width: none;
+    width: 100%;
+  }
+
+  .grow,
+  .count {
+    display: none;
+  }
+
+  .sortGroup {
+    width: 100%;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .sortSelect {
+    flex: 1;
+  }
+
+  /* Duas colunas a 390 px, três num celular deitado — ainda por largura. */
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(8.075rem, 1fr)); /* −15% de 9.5rem */
+    gap: 1.25rem 0.875rem;
+  }
+
+  .drawer {
+    width: 100%;
+    border-left: 0;
+  }
+
+  .drawer[data-state="open"] {
+    animation-name: acervo-sheet-in;
+  }
+
+  .detailHero {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .detailHero .art {
+    width: 68%;
+  }
+
+  .detailSub {
+    justify-content: center;
+  }
+
+  .facts {
+    text-align: left;
+  }
+}
+
+@keyframes acervo-sheet-in {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .socketLit::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .art,
+  .artImage,
+  .drawer[data-state="open"],
+  .overlay[data-state="open"] {
+    transition: none;
+    animation: none;
+  }
+}

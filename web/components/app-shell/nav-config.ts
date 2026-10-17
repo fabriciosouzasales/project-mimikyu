@@ -16,6 +16,7 @@ import {
   Layers,
   LayoutDashboard,
   LayoutGrid,
+  Library,
   PencilLine,
   RefreshCw,
   ScrollText,
@@ -245,6 +246,19 @@ export const NAV_SECTIONS: NavSection[] = [
       // reprocessamento pontual das imagens das espécies. Só administradores.
       { href: "/pokedex/imagens", label: "Imagens", section: "Cadastro", icon: Images, adminOnly: true },
     ],
+  },
+  {
+    id: "colecoes",
+    // Coleções (MY-INVENTORY-IMPLEMENTATION-01, 2026-10-16) — módulo do colecionador,
+    // aberto a todo usuário autenticado (mesmo nível da Pokédex). Estrutura aprovada em
+    // COLLECTION UX FOUNDATION-01: GERENCIAR (Meu acervo, Minhas coleções) · ORGANIZAR
+    // (Onde guardo). Regra do projeto: item de menu nunca leva a tela vazia ou 404 —
+    // nesta rodada só "Meu acervo" funciona, então só ele entra.
+    label: "Coleções",
+    icon: Library,
+    // `/colecoes` (redireciona para o acervo) para que todo `/colecoes/*` destaque a seção.
+    href: "/colecoes",
+    children: [{ href: "/colecoes/acervo", label: "Meu acervo", section: "Gerenciar", icon: Layers }],
   },
 ];
 

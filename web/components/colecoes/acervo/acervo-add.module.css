@@ -1,0 +1,637 @@
+/*
+ * Meu acervo — adicionar cartas (MY-INVENTORY-ACTIONS-01).
+ *
+ * Reaproveita a superfície do painel de detalhe (`acervo.module.css`:
+ * .overlay/.drawer/.drawerHeader — lateral no desktop, tela cheia no mobile).
+ * Aqui ficam só o miolo do fluxo (busca, seleção, revisão, resultado) e os
+ * botões de entrada. Dourado só na ação principal e na seleção ativa.
+ */
+
+/* ---- entrada ---- */
+.launcherHero {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  /* Espaço vem do .heroRow do cabeçalho (mesma faixa dos números). */
+}
+
+.launcherEmpty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-top: 1.75rem;
+}
+
+.launchPrimary,
+.launchSecondary {
+  min-height: 2.75rem;
+  padding-inline: 1.125rem;
+}
+
+/* No cabeçalho, ao lado dos números, as ações são secundárias à galeria:
+   mesma altura dos controles da barra (36 px), texto menor. O estado vazio
+   mantém o tamanho cheio — lá a ação é o protagonista. */
+.launcherHero .launchPrimary,
+.launcherHero .launchSecondary {
+  min-height: 2.25rem;
+  height: 2.25rem;
+  padding-inline: 0.875rem;
+  font-size: 0.8125rem;
+  gap: 0.375rem;
+}
+
+/* ---- painel ---- */
+.panel {
+  width: min(36rem, 100%);
+}
+
+.panelTitle {
+  font: 700 0.9375rem/1.2 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1.375rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.375rem;
+}
+
+.sectionTitle {
+  display: block;
+  margin-bottom: 0.5rem;
+  font: 600 0.8125rem/1.3 var(--font-sans);
+  color: hsl(var(--foreground));
+}
+
+.hint {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- busca ---- */
+.searchWrap {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(-50%);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+
+.searchInput {
+  height: 2.75rem;
+  padding-left: 2.25rem;
+}
+
+.searchStatus {
+  min-height: 1.25rem;
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  margin-top: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted) / 0.45);
+}
+
+.result {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.75rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.5rem;
+  text-align: left;
+  transition: background-color 140ms ease;
+}
+
+.result:hover {
+  background: hsl(var(--surface));
+}
+
+.result:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.result:disabled {
+  cursor: progress;
+}
+
+.thumb {
+  width: 2.5rem;
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.2), 0 4px 10px -6px hsl(0 0% 0% / 0.5);
+}
+
+.resultText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.resultName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.resultMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.resultError {
+  font-size: 0.75rem;
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .resultError {
+  color: hsl(var(--destructive-foreground));
+}
+
+.resultAdd {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--primary-ink));
+}
+
+:global(.dark) .resultAdd {
+  color: hsl(var(--primary));
+}
+
+/* ---- seleção ---- */
+.selection {
+  display: flex;
+  flex-direction: column;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  animation: acervo-add-line-in 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes acervo-add-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.lineMain {
+  min-width: 0;
+}
+
+.lineHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lineHead > div {
+  min-width: 0;
+}
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.5rem -0.5rem 0 0;
+  border-radius: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.iconButton:hover {
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--foreground));
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 0;
+}
+
+.lineControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem 0.75rem;
+  margin-top: 0.625rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 8rem;
+  flex: 1 1 8rem;
+}
+
+.lineControls .field:last-child {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: hsl(var(--muted-foreground));
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  height: 2.25rem;
+  border: 1px solid hsl(var(--control-border));
+  border-radius: var(--control-radius, 0.5rem);
+  background: hsl(var(--control-surface));
+  overflow: hidden;
+}
+
+.stepButton {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  color: hsl(var(--foreground));
+  transition: background-color 140ms ease;
+}
+
+.stepButton:hover:not(:disabled) {
+  background: hsl(var(--surface-muted));
+}
+
+.stepButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.stepButton:focus-visible,
+.stepValue:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.stepValue {
+  width: 2.75rem;
+  border-inline: 1px solid hsl(var(--control-border));
+  background: transparent;
+  text-align: center;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+/* ---- Set ---- */
+.setList {
+  display: flex;
+  flex-direction: column;
+  max-height: min(22rem, 45vh);
+  overflow-y: auto;
+  padding: 0.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted) / 0.45);
+}
+
+.setOption {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.setOption:hover {
+  background: hsl(var(--surface));
+}
+
+.setOption[data-checked] {
+  background: hsl(var(--primary) / 0.12);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.55);
+}
+
+.setOption:has(.setRadio:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.setRadio {
+  accent-color: hsl(var(--primary));
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.setName {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+
+.setCode {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- revisão ---- */
+.reviewHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.reviewCount {
+  font: 800 2.75rem/1 var(--font-heading);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.reviewLabel {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.reviewLabel strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.reviewNote {
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--surface-muted));
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.reviewItem {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr;
+  grid-template-areas:
+    "qty name"
+    "qty meta";
+  column-gap: 0.5rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.reviewQty {
+  grid-area: qty;
+  align-self: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.reviewName {
+  grid-area: name;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.reviewMeta {
+  grid-area: meta;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.issueList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-left: 1rem;
+  list-style: disc;
+}
+
+/* ---- resultado ---- */
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+}
+
+.doneIcon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  background: hsl(var(--success) / 0.12);
+  color: hsl(var(--success));
+  animation: acervo-add-done-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes acervo-add-done-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+.doneTitle {
+  font: 800 1.5rem/1.15 var(--font-heading);
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.doneText {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- estados ---- */
+.centerState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  min-height: 10rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.notice {
+  display: flex;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid hsl(var(--destructive) / 0.3);
+  border-radius: 0.625rem;
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .notice {
+  border-color: hsl(var(--destructive-foreground) / 0.25);
+  background: hsl(var(--destructive) / 0.2);
+  color: hsl(var(--destructive-foreground));
+}
+
+.noticeTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.noticeText {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.spin {
+  animation: acervo-add-spin 900ms linear infinite;
+}
+
+@keyframes acervo-add-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- rodapé fixo do painel ---- */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1.375rem calc(0.875rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+}
+
+.footerLead {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.footerActions > button {
+  min-height: 2.75rem;
+}
+
+.footerProblem {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 767px) {
+  .body {
+    padding: 1rem;
+  }
+
+  .footer {
+    padding-inline: 1rem;
+  }
+
+  /* No celular as ações ocupam a linha inteira, abaixo dos números. */
+  .launcherHero {
+    flex: 1 1 100%;
+  }
+
+  /* Celular: alvo de toque de 44 px. */
+  .launcherHero .launchPrimary,
+  .launcherHero .launchSecondary {
+    min-height: 2.75rem;
+    height: auto;
+  }
+
+  .launcherHero > *,
+  .launcherEmpty > * {
+    flex: 1 1 12rem;
+  }
+
+  .reviewCount {
+    font-size: 2.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line,
+  .doneIcon {
+    animation: none;
+  }
+
+  .spin {
+    animation-duration: 2400ms;
+  }
+}

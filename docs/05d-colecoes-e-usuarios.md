@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.30 |
+| **Versão** | 1.31 |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1541,6 +1541,34 @@ Offline (PostgreSQL 17 isolado, sem rede) e LIVE com os mesmos gates. `5826` cob
 
 ---
 
+# Meu acervo — leituras do colecionador e remoção de exemplar (`5159`–`5165`)
+
+| Campo | Valor |
+|---|---|
+| **Status** | **`EXECUTED / VALIDATED / PROMOTED / CLOSED`** (2026-10-17, autorização de Fabrício) |
+| **Superfície** | Primeira tela de produto de Collection: **Meu acervo** (`/colecoes/acervo`), sob a North Star (`domain-modeling/collections/north-star-2026-10-16.md`). |
+| **Contratos C-*/LDM-*** | **Inalterados.** O grupo visual (Card Variant + idioma) é apresentação, não entidade; cada exemplar continua um Physical Card. |
+| **Staging (histórico)** | `database/proposals/2026-10-16-my-inventory-reads/`, `2026-10-17-inventory-language-read/`, `2026-10-17-inventory-remove-copy/` |
+
+| Query | Objeto | Papel |
+|---|---|---|
+| `5159` | `get_my_inventory_items(...)` | Galeria paginada (≤ 96) por Card Variant + idioma; filtros (busca, Set, idioma, coleção, sem coleção); ordem `RECENT` ou `SET_NUMBER`; imagem `CARD_FRONT`. |
+| `5160` | `get_my_inventory_summary()` | Exemplares, diferentes, Sets e repetidas. |
+| `5161` | `get_my_inventory_filter_options()` | Sets, idiomas e coleções presentes no acervo do próprio usuário. |
+| `5162` | `get_my_inventory_item_copies(variant, idioma)` | Detalhe: um registro por exemplar, com coleção e local **gravados** (nunca inferidos). |
+| `5163` | `get_catalog_card_variants_for_picker(card)` | Variantes ativas de uma carta para o seletor; a busca da carta reutiliza `search_cards` (`4032`). |
+| `5164` | `get_registrable_languages()` | Idiomas aceitos no cadastro, legíveis por colecionadores (o catálogo segue admin-only). |
+| `5165` | `remove_my_physical_card(uuid) → boolean` | Remove um exemplar do próprio usuário **só se fora de coleção** (`55000 PHYSICAL_CARD_ALLOCATED`); `false` para inexistente/alheio/já removido (não enumera, idempotente). |
+
+- **Segurança:** todas `SECURITY DEFINER`, `search_path = ''`, `auth.uid()` obrigatório, dono resolvido no servidor, `EXECUTE` só para `authenticated`. Nenhuma RLS ou grant de tabela mudou (`physical_card` continua sem `DELETE` para `authenticated`). Recurso alheio ou inexistente → resultado vazio idêntico ao de um recurso próprio vazio.
+- **Escrita:** o cadastro usa as operações já existentes — B1 `register_physical_cards_bulk` (`5150`) e B2 `register_card_set_bulk` (`5157`) com Preview —; a única escrita nova é `5165`.
+- **Validação:** `5827` v1.1 52/52 PASS; `5829` v1.1 14/14 PASS; `5164` validada por consultas somente leitura (`5828` não executado). Security Advisor: +1 em `0029` por função, por desenho.
+- **Promoção:** os 7 arquivos estão em `database/schema/`; corpo idêntico ao LIVE (md5 de `prosrc`, conferido em 2026-10-17).
+- **Pendências:** medição B4 com volume (Seção P do `5827`, 20.000 exemplares) não executada no LIVE; a decisão de domínio "correção de cadastro" (≠ `Ownership Exit`, C-72) ainda não foi registrada como C-*/LDM-* — aguarda autorização.
+- **Base de dados real (2026-10-17):** Fabrício cadastrou o acervo do Set `ME5.5` (Celebração de 30 Anos) — 419 exemplares, 146 das 158 cartas — e 7 exemplares de `ME5.5CC`, como base para as próximas funcionalidades de Collection.
+
+---
+
 # User Profile (Perfil de Usuário) / Reserved Username
 
 ## Status
@@ -1790,3 +1818,4 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.28 | **Ordem da tabela de Revision History corrigida (2026-10-15, `DOC-GATE-01`).** As entradas 1.10 e 1.11 estavam invertidas; reordenadas em ordem ascendente sem alterar conteúdo. Este documento é confirmado como a fonte prevalente do estado físico de Collection, referenciada pelo novo cabeçalho de `domain-modeling/collections/logical-model.md` (1.19) e pelo `HANDOFF-2026-10-15.md`. |
 | 1.29 | **Contrato de produto do `BULK-04` (`REGISTER_CARD_SET`) decidido (2026-10-16, `BULK04-READINESS-01`).** "Pendências / Próximos Passos": a próxima frente canônica passa a ser `BULK-04`, com o `5152` como pré-requisito LIVE; o item sobre `CATALOG-HISTORICAL-BOOTSTRAP-03` foi marcado como histórico (catálogo de Card Variants fechado em 2026-10-11). O item B2 registra as decisões Q1–Q9 de Fabrício (Physical Card por Card ativo na variante padrão; Set inteiro, inclusive cartas já possuídas; idioma único; contratos de B1 preservados) e corrige uma imprecisão objetiva: o envelope de B2 não pode ser literalmente o de B1, porque identifica o Card Set e o idioma no lugar de `items`. Nenhum SQL executado; implementação não iniciada. |
 | 1.30 | **`BULK-04` (`REGISTER_CARD_SET`, B2) e hardening `5152` — `EXECUTED / VALIDATED / PROMOTED / CLOSED` (2026-10-16, autorização de Fabrício).** Seção nova "Bulk Operations — BULK-04": `5152` (variante inativa em B1/Preview) e `5153`–`5158` (helper compartilhado de escrita, expansão do Set, refatoração de B1, fingerprint e RPC `register_card_set_bulk`, braço B2 do Preview) aplicadas no LIVE, ledgers registrados, corpos idênticos ao LIVE e promovidos para `database/schema/`. Harnesses LIVE: `5826` 56/56/0/0, `5823` v2.3 60/60/0/0, `5822` 64/64/0/0, `5824` v1.1 30/29/0/1; resíduo zero. `K01` registrado como NOT PROVEN / ACCEPTED RISK; alerta do Security Advisor para `register_card_set_bulk` aceito por Fabrício exclusivamente para essa função. Notas de atualização nas seções B1 e BULK-03; Pendências: BULK-04 concluído, próxima frente da sequência Bulk `BULK-05` → `BULK-06`. |
+| 1.31 | **Meu acervo no LIVE e promovido (2026-10-17, reconciliação documental).** Seção nova "Meu acervo — leituras do colecionador e remoção de exemplar": `5159`–`5165` executadas, validadas e promovidas para `database/schema/` (corpo idêntico ao LIVE); pendências B4 e "correção de cadastro" registradas; base real do acervo (ME5.5) anotada. |

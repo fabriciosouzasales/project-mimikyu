@@ -47,7 +47,12 @@ export async function AppShell({
         {/* print:overflow-visible/print:p-0: sem isso, o corte de altura (h-dvh/overflow-y-auto,
             necessário para o scroll normal da tela) clipa o conteúdo ao imprimir — a Central
             de Relatórios (2026-08-09) é o primeiro uso real de impressão no projeto. */}
-        <main className="flex-1 overflow-y-auto p-6 print:overflow-visible print:p-0">{children}</main>
+        {/* `relative` (APP-SHELL-SCROLL-BUGFIX-01, 2026-10-17): torna o <main> o bloco de
+            contenção dos elementos `position: absolute` das páginas que não têm ancestral
+            posicionado (ex.: os `.sr-only` dos títulos de capítulo da Pokédex). Sem isso, o
+            bloco de contenção deles é o documento: ficam fora do recorte do <main>, aumentam a
+            altura do <html> e criam uma segunda barra de rolagem que arrasta a navegação lateral. */}
+        <main className="relative flex-1 overflow-y-auto p-6 print:overflow-visible print:p-0">{children}</main>
       </div>
     </div>
   );
