@@ -3,8 +3,19 @@ import { notFound, redirect } from "next/navigation";
 import { LibraryBig } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { CollectionView } from "@/components/colecoes/colecoes/collection-view";
+import { FreeCollectionView } from "@/components/colecoes/colecoes/free-collection-view";
+import { getAcervoItems } from "@/lib/colecoes/acervo-queries";
 import { isCollectionId, parsePositionFilter } from "@/lib/colecoes/colecoes";
-import { getLinkableCount, getMyCollection, getMyCollectionPositions, getSetLogoUrls } from "@/lib/colecoes/colecoes-queries";
+import {
+  attachCoverLogos,
+  getAvailableGroupCount,
+  getCoverLogoUrls,
+  getLinkableCount,
+  getMyCollection,
+  getMyCollectionPositions,
+  getSetLogoUrls,
+} from "@/lib/colecoes/colecoes-queries";
+import { isFreeCollection, parseFreePage, wantsPicker } from "@/lib/colecoes/free-collection";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -39,17 +50,54 @@ export default async function ColecaoPage({
 
   void getCachedUserProfile().catch(() => {});
 
-  // O hero mostra os destaques do Set inteiro, estável entre Todas/Tenho/Faltam:
-  // com filtro, uma leitura extra da mesma R2 (Todas, ≤ 500 linhas); sem filtro,
-  // reaproveita a própria grade. Nenhum contrato novo.
-  const [collection, positions, linkable, heroSource] = await Promise.all([
+  // R1 e as leituras de Set saem em paralelo (como antes). Numa Coleção livre,
+  // R2/R3 devolvem zero linhas na primeira checagem (sem referência de Set) e
+  // são descartadas — custo de uma busca por chave, sem segunda ida ao banco
+  // para as coleções de Set. O hero mostra os destaques do Set inteiro, estável
+  // entre Todas/Tenho/Faltam: com filtro, uma leitura extra da mesma R2.
+  const [summary, positions, linkable, heroSource] = await Promise.all([
     getMyCollection(supabase, collectionId),
     getMyCollectionPositions(supabase, collectionId, filter),
     getLinkableCount(supabase, collectionId),
     filter === "todas" ? Promise.resolve(null) : getMyCollectionPositions(supabase, collectionId, "todas"),
   ]);
+  if (summary === undefined) notFound();
 
-  if (collection === undefined) notFound();
+  if (summary !== null && isFreeCollection(summary)) {
+    const page = parseFreePage(query);
+    const [[withCover], items, available] = await Promise.all([
+      attachCoverLogos(supabase, [summary]),
+      getAcervoItems(supabase, {
+        query: null,
+        setCode: null,
+        languageCode: null,
+        collection: { kind: "collection", id: collectionId },
+        sort: "recentes",
+        page,
+        detail: null,
+      }),
+      summary.lifecycleStatus === "ACTIVE" ? getAvailableGroupCount(supabase) : Promise.resolve(null),
+    ]);
+    const freeSummary = withCover ?? summary;
+    const coverLogoUrl = freeSummary.coverLogoPath
+      ? (await getCoverLogoUrls(supabase, [freeSummary.coverLogoPath])).get(freeSummary.coverLogoPath) ?? null
+      : null;
+    return (
+      <AppShell title={summary.name} icon={LibraryBig}>
+        <FreeCollectionView
+          collection={freeSummary}
+          items={items}
+          page={page}
+          available={available}
+          openPicker={wantsPicker(query)}
+          coverLogoUrl={coverLogoUrl}
+          userId={user.id}
+        />
+      </AppShell>
+    );
+  }
+
+  const collection = summary;
 
   const logoPath = collection?.cardSetLogoPath ?? null;
   const logoUrl = logoPath ? (await getSetLogoUrls(supabase, [logoPath])).get(logoPath) ?? null : null;

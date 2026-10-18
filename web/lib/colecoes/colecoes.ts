@@ -188,10 +188,13 @@ export function collectionSubtitle(collection: {
   cardSetName: string | null;
   cardSetCode: string | null;
   completionPolicy: string | null;
+  /** Código opcional da Coleção livre (5179); ausente/nulo = sem código. */
+  coverCode?: string | null;
 }): string {
   const code = collection.cardSetCode?.toUpperCase() ?? null;
   if (collection.cardSetName) return `${collection.cardSetName}${code ? ` · ${code}` : ""}`;
-  return collectionKindLabel(collection.completionPolicy);
+  const kind = collectionKindLabel(collection.completionPolicy);
+  return collection.coverCode ? `${kind} · ${collection.coverCode}` : kind;
 }
 
 /**
@@ -316,16 +319,66 @@ export function storageStep(locations: readonly StorageOption[]): "auto" | "choo
 }
 
 export function canSubmitCreate(input: {
+  /** Tipo escolhido no primeiro passo; ausente = "Completar um Set" (compatível com a criação original). */
+  kind?: CollectionKind;
   setCode: string | null;
   name: string;
   locations: readonly StorageOption[];
   storageId: string | null;
 }): boolean {
-  if (!input.setCode || normalizeCollectionName(input.name) === null) return false;
+  const kind = input.kind ?? "card_set";
+  if (kind === "card_set" && !input.setCode) return false;
+  if (normalizeCollectionName(input.name) === null) return false;
   if (storageStep(input.locations) === "choose") {
     return input.storageId !== null && input.locations.some((location) => location.id === input.storageId);
   }
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Tipos de criação (North Star NS-18, Fluxo 1.2) — COLLECTIONS-FUNCTIONAL-RECOVERY-01
+// ---------------------------------------------------------------------------
+
+/**
+ * Tipos que o colecionador pode escolher ao criar. "Completar a Pokédex" só
+ * entra quando a P7 for liberada — e, até lá, nem aparece desabilitado
+ * (NS-18). Master Set não é tipo de criação: é ajuste de uma coleção de Set.
+ */
+export type CollectionKind = "card_set" | "free";
+
+/**
+ * Coleção livre: ligada em FREE-COLLECTION-FRONTEND-COMPLETION-01, quando as
+ * três peças existem de ponta a ponta — criação segura
+ * (`create_my_free_collection`, Query 5175, no LIVE e validada por 5832),
+ * página da coleção sem Set e sem progresso (C-20) e "Adicionar cartas do meu
+ * acervo" (5159 + 5162 + 5046). Desligar volta a criação a só "Completar um Set".
+ */
+export const FREE_COLLECTION_ENABLED = true;
+
+export function availableCreationKinds(freeEnabled: boolean = FREE_COLLECTION_ENABLED): CollectionKind[] {
+  return freeEnabled ? ["card_set", "free"] : ["card_set"];
+}
+
+export type CreationStep = "type" | "set" | "details";
+
+/**
+ * Jornada progressiva: tipo → configuração do tipo (só Set) → nome e local.
+ * O passo "tipo" só existe quando há mais de um tipo disponível
+ * (FREE-COLLECTION-READINESS-01): com um só, a criação abre direto nele.
+ */
+export function creationSteps(kind: CollectionKind | null, kindCount: number = availableCreationKinds().length): CreationStep[] {
+  const steps: CreationStep[] = kind === "free" ? ["type", "details"] : ["type", "set", "details"];
+  return kindCount > 1 ? steps : steps.slice(1);
+}
+
+/** Tipo pré-escolhido quando só existe um: a criação começa direto nele. */
+export function initialCreationKind(kinds: readonly CollectionKind[] = availableCreationKinds()): CollectionKind | null {
+  return kinds.length === 1 ? (kinds[0] ?? null) : null;
+}
+
+/** Nome sugerido pelo tipo (Fluxo 1.4) — editável, nunca identidade. */
+export function suggestFreeCollectionName(): string {
+  return "Minha coleção";
 }
 
 // ---------------------------------------------------------------------------
@@ -463,11 +516,16 @@ export type CollectionFailure =
 export function classifyCollectionFailure(code: string | null | undefined, message: string | null | undefined): CollectionFailure {
   const text = message ?? "";
   if (code === "28000" || code === "42501" || text === "authentication required") return "not_authenticated";
+  // Capa da Coleção livre (5178/5180): coleção alheia/inexistente ou de Set — mesma resposta, sem enumerar.
+  if (text === "COLLECTION_NOT_FOUND" || text === "NOT_FREE_COLLECTION") return "not_found";
   if (code === "55000" || text.startsWith("STORAGE_CONTAINER_REQUIRED")) return "storage_required";
   if (text.startsWith("STORAGE_CONTAINER_INVALID")) return "storage_invalid";
   if (text.startsWith("CARD_SET_NOT_FOUND") || text === "card_set not found") return "set_not_found";
   if (text.startsWith("IDEMPOTENCY_KEY_REUSED")) return "conflict";
-  if (code === "23505" || text.includes("já está alocad") || text.includes("already allocated")) return "already_linked";
+  // 5046: "uma ou mais physical_card_ids já estão alocadas a uma Collection" (fail-closed, nada gravado).
+  if (code === "23505" || text.includes("já está alocad") || text.includes("já estão alocad") || text.includes("already allocated")) {
+    return "already_linked";
+  }
   if (text.startsWith("collection not found") || text.startsWith("collection is archived")) return "not_found";
   if (code === "22023" || code === "22P02") return "invalid";
   return "unavailable";

@@ -1,0 +1,364 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { AlertTriangle, ArrowLeft, Layers, ShieldCheck, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  ACERVO_PATH,
+  PRIORITY_CARD_COUNT,
+  cardFrontUrl,
+  formatCollectorNumber,
+  formatCount,
+  pluralize,
+  variantTag,
+} from "@/lib/colecoes/acervo";
+import type { AcervoItem, AcervoItemsPage } from "@/lib/colecoes/acervo-queries";
+import { COLECOES_PATH } from "@/lib/colecoes/colecoes";
+import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
+import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, distinctSetCount, freeCollectionHref, freeHeroCards, freeTotalPages } from "@/lib/colecoes/free-collection";
+import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
+import { CardArt } from "../acervo/card-art";
+import acervoStyles from "../acervo/acervo.module.css";
+import { BinderCover } from "./binder-cover";
+import { CollectionHeroBackdrop, CollectionHeroFan } from "./collection-hero-fan";
+import heroStyles from "./collection-hero.module.css";
+import { CollectionTitle } from "./collection-title";
+import { CoverFinishPicker } from "./cover-finish-picker";
+import { CoverLogoTrigger } from "./cover-logo-uploader";
+import freeStyles from "./free-collection.module.css";
+import { FreePickerButton, FreePickerProvider } from "./free-link-picker";
+import styles from "./colecoes.module.css";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
+
+/**
+ * Coleção livre (Server Component) — FREE-COLLECTION-FRONTEND-COMPLETION-01.
+ *
+ * Mesma página da coleção de Set (hero com fichário 3D, nome editável, as seis
+ * cores, leque de cartas reais, galeria na moldura da Biblioteca), sem nada
+ * que pertença a um Set: nem progresso, nem faltantes, nem total esperado,
+ * nem logo ou secretas. O que existe é posse: quantas cartas a coleção reúne,
+ * quantas diferentes e — quando a página contém todas — de quantos Sets.
+ *
+ * O leque mostra as cartas mais recentes da coleção (todas do colecionador).
+ * Vazia, a coleção não parece quebrada: convida a escolher as primeiras
+ * cartas do acervo, com a mesma ação.
+ *
+ * Leituras: R1 (resumo) e 5159 com `p_collection_id` (cartas, paginadas).
+ */
+export function FreeCollectionView({
+  collection,
+  items,
+  page,
+  available,
+  openPicker,
+  coverLogoUrl = null,
+  userId = null,
+}: {
+  collection: CollectionSummary;
+  /** Cartas da coleção (5159); `null` = leitura falhou. */
+  items: AcervoItemsPage | null;
+  page: number;
+  /** Cartas diferentes livres no acervo; `null` = leitura falhou. */
+  available: number | null;
+  /** Abrir o seletor ao chegar (`?adicionar=1`, vindo da criação). */
+  openPicker: boolean;
+  /** URL assinada da capa enviada (proposta 5176–5178); `null` = placa tipográfica. */
+  coverLogoUrl?: string | null;
+  /** Dono da sessão — pasta do envio da capa; `null` = envio indisponível. */
+  userId?: string | null;
+}) {
+  const active = collection.lifecycleStatus === "ACTIVE";
+  const copies = collection.copiesCount;
+  const distinct = items?.totalGroups ?? null;
+  const sets = items ? distinctSetCount(items.items, items.totalGroups) : null;
+  // Leque: só a partir da primeira página (as mais recentes).
+  const fan = page === 1 && items ? freeHeroCards(items.items, 5) : [];
+  const selection = { cards: fan, secret: 0 };
+  const empty = items !== null && items.totalGroups === 0;
+  const pages = items ? freeTotalPages(items.totalGroups) : 1;
+
+  const launcher = (showCount: boolean) => (active ? <FreePickerButton available={available} showCount={showCount} /> : null);
+
+  const cover = (
+    <BinderCover
+      finish={collection.finish}
+      setName={null}
+      setCode={collection.coverCode}
+      logoUrl={coverLogoUrl}
+      fallbackTitle={collection.name}
+      complete={false}
+      size="compact"
+      priority
+    />
+  );
+
+  const pageContent = (
+    <div className={acervoStyles.root}>
+      <header className={`${acervoStyles.hero} ${heroStyles.hero}`} data-has-fan={fan.length > 0 || undefined}>
+        <div className={acervoStyles.stageGlow} aria-hidden="true" />
+        <CollectionHeroBackdrop selection={selection} />
+        <Link href={COLECOES_PATH} className={styles.backLink}>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Minhas coleções
+        </Link>
+        <div className={heroStyles.stage}>
+          <div className={heroStyles.text}>
+            <div className={heroStyles.identity}>
+              <div className={heroStyles.identityCover}>
+                {FREE_COVER_UPLOAD_ENABLED && active && userId ? (
+                  <CoverLogoTrigger collectionId={collection.id} userId={userId} hasLogo={collection.coverLogoPath !== null}>
+                    {cover}
+                  </CoverLogoTrigger>
+                ) : (
+                  cover
+                )}
+              </div>
+              <div className={heroStyles.identityText}>
+                <div className={heroStyles.title}>
+                  <CollectionTitle
+                    collectionId={collection.id}
+                    name={collection.name}
+                    editable={active}
+                    coverCode={FREE_COVER_CODE_ENABLED ? collection.coverCode : undefined}
+                  />
+                </div>
+                <p className={heroStyles.setLine}>
+                  <span className={freeStyles.kindLine}>
+                    <Sparkles className={freeStyles.kindMark} aria-hidden="true" />
+                    <strong>Coleção livre</strong>
+                  </span>
+                  <span>
+                    Organizada do seu jeito
+                    {!active ? " · Arquivada" : null}
+                  </span>
+                </p>
+                {collection.finishEditable && active ? (
+                  <CoverFinishPicker collectionId={collection.id} value={collection.finish} />
+                ) : null}
+              </div>
+            </div>
+
+            <section className={freeStyles.summary} aria-label="Resumo da coleção">
+              <div className={styles.progressFigure}>
+                <span className={heroStyles.progressBig}>{formatCount(copies)}</span>
+                <span className={styles.progressOf}>{copies === 1 ? "carta na coleção" : "cartas na coleção"}</span>
+              </div>
+              {copies > 0 && distinct !== null ? (
+                <p className={freeStyles.summaryFacts}>
+                  <span>
+                    <strong>{formatCount(distinct)}</strong> {distinct === 1 ? "diferente" : "diferentes"}
+                  </span>
+                  {sets !== null ? (
+                    <span>
+                      de <strong>{formatCount(sets)}</strong> {sets === 1 ? "Set" : "Sets"}
+                    </span>
+                  ) : null}
+                </p>
+              ) : (
+                <p className={freeStyles.summaryNote}>Sem meta e sem lista fixa — cartas de qualquer Set, escolhidas por você.</p>
+              )}
+            </section>
+          </div>
+
+          <CollectionHeroFan selection={selection} label="Cartas mais recentes da coleção" />
+        </div>
+      </header>
+
+      <section className={heroStyles.gallery} aria-labelledby="colecao-cartas">
+        <div className={heroStyles.galleryHead}>
+          <div className={heroStyles.galleryHeadText}>
+            <h2 id="colecao-cartas" className={heroStyles.galleryTitle}>
+              Cartas da coleção
+            </h2>
+            {items !== null && !empty ? (
+              <p className={heroStyles.galleryMeta}>
+                {pluralize(items.totalGroups, "carta diferente", "cartas diferentes")} · as mais recentes primeiro
+              </p>
+            ) : null}
+          </div>
+          {!empty && items !== null ? <div className={heroStyles.galleryTools}>{launcher(true)}</div> : null}
+        </div>
+
+        {items === null ? (
+          <ReadError retryHref={freeCollectionHref(collection.id, { page })} />
+        ) : empty ? (
+          <FreeEmpty available={available} active={active} launcher={launcher(false)} />
+        ) : items.items.length === 0 ? (
+          <PastEnd href={freeCollectionHref(collection.id)} />
+        ) : (
+          <>
+            {/* Clicar na carta amplia — mesmo preview e mesmo morph do Catálogo Editorial. */}
+            <CardZoomProvider>
+              <ul className={acervoStyles.grid} aria-label="Cartas da coleção">
+                {items.items.map((item, index) => (
+                  <li key={`${item.cardVariantId}.${item.languageCode}`}>
+                    <FreeTile item={item} priority={page === 1 && index < PRIORITY_CARD_COUNT} />
+                  </li>
+                ))}
+              </ul>
+            </CardZoomProvider>
+            {pages > 1 ? <Pagination collectionId={collection.id} page={page} pages={pages} /> : null}
+          </>
+        )}
+      </section>
+    </div>
+  );
+
+  return active ? (
+    <FreePickerProvider collectionId={collection.id} collectionName={collection.name} autoOpen={openPicker}>
+      {pageContent}
+    </FreePickerProvider>
+  ) : (
+    pageContent
+  );
+}
+
+function FreeTile({ item, priority }: { item: AcervoItem; priority: boolean }) {
+  const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
+  const caption = `${item.cardSetCode.toUpperCase()} · ${number}`;
+  const tag = variantTag(item.isDefaultVariant, item.variantLabel);
+  const copies = item.copiesCount;
+  const imageUrl = cardFrontUrl(SUPABASE_URL, item.imagePath);
+  const spoken = [item.cardName, caption, tag, item.languageName, pluralize(copies, "exemplar nesta coleção", "exemplares nesta coleção")]
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <article className={`${acervoStyles.tile} ${freeStyles.tileStatic}`} aria-label={spoken}>
+      <div className={copies > 1 ? `${acervoStyles.artWrap} ${acervoStyles.stack}` : acervoStyles.artWrap}>
+        <CardZoomTrigger
+          id={`${item.cardVariantId}.${item.languageCode}`}
+          imageUrl={imageUrl}
+          name={item.cardName}
+          className={styles.zoomTrigger}
+        >
+          <div className={acervoStyles.art}>
+            <CardArt src={imageUrl} alt="" name={item.cardName} caption={caption} priority={priority} sizes={GRID_SIZES} />
+          </div>
+        </CardZoomTrigger>
+        {copies > 1 ? (
+          <span className={acervoStyles.qty} aria-hidden="true">
+            ×{formatCount(copies)}
+          </span>
+        ) : null}
+      </div>
+      <div className={acervoStyles.meta} aria-hidden="true">
+        <div className={acervoStyles.name}>{item.cardName}</div>
+        <div className={acervoStyles.sub}>
+          <span>{caption}</span>
+          {tag ? <span className={acervoStyles.tag}>{tag}</span> : null}
+          <span className={acervoStyles.tag}>{item.languageCode}</span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function FreeEmpty({ available, active, launcher }: { available: number | null; active: boolean; launcher: ReactNode }) {
+  const promises = [
+    { icon: Layers, title: "Cartas de qualquer Set", text: "Junte numa coleção só as cartas que contam uma história para você." },
+    { icon: Sparkles, title: "Você escolhe cada exemplar", text: "Veja versão e idioma e escolha exatamente quais cartas físicas entram." },
+    { icon: ShieldCheck, title: "Nada sai do lugar", text: "As cartas continuam no seu acervo; nenhuma é tirada de outra coleção." },
+  ];
+  const noneFree = available === 0;
+  return (
+    <section className={acervoStyles.emptyStage} aria-labelledby="colecao-livre-vazia">
+      <div className={acervoStyles.binderPage} aria-hidden="true">
+        {Array.from({ length: 9 }, (_, index) => (
+          <span key={index} className={index === 4 ? `${acervoStyles.socket} ${acervoStyles.socketLit}` : acervoStyles.socket} />
+        ))}
+      </div>
+      <div className={acervoStyles.emptyCopy}>
+        <h2 id="colecao-livre-vazia" className={acervoStyles.emptyTitle}>
+          Escolha as primeiras cartas
+        </h2>
+        <p className={acervoStyles.emptyText}>
+          {!active
+            ? "Esta coleção está arquivada. Reative-a para voltar a reunir cartas."
+            : noneFree
+              ? "No momento, todas as cartas do seu acervo já estão em alguma coleção. Registre cartas novas em Meu acervo para trazê-las para cá."
+              : available !== null
+                ? `Você tem ${pluralize(available, "carta disponível", "cartas disponíveis")} no acervo. Escolha as que fazem parte desta coleção.`
+                : "Escolha no seu acervo as cartas que fazem parte desta coleção."}
+        </p>
+        <ul className={acervoStyles.promiseList}>
+          {promises.map(({ icon: Icon, title, text }) => (
+            <li key={title} className={acervoStyles.promise}>
+              <span className={acervoStyles.promiseIcon} aria-hidden="true">
+                <Icon className="h-4 w-4" />
+              </span>
+              <div>
+                <p className={acervoStyles.promiseTitle}>{title}</p>
+                <p className={acervoStyles.promiseText}>{text}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {active ? (
+          <div className={freeStyles.emptyActions}>
+            {launcher}
+            {noneFree ? (
+              <Button asChild variant="outline" className="min-h-11">
+                <Link href={ACERVO_PATH}>Ir para Meu acervo</Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function Pagination({ collectionId, page, pages }: { collectionId: string; page: number; pages: number }) {
+  const current = Math.min(page, pages);
+  return (
+    <nav className={freeStyles.pagination} aria-label="Páginas da coleção">
+      {current > 1 ? (
+        <Button asChild variant="outline" className="h-11 min-w-11">
+          <Link href={freeCollectionHref(collectionId, { page: current - 1 })}>Anterior</Link>
+        </Button>
+      ) : null}
+      <span aria-current="page">
+        Página {formatCount(current)} de {formatCount(pages)}
+      </span>
+      {current < pages ? (
+        <Button asChild variant="outline" className="h-11 min-w-11">
+          <Link href={freeCollectionHref(collectionId, { page: current + 1 })}>Próxima</Link>
+        </Button>
+      ) : null}
+    </nav>
+  );
+}
+
+function PastEnd({ href }: { href: string }) {
+  return (
+    <section className={acervoStyles.state} aria-labelledby="colecao-fim">
+      <h2 id="colecao-fim" className={acervoStyles.stateTitle}>
+        Esta página não existe
+      </h2>
+      <p className={acervoStyles.stateText}>A coleção tem menos páginas. Volte ao início.</p>
+      <Button asChild variant="outline" className={acervoStyles.stateAction}>
+        <Link href={href}>Ver a coleção</Link>
+      </Button>
+    </section>
+  );
+}
+
+function ReadError({ retryHref }: { retryHref: string }) {
+  return (
+    <section className={acervoStyles.state} role="alert" aria-labelledby="colecao-erro">
+      <div className={`${acervoStyles.stateIcon} ${acervoStyles.stateIconDanger}`} aria-hidden="true">
+        <AlertTriangle className="h-6 w-6" />
+      </div>
+      <h2 id="colecao-erro" className={acervoStyles.stateTitle}>
+        Não conseguimos carregar as cartas desta coleção
+      </h2>
+      <p className={acervoStyles.stateText}>Nada foi perdido. Tente novamente em instantes.</p>
+      <Button asChild className={acervoStyles.stateAction}>
+        <Link href={retryHref} prefetch={false}>
+          Tentar novamente
+        </Link>
+      </Button>
+    </section>
+  );
+}

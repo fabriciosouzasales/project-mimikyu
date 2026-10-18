@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 import { cardFrontUrl } from "@/lib/colecoes/acervo";
-import type { HeroSelection } from "@/lib/colecoes/colecoes";
-import type { CollectionPosition } from "@/lib/colecoes/colecoes-queries";
+import type { HeroCardSource, HeroSelection } from "@/lib/colecoes/colecoes";
 import styles from "./collection-hero.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -25,7 +24,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 /** Ordem visual dos slots: frente, esquerda, direita, extrema esquerda, extrema direita. */
 const SLOT_ORDER = [0, 1, 2, 3, 4] as const;
 
-export function CollectionHeroBackdrop({ selection }: { selection: HeroSelection<CollectionPosition> }) {
+export function CollectionHeroBackdrop({ selection }: { selection: HeroSelection<HeroCardSource> }) {
   const lead = selection.cards[0];
   const src = lead ? cardFrontUrl(SUPABASE_URL, lead.imagePath) : null;
   if (!src) return null;
@@ -37,10 +36,18 @@ export function CollectionHeroBackdrop({ selection }: { selection: HeroSelection
   );
 }
 
-export function CollectionHeroFan({ selection }: { selection: HeroSelection<CollectionPosition> }) {
+export function CollectionHeroFan({
+  selection,
+  label: labelOverride,
+}: {
+  selection: HeroSelection<HeroCardSource>;
+  /** Nome acessível da composição; padrão = destaques do Set. Coleção livre: as cartas mais recentes. */
+  label?: string;
+}) {
   const cards = selection.cards.slice(0, SLOT_ORDER.length);
   if (cards.length === 0) return null;
-  const label = selection.secret > 0 ? (selection.secret === 1 ? "Carta secreta do Set" : "Secretas do Set") : "Destaques do Set";
+  const label =
+    labelOverride ?? (selection.secret > 0 ? (selection.secret === 1 ? "Carta secreta do Set" : "Secretas do Set") : "Destaques do Set");
   const names = cards.map((card) => card.cardName).join(", ");
 
   return (

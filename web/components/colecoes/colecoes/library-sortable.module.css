@@ -1,0 +1,104 @@
+/* Biblioteca reordenável (LIBRARY-ORDER-01) — Cards e Lista. */
+
+.item {
+  position: relative;
+  /* O toque longo inicia o arrasto; antes disso a página rola normalmente. */
+  -webkit-touch-callout: none;
+}
+
+/* Lugar que a coleção vai ocupar enquanto é arrastada (a prévia segue o ponteiro). */
+.item[data-dragging] {
+  opacity: 0.35;
+}
+
+.item[data-dragging] > :first-child,
+.item[data-grabbed] > :first-child {
+  outline: 2px dashed hsl(var(--primary) / 0.7);
+  outline-offset: 6px;
+  border-radius: 1rem;
+}
+
+.item[data-layout="list"][data-dragging] > :first-child,
+.item[data-layout="list"][data-grabbed] > :first-child {
+  outline-offset: -2px;
+  border-radius: 0;
+}
+
+/* Alça: discreta, aparece no hover/foco; é a porta do teclado. */
+.handle {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface) / 0.92);
+  color: hsl(var(--muted-foreground));
+  cursor: grab;
+  opacity: 0;
+  transition:
+    opacity 160ms ease,
+    color 160ms ease;
+}
+
+.item[data-layout="grid"] .handle {
+  top: 0.5rem;
+  left: 0.5rem;
+}
+
+.item[data-layout="list"] .handle {
+  top: 50%;
+  right: 2.75rem;
+  transform: translateY(-50%);
+}
+
+.item:hover .handle,
+.item:focus-within .handle,
+.item[data-grabbed] .handle {
+  opacity: 1;
+}
+
+.handle:hover {
+  color: hsl(var(--foreground));
+}
+
+.handle:focus-visible {
+  opacity: 1;
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.item[data-grabbed] .handle {
+  color: hsl(var(--primary-ink, var(--primary)));
+  border-color: hsl(var(--primary) / 0.6);
+}
+
+.handle:disabled {
+  cursor: progress;
+}
+
+/* Em telas de toque não há hover: a alça some (o toque longo arrasta). */
+@media (hover: none) {
+  .handle {
+    display: none;
+  }
+}
+
+/* Prévia que acompanha o ponteiro. */
+.overlay {
+  cursor: grabbing;
+  filter: drop-shadow(0 18px 28px hsl(0 0% 0% / 0.35));
+}
+
+.overlay[data-layout="list"] {
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--border));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .handle {
+    transition: none;
+  }
+}

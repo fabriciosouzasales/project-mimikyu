@@ -14,6 +14,7 @@ import {
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
+import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
 import { collectionHref, collectionProgressView, collectionSubtitle } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
@@ -167,7 +168,8 @@ function LibrarySpotlight({
   collection: CollectionSummary;
   logoUrls: Readonly<Record<string, string>>;
 }) {
-  const logoUrl = collection.cardSetLogoPath ? logoUrls[collection.cardSetLogoPath] ?? null : null;
+  const logoKey = plateLogoKey(collection);
+        const logoUrl = logoKey ? logoUrls[logoKey] ?? null : null;
   return (
     <section className={styles.carousel} aria-label="Sua coleção">
       <div className={styles.spotlight}>
@@ -180,7 +182,7 @@ function LibrarySpotlight({
           <BinderCover
             finish={collection.finish}
             setName={collection.cardSetName}
-            setCode={collection.cardSetCode}
+            setCode={plateCode(collection)}
             logoUrl={logoUrl}
             fallbackTitle={collection.name}
             complete={collection.isComplete}
@@ -515,7 +517,8 @@ function LibraryFilmstrip({
         <span className={styles.stageFloor} aria-hidden="true" />
         <ul className={styles.deck}>
           {items.map((collection, index) => {
-            const logoUrl = collection.cardSetLogoPath ? logoUrls[collection.cardSetLogoPath] ?? null : null;
+            const logoKey = plateLogoKey(collection);
+        const logoUrl = logoKey ? logoUrls[logoKey] ?? null : null;
             const isActive = index === active;
             return (
               <li
@@ -545,7 +548,7 @@ function LibraryFilmstrip({
                   <BinderCover
                     finish={collection.finish}
                     setName={collection.cardSetName}
-                    setCode={collection.cardSetCode}
+                    setCode={plateCode(collection)}
                     logoUrl={logoUrl}
                     fallbackTitle={collection.name}
                     complete={collection.isComplete}

@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { GalleryHorizontal, LayoutGrid, List } from "lucide-react";
 import {
   LIBRARY_MODE_COOKIE,
@@ -8,9 +9,14 @@ import {
   librarySearchWithMode,
   resolveLibraryMode,
 } from "@/lib/colecoes/colecoes";
+import { moveCollectionInLibrary } from "@/app/colecoes/colecoes/actions";
+import { collectionFailureMessage } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
+import { LIBRARY_REORDER_ENABLED, moveAnchor, sameOrder } from "@/lib/colecoes/library-order";
+import libraryStyles from "./colecoes.module.css";
 import { LibraryCarousel } from "./library-carousel";
-import { LibraryList } from "./library-list";
+import { LibraryList, LibraryRow } from "./library-list";
+import { LibrarySortable } from "./library-sortable";
 import styles from "./library-modes.module.css";
 
 const MODES: { id: LibraryMode; label: string; icon: typeof LayoutGrid }[] = [
@@ -39,26 +45,76 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
  * recarregar) e um cookie do próprio navegador, que o servidor lê na próxima
  * visita/página para já renderizar o modo certo (sem piscar). Nada vai para o
  * banco nem para a conta.
+ *
+ * Ordem (LIBRARY-ORDER-01, atrás de `LIBRARY_REORDER_ENABLED`): em Cards e
+ * Lista o colecionador arrasta e solta para reordenar. A ordem vive aqui —
+ * os três modos (inclusive o Carrossel) mostram a mesma sequência. Cada
+ * gesto grava UM movimento (`move_my_collection`, 5183) de forma otimista e
+ * volta ao que era se a gravação falhar.
  */
 export function LibraryModes({
   initialMode,
   items,
   logoUrls,
-  cards,
+  cardNodes,
   children,
   meta = null,
 }: {
   initialMode: LibraryMode;
   items: readonly CollectionSummary[];
   logoUrls: Readonly<Record<string, string>>;
-  /** Grade do modo Cards (Server Component existente). */
-  cards: ReactNode;
+  /** Fichário de cada coleção no modo Cards (Server Component), por id. */
+  cardNodes: Readonly<Record<string, ReactNode>>;
   /** Conteúdo comum a todos os modos, abaixo do modo ativo (paginação). */
   children?: ReactNode;
   /** Linha discreta sob o título da seção (ex.: faixa exibida quando há paginação). */
   meta?: string | null;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<LibraryMode>(initialMode);
+  const serverOrder = useMemo(() => items.map((item) => item.id), [items]);
+  const [order, setOrder] = useState<string[]>(serverOrder);
+  const [saving, setSaving] = useState(false);
+  const [orderStatus, setOrderStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+
+  // Dados novos do servidor (gravação concluída, outra página, outra aba) mandam.
+  useEffect(() => {
+    setOrder((current) => (sameOrder(current, serverOrder) ? current : serverOrder));
+  }, [serverOrder]);
+
+  useEffect(() => {
+    if (orderStatus?.tone !== "ok") return;
+    const timer = window.setTimeout(() => setOrderStatus(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [orderStatus]);
+
+  const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const orderedItems = useMemo(
+    () => order.map((id) => byId.get(id)).filter((item): item is CollectionSummary => item !== undefined),
+    [order, byId],
+  );
+  const labels = useMemo(() => Object.fromEntries(items.map((item) => [item.id, item.name])), [items]);
+
+  const commitOrder = async (next: string[], movedId: string) => {
+    const anchor = moveAnchor(next, movedId);
+    if (!anchor) return;
+    const previous = order;
+    setOrder(next);
+    setSaving(true);
+    setOrderStatus(null);
+    const result = await moveCollectionInLibrary({ collectionId: movedId, ...anchor }).catch(() => ({
+      ok: false as const,
+      reason: "unavailable" as const,
+    }));
+    setSaving(false);
+    if (!result.ok) {
+      setOrder(previous);
+      setOrderStatus({ tone: "error", text: `A ordem não foi salva. ${collectionFailureMessage(result.reason)}` });
+      return;
+    }
+    setOrderStatus({ tone: "ok", text: "Ordem salva." });
+    router.refresh();
+  };
   const [carouselIndex, setCarouselIndex] = useState(0);
   const groupName = useId();
   const panelId = useId();
@@ -117,17 +173,65 @@ export function LibraryModes({
       </div>
 
       <div id={panelId} className={styles.panel} data-mode={mode}>
-        {mode === "cards" ? cards : null}
-        {mode === "lista" ? <LibraryList items={items} logoUrls={logoUrls} /> : null}
+        {mode === "cards" ? (
+          LIBRARY_REORDER_ENABLED && order.length > 1 ? (
+            <LibrarySortable
+              ids={order}
+              labels={labels}
+              layout="grid"
+              className={libraryStyles.library ?? ""}
+              ariaLabel="Suas coleções"
+              busy={saving}
+              renderItem={(id) => cardNodes[id] ?? null}
+              onCommit={(next, moved) => void commitOrder(next, moved)}
+            />
+          ) : (
+            <ul className={libraryStyles.library} aria-label="Suas coleções">
+              {order.map((id) => (
+                <li key={id}>{cardNodes[id]}</li>
+              ))}
+            </ul>
+          )
+        ) : null}
+        {mode === "lista" ? (
+          LIBRARY_REORDER_ENABLED && order.length > 1 ? (
+            <LibrarySortable
+              ids={order}
+              labels={labels}
+              layout="list"
+              className={styles.list ?? ""}
+              ariaLabel="Suas coleções"
+              busy={saving}
+              renderItem={(id) => {
+                const collection = byId.get(id);
+                return collection ? <LibraryRow collection={collection} logoUrls={logoUrls} /> : null;
+              }}
+              onCommit={(next, moved) => void commitOrder(next, moved)}
+            />
+          ) : (
+            <LibraryList items={orderedItems} logoUrls={logoUrls} />
+          )
+        ) : null}
         {mode === "carrossel" ? (
           <LibraryCarousel
-            items={items}
+            items={orderedItems}
             logoUrls={logoUrls}
             initialIndex={carouselIndex}
             onActiveChange={setCarouselIndex}
           />
         ) : null}
       </div>
+
+      {LIBRARY_REORDER_ENABLED ? (
+        <p
+          className={styles.orderStatus}
+          data-tone={orderStatus?.tone}
+          role={orderStatus?.tone === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {saving ? "Salvando a ordem…" : orderStatus?.text ?? null}
+        </p>
+      ) : null}
 
       {children}
     </section>

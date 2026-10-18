@@ -368,3 +368,22 @@
     transform: none;
   }
 }
+
+/* Resultado da reordenação (LIBRARY-ORDER-01) */
+.orderStatus {
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.orderStatus:empty {
+  display: none;
+}
+
+.orderStatus[data-tone="error"] {
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .orderStatus[data-tone="error"] {
+  color: hsl(var(--destructive-foreground));
+}

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type BinderFinish, resolveFinish } from "./binder-finish.ts";
+import { COVER_BUCKET, FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, isCoverCode, isCoverPath, isFreeCollection } from "./free-collection.ts";
 import { LIBRARY_PAGE_SIZE, POSITIONS_PAGE_SIZE, type PositionFilter, type StorageOption, toPositionsRpcFilter } from "./colecoes.ts";
 
 /**
@@ -22,6 +23,10 @@ export type CollectionSummary = {
   cardSetName: string | null;
   /** Logo do Set (bucket privado `card-set-logo`); só vira imagem se a sessão puder assiná-la. */
   cardSetLogoPath: string | null;
+  /** Imagem enviada pelo colecionador para a placa (Coleção livre); `null` sem imagem ou antes de 5177. */
+  coverLogoPath: string | null;
+  /** Código opcional da Coleção livre (2–6 letras/números); `null` sem código ou antes de 5179. */
+  coverCode: string | null;
   /** Acabamento do fichário: gravado (quando a proposta estiver no LIVE) ou padrão estável. */
   finish: BinderFinish;
   /** `true` só quando R1 já devolve `cover_finish` — habilita o seletor de cor. */
@@ -66,6 +71,8 @@ function toSummary(row: CollectionRow): CollectionSummary {
     cardSetCode: row.card_set_code,
     cardSetName: row.card_set_name,
     cardSetLogoPath: row.card_set_logo_path,
+    coverLogoPath: null,
+    coverCode: null,
     finish: resolveFinish(row.collection_id, row.cover_finish),
     finishEditable: Object.prototype.hasOwnProperty.call(row, "cover_finish"),
     totalPositions: Number(row.total_positions ?? 0),
@@ -192,6 +199,32 @@ export async function getLinkableCount(supabase: SupabaseClient, id: string): Pr
   return first ? Number(first.total_count) : 0;
 }
 
+/**
+ * Quantas cartas diferentes do acervo estão fora de qualquer coleção e podem
+ * entrar numa Coleção livre agora (5159 com `p_without_collection`). Uma linha
+ * basta — `total_count` vem antes do limite. `null` = falha (a interface não
+ * promete um número que não conseguiu ler).
+ */
+export async function getAvailableGroupCount(supabase: SupabaseClient): Promise<number | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_inventory_items", {
+    p_search: null,
+    p_card_set_code: null,
+    p_language_code: null,
+    p_collection_id: null,
+    p_without_collection: true,
+    p_sort: "RECENT",
+    p_limit: 1,
+    p_offset: 0,
+  });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_inventory_items", startedAt, error);
+    return null;
+  }
+  const first = (data as { total_count: number | string }[])[0];
+  return first ? Number(first.total_count) : 0;
+}
+
 /** Locais do próprio Inventory (RLS select-own), do mais antigo ao mais novo. */
 export async function getMyStorageLocations(supabase: SupabaseClient): Promise<StorageOption[] | null> {
   const startedAt = Date.now();
@@ -231,6 +264,55 @@ export async function getSetLogoUrls(supabase: SupabaseClient, paths: (string | 
   const unique = [...new Set(paths.filter((path): path is string => typeof path === "string" && path !== "" && !path.includes("..")))];
   if (unique.length === 0) return map;
   const { data, error } = await supabase.storage.from("card-set-logo").createSignedUrls(unique, 60 * 60);
+  if (error || !data) return map;
+  for (const item of data) {
+    if (item.path && item.signedUrl && !item.error) map.set(item.path, item.signedUrl);
+  }
+  return map;
+}
+
+/**
+ * Capa da Coleção livre: lê `cover_logo_path` (5177, imagem enviada) e
+ * `cover_code` (5179, código opcional) das coleções livres da lista pela RLS
+ * select-own (5030) — uma consulta só, por `id`. Cada coluna só entra com a
+ * sua flag (`FREE_COVER_UPLOAD_ENABLED`, `FREE_COVER_CODE_ENABLED`); qualquer
+ * falha mantém as coleções sem imagem e sem código — a placa tipográfica
+ * continua valendo.
+ */
+export async function attachCoverLogos<T extends CollectionSummary>(supabase: SupabaseClient, items: T[]): Promise<T[]> {
+  const columns = [FREE_COVER_UPLOAD_ENABLED ? "cover_logo_path" : null, FREE_COVER_CODE_ENABLED ? "cover_code" : null].filter(
+    (column): column is string => column !== null,
+  );
+  if (columns.length === 0) return items;
+  const ids = items.filter((item) => isFreeCollection(item)).map((item) => item.id);
+  if (ids.length === 0) return items;
+  const startedAt = Date.now();
+  const { data, error } = await supabase.from("collection").select(["id", ...columns].join(", ")).in("id", ids);
+  if (error || !Array.isArray(data)) {
+    logReadFailure(`collection.${columns.join("+")}`, startedAt, error);
+    return items;
+  }
+  const rows = new Map(
+    (data as unknown as { id: string; cover_logo_path?: string | null; cover_code?: string | null }[]).map((row) => [row.id, row]),
+  );
+  return items.map((item) => {
+    const row = rows.get(item.id);
+    if (!row) return item;
+    return {
+      ...item,
+      coverLogoPath: isCoverPath(row.cover_logo_path) ? row.cover_logo_path : item.coverLogoPath,
+      coverCode: isCoverCode(row.cover_code) ? row.cover_code : item.coverCode,
+    };
+  });
+}
+
+/** URLs assinadas (1 h) das capas enviadas — bucket privado, só o dono lê (5176). */
+export async function getCoverLogoUrls(supabase: SupabaseClient, paths: (string | null)[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!FREE_COVER_UPLOAD_ENABLED) return map;
+  const unique = [...new Set(paths.filter((path): path is string => isCoverPath(path)))];
+  if (unique.length === 0) return map;
+  const { data, error } = await supabase.storage.from(COVER_BUCKET).createSignedUrls(unique, 60 * 60);
   if (error || !data) return map;
   for (const item of data) {
     if (item.path && item.signedUrl && !item.error) map.set(item.path, item.signedUrl);

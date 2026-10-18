@@ -2,6 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   librarySummary,
+  availableCreationKinds,
+  creationSteps,
+  FREE_COLLECTION_ENABLED,
+  initialCreationKind,
+  suggestFreeCollectionName,
   canSubmitCreate,
   changedChoices,
   chunk,
@@ -161,9 +166,23 @@ test("tradução de erros dos contratos", () => {
   assert.equal(classifyCollectionFailure("22023", "IDEMPOTENCY_KEY_REUSED"), "conflict");
   assert.equal(classifyCollectionFailure("22023", "INVALID_REQUEST"), "invalid");
   assert.equal(classifyCollectionFailure("23505", "duplicate key value"), "already_linked");
+  assert.equal(
+    classifyCollectionFailure("P0001", "uma ou mais physical_card_ids já estão alocadas a uma Collection"),
+    "already_linked",
+  );
   assert.equal(classifyCollectionFailure("P0001", "collection is archived — reactivate before allocating"), "not_found");
   assert.equal(classifyCollectionFailure("P0001", "authentication required"), "not_authenticated");
   assert.equal(classifyCollectionFailure(undefined, undefined), "unavailable");
+  assert.equal(classifyCollectionFailure("55000", "NOT_FREE_COLLECTION"), "not_found");
+  assert.equal(classifyCollectionFailure("P0002", "COLLECTION_NOT_FOUND"), "not_found");
+  assert.equal(classifyCollectionFailure("22023", "INVALID_COVER_CODE"), "invalid");
+});
+
+test("subtítulo: Set com código; livre com código opcional", () => {
+  assert.equal(collectionSubtitle({ cardSetName: "Base Set", cardSetCode: "bs", completionPolicy: "STANDARD_SET" }), "Base Set · BS");
+  const free = collectionSubtitle({ cardSetName: null, cardSetCode: null, completionPolicy: "NONE" });
+  assert.equal(collectionSubtitle({ cardSetName: null, cardSetCode: null, completionPolicy: "NONE", coverCode: "MMK" }), `${free} · MMK`);
+  assert.equal(collectionSubtitle({ cardSetName: null, cardSetCode: null, completionPolicy: "NONE", coverCode: null }), free);
 });
 
 test("resumo da Biblioteca: só com todas as coleções na página; livre fora do progresso", () => {
@@ -253,4 +272,33 @@ test("hero da coleção: secretas primeiro (número acima do total), sem imagem 
   const cc = Array.from({ length: 30 }, (_, i) => card(String(i + 1).padStart(3, "0"), 30));
   assert.deepEqual(pickHeroCards(cc, 5, "ME5.5CC").cards.map((c) => c.collectorNumber), ["001", "029", "030", "027", "026"]);
   assert.deepEqual(pickHeroCards(cc, 5, null).cards.map((c) => c.collectorNumber), ["030", "029", "028", "027", "026"]);
+});
+
+test("criação: tipos disponíveis, passos por tipo e envio da Coleção livre", () => {
+  // Enquanto 5175 não está no LIVE, só "Completar um Set" é oferecido (nunca fluxo sem conclusão).
+  assert.equal(FREE_COLLECTION_ENABLED, true);
+  assert.deepEqual(availableCreationKinds(), ["card_set", "free"]);
+  assert.deepEqual(availableCreationKinds(false), ["card_set"]);
+  assert.deepEqual(availableCreationKinds(true), ["card_set", "free"]);
+  // Pokédex e Master Set nunca são tipo de criação aqui.
+  assert.ok(!availableCreationKinds(true).some((kind) => (kind as string) === "pokedex" || (kind as string) === "master_set"));
+
+  // Com dois tipos, o passo de escolha aparece; com um só, a criação abre direto nele.
+  assert.deepEqual(creationSteps("card_set", 2), ["type", "set", "details"]);
+  assert.deepEqual(creationSteps("free", 2), ["type", "details"]);
+  assert.deepEqual(creationSteps(null, 2), ["type", "set", "details"]);
+  assert.deepEqual(creationSteps("card_set", 1), ["set", "details"]);
+  assert.deepEqual(creationSteps("card_set"), ["type", "set", "details"], "dois tipos → escolha de tipo primeiro");
+  assert.deepEqual(creationSteps("free"), ["type", "details"]);
+  assert.equal(initialCreationKind(), null);
+  assert.equal(initialCreationKind(["card_set"]), "card_set");
+  assert.equal(initialCreationKind(["card_set", "free"]), null);
+
+  const one = [{ id: "a", name: "Local padrão" }];
+  assert.equal(canSubmitCreate({ kind: "free", setCode: null, name: "Favoritas", locations: [], storageId: null }), true, "livre não exige Set");
+  assert.equal(canSubmitCreate({ kind: "free", setCode: null, name: " ", locations: [], storageId: null }), false);
+  assert.equal(canSubmitCreate({ kind: "free", setCode: null, name: "Favoritas", locations: one, storageId: null }), false, "D-A vale também na livre");
+  assert.equal(canSubmitCreate({ kind: "free", setCode: null, name: "Favoritas", locations: one, storageId: "a" }), true);
+  assert.equal(canSubmitCreate({ kind: "card_set", setCode: null, name: "x", locations: [], storageId: null }), false);
+  assert.equal(suggestFreeCollectionName().length > 0, true);
 });

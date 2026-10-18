@@ -607,6 +607,80 @@
   color: hsl(var(--muted-foreground));
 }
 
+/* Passo 1 da criação: escolha do tipo (NS-18). Cada opção é um botão grande
+   com ícone, título e uma frase em linguagem de colecionador. */
+.stepHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stepHeading {
+  font: 700 1.0625rem/1.3 var(--font-heading);
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.typeList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.typeOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.typeOption:hover {
+  border-color: hsl(var(--primary) / 0.55);
+  background: hsl(var(--primary) / 0.05);
+}
+
+.typeOption:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.typeOption[aria-pressed="true"] {
+  border-color: hsl(var(--primary) / 0.7);
+  background: hsl(var(--primary) / 0.08);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.35);
+}
+
+.typeOption .kindTitle {
+  font-size: 0.9375rem;
+}
+
+.typeArrow {
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typeOption {
+    transition: none;
+  }
+}
+
 .setGroupLabel {
   padding: 0.5rem 0.75rem 0.25rem;
   font-size: 0.6875rem;
@@ -755,5 +829,155 @@
 @media (prefers-reduced-motion: reduce) {
   .fill {
     animation: none;
+  }
+}
+
+/* Código opcional da Coleção livre (FREE-COLLECTION-COVER-CODE-01): campo da criação e da edição do nome */
+
+.coverCodeOptional {
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+.coverCodeInput {
+  width: 7.5rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Capa da Coleção livre como gatilho da imagem (refinamento 2026-10-18) */
+.coverTrigger {
+  position: relative;
+}
+
+.coverTriggerButton {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+.coverTriggerButton:disabled {
+  cursor: progress;
+}
+
+/* Ações da capa: lápis (trocar) e lixeira (remover), no canto superior. */
+.coverTriggerActions {
+  position: absolute;
+  top: -0.375rem;
+  right: -0.375rem;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.coverTrigger:hover .coverTriggerActions,
+.coverTrigger:focus-within .coverTriggerActions,
+.coverTrigger[data-busy] .coverTriggerActions {
+  opacity: 1;
+}
+
+.coverTriggerAction {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+  color: hsl(var(--muted-foreground));
+  transition: color 160ms ease;
+}
+
+.coverTriggerAction:hover {
+  color: hsl(var(--foreground));
+}
+
+.coverTriggerDanger:hover {
+  color: hsl(var(--destructive));
+}
+
+.coverTriggerAction:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.coverTriggerAction:disabled {
+  cursor: progress;
+}
+
+@media (hover: none) {
+  .coverTriggerActions {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coverTriggerActions,
+  .coverTriggerAction {
+    transition: none;
+  }
+}
+
+.coverTriggerStatus {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: hsl(var(--muted-foreground));
+}
+
+.coverTriggerStatus:empty {
+  display: none;
+}
+
+.coverTriggerStatus[data-tone="error"] {
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .coverTriggerStatus[data-tone="error"] {
+  color: hsl(var(--destructive-foreground));
+}
+
+/* Código da capa dentro da edição do nome */
+.renameCode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  flex-basis: 100%;
+}
+
+.renameCodeLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Miniatura clicável que amplia a carta (mesmo preview do Catálogo Editorial) — todas as coleções. */
+.zoomTrigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--acervo-card-radius);
+  cursor: zoom-in;
+  text-align: inherit;
+}
+
+.zoomTrigger:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .zoomTrigger:focus-visible > :first-child {
+    transform: translateY(-4px) rotate(-0.4deg);
   }
 }

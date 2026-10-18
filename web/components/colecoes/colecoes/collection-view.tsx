@@ -13,6 +13,7 @@ import {
   progressPercent,
 } from "@/lib/colecoes/colecoes";
 import type { CollectionPosition, CollectionSummary, PositionsPage } from "@/lib/colecoes/colecoes-queries";
+import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
 import { CardArt } from "../acervo/card-art";
 import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "./binder-cover";
@@ -204,13 +205,16 @@ export function CollectionView({
           }
         />
       ) : (
-        <ul className={acervoStyles.grid} aria-label={`Cartas — ${segments.find((segment) => segment.key === filter)?.label}`}>
-          {positions.items.map((position, index) => (
-            <li key={position.cardId}>
-              <PositionTile position={position} priority={index < PRIORITY_CARD_COUNT} setCode={setCode} />
-            </li>
-          ))}
-        </ul>
+        // Clicar na carta amplia — mesmo preview e mesmo morph do Catálogo Editorial.
+        <CardZoomProvider>
+          <ul className={acervoStyles.grid} aria-label={`Cartas — ${segments.find((segment) => segment.key === filter)?.label}`}>
+            {positions.items.map((position, index) => (
+              <li key={position.cardId}>
+                <PositionTile position={position} priority={index < PRIORITY_CARD_COUNT} setCode={setCode} />
+              </li>
+            ))}
+          </ul>
+        </CardZoomProvider>
       )}
       </section>
     </div>
@@ -220,6 +224,7 @@ export function CollectionView({
 function PositionTile({ position, priority, setCode }: { position: CollectionPosition; priority: boolean; setCode: string | null }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
+  const imageUrl = cardFrontUrl(SUPABASE_URL, position.imagePath);
   const repeated = position.isSatisfied ? position.copiesAvailable : 0;
   const status = position.isSatisfied
     ? "na coleção"
@@ -230,24 +235,26 @@ function PositionTile({ position, priority, setCode }: { position: CollectionPos
   return (
     <article className={acervoStyles.tile} aria-label={`${position.cardName}, ${caption}, ${status}`}>
       <div className={acervoStyles.artWrap}>
-        <div className={position.isSatisfied ? acervoStyles.art : `${acervoStyles.art} ${styles.missing}`}>
-          <CardArt
-            src={cardFrontUrl(SUPABASE_URL, position.imagePath)}
-            alt=""
-            name={position.cardName}
-            caption={caption}
-            priority={priority}
-            sizes={GRID_SIZES}
-          />
-          {!position.isSatisfied ? (
-            <span
-              className={position.copiesAvailable > 0 ? `${styles.missingTag} ${styles.availableTag}` : styles.missingTag}
-              aria-hidden="true"
-            >
-              {position.copiesAvailable > 0 ? "No seu acervo" : "Falta"}
-            </span>
-          ) : null}
-        </div>
+        <CardZoomTrigger id={position.cardId} imageUrl={imageUrl} name={position.cardName} className={styles.zoomTrigger}>
+          <div className={position.isSatisfied ? acervoStyles.art : `${acervoStyles.art} ${styles.missing}`}>
+            <CardArt
+              src={imageUrl}
+              alt=""
+              name={position.cardName}
+              caption={caption}
+              priority={priority}
+              sizes={GRID_SIZES}
+            />
+            {!position.isSatisfied ? (
+              <span
+                className={position.copiesAvailable > 0 ? `${styles.missingTag} ${styles.availableTag}` : styles.missingTag}
+                aria-hidden="true"
+              >
+                {position.copiesAvailable > 0 ? "No seu acervo" : "Falta"}
+              </span>
+            ) : null}
+          </div>
+        </CardZoomTrigger>
         {position.copiesInCollection > 1 ? (
           <span className={acervoStyles.qty} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}

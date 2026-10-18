@@ -6,7 +6,13 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { LibraryView } from "@/components/colecoes/colecoes/library-view";
 import { getAcervoFilterOptions } from "@/lib/colecoes/acervo-queries";
 import { LIBRARY_MODE_COOKIE, libraryHref, parseLibraryPage, resolveLibraryMode } from "@/lib/colecoes/colecoes";
-import { getMyCollections, getMyStorageLocations, getSetLogoUrls } from "@/lib/colecoes/colecoes-queries";
+import {
+  attachCoverLogos,
+  getCoverLogoUrls,
+  getMyCollections,
+  getMyStorageLocations,
+  getSetLogoUrls,
+} from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -40,17 +46,26 @@ export default async function ColecoesPage({
 
   void getCachedUserProfile().catch(() => {});
 
-  const [page, locations, options] = await Promise.all([
+  const [rawPage, locations, options] = await Promise.all([
     getMyCollections(supabase, pageNumber),
     getMyStorageLocations(supabase),
     getAcervoFilterOptions(supabase),
   ]);
 
+  // Coleção livre com capa enviada (desligado até 5176–5178 no LIVE).
+  const page = rawPage ? { ...rawPage, items: await attachCoverLogos(supabase, rawPage.items) } : null;
+
   // Página além do fim (link antigo): volta para a primeira em vez de um vazio enganoso.
   if (page && page.items.length === 0 && pageNumber > 1) redirect(libraryHref(1));
 
   // Uma chamada para todos os logos da página (bucket privado; sem acesso → mapa vazio).
-  const logoUrls = page ? await getSetLogoUrls(supabase, page.items.map((item) => item.cardSetLogoPath)) : new Map<string, string>();
+  const [setLogos, coverLogos] = page
+    ? await Promise.all([
+        getSetLogoUrls(supabase, page.items.map((item) => item.cardSetLogoPath)),
+        getCoverLogoUrls(supabase, page.items.map((item) => item.coverLogoPath)),
+      ])
+    : [new Map<string, string>(), new Map<string, string>()];
+  const logoUrls = new Map<string, string>([...setLogos, ...coverLogos]);
 
   const ownedSets = (options?.sets ?? []).map((set) => ({ code: set.value, name: set.label, count: set.count }));
 

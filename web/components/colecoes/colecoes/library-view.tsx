@@ -3,18 +3,21 @@ import { AlertTriangle, Layers, ShieldCheck, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
+  FREE_COLLECTION_ENABLED,
   type LibraryMode,
   type StorageOption,
   collectionHref,
-  collectionKindLabel,
+  collectionSubtitle,
   LIBRARY_PAGE_SIZE,
   libraryHref,
   librarySummary,
   libraryTotalPages,
+  collectionProgressView,
   progressLabel,
   progressPercent,
 } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary, CollectionsPage } from "@/lib/colecoes/colecoes-queries";
+import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
 import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "./binder-cover";
 import coverStyles from "./binder-cover.module.css";
@@ -105,19 +108,17 @@ export function LibraryView({
                 )} de ${formatCount(page.total)} coleções`
               : null
           }
-          cards={
-            <ul className={styles.library} aria-label="Suas coleções">
-              {page.items.map((collection, index) => (
-                <li key={collection.id}>
-                  <Shelf
-                    collection={collection}
-                    logoUrl={collection.cardSetLogoPath ? logoUrls.get(collection.cardSetLogoPath) ?? null : null}
-                    priority={pageNumber === 1 && index < 4}
-                  />
-                </li>
-              ))}
-            </ul>
-          }
+          cardNodes={Object.fromEntries(
+            page.items.map((collection, index) => [
+              collection.id,
+              <Shelf
+                key={collection.id}
+                collection={collection}
+                logoUrl={plateLogoKey(collection) ? logoUrls.get(plateLogoKey(collection) ?? "") ?? null : null}
+                priority={pageNumber === 1 && index < 4}
+              />,
+            ]),
+          )}
         >
           {pages > 1 ? (
             <nav className={acervoStyles.pagination} aria-label="Páginas das coleções">
@@ -254,12 +255,13 @@ function Shelf({
   logoUrl: string | null;
   priority: boolean;
 }) {
+  const view = collectionProgressView(collection);
   const percent = progressPercent(collection.satisfiedPositions, collection.totalPositions);
-  const label = progressLabel(collection.satisfiedPositions, collection.totalPositions);
-  const code = collection.cardSetCode?.toUpperCase() ?? null;
-  const subtitle = collection.cardSetName
-    ? `${collection.cardSetName}${code ? ` · ${code}` : ""}`
-    : collectionKindLabel(collection.completionPolicy);
+  const label =
+    view.kind === "free"
+      ? `${formatCount(view.copies)} ${view.copies === 1 ? "carta reunida" : "cartas reunidas"}`
+      : progressLabel(collection.satisfiedPositions, collection.totalPositions);
+  const subtitle = collectionSubtitle(collection);
 
   return (
     <Link
@@ -270,7 +272,7 @@ function Shelf({
       <BinderCover
         finish={collection.finish}
         setName={collection.cardSetName}
-        setCode={collection.cardSetCode}
+        setCode={plateCode(collection)}
         logoUrl={logoUrl}
         fallbackTitle={collection.name}
         complete={collection.isComplete}
@@ -279,18 +281,27 @@ function Shelf({
       <div className={styles.shelfMeta} aria-hidden="true">
         <span className={styles.shelfName}>{collection.name}</span>
         <span className={styles.shelfKind}>{subtitle}</span>
-        <div className={styles.shelfProgress}>
-          <div className={styles.shelfTrack}>
-            <div
-              className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
-              style={{ width: `${percent}%` }}
-            />
+        {view.kind === "free" ? (
+          // Coleção livre: sem meta, sem barra — só o que ela reúne (C-20).
+          <div className={styles.shelfProgress}>
+            <span className={styles.shelfCount}>
+              <strong>{label}</strong>
+            </span>
           </div>
-          <span className={styles.shelfCount}>
-            <strong>{label}</strong>
-            {collection.isComplete ? " · completa" : ` · ${percent}%`}
-          </span>
-        </div>
+        ) : (
+          <div className={styles.shelfProgress}>
+            <div className={styles.shelfTrack}>
+              <div
+                className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            <span className={styles.shelfCount}>
+              <strong>{label}</strong>
+              {collection.isComplete ? " · completa" : ` · ${percent}%`}
+            </span>
+          </div>
+        )}
       </div>
     </Link>
   );
@@ -323,12 +334,13 @@ function EmptyLibrary({ locations, ownedSets }: { locations: StorageOption[] | n
       </div>
       <div className={acervoStyles.emptyCopy}>
         <h2 id="colecoes-vazio" className={acervoStyles.emptyTitle}>
-          Sua primeira coleção começa com um Set
+          {FREE_COLLECTION_ENABLED ? "Comece sua primeira coleção" : "Sua primeira coleção começa com um Set"}
         </h2>
         <p className={acervoStyles.emptyText}>
           {ownedSets.length > 0
             ? `Você já tem cartas de ${ownedSets.length === 1 ? "1 Set" : `${formatCount(ownedSets.length)} Sets`} no acervo. Escolha um para ver quanto falta para completá-lo.`
             : "Escolha um Set e acompanhe o que falta. As cartas que você registrar no acervo depois podem entrar na coleção."}
+          {FREE_COLLECTION_ENABLED ? " Ou monte uma coleção livre com as cartas que quiser, de qualquer Set." : null}
         </p>
         <CreateCollectionLauncher locations={locations} ownedSets={ownedSets} layout="empty" />
         {locations === null ? (

@@ -3,8 +3,8 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Info, Layers, Loader2, Plus, Search, X } from "lucide-react";
-import { createCollectionFromSet } from "@/app/colecoes/colecoes/actions";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Info, Layers, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
+import { createCollectionFromSet, createFreeCollection } from "@/app/colecoes/colecoes/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -12,13 +12,20 @@ import { formatCount } from "@/lib/colecoes/acervo";
 import {
   COLLECTION_NAME_MAX,
   type CollectionFailure,
+  type CollectionKind,
+  type CreationStep,
   type StorageOption,
+  availableCreationKinds,
   canSubmitCreate,
   collectionFailureMessage,
+  creationSteps,
+  initialCreationKind,
   normalizeCollectionName,
   storageStep,
   suggestCollectionName,
+  suggestFreeCollectionName,
 } from "@/lib/colecoes/colecoes";
+import { ADD_PARAM, COVER_CODE_MAX, FREE_COVER_CODE_ENABLED, normalizeCoverCode, sanitizeCoverCodeInput } from "@/lib/colecoes/free-collection";
 import addStyles from "../acervo/acervo-add.module.css";
 import acervoStyles from "../acervo/acervo.module.css";
 import styles from "./colecoes.module.css";
@@ -27,14 +34,21 @@ export type OwnedSet = { code: string; name: string; count: number };
 type SetOption = { code: string; name: string };
 
 /**
- * Criar coleção — "Completar um Set" (N6), contrato CT-01 (Query 5167).
+ * Criar coleção — jornada progressiva (North Star Fluxo 1, NS-18;
+ * COLLECTIONS-FUNCTIONAL-RECOVERY-01):
  *
- * Um único tipo nesta rodada: coleção de Set padrão ("uma de cada carta",
- * NS-14). Passos no mesmo painel: Set → nome (sugerido pelo Set) → local.
+ *   1. tipo  →  2. configuração do tipo (Set, só em "Completar um Set")
+ *   →  3. nome + local (D-A)  →  criar  →  continuar na coleção.
  *
- * Regra D-A, espelhada do banco: sem nenhum local, nada é perguntado e CT-01
- * cria o "Local padrão"; com um ou mais locais, a escolha é obrigatória e
- * começa vazia — mesmo com um só. Em nenhum caso alguma carta recebe local.
+ * Tipos oferecidos: "Completar um Set" (CT-01, Query 5167) e "Coleção livre"
+ * (CT-01 estendido, Query 5175), ambos no LIVE; a livre depende de
+ * `FREE_COLLECTION_ENABLED` (ligado em FREE-COLLECTION-FRONTEND-COMPLETION-01)
+ * e, ao terminar, leva direto a "Adicionar cartas do meu acervo". "Completar a Pokédex" não aparece antes da P7 (nem desabilitada).
+ * Master Set não é tipo de criação. Nenhum termo técnico chega ao usuário.
+ *
+ * Regra D-A, espelhada do banco: sem nenhum local, nada é perguntado e o
+ * banco cria o "Local padrão"; com um ou mais locais, a escolha é obrigatória
+ * e começa vazia — mesmo com um só. Em nenhum caso alguma carta recebe local.
  *
  * Proteção contra envio repetido: botão desabilitado durante a gravação,
  * painel não fecha no meio e a chave de idempotência é a mesma em toda nova
@@ -57,7 +71,7 @@ export function CreateCollectionLauncher({
       <div className={layout === "hero" ? addStyles.launcherHero : addStyles.launcherEmpty}>
         <Button onClick={() => setOpen(true)} className={addStyles.launchPrimary}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          {layout === "empty" ? "Completar um Set" : "Nova coleção"}
+          {layout === "empty" ? "Criar minha primeira coleção" : "Nova coleção"}
         </Button>
       </div>
       {open ? <CreatePanel locations={locations} ownedSets={ownedSets} onClose={() => setOpen(false)} /> : null}
@@ -69,29 +83,55 @@ type Submit =
   | { status: "idle" }
   | { status: "pending" }
   | { status: "error"; reason: CollectionFailure }
-  | { status: "done"; href: string; storageCreated: boolean; name: string };
+  | { status: "done"; href: string; storageCreated: boolean; name: string; kind: CollectionKind; codeSaved: boolean };
+
+const KIND_COPY: Record<CollectionKind, { title: string; text: string; icon: typeof Layers }> = {
+  card_set: {
+    title: "Completar um Set",
+    text: "Escolha uma expansão oficial e acompanhe quantas cartas você já tem e quais faltam.",
+    icon: Layers,
+  },
+  free: {
+    title: "Coleção livre",
+    text: "Reúna as cartas que quiser, do seu jeito — sem Set definido e sem contagem de progresso.",
+    icon: Sparkles,
+  },
+};
 
 function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOption[]; ownedSets: OwnedSet[]; onClose: () => void }) {
   const router = useRouter();
   const filterId = useId();
   const nameId = useId();
+  const codeId = useId();
   const storageId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
+  const kinds = availableCreationKinds();
+  // Um só tipo disponível: sem passo de escolha — abre direto nele.
+  const [kind, setKind] = useState<CollectionKind | null>(() => initialCreationKind(kinds));
+  const [step, setStep] = useState<CreationStep>(() => creationSteps(initialCreationKind(kinds), kinds.length)[0] ?? "type");
   const [catalog, setCatalog] = useState<{ status: "loading" | "error" } | { status: "ready"; options: SetOption[] }>({ status: "loading" });
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [filter, setFilter] = useState("");
   const [setCode, setSetCode] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
+  // Código opcional da Coleção livre (5179/5180): vazio = sem código.
+  const [coverCode, setCoverCode] = useState("");
   const [storage, setStorage] = useState<string | null>(null);
   const [submit, setSubmit] = useState<Submit>({ status: "idle" });
   // Uma chave por pedido: reaproveitada em toda nova tentativa do mesmo pedido.
   const keyRef = useRef<{ payload: string; key: string } | null>(null);
 
   const busy = submit.status === "pending";
-  const step = storageStep(locations);
+  const locationStep = storageStep(locations);
+  const steps = creationSteps(kind, kinds.length);
+  const stepIndex = steps.indexOf(step);
 
+  // Lista de Sets só é buscada quando o passo do Set existe de fato.
+  const needsCatalog = kind === "card_set";
   useEffect(() => {
+    if (!needsCatalog) return;
     const controller = new AbortController();
     setCatalog({ status: "loading" });
     fetch("/api/cards/filter-options", { signal: controller.signal })
@@ -101,7 +141,12 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
         if (error.name !== "AbortError") setCatalog({ status: "error" });
       });
     return () => controller.abort();
-  }, [loadAttempt]);
+  }, [loadAttempt, needsCatalog]);
+
+  // Cada passo novo anuncia o próprio título (leitor de tela e teclado).
+  useEffect(() => {
+    if (step !== "set") headingRef.current?.focus();
+  }, [step]);
 
   const ownedCodes = useMemo(() => new Set(ownedSets.map((set) => set.code)), [ownedSets]);
   const term = filter.trim().toLocaleLowerCase("pt-BR");
@@ -113,30 +158,66 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
     ...(catalog.status === "ready" ? catalog.options.map((option) => [option.code, option.name] as const) : []),
     ...ownedSets.map((set) => [set.code, set.name] as const),
   ]);
+  const setLabel = setCode ? allNames.get(setCode) ?? setCode.toUpperCase() : "";
+
+  const resetError = () => {
+    if (submit.status === "error") setSubmit({ status: "idle" });
+  };
+
+  const chooseKind = (next: CollectionKind) => {
+    if (next !== kind) {
+      setKind(next);
+      setSetCode(null);
+      if (!nameTouched) setName(next === "free" ? suggestFreeCollectionName() : "");
+    }
+    resetError();
+    setStep(creationSteps(next, kinds.length)[1] ?? "details");
+  };
 
   const chooseSet = (code: string) => {
     setSetCode(code);
     if (!nameTouched) setName(suggestCollectionName(allNames.get(code) ?? code.toUpperCase()));
-    if (submit.status === "error") setSubmit({ status: "idle" });
+    resetError();
   };
 
-  const ready = canSubmitCreate({ setCode, name, locations, storageId: step === "choose" ? storage : null });
+  const goBack = () => {
+    if (busy || stepIndex <= 0) return;
+    resetError();
+    setStep(steps[stepIndex - 1] ?? "type");
+  };
+
+  const codeEnabled = FREE_COVER_CODE_ENABLED && kind === "free";
+  const normalizedCode = codeEnabled ? normalizeCoverCode(coverCode) : null;
+  const codeInvalid = normalizedCode === "invalid";
+  const ready =
+    kind !== null &&
+    !codeInvalid &&
+    canSubmitCreate({ kind, setCode, name, locations, storageId: locationStep === "choose" ? storage : null });
 
   const send = async () => {
     const normalized = normalizeCollectionName(name);
-    if (!ready || busy || !setCode || !normalized) return;
-    const storageContainerId = step === "choose" ? storage : null;
-    const payload = JSON.stringify([setCode, normalized, storageContainerId]);
+    if (!ready || busy || !kind || !normalized) return;
+    const storageContainerId = locationStep === "choose" ? storage : null;
+    const code = normalizedCode === "invalid" ? null : normalizedCode;
+    // O código não entra na chave: mudar só o código e reenviar reaproveita a
+    // mesma coleção (5175 idempotente) e regrava o código (5180 idempotente).
+    const payload = JSON.stringify([kind, kind === "card_set" ? setCode : null, normalized, storageContainerId]);
     if (keyRef.current?.payload !== payload) keyRef.current = { payload, key: crypto.randomUUID() };
     setSubmit({ status: "pending" });
-    const result = await createCollectionFromSet({
-      idempotencyKey: keyRef.current.key,
-      setCode,
-      name: normalized,
-      storageContainerId,
-    }).catch(() => ({ ok: false as const, reason: "unavailable" as const }));
+    const request =
+      kind === "free"
+        ? createFreeCollection({ idempotencyKey: keyRef.current.key, name: normalized, storageContainerId, coverCode: code })
+        : createCollectionFromSet({ idempotencyKey: keyRef.current.key, setCode: setCode ?? "", name: normalized, storageContainerId });
+    const result = await request.catch(() => ({ ok: false as const, reason: "unavailable" as const }));
     if (result.ok) {
-      setSubmit({ status: "done", href: result.href, storageCreated: result.storageCreated, name: normalized });
+      setSubmit({
+        status: "done",
+        href: result.href,
+        storageCreated: result.storageCreated,
+        name: normalized,
+        kind,
+        codeSaved: "codeSaved" in result ? result.codeSaved === true : true,
+      });
       router.refresh();
     } else {
       setSubmit({ status: "error", reason: result.reason });
@@ -144,6 +225,8 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
       if (result.reason === "storage_required" || result.reason === "storage_invalid") router.refresh();
     }
   };
+
+  const stepCounter = submit.status === "done" ? null : `Passo ${stepIndex + 1} de ${steps.length}`;
 
   return (
     <DialogPrimitive.Root open onOpenChange={(next) => !next && !busy && onClose()}>
@@ -156,7 +239,10 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
           onPointerDownOutside={(event) => busy && event.preventDefault()}
         >
           <div className={acervoStyles.drawerHeader}>
-            <DialogPrimitive.Title className={addStyles.panelTitle}>Nova coleção</DialogPrimitive.Title>
+            <div>
+              <DialogPrimitive.Title className={addStyles.panelTitle}>Nova coleção</DialogPrimitive.Title>
+              {stepCounter ? <p className={styles.stepLabel}>{stepCounter}</p> : null}
+            </div>
             <DialogPrimitive.Close
               disabled={busy}
               className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
@@ -169,28 +255,61 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
           {submit.status === "done" ? (
             <DoneView
               name={submit.name}
+              kind={submit.kind}
               storageCreated={submit.storageCreated}
-              onOpen={() => router.push(submit.href)}
+              codeSaved={submit.codeSaved}
+              onOpen={() => router.push(submit.kind === "free" ? `${submit.href}?${ADD_PARAM}=1` : submit.href)}
               onClose={onClose}
             />
-          ) : (
+          ) : step === "type" ? (
             <>
               <div className={addStyles.body}>
-                <div className={styles.kindCard}>
-                  <span className={styles.kindIcon} aria-hidden="true">
-                    <Layers className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <p className={styles.kindTitle}>Completar um Set</p>
-                    <p className={styles.kindText}>
-                      Set padrão — uma de cada carta. O progresso mostra quantas você já tem e quais faltam.
-                    </p>
-                  </div>
+                <div className={styles.stepHead}>
+                  <h2 ref={headingRef} tabIndex={-1} className={styles.stepHeading}>
+                    Que coleção você quer começar?
+                  </h2>
                 </div>
-
+                <ul className={styles.typeList}>
+                  {kinds.map((option) => {
+                    const copy = KIND_COPY[option];
+                    const Icon = copy.icon;
+                    return (
+                      <li key={option}>
+                        <button
+                          type="button"
+                          className={styles.typeOption}
+                          aria-pressed={kind === option}
+                          onClick={() => chooseKind(option)}
+                        >
+                          <span className={styles.kindIcon} aria-hidden="true">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span>
+                            <span className={`${styles.kindTitle} block`}>{copy.title}</span>
+                            <span className={`${styles.kindText} block`}>{copy.text}</span>
+                          </span>
+                          <ChevronRight className={`h-4 w-4 ${styles.typeArrow}`} aria-hidden="true" />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <div className={addStyles.footer}>
+                <span className={addStyles.footerLead} />
+                <div className={addStyles.footerActions}>
+                  <Button variant="outline" onClick={onClose}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : step === "set" ? (
+            <>
+              <div className={addStyles.body}>
                 <section aria-labelledby={`${filterId}-label`}>
                   <label id={`${filterId}-label`} htmlFor={filterId} className={addStyles.sectionTitle}>
-                    Set
+                    Qual Set você quer completar?
                   </label>
                   <div className={addStyles.searchWrap}>
                     <Search className={addStyles.searchIcon} aria-hidden="true" />
@@ -202,7 +321,6 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                       placeholder="Filtrar por nome ou código"
                       autoComplete="off"
                       autoFocus
-                      disabled={busy}
                       className={addStyles.searchInput}
                     />
                   </div>
@@ -226,18 +344,64 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                           key={option.code}
                           option={option}
                           checked={option.code === setCode}
-                          disabled={busy}
+                          disabled={false}
                           onChoose={chooseSet}
                           extra={<span className={styles.setOwned}>{formatCount(option.count)} no acervo</span>}
                         />
                       ))}
                       {others.length > 0 && owned.length > 0 ? <p className={styles.setGroupLabel}>Outros Sets</p> : null}
                       {others.map((option) => (
-                        <SetRadio key={option.code} option={option} checked={option.code === setCode} disabled={busy} onChoose={chooseSet} />
+                        <SetRadio key={option.code} option={option} checked={option.code === setCode} disabled={false} onChoose={chooseSet} />
                       ))}
                     </div>
                   ) : null}
                 </section>
+              </div>
+              <div className={addStyles.footer}>
+                <span className={addStyles.footerLead} aria-live="polite">
+                  {setLabel}
+                </span>
+                <div className={addStyles.footerActions}>
+                  {stepIndex > 0 ? (
+                    <Button variant="outline" onClick={goBack}>
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      Voltar
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={onClose}>
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button onClick={() => setStep("details")} disabled={!setCode}>
+                    Continuar
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={addStyles.body}>
+                <div className={styles.stepHead}>
+                  <h2 ref={headingRef} tabIndex={-1} className={styles.stepHeading}>
+                    {kind === "free" ? "Dê um nome à sua coleção" : "Quase lá"}
+                  </h2>
+                </div>
+
+                {kind ? (
+                  <div className={styles.kindCard}>
+                    <span className={styles.kindIcon} aria-hidden="true">
+                      {kind === "free" ? <Sparkles className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
+                    </span>
+                    <div>
+                      <p className={styles.kindTitle}>{kind === "card_set" && setLabel ? setLabel : KIND_COPY[kind].title}</p>
+                      <p className={styles.kindText}>
+                        {kind === "card_set"
+                          ? "Set padrão — uma de cada carta. O progresso mostra quantas você já tem e quais faltam."
+                          : "Curadoria sua, sem contagem de progresso. Você decide o que entra."}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className={addStyles.field}>
                   <label htmlFor={nameId} className={addStyles.sectionTitle}>
@@ -251,13 +415,42 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                       setName(event.target.value);
                       setNameTouched(true);
                     }}
-                    placeholder={setCode ? "Dê um nome à coleção" : "Escolha um Set para sugerirmos um nome"}
+                    placeholder="Dê um nome à coleção"
                     disabled={busy}
                     autoComplete="off"
                   />
                 </div>
 
-                {step === "auto" ? (
+                {codeEnabled ? (
+                  <div className={addStyles.field}>
+                    <label htmlFor={codeId} className={addStyles.sectionTitle}>
+                      Código da capa <span className={styles.coverCodeOptional}>(opcional)</span>
+                    </label>
+                    <Input
+                      id={codeId}
+                      value={coverCode}
+                      maxLength={COVER_CODE_MAX}
+                      onChange={(event) => {
+                        setCoverCode(sanitizeCoverCodeInput(event.target.value));
+                        resetError();
+                      }}
+                      placeholder="Ex.: MMK"
+                      disabled={busy}
+                      autoComplete="off"
+                      spellCheck={false}
+                      invalid={codeInvalid}
+                      aria-describedby={`${codeId}-hint`}
+                      className={styles.coverCodeInput}
+                    />
+                    <p id={`${codeId}-hint`} className={styles.fieldHint}>
+                      {codeInvalid
+                        ? "Use de 2 a 6 letras ou números — ou deixe em branco."
+                        : "De 2 a 6 letras ou números. Aparece na capa do fichário. Pode ficar em branco."}
+                    </p>
+                  </div>
+                ) : null}
+
+                {locationStep === "auto" ? (
                   <div className={styles.autoLocation}>
                     <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <p>
@@ -299,12 +492,11 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
               </div>
 
               <div className={addStyles.footer}>
-                <span className={addStyles.footerLead} aria-live="polite">
-                  {setCode ? allNames.get(setCode) ?? setCode.toUpperCase() : ""}
-                </span>
+                <span className={addStyles.footerLead} />
                 <div className={addStyles.footerActions}>
-                  <Button variant="outline" onClick={onClose} disabled={busy}>
-                    Cancelar
+                  <Button variant="outline" onClick={goBack} disabled={busy}>
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                    Voltar
                   </Button>
                   <Button onClick={() => void send()} disabled={!ready || busy} aria-busy={busy}>
                     {busy ? <Loader2 className={`h-4 w-4 ${addStyles.spin}`} aria-hidden="true" /> : null}
@@ -353,12 +545,16 @@ function SetRadio({
 
 function DoneView({
   name,
+  kind,
   storageCreated,
+  codeSaved,
   onOpen,
   onClose,
 }: {
   name: string;
+  kind: CollectionKind;
   storageCreated: boolean;
+  codeSaved: boolean;
   onOpen: () => void;
   onClose: () => void;
 }) {
@@ -375,11 +571,18 @@ function DoneView({
             {name} está pronta
           </h2>
           <p className={addStyles.doneText}>
-            A coleção começa vazia. Abra para ver o Set inteiro e adicionar as cartas que você já tem — uma de cada.
+            {kind === "free"
+              ? "A coleção começa vazia. Escolha agora as primeiras cartas do seu acervo — de qualquer Set."
+              : "A coleção começa vazia. Abra para ver o Set inteiro e adicionar as cartas que você já tem — uma de cada."}
           </p>
           {storageCreated ? (
             <p className={addStyles.doneText}>
               Também criamos o seu <strong>Local padrão</strong>. Nenhuma carta foi atribuída a ele.
+            </p>
+          ) : null}
+          {!codeSaved ? (
+            <p className={addStyles.doneText}>
+              Não conseguimos salvar o código da capa agora. A coleção está criada — defina o código depois, na página dela.
             </p>
           ) : null}
         </div>
@@ -390,7 +593,7 @@ function DoneView({
           <Button variant="outline" onClick={onClose}>
             Ver minhas coleções
           </Button>
-          <Button onClick={onOpen}>Abrir coleção</Button>
+          <Button onClick={onOpen}>{kind === "free" ? "Escolher as primeiras cartas" : "Abrir e adicionar cartas"}</Button>
         </div>
       </div>
     </>
