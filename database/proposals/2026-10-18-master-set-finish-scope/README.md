@@ -43,6 +43,7 @@
 | `5836` | `5836_validate_master_set_finish_scope.sql` | Harness funcional/segurança/regressão/preservação — **74 checagens + GATE** (v1.1: seções 11 e 12; casos 2.3, 4.8, 9.4) | protocolo de `5830`–`5835` |
 | `5837` | `5837_performance_master_set_finish_scope.sql` | Desempenho (maior Set do LIVE + Biblioteca com 20 Master Sets, incluindo `get_my_collections`) — **10 checagens + GATE** | — |
 | `5838` | `5838_baseline_completion_snapshot.sql` | v1.3 — **script psql em duas fases** (coleção livre = resumo ausente esperado): (A) DDL temporária de sessão (`pg_temp`, transação própria); (B) snapshot em transação aberta como `REPEATABLE READ, READ ONLY`, que a função confere e sem a qual se recusa a rodar; md5 do resumo de cada coleção, antes × depois, sem expor ids; qualquer erro ou lacuna marca o resultado como `INVALIDO` | prova comportamental de regressão (Set padrão e Pokédex) |
+| `5840` | `5840_baseline_completion_sql_editor.sql` | **Baseline oficial para o LIVE** (substitui o protocolo psql do 5838 para Fabrício): só SELECT no SQL Editor; claims locais à requisição; oráculo independente × resumo real; GATE md5 | 5838 fica como alternativa psql, não usada |
 | `5839` | `5839_validate_5197_dependency_guard.sql` | **Somente ambiente descartável** (opt-in `mmkyu.disposable_db`): 16 casos do guarda de dependências do 5197 (P1–P3, N1–N12, resíduo) | bloco do guarda idêntico ao 5197 |
 | — | `CONCURRENCY-PROOF-MASTER-SET-FINISH.sql` | Roteiro manual K1–K5 (duas sessões psql) | formato da prova BULK-01 |
 | — | `LIVE-EXECUTION-READINESS-01.md` | Pré-check do LIVE (só leitura), classificação A/B/C dos testes, plano, comandos, STOP e esforço | decisão: validação direto no LIVE |
@@ -198,3 +199,40 @@ Qualquer linha `INVALIDO` (erro, resumo vazio ou cobertura incompleta) **não é
 A linha da CORRECTION-02 sobre o 5838 (`transaction_read_only = on` como primeira instrução) fica como registro histórico, substituída por esta.
 
 Verificações complementares sem achado: o guarda `<dep-guard v1.2>` continua idêntico no 5197 e no 5839; a classificação por dono e os 16 casos do 5839 foram revistos sem mudança.
+
+## Baseline sem psql (5840) — MASTER-SET-BASELINE-WITHOUT-PSQL-01 (2026-10-18)
+
+**Execução:** colar `5840_baseline_completion_sql_editor.sql` inteiro no SQL Editor e clicar **Run**. Duas instruções SELECT, mesma requisição, mesma transação; o editor mostra a segunda.
+
+**Evidência (agente, mesmo canal de consulta do Studio, só leitura):**
+- claims definidas na 1ª instrução são vistas na 2ª (`auth.uid()` = valor definido) e **não** existem na requisição seguinte (`auth.uid()` NULL, claims NULL);
+- sem as claims o resumo devolve 0 linhas — a identidade é necessária e é conferida (coluna `identidade`);
+- nenhuma transação recebeu txid (sem escrita);
+- duas execuções seguidas: saída idêntica.
+
+**Resultado esperado no LIVE de 2026-10-18 (pré-aplicação):**
+
+| ordem | item | detalhe | status |
+|---|---|---|---|
+| 1 | COLECAO C1 | `C1\|STANDARD_SET\|REFERENCE_BASED\|set=ME5.5\|alloc=147\|oraculo=158/147\|resumo=158/147/11/93.04/f` | OK |
+| 2 | COLECAO C2 | `C2\|STANDARD_SET\|REFERENCE_BASED\|set=ME5.5CC\|alloc=7\|oraculo=30/7\|resumo=30/7/23/23.33/f` | OK |
+| 3 | COLECAO C3 | `C3\|NONE\|OPEN_CURATION\|set=-\|alloc=56\|oraculo=-/-\|resumo=SEM_RESUMO` | OK |
+| 900 | COBERTURA | `lidas=3/3; invalidas=0; donos=1; identidade=t` | OK |
+| 999 | GATE | `6493dffc5c668bbdc4e2bd438ce296ea` | OK |
+
+**PASS antes da aplicação:** Fabrício executa 2 vezes; as duas saídas iguais à tabela acima (todas `OK`, mesmo GATE).
+**PASS depois da aplicação (E7):** executar 1 vez; mesmas 5 linhas e mesmo GATE `6493dffc…`, sem nenhuma escrita em coleções, vínculos, exemplares ou catálogo entre as execuções.
+**STOP:** qualquer `INVALIDO`; `identidade=f`; `donos` ≠ 1; `lidas` ≠ `existentes`; GATE diferente ou vazio; detalhe de qualquer coleção diferente.
+
+**Cobertura em relação ao 5838 (psql):**
+
+| Aspecto | 5838 | 5840 |
+|---|---|---|
+| Ferramenta | psql, senha do banco | SQL Editor, sem senha |
+| Escrita impossível | transação aberta como READ ONLY | só SELECT; única função volátil é `set_config` (parâmetro local); o resumo é STABLE (o PostgreSQL proíbe escrita dentro dele) |
+| DDL temporária | sim (`pg_temp`) | não |
+| Identidade | por coleção, laço procedural | uma vez, para o único dono (pré-condição conferida) |
+| Coleção livre | `NONE\|SEM_RESUMO` | `SEM_RESUMO` com status OK |
+| Comparação com oráculo independente | não | **sim** (Set padrão: total e satisfeitas recalculados das tabelas) |
+| Vários donos | suportado | **não** — acusa `donos` ≠ 1 e invalida; com mais de um dono, voltar ao 5838 ou estender o 5840 |
+| Pokédex (`REFERENCE_POSITION`) / MASTER_SET | resumo comparado por md5 | só exige resumo presente; o LIVE não tem nenhuma |

@@ -176,3 +176,7 @@ Recuperação: `RECOVERY-MASTER-SET-FINISH.sql` (R0 guarda, R-B1 se 5197 entrou,
 - **Recuperação confirmada:** os 9 corpos canônicos usados na reversão são equivalentes aos do LIVE (6 idênticos; 5079, 5080 e 5084 diferem só por comentários de linha); ACLs iguais. `RECOVERY-MASTER-SET-FINISH.sql` v1.1 traz a ordem exata dos dois caminhos, a convenção de ledger (`ms_finish_recovery_<NN>_<o-que>`, sem apagar histórico) e o gate com os md5 esperados.
 - **Falha concreta corrigida no 5838 (v1.3):** o resumo (5102) não devolve linha para coleção livre (`NONE`); o LIVE tem 1, e a v1.2 marcaria o snapshot como `INVALIDO` sempre. A v1.3 registra `id|NONE|SEM_RESUMO` (entra no md5, não é lacuna). Nenhuma outra mudança.
 - **Baseline esperado do 5838 no LIVE de hoje:** 4 linhas — `NONE × OPEN_CURATION` (1), `STANDARD_SET × REFERENCE_BASED` (2), COBERTURA `3/3, 0, 0`, GATE com digest — todas `OK`.
+
+## 9. Baseline sem psql (2026-10-18)
+
+Fabrício não usa psql nem senha de banco. **E2 e E7 passam a usar o `5840`** (SQL Editor, só SELECT), não o `5838`. Resultado esperado, PASS/STOP e diferenças de cobertura: README da proposta, seção "Baseline sem psql (5840)". GATE pré-aplicação esperado: `6493dffc5c668bbdc4e2bd438ce296ea`.
