@@ -9,6 +9,7 @@ import {
   readMasterSetOutOfScope,
   readMasterSetPositionCopies,
 } from "@/app/colecoes/colecoes/actions";
+import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { formatCount } from "@/lib/colecoes/acervo";
@@ -201,6 +202,7 @@ function AddFromAcervoPanel({
   imageUrl: string | null;
   onClose: () => void;
 }) {
+  const restoreFocus = useRestoreFocus();
   const router = useRouter();
   const [load, setLoad] = useState<CopiesLoad>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -252,6 +254,7 @@ function AddFromAcervoPanel({
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => locked && event.preventDefault()}
           onPointerDownOutside={(event) => locked && event.preventDefault()}
+          onCloseAutoFocus={restoreFocus}
         >
           <div className={acervoStyles.drawerHeader}>
             <div className="min-w-0">

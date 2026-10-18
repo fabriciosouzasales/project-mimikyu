@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | Preparado (2026-10-18, `5199-CLOSEOUT / FRONTEND-HOMOLOGATION-READINESS`; H9b acrescentado no `FRONTEND-HOMOLOGATION-GATE-01`). **Não executado.** |
+| **Status** | **EXECUTADO — PASS (2026-10-18)** na coleção HOMOLOG (ME5, 194 posições). H1–H14 + H9b PASS; H12b (offline ao confirmar) não executado. Achado corrigido na rodada: foco não voltava ao botão de origem ao fechar painéis (`web/hooks/use-restore-focus.ts`). Restauração concluída: coleção excluída; foto depois idêntica à foto antes (3 coleções, 0 Master Set, 1.351 exemplares, 210 vínculos, 1 local, `fp_exemplares` 4dc4d7b0…, `fp_vinculos_reais` c73a753a…). |
 | **Quem executa** | Fabrício, na própria máquina (`npm run dev`) e no SQL Editor. Escritas no LIVE só com autorização explícita registrada. |
 | **Escopo** | Jornada completa do colecionador numa coleção de homologação controlada. Nenhuma coleção real é tocada. |
 
@@ -82,3 +82,9 @@ commit;
 ## 5. Registro
 
 Anotar em `docs/log.md` (uma linha) e no HANDOFF: data, Set usado, resultado H1–H14, capturas (pasta local), foto antes/depois idênticas. Publicação (`*_RELEASED = true`) só depois disso e com autorização.
+
+## 6. Resultado (2026-10-18)
+
+- PASS: H1–H11, H6 (secreta genérica com só Holográfica Reversa: 107 posições = 71 + 36), H9b (título e lista concordam), H12a (Slow 4G), H12c (falha de rede no painel + Tentar novamente), H13 (após a correção do foco), H14 (claro/escuro, desktop e 375 px).
+- Não executado: H12b (offline ao confirmar mudança de objetivo).
+- Observações sem correção: texto da prévia "em relação ao Master Set de hoje" quando hoje é Set padrão; rótulo "Secreta · qualquer aca…" truncado no desktop; leque de cartas do topo sobrepõe o subtítulo em largura intermediária (~800 px com menu lateral, componente compartilhado); painel "Exemplares nesta coleção" mostra a versão principal ("Versão Padrão") e não o acabamento.

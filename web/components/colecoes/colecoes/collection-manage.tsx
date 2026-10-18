@@ -11,6 +11,7 @@ import {
   setCollectionStorage,
   unlinkCopyFromCollection,
 } from "@/app/colecoes/colecoes/actions";
+import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
@@ -132,6 +133,7 @@ function CopiesPanel({
   target: CardTarget;
   onClose: () => void;
 }) {
+  const restoreFocus = useRestoreFocus();
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -201,6 +203,7 @@ function CopiesPanel({
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => locked && event.preventDefault()}
           onPointerDownOutside={(event) => locked && event.preventDefault()}
+          onCloseAutoFocus={restoreFocus}
         >
           <PanelHeader title="Exemplares nesta coleção" subtitle={collectionName} disabled={locked} />
           <p className="sr-only" role="status" aria-live="polite">
@@ -436,6 +439,7 @@ function SettingsPanel({
   identity: Identity;
   onClose: () => void;
 }) {
+  const restoreFocus = useRestoreFocus();
   const router = useRouter();
   const selectId = useId();
   const helpId = useId();
@@ -506,6 +510,7 @@ function SettingsPanel({
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => locked && event.preventDefault()}
           onPointerDownOutside={(event) => locked && event.preventDefault()}
+          onCloseAutoFocus={restoreFocus}
         >
           <PanelHeader title="Ajustes da coleção" subtitle={collectionName} disabled={locked} />
 

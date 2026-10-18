@@ -11,6 +11,7 @@ import {
   linkCopiesToCollection,
   readGroupCopies,
 } from "@/app/colecoes/colecoes/actions";
+import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -160,6 +161,7 @@ function PickerPanel({
   collectionName: string;
   onClose: () => void;
 }) {
+  const restoreFocus = useRestoreFocus();
   const router = useRouter();
   const searchId = useId();
   const setFilterId = useId();
@@ -422,6 +424,7 @@ function PickerPanel({
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => busy && event.preventDefault()}
           onPointerDownOutside={(event) => busy && event.preventDefault()}
+          onCloseAutoFocus={restoreFocus}
         >
           <div className={acervoStyles.drawerHeader}>
             <div className="min-w-0">

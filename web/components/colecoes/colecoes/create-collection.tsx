@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Info, Layers, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import { createCollectionFromSet, createFreeCollection } from "@/app/colecoes/colecoes/actions";
+import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -99,6 +100,7 @@ const KIND_COPY: Record<CollectionKind, { title: string; text: string; icon: typ
 };
 
 function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOption[]; ownedSets: OwnedSet[]; onClose: () => void }) {
+  const restoreFocus = useRestoreFocus();
   const router = useRouter();
   const filterId = useId();
   const nameId = useId();
@@ -237,6 +239,7 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => busy && event.preventDefault()}
           onPointerDownOutside={(event) => busy && event.preventDefault()}
+          onCloseAutoFocus={restoreFocus}
         >
           <div className={acervoStyles.drawerHeader}>
             <div>

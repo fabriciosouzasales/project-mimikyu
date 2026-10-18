@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Loader2, Plus, X } from "lucide-react";
 import { type LinkReview, linkOneOfEach, reviewLinkOneOfEach } from "@/app/colecoes/colecoes/actions";
+import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { Button } from "@/components/ui/button";
 import { cardFrontUrl, formatCollectorNumber, formatCount } from "@/lib/colecoes/acervo";
 import {
@@ -82,6 +83,7 @@ type Commit =
   | { status: "done"; linked: number };
 
 function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; setCode: string; onClose: () => void }) {
+  const restoreFocus = useRestoreFocus();
   const router = useRouter();
   const [review, setReview] = useState<Review>({ status: "loading" });
   const [selected, setSelected] = useState<Record<string, string>>({});
@@ -145,6 +147,7 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => busy && event.preventDefault()}
           onPointerDownOutside={(event) => busy && event.preventDefault()}
+          onCloseAutoFocus={restoreFocus}
         >
           <div className={acervoStyles.drawerHeader}>
             <DialogPrimitive.Title className={addStyles.panelTitle}>Adicionar cartas</DialogPrimitive.Title>
