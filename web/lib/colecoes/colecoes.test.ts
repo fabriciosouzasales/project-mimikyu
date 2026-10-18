@@ -290,6 +290,9 @@ test("criação: tipos disponíveis, passos por tipo e envio da Coleção livre"
   assert.deepEqual(creationSteps("card_set", 1), ["set", "details"]);
   assert.deepEqual(creationSteps("card_set"), ["type", "set", "details"], "dois tipos → escolha de tipo primeiro");
   assert.deepEqual(creationSteps("free"), ["type", "details"]);
+  assert.deepEqual(creationSteps("card_set", 2, true), ["type", "set", "objective", "details"], "Master Set ligado → passo Objetivo");
+  assert.deepEqual(creationSteps("card_set", 1, true), ["set", "objective", "details"]);
+  assert.deepEqual(creationSteps("free", 2, true), ["type", "details"], "Coleção livre não tem objetivo");
   assert.equal(initialCreationKind(), null);
   assert.equal(initialCreationKind(["card_set"]), "card_set");
   assert.equal(initialCreationKind(["card_set", "free"]), null);

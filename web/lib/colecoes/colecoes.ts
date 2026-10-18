@@ -359,15 +359,22 @@ export function availableCreationKinds(freeEnabled: boolean = FREE_COLLECTION_EN
   return freeEnabled ? ["card_set", "free"] : ["card_set"];
 }
 
-export type CreationStep = "type" | "set" | "details";
+export type CreationStep = "type" | "set" | "objective" | "details";
 
 /**
- * Jornada progressiva: tipo → configuração do tipo (só Set) → nome e local.
+ * Jornada progressiva: tipo → configuração do tipo (só Set) → [objetivo:
+ * Set padrão × Master Set, só com o Master Set ligado] → nome e local.
  * O passo "tipo" só existe quando há mais de um tipo disponível
  * (FREE-COLLECTION-READINESS-01): com um só, a criação abre direto nele.
  */
-export function creationSteps(kind: CollectionKind | null, kindCount: number = availableCreationKinds().length): CreationStep[] {
-  const steps: CreationStep[] = kind === "free" ? ["type", "details"] : ["type", "set", "details"];
+export function creationSteps(
+  kind: CollectionKind | null,
+  kindCount: number = availableCreationKinds().length,
+  /** Passo "Objetivo" (Set padrão × Master Set) depois do Set — só com o Master Set ligado. */
+  withObjective: boolean = false,
+): CreationStep[] {
+  const steps: CreationStep[] =
+    kind === "free" ? ["type", "details"] : withObjective ? ["type", "set", "objective", "details"] : ["type", "set", "details"];
   return kindCount > 1 ? steps : steps.slice(1);
 }
 

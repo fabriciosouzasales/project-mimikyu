@@ -3,8 +3,8 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Info, Layers, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
-import { createCollectionFromSet, createFreeCollection } from "@/app/colecoes/colecoes/actions";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Gem, Info, Layers, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
+import { activateMasterSetOnCreate, createCollectionFromSet, createFreeCollection } from "@/app/colecoes/colecoes/actions";
 import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import {
   suggestCollectionName,
   suggestFreeCollectionName,
 } from "@/lib/colecoes/colecoes";
+import { type CompletionObjective, MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
 import { ADD_PARAM, COVER_CODE_MAX, FREE_COVER_CODE_ENABLED, normalizeCoverCode, sanitizeCoverCodeInput } from "@/lib/colecoes/free-collection";
 import addStyles from "../acervo/acervo-add.module.css";
 import acervoStyles from "../acervo/acervo.module.css";
@@ -45,7 +46,13 @@ type SetOption = { code: string; name: string };
  * (CT-01 estendido, Query 5175), ambos no LIVE; a livre depende de
  * `FREE_COLLECTION_ENABLED` (ligado em FREE-COLLECTION-FRONTEND-COMPLETION-01)
  * e, ao terminar, leva direto a "Adicionar cartas do meu acervo". "Completar a Pokédex" não aparece antes da P7 (nem desabilitada).
- * Master Set não é tipo de criação. Nenhum termo técnico chega ao usuário.
+ * Master Set não é tipo de criação: é o objetivo de uma coleção de Set. Com
+ * `MASTER_SET_OBJECTIVE_ENABLED`, depois do Set vem o passo "Objetivo" (Set
+ * padrão × Master Set, MASTER-SET-CREATE-01); em Master Set a coleção é
+ * criada (5167) e o objetivo é ativado em seguida (5191 + 5194) com a
+ * sugestão de acabamentos de Ajustes. Se só a ativação falhar, a coleção fica
+ * em Set padrão e a conclusão oferece repetir a ativação. Nenhum termo técnico
+ * chega ao usuário.
  *
  * Regra D-A, espelhada do banco: sem nenhum local, nada é perguntado e o
  * banco cria o "Local padrão"; com um ou mais locais, a escolha é obrigatória
@@ -84,7 +91,36 @@ type Submit =
   | { status: "idle" }
   | { status: "pending" }
   | { status: "error"; reason: CollectionFailure }
-  | { status: "done"; href: string; storageCreated: boolean; name: string; kind: CollectionKind; codeSaved: boolean };
+  | { status: "activating" }
+  | {
+      status: "done";
+      href: string;
+      storageCreated: boolean;
+      name: string;
+      kind: CollectionKind;
+      codeSaved: boolean;
+      /** Só em "Completar um Set" com objetivo Master Set. */
+      master: MasterOutcome | null;
+      collectionId: string | null;
+    };
+
+type MasterOutcome =
+  | { status: "on"; total: number; finishes: number }
+  | { status: "retrying" }
+  | { status: "failed" };
+
+const OBJECTIVE_COPY: Record<CompletionObjective, { title: string; text: string; icon: typeof Layers }> = {
+  STANDARD_SET: {
+    title: "Set padrão",
+    text: "Uma de cada carta. O jeito mais simples de começar.",
+    icon: Layers,
+  },
+  MASTER_SET: {
+    title: "Master Set",
+    text: "Cada carta em cada acabamento que você escolher. Começamos com Padrão, Holográfica e Holográfica Reversa (os que existirem no Set) — você ajusta depois em Ajustes.",
+    icon: Gem,
+  },
+};
 
 const KIND_COPY: Record<CollectionKind, { title: string; text: string; icon: typeof Layers }> = {
   card_set: {
@@ -111,7 +147,9 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
   const kinds = availableCreationKinds();
   // Um só tipo disponível: sem passo de escolha — abre direto nele.
   const [kind, setKind] = useState<CollectionKind | null>(() => initialCreationKind(kinds));
-  const [step, setStep] = useState<CreationStep>(() => creationSteps(initialCreationKind(kinds), kinds.length)[0] ?? "type");
+  const [step, setStep] = useState<CreationStep>(
+    () => creationSteps(initialCreationKind(kinds), kinds.length, MASTER_SET_OBJECTIVE_ENABLED)[0] ?? "type",
+  );
   const [catalog, setCatalog] = useState<{ status: "loading" | "error" } | { status: "ready"; options: SetOption[] }>({ status: "loading" });
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [filter, setFilter] = useState("");
@@ -121,13 +159,14 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
   // Código opcional da Coleção livre (5179/5180): vazio = sem código.
   const [coverCode, setCoverCode] = useState("");
   const [storage, setStorage] = useState<string | null>(null);
+  const [objective, setObjective] = useState<CompletionObjective>("STANDARD_SET");
   const [submit, setSubmit] = useState<Submit>({ status: "idle" });
   // Uma chave por pedido: reaproveitada em toda nova tentativa do mesmo pedido.
   const keyRef = useRef<{ payload: string; key: string } | null>(null);
 
-  const busy = submit.status === "pending";
+  const busy = submit.status === "pending" || submit.status === "activating";
   const locationStep = storageStep(locations);
-  const steps = creationSteps(kind, kinds.length);
+  const steps = creationSteps(kind, kinds.length, MASTER_SET_OBJECTIVE_ENABLED);
   const stepIndex = steps.indexOf(step);
 
   // Lista de Sets só é buscada quando o passo do Set existe de fato.
@@ -173,7 +212,7 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
       if (!nameTouched) setName(next === "free" ? suggestFreeCollectionName() : "");
     }
     resetError();
-    setStep(creationSteps(next, kinds.length)[1] ?? "details");
+    setStep(creationSteps(next, kinds.length, MASTER_SET_OBJECTIVE_ENABLED)[1] ?? "details");
   };
 
   const chooseSet = (code: string) => {
@@ -212,6 +251,13 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
         : createCollectionFromSet({ idempotencyKey: keyRef.current.key, setCode: setCode ?? "", name: normalized, storageContainerId });
     const result = await request.catch(() => ({ ok: false as const, reason: "unavailable" as const }));
     if (result.ok) {
+      const wantsMaster = MASTER_SET_OBJECTIVE_ENABLED && kind === "card_set" && objective === "MASTER_SET";
+      const collectionId = result.collectionId ?? null;
+      let master: MasterOutcome | null = null;
+      if (wantsMaster && collectionId) {
+        setSubmit({ status: "activating" });
+        master = await activateMaster(collectionId);
+      }
       setSubmit({
         status: "done",
         href: result.href,
@@ -219,6 +265,8 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
         name: normalized,
         kind,
         codeSaved: "codeSaved" in result ? result.codeSaved === true : true,
+        master,
+        collectionId,
       });
       router.refresh();
     } else {
@@ -226,6 +274,23 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
       // Locais mudaram (outra aba criou um): recarrega para aplicar D-A com o estado real.
       if (result.reason === "storage_required" || result.reason === "storage_invalid") router.refresh();
     }
+  };
+
+  /** 5191 + 5194 (idempotente). Falha não desfaz a coleção: ela fica em Set padrão. */
+  async function activateMaster(collectionId: string): Promise<MasterOutcome> {
+    const outcome = await activateMasterSetOnCreate({ collectionId }).catch(() => ({ ok: false as const, reason: "unavailable" as const }));
+    return outcome.ok
+      ? { status: "on", total: outcome.total, finishes: outcome.finishes }
+      : { status: "failed" };
+  }
+
+  const retryMaster = async () => {
+    if (submit.status !== "done" || !submit.collectionId || submit.master?.status !== "failed") return;
+    const base = submit;
+    setSubmit({ ...base, master: { status: "retrying" } });
+    const master = await activateMaster(base.collectionId as string);
+    setSubmit({ ...base, master });
+    router.refresh();
   };
 
   const stepCounter = submit.status === "done" ? null : `Passo ${stepIndex + 1} de ${steps.length}`;
@@ -261,6 +326,8 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
               kind={submit.kind}
               storageCreated={submit.storageCreated}
               codeSaved={submit.codeSaved}
+              master={submit.master}
+              onRetryMaster={() => void retryMaster()}
               onOpen={() => router.push(submit.kind === "free" ? `${submit.href}?${ADD_PARAM}=1` : submit.href)}
               onClose={onClose}
             />
@@ -375,9 +442,58 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                       Cancelar
                     </Button>
                   )}
-                  <Button onClick={() => setStep("details")} disabled={!setCode}>
+                  <Button onClick={() => setStep(steps[stepIndex + 1] ?? "details")} disabled={!setCode}>
                     Continuar
                   </Button>
+                </div>
+              </div>
+            </>
+          ) : step === "objective" ? (
+            <>
+              <div className={addStyles.body}>
+                <div className={styles.stepHead}>
+                  <h2 ref={headingRef} tabIndex={-1} className={styles.stepHeading}>
+                    Como você quer completar {setLabel || "este Set"}?
+                  </h2>
+                </div>
+                <ul className={styles.typeList} role="radiogroup" aria-label="Objetivo da coleção">
+                  {(["STANDARD_SET", "MASTER_SET"] as const).map((option) => {
+                    const copy = OBJECTIVE_COPY[option];
+                    const Icon = copy.icon;
+                    return (
+                      <li key={option}>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={objective === option}
+                          className={styles.typeOption}
+                          onClick={() => {
+                            setObjective(option);
+                            resetError();
+                          }}
+                        >
+                          <span className={styles.kindIcon} aria-hidden="true">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span>
+                            <span className={`${styles.kindTitle} block`}>{copy.title}</span>
+                            <span className={`${styles.kindText} block`}>{copy.text}</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className={styles.fieldHint}>Você pode trocar o objetivo a qualquer momento em Ajustes — nenhuma carta sai da coleção.</p>
+              </div>
+              <div className={addStyles.footer}>
+                <span className={addStyles.footerLead} />
+                <div className={addStyles.footerActions}>
+                  <Button variant="outline" onClick={goBack}>
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                    Voltar
+                  </Button>
+                  <Button onClick={() => setStep(steps[stepIndex + 1] ?? "details")}>Continuar</Button>
                 </div>
               </div>
             </>
@@ -399,7 +515,9 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                       <p className={styles.kindTitle}>{kind === "card_set" && setLabel ? setLabel : KIND_COPY[kind].title}</p>
                       <p className={styles.kindText}>
                         {kind === "card_set"
-                          ? "Set padrão — uma de cada carta. O progresso mostra quantas você já tem e quais faltam."
+                          ? MASTER_SET_OBJECTIVE_ENABLED && objective === "MASTER_SET"
+                            ? "Master Set — cada carta nos acabamentos sugeridos. Você ajusta os acabamentos depois em Ajustes."
+                            : "Set padrão — uma de cada carta. O progresso mostra quantas você já tem e quais faltam."
                           : "Curadoria sua, sem contagem de progresso. Você decide o que entra."}
                       </p>
                     </div>
@@ -503,7 +621,7 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                   </Button>
                   <Button onClick={() => void send()} disabled={!ready || busy} aria-busy={busy}>
                     {busy ? <Loader2 className={`h-4 w-4 ${addStyles.spin}`} aria-hidden="true" /> : null}
-                    {busy ? "Criando…" : submit.status === "error" ? "Tentar novamente" : "Criar coleção"}
+                    {submit.status === "activating" ? "Ativando o Master Set…" : busy ? "Criando…" : submit.status === "error" ? "Tentar novamente" : "Criar coleção"}
                   </Button>
                 </div>
               </div>
@@ -551,6 +669,8 @@ function DoneView({
   kind,
   storageCreated,
   codeSaved,
+  master,
+  onRetryMaster,
   onOpen,
   onClose,
 }: {
@@ -558,6 +678,8 @@ function DoneView({
   kind: CollectionKind;
   storageCreated: boolean;
   codeSaved: boolean;
+  master: MasterOutcome | null;
+  onRetryMaster: () => void;
   onOpen: () => void;
   onClose: () => void;
 }) {
@@ -576,8 +698,30 @@ function DoneView({
           <p className={addStyles.doneText}>
             {kind === "free"
               ? "A coleção começa vazia. Escolha agora as primeiras cartas do seu acervo — de qualquer Set."
-              : "A coleção começa vazia. Abra para ver o Set inteiro e adicionar as cartas que você já tem — uma de cada."}
+              : master?.status === "on"
+                ? `Master Set com ${formatCount(master.total)} posições (${master.finishes === 1 ? "1 acabamento" : `${master.finishes} acabamentos`}). A coleção começa vazia — abra para adicionar as cartas que você já tem.`
+                : "A coleção começa vazia. Abra para ver o Set inteiro e adicionar as cartas que você já tem — uma de cada."}
           </p>
+          {master?.status === "failed" || master?.status === "retrying" ? (
+            <div className="w-full text-left">
+              <Notice title="A coleção foi criada em Set padrão">
+                Não conseguimos ativar o Master Set agora. Nada se perdeu — tente de novo ou ative depois em Ajustes.
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onRetryMaster}
+                    disabled={master.status === "retrying"}
+                    aria-busy={master.status === "retrying"}
+                    className="mt-2"
+                  >
+                    {master.status === "retrying" ? <Loader2 className={`h-4 w-4 ${addStyles.spin}`} aria-hidden="true" /> : null}
+                    {master.status === "retrying" ? "Ativando…" : "Tentar ativar de novo"}
+                  </Button>
+                </div>
+              </Notice>
+            </div>
+          ) : null}
           {storageCreated ? (
             <p className={addStyles.doneText}>
               Também criamos o seu <strong>Local padrão</strong>. Nenhuma carta foi atribuída a ele.

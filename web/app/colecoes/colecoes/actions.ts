@@ -55,6 +55,7 @@ import {
   type ObjectiveState,
   classifyObjectiveFailure,
   isCompletionObjective,
+  initialSelection,
   isFinishId,
   parseObjectiveOptions,
   parsePreview,
@@ -1036,6 +1037,44 @@ export async function saveCollectionObjective(input: {
   }
 
   return { ok: false, reason: "invalid" };
+}
+
+/**
+ * Criar já como Master Set (MASTER-SET-CREATE-01): logo depois de
+ * `createCollectionFromSet`, ativa o objetivo com a seleção inicial da
+ * interface — Padrão + Holográfica + Holográfica Reversa entre as que existem
+ * no Set (`initialSelection`, a mesma de Ajustes). Lê as opções do Set (5191) e
+ * grava com 5194 — os dois contratos já no LIVE, sem migration nova.
+ *
+ * Não é atômico com a criação: se esta etapa falhar, a coleção fica em Set
+ * padrão (estado válido) e a interface oferece repetir só a ativação. 5194 é
+ * idempotente (repetir a mesma lista nunca duplica nem falha).
+ */
+export async function activateMasterSetOnCreate(input: {
+  collectionId: string;
+}): Promise<{ ok: true; total: number; finishes: number } | ObjectiveFail> {
+  if (!MASTER_SET_OBJECTIVE_ENABLED) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const options = await supabase.rpc("get_my_master_set_finish_options", { p_collection_id: input.collectionId });
+  if (options.error || !Array.isArray(options.data)) {
+    return objectiveFail("get_my_master_set_finish_options", startedAt, options.error ?? { code: "BAD_SHAPE" });
+  }
+  const ids = normalizeFinishIds(initialSelection(parseObjectiveOptions(options.data).finishes));
+  if (ids === null) return { ok: false, reason: "empty_objective" };
+  const { data, error } = await supabase.rpc("set_collection_completion_policy_to_master_set", {
+    p_collection_id: input.collectionId,
+    p_variant_type_ids: ids,
+  });
+  const row = Array.isArray(data) ? (data[0] as { total_positions?: unknown } | undefined) : undefined;
+  if (error || !row) return objectiveFail("set_collection_completion_policy_to_master_set", startedAt, error ?? { code: "BAD_SHAPE" });
+  const saved = objectiveSaved("activate_on_create", startedAt, {
+    policy: "MASTER_SET" as const,
+    total: Number(row.total_positions ?? 0),
+    satisfied: null,
+  });
+  return { ok: true, total: saved.total, finishes: ids.length };
 }
 
 // ---------------------------------------------------------------------------
