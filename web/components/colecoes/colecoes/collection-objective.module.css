@@ -1,0 +1,470 @@
+/*
+ * Ajustes → Objetivo (MASTER-SET-FRONTEND-PHASE-01).
+ * Mesmo vocabulário do painel de Ajustes (collection-manage.module.css):
+ * bordas finas, raio 0.75rem, superfícies do workspace, dourado só no estado
+ * escolhido (--primary) — nunca como área grande.
+ */
+
+/* ---- Set padrão / Master Set ---- */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.choice {
+  position: relative;
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  min-height: 4.25rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.choice:hover {
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+.choice[data-checked] {
+  border-color: hsl(var(--primary) / 0.75);
+  background: hsl(var(--primary) / 0.07);
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.35) inset;
+}
+
+.choice[data-disabled],
+.choices:disabled .choice {
+  cursor: not-allowed;
+}
+
+.choice[data-disabled] {
+  opacity: 0.55;
+}
+
+.choices:disabled .choice:not([data-checked]) {
+  opacity: 0.6;
+}
+
+/* Input nativo invisível, mas focável e anunciado (rádio de verdade). */
+.choiceInput,
+.finishInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: inherit;
+}
+
+.choice:has(.choiceInput:focus-visible),
+.finish:has(.finishInput:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.choiceMark {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.0625rem;
+  border-radius: 999px;
+  border: 1.5px solid hsl(var(--muted-foreground) / 0.6);
+  display: grid;
+  place-items: center;
+  transition: border-color 160ms ease;
+}
+
+.choiceMark::after {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  transform: scale(0);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.choice[data-checked] .choiceMark {
+  border-color: hsl(var(--primary));
+}
+
+.choice[data-checked] .choiceMark::after {
+  transform: scale(1);
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.choiceTitle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  font: 700 0.875rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.choiceSubtitle {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: hsl(var(--muted-foreground));
+}
+
+.currentTag,
+.alwaysTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 999px;
+  font: 600 0.625rem/1.4 var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--surface-muted));
+}
+
+/* ---- acabamentos ---- */
+.finishes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.finishesLegend {
+  padding: 0;
+  font: 600 0.75rem/1.3 var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.finishesHint {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.finishList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.finish {
+  position: relative;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  min-height: 2.75rem;
+  padding: 0.6875rem 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.finish:hover {
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+/* Dourado só na marcação: com vários acabamentos marcados, a lista não vira um bloco dourado. */
+.finish[data-checked] {
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+.finishes:disabled .finish {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.0625rem;
+  border-radius: 0.3125rem;
+  border: 1.5px solid hsl(var(--muted-foreground) / 0.6);
+  color: transparent;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.finish[data-checked] .check {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.finishBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.finishName {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.finishMeta {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quanto do acabamento já está na coleção — informação, não decoração. */
+.meter {
+  display: block;
+  height: 3px;
+  margin-top: 0.25rem;
+  border-radius: 999px;
+  background: hsl(var(--surface-muted));
+  overflow: hidden;
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: hsl(var(--muted-foreground) / 0.45);
+  transition: background-color 160ms ease;
+}
+
+.finish[data-checked] .meterFill {
+  background: hsl(var(--primary));
+}
+
+/* ---- cartas secretas (sempre no objetivo, não é um acabamento) ---- */
+.secrets {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.875rem;
+  border: 1px dashed hsl(var(--primary) / 0.45);
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent 70%);
+}
+
+.secretsIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.0625rem;
+  color: hsl(var(--primary-ink));
+}
+
+.secretsNote {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.inlineHint {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- prévia ---- */
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1rem;
+  border: 1px solid hsl(var(--primary) / 0.45);
+  border-radius: 0.875rem;
+  background: hsl(var(--surface));
+  box-shadow: 0 18px 40px -28px hsl(0 0% 0% / 0.65);
+  animation: objective-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.reviewTitle {
+  font: 700 0.9375rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.reviewTitle:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}
+
+.reviewTitle:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.reviewLoading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 4.5rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.reviewBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.compareCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--surface-muted) / 0.6);
+  min-width: 0;
+}
+
+.compareCell[data-next] {
+  background: hsl(var(--primary) / 0.1);
+}
+
+.compareLabel {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.compareValue {
+  font: 800 1.25rem/1.1 var(--font-heading);
+  color: hsl(var(--foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.compareOf {
+  font: 500 0.8125rem/1 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.compareArrow {
+  width: 1rem;
+  height: 1rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.deltas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.deltaUp,
+.deltaDown {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--foreground));
+}
+
+.deltaNote {
+  color: hsl(var(--muted-foreground));
+}
+
+.reviewLine {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+}
+
+.reassure {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.reviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@keyframes objective-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (max-width: 480px) {
+  .choices {
+    grid-template-columns: 1fr;
+  }
+
+  .choice {
+    min-height: 0;
+  }
+
+  .compare {
+    grid-template-columns: 1fr;
+  }
+
+  .compareArrow {
+    transform: rotate(90deg);
+    justify-self: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice,
+  .choiceMark,
+  .choiceMark::after,
+  .finish,
+  .check,
+  .meterFill {
+    transition: none;
+  }
+
+  .review {
+    animation: none;
+  }
+}

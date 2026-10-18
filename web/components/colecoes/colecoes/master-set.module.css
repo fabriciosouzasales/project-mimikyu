@@ -1,0 +1,186 @@
+/*
+ * Grade do Master Set (MASTER-SET-FRONTEND-PHASE-02).
+ * Só o que a grade padrão não tem: a linha do acabamento sob o número, o
+ * botão "Adicionar do acervo" e a seção recolhível de exemplares fora do
+ * objetivo. Tile, arte, etiquetas e paginação são os da grade existente.
+ */
+
+/* ---- acabamento da posição ---- */
+.finishLine {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: hsl(var(--muted-foreground));
+}
+
+.finishLine::before {
+  content: "";
+  flex: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: hsl(var(--muted-foreground) / 0.45);
+}
+
+.finishLine[data-secret]::before {
+  display: none;
+}
+
+.finishText {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.secretIcon {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  color: hsl(var(--primary-ink));
+}
+
+/* ---- adicionar do acervo ---- */
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  margin-top: 0.25rem;
+  padding: 0 0.125rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--primary-ink));
+  border-radius: 0.375rem;
+  transition: color 160ms ease;
+}
+
+.addButton:hover {
+  color: hsl(var(--foreground));
+}
+
+.addButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* ---- exemplares fora do objetivo ---- */
+.outOfScope {
+  margin-top: 2.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background: hsl(var(--surface));
+  overflow: hidden;
+}
+
+.outToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.875rem 1.125rem;
+  text-align: left;
+  transition: background-color 160ms ease;
+}
+
+.outToggle:hover {
+  background: hsl(var(--surface-muted) / 0.5);
+}
+
+.outToggle:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.outTitle {
+  display: block;
+  font: 700 0.9375rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.outSubtitle {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.outChevron {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: hsl(var(--muted-foreground));
+  transition: transform 180ms ease;
+}
+
+.outChevron[data-open] {
+  transform: rotate(180deg);
+}
+
+.outBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 0 1.125rem 1.125rem;
+}
+
+.outList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.5rem;
+}
+
+.outItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--background));
+}
+
+.outName {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.outNumber {
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.outFinish {
+  font-size: 0.75rem;
+  color: hsl(var(--foreground) / 0.85);
+}
+
+.outReason {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.outLoading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .addButton,
+  .outToggle,
+  .outChevron {
+    transition: none;
+  }
+}

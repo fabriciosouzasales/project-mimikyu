@@ -28,7 +28,9 @@ import {
   totalCopies,
   withoutCopy,
 } from "@/lib/colecoes/collection-manage";
+import { MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
 import { CardArt } from "../acervo/card-art";
+import { CollectionObjectiveSection } from "./collection-objective";
 import acervoStyles from "../acervo/acervo.module.css";
 import addStyles from "../acervo/acervo-add.module.css";
 import styles from "./collection-manage.module.css";
@@ -41,7 +43,9 @@ import styles from "./collection-manage.module.css";
  *    os exemplares DESTA coleção (versão, idioma, número, local físico) e tira
  *    um exemplar específico com uma confirmação no próprio item (`5047`).
  * 2. **Ajustes da coleção** — botão "Ajustes" no topo da página. Identidade em
- *    leitura (cada controle continua onde já funciona) e Onde guardo (`5036`).
+ *    leitura (cada controle continua onde já funciona), Objetivo — Set padrão ↔
+ *    Master Set, só coleção de Set, atrás de `MASTER_SET_OBJECTIVE_ENABLED`
+ *    (MASTER-SET-FRONTEND-PHASE-01) — e Onde guardo (`5036`).
  *
  * Nada aqui move carta de lugar, apaga exemplar ou toca outra coleção.
  */
@@ -441,6 +445,7 @@ function SettingsPanel({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<CollectionFailure | null>(null);
+  const [objectiveBusy, setObjectiveBusy] = useState(false);
   const [, startRefresh] = useTransition();
 
   const load = useCallback(() => setAttempt((n) => n + 1), []);
@@ -489,18 +494,20 @@ function SettingsPanel({
   };
 
   const isFree = kind === "free";
+  // Fechar o painel no meio de uma gravação deixaria o resultado sem feedback.
+  const locked = saving || objectiveBusy;
 
   return (
-    <DialogPrimitive.Root open onOpenChange={(open) => !open && !saving && onClose()}>
+    <DialogPrimitive.Root open onOpenChange={(open) => !open && !locked && onClose()}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className={acervoStyles.overlay} />
         <DialogPrimitive.Content
           className={`${acervoStyles.drawer} ${styles.panel}`}
           aria-describedby={undefined}
-          onEscapeKeyDown={(event) => saving && event.preventDefault()}
-          onPointerDownOutside={(event) => saving && event.preventDefault()}
+          onEscapeKeyDown={(event) => locked && event.preventDefault()}
+          onPointerDownOutside={(event) => locked && event.preventDefault()}
         >
-          <PanelHeader title="Ajustes da coleção" subtitle={collectionName} disabled={saving} />
+          <PanelHeader title="Ajustes da coleção" subtitle={collectionName} disabled={locked} />
 
           <div className={styles.body}>
             <section className={styles.section} aria-labelledby="ajustes-identidade">
@@ -531,6 +538,10 @@ function SettingsPanel({
                 ) : null}
               </dl>
             </section>
+
+            {!isFree && MASTER_SET_OBJECTIVE_ENABLED ? (
+              <CollectionObjectiveSection collectionId={collectionId} onBusyChange={setObjectiveBusy} />
+            ) : null}
 
             <section className={styles.section} aria-labelledby="ajustes-onde-guardo">
               <h3 id="ajustes-onde-guardo" className={styles.sectionTitle}>

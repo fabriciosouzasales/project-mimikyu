@@ -25,6 +25,8 @@ import { LinkCardsLauncher } from "./link-cards";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
 import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
 import manageStyles from "./collection-manage.module.css";
+import { type MasterSetPosition, type MasterSetPositionsPage, heroCardsFromMasterSet } from "@/lib/colecoes/master-set";
+import { MasterSetGallery } from "./master-set-gallery";
 import styles from "./colecoes.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -42,6 +44,15 @@ const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
  * "Ajustes" no topo (identidade em leitura + Onde guardo, 5036) e, em cada carta que você tem, o
  * botão de exemplares para tirar um exemplar específico da coleção (5047).
  */
+/** Coleção em Master Set (MASTER-SET-FRONTEND-PHASE-02): grade por posição, paginada. */
+export type MasterSetView = {
+  positions: MasterSetPositionsPage | null;
+  heroPositions: readonly MasterSetPosition[];
+  page: number;
+  /** `null` = leitura falhou (a seção não aparece). */
+  outOfScopeCount: number | null;
+};
+
 export function CollectionView({
   collection,
   filter,
@@ -49,6 +60,7 @@ export function CollectionView({
   linkable,
   logoUrl,
   heroPositions,
+  master = null,
 }: {
   collection: CollectionSummary;
   /** Cartas do Set inteiro (R2 sem filtro) para os destaques do hero. */
@@ -59,6 +71,8 @@ export function CollectionView({
   positions: PositionsPage | null;
   /** `null` = leitura falhou (ação some, nada finge funcionar). */
   linkable: number | null;
+  /** Só coleção em MASTER_SET; a grade padrão (R2/R3) não se aplica a ela. */
+  master?: MasterSetView | null;
 }) {
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
@@ -75,8 +89,10 @@ export function CollectionView({
     { key: "faltam", label: "Faltam", count: missing },
   ];
 
-  const hero = pickHeroCards(heroPositions, 5, collection.cardSetCode);
-  const shown = positions?.total ?? 0;
+  const isMaster = master !== null;
+  const hero = pickHeroCards(isMaster ? heroCardsFromMasterSet(master.heroPositions) : heroPositions, 5, collection.cardSetCode);
+  const shown = (isMaster ? master.positions?.total : positions?.total) ?? 0;
+  const unit = isMaster ? (shown === 1 ? "posição" : "posições") : shown === 1 ? "carta" : "cartas";
   const currentSegment = segments.find((segment) => segment.key === filter);
 
   const page = (
@@ -151,7 +167,7 @@ export function CollectionView({
                 aria-valuemin={0}
                 aria-valuemax={total}
                 aria-valuenow={owned}
-                aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} cartas`}
+                aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} ${isMaster ? "posições" : "cartas"}`}
               >
                 <div
                   className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
@@ -162,7 +178,7 @@ export function CollectionView({
                 {collection.isComplete ? (
                   <span className={styles.completeNote}>
                     <Trophy className="h-4 w-4" aria-hidden="true" />
-                    Set completo
+                    {isMaster ? "Master Set completo" : "Set completo"}
                   </span>
                 ) : (
                   <span>
@@ -188,9 +204,9 @@ export function CollectionView({
             <h2 id="colecao-cartas" className={heroStyles.galleryTitle}>
               Cartas da coleção
             </h2>
-            {positions !== null ? (
+            {(isMaster ? master.positions : positions) !== null ? (
               <p className={heroStyles.galleryMeta}>
-                {currentSegment?.label} · {formatCount(shown)} {shown === 1 ? "carta" : "cartas"}
+                {currentSegment?.label} · {formatCount(shown)} {unit}
               </p>
             ) : null}
           </div>
@@ -210,7 +226,7 @@ export function CollectionView({
                 </Link>
               ))}
             </nav>
-            {setCode ? (
+            {setCode && !isMaster ? (
               // Sempre visível; desabilitado quando não há o que adicionar.
               <LinkCardsLauncher
                 collectionId={collection.id}
@@ -222,7 +238,18 @@ export function CollectionView({
           </div>
         </div>
 
-      {positions === null ? (
+      {isMaster ? (
+        <MasterSetGallery
+          collectionId={collection.id}
+          collectionName={collection.name}
+          filter={filter}
+          page={master.page}
+          positions={master.positions}
+          outOfScopeCount={master.outOfScopeCount}
+          setCode={setCode}
+          manageable={canManage}
+        />
+      ) : positions === null ? (
         <ReadError retryHref={collectionHref(collection.id, filter)} />
       ) : positions.items.length === 0 ? (
         <EmptyFilter

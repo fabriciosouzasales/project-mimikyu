@@ -39,6 +39,26 @@ import {
   normalizeCopyIds,
 } from "@/lib/colecoes/free-collection";
 import { LIBRARY_REORDER_ENABLED } from "@/lib/colecoes/library-order";
+import {
+  type CompletionObjective,
+  MASTER_SET_ADD_FROM_ACERVO_ENABLED,
+  MASTER_SET_OBJECTIVE_ENABLED,
+  MAX_FINISHES,
+  OUT_OF_SCOPE_PAGE_SIZE,
+  type OutOfScopePage,
+  POSITION_COPIES_LIMIT,
+  type PositionCopy,
+  parseOutOfScope,
+  parsePositionCopies,
+  type ObjectiveFailure,
+  type ObjectivePreview,
+  type ObjectiveState,
+  classifyObjectiveFailure,
+  isCompletionObjective,
+  isFinishId,
+  parseObjectiveOptions,
+  parsePreview,
+} from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -904,6 +924,202 @@ export async function setCollectionStorage(input: {
   console.info(JSON.stringify({ scope: "colecoes.default_storage", ms: Date.now() - startedAt }));
   revalidatePath(COLECOES_PATH, "layout");
   return { ok: true, storageId: row.default_storage_container_id };
+}
+
+// ---------------------------------------------------------------------------
+// Ajustes → Objetivo: Set padrão ↔ Master Set (MASTER-SET-FRONTEND-PHASE-01)
+// ---------------------------------------------------------------------------
+
+type ObjectiveFail = { ok: false; reason: ObjectiveFailure };
+
+/**
+ * Política atual (RLS select-own em `collection`) e as opções de acabamento
+ * do Set (5191) com as contagens do banco. Só leitura. Coleção alheia ou
+ * inexistente → `not_found` (o banco não distingue).
+ */
+export async function readCollectionObjective(input: {
+  collectionId: string;
+}): Promise<({ ok: true } & ObjectiveState) | ObjectiveFail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const [current, options] = await Promise.all([
+    supabase.from("collection").select("completion_policy").eq("id", input.collectionId).maybeSingle(),
+    supabase.rpc("get_my_master_set_finish_options", { p_collection_id: input.collectionId }),
+  ]);
+  if (current.error) return objectiveFail("collection.completion_policy", startedAt, current.error);
+  const policy = (current.data as { completion_policy?: unknown } | null)?.completion_policy;
+  if (!isCompletionObjective(policy)) return { ok: false, reason: "not_found" };
+  if (options.error || !Array.isArray(options.data)) {
+    return objectiveFail("get_my_master_set_finish_options", startedAt, options.error ?? { code: "BAD_SHAPE" });
+  }
+  const parsed = parseObjectiveOptions(options.data);
+  console.info(JSON.stringify({ scope: "colecoes.objective_read", ms: Date.now() - startedAt, finishes: parsed.finishes.length }));
+  return { ok: true, policy, ...parsed };
+}
+
+/**
+ * Prévia obrigatória antes de confirmar (5192, STABLE — não grava nada). Mesma
+ * validação da gravação: o que a prévia aceita, 5194/5195 gravam igual.
+ */
+export async function previewCollectionObjective(input: {
+  collectionId: string;
+  finishIds: string[];
+}): Promise<{ ok: true; preview: ObjectivePreview } | ObjectiveFail> {
+  const ids = normalizeFinishIds(input?.finishIds);
+  if (!isCollectionId(input?.collectionId) || ids === null) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("preview_my_master_set_finishes", {
+    p_collection_id: input.collectionId,
+    p_variant_type_ids: ids,
+  });
+  const preview = Array.isArray(data) ? parsePreview(data[0]) : null;
+  if (error || !preview) return objectiveFail("preview_my_master_set_finishes", startedAt, error ?? { code: "BAD_SHAPE" });
+  console.info(JSON.stringify({ scope: "colecoes.objective_preview", ms: Date.now() - startedAt, finishes: ids.length }));
+  return { ok: true, preview };
+}
+
+export type ObjectiveChange =
+  | { kind: "to_standard" }
+  | { kind: "activate"; finishIds: string[] | null }
+  | { kind: "replace"; finishIds: string[] };
+
+/**
+ * Grava a mudança de objetivo — UMA chamada:
+ * - `to_standard` → 5081 (acabamentos ficam guardados para restaurar);
+ * - `activate` → 5194 (lista, ou NULL para restaurar a seleção guardada);
+ * - `replace` → 5195 (edição em Master Set; mesmo conjunto = zero escrita).
+ * Todas são idempotentes, conferem dono e coleção ativa no banco e nunca
+ * tocam exemplares, vínculos, locais ou fichário. Controlada por
+ * `MASTER_SET_OBJECTIVE_ENABLED`.
+ */
+export async function saveCollectionObjective(input: {
+  collectionId: string;
+  change: ObjectiveChange;
+}): Promise<{ ok: true; policy: CompletionObjective; total: number | null; satisfied: number | null } | ObjectiveFail> {
+  if (!MASTER_SET_OBJECTIVE_ENABLED) return { ok: false, reason: "disabled" };
+  const change = input?.change;
+  if (!isCollectionId(input?.collectionId) || !change) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+
+  if (change.kind === "to_standard") {
+    const { data, error } = await supabase.rpc("set_collection_completion_policy_to_standard_set", {
+      p_collection_id: input.collectionId,
+    });
+    const row = Array.isArray(data) ? (data[0] as { completion_policy?: unknown } | undefined) : undefined;
+    if (error || row?.completion_policy !== "STANDARD_SET") {
+      return objectiveFail("set_collection_completion_policy_to_standard_set", startedAt, error ?? { code: "BAD_SHAPE" });
+    }
+    return objectiveSaved("to_standard", startedAt, { policy: "STANDARD_SET", total: null, satisfied: null });
+  }
+
+  if (change.kind === "activate" || change.kind === "replace") {
+    // `activate` com `null` = restaurar a seleção guardada; qualquer lista é validada.
+    let ids: string[] | null = null;
+    if (change.kind === "replace" || change.finishIds !== null) {
+      ids = normalizeFinishIds(change.finishIds);
+      if (ids === null) return { ok: false, reason: "invalid" };
+    }
+    const fn = change.kind === "activate" ? "set_collection_completion_policy_to_master_set" : "replace_master_set_finishes";
+    const { data, error } = await supabase.rpc(fn, { p_collection_id: input.collectionId, p_variant_type_ids: ids });
+    const row = Array.isArray(data)
+      ? (data[0] as { total_positions?: unknown; satisfied_positions?: unknown } | undefined)
+      : undefined;
+    if (error || !row) return objectiveFail(fn, startedAt, error ?? { code: "BAD_SHAPE" });
+    return objectiveSaved(change.kind, startedAt, {
+      policy: "MASTER_SET",
+      total: Number(row.total_positions ?? 0),
+      satisfied: Number(row.satisfied_positions ?? 0),
+    });
+  }
+
+  return { ok: false, reason: "invalid" };
+}
+
+// ---------------------------------------------------------------------------
+// Grade do Master Set (MASTER-SET-FRONTEND-PHASE-02) — leituras sob demanda
+// ---------------------------------------------------------------------------
+
+/**
+ * Exemplares da coleção fora do objetivo (5196), uma página por vez — a
+ * seção recolhível só lê quando o colecionador abre. Só leitura: nada é
+ * removido, desvinculado ou alterado.
+ */
+export async function readMasterSetOutOfScope(input: {
+  collectionId: string;
+  offset: number;
+}): Promise<({ ok: true } & OutOfScopePage) | Fail> {
+  if (!isCollectionId(input?.collectionId) || !Number.isInteger(input.offset) || input.offset < 0 || input.offset > 100_000) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_master_set_out_of_scope_copies", {
+    p_collection_id: input.collectionId,
+    p_limit: OUT_OF_SCOPE_PAGE_SIZE,
+    p_offset: input.offset,
+  });
+  if (error || !Array.isArray(data)) return fail("get_my_master_set_out_of_scope_copies", startedAt, error ?? { code: "BAD_SHAPE" });
+  return { ok: true, ...parseOutOfScope(data) };
+}
+
+/**
+ * Exemplares livres do acervo que satisfazem UMA posição — Query 5199
+ * (PROPOSTA, não aplicada no LIVE). Controlada por
+ * `MASTER_SET_ADD_FROM_ACERVO_ENABLED`; desligada, nada é chamado. Só
+ * leitura: quem vincula é `linkCopiesToCollection` (5046).
+ */
+export async function readMasterSetPositionCopies(input: {
+  collectionId: string;
+  cardId: string;
+  variantTypeId: string | null;
+}): Promise<({ ok: true; items: PositionCopy[]; total: number }) | Fail> {
+  if (!MASTER_SET_ADD_FROM_ACERVO_ENABLED) return { ok: false, reason: "unavailable" };
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !isUuid(input.cardId) ||
+    (input.variantTypeId !== null && !isUuid(input.variantTypeId))
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_master_set_position_copies", {
+    p_collection_id: input.collectionId,
+    p_card_id: input.cardId,
+    p_variant_type_id: input.variantTypeId,
+    p_limit: POSITION_COPIES_LIMIT,
+    p_offset: 0,
+  });
+  if (error || !Array.isArray(data)) return fail("get_my_master_set_position_copies", startedAt, error ?? { code: "BAD_SHAPE" });
+  return { ok: true, ...parsePositionCopies(data) };
+}
+
+function objectiveSaved<T extends { policy: CompletionObjective; total: number | null; satisfied: number | null }>(
+  kind: string,
+  startedAt: number,
+  result: T,
+): { ok: true } & T {
+  console.info(JSON.stringify({ scope: "colecoes.objective_save", kind, ms: Date.now() - startedAt }));
+  // Título, progresso e Biblioteca vêm do servidor.
+  revalidatePath(COLECOES_PATH, "layout");
+  return { ok: true, ...result };
+}
+
+/** Lista de acabamentos pronta para o banco: 1..64 uuids distintos, ou `null`. */
+function normalizeFinishIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_FINISHES) return null;
+  if (!value.every((id) => isFinishId(id))) return null;
+  const ids = [...new Set(value.map((id: string) => id.toLowerCase()))];
+  return ids.length === value.length ? ids : null;
+}
+
+function objectiveFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): ObjectiveFail {
+  const reason = classifyObjectiveFailure(error?.code, error?.message);
+  console.error(JSON.stringify({ scope: "colecoes.objective", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
 }
 
 type CopyDetailRow = {

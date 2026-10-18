@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { type BinderFinish, resolveFinish } from "./binder-finish.ts";
 import { COVER_BUCKET, FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, isCoverCode, isCoverPath, isFreeCollection } from "./free-collection.ts";
 import { LIBRARY_PAGE_SIZE, POSITIONS_PAGE_SIZE, type PositionFilter, type StorageOption, toPositionsRpcFilter } from "./colecoes.ts";
+import { MASTER_SET_PAGE_SIZE, type MasterSetPositionsPage, parseMasterSetPositions } from "./master-set.ts";
 
 /**
  * Leituras de Minhas coleções (MY-COLLECTIONS-FRONTEND-01) — contratos LIVE
@@ -182,6 +183,52 @@ export async function getMyCollectionPositions(
     })),
     total: rows[0] ? Number(rows[0].total_count) : 0,
   };
+}
+
+/**
+ * Grade do Master Set (5189, desempenho da 5198): uma página de posições
+ * (carta + acabamento, ou carta secreta genérica) com o filtro da URL. Só a
+ * página pedida — nunca o Set inteiro. Coleção alheia ou fora de MASTER_SET →
+ * página vazia (o banco não distingue). `null` = falha de leitura.
+ */
+export async function getMyMasterSetPositions(
+  supabase: SupabaseClient,
+  id: string,
+  filter: PositionFilter,
+  page: number,
+): Promise<MasterSetPositionsPage | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_master_set_positions", {
+    p_collection_id: id,
+    p_filter: toPositionsRpcFilter(filter),
+    p_limit: MASTER_SET_PAGE_SIZE,
+    p_offset: (Math.max(page, 1) - 1) * MASTER_SET_PAGE_SIZE,
+  });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_master_set_positions", startedAt, error);
+    return null;
+  }
+  return parseMasterSetPositions(data);
+}
+
+/**
+ * Quantos exemplares da coleção estão fora do objetivo (5196). Uma linha
+ * basta — `total_count` vem antes do limite. `null` = falha (a seção não
+ * aparece, a página não finge que não há nada).
+ */
+export async function getMasterSetOutOfScopeCount(supabase: SupabaseClient, id: string): Promise<number | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_master_set_out_of_scope_copies", {
+    p_collection_id: id,
+    p_limit: 1,
+    p_offset: 0,
+  });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_master_set_out_of_scope_copies", startedAt, error);
+    return null;
+  }
+  const first = (data as { total_count: number | string }[])[0];
+  return first ? Number(first.total_count) : 0;
 }
 
 /**

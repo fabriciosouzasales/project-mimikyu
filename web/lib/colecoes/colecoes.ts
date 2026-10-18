@@ -283,10 +283,10 @@ export function missingCount(satisfied: number, total: number): number {
   return Math.max(0, total - satisfied);
 }
 
-/** NS-14: STANDARD_SET aparece para o colecionador assim — nunca o enum. */
+/** NS-14 / N8–N9: a política aparece para o colecionador assim — nunca o enum. */
 export function collectionKindLabel(policy: string | null): string {
   if (policy === "STANDARD_SET") return "Set padrão — uma de cada carta";
-  if (policy === "MASTER_SET") return "Set completo";
+  if (policy === "MASTER_SET") return "Master Set — os acabamentos que você escolher";
   if (policy === "NONE") return "Coleção livre";
   return "Coleção";
 }

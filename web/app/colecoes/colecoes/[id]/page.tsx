@@ -2,20 +2,23 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { LibraryBig } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
-import { CollectionView } from "@/components/colecoes/colecoes/collection-view";
+import { CollectionView, type MasterSetView } from "@/components/colecoes/colecoes/collection-view";
 import { FreeCollectionView } from "@/components/colecoes/colecoes/free-collection-view";
 import { getAcervoItems } from "@/lib/colecoes/acervo-queries";
-import { isCollectionId, parsePositionFilter } from "@/lib/colecoes/colecoes";
+import { collectionHref, isCollectionId, parsePositionFilter } from "@/lib/colecoes/colecoes";
 import {
   attachCoverLogos,
   getAvailableGroupCount,
   getCoverLogoUrls,
   getLinkableCount,
+  getMasterSetOutOfScopeCount,
   getMyCollection,
   getMyCollectionPositions,
+  getMyMasterSetPositions,
   getSetLogoUrls,
 } from "@/lib/colecoes/colecoes-queries";
 import { isFreeCollection, parseFreePage, wantsPicker } from "@/lib/colecoes/free-collection";
+import { masterSetTotalPages, parseMasterSetPage } from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -99,6 +102,30 @@ export default async function ColecaoPage({
 
   const collection = summary;
 
+  // Master Set (MASTER-SET-FRONTEND-PHASE-02): a grade vem de 5189/5198, uma
+  // página por vez (`?pagina=`); o hero usa a primeira página de "Todas" (sem
+  // leitura extra quando é a própria página exibida). R2/R3 acima devolvem
+  // zero linhas para esta política e são descartadas.
+  let master: MasterSetView | null = null;
+  if (collection?.completionPolicy === "MASTER_SET") {
+    const requested = parseMasterSetPage(query.pagina);
+    const [positionsPage, heroPage, outOfScope] = await Promise.all([
+      getMyMasterSetPositions(supabase, collectionId, filter, requested),
+      filter === "todas" && requested === 1 ? Promise.resolve(null) : getMyMasterSetPositions(supabase, collectionId, "todas", 1),
+      getMasterSetOutOfScopeCount(supabase, collectionId),
+    ]);
+    // Página além do fim (o objetivo encolheu, link antigo): volta ao início do filtro.
+    if (requested > 1 && positionsPage !== null && positionsPage.items.length === 0) {
+      redirect(collectionHref(collectionId, filter));
+    }
+    master = {
+      positions: positionsPage,
+      heroPositions: (filter === "todas" && requested === 1 ? positionsPage : heroPage)?.items ?? [],
+      page: positionsPage ? Math.min(requested, masterSetTotalPages(positionsPage.total)) : requested,
+      outOfScopeCount: outOfScope,
+    };
+  }
+
   const logoPath = collection?.cardSetLogoPath ?? null;
   const logoUrl = logoPath ? (await getSetLogoUrls(supabase, [logoPath])).get(logoPath) ?? null : null;
 
@@ -114,6 +141,7 @@ export default async function ColecaoPage({
           heroPositions={(filter === "todas" ? positions : heroSource)?.items ?? []}
           linkable={linkable}
           logoUrl={logoUrl}
+          master={master}
         />
       )}
     </AppShell>
