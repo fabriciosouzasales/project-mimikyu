@@ -485,6 +485,39 @@ export function changedChoices(
   return changed;
 }
 
+/** Uma carta que falta e pode entrar (uma de cada — R3), com a arte para a escolha. */
+export type LinkItem = { cardId: string; collectorNumber: string; cardName: string; imagePath: string | null };
+
+/**
+ * Lista da escolha "Adicionar as que já tenho": cada carta que falta e está no
+ * acervo (um exemplar por carta — repetidas nunca entram aqui), com a arte do
+ * grupo que entraria (a variante padrão no idioma do candidato, senão
+ * qualquer grupo do mesmo número). Ordem de R3 preservada.
+ */
+export function linkItems(
+  candidates: readonly LinkCandidate[],
+  groups: readonly (Pick<LinkOption, "imagePath" | "isDefaultVariant" | "languageCode"> & { collectorNumber: string })[],
+): LinkItem[] {
+  return candidates.map((candidate) => {
+    const same = groups.filter((group) => group.collectorNumber === candidate.collectorNumber && group.imagePath);
+    const best =
+      same.find((group) => group.isDefaultVariant && group.languageCode === candidate.languageCode) ??
+      same.find((group) => group.isDefaultVariant) ??
+      same[0];
+    return {
+      cardId: candidate.cardId,
+      collectorNumber: candidate.collectorNumber,
+      cardName: candidate.cardName,
+      imagePath: best?.imagePath ?? null,
+    };
+  });
+}
+
+/** Ids escolhidos, sem repetição e só os que estão na lista atual. */
+export function selectedCardIds(items: readonly Pick<LinkItem, "cardId">[], picked: ReadonlySet<string>): string[] {
+  return items.filter((item) => picked.has(item.cardId)).map((item) => item.cardId);
+}
+
 export function chunk<T>(items: readonly T[], size: number): T[][] {
   if (size < 1) throw new Error("size must be >= 1");
   const out: T[][] = [];
@@ -505,6 +538,7 @@ export type CollectionFailure =
   | "conflict"
   | "invalid"
   | "already_linked"
+  | "not_linked"
   | "not_found"
   | "unavailable";
 
@@ -519,9 +553,11 @@ export function classifyCollectionFailure(code: string | null | undefined, messa
   // Capa da Coleção livre (5178/5180): coleção alheia/inexistente ou de Set — mesma resposta, sem enumerar.
   if (text === "COLLECTION_NOT_FOUND" || text === "NOT_FREE_COLLECTION") return "not_found";
   if (code === "55000" || text.startsWith("STORAGE_CONTAINER_REQUIRED")) return "storage_required";
-  if (text.startsWith("STORAGE_CONTAINER_INVALID")) return "storage_invalid";
+  if (text.startsWith("STORAGE_CONTAINER_INVALID") || text.startsWith("storage container does not belong")) return "storage_invalid";
   if (text.startsWith("CARD_SET_NOT_FOUND") || text === "card_set not found") return "set_not_found";
   if (text.startsWith("IDEMPOTENCY_KEY_REUSED")) return "conflict";
+  // 5047: "uma ou mais physical_card_ids não estão alocadas a esta Collection" (fail-closed, nada removido).
+  if (text.includes("não estão alocadas a esta Collection")) return "not_linked";
   // 5046: "uma ou mais physical_card_ids já estão alocadas a uma Collection" (fail-closed, nada gravado).
   if (code === "23505" || text.includes("já está alocad") || text.includes("já estão alocad") || text.includes("already allocated")) {
     return "already_linked";
@@ -547,6 +583,8 @@ export function collectionFailureMessage(reason: CollectionFailure): string {
       return "Este envio já foi usado para outro pedido. Revise e tente de novo.";
     case "already_linked":
       return "Algumas cartas mudaram desde a revisão (provavelmente já entraram em uma coleção). Revise de novo para continuar.";
+    case "not_linked":
+      return "Este exemplar já não estava nesta coleção. A lista foi atualizada — nada mais mudou.";
     case "not_found":
       return "Esta coleção não está disponível para receber cartas.";
     case "invalid":

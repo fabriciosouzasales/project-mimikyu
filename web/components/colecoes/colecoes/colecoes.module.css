@@ -981,3 +981,166 @@
     transform: translateY(-4px) rotate(-0.4deg);
   }
 }
+
+/* ---- "Adicionar as que já tenho": escolha de quais cartas entram (uma de cada) ---- */
+.pickHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.pickHead h3 {
+  margin-bottom: 0;
+}
+
+.pickTools {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.pickItem {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.pickItem[data-picked] {
+  border-color: hsl(var(--primary) / 0.55);
+  background: hsl(var(--primary) / 0.06);
+}
+
+.pickItem > :not(.pickRow) {
+  margin: 0 0.75rem 0.75rem;
+}
+
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 0.75rem;
+}
+
+.pickRow:has(input:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.pickRow:has(input:disabled) {
+  cursor: default;
+}
+
+.pickArt {
+  position: relative;
+  flex: none;
+  width: 2.75rem;
+  aspect-ratio: 8 / 11;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  background: hsl(var(--surface-muted));
+}
+
+.pickItem:not([data-picked]) .pickArt {
+  opacity: 0.55;
+}
+
+.pickName {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickNumber {
+  display: block;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.pickCheck {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  border: 1.5px solid hsl(var(--border));
+  color: hsl(var(--primary-foreground));
+}
+
+.pickItem[data-picked] .pickCheck {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickItem {
+    transition: none;
+  }
+}
+
+/* ---- Filtro da galeria: abas sublinhadas (opção A) ---- */
+.filterTabs {
+  display: flex;
+  align-items: center;
+  gap: 1.375rem;
+}
+
+.filterTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  border-bottom: 2px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.filterTab:hover {
+  color: hsl(var(--foreground));
+}
+
+.filterTab[aria-current="page"] {
+  color: hsl(var(--foreground));
+  border-bottom-color: hsl(var(--primary));
+}
+
+.filterTab:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.filterTabCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filterTab {
+    transition: none;
+  }
+}

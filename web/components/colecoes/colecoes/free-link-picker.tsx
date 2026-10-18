@@ -113,6 +113,36 @@ export function FreePickerButton({ available, showCount = true }: { available: n
   );
 }
 
+/**
+ * "+ Adicionar cartas (N)" da barra da galeria — mesmo padrão da coleção de Set
+ * (botão baixo em pílula, sempre visível). Sem carta disponível no acervo, sem
+ * provider (coleção arquivada) ou com a contagem indisponível: desabilitado e
+ * sem ação.
+ */
+export function FreePickerBarButton({ available }: { available: number | null }) {
+  const context = useContext(PickerContext);
+  const count = available ?? 0;
+  const empty = !context || count <= 0;
+  return (
+    <Button
+      onClick={() => !empty && context?.open()}
+      disabled={empty}
+      size="sm"
+      className="h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]"
+      title={empty ? "Nenhuma carta do seu acervo está disponível para adicionar agora" : undefined}
+      aria-label={
+        empty
+          ? "Adicionar cartas — nenhuma carta disponível no seu acervo agora"
+          : `Adicionar cartas do seu acervo a esta coleção (${formatCount(count)} disponíveis)`
+      }
+    >
+      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+      Adicionar cartas
+      <span className="tabular-nums opacity-80">({formatCount(count)})</span>
+    </Button>
+  );
+}
+
 type View = { kind: "browse" } | { kind: "copies"; key: string } | { kind: "review" } | { kind: "done"; linked: number };
 type Browse =
   | { status: "loading" }

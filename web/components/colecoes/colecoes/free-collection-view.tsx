@@ -25,7 +25,10 @@ import { CollectionTitle } from "./collection-title";
 import { CoverFinishPicker } from "./cover-finish-picker";
 import { CoverLogoTrigger } from "./cover-logo-uploader";
 import freeStyles from "./free-collection.module.css";
-import { FreePickerButton, FreePickerProvider } from "./free-link-picker";
+import { FreePickerBarButton, FreePickerButton, FreePickerProvider } from "./free-link-picker";
+import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
+import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
+import manageStyles from "./collection-manage.module.css";
 import styles from "./colecoes.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -45,6 +48,10 @@ const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
  * cartas do acervo, com a mesma ação.
  *
  * Leituras: R1 (resumo) e 5159 com `p_collection_id` (cartas, paginadas).
+ *
+ * Gerenciar (COLLECTION-MANAGEMENT-RECOVERY-01, só coleção ativa): "Ajustes"
+ * no topo e o botão de exemplares em cada carta (tirar um exemplar, 5047).
+ * Tirar não cria progresso: só a galeria e as contagens mudam.
  */
 export function FreeCollectionView({
   collection,
@@ -78,6 +85,7 @@ export function FreeCollectionView({
   const empty = items !== null && items.totalGroups === 0;
   const pages = items ? freeTotalPages(items.totalGroups) : 1;
 
+  const canManage = COLLECTION_MANAGE_ENABLED && active;
   const launcher = (showCount: boolean) => (active ? <FreePickerButton available={available} showCount={showCount} /> : null);
 
   const cover = (
@@ -98,10 +106,26 @@ export function FreeCollectionView({
       <header className={`${acervoStyles.hero} ${heroStyles.hero}`} data-has-fan={fan.length > 0 || undefined}>
         <div className={acervoStyles.stageGlow} aria-hidden="true" />
         <CollectionHeroBackdrop selection={selection} />
-        <Link href={COLECOES_PATH} className={styles.backLink}>
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Minhas coleções
-        </Link>
+        <div className={manageStyles.heroBar}>
+          <Link href={COLECOES_PATH} className={styles.backLink}>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Minhas coleções
+          </Link>
+          {canManage ? (
+            <CollectionSettingsButton
+              collectionId={collection.id}
+              collectionName={collection.name}
+              kind="free"
+              identity={{
+                name: collection.name,
+                finish: collection.finish,
+                finishEditable: collection.finishEditable,
+                coverCode: FREE_COVER_CODE_ENABLED ? collection.coverCode : undefined,
+                hasCoverImage: FREE_COVER_UPLOAD_ENABLED ? collection.coverLogoPath !== null : undefined,
+              }}
+            />
+          ) : null}
+        </div>
         <div className={heroStyles.stage}>
           <div className={heroStyles.text}>
             <div className={heroStyles.identity}>
@@ -177,7 +201,12 @@ export function FreeCollectionView({
               </p>
             ) : null}
           </div>
-          {!empty && items !== null ? <div className={heroStyles.galleryTools}>{launcher(true)}</div> : null}
+          {!empty && items !== null ? (
+            // Mesmo padrão da coleção de Set: sempre visível; desabilitado sem carta disponível.
+            <div className={heroStyles.galleryTools}>
+              <FreePickerBarButton available={active ? available : 0} />
+            </div>
+          ) : null}
         </div>
 
         {items === null ? (
@@ -193,7 +222,7 @@ export function FreeCollectionView({
               <ul className={acervoStyles.grid} aria-label="Cartas da coleção">
                 {items.items.map((item, index) => (
                   <li key={`${item.cardVariantId}.${item.languageCode}`}>
-                    <FreeTile item={item} priority={page === 1 && index < PRIORITY_CARD_COUNT} />
+                    <FreeTile item={item} priority={page === 1 && index < PRIORITY_CARD_COUNT} manageable={canManage} />
                   </li>
                 ))}
               </ul>
@@ -207,14 +236,20 @@ export function FreeCollectionView({
 
   return active ? (
     <FreePickerProvider collectionId={collection.id} collectionName={collection.name} autoOpen={openPicker}>
-      {pageContent}
+      {canManage ? (
+        <CollectionManageProvider collectionId={collection.id} collectionName={collection.name} kind="free">
+          {pageContent}
+        </CollectionManageProvider>
+      ) : (
+        pageContent
+      )}
     </FreePickerProvider>
   ) : (
     pageContent
   );
 }
 
-function FreeTile({ item, priority }: { item: AcervoItem; priority: boolean }) {
+function FreeTile({ item, priority, manageable }: { item: AcervoItem; priority: boolean; manageable: boolean }) {
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
   const caption = `${item.cardSetCode.toUpperCase()} · ${number}`;
   const tag = variantTag(item.isDefaultVariant, item.variantLabel);
@@ -240,6 +275,16 @@ function FreeTile({ item, priority }: { item: AcervoItem; priority: boolean }) {
           <span className={acervoStyles.qty} aria-hidden="true">
             ×{formatCount(copies)}
           </span>
+        ) : null}
+        {manageable ? (
+          <ManageCopiesButton
+            target={{
+              query: { kind: "group", cardVariantId: item.cardVariantId, languageCode: item.languageCode },
+              cardName: item.cardName,
+              caption: [caption, tag, item.languageName].filter(Boolean).join(" · "),
+              imageUrl,
+            }}
+          />
         ) : null}
       </div>
       <div className={acervoStyles.meta} aria-hidden="true">

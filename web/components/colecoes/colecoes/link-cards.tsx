@@ -3,28 +3,33 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Layers, Loader2, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Loader2, Plus, X } from "lucide-react";
 import { type LinkReview, linkOneOfEach, reviewLinkOneOfEach } from "@/app/colecoes/colecoes/actions";
 import { Button } from "@/components/ui/button";
-import { formatCollectorNumber, formatCount } from "@/lib/colecoes/acervo";
+import { cardFrontUrl, formatCollectorNumber, formatCount } from "@/lib/colecoes/acervo";
 import {
   type CollectionFailure,
   type LinkChoice,
+  type LinkItem,
   changedChoices,
   collectionFailureMessage,
   optionKey,
+  selectedCardIds,
 } from "@/lib/colecoes/colecoes";
+import { CardArt } from "../acervo/card-art";
 import addStyles from "../acervo/acervo-add.module.css";
 import acervoStyles from "../acervo/acervo.module.css";
 import styles from "./colecoes.module.css";
 
 /**
- * "Adicionar as que já tenho" — vínculo "1 de cada" (D-C, R3 + 5046).
+ * "Adicionar cartas" — vínculo "1 de cada" (D-C, R3 + 5046). Botão na barra da galeria, antes dos filtros.
  *
- * Revisão antes de gravar: quantas cartas entram e, só quando existe mais de
- * uma opção no acervo para a mesma carta (outra variante ou idioma), a
- * escolha de qual entra — com a sugestão marcada e visível, nunca trocada em
- * silêncio. Repetidas ficam de fora e não há "todas as repetidas".
+ * Lista as cartas do Set que faltam na coleção e estão no acervo (uma de cada)
+ * e o colecionador marca quais entram — todas vêm marcadas, com "Selecionar
+ * todas" / "Limpar". Quando existe mais de uma opção no acervo para a mesma
+ * carta (outra variante ou idioma), a escolha de qual entra aparece na própria
+ * carta, com a sugestão marcada, nunca trocada em silêncio. Repetidas ficam de
+ * fora e não há "todas as repetidas" (D-C).
  *
  * Adicionar a uma coleção não move carta nenhuma: elas continuam no acervo,
  * no mesmo lugar; a coleção só passa a contá-las.
@@ -38,18 +43,33 @@ export function LinkCardsLauncher({
   collectionId: string;
   setCode: string;
   linkable: number;
-  layout?: "bar" | "empty";
+  layout?: "bar" | "hero" | "empty";
 }) {
   const [open, setOpen] = useState(false);
-  if (linkable <= 0) return null;
+  // Na barra da galeria o botão fica sempre visível; sem carta disponível
+  // (ou coleção arquivada / leitura falhou → `linkable` 0), aparece
+  // desabilitado e sem ação. No estado vazio, só aparece quando há o que adicionar.
+  const empty = linkable <= 0;
+  if (empty && layout === "empty") return null;
   return (
     <>
-      <Button onClick={() => setOpen(true)} className={layout === "empty" ? "mt-5 min-h-11" : "min-h-11"}>
-        <Layers className="h-4 w-4" aria-hidden="true" />
-        Adicionar as que já tenho
+      <Button
+        onClick={() => !empty && setOpen(true)}
+        disabled={empty}
+        title={empty ? "Nenhuma carta deste Set no seu acervo está disponível para adicionar agora" : undefined}
+        size={layout === "hero" ? "sm" : "default"}
+        className={layout === "empty" ? "mt-5 min-h-11" : layout === "hero" ? "h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]" : "min-h-11"}
+        aria-label={
+          empty
+            ? "Adicionar cartas — nenhuma carta disponível no seu acervo agora"
+            : `Adicionar cartas do seu acervo a esta coleção (${formatCount(linkable)} disponíveis)`
+        }
+      >
+        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+        Adicionar cartas
         <span className="tabular-nums opacity-80">({formatCount(linkable)})</span>
       </Button>
-      {open ? <LinkPanel collectionId={collectionId} setCode={setCode} onClose={() => setOpen(false)} /> : null}
+      {open && !empty ? <LinkPanel collectionId={collectionId} setCode={setCode} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
@@ -65,6 +85,7 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
   const router = useRouter();
   const [review, setReview] = useState<Review>({ status: "loading" });
   const [selected, setSelected] = useState<Record<string, string>>({});
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [commit, setCommit] = useState<Commit>({ status: "idle" });
   const busy = commit.status === "pending";
 
@@ -80,17 +101,29 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
       return;
     }
     setSelected(Object.fromEntries(result.choices.map((choice) => [choice.cardId, choice.suggestedKey])));
-    setReview({ status: "ready", total: result.total, choices: result.choices });
+    setPicked(new Set(result.items.map((item) => item.cardId)));
+    setReview({ status: "ready", total: result.total, items: result.items, choices: result.choices });
   }, [collectionId, setCode]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const chosenIds = review.status === "ready" ? selectedCardIds(review.items, picked) : [];
+  const chosenCount = chosenIds.length;
+
   const confirm = async () => {
-    if (review.status !== "ready" || busy) return;
+    if (review.status !== "ready" || busy || chosenCount === 0) return;
     setCommit({ status: "pending" });
-    const result = await linkOneOfEach({ collectionId, overrides: changedChoices(review.choices, selected) }).catch(() => ({
+    const chosenSet = new Set(chosenIds);
+    const result = await linkOneOfEach({
+      collectionId,
+      cardIds: chosenIds,
+      overrides: changedChoices(
+        review.choices.filter((choice) => chosenSet.has(choice.cardId)),
+        selected,
+      ),
+    }).catch(() => ({
       ok: false as const,
       reason: "unavailable" as const,
       linked: 0,
@@ -114,7 +147,7 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
           onPointerDownOutside={(event) => busy && event.preventDefault()}
         >
           <div className={acervoStyles.drawerHeader}>
-            <DialogPrimitive.Title className={addStyles.panelTitle}>Adicionar as que já tenho</DialogPrimitive.Title>
+            <DialogPrimitive.Title className={addStyles.panelTitle}>Adicionar cartas</DialogPrimitive.Title>
             <DialogPrimitive.Close
               disabled={busy}
               className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
@@ -165,8 +198,8 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
                 <div className={addStyles.reviewHead}>
                   <span className={addStyles.reviewCount}>{formatCount(review.total)}</span>
                   <span className={addStyles.reviewLabel}>
-                    {review.total === 1 ? "carta entra" : "cartas diferentes entram"} nesta coleção — <strong>uma de cada</strong>, das
-                    que estão no seu acervo e ainda não fazem parte de nenhuma coleção.
+                    {review.total === 1 ? "carta deste Set está" : "cartas deste Set estão"} no seu acervo e ainda{" "}
+                    {review.total === 1 ? "falta" : "faltam"} nesta coleção. Marque as que entram — <strong>uma de cada</strong>.
                   </span>
                 </div>
                 <p className={addStyles.reviewNote}>
@@ -174,27 +207,62 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
                   continuam disponíveis no acervo.
                 </p>
 
-                {review.choices.length > 0 ? (
-                  <section aria-labelledby="colecoes-escolhas">
-                    <h3 id="colecoes-escolhas" className={addStyles.sectionTitle}>
-                      {review.choices.length === 1
-                        ? "1 carta tem mais de uma versão no seu acervo"
-                        : `${formatCount(review.choices.length)} cartas têm mais de uma versão no seu acervo`}
+                <section aria-labelledby="colecoes-escolha">
+                  <div className={styles.pickHead}>
+                    <h3 id="colecoes-escolha" className={addStyles.sectionTitle}>
+                      {formatCount(chosenCount)} de {formatCount(review.items.length)} marcadas
                     </h3>
-                    <p className={styles.fieldHint}>Confira qual versão entra. A sugestão já vem marcada.</p>
-                    <div className={`${styles.choiceList} mt-3`}>
-                      {review.choices.map((choice) => (
-                        <ChoiceGroup
-                          key={choice.cardId}
-                          choice={choice}
-                          value={selected[choice.cardId] ?? choice.suggestedKey}
+                    <span className={styles.pickTools}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy || chosenCount === review.items.length}
+                        onClick={() => setPicked(new Set(review.items.map((item) => item.cardId)))}
+                      >
+                        Selecionar todas
+                      </Button>
+                      <Button variant="ghost" size="sm" disabled={busy || chosenCount === 0} onClick={() => setPicked(new Set())}>
+                        Limpar
+                      </Button>
+                    </span>
+                  </div>
+                  {review.total > review.items.length ? (
+                    <p className={styles.fieldHint}>
+                      Mostrando as primeiras {formatCount(review.items.length)}. Depois de adicionar, abra de novo para ver as demais.
+                    </p>
+                  ) : null}
+                  <ul className={styles.pickList} aria-label="Cartas que podem entrar">
+                    {review.items.map((item) => {
+                      const choice = review.choices.find((candidate) => candidate.cardId === item.cardId) ?? null;
+                      const isPicked = picked.has(item.cardId);
+                      return (
+                        <PickItem
+                          key={item.cardId}
+                          item={item}
+                          picked={isPicked}
                           disabled={busy}
-                          onChange={(key) => setSelected((current) => ({ ...current, [choice.cardId]: key }))}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ) : null}
+                          onToggle={() =>
+                            setPicked((current) => {
+                              const next = new Set(current);
+                              if (next.has(item.cardId)) next.delete(item.cardId);
+                              else next.add(item.cardId);
+                              return next;
+                            })
+                          }
+                        >
+                          {choice && isPicked ? (
+                            <ChoiceGroup
+                              choice={choice}
+                              value={selected[choice.cardId] ?? choice.suggestedKey}
+                              disabled={busy}
+                              onChange={(key) => setSelected((current) => ({ ...current, [choice.cardId]: key }))}
+                            />
+                          ) : null}
+                        </PickItem>
+                      );
+                    })}
+                  </ul>
+                </section>
 
                 {commit.status === "error" ? (
                   <Notice title={commit.linked > 0 ? "Parte das cartas entrou" : "Nenhuma carta foi adicionada"}>
@@ -204,7 +272,7 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
                   </Notice>
                 ) : null}
               </div>
-              <Footer lead={`${formatCount(review.total)} ${review.total === 1 ? "carta" : "cartas"}`}>
+              <Footer lead={chosenCount === 0 ? "Nenhuma carta marcada" : `${formatCount(chosenCount)} ${chosenCount === 1 ? "carta" : "cartas"}`}>
                 <Button variant="outline" onClick={close} disabled={busy}>
                   Cancelar
                 </Button>
@@ -213,9 +281,9 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
                     Revisar de novo
                   </Button>
                 ) : (
-                  <Button onClick={() => void confirm()} disabled={busy} aria-busy={busy}>
+                  <Button onClick={() => void confirm()} disabled={busy || chosenCount === 0} aria-busy={busy}>
                     {busy ? <Loader2 className={`h-4 w-4 ${addStyles.spin}`} aria-hidden="true" /> : null}
-                    {busy ? "Adicionando…" : `Adicionar ${formatCount(review.total)} à coleção`}
+                    {busy ? "Adicionando…" : `Adicionar ${formatCount(chosenCount)} à coleção`}
                   </Button>
                 )}
               </Footer>
@@ -224,6 +292,42 @@ function LinkPanel({ collectionId, setCode, onClose }: { collectionId: string; s
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  );
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+function PickItem({
+  item,
+  picked,
+  disabled,
+  onToggle,
+  children,
+}: {
+  item: LinkItem;
+  picked: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const number = formatCollectorNumber(item.collectorNumber, null);
+  return (
+    <li className={styles.pickItem} data-picked={picked || undefined}>
+      <label className={styles.pickRow}>
+        <input type="checkbox" checked={picked} disabled={disabled} onChange={onToggle} className="sr-only" />
+        <span className={styles.pickArt} aria-hidden="true">
+          <CardArt src={cardFrontUrl(SUPABASE_URL, item.imagePath)} alt="" name={item.cardName} caption={number} sizes="3.5rem" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={styles.pickName}>{item.cardName}</span>
+          <span className={styles.pickNumber}>{number}</span>
+        </span>
+        <span className={styles.pickCheck} aria-hidden="true">
+          {picked ? <Check className="h-4 w-4" /> : null}
+        </span>
+      </label>
+      {children}
+    </li>
   );
 }
 

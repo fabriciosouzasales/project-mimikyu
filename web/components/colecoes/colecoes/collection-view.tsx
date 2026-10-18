@@ -22,6 +22,9 @@ import heroStyles from "./collection-hero.module.css";
 import { CollectionTitle } from "./collection-title";
 import { CoverFinishPicker } from "./cover-finish-picker";
 import { LinkCardsLauncher } from "./link-cards";
+import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
+import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
+import manageStyles from "./collection-manage.module.css";
 import styles from "./colecoes.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,8 +37,10 @@ const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
  * fora de coleção, a etiqueta diz isso. Repetidas aparecem como contagem
  * (N12), sem inflar o progresso.
  *
- * Ações: "Renomear" (título, 5035) e "Adicionar as que já tenho" (R3 + 5046), só em coleção ativa e
- * quando existe algo a adicionar.
+ * Ações: "Renomear" (título, 5035) e "Adicionar cartas" (R3 + 5046, na barra da galeria, antes dos filtros), só em coleção ativa e
+ * quando existe algo a adicionar — o colecionador escolhe quais cartas entram (uma de cada). Gerenciar (COLLECTION-MANAGEMENT-RECOVERY-01, só coleção ativa):
+ * "Ajustes" no topo (identidade em leitura + Onde guardo, 5036) e, em cada carta que você tem, o
+ * botão de exemplares para tirar um exemplar específico da coleção (5047).
  */
 export function CollectionView({
   collection,
@@ -62,6 +67,7 @@ export function CollectionView({
   const active = collection.lifecycleStatus === "ACTIVE";
   const setCode = collection.cardSetCode;
   const canLink = active && setCode !== null && linkable !== null && linkable > 0;
+  const canManage = COLLECTION_MANAGE_ENABLED && active;
 
   const segments: { key: PositionFilter; label: string; count: number }[] = [
     { key: "todas", label: "Todas", count: total },
@@ -73,15 +79,30 @@ export function CollectionView({
   const shown = positions?.total ?? 0;
   const currentSegment = segments.find((segment) => segment.key === filter);
 
-  return (
+  const page = (
     <div className={acervoStyles.root}>
       <header className={`${acervoStyles.hero} ${heroStyles.hero}`} data-has-fan={hero.cards.length > 0 || undefined}>
         <div className={acervoStyles.stageGlow} aria-hidden="true" />
         <CollectionHeroBackdrop selection={hero} />
-        <Link href={COLECOES_PATH} className={styles.backLink}>
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Minhas coleções
-        </Link>
+        <div className={manageStyles.heroBar}>
+          <Link href={COLECOES_PATH} className={styles.backLink}>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Minhas coleções
+          </Link>
+          {canManage ? (
+            <CollectionSettingsButton
+              collectionId={collection.id}
+              collectionName={collection.name}
+              kind="card_set"
+              identity={{
+                name: collection.name,
+                finish: collection.finish,
+                finishEditable: collection.finishEditable,
+                setName: collection.cardSetName,
+              }}
+            />
+          ) : null}
+        </div>
         <div className={heroStyles.stage}>
           <div className={heroStyles.text}>
             <div className={heroStyles.identity}>
@@ -174,21 +195,30 @@ export function CollectionView({
             ) : null}
           </div>
           <div className={heroStyles.galleryTools}>
-            <nav className={styles.segmented} aria-label="Mostrar cartas">
+            {/* Abas sublinhadas (opção A, Fabrício 2026-10-18): texto puro, linha dourada sob a ativa. */}
+            <nav className={styles.filterTabs} aria-label="Mostrar cartas">
               {segments.map((segment) => (
                 <Link
                   key={segment.key}
                   href={collectionHref(collection.id, segment.key)}
                   scroll={false}
-                  className={styles.segment}
+                  className={styles.filterTab}
                   aria-current={segment.key === filter ? "page" : undefined}
                 >
                   {segment.label}
-                  <span className={styles.segmentCount}>{formatCount(segment.count)}</span>
+                  <span className={styles.filterTabCount}>{formatCount(segment.count)}</span>
                 </Link>
               ))}
             </nav>
-            {canLink && setCode ? <LinkCardsLauncher collectionId={collection.id} setCode={setCode} linkable={linkable} /> : null}
+            {setCode ? (
+              // Sempre visível; desabilitado quando não há o que adicionar.
+              <LinkCardsLauncher
+                collectionId={collection.id}
+                setCode={setCode}
+                linkable={canLink && linkable !== null ? linkable : 0}
+                layout="hero"
+              />
+            ) : null}
           </div>
         </div>
 
@@ -210,7 +240,12 @@ export function CollectionView({
           <ul className={acervoStyles.grid} aria-label={`Cartas — ${segments.find((segment) => segment.key === filter)?.label}`}>
             {positions.items.map((position, index) => (
               <li key={position.cardId}>
-                <PositionTile position={position} priority={index < PRIORITY_CARD_COUNT} setCode={setCode} />
+                <PositionTile
+                  position={position}
+                  priority={index < PRIORITY_CARD_COUNT}
+                  setCode={setCode}
+                  manageable={canManage}
+                />
               </li>
             ))}
           </ul>
@@ -219,9 +254,27 @@ export function CollectionView({
       </section>
     </div>
   );
+
+  return canManage ? (
+    <CollectionManageProvider collectionId={collection.id} collectionName={collection.name} kind="card_set">
+      {page}
+    </CollectionManageProvider>
+  ) : (
+    page
+  );
 }
 
-function PositionTile({ position, priority, setCode }: { position: CollectionPosition; priority: boolean; setCode: string | null }) {
+function PositionTile({
+  position,
+  priority,
+  setCode,
+  manageable,
+}: {
+  position: CollectionPosition;
+  priority: boolean;
+  setCode: string | null;
+  manageable: boolean;
+}) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
   const imageUrl = cardFrontUrl(SUPABASE_URL, position.imagePath);
@@ -259,6 +312,16 @@ function PositionTile({ position, priority, setCode }: { position: CollectionPos
           <span className={acervoStyles.qty} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}
           </span>
+        ) : null}
+        {manageable && setCode && position.copiesInCollection > 0 ? (
+          <ManageCopiesButton
+            target={{
+              query: { kind: "set_card", setCode, collectorNumber: position.collectorNumber },
+              cardName: position.cardName,
+              caption,
+              imageUrl,
+            }}
+          />
         ) : null}
       </div>
       <div className={acervoStyles.meta} aria-hidden="true">

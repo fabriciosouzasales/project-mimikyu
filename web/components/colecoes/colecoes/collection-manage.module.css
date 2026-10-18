@@ -1,0 +1,328 @@
+/*
+ * Gerenciar a coleção (COLLECTION-MANAGEMENT-RECOVERY-01).
+ * Só as superfícies novas: botão discreto na carta, painel de exemplares e
+ * painel de Ajustes. O painel lateral reaproveita o drawer do Meu acervo
+ * (acervo.module.css `.overlay`/`.drawer`); aqui ficam só os detalhes.
+ */
+
+/* ---- botão "Exemplares" na carta ---- */
+.tileAction {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface) / 0.92);
+  color: hsl(var(--muted-foreground));
+  box-shadow: 0 6px 16px -8px hsl(0 0% 0% / 0.55);
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    color 160ms ease;
+}
+
+/* Alvo de toque de 44px sem aumentar o círculo visível. */
+.tileAction::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem;
+}
+
+.tileAction:hover {
+  color: hsl(var(--foreground));
+}
+
+.tileAction:focus-visible {
+  opacity: 1;
+  transform: none;
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+:global(li):hover .tileAction,
+:global(li):focus-within .tileAction {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: none) {
+  .tileAction {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- botão "Ajustes" no topo da página ---- */
+.heroBar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.settingsButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.settingsButton:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--surface-muted) / 0.6);
+}
+
+.settingsButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* ---- painel ---- */
+.panel {
+  width: min(30rem, 100%);
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1.375rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.cardHead {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.cardArt {
+  position: relative;
+  aspect-ratio: 8 / 11;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: hsl(var(--surface-muted));
+  box-shadow: 0 12px 28px -14px hsl(0 0% 0% / 0.6);
+}
+
+.cardName {
+  font: 700 1rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.cardCaption {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.cardCount {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--foreground));
+}
+
+.note {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.groupTitle {
+  margin-bottom: 0.5rem;
+  font: 600 0.75rem/1.3 var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.copyList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.copy {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  padding: 0.75rem 0.875rem;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.copy[data-confirming] {
+  border-color: hsl(var(--primary) / 0.55);
+  background: hsl(var(--primary) / 0.06);
+}
+
+.copyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.copyTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.copyMeta {
+  margin-top: 0.125rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.confirm {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.confirmText {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground));
+}
+
+.confirmWarn {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.confirmActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skeleton {
+  height: 3.75rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted));
+  animation: manage-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes manage-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---- Ajustes ---- */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sectionTitle {
+  font: 700 0.9375rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+  gap: 0.25rem 1rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.fact + .fact {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.factLabel {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.factValue {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+.factHint {
+  grid-column: 2;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.storageForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.storageRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.storageRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .fact {
+    grid-template-columns: 1fr;
+  }
+
+  .factHint {
+    grid-column: 1;
+  }
+
+  .storageRow {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tileAction,
+  .copy {
+    transition: none;
+  }
+
+  .skeleton {
+    animation: none;
+  }
+}

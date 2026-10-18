@@ -16,10 +16,15 @@ import {
   classifyCollectionFailure,
   collectionHref,
   findAlternatives,
+  type LinkItem,
+  linkItems,
   isCollectionId,
   isSetCode,
   normalizeCollectionName,
+  type StorageOption,
 } from "@/lib/colecoes/colecoes";
+import { COLLECTION_MANAGE_ENABLED, type CopyGroup, copiesInCollection, sameCollectorNumber } from "@/lib/colecoes/collection-manage";
+import { getMyStorageLocations } from "@/lib/colecoes/colecoes-queries";
 import { getAcervoFilterOptions, getAcervoItems } from "@/lib/colecoes/acervo-queries";
 import {
   FREE_COVER_CODE_ENABLED,
@@ -196,8 +201,10 @@ export async function createFreeCollection(input: {
 // ---------------------------------------------------------------------------
 
 export type LinkReview = {
-  /** Cartas diferentes que entram (uma de cada, R3). */
+  /** Cartas diferentes que podem entrar (uma de cada, R3). */
   total: number;
+  /** As cartas da escolha (até 500 por vez), com arte — o colecionador marca quais entram. */
+  items: LinkItem[];
   /** Cartas com mais de uma opção no acervo (outra variante ou idioma). */
   choices: LinkChoice[];
 };
@@ -236,7 +243,7 @@ export async function reviewLinkOneOfEach(input: {
 
   const candidates = await readCandidates(supabase, input.collectionId);
   if (!candidates.ok) return candidates;
-  if (candidates.items.length === 0) return { ok: true, total: 0, choices: [] };
+  if (candidates.items.length === 0) return { ok: true, total: 0, items: [], choices: [] };
 
   const groups = await readAvailableGroups(supabase, input.setCode);
   if (!groups.ok) return groups;
@@ -244,6 +251,7 @@ export async function reviewLinkOneOfEach(input: {
   return {
     ok: true,
     total: candidates.total,
+    items: linkItems(candidates.items, groups.items),
     choices: findAlternatives(candidates.items, groups.items),
   };
 }
@@ -255,9 +263,10 @@ export async function reviewLinkOneOfEach(input: {
 export type LinkOverride = { cardId: string; collectorNumber: string; cardVariantId: string; languageCode: string };
 
 /**
- * Vincula um exemplar de cada carta que ainda falta. Os candidatos são lidos
- * de novo no servidor (estado atual, não o da revisão) e as escolhas do
- * usuário só valem para cartas que continuam faltando. Lotes de até 500
+ * Vincula um exemplar de cada carta ESCOLHIDA (`cardIds`) que ainda falta. Os
+ * candidatos são lidos de novo no servidor (estado atual, não o da revisão):
+ * só entram os que continuam faltando E foram marcados pelo colecionador; as
+ * escolhas de versão só valem para essas cartas. Lotes de até 500
  * (teto de 5046); a cada lote a leitura recomeça, então repetir o envio não
  * vincula duas vezes — o que já entrou deixa de ser candidato.
  *
@@ -265,10 +274,15 @@ export type LinkOverride = { cardId: string; collectorNumber: string; cardVarian
  */
 export async function linkOneOfEach(input: {
   collectionId: string;
+  cardIds: string[];
   overrides: LinkOverride[];
 }): Promise<{ ok: true; linked: number } | { ok: false; reason: CollectionFailure; linked: number }> {
   if (
     !isCollectionId(input?.collectionId) ||
+    !Array.isArray(input.cardIds) ||
+    input.cardIds.length === 0 ||
+    input.cardIds.length > LINK_BATCH_SIZE ||
+    !input.cardIds.every((id) => isUuid(id)) ||
     !Array.isArray(input.overrides) ||
     input.overrides.length > LINK_BATCH_SIZE ||
     !input.overrides.every(
@@ -286,28 +300,32 @@ export async function linkOneOfEach(input: {
   const startedAt = Date.now();
   const supabase = await createClient();
   const overrides = new Map(input.overrides.map((override) => [override.cardId, override]));
+  const wanted = new Set(input.cardIds);
   let linked = 0;
 
   // Cada volta lê o estado atual; o teto de voltas só protege contra laço infinito.
   for (let round = 0; round < 10; round += 1) {
     const candidates = await readCandidates(supabase, input.collectionId);
     if (!candidates.ok) return finish(candidates.reason);
-    if (candidates.items.length === 0) break;
+    // Só as cartas marcadas; as demais continuam fora (e no acervo).
+    const chosen = candidates.items.filter((candidate) => wanted.has(candidate.cardId));
+    if (chosen.length === 0) break;
 
     const ids: string[] = [];
-    for (const candidate of candidates.items) {
+    for (const candidate of chosen) {
       const override = overrides.get(candidate.cardId);
       if (override && override.collectorNumber === candidate.collectorNumber) {
-        const chosen = await pickFreeCopy(supabase, override);
-        if (!chosen.ok) return finish(chosen.reason);
+        const chosenCopy = await pickFreeCopy(supabase, override);
+        if (!chosenCopy.ok) return finish(chosenCopy.reason);
         // A escolha do usuário nunca é trocada em silêncio: sem exemplar livre
         // daquela opção, o acervo mudou desde a revisão — pede nova revisão.
-        if (!chosen.physicalCardId) return finish("already_linked");
-        ids.push(chosen.physicalCardId);
+        if (!chosenCopy.physicalCardId) return finish("already_linked");
+        ids.push(chosenCopy.physicalCardId);
         overrides.delete(candidate.cardId);
       } else {
         ids.push(candidate.physicalCardId);
       }
+      wanted.delete(candidate.cardId);
     }
 
     for (const batch of chunk(ids, LINK_BATCH_SIZE)) {
@@ -321,7 +339,7 @@ export async function linkOneOfEach(input: {
       }
       linked += data.length;
     }
-    if (candidates.items.length < LINK_BATCH_SIZE) break;
+    if (candidates.items.length < LINK_BATCH_SIZE || wanted.size === 0) break;
   }
 
   return finish(null);
@@ -721,6 +739,184 @@ export async function moveCollectionInLibrary(input: {
   revalidatePath(COLECOES_PATH);
   return { ok: true, position: data };
 }
+
+// ---------------------------------------------------------------------------
+// Gerenciar a coleção (COLLECTION-MANAGEMENT-RECOVERY-01) — contratos no LIVE
+// ---------------------------------------------------------------------------
+
+export type CardCopiesQuery =
+  | { kind: "group"; collectionId: string; cardVariantId: string; languageCode: string }
+  | { kind: "set_card"; collectionId: string; setCode: string; collectorNumber: string };
+
+const COLLECTOR_NUMBER = /^[A-Za-z0-9-]{1,20}$/;
+
+/**
+ * Os exemplares de UMA carta que estão nesta coleção, agrupados por versão +
+ * idioma. Só leitura: 5162 (exemplares do grupo, cada um com sua coleção) e —
+ * numa coleção de Set, onde a grade mostra a carta e não a versão — 5159 com
+ * `p_collection_id` para achar as versões dessa carta na coleção. Exemplares
+ * livres ou de outra coleção são descartados aqui e nunca viram retiráveis.
+ */
+export async function readCardCopiesInCollection(input: CardCopiesQuery): Promise<{ ok: true; groups: CopyGroup[] } | Fail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+
+  let targets: { cardVariantId: string; languageCode: string; collectorNumber: string | null }[];
+  if (input.kind === "group") {
+    if (!isUuid(input.cardVariantId) || typeof input.languageCode !== "string" || !LANGUAGE_CODE.test(input.languageCode)) {
+      return { ok: false, reason: "invalid" };
+    }
+    targets = [{ cardVariantId: input.cardVariantId, languageCode: input.languageCode, collectorNumber: null }];
+  } else if (input.kind === "set_card") {
+    if (!isSetCode(input.setCode) || typeof input.collectorNumber !== "string" || !COLLECTOR_NUMBER.test(input.collectorNumber)) {
+      return { ok: false, reason: "invalid" };
+    }
+    const { data, error } = await supabase.rpc("get_my_inventory_items", {
+      p_search: input.collectorNumber,
+      p_card_set_code: input.setCode,
+      p_language_code: null,
+      p_collection_id: input.collectionId,
+      p_without_collection: false,
+      p_sort: "SET_NUMBER",
+      p_limit: 96,
+      p_offset: 0,
+    });
+    if (error || !Array.isArray(data)) return fail("get_my_inventory_items", startedAt, error ?? { code: "BAD_SHAPE" });
+    targets = (data as InventoryRow[])
+      .filter((row) => sameCollectorNumber(row.collector_number, input.collectorNumber))
+      .map((row) => ({ cardVariantId: row.card_variant_id, languageCode: row.language_code, collectorNumber: row.collector_number }));
+  } else {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const results = await Promise.all(
+    targets.slice(0, 24).map((target) =>
+      supabase.rpc("get_my_inventory_item_copies", { p_card_variant_id: target.cardVariantId, p_language_code: target.languageCode }),
+    ),
+  );
+  const groups: CopyGroup[] = [];
+  for (let index = 0; index < results.length; index += 1) {
+    const result = results[index];
+    const target = targets[index];
+    if (!result || !target) continue;
+    if (result.error || !Array.isArray(result.data)) {
+      return fail("get_my_inventory_item_copies", startedAt, result.error ?? { code: "BAD_SHAPE" });
+    }
+    const rows = (result.data as CopyDetailRow[]).filter(
+      (row) => target.collectorNumber === null || sameCollectorNumber(row.collector_number, target.collectorNumber),
+    );
+    const first = rows[0];
+    if (!first) continue;
+    const copies = copiesInCollection(
+      rows.map((row) => ({
+        physicalCardId: row.physical_card_id,
+        copyNumber: Number(row.copy_number),
+        addedAt: row.added_at,
+        storageName: row.storage_name,
+        collectionId: row.collection_id ?? null,
+      })),
+      input.collectionId,
+    );
+    if (copies.length === 0) continue;
+    groups.push({
+      cardVariantId: target.cardVariantId,
+      languageCode: target.languageCode,
+      languageName: first.language_name ?? target.languageCode,
+      variantLabel: first.variant_label,
+      isDefaultVariant: first.is_default_variant === true,
+      copies,
+    });
+  }
+  console.info(JSON.stringify({ scope: "colecoes.manage_read", ms: Date.now() - startedAt, kind: input.kind, groups: groups.length }));
+  return { ok: true, groups };
+}
+
+/**
+ * Tira UM exemplar desta coleção (N14) — `5047`, com um único id. O banco
+ * confere dono, coleção ativa e que o exemplar está NESTA coleção (senão não
+ * remove nada). Só o vínculo some: a carta continua no acervo, o registro
+ * físico e o local ficam como estão, e nenhuma outra coleção muda.
+ */
+export async function unlinkCopyFromCollection(input: {
+  collectionId: string;
+  physicalCardId: string;
+}): Promise<{ ok: true } | Fail> {
+  if (!COLLECTION_MANAGE_ENABLED) return { ok: false, reason: "unavailable" };
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.physicalCardId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("deallocate_physical_cards_from_collection", {
+    p_collection_id: input.collectionId,
+    p_physical_card_ids: [input.physicalCardId],
+  });
+  if (error || !Array.isArray(data) || data.length !== 1) {
+    return fail("deallocate_physical_cards_from_collection", startedAt, error ?? { code: "BAD_SHAPE" });
+  }
+  console.info(JSON.stringify({ scope: "colecoes.unlink", ms: Date.now() - startedAt, removed: data.length }));
+  revalidatePath(COLECOES_PATH, "layout");
+  revalidatePath(ACERVO_PATH);
+  return { ok: true };
+}
+
+/**
+ * Ajustes → Onde guardo: o local padrão atual da coleção (RLS select-own) e os
+ * locais do próprio acervo. Só leitura.
+ */
+export async function readCollectionStorage(input: {
+  collectionId: string;
+}): Promise<{ ok: true; storageId: string | null; locations: StorageOption[] } | Fail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const [current, locations] = await Promise.all([
+    supabase.from("collection").select("default_storage_container_id").eq("id", input.collectionId).maybeSingle(),
+    getMyStorageLocations(supabase),
+  ]);
+  if (current.error) return fail("collection.default_storage", startedAt, current.error);
+  if (!current.data) return { ok: false, reason: "not_found" };
+  if (locations === null) return { ok: false, reason: "unavailable" };
+  const storageId = (current.data as { default_storage_container_id: string | null }).default_storage_container_id;
+  return { ok: true, storageId: isUuid(storageId) ? storageId : null, locations };
+}
+
+/**
+ * Troca o local padrão da COLEÇÃO — `5036`. Dono, coleção ativa e local do
+ * próprio acervo são conferidos pelo banco. Nenhum exemplar muda de lugar:
+ * o local de cada carta continua o que era (NS-13).
+ */
+export async function setCollectionStorage(input: {
+  collectionId: string;
+  storageContainerId: string;
+}): Promise<{ ok: true; storageId: string } | Fail> {
+  if (!COLLECTION_MANAGE_ENABLED) return { ok: false, reason: "unavailable" };
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.storageContainerId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_collection_default_storage", {
+    p_collection_id: input.collectionId,
+    p_storage_container_id: input.storageContainerId,
+  });
+  const row = Array.isArray(data) ? (data[0] as { default_storage_container_id?: string } | undefined) : undefined;
+  if (error || !row || !isUuid(row.default_storage_container_id)) {
+    return fail("set_collection_default_storage", startedAt, error ?? { code: "BAD_SHAPE" });
+  }
+  console.info(JSON.stringify({ scope: "colecoes.default_storage", ms: Date.now() - startedAt }));
+  revalidatePath(COLECOES_PATH, "layout");
+  return { ok: true, storageId: row.default_storage_container_id };
+}
+
+type CopyDetailRow = {
+  physical_card_id: string;
+  copy_number: number;
+  added_at: string;
+  storage_name: string | null;
+  collection_id: string | null;
+  collector_number: string;
+  language_name: string | null;
+  variant_label: string | null;
+  is_default_variant: boolean | null;
+};
 
 // ---- internos ----
 
