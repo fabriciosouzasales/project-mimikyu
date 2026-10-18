@@ -5,7 +5,7 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30) |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4) |
 | **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
 | **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
@@ -49,6 +49,8 @@ Composição e completude são conceitos independentes.
 Uma Collection convencional baseada em Card Set pode conter múltiplas `Card Variants` da mesma `Card`, ainda que para completude baste ao menos uma variante válida daquela Card.
 
 Em uma Collection Master Set, cada `Card Variant` relevante constitui individualmente uma posição de completude.
+
+> **Nota de substituição parcial (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`).** A frase acima ("cada `Card Variant` relevante constitui individualmente uma posição") está **substituída** por C-187: no Master Set, a posição de completude é a combinação **carta + tipo de acabamento** (`Card Variant Type`) entre os acabamentos escolhidos pelo colecionador, mais as cartas secretas (C-189). Contexto de edição, perfil de impressão e idioma não criam posições. O restante de C-01 (Posse ≠ Composição ≠ Completude ≠ Desejo; Set convencional satisfeito por qualquer variante) permanece válido. Texto original preservado por rastreabilidade.
 
 Cartas não possuídas não pertencem à Collection; intenções de aquisição pertencem à Wishlist.
 
@@ -1702,6 +1704,36 @@ Não se duplicam automaticamente fatos de Physical Card Lifecycle. Ownership Ent
 
 ---
 
+## Bloco complementar — Master Set por acabamento (C-187 a C-190, 2026-10-18)
+
+Origem: decisões explícitas de Fabrício na sequência `MASTER-SET-DISCOVERY-01` → `-CORREÇÃO DA DECISÃO P1` → `-REGRA DEFINITIVA DE CÁLCULO` → `-RESTABELECIMENTO DO CONCEITO CANÔNICO` → `-FLEXIBILIDADE PERMANENTE DO OBJETIVO` → `-DOCUMENTATION & CONTRACT PROPOSAL-01` (2026-10-17/18). Substitui parcialmente C-01 (frase sobre Master Set) e B.4 (Master Set). C-23 (alternância entre Set convencional e Master Set) permanece válida sem alteração. Formalização lógica em `logical-model.md` LDM-191 a LDM-195.
+
+### C-187 — Unidade de completude do Master Set
+
+**Status:** Aprovada
+
+No Master Set, cada posição de completude é a combinação **carta + tipo de acabamento** (`Card Variant Type`) exigida pelo objetivo da Collection. Uma carta gera uma posição para cada acabamento escolhido em que ela existe no catálogo. Contexto de edição (Liga, Staff, Torneio, carimbos, campanhas e demais), perfil de impressão (1ª Edição, Sem Sombra, Tiragem Ilimitada, erros) e idioma **não criam posições adicionais** e **não impedem** a satisfação: um exemplar satisfaz a posição quando a carta e o acabamento correspondem, qualquer que seja seu contexto, impressão ou idioma. Exemplares repetidos não aumentam o progresso; apenas exemplares vinculados à Collection contam.
+
+### C-188 — Objetivo configurado por acabamentos e derivado do catálogo vigente
+
+**Status:** Aprovada
+
+O colecionador escolhe os **tipos de acabamento** do objetivo; essa escolha é o que se persiste. As posições exigidas são **derivadas dinamicamente** do catálogo vigente: novas combinações carta + acabamento que surgirem em um acabamento escolhido entram automaticamente no objetivo. A escolha pode ser alterada a qualquer momento, mediante ação explícita, inclusive com exemplares vinculados. A seleção inicial Padrão, Holográfica e Holográfica Reverse é apenas sugestão; o objetivo é válido com qualquer conjunto de acabamentos existentes no Set (inclusive um só). Alterar o objetivo nunca move, exclui ou desvincula exemplares, e exemplares que não satisfaçam o objetivo atual podem permanecer na Collection. Antes de confirmar uma mudança, o colecionador vê a prévia do impacto no progresso. Voltar ao Set convencional preserva a configuração do Master Set (C-23).
+
+### C-189 — Cartas secretas obrigatórias
+
+**Status:** Aprovada
+
+Carta secreta é a carta cujo número de colecionador excede o total do Set base (`04-domain-model.md` §Set; `05a`). **Todas as cartas secretas do Card Set referenciado integram o objetivo do Master Set**, independentemente dos acabamentos escolhidos. A obrigação é **contemplar a carta**, não exigir acabamentos: quando a secreta existe em algum acabamento escolhido, as posições desses acabamentos já a contemplam; quando não existe em nenhum acabamento escolhido, a carta gera **uma única posição de carta**, satisfeita por qualquer exemplar dela. Nenhum acabamento passa a ser exigido apenas por pertencer a uma carta secreta — a secreta com vários acabamentos fora da seleção continua gerando uma posição só. Sem duplicação: uma secreta nunca é contada duas vezes.
+
+### C-190 — Estabilidade do Card Set e evolução da cobertura de variantes
+
+**Status:** Aprovada
+
+A identidade do Card Set e o seu universo editorial de cartas permanecem estáveis (B.3, "Universo estático", sem alteração). O que pode evoluir é a **cobertura de variantes** que o catálogo registra para essas cartas — cadastro posterior de acabamentos, correções e desativações catalográficas. O Set convencional não é afetado por essa evolução (uma carta continua sendo uma posição). O Master Set, por ser definido por acabamentos (C-188), acompanha a cobertura vigente. Correções e desativações são eventos de governança do catálogo, registrados no log administrativo do catálogo; o comportamento sobre posições já satisfeitas está em LDM-195.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -1790,6 +1822,8 @@ Exemplo: Card Set.
 - progresso calculável;
 - referência consolidada após primeira Physical Card alocada.
 
+> **Esclarecimento (2026-10-18, C-190).** "Universo estável" refere-se à identidade do Card Set e ao seu conjunto editorial de cartas — inalterado. A cobertura de variantes registrada no catálogo pode evoluir (acabamentos cadastrados depois, correções, desativações); o Master Set, definido por acabamentos, acompanha essa cobertura (C-188), enquanto o Set convencional não é afetado.
+
 ### Universo dinâmico
 
 Exemplo: Pokédex.
@@ -1809,6 +1843,8 @@ Uma Card é satisfeita quando existe ao menos uma `Physical Card` válida e aloc
 ### Master Set
 
 Cada `Card Variant` requerida constitui uma posição individual de completude.
+
+> **Substituído (2026-10-18, C-187 a C-189).** Cada combinação **carta + tipo de acabamento** dos acabamentos escolhidos constitui uma posição; toda carta secreta do Set integra o objetivo (uma posição de carta quando nenhum acabamento escolhido a contempla). Contexto de edição, impressão e idioma não criam posições nem impedem a satisfação. Texto original acima preservado por rastreabilidade.
 
 ### Pokédex
 
@@ -2027,3 +2063,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.14 | **Reconciliação da escala física de Condition, 2026-08-31** (`COLLECTIONS-CARD-CONDITION-RECONCILIATION-02`), decorrente da auditoria read-only `COLLECTIONS-CARD-CONDITION-MINT-POSTCHECK-01` (a condição física `M`/Mint foi adicionada via UI — passo referido por Fabrício como "PRE-PHYSICAL-GATE" — e a auditoria confirmou zero regressão de Pricing). **C-105 atualizada**: a escala canônica deixa de ser descrita pelos codes longos "pretendidos" (`MINT`/`NEAR_MINT`/`LIGHTLY_PLAYED`/`MODERATELY_PLAYED`/`HEAVILY_PLAYED`/`DAMAGED`, nunca gravados fisicamente) e passa a refletir os codes físicos reais confirmados em `card_condition` — `M`/`NM`/`LP`/`MP`/`HP`/`DMG`, `condition_order` 1..6. A pendência histórica de contagem (5 registros citados vs. 6 códigos documentados) registrada por esta decisão desde 2026-08-30 está **CLOSED**. **C-106 atualizada**: exemplo de code trocado de `NEAR_MINT` para `NM`. **C-107 atualizada**: nota de precisão adicionada, distinguindo o "D" de mercado (Danificada) do code canônico `DMG`, e explicitando que equivalências de fonte externa (ex.: JustTCG) pertencem exclusivamente à camada de mapping (`pricing_condition_mapping`), nunca ao vocabulário canônico. Nenhuma nova C-* criada — C-105/C-106/C-107 mantiveram seus números originais, apenas conteúdo/status atualizados. C-01–C-186 não reabertas além do estritamente descrito acima. Pricing e banco permanecem intocados nesta rodada (documental pura). |
 | 1.15 | **Correção do conflito documental Pokédex, 2026-09-03** (`COLLECTIONS-POKEDEX-DOCUMENTATION-FINAL-FIX-01`), decorrente da auditoria read-only `COLLECTIONS-POKEDEX-DOCUMENTATION-FINAL-AUDIT-01`, que classificou dois trechos como `STALE_CONFLICT` frente ao modelo fechado em `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01` (`logical-model.md`, LDM-177–LDM-181). **C-33 atualizada**: o exemplo Pokédex ("validar se a Card representa o Pokémon correto para aquela posição") foi revisado para descrever explicitamente Species Match (correspondência exata → `SPECIES_MATCH`, automático) vs. mismatch/ausência de Primary Species (aviso + confirmação → `USER_OVERRIDE`, nunca bloqueio), com pointer para LDM-177/LDM-178/LDM-179; a decisão central de C-33 (validação restrita a pertencimento ao universo, sem regras de preferência pessoal) não foi alterada. **Parte B.4 (Pokédex) atualizada**: a frase "A Card utilizada deve representar aquele Pokémon" foi substituída por formulação que distingue satisfação automática (Primary Species correspondente) de mismatch/ausência (aviso + `USER_OVERRIDE`, conta normalmente para completion), com pointer para LDM-178/LDM-181. **Parte D atualizada**: a entrada `Pokémon / Subject Reference`, antes listada como tema não resolvido, foi marcada como resolvida (riscada, com nota), apontando para a revogação do adiamento em ADR-011 v1.2 e para LDM-175–LDM-185 — texto histórico preservado. Nenhuma outra C-* revisitada. `logical-model.md`, `ADR-011` e banco/schema não foram tocados nesta rodada — fix estritamente documental, escopo idêntico ao dos três conflitos identificados na auditoria anterior. |
 | 1.16 | **Anotação de status (2026-10-15, `DOC-GATE-01`).** Parte D: o item "engine de progresso" constava apenas como pendente, mas a completude é calculada fisicamente desde 2026-09-02/06 por read models derivados (02E, 02F, Fatia E). Anotação acrescentada ao item, sem remover o texto original nem alterar decisões C-*. |
+| 1.17 | **Master Set por acabamento (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`).** Decisões de Fabrício: unidade de completude = carta + tipo de acabamento; acabamentos escolhidos persistidos e posições derivadas do catálogo vigente (novas combinações entram sozinhas); objetivo editável a qualquer momento; secretas (número além do Set base) obrigatórias, contempladas pela carta e não por acabamentos extras; contexto de edição, impressão e idioma não criam posições. Adicionadas C-187 a C-190. Notas de substituição parcial em C-01 (frase sobre Master Set) e em B.4 (Master Set); esclarecimento em B.3 (Card Set estável × cobertura de variantes). Texto original preservado. C-23 inalterada. |

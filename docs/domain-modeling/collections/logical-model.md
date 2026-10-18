@@ -6,7 +6,7 @@
 | **Arquivo** | `docs/domain-modeling/collections/logical-model.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
 | **Decision Register** | LDM-01 a LDM-27 (núcleo Collection, checkpoint em evolução — ver banner de superação parcial abaixo); LDM-29 a LDM-37 (bloco complementar Collection Layout, 2026-08-30); LDM-23 revisada em 2026-08-30 (identidade e cardinalidade corrente de `Physical Card`, ver banner); LDM-38 a LDM-43 (bloco complementar Custody & Availability, 2026-08-30, sem skeleton físico); LDM-44 a LDM-54 (bloco complementar Storage, 2026-08-30, sem skeleton físico); LDM-55 a LDM-69 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico); LDM-70 a LDM-78 (bloco complementar Favorite, 2026-08-30, sem skeleton físico); LDM-79 a LDM-90 (bloco complementar Wishlist, 2026-08-30, sem skeleton físico); LDM-91 a LDM-108 (bloco complementar Physical Card Condition, 2026-08-30, sem skeleton físico); LDM-109 a LDM-128 (bloco complementar Grading / Certification, 2026-08-30, sem skeleton físico); LDM-129 a LDM-153 (bloco complementar Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico); LDM-154 a LDM-174 (bloco complementar Collection Activity History / Audit, 2026-08-30, sem skeleton físico); LDM-175 a LDM-185 (bloco complementar Pokédex / REFERENCE_POSITION, 2026-09-03, sem skeleton físico — supersede LDM-16 e a cláusula Pokédex de LDM-17) |
-| **Status** | Checkpoint lógico (LDM-01 a LDM-190). **Estado físico vigente (reconciliado em 2026-10-15, `DOC-GATE-01`; fonte prevalente: `docs/05d-colecoes-e-usuarios.md`).** CONFIRMADO EXECUTADO no LIVE: Inventory + Physical Card (01B, 2026-08-31); Storage Container, sem hierarquia nem capacidade (02A, 2026-09-01); Collection root (02B, 2026-09-01); Collection Allocation (02C, 2026-09-02); Collection Reference / Card Set Reference (02D, 2026-09-02); Completion STANDARD_SET (02E, 2026-09-02) e MASTER_SET Scope (02F, CLOSED, 2026-09-02); Pokédex / REFERENCE_POSITION, Fatias A–E (2026-09-04 a 2026-09-06); Binder/Layout Foundation (LDM-29–LDM-37, CLOSED em 2026-09-07); Bulk Operations BULK-01 a BULK-03 (2026-09-07 a 2026-09-09). Sem modelo físico: Custody/Availability, Lifecycle/Provenance, Favorite de Card, Wishlist, vínculo de Condition ao exemplar, Grading/Certification, Collaboration/Permissions, Activity History/Audit e hierarquia/capacidade de Storage. Nenhuma tela de produto consome esse backend — só existem spikes em `web/app/experimental/*`, com dados simulados (ver `ux-exploration-2026-08-29.md`). Menções a "NOT STARTED"/"ainda não iniciada" sobre essas frentes, anteriores a 2026-10-15, são registro histórico. *(Texto de status anterior, preservado: Checkpoint lógico em evolução — modelo físico iniciado em 2026-08-31 (Inventory + Physical Card, LDM-23 core skeleton, CONFIRMADO EXECUTADO) e estendido em 2026-09-01 (Storage Container + `physical_card.storage_container_id`, LDM-44/LDM-45/LDM-46/LDM-49 primeira materialização física, CONFIRMADO EXECUTADO; Collection root, LDM-12 primeira materialização física, CONFIRMADO EXECUTADO; demais frentes NOT STARTED). Pokédex / REFERENCE_POSITION (LDM-175 a LDM-185): **CONCEPTUALLY CLOSED em 2026-09-03** e, desde 2026-09-06, **PHYSICALLY IMPLEMENTED / CLOSED** — Fatias A–E do Pokédex materializadas, validadas e promovidas (`6000`–`6126` e `5085`–`5103`; ver `docs/05d-colecoes-e-usuarios.md`). Próxima frente do projeto: **Binder/Layout Foundation**, ainda não iniciada.)* |
+| **Status** | Checkpoint lógico (LDM-01 a LDM-195). **Estado físico vigente (reconciliado em 2026-10-15, `DOC-GATE-01`; fonte prevalente: `docs/05d-colecoes-e-usuarios.md`).** CONFIRMADO EXECUTADO no LIVE: Inventory + Physical Card (01B, 2026-08-31); Storage Container, sem hierarquia nem capacidade (02A, 2026-09-01); Collection root (02B, 2026-09-01); Collection Allocation (02C, 2026-09-02); Collection Reference / Card Set Reference (02D, 2026-09-02); Completion STANDARD_SET (02E, 2026-09-02) e MASTER_SET Scope (02F, CLOSED, 2026-09-02); Pokédex / REFERENCE_POSITION, Fatias A–E (2026-09-04 a 2026-09-06); Binder/Layout Foundation (LDM-29–LDM-37, CLOSED em 2026-09-07); Bulk Operations BULK-01 a BULK-03 (2026-09-07 a 2026-09-09). Sem modelo físico: Custody/Availability, Lifecycle/Provenance, Favorite de Card, Wishlist, vínculo de Condition ao exemplar, Grading/Certification, Collaboration/Permissions, Activity History/Audit e hierarquia/capacidade de Storage. Nenhuma tela de produto consome esse backend — só existem spikes em `web/app/experimental/*`, com dados simulados (ver `ux-exploration-2026-08-29.md`). Menções a "NOT STARTED"/"ainda não iniciada" sobre essas frentes, anteriores a 2026-10-15, são registro histórico. *(Texto de status anterior, preservado: Checkpoint lógico em evolução — modelo físico iniciado em 2026-08-31 (Inventory + Physical Card, LDM-23 core skeleton, CONFIRMADO EXECUTADO) e estendido em 2026-09-01 (Storage Container + `physical_card.storage_container_id`, LDM-44/LDM-45/LDM-46/LDM-49 primeira materialização física, CONFIRMADO EXECUTADO; Collection root, LDM-12 primeira materialização física, CONFIRMADO EXECUTADO; demais frentes NOT STARTED). Pokédex / REFERENCE_POSITION (LDM-175 a LDM-185): **CONCEPTUALLY CLOSED em 2026-09-03** e, desde 2026-09-06, **PHYSICALLY IMPLEMENTED / CLOSED** — Fatias A–E do Pokédex materializadas, validadas e promovidas (`6000`–`6126` e `5085`–`5103`; ver `docs/05d-colecoes-e-usuarios.md`). Próxima frente do projeto: **Binder/Layout Foundation**, ainda não iniciada.)* |
 | **Escopo** | Modelagem lógica da entidade `Collection`, do domínio de posse (`Physical Card` — nome canônico desde 2026-08-30, ver `concept-decisions.md` C-47/C-48), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`/`Slot Assignment`, desde 2026-08-30 das dimensões lógicas `Custody`/`Custodian`/`Availability` (sem skeleton físico — ver LDM-38 a LDM-43), desde 2026-08-30 de `Storage`/`Storage Container` incluindo hierarquia opcional (sem skeleton físico — ver LDM-44 a LDM-54), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit, sem skeleton físico — ver LDM-55 a LDM-69), desde 2026-08-30 de `Favorite` (User↔Card, sem skeleton físico — ver LDM-70 a LDM-78), desde 2026-08-30 de `Wishlist` (User↔Card Variant, sem skeleton físico — ver LDM-79 a LDM-90), desde 2026-08-30 de `Physical Card Condition` (sem skeleton físico — ver LDM-91 a LDM-108), desde 2026-08-30 de `Grading`/`Certification` (sem skeleton físico — ver LDM-109 a LDM-128), e desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Membership, roles EDITOR/VIEWER, sem skeleton físico — ver LDM-129 a LDM-153), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas distintas — Lifecycle/Provenance, Activity History, Audit —, sem skeleton físico — ver LDM-154 a LDM-174) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `concept-decisions.md` (C-01 a C-48, base conceitual), `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md` (**supersede parcialmente este documento — ver banner abaixo**), `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md` (canônico para o bloco Layout), `../../04-domain-model.md`, `adr/ADR-013-collection-item-identity-model.md`/`adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas**). |
 
@@ -324,7 +324,7 @@ Completion projection:
 
 Requirement satisfaction is derived rather than persisted as a second source of truth. Para `REFERENCE_POSITION`, "requirement satisfaction" refere-se à Position possuir Pokédex Position Assignment explícito — Allocation sozinha não basta (ver LDM-179/LDM-181, que revisam a leitura deste projection sem alterar a mecânica de `STANDARD_SET`/`MASTER_SET`, que permanecem satisfeitas por Allocation).
 
-**Status:** APPROVED
+**Status:** APPROVED — linha `MASTER_SET` da projeção **SUBSTITUÍDA** (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`) por LDM-193: `MASTER_SET: Card Variant → (Card, Card Variant Type)`. O exemplar continua originando-se de exatamente uma Card Variant (decisão central inalterada); muda só a projeção usada para satisfazer a posição.
 
 ## LDM-20 — Completion Denominator
 Requirements depend on `completion_policy`:
@@ -336,7 +336,7 @@ Requirements depend on `completion_policy`:
 
 Numerator = distinct requirements satisfied by at least one Physical Card allocated to Collection. Duplicates do not create additional satisfied requirements. Counts/percentages may later be materialized for performance but are not canonical truth.
 
-**Status:** APPROVED
+**Status:** APPROVED — linha `MASTER_SET` **SUBSTITUÍDA** (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`) por LDM-192/LDM-193: denominador = posições distintas (carta + acabamento) derivadas dos acabamentos escolhidos no catálogo vigente, mais as posições de carta secreta necessárias, sem duplicação. A regra do numerador (requisitos distintos satisfeitos por ≥ 1 Physical Card alocada; duplicatas não contam) permanece válida para todas as policies.
 
 ## LDM-21 — Master Set Adopted Scope
 A `MASTER_SET` Collection has a user-defined Master Set Adopted Scope.
@@ -357,7 +357,7 @@ Full historical changes belong to Audit Log.
 
 The canonical Card Variant list of a validated Card Set is stable after its initial validated catalog load in normal operation. Later corrections, if ever required, are exceptional catalog-governance events, not normal Collection evolution.
 
-**Status:** APPROVED
+**Status:** APPROVED → **SUBSTITUÍDA** (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`) por LDM-191 (estrutura: acabamentos escolhidos, não `card_variant_id`), LDM-192 (posições derivadas), LDM-194 (edição e evolução) e LDM-195 (correções catalográficas). Permanecem válidos desta LDM: objetivo definido pelo usuário; remover algo do objetivo não apaga nem desvincula exemplares; histórico completo pertence ao Audit Log. Deixam de valer: seleção individual por `card_variant_id` como fonte de verdade; inclusão de contextos especiais (Liga, Torneio etc.) como exigências próprias (C-187); a premissa de lista de variantes estável como condição do denominador (C-190). Texto original preservado.
 
 ## LDM-22 — Completion Policy Changes and Master Set Scope Redefinition
 Card Set Collections may change:
@@ -375,7 +375,7 @@ Distinction:
 
 Denominator changes are conscious user changes to the collecting objective, not automatic catalog expansion.
 
-**Status:** APPROVED
+**Status:** APPROVED — **parcialmente SUBSTITUÍDA** (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`) por LDM-194. Permanecem válidos: alternância `STANDARD_SET ↔ MASTER_SET`; mudar de policy não altera exemplares; ao voltar para Set convencional a configuração do Master Set é preservada e pode ser restaurada; distinção entre mudança de policy e mudança de objetivo. Substituídos: (a) "adopted variants change" → o que muda são os **acabamentos escolhidos**; (b) a última frase — o denominador passa a mudar também quando o catálogo vigente ganha ou perde combinações nos acabamentos escolhidos (C-188, LDM-194).
 
 ## LDM-23 — Physical Card: Canonical Identity and Current Inventory Membership
 The physical copy has one canonical identity: **Physical Card** (canonical name since 2026-08-30; superseded names, in order of adoption: `Collection Item`, then `Inventory Item` — see `concept-decisions.md`, C-47/C-48). Association with a Collection does not create a second physical identity, and neither does current membership in an Inventory.
@@ -1660,6 +1660,74 @@ Nenhum índice dedicado em `main_region_id` nesta rodada — decisão proporcion
 
 **Aplicação física:** `pokemon_region`/triggers (Queries `6060`/`6061`), `pokemon_region_external_reference`/triggers (Queries `6070`/`6071`) e `pokemon_generation.main_region_id` (Query `6080`, FK `ON UPDATE RESTRICT ON DELETE RESTRICT` explícitos) — **CONFIRMADO EXECUTADO em 2026-09-04**, promovidas para `database/schema/`. Ver `docs/05d-colecoes-e-usuarios.md`, seção "Collection Pokédex Reference / REFERENCE_POSITION", para o resumo físico narrativo.
 
+
+---
+
+## LDM-191 a LDM-195 — Master Set por acabamento (bloco complementar, 2026-10-18)
+
+Formalização lógica de `concept-decisions.md` C-187 a C-190 (decisões de Fabrício, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`). Substitui LDM-21 e partes de LDM-19, LDM-20 e LDM-22 (ver notas nessas LDMs). Proposta física correspondente: `database/proposals/2026-10-18-master-set-finish-scope/` (**proposta — não executada**).
+
+### LDM-191 — Master Set Finish Selection
+
+A `MASTER_SET` Collection persiste o conjunto de **tipos de acabamento** escolhidos pelo Owner:
+
+```text
+Collection Master Set Finish
+├── collection_id
+├── variant_type_id   (Card Variant Type do mesmo Game da Collection)
+├── adopted_at
+└── adopted_by_user_id
+```
+
+Uma linha por acabamento escolhido; sem duplicidade. Só faz sentido para Collection `REFERENCE_BASED` / Card Set Reference. Um acabamento só pode ser escolhido se existir, no momento da escolha, em ao menos uma combinação ativa do Card Set referenciado. Enquanto `completion_policy = MASTER_SET`, a seleção nunca fica vazia. Voltar para `STANDARD_SET` preserva a seleção, inativa (C-23). A sugestão inicial (Padrão, Holográfica, Holográfica Reverse) é mecanismo de interface, não regra persistida.
+
+**Status:** APPROVED
+
+### LDM-192 — Master Set Positions (derivadas)
+
+As posições não são persistidas; são derivadas a cada leitura do catálogo vigente:
+
+1. **Posição de acabamento** — cada par distinto `(Card, Card Variant Type)` em que: a Card pertence ao Card Set referenciado e está ativa; existe ao menos uma Card Variant ativa daquela Card naquele acabamento (com qualquer contexto de edição ou perfil de impressão); e o acabamento está na seleção (LDM-191).
+2. **Posição de carta secreta** — para cada Card ativa do Card Set cujo `collector_number` é inteiramente numérico e maior que `card_set.base_set_size` (definição de `04-domain-model.md` §Set) e que **não** tenha nenhuma posição de acabamento pelo item 1: exatamente uma posição identificada só pela Card (sem acabamento).
+
+Sem duplicação: uma secreta contemplada por um acabamento escolhido não gera posição de carta; uma secreta com vários acabamentos fora da seleção gera uma única posição de carta (C-189). Números não numéricos não são classificados como secretos por esta regra.
+
+**Status:** APPROVED
+
+### LDM-193 — Satisfação, numerador e denominador do Master Set
+
+- Posição de acabamento `(Card, Type)`: satisfeita quando ≥ 1 Physical Card alocada à Collection referencia uma Card Variant com a mesma Card e o mesmo Card Variant Type — qualquer contexto de edição, perfil de impressão ou idioma.
+- Posição de carta secreta `(Card)`: satisfeita quando ≥ 1 Physical Card alocada referencia qualquer Card Variant daquela Card.
+- Denominador = número de posições (LDM-192). Numerador = posições satisfeitas. Duplicatas não contam (LDM-20). Physical Cards alocadas que não satisfazem nenhuma posição permanecem na Collection ("fora do objetivo"), sem efeito no progresso.
+
+**Status:** APPROVED
+
+### LDM-194 — Edição dos acabamentos e evolução do objetivo
+
+- O Owner pode acrescentar ou retirar acabamentos a qualquer momento enquanto a Collection está `MASTER_SET`, por ação explícita, com prévia do impacto antes de confirmar. Acabamentos mantidos preservam `adopted_at`/`adopted_by_user_id`.
+- O denominador muda por duas causas legítimas: (a) mudança consciente da seleção; (b) evolução da cobertura do catálogo nos acabamentos escolhidos — combinação nova entra sozinha; combinação que deixa de existir sai sozinha (LDM-195).
+- Nenhuma mudança de seleção ou de policy cria, altera, exclui ou desvincula Physical Cards, Collection Allocations, Storage ou Slot Assignments.
+
+**Status:** APPROVED
+
+### LDM-195 — Correções e desativações catalográficas
+
+Comportamento derivado (nenhuma reação automática além do cálculo):
+
+| Evento de catálogo | Efeito sobre posições | Efeito sobre exemplares |
+|---|---|---|
+| Nova Card Variant ativa em acabamento escolhido, criando par novo | Posição nova (denominador sobe) | Nenhum |
+| Nova Card Variant num par já existente (outro contexto/impressão) | Nenhum | Passa a poder satisfazer o mesmo par |
+| Card Variant desativada, mas o par segue existindo por outra Variant ativa | Nenhum | Exemplar dela **continua** satisfazendo o par |
+| Card Variant desativada e era a única ativa do par | Posição sai (denominador cai) | Exemplar vira "fora do objetivo"; vínculo preservado |
+| Card desativada | Todas as posições da Card saem (inclusive a de secreta) | Exemplares ficam "fora do objetivo"; vínculos preservados |
+| Reclassificação de acabamento de uma Variant | O par antigo pode sair e o novo entrar | O exemplar passa a satisfazer o novo par se ele estiver no objetivo |
+| Mudança de `base_set_size` ou de `collector_number` | Conjunto de secretas recalculado | Nenhum |
+
+Riscos: o progresso pode mudar sem ação do colecionador e uma Collection completa pode voltar a incompleta. Evidências disponíveis sem criar histórico novo: (1) `catalog_admin_action_log` registra `CARD_VARIANT_DEACTIVATED`/`_REACTIVATED` (Query `2270`) e `CARD_DEACTIVATED`/`_REACTIVATED` com ator e variante; (2) a guarda `2268` impede vincular exemplar novo a Variant inativa e a RPC `2270` recusa desativar a Variant padrão ou a última ativa da Card; (3) a leitura de posições expõe, por posição, quantos exemplares a satisfazem, e os exemplares fora do objetivo podem ser listados com o motivo (acabamento não escolhido, Variant/Card inativa). Histórico de mudanças do objetivo e notificação ao colecionador ficam para o Audit Log / Activity History (C-166 a C-186), fora desta rodada. Divergência registrada, não alterada: o ramo `STANDARD_SET` atual conta Cards sem filtrar `is_active`.
+
+**Status:** APPROVED
+
 ---
 
 # 4. Canonical Relationship Summary
@@ -1690,8 +1758,8 @@ Physical Card
 └── Pokédex Position Assignment (0..1 por Collection Pokédex — LDM-179)
 
 MASTER_SET Collection
-└── Master Set Adopted Scope
-    └── selected Card Variants
+└── Master Set Finish Selection (LDM-191 — acabamentos escolhidos, persistidos)
+    └── Master Set Positions (LDM-192 — derivadas do catálogo vigente: carta + acabamento, + cartas secretas)
 
 Collection
 └── Collection Layout (0..N)
@@ -1740,9 +1808,10 @@ STANDARD_SET
 → denominator = Cards of referenced Card Set
 → Physical Card → Card Variant → Card
 
-MASTER_SET
-→ denominator = Card Variants selected in Master Set Adopted Scope
-→ Physical Card → Card Variant
+MASTER_SET (LDM-192/LDM-193, 2026-10-18)
+→ denominator = distinct (Card, Card Variant Type) of the chosen finishes in the current catalog
+  + one Card position per secret Card not covered by a chosen finish
+→ Physical Card → Card Variant → (Card, Card Variant Type)
 
 REFERENCE_POSITION / POKEDEX
 → denominator = Pokédex Positions in Adopted Scope
@@ -1766,7 +1835,7 @@ Do **not** implement:
 7. Incidental artwork Pokémon satisfying Pokédex positions.
 8. A second physical identity solely because a Physical Card joins a Collection.
 9. Every canonical Card Variant being automatically mandatory in every Master Set.
-10. Automatic Master Set denominator changes caused by normal catalog expansion.
+10. ~~Automatic Master Set denominator changes caused by normal catalog expansion.~~ **Retirada desta lista em 2026-10-18 (LDM-194, C-188)** — por decisão de Fabrício, novas combinações carta + acabamento de um acabamento escolhido entram automaticamente no objetivo. Texto original preservado. O item 9 (toda Card Variant obrigatória em todo Master Set) continua rejeitado.
 11. Structurally mandatory Storage for Physical Card creation.
 12. Automatic Physical Card transfer when Collection ownership changes.
 13. Unconditional patrimonial authority for Collection Owner over items owned by other members.
@@ -1851,7 +1920,7 @@ Canonical document:
 `concept-decisions.md`
 
 ## Logical
-**LDM-01 through LDM-190 — APPROVED, LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-16 SUPERSEDED (2026-09-03, ver LDM-177), cláusula Pokédex de LDM-17 SUPERSEDED (2026-09-03, ver LDM-178), LDM-23 REVISADA (2026-08-30), LDM-03 PARCIALMENTE SUPERSEDED (2026-08-30, ver LDM-129–LDM-153), LDM-186–LDM-190 bloco complementar Pokémon Region (2026-09-04), aditivo, física CONFIRMADO EXECUTADO**
+**LDM-01 through LDM-195 — APPROVED (LDM-191 a LDM-195 em 2026-10-18; LDM-21 SUBSTITUÍDA e LDM-19/20/22 parcialmente substituídas por elas), LDM-25/26/27 SUPERSEDED (2026-08-28), LDM-16 SUPERSEDED (2026-09-03, ver LDM-177), cláusula Pokédex de LDM-17 SUPERSEDED (2026-09-03, ver LDM-178), LDM-23 REVISADA (2026-08-30), LDM-03 PARCIALMENTE SUPERSEDED (2026-08-30, ver LDM-129–LDM-153), LDM-186–LDM-190 bloco complementar Pokémon Region (2026-09-04), aditivo, física CONFIRMADO EXECUTADO**
 
 This document is the canonical logical checkpoint for LDM-01 through LDM-24 (Collection core), LDM-29 through LDM-37 (Collection Layout, 2026-08-30), LDM-38 through LDM-43 (Custody & Availability, 2026-08-30, sem skeleton físico), LDM-44 through LDM-54 (Storage, 2026-08-30, sem skeleton físico), LDM-55 through LDM-69 (Physical Card Lifecycle & Provenance, 2026-08-30, sem skeleton físico), LDM-70 through LDM-78 (Favorite, 2026-08-30, sem skeleton físico), LDM-79 through LDM-90 (Wishlist, 2026-08-30, sem skeleton físico), LDM-91 through LDM-108 (Physical Card Condition, 2026-08-30, sem skeleton físico), LDM-109 through LDM-128 (Grading / Certification, 2026-08-30, sem skeleton físico), LDM-129 through LDM-153 (Collection Collaboration / Permissions, 2026-08-30, sem skeleton físico), LDM-154 through LDM-174 (Collection Activity History / Audit, 2026-08-30, sem skeleton físico), and LDM-175 through LDM-185 (Pokédex / REFERENCE_POSITION, 2026-09-03, sem skeleton físico — supersede LDM-16 e a cláusula Pokédex de LDM-17). `checkpoint-2026-08-28.md` is canonical for the ownership-model simplification (now formalized directly in LDM-23). `checkpoint-2026-08-30.md` is canonical for the Layout reconciliation diagnostic and for the current open point. Terminology across this document was converged to `Physical Card` on 2026-08-30 — see banner at the top and `concept-decisions.md` C-47/C-48. "Pokémon" foi convergido para "Pokémon Species" em 2026-09-03 nos LDM-16 a LDM-19 e no bloco novo — ver LDM-175.
 
@@ -1908,3 +1977,4 @@ It must preserve:
 | 1.17 | **Reconciliação e documentação canônica do bloco Pokédex / REFERENCE_POSITION, 2026-09-03** (`COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01`), rodada exclusivamente de documentação, decorrente da cadeia de rodadas conceituais `COLLECTIONS-POKEDEX-MODELING-AUDIT-01` → `COLLECTIONS-POKEDEX-DATA-SOURCE-SPIKE-01` → `COLLECTIONS-POKEDEX-TCGDEX-DEXID-PROOF-01` → `COLLECTIONS-POKEDEX-MODELING-RECONCILIATION-01`. **LDM-16 SUPERSEDED** — Collection Pokédex Scope deixa de ser individualmente adotado por Position e passa a `FULL_REFERENCE` (padrão) ou `GENERATION_FILTERED` (1..N Generations), com Positions derivadas do Scope; texto original preservado, ver LDM-177. **Cláusula Pokédex de LDM-17 SUPERSEDED** — hard block de elegibilidade substituído por Species Match (silencioso, `assignment_basis=SPECIES_MATCH`) vs. Mismatch/sem Species/Trainer-Energy (aviso + confirmação explícita, `assignment_basis=USER_OVERRIDE`), nunca bloqueio duro; cláusulas de Open Curation e Card Set de LDM-17 não afetadas; texto original preservado, ver LDM-178. Adicionado novo bloco complementar **LDM-175 a LDM-185**: LDM-175 (Pokémon Species/Generation/Pokémon Form-Variety, convergência terminológica, formaliza a revogação do adiamento de ADR-011 no nível lógico), LDM-176 (Pokédex Position referencia exatamente uma Species), LDM-177 (Collection Pokédex Scope, supersede de LDM-16), LDM-178 (Species Match/Mismatch, supersede da cláusula Pokédex de LDM-17), LDM-179 (Pokédex Position Assignment, novo conceito lógico, sem tabela física), LDM-180 (Primary Representative, opcional, apresentacional), LDM-181 (Completion de REFERENCE_POSITION, revisão do denominador/numerador por Assignment), LDM-182 (sourcing de Card Primary Species — `dexId` único vs. reconciliação editorial, decisão central de LDM-18 inalterada), LDM-183 (Sourcing Model — PokéAPI + TCGdex + MMKYU Editorial Reconciliation + catálogo MMKYU como autoridade em runtime; Editorial Reconciliation ≠ USER_OVERRIDE), LDM-184 (Correção Editorial Posterior não remove Assignment nem invalida completion automaticamente), LDM-185 (confirmação de ARCHIVED para Pokédex — sem decisão nova). LDM-18 e LDM-19 tiveram apenas anotações/ponteiros adicionados (terminologia e projeção Card → Pokémon Species → Pokédex Position), sem reabertura de decisão. Seção 4 (árvore de relacionamento canônica), Seção 6 (hipóteses rejeitadas, itens 18 e 19 adicionados), Seção 7 (nova subseção "Pokédex / REFERENCE_POSITION", catálogo canônico atualizado para Pokémon Species/Generation/Form) e Seção 8 ("Logical" e "Physical" atualizados — Pokédex/REFERENCE_POSITION CONCEPTUALLY CLOSED, PHYSICAL MODELING NOT STARTED) também atualizadas, junto com a tabela header do documento. LDM-01 a LDM-174 não reabertas em conteúdo — apenas LDM-16, LDM-17 (cláusula Pokédex), LDM-18 e LDM-19 receberam anotações/ponteiros conforme descrito acima. Nenhuma mudança física, nenhum SQL, nenhum commit/push nesta rodada. Ver `docs/adr/ADR-011-pokemon-tcg-domain-scope.md` (nova emenda v1.2), `docs/04-domain-model.md`, `docs/05d-colecoes-e-usuarios.md` e `docs/log.md` para a documentação complementar do mesmo ciclo. |
 | 1.18 | **Desambiguação de "Explicit Assignment" e reconciliação do status físico do bloco Pokédex, 2026-09-06 (`COLLECTIONS-POKEDEX-AUTO-ASSIGNMENT-DOC-RECONCILIATION-01`). Rodada exclusivamente documental — nenhuma entidade, cardinalidade ou decisão lógica alterada; nenhum SQL executado; Fatias D e E não reabertas.** LDM-179 passa a formalizar que **"Assignment explícito" significa que uma linha materializada própria de Position Assignment precisa existir** para a Position ser satisfeita — e **não** que essa linha precise ser criada manualmente pelo usuário. Os dois caminhos válidos ficam registrados: **(A) SYSTEM `SPECIES_MATCH`** — Allocation + match inequívoco → Assignment criada automaticamente pelo domínio (Fatia D, Query `6119`, `assigned_by_user_id = NULL`, sem filtro de Scope, sem erro quando não há match); **(B) USER-DRIVEN** — Assignment via fluxo explícito/RPC (Query `6122`), com `USER_OVERRIDE` exigindo confirmação humana e **nunca** sendo automático. Completion (LDM-181) segue consultando exclusivamente a Assignment, nunca a Allocation. LDM-178 ganhou a nota de materialização física correspondente. O campo **Status** do documento deixou de afirmar `PHYSICAL MODELING NOT STARTED` para o bloco Pokédex — as Fatias A–E estão fisicamente implementadas e fechadas desde 2026-09-06; próxima frente Binder/Layout Foundation. A frase original de LDM-179 que descrevia a modelagem física como "frente futura" foi preservada com nota de estado, sem reescrita da decisão histórica. Ver `docs/05d-colecoes-e-usuarios.md` revisão `1.17`, `docs/development/HANDOFF-2026-09-04.md` revisão `1.11` e `docs/log.md`. |
 | 1.19 | **Reconciliação de status físico (2026-10-15, `DOC-GATE-01`).** Rodada exclusivamente documental; nenhuma LDM alterada. O campo "Status" do cabeçalho, o bullet "Physical model" e a seção "Physical" afirmavam que as frentes além de Inventory/Storage/Collection root e Pokédex estavam "NOT STARTED" e que a Binder/Layout Foundation estava "ainda não iniciada" — desatualizado desde 2026-09-02/09-09 (02C–02F, Binder/Layout, BULK-01 a 03, todos CONFIRMADO EXECUTADO segundo `05d-colecoes-e-usuarios.md`). Estado vigente acrescentado nos três pontos, com o texto anterior preservado. Também reordenadas as duas entradas `1.15` desta tabela em ordem cronológica (Inventory 2026-08-31 antes de Storage 2026-09-01) — a numeração duplicada `1.15` é histórica e foi mantida. |
+| 1.20 | **Master Set por acabamento (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`).** Decisões de Fabrício formalizadas em LDM-191 a LDM-195 (seleção de acabamentos persistida; posições carta + acabamento derivadas do catálogo vigente; secretas — número além do Set base — contempladas por uma posição de carta quando nenhum acabamento escolhido as cobre; edição a qualquer momento; comportamento perante correções e desativações catalográficas). LDM-21 substituída; LDM-19 (linha MASTER_SET), LDM-20 (linha MASTER_SET) e LDM-22 (frase final e "adopted variants") parcialmente substituídas; hipótese rejeitada nº 10 retirada da lista; resumos das Seções 4 e 5 atualizados. Textos originais preservados. Espelha `concept-decisions.md` v1.17 (C-187 a C-190). Proposta física em `database/proposals/2026-10-18-master-set-finish-scope/` (não executada). |

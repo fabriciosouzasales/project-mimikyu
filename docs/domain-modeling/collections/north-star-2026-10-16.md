@@ -4,7 +4,7 @@
 |---|---|
 | **Documento** | Referência normativa de experiência do módulo Collection (visão, fluxos, nomenclatura, critérios de base funcional) |
 | **Arquivo** | `docs/domain-modeling/collections/north-star-2026-10-16.md` |
-| **Versão** | 1.15 |
+| **Versão** | 1.16 |
 | **Status** | **NORMATIVO** — aprovado por Fabrício em 2026-10-16 (`COLLECTION-NORTH-STAR-02`, decisões D1–D4). Itens marcados **[H]**, entradas **PENDENTE** e as recomendações ainda abertas do §0.2 **não são normativos** até homologação formal de Fabrício. |
 | **Rodadas** | `COLLECTION-NORTH-STAR-01` (proposta, v0.1–0.2) → `COLLECTION-NORTH-STAR-02` (consolidação normativa, v1.0) → … → `COLLECTIONS-NORMATIVE-REALIGNMENT-01` (v1.5: NS-15–NS-18 e matriz de rastreabilidade §7) |
 | **Fontes** | `concept-decisions.md` (C-01–C-186), `logical-model.md`, `checkpoint-2026-08-28.md` §7, `checkpoint-2026-08-29.md`, `ux-exploration-2026-08-29.md`, `checkpoint-2026-10-15.md`, `05d-colecoes-e-usuarios.md`, `architecture/ubiquitous-language.md`, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13 |
@@ -202,7 +202,7 @@ Status: **HOMOLOGADO** (normativo) · **HOMOLOGADO COM RESSALVA** (normativo, co
 | N6 | Referência Card Set | **Completar um Set** | C-02, LDM-04–07 | HOMOLOGADO |
 | N7 | Referência Pokédex | **Completar a Pokédex** | LDM-177 | HOMOLOGADO COM RESSALVA — visível só quando P7 for liberada |
 | N8 | STANDARD_SET | **Set padrão** — subtítulo "uma de cada carta" | C-23 | HOMOLOGADO (NS-14) |
-| N9 | MASTER_SET | **Master Set** + subtítulo "todas as variantes" | C-23, LDM-21 | HOMOLOGADO |
+| N9 | MASTER_SET | **Master Set** + subtítulo "os acabamentos que você escolher" (revisado em 2026-10-18; antes: "todas as variantes", que contrariava a seleção explícita e C-187/C-188) | C-23, C-187–C-190, LDM-191–LDM-195 | HOMOLOGADO (termo); subtítulo REVISADO 2026-10-18, pendente de homologação visual |
 | N10 | Completion | **Progresso** · "X de Y" · **Faltam** | C-19, C-20 | HOMOLOGADO COM RESSALVA — não aparece em Coleção livre (C-20) |
 | N11 | Physical Card | **Carta / Cartas**; no detalhe, **exemplar** | C-47 | HOMOLOGADO |
 | N12 | Duplicata | **Repetida(s)** | C-21 | HOMOLOGADO |
@@ -476,3 +476,4 @@ Legenda — Implementação: **LIVE** (backend no banco) · **FE-pub** (frontend
 | 1.13 | **`COLLECTIONS-CHECKPOINT-02` (2026-10-18).** §7, colunas informativas: "Coleção livre" e "Biblioteca — ordem" com o que foi verificado no navegador por Fabrício e o que segue pendente; linha nova "Ampliar carta na coleção" (`card-zoom.tsx`, todas as coleções). Nenhuma decisão normativa nova ou alterada. |
 | 1.14 | **Gerenciar a coleção (2026-10-18, `COLLECTION-MANAGEMENT-RECOVERY-01`).** §7, colunas informativas: "Ajustes — Onde guardo" passa a FE-local; linha nova "Tirar da coleção (um exemplar)". Nenhuma decisão normativa nova ou alterada. |
 | 1.15 | **`COLLECTION-MANAGEMENT-CLOSEOUT-01` (2026-10-18).** §7, colunas informativas: "Ajustes — Onde guardo" e "Tirar da coleção" passam a HOM (6/6 PASS); dependência da cascata do `5047` anotada. Nenhuma decisão normativa nova. |
+| 1.16 | **Master Set por acabamento (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`, aprovação de Fabrício).** N9: subtítulo "todas as variantes" substituído por "os acabamentos que você escolher" e referências atualizadas para C-187–C-190 / LDM-191–LDM-195 (o termo "Master Set" permanece). Nenhuma outra decisão normativa alterada; as linhas informativas da §7 sobre Master Set serão atualizadas quando os contratos forem executados. |
