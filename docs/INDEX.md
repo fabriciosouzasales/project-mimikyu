@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.22 |
+| **Versão** | 2.23 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -317,3 +317,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 2.20 | **Gerenciar a coleção (2026-10-18).** Resumo de `05d` (1.50), North Star v1.14 e handoff v1.40. Nenhum documento novo. |
 | 2.21 | **`COLLECTION-MANAGEMENT-CLOSEOUT-01` (2026-10-18).** `05d` 1.52 (homologado), North Star v1.15, handoff v1.41. Nenhum documento novo. |
 | 2.22 | **`MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01` (2026-10-18).** concept-decisions v1.17 (C-187–C-190), logical-model v1.20 (LDM-191–LDM-195), North Star v1.16 (N9), glossário v1.28. Proposta SQL não executada em `database/proposals/2026-10-18-master-set-finish-scope/` (5184–5197, harness 5836/5837, prova K1–K4). Nenhum documento novo em `docs/`. |
+| 2.23 | **`MASTER-SET-LIVE-EXECUTION` (2026-10-18).** `05d-colecoes-e-usuarios.md` 1.53 (seção nova "Collection Master Set por acabamento"), ROADMAP 2.39, README 2.75, HANDOFF-2026-10-15 1.42; canônicas `5184`–`5198` em `database/schema/`; `5072`–`5075`, `5077`, `5079`, `5080`, `5082`–`5084` e `5102` marcadas HISTÓRICA. |

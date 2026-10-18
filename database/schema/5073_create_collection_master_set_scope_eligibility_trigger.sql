@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 5073 - Create Collection Master Set Scope Eligibility Trigger
 Versão......: 1.0
-Status......: CANÔNICA
+Status......: HISTÓRICA — função e gatilho removidos pela 5197
+              (2026-10-18); elegibilidade agora em 5185. Status
+              anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-IMPLEMENTATION-01)

@@ -4,7 +4,7 @@
 |---|---|
 | Rodada | `MASTER-SET-LIVE-EXECUTION-READINESS-01` (2026-10-18) |
 | Decisão vigente | Validação direto no Supabase LIVE (sem ambiente paralelo) — decisão de Fabrício |
-| Status | **PLANO — nada aplicado.** Pré-check executado só com leituras. Aplicação depende de autorização expressa |
+| Status | **EXECUTADO em 2026-10-18** (autorização de Fabrício) — resultado na seção "Execução no LIVE" do README da proposta. Este documento fica como o plano que foi seguido. |
 | Projeto | `qjfutqujxrbzgrtkpgkg`, PostgreSQL 17.6; repositório HEAD `db61330` |
 
 ## 1. Pré-check (executado nesta rodada, somente leitura)

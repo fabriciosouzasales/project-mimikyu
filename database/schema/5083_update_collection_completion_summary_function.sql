@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 5083 - Update collection_completion_summary Function (v3.0)
 Versão......: 3.0 (estende 5070 v2.0, 02E)
-Status......: CANÔNICA
+Status......: HISTÓRICA — collection_completion_summary reescrita
+              depois (5100, 5102) e, na versão vigente, pela 5188
+              (2026-10-18). Status anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-IMPLEMENTATION-01)

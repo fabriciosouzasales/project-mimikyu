@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.52 | **"Adicionar as que já tenho" com escolha (2026-10-18, `COLLECTION-SET-PICK-01`, pedido de Fabrício).** A lista de cartas que faltam (uma de cada, R3) passa a ter marcação por carta em vez de "adicionar todas"; D-C mantida (repetidas fora). Sem contrato novo; homologação pendente. |
+| **Versão** | 1.53 | **Master Set por acabamento no LIVE (2026-10-18, `MASTER-SET-LIVE-EXECUTION`).** `5184`–`5198` aplicadas, validadas (`5836` 74/74, `5837` 10/10, baseline `5840` inalterado) e promovidas; 02F aposentado. Ver Revision History 1.53. |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -680,6 +680,8 @@ Nenhuma superfície de frontend construída nesta rodada — fundação exclusiv
 
 # Collection Master Set Scope (02F — MASTER_SET)
 
+> **Substituído em 2026-10-18 — Master Set por acabamento (`5184`–`5198`, CONFIRMADO EXECUTADO no LIVE).** O objetivo do Master Set deixou de ser uma lista de `card_variant_id` e passou a ser a escolha de **acabamentos** (C-187–C-190, LDM-191–LDM-195). A tabela `collection_master_set_scope` e as funções exclusivas do 02F foram removidas pela `5197`; as canônicas `5072`–`5075`, `5077`, `5079`, `5080`, `5082`–`5084` e `5102` estão marcadas como HISTÓRICA. Esta seção fica como registro do 02F; o modelo vigente está em "Collection Master Set por acabamento" mais abaixo.
+
 ## Status
 
 **`COLLECTIONS-PHYSICAL-INCREMENT-02F` — CLOSED (2026-09-02). MASTER_SET Scope & Completion — FINALIZADO.** Declaração formal via `COLLECTIONS-PHYSICAL-INCREMENT-02F-FINAL-CLOSURE-01`, após auditoria final (schema-vs-banco, zero divergência) e autorização explícita de Fabrício. Precedido por `COLLECTIONS-MASTER-SET-MODELING-01` até `-FINAL-FIX-02` (modelagem conceitual/física, sem alteração de banco), staging auditado em `database/proposals/2026-09-02-02f-master-set/` (`-STAGING-01`/`-STAGING-REVISION-01`), aplicação real (`-IMPLEMENTATION-01`) e promoção canônica (`-CANONICAL-PROMOTION-01`). Treze Queries físicas (`5072`–`5084`), validação funcional de 114 casos (0 falhas, 0 erros de runtime, zero resíduo) e performance com 10 workloads (A–J) sobre um pool combinado de 10.000 Card Variants — todos executados e confirmados ao vivo. Nenhuma alteração de schema/SQL nesta rodada de fechamento — só reconciliação documental.
@@ -787,6 +789,56 @@ Medido sobre um pool combinado de 10.000 Card Variants (`real_pool_size = 630`, 
 ## Pendências / Próximos Passos
 
 Nenhuma superfície de frontend construída neste incremento — fundação exclusivamente de banco. `REFERENCE_POSITION`/Pokédex Reference tiveram sua **modelagem conceitual fechada em 2026-09-03** (ver seção própria "Collection Pokédex Reference / REFERENCE_POSITION" abaixo) — não materializados fisicamente ainda; Pokédex é a próxima frente planejada, com "POKEDEX PHYSICAL MODELING" como checkpoint seguinte. `add_master_set_variants()`/`remove_master_set_variants()` (mutação incremental por Variant individual, em vez de substituição completa via `replace_master_set_scope()`) permanecem deferidos, não implementados (decisão fechada em MODELING-REVISION-01 item 5). Cache/materialized view sobre os read models e qualquer superfície de frontend seguem fora de escopo. **Auditoria final de fechamento concluída (zero divergência entre `database/schema` e o banco físico) e `COLLECTIONS-PHYSICAL-INCREMENT-02F` declarado `CLOSED` por autorização explícita de Fabrício (`COLLECTIONS-PHYSICAL-INCREMENT-02F-FINAL-CLOSURE-01`, 2026-09-02).**
+
+---
+
+# Collection Master Set por acabamento (`5184`–`5198`)
+
+## Status
+
+**CONFIRMADO EXECUTADO no LIVE em 2026-10-18 (autorização de Fabrício), validado e promovido para `database/schema/`.** Quinze migrations no ledger (`20261018170113`–`20261018193302`). Decisões de origem: C-187–C-190 e LDM-191–LDM-195 (`domain-modeling/collections/`). Proposta, harnesses, evidências e roteiro de recuperação em `database/proposals/2026-10-18-master-set-finish-scope/`. Nenhuma superfície de frontend ainda; no LIVE não há coleção `MASTER_SET` real.
+
+## Modelo
+
+O objetivo de uma coleção Master Set é o conjunto de **acabamentos** (`card_variant_type`) escolhidos pelo dono, guardado em `public.collection_master_set_finish (collection_id, variant_type_id, adopted_at, adopted_by_user_id)` — PK composta, insert/delete-only, RLS só de leitura do próprio dono, escrita apenas pelas RPCs. As **posições** são derivadas, nunca gravadas: para cada carta ativa do Set, uma posição por acabamento escolhido que exista em variante ativa daquela carta. Carta **secreta** (número acima de `base_set_size`) que não tem nenhum dos acabamentos escolhidos entra como uma posição genérica (acabamento nulo), satisfeita por qualquer exemplar da carta. Uma posição é satisfeita por qualquer exemplar vinculado da carta naquele acabamento, seja qual for impressão, contexto (ex.: Liga) ou idioma (LDM-193). Exemplares que não satisfazem nenhuma posição continuam na coleção e são listados com o motivo (C-188).
+
+| Query | Objeto | Papel |
+|---|---|---|
+| `5184` | `collection_master_set_finish` + bloqueio de UPDATE | objetivo persistido |
+| `5185` | gatilho de elegibilidade | acabamento precisa existir no Set; coleção de Set |
+| `5186` | `check_master_set_scope_presence()` (corpo novo) + presença diferida | Master Set nunca fica sem acabamento no fim da transação |
+| `5187` | `master_set_positions(set, acabamentos)` (interna) | regra única de posições, inclusive secretas |
+| `5188` | `collection_completion_summary()` | ramo `MASTER_SET` novo; `STANDARD_SET` e `REFERENCE_POSITION` idênticos à `5102` |
+| `5189` → `5198` | `get_my_master_set_positions()` | grade paginada (ALL/OWNED/MISSING, até 500), com arte e exemplares na coleção/disponíveis |
+| `5190` | `normalize_master_set_finishes()` (interna) | validação comum: lista vazia, repetida, nula, mais de 64, acabamento fora do Set |
+| `5191` | `get_my_master_set_finish_options()` | acabamentos existentes no Set, contagens e bloco de secretas |
+| `5192` | `preview_my_master_set_finishes()` | prévia = gravação (mesma regra) |
+| `5193` | `apply_master_set_finishes()` (interna) | KEEP/ADD/REMOVE preservando `adopted_at` |
+| `5194` | `set_collection_completion_policy_to_master_set(uuid, uuid[])` | ativação; lista nula restaura a seleção guardada |
+| `5195` | `replace_master_set_finishes()` | edição com a coleção já em Master Set |
+| `5196` | `get_my_master_set_out_of_scope_copies()` | exemplares fora do objetivo, com motivo |
+| `5197` | aposenta o 02F | remove `collection_master_set_scope` e 4 funções, com guardas fail-closed |
+| `5198` | desempenho da grade | agregação única no lugar de subconsultas por posição |
+
+Segurança: todas as funções `SECURITY DEFINER`, `search_path` vazio; os 6 contratos públicos com EXECUTE só para `authenticated`; as internas e as de gatilho sem EXECUTE para clientes; coleção de outro dono ou inexistente devolve `COLLECTION_NOT_FOUND`/zero linhas, sem distinguir.
+
+## Validação no LIVE (2026-10-18)
+
+- **Baseline de regressão `5840`** (SQL Editor, só leitura): GATE `6493dffc5c668bbdc4e2bd438ce296ea` antes e depois da aplicação — resultado de completude das coleções existentes inalterado.
+- **Funcional `5836` v1.3: 74/74 PASS**, resíduo zero (estrutura e privilégios, anon e sem identidade, cálculo, validação, edição e idempotência, presença diferida, transições da carta secreta, evolução do catálogo, regressão Set padrão e Pokédex, isolamento entre usuários, reativação após mudança de catálogo, preservação dos exemplares). As versões 1.1 e 1.2 pararam por defeitos do próprio harness (apelido ausente; fixture contra `ck_card_set_total_size_valid`), corrigidos sem mudar casos nem resultados esperados.
+- **Desempenho `5837` v1.2: 10/10 PASS** no maior Set do LIVE (ME2.5, 2.492 exemplares, 336 posições): resumo 15,4 ms; grade 35,0 ms (máx. 131,6); opções 18,0; prévia 35,7; fora do objetivo 25,6; edição 17,8; Biblioteca com 20 coleções Master Set 139,9 ms (20 resumos) e 142,7 ms por página de `get_my_collections`.
+- **Correção de desempenho `5198`:** a `5837` v1.1 mediu a grade em 1.695,6 ms. O diagnóstico `5841` mostrou a causa no plano real (a agregação de exemplares disponíveis era refeita para cada uma das 336 posições: 837.312 laços internos) e que a forma nova dá o mesmo resultado (md5 igual) em 33,1 ms.
+- **Advisors:** nenhum alerta de segurança novo da rodada (os 6 contratos aparecem no aviso genérico de `SECURITY DEFINER` executável por `authenticated`, como todos os contratos do domínio). Desempenho: aviso INFO de índice ausente na FK `adopted_by_user_id` de `collection_master_set_finish` — coluna de auditoria, mesmo padrão das demais tabelas do domínio; sem ação.
+- **Não executados por decisão de Fabrício:** `5839` (só ambiente descartável, nunca no LIVE) e o roteiro de concorrência K1–K5 (autorização separada).
+
+## Efeitos colaterais registrados
+
+- A consulta "Como validar" da migration histórica `2268` espera 4 gatilhos `trg_guard_card_variant_active`; desde a `5197` são 3 (a tabela aposentada levava um). A migration não foi editada.
+- `OFFLINE-MANIFEST-01` (proposta de 2026-10-16) lista `5072`–`5077` com o conteúdo do commit-base `2e37470`; continua válido para aquele commit e não foi editado (o próprio arquivo pede para não editar à mão). Um ambiente offline novo deve partir das canônicas atuais.
+
+## Recuperação
+
+Roteiro em `database/proposals/2026-10-18-master-set-finish-scope/RECOVERY-MASTER-SET-FINISH.sql` (v1.1), válido enquanto não houver coleção `MASTER_SET` real. A `5198` não muda o roteiro: a reversão remove `get_my_master_set_positions()` de qualquer forma.
 
 ---
 
@@ -1945,3 +1997,4 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.50 | **Gerenciar a coleção (2026-10-18, `COLLECTION-MANAGEMENT-RECOVERY-01`, local, não commitado).** Seção nova: Ajustes (identidade em leitura + Onde guardo por `5036`) e "Tirar da coleção" de um exemplar específico (`5047`), leituras `5159`/`5162`; sem SQL novo; cascata conhecida para fichário digital/Pokédex; homologação no navegador pendente. |
 | 1.51 | **"Adicionar as que já tenho" com escolha (2026-10-18, `COLLECTION-SET-PICK-01`, decisão de Fabrício).** Coleção de Set passa a usar o painel de escolha (Set fixo; 5159/5162/5046) em vez do "uma de cada" tudo-ou-nada; repetidas entram só se escolhidas (substitui D-C). Sem contrato novo; homologação pendente. |
 | 1.52 | **`COLLECTION-MANAGEMENT-CLOSEOUT-01` (2026-10-18).** Seção "Gerenciar a coleção" homologada: 6/6 PASS no navegador; lint e build de produção pelo proprietário; ajustes de interface da rodada registrados; cascata do `5047` (fichário digital/Pokédex) registrada como dependência de revisão antes do Fichário aberto. Sem SQL, sem migration. |
+| 1.53 | **Master Set por acabamento — CONFIRMADO EXECUTADO no LIVE e promovido (2026-10-18, `MASTER-SET-LIVE-EXECUTION`, autorização de Fabrício).** Seção nova "Collection Master Set por acabamento (`5184`–`5198`)": modelo (objetivo = acabamentos escolhidos; posições derivadas; carta secreta genérica; satisfação por carta × acabamento), tabela das 15 Queries, segurança, validação LIVE (`5840` GATE `6493dffc…` inalterado; `5836` v1.3 74/74; `5837` v1.2 10/10 — grade 35 ms), a correção de desempenho `5198` diagnosticada pelo `5841` (grade 1.695,6 ms → 35 ms, resultado idêntico), advisors, efeitos colaterais (`2268` passa a 3 gatilhos; `OFFLINE-MANIFEST-01` preso ao commit-base) e recuperação. §02F recebe nota de substituição; canônicas `5072`–`5075`, `5077`, `5079`, `5080`, `5082`–`5084` e `5102` marcadas HISTÓRICA. `5839` e K1–K5 não executados (decisão de Fabrício). |

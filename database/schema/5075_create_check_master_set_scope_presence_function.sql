@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 5075 - Create check_master_set_scope_presence Helper Function
 Versão......: 1.0
-Status......: CANÔNICA
+Status......: HISTÓRICA — corpo de check_master_set_scope_presence
+              substituído pela 5186 (2026-10-18), que lê
+              collection_master_set_finish. Status anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-IMPLEMENTATION-01)

@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 5077 - Create Master Set Scope Presence Trigger (Scope Side, On Delete)
 Versão......: 1.0
-Status......: CANÔNICA
+Status......: HISTÓRICA — função e gatilho removidos pela 5197
+              (2026-10-18); presença diferida agora em 5186. Status
+              anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-IMPLEMENTATION-01)

@@ -1,9 +1,9 @@
-# Master Set por acabamento (`5184`–`5197` + `5836`–`5839` + prova de concorrência)
+# Master Set por acabamento (`5184`–`5198` + `5836`–`5841` + prova de concorrência)
 
 | Campo | Valor |
 |---|---|
 | Rodada | `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01` (2026-10-18); correções da `MASTER-SET-FINISH-SCOPE-AUDIT-CORRECTION-01` (2026-10-18, ver seção própria) |
-| Status | **PROPOSTA — NÃO EXECUTADA.** Nada aplicado no LIVE. Aguarda auditoria independente e autorização de Fabrício. |
+| Status | **CONFIRMADO EXECUTADO no LIVE (2026-10-18), VALIDADO e PROMOVIDO.** `5184`–`5197` + correção `5198`; `5836` v1.3 74/74, `5837` v1.2 10/10, baseline `5840` inalterado. `5839` e K1–K5 não executados (decisão de Fabrício). Ver seção "Execução no LIVE". |
 | Autoridade | `concept-decisions.md` C-187–C-190; `logical-model.md` LDM-191–LDM-195 (substituem LDM-21 e partes de C-01, B.4, LDM-19/20/22). North Star N9 revisado. |
 | Substitui | Modelo físico 02F por `card_variant_id` (`5072`–`5084`, CLOSED em 2026-09-02). No LIVE: `collection_master_set_scope` com **0 linhas** e **0 coleções MASTER_SET** (conferido em 2026-10-18) — troca sem migração de dados. |
 | Frontend | Nenhum consumidor das funções aposentadas (grep em `web/` e `supabase/`). Único ponto relacionado: rótulo `collectionKindLabel("MASTER_SET") = "Set completo"` em `web/lib/colecoes/colecoes.ts:289` — divergente do N9, a corrigir no incremento de frontend (fora desta rodada). |
@@ -236,3 +236,22 @@ Verificações complementares sem achado: o guarda `<dep-guard v1.2>` continua i
 | Comparação com oráculo independente | não | **sim** (Set padrão: total e satisfeitas recalculados das tabelas) |
 | Vários donos | suportado | **não** — acusa `donos` ≠ 1 e invalida; com mais de um dono, voltar ao 5838 ou estender o 5840 |
 | Pokédex (`REFERENCE_POSITION`) / MASTER_SET | resumo comparado por md5 | só exige resumo presente; o LIVE não tem nenhuma |
+
+
+## Execução no LIVE — MASTER-SET-LIVE-EXECUTION (2026-10-18)
+
+| Etapa | Resultado |
+|---|---|
+| Pré-check | 0 linhas em `collection_master_set_scope`, 0 coleções `MASTER_SET`, ledger em `20261018012519`, 0 transações longas |
+| `5184`–`5197` | aplicadas em sequência (ledger `20261018170113`–`20261018170844`); guardas da `5197` passaram; corpos no LIVE = arquivos (md5 normalizado, 14 funções) |
+| Pós-check estrutural | tabela antiga ausente; RLS e 1 policy; só SELECT para `authenticated`; 6 contratos públicos; internas fechadas; 3 gatilhos `trg_guard_card_variant_active` |
+| `5836` | v1.1 parou no caso 3.5 (apelido `g` ausente); v1.2 parou no 6.9 (fixture contra `ck_card_set_total_size_valid`); **v1.3: 74/74 PASS**, resíduo zero |
+| `5840` (Fabrício, SQL Editor) | GATE `6493dffc5c668bbdc4e2bd438ce296ea`, 5 linhas OK — igual ao de antes da aplicação |
+| `5837` v1.1 (Fabrício, SQL Editor) | 7/9: **P1.2 grade 1.695,6 ms (FAIL real)**; X.1 lista vazia no P2 (defeito do harness: leitura de catálogo em papel `authenticated`) |
+| `5841` diagnóstico | agregação de exemplares disponíveis refeita para cada uma das 336 posições (837.312 laços); forma nova 33,1 ms com resultado idêntico |
+| `5198` | aplicada (ledger `20261018193302`), corpo = arquivo; contrato igual |
+| `5837` v1.2 (Fabrício) | **10/10 PASS** — grade 35,0 ms; Biblioteca 142,7 ms por página |
+| Advisors | sem alerta novo de segurança; INFO de índice na FK de auditoria `adopted_by_user_id` |
+| Promoção | `5184`–`5198` em `database/schema/`; `5072`–`5075`, `5077`, `5079`, `5080`, `5082`–`5084` e `5102` marcadas HISTÓRICA |
+
+Notas: a migration histórica `2268` ainda diz 4 gatilhos no "Como validar" (agora são 3) e não foi editada; `OFFLINE-MANIFEST-01` (2026-10-16) segue preso ao commit-base `2e37470` e não foi editado. O registro de mudanças das harnesses está no cabeçalho de cada arquivo.

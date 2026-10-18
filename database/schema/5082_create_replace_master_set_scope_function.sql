@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 5082 - Create replace_master_set_scope Function
 Versão......: 1.1
-Status......: CANÔNICA
+Status......: HISTÓRICA — replace_master_set_scope removida pela 5195
+              (2026-10-18); edição agora em
+              replace_master_set_finishes. Status anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-STAGING-01 →

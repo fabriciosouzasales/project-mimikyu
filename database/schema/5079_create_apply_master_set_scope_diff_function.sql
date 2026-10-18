@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 5079 - Create apply_master_set_scope_diff Internal Helper Function
 Versão......: 2.1
-Status......: CANÔNICA
+Status......: HISTÓRICA — apply_master_set_scope_diff removida pela
+              5197 (2026-10-18); escrita agora em 5193. Status
+              anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-STAGING-01 →

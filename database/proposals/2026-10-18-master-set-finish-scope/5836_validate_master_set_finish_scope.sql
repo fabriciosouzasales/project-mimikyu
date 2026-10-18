@@ -3,9 +3,15 @@
 Projeto.....: Project Mimikyu
 Query.......: 5836 - Harness: Master Set por acabamento (5184–5197)
               funcional, segurança, regressão e preservação
-Versão......: 1.1 (AUDIT-CORRECTION-01: seções 11 e 12; casos 2.3, 4.8, 9.4)
-Status......: PROPOSTO — NÃO EXECUTADO (executar só depois de 5184–5197,
-              com autorização de Fabrício)
+Versão......: 1.3 (AUDIT-CORRECTION-01: seções 11 e 12; casos 2.3, 4.8, 9.4;
+              v1.2 LIVE-EXECUTION: apelido g ausente no caso 3.5 — a v1.1
+              abortou no LIVE com 42P01 após 17 PASS e resíduo zero;
+              v1.3: caso 6.9 amplia também total_set_size (regra
+              ck_card_set_total_size_valid) — a v1.2 abortou com 23514
+              após 56 PASS e resíduo zero)
+Status......: CONFIRMADO EXECUTADO — v1.3 no LIVE em 2026-10-18, após
+              5184–5197: GATE PASS 74/74, resíduo zero (99.1). v1.1 e
+              v1.2 deram GATE FAIL por defeitos do próprio harness.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-18 (MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01)
 
@@ -371,7 +377,7 @@ begin
       (select count(*) from public.get_my_master_set_positions(v_ms, 'OWNED', 500, 0)) = 3
       and (select count(*) from public.get_my_master_set_positions(v_ms, 'MISSING', 500, 0)) = 5
       and (select count(*) from public.get_my_master_set_positions(v_ms, 'ALL', 3, 3)) = 3
-      and (select max(g.total_count) from public.get_my_master_set_positions(v_ms, 'ALL', 3, 3)) = 8,
+      and (select max(g.total_count) from public.get_my_master_set_positions(v_ms, 'ALL', 3, 3) g) = 8,
       'detail','filtros OWNED 3 / MISSING 5; paginação com total do filtro');
     res := res || jsonb_build_object('id','3.6','ok',
       (select count(*) from public.get_my_master_set_finish_options(v_ms) o where o.row_kind = 'FINISH') = 6
@@ -597,7 +603,7 @@ begin
     select s.total_positions, s.satisfied_positions into v_cnt, v_cnt2 from public.collection_completion_summary(v_ms) s;
     res := res || jsonb_build_object('id','6.8','ok', v_cnt = 8 and v_cnt2 = 2,
       'detail','reclassificação Energia Reverse → Reverse: par novo c3 Reverse, satisfeito pelo mesmo exemplar (2/8)');
-    update public.card_set set base_set_size = 8 where id = v_set;
+    update public.card_set set base_set_size = 8, total_set_size = 8 where id = v_set;
     select s.total_positions, s.satisfied_positions into v_cnt, v_cnt2 from public.collection_completion_summary(v_ms) s;
     res := res || jsonb_build_object('id','6.9','ok', v_cnt = 6 and v_cnt2 = 2,
       'detail','Set base ampliado para 8: c5/c6/c8 deixam de ser secretas; c6 segue pelo Holo (2/6)');

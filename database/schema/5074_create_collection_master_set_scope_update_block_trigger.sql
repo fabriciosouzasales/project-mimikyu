@@ -3,7 +3,9 @@
 Projeto.....: Project Mimikyu
 Query.......: 5074 - Create Collection Master Set Scope Update Block Trigger
 Versão......: 1.0
-Status......: CANÔNICA
+Status......: HISTÓRICA — função e gatilho removidos pela 5197
+              (2026-10-18); bloqueio de UPDATE agora em 5184. Status
+              anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-IMPLEMENTATION-01)

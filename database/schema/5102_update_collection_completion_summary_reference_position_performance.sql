@@ -4,7 +4,11 @@ Projeto.....: Project Mimikyu
 Query.......: 5102 - Update collection_completion_summary (v5.0 — remediação
                de performance do ramo REFERENCE_POSITION)
 Versão......: 5.0 (corrige incrementalmente 5100 v4.0)
-Status......: CONFIRMADO EXECUTADO / LIVE / PROMOVIDO
+Status......: HISTÓRICA — corpo de collection_completion_summary
+              substituído pela 5188 (2026-10-18), que mantém os ramos
+              STANDARD_SET e REFERENCE_POSITION idênticos (5836 0.6) e
+              troca o ramo MASTER_SET. Status anterior: CONFIRMADO
+              EXECUTADO / LIVE / PROMOVIDO.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-06 (staging em COLLECTIONS-POKEDEX-FATIA-E-
                PERFORMANCE-REMEDIATION-STAGING-01, após BLOCKER de

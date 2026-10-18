@@ -2,9 +2,14 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Query.......: 5837 - Desempenho do Master Set por acabamento (5187–5196)
-Versão......: 1.1 (AUDIT-CORRECTION-01: P2.2 — Biblioteca via get_my_collections)
-Status......: PROPOSTO — NÃO EXECUTADO (executar depois de 5836 GATE PASS,
-              com autorização de Fabrício)
+Versão......: 1.2 (AUDIT-CORRECTION-01: P2.2 — Biblioteca via get_my_collections;
+              v1.2 LIVE-EXECUTION: leituras de catálogo (card, card_variant,
+              card_set, card_variant_type — RLS só admin) saem do trecho em
+              papel authenticated e passam a ser preparadas como dono do banco)
+Status......: PROPOSTO — v1.1 executada no LIVE em 2026-10-18 pelo SQL
+              Editor: GATE FAIL 7/9 (P1.2 grade 1.695,6 ms — falha real, ver
+              5841; X.1 lista vazia no P2 — defeito do harness corrigido na
+              v1.2). v1.2 a executar.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-18 (MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01)
 
@@ -50,6 +55,7 @@ declare
   v_def   uuid[]; v_alt uuid[];
   v_ids   uuid[]; v_i integer; v_t0 timestamptz; v_ms numeric; v_sum numeric; v_max numeric;
   v_sets  uuid[]; v_colls uuid[] := '{}'; v_x uuid; v_n integer;
+  v_code  text; v_plan jsonb := '[]'::jsonb; v_item jsonb;
   b_us bigint; b_co bigint; b_ca bigint; b_pc bigint; b_fn bigint;
   res jsonb := '[]'::jsonb; r jsonb; n integer := 0; passes integer := 0;
 begin
@@ -71,6 +77,7 @@ begin
     from public.card c join public.card_variant cv on cv.card_id = c.id and cv.is_active
     where c.is_active
     group by c.card_set_id order by count(*) desc, c.card_set_id limit 1;
+    select cs.code into v_code from public.card_set cs where cs.id = v_set;  -- v1.2: lido como dono
 
     insert into auth.users (id, aud, role, email, raw_user_meta_data, created_at, updated_at)
     values (p_user, 'authenticated', 'authenticated', 'ms5837-'||v_sfx||'@example.invalid',
@@ -102,7 +109,7 @@ begin
 
     res := res || jsonb_build_object('id','P1.0','ok', true, 'detail',
       format('Set %s: %s exemplares vinculados; posições %s',
-        (select cs.code from public.card_set cs where cs.id = v_set), cardinality(v_ids),
+        v_code, cardinality(v_ids),
         (select s.total_positions from public.collection_completion_summary(v_coll) s)));
 
     -- P1 summary
@@ -167,24 +174,36 @@ begin
       where cv.is_active and cv.card_id = (select c.id from public.card c where c.card_set_id = v_x and c.is_active
                                            order by c.collector_order, c.id limit 1);
     end loop;
+    -- v1.2: plano por Set preparado como dono do banco (card/card_variant/
+    -- card_variant_type só são legíveis por admin; em papel authenticated a
+    -- v1.1 recebia listas vazias). Exemplares ainda sem vínculo, por Set.
+    foreach v_x in array v_sets loop
+      v_plan := v_plan || jsonb_build_array(jsonb_build_object(
+        'set', v_x,
+        'ids', coalesce((select jsonb_agg(pc.id) from public.physical_card pc
+                 join public.card_variant cv on cv.id = pc.card_variant_id
+                 join public.card c on c.id = cv.card_id and c.card_set_id = v_x
+                where pc.inventory_id = v_inv
+                  and not exists (select 1 from public.collection_allocation ca where ca.physical_card_id = pc.id)), '[]'::jsonb),
+        'fins', coalesce((select jsonb_agg(t.id) from public.card_variant_type t
+                 where t.id = any (v_def)
+                   and exists (select 1 from public.card c join public.card_variant cv on cv.card_id = c.id and cv.is_active
+                               where c.card_set_id = v_x and c.is_active and cv.variant_type_id = t.id)), '[]'::jsonb)));
+    end loop;
     perform set_config('request.jwt.claims', json_build_object('sub', p_user, 'role','authenticated')::text, true);
     execute 'set local role authenticated';
     v_n := 0;
-    foreach v_x in array v_sets loop
+    for v_item in select * from jsonb_array_elements(v_plan) loop
       v_n := v_n + 1;
+      v_x := (v_item->>'set')::uuid;
       select c.collection_id into v_coll from public.create_my_card_set_collection(gen_random_uuid(), v_x, 'MS 5837 L'||v_n, v_box) c;
-      perform public.allocate_physical_cards_to_collection(v_coll,
-        (select array_agg(pc.id) from public.physical_card pc
-           join public.card_variant cv on cv.id = pc.card_variant_id
-           join public.card c on c.id = cv.card_id and c.card_set_id = v_x
-          where pc.inventory_id = v_inv
-            and not exists (select 1 from public.collection_allocation ca where ca.physical_card_id = pc.id)));
+      if jsonb_array_length(v_item->'ids') > 0 then
+        perform public.allocate_physical_cards_to_collection(v_coll,
+          array(select jsonb_array_elements_text(v_item->'ids')::uuid));
+      end if;
       begin
         perform public.set_collection_completion_policy_to_master_set(v_coll,
-          (select array_agg(t.id) from public.card_variant_type t
-            where t.id = any (v_def)
-              and exists (select 1 from public.card c join public.card_variant cv on cv.card_id = c.id and cv.is_active
-                          where c.card_set_id = v_x and c.is_active and cv.variant_type_id = t.id)));
+          array(select jsonb_array_elements_text(v_item->'fins')::uuid));
       exception when others then null; -- Set sem nenhum dos 3 acabamentos: fica em Set padrão
       end;
       v_colls := v_colls || v_coll;

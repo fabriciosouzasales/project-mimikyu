@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 5084 - Create collection_master_set_scope_positions Function
 Versão......: 1.0
-Status......: CANÔNICA
+Status......: HISTÓRICA — collection_master_set_scope_positions
+              removida pela 5189 (2026-10-18); grade agora em
+              get_my_master_set_positions (5189/5198). Status
+              anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-IMPLEMENTATION-01)

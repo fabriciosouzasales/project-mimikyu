@@ -3,7 +3,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 5080 - Create set_collection_completion_policy_to_master_set Function
 Versão......: 2.0
-Status......: CANÔNICA
+Status......: HISTÓRICA —
+              set_collection_completion_policy_to_master_set(uuid,
+              jsonb) substituída pela 5194 (uuid, uuid[]) em
+              2026-10-18. Status anterior: CANÔNICA.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-09-02 (aplicado em 2026-09-02,
                COLLECTIONS-PHYSICAL-INCREMENT-02F-STAGING-01 →
