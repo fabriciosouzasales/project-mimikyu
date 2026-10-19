@@ -18,7 +18,7 @@ export type FavoritesGenerationOption = {
 };
 
 /**
- * Filtro compacto de geração da página Pokémons Favoritos (Pokédex P6, Correção de
+ * Filtro compacto de geração da página Pokémon Favoritos (Pokédex P6, Correção de
  * UX-01, 2026-10-15) — Server Component.
  *
  * Substitui, só nesta página, a régua de nove gerações: botão "Geração" recolhido por

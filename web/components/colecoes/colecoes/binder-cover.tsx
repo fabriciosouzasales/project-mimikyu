@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { Pokeball } from "@/components/icons/pokeball-icon";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import styles from "./binder-cover.module.css";
 
@@ -24,6 +25,7 @@ export function BinderCover({
   complete,
   size = "shelf",
   priority = false,
+  emblem = null,
 }: {
   finish: BinderFinish;
   setName: string | null;
@@ -34,6 +36,8 @@ export function BinderCover({
   complete: boolean;
   size?: "shelf" | "compact";
   priority?: boolean;
+  /** Emblema gravado na placa tipográfica (coleção sem Set): "pokedex" = Pokébola. */
+  emblem?: "pokedex" | null;
 }) {
   const code = setCode?.toUpperCase() ?? null;
   return (
@@ -56,6 +60,7 @@ export function BinderCover({
                 />
               ) : (
                 <span className={styles.plateType}>
+                  {emblem === "pokedex" ? <Pokeball className={styles.plateEmblem} strokeWidth={1.75} /> : null}
                   <span className={styles.plateTitle}>{setName ?? fallbackTitle}</span>
                   {code ? <span className={styles.plateCode}>{code}</span> : null}
                 </span>

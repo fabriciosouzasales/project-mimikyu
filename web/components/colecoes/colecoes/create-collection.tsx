@@ -4,7 +4,14 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Gem, Info, Layers, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
-import { activateMasterSetOnCreate, createCollectionFromSet, createFreeCollection } from "@/app/colecoes/colecoes/actions";
+import {
+  activateMasterSetOnCreate,
+  createCollectionFromSet,
+  createFreeCollection,
+  createPokedexCollection,
+  readPokedexCreationOptions,
+} from "@/app/colecoes/colecoes/actions";
+import { Pokeball } from "@/components/icons/pokeball-icon";
 import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +34,15 @@ import {
   suggestFreeCollectionName,
 } from "@/lib/colecoes/colecoes";
 import { type CompletionObjective, MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
+import {
+  type GenerationOption,
+  SUGGESTED_POKEDEX_NAME,
+  defaultSelection,
+  normalizeSelection,
+  selectionLabel,
+  speciesInSelection,
+} from "@/lib/colecoes/pokedex";
+import { GenerationChecklist } from "./pokedex-generations";
 import { ADD_PARAM, COVER_CODE_MAX, FREE_COVER_CODE_ENABLED, normalizeCoverCode, sanitizeCoverCodeInput } from "@/lib/colecoes/free-collection";
 import addStyles from "../acervo/acervo-add.module.css";
 import acervoStyles from "../acervo/acervo.module.css";
@@ -45,7 +61,9 @@ type SetOption = { code: string; name: string };
  * Tipos oferecidos: "Completar um Set" (CT-01, Query 5167) e "Coleção livre"
  * (CT-01 estendido, Query 5175), ambos no LIVE; a livre depende de
  * `FREE_COLLECTION_ENABLED` (ligado em FREE-COLLECTION-FRONTEND-COMPLETION-01)
- * e, ao terminar, leva direto a "Adicionar cartas do meu acervo". "Completar a Pokédex" não aparece antes da P7 (nem desabilitada).
+ * e, ao terminar, leva direto a "Adicionar cartas do meu acervo". "Completar a
+ * Pokédex" (PKX-02, 5201 + 5202) só aparece com `POKEDEX_COLLECTION_ENABLED`:
+ * tipo → gerações (todas as catalogadas marcadas por padrão) → nome e local.
  * Master Set não é tipo de criação: é o objetivo de uma coleção de Set. Com
  * `MASTER_SET_OBJECTIVE_ENABLED`, depois do Set vem o passo "Objetivo" (Set
  * padrão × Master Set, MASTER-SET-CREATE-01); em Master Set a coleção é
@@ -133,7 +151,18 @@ const KIND_COPY: Record<CollectionKind, { title: string; text: string; icon: typ
     text: "Reúna as cartas que quiser, do seu jeito — sem Set definido e sem contagem de progresso.",
     icon: Sparkles,
   },
+  pokedex: {
+    title: "Completar a Pokédex",
+    text: "Uma carta de cada Pokémon da Pokédex Nacional. Você escolhe as gerações e acompanha cada Pokémon conquistado.",
+    icon: Pokeball,
+  },
 };
+
+type GenerationsLoad =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; options: GenerationOption[] };
 
 function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOption[]; ownedSets: OwnedSet[]; onClose: () => void }) {
   const restoreFocus = useRestoreFocus();
@@ -160,6 +189,10 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
   const [coverCode, setCoverCode] = useState("");
   const [storage, setStorage] = useState<string | null>(null);
   const [objective, setObjective] = useState<CompletionObjective>("STANDARD_SET");
+  // Pokédex: opções da 5201 e seleção (todas marcadas por padrão, decisão do proprietário).
+  const [generations, setGenerations] = useState<GenerationsLoad>({ status: "idle" });
+  const [generationAttempt, setGenerationAttempt] = useState(0);
+  const [selectedGenerations, setSelectedGenerations] = useState<string[]>([]);
   const [submit, setSubmit] = useState<Submit>({ status: "idle" });
   // Uma chave por pedido: reaproveitada em toda nova tentativa do mesmo pedido.
   const keyRef = useRef<{ payload: string; key: string } | null>(null);
@@ -183,6 +216,32 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
       });
     return () => controller.abort();
   }, [loadAttempt, needsCatalog]);
+
+  // Gerações só são buscadas quando o tipo Pokédex é escolhido.
+  const needsGenerations = kind === "pokedex";
+  useEffect(() => {
+    if (!needsGenerations) return;
+    let alive = true;
+    setGenerations({ status: "loading" });
+    readPokedexCreationOptions()
+      .then((result) => {
+        if (!alive) return;
+        if (!result.ok || result.options.length === 0) {
+          setGenerations({ status: "error" });
+          return;
+        }
+        setGenerations({ status: "ready", options: result.options });
+        setSelectedGenerations(defaultSelection(result.options));
+      })
+      .catch(() => alive && setGenerations({ status: "error" }));
+    return () => {
+      alive = false;
+    };
+  }, [generationAttempt, needsGenerations]);
+
+  const generationOptions = generations.status === "ready" ? generations.options : [];
+  const generationCodes = normalizeSelection(selectedGenerations, generationOptions);
+  const generationSpecies = speciesInSelection(selectedGenerations, generationOptions);
 
   // Cada passo novo anuncia o próprio título (leitor de tela e teclado).
   useEffect(() => {
@@ -209,7 +268,7 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
     if (next !== kind) {
       setKind(next);
       setSetCode(null);
-      if (!nameTouched) setName(next === "free" ? suggestFreeCollectionName() : "");
+      if (!nameTouched) setName(next === "free" ? suggestFreeCollectionName() : next === "pokedex" ? SUGGESTED_POKEDEX_NAME : "");
     }
     resetError();
     setStep(creationSteps(next, kinds.length, MASTER_SET_OBJECTIVE_ENABLED)[1] ?? "details");
@@ -233,7 +292,14 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
   const ready =
     kind !== null &&
     !codeInvalid &&
-    canSubmitCreate({ kind, setCode, name, locations, storageId: locationStep === "choose" ? storage : null });
+    canSubmitCreate({
+      kind,
+      setCode,
+      name,
+      locations,
+      storageId: locationStep === "choose" ? storage : null,
+      generationCount: generationCodes?.length ?? 0,
+    });
 
   const send = async () => {
     const normalized = normalizeCollectionName(name);
@@ -242,13 +308,26 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
     const code = normalizedCode === "invalid" ? null : normalizedCode;
     // O código não entra na chave: mudar só o código e reenviar reaproveita a
     // mesma coleção (5175 idempotente) e regrava o código (5180 idempotente).
-    const payload = JSON.stringify([kind, kind === "card_set" ? setCode : null, normalized, storageContainerId]);
+    const payload = JSON.stringify([
+      kind,
+      kind === "card_set" ? setCode : null,
+      normalized,
+      storageContainerId,
+      kind === "pokedex" ? generationCodes : null,
+    ]);
     if (keyRef.current?.payload !== payload) keyRef.current = { payload, key: crypto.randomUUID() };
     setSubmit({ status: "pending" });
     const request =
       kind === "free"
         ? createFreeCollection({ idempotencyKey: keyRef.current.key, name: normalized, storageContainerId, coverCode: code })
-        : createCollectionFromSet({ idempotencyKey: keyRef.current.key, setCode: setCode ?? "", name: normalized, storageContainerId });
+        : kind === "pokedex"
+          ? createPokedexCollection({
+              idempotencyKey: keyRef.current.key,
+              name: normalized,
+              generationCodes: generationCodes ?? [],
+              storageContainerId,
+            })
+          : createCollectionFromSet({ idempotencyKey: keyRef.current.key, setCode: setCode ?? "", name: normalized, storageContainerId });
     const result = await request.catch(() => ({ ok: false as const, reason: "unavailable" as const }));
     if (result.ok) {
       const wantsMaster = MASTER_SET_OBJECTIVE_ENABLED && kind === "card_set" && objective === "MASTER_SET";
@@ -273,6 +352,8 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
       setSubmit({ status: "error", reason: result.reason });
       // Locais mudaram (outra aba criou um): recarrega para aplicar D-A com o estado real.
       if (result.reason === "storage_required" || result.reason === "storage_invalid") router.refresh();
+      // Catálogo de gerações mudou: relê as opções para o colecionador revisar.
+      if (result.reason === "generation_unavailable") setGenerationAttempt((n) => n + 1);
     }
   };
 
@@ -448,6 +529,62 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                 </div>
               </div>
             </>
+          ) : step === "generations" ? (
+            <>
+              <div className={addStyles.body}>
+                <div className={styles.stepHead}>
+                  <h2 ref={headingRef} tabIndex={-1} className={styles.stepHeading}>
+                    Quais gerações entram na sua Pokédex?
+                  </h2>
+                </div>
+                {generations.status === "loading" || generations.status === "idle" ? (
+                  <div className={addStyles.searchStatus} aria-live="polite">
+                    Carregando gerações…
+                  </div>
+                ) : generations.status === "error" ? (
+                  <Notice title="Não conseguimos carregar as gerações">
+                    Nada foi criado.
+                    <div>
+                      <Button variant="outline" size="sm" onClick={() => setGenerationAttempt((n) => n + 1)} className="mt-2">
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  </Notice>
+                ) : (
+                  <GenerationChecklist
+                    options={generationOptions}
+                    selection={selectedGenerations}
+                    onChange={(next) => {
+                      setSelectedGenerations(next);
+                      resetError();
+                    }}
+                    legend="Gerações da Pokédex Nacional"
+                    hint="Todas as gerações catalogadas já vêm marcadas. Desmarque as que não quiser agora — você inclui ou remove depois em Ajustes, sem perder nenhuma carta."
+                  />
+                )}
+                {generations.status === "ready" && !generationCodes ? (
+                  <p className={styles.fieldHint} role="status">
+                    Marque pelo menos uma geração para continuar.
+                  </p>
+                ) : null}
+              </div>
+              <div className={addStyles.footer}>
+                <span className={addStyles.footerLead} aria-live="polite">
+                  {generations.status === "ready" && generationCodes
+                    ? `${formatCount(generationSpecies)} Pokémon`
+                    : ""}
+                </span>
+                <div className={addStyles.footerActions}>
+                  <Button variant="outline" onClick={goBack}>
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                    Voltar
+                  </Button>
+                  <Button onClick={() => setStep(steps[stepIndex + 1] ?? "details")} disabled={!generationCodes}>
+                    Continuar
+                  </Button>
+                </div>
+              </div>
+            </>
           ) : step === "objective" ? (
             <>
               <div className={addStyles.body}>
@@ -502,14 +639,20 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
               <div className={addStyles.body}>
                 <div className={styles.stepHead}>
                   <h2 ref={headingRef} tabIndex={-1} className={styles.stepHeading}>
-                    {kind === "free" ? "Dê um nome à sua coleção" : "Quase lá"}
+                    {kind === "free" ? "Dê um nome à sua coleção" : kind === "pokedex" ? "Dê um nome à sua Pokédex" : "Quase lá"}
                   </h2>
                 </div>
 
                 {kind ? (
                   <div className={styles.kindCard}>
                     <span className={styles.kindIcon} aria-hidden="true">
-                      {kind === "free" ? <Sparkles className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
+                      {kind === "free" ? (
+                        <Sparkles className="h-4 w-4" />
+                      ) : kind === "pokedex" ? (
+                        <Pokeball className="h-4 w-4" />
+                      ) : (
+                        <Layers className="h-4 w-4" />
+                      )}
                     </span>
                     <div>
                       <p className={styles.kindTitle}>{kind === "card_set" && setLabel ? setLabel : KIND_COPY[kind].title}</p>
@@ -518,7 +661,9 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                           ? MASTER_SET_OBJECTIVE_ENABLED && objective === "MASTER_SET"
                             ? "Master Set — cada carta nos acabamentos sugeridos. Você ajusta os acabamentos depois em Ajustes."
                             : "Set padrão — uma de cada carta. O progresso mostra quantas você já tem e quais faltam."
-                          : "Curadoria sua, sem contagem de progresso. Você decide o que entra."}
+                          : kind === "pokedex"
+                            ? `Pokédex Nacional — ${selectionLabel(selectedGenerations, generationOptions)}, ${formatCount(generationSpecies)} Pokémon. Uma carta de cada Pokémon conquista a posição.`
+                            : "Curadoria sua, sem contagem de progresso. Você decide o que entra."}
                       </p>
                     </div>
                   </div>
@@ -698,7 +843,9 @@ function DoneView({
           <p className={addStyles.doneText}>
             {kind === "free"
               ? "A coleção começa vazia. Escolha agora as primeiras cartas do seu acervo — de qualquer Set."
-              : master?.status === "on"
+              : kind === "pokedex"
+                ? "Sua Pokédex está pronta, com cada Pokémon das gerações escolhidas esperando a primeira carta. Abra para ver o que já está ao seu alcance no acervo."
+                : master?.status === "on"
                 ? `Master Set com ${formatCount(master.total)} posições (${master.finishes === 1 ? "1 acabamento" : `${master.finishes} acabamentos`}). A coleção começa vazia — abra para adicionar as cartas que você já tem.`
                 : "A coleção começa vazia. Abra para ver o Set inteiro e adicionar as cartas que você já tem — uma de cada."}
           </p>
@@ -740,7 +887,9 @@ function DoneView({
           <Button variant="outline" onClick={onClose}>
             Ver minhas coleções
           </Button>
-          <Button onClick={onOpen}>{kind === "free" ? "Escolher as primeiras cartas" : "Abrir e adicionar cartas"}</Button>
+          <Button onClick={onOpen}>
+            {kind === "free" ? "Escolher as primeiras cartas" : kind === "pokedex" ? "Abrir minha Pokédex" : "Abrir e adicionar cartas"}
+          </Button>
         </div>
       </div>
     </>

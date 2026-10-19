@@ -38,7 +38,7 @@ const NUMBER_WORDS = ["zero", "uma", "duas", "três", "quatro", "cinco", "seis",
  * do capítulo continuam totais (decisão D4); sem índice de tipos, o seletor some e um
  * `?tipo=` da URL é avisado e ignorado, nunca aplicado pela metade.
  *
- * P6 (2026-10-15): a MESMA composição serve à página Pokémons Favoritos
+ * P6 (2026-10-15): a MESMA composição serve à página Pokémon Favoritos
  * (`mode="favorites"`, `/pokedex/favoritos`) — nenhuma segunda galeria. O recorte de
  * favoritos é aplicado aqui, sobre a lista de 6131, antes do filtro por tipo; todos os
  * links (régua, barra, pesquisa, tipos, cards) carregam a origem e ficam dentro da
@@ -73,7 +73,7 @@ export function PokedexNationalView({
   types: string[];
   /** Favoritos do usuário (P6); `null` = leitura indisponível. */
   favorites: ReadonlySet<number> | null;
-  /** P6: "favorites" = página Pokémons Favoritos. */
+  /** P6: "favorites" = página Pokémon Favoritos. */
   mode?: "national" | "favorites";
 }) {
   const isFavoritesPage = mode === "favorites";
@@ -161,7 +161,7 @@ export function PokedexNationalView({
           ) : isFavoritesPage ? (
             <>
               <p className={styles.eyebrow}>Pokédex</p>
-              <h2 className={styles.title}>Pokémons Favoritos</h2>
+              <h2 className={styles.title}>Pokémon Favoritos</h2>
             </>
           ) : (
             <h2 className={styles.title}>Pokédex Nacional</h2>
@@ -594,7 +594,7 @@ function typeFilterOptions(
 }
 
 /**
- * Página Pokémons Favoritos sem nenhum favorito (P6): explica o gesto e oferece o
+ * Página Pokémon Favoritos sem nenhum favorito (P6): explica o gesto e oferece o
  * caminho de volta à Pokédex Nacional — nunca uma tela "vazia de sistema".
  */
 function FavoritesEmpty() {
@@ -605,7 +605,7 @@ function FavoritesEmpty() {
     >
       <Heart className="h-10 w-10 text-[hsl(var(--favorite))]" strokeWidth={1.5} aria-hidden="true" />
       <div className="space-y-1">
-        <p className="text-base font-medium text-foreground">Você ainda não tem Pokémons favoritos</p>
+        <p className="text-base font-medium text-foreground">Você ainda não tem Pokémon favoritos</p>
         <p className="max-w-md text-sm text-muted-foreground">
           Toque no coração de qualquer espécie, na Pokédex Nacional ou na ficha, para guardá-la aqui. Favoritar não depende de
           ter cartas.

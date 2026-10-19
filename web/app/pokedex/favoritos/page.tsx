@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { PokedexGalleryPage } from "@/components/pokedex/pokedex-gallery-page";
 
-export const metadata: Metadata = { title: "Pokémons Favoritos · Pokédex" };
+export const metadata: Metadata = { title: "Pokémon Favoritos · Pokédex" };
 
 /**
- * Pokémons Favoritos — /pokedex/favoritos (Pokédex P6, 2026-10-15; decisão D8).
+ * Pokémon Favoritos — /pokedex/favoritos (Pokédex P6, 2026-10-15; decisão D8).
  *
  * A mesma galeria da Pokédex Nacional (nenhuma segunda galeria nem componente
  * duplicado), recortada pelas espécies favoritas do usuário da sessão

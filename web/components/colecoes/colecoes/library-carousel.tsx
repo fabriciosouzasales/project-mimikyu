@@ -18,6 +18,7 @@ import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
 import { collectionHref, collectionProgressView, collectionSubtitle } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
+import { isPokedexCollection } from "@/lib/colecoes/pokedex";
 import coverStyles from "./binder-cover.module.css";
 import styles from "./library-carousel.module.css";
 
@@ -185,6 +186,7 @@ function LibrarySpotlight({
             setCode={plateCode(collection)}
             logoUrl={logoUrl}
             fallbackTitle={collection.name}
+            emblem={isPokedexCollection(collection) ? "pokedex" : null}
             complete={collection.isComplete}
             priority
           />
@@ -551,6 +553,7 @@ function LibraryFilmstrip({
                     setCode={plateCode(collection)}
                     logoUrl={logoUrl}
                     fallbackTitle={collection.name}
+                    emblem={isPokedexCollection(collection) ? "pokedex" : null}
                     complete={collection.isComplete}
                     size="compact"
                     priority={Math.abs(deltaOf(index, startIndex, count, circular)) <= 2}

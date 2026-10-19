@@ -12,6 +12,8 @@
  * mora aqui — só forma, texto e decisões de interface.
  */
 
+import { POKEDEX_COLLECTION_ENABLED } from "./pokedex.ts";
+
 export const COLECOES_PATH = "/colecoes/colecoes";
 /** Página da Biblioteca — R1 aceita até 100. */
 export const LIBRARY_PAGE_SIZE = 48;
@@ -131,7 +133,10 @@ export function progressPercent(satisfied: number, total: number): number {
  * contém TODAS as coleções (total ≤ tamanho da página): somar uma página parcial
  * mostraria números errados, então nesse caso devolve `null` e o cabeçalho
  * mostra só o total (que vem do banco). Coleções sem universo (Coleção livre)
- * não entram no progresso geral.
+ * não entram no progresso geral. A Pokédex também fica fora de "cartas
+ * reunidas" e do progresso geral: suas posições são Pokémon conquistados, não
+ * cartas — somá-las misturaria grandezas. O progresso dela aparece na própria
+ * coleção; "completas" continua contando todas.
  */
 export type LibrarySummary = {
   collections: number;
@@ -142,7 +147,12 @@ export type LibrarySummary = {
 };
 
 export function librarySummary(
-  items: readonly { satisfiedPositions: number; totalPositions: number; isComplete: boolean }[],
+  items: readonly {
+    satisfiedPositions: number;
+    totalPositions: number;
+    isComplete: boolean;
+    completionPolicy?: string | null;
+  }[],
   total: number,
 ): LibrarySummary | null {
   if (total <= 0 || items.length < total) return null;
@@ -150,7 +160,7 @@ export function librarySummary(
   let targetCards = 0;
   let complete = 0;
   for (const item of items) {
-    if (item.totalPositions > 0) {
+    if (item.totalPositions > 0 && item.completionPolicy !== "REFERENCE_POSITION") {
       ownedCards += Math.min(item.satisfiedPositions, item.totalPositions);
       targetCards += item.totalPositions;
     }
@@ -288,6 +298,7 @@ export function collectionKindLabel(policy: string | null): string {
   if (policy === "STANDARD_SET") return "Set padrão — uma de cada carta";
   if (policy === "MASTER_SET") return "Master Set — os acabamentos que você escolher";
   if (policy === "NONE") return "Coleção livre";
+  if (policy === "REFERENCE_POSITION") return "Completar a Pokédex";
   return "Coleção";
 }
 
@@ -325,9 +336,13 @@ export function canSubmitCreate(input: {
   name: string;
   locations: readonly StorageOption[];
   storageId: string | null;
+  /** Só "Completar a Pokédex": quantas gerações estão marcadas. */
+  generationCount?: number;
 }): boolean {
   const kind = input.kind ?? "card_set";
   if (kind === "card_set" && !input.setCode) return false;
+  // Pokédex: as gerações são conferidas no passo próprio (e de novo pelo banco, 5202).
+  if (kind === "pokedex" && (input.generationCount ?? 0) < 1) return false;
   if (normalizeCollectionName(input.name) === null) return false;
   if (storageStep(input.locations) === "choose") {
     return input.storageId !== null && input.locations.some((location) => location.id === input.storageId);
@@ -340,11 +355,12 @@ export function canSubmitCreate(input: {
 // ---------------------------------------------------------------------------
 
 /**
- * Tipos que o colecionador pode escolher ao criar. "Completar a Pokédex" só
- * entra quando a P7 for liberada — e, até lá, nem aparece desabilitado
- * (NS-18). Master Set não é tipo de criação: é ajuste de uma coleção de Set.
+ * Tipos que o colecionador pode escolher ao criar. "Completar a Pokédex"
+ * (PKX-02) só aparece com `POKEDEX_COLLECTION_ENABLED` — e, até lá, nem
+ * aparece desabilitado (NS-18). Master Set não é tipo de criação: é ajuste de
+ * uma coleção de Set.
  */
-export type CollectionKind = "card_set" | "free";
+export type CollectionKind = "card_set" | "free" | "pokedex";
 
 /**
  * Coleção livre: ligada em FREE-COLLECTION-FRONTEND-COMPLETION-01, quando as
@@ -355,11 +371,17 @@ export type CollectionKind = "card_set" | "free";
  */
 export const FREE_COLLECTION_ENABLED = true;
 
-export function availableCreationKinds(freeEnabled: boolean = FREE_COLLECTION_ENABLED): CollectionKind[] {
-  return freeEnabled ? ["card_set", "free"] : ["card_set"];
+export function availableCreationKinds(
+  freeEnabled: boolean = FREE_COLLECTION_ENABLED,
+  pokedexEnabled: boolean = POKEDEX_COLLECTION_ENABLED,
+): CollectionKind[] {
+  const kinds: CollectionKind[] = ["card_set"];
+  if (freeEnabled) kinds.push("free");
+  if (pokedexEnabled) kinds.push("pokedex");
+  return kinds;
 }
 
-export type CreationStep = "type" | "set" | "objective" | "details";
+export type CreationStep = "type" | "set" | "objective" | "generations" | "details";
 
 /**
  * Jornada progressiva: tipo → configuração do tipo (só Set) → [objetivo:
@@ -374,7 +396,13 @@ export function creationSteps(
   withObjective: boolean = false,
 ): CreationStep[] {
   const steps: CreationStep[] =
-    kind === "free" ? ["type", "details"] : withObjective ? ["type", "set", "objective", "details"] : ["type", "set", "details"];
+    kind === "free"
+      ? ["type", "details"]
+      : kind === "pokedex"
+        ? ["type", "generations", "details"]
+        : withObjective
+          ? ["type", "set", "objective", "details"]
+          : ["type", "set", "details"];
   return kindCount > 1 ? steps : steps.slice(1);
 }
 
@@ -547,6 +575,8 @@ export type CollectionFailure =
   | "already_linked"
   | "not_linked"
   | "not_found"
+  | "generation_unavailable"
+  | "pokedex_unavailable"
   | "unavailable";
 
 /**
@@ -596,6 +626,10 @@ export function collectionFailureMessage(reason: CollectionFailure): string {
       return "Esta coleção não está disponível para receber cartas.";
     case "invalid":
       return "Algo no pedido não está certo. Revise e tente de novo.";
+    case "generation_unavailable":
+      return "Uma das gerações escolhidas não está mais disponível. Volte e revise as gerações.";
+    case "pokedex_unavailable":
+      return "A Pokédex Nacional está indisponível no momento. Nada foi criado — tente mais tarde.";
     default:
       return "Não foi possível concluir agora. Nada foi alterado — tente novamente em instantes.";
   }

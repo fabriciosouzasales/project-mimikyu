@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Recorte da página Pokémons Favoritos: mantém, na ordem recebida (nacional), só as
+ * Recorte da página Pokémon Favoritos: mantém, na ordem recebida (nacional), só as
  * espécies favoritas. Aplicado sobre a lista que já veio de 6131 (pesquisa/geração),
  * antes do filtro por tipo (P5a) — nenhuma consulta por card.
  */
@@ -28,7 +28,7 @@ export function applyFavoritesFilter<T extends { national_dex_number: number }>(
 }
 
 /**
- * Página Pokémons Favoritos — galeria contínua (Correção de UX-01, 2026-10-15): a
+ * Página Pokémon Favoritos — galeria contínua (Correção de UX-01, 2026-10-15): a
  * geração é um filtro, não uma divisão da grade. A lista vem de 6131 sem filtro de
  * geração (só a pesquisa), e a geração é aplicada aqui — assim o filtro compacto sabe
  * quantos favoritos existem em cada geração sem nenhuma leitura extra.

@@ -20,6 +20,7 @@ import type { CollectionSummary, CollectionsPage } from "@/lib/colecoes/colecoes
 import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
 import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "./binder-cover";
+import { isPokedexCollection } from "@/lib/colecoes/pokedex";
 import coverStyles from "./binder-cover.module.css";
 import { CreateCollectionLauncher, type OwnedSet } from "./create-collection";
 import { LibraryModes } from "./library-modes";
@@ -275,6 +276,7 @@ function Shelf({
         setCode={plateCode(collection)}
         logoUrl={logoUrl}
         fallbackTitle={collection.name}
+        emblem={isPokedexCollection(collection) ? "pokedex" : null}
         complete={collection.isComplete}
         priority={priority}
       />

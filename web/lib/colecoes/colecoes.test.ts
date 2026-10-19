@@ -69,6 +69,7 @@ test("progresso: X de Y, percentual nunca chega a 100 antes de completar", () =>
 test("tipo de coleção na linguagem do colecionador (NS-14)", () => {
   assert.equal(collectionKindLabel("STANDARD_SET"), "Set padrão — uma de cada carta");
   assert.equal(collectionKindLabel("WHATEVER"), "Coleção");
+  assert.equal(collectionKindLabel("REFERENCE_POSITION"), "Completar a Pokédex");
 });
 
 test("nome: sugestão pelo Set, normalização e vazio", () => {
@@ -199,6 +200,15 @@ test("resumo da Biblioteca: só com todas as coleções na página; livre fora d
     complete: 1,
   });
   assert.equal(librarySummary(items, 60), null);
+  // Pokédex: posições são Pokémon, não cartas — fica fora de "cartas reunidas" e do progresso geral.
+  const withDex = [...items, { satisfiedPositions: 151, totalPositions: 1025, isComplete: false, completionPolicy: "REFERENCE_POSITION" }];
+  assert.deepEqual(librarySummary(withDex, 4), {
+    collections: 4,
+    ownedCards: 177,
+    targetCards: 188,
+    overallPercent: 94,
+    complete: 1,
+  });
   assert.equal(librarySummary([], 0), null);
 });
 
@@ -280,8 +290,15 @@ test("criação: tipos disponíveis, passos por tipo e envio da Coleção livre"
   assert.deepEqual(availableCreationKinds(), ["card_set", "free"]);
   assert.deepEqual(availableCreationKinds(false), ["card_set"]);
   assert.deepEqual(availableCreationKinds(true), ["card_set", "free"]);
-  // Pokédex e Master Set nunca são tipo de criação aqui.
+  // Pokédex só com a flag (desligada fora da homologação); Master Set nunca é tipo de criação.
   assert.ok(!availableCreationKinds(true).some((kind) => (kind as string) === "pokedex" || (kind as string) === "master_set"));
+  assert.deepEqual(availableCreationKinds(true, true), ["card_set", "free", "pokedex"]);
+  assert.deepEqual(availableCreationKinds(false, true), ["card_set", "pokedex"]);
+  assert.deepEqual(creationSteps("pokedex", 3), ["type", "generations", "details"]);
+  assert.deepEqual(creationSteps("pokedex", 3, true), ["type", "generations", "details"], "Pokédex não tem objetivo de Set");
+  assert.equal(canSubmitCreate({ kind: "pokedex", setCode: null, name: "Minha Pokédex", locations: [], storageId: null, generationCount: 9 }), true);
+  assert.equal(canSubmitCreate({ kind: "pokedex", setCode: null, name: "Minha Pokédex", locations: [], storageId: null, generationCount: 0 }), false);
+  assert.equal(canSubmitCreate({ kind: "pokedex", setCode: null, name: "Minha Pokédex", locations: [], storageId: null }), false);
 
   // Com dois tipos, o passo de escolha aparece; com um só, a criação abre direto nele.
   assert.deepEqual(creationSteps("card_set", 2), ["type", "set", "details"]);

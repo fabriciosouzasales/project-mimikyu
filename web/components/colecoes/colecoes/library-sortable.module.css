@@ -49,7 +49,8 @@
 
 .item[data-layout="list"] .handle {
   top: 50%;
-  right: 2.75rem;
+  /* Centrada na faixa "grip" da linha (library-modes.module.css): fora da contagem. */
+  right: 4rem;
   transform: translateY(-50%);
 }
 

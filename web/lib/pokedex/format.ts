@@ -64,7 +64,7 @@ export type PokedexContext = {
   generation: number | null;
   types?: readonly string[];
   /**
-   * Pokédex P6 (2026-10-15): origem da galeria. `"favoritos"` = a página Pokémons
+   * Pokédex P6 (2026-10-15): origem da galeria. `"favoritos"` = a página Pokémon
    * Favoritos (`/pokedex/favoritos`); ausente/`null` = Pokédex Nacional. Decide só a
    * rota base dos links da galeria e o "voltar" da ficha — pesquisa, geração e tipos
    * seguem iguais nas duas.
@@ -75,7 +75,7 @@ export type PokedexContext = {
 /** Origens possíveis da galeria além da Pokédex Nacional (P6). */
 export type PokedexOrigin = "favoritos";
 
-/** Rota da página Pokémons Favoritos (P6). */
+/** Rota da página Pokémon Favoritos (P6). */
 export const POKEDEX_FAVORITES_PATH = "/pokedex/favoritos";
 
 /** `?origem=` da ficha: só `favoritos` é aceito; qualquer outra coisa = Pokédex Nacional. */
@@ -105,7 +105,7 @@ export function pokedexContextSearch(context: PokedexContext): string {
 
 /**
  * Rota da galeria para um contexto (sem âncora): Pokédex Nacional ou, com
- * `origin: "favoritos"` (P6), a página Pokémons Favoritos — régua, barra, pesquisa e
+ * `origin: "favoritos"` (P6), a página Pokémon Favoritos — régua, barra, pesquisa e
  * filtro por tipo ficam dentro da página de origem.
  */
 export function pokedexHref(context: PokedexContext): string {

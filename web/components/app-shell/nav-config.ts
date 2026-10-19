@@ -242,7 +242,7 @@ export const NAV_SECTIONS: NavSection[] = [
       // logo abaixo da Pokédex Nacional. A ficha aberta a partir dela (/pokedex/25?…
       // &origem=favoritos) continua destacando "Pokédex Nacional": o destaque é só por
       // pathname (decisão aceita na primeira versão — README da proposta P6, §6).
-      { href: "/pokedex/favoritos", label: "Pokémons Favoritos", section: "Explorar", icon: Heart },
+      { href: "/pokedex/favoritos", label: "Pokémon Favoritos", section: "Explorar", icon: Heart },
       // Pokédex P2 Lote E (2026-10-12) — cobertura, diagnóstico e
       // reprocessamento pontual das imagens das espécies. Só administradores.
       { href: "/pokedex/imagens", label: "Imagens", section: "Cadastro", icon: Images, adminOnly: true },

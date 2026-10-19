@@ -24,7 +24,7 @@ import {
   type StorageOption,
 } from "@/lib/colecoes/colecoes";
 import { COLLECTION_MANAGE_ENABLED, type CopyGroup, copiesInCollection, sameCollectorNumber } from "@/lib/colecoes/collection-manage";
-import { getMyStorageLocations } from "@/lib/colecoes/colecoes-queries";
+import { getMyPokedexPositions, getMyStorageLocations, getPokedexGenerationOptions } from "@/lib/colecoes/colecoes-queries";
 import { getAcervoFilterOptions, getAcervoItems } from "@/lib/colecoes/acervo-queries";
 import {
   FREE_COVER_CODE_ENABLED,
@@ -65,6 +65,29 @@ import {
   parseObjectiveOptions,
   parsePreview,
 } from "@/lib/colecoes/master-set";
+import {
+  type GenerationOption,
+  MAX_GENERATIONS,
+  POKEDEX_COLLECTION_ENABLED,
+  type PokedexFailure,
+  type PokedexFilter,
+  type PokedexPositionsPage,
+  classifyPokedexFailure,
+} from "@/lib/colecoes/pokedex";
+import {
+  type BulkPreviewItem,
+  LINK_CANDIDATES_PAGE_SIZE,
+  LINK_QUERY_MAX,
+  type LinkFailure,
+  type LinkScope,
+  type PokedexLinkCandidate,
+  type PokedexPositionCopy,
+  classifyLinkFailure,
+  normalizeBulkIds,
+  parseBulkPreview,
+  parsePokedexLinkCandidates,
+  parsePokedexPositionCopies,
+} from "@/lib/colecoes/pokedex-link";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -1376,4 +1399,395 @@ function fail(fn: string, startedAt: number, error: { code?: string; message?: s
   // Sem dados do usuário: só função, duração, código e a classe do erro.
   console.error(JSON.stringify({ scope: "colecoes.write", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
   return { ok: false, reason };
+}
+
+// ---------------------------------------------------------------------------
+// Completar a Pokédex (POKEDEX-PKX-02) — contratos 5201–5204, LIVE e canônicos
+// ---------------------------------------------------------------------------
+
+type PokedexFail = { ok: false; reason: PokedexFailure };
+
+const GENERATION_CODE = /^[A-Z0-9_]{1,40}$/;
+
+function normalizeGenerationCodes(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_GENERATIONS) return null;
+  const codes = [...new Set(value)];
+  return codes.every((code) => typeof code === "string" && GENERATION_CODE.test(code)) ? (codes as string[]) : null;
+}
+
+function pokedexFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): PokedexFail {
+  const reason = classifyPokedexFailure(error?.code, error?.message);
+  console.error(JSON.stringify({ scope: "colecoes.pokedex", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+/** Motivo da Pokédex → motivo do painel de criação (mesma tradução de mensagens). */
+function toCollectionFailure(reason: PokedexFailure): CollectionFailure {
+  switch (reason) {
+    case "not_authenticated":
+    case "storage_required":
+    case "storage_invalid":
+    case "conflict":
+    case "invalid":
+    case "generation_unavailable":
+    case "pokedex_unavailable":
+      return reason;
+    case "not_found":
+      return "not_found";
+    default:
+      return "unavailable";
+  }
+}
+
+/**
+ * Criação → gerações catalogadas da Pokédex Nacional (5201 sem coleção). Só
+ * leitura; a interface marca todas por padrão (decisão do proprietário).
+ */
+export async function readPokedexCreationOptions(): Promise<{ ok: true; options: GenerationOption[] } | PokedexFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  const supabase = await createClient();
+  const options = await getPokedexGenerationOptions(supabase, null);
+  if (options === null) return { ok: false, reason: "unavailable" };
+  return { ok: true, options };
+}
+
+/**
+ * Cria a coleção "Completar a Pokédex" — UMA chamada à 5202 (transação única
+ * no banco: local padrão quando necessário, coleção com escopo EXPLÍCITO de
+ * gerações e registro de idempotência). Mesma chave + mesmo pedido devolve a
+ * mesma coleção (`replayed`), nunca duas. Gerações catalogadas depois nunca
+ * entram sozinhas (C-02). Não toca cartas.
+ */
+export async function createPokedexCollection(input: {
+  idempotencyKey: string;
+  name: string;
+  generationCodes: string[];
+  storageContainerId: string | null;
+}): Promise<({ ok: true } & CreateResult) | Fail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "unavailable" };
+  const name = typeof input?.name === "string" ? normalizeCollectionName(input.name) : null;
+  const codes = normalizeGenerationCodes(input?.generationCodes);
+  if (
+    !isUuid(input?.idempotencyKey) ||
+    name === null ||
+    codes === null ||
+    (input.storageContainerId !== null && !isUuid(input.storageContainerId))
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_my_pokedex_collection", {
+    p_idempotency_key: input.idempotencyKey,
+    p_name: name,
+    p_generation_codes: codes,
+    p_storage_container_id: input.storageContainerId,
+  });
+  const row = Array.isArray(data)
+    ? (data[0] as { collection_id?: string; storage_container_created?: boolean; replayed?: boolean } | undefined)
+    : undefined;
+  if (error || !row || !isCollectionId(row.collection_id)) {
+    const failed = pokedexFail("create_my_pokedex_collection", startedAt, error ?? { code: "BAD_SHAPE" });
+    return { ok: false, reason: toCollectionFailure(failed.reason) };
+  }
+  console.info(
+    JSON.stringify({
+      scope: "colecoes.create",
+      kind: "pokedex",
+      ms: Date.now() - startedAt,
+      outcome: row.replayed ? "REPLAY" : "CREATED",
+      generations: codes.length,
+      storageCreated: row.storage_container_created === true,
+    }),
+  );
+  revalidatePath(COLECOES_PATH);
+  return {
+    ok: true,
+    collectionId: row.collection_id,
+    href: collectionHref(row.collection_id),
+    storageCreated: row.storage_container_created === true,
+    replayed: row.replayed === true,
+  };
+}
+
+/** Ajustes → gerações: seleção atual e conquistadas por geração (5201 com coleção). Só leitura. */
+export async function readPokedexGenerations(input: {
+  collectionId: string;
+}): Promise<{ ok: true; options: GenerationOption[] } | PokedexFail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const supabase = await createClient();
+  const options = await getPokedexGenerationOptions(supabase, input.collectionId);
+  if (options === null) return { ok: false, reason: "unavailable" };
+  // Coleção alheia, inexistente ou que não é Pokédex: a 5201 não marca nada.
+  if (!options.some((option) => option.selected === true)) return { ok: false, reason: "not_found" };
+  return { ok: true, options };
+}
+
+/**
+ * Ajustes → grava as gerações — UMA chamada à 5203 (lista explícita,
+ * idempotente: mesma lista = nada gravado). Nunca move, apaga ou desvincula
+ * exemplar; o progresso devolvido é o do banco para o novo escopo.
+ */
+export async function savePokedexGenerations(input: {
+  collectionId: string;
+  generationCodes: string[];
+}): Promise<{ ok: true; codes: string[]; total: number; satisfied: number; changed: boolean } | PokedexFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  const codes = normalizeGenerationCodes(input?.generationCodes);
+  if (!isCollectionId(input?.collectionId) || codes === null) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_my_pokedex_generations", {
+    p_collection_id: input.collectionId,
+    p_generation_codes: codes,
+  });
+  const row = Array.isArray(data)
+    ? (data[0] as { generation_codes?: unknown; total_positions?: unknown; satisfied_positions?: unknown; changed?: unknown } | undefined)
+    : undefined;
+  if (error || !row) return pokedexFail("set_my_pokedex_generations", startedAt, error ?? { code: "BAD_SHAPE" });
+  const saved = Array.isArray(row.generation_codes) ? row.generation_codes.filter((code): code is string => typeof code === "string") : codes;
+  console.info(
+    JSON.stringify({ scope: "colecoes.pokedex_generations", ms: Date.now() - startedAt, generations: saved.length, changed: row.changed === true }),
+  );
+  if (row.changed === true) revalidatePath(COLECOES_PATH, "layout");
+  return {
+    ok: true,
+    codes: saved,
+    total: Number(row.total_positions ?? 0),
+    satisfied: Number(row.satisfied_positions ?? 0),
+    changed: row.changed === true,
+  };
+}
+
+/** "Mostrar mais" da grade: a próxima página da 5204, com o mesmo filtro. Só leitura. */
+export async function loadMorePokedexPositions(input: {
+  collectionId: string;
+  filter: PokedexFilter;
+  generation: string | null;
+  offset: number;
+}): Promise<{ ok: true; page: PokedexPositionsPage } | PokedexFail> {
+  const filter = input?.filter;
+  if (
+    !isCollectionId(input?.collectionId) ||
+    (filter !== "todas" && filter !== "tenho" && filter !== "faltam") ||
+    (input.generation !== null && !(typeof input.generation === "string" && GENERATION_CODE.test(input.generation))) ||
+    !Number.isInteger(input.offset) ||
+    input.offset < 0 ||
+    input.offset > 100_000
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const supabase = await createClient();
+  const page = await getMyPokedexPositions(supabase, input.collectionId, filter, input.generation, input.offset);
+  if (page === null) return { ok: false, reason: "unavailable" };
+  return { ok: true, page };
+}
+
+// ---------------------------------------------------------------------------
+// Pokédex — vincular cartas às posições (POKEDEX-PKX-03)
+// Novos: 5208 (candidatos), 5209 (vinculados), 5210 (vincular um), 5211 (prévia
+// do lote) — PROPOSTA, não executados no LIVE. Reutilizados: 5046 (lote), 6124
+// (retirar o vínculo), 6125 (representante), 5047 (tirar da coleção, ação
+// `unlinkCopyFromCollection` acima).
+// ---------------------------------------------------------------------------
+
+type LinkFail = { ok: false; reason: LinkFailure };
+
+function linkFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): LinkFail {
+  const reason = classifyLinkFailure(error?.code, error?.message);
+  console.error(JSON.stringify({ scope: "colecoes.pokedex_link", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+function linkWritten(kind: string, startedAt: number, extra: Record<string, unknown> = {}) {
+  console.info(JSON.stringify({ scope: "colecoes.pokedex_link", kind, ms: Date.now() - startedAt, ...extra }));
+  revalidatePath(COLECOES_PATH, "layout");
+  revalidatePath(ACERVO_PATH);
+}
+
+/**
+ * Painel da posição → exemplares que podem entrar (5208). `SPECIES` = mesma
+ * espécie (vínculo normal); `ACERVO` = outra carta do acervo, com busca, para
+ * a exceção. Livres ou nesta coleção sem posição; nunca de outra coleção. Só
+ * leitura.
+ */
+export async function readPokedexLinkCandidates(input: {
+  collectionId: string;
+  positionId: string;
+  scope: LinkScope;
+  query: string;
+  offset: number;
+}): Promise<{ ok: true; items: PokedexLinkCandidate[]; total: number } | LinkFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  const query = typeof input?.query === "string" ? input.query.trim().slice(0, LINK_QUERY_MAX) : "";
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !isUuid(input.positionId) ||
+    (input.scope !== "SPECIES" && input.scope !== "ACERVO") ||
+    !Number.isInteger(input.offset) ||
+    input.offset < 0 ||
+    input.offset > 10_000
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_pokedex_link_candidates", {
+    p_collection_id: input.collectionId,
+    p_pokedex_position_id: input.positionId,
+    p_scope: input.scope,
+    p_query: input.scope === "ACERVO" && query !== "" ? query : null,
+    p_limit: LINK_CANDIDATES_PAGE_SIZE,
+    p_offset: input.offset,
+  });
+  if (error || !Array.isArray(data)) return linkFail("get_my_pokedex_link_candidates", startedAt, error ?? { code: "BAD_SHAPE" });
+  return { ok: true, ...parsePokedexLinkCandidates(data) };
+}
+
+/** Painel da posição → exemplares vinculados, representante primeiro (5209). Só leitura. */
+export async function readPokedexPositionCopies(input: {
+  collectionId: string;
+  positionId: string;
+}): Promise<{ ok: true; items: PokedexPositionCopy[]; total: number } | LinkFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.positionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_pokedex_position_copies", {
+    p_collection_id: input.collectionId,
+    p_pokedex_position_id: input.positionId,
+  });
+  if (error || !Array.isArray(data)) return linkFail("get_my_pokedex_position_copies", startedAt, error ?? { code: "BAD_SHAPE" });
+  return { ok: true, ...parsePokedexPositionCopies(data) };
+}
+
+/**
+ * Vincula UM exemplar à posição — UMA chamada à 5210 (alocação 5046 + vínculo
+ * 6119/6122 na mesma transação). `confirmException = false` só aceita carta da
+ * mesma espécie; `true` é a exceção, que o usuário confirmou depois de ver o
+ * aviso. Nunca move exemplar de outra coleção ou de outra posição. Repetir é
+ * inofensivo (mesmo vínculo).
+ */
+export async function linkPokedexCopy(input: {
+  collectionId: string;
+  positionId: string;
+  physicalCardId: string;
+  confirmException: boolean;
+}): Promise<{ ok: true; basis: "SPECIES_MATCH" | "USER_OVERRIDE"; satisfied: number; total: number } | LinkFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !isUuid(input.positionId) ||
+    !isUuid(input.physicalCardId) ||
+    typeof input.confirmException !== "boolean"
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("link_my_pokedex_copy", {
+    p_collection_id: input.collectionId,
+    p_pokedex_position_id: input.positionId,
+    p_physical_card_id: input.physicalCardId,
+    p_confirm_exception: input.confirmException,
+  });
+  const row = Array.isArray(data)
+    ? (data[0] as { assignment_basis?: unknown; satisfied_positions?: unknown; total_positions?: unknown; allocated_now?: unknown } | undefined)
+    : undefined;
+  if (error || !row || (row.assignment_basis !== "SPECIES_MATCH" && row.assignment_basis !== "USER_OVERRIDE")) {
+    return linkFail("link_my_pokedex_copy", startedAt, error ?? { code: "BAD_SHAPE" });
+  }
+  linkWritten("link", startedAt, { basis: row.assignment_basis, allocatedNow: row.allocated_now === true });
+  return {
+    ok: true,
+    basis: row.assignment_basis,
+    satisfied: Number(row.satisfied_positions ?? 0),
+    total: Number(row.total_positions ?? 0),
+  };
+}
+
+/**
+ * Retira o exemplar DESTA POSIÇÃO (6124) — ele continua na coleção, sem
+ * posição, e pode ser colocado em outra. Não é "tirar da coleção" (5047).
+ */
+export async function removePokedexLink(input: {
+  collectionId: string;
+  physicalCardId: string;
+}): Promise<{ ok: true } | LinkFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.physicalCardId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("remove_pokedex_position_assignment", { p_physical_card_id: input.physicalCardId });
+  if (error || !Array.isArray(data) || data.length !== 1) {
+    return linkFail("remove_pokedex_position_assignment", startedAt, error ?? { code: "BAD_SHAPE" });
+  }
+  linkWritten("unlink_position", startedAt);
+  return { ok: true };
+}
+
+/** Escolhe a carta representante da posição (6125). Troca a anterior, se houver. */
+export async function setPokedexRepresentative(input: {
+  collectionId: string;
+  allocationId: string;
+}): Promise<{ ok: true } | LinkFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.allocationId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_pokedex_position_primary_representative", {
+    p_collection_allocation_id: input.allocationId,
+  });
+  const row = Array.isArray(data) ? (data[0] as { collection_id?: unknown } | undefined) : undefined;
+  if (error || !row || row.collection_id !== input.collectionId) {
+    return linkFail("set_pokedex_position_primary_representative", startedAt, error ?? { code: "BAD_SHAPE" });
+  }
+  linkWritten("representative", startedAt);
+  return { ok: true };
+}
+
+/** Lote → prévia: um exemplar livre sugerido por Pokémon que falta (5211). Só leitura. */
+export async function readPokedexBulkPreview(input: {
+  collectionId: string;
+  generation: string | null;
+}): Promise<{ ok: true; items: BulkPreviewItem[]; missingTotal: number; total: number } | LinkFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  if (
+    !isCollectionId(input?.collectionId) ||
+    (input.generation !== null && !(typeof input.generation === "string" && GENERATION_CODE.test(input.generation)))
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_pokedex_bulk_link_preview", {
+    p_collection_id: input.collectionId,
+    p_generation_code: input.generation,
+  });
+  if (error || !Array.isArray(data)) return linkFail("get_my_pokedex_bulk_link_preview", startedAt, error ?? { code: "BAD_SHAPE" });
+  return { ok: true, ...parseBulkPreview(data) };
+}
+
+/**
+ * Lote → confirma os exemplares marcados — UMA chamada à 5046 (até 500, tudo
+ * ou nada); a 6119 cria os vínculos da mesma espécie na mesma transação. Nunca
+ * faz vínculo excepcional. Exemplar que mudou de lugar depois da prévia faz o
+ * banco recusar o pedido inteiro (`already_linked`), sem mover nada.
+ */
+export async function linkPokedexBulk(input: {
+  collectionId: string;
+  physicalCardIds: string[];
+}): Promise<{ ok: true; linked: number } | LinkFail> {
+  if (!POKEDEX_COLLECTION_ENABLED) return { ok: false, reason: "disabled" };
+  const ids = normalizeBulkIds(input?.physicalCardIds);
+  if (!isCollectionId(input?.collectionId) || ids === null) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("allocate_physical_cards_to_collection", {
+    p_collection_id: input.collectionId,
+    p_physical_card_ids: ids,
+  });
+  if (error || !Array.isArray(data)) return linkFail("allocate_physical_cards_to_collection", startedAt, error ?? { code: "BAD_SHAPE" });
+  linkWritten("bulk", startedAt, { requested: ids.length, linked: data.length });
+  return { ok: true, linked: data.length };
 }

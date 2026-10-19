@@ -16,7 +16,7 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
 
 /**
  * Página da galeria da Pokédex — compartilhada por `/pokedex` (Pokédex Nacional) e
- * `/pokedex/favoritos` (Pokémons Favoritos, P6). Mesma guarda, mesmas leituras, mesma
+ * `/pokedex/favoritos` (Pokémon Favoritos, P6). Mesma guarda, mesmas leituras, mesma
  * normalização de URL; a única diferença é o modo da view e a rota base dos links.
  *
  * Acesso (D2): qualquer usuário autenticado; sem acesso anônimo (redireciona para
@@ -82,7 +82,7 @@ export async function PokedexGalleryPage({
   }
 
   return (
-    <AppShell title={mode === "favorites" ? "Pokémons Favoritos" : "Pokédex Nacional"} icon={Pokeball}>
+    <AppShell title={mode === "favorites" ? "Pokémon Favoritos" : "Pokédex Nacional"} icon={Pokeball}>
       <PokedexNationalView
         generations={generations}
         species={species}

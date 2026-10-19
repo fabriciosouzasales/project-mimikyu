@@ -49,7 +49,7 @@ export function GenerationCompactBar({
   query: string | null;
   /** Tipos ativos (P5a) — preservados ao escolher uma geração. */
   types: readonly string[];
-  /** P6: origem da galeria (Pokémons Favoritos mantém os links dentro dela). */
+  /** P6: origem da galeria (Pokémon Favoritos mantém os links dentro dela). */
   origin?: PokedexOrigin | null;
 }) {
   const dockRef = useRef<HTMLDivElement>(null);

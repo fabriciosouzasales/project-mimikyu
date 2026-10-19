@@ -26,7 +26,7 @@ import {
  * Por espécie vale a máquina de lib/pokedex/favorites.ts: a tela muda na hora
  * (otimista), uma gravação por vez, e a última intenção é a que fica no servidor.
  * Falha = estado revertido + mensagem inline (STD-004). Os atributos alterados são só os
- * do próprio botão (`aria-pressed`, `data-pending`) e, na página Pokémons
+ * do próprio botão (`aria-pressed`, `data-pending`) e, na página Pokémon
  * Favoritos, `data-fav-removed` no item — o card desfavoritado fica atenuado no lugar,
  * sem salto de layout, até a próxima navegação (D4).
  */
@@ -35,7 +35,7 @@ export function FavoritesController({
   mode,
 }: {
   children: ReactNode;
-  /** "favorites": página Pokémons Favoritos — desfavoritar atenua o card no lugar. */
+  /** "favorites": página Pokémon Favoritos — desfavoritar atenua o card no lugar. */
   mode: "national" | "favorites";
 }) {
   const rootRef = useRef<HTMLDivElement>(null);

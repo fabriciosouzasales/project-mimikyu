@@ -5,7 +5,7 @@ import { PokedexGalleryPage } from "@/components/pokedex/pokedex-gallery-page";
  *
  * P6 (2026-10-15): a composição foi movida, sem mudança de comportamento, para
  * `PokedexGalleryPage` (components/pokedex/pokedex-gallery-page.tsx), compartilhada com
- * a página Pokémons Favoritos (`/pokedex/favoritos`). A única novidade aqui é o coração
+ * a página Pokémon Favoritos (`/pokedex/favoritos`). A única novidade aqui é o coração
  * de favorito nos cards e a leitura agregada dos favoritos do usuário (Query 6137).
  */
 export default function PokedexPage({

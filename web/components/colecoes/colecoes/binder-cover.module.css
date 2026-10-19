@@ -209,6 +209,13 @@
   color: hsl(var(--ink));
 }
 
+/* Emblema da coleção Pokédex: gravado em tinta, sem cor própria. */
+.plateEmblem {
+  width: 11cqw;
+  height: 11cqw;
+  color: hsl(var(--ink) / 0.82);
+}
+
 .plateCode {
   padding: 0.6cqw 2.6cqw;
   border-radius: 99cqw;

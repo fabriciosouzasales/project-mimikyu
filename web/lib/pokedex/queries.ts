@@ -164,7 +164,7 @@ export async function getPokedexSpeciesTypeIndex(supabase: SupabaseClient): Prom
 
 /**
  * Números nacionais favoritos do usuário da sessão — UMA leitura agregada por página
- * (galeria, Pokémons Favoritos, ficha), nunca uma chamada por card. A identidade vem de
+ * (galeria, Pokémon Favoritos, ficha), nunca uma chamada por card. A identidade vem de
  * `auth.uid()` dentro da função; esta camada não envia nenhum identificador.
  *
  * Paginada pelo mesmo teto do PostgREST da galeria (um usuário pode favoritar todas as

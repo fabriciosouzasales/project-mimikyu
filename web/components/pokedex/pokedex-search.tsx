@@ -32,7 +32,7 @@ export function PokedexSearch({
   generation: number | null;
   /** Tipos ativos (`?tipo=`, P5a), já canônicos. */
   types?: readonly string[];
-  /** P6: pesquisa dentro da página Pokémons Favoritos. */
+  /** P6: pesquisa dentro da página Pokémon Favoritos. */
   origin?: PokedexOrigin | null;
   maxLength: number;
   /** "lg": campo de destaque do cabeçalho da Pokédex Nacional (P3c). */

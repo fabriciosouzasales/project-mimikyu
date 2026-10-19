@@ -1,0 +1,817 @@
+/*
+ * Completar a Pokédex (PKX-02).
+ * Mesmos tokens do workspace e da grade de coleções (acervo.module.css):
+ * a carta/arte é o conteúdo; o chrome fica discreto. Dourado só no que já é
+ * seu (conquista, "no seu acervo", geração ativa) — nunca como área grande.
+ */
+
+/* ---- lista de gerações (criação e Ajustes) ---- */
+.checklistBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.checklistSum {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.checklistSum strong {
+  color: hsl(var(--foreground));
+  font-weight: 700;
+}
+
+.textAction {
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--primary-ink));
+  cursor: pointer;
+}
+
+.textAction:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.textAction:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.textAction:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Linha de geração: nome em destaque, região neutra, contagem à direita em coluna. */
+.genRowHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.genRowName {
+  min-width: 0;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+
+.genRowName strong {
+  font-weight: 700;
+}
+
+.genRowRegion {
+  font-weight: 400;
+}
+
+.genRowCount {
+  flex: none;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Compacta: as 9 gerações cabem sem rolagem; a linha inteira continua com ≥ 44 px de alvo. */
+.genList.genList {
+  gap: 0.25rem;
+}
+
+.genRow.genRow {
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.4375rem 0.75rem;
+}
+
+.genRow.genRow > span:last-child {
+  gap: 0.0625rem;
+}
+
+.genRow .genRowName,
+.genRow .genRowCount {
+  line-height: 1.25;
+}
+
+/* Dourado só na caixinha marcada: com várias gerações marcadas, a lista não vira um bloco dourado. */
+.genRow.genRow[data-checked] {
+  border-color: hsl(var(--border));
+}
+
+.genRow.genRow:hover {
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+/* ---- página da coleção: filtro por geração ---- */
+.genRail {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 1rem;
+  padding-bottom: 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+
+.genChip {
+  flex: none;
+  scroll-snap-align: start;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 4.75rem;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  color: hsl(var(--foreground));
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.genChip:hover {
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+.genChip[aria-current="page"] {
+  border-color: hsl(var(--primary) / 0.75);
+  background: hsl(var(--primary) / 0.07);
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.35) inset;
+}
+
+.genChip:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.genChipTitle {
+  font: 700 0.8125rem/1.2 var(--font-heading);
+  white-space: nowrap;
+}
+
+.genChipMeta {
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.genChipTrack {
+  display: block;
+  height: 2px;
+  margin-top: 0.25rem;
+  border-radius: 999px;
+  background: hsl(var(--border));
+  overflow: hidden;
+}
+
+.genChipFill {
+  display: block;
+  height: 100%;
+  background: hsl(var(--primary));
+}
+
+/* ---- posição ---- */
+.slot {
+  position: relative;
+  aspect-ratio: 8 / 11;
+  border-radius: var(--acervo-card-radius, 0.625rem);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(120% 80% at 50% 38%, hsl(var(--surface)) 0%, hsl(var(--surface-muted)) 70%),
+    hsl(var(--surface-muted));
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 180ms ease;
+}
+
+/* Chão sob a arte — mesma ideia da grade da Pokédex, sem animação. */
+.slot::before {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 22%;
+  height: 8%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, hsl(var(--foreground) / 0.1), transparent);
+  pointer-events: none;
+}
+
+.slotArt {
+  position: relative;
+  width: 78%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  transition:
+    filter 200ms ease,
+    opacity 200ms ease;
+}
+
+.slotArt img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Falta: arte apagada — reconhecível, mas claramente ainda não sua. */
+.slot[data-state="NOT_FOUND"] .slotArt {
+  filter: grayscale(1);
+  opacity: 0.38;
+}
+
+/* Em outra coleção: meio caminho. */
+.slot[data-state="ELSEWHERE"] .slotArt {
+  filter: grayscale(0.7);
+  opacity: 0.6;
+}
+
+/* No seu acervo: cor cheia e um filete dourado — está ao alcance. */
+.slot[data-state="AVAILABLE"] {
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--primary) / 0.55),
+    0 0 0 0 transparent;
+}
+
+@media (hover: hover) {
+  .tileLink:hover .slot,
+  .tileLink:hover .card {
+    transform: translateY(-4px) rotate(-0.4deg);
+  }
+
+  .tileLink:hover .slot[data-state="NOT_FOUND"] .slotArt,
+  .tileLink:hover .slot[data-state="ELSEWHERE"] .slotArt {
+    filter: grayscale(0.2);
+    opacity: 0.85;
+  }
+}
+
+.dex {
+  position: absolute;
+  z-index: 1;
+  top: 0.5rem;
+  left: 0.5625rem;
+  font: 800 0.75rem/1 var(--font-heading);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground) / 0.85);
+}
+
+.card {
+  position: relative;
+  aspect-ratio: 8 / 11;
+  border-radius: var(--acervo-card-radius, 0.625rem);
+  overflow: hidden;
+  background: hsl(var(--surface-muted));
+  box-shadow: var(--acervo-card-shadow);
+  transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.stateTag {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 0.625rem;
+  transform: translateX(-50%);
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+  background: hsl(var(--surface));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.12);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: hsl(var(--muted-foreground));
+}
+
+.stateTag[data-state="AVAILABLE"] {
+  color: hsl(var(--primary-ink));
+}
+
+.owned {
+  position: absolute;
+  z-index: 1;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.25);
+}
+
+.tileLink {
+  display: block;
+  border-radius: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+
+.tileLink:focus-visible .slot,
+.tileLink:focus-visible .card {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 4px;
+}
+
+/* ---- carregar mais ---- */
+.more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 2.5rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- hero ---- */
+.heroEmblem {
+  position: absolute;
+  right: -2.5rem;
+  top: 50%;
+  width: min(26rem, 46vw);
+  height: auto;
+  transform: translateY(-50%);
+  z-index: -1;
+  color: hsl(var(--foreground) / 0.05);
+  pointer-events: none;
+}
+
+.scopeLine {
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.scopeLine strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.notice {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot,
+  .card,
+  .slotArt,
+  .genChip {
+    transition: none;
+  }
+
+  .tileLink:hover .slot,
+  .tileLink:hover .card {
+    transform: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .heroEmblem {
+    display: none;
+  }
+
+}
+
+/* ==========================================================================
+ * PKX-03 — vincular cartas às posições
+ * O painel segue o drawer do acervo (acervo.module.css + acervo-add.module.css).
+ * A carta é o conteúdo: miniaturas grandes, chrome discreto. Dourado só na
+ * escolha confirmada (representante) e na ação principal; a exceção usa o tom
+ * de atenção, nunca o dourado.
+ * ========================================================================== */
+
+/* Botão que cobre o card da grade quando o vínculo está disponível. */
+.tileButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: inherit;
+  cursor: pointer;
+  border-radius: var(--acervo-card-radius, 0.625rem);
+}
+
+.addHint {
+  position: absolute;
+  right: 0.375rem;
+  bottom: 0.375rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: hsl(var(--surface) / 0.92);
+  color: hsl(var(--primary-ink));
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.18), 0 6px 14px -8px hsl(0 0% 0% / 0.5);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity 160ms ease,
+    transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:global(.dark) .addHint {
+  color: hsl(var(--primary));
+}
+
+.tileButton:hover .addHint,
+.tileButton:focus-visible .addHint,
+.slot[data-state="AVAILABLE"] .addHint {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: none) {
+  .addHint {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- painel da posição ---- */
+.panelHero {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  align-items: center;
+  gap: 1rem;
+}
+
+.panelArt {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 0.875rem;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(120% 80% at 50% 38%, hsl(var(--surface)) 0%, hsl(var(--surface-muted)) 72%),
+    hsl(var(--surface-muted));
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+}
+
+.panelArt > * {
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+}
+
+.panelDex {
+  font: 600 0.75rem/1 var(--font-sans);
+  letter-spacing: 0.04em;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.panelName {
+  margin-top: 0.25rem;
+  font: 800 1.375rem/1.1 var(--font-heading);
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground));
+}
+
+.panelState {
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+.panelState strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.panelSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.panelSectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.panelSectionTitle {
+  font: 700 0.875rem/1.3 var(--font-sans);
+  color: hsl(var(--foreground));
+}
+
+.panelSectionMeta {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted));
+}
+
+.segmentButton {
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.segmentButton[aria-selected="true"] {
+  background: hsl(var(--surface));
+  color: hsl(var(--foreground));
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.12);
+}
+
+.segmentButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+
+.segmentCount {
+  margin-left: 0.25rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Exemplar (vinculado ou candidato): carta grande à esquerda, texto, ações. */
+.copyList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.copyItem {
+  display: grid;
+  grid-template-columns: 3.75rem 1fr;
+  gap: 0.875rem;
+  padding: 0.625rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background: hsl(var(--surface));
+}
+
+.copyItem[data-representative] {
+  border-color: hsl(var(--primary) / 0.55);
+  background: hsl(var(--primary) / 0.05);
+}
+
+.copyItem[data-exception] {
+  border-style: dashed;
+}
+
+.copyArt {
+  position: relative;
+  aspect-ratio: 8 / 11;
+  border-radius: 0.3125rem;
+  overflow: hidden;
+  background: hsl(var(--surface-muted));
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.2), 0 6px 14px -8px hsl(0 0% 0% / 0.55);
+}
+
+.copyBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.copyName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.copyMeta {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+.copyBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.375rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.badgeRep {
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary-ink));
+}
+
+:global(.dark) .badgeRep {
+  color: hsl(var(--primary));
+}
+
+.badgeException {
+  background: hsl(var(--warning) / 0.14);
+  color: hsl(var(--warning-foreground));
+}
+
+.copyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.copyAction {
+  min-height: 2.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--primary-ink));
+  cursor: pointer;
+}
+
+:global(.dark) .copyAction {
+  color: hsl(var(--primary));
+}
+
+.copyAction[data-tone="quiet"] {
+  color: hsl(var(--muted-foreground));
+}
+
+.copyAction:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.copyAction:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.copyAction:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.copyAdd {
+  align-self: center;
+}
+
+/* Confirmação em linha (retirar da posição / tirar da coleção / exceção). */
+.confirm {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--surface-muted) / 0.7);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground));
+}
+
+.confirm[data-tone="warning"] {
+  border: 1px solid hsl(var(--warning) / 0.45);
+  background: hsl(var(--warning) / 0.1);
+}
+
+.confirmTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 700;
+}
+
+.confirmActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.listMore {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.25rem;
+}
+
+.emptyNote {
+  padding: 1rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+
+.statusLine {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--success) / 0.1);
+  font-size: 0.8125rem;
+  color: hsl(var(--foreground));
+}
+
+.statusLine svg {
+  color: hsl(var(--success));
+}
+
+/* ---- lote: Pokémon → carta sugerida ---- */
+.bulkRow {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.25rem 1.5rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bulkSpecies {
+  aspect-ratio: 1;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: hsl(var(--surface-muted));
+}
+
+.bulkSpecies > * {
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+}
+
+.bulkCard {
+  aspect-ratio: 8 / 11;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  background: hsl(var(--surface-muted));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .addHint,
+  .segmentButton {
+    transition: none;
+  }
+}

@@ -139,9 +139,15 @@
   flex: none;
 }
 
-/* O primeiro filho do painel herda o respiro do seletor (substitui a margem própria da grade). */
+/* Respiro entre o seletor e o conteúdo em todos os modos. Padding no painel (não
+ * margem no primeiro filho): a Lista com reordenação começa por nós auxiliares do
+ * arrastar, e a margem caía neles, colando a lista no seletor. */
+.panel {
+  padding-top: 1.5rem;
+}
+
 .panel > :first-child {
-  margin-top: 1.5rem;
+  margin-top: 0;
 }
 
 /* ---- Barra de progresso (mesmo desenho do modo Cards) ---- */
@@ -182,11 +188,12 @@
 
 .row {
   display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) minmax(11rem, 17rem) 6.5rem 1.125rem;
-  grid-template-areas: "cover identity progress copies chevron";
+  /* Faixa vazia (2rem) antes da seta: é onde aparece a alça de arrastar, sem cobrir a contagem. */
+  grid-template-columns: 2.25rem minmax(0, 1fr) minmax(11rem, 17rem) 6.5rem 2rem 1.125rem;
+  grid-template-areas: "cover identity progress copies grip chevron";
   align-items: center;
   column-gap: 1.5rem;
-  padding: 0.75rem 1.25rem 0.75rem 1rem;
+  padding: 0.5rem 1.25rem 0.5rem 1rem;
   color: inherit;
   text-decoration: none;
   outline: none;
@@ -206,7 +213,7 @@
 .rowCover {
   grid-area: cover;
   display: block;
-  width: 3rem;
+  width: 2.25rem;
 }
 
 .rowIdentity {
@@ -298,8 +305,8 @@
 
 @media (max-width: 1023px) {
   .row {
-    grid-template-columns: 3rem minmax(0, 1fr) minmax(10rem, 14rem) 1.125rem;
-    grid-template-areas: "cover identity progress chevron";
+    grid-template-columns: 2.25rem minmax(0, 1fr) minmax(10rem, 14rem) 2rem 1.125rem;
+    grid-template-areas: "cover identity progress grip chevron";
     column-gap: 1.25rem;
   }
 

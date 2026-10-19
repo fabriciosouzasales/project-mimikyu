@@ -32,6 +32,7 @@ import {
 import { MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
 import { CardArt } from "../acervo/card-art";
 import { CollectionObjectiveSection } from "./collection-objective";
+import { PokedexGenerationsSection } from "./pokedex-generations";
 import acervoStyles from "../acervo/acervo.module.css";
 import addStyles from "../acervo/acervo-add.module.css";
 import styles from "./collection-manage.module.css";
@@ -51,7 +52,7 @@ import styles from "./collection-manage.module.css";
  * Nada aqui move carta de lugar, apaga exemplar ou toca outra coleção.
  */
 
-type CollectionKind = "card_set" | "free";
+type CollectionKind = "card_set" | "free" | "pokedex";
 
 type CardTarget = {
   /** Consulta sem o id da coleção (vem do provider). */
@@ -273,7 +274,7 @@ function CopiesPanel({
                         confirming={confirming === copy.physicalCardId}
                         busy={busy === copy.physicalCardId}
                         disabled={locked && busy !== copy.physicalCardId}
-                        affectsProgress={removalAffectsProgress(kind, count)}
+                        affectsProgress={removalAffectsProgress(kind === "card_set" ? "card_set" : "free", count)}
                         error={rowError?.id === copy.physicalCardId ? rowError.reason : null}
                         onAsk={() => {
                           setRowError(null);
@@ -498,6 +499,7 @@ function SettingsPanel({
   };
 
   const isFree = kind === "free";
+  const isPokedex = kind === "pokedex";
   // Fechar o painel no meio de uma gravação deixaria o resultado sem feedback.
   const locked = saving || objectiveBusy;
 
@@ -521,7 +523,7 @@ function SettingsPanel({
               </h3>
               <dl className={styles.facts}>
                 <Fact label="Nome" value={identity.name} hint="Para mudar, use o lápis ao lado do título." />
-                {isFree && identity.coverCode !== undefined ? (
+                {(isFree || isPokedex) && identity.coverCode !== undefined ? (
                   <Fact
                     label="Código"
                     value={identity.coverCode ?? "Sem código"}
@@ -529,12 +531,13 @@ function SettingsPanel({
                   />
                 ) : null}
                 {!isFree && identity.setName ? <Fact label="Set" value={identity.setName} hint="Identidade oficial do Set." /> : null}
+                {isPokedex ? <Fact label="Universo" value="Pokédex Nacional" hint="Uma carta de cada Pokémon conquista a posição." /> : null}
                 <Fact
                   label="Cor do fichário"
                   value={finishLabel(identity.finish)}
                   hint={identity.finishEditable ? "Escolha entre as cores logo abaixo do título." : undefined}
                 />
-                {isFree && identity.hasCoverImage !== undefined ? (
+                {(isFree || isPokedex) && identity.hasCoverImage !== undefined ? (
                   <Fact
                     label="Imagem da capa"
                     value={identity.hasCoverImage ? "Imagem própria" : "Sem imagem"}
@@ -544,9 +547,11 @@ function SettingsPanel({
               </dl>
             </section>
 
-            {!isFree && MASTER_SET_OBJECTIVE_ENABLED ? (
+            {kind === "card_set" && MASTER_SET_OBJECTIVE_ENABLED ? (
               <CollectionObjectiveSection collectionId={collectionId} onBusyChange={setObjectiveBusy} />
             ) : null}
+
+            {isPokedex ? <PokedexGenerationsSection collectionId={collectionId} onBusyChange={setObjectiveBusy} /> : null}
 
             <section className={styles.section} aria-labelledby="ajustes-onde-guardo">
               <h3 id="ajustes-onde-guardo" className={styles.sectionTitle}>
@@ -616,12 +621,14 @@ function SettingsPanel({
               )}
             </section>
 
-            <p className={`${styles.note} flex items-start gap-2`}>
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              {isFree
-                ? "Para tirar uma carta, use o botão de exemplares no canto de cada carta da coleção."
-                : "Para tirar uma carta, use o botão de exemplares no canto de cada carta que você tem."}
-            </p>
+            {isPokedex ? null : (
+              <p className={`${styles.note} flex items-start gap-2`}>
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                {isFree
+                  ? "Para tirar uma carta, use o botão de exemplares no canto de cada carta da coleção."
+                  : "Para tirar uma carta, use o botão de exemplares no canto de cada carta que você tem."}
+              </p>
+            )}
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

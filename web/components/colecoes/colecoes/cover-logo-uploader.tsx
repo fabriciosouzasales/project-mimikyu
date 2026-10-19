@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { setCollectionCoverLogo } from "@/app/colecoes/colecoes/actions";
-import { collectionFailureMessage } from "@/lib/colecoes/colecoes";
+import { type CollectionFailure, collectionFailureMessage } from "@/lib/colecoes/colecoes";
 import { COVER_BUCKET, buildCoverPath, checkCoverFile } from "@/lib/colecoes/free-collection";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./colecoes.module.css";
@@ -76,7 +76,7 @@ export function CoverLogoTrigger({
     const saved = await setCollectionCoverLogo({ collectionId, path }).catch(() => ({ ok: false as const, reason: "unavailable" as const }));
     if (!saved.ok) {
       await supabase.storage.from(COVER_BUCKET).remove([path]);
-      setState({ status: "error", message: collectionFailureMessage(saved.reason) });
+      setState({ status: "error", message: coverFailureMessage(saved.reason) });
       return;
     }
     if (saved.previousPath) await supabase.storage.from(COVER_BUCKET).remove([saved.previousPath]);
@@ -88,7 +88,7 @@ export function CoverLogoTrigger({
     setState({ status: "busy", label: "Removendo imagem…" });
     const saved = await setCollectionCoverLogo({ collectionId, path: null }).catch(() => ({ ok: false as const, reason: "unavailable" as const }));
     if (!saved.ok) {
-      setState({ status: "error", message: collectionFailureMessage(saved.reason) });
+      setState({ status: "error", message: coverFailureMessage(saved.reason) });
       return;
     }
     if (saved.previousPath) await createClient().storage.from(COVER_BUCKET).remove([saved.previousPath]);
@@ -160,4 +160,10 @@ export function CoverLogoTrigger({
       </p>
     </div>
   );
+}
+
+/** Erro da capa em linguagem da capa (o texto genérico fala de "receber cartas"). */
+function coverFailureMessage(reason: CollectionFailure): string {
+  if (reason === "not_found") return "Não foi possível alterar a capa desta coleção agora. Nada foi alterado.";
+  return collectionFailureMessage(reason);
 }

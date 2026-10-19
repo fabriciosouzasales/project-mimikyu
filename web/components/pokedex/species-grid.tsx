@@ -41,7 +41,7 @@ import styles from "./species-grid.module.css";
  * cliques são tratados por uma única ilha (FavoritesController, por delegação) — nenhum
  * componente cliente por card.
  *
- * Pokédex P6, Correção de UX-01 (2026-10-15): `layout="continuous"` (página Pokémons
+ * Pokédex P6, Correção de UX-01 (2026-10-15): `layout="continuous"` (página Pokémon
  * Favoritos) — os MESMOS cards numa única grade contínua, na ordem nacional, sem
  * cabeçalhos nem espaçamentos de capítulo por geração. A geração passa a ser um filtro
  * (FavoritesGenerationFilter), não uma divisão da grade.
@@ -86,7 +86,7 @@ export function SpeciesGrid({
       <FavoriteHeartSprite />
       <RecentSpeciesMarker />
       {layout === "continuous" ? (
-        <ul className={styles.grid} aria-label="Pokémons favoritos">
+        <ul className={styles.grid} aria-label="Pokémon favoritos">
           {species.map((item, index) => (
             <SpeciesTile
               key={item.national_dex_number}

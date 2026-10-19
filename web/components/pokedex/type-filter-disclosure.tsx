@@ -16,7 +16,7 @@ import styles from "./type-filter.module.css";
  * - Esc dentro do painel fecha e devolve o foco ao botão.
  *
  * Pokédex P6, Correção de UX-01 (2026-10-15): o mesmo disclosure serve ao filtro
- * compacto de geração da página Pokémons Favoritos (`variant="generation"`): rótulo
+ * compacto de geração da página Pokémon Favoritos (`variant="generation"`): rótulo
  * "Geração", ícone próprio e — escolha única — o painel fecha ao escolher. O padrão
  * (`variant="type"`) mantém o comportamento aprovado da P5a sem nenhuma mudança.
  *

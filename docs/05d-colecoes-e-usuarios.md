@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.59 | **Pokédex do colecionador `5201`–`5205` no LIVE e canônicas (2026-10-19, `PKX-01 LIVE EXECUTION GATE-01`).** Ver Revision History 1.59. |
+| **Versão** | 1.63 | **Pokédex do colecionador: vincular cartas às posições (`PKX-03`) — `5208`–`5211` no LIVE e canônicas (`5846` 27/27), frontend atrás de flag; capa e código da Pokédex no LIVE (`5206`/`5207`) (2026-10-19).** Ver Revision History 1.63. |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1091,6 +1091,68 @@ Performance final: high-density em **4,7–8,8 ms** (reduções de 154× a 306×
 
 Evidência e harness em `database/proposals/2026-10-19-pokedex-pkx-01/`. A vinculação excepcional a outra espécie fica para a `PKX-03`, reutilizando `6122`/`6124`.
 
+### Frontend (`PKX-02`, 2026-10-19 — implementado, não publicado)
+
+Só consome `5201`–`5204` com a sessão do usuário, sem `service_role` e sem alterar SQL. Fica atrás de `POKEDEX_COLLECTION_ENABLED` em `web/lib/colecoes/pokedex.ts`:
+
+- `POKEDEX_COLLECTION_RELEASED = false`.
+- Homologação local: `next dev` com `NEXT_PUBLIC_POKEDEX_LOCAL_HOMOLOGATION=1`. O mesmo padrão do Master Set; builds de produção ignoram a variável.
+
+O que a flag liga:
+
+- **Criação:** "Completar a Pokédex" passa a ser o terceiro tipo. Os passos são tipo → gerações → nome e local. As gerações vêm da `5201` e todas as catalogadas chegam marcadas, com o total de espécies ao vivo. A criação é uma chamada à `5202`, com a chave de idempotência reaproveitada em toda nova tentativa do mesmo pedido.
+- **Ajustes → Gerações:** marcar e desmarcar → "Revisar mudança", com a prévia montada das contagens da `5201` (gerações que entram e saem, antes e depois) → "Confirmar" grava com uma chamada à `5203`. A mensagem de sucesso usa o progresso devolvido pela `5203`. Com a flag desligada, a seção só mostra as gerações atuais.
+
+Sempre visível, inclusive sem a flag (só leitura):
+
+- **Página da coleção:** a grade da `5204` chega paginada do servidor (120 por leitura, ordem nacional), com filtros Todas/Tenho/Faltam e por geração na URL (`?ver=`, `?geracao=`) e "Mostrar mais" incremental, sem repetir posições. As contagens das abas e da faixa de gerações vêm de R1/`5102` e da `5201`; o frontend não calcula completude.
+- **Estados de cada espécie:**
+  - conquistada: a carta representante, ampliável;
+  - não conquistada: a arte oficial numa moldura de carta, com "No seu acervo" (cor cheia), "Em outra coleção" e "Falta" (apagada).
+  - Rótulos acessíveis completos.
+- **Biblioteca:** rótulo "Completar a Pokédex" e Pokébola gravada na placa do fichário (`BinderCover`, prop `emblem`), sem redesenho. Ordem manual e modos mantidos.
+
+**Capa e código (decisão do proprietário, 2026-10-19):** o fichário da Pokédex tem as mesmas personalizações da Coleção livre. Pode receber imagem da capa (clique na capa) e um código (no lápis do título), além da cor do fichário. O frontend já está ligado atrás de `POKEDEX_COLLECTION_ENABLED`. `5206`/`5207` **CONFIRMADO EXECUTADO no LIVE** (2026-10-19, ledger `20261019034918`/`…034933`) ampliaram `5178` (agora v1.2) e `5180` (v1.1) para aceitar a Pokédex; `5845` v1.1 15/15, resíduo zero. A coleção de Set continua sem capa/código próprios (identidade oficial do Set).
+
+**Terminologia (decisão do proprietário, 2026-10-19):** na interface, a unidade da coleção é **"Pokémon", invariável** ("151 Pokémon", "Faltam 873 Pokémon", "Nenhum Pokémon conquistado"). "Espécie" fica para dados, contratos e documentação técnica. No mesmo ciclo, "Pokémons Favoritos" passou a "Pokémon Favoritos". A Pokédex editorial ainda mostra "espécies" em alguns textos e o painel de imagens (admin) segue técnico; uniformizar a Pokédex editorial é uma pendência separada.
+
+**Homologação local da PKX-02 (2026-10-19):** 8/8 itens do roteiro aprovados pelo proprietário no navegador. A auditoria aceitou a PKX-02 para continuidade; a validação ponta a ponta fica para depois da PKX-03.
+
+**Biblioteca — "cartas reunidas" (ajuste da PKX-03):** o indicador agregado volta ao significado original. A Pokédex fica fora de "cartas reunidas" e do "progresso geral" (`librarySummary`), porque as posições dela são Pokémon conquistados, não cartas. O progresso da Pokédex aparece no próprio fichário (Cards/Lista/Carrossel) e na página da coleção; "completas" continua contando todas.
+
+### Vincular cartas às posições (`PKX-03`, 2026-10-19 — `5208`–`5211` no LIVE e canônicas; frontend atrás de flag)
+
+`5208`–`5211` **CONFIRMADO EXECUTADO no LIVE** (2026-10-19, autorização de Fabrício; ledger `20261019033709`…`033827`; corpos idênticos aos arquivos) e promovidas para `database/schema/`; `5846` **27/27 PASS**, resíduo zero. Evidência em `database/proposals/2026-10-19-pokedex-pkx-03/`. A numeração começa em `5208` porque `5206`/`5207` já estão reservadas para a capa e o código. O harness é o `5846` (27 verificações; o `5845` é o da capa).
+
+**Contratos canônicos reutilizados, sem alteração:**
+
+- `5046` + `6119`: alocação e vínculo automático `SPECIES_MATCH` (lote e, dentro da `5210`, o exemplar livre).
+- `6122`: vínculo de exemplar já na coleção e exceção `USER_OVERRIDE` (dentro da `5210`).
+- `6124`: retirar o vínculo.
+- `6125`: representante.
+- `5047`: tirar da coleção.
+- `5102`, `5204` e `5201`: progresso, grade e gerações.
+
+**Contratos novos (só o necessário):**
+
+| Query | Função | Papel |
+|---|---|---|
+| `5208` | `get_my_pokedex_link_candidates` | Exemplares que podem entrar numa posição: livres ou nesta coleção sem posição; nunca de outra coleção. `SPECIES` = mesma espécie principal (regra da 6119/6122). `ACERVO` = outras cartas, com busca escapada, devolvendo a espécie da carta para o aviso. |
+| `5209` | `get_my_pokedex_position_copies` | Exemplares vinculados a uma posição: base do vínculo, representante, idioma/acabamento/local e espécie principal da carta. |
+| `5210` | `link_my_pokedex_copy` | Única escrita nova. Compõe `5046` (se livre) e `6119`/`6122` numa transação. Sem confirmação, só aceita a mesma espécie. Para outra espécie, exige `p_confirm_exception = true` (fail-closed); o autor fica registrado. Nunca move exemplar de outra coleção nem de outra posição (`COPY_IN_OTHER_COLLECTION` / `COPY_ALREADY_LINKED`). A espécie principal no catálogo nunca muda. |
+| `5211` | `get_my_pokedex_bulk_link_preview` | Prévia do lote: para cada posição que falta no escopo (filtro opcional por geração), um exemplar livre da mesma espécie sugerido, até 500. A confirmação é a `5046`; nunca sugere exceção. |
+
+**Fluxos (frontend atrás de `POKEDEX_COLLECTION_ENABLED`, só com a coleção ativa):**
+
+- **Painel da posição:** tocar um Pokémon da grade abre o painel.
+  - "Nesta posição": as cartas vinculadas, escolha da representante e duas saídas distintas, sempre confirmadas. "Retirar desta posição" (`6124`) mantém a carta na coleção; "Tirar da coleção" (`5047`) devolve a carta, livre, ao acervo.
+  - "Adicionar", aba da mesma espécie: vínculo normal com um toque.
+  - "Adicionar", aba "Outra carta": busca no acervo. Escolher uma carta de outra espécie mostra o aviso de divergência; só "Confirmar exceção" grava.
+- **"Completar com o acervo" (lote):** prévia por Pokémon que falta, todos marcados, com "Selecionar todos"/"Limpar". Uma chamada à `5046` (tudo ou nada). O resultado diz quantos foram conquistados e o que ficou de fora: desmarcados, ou sem carta livre da mesma espécie. Exemplar que mudou de lugar desde a prévia faz o banco recusar o lote inteiro, sem mover nada.
+- **Atualização:** toda escrita relê o painel e a página (grade, abas, progresso). Nenhuma associação automática por nome ou ilustração.
+
+**Estado:** typecheck, testes unitários e lint passam; `5846` 27/27 no LIVE. Desempenho na coleção real (acervo de 1.351 exemplares), aquecido: `5208` 27–84 ms, `5209` 28 ms, `5211` (Pokédex inteira) ~150 ms; a primeira chamada em cada conexão nova custou 0,7–1,1 s (compilação do plano). **Homologação da jornada no navegador: aprovada pelo proprietário (2026-10-19).** Capa e código do fichário da Pokédex liberados no LIVE pela `5206`/`5207` (versão 1.63). Homologados no navegador pelo proprietário (2026-10-19).
+
 ## Product / UX Traceability — Pokédex
 
 > **O que esta seção é.** Memória de produto: o significado das decisões **já implementadas e congeladas** nas Fatias A–E, registrado aqui para que as futuras fases de read models de UX e de frontend não percam o contexto.
@@ -2060,3 +2122,7 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.57 | **"Adicionar cartas" em lote no Master Set — proposta e tela (2026-10-18, `MASTER-SET-LINK-CANDIDATES-01`).** Registra também o passo "Objetivo" na criação (`MASTER-SET-CREATE-01`). Leitura nova `5200` (um exemplar livre por posição faltante; escrita segue na `5046`) e harness `5843` (25 verificações) em `database/proposals/2026-10-18-master-set-link-candidates/`, não executados. Frontend: botão e painel de revisão na grade Master Set, atrás de `MASTER_SET_ADD_FROM_ACERVO_ENABLED`. |
 | 1.58 | **`5200` no LIVE e canônica (2026-10-18, `MASTER-SET-LINK-CANDIDATES-LIVE-01`, autorização de Fabrício).** Ledger `20261019001438`; `5843` 25/25, resíduo zero; corpo idêntico ao arquivo (md5 `e3808d1c…`); 93 candidatos em 23,5 ms na coleção real ME5; advisor sem alerta específico novo. Promovida para `database/schema/`. Flags seguem `*_RELEASED = false`. |
 | 1.59 | **Pokédex do colecionador no LIVE e canônica (2026-10-19, `PKX-01 LIVE EXECUTION GATE-01`, autorização de Fabrício).** São cinco migrations: `5201` opções de geração, `5202` criação idempotente com escopo explícito, `5203` Ajustes de gerações, `5204` grade paginada com estados do acervo e `5205` revogação de `5098`/`5099` para clientes. Ledger `20261019012649`…`012818`; `5844` 37/37, resíduo zero; corpos idênticos aos arquivos; `5204` em 14,1 ms aquecido; advisor sem alerta específico novo. Promovidas para `database/schema/`. Nova seção "Pokédex do colecionador". |
+| 1.60 | **Pokédex do colecionador — frontend `PKX-02` (2026-10-19), implementado e não publicado.** Criação (terceiro tipo, gerações), Ajustes → Gerações (prévia + `5203`), página da coleção (`5204` paginada, filtros, estados) e Biblioteca (rótulo e emblema). Fica atrás de `POKEDEX_COLLECTION_ENABLED` (`RELEASED = false` + homologação local). Sem SQL novo; sem vínculo de cartas (PKX-03). |
+| 1.61 | **Vincular cartas às posições — `PKX-03` (2026-10-19).** PKX-02 homologada localmente (8/8). Biblioteca: Pokédex fora de "cartas reunidas" e do progresso geral. Proposta `5208`–`5211` + harness `5846` (não executados; numeração após a reserva `5206`/`5207` da capa). Frontend atrás de flag: painel da posição (normal, exceção confirmada, representante, retirar da posição ≠ tirar da coleção) e lote "Completar com o acervo". |
+| 1.62 | **`5208`–`5211` no LIVE e canônicas (2026-10-19, autorização de Fabrício).** Ledger `20261019033709`, `…033730`, `…033754`, `…033827`; corpos idênticos aos arquivos; `5846` 27/27 PASS, resíduo zero; desempenho medido na coleção real. Promovidas para `database/schema/`. |
+| 1.63 | **Capa e código da Pokédex no LIVE (2026-10-19, autorização de Fabrício).** `5206` (ledger `20261019034918`) e `5207` (`…034933`) ampliam `5178`/`5180` para a coleção Pokédex; Set continua recusado. `5845` v1.0 14/15 por falso FAIL do harness (resumo lido sem a identidade do dono), v1.1 15/15, resíduo zero. `database/schema/5178` → v1.2, `5180` → v1.1. |

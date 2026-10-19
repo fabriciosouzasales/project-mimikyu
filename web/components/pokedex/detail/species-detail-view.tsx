@@ -42,7 +42,7 @@ const LONG_NAME_LENGTH = 10;
  * de informações no mobile.
  *
  * Pokédex P6 (2026-10-15): controle de "Espécie favorita" (coração + texto) junto à
- * identidade; o "voltar" respeita a origem (Pokédex Nacional ou Pokémons Favoritos).
+ * identidade; o "voltar" respeita a origem (Pokédex Nacional ou Pokémon Favoritos).
  */
 export function SpeciesDetailView({
   species,
@@ -75,7 +75,7 @@ export function SpeciesDetailView({
   favoritesAvailable?: boolean;
 }) {
   const fromFavorites = context.origin === "favoritos";
-  const originLabel = fromFavorites ? "Pokémons Favoritos" : "Pokédex Nacional";
+  const originLabel = fromFavorites ? "Pokémon Favoritos" : "Pokédex Nacional";
   const number = formatDexNumber(species.national_dex_number);
   const primary = species.profile_available ? species.primary_type_code : null;
   const secondary = species.profile_available ? species.secondary_type_code : null;
@@ -131,12 +131,12 @@ export function SpeciesDetailView({
 
       <div className={styles.topbar}>
         {filtered ? (
-          <nav aria-label={fromFavorites ? "Voltar para Pokémons Favoritos" : "Voltar para a Pokédex"} className={styles.trail}>
+          <nav aria-label={fromFavorites ? "Voltar para Pokémon Favoritos" : "Voltar para a Pokédex"} className={styles.trail}>
             <Link href={nationalHref} className={styles.back}>
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               {fromFavorites ? (
                 <>
-                  <span className="hidden sm:inline">Pokémons </span>Favoritos
+                  <span className="hidden sm:inline">Pokémon </span>Favoritos
                 </>
               ) : (
                 <>

@@ -3,6 +3,16 @@ import { type BinderFinish, resolveFinish } from "./binder-finish.ts";
 import { COVER_BUCKET, FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, isCoverCode, isCoverPath, isFreeCollection } from "./free-collection.ts";
 import { LIBRARY_PAGE_SIZE, POSITIONS_PAGE_SIZE, type PositionFilter, type StorageOption, toPositionsRpcFilter } from "./colecoes.ts";
 import { MASTER_SET_PAGE_SIZE, type MasterSetPositionsPage, parseMasterSetPositions } from "./master-set.ts";
+import {
+  type GenerationOption,
+  POKEDEX_PAGE_SIZE,
+  isPokedexCollection,
+  type PokedexFilter,
+  type PokedexPositionsPage,
+  parseGenerationOptions,
+  parsePokedexPositions,
+  toPokedexRpcFilter,
+} from "./pokedex.ts";
 
 /**
  * Leituras de Minhas coleções (MY-COLLECTIONS-FRONTEND-01) — contratos LIVE
@@ -289,6 +299,50 @@ export async function getAvailableGroupCount(supabase: SupabaseClient): Promise<
   return first ? Number(first.total_count) : 0;
 }
 
+/**
+ * Gerações catalogadas da Pokédex Nacional (5201). Sem coleção: opções da
+ * criação. Com coleção: seleção atual e conquistadas por geração (coleção
+ * alheia → lista vazia; o banco não distingue). `null` = falha de leitura.
+ */
+export async function getPokedexGenerationOptions(
+  supabase: SupabaseClient,
+  collectionId: string | null,
+): Promise<GenerationOption[] | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_pokedex_generation_options", { p_collection_id: collectionId });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_pokedex_generation_options", startedAt, error);
+    return null;
+  }
+  return parseGenerationOptions(data);
+}
+
+/**
+ * Grade da coleção Pokédex (5204): uma página no servidor, na ordem nacional,
+ * com o filtro da URL. Coleção alheia → página vazia. `null` = falha.
+ */
+export async function getMyPokedexPositions(
+  supabase: SupabaseClient,
+  collectionId: string,
+  filter: PokedexFilter,
+  generation: string | null,
+  offset = 0,
+): Promise<PokedexPositionsPage | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_pokedex_positions", {
+    p_collection_id: collectionId,
+    p_filter: toPokedexRpcFilter(filter),
+    p_generation_code: generation,
+    p_limit: POKEDEX_PAGE_SIZE,
+    p_offset: Math.max(0, Math.trunc(offset)),
+  });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_pokedex_positions", startedAt, error);
+    return null;
+  }
+  return parsePokedexPositions(data);
+}
+
 /** Locais do próprio Inventory (RLS select-own), do mais antigo ao mais novo. */
 export async function getMyStorageLocations(supabase: SupabaseClient): Promise<StorageOption[] | null> {
   const startedAt = Date.now();
@@ -348,7 +402,8 @@ export async function attachCoverLogos<T extends CollectionSummary>(supabase: Su
     (column): column is string => column !== null,
   );
   if (columns.length === 0) return items;
-  const ids = items.filter((item) => isFreeCollection(item)).map((item) => item.id);
+  // Coleção livre e Pokédex têm capa e código próprios (5178/5180, ampliados pela 5206/5207).
+  const ids = items.filter((item) => isFreeCollection(item) || isPokedexCollection(item)).map((item) => item.id);
   if (ids.length === 0) return items;
   const startedAt = Date.now();
   const { data, error } = await supabase.from("collection").select(["id", ...columns].join(", ")).in("id", ids);

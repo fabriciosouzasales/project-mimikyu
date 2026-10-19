@@ -24,7 +24,7 @@ export function GenerationFilter({
   query: string | null;
   types: readonly string[];
   totalSpecies: number;
-  /** P6: na página Pokémons Favoritos, a régua fica dentro dela. */
+  /** P6: na página Pokémon Favoritos, a régua fica dentro dela. */
   origin?: PokedexOrigin | null;
 }) {
   function hrefFor(generation: number | null) {

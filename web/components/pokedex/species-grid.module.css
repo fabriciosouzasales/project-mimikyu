@@ -448,7 +448,7 @@
   right: 2.875rem;
 }
 
-/* Página Pokémons Favoritos: o card desfavoritado fica no lugar, atenuado, até a
+/* Página Pokémon Favoritos: o card desfavoritado fica no lugar, atenuado, até a
    próxima navegação (D4) — sem salto de layout; o coração continua clicável para
    favoritar de novo. */
 .item[data-fav-removed] .card {

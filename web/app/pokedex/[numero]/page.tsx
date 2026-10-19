@@ -54,7 +54,7 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
  * filtro, o "voltar" volta à galeria filtrada sem âncora (a espécie não está lá).
  *
  * Pokédex P6 (2026-10-15): `?origem=favoritos` é contexto — a ficha aberta a partir da
- * página Pokémons Favoritos volta para ela (com pesquisa, geração e tipos), e os vizinhos
+ * página Pokémon Favoritos volta para ela (com pesquisa, geração e tipos), e os vizinhos
  * e a busca rápida mantêm a origem. Anterior/próximo NÃO são restringidos a favoritos:
  * seguem a regra nacional/de geração da P4a, como já acontece com o filtro por tipo. O
  * coração da ficha usa a mesma leitura agregada da galeria (`get_my_pokedex_favorites`,
@@ -141,7 +141,7 @@ export default async function PokedexSpeciesPage({ params, searchParams }: { par
             </p>
           </Alert>
           <Link href={nationalPokedexHref(context)} className="inline-block text-sm font-medium text-primary-ink underline-offset-2 hover:underline">
-            {context.origin === "favoritos" ? "Voltar para Pokémons Favoritos" : "Voltar para a Pokédex Nacional"}
+            {context.origin === "favoritos" ? "Voltar para Pokémon Favoritos" : "Voltar para a Pokédex Nacional"}
           </Link>
         </div>
       </AppShell>

@@ -49,6 +49,7 @@ export function CollectionTitle({
   const [draft, setDraft] = useState(name);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<CollectionFailure | null>(null);
+  const [errorSource, setErrorSource] = useState<"name" | "code">("name");
   const [saved, setSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLButtonElement>(null);
@@ -92,6 +93,7 @@ export function CollectionTitle({
       const result = await renameCollection({ collectionId, name: normalized }).catch(() => fallback);
       if (!result.ok) {
         setPending(false);
+        setErrorSource("name");
         setError(result.reason);
         return;
       }
@@ -103,6 +105,7 @@ export function CollectionTitle({
       );
       if (!result.ok) {
         setPending(false);
+        setErrorSource("code");
         setError(result.reason);
         // O nome (se mudou) já foi gravado: a página reflete e o campo segue aberto para o código.
         router.refresh();
@@ -171,7 +174,9 @@ export function CollectionTitle({
         {error ? (
           <p id={`${inputId}-erro`} className={styles.renameError} role="alert">
             {error === "not_found"
-              ? "Esta coleção não pode ser renomeada agora (ela pode ter sido arquivada)."
+              ? errorSource === "code"
+                ? "Não foi possível salvar o código desta coleção agora. Nada foi alterado no código."
+                : "Esta coleção não pode ser renomeada agora (ela pode ter sido arquivada)."
               : collectionFailureMessage(error)}
           </p>
         ) : null}

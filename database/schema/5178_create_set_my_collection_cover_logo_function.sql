@@ -4,8 +4,11 @@ Projeto.....: Project Mimikyu
 Query.......: 5178 - set_my_collection_cover_logo(): define ou remove a
               imagem da placa de uma Coleção livre do próprio usuário
               (FREE-COLLECTION-COVER-LOGO-01)
-Versão......: 1.1 (READINESS-01: dono do arquivo por owner_id, com owner como reserva)
-Status......: CONFIRMADO EXECUTADO no LIVE em 2026-10-18 (autorização
+Versão......: 1.2 (5206: aceita também a coleção Pokédex). v1.1 READINESS-01: dono do arquivo por owner_id, com owner como reserva
+Status......: v1.2 CONFIRMADO EXECUTADO no LIVE em 2026-10-19 pela 5206
+              (autorização de Fabrício) — ledger 20261019034918; 5845 v1.1 15/15 PASS;
+              corpo = LIVE (md5 de prosrc 5868fb1c8de760787d1128ac20a09507).
+              Versão anterior: CONFIRMADO EXECUTADO no LIVE em 2026-10-18 (autorização
               de Fabrício) — ledger 20261018001031; 5833 v1.2 25/25 PASS
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-17
@@ -25,7 +28,8 @@ Contrato:
         de 2026-10-17); conferir as duas mantém a regra se o Storage
         deixar de preencher a legada;
       * casar o formato do CHECK de 5177.
-  - Só Coleção livre (completion_policy NONE e sem Collection Reference):
+  - Coleção livre (completion_policy NONE e sem Collection Reference) ou,
+    desde a v1.2 (5206), Pokédex (REFERENCE_POSITION + referência POKEDEX):
     coleção de Set continua com a identidade do Set.
   - Dono por auth.uid(); coleção alheia ou inexistente → mesma resposta
     (COLLECTION_NOT_FOUND), sem enumerar.
@@ -77,8 +81,11 @@ begin
 
   -- Trava a linha da coleção do dono (troca concorrente da capa serializa aqui).
   select c.cover_logo_path,
-         (c.completion_policy = 'NONE'
-          and not exists (select 1 from public.collection_reference cr where cr.collection_id = c.id))
+         ((c.completion_policy = 'NONE'
+           and not exists (select 1 from public.collection_reference cr where cr.collection_id = c.id))
+          or (c.completion_policy = 'REFERENCE_POSITION'
+              and exists (select 1 from public.collection_reference cr
+                          where cr.collection_id = c.id and cr.reference_kind = 'POKEDEX')))
     into v_prev, v_free
   from public.collection c
   where c.id = p_collection_id
@@ -122,7 +129,7 @@ end;
 $$;
 
 comment on function public.set_my_collection_cover_logo(uuid, text) is
-  'Coleção livre (Query 5178): define/remove a imagem da placa do fichário, a partir de arquivo já enviado pelo dono ao bucket collection-cover. Devolve o caminho anterior para limpeza pelo cliente. Não toca cartas.';
+  'Coleção livre e Pokédex (Query 5178, v1.1 pela 5206): define/remove a imagem da placa do fichário, a partir de arquivo já enviado pelo dono ao bucket collection-cover. Coleção de Set continua recusada (NOT_FREE_COLLECTION). Devolve o caminho anterior para limpeza pelo cliente. Não toca cartas.';
 
 revoke all on function public.set_my_collection_cover_logo(uuid, text) from public;
 revoke all on function public.set_my_collection_cover_logo(uuid, text) from anon;

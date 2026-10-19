@@ -4,6 +4,7 @@ import { LibraryBig } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { CollectionView, type MasterSetView } from "@/components/colecoes/colecoes/collection-view";
 import { FreeCollectionView } from "@/components/colecoes/colecoes/free-collection-view";
+import { PokedexCollectionView } from "@/components/colecoes/colecoes/pokedex-collection-view";
 import { getAcervoItems } from "@/lib/colecoes/acervo-queries";
 import { collectionHref, isCollectionId, parsePositionFilter } from "@/lib/colecoes/colecoes";
 import {
@@ -16,9 +17,12 @@ import {
   getMyCollection,
   getMyCollectionPositions,
   getMyMasterSetPositions,
+  getMyPokedexPositions,
+  getPokedexGenerationOptions,
   getSetLogoUrls,
 } from "@/lib/colecoes/colecoes-queries";
 import { isFreeCollection, parseFreePage, wantsPicker } from "@/lib/colecoes/free-collection";
+import { isPokedexCollection, parseGenerationFilter } from "@/lib/colecoes/pokedex";
 import { MASTER_SET_ADD_FROM_ACERVO_ENABLED, masterSetTotalPages, parseMasterSetPage } from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -96,6 +100,35 @@ export default async function ColecaoPage({
           openPicker={wantsPicker(query)}
           coverLogoUrl={coverLogoUrl}
           userId={user.id}
+        />
+      </AppShell>
+    );
+  }
+
+  // Completar a Pokédex (PKX-02): grade da 5204 (uma página, ordem nacional)
+  // e gerações da 5201 em paralelo. R2/R3 acima devolvem zero linhas para esta
+  // política e são descartadas.
+  if (summary !== null && isPokedexCollection(summary)) {
+    const generation = parseGenerationFilter(query);
+    const [positionsPage, options, [withCover]] = await Promise.all([
+      getMyPokedexPositions(supabase, collectionId, filter, generation),
+      getPokedexGenerationOptions(supabase, collectionId),
+      attachCoverLogos(supabase, [summary]),
+    ]);
+    const pokedexSummary = withCover ?? summary;
+    const pokedexCoverUrl = pokedexSummary.coverLogoPath
+      ? (await getCoverLogoUrls(supabase, [pokedexSummary.coverLogoPath])).get(pokedexSummary.coverLogoPath) ?? null
+      : null;
+    return (
+      <AppShell title={summary.name} icon={LibraryBig}>
+        <PokedexCollectionView
+          collection={pokedexSummary}
+          coverLogoUrl={pokedexCoverUrl}
+          userId={user.id}
+          filter={filter}
+          generation={generation}
+          positions={positionsPage}
+          options={options}
         />
       </AppShell>
     );
