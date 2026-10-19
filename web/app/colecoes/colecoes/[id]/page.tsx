@@ -11,6 +11,7 @@ import {
   getAvailableGroupCount,
   getCoverLogoUrls,
   getLinkableCount,
+  getMasterSetLinkableCount,
   getMasterSetOutOfScopeCount,
   getMyCollection,
   getMyCollectionPositions,
@@ -18,7 +19,7 @@ import {
   getSetLogoUrls,
 } from "@/lib/colecoes/colecoes-queries";
 import { isFreeCollection, parseFreePage, wantsPicker } from "@/lib/colecoes/free-collection";
-import { masterSetTotalPages, parseMasterSetPage } from "@/lib/colecoes/master-set";
+import { MASTER_SET_ADD_FROM_ACERVO_ENABLED, masterSetTotalPages, parseMasterSetPage } from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -109,10 +110,12 @@ export default async function ColecaoPage({
   let master: MasterSetView | null = null;
   if (collection?.completionPolicy === "MASTER_SET") {
     const requested = parseMasterSetPage(query.pagina);
-    const [positionsPage, heroPage, outOfScope] = await Promise.all([
+    const [positionsPage, heroPage, outOfScope, masterLinkable] = await Promise.all([
       getMyMasterSetPositions(supabase, collectionId, filter, requested),
       filter === "todas" && requested === 1 ? Promise.resolve(null) : getMyMasterSetPositions(supabase, collectionId, "todas", 1),
       getMasterSetOutOfScopeCount(supabase, collectionId),
+      // "Adicionar cartas" em lote (5200): só lê com o recurso ligado.
+      MASTER_SET_ADD_FROM_ACERVO_ENABLED ? getMasterSetLinkableCount(supabase, collectionId) : Promise.resolve(null),
     ]);
     // Página além do fim (o objetivo encolheu, link antigo): volta ao início do filtro.
     if (requested > 1 && positionsPage !== null && positionsPage.items.length === 0) {
@@ -123,6 +126,7 @@ export default async function ColecaoPage({
       heroPositions: (filter === "todas" && requested === 1 ? positionsPage : heroPage)?.items ?? [],
       page: positionsPage ? Math.min(requested, masterSetTotalPages(positionsPage.total)) : requested,
       outOfScopeCount: outOfScope,
+      linkable: masterLinkable,
     };
   }
 

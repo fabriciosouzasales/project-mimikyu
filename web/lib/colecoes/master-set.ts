@@ -576,3 +576,97 @@ export function positionCopyLabel(copy: Pick<PositionCopy, "variantLabel" | "isD
   const variant = copy.variantLabel ?? (copy.isDefaultVariant ? "Versão padrão" : "Outra versão");
   return copy.languageName ? `${variant} · ${copy.languageName}` : variant;
 }
+
+// ---------------------------------------------------------------------------
+// "Adicionar cartas" em lote — um exemplar livre por posição faltante (5200)
+// ---------------------------------------------------------------------------
+
+/**
+ * Teto por leitura/lote: o mesmo da 5046 (`allocate_physical_cards_to_collection`)
+ * e o limite máximo aceito pela 5200.
+ */
+export const MASTER_SET_LINK_BATCH_SIZE = 500;
+
+/** Uma posição faltante com o exemplar do acervo que entraria nela. */
+export type MasterSetLinkCandidate = {
+  /** Carta + acabamento (ou "secreta") — o mesmo `positionKey` da grade. */
+  key: string;
+  physicalCardId: string;
+  cardId: string;
+  variantTypeId: string | null;
+  collectorNumber: string;
+  cardName: string;
+  variantTypeName: string | null;
+  isSecret: boolean;
+  languageCode: string | null;
+  imagePath: string | null;
+};
+
+type LinkCandidateRow = {
+  physical_card_id?: unknown;
+  card_id?: unknown;
+  variant_type_id?: unknown;
+  collector_number?: unknown;
+  card_name?: unknown;
+  variant_type_name?: unknown;
+  is_secret?: unknown;
+  language_code?: unknown;
+  image_path?: unknown;
+  total_count?: unknown;
+};
+
+/**
+ * Linhas da 5200 → candidatos. Linha malformada é descartada; posição ou
+ * exemplar repetido (não deveria acontecer — contrato da 5200) fica só na
+ * primeira ocorrência, para nunca enviar o mesmo exemplar duas vezes à 5046.
+ */
+export function parseMasterSetLinkCandidates(rows: readonly LinkCandidateRow[]): {
+  items: MasterSetLinkCandidate[];
+  total: number;
+} {
+  const items: MasterSetLinkCandidate[] = [];
+  const seenKeys = new Set<string>();
+  const seenCopies = new Set<string>();
+  let total = 0;
+  for (const row of rows) {
+    if (!isFinishId(row.physical_card_id) || !isFinishId(row.card_id)) continue;
+    const variantTypeId = isFinishId(row.variant_type_id) ? row.variant_type_id.toLowerCase() : null;
+    if (row.variant_type_id != null && variantTypeId === null) continue;
+    const key = positionKey(row.card_id, variantTypeId);
+    const physicalCardId = row.physical_card_id.toLowerCase();
+    total = Math.max(total, count(row.total_count));
+    if (seenKeys.has(key) || seenCopies.has(physicalCardId)) continue;
+    seenKeys.add(key);
+    seenCopies.add(physicalCardId);
+    const name = typeof row.variant_type_name === "string" ? row.variant_type_name.trim() : "";
+    items.push({
+      key,
+      physicalCardId,
+      cardId: row.card_id.toLowerCase(),
+      variantTypeId,
+      collectorNumber: typeof row.collector_number === "string" ? row.collector_number : "",
+      cardName: typeof row.card_name === "string" ? row.card_name : "",
+      variantTypeName: variantTypeId && name ? name : null,
+      isSecret: row.is_secret === true,
+      languageCode: typeof row.language_code === "string" && row.language_code ? row.language_code : null,
+      imagePath: typeof row.image_path === "string" && row.image_path !== "" ? row.image_path : null,
+    });
+  }
+  return { items, total: Math.max(total, items.length) };
+}
+
+/** Chave de posição válida vinda do cliente (`<uuid>:<uuid>` ou `<uuid>:secreta`). */
+export function isPositionKey(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const [card, finish, ...rest] = value.split(":");
+  return rest.length === 0 && isFinishId(card) && (finish === "secreta" || isFinishId(finish));
+}
+
+/**
+ * Exemplares a vincular: só as posições marcadas que continuam faltando na
+ * releitura (estado atual), na ordem do Set. Posição marcada que já foi
+ * atendida (outro dispositivo, envio repetido) simplesmente não entra.
+ */
+export function pickLinkCopies(candidates: readonly MasterSetLinkCandidate[], wanted: ReadonlySet<string>): string[] {
+  return candidates.filter((candidate) => wanted.has(candidate.key)).map((candidate) => candidate.physicalCardId);
+}

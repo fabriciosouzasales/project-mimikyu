@@ -27,6 +27,7 @@ import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton 
 import manageStyles from "./collection-manage.module.css";
 import { type MasterSetPosition, type MasterSetPositionsPage, heroCardsFromMasterSet } from "@/lib/colecoes/master-set";
 import { MasterSetGallery } from "./master-set-gallery";
+import { MasterSetLinkLauncher } from "./master-set-link";
 import styles from "./colecoes.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -51,6 +52,12 @@ export type MasterSetView = {
   page: number;
   /** `null` = leitura falhou (a seção não aparece). */
   outOfScopeCount: number | null;
+  /**
+   * Posições faltantes com carta livre no acervo (5200). `null` = recurso
+   * desligado ou leitura falhou (inclusive antes da 5200 existir) — o botão
+   * "Adicionar cartas" não aparece.
+   */
+  linkable: number | null;
 };
 
 export function CollectionView({
@@ -234,6 +241,9 @@ export function CollectionView({
                 linkable={canLink && linkable !== null ? linkable : 0}
                 layout="hero"
               />
+            ) : null}
+            {isMaster && master.linkable !== null ? (
+              <MasterSetLinkLauncher collectionId={collection.id} linkable={active ? master.linkable : 0} />
             ) : null}
           </div>
         </div>

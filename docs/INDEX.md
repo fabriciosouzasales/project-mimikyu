@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.26 |
+| **Versão** | 2.27 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -322,3 +322,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 2.24 | **`MASTER-SET-FRONTEND-PHASE-01` (2026-10-18).** `05d-colecoes-e-usuarios.md` 1.54 (subseção "Frontend — Ajustes → Objetivo"), ROADMAP 2.40, HANDOFF-2026-10-15 1.43. Nenhum documento novo. |
 | 2.25 | **`MASTER-SET-FRONTEND-PHASE-02` (2026-10-18).** `05d` 1.55, ROADMAP 2.41, HANDOFF 1.44; proposta nova `database/proposals/2026-10-18-master-set-position-copies/` (`5199`/`5842`, não executadas). |
 | 2.26 | **`5199-CLOSEOUT` (2026-10-18).** Documento novo `operations/master-set-homologation.md`; `05d` 1.56; HANDOFF 1.45. |
+| 2.27 | **`MASTER-SET-LINK-CANDIDATES-01` (2026-10-18).** `05d` 1.57; proposta nova `database/proposals/2026-10-18-master-set-link-candidates/` (`5200`/`5843`, não executadas). |

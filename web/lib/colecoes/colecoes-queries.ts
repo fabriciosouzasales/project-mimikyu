@@ -247,6 +247,23 @@ export async function getLinkableCount(supabase: SupabaseClient, id: string): Pr
 }
 
 /**
+ * Master Set: quantas posições faltantes têm exemplar livre no acervo agora
+ * (Query 5200, uma linha basta — `total_count` vem antes do limite). `null` =
+ * falha (inclusive enquanto a 5200 não existir no banco): o botão some.
+ */
+export async function getMasterSetLinkableCount(supabase: SupabaseClient, id: string): Promise<number | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_master_set_link_candidates", { p_collection_id: id, p_limit: 1 });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_master_set_link_candidates", startedAt, error);
+    return null;
+  }
+  const first = (data as { total_count: number | string }[])[0];
+  const total = first ? Number(first.total_count) : 0;
+  return Number.isFinite(total) && total > 0 ? Math.floor(total) : 0;
+}
+
+/**
  * Quantas cartas diferentes do acervo estão fora de qualquer coleção e podem
  * entrar numa Coleção livre agora (5159 com `p_without_collection`). Uma linha
  * basta — `total_count` vem antes do limite. `null` = falha (a interface não

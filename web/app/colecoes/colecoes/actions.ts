@@ -42,8 +42,13 @@ import { LIBRARY_REORDER_ENABLED } from "@/lib/colecoes/library-order";
 import {
   type CompletionObjective,
   MASTER_SET_ADD_FROM_ACERVO_ENABLED,
+  MASTER_SET_LINK_BATCH_SIZE,
   MASTER_SET_OBJECTIVE_ENABLED,
   MAX_FINISHES,
+  type MasterSetLinkCandidate,
+  isPositionKey,
+  parseMasterSetLinkCandidates,
+  pickLinkCopies,
   OUT_OF_SCOPE_PAGE_SIZE,
   type OutOfScopePage,
   POSITION_COPIES_LIMIT,
@@ -1134,6 +1139,99 @@ export async function readMasterSetPositionCopies(input: {
   });
   if (error || !Array.isArray(data)) return fail("get_my_master_set_position_copies", startedAt, error ?? { code: "BAD_SHAPE" });
   return { ok: true, ...parsePositionCopies(data) };
+}
+
+// ---------------------------------------------------------------------------
+// Master Set — "Adicionar cartas" em lote (5200 + 5046)
+// ---------------------------------------------------------------------------
+
+/**
+ * Revisão: um exemplar livre do acervo por posição ainda faltante (5200 —
+ * PROPOSTA até ser aplicada no LIVE). Só leitura. Controlada por
+ * `MASTER_SET_ADD_FROM_ACERVO_ENABLED`; desligada, nada é chamado.
+ */
+export async function reviewMasterSetLink(input: {
+  collectionId: string;
+}): Promise<({ ok: true; total: number; items: MasterSetLinkCandidate[] }) | Fail> {
+  if (!MASTER_SET_ADD_FROM_ACERVO_ENABLED) return { ok: false, reason: "unavailable" };
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const supabase = await createClient();
+  const read = await readMasterSetLinkCandidates(supabase, input.collectionId);
+  if (!read.ok) return read;
+  return { ok: true, total: read.total, items: read.items };
+}
+
+/**
+ * Vincula as posições MARCADAS que continuam faltando. Os candidatos são
+ * relidos no servidor (estado atual, não o da revisão) a cada lote de até 500
+ * (teto da 5046); posição já atendida no meio do caminho simplesmente não
+ * entra, e reenviar o mesmo pedido não vincula duas vezes — a 5046 recusa
+ * exemplar já vinculado e a releitura já não o devolve.
+ */
+export async function linkMasterSetPositions(input: {
+  collectionId: string;
+  positionKeys: string[];
+}): Promise<{ ok: true; linked: number } | { ok: false; reason: CollectionFailure; linked: number }> {
+  if (!MASTER_SET_ADD_FROM_ACERVO_ENABLED) return { ok: false, reason: "unavailable", linked: 0 };
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !Array.isArray(input.positionKeys) ||
+    input.positionKeys.length === 0 ||
+    input.positionKeys.length > MASTER_SET_LINK_BATCH_SIZE ||
+    !input.positionKeys.every((key) => isPositionKey(key))
+  ) {
+    return { ok: false, reason: "invalid", linked: 0 };
+  }
+
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const wanted = new Set(input.positionKeys.map((key) => key.toLowerCase()));
+  let linked = 0;
+
+  // Cada volta lê o estado atual; o teto de voltas só protege contra laço infinito.
+  for (let round = 0; round < 10 && wanted.size > 0; round += 1) {
+    const candidates = await readMasterSetLinkCandidates(supabase, input.collectionId);
+    if (!candidates.ok) return finish(candidates.reason);
+    const ids = pickLinkCopies(candidates.items, wanted);
+    if (ids.length === 0) break;
+    for (const candidate of candidates.items) if (wanted.has(candidate.key)) wanted.delete(candidate.key);
+
+    const { data, error } = await supabase.rpc("allocate_physical_cards_to_collection", {
+      p_collection_id: input.collectionId,
+      p_physical_card_ids: ids,
+    });
+    if (error || !Array.isArray(data)) {
+      const failed = fail("allocate_physical_cards_to_collection", startedAt, error ?? { code: "BAD_SHAPE" });
+      return finish(failed.reason);
+    }
+    linked += data.length;
+    // Menos que um lote cheio = não há posição marcada além desta leitura.
+    if (candidates.items.length < MASTER_SET_LINK_BATCH_SIZE) break;
+  }
+
+  return finish(null);
+
+  function finish(reason: CollectionFailure | null) {
+    console.info(JSON.stringify({ scope: "colecoes.master_set_link", ms: Date.now() - startedAt, linked, outcome: reason ?? "OK" }));
+    if (linked > 0) {
+      revalidatePath(COLECOES_PATH, "layout");
+      revalidatePath(ACERVO_PATH);
+    }
+    return reason ? { ok: false as const, reason, linked } : { ok: true as const, linked };
+  }
+}
+
+async function readMasterSetLinkCandidates(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  collectionId: string,
+): Promise<{ ok: true; items: MasterSetLinkCandidate[]; total: number } | Fail> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_master_set_link_candidates", {
+    p_collection_id: collectionId,
+    p_limit: MASTER_SET_LINK_BATCH_SIZE,
+  });
+  if (error || !Array.isArray(data)) return fail("get_my_master_set_link_candidates", startedAt, error ?? { code: "BAD_SHAPE" });
+  return { ok: true, ...parseMasterSetLinkCandidates(data) };
 }
 
 function objectiveSaved<T extends { policy: CompletionObjective; total: number | null; satisfied: number | null }>(

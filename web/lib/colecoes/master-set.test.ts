@@ -34,6 +34,10 @@ import {
   positionCopyLabel,
   positionKey,
   positionStatusText,
+  MASTER_SET_LINK_BATCH_SIZE,
+  isPositionKey,
+  parseMasterSetLinkCandidates,
+  pickLinkCopies,
 } from "./master-set.ts";
 import { collectionKindLabel } from "./colecoes.ts";
 
@@ -294,4 +298,61 @@ test("parsePositionCopies e rótulo versão + idioma", () => {
   assert.equal(page.items.length, 1);
   assert.equal(positionCopyLabel(page.items[0]!), "Holográfica · 1ª Edição · Português");
   assert.equal(positionCopyLabel({ variantLabel: null, isDefaultVariant: true, languageName: "" }), "Versão padrão");
+});
+
+const LC_CARD_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const LC_CARD_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const PC1 = "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1";
+const PC2 = "c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2";
+const PC3 = "c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3";
+
+test("parseMasterSetLinkCandidates: uma linha por posição, genérica com chave 'secreta', total do contrato", () => {
+  const parsed = parseMasterSetLinkCandidates([
+    { physical_card_id: PC1.toUpperCase(), card_id: LC_CARD_A, variant_type_id: STD, collector_number: "001", card_name: "Um", variant_type_name: " Padrão ", is_secret: false, language_code: "pt-BR", image_path: "a.webp", total_count: "93" },
+    { physical_card_id: PC2, card_id: LC_CARD_B, variant_type_id: null, collector_number: "200", card_name: "Secreta", variant_type_name: "ignorado", is_secret: true, language_code: null, image_path: "", total_count: 93 },
+  ]);
+  assert.equal(parsed.total, 93);
+  assert.equal(parsed.items.length, 2);
+  assert.deepEqual(parsed.items[0], {
+    key: positionKey(LC_CARD_A, STD), physicalCardId: PC1, cardId: LC_CARD_A, variantTypeId: STD, collectorNumber: "001",
+    cardName: "Um", variantTypeName: "Padrão", isSecret: false, languageCode: "pt-BR", imagePath: "a.webp",
+  });
+  assert.equal(parsed.items[1]?.key, `${LC_CARD_B}:secreta`);
+  assert.equal(parsed.items[1]?.variantTypeName, null);
+  assert.equal(parsed.items[1]?.imagePath, null);
+  assert.equal(parsed.items[1]?.languageCode, null);
+});
+
+test("parseMasterSetLinkCandidates: descarta malformadas e nunca repete posição ou exemplar", () => {
+  const parsed = parseMasterSetLinkCandidates([
+    { physical_card_id: "x", card_id: LC_CARD_A, variant_type_id: STD, total_count: 3 },
+    { physical_card_id: PC1, card_id: LC_CARD_A, variant_type_id: "nao-uuid", total_count: 3 },
+    { physical_card_id: PC1, card_id: LC_CARD_A, variant_type_id: STD, total_count: 3 },
+    { physical_card_id: PC2, card_id: LC_CARD_A, variant_type_id: STD, total_count: 3 },
+    { physical_card_id: PC1, card_id: LC_CARD_A, variant_type_id: REV, total_count: 3 },
+    { physical_card_id: PC3, card_id: LC_CARD_A, variant_type_id: REV, total_count: 3 },
+  ]);
+  assert.deepEqual(parsed.items.map((item) => item.physicalCardId), [PC1, PC3]);
+  assert.equal(parsed.total, 3);
+  assert.deepEqual(parseMasterSetLinkCandidates([]), { items: [], total: 0 });
+});
+
+test("isPositionKey aceita carta:acabamento e carta:secreta; recusa o resto", () => {
+  assert.ok(isPositionKey(positionKey(LC_CARD_A, STD)));
+  assert.ok(isPositionKey(positionKey(LC_CARD_B, null)));
+  for (const bad of ["", LC_CARD_A, `${LC_CARD_A}:`, `${LC_CARD_A}:x`, `x:${STD}`, `${LC_CARD_A}:${STD}:${STD}`, 42, null]) {
+    assert.equal(isPositionKey(bad), false, String(bad));
+  }
+});
+
+test("pickLinkCopies: só posições marcadas que continuam faltando, na ordem do Set", () => {
+  const { items } = parseMasterSetLinkCandidates([
+    { physical_card_id: PC1, card_id: LC_CARD_A, variant_type_id: STD, total_count: 3 },
+    { physical_card_id: PC2, card_id: LC_CARD_A, variant_type_id: REV, total_count: 3 },
+    { physical_card_id: PC3, card_id: LC_CARD_B, variant_type_id: null, total_count: 3 },
+  ]);
+  const wanted = new Set([positionKey(LC_CARD_B, null), positionKey(LC_CARD_A, STD), "outra:posicao-ja-atendida"]);
+  assert.deepEqual(pickLinkCopies(items, wanted), [PC1, PC3]);
+  assert.deepEqual(pickLinkCopies(items, new Set()), []);
+  assert.equal(MASTER_SET_LINK_BATCH_SIZE, 500);
 });
