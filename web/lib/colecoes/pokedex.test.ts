@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   POKEDEX_COLLECTION_ENABLED,
+  POKEDEX_COLLECTION_RELEASED,
   appendPositions,
   classifyPokedexFailure,
   currentSelection,
@@ -35,8 +36,9 @@ const ROWS = [
   { generation_code: "", generation_ordinal: 9 },
 ];
 
-test("flag fica desligada fora de next dev com a variável (publicação depende do proprietário)", () => {
-  assert.equal(POKEDEX_COLLECTION_ENABLED, false);
+test("Pokédex publicada: a flag fica ligada em qualquer ambiente (autorização de 2026-10-19)", () => {
+  assert.equal(POKEDEX_COLLECTION_RELEASED, true);
+  assert.equal(POKEDEX_COLLECTION_ENABLED, true);
 });
 
 test("identifica a coleção Pokédex só pela política física", () => {

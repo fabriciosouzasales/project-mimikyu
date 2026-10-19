@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.63 | **Pokédex do colecionador: vincular cartas às posições (`PKX-03`) — `5208`–`5211` no LIVE e canônicas (`5846` 27/27), frontend atrás de flag; capa e código da Pokédex no LIVE (`5206`/`5207`) (2026-10-19).** Ver Revision History 1.63. |
+| **Versão** | 1.64 | **Pokédex do colecionador: vincular cartas às posições (`PKX-03`) — `5208`–`5211` no LIVE e canônicas (`5846` 27/27), frontend atrás de flag; capa e código da Pokédex no LIVE (`5206`/`5207`); **publicada em produção** (2026-10-19).** Ver Revision History 1.64. |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1093,7 +1093,7 @@ Evidência e harness em `database/proposals/2026-10-19-pokedex-pkx-01/`. A vincu
 
 ### Frontend (`PKX-02`, 2026-10-19 — implementado, não publicado)
 
-Só consome `5201`–`5204` com a sessão do usuário, sem `service_role` e sem alterar SQL. Fica atrás de `POKEDEX_COLLECTION_ENABLED` em `web/lib/colecoes/pokedex.ts`:
+**Publicada em produção (2026-10-19, autorização do proprietário):** `POKEDEX_COLLECTION_RELEASED = true`. Só consome `5201`–`5204` com a sessão do usuário, sem `service_role` e sem alterar SQL. Fica atrás de `POKEDEX_COLLECTION_ENABLED` em `web/lib/colecoes/pokedex.ts`:
 
 - `POKEDEX_COLLECTION_RELEASED = false`.
 - Homologação local: `next dev` com `NEXT_PUBLIC_POKEDEX_LOCAL_HOMOLOGATION=1`. O mesmo padrão do Master Set; builds de produção ignoram a variável.
@@ -2126,3 +2126,4 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.61 | **Vincular cartas às posições — `PKX-03` (2026-10-19).** PKX-02 homologada localmente (8/8). Biblioteca: Pokédex fora de "cartas reunidas" e do progresso geral. Proposta `5208`–`5211` + harness `5846` (não executados; numeração após a reserva `5206`/`5207` da capa). Frontend atrás de flag: painel da posição (normal, exceção confirmada, representante, retirar da posição ≠ tirar da coleção) e lote "Completar com o acervo". |
 | 1.62 | **`5208`–`5211` no LIVE e canônicas (2026-10-19, autorização de Fabrício).** Ledger `20261019033709`, `…033730`, `…033754`, `…033827`; corpos idênticos aos arquivos; `5846` 27/27 PASS, resíduo zero; desempenho medido na coleção real. Promovidas para `database/schema/`. |
 | 1.63 | **Capa e código da Pokédex no LIVE (2026-10-19, autorização de Fabrício).** `5206` (ledger `20261019034918`) e `5207` (`…034933`) ampliam `5178`/`5180` para a coleção Pokédex; Set continua recusado. `5845` v1.0 14/15 por falso FAIL do harness (resumo lido sem a identidade do dono), v1.1 15/15, resíduo zero. `database/schema/5178` → v1.2, `5180` → v1.1. |
+| 1.64 | **Pokédex do colecionador publicada em produção (2026-10-19, autorização de Fabrício).** `POKEDEX_COLLECTION_RELEASED = true`: criação "Completar a Pokédex", Ajustes de gerações, vínculo de cartas (PKX-03) e capa/código ligados para todos os usuários. Sem SQL novo. |

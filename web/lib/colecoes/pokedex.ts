@@ -22,11 +22,11 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Não publicado: a criação e os Ajustes de gerações só ligam com a autorização
- * do proprietário (trocar para `true`). A página de uma coleção Pokédex já
- * existente é só leitura e aparece sempre.
+ * Publicado (autorização do proprietário, 2026-10-19): criação, Ajustes de
+ * gerações, vínculo de cartas (PKX-03) e capa/código do fichário ligados em
+ * produção. Contratos 5201–5211 e 5206/5207 no LIVE e homologados.
  */
-export const POKEDEX_COLLECTION_RELEASED: boolean = false;
+export const POKEDEX_COLLECTION_RELEASED: boolean = true;
 
 /**
  * Homologação local (mesmo padrão do Master Set): só com `next dev`

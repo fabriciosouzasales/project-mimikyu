@@ -287,11 +287,12 @@ test("hero da coleção: secretas primeiro (número acima do total), sem imagem 
 test("criação: tipos disponíveis, passos por tipo e envio da Coleção livre", () => {
   // Enquanto 5175 não está no LIVE, só "Completar um Set" é oferecido (nunca fluxo sem conclusão).
   assert.equal(FREE_COLLECTION_ENABLED, true);
-  assert.deepEqual(availableCreationKinds(), ["card_set", "free"]);
-  assert.deepEqual(availableCreationKinds(false), ["card_set"]);
-  assert.deepEqual(availableCreationKinds(true), ["card_set", "free"]);
-  // Pokédex só com a flag (desligada fora da homologação); Master Set nunca é tipo de criação.
-  assert.ok(!availableCreationKinds(true).some((kind) => (kind as string) === "pokedex" || (kind as string) === "master_set"));
+  // Pokédex publicada (2026-10-19): o padrão já oferece os três tipos.
+  assert.deepEqual(availableCreationKinds(), ["card_set", "free", "pokedex"]);
+  assert.deepEqual(availableCreationKinds(false, false), ["card_set"]);
+  assert.deepEqual(availableCreationKinds(true, false), ["card_set", "free"]);
+  // Pokédex só com a flag; Master Set nunca é tipo de criação.
+  assert.ok(!availableCreationKinds(true, false).some((kind) => (kind as string) === "pokedex" || (kind as string) === "master_set"));
   assert.deepEqual(availableCreationKinds(true, true), ["card_set", "free", "pokedex"]);
   assert.deepEqual(availableCreationKinds(false, true), ["card_set", "pokedex"]);
   assert.deepEqual(creationSteps("pokedex", 3), ["type", "generations", "details"]);
