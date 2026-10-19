@@ -249,7 +249,7 @@ export async function getLinkableCount(supabase: SupabaseClient, id: string): Pr
 /**
  * Master Set: quantas posições faltantes têm exemplar livre no acervo agora
  * (Query 5200, uma linha basta — `total_count` vem antes do limite). `null` =
- * falha (inclusive enquanto a 5200 não existir no banco): o botão some.
+ * falha: o botão some.
  */
 export async function getMasterSetLinkableCount(supabase: SupabaseClient, id: string): Promise<number | null> {
   const startedAt = Date.now();

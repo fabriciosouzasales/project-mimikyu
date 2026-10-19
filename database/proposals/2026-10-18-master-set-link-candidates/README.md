@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Status** | PROPOSTA — não executada no LIVE. Aguardando autorização de Fabrício. |
+| **Status** | `5200` CONFIRMADO EXECUTADO no LIVE (2026-10-18, `MASTER-SET-LINK-CANDIDATES-LIVE-01`, autorização de Fabrício; ledger `20261019001438`); `5843` v1.0 25/25 PASS, resíduo zero. Promovida para `database/schema/` (corpo = LIVE, md5 `e3808d1c…`). |
 | **Origem** | `MASTER-SET-LINK-CANDIDATES-01` (2026-10-18) |
 | **Versões** | `5200` v1.0 · `5843` v1.0 |
 
@@ -49,3 +49,11 @@ O corpo da `5200` foi executado como `EXPLAIN ANALYZE` (consulta equivalente, se
 ## Recuperação
 
 `drop function if exists public.get_my_master_set_link_candidates(uuid, integer);` — nenhum dado depende dela.
+
+## Execução no LIVE (2026-10-18, `MASTER-SET-LINK-CANDIDATES-LIVE-01`)
+
+- Pré-checagem (só leitura): assinatura ausente, 0 sobrecargas; `master_set_positions` e `5199` presentes; 0 transações > 1 min; nenhum resíduo sintético; linha de base 4 coleções, 210 vínculos, 1.351 exemplares, 3 acabamentos, 3 usuários.
+- `5200` aplicada (parte executável do arquivo, sem alteração): ledger `20261019001438`; SECURITY DEFINER, STABLE, `search_path ""`, EXECUTE só `authenticated` (ACL `postgres, authenticated`); corpo md5 `e3808d1cac7f7e8fe87325ef63bc17f1` = arquivo.
+- `5843` v1.0: **GATE PASS 25/25**; `99.1` resíduo zero. Conferência independente depois: mesmas contagens da linha de base, 0 expansões sintéticas.
+- Coleção real "Escuridão Absoluta" (ME5, 194 posições, 3 acabamentos), leitura como o dono em transação `read only`: 93 candidatos (93 exemplares distintos, 12 secretas, todos com arte) = 93 posições faltantes com exemplar disponível na grade (`5198`). Tempo: 23,5 ms (500) e 7,2 ms (limite 1, a contagem do botão).
+- Security Advisor (6 lints, mesmos de antes): a `5200` aparece só em `authenticated_security_definer_function_executable` (WARN genérico, por desenho); não aparece em `anon_security_definer_function_executable` nem em `function_search_path_mutable`.

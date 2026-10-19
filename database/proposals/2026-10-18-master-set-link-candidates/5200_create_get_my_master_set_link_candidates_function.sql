@@ -5,7 +5,13 @@ Query.......: 5200 - get_my_master_set_link_candidates(): um exemplar
               livre do acervo por posição ainda faltante do Master Set
               ("Adicionar cartas" em lote, irmã da 5170)
 Versão......: 1.0
-Status......: PROPOSTA — não executada no LIVE.
+Status......: CONFIRMADO EXECUTADO no LIVE em 2026-10-18 (autorização de
+              Fabrício, MASTER-SET-LINK-CANDIDATES-LIVE-01) — ledger
+              20261019001438; 5843 v1.0 25/25 PASS (GATE PASS, 99.1
+              resíduo zero, conferido também fora do harness). Na coleção
+              real ME5 (194 posições): 93 candidatos em 23,5 ms; limite 1
+              em 7,2 ms. CANÔNICA em database/schema/ (corpo = LIVE, md5
+              de prosrc e3808d1cac7f7e8fe87325ef63bc17f1).
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-18 (MASTER-SET-LINK-CANDIDATES-01)
 

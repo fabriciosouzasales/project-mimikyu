@@ -1111,7 +1111,7 @@ export async function readMasterSetOutOfScope(input: {
 
 /**
  * Exemplares livres do acervo que satisfazem UMA posição — Query 5199
- * (PROPOSTA, não aplicada no LIVE). Controlada por
+ * (LIVE e canônica desde 2026-10-18). Controlada por
  * `MASTER_SET_ADD_FROM_ACERVO_ENABLED`; desligada, nada é chamado. Só
  * leitura: quem vincula é `linkCopiesToCollection` (5046).
  */
@@ -1146,8 +1146,8 @@ export async function readMasterSetPositionCopies(input: {
 // ---------------------------------------------------------------------------
 
 /**
- * Revisão: um exemplar livre do acervo por posição ainda faltante (5200 —
- * PROPOSTA até ser aplicada no LIVE). Só leitura. Controlada por
+ * Revisão: um exemplar livre do acervo por posição ainda faltante (5200 — LIVE e
+ * canônica desde 2026-10-18). Só leitura. Controlada por
  * `MASTER_SET_ADD_FROM_ACERVO_ENABLED`; desligada, nada é chamado.
  */
 export async function reviewMasterSetLink(input: {

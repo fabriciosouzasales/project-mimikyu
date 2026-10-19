@@ -5,7 +5,8 @@ Query.......: 5843 - Harness: get_my_master_set_link_candidates (5200)
               estrutura, segurança, escolha por posição, coerência com a
               grade e com a 5199, limite, isolamento, vínculo em lote
 Versão......: 1.0
-Status......: PROPOSTA — não executado. Rodar só depois da 5200 aplicada.
+Status......: CONFIRMADO EXECUTADO no LIVE em 2026-10-18, após a 5200
+              (ledger 20261019001438): GATE PASS 25/25, 99.1 resíduo zero.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-18 (MASTER-SET-LINK-CANDIDATES-01)
 
