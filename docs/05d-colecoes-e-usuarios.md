@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 1.58 | **`5200` ("Adicionar cartas" em lote no Master Set) no LIVE e canônica (2026-10-18, `MASTER-SET-LINK-CANDIDATES-LIVE-01`).** Ver Revision History 1.58. |
+| **Versão** | 1.59 | **Pokédex do colecionador `5201`–`5205` no LIVE e canônicas (2026-10-19, `PKX-01 LIVE EXECUTION GATE-01`).** Ver Revision History 1.59. |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1057,6 +1057,40 @@ Performance final: high-density em **4,7–8,8 ms** (reduções de 154× a 306×
 
 `5100`–`5103` promovidas para `database/schema/` com o **histórico incremental preservado e não foldado** (`5100 → 5102`, `5101 → 5103`). `5814`/`5815` permanecem em `database/proposals/2026-09-06-fatia-e-reference-position-completion/` e `5816`/`5817` em `database/proposals/2026-09-06-fatia-e-performance-remediation/` como evidência de validação/performance. **Fatia E concluída.**
 
+## Pokédex do colecionador — criação, gerações e grade (`PKX-01`, 2026-10-19)
+
+**Estado:** `5201`–`5205` CONFIRMADO EXECUTADO no LIVE e canônicas em `database/schema/`. Sem tabela, coluna, índice, trigger ou RLS novos. Frontend ainda não implementado.
+
+**Decisões do proprietário materializadas (não reabrir):**
+
+- O universo é a Pokédex Nacional.
+- As gerações são escolhidas na criação; todas as catalogadas vêm marcadas por padrão.
+- Gerações podem ser incluídas ou removidas nos Ajustes.
+- Uma geração catalogada depois aparece como opção, mas **nunca entra sozinha** numa coleção existente (C-02). O escopo gravado é sempre a lista explícita (`GENERATION_FILTERED`), nunca `FULL_REFERENCE`.
+- Mudar gerações não move nem exclui cartas, alocações ou vínculos.
+- A conquista é o vínculo carta→posição (`5102`/`5103`, sem alteração).
+
+**Contratos (todos `SECURITY DEFINER`, `search_path ''`, `EXECUTE` só `authenticated`):**
+
+| Query | Contrato | Natureza |
+|---|---|---|
+| `5201` | `get_my_pokedex_generation_options(p_collection_id uuid default null)` | Leitura. Lista as gerações catalogadas (ativas, com ≥ 1 posição na Nacional), com intervalo e contagem. Com coleção, devolve também seleção e conquistadas por geração. Coleção de outro usuário → 0 linhas. |
+| `5202` | `create_my_pokedex_collection(p_idempotency_key, p_name, p_generation_codes, p_storage_container_id default null)` | Criação idempotente (irmã da `5167`). Usa `collection_creation_request` e um hash prefixado `POKEDEX`. Cria o "Local padrão" quando o usuário não tem nenhum. A escrita é delegada à `5098`. |
+| `5203` | `set_my_pokedex_generations(p_collection_id, p_generation_codes)` | Ajustes. Substitui as gerações (`FOR UPDATE` na coleção); mesma lista → `changed = false`. Delegada à `5099`. Devolve o progresso do novo escopo. Outro usuário → `P0002 COLLECTION_NOT_FOUND`; arquivada → `55000`. |
+| `5204` | `get_my_pokedex_positions(p_collection_id, p_filter 'ALL'\|'OWNED'\|'MISSING', p_generation_code, p_limit 1..500, p_offset)` | Grade paginada no servidor, na ordem nacional. Devolve arte da espécie e representante (`6125`; senão o vínculo mais antigo), com `total_count` antes do limite. Estado no acervo, por precedência: `OWNED` → `AVAILABLE` (cópia livre da espécie) → `ELSEWHERE` (só em outra coleção) → `NOT_FOUND`. Nunca devolve ids de acervo. |
+| `5205` | `REVOKE EXECUTE` de `5098`/`5099` para `PUBLIC`, `anon` e `authenticated` | Fecha o caminho direto para `FULL_REFERENCE`. As novas portas continuam funcionando porque executam como o dono (`postgres`). Os harnesses históricos `5814`/`5815`/`5816`/`6830` precisariam chamar `5098` como dono se fossem reexecutados. |
+
+**Evidência (2026-10-19, `PKX-01 LIVE EXECUTION GATE-01`):**
+
+- Ledger: `20261019012649`…`20261019012818`.
+- Corpo de cada função no LIVE idêntico ao arquivo (md5 de `prosrc`).
+- `5844` v1.0: **37/37 PASS**, resíduo zero. Cobre privilégios, `anon`, sem identidade, criação e replay, os 4 estados da grade, paginação e filtros, mudança de escopo sem perda de vínculos, geração nova sem expansão automática, isolamento entre usuários e coleção arquivada.
+- Linha de base real intacta antes e depois.
+- `5204` (consulta equivalente, Nacional inteira e acervo real, página de 120): **14,1 ms** aquecido.
+- Security Advisor: só o WARN genérico de `SECURITY DEFINER` para `authenticated`; 5098/5099 saíram dele.
+
+Evidência e harness em `database/proposals/2026-10-19-pokedex-pkx-01/`. A vinculação excepcional a outra espécie fica para a `PKX-03`, reutilizando `6122`/`6124`.
+
 ## Product / UX Traceability — Pokédex
 
 > **O que esta seção é.** Memória de produto: o significado das decisões **já implementadas e congeladas** nas Fatias A–E, registrado aqui para que as futuras fases de read models de UX e de frontend não percam o contexto.
@@ -2025,3 +2059,4 @@ Fase 4 (correção administrativa de `username`) deliberadamente fora deste incr
 | 1.56 | **`5199` no LIVE e canônica; homologação local preparada (2026-10-18, `5199-CLOSEOUT / FRONTEND-HOMOLOGATION-READINESS`).** `5199` v1.1 promovida para `database/schema/` (corpo idêntico ao LIVE, md5 `7b54d663…`; ledger `20261018204909`; `5842` 30/30). Flags passam a `*_RELEASED = false` + `MASTER_SET_LOCAL_HOMOLOGATION` (só `next dev` + variável local). Roteiro novo `operations/master-set-homologation.md`. Nenhum SQL de escrita nesta rodada. |
 | 1.57 | **"Adicionar cartas" em lote no Master Set — proposta e tela (2026-10-18, `MASTER-SET-LINK-CANDIDATES-01`).** Registra também o passo "Objetivo" na criação (`MASTER-SET-CREATE-01`). Leitura nova `5200` (um exemplar livre por posição faltante; escrita segue na `5046`) e harness `5843` (25 verificações) em `database/proposals/2026-10-18-master-set-link-candidates/`, não executados. Frontend: botão e painel de revisão na grade Master Set, atrás de `MASTER_SET_ADD_FROM_ACERVO_ENABLED`. |
 | 1.58 | **`5200` no LIVE e canônica (2026-10-18, `MASTER-SET-LINK-CANDIDATES-LIVE-01`, autorização de Fabrício).** Ledger `20261019001438`; `5843` 25/25, resíduo zero; corpo idêntico ao arquivo (md5 `e3808d1c…`); 93 candidatos em 23,5 ms na coleção real ME5; advisor sem alerta específico novo. Promovida para `database/schema/`. Flags seguem `*_RELEASED = false`. |
+| 1.59 | **Pokédex do colecionador no LIVE e canônica (2026-10-19, `PKX-01 LIVE EXECUTION GATE-01`, autorização de Fabrício).** São cinco migrations: `5201` opções de geração, `5202` criação idempotente com escopo explícito, `5203` Ajustes de gerações, `5204` grade paginada com estados do acervo e `5205` revogação de `5098`/`5099` para clientes. Ledger `20261019012649`…`012818`; `5844` 37/37, resíduo zero; corpos idênticos aos arquivos; `5204` em 14,1 ms aquecido; advisor sem alerta específico novo. Promovidas para `database/schema/`. Nova seção "Pokédex do colecionador". |
