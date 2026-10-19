@@ -3075,3 +3075,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-19] feature | POKEDEX-COVER-CUSTOMIZATION-LIVE — 5206/5207 aplicadas (ledger 20261019034918/034933), corpos = arquivos; 5845 v1.0 14/15 (falso FAIL do harness em 5.1) → v1.1 15/15, resíduo zero; schema 5178 v1.2 e 5180 v1.1; ver 05d 1.63
 ## [2026-10-19] docs | Capa e código do fichário da Pokédex homologados no navegador pelo proprietário; ver 05d 1.63
 ## [2026-10-19] feature | Pokédex do colecionador publicada em produção (POKEDEX_COLLECTION_RELEASED = true, autorização do proprietário); sem SQL novo; ver 05d 1.64
+## [2026-10-19] feature | POKEDEX-UX-01 — clareza visual da grade (estados, etiquetas, "+", número nacional dentro do card) e acessibilidade do painel (seletor aria-pressed, título único, exceção contornada); só frontend; homologado no desktop; ver 05d 1.65

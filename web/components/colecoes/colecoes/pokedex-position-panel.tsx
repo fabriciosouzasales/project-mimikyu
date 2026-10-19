@@ -258,10 +258,10 @@ export function PokedexPositionPanel({
           onPointerDownOutside={(event) => busy && event.preventDefault()}
           onCloseAutoFocus={restoreFocus}
         >
+          {/* UX-01: o número e o nome aparecem uma vez só, no destaque abaixo — que é o
+              título do diálogo. A barra superior fica com o contexto e o Fechar. */}
           <div className={acervoStyles.drawerHeader}>
-            <DialogPrimitive.Title className={addStyles.panelTitle}>
-              {dex} · {position.speciesName}
-            </DialogPrimitive.Title>
+            <span className={styles.panelEyebrow}>Pokédex Nacional</span>
             <DialogPrimitive.Close
               disabled={busy}
               className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
@@ -277,8 +277,10 @@ export function PokedexPositionPanel({
                 {artUrl ? <SpeciesArtwork src={artUrl} priority={false} /> : <Pokeball className="text-foreground/10" strokeWidth={1.25} />}
               </div>
               <div>
-                <div className={styles.panelDex}>{dex}</div>
-                <div className={styles.panelName}>{position.speciesName}</div>
+                <DialogPrimitive.Title className={styles.panelTitle}>
+                  <span className={styles.panelDex}>{dex}</span>{" "}
+                  <span className={styles.panelName}>{position.speciesName}</span>
+                </DialogPrimitive.Title>
                 <p className={styles.panelState}>{stateLine}</p>
               </div>
             </div>
@@ -334,11 +336,12 @@ export function PokedexPositionPanel({
                   {linkedCount > 0 ? "Adicionar outra carta" : "Adicionar a esta posição"}
                 </h3>
               </div>
-              <div className={styles.segment} role="tablist" aria-label="De onde vem a carta">
+              {/* UX-01: seletor segmentado (grupo de botões alternáveis com aria-pressed), não
+                  abas — não há painéis de aba nem navegação por setas a prometer. */}
+              <div className={styles.segment} role="group" aria-label="De onde vem a carta">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={scope === "SPECIES"}
+                  aria-pressed={scope === "SPECIES"}
                   className={styles.segmentButton}
                   onClick={() => {
                     setPending({ kind: "idle" });
@@ -353,8 +356,7 @@ export function PokedexPositionPanel({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={scope === "ACERVO"}
+                  aria-pressed={scope === "ACERVO"}
                   className={styles.segmentButton}
                   onClick={() => {
                     setPending({ kind: "idle" });
@@ -419,7 +421,14 @@ export function PokedexPositionPanel({
                         <Button variant="outline" size="sm" onClick={() => setPending({ kind: "idle" })}>
                           Voltar
                         </Button>
-                        <Button size="sm" onClick={() => void link(candidate, true)} autoFocus>
+                        {/* UX-01: contornado no tom de atenção — a exceção nunca usa o dourado. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={styles.confirmException}
+                          onClick={() => void link(candidate, true)}
+                          autoFocus
+                        >
                           Confirmar exceção
                         </Button>
                       </div>

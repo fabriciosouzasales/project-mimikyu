@@ -188,18 +188,24 @@ function PokedexTile({
             {showCard && representative ? (
               <div className={styles.card}>
                 <CardArt src={cardUrl} alt="" name={representative.cardName} caption={caption || dex} priority={priority} sizes={GRID_SIZES} />
+                <span className={styles.dexBadge} aria-hidden="true">
+                  {formatDex(position.number)}
+                </span>
                 <span className={styles.owned} aria-hidden="true">
                   <Check className="h-3.5 w-3.5" strokeWidth={3} />
                 </span>
               </div>
             ) : (
-              <SpeciesSlot position={position} dex={dex} artUrl={artUrl} priority={priority} addable />
+              <SpeciesSlot position={position} artUrl={artUrl} priority={priority} addable />
             )}
           </button>
         ) : showCard && representative ? (
           <CardZoomTrigger id={position.positionId} imageUrl={cardUrl} name={representative.cardName} className={styles.tileLink}>
             <div className={styles.card}>
               <CardArt src={cardUrl} alt="" name={representative.cardName} caption={caption || dex} priority={priority} sizes={GRID_SIZES} />
+              <span className={styles.dexBadge} aria-hidden="true">
+                {formatDex(position.number)}
+              </span>
               <span className={styles.owned} aria-hidden="true">
                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
               </span>
@@ -207,49 +213,50 @@ function PokedexTile({
           </CardZoomTrigger>
         ) : (
           <Link href={`/pokedex/${position.number}`} className={styles.tileLink} prefetch={false}>
-            <SpeciesSlot position={position} dex={dex} artUrl={artUrl} priority={priority} addable={false} />
+            <SpeciesSlot position={position} artUrl={artUrl} priority={priority} addable={false} />
           </Link>
         )}
         {position.copiesInCollection > 1 ? (
-          <span className={acervoStyles.qty} aria-hidden="true">
+          <span className={`${acervoStyles.qty} ${styles.qtyFooter}`} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}
           </span>
         ) : null}
       </div>
+      {/* UX-01 (ajuste do proprietário): o número nacional vive só dentro do card, como na
+          Pokédex; abaixo, só o nome. O nome da carta conquistada continua no zoom, no
+          painel e no rótulo acessível. */}
       <div className={acervoStyles.meta} aria-hidden="true">
         <div className={acervoStyles.name}>{position.speciesName}</div>
-        <div className={acervoStyles.sub}>
-          <span>{dex}</span>
-          {position.state === "OWNED" ? (
-            <span className={acervoStyles.tag}>
-              <Check className="mr-0.5 inline h-3 w-3" />
-              {representative ? representative.cardName : "Conquistado"}
-            </span>
-          ) : null}
-        </div>
       </div>
     </article>
   );
 }
 
-/** Moldura de carta com a arte oficial da espécie (posição sem carta representante). */
+/**
+ * Moldura de carta com a arte oficial da espécie (posição sem carta representante).
+ *
+ * UX-01: o número nacional fica dentro do card, em contorno, no mesmo padrão da
+ * grade da Pokédex (species-grid). Etiqueta
+ * visível só onde informa algo acionável ou incomum — "No seu acervo" e "Em outra
+ * coleção"; "Falta" é o estado padrão, comunicado pela arte apagada e, para leitor
+ * de tela, pela descrição completa do card (`stateDescription`).
+ */
 function SpeciesSlot({
   position,
-  dex,
   artUrl,
   priority,
   addable,
 }: {
   position: PokedexPosition;
-  dex: string;
   artUrl: string | null;
   priority: boolean;
   addable: boolean;
 }) {
+  const tagged = position.state === "AVAILABLE" || position.state === "ELSEWHERE";
   return (
     <div className={styles.slot} data-state={position.state}>
-      <span className={styles.dex} aria-hidden="true">
-        {dex}
+      <span className={styles.dexNumber} aria-hidden="true">
+        {formatDex(position.number)}
       </span>
       <span className={styles.slotArt}>
         {artUrl ? (
@@ -262,13 +269,13 @@ function SpeciesSlot({
         <span className={styles.owned} aria-hidden="true">
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </span>
-      ) : (
+      ) : tagged ? (
         <span className={styles.stateTag} data-state={position.state} aria-hidden="true">
           {stateTag(position.state)}
         </span>
-      )}
+      ) : null}
       {addable && position.state !== "OWNED" ? (
-        <span className={styles.addHint} aria-hidden="true">
+        <span className={styles.addHint} data-state={position.state} aria-hidden="true">
           <Plus className="h-4 w-4" strokeWidth={2.5} />
         </span>
       ) : null}

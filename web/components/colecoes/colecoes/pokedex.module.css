@@ -186,6 +186,7 @@
 /* ---- posição ---- */
 .slot {
   position: relative;
+  container: pkx-slot / inline-size;
   aspect-ratio: 8 / 11;
   border-radius: var(--acervo-card-radius, 0.625rem);
   overflow: hidden;
@@ -230,16 +231,25 @@
   object-fit: contain;
 }
 
-/* Falta: arte apagada — reconhecível, mas claramente ainda não sua. */
+/* Falta: arte em cinza e apagada — reconhecível, mas claramente ainda não sua.
+   UX-01: sem etiqueta (é o estado padrão); o leitor de tela recebe o estado
+   pela descrição completa do card. */
 .slot[data-state="NOT_FOUND"] .slotArt {
   filter: grayscale(1);
-  opacity: 0.38;
+  opacity: 0.42;
 }
 
-/* Em outra coleção: meio caminho. */
+/* UX-01: no escuro, a arte apagada precisa de mais presença para continuar
+   reconhecível sobre o grafite. */
+:global(.dark) .slot[data-state="NOT_FOUND"] .slotArt {
+  opacity: 0.5;
+}
+
+/* Em outra coleção: cor parcial — claramente mais perto que "Falta", mas
+   ainda não ao alcance. Sempre acompanhada da etiqueta neutra (não só cor). */
 .slot[data-state="ELSEWHERE"] .slotArt {
-  filter: grayscale(0.7);
-  opacity: 0.6;
+  filter: grayscale(0.35);
+  opacity: 0.8;
 }
 
 /* No seu acervo: cor cheia e um filete dourado — está ao alcance. */
@@ -262,15 +272,75 @@
   }
 }
 
-.dex {
+/* UX-01 (ajuste do proprietário): número nacional dentro do card, em contorno —
+   o mesmo ornamento da grade da Pokédex (species-grid.module.css, .number),
+   sem o "#". Como aqui não há tipo do Pokémon, o traço usa o tom do texto. */
+.dexNumber {
   position: absolute;
   z-index: 1;
-  top: 0.5rem;
-  left: 0.5625rem;
-  font: 800 0.75rem/1 var(--font-heading);
+  top: 0.75rem;
+  left: 0.8125rem;
+  font: 700 1.5rem/0.8 var(--font-heading);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: transparent;
+  -webkit-text-stroke: 1px hsl(var(--foreground) / 0.32);
+  user-select: none;
+  pointer-events: none;
+}
+
+:global(.dark) .dexNumber {
+  -webkit-text-stroke: 0.9px hsl(var(--foreground) / 0.36);
+}
+
+@container pkx-slot (max-width: 179px) {
+  .dexNumber {
+    top: 0.625rem;
+    left: 0.6875rem;
+    font-size: 1.25rem;
+  }
+}
+
+/* Conquistado: sobre a carta real o contorno não teria leitura — o mesmo número
+   num selo compacto no canto inferior esquerdo, sobre o rodapé impresso
+   (ilustrador/numeração), para não cobrir o nome da carta no topo. */
+.dexBadge {
+  position: absolute;
+  z-index: 1;
+  bottom: 0.4375rem;
+  left: 0.4375rem;
+  padding: 0.1875rem 0.4375rem;
+  border-radius: 999px;
+  background: hsl(var(--surface) / 0.92);
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.2);
+  font: 700 0.6875rem/1 var(--font-heading);
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  color: hsl(var(--muted-foreground) / 0.85);
+  color: hsl(var(--foreground));
+  pointer-events: none;
+}
+
+/* Quantidade (×N) no rodapé, à direita — simétrica ao número e longe do check de
+   conquista no topo (antes os dois ocupavam o mesmo canto e um escondia o outro).
+   Seletor composto para vencer o .qty do acervo. */
+.qtyFooter.qtyFooter {
+  top: auto;
+  bottom: 0.4375rem;
+  right: 0.4375rem;
+}
+
+/* Sobre a carta real, o check fica menor e mais junto ao canto, cobrindo menos
+   o HP impresso. */
+.card .owned {
+  top: 0.375rem;
+  right: 0.375rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.card .owned svg {
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 .card {
@@ -297,10 +367,24 @@
   font-weight: 600;
   white-space: nowrap;
   color: hsl(var(--muted-foreground));
+  /* Cards estreitos (2 colunas no celular): nunca vaza da moldura. */
+  max-width: calc(100% - 1rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Ao alcance: a única etiqueta com dourado. */
 .stateTag[data-state="AVAILABLE"] {
   color: hsl(var(--primary-ink));
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--primary) / 0.45),
+    0 1px 2px hsl(var(--foreground) / 0.12);
+}
+
+/* Em outra coleção: neutra e contornada — informa sem chamar atenção. */
+.stateTag[data-state="ELSEWHERE"] {
+  background: hsl(var(--surface) / 0.9);
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
 }
 
 .owned {
@@ -423,10 +507,13 @@
   border-radius: var(--acervo-card-radius, 0.625rem);
 }
 
+/* UX-01: no canto superior direito — o mesmo lugar do check de conquista —, longe
+   da etiqueta central inferior, para não se sobreporem em cards estreitos. */
 .addHint {
   position: absolute;
+  z-index: 1;
+  top: 0.375rem;
   right: 0.375rem;
-  bottom: 0.375rem;
   display: grid;
   place-items: center;
   width: 1.75rem;
@@ -446,15 +533,17 @@
   color: hsl(var(--primary));
 }
 
-.tileButton:hover .addHint,
+/* Sempre visível só onde a ação resolve na hora (exemplar livre no acervo).
+   Nas demais, aparece ao passar o mouse ou com foco de teclado; no toque, o card
+   inteiro continua sendo o botão (rótulo acessível "Abrir para adicionar"). */
 .tileButton:focus-visible .addHint,
 .slot[data-state="AVAILABLE"] .addHint {
   opacity: 1;
   transform: none;
 }
 
-@media (hover: none) {
-  .addHint {
+@media (hover: hover) {
+  .tileButton:hover .addHint {
     opacity: 1;
     transform: none;
   }
@@ -487,7 +576,22 @@
   object-fit: contain;
 }
 
+/* UX-01: o destaque (número + nome) é o título do diálogo; a barra superior só
+   dá o contexto. */
+.panelEyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.panelTitle {
+  margin: 0;
+}
+
 .panelDex {
+  display: block;
   font: 600 0.75rem/1 var(--font-sans);
   letter-spacing: 0.04em;
   color: hsl(var(--muted-foreground));
@@ -495,6 +599,7 @@
 }
 
 .panelName {
+  display: block;
   margin-top: 0.25rem;
   font: 800 1.375rem/1.1 var(--font-heading);
   letter-spacing: -0.02em;
@@ -546,9 +651,14 @@
   background: hsl(var(--surface-muted));
 }
 
+/* UX-01: alvo de toque de 44 px; nomes longos não estouram a metade do seletor. */
 .segmentButton {
-  min-height: 2.5rem;
+  min-width: 0;
+  min-height: 2.75rem;
   padding: 0 0.75rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   border: 0;
   border-radius: 0.5rem;
   background: none;
@@ -562,7 +672,12 @@
     box-shadow 140ms ease;
 }
 
-.segmentButton[aria-selected="true"] {
+.segmentButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.segmentButton[aria-pressed="true"] {
   background: hsl(var(--surface));
   color: hsl(var(--foreground));
   box-shadow: 0 1px 2px hsl(0 0% 0% / 0.12);
@@ -746,6 +861,19 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+/* UX-01: confirmação da exceção — contornada no tom de atenção do próprio
+   aviso, nunca dourada (não é a ação recomendada, é uma escolha consciente).
+   Seletor composto para vencer as utilidades do variant "outline". */
+.confirm .confirmException {
+  border-color: hsl(var(--warning));
+  background: hsl(var(--surface));
+  color: hsl(var(--foreground));
+}
+
+.confirm .confirmException:hover {
+  background: hsl(var(--warning) / 0.14);
 }
 
 .listMore {
