@@ -218,12 +218,12 @@ const CARD_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CARD_S = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const COPY = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
-test("flags: não publicadas; fora de `next dev` + variável local, tudo desligado", () => {
-  assert.equal(MASTER_SET_OBJECTIVE_RELEASED, false);
-  assert.equal(MASTER_SET_ADD_FROM_ACERVO_RELEASED, false);
+test("flags: Master Set publicado (2026-10-19); homologação local continua só em `next dev`", () => {
+  assert.equal(MASTER_SET_OBJECTIVE_RELEASED, true);
+  assert.equal(MASTER_SET_ADD_FROM_ACERVO_RELEASED, true);
   assert.equal(MASTER_SET_LOCAL_HOMOLOGATION, false);
-  assert.equal(MASTER_SET_OBJECTIVE_ENABLED, false);
-  assert.equal(MASTER_SET_ADD_FROM_ACERVO_ENABLED, false);
+  assert.equal(MASTER_SET_OBJECTIVE_ENABLED, true);
+  assert.equal(MASTER_SET_ADD_FROM_ACERVO_ENABLED, true);
 });
 
 test("parseMasterSetPositions: carta + acabamento e secreta genérica com chaves distintas", () => {

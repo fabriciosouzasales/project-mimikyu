@@ -3080,3 +3080,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-19] fix | COLLECTIONS-UX-02b — título no celular menor e lápis alinhado à primeira linha (todas as coleções); só CSS; ver 05d 1.67
 ## [2026-10-19] feature | POKEDEX-UX-03 — faixa de gerações: percentual por geração, barra de 6 px, grade na largura da galeria (rolagem no celular); só frontend; ver 05d 1.68
 ## [2026-10-19] feature | POKEDEX-UX-04 — buscar Pokémon por nome ou número e saltar até ele na grade (geração inteira numa página, destaque do card); sem SQL novo; ver 05d 1.69
+## [2026-10-19] feature | Master Set publicado em produção (MASTER_SET_OBJECTIVE_RELEASED e MASTER_SET_ADD_FROM_ACERVO_RELEASED = true, autorização do proprietário); sem SQL novo; ver 05d 1.70

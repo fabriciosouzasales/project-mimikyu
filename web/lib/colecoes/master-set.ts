@@ -15,13 +15,12 @@
  */
 
 /**
- * Liga a seção "Objetivo" em Ajustes. DESLIGADA por padrão: a grade da
- * coleção (5169) e "Adicionar cartas" (5170) só atendem STANDARD_SET — com
- * uma coleção em Master Set a página mostraria a galeria vazia até a fase da
- * grade Master Set. Ligar só junto com essa fase (ou localmente, para
- * homologar os fluxos de Ajustes).
+ * Objetivo Set padrão ↔ Master Set (criação e Ajustes). Publicado
+ * (autorização do proprietário, 2026-10-19): a grade Master Set (5189/5198),
+ * "fora do objetivo" (5196) e o fluxo de acabamentos (5191–5195) estão no LIVE
+ * e foram homologados (H1–H14, 2026-10-18).
  */
-export const MASTER_SET_OBJECTIVE_RELEASED: boolean = false;
+export const MASTER_SET_OBJECTIVE_RELEASED: boolean = true;
 
 /**
  * Homologação local (5199-CLOSEOUT): liga as duas funções SÓ quando o app roda
@@ -331,10 +330,10 @@ export function objectiveFailureMessage(reason: ObjectiveFailure): string {
 /**
  * "Adicionar do acervo" por posição. Usa `5199 get_my_master_set_position_copies`
  * (exemplares livres que satisfazem a posição; LIVE e canônica desde
- * 2026-10-18, 5842 30/30) e vincula pela 5046. Não publicado: só liga na
- * homologação local (ver MASTER_SET_LOCAL_HOMOLOGATION).
+ * 2026-10-18, 5842 30/30) e vincula pela 5046; o lote usa a 5200 (LIVE,
+ * 5843 25/25). Publicado (autorização do proprietário, 2026-10-19).
  */
-export const MASTER_SET_ADD_FROM_ACERVO_RELEASED: boolean = false;
+export const MASTER_SET_ADD_FROM_ACERVO_RELEASED: boolean = true;
 
 export const MASTER_SET_ADD_FROM_ACERVO_ENABLED: boolean =
   MASTER_SET_ADD_FROM_ACERVO_RELEASED || MASTER_SET_LOCAL_HOMOLOGATION;
