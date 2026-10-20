@@ -379,8 +379,10 @@
     --fan-max: clamp(6.5rem, 30vw, 8.5rem);
   }
 
+  /* UX-02b: um pouco menor no celular — nomes curtos ("Minha Pokédex") cabem numa
+     linha ao lado da capa, com o lápis junto. */
   .title h1 {
-    font-size: clamp(1.75rem, 8vw, 2.5rem);
+    font-size: clamp(1.5rem, 6.5vw, 2.25rem);
   }
 
   /* Celular: fichário ao lado do nome e do código; as seis cores ganham a

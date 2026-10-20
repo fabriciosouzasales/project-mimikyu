@@ -324,12 +324,20 @@
 @media (max-width: 767px) {
   .titleRow {
     flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 
   .titleRow > h1 {
     flex: 0 1 auto;
     min-width: 0;
     overflow-wrap: break-word;
+  }
+
+  /* Nome longo que quebra: o lápis acompanha a primeira linha (centrado nela),
+     não o meio do bloco. Alvo de toque continua 44 px. */
+  .titleRow > .renameButton {
+    margin-top: -0.5rem;
   }
 }
 
