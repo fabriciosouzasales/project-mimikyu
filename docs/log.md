@@ -3079,3 +3079,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-19] feature | COLLECTIONS-UX-02 — topo no celular (gerações em largura total, lápis na linha do título, botões da capa abaixo dela no toque), "<1%" e barra mínima com conquista, sem check na carta conquistada da Pokédex; só frontend; ver 05d 1.66
 ## [2026-10-19] fix | COLLECTIONS-UX-02b — título no celular menor e lápis alinhado à primeira linha (todas as coleções); só CSS; ver 05d 1.67
 ## [2026-10-19] feature | POKEDEX-UX-03 — faixa de gerações: percentual por geração, barra de 6 px, grade na largura da galeria (rolagem no celular); só frontend; ver 05d 1.68
+## [2026-10-19] feature | POKEDEX-UX-04 — buscar Pokémon por nome ou número e saltar até ele na grade (geração inteira numa página, destaque do card); sem SQL novo; ver 05d 1.69

@@ -20,6 +20,11 @@ import {
   planGenerationChange,
   pokedexFailureMessage,
   pokedexHref,
+  parseJumpNumber,
+  planPokedexJump,
+  pokedexPageSize,
+  POKEDEX_GENERATION_PAGE_SIZE,
+  POKEDEX_PAGE_SIZE,
   sameSelection,
   selectionLabel,
   speciesInSelection,
@@ -173,4 +178,32 @@ test("erros: mensagens estáveis dos contratos viram motivo, texto cru nunca vaz
   for (const reason of ["generation_unavailable", "archived", "unavailable"] as const) {
     assert.doesNotMatch(pokedexFailureMessage(reason), /GENERATION_|COLLECTION_|SQL/);
   }
+});
+
+test("busca/salto (UX-04): número → geração escolhida, URL e página da geração inteira", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const options = [
+    { code: "GENERATION_I", firstNumber: 1, lastNumber: 151, selected: true },
+    { code: "GENERATION_II", firstNumber: 152, lastNumber: 251, selected: false },
+    { code: "GENERATION_V", firstNumber: 494, lastNumber: 649, selected: true },
+  ];
+  assert.deepEqual(planPokedexJump(options, 25), { kind: "go", generation: "GENERATION_I" });
+  assert.deepEqual(planPokedexJump(options, 649), { kind: "go", generation: "GENERATION_V" });
+  assert.deepEqual(planPokedexJump(options, 200), { kind: "outside" });
+  assert.deepEqual(planPokedexJump(options, 1100), { kind: "outside" });
+
+  assert.equal(pokedexHref(id, "todas", "GENERATION_I", 25), `/colecoes/colecoes/${id}?geracao=GENERATION_I&n=25`);
+  assert.equal(pokedexHref(id, "todas", null, 0), `/colecoes/colecoes/${id}`);
+
+  assert.equal(parseJumpNumber({ n: "25" }), 25);
+  assert.equal(parseJumpNumber({ n: ["7", "8"] }), 7);
+  assert.equal(parseJumpNumber({ n: "0" }), null);
+  assert.equal(parseJumpNumber({ n: "25a" }), null);
+  assert.equal(parseJumpNumber({ n: "12345" }), null);
+  assert.equal(parseJumpNumber({}), null);
+
+  // Maior geração (156) cabe numa página quando há geração escolhida.
+  assert.ok(POKEDEX_GENERATION_PAGE_SIZE >= 156 && POKEDEX_GENERATION_PAGE_SIZE <= 500);
+  assert.equal(pokedexPageSize("GENERATION_V"), POKEDEX_GENERATION_PAGE_SIZE);
+  assert.equal(pokedexPageSize(null), POKEDEX_PAGE_SIZE);
 });

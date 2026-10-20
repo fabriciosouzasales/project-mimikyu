@@ -22,7 +22,7 @@ import {
   getSetLogoUrls,
 } from "@/lib/colecoes/colecoes-queries";
 import { isFreeCollection, parseFreePage, wantsPicker } from "@/lib/colecoes/free-collection";
-import { isPokedexCollection, parseGenerationFilter } from "@/lib/colecoes/pokedex";
+import { isPokedexCollection, parseGenerationFilter, parseJumpNumber } from "@/lib/colecoes/pokedex";
 import { MASTER_SET_ADD_FROM_ACERVO_ENABLED, masterSetTotalPages, parseMasterSetPage } from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -127,6 +127,7 @@ export default async function ColecaoPage({
           userId={user.id}
           filter={filter}
           generation={generation}
+          focusNumber={parseJumpNumber(query)}
           positions={positionsPage}
           options={options}
         />

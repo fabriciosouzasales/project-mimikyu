@@ -1013,3 +1013,222 @@
     transition: none;
   }
 }
+
+/* ==========================================================================
+ * UX-04 — buscar um Pokémon na coleção (nome ou número) e saltar até ele
+ * Campo do Design System; lista flutuante no padrão da busca rápida da ficha.
+ * ========================================================================== */
+.jump {
+  position: relative;
+  width: min(100%, 17rem);
+}
+
+.jumpIcon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(-50%);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+
+.jump .jumpInput {
+  padding-left: 2.25rem;
+  padding-right: 2.5rem;
+}
+
+.jumpAction {
+  position: absolute;
+  right: 0.875rem;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  margin-top: -0.5rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.jumpClear {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+
+.jumpClear:hover {
+  color: hsl(var(--foreground));
+}
+
+.jumpClear:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+
+.jumpList {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  right: 0;
+  min-width: 16rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  box-shadow: 0 12px 32px -12px hsl(0 0% 0% / 0.35);
+}
+
+.jumpList[hidden] {
+  display: none;
+}
+
+.jumpOption {
+  display: grid;
+  grid-template-columns: 2rem auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.625rem;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.jumpOption[aria-selected="true"] {
+  background: hsl(var(--surface-muted));
+}
+
+.jumpOption[data-outside] {
+  cursor: default;
+  color: hsl(var(--muted-foreground));
+}
+
+.jumpThumb {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+}
+
+.jumpThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.jumpOption[data-outside] .jumpThumb {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.jumpNumber {
+  font: 700 0.75rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.jumpName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.jumpNote {
+  grid-column: 3;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+}
+
+.jumpEmpty {
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.jumpMessage {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  right: 0;
+  min-width: 16rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  box-shadow: 0 12px 32px -12px hsl(0 0% 0% / 0.35);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 767px) {
+  .jump {
+    width: 100%;
+  }
+}
+
+/* Card encontrado pela busca: anel dourado que some sozinho. */
+.tileItem {
+  border-radius: 0.875rem;
+}
+
+.tileItem[data-highlight] .slot,
+.tileItem[data-highlight] .card {
+  animation: pkx-found 2.4s ease-out;
+}
+
+@keyframes pkx-found {
+  0%,
+  60% {
+    box-shadow:
+      0 0 0 3px hsl(var(--primary)),
+      0 0 0 8px hsl(var(--primary) / 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tileItem[data-highlight] .slot,
+  .tileItem[data-highlight] .card {
+    animation: none;
+    box-shadow: 0 0 0 3px hsl(var(--primary));
+  }
+}
+
+/* UX-04: busca + "Completar com o acervo" + filtros na mesma linha quando há
+   largura; se quebrar, a segunda linha alinha à direita (sob o botão), não
+   à esquerda do bloco. */
+.galleryTools {
+  justify-content: flex-end;
+}
+
+@media (min-width: 1440px) {
+  .galleryTools {
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 767px) {
+  .galleryTools {
+    justify-content: stretch;
+  }
+}

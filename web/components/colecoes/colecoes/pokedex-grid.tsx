@@ -55,6 +55,7 @@ export function PokedexGrid({
   total,
   label,
   linkable = false,
+  focusNumber = null,
 }: {
   collectionId: string;
   filter: PokedexFilter;
@@ -64,6 +65,8 @@ export function PokedexGrid({
   label: string;
   /** Painel de vínculo disponível (flag PKX + coleção ativa). */
   linkable?: boolean;
+  /** Número nacional para levar à vista e destacar (busca, UX-04). */
+  focusNumber?: number | null;
 }) {
   const [items, setItems] = useState(initial);
   const [count, setCount] = useState(total);
@@ -89,6 +92,27 @@ export function PokedexGrid({
     firstNewRef.current = null;
     document.getElementById(tileId(id))?.focus({ preventScroll: true });
   }, [items]);
+
+  // Busca (UX-04): leva o Pokémon procurado à vista, dá o foco ao card e o
+  // destaca por um instante. Uma vez por número/navegação.
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const handledFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusNumber === null) return;
+    const target = items.find((item) => item.number === focusNumber);
+    const key = `${focusNumber}:${initial[0]?.positionId ?? ""}`;
+    if (!target || handledFocusRef.current === key) return;
+    handledFocusRef.current = key;
+    const element = document.getElementById(tileId(target.positionId));
+    if (!element) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    element.focus({ preventScroll: true });
+    setHighlighted(target.positionId);
+    setAnnounce(`#${formatDex(target.number)} ${target.speciesName}.`);
+    const timer = window.setTimeout(() => setHighlighted(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [focusNumber, items, initial]);
 
   const offset = nextOffset(items.length, count);
 
@@ -117,7 +141,13 @@ export function PokedexGrid({
     <CardZoomProvider>
       <ul className={acervoStyles.grid} aria-label={label}>
         {items.map((position, index) => (
-          <li key={position.positionId} id={tileId(position.positionId)} tabIndex={-1} className="outline-none">
+          <li
+            key={position.positionId}
+            id={tileId(position.positionId)}
+            tabIndex={-1}
+            className={`outline-none ${styles.tileItem}`}
+            data-highlight={highlighted === position.positionId || undefined}
+          >
             <PokedexTile
               position={position}
               priority={index < PRIORITY_COUNT}

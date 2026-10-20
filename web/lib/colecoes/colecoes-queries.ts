@@ -5,7 +5,7 @@ import { LIBRARY_PAGE_SIZE, POSITIONS_PAGE_SIZE, type PositionFilter, type Stora
 import { MASTER_SET_PAGE_SIZE, type MasterSetPositionsPage, parseMasterSetPositions } from "./master-set.ts";
 import {
   type GenerationOption,
-  POKEDEX_PAGE_SIZE,
+  pokedexPageSize,
   isPokedexCollection,
   type PokedexFilter,
   type PokedexPositionsPage,
@@ -333,7 +333,7 @@ export async function getMyPokedexPositions(
     p_collection_id: collectionId,
     p_filter: toPokedexRpcFilter(filter),
     p_generation_code: generation,
-    p_limit: POKEDEX_PAGE_SIZE,
+    p_limit: pokedexPageSize(generation),
     p_offset: Math.max(0, Math.trunc(offset)),
   });
   if (error || !Array.isArray(data)) {

@@ -28,6 +28,7 @@ import { CoverFinishPicker } from "./cover-finish-picker";
 import { CoverLogoTrigger } from "./cover-logo-uploader";
 import { PokedexBulkLauncher } from "./pokedex-bulk-link";
 import { PokedexGrid } from "./pokedex-grid";
+import { PokedexJump } from "./pokedex-jump";
 import styles from "./colecoes.module.css";
 import pkxStyles from "./pokedex.module.css";
 
@@ -48,6 +49,7 @@ export function PokedexCollectionView({
   collection,
   filter,
   generation,
+  focusNumber = null,
   positions,
   options,
   coverLogoUrl = null,
@@ -56,6 +58,8 @@ export function PokedexCollectionView({
   collection: CollectionSummary;
   filter: PokedexFilter;
   generation: string | null;
+  /** Número nacional em destaque depois de uma busca (`?n=`, UX-04). */
+  focusNumber?: number | null;
   /** `null` = leitura falhou. */
   positions: PokedexPositionsPage | null;
   /** 5201 com a coleção. `null` = leitura falhou (filtro por geração some). */
@@ -217,7 +221,18 @@ export function PokedexCollectionView({
               </p>
             ) : null}
           </div>
-          <div className={heroStyles.galleryTools}>
+          <div className={`${heroStyles.galleryTools} ${pkxStyles.galleryTools}`}>
+            {options && selected.length > 0 ? (
+              <PokedexJump
+                collectionId={collection.id}
+                ranges={selected.map((option) => ({
+                  code: option.code,
+                  firstNumber: option.firstNumber,
+                  lastNumber: option.lastNumber,
+                  selected: true,
+                }))}
+              />
+            ) : null}
             {linkable && !collection.isComplete ? (
               <PokedexBulkLauncher collectionId={collection.id} generation={generationOption?.code ?? null} />
             ) : null}
@@ -292,6 +307,7 @@ export function PokedexCollectionView({
             total={positions.total}
             label={gridLabel}
             linkable={linkable}
+            focusNumber={focusNumber}
           />
         )}
       </section>

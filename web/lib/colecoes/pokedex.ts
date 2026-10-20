@@ -47,6 +47,17 @@ export function isPokedexCollection(summary: { completionPolicy: string | null }
 
 /** Posições por leitura da grade (5204 aceita 1..500). */
 export const POKEDEX_PAGE_SIZE = 120;
+
+/**
+ * Busca/salto (UX-04): com uma geração escolhida a grade vem inteira numa
+ * página (a maior geração tem 156 Pokémon) — o salto para um número cai sempre
+ * numa posição já carregada, sem "Mostrar mais". Dentro do teto da 5204 (500).
+ */
+export const POKEDEX_GENERATION_PAGE_SIZE = 200;
+
+export function pokedexPageSize(generation: string | null): number {
+  return generation ? POKEDEX_GENERATION_PAGE_SIZE : POKEDEX_PAGE_SIZE;
+}
 /** Teto do contrato para a lista de gerações (5202/5203). */
 export const MAX_GENERATIONS = 64;
 /** Nome sugerido na criação — editável, nunca identidade. */
@@ -230,10 +241,41 @@ export function parseGenerationFilter(params: Params): string | null {
 
 export type PokedexFilter = "todas" | "tenho" | "faltam";
 
-export function pokedexHref(collectionId: string, filter: PokedexFilter, generation: string | null): string {
+/** Número nacional em destaque na grade depois de uma busca (UX-04). */
+export const JUMP_PARAM = "n";
+
+export function parseJumpNumber(params: Params): number | null {
+  const raw = Array.isArray(params[JUMP_PARAM]) ? params[JUMP_PARAM][0] : params[JUMP_PARAM];
+  if (typeof raw !== "string" || !/^\d{1,4}$/.test(raw)) return null;
+  const value = Number(raw);
+  return value >= 1 && value <= 9999 ? value : null;
+}
+
+/**
+ * Para onde a busca leva um número nacional: a geração (escolhida nesta
+ * Pokédex) que o contém, sempre em "Todas" — o Pokémon aparece, conquistado ou
+ * não. Fora das gerações escolhidas → "outside" (a interface explica, não navega).
+ */
+export type PokedexJumpPlan = { kind: "go"; generation: string } | { kind: "outside" };
+
+export function planPokedexJump(
+  options: readonly Pick<GenerationOption, "code" | "firstNumber" | "lastNumber" | "selected">[],
+  number: number,
+): PokedexJumpPlan {
+  const hit = options.find((option) => option.selected === true && number >= option.firstNumber && number <= option.lastNumber);
+  return hit ? { kind: "go", generation: hit.code } : { kind: "outside" };
+}
+
+export function pokedexHref(
+  collectionId: string,
+  filter: PokedexFilter,
+  generation: string | null,
+  focusNumber: number | null = null,
+): string {
   const params = new URLSearchParams();
   if (filter !== "todas") params.set("ver", filter);
   if (generation) params.set(GENERATION_PARAM, generation);
+  if (focusNumber !== null && Number.isInteger(focusNumber) && focusNumber > 0) params.set(JUMP_PARAM, String(focusNumber));
   const query = params.toString();
   return `/colecoes/colecoes/${collectionId}${query ? `?${query}` : ""}`;
 }
