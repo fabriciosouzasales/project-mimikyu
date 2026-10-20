@@ -28,6 +28,7 @@ import { CoverFinishPicker } from "./cover-finish-picker";
 import { CoverLogoTrigger } from "./cover-logo-uploader";
 import { PokedexBulkLauncher } from "./pokedex-bulk-link";
 import { PokedexGrid } from "./pokedex-grid";
+import { PokedexFirstRun } from "./pokedex-first-run";
 import { PokedexJump } from "./pokedex-jump";
 import styles from "./colecoes.module.css";
 import pkxStyles from "./pokedex.module.css";
@@ -234,7 +235,11 @@ export function PokedexCollectionView({
               />
             ) : null}
             {linkable && !collection.isComplete ? (
-              <PokedexBulkLauncher collectionId={collection.id} generation={generationOption?.code ?? null} />
+              <PokedexBulkLauncher
+                collectionId={collection.id}
+                generation={generationOption?.code ?? null}
+                quietWhileFirstRun={owned === 0 && total > 0}
+              />
             ) : null}
             <nav className={styles.filterTabs} aria-label="Mostrar Pokémon">
               {segments.map((item) => (
@@ -252,6 +257,8 @@ export function PokedexCollectionView({
             </nav>
           </div>
         </div>
+
+        {linkable && owned === 0 && total > 0 ? <PokedexFirstRun collectionId={collection.id} /> : null}
 
         {selected.length > 1 ? (
           <nav className={pkxStyles.genRail} aria-label="Filtrar por geração">

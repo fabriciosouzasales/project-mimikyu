@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, Loader2, Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { Check, Loader2, Plus, Trophy } from "lucide-react";
 import { loadMorePokedexPositions } from "@/app/colecoes/colecoes/actions";
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
 import { Pokeball } from "@/components/icons/pokeball-icon";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/colecoes/pokedex";
 import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import { CardArt } from "../acervo/card-art";
+import { POKEDEX_DIALOG_CLOSED_EVENT } from "./pokedex-bulk-link";
 import { PokedexPositionPanel } from "./pokedex-position-panel";
 import acervoStyles from "../acervo/acervo.module.css";
 import styles from "./pokedex.module.css";
@@ -78,12 +79,51 @@ export function PokedexGrid({
   // vínculo, ela saia do filtro atual (ex.: "Faltam") com o refresh da página.
   const [openPosition, setOpenPosition] = useState<PokedexPosition | null>(null);
 
+  // Momento de conquista (UX-05): compara o estado anterior de cada Pokémon com a
+  // página nova (refresh depois de um vínculo). Quem passou a "conquistado" é
+  // celebrado quando nenhum painel está aberto — senão, ao fechar o painel.
+  const knownStateRef = useRef(new Map(initial.map((item) => [item.positionId, item.state])));
+  const pendingCelebrationRef = useRef<PokedexPosition[]>([]);
+  const [celebrating, setCelebrating] = useState<ReadonlySet<string>>(new Set());
+
+  const flushCelebration = useCallback(function flush(attempt: number = 0) {
+    const conquered = pendingCelebrationRef.current;
+    if (conquered.length === 0) return;
+    if (document.querySelector("[data-pkx-dialog]")) {
+      // Painel aberto (ou ainda saindo da tela): tenta de novo por ~3 s; se o painel
+      // continuar aberto, o próprio fechamento chama de novo.
+      if (attempt < 15) window.setTimeout(() => flush(attempt + 1), 200);
+      return;
+    }
+    pendingCelebrationRef.current = [];
+    setCelebrating(new Set(conquered.map((item) => item.positionId)));
+    setAnnounce(
+      conquered.length === 1
+        ? `${conquered[0]?.speciesName ?? "Pokémon"} conquistado!`
+        : `${formatCount(conquered.length)} Pokémon conquistados!`,
+    );
+    window.setTimeout(() => setCelebrating(new Set()), 2600);
+  }, []);
+
   // Nova navegação (filtro/geração/refresh): recomeça da página do servidor.
   useEffect(() => {
+    const known = knownStateRef.current;
+    const conquered = initial.filter((item) => item.state === "OWNED" && known.has(item.positionId) && known.get(item.positionId) !== "OWNED");
+    for (const item of initial) known.set(item.positionId, item.state);
+    if (conquered.length > 0) pendingCelebrationRef.current = [...pendingCelebrationRef.current, ...conquered];
     setItems(initial);
     setCount(total);
     setError(false);
-  }, [initial, total]);
+    // Depois do commit do React: só celebra se nenhum painel estiver aberto.
+    const frame = window.requestAnimationFrame(() => flushCelebration());
+    return () => window.cancelAnimationFrame(frame);
+  }, [initial, total, flushCelebration]);
+
+  useEffect(() => {
+    const onClosed = () => flushCelebration();
+    window.addEventListener(POKEDEX_DIALOG_CLOSED_EVENT, onClosed);
+    return () => window.removeEventListener(POKEDEX_DIALOG_CLOSED_EVENT, onClosed);
+  }, [flushCelebration]);
 
   // Foco acompanha a carga: vai para o primeiro card novo (teclado e leitor de tela).
   useEffect(() => {
@@ -152,6 +192,7 @@ export function PokedexGrid({
               position={position}
               priority={index < PRIORITY_COUNT}
               onOpen={linkable ? () => setOpenPosition(position) : null}
+              celebrating={celebrating.has(position.positionId)}
             />
           </li>
         ))}
@@ -174,7 +215,15 @@ export function PokedexGrid({
         </div>
       ) : null}
       {openPosition ? (
-        <PokedexPositionPanel collectionId={collectionId} position={openPosition} onClose={() => setOpenPosition(null)} />
+        <PokedexPositionPanel
+          collectionId={collectionId}
+          position={openPosition}
+          onClose={() => {
+            setOpenPosition(null);
+            // O painel sai do DOM no próximo quadro; aí a conquista aparece na grade.
+            window.requestAnimationFrame(() => window.requestAnimationFrame(() => flushCelebration()));
+          }}
+        />
       ) : null}
     </CardZoomProvider>
   );
@@ -188,11 +237,14 @@ function PokedexTile({
   position,
   priority,
   onOpen,
+  celebrating = false,
 }: {
   position: PokedexPosition;
   priority: boolean;
   /** Abre o painel da posição (PKX-03); `null` = comportamento da PKX-02. */
   onOpen: (() => void) | null;
+  /** Acabou de ser conquistado (UX-05): revelação da carta + selo. */
+  celebrating?: boolean;
 }) {
   const dex = `#${formatDex(position.number)}`;
   const description = stateDescription(position);
@@ -205,7 +257,11 @@ function PokedexTile({
     : "";
 
   return (
-    <article className={acervoStyles.tile} aria-label={`${dex} ${position.speciesName}, ${description}`}>
+    <article
+      className={acervoStyles.tile}
+      data-conquered={celebrating || undefined}
+      aria-label={`${dex} ${position.speciesName}, ${description}`}
+    >
       <div className={acervoStyles.artWrap}>
         {onOpen ? (
           <button
@@ -240,6 +296,12 @@ function PokedexTile({
             <SpeciesSlot position={position} artUrl={artUrl} priority={priority} addable={false} />
           </Link>
         )}
+        {celebrating ? (
+          <span className={styles.conquerBadge} aria-hidden="true">
+            <Trophy className="h-3.5 w-3.5" strokeWidth={2.5} />
+            Conquistado!
+          </span>
+        ) : null}
         {position.copiesInCollection > 1 ? (
           <span className={`${acervoStyles.qty} ${styles.qtyFooter}`} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}

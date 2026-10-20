@@ -32,18 +32,65 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
  * esses ficam no painel de cada Pokémon. O resultado diz o que entrou e o que
  * ficou de fora, e por quê.
  */
-export function PokedexBulkLauncher({ collectionId, generation }: { collectionId: string; generation: string | null }) {
+export function PokedexBulkLauncher({
+  collectionId,
+  generation,
+  label = "Completar com o acervo",
+  className = "h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]",
+  quietWhileFirstRun = false,
+}: {
+  collectionId: string;
+  generation: string | null;
+  /** Texto do botão (o aviso de primeiro uso usa outro). */
+  label?: string;
+  className?: string;
+  /**
+   * UX-05: enquanto o aviso de primeiro uso está na tela, o CTA dourado é o
+   * dele — este botão fica contornado e volta ao destaque quando o aviso é
+   * dispensado (ou some na primeira conquista, via nova renderização).
+   */
+  quietWhileFirstRun?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [quiet, setQuiet] = useState(quietWhileFirstRun);
+
+  useEffect(() => {
+    setQuiet(quietWhileFirstRun);
+    if (!quietWhileFirstRun) return;
+    const restore = () => setQuiet(false);
+    window.addEventListener(POKEDEX_FIRST_RUN_DISMISSED_EVENT, restore);
+    return () => window.removeEventListener(POKEDEX_FIRST_RUN_DISMISSED_EVENT, restore);
+  }, [quietWhileFirstRun]);
+
   return (
     <>
-      <Button size="sm" className="h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]" onClick={() => setOpen(true)}>
+      <Button size="sm" variant={quiet ? "outline" : "default"} className={className} onClick={() => setOpen(true)}>
         <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-        Completar com o acervo
+        {label}
       </Button>
-      {open ? <PokedexBulkPanel collectionId={collectionId} generation={generation} onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <PokedexBulkPanel
+          collectionId={collectionId}
+          generation={generation}
+          onClose={() => {
+            setOpen(false);
+            // UX-05: a grade guarda o momento de conquista até o painel fechar.
+            // Depois que o painel sai do DOM (dois quadros).
+            window.requestAnimationFrame(() =>
+              window.requestAnimationFrame(() => window.dispatchEvent(new Event(POKEDEX_DIALOG_CLOSED_EVENT))),
+            );
+          }}
+        />
+      ) : null}
     </>
   );
 }
+
+/** Disparado quando um painel da Pokédex fecha — a grade então celebra o que foi conquistado. */
+export const POKEDEX_DIALOG_CLOSED_EVENT = "pkx:dialog-closed";
+
+/** Disparado quando o aviso de primeiro uso é dispensado — o botão do topo volta ao destaque. */
+export const POKEDEX_FIRST_RUN_DISMISSED_EVENT = "pkx:first-run-dismissed";
 
 type Review =
   | { status: "loading" }
@@ -105,6 +152,7 @@ function PokedexBulkPanel({ collectionId, generation, onClose }: { collectionId:
         <DialogPrimitive.Overlay className={acervoStyles.overlay} />
         <DialogPrimitive.Content
           className={`${acervoStyles.drawer} ${addStyles.panel}`}
+          data-pkx-dialog=""
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => busy && event.preventDefault()}
           onPointerDownOutside={(event) => busy && event.preventDefault()}

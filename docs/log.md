@@ -3081,3 +3081,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-19] feature | POKEDEX-UX-03 — faixa de gerações: percentual por geração, barra de 6 px, grade na largura da galeria (rolagem no celular); só frontend; ver 05d 1.68
 ## [2026-10-19] feature | POKEDEX-UX-04 — buscar Pokémon por nome ou número e saltar até ele na grade (geração inteira numa página, destaque do card); sem SQL novo; ver 05d 1.69
 ## [2026-10-19] feature | Master Set publicado em produção (MASTER_SET_OBJECTIVE_RELEASED e MASTER_SET_ADD_FROM_ACERVO_RELEASED = true, autorização do proprietário); sem SQL novo; ver 05d 1.70
+## [2026-10-19] feature | POKEDEX-UX-05 — momento de conquista e aviso de primeiro uso (contagem 5211 em idle + cache 60 s, CTA único); sem SQL novo; ver 05d 1.71

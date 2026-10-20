@@ -253,6 +253,7 @@ export function PokedexPositionPanel({
         <DialogPrimitive.Overlay className={acervoStyles.overlay} />
         <DialogPrimitive.Content
           className={`${acervoStyles.drawer} ${addStyles.panel}`}
+          data-pkx-dialog=""
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => busy && event.preventDefault()}
           onPointerDownOutside={(event) => busy && event.preventDefault()}
