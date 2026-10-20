@@ -74,7 +74,7 @@ export function PokedexFirstRun({ collectionId }: { collectionId: string }) {
   return (
     <section className={styles.firstRun} aria-labelledby="pokedex-primeiros-passos">
       <span className={styles.firstRunIcon} aria-hidden="true">
-        <Sparkles className="h-5 w-5" />
+        <Sparkles className="h-4 w-4" />
       </span>
       <div className={styles.firstRunBody}>
         <h3 id="pokedex-primeiros-passos" className={styles.firstRunTitle}>

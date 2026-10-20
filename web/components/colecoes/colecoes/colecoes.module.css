@@ -313,107 +313,17 @@
   color: hsl(var(--muted-foreground));
 }
 
-/* ---- Título com "Renomear" ---- */
+/* ---- Título da coleção (UX-06: a edição mora em Ajustes) ---- */
 
 .titleRow {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
+  min-width: 0;
 }
 
-/* UX-02: no celular o lápis fica na linha do título — quem quebra é o nome. */
-@media (max-width: 767px) {
-  .titleRow {
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
-  .titleRow > h1 {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow-wrap: break-word;
-  }
-
-  /* Nome longo que quebra: o lápis acompanha a primeira linha (centrado nela),
-     não o meio do bloco. Alvo de toque continua 44 px. */
-  .titleRow > .renameButton {
-    margin-top: -0.5rem;
-  }
-}
-
-.renameButton {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 0.625rem;
-  color: hsl(var(--muted-foreground));
-  transition: background-color 140ms ease, color 140ms ease;
-}
-
-.renameButton:hover {
-  background: hsl(var(--surface-muted));
-  color: hsl(var(--foreground));
-}
-
-.renameButton:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
-
-.renameSaved {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: hsl(var(--primary-ink));
-}
-
-.renameSaved:empty {
-  display: none;
-}
-
-.renameForm {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.625rem;
-  max-width: 44rem;
-}
-
-.renameInput {
-  flex: 1 1 18rem;
-  height: 3rem;
-  font: 700 1.25rem/1.2 var(--font-heading);
-  letter-spacing: -0.02em;
-}
-
-.renameActions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.renameActions > button {
-  min-height: 2.75rem;
-}
-
-.renameHint,
-.renameError {
-  flex-basis: 100%;
-  font-size: 0.8125rem;
-  color: hsl(var(--muted-foreground));
-}
-
-.renameError {
-  color: hsl(var(--destructive));
-}
-
-:global(.dark) .renameError {
-  color: hsl(var(--destructive-foreground));
+.titleRow > h1 {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .collectionKind {
@@ -868,129 +778,6 @@
   font-family: var(--font-mono, ui-monospace, monospace);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-/* Capa da Coleção livre como gatilho da imagem (refinamento 2026-10-18) */
-.coverTrigger {
-  position: relative;
-}
-
-.coverTriggerButton {
-  position: relative;
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  border-radius: 0.75rem;
-  cursor: pointer;
-}
-
-.coverTriggerButton:disabled {
-  cursor: progress;
-}
-
-/* Ações da capa: lápis (trocar) e lixeira (remover), no canto superior. */
-.coverTriggerActions {
-  position: absolute;
-  top: -0.375rem;
-  right: -0.375rem;
-  display: flex;
-  gap: 0.25rem;
-  opacity: 0;
-  transition: opacity 160ms ease;
-}
-
-.coverTrigger:hover .coverTriggerActions,
-.coverTrigger:focus-within .coverTriggerActions,
-.coverTrigger[data-busy] .coverTriggerActions {
-  opacity: 1;
-}
-
-.coverTriggerAction {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 999px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--surface));
-  color: hsl(var(--muted-foreground));
-  transition: color 160ms ease;
-}
-
-.coverTriggerAction:hover {
-  color: hsl(var(--foreground));
-}
-
-.coverTriggerDanger:hover {
-  color: hsl(var(--destructive));
-}
-
-.coverTriggerAction:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
-
-.coverTriggerAction:disabled {
-  cursor: progress;
-}
-
-/* UX-02: no toque, as ações saem de cima da imagem e ficam logo abaixo da capa,
-   sempre visíveis e com alvo maior. */
-@media (hover: none) {
-  .coverTriggerActions {
-    position: static;
-    justify-content: center;
-    margin-top: 0.5rem;
-    opacity: 1;
-  }
-
-  .coverTriggerAction {
-    width: 2.25rem;
-    height: 2.25rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .coverTriggerActions,
-  .coverTriggerAction {
-    transition: none;
-  }
-}
-
-.coverTriggerStatus {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  color: hsl(var(--muted-foreground));
-}
-
-.coverTriggerStatus:empty {
-  display: none;
-}
-
-.coverTriggerStatus[data-tone="error"] {
-  color: hsl(var(--destructive));
-}
-
-:global(.dark) .coverTriggerStatus[data-tone="error"] {
-  color: hsl(var(--destructive-foreground));
-}
-
-/* Código da capa dentro da edição do nome */
-.renameCode {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem 0.625rem;
-  flex-basis: 100%;
-}
-
-.renameCodeLabel {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: hsl(var(--foreground));
 }
 
 /* Miniatura clicável que amplia a carta (mesmo preview do Catálogo Editorial) — todas as coleções. */

@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, Info, Trophy } from "lucide-react";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
-import { COLECOES_PATH, collectionKindLabel, missingCount, progressBarPercent, progressPercentText } from "@/lib/colecoes/colecoes";
+import { COLECOES_PATH, missingCount, progressBarPercent, progressPercentText } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
 import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED } from "@/lib/colecoes/free-collection";
@@ -24,8 +24,6 @@ import heroStyles from "./collection-hero.module.css";
 import { CollectionSettingsButton } from "./collection-manage";
 import manageStyles from "./collection-manage.module.css";
 import { CollectionTitle } from "./collection-title";
-import { CoverFinishPicker } from "./cover-finish-picker";
-import { CoverLogoTrigger } from "./cover-logo-uploader";
 import { PokedexBulkLauncher } from "./pokedex-bulk-link";
 import { PokedexGrid } from "./pokedex-grid";
 import { PokedexFirstRun } from "./pokedex-first-run";
@@ -111,7 +109,7 @@ export function PokedexCollectionView({
 
   return (
     <div className={acervoStyles.root}>
-      <header className={`${acervoStyles.hero} ${heroStyles.hero}`}>
+      <header className={`${acervoStyles.hero} ${pkxStyles.compactHero}`}>
         <div className={acervoStyles.stageGlow} aria-hidden="true" />
         <Pokeball className={pkxStyles.heroEmblem} strokeWidth={0.6} aria-hidden="true" />
         <div className={manageStyles.heroBar}>
@@ -130,98 +128,74 @@ export function PokedexCollectionView({
                 finishEditable: collection.finishEditable,
                 coverCode: codeEditable ? collection.coverCode : undefined,
                 hasCoverImage: coverUpload ? collection.coverLogoPath !== null : undefined,
+                userId: coverUpload ? userId : null,
               }}
             />
           ) : null}
         </div>
-        <div className={heroStyles.stage}>
-          <div className={heroStyles.text}>
-            <div className={heroStyles.identity}>
-              <div className={heroStyles.identityCover}>
-                {coverUpload && userId ? (
-                  <CoverLogoTrigger collectionId={collection.id} userId={userId} hasLogo={collection.coverLogoPath !== null}>
-                    {cover}
-                  </CoverLogoTrigger>
-                ) : (
-                  cover
-                )}
-              </div>
-              <div className={heroStyles.identityText}>
-                <div className={heroStyles.title}>
-                  <CollectionTitle
-                    collectionId={collection.id}
-                    name={collection.name}
-                    editable={active}
-                    coverCode={codeEditable ? collection.coverCode : undefined}
-                  />
-                </div>
-                <p className={heroStyles.setLine}>
-                  <span>
-                    {collectionKindLabel(collection.completionPolicy)}
-                    {!active ? " · Arquivada" : null}
-                  </span>
-                </p>
-                {scopeText ? (
-                  <p className={pkxStyles.scopeLine}>
-                    Pokédex Nacional · <strong>{scopeText}</strong>
-                  </p>
-                ) : null}
-                {collection.finishEditable && active ? (
-                  <CoverFinishPicker collectionId={collection.id} value={collection.finish} />
-                ) : null}
-              </div>
+        {/* UX-06: identidade compacta (nome, código, imagem e cor ficam em Ajustes); progresso mantém o destaque original. */}
+        <div className={pkxStyles.heroRow}>
+          <div className={pkxStyles.heroCover}>{cover}</div>
+          <div className={pkxStyles.heroIdentity}>
+            <div className={pkxStyles.heroTitle}>
+              <CollectionTitle name={collection.name} />
             </div>
-
-            <section className={heroStyles.progress} aria-label="Progresso da Pokédex">
-              <div className={styles.progressFigure}>
-                <span className={heroStyles.progressBig}>{formatCount(owned)}</span>
-                <span className={styles.progressOf}>de {formatCount(total)}</span>
-                <span className={styles.progressPct}>{collection.isComplete ? "100%" : progressPercentText(owned, total)}</span>
-              </div>
-              <div
-                className={`${styles.track} ${heroStyles.track}`}
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={total}
-                aria-valuenow={owned}
-                aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} Pokémon conquistados`}
-              >
-                <div className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill} style={{ width: `${progressBarPercent(owned, total)}%` }} />
-              </div>
-              <div className={styles.progressFoot}>
-                {collection.isComplete ? (
-                  <span className={styles.completeNote}>
-                    <Trophy className="h-4 w-4" aria-hidden="true" />
-                    Pokédex completa
-                  </span>
-                ) : (
-                  <span>
-                    Faltam <strong>{formatCount(missing)}</strong> Pokémon
-                  </span>
-                )}
-                <span>
-                  <strong>{formatCount(collection.copiesCount)}</strong> {collection.copiesCount === 1 ? "carta" : "cartas"} na coleção
-                </span>
-              </div>
-            </section>
+            <p className={pkxStyles.heroScope}>
+              Pokédex Nacional
+              {scopeText ? (
+                <>
+                  {" · "}
+                  <strong>{scopeText}</strong>
+                </>
+              ) : null}
+              {!active ? " · Arquivada" : null}
+            </p>
           </div>
         </div>
+
+        <section className={heroStyles.progress} aria-label="Progresso da Pokédex">
+          <div className={styles.progressFigure}>
+            <span className={heroStyles.progressBig}>{formatCount(owned)}</span>
+            <span className={styles.progressOf}>de {formatCount(total)}</span>
+            <span className={styles.progressPct}>{collection.isComplete ? "100%" : progressPercentText(owned, total)}</span>
+          </div>
+          <div
+            className={`${styles.track} ${heroStyles.track}`}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={total}
+            aria-valuenow={owned}
+            aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} Pokémon conquistados`}
+          >
+            <div className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill} style={{ width: `${progressBarPercent(owned, total)}%` }} />
+          </div>
+          <div className={styles.progressFoot}>
+            {collection.isComplete ? (
+              <span className={styles.completeNote}>
+                <Trophy className="h-4 w-4" aria-hidden="true" />
+                Pokédex completa
+              </span>
+            ) : (
+              <span>
+                Faltam <strong>{formatCount(missing)}</strong> Pokémon
+              </span>
+            )}
+            <span>
+              <strong>{formatCount(collection.copiesCount)}</strong> {collection.copiesCount === 1 ? "carta" : "cartas"} na coleção
+            </span>
+          </div>
+        </section>
       </header>
 
-      <section className={heroStyles.gallery} aria-labelledby="pokedex-especies">
-        <div className={heroStyles.galleryHead}>
-          <div className={heroStyles.galleryHeadText}>
-            <h2 id="pokedex-especies" className={heroStyles.galleryTitle}>
-              Pokémon da Pokédex
-            </h2>
-            {positions !== null ? (
-              <p className={heroStyles.galleryMeta}>
-                {segment?.label}
-                {generationOption ? ` · ${generationTitle(generationOption.code)}` : ""} · {formatCount(positions.total)}{" "}
-                Pokémon
-              </p>
-            ) : null}
-          </div>
+      <section className={`${heroStyles.gallery} ${pkxStyles.gallery}`} aria-labelledby="pokedex-especies">
+        <div className={`${heroStyles.galleryHead} ${pkxStyles.galleryHead}`}>
+          {/* UX-06: o título fica para leitores de tela — hero, abas e faixa de gerações já dizem o recorte. */}
+          <h2 id="pokedex-especies" className="sr-only">
+            Pokémon da Pokédex
+            {positions !== null
+              ? ` — ${segment?.label ?? "Todas"}${generationOption ? `, ${generationTitle(generationOption.code)}` : ""}, ${formatCount(positions.total)} Pokémon`
+              : ""}
+          </h2>
           <div className={`${heroStyles.galleryTools} ${pkxStyles.galleryTools}`}>
             {options && selected.length > 0 ? (
               <PokedexJump

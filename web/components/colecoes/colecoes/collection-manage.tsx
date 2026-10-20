@@ -31,6 +31,8 @@ import {
 } from "@/lib/colecoes/collection-manage";
 import { MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
 import { CardArt } from "../acervo/card-art";
+import { IdentityCoverImage, IdentityNameForm } from "./collection-identity-settings";
+import { CoverFinishPicker } from "./cover-finish-picker";
 import { CollectionObjectiveSection } from "./collection-objective";
 import { PokedexGenerationsSection } from "./pokedex-generations";
 import acervoStyles from "../acervo/acervo.module.css";
@@ -389,6 +391,8 @@ type Identity = {
   hasCoverImage?: boolean;
   /** Coleção de Set: nome do Set (identidade oficial, não editável). */
   setName?: string | null;
+  /** Dono da sessão — pasta do envio da imagem da capa; ausente = envio indisponível. */
+  userId?: string | null;
 };
 
 export function CollectionSettingsButton({
@@ -451,6 +455,7 @@ function SettingsPanel({
   const [saved, setSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<CollectionFailure | null>(null);
   const [objectiveBusy, setObjectiveBusy] = useState(false);
+  const [identityBusy, setIdentityBusy] = useState(false);
   const [, startRefresh] = useTransition();
 
   const load = useCallback(() => setAttempt((n) => n + 1), []);
@@ -501,7 +506,7 @@ function SettingsPanel({
   const isFree = kind === "free";
   const isPokedex = kind === "pokedex";
   // Fechar o painel no meio de uma gravação deixaria o resultado sem feedback.
-  const locked = saving || objectiveBusy;
+  const locked = saving || objectiveBusy || identityBusy;
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && !locked && onClose()}>
@@ -521,30 +526,33 @@ function SettingsPanel({
               <h3 id="ajustes-identidade" className={styles.sectionTitle}>
                 Identidade
               </h3>
-              <dl className={styles.facts}>
-                <Fact label="Nome" value={identity.name} hint="Para mudar, use o lápis ao lado do título." />
-                {(isFree || isPokedex) && identity.coverCode !== undefined ? (
-                  <Fact
-                    label="Código"
-                    value={identity.coverCode ?? "Sem código"}
-                    hint="Editado junto com o nome, no lápis ao lado do título."
-                  />
-                ) : null}
-                {!isFree && identity.setName ? <Fact label="Set" value={identity.setName} hint="Identidade oficial do Set." /> : null}
-                {isPokedex ? <Fact label="Universo" value="Pokédex Nacional" hint="Uma carta de cada Pokémon conquista a posição." /> : null}
-                <Fact
-                  label="Cor do fichário"
-                  value={finishLabel(identity.finish)}
-                  hint={identity.finishEditable ? "Escolha entre as cores logo abaixo do título." : undefined}
+              {/* UX-06: nome, código, imagem e cor do fichário são editados aqui, não mais na página. */}
+              <IdentityNameForm
+                collectionId={collectionId}
+                name={identity.name}
+                coverCode={isFree || isPokedex ? identity.coverCode : undefined}
+                onBusyChange={setIdentityBusy}
+              />
+              {(isFree || isPokedex) && identity.hasCoverImage !== undefined && identity.userId ? (
+                <IdentityCoverImage
+                  collectionId={collectionId}
+                  userId={identity.userId}
+                  hasLogo={identity.hasCoverImage}
+                  onBusyChange={setIdentityBusy}
                 />
-                {(isFree || isPokedex) && identity.hasCoverImage !== undefined ? (
-                  <Fact
-                    label="Imagem da capa"
-                    value={identity.hasCoverImage ? "Imagem própria" : "Sem imagem"}
-                    hint="Clique na capa do fichário para trocar ou remover."
-                  />
-                ) : null}
-              </dl>
+              ) : null}
+              {identity.finishEditable ? (
+                <div className={styles.finishRow}>
+                  <CoverFinishPicker collectionId={collectionId} value={identity.finish} />
+                </div>
+              ) : null}
+              {(!isFree && identity.setName) || isPokedex || !identity.finishEditable ? (
+                <dl className={styles.facts}>
+                  {!isFree && identity.setName ? <Fact label="Set" value={identity.setName} hint="Identidade oficial do Set." /> : null}
+                  {isPokedex ? <Fact label="Universo" value="Pokédex Nacional" hint="Uma carta de cada Pokémon conquista a posição." /> : null}
+                  {!identity.finishEditable ? <Fact label="Cor do fichário" value={finishLabel(identity.finish)} /> : null}
+                </dl>
+              ) : null}
             </section>
 
             {kind === "card_set" && MASTER_SET_OBJECTIVE_ENABLED ? (

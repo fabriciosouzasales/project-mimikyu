@@ -22,8 +22,6 @@ import { BinderCover } from "./binder-cover";
 import { CollectionHeroBackdrop, CollectionHeroFan } from "./collection-hero-fan";
 import heroStyles from "./collection-hero.module.css";
 import { CollectionTitle } from "./collection-title";
-import { CoverFinishPicker } from "./cover-finish-picker";
-import { CoverLogoTrigger } from "./cover-logo-uploader";
 import freeStyles from "./free-collection.module.css";
 import { FreePickerBarButton, FreePickerButton, FreePickerProvider } from "./free-link-picker";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
@@ -122,6 +120,7 @@ export function FreeCollectionView({
                 finishEditable: collection.finishEditable,
                 coverCode: FREE_COVER_CODE_ENABLED ? collection.coverCode : undefined,
                 hasCoverImage: FREE_COVER_UPLOAD_ENABLED ? collection.coverLogoPath !== null : undefined,
+                userId: FREE_COVER_UPLOAD_ENABLED ? userId : null,
               }}
             />
           ) : null}
@@ -130,22 +129,11 @@ export function FreeCollectionView({
           <div className={heroStyles.text}>
             <div className={heroStyles.identity}>
               <div className={heroStyles.identityCover}>
-                {FREE_COVER_UPLOAD_ENABLED && active && userId ? (
-                  <CoverLogoTrigger collectionId={collection.id} userId={userId} hasLogo={collection.coverLogoPath !== null}>
-                    {cover}
-                  </CoverLogoTrigger>
-                ) : (
-                  cover
-                )}
+                {cover}
               </div>
               <div className={heroStyles.identityText}>
                 <div className={heroStyles.title}>
-                  <CollectionTitle
-                    collectionId={collection.id}
-                    name={collection.name}
-                    editable={active}
-                    coverCode={FREE_COVER_CODE_ENABLED ? collection.coverCode : undefined}
-                  />
+                  <CollectionTitle name={collection.name} />
                 </div>
                 <p className={heroStyles.setLine}>
                   <span className={freeStyles.kindLine}>
@@ -157,9 +145,6 @@ export function FreeCollectionView({
                     {!active ? " · Arquivada" : null}
                   </span>
                 </p>
-                {collection.finishEditable && active ? (
-                  <CoverFinishPicker collectionId={collection.id} value={collection.finish} />
-                ) : null}
               </div>
             </div>
 

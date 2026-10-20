@@ -21,7 +21,6 @@ import { BinderCover } from "./binder-cover";
 import { CollectionHeroBackdrop, CollectionHeroFan } from "./collection-hero-fan";
 import heroStyles from "./collection-hero.module.css";
 import { CollectionTitle } from "./collection-title";
-import { CoverFinishPicker } from "./cover-finish-picker";
 import { LinkCardsLauncher } from "./link-cards";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
 import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
@@ -143,7 +142,7 @@ export function CollectionView({
               </div>
               <div className={heroStyles.identityText}>
                 <div className={heroStyles.title}>
-                  <CollectionTitle collectionId={collection.id} name={collection.name} editable={active} />
+                  <CollectionTitle name={collection.name} />
                 </div>
                 <p className={heroStyles.setLine}>
                   {setCode ? <span className={heroStyles.setCode}>{setCode.toUpperCase()}</span> : null}
@@ -156,9 +155,6 @@ export function CollectionView({
                     {!active ? " · Arquivada" : null}
                   </span>
                 </p>
-                {collection.finishEditable && active ? (
-                  <CoverFinishPicker collectionId={collection.id} value={collection.finish} />
-                ) : null}
               </div>
             </div>
 

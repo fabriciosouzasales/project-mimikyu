@@ -326,3 +326,51 @@
     animation: none;
   }
 }
+
+/* ---- UX-06: Identidade editável em Ajustes (nome, código, imagem, cor) ---- */
+
+.identityForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.identityField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.identityOptional {
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+.identityHint {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+.identityCodeInput {
+  max-width: 10rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.identityActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.identityImageActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* O seletor de cor é o mesmo componente que ficava no topo da página. */
+.finishRow > fieldset {
+  margin-top: 0;
+}
