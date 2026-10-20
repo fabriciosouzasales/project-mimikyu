@@ -207,3 +207,64 @@ test("busca/salto (UX-04): número → geração escolhida, URL e página da ger
   assert.equal(pokedexPageSize("GENERATION_V"), POKEDEX_GENERATION_PAGE_SIZE);
   assert.equal(pokedexPageSize(null), POKEDEX_PAGE_SIZE);
 });
+
+// UX-07 — palco do hero: a equipe de 6
+import { pokedexHeroGeneration, pokedexHeroLineup, pokedexHeroPicks, pokedexStarterNumbers } from "./pokedex.ts";
+
+function heroOption(code: string, ordinal: number, firstNumber: number, lastNumber: number, selected = true) {
+  return { code, ordinal, name: code, region: null, speciesCount: lastNumber - firstNumber + 1, firstNumber, lastNumber, selected, satisfied: 0 };
+}
+
+const GENS = [heroOption("GENERATION_I", 1, 1, 151), heroOption("GENERATION_II", 2, 152, 251), heroOption("GENERATION_V", 5, 494, 649, false)];
+const firstIndex = () => 0;
+
+test("pokedexHeroGeneration: filtro válido, senão a primeira geração da coleção", () => {
+  assert.equal(pokedexHeroGeneration(GENS, "GENERATION_II")?.code, "GENERATION_II");
+  assert.equal(pokedexHeroGeneration(GENS, "GENERATION_V")?.code, "GENERATION_I");
+  assert.equal(pokedexHeroGeneration(GENS, null)?.code, "GENERATION_I");
+  assert.equal(pokedexHeroGeneration(null, null), null);
+});
+
+test("pokedexStarterNumbers: finais primeiro, depois básicos; Ger. V desloca 1 (Victini)", () => {
+  assert.deepEqual(pokedexStarterNumbers(GENS[0] ?? null), [6, 3, 9, 4, 1, 7]);
+  assert.deepEqual(pokedexStarterNumbers(heroOption("GENERATION_V", 5, 494, 649)), [500, 497, 503, 498, 495, 501]);
+});
+
+test("pokedexHeroPicks: Mimikyu sempre à frente; sem favoritos, os 6 iniciais", () => {
+  assert.deepEqual(pokedexHeroPicks(new Set(), GENS, null, firstIndex), [778, 6, 3, 9, 4, 1, 7]);
+  assert.deepEqual(pokedexHeroPicks(null, GENS, null, firstIndex), [778, 6, 3, 9, 4, 1, 7]);
+});
+
+test("pokedexHeroPicks: menos de 6 favoritos completa com iniciais sem repetir; fora do recorte não entra", () => {
+  assert.deepEqual(pokedexHeroPicks(new Set([25, 6, 600]), GENS, null, firstIndex), [778, 25, 6, 3, 9, 4, 1]);
+  // Filtro de geração restringe os favoritos e troca os iniciais.
+  assert.deepEqual(pokedexHeroPicks(new Set([25, 155]), GENS, "GENERATION_II", firstIndex), [778, 155, 157, 154, 160, 152, 158]);
+});
+
+test("pokedexHeroPicks: mais de 6 favoritos sorteia 6 distintos do recorte", () => {
+  const favorites = new Set([1, 4, 7, 25, 39, 52, 133, 150, 151]);
+  const picks = pokedexHeroPicks(favorites, GENS, null, () => 0.5);
+  assert.equal(picks[0], 778);
+  const team = picks.slice(1);
+  assert.equal(team.length, 6);
+  assert.equal(new Set(team).size, 6);
+  assert.ok(team.every((n) => favorites.has(n)));
+  const other = pokedexHeroPicks(favorites, GENS, null, () => 0.99);
+  assert.notDeepEqual(other, picks);
+});
+
+test("pokedexHeroLineup: ordem dos sorteados; sem arte fica de fora", () => {
+  const rows = [
+    { national_dex_number: 6, species_name: "Charizard", artwork_path: "a6" },
+    { national_dex_number: 25, species_name: "Pikachu", artwork_path: "a25" },
+    { national_dex_number: 3, species_name: "Venusaur", artwork_path: null },
+  ];
+  assert.deepEqual(pokedexHeroLineup(rows, [25, 3, 6]).map((p) => p.name), ["Pikachu", "Charizard"]);
+  assert.deepEqual(pokedexHeroLineup(null, [25]), []);
+});
+
+test("pokedexHeroPicks: Mimikyu favorito não se repete; aparece mesmo fora das gerações da Pokédex", () => {
+  const picks = pokedexHeroPicks(new Set([778, 25]), GENS, null, firstIndex);
+  assert.deepEqual(picks, [778, 25, 6, 3, 9, 4, 1]);
+  assert.equal(picks.filter((n) => n === 778).length, 1);
+});

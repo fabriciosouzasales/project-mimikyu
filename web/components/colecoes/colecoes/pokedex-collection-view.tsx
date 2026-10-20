@@ -10,6 +10,7 @@ import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED } from "@/lib/coleco
 import {
   type GenerationOption,
   type PokedexFilter,
+  type PokedexHeroPokemon,
   type PokedexPositionsPage,
   POKEDEX_COLLECTION_ENABLED,
   currentSelection,
@@ -26,6 +27,7 @@ import manageStyles from "./collection-manage.module.css";
 import { CollectionTitle } from "./collection-title";
 import { PokedexBulkLauncher } from "./pokedex-bulk-link";
 import { PokedexGrid } from "./pokedex-grid";
+import { PokedexHeroBackdrop, PokedexHeroStage } from "./pokedex-hero-stage";
 import { PokedexFirstRun } from "./pokedex-first-run";
 import { PokedexJump } from "./pokedex-jump";
 import styles from "./colecoes.module.css";
@@ -51,6 +53,7 @@ export function PokedexCollectionView({
   focusNumber = null,
   positions,
   options,
+  heroLineup = [],
   coverLogoUrl = null,
   userId = null,
 }: {
@@ -63,6 +66,8 @@ export function PokedexCollectionView({
   positions: PokedexPositionsPage | null;
   /** 5201 com a coleção. `null` = leitura falhou (filtro por geração some). */
   options: GenerationOption[] | null;
+  /** Palco do hero (UX-07): iniciais da geração em destaque; vazio = sem palco. */
+  heroLineup?: PokedexHeroPokemon[];
   /** URL assinada da imagem da capa (5176–5178/5206); `null` = placa tipográfica. */
   coverLogoUrl?: string | null;
   /** Dono da sessão — pasta do envio da capa; `null` = envio indisponível. */
@@ -91,6 +96,7 @@ export function PokedexCollectionView({
   ];
   const segment = segments.find((item) => item.key === filter);
   const scopeText = options ? selectionLabel(currentSelection(options), options) : null;
+  const heroLabel = "Destaques da sua Pokédex";
   const gridLabel = `Pokémon — ${segment?.label ?? "Todas"}${generationOption ? `, ${generationTitle(generationOption.code)}` : ""}`;
 
   const cover = (
@@ -109,9 +115,9 @@ export function PokedexCollectionView({
 
   return (
     <div className={acervoStyles.root}>
-      <header className={`${acervoStyles.hero} ${pkxStyles.compactHero}`}>
+      <header className={`${acervoStyles.hero} ${heroStyles.hero} ${pkxStyles.hero}`} data-has-fan={heroLineup.length > 0 || undefined}>
         <div className={acervoStyles.stageGlow} aria-hidden="true" />
-        <Pokeball className={pkxStyles.heroEmblem} strokeWidth={0.6} aria-hidden="true" />
+        <PokedexHeroBackdrop lineup={heroLineup} />
         <div className={manageStyles.heroBar}>
           <Link href={COLECOES_PATH} className={styles.backLink}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -133,6 +139,8 @@ export function PokedexCollectionView({
             />
           ) : null}
         </div>
+        <div className={`${heroStyles.stage} ${pkxStyles.heroStage}`}>
+          <div className={heroStyles.text}>
         {/* UX-06: identidade compacta (nome, código, imagem e cor ficam em Ajustes); progresso mantém o destaque original. */}
         <div className={pkxStyles.heroRow}>
           <div className={pkxStyles.heroCover}>{cover}</div>
@@ -185,6 +193,10 @@ export function PokedexCollectionView({
             </span>
           </div>
         </section>
+          </div>
+          {/* UX-07: a equipe de 6 — favoritos sorteados, completados pelos iniciais. */}
+          <PokedexHeroStage lineup={heroLineup} label={heroLabel} />
+        </div>
       </header>
 
       <section className={`${heroStyles.gallery} ${pkxStyles.gallery}`} aria-labelledby="pokedex-especies">

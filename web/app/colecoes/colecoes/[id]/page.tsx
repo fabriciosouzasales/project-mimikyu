@@ -22,7 +22,14 @@ import {
   getSetLogoUrls,
 } from "@/lib/colecoes/colecoes-queries";
 import { isFreeCollection, parseFreePage, wantsPicker } from "@/lib/colecoes/free-collection";
-import { isPokedexCollection, parseGenerationFilter, parseJumpNumber } from "@/lib/colecoes/pokedex";
+import {
+  isPokedexCollection,
+  parseGenerationFilter,
+  parseJumpNumber,
+  pokedexHeroLineup,
+  pokedexHeroPicks,
+} from "@/lib/colecoes/pokedex";
+import { getMyPokedexFavorites, getPokedexSpeciesByNumbers } from "@/lib/pokedex/queries";
 import { MASTER_SET_ADD_FROM_ACERVO_ENABLED, masterSetTotalPages, parseMasterSetPage } from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -110,11 +117,17 @@ export default async function ColecaoPage({
   // política e são descartadas.
   if (summary !== null && isPokedexCollection(summary)) {
     const generation = parseGenerationFilter(query);
-    const [positionsPage, options, [withCover]] = await Promise.all([
+    // UX-07: palco do hero — a equipe de 6 (favoritos do colecionador,
+    // sorteados, completados pelos iniciais da geração). Favoritos em paralelo;
+    // depois uma leitura curta só dos 6 números (sem SQL novo).
+    const [positionsPage, options, [withCover], favorites] = await Promise.all([
       getMyPokedexPositions(supabase, collectionId, filter, generation),
       getPokedexGenerationOptions(supabase, collectionId),
       attachCoverLogos(supabase, [summary]),
+      getMyPokedexFavorites(supabase),
     ]);
+    const heroPicks = pokedexHeroPicks(favorites, options, generation);
+    const heroLineup = pokedexHeroLineup(await getPokedexSpeciesByNumbers(supabase, heroPicks), heroPicks);
     const pokedexSummary = withCover ?? summary;
     const pokedexCoverUrl = pokedexSummary.coverLogoPath
       ? (await getCoverLogoUrls(supabase, [pokedexSummary.coverLogoPath])).get(pokedexSummary.coverLogoPath) ?? null
@@ -130,6 +143,7 @@ export default async function ColecaoPage({
           focusNumber={parseJumpNumber(query)}
           positions={positionsPage}
           options={options}
+          heroLineup={heroLineup}
         />
       </AppShell>
     );

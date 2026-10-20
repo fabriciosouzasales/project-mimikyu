@@ -488,20 +488,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- hero ---- */
-.heroEmblem {
-  position: absolute;
-  right: -1.5rem;
-  top: 50%;
-  /* UX-06: hero compacto — o emblema acompanha a altura da faixa. */
-  width: min(13rem, 30vw);
-  height: auto;
-  transform: translateY(-50%);
-  z-index: -1;
-  color: hsl(var(--foreground) / 0.05);
-  pointer-events: none;
-}
-
 .notice {
   display: flex;
   gap: 0.625rem;
@@ -531,12 +517,6 @@
   }
 }
 
-@media (max-width: 639px) {
-  .heroEmblem {
-    display: none;
-  }
-
-}
 
 /* ==========================================================================
  * PKX-03 — vincular cartas às posições
@@ -1381,14 +1361,10 @@
  * UX-06 — Pokémon em primeiro plano
  * Hero compacto: capa pequena, nome e escopo; o progresso mantém o bloco e a
  * escala originais do hero (pedido de Fabrício — é o componente em destaque).
- * O cabeçalho da galeria perde título visível e divisória; aviso de primeiro
+ * O cabeçalho da galeria perde o título visível (fio e marca mantidos); aviso de primeiro
  * uso e faixa de gerações ficam mais baixos. Só a coleção Pokédex — o hero
  * compartilhado (collection-hero.module.css) não muda.
  * ========================================================================== */
-
-.compactHero {
-  padding-bottom: 0.5rem;
-}
 
 .heroRow {
   display: grid;
@@ -1423,17 +1399,7 @@
   color: hsl(var(--foreground));
 }
 
-/* Galeria colada ao hero: sem fio nem marca dourada, respiro curto. */
-.gallery.gallery {
-  margin-top: 0.75rem;
-  padding-top: 0.25rem;
-  border-top: 0;
-}
-
-.gallery.gallery::after {
-  content: none;
-}
-
+/* A galeria mantém a moldura editorial das coleções (fio + marca dourada). */
 .galleryHead .galleryTools {
   flex: 1 1 auto;
 }
@@ -1453,4 +1419,185 @@
     font-size: clamp(1.5rem, 6.5vw, 2rem);
   }
 
+}
+
+/* ==========================================================================
+ * UX-07 — palco do hero: Mimikyu ao centro + a equipe de 6
+ * Arco simétrico: o Mimikyu à frente (slot 0, maior), três de cada lado
+ * menores e levemente mais altos (1/2, 3/4, 5/6), sobre um disco de Pokébola, chão de
+ * sombra elíptico e flutuação lenta defasada. Arte transparente (WebP 320): a
+ * sombra segue o contorno (drop-shadow). Só transform/opacity animam.
+ * ========================================================================== */
+
+/* Menos respiro entre o palco e a moldura da galeria. */
+.hero.hero {
+  padding-bottom: 0.25rem;
+}
+
+.gallery.gallery {
+  margin-top: 0.5rem;
+}
+
+.stage {
+  justify-content: center;
+}
+
+.stageFloor {
+  /* Largura útil ≈ 3,9 × --mon (pontas em ±1,68 × com escala 0,54). */
+  --mon: min(clamp(8rem, 12vw, 13rem), 24cqw);
+  position: relative;
+  width: 100%;
+  height: calc(var(--mon) * 1.55);
+  --mon-shadow: drop-shadow(0 12px 14px hsl(30 30% 10% / 0.28));
+}
+
+:global(.dark) .stageFloor {
+  --mon-shadow: drop-shadow(0 14px 16px rgb(0 0 0 / 0.6));
+}
+
+/* Chão: elipse larga sob a equipe, dissolvida até zero. */
+.stageFloor::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  bottom: 0;
+  width: calc(var(--mon) * 3.6);
+  height: calc(var(--mon) * 0.22);
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, hsl(30 30% 10% / 0.2), hsl(30 30% 10% / 0.07) 50%, transparent 100%);
+  pointer-events: none;
+}
+
+:global(.dark) .stageFloor::after {
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.2) 50%, transparent 100%);
+}
+
+/* Disco de Pokébola atrás do Mimikyu — assinatura da Pokédex. */
+.stageDisc {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  bottom: 8%;
+  width: calc(var(--mon) * 1.7);
+  height: auto;
+  transform: translateX(-50%);
+  color: hsl(var(--primary) / 0.09);
+  pointer-events: none;
+}
+
+.mon {
+  --tx: 0px;
+  --s: 1;
+  --lift: 0px;
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(var(--mon) * 0.04 + var(--lift));
+  width: var(--mon);
+  aspect-ratio: 1;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) translateX(var(--tx)) scale(var(--s));
+}
+
+/*
+ * Formação em arco (escolha de Fabrício entre arco e fileiras, 2026-10-19):
+ * fila única, todos no chão — o Mimikyu ao centro e maior (slot 0); três de
+ * cada lado, menores e levemente mais altos rumo às pontas (1/2, 3/4, 5/6).
+ */
+.mon[data-slot="0"] {
+  --s: 1.4;
+  z-index: 6;
+}
+
+.mon[data-slot="1"],
+.mon[data-slot="2"] {
+  --s: 0.8;
+  --lift: calc(var(--mon) * 0.03);
+  z-index: 5;
+}
+
+.mon[data-slot="1"] { --tx: calc(var(--mon) * -0.8); }
+.mon[data-slot="2"] { --tx: calc(var(--mon) * 0.8); }
+
+.mon[data-slot="3"],
+.mon[data-slot="4"] {
+  --s: 0.66;
+  --lift: calc(var(--mon) * 0.07);
+  z-index: 4;
+}
+
+.mon[data-slot="3"] { --tx: calc(var(--mon) * -1.28); }
+.mon[data-slot="4"] { --tx: calc(var(--mon) * 1.28); }
+
+.mon[data-slot="5"],
+.mon[data-slot="6"] {
+  --s: 0.54;
+  --lift: calc(var(--mon) * 0.11);
+  z-index: 3;
+}
+
+.mon[data-slot="5"] { --tx: calc(var(--mon) * -1.68); }
+.mon[data-slot="6"] { --tx: calc(var(--mon) * 1.68); }
+
+/* Flutuação lenta, defasada por posição — o palco respira. */
+.monFloat {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation: pkx-mon-float 6.4s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -1.1s);
+}
+
+.monArt {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: var(--mon-shadow);
+  animation: pkx-mon-in 760ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+/* Pontas um pouco recolhidas: profundidade sem apagar a cor. */
+.mon[data-slot="5"] .monArt,
+.mon[data-slot="6"] .monArt {
+  opacity: 0.92;
+}
+
+@keyframes pkx-mon-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.4rem);
+  }
+}
+
+@keyframes pkx-mon-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.92);
+  }
+}
+
+/* Desktop: a coluna do palco ganha largura (o texto do hero é curto). */
+@media (min-width: 1024px) {
+  .heroStage.heroStage {
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 52rem);
+  }
+}
+
+@media (max-width: 767px) {
+  .stageFloor {
+    --mon: min(clamp(5rem, 22vw, 7rem), 24cqw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .monFloat,
+  .monArt {
+    animation: none;
+  }
 }

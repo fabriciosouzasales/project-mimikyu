@@ -456,3 +456,96 @@ export function pokedexFailureMessage(reason: PokedexFailure): string {
       return "Não foi possível concluir agora. Nada foi alterado — tente novamente em instantes.";
   }
 }
+
+// ---------------------------------------------------------------------------
+// UX-07 — palco do hero: a equipe de 6 (favoritos do colecionador + iniciais)
+// ---------------------------------------------------------------------------
+
+/** Tamanho da equipe ao redor do destaque — uma equipe Pokémon. */
+export const POKEDEX_HERO_TEAM_SIZE = 6;
+
+/**
+ * Destaque fixo do palco para todos os usuários: Mimikyu (#778), o Pokémon que
+ * dá nome ao MMKYU (decisão de Fabrício, 2026-10-19). Sempre ao centro, fora
+ * do recorte de gerações; nunca repetido na equipe.
+ */
+export const POKEDEX_HERO_MASCOT = 778;
+
+export type PokedexHeroPokemon = {
+  number: number;
+  name: string;
+  artworkPath: string;
+};
+
+/**
+ * Geração do palco: a escolhida no filtro (se faz parte da Pokédex) ou a
+ * primeira geração da coleção. `null` = gerações indisponíveis (sem palco).
+ */
+export function pokedexHeroGeneration(options: readonly GenerationOption[] | null, generation: string | null): GenerationOption | null {
+  if (!options) return null;
+  const selected = options.filter((option) => option.selected === true).sort((a, b) => a.ordinal - b.ordinal);
+  return selected.find((option) => option.code === generation) ?? selected[0] ?? null;
+}
+
+/**
+ * Os iniciais da geração, por prioridade: evoluções finais (fogo, planta,
+ * água) e depois as formas básicas. Ocupam as 9 primeiras posições da geração;
+ * na V, Victini (#494) vem antes — deslocamento de 1.
+ */
+const STARTER_OFFSETS = [5, 2, 8, 3, 0, 6] as const;
+
+export function pokedexStarterNumbers(option: GenerationOption | null): number[] {
+  if (!option) return [];
+  const base = option.firstNumber + (option.ordinal === 5 ? 1 : 0);
+  return STARTER_OFFSETS.map((offset) => base + offset).filter((number) => number <= option.lastNumber);
+}
+
+/**
+ * O palco: o Mimikyu ao centro + a equipe de 6 (decisão de Fabrício, 2026-10-19):
+ * - favoritos do colecionador dentro do recorte (geração filtrada, ou as
+ *   gerações da Pokédex) — mais de 6, sorteia 6 a cada visita;
+ * - menos de 6, completa com os iniciais da geração em destaque;
+ * - sem favoritos, os 6 iniciais.
+ * `random` injetável para teste (padrão: Math.random).
+ */
+export function pokedexHeroPicks(
+  favorites: Iterable<number> | null,
+  options: readonly GenerationOption[] | null,
+  generation: string | null,
+  random: () => number = Math.random,
+): number[] {
+  const heroGeneration = pokedexHeroGeneration(options, generation);
+  if (!heroGeneration || !options) return [];
+  const ranges =
+    generation === heroGeneration.code ? [heroGeneration] : options.filter((option) => option.selected === true);
+  const inScope = (number: number) => ranges.some((range) => number >= range.firstNumber && number <= range.lastNumber);
+
+  const pool = [...new Set(favorites ?? [])].filter((number) => number !== POKEDEX_HERO_MASCOT && inScope(number));
+  // Fisher–Yates parcial: só os 6 primeiros.
+  for (let i = 0; i < Math.min(POKEDEX_HERO_TEAM_SIZE, pool.length); i++) {
+    const j = i + Math.floor(random() * (pool.length - i));
+    [pool[i], pool[j]] = [pool[j] as number, pool[i] as number];
+  }
+  const picks = pool.slice(0, POKEDEX_HERO_TEAM_SIZE);
+  for (const starter of pokedexStarterNumbers(heroGeneration)) {
+    if (picks.length >= POKEDEX_HERO_TEAM_SIZE) break;
+    if (starter !== POKEDEX_HERO_MASCOT && !picks.includes(starter)) picks.push(starter);
+  }
+  return [POKEDEX_HERO_MASCOT, ...picks];
+}
+
+/** Linhas da espécie → palco, na ordem dos sorteados; sem arte, fica de fora. */
+export function pokedexHeroLineup(
+  rows: readonly { national_dex_number: number; species_name: string; artwork_path?: string | null }[] | null,
+  picks: readonly number[],
+): PokedexHeroPokemon[] {
+  if (!rows) return [];
+  const byNumber = new Map(rows.map((row) => [row.national_dex_number, row]));
+  const lineup: PokedexHeroPokemon[] = [];
+  for (const number of picks) {
+    const row = byNumber.get(number);
+    if (!row || !row.artwork_path) continue;
+    lineup.push({ number, name: row.species_name, artworkPath: row.artwork_path });
+  }
+  return lineup;
+}

@@ -93,6 +93,26 @@ export async function getPokedexNationalSpecies(
   return [...byNumber.values()].sort((a, b) => a.national_dex_number - b.national_dex_number);
 }
 
+/**
+ * Espécies por número nacional — leitura curta para o palco do hero da coleção
+ * Pokédex (UX-07): a mesma `get_pokedex_national_species` (6131/6132) filtrada
+ * no PostgREST pelos números pedidos (no máximo uma dúzia). Sem SQL novo.
+ * `null` = indisponível (o hero segue sem palco).
+ */
+export async function getPokedexSpeciesByNumbers(supabase: SupabaseClient, numbers: readonly number[]): Promise<PokedexSpecies[] | null> {
+  const wanted = [...new Set(numbers.filter((n) => Number.isInteger(n) && n > 0 && n < 10000))].slice(0, 12);
+  if (wanted.length === 0) return [];
+  const startedAt = Date.now();
+  const { data, error } = await supabase
+    .rpc("get_pokedex_national_species", { p_query: null, p_generation: null })
+    .in("national_dex_number", wanted);
+  if (error || !data) {
+    logPokedexReadFailure("get_pokedex_national_species", startedAt, error);
+    return null;
+  }
+  return data as PokedexSpecies[];
+}
+
 // ---------------------------------------------------------------------------
 // Índice de tipos da galeria (Pokédex P3c, Query 6135)
 // ---------------------------------------------------------------------------
