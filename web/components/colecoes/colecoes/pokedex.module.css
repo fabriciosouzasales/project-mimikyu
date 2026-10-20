@@ -110,10 +110,14 @@
   border-color: hsl(var(--primary) / 0.45);
 }
 
-/* ---- página da coleção: filtro por geração ---- */
+/* ---- página da coleção: filtro por geração (UX-03) ----
+   Desktop/tablet: grade que ocupa a largura toda da galeria (colunas iguais).
+   Celular: faixa com rolagem horizontal, cartões de largura fixa. Cada cartão:
+   geração · região, contagem + percentual e uma barra com presença. Dourado só
+   no progresso (barra), na geração escolhida e na geração completa. */
 .genRail {
   display: flex;
-  gap: 0.375rem;
+  gap: 0.5rem;
   margin-top: 1rem;
   padding-bottom: 0.25rem;
   overflow-x: auto;
@@ -121,15 +125,22 @@
   scroll-snap-type: x proximity;
 }
 
+@media (min-width: 768px) {
+  .genRail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+}
+
 .genChip {
   flex: none;
   scroll-snap-align: start;
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 4.75rem;
+  display: block;
+  min-width: 8.5rem;
   min-height: 2.75rem;
-  padding: 0.375rem 0.75rem;
+  padding: 0.625rem 0.75rem 0.6875rem;
   border: 1px solid hsl(var(--border));
   border-radius: 0.75rem;
   background: hsl(var(--surface));
@@ -138,6 +149,12 @@
   transition:
     border-color 160ms ease,
     background-color 160ms ease;
+}
+
+@media (min-width: 768px) {
+  .genChip {
+    min-width: 0;
+  }
 }
 
 .genChip:hover {
@@ -155,9 +172,41 @@
   outline-offset: 2px;
 }
 
+.genChipBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.genChipHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
 .genChipTitle {
+  flex: none;
   font: 700 0.8125rem/1.2 var(--font-heading);
   white-space: nowrap;
+}
+
+.genChipRegion {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: hsl(var(--muted-foreground));
+}
+
+.genChipNumbers {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .genChipMeta {
@@ -168,19 +217,40 @@
   white-space: nowrap;
 }
 
+.genChipPct {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  font: 700 0.8125rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: hsl(var(--foreground));
+}
+
+/* Barra com presença: 6 px, trilho visível nos dois temas. */
 .genChipTrack {
   display: block;
-  height: 2px;
-  margin-top: 0.25rem;
+  height: 0.375rem;
   border-radius: 999px;
-  background: hsl(var(--border));
+  background: hsl(var(--foreground) / 0.1);
   overflow: hidden;
 }
 
 .genChipFill {
   display: block;
   height: 100%;
+  border-radius: inherit;
   background: hsl(var(--primary));
+  transition: width 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Geração completa: percentual com troféu no tom de conquista. */
+.genChipBody[data-complete] .genChipPct {
+  color: hsl(var(--primary-ink));
+}
+
+:global(.dark) .genChipBody[data-complete] .genChipPct {
+  color: hsl(var(--primary));
 }
 
 /* ---- posição ---- */
@@ -469,7 +539,8 @@
   .slot,
   .card,
   .slotArt,
-  .genChip {
+  .genChip,
+  .genChipFill {
     transition: none;
   }
 

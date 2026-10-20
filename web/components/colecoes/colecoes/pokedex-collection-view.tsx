@@ -245,11 +245,9 @@ export function PokedexCollectionView({
               scroll={false}
               className={pkxStyles.genChip}
               aria-current={generationOption === null ? "page" : undefined}
+              aria-label={`Todas as gerações: ${formatCount(owned)} de ${formatCount(total)} Pokémon, ${progressPercentText(owned, total)}`}
             >
-              <span className={pkxStyles.genChipTitle}>Todas</span>
-              <span className={pkxStyles.genChipMeta}>
-                {formatCount(owned)}/{formatCount(total)}
-              </span>
+              <GenChipBody title="Todas" region={null} got={owned} total={total} />
             </Link>
             {selected.map((option) => {
               const got = Math.min(option.satisfied ?? 0, option.speciesCount);
@@ -260,21 +258,14 @@ export function PokedexCollectionView({
                   scroll={false}
                   className={pkxStyles.genChip}
                   aria-current={generationOption?.code === option.code ? "page" : undefined}
-                  aria-label={`${generationTitle(option.code)}${option.region ? `, ${option.region}` : ""}: ${formatCount(got)} de ${formatCount(option.speciesCount)} Pokémon`}
+                  aria-label={`${generationTitle(option.code)}${option.region ? `, ${option.region}` : ""}: ${formatCount(got)} de ${formatCount(option.speciesCount)} Pokémon, ${progressPercentText(got, option.speciesCount)}`}
                 >
-                  <span className={pkxStyles.genChipTitle}>
-                    Ger. {generationNumeral(option.code)}
-                    {option.region ? <span className="font-normal text-muted-foreground"> · {option.region}</span> : null}
-                  </span>
-                  <span className={pkxStyles.genChipMeta} aria-hidden="true">
-                    {formatCount(got)}/{formatCount(option.speciesCount)}
-                  </span>
-                  <span className={pkxStyles.genChipTrack} aria-hidden="true">
-                    <span
-                      className={pkxStyles.genChipFill}
-                      style={{ width: `${progressBarPercent(got, option.speciesCount)}%` }}
-                    />
-                  </span>
+                  <GenChipBody
+                    title={`Ger. ${generationNumeral(option.code)}`}
+                    region={option.region ?? null}
+                    got={got}
+                    total={option.speciesCount}
+                  />
                 </Link>
               );
             })}
@@ -305,6 +296,35 @@ export function PokedexCollectionView({
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * Miolo da faixa de gerações (UX-03): geração e região; contagem e percentual;
+ * barra de progresso com presença. Geração completa ganha o tom de conquista.
+ * Todo o conteúdo visual é aria-hidden — o rótulo acessível fica no link.
+ */
+function GenChipBody({ title, region, got, total }: { title: string; region: string | null; got: number; total: number }) {
+  const complete = total > 0 && got >= total;
+  return (
+    <span className={pkxStyles.genChipBody} data-complete={complete || undefined} aria-hidden="true">
+      <span className={pkxStyles.genChipHead}>
+        <span className={pkxStyles.genChipTitle}>{title}</span>
+        {region ? <span className={pkxStyles.genChipRegion}>{region}</span> : null}
+      </span>
+      <span className={pkxStyles.genChipNumbers}>
+        <span className={pkxStyles.genChipMeta}>
+          {formatCount(got)}/{formatCount(total)}
+        </span>
+        <span className={pkxStyles.genChipPct}>
+          {complete ? <Trophy className="h-3 w-3" strokeWidth={2.5} /> : null}
+          {progressPercentText(got, total)}
+        </span>
+      </span>
+      <span className={pkxStyles.genChipTrack}>
+        <span className={pkxStyles.genChipFill} style={{ width: `${progressBarPercent(got, total)}%` }} />
+      </span>
+    </span>
   );
 }
 
