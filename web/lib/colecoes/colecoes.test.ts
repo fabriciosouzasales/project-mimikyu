@@ -27,6 +27,8 @@ import {
   parsePositionFilter,
   progressLabel,
   progressPercent,
+  progressPercentText,
+  progressBarPercent,
   storageStep,
   suggestCollectionName,
   toPositionsRpcFilter,
@@ -62,6 +64,14 @@ test("progresso: X de Y, percentual nunca chega a 100 antes de completar", () =>
   assert.equal(progressPercent(299, 300), 99);
   assert.equal(progressPercent(158, 158), 100);
   assert.equal(progressPercent(0, 0), 0);
+  // UX-02: uma conquista nunca aparece como "0%".
+  assert.equal(progressPercentText(1, 1025), "<1%");
+  assert.equal(progressBarPercent(1, 1025), 1);
+  assert.equal(progressPercentText(0, 1025), "0%");
+  assert.equal(progressBarPercent(0, 1025), 0);
+  assert.equal(progressPercentText(0, 0), "0%");
+  assert.equal(progressPercentText(157, 158), "99%");
+  assert.equal(progressPercentText(158, 158), "100%");
   assert.equal(missingCount(7, 30), 23);
   assert.equal(missingCount(31, 30), 0);
 });
@@ -230,6 +240,8 @@ test("progresso em Lista/Carrossel: coleção livre não vira 0 de 0", () => {
   assert.deepEqual(collectionProgressView({ totalPositions: 158, satisfiedPositions: 146, isComplete: false, copiesCount: 150 }), {
     kind: "goal",
     percent: 92,
+    percentText: "92%",
+    barPercent: 92,
     label: "146 de 158",
     complete: false,
   });

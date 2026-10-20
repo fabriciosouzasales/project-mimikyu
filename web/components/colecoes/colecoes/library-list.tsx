@@ -52,7 +52,7 @@ export function LibraryRow({
   const copiesText = `${copies} ${collection.copiesCount === 1 ? "carta" : "cartas"}`;
   const spoken =
     progress.kind === "goal"
-      ? `${progress.label}${progress.complete ? ", completa" : `, ${progress.percent}%`}`
+      ? `${progress.label}${progress.complete ? ", completa" : `, ${progress.percentText}`}`
       : copiesText;
   return (
     <Link
@@ -81,13 +81,13 @@ export function LibraryRow({
             <span className={styles.track}>
               <span
                 className={progress.complete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
-                style={{ width: `${progress.percent}%` }}
+                style={{ width: `${progress.barPercent}%` }}
               />
             </span>
             <span className={styles.rowCount}>
               <strong>{progress.label}</strong>
               <span className={progress.complete ? styles.rowDone : styles.rowPercent}>
-                {progress.complete ? "completa" : `${progress.percent}%`}
+                {progress.complete ? "completa" : progress.percentText}
               </span>
             </span>
           </>

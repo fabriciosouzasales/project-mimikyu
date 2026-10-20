@@ -329,19 +329,9 @@
   right: 0.4375rem;
 }
 
-/* Sobre a carta real, o check fica menor e mais junto ao canto, cobrindo menos
-   o HP impresso. */
-.card .owned {
-  top: 0.375rem;
-  right: 0.375rem;
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.card .owned svg {
-  width: 0.75rem;
-  height: 0.75rem;
-}
+/* UX-02: a carta conquistada não leva check — a própria carta já é a conquista
+   (e o check cobria o HP impresso). O check segue no Pokémon conquistado sem
+   imagem de carta (.slot). */
 
 .card {
   position: relative;
@@ -450,6 +440,15 @@
 .scopeLine strong {
   color: hsl(var(--foreground));
   font-weight: 600;
+}
+
+/* UX-02: no celular a identidade vira grade (capa em 2 linhas ao lado do título).
+   Esta 3ª linha de texto caía na coluna estreita da capa — ocupa a largura toda. */
+@media (max-width: 767px) {
+  .scopeLine {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
 }
 
 .notice {

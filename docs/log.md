@@ -3076,3 +3076,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-19] docs | Capa e código do fichário da Pokédex homologados no navegador pelo proprietário; ver 05d 1.63
 ## [2026-10-19] feature | Pokédex do colecionador publicada em produção (POKEDEX_COLLECTION_RELEASED = true, autorização do proprietário); sem SQL novo; ver 05d 1.64
 ## [2026-10-19] feature | POKEDEX-UX-01 — clareza visual da grade (estados, etiquetas, "+", número nacional dentro do card) e acessibilidade do painel (seletor aria-pressed, título único, exceção contornada); só frontend; homologado no desktop; ver 05d 1.65
+## [2026-10-19] feature | COLLECTIONS-UX-02 — topo no celular (gerações em largura total, lápis na linha do título, botões da capa abaixo dela no toque), "<1%" e barra mínima com conquista, sem check na carta conquistada da Pokédex; só frontend; ver 05d 1.66

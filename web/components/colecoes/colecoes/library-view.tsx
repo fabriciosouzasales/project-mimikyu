@@ -14,7 +14,8 @@ import {
   libraryTotalPages,
   collectionProgressView,
   progressLabel,
-  progressPercent,
+  progressBarPercent,
+  progressPercentText,
 } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary, CollectionsPage } from "@/lib/colecoes/colecoes-queries";
 import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
@@ -257,7 +258,6 @@ function Shelf({
   priority: boolean;
 }) {
   const view = collectionProgressView(collection);
-  const percent = progressPercent(collection.satisfiedPositions, collection.totalPositions);
   const label =
     view.kind === "free"
       ? `${formatCount(view.copies)} ${view.copies === 1 ? "carta reunida" : "cartas reunidas"}`
@@ -295,12 +295,12 @@ function Shelf({
             <div className={styles.shelfTrack}>
               <div
                 className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
-                style={{ width: `${percent}%` }}
+                style={{ width: `${progressBarPercent(collection.satisfiedPositions, collection.totalPositions)}%` }}
               />
             </div>
             <span className={styles.shelfCount}>
               <strong>{label}</strong>
-              {collection.isComplete ? " · completa" : ` · ${percent}%`}
+              {collection.isComplete ? " · completa" : ` · ${progressPercentText(collection.satisfiedPositions, collection.totalPositions)}`}
             </span>
           </div>
         )}

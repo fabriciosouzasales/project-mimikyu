@@ -191,9 +191,6 @@ function PokedexTile({
                 <span className={styles.dexBadge} aria-hidden="true">
                   {formatDex(position.number)}
                 </span>
-                <span className={styles.owned} aria-hidden="true">
-                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                </span>
               </div>
             ) : (
               <SpeciesSlot position={position} artUrl={artUrl} priority={priority} addable />
@@ -205,9 +202,6 @@ function PokedexTile({
               <CardArt src={cardUrl} alt="" name={representative.cardName} caption={caption || dex} priority={priority} sizes={GRID_SIZES} />
               <span className={styles.dexBadge} aria-hidden="true">
                 {formatDex(position.number)}
-              </span>
-              <span className={styles.owned} aria-hidden="true">
-                <Check className="h-3.5 w-3.5" strokeWidth={3} />
               </span>
             </div>
           </CardZoomTrigger>

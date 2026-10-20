@@ -113,7 +113,7 @@ function poseStyle(pose: Pose): CSSProperties {
 function spokenProgress(collection: CollectionSummary): string {
   const view = collectionProgressView(collection);
   return view.kind === "goal"
-    ? `${view.label}${view.complete ? ", completa" : `, ${view.percent}%`}`
+    ? `${view.label}${view.complete ? ", completa" : `, ${view.percentText}`}`
     : `${formatCount(view.copies)} ${view.copies === 1 ? "carta" : "cartas"}`;
 }
 
@@ -130,13 +130,13 @@ function FocusDetails({ collection, compact }: { collection: CollectionSummary; 
             <span
               key={collection.id}
               className={progress.complete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
-              style={{ width: `${progress.percent}%` }}
+              style={{ width: `${progress.barPercent}%` }}
             />
           </span>
           <span className={styles.focusCount}>
             <strong>{progress.label}</strong>
             <span className={progress.complete ? styles.focusDone : undefined}>
-              {progress.complete ? "completa" : `${progress.percent}%`}
+              {progress.complete ? "completa" : progress.percentText}
             </span>
           </span>
         </div>

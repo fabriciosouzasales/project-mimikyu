@@ -10,7 +10,8 @@ import {
   collectionKindLabel,
   missingCount,
   pickHeroCards,
-  progressPercent,
+  progressBarPercent,
+  progressPercentText,
 } from "@/lib/colecoes/colecoes";
 import type { CollectionPosition, CollectionSummary, PositionsPage } from "@/lib/colecoes/colecoes-queries";
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
@@ -84,7 +85,6 @@ export function CollectionView({
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
   const missing = missingCount(owned, total);
-  const percent = progressPercent(owned, total);
   const active = collection.lifecycleStatus === "ACTIVE";
   const setCode = collection.cardSetCode;
   const canLink = active && setCode !== null && linkable !== null && linkable > 0;
@@ -166,7 +166,7 @@ export function CollectionView({
               <div className={styles.progressFigure}>
                 <span className={heroStyles.progressBig}>{formatCount(owned)}</span>
                 <span className={styles.progressOf}>de {formatCount(total)}</span>
-                <span className={styles.progressPct}>{collection.isComplete ? "100%" : `${percent}%`}</span>
+                <span className={styles.progressPct}>{collection.isComplete ? "100%" : progressPercentText(owned, total)}</span>
               </div>
               <div
                 className={`${styles.track} ${heroStyles.track}`}
@@ -178,7 +178,7 @@ export function CollectionView({
               >
                 <div
                   className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill}
-                  style={{ width: `${percent}%` }}
+                  style={{ width: `${progressBarPercent(owned, total)}%` }}
                 />
               </div>
               <div className={styles.progressFoot}>

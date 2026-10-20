@@ -320,6 +320,19 @@
   gap: 0.5rem 0.75rem;
 }
 
+/* UX-02: no celular o lápis fica na linha do título — quem quebra é o nome. */
+@media (max-width: 767px) {
+  .titleRow {
+    flex-wrap: nowrap;
+  }
+
+  .titleRow > h1 {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+}
+
 .renameButton {
   display: grid;
   place-items: center;
@@ -913,9 +926,19 @@
   cursor: progress;
 }
 
+/* UX-02: no toque, as ações saem de cima da imagem e ficam logo abaixo da capa,
+   sempre visíveis e com alvo maior. */
 @media (hover: none) {
   .coverTriggerActions {
+    position: static;
+    justify-content: center;
+    margin-top: 0.5rem;
     opacity: 1;
+  }
+
+  .coverTriggerAction {
+    width: 2.25rem;
+    height: 2.25rem;
   }
 }
 

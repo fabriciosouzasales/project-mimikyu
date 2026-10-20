@@ -129,6 +129,21 @@ export function progressPercent(satisfied: number, total: number): number {
 }
 
 /**
+ * Percentual para leitura (UX-02): com ao menos uma conquista, nunca "0%" —
+ * 1 de 1.025 vira "<1%", para a conquista não parecer não ter contado.
+ */
+export function progressPercentText(satisfied: number, total: number): string {
+  const percent = progressPercent(satisfied, total);
+  return percent === 0 && satisfied > 0 && total > 0 ? "<1%" : `${percent}%`;
+}
+
+/** Largura da barra (0–100): com ao menos uma conquista, um mínimo visível (1%). */
+export function progressBarPercent(satisfied: number, total: number): number {
+  const percent = progressPercent(satisfied, total);
+  return percent === 0 && satisfied > 0 && total > 0 ? 1 : percent;
+}
+
+/**
  * Resumo do conjunto para o cabeçalho da Biblioteca. Só existe quando a página
  * contém TODAS as coleções (total ≤ tamanho da página): somar uma página parcial
  * mostraria números errados, então nesse caso devolve `null` e o cabeçalho
@@ -175,7 +190,7 @@ export function librarySummary(
  * reúne em vez de "0 de 0".
  */
 export type CollectionProgressView =
-  | { kind: "goal"; percent: number; label: string; complete: boolean }
+  | { kind: "goal"; percent: number; percentText: string; barPercent: number; label: string; complete: boolean }
   | { kind: "free"; copies: number };
 
 export function collectionProgressView(collection: {
@@ -188,6 +203,8 @@ export function collectionProgressView(collection: {
   return {
     kind: "goal",
     percent: progressPercent(collection.satisfiedPositions, collection.totalPositions),
+    percentText: progressPercentText(collection.satisfiedPositions, collection.totalPositions),
+    barPercent: progressBarPercent(collection.satisfiedPositions, collection.totalPositions),
     label: progressLabel(collection.satisfiedPositions, collection.totalPositions),
     complete: collection.isComplete,
   };

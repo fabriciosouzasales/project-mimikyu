@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, Info, Trophy } from "lucide-react";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
-import { COLECOES_PATH, collectionKindLabel, missingCount, progressPercent } from "@/lib/colecoes/colecoes";
+import { COLECOES_PATH, collectionKindLabel, missingCount, progressBarPercent, progressPercentText } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
 import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED } from "@/lib/colecoes/free-collection";
@@ -75,7 +75,6 @@ export function PokedexCollectionView({
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
   const missing = missingCount(owned, total);
-  const percent = progressPercent(owned, total);
 
   const selected = options ? options.filter((option) => option.selected === true) : [];
   const generationOption = generation ? selected.find((option) => option.code === generation) ?? null : null;
@@ -172,7 +171,7 @@ export function PokedexCollectionView({
               <div className={styles.progressFigure}>
                 <span className={heroStyles.progressBig}>{formatCount(owned)}</span>
                 <span className={styles.progressOf}>de {formatCount(total)}</span>
-                <span className={styles.progressPct}>{collection.isComplete ? "100%" : `${percent}%`}</span>
+                <span className={styles.progressPct}>{collection.isComplete ? "100%" : progressPercentText(owned, total)}</span>
               </div>
               <div
                 className={`${styles.track} ${heroStyles.track}`}
@@ -182,7 +181,7 @@ export function PokedexCollectionView({
                 aria-valuenow={owned}
                 aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} Pokémon conquistados`}
               >
-                <div className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill} style={{ width: `${percent}%` }} />
+                <div className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill} style={{ width: `${progressBarPercent(owned, total)}%` }} />
               </div>
               <div className={styles.progressFoot}>
                 {collection.isComplete ? (
@@ -273,7 +272,7 @@ export function PokedexCollectionView({
                   <span className={pkxStyles.genChipTrack} aria-hidden="true">
                     <span
                       className={pkxStyles.genChipFill}
-                      style={{ width: `${progressPercent(got, option.speciesCount)}%` }}
+                      style={{ width: `${progressBarPercent(got, option.speciesCount)}%` }}
                     />
                   </span>
                 </Link>
