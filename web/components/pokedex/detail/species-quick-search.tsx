@@ -12,37 +12,13 @@ import {
   QUICK_SEARCH_MAX_QUERY,
   type SpeciesIndexEntry,
   parseNumberQuery,
-  parseSpeciesIndex,
   searchSpecies,
 } from "@/lib/pokedex/species-search";
+import { speciesIndex } from "@/lib/pokedex/species-index-client";
 import styles from "./species-quick-search.module.css";
 
 type IndexStatus = "idle" | "loading" | "ready" | "error";
 type Option = { nationalDexNumber: number; name: string | null; artworkPath: string | null };
-
-/**
- * Índice compartilhado entre montagens: carregado uma vez por aba, na primeira
- * intenção de busca, e reaproveitado em todas as fichas seguintes. Falha não
- * fica em cache — a próxima intenção tenta de novo.
- */
-let indexRequest: Promise<SpeciesIndexEntry[] | null> | null = null;
-let indexCache: SpeciesIndexEntry[] | null = null;
-
-function loadSpeciesIndex(): Promise<SpeciesIndexEntry[] | null> {
-  if (indexCache) return Promise.resolve(indexCache);
-  if (!indexRequest) {
-    indexRequest = fetch("/api/pokedex/species-index", { credentials: "same-origin" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((body) => parseSpeciesIndex(body))
-      .catch(() => null)
-      .then((entries) => {
-        if (entries && entries.length > 0) indexCache = entries;
-        else indexRequest = null;
-        return indexCache;
-      });
-  }
-  return indexRequest;
-}
 
 /**
  * Busca rápida da ficha da espécie (Pokédex P3b, 2026-10-12).
@@ -84,20 +60,20 @@ export function SpeciesQuickSearch({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const [index, setIndex] = useState<SpeciesIndexEntry[] | null>(indexCache);
-  const [status, setStatus] = useState<IndexStatus>(indexCache ? "ready" : "idle");
+  const [index, setIndex] = useState<SpeciesIndexEntry[] | null>(speciesIndex.cached());
+  const [status, setStatus] = useState<IndexStatus>(speciesIndex.cached() ? "ready" : "idle");
 
   const number = formatDexNumber(current);
   const totalLabel = total ? formatCount(total) : null;
 
   const requestIndex = useCallback(() => {
-    if (indexCache) {
-      setIndex(indexCache);
+    if (speciesIndex.cached()) {
+      setIndex(speciesIndex.cached());
       setStatus("ready");
       return;
     }
     setStatus((previous) => (previous === "ready" ? previous : "loading"));
-    void loadSpeciesIndex().then((entries) => {
+    void speciesIndex.load().then((entries) => {
       setIndex(entries);
       setStatus(entries ? "ready" : "error");
     });

@@ -25,6 +25,7 @@ import { isPokedexCollection } from "@/lib/colecoes/pokedex";
 import coverStyles from "./binder-cover.module.css";
 import { CreateCollectionLauncher, type OwnedSet } from "./create-collection";
 import { LibraryModes } from "./library-modes";
+import { CollectionKindLine } from "./collection-kind-badge";
 import styles from "./colecoes.module.css";
 
 /**
@@ -282,7 +283,9 @@ function Shelf({
       />
       <div className={styles.shelfMeta} aria-hidden="true">
         <span className={styles.shelfName}>{collection.name}</span>
-        <span className={styles.shelfKind}>{subtitle}</span>
+        <span className={styles.shelfKind}>
+          <CollectionKindLine collection={collection} />
+        </span>
         {view.kind === "free" ? (
           // Coleção livre: sem meta, sem barra — só o que ela reúne (C-20).
           <div className={styles.shelfProgress}>

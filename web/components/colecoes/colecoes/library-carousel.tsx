@@ -20,6 +20,7 @@ import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
 import { isPokedexCollection } from "@/lib/colecoes/pokedex";
 import coverStyles from "./binder-cover.module.css";
+import { CollectionKindLine } from "./collection-kind-badge";
 import styles from "./library-carousel.module.css";
 
 /**
@@ -123,7 +124,9 @@ function FocusDetails({ collection, compact }: { collection: CollectionSummary; 
   return (
     <>
       <p className={styles.focusName}>{collection.name}</p>
-      <p className={styles.focusKind}>{collectionSubtitle(collection)}</p>
+      <p className={styles.focusKind}>
+        <CollectionKindLine collection={collection} />
+      </p>
       {progress.kind === "goal" ? (
         <div className={styles.focusProgress} data-compact={compact || undefined}>
           <span className={styles.track}>

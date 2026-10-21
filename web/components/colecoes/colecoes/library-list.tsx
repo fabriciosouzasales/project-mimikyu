@@ -5,6 +5,7 @@ import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
 import { collectionHref, collectionProgressView, collectionSubtitle } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
+import { CollectionKindLine } from "./collection-kind-badge";
 import styles from "./library-modes.module.css";
 
 /**
@@ -73,7 +74,9 @@ export function LibraryRow({
       </span>
       <span className={styles.rowIdentity} aria-hidden="true">
         <span className={styles.rowName}>{collection.name}</span>
-        <span className={styles.rowKind}>{subtitle}</span>
+        <span className={styles.rowKind}>
+          <CollectionKindLine collection={collection} />
+        </span>
       </span>
       <span className={styles.rowProgress} aria-hidden="true">
         {progress.kind === "goal" ? (

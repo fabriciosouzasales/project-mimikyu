@@ -12,37 +12,13 @@ import {
   type SpeciesIndexEntry,
   type SpeciesSuggestion,
   parseNumberQuery,
-  parseSpeciesIndex,
   searchSpecies,
 } from "@/lib/pokedex/species-search";
+import { speciesIndex } from "@/lib/pokedex/species-index-client";
 import styles from "./pokedex.module.css";
 
 type Range = Pick<GenerationOption, "code" | "firstNumber" | "lastNumber" | "selected">;
 type IndexStatus = "idle" | "loading" | "ready" | "error";
-
-/**
- * Índice da Pokédex Nacional ([número, nome, arte]) — o mesmo endpoint da busca
- * rápida da ficha (`/api/pokedex/species-index`, sem SQL novo). Carregado uma vez
- * por aba, só na primeira intenção de busca; falha não fica em cache.
- */
-let indexRequest: Promise<SpeciesIndexEntry[] | null> | null = null;
-let indexCache: SpeciesIndexEntry[] | null = null;
-
-function loadSpeciesIndex(): Promise<SpeciesIndexEntry[] | null> {
-  if (indexCache) return Promise.resolve(indexCache);
-  if (!indexRequest) {
-    indexRequest = fetch("/api/pokedex/species-index", { credentials: "same-origin" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((body) => parseSpeciesIndex(body))
-      .catch(() => null)
-      .then((entries) => {
-        if (entries && entries.length > 0) indexCache = entries;
-        else indexRequest = null;
-        return indexCache;
-      });
-  }
-  return indexRequest;
-}
 
 /**
  * Buscar um Pokémon na coleção Pokédex (UX-04): nome ou número nacional.
@@ -52,7 +28,7 @@ function loadSpeciesIndex(): Promise<SpeciesIndexEntry[] | null> {
  *   vista, recebe o foco e fica destacado por um instante.
  * - Pokémon de geração fora desta Pokédex aparece na lista, esmaecido, com o
  *   aviso — não navega.
- * - Sem SQL novo: índice nacional já existente + grade da 5204.
+ * - Sem SQL novo: índice nacional (carregador único `speciesIndex`) + grade da 5204.
  * - Padrão ARIA combobox/listbox com `aria-activedescendant`; ↑ ↓ percorrem,
  *   Enter escolhe, Esc limpa/fecha. Se o índice falhar, o número continua
  *   funcionando (busca só por número).
@@ -65,14 +41,14 @@ export function PokedexJump({ collectionId, ranges }: { collectionId: string; ra
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<IndexStatus>("idle");
-  const [index, setIndex] = useState<SpeciesIndexEntry[] | null>(indexCache);
+  const [index, setIndex] = useState<SpeciesIndexEntry[] | null>(speciesIndex.cached());
   const [active, setActive] = useState(0);
   const [message, setMessage] = useState("");
 
   const ensureIndex = useCallback(() => {
     if (index || status === "loading") return;
     setStatus("loading");
-    void loadSpeciesIndex().then((entries) => {
+    void speciesIndex.load().then((entries) => {
       setIndex(entries);
       setStatus(entries ? "ready" : "error");
     });

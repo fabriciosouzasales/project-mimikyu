@@ -335,3 +335,22 @@ test("criação: tipos disponíveis, passos por tipo e envio da Coleção livre"
   assert.equal(canSubmitCreate({ kind: "card_set", setCode: null, name: "x", locations: [], storageId: null }), false);
   assert.equal(suggestFreeCollectionName().length > 0, true);
 });
+
+// UX-08 — selo de tipo na Biblioteca
+import { collectionKindBadge, collectionKindDetail } from "./colecoes.ts";
+
+test("collectionKindBadge: um selo curto por política; desconhecida sem selo", () => {
+  assert.deepEqual(collectionKindBadge("STANDARD_SET"), { kind: "set", label: "Set" });
+  assert.deepEqual(collectionKindBadge("MASTER_SET"), { kind: "master", label: "Master Set" });
+  assert.deepEqual(collectionKindBadge("REFERENCE_POSITION"), { kind: "pokedex", label: "Pokédex" });
+  assert.deepEqual(collectionKindBadge("NONE"), { kind: "free", label: "Livre" });
+  assert.equal(collectionKindBadge(null), null);
+});
+
+test("collectionKindDetail: código antes do nome do Set; código próprio; descrição curta sem código", () => {
+  assert.equal(collectionKindDetail({ cardSetName: "Escuridão Absoluta", cardSetCode: "me5", completionPolicy: "MASTER_SET" }), "ME5 – Escuridão Absoluta");
+  assert.equal(collectionKindDetail({ cardSetName: "Escuridão Absoluta", cardSetCode: null, completionPolicy: "STANDARD_SET" }), "Escuridão Absoluta");
+  assert.equal(collectionKindDetail({ cardSetName: null, cardSetCode: null, completionPolicy: "REFERENCE_POSITION", coverCode: "PKX" }), "PKX");
+  assert.equal(collectionKindDetail({ cardSetName: null, cardSetCode: null, completionPolicy: "REFERENCE_POSITION" }), "Pokédex Nacional");
+  assert.equal(collectionKindDetail({ cardSetName: null, cardSetCode: null, completionPolicy: "NONE", coverCode: null }), "Organizada do seu jeito");
+});

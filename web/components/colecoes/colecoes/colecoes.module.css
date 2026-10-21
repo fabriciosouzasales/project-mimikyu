@@ -971,3 +971,38 @@
     transition: none;
   }
 }
+
+/* ---- UX-08: selo de tipo da coleção (Biblioteca: Cards, Lista, Carrossel) ---- */
+
+.kindBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.4375rem;
+  padding: 0.0625rem 0.4375rem 0.0625rem 0.375rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  vertical-align: 0.0625rem;
+  font: 600 0.6875rem / 1.45 var(--font-sans);
+  letter-spacing: 0.01em;
+  color: hsl(var(--foreground) / 0.85);
+  white-space: nowrap;
+}
+
+.kindBadgeIcon {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Pokédex e Master Set: o ícone ganha o dourado da marca (discreto, só no ícone). */
+.kindBadge[data-kind="pokedex"] .kindBadgeIcon,
+.kindBadge[data-kind="master"] .kindBadgeIcon {
+  color: hsl(var(--primary-ink));
+}
+
+:global(.dark) .kindBadge[data-kind="pokedex"] .kindBadgeIcon,
+:global(.dark) .kindBadge[data-kind="master"] .kindBadgeIcon {
+  color: hsl(var(--primary));
+}

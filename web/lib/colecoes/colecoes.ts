@@ -319,6 +319,42 @@ export function collectionKindLabel(policy: string | null): string {
   return "Coleção";
 }
 
+/**
+ * Selo de tipo da coleção na Biblioteca (UX-08) — o mesmo nos modos Cards,
+ * Lista e Carrossel. Antes, o tipo dependia da capa (a Pokébola da placa
+ * tipográfica sumia com imagem própria). `null` = política desconhecida (sem selo).
+ */
+export type CollectionKindBadgeKind = "set" | "master" | "pokedex" | "free";
+
+export function collectionKindBadge(policy: string | null): { kind: CollectionKindBadgeKind; label: string } | null {
+  if (policy === "STANDARD_SET") return { kind: "set", label: "Set" };
+  if (policy === "MASTER_SET") return { kind: "master", label: "Master Set" };
+  if (policy === "REFERENCE_POSITION") return { kind: "pokedex", label: "Pokédex" };
+  if (policy === "NONE") return { kind: "free", label: "Livre" };
+  return null;
+}
+
+/**
+ * O que acompanha o selo: o Set (código – nome) nas coleções de Set; o código
+ * próprio, se houver, na Livre e na Pokédex; senão uma descrição curta.
+ * O nome falado continua vindo de `collectionSubtitle` (tipo por extenso).
+ */
+export function collectionKindDetail(collection: {
+  cardSetName: string | null;
+  cardSetCode: string | null;
+  completionPolicy: string | null;
+  coverCode?: string | null;
+}): string {
+  const code = collection.cardSetCode?.toUpperCase() ?? null;
+  // Código antes do nome do Set (decisão de Fabrício): "ME5 – Escuridão Absoluta".
+  // Sempre os dois — o título é livre e pode não ser o nome do Set.
+  if (collection.cardSetName) return code ? `${code} – ${collection.cardSetName}` : collection.cardSetName;
+  if (collection.coverCode) return collection.coverCode;
+  if (collection.completionPolicy === "REFERENCE_POSITION") return "Pokédex Nacional";
+  if (collection.completionPolicy === "NONE") return "Organizada do seu jeito";
+  return collectionKindLabel(collection.completionPolicy);
+}
+
 /** Nome sugerido no formulário: o próprio nome do Set. */
 export function suggestCollectionName(setName: string | null | undefined): string {
   return (setName ?? "").trim().slice(0, COLLECTION_NAME_MAX);
