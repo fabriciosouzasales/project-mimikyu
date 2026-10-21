@@ -26,7 +26,17 @@ import styles from "./collection-manage.module.css";
  *
  * Mesmos contratos de antes, sem SQL novo: renomear (5035), código da capa
  * (5180) e imagem (5178, envio seguro em `useCoverLogo`).
+ *
+ * Foco durante e após a gravação (AUDIT CORRECTION-01, A2): campos e botões
+ * ficam `aria-disabled`/`readOnly` em vez de `disabled` — continuam focáveis,
+ * o leitor de tela os anuncia como indisponíveis e o foco do teclado não cai
+ * no `body`. Os handlers ignoram ações enquanto há gravação (sem duplicidade).
+ * Mesma aparência do estado desabilitado do Design System.
  */
+
+/** Visual de desabilitado para controles `aria-disabled` (igual a `disabled:` do DS). */
+const ARIA_DISABLED_BUTTON = "aria-disabled:pointer-events-none aria-disabled:opacity-50";
+const ARIA_DISABLED_FIELD = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 /** Nome e (quando a coleção tem) código da capa. Salvar só com mudança válida. */
 export function IdentityNameForm({
@@ -127,7 +137,9 @@ export function IdentityNameForm({
             setDraft(event.target.value);
             setSaved(false);
           }}
-          disabled={pending}
+          readOnly={pending}
+          aria-disabled={pending || undefined}
+          className={ARIA_DISABLED_FIELD}
           autoComplete="off"
           invalid={normalized === null || error?.source === "name"}
           aria-describedby={normalized === null ? `${nameId}-dica` : undefined}
@@ -153,12 +165,13 @@ export function IdentityNameForm({
               setSaved(false);
             }}
             placeholder="Ex.: MMK"
-            disabled={pending}
+            readOnly={pending}
+            aria-disabled={pending || undefined}
             autoComplete="off"
             spellCheck={false}
             invalid={codeInvalid || error?.source === "code"}
             aria-describedby={`${codeId}-dica`}
-            className={styles.identityCodeInput}
+            className={`${styles.identityCodeInput} ${ARIA_DISABLED_FIELD}`}
           />
           <span id={`${codeId}-dica`} className={styles.identityHint}>
             {codeInvalid ? "Use de 2 a 6 letras ou números — ou deixe em branco." : "De 2 a 6 letras ou números. Aparece na capa do fichário."}
@@ -167,7 +180,7 @@ export function IdentityNameForm({
       ) : null}
 
       <div className={styles.identityActions}>
-        <Button type="submit" className="min-h-11" disabled={!canSave} aria-busy={pending}>
+        <Button type="submit" className={`min-h-11 ${ARIA_DISABLED_BUTTON}`} aria-disabled={!canSave || undefined} aria-busy={pending}>
           {pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
           {pending ? "Salvando…" : "Salvar"}
         </Button>
@@ -202,6 +215,7 @@ export function IdentityCoverImage({
   onBusyChange: (busy: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const { state, upload, clear } = useCoverLogo(collectionId, userId);
   const busy = state.status === "busy";
@@ -219,7 +233,16 @@ export function IdentityCoverImage({
         {hasLogo ? "A capa mostra a sua imagem." : "Sem imagem: a capa mostra o nome da coleção."} PNG, JPEG ou WEBP, até 1 MB.
       </p>
       <div className={styles.identityImageActions}>
-        <Button type="button" variant="outline" className="min-h-11 gap-1.5" onClick={() => inputRef.current?.click()} disabled={busy}>
+        <Button
+          ref={triggerRef}
+          type="button"
+          variant="outline"
+          className={`min-h-11 gap-1.5 ${ARIA_DISABLED_BUTTON}`}
+          onClick={() => {
+            if (!busy) inputRef.current?.click();
+          }}
+          aria-disabled={busy || undefined}
+        >
           {busy ? (
             <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
           ) : (
@@ -228,7 +251,17 @@ export function IdentityCoverImage({
           {busy ? state.label : hasLogo ? "Trocar imagem" : "Escolher imagem"}
         </Button>
         {hasLogo && !busy ? (
-          <Button type="button" variant="outline" className="min-h-11 gap-1.5" onClick={() => void clear()}>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 gap-1.5"
+            onClick={() => {
+              // "Remover" some durante e depois da remoção: o foco passa antes ao
+              // botão principal, que permanece (com o estado "Removendo imagem…").
+              triggerRef.current?.focus();
+              void clear();
+            }}
+          >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
             Remover
           </Button>

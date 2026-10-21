@@ -15,7 +15,7 @@ import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
-import { collectionHref, collectionProgressView, collectionSubtitle } from "@/lib/colecoes/colecoes";
+import { collectionHref, collectionProgressView, collectionSpokenSubtitle } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
 import { isPokedexCollection } from "@/lib/colecoes/pokedex";
@@ -187,7 +187,7 @@ function LibrarySpotlight({
         <Link
           href={collectionHref(collection.id)}
           className={`${styles.spotlightCover} ${coverStyles.trigger}`}
-          aria-label={`Abrir ${collection.name}, ${collectionSubtitle(collection)}, ${spokenProgress(collection)}`}
+          aria-label={`Abrir ${collection.name}, ${collectionSpokenSubtitle(collection)}, ${spokenProgress(collection)}`}
         >
           <span className={styles.spotlightGlow} aria-hidden="true" />
           <BinderCover
@@ -566,7 +566,7 @@ function LibraryFilmstrip({
                   tabIndex={isActive ? 0 : -1}
                   draggable={false}
                   onClick={(event) => onCardClick(event, index)}
-                  aria-label={`${collection.name}, ${collectionSubtitle(collection)}, ${spokenProgress(collection)}${
+                  aria-label={`${collection.name}, ${collectionSpokenSubtitle(collection)}, ${spokenProgress(collection)}${
                     isActive ? "" : ". Trazer para a frente"
                   }`}
                 >

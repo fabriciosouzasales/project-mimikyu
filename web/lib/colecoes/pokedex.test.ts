@@ -268,3 +268,12 @@ test("pokedexHeroPicks: Mimikyu favorito não se repete; aparece mesmo fora das 
   assert.deepEqual(picks, [778, 25, 6, 3, 9, 4, 1]);
   assert.equal(picks.filter((n) => n === 778).length, 1);
 });
+
+import { pokedexJumpAnnouncement } from "./pokedex.ts";
+
+test("pokedexJumpAnnouncement: carregando sem sugestão não anuncia 0 resultados (A5)", () => {
+  assert.equal(pokedexJumpAnnouncement(0, true), "Carregando a Pokédex…");
+  assert.equal(pokedexJumpAnnouncement(1, true), "1 resultado");
+  assert.equal(pokedexJumpAnnouncement(0, false), "0 resultados");
+  assert.equal(pokedexJumpAnnouncement(3, false), "3 resultados");
+});

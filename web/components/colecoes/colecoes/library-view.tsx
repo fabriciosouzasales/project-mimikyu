@@ -7,7 +7,7 @@ import {
   type LibraryMode,
   type StorageOption,
   collectionHref,
-  collectionSubtitle,
+  collectionSpokenSubtitle,
   LIBRARY_PAGE_SIZE,
   libraryHref,
   librarySummary,
@@ -263,7 +263,7 @@ function Shelf({
     view.kind === "free"
       ? `${formatCount(view.copies)} ${view.copies === 1 ? "carta reunida" : "cartas reunidas"}`
       : progressLabel(collection.satisfiedPositions, collection.totalPositions);
-  const subtitle = collectionSubtitle(collection);
+  const subtitle = collectionSpokenSubtitle(collection);
 
   return (
     <Link

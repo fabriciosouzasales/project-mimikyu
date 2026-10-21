@@ -5,7 +5,13 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { Input } from "@/components/ui/input";
-import { type GenerationOption, formatDex, planPokedexJump, pokedexHref } from "@/lib/colecoes/pokedex";
+import {
+  type GenerationOption,
+  formatDex,
+  planPokedexJump,
+  pokedexHref,
+  pokedexJumpAnnouncement,
+} from "@/lib/colecoes/pokedex";
 import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import {
   QUICK_SEARCH_MAX_QUERY,
@@ -200,7 +206,7 @@ export function PokedexJump({ collectionId, ranges }: { collectionId: string; ra
       </ul>
 
       <p className="sr-only" role="status" aria-live="polite">
-        {message || (showList ? `${options.length} ${options.length === 1 ? "resultado" : "resultados"}` : "")}
+        {message || (showList ? pokedexJumpAnnouncement(options.length, status === "loading") : "")}
       </p>
       {message ? (
         <p className={styles.jumpMessage} role="presentation">

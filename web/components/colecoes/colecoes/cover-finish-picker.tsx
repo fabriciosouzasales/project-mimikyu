@@ -14,8 +14,22 @@ import styles from "./colecoes.module.css";
  *
  * Grupo de rádio nativo (teclado: setas), uma gravação por vez; a amostra
  * escolhida muda na hora e volta atrás se a gravação falhar.
+ *
+ * Durante a gravação (AUDIT CORRECTION-01, A2/A3): os rádios ficam
+ * `aria-disabled` (não `disabled`) — o foco do teclado permanece na amostra;
+ * `choose` ignora novas escolhas — e `onBusyChange` avisa o painel de Ajustes
+ * para não fechar no meio, no mesmo instante em que a gravação começa e
+ * termina (inclusive em falha, via `finally`).
  */
-export function CoverFinishPicker({ collectionId, value }: { collectionId: string; value: BinderFinish }) {
+export function CoverFinishPicker({
+  collectionId,
+  value,
+  onBusyChange,
+}: {
+  collectionId: string;
+  value: BinderFinish;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const router = useRouter();
   const name = useId();
   const [current, setCurrent] = useState<BinderFinish>(value);
@@ -27,12 +41,18 @@ export function CoverFinishPicker({ collectionId, value }: { collectionId: strin
     const previous = current;
     setCurrent(finish);
     setPending(true);
+    onBusyChange?.(true);
     setError(null);
-    const result = await setCollectionCoverFinish({ collectionId, finish }).catch(() => ({
-      ok: false as const,
-      reason: "unavailable" as const,
-    }));
-    setPending(false);
+    let result: Awaited<ReturnType<typeof setCollectionCoverFinish>> | { ok: false; reason: "unavailable" };
+    try {
+      result = await setCollectionCoverFinish({ collectionId, finish }).catch(() => ({
+        ok: false as const,
+        reason: "unavailable" as const,
+      }));
+    } finally {
+      setPending(false);
+      onBusyChange?.(false);
+    }
     if (!result.ok) {
       setCurrent(previous);
       setError(result.reason);
@@ -52,7 +72,7 @@ export function CoverFinishPicker({ collectionId, value }: { collectionId: strin
               name={name}
               value={finish.key}
               checked={current === finish.key}
-              disabled={pending}
+              aria-disabled={pending || undefined}
               onChange={() => void choose(finish.key)}
               className="sr-only"
             />

@@ -549,3 +549,14 @@ export function pokedexHeroLineup(
   }
   return lineup;
 }
+
+/**
+ * Texto da região de status da busca da Pokédex (AUDIT CORRECTION-01, A5):
+ * enquanto o índice carrega e ainda não há sugestão, anuncia o carregamento —
+ * nunca um falso "0 resultados". Com sugestões (ex.: número digitado antes do
+ * índice chegar), anuncia a contagem.
+ */
+export function pokedexJumpAnnouncement(count: number, loading: boolean): string {
+  if (count === 0 && loading) return "Carregando a Pokédex…";
+  return `${count} ${count === 1 ? "resultado" : "resultados"}`;
+}

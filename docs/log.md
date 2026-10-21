@@ -3086,3 +3086,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-19] feature | POKEDEX-UX-07 — palco no hero da Pokédex: Mimikyu ao centro + equipe de 6 (favoritos sorteados, completados pelos iniciais da geração); sem SQL novo; ver 05d 1.73
 ## [2026-10-20] feature | COLECOES-UX-08 — selo de tipo na Biblioteca (Cards, Lista, Carrossel) e carregador único do índice de espécies (dívida da busca duplicada quitada); sem SQL novo; ver 05d 1.74
 ## [2026-10-20] feature | COLECOES-UX-09 — carrossel da Biblioteca sem rolagem: só nome + selo abaixo da fita, setas nas laterais, fita mais baixa; sem SQL novo; ver 05d 1.75
+## [2026-10-20] fix | AUDIT-CORRECTION-01 — auditoria complementar UX-01..UX-08 encerrada com PASS: A1 tipo acessível na Biblioteca, A2 foco nos Ajustes, A3 ocupado por controle, A5 anúncio de carregamento da busca, C2 leituras paralelas na Pokédex; homologado pelo proprietário; sem SQL novo; ver 05d 1.76

@@ -335,9 +335,29 @@ export function collectionKindBadge(policy: string | null): { kind: CollectionKi
 }
 
 /**
+ * Nome falado do tipo + detalhe, para o `aria-label` dos links da Biblioteca
+ * (AUDIT CORRECTION-01, A1). O selo visual é `aria-hidden`; aqui o tipo é dito
+ * uma única vez: "Set padrão, Nome · CÓD", "Master Set, Nome · CÓD",
+ * "Completar a Pokédex…", "Coleção livre…" (as duas últimas já trazem o tipo em
+ * `collectionSubtitle`, sem repetição).
+ */
+export function collectionSpokenSubtitle(collection: {
+  cardSetName: string | null;
+  cardSetCode: string | null;
+  completionPolicy: string | null;
+  coverCode?: string | null;
+}): string {
+  const subtitle = collectionSubtitle(collection);
+  if (!collection.cardSetName) return subtitle;
+  if (collection.completionPolicy === "STANDARD_SET") return `Set padrão, ${subtitle}`;
+  if (collection.completionPolicy === "MASTER_SET") return `Master Set, ${subtitle}`;
+  return subtitle;
+}
+
+/**
  * O que acompanha o selo: o Set (código – nome) nas coleções de Set; o código
  * próprio, se houver, na Livre e na Pokédex; senão uma descrição curta.
- * O nome falado continua vindo de `collectionSubtitle` (tipo por extenso).
+ * O nome falado vem de `collectionSpokenSubtitle` (tipo por extenso, uma vez).
  */
 export function collectionKindDetail(collection: {
   cardSetName: string | null;

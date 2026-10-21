@@ -12,8 +12,8 @@ type KindSource = {
 
 /**
  * Selo de tipo da coleção (UX-08): Set · Master Set · Pokédex · Livre, com o
- * ícone de cada um. Visual — o tipo por extenso já está no nome acessível do
- * link (`collectionSubtitle`).
+ * ícone de cada um. Visual — o tipo por extenso está no nome acessível do
+ * link (`collectionSpokenSubtitle`).
  */
 export function CollectionKindBadge({ policy }: { policy: string | null }) {
   const badge = collectionKindBadge(policy);

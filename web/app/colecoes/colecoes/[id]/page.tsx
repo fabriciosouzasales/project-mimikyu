@@ -127,11 +127,15 @@ export default async function ColecaoPage({
       getMyPokedexFavorites(supabase),
     ]);
     const heroPicks = pokedexHeroPicks(favorites, options, generation);
-    const heroLineup = pokedexHeroLineup(await getPokedexSpeciesByNumbers(supabase, heroPicks), heroPicks);
     const pokedexSummary = withCover ?? summary;
-    const pokedexCoverUrl = pokedexSummary.coverLogoPath
-      ? (await getCoverLogoUrls(supabase, [pokedexSummary.coverLogoPath])).get(pokedexSummary.coverLogoPath) ?? null
-      : null;
+    const coverPath = pokedexSummary.coverLogoPath;
+    // AUDIT CORRECTION-01 (C2): a equipe do palco e a URL da capa dependem só
+    // da primeira rodada — saem juntas, sem uma ida-e-volta extra em série.
+    const [heroSpecies, pokedexCoverUrl] = await Promise.all([
+      getPokedexSpeciesByNumbers(supabase, heroPicks),
+      coverPath ? getCoverLogoUrls(supabase, [coverPath]).then((urls) => urls.get(coverPath) ?? null) : Promise.resolve(null),
+    ]);
+    const heroLineup = pokedexHeroLineup(heroSpecies, heroPicks);
     return (
       <AppShell title={summary.name} icon={LibraryBig}>
         <PokedexCollectionView

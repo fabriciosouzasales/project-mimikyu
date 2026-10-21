@@ -354,3 +354,20 @@ test("collectionKindDetail: código antes do nome do Set; código próprio; desc
   assert.equal(collectionKindDetail({ cardSetName: null, cardSetCode: null, completionPolicy: "REFERENCE_POSITION" }), "Pokédex Nacional");
   assert.equal(collectionKindDetail({ cardSetName: null, cardSetCode: null, completionPolicy: "NONE", coverCode: null }), "Organizada do seu jeito");
 });
+
+import { collectionSpokenSubtitle } from "./colecoes.ts";
+
+test("collectionSpokenSubtitle: tipo falado uma vez nas quatro modalidades (A1)", () => {
+  const set = { cardSetName: "Escuridão Absoluta", cardSetCode: "me5" };
+  assert.equal(collectionSpokenSubtitle({ ...set, completionPolicy: "STANDARD_SET" }), "Set padrão, Escuridão Absoluta · ME5");
+  assert.equal(collectionSpokenSubtitle({ ...set, completionPolicy: "MASTER_SET" }), "Master Set, Escuridão Absoluta · ME5");
+  const pokedex = collectionSpokenSubtitle({ cardSetName: null, cardSetCode: null, completionPolicy: "REFERENCE_POSITION" });
+  assert.match(pokedex, /Pokédex/);
+  assert.equal(pokedex.match(/Pokédex/g)?.length, 1);
+  const free = collectionSpokenSubtitle({ cardSetName: null, cardSetCode: null, completionPolicy: "NONE", coverCode: "MMK" });
+  assert.equal(free, "Coleção livre · MMK");
+  // Sem repetição: o tipo não aparece duas vezes.
+  for (const text of [pokedex, free]) assert.doesNotMatch(text, /(Set padrão|Master Set).*\1/);
+  // Política desconhecida com Set: sem tipo inventado.
+  assert.equal(collectionSpokenSubtitle({ ...set, completionPolicy: null }), "Escuridão Absoluta · ME5");
+});

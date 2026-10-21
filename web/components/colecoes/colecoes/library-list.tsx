@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
-import { collectionHref, collectionProgressView, collectionSubtitle } from "@/lib/colecoes/colecoes";
+import { collectionHref, collectionProgressView, collectionSpokenSubtitle } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
 import { CollectionKindLine } from "./collection-kind-badge";
@@ -46,7 +46,7 @@ export function LibraryRow({
   logoUrls: Readonly<Record<string, string>>;
 }) {
   const progress = collectionProgressView(collection);
-  const subtitle = collectionSubtitle(collection);
+  const subtitle = collectionSpokenSubtitle(collection);
   const logoKey = plateLogoKey(collection);
   const logoUrl = logoKey ? logoUrls[logoKey] ?? null : null;
   const copies = formatCount(collection.copiesCount);

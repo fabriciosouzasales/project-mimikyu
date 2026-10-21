@@ -455,7 +455,11 @@ function SettingsPanel({
   const [saved, setSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<CollectionFailure | null>(null);
   const [objectiveBusy, setObjectiveBusy] = useState(false);
-  const [identityBusy, setIdentityBusy] = useState(false);
+  // A3: um sinal por controle de identidade (nome/código, imagem, cor), combinados
+  // abaixo — um não apaga o outro.
+  const [nameBusy, setNameBusy] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [finishBusy, setFinishBusy] = useState(false);
   const [, startRefresh] = useTransition();
 
   const load = useCallback(() => setAttempt((n) => n + 1), []);
@@ -506,7 +510,7 @@ function SettingsPanel({
   const isFree = kind === "free";
   const isPokedex = kind === "pokedex";
   // Fechar o painel no meio de uma gravação deixaria o resultado sem feedback.
-  const locked = saving || objectiveBusy || identityBusy;
+  const locked = saving || objectiveBusy || nameBusy || imageBusy || finishBusy;
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && !locked && onClose()}>
@@ -531,19 +535,19 @@ function SettingsPanel({
                 collectionId={collectionId}
                 name={identity.name}
                 coverCode={isFree || isPokedex ? identity.coverCode : undefined}
-                onBusyChange={setIdentityBusy}
+                onBusyChange={setNameBusy}
               />
               {(isFree || isPokedex) && identity.hasCoverImage !== undefined && identity.userId ? (
                 <IdentityCoverImage
                   collectionId={collectionId}
                   userId={identity.userId}
                   hasLogo={identity.hasCoverImage}
-                  onBusyChange={setIdentityBusy}
+                  onBusyChange={setImageBusy}
                 />
               ) : null}
               {identity.finishEditable ? (
                 <div className={styles.finishRow}>
-                  <CoverFinishPicker collectionId={collectionId} value={identity.finish} />
+                  <CoverFinishPicker collectionId={collectionId} value={identity.finish} onBusyChange={setFinishBusy} />
                 </div>
               ) : null}
               {(!isFree && identity.setName) || isPokedex || !identity.finishEditable ? (
