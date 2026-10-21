@@ -3085,3 +3085,4 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-19] feature | POKEDEX-UX-06 — identidade (nome, código, imagem, cor) em Ajustes em todas as coleções; Pokédex com hero compacto e Pokémon em primeiro plano; sem SQL novo; ver 05d 1.72
 ## [2026-10-19] feature | POKEDEX-UX-07 — palco no hero da Pokédex: Mimikyu ao centro + equipe de 6 (favoritos sorteados, completados pelos iniciais da geração); sem SQL novo; ver 05d 1.73
 ## [2026-10-20] feature | COLECOES-UX-08 — selo de tipo na Biblioteca (Cards, Lista, Carrossel) e carregador único do índice de espécies (dívida da busca duplicada quitada); sem SQL novo; ver 05d 1.74
+## [2026-10-20] feature | COLECOES-UX-09 — carrossel da Biblioteca sem rolagem: só nome + selo abaixo da fita, setas nas laterais, fita mais baixa; sem SQL novo; ver 05d 1.75

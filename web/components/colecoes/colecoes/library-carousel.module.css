@@ -23,8 +23,10 @@
 
 .stage {
   position: relative;
-  /* Fichário da frente (26:33 ≈ 1,27 × largura) já ampliado pela perspectiva. */
-  height: calc(var(--lib-card-w) * 1.5 + 1.25rem);
+  /* Fichário da frente (26:33 ≈ 1,27 × largura) já ampliado pela perspectiva.
+   * Folga mínima acima/abaixo (a linha da estante, a 0,74 × largura do centro,
+   * continua dentro): a Biblioteca em carrossel cabe na tela sem rolagem. */
+  height: calc(var(--lib-card-w) * 1.46 + 0.5rem);
   perspective: 1450px;
   overflow: hidden;
   touch-action: pan-y;
@@ -100,20 +102,38 @@
 
 /* ---- Informações da coleção em foco (entre as setas) ---- */
 
+/* Abaixo da fita, só nome e tipo da coleção da frente (sem barra de rolagem). */
 .focusPanel {
-  display: grid;
-  grid-template-columns: auto minmax(0, 26rem) auto;
+  display: flex;
   justify-content: center;
-  align-items: center;
-  column-gap: 1.25rem;
-  margin-top: 0.25rem;
+  margin: 0.25rem auto 0;
+  max-width: 26rem;
+}
+
+/* Setas nas laterais da fita, centradas na altura dos fichários. */
+.stageWrap {
+  position: relative;
 }
 
 .stepButton {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
   width: 2.75rem;
   height: 2.75rem;
   padding: 0;
   border-radius: 999px;
+  background: hsl(var(--background) / 0.72);
+  backdrop-filter: blur(6px);
+  transform: translateY(-50%);
+}
+
+.stepPrev {
+  left: clamp(0.25rem, 3cqw, 2rem);
+}
+
+.stepNext {
+  right: clamp(0.25rem, 3cqw, 2rem);
 }
 
 .stepButton[data-hidden] {
@@ -211,35 +231,6 @@
   margin-top: 1.125rem;
 }
 
-.focusPosition {
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  color: hsl(var(--muted-foreground));
-}
-
-/* Posição na fita: pontos discretos; o atual vira uma pílula dourada. */
-.dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 999px;
-  background: hsl(var(--foreground) / 0.18);
-  transition:
-    width 220ms cubic-bezier(0.2, 0.7, 0.2, 1),
-    background-color 220ms ease;
-}
-
-.dot[data-active] {
-  width: 1.125rem;
-  background: hsl(var(--primary));
-}
-
 /* ---- Vitrine (uma coleção) ---- */
 
 .spotlight {
@@ -308,11 +299,6 @@
     mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
   }
 
-  .focusPanel {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    column-gap: 0.5rem;
-  }
-
   .spotlight {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
@@ -331,11 +317,5 @@
 
   .spotlightInfo .focusActions {
     justify-content: center;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dot {
-    transition: none;
   }
 }

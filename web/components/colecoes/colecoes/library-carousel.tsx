@@ -59,8 +59,6 @@ const VISIBLE_RANGE = 4.5;
 const SPACING_RATIO = 0.64;
 const DRAG_THRESHOLD = 6;
 const WHEEL_STEP = 48;
-/** Até quantas coleções a posição aparece como pontos; acima disso, "3 / 48". */
-const DOTS_MAX = 12;
 
 type Pose = { transform: string; opacity: number; zIndex: number; visible: boolean };
 
@@ -119,7 +117,16 @@ function spokenProgress(collection: CollectionSummary): string {
 }
 
 /** Nome, Set e progresso da coleção em foco — o mesmo bloco na vitrine e na fita. */
-function FocusDetails({ collection, compact }: { collection: CollectionSummary; compact?: boolean }) {
+function FocusDetails({
+  collection,
+  compact,
+  identityOnly = false,
+}: {
+  collection: CollectionSummary;
+  compact?: boolean;
+  /** Fita (ajuste final): só nome e tipo — progresso fica no nome acessível e na coleção. */
+  identityOnly?: boolean;
+}) {
   const progress = collectionProgressView(collection);
   return (
     <>
@@ -127,7 +134,7 @@ function FocusDetails({ collection, compact }: { collection: CollectionSummary; 
       <p className={styles.focusKind}>
         <CollectionKindLine collection={collection} />
       </p>
-      {progress.kind === "goal" ? (
+      {identityOnly ? null : progress.kind === "goal" ? (
         <div className={styles.focusProgress} data-compact={compact || undefined}>
           <span className={styles.track}>
             <span
@@ -502,6 +509,19 @@ function LibraryFilmstrip({
 
   return (
     <section className={styles.carousel} aria-roledescription="carrossel" aria-label="Suas coleções">
+      {/* Setas nas laterais da fita (ajuste final da Biblioteca): o painel abaixo fica só com nome e tipo. */}
+      <div className={styles.stageWrap}>
+      <Button
+        type="button"
+        variant="outline"
+        className={`${styles.stepButton} ${styles.stepPrev}`}
+        onClick={() => shift(-1, false)}
+        disabled={!canPrev}
+        data-hidden={!canPrev || undefined}
+        aria-label="Coleção anterior"
+      >
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+      </Button>
       <div
         ref={stageRef}
         className={styles.stage}
@@ -568,53 +588,23 @@ function LibraryFilmstrip({
         </ul>
       </div>
 
+      <Button
+        type="button"
+        variant="outline"
+        className={`${styles.stepButton} ${styles.stepNext}`}
+        onClick={() => shift(1, false)}
+        disabled={!canNext}
+        data-hidden={!canNext || undefined}
+        aria-label="Próxima coleção"
+      >
+        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+      </Button>
+      </div>
+
       <div className={styles.focusPanel}>
-        <Button
-          type="button"
-          variant="outline"
-          className={styles.stepButton}
-          onClick={() => shift(-1, false)}
-          disabled={!canPrev}
-          data-hidden={!canPrev || undefined}
-          aria-label="Coleção anterior"
-        >
-          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-        </Button>
-
         <div className={styles.focusInfo}>
-          <FocusDetails collection={current} compact />
-          <div className={styles.focusActions}>
-            <Button asChild variant="outline-primary" className="h-10 px-4">
-              <Link href={collectionHref(current.id)}>
-                Abrir coleção
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
-            {count <= DOTS_MAX ? (
-              <span className={styles.dots} aria-hidden="true">
-                {items.map((collection, index) => (
-                  <span key={collection.id} className={styles.dot} data-active={index === active || undefined} />
-                ))}
-              </span>
-            ) : (
-              <span className={styles.focusPosition} aria-hidden="true">
-                {formatCount(active + 1)} / {formatCount(count)}
-              </span>
-            )}
-          </div>
+          <FocusDetails collection={current} compact identityOnly />
         </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          className={styles.stepButton}
-          onClick={() => shift(1, false)}
-          disabled={!canNext}
-          data-hidden={!canNext || undefined}
-          aria-label="Próxima coleção"
-        >
-          <ChevronRight className="h-5 w-5" aria-hidden="true" />
-        </Button>
       </div>
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
