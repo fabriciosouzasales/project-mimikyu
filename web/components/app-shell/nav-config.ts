@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   Library,
   LibraryBig,
+  MapPin,
   PencilLine,
   RefreshCw,
   ScrollText,
@@ -256,6 +257,9 @@ export const NAV_SECTIONS: NavSection[] = [
     // (Onde guardo). Regra do projeto: item de menu nunca leva a tela vazia ou 404 —
     // "Onde guardo" só entra quando existir. Minhas coleções: MY-COLLECTIONS-FRONTEND-01
     // (2026-10-17); a página de uma coleção (/colecoes/colecoes/<id>) destaca o mesmo item.
+    // ORGANIZAR → "Meus locais" (WHERE-02 FRONTEND, 2026-10-21): gestão dos lugares físicos.
+    // O rótulo "Onde guardo" continua sendo o da preferência de cada coleção (Ajustes);
+    // aqui o item fala do que a página contém — os locais do colecionador.
     label: "Coleções",
     icon: Library,
     // `/colecoes` (redireciona para o acervo) para que todo `/colecoes/*` destaque a seção.
@@ -269,6 +273,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: LibraryBig,
         activePattern: /^\/colecoes\/colecoes\/[0-9a-f-]{36}$/i,
       },
+      { href: "/colecoes/locais", label: "Meus locais", section: "Organizar", icon: MapPin },
     ],
   },
 ];

@@ -1,0 +1,415 @@
+/*
+ * Meus locais (WHERE-02 FRONTEND IMPLEMENTATION-01) — superfície do colecionador.
+ *
+ * O cabeçalho (palco, título, painel de números) é o MESMO do Meu acervo
+ * (`acervo.module.css`), importado pelo componente — nenhuma variação local.
+ * Aqui só o que é próprio desta tela: a grade de locais, o cartão de cada
+ * local com a pilha de cartas decorativa e o estado vazio.
+ *
+ * Tokens só do Design System (globals.css). Dourado: CTA, foco e o brilho de
+ * um local recém-criado — nada mais. Movimento: transform/opacity/box-shadow,
+ * desligados por prefers-reduced-motion. Sem filter/backdrop-filter.
+ */
+
+.listHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 2rem;
+}
+
+.listTitle {
+  font: 700 1.125rem/1.2 var(--font-heading);
+  letter-spacing: -0.015em;
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.listTitle:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 4px;
+  border-radius: 0.25rem;
+}
+
+.listMeta {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.notice {
+  margin-top: 1rem;
+}
+
+.notice:empty {
+  display: none;
+}
+
+/* ---- grade de locais ----
+ * Colunas pela largura real (auto-fill), nunca fixas: 1 no celular, 2–4 no desktop.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+.grid[aria-busy="true"] {
+  cursor: progress;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+  padding: 1.125rem 1.125rem 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background: linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--surface) / 0.78) 100%);
+  box-shadow: 0 1px 0 hsl(var(--foreground) / 0.03), 0 14px 32px -26px hsl(var(--foreground) / 0.4);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+:global(.dark) .tile {
+  box-shadow: 0 1px 0 hsl(0 0% 100% / 0.03) inset, 0 18px 40px -28px hsl(0 0% 0% / 0.9);
+}
+
+@media (hover: hover) {
+  .tile:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--foreground) / 0.18);
+    box-shadow: 0 1px 0 hsl(var(--foreground) / 0.04), 0 20px 40px -26px hsl(var(--foreground) / 0.5);
+  }
+}
+
+/* Recém-criado: um halo dourado que se apaga sozinho — mostra onde o novo local entrou. */
+.tile[data-new] {
+  animation: locais-new 1.8s ease-out both;
+}
+
+@keyframes locais-new {
+  0% {
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.55), 0 14px 32px -26px hsl(var(--foreground) / 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0), 0 14px 32px -26px hsl(var(--foreground) / 0.4);
+  }
+}
+
+.tileHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.875rem;
+}
+
+.kindMark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border) / 0.9);
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--foreground) / 0.72);
+}
+
+.tileTitles {
+  min-width: 0;
+  padding-top: 0.125rem;
+}
+
+.tileName {
+  font: 700 1.0625rem/1.25 var(--font-heading);
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+.tileKind {
+  margin-top: 0.1875rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: hsl(var(--muted-foreground));
+}
+
+.tileKindNone {
+  font-style: italic;
+  color: hsl(var(--muted-foreground) / 0.8);
+}
+
+/* Pilha de cartas: 0 (contorno tracejado), 1, 2 ou 3 silhuetas. Só decoração. */
+.stack {
+  width: 2.75rem;
+  height: auto;
+  color: hsl(var(--foreground) / 0.2);
+}
+
+:global(.dark) .stack {
+  color: hsl(var(--foreground) / 0.24);
+}
+
+.stackCard {
+  fill: hsl(var(--surface));
+  stroke: currentColor;
+  stroke-width: 1.25;
+}
+
+.stackEmpty {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-dasharray: 3 3;
+}
+
+.tileCount {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4375rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+}
+
+.tileNumber {
+  font: 800 1.875rem/1 var(--font-heading);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: hsl(var(--foreground));
+}
+
+.tileNumberEmpty {
+  color: hsl(var(--muted-foreground) / 0.7);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-muted) / 0.7);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: hsl(var(--foreground) / 0.85);
+}
+
+.badge svg {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.tileFoot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.875rem;
+  border-top: 1px solid hsl(var(--border) / 0.7);
+}
+
+.tileActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tileReason {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+.tileReason svg {
+  flex-shrink: 0;
+  margin-top: 0.0625rem;
+}
+
+/* ---- estado vazio ---- */
+.empty {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+  padding: clamp(1.75rem, 4vw, 3rem);
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.25rem;
+  background: hsl(var(--surface) / 0.55);
+  overflow: hidden;
+}
+
+.empty::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(24rem 18rem at 24% 50%, hsl(var(--primary) / 0.07), transparent 70%),
+    linear-gradient(hsl(var(--foreground) / 0.03) 1px, transparent 1px) 0 0 / 2.5rem 2.5rem,
+    linear-gradient(90deg, hsl(var(--foreground) / 0.03) 1px, transparent 1px) 0 0 / 2.5rem 2.5rem;
+  -webkit-mask-image: radial-gradient(ellipse at 30% 50%, #000 30%, transparent 85%);
+  mask-image: radial-gradient(ellipse at 30% 50%, #000 30%, transparent 85%);
+}
+
+.emptyArt {
+  justify-self: center;
+  width: min(100%, 15rem);
+  height: auto;
+  color: hsl(var(--foreground) / 0.22);
+}
+
+.emptyTitle {
+  font: 800 clamp(1.5rem, 2.6vw, 2rem) / 1.1 var(--font-heading);
+  letter-spacing: -0.03em;
+  color: hsl(var(--foreground));
+}
+
+.emptyText {
+  margin-top: 0.75rem;
+  max-width: 38rem;
+  font: 400 0.9375rem/1.6 var(--font-sans);
+  color: hsl(var(--muted-foreground));
+}
+
+.emptyAction {
+  margin-top: 1.5rem;
+}
+
+/* ---- erro de leitura ---- */
+.readError {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.875rem;
+  margin-top: 1.5rem;
+  max-width: 40rem;
+}
+
+/* ---- painel de criar/editar ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fieldRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.counter {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.counter[data-over] {
+  color: hsl(var(--destructive));
+}
+
+.help {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.fact + .fact {
+  border-left: 1px solid hsl(var(--border));
+}
+
+.factLabel {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.factValue {
+  font: 800 1.25rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+/* ---- confirmação de exclusão ---- */
+.confirmBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: hsl(var(--foreground));
+}
+
+.confirmMuted {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 767px) {
+  .listHead {
+    margin-top: 1.5rem;
+  }
+
+  .tileActions > * {
+    flex: 1 1 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .tile[data-new] {
+    transition: none;
+    animation: none;
+  }
+
+  /* Sem movimento: o novo local ganha só uma borda dourada estática (sem halo pulsante). */
+  .tile[data-new] {
+    border-color: hsl(var(--primary) / 0.6);
+  }
+}
