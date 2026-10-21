@@ -28,6 +28,18 @@ Integridade com contratos existentes (nenhum é alterado):
   - Escrita sempre na mesma transação da coleção (5167), então uma
     linha confirmada sempre aponta para coleção e local existentes.
 
+ESTADO VIGENTE (alterado por 5214, WHERE-02, executada no LIVE em
+2026-10-21 UTC, ledger 20261021024126 — nota documental; o corpo SQL
+abaixo é o original da 5166 e NÃO deve ser reexecutado):
+  - storage_container_id passou a aceitar NULL e a FK passou a
+    ON DELETE SET NULL (o CASCADE descrito acima não vale mais).
+    Excluir um local (5218) preserva a linha de idempotência; só a
+    referência ao local vira NULL.
+  - Replay de 5167/5175/5202 (contratos inalterados) continua
+    devolvendo a MESMA coleção; storage_container_id pode voltar NULL
+    quando o local de criação foi excluído depois.
+  - Ver database/schema/5214_alter_collection_creation_request_storage_set_null.sql.
+
 Segurança: RLS habilitada sem policies (nega tudo a anon/authenticated);
 privilégios revogados de PUBLIC, anon, authenticated e service_role.
 

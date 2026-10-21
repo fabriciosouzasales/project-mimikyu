@@ -4,7 +4,7 @@
 |---|---|
 | **Documento** | Referência normativa de experiência do módulo Collection (visão, fluxos, nomenclatura, critérios de base funcional) |
 | **Arquivo** | `docs/domain-modeling/collections/north-star-2026-10-16.md` |
-| **Versão** | 1.16 |
+| **Versão** | 1.17 |
 | **Status** | **NORMATIVO** — aprovado por Fabrício em 2026-10-16 (`COLLECTION-NORTH-STAR-02`, decisões D1–D4). Itens marcados **[H]**, entradas **PENDENTE** e as recomendações ainda abertas do §0.2 **não são normativos** até homologação formal de Fabrício. |
 | **Rodadas** | `COLLECTION-NORTH-STAR-01` (proposta, v0.1–0.2) → `COLLECTION-NORTH-STAR-02` (consolidação normativa, v1.0) → … → `COLLECTIONS-NORMATIVE-REALIGNMENT-01` (v1.5: NS-15–NS-18 e matriz de rastreabilidade §7) |
 | **Fontes** | `concept-decisions.md` (C-01–C-186), `logical-model.md`, `checkpoint-2026-08-28.md` §7, `checkpoint-2026-08-29.md`, `ux-exploration-2026-08-29.md`, `checkpoint-2026-10-15.md`, `05d-colecoes-e-usuarios.md`, `architecture/ubiquitous-language.md`, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13 |
@@ -217,11 +217,11 @@ Status: **HOMOLOGADO** (normativo) · **HOMOLOGADO COM RESSALVA** (normativo, co
 | N21 | Lock | **Fixar / Desafixar** | C-43 | HOMOLOGADO COM RESSALVA — fixa a **posição**; a mensagem nunca sugere que a carta fica presa (C-43) |
 | N22 | Expected Content | **Planejado para este bolso** | C-42 | HOMOLOGADO COM RESSALVA — nunca apresentado como faltante nem como parte do progresso (C-42) |
 | N23 | Bandeja | **Bandeja** | C-45 | HOMOLOGADO — comportamento estritamente conforme C-45 |
-| N24 | Storage Container | **Onde guardo** | D2 (K2-A); C-55 | HOMOLOGADO COM RESSALVA — tipos ("Fichário físico", "Caixa", "ETB") existem só conceitualmente (C-55, enum aberto); o modelo físico atual tem apenas `name` (`5020`). Até haver atributo de tipo, a UI mostra só o nome |
+| N24 | Storage Container | **Onde guardo** | D2 (K2-A); C-55 | HOMOLOGADO — classificação **opcional** por tipo de local, lista aberta e extensível (C-55): `storage_container_kind` + `storage_container.kind_code` no LIVE desde 2026-10-21 (WHERE-02, `5212`/`5213`) — Fichário físico, Caixa, Pasta, Deck box, ETB, Maleta, Cofre, Outro. Local sem tipo continua válido e é exibido só pelo nome. Ressalva anterior (tipo só conceitual) encerrada |
 | N25 | Default Storage Container / Physical Card sem Storage | Local: **Local padrão** (nome provisório, renomeável). Carta sem local: **Sem localização definida** | C-36, C-55, C-59, C-26 | HOMOLOGADO COM RESSALVA (NS-13) — confirmação obrigatória do lugar antes da primeira atribuição de carta; nunca destino automático |
 | N26 | Archive | **Arquivar / Arquivadas** | C-06, C-37 | HOMOLOGADO |
 
-Resultado: 18 homologados e 8 homologados com ressalva (inclusive N25, regida por NS-13). Nenhuma entrada pendente; nenhuma contraria `C-*`/`LDM-*`.
+Resultado: 19 homologados e 7 homologados com ressalva (inclusive N25, regida por NS-13; N24 deixou de ter ressalva em 2026-10-21, WHERE-02). Nenhuma entrada pendente; nenhuma contraria `C-*`/`LDM-*`.
 
 ### 3.2 K1 — resolvido por D2 (K1-A)
 
@@ -450,7 +450,7 @@ Legenda — Implementação: **LIVE** (backend no banco) · **FE-pub** (frontend
 | Capa do fichário (fechado) | NS-16; SKILL §6 (baseline 29/08) | `binder-cover-closed.tsx` (aprovado); `binder-cover.tsx` (evolução) | FE-local; LIVE `5171`–`5174` (cor persistida, logos legíveis) | dir. + paleta aprovada / pend. (acabamento, B2) | Homologação visual B2 |
 | Fichário aberto | NS-05; Fluxo 4; navegação explícita [D 28/08]; virada física rejeitada | `binder-nav-01` (hipóteses) | LIVE Layout `5104`–`5141`; — FE | n/a | Leitura do fichário com dados de carta; fora da base funcional |
 | Manipulação no fichário | C-41–C-46; N19–N23 | `binder-nav-01` (DnD, Tool Rail, Bandeja = [H]) | LIVE (RPCs de Layout); — FE | n/a | Homologação no Fluxo 4; K6; Bandeja conforme C-45 |
-| Organização física (Onde guardo / local dos exemplares) | C-55–C-66; C-26; NS-09, NS-13 | `collection-space` (superado) | LIVE `5020`–`5024`; — FE dedicado | n/a | Confirmação a cada atribuição ao local padrão |
+| Organização física (Onde guardo / local dos exemplares) | C-55–C-66; C-26; NS-09, NS-13 | `collection-space` (superado) | LIVE `5020`–`5024` e `5212`–`5219` (WHERE-02: tipos, criar/renomear/excluir local, contagens); — FE dedicado (pendente) | n/a | Confirmação a cada atribuição ao local padrão |
 
 ---
 
@@ -477,3 +477,4 @@ Legenda — Implementação: **LIVE** (backend no banco) · **FE-pub** (frontend
 | 1.14 | **Gerenciar a coleção (2026-10-18, `COLLECTION-MANAGEMENT-RECOVERY-01`).** §7, colunas informativas: "Ajustes — Onde guardo" passa a FE-local; linha nova "Tirar da coleção (um exemplar)". Nenhuma decisão normativa nova ou alterada. |
 | 1.15 | **`COLLECTION-MANAGEMENT-CLOSEOUT-01` (2026-10-18).** §7, colunas informativas: "Ajustes — Onde guardo" e "Tirar da coleção" passam a HOM (6/6 PASS); dependência da cascata do `5047` anotada. Nenhuma decisão normativa nova. |
 | 1.16 | **Master Set por acabamento (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`, aprovação de Fabrício).** N9: subtítulo "todas as variantes" substituído por "os acabamentos que você escolher" e referências atualizadas para C-187–C-190 / LDM-191–LDM-195 (o termo "Master Set" permanece). Nenhuma outra decisão normativa alterada; as linhas informativas da §7 sobre Master Set serão atualizadas quando os contratos forem executados. |
+| 1.17 | **N24 sem ressalva (2026-10-21, `WHERE-02-CANONICAL-PROMOTION-01`).** O tipo de local passa a existir fisicamente como classificação opcional e extensível (`5212`/`5213`, C-55 lista aberta); N24 vira HOMOLOGADO (contagem: 19 homologados, 7 com ressalva). §7, colunas informativas: "Organização física" com `5212`–`5219` no LIVE e FE pendente. NS-13, NS-15 e N25 inalteradas. Nenhuma `C-*`/`LDM-*` alterada. |

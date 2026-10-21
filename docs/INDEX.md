@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.32 |
+| **Versão** | 2.33 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -55,7 +55,7 @@ Documentos físicos/SQL por área (divisão de 2026-08-06):
 | [`05a-catalogo-base.md`](05a-catalogo-base.md) | Física do catálogo-base (Game, Expansion, Card Set, idiomas, bootstrap histórico). |
 | [`05b-cartas-e-raridade.md`](05b-cartas-e-raridade.md) | Física de Card, raridade e Card Variant (governança, importação de variantes, convergência editorial). |
 | [`05c-assets-e-importacao.md`](05c-assets-e-importacao.md) | Física de Card Asset e do pipeline de importação de imagens. |
-| [`05d-colecoes-e-usuarios.md`](05d-colecoes-e-usuarios.md) | Física de usuários e de Collections — fonte prevalente do estado físico de Collection (01B–02F, Pokédex A–E, Binder/Layout, BULK-01 a 04, Meu acervo `5159`–`5165`, Minhas coleções `5166`–`5170`, Coleção livre `5175`, capa enviada `5176`–`5178`, código opcional `5179`–`5180` e ordem da Biblioteca `5181`–`5183`; Pokédex do colecionador `5201`–`5205` e vínculo de cartas `PKX-03` `5208`–`5211`; matriz de homologação do `COLLECTIONS-CHECKPOINT-02`; gerenciar a coleção — Ajustes e Tirar da coleção, homologado). |
+| [`05d-colecoes-e-usuarios.md`](05d-colecoes-e-usuarios.md) | Física de usuários e de Collections — fonte prevalente do estado físico de Collection (01B–02F, Pokédex A–E, Binder/Layout, BULK-01 a 04, Meu acervo `5159`–`5165`, Minhas coleções `5166`–`5170`, Coleção livre `5175`, capa enviada `5176`–`5178`, código opcional `5179`–`5180` e ordem da Biblioteca `5181`–`5183`; Pokédex do colecionador `5201`–`5205` e vínculo de cartas `PKX-03` `5208`–`5211`; Meus locais — gestão de locais físicos `WHERE-02` `5212`–`5219`; matriz de homologação do `COLLECTIONS-CHECKPOINT-02`; gerenciar a coleção — Ajustes e Tirar da coleção, homologado). |
 | [`05e-catalogo-editorial.md`](05e-catalogo-editorial.md) | Física do Catálogo Editorial administrativo (escrita, ingestão, Módulo Gerencial). |
 | [`05f-pricing.md`](05f-pricing.md) | Modelo lógico e físico do domínio Pricing. |
 
@@ -328,3 +328,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 2.30 | **`PKX-01 LIVE EXECUTION GATE-01` (2026-10-19).** `5201`–`5205` no LIVE e canônicas em `database/schema/` (`5844` 37/37); entrada do `05d` cita a Pokédex do colecionador. |
 | 2.31 | **`POKEDEX-COVER-CUSTOMIZATION-01` (2026-10-19).** Proposta nova `database/proposals/2026-10-19-pokedex-cover-customization/` (`5206`/`5207`, harness `5845`; não executadas). |
 | 2.32 | **`POKEDEX-PKX-03-IMPLEMENTATION-01` (2026-10-19).** Proposta nova `database/proposals/2026-10-19-pokedex-pkx-03/` (`5208`–`5211`, harness `5846`; não executadas); resumo de `05d` atualizado. |
+| 2.33 | **`WHERE-02-CANONICAL-PROMOTION-01` (2026-10-21).** `5212`–`5219` executadas no LIVE e promovidas para `database/schema/` (proposta `database/proposals/2026-10-20-where-02-storage-locations/`, harness `5847` 26/26); resumo de `05d` atualizado. |
