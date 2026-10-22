@@ -391,7 +391,11 @@ export function normalizeCollectionName(raw: string): string | null {
 // Regra D-A (local) — decisão de interface espelhando CT-01
 // ---------------------------------------------------------------------------
 
-export type StorageOption = { id: string; name: string };
+/**
+ * Um local do próprio acervo. `kindCode` (5212, opcional) só serve para falar
+ * do local em linguagem natural ("neste fichário") — WHERE-05A.
+ */
+export type StorageOption = { id: string; name: string; kindCode?: string | null };
 
 /**
  * D-A (Fabrício, 2026-10-17): sem nenhum local, CT-01 cria "Local padrão" e a

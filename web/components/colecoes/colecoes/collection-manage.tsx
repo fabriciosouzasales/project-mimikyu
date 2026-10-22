@@ -3,7 +3,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useId, useRef, useState, useTransition } from "react";
-import { CheckCircle2, Layers, Loader2, Settings2, X } from "lucide-react";
+import { CheckCircle2, FolderInput, Layers, Loader2, Settings2, X } from "lucide-react";
 import {
   type CardCopiesQuery,
   readCardCopiesInCollection,
@@ -29,11 +29,13 @@ import {
   totalCopies,
   withoutCopy,
 } from "@/lib/colecoes/collection-manage";
+import { type ProposalOrigin, laterActionLabel } from "@/lib/colecoes/collection-organize";
 import { MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
 import { CardArt } from "../acervo/card-art";
 import { IdentityCoverImage, IdentityNameForm } from "./collection-identity-settings";
 import { CoverFinishPicker } from "./cover-finish-picker";
 import { CollectionObjectiveSection } from "./collection-objective";
+import { OrganizeStorageFlow } from "./collection-organize";
 import { PokedexGenerationsSection } from "./pokedex-generations";
 import acervoStyles from "../acervo/acervo.module.css";
 import addStyles from "../acervo/acervo-add.module.css";
@@ -460,6 +462,10 @@ function SettingsPanel({
   const [nameBusy, setNameBusy] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
+  // WHERE-05A: organização física em lote, sempre por escolha explícita (nunca ao salvar o padrão).
+  const [organize, setOrganize] = useState<{ origin: ProposalOrigin; key: number } | null>(null);
+  const [organizeBusy, setOrganizeBusy] = useState(false);
+  const [destinationNotice, setDestinationNotice] = useState<string | null>(null);
   const [, startRefresh] = useTransition();
 
   const load = useCallback(() => setAttempt((n) => n + 1), []);
@@ -485,7 +491,8 @@ function SettingsPanel({
 
   const current = storage.status === "ready" ? storage.current : null;
   const locations = storage.status === "ready" ? storage.locations : [];
-  const currentName = locations.find((location) => location.id === current)?.name ?? null;
+  const currentLocation = locations.find((location) => location.id === current) ?? null;
+  const currentName = currentLocation?.name ?? null;
   const dirty = storage.status === "ready" && choice !== "" && choice !== current;
 
   const save = async () => {
@@ -504,13 +511,16 @@ function SettingsPanel({
     }
     setStorage({ status: "ready", current: result.storageId, locations });
     setSaved(locations.find((location) => location.id === result.storageId)?.name ?? "o local escolhido");
+    setDestinationNotice(null);
+    // A preferência já está salva; só agora o fluxo pergunta se o colecionador quer organizar.
+    setOrganize({ origin: "after_save", key: Date.now() });
     startRefresh(() => router.refresh());
   };
 
   const isFree = kind === "free";
   const isPokedex = kind === "pokedex";
   // Fechar o painel no meio de uma gravação deixaria o resultado sem feedback.
-  const locked = saving || objectiveBusy || nameBusy || imageBusy || finishBusy;
+  const locked = saving || objectiveBusy || nameBusy || imageBusy || finishBusy || organizeBusy;
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && !locked && onClose()}>
@@ -600,11 +610,13 @@ function SettingsPanel({
                       id={selectId}
                       value={choice}
                       aria-describedby={helpId}
-                      disabled={saving}
+                      disabled={saving || organizeBusy}
                       onChange={(event) => {
                         setChoice(event.target.value);
                         setSaved(null);
                         setSaveError(null);
+                        setDestinationNotice(null);
+                        setOrganize(null);
                       }}
                     >
                       {current === null ? <option value="">Escolha um local</option> : null}
@@ -614,7 +626,7 @@ function SettingsPanel({
                         </option>
                       ))}
                     </Select>
-                    <Button type="submit" className="min-h-11" disabled={!dirty || saving}>
+                    <Button type="submit" className="min-h-11" disabled={!dirty || saving || organizeBusy}>
                       {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
                       {saving ? "Salvando…" : "Salvar"}
                     </Button>
@@ -628,9 +640,45 @@ function SettingsPanel({
                       </InlineFeedback>
                     ) : null}
                     {saveError ? <InlineFeedback tone="error">{storageFailureText(saveError)}</InlineFeedback> : null}
+                    {destinationNotice ? <InlineFeedback tone="warning">{destinationNotice}</InlineFeedback> : null}
                   </div>
                 </form>
               )}
+              {storage.status === "ready" && currentLocation && !dirty ? (
+                organize ? (
+                  <OrganizeStorageFlow
+                    key={organize.key}
+                    collectionId={collectionId}
+                    collectionName={collectionName}
+                    target={{ id: currentLocation.id, name: currentLocation.name, kindCode: currentLocation.kindCode ?? null }}
+                    origin={organize.origin}
+                    onBusyChange={setOrganizeBusy}
+                    onDismiss={() => {
+                      setOrganizeBusy(false);
+                      setOrganize(null);
+                    }}
+                    onDefaultChanged={(message) => {
+                      setOrganizeBusy(false);
+                      setOrganize(null);
+                      setSaved(null);
+                      setDestinationNotice(message);
+                      load();
+                    }}
+                  />
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="min-h-11 self-start"
+                    onClick={() => {
+                      setDestinationNotice(null);
+                      setOrganize({ origin: "later", key: Date.now() });
+                    }}
+                  >
+                    <FolderInput className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    {laterActionLabel(currentLocation.kindCode)}
+                  </Button>
+                )
+              ) : null}
             </section>
 
             {isPokedex ? null : (

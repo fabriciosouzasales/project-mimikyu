@@ -348,14 +348,18 @@ export async function getMyStorageLocations(supabase: SupabaseClient): Promise<S
   const startedAt = Date.now();
   const { data, error } = await supabase
     .from("storage_container")
-    .select("id, name")
+    .select("id, name, kind_code")
     .order("created_at", { ascending: true })
     .limit(200);
   if (error || !Array.isArray(data)) {
     logReadFailure("storage_container", startedAt, error);
     return null;
   }
-  return (data as { id: string; name: string }[]).map((row) => ({ id: row.id, name: row.name }));
+  return (data as { id: string; name: string; kind_code: string | null }[]).map((row) => ({
+    id: row.id,
+    name: row.name,
+    kindCode: typeof row.kind_code === "string" ? row.kind_code : null,
+  }));
 }
 
 export function logReadFailure(fn: string, startedAt: number, error: { code?: string; message?: string } | null) {

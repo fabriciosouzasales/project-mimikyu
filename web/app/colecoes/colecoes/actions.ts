@@ -24,6 +24,15 @@ import {
   type StorageOption,
 } from "@/lib/colecoes/colecoes";
 import { COLLECTION_MANAGE_ENABLED, type CopyGroup, copiesInCollection, sameCollectorNumber } from "@/lib/colecoes/collection-manage";
+import {
+  type OrganizeFailure,
+  type OrganizeMode,
+  type OrganizePlan,
+  PLAN_TOKEN,
+  classifyOrganizeFailure,
+  parseOrganizePlan,
+} from "@/lib/colecoes/collection-organize";
+import { LOCAIS_PATH } from "@/lib/colecoes/storage-locations";
 import { getMyPokedexPositions, getMyStorageLocations, getPokedexGenerationOptions } from "@/lib/colecoes/colecoes-queries";
 import { getAcervoFilterOptions, getAcervoItems } from "@/lib/colecoes/acervo-queries";
 import {
@@ -955,6 +964,96 @@ export async function setCollectionStorage(input: {
   console.info(JSON.stringify({ scope: "colecoes.default_storage", ms: Date.now() - startedAt }));
   revalidatePath(COLECOES_PATH, "layout");
   return { ok: true, storageId: row.default_storage_container_id };
+}
+
+// ---------------------------------------------------------------------------
+// Ajustes → Onde guardo → Organizar cartas neste local (WHERE-05A, 5221/5222)
+// ---------------------------------------------------------------------------
+
+type OrganizeFail = { ok: false; reason: OrganizeFailure };
+
+function organizeFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): OrganizeFail {
+  const reason = classifyOrganizeFailure(error?.code, error?.message);
+  // Sem dados do usuário: só função, duração, código e a classe do erro.
+  console.error(JSON.stringify({ scope: "colecoes.organize", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+/**
+ * Prévia da organização física (5221, só leitura): contagens dos exemplares
+ * ALOCADOS à coleção em relação ao destino e o `plan_token` que a 5222 exige.
+ * Nada é movido. Coleção/local alheio ou inexistente → `not_found` (o banco
+ * não distingue).
+ */
+export async function readCollectionStoragePlan(input: {
+  collectionId: string;
+  storageContainerId: string;
+}): Promise<{ ok: true; plan: OrganizePlan } | OrganizeFail> {
+  if (!COLLECTION_MANAGE_ENABLED) return { ok: false, reason: "unknown" };
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.storageContainerId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_collection_storage_plan", {
+    p_collection_id: input.collectionId,
+    p_storage_container_id: input.storageContainerId,
+  });
+  if (error) return organizeFail("get_my_collection_storage_plan", startedAt, error);
+  const plan = Array.isArray(data) && data.length === 1 ? parseOrganizePlan(data[0]) : null;
+  if (!plan) return organizeFail("get_my_collection_storage_plan", startedAt, { code: "BAD_SHAPE" });
+  console.info(JSON.stringify({ scope: "colecoes.organize_plan", ms: Date.now() - startedAt, total: plan.totalCount }));
+  return { ok: true, plan };
+}
+
+/**
+ * Organiza fisicamente, numa transação só, os exemplares da coleção no local
+ * padrão (5222). Envia exatamente a modalidade, a quantidade e o `plan_token`
+ * que o colecionador viu e confirmou; o banco recalcula sob trava e recusa
+ * (`PLAN_CHANGED`) se algo mudou. Nenhuma lista de exemplares sai do
+ * navegador e nada é dividido em lotes. `moved` é o número DEVOLVIDO pelo
+ * banco.
+ */
+export async function organizeCollectionStorage(input: {
+  collectionId: string;
+  storageContainerId: string;
+  mode: OrganizeMode;
+  expectedCount: number;
+  planToken: string;
+}): Promise<{ ok: true; moved: number; total: number; atTarget: number } | OrganizeFail> {
+  if (!COLLECTION_MANAGE_ENABLED) return { ok: false, reason: "unknown" };
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !isUuid(input.storageContainerId) ||
+    (input.mode !== "UNLOCATED" && input.mode !== "ALL") ||
+    !Number.isInteger(input.expectedCount) ||
+    input.expectedCount < 1 ||
+    typeof input.planToken !== "string" ||
+    !PLAN_TOKEN.test(input.planToken)
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("organize_my_collection_storage", {
+    p_collection_id: input.collectionId,
+    p_storage_container_id: input.storageContainerId,
+    p_mode: input.mode,
+    p_expected_count: input.expectedCount,
+    p_plan_token: input.planToken,
+  });
+  if (error) return organizeFail("organize_my_collection_storage", startedAt, error);
+  const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : undefined;
+  const moved = Number(row?.moved_count);
+  const total = Number(row?.total_count);
+  const atTarget = Number(row?.at_target_count);
+  if (!row || ![moved, total, atTarget].every((n) => Number.isInteger(n) && n >= 0)) {
+    // Sem forma reconhecível: o resultado é desconhecido — a interface reconsulta a prévia.
+    return organizeFail("organize_my_collection_storage", startedAt, { code: "BAD_SHAPE" });
+  }
+  console.info(JSON.stringify({ scope: "colecoes.organize", ms: Date.now() - startedAt, mode: input.mode, moved }));
+  revalidatePath(COLECOES_PATH, "layout");
+  revalidatePath(ACERVO_PATH);
+  revalidatePath(LOCAIS_PATH);
+  return { ok: true, moved, total, atTarget };
 }
 
 // ---------------------------------------------------------------------------
