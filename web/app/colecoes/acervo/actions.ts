@@ -21,6 +21,15 @@ import {
 } from "@/lib/colecoes/acervo-add";
 import { COLECOES_PATH } from "@/lib/colecoes/colecoes";
 import { type CopyStorageFailure, copyStorageFailureFromError, normalizeStorageBatch } from "@/lib/colecoes/copy-storage";
+import { MOVE_COPIES_MAX, type MoveFailure, normalizeMoveKeys, scopeFromSignature } from "@/lib/colecoes/acervo-move";
+import {
+  type ExecuteResult,
+  type MoveClient,
+  type MovePreview,
+  type MoveRequest,
+  executeMove,
+  resolveMoveSet,
+} from "@/lib/colecoes/acervo-move-queries";
 import { LOCAIS_PATH } from "@/lib/colecoes/storage-locations";
 import { createClient } from "@/lib/supabase/server";
 
@@ -300,4 +309,94 @@ export async function setMyCopiesStorage(input: {
   revalidatePath(LOCAIS_PATH);
   revalidatePath(COLECOES_PATH, "layout");
   return { ok: true, updated: data.length, storageContainerId: target };
+}
+
+// ---------------------------------------------------------------------------
+// WHERE-05B — mover exemplares em lote a partir da galeria (5024, sem RPC nova)
+// ---------------------------------------------------------------------------
+
+/**
+ * O navegador envia só CHAVES de item (`<variante>.<idioma>`), o escopo
+ * canônico da galeria e o destino — nunca ids de exemplar. O servidor resolve
+ * os exemplares com a sessão do usuário (RLS + inventário do chamador),
+ * reproduzindo os filtros por exemplar da 5220, com leituras completas
+ * (`count: 'exact'` + paginação) e teto de 500 (fail-closed `too_large`).
+ * Ver `lib/colecoes/acervo-move.ts` e `acervo-move-queries.ts`.
+ */
+type MoveInput = { keys: string[]; scope: string; target: string | null };
+
+function parseMoveInput(input: MoveInput): MoveRequest | null {
+  const keys = normalizeMoveKeys(input?.keys);
+  const scope = scopeFromSignature(input?.scope);
+  const target = input?.target ?? null;
+  if (!keys || !scope || (target !== null && !isUuid(target))) return null;
+  return { keys, scope, scopeSignature: input.scope, target: target === null ? null : target.toLowerCase() };
+}
+
+// O cliente do servidor é um SupabaseClient completo; `MoveClient` descreve só
+// a superfície usada (from/select/eq/is/in/or/order/range/limit, rpc, auth).
+async function moveClient(): Promise<MoveClient> {
+  return (await createClient()) as unknown as MoveClient;
+}
+
+/** Prévia: resolve o conjunto e devolve contagens + token. Não grava nada. */
+export async function previewMyCopiesMove(input: MoveInput): Promise<{ ok: true; preview: MovePreview } | { ok: false; reason: MoveFailure }> {
+  const request = parseMoveInput(input);
+  if (!request) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const result = await resolveMoveSet(await moveClient(), request);
+  console.info(
+    JSON.stringify({
+      scope: "acervo.move",
+      step: "preview",
+      ms: Date.now() - startedAt,
+      keys: request.keys.length,
+      outcome: result.ok ? "OK" : result.reason,
+      total: result.ok ? result.preview.total : null,
+      unresolved: result.ok ? result.preview.unresolvedKeys.length : null,
+    }),
+  );
+  return result.ok ? { ok: true, preview: result.preview } : result;
+}
+
+/**
+ * Confirmação: revalida (token + quantidade confirmada) e faz UMA chamada à
+ * 5024. Nunca repete a escrita sozinha; resultado sem resposta → `unknown`.
+ */
+export async function moveMyCopies(input: MoveInput & { planToken: string; expectedCount: number }): Promise<ExecuteResult> {
+  const request = parseMoveInput(input);
+  const token = input?.planToken;
+  const expected = input?.expectedCount;
+  if (
+    !request ||
+    typeof token !== "string" ||
+    !/^v1:[0-9a-f]{64}$/.test(token) ||
+    !Number.isInteger(expected) ||
+    expected < 0 ||
+    expected > MOVE_COPIES_MAX
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const result = await executeMove(await moveClient(), { ...request, planToken: token, expectedCount: expected });
+  // Sem dados do usuário: só duração, contagens e a classe do resultado.
+  console.info(
+    JSON.stringify({
+      scope: "acervo.move",
+      step: "confirm",
+      ms: Date.now() - startedAt,
+      keys: request.keys.length,
+      expected,
+      outcome: result.ok ? "OK" : result.reason,
+      updated: result.ok ? result.updated : null,
+      clear: request.target === null,
+    }),
+  );
+  if (result.ok || result.reason === "unknown" || result.reason === "plan_changed" || result.reason === "storage_gone") {
+    // Sucesso ou incerteza: as leituras do acervo, de Meus locais e das coleções podem ter mudado.
+    revalidatePath(ACERVO_PATH);
+    revalidatePath(LOCAIS_PATH);
+    revalidatePath(COLECOES_PATH, "layout");
+  }
+  return result;
 }

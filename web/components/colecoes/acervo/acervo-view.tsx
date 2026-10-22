@@ -7,6 +7,7 @@ import {
   acervoHref,
   cardFrontUrl,
   formatCollectorNumber,
+  formatItemKey,
   formatCount,
   hasActiveFilters,
   pluralize,
@@ -19,6 +20,7 @@ import {
   withoutDetail,
 } from "@/lib/colecoes/acervo";
 import type { AddLanguage } from "@/lib/colecoes/acervo-add";
+import { scopeOf, scopeSignature } from "@/lib/colecoes/acervo-move";
 import type { CopyStorageContext } from "@/lib/colecoes/storage-locations-queries";
 import {
   type StorageEmptyReason,
@@ -38,12 +40,14 @@ import type {
 } from "@/lib/colecoes/acervo-queries";
 import { AcervoAddActions } from "./acervo-add";
 import { AcervoDetailSheet } from "./acervo-detail-sheet";
+import { AcervoSelectionBar, AcervoSelectionProvider, AcervoSelectionToggle, AcervoTileShell } from "./acervo-selection";
 import { AcervoToolbar } from "./acervo-toolbar";
 import { CardArt } from "./card-art";
 import { CopyQuantityControl } from "./copy-quantity-control";
 import { CopyStorageList } from "./copy-storage-list";
 import regionStyles from "../colecoes/library-modes.module.css";
 import styles from "./acervo.module.css";
+import selectionStyles from "./acervo-selection.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
@@ -101,8 +105,15 @@ export function AcervoView({
   const closeHref = acervoHref(withoutDetail(state));
   const storageStatus = storageFilterStatus(state.storage, locations);
   const storageKind = state.storage.kind === "all" ? null : state.storage.kind;
+  // WHERE-05B: cartas desta página para o modo seleção (cópias = recorte atual, indicativo).
+  const pageItems = (page?.items ?? []).map((item) => ({
+    key: formatItemKey(item),
+    name: item.cardName,
+    copies: item.copiesCount,
+  }));
 
   return (
+    <AcervoSelectionProvider scope={scopeSignature(scopeOf(state))} pageItems={pageItems} locations={locations}>
     <div className={styles.root}>
       <header className={styles.hero}>
         <div className={styles.stageGlow} aria-hidden="true" />
@@ -158,9 +169,12 @@ export function AcervoView({
             ) : null}
             {page.items.length > 0 ? (
               // Contagem junto da galeria, fora da barra de controles (UX CORRECTION-01).
-              <p className={styles.resultCount} aria-live="polite">
-                {filtered ? resultSummary(page.totalGroups) : pluralize(summary.totalCopies, "carta", "cartas")}
-              </p>
+              <div className={selectionStyles.resultRow}>
+                <p className={styles.resultCount} aria-live="polite">
+                  {filtered ? resultSummary(page.totalGroups) : pluralize(summary.totalCopies, "carta", "cartas")}
+                </p>
+                <AcervoSelectionToggle />
+              </div>
             ) : null}
 
             {page.items.length === 0 ? (
@@ -184,6 +198,7 @@ export function AcervoView({
                   ))}
                 </ul>
                 {pages > 1 ? <Pagination state={state} pages={pages} /> : null}
+                <AcervoSelectionBar />
               </>
             )}
           </>
@@ -208,6 +223,7 @@ export function AcervoView({
         </AcervoDetailSheet>
       ) : null}
     </div>
+    </AcervoSelectionProvider>
   );
 }
 
@@ -306,11 +322,13 @@ function AcervoTile({
     .join(", ");
 
   return (
-    <Link
+    // WHERE-05B: fora do modo seleção, AcervoTileShell devolve o mesmo <Link> de sempre.
+    <AcervoTileShell
       href={acervoHref({ ...state, detail: { cardVariantId: item.cardVariantId, languageCode: item.languageCode } })}
-      scroll={false}
-      className={styles.tile}
-      aria-label={accessibleName}
+      ariaLabel={accessibleName}
+      itemKey={formatItemKey(item)}
+      name={item.cardName}
+      copies={item.copiesCount}
     >
       <div className={copies > 1 ? `${styles.artWrap} ${styles.stack}` : styles.artWrap}>
         <div className={styles.art}>
@@ -342,7 +360,7 @@ function AcervoTile({
           </div>
         ) : null}
       </div>
-    </Link>
+    </AcervoTileShell>
   );
 }
 
