@@ -448,6 +448,7 @@ export async function browseAcervoForCollection(input: {
       setCode: input.setCode,
       languageCode: null,
       collection: input.availableOnly ? { kind: "none" } : { kind: "all" },
+      storage: { kind: "all" }, // WHERE-04: sem filtro de local (visão integral)
       sort: "recentes",
       page: input.page,
       detail: null,
@@ -543,6 +544,7 @@ export async function collectAvailableCopies(input: {
       setCode: input.setCode,
       languageCode: null,
       collection: { kind: "none" },
+      storage: { kind: "all" }, // WHERE-04: sem filtro de local (visão integral)
       sort: "recentes",
       page,
       detail: null,

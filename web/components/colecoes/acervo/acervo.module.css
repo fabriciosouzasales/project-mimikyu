@@ -210,15 +210,19 @@
   color: hsl(var(--muted-foreground) / 0.75);
 }
 
-/* ---- barra de ferramentas ---- */
+/* ---- barra de ferramentas ----
+ * WHERE-04 FRONTEND UX CORRECTION-01: uma única linha no desktop, na ordem
+ * Busca | Set | Idioma | Coleção | Localização | Ordenação, sem quebra. A barra
+ * é um container: quando a largura útil não comporta os seis controles, os
+ * filtros recolhem no botão "Filtros" (mesmo padrão do celular) em vez de
+ * empurrar controles para uma segunda linha. A contagem saiu da barra e fica
+ * junto da galeria (.resultCount). Altura única de 2.25rem (h-9) em tudo.
+ */
 .toolbar {
   position: sticky;
   top: -1.5rem; /* compensa o p-6 do <main> do AppShell */
   z-index: 5;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.625rem;
+  container: acervo-toolbar / inline-size;
   /* A faixa fixa continua de borda a borda do <main>, atravessando o respiro. */
   margin: 1rem calc(-1.5rem - var(--acervo-gutter)) 0;
   padding: 0.75rem calc(1.5rem + var(--acervo-gutter));
@@ -226,56 +230,150 @@
   border-bottom: 1px solid hsl(var(--border) / 0.7);
 }
 
+.controls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+/* A busca recebe proporcionalmente mais espaço. */
 .search {
-  flex: 1 1 14rem;
-  max-width: 24rem;
+  flex: 2.2 1 15rem;
+  min-width: 12rem;
 }
 
 .filterGroup {
   display: contents;
 }
 
+/* Os quatro filtros: larguras compactas e iguais (cresce/encolhe juntos). */
+.filterGroup > div {
+  flex: 1 1 9.5rem;
+  min-width: 7.5rem;
+  max-width: 12.5rem;
+}
+
+/* Campo fechado trunca o valor longo (ex.: nome do local); as opções mostram tudo. */
 .filterSelect {
-  width: auto;
-  min-width: 9rem;
-  max-width: 14rem;
-}
-
-.grow {
-  flex: 1;
-}
-
-.count {
-  font-size: 0.75rem;
-  color: hsl(var(--muted-foreground));
-  font-variant-numeric: tabular-nums;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .filtersButton {
   display: none;
+  flex: none;
 }
 
-/* Ordenação: separada dos filtros por um divisor e com rótulo visível. */
+/* Ordenação: ponta direita, ícone dentro do campo, rótulo só para leitores de tela. */
 .sortGroup {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-left: 0.875rem;
-  border-left: 1px solid hsl(var(--border) / 0.8);
+  position: relative;
+  flex: none;
+  margin-left: auto;
 }
 
-.sortLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  white-space: nowrap;
+.sortIcon {
+  position: absolute;
+  top: 50%;
+  left: 0.75rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  transform: translateY(-50%);
   color: hsl(var(--muted-foreground));
+  pointer-events: none;
 }
 
 .sortSelect {
-  width: auto;
-  min-width: 9.5rem;
+  width: 10.5rem;
+  padding-left: 2.125rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Largura insuficiente para os seis controles: filtros recolhidos. */
+@container acervo-toolbar (max-width: 60rem) {
+  .controls {
+    flex-wrap: wrap;
+  }
+
+  .search {
+    flex: 1 1 12rem;
+  }
+
+  .filtersButton {
+    display: inline-flex;
+  }
+
+  .filterGroup {
+    display: none;
+  }
+
+  .filterGroup[data-open="true"] {
+    display: grid;
+    order: 10;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .filterGroup[data-open="true"] > div {
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+@container acervo-toolbar (max-width: 36rem) {
+  .filterGroup[data-open="true"] {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sortGroup {
+    order: 5;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .sortSelect {
+    width: 100%;
+  }
+}
+
+/* ---- área de trabalho dentro da região editorial (library-modes .region) ----
+ * A divisão cabeçalho → área de trabalho é o fio + marca dourada da região;
+ * a barra encosta nele (sem segunda linha embaixo) e continua fixa ao rolar,
+ * com fundo opaco no mesmo tom do topo da região e só uma sombra suave. */
+.workspace .toolbar {
+  margin: calc(-1.75rem + 1px) calc(-1.5rem - var(--acervo-gutter)) 0;
+  padding-inline: calc(1.5rem + var(--acervo-gutter));
+  border-bottom: 0;
+  background: hsl(var(--surface));
+  box-shadow: 0 12px 16px -16px hsl(var(--foreground) / 0.35);
+}
+
+:global(.dark) .workspace .toolbar {
+  background:
+    linear-gradient(hsl(var(--surface) / 0.7), hsl(var(--surface) / 0.7)),
+    hsl(var(--background));
+  box-shadow: 0 12px 18px -16px hsl(0 0% 0% / 0.9);
+}
+
+.workspace > .emptyStage {
+  margin-top: 0;
+}
+
+.workspace > .state {
+  margin-top: 1rem;
+}
+
+/* Contagem de resultados junto da galeria (fora da barra de controles). */
+.resultCount {
+  margin-top: 0.875rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
 }
 
 .chips {
@@ -500,6 +598,32 @@
   border: 1px solid hsl(var(--border));
 }
 
+/* ---- WHERE-04: escopo do filtro de localização física ----
+ * Frase do total de exemplares em todas as páginas (total_copies), logo abaixo
+ * dos chips; visível também no celular, onde a contagem da barra fica oculta. */
+.scopeNote {
+  margin-top: 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* "2 aqui · 5 no total" sob o nome da carta — informação, não destaque:
+ * sem dourado; ganha contraste só quando o local guarda parte das cópias. */
+.storageMatch {
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.storageMatch[data-partial] {
+  color: hsl(var(--foreground) / 0.85);
+}
+
 /* ---- paginação ---- */
 .pagination {
   display: flex;
@@ -538,6 +662,13 @@
 
 .stateAction {
   margin-top: 1.375rem;
+}
+
+.stateActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.5rem;
 }
 
 /* ---- estado vazio (acervo novo) ----
@@ -1186,45 +1317,7 @@
     padding: 0.625rem 1rem;
   }
 
-  .search {
-    max-width: none;
-  }
-
-  .filtersButton {
-    display: inline-flex;
-  }
-
-  /* No mobile os filtros abrem sob o botão "Filtros" (mesmos controles). */
-  .filterGroup {
-    display: none;
-  }
-
-  .filterGroup[data-open="true"] {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-    width: 100%;
-  }
-
-  .filterGroup[data-open="true"] .filterSelect {
-    max-width: none;
-    width: 100%;
-  }
-
-  .grow,
-  .count {
-    display: none;
-  }
-
-  .sortGroup {
-    width: 100%;
-    padding-left: 0;
-    border-left: 0;
-  }
-
-  .sortSelect {
-    flex: 1;
-  }
+  /* Filtros recolhidos e ordenação em linha própria: container queries de .toolbar. */
 
   /* Duas colunas a 390 px, três num celular deitado — ainda por largura. */
   .grid {

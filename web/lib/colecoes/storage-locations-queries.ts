@@ -74,6 +74,24 @@ function logRead(fn: string, startedAt: number, error: { code?: string; message?
 }
 
 /**
+ * WHERE-04 — locais do usuário para o filtro "Localização física" do Meu
+ * acervo (5219, mesmos nomes e contagens de "Meus locais"; nada duplicado no
+ * frontend). Falha → `null`: o filtro continua com "Todos os locais" e
+ * "Sem localização definida", e a página explica que a lista não carregou.
+ * Uma única chamada por renderização: o detalhe (WHERE-03) reaproveita esta
+ * mesma leitura em vez de repetir a 5219.
+ */
+export async function getMyStorageLocations(supabase: SupabaseClient): Promise<StorageLocation[] | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_storage_locations");
+  if (error || !Array.isArray(data)) {
+    logRead("get_my_storage_locations", startedAt, error ?? { code: "NO_DATA" });
+    return null;
+  }
+  return (data as Record<string, unknown>[]).map(toStorageLocation).filter((l): l is StorageLocation => l !== null);
+}
+
+/**
  * WHERE-03 — contexto de localização do detalhe de uma carta no Meu acervo.
  *
  * - local corrente de cada exemplar desta variante (`physical_card`, RLS
@@ -96,21 +114,21 @@ export type CopyStorageContext = {
 export async function getCopyStorageContext(
   supabase: SupabaseClient,
   cardVariantId: string,
+  /** Leitura da 5219 já em andamento na página (WHERE-04) — evita repetir a chamada. */
+  locationsRead: Promise<StorageLocation[] | null> = getMyStorageLocations(supabase),
 ): Promise<CopyStorageContext | null> {
   const startedAt = Date.now();
   const [copies, locations, collections] = await Promise.all([
     supabase.from("physical_card").select("id, storage_container_id").eq("card_variant_id", cardVariantId).limit(5000),
-    supabase.rpc("get_my_storage_locations"),
+    locationsRead,
     supabase.from("collection").select("id, default_storage_container_id").limit(1000),
   ]);
   if (copies.error || !Array.isArray(copies.data)) {
     logRead("physical_card.storage", startedAt, copies.error ?? { code: "NO_DATA" });
     return null;
   }
-  if (locations.error || !Array.isArray(locations.data)) {
-    logRead("get_my_storage_locations", startedAt, locations.error ?? { code: "NO_DATA" });
-    return null;
-  }
+  // Falha da 5219 já registrada em getMyStorageLocations.
+  if (locations === null) return null;
   const storageByCopy: Record<string, string | null> = {};
   for (const row of copies.data as { id: string; storage_container_id: string | null }[]) {
     storageByCopy[row.id] = typeof row.storage_container_id === "string" ? row.storage_container_id : null;
@@ -126,7 +144,7 @@ export async function getCopyStorageContext(
   }
   return {
     storageByCopy,
-    locations: (locations.data as Record<string, unknown>[]).map(toStorageLocation).filter((l): l is StorageLocation => l !== null),
+    locations,
     collectionDefaults,
   };
 }

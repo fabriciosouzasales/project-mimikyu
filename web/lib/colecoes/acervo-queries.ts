@@ -31,12 +31,20 @@ export type AcervoItem = {
   cardSetName: string;
   isDefaultVariant: boolean;
   variantLabel: string | null;
+  /** Exemplares do item que atendem aos filtros por exemplar (5220 `copies_count`). */
   copiesCount: number;
+  /** Todos os exemplares do item no acervo, sem filtro algum (5220 `copies_owned`). */
+  copiesOwned: number;
   lastAddedAt: string;
   imagePath: string | null;
 };
 
-export type AcervoItemsPage = { items: AcervoItem[]; totalGroups: number };
+/**
+ * Página da galeria. `totalGroups` = itens distintos que atendem aos filtros
+ * (`total_count`, paginação); `totalCopies` = exemplares correspondentes em
+ * TODAS as páginas (`total_copies`, 5220) — nunca a soma desta página.
+ */
+export type AcervoItemsPage = { items: AcervoItem[]; totalGroups: number; totalCopies: number };
 
 export type AcervoFilterOption = { value: string; label: string; count: number };
 
@@ -57,7 +65,7 @@ export type AcervoCopy = {
 };
 
 export type AcervoItemDetail = {
-  item: Omit<AcervoItem, "copiesCount" | "lastAddedAt">;
+  item: Omit<AcervoItem, "copiesCount" | "copiesOwned" | "lastAddedAt">;
   copiesTotal: number;
   copies: AcervoCopy[];
 };
@@ -92,12 +100,17 @@ type ItemRow = {
   is_default_variant: boolean;
   variant_label: string | null;
   copies_count: number;
+  copies_owned: number;
   last_added_at: string;
   image_path: string | null;
   total_count: number | string;
+  total_copies: number | string;
 };
 
-function toItem(row: Omit<ItemRow, "copies_count" | "last_added_at" | "total_count"> & { copies_count?: number; last_added_at?: string }): AcervoItem {
+type ItemCore = Omit<ItemRow, "copies_count" | "copies_owned" | "last_added_at" | "total_count" | "total_copies">;
+
+function toItem(row: ItemCore & { copies_count?: number; copies_owned?: number; last_added_at?: string }): AcervoItem {
+  const copiesCount = Number(row.copies_count ?? 0);
   return {
     cardVariantId: row.card_variant_id,
     languageCode: row.language_code,
@@ -109,7 +122,9 @@ function toItem(row: Omit<ItemRow, "copies_count" | "last_added_at" | "total_cou
     cardSetName: row.card_set_name,
     isDefaultVariant: row.is_default_variant,
     variantLabel: row.variant_label,
-    copiesCount: Number(row.copies_count ?? 0),
+    copiesCount,
+    // Sem a coluna (não deveria ocorrer pós-5220), o possuído nunca fica abaixo do filtrado.
+    copiesOwned: Math.max(Number(row.copies_owned ?? copiesCount), copiesCount),
     lastAddedAt: row.last_added_at ?? "",
     imagePath: row.image_path,
   };
@@ -124,7 +139,11 @@ export async function getAcervoItems(supabase: SupabaseClient, state: AcervoStat
   }
   const rows = data as ItemRow[];
   const first = rows[0];
-  return { items: rows.map(toItem), totalGroups: first ? Number(first.total_count) : 0 };
+  return {
+    items: rows.map(toItem),
+    totalGroups: first ? Number(first.total_count) : 0,
+    totalCopies: first ? Number(first.total_copies) : 0,
+  };
 }
 
 type OptionRow = { kind: "SET" | "LANGUAGE" | "COLLECTION"; value: string; label: string; item_count: number | string; sort_order: number };
@@ -142,7 +161,7 @@ export async function getAcervoFilterOptions(supabase: SupabaseClient): Promise<
   return { sets: pick("SET"), languages: pick("LANGUAGE"), collections: pick("COLLECTION") };
 }
 
-type CopyRow = Omit<ItemRow, "copies_count" | "last_added_at" | "total_count"> & {
+type CopyRow = ItemCore & {
   copies_total: number;
   physical_card_id: string;
   copy_number: number;
@@ -174,7 +193,7 @@ export async function getAcervoItemDetail(
   const first = rows[0];
   if (!first) return undefined;
   // copiesCount e lastAddedAt são campos de galeria, ausentes no detalhe.
-  const { copiesCount, lastAddedAt, ...item } = toItem(first);
+  const { copiesCount, copiesOwned, lastAddedAt, ...item } = toItem(first);
   return {
     item,
     copiesTotal: Number(first.copies_total),

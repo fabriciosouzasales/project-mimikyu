@@ -87,6 +87,7 @@ export default async function ColecaoPage({
         setCode: null,
         languageCode: null,
         collection: { kind: "collection", id: collectionId },
+        storage: { kind: "all" }, // WHERE-04: sem filtro de local (visão integral)
         sort: "recentes",
         page,
         detail: null,

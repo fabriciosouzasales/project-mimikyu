@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { LocationGrid, LocationsNotice, LocationsProvider, NewLocationButton } from "./locations-manager";
 import acervoStyles from "../acervo/acervo.module.css";
+import regionStyles from "../colecoes/library-modes.module.css";
 import styles from "./locais.module.css";
 
 /**
@@ -14,19 +15,26 @@ import styles from "./locais.module.css";
  *
  * Mesmo palco do Meu acervo (título, numeral de contorno, painel de números
  * com fio dourado) para a página parecer parte do mesmo lugar.
+ *
+ * Passagem cabeçalho → área de trabalho: a mesma região editorial de Minhas
+ * coleções (`library-modes.module.css` `.region`) — fio de borda a borda, marca
+ * dourada curta no início do conteúdo e superfície um tom mais clara que se
+ * dissolve no workspace. Reutilizada, não copiada.
  */
 export function LocationsView({ overview }: { overview: StorageOverview | null }) {
   if (!overview) {
     return (
       <div className={acervoStyles.root}>
         <LocationsHero summary={null} />
-        <div className={styles.readError} role="alert">
-          <InlineFeedback tone="error">
-            Não conseguimos carregar seus locais agora. Nada foi alterado — tente novamente em instantes.
-          </InlineFeedback>
-          <Button asChild variant="outline" className="min-h-11">
-            <a href={LOCAIS_PATH}>Tentar novamente</a>
-          </Button>
+        <div className={regionStyles.region}>
+          <div className={styles.readError} role="alert">
+            <InlineFeedback tone="error">
+              Não conseguimos carregar seus locais agora. Nada foi alterado — tente novamente em instantes.
+            </InlineFeedback>
+            <Button asChild variant="outline" className="min-h-11">
+              <a href={LOCAIS_PATH}>Tentar novamente</a>
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -42,21 +50,23 @@ export function LocationsView({ overview }: { overview: StorageOverview | null }
 
         <LocationsNotice />
 
-        {empty ? (
-          <EmptyLocations />
-        ) : (
-          <section aria-labelledby="locais-lista">
-            <div className={styles.listHead}>
-              <h2 id="locais-lista" className={styles.listTitle} tabIndex={-1}>
-                Seus locais
-              </h2>
-              <p className={styles.listMeta}>
-                {locations.length === 1 ? "1 local" : `${formatCount(locations.length)} locais`} · em ordem alfabética
-              </p>
-            </div>
-            <LocationGrid locations={locations} />
-          </section>
-        )}
+        <div className={regionStyles.region}>
+          {empty ? (
+            <EmptyLocations />
+          ) : (
+            <section aria-labelledby="locais-lista">
+              <div className={styles.listHead}>
+                <h2 id="locais-lista" className={styles.listTitle} tabIndex={-1}>
+                  Seus locais
+                </h2>
+                <p className={styles.listMeta}>
+                  {locations.length === 1 ? "1 local" : `${formatCount(locations.length)} locais`} · em ordem alfabética
+                </p>
+              </div>
+              <LocationGrid locations={locations} />
+            </section>
+          )}
+        </div>
       </div>
     </LocationsProvider>
   );

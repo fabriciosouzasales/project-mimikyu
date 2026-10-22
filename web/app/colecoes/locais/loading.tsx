@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import acervoStyles from "@/components/colecoes/acervo/acervo.module.css";
 import styles from "@/components/colecoes/locais/locais.module.css";
+import regionStyles from "@/components/colecoes/colecoes/library-modes.module.css";
 
 /**
  * Carregamento de Meus locais — mesma geometria da página real (título, painel
@@ -18,14 +19,16 @@ export default function LocaisLoading() {
           <Skeleton className="mt-4 h-5 w-[32rem] max-w-full" />
           <Skeleton className={`${acervoStyles.ledger} h-[6.75rem] w-full`} />
         </div>
-        <Skeleton className="mt-8 h-6 w-40" />
-        <ul className={styles.grid}>
-          {Array.from({ length: 6 }).map((_, index) => (
-            <li key={index}>
-              <Skeleton className="h-[13.5rem] w-full rounded-2xl" />
-            </li>
-          ))}
-        </ul>
+        <div className={regionStyles.region}>
+          <Skeleton className="h-6 w-40" />
+          <ul className={styles.grid}>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <li key={index}>
+                <Skeleton className="h-[13.5rem] w-full rounded-2xl" />
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </AppShell>
   );

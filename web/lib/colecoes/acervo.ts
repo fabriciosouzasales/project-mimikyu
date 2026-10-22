@@ -5,7 +5,8 @@
  * `node --experimental-strip-types --test lib/colecoes/acervo.test.ts`.
  *
  * Estado da tela vive na URL (mesmo modelo da Pokédex): `?q=`, `?set=`,
- * `?idioma=`, `?colecao=` (id ou `sem`), `?ordem=` (`recentes` | `set`),
+ * `?idioma=`, `?colecao=` (id ou `sem`), `?local=` (id ou `sem`, WHERE-04),
+ * `?ordem=` (`recentes` | `set`),
  * `?pagina=` e `?carta=` (detalhe aberto: `<card_variant_id>.<idioma>`).
  * Link editado à mão nunca vira erro: valor inválido cai no padrão.
  */
@@ -21,11 +22,19 @@ export type AcervoSort = "recentes" | "set";
 
 export type AcervoCollectionFilter = { kind: "all" } | { kind: "none" } | { kind: "collection"; id: string };
 
+/**
+ * WHERE-04 — localização física dos exemplares (5220). Um só valor por vez:
+ * a união torna impossível pedir "neste local" e "sem localização" juntos
+ * (a 5220 recusaria com INVALID_STORAGE_FILTER).
+ */
+export type AcervoStorageFilter = { kind: "all" } | { kind: "none" } | { kind: "location"; id: string };
+
 export type AcervoState = {
   query: string | null;
   setCode: string | null;
   languageCode: string | null;
   collection: AcervoCollectionFilter;
+  storage: AcervoStorageFilter;
   sort: AcervoSort;
   page: number;
   /** Grupo aberto no painel de detalhe. */
@@ -51,6 +60,7 @@ export function parseAcervoState(params: Params): AcervoState {
   const rawSet = first(params.set)?.trim() ?? "";
   const rawLanguage = first(params.idioma)?.trim() ?? "";
   const rawCollection = first(params.colecao)?.trim() ?? "";
+  const rawStorage = first(params.local)?.trim() ?? "";
   const rawPage = first(params.pagina) ?? "";
   const rawSort = first(params.ordem) ?? "";
 
@@ -61,6 +71,13 @@ export function parseAcervoState(params: Params): AcervoState {
         ? { kind: "collection", id: rawCollection.toLowerCase() }
         : { kind: "all" };
 
+  const storage: AcervoStorageFilter =
+    rawStorage === "sem"
+      ? { kind: "none" }
+      : UUID.test(rawStorage)
+        ? { kind: "location", id: rawStorage.toLowerCase() }
+        : { kind: "all" };
+
   const pageNumber = /^\d{1,4}$/.test(rawPage) ? Number(rawPage) : 1;
 
   return {
@@ -68,6 +85,7 @@ export function parseAcervoState(params: Params): AcervoState {
     setCode: SET_CODE.test(rawSet) ? rawSet : null,
     languageCode: LANGUAGE_CODE.test(rawLanguage) ? rawLanguage : null,
     collection,
+    storage,
     sort: rawSort === "set" ? "set" : "recentes",
     page: Math.min(Math.max(pageNumber, 1), MAX_PAGE),
     detail: parseItemKey(first(params.carta)),
@@ -89,9 +107,20 @@ export function formatItemKey(key: AcervoItemKey): string {
   return `${key.cardVariantId}.${key.languageCode}`;
 }
 
-/** Algum filtro que reduz o conjunto (busca, Set, idioma, coleção). Ordem e página não contam. */
+/** Algum filtro que reduz o conjunto (busca, Set, idioma, coleção, local). Ordem e página não contam. */
 export function hasActiveFilters(state: AcervoState): boolean {
-  return state.query !== null || state.setCode !== null || state.languageCode !== null || state.collection.kind !== "all";
+  return (
+    state.query !== null ||
+    state.setCode !== null ||
+    state.languageCode !== null ||
+    state.collection.kind !== "all" ||
+    state.storage.kind !== "all"
+  );
+}
+
+/** Filtro de localização física ativo (WHERE-04): as contagens passam a separar "aqui" de "no total". */
+export function hasStorageFilter(state: Pick<AcervoState, "storage">): boolean {
+  return state.storage.kind !== "all";
 }
 
 /**
@@ -105,6 +134,8 @@ export function acervoHref(state: Partial<AcervoState>): string {
   if (state.languageCode) params.set("idioma", state.languageCode);
   if (state.collection?.kind === "none") params.set("colecao", "sem");
   if (state.collection?.kind === "collection") params.set("colecao", state.collection.id);
+  if (state.storage?.kind === "none") params.set("local", "sem");
+  if (state.storage?.kind === "location") params.set("local", state.storage.id);
   if (state.sort === "set") params.set("ordem", "set");
   if (state.page && state.page > 1) params.set("pagina", String(state.page));
   if (state.detail) params.set("carta", formatItemKey(state.detail));
@@ -117,7 +148,11 @@ export function withoutDetail(state: AcervoState): AcervoState {
   return { ...state, detail: null };
 }
 
-/** Parâmetros da 5159 a partir do estado. */
+/**
+ * Parâmetros de `get_my_inventory_items` (5159, evoluída pela 5220). Os dois
+ * filtros de local nunca vão ativos juntos: um id de local OU "sem local" OU
+ * nenhum (visão integral).
+ */
 export function toItemsRpcParams(state: AcervoState) {
   return {
     p_search: state.query,
@@ -128,6 +163,8 @@ export function toItemsRpcParams(state: AcervoState) {
     p_sort: state.sort === "set" ? "SET_NUMBER" : "RECENT",
     p_limit: ACERVO_PAGE_SIZE,
     p_offset: (state.page - 1) * ACERVO_PAGE_SIZE,
+    p_storage_container_id: state.storage.kind === "location" ? state.storage.id : null,
+    p_without_storage: state.storage.kind === "none",
   };
 }
 
@@ -175,6 +212,38 @@ export function variantTag(isDefault: boolean, label: string | null): string | n
 /** Frase do resultado da busca/filtro ("12 cartas diferentes"). */
 export function resultSummary(totalGroups: number): string {
   return totalGroups === 1 ? "1 carta diferente" : `${formatCount(totalGroups)} cartas diferentes`;
+}
+
+// ---------------------------------------------------------------------------
+// Localização física (WHERE-04) — contadores da 5220
+// ---------------------------------------------------------------------------
+
+/**
+ * Indicação curta do item com filtro de local ativo: quantos exemplares
+ * atendem ao filtro e quantos o colecionador tem no total — o total possuído
+ * nunca é substituído pelo filtrado ("2 aqui · 5 no total").
+ */
+export function storageMatchLabel(kind: "location" | "none", matching: number, owned: number): string {
+  const here = kind === "none" ? `${formatCount(matching)} sem local` : `${formatCount(matching)} aqui`;
+  return `${here} · ${formatCount(owned)} no total`;
+}
+
+/** Mesma informação, por extenso, para leitores de tela. */
+export function storageMatchAccessible(kind: "location" | "none", matching: number, owned: number): string {
+  const where = kind === "none" ? "sem localização definida" : "neste local";
+  return `${formatCount(matching)} de ${pluralize(owned, "exemplar", "exemplares")} ${where}`;
+}
+
+/**
+ * Frase do escopo com filtro de local: total de exemplares correspondentes em
+ * TODAS as páginas (`total_copies` da 5220, nunca a soma da página) e quantas
+ * cartas diferentes eles formam (`total_count`).
+ */
+export function storageScopeSummary(kind: "location" | "none", locationName: string | null, totalCopies: number, totalGroups: number): string {
+  const copies = pluralize(totalCopies, "exemplar", "exemplares");
+  const where = kind === "none" ? "sem localização definida" : locationName ? `em ${locationName}` : "neste local";
+  const items = totalGroups === 1 ? "1 carta diferente" : `${formatCount(totalGroups)} cartas diferentes`;
+  return `${copies} ${where}, em ${items}.`;
 }
 
 // ---------------------------------------------------------------------------

@@ -94,6 +94,37 @@
   display: none;
 }
 
+/* ---- WHERE-04: exemplares no local filtrado na galeria ----
+ * A lista continua completa; os correspondentes ganham um filete à esquerda e
+ * um selo discreto. Seleção (fundo dourado leve) e destaque convivem sem se
+ * confundir: um é fundo, o outro é borda + selo com texto. */
+.filterHint {
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground) / 0.8);
+}
+
+.copyMatch {
+  box-shadow: inset 2px 0 0 hsl(var(--primary) / 0.7);
+}
+
+.matchPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.125rem;
+  margin-left: 0.5rem;
+  padding: 0 0.375rem;
+  border-radius: 5px;
+  vertical-align: 0.0625rem;
+  font-size: 0.65625rem;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 0.85);
+  background: hsl(var(--surface-muted));
+  border: 1px solid hsl(var(--border));
+}
+
 /* ---- barra de ação: fixa no rodapé do painel enquanto há seleção ---- */
 .bar {
   position: sticky;

@@ -8,7 +8,8 @@ import { setMyCopiesStorage } from "@/app/colecoes/acervo/actions";
 import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
-import { formatCount, pluralize } from "@/lib/colecoes/acervo";
+import { type AcervoStorageFilter, formatCount, pluralize } from "@/lib/colecoes/acervo";
+import { copyMatchesStorageFilter } from "@/lib/colecoes/acervo-storage-filter";
 import {
   type CopyStorageFailure,
   STORAGE_BATCH_MAX,
@@ -36,6 +37,12 @@ import local from "./copy-storage.module.css";
  * Escrita única: `setMyCopiesStorage` → `set_physical_cards_storage` (5024),
  * até 500 por vez, atômica e idempotente por estado. Só o local muda: coleção,
  * variante, idioma e quantidade ficam como estão.
+ *
+ * WHERE-04: com o filtro "Localização física" ativo na galeria, a lista continua
+ * completa (todos os exemplares do item) e os que estão no local filtrado — ou
+ * sem local — ganham destaque, com uma frase que explica por que os demais
+ * também aparecem. Mover um exemplar atualiza o destaque na hora (mesmo
+ * resultado provisório do WHERE-03) e a galeria por trás via `router.refresh()`.
  */
 
 export type StorageCopy = {
@@ -57,6 +64,7 @@ export function CopyStorageList({
   copiesTotal,
   closeHref,
   storage,
+  storageFilter = null,
 }: {
   copies: StorageCopy[];
   languageName: string;
@@ -68,6 +76,8 @@ export function CopyStorageList({
     locations: StorageLocation[];
     collectionDefaults: Record<string, string>;
   } | null;
+  /** WHERE-04: filtro de local da galeria; `null` = sem filtro (sem destaque). */
+  storageFilter?: { filter: AcervoStorageFilter; name: string | null } | null;
 }) {
   const router = useRouter();
   const setSheetLocked = useDetailSheetLock();
@@ -110,6 +120,21 @@ export function CopyStorageList({
     if (patch?.ids.includes(copy.physicalCardId)) return patch.name;
     return copy.storageName;
   };
+
+  // WHERE-04: correspondência ao filtro por id do local (C-58). Sem o contexto de
+  // localização, só "sem local" ainda é decidível (pelo nome ausente).
+  const matchOf = (copy: StorageCopy): boolean | undefined => {
+    if (!storageFilter) return undefined;
+    if (copy.physicalCardId in storageByCopy) return copyMatchesStorageFilter(storageByCopy[copy.physicalCardId] ?? null, storageFilter.filter);
+    if (storageFilter.filter.kind === "none") return nameOf(copy) === null;
+    return undefined;
+  };
+  const matchStates = copies.map(matchOf);
+  const matchKnown = storageFilter !== null && matchStates.every((m) => m !== undefined);
+  const matchCount = matchStates.filter((m) => m === true).length;
+  const filterWhere =
+    storageFilter?.filter.kind === "none" ? "sem localização definida" : storageFilter?.name ? `em ${storageFilter.name}` : "no local filtrado";
+  const matchPill = storageFilter?.filter.kind === "none" ? "Sem local" : "Neste local";
 
   // Locais que são o local padrão da coleção de algum exemplar marcado — só para identificar na lista.
   const suggested = useMemo(() => {
@@ -208,21 +233,37 @@ export function CopyStorageList({
         <p className={local.hint}>Não foi possível carregar seus locais agora — a localização aparece só para consulta.</p>
       ) : null}
 
+      {storageFilter ? (
+        <p className={local.filterHint}>
+          {!matchKnown
+            ? "Mostrando todos os exemplares deste item."
+            : matchCount === 0
+              ? `Nenhum exemplar deste item está ${filterWhere} agora. Todos aparecem abaixo para você ver o item completo.`
+              : matchCount === copies.length
+                ? `${copies.length === 1 ? "Este exemplar está" : `Os ${formatCount(copies.length)} exemplares estão`} ${filterWhere}.`
+                : `${formatCount(matchCount)} de ${pluralize(copies.length, "exemplar", "exemplares")} ${matchCount === 1 ? "está" : "estão"} ${filterWhere} — em destaque. Os demais aparecem para você ver o item completo.`}
+        </p>
+      ) : null}
+
       <div className={local.notice} role="status" aria-live="polite">
         {notice ? <InlineFeedback tone="success">{notice}</InlineFeedback> : null}
       </div>
 
       <ol className={styles.copies}>
-        {copies.map((copy) => {
+        {copies.map((copy, index) => {
           const isSelected = selected.includes(copy.physicalCardId);
+          const isMatch = matchKnown && matchStates[index] === true;
           const storedName = nameOf(copy);
           const preferredId = copy.collectionId ? storage?.collectionDefaults[copy.collectionId] : undefined;
           const preferred = preferredId ? locationsById.get(preferredId) ?? null : null;
           return (
             <li
               key={copy.physicalCardId}
-              className={editable ? `${styles.copy} ${local.copySelectable}` : styles.copy}
+              className={[styles.copy, editable ? local.copySelectable : null, isMatch ? local.copyMatch : null]
+                .filter(Boolean)
+                .join(" ")}
               data-selected={isSelected || undefined}
+              data-match={isMatch || undefined}
             >
               {editable ? (
                 <label className={local.check}>
@@ -239,7 +280,15 @@ export function CopyStorageList({
                 {copy.copyNumber}
               </span>
               <div>
-                <div className={styles.copyTitle}>Exemplar {copy.copyNumber}</div>
+                <div className={styles.copyTitle}>
+                  Exemplar {copy.copyNumber}
+                  {isMatch ? (
+                    <span className={local.matchPill}>
+                      <MapPin className="h-3 w-3" aria-hidden="true" />
+                      {matchPill}
+                    </span>
+                  ) : null}
+                </div>
                 <div className={styles.copyFacts}>
                   <span>
                     <Globe className="h-3 w-3" aria-hidden="true" />

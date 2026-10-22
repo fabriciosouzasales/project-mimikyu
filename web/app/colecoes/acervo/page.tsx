@@ -11,7 +11,7 @@ import {
   getAcervoItems,
   getAcervoSummary,
 } from "@/lib/colecoes/acervo-queries";
-import { getCopyStorageContext } from "@/lib/colecoes/storage-locations-queries";
+import { getCopyStorageContext, getMyStorageLocations } from "@/lib/colecoes/storage-locations-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -27,7 +27,9 @@ export const metadata: Metadata = { title: "Meu acervo · Coleções" };
  * Estado na URL (lib/colecoes/acervo.ts). Leituras em paralelo, uma de cada
  * por página: resumo (5160), página de grupos (5159), opções de filtro (5161),
  * idiomas aceitos no cadastro e — só com `?carta=` — o detalhe com os
- * exemplares (5162) e o contexto de localização (WHERE-03). Cadastro
+ * exemplares (5162) e o contexto de localização (WHERE-03). Locais do usuário
+ * (5219) uma vez só: alimentam o filtro "Localização física" (WHERE-04, 5220)
+ * e o contexto do detalhe. Cadastro
  * (MY-INVENTORY-ACTIONS-01) e localização dos exemplares (5024): `actions.ts`.
  */
 export default async function AcervoPage({
@@ -46,14 +48,18 @@ export default async function AcervoPage({
 
   void getCachedUserProfile().catch(() => {});
 
-  const [summary, page, options, detail, addLanguages, storage] = await Promise.all([
+  // Uma leitura da 5219 por renderização, compartilhada pelo filtro e pelo detalhe.
+  const locationsRead = getMyStorageLocations(supabase);
+
+  const [summary, page, options, detail, addLanguages, storage, locations] = await Promise.all([
     getAcervoSummary(supabase),
     getAcervoItems(supabase, state),
     getAcervoFilterOptions(supabase),
     state.detail ? getAcervoItemDetail(supabase, state.detail) : Promise.resolve(undefined),
     getAddLanguages(supabase),
     // WHERE-03: local de cada exemplar + locais do usuário, só com o detalhe aberto.
-    state.detail ? getCopyStorageContext(supabase, state.detail.cardVariantId) : Promise.resolve(null),
+    state.detail ? getCopyStorageContext(supabase, state.detail.cardVariantId, locationsRead) : Promise.resolve(null),
+    locationsRead,
   ]);
 
   // Página além do fim (link antigo, cartas removidas): a 5159 não devolve o total sem
@@ -72,6 +78,7 @@ export default async function AcervoPage({
         detail={detail}
         addLanguages={addLanguages}
         storage={storage}
+        locations={locations}
       />
     </AppShell>
   );

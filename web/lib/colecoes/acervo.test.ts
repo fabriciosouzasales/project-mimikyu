@@ -11,10 +11,14 @@ import {
   formatCollectorNumber,
   formatItemKey,
   hasActiveFilters,
+  hasStorageFilter,
   parseAcervoState,
   parseItemKey,
   pluralize,
   resultSummary,
+  storageMatchAccessible,
+  storageMatchLabel,
+  storageScopeSummary,
   toItemsRpcParams,
   totalPages,
   variantTag,
@@ -30,6 +34,7 @@ test("estado padrão: sem parâmetros", () => {
     setCode: null,
     languageCode: null,
     collection: { kind: "all" },
+    storage: { kind: "all" },
     sort: "recentes",
     page: 1,
     detail: null,
@@ -123,6 +128,8 @@ test("parâmetros da 5159", () => {
     p_sort: "SET_NUMBER",
     p_limit: ACERVO_PAGE_SIZE,
     p_offset: ACERVO_PAGE_SIZE,
+    p_storage_container_id: null,
+    p_without_storage: false,
   });
   const c = parseAcervoState({ colecao: UUID });
   assert.equal(toItemsRpcParams(c).p_collection_id, UUID);
@@ -167,4 +174,77 @@ test("URL da imagem: só caminhos do pipeline", () => {
   assert.equal(cardFrontUrl(base, "https://evil.example/a.webp"), null);
   assert.equal(cardFrontUrl(undefined, "me2/pt-BR/001.webp"), null);
   assert.equal(cardFrontUrl(base, null), null);
+});
+
+// ---------------------------------------------------------------------------
+// WHERE-04 — filtro por localização física (5220)
+// ---------------------------------------------------------------------------
+
+test("WHERE-04: ?local= — id, sem e inválido", () => {
+  const loc = parseAcervoState({ local: UUID.toUpperCase() });
+  assert.deepEqual(loc.storage, { kind: "location", id: UUID });
+  assert.equal(hasActiveFilters(loc), true);
+  assert.equal(hasStorageFilter(loc), true);
+  assert.equal(acervoHref(loc), `${ACERVO_PATH}?local=${UUID}`);
+
+  const sem = parseAcervoState({ local: "sem" });
+  assert.deepEqual(sem.storage, { kind: "none" });
+  assert.equal(acervoHref(sem), `${ACERVO_PATH}?local=sem`);
+
+  for (const raw of ["", "qualquer", "123", `${UUID}x`, "SEM"]) {
+    const s = parseAcervoState({ local: raw });
+    assert.deepEqual(s.storage, { kind: "all" }, raw);
+    assert.equal(hasStorageFilter(s), false);
+  }
+  assert.deepEqual(parseAcervoState({}).storage, { kind: "all" });
+});
+
+test("WHERE-04: parâmetros da 5220 — nunca os dois filtros de local juntos", () => {
+  const all = toItemsRpcParams(parseAcervoState({}));
+  assert.equal(all.p_storage_container_id, null);
+  assert.equal(all.p_without_storage, false);
+
+  const loc = toItemsRpcParams(parseAcervoState({ local: UUID }));
+  assert.equal(loc.p_storage_container_id, UUID);
+  assert.equal(loc.p_without_storage, false);
+
+  const sem = toItemsRpcParams(parseAcervoState({ local: "sem" }));
+  assert.equal(sem.p_storage_container_id, null);
+  assert.equal(sem.p_without_storage, true);
+
+  // Qualquer combinação de entrada: no máximo um dos dois ativo.
+  for (const local of [UUID, "sem", "", "x", [UUID, "sem"], ["sem", UUID]]) {
+    const p = toItemsRpcParams(parseAcervoState({ local }));
+    assert.ok(!(p.p_storage_container_id !== null && p.p_without_storage), String(local));
+  }
+});
+
+test("WHERE-04: local combina com os demais filtros, ordenação e página", () => {
+  const s = parseAcervoState({ q: "Mew", set: "me2", idioma: "en", colecao: "sem", local: UUID, ordem: "set", pagina: "3" });
+  const p = toItemsRpcParams(s);
+  assert.equal(p.p_search, "Mew");
+  assert.equal(p.p_card_set_code, "me2");
+  assert.equal(p.p_language_code, "en");
+  assert.equal(p.p_without_collection, true);
+  assert.equal(p.p_storage_container_id, UUID);
+  assert.equal(p.p_sort, "SET_NUMBER");
+  assert.equal(p.p_offset, 2 * ACERVO_PAGE_SIZE);
+  // Paginar preserva o local; remover o local preserva o resto e volta à página 1.
+  assert.ok(acervoHref({ ...s, page: 4 }).includes(`local=${UUID}`));
+  const removed = acervoHref({ ...s, storage: { kind: "all" }, page: 1, detail: null });
+  assert.equal(removed, `${ACERVO_PATH}?q=Mew&set=me2&idioma=en&colecao=sem&ordem=set`);
+  // Fechar o detalhe mantém o filtro de local.
+  const withDetail = parseAcervoState({ local: "sem", carta: `${UUID}.en` });
+  assert.equal(acervoHref(withoutDetail(withDetail)), `${ACERVO_PATH}?local=sem`);
+});
+
+test("WHERE-04: indicadores — filtrado nunca substitui o total possuído", () => {
+  assert.equal(storageMatchLabel("location", 2, 5), "2 aqui · 5 no total");
+  assert.equal(storageMatchLabel("none", 1, 1), "1 sem local · 1 no total");
+  assert.equal(storageMatchLabel("location", 1200, 1500), "1.200 aqui · 1.500 no total");
+  assert.equal(storageMatchAccessible("location", 2, 5), "2 de 5 exemplares neste local");
+  assert.equal(storageMatchAccessible("none", 1, 1), "1 de 1 exemplar sem localização definida");
+  assert.equal(storageScopeSummary("location", "Fichário A", 30, 12), "30 exemplares em Fichário A, em 12 cartas diferentes.");
+  assert.equal(storageScopeSummary("none", null, 1, 1), "1 exemplar sem localização definida, em 1 carta diferente.");
+  assert.equal(storageScopeSummary("location", null, 2, 2), "2 exemplares neste local, em 2 cartas diferentes.");
 });

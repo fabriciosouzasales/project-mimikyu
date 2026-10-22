@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Box, Globe, Layers, SearchX, X } from "lucide-react";
+import { AlertTriangle, Box, Globe, Layers, MapPinOff, PackageOpen, SearchX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   type AcervoState,
@@ -11,12 +11,24 @@ import {
   hasActiveFilters,
   pluralize,
   resultSummary,
+  storageMatchAccessible,
+  storageMatchLabel,
+  storageScopeSummary,
   totalPages,
   variantTag,
   withoutDetail,
 } from "@/lib/colecoes/acervo";
 import type { AddLanguage } from "@/lib/colecoes/acervo-add";
 import type { CopyStorageContext } from "@/lib/colecoes/storage-locations-queries";
+import {
+  type StorageEmptyReason,
+  type StorageFilterStatus,
+  storageEmptyReason,
+  storageFilterChipLabel,
+  storageFilterName,
+  storageFilterStatus,
+} from "@/lib/colecoes/acervo-storage-filter";
+import { LOCAIS_PATH, type StorageLocation } from "@/lib/colecoes/storage-locations";
 import type {
   AcervoFilterOptions,
   AcervoItem,
@@ -30,6 +42,7 @@ import { AcervoToolbar } from "./acervo-toolbar";
 import { CardArt } from "./card-art";
 import { CopyQuantityControl } from "./copy-quantity-control";
 import { CopyStorageList } from "./copy-storage-list";
+import regionStyles from "../colecoes/library-modes.module.css";
 import styles from "./acervo.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -50,6 +63,13 @@ const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
  * inteiro" (`acervo-add.tsx`), no cabeçalho ou no estado vazio. Só aparecem
  * quando há idiomas disponíveis para cadastro (sem eles a gravação não teria
  * como funcionar). Coleção e local continuam fora: nada visível finge funcionar.
+ *
+ * Localização física (WHERE-04): filtro "Localização física" na barra, aplicado
+ * pelo banco (5220) junto com os demais. Com ele ativo, cada carta mostra
+ * "2 aqui · 5 no total" (filtrado × possuído — o possuído nunca é trocado pelo
+ * filtrado) e o escopo traz o total de exemplares de todas as páginas
+ * (`total_copies`). O detalhe continua com todos os exemplares, destacando os
+ * que estão no local filtrado.
  */
 export function AcervoView({
   state,
@@ -59,6 +79,7 @@ export function AcervoView({
   detail,
   addLanguages,
   storage = null,
+  locations = null,
 }: {
   state: AcervoState;
   summary: AcervoSummary | null;
@@ -70,12 +91,16 @@ export function AcervoView({
   addLanguages: AddLanguage[];
   /** WHERE-03: local de cada exemplar e locais do usuário (só com o detalhe aberto). */
   storage?: CopyStorageContext | null;
+  /** WHERE-04: locais do usuário (5219) para o filtro; `null` = lista indisponível. */
+  locations?: StorageLocation[] | null;
 }) {
   const canAdd = addLanguages.length > 0;
   const isEmptyAcervo = summary !== null && summary.totalCopies === 0;
   const filtered = hasActiveFilters(state);
   const pages = page ? totalPages(page.totalGroups) : 1;
   const closeHref = acervoHref(withoutDetail(state));
+  const storageStatus = storageFilterStatus(state.storage, locations);
+  const storageKind = state.storage.kind === "all" ? null : state.storage.kind;
 
   return (
     <div className={styles.root}>
@@ -110,35 +135,60 @@ export function AcervoView({
         ) : null}
       </header>
 
-      {page === null || summary === null ? (
-        <ReadError retryHref={acervoHref(state)} />
-      ) : summary.totalCopies === 0 ? (
-        <EmptyAcervo addLanguages={canAdd ? addLanguages : null} />
-      ) : (
-        <>
-          <AcervoToolbar
-            state={state}
-            options={options}
-            resultLabel={filtered ? resultSummary(page.totalGroups) : pluralize(summary.totalCopies, "carta", "cartas")}
-          />
-          <ActiveFilterChips state={state} options={options} />
+      {/* Passagem cabeçalho → área de trabalho: a mesma região editorial de Minhas
+          coleções e Meus locais (library-modes .region) — fio de borda a borda,
+          marca dourada curta e superfície um tom mais clara. */}
+      <div className={`${regionStyles.region} ${styles.workspace}`}>
+        {page === null || summary === null ? (
+          <ReadError retryHref={acervoHref(state)} />
+        ) : summary.totalCopies === 0 ? (
+          <EmptyAcervo addLanguages={canAdd ? addLanguages : null} />
+        ) : (
+          <>
+            <AcervoToolbar
+              state={state}
+              options={options}
+              locations={locations}
+            />
+            <ActiveFilterChips state={state} options={options} storageStatus={storageStatus} />
+            {storageKind && page.items.length > 0 ? (
+              <p className={styles.scopeNote}>
+                {storageScopeSummary(storageKind, storageFilterName(storageStatus), page.totalCopies, page.totalGroups)}
+              </p>
+            ) : null}
+            {page.items.length > 0 ? (
+              // Contagem junto da galeria, fora da barra de controles (UX CORRECTION-01).
+              <p className={styles.resultCount} aria-live="polite">
+                {filtered ? resultSummary(page.totalGroups) : pluralize(summary.totalCopies, "carta", "cartas")}
+              </p>
+            ) : null}
 
-          {page.items.length === 0 ? (
-            <NoResults state={state} />
-          ) : (
-            <>
-              <ul className={styles.grid} aria-label="Cartas do seu acervo">
-                {page.items.map((item, index) => (
-                  <li key={`${item.cardVariantId}.${item.languageCode}`}>
-                    <AcervoTile item={item} state={state} priority={state.page === 1 && index < PRIORITY_CARD_COUNT} />
-                  </li>
-                ))}
-              </ul>
-              {pages > 1 ? <Pagination state={state} pages={pages} /> : null}
-            </>
-          )}
-        </>
-      )}
+            {page.items.length === 0 ? (
+              <NoResults
+                state={state}
+                reason={storageEmptyReason(storageStatus, hasActiveFilters({ ...state, storage: { kind: "all" } }))}
+                storageStatus={storageStatus}
+              />
+            ) : (
+              <>
+                <ul className={styles.grid} aria-label="Cartas do seu acervo">
+                  {page.items.map((item, index) => (
+                    <li key={`${item.cardVariantId}.${item.languageCode}`}>
+                      <AcervoTile
+                        item={item}
+                        state={state}
+                        storageKind={storageKind}
+                        priority={state.page === 1 && index < PRIORITY_CARD_COUNT}
+                      />
+                    </li>
+                  ))}
+                </ul>
+                {pages > 1 ? <Pagination state={state} pages={pages} /> : null}
+              </>
+            )}
+          </>
+        )}
+      </div>
 
       {state.detail ? (
         <AcervoDetailSheet
@@ -146,7 +196,15 @@ export function AcervoView({
           title="Detalhe da carta"
           closeHref={closeHref}
         >
-          <DetailContent detail={detail} closeHref={closeHref} addLanguages={addLanguages} storage={storage} />
+          <DetailContent
+            detail={detail}
+            closeHref={closeHref}
+            addLanguages={addLanguages}
+            storage={storage}
+            storageFilter={
+              state.storage.kind === "all" ? null : { filter: state.storage, name: storageFilterName(storageStatus) }
+            }
+          />
         </AcervoDetailSheet>
       ) : null}
     </div>
@@ -215,17 +273,34 @@ function HeroCards() {
   );
 }
 
-function AcervoTile({ item, state, priority }: { item: AcervoItem; state: AcervoState; priority: boolean }) {
+function AcervoTile({
+  item,
+  state,
+  storageKind,
+  priority,
+}: {
+  item: AcervoItem;
+  state: AcervoState;
+  /** WHERE-04: filtro de local ativo → "2 aqui · 5 no total". */
+  storageKind: "location" | "none" | null;
+  priority: boolean;
+}) {
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
   const tag = variantTag(item.isDefaultVariant, item.variantLabel);
   const caption = `${item.cardSetCode.toUpperCase()} · ${number}`;
-  const copies = item.copiesCount;
+  // Com filtro de local, a pilha e o ×N mostram o que o colecionador TEM (copies_owned);
+  // o recorte do local vem na linha própria, sem substituir o total possuído.
+  const copies = storageKind ? item.copiesOwned : item.copiesCount;
   const accessibleName = [
     item.cardName,
     caption,
     tag,
     item.languageName,
-    copies === 1 ? "1 exemplar" : `${formatCount(copies)} exemplares`,
+    storageKind
+      ? storageMatchAccessible(storageKind, item.copiesCount, item.copiesOwned)
+      : copies === 1
+        ? "1 exemplar"
+        : `${formatCount(copies)} exemplares`,
   ]
     .filter(Boolean)
     .join(", ");
@@ -261,12 +336,25 @@ function AcervoTile({ item, state, priority }: { item: AcervoItem; state: Acervo
           {tag ? <span className={styles.tag}>{tag}</span> : null}
           <span className={styles.tag}>{item.languageCode}</span>
         </div>
+        {storageKind ? (
+          <div className={styles.storageMatch} data-partial={item.copiesCount < item.copiesOwned || undefined}>
+            {storageMatchLabel(storageKind, item.copiesCount, item.copiesOwned)}
+          </div>
+        ) : null}
       </div>
     </Link>
   );
 }
 
-function ActiveFilterChips({ state, options }: { state: AcervoState; options: AcervoFilterOptions | null }) {
+function ActiveFilterChips({
+  state,
+  options,
+  storageStatus,
+}: {
+  state: AcervoState;
+  options: AcervoFilterOptions | null;
+  storageStatus: StorageFilterStatus;
+}) {
   const chips: { label: string; href: string }[] = [];
   if (state.query) chips.push({ label: `“${state.query}”`, href: acervoHref({ ...state, query: null, page: 1, detail: null }) });
   if (state.setCode) {
@@ -283,6 +371,10 @@ function ActiveFilterChips({ state, options }: { state: AcervoState; options: Ac
     const id = state.collection.id;
     const name = options?.collections.find((option) => option.value === id)?.label ?? "Coleção";
     chips.push({ label: `Coleção: ${name}`, href: acervoHref({ ...state, collection: { kind: "all" }, page: 1, detail: null }) });
+  }
+  const storageLabel = storageFilterChipLabel(storageStatus);
+  if (storageLabel) {
+    chips.push({ label: storageLabel, href: acervoHref({ ...state, storage: { kind: "all" }, page: 1, detail: null }) });
   }
   if (chips.length === 0) return null;
 
@@ -378,25 +470,75 @@ function EmptyAcervo({ addLanguages }: { addLanguages: AddLanguage[] | null }) {
   );
 }
 
-function NoResults({ state }: { state: AcervoState }) {
+/**
+ * Sem resultados. Com filtro de local (WHERE-04), o texto diz o porquê na
+ * língua do colecionador: local que não existe mais, local ainda vazio, todo o
+ * acervo já localizado, ou só a combinação de filtros que não bate. A saída
+ * principal remove só o filtro de local (mantém busca e demais filtros).
+ */
+function NoResults({
+  state,
+  reason,
+  storageStatus,
+}: {
+  state: AcervoState;
+  reason: StorageEmptyReason | null;
+  storageStatus: StorageFilterStatus;
+}) {
+  const withoutStorage = acervoHref({ ...state, storage: { kind: "all" }, page: 1, detail: null });
+  const name = storageFilterName(storageStatus);
+  const copy: { icon: typeof SearchX; title: string; text: string; action: { href: string; label: string } } =
+    reason === "missing"
+      ? {
+          icon: MapPinOff,
+          title: "Este local não está mais disponível",
+          text: "Ele pode ter sido excluído em Meus locais. Seus exemplares continuam no acervo — escolha outro local ou veja todos.",
+          action: { href: withoutStorage, label: "Ver todos os locais" },
+        }
+      : reason === "empty_location"
+        ? {
+            icon: PackageOpen,
+            title: `Nada guardado em ${name ?? "este local"} ainda`,
+            text: "Abra uma carta e use “Guardar em…” para registrar os exemplares que estão aqui.",
+            action: { href: withoutStorage, label: "Ver todos os locais" },
+          }
+        : reason === "all_located"
+          ? {
+              icon: Box,
+              title: "Todos os seus exemplares têm local",
+              text: "Nenhum exemplar está sem localização definida — o acervo inteiro está organizado.",
+              action: { href: withoutStorage, label: "Ver todos os locais" },
+            }
+          : {
+              icon: SearchX,
+              title: "Nenhuma carta encontrada",
+              text: state.query
+                ? `Nenhuma carta do seu acervo corresponde a “${state.query}” com esses filtros.`
+                : "Nenhuma carta do seu acervo corresponde a esses filtros.",
+              action: { href: acervoHref({ sort: state.sort }), label: "Limpar filtros" },
+            };
+  const Icon = copy.icon;
   return (
     <section className={styles.state} aria-labelledby="acervo-sem-resultados">
       <div className={styles.stateIcon} aria-hidden="true">
-        <SearchX className="h-6 w-6" />
+        <Icon className="h-6 w-6" />
       </div>
       <h2 id="acervo-sem-resultados" className={styles.stateTitle}>
-        Nenhuma carta encontrada
+        {copy.title}
       </h2>
-      <p className={styles.stateText}>
-        {state.query
-          ? `Nenhuma carta do seu acervo corresponde a “${state.query}” com esses filtros.`
-          : "Nenhuma carta do seu acervo corresponde a esses filtros."}
-      </p>
-      <Button asChild variant="outline" className={styles.stateAction}>
-        <Link href={acervoHref({ sort: state.sort })} scroll={false}>
-          Limpar filtros
-        </Link>
-      </Button>
+      <p className={styles.stateText}>{copy.text}</p>
+      <div className={styles.stateActions}>
+        <Button asChild variant="outline" className={styles.stateAction}>
+          <Link href={copy.action.href} scroll={false}>
+            {copy.action.label}
+          </Link>
+        </Button>
+        {reason === "missing" || reason === "empty_location" ? (
+          <Button asChild variant="ghost" className={styles.stateAction}>
+            <Link href={LOCAIS_PATH}>Abrir Meus locais</Link>
+          </Button>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -427,12 +569,15 @@ function DetailContent({
   closeHref,
   addLanguages,
   storage,
+  storageFilter,
 }: {
   detail: AcervoItemDetail | null | undefined;
   closeHref: string;
   addLanguages: AddLanguage[];
   /** WHERE-03: contexto de localização; `null` = só consulta. */
   storage: CopyStorageContext | null;
+  /** WHERE-04: filtro de local da galeria (destaca os exemplares correspondentes). */
+  storageFilter: { filter: AcervoState["storage"]; name: string | null } | null;
 }) {
   if (detail === null) {
     return (
@@ -513,6 +658,7 @@ function DetailContent({
         copiesTotal={copiesTotal}
         closeHref={closeHref}
         storage={storage}
+        storageFilter={storageFilter}
       />
     </>
   );
