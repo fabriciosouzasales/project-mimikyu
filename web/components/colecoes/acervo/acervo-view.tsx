@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Box, Globe, Layers, Library, SearchX, X } from "lucide-react";
+import { AlertTriangle, Box, Globe, Layers, SearchX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   type AcervoState,
@@ -16,6 +16,7 @@ import {
   withoutDetail,
 } from "@/lib/colecoes/acervo";
 import type { AddLanguage } from "@/lib/colecoes/acervo-add";
+import type { CopyStorageContext } from "@/lib/colecoes/storage-locations-queries";
 import type {
   AcervoFilterOptions,
   AcervoItem,
@@ -28,7 +29,7 @@ import { AcervoDetailSheet } from "./acervo-detail-sheet";
 import { AcervoToolbar } from "./acervo-toolbar";
 import { CardArt } from "./card-art";
 import { CopyQuantityControl } from "./copy-quantity-control";
-import { CopyRemoveButton } from "./copy-remove-button";
+import { CopyStorageList } from "./copy-storage-list";
 import styles from "./acervo.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,6 +58,7 @@ export function AcervoView({
   options,
   detail,
   addLanguages,
+  storage = null,
 }: {
   state: AcervoState;
   summary: AcervoSummary | null;
@@ -66,6 +68,8 @@ export function AcervoView({
   detail: AcervoItemDetail | null | undefined;
   /** Idiomas aceitos no cadastro; vazio = ações de adicionar indisponíveis (não aparecem). */
   addLanguages: AddLanguage[];
+  /** WHERE-03: local de cada exemplar e locais do usuário (só com o detalhe aberto). */
+  storage?: CopyStorageContext | null;
 }) {
   const canAdd = addLanguages.length > 0;
   const isEmptyAcervo = summary !== null && summary.totalCopies === 0;
@@ -142,7 +146,7 @@ export function AcervoView({
           title="Detalhe da carta"
           closeHref={closeHref}
         >
-          <DetailContent detail={detail} closeHref={closeHref} addLanguages={addLanguages} />
+          <DetailContent detail={detail} closeHref={closeHref} addLanguages={addLanguages} storage={storage} />
         </AcervoDetailSheet>
       ) : null}
     </div>
@@ -422,10 +426,13 @@ function DetailContent({
   detail,
   closeHref,
   addLanguages,
+  storage,
 }: {
   detail: AcervoItemDetail | null | undefined;
   closeHref: string;
   addLanguages: AddLanguage[];
+  /** WHERE-03: contexto de localização; `null` = só consulta. */
+  storage: CopyStorageContext | null;
 }) {
   if (detail === null) {
     return (
@@ -494,47 +501,19 @@ function DetailContent({
         total={copiesTotal}
       />
 
-      <div className={styles.sectionHead}>
-        <h3 className={styles.sectionTitle}>Seus exemplares</h3>
-      </div>
-      <ol className={styles.copies}>
-        {copies.map((copy) => (
-          <li key={copy.physicalCardId} className={styles.copy}>
-            <span className={styles.copyNumber} aria-hidden="true">
-              {copy.copyNumber}
-            </span>
-            <div>
-              <div className={styles.copyTitle}>Exemplar {copy.copyNumber}</div>
-              <div className={styles.copyFacts}>
-                <span>
-                  <Globe className="h-3 w-3" aria-hidden="true" />
-                  {item.languageName}
-                </span>
-                <span>
-                  <Library className="h-3 w-3" aria-hidden="true" />
-                  {copy.collectionName ?? <span className={styles.unset}>Sem coleção</span>}
-                </span>
-                <span>
-                  <Box className="h-3 w-3" aria-hidden="true" />
-                  {copy.storageName ?? <span className={styles.unset}>Sem localização definida</span>}
-                </span>
-              </div>
-            </div>
-            <CopyRemoveButton
-              physicalCardId={copy.physicalCardId}
-              copyNumber={copy.copyNumber}
-              inCollection={copy.collectionName !== null}
-              isLastCopy={copiesTotal === 1}
-              closeHref={closeHref}
-            />
-          </li>
-        ))}
-      </ol>
-      {copiesTotal > copies.length ? (
-        <p className={styles.detailNote}>
-          Mostrando os {formatCount(copies.length)} primeiros de {formatCount(copiesTotal)} exemplares.
-        </p>
-      ) : null}
+      <CopyStorageList
+        copies={copies.map((copy) => ({
+          physicalCardId: copy.physicalCardId,
+          copyNumber: copy.copyNumber,
+          collectionId: copy.collectionId,
+          collectionName: copy.collectionName,
+          storageName: copy.storageName,
+        }))}
+        languageName={item.languageName}
+        copiesTotal={copiesTotal}
+        closeHref={closeHref}
+        storage={storage}
+      />
     </>
   );
 }

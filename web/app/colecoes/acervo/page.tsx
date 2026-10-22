@@ -11,6 +11,7 @@ import {
   getAcervoItems,
   getAcervoSummary,
 } from "@/lib/colecoes/acervo-queries";
+import { getCopyStorageContext } from "@/lib/colecoes/storage-locations-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -26,7 +27,8 @@ export const metadata: Metadata = { title: "Meu acervo · Coleções" };
  * Estado na URL (lib/colecoes/acervo.ts). Leituras em paralelo, uma de cada
  * por página: resumo (5160), página de grupos (5159), opções de filtro (5161),
  * idiomas aceitos no cadastro e — só com `?carta=` — o detalhe com os
- * exemplares (5162). Cadastro (MY-INVENTORY-ACTIONS-01): `actions.ts`.
+ * exemplares (5162) e o contexto de localização (WHERE-03). Cadastro
+ * (MY-INVENTORY-ACTIONS-01) e localização dos exemplares (5024): `actions.ts`.
  */
 export default async function AcervoPage({
   searchParams,
@@ -44,12 +46,14 @@ export default async function AcervoPage({
 
   void getCachedUserProfile().catch(() => {});
 
-  const [summary, page, options, detail, addLanguages] = await Promise.all([
+  const [summary, page, options, detail, addLanguages, storage] = await Promise.all([
     getAcervoSummary(supabase),
     getAcervoItems(supabase, state),
     getAcervoFilterOptions(supabase),
     state.detail ? getAcervoItemDetail(supabase, state.detail) : Promise.resolve(undefined),
     getAddLanguages(supabase),
+    // WHERE-03: local de cada exemplar + locais do usuário, só com o detalhe aberto.
+    state.detail ? getCopyStorageContext(supabase, state.detail.cardVariantId) : Promise.resolve(null),
   ]);
 
   // Página além do fim (link antigo, cartas removidas): a 5159 não devolve o total sem
@@ -67,6 +71,7 @@ export default async function AcervoPage({
         options={options}
         detail={detail}
         addLanguages={addLanguages}
+        storage={storage}
       />
     </AppShell>
   );

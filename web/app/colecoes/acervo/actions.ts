@@ -19,6 +19,9 @@ import {
   previewSetRequest,
   validRegisterItems,
 } from "@/lib/colecoes/acervo-add";
+import { COLECOES_PATH } from "@/lib/colecoes/colecoes";
+import { type CopyStorageFailure, copyStorageFailureFromError, normalizeStorageBatch } from "@/lib/colecoes/copy-storage";
+import { LOCAIS_PATH } from "@/lib/colecoes/storage-locations";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -248,4 +251,53 @@ function fail(fn: string, startedAt: number, error: { code?: string; message?: s
   // Sem dados do usuário: só função, duração, código e a classe do erro.
   console.error(JSON.stringify({ scope: "acervo.add", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
   return { ok: false, reason };
+}
+
+// ---------------------------------------------------------------------------
+// WHERE-03 — localização física dos exemplares (5024)
+// ---------------------------------------------------------------------------
+
+/**
+ * Guarda (ou tira de local) exemplares do próprio acervo — `set_physical_cards_storage`
+ * (5024, canônica). Local não nulo atribui/move; `null` limpa ("Sem localização
+ * definida"). 1 a 500 exemplares; atômica (um exemplar alheio → nada muda);
+ * idempotente por estado. Dono do local e dos exemplares conferidos pelo banco.
+ *
+ * Só muda `physical_card.storage_container_id`: coleção, variante, idioma,
+ * condição e quantidade ficam como estão. A confirmação explícita (NS-13) é
+ * feita na interface antes desta chamada.
+ */
+export async function setMyCopiesStorage(input: {
+  physicalCardIds: string[];
+  storageContainerId: string | null;
+}): Promise<{ ok: true; updated: number; storageContainerId: string | null } | { ok: false; reason: CopyStorageFailure }> {
+  const ids = normalizeStorageBatch(input?.physicalCardIds);
+  if (ids === null) {
+    const tooMany = Array.isArray(input?.physicalCardIds) && input.physicalCardIds.length > 500;
+    return { ok: false, reason: tooMany ? "too_many" : "invalid" };
+  }
+  const target = input.storageContainerId ?? null;
+  if (target !== null && !isUuid(target)) return { ok: false, reason: "storage_gone" };
+
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_physical_cards_storage", {
+    p_storage_container_id: target,
+    p_physical_card_ids: ids,
+  });
+  if (error || !Array.isArray(data)) {
+    const reason = copyStorageFailureFromError(error);
+    // Sem dados do usuário: só função, duração, código e a classe do erro.
+    console.error(JSON.stringify({ scope: "colecoes.write", fn: "set_physical_cards_storage", ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+    if (reason === "storage_gone" || reason === "copies_gone") revalidatePath(ACERVO_PATH);
+    return { ok: false, reason };
+  }
+  console.info(
+    JSON.stringify({ scope: "colecoes.copy_storage", ms: Date.now() - startedAt, requested: ids.length, updated: data.length, clear: target === null }),
+  );
+  // Nome do local aparece no detalhe do acervo, nas coleções e nas contagens de Meus locais.
+  revalidatePath(ACERVO_PATH);
+  revalidatePath(LOCAIS_PATH);
+  revalidatePath(COLECOES_PATH, "layout");
+  return { ok: true, updated: data.length, storageContainerId: target };
 }

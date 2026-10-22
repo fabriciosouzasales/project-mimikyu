@@ -50,6 +50,8 @@ export type AcervoCopy = {
   physicalCardId: string;
   copyNumber: number;
   addedAt: string;
+  /** Coleção do exemplar (WHERE-03: para mostrar o local padrão dela, só como referência). */
+  collectionId: string | null;
   collectionName: string | null;
   storageName: string | null;
 };
@@ -145,6 +147,7 @@ type CopyRow = Omit<ItemRow, "copies_count" | "last_added_at" | "total_count"> &
   physical_card_id: string;
   copy_number: number;
   added_at: string;
+  collection_id: string | null;
   collection_name: string | null;
   storage_name: string | null;
 };
@@ -179,6 +182,7 @@ export async function getAcervoItemDetail(
       physicalCardId: row.physical_card_id,
       copyNumber: row.copy_number,
       addedAt: row.added_at,
+      collectionId: row.collection_id ?? null,
       collectionName: row.collection_name,
       storageName: row.storage_name,
     })),

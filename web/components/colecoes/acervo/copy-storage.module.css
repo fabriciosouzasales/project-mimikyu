@@ -1,0 +1,165 @@
+/*
+ * WHERE-03 — localização dos exemplares no detalhe do Meu acervo.
+ * Complementa acervo.module.css (lista "Seus exemplares") sem alterá-la:
+ * coluna de seleção, linha "Guardado em" e a barra de ação fixa no rodapé
+ * do painel. Tokens do Design System; dourado só no foco e na seleção.
+ */
+
+.copySelectable {
+  grid-template-columns: 2.75rem 1.875rem 1fr auto;
+  gap: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.copySelectable[data-selected] {
+  background: hsl(var(--primary) / 0.06);
+}
+
+/* Alvo de toque de 44 px em volta do checkbox nativo. */
+.check {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.5rem 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.check:has(input:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.check input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: hsl(var(--primary));
+  cursor: pointer;
+}
+
+.check input[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.stored {
+  color: hsl(var(--foreground) / 0.85);
+}
+
+.storedLabel {
+  color: hsl(var(--muted-foreground));
+}
+
+.preference {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.1875rem;
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground) / 0.9);
+}
+
+.selectAll {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  border-radius: 0.375rem;
+}
+
+.selectAll:hover {
+  color: hsl(var(--foreground));
+}
+
+.selectAll:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.hint {
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.notice {
+  margin-top: 0.75rem;
+}
+
+.notice:empty {
+  display: none;
+}
+
+/* ---- barra de ação: fixa no rodapé do painel enquanto há seleção ---- */
+.bar {
+  position: sticky;
+  /* bottom: 0 — a barra fica inteira visível na borda inferior do painel enquanto rola;
+     a margem inferior negativa só a encosta no fim do conteúdo (sobre o padding de .drawerBody). */
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin: 1rem -1.375rem -1.375rem;
+  padding: 0.875rem 1.375rem 1.125rem;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+  box-shadow: 0 -16px 32px -24px hsl(var(--foreground) / 0.45);
+}
+
+:global(.dark) .bar {
+  box-shadow: 0 -18px 36px -24px hsl(0 0% 0% / 0.9);
+}
+
+.barHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--foreground));
+}
+
+.barCount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.barRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.barRow > :first-child {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.barNote {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.confirmTitle {
+  font: 700 0.9375rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.confirmBody {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+}
+
+@media (max-width: 767px) {
+  .barRow > * {
+    flex: 1 1 100%;
+  }
+}

@@ -3,7 +3,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useRef, useState, useTransition } from "react";
+import { type ReactNode, createContext, useContext, useEffect, useRef, useState, useTransition } from "react";
 import styles from "./acervo.module.css";
 
 /**
@@ -30,6 +30,17 @@ import styles from "./acervo.module.css";
  * não tenha tido chance de restaurá-lo (desmontagem com o painel aberto, p.ex.
  * ao remover o último exemplar), para a página nunca ficar "travada".
  */
+/**
+ * WHERE-03: enquanto uma gravação está em andamento dentro do painel (ex.:
+ * guardar exemplares num local), o painel não fecha — Esc, clique fora e
+ * "Fechar" são ignorados — para o resultado nunca ficar sem resposta.
+ */
+const SheetLockContext = createContext<(locked: boolean) => void>(() => {});
+
+export function useDetailSheetLock(): (locked: boolean) => void {
+  return useContext(SheetLockContext);
+}
+
 export function AcervoDetailSheet({
   title,
   closeHref,
@@ -43,6 +54,7 @@ export function AcervoDetailSheet({
   const [open, setOpen] = useState(true);
   const [isClosing, startTransition] = useTransition();
   const closeRequested = useRef(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     if (isClosing || !closeRequested.current) return;
@@ -63,7 +75,7 @@ export function AcervoDetailSheet({
     <DialogPrimitive.Root
       open={open}
       onOpenChange={(next) => {
-        if (next) return;
+        if (next || locked) return;
         closeRequested.current = true;
         setOpen(false);
         startTransition(() => router.replace(closeHref, { scroll: false }));
@@ -74,6 +86,8 @@ export function AcervoDetailSheet({
         <DialogPrimitive.Content
           className={styles.drawer}
           aria-describedby={undefined}
+          onEscapeKeyDown={(event) => locked && event.preventDefault()}
+          onPointerDownOutside={(event) => locked && event.preventDefault()}
           onOpenAutoFocus={(event) => {
             // O foco vai direto ao campo marcado com data-autofocus (a quantidade
             // de exemplares), já selecionado para digitar por cima. Só com
@@ -89,13 +103,17 @@ export function AcervoDetailSheet({
           <div className={styles.drawerHeader}>
             <DialogPrimitive.Title className="text-sm font-medium text-foreground">{title}</DialogPrimitive.Title>
             <DialogPrimitive.Close
-              className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-disabled={locked || undefined}
+              onClick={(event) => locked && event.preventDefault()}
+              className="aria-disabled:opacity-40 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Fechar"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </DialogPrimitive.Close>
           </div>
-          <div className={styles.drawerBody}>{children}</div>
+          <div className={styles.drawerBody}>
+            <SheetLockContext.Provider value={setLocked}>{children}</SheetLockContext.Provider>
+          </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
