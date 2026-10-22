@@ -6,6 +6,17 @@ Query.......: 5159 - get_my_inventory_items(): galeria paginada de
 Versão......: 1.0
 Status......: CONFIRMADO EXECUTADO no LIVE em 2026-10-17
               (MY-INVENTORY-LIVE-DEPLOYMENT-01); validado pelo 5827 (52/52 PASS)
+
+SUBSTITUÍDA PELA 5220 (WHERE-04, executada no LIVE em 2026-10-22 UTC,
+ledger 20261022021252 — nota documental; o corpo SQL abaixo é o original
+da 5159, preservado como histórico, e NÃO deve ser reexecutado):
+  - definição vigente: database/schema/5220_evolve_get_my_inventory_items_storage_filter.sql;
+  - assinatura vigente com 10 parâmetros (os 8 abaixo + p_storage_container_id
+    uuid default null, p_without_storage boolean default false);
+  - retorno vigente com 16 colunas (as 14 abaixo + copies_owned integer,
+    total_copies bigint);
+  - a assinatura de 8 parâmetros deixou de existir (DROP na 5220);
+  - validação vigente: 5848 v1.1 (50/50); a 5827 é evidência histórica.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-16
 
