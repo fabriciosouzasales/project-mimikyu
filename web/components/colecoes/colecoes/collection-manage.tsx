@@ -32,6 +32,7 @@ import {
 import { type ProposalOrigin, laterActionLabel } from "@/lib/colecoes/collection-organize";
 import { MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
 import { CardArt } from "../acervo/card-art";
+import { SharedBinderSettingsSection } from "../fichario/binder-share-settings";
 import { IdentityCoverImage, IdentityNameForm } from "./collection-identity-settings";
 import { CoverFinishPicker } from "./cover-finish-picker";
 import { CollectionObjectiveSection } from "./collection-objective";
@@ -466,6 +467,8 @@ function SettingsPanel({
   const [organize, setOrganize] = useState<{ origin: ProposalOrigin; key: number } | null>(null);
   const [organizeBusy, setOrganizeBusy] = useState(false);
   const [destinationNotice, setDestinationNotice] = useState<string | null>(null);
+  // P2-SHARED-BINDER-FRONTEND-01: sair do fichário compartilhado (só convidadas).
+  const [shareBusy, setShareBusy] = useState(false);
   const [, startRefresh] = useTransition();
 
   const load = useCallback(() => setAttempt((n) => n + 1), []);
@@ -520,7 +523,7 @@ function SettingsPanel({
   const isFree = kind === "free";
   const isPokedex = kind === "pokedex";
   // Fechar o painel no meio de uma gravação deixaria o resultado sem feedback.
-  const locked = saving || objectiveBusy || nameBusy || imageBusy || finishBusy || organizeBusy;
+  const locked = saving || objectiveBusy || nameBusy || imageBusy || finishBusy || organizeBusy || shareBusy;
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && !locked && onClose()}>
@@ -680,6 +683,8 @@ function SettingsPanel({
                 )
               ) : null}
             </section>
+
+            <SharedBinderSettingsSection collectionId={collectionId} onBusyChange={setShareBusy} />
 
             {isPokedex ? null : (
               <p className={`${styles.note} flex items-start gap-2`}>

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
+import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
 import { AlertTriangle, ArrowLeft, Info, Trophy } from "lucide-react";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { Button } from "@/components/ui/button";
@@ -54,6 +56,7 @@ export function PokedexCollectionView({
   positions,
   options,
   heroLineup = [],
+  binder = null,
   coverLogoUrl = null,
   userId = null,
 }: {
@@ -68,6 +71,8 @@ export function PokedexCollectionView({
   options: GenerationOption[] | null;
   /** Palco do hero (UX-07): iniciais da geração em destaque; vazio = sem palco. */
   heroLineup?: PokedexHeroPokemon[];
+  /** Cabeçalho do Fichário Digital (5223); `null` = sem leitura. */
+  binder?: BinderHeader | null;
   /** URL assinada da imagem da capa (5176–5178/5206); `null` = placa tipográfica. */
   coverLogoUrl?: string | null;
   /** Dono da sessão — pasta do envio da capa; `null` = envio indisponível. */
@@ -143,7 +148,9 @@ export function PokedexCollectionView({
           <div className={heroStyles.text}>
         {/* UX-06: identidade compacta (nome, código, imagem e cor ficam em Ajustes); progresso mantém o destaque original. */}
         <div className={pkxStyles.heroRow}>
-          <div className={pkxStyles.heroCover}>{cover}</div>
+          <div className={pkxStyles.heroCover}>
+            <BinderCoverLink collectionId={collection.id} ready={Boolean(binder?.hasBinder && binder.pageCount > 0)} available={binderEntryVisible(binder)}>{cover}</BinderCoverLink>
+          </div>
           <div className={pkxStyles.heroIdentity}>
             <div className={pkxStyles.heroTitle}>
               <CollectionTitle name={collection.name} />
@@ -193,6 +200,8 @@ export function PokedexCollectionView({
             </span>
           </div>
         </section>
+
+        <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.coverCode} binder={binder} />
           </div>
           {/* UX-07: a equipe de 6 — favoritos sorteados, completados pelos iniciais. */}
           <PokedexHeroStage lineup={heroLineup} label={heroLabel} />

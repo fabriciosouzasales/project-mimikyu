@@ -5,7 +5,7 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4) |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física PROPOSTA; estende C-42); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física PROPOSTA) |
 | **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
 | **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
@@ -649,6 +649,8 @@ Adicionado após reconciliação da frente `COLLECTIONS-LAYOUT-MODELING` (dez ro
 
 **Status:** Aprovada
 
+> Emendada por C-195 (2026-10-23): o contexto funcional é a Collection **proprietária**; Collections convidadas do mesmo dono podem participar do mesmo Layout por associação explícita.
+
 `Collection Layout` é a organização visual/espacial de uma `Collection` — a forma como o usuário arranja livremente (C-24) a apresentação de suas `Physical Cards` alocadas. É independente de `Storage Container`: trocar o Storage Container físico não destrói nem recria o Layout.
 
 Todo `Collection Layout` possui exatamente uma `Collection` como contexto funcional. Uma `Collection` pode existir sem Layout. O modelo conceitual permite, no futuro, mais de um Layout por Collection, mesmo que a primeira versão do produto exponha apenas um Layout principal.
@@ -715,6 +717,8 @@ Expected Content e ocupação física (ver C-44) são independentes: são válid
 Expected Content **não participa** do cálculo de completude da Collection — completude permanece exclusivamente derivada da alocação à Collection frente ao universo de referência (C-19/C-20), nunca do Layout.
 
 Expected Content representa exclusivamente conteúdo editorial/colecionável. Não incorpora custom image, divisor visual, região decorativa ou outros elementos puramente visuais — esses pertencem a uma futura frente própria de Layout, não modelada aqui.
+
+**Extensão aprovada (R3, 2026-10-22, `P2-A1-PROPOSAL-01`) — implementação física PROPOSTA, não executada.** A granularidade passa a admitir uma terceira forma: **Card + tipo de acabamento** (`Card Variant Type`), necessária para a reserva de posição do Master Set (C-187), em que várias Variants podem compartilhar o mesmo acabamento. As três formas são mutuamente exclusivas: só Card; Card + Card Variant; Card + acabamento — nunca Variant e acabamento juntos. O acabamento é do mesmo Game da Card. A satisfação é avaliada na granularidade gravada (mesma Card; e, se houver, mesma Variant ou mesmo acabamento). Ver C-192 e `database/proposals/2026-10-22-p2-a1-digital-binder/` (5225). O restante desta decisão — independência de ocupação, não bloqueio por mismatch, fora da completude — permanece inalterado.
 
 ---
 
@@ -1732,6 +1736,72 @@ Carta secreta é a carta cujo número de colecionador excede o total do Set base
 
 A identidade do Card Set e o seu universo editorial de cartas permanecem estáveis (B.3, "Universo estático", sem alteração). O que pode evoluir é a **cobertura de variantes** que o catálogo registra para essas cartas — cadastro posterior de acabamentos, correções e desativações catalográficas. O Set convencional não é afetado por essa evolução (uma carta continua sendo uma posição). O Master Set, por ser definido por acabamentos (C-188), acompanha a cobertura vigente. Correções e desativações são eventos de governança do catálogo, registrados no log administrativo do catálogo; o comportamento sobre posições já satisfeitas está em LDM-195.
 
+
+---
+
+## Bloco complementar — Fichário Digital (C-191 a C-194, 2026-10-22)
+
+Origem: decisões explícitas de Fabrício na sequência `P2 BINDER PRODUCTION READINESS-01` → `P2-A1 DISCOVERY-01` (D1–D9) → `P2-A1 REFINEMENT-01/02` (R1–R5) → `P2-A1-PROPOSAL-01` (2026-10-22). **As decisões estão aprovadas; a implementação física (5223–5226, harness 5850) está PROPOSTA e não foi executada.** Não reabre C-38–C-46: o Fichário Digital é o Collection Layout (C-38) visto pelo colecionador, criado automaticamente. "Fichário Digital" é o nome de produto (ver `ubiquitous-language.md`).
+
+### C-191 — Criação e elegibilidade do Fichário Digital
+
+**Status:** Aprovada (implementação PROPOSTA)
+
+> Emendada por C-195 (2026-10-23): "no máximo um Fichário Digital" passa a valer para a participação (proprietária ou convidada); uma convidada não cria fichário próprio.
+
+Uma Collection tem no máximo um Fichário Digital. Ele só pode ser **criado** quando a Collection está ativa e o seu local padrão (`default storage`) é do tipo **Fichário físico** (`BINDER`), validado no servidor no instante da criação. Depois de criado, o acesso e a edição **não dependem** do local padrão: trocar o local ou o tipo do local não remove nem bloqueia o Fichário. Localização física (Storage, C-55 e seguintes) e organização digital (Layout, C-38) continuam independentes. O modelo é escolhido entre sete grades Normais, descritas em **colunas × linhas**: 2×2, 3×3, 3×4, 4×3, 4×4, 4×5, 5×4 ("3×4" = 3 colunas, 4 linhas). Outros formatos (estendidos, mesclagens prontas) não fazem parte desta etapa. **Nenhum caminho alternativo** pode contornar esta decisão: criar um fichário só pela montagem automática (C-192), e alterar a grade de um fichário sem páginas só para um dos sete modelos — o colecionador não recebe, por nenhuma operação, uma grade fora da lista (Decisões A e B de Fabrício, 2026-10-23; implementação PROPOSTA nas Queries 5227/5228). Fichários preexistentes não são alterados.
+
+### C-192 — Montagem automática por tipo de Collection
+
+**Status:** Aprovada (implementação PROPOSTA)
+
+A criação monta o Fichário de uma vez, de forma determinística, a partir da mesma fonte do progresso de cada tipo — nunca de regra paralela:
+- **Set**: uma posição por carta do Card Set, secretas incluídas como no progresso, em ordem numérica; carta sem exemplar recebe **reserva** (Expected Content da carta).
+- **Master Set**: as posições exigidas pelo objetivo (C-187–C-189), agrupadas por carta e, dentro da carta, na ordem canônica de exibição dos acabamentos (Normal → Holo → Reverse; Cosmos no lugar que o catálogo lhe dá); posição sem exemplar recebe reserva **carta + acabamento** (C-42 estendida); secreta sem acabamento escolhido reserva só a carta.
+- **Pokédex**: as posições com exemplar vinculado, na ordem nacional; vínculos existentes preservados; **sem reservas**.
+- **Livre**: cada exemplar uma posição, na ordem de entrada na Collection; empate no mesmo instante desempatado por Set, número, acabamento, variante, idioma e exemplar (regra documentada em 5224).
+Em cada posição entra **um** exemplar principal (desempate documentado em 5224). Nenhum exemplar é desalocado, movido fisicamente ou alterado. A criação é atômica e única; uma segunda criação devolve o Fichário existente sem alterá-lo.
+
+### C-193 — Exemplares adicionais
+
+**Status:** Aprovada (implementação PROPOSTA)
+
+Exemplar adicional é todo exemplar alocado que não é o principal de uma posição. Cada um recebe **uma única** categoria, sem dupla contagem: **fora do objetivo** (não corresponde a posição alguma) > **cópia idêntica** (mesma Card Variant **e** mesmo idioma de um exemplar anterior da mesma posição) > **outro idioma** > **outra variante**. Sempre que existir algum adicional, o colecionador escolhe entre **só os principais** (adicionais ficam sem bolso, continuam na Collection) ou **páginas extras** (adicionais em páginas próprias depois do checklist, nunca intercalados). A escolha **não é persistida**: vale para aquela montagem e faz parte do que foi confirmado.
+
+### C-194 — Desmontagem confirmada do Fichário
+
+**Status:** Aprovada (implementação PROPOSTA)
+
+O colecionador pode desmontar o Fichário inteiro — inclusive de Collection arquivada — por ação explícita, depois de ver o que será descartado (páginas, bolsos, travas, mesclagens, posições e reservas). A desmontagem é atômica e só remove a organização digital: exemplares, alocações, localização física, vínculos e objetivo permanecem. Excluir uma Collection que tem Fichário é **recusado** com mensagem própria; não há remoção em cascata — primeiro se desmonta, depois se exclui. A confirmação de remover uma carta posicionada no uso diário (D4) é outra confirmação, independente desta.
+
+## Bloco complementar — Fichário Digital compartilhado (C-195 a C-197, 2026-10-23)
+
+Origem: `P2-SHARED-BINDER-DISCOVERY-01` (alternativa A: proprietária + convidadas) e decisões aprovadas por Fabrício em `P2-SHARED-BINDER-PROPOSAL-01`. **Decisões aprovadas; implementação física PROPOSTA (5229, 5230, harness 5851), não executada.** Caso de referência: ME5.5 (proprietária) e ME5.5CC (convidada) guardadas no mesmo fichário físico. Emenda mínima de C-38 e C-191, sem reescrever o texto aprovado.
+
+### C-195 — Fichário Digital compartilhado por associação explícita
+
+**Status:** Aprovada (implementação PROPOSTA)
+
+Um Fichário Digital tem exatamente uma Collection **proprietária** (o contexto funcional de C-38) e zero ou mais Collections **convidadas** do mesmo dono. A convidada só passa a participar por **associação explícita** do colecionador, nunca automática. Uma Collection participa de no máximo um Fichário Digital — como proprietária ou como convidada, nunca as duas coisas e nunca de dois fichários. A associação exige que a convidada esteja ativa, sem fichário próprio, e guardada (local padrão) no mesmo fichário físico de algum participante; o local físico serve para **identificar** fichários disponíveis, e mudá-lo depois **não** desfaz a associação. Qualquer participante abre o mesmo fichário. Associar não rearranja nada: nenhum bolso, reserva ou carta existente muda; a convidada posiciona as próprias cartas manualmente. Progresso e alocações de cada Collection permanecem independentes. Emenda C-38 ("exatamente uma Collection como contexto funcional" → a proprietária; convidadas participam) e C-191 ("no máximo um Fichário Digital" → no máximo um fichário em que participa; criar o próprio é recusado enquanto for convidada).
+
+### C-196 — Reservas pertencem a uma Collection
+
+**Status:** Aprovada (implementação PROPOSTA)
+
+Toda reserva nova registra a Collection à qual pertence (informada, ou a da carta que ocupa o bolso, ou a proprietária). Reservas existentes antes desta decisão — e as da montagem automática (C-192) — pertencem à proprietária. Uma reserva só pode pertencer a um participante do fichário.
+
+### C-197 — Desassociação e limites da proprietária
+
+**Status:** Aprovada (implementação PROPOSTA)
+
+Desassociar uma convidada é ação explícita, depois de ver o que muda, e remove **somente** as posições das cartas dela e as reservas dela; as cartas continuam alocadas a ela, o progresso não muda e nada da proprietária ou de outra convidada é tocado. Bolsos fixados afetados só são soltos mediante confirmação explícita. Enquanto houver convidadas, a desmontagem do fichário (C-194) é bloqueada, e uma convidada não pode ser excluída sem antes ser desassociada. Proprietária arquivada deixa o fichário somente leitura para todos; convidada arquivada não move nem reserva as próprias cartas.
+
+### C-198 — Imagem personalizada do bolso
+
+**Status:** Aprovada (2026-10-23, decisões D1–D3 de Fabrício; implementação PROPOSTA)
+
+O colecionador pode colocar uma **imagem personalizada** num bolso realmente livre do Fichário Digital — sem carta posicionada, sem reserva, não fixado e fora de mesclagem. A imagem é um **elemento visual do fichário**, não um colecionável: não é exemplar físico, não altera acervo, alocação, progresso, reserva nem valor, e nunca substitui automaticamente uma carta ou uma reserva — enquanto o bolso tiver imagem, colocar carta, reservar, fixar ou mesclar esse bolso é recusado até a imagem ser removida. Uma imagem por bolso. Pertence ao fichário: no fichário compartilhado (C-195) todas as coleções participantes a veem, e o dono gerencia (incluir, substituir, ajustar enquadramento, remover) por qualquer coleção participante, inclusive convidada. O arquivo é privado ao dono, exibido só por acesso temporário autorizado, com tipo e tamanho limitados no armazenamento. Limite inicial: **500 imagens por usuário**, ajustável. Fecha a "futura frente própria de Layout" citada em C-42, sem alterar C-42 (Expected Content continua exclusivamente editorial) nem C-46. Proposta física: `database/proposals/2026-10-23-p2-binder-custom-images/` (5231–5236, harness 5852).
+
 ---
 
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
@@ -2064,3 +2134,7 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.15 | **Correção do conflito documental Pokédex, 2026-09-03** (`COLLECTIONS-POKEDEX-DOCUMENTATION-FINAL-FIX-01`), decorrente da auditoria read-only `COLLECTIONS-POKEDEX-DOCUMENTATION-FINAL-AUDIT-01`, que classificou dois trechos como `STALE_CONFLICT` frente ao modelo fechado em `COLLECTIONS-POKEDEX-MODELING-DOCUMENTATION-01` (`logical-model.md`, LDM-177–LDM-181). **C-33 atualizada**: o exemplo Pokédex ("validar se a Card representa o Pokémon correto para aquela posição") foi revisado para descrever explicitamente Species Match (correspondência exata → `SPECIES_MATCH`, automático) vs. mismatch/ausência de Primary Species (aviso + confirmação → `USER_OVERRIDE`, nunca bloqueio), com pointer para LDM-177/LDM-178/LDM-179; a decisão central de C-33 (validação restrita a pertencimento ao universo, sem regras de preferência pessoal) não foi alterada. **Parte B.4 (Pokédex) atualizada**: a frase "A Card utilizada deve representar aquele Pokémon" foi substituída por formulação que distingue satisfação automática (Primary Species correspondente) de mismatch/ausência (aviso + `USER_OVERRIDE`, conta normalmente para completion), com pointer para LDM-178/LDM-181. **Parte D atualizada**: a entrada `Pokémon / Subject Reference`, antes listada como tema não resolvido, foi marcada como resolvida (riscada, com nota), apontando para a revogação do adiamento em ADR-011 v1.2 e para LDM-175–LDM-185 — texto histórico preservado. Nenhuma outra C-* revisitada. `logical-model.md`, `ADR-011` e banco/schema não foram tocados nesta rodada — fix estritamente documental, escopo idêntico ao dos três conflitos identificados na auditoria anterior. |
 | 1.16 | **Anotação de status (2026-10-15, `DOC-GATE-01`).** Parte D: o item "engine de progresso" constava apenas como pendente, mas a completude é calculada fisicamente desde 2026-09-02/06 por read models derivados (02E, 02F, Fatia E). Anotação acrescentada ao item, sem remover o texto original nem alterar decisões C-*. |
 | 1.17 | **Master Set por acabamento (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`).** Decisões de Fabrício: unidade de completude = carta + tipo de acabamento; acabamentos escolhidos persistidos e posições derivadas do catálogo vigente (novas combinações entram sozinhas); objetivo editável a qualquer momento; secretas (número além do Set base) obrigatórias, contempladas pela carta e não por acabamentos extras; contexto de edição, impressão e idioma não criam posições. Adicionadas C-187 a C-190. Notas de substituição parcial em C-01 (frase sobre Master Set) e em B.4 (Master Set); esclarecimento em B.3 (Card Set estável × cobertura de variantes). Texto original preservado. C-23 inalterada. |
+| 1.18 | **Fichário Digital (2026-10-22, `P2-A1-PROPOSAL-01`).** Decisões de Fabrício D1–D9 e R1–R5: adicionado bloco complementar C-191 a C-194 (criação e elegibilidade por local `BINDER`, sete modelos em colunas × linhas; montagem automática por tipo a partir da fonte do progresso; exemplares adicionais em categoria única com escolha não persistida entre só principais e páginas extras; desmontagem confirmada e atômica, inclusive em coleção arquivada, e exclusão de Collection recusada enquanto houver Fichário). C-42 recebe extensão aprovada (Card + acabamento), sem reescrever o texto original. Decisões aprovadas; implementação física PROPOSTA (5223–5226 + harness 5850), nada executado. C-01–C-190 não reabertas. |
+| 1.19 | **Fichário Digital — fechamento de caminhos alternativos (2026-10-23, `P2-A1-PROPOSAL-FINAL-CONSOLIDATION-01`).** C-191 complementada (sem reescrever o texto aprovado): nenhum caminho alternativo de criação ou de alteração de grade contorna D1/D2/D3 — Decisões A e B de Fabrício. Implementação PROPOSTA (5227/5228), não executada. |
+| 1.20 | **Fichário Digital compartilhado (2026-10-23, `P2-SHARED-BINDER-PROPOSAL-01`).** Adicionado bloco C-195 a C-197 (associação explícita de convidadas, reservas com coleção, desassociação e limites da proprietária); C-38 e C-191 recebem nota de emenda sem reescrever o texto aprovado. Implementação física PROPOSTA (5229/5230, harness 5851). |
+| 1.21 | **Imagem personalizada do bolso (2026-10-23, `P2-BINDER-CUSTOM-IMAGES-PROPOSAL-01`).** Adicionada C-198 (decisões D1–D3 de Fabrício: elemento visual do fichário, não colecionável; gerência por qualquer coleção participante; limite de 500 imagens por usuário). Fecha a frente citada em C-42 sem alterá-la. Implementação física PROPOSTA (5231–5236), não executada. |

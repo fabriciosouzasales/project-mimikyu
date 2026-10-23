@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
+import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
 import type { ReactNode } from "react";
 import { AlertTriangle, ArrowLeft, Layers, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,7 @@ export function FreeCollectionView({
   openPicker,
   coverLogoUrl = null,
   userId = null,
+  binder = null,
 }: {
   collection: CollectionSummary;
   /** Cartas da coleção (5159); `null` = leitura falhou. */
@@ -72,6 +75,8 @@ export function FreeCollectionView({
   coverLogoUrl?: string | null;
   /** Dono da sessão — pasta do envio da capa; `null` = envio indisponível. */
   userId?: string | null;
+  /** Cabeçalho do Fichário Digital (5223); `null` = sem leitura. */
+  binder?: BinderHeader | null;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
   const copies = collection.copiesCount;
@@ -129,7 +134,7 @@ export function FreeCollectionView({
           <div className={heroStyles.text}>
             <div className={heroStyles.identity}>
               <div className={heroStyles.identityCover}>
-                {cover}
+                <BinderCoverLink collectionId={collection.id} ready={Boolean(binder?.hasBinder && binder.pageCount > 0)} available={binderEntryVisible(binder)}>{cover}</BinderCoverLink>
               </div>
               <div className={heroStyles.identityText}>
                 <div className={heroStyles.title}>
@@ -168,6 +173,8 @@ export function FreeCollectionView({
                 <p className={freeStyles.summaryNote}>Sem meta e sem lista fixa — cartas de qualquer Set, escolhidas por você.</p>
               )}
             </section>
+
+            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.coverCode} binder={binder} />
           </div>
 
           <CollectionHeroFan selection={selection} label="Cartas mais recentes da coleção" />

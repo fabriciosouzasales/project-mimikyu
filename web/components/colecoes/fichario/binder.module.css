@@ -1,0 +1,794 @@
+/*
+ * Fichário Digital (P2-B) — superfície customer-facing.
+ *
+ * O fichário aberto é o palco: capa de couro no acabamento da coleção
+ * (mesmas cores de `binder-cover.module.css` — um objeto físico não muda de
+ * cor com o tema), duas páginas no desktop e uma no celular, bolsos 8:11 (proporção real dos assets, CARD-ASPECT-01) com
+ * a carta como protagonista. Dourado só no foco, na ação primária e no
+ * indicador de página.
+ *
+ * Estados do bolso: carta (exemplar), reserva (a carta que falta, em
+ * marca-d'água), vazio (só a capa plástica) e divergente (carta diferente da
+ * reservada, com selo). Nenhum estado depende só de cor: reservas têm
+ * contorno tracejado e rótulo "Falta"; divergência tem ícone.
+ *
+ * Movimento: troca de spread = opacidade + deslocamento curto (240 ms),
+ * desligado por prefers-reduced-motion (regra global). Sem virada 3D.
+ * Performance: sem filter/backdrop-filter na grade; proporção fixa = zero CLS.
+ */
+
+/* Tokens do fichário (montagem e prévia). */
+.root {
+  --binder-card-radius: 4.6% / 3.4%;
+  --binder-desk-glow: radial-gradient(60% 55% at 50% 40%, hsl(var(--primary) / 0.08), transparent 70%);
+  --binder-page: 40 30% 97%;
+  --binder-page-edge: 36 18% 86%;
+  --binder-sleeve: 0 0% 100% / 0.55;
+  --binder-sleeve-edge: 30 12% 70% / 0.45;
+  --binder-sleeve-hi: 0 0% 100% / 0.9;
+  --binder-reserve-ink: 30 10% 40%;
+  --binder-card-shadow: 0 1px 1px hsl(30 20% 20% / 0.18), 0 6px 12px -8px hsl(30 30% 15% / 0.45);
+  --binder-object-shadow: 0 2px 4px hsl(30 30% 10% / 0.12), 0 28px 60px -28px hsl(30 40% 10% / 0.5);
+}
+
+.root {
+  position: relative;
+  margin: 0 auto;
+  padding-inline: clamp(0.75rem, 2vw, 2.5rem);
+  max-width: 120rem;
+}
+
+:global(.dark) .root {
+  --binder-desk-glow: radial-gradient(60% 55% at 50% 40%, hsl(var(--primary) / 0.06), transparent 70%);
+  --binder-page: 30 10% 13%;
+  --binder-page-edge: 30 10% 8%;
+  --binder-sleeve: 30 10% 22% / 0.45;
+  --binder-sleeve-edge: 30 10% 40% / 0.35;
+  --binder-sleeve-hi: 0 0% 100% / 0.08;
+  --binder-reserve-ink: 34 14% 62%;
+  --binder-card-shadow: 0 1px 1px hsl(0 0% 0% / 0.5), 0 8px 14px -8px hsl(0 0% 0% / 0.85);
+  --binder-object-shadow: 0 2px 6px hsl(0 0% 0% / 0.4), 0 34px 70px -28px hsl(0 0% 0% / 0.9);
+}
+
+/* ---- cabeçalho ---- */
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  border-radius: 0.375rem;
+  transition: color 160ms ease;
+}
+
+.backLink:hover {
+  color: hsl(var(--foreground));
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 2rem;
+  margin-top: 0.25rem;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: clamp(1.75rem, 3.6vw, 2.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+/* O fichário: capa de couro (acabamento) emoldurando as páginas. */
+.binder {
+  /* acabamento padrão (ônix); sobrescrito por data-finish — mesmas cores da capa */
+  --leather: 30 5% 15%;
+  --leather-deep: 30 6% 6%;
+  --leather-hi: 30 8% 26%;
+  --stitch: 40 30% 72%;
+  --ring-metal: 40 12% 72%;
+
+  position: relative;
+  justify-self: center;
+  width: 100%;
+  /* Tamanho real: área de trabalho (workspace.module.css, via --pocket) ou prévia da montagem. */
+  max-width: 100%;
+  min-width: 0;
+  padding: clamp(0.5rem, 1.2vw, 1rem);
+  border-radius: clamp(0.75rem, 1.4vw, 1.25rem);
+  background:
+    radial-gradient(120% 90% at 30% 0%, hsl(var(--leather-hi) / 0.55), transparent 55%),
+    linear-gradient(160deg, hsl(var(--leather)), hsl(var(--leather-deep)));
+  box-shadow:
+    var(--binder-object-shadow),
+    inset 0 1px 0 hsl(var(--leather-hi) / 0.8),
+    inset 0 0 0 1px hsl(var(--leather-deep));
+}
+
+.binder::after {
+  /* costura discreta no contorno */
+  content: "";
+  position: absolute;
+  inset: clamp(0.25rem, 0.5vw, 0.375rem);
+  border-radius: inherit;
+  border: 1px dashed hsl(var(--stitch) / 0.35);
+  pointer-events: none;
+}
+
+.binder[data-finish="vinho"] {
+  --leather: 350 46% 27%;
+  --leather-deep: 350 52% 12%;
+  --leather-hi: 352 40% 38%;
+  --stitch: 30 40% 74%;
+}
+
+.binder[data-finish="floresta"] {
+  --leather: 156 30% 20%;
+  --leather-deep: 160 38% 8%;
+  --leather-hi: 152 24% 30%;
+  --stitch: 45 34% 70%;
+}
+
+.binder[data-finish="marinho"] {
+  --leather: 220 42% 25%;
+  --leather-deep: 222 50% 10%;
+  --leather-hi: 216 34% 37%;
+  --stitch: 210 20% 78%;
+}
+
+.binder[data-finish="caramelo"] {
+  --leather: 27 50% 38%;
+  --leather-deep: 22 56% 17%;
+  --leather-hi: 30 52% 52%;
+  --stitch: 38 52% 84%;
+}
+
+.binder[data-finish="perola"] {
+  --leather: 40 26% 86%;
+  --leather-deep: 34 16% 62%;
+  --leather-hi: 40 40% 96%;
+  --stitch: 32 18% 46%;
+}
+
+.spread {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--per-view, 2), minmax(0, 1fr));
+  gap: clamp(1rem, 2.6vw, 2.25rem);
+  animation: spreadIn 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.spread[data-direction="back"] {
+  animation-name: spreadInBack;
+}
+
+.spread[data-direction="none"] {
+  animation: none;
+}
+
+@keyframes spreadIn {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes spreadInBack {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Lombada com argolas entre as duas páginas (só no spread de duas). */
+.spine {
+  position: absolute;
+  top: 6%;
+  bottom: 6%;
+  left: 50%;
+  width: clamp(0.75rem, 1.8vw, 1.5rem);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+  pointer-events: none;
+}
+
+.ring {
+  width: 100%;
+  height: clamp(0.5rem, 1vw, 0.75rem);
+  border-radius: 999px;
+  background: linear-gradient(180deg, hsl(var(--ring-metal)), hsl(var(--ring-metal) / 0.45) 55%, hsl(0 0% 0% / 0.35));
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.4);
+}
+
+.page {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: clamp(0.25rem, 0.9vw, 0.75rem);
+  padding: clamp(0.5rem, 1.6vw, 1.25rem);
+  border-radius: clamp(0.375rem, 0.8vw, 0.625rem);
+  background:
+    linear-gradient(180deg, hsl(0 0% 100% / 0.05), transparent 40%),
+    hsl(var(--binder-page));
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--binder-page-edge)),
+    0 1px 0 hsl(var(--leather-deep) / 0.6);
+  list-style: none;
+  margin: 0;
+}
+
+.pageNumber {
+  position: absolute;
+  bottom: clamp(-1.35rem, -1.6vw, -1rem);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: hsl(var(--stitch) / 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.page[data-side="left"] .pageNumber {
+  left: 0.25rem;
+}
+
+.page[data-side="right"] .pageNumber,
+.page[data-side="single"] .pageNumber {
+  right: 0.25rem;
+}
+
+/* ---- bolso ---- */
+
+.pocket {
+  position: relative;
+  container-type: inline-size;
+  aspect-ratio: 8 / 11;
+  border-radius: 4.6% / 3.3%;
+  background: hsl(var(--binder-sleeve));
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--binder-sleeve-edge)),
+    inset 0 1px 0 hsl(var(--binder-sleeve-hi));
+}
+
+/* Brilho do plástico: só uma faixa estática, sem animação. */
+.pocket::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg, transparent 38%, hsl(0 0% 100% / 0.14) 46%, transparent 54%);
+  pointer-events: none;
+}
+
+.cardWrap {
+  position: absolute;
+  inset: 3.5%;
+  border-radius: var(--binder-card-radius);
+  overflow: hidden;
+  box-shadow: var(--binder-card-shadow);
+  transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 180ms ease;
+}
+
+@media (hover: hover) {
+  .pocket[data-state^="OCCUPIED"]:hover .cardWrap {
+    transform: translateY(-2px) scale(1.015);
+  }
+}
+
+.cardImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.cardImage[data-state="loaded"] {
+  opacity: 1;
+}
+
+.cardFallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8%;
+  background:
+    linear-gradient(160deg, hsl(var(--surface-muted)), hsl(var(--muted))),
+    hsl(var(--surface));
+  color: hsl(var(--foreground));
+  font-size: clamp(0.5rem, 0.85vw, 0.75rem);
+  font-weight: 700;
+  line-height: 1.15;
+  overflow: hidden;
+}
+
+.cardFallback small {
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reserva: a carta que falta, em marca-d'água, com contorno tracejado. */
+.reserve {
+  position: absolute;
+  inset: 3.5%;
+  border-radius: var(--binder-card-radius);
+  overflow: hidden;
+  border: 1px dashed hsl(var(--binder-reserve-ink) / 0.7);
+}
+
+.reserve .cardImage[data-state="loaded"] {
+  opacity: 0.22;
+  filter: grayscale(0.7);
+}
+
+/* Rótulo da reserva medido pelo próprio bolso (container query): bolso
+   pequeno mostra só o número; com espaço, nome + número + acabamento. */
+.reserveLabel {
+  position: absolute;
+  inset: auto 6% 6% 6%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.25rem 0.3rem;
+  border-radius: 0.3rem;
+  background: hsl(var(--binder-page) / 0.88);
+  color: hsl(var(--foreground));
+  font-size: max(0.5625rem, 8cqw);
+  line-height: 1.15;
+  text-align: center;
+}
+
+.reserveLabel strong,
+.reserveLabel .reserveLong {
+  display: none;
+}
+
+@container (min-width: 6.5rem) {
+  .reserveLabel .reserveShort {
+    display: none;
+  }
+
+  .reserveLabel .reserveLong {
+    display: block;
+  }
+
+  .reserveLabel {
+    font-size: 0.6875rem;
+    text-align: left;
+    padding: 0.3rem 0.375rem;
+  }
+
+  .reserveLabel strong {
+    display: block;
+  }
+}
+
+.reserveLabel strong {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reserveLabel span {
+  color: hsl(var(--binder-reserve-ink));
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: clamp(1rem, 1.6vw, 1.375rem);
+  height: clamp(1rem, 1.6vw, 1.375rem);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.35);
+}
+
+.badge svg {
+  width: 62%;
+  height: 62%;
+}
+
+.badgeLock {
+  top: 5%;
+  left: 5%;
+  background: hsl(var(--surface));
+  color: hsl(var(--foreground));
+}
+
+.badgeMismatch {
+  top: 5%;
+  right: 5%;
+  background: hsl(var(--warning));
+  color: hsl(var(--warning-foreground));
+}
+
+
+/* ---- carregando / falha de uma página ---- */
+
+.pocketSkeleton {
+  position: absolute;
+  inset: 3.5%;
+  border-radius: var(--binder-card-radius);
+  background: linear-gradient(100deg, hsl(var(--muted) / 0.6) 30%, hsl(var(--muted) / 0.95) 50%, hsl(var(--muted) / 0.6) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.pageError {
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ===================================================================== */
+/* Montagem                                                               */
+/* ===================================================================== */
+
+.assembly {
+  display: grid;
+  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 4rem);
+  align-items: start;
+  margin-top: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+@media (max-width: 1023px) {
+  .assembly {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.intro {
+  max-width: 34rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground));
+}
+
+.sectionTitle {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+}
+
+.sectionHelp {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.models {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+  border: 0;
+  padding: 0;
+}
+
+.modelOption {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem 0.625rem;
+  border-radius: var(--control-radius);
+  border: 1px solid hsl(var(--control-border));
+  background: hsl(var(--control-surface));
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.modelOption:hover {
+  border-color: hsl(var(--primary) / 0.55);
+}
+
+.modelOption:has(input:checked) {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary)), 0 6px 16px -10px hsl(var(--primary) / 0.7);
+}
+
+.modelOption:has(input:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.modelOption input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modelGlyph {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  gap: 2px;
+  width: calc(var(--cols) * 0.5rem + (var(--cols) - 1) * 2px);
+}
+
+.modelGlyph span {
+  aspect-ratio: 8 / 11;
+  border-radius: 1.5px;
+  background: hsl(var(--foreground) / 0.28);
+}
+
+.modelOption:has(input:checked) .modelGlyph span {
+  background: hsl(var(--primary));
+}
+
+.modelName {
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.modelPockets {
+  margin-top: -0.375rem;
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.policy {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+  border: 0;
+  padding: 0;
+}
+
+.policyOption {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--control-radius);
+  border: 1px solid hsl(var(--control-border));
+  background: hsl(var(--control-surface));
+  cursor: pointer;
+  transition: border-color 160ms ease;
+}
+
+.policyOption:has(input:checked) {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary));
+}
+
+.policyOption:has(input:focus-visible) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.policyOption input {
+  margin-top: 0.2rem;
+  accent-color: hsl(var(--primary));
+}
+
+.policyOption strong {
+  font-size: 0.875rem;
+}
+
+.policyOption span {
+  grid-column: 2;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.block + .block {
+  margin-top: 1.75rem;
+}
+
+/* Prévia: uma página de verdade do que será montado + os números. */
+.preview {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.previewStage {
+  position: relative;
+  max-width: 34rem;
+  width: 100%;
+  justify-self: center;
+}
+
+.previewStage .binder {
+  max-width: 100%;
+}
+
+.previewBusy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  background: hsl(var(--background) / 0.55);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1rem 1.5rem;
+  margin: 0;
+}
+
+.fact dt {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.fact dd {
+  margin: 0.125rem 0 0;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.fact dd small {
+  display: block;
+  margin-top: 0.125rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.extrasNote {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.extrasNote strong {
+  color: hsl(var(--foreground));
+}
+
+.confirmRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.confirmNote {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  max-width: 28rem;
+}
+
+.notice {
+  display: flex;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--control-radius);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+}
+
+.notice[data-tone="warning"] {
+  border-color: hsl(var(--warning) / 0.55);
+  background: hsl(var(--warning) / 0.1);
+}
+
+.notice[data-tone="error"] {
+  border-color: hsl(var(--destructive) / 0.5);
+  background: hsl(var(--destructive) / 0.08);
+}
+
+.notice svg {
+  flex: none;
+  margin-top: 0.1rem;
+}
+
+/* Estado bloqueado / vazio: a capa fechada da coleção e a explicação. */
+.blocked {
+  display: grid;
+  grid-template-columns: minmax(0, 13rem) minmax(0, 32rem);
+  justify-content: center;
+  align-items: center;
+  gap: clamp(1.5rem, 5vw, 4rem);
+  padding: clamp(2rem, 6vw, 5rem) 0;
+}
+
+@media (max-width: 639px) {
+  .blocked {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .blocked > :first-child {
+    width: 9rem;
+  }
+}
+
+.blockedTitle {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: clamp(1.375rem, 2.6vw, 1.875rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.blockedBody {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground));
+}
+
+.blockedActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 639px) {
+  .blockedActions {
+    justify-content: center;
+  }
+}

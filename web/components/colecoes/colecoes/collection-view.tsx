@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
+import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
 import type { ReactNode } from "react";
 import { AlertTriangle, ArrowLeft, Check, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,7 @@ export function CollectionView({
   logoUrl,
   heroPositions,
   master = null,
+  binder = null,
 }: {
   collection: CollectionSummary;
   /** Cartas do Set inteiro (R2 sem filtro) para os destaques do hero. */
@@ -80,6 +83,8 @@ export function CollectionView({
   linkable: number | null;
   /** Só coleção em MASTER_SET; a grade padrão (R2/R3) não se aplica a ela. */
   master?: MasterSetView | null;
+  /** Cabeçalho do Fichário Digital (5223); `null` = sem leitura. */
+  binder?: BinderHeader | null;
 }) {
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
@@ -129,6 +134,7 @@ export function CollectionView({
           <div className={heroStyles.text}>
             <div className={heroStyles.identity}>
               <div className={heroStyles.identityCover}>
+                <BinderCoverLink collectionId={collection.id} ready={Boolean(binder?.hasBinder && binder.pageCount > 0)} available={binderEntryVisible(binder)}>
                 <BinderCover
                   finish={collection.finish}
                   setName={collection.cardSetName}
@@ -139,6 +145,7 @@ export function CollectionView({
                   size="compact"
                   priority
                 />
+                </BinderCoverLink>
               </div>
               <div className={heroStyles.identityText}>
                 <div className={heroStyles.title}>
@@ -195,6 +202,7 @@ export function CollectionView({
               </div>
             </section>
 
+            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.cardSetCode} binder={binder} />
           </div>
 
           <CollectionHeroFan selection={hero} />

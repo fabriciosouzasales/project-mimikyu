@@ -4,7 +4,7 @@
 |---|---|
 | **Documento** | Referência normativa de experiência do módulo Collection (visão, fluxos, nomenclatura, critérios de base funcional) |
 | **Arquivo** | `docs/domain-modeling/collections/north-star-2026-10-16.md` |
-| **Versão** | 1.17 |
+| **Versão** | 1.18 |
 | **Status** | **NORMATIVO** — aprovado por Fabrício em 2026-10-16 (`COLLECTION-NORTH-STAR-02`, decisões D1–D4). Itens marcados **[H]**, entradas **PENDENTE** e as recomendações ainda abertas do §0.2 **não são normativos** até homologação formal de Fabrício. |
 | **Rodadas** | `COLLECTION-NORTH-STAR-01` (proposta, v0.1–0.2) → `COLLECTION-NORTH-STAR-02` (consolidação normativa, v1.0) → … → `COLLECTIONS-NORMATIVE-REALIGNMENT-01` (v1.5: NS-15–NS-18 e matriz de rastreabilidade §7) |
 | **Fontes** | `concept-decisions.md` (C-01–C-186), `logical-model.md`, `checkpoint-2026-08-28.md` §7, `checkpoint-2026-08-29.md`, `ux-exploration-2026-08-29.md`, `checkpoint-2026-10-15.md`, `05d-colecoes-e-usuarios.md`, `architecture/ubiquitous-language.md`, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13 |
@@ -142,6 +142,8 @@ As jornadas abaixo são normativas. Tratamentos visuais marcados **[H]** são hi
 6. Bandeja segue a C-45 sem extensão.
 
 **Backend existente:** Layout completo (`5122`–`5137`) [F]. **Necessário:** leitura do fichário com dados de carta. Limitação conhecida: cada bolso é preenchido individualmente (`5131`); não é requisito desta North Star nem do BULK-06.
+
+**Nota P2-A1 (2026-10-22, `P2-A1-PROPOSAL-01`) — decisões aprovadas por Fabrício; contratos PROPOSTOS, nada executado.** Nome de produto: **Fichário Digital**. Criação só com local padrão do tipo Fichário físico (D1), sete modelos Normais em colunas × linhas (D2), montagem automática por tipo de coleção com reservas no Set/Master Set e sem reservas na Pokédex (D3), escolha entre só os principais e páginas extras quando houver exemplares adicionais, sem persistir a escolha (R1/R2/R5), desmontagem confirmada inclusive em coleção arquivada (R4) — C-191–C-194. Itens 1 e 4 acima: o "Montar fichário" passa a montar automaticamente; o conteúdo planejado passa a nascer da montagem (C-42 estendida, R3). D4 (confirmar ao tirar carta posicionada), D5 (Bandeja entre páginas), D6 (divergência só no detalhe), D7 (uma página no celular) e D8 (sem "Em breve") preservados. Contratos: `database/proposals/2026-10-22-p2-a1-digital-binder/` (5223–5226, harness 5850). A limitação "cada bolso individualmente" deixa de valer para a montagem inicial quando a proposta for executada.
 
 ### Fluxo 5 — Adicionar um Set inteiro
 
@@ -478,3 +480,4 @@ Legenda — Implementação: **LIVE** (backend no banco) · **FE-pub** (frontend
 | 1.15 | **`COLLECTION-MANAGEMENT-CLOSEOUT-01` (2026-10-18).** §7, colunas informativas: "Ajustes — Onde guardo" e "Tirar da coleção" passam a HOM (6/6 PASS); dependência da cascata do `5047` anotada. Nenhuma decisão normativa nova. |
 | 1.16 | **Master Set por acabamento (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`, aprovação de Fabrício).** N9: subtítulo "todas as variantes" substituído por "os acabamentos que você escolher" e referências atualizadas para C-187–C-190 / LDM-191–LDM-195 (o termo "Master Set" permanece). Nenhuma outra decisão normativa alterada; as linhas informativas da §7 sobre Master Set serão atualizadas quando os contratos forem executados. |
 | 1.17 | **N24 sem ressalva (2026-10-21, `WHERE-02-CANONICAL-PROMOTION-01`).** O tipo de local passa a existir fisicamente como classificação opcional e extensível (`5212`/`5213`, C-55 lista aberta); N24 vira HOMOLOGADO (contagem: 19 homologados, 7 com ressalva). §7, colunas informativas: "Organização física" com `5212`–`5219` no LIVE e FE pendente. NS-13, NS-15 e N25 inalteradas. Nenhuma `C-*`/`LDM-*` alterada. |
+| 1.18 | **Fichário Digital — nota no Fluxo 4 (2026-10-22, `P2-A1-PROPOSAL-01`).** Registra as decisões D1–D9 e R1–R5 de Fabrício e a referência a C-191–C-194; contratos 5223–5226 PROPOSTOS, nada executado. Texto original do Fluxo 4 preservado; nenhuma outra decisão normativa alterada. |

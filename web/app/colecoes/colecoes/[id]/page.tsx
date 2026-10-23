@@ -6,6 +6,7 @@ import { CollectionView, type MasterSetView } from "@/components/colecoes/coleco
 import { FreeCollectionView } from "@/components/colecoes/colecoes/free-collection-view";
 import { PokedexCollectionView } from "@/components/colecoes/colecoes/pokedex-collection-view";
 import { getAcervoItems } from "@/lib/colecoes/acervo-queries";
+import { getMyCollectionBinder } from "@/lib/colecoes/binder-queries";
 import { collectionHref, isCollectionId, parsePositionFilter } from "@/lib/colecoes/colecoes";
 import {
   attachCoverLogos,
@@ -70,13 +71,17 @@ export default async function ColecaoPage({
   // são descartadas — custo de uma busca por chave, sem segunda ida ao banco
   // para as coleções de Set. O hero mostra os destaques do Set inteiro, estável
   // entre Todas/Tenho/Faltam: com filtro, uma leitura extra da mesma R2.
-  const [summary, positions, linkable, heroSource] = await Promise.all([
+  // Cabeçalho do Fichário Digital (5223, uma linha) sai junto: a entrada do
+  // fichário no hero mostra o estado real (abrir / montar / o que falta).
+  const [summary, positions, linkable, heroSource, binderRead] = await Promise.all([
     getMyCollection(supabase, collectionId),
     getMyCollectionPositions(supabase, collectionId, filter),
     getLinkableCount(supabase, collectionId),
     filter === "todas" ? Promise.resolve(null) : getMyCollectionPositions(supabase, collectionId, "todas"),
+    getMyCollectionBinder(supabase, collectionId),
   ]);
   if (summary === undefined) notFound();
+  const binder = binderRead ?? null;
 
   if (summary !== null && isFreeCollection(summary)) {
     const page = parseFreePage(query);
@@ -108,6 +113,7 @@ export default async function ColecaoPage({
           openPicker={wantsPicker(query)}
           coverLogoUrl={coverLogoUrl}
           userId={user.id}
+          binder={binder}
         />
       </AppShell>
     );
@@ -149,6 +155,7 @@ export default async function ColecaoPage({
           positions={positionsPage}
           options={options}
           heroLineup={heroLineup}
+          binder={binder}
         />
       </AppShell>
     );
@@ -199,6 +206,7 @@ export default async function ColecaoPage({
           linkable={linkable}
           logoUrl={logoUrl}
           master={master}
+          binder={binder}
         />
       )}
     </AppShell>

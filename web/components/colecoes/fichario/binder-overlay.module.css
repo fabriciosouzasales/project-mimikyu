@@ -1,0 +1,63 @@
+/*
+ * Véu do fichário aberto sobre a coleção: escurece e desfoca suavemente a
+ * página ao fundo (tom do workspace do spike, `--binder-page-bg`, claro e
+ * escuro). Entrada/saída só com opacidade e escala.
+ */
+
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: hsl(var(--binder-page-bg) / 0.8);
+  backdrop-filter: blur(14px) saturate(0.9);
+  -webkit-backdrop-filter: blur(14px) saturate(0.9);
+  animation: veilIn 200ms ease-out;
+}
+
+.veil[data-closing] {
+  animation: veilOut 160ms ease-in forwards;
+}
+
+.dialog {
+  position: absolute;
+  inset: 0;
+  outline: none;
+  animation: dialogIn 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialog[data-closing] {
+  animation: dialogOut 160ms ease-in forwards;
+}
+
+@keyframes veilIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes veilOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes dialogOut {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .veil,
+  .dialog {
+    animation: none;
+  }
+}

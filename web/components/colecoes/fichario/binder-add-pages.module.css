@@ -1,0 +1,489 @@
+/*
+ * Diálogos pequenos sobre o fichário (adicionar páginas; adicionar carta ao
+ * bolso). Linguagem escura do spike binder-nav-01: superfície grafite quase
+ * opaca, fio de luz no alto, dourado só no CTA e na seleção. Movimento só
+ * com opacidade/escala; nada com movimento reduzido.
+ */
+
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: hsl(0 0% 0% / 0.5);
+  animation: veilIn 160ms ease-out;
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(380px, 100%);
+  max-height: calc(100% - 16px);
+  overflow-y: auto;
+  padding: 18px;
+  border-radius: 18px;
+  background: hsl(0 0% 7% / 0.97);
+  color: hsl(0 0% 100% / 0.88);
+  box-shadow:
+    0 0 0 0.5px hsl(0 0% 100% / 0.12),
+    inset 0 0.5px 0 hsl(0 0% 100% / 0.08),
+    0 30px 60px -20px hsl(0 0% 0% / 0.8);
+  animation: dialogIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialog[data-wide] {
+  width: min(520px, 100%);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: hsl(40 70% 62% / 0.14);
+  color: hsl(40 80% 74%);
+}
+
+.icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.title {
+  font: 700 15px / 1.25 var(--font-heading);
+  letter-spacing: -0.01em;
+  color: hsl(0 0% 100% / 0.96);
+}
+
+.lead {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: hsl(0 0% 100% / 0.55);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: hsl(0 0% 100% / 0.55);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.close:hover {
+  background: hsl(0 0% 100% / 0.1);
+  color: hsl(0 0% 100%);
+}
+
+.close svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- contador ---- */
+
+.stepper {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 14px;
+  background: hsl(0 0% 100% / 0.04);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.06);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: hsl(0 0% 100% / 0.8);
+  transition:
+    background-color 140ms ease,
+    transform 110ms ease;
+}
+
+.step:hover:not(:disabled) {
+  background: hsl(0 0% 100% / 0.08);
+}
+
+.step:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.step:disabled {
+  opacity: 0.3;
+}
+
+.step svg {
+  width: 16px;
+  height: 16px;
+}
+
+.value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  column-gap: 6px;
+  outline: none;
+  text-align: center;
+}
+
+.number {
+  font: 800 28px / 1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 100%);
+}
+
+.unit {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(0 0% 100% / 0.8);
+}
+
+.sheets {
+  flex-basis: 100%;
+  margin-top: 4px;
+  font-size: 11px;
+  color: hsl(0 0% 100% / 0.45);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+}
+
+.facts > div {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: hsl(0 0% 100% / 0.03);
+}
+
+.facts dt {
+  font-size: 11px;
+  color: hsl(0 0% 100% / 0.5);
+}
+
+.facts dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 100% / 0.75);
+}
+
+.facts strong {
+  color: hsl(0 0% 100% / 0.96);
+}
+
+.note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: hsl(0 0% 100% / 0.5);
+}
+
+/* ---- ações ---- */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  transition:
+    background-color 140ms ease,
+    transform 110ms ease,
+    opacity 140ms ease;
+}
+
+.primary {
+  background: hsl(40 70% 60%);
+  color: hsl(30 30% 10%);
+}
+
+.primary:hover:not(:disabled) {
+  background: hsl(40 76% 66%);
+}
+
+.secondary {
+  color: hsl(0 0% 100% / 0.8);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.16);
+}
+
+.secondary:hover:not(:disabled) {
+  background: hsl(0 0% 100% / 0.07);
+}
+
+.primary:active:not(:disabled),
+.secondary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.55;
+}
+
+.primary svg {
+  width: 15px;
+  height: 15px;
+}
+
+.close:focus-visible,
+.step:focus-visible,
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid hsl(40 70% 62%);
+  outline-offset: 2px;
+}
+
+@keyframes veilIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+}
+
+@media (max-width: 639px) {
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .primary,
+  .secondary {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .veil,
+  .dialog {
+    animation: none;
+  }
+
+  .step,
+  .primary,
+  .secondary {
+    transition: none;
+  }
+}
+
+/* ---- Adicionar carta ao bolso (picker contextual) ---- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(0 0% 100% / 0.7);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.12);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.tab:hover {
+  color: hsl(0 0% 100% / 0.95);
+}
+
+.tab[aria-selected="true"] {
+  background: hsl(40 70% 62% / 0.16);
+  color: hsl(40 80% 82%);
+  box-shadow: inset 0 0 0 1px hsl(40 70% 62% / 0.55);
+}
+
+.tabCount {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.pickGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 10px;
+  max-height: min(46vh, 360px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 2px 2px 4px;
+  list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(0 0% 100% / 0.18) transparent;
+}
+
+.pick {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 11;
+  overflow: hidden;
+  border-radius: 4px;
+  background: hsl(0 0% 12%);
+  box-shadow:
+    0 0 0 1px hsl(0 0% 100% / 0.12),
+    0 2px 6px hsl(0 0% 0% / 0.4);
+  transition:
+    transform 160ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 160ms ease;
+}
+
+.pick:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 2px hsl(40 70% 62% / 0.8),
+    0 10px 18px -6px hsl(0 0% 0% / 0.65);
+}
+
+.pick:focus-visible {
+  outline: 2px solid hsl(40 70% 62%);
+  outline-offset: 2px;
+}
+
+.pick[data-reserved] {
+  box-shadow:
+    0 0 0 2px hsl(40 70% 62% / 0.95),
+    0 6px 14px -6px hsl(0 0% 0% / 0.6);
+}
+
+.pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pickFallback {
+  display: flex;
+  height: 100%;
+  align-items: flex-end;
+  padding: 4px;
+  background: linear-gradient(160deg, hsl(0 0% 18%), hsl(0 0% 9%));
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: hsl(0 0% 100% / 0.8);
+  text-align: left;
+}
+
+.pickBadge {
+  position: absolute;
+  inset: auto 4px 4px 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: hsl(40 70% 55% / 0.92);
+  color: hsl(30 30% 10%);
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pickCaption {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: hsl(0 0% 100% / 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyState {
+  padding: 18px 8px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(0 0% 100% / 0.55);
+}
+
+.emptyState strong {
+  display: block;
+  margin-bottom: 2px;
+  color: hsl(0 0% 100% / 0.85);
+}
+
+.skeletonCard {
+  aspect-ratio: 8 / 11;
+  border-radius: 4px;
+  background: hsl(0 0% 100% / 0.06);
+  animation: pickPulse 1.4s ease-in-out infinite;
+}
+
+.loadMore {
+  display: flex;
+  justify-content: center;
+}
+
+.tab:focus-visible {
+  outline: 2px solid hsl(40 70% 62%);
+  outline-offset: 2px;
+}
+
+@keyframes pickPulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pick,
+  .tab {
+    transition: none;
+  }
+
+  .pick:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .skeletonCard {
+    animation: none;
+  }
+}

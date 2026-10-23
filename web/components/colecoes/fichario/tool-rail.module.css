@@ -1,0 +1,335 @@
+/*
+ * Menu lateral do Fichário — linguagem de movimento (P2-B-PAGE-OVERVIEW-AND-TOOL-RAIL-01).
+ *
+ * Um único conjunto de parâmetros para TODOS os botões (nada de animações
+ * independentes):
+ *   --rail-ease      cubic-bezier(0.2, 0, 0, 1)   padrão "standard" (M3): resposta
+ *                                                  rápida que assenta sem rebote;
+ *   --rail-ease-out  cubic-bezier(0.16, 1, 0.3, 1) desaceleração para chegadas
+ *                                                  (indicador ativo, tooltip);
+ *   --rail-t-hover   140 ms  fundo/cor no hover    (faixa 120–160 ms)
+ *   --rail-t-press   110 ms  compressão ao clicar  (faixa 90–140 ms)
+ *   --rail-t-active  200 ms  indicador do modo ativo (faixa 160–220 ms)
+ *   --rail-t-tip     170 ms  tooltip               (faixa 150–200 ms)
+ * Só `transform`, `opacity`, `background-color` e `color` — nada que mexa no
+ * layout. Indisponível não reage a hover nem a clique (nenhum movimento que
+ * sugira ação). `prefers-reduced-motion`: troca de estado imediata.
+ */
+
+.rail {
+  --rail-ease: cubic-bezier(0.2, 0, 0, 1);
+  --rail-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --rail-t-hover: 140ms;
+  --rail-t-press: 110ms;
+  --rail-t-active: 200ms;
+  --rail-t-tip: 170ms;
+  --rail-gold: 40 72% 64%;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-height: 100%;
+  padding: 6px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-radius: 22px;
+  background: hsl(0 0% 7% / 0.9);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow:
+    0 0 0 0.5px hsl(0 0% 100% / 0.12),
+    inset 0 0.5px 0 hsl(0 0% 100% / 0.1),
+    0 1px 2px hsl(0 0% 0% / 0.3),
+    0 14px 32px -12px hsl(0 0% 0% / 0.55);
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+.separator {
+  flex: none;
+  width: 18px;
+  height: 1px;
+  margin: 5px 0;
+  background: hsl(0 0% 100% / 0.1);
+}
+
+/* ---- botão ---- */
+
+.button {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  color: hsl(0 0% 100% / 0.72);
+  background-color: transparent;
+  transform: scale(1);
+  transition:
+    background-color var(--rail-t-hover) var(--rail-ease),
+    color var(--rail-t-hover) var(--rail-ease),
+    transform var(--rail-t-hover) var(--rail-ease);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.button svg {
+  width: 18px;
+  height: 18px;
+  /* Alinhamento óptico: traços de 1.75 em 18 px leem como o peso do texto ao lado. */
+  stroke-width: 1.75;
+}
+
+.button:not([aria-disabled="true"]):hover {
+  color: hsl(0 0% 100% / 0.96);
+  background-color: hsl(0 0% 100% / 0.09);
+  transform: scale(1.04);
+}
+
+/* Pressionar: compressão imediata e curta; ao soltar volta pela transição de hover. */
+.button:not([aria-disabled="true"]):active {
+  background-color: hsl(0 0% 100% / 0.14);
+  transform: scale(0.92);
+  transition-duration: var(--rail-t-press);
+}
+
+.button:focus-visible {
+  outline: 2px solid hsl(var(--rail-gold));
+  outline-offset: 2px;
+}
+
+/* Indisponível: discreto, sem reação a hover/clique. O tooltip explica. */
+.button[aria-disabled="true"] {
+  color: hsl(0 0% 100% / 0.26);
+  cursor: not-allowed;
+}
+
+/* Tons semânticos (mesmo vocabulário das cartas): fixar = azul-frio, retirar = vermelho. */
+.button[data-tone="lock"]:not([aria-disabled="true"]) {
+  color: hsl(205 80% 76%);
+}
+
+.button[data-tone="lock"]:not([aria-disabled="true"]):hover {
+  background-color: hsl(205 70% 58% / 0.2);
+}
+
+.button[data-tone="danger"]:not([aria-disabled="true"]) {
+  color: hsl(0 85% 72%);
+}
+
+.button[data-tone="danger"]:not([aria-disabled="true"]):hover {
+  background-color: hsl(0 75% 55% / 0.16);
+}
+
+/* ---- modo ativo: fundo dourado + ícone dourado + traço indicador (3 sinais, não só cor) ---- */
+
+.button[aria-pressed="true"] {
+  color: hsl(var(--rail-gold));
+  background-color: hsl(var(--rail-gold) / 0.16);
+}
+
+.button[aria-pressed="true"]:hover {
+  background-color: hsl(var(--rail-gold) / 0.22);
+}
+
+.indicator {
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 0 3px 3px 0;
+  background: hsl(var(--rail-gold));
+  opacity: 0;
+  transform: scaleY(0.3);
+  transition:
+    opacity var(--rail-t-active) var(--rail-ease-out),
+    transform var(--rail-t-active) var(--rail-ease-out);
+  pointer-events: none;
+}
+
+.button[aria-pressed="true"] .indicator {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* ---- contadores ---- */
+
+.badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: hsl(var(--rail-gold));
+  color: hsl(0 0% 8%);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 1.5px hsl(0 0% 7%);
+  /* Aparece/some com escala curta; trocar o número não anima (legibilidade). */
+  animation: badgeIn var(--rail-t-active) var(--rail-ease-out);
+}
+
+.count {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  margin: 2px 0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 100% / 0.34);
+  background-color: hsl(0 0% 100% / 0.07);
+  transition:
+    background-color var(--rail-t-active) var(--rail-ease),
+    color var(--rail-t-active) var(--rail-ease);
+}
+
+.count[data-active="true"] {
+  color: hsl(var(--rail-gold));
+  background-color: hsl(var(--rail-gold) / 0.18);
+}
+
+@keyframes badgeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* ---- tooltip (fade + deslocamento curto a partir do botão; não captura o ponteiro) ---- */
+
+.tip {
+  z-index: 95;
+  max-width: 240px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: hsl(0 0% 9% / 0.96);
+  color: hsl(0 0% 100% / 0.92);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  pointer-events: none;
+  user-select: none;
+  box-shadow:
+    0 0 0 0.5px hsl(0 0% 100% / 0.12),
+    0 8px 20px -6px hsl(0 0% 0% / 0.55);
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+
+.tip[data-state="delayed-open"],
+.tip[data-state="instant-open"] {
+  animation: tipIn var(--rail-t-tip, 170ms) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tip[data-state="closed"] {
+  animation: tipOut 110ms cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.tipArrow {
+  fill: hsl(0 0% 9% / 0.96);
+}
+
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+@keyframes tipOut {
+  to {
+    opacity: 0;
+    transform: translateX(-2px);
+  }
+}
+
+/* ---- celular: faixa horizontal (mesma linguagem, alvos de 40 px) ---- */
+
+@media (max-width: 767px) {
+  .rail {
+    flex-direction: row;
+    max-width: 100%;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: visible;
+    border-radius: 999px;
+  }
+
+  .separator {
+    width: 1px;
+    height: 18px;
+    margin: 0 5px;
+  }
+
+  .button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .indicator {
+    left: 50%;
+    top: auto;
+    bottom: -6px;
+    width: 16px;
+    height: 3px;
+    margin: 0 0 0 -8px;
+    border-radius: 3px 3px 0 0;
+    transform: scaleX(0.3);
+  }
+
+  .button[aria-pressed="true"] .indicator {
+    transform: scaleX(1);
+  }
+
+  .count {
+    margin: 0 2px;
+  }
+}
+
+/* Toque: sem "hover grudado" depois do toque; a compressão continua. */
+@media (hover: none) {
+  .button:not([aria-disabled="true"]):hover {
+    background-color: transparent;
+    transform: none;
+  }
+
+  .button[aria-pressed="true"]:hover {
+    background-color: hsl(var(--rail-gold) / 0.16);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .indicator,
+  .count {
+    transition: none;
+  }
+
+  .button:not([aria-disabled="true"]):hover,
+  .button:not([aria-disabled="true"]):active {
+    transform: none;
+  }
+
+  .badge,
+  .tip[data-state="delayed-open"],
+  .tip[data-state="instant-open"],
+  .tip[data-state="closed"] {
+    animation: none;
+  }
+}

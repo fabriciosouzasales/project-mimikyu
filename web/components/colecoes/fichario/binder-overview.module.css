@@ -1,0 +1,643 @@
+/*
+ * Visão geral de páginas (P2-B-PAGE-OVERVIEW-AND-TOOL-RAIL-01).
+ *
+ * Painel grafite sobre o fichário (mesma família do objeto e do menu
+ * lateral — escuro nos dois temas), véu com o tom do workspace e desfoque
+ * suave. Mesmo vocabulário de movimento do menu lateral: entrada 220 ms com
+ * desaceleração, hover 140 ms, só opacity/transform; movimento reduzido =
+ * imediato. Miniaturas fora da área visível não são pintadas
+ * (`content-visibility: auto`).
+ */
+
+.veil {
+  --ov-ease: cubic-bezier(0.2, 0, 0, 1);
+  --ov-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ov-gold: 40 72% 64%;
+
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 3vw, 32px);
+  background: hsl(var(--binder-page-bg, 0 0% 6%) / 0.62);
+  -webkit-backdrop-filter: blur(10px) saturate(0.9);
+  backdrop-filter: blur(10px) saturate(0.9);
+  animation: veilIn 200ms var(--ov-ease);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, 100%);
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: 20px;
+  background: hsl(0 0% 9% / 0.97);
+  color: hsl(0 0% 100% / 0.92);
+  box-shadow:
+    0 0 0 0.5px hsl(0 0% 100% / 0.12),
+    inset 0 0.5px 0 hsl(0 0% 100% / 0.08),
+    0 30px 80px -20px hsl(0 0% 0% / 0.7);
+  outline: none;
+  animation: dialogIn 220ms var(--ov-ease-out);
+}
+
+/* ---- cabeçalho ---- */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 14px 20px;
+  border-bottom: 1px solid hsl(0 0% 100% / 0.08);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.headingIcon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: hsl(var(--ov-gold));
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.summary {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: hsl(0 0% 100% / 0.58);
+  font-variant-numeric: tabular-nums;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 11px;
+  background: hsl(0 0% 100% / 0.07);
+}
+
+.segmented button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: hsl(0 0% 100% / 0.66);
+  transition:
+    background-color 140ms var(--ov-ease),
+    color 140ms var(--ov-ease);
+}
+
+.segmented button:hover:not(:disabled) {
+  color: hsl(0 0% 100% / 0.95);
+}
+
+.segmented button[aria-checked="true"] {
+  color: hsl(0 0% 8%);
+  background: hsl(var(--ov-gold));
+}
+
+.segmented button:disabled {
+  color: hsl(0 0% 100% / 0.28);
+  cursor: not-allowed;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: hsl(0 0% 100% / 0.72);
+  transition:
+    background-color 140ms var(--ov-ease),
+    color 140ms var(--ov-ease),
+    transform 110ms var(--ov-ease);
+}
+
+.close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.close:hover {
+  color: hsl(0 0% 100% / 0.96);
+  background: hsl(0 0% 100% / 0.09);
+}
+
+.close:active {
+  transform: scale(0.92);
+}
+
+.segmented button:focus-visible,
+.close:focus-visible,
+.spread:focus-visible,
+.pageTile:focus-visible,
+.tool:focus-visible,
+.retry:focus-visible {
+  outline: 2px solid hsl(var(--ov-gold));
+  outline-offset: 2px;
+}
+
+/* ---- corpo ---- */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 20px 22px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 210px;
+}
+
+.spread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 14px;
+  text-align: left;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition:
+    background-color 140ms var(--ov-ease),
+    box-shadow 140ms var(--ov-ease),
+    transform 140ms var(--ov-ease);
+}
+
+.spread:hover {
+  background: hsl(0 0% 100% / 0.05);
+  transform: translateY(-1px);
+}
+
+.spread:active {
+  transform: scale(0.985);
+  transition-duration: 110ms;
+}
+
+/* Página atual: contorno dourado + etiqueta "Atual" + aria-current (não só cor). */
+.spread[aria-current="page"] {
+  background: hsl(var(--ov-gold) / 0.08);
+  box-shadow: inset 0 0 0 1.5px hsl(var(--ov-gold) / 0.85);
+}
+
+.spreadPages {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 8px;
+  background: hsl(0 0% 4%);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.06);
+}
+
+.inner {
+  border-radius: 4px;
+  background:
+    linear-gradient(135deg, hsl(0 0% 100% / 0.03), transparent 60%),
+    hsl(0 0% 12%);
+}
+
+.mini {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border-radius: 4px;
+  background: hsl(0 0% 14%);
+}
+
+.miniPocket {
+  position: relative;
+  aspect-ratio: 8 / 11;
+  overflow: hidden;
+  border-radius: 2px;
+  background: hsl(0 0% 100% / 0.045);
+}
+
+.mini[data-loading] .miniPocket {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.miniPocket[data-kind="reserve"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px hsl(var(--ov-gold) / 0.55);
+  background-image: repeating-linear-gradient(135deg, hsl(var(--ov-gold) / 0.12) 0 2px, transparent 2px 5px);
+}
+
+.miniPocket img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Imagem personalizada (C-198): mesmo enquadramento vertical do bolso. */
+  object-position: 50% var(--focal, 50%);
+}
+
+.caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.captionPages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.pageCaption {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(0 0% 100% / 0.82);
+  font-variant-numeric: tabular-nums;
+}
+
+.pageCount {
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(0 0% 100% / 0.52);
+}
+
+.pageCount[data-empty] {
+  font-style: italic;
+  color: hsl(0 0% 100% / 0.38);
+}
+
+.currentTag {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: hsl(0 0% 8%);
+  background: hsl(var(--ov-gold));
+}
+
+.retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: hsl(0 85% 75%);
+  background: hsl(0 75% 55% / 0.12);
+}
+
+.retry svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- organizar ---- */
+
+.hint {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: hsl(0 0% 100% / 0.62);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: hsl(0 0% 100% / 0.7);
+}
+
+.organizeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.organizeGrid > li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 190px;
+}
+
+.pageTile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
+  border-radius: 12px;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.06);
+  transition:
+    background-color 140ms var(--ov-ease),
+    box-shadow 140ms var(--ov-ease),
+    transform 110ms var(--ov-ease);
+}
+
+.pageTile:hover {
+  background: hsl(0 0% 100% / 0.05);
+}
+
+.pageTile:active {
+  transform: scale(0.97);
+}
+
+/* Escolhida: contorno dourado + marca ✓ no canto (não só cor). */
+.pageTile[aria-pressed="true"] {
+  background: hsl(var(--ov-gold) / 0.1);
+  box-shadow: inset 0 0 0 2px hsl(var(--ov-gold));
+}
+
+.pageTile[aria-pressed="true"]::after {
+  content: "✓";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: hsl(0 0% 8%);
+  background: hsl(var(--ov-gold));
+  animation: popIn 200ms var(--ov-ease-out);
+}
+
+.tileCaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  font-size: 12px;
+  color: hsl(0 0% 100% / 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.movedTag {
+  font-size: 10.5px;
+  color: hsl(var(--ov-gold));
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 16px;
+  border-top: 1px solid hsl(0 0% 100% / 0.08);
+  background: hsl(0 0% 7%);
+}
+
+.footerTools,
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: hsl(0 0% 100% / 0.86);
+  background: hsl(0 0% 100% / 0.07);
+  transition:
+    background-color 140ms var(--ov-ease),
+    transform 110ms var(--ov-ease);
+}
+
+.tool svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tool:hover:not(:disabled) {
+  background: hsl(0 0% 100% / 0.12);
+}
+
+.tool:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.tool:disabled {
+  color: hsl(0 0% 100% / 0.3);
+  cursor: not-allowed;
+}
+
+.error {
+  flex-basis: 100%;
+  order: -1;
+  margin: 0;
+  font-size: 12.5px;
+  color: hsl(0 85% 75%);
+}
+
+/* ---- celular: painel em tela cheia, pares em 1–2 colunas ---- */
+
+@media (max-width: 767px) {
+  .veil {
+    padding: 0;
+  }
+
+  .dialog {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .body {
+    padding: 14px 12px 18px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px 8px;
+  }
+
+  .organizeGrid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+  }
+
+  .footer {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .footerActions {
+    flex: 1;
+    justify-content: flex-end;
+  }
+}
+
+@keyframes veilIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .veil,
+  .dialog,
+  .pageTile[aria-pressed="true"]::after,
+  .mini[data-loading] .miniPocket {
+    animation: none;
+  }
+
+  .spread,
+  .pageTile,
+  .tool,
+  .close,
+  .segmented button {
+    transition: none;
+  }
+
+  .spread:hover,
+  .spread:active,
+  .pageTile:active,
+  .tool:active:not(:disabled),
+  .close:active {
+    transform: none;
+  }
+}
+
+/* Fim da lista: acrescentar páginas (P2-BINDER-CAPACITY-AND-EMPTY-SLOT-01). */
+.addTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 150px;
+  padding: 16px;
+  border-radius: 14px;
+  color: hsl(0 0% 100% / 0.6);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px hsl(0 0% 100% / 0.12);
+  outline-offset: 2px;
+  transition:
+    background-color 140ms var(--ov-ease),
+    color 140ms var(--ov-ease),
+    box-shadow 140ms var(--ov-ease),
+    transform 140ms var(--ov-ease);
+}
+
+.addTile:hover {
+  color: hsl(var(--ov-gold));
+  background: hsl(var(--ov-gold) / 0.06);
+  box-shadow: inset 0 0 0 1.5px hsl(var(--ov-gold) / 0.55);
+  transform: translateY(-1px);
+}
+
+.addTile:active {
+  transform: scale(0.985);
+}
+
+.addTile:focus-visible {
+  outline: 2px solid hsl(var(--ov-gold));
+}
+
+.addTile svg {
+  width: 22px;
+  height: 22px;
+}
+
+.addTileTitle {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.addTileHint {
+  font-size: 11px;
+  color: hsl(0 0% 100% / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .addTile {
+    transition: none;
+  }
+
+  .addTile:hover {
+    transform: none;
+  }
+}
