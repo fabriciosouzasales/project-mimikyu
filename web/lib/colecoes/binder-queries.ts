@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { type BinderHeader, type BinderPage, PAGES_PER_READ, type SlotImage, classifyBinderFailure, parseBinderHeader, parseBinderPages } from "./binder.ts";
 import { SLOT_IMAGE_BUCKET, SLOT_IMAGE_SIGNED_TTL, attachSlotImages, classifyImageFailure, parseSlotImages } from "./binder-images.ts";
 import { type JoinCandidate, parseJoinCandidates } from "./binder-share.ts";
+import { attachRegionImages, classifyRegionFailure, parseRegionImages } from "./binder-region.ts";
+import type { RegionImage } from "./binder.ts";
 import { logReadFailure } from "./colecoes-queries.ts";
 
 /**
@@ -40,13 +42,14 @@ export async function getMyCollectionBinderPages(
   firstPage: number,
 ): Promise<BinderPage[] | null | undefined> {
   const startedAt = Date.now();
-  const [pagesRead, images] = await Promise.all([
+  const [pagesRead, images, regions] = await Promise.all([
     supabase.rpc("get_my_collection_binder_pages", {
       p_collection_id: collectionId,
       p_first_page: firstPage,
       p_page_count: PAGES_PER_READ,
     }),
     getMyBinderSlotImages(supabase, collectionId, firstPage),
+    getMyBinderRegionImages(supabase, collectionId, firstPage),
   ]);
   const { data, error } = pagesRead;
   if (error) {
@@ -59,9 +62,52 @@ export async function getMyCollectionBinderPages(
     logReadFailure("get_my_collection_binder_pages", startedAt, { code: "BAD_SHAPE" });
     return null;
   }
-  if (images === undefined) return undefined;
-  if (images === null) return null;
-  return images.size > 0 ? attachSlotImages(pages, images) : pages;
+  if (images === undefined || regions === undefined) return undefined;
+  if (images === null || regions === null) return null;
+  const withImages = images.size > 0 ? attachSlotImages(pages, images) : pages;
+  return regions.size > 0 ? attachRegionImages(withImages, regions) : withImages;
+}
+
+/**
+ * Imagens das mesclagens (5241) das mesmas páginas, assinadas em lote como as
+ * dos bolsos. Antes da 5241 existir no banco, a leitura devolve "nenhuma" —
+ * a cobertura do bolso (`region_id`, 5230) continua visível e protegida.
+ */
+export async function getMyBinderRegionImages(
+  supabase: SupabaseClient,
+  collectionId: string,
+  firstPage: number,
+): Promise<Map<number, RegionImage[]> | null | undefined> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_collection_binder_region_images", {
+    p_collection_id: collectionId,
+    p_first_page: firstPage,
+    p_page_count: PAGES_PER_READ,
+  });
+  if (error) {
+    const reason = classifyRegionFailure(error.code, error.message);
+    if (reason === "unavailable") return new Map();
+    if (reason === "not_found") return undefined;
+    logReadFailure("get_my_collection_binder_region_images", startedAt, error);
+    return null;
+  }
+  const byPage = parseRegionImages(data);
+  if (!byPage) {
+    logReadFailure("get_my_collection_binder_region_images", startedAt, { code: "BAD_SHAPE" });
+    return null;
+  }
+  const all = [...byPage.values()].flat();
+  if (all.length === 0) return byPage;
+  const paths = [...new Set(all.map((r) => r.path))];
+  const { data: signed, error: signError } = await supabase.storage.from(SLOT_IMAGE_BUCKET).createSignedUrls(paths, SLOT_IMAGE_SIGNED_TTL);
+  if (signError || !signed) {
+    logReadFailure("binder_region_image_sign", startedAt, { code: "SIGN_FAILED" });
+    return byPage;
+  }
+  const urlByPath = new Map<string, string>();
+  for (const item of signed) if (item.path && item.signedUrl && !item.error) urlByPath.set(item.path, item.signedUrl);
+  for (const [page, list] of byPage) byPage.set(page, list.map((r) => ({ ...r, url: urlByPath.get(r.path) ?? null })));
+  return byPage;
 }
 
 /**

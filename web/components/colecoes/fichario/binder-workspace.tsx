@@ -18,13 +18,17 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, Plus, RotateCcw, X } fro
 import {
   addPages,
   clearReservations,
+  closeGap,
+  insertGap,
   moveSlot,
   placeAvailableCard,
+  previewInsertGap,
   readAvailableCards,
   readBinderPages,
   removeSlots,
   reserveSlot,
   restoreToSlot,
+  setRegionImageFocus,
   setSlotImageFocus,
   setSlotsLock,
 } from "@/app/colecoes/colecoes/[id]/fichario/actions";
@@ -70,16 +74,19 @@ import {
   placementSources,
 } from "@/lib/colecoes/binder-share";
 import { applySlotImage, imageFailureMessage } from "@/lib/colecoes/binder-images";
+import { type GapPreview, gapFailureMessage } from "@/lib/colecoes/binder-insert";
+import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, regionFailureMessage } from "@/lib/colecoes/binder-region";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, TopNavControls, blackLeatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
 import { AddPagesDialog } from "./binder-add-pages";
 import { AvailablePanel, type AvailableState } from "./binder-available";
 import { ImageComposer, type ImageDialogMode, SlotImageDialog } from "./binder-image-editor";
-import { type PreparedImage, clearSlotImageAndFile, linkNewSlotImage } from "./binder-image-io";
+import { type PreparedImage, clearSlotImageAndFile, linkNewRegionImage, linkNewSlotImage, separateRegionAndFile } from "./binder-image-io";
+import { GapDialog, type GapDialogState, ImageShapeSwitch, RegionComposer, RegionImageDialog } from "./binder-layout-tools";
 import { PocketPicker } from "./binder-pocket-picker";
 import { BinderOverview } from "./binder-overview";
-import { BinderPortalContext, BinderSlotView, type SlotDragData, type SlotHandlers } from "./binder-slot";
+import { BinderPortalContext, BinderSlotView, GapGutter, type RegionDialogMode, RegionPocketView, type SlotDragData, type SlotHandlers } from "./binder-slot";
 import { BinderToolRail } from "./binder-tool-rail";
 import { BulkActionRail, type TrayItem, TraySurface, TrayToggleButton } from "./binder-tray";
 import ws from "./workspace.module.css";
@@ -94,7 +101,9 @@ const RESERVE_MAX = 50;
 /** "Desfazer" refaz uma atribuição por vez (5131): só para lotes pequenos. */
 const UNDO_MAX = 40;
 
-type Toast = { tone: "success" | "error" | "info"; text: string; undo?: { slotId: string; allocationId: string }[] } | null;
+/** "Desfazer" do espaço aberto (5243): o banco confere o token antes de fechar. */
+type GapUndo = { gapSlotId: string; endSlotId: string; undoToken: string; addedPageId: string | null; pages: number[] };
+type Toast = { tone: "success" | "error" | "info"; text: string; undo?: { slotId: string; allocationId: string }[]; gapUndo?: GapUndo } | null;
 type Confirm = { slotIds: string[]; lockedSkipped: number } | null;
 type Entry = { page: number; slot: BinderSlot };
 
@@ -318,6 +327,19 @@ export function BinderWorkspace({
     });
   }, []);
 
+  /** Mesclagens visíveis no cache: id → página, bolso âncora, imagem e largura. */
+  const regionIndex = useMemo(() => {
+    const index = new Map<string, { page: number; anchor: BinderSlot; region: NonNullable<BinderPage["regions"]>[number] | null; width: number }>();
+    for (const page of cache.values()) {
+      const cells = regionCells(page);
+      for (const [anchorId, info] of cells.anchors) {
+        const anchor = page.slots.find((slot) => slot.slotId === anchorId);
+        if (anchor) index.set(info.regionId, { page: page.pageNumber, anchor, region: info.region, width: info.width });
+      }
+    }
+    return index;
+  }, [cache]);
+
   // ---- seleção, Bandeja, mensagens ----
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [tray, setTray] = useState<TrayItem[]>([]);
@@ -331,7 +353,7 @@ export function BinderWorkspace({
   const selectionActive = selected.size > 0;
 
   useEffect(() => {
-    if (!toast || toast.undo) return;
+    if (!toast || toast.undo || toast.gapUndo) return;
     const timer = window.setTimeout(() => setToast(null), toast.tone === "error" ? 7000 : 3500);
     return () => window.clearTimeout(timer);
   }, [toast]);
@@ -372,6 +394,10 @@ export function BinderWorkspace({
   }, []);
   const [addPagesOpen, setAddPagesOpen] = useState(false);
   const [addingPages, setAddingPages] = useState(false);
+  // Personalização do layout: imagem em 2 bolsos e "Abrir espaço".
+  const [imageShape, setImageShape] = useState<"single" | "wide">("single");
+  const [regionTarget, setRegionTarget] = useState<{ regionId: string; mode: RegionDialogMode } | null>(null);
+  const [gapDialog, setGapDialog] = useState<GapDialogState | null>(null);
   const sources = useMemo(
     () => placementSources({ collectionId, collectionName, role, ownerCollectionId, ownerCollectionName }),
     [collectionId, collectionName, ownerCollectionId, ownerCollectionName, role],
@@ -434,7 +460,7 @@ export function BinderWorkspace({
       }
       if (!from || !to || !editable || busy) return;
       if (from.slot.locked || to.slot.locked) return fail("locked");
-      if (to.slot.image) {
+      if (to.slot.image || to.slot.regionId) {
         setToast({ tone: "info", text: "Esse bolso tem uma imagem. Remova a imagem para colocar uma carta nele." });
         return;
       }
@@ -506,7 +532,7 @@ export function BinderWorkspace({
           tone: "info",
           text: to.slot.locked
             ? "Esse bolso está fixado. Escolha um bolso vazio e solto."
-            : to.slot.image
+            : to.slot.image || to.slot.regionId
               ? "Esse bolso tem uma imagem. Remova a imagem para colocar uma carta nele."
               : to.slot.state === "RESERVED_EMPTY"
               ? "Esse bolso está reservado para uma carta de outra coleção. Escolha um bolso vazio."
@@ -604,6 +630,221 @@ export function BinderWorkspace({
       return null;
     },
     [collectionId, editable, patchSlots, refreshPages, slotIndex],
+  );
+
+  // ---- imagem em 2 bolsos (5239–5242) ----
+
+  /**
+   * Une 2 bolsos com a imagem (sem `regionId`) ou substitui a imagem de uma
+   * mesclagem. Mesma ordem segura da imagem do bolso; a página só muda
+   * depois do "sim" do banco e é relida em seguida (URL assinada).
+   */
+  const submitRegion = useCallback(
+    async (
+      target: { page: number; leftSlotId: string; regionId: string | null },
+      image: PreparedImage,
+      focalX: number,
+      focalY: number,
+      onStage: (stage: "upload" | "link") => void,
+    ): Promise<string | null> => {
+      if (!layoutId || !editable) return regionFailureMessage("not_found");
+      const outcome = await linkNewRegionImage({ collectionId, layoutId, leftSlotId: target.leftSlotId, regionId: target.regionId, image, focalX, focalY, onStage });
+      if (!outcome.ok) {
+        if (outcome.uncertain || outcome.reason === "slots_not_free" || outcome.reason === "region_missing" || outcome.reason === "not_found") void refreshPages([target.page]);
+        return outcome.message;
+      }
+      blobUrls.current.add(image.url);
+      // Mostra na hora com a prévia local; a releitura traz a URL assinada.
+      setCache((prev) => {
+        const page = prev.get(target.page);
+        if (!page) return prev;
+        const left = page.slots.find((slot) => slot.slotId === target.leftSlotId);
+        if (!left) return prev;
+        const right = page.slots.find((slot) => slot.row === left.row && slot.column === left.column + 1);
+        const ids = new Set([left.slotId, right?.slotId].filter(Boolean));
+        const regions = (page.regions ?? []).filter((r) => r.regionId !== outcome.regionId);
+        regions.push({ regionId: outcome.regionId, row: left.row, leftColumn: left.column, height: 1, width: 2, path: outcome.path, focalX: outcome.focalX, focalY: outcome.focalY, updatedAt: null, url: image.url });
+        const next = new Map(prev);
+        next.set(target.page, { ...page, regions, slots: page.slots.map((slot) => (ids.has(slot.slotId) ? { ...slot, regionId: outcome.regionId } : slot)) });
+        return next;
+      });
+      setPocketTarget(null);
+      setRegionTarget(null);
+      setToast({ tone: "success", text: target.regionId ? `Imagem substituída na página ${target.page}.` : `Imagem colocada em 2 bolsos na página ${target.page}.` });
+      void refreshPages([target.page]);
+      return null;
+    },
+    [collectionId, editable, layoutId, refreshPages],
+  );
+
+  const saveRegionFocus = useCallback(
+    async (regionId: string, focalX: number, focalY: number): Promise<string | null> => {
+      const entry = regionIndex.get(regionId);
+      if (!entry || !editable) return regionFailureMessage("region_missing");
+      const result = await setRegionImageFocus({ collectionId, regionId, focalX, focalY }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+      if (!result.ok) {
+        void refreshPages([entry.page]);
+        return regionFailureMessage(result.reason);
+      }
+      setCache((prev) => {
+        const page = prev.get(entry.page);
+        if (!page?.regions) return prev;
+        const next = new Map(prev);
+        next.set(entry.page, { ...page, regions: page.regions.map((r) => (r.regionId === regionId ? { ...r, focalX: result.focalX, focalY: result.focalY } : r)) });
+        return next;
+      });
+      setRegionTarget(null);
+      setToast({ tone: "success", text: "Enquadramento salvo." });
+      return null;
+    },
+    [collectionId, editable, refreshPages, regionIndex],
+  );
+
+  const separateRegion = useCallback(
+    async (regionId: string): Promise<string | null> => {
+      const entry = regionIndex.get(regionId);
+      if (!entry || !editable) return regionFailureMessage("region_missing");
+      const result = await separateRegionAndFile({ collectionId, regionId });
+      if (!result.ok) {
+        void refreshPages([entry.page]);
+        return result.message;
+      }
+      setCache((prev) => {
+        const page = prev.get(entry.page);
+        if (!page) return prev;
+        const next = new Map(prev);
+        next.set(entry.page, {
+          ...page,
+          regions: (page.regions ?? []).filter((r) => r.regionId !== regionId),
+          slots: page.slots.map((slot) => (slot.regionId === regionId ? { ...slot, regionId: null } : slot)),
+        });
+        return next;
+      });
+      setRegionTarget(null);
+      setToast({ tone: "success", text: result.separated ? "Bolsos separados. Os 2 bolsos estão livres." : "Esses bolsos já estavam separados." });
+      void refreshPages([entry.page]);
+      return null;
+    },
+    [collectionId, editable, refreshPages, regionIndex],
+  );
+
+  // ---- abrir espaço (5243) ----
+
+  /** Executa com o plan_token da prévia; página nova e travessia só com a confirmação já dada. */
+  const runInsertGap = useCallback(
+    async (target: { slotId: string; page: number; row: number; column: number }, preview: GapPreview) => {
+      if (!preview.planToken || !editable) return;
+      setBusy(true);
+      setGapDialog((current) => (current ? { ...current, running: true, error: null } : current));
+      const result = await insertGap({
+        collectionId,
+        slotId: target.slotId,
+        planToken: preview.planToken,
+        confirmCrossPage: preview.outcome === "CROSS_PAGE" || preview.outcome === "NEEDS_PAGE",
+        confirmAddPage: preview.outcome === "NEEDS_PAGE",
+      }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+      if (!result.ok) {
+        if (result.reason === "plan_changed") {
+          // O fichário mudou: nada foi movido. Refaz a prévia e mostra a nova.
+          const again = await previewInsertGap({ collectionId, slotId: target.slotId }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+          setBusy(false);
+          await refreshPages([target.page, ...preview.pages]);
+          if (again.ok) {
+            setGapDialog({ ...target, preview: again.preview, running: false, error: null, refreshed: true });
+            return;
+          }
+        }
+        setBusy(false);
+        setGapDialog(null);
+        setToast({ tone: "error", text: gapFailureMessage(result.reason) });
+        await refreshPages([target.page, ...preview.pages]);
+        return;
+      }
+      const { result: done } = result;
+      setGapDialog(null);
+      if (done.outcome === "ALREADY_FREE") {
+        setBusy(false);
+        setToast({ tone: "info", text: "Esse bolso já estava livre — nada precisou andar." });
+        await refreshPages([target.page]);
+        return;
+      }
+      if (done.addedPageId) {
+        setTotalPages((value) => value + 1);
+        setFailed(new Set());
+      }
+      await refreshPages([target.page, ...done.pages]);
+      setBusy(false);
+      setToast({
+        tone: "success",
+        text:
+          (done.movedPockets === 1 ? "Espaço aberto: 1 bolso avançou." : `Espaço aberto: ${done.movedPockets} bolsos avançaram.`) +
+          (done.addedPageId ? " Uma página nova entrou no fim do fichário." : ""),
+        gapUndo:
+          done.endSlotId && done.undoToken
+            ? { gapSlotId: done.gapSlotId, endSlotId: done.endSlotId, undoToken: done.undoToken, addedPageId: done.addedPageId, pages: [target.page, ...done.pages] }
+            : undefined,
+      });
+    },
+    [collectionId, editable, refreshPages],
+  );
+
+  /** Prévia do banco: mesma página abre direto (com "Desfazer"); o resto passa pela confirmação. */
+  const startInsertGap = useCallback(
+    async (slot: BinderSlot) => {
+      const entry = slotIndex.get(slot.slotId);
+      if (!entry || !editable || busy) return;
+      const target = { slotId: slot.slotId, page: entry.page, row: slot.row, column: slot.column };
+      setBusy(true);
+      setToast({ tone: "info", text: "Calculando o espaço…" });
+      const result = await previewInsertGap({ collectionId, slotId: slot.slotId }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+      setBusy(false);
+      if (!result.ok) {
+        setToast({ tone: "error", text: gapFailureMessage(result.reason) });
+        return;
+      }
+      const { preview } = result;
+      if (preview.outcome === "ALREADY_FREE") {
+        setToast({ tone: "info", text: "Esse bolso já está livre." });
+        return;
+      }
+      if (preview.outcome === "NOT_FOUND") {
+        setToast({ tone: "error", text: gapFailureMessage("not_found") });
+        void refreshPages([entry.page]);
+        return;
+      }
+      setToast(null);
+      if (preview.outcome === "SAME_PAGE") {
+        await runInsertGap(target, preview);
+        return;
+      }
+      setGapDialog({ ...target, preview, running: false, error: null, refreshed: false });
+    },
+    [busy, collectionId, editable, refreshPages, runInsertGap, slotIndex],
+  );
+
+  const runCloseGap = useCallback(
+    async (undo: GapUndo) => {
+      if (busy) return;
+      setToast(null);
+      setBusy(true);
+      const result = await closeGap({ collectionId, gapSlotId: undo.gapSlotId, endSlotId: undo.endSlotId, undoToken: undo.undoToken, addedPageId: undo.addedPageId }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+      if (result.ok && result.pageRemoved) {
+        // A página criada saiu: o fichário volta ao tamanho de antes.
+        const removed = totalPages;
+        setTotalPages((value) => Math.max(1, value - 1));
+        setCache((prev) => {
+          if (!prev.has(removed)) return prev;
+          const next = new Map(prev);
+          next.delete(removed);
+          return next;
+        });
+        setAnchor((value) => clampPage(value, Math.max(1, removed - 1)));
+      }
+      await refreshPages(undo.pages.filter((page) => !(result.ok && result.pageRemoved && page === totalPages)));
+      setBusy(false);
+      setToast(result.ok ? { tone: "success", text: "Espaço desfeito: os bolsos voltaram ao lugar." } : { tone: "error", text: gapFailureMessage(result.reason) });
+    },
+    [busy, collectionId, refreshPages, totalPages],
   );
 
   const entriesFor = useCallback(
@@ -834,8 +1075,20 @@ export function BinderWorkspace({
         setToast(null);
         setImageTarget({ slotId: slot.slotId, mode: editable ? mode : "view" });
       },
+      onInsertGap: (slot) => {
+        if (armed || armedCard || selectionActive) return;
+        void startInsertGap(slot);
+      },
+      onOpenRegion: (regionId, mode) => {
+        if (justDragged.current || armed || armedCard) {
+          if (armed || armedCard) setToast({ tone: "info", text: "Esses bolsos têm uma imagem. Escolha outro bolso." });
+          return;
+        }
+        setToast(null);
+        setRegionTarget({ regionId, mode: editable ? mode : "view" });
+      },
     }),
-    [armed, armedCard, busy, editable, place, placeAvailable, runClearReservation, runLock, runReserve, selectionActive, slotIndex, toTray, toggleSelect, trayIds],
+    [armed, armedCard, busy, editable, place, placeAvailable, runClearReservation, runLock, runReserve, selectionActive, slotIndex, startInsertGap, toTray, toggleSelect, trayIds],
   );
 
   // ← → páginas, Home/End; Esc desfaz em camadas: confirmação → carta escolhida → Bandeja aberta → seleção → fechar.
@@ -861,7 +1114,7 @@ export function BinderWorkspace({
         go(lastView);
       } else if (event.key === "Escape") {
         event.preventDefault();
-        if (imageTarget || pocketTarget) return;
+        if (imageTarget || pocketTarget || regionTarget || gapDialog) return;
         if (confirm) setConfirm(null);
         else if (armedCard) setArmedCard(null);
         else if (armed) setArmed(null);
@@ -874,7 +1127,7 @@ export function BinderWorkspace({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [armed, armedCard, availableOpen, back, confirm, forward, go, imageTarget, lastView, onClose, overviewOpen, pocketTarget, selected.size, trayOpen]);
+  }, [armed, armedCard, availableOpen, back, confirm, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, selected.size, trayOpen]);
 
   // ---- arrastar e soltar (pointer/touch; teclado usa "…" → Bandeja → bolso) ----
   const sensors = useSensors(
@@ -1068,6 +1321,8 @@ export function BinderWorkspace({
                 placing={placing}
                 placingAvailable={placingAvailable}
                 focusCollectionId={shared && onlyMine ? collectionId : null}
+                // "Abrir espaço": fora de "Só desta coleção" (D10), sem seleção, sem carta na mão e com a Bandeja vazia (ela guarda ids de bolso).
+                insertEnabled={editable && !busy && !(shared && onlyMine) && !selectionActive && !placing && tray.length === 0 && layoutId !== null}
                 handlers={handlers}
                 onRetry={retryBatch}
                 onAddPages={editable && layoutId && !busy ? () => setAddPagesOpen(true) : null}
@@ -1101,6 +1356,12 @@ export function BinderWorkspace({
               <Message tone={toast.tone} role={toast.tone === "error" ? "alert" : "status"}>
                 <p>{toast.text}</p>
                 <span className={ws.messageActions}>
+                  {toast.gapUndo ? (
+                    <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-white hover:bg-white/10" onClick={() => toast.gapUndo && void runCloseGap(toast.gapUndo)} disabled={busy}>
+                      <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                      Desfazer
+                    </Button>
+                  ) : null}
                   {toast.undo ? (
                     <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-white hover:bg-white/10" onClick={() => void runUndo(toast.undo ?? [])}>
                       <RotateCcw className="h-3.5 w-3.5" aria-hidden />
@@ -1245,12 +1506,33 @@ export function BinderWorkspace({
                         : pocketTarget.slot.locked
                           ? "Este bolso está fixado — solte o cadeado para usar uma imagem."
                           : null,
-                    render: () => (
-                      <ImageComposer
-                        collectionId={collectionId}
-                        onSubmit={(image, focalY, onStage) => submitImage(pocketTarget.slot.slotId, image, focalY, onStage)}
-                      />
-                    ),
+                    render: () => {
+                      // Imagem em 2 bolsos: este bolso e o da direita, ambos livres, mesma linha (5240).
+                      const page = cache.get(pocketTarget.page);
+                      const check = page ? canMergeRight(pocketsFromPages([page]), pocketTarget.slot.slotId) : null;
+                      const wideReason = !check ? "Não conseguimos conferir os bolsos vizinhos agora." : mergeCheckMessage(check);
+                      const shape = wideReason ? "single" : imageShape;
+                      return (
+                        <div className="flex flex-col gap-4">
+                          <ImageShapeSwitch shape={shape} wideReason={wideReason} onChange={setImageShape} />
+                          {shape === "wide" ? (
+                            <RegionComposer
+                              key="wide"
+                              collectionId={collectionId}
+                              onSubmit={(image, focalX, focalY, onStage) =>
+                                submitRegion({ page: pocketTarget.page, leftSlotId: pocketTarget.slot.slotId, regionId: null }, image, focalX, focalY, onStage)
+                              }
+                            />
+                          ) : (
+                            <ImageComposer
+                              key="single"
+                              collectionId={collectionId}
+                              onSubmit={(image, focalY, onStage) => submitImage(pocketTarget.slot.slotId, image, focalY, onStage)}
+                            />
+                          )}
+                        </div>
+                      );
+                    },
                   }
                 : null
             }
@@ -1280,6 +1562,40 @@ export function BinderWorkspace({
               );
             })()
           : null}
+
+        {regionTarget
+          ? (() => {
+              const entry = regionIndex.get(regionTarget.regionId);
+              if (!entry) return null;
+              const last = entry.anchor.column + entry.width - 1;
+              return (
+                <RegionImageDialog
+                  key={`${regionTarget.regionId}:${regionTarget.mode}`}
+                  host={rootRef.current}
+                  collectionId={collectionId}
+                  region={entry.region}
+                  where={`Página ${entry.page} · linha ${entry.anchor.row}, colunas ${entry.anchor.column}–${last}`}
+                  editable={editable && layoutId !== null}
+                  initialMode={regionTarget.mode}
+                  onReplace={(image, focalX, focalY, onStage) =>
+                    submitRegion({ page: entry.page, leftSlotId: entry.anchor.slotId, regionId: regionTarget.regionId }, image, focalX, focalY, onStage)
+                  }
+                  onSaveFocal={(focalX, focalY) => saveRegionFocus(regionTarget.regionId, focalX, focalY)}
+                  onSeparate={() => separateRegion(regionTarget.regionId)}
+                  onClose={() => setRegionTarget(null)}
+                />
+              );
+            })()
+          : null}
+
+        {gapDialog ? (
+          <GapDialog
+            host={rootRef.current}
+            state={gapDialog}
+            onConfirm={() => void runInsertGap(gapDialog, gapDialog.preview)}
+            onClose={() => !gapDialog.running && setGapDialog(null)}
+          />
+        ) : null}
 
         <p className="sr-only" aria-live="polite">
           {armedCard ? `Carta disponível escolhida: ${armedCard.cardName}. Escolha um bolso vazio.` : ""}
@@ -1329,6 +1645,7 @@ function BinderObject({
   placing,
   placingAvailable,
   focusCollectionId,
+  insertEnabled,
   handlers,
   onRetry,
   onAddPages,
@@ -1354,6 +1671,7 @@ function BinderObject({
   placing: boolean;
   placingAvailable: boolean;
   focusCollectionId: string | null;
+  insertEnabled: boolean;
   handlers: SlotHandlers;
   onRetry: (page: number) => void;
   /** Contracapa traseira (fim do fichário): atalho discreto para acrescentar páginas. */
@@ -1439,6 +1757,7 @@ function BinderObject({
                       placing={placing}
                       placingAvailable={placingAvailable}
                       focusCollectionId={focusCollectionId}
+                      insertEnabled={insertEnabled}
                       handlers={handlers}
                       onRetry={() => onRetry(side)}
                     />
@@ -1535,6 +1854,7 @@ function PageGrid({
   placing,
   placingAvailable,
   focusCollectionId,
+  insertEnabled,
   handlers,
   onRetry,
 }: {
@@ -1555,9 +1875,13 @@ function PageGrid({
   placing: boolean;
   placingAvailable: boolean;
   focusCollectionId: string | null;
+  insertEnabled: boolean;
   handlers: SlotHandlers;
   onRetry: () => void;
 }) {
+  const cells = useMemo(() => (page ? regionCells(page) : null), [page]);
+  const height = (pocket * 11) / 8;
+  const control = Math.round(Math.min(26, Math.max(18, pocket * 0.2)));
   return (
     <div
       role="list"
@@ -1566,9 +1890,41 @@ function PageGrid({
       className="relative grid"
       style={{ gridTemplateColumns: `repeat(${columns}, ${pocket}px)`, gridAutoRows: `${(pocket * 11) / 8}px`, gap }}
     >
-      {page
-        ? page.slots.map((slot, index) => (
-            <div role="listitem" key={slot.slotId}>
+      {page && cells
+        ? page.slots.map((slot, index) => {
+            // Bolso coberto por uma imagem em 2 bolsos: a âncora desenha a peça inteira.
+            if (cells.covered.has(slot.slotId)) return null;
+            const region = cells.anchors.get(slot.slotId);
+            if (region) {
+              return (
+                <div role="listitem" key={slot.slotId} style={{ gridColumn: `span ${region.width}` }}>
+                  <RegionPocketView
+                    regionId={region.regionId}
+                    region={region.region}
+                    anchor={slot}
+                    width={region.width}
+                    pocket={pocket}
+                    gap={gap}
+                    pageNumber={pageNumber}
+                    priority={index < columns * 2}
+                    editable={editable}
+                    showActions={!selectionActive}
+                    placing={placing}
+                    dimmed={focusCollectionId !== null}
+                    handlers={handlers}
+                  />
+                </div>
+              );
+            }
+            const inTray = trayIds.has(slot.slotId);
+            // Abrir espaço só antes de um bolso com conteúdo e fora de barreira (fixado/mesclado).
+            const insertable =
+              insertEnabled && !inTray && !slot.locked && !slot.regionId && (isOccupied(slot) || Boolean(slot.expectedCardId) || Boolean(slot.image));
+            return (
+            <div role="listitem" key={slot.slotId} className="relative">
+              {insertable && slot.column > 1 ? (
+                <GapGutter gap={gap} height={height} size={control} label={`Abrir espaço antes do bolso da linha ${slot.row}, coluna ${slot.column}`} onInsert={() => handlers.onInsertGap(slot)} />
+              ) : null}
               <BinderSlotView
                 slot={slot}
                 sizes={sizes}
@@ -1576,16 +1932,18 @@ function PageGrid({
                 editable={editable}
                 selected={selected.has(slot.slotId)}
                 selectionActive={selectionActive}
-                inTray={trayIds.has(slot.slotId)}
+                inTray={inTray}
                 placing={placing}
                 isSource={dragging?.slotId === slot.slotId || armed === slot.slotId}
                 pocket={pocket}
                 handlers={handlers}
                 placingAvailable={placingAvailable}
                 dimmed={focusCollectionId !== null && isForeignSlot(slot, focusCollectionId)}
+                canInsertGap={insertable}
               />
             </div>
-          ))
+            );
+          })
         : Array.from({ length: columns * rows }).map((_, index) => (
             <div
               key={index}

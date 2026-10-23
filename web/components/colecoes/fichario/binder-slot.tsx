@@ -3,9 +3,28 @@
 import { createContext, useCallback, useContext, useEffect, useState, type RefObject } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { useDndContext, useDraggable, useDroppable, type DraggableSyntheticListeners } from "@dnd-kit/core";
-import { Bookmark, BookmarkX, Check, Crop, ImageOff, Inbox, Lock, LockOpen, Maximize2, Plus, RefreshCw, Shuffle, Trash2, Undo2, type LucideIcon } from "lucide-react";
+import {
+  BetweenVerticalStart,
+  Bookmark,
+  BookmarkX,
+  Check,
+  Crop,
+  ImageOff,
+  Inbox,
+  Lock,
+  LockOpen,
+  Maximize2,
+  Plus,
+  RefreshCw,
+  Shuffle,
+  Trash2,
+  Undo2,
+  Ungroup,
+  type LucideIcon,
+} from "lucide-react";
 import { cardFrontUrl, formatCollectorNumber } from "@/lib/colecoes/acervo";
-import { type BinderSlot, type SlotImage, canReserveCurrent, hasReservation, isOccupied, slotDescription } from "@/lib/colecoes/binder";
+import { type BinderSlot, type RegionImage, type SlotImage, canReserveCurrent, hasReservation, isOccupied, slotDescription } from "@/lib/colecoes/binder";
+import { regionObjectPosition } from "@/lib/colecoes/binder-region";
 import { cn } from "@/lib/utils";
 import { PocketArt } from "./binder-page";
 
@@ -32,7 +51,13 @@ export type SlotHandlers = {
   onAddCard: (slot: BinderSlot) => void;
   /** Bolso com imagem personalizada (C-198): ver, ajustar, substituir ou remover. */
   onOpenImage: (slot: BinderSlot, mode: "view" | "frame" | "replace" | "remove") => void;
+  /** Inserir espaço antes deste bolso (5243): prévia do banco → confirmação quando atravessa página. */
+  onInsertGap: (slot: BinderSlot) => void;
+  /** Imagem em 2 bolsos (5240): ver, ajustar, substituir ou separar. */
+  onOpenRegion: (regionId: string, mode: RegionDialogMode) => void;
 };
+
+export type RegionDialogMode = "view" | "frame" | "replace" | "separate";
 
 const SHEEN = "linear-gradient(115deg, hsl(0 0% 100% / 0.2) 0%, transparent 32%, transparent 68%, hsl(0 0% 100% / 0.06) 100%)";
 const RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(40_70%_62%)] focus-visible:ring-offset-1 focus-visible:ring-offset-black/80";
@@ -82,6 +107,7 @@ export function BinderSlotView({
   handlers,
   dimmed = false,
   placingAvailable = false,
+  canInsertGap = false,
 }: {
   slot: BinderSlot;
   sizes: string;
@@ -100,6 +126,8 @@ export function BinderSlotView({
   dimmed?: boolean;
   /** A carta "na mão" é uma carta disponível: só bolso vazio recebe (nunca substitui). */
   placingAvailable?: boolean;
+  /** "Abrir espaço antes deste bolso" vale aqui (bolso com conteúdo, sem barreira, fora de "Só desta coleção"). */
+  canInsertGap?: boolean;
 }) {
   const occupied = isOccupied(slot);
   const reserved = !occupied && slot.state === "RESERVED_EMPTY";
@@ -311,9 +339,9 @@ export function BinderSlotView({
             )}
           >
             {image ? (
-              <ImageQuickActions slot={slot} size={control} handlers={handlers} />
+              <ImageQuickActions slot={slot} size={control} handlers={handlers} canInsertGap={canInsertGap} />
             ) : (
-              <QuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} />
+              <QuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} canInsertGap={canInsertGap} />
             )}
           </div>
         </>
@@ -492,7 +520,7 @@ function QuickButton({
 }
 
 /** Cápsula do bolso com imagem: Ver · Ajustar · Substituir · Remover. */
-function ImageQuickActions({ slot, size, handlers }: { slot: BinderSlot; size: number; handlers: SlotHandlers }) {
+function ImageQuickActions({ slot, size, handlers, canInsertGap }: { slot: BinderSlot; size: number; handlers: SlotHandlers; canInsertGap: boolean }) {
   return (
     <TooltipPrimitive.Provider delayDuration={250} skipDelayDuration={100}>
       <div className="absolute inset-x-0 bottom-[6%] flex items-center justify-center">
@@ -502,6 +530,7 @@ function ImageQuickActions({ slot, size, handlers }: { slot: BinderSlot; size: n
           className="flex items-center gap-px rounded-full px-0.5 py-0.5"
           style={{ background: "hsl(0 0% 0% / 0.62)", boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)" }}
         >
+          {canInsertGap ? <QuickButton icon={BetweenVerticalStart} label="Abrir espaço antes deste bolso" onClick={() => handlers.onInsertGap(slot)} size={size} /> : null}
           <QuickButton icon={Maximize2} label="Ver imagem" onClick={() => handlers.onOpenImage(slot, "view")} size={size} />
           <QuickButton icon={Crop} label="Ajustar enquadramento" onClick={() => handlers.onOpenImage(slot, "frame")} size={size} />
           <QuickButton icon={RefreshCw} label="Substituir imagem" onClick={() => handlers.onOpenImage(slot, "replace")} size={size} />
@@ -523,6 +552,7 @@ function QuickActions({
   inTray,
   size,
   handlers,
+  canInsertGap,
 }: {
   slot: BinderSlot;
   occupied: boolean;
@@ -530,6 +560,7 @@ function QuickActions({
   inTray: boolean;
   size: number;
   handlers: SlotHandlers;
+  canInsertGap: boolean;
 }) {
   const reservation = hasReservation(slot);
   const canReserve = canReserveCurrent(slot);
@@ -542,6 +573,7 @@ function QuickActions({
           className="flex items-center gap-px rounded-full px-0.5 py-0.5"
           style={{ background: "hsl(0 0% 0% / 0.62)", boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)" }}
         >
+          {canInsertGap ? <QuickButton icon={BetweenVerticalStart} label="Abrir espaço antes deste bolso" onClick={() => handlers.onInsertGap(slot)} size={size} /> : null}
           {occupied ? (
             inTray ? (
               <QuickButton icon={Undo2} label="Devolver da Bandeja a este bolso" onClick={() => handlers.onReturnFromTray(slot)} size={size} active tone="tray" />
@@ -595,5 +627,195 @@ function QuickActions({
         </div>
       </div>
     </TooltipPrimitive.Provider>
+  );
+}
+
+/**
+ * Fenda entre dois bolsos (referência aprovada "Insert slot"): no hover,
+ * um fio dourado e um "+" marcam onde o espaço abre. Só ponteiro — teclado
+ * e toque usam o mesmo comando na cápsula do bolso ("Abrir espaço antes
+ * deste bolso"), por isso fica fora da ordem de Tab.
+ */
+export function GapGutter({ gap, height, size, label, onInsert }: { gap: number; height: number; size: number; label: string; onInsert: () => void }) {
+  const zone = Math.max(14, gap + 8);
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-label={label}
+      title={label}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onInsert();
+      }}
+      className="group/gutter absolute top-0 z-40 flex cursor-pointer items-center justify-center outline-none"
+      style={{ left: -(gap / 2) - zone / 2, width: zone, height }}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-[8%] left-1/2 w-[2px] -translate-x-1/2 rounded-full opacity-0 transition-opacity duration-150 group-hover/gutter:opacity-100 motion-reduce:transition-none"
+        style={{ background: "linear-gradient(180deg, transparent, hsl(40 70% 62% / 0.9) 18%, hsl(40 70% 62% / 0.9) 82%, transparent)", boxShadow: "0 0 10px hsl(40 70% 62% / 0.45)" }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none relative flex scale-90 items-center justify-center rounded-full opacity-0 transition-[opacity,transform] duration-150 group-hover/gutter:scale-100 group-hover/gutter:opacity-100 motion-reduce:transition-none"
+        style={{ width: size, height: size, background: "hsl(40 70% 55%)", color: "hsl(0 0% 6%)", boxShadow: "0 2px 8px rgba(0,0,0,0.55)" }}
+      >
+        <Plus style={{ width: size * 0.6, height: size * 0.6 }} strokeWidth={2.6} />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Imagem em 2 bolsos (5239–5241): uma única peça cobrindo os bolsos lado a
+ * lado, com o vão entre eles — mesmo plástico, reflexo e abertura do bolso.
+ * Barreira para cartas e para "Abrir espaço". Cápsula: Ver · Ajustar ·
+ * Substituir · Separar. Sem imagem lida (assinatura falhou, leitura
+ * atrasada), a área continua visível e protegida.
+ */
+export function RegionPocketView({
+  regionId,
+  region,
+  anchor,
+  width,
+  pocket,
+  gap,
+  pageNumber,
+  priority,
+  editable,
+  showActions,
+  placing,
+  dimmed = false,
+  handlers,
+}: {
+  regionId: string;
+  region: RegionImage | null;
+  anchor: BinderSlot;
+  width: number;
+  pocket: number;
+  gap: number;
+  pageNumber: number;
+  priority: boolean;
+  editable: boolean;
+  showActions: boolean;
+  placing: boolean;
+  dimmed?: boolean;
+  handlers: SlotHandlers;
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [region?.url]);
+  const control = Math.round(Math.min(26, Math.max(18, pocket * 0.2)));
+  const label = `Imagem em ${width} bolsos, página ${pageNumber}, linha ${anchor.row}, colunas ${anchor.column} a ${anchor.column + width - 1}`;
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="group/slot relative h-full overflow-hidden rounded-[4px] transition-[opacity,filter] duration-200 ease-out motion-reduce:transition-none"
+      style={{
+        width: pocket * width + gap * (width - 1),
+        background: "hsl(0 0% 3% / 0.4)",
+        boxShadow: ["inset 1px 1px 0 hsl(0 0% 100% / 0.14)", "inset -1px -1px 0 hsl(0 0% 0% / 0.4)", "inset 0 3px 7px rgba(0,0,0,0.55)"].join(", "),
+        opacity: dimmed ? 0.3 : 1,
+        filter: dimmed ? "saturate(0.35)" : undefined,
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`${label}. Enter para ver`}
+        aria-haspopup="dialog"
+        onClick={() => handlers.onOpenRegion(regionId, "view")}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handlers.onOpenRegion(regionId, "view");
+          }
+        }}
+        className={cn(
+          "absolute inset-0 overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(40_70%_62%)]",
+          placing ? "cursor-not-allowed" : "cursor-pointer",
+        )}
+      >
+        {region?.url && !failed ? (
+          // eslint-disable-next-line @next/next/no-img-element -- URL assinada do bucket privado (1 h) ou prévia local blob:
+          <img
+            src={region.url}
+            alt=""
+            draggable={false}
+            decoding="async"
+            loading={priority ? "eager" : "lazy"}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: regionObjectPosition(region.focalX, region.focalY) }}
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <span
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-1 text-center text-[9px] font-semibold leading-tight text-white/55 sm:text-[10px]"
+            style={{ background: "linear-gradient(160deg, hsl(0 0% 14%), hsl(0 0% 7%))" }}
+            aria-hidden
+          >
+            <ImageOff className="h-3.5 w-3.5 opacity-70" />
+            {region ? "Imagem indisponível" : "Imagem em 2 bolsos"}
+          </span>
+        )}
+      </div>
+
+      {/* Costura discreta entre os bolsos: a peça é uma só, mas o fichário continua tendo bolsos. */}
+      {Array.from({ length: width - 1 }).map((_, index) => (
+        <div
+          key={index}
+          className="pointer-events-none absolute inset-y-[3%]"
+          style={{ left: pocket * (index + 1) + gap * index + gap / 2 - 0.5, width: 1, background: "hsl(0 0% 100% / 0.07)" }}
+          aria-hidden
+        />
+      ))}
+      <div className="pointer-events-none absolute inset-x-0 top-[7%] h-[2px]" style={{ background: "hsl(0 0% 100% / 0.16)" }} aria-hidden />
+      <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: SHEEN, opacity: 0.35 }} aria-hidden />
+      <div className="pointer-events-none absolute inset-0 rounded-[4px]" style={{ boxShadow: "inset 0 0 0 1px hsl(0 0% 100% / 0.1)" }} aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 rounded-[4px] opacity-0 transition-opacity duration-150 group-hover/slot:opacity-100 group-focus-within/slot:opacity-100"
+        style={{ boxShadow: "0 0 0 1px hsl(0 0% 100% / 0.35)" }}
+        aria-hidden
+      />
+
+      {showActions && !placing ? (
+        <>
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[30%] opacity-0 transition-opacity duration-150 group-hover/slot:opacity-100 group-focus-within/slot:opacity-100"
+            style={{ background: "linear-gradient(0deg, hsl(0 0% 0% / 0.42) 0%, transparent 100%)" }}
+            aria-hidden
+          />
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 z-30 h-[30%] opacity-0 transition-opacity duration-150 motion-reduce:transition-none",
+              "group-hover/slot:pointer-events-auto group-hover/slot:opacity-100",
+              "group-focus-within/slot:pointer-events-auto group-focus-within/slot:opacity-100",
+            )}
+          >
+            <TooltipPrimitive.Provider delayDuration={250} skipDelayDuration={100}>
+              <div className="absolute inset-x-0 bottom-[6%] flex items-center justify-center">
+                <div
+                  role="toolbar"
+                  aria-label="Ações da imagem em 2 bolsos"
+                  className="flex items-center gap-px rounded-full px-0.5 py-0.5"
+                  style={{ background: "hsl(0 0% 0% / 0.62)", boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)" }}
+                >
+                  <QuickButton icon={Maximize2} label="Ver imagem" onClick={() => handlers.onOpenRegion(regionId, "view")} size={control} />
+                  {editable ? (
+                    <>
+                      <QuickButton icon={Crop} label="Ajustar enquadramento" onClick={() => handlers.onOpenRegion(regionId, "frame")} size={control} disabled={!region} />
+                      <QuickButton icon={RefreshCw} label="Substituir imagem" onClick={() => handlers.onOpenRegion(regionId, "replace")} size={control} disabled={!region} />
+                      <QuickButton icon={Ungroup} label="Separar os bolsos" onClick={() => handlers.onOpenRegion(regionId, "separate")} size={control} tone="danger" />
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            </TooltipPrimitive.Provider>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }

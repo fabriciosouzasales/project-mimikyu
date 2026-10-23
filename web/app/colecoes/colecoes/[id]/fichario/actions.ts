@@ -47,6 +47,27 @@ import {
   parseSetImageResult,
   parseUnlinked,
 } from "@/lib/colecoes/binder-images";
+import {
+  type GapFailure,
+  type GapInsertResult,
+  type GapPreview,
+  classifyGapFailure,
+  isPlanToken,
+  isUndoToken,
+  parseGapClose,
+  parseGapInsert,
+  parseGapPreview,
+} from "@/lib/colecoes/binder-insert";
+import {
+  type MergeResult,
+  type RegionFailure,
+  type RegionImageResult,
+  classifyRegionFailure,
+  parseMergeResult,
+  parseRegionFocusResult,
+  parseRegionImageResult,
+  parseSeparateResult,
+} from "@/lib/colecoes/binder-region";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { createClient } from "@/lib/supabase/server";
 
@@ -626,4 +647,197 @@ export async function addPages(input: {
   slotDone("add_layout_page", startedAt, input.collectionId, { added, requested: input.count });
   revalidatePath(binderHref(input.collectionId));
   return { ok: true, added, lastPageNumber, slotsPerPage, failure };
+}
+
+// ---------------------------------------------------------------------------
+// Inserir espaço (proposta 5243) — prévia do banco, execução com o plan_token
+// da prévia e desfazer com o undo_token. O banco é a autoridade: recalcula
+// tudo sob a trava do fichário e recusa se o plano mudou.
+// ---------------------------------------------------------------------------
+
+type GapFail = { ok: false; reason: GapFailure };
+
+function gapFail(fn: string, startedAt: number, error: { code?: string; message?: string; hint?: string } | null): GapFail {
+  const reason = classifyGapFailure(error?.code, error?.message, error?.hint);
+  console.error(JSON.stringify({ scope: "colecoes.binder_gap", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+/** Prévia de "Inserir espaço" (não grava). */
+export async function previewInsertGap(input: { collectionId: string; slotId: string }): Promise<{ ok: true; preview: GapPreview } | GapFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.slotId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("preview_my_binder_insert_gap", { p_collection_id: input.collectionId, p_slot_id: input.slotId });
+  if (error) return gapFail("preview_my_binder_insert_gap", startedAt, error);
+  const preview = parseGapPreview(data);
+  if (!preview) return gapFail("preview_my_binder_insert_gap", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, preview };
+}
+
+/** Abre o espaço (5243). Página nova e travessia de página só com confirmação explícita. */
+export async function insertGap(input: {
+  collectionId: string;
+  slotId: string;
+  planToken: string;
+  confirmCrossPage: boolean;
+  confirmAddPage: boolean;
+}): Promise<{ ok: true; result: GapInsertResult } | GapFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.slotId) || !isPlanToken(input.planToken)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("insert_my_binder_gap", {
+    p_collection_id: input.collectionId,
+    p_slot_id: input.slotId,
+    p_plan_token: input.planToken,
+    p_confirm_cross_page: input.confirmCrossPage === true,
+    p_confirm_add_page: input.confirmAddPage === true,
+  });
+  if (error) return gapFail("insert_my_binder_gap", startedAt, error);
+  const result = parseGapInsert(data);
+  if (!result || result.gapSlotId !== input.slotId) return gapFail("insert_my_binder_gap", startedAt, { code: "BAD_SHAPE" });
+  console.info(JSON.stringify({ scope: "colecoes.binder_gap", fn: "insert_my_binder_gap", ms: Date.now() - startedAt, moved: result.movedPockets, addedPage: Boolean(result.addedPageId) }));
+  revalidatePath(binderHref(input.collectionId));
+  return { ok: true, result };
+}
+
+/** Desfaz a inserção, se o fichário ainda está como ela deixou (undo_token). */
+export async function closeGap(input: {
+  collectionId: string;
+  gapSlotId: string;
+  endSlotId: string;
+  undoToken: string;
+  addedPageId: string | null;
+}): Promise<{ ok: true; movedPockets: number; pageRemoved: boolean } | GapFail> {
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !isUuid(input.gapSlotId) ||
+    !isUuid(input.endSlotId) ||
+    !isUndoToken(input.undoToken) ||
+    (input.addedPageId !== null && !isUuid(input.addedPageId))
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("close_my_binder_gap", {
+    p_collection_id: input.collectionId,
+    p_gap_slot_id: input.gapSlotId,
+    p_end_slot_id: input.endSlotId,
+    p_undo_token: input.undoToken,
+    p_added_page_id: input.addedPageId,
+  });
+  if (error) return gapFail("close_my_binder_gap", startedAt, error);
+  const result = parseGapClose(data);
+  if (!result) return gapFail("close_my_binder_gap", startedAt, { code: "BAD_SHAPE" });
+  revalidatePath(binderHref(input.collectionId));
+  return { ok: true, ...result };
+}
+
+// ---------------------------------------------------------------------------
+// Imagem em 2 bolsos (propostas 5239–5241). Mesma ordem segura da imagem do
+// bolso: o arquivo já foi enviado a um caminho NOVO pelo navegador; aqui só o
+// vínculo. Apagar arquivo é do cliente, depois da resposta.
+// ---------------------------------------------------------------------------
+
+type RegionFail = { ok: false; reason: RegionFailure };
+
+function regionFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): RegionFail {
+  const reason = classifyRegionFailure(error?.code, error?.message);
+  console.error(JSON.stringify({ scope: "colecoes.binder_region", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+function isFocal(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 100;
+}
+
+export async function mergeSlotsWithImage(input: {
+  collectionId: string;
+  leftSlotId: string;
+  path: string;
+  focalX: number;
+  focalY: number;
+}): Promise<{ ok: true; result: MergeResult } | RegionFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.leftSlotId) || !isSlotImagePath(input.path) || !isFocal(input.focalX) || !isFocal(input.focalY)) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("merge_my_binder_slots_with_image", {
+    p_collection_id: input.collectionId,
+    p_left_slot_id: input.leftSlotId,
+    p_storage_path: input.path,
+    p_focal_x: input.focalX,
+    p_focal_y: input.focalY,
+  });
+  if (error) return regionFail("merge_my_binder_slots_with_image", startedAt, error);
+  const result = parseMergeResult(data);
+  if (!result || result.leftSlotId !== input.leftSlotId || result.path !== input.path) return regionFail("merge_my_binder_slots_with_image", startedAt, { code: "BAD_SHAPE" });
+  revalidatePath(binderHref(input.collectionId));
+  return { ok: true, result };
+}
+
+export async function setRegionImage(input: {
+  collectionId: string;
+  regionId: string;
+  path: string;
+  focalX: number;
+  focalY: number;
+}): Promise<{ ok: true; result: RegionImageResult } | RegionFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.regionId) || !isSlotImagePath(input.path) || !isFocal(input.focalX) || !isFocal(input.focalY)) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_my_binder_region_image", {
+    p_collection_id: input.collectionId,
+    p_region_id: input.regionId,
+    p_storage_path: input.path,
+    p_focal_x: input.focalX,
+    p_focal_y: input.focalY,
+  });
+  if (error) return regionFail("set_my_binder_region_image", startedAt, error);
+  const result = parseRegionImageResult(data);
+  if (!result || result.regionId !== input.regionId || result.path !== input.path) return regionFail("set_my_binder_region_image", startedAt, { code: "BAD_SHAPE" });
+  revalidatePath(binderHref(input.collectionId));
+  return { ok: true, result };
+}
+
+export async function setRegionImageFocus(input: {
+  collectionId: string;
+  regionId: string;
+  focalX: number;
+  focalY: number;
+}): Promise<{ ok: true; focalX: number; focalY: number } | RegionFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.regionId) || !isFocal(input.focalX) || !isFocal(input.focalY)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_my_binder_region_image_focus", {
+    p_collection_id: input.collectionId,
+    p_region_id: input.regionId,
+    p_focal_x: input.focalX,
+    p_focal_y: input.focalY,
+  });
+  if (error) return regionFail("set_my_binder_region_image_focus", startedAt, error);
+  const result = parseRegionFocusResult(data);
+  if (!result || result.regionId !== input.regionId) return regionFail("set_my_binder_region_image_focus", startedAt, { code: "BAD_SHAPE" });
+  revalidatePath(binderHref(input.collectionId));
+  return { ok: true, focalX: result.focalX, focalY: result.focalY };
+}
+
+/** Separa os bolsos: desvincula a imagem e desfaz a mesclagem na mesma transação. Idempotente. */
+export async function separateSlots(input: {
+  collectionId: string;
+  regionId: string;
+}): Promise<{ ok: true; outcome: "SEPARATED" | "ALREADY_ABSENT"; previousPath: string | null } | RegionFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.regionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("separate_my_binder_slots", { p_collection_id: input.collectionId, p_region_id: input.regionId });
+  if (error) return regionFail("separate_my_binder_slots", startedAt, error);
+  const result = parseSeparateResult(data);
+  if (!result || result.regionId !== input.regionId) return regionFail("separate_my_binder_slots", startedAt, { code: "BAD_SHAPE" });
+  revalidatePath(binderHref(input.collectionId));
+  return { ok: true, outcome: result.outcome, previousPath: result.previousPath };
 }

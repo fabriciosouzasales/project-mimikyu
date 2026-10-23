@@ -259,6 +259,12 @@ export type BinderSlot = {
    * (`attachSlotImages`). Ausente/`null` = sem imagem.
    */
   image?: SlotImage | null;
+  /**
+   * 5223/5230: mesclagem (Layout Region) que cobre o bolso. Na primeira versão
+   * (5238–5243) só existe como "imagem em 2 bolsos": o bolso não recebe carta,
+   * reserva nem fixação. Ausente/`null` = bolso independente.
+   */
+  regionId?: string | null;
 };
 
 /**
@@ -279,7 +285,31 @@ export function hasSlotImage(slot: Pick<BinderSlot, "image">): boolean {
   return Boolean(slot.image);
 }
 
-export type BinderPage = { pageNumber: number; pageId: string; slots: BinderSlot[] };
+export type BinderPage = {
+  pageNumber: number;
+  pageId: string;
+  slots: BinderSlot[];
+  /** 5241: mesclagens com imagem da página (sobrepostas depois da leitura dos bolsos). */
+  regions?: RegionImage[];
+};
+
+/**
+ * Imagem decorativa única de uma mesclagem (5239–5241): cobre os bolsos do
+ * retângulo (primeira versão: 1 linha × 2 colunas). Elemento visual — não
+ * conta em inventário, progresso nem valor.
+ */
+export type RegionImage = {
+  regionId: string;
+  row: number;
+  leftColumn: number;
+  height: number;
+  width: number;
+  path: string;
+  focalX: number;
+  focalY: number;
+  updatedAt: string | null;
+  url: string | null;
+};
 
 /** Agrupa as linhas da 5223 por página, na ordem página → linha → coluna. */
 export function parseBinderPages(rows: unknown): BinderPage[] | null {
@@ -343,6 +373,7 @@ export function parseBinderPages(rows: unknown): BinderPage[] | null {
       presentVariantTypeId: str(r.present_variant_type_id),
       presentCollectionId: str(r.present_collection_id),
       expectedCollectionId: str(r.expected_collection_id),
+      regionId: str(r.region_id),
     };
     let page = pages.get(pageNumber);
     if (!page) {

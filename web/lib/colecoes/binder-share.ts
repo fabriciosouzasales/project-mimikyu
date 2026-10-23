@@ -148,18 +148,19 @@ export function mergeAvailable(current: readonly AvailableCard[], next: readonly
  * (respeita o plano da outra coleção no fichário compartilhado).
  */
 export function canReceiveAvailable(
-  slot: Pick<BinderSlot, "state" | "locked"> & Partial<Pick<BinderSlot, "expectedCollectionId" | "image">>,
+  slot: Pick<BinderSlot, "state" | "locked"> & Partial<Pick<BinderSlot, "expectedCollectionId" | "image" | "regionId">>,
   cardCollectionId?: string,
 ): boolean {
   // Bolso com imagem personalizada (C-198) não recebe carta — o banco recusa com SLOT_HAS_IMAGE.
-  if (slot.locked || isOccupied(slot) || slot.image) return false;
+  // Bolso de imagem em 2 bolsos também não (5238: SLOT_IN_REGION).
+  if (slot.locked || isOccupied(slot) || slot.image || slot.regionId) return false;
   if (slot.state === "RESERVED_EMPTY" && cardCollectionId && slot.expectedCollectionId && slot.expectedCollectionId !== cardCollectionId) return false;
   return true;
 }
 
 /** Bolso vazio que abre "Adicionar carta" ao ser tocado (vazio ou só reservado, solto e sem imagem). */
-export function isAddablePocket(slot: Pick<BinderSlot, "state" | "locked"> & Partial<Pick<BinderSlot, "image">>): boolean {
-  return !slot.locked && !slot.image && (slot.state === "EMPTY" || slot.state === "RESERVED_EMPTY");
+export function isAddablePocket(slot: Pick<BinderSlot, "state" | "locked"> & Partial<Pick<BinderSlot, "image" | "regionId">>): boolean {
+  return !slot.locked && !slot.image && !slot.regionId && (slot.state === "EMPTY" || slot.state === "RESERVED_EMPTY");
 }
 
 /**

@@ -57,6 +57,11 @@
   color: hsl(40 80% 74%);
 }
 
+.icon[data-tone="warn"] {
+  background: hsl(38 92% 60% / 0.14);
+  color: hsl(38 92% 72%);
+}
+
 .icon svg {
   width: 17px;
   height: 17px;

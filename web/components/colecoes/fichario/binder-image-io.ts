@@ -1,6 +1,13 @@
 "use client";
 
-import { clearSlotImage, listUnlinkedSlotImages, setSlotImage } from "@/app/colecoes/colecoes/[id]/fichario/actions";
+import {
+  clearSlotImage,
+  listUnlinkedSlotImages,
+  mergeSlotsWithImage,
+  separateSlots,
+  setRegionImage,
+  setSlotImage,
+} from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import {
   ENCODE_LADDER,
   type ImageFailure,
@@ -17,6 +24,7 @@ import {
   sourceCheckMessage,
   uploadFailureMessage,
 } from "@/lib/colecoes/binder-images";
+import { type RegionFailure, isDefiniteRegionRefusal, regionFailureMessage } from "@/lib/colecoes/binder-region";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -187,6 +195,70 @@ export async function linkNewSlotImage(input: {
   const previous = linked.result.previousPath;
   const previousRemoved = previous ? await removeFiles([previous]) : true;
   return { ok: true, result: linked.result, previousRemoved };
+}
+
+/** Envia a imagem preparada para um caminho NOVO. Mesma regra do bolso. */
+async function uploadNew(layoutId: string, image: PreparedImage): Promise<{ ok: true; path: string } | { ok: false; reason: RegionFailure | "upload"; message: string }> {
+  const supabase = createClient();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) return { ok: false, reason: "not_authenticated", message: regionFailureMessage("not_authenticated") };
+  const path = buildSlotImagePath(userId, layoutId, image.mime, crypto.randomUUID());
+  if (!path) return { ok: false, reason: "invalid", message: regionFailureMessage("invalid") };
+  const sent = await supabase.storage
+    .from(SLOT_IMAGE_BUCKET)
+    .upload(path, image.blob, { contentType: image.mime, upsert: false, cacheControl: "3600" })
+    .catch((error: unknown) => ({ error: error as { message?: string } }));
+  if (sent.error) return { ok: false, reason: "upload", message: uploadFailureMessage(classifyUploadError(sent.error as { message?: string; statusCode?: string })) };
+  return { ok: true, path };
+}
+
+export type RegionLinkOutcome =
+  | { ok: true; regionId: string; path: string; focalX: number; focalY: number; previousRemoved: boolean }
+  | { ok: false; message: string; reason: RegionFailure | "upload"; uncertain: boolean };
+
+/**
+ * Imagem em 2 bolsos (5240): envia para caminho novo e então
+ * - sem `regionId`: une os 2 bolsos e vincula na mesma transação;
+ * - com `regionId`: substitui a imagem da área (apaga a anterior só depois).
+ * Recusa definitiva apaga só o arquivo novo; resposta incerta não apaga nada.
+ */
+export async function linkNewRegionImage(input: {
+  collectionId: string;
+  layoutId: string;
+  leftSlotId: string;
+  regionId: string | null;
+  image: PreparedImage;
+  focalX: number;
+  focalY: number;
+  onStage?: (stage: "upload" | "link") => void;
+}): Promise<RegionLinkOutcome> {
+  input.onStage?.("upload");
+  const sent = await uploadNew(input.layoutId, input.image);
+  if (!sent.ok) return { ...sent, uncertain: false };
+  input.onStage?.("link");
+  const unknown = { ok: false as const, reason: "unknown" as const };
+  const linked = input.regionId
+    ? await setRegionImage({ collectionId: input.collectionId, regionId: input.regionId, path: sent.path, focalX: input.focalX, focalY: input.focalY }).catch(() => unknown)
+    : await mergeSlotsWithImage({ collectionId: input.collectionId, leftSlotId: input.leftSlotId, path: sent.path, focalX: input.focalX, focalY: input.focalY }).catch(() => unknown);
+  if (!linked.ok) {
+    if (isDefiniteRegionRefusal(linked.reason)) {
+      await removeFiles([sent.path]);
+      return { ok: false, reason: linked.reason, uncertain: false, message: regionFailureMessage(linked.reason) };
+    }
+    return { ok: false, reason: "unknown", uncertain: true, message: regionFailureMessage("unknown") };
+  }
+  const previous = "previousPath" in linked.result ? linked.result.previousPath : null;
+  const previousRemoved = previous ? await removeFiles([previous]) : true;
+  return { ok: true, regionId: linked.result.regionId, path: linked.result.path, focalX: linked.result.focalX, focalY: linked.result.focalY, previousRemoved };
+}
+
+/** Separa os bolsos; o arquivo só é apagado depois que o banco desfez o vínculo. */
+export async function separateRegionAndFile(input: { collectionId: string; regionId: string }): Promise<{ ok: true; separated: boolean } | { ok: false; reason: RegionFailure; message: string }> {
+  const done = await separateSlots(input).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+  if (!done.ok) return { ok: false, reason: done.reason, message: regionFailureMessage(done.reason) };
+  if (done.previousPath) await removeFiles([done.previousPath]);
+  return { ok: true, separated: done.outcome === "SEPARATED" };
 }
 
 export type ClearOutcome = { ok: true; removed: boolean } | { ok: false; reason: ImageFailure; message: string };
