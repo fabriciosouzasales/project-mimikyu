@@ -12,6 +12,7 @@ import {
   parseSpeciesReferenceState,
   parseSpeciesReferences,
   shouldShowSpeciesReference,
+  speciesReferenceLabel,
   speciesReferencesOnPage,
 } from "./binder-species.ts";
 
@@ -63,6 +64,14 @@ test("número nacional discreto com quatro dígitos", () => {
   assert.equal(formatNationalNumber(1), "#0001");
   assert.equal(formatNationalNumber(25), "#0025");
   assert.equal(formatNationalNumber(1025), "#1025");
+});
+
+test("nome oficial chega intacto e completo ao rótulo acessível (truncamento é só visual)", () => {
+  const long = { nationalNumber: 1021, speciesName: "Raging Bolt", artworkPath: null };
+  const map = parseSpeciesReferences([{ page_number: 64, slot_id: S1, national_number: 1021, species_name: "Raging Bolt", artwork_path: null }]);
+  assert.deepEqual(map?.get(S1), long);
+  assert.equal(speciesReferenceLabel(long), "bolso reservado visualmente para #1021 Raging Bolt");
+  assert.match(speciesReferenceLabel({ ...long, speciesName: "Crabominable" }), /Crabominable$/);
 });
 
 test("estado: formato da 5259; malformado → null", () => {

@@ -366,32 +366,57 @@ export function BinderSlotView({
 
 /**
  * Referência de espécie no bolso vazio (POKEDEX-BINDER-SPECIES-REFERENCE):
- * arte oficial atenuada, sem moldura de carta, e o número nacional discreto.
- * Não é carta — nada de nome em destaque, selo ou brilho de carta possuída.
- * Arte de 320 px (WebP endereçado por conteúdo), carregada sob demanda; se
- * não houver arte ou ela falhar, fica só o número (o bolso continua vazio).
+ * de cima para baixo, arte oficial atenuada, nome oficial centralizado
+ * (`pokemon_species.canonical_name`, via 5259) e número nacional discreto.
+ * Não é carta — sem moldura, selo ou brilho de carta possuída.
+ *
+ * Tipografia escala com a largura do próprio bolso (container query, `cqw`),
+ * com piso legível para a grade 4×4 e teto para grades largas. Nome longo
+ * trunca com reticências numa única linha (o nome completo segue no rótulo
+ * acessível do bolso). Arte de 320 px (WebP endereçado por conteúdo),
+ * carregada sob demanda; se não houver arte ou ela falhar, ficam nome e
+ * número (o bolso continua vazio).
  */
+const SPECIES_REFERENCE_CONTAINER = { containerType: "inline-size" } as const;
+const SPECIES_NAME_SIZE = { fontSize: "clamp(8px, 10.5cqw, 12px)" } as const;
+const SPECIES_NUMBER_SIZE = { fontSize: "clamp(7px, 8.5cqw, 10px)" } as const;
+
 function SpeciesReferenceArt({ reference }: { reference: SpeciesReference }) {
   const url = speciesArtworkUrl(reference.artworkPath);
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [url]);
   return (
-    <span className="pointer-events-none absolute inset-0 block" aria-hidden>
-      {url && !failed ? (
-        // eslint-disable-next-line @next/next/no-img-element -- arte pública e imutável (hash no caminho); sem otimizador para 1.025 bolsos
-        <img
-          src={url}
-          alt=""
-          width={320}
-          height={320}
-          draggable={false}
-          decoding="async"
-          loading="lazy"
-          className="absolute inset-x-[12%] top-[16%] h-auto w-[76%] object-contain opacity-[0.26] grayscale-[0.35]"
-          onError={() => setFailed(true)}
-        />
-      ) : null}
-      <span className="absolute inset-x-0 bottom-[6%] text-center text-[9px] font-semibold tabular-nums tracking-wide text-white/40 sm:text-[10px]">
+    <span
+      className="pointer-events-none absolute inset-0 flex flex-col items-center px-[6%] pb-[6%] pt-[10%]"
+      style={SPECIES_REFERENCE_CONTAINER}
+      aria-hidden
+    >
+      <span className="flex min-h-0 w-full flex-1 items-center justify-center">
+        {url && !failed ? (
+          // eslint-disable-next-line @next/next/no-img-element -- arte pública e imutável (hash no caminho); sem otimizador para 1.025 bolsos
+          <img
+            src={url}
+            alt=""
+            width={320}
+            height={320}
+            draggable={false}
+            decoding="async"
+            loading="lazy"
+            className="aspect-square h-auto max-h-full w-[82%] max-w-full object-contain opacity-[0.26] grayscale-[0.35]"
+            onError={() => setFailed(true)}
+          />
+        ) : null}
+      </span>
+      <span
+        className="mt-[4%] block w-full truncate text-center font-semibold leading-tight text-white/55"
+        style={SPECIES_NAME_SIZE}
+      >
+        {reference.speciesName}
+      </span>
+      <span
+        className="block w-full text-center font-semibold leading-tight tabular-nums tracking-wide text-white/40"
+        style={SPECIES_NUMBER_SIZE}
+      >
         {formatNationalNumber(reference.nationalNumber)}
       </span>
     </span>
