@@ -57,6 +57,7 @@ export function BinderControlPanel({
   columns,
   rows,
   totalPages,
+  contentVersion = 0,
   onIdentitySaved,
   onClose,
   onOpenOverview,
@@ -73,6 +74,11 @@ export function BinderControlPanel({
   columns: number;
   rows: number;
   totalPages: number;
+  /**
+   * Muda quando o conteúdo do fichário muda nesta sessão (bolsos ocupados).
+   * Junto com `totalPages`, faz Informações reler a ocupação sem recarregar a página.
+   */
+  contentVersion?: number;
   onIdentitySaved: (next: { displayName: string | null; name: string; showBrandMark: boolean }) => void;
   onClose: () => void;
   onOpenOverview: () => void;
@@ -193,7 +199,9 @@ export function BinderControlPanel({
           </Section>
 
           <Section id="info" title="Informações" icon={Info} collapsed={collapsed} onToggle={onToggleSection}>
-            {infoOpen ? <InfoSection collectionId={collectionId} columns={columns} rows={rows} /> : null}
+            {infoOpen ? (
+              <InfoSection collectionId={collectionId} columns={columns} rows={rows} refreshKey={`${totalPages}:${contentVersion}`} />
+            ) : null}
           </Section>
         </div>
       </div>
@@ -479,15 +487,40 @@ type CollectionsState =
  * coleções do fichário com o progresso oficial de cada uma (5246 + R1, numa
  * ida só). Uma falha não esconde a outra; cada bloco tem o próprio "tentar de novo".
  */
-function InfoSection({ collectionId, columns, rows }: { collectionId: string; columns: number; rows: number }) {
+function InfoSection({
+  collectionId,
+  columns,
+  rows,
+  refreshKey,
+}: {
+  collectionId: string;
+  columns: number;
+  rows: number;
+  /** Páginas/conteúdo do fichário: ao mudar, a ocupação é relida (capacidade e bolsos atualizados sem recarregar). */
+  refreshKey: string;
+}) {
   const [occupancy, setOccupancy] = useState<InfoState>({ status: "loading" });
   const [collections, setCollections] = useState<CollectionsState>({ status: "loading" });
+  // Só a leitura mais recente vale: adicionar páginas em sequência dispara várias.
+  const requestRef = useRef(0);
 
-  const loadOccupancy = useCallback(async () => {
-    setOccupancy({ status: "loading" });
-    const result = await readBinderOccupancy({ collectionId });
-    setOccupancy(result.ok ? { status: "ready", occupancy: result.occupancy } : { status: "error" });
-  }, [collectionId]);
+  const loadOccupancy = useCallback(
+    async (silent = false) => {
+      const request = ++requestRef.current;
+      // Releitura por mudança no fichário mantém os números atuais à vista (sem esqueleto piscando).
+      if (!silent) setOccupancy({ status: "loading" });
+      const result = await readBinderOccupancy({ collectionId });
+      if (request !== requestRef.current) return;
+      setOccupancy((current) =>
+        result.ok
+          ? { status: "ready", occupancy: result.occupancy }
+          : silent && current.status === "ready"
+            ? current
+            : { status: "error" },
+      );
+    },
+    [collectionId],
+  );
 
   const loadCollections = useCallback(async () => {
     setCollections({ status: "loading" });
@@ -503,6 +536,14 @@ function InfoSection({ collectionId, columns, rows }: { collectionId: string; co
     void loadOccupancy();
     void loadCollections();
   }, [loadOccupancy, loadCollections]);
+
+  // Páginas adicionadas/removidas ou bolsos preenchidos nesta sessão: relê a ocupação.
+  const firstKey = useRef(refreshKey);
+  useEffect(() => {
+    if (refreshKey === firstKey.current) return;
+    firstKey.current = refreshKey;
+    void loadOccupancy(true);
+  }, [refreshKey, loadOccupancy]);
 
   return (
     <>

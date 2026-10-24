@@ -12,6 +12,9 @@ Status......: CONFIRMADO EXECUTADO no LIVE em 2026-10-22 UTC (autorização de
               get_my_inventory_items (substitui a 5159). Do "begin;" em diante,
               texto idêntico ao aplicado via apply_migration (só este cabeçalho
               mudou; WHERE-04 CANONICAL PROMOTION AND CLOSEOUT-01).
+              SUPERADA em 2026-10-24 pela 5261 (mesma assinatura + colunas
+              variant_type_code/rarity_code; ledger 20261024185908) — definição
+              vigente: database/schema/5261_evolve_get_my_inventory_items_finish_codes.sql.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-21
 

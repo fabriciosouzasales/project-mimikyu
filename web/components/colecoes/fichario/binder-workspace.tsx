@@ -1625,6 +1625,7 @@ export function BinderWorkspace({
             columns={columns}
             rows={rows}
             totalPages={totalPages}
+            contentVersion={filled}
             onIdentitySaved={(next) => setBinderIdentity((prev) => ({ ...prev, displayName: next.displayName, name: next.name, showBrandMark: next.showBrandMark }))}
             onClose={() => setControl(false)}
             onOpenOverview={() => {

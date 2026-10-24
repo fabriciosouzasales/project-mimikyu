@@ -7,6 +7,9 @@ Query.......: 5162 - get_my_inventory_item_copies(): detalhe de um
 Versão......: 1.0
 Status......: CONFIRMADO EXECUTADO no LIVE em 2026-10-17
               (MY-INVENTORY-LIVE-DEPLOYMENT-01); validado pelo 5827 (52/52 PASS)
+              SUPERADA em 2026-10-24 pela 5262 (mesma assinatura + colunas
+              variant_type_code/rarity_code; ledger 20261024185943) — definição
+              vigente: database/schema/5262_evolve_get_my_inventory_item_copies_finish_codes.sql.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-16
 
