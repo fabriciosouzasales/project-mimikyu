@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Rodada | BINDER-PHYSICAL-LOCATION-LIVE-READINESS-01 |
-| Status | **Passos 0–3 CONCLUÍDOS (2026-10-24).** Precheck PASS (`LIVE-PRECHECK-2026-10-24.md`); Fase A 5247–5255 CONFIRMADO EXECUTADO e LIVE_50 (1ª) PASS (`LIVE-PHASE-A-2026-10-24.md`). Pendentes, com autorização própria: deploy do frontend (passo 4) em diante. 5256 não aplicada. |
+| Status | **Passos 0–8 CONCLUÍDOS (2026-10-24).** Precheck PASS; Fase A + LIVE_50 (1ª) PASS (`LIVE-PHASE-A-2026-10-24.md`); frontend `0389498` publicado e homologado; LIVE_50 (2ª) q01–q08 PASS (q09 = baseline histórico); Fase B 5256 CONFIRMADO EXECUTADO e LIVE_90 7/7 PASS (`LIVE-PHASE-B-2026-10-24.md`). Promoção canônica concluída em `BINDER-PHYSICAL-LOCATION-FINAL-CLOSEOUT-01` (README §Encerramento). **PLANO ENCERRADO.** Commit/push pelo proprietário. |
 | Decisão de direção | Validação em ambiente isolado **descartada** pelo proprietário. O pacote `pg17-validation/` permanece **NÃO EXECUTADO** e **não é requisito** desta implantação. |
 | Projeto | Supabase `mimikyu-core` (`qjfutqujxrbzgrtkpgkg`) |
 | Executor | Fabrício (ou o agente, com autorização explícita e separada de cada etapa) |

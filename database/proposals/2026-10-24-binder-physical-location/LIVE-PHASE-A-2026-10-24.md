@@ -60,3 +60,18 @@ Nenhum erro, nenhum precheck interno abortou, nenhum retry.
 ## 4. Estado resultante
 
 Expand concluído: o LIVE aceita o frontend atual e o novo. Próximo passo do plano (requer nova autorização): deploy do frontend → homologação → LIVE_50 (2ª) → 5256 → LIVE_90. Promoção para `database/schema/` só após o passo 8.
+
+## 5. LIVE_50 — 2ª execução (LIVE-50-SECOND-EXECUTION-01, após deploy `0389498` e homologação)
+
+Arquivo inalterado (md5 `a490c5fe…`), executado sem alteração, READ ONLY, 30 s.
+
+**Consulta 1:** q01–q08 = true. **q09 = false** — o script exige exatamente 27 exemplares sem bolso em F001 (estado da 1ª execução); após a homologação há 0, porque os 27 foram posicionados. É asserção de baseline embutida no script, não inconsistência. O SQL não foi alterado. **q05 = true** (nenhuma posição fora do local físico).
+
+**Consulta 2:** assignments 182 · `assignments_md5` `b010d1de3453373f741d994e3f2f839b` (novo, esperado) · `layout_md5` `b0906e79695b8a049b9120d99d4f7079` (=) · `allocations_md5` `a180e923764e3b5a9cb225ee68f873c0` (=) · reservations 158 · slot_images 0 · regions 1.
+
+**Classificação (leituras complementares, sem alterar o script):**
+
+- Posições anteriores: 155 criadas antes da Fase A; md5 do subconjunto = `63e36528f57559f281230abb90fab5fe` (idêntico ao LIVE_00, incluindo bolso e `updated_at`) → preservadas byte a byte.
+- Novas: 27, criadas 13:01:32–13:02:45 UTC; 27/27 de exemplares MEP, guardados em F001 e no fichário F001; 27/27 com a alocação atual correta; 0 em bolso reservado; 0 em bolso já ocupado.
+- Integridade: 0 exemplar em dois bolsos · 0 bolso com duas posições · 0 fichários no mesmo local · F002 com 0 posições · 182 exemplares em F001, 0 disponíveis · alocações 211 (md5 =) · nenhuma escrita em `physical_card` · ledger sem migration após 5255.
+- Fora dos critérios informados: F001 ganhou 16 páginas (25 → 40, 144 bolsos; total 41 páginas / 376 bolsos), criadas 12:58–13:00 UTC no fim do fichário; páginas e bolsos antigos intocados, numeração contígua, 18 das 27 novas posições estão nelas. Estrutural e coerente com a homologação, mas não declarado — requer confirmação do proprietário.

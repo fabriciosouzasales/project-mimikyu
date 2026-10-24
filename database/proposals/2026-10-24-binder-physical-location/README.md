@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Rodadas | ELIGIBILITY-DECISIONS-01 (proposta) → **IMPLEMENTATION-READINESS-01** (2026-10-24: decisões D1–D3, expand/contract, recuperação, frontend local) |
-| Status | **FASE A CONFIRMADO EXECUTADO NO LIVE (2026-10-24)** — 5247–5255 aplicadas (ledger `20261024120931`…`20261024121921`), LIVE_50 (1ª) PASS, ver `LIVE-PHASE-A-2026-10-24.md`. **Fase B (5256) NÃO aplicada**; harness 5854 não rodou; frontend novo só local (sem deploy, sem commit). Promoção para `database/schema/` só após LIVE_90. |
+| Status | **FASE A CONFIRMADO EXECUTADO NO LIVE (2026-10-24)** — 5247–5255 aplicadas (ledger `20261024120931`…`20261024121921`), LIVE_50 (1ª) PASS, ver `LIVE-PHASE-A-2026-10-24.md`. **Fase B (5256) CONFIRMADO EXECUTADO** (ledger `20261024132349`, LIVE_90 7/7 PASS, ver `LIVE-PHASE-B-2026-10-24.md`); frontend publicado em `0389498`; harness 5854 não rodou. **ENCERRADA (2026-10-24, `BINDER-PHYSICAL-LOCATION-FINAL-CLOSEOUT-01`)**: 5247–5256 promovidas para `database/schema/` (só o bloco Status difere; ver §Encerramento). |
 | Depende de | P3-A (5244–5246) no LIVE; canônicas 5024, 5046/5047, 5118, 5122, 5136, 5221/5222, 5224, 5229, 5230 |
 
 ## 1. Regra de produto
@@ -107,3 +107,26 @@ Regras: falhou durante uma migration → a própria transação desfaz. R2B nunc
 | LIVE_00/01/50/90, R0/R1/R2A/R2B | não executados — roteiro em `LIVE-DEPLOYMENT-PLAN.md` (prechecks somente leitura aguardam autorização) |
 | harness 5854 | não executado; proibido no LIVE; sem ambiente isolado (decisão do proprietário) |
 | validação visual (light/dark, mobile) | pendente (sem deploy) |
+
+## Encerramento (BINDER-PHYSICAL-LOCATION-FINAL-CLOSEOUT-01, 2026-10-24)
+
+**Canônicas.** `database/schema/5247_…` a `5256_…`: cópias destes arquivos com **só o bloco `Status`** do cabeçalho alterado; os arquivos desta pasta permanecem byte a byte os aplicados. Equivalência tripla — trecho `begin;`…`commit;` idêntico em proposta e canônica, e md5 do corpo (sem as linhas `begin;`/`commit;`, como enviado ao `apply_migration`) igual ao md5 do texto gravado no ledger do LIVE (leitura de 2026-10-24):
+
+| Migration | Ledger | sha256(16) `begin;`…`commit;` | md5 corpo = ledger |
+|---|---|---|---|
+| 5247 | `20261024120931` | `4540264c12f25d28` | `db44b9dbf74ad49798c838fb5ae6e146` |
+| 5248 | `20261024121040` | `2966699c34d83732` | `5f7b4b59f5ca15a46ab134388010efaa` |
+| 5249 | `20261024121212` | `6ed114758c943a94` | `d745677774d3ffab6c8015b3078e209b` |
+| 5250 | `20261024121312` | `1dc7e9c3621c9d03` | `842d80bf744f44e179a3c3c596b22ce2` |
+| 5251 | `20261024121421` | `13e91f648b41a445` | `cc87d51c394a71e1752d70a2f7511b5a` |
+| 5252 | `20261024121613` | `ee523687ad9ed207` | `fad9adda3e0a896a765256230c807b46` |
+| 5253 | `20261024121715` | `6151ed192c618290` | `d9a3a70c768a4369b801e70f1f8731aa` |
+| 5254 | `20261024121820` | `9797ac7cc6ae5d76` | `213f1a358260b4180e11c536f674f18a` |
+| 5255 | `20261024121921` | `f380801a301191ab` | `07e7355413d2b7103d8865af8c2cc60b` |
+| 5256 | `20261024132349` | `b48415c96c216725` | `7d32fce9f55f78727caaa3635f72858a` |
+
+**Evidências.** Fase A 9/9 + LIVE_50 (1ª) 9/9 (`LIVE-PHASE-A-2026-10-24.md`); frontend publicado no commit `0389498` e homologado pela interface (Fabrício), incluindo o posicionamento das 27 cartas MEP em F001; LIVE_50 (2ª) q01–q08 PASS, q09 = baseline histórico de disponibilidade (§5 do mesmo arquivo); Fase B 5256 + LIVE_90 7/7 PASS (`LIVE-PHASE-B-2026-10-24.md`). Estado final: F001 40 páginas / 360 bolsos / 182 posições; F002 1 página / 16 bolsos / 0 posições; 158 reservas; 211 alocações; 0 travados; fingerprints `assignments` `b010d1de3453373f741d994e3f2f839b`, `layouts` `b0906e79695b8a049b9120d99d4f7079`, `allocations` `a180e923764e3b5a9cb225ee68f873c0`, local dos exemplares `b7f9597e7b042d60fc7475ef5ffedb3b`.
+
+**Não executado (sem prova correspondente):** harness `5854`; recuperação `R0`/`R1`/`R2A`/`R2B`; pacote `pg17-validation/` (descartado pelo proprietário). A proteção da 5256 não foi provocada no LIVE.
+
+**Pendências residuais:** emenda formal em `docs/domain-modeling/collections/concept-decisions.md` (C-195 cita "local padrão de algum participante" e C-197 "desassociar remove as posições") fora do escopo desta rodada — a regra vigente está registrada em `05d` (revisão 2.14) com a supersessão explícita; concorrência real e desempenho com volume não medidos; `static_check` e arquivos `LIVE_*`/`R*` permanecem como evidência/ferramenta nesta pasta.
