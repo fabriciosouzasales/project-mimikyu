@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Data | 2026-10-24 |
-| Status | **PROPOSTA — NÃO EXECUTADA.** Nenhuma migration aplicada; nenhum SQL de escrita. Seção A do harness 5858 rodada como ensaio somente leitura. |
+| Status | **EXECUTADA / CANÔNICA / ENCERRADA (2026-10-24, `ACERVO-HOLOGRAPHIC-FINISH-FINAL-CLOSEOUT-01`)** — 5261 (ledger `20261024185908`) e 5262 (`20261024185943`) aplicadas no LIVE e promovidas para `database/schema/` (só o bloco Status difere; ledger = arquivo desta pasta, md5). 5858: B 8/8; C original inconclusiva, revalidada estável ×2 (§7); D PASS. Homologação visual em produção por Fabrício (1×). Ver §8. |
 | Projeto | Supabase `mimikyu-core` (`qjfutqujxrbzgrtkpgkg`) — investigação somente leitura (`begin transaction read only; statement_timeout 30s`) |
 | Protótipo aprovado | `docs/development/prototypes/2026-10-24-holo-variants/prototype.html` (intensidade 1×) |
 | Escopo | Meu acervo: galeria e detalhe ampliado. Fora: fichários, Master Set, Pokédex e demais telas. |
@@ -146,3 +146,18 @@ Cadastros pausados por Fabrício. Tudo somente leitura. A Seção C original (§
 - D5/D6: sem sessão → `28000 not_authenticated` nas duas funções.
 - D7–D9: usuário B (inventário real, vazio, ≠ A) → galeria 0 linhas; detalhe nos 1.148 grupos de A → 0 linhas.
 - D10–D12: sessão sintética sem inventário → galeria 0; detalhe nos grupos de A → 0.
+
+## 8. Encerramento (ACERVO-HOLOGRAPHIC-FINISH-FINAL-CLOSEOUT-01, 2026-10-24)
+
+- **Homologação:** Fabrício confirmou a aprovação visual em produção, intensidade 1×, na galeria e no detalhe do Meu acervo.
+- **Promoção canônica:** `database/schema/5261_evolve_get_my_inventory_items_finish_codes.sql` e `database/schema/5262_evolve_get_my_inventory_item_copies_finish_codes.sql`; os arquivos desta pasta permanecem como evidência (byte a byte = texto do ledger).
+
+| | Proposta (= ledger) | Canônica | Canônica com Status revertido | Corpo `begin;`→fim |
+|---|---|---|---|---|
+| 5261 | `5b68560e9060f3f96c00ba9f7d695fe5` | `4936de42e61905e41e20474e63443cb3` | `5b68560e…` (= ledger) | idêntico |
+| 5262 | `2ab0eada31e6c7afaf9a778c9eed1cb6` | `e4584b4b8c2664aba899ee1afddab13a` | `2ab0eada…` (= ledger) | idêntico |
+
+Ledger: `supabase_migrations.schema_migrations.statements` com 1 statement por versão, md5 = arquivo da proposta. Corpo das funções no LIVE (`prosrc`) = corpo dos arquivos (`58f341e8…` / `d8cce43b…`, conferido na §7). Cabeçalhos de `5220` e `5162` em `database/schema/` anotados como SUPERADAS (só documentação).
+
+- **Não executado:** harness completo além das Seções A–D registradas; medição de desempenho.
+- **Limitações registradas:** equivalência com 5220/5162 por prova estática; isolamento cruzado sem segundo acervo com cartas; desempenho não medido.
