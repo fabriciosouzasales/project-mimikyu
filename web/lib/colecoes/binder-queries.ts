@@ -6,6 +6,14 @@ import { attachRegionImages, classifyRegionFailure, parseRegionImages } from "./
 import type { RegionImage } from "./binder.ts";
 import { logReadFailure } from "./colecoes-queries.ts";
 import { type BinderIdentity, classifyIdentityFailure, parseBinderIdentity } from "./binder-identity.ts";
+import {
+  type SpeciesReference,
+  type SpeciesReferenceState,
+  attachSpeciesReferences,
+  classifySpeciesFailure,
+  parseSpeciesReferenceState,
+  parseSpeciesReferences,
+} from "./binder-species.ts";
 
 /**
  * Leituras do Fichário Digital (5223). Sessão obrigatória; a fronteira de
@@ -41,9 +49,10 @@ export async function getMyCollectionBinderPages(
   supabase: SupabaseClient,
   collectionId: string,
   firstPage: number,
+  options: { speciesReferences?: boolean } = {},
 ): Promise<BinderPage[] | null | undefined> {
   const startedAt = Date.now();
-  const [pagesRead, images, regions] = await Promise.all([
+  const [pagesRead, images, regions, species] = await Promise.all([
     supabase.rpc("get_my_collection_binder_pages", {
       p_collection_id: collectionId,
       p_first_page: firstPage,
@@ -51,6 +60,8 @@ export async function getMyCollectionBinderPages(
     }),
     getMyBinderSlotImages(supabase, collectionId, firstPage),
     getMyBinderRegionImages(supabase, collectionId, firstPage),
+    // Só fichários que podem ter referências de espécie (Pokédex/convidada) fazem esta leitura.
+    options.speciesReferences ? getMyBinderSpeciesReferences(supabase, collectionId, firstPage) : Promise.resolve(EMPTY_SPECIES),
   ]);
   const { data, error } = pagesRead;
   if (error) {
@@ -66,7 +77,61 @@ export async function getMyCollectionBinderPages(
   if (images === undefined || regions === undefined) return undefined;
   if (images === null || regions === null) return null;
   const withImages = images.size > 0 ? attachSlotImages(pages, images) : pages;
-  return regions.size > 0 ? attachRegionImages(withImages, regions) : withImages;
+  const withRegions = regions.size > 0 ? attachRegionImages(withImages, regions) : withImages;
+  return attachSpeciesReferences(withRegions, species);
+}
+
+const EMPTY_SPECIES: ReadonlyMap<string, SpeciesReference> = new Map();
+
+/**
+ * Referências de espécie das mesmas páginas (5259). Elemento decorativo: a
+ * falha NUNCA bloqueia o lote — o bolso continua vazio, como antes da 5259
+ * (função ausente, coleção sem fichário de Pokédex ou erro → nenhuma
+ * referência; erro real é registrado sem dados do usuário).
+ */
+export async function getMyBinderSpeciesReferences(
+  supabase: SupabaseClient,
+  collectionId: string,
+  firstPage: number,
+): Promise<ReadonlyMap<string, SpeciesReference>> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_collection_binder_species_references", {
+    p_collection_id: collectionId,
+    p_first_page: firstPage,
+    p_page_count: PAGES_PER_READ,
+  });
+  if (error) {
+    const reason = classifySpeciesFailure(error.code, error.message);
+    if (reason !== "unavailable" && reason !== "not_found") logReadFailure("get_my_collection_binder_species_references", startedAt, error);
+    return EMPTY_SPECIES;
+  }
+  const refs = parseSpeciesReferences(data);
+  if (!refs) {
+    logReadFailure("get_my_collection_binder_species_references", startedAt, { code: "BAD_SHAPE" });
+    return EMPTY_SPECIES;
+  }
+  return refs;
+}
+
+/**
+ * Estado leve das referências do fichário (5259) — lido no servidor junto com
+ * o cabeçalho, só quando o fichário pode ter referências. Nunca bloqueia:
+ * função ausente ou falha → `null` (sem referências e sem controles).
+ */
+export async function getMyBinderSpeciesReferenceState(supabase: SupabaseClient, collectionId: string): Promise<SpeciesReferenceState | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_binder_species_reference_state", { p_collection_id: collectionId });
+  if (error) {
+    const reason = classifySpeciesFailure(error.code, error.message);
+    if (reason !== "unavailable" && reason !== "not_found") logReadFailure("get_my_binder_species_reference_state", startedAt, error);
+    return null;
+  }
+  const state = parseSpeciesReferenceState(data);
+  if (!state) {
+    logReadFailure("get_my_binder_species_reference_state", startedAt, { code: "BAD_SHAPE" });
+    return null;
+  }
+  return state;
 }
 
 /**

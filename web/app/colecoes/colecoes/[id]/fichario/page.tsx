@@ -4,7 +4,14 @@ import { BookOpen } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { BinderView } from "@/components/colecoes/fichario/binder-view";
 import { canJoinExistingBinder, parsePageParam, readBatchStart } from "@/lib/colecoes/binder";
-import { getMyBinderIdentity, getMyBinderJoinCandidates, getMyCollectionBinder, getMyCollectionBinderPages } from "@/lib/colecoes/binder-queries";
+import {
+  getMyBinderIdentity,
+  getMyBinderJoinCandidates,
+  getMyBinderSpeciesReferenceState,
+  getMyCollectionBinder,
+  getMyCollectionBinderPages,
+} from "@/lib/colecoes/binder-queries";
+import { type SpeciesReferenceState, mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
 import { isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollection } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -57,11 +64,17 @@ export default async function FicharioPage({
   }
 
   // Sem ?pagina= o fichário abre pela capa (lote 1 já vem junto, para abrir na hora).
+  // Referências de espécie (5259): só fichários de Pokédex (ou convidadas) leem; os demais não fazem chamada nova.
+  const speciesReferences = mayHaveSpeciesReferences(header);
   let initialAnchor = 0;
   let initialPages = null;
+  let speciesState: SpeciesReferenceState | null = null;
   if (header.hasBinder && header.pageCount > 0) {
     initialAnchor = query.pagina === undefined ? 0 : parsePageParam(query.pagina, header.pageCount);
-    initialPages = await getMyCollectionBinderPages(supabase, collectionId, readBatchStart(Math.max(1, initialAnchor)));
+    [initialPages, speciesState] = await Promise.all([
+      getMyCollectionBinderPages(supabase, collectionId, readBatchStart(Math.max(1, initialAnchor)), { speciesReferences }),
+      speciesReferences ? getMyBinderSpeciesReferenceState(supabase, collectionId) : Promise.resolve(null),
+    ]);
     if (initialPages === undefined) notFound();
   }
 
@@ -83,6 +96,7 @@ export default async function FicharioPage({
         header={header}
         initialAnchor={initialAnchor}
         initialPages={initialPages}
+        speciesState={speciesState}
         joinCandidates={joinCandidates ?? null}
       />
     </AppShell>

@@ -87,6 +87,15 @@ import {
   classifyTransferFailure,
   parseTransferOutcome,
 } from "@/lib/colecoes/binder-location";
+import {
+  type SpeciesFailure,
+  type SpeciesReferencePreview,
+  type SpeciesReferenceState,
+  classifySpeciesFailure,
+  isSpeciesPlanToken,
+  parseSpeciesPreview,
+  parseSpeciesReferenceState,
+} from "@/lib/colecoes/binder-species";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -110,13 +119,15 @@ function fail(fn: string, startedAt: number, error: { code?: string; message?: s
 export async function readBinderPages(input: {
   collectionId: string;
   page: number;
+  /** Fichário de Pokédex (ou convidada): também lê as referências de espécie (5259). */
+  speciesReferences?: boolean;
 }): Promise<{ ok: true; firstPage: number; pages: BinderPage[] } | Fail> {
   if (!isCollectionId(input?.collectionId) || !Number.isInteger(input.page) || input.page < 1 || input.page > 100_000) {
     return { ok: false, reason: "invalid" };
   }
   const firstPage = readBatchStart(input.page);
   const supabase = await createClient();
-  const pages = await getMyCollectionBinderPages(supabase, input.collectionId, firstPage);
+  const pages = await getMyCollectionBinderPages(supabase, input.collectionId, firstPage, { speciesReferences: input.speciesReferences === true });
   if (pages === undefined) return { ok: false, reason: "not_found" };
   if (pages === null) return { ok: false, reason: "unknown" };
   return { ok: true, firstPage, pages };
@@ -1041,4 +1052,109 @@ export async function readBinderCollections(input: { collectionId: string }): Pr
     };
   }
   return { ok: true, participants, progress };
+}
+
+// ---------------------------------------------------------------------------
+// Referências de espécie nos bolsos (POKEDEX-BINDER-SPECIES-REFERENCE, 5258/5259)
+// ---------------------------------------------------------------------------
+
+type SpeciesFail = { ok: false; reason: SpeciesFailure };
+
+function speciesFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): SpeciesFail {
+  const reason = classifySpeciesFailure(error?.code, error?.message);
+  // Sem dados do usuário no log: função, duração, código e classe.
+  console.error(JSON.stringify({ scope: "colecoes.binder_species", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+async function readSpeciesState(supabase: Awaited<ReturnType<typeof createClient>>, collectionId: string, startedAt: number) {
+  const { data, error } = await supabase.rpc("get_my_binder_species_reference_state", { p_collection_id: collectionId });
+  if (error) return speciesFail("get_my_binder_species_reference_state", startedAt, error);
+  const state = parseSpeciesReferenceState(data);
+  if (!state) return speciesFail("get_my_binder_species_reference_state", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true as const, state };
+}
+
+/** Estado leve (5259) — usado pelo fichário aberto sobre a coleção (overlay). Só leitura. */
+export async function readSpeciesReferenceState(input: { collectionId: string }): Promise<{ ok: true; state: SpeciesReferenceState } | SpeciesFail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const supabase = await createClient();
+  return readSpeciesState(supabase, input.collectionId, Date.now());
+}
+
+/** Prévia (5258, não grava): pares bolso ↔ espécie, bolsos livres e o token da aplicação. */
+export async function previewSpeciesReferences(input: { collectionId: string }): Promise<{ ok: true; preview: SpeciesReferencePreview } | SpeciesFail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("preview_my_binder_species_references", { p_collection_id: input.collectionId });
+  if (error) return speciesFail("preview_my_binder_species_references", startedAt, error);
+  const preview = parseSpeciesPreview(data);
+  if (!preview) return speciesFail("preview_my_binder_species_references", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, preview };
+}
+
+/** Aplicação (5258): grava o plano da prévia, idempotente; devolve o estado relido. */
+export async function applySpeciesReferences(input: {
+  collectionId: string;
+  planToken: string;
+}): Promise<{ ok: true; alreadyApplied: boolean; state: SpeciesReferenceState } | SpeciesFail> {
+  if (!isCollectionId(input?.collectionId) || !isSpeciesPlanToken(input.planToken)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("apply_my_binder_species_references", {
+    p_collection_id: input.collectionId,
+    p_plan_token: input.planToken,
+  });
+  if (error) return speciesFail("apply_my_binder_species_references", startedAt, error);
+  const row = Array.isArray(data) && data.length === 1 ? (data[0] as Record<string, unknown>) : null;
+  if (!row || (row.operation !== "APPLIED" && row.operation !== "ALREADY_APPLIED")) {
+    return speciesFail("apply_my_binder_species_references", startedAt, { code: "BAD_SHAPE" });
+  }
+  const read = await readSpeciesState(supabase, input.collectionId, startedAt);
+  if (!read.ok) return read;
+  return { ok: true, alreadyApplied: row.operation === "ALREADY_APPLIED", state: read.state };
+}
+
+/** Mostrar/ocultar (5258, ajuste A): só a preferência; os vínculos ficam intactos. */
+export async function setSpeciesReferenceVisibility(input: {
+  collectionId: string;
+  visible: boolean;
+}): Promise<{ ok: true; visible: boolean } | SpeciesFail> {
+  if (!isCollectionId(input?.collectionId) || typeof input.visible !== "boolean") return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_my_binder_species_reference_visibility", {
+    p_collection_id: input.collectionId,
+    p_visible: input.visible,
+  });
+  if (error) return speciesFail("set_my_binder_species_reference_visibility", startedAt, error);
+  const row = Array.isArray(data) && data.length === 1 ? (data[0] as Record<string, unknown>) : null;
+  if (!row || typeof row.references_visible !== "boolean") {
+    return speciesFail("set_my_binder_species_reference_visibility", startedAt, { code: "BAD_SHAPE" });
+  }
+  return { ok: true, visible: row.references_visible };
+}
+
+/** Remoção explícita (5258): exige a contagem atual; devolve o estado relido. */
+export async function clearSpeciesReferences(input: {
+  collectionId: string;
+  expectedCount: number;
+}): Promise<{ ok: true; removed: number; state: SpeciesReferenceState } | SpeciesFail> {
+  if (!isCollectionId(input?.collectionId) || !Number.isInteger(input.expectedCount) || input.expectedCount < 0 || input.expectedCount > 100_000) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("clear_my_binder_species_references", {
+    p_collection_id: input.collectionId,
+    p_expected_count: input.expectedCount,
+  });
+  if (error) return speciesFail("clear_my_binder_species_references", startedAt, error);
+  const row = Array.isArray(data) && data.length === 1 ? (data[0] as Record<string, unknown>) : null;
+  const removed = row && typeof row.removed_count === "number" ? row.removed_count : null;
+  if (removed === null) return speciesFail("clear_my_binder_species_references", startedAt, { code: "BAD_SHAPE" });
+  const read = await readSpeciesState(supabase, input.collectionId, startedAt);
+  if (!read.ok) return read;
+  return { ok: true, removed, state: read.state };
 }

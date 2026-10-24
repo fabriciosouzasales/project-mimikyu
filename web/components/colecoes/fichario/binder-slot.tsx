@@ -25,10 +25,19 @@ import {
 import { cardFrontUrl, formatCollectorNumber } from "@/lib/colecoes/acervo";
 import { type BinderSlot, type RegionImage, type SlotImage, canReserveCurrent, hasReservation, isOccupied, slotDescription } from "@/lib/colecoes/binder";
 import { regionObjectPosition } from "@/lib/colecoes/binder-region";
+import { type SpeciesReference, formatNationalNumber, shouldShowSpeciesReference, speciesReferenceLabel } from "@/lib/colecoes/binder-species";
+import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import { cn } from "@/lib/utils";
 import { PocketArt } from "./binder-page";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+/**
+ * POKEDEX-BINDER-SPECIES-REFERENCE: exibição das referências de espécie do
+ * fichário (preferência persistida, ajuste A). `false` em todo fichário que
+ * não é de Pokédex — o bolso vazio segue exatamente como antes.
+ */
+export const SpeciesReferenceVisibleContext = createContext(false);
 
 /** Onde menus flutuantes são montados: dentro do diálogo do fichário (foco e tela cheia). */
 export const BinderPortalContext = createContext<RefObject<HTMLElement | null> | null>(null);
@@ -132,6 +141,9 @@ export function BinderSlotView({
   const occupied = isOccupied(slot);
   const reserved = !occupied && slot.state === "RESERVED_EMPTY";
   const image = !occupied && !reserved ? (slot.image ?? null) : null;
+  // D3: só o bolso visualmente vazio mostra a referência (carta, reserva, imagem e mesclagem têm prioridade).
+  const speciesVisible = useContext(SpeciesReferenceVisibleContext);
+  const speciesRef = shouldShowSpeciesReference(slot, speciesVisible) ? (slot.speciesRef ?? null) : null;
   const canDrag = editable && occupied && !slot.locked && !inTray && !selectionActive;
   // Bolso com imagem nunca recebe carta (o banco recusa com SLOT_HAS_IMAGE).
   const canDrop = editable && !slot.locked && !image && (!inTray || isSource) && !(placingAvailable && occupied);
@@ -155,7 +167,7 @@ export function BinderSlotView({
   const number = face?.collectorNumber ? formatCollectorNumber(face.collectorNumber, face.collectorTotal) : null;
   // Spike binder-nav-01 (EmptySlotQuickActions): bolso vazio e solto convida a "Adicionar carta".
   const addable = editable && !occupied && !image && !slot.locked && !selectionActive && !placing && !inTray;
-  const label = [slotDescription(slot), addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
+  const label = [slotDescription(slot), speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
     .filter(Boolean)
     .join(", ");
   const validDrop = drop.isOver && canDrop && !isSource;
@@ -216,6 +228,8 @@ export function BinderSlotView({
           <PocketArt src={src} name={face?.cardName ?? null} number={number} priority={priority} sizes={sizes} />
         ) : image ? (
           <SlotImageArt image={image} priority={priority} />
+        ) : speciesRef ? (
+          <SpeciesReferenceArt reference={speciesRef} />
         ) : reserved ? (
           <span className="absolute inset-0 block">
             <span className="absolute inset-0 block opacity-25 grayscale-[0.7]">
@@ -347,6 +361,40 @@ export function BinderSlotView({
         </>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Referência de espécie no bolso vazio (POKEDEX-BINDER-SPECIES-REFERENCE):
+ * arte oficial atenuada, sem moldura de carta, e o número nacional discreto.
+ * Não é carta — nada de nome em destaque, selo ou brilho de carta possuída.
+ * Arte de 320 px (WebP endereçado por conteúdo), carregada sob demanda; se
+ * não houver arte ou ela falhar, fica só o número (o bolso continua vazio).
+ */
+function SpeciesReferenceArt({ reference }: { reference: SpeciesReference }) {
+  const url = speciesArtworkUrl(reference.artworkPath);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
+  return (
+    <span className="pointer-events-none absolute inset-0 block" aria-hidden>
+      {url && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- arte pública e imutável (hash no caminho); sem otimizador para 1.025 bolsos
+        <img
+          src={url}
+          alt=""
+          width={320}
+          height={320}
+          draggable={false}
+          decoding="async"
+          loading="lazy"
+          className="absolute inset-x-[12%] top-[16%] h-auto w-[76%] object-contain opacity-[0.26] grayscale-[0.35]"
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+      <span className="absolute inset-x-0 bottom-[6%] text-center text-[9px] font-semibold tabular-nums tracking-wide text-white/40 sm:text-[10px]">
+        {formatNationalNumber(reference.nationalNumber)}
+      </span>
+    </span>
   );
 }
 

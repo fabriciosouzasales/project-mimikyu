@@ -25,6 +25,7 @@ import {
   previewInsertGap,
   readAvailableCards,
   readBinderPages,
+  readSpeciesReferenceState,
   removeSlots,
   reserveSlot,
   restoreToSlot,
@@ -78,9 +79,11 @@ import { applySlotImage, imageFailureMessage } from "@/lib/colecoes/binder-image
 import { type GapPreview, gapFailureMessage } from "@/lib/colecoes/binder-insert";
 import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, regionFailureMessage } from "@/lib/colecoes/binder-region";
 import { type BinderIdentity, CONTROL_PANEL_STORAGE_KEY, type ControlSection, type ResolvedIdentity, parseControlPanelPrefs, resolveIdentity } from "@/lib/colecoes/binder-identity";
+import type { SpeciesReferenceState } from "@/lib/colecoes/binder-species";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
-import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, insideCoverSurface, TopNavControls, blackLeatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
+import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, insideCoverSurface, TopNavControls, leatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
+import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { AddPagesDialog } from "./binder-add-pages";
 import { AvailablePanel, type AvailableState } from "./binder-available";
 import { ImageComposer, type ImageDialogMode, SlotImageDialog } from "./binder-image-editor";
@@ -89,7 +92,17 @@ import { GapDialog, type GapDialogState, ImageShapeSwitch, RegionComposer, Regio
 import { PocketPicker } from "./binder-pocket-picker";
 import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
-import { BinderPortalContext, BinderSlotView, GapGutter, type RegionDialogMode, RegionPocketView, type SlotDragData, type SlotHandlers } from "./binder-slot";
+import {
+  BinderPortalContext,
+  BinderSlotView,
+  GapGutter,
+  type RegionDialogMode,
+  RegionPocketView,
+  type SlotDragData,
+  type SlotHandlers,
+  SpeciesReferenceVisibleContext,
+} from "./binder-slot";
+import { SpeciesReferenceDialog } from "./binder-species-dialog";
 import { BinderToolRail } from "./binder-tool-rail";
 import { BulkActionRail, type TrayItem, TraySurface, TrayToggleButton } from "./binder-tray";
 import ws from "./workspace.module.css";
@@ -140,6 +153,7 @@ export function BinderWorkspace({
   collectionId,
   collectionName,
   identity = null,
+  finish = "onix",
   columns,
   rows,
   totalPages: initialTotalPages,
@@ -156,6 +170,8 @@ export function BinderWorkspace({
   participantCount = 1,
   ownUnplacedCount = 0,
   availableCount,
+  speciesReferences = false,
+  initialSpeciesState,
 }: {
   variant: "overlay" | "page";
   collectionId: string;
@@ -165,6 +181,12 @@ export function BinderWorkspace({
    * função no banco ou sem leitura → nome da coleção proprietária e logomarca.
    */
   identity?: BinderIdentity | null;
+  /**
+   * Acabamento (cor) da coleção pela qual o fichário foi aberto — o mesmo da
+   * capa fechada (BINDER-OPEN-COLOR-CONSISTENCY-01). Só a moldura externa de
+   * couro muda; páginas, bolsos e contracapa ficam como estão.
+   */
+  finish?: BinderFinish;
   columns: number;
   rows: number;
   totalPages: number;
@@ -186,6 +208,14 @@ export function BinderWorkspace({
   ownUnplacedCount?: number;
   /** 5252: exemplares guardados no fichário físico e sem bolso, de qualquer origem (badge de "Cartas disponíveis"). */
   availableCount?: number;
+  /**
+   * POKEDEX-BINDER-SPECIES-REFERENCE: o fichário pode ter referências de
+   * espécie (proprietária Pokédex ou convidada). `false` = nenhuma leitura
+   * nova, nenhum botão novo — qualquer outro fichário fica como está.
+   */
+  speciesReferences?: boolean;
+  /** Estado lido no servidor (rota `/fichario`); `undefined` = o fichário lê sozinho (overlay). */
+  initialSpeciesState?: SpeciesReferenceState | null;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   // Total de páginas vivo: cresce quando o colecionador adiciona páginas (5125).
@@ -255,7 +285,7 @@ export function BinderWorkspace({
   const fetchBatch = useCallback(
     async (first: number) => {
       const startedAt = generation.current;
-      const result = await readBinderPages({ collectionId, page: first });
+      const result = await readBinderPages({ collectionId, page: first, speciesReferences });
       if (startedAt !== generation.current) return;
       if (!result.ok) {
         setFailed((prev) => new Set(prev).add(first));
@@ -273,7 +303,7 @@ export function BinderWorkspace({
         return next;
       });
     },
-    [collectionId],
+    [collectionId, speciesReferences],
   );
 
   const loadBatch = useCallback(
@@ -405,6 +435,21 @@ export function BinderWorkspace({
   }, []);
   const [addPagesOpen, setAddPagesOpen] = useState(false);
   const [addingPages, setAddingPages] = useState(false);
+  // ---- referências de espécie (POKEDEX-BINDER-SPECIES-REFERENCE) ----
+  const [speciesState, setSpeciesState] = useState<SpeciesReferenceState | null>(initialSpeciesState ?? null);
+  const [speciesOpen, setSpeciesOpen] = useState(false);
+  useEffect(() => {
+    // Overlay: o estado não veio do servidor — leitura leve uma vez. Falha = sem referências e sem botão.
+    if (!speciesReferences || initialSpeciesState !== undefined) return;
+    let alive = true;
+    void readSpeciesReferenceState({ collectionId }).then((result) => {
+      if (alive && result.ok) setSpeciesState(result.state);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [collectionId, initialSpeciesState, speciesReferences]);
+  const speciesVisible = speciesReferences && speciesState !== null && speciesState.visible && speciesState.referenceCount > 0;
   // Personalização do layout: imagem em 2 bolsos e "Abrir espaço".
   const [imageShape, setImageShape] = useState<"single" | "wide">("single");
   const [regionTarget, setRegionTarget] = useState<{ regionId: string; mode: RegionDialogMode } | null>(null);
@@ -1283,6 +1328,7 @@ export function BinderWorkspace({
 
   return (
     <BinderPortalContext.Provider value={portalRef}>
+      <SpeciesReferenceVisibleContext.Provider value={speciesVisible}>
       <div
         ref={rootRef}
         className={cn("binder-nav-01-scope", ws.root)}
@@ -1352,6 +1398,9 @@ export function BinderWorkspace({
                 availableOpen,
                 shared,
                 onlyMine,
+                speciesAvailable: speciesReferences && speciesState !== null && speciesState.isPokedexOwner,
+                speciesActive: speciesVisible,
+                speciesCount: speciesState?.referenceCount ?? 0,
                 canFullscreen,
                 fullscreen,
                 count: selected.size,
@@ -1377,6 +1426,12 @@ export function BinderWorkspace({
                 onToggleTray: () => setTrayOpen((value) => !value),
                 onToggleAvailable: toggleAvailable,
                 onToggleOnlyMine: () => setOnlyMine((value) => !value),
+                onOpenSpecies: () => {
+                  setArmed(null);
+                  setArmedCard(null);
+                  setConfirm(null);
+                  setSpeciesOpen(true);
+                },
                 onToggleFullscreen: toggleFullscreen,
                 onMoveToTray: () => toTray([...selected]),
                 onLock: () => void runLock(selectedEntries, true),
@@ -1397,6 +1452,7 @@ export function BinderWorkspace({
             {fit.pocket > 0 ? (
               <BinderObject
                 key={sides.length}
+                finish={finish}
                 fit={fit}
                 columns={columns}
                 rows={rows}
@@ -1594,6 +1650,21 @@ export function BinderWorkspace({
           />
         ) : null}
 
+        {speciesOpen && speciesState ? (
+          <SpeciesReferenceDialog
+            host={rootRef.current}
+            collectionId={collectionId}
+            state={speciesState}
+            onStateChange={(next, options) => {
+              setSpeciesState(next);
+              // Referências mudaram: relê os lotes já carregados no lugar (sem esvaziar a tela; ids de bolso não mudam).
+              if (options.reload) void refreshPages([...cache.keys()]);
+              if (options.message) setToast({ tone: "success", text: options.message });
+            }}
+            onClose={() => setSpeciesOpen(false)}
+          />
+        ) : null}
+
         {addPagesOpen ? (
           <AddPagesDialog
             host={rootRef.current}
@@ -1726,6 +1797,7 @@ export function BinderWorkspace({
           {selectionActive ? ` ${selected.size} ${selected.size === 1 ? "carta selecionada" : "cartas selecionadas"}.` : ""}
         </p>
       </div>
+      </SpeciesReferenceVisibleContext.Provider>
     </BinderPortalContext.Provider>
   );
 }
@@ -1747,6 +1819,7 @@ function Message({ tone, role, children }: { tone: "success" | "error" | "info";
  * lombada escura. A geometria vem de `--pocket` (encaixe calculado).
  */
 function BinderObject({
+  finish,
   fit,
   columns,
   rows,
@@ -1773,6 +1846,7 @@ function BinderObject({
   onRetry,
   onAddPages,
 }: {
+  finish: BinderFinish;
   fit: BinderFit;
   columns: number;
   rows: number;
@@ -1814,7 +1888,7 @@ function BinderObject({
         height: fit.height,
         // A borda de 1px entra na conta (border-box): o miolo fica com a medida exata do encaixe.
         padding: Math.max(0, pad - 1),
-        backgroundImage: blackLeatherSurface(),
+        backgroundImage: leatherSurface(finish),
         boxShadow: ["inset 0 1px 0 hsl(0 0% 100% / 0.08)", "inset 0 -2px 10px hsl(0 0% 0% / 0.5)", "0 40px 60px -20px rgba(0,0,0,0.65)"].join(", "),
         border: "1px solid hsl(0 0% 0% / 0.5)",
       }}

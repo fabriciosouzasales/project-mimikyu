@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, BookOpen, BookOpenCheck, Link2 } from "lucide-react";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { type BinderHeader, binderEntryVisible, binderHref, canJoinExistingBinder, createBlocker, isSharedBinder, modelLabel } from "@/lib/colecoes/binder";
+import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { BinderJoinDialog } from "./binder-join";
 import { BinderOverlay } from "./binder-overlay";
 import styles from "./binder-entry.module.css";
@@ -25,10 +26,13 @@ const OPEN_EVENT = "mmkyu:open-binder";
 export function BinderEntry({
   collectionId,
   collectionName,
+  finish,
   binder,
 }: {
   collectionId: string;
   collectionName: string;
+  /** Acabamento (cor) da capa desta coleção — repassado à moldura do fichário aberto. */
+  finish?: BinderFinish;
   /**
    * Código do Set/capa. Desde a P3-A a contracapa não mostra mais código
    * (R11); mantido no contrato das três páginas de coleção, sem uso aqui.
@@ -95,6 +99,7 @@ export function BinderEntry({
             collectionId={collectionId}
             collectionName={collectionName}
             header={binder}
+            finish={finish}
             onClose={() => setOpen(false)}
           />
         ) : null}

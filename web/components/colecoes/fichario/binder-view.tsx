@@ -4,6 +4,7 @@ import { BinderCover } from "@/components/colecoes/colecoes/binder-cover";
 import { type BinderHeader, type BinderPage, createBlocker, createBlockerMessage } from "@/lib/colecoes/binder";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import type { JoinCandidate } from "@/lib/colecoes/binder-share";
+import { type SpeciesReferenceState, mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import { BinderAssembly } from "./binder-assembly";
 import { BinderJoinOrCreate } from "./binder-join";
@@ -27,6 +28,7 @@ export function BinderView({
   header,
   initialAnchor,
   initialPages,
+  speciesState = null,
   joinCandidates = null,
 }: {
   collection: { id: string; name: string; finish: BinderFinish; setName: string | null; setCode: string | null; policy: string };
@@ -34,6 +36,8 @@ export function BinderView({
   /** Página pedida na URL; 0 = abrir pela capa. */
   initialAnchor: number;
   initialPages: BinderPage[] | null;
+  /** Referências de espécie (5259), lidas no servidor só em fichário de Pokédex/convidada. */
+  speciesState?: SpeciesReferenceState | null;
   /** Fichários existentes no mesmo local físico (5230); com algum, usar vem antes de montar. */
   joinCandidates?: JoinCandidate[] | null;
 }) {
@@ -47,6 +51,7 @@ export function BinderView({
         collectionId={collection.id}
         collectionName={collection.name}
         identity={header.identity ?? null}
+        finish={collection.finish}
         columns={header.columns}
         rows={header.rows}
         totalPages={header.pageCount}
@@ -61,6 +66,8 @@ export function BinderView({
         editable={header.editable}
         initialAnchor={initialAnchor}
         initialPages={initialPages}
+        speciesReferences={mayHaveSpeciesReferences(header)}
+        initialSpeciesState={speciesState}
         backHref={backHref}
       />
     );

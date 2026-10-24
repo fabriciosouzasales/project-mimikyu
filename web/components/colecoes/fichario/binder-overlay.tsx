@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { BinderHeader } from "@/lib/colecoes/binder";
+import type { BinderFinish } from "@/lib/colecoes/binder-finish";
+import { mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { BinderWorkspace } from "./binder-workspace";
@@ -26,11 +28,14 @@ export function BinderOverlay({
   collectionId,
   collectionName,
   header,
+  finish,
   onClose,
 }: {
   collectionId: string;
   collectionName: string;
   header: BinderHeader;
+  /** Acabamento da capa fechada desta coleção (moldura do fichário aberto). */
+  finish?: BinderFinish;
   onClose: () => void;
 }) {
   const reducedMotion = usePrefersReducedMotion();
@@ -107,6 +112,8 @@ export function BinderOverlay({
           collectionId={collectionId}
           collectionName={collectionName}
           identity={header.identity ?? null}
+          finish={finish}
+          speciesReferences={mayHaveSpeciesReferences(header)}
           columns={header.columns}
           rows={header.rows}
           totalPages={header.pageCount}

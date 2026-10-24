@@ -174,7 +174,7 @@ export function FreeCollectionView({
               )}
             </section>
 
-            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.coverCode} binder={binder} />
+            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.coverCode} finish={collection.finish} binder={binder} />
           </div>
 
           <CollectionHeroFan selection={selection} label="Cartas mais recentes da coleção" />

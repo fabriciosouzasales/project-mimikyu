@@ -202,7 +202,7 @@ export function CollectionView({
               </div>
             </section>
 
-            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.cardSetCode} binder={binder} />
+            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.cardSetCode} finish={collection.finish} binder={binder} />
           </div>
 
           <CollectionHeroFan selection={hero} />

@@ -1,4 +1,5 @@
 import type { BinderIdentity } from "./binder-identity.ts";
+import type { SpeciesReference } from "./binder-species.ts";
 import { formatCollectorNumber } from "./acervo.ts";
 
 /**
@@ -284,6 +285,12 @@ export type BinderSlot = {
    * reserva nem fixação. Ausente/`null` = bolso independente.
    */
   regionId?: string | null;
+  /**
+   * POKEDEX-BINDER-SPECIES-REFERENCE (5259): espécie de referência do bolso
+   * (rótulo visual, nunca carta/reserva/progresso). Sobreposta depois da
+   * leitura dos bolsos (`attachSpeciesReferences`). Ausente/`null` = sem referência.
+   */
+  speciesRef?: SpeciesReference | null;
 };
 
 /**

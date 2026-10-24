@@ -51,3 +51,24 @@ export function defaultFinish(collectionId: string): BinderFinish {
 export function resolveFinish(collectionId: string, stored: unknown): BinderFinish {
   return isBinderFinish(stored) ? stored : defaultFinish(collectionId);
 }
+
+/**
+ * Couro do fichário ABERTO por acabamento (BINDER-OPEN-COLOR-CONSISTENCY-01).
+ * Três paradas do gradiente da moldura externa (claro → médio → escuro), em
+ * HSL sem `hsl()`. Derivadas dos mesmos tons da capa fechada
+ * (`binder-cover.module.css`: --leather / --leather-deep), um pouco mais
+ * escuras, como a moldura aberta vista de frente. Ônix = valores aprovados do
+ * spike (`blackLeatherSurface`), sem mudança.
+ */
+export const OPEN_LEATHER_STOPS: Record<BinderFinish, readonly [string, string, string]> = {
+  onix: ["30 6% 13%", "30 5% 8%", "30 6% 4%"],
+  vinho: ["350 46% 25%", "350 49% 18%", "350 52% 10%"],
+  floresta: ["156 30% 18%", "158 34% 13%", "160 38% 6%"],
+  marinho: ["220 42% 23%", "221 46% 16%", "222 50% 8%"],
+  caramelo: ["27 50% 36%", "25 53% 26%", "22 56% 15%"],
+  perola: ["40 26% 84%", "37 21% 74%", "34 16% 60%"],
+};
+
+export function openLeatherStops(finish: unknown): readonly [string, string, string] {
+  return OPEN_LEATHER_STOPS[isBinderFinish(finish) ? finish : "onix"];
+}

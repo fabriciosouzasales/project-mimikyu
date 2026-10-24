@@ -3,6 +3,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { openLeatherStops } from "@/lib/colecoes/binder-finish";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,11 +29,23 @@ export const BLACK_HUE = 30;
 export const INTERIOR_HUE = 26;
 
 export function blackLeatherSurface() {
+  return leatherSurface("onix");
+}
+
+/**
+ * Couro da moldura externa do fichário aberto no acabamento da coleção
+ * (BINDER-OPEN-COLOR-CONSISTENCY-01). Mesma trama, mesmo brilho e mesma
+ * direção de luz do couro preto do spike — só a cor de base muda, com os
+ * tons de `OPEN_LEATHER_STOPS` (derivados da capa fechada). Ônix produz
+ * exatamente o couro preto aprovado.
+ */
+export function leatherSurface(finish: unknown) {
+  const [hi, mid, deep] = openLeatherStops(finish);
   return [
     "repeating-linear-gradient(115deg, hsl(0 0% 100% / 0.025) 0px, hsl(0 0% 100% / 0.025) 1px, transparent 1px, transparent 2.5px)",
     "repeating-linear-gradient(25deg, hsl(0 0% 0% / 0.05) 0px, hsl(0 0% 0% / 0.05) 1px, transparent 1px, transparent 3px)",
     "linear-gradient(125deg, hsl(0 0% 100% / 0.05) 0%, transparent 26%)",
-    `linear-gradient(155deg, hsl(${BLACK_HUE} 6% 13%) 0%, hsl(${BLACK_HUE} 5% 8%) 55%, hsl(${BLACK_HUE} 6% 4%) 100%)`,
+    `linear-gradient(155deg, hsl(${hi}) 0%, hsl(${mid}) 55%, hsl(${deep}) 100%)`,
   ].join(", ");
 }
 

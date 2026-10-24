@@ -2,7 +2,7 @@
 
 import { useContext } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { ArrowDown, Bookmark, BookmarkX, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, Bookmark, BookmarkX, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PawPrint, Trash2, X, type LucideIcon } from "lucide-react";
 import { BinderPortalContext } from "./binder-slot";
 import styles from "./tool-rail.module.css";
 
@@ -32,7 +32,9 @@ import styles from "./tool-rail.module.css";
  *                            Bandeja, Cartas disponíveis
  *                            (exemplares desta coleção ainda sem bolso) e, só em
  *                            fichário compartilhado, "Só desta coleção"
- *                            (P2-SHARED-BINDER-FRONTEND-01).
+ *                            (P2-SHARED-BINDER-FRONTEND-01) e, só em fichário
+ *                            de Pokédex, "Pokémon nos bolsos" (referências de
+ *                            espécie; POKEDEX-BINDER-SPECIES-REFERENCE).
  *  B Experiência           — Tela cheia.
  *  D Seleção               — contador, Mover para a Bandeja, Fixar, Soltar,
  *                            Reservar, Liberar reserva, Tirar do fichário, Limpar.
@@ -53,6 +55,11 @@ export type ToolRailState = {
   /** Fichário com mais de uma coleção: mostra o destaque "Só desta coleção". */
   shared: boolean;
   onlyMine: boolean;
+  /** Fichário de Pokédex: botão "Pokémon nos bolsos" (ausente em qualquer outro fichário). */
+  speciesAvailable?: boolean;
+  /** Referências gravadas e exibidas. */
+  speciesActive?: boolean;
+  speciesCount?: number;
   canFullscreen: boolean;
   fullscreen: boolean;
   count: number;
@@ -70,6 +77,7 @@ export type ToolRailActions = {
   onToggleTray: () => void;
   onToggleAvailable: () => void;
   onToggleOnlyMine: () => void;
+  onOpenSpecies?: () => void;
   onToggleFullscreen: () => void;
   onMoveToTray: () => void;
   onLock: () => void;
@@ -181,6 +189,22 @@ export function BinderToolRail({ state: s, actions: a }: { state: ToolRailState;
             label={s.onlyMine ? "Mostrar todas as coleções do fichário" : "Só desta coleção — destacar as cartas desta coleção"}
             onClick={a.onToggleOnlyMine}
             active={s.onlyMine}
+          />
+        ) : null}
+
+        {s.speciesAvailable && a.onOpenSpecies ? (
+          <RailButton
+            icon={PawPrint}
+            label={
+              (s.speciesCount ?? 0) === 0
+                ? "Pokémon nos bolsos — mostrar a arte de cada espécie nos bolsos vazios"
+                : s.speciesActive
+                  ? "Pokémon nos bolsos — exibidos"
+                  : "Pokémon nos bolsos — ocultos"
+            }
+            onClick={a.onOpenSpecies}
+            active={s.speciesActive === true}
+            haspopup="dialog"
           />
         ) : null}
 

@@ -201,7 +201,7 @@ export function PokedexCollectionView({
           </div>
         </section>
 
-        <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.coverCode} binder={binder} />
+        <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.coverCode} finish={collection.finish} binder={binder} />
           </div>
           {/* UX-07: a equipe de 6 — favoritos sorteados, completados pelos iniciais. */}
           <PokedexHeroStage lineup={heroLineup} label={heroLabel} />
