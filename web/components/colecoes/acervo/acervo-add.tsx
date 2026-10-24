@@ -460,7 +460,7 @@ function CardsFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; o
                 <span className={styles.reviewName}>{line.cardName}</span>
                 <span className={styles.reviewMeta}>
                   {line.setCode.toUpperCase()} · {formatCollectorNumber(line.collectorNumber, line.collectorTotal)}
-                  {line.variantLabel && !line.isDefaultVariant ? ` · ${line.variantLabel}` : ""}
+                  {line.variantLabel?.trim() ? ` · ${line.variantLabel.trim()}` : ""}
                   {" · "}
                   {languages.find((language) => language.id === line.languageId)?.code ?? ""}
                 </span>

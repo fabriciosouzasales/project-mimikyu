@@ -61,6 +61,7 @@ type Step = { kind: "choose" } | { kind: "confirm" };
 export function CopyStorageList({
   copies,
   languageName,
+  variantName,
   copiesTotal,
   closeHref,
   storage,
@@ -68,6 +69,8 @@ export function CopyStorageList({
 }: {
   copies: StorageCopy[];
   languageName: string;
+  /** Nome da variante do grupo (ex.: "Holográfica"), ao lado de cada exemplar (ACERVO-VARIANT-NAME-01). */
+  variantName: string;
   copiesTotal: number;
   closeHref: string;
   /** `null` = contexto de localização indisponível (só leitura). */
@@ -292,7 +295,7 @@ export function CopyStorageList({
               </span>
               <div>
                 <div className={styles.copyTitle}>
-                  Exemplar {copy.copyNumber}
+                  Exemplar {copy.copyNumber} - {variantName}
                   {isMatch ? (
                     <span className={local.matchPill}>
                       <MapPin className="h-3 w-3" aria-hidden="true" />

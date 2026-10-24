@@ -209,6 +209,17 @@ export function variantTag(isDefault: boolean, label: string | null): string | n
   return trimmed === "" ? null : trimmed;
 }
 
+/**
+ * Nome da variante no DETALHE e na revisão do cadastro (ACERVO-VARIANT-NAME-01):
+ * sempre o nome real, inclusive da padrão ("Holográfica"), para distinguir
+ * versões irmãs da mesma carta ("Holográfica" × "Holográfica Reversa"). Sem
+ * nome no catálogo, cai no texto genérico. A galeria segue usando `variantTag`.
+ */
+export function variantName(label: string | null): string {
+  const trimmed = label?.trim() ?? "";
+  return trimmed === "" ? "Variante padrão" : trimmed;
+}
+
 /** Frase do resultado da busca/filtro ("12 cartas diferentes"). */
 export function resultSummary(totalGroups: number): string {
   return totalGroups === 1 ? "1 carta diferente" : `${formatCount(totalGroups)} cartas diferentes`;

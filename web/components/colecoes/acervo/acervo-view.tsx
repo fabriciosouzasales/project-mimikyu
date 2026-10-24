@@ -16,6 +16,7 @@ import {
   storageMatchLabel,
   storageScopeSummary,
   totalPages,
+  variantName,
   variantTag,
   withoutDetail,
 } from "@/lib/colecoes/acervo";
@@ -616,7 +617,7 @@ function DetailContent({
 
   const { item, copies, copiesTotal } = detail;
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
-  const tag = variantTag(item.isDefaultVariant, item.variantLabel);
+  const variant = variantName(item.variantLabel);
   const inCollections = copies.filter((copy) => copy.collectionName !== null).length;
 
   return (
@@ -638,7 +639,7 @@ function DetailContent({
             <span>
               {item.cardSetName} · {number}
             </span>
-            <span className={styles.tag}>{tag ?? "Variante padrão"}</span>
+            <span className={styles.tag}>{variant}</span>
           </div>
           <dl className={styles.facts}>
             <dt>Idioma</dt>
@@ -673,6 +674,7 @@ function DetailContent({
           storageName: copy.storageName,
         }))}
         languageName={item.languageName}
+        variantName={variant}
         copiesTotal={copiesTotal}
         closeHref={closeHref}
         storage={storage}

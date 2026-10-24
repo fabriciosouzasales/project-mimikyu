@@ -21,6 +21,7 @@ import {
   storageScopeSummary,
   toItemsRpcParams,
   totalPages,
+  variantName,
   variantTag,
   withoutDetail,
 } from "./acervo.ts";
@@ -160,6 +161,11 @@ test("etiqueta de variante só quando não é a padrão", () => {
   assert.equal(variantTag(false, "Reverse Holo · 1ª Edição"), "Reverse Holo · 1ª Edição");
   assert.equal(variantTag(false, "  "), null);
   assert.equal(variantTag(false, null), null);
+  // Detalhe e revisão do cadastro: o nome aparece também na padrão (ACERVO-VARIANT-NAME-01).
+  assert.equal(variantName("Holográfica"), "Holográfica");
+  assert.equal(variantName(" Holográfica Reversa "), "Holográfica Reversa");
+  assert.equal(variantName(null), "Variante padrão");
+  assert.equal(variantName("  "), "Variante padrão");
 });
 
 test("URL da imagem: só caminhos do pipeline", () => {
