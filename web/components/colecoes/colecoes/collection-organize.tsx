@@ -7,7 +7,9 @@ import { organizeCollectionStorage, readCollectionStoragePlan } from "@/app/cole
 import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { formatCount } from "@/lib/colecoes/acervo";
+import { binderLockedNotice, binderUnplaceNotice } from "@/lib/colecoes/binder-location";
 import {
+  binderImpactFor,
   type OrganizeFailure,
   type OrganizeMode,
   type OrganizePlan,
@@ -143,6 +145,8 @@ export function OrganizeStorageFlow({
       mode,
       expectedCount: eligibleFor(plan, mode),
       planToken: plan.planToken,
+      // D1: a confirmação inclui tirar dos bolsos do fichário exatamente o que a prévia mostrou.
+      expectedUnplace: binderImpactFor(plan, mode).positioned,
     }).catch(() => ({ ok: false, reason: "unknown" }) as const);
     inFlight.current = false;
     if (result.ok) {
@@ -373,7 +377,9 @@ function ConfirmBody({
   const leaving = leavingSentence(leavingOtherPlaces(plan, mode));
   const option = modeOptions(plan).find((o) => o.mode === mode);
   const retry = error === "lock_busy";
-  const blocked = error !== null && !retry;
+  const impact = binderImpactFor(plan, mode);
+  const binderBlocked = impact.locked > 0;
+  const blocked = (error !== null && !retry) || binderBlocked;
   return (
     <div className={objectiveStyles.reviewBody}>
       <dl className={styles.summary}>
@@ -396,6 +402,11 @@ function ConfirmBody({
       </dl>
       <p className={objectiveStyles.reviewLine}>{confirmationSentence(count, target.name)}</p>
       {leaving ? <p className={styles.leavingLine}>{leaving}</p> : null}
+      {binderBlocked ? (
+        <InlineFeedback tone="warning">{binderLockedNotice(impact.locked)}</InlineFeedback>
+      ) : impact.positioned > 0 ? (
+        <InlineFeedback tone="warning">{binderUnplaceNotice(impact.positioned)}</InlineFeedback>
+      ) : null}
       <p className={objectiveStyles.reassure}>
         Isso altera a localização física registrada desses exemplares. Coleção, versão, idioma e condição não mudam.
       </p>

@@ -236,6 +236,7 @@ export type MoveFailure =
   | "storage_gone"
   | "plan_changed"
   | "unresolved"
+  | "binder_locked"
   | "unavailable"
   | "unknown";
 
@@ -258,6 +259,10 @@ export function moveFailureFromWrite(error: { code?: string | null; message?: st
       return "too_large";
     case "invalid":
       return "invalid";
+    case "binder_positioned":
+      return "plan_changed";
+    case "binder_locked":
+      return "binder_locked";
     case "unavailable":
       return fromDb ? "unavailable" : "unknown";
   }
@@ -279,6 +284,8 @@ export function moveFailureMessage(reason: MoveFailure): string {
       return "Seu acervo mudou desde a prévia. Confira a nova prévia antes de confirmar. Nada foi alterado.";
     case "unresolved":
       return "Algumas cartas selecionadas não têm mais exemplares neste recorte. Revise a seleção antes de confirmar.";
+    case "binder_locked":
+      return "Há exemplar num bolso fixado do fichário digital. Solte o cadeado no fichário antes de mover — nada foi alterado.";
     case "unavailable":
       return "Não foi possível mover agora. Nada foi alterado — tente novamente.";
     case "unknown":

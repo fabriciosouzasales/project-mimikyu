@@ -6,14 +6,13 @@ import { Image as ImageIcon, Layers, Loader2, Plus, RotateCcw, X } from "lucide-
 import { readAvailableCards } from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import { cardFrontUrl, formatCollectorNumber } from "@/lib/colecoes/acervo";
 import type { BinderSlot } from "@/lib/colecoes/binder";
-import { type AvailableCard, mergeAvailable } from "@/lib/colecoes/binder-share";
+import { type AvailableCard, type AvailableOrigin, availableOriginLabel, mergeAvailable, pickerOrigins } from "@/lib/colecoes/binder-share";
 import styles from "./binder-add-pages.module.css";
 import { useDialogKeys } from "./binder-image-editor";
 import imageStyles from "./binder-image.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-type Source = { collectionId: string; name: string };
 type SourceState = { status: "loading" | "error" | "ready"; items: AvailableCard[]; total: number; loadingMore: boolean };
 
 /**
@@ -21,11 +20,12 @@ type SourceState = { status: "loading" | "error" | "ready"; items: AvailableCard
  * comportamento do spike `binder-nav-01` (EmptySlotQuickActions → Card
  * Picker), sobre dados reais.
  *
- * Lista as cartas ainda sem bolso das coleções que participam do fichário
- * (5230 `get_my_collection_binder_unplaced`, uma leitura por coleção, 48 por
- * vez). Escolher uma carta a posiciona neste bolso (5131, feito pela área de
- * trabalho). Bolso reservado só oferece a coleção dona da reserva, com a
- * carta reservada em destaque — o plano da outra coleção é respeitado.
+ * Lista os exemplares guardados neste fichário físico e ainda sem bolso
+ * (5252 `get_my_collection_binder_unplaced`, 48 por vez), com as abas de
+ * origem Todas · Desta coleção · Outras coleções · Sem coleção (BINDER-
+ * PHYSICAL-LOCATION, D3). Escolher uma carta a posiciona neste bolso (5250,
+ * feito pela área de trabalho). Bolso reservado só oferece cartas da coleção
+ * dona da reserva, com a carta reservada em destaque.
  * Nada é substituído: só bolso vazio e solto abre este seletor.
  *
  * P2-BINDER-CUSTOM-IMAGES-CLOSEOUT-AND-FRONTEND-01: "Carta | Imagem". A aba
@@ -37,7 +37,7 @@ export function PocketPicker({
   host,
   target,
   pageNumber,
-  sources,
+  collectionId,
   onPick,
   onClose,
   imageTab = null,
@@ -46,8 +46,9 @@ export function PocketPicker({
   host: HTMLElement | null;
   target: BinderSlot;
   pageNumber: number;
-  sources: Source[];
-  onPick: (card: AvailableCard, sourceCollectionId: string) => void;
+  /** Coleção pela qual o fichário está aberto (fronteira de dono das leituras). */
+  collectionId: string;
+  onPick: (card: AvailableCard) => void;
   onClose: () => void;
   /** Aba "Imagem": `available` falso mostra só o motivo (`reason`). */
   imageTab?: { available: boolean; reason: string | null; render: () => ReactNode } | null;
@@ -56,37 +57,44 @@ export function PocketPicker({
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const [mode, setMode] = useState<"card" | "image">(imageTab?.available && initialMode === "image" ? "image" : "card");
-  // Bolso reservado: só a coleção dona da reserva pode ocupá-lo.
-  const allowed = useMemo(() => {
-    if (target.state !== "RESERVED_EMPTY" || !target.expectedCollectionId) return sources;
-    const only = sources.filter((source) => source.collectionId === target.expectedCollectionId);
-    return only;
-  }, [sources, target.expectedCollectionId, target.state]);
-  const [active, setActive] = useState<string | null>(allowed[0]?.collectionId ?? null);
-  const [bySource, setBySource] = useState<Record<string, SourceState>>({});
+  // Abas de origem; bolso reservado: só a coleção dona da reserva.
+  const allowed = useMemo(
+    () => pickerOrigins({ state: target.state, expectedCollectionId: target.expectedCollectionId }, collectionId),
+    [collectionId, target.expectedCollectionId, target.state],
+  );
+  const [active, setActive] = useState<AvailableOrigin | null>(allowed[0]?.key ?? null);
+  const [bySource, setBySource] = useState<Partial<Record<AvailableOrigin, SourceState>>>({});
 
-  const load = useCallback(async (collectionId: string, offset: number) => {
-    setBySource((prev) => {
-      const current = prev[collectionId];
-      return {
-        ...prev,
-        [collectionId]: offset === 0 ? { status: "loading", items: [], total: 0, loadingMore: false } : { ...(current as SourceState), loadingMore: true },
-      };
-    });
-    const result = await readAvailableCards({ collectionId, offset }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
-    setBySource((prev) => {
-      const current = prev[collectionId];
-      if (!result.ok) {
-        return { ...prev, [collectionId]: offset === 0 ? { status: "error", items: [], total: 0, loadingMore: false } : { ...(current as SourceState), loadingMore: false } };
-      }
-      const items = offset === 0 ? result.items : mergeAvailable(current?.items ?? [], result.items);
-      return { ...prev, [collectionId]: { status: "ready", items, total: Math.max(result.total, items.length), loadingMore: false } };
-    });
-  }, []);
+  const load = useCallback(
+    async (origin: AvailableOrigin, offset: number) => {
+      const onlyCollectionId = allowed.find((option) => option.key === origin)?.onlyCollectionId ?? null;
+      setBySource((prev) => {
+        const current = prev[origin];
+        return {
+          ...prev,
+          [origin]: offset === 0 ? { status: "loading", items: [], total: 0, loadingMore: false } : { ...(current as SourceState), loadingMore: true },
+        };
+      });
+      // Reserva de outra coleção: recorte, total e paginação no SERVIDOR (5252 v1.2) — nunca só a página carregada.
+      const result = await readAvailableCards({ collectionId, offset, origin, originCollectionId: onlyCollectionId }).catch(
+        () => ({ ok: false as const, reason: "unknown" as const }),
+      );
+      setBySource((prev) => {
+        const current = prev[origin];
+        if (!result.ok) {
+          return { ...prev, [origin]: offset === 0 ? { status: "error", items: [], total: 0, loadingMore: false } : { ...(current as SourceState), loadingMore: false } };
+        }
+        const items = offset === 0 ? result.items : mergeAvailable(current?.items ?? [], result.items);
+        return { ...prev, [origin]: { status: "ready", items, total: Math.max(result.total, items.length), loadingMore: false } };
+      });
+    },
+    [allowed, collectionId],
+  );
 
+  // Cada aba carrega na primeira vez em que é aberta ("Todas" primeiro).
   useEffect(() => {
-    for (const source of allowed) void load(source.collectionId, 0);
-  }, [allowed, load]);
+    if (active && !bySource[active]) void load(active, 0);
+  }, [active, bySource, load]);
 
   // Esc, Tab preso e setas que não vazam para o fichário (o enquadramento da aba Imagem trata as próprias).
   useDialogKeys(dialogRef, onClose);
@@ -158,19 +166,19 @@ export function PocketPicker({
         ) : (
           <>
             {allowed.length > 1 ? (
-              <div className={styles.tabs} role="tablist" aria-label="Coleção">
+              <div className={styles.tabs} role="tablist" aria-label="Origem das cartas">
                 {allowed.map((source) => {
-                  const s = bySource[source.collectionId];
+                  const s = bySource[source.key];
                   return (
                     <button
-                      key={source.collectionId}
+                      key={source.key}
                       type="button"
                       role="tab"
-                      aria-selected={active === source.collectionId}
+                      aria-selected={active === source.key}
                       className={styles.tab}
-                      onClick={() => setActive(source.collectionId)}
+                      onClick={() => setActive(source.key)}
                     >
-                      {source.name}
+                      {source.label}
                       {s?.status === "ready" ? <span className={styles.tabCount}>{s.total.toLocaleString("pt-BR")}</span> : null}
                     </button>
                   );
@@ -199,7 +207,7 @@ export function PocketPicker({
               ) : items.length === 0 ? (
                 <p className={styles.emptyState}>
                   <strong>Nenhuma carta sem bolso</strong>
-                  Todas as cartas de {allowed.find((s) => s.collectionId === active)?.name ?? "esta coleção"} já estão no fichário.
+                  {active === "ALL" ? "Todas as cartas guardadas neste fichário já estão nos bolsos." : "Nenhuma carta sem bolso nesta origem."}
                 </p>
               ) : (
                 <ul className={styles.pickGrid} aria-label="Cartas sem bolso — escolha uma para este bolso">
@@ -209,14 +217,14 @@ export function PocketPicker({
                     const detail = [number, card.variantLabel, card.languageCode?.toUpperCase()].filter(Boolean).join(" · ");
                     const src = cardFrontUrl(SUPABASE_URL, card.imagePath);
                     return (
-                      <li key={card.allocationId}>
+                      <li key={card.physicalCardId}>
                         <button
                           type="button"
                           className={styles.pick}
                           data-reserved={reserved || undefined}
-                          aria-label={`Colocar ${card.cardName}${detail ? `, ${detail}` : ""} neste bolso${reserved ? " (carta reservada para ele)" : ""}`}
-                          title={card.cardName}
-                          onClick={() => active && onPick(card, active)}
+                          aria-label={`Colocar ${card.cardName}${detail ? `, ${detail}` : ""} (${availableOriginLabel(card)}) neste bolso${reserved ? " (carta reservada para ele)" : ""}`}
+                          title={`${card.cardName} — ${availableOriginLabel(card)}`}
+                          onClick={() => onPick(card)}
                         >
                           {src ? (
                             // eslint-disable-next-line @next/next/no-img-element -- mesmo asset dos bolsos (cache do navegador)

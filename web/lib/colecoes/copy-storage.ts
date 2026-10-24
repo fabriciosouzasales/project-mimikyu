@@ -36,6 +36,8 @@ export type CopyStorageFailure =
   | "too_many"
   | "storage_gone"
   | "copies_gone"
+  | "binder_positioned"
+  | "binder_locked"
   | "unavailable";
 
 /**
@@ -45,6 +47,9 @@ export type CopyStorageFailure =
  */
 export function copyStorageFailureFromError(error: { code?: string | null; message?: string | null } | null | undefined): CopyStorageFailure {
   const message = (error?.message ?? "").toLowerCase();
+  // BINDER-PHYSICAL-LOCATION (5249/5256, D3): exemplar posicionado no fichário digital.
+  if (message.trim() === "binder_position_confirmation_required") return "binder_positioned";
+  if (message.trim() === "binder_position_locked") return "binder_locked";
   if (message.includes("authentication required")) return "not_authenticated";
   if (message.includes("lote excede")) return "too_many";
   if (message.includes("storage container not found") || message.includes("storage container does not belong")) return "storage_gone";
@@ -66,6 +71,10 @@ export function copyStorageFailureMessage(reason: CopyStorageFailure): string {
       return "Esse local não existe mais. A lista foi atualizada — escolha outro. Nada foi alterado.";
     case "copies_gone":
       return "Algum exemplar escolhido não está mais no seu acervo. A lista foi atualizada. Nada foi alterado.";
+    case "binder_positioned":
+      return "Algum exemplar está num bolso do fichário digital. Ao mudar o local, ele sai do bolso (continua no acervo e na coleção). Confirme para continuar — nada foi alterado ainda.";
+    case "binder_locked":
+      return "Algum exemplar está num bolso fixado do fichário digital. Solte o cadeado no fichário antes de mudar o local — nada foi alterado.";
     case "unavailable":
       return "Não foi possível guardar agora. Nada foi alterado — tente novamente.";
   }

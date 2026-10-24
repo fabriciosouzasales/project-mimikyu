@@ -25,11 +25,13 @@ import {
   DETACH_TOKEN,
   type AttachOutcome,
   type AvailableCard,
+  type AvailableOrigin,
   type DetachPreview,
   type DetachResult,
   type JoinCandidate,
   type ShareFailure,
   classifyShareFailure,
+  isAvailableOrigin,
   parseAttachOutcome,
   parseAvailableCards,
   parseDetachPreview,
@@ -79,6 +81,12 @@ import {
   parseBinderParticipants,
   parseIdentityWrite,
 } from "@/lib/colecoes/binder-identity";
+import {
+  type TransferFailure,
+  type TransferOutcome,
+  classifyTransferFailure,
+  parseTransferOutcome,
+} from "@/lib/colecoes/binder-location";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -252,18 +260,26 @@ export async function removeSlots(input: { collectionId: string; slotIds: string
   return { ok: true, count };
 }
 
-/** Desfazer a retirada: devolve o mesmo exemplar ao mesmo bolso (5131, ADD). */
+/**
+ * Desfazer a retirada: devolve o mesmo EXEMPLAR ao mesmo bolso (5250, pelo
+ * exemplar — vale também para carta sem coleção). O banco revalida local
+ * físico, cadeado e dono.
+ */
 export async function restoreToSlot(input: {
   collectionId: string;
   slotId: string;
-  allocationId: string;
+  physicalCardId: string;
 }): Promise<{ ok: true } | SlotFail> {
-  if (!isCollectionId(input?.collectionId) || !isUuid(input.slotId) || !isUuid(input.allocationId)) return { ok: false, reason: "invalid" };
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.slotId) || !isUuid(input.physicalCardId)) return { ok: false, reason: "invalid" };
   const startedAt = Date.now();
   const supabase = await createClient();
-  const { error } = await supabase.rpc("assign_card_to_slot", { p_slot_id: input.slotId, p_collection_allocation_id: input.allocationId });
-  if (error) return slotFail("assign_card_to_slot", startedAt, error);
-  slotDone("assign_card_to_slot", startedAt, input.collectionId);
+  const { error } = await supabase.rpc("place_my_physical_card_in_slot", {
+    p_collection_id: input.collectionId,
+    p_slot_id: input.slotId,
+    p_physical_card_id: input.physicalCardId,
+  });
+  if (error) return slotFail("place_my_physical_card_in_slot", startedAt, error);
+  slotDone("place_my_physical_card_in_slot", startedAt, input.collectionId, { undo: true });
   return { ok: true };
 }
 
@@ -408,12 +424,30 @@ export async function attachToBinder(input: { collectionId: string; layoutId: st
   return { ok: true, outcome };
 }
 
-/** "Cartas disponíveis": exemplares desta coleção ainda sem bolso (5230, paginado). */
+/**
+ * "Cartas disponíveis": exemplares GUARDADOS no fichário físico e ainda sem
+ * bolso, de qualquer origem (5252, paginado). `origin` só recorta a lista
+ * (Todas · Desta coleção · Outras coleções · Sem coleção); a elegibilidade é
+ * sempre o local físico. `originCollectionId` recorta (no servidor, com total
+ * e paginação corretos) os exemplares de uma coleção — bolso reservado por
+ * outra coleção do fichário.
+ */
 export async function readAvailableCards(input: {
   collectionId: string;
   offset: number;
+  origin?: AvailableOrigin;
+  originCollectionId?: string | null;
 }): Promise<{ ok: true; items: AvailableCard[]; total: number } | ShareFail> {
-  if (!isCollectionId(input?.collectionId) || !Number.isInteger(input.offset) || input.offset < 0 || input.offset > 1_000_000) {
+  const origin = input?.origin ?? "ALL";
+  const originCollectionId = input?.originCollectionId ?? null;
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !Number.isInteger(input.offset) ||
+    input.offset < 0 ||
+    input.offset > 1_000_000 ||
+    !isAvailableOrigin(origin) ||
+    (originCollectionId !== null && !isCollectionId(originCollectionId))
+  ) {
     return { ok: false, reason: "invalid" };
   }
   const startedAt = Date.now();
@@ -422,6 +456,8 @@ export async function readAvailableCards(input: {
     p_collection_id: input.collectionId,
     p_limit: AVAILABLE_PAGE_SIZE,
     p_offset: input.offset,
+    p_origin: origin,
+    p_origin_collection_id: originCollectionId,
   });
   if (error) return shareFail("get_my_collection_binder_unplaced", startedAt, error);
   const parsed = parseAvailableCards(data);
@@ -430,24 +466,64 @@ export async function readAvailableCards(input: {
 }
 
 /**
- * Posiciona uma carta disponível num bolso (5131 `assign_card_to_slot`). A
- * interface só oferece bolsos vazios e soltos; o banco revalida dono,
- * participação no fichário, coleção ativa e cadeado.
+ * Posiciona um exemplar disponível num bolso (5250
+ * `place_my_physical_card_in_slot`). A interface só oferece bolsos vazios e
+ * soltos; o banco revalida dono, local físico do exemplar, coleção aberta
+ * ativa e cadeado. Não altera coleção, alocação nem valor.
  */
 export async function placeAvailableCard(input: {
   collectionId: string;
   slotId: string;
-  allocationId: string;
-}): Promise<{ ok: true; operation: "ADD" | "REPLACE" } | SlotFail> {
-  if (!isCollectionId(input?.collectionId) || !isUuid(input.slotId) || !isUuid(input.allocationId)) return { ok: false, reason: "invalid" };
+  physicalCardId: string;
+}): Promise<{ ok: true; operation: "ADD" | "REPLACE" | "UNCHANGED" } | SlotFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.slotId) || !isUuid(input.physicalCardId)) return { ok: false, reason: "invalid" };
   const startedAt = Date.now();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("assign_card_to_slot", { p_slot_id: input.slotId, p_collection_allocation_id: input.allocationId });
-  if (error) return slotFail("assign_card_to_slot", startedAt, error);
+  const { data, error } = await supabase.rpc("place_my_physical_card_in_slot", {
+    p_collection_id: input.collectionId,
+    p_slot_id: input.slotId,
+    p_physical_card_id: input.physicalCardId,
+  });
+  if (error) return slotFail("place_my_physical_card_in_slot", startedAt, error);
   const operation = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined)?.operation : undefined;
-  if (operation !== "ADD" && operation !== "REPLACE") return slotFail("assign_card_to_slot", startedAt, { code: "BAD_SHAPE" });
-  slotDone("assign_card_to_slot", startedAt, input.collectionId, { operation });
+  if (operation !== "ADD" && operation !== "REPLACE" && operation !== "UNCHANGED") {
+    return slotFail("place_my_physical_card_in_slot", startedAt, { code: "BAD_SHAPE" });
+  }
+  slotDone("place_my_physical_card_in_slot", startedAt, input.collectionId, { operation });
   return { ok: true, operation };
+}
+
+/**
+ * Passa a âncora do fichário da coleção proprietária para outra coleção ativa
+ * do mesmo usuário (5254). Nada no fichário muda (bolsos, posições, imagens,
+ * travas, nome, local); a antiga proprietária vira convidada. Caminho seguro
+ * antes de excluir a proprietária — a interface ainda não expõe exclusão.
+ */
+export async function transferBinderOwnership(input: {
+  fromCollectionId: string;
+  toCollectionId: string;
+}): Promise<{ ok: true; result: TransferOutcome } | { ok: false; reason: TransferFailure }> {
+  if (!isCollectionId(input?.fromCollectionId) || !isCollectionId(input?.toCollectionId) || input.fromCollectionId === input.toCollectionId) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("transfer_my_binder_ownership", {
+    p_from_collection_id: input.fromCollectionId,
+    p_to_collection_id: input.toCollectionId,
+  });
+  const result = error ? null : parseTransferOutcome(data);
+  if (!result) {
+    const reason = error ? classifyTransferFailure(error.code, error.message) : "unknown";
+    console.error(JSON.stringify({ scope: "colecoes.binder_transfer", ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE", reason }));
+    return { ok: false, reason };
+  }
+  console.info(JSON.stringify({ scope: "colecoes.binder_transfer", ms: Date.now() - startedAt, outcome: result.outcome }));
+  for (const id of [input.fromCollectionId, input.toCollectionId]) {
+    revalidatePath(binderHref(id));
+    revalidatePath(collectionHref(id));
+  }
+  return { ok: true, result };
 }
 
 /** Prévia de sair do fichário compartilhado (5229, não grava). `preview: null` = a coleção não é convidada. */

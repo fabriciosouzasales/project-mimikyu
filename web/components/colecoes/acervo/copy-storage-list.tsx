@@ -92,6 +92,8 @@ export function CopyStorageList({
   const [step, setStep] = useState<Step>({ kind: "choose" });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<CopyStorageFailure | null>(null);
+  // D3: o banco avisou que há exemplar num bolso do fichário digital — a próxima confirmação inclui tirar do bolso.
+  const [binderConfirm, setBinderConfirm] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Resultado já gravado, mostrado até o servidor devolver a lista nova.
   const [patch, setPatch] = useState<{ ids: string[]; id: string | null; name: string | null } | null>(null);
@@ -159,6 +161,7 @@ export function CopyStorageList({
     setNotice(null);
     setError(null);
     setStep({ kind: "choose" });
+    setBinderConfirm(false);
     setSelected((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
   };
 
@@ -171,11 +174,18 @@ export function CopyStorageList({
     // Só os que mudam de fato; os que já estão no destino ficam como estão.
     const ids = selected.filter((id) => (storageByCopy[id] ?? null) !== target);
     try {
-      const result = await setMyCopiesStorage({ physicalCardIds: ids, storageContainerId: target }).catch(
+      const result = await setMyCopiesStorage({ physicalCardIds: ids, storageContainerId: target, unplaceFromBinder: binderConfirm }).catch(
         () => ({ ok: false, reason: "unavailable" }) as const,
       );
       if (!result.ok) {
         setError(result.reason);
+        if (result.reason === "binder_positioned") {
+          // Mantém a confirmação aberta: o próximo "Confirmar" tira do bolso e guarda, numa transação só.
+          setBinderConfirm(true);
+          setStep({ kind: "confirm" });
+          return;
+        }
+        setBinderConfirm(false);
         setStep({ kind: "choose" });
         if (result.reason === "storage_gone") setChoice("");
         if (result.reason === "copies_gone") setSelected([]);
@@ -183,6 +193,7 @@ export function CopyStorageList({
         return;
       }
       const name = target === null ? null : (targetLocation?.name ?? null);
+      setBinderConfirm(false);
       setPatch({ ids, id: target, name });
       setNotice(storageAssignSuccess(ids.length, name));
       setSelected(initialSelection());
@@ -371,6 +382,7 @@ export function CopyStorageList({
                       setChoice(event.target.value);
                       setError(null);
                       setNotice(null);
+                      setBinderConfirm(false);
                     }}
                   >
                     <option value="" disabled>
@@ -418,6 +430,9 @@ export function CopyStorageList({
               </h4>
               <p className={local.confirmBody}>{confirmation.body}</p>
               {confirmation.note ? <p className={local.barNote}>{confirmation.note}</p> : null}
+              {binderConfirm ? (
+                <p className={local.barNote}>Os exemplares que estão em bolsos do fichário digital saem dos bolsos ao confirmar.</p>
+              ) : null}
               <div className={local.barRow}>
                 <Button
                   className={`min-h-11 px-5 ${ARIA_DISABLED_BUTTON}`}
@@ -426,13 +441,17 @@ export function CopyStorageList({
                   onClick={() => void save()}
                 >
                   {pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-                  {pending ? "Guardando…" : confirmation.action}
+                  {pending ? "Guardando…" : binderConfirm ? "Tirar do fichário e guardar" : confirmation.action}
                 </Button>
                 <Button
                   variant="outline"
                   className={`min-h-11 ${ARIA_DISABLED_BUTTON}`}
                   aria-disabled={pending || undefined}
-                  onClick={() => !pending && setStep({ kind: "choose" })}
+                  onClick={() => {
+                    if (pending) return;
+                    setBinderConfirm(false);
+                    setStep({ kind: "choose" });
+                  }}
                 >
                   Voltar
                 </Button>

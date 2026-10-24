@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.47 |
+| **Versão** | 2.49 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -168,6 +168,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-10-23-p2-binder-image-upload-rls-fix/README.md`](../database/proposals/2026-10-23-p2-binder-image-upload-rls-fix/README.md) | P2-BINDER-IMAGE-UPLOAD-RLS-FIX — correção da recursão RLS da política INSERT do bucket `binder-slot-image` (5231): função `binder_slot_image_under_object_cap` (SECURITY DEFINER) + `ALTER POLICY` (`5237`); pré/pós-checagens só leitura (`LIVE_00`, `LIVE_90`). **5237 EXECUTADA NO LIVE (2026-10-23) e promovida para `database/schema/`; F1–F6 PASS, F7 não executada; harness 5852 não executado.** |
 | [`../database/proposals/2026-10-23-p2-binder-layout-customization/README.md`](../database/proposals/2026-10-23-p2-binder-layout-customization/README.md) | P2-BINDER-LAYOUT-CUSTOMIZATION — "Abrir espaço" entre bolsos e imagem em 2 bolsos do Fichário Digital: proteções das mesclagens + índice por página (`5238`), tabela e proteção dos arquivos (`5239`), escrita (`5240`), leitura (`5241`), desmontagem (`5242`), inserir/desfazer espaço (`5243`); pré/pós-checagens só leitura (`LIVE_00`, `LIVE_90`) e fonte de rollback (`R0_original_functions_rollback_source.sql`). **5238–5243 EXECUTADAS NO LIVE (2026-10-23) e promovidas para `database/schema/`; homologação funcional pela interface PASS; concorrência, tetos de 500 e pior caso não comprovados.** |
 | [`../database/proposals/2026-10-23-p3a-binder-control-identity/README.md`](../database/proposals/2026-10-23-p3a-binder-control-identity/README.md) | P3-A — Centro de Controle e Identidade do Fichário: painel lateral direito (Identidade, Aparência, Organização, Informações), nome próprio do fichário, contracapa com logomarca MMKYU monocromática (rosto do Mimikyu) + nome + "MMKYU COLLECTOR". **ENCERRADA (2026-10-24): 5244–5246 executadas no LIVE e promovidas para `database/schema/`; homologada pela interface; contracapa congelada.** |
+| [`../database/proposals/2026-10-24-binder-physical-location/README.md`](../database/proposals/2026-10-24-binder-physical-location/README.md) | BINDER-PHYSICAL-LOCATION — Fichário Digital = fichário físico; posição pelo exemplar; "Cartas disponíveis" por local físico com filtros de origem (Todas padrão); D3 mudar local exige confirmação (inclui Organizar armazenamento); associação pelo local do fichário (5255); transferência antes de excluir a proprietária. Fase A `5247`–`5255` (aditiva) + fase B `5256`, harness `5854`, LIVE_00/50/90, R1/R2, static check; frontend local. **PROPOSTO — nada executado.** |
 | [`../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md`](../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md) | Snapshot imutável da Pokémon TCG API (2026-10-09): 50 coleções, 6.733 cartas, chaves de preço por carta; manifest com contagem e SHA-256. Fonte da 2ª origem de variantes (ADR-034). |
 | [`history/development/HANDOFF-2026-07-26.md`](history/development/HANDOFF-2026-07-26.md) | Handoff superado (26/07). |
 | [`history/development/HANDOFF-2026-07-31.md`](history/development/HANDOFF-2026-07-31.md) | Handoff superado (31/07). |
@@ -349,3 +350,5 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 2.45 | **`P3-A-BINDER-CONTROL-IDENTITY-SPEC-01` (2026-10-23).** Linha nova para a especificação P3-A (para aprovação). |
 | 2.46 | **`P3A-BINDER-CONTROL-IDENTITY-IMPLEMENTATION-01` (2026-10-23).** Status da especificação P3-A atualizado (implementação local; SQL proposto). |
 | 2.47 | **`P3A-BINDER-CONTROL-FINAL-CLOSEOUT-01` (2026-10-24).** Status da P3-A: encerrada, 5244–5246 canônicas. |
+| 2.48 | **`BINDER-PHYSICAL-LOCATION-ELIGIBILITY-DECISIONS-01` (2026-10-24).** Linha nova para `database/proposals/2026-10-24-binder-physical-location/` (PROPOSTO). |
+| 2.49 | **`BINDER-PHYSICAL-LOCATION-IMPLEMENTATION-READINESS-01` (2026-10-24).** Linha da proposta atualizada (fases A/B, 5255/5256, recuperação, frontend local). |

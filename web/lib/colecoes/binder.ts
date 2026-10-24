@@ -100,6 +100,14 @@ export type BinderHeader = {
   /** Fichários existentes que esta coleção pode usar (só quando ainda sem fichário). */
   joinCandidateCount: number;
   /**
+   * 5252 (BINDER-PHYSICAL-LOCATION): exemplares guardados no fichário físico
+   * e ainda sem bolso, de QUALQUER origem ("Cartas disponíveis" com "Todas").
+   * Sem a 5252, cai para `ownUnplacedCount` (contrato antigo).
+   */
+  availableCount: number;
+  /** 5252: nome do fichário físico que este fichário digital representa. */
+  binderStorageName: string | null;
+  /**
    * P3-A (5245, leitura à parte): nome próprio e logomarca do fichário. Ausente
    * ou `null` = função ainda não aplicada / sem fichário → nome da coleção
    * proprietária e logomarca exibida (`resolveIdentity`).
@@ -156,6 +164,8 @@ export function parseBinderHeader(row: unknown): BinderHeader | null {
     ownFilledCount: int(r.own_filled_count) ?? 0,
     ownUnplacedCount: int(r.own_unplaced_count) ?? 0,
     joinCandidateCount: hasBinder ? 0 : (int(r.join_candidate_count) ?? 0),
+    availableCount: int(r.available_count) ?? int(r.own_unplaced_count) ?? 0,
+    binderStorageName: str(r.binder_storage_name),
   };
 }
 
@@ -254,6 +264,8 @@ export type BinderSlot = {
   /** Identidades usadas pelas ferramentas de organização (nunca exibidas). */
   assignmentId: string | null;
   allocationId: string | null;
+  /** 5248: exemplar no bolso — identidade da posição (alocação pode ser nula: carta sem coleção). */
+  physicalCardId?: string | null;
   expectedCardId: string | null;
   presentCardId: string | null;
   presentVariantTypeId: string | null;
@@ -375,6 +387,7 @@ export function parseBinderPages(rows: unknown): BinderPage[] | null {
           : null,
       assignmentId: str(r.assignment_id),
       allocationId: str(r.collection_allocation_id),
+      physicalCardId: str(r.physical_card_id),
       expectedCardId: str(r.expected_card_id),
       presentCardId: str(r.present_card_id),
       presentVariantTypeId: str(r.present_variant_type_id),
@@ -817,6 +830,7 @@ export type SlotFailure =
   | "already_placed"
   | "too_many"
   | "has_image"
+  | "not_in_location"
   | "lock_busy"
   | "not_authenticated"
   | "invalid"
@@ -831,6 +845,11 @@ export function classifySlotFailure(code: string | null | undefined, message: st
   if (code === "55P03") return "lock_busy";
   if (code === "28000" || text.includes("authentication required")) return "not_authenticated";
   if (text.includes("slot_has_image")) return "has_image";
+  // 5250 (posicionar pelo exemplar): mensagens = códigos.
+  if (text === "card_not_in_binder_location") return "not_in_location";
+  if (text === "card_already_placed") return "already_placed";
+  if (text === "slot_locked") return "locked";
+  if (text === "physical_card_not_found" || text === "slot_not_found" || text === "binder_not_found" || text === "collection_not_found") return "stale";
   if (text.includes("(locked)")) return "locked";
   if (text.includes("origem está vazio")) return "source_empty";
   if (text.startsWith("no-op")) return "noop";
@@ -862,6 +881,8 @@ export function slotFailureMessage(reason: SlotFailure): string {
       return `Selecione até ${SLOT_BATCH_MAX} bolsos por vez.`;
     case "has_image":
       return "Esse bolso tem uma imagem. Remova a imagem para colocar uma carta ou fixá-lo.";
+    case "not_in_location":
+      return "Essa carta não está guardada neste fichário. Mude o local dela no Meu acervo para colocá-la num bolso.";
     case "lock_busy":
       return "O fichário está sendo atualizado em outra tela. Tente de novo em alguns segundos.";
     case "not_authenticated":
@@ -875,7 +896,15 @@ export function slotFailureMessage(reason: SlotFailure): string {
 
 /** Depois de uma falha, a página precisa ser relida (o estado local pode estar velho)? */
 export function slotFailureNeedsReload(reason: SlotFailure): boolean {
-  return reason === "source_empty" || reason === "stale" || reason === "already_placed" || reason === "unknown" || reason === "locked" || reason === "has_image";
+  return (
+    reason === "source_empty" ||
+    reason === "stale" ||
+    reason === "already_placed" ||
+    reason === "unknown" ||
+    reason === "locked" ||
+    reason === "has_image" ||
+    reason === "not_in_location"
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -934,13 +963,14 @@ export function viewLabel(view: number, perView: 1 | 2, total: number): string {
 // Mudança otimista do conteúdo de um bolso (a tela relê o lote logo depois)
 // ---------------------------------------------------------------------------
 
-type SlotContent = Pick<BinderSlot, "present" | "assignmentId" | "allocationId" | "presentCardId" | "presentVariantTypeId" | "presentCollectionId">;
+type SlotContent = Pick<BinderSlot, "present" | "assignmentId" | "allocationId" | "physicalCardId" | "presentCardId" | "presentVariantTypeId" | "presentCollectionId">;
 
 function contentOf(slot: BinderSlot): SlotContent {
   return {
     present: slot.present,
     assignmentId: slot.assignmentId,
     allocationId: slot.allocationId,
+    physicalCardId: slot.physicalCardId ?? null,
     presentCardId: slot.presentCardId,
     presentVariantTypeId: slot.presentVariantTypeId,
     presentCollectionId: slot.presentCollectionId,
@@ -951,6 +981,7 @@ const EMPTY_CONTENT: SlotContent = {
   present: null,
   assignmentId: null,
   allocationId: null,
+  physicalCardId: null,
   presentCardId: null,
   presentVariantTypeId: null,
   presentCollectionId: null,

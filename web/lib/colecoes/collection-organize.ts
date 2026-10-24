@@ -20,6 +20,8 @@ import { formatCount, pluralize } from "./acervo.ts";
  *  - o navegador não monta lista de exemplares nem divide em lotes.
  */
 
+import type { BinderImpact } from "./binder-location.ts";
+
 export type OrganizeMode = "UNLOCATED" | "ALL";
 
 /** Uma linha da 5221 em camelCase. */
@@ -36,7 +38,19 @@ export type OrganizePlan = {
   eligibleAll: number;
   maxPerOperation: number;
   planToken: string;
+  /**
+   * BINDER-PHYSICAL-LOCATION (5249, D1 da rodada READINESS): por modalidade,
+   * quantos elegíveis estão em bolsos do fichário digital (sairão deles ao
+   * confirmar) e quantos em bolsos fixados (impedem a organização). Ausente =
+   * leitura não feita (tratado como sem impacto).
+   */
+  binder?: Record<OrganizeMode, BinderImpact>;
 };
+
+/** Impacto no fichário digital da modalidade escolhida. */
+export function binderImpactFor(plan: Pick<OrganizePlan, "binder">, mode: OrganizeMode): BinderImpact {
+  return plan.binder?.[mode] ?? { positioned: 0, locked: 0 };
+}
 
 export const PLAN_TOKEN = /^v1:[0-9a-f]{32}$/;
 
@@ -271,6 +285,7 @@ export type OrganizeFailure =
   | "lock_busy"
   | "too_large"
   | "archived"
+  | "binder_locked"
   | "not_found"
   | "not_authenticated"
   | "invalid"
@@ -280,6 +295,9 @@ export type OrganizeFailure =
 export function classifyOrganizeFailure(code: string | null | undefined, message: string | null | undefined): OrganizeFailure {
   const text = message ?? "";
   if (text === "PLAN_CHANGED") return "plan_changed";
+  // 5249/5256: posição no fichário criada depois da prévia → nova prévia; bolso fixado → destravar antes.
+  if (text === "BINDER_POSITION_CONFIRMATION_REQUIRED") return "plan_changed";
+  if (text === "BINDER_POSITION_LOCKED") return "binder_locked";
   if (text === "DEFAULT_CHANGED") return "default_changed";
   // NOWAIT na trava de exemplar (LOCK_BUSY) ou lock_timeout de 5 s na trava da coleção/destino.
   if (code === "55P03" || text === "LOCK_BUSY") return "lock_busy";
@@ -330,6 +348,8 @@ export function organizeFailureMessage(reason: OrganizeFailure): string {
       return "Esta coleção passou do limite da organização em lote. Nada foi movido.";
     case "archived":
       return "Esta coleção não está ativa. Nada foi movido.";
+    case "binder_locked":
+      return "Há exemplares desta coleção em bolsos fixados do fichário digital. Solte o cadeado no fichário antes de organizar — nada foi movido.";
     case "not_found":
       return "Esta coleção ou este local não está mais disponível. Nada foi movido.";
     case "not_authenticated":

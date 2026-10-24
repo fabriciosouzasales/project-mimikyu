@@ -16,6 +16,7 @@ import {
   pairOrFilter,
   planTokenSource,
 } from "./acervo-move.ts";
+import { binderPositionBlock, parseBinderImpact } from "./binder-location.ts";
 
 /**
  * WHERE-05B — resolução no servidor do conjunto de exemplares a mover e
@@ -69,6 +70,13 @@ export type MovePreview = {
   fromNone: number;
   unresolvedKeys: string[];
   perKey: Record<string, number>;
+  /**
+   * BINDER-PHYSICAL-LOCATION (5249, D3): dos que vão mudar, quantos estão num
+   * bolso do fichário digital (sairão dele, com a confirmação desta prévia) e
+   * quantos estão em bolso fixado (impedem a mudança até destravar).
+   */
+  binderPositioned: number;
+  binderLocked: number;
 };
 
 type Fail = { ok: false; reason: MoveFailure };
@@ -213,6 +221,20 @@ export async function resolveMoveSet(
   if (plan.copies.length > MOVE_COPIES_MAX) return { ok: false, reason: "too_large" };
   if (plan.copies.length === 0) return { ok: false, reason: "empty" };
 
+  // D3: quantos dos que vão mudar estão em bolsos do fichário digital (5249, só leitura).
+  let binderPositioned = 0;
+  let binderLocked = 0;
+  if (plan.toMove.length > 0) {
+    const impactRead = await supabase.rpc("preview_my_physical_cards_binder_impact", {
+      p_physical_card_ids: plan.toMove,
+      p_storage_container_id: request.target,
+    });
+    const impact = impactRead.error ? null : parseBinderImpact(impactRead.data);
+    if (!impact) return { ok: false, reason: "unavailable" };
+    binderPositioned = impact.positioned;
+    binderLocked = impact.locked;
+  }
+
   const token = planToken(
     planTokenSource({ target: request.target, scopeSignature: request.scopeSignature, keys: request.keys, copies: plan.copies }),
   );
@@ -230,6 +252,8 @@ export async function resolveMoveSet(
       fromNone: plan.fromNone,
       unresolvedKeys: plan.unresolvedKeys,
       perKey: plan.perKey,
+      binderPositioned,
+      binderLocked,
     },
   };
 }
@@ -246,13 +270,16 @@ export type ExecuteResult =
  *   3. token diferente ou quantidade a gravar diferente da confirmada →
  *      `plan_changed` com a nova prévia (o conjunto não cresce nem muda em silêncio);
  *   4. nada a gravar → sucesso com 0 (idempotente: confirmação repetida não regrava);
- *   5. `set_physical_cards_storage` com exatamente os ids de `toMove`.
+ *   5. impacto no fichário digital diferente do confirmado → `plan_changed`;
+ *      bolso fixado → `binder_locked` (nada é gravado);
+ *   6. `set_physical_cards_storage` (sobrecarga 5249) com exatamente os ids de
+ *      `toMove` e a confirmação de tirar do bolso só se a prévia mostrou isso.
  * Nunca repete a escrita sozinha. Janela residual entre (1) e (5) aceita (D6):
  * a 5024 ainda confere dono e atomicidade.
  */
 export async function executeMove(
   supabase: MoveClient,
-  request: MoveRequest & { planToken: string; expectedCount: number },
+  request: MoveRequest & { planToken: string; expectedCount: number; expectedUnplace: number },
   options: Options = {},
 ): Promise<ExecuteResult> {
   const resolved = await resolveMoveSet(supabase, request, options);
@@ -264,17 +291,26 @@ export async function executeMove(
     return { ok: false, reason: "plan_changed", preview };
   }
   if (plan.toMove.length === 0) return { ok: true, updated: 0, atTarget: plan.atTarget, targetName: preview.targetName };
+  if (preview.binderLocked > 0) return { ok: false, reason: "binder_locked" };
+  if (preview.binderPositioned !== request.expectedUnplace) return { ok: false, reason: "plan_changed", preview };
 
   let result: QueryResult;
   try {
     result = await supabase.rpc("set_physical_cards_storage", {
       p_storage_container_id: request.target,
       p_physical_card_ids: plan.toMove,
+      p_unplace_from_binder: preview.binderPositioned > 0,
     });
   } catch {
     return { ok: false, reason: "unknown" };
   }
-  if (result.error) return { ok: false, reason: moveFailureFromWrite(result.error) };
+  if (result.error) {
+    const block = binderPositionBlock(result.error);
+    // Posição criada depois da prévia (sem confirmação) → refazer a prévia; cadeado → destravar.
+    if (block === "confirm_required") return { ok: false, reason: "plan_changed" };
+    if (block === "locked") return { ok: false, reason: "binder_locked" };
+    return { ok: false, reason: moveFailureFromWrite(result.error) };
+  }
   if (!Array.isArray(result.data)) return { ok: false, reason: "unknown" };
   return { ok: true, updated: result.data.length, atTarget: plan.atTarget, targetName: preview.targetName };
 }

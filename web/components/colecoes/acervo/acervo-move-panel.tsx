@@ -18,6 +18,7 @@ import {
   moveSuccessMessage,
 } from "@/lib/colecoes/acervo-move";
 import type { MovePreview } from "@/lib/colecoes/acervo-move-queries";
+import { binderImpactSummary, binderLockedNotice, binderUnplaceNotice } from "@/lib/colecoes/binder-location";
 import { type Selection, selectionTotals } from "@/lib/colecoes/acervo-selection";
 import { LOCAIS_PATH, type StorageLocation } from "@/lib/colecoes/storage-locations";
 import styles from "./acervo.module.css";
@@ -109,6 +110,8 @@ export function AcervoMovePanel({
         target,
         planToken: preview.token,
         expectedCount: preview.toMove,
+        // D3: a confirmação desta prévia inclui tirar do bolso exatamente estes.
+        expectedUnplace: preview.binderPositioned,
       });
     } catch {
       // A requisição pode ter chegado ao servidor: não dá para saber.
@@ -322,7 +325,8 @@ function PreviewBlock({
   onClose(): void;
 }) {
   const unresolved = preview.unresolvedKeys;
-  const blocked = unresolved.length > 0;
+  const binderBlocked = preview.binderLocked > 0;
+  const blocked = unresolved.length > 0 || binderBlocked;
   const destination = preview.targetName === null ? "Sem localização definida" : `“${preview.targetName}”`;
   const cards = Object.entries(preview.perKey);
 
@@ -371,6 +375,12 @@ function PreviewBlock({
             ) : null}
           </dd>
         </div>
+        {preview.binderPositioned > 0 || preview.binderLocked > 0 ? (
+          <div className={organize.summaryRow}>
+            <dt>No fichário digital</dt>
+            <dd>{binderImpactSummary({ positioned: preview.binderPositioned, locked: preview.binderLocked })}</dd>
+          </div>
+        ) : null}
         {preview.atTarget > 0 ? (
           <div className={organize.summaryRow}>
             <dt>Já no destino</dt>
@@ -390,7 +400,13 @@ function PreviewBlock({
         </p>
       ) : null}
 
-      {blocked ? (
+      {binderBlocked ? (
+        <InlineFeedback tone="warning">{binderLockedNotice(preview.binderLocked)}</InlineFeedback>
+      ) : preview.binderPositioned > 0 ? (
+        <InlineFeedback tone="warning">{binderUnplaceNotice(preview.binderPositioned)}</InlineFeedback>
+      ) : null}
+
+      {unresolved.length > 0 ? (
         <div className={local.unresolved} role="group" aria-label="Cartas sem exemplares neste recorte">
           <InlineFeedback tone="warning">
             {pluralize(unresolved.length, "carta selecionada não tem", "cartas selecionadas não têm")} mais exemplares que atendam

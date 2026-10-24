@@ -8,9 +8,13 @@ import {
   applyPlaceAvailable,
   canReceiveAvailable,
   classifyShareFailure,
+  AVAILABLE_ORIGINS,
+  DEFAULT_AVAILABLE_ORIGIN,
+  availableOriginLabel,
   isAddablePocket,
-  placementSources,
+  isAvailableOrigin,
   isForeignSlot,
+  pickerOrigins,
   mergeAvailable,
   parseAttachOutcome,
   parseAvailableCards,
@@ -164,14 +168,24 @@ const card = {
   variantLabel: "Normal",
   languageCode: "pt-BR",
   imagePath: null,
+  originKind: "OTHER_COLLECTION" as const,
+  originCollectionId: B,
+  originCollectionName: "Promo Megaevolução",
+  originArchived: false,
 };
 
-test("posicionar: estado otimista leva a coleção e a alocação", () => {
-  const next = applyPlaceAvailable(slot({ state: "RESERVED_EMPTY", expected: face, expectedCardId: C }), card, B);
+test("posicionar: estado otimista leva o exemplar, a coleção de origem e a alocação", () => {
+  const next = applyPlaceAvailable(slot({ state: "RESERVED_EMPTY", expected: face, expectedCardId: C }), card);
   assert.equal(next.presentCollectionId, B);
   assert.equal(next.allocationId, A);
+  assert.equal(next.physicalCardId, C);
   assert.equal(next.state, "OCCUPIED_MATCH");
-  assert.equal(applyPlaceAvailable(slot({}), card, B).state, "OCCUPIED_UNPLANNED");
+  assert.equal(applyPlaceAvailable(slot({}), card).state, "OCCUPIED_UNPLANNED");
+  // Exemplar sem coleção: posição sem alocação e sem coleção de origem.
+  const loose = applyPlaceAvailable(slot({}), { ...card, allocationId: null, originKind: "NO_COLLECTION", originCollectionId: null, originCollectionName: null });
+  assert.equal(loose.allocationId, null);
+  assert.equal(loose.presentCollectionId, null);
+  assert.equal(loose.physicalCardId, C);
 });
 
 test("mover leva a coleção junto; reservar a carta atual registra a coleção dela", () => {
@@ -209,6 +223,61 @@ test("cartas disponíveis: total e junção sem duplicar", () => {
   const item = parsed?.items[0];
   assert.ok(item);
   assert.equal(mergeAvailable([item], [item]).length, 1);
+  // Contrato antigo (5230, sem colunas de origem): carta da coleção aberta.
+  assert.equal(item.originKind, "THIS");
+});
+
+test("cartas disponíveis (5252): exemplar sem coleção, outra coleção arquivada, junção pelo exemplar", () => {
+  const D = "77777777-7777-4777-8777-777777777777";
+  const parsed = parseAvailableCards([
+    {
+      collection_allocation_id: null,
+      physical_card_id: C,
+      card_id: C,
+      card_name: "Mudkip",
+      total_count: 27,
+      origin_collection_id: null,
+      origin_collection_name: null,
+      origin_lifecycle_status: null,
+      origin_kind: "NO_COLLECTION",
+    },
+    {
+      collection_allocation_id: A,
+      physical_card_id: D,
+      card_id: C,
+      card_name: "Mudkip",
+      total_count: 27,
+      origin_collection_id: B,
+      origin_collection_name: "Promo Megaevolução",
+      origin_lifecycle_status: "ARCHIVED",
+      origin_kind: "OTHER_COLLECTION",
+    },
+  ]);
+  assert.ok(parsed);
+  assert.equal(parsed.total, 27);
+  const [loose, other] = parsed.items;
+  assert.ok(loose && other);
+  assert.equal(loose.allocationId, null);
+  assert.equal(availableOriginLabel(loose), "Sem coleção");
+  assert.equal(other.originArchived, true);
+  assert.equal(availableOriginLabel(other), "Promo Megaevolução · arquivada");
+  assert.equal(availableOriginLabel({ originKind: "THIS", originCollectionName: "X", originArchived: false }), "Desta coleção");
+  // Mesmo card, exemplares diferentes: não colapsam.
+  assert.equal(mergeAvailable([loose], [other]).length, 2);
+  assert.equal(mergeAvailable([loose], [loose]).length, 1);
+  // Linha sem exemplar continua inválida.
+  assert.equal(parseAvailableCards([{ collection_allocation_id: A, card_id: C, card_name: "x" }]), null);
+});
+
+test("filtros de origem: Todas é o padrão; quatro opções; validação", () => {
+  assert.equal(DEFAULT_AVAILABLE_ORIGIN, "ALL");
+  assert.deepEqual(
+    AVAILABLE_ORIGINS.map((o) => o.label),
+    ["Todas", "Desta coleção", "Outras coleções", "Sem coleção"],
+  );
+  assert.equal(isAvailableOrigin("NO_COLLECTION"), true);
+  assert.equal(isAvailableOrigin("MINE"), false);
+  assert.equal(isAvailableOrigin(undefined), false);
 });
 
 test("prévia da desassociação: sem linha = não é convidada", () => {
@@ -250,9 +319,14 @@ test("bolso reservado só recebe carta da coleção dona da reserva", () => {
   assert.equal(isAddablePocket(slot({ state: "OCCUPIED_UNPLANNED" })), false);
 });
 
-test("origens das cartas: convidada vê a própria e a da dona; dona e coleção única só a própria", () => {
-  const base = { collectionId: B, collectionName: "Clássica", ownerCollectionId: A, ownerCollectionName: "Celebração" };
-  assert.deepEqual(placementSources({ ...base, role: "GUEST" }).map((s) => s.collectionId), [B, A]);
-  assert.deepEqual(placementSources({ ...base, collectionId: A, role: "OWNER" }).map((s) => s.collectionId), [A]);
-  assert.deepEqual(placementSources({ ...base, role: null, ownerCollectionId: null }).map((s) => s.collectionId), [B]);
+test("abas do seletor do bolso: livre = 4 origens; reservado = só a coleção da reserva", () => {
+  assert.deepEqual(
+    pickerOrigins({ state: "EMPTY", expectedCollectionId: null }, B).map((o) => o.key),
+    ["ALL", "THIS", "OTHER_COLLECTIONS", "NO_COLLECTION"],
+  );
+  assert.deepEqual(pickerOrigins({ state: "RESERVED_EMPTY", expectedCollectionId: B }, B), [{ key: "THIS", label: "Desta coleção", onlyCollectionId: null }]);
+  const other = pickerOrigins({ state: "RESERVED_EMPTY", expectedCollectionId: A }, B);
+  assert.equal(other.length, 1);
+  assert.equal(other[0]?.key, "OTHER_COLLECTIONS");
+  assert.equal(other[0]?.onlyCollectionId, A);
 });

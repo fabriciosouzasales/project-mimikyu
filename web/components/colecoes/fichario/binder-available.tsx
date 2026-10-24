@@ -3,7 +3,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { Loader2, RotateCcw, X } from "lucide-react";
 import { cardFrontUrl, formatCollectorNumber } from "@/lib/colecoes/acervo";
-import type { AvailableCard } from "@/lib/colecoes/binder-share";
+import { AVAILABLE_ORIGINS, type AvailableCard, type AvailableOrigin, availableOriginLabel } from "@/lib/colecoes/binder-share";
 import type { SlotDragData } from "./binder-slot";
 import styles from "./binder-available.module.css";
 
@@ -12,21 +12,26 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export type AvailableState = { status: "idle" | "loading" | "error" | "ready"; items: AvailableCard[]; total: number; loadingMore: boolean };
 
 /**
- * Cartas disponíveis (P2-SHARED-BINDER-FRONTEND-01) — exemplares DESTA
- * coleção que ainda não ocupam bolso (5230 `get_my_collection_binder_unplaced`).
+ * Cartas disponíveis — exemplares GUARDADOS neste fichário físico que ainda
+ * não ocupam bolso, de qualquer origem (BINDER-PHYSICAL-LOCATION, 5252
+ * `get_my_collection_binder_unplaced`). Filtro de origem (D3): Todas (padrão),
+ * Desta coleção, Outras coleções, Sem coleção — só recorta a lista.
  *
  * Não confundir com a Bandeja: a Bandeja é transporte temporário de cartas
  * que já estão no fichário; aqui ficam as cartas que ainda não têm lugar, e
  * a lista é persistente (vem do banco). Painel flutuante não modal: arrastar
  * uma carta até um bolso vazio, ou tocar na carta e depois no bolso. Cada
  * posicionamento é uma chamada à 5131 (`assign_card_to_slot`); nada acontece
- * sozinho e nenhuma carta substitui outra.
+ * sozinho e nenhuma carta substitui outra. Posicionar é a 5250
+ * (`place_my_physical_card_in_slot`), pelo exemplar.
  */
 export function AvailablePanel({
   collectionName,
   state,
   editable,
   armedId,
+  origin,
+  onOrigin,
   onArm,
   onLoadMore,
   onRetry,
@@ -36,6 +41,8 @@ export function AvailablePanel({
   state: AvailableState;
   editable: boolean;
   armedId: string | null;
+  origin: AvailableOrigin;
+  onOrigin: (origin: AvailableOrigin) => void;
   onArm: (card: AvailableCard) => void;
   onLoadMore: () => void;
   onRetry: () => void;
@@ -52,13 +59,28 @@ export function AvailablePanel({
           </h3>
           <p className={styles.hint}>
             {editable
-              ? `Cartas de ${collectionName} ainda sem bolso. Arraste até um bolso vazio, ou toque na carta e depois no bolso.`
-              : `Cartas de ${collectionName} ainda sem bolso. Coleção em modo leitura.`}
+              ? "Cartas guardadas neste fichário ainda sem bolso. Arraste até um bolso vazio, ou toque na carta e depois no bolso."
+              : "Cartas guardadas neste fichário ainda sem bolso. Coleção em modo leitura."}
           </p>
         </div>
         <button type="button" className={styles.close} onClick={onClose} aria-label="Fechar Cartas disponíveis">
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>
+      </div>
+
+      <div className={styles.filters} role="radiogroup" aria-label="Origem das cartas">
+        {AVAILABLE_ORIGINS.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            role="radio"
+            aria-checked={origin === option.key}
+            className={styles.filter}
+            onClick={() => onOrigin(option.key)}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
       <div className={styles.body}>
@@ -81,14 +103,20 @@ export function AvailablePanel({
           </div>
         ) : state.items.length === 0 ? (
           <div className={styles.state}>
-            <span className={styles.stateTitle}>Tudo no lugar</span>
-            Todas as cartas de {collectionName} já estão nos bolsos.
+            <span className={styles.stateTitle}>{origin === "ALL" ? "Tudo no lugar" : "Nada neste filtro"}</span>
+            {origin === "ALL"
+              ? "Todas as cartas guardadas neste fichário já estão nos bolsos."
+              : origin === "THIS"
+                ? `Todas as cartas de ${collectionName} guardadas aqui já estão nos bolsos.`
+                : origin === "OTHER_COLLECTIONS"
+                  ? "Nenhuma carta de outras coleções guardada aqui está sem bolso."
+                  : "Nenhuma carta sem coleção guardada aqui está sem bolso."}
           </div>
         ) : (
           <>
             <ul className={styles.grid}>
               {state.items.map((card) => (
-                <AvailableItem key={card.allocationId} card={card} editable={editable} armed={armedId === card.allocationId} onArm={onArm} />
+                <AvailableItem key={card.physicalCardId} card={card} editable={editable} armed={armedId === card.physicalCardId} onArm={onArm} />
               ))}
             </ul>
             {remaining > 0 ? (
@@ -108,14 +136,15 @@ export function AvailablePanel({
 
 function AvailableItem({ card, editable, armed, onArm }: { card: AvailableCard; editable: boolean; armed: boolean; onArm: (card: AvailableCard) => void }) {
   const { setNodeRef, listeners, isDragging } = useDraggable({
-    id: `available:${card.allocationId}`,
-    // `slotId` carrega a alocação: cartas disponíveis ainda não têm bolso.
-    data: { kind: "available", slotId: card.allocationId } satisfies SlotDragData,
+    id: `available:${card.physicalCardId}`,
+    // `slotId` carrega o exemplar: cartas disponíveis ainda não têm bolso.
+    data: { kind: "available", slotId: card.physicalCardId } satisfies SlotDragData,
     disabled: !editable,
   });
   const src = cardFrontUrl(SUPABASE_URL, card.imagePath);
   const number = card.collectorNumber ? formatCollectorNumber(card.collectorNumber, card.collectorTotal) : null;
   const detail = [number, card.variantLabel, card.languageCode?.toUpperCase()].filter(Boolean).join(" · ");
+  const originText = availableOriginLabel(card);
   return (
     <li>
       <button
@@ -124,7 +153,7 @@ function AvailableItem({ card, editable, armed, onArm }: { card: AvailableCard; 
         className={styles.card}
         aria-pressed={armed}
         aria-disabled={!editable || undefined}
-        aria-label={`${card.cardName}${detail ? `, ${detail}` : ""}. ${armed ? "Escolhida: toque num bolso vazio." : "Escolher para colocar num bolso."}`}
+        aria-label={`${card.cardName}${detail ? `, ${detail}` : ""}. Origem: ${originText}. ${armed ? "Escolhida: toque num bolso vazio." : "Escolher para colocar num bolso."}`}
         title={card.cardName}
         data-dragging={isDragging || undefined}
         onClick={() => editable && onArm(card)}
@@ -138,6 +167,9 @@ function AvailableItem({ card, editable, armed, onArm }: { card: AvailableCard; 
         )}
       </button>
       <p className={styles.caption}>{detail || card.cardName}</p>
+      <p className={styles.origin} data-kind={card.originKind} title={originText}>
+        {originText}
+      </p>
     </li>
   );
 }

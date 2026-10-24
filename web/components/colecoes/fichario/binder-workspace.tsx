@@ -66,12 +66,13 @@ import {
 } from "@/lib/colecoes/binder";
 import {
   type AvailableCard,
+  type AvailableOrigin,
+  DEFAULT_AVAILABLE_ORIGIN,
   applyPlaceAvailable,
   canReceiveAvailable,
   isAddablePocket,
   isForeignSlot,
   mergeAvailable,
-  placementSources,
 } from "@/lib/colecoes/binder-share";
 import { applySlotImage, imageFailureMessage } from "@/lib/colecoes/binder-images";
 import { type GapPreview, gapFailureMessage } from "@/lib/colecoes/binder-insert";
@@ -105,7 +106,7 @@ const UNDO_MAX = 40;
 
 /** "Desfazer" do espaço aberto (5243): o banco confere o token antes de fechar. */
 type GapUndo = { gapSlotId: string; endSlotId: string; undoToken: string; addedPageId: string | null; pages: number[] };
-type Toast = { tone: "success" | "error" | "info"; text: string; undo?: { slotId: string; allocationId: string }[]; gapUndo?: GapUndo } | null;
+type Toast = { tone: "success" | "error" | "info"; text: string; undo?: { slotId: string; physicalCardId: string }[]; gapUndo?: GapUndo } | null;
 type Confirm = { slotIds: string[]; lockedSkipped: number } | null;
 type Entry = { page: number; slot: BinderSlot };
 
@@ -154,6 +155,7 @@ export function BinderWorkspace({
   ownerCollectionName = null,
   participantCount = 1,
   ownUnplacedCount = 0,
+  availableCount,
 }: {
   variant: "overlay" | "page";
   collectionId: string;
@@ -180,8 +182,10 @@ export function BinderWorkspace({
   ownerCollectionId?: string | null;
   ownerCollectionName?: string | null;
   participantCount?: number;
-  /** Cartas desta coleção ainda sem bolso (badge de "Cartas disponíveis"). */
+  /** Cartas desta coleção ainda sem bolso (contrato antigo; fallback do badge). */
   ownUnplacedCount?: number;
+  /** 5252: exemplares guardados no fichário físico e sem bolso, de qualquer origem (badge de "Cartas disponíveis"). */
+  availableCount?: number;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   // Total de páginas vivo: cresce quando o colecionador adiciona páginas (5125).
@@ -383,7 +387,9 @@ export function BinderWorkspace({
   const shared = participantCount > 1;
   const [onlyMine, setOnlyMine] = useState(false);
   const [availableOpen, setAvailableOpen] = useState(false);
-  const [available, setAvailable] = useState<AvailableState>({ status: "idle", items: [], total: ownUnplacedCount, loadingMore: false });
+  const [available, setAvailable] = useState<AvailableState>({ status: "idle", items: [], total: availableCount ?? ownUnplacedCount, loadingMore: false });
+  // Filtro de origem (D3): "Todas" por padrão; só recorta a lista, nunca a elegibilidade.
+  const [availableOrigin, setAvailableOrigin] = useState<AvailableOrigin>(DEFAULT_AVAILABLE_ORIGIN);
   const [armedCard, setArmedCard] = useState<AvailableCard | null>(null);
   // "Adicionar carta" no bolso vazio e "Adicionar páginas" (P2-BINDER-CAPACITY-AND-EMPTY-SLOT-01).
   const [pocketTarget, setPocketTarget] = useState<Entry | null>(null);
@@ -403,16 +409,12 @@ export function BinderWorkspace({
   const [imageShape, setImageShape] = useState<"single" | "wide">("single");
   const [regionTarget, setRegionTarget] = useState<{ regionId: string; mode: RegionDialogMode } | null>(null);
   const [gapDialog, setGapDialog] = useState<GapDialogState | null>(null);
-  const sources = useMemo(
-    () => placementSources({ collectionId, collectionName, role, ownerCollectionId, ownerCollectionName }),
-    [collectionId, collectionName, ownerCollectionId, ownerCollectionName, role],
-  );
-  const availableById = useMemo(() => new Map(available.items.map((card) => [card.allocationId, card])), [available.items]);
+  const availableById = useMemo(() => new Map(available.items.map((card) => [card.physicalCardId, card])), [available.items]);
 
   const loadAvailable = useCallback(
-    async (offset: number) => {
+    async (offset: number, origin: AvailableOrigin = availableOrigin) => {
       setAvailable((prev) => (offset === 0 ? { ...prev, status: "loading" } : { ...prev, loadingMore: true }));
-      const result = await readAvailableCards({ collectionId, offset });
+      const result = await readAvailableCards({ collectionId, offset, origin });
       setAvailable((prev) => {
         if (!result.ok) return offset === 0 ? { ...prev, status: "error", loadingMore: false } : { ...prev, loadingMore: false };
         return {
@@ -424,7 +426,17 @@ export function BinderWorkspace({
       });
       if (!result.ok && offset > 0) setToast({ tone: "error", text: "Não conseguimos carregar mais cartas. Tente de novo." });
     },
-    [collectionId],
+    [availableOrigin, collectionId],
+  );
+
+  const changeAvailableOrigin = useCallback(
+    (origin: AvailableOrigin) => {
+      if (origin === availableOrigin) return;
+      setAvailableOrigin(origin);
+      setArmedCard(null);
+      void loadAvailable(0, origin);
+    },
+    [availableOrigin, loadAvailable],
   );
 
   const toggleAvailable = useCallback(() => {
@@ -586,12 +598,12 @@ export function BinderWorkspace({
     [addingPages, collectionId, columns, editable, fail, layoutId, refreshPages, rows, totalPages],
   );
 
-  /** Posicionar uma carta disponível (5131). Só bolso vazio e solto — nunca substitui outra carta. */
+  /** Posicionar um exemplar disponível (5250, pelo exemplar). Só bolso vazio e solto — nunca substitui outra carta. */
   const placeAvailable = useCallback(
-    async (card: AvailableCard, toId: string, sourceCollectionId: string = collectionId) => {
+    async (card: AvailableCard, toId: string) => {
       const to = slotIndex.get(toId);
       if (!to || !editable || busy) return;
-      if (!canReceiveAvailable(to.slot, sourceCollectionId)) {
+      if (!canReceiveAvailable(to.slot, card.originCollectionId ?? undefined)) {
         setToast({
           tone: "info",
           text: to.slot.locked
@@ -604,26 +616,26 @@ export function BinderWorkspace({
         });
         return;
       }
-      const own = sourceCollectionId === collectionId;
-      patchSlots([applyPlaceAvailable(to.slot, card, sourceCollectionId)]);
+      patchSlots([applyPlaceAvailable(to.slot, card)]);
       setArmedCard(null);
       setSelected(new Set());
-      if (own) {
-        setAvailable((prev) => ({ ...prev, items: prev.items.filter((item) => item.allocationId !== card.allocationId), total: Math.max(0, prev.total - 1) }));
-      }
+      setAvailable((prev) => ({
+        ...prev,
+        items: prev.items.filter((item) => item.physicalCardId !== card.physicalCardId),
+        total: Math.max(0, prev.total - (prev.items.some((item) => item.physicalCardId === card.physicalCardId) ? 1 : 0)),
+      }));
       setBusy(true);
-      const result = await placeAvailableCard({ collectionId, slotId: toId, allocationId: card.allocationId });
+      const result = await placeAvailableCard({ collectionId, slotId: toId, physicalCardId: card.physicalCardId });
       setBusy(false);
       if (result.ok) {
         setFilled((value) => value + 1);
         setToast({ tone: "success", text: `${card.cardName} foi para a página ${to.page}.` });
       } else {
         patchSlots([to.slot]);
-        // Devolve a carta à lista; "já tem lugar" ou estado velho relê a lista do banco.
-        if (own) {
-          if (result.reason === "already_placed" || result.reason === "stale" || result.reason === "unknown") void loadAvailable(0);
-          else setAvailable((prev) => ({ ...prev, items: [card, ...prev.items], total: prev.total + 1 }));
-        }
+        // Devolve a carta à lista; "já tem lugar", fora do local ou estado velho relê a lista do banco.
+        if (result.reason === "already_placed" || result.reason === "stale" || result.reason === "unknown" || result.reason === "not_in_location") {
+          void loadAvailable(0);
+        } else setAvailable((prev) => ({ ...prev, items: [card, ...prev.items], total: prev.total + 1 }));
         fail(result.reason);
       }
       await refreshPages([to.page]);
@@ -1017,7 +1029,7 @@ export function BinderWorkspace({
       setConfirm(null);
       if (targets.length === 0 || busy || !editable) return;
       if (targets.length > SLOT_BATCH_MAX) return fail("too_many");
-      const undo = targets.filter(({ slot }) => slot.allocationId).map(({ slot }) => ({ slotId: slot.slotId, allocationId: slot.allocationId as string }));
+      const undo = targets.filter(({ slot }) => slot.physicalCardId).map(({ slot }) => ({ slotId: slot.slotId, physicalCardId: slot.physicalCardId as string }));
       patchSlots(targets.map(({ slot }) => applyRemove(slot)));
       setSelected(new Set());
       setBusy(true);
@@ -1040,14 +1052,14 @@ export function BinderWorkspace({
   );
 
   const runUndo = useCallback(
-    async (items: { slotId: string; allocationId: string }[]) => {
+    async (items: { slotId: string; physicalCardId: string }[]) => {
       if (busy) return;
       setToast(null);
       setBusy(true);
       let restored = 0;
       let failure: SlotFailure | null = null;
       for (const item of items) {
-        const result = await restoreToSlot({ collectionId, slotId: item.slotId, allocationId: item.allocationId });
+        const result = await restoreToSlot({ collectionId, slotId: item.slotId, physicalCardId: item.physicalCardId });
         if (!result.ok) {
           failure = result.reason;
           break;
@@ -1503,11 +1515,13 @@ export function BinderWorkspace({
               collectionName={collectionName}
               state={available}
               editable={editable}
-              armedId={armedCard?.allocationId ?? null}
+              armedId={armedCard?.physicalCardId ?? null}
+              origin={availableOrigin}
+              onOrigin={changeAvailableOrigin}
               onArm={(card) => {
                 setSelected(new Set());
                 setArmed(null);
-                setArmedCard((current) => (current?.allocationId === card.allocationId ? null : card));
+                setArmedCard((current) => (current?.physicalCardId === card.physicalCardId ? null : card));
               }}
               onLoadMore={() => void loadAvailable(available.items.length)}
               onRetry={() => void loadAvailable(0)}
@@ -1597,11 +1611,11 @@ export function BinderWorkspace({
             host={rootRef.current}
             target={pocketTarget.slot}
             pageNumber={pocketTarget.page}
-            sources={sources}
-            onPick={(card, source) => {
+            collectionId={collectionId}
+            onPick={(card) => {
               const slotId = pocketTarget.slot.slotId;
               setPocketTarget(null);
-              void placeAvailable(card, slotId, source);
+              void placeAvailable(card, slotId);
             }}
             onClose={() => setPocketTarget(null)}
             imageTab={

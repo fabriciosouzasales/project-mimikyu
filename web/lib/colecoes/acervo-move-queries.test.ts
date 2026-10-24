@@ -45,6 +45,10 @@ class FakeDb {
   writes: { ids: string[]; target: string | null }[] = [];
   writeResult: ((ids: string[], target: string | null) => Result) | null = null;
   writeThrows = false;
+  /** Exemplares num bolso do fichário digital (D3) e, entre eles, os de bolso fixado. */
+  positioned = new Set<string>();
+  locked = new Set<string>();
+  writeFlags: boolean[] = [];
   onRead: ((table: string, call: number) => void) | null = null;
   private reads = 0;
 
@@ -75,10 +79,28 @@ class FakeDb {
             error: null,
           });
         }
+        if (fn === "preview_my_physical_cards_binder_impact") {
+          const ids = args?.p_physical_card_ids as string[];
+          const moving = ids.filter((copyId) => db.positioned.has(copyId));
+          return Promise.resolve({
+            data: [{ positioned_count: moving.filter((x) => !db.locked.has(x)).length, locked_count: moving.filter((x) => db.locked.has(x)).length }],
+            error: null,
+          });
+        }
         if (fn === "set_physical_cards_storage") {
           if (db.writeThrows) return Promise.reject(new Error("network"));
           const ids = args?.p_physical_card_ids as string[];
           const target = (args?.p_storage_container_id ?? null) as string | null;
+          const confirm = args?.p_unplace_from_binder === true;
+          db.writeFlags.push(confirm);
+          const placed = ids.filter((copyId) => db.positioned.has(copyId));
+          if (placed.some((copyId) => db.locked.has(copyId))) {
+            return Promise.resolve({ data: null, error: { code: "55000", message: "BINDER_POSITION_LOCKED" } });
+          }
+          if (placed.length > 0 && !confirm) {
+            return Promise.resolve({ data: null, error: { code: "55000", message: "BINDER_POSITION_CONFIRMATION_REQUIRED" } });
+          }
+          for (const copyId of placed) db.positioned.delete(copyId);
           db.writes.push({ ids, target });
           if (db.writeResult) return Promise.resolve(db.writeResult(ids, target));
           const rows = db.tables.physical_card!.filter((r) => ids.includes(r.id as string));
@@ -260,7 +282,7 @@ test("salvaguarda 1: chave sem exemplar aparece na prévia e bloqueia a escrita"
   const r = await resolveMoveSet(db.client(), req([K1, K2], {}, LOC_A));
   assert.ok(r.ok);
   assert.deepEqual(r.preview.unresolvedKeys, [`${V2}.en`]);
-  const e = await executeMove(db.client(), { ...req([K1, K2], {}, LOC_A), planToken: r.preview.token, expectedCount: 2 });
+  const e = await executeMove(db.client(), { ...req([K1, K2], {}, LOC_A), planToken: r.preview.token, expectedCount: 2, expectedUnplace: 0 });
   assert.deepEqual(e, { ok: false, reason: "unresolved" });
   assert.equal(db.writes.length, 0);
   const nothing = await resolveMoveSet(db.client(), req([K2], {}, LOC_A));
@@ -279,7 +301,7 @@ test("confirmação: uma única chamada à 5024 com exatamente os ids a mover", 
   db.addCopies(2, 1);
   db.addCopies(1, 3, { storage: LOC_A });
   const p = await preview(db, {}, LOC_A);
-  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove });
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove, expectedUnplace: 0 });
   assert.deepEqual(e, { ok: true, updated: 2, atTarget: 1, targetName: "Fichário" });
   assert.equal(db.writes.length, 1);
   assert.deepEqual(db.writes[0], { ids: [id(1), id(2)], target: LOC_A });
@@ -289,7 +311,7 @@ test("destino nulo remove a localização", async () => {
   const db = new FakeDb();
   db.addCopies(2, 1, { storage: LOC_A });
   const p = await preview(db, { local: LOC_A }, null);
-  const e = await executeMove(db.client(), { ...req([K1], { local: LOC_A }, null), planToken: p.token, expectedCount: p.toMove });
+  const e = await executeMove(db.client(), { ...req([K1], { local: LOC_A }, null), planToken: p.token, expectedCount: p.toMove, expectedUnplace: 0 });
   assert.ok(e.ok);
   assert.deepEqual(db.writes[0], { ids: [id(1), id(2)], target: null });
 });
@@ -299,7 +321,7 @@ test("todos já no destino: nada a gravar, sem chamar a 5024", async () => {
   db.addCopies(2, 1, { storage: LOC_A });
   const p = await preview(db, {}, LOC_A);
   assert.equal(p.toMove, 0);
-  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: 0 });
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: 0, expectedUnplace: 0 });
   assert.deepEqual(e, { ok: true, updated: 0, atTarget: 2, targetName: "Fichário" });
   assert.equal(db.writes.length, 0);
 });
@@ -312,7 +334,7 @@ test("exemplar removido, adicionado ou movido entre prévia e confirmação → 
     if (change === "removed") db.tables.physical_card!.pop();
     if (change === "added") db.addCopies(1, 9);
     if (change === "moved") db.tables.physical_card![0]!.storage_container_id = LOC_B;
-    const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove });
+    const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove, expectedUnplace: 0 });
     assert.equal(e.ok, false, change);
     assert.equal(!e.ok && e.reason, "plan_changed", change);
     assert.ok(!e.ok && e.reason === "plan_changed" && "preview" in e && e.preview.token !== p.token, change);
@@ -324,7 +346,7 @@ test("quantidade confirmada diferente da prévia → plan_changed", async () => 
   const db = new FakeDb();
   db.addCopies(3, 1);
   const p = await preview(db, {}, LOC_A);
-  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: 99 });
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: 99, expectedUnplace: 0 });
   assert.equal(!e.ok && e.reason, "plan_changed");
   assert.equal(db.writes.length, 0);
 });
@@ -333,7 +355,7 @@ test("confirmação duplicada: a segunda não grava de novo", async () => {
   const db = new FakeDb();
   db.addCopies(3, 1);
   const p = await preview(db, {}, LOC_A);
-  const input = { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove };
+  const input = { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove, expectedUnplace: 0 };
   const [first, second] = [await executeMove(db.client(), input), await executeMove(db.client(), input)];
   assert.ok(first.ok);
   assert.equal(!second.ok && second.reason, "plan_changed");
@@ -353,7 +375,7 @@ test("resultado desconhecido (rede/forma) e erros definitivos do banco", async (
     const db = Object.assign(new FakeDb(), patch);
     db.addCopies(2, 1);
     const p = await preview(db, {}, LOC_A);
-    const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove });
+    const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove, expectedUnplace: 0 });
     assert.equal(!e.ok && e.reason, expected);
     assert.ok(db.writes.length <= 1, "nunca repete a escrita");
   }
@@ -364,7 +386,62 @@ test("destino excluído entre prévia e confirmação → storage_gone, sem escr
   db.addCopies(2, 1);
   const p = await preview(db, {}, LOC_A);
   db.tables.storage_container = db.tables.storage_container!.filter((r) => r.id !== LOC_A);
-  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove });
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: p.token, expectedCount: p.toMove, expectedUnplace: 0 });
   assert.deepEqual(e, { ok: false, reason: "storage_gone" });
   assert.equal(db.writes.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// BINDER-PHYSICAL-LOCATION (D3): exemplar posicionado no fichário digital
+// ---------------------------------------------------------------------------
+
+test("D3: prévia conta os que saem do bolso; confirmar com a contagem certa grava com a confirmação", async () => {
+  const db = new FakeDb();
+  db.addCopies(3, 1, { storage: LOC_B });
+  db.positioned.add(id(1));
+  db.positioned.add(id(2));
+  const r = await resolveMoveSet(db.client(), req([K1], {}, LOC_A));
+  assert.ok(r.ok);
+  assert.equal(r.preview.binderPositioned, 2);
+  assert.equal(r.preview.binderLocked, 0);
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: r.preview.token, expectedCount: r.preview.toMove, expectedUnplace: 2 });
+  assert.ok(e.ok);
+  assert.deepEqual(db.writeFlags, [true]);
+  assert.equal(db.positioned.size, 0);
+});
+
+test("D3: contagem de bolsos diferente da prévia confirmada → plan_changed sem gravar", async () => {
+  const db = new FakeDb();
+  db.addCopies(2, 1, { storage: LOC_B });
+  db.positioned.add(id(1));
+  const r = await resolveMoveSet(db.client(), req([K1], {}, LOC_A));
+  assert.ok(r.ok);
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: r.preview.token, expectedCount: r.preview.toMove, expectedUnplace: 0 });
+  assert.equal(e.ok, false);
+  assert.equal(!e.ok && e.reason, "plan_changed");
+  assert.equal(db.writes.length, 0);
+});
+
+test("D3: bolso fixado bloqueia a mudança (binder_locked), nada é gravado", async () => {
+  const db = new FakeDb();
+  db.addCopies(2, 1, { storage: LOC_B });
+  db.positioned.add(id(1));
+  db.locked.add(id(1));
+  const r = await resolveMoveSet(db.client(), req([K1], {}, LOC_A));
+  assert.ok(r.ok);
+  assert.equal(r.preview.binderLocked, 1);
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: r.preview.token, expectedCount: r.preview.toMove, expectedUnplace: 0 });
+  assert.equal(!e.ok && e.reason, "binder_locked");
+  assert.equal(db.writes.length, 0);
+});
+
+test("D3: sem exemplar posicionado a escrita vai sem confirmação de fichário", async () => {
+  const db = new FakeDb();
+  db.addCopies(2, 1, { storage: LOC_B });
+  const r = await resolveMoveSet(db.client(), req([K1], {}, LOC_A));
+  assert.ok(r.ok);
+  assert.equal(r.preview.binderPositioned, 0);
+  const e = await executeMove(db.client(), { ...req([K1], {}, LOC_A), planToken: r.preview.token, expectedCount: r.preview.toMove, expectedUnplace: 0 });
+  assert.ok(e.ok);
+  assert.deepEqual(db.writeFlags, [false]);
 });

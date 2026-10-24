@@ -79,8 +79,8 @@ export function BinderEntry({
               {isSharedBinder(binder)
                 ? `${formatCount(binder.ownFilledCount)} ${binder.ownFilledCount === 1 ? "carta desta coleção nos bolsos" : "cartas desta coleção nos bolsos"}`
                 : `${formatCount(binder.filledCount)} ${binder.filledCount === 1 ? "carta nos bolsos" : "cartas nos bolsos"}`}
-              {binder.ownUnplacedCount > 0 && binder.editable
-                ? ` · ${formatCount(binder.ownUnplacedCount)} ${binder.ownUnplacedCount === 1 ? "disponível" : "disponíveis"}`
+              {binder.availableCount > 0 && binder.editable
+                ? ` · ${formatCount(binder.availableCount)} ${binder.availableCount === 1 ? "disponível" : "disponíveis"}`
                 : ""}
             </span>
           </span>

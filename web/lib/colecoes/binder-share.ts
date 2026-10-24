@@ -9,9 +9,12 @@ import { type BinderSlot, deriveSlotState, isOccupied } from "./binder.ts";
  *    pode usar (mesmo dono, mesmo fichário físico; não grava);
  *  - 5229 `attach_my_collection_to_binder(coleção, fichário)` — associação
  *    explícita; não toca bolso, reserva nem alocação (D1/D3);
- *  - 5230 `get_my_collection_binder_unplaced(coleção, limite ≤ 96, início)` —
- *    "Cartas disponíveis": exemplares desta coleção fora dos bolsos;
- *  - 5131 `assign_card_to_slot(bolso, alocação)` — posicionar (D4);
+ *  - 5252 `get_my_collection_binder_unplaced(coleção, limite ≤ 96, início,
+ *    origem)` — "Cartas disponíveis": exemplares GUARDADOS no fichário físico
+ *    e sem bolso, de qualquer origem (BINDER-PHYSICAL-LOCATION); o filtro de
+ *    origem só recorta a lista, nunca muda a elegibilidade;
+ *  - 5250 `place_my_physical_card_in_slot(coleção, bolso, exemplar)` —
+ *    posicionar pelo exemplar (substitui a 5131 nesta tela);
  *  - 5229 `preview_my_collection_binder_detach(coleção)` + `detach_…(coleção,
  *    token, soltar_fixados)` — sair do fichário compartilhado (D5/D6).
  *
@@ -92,8 +95,28 @@ export function parseAttachOutcome(rows: unknown): AttachOutcome | null {
 export const AVAILABLE_PAGE_SIZE = 48;
 export const AVAILABLE_MAX_LIMIT = 96;
 
+/** Filtro de origem (D3 da rodada READINESS): "Todas" é o padrão. */
+export type AvailableOrigin = "ALL" | "THIS" | "OTHER_COLLECTIONS" | "NO_COLLECTION";
+
+export const AVAILABLE_ORIGINS: readonly { key: AvailableOrigin; label: string }[] = [
+  { key: "ALL", label: "Todas" },
+  { key: "THIS", label: "Desta coleção" },
+  { key: "OTHER_COLLECTIONS", label: "Outras coleções" },
+  { key: "NO_COLLECTION", label: "Sem coleção" },
+];
+
+export const DEFAULT_AVAILABLE_ORIGIN: AvailableOrigin = "ALL";
+
+export function isAvailableOrigin(value: unknown): value is AvailableOrigin {
+  return value === "ALL" || value === "THIS" || value === "OTHER_COLLECTIONS" || value === "NO_COLLECTION";
+}
+
+/** De onde vem a carta, em relação à coleção aberta. */
+export type AvailableOriginKind = "THIS" | "OTHER_COLLECTION" | "NO_COLLECTION";
+
 export type AvailableCard = {
-  allocationId: string;
+  /** Alocação vigente; `null` = exemplar sem coleção (elegível pelo local físico). */
+  allocationId: string | null;
   physicalCardId: string;
   cardId: string;
   variantTypeId: string | null;
@@ -104,6 +127,10 @@ export type AvailableCard = {
   variantLabel: string | null;
   languageCode: string | null;
   imagePath: string | null;
+  originKind: AvailableOriginKind;
+  originCollectionId: string | null;
+  originCollectionName: string | null;
+  originArchived: boolean;
 };
 
 export function parseAvailableCards(rows: unknown): { items: AvailableCard[]; total: number } | null {
@@ -117,7 +144,15 @@ export function parseAvailableCards(rows: unknown): { items: AvailableCard[]; to
     const physicalCardId = uuid(r.physical_card_id);
     const cardId = uuid(r.card_id);
     const name = str(r.card_name);
-    if (!allocationId || !physicalCardId || !cardId || !name) return null;
+    if (!physicalCardId || !cardId || !name) return null;
+    const originCollectionId = uuid(r.origin_collection_id);
+    // Sem as colunas de origem (contrato antigo, 5230): eram sempre cartas da coleção aberta.
+    const originKind: AvailableOriginKind =
+      r.origin_kind === "THIS" || r.origin_kind === "OTHER_COLLECTION" || r.origin_kind === "NO_COLLECTION"
+        ? r.origin_kind
+        : allocationId
+          ? "THIS"
+          : "NO_COLLECTION";
     total = Math.max(total, int(r.total_count) ?? 0);
     items.push({
       allocationId,
@@ -131,15 +166,43 @@ export function parseAvailableCards(rows: unknown): { items: AvailableCard[]; to
       variantLabel: str(r.variant_label),
       languageCode: str(r.language_code),
       imagePath: str(r.image_path),
+      originKind,
+      originCollectionId: originKind === "NO_COLLECTION" ? null : originCollectionId,
+      originCollectionName: originKind === "NO_COLLECTION" ? null : str(r.origin_collection_name),
+      originArchived: r.origin_lifecycle_status === "ARCHIVED",
     });
   }
   return { items, total: items.length === 0 ? 0 : Math.max(total, items.length) };
 }
 
+/** Origem legível ("Desta coleção", nome da outra coleção — arquivada —, "Sem coleção"). */
+export function availableOriginLabel(card: Pick<AvailableCard, "originKind" | "originCollectionName" | "originArchived">): string {
+  if (card.originKind === "NO_COLLECTION") return "Sem coleção";
+  if (card.originKind === "THIS") return "Desta coleção";
+  const name = card.originCollectionName ?? "Outra coleção";
+  return card.originArchived ? `${name} · arquivada` : name;
+}
+
+/**
+ * Abas do seletor "Adicionar carta" no bolso vazio. Bolso livre: os quatro
+ * filtros de origem. Bolso reservado: só cartas da coleção dona da reserva —
+ * a coleção aberta ("Desta coleção") ou outra (filtrada pela coleção).
+ */
+export function pickerOrigins(
+  target: { state: string; expectedCollectionId: string | null },
+  collectionId: string,
+): { key: AvailableOrigin; label: string; onlyCollectionId: string | null }[] {
+  if (target.state === "RESERVED_EMPTY" && target.expectedCollectionId) {
+    if (target.expectedCollectionId === collectionId) return [{ key: "THIS", label: "Desta coleção", onlyCollectionId: null }];
+    return [{ key: "OTHER_COLLECTIONS", label: "Coleção da reserva", onlyCollectionId: target.expectedCollectionId }];
+  }
+  return AVAILABLE_ORIGINS.map((origin) => ({ ...origin, onlyCollectionId: null }));
+}
+
 /** Junta páginas sem duplicar (a lista pode ter mudado entre uma página e outra). */
 export function mergeAvailable(current: readonly AvailableCard[], next: readonly AvailableCard[]): AvailableCard[] {
-  const seen = new Set(current.map((item) => item.allocationId));
-  return [...current, ...next.filter((item) => !seen.has(item.allocationId))];
+  const seen = new Set(current.map((item) => item.physicalCardId));
+  return [...current, ...next.filter((item) => !seen.has(item.physicalCardId))];
 }
 
 /**
@@ -163,28 +226,8 @@ export function isAddablePocket(slot: Pick<BinderSlot, "state" | "locked"> & Par
   return !slot.locked && !slot.image && !slot.regionId && (slot.state === "EMPTY" || slot.state === "RESERVED_EMPTY");
 }
 
-/**
- * Coleções cujas cartas sem bolso podem ir para este fichário, a partir do
- * que o cabeçalho (5230) revela: a própria e, para a convidada, a
- * proprietária. A proprietária não conhece as convidadas pela leitura atual
- * (não há contrato que as liste), então vê só as próprias cartas.
- */
-export function placementSources(input: {
-  collectionId: string;
-  collectionName: string;
-  role: "OWNER" | "GUEST" | null;
-  ownerCollectionId: string | null;
-  ownerCollectionName: string | null;
-}): { collectionId: string; name: string }[] {
-  const sources = [{ collectionId: input.collectionId, name: input.collectionName }];
-  if (input.role === "GUEST" && input.ownerCollectionId && input.ownerCollectionId !== input.collectionId) {
-    sources.push({ collectionId: input.ownerCollectionId, name: input.ownerCollectionName ?? "Coleção dona do fichário" });
-  }
-  return sources;
-}
-
 /** Estado provável do bolso logo depois de posicionar (a tela relê o lote em seguida). */
-export function applyPlaceAvailable(slot: BinderSlot, card: AvailableCard, collectionId: string): BinderSlot {
+export function applyPlaceAvailable(slot: BinderSlot, card: AvailableCard): BinderSlot {
   const next: BinderSlot = {
     ...slot,
     present: {
@@ -200,9 +243,10 @@ export function applyPlaceAvailable(slot: BinderSlot, card: AvailableCard, colle
     },
     assignmentId: null,
     allocationId: card.allocationId,
+    physicalCardId: card.physicalCardId,
     presentCardId: card.cardId,
     presentVariantTypeId: card.variantTypeId,
-    presentCollectionId: collectionId,
+    presentCollectionId: card.originCollectionId,
   };
   return { ...next, state: deriveSlotState(next) };
 }

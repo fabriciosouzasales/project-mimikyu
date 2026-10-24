@@ -5,6 +5,7 @@ import { resolveCardSetForAdd } from "@/app/colecoes/acervo/actions";
 import { ACERVO_PATH } from "@/lib/colecoes/acervo";
 import { isUuid } from "@/lib/colecoes/acervo-add";
 import { type BinderFinish, isBinderFinish } from "@/lib/colecoes/binder-finish";
+import { type BinderImpact, parseBinderImpact } from "@/lib/colecoes/binder-location";
 import {
   COLECOES_PATH,
   type CollectionFailure,
@@ -998,8 +999,12 @@ export async function readCollectionStoragePlan(input: {
     p_storage_container_id: input.storageContainerId,
   });
   if (error) return organizeFail("get_my_collection_storage_plan", startedAt, error);
-  const plan = Array.isArray(data) && data.length === 1 ? parseOrganizePlan(data[0]) : null;
-  if (!plan) return organizeFail("get_my_collection_storage_plan", startedAt, { code: "BAD_SHAPE" });
+  const parsed = Array.isArray(data) && data.length === 1 ? parseOrganizePlan(data[0]) : null;
+  if (!parsed) return organizeFail("get_my_collection_storage_plan", startedAt, { code: "BAD_SHAPE" });
+  // 5249 (D1): quantos elegíveis de cada modalidade estão em bolsos do fichário digital.
+  const binder = await readOrganizeBinderImpact(supabase, input.collectionId, input.storageContainerId);
+  if (!binder) return organizeFail("preview_my_collection_storage_binder_impact", startedAt, { code: "BAD_SHAPE" });
+  const plan: OrganizePlan = { ...parsed, binder };
   console.info(JSON.stringify({ scope: "colecoes.organize_plan", ms: Date.now() - startedAt, total: plan.totalCount }));
   return { ok: true, plan };
 }
@@ -1012,12 +1017,33 @@ export async function readCollectionStoragePlan(input: {
  * navegador e nada é dividido em lotes. `moved` é o número DEVOLVIDO pelo
  * banco.
  */
+async function readOrganizeBinderImpact(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  collectionId: string,
+  storageContainerId: string,
+): Promise<Record<OrganizeMode, BinderImpact> | null> {
+  const [unlocated, all] = await Promise.all(
+    (["UNLOCATED", "ALL"] as const).map((mode) =>
+      supabase.rpc("preview_my_collection_storage_binder_impact", {
+        p_collection_id: collectionId,
+        p_storage_container_id: storageContainerId,
+        p_mode: mode,
+      }),
+    ),
+  );
+  const u = unlocated?.error ? null : parseBinderImpact(unlocated?.data);
+  const a = all?.error ? null : parseBinderImpact(all?.data);
+  return u && a ? { UNLOCATED: u, ALL: a } : null;
+}
+
 export async function organizeCollectionStorage(input: {
   collectionId: string;
   storageContainerId: string;
   mode: OrganizeMode;
   expectedCount: number;
   planToken: string;
+  /** D1 (5249): quantos exemplares a prévia confirmada mostrou saindo dos bolsos do fichário. */
+  expectedUnplace: number;
 }): Promise<{ ok: true; moved: number; total: number; atTarget: number } | OrganizeFail> {
   if (!COLLECTION_MANAGE_ENABLED) return { ok: false, reason: "unknown" };
   if (
@@ -1027,18 +1053,31 @@ export async function organizeCollectionStorage(input: {
     !Number.isInteger(input.expectedCount) ||
     input.expectedCount < 1 ||
     typeof input.planToken !== "string" ||
-    !PLAN_TOKEN.test(input.planToken)
+    !PLAN_TOKEN.test(input.planToken) ||
+    !Number.isInteger(input.expectedUnplace) ||
+    input.expectedUnplace < 0 ||
+    input.expectedUnplace > input.expectedCount
   ) {
     return { ok: false, reason: "invalid" };
   }
   const startedAt = Date.now();
   const supabase = await createClient();
+  // D1: o impacto no fichário tem de ser o que o colecionador viu; senão, nova prévia (nada é movido).
+  const binder = await readOrganizeBinderImpact(supabase, input.collectionId, input.storageContainerId);
+  if (!binder) return organizeFail("preview_my_collection_storage_binder_impact", startedAt, { code: "BAD_SHAPE" });
+  const impact = binder[input.mode];
+  if (impact.locked > 0) return organizeFail("organize_my_collection_storage", startedAt, { code: "55000", message: "BINDER_POSITION_LOCKED" });
+  if (impact.positioned !== input.expectedUnplace) {
+    return organizeFail("organize_my_collection_storage", startedAt, { code: "P0001", message: "PLAN_CHANGED" });
+  }
+  // Sobrecarga 5249: mesma regra da 5222 + confirmação explícita de tirar do bolso (atômico).
   const { data, error } = await supabase.rpc("organize_my_collection_storage", {
     p_collection_id: input.collectionId,
     p_storage_container_id: input.storageContainerId,
     p_mode: input.mode,
     p_expected_count: input.expectedCount,
     p_plan_token: input.planToken,
+    p_unplace_from_binder: impact.positioned > 0,
   });
   if (error) return organizeFail("organize_my_collection_storage", startedAt, error);
   const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : undefined;

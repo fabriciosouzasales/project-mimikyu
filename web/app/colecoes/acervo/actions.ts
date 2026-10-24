@@ -279,6 +279,8 @@ function fail(fn: string, startedAt: number, error: { code?: string; message?: s
 export async function setMyCopiesStorage(input: {
   physicalCardIds: string[];
   storageContainerId: string | null;
+  /** D3 (5249): confirmação explícita de tirar do bolso do fichário os exemplares posicionados. */
+  unplaceFromBinder?: boolean;
 }): Promise<{ ok: true; updated: number; storageContainerId: string | null } | { ok: false; reason: CopyStorageFailure }> {
   const ids = normalizeStorageBatch(input?.physicalCardIds);
   if (ids === null) {
@@ -290,9 +292,11 @@ export async function setMyCopiesStorage(input: {
 
   const startedAt = Date.now();
   const supabase = await createClient();
+  // Sobrecarga 5249: sem confirmação, exemplar posicionado → BINDER_POSITION_CONFIRMATION_REQUIRED (nada muda).
   const { data, error } = await supabase.rpc("set_physical_cards_storage", {
     p_storage_container_id: target,
     p_physical_card_ids: ids,
+    p_unplace_from_binder: input.unplaceFromBinder === true,
   });
   if (error || !Array.isArray(data)) {
     const reason = copyStorageFailureFromError(error);
@@ -363,22 +367,28 @@ export async function previewMyCopiesMove(input: MoveInput): Promise<{ ok: true;
  * Confirmação: revalida (token + quantidade confirmada) e faz UMA chamada à
  * 5024. Nunca repete a escrita sozinha; resultado sem resposta → `unknown`.
  */
-export async function moveMyCopies(input: MoveInput & { planToken: string; expectedCount: number }): Promise<ExecuteResult> {
+export async function moveMyCopies(
+  input: MoveInput & { planToken: string; expectedCount: number; expectedUnplace: number },
+): Promise<ExecuteResult> {
   const request = parseMoveInput(input);
   const token = input?.planToken;
   const expected = input?.expectedCount;
+  const expectedUnplace = input?.expectedUnplace;
   if (
     !request ||
     typeof token !== "string" ||
     !/^v1:[0-9a-f]{64}$/.test(token) ||
     !Number.isInteger(expected) ||
     expected < 0 ||
-    expected > MOVE_COPIES_MAX
+    expected > MOVE_COPIES_MAX ||
+    !Number.isInteger(expectedUnplace) ||
+    expectedUnplace < 0 ||
+    expectedUnplace > expected
   ) {
     return { ok: false, reason: "invalid" };
   }
   const startedAt = Date.now();
-  const result = await executeMove(await moveClient(), { ...request, planToken: token, expectedCount: expected });
+  const result = await executeMove(await moveClient(), { ...request, planToken: token, expectedCount: expected, expectedUnplace });
   // Sem dados do usuário: só duração, contagens e a classe do resultado.
   console.info(
     JSON.stringify({

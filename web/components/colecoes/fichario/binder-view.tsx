@@ -57,6 +57,7 @@ export function BinderView({
         ownerCollectionName={header.ownerCollectionName}
         participantCount={header.participantCount}
         ownUnplacedCount={header.ownUnplacedCount}
+        availableCount={header.availableCount}
         editable={header.editable}
         initialAnchor={initialAnchor}
         initialPages={initialPages}

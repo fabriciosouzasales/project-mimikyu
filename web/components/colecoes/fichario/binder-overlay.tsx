@@ -117,6 +117,7 @@ export function BinderOverlay({
           ownerCollectionName={header.ownerCollectionName}
           participantCount={header.participantCount}
           ownUnplacedCount={header.ownUnplacedCount}
+          availableCount={header.availableCount}
           editable={header.editable}
           initialAnchor={1}
           initialPages={[]}
