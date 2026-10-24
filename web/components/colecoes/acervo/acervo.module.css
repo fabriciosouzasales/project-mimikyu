@@ -1374,3 +1374,125 @@
     animation: none;
   }
 }
+
+/* ---- acabamento holográfico (MY-INVENTORY-HOLOGRAPHIC-FINISH-FOUNDATION-01) ----
+ * Protótipo aprovado em 1× (docs/development/prototypes/2026-10-24-holo-variants).
+ * Só existe nó quando `classifyFinish` garante acabamento E geometria; padrão,
+ * especial e incerto não recebem nada (a carta aparece como é).
+ *
+ * Nenhum destes elementos cria stacking context (sem z-index, opacity < 1 só
+ * nas camadas que mesclam, máscara só nelas): o `overlay` precisa mesclar com a
+ * imagem da carta. Recorte da janela por contêiner com overflow — o clip-path
+ * em camadas de tela cheia deixava a carta inteira esbranquiçada no hover.
+ *
+ * Em repouso: foil estático (sem animação). Hover/foco: reflexo do HoloCard
+ * (`.holo-card__sheen`) seguindo --holo-x/--holo-y, e foil um pouco mais forte.
+ */
+.finish {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.finish[data-tone="holo"] {
+  --finish-rest: 0.42;
+  --finish-hover: 0.8;
+}
+
+.finish[data-tone="reverse"] {
+  --finish-rest: 0.38;
+  --finish-hover: 0.65;
+}
+
+/* Janela da ilustração na moldura moderna (mesma geometria do protótipo). */
+.finish[data-area="window"] {
+  inset: 11% 7.5% 48% 7.5%;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.finishFoil,
+.finishSheen {
+  position: absolute;
+  inset: 0;
+}
+
+.finishFoil {
+  background:
+    linear-gradient(115deg, transparent 38%, hsl(0 0% 100% / 0.3) 50%, transparent 62%),
+    repeating-linear-gradient(
+      115deg,
+      hsl(200 95% 65% / 0.55) 0%,
+      hsl(280 90% 72% / 0.55) 6%,
+      hsl(330 90% 70% / 0.45) 11%,
+      hsl(45 95% 65% / 0.55) 16%,
+      hsl(150 80% 60% / 0.45) 21%,
+      hsl(200 95% 65% / 0.55) 26%
+    );
+  background-size:
+    100% 100%,
+    260% 260%;
+  background-position:
+    center,
+    var(--holo-x, 30%) var(--holo-y, 30%);
+  mix-blend-mode: overlay;
+  opacity: calc(var(--finish-rest) + (var(--finish-hover) - var(--finish-rest)) * var(--finish-active, 0));
+  transition:
+    opacity 250ms ease-out,
+    background-position 120ms linear;
+}
+
+/* Reversa: corpo da carta com a ilustração recortada (fica fosca). A máscara
+   vai nas camadas, não no contêiner, para não isolar o overlay. */
+.finish[data-area="body"] .finishFoil,
+.finish[data-area="body"] .finishSheen {
+  -webkit-mask:
+    linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat,
+    linear-gradient(#000 0 0) 50% 18.64% / 85% 41% no-repeat;
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat,
+    linear-gradient(#000 0 0) 50% 18.64% / 85% 41% no-repeat;
+  mask-composite: exclude;
+}
+
+/* Uma carta por vez: hover (só dispositivos com mouse) ou foco do teclado. */
+.tile:focus-visible [data-finish] {
+  --finish-active: 1;
+  --holo-opacity: 0.9;
+}
+
+@media (hover: hover) {
+  .tile:hover [data-finish],
+  .art[data-finish-tilt]:hover {
+    --finish-active: 1;
+    --holo-opacity: 0.9;
+  }
+}
+
+/* Detalhe ampliado: inclinação do HoloCard (±8°) gravada por FinishPointer. */
+.art[data-finish-tilt] {
+  transform: var(--finish-tilt, none);
+  transition:
+    transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finishSheen {
+    display: none;
+  }
+
+  .finishFoil {
+    transition: none;
+  }
+
+  .art[data-finish-tilt] {
+    transform: none;
+  }
+}
+
+/* Imagem indisponível: a moldura de texto não recebe brilho. */
+.artFallback ~ .finish {
+  display: none;
+}

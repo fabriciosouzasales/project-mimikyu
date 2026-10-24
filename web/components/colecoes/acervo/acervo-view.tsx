@@ -17,7 +17,6 @@ import {
   storageScopeSummary,
   totalPages,
   variantName,
-  variantTag,
   withoutDetail,
 } from "@/lib/colecoes/acervo";
 import type { AddLanguage } from "@/lib/colecoes/acervo-add";
@@ -44,6 +43,8 @@ import { AcervoDetailSheet } from "./acervo-detail-sheet";
 import { AcervoSelectionBar, AcervoSelectionProvider, AcervoSelectionToggle, AcervoTileShell } from "./acervo-selection";
 import { AcervoToolbar } from "./acervo-toolbar";
 import { CardArt } from "./card-art";
+import { CardFinishLayers, finishDataAttribute } from "./card-finish-layers";
+import { FinishPointer } from "./finish-pointer";
 import { CopyQuantityControl } from "./copy-quantity-control";
 import { CopyStorageList } from "./copy-storage-list";
 import regionStyles from "../colecoes/library-modes.module.css";
@@ -116,6 +117,8 @@ export function AcervoView({
   return (
     <AcervoSelectionProvider scope={scopeSignature(scopeOf(state))} pageItems={pageItems} locations={locations}>
     <div className={styles.root}>
+      {/* Brilho do acabamento: um único rastreio de ponteiro para galeria e detalhe. */}
+      <FinishPointer />
       <header className={styles.hero}>
         <div className={styles.stageGlow} aria-hidden="true" />
         <HeroCards />
@@ -303,7 +306,8 @@ function AcervoTile({
   priority: boolean;
 }) {
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
-  const tag = variantTag(item.isDefaultVariant, item.variantLabel);
+  // Variante sempre visível, inclusive a padrão ("Holográfica"), para distinguir versões irmãs.
+  const tag = variantName(item.variantLabel);
   const caption = `${item.cardSetCode.toUpperCase()} · ${number}`;
   // Com filtro de local, a pilha e o ×N mostram o que o colecionador TEM (copies_owned);
   // o recorte do local vem na linha própria, sem substituir o total possuído.
@@ -332,7 +336,7 @@ function AcervoTile({
       copies={item.copiesCount}
     >
       <div className={copies > 1 ? `${styles.artWrap} ${styles.stack}` : styles.artWrap}>
-        <div className={styles.art}>
+        <div className={styles.art} {...finishDataAttribute(item.variantTypeCode, item.rarityCode, item)}>
           <CardArt
             src={cardFrontUrl(SUPABASE_URL, item.imagePath)}
             alt=""
@@ -341,6 +345,7 @@ function AcervoTile({
             priority={priority}
             sizes={GRID_SIZES}
           />
+          <CardFinishLayers variantTypeCode={item.variantTypeCode} rarityCode={item.rarityCode} numbering={item} />
         </div>
         {copies > 1 ? (
           <span className={styles.qty} aria-hidden="true">
@@ -352,8 +357,9 @@ function AcervoTile({
         <div className={styles.name}>{item.cardName}</div>
         <div className={styles.sub}>
           <span>{caption}</span>
-          {tag ? <span className={styles.tag}>{tag}</span> : null}
+          {/* Idioma antes da variante: o idioma cabe na linha do Set/número e a variante ocupa a seguinte. */}
           <span className={styles.tag}>{item.languageCode}</span>
+          <span className={styles.tag}>{tag}</span>
         </div>
         {storageKind ? (
           <div className={styles.storageMatch} data-partial={item.copiesCount < item.copiesOwned || undefined}>
@@ -618,12 +624,19 @@ function DetailContent({
   const { item, copies, copiesTotal } = detail;
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
   const variant = variantName(item.variantLabel);
+  const finishAttr = finishDataAttribute(item.variantTypeCode, item.rarityCode, item);
   const inCollections = copies.filter((copy) => copy.collectionName !== null).length;
 
   return (
     <>
       <div className={styles.detailHero}>
-        <div className={styles.art} style={{ width: "100%" }}>
+        {/* Inclinação só quando há acabamento: a padrão fica parada, como no protótipo aprovado. */}
+        <div
+          className={styles.art}
+          style={{ width: "100%" }}
+          {...finishAttr}
+          data-finish-tilt={finishAttr["data-finish"] ? "" : undefined}
+        >
           <CardArt
             src={cardFrontUrl(SUPABASE_URL, item.imagePath)}
             alt={`${item.cardName}, ${item.cardSetName} ${number}`}
@@ -632,6 +645,7 @@ function DetailContent({
             priority
             sizes="(max-width: 767px) 68vw, 12.5rem"
           />
+          <CardFinishLayers variantTypeCode={item.variantTypeCode} rarityCode={item.rarityCode} numbering={item} />
         </div>
         <div>
           <h2 className={styles.detailName}>{item.cardName}</h2>

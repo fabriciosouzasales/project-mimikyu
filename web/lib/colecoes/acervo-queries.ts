@@ -37,6 +37,13 @@ export type AcervoItem = {
   copiesOwned: number;
   lastAddedAt: string;
   imagePath: string | null;
+  /**
+   * Códigos estáveis do catálogo para o acabamento visual (5261/5262):
+   * `card_variant_type.code` e `rarity.code`. `null` enquanto o banco não tiver
+   * as colunas — a classificação trata como "sem efeito".
+   */
+  variantTypeCode: string | null;
+  rarityCode: string | null;
 };
 
 /**
@@ -105,6 +112,9 @@ type ItemRow = {
   image_path: string | null;
   total_count: number | string;
   total_copies: number | string;
+  /** 5261/5262 — ausentes antes da migration (por isso opcionais). */
+  variant_type_code?: string | null;
+  rarity_code?: string | null;
 };
 
 type ItemCore = Omit<ItemRow, "copies_count" | "copies_owned" | "last_added_at" | "total_count" | "total_copies">;
@@ -127,6 +137,8 @@ function toItem(row: ItemCore & { copies_count?: number; copies_owned?: number; 
     copiesOwned: Math.max(Number(row.copies_owned ?? copiesCount), copiesCount),
     lastAddedAt: row.last_added_at ?? "",
     imagePath: row.image_path,
+    variantTypeCode: typeof row.variant_type_code === "string" ? row.variant_type_code : null,
+    rarityCode: typeof row.rarity_code === "string" ? row.rarity_code : null,
   };
 }
 
