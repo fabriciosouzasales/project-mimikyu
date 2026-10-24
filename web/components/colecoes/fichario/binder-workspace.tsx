@@ -32,6 +32,7 @@ import {
   setRegionImageFocus,
   setSlotImageFocus,
   setSlotsLock,
+  setSpeciesReferenceVisibility,
 } from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import { Button } from "@/components/ui/button";
 import { cardFrontUrl, formatCount } from "@/lib/colecoes/acervo";
@@ -79,7 +80,7 @@ import { applySlotImage, imageFailureMessage } from "@/lib/colecoes/binder-image
 import { type GapPreview, gapFailureMessage } from "@/lib/colecoes/binder-insert";
 import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, regionFailureMessage } from "@/lib/colecoes/binder-region";
 import { type BinderIdentity, CONTROL_PANEL_STORAGE_KEY, type ControlSection, type ResolvedIdentity, parseControlPanelPrefs, resolveIdentity } from "@/lib/colecoes/binder-identity";
-import type { SpeciesReferenceState } from "@/lib/colecoes/binder-species";
+import { type SpeciesReferenceState, speciesFailureMessage } from "@/lib/colecoes/binder-species";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, insideCoverSurface, TopNavControls, leatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
@@ -450,6 +451,27 @@ export function BinderWorkspace({
     };
   }, [collectionId, initialSpeciesState, speciesReferences]);
   const speciesVisible = speciesReferences && speciesState !== null && speciesState.visible && speciesState.referenceCount > 0;
+  /**
+   * Mostrar/ocultar pelo Centro de Controle: mesma preferência (5258) e mesmo
+   * estado do diálogo "Pokémon nos bolsos" — os dois ficam sempre iguais.
+   * Retorno imediato na tela; volta atrás se o banco recusar. Só preferência:
+   * nunca apaga referências. Devolve a mensagem de erro, ou `null`.
+   */
+  const setSpeciesVisible = useCallback(
+    async (visible: boolean): Promise<string | null> => {
+      if (!speciesState) return null;
+      const previous = speciesState;
+      setSpeciesState({ ...previous, visible });
+      const result = await setSpeciesReferenceVisibility({ collectionId, visible });
+      if (!result.ok) {
+        setSpeciesState((current) => (current ? { ...current, visible: previous.visible } : current));
+        return speciesFailureMessage(result.reason);
+      }
+      if (result.visible !== visible) setSpeciesState((current) => (current ? { ...current, visible: result.visible } : current));
+      return null;
+    },
+    [collectionId, speciesState],
+  );
   // Personalização do layout: imagem em 2 bolsos e "Abrir espaço".
   const [imageShape, setImageShape] = useState<"single" | "wide">("single");
   const [regionTarget, setRegionTarget] = useState<{ regionId: string; mode: RegionDialogMode } | null>(null);
@@ -1614,6 +1636,21 @@ export function BinderWorkspace({
             backAction={onClose ? { kind: "close", onClose } : { kind: "link", href: backHref }}
             collapsed={collapsedSections}
             onToggleSection={toggleSection}
+            species={
+              speciesReferences && speciesState !== null && speciesState.isPokedexOwner
+                ? {
+                    state: speciesState,
+                    onSetVisible: setSpeciesVisible,
+                    onOpen: () => {
+                      setArmed(null);
+                      setArmedCard(null);
+                      setConfirm(null);
+                      if (!controlDocked) setControlOpen(false);
+                      setSpeciesOpen(true);
+                    },
+                  }
+                : null
+            }
           />
         ) : null}
 

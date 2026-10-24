@@ -21,8 +21,8 @@ type Preview = { status: "idle" | "loading" } | { status: "ready"; preview: Spec
 
 /**
  * "Pokémon nos bolsos" (POKEDEX-BINDER-SPECIES-REFERENCE, D2): ações das
- * referências de espécie no próprio Fichário Digital — o Centro de Controle
- * não muda.
+ * referências de espécie no próprio Fichário Digital. O Centro de Controle
+ * oferece o mesmo mostrar/ocultar (mesma preferência e mesmo estado).
  *
  *  - Sem referências e coleção Pokédex dona do fichário: prévia (5258, não
  *    grava) com a quantidade de Pokémon, bolsos livres e o intervalo de

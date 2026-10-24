@@ -4,7 +4,7 @@
 |---|---|
 | Rodadas | POKEDEX-BINDER-SPECIES-REFERENCE-PROPOSAL-01 (proposta) · POKEDEX-BINDER-SPECIES-REFERENCE-IMPLEMENTATION-01 (implementação local) |
 | Data | 2026-10-24 |
-| Status | **IMPLEMENTAÇÃO LOCAL (2026-10-24, `POKEDEX-BINDER-SPECIES-REFERENCE-IMPLEMENTATION-01`)** — migrations 5257–5260 e harness 5857 escritos, **NÃO EXECUTADOS**; frontend local, homologação visual pendente. Nenhuma escrita no LIVE. Ver §9. **Precheck LIVE (somente leitura) PASS / GO** — `LIVE-PRECHECK-2026-10-24.md`. **5257–5260 CONFIRMADAS EXECUTADAS no LIVE (2026-10-24, ledger 20261024163436/163618/163711/163750; postcheck PASS)** — `LIVE-EXECUTION-2026-10-24.md`. Referências ainda não criadas; frontend não publicado; promoção canônica pendente. |
+| Status | **EXECUTADA / CANÔNICA / ENCERRADA (2026-10-24, `POKEDEX-BINDER-SPECIES-REFERENCE-FINAL-CLOSEOUT-01`)** — 5257–5260 aplicadas no LIVE (ledger 20261024163436/163618/163711/163750; md5 do ledger = corpo do arquivo, 4/4) e promovidas para `database/schema/`; frontend publicado (`09f07d0`) e homologado em produção por Fabrício; F002 com 1.025 referências (#0001–#1025) e 31 bolsos sem referência. Harness 5857 **não executado**. Ver §10. Histórico: precheck `LIVE-PRECHECK-2026-10-24.md`, execução `LIVE-EXECUTION-2026-10-24.md`. |
 | Projeto | Supabase `mimikyu-core` (`qjfutqujxrbzgrtkpgkg`) — investigação somente leitura (`begin transaction read only; statement_timeout 30s`) |
 | Escopo aprovado | F002 "Minha Pokédex": 1.025 espécies da Pokédex Nacional nos primeiros 1.025 bolsos (#0001–#1025, ordem real página → linha → coluna); 31 bolsos finais sem referência |
 | Fora de escopo | contracapa, Centro de Controle, correção cromática aprovada, personalização (só preservada como possibilidade), demais modalidades de fichário |
@@ -301,3 +301,21 @@ Fichários que não são de Pokédex não fazem nenhuma chamada nova e não ganh
    - 1.025 linhas, bolso *n* ↔ #n, bolsos 1.026–1.056 sem linha;
    - fingerprints inalterados.
 6. Homologação final e promoção canônica (`database/schema/`, `05d`, `INDEX`, `log`, handoff).
+
+## 10. Encerramento (POKEDEX-BINDER-SPECIES-REFERENCE-FINAL-CLOSEOUT-01, 2026-10-24)
+
+Fabrício confirmou a homologação funcional e visual em produção.
+
+| Item | Estado final |
+|---|---|
+| Migrations | 5257, 5258, 5259 e 5260 aplicadas no LIVE (ledger `20261024163436`, `20261024163618`, `20261024163711`, `20261024163750`) e **canônicas em `database/schema/`**: só o bloco Status difere da proposta; o corpo entre `begin;` e `commit;` é idêntico, e o md5 do texto gravado no ledger é igual ao do corpo (4/4: `b1da4fbd…`, `3ae8c005…`, `ffdb616c…`, `218262ea…`). |
+| Frontend | Publicado no commit `09f07d0` (nome da espécie nas referências) sobre `7bda532` (referências + correção cromática); homologado em produção. |
+| F002 "Minha Pokédex" | 66 páginas, 1.056 bolsos (4×4); **1.025 referências** (#0001–#1025, uma por posição, sem repetição) nos primeiros 1.025 bolsos; **31 bolsos finais sem referência**. Leitura LIVE somente leitura no encerramento. |
+| Apresentação | Bolso vazio mostra a arte oficial atenuada, o nome oficial da espécie (`pokemon_species.canonical_name`) centralizado e o número nacional `#0001`. Carta, reserva, imagem e mesclagem ocultam a referência (D3). |
+| Visibilidade | Preferência persistida por fichário (`collection_layout_species_reference_setting`, hoje visível); ocultar nunca apaga vínculos (ajuste A). |
+| Independência | A referência é rótulo do bolso físico: não cria carta, exemplar, alocação, reserva nem progresso; inventário e completude não leem as tabelas novas. |
+| Acabamento | Correção cromática do fichário aberto (couro derivado do acabamento da capa, `BINDER-OPEN-COLOR-CONSISTENCY-01`) homologada, incluindo o **Marinho**. |
+
+**Não comprovado (sem afirmar aprovação):** harness `5857` nunca executado; concorrência real e caminhos de erro de `apply`/`clear`/`remove_layout_page` com contagem não provocados no LIVE; desempenho só observado no volume atual.
+
+**Fora deste encerramento:** o interruptor "Exibir Pokémon nos bolsos" no Centro de Controle (`POKEDEX-BINDER-SPECIES-CONTROL-CENTER-TOGGLE-01`) foi implementado depois do deploy `09f07d0`, segue local, não publicado e não homologado.

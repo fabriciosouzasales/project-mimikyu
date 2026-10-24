@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
-import { ArrowRight, ChevronDown, Info, LayoutGrid, LibraryBig, PenLine, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Info, LayoutGrid, LibraryBig, PawPrint, PenLine, X } from "lucide-react";
 import { readBinderCollections, readBinderOccupancy, saveBinderIdentity } from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
   occupancyPercent,
 } from "@/lib/colecoes/binder-identity";
 import { modelLabel } from "@/lib/colecoes/binder";
+import type { SpeciesReferenceState } from "@/lib/colecoes/binder-species";
 import { cn } from "@/lib/utils";
 import { InsideCoverFace, insideCoverSurface } from "./binder-chrome";
 import styles from "./binder-control.module.css";
@@ -62,6 +63,7 @@ export function BinderControlPanel({
   backAction,
   collapsed,
   onToggleSection,
+  species = null,
 }: {
   mode: "docked" | "sheet";
   collectionId: string;
@@ -78,6 +80,8 @@ export function BinderControlPanel({
   backAction: { kind: "close"; onClose: () => void } | { kind: "link"; href: string };
   collapsed: ReadonlySet<ControlSection>;
   onToggleSection: (section: ControlSection) => void;
+  /** Fichário de coleção Pokédex: mostrar/ocultar os Pokémon dos bolsos vazios. `null` nos demais. */
+  species?: SpeciesControl | null;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -156,6 +160,7 @@ export function BinderControlPanel({
               rows={rows}
               onSaved={onIdentitySaved}
             />
+            {species ? <SpeciesVisibilityRow control={species} /> : null}
           </Section>
 
           <Section id="organize" title="Organização" icon={LayoutGrid} collapsed={collapsed} onToggle={onToggleSection}>
@@ -392,6 +397,74 @@ function IdentitySection({
       </p>
       <p className={styles.hint}>Nome e logomarca valem para todas as coleções que usam este fichário.</p>
     </form>
+  );
+}
+
+export type SpeciesControl = {
+  state: SpeciesReferenceState;
+  /** Grava a preferência (5258); devolve a mensagem de erro ou `null`. */
+  onSetVisible: (visible: boolean) => Promise<string | null>;
+  /** Abre o diálogo "Pokémon nos bolsos" (colocar ou remover as referências). */
+  onOpen: () => void;
+};
+
+/**
+ * Pokémon nos bolsos (POKEDEX-BINDER-SPECIES-REFERENCE) no Centro de Controle.
+ * Mesma preferência do diálogo do menu à esquerda — os dois mostram sempre o
+ * mesmo estado. Diferente de nome e logomarca, grava na hora (sem "Salvar"):
+ * é só exibição, nunca apaga as referências. Sem referências ainda, a dona vê
+ * o caminho para colocá-las; a convidada, só a explicação.
+ */
+function SpeciesVisibilityRow({ control }: { control: SpeciesControl }) {
+  const switchId = useId();
+  const hintId = useId();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { state } = control;
+  const applied = state.referenceCount > 0;
+
+  const toggle = async (visible: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const message = await control.onSetVisible(visible);
+    setBusy(false);
+    if (message) setError(message);
+  };
+
+  return (
+    <div className={styles.speciesBlock}>
+      {applied ? (
+        <div className={styles.switchRow}>
+          <div className={styles.switchText}>
+            <Label htmlFor={switchId}>Exibir Pokémon nos bolsos</Label>
+            <span id={hintId} className={styles.switchHint}>
+              Arte, nome e número nos bolsos vazios. Muda na hora; ocultar não apaga nada.
+            </span>
+          </div>
+          <Switch id={switchId} checked={state.visible} onCheckedChange={(value) => void toggle(value)} disabled={busy} aria-describedby={hintId} />
+        </div>
+      ) : (
+        <div className={styles.switchText}>
+          <span className={styles.speciesTitle}>Pokémon nos bolsos</span>
+          <span className={styles.switchHint}>
+            {state.canManage
+              ? "Mostre cada Pokémon da Pokédex no bolso que espera por ele."
+              : "A coleção dona do fichário ainda não colocou os Pokémon nos bolsos."}
+          </span>
+          {state.canManage ? (
+            <button type="button" className={cn(styles.linkButton, "mt-2")} onClick={control.onOpen}>
+              <PawPrint aria-hidden />
+              Colocar Pokémon nos bolsos
+              <ArrowRight aria-hidden />
+            </button>
+          ) : null}
+        </div>
+      )}
+      <p className={styles.status} data-tone={error ? "error" : undefined} role={error ? "alert" : "status"} aria-live="polite">
+        {error ?? ""}
+      </p>
+    </div>
   );
 }
 
