@@ -47,6 +47,22 @@
   background: hsl(var(--binder-page-bg));
 }
 
+/*
+ * Centro de Controle acoplado (P3-A, desktop ≥ 1280 px): o painel ganha uma
+ * coluna própria que atravessa as três faixas; o palco encolhe e o fichário se
+ * reencaixa (ResizeObserver → computeBinderFit), sem sobreposição. A troca de
+ * grade é instantânea — só o painel entra com transform/opacity.
+ */
+@media (min-width: 1280px) {
+  .root[data-control="docked"] {
+    grid-template-columns: 3.5rem auto minmax(0, 1fr) auto 0.75rem 20rem;
+    grid-template-areas:
+      "top top top top top panel"
+      "rail prev stage next ghost panel"
+      "bottom bottom bottom bottom bottom panel";
+  }
+}
+
 .glow {
   position: absolute;
   inset: 0;
@@ -132,6 +148,18 @@
 :global(.dark) .iconButton:hover {
   background: hsl(0 0% 100% / 0.1);
   color: hsl(0 0% 100%);
+}
+
+/* Botão de painel aberto (Centro de Controle): estado ativo em dourado MMKYU. */
+.iconButton[data-active],
+:global(.dark) .iconButton[data-active] {
+  border-color: hsl(40 70% 55% / 0.7);
+  background: hsl(40 70% 62% / 0.16);
+  color: hsl(40 70% 42%);
+}
+
+:global(.dark) .iconButton[data-active] {
+  color: hsl(40 80% 72%);
 }
 
 /* ---- linha principal ---- */

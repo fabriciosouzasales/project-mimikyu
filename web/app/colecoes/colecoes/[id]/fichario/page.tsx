@@ -4,7 +4,7 @@ import { BookOpen } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { BinderView } from "@/components/colecoes/fichario/binder-view";
 import { canJoinExistingBinder, parsePageParam, readBatchStart } from "@/lib/colecoes/binder";
-import { getMyBinderJoinCandidates, getMyCollectionBinder, getMyCollectionBinderPages } from "@/lib/colecoes/binder-queries";
+import { getMyBinderIdentity, getMyBinderJoinCandidates, getMyCollectionBinder, getMyCollectionBinderPages } from "@/lib/colecoes/binder-queries";
 import { isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollection } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -38,8 +38,15 @@ export default async function FicharioPage({
   if (!user) redirect("/login");
 
   const supabase = await createClient();
-  const [summary, header] = await Promise.all([getMyCollection(supabase, collectionId), getMyCollectionBinder(supabase, collectionId)]);
-  if (summary === undefined || header === undefined) notFound();
+  // Identidade do fichário (P3-A, 5245) em paralelo: contracapa e título já
+  // saem com o nome próprio na primeira pintura (sem piscar).
+  const [summary, headerRead, identity] = await Promise.all([
+    getMyCollection(supabase, collectionId),
+    getMyCollectionBinder(supabase, collectionId),
+    getMyBinderIdentity(supabase, collectionId),
+  ]);
+  if (summary === undefined || headerRead === undefined) notFound();
+  const header = headerRead ? { ...headerRead, identity } : null;
 
   if (summary === null || header === null) {
     return (
@@ -63,7 +70,7 @@ export default async function FicharioPage({
   const joinCandidates = canJoinExistingBinder(header) ? await getMyBinderJoinCandidates(supabase, collectionId) : null;
 
   return (
-    <AppShell title={summary.name} icon={BookOpen}>
+    <AppShell title={header.hasBinder && identity ? identity.effectiveName : summary.name} icon={BookOpen}>
       <BinderView
         collection={{
           id: collectionId,

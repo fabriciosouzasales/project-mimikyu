@@ -25,13 +25,11 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 export function BinderOverlay({
   collectionId,
   collectionName,
-  coverSubtitle,
   header,
   onClose,
 }: {
   collectionId: string;
   collectionName: string;
-  coverSubtitle: string | null;
   header: BinderHeader;
   onClose: () => void;
 }) {
@@ -108,7 +106,7 @@ export function BinderOverlay({
           variant="overlay"
           collectionId={collectionId}
           collectionName={collectionName}
-          coverSubtitle={coverSubtitle}
+          identity={header.identity ?? null}
           columns={header.columns}
           rows={header.rows}
           totalPages={header.pageCount}

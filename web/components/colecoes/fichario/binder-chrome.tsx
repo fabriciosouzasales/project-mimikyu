@@ -173,11 +173,56 @@ export function MmkyuWordmark({ size = "sm", tone }: { size?: "sm" | "md"; tone:
   );
 }
 
-/** Contracapa interna: marca em baixo-relevo e, no rodapé, a identidade da coleção. */
-export function InsideCoverFace({ title, subtitle }: { title: string; subtitle: string | null }) {
+/**
+ * Logomarca MMKYU monocromática (P3-A, R8): o rosto do Mimikyu do asset
+ * interno usado como MÁSCARA e pintado no tom da contracapa — sem fundo, sem
+ * texto, sem asset novo. O canal alfa da versão clara preserva os traços dos
+ * olhos (espirais vazadas), então o desenho continua legível em uma cor só.
+ * O relevo (luz em cima, sombra embaixo) é o mesmo da antiga marca escrita.
+ * Decorativa: `aria-hidden` — o nome do fichário é o que se lê.
+ */
+const BRAND_MARK_MASK = "url(/brand/icon-mark-light.png)";
+
+export function BrandMark({ tone = "hsl(38 22% 62% / 0.5)", className }: { tone?: string; className?: string }) {
+  return (
+    <span aria-hidden className={cn("block", className)} style={{ filter: "drop-shadow(0 1px 0 hsl(0 0% 100% / 0.05)) drop-shadow(0 -1px 1px hsl(0 0% 0% / 0.55))" }}>
+      <span
+        className="block w-full"
+        style={{
+          aspectRatio: "546 / 309",
+          backgroundColor: tone,
+          WebkitMaskImage: BRAND_MARK_MASK,
+          maskImage: BRAND_MARK_MASK,
+          WebkitMaskSize: "contain",
+          maskSize: "contain",
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          maskPosition: "center",
+        }}
+      />
+    </span>
+  );
+}
+
+/**
+ * Contracapa interna: marca em baixo-relevo e, no rodapé, a identidade.
+ *
+ * Composição, tipografia, escala e posições são as da P2 (último commit
+ * consolidado) — P3A-BINDER-BACK-COVER-VISUAL-CORRECTION-01. A P3-A muda só:
+ *  - o texto do rodapé passa a ser o nome do fichário (mesmo tratamento do
+ *    antigo nome da coleção);
+ *  - sai o código da coleção ("MMKYU · SV1"); a assinatura é a própria marca
+ *    "MMKYU / Collector" do centro, que continua igual;
+ *  - entra o rosto monocromático do Mimikyu acima da marca, no mesmo tom e
+ *    relevo dela, com o mínimo de espaço extra. Oculto, a contracapa fica
+ *    idêntica à da P2 (salvo as mudanças de texto acima).
+ */
+export function InsideCoverFace({ name, showBrandMark }: { name: string; showBrandMark: boolean }) {
   return (
     <div aria-hidden className="flex h-full w-full flex-col items-center justify-between">
       <div className="flex flex-1 flex-col items-center justify-center gap-1.5 opacity-60">
+        {showBrandMark ? <BrandMark tone="hsl(38 20% 55% / 0.55)" className="mb-0.5 w-9 sm:w-11" /> : null}
         <MmkyuWordmark size="md" tone="hsl(38 20% 55% / 0.55)" />
         <span className="text-[9px] font-medium uppercase tracking-[0.3em] sm:text-[10px]" style={{ color: "hsl(38 18% 50% / 0.4)" }}>
           Collector
@@ -185,14 +230,57 @@ export function InsideCoverFace({ title, subtitle }: { title: string; subtitle: 
       </div>
       <div className="flex flex-col items-center gap-1 px-2 pb-2 text-center sm:pb-3">
         <span className="line-clamp-2 text-xs font-medium tracking-wide" style={{ color: "hsl(38 22% 70% / 0.55)" }}>
-          {title}
+          {name}
         </span>
-        {subtitle ? (
-          <span className="text-[9px] uppercase tracking-[0.2em]" style={{ color: "hsl(38 18% 60% / 0.35)" }}>
-            {subtitle}
-          </span>
-        ) : null}
       </div>
     </div>
   );
+}
+
+/**
+ * Contracapa interna (P2-B-BACK-COVER-SHADOW-CORRECTION-01): couro acolchoado
+ * com uma única fonte de luz, do alto à esquerda — coerente com a sombra
+ * projetada que já sai para baixo/direita (camada deslocada 2 × 3 px).
+ * Alto/esquerda: fio de luz sutil e tom um pouco mais claro; baixo/direita:
+ * sombreamento suave. Antes, a sombra interna no alto (cue de rebaixo, luz de
+ * baixo) contradizia a sombra projetada (cue de relevo, luz de cima) e, na
+ * vista de uma página, a sombra da lombada caía na borda ESQUERDA. A sombra
+ * da lombada continua só quando há lombada (vista dupla).
+ *
+ * Revisão P3-A (CORRECTION-01): a contracapa é REBAIXADA na moldura de couro.
+ * Ver a nota em `boxShadow` — sombra para dentro no alto/esquerda, fio de luz
+ * embaixo/direita, e sem sombra projetada (camada 2 × 3 px removida só para a
+ * contracapa em `binder-workspace.tsx`).
+ */
+export function insideCoverSurface(position: "left" | "right" | "single"): React.CSSProperties {
+  const gutter =
+    position === "left"
+      ? "inset -22px 0 26px -20px rgba(0,0,0,0.7)"
+      : position === "right"
+        ? "inset 22px 0 26px -20px rgba(0,0,0,0.7)"
+        : null;
+  return {
+    background: [
+      `radial-gradient(120% 90% at 22% 14%, hsl(${INTERIOR_HUE} 14% 13%) 0%, transparent 62%)`,
+      `linear-gradient(135deg, hsl(${INTERIOR_HUE} 14% 11%) 0%, hsl(${INTERIOR_HUE} 18% 6%) 100%)`,
+    ].join(", "),
+    // P3-A-BINDER-CONTROL-IDENTITY-CORRECTION-01 — baixo relevo: com a luz do
+    // alto à esquerda, a moldura (mais alta) faz sombra para DENTRO no alto e à
+    // esquerda; a borda de baixo e da direita recebe só um fio de luz. Antes
+    // era o inverso (fio de luz em cima/esquerda + sombra embaixo/direita), a
+    // leitura de almofada saliente. Textura (background) intocada.
+    boxShadow: [
+      // sombra da moldura caindo sobre o fundo rebaixado (alto e esquerda)
+      "inset 0 1px 0 hsl(0 0% 0% / 0.55)",
+      "inset 0 9px 12px -8px hsl(0 0% 0% / 0.6)",
+      position === "right" ? null : "inset 1px 0 0 hsl(0 0% 0% / 0.45)",
+      position === "right" ? null : "inset 9px 0 12px -8px hsl(0 0% 0% / 0.5)",
+      // fio de luz muito sutil na parede oposta (baixo e direita)
+      "inset 0 -1px 0 hsl(38 30% 85% / 0.05)",
+      position === "left" ? null : "inset -1px 0 0 hsl(38 30% 85% / 0.04)",
+      gutter,
+    ]
+      .filter(Boolean)
+      .join(", "),
+  };
 }

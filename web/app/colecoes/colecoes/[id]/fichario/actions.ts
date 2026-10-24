@@ -68,7 +68,19 @@ import {
   parseRegionImageResult,
   parseSeparateResult,
 } from "@/lib/colecoes/binder-region";
+import {
+  type BinderOccupancy,
+  type BinderParticipant,
+  type IdentityFailure,
+  type BinderProgressInput,
+  classifyIdentityFailure,
+  normalizeBinderName,
+  parseBinderOccupancy,
+  parseBinderParticipants,
+  parseIdentityWrite,
+} from "@/lib/colecoes/binder-identity";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
+import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -840,4 +852,117 @@ export async function separateSlots(input: {
   if (!result || result.regionId !== input.regionId) return regionFail("separate_my_binder_slots", startedAt, { code: "BAD_SHAPE" });
   revalidatePath(binderHref(input.collectionId));
   return { ok: true, outcome: result.outcome, previousPath: result.previousPath };
+}
+
+// ---- Identidade e Centro de Controle (P3-A, 5245/5246) ----
+
+type IdentityFail = { ok: false; reason: IdentityFailure };
+
+function identityFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): IdentityFail {
+  const reason = classifyIdentityFailure(error?.code, error?.message);
+  console.error(JSON.stringify({ scope: "colecoes.binder_identity", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+/**
+ * Grava nome próprio e exibir/ocultar logomarca (5245). O banco é a fronteira:
+ * só a proprietária ativa grava, normaliza o nome e devolve o estado canônico.
+ * Aqui só recusamos o que nunca seria aceito (tipo, tamanho, controle) para
+ * não gastar uma ida ao banco. Não toca em cartas, reservas, páginas ou
+ * mesclagens.
+ */
+export async function saveBinderIdentity(input: {
+  collectionId: string;
+  displayName: string | null;
+  showBrandMark: boolean;
+}): Promise<{ ok: true; displayName: string | null; effectiveName: string; showBrandMark: boolean; changed: boolean } | IdentityFail> {
+  if (!isCollectionId(input?.collectionId) || typeof input.showBrandMark !== "boolean") return { ok: false, reason: "invalid" };
+  if (input.displayName !== null && typeof input.displayName !== "string") return { ok: false, reason: "invalid" };
+  const normalized = input.displayName === null ? { ok: true as const, value: null } : normalizeBinderName(input.displayName);
+  if (!normalized.ok) return { ok: false, reason: "invalid_name" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_my_binder_identity", {
+    p_collection_id: input.collectionId,
+    p_display_name: normalized.value,
+    p_show_brand_mark: input.showBrandMark,
+  });
+  if (error) return identityFail("set_my_binder_identity", startedAt, error);
+  const result = parseIdentityWrite(data);
+  if (!result) return identityFail("set_my_binder_identity", startedAt, { code: "BAD_SHAPE" });
+  console.info(JSON.stringify({ scope: "colecoes.binder_identity", fn: "set_my_binder_identity", ms: Date.now() - startedAt, changed: result.changed }));
+  if (result.changed) {
+    revalidatePath(binderHref(input.collectionId));
+    revalidatePath(collectionHref(input.collectionId));
+  }
+  return { ok: true, ...result };
+}
+
+/** Ocupação do fichário (5245, só leitura) — lida quando o painel Informações abre. */
+export async function readBinderOccupancy(input: { collectionId: string }): Promise<{ ok: true; occupancy: BinderOccupancy | null } | IdentityFail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_binder_occupancy", { p_collection_id: input.collectionId });
+  if (error) return identityFail("get_my_binder_occupancy", startedAt, error);
+  const occupancy = parseBinderOccupancy(data);
+  if (occupancy === "absent") return { ok: true, occupancy: null };
+  if (!occupancy) return identityFail("get_my_binder_occupancy", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, occupancy };
+}
+
+/** Coleções que usam o fichário (5246, só leitura). */
+export async function readBinderParticipants(input: { collectionId: string }): Promise<{ ok: true; participants: BinderParticipant[] } | IdentityFail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_binder_participants", { p_collection_id: input.collectionId });
+  if (error) return identityFail("get_my_binder_participants", startedAt, error);
+  const participants = parseBinderParticipants(data);
+  if (!participants) return identityFail("get_my_binder_participants", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, participants };
+}
+
+/**
+ * Coleções do fichário + progresso oficial de cada uma (P3A-BINDER-CONTROL-
+ * MULTI-COLLECTION-PROGRESS-01), só leitura, numa ida só do painel.
+ *
+ * - Quem participa vem de 5246 (owner-scoped): a dona vê todas as coleções do
+ *   fichário; uma convidada vê só a dona e a si mesma. O cliente informa só a
+ *   coleção aberta — nenhum id de outra coleção é aceito do navegador.
+ * - O progresso vem do resumo oficial (R1 `get_my_collections`), numa única
+ *   varredura para todos os participantes, restrito aos ids que 5246 devolveu.
+ *   R1 só lê coleções da própria sessão; nada é ampliado.
+ * - `progress: null` = participantes lidos, mas o resumo falhou (o painel
+ *   mostra a lista e um erro só no bloco de progresso). Id ausente do mapa =
+ *   indisponível para esta sessão.
+ */
+export async function readBinderCollections(input: { collectionId: string }): Promise<
+  { ok: true; participants: BinderParticipant[]; progress: Record<string, BinderProgressInput> | null } | IdentityFail
+> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_binder_participants", { p_collection_id: input.collectionId });
+  if (error) return identityFail("get_my_binder_participants", startedAt, error);
+  const participants = parseBinderParticipants(data);
+  if (!participants) return identityFail("get_my_binder_participants", startedAt, { code: "BAD_SHAPE" });
+  const ids = participants.map((p) => p.collectionId).filter(isCollectionId);
+  const summaries = await getMyCollectionsByIds(supabase, ids);
+  if (summaries === null) {
+    console.error(JSON.stringify({ scope: "colecoes.binder_identity", fn: "get_my_collections", ms: Date.now() - startedAt, code: "READ_FAILED" }));
+    return { ok: true, participants, progress: null };
+  }
+  const progress: Record<string, BinderProgressInput> = {};
+  for (const [id, s] of summaries) {
+    progress[id] = {
+      name: s.name,
+      completionPolicy: s.completionPolicy,
+      lifecycleStatus: s.lifecycleStatus,
+      totalPositions: s.totalPositions,
+      satisfiedPositions: s.satisfiedPositions,
+      isComplete: s.isComplete,
+    };
+  }
+  return { ok: true, participants, progress };
 }

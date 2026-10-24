@@ -138,6 +138,39 @@ export async function getMyCollection(supabase: SupabaseClient, id: string): Pro
   return undefined;
 }
 
+/**
+ * Várias coleções do próprio usuário pelo id, com o mesmo resumo de R1, numa
+ * só varredura (100 por chamada, para quando todas forem achadas). Usada pelo
+ * Centro de Controle do fichário para não abrir uma leitura por coleção. R1 só
+ * devolve coleções da sessão: um id alheio simplesmente não aparece no mapa.
+ * `null` = falha de leitura.
+ */
+export async function getMyCollectionsByIds(supabase: SupabaseClient, ids: readonly string[]): Promise<Map<string, CollectionSummary> | null> {
+  const wanted = new Set(ids.map((id) => id.toLowerCase()));
+  const found = new Map<string, CollectionSummary>();
+  if (wanted.size === 0) return found;
+  const startedAt = Date.now();
+  const pageSize = 100;
+  for (let offset = 0; offset < 10_000; offset += pageSize) {
+    const { data, error } = await supabase.rpc("get_my_collections", {
+      p_include_archived: true,
+      p_limit: pageSize,
+      p_offset: offset,
+    });
+    if (error || !Array.isArray(data)) {
+      logReadFailure("get_my_collections", startedAt, error);
+      return null;
+    }
+    const rows = data as CollectionRow[];
+    for (const row of rows) {
+      const id = row.collection_id.toLowerCase();
+      if (wanted.has(id)) found.set(id, toSummary(row));
+    }
+    if (found.size === wanted.size || rows.length < pageSize) break;
+  }
+  return found;
+}
+
 export type CollectionPosition = {
   cardId: string;
   collectorNumber: string;

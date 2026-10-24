@@ -46,7 +46,7 @@ export function BinderView({
         variant="page"
         collectionId={collection.id}
         collectionName={collection.name}
-        coverSubtitle={collection.setCode ? `MMKYU · ${collection.setCode.toUpperCase()}` : "MMKYU"}
+        identity={header.identity ?? null}
         columns={header.columns}
         rows={header.rows}
         totalPages={header.pageCount}

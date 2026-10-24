@@ -14,7 +14,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, Plus, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, PanelRight, Plus, RotateCcw, X } from "lucide-react";
 import {
   addPages,
   clearReservations,
@@ -76,15 +76,17 @@ import {
 import { applySlotImage, imageFailureMessage } from "@/lib/colecoes/binder-images";
 import { type GapPreview, gapFailureMessage } from "@/lib/colecoes/binder-insert";
 import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, regionFailureMessage } from "@/lib/colecoes/binder-region";
+import { type BinderIdentity, CONTROL_PANEL_STORAGE_KEY, type ControlSection, type ResolvedIdentity, parseControlPanelPrefs, resolveIdentity } from "@/lib/colecoes/binder-identity";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
-import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, TopNavControls, blackLeatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
+import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, insideCoverSurface, TopNavControls, blackLeatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
 import { AddPagesDialog } from "./binder-add-pages";
 import { AvailablePanel, type AvailableState } from "./binder-available";
 import { ImageComposer, type ImageDialogMode, SlotImageDialog } from "./binder-image-editor";
 import { type PreparedImage, clearSlotImageAndFile, linkNewRegionImage, linkNewSlotImage, separateRegionAndFile } from "./binder-image-io";
 import { GapDialog, type GapDialogState, ImageShapeSwitch, RegionComposer, RegionImageDialog } from "./binder-layout-tools";
 import { PocketPicker } from "./binder-pocket-picker";
+import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
 import { BinderPortalContext, BinderSlotView, GapGutter, type RegionDialogMode, RegionPocketView, type SlotDragData, type SlotHandlers } from "./binder-slot";
 import { BinderToolRail } from "./binder-tool-rail";
@@ -136,7 +138,7 @@ export function BinderWorkspace({
   variant,
   collectionId,
   collectionName,
-  coverSubtitle,
+  identity = null,
   columns,
   rows,
   totalPages: initialTotalPages,
@@ -156,8 +158,11 @@ export function BinderWorkspace({
   variant: "overlay" | "page";
   collectionId: string;
   collectionName: string;
-  /** Linha discreta da contracapa (ex.: "MMKYU · SV1"). */
-  coverSubtitle: string | null;
+  /**
+   * P3-A: nome próprio e logomarca do fichário (5245). `null` = ainda sem a
+   * função no banco ou sem leitura → nome da coleção proprietária e logomarca.
+   */
+  identity?: BinderIdentity | null;
   columns: number;
   rows: number;
   totalPages: number;
@@ -429,6 +434,7 @@ export function BinderWorkspace({
       return;
     }
     setAvailableOpen(true);
+    setControlOpen(false);
     // Cada abertura relê a lista (o banco é a autoridade; outra tela pode ter posicionado cartas).
     if (available.status !== "loading") void loadAvailable(0);
   }, [available.status, availableOpen, loadAvailable]);
@@ -440,6 +446,64 @@ export function BinderWorkspace({
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
+  // ---- Centro de Controle e identidade (P3-A) ----
+  // Identidade viva: começa no que veio do servidor e é atualizada pela gravação
+  // (o banco devolve o estado canônico). Título, contracapa e rótulos usam isto.
+  const [binderIdentity, setBinderIdentity] = useState<ResolvedIdentity>(() => resolveIdentity(identity, { collectionName, ownerCollectionName }));
+  const binderName = binderIdentity.name;
+  const [controlOpen, setControlOpen] = useState(false);
+  const [controlDocked, setControlDocked] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<ReadonlySet<ControlSection>>(() => new Set());
+  const controlButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const apply = () => setControlDocked(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    // Preferência individual (navegador): seções recolhidas e, no desktop, painel aberto.
+    try {
+      const prefs = parseControlPanelPrefs(window.localStorage.getItem(CONTROL_PANEL_STORAGE_KEY));
+      setCollapsedSections(new Set(prefs.collapsed));
+      if (prefs.open && media.matches) setControlOpen(true);
+    } catch {
+      // Armazenamento indisponível (modo privado, bloqueio): segue com o padrão.
+    }
+    return () => media.removeEventListener("change", apply);
+  }, []);
+  const persistControl = useCallback((open: boolean, collapsed: ReadonlySet<ControlSection>) => {
+    try {
+      window.localStorage.setItem(CONTROL_PANEL_STORAGE_KEY, JSON.stringify({ open, collapsed: [...collapsed] }));
+    } catch {
+      // best-effort
+    }
+  }, []);
+  const setControl = useCallback(
+    (open: boolean) => {
+      setControlOpen(open);
+      persistControl(open, collapsedSections);
+      if (open) {
+        // Um painel lateral por vez: "Cartas disponíveis" ocupa o mesmo lado.
+        setAvailableOpen(false);
+        setArmedCard(null);
+      } else {
+        window.requestAnimationFrame(() => controlButtonRef.current?.focus({ preventScroll: true }));
+      }
+    },
+    [collapsedSections, persistControl],
+  );
+  const toggleSection = useCallback(
+    (section: ControlSection) => {
+      setCollapsedSections((prev) => {
+        const next = new Set(prev);
+        if (next.has(section)) next.delete(section);
+        else next.add(section);
+        persistControl(controlOpen, next);
+        return next;
+      });
+    },
+    [controlOpen, persistControl],
+  );
+
   const [canFullscreen, setCanFullscreen] = useState(false);
   useEffect(() => setCanFullscreen(typeof document.documentElement.requestFullscreen === "function"), []);
   const toggleFullscreen = useCallback(() => {
@@ -1118,6 +1182,7 @@ export function BinderWorkspace({
         if (confirm) setConfirm(null);
         else if (armedCard) setArmedCard(null);
         else if (armed) setArmed(null);
+        else if (controlOpen) setControl(false);
         else if (availableOpen) setAvailableOpen(false);
         else if (trayOpen) setTrayOpen(false);
         else if (selected.size > 0) setSelected(new Set());
@@ -1127,7 +1192,7 @@ export function BinderWorkspace({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [armed, armedCard, availableOpen, back, confirm, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, selected.size, trayOpen]);
+  }, [armed, armedCard, availableOpen, back, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, selected.size, setControl, trayOpen]);
 
   // ---- arrastar e soltar (pointer/touch; teclado usa "…" → Bandeja → bolso) ----
   const sensors = useSensors(
@@ -1206,7 +1271,13 @@ export function BinderWorkspace({
 
   return (
     <BinderPortalContext.Provider value={portalRef}>
-      <div ref={rootRef} className={cn("binder-nav-01-scope", ws.root)} data-variant={variant} data-fullscreen={fullscreen || undefined}>
+      <div
+        ref={rootRef}
+        className={cn("binder-nav-01-scope", ws.root)}
+        data-variant={variant}
+        data-fullscreen={fullscreen || undefined}
+        data-control={controlOpen && controlDocked ? "docked" : undefined}
+      >
         <div aria-hidden className={ws.glow} />
 
         <header className={ws.top}>
@@ -1218,10 +1289,11 @@ export function BinderWorkspace({
             ) : null}
             <div className={ws.identityText}>
               <h2 className={ws.title} id="fichario-titulo">
-                {collectionName}
+                {binderName}
               </h2>
               <p className={ws.facts}>
-                {role === "GUEST" && ownerCollectionName ? `Fichário de ${ownerCollectionName} · ` : shared ? "Compartilhado · " : ""}
+                {binderName !== collectionName ? `${collectionName} · ` : ""}
+                {role === "GUEST" || shared ? "Compartilhado · " : ""}
                 {modelLabel(columns, rows)} · {formatCount(totalPages)} {totalPages === 1 ? "página" : "páginas"} · {formatCount(filled)}{" "}
                 {filled === 1 ? "carta" : "cartas"}
                 {!editable ? " · somente leitura" : ""}
@@ -1232,6 +1304,19 @@ export function BinderWorkspace({
           <TopNavControls index={view} total={lastView} label={label} onFirst={() => go(1)} onPrev={back} onNext={forward} onLast={() => go(lastView)} />
 
           <div className={ws.actions}>
+            <button
+              ref={controlButtonRef}
+              type="button"
+              className={cn(ws.iconButton, FOCUS_RING)}
+              data-active={controlOpen || undefined}
+              onClick={() => setControl(!controlOpen)}
+              aria-expanded={controlOpen}
+              aria-controls={CONTROL_PANEL_ID}
+              aria-label="Centro de Controle do fichário"
+              title="Centro de Controle"
+            >
+              <PanelRight className="h-4 w-4" aria-hidden />
+            </button>
             {onClose ? (
               <button type="button" className={cn(ws.iconButton, FOCUS_RING)} onClick={onClose} aria-label="Fechar o fichário (Esc)" title="Fechar (Esc)">
                 <X className="h-4 w-4" aria-hidden />
@@ -1296,7 +1381,7 @@ export function BinderWorkspace({
             <SideArrowButton direction="prev" onClick={back} disabled={view <= 1} dragActive={dragging !== null} />
           </div>
 
-          <section ref={stageRef} className={ws.stage} aria-label={`Fichário — ${label}`}>
+          <section ref={stageRef} className={ws.stage} aria-label={`${binderName} — ${label}`}>
             {fit.pocket > 0 ? (
               <BinderObject
                 key={sides.length}
@@ -1309,8 +1394,8 @@ export function BinderWorkspace({
                 animate={!reducedMotion}
                 cache={cache}
                 failed={failed}
-                coverTitle={collectionName}
-                coverSubtitle={coverSubtitle}
+                coverName={binderName}
+                coverBrandMark={binderIdentity.showBrandMark}
                 sizes={sizes}
                 editable={editable && !busy}
                 selected={selected}
@@ -1437,6 +1522,30 @@ export function BinderWorkspace({
             {dragging ? <DragPreview data={dragging} slotIndex={slotIndex} availableById={availableById} pocket={fit.pocket} /> : null}
           </DragOverlay>
         </DndContext>
+
+        {controlOpen && layoutId !== null ? (
+          <BinderControlPanel
+            mode={controlDocked ? "docked" : "sheet"}
+            collectionId={collectionId}
+            collectionName={collectionName}
+            role={role}
+            identity={binderIdentity}
+            columns={columns}
+            rows={rows}
+            totalPages={totalPages}
+            onIdentitySaved={(next) => setBinderIdentity((prev) => ({ ...prev, displayName: next.displayName, name: next.name, showBrandMark: next.showBrandMark }))}
+            onClose={() => setControl(false)}
+            onOpenOverview={() => {
+              setArmed(null);
+              setConfirm(null);
+              if (!controlDocked) setControlOpen(false);
+              setOverviewOpen(true);
+            }}
+            backAction={onClose ? { kind: "close", onClose } : { kind: "link", href: backHref }}
+            collapsed={collapsedSections}
+            onToggleSection={toggleSection}
+          />
+        ) : null}
 
         {overviewOpen ? (
           <BinderOverview
@@ -1633,8 +1742,8 @@ function BinderObject({
   animate,
   cache,
   failed,
-  coverTitle,
-  coverSubtitle,
+  coverName,
+  coverBrandMark,
   sizes,
   editable,
   selected,
@@ -1659,8 +1768,8 @@ function BinderObject({
   animate: boolean;
   cache: Map<number, BinderPage>;
   failed: Set<number>;
-  coverTitle: string;
-  coverSubtitle: string | null;
+  coverName: string;
+  coverBrandMark: boolean;
   sizes: string;
   editable: boolean;
   selected: Set<string>;
@@ -1715,11 +1824,14 @@ function BinderObject({
               className="relative h-full flex-1"
               style={two ? { transform: position === "left" ? "rotateY(2deg)" : "rotateY(-2deg)", transformOrigin: position === "left" ? "right center" : "left center" } : undefined}
             >
-              <div
-                className={cn("absolute inset-0", position === "left" ? "rounded-l-lg" : position === "right" ? "rounded-r-lg" : "rounded-lg")}
-                style={{ transform: "translate(2px, 3px)", background: `hsl(${INTERIOR_HUE} 10% 4%)` }}
-                aria-hidden
-              />
+              {/* Sombra projetada (folha solta sobre o couro). A contracapa é rebaixada na moldura: não projeta sombra (P3-A correção de volume). */}
+              {side === "inner" ? null : (
+                <div
+                  className={cn("absolute inset-0", position === "left" ? "rounded-l-lg" : position === "right" ? "rounded-r-lg" : "rounded-lg")}
+                  style={{ transform: "translate(2px, 3px)", background: `hsl(${INTERIOR_HUE} 10% 4%)` }}
+                  aria-hidden
+                />
+              )}
               <div
                 className={cn("relative h-full overflow-hidden", position === "left" ? "rounded-l-lg" : position === "right" ? "rounded-r-lg" : "rounded-lg")}
                 style={{
@@ -1734,7 +1846,7 @@ function BinderObject({
                 <PanelTransition direction={direction} animate={animate}>
                   {side === "inner" ? (
                     <>
-                      <InsideCoverFace title={coverTitle} subtitle={coverSubtitle} />
+                      <InsideCoverFace name={coverName} showBrandMark={coverBrandMark} />
                       {/* Vista > 1: é a contracapa traseira — o fim do fichário. */}
                       {view > 1 && onAddPages ? <AddPagesCue onClick={onAddPages} /> : null}
                     </>
@@ -2011,40 +2123,5 @@ function pageSurface(position: "left" | "right" | "single"): React.CSSProperties
       position === "left" ? "inset -26px 0 30px -22px rgba(0,0,0,0.85)" : "inset 26px 0 30px -22px rgba(0,0,0,0.85)",
       "inset 0 2px 6px rgba(0,0,0,0.4)",
     ].join(", "),
-  };
-}
-
-/**
- * Contracapa interna (P2-B-BACK-COVER-SHADOW-CORRECTION-01): couro acolchoado
- * com uma única fonte de luz, do alto à esquerda — coerente com a sombra
- * projetada que já sai para baixo/direita (camada deslocada 2 × 3 px).
- * Alto/esquerda: fio de luz sutil e tom um pouco mais claro; baixo/direita:
- * sombreamento suave. Antes, a sombra interna no alto (cue de rebaixo, luz de
- * baixo) contradizia a sombra projetada (cue de relevo, luz de cima) e, na
- * vista de uma página, a sombra da lombada caía na borda ESQUERDA. A sombra
- * da lombada continua só quando há lombada (vista dupla).
- */
-function insideCoverSurface(position: "left" | "right" | "single"): React.CSSProperties {
-  const gutter =
-    position === "left"
-      ? "inset -22px 0 26px -20px rgba(0,0,0,0.7)"
-      : position === "right"
-        ? "inset 22px 0 26px -20px rgba(0,0,0,0.7)"
-        : null;
-  return {
-    background: [
-      `radial-gradient(120% 90% at 22% 14%, hsl(${INTERIOR_HUE} 14% 13%) 0%, transparent 62%)`,
-      `linear-gradient(135deg, hsl(${INTERIOR_HUE} 14% 11%) 0%, hsl(${INTERIOR_HUE} 18% 6%) 100%)`,
-    ].join(", "),
-    boxShadow: [
-      // luz rasante nas bordas de cima e da esquerda
-      "inset 0 1px 0 hsl(38 30% 85% / 0.07)",
-      position === "right" ? null : "inset 1px 0 0 hsl(38 30% 85% / 0.05)",
-      // volume: sombra suave para baixo e para a direita, sem brilho nessas bordas
-      "inset -8px -10px 18px -10px rgba(0,0,0,0.55)",
-      gutter,
-    ]
-      .filter(Boolean)
-      .join(", "),
   };
 }

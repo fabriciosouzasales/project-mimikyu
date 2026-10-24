@@ -1,3 +1,4 @@
+import type { BinderIdentity } from "./binder-identity.ts";
 import { formatCollectorNumber } from "./acervo.ts";
 
 /**
@@ -98,6 +99,12 @@ export type BinderHeader = {
   ownUnplacedCount: number;
   /** Fichários existentes que esta coleção pode usar (só quando ainda sem fichário). */
   joinCandidateCount: number;
+  /**
+   * P3-A (5245, leitura à parte): nome próprio e logomarca do fichário. Ausente
+   * ou `null` = função ainda não aplicada / sem fichário → nome da coleção
+   * proprietária e logomarca exibida (`resolveIdentity`).
+   */
+  identity?: BinderIdentity | null;
 };
 
 export type BinderRole = "OWNER" | "GUEST";

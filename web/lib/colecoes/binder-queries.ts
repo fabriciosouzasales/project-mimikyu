@@ -5,6 +5,7 @@ import { type JoinCandidate, parseJoinCandidates } from "./binder-share.ts";
 import { attachRegionImages, classifyRegionFailure, parseRegionImages } from "./binder-region.ts";
 import type { RegionImage } from "./binder.ts";
 import { logReadFailure } from "./colecoes-queries.ts";
+import { type BinderIdentity, classifyIdentityFailure, parseBinderIdentity } from "./binder-identity.ts";
 
 /**
  * Leituras do Fichário Digital (5223). Sessão obrigatória; a fronteira de
@@ -170,4 +171,27 @@ export async function getMyBinderJoinCandidates(supabase: SupabaseClient, collec
     return null;
   }
   return candidates;
+}
+
+/**
+ * Identidade do fichário (P3-A, 5245 `get_my_binder_identity`) — leitura leve,
+ * em paralelo ao cabeçalho. Nunca bloqueia o fichário: função ainda não
+ * aplicada, coleção sem fichário ou falha → `null` (a interface usa o nome da
+ * coleção proprietária e a logomarca padrão). Falha real é registrada.
+ */
+export async function getMyBinderIdentity(supabase: SupabaseClient, collectionId: string): Promise<BinderIdentity | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_binder_identity", { p_collection_id: collectionId });
+  if (error) {
+    const reason = classifyIdentityFailure(error.code, error.message);
+    if (reason !== "unavailable" && reason !== "not_found") logReadFailure("get_my_binder_identity", startedAt, error);
+    return null;
+  }
+  const identity = parseBinderIdentity(data);
+  if (identity === "absent") return null;
+  if (!identity) {
+    logReadFailure("get_my_binder_identity", startedAt, { code: "BAD_SHAPE" });
+    return null;
+  }
+  return identity;
 }

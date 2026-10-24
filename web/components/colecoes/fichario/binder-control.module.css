@@ -1,0 +1,597 @@
+/*
+ * Centro de Controle do Fichário (P3-A).
+ *
+ * Superfície do Design System em Dark Mode nos DOIS temas (classe `dark` na
+ * raiz do painel → tokens grafite de `app/globals.css`): o painel é ferramenta
+ * do fichário, da mesma família do menu lateral, da Bandeja e de "Cartas
+ * disponíveis" — escuro como a navegação MMKYU, nunca invertido.
+ *
+ * Desktop (≥ 1280 px): coluna própria do grid da área de trabalho
+ * (`workspace.module.css`, `data-control="docked"`) — empurra o palco, que se
+ * reencaixa (`computeBinderFit`) sem sobreposição. Abaixo disso: folha sobre o
+ * fichário (lateral no tablet, de baixo no celular), com véu e foco preso.
+ * Movimento só com transform/opacity; nada anima com prefers-reduced-motion.
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 1.125rem;
+  background: hsl(var(--surface));
+  color: hsl(var(--foreground));
+  box-shadow:
+    0 0 0 1px hsl(var(--border) / 0.7),
+    0 24px 48px -24px hsl(0 0% 0% / 0.7);
+  animation: panelIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel[data-mode="docked"] {
+  grid-area: panel;
+  position: relative;
+  z-index: 5;
+  height: 100%;
+}
+
+.panel[data-mode="sheet"] {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 75;
+  width: min(22rem, calc(100% - 1.5rem));
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 74;
+  background: hsl(0 0% 0% / 0.45);
+  animation: scrimIn 200ms ease-out;
+}
+
+@media (max-width: 767px) {
+  .panel[data-mode="sheet"] {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 86dvh;
+    border-radius: 1.125rem 1.125rem 0 0;
+    animation-name: sheetUp;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.875rem 0.75rem 0.625rem 1rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+}
+
+.headTitle {
+  font: 700 0.875rem / 1.25 var(--font-heading);
+  letter-spacing: -0.005em;
+}
+
+.headSub {
+  margin-top: 0.125rem;
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.close:hover {
+  background: hsl(var(--foreground) / 0.08);
+  color: hsl(var(--foreground));
+}
+
+.close:focus-visible,
+.sectionToggle:focus-visible,
+.linkButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.35);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 0 1rem;
+}
+
+/* ---- seções recolhíveis ---- */
+
+.section + .section {
+  border-top: 1px solid hsl(var(--border) / 0.55);
+}
+
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  transition: color 150ms ease;
+}
+
+.sectionToggle:hover {
+  color: hsl(var(--foreground));
+}
+
+.sectionToggle > svg:first-child {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.chevron {
+  margin-left: auto;
+  width: 0.875rem;
+  height: 0.875rem;
+  transition: transform 180ms ease;
+}
+
+.sectionToggle[aria-expanded="false"] .chevron {
+  transform: rotate(-90deg);
+}
+
+.sectionBody {
+  padding: 0 1rem 1rem;
+}
+
+/* ---- Identidade ---- */
+
+.preview {
+  position: relative;
+  margin: 0.25rem auto 1rem;
+  width: 8.5rem;
+  border-radius: 0.625rem;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px hsl(0 0% 0% / 0.5),
+    0 14px 24px -14px hsl(0 0% 0% / 0.8);
+}
+
+.previewCaption {
+  margin-top: -0.5rem;
+  margin-bottom: 0.875rem;
+  text-align: center;
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.fieldMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+.counter {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter[data-near] {
+  color: hsl(var(--foreground));
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.switchText {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.switchHint {
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.status {
+  margin-top: 0.625rem;
+  min-height: 1.125rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.status[data-tone="success"] {
+  color: hsl(var(--success));
+}
+
+.status[data-tone="error"] {
+  color: hsl(var(--destructive));
+}
+
+.readOnly {
+  margin-top: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--foreground) / 0.05);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.readOnlyName {
+  display: block;
+  margin-bottom: 0.25rem;
+  font: 600 0.9375rem / 1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+/* ---- Organização ---- */
+
+.facts {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.factLabel {
+  color: hsl(var(--muted-foreground));
+}
+
+.factValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.linkList {
+  display: grid;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+
+.linkButton {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--foreground) / 0.05);
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  transition: background-color 150ms ease;
+}
+
+.linkButton:hover {
+  background: hsl(var(--foreground) / 0.09);
+}
+
+.linkButton > svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.linkButton > svg:last-child {
+  margin-left: auto;
+}
+
+/* ---- Informações ---- */
+
+/*
+ * Progresso das coleções: um bloco só, levemente elevado. A dona abre o bloco
+ * com nome e barra dourada plenos; convidadas vêm abaixo, menores, separadas
+ * por fio discreto, com barra mais fina e dourado atenuado — mesma família,
+ * sem competir com a principal.
+ */
+.progressCard {
+  margin: 0.25rem 0 1rem;
+  padding: 0.75rem 0.875rem 0.875rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--foreground) / 0.04);
+  box-shadow: inset 0 0 0 1px hsl(var(--border) / 0.55);
+}
+
+.progressCard .subTitle {
+  margin-top: 0;
+}
+
+.progressList {
+  display: grid;
+}
+
+.progressItem + .progressItem {
+  margin-top: 0.625rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+
+.progressItem[data-role="owner"] + .progressItem {
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
+}
+
+.progressHead {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.progressItem[data-role="guest"] .progressHead {
+  margin-bottom: 0.3125rem;
+}
+
+.progressName {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 0.9375rem / 1.3 var(--font-heading);
+}
+
+.progressItem[data-role="guest"] .progressName {
+  font: 500 0.8125rem / 1.3 var(--font-sans);
+}
+
+.progressMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+  font-size: 0.8125rem;
+}
+
+.progressItem[data-role="guest"] .progressMeta {
+  margin-bottom: 0.3125rem;
+  font-size: 0.75rem;
+}
+
+.progressPercent {
+  font: 700 1.125rem / 1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressItem[data-role="guest"] .progressPercent {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.progressTrack {
+  height: 0.5rem;
+  box-shadow: inset 0 1px 1px hsl(0 0% 0% / 0.35);
+}
+
+.progressItem[data-role="guest"] .progressTrack {
+  height: 0.25rem;
+  box-shadow: none;
+}
+
+.progressFill {
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.7), hsl(var(--primary)));
+  box-shadow: 0 0 10px -2px hsl(var(--primary) / 0.55);
+}
+
+.progressItem[data-role="guest"] .progressFill {
+  background: hsl(var(--primary) / 0.55);
+  box-shadow: none;
+}
+
+.tag[data-tone="gold"] {
+  background: hsl(var(--primary) / 0.16);
+  color: hsl(var(--primary));
+}
+
+.meter {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.meterHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.375rem;
+  font-size: 0.8125rem;
+}
+
+.meterValue {
+  font: 700 1.125rem / 1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: hsl(var(--foreground) / 0.1);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: inherit;
+  background: hsl(var(--primary));
+  transform-origin: left center;
+  transition: transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.breakdown {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.5rem;
+  border-radius: 2px;
+  vertical-align: 0.05em;
+}
+
+.subTitle {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.participants {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.participant {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.participant[data-current] {
+  background: hsl(var(--foreground) / 0.05);
+}
+
+.participantName {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag {
+  flex: none;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: hsl(var(--foreground) / 0.08);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: hsl(var(--muted-foreground));
+}
+
+.participantCount {
+  flex: none;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+}
+
+.skeleton {
+  height: 0.75rem;
+  border-radius: 0.375rem;
+  background: hsl(var(--foreground) / 0.08);
+}
+
+.skeleton + .skeleton {
+  margin-top: 0.5rem;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .scrim {
+    animation: none;
+  }
+
+  .chevron,
+  .fill {
+    transition: none;
+  }
+}

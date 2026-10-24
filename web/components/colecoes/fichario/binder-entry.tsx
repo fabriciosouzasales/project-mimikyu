@@ -25,13 +25,15 @@ const OPEN_EVENT = "mmkyu:open-binder";
 export function BinderEntry({
   collectionId,
   collectionName,
-  coverCode,
   binder,
 }: {
   collectionId: string;
   collectionName: string;
-  /** Código gravado na contracapa (Set ou código da capa). */
-  coverCode: string | null;
+  /**
+   * Código do Set/capa. Desde a P3-A a contracapa não mostra mais código
+   * (R11); mantido no contrato das três páginas de coleção, sem uso aqui.
+   */
+  coverCode?: string | null;
   binder: BinderHeader | null;
 }) {
   const href = binderHref(collectionId);
@@ -72,6 +74,7 @@ export function BinderEntry({
               ) : null}
             </span>
             <span className={styles.meta}>
+              {binder.identity?.displayName ? `${binder.identity.displayName} · ` : ""}
               {modelLabel(binder.columns, binder.rows)} · {formatCount(binder.pageCount)} {binder.pageCount === 1 ? "página" : "páginas"} ·{" "}
               {isSharedBinder(binder)
                 ? `${formatCount(binder.ownFilledCount)} ${binder.ownFilledCount === 1 ? "carta desta coleção nos bolsos" : "cartas desta coleção nos bolsos"}`
@@ -91,7 +94,6 @@ export function BinderEntry({
           <BinderOverlay
             collectionId={collectionId}
             collectionName={collectionName}
-            coverSubtitle={coverCode ? `MMKYU · ${coverCode.toUpperCase()}` : "MMKYU"}
             header={binder}
             onClose={() => setOpen(false)}
           />
