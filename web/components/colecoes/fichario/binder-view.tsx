@@ -5,6 +5,7 @@ import { type BinderHeader, type BinderPage, createBlocker, createBlockerMessage
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import type { JoinCandidate } from "@/lib/colecoes/binder-share";
 import { type SpeciesReferenceState, mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
+import { mayHaveCatalogNovelties } from "@/lib/colecoes/binder-catalog";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import { BinderAssembly } from "./binder-assembly";
 import { BinderJoinOrCreate } from "./binder-join";
@@ -68,6 +69,7 @@ export function BinderView({
         initialPages={initialPages}
         speciesReferences={mayHaveSpeciesReferences(header)}
         initialSpeciesState={speciesState}
+        catalogNovelties={mayHaveCatalogNovelties(header)}
         backHref={backHref}
       />
     );

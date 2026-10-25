@@ -24,6 +24,7 @@ import {
   placeAvailableCard,
   previewInsertGap,
   readAvailableCards,
+  readCatalogNovelties,
   readBinderPages,
   readSpeciesReferenceState,
   removeSlots,
@@ -81,6 +82,7 @@ import { type GapPreview, gapFailureMessage } from "@/lib/colecoes/binder-insert
 import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, regionFailureMessage } from "@/lib/colecoes/binder-region";
 import { type BinderIdentity, CONTROL_PANEL_STORAGE_KEY, type ControlSection, type ResolvedIdentity, parseControlPanelPrefs, resolveIdentity } from "@/lib/colecoes/binder-identity";
 import { type SpeciesReferenceState, speciesFailureMessage } from "@/lib/colecoes/binder-species";
+import { type CatalogApplyResult, type CatalogNoveltyState, applyResultMessage, noveltyBadgeCount } from "@/lib/colecoes/binder-catalog";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, insideCoverSurface, TopNavControls, leatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
@@ -104,6 +106,7 @@ import {
   SpeciesReferenceVisibleContext,
 } from "./binder-slot";
 import { SpeciesReferenceDialog } from "./binder-species-dialog";
+import { CatalogNoveltiesDialog } from "./binder-catalog-dialog";
 import { BinderToolRail } from "./binder-tool-rail";
 import { BulkActionRail, type TrayItem, TraySurface, TrayToggleButton } from "./binder-tray";
 import ws from "./workspace.module.css";
@@ -173,6 +176,7 @@ export function BinderWorkspace({
   availableCount,
   speciesReferences = false,
   initialSpeciesState,
+  catalogNovelties = false,
 }: {
   variant: "overlay" | "page";
   collectionId: string;
@@ -217,6 +221,12 @@ export function BinderWorkspace({
   speciesReferences?: boolean;
   /** Estado lido no servidor (rota `/fichario`); `undefined` = o fichário lê sozinho (overlay). */
   initialSpeciesState?: SpeciesReferenceState | null;
+  /**
+   * BINDER-CATALOG-RECONCILIATION-FRONTEND-01: coleção Master Set ativa com
+   * fichário (`mayHaveCatalogNovelties`). `false` = nenhuma leitura nova e
+   * nenhum botão — Pokédex, Set, Livre e arquivada ficam exatamente como estão.
+   */
+  catalogNovelties?: boolean;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   // Total de páginas vivo: cresce quando o colecionador adiciona páginas (5125).
@@ -472,6 +482,23 @@ export function BinderWorkspace({
     },
     [collectionId, speciesState],
   );
+  // ---- novidades do Catálogo (BINDER-CATALOG-RECONCILIATION, 5265/5266) ----
+  const [catalogState, setCatalogState] = useState<CatalogNoveltyState | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  useEffect(() => {
+    // Leitura leve uma vez ao abrir o fichário. Falha ou inelegível = sem aviso e sem botão (nunca bloqueia o fichário).
+    if (!catalogNovelties) return;
+    let alive = true;
+    void readCatalogNovelties({ collectionId })
+      .then((result) => {
+        if (alive && result.ok) setCatalogState(result.state);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [catalogNovelties, collectionId]);
+  const catalogCount = catalogNovelties ? noveltyBadgeCount(catalogState) : 0;
   // Personalização do layout: imagem em 2 bolsos e "Abrir espaço".
   const [imageShape, setImageShape] = useState<"single" | "wide">("single");
   const [regionTarget, setRegionTarget] = useState<{ regionId: string; mode: RegionDialogMode } | null>(null);
@@ -663,6 +690,30 @@ export function BinderWorkspace({
       setToast(result.failure ? { tone: "error", text: `${message} ${slotFailureMessage(result.failure)}` } : { tone: "success", text: message });
     },
     [addingPages, collectionId, columns, editable, fail, layoutId, refreshPages, rows, totalPages],
+  );
+
+  /**
+   * Novidades do Catálogo incorporadas (5266, confirmadas pelo banco): o total
+   * de páginas cresce se houve página nova, as páginas afetadas são relidas no
+   * lugar (ids de bolso não mudam) e a lista de novidades é relida — ela some
+   * do trilho quando não sobra nenhuma. ALREADY_APPLIED/NOTHING_TO_DO só avisam.
+   */
+  const runCatalogApplied = useCallback(
+    async (result: CatalogApplyResult, pages: number[]) => {
+      setCatalogOpen(false);
+      if (result.outcome === "APPLIED") {
+        if (result.pagesAdded > 0) {
+          const last = Math.max(totalPages, ...result.addedPageNumbers);
+          setTotalPages(last);
+          setFailed(new Set());
+        }
+        await refreshPages([...new Set([...pages, ...result.addedPageNumbers])]);
+      }
+      setToast({ tone: result.outcome === "APPLIED" ? "success" : "info", text: applyResultMessage(result) });
+      const reread = await readCatalogNovelties({ collectionId }).catch(() => null);
+      if (reread && reread.ok) setCatalogState(reread.state);
+    },
+    [collectionId, refreshPages, totalPages],
   );
 
   /** Posicionar um exemplar disponível (5250, pelo exemplar). Só bolso vazio e solto — nunca substitui outra carta. */
@@ -1423,6 +1474,8 @@ export function BinderWorkspace({
                 speciesAvailable: speciesReferences && speciesState !== null && speciesState.isPokedexOwner,
                 speciesActive: speciesVisible,
                 speciesCount: speciesState?.referenceCount ?? 0,
+                catalogCount,
+                catalogOpen,
                 canFullscreen,
                 fullscreen,
                 count: selected.size,
@@ -1453,6 +1506,12 @@ export function BinderWorkspace({
                   setArmedCard(null);
                   setConfirm(null);
                   setSpeciesOpen(true);
+                },
+                onOpenCatalog: () => {
+                  setArmed(null);
+                  setArmedCard(null);
+                  setConfirm(null);
+                  setCatalogOpen(true);
                 },
                 onToggleFullscreen: toggleFullscreen,
                 onMoveToTray: () => toTray([...selected]),
@@ -1702,6 +1761,26 @@ export function BinderWorkspace({
             onClose={() => setSpeciesOpen(false)}
           />
         ) : null}
+
+        {catalogOpen && catalogState && catalogState.eligible && catalogState.count > 0 ? (
+          <CatalogNoveltiesDialog
+            host={rootRef.current}
+            collectionId={collectionId}
+            state={catalogState}
+            onStateChange={(next) => {
+              setCatalogState(next);
+              if (!next.eligible || next.count === 0) setCatalogOpen(false);
+            }}
+            onApplied={(result, pages) => void runCatalogApplied(result, pages)}
+            onClose={() => setCatalogOpen(false)}
+          />
+        ) : null}
+        {/* Aviso discreto e acessível: anunciado uma vez quando há novidade (o trilho mostra o contador). */}
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
+          {catalogCount > 0
+            ? `${catalogCount === 1 ? "1 novidade do Catálogo" : `${catalogCount} novidades do Catálogo`} ainda sem bolso neste fichário. Use “Novidades do Catálogo” nas ferramentas.`
+            : ""}
+        </span>
 
         {addPagesOpen ? (
           <AddPagesDialog

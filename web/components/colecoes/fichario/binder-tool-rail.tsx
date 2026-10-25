@@ -2,7 +2,7 @@
 
 import { useContext } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { ArrowDown, Bookmark, BookmarkX, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PawPrint, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, Bookmark, BookmarkX, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PawPrint, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { BinderPortalContext } from "./binder-slot";
 import styles from "./tool-rail.module.css";
 
@@ -34,7 +34,11 @@ import styles from "./tool-rail.module.css";
  *                            fichário compartilhado, "Só desta coleção"
  *                            (P2-SHARED-BINDER-FRONTEND-01) e, só em fichário
  *                            de Pokédex, "Pokémon nos bolsos" (referências de
- *                            espécie; POKEDEX-BINDER-SPECIES-REFERENCE).
+ *                            espécie; POKEDEX-BINDER-SPECIES-REFERENCE) e,
+ *                            só em fichário Master Set com novidade do Catálogo
+ *                            ainda sem lugar, "Novidades do Catálogo" com contador
+ *                            (BINDER-CATALOG-RECONCILIATION-FRONTEND-01; some
+ *                            quando não há novidade — é um aviso, não ferramenta).
  *  B Experiência           — Tela cheia.
  *  D Seleção               — contador, Mover para a Bandeja, Fixar, Soltar,
  *                            Reservar, Liberar reserva, Tirar do fichário, Limpar.
@@ -60,6 +64,9 @@ export type ToolRailState = {
   /** Referências gravadas e exibidas. */
   speciesActive?: boolean;
   speciesCount?: number;
+  /** Novidades do Catálogo pendentes (0 = botão ausente). Só Master Set elegível. */
+  catalogCount?: number;
+  catalogOpen?: boolean;
   canFullscreen: boolean;
   fullscreen: boolean;
   count: number;
@@ -78,6 +85,7 @@ export type ToolRailActions = {
   onToggleAvailable: () => void;
   onToggleOnlyMine: () => void;
   onOpenSpecies?: () => void;
+  onOpenCatalog?: () => void;
   onToggleFullscreen: () => void;
   onMoveToTray: () => void;
   onLock: () => void;
@@ -204,6 +212,22 @@ export function BinderToolRail({ state: s, actions: a }: { state: ToolRailState;
             }
             onClick={a.onOpenSpecies}
             active={s.speciesActive === true}
+            haspopup="dialog"
+          />
+        ) : null}
+
+        {(s.catalogCount ?? 0) > 0 && a.onOpenCatalog ? (
+          <RailButton
+            icon={Sparkles}
+            label={
+              s.editable
+                ? `Novidades do Catálogo — ${s.catalogCount} ${s.catalogCount === 1 ? "posição nova" : "posições novas"} do Set ainda sem bolso`
+                : "Novidades do Catálogo — coleção arquivada, só leitura"
+            }
+            onClick={a.onOpenCatalog}
+            active={s.catalogOpen === true}
+            badge={s.catalogCount}
+            disabled={!s.editable || s.busy}
             haspopup="dialog"
           />
         ) : null}

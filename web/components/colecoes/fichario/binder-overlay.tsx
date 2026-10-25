@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { BinderHeader } from "@/lib/colecoes/binder";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
+import { mayHaveCatalogNovelties } from "@/lib/colecoes/binder-catalog";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { BinderWorkspace } from "./binder-workspace";
@@ -114,6 +115,7 @@ export function BinderOverlay({
           identity={header.identity ?? null}
           finish={finish}
           speciesReferences={mayHaveSpeciesReferences(header)}
+          catalogNovelties={mayHaveCatalogNovelties(header)}
           columns={header.columns}
           rows={header.rows}
           totalPages={header.pageCount}

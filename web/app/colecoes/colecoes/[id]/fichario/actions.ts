@@ -96,6 +96,19 @@ import {
   parseSpeciesPreview,
   parseSpeciesReferenceState,
 } from "@/lib/colecoes/binder-species";
+import {
+  CATALOG_ITEM_LIMIT,
+  type CatalogApplyResult,
+  type CatalogFailure,
+  type CatalogNoveltyState,
+  type CatalogPreview,
+  classifyCatalogFailure,
+  isCatalogItemKey,
+  isCatalogPlanToken,
+  parseCatalogApply,
+  parseCatalogNovelties,
+  parseCatalogPreview,
+} from "@/lib/colecoes/binder-catalog";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -1157,4 +1170,87 @@ export async function clearSpeciesReferences(input: {
   const read = await readSpeciesState(supabase, input.collectionId, startedAt);
   if (!read.ok) return read;
   return { ok: true, removed, state: read.state };
+}
+
+// ---------------------------------------------------------------------------
+// Novidades do Catálogo no fichário (BINDER-CATALOG-RECONCILIATION, 5263–5266
+// LIVE desde 2026-10-25). Só MASTER_SET; Pokédex nunca entra. Aviso e prévia
+// só leem; a incorporação exige o plan_token da prévia e as confirmações de
+// outra página / página nova. O banco recalcula tudo sob a trava do fichário.
+// ---------------------------------------------------------------------------
+
+type CatalogFail = { ok: false; reason: CatalogFailure };
+
+function catalogFail(fn: string, startedAt: number, error: { code?: string; message?: string; hint?: string } | null): CatalogFail {
+  const reason = classifyCatalogFailure(error?.code, error?.message, error?.hint);
+  // Sem dados do usuário no log: função, duração, código e classe.
+  console.error(JSON.stringify({ scope: "colecoes.binder_catalog", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+function validCatalogKeys(keys: unknown): keys is string[] {
+  return Array.isArray(keys) && keys.length >= 1 && keys.length <= CATALOG_ITEM_LIMIT && keys.every(isCatalogItemKey) && new Set(keys).size === keys.length;
+}
+
+/** Aviso leve (5265): elegibilidade + novidades pendentes. Nunca falha por inelegibilidade. Só leitura. */
+export async function readCatalogNovelties(input: { collectionId: string }): Promise<{ ok: true; state: CatalogNoveltyState } | CatalogFail> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_binder_catalog_novelties", { p_collection_id: input.collectionId });
+  if (error) return catalogFail("get_my_binder_catalog_novelties", startedAt, error);
+  const state = parseCatalogNovelties(data);
+  if (!state) return catalogFail("get_my_binder_catalog_novelties", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, state };
+}
+
+/** Prévia (5265, não grava) da seleção explícita: destinos, deslocamentos, páginas, capacidade e o token. */
+export async function previewCatalogReconciliation(input: {
+  collectionId: string;
+  keys: string[];
+}): Promise<{ ok: true; preview: CatalogPreview } | CatalogFail> {
+  if (!isCollectionId(input?.collectionId) || !validCatalogKeys(input.keys)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("preview_my_binder_catalog_reconciliation", { p_collection_id: input.collectionId, p_keys: input.keys });
+  if (error) return catalogFail("preview_my_binder_catalog_reconciliation", startedAt, error);
+  const preview = parseCatalogPreview(data);
+  if (!preview) return catalogFail("preview_my_binder_catalog_reconciliation", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, preview };
+}
+
+/**
+ * Incorporação (5266): mesma seleção e mesmo token da prévia; outra página e
+ * página nova só com confirmação explícita. Atômica e idempotente no banco
+ * (ALREADY_APPLIED / NOTHING_TO_DO não gravam nada). Revalida o fichário e a
+ * página da coleção (indicadores de reservas/progresso).
+ */
+export async function applyCatalogReconciliation(input: {
+  collectionId: string;
+  keys: string[];
+  planToken: string;
+  confirmCrossPage: boolean;
+  confirmAddPage: boolean;
+}): Promise<{ ok: true; result: CatalogApplyResult } | CatalogFail> {
+  if (!isCollectionId(input?.collectionId) || !validCatalogKeys(input.keys) || !isCatalogPlanToken(input.planToken)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("apply_my_binder_catalog_reconciliation", {
+    p_collection_id: input.collectionId,
+    p_keys: input.keys,
+    p_plan_token: input.planToken,
+    p_confirm_cross_page: input.confirmCrossPage === true,
+    p_confirm_add_page: input.confirmAddPage === true,
+  });
+  if (error) return catalogFail("apply_my_binder_catalog_reconciliation", startedAt, error);
+  const result = parseCatalogApply(data);
+  if (!result) return catalogFail("apply_my_binder_catalog_reconciliation", startedAt, { code: "BAD_SHAPE" });
+  console.info(
+    JSON.stringify({ scope: "colecoes.binder_catalog", fn: "apply_my_binder_catalog_reconciliation", ms: Date.now() - startedAt, outcome: result.outcome, items: result.itemsApplied, pagesAdded: result.pagesAdded }),
+  );
+  if (result.outcome === "APPLIED") {
+    revalidatePath(binderHref(input.collectionId));
+    revalidatePath(collectionHref(input.collectionId));
+  }
+  return { ok: true, result };
 }
