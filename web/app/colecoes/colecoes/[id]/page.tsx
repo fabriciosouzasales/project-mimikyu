@@ -17,6 +17,7 @@ import {
   getMasterSetOutOfScopeCount,
   getMyCollection,
   getMyCollectionPositions,
+  getMyMasterSetHeroPositions,
   getMyMasterSetPositions,
   getMyPokedexPositions,
   getPokedexGenerationOptions,
@@ -31,7 +32,12 @@ import {
   pokedexHeroPicks,
 } from "@/lib/colecoes/pokedex";
 import { getMyPokedexFavorites, getPokedexSpeciesByNumbers } from "@/lib/pokedex/queries";
-import { MASTER_SET_ADD_FROM_ACERVO_ENABLED, masterSetTotalPages, parseMasterSetPage } from "@/lib/colecoes/master-set";
+import {
+  MASTER_SET_ADD_FROM_ACERVO_ENABLED,
+  masterSetHeroOffset,
+  masterSetTotalPages,
+  parseMasterSetPage,
+} from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -167,15 +173,17 @@ export default async function ColecaoPage({
   const collection = summary;
 
   // Master Set (MASTER-SET-FRONTEND-PHASE-02): a grade vem de 5189/5198, uma
-  // página por vez (`?pagina=`); o hero usa a primeira página de "Todas" (sem
-  // leitura extra quando é a própria página exibida). R2/R3 acima devolvem
-  // zero linhas para esta política e são descartadas.
+  // página por vez (`?pagina=`). O hero lê a última janela de "Todas", onde
+  // ficam as secretas (MASTER-SET-HERO-SECRET-CARDS-CORRECTION-01); só reusa a
+  // página exibida quando o Set inteiro cabe nela. R2/R3 acima devolvem zero
+  // linhas para esta política e são descartadas.
   let master: MasterSetView | null = null;
   if (collection?.completionPolicy === "MASTER_SET") {
     const requested = parseMasterSetPage(query.pagina);
+    const heroFromPage = filter === "todas" && requested === 1 && masterSetHeroOffset(collection.totalPositions) === 0;
     const [positionsPage, heroPage, outOfScope, masterLinkable] = await Promise.all([
       getMyMasterSetPositions(supabase, collectionId, filter, requested),
-      filter === "todas" && requested === 1 ? Promise.resolve(null) : getMyMasterSetPositions(supabase, collectionId, "todas", 1),
+      heroFromPage ? Promise.resolve(null) : getMyMasterSetHeroPositions(supabase, collectionId, collection.totalPositions),
       getMasterSetOutOfScopeCount(supabase, collectionId),
       // "Adicionar cartas" em lote (5200): só lê com o recurso ligado.
       MASTER_SET_ADD_FROM_ACERVO_ENABLED ? getMasterSetLinkableCount(supabase, collectionId) : Promise.resolve(null),
@@ -186,7 +194,7 @@ export default async function ColecaoPage({
     }
     master = {
       positions: positionsPage,
-      heroPositions: (filter === "todas" && requested === 1 ? positionsPage : heroPage)?.items ?? [],
+      heroPositions: (heroFromPage ? positionsPage : heroPage)?.items ?? [],
       page: positionsPage ? Math.min(requested, masterSetTotalPages(positionsPage.total)) : requested,
       outOfScopeCount: outOfScope,
       linkable: masterLinkable,

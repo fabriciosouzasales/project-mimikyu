@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { type BinderFinish, resolveFinish } from "./binder-finish.ts";
 import { COVER_BUCKET, FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, isCoverCode, isCoverPath, isFreeCollection } from "./free-collection.ts";
 import { LIBRARY_PAGE_SIZE, POSITIONS_PAGE_SIZE, type PositionFilter, type StorageOption, toPositionsRpcFilter } from "./colecoes.ts";
-import { MASTER_SET_PAGE_SIZE, type MasterSetPositionsPage, parseMasterSetPositions } from "./master-set.ts";
+import { MASTER_SET_PAGE_SIZE, type MasterSetPositionsPage, masterSetHeroOffset, parseMasterSetPositions } from "./master-set.ts";
 import {
   type GenerationOption,
   pokedexPageSize,
@@ -252,6 +252,38 @@ export async function getMyMasterSetPositions(
     return null;
   }
   return parseMasterSetPositions(data);
+}
+
+/**
+ * Posições do hero do Master Set (MASTER-SET-HERO-SECRET-CARDS-CORRECTION-01):
+ * a última janela de "Todas" (secretas e números mais altos), mesma RPC e mesmo
+ * tamanho de página da grade. `totalPositions` = resumo da coleção (5188). Se o
+ * total estiver defasado e a janela vier vazia, relê do início (comportamento
+ * anterior) em vez de esvaziar o hero.
+ */
+export async function getMyMasterSetHeroPositions(
+  supabase: SupabaseClient,
+  id: string,
+  totalPositions: number,
+): Promise<MasterSetPositionsPage | null> {
+  const read = async (offset: number) => {
+    const startedAt = Date.now();
+    const { data, error } = await supabase.rpc("get_my_master_set_positions", {
+      p_collection_id: id,
+      p_filter: toPositionsRpcFilter("todas"),
+      p_limit: MASTER_SET_PAGE_SIZE,
+      p_offset: offset,
+    });
+    if (error || !Array.isArray(data)) {
+      logReadFailure("get_my_master_set_positions", startedAt, error);
+      return null;
+    }
+    return parseMasterSetPositions(data);
+  };
+  const offset = masterSetHeroOffset(totalPositions);
+  const tail = await read(offset);
+  if (tail !== null && tail.items.length === 0 && offset > 0) return read(0);
+  return tail;
 }
 
 /**

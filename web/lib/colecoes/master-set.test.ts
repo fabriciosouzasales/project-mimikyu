@@ -25,6 +25,7 @@ import {
   MASTER_SET_PAGE_SIZE,
   finishBadge,
   heroCardsFromMasterSet,
+  masterSetHeroOffset,
   masterSetTotalPages,
   outOfScopeReasonText,
   parseMasterSetPage,
@@ -39,7 +40,7 @@ import {
   parseMasterSetLinkCandidates,
   pickLinkCopies,
 } from "./master-set.ts";
-import { collectionKindLabel } from "./colecoes.ts";
+import { collectionKindLabel, pickHeroCards } from "./colecoes.ts";
 
 const STD = "11111111-1111-4111-8111-111111111111";
 const HOLO = "22222222-2222-4222-8222-222222222222";
@@ -355,4 +356,120 @@ test("pickLinkCopies: só posições marcadas que continuam faltando, na ordem d
   assert.deepEqual(pickLinkCopies(items, wanted), [PC1, PC3]);
   assert.deepEqual(pickLinkCopies(items, new Set()), []);
   assert.equal(MASTER_SET_LINK_BATCH_SIZE, 500);
+});
+
+// ---- MASTER-SET-HERO-SECRET-CARDS-CORRECTION-01 ----
+
+const HERO_REV = "44444444-4444-4444-8444-444444444444";
+const FINISHES = [STD, HOLO, HERO_REV] as const;
+
+function cardUuid(set: number, n: number): string {
+  return `${String(set).padStart(8, "0")}-0000-4000-8000-${String(n).padStart(12, "0")}`;
+}
+
+/**
+ * Posições de um Master Set na ordem da grade (5198: número, depois acabamento):
+ * base 1..base com três acabamentos; secretas base+1..base+secrets como posição
+ * genérica (acabamento nulo, is_secret true). `owned` marca posições satisfeitas.
+ */
+function masterSetRows(opts: { set?: number; base: number; secrets: number; owned?: (n: number) => boolean }) {
+  const set = opts.set ?? 5;
+  const rows: Record<string, unknown>[] = [];
+  for (let n = 1; n <= opts.base + opts.secrets; n += 1) {
+    const common = {
+      card_id: cardUuid(set, n),
+      collector_number: String(n).padStart(3, "0"),
+      collector_total: opts.base,
+      card_name: `Carta ${n}`,
+      image_path: `card-front/${set}/${n}.webp`,
+      is_satisfied: opts.owned?.(n) ?? false,
+    };
+    if (n <= opts.base) for (const finish of FINISHES) rows.push({ ...common, variant_type_id: finish, is_secret: false });
+    else rows.push({ ...common, variant_type_id: null, is_secret: true });
+  }
+  return rows.map((row, _index, all): Record<string, unknown> => ({ ...row, total_count: all.length }));
+}
+
+function heroNumbers(rows: Record<string, unknown>[], setCode: string | null = null) {
+  const hero = pickHeroCards(heroCardsFromMasterSet(parseMasterSetPositions(rows).items), 5, setCode);
+  return { numbers: hero.cards.map((card) => card.collectorNumber), secret: hero.secret };
+}
+
+test("masterSetHeroOffset: última janela da grade; Set que cabe numa página → 0", () => {
+  assert.equal(masterSetHeroOffset(194), 194 - MASTER_SET_PAGE_SIZE);
+  assert.equal(masterSetHeroOffset(MASTER_SET_PAGE_SIZE), 0);
+  assert.equal(masterSetHeroOffset(10), 0);
+  assert.equal(masterSetHeroOffset(0), 0);
+  assert.equal(masterSetHeroOffset(Number.NaN), 0);
+});
+
+test("causa-raiz ME5: a 1ª página (120 posições) não tem nenhuma secreta; a última janela tem todas", () => {
+  // ME5 Escuridão Absoluta no LIVE: 84 base + 36 secretas, objetivo com 194
+  // posições (nem toda carta da base tem os 3 acabamentos). Aqui todas têm os 3
+  // (288 posições); o efeito é o mesmo: as secretas ficam no fim da grade.
+  const rows = masterSetRows({ base: 84, secrets: 36 });
+  const firstPage = rows.slice(0, MASTER_SET_PAGE_SIZE);
+  const tail = rows.slice(masterSetHeroOffset(rows.length));
+  assert.equal(parseMasterSetPositions(firstPage).items.filter((p) => p.isSecret).length, 0);
+  assert.equal(parseMasterSetPositions(tail).items.filter((p) => p.isSecret).length, 36);
+  assert.equal(heroNumbers(firstPage).secret, 0);
+  assert.deepEqual(heroNumbers(tail), { numbers: ["120", "119", "118", "117", "116"], secret: 5 });
+});
+
+test("hero Master Set: Set com secretas suficientes → só secretas, da mais alta para baixo", () => {
+  const rows = masterSetRows({ base: 20, secrets: 8 });
+  assert.deepEqual(heroNumbers(rows), { numbers: ["028", "027", "026", "025", "024"], secret: 5 });
+});
+
+test("hero Master Set: poucas secretas → secretas primeiro, completa com as de número mais alto", () => {
+  const rows = masterSetRows({ base: 20, secrets: 2 });
+  assert.deepEqual(heroNumbers(rows), { numbers: ["022", "021", "020", "019", "018"], secret: 2 });
+});
+
+test("hero Master Set: sem secretas → números mais altos, nenhuma marcada como secreta", () => {
+  const rows = masterSetRows({ base: 20, secrets: 0 });
+  assert.deepEqual(heroNumbers(rows), { numbers: ["020", "019", "018", "017", "016"], secret: 0 });
+});
+
+test("hero Master Set: não depende da posse (coleção vazia = coleção com cartas)", () => {
+  const none = heroNumbers(masterSetRows({ base: 20, secrets: 8 }));
+  const some = heroNumbers(masterSetRows({ base: 20, secrets: 8, owned: (n) => n % 2 === 0 || n <= 5 }));
+  assert.deepEqual(none, some);
+  const hero = heroCardsFromMasterSet(parseMasterSetPositions(masterSetRows({ base: 20, secrets: 8 })).items);
+  assert.ok(hero.every((card) => !card.isSatisfied));
+});
+
+test("hero Master Set: o sinal de secreta vem do servidor (C-189), não só do número", () => {
+  // Total impresso defasado (ex.: 10) faria a regra local tratar a base inteira
+  // como secreta; o sinal do servidor (is_secret) prevalece.
+  const rows = masterSetRows({ base: 20, secrets: 3 }).map((row) => ({ ...row, collector_total: 10 }));
+  assert.deepEqual(heroNumbers(rows), { numbers: ["023", "022", "021", "020", "019"], secret: 3 });
+  const hero = heroCardsFromMasterSet(parseMasterSetPositions(rows).items);
+  assert.equal(hero.filter((card) => card.isSecret).length, 3);
+});
+
+test("hero Master Set: isolamento entre expansões — curadoria de outro Set não se aplica e só entram cartas lidas", () => {
+  const me5 = masterSetRows({ set: 5, base: 84, secrets: 36 });
+  const me55 = masterSetRows({ set: 55, base: 130, secrets: 30 });
+  // ME5 não herda a curadoria da ME5.5 (149 · 157 · 158 · 155 · 154).
+  assert.deepEqual(heroNumbers(me5.slice(masterSetHeroOffset(me5.length)), "ME5").numbers, ["120", "119", "118", "117", "116"]);
+  const me5Ids = new Set(me5.map((row) => row.card_id));
+  const hero = pickHeroCards(heroCardsFromMasterSet(parseMasterSetPositions(me5).items), 5, "ME5");
+  assert.ok(hero.cards.every((card) => me5Ids.has(card.cardId)));
+  // A curadoria da ME5.5 continua valendo só para a ME5.5.
+  assert.deepEqual(heroNumbers(me55, "ME5.5").numbers, ["149", "157", "158", "155", "154"]);
+});
+
+test("hero Set padrão (sem sinal do servidor): regra local pelo número impresso, inalterada", () => {
+  const card = (n: number, total: number) => ({
+    cardId: cardUuid(9, n),
+    cardName: `C${n}`,
+    collectorNumber: String(n),
+    collectorTotal: total,
+    imagePath: "x.webp",
+    isSatisfied: false,
+  });
+  const hero = pickHeroCards([card(1, 10), card(9, 10), card(11, 10), card(12, 10), card(10, 10)], 5);
+  assert.deepEqual(hero.cards.map((c) => c.collectorNumber), ["12", "11", "10", "9", "1"]);
+  assert.equal(hero.secret, 2);
 });

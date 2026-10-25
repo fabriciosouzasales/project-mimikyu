@@ -242,6 +242,12 @@ export type HeroCardSource = {
   collectorTotal: number | null;
   imagePath: string | null;
   isSatisfied: boolean;
+  /**
+   * Secreta segundo o servidor (Master Set: C-189 / 5187 — número só dígitos
+   * acima de `card_set.base_set_size`). Ausente = a regra local pelo número
+   * impresso (Set padrão: R2 não traz o sinal).
+   */
+  isSecret?: boolean;
 };
 
 export type HeroSelection<T extends HeroCardSource> = { cards: T[]; secret: number };
@@ -282,7 +288,8 @@ export function pickHeroCards<T extends HeroCardSource>(
     .filter((entry): entry is { position: T; number: number } => entry.number !== null)
     .sort((a, b) => b.number - a.number || a.position.cardId.localeCompare(b.position.cardId));
   const isSecret = (entry: { position: T; number: number }) =>
-    entry.position.collectorTotal !== null && entry.position.collectorTotal > 0 && entry.number > entry.position.collectorTotal;
+    entry.position.isSecret ??
+    (entry.position.collectorTotal !== null && entry.position.collectorTotal > 0 && entry.number > entry.position.collectorTotal);
   const secretIds = new Set(ranked.filter(isSecret).map((entry) => entry.position.cardId));
   const curated = (setCode ? HERO_CURATION[setCode.toLowerCase()] : undefined) ?? [];
   const byNumber = new Map<number, T>();

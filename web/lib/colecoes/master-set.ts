@@ -438,7 +438,22 @@ export function masterSetTotalPages(total: number, pageSize = MASTER_SET_PAGE_SI
   return Math.max(1, Math.ceil(Math.max(0, total) / pageSize));
 }
 
-/** Uma entrada por carta para o hero: tem a carta se qualquer posição dela está satisfeita. */
+/**
+ * Offset da leitura do hero (MASTER-SET-HERO-SECRET-CARDS-CORRECTION-01): a
+ * grade ordena por número de colecionador, e as secretas (C-189) ficam no fim.
+ * O hero lê a última janela de `pageSize` posições de "Todas" — onde estão as
+ * secretas e os números mais altos —, não a primeira página. `total` vem do
+ * resumo da coleção (5188); desconhecido ou pequeno → 0 (o Set inteiro cabe).
+ */
+export function masterSetHeroOffset(total: number, pageSize = MASTER_SET_PAGE_SIZE): number {
+  if (!Number.isFinite(total) || total <= pageSize) return 0;
+  return Math.floor(total) - pageSize;
+}
+
+/**
+ * Uma entrada por carta para o hero: tem a carta se qualquer posição dela está
+ * satisfeita; secreta se o servidor marcou qualquer posição dela como secreta.
+ */
 export function heroCardsFromMasterSet(positions: readonly MasterSetPosition[]): {
   cardId: string;
   cardName: string;
@@ -446,6 +461,7 @@ export function heroCardsFromMasterSet(positions: readonly MasterSetPosition[]):
   collectorTotal: number | null;
   imagePath: string | null;
   isSatisfied: boolean;
+  isSecret: boolean;
   copiesInCollection: number;
   copiesAvailable: number;
 }[] {
@@ -460,12 +476,14 @@ export function heroCardsFromMasterSet(positions: readonly MasterSetPosition[]):
         collectorTotal: position.collectorTotal,
         imagePath: position.imagePath,
         isSatisfied: position.isSatisfied,
+        isSecret: position.isSecret,
         copiesInCollection: position.copiesInCollection,
         copiesAvailable: position.copiesAvailable,
       });
       continue;
     }
     current.isSatisfied = current.isSatisfied || position.isSatisfied;
+    current.isSecret = current.isSecret || position.isSecret;
     current.imagePath = current.imagePath ?? position.imagePath;
     current.copiesInCollection = Math.max(current.copiesInCollection, position.copiesInCollection);
   }
