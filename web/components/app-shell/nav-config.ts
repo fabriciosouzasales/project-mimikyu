@@ -260,19 +260,22 @@ export const NAV_SECTIONS: NavSection[] = [
     // ORGANIZAR → "Meus locais" (WHERE-02 FRONTEND, 2026-10-21): gestão dos lugares físicos.
     // O rótulo "Onde guardo" continua sendo o da preferência de cada coleção (Ajustes);
     // aqui o item fala do que a página contém — os locais do colecionador.
+    // COLLECTIONS-NAVIGATION-UX-CORRECTION-01 (2026-10-25): Minhas coleções vira a entrada
+    // do módulo e o primeiro item de GERENCIAR (Minhas coleções, Meu acervo); o Fichário de
+    // uma coleção (/colecoes/colecoes/<id>/fichario) também destaca Minhas coleções.
     label: "Coleções",
     icon: Library,
-    // `/colecoes` (redireciona para o acervo) para que todo `/colecoes/*` destaque a seção.
+    // `/colecoes` (redireciona para Minhas coleções) para que todo `/colecoes/*` destaque a seção.
     href: "/colecoes",
     children: [
-      { href: "/colecoes/acervo", label: "Meu acervo", section: "Gerenciar", icon: Layers },
       {
         href: "/colecoes/colecoes",
         label: "Minhas coleções",
         section: "Gerenciar",
         icon: LibraryBig,
-        activePattern: /^\/colecoes\/colecoes\/[0-9a-f-]{36}$/i,
+        activePattern: /^\/colecoes\/colecoes\/[0-9a-f-]{36}(\/fichario)?$/i,
       },
+      { href: "/colecoes/acervo", label: "Meu acervo", section: "Gerenciar", icon: Layers },
       { href: "/colecoes/locais", label: "Meus locais", section: "Organizar", icon: MapPin },
     ],
   },
