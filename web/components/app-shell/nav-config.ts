@@ -69,6 +69,12 @@ export type NavSection = {
   label: string;
   icon: LucideIcon;
   href: string;
+  /**
+   * Destino do clique no item da seção, quando difere de `href` (P1 COLLECTIONS-NAV-BLANK-01,
+   * 2026-10-29). `href` continua sendo só o prefixo que identifica a seção ativa; `entryHref`
+   * evita que o clique passe por uma rota que apenas redireciona.
+   */
+  entryHref?: string;
   /** Itens do submenu — seções sem filhos (ex.: Visão geral) não têm submenu. */
   children?: NavChild[];
   /** Só aparece no menu para administradores (ver ADR-021) — checagem de UX, não a autoridade de acesso: a página em si também nega acesso a não-admins. */
@@ -267,6 +273,9 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Library,
     // `/colecoes` (redireciona para Minhas coleções) para que todo `/colecoes/*` destaque a seção.
     href: "/colecoes",
+    // Clique vai direto para Minhas coleções, sem passar pelo redirect de `/colecoes`
+    // (tela em branco intermitente na navegação interna — P1 COLLECTIONS-NAV-BLANK-01).
+    entryHref: "/colecoes/colecoes",
     children: [
       {
         href: "/colecoes/colecoes",

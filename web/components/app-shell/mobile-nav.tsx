@@ -55,7 +55,7 @@ export function MobileNav({ isAdmin }: { isAdmin: boolean }) {
               return (
                 <div key={section.id}>
                   <Link
-                    href={section.href}
+                    href={section.entryHref ?? section.href}
                     onClick={() => setOpen(false)}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(

@@ -82,7 +82,7 @@ export function PrimaryRail({ isAdmin }: { isAdmin: boolean }) {
             return (
               <Link
                 key={section.id}
-                href={section.href}
+                href={section.entryHref ?? section.href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "flex h-8 items-center overflow-hidden whitespace-nowrap rounded-md px-2.5 text-[13px] leading-tight transition-colors",
