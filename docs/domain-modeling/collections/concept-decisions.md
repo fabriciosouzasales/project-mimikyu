@@ -5,7 +5,7 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada) |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada) |
 | **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
 | **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
@@ -1834,6 +1834,78 @@ Referências físicas: `database/schema/5263`–`5266`; detalhe em `05d-colecoes
 
 ---
 
+## Bloco complementar — Histórico de Atividades do Fichário (C-201 a C-209, 2026-10-25)
+
+Origem: decisões de Fabrício nas rodadas `P3-B-ACTIVITY-HISTORY-DISCOVERY-01` → `-DECISION-CONSOLIDATION-01` → `-DECISION-CLOSEOUT-02` → `P3-B-S1-FOUNDATION-READINESS-01` (D1–D8, O1–O5, P1, ajustes 1–7). Especializa o bloco Collection Activity History / Audit (C-166 a C-186) para o Fichário Digital, sem revogá-lo; refina C-179 e C-180 só no que está dito abaixo. Formalização lógica em `logical-model.md` LDM-196 a LDM-203. Estado físico: **proposto** (`database/proposals/2026-10-25-p3b-binder-activity-history/`, migrations 5267–5270 não aplicadas).
+
+### C-201 — Histórico por fichário
+
+**Status:** Aprovada
+
+O Fichário Digital tem um histórico de atividades próprio: um recorte do Collection Activity History (C-167) cuja unidade é o fichário, não a Collection — o fichário é compartilhado por coleção proprietária e convidadas e representa um local físico. Cada evento guarda a coleção afetada, quando houver, para permitir no futuro a consulta por coleção. Entram as operações sobre cartas (inclusive saídas originadas no Meu acervo), reservas, fixar e desfixar bolsos, páginas e espaços, novidades do Catálogo, montagem, associação, desassociação, encerramento e transferência do fichário entre coleções do mesmo dono. A apresentação é uma seção "Histórico" no Centro de Controle, sem rota própria.
+
+### C-202 — Retenção
+
+**Status:** Aprovada
+
+O histórico é preservado durante toda a existência do fichário e **sobrevive à desmontagem e à remoção do fichário**, mantendo a condição histórica; o encerramento é registrado como evento. Não há expurgo automático por prazo nesta fase. Saídas possíveis do histórico: só a exclusão definitiva pelo titular (C-203) e a exclusão da conta.
+
+### C-203 — Exclusão definitiva: exceção controlada à imutabilidade
+
+**Status:** Aprovada
+
+C-179 (imutabilidade) continua valendo, com **uma única exceção controlada**: o titular pode excluir definitivamente o histórico de um fichário seu. Regras:
+
+- só o titular, só os seus eventos, um fichário por vez, com confirmação explícita;
+- nenhuma outra via (gatilho, cascata de desmontagem, administração comum) apaga eventos;
+- respeita obrigações legais ou contratuais de retenção que vierem a existir (verificação antes da interface);
+- resta um **marco mínimo** por (titular, fichário) com a data da exclusão e o motivo, e nada mais: sem contagem, tipos, cartas, posições ou datas dos eventos apagados — nenhum conteúdo histórico recuperável; o histórico passa a ser exibido como "registrado a partir de [data da exclusão]";
+- a exclusão não gera evento.
+
+**Exclusão de histórico ≠ exclusão de conta.** A exclusão de conta remove todos os eventos e marcos do titular, sem marco remanescente, como parte do fluxo de exclusão da conta. A interface da exclusão definitiva pode vir depois do MVP; a estrutura já a comporta.
+
+*Esclarecimento (2026-10-25, `P3-B-S1-SECURITY-CORRECTION-01`, B1):* a exclusão de conta **nunca altera** eventos de outros titulares. Se a conta excluída foi ator num evento de outro titular (possível só com colaboração futura; na V1 ator = titular), o evento permanece exatamente como gravado — o ator é guardado como valor, sem relação de existência com a conta. Anonimização, se vier a ser exigida, será decisão própria e nunca uma reescrita silenciosa do histórico.
+
+### C-204 — Titularidade e acesso
+
+**Status:** Aprovada
+
+O titular de cada evento é o dono do fichário **no instante do evento**, gravado no evento e nunca recalculado a partir do fichário atual. No V1 só o titular lê os seus eventos. Isso concilia C-172 sem revogá-la: não há membros físicos hoje, e o predicado de leitura fica isolado para ser ampliado quando a associação de membros existir. Não-titular, chave inexistente ou ausência de sessão recebem resposta vazia e indistinguível.
+
+### C-205 — Operação lógica
+
+**Status:** Aprovada
+
+Cada chamada do colecionador gera **um evento**, que representa uma operação lógica; efeitos internos (deslocamentos, página criada ou removida dentro de outra operação, reservas liberadas na desassociação) são **itens** desse evento, preservados individualmente e nunca duplicados como eventos próprios. Um evento agregado corresponde exatamente a uma transação. Operações que hoje o navegador executa em várias chamadas (reservar em lote, desfazer remoção) geram eventos individuais e não são apresentadas como uma operação única até a frente separada que as tornar atômicas.
+
+### C-206 — Só o que aconteceu
+
+**Status:** Aprovada
+
+Só operações concluídas são registradas, na mesma transação da mudança. Falha, recusa, prévia, leitura e repetição idempotente sem efeito não geram evento. Acontecimentos anteriores não são reconstruídos a partir de datas de alteração ou do estado atual (reafirma C-183).
+
+### C-207 — Segregação por proprietário
+
+**Status:** Aprovada
+
+Transferências entre coleções do mesmo dono preservam o histórico integral e geram o registro da transferência, **sem alterar o comportamento homologado da transferência**. Transferências futuras entre usuários diferentes (inexistentes hoje) segregam os períodos de propriedade: cada titular vê apenas os eventos do seu período; os eventos anteriores permanecem do titular anterior e protegidos; o novo titular começa por um marco de recebimento.
+
+### C-208 — Histórico de fichários encerrados
+
+**Status:** Aprovada
+
+O histórico de um fichário desmontado, removido ou transferido para fora continua consultável **somente pelo titular dos eventos**, nunca pelo novo dono nem por terceiros. A tela de consulta desses históricos é posterior ao MVP; a capacidade de leitura existe desde a fundação.
+
+### C-209 — Início da cobertura e legado
+
+**Status:** Aprovada
+
+O histórico declara explicitamente a data de início da cobertura completa, fixada quando todas as fatias de instrumentação obrigatórias estiverem comprovadas; a interface só é publicada depois disso. A única informação anterior aproveitada é a incorporação real de novidade do Catálogo já gravada (Chi-Yu), como **registro legado parcial**: data, coleção e carta reais, sem ator, posição ou outro atributo ausente, identificada como "registro anterior ao histórico completo".
+
+Referências: `database/proposals/2026-10-25-p3b-binder-activity-history/README.md` (v1.2) e migrations propostas 5267–5270.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -2174,3 +2246,5 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.25 | **Mostrar/ocultar no Centro de Controle (2026-10-24, `POKEDEX-BINDER-SPECIES-CONTROL-CENTER-TOGGLE-01`).** C-199 emendada a pedido de Fabrício: além do Fichário (D2), o Centro de Controle dos fichários Pokédex oferece o interruptor de exibição das referências — mesma preferência persistida (5258), nunca apaga vínculos. Só frontend. |
 | 1.26 | **C-199 implementada e homologada (2026-10-24, `POKEDEX-BINDER-SPECIES-REFERENCE-FINAL-CLOSEOUT-01`).** Só a referência física da C-199 muda: de proposta para 5257–5260 canônicas. Nenhuma decisão alterada. |
 | 1.27 | **C-200 — Novidades do Catálogo no fichário Master Set (2026-10-25, `BINDER-CATALOG-RECONCILIATION-FINAL-CLOSEOUT-01`).** Registra no artefato normativo as decisões de Fabrício já aprovadas nas rodadas da proposta (só MASTER_SET, Pokédex excluída; marco de participação persistente; prévia e confirmação; ordem natural com deslocamento controlado; histórico de incorporações; reserva liberada não volta). Nenhuma decisão nova; contratos 5263–5266 canônicos e homologados. |
+| 1.28 | **C-201 a C-209 — Histórico de Atividades do Fichário (2026-10-25, `P3-B-S1-FOUNDATION-READINESS-01`).** Promove as decisões de Fabrício D1–D8, O1–O5, P1 e os ajustes 1–7: histórico por fichário, retenção A1+A3+A5 sem expurgo por prazo, exclusão definitiva como exceção controlada à imutabilidade (marco mínimo sem conteúdo; distinta da exclusão de conta), titularidade gravada no evento e leitura só pelo titular (C-172 conciliada, não revogada), operação lógica com efeitos internos como itens, só o concluído, segregação por proprietário para transferências futuras, consulta de fichários encerrados e início de cobertura com legado parcial. Especializa C-166–C-186 e refina C-179/C-180 apenas nesses pontos; nenhuma decisão anterior reaberta. |
+| 1.29 | **Esclarecimento em C-203 (2026-10-25, `P3-B-S1-SECURITY-CORRECTION-01`).** Exclusão de conta não altera eventos de outros titulares; ator guardado como valor, sem relação de existência (achado B1 da auditoria estática: a ação SET NULL conflitava com a imutabilidade). Nenhuma decisão reaberta ou renumerada. |

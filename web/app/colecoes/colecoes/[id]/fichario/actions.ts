@@ -109,6 +109,26 @@ import {
   parseCatalogNovelties,
   parseCatalogPreview,
 } from "@/lib/colecoes/binder-catalog";
+import {
+  type PageRemovalBlocker,
+  type PageRemovalFailure,
+  classifyPageRemovalFailure,
+  pageRemovalBlockers,
+} from "@/lib/colecoes/binder-page-removal";
+import {
+  ACTIVITY_FILTERS,
+  ACTIVITY_PAGE_SIZE,
+  type ActivityCoverage,
+  type ActivityCursor,
+  type ActivityEvent,
+  type ActivityFailure,
+  type ActivityFilterKey,
+  classifyActivityFailure,
+  filterCategories,
+  isCursor,
+  parseActivityCoverage,
+  parseActivityPage,
+} from "@/lib/colecoes/binder-activity";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -401,6 +421,68 @@ export async function reorderPages(input: {
   slotDone("reorder_layout_pages", startedAt, input.collectionId, { count });
   revalidatePath(binderHref(input.collectionId));
   return { ok: true, count };
+}
+
+// ---------------------------------------------------------------------------
+// Remover página (remove_layout_page 5235/5260/5281/5285). O banco recusa,
+// sob trava, página com carta, reserva, imagem e imagem em 2 bolsos; com
+// p_confirm_species_references = 0 também recusa referência de espécie. Bolso
+// fixado e mínimo de páginas o contrato NÃO cobre: são conferidos aqui, no
+// servidor, com uma leitura fresca da própria página (nunca com o estado do
+// cliente). O Histórico grava E14 no próprio banco.
+// ---------------------------------------------------------------------------
+
+type PageRemovalFail = { ok: false; reason: PageRemovalFailure; blockers: PageRemovalBlocker[] };
+
+function pageRemovalFail(
+  fn: string,
+  startedAt: number,
+  error: { code?: string; message?: string; hint?: string } | null,
+): PageRemovalFail {
+  const { reason, blocker } = classifyPageRemovalFailure(error?.code, error?.message, error?.hint);
+  console.error(JSON.stringify({ scope: "colecoes.binder_page", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason, blockers: blocker ? [blocker] : [] };
+}
+
+export async function removePage(input: {
+  collectionId: string;
+  pageId: string;
+  /** Número que o cliente viu: a leitura fresca precisa achar o mesmo id nesse número (senão o fichário mudou). */
+  pageNumber: number;
+}): Promise<{ ok: true; pageNumber: number; totalBefore: number; totalAfter: number } | PageRemovalFail> {
+  if (!isCollectionId(input?.collectionId) || !isUuid(input.pageId) || !Number.isInteger(input.pageNumber) || input.pageNumber < 1 || input.pageNumber > 100_000) {
+    return { ok: false, reason: "invalid", blockers: [] };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+
+  // 1) Total de páginas (mínimo) — leitura do dono (5246).
+  const occupancyRead = await supabase.rpc("get_my_binder_occupancy", { p_collection_id: input.collectionId });
+  if (occupancyRead.error) return pageRemovalFail("get_my_binder_occupancy", startedAt, occupancyRead.error);
+  const occupancy = parseBinderOccupancy(occupancyRead.data);
+  if (occupancy === "absent" || !occupancy) return pageRemovalFail("get_my_binder_occupancy", startedAt, { code: "NO_BINDER", message: "not found or not owned" });
+
+  // 2) Leitura fresca do lote da página (bolsos, imagens, mesclagens e referências de espécie).
+  const pages = await getMyCollectionBinderPages(supabase, input.collectionId, readBatchStart(input.pageNumber), { speciesReferences: true });
+  if (pages === undefined) return { ok: false, reason: "stale", blockers: [] };
+  if (pages === null) return { ok: false, reason: "unknown", blockers: [] };
+  const page = pages.find((p) => p.pageNumber === input.pageNumber);
+  if (!page || page.pageId !== input.pageId) return { ok: false, reason: "stale", blockers: [] };
+
+  // 3) Elegibilidade pelos dados (inclui fixação e mínimo, que o contrato não cobre).
+  const blockers = pageRemovalBlockers(page, occupancy.pages);
+  if (blockers.length > 0) {
+    console.info(JSON.stringify({ scope: "colecoes.binder_page", fn: "remove_page_precheck", ms: Date.now() - startedAt, blocked: blockers }));
+    return { ok: false, reason: "blocked", blockers };
+  }
+
+  // 4) Remoção (0 referências confirmadas: qualquer referência faz o banco recusar).
+  const { error } = await supabase.rpc("remove_layout_page", { p_page_id: input.pageId, p_confirm_species_references: 0 });
+  if (error) return pageRemovalFail("remove_layout_page", startedAt, error);
+  console.info(JSON.stringify({ scope: "colecoes.binder_page", fn: "remove_layout_page", ms: Date.now() - startedAt, page: input.pageNumber, total: occupancy.pages }));
+  revalidatePath(binderHref(input.collectionId));
+  revalidatePath(collectionHref(input.collectionId));
+  return { ok: true, pageNumber: input.pageNumber, totalBefore: occupancy.pages, totalAfter: occupancy.pages - 1 };
 }
 
 // ---------------------------------------------------------------------------
@@ -1065,6 +1147,60 @@ export async function readBinderCollections(input: { collectionId: string }): Pr
     };
   }
   return { ok: true, participants, progress };
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de Atividades (P3-B S7) — só leitura, contratos LIVE da 5269
+// ---------------------------------------------------------------------------
+
+type ActivityFail = { ok: false; reason: ActivityFailure };
+
+function activityFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): ActivityFail {
+  const reason = classifyActivityFailure(error?.code, error?.message);
+  // Sem dados do usuário no log: função, duração, código e classe.
+  console.error(JSON.stringify({ scope: "colecoes.binder_activity", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+/**
+ * Uma página do histórico do fichário (5269 `get_my_binder_activity`): do mais
+ * recente ao mais antigo, cursor (ocorrido, id), 20 por vez. A função só devolve
+ * eventos cujo titular é a sessão — chave alheia ou inexistente = lista vazia.
+ * O cliente informa só a chave do fichário aberto, a categoria do filtro e o cursor.
+ */
+export async function readBinderActivity(input: {
+  layoutId: string;
+  filter: ActivityFilterKey;
+  cursor: ActivityCursor | null;
+}): Promise<{ ok: true; events: ActivityEvent[]; hasMore: boolean } | ActivityFail> {
+  if (!isCollectionId(input?.layoutId)) return { ok: false, reason: "invalid" };
+  if (!ACTIVITY_FILTERS.some((f) => f.key === input.filter)) return { ok: false, reason: "invalid" };
+  if (input.cursor !== null && !isCursor(input.cursor)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_binder_activity", {
+    p_layout_key: input.layoutId,
+    p_categories: filterCategories(input.filter),
+    p_before_occurred_at: input.cursor?.occurredAt ?? null,
+    p_before_id: input.cursor?.id ?? null,
+    p_limit: ACTIVITY_PAGE_SIZE,
+  });
+  if (error) return activityFail("get_my_binder_activity", startedAt, error);
+  const events = parseActivityPage(data);
+  if (!events) return activityFail("get_my_binder_activity", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, events, hasMore: events.length === ACTIVITY_PAGE_SIZE };
+}
+
+/** Início da cobertura do histórico deste fichário (5269 `get_my_binder_activity_coverage`). */
+export async function readBinderActivityCoverage(input: { layoutId: string }): Promise<{ ok: true; coverage: ActivityCoverage } | ActivityFail> {
+  if (!isCollectionId(input?.layoutId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_my_binder_activity_coverage", { p_layout_key: input.layoutId });
+  if (error) return activityFail("get_my_binder_activity_coverage", startedAt, error);
+  const coverage = parseActivityCoverage(data);
+  if (!coverage) return activityFail("get_my_binder_activity_coverage", startedAt, { code: "BAD_SHAPE" });
+  return { ok: true, coverage };
 }
 
 // ---------------------------------------------------------------------------

@@ -27,6 +27,7 @@ import {
   readCatalogNovelties,
   readBinderPages,
   readSpeciesReferenceState,
+  removePage,
   removeSlots,
   reserveSlot,
   restoreToSlot,
@@ -83,6 +84,13 @@ import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, region
 import { type BinderIdentity, CONTROL_PANEL_STORAGE_KEY, type ControlSection, type ResolvedIdentity, parseControlPanelPrefs, resolveIdentity } from "@/lib/colecoes/binder-identity";
 import { type SpeciesReferenceState, speciesFailureMessage } from "@/lib/colecoes/binder-species";
 import { type CatalogApplyResult, type CatalogNoveltyState, applyResultMessage, noveltyBadgeCount } from "@/lib/colecoes/binder-catalog";
+import {
+  MIN_BINDER_PAGES,
+  anchorAfterPageRemoval,
+  cacheAfterPageRemoval,
+  pageRemovalFailureMessage,
+  pageRemovedMessage,
+} from "@/lib/colecoes/binder-page-removal";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, insideCoverSurface, TopNavControls, leatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
@@ -93,6 +101,7 @@ import { ImageComposer, type ImageDialogMode, SlotImageDialog } from "./binder-i
 import { type PreparedImage, clearSlotImageAndFile, linkNewRegionImage, linkNewSlotImage, separateRegionAndFile } from "./binder-image-io";
 import { GapDialog, type GapDialogState, ImageShapeSwitch, RegionComposer, RegionImageDialog } from "./binder-layout-tools";
 import { PocketPicker } from "./binder-pocket-picker";
+import { RemovePageDialog } from "./binder-remove-page";
 import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
 import {
@@ -330,10 +339,14 @@ export function BinderWorkspace({
     [fetchBatch, totalPages],
   );
 
+  // Histórico (P3-B S7): toda escrita concluída relê as páginas afetadas por
+  // aqui; o contador avisa o Centro de Controle para reler o Histórico em silêncio.
+  const [activityVersion, setActivityVersion] = useState(0);
   const refreshPages = useCallback(
     async (pages: number[]) => {
       const batches = [...new Set(pages.filter((p) => p >= 1).map(readBatchStart))];
       await Promise.all(batches.map((first) => fetchBatch(first)));
+      setActivityVersion((v) => v + 1);
     },
     [fetchBatch],
   );
@@ -505,10 +518,14 @@ export function BinderWorkspace({
   const [gapDialog, setGapDialog] = useState<GapDialogState | null>(null);
   const availableById = useMemo(() => new Map(available.items.map((card) => [card.physicalCardId, card])), [available.items]);
 
+  // Cada leitura do início invalida as anteriores: respostas fora de ordem são descartadas.
+  const availableSeq = useRef(0);
   const loadAvailable = useCallback(
     async (offset: number, origin: AvailableOrigin = availableOrigin) => {
+      const seq = offset === 0 ? ++availableSeq.current : availableSeq.current;
       setAvailable((prev) => (offset === 0 ? { ...prev, status: "loading" } : { ...prev, loadingMore: true }));
       const result = await readAvailableCards({ collectionId, offset, origin });
+      if (seq !== availableSeq.current) return;
       setAvailable((prev) => {
         if (!result.ok) return offset === 0 ? { ...prev, status: "error", loadingMore: false } : { ...prev, loadingMore: false };
         return {
@@ -690,6 +707,54 @@ export function BinderWorkspace({
       setToast(result.failure ? { tone: "error", text: `${message} ${slotFailureMessage(result.failure)}` } : { tone: "success", text: message });
     },
     [addingPages, collectionId, columns, editable, fail, layoutId, refreshPages, rows, totalPages],
+  );
+
+  // ---- remover página (remove_layout_page; elegibilidade conferida no servidor) ----
+  const [removeDialog, setRemoveDialog] = useState<{ numbers: number[]; initial?: number } | null>(null);
+  const [removingPage, setRemovingPage] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const openRemovePage = useCallback(
+    (numbers: number[], initial?: number) => {
+      const valid = [...new Set(numbers.filter((n) => n >= 1 && n <= totalPages))];
+      if (!editable || !layoutId || valid.length === 0) return;
+      for (const n of valid) if (!cache.has(n)) loadBatch(n);
+      setRemoveError(null);
+      setRemoveDialog({ numbers: valid, initial });
+    },
+    [cache, editable, layoutId, loadBatch, totalPages],
+  );
+  /**
+   * Só depois da resposta do banco: total −1, a página sai do cache e as
+   * seguintes descem um número (sem reler tudo); leituras em voo, com a
+   * numeração antiga, são descartadas pela geração.
+   */
+  const runRemovePage = useCallback(
+    async (page: BinderPage) => {
+      if (!editable || removingPage) return;
+      setRemovingPage(true);
+      setRemoveError(null);
+      const result = await removePage({ collectionId, pageId: page.pageId, pageNumber: page.pageNumber }).catch(() => ({
+        ok: false as const,
+        reason: "unknown" as const,
+        blockers: [],
+      }));
+      setRemovingPage(false);
+      if (!result.ok) {
+        setRemoveError(pageRemovalFailureMessage(result.reason, result.blockers));
+        // O banco viu outra coisa: relê a página para a confirmação mostrar o estado real.
+        if (result.reason === "blocked" || result.reason === "stale") void refreshPages([page.pageNumber]);
+        return;
+      }
+      generation.current += 1;
+      pending.current.clear();
+      setTotalPages(result.totalAfter);
+      setFailed(new Set());
+      setCache((prev) => cacheAfterPageRemoval(prev, page.pageNumber));
+      setAnchor((value) => anchorAfterPageRemoval(value, page.pageNumber, result.totalAfter));
+      setRemoveDialog(null);
+      setToast({ tone: "success", text: pageRemovedMessage(page.pageNumber, result.totalBefore) });
+    },
+    [collectionId, editable, refreshPages, removingPage],
   );
 
   /**
@@ -1164,9 +1229,11 @@ export function BinderWorkspace({
         patchSlots(targets.map(({ slot }) => slot));
         fail(result.reason);
       }
+      // As cartas retiradas voltam a estar disponíveis: a lista e o contador são relidos do banco.
+      void loadAvailable(0);
       await refreshPages(targets.map(({ page }) => page));
     },
-    [busy, collectionId, editable, entriesFor, fail, patchSlots, refreshPages, trayIds],
+    [busy, collectionId, editable, entriesFor, fail, loadAvailable, patchSlots, refreshPages, trayIds],
   );
 
   const runUndo = useCallback(
@@ -1176,6 +1243,7 @@ export function BinderWorkspace({
       setBusy(true);
       let restored = 0;
       let failure: SlotFailure | null = null;
+      const restoredIds = new Set<string>();
       for (const item of items) {
         const result = await restoreToSlot({ collectionId, slotId: item.slotId, physicalCardId: item.physicalCardId });
         if (!result.ok) {
@@ -1183,14 +1251,29 @@ export function BinderWorkspace({
           break;
         }
         restored += 1;
+        restoredIds.add(item.physicalCardId);
       }
       setBusy(false);
       setFilled((value) => value + restored);
+      // As cartas que voltaram ao bolso deixam de estar disponíveis (mesma regra de placeAvailableCard).
+      if (restoredIds.size > 0) {
+        setAvailable((prev) => {
+          const listed = prev.items.filter((item) => restoredIds.has(item.physicalCardId)).length;
+          if (listed === 0) return prev;
+          return {
+            ...prev,
+            items: prev.items.filter((item) => !restoredIds.has(item.physicalCardId)),
+            total: Math.max(0, prev.total - listed),
+          };
+        });
+      }
+      // Confirma com o banco (também em restauração parcial ou recusada); invalida leituras pendentes da retirada.
+      void loadAvailable(0);
       if (failure) fail(failure);
       else setToast({ tone: "success", text: restored === 1 ? "A carta voltou ao bolso." : `${restored} cartas voltaram aos bolsos.` });
       await refreshPages(items.map((item) => slotIndex.get(item.slotId)?.page ?? 0));
     },
-    [busy, collectionId, fail, refreshPages, slotIndex],
+    [busy, collectionId, fail, loadAvailable, refreshPages, slotIndex],
   );
 
   // ---- gestos nos bolsos ----
@@ -1465,6 +1548,8 @@ export function BinderWorkspace({
                 busy,
                 overviewOpen,
                 canAddPages: editable && layoutId !== null,
+                canRemovePage: editable && layoutId !== null && totalPages > MIN_BINDER_PAGES,
+                removePageHint: !editable ? "coleção arquivada, só leitura" : totalPages <= MIN_BINDER_PAGES ? "o fichário precisa de ao menos uma página" : undefined,
                 trayCount: tray.length,
                 trayOpen,
                 availableCount: available.total,
@@ -1497,6 +1582,12 @@ export function BinderWorkspace({
                   setArmedCard(null);
                   setConfirm(null);
                   setAddPagesOpen(true);
+                },
+                onRemovePage: () => {
+                  setArmed(null);
+                  setArmedCard(null);
+                  setConfirm(null);
+                  openRemovePage(visiblePages);
                 },
                 onToggleTray: () => setTrayOpen((value) => !value),
                 onToggleAvailable: toggleAvailable,
@@ -1685,6 +1776,8 @@ export function BinderWorkspace({
             rows={rows}
             totalPages={totalPages}
             contentVersion={filled}
+            layoutId={layoutId}
+            activityVersion={activityVersion}
             onIdentitySaved={(next) => setBinderIdentity((prev) => ({ ...prev, displayName: next.displayName, name: next.name, showBrandMark: next.showBrandMark }))}
             onClose={() => setControl(false)}
             onOpenOverview={() => {
@@ -1743,6 +1836,8 @@ export function BinderWorkspace({
               setToast({ tone: "success", text: message });
             }}
             onRequestAddPages={editable && layoutId ? () => setAddPagesOpen(true) : null}
+            onRequestRemovePage={editable && layoutId ? (pageNumber) => openRemovePage([pageNumber], pageNumber) : null}
+            removeSuspended={removeDialog !== null}
             onClose={closeOverview}
           />
         ) : null}
@@ -1791,6 +1886,23 @@ export function BinderWorkspace({
             busy={addingPages}
             onConfirm={(count) => void runAddPages(count)}
             onClose={() => setAddPagesOpen(false)}
+          />
+        ) : null}
+
+        {removeDialog ? (
+          <RemovePageDialog
+            host={rootRef.current}
+            candidates={removeDialog.numbers.map((number) => ({ number, page: cache.get(number) ?? null }))}
+            initialNumber={removeDialog.initial}
+            totalPages={totalPages}
+            busy={removingPage}
+            error={removeError}
+            onConfirm={(page) => void runRemovePage(page)}
+            onClose={() => {
+              if (removingPage) return;
+              setRemoveDialog(null);
+              setRemoveError(null);
+            }}
           />
         ) : null}
 

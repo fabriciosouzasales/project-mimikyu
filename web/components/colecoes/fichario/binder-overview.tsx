@@ -1,10 +1,10 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeftRight, ChevronLeft, ChevronRight, FilePlus2, LayoutGrid, Loader2, RotateCcw, X } from "lucide-react";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, FilePlus2, LayoutGrid, Loader2, RotateCcw, Trash2, X } from "lucide-react";
 import { reorderPages } from "@/app/colecoes/colecoes/[id]/fichario/actions";
-import { Button } from "@/components/ui/button";
 import { cardFrontUrl, formatCount } from "@/lib/colecoes/acervo";
 import {
   type BinderPage,
@@ -19,8 +19,11 @@ import {
   viewCount,
   viewSides,
 } from "@/lib/colecoes/binder";
-import { cn } from "@/lib/utils";
+import { pageRemovalBlockers } from "@/lib/colecoes/binder-page-removal";
+import dialogStyles from "./binder-add-pages.module.css";
 import styles from "./binder-overview.module.css";
+import { BinderPortalContext } from "./binder-slot";
+import railStyles from "./tool-rail.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -44,8 +47,15 @@ const ORGANIZE_MAX_PAGES = 400;
  * Organizar páginas: só com o contrato LIVE `reorder_layout_pages` (5127),
  * que recebe a ordem COMPLETA. A ordem é montada localmente (selecionar,
  * mover para antes/depois, trocar duas de lugar) e gravada numa única
- * chamada em "Aplicar nova ordem"; "Descartar" não grava nada. Páginas
- * levam consigo bolsos, cartas, reservas e cadeados (C-39).
+ * chamada em "Aplicar nova ordem"; "Descartar alterações" volta à ordem
+ * gravada sem gravar nada. Páginas levam consigo bolsos, cartas, reservas e
+ * cadeados (C-39).
+ *
+ * Remover página: lixeira só nas miniaturas elegíveis (dados dos bolsos, não
+ * aparência — `pageRemovalBlockers`) e só com a ordem sem alterações pendentes
+ * (remover renumera as páginas). Abre a confirmação do fichário
+ * (`onRequestRemovePage`); enquanto ela está aberta (`removeSuspended`) o
+ * teclado é dela, não desta visão geral.
  */
 export function BinderOverview({
   host,
@@ -64,6 +74,8 @@ export function BinderOverview({
   onGoToPage,
   onReordered,
   onRequestAddPages,
+  onRequestRemovePage,
+  removeSuspended = false,
   onClose,
 }: {
   host: HTMLElement | null;
@@ -84,8 +96,14 @@ export function BinderOverview({
   onReordered: (message: string) => void;
   /** Fim da lista de páginas: acrescentar páginas (5125) — fecha a visão geral e abre a confirmação. */
   onRequestAddPages?: (() => void) | null;
+  /** Remover uma página vazia (abre a confirmação do fichário por cima). */
+  onRequestRemovePage?: ((pageNumber: number) => void) | null;
+  /** Confirmação de remoção aberta por cima: teclado e clique-fora são dela. */
+  removeSuspended?: boolean;
   onClose: () => void;
 }) {
+  const suspendedRef = useRef(removeSuspended);
+  suspendedRef.current = removeSuspended;
   const dialogRef = useRef<HTMLDivElement>(null);
   // Só pede lotes que ainda não estão no cache nem falharam (refs: o observer não é recriado a cada página que chega).
   const cacheRef = useRef(cache);
@@ -119,7 +137,7 @@ export function BinderOverview({
     const dialog = dialogRef.current;
     dialog?.focus({ preventScroll: true });
     function onKey(event: KeyboardEvent) {
-      if (!dialog) return;
+      if (!dialog || suspendedRef.current) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -163,7 +181,7 @@ export function BinderOverview({
   if (!host) return null;
 
   return createPortal(
-    <div className={styles.veil} onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className={styles.veil} onPointerDown={(event) => event.target === event.currentTarget && !suspendedRef.current && onClose()}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="visao-geral-titulo" tabIndex={-1} className={styles.dialog}>
         <header className={styles.header}>
           <div className={styles.heading}>
@@ -227,6 +245,7 @@ export function BinderOverview({
           />
         ) : (
           <OrganizePanel
+            key={totalPages}
             collectionId={collectionId}
             layoutId={layoutId as string}
             totalPages={totalPages}
@@ -240,6 +259,7 @@ export function BinderOverview({
               for (const first of failed) retry(first);
             }}
             onCancel={() => setMode("browse")}
+            onRequestRemovePage={onRequestRemovePage ?? null}
             onApplied={(message) => {
               onReordered(message);
               setMode("browse");
@@ -418,6 +438,7 @@ function OrganizePanel({
   loadBatch,
   onRetryAll,
   onCancel,
+  onRequestRemovePage,
   onApplied,
 }: {
   collectionId: string;
@@ -431,6 +452,7 @@ function OrganizePanel({
   loadBatch: (page: number) => void;
   onRetryAll: () => void;
   onCancel: () => void;
+  onRequestRemovePage: ((pageNumber: number) => void) | null;
   onApplied: (message: string) => void;
 }) {
   // A ordem completa exige todas as páginas (o contrato recebe todos os ids).
@@ -504,43 +526,57 @@ function OrganizePanel({
     );
   }
 
+  const movedCount = current.reduce((count, page, index) => count + (page.pageNumber !== index + 1 ? 1 : 0), 0);
+  const canRemove = onRequestRemovePage !== null && !changed && !saving;
+
   return (
     <>
       <div className={styles.body}>
         <p className={styles.hint}>
-          Toque numa página para escolhê-la e use as setas para mudar a posição; escolha duas para trocá-las de lugar. Nada é gravado até você aplicar.
+          <strong>Reordenar:</strong> toque numa página e use Antes/Depois; escolha duas para trocá-las de lugar. Nada é gravado até você aplicar.
+          {onRequestRemovePage ? (
+            <>
+              {" "}
+              <strong>Remover:</strong>{" "}
+              {changed ? "aplique ou descarte a nova ordem para remover uma página vazia." : "use a lixeira das páginas vazias."}
+            </>
+          ) : null}
         </p>
-        <ol className={styles.organizeGrid} aria-label="Páginas na nova ordem">
-          {current.map((page, index) => {
-            const occupancy = pageOccupancy(page);
-            const empty = occupancy.occupied === 0 && occupancy.reservedMissing === 0 && occupancy.images === 0;
-            const isPicked = picked.includes(page.pageId);
-            const moved = page.pageNumber !== index + 1;
-            return (
-              <li key={page.pageId}>
-                <button
-                  type="button"
-                  className={styles.pageTile}
-                  aria-pressed={isPicked}
-                  aria-label={`Posição ${index + 1}: página ${page.pageNumber}${moved ? " (movida)" : ""}, ${empty ? "vazia" : `${occupancy.occupied} de ${occupancy.capacity} com carta`}`}
-                  onClick={() => toggle(page.pageId)}
-                >
-                  <MiniPage page={page} columns={columns} rows={rows} />
-                  <span className={styles.tileCaption}>
-                    <strong>{index + 1}</strong>
-                    {moved ? <span className={styles.movedTag}>era {page.pageNumber}</span> : null}
-                    <span className={styles.pageCount} data-empty={empty || undefined}>
-                      {empty ? "vazia" : `${occupancy.occupied}/${occupancy.capacity}`}
+        <TooltipPrimitive.Provider delayDuration={300} skipDelayDuration={200}>
+          <ol className={styles.organizeGrid} aria-label="Páginas na nova ordem">
+            {current.map((page, index) => {
+              const occupancy = pageOccupancy(page);
+              const empty = occupancy.occupied === 0 && occupancy.reservedMissing === 0 && occupancy.images === 0;
+              const isPicked = picked.includes(page.pageId);
+              const moved = page.pageNumber !== index + 1;
+              const removable = canRemove && pageRemovalBlockers(page, totalPages).length === 0;
+              return (
+                <li key={page.pageId} className={styles.tileItem}>
+                  <button
+                    type="button"
+                    className={styles.pageTile}
+                    aria-pressed={isPicked}
+                    aria-label={`Posição ${index + 1}: página ${page.pageNumber}${moved ? " (movida)" : ""}, ${empty ? "vazia" : `${occupancy.occupied} de ${occupancy.capacity} com carta`}`}
+                    onClick={() => toggle(page.pageId)}
+                  >
+                    <MiniPage page={page} columns={columns} rows={rows} />
+                    <span className={styles.tileCaption}>
+                      <strong>{index + 1}</strong>
+                      {moved ? <span className={styles.movedTag}>era {page.pageNumber}</span> : null}
+                      <span className={styles.pageCount} data-empty={empty || undefined}>
+                        {empty ? "vazia" : `${occupancy.occupied}/${occupancy.capacity}`}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+                  </button>
+                  {removable ? <RemovePageButton pageNumber={page.pageNumber} onClick={() => onRequestRemovePage?.(page.pageNumber)} /> : null}
+                </li>
+              );
+            })}
+          </ol>
+        </TooltipPrimitive.Provider>
       </div>
       <footer className={styles.footer}>
-        <div className={styles.footerTools} role="toolbar" aria-label="Mover páginas">
+        <div className={styles.footerTools} role="toolbar" aria-label="Reordenar páginas">
           <button type="button" className={styles.tool} onClick={() => move(-1)} disabled={single === undefined || single === 0}>
             <ChevronLeft aria-hidden /> Antes
           </button>
@@ -556,29 +592,56 @@ function OrganizePanel({
             <ArrowLeftRight aria-hidden /> Trocar de lugar
           </button>
         </div>
+        <p className={styles.footerStatus} role="status" aria-live="polite">
+          {changed
+            ? `${movedCount === 1 ? "1 página mudou" : `${movedCount} páginas mudaram`} de posição — ainda não gravado.`
+            : "Ordem igual à gravada."}
+        </p>
         {error ? (
           <p className={styles.error} role="alert">
             {error}
           </p>
         ) : null}
         <div className={styles.footerActions}>
-          <Button
-            variant="outline"
+          <button
+            type="button"
+            className={dialogStyles.secondary}
             onClick={() => {
               setOrder(original);
               setPicked([]);
               onCancel();
             }}
             disabled={saving}
+            title={changed ? "Volta à ordem gravada, sem gravar nada" : undefined}
           >
-            Descartar
-          </Button>
-          <Button onClick={() => void apply()} disabled={!changed || saving} className={cn(saving && "cursor-wait")}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> : null}
-            Aplicar nova ordem
-          </Button>
+            {changed ? "Descartar alterações" : "Voltar à visão geral"}
+          </button>
+          <button type="button" className={dialogStyles.primary} onClick={() => void apply()} disabled={!changed || saving} aria-busy={saving || undefined}>
+            {saving ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> : null}
+            {saving ? "Aplicando…" : "Aplicar nova ordem"}
+          </button>
         </div>
       </footer>
     </>
+  );
+}
+
+/** Lixeira da miniatura (exclusão): separada do gesto de escolher/reordenar, em vermelho, com dica. */
+function RemovePageButton({ pageNumber, onClick }: { pageNumber: number; onClick: () => void }) {
+  const portal = useContext(BinderPortalContext);
+  return (
+    <TooltipPrimitive.Root>
+      <TooltipPrimitive.Trigger asChild>
+        <button type="button" className={styles.tileRemove} onClick={onClick} aria-label={`Remover página ${pageNumber}`} aria-haspopup="dialog">
+          <Trash2 aria-hidden />
+        </button>
+      </TooltipPrimitive.Trigger>
+      <TooltipPrimitive.Portal container={portal?.current ?? undefined}>
+        <TooltipPrimitive.Content side="top" sideOffset={6} collisionPadding={8} className={railStyles.tip}>
+          Remover página
+          <TooltipPrimitive.Arrow className={railStyles.tipArrow} width={10} height={5} />
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Portal>
+    </TooltipPrimitive.Root>
   );
 }

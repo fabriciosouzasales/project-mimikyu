@@ -2,7 +2,7 @@
 
 import { useContext } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { ArrowDown, Bookmark, BookmarkX, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PawPrint, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, Bookmark, BookmarkX, FileMinus2, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PawPrint, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { BinderPortalContext } from "./binder-slot";
 import styles from "./tool-rail.module.css";
 
@@ -29,6 +29,8 @@ import styles from "./tool-rail.module.css";
  *
  * Seções (só o que tem comportamento real — sem botão fictício):
  *  A Navegação/Organização — Visão geral (páginas), Adicionar páginas (5125),
+ *                            Remover página (página à vista; só vazia — confirmação
+ *                            com o motivo quando bloqueada),
  *                            Bandeja, Cartas disponíveis
  *                            (exemplares desta coleção ainda sem bolso) e, só em
  *                            fichário compartilhado, "Só desta coleção"
@@ -51,6 +53,10 @@ export type ToolRailState = {
   overviewOpen: boolean;
   /** Pode acrescentar páginas ao fim (5125): fichário editável. */
   canAddPages: boolean;
+  /** Remover página: fichário editável com mais de uma página (a elegibilidade da página vem na confirmação). */
+  canRemovePage: boolean;
+  /** Motivo quando `canRemovePage` é falso (dica do botão). */
+  removePageHint?: string;
   trayCount: number;
   trayOpen: boolean;
   /** Cartas desta coleção fora dos bolsos (5230). */
@@ -81,6 +87,7 @@ export type ToolRailState = {
 export type ToolRailActions = {
   onOpenOverview: () => void;
   onAddPages: () => void;
+  onRemovePage: () => void;
   onToggleTray: () => void;
   onToggleAvailable: () => void;
   onToggleOnlyMine: () => void;
@@ -169,6 +176,13 @@ export function BinderToolRail({ state: s, actions: a }: { state: ToolRailState;
           label={s.canAddPages ? "Adicionar páginas ao fim do fichário" : "Adicionar páginas — coleção arquivada, só leitura"}
           onClick={a.onAddPages}
           disabled={!s.canAddPages || s.busy}
+          haspopup="dialog"
+        />
+        <RailButton
+          icon={FileMinus2}
+          label={s.canRemovePage ? "Remover página — a que está à vista, se estiver vazia" : `Remover página — ${s.removePageHint ?? "indisponível"}`}
+          onClick={a.onRemovePage}
+          disabled={!s.canRemovePage || s.busy}
           haspopup="dialog"
         />
         <RailButton

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
-import { ArrowRight, ChevronDown, Info, LayoutGrid, LibraryBig, PawPrint, PenLine, X } from "lucide-react";
+import { ArrowRight, ChevronDown, History, Info, LayoutGrid, LibraryBig, PawPrint, PenLine, X } from "lucide-react";
 import { readBinderCollections, readBinderOccupancy, saveBinderIdentity } from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import { modelLabel } from "@/lib/colecoes/binder";
 import type { SpeciesReferenceState } from "@/lib/colecoes/binder-species";
 import { cn } from "@/lib/utils";
 import { InsideCoverFace, insideCoverSurface } from "./binder-chrome";
+import { BinderHistory } from "./binder-history";
 import styles from "./binder-control.module.css";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -40,8 +41,9 @@ type InfoState = { status: "idle" } | { status: "loading" } | { status: "ready";
  * Centro de Controle do Fichário (P3-A) — painel lateral direito recolhível.
  *
  * Identidade (compartilhada; só a proprietária edita), Organização (atalhos
- * para o que já existe — sem duplicar o menu esquerdo) e Informações
- * (capacidade, ocupação e coleções vinculadas, lidas sob demanda). Aparência
+ * para o que já existe — sem duplicar o menu esquerdo), Informações
+ * (capacidade, ocupação e coleções vinculadas, lidas sob demanda) e Histórico
+ * (P3-B S7, só leitura, carregado só com a seção aberta). Aparência
  * fica de fora até existir preferência real (P1).
  *
  * `mode="docked"`: coluna do grid (desktop), `role="complementary"`.
@@ -58,6 +60,8 @@ export function BinderControlPanel({
   rows,
   totalPages,
   contentVersion = 0,
+  layoutId = null,
+  activityVersion = 0,
   onIdentitySaved,
   onClose,
   onOpenOverview,
@@ -79,6 +83,10 @@ export function BinderControlPanel({
    * Junto com `totalPages`, faz Informações reler a ocupação sem recarregar a página.
    */
   contentVersion?: number;
+  /** Chave do fichário (5269). `null` = sem histórico a mostrar. */
+  layoutId?: string | null;
+  /** Muda a cada escrita concluída no fichário nesta sessão: o Histórico relê a primeira página em silêncio. */
+  activityVersion?: number;
   onIdentitySaved: (next: { displayName: string | null; name: string; showBrandMark: boolean }) => void;
   onClose: () => void;
   onOpenOverview: () => void;
@@ -128,6 +136,7 @@ export function BinderControlPanel({
   };
 
   const infoOpen = !collapsed.has("info");
+  const historyOpen = !collapsed.has("history");
 
   return (
     <>
@@ -203,6 +212,12 @@ export function BinderControlPanel({
               <InfoSection collectionId={collectionId} columns={columns} rows={rows} refreshKey={`${totalPages}:${contentVersion}`} />
             ) : null}
           </Section>
+
+          {layoutId ? (
+            <Section id="history" title="Histórico" icon={History} collapsed={collapsed} onToggle={onToggleSection}>
+              {historyOpen ? <BinderHistory layoutId={layoutId} refreshKey={`${totalPages}:${contentVersion}:${activityVersion}`} /> : null}
+            </Section>
+          ) : null}
         </div>
       </div>
     </>

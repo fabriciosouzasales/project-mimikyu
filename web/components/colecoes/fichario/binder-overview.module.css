@@ -340,6 +340,11 @@
 
 /* ---- organizar ---- */
 
+.hint strong {
+  font-weight: 700;
+  color: hsl(0 0% 100% / 0.86);
+}
+
 .hint {
   margin: 0 0 14px;
   font-size: 12.5px;
@@ -638,6 +643,83 @@
   }
 
   .addTile:hover {
+    transform: none;
+  }
+}
+
+/* ---- Remover página (lixeira da miniatura) ----
+ * Exclusão separada do gesto de reordenar: botão próprio, fora do botão da
+ * miniatura, no canto superior esquerdo (sobre a miniatura, longe da
+ * legenda), em vermelho; o ✓ de "escolhida" continua no canto superior direito. Alvo de 32 px (44 px no celular).
+ */
+.tileItem {
+  position: relative;
+}
+
+.tileRemove {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: hsl(0 85% 78%);
+  background: hsl(0 0% 6% / 0.82);
+  box-shadow: inset 0 0 0 1px hsl(0 72% 58% / 0.45);
+  transition:
+    background-color 140ms var(--ov-ease),
+    color 140ms var(--ov-ease),
+    transform 110ms var(--ov-ease);
+}
+
+.tileRemove svg {
+  width: 15px;
+  height: 15px;
+}
+
+.tileRemove:hover {
+  color: hsl(0 0% 100%);
+  background: hsl(0 70% 50%);
+}
+
+.tileRemove:active {
+  transform: scale(0.94);
+}
+
+.tileRemove:focus-visible {
+  outline: 2px solid hsl(var(--ov-gold));
+  outline-offset: 2px;
+}
+
+/* Rodapé: estado da ordem entre as ferramentas e as ações. */
+.footerStatus {
+  flex: 1 1 180px;
+  margin: 0;
+  font-size: 12px;
+  color: hsl(0 0% 100% / 0.62);
+}
+
+@media (max-width: 767px) {
+  .tileRemove {
+    width: 40px;
+    height: 40px;
+  }
+
+  .footerStatus {
+    flex-basis: 100%;
+    order: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tileRemove {
+    transition: none;
+  }
+
+  .tileRemove:active {
     transform: none;
   }
 }

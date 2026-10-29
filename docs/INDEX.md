@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 2.60 |
+| **Versão** | 3.05 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -173,6 +173,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-10-24-binder-catalog-reconciliation/README.md`](../database/proposals/2026-10-24-binder-catalog-reconciliation/README.md) | BINDER-CATALOG-RECONCILIATION — novidades do Catálogo (variantes criadas após a montagem) incorporadas ao fichário de coleções Master Set: detecção pelo marco temporal, prévia com seleção, bolso natural ou deslocamento pela regra do Inserir Espaço, confirmações de página; Pokédex excluída; registro persistente das incorporações (W5) e marco de participação preservado na transferência (A7). `5263`–`5266` (C-200). **EXECUTADA / CANÔNICA / ENCERRADA (2026-10-25)** — ledger `20261025145025`/`145257`/`145358`/`145504`, promovidas para `database/schema/`; LIVE_00/LIVE_90 conformes (duas ressalvas documentais corrigidas); harness `5859` não executado; frontend homologado pelo proprietário. |
 | [`../database/proposals/2026-10-24-binder-catalog-reconciliation/LIVE-RUNBOOK-H-A.md`](../database/proposals/2026-10-24-binder-catalog-reconciliation/LIVE-RUNBOOK-H-A.md) | Roteiro de aplicação controlada no LIVE (estratégia H-A) da BINDER-CATALOG-RECONCILIATION: LIVE_00, ordem 5263 → 5266 com STOP, LIVE_90, evidências e limitações aceitas (harness não executado). **EXECUTADO em 2026-10-25**; errata pós-execução (§6) com Q90.1 corrigida (`::text`) e a expectativa do Security Advisor completada. |
 | [`../database/proposals/2026-10-24-binder-catalog-reconciliation/FRONTEND-HOMOLOGATION.md`](../database/proposals/2026-10-24-binder-catalog-reconciliation/FRONTEND-HOMOLOGATION.md) | Testes de interface e roteiro de homologação controlada das Novidades do Catálogo no fichário (caso Chi-Yu H1–H9 e casos sem gravação). **Homologado pelo proprietário (2026-10-25).** |
+| [`../database/proposals/2026-10-25-p3b-binder-activity-history/README.md`](../database/proposals/2026-10-25-p3b-binder-activity-history/README.md) | P3-B — Histórico de Atividades do Fichário Digital (v1.44): decisões promovidas a C-201–C-209/LDM-196–LDM-203; S1 preparada (5267–5270, harness 5860, LIVE_00/90, R0, ensaio LIVE v2.1). Readiness documental concluído: gates consolidados (G5 desdobrado em estrutural/comportamento/desempenho), contrato do executor do ensaio, garantias por inspeção × não exercitadas, riscos classificados e evidências para autorização. W1 condicionado às fatias S2–S6. Executor do ensaio: E2 (psql) suspenso; SQL Editor homologado para o formato do ensaio após a sonda somente leitura `DASH_probe_readonly.sql` (PASS no LIVE); procedimento manual E3 em §28.13. Ensaio v2.3 PASS (§28.32); **S1 instalada no LIVE em 2026-10-27** (5267–5270, LIVE_90 12/12, §28.34), com G5b/G5c dispensados sob H-A e G8 concedido. S2 (5271–5274) no LIVE, canônica e encerrada parcialmente com pendências (§29.11); S3 (5275–5278) no LIVE, canônica e encerrada parcialmente (§30.8–§30.10); S4 (5279–5284 + correções 5285/5286) no LIVE, canônica e encerrada parcialmente (§31.9–§31.12); S5 (5287–5289) no LIVE, canônica e encerrada parcialmente (§32.8–§32.9); S6 (5290–5296) no LIVE, canônica, PASS PARCIAL (§33.9–§33.12); S7 (seção Histórico) no frontend local, visual homologado, não publicada (§34); **P3-B concluída com ressalvas** (§35, v1.52). |
 | [`../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md`](../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md) | Snapshot imutável da Pokémon TCG API (2026-10-09): 50 coleções, 6.733 cartas, chaves de preço por carta; manifest com contagem e SHA-256. Fonte da 2ª origem de variantes (ADR-034). |
 | [`history/development/HANDOFF-2026-07-26.md`](history/development/HANDOFF-2026-07-26.md) | Handoff superado (26/07). |
 | [`history/development/HANDOFF-2026-07-31.md`](history/development/HANDOFF-2026-07-31.md) | Handoff superado (31/07). |
@@ -367,3 +368,48 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 2.58 | **`BINDER-CATALOG-RECONCILIATION-A7-FINAL-CORRECTION-01` (2026-10-24).** Linha da proposta atualizada: harness v1.4. |
 | 2.59 | **`BINDER-CATALOG-RECONCILIATION-LIVE-READINESS-H-A-01` (2026-10-24).** Linha nova: `LIVE-RUNBOOK-H-A.md`. |
 | 2.60 | **`BINDER-CATALOG-RECONCILIATION-FINAL-CLOSEOUT-01` (2026-10-25).** Linhas da proposta e do roteiro atualizadas para EXECUTADA / CANÔNICA / ENCERRADA; linha nova `FRONTEND-HOMOLOGATION.md`. |
+| 2.61 | **`P3-B-ACTIVITY-HISTORY-DECISION-CONSOLIDATION-01` (2026-10-25).** Linha nova da especificação da P3-B (`database/proposals/2026-10-25-p3b-binder-activity-history/README.md`). |
+| 2.62 | **`P3-B-ACTIVITY-HISTORY-DECISION-CLOSEOUT-02` (2026-10-25).** Resumo da linha da P3-B atualizado para a v1.1. |
+| 2.63 | **`P3-B-S1-FOUNDATION-READINESS-01` (2026-10-25).** Resumo da linha da P3-B atualizado para a v1.2 (S1 preparada). |
+| 2.64 | **`P3-B-S1-SECURITY-CORRECTION-01` (2026-10-25).** Resumo da linha da P3-B atualizado para a v1.3 (correções B1, W1, W2, W3, W8). |
+| 2.65 | **`P3-B-S1-LIVE-DRYRUN-STRUCTURAL-CORRECTION-02` (2026-10-25).** Resumo da linha da P3-B atualizado para a v1.4 (ensaio LIVE reestruturado; W1 demonstrado). |
+| 2.66 | **`P3-B-S1-FINAL-READINESS-03` (2026-10-25).** Resumo da linha da P3-B atualizado para a v1.5 (readiness documental concluído). |
+| 2.67 | **`P3-B-S1-LIVE-DRYRUN-EXECUTION-GATE-01` (2026-10-25).** README da P3-B v1.6 (§26: hashes, leituras do dia, executor E1, protocolo) e `LIVE_DRYRUN_S1_gate_readonly.sql` (só SELECT). |
+| 2.68 | **`P3-B-S1-LIVE-DRYRUN-EXECUTOR-E2-READINESS-02` (2026-10-25).** README da P3-B v1.7 (§27: executor E2 psql), `E2_probe_readonly.ps1`, `E2_run_live_dryrun_s1.ps1` e gate v1.1. |
+| 2.69 | **`P3-B-S1-E2-PROBE-SECURITY-CORRECTION-01` (2026-10-25).** Sonda E2 v1.1 e `static_check_e2_probe.py`; README da P3-B v1.8 (§27.5). |
+| 2.70 | **`P3-B-S1-LIVE-DASHBOARD-EXECUTOR-READINESS-01` (2026-10-25).** E2 suspenso; avaliação do executor por mensagem única e sonda `DASH_probe_readonly.sql` (proposta); README da P3-B v1.9 (§28). |
+| 2.71 | **`P3-B-S1-DASHBOARD-PROBE-STATIC-AUDIT` (2026-10-25).** Auditoria estática da sonda `DASH_probe_readonly.sql`; README da P3-B v1.10 (§28.10). |
+| 2.72 | **`P3-B-S1-DASHBOARD-PROBE-CLOSEOUT` (2026-10-25).** Resultado PASS da sonda do Dashboard, homologação do executor SQL Editor e procedimento E3; README da P3-B v1.11 (§28.11–28.13). |
+| 2.73 | **`P3B-S1-E3-LIVE-DRYRUN-V21-01` — preparação (2026-10-25).** Hashes consolidados e procedimento E3 conferido; README da P3-B v1.12 (§28.14). |
+| 2.74 | **`P3B-S1-E3-LIVE-DRYRUN-V21-01 / PRECHECK` (2026-10-26).** Pré-check LIVE PASS e linha de base P.10; README da P3-B v1.13 (§28.15). |
+| 2.75 | **`P3B-S1-E3-LIVE-DRYRUN-V21-01 — EXECUTION GATE` (2026-10-26).** Renovação do pré-check em STOP (P.04); README da P3-B v1.14 (§28.16). |
+| 2.76 | **`P3-B S1 SESSION DIAGNOSTIC READONLY` (2026-10-26).** `DIAG_sessions_readonly.sql` proposto; README da P3-B v1.15 (§28.17). |
+| 2.77 | **`P3B-S1-E3-SESSION-DIAGNOSTIC-01` (2026-10-26).** Resultado do diagnóstico de sessões; README da P3-B v1.16 (§28.18). |
+| 2.78 | **`P3B-S1-E3-LIVE-DRYRUN-V21-01` — retomada do pré-check (2026-10-26).** PASS; README da P3-B v1.17 (§28.19). |
+| 2.79 | **`P3B-S1-E3-LIVE-DRYRUN-V21-01` — execução e pós-check (2026-10-26).** Ensaio não aprovado (T8a), rollback PASS; README da P3-B v1.18 (§28.20). |
+| 2.80 | **`P3-B S1 E3 DRY-RUN v2.2` (2026-10-26).** Ensaio v2.2 (`LIVE_DRYRUN_S1_rollback_v2.2.sql`) e verificadores S.18e/S.19; README da P3-B v1.19 (§28.21). |
+| 2.81 | **Auditoria estática da v2.2 (2026-10-26).** PASS COM RESSALVA; README da P3-B v1.20 (§28.22). |
+| 2.82 | **Fechamento R1/R3 da v2.2 (2026-10-26).** `CATALOG_R1R3_readonly.sql` proposto; README da P3-B v1.21 (§28.23). |
+| 2.83 | **`P3B-S1-E3-CATALOG-R1R3-01` (2026-10-26).** STOP por erro de sintaxe na consulta v1.0; README da P3-B v1.22 (§28.24). |
+| 2.84 | **CATALOG_R1R3 v1.1 (2026-10-26).** Correção mínima da consulta R1/R3; README da P3-B v1.23 (§28.25). |
+| 2.85 | **`P3B-S1-E3-CATALOG-R1R3-V11-01` (2026-10-26).** PASS; R1 e R3 fechadas; README da P3-B v1.24 (§28.26). |
+| 2.86 | **Preparação final do ensaio v2.2 (2026-10-26).** Procedimento E3 e hashes atualizados para a v2.2; README da P3-B v1.25 (§28.13, §28.14, §28.27). |
+| 2.87 | **`P3B-S1-E3-LIVE-DRYRUN-V22-01` pré-check (2026-10-27).** STOP em LIVE_00 00.1 (ledger avançou); README da P3-B v1.26 (§28.28). |
+| 2.88 | **E3 BASELINE RECONCILIATION — MEP-01 (2026-10-27).** LIVE_00 v1.1, gate v1.2, ensaio v2.3 (baseline do ledger MEP); README da P3-B v1.27 (§28.29). |
+| 2.89 | **Auditoria final do baseline MEP (2026-10-27).** PASS; README da P3-B v1.28 (§28.30). |
+| 2.90 | **Ensaio v2.3 da P3-B S1 (2026-10-27).** Ensaio PASS e rollback PASS (G-POST 9/9, Q.08 = P.10, LIVE_00 6/6); README da P3-B v1.29 (§28.32). |
+| 2.91 | **Instalação da P3-B S1 (2026-10-27).** STOP antes da primeira migration (atividade de autenticação na janela); nada aplicado; README da P3-B v1.30 (§28.33). |
+| 2.92 | **P3-B S1 instalada no LIVE (2026-10-27).** 5267–5270 aplicadas; LIVE_90 12/12; README da P3-B v1.31 (§28.34). |
+| 2.93 | **P3-B S1 encerrada; S2 local (2026-10-27).** 5267–5270 canônicas; 5271–5274 + static_check S2 + LIVE_S2_00/90 propostos; README da P3-B v1.32 (§28.35, §29). |
+| 2.94 | **P3-B S2 instalada no LIVE (2026-10-27).** 5271–5274 aplicadas; bloco A 7/7; homologação funcional pendente; README da P3-B v1.33 (§29.9). |
+| 2.95 | **P3-B S2 — homologação parcial (2026-10-27).** Bloco B PASS; correção do Desfazer em `binder-workspace.tsx`; ADD pela interface e REPLACE pendentes; README da P3-B v1.34 (§29.10). |
+| 2.96 | **P3-B — S2 encerrada parcialmente e S3 local (2026-10-27).** README da P3-B v1.35 (§29.11, §30). |
+| 2.97 | **P3-B — S3 encerrada parcialmente (2026-10-27).** README da P3-B v1.37; `LIVE_S3_90` v1.1 (errata B.6). |
+| 2.98 | **P3-B — S4 implementada localmente (2026-10-27).** README da P3-B v1.38 (§31). |
+| 2.99 | **P3-B — S4 instalada no LIVE (2026-10-27).** README da P3-B v1.39 (§31.9). |
+| 3.00 | **P3-B — S4 encerrada (2026-10-28).** README da P3-B v1.40 (§31.12). |
+| 3.01 | **P3-B — S5 implementada localmente (2026-10-28).** README da P3-B v1.41 (§32). |
+| 3.02 | **P3-B — S5 instalada no LIVE (2026-10-28).** README da P3-B v1.42 (§32.8). |
+| 3.03 | **P3-B — S5 encerrada (2026-10-28).** README da P3-B v1.43 (§32.9). |
+| 3.04 | **P3-B — S6 implementada localmente (2026-10-28).** README da P3-B v1.44 (§33). |
+| 3.05 | **P3-B — concluída com ressalvas (2026-10-28).** README da P3-B v1.52 (§33.12, §35). |

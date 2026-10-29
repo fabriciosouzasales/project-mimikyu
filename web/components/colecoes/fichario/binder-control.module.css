@@ -116,6 +116,57 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0.25rem 0 1rem;
+  /* Reserva fixa para a barra: o conteúdo não muda de largura quando a rolagem aparece. */
+  scrollbar-gutter: stable;
+}
+
+/*
+ * Barra de rolagem discreta — só no corpo do Centro de Controle.
+ * Chromium/WebKit: ::-webkit-scrollbar (4 px, sem botões, trilho transparente).
+ * Firefox: scrollbar-width/scrollbar-color (o mais fino que o motor permite),
+ * aplicados só nele para não desligar o estilo ::-webkit-scrollbar do Chromium ≥ 121.
+ */
+.body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: hsl(var(--foreground) / 0.14);
+}
+
+.body:hover::-webkit-scrollbar-thumb {
+  background: hsl(var(--foreground) / 0.22);
+}
+
+.body::-webkit-scrollbar-thumb:hover,
+.body::-webkit-scrollbar-thumb:active {
+  background: hsl(var(--foreground) / 0.32);
+}
+
+.body::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@supports (-moz-appearance: none) {
+  .body {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--foreground) / 0.16) transparent;
+  }
+
+  .body:hover {
+    scrollbar-color: hsl(var(--foreground) / 0.26) transparent;
+  }
 }
 
 /* ---- seções recolhíveis ---- */
@@ -564,6 +615,391 @@
   color: hsl(var(--muted-foreground));
 }
 
+/* ---- Histórico (P3-B S7) — Activity Log minimalista ----
+ * Uma linha por evento: [ícone] [manchete] [hora], altura uniforme (~30 px),
+ * sem divisores; uma linha-guia vertical sutil liga os ícones de cada dia.
+ * A linha inteira abre os detalhes. Alvo de toque ≥ 44 px em dispositivos
+ * de toque; sem movimento novo além da rotação do chevron (desligada com
+ * prefers-reduced-motion).
+ */
+
+.history {
+  display: grid;
+}
+
+.historyToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  margin: -0.25rem 0 0;
+}
+
+.historyToolbarLabel {
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground) / 0.8);
+}
+
+
+/* ---- Seletor do filtro (lista própria no tema do painel) ---- */
+
+.filterMenu {
+  position: relative;
+}
+
+.filterTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.5rem;
+  padding: 0 0.375rem 0 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.filterTrigger:hover,
+.filterTrigger[aria-expanded="true"] {
+  background: hsl(var(--foreground) / 0.05);
+  color: hsl(var(--foreground));
+}
+
+.filterTrigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.4);
+  color: hsl(var(--foreground));
+}
+
+/* Largura estável: os rótulos empilhados na mesma célula fazem o botão medir
+   sempre o rótulo mais longo, independentemente do filtro aplicado. */
+.filterValue {
+  display: inline-grid;
+  text-align: left;
+}
+
+.filterValue > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  visibility: hidden;
+}
+
+.filterValue > span[data-current] {
+  visibility: visible;
+}
+
+.filterChevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  opacity: 0.7;
+  transition: transform 150ms ease;
+}
+
+.filterTrigger[aria-expanded="true"] .filterChevron {
+  transform: rotate(180deg);
+}
+
+.filterList {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 20;
+  min-width: 11rem;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--surface));
+  box-shadow:
+    0 0 0 1px hsl(var(--border) / 0.9),
+    0 12px 28px -12px hsl(0 0% 0% / 0.7);
+  outline: none;
+}
+
+.filterOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+  padding: 0 0.5rem;
+  border-radius: 0.3125rem;
+  font-size: 0.75rem;
+  color: hsl(var(--foreground) / 0.82);
+  cursor: pointer;
+  user-select: none;
+}
+
+.filterOption[data-active] {
+  background: hsl(var(--foreground) / 0.07);
+  color: hsl(var(--foreground));
+}
+
+.filterOption[aria-selected="true"] {
+  color: hsl(var(--foreground));
+}
+
+.filterCheck {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: hsl(var(--primary));
+}
+
+@media (pointer: coarse), (max-width: 767px) {
+  .filterTrigger {
+    height: 2.75rem;
+  }
+
+  .filterOption {
+    min-height: 2.75rem;
+  }
+}
+
+.historyRetry {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.historyRetry:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.55);
+}
+
+.historyDay {
+  margin-top: 0.875rem;
+}
+
+/* Primeiro grupo encosta no seletor. */
+.historyToolbar + .historyDay,
+.historyToolbar ~ p + .historyDay {
+  margin-top: 0.375rem;
+}
+
+.historyDayLabel {
+  margin: 0 0 0.125rem;
+  padding-left: 1.625rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground) / 0.75);
+}
+
+.logList {
+  position: relative;
+  display: grid;
+}
+
+/* Linha-guia: passa pelo centro da coluna dos ícones. */
+.logList::before {
+  content: "";
+  position: absolute;
+  top: 0.9375rem;
+  bottom: 0.9375rem;
+  left: 0.5625rem;
+  width: 1px;
+  background: hsl(var(--border) / 0.7);
+}
+
+.logEntry {
+  position: relative;
+}
+
+.logRow {
+  display: grid;
+  grid-template-columns: 1.125rem minmax(0, 1fr) auto 0.625rem;
+  align-items: center;
+  column-gap: 0.5rem;
+  width: 100%;
+  min-height: 1.875rem;
+  padding: 0 0.125rem 0 0;
+  border-radius: 0.375rem;
+  text-align: left;
+  color: hsl(var(--foreground) / 0.82);
+  transition: background-color 120ms ease;
+}
+
+.logRow:hover {
+  background: hsl(var(--foreground) / 0.035);
+}
+
+.logRow:active {
+  background: hsl(var(--foreground) / 0.055);
+}
+
+.logRow:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px hsl(var(--primary) / 0.6);
+}
+
+.logIcon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  /* Mesmo fundo do painel: o ícone interrompe a linha-guia, sem caixa visível. */
+  background: hsl(var(--surface));
+  color: hsl(var(--muted-foreground) / 0.9);
+}
+
+.logIcon > svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  stroke-width: 1.75;
+}
+
+.logText {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+}
+
+.logLegacy {
+  color: hsl(var(--muted-foreground));
+}
+
+.logTime {
+  min-width: 2.125rem;
+  text-align: right;
+  font-size: 0.65625rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground) / 0.75);
+  white-space: nowrap;
+}
+
+.logChevron {
+  width: 0.625rem;
+  height: 0.625rem;
+  color: hsl(var(--muted-foreground) / 0.4);
+  transform: rotate(-90deg);
+  transition:
+    transform 150ms ease,
+    color 120ms ease;
+}
+
+.logRow:hover .logChevron,
+.logRow:focus-visible .logChevron {
+  color: hsl(var(--muted-foreground));
+}
+
+.logEntry[data-open] .logRow {
+  color: hsl(var(--foreground));
+}
+
+.logEntry[data-open] .logChevron {
+  transform: rotate(0deg);
+  color: hsl(var(--muted-foreground));
+}
+
+.logDetails {
+  margin: 0.125rem 0 0.5rem 1.625rem;
+  padding: 0.5rem 0.625rem 0.5625rem;
+  border-radius: 0.375rem;
+  background: hsl(var(--foreground) / 0.025);
+}
+
+.logFields {
+  display: grid;
+  gap: 0.1875rem;
+}
+
+.logField {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  column-gap: 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.logField dt {
+  color: hsl(var(--muted-foreground) / 0.75);
+}
+
+.logField dd {
+  color: hsl(var(--foreground) / 0.85);
+  overflow-wrap: break-word;
+}
+
+.logItemsTitle {
+  margin-top: 0.5rem;
+  padding-top: 0.4375rem;
+  border-top: 1px solid hsl(var(--border) / 0.4);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground) / 0.75);
+}
+
+.logItems {
+  display: grid;
+  gap: 0.125rem;
+  margin-top: 0.25rem;
+  font-size: 0.65625rem;
+  line-height: 1.5;
+  color: hsl(var(--foreground) / 0.72);
+  overflow-wrap: break-word;
+}
+
+.logNote {
+  margin-top: 0.375rem;
+  font-size: 0.65625rem;
+  color: hsl(var(--muted-foreground) / 0.85);
+}
+
+.historyMore {
+  margin-top: 0.5rem;
+  padding-left: 1.625rem;
+}
+
+.historyMore .linkButton {
+  justify-content: center;
+  min-height: 1.875rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  box-shadow: inset 0 0 0 1px hsl(var(--border) / 0.6);
+}
+
+.historyMore .linkButton:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--foreground) / 0.045);
+}
+
+.historyMore .linkButton:disabled {
+  opacity: 0.6;
+}
+
+.historyEnd {
+  margin-top: 0.625rem;
+  padding-left: 1.625rem;
+}
+
+/* Toque: alvos de 44 px; com mouse/teclado a linha mantém a densidade (~30 px). */
+@media (pointer: coarse) {
+  .logRow {
+    min-height: 2.75rem;
+  }
+}
+
+@media (pointer: coarse), (max-width: 767px) {
+  .historyMore .linkButton {
+    min-height: 2.75rem;
+  }
+}
+
 .skeleton {
   height: 0.75rem;
   border-radius: 0.375rem;
@@ -612,7 +1048,11 @@
   }
 
   .chevron,
-  .fill {
+  .fill,
+  .logRow,
+  .logChevron,
+  .filterTrigger,
+  .filterChevron {
     transition: none;
   }
 }

@@ -1,0 +1,145 @@
+/*
+ * Remover página — complementa os diálogos pequenos do fichário
+ * (binder-add-pages.module.css: véu, superfície, cabeçalho, fatos e ações).
+ * Exclusão em vermelho, nunca em dourado: o dourado continua sendo a ação
+ * principal construtiva (adicionar, aplicar ordem).
+ */
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: hsl(0 72% 58% / 0.14);
+  color: hsl(0 85% 76%);
+}
+
+.icon[data-blocked] {
+  background: hsl(38 92% 60% / 0.14);
+  color: hsl(38 92% 72%);
+}
+
+.icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  text-align: left;
+  color: hsl(0 0% 100% / 0.82);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.14);
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.option:hover:not(:disabled) {
+  background: hsl(0 0% 100% / 0.05);
+}
+
+.option[aria-checked="true"] {
+  background: hsl(0 0% 100% / 0.08);
+  box-shadow: inset 0 0 0 2px hsl(0 0% 100% / 0.7);
+}
+
+.optionNumber {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.optionState {
+  font-size: 11px;
+  color: hsl(38 92% 72%);
+}
+
+.optionState[data-ok] {
+  color: hsl(0 0% 100% / 0.55);
+}
+
+.reasons {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: 12px;
+  background: hsl(38 92% 60% / 0.08);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: hsl(0 0% 100% / 0.85);
+}
+
+.danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: hsl(0 70% 52%);
+  color: hsl(0 0% 100%);
+  transition:
+    background-color 140ms ease,
+    transform 110ms ease,
+    opacity 140ms ease;
+}
+
+.danger:hover:not(:disabled) {
+  background: hsl(0 74% 58%);
+}
+
+.danger:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.danger:disabled {
+  opacity: 0.55;
+}
+
+.danger svg {
+  width: 15px;
+  height: 15px;
+}
+
+.error {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: hsl(0 85% 78%);
+}
+
+.option:focus-visible,
+.danger:focus-visible {
+  outline: 2px solid hsl(40 70% 62%);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  .danger {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option,
+  .danger {
+    transition: none;
+  }
+}
