@@ -3283,3 +3283,5 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-10-28] docs | P3-B CONCLUÍDA COM RESSALVAS: S1–S7 consolidadas, S7 local e não publicada, backlog residual aceito; README v1.52 §35, ROADMAP 2.51, HANDOFF 1.77, INDEX 3.05
 ## [2026-10-28] docs | P3-B: lint e build PASS na máquina do proprietário (avisos não bloqueantes; 76 páginas estáticas); pronta para commit, não publicada (README v1.53, ROADMAP 2.52, HANDOFF 1.78)
 ## [2026-10-29] fix | P1 tela em branco ao clicar em Coleções: menu (desktop e mobile) navega direto para /colecoes/colecoes via entryHref; /colecoes e seu redirect preservados; destaque da seção inalterado — mitigação aguardando observação
+## [2026-10-29] docs | ROADMAP-STRATEGIC-CONSOLIDATION-01: sequência macro Collection → Pokédex → Dashboard → Conexão Inteligente registrada no ROADMAP (2.53) e no HANDOFF (1.79); HOLD BINDER-GRID-RECONFIGURATION
+## [2026-10-29] docs | BULK-05 / BULK-06 — RETIRADOS DO BACKLOG POR DECISÃO DO PROPRIETÁRIO: ROADMAP 2.54, HANDOFF 1.80, README 2.76, 05d 2.28, North Star 1.19; BULK-01 a BULK-04 seguem concluídos; sem substituto

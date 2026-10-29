@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 2.27 | **Histórico de Atividades do Fichário (P3-B) — S1–S5 no LIVE e canônicas (5267–5289); S2–S5 encerradas parcialmente com pendências (2026-10-28); S6 implementada localmente; C-201–C-209.** |
+| **Versão** | 2.28 | **Histórico de Atividades do Fichário (P3-B) — S1–S5 no LIVE e canônicas (5267–5289); S2–S5 encerradas parcialmente com pendências (2026-10-28); S6 implementada localmente; C-201–C-209.** |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1682,7 +1682,7 @@ Resíduo: **Δ = 0 nas nove tabelas** — as oito de BULK-02 mais `public.game`,
 
 ## Pendências / Próximos Passos
 
-- **`BULK-04` — `REGISTER_CARD_SET`: CONCLUÍDO em 2026-10-16** — ver a seção "Bulk Operations — BULK-04" logo abaixo. **Próxima frente da sequência Bulk: `BULK-05` → `BULK-06`.**
+- **`BULK-04` — `REGISTER_CARD_SET`: CONCLUÍDO em 2026-10-16** — ver a seção "Bulk Operations — BULK-04" logo abaixo. *(Antes: "Próxima frente da sequência Bulk: `BULK-05` → `BULK-06`" — superado: BULK-05/BULK-06 retirados do backlog por decisão do proprietário em 2026-10-29.)*
 - *(Histórico)* **Próxima frente canônica (2026-10-16, decisão de Fabrício): `BULK-04` — `REGISTER_CARD_SET`**, com o `5152` como pré-requisito LIVE (ver o item B2 abaixo). O item seguinte, sobre `CATALOG-HISTORICAL-BOOTSTRAP-03`, é registro histórico: o catálogo de Card Variants foi fechado em 2026-10-11 (`ROADMAP.md` 2.24).
 - *(Histórico)* **Próxima frente canônica: `CATALOG-HISTORICAL-BOOTSTRAP-03` — etapa restante = `CARD VARIANTS — HISTORICAL BULK IMPORT`.** *(Reconciliação operacional, 2026-09-18, `BASEP + BASE3 — EDITORIAL CONVERGENCE DOCUMENTATION CLOSEOUT-01`: a descrição anterior — "CARDS + ASSETS PT-BR/EN" — está **desatualizada operacionalmente**. Cards e Assets históricos já foram majoritariamente carregados; o que resta da frente é **Variants**. Baseline LIVE datado: 200 Card Sets / 20.941 Cards / 30.261 Card Assets / 7.671 Card Variants; **169 Sets elegíveis** (170 com Cards e zero Variants, menos `ME5.5`, fora do denominador operacional) e **16.705** Cards. Os 4 Sets sem Cards e os Assets residuais são `KNOWN SOURCE-COVERAGE RESIDUALS / NON-BLOCKING`. A `CARD-VARIANTS — EDITORIAL CONVERGENCE` está `CLOSED`. Detalhamento em [`ROADMAP.md`](ROADMAP.md) e [`05b-cartas-e-raridade.md`](05b-cartas-e-raridade.md) revisão `1.4`.)* `CATALOG-HISTORICAL-BOOTSTRAP-01` (Expansions) e `-02` (Card Sets) já fecharam — 17 Expansions e **199 Card Sets** Pokémon, com índice `uq_card_set_expansion_promo` presente no banco físico e `release_order` definitivo; ver `05a-catalogo-base.md`, seção "Bootstrap histórico do catálogo de Card Sets". Sequência macro congelada restante: `CATALOG-HISTORICAL-BOOTSTRAP-03` → `CATALOG-VARIANT-DEFAULT-BACKFILL-01` → `BULK-04` → `BULK-05` → `BULK-06`.
 - **`REGISTER_CARD_SET` (B2 / `BULK-04`) — contrato de produto decidido por Fabrício em 2026-10-16 (`BULK04-READINESS-01`); implementado e LIVE no mesmo dia (seção "Bulk Operations — BULK-04").**
@@ -1745,7 +1745,7 @@ Offline (PostgreSQL 17 isolado, sem rede) e LIVE com os mesmos gates. `5826` cob
 ## Pendências / Próximos Passos
 
 - **Riscos conhecidos, não defeitos:** Card desativado entre a expansão e o `INSERT` não é barrado por guard próprio (mesmo comportamento de B1); o Preview de B2 calcula o fingerprint de `5149` duas vezes.
-- **Próxima frente da sequência Bulk:** `BULK-05` → `BULK-06`.
+- **`BULK-05` / `BULK-06` — RETIRADOS DO BACKLOG POR DECISÃO DO PROPRIETÁRIO — 2026-10-29.** Não há próxima frente na sequência Bulk. `add_physical_cards()` (`5012`) e `allocate_physical_cards_to_collection()` (`5046`) seguem canônicas, com teto de 500, sem prazo de migração — as menções "até `BULK-05`" nesta página ficam como registro histórico.
 
 ---
 
@@ -2268,3 +2268,4 @@ Todas as funções: `SECURITY DEFINER`, `search_path = ''`, `EXECUTE` só `authe
 | 2.25 | **Histórico de Atividades do Fichário — S3 no LIVE, canônica e encerrada parcialmente (2026-10-27, P3-B).** 5275–5278 promovidas; bloco B v1.1 6/6 (errata B.6); pendências explícitas. |
 | 2.26 | **Histórico de Atividades do Fichário — S4 no LIVE, canônica e encerrada parcialmente; S5 local (2026-10-28, P3-B).** 5279–5286 promovidas (inclui as correções 5285 e 5286); LIVE_S4_90 bloco B PASS; pendências residuais explícitas; S5 (5287–5289) proposta, não aplicada. |
 | 2.27 | **Histórico de Atividades do Fichário — S5 no LIVE, canônica e encerrada parcialmente; S6 local (2026-10-28, P3-B).** 5287–5289 promovidas; E06a comprovado; E06b/E07 não exercitados; S6 (5290–5296) proposta, não aplicada. |
+| 2.28 | **BULK-05/BULK-06 retirados do backlog (2026-10-29, decisão do proprietário).** "Pendências / Próximos Passos" da seção BULK-04 atualizado; RPCs `5012`/`5046` canônicas sem prazo de migração. BULK-01 a BULK-04 seguem concluídos. |

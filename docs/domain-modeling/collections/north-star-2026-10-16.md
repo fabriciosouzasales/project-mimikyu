@@ -4,12 +4,12 @@
 |---|---|
 | **Documento** | Referência normativa de experiência do módulo Collection (visão, fluxos, nomenclatura, critérios de base funcional) |
 | **Arquivo** | `docs/domain-modeling/collections/north-star-2026-10-16.md` |
-| **Versão** | 1.18 |
+| **Versão** | 1.19 |
 | **Status** | **NORMATIVO** — aprovado por Fabrício em 2026-10-16 (`COLLECTION-NORTH-STAR-02`, decisões D1–D4). Itens marcados **[H]**, entradas **PENDENTE** e as recomendações ainda abertas do §0.2 **não são normativos** até homologação formal de Fabrício. |
 | **Rodadas** | `COLLECTION-NORTH-STAR-01` (proposta, v0.1–0.2) → `COLLECTION-NORTH-STAR-02` (consolidação normativa, v1.0) → … → `COLLECTIONS-NORMATIVE-REALIGNMENT-01` (v1.5: NS-15–NS-18 e matriz de rastreabilidade §7) |
 | **Fontes** | `concept-decisions.md` (C-01–C-186), `logical-model.md`, `checkpoint-2026-08-28.md` §7, `checkpoint-2026-08-29.md`, `ux-exploration-2026-08-29.md`, `checkpoint-2026-10-15.md`, `05d-colecoes-e-usuarios.md`, `architecture/ubiquitous-language.md`, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13 |
 | **Legenda** | **[D]** decisão anterior aprovada e vigente · **[NS]** decisão normativa desta North Star · **[F]** fato do repositório/LIVE · **[H]** hipótese, não normativa |
-| **Fora de escopo** | Implementação, SQL, migrations, contratos técnicos (registrados apenas como necessidade), novos spikes visuais, BULK-05/06 (não autorizados). |
+| **Fora de escopo** | Implementação, SQL, migrations, contratos técnicos (registrados apenas como necessidade), novos spikes visuais, BULK-05/06 (retirados do backlog em 2026-10-29, decisão do proprietário). |
 
 ---
 
@@ -481,3 +481,4 @@ Legenda — Implementação: **LIVE** (backend no banco) · **FE-pub** (frontend
 | 1.16 | **Master Set por acabamento (2026-10-18, `MASTER-SET-DOCUMENTATION-AND-CONTRACT-PROPOSAL-01`, aprovação de Fabrício).** N9: subtítulo "todas as variantes" substituído por "os acabamentos que você escolher" e referências atualizadas para C-187–C-190 / LDM-191–LDM-195 (o termo "Master Set" permanece). Nenhuma outra decisão normativa alterada; as linhas informativas da §7 sobre Master Set serão atualizadas quando os contratos forem executados. |
 | 1.17 | **N24 sem ressalva (2026-10-21, `WHERE-02-CANONICAL-PROMOTION-01`).** O tipo de local passa a existir fisicamente como classificação opcional e extensível (`5212`/`5213`, C-55 lista aberta); N24 vira HOMOLOGADO (contagem: 19 homologados, 7 com ressalva). §7, colunas informativas: "Organização física" com `5212`–`5219` no LIVE e FE pendente. NS-13, NS-15 e N25 inalteradas. Nenhuma `C-*`/`LDM-*` alterada. |
 | 1.18 | **Fichário Digital — nota no Fluxo 4 (2026-10-22, `P2-A1-PROPOSAL-01`).** Registra as decisões D1–D9 e R1–R5 de Fabrício e a referência a C-191–C-194; contratos 5223–5226 PROPOSTOS, nada executado. Texto original do Fluxo 4 preservado; nenhuma outra decisão normativa alterada. |
+| 1.19 | **BULK-05/06 retirados do backlog (2026-10-29, decisão do proprietário).** Só a linha "Fora de escopo" do cabeçalho; menções ao BULK-06 nos Fluxos ficam como registro. |
