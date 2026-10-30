@@ -804,6 +804,8 @@ Collection Allocation associa uma Physical Card a uma Collection (C-04); Slot As
 
 ## Bloco complementar — Custody & Availability (2026-08-30)
 
+> **Escopo de lançamento (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário):** Custody (C-49–C-52) fica no **backlog V2.0** — não bloqueia a V1.0. Availability (C-53/C-54) não faz parte do escopo obrigatório da V1.0. Decisões preservadas; sem modelagem nem implementação agora. Ver `ROADMAP.md` 2.55.
+
 Adicionado ao final de `COLLECTIONS-CUSTODY-AVAILABILITY-CONSOLIDATION-01`, formalizando como decisão conceitual C-* o que, até esta rodada, existia apenas no memo de modelagem conceitual `COLLECTIONS-INVENTORY-MODELING-05` (Custody/Possession/Availability, conduzido sem edição de arquivo, explicitamente registrado sem criar C-*/LDM-* própria). Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido aprovado nesse memo e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-48 não são reabertas. Storage detalhado permanece OPEN, não tratado por este bloco (ver `logical-model.md` §7).
 
 ## C-49 — Custody: guarda física corrente, independente de Storage
@@ -1040,6 +1042,8 @@ Pricing History e Valuation History não fazem parte de Provenance (reafirma C-6
 
 ## Bloco complementar — Favorite (2026-08-30)
 
+> **Escopo de lançamento (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`):** Favorite de carta é **obrigatório na Collection V1.0** (ROADMAP 2.55, V1-10).
+
 Adicionado ao final de `COLLECTIONS-FAVORITE-CONSOLIDATION-01`, encerrando a subfrente `Collections — Favorite conceptual modeling`, conduzida por um memo conceitual (`COLLECTIONS-FAVORITE-MODELING-01`, sem edição de arquivo). Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido aprovado nesse memo e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-81 não são reabertas — em particular, `Custody`/`Availability` (C-49–C-54), `Storage` (C-55–C-66) e `Lifecycle`/`Provenance` (C-67–C-81) permanecem integralmente vigentes. Wishlist em profundidade, `Pokémon`/`Subject Reference`, ranking/grail, recomendações e notificações permanecem explicitamente fora de escopo.
 
 ## C-82 — Favorite: definição e entidade-alvo
@@ -1099,6 +1103,8 @@ Enquanto a `Card` existir como identidade editorial no catálogo, Favorite perma
 ---
 
 ## Bloco complementar — Wishlist (2026-08-30)
+
+> **Escopo de lançamento (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`):** Wishlist pessoal (C-91–C-97, com o contexto opcional de C-95) é **obrigatória na Collection V1.0** (ROADMAP 2.55, V1-11). Refinamentos de C-98/C-100 seguem fora do V1.
 
 Adicionado ao final de `COLLECTIONS-WISHLIST-CONSOLIDATION-01`, encerrando a subfrente `Collections — Wishlist conceptual modeling`, conduzida por dois memos conceituais (`COLLECTIONS-WISHLIST-MODELING-01`/`-02`, sem edição de arquivo). A direção vigente é a do memo `-02`, que corrigiu a granularidade de alvo proposta no memo `-01` (Card obrigatório + Variant opcional) para `Card Variant` obrigatório — nenhuma dessas conclusões havia sido consolidada em C-*/LDM-*, portanto não há supersessão de documento canônico, apenas a formalização direta da versão corrigida. C-01–C-90 não são reabertas — em particular, `Favorite` (C-82–C-90) permanece integralmente vigente, com a diferença de granularidade frente a Wishlist tratada como intencional (C-97). Quantity, priority/grail, price target, Marketplace, condition e grading permanecem explicitamente fora de escopo.
 
@@ -1177,6 +1183,8 @@ Wishlist pertence ao `User`. Não pertence a `Collection`, `Inventory` nem a uma
 ---
 
 ## Bloco complementar — Physical Card Condition (2026-08-30)
+
+> **Escopo de lançamento (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário):** condição real do exemplar fica no **backlog V2.0** e não bloqueia a V1.0. Na V1.0, preços usam Near Mint como **referência de precificação**, sem declarar a condição física do exemplar (ROADMAP 2.55; North Star NS-20). Decisões C-103–C-120 preservadas.
 
 Adicionado ao final de `COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`, encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`, conduzida por um memo conceitual (`COLLECTIONS-PHYSICAL-CARD-CONDITION-MODELING-01`) e um complemento de evidência de mercado brasileiro (entregue como `COMPLEMENTO — CONDITION / EVIDÊNCIA DE MERCADO BRASILEIRO`). Nota de divergência sinalizada explicitamente, não aplicada silenciosamente: o pedido de consolidação refere-se a "memos CONDITION-MODELING-01, CONDITION-MODELING-02 e o complemento"; nesta sessão não houve uma rodada entregue literalmente como `CONDITION-MODELING-02` — o complemento de evidência de mercado cumpriu, em conteúdo, o papel equivalente de um refinamento de segunda rodada (evidência de mercado brasileiro, code vs. label, filter semantics), e é tratado aqui como tal. Ambos previamente registrados sem edição de arquivo. Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido explorado nesses dois textos e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-102 não são reabertas — em particular, `Lifecycle`/`Provenance` (C-67–C-81, especialmente C-69/C-80/C-81) e `Wishlist` (C-91–C-102, especialmente C-100) permanecem integralmente vigentes. Grading/Certification em detalhe, Damage/Defects, Condition History, Valuation e Wishlist refinement permanecem explicitamente fora de escopo. Achado central desta rodada: a tabela física `card_condition`, já `CONFIRMADO EXECUTADO` em Pricing (Incremento P1, 2026-08-16 — ver `docs/05f-pricing.md`), é reconhecida e ratificada conceitualmente como a referência canônica compartilhada de Condition (C-104), sem propor ou alterar schema nesta rodada.
 
@@ -1295,6 +1303,8 @@ O escopo mínimo V1 de Condition é: Current Condition opcional; escala canônic
 ---
 
 ## Bloco complementar — Grading / Certification (2026-08-30)
+
+> **Escopo de lançamento (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário):** graduação/certificação fica no **backlog V2.0** e não bloqueia a V1.0. Decisões C-121–C-140 preservadas.
 
 Adicionado ao final de `COLLECTIONS-GRADING-CERTIFICATION-CONSOLIDATION-01`, encerrando a subfrente `Collections — Grading / Certification conceptual modeling`, conduzida por dois memos conceituais (`COLLECTIONS-GRADING-CERTIFICATION-MODELING-01`/`-02`, ambos previamente registrados sem edição de arquivo, revisados por Fabrício). A direção vigente é a do memo `-02`, que corrigiu a posição do `-01` sobre a aplicabilidade simultânea de Condition e Certification — nenhuma conclusão do `-01` sobre esse ponto específico (Q9) havia sido consolidada em C-*/LDM-*, portanto não há supersessão de documento canônico, apenas a formalização direta da versão corrigida. C-01–C-120 não são reabertas — em particular, `Physical Card Condition` (C-103–C-120), `Custody`/`Availability` (C-49–C-54), `Storage` (C-55–C-66), `Lifecycle`/`Provenance` (C-67–C-81) e `Wishlist` (C-91–C-102) permanecem integralmente vigentes. Esta rodada fecha definitivamente a pendência de aplicabilidade simultânea deixada aberta por C-111/C-112. Submission/regrade/crack workflow operacional, subgrades, verification externa e Protection/Encapsulation detalhada permanecem explicitamente fora de escopo.
 
@@ -1421,6 +1431,8 @@ O escopo mínimo V1 de Grading/Certification é: Grading Company; Grade Scale; G
 ---
 
 ## Bloco complementar — Collection Collaboration / Permissions (2026-08-30)
+
+> **Escopo de lançamento (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário):** C-141–C-165 são **obrigatórias na Collection V1.0** (ROADMAP 2.55, V1-12 e V1-13): EDITOR e VIEWER, convite, aceite, saída e remoção, e visibilidade PUBLIC controlada pelo titular. Titularidade única preservada — os exemplares continuam no acervo do titular (C-147) e membros **não** contribuem cartas dos próprios acervos (a hipótese de LDM-25/27, superada em 2026-08-28, não é reaberta). Entrega pode ser feita em dois incrementos (VIEWER e convites; depois EDITOR).
 
 Adicionado ao final de `COLLECTIONS-COLLABORATION-PERMISSIONS-CONSOLIDATION-01`, encerrando a subfrente `Collections — Collaboration / Permissions conceptual modeling`, aberta pelos memos `COLLECTIONS-COLLABORATION-PERMISSIONS-MODELING-01`/`-02` (ambos previamente registrados sem editar arquivo; direção vigente é a do `-02`, que corrigiu a duplicidade conceitual do `-01` — Owner tratado simultaneamente como relação estrutural e como role de Membership — antes de qualquer consolidação, sem supersessão de documento canônico). Não reabre em conteúdo: Collection core semantics, Physical Card/Inventory, Custody/Availability, Storage, Layout/Page/Slot, Lifecycle/Provenance, Favorite, Wishlist, Physical Card Condition, Grading/Certification.
 
@@ -2248,3 +2260,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.27 | **C-200 — Novidades do Catálogo no fichário Master Set (2026-10-25, `BINDER-CATALOG-RECONCILIATION-FINAL-CLOSEOUT-01`).** Registra no artefato normativo as decisões de Fabrício já aprovadas nas rodadas da proposta (só MASTER_SET, Pokédex excluída; marco de participação persistente; prévia e confirmação; ordem natural com deslocamento controlado; histórico de incorporações; reserva liberada não volta). Nenhuma decisão nova; contratos 5263–5266 canônicos e homologados. |
 | 1.28 | **C-201 a C-209 — Histórico de Atividades do Fichário (2026-10-25, `P3-B-S1-FOUNDATION-READINESS-01`).** Promove as decisões de Fabrício D1–D8, O1–O5, P1 e os ajustes 1–7: histórico por fichário, retenção A1+A3+A5 sem expurgo por prazo, exclusão definitiva como exceção controlada à imutabilidade (marco mínimo sem conteúdo; distinta da exclusão de conta), titularidade gravada no evento e leitura só pelo titular (C-172 conciliada, não revogada), operação lógica com efeitos internos como itens, só o concluído, segregação por proprietário para transferências futuras, consulta de fichários encerrados e início de cobertura com legado parcial. Especializa C-166–C-186 e refina C-179/C-180 apenas nesses pontos; nenhuma decisão anterior reaberta. |
 | 1.29 | **Esclarecimento em C-203 (2026-10-25, `P3-B-S1-SECURITY-CORRECTION-01`).** Exclusão de conta não altera eventos de outros titulares; ator guardado como valor, sem relação de existência (achado B1 da auditoria estática: a ação SET NULL conflitava com a imutabilidade). Nenhuma decisão reaberta ou renumerada. |
+| 1.30 | **Escopo de lançamento da Collection V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário).** Notas de escopo, sem alterar nenhuma decisão, nos blocos Collaboration/Permissions e Favorite/Wishlist (obrigatórios na V1.0) e Condition, Grading e Custody (backlog V2.0). |

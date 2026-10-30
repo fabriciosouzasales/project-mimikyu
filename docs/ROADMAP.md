@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.54 |
+| **Versão** | 2.56 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -23,21 +23,67 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 
 # Now — Em Andamento
 
+> # COLLECTION V1.0 — ESCOPO DE LANÇAMENTO (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário)
+>
+> Meta: **V1.0 comercializável em 30 dias a partir de 29/10/2026 (alvo: 28/11/2026)**. Este bloco detalha a Etapa 1 da sequência macro abaixo sem mudar a ordem. Origem: auditoria `domain-modeling/collections/COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01.md`.
+>
+> **Sequência estratégica × escopo de lançamento.** A sequência estratégica continua sendo Collection → Pokédex → Dashboard → Conexão Inteligente. O escopo **obrigatório** da V1.0 é a Collection V1.0 descrita aqui. Pokédex P7–P9, Dashboard e Conexão Inteligente (inclusive o matching entre usuários) **não** são pressupostos do lançamento; o que entrar além de Collection exige decisão explícita do proprietário.
+>
+> **Obrigatório para a Collection V1.0**
+>
+> | ID | Funcionalidade | Base | Situação em 2026-10-29 |
+> |---|---|---|---|
+> | V1-01 | Acervo: registrar cartas e Set inteiro, cópias, remover, busca e filtros, locais | C-03, C-47/48, NS Fluxos 2/5 | Entregue |
+> | V1-02 | Coleções de Set, livre e Pokédex; Master Set; Biblioteca; renomear e capa; vincular exemplares | C-01–C-37, C-187–C-190, NS-16/17 | Entregue |
+> | V1-03 | Fichário Digital atual (montagem, bolsos, imagens, identidade, compartilhado entre coleções do mesmo dono, referências, novidades, histórico) | C-38–C-46, C-191–C-209 | Entregue; publicação da S7 (P3-B) a confirmar |
+> | V1-04 | Arquivar, reativar e excluir coleção | C-06, C-13, C-30, C-37; N26 | Backend no LIVE (`5037`–`5039`); falta interface |
+> | V1-05 | Desmontar e excluir fichário; transferir a âncora (E19/E19b/E20) | C-194, C-197 | Backend no LIVE (`5226`; `5254`/`5292`); falta interface |
+> | V1-06 | Adicionar cartas e Set inteiro **a partir da coleção** e continuidade após a criação (Fluxos 1.6, 2 e 5) | NS §2 (normativo) | Envelopes `5150`/`5157` aceitam alocação; falta interface |
+> | V1-07 | Reserva de bolso vazio para uma carta específica | C-42 | Hoje só "fixar" a carta presente |
+> | V1-08 | Lupa e detalhe da carta no fichário | Etapa 1 | Não iniciado |
+> | V1-09 | Preço nas cartas (Acervo, Coleções, Fichário), referência NM | `05f` (regra NM), `3983` | Leitura existe; falta interface |
+> | V1-10 | Favoritos de cartas | C-82–C-90 | Sem modelo físico |
+> | V1-11 | Wishlist pessoal (Card Variant + idioma opcional; contexto opcional de coleção) | C-91–C-97, C-95 | Sem modelo físico |
+> | V1-12 | Compartilhamento A: membros VIEWER; convite, aceite, saída e remoção; visibilidade PUBLIC controlada pelo titular | C-141–C-165, C-15 | Sem modelo físico (`visibility` só aceita `PRIVATE`) |
+> | V1-13 | Compartilhamento B: membros EDITOR (curadoria de layout, reservas, páginas e metadados; nunca alocação) | C-146–C-150 | Depende de V1-12 |
+> | V1-14 | Relatórios de Collection: inventário, valor estimado do acervo e por coleção, progresso e faltantes, checklist por coleção | ROADMAP 2.53 | Não iniciado |
+> | V1-15 | Encerramento de qualidade da V1.0 (NS-19) | NS §4, NS-19 | — |
+>
+> **Dependências funcionais reais:** V1-04 (excluir coleção) depende de V1-05, porque excluir coleção com fichário é recusado (C-194); V1-13 depende de V1-12; V1-14 (valor) depende de V1-09; V1-12 exige variantes de leitura para membros e público em todas as leituras hoje restritas ao dono (`get_my_*`), sem expor acervo, locais ou proveniência; V1-10, V1-11 e V1-12 exigem modelo físico novo (proposta SQL executada pelo proprietário); o Nível 1 da Conexão Inteligente depende de V1-11. As demais entregas reaproveitam contratos já no LIVE.
+>
+> **Sequência sugerida de incrementos** (recomendação; cada incremento com autorização própria; os de risco maior começam cedo): 1. Ciclo de vida (V1-04 + V1-05) → 2. Adicionar a partir da coleção (V1-06) → 3. Compartilhamento A (V1-12) → 4. Preço NM nas cartas (V1-09) → 5. Favoritos (V1-10) → 6. Wishlist (V1-11) → 7. Compartilhamento B (V1-13) → 8. Fichário: reserva de bolso vazio e lupa (V1-07 + V1-08) → 9. Relatórios (V1-14) → 10. Encerramento NS-19 (V1-15). As propostas SQL de 3, 5 e 6 podem ser preparadas em paralelo aos incrementos só de frontend (1, 2, 4).
+>
+> **Regras do compartilhamento V1.0.** Titularidade única: os exemplares continuam no acervo do titular (C-141, C-147, `checkpoint-2026-08-28.md` §2.6/2.7). Membros **não** contribuem cartas dos próprios acervos — a decisão superada em 2026-08-28 (LDM-25/27) não é reaberta. Privacidade patrimonial e dos dados do titular conforme C-157–C-162: o membro vê só os exemplares alocados àquela coleção, nunca o acervo, os locais, a proveniência, os valores pagos, os favoritos ou a wishlist do titular. Pode ser entregue em dois incrementos (V1-12, depois V1-13) sem reduzir o escopo da V1.0.
+>
+> **Precificação na V1.0.** Toda consulta de preço usa **Near Mint (NM)** como condição padrão — a regra já vigente em Pricing (`05f-pricing.md`, "NM como condição padrão de comparação/apresentação"; `3983`). NM é **referência de preço, não declaração sobre a condição física** do exemplar, e a interface deixa isso claro ao usuário. Preço indisponível nunca é tratado como zero. Continuam valendo as regras de variante, acabamento, idioma, fonte, moeda e `CARD_FALLBACK` dos contratos existentes.
+>
+> **Relatórios — diretrizes preliminares.** Quantidade de exemplares e de cartas distintas; valor estimado do acervo; valor estimado de cada coleção; progresso e faltantes; checklist por coleção (possuídas × ausentes), com referência visual no checklist do Catálogo Editorial. Filtros, layout final, impressão, exportação e regras adicionais ficam para quando o incremento começar.
+>
+> **Backlog V2.0 (não bloqueia a V1.0; decisões históricas preservadas; sem modelagem nem implementação agora):** condição real do exemplar (C-103–C-120); graduação/certificação (C-121–C-140); custódia — empréstimo, perda, recuperação e situações correlatas (C-49–C-52); reconfiguração da grade de fichário existente (`BINDER-GRID-RECONFIGURATION`).
+>
+> **Fora de qualquer versão comprometida:** marketplace, pagamentos e intermediação comercial continuam como oportunidades futuras, fora do escopo inicial da Conexão Inteligente e sem versão comprometida — não fazem parte do backlog V2.0.
+>
+> **Pokédex P7–P9.** A funcionalidade publicada "Completar a Pokédex" (PKX-01/02/03, 2026-10-19) precisa ser reconciliada com o escopo originalmente previsto para a P7, com análise de cobertura antes de declarar a P7 concluída e sem reconstruir o que já existe. P8 e P9 seguem a sequência estratégica.
+>
+> **Encerramento da Collection V1.0:** critérios B1–B8 na interpretação operacional NS-19 (`north-star-2026-10-16.md`): jornadas principais funcionando, segurança e integridade demonstradas, desempenho satisfatório em cenários representativos, visual homologado em desktop e mobile e nenhum defeito crítico conhecido, reaproveitando as evidências existentes.
+>
+> **Preservado:** BULK-05/BULK-06 seguem retirados; Conexão Inteligente mantém os Níveis 1 e 2 como visão inicial, com proteção da localização exata; Dashboard continua depois da Pokédex.
+
 > # SEQUÊNCIA ESTRATÉGICA MACRO — 2026-10-29 (`ROADMAP-STRATEGIC-CONSOLIDATION-01`, decisão do proprietário)
 >
 > Fonte de verdade da ordem de desenvolvimento a partir desta data. Refina — não revoga — a sequência de 2026-10-14 (P4 → P5a → P6 → Collection → P7 → P8 → P9), que já está cumprida até P6 e cuja condição "P7/P8/P9 só depois da base funcional da Collection" passa a ser **conclusão da Etapa 1**. Os blocos datados abaixo continuam como registro histórico.
 >
 > **Ordem: Collection → Pokédex → Dashboard → Conexão Inteligente.** Cada macroetapa é concluída antes de a seguinte começar; mudar a ordem exige decisão explícita do proprietário.
 >
-> **ETAPA 1 — COLLECTION (vigente).** Fechar o ecossistema Acervo, Coleções e Fichário Digital:
+> **ETAPA 1 — COLLECTION (vigente).** Fechar o ecossistema Acervo, Coleções e Fichário Digital *(escopo de lançamento consolidado em 2026-10-29 no bloco "COLLECTION V1.0", acima)*:
 > - Reserva de bolso vazio para uma carta específica (hoje só existe "fixar" a carta presente no bolso).
 > - Lupa e detalhes da carta no Fichário.
 > - Preços nas cartas em Acervo, Coleções e Fichário (leitura de Pricing já existe; a UI de Collection ainda não exibe preço — respeitar `CARD_FALLBACK`, ver "Débitos Técnicos", Card Variants item 2).
 > - Favoritos de cartas (conceito C-82–C-90; distinto dos Favoritos de espécies da Pokédex P6).
 > - Wishlist pessoal: global ao usuário, alvo `Card Variant` + idioma opcional (C-91–C-97), aceitando cartas faltantes ou já possuídas (C-93); **contexto opcional de coleção** como extensão prevista em C-95 (a Collection não vira dona da Wishlist). A finalidade futura de matching é preservada, sem antecipar a Conexão Inteligente.
 > - Exclusão/desmontagem de fichários e operações administrativas comprometidas (RPCs no LIVE: `dismantle_my_collection_binder`, `delete_collection_layout`, `transfer_my_binder_ownership`; sem interface — correspondem a E19/E19b/E20 da P3-B).
-> - Bloco de Relatórios de Collection — **escopo a definir**.
-> - Demais pendências funcionais comprometidas identificadas no inventário de Collection.
+> - Bloco de Relatórios de Collection — **escopo a definir** *(diretrizes preliminares registradas em 2026-10-29 no bloco "COLLECTION V1.0")*.
+> - Demais pendências funcionais comprometidas identificadas no inventário de Collection *(inventário feito em 2026-10-29 — `COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01`; resultado incorporado ao bloco "COLLECTION V1.0")*.
 >
 > **ETAPA 2 — POKÉDEX** (após o fechamento de Collection): P7 — Minha Collection Pokédex; P8 — Meu Progresso; P9 — Integração Pokédex × Collection. Decisões, dependências e requisitos já aprovados (ADR-011, North Star B1–B8) são preservados.
 >
@@ -45,7 +91,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 >
 > **ETAPA 4 — CONEXÃO INTELIGENTE** (após o Dashboard): Nível 1 usa a Wishlist pessoal da Etapa 1; Nível 2 cruza desejos com exemplares voluntariamente disponibilizados por outros colecionadores (compatibilidade de carta/variante, cidade e proximidade). Sem expor endereço ou coordenada exata — faixas de distância. Consentimento, participação voluntária, privacidade e segurança primeiro. **Fora do escopo inicial:** marketplace, pagamentos e intermediação comercial.
 >
-> **HOLD:** `BINDER-GRID-RECONFIGURATION` — mudar a grade de um fichário existente preservando a sequência das cartas e as posições intencionais. Não iniciar.
+> **~~HOLD~~ → BACKLOG V2.0 (decisão do proprietário, 2026-10-29):** `BINDER-GRID-RECONFIGURATION` — mudar a grade de um fichário existente preservando a sequência das cartas e as posições intencionais. Não bloqueia o lançamento V1.0; não iniciar antes da V2.0. *(Antes: "HOLD … Não iniciar.")*
 >
 > **Backlog preservado, sem virar prioridade automática:** pendências da P3-B (§35.3 do README da proposta), débitos técnicos e demais decisões anteriores.
 >
@@ -805,3 +851,5 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.52 | **P3-B — lint e build PASS (2026-10-28).** Registrado no item da frente; pronta para commit pelo proprietário; publicação não realizada. |
 | 2.53 | **Sequência estratégica macro (2026-10-29, `ROADMAP-STRATEGIC-CONSOLIDATION-01`, decisão do proprietário).** Bloco novo no topo de "Now": Collection → Pokédex → Dashboard → Conexão Inteligente, escopo de cada etapa, HOLD `BINDER-GRID-RECONFIGURATION` e governança. Refina a sequência de 2026-10-14 sem revogá-la; notas de remissão em "Later" (Analytics/Valuation; Decks/Trocas/Marketplace). |
 | 2.54 | **BULK-05/BULK-06 retirados do backlog (2026-10-29, decisão do proprietário).** Registro explícito no bloco da sequência macro; removidos das pendências técnicas vigentes e do item 8 da "Sequência vigente"; menções antigas marcadas como superadas. BULK-01 a BULK-04 permanecem concluídos; nenhum substituto criado. |
+| 2.55 | **Escopo de lançamento da Collection V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário após `COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01`).** Bloco novo no topo de "Now": meta de 30 dias; distinção entre sequência estratégica e escopo obrigatório da V1.0; matriz V1-01 a V1-15 (inclui compartilhamento EDITOR/VIEWER e PUBLIC com titularidade única, arquivar/reativar/excluir coleção, Fluxos 2/5 na coleção, relatórios); precificação NM; diretrizes de relatórios; backlog V2.0 (condição, graduação, custódia); reconciliação PKX × P7; encerramento por NS-19. Itens da Etapa 1 anotados com remissão ao bloco. Sequência macro inalterada. |
+| 2.56 | **Correção final da consolidação V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário).** `BINDER-GRID-RECONFIGURATION` passa de HOLD para **Backlog V2.0** (não bloqueia a V1.0). Marketplace, pagamentos e intermediação comercial retirados do bloco V2.0: oportunidades futuras sem versão comprometida, fora do escopo inicial da Conexão Inteligente. Matriz V1-01 a V1-15 e sequência estratégica inalteradas. |
