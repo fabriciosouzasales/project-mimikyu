@@ -2,7 +2,7 @@
 
 import { useContext } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { ArrowDown, Bookmark, BookmarkX, FileMinus2, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PawPrint, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, Bookmark, BookmarkX, FileMinus2, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PackagePlus, PawPrint, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { BinderPortalContext } from "./binder-slot";
 import styles from "./tool-rail.module.css";
 
@@ -32,7 +32,9 @@ import styles from "./tool-rail.module.css";
  *                            Remover página (página à vista; só vazia — confirmação
  *                            com o motivo quando bloqueada),
  *                            Bandeja, Cartas disponíveis
- *                            (exemplares desta coleção ainda sem bolso) e, só em
+ *                            (exemplares desta coleção ainda sem bolso),
+ *                            Cadastrar cartas (V1-06: cadastro de exemplares
+ *                            novos já guardados no fichário físico) e, só em
  *                            fichário compartilhado, "Só desta coleção"
  *                            (P2-SHARED-BINDER-FRONTEND-01) e, só em fichário
  *                            de Pokédex, "Pokémon nos bolsos" (referências de
@@ -62,6 +64,13 @@ export type ToolRailState = {
   /** Cartas desta coleção fora dos bolsos (5230). */
   availableCount: number;
   availableOpen: boolean;
+  /**
+   * V1-06: "Cadastrar cartas" — cadastra exemplares novos já guardados no
+   * fichário físico (5150/5157). `undefined` = botão ausente (tipo de coleção
+   * desconhecido); `false` = indisponível com motivo (`registerHint`).
+   */
+  canRegister?: boolean;
+  registerHint?: string;
   /** Fichário com mais de uma coleção: mostra o destaque "Só desta coleção". */
   shared: boolean;
   onlyMine: boolean;
@@ -90,6 +99,7 @@ export type ToolRailActions = {
   onRemovePage: () => void;
   onToggleTray: () => void;
   onToggleAvailable: () => void;
+  onRegister?: () => void;
   onToggleOnlyMine: () => void;
   onOpenSpecies?: () => void;
   onOpenCatalog?: () => void;
@@ -205,6 +215,15 @@ export function BinderToolRail({ state: s, actions: a }: { state: ToolRailState;
           active={s.availableOpen}
           badge={s.availableCount}
         />
+        {s.canRegister !== undefined && a.onRegister ? (
+          <RailButton
+            icon={PackagePlus}
+            label={s.canRegister ? "Cadastrar cartas novas neste fichário" : `Cadastrar cartas — ${s.registerHint ?? "indisponível"}`}
+            onClick={a.onRegister}
+            disabled={!s.canRegister || s.busy}
+            haspopup="dialog"
+          />
+        ) : null}
         {s.shared ? (
           <RailButton
             icon={Focus}

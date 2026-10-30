@@ -29,6 +29,8 @@ import { ReactivateCollectionButton, ReactivatedStatus } from "./collection-life
 import manageStyles from "./collection-manage.module.css";
 import { CollectionTitle } from "./collection-title";
 import { PokedexBulkLauncher } from "./pokedex-bulk-link";
+import { CollectionAddLauncher } from "./collection-add";
+import type { RegisterMode } from "@/lib/colecoes/collection-add";
 import { PokedexGrid } from "./pokedex-grid";
 import { PokedexHeroBackdrop, PokedexHeroStage } from "./pokedex-hero-stage";
 import { PokedexFirstRun } from "./pokedex-first-run";
@@ -60,6 +62,7 @@ export function PokedexCollectionView({
   binder = null,
   coverLogoUrl = null,
   userId = null,
+  registerMode = null,
 }: {
   collection: CollectionSummary;
   filter: PokedexFilter;
@@ -78,6 +81,8 @@ export function PokedexCollectionView({
   coverLogoUrl?: string | null;
   /** Dono da sessão — pasta do envio da capa; `null` = envio indisponível. */
   userId?: string | null;
+  /** V1-06: `?cadastrar=` — abre o cadastro de cartas novas ao chegar. */
+  registerMode?: RegisterMode | null;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
   const canManage = COLLECTION_MANAGE_ENABLED && active;
@@ -233,6 +238,12 @@ export function PokedexCollectionView({
                   lastNumber: option.lastNumber,
                   selected: true,
                 }))}
+              />
+            ) : null}
+            {canManage ? (
+              <CollectionAddLauncher
+                autoOpen={registerMode}
+                target={{ collectionId: collection.id, collectionName: collection.name, kind: "pokedex", cardSet: null }}
               />
             ) : null}
             {linkable && !collection.isComplete ? (

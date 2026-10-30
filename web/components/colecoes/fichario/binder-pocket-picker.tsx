@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Image as ImageIcon, Layers, Loader2, Plus, RotateCcw, X } from "lucide-react";
+import { Image as ImageIcon, Layers, Loader2, PackagePlus, Plus, RotateCcw, X } from "lucide-react";
 import { readAvailableCards } from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import { cardFrontUrl, formatCollectorNumber } from "@/lib/colecoes/acervo";
 import type { BinderSlot } from "@/lib/colecoes/binder";
@@ -42,6 +42,7 @@ export function PocketPicker({
   onClose,
   imageTab = null,
   initialMode = "card",
+  onRegisterNew = null,
 }: {
   host: HTMLElement | null;
   target: BinderSlot;
@@ -53,6 +54,12 @@ export function PocketPicker({
   /** Aba "Imagem": `available` falso mostra só o motivo (`reason`). */
   imageTab?: { available: boolean; reason: string | null; render: () => ReactNode } | null;
   initialMode?: "card" | "image";
+  /**
+   * V1-06: "Cadastrar nova carta" — a carta ainda não está no acervo. A área
+   * de trabalho abre o cadastro guardando no fichário físico e, depois,
+   * coloca o exemplar novo neste bolso. `null` = ação ausente.
+   */
+  onRegisterNew?: (() => void) | null;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -251,6 +258,16 @@ export function PocketPicker({
             </div>
           </>
         )}
+
+        {mode === "card" && onRegisterNew && allowed.length > 0 ? (
+          <div className={styles.registerRow}>
+            <span>A carta ainda não está no seu acervo?</span>
+            <button type="button" className={styles.secondary} onClick={onRegisterNew} aria-haspopup="dialog">
+              <PackagePlus className="h-3.5 w-3.5" aria-hidden />
+              Cadastrar nova carta
+            </button>
+          </div>
+        ) : null}
 
         <p className={styles.note}>
           {mode === "image"

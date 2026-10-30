@@ -36,7 +36,12 @@ import {
   setSlotsLock,
   setSpeciesReferenceVisibility,
 } from "@/app/colecoes/colecoes/[id]/fichario/actions";
+import { readAddLanguages } from "@/app/colecoes/acervo/actions";
+import { readCollectionStorage } from "@/app/colecoes/colecoes/actions";
+import { AcervoAddPanel, type AddStorage, type AfterRegister } from "@/components/colecoes/acervo/acervo-add";
 import { Button } from "@/components/ui/button";
+import type { AddLanguage, RegisterResult } from "@/lib/colecoes/acervo-add";
+import type { BinderRegisterContext } from "@/lib/colecoes/binder";
 import { cardFrontUrl, formatCount } from "@/lib/colecoes/acervo";
 import {
   type BinderPage,
@@ -136,6 +141,9 @@ type Toast = { tone: "success" | "error" | "info"; text: string; undo?: { slotId
 type Confirm = { slotIds: string[]; lockedSkipped: number } | null;
 type Entry = { page: number; slot: BinderSlot };
 
+/** Cadastro pelo fichário (V1-06 COMPLETE-01): da barra (`slot: null`) ou de um bolso vazio. */
+type RegisterRequest = { slot: { slotId: string; page: number } | null };
+
 /**
  * Área de trabalho do Fichário Digital — experiência do spike aprovado
  * `binder-nav-01` (P2-B-SPIKE-RECOVERY-01) sobre dados e contratos reais.
@@ -186,6 +194,7 @@ export function BinderWorkspace({
   speciesReferences = false,
   initialSpeciesState,
   catalogNovelties = false,
+  register = null,
 }: {
   variant: "overlay" | "page";
   collectionId: string;
@@ -236,6 +245,8 @@ export function BinderWorkspace({
    * nenhum botão — Pokédex, Set, Livre e arquivada ficam exatamente como estão.
    */
   catalogNovelties?: boolean;
+  /** V1-06: "Cadastrar cartas" no fichário. `null` = ação ausente (tipo de coleção desconhecido). */
+  register?: BinderRegisterContext | null;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   // Total de páginas vivo: cresce quando o colecionador adiciona páginas (5125).
@@ -826,6 +837,87 @@ export function BinderWorkspace({
     [busy, collectionId, editable, fail, loadAvailable, patchSlots, refreshPages, slotIndex],
   );
 
+  // ---- cadastro pelo fichário (V1-06 COMPLETE-01) ----
+  // Idiomas (e, sem fichário físico legível, os locais) só ao abrir pela primeira vez.
+  const [registerFor, setRegisterFor] = useState<RegisterRequest | null>(null);
+  const [registerSetup, setRegisterSetup] = useState<{ languages: AddLanguage[]; storage: AddStorage } | null>(null);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const slotIndexRef = useRef(slotIndex);
+  useLayoutEffect(() => {
+    slotIndexRef.current = slotIndex;
+  }, [slotIndex]);
+
+  const openRegister = useCallback(
+    async (request: RegisterRequest) => {
+      if (!register || !editable || registerLoading) return;
+      setArmed(null);
+      setArmedCard(null);
+      setConfirm(null);
+      if (registerSetup) {
+        setRegisterFor(request);
+        return;
+      }
+      setRegisterLoading(true);
+      const [read, places] = await Promise.all([
+        readAddLanguages().catch(() => ({ ok: false as const })),
+        register.storage
+          ? Promise.resolve(null)
+          : readCollectionStorage({ collectionId }).catch(() => ({ ok: false as const, reason: "unavailable" as const })),
+      ]);
+      setRegisterLoading(false);
+      if (!read.ok) {
+        setToast({ tone: "error", text: "Não conseguimos abrir o cadastro agora. Tente de novo." });
+        return;
+      }
+      // Fichário físico conhecido = local fixo (confirmado na revisão); senão, escolha explícita ou nenhum local.
+      const storage: AddStorage = register.storage
+        ? { kind: "fixed", id: register.storage.id, name: register.storage.name }
+        : places && places.ok
+          ? { kind: "choose", locations: places.locations.map((l) => ({ id: l.id, name: l.name })), suggestedId: places.storageId }
+          : { kind: "choose", locations: [], suggestedId: null };
+      setRegisterSetup({ languages: read.languages, storage });
+      setRegisterFor(request);
+    },
+    [collectionId, editable, register, registerLoading, registerSetup],
+  );
+
+  /**
+   * Depois do cadastro confirmado: relê "Cartas disponíveis" e, vindo do bolso
+   * vazio, coloca o primeiro exemplar novo nele (5250). Falha aqui nunca desfaz
+   * o cadastro — o exemplar fica em "Cartas disponíveis" e o painel diz isso.
+   */
+  const afterRegister = useCallback(
+    async (result: RegisterResult, request: RegisterRequest): Promise<AfterRegister | null> => {
+      const slot = request.slot;
+      if (!slot) {
+        void loadAvailable(0);
+        return null;
+      }
+      const leftover = "Ela está em Cartas disponíveis, pronta para outro bolso.";
+      const physicalCardId = result.physicalCardIds[0];
+      if (!physicalCardId) {
+        void loadAvailable(0);
+        return { tone: "warning", text: `A carta foi cadastrada, mas não conseguimos identificar o exemplar novo para pôr no bolso. ${leftover}` };
+      }
+      // Mesma regra do seletor: nunca substituir — o bolso precisa continuar vazio e solto.
+      const entry = slotIndexRef.current.get(slot.slotId);
+      if (!entry || !canReceiveAvailable(entry.slot, collectionId)) {
+        void loadAvailable(0);
+        return { tone: "warning", text: `A carta foi cadastrada, mas aquele bolso não está mais livre. ${leftover}` };
+      }
+      const placed = await placeAvailableCard({ collectionId, slotId: slot.slotId, physicalCardId });
+      await refreshPages([slot.page]);
+      void loadAvailable(0);
+      if (placed.ok) {
+        if (placed.operation !== "UNCHANGED") setFilled((value) => value + 1);
+        const extra = result.createdCount > 1 ? ` As outras ${result.createdCount - 1} cópias estão em Cartas disponíveis.` : "";
+        return { tone: "success", text: `Colocada no bolso da página ${slot.page}.${extra}` };
+      }
+      return { tone: "warning", text: `A carta foi cadastrada, mas não entrou no bolso: ${slotFailureMessage(placed.reason)} ${leftover}` };
+    },
+    [collectionId, loadAvailable, refreshPages],
+  );
+
   // ---- imagem personalizada do bolso (C-198) ----
 
   /**
@@ -1372,8 +1464,8 @@ export function BinderWorkspace({
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
-      // A visão geral cuida do próprio teclado (Esc fecha só ela).
-      if (overviewOpen) return;
+      // A visão geral e o cadastro cuidam do próprio teclado (Esc fecha só eles).
+      if (overviewOpen || registerFor) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (target?.closest("[role='menu']")) return;
@@ -1405,7 +1497,7 @@ export function BinderWorkspace({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [armed, armedCard, availableOpen, back, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, selected.size, setControl, trayOpen]);
+  }, [armed, armedCard, availableOpen, back, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, registerFor, selected.size, setControl, trayOpen]);
 
   // ---- arrastar e soltar (pointer/touch; teclado usa "…" → Bandeja → bolso) ----
   const sensors = useSensors(
@@ -1554,6 +1646,8 @@ export function BinderWorkspace({
                 trayOpen,
                 availableCount: available.total,
                 availableOpen,
+                canRegister: register ? editable : undefined,
+                registerHint: registerLoading ? "abrindo…" : "coleção arquivada, só leitura",
                 shared,
                 onlyMine,
                 speciesAvailable: speciesReferences && speciesState !== null && speciesState.isPokedexOwner,
@@ -1591,6 +1685,7 @@ export function BinderWorkspace({
                 },
                 onToggleTray: () => setTrayOpen((value) => !value),
                 onToggleAvailable: toggleAvailable,
+                onRegister: () => void openRegister({ slot: null }),
                 onToggleOnlyMine: () => setOnlyMine((value) => !value),
                 onOpenSpecies: () => {
                   setArmed(null);
@@ -1921,6 +2016,15 @@ export function BinderWorkspace({
               void placeAvailable(card, slotId);
             }}
             onClose={() => setPocketTarget(null)}
+            onRegisterNew={
+              register && editable && canReceiveAvailable(pocketTarget.slot, collectionId)
+                ? () => {
+                    const slot = { slotId: pocketTarget.slot.slotId, page: pocketTarget.page };
+                    setPocketTarget(null);
+                    void openRegister({ slot });
+                  }
+                : null
+            }
             imageTab={
               layoutId
                 ? {
@@ -2013,6 +2117,25 @@ export function BinderWorkspace({
               );
             })()
           : null}
+
+        {registerFor && registerSetup && register ? (
+          <AcervoAddPanel
+            mode="cards"
+            languages={registerSetup.languages}
+            target={{
+              collectionId,
+              collectionName,
+              kind: register.kind,
+              cardSet: register.cardSet,
+              storage: registerSetup.storage,
+              singleCard: registerFor.slot !== null,
+              afterRegister: (result) => afterRegister(result, registerFor),
+              container: rootRef.current,
+              closeLabel: "Voltar ao fichário",
+            }}
+            onClose={() => setRegisterFor(null)}
+          />
+        ) : null}
 
         {gapDialog ? (
           <GapDialog

@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { classifySlotFailure, parseBinderHeader, parseBinderPages, slotFailureMessage, slotFailureNeedsReload } from "./binder.ts";
+import { binderRegisterContext, classifySlotFailure, parseBinderHeader, parseBinderPages, slotFailureMessage, slotFailureNeedsReload } from "./binder.ts";
 import {
   NO_BINDER_IMPACT,
   binderImpactSummary,
@@ -88,6 +88,21 @@ test("cabeçalho 5252: disponíveis de todas as origens; sem a 5252 cai para o c
   assert.equal(parseBinderHeader({ ...base, available_count: 27, binder_storage_name: "F001" })?.binderStorageName, "F001");
   assert.equal(parseBinderHeader(base)?.availableCount, 2);
   assert.equal(parseBinderHeader(base)?.binderStorageName, null);
+});
+
+test("cadastro pelo fichário: usa o fichário físico (5247) só quando ele é legível; nunca presume local", () => {
+  const base = { collection_id: A, collection_name: "Celebração", has_binder: true, grid_columns: 3, grid_rows: 3, own_unplaced_count: 0 };
+  const withStorage = parseBinderHeader({ ...base, collection_kind: "SET", binder_storage_container_id: A, binder_storage_name: "F001" })!;
+  assert.equal(withStorage.binderStorageId, A);
+  const set = { code: "sv1", name: "Escarlate e Violeta" };
+  assert.deepEqual(binderRegisterContext(withStorage, set), { kind: "set", cardSet: set, storage: { id: A, name: "F001" } });
+  // Set sem referência legível: ação ausente.
+  assert.equal(binderRegisterContext(withStorage, null), null);
+  // Sem vínculo físico legível: escolha explícita (storage null), nada presumido.
+  const free = parseBinderHeader({ ...base, collection_kind: "FREE" })!;
+  assert.deepEqual(binderRegisterContext(free, set), { kind: "free", cardSet: null, storage: null });
+  assert.equal(binderRegisterContext(parseBinderHeader({ ...base, collection_kind: "POKEDEX" })!, null)?.kind, "pokedex");
+  assert.equal(binderRegisterContext(parseBinderHeader({ ...base, collection_kind: "OTHER" })!, set), null);
 });
 
 test("páginas: o bolso guarda o exemplar (posição sem alocação continua válida)", () => {

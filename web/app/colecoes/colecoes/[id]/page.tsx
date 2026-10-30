@@ -24,6 +24,7 @@ import {
   getSetLogoUrls,
 } from "@/lib/colecoes/colecoes-queries";
 import { isFreeCollection, parseFreePage, wantsPicker } from "@/lib/colecoes/free-collection";
+import { wantsRegister } from "@/lib/colecoes/collection-add";
 import {
   isPokedexCollection,
   parseGenerationFilter,
@@ -120,6 +121,7 @@ export default async function ColecaoPage({
           page={page}
           available={available}
           openPicker={wantsPicker(query)}
+          registerMode={wantsRegister(query)}
           coverLogoUrl={coverLogoUrl}
           userId={user.id}
           binder={binder}
@@ -165,6 +167,7 @@ export default async function ColecaoPage({
           options={options}
           heroLineup={heroLineup}
           binder={binder}
+          registerMode={wantsRegister(query)}
         />
       </AppShell>
     );
@@ -218,6 +221,7 @@ export default async function ColecaoPage({
           logoUrl={logoUrl}
           master={master}
           binder={binder}
+          registerMode={wantsRegister(query)}
         />
       )}
     </AppShell>

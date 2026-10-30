@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { AlertTriangle, ArrowLeft, Layers, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  ACERVO_PATH,
   PRIORITY_CARD_COUNT,
   cardFrontUrl,
   formatCollectorNumber,
@@ -27,6 +26,8 @@ import { CollectionTitle } from "./collection-title";
 import freeStyles from "./free-collection.module.css";
 import { FreePickerBarButton, FreePickerButton, FreePickerProvider } from "./free-link-picker";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
+import { CollectionAddLauncher } from "./collection-add";
+import type { RegisterMode } from "@/lib/colecoes/collection-add";
 import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
 import { ReactivateCollectionButton, ReactivatedStatus } from "./collection-lifecycle";
 import manageStyles from "./collection-manage.module.css";
@@ -63,6 +64,7 @@ export function FreeCollectionView({
   coverLogoUrl = null,
   userId = null,
   binder = null,
+  registerMode = null,
 }: {
   collection: CollectionSummary;
   /** Cartas da coleção (5159); `null` = leitura falhou. */
@@ -78,6 +80,8 @@ export function FreeCollectionView({
   userId?: string | null;
   /** Cabeçalho do Fichário Digital (5223); `null` = sem leitura. */
   binder?: BinderHeader | null;
+  /** V1-06: `?cadastrar=` — abre o cadastro de cartas novas ao chegar. */
+  registerMode?: RegisterMode | null;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
   const copies = collection.copiesCount;
@@ -91,6 +95,7 @@ export function FreeCollectionView({
 
   const canManage = COLLECTION_MANAGE_ENABLED && active;
   const launcher = (showCount: boolean) => (active ? <FreePickerButton available={available} showCount={showCount} /> : null);
+  const addTarget = { collectionId: collection.id, collectionName: collection.name, kind: "free" as const, cardSet: null };
 
   const cover = (
     <BinderCover
@@ -203,6 +208,7 @@ export function FreeCollectionView({
             // Mesmo padrão da coleção de Set: sempre visível; desabilitado sem carta disponível.
             <div className={heroStyles.galleryTools}>
               <FreePickerBarButton available={active ? available : 0} />
+              {canManage ? <CollectionAddLauncher target={addTarget} autoOpen={registerMode} /> : null}
             </div>
           ) : null}
         </div>
@@ -210,7 +216,12 @@ export function FreeCollectionView({
         {items === null ? (
           <ReadError retryHref={freeCollectionHref(collection.id, { page })} />
         ) : empty ? (
-          <FreeEmpty available={available} active={active} launcher={launcher(false)} />
+          <FreeEmpty
+            available={available}
+            active={active}
+            launcher={launcher(false)}
+            register={canManage ? <CollectionAddLauncher target={addTarget} layout="empty" autoOpen={registerMode} /> : null}
+          />
         ) : items.items.length === 0 ? (
           <PastEnd href={freeCollectionHref(collection.id)} />
         ) : (
@@ -297,7 +308,18 @@ function FreeTile({ item, priority, manageable }: { item: AcervoItem; priority: 
   );
 }
 
-function FreeEmpty({ available, active, launcher }: { available: number | null; active: boolean; launcher: ReactNode }) {
+function FreeEmpty({
+  available,
+  active,
+  launcher,
+  register,
+}: {
+  available: number | null;
+  active: boolean;
+  launcher: ReactNode;
+  /** V1-06: cadastrar cartas novas direto na coleção. */
+  register: ReactNode;
+}) {
   const promises = [
     { icon: Layers, title: "Cartas de qualquer Set", text: "Junte numa coleção só as cartas que contam uma história para você." },
     { icon: Sparkles, title: "Você escolhe cada exemplar", text: "Veja versão e idioma e escolha exatamente quais cartas físicas entram." },
@@ -319,7 +341,7 @@ function FreeEmpty({ available, active, launcher }: { available: number | null; 
           {!active
             ? "Esta coleção está arquivada. Reative-a para voltar a reunir cartas."
             : noneFree
-              ? "No momento, todas as cartas do seu acervo já estão em alguma coleção. Registre cartas novas em Meu acervo para trazê-las para cá."
+              ? "No momento, todas as cartas do seu acervo já estão em alguma coleção. Cadastre cartas novas — elas entram no acervo e já nesta coleção."
               : available !== null
                 ? `Você tem ${pluralize(available, "carta disponível", "cartas disponíveis")} no acervo. Escolha as que fazem parte desta coleção.`
                 : "Escolha no seu acervo as cartas que fazem parte desta coleção."}
@@ -340,11 +362,7 @@ function FreeEmpty({ available, active, launcher }: { available: number | null; 
         {active ? (
           <div className={freeStyles.emptyActions}>
             {launcher}
-            {noneFree ? (
-              <Button asChild variant="outline" className="min-h-11">
-                <Link href={ACERVO_PATH}>Ir para Meu acervo</Link>
-              </Button>
-            ) : null}
+            {register}
           </div>
         ) : null}
       </div>

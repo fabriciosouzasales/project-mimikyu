@@ -176,10 +176,25 @@ test("parsePreview: contrato binário e leitura defensiva", () => {
 
 test("parseRegister aceita CREATED e REPLAY", () => {
   const created = parseRegister({ outcome: "CREATED", operation_id: KEY, result_summary: { created_count: 3, distinct_items: 2 } });
-  assert.deepEqual(created, { replay: false, createdCount: 3, distinctItems: 2 });
+  assert.deepEqual(created, { replay: false, createdCount: 3, distinctItems: 2, physicalCardIds: [] });
   assert.equal(parseRegister({ outcome: "REPLAY", result_summary: { created_count: 3 } })?.replay, true);
   assert.equal(parseRegister({ outcome: "CONFLICT", result_summary: {} }), null);
   assert.equal(parseRegister({ outcome: "CREATED" }), null);
+});
+
+test("parseRegister devolve os exemplares criados (só uuids) — o bolso usa o primeiro (V1-06)", () => {
+  const r = parseRegister({ outcome: "CREATED", result_summary: { created_count: 2, distinct_items: 1, physical_card_ids: [V1, "x", 7, SET] } });
+  assert.deepEqual(r?.physicalCardIds, [V1, SET]);
+  assert.deepEqual(parseRegister({ outcome: "REPLAY", result_summary: { created_count: 1, physical_card_ids: [V1] } })?.physicalCardIds, [V1]);
+});
+
+test("envelopes levam coleção e local juntos (tudo ou nada no banco)", () => {
+  const items = [{ card_variant_id: V1, language_id: PT, quantity: 1 }];
+  assert.equal(previewCardsRequest(items, SET, PT).storage_container_id, PT);
+  assert.equal(previewCardsRequest(items, SET, PT).collection_id, SET);
+  assert.equal(confirmCardsRequest(KEY, "fp", items, SET, null).storage_container_id, null);
+  assert.equal(previewSetRequest(SET, PT, SET, V1).storage_container_id, V1);
+  assert.equal(confirmSetRequest(KEY, "fp", SET, PT, SET, V1).storage_container_id, V1);
 });
 
 test("classifyFailure usa SQLSTATE e prefixos estáveis; nada de texto cru ao usuário", () => {
@@ -218,4 +233,18 @@ test("rótulos e padrões", () => {
   assert.equal(defaultLanguageId([]), null);
   assert.equal(defaultVariant([{ id: V2, label: "Holo", isDefault: false }, { id: V1, label: null, isDefault: true }])?.id, V1);
   assert.equal(defaultVariant([])?.id, undefined);
+});
+
+test("V1-06: envelopes levam a coleção de destino (padrão continua nulo)", async () => {
+  const mod = await import("./acervo-add.ts");
+  const items = [{ card_variant_id: "11111111-1111-4111-8111-111111111111", language_id: "22222222-2222-4222-8222-222222222222", quantity: 2 }];
+  const col = "33333333-3333-4333-8333-333333333333";
+  assert.equal(mod.previewCardsRequest(items).collection_id, null);
+  assert.equal(mod.previewCardsRequest(items, col).collection_id, col);
+  assert.equal(mod.confirmCardsRequest("k", "f", items, col).collection_id, col);
+  assert.equal(mod.previewSetRequest("s", "l", col).collection_id, col);
+  assert.equal(mod.confirmSetRequest("k", "f", "s", "l").collection_id, null);
+  assert.equal(mod.confirmSetRequest("k", "f", "s", "l", col).storage_container_id, null);
+  assert.match(mod.issueMessage({ code: "NOT_ELIGIBLE_FOR_REFERENCE", count: 2 }), /2 cartas não são do Set/);
+  assert.match(mod.issueMessage({ code: "COLLECTION_ARCHIVED", count: 0 }), /arquivada/);
 });

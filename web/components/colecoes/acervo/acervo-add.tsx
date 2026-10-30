@@ -44,6 +44,42 @@ import acervoStyles from "./acervo.module.css";
 type Mode = "cards" | "set";
 
 /**
+ * Destino coleção (V1-06 — Fluxos 2 e 5 a partir da coleção). Os mesmos fluxos
+ * de Meu acervo, com a coleção no envelope: o banco cria os exemplares e já os
+ * aloca na coleção, na mesma transação (5150/5157 — tudo ou nada). Em coleção
+ * de Set (inclui Master Set) a busca e o "Set inteiro" ficam presos ao Set de
+ * referência; na livre e na Pokédex a busca é o catálogo todo e "Set inteiro"
+ * não é oferecido (NS Fluxo 5.1).
+ */
+export type AddTarget = {
+  collectionId: string;
+  collectionName: string;
+  kind: "set" | "free" | "pokedex";
+  cardSet: { code: string; name: string } | null;
+  /**
+   * Onde guardar (V1-06 COMPLETE-01, NS-13): `choose` = o colecionador escolhe
+   * explicitamente (nada pré-selecionado; o local da coleção é só sugestão);
+   * `fixed` = local físico do fichário (5247), mostrado e confirmado na revisão.
+   * O local vai no mesmo envelope do cadastro (5150/5157) — tudo ou nada.
+   */
+  storage?: AddStorage;
+  /** Cadastro pelo bolso vazio: uma carta por vez (todas as cópias da mesma versão). */
+  singleCard?: boolean;
+  /** Passo seguinte depois do cadastro confirmado (ex.: colocar no bolso). Nunca desfaz o cadastro. */
+  afterRegister?: (result: RegisterResult) => Promise<AfterRegister | null>;
+  /** Onde montar o painel (o fichário em tela cheia só mostra o que está dentro dele). */
+  container?: HTMLElement | null;
+  /** Rótulo do botão de fechar depois do sucesso. */
+  closeLabel?: string;
+};
+
+export type StorageChoice = { id: string; name: string };
+export type AddStorage =
+  | { kind: "choose"; locations: StorageChoice[]; suggestedId: string | null }
+  | { kind: "fixed"; id: string; name: string };
+export type AfterRegister = { tone: "success" | "warning"; text: string };
+
+/**
  * Ações de cadastro de Meu acervo (MY-INVENTORY-ACTIONS-01) — a única ilha
  * cliente nova da página. Dois caminhos:
  *
@@ -75,14 +111,29 @@ export function AcervoAddActions({ languages, layout }: { languages: AddLanguage
           Adicionar um Set inteiro
         </Button>
       </div>
-      {mode ? <AddPanel mode={mode} languages={languages} onClose={() => setMode(null)} /> : null}
+      {mode ? <AcervoAddPanel mode={mode} languages={languages} onClose={() => setMode(null)} /> : null}
     </>
   );
 }
 
-function AddPanel({ mode, languages, onClose }: { mode: Mode; languages: AddLanguage[]; onClose: () => void }) {
+export function AcervoAddPanel({
+  mode: initialMode,
+  languages,
+  onClose,
+  target,
+}: {
+  mode: Mode;
+  languages: AddLanguage[];
+  onClose: () => void;
+  target?: AddTarget;
+}) {
   const [busy, setBusy] = useState(false);
-  const title = mode === "cards" ? "Adicionar cartas" : "Adicionar um Set inteiro";
+  const [mode, setMode] = useState<Mode>(target?.cardSet || !target ? initialMode : "cards");
+  const canSwitch = target?.kind === "set" && target.cardSet !== null && !target.singleCard;
+  // Local comum à operação: fixo (fichário) ou escolhido; nunca pré-selecionado (NS-13).
+  const [storageId, setStorageId] = useState<string | null>(target?.storage?.kind === "fixed" ? target.storage.id : null);
+  const storage: StorageState = { value: storageId, onChange: setStorageId, config: target?.storage ?? null };
+  const title = target ? "Adicionar cartas novas" : mode === "cards" ? "Adicionar cartas" : "Adicionar um Set inteiro";
 
   return (
     <DialogPrimitive.Root
@@ -92,16 +143,21 @@ function AddPanel({ mode, languages, onClose }: { mode: Mode; languages: AddLang
         if (!next && !busy) onClose();
       }}
     >
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className={acervoStyles.overlay} />
+      <DialogPrimitive.Portal container={target?.container ?? undefined}>
+        <DialogPrimitive.Overlay className={`${acervoStyles.overlay} ${target?.container ? styles.layerOverlay : ""}`} />
         <DialogPrimitive.Content
-          className={`${acervoStyles.drawer} ${styles.panel}`}
+          className={`${acervoStyles.drawer} ${styles.panel} ${target?.container ? styles.layerDrawer : ""}`}
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => busy && event.preventDefault()}
           onPointerDownOutside={(event) => busy && event.preventDefault()}
+          // Teclas do painel não chegam a quem está por trás (ex.: navegação de páginas do fichário).
+          onKeyDown={(event) => event.stopPropagation()}
         >
           <div className={acervoStyles.drawerHeader}>
-            <DialogPrimitive.Title className={styles.panelTitle}>{title}</DialogPrimitive.Title>
+            <div className="min-w-0">
+              <DialogPrimitive.Title className={styles.panelTitle}>{title}</DialogPrimitive.Title>
+              {target ? <p className={styles.panelContext}>em {target.collectionName}</p> : null}
+            </div>
             <DialogPrimitive.Close
               disabled={busy}
               className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
@@ -110,10 +166,28 @@ function AddPanel({ mode, languages, onClose }: { mode: Mode; languages: AddLang
               <X className="h-4 w-4" aria-hidden="true" />
             </DialogPrimitive.Close>
           </div>
+          {canSwitch ? (
+            <div className={styles.modeTabs} role="tablist" aria-label="Como adicionar">
+              {(["cards", "set"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === option}
+                  className={styles.modeTab}
+                  disabled={busy}
+                  onClick={() => setMode(option)}
+                >
+                  {option === "cards" ? <Plus className="h-3.5 w-3.5" aria-hidden="true" /> : <Layers className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {option === "cards" ? "Escolher cartas" : "Set inteiro"}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {mode === "cards" ? (
-            <CardsFlow languages={languages} onBusy={setBusy} onClose={onClose} />
+            <CardsFlow key="cards" languages={languages} onBusy={setBusy} onClose={onClose} target={target} storage={storage} />
           ) : (
-            <SetFlow languages={languages} onBusy={setBusy} onClose={onClose} />
+            <SetFlow key="set" languages={languages} onBusy={setBusy} onClose={onClose} target={target} storage={storage} />
           )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
@@ -134,7 +208,7 @@ type Commit =
   | { status: "idle" }
   | { status: "pending" }
   | { status: "error"; reason: AddFailure }
-  | { status: "done"; result: RegisterResult };
+  | { status: "done"; result: RegisterResult; follow: AfterRegister | null };
 
 /**
  * Máquina da confirmação, igual nos dois fluxos.
@@ -149,10 +223,12 @@ function useConfirmFlow({
   runPreview,
   runCommit,
   onBusy,
+  afterCommit,
 }: {
   runPreview: () => Promise<{ ok: true; preview: PreviewResult } | { ok: false; reason: AddFailure }>;
   runCommit: (key: string, fingerprint: string) => Promise<{ ok: true; result: RegisterResult } | { ok: false; reason: AddFailure }>;
   onBusy: (busy: boolean) => void;
+  afterCommit?: (result: RegisterResult) => Promise<AfterRegister | null>;
 }) {
   const router = useRouter();
   const [review, setReview] = useState<Review | null>(null);
@@ -188,7 +264,10 @@ function useConfirmFlow({
     try {
       const response = await runCommit(review.key, review.preview.fingerprint);
       if (response.ok) {
-        setCommit({ status: "done", result: response.result });
+        // O cadastro já está gravado; o passo seguinte (ex.: bolso) nunca o desfaz e
+        // comunica o próprio resultado — sucesso parcial não vira "tudo certo".
+        const follow = afterCommit ? await afterCommit(response.result).catch(() => ({ tone: "warning" as const, text: FOLLOW_UNKNOWN })) : null;
+        setCommit({ status: "done", result: response.result, follow });
         // Galeria, números e detalhe relidos no servidor (a ação também revalida a rota).
         startRefresh(() => router.refresh());
       } else {
@@ -201,7 +280,7 @@ function useConfirmFlow({
       inFlight.current = false;
       onBusy(false);
     }
-  }, [review, runCommit, onBusy, router]);
+  }, [review, runCommit, onBusy, router, afterCommit]);
 
   return { review, commit, startReview, cancelReview, confirm };
 }
@@ -211,6 +290,8 @@ function ReviewView({
   commit,
   summary,
   details,
+  note,
+  where,
   onBack,
   onConfirm,
   onRetryReview,
@@ -219,6 +300,9 @@ function ReviewView({
   commit: Commit;
   summary: (preview: PreviewResult) => ReactNode;
   details?: ReactNode;
+  note: string;
+  /** Local da operação (V1-06): mostrado e confirmado aqui (NS-13). */
+  where?: ReactNode;
   onBack: () => void;
   onConfirm: () => void;
   onRetryReview: () => void;
@@ -281,9 +365,8 @@ function ReviewView({
     <>
       <div className={styles.body}>
         <div className={styles.reviewHead}>{summary(preview)}</div>
-        <p className={styles.reviewNote}>
-          Cada carta entra como um exemplar próprio, sem coleção e sem localização definida.
-        </p>
+        <p className={styles.reviewNote}>{note}</p>
+        {where}
         {details}
         <div aria-live="polite">
           {commit.status === "error" ? (
@@ -314,9 +397,55 @@ function ReviewView({
   );
 }
 
-function DoneView({ result, onMore, onClose, moreLabel }: { result: RegisterResult; onMore: () => void; onClose: () => void; moreLabel: string }) {
+function DoneView({
+  result,
+  onMore,
+  onClose,
+  moreLabel,
+  target,
+  follow = null,
+}: {
+  result: RegisterResult;
+  onMore: () => void;
+  onClose: () => void;
+  moreLabel: string;
+  target?: AddTarget;
+  follow?: AfterRegister | null;
+}) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
+  if (target) {
+    const n = result.createdCount;
+    return (
+      <>
+        <div className={styles.body}>
+          <div className={styles.done} role="status">
+            <span className={styles.doneIcon} aria-hidden="true">
+              <CheckCircle2 className="h-6 w-6" />
+            </span>
+            <h2 ref={headingRef} tabIndex={-1} className={styles.doneTitle}>
+              {n === 1 ? "1 carta adicionada à coleção" : `${formatCount(n)} cartas adicionadas à coleção`}
+            </h2>
+            <p className={styles.doneText}>{targetDoneText(target, n)}</p>
+            {follow ? (
+              <p className={styles.followNote} data-tone={follow.tone} role={follow.tone === "warning" ? "alert" : undefined}>
+                {follow.tone === "warning" ? <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                {follow.text}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <Footer>
+          {target.singleCard ? null : (
+            <Button variant="outline" onClick={onMore}>
+              {moreLabel}
+            </Button>
+          )}
+          <Button onClick={onClose}>{target.closeLabel ?? "Ver a coleção"}</Button>
+        </Footer>
+      </>
+    );
+  }
   return (
     <>
       <div className={styles.body}>
@@ -365,19 +494,33 @@ type VariantState = AddVariant[] | "loading" | "error";
 const SEARCH_DEBOUNCE_MS = 300;
 const SEARCH_LIMIT = 20;
 
-function CardsFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onBusy: (busy: boolean) => void; onClose: () => void }) {
+function CardsFlow({
+  languages,
+  onBusy,
+  onClose,
+  target,
+  storage,
+}: {
+  languages: AddLanguage[];
+  onBusy: (busy: boolean) => void;
+  onClose: () => void;
+  target?: AddTarget;
+  storage: StorageState;
+}) {
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [variants, setVariants] = useState<Record<string, VariantState>>({});
   const [reviewing, setReviewing] = useState(false);
   const languageId = defaultLanguageId(languages);
 
   const items = useMemo(() => toRegisterItems(lines), [lines]);
-  const runPreview = useCallback(() => previewAddCards(items), [items]);
+  const collectionId = target?.collectionId ?? null;
+  const storageId = storage.value;
+  const runPreview = useCallback(() => previewAddCards(items, collectionId, storageId), [items, collectionId, storageId]);
   const runCommit = useCallback(
-    (key: string, fingerprint: string) => confirmAddCards({ idempotencyKey: key, fingerprint, items }),
-    [items],
+    (key: string, fingerprint: string) => confirmAddCards({ idempotencyKey: key, fingerprint, items, collectionId, storageId }),
+    [items, collectionId, storageId],
   );
-  const flow = useConfirmFlow({ runPreview, runCommit, onBusy });
+  const flow = useConfirmFlow({ runPreview, runCommit, onBusy, afterCommit: target?.afterRegister });
 
   async function pick(card: SearchCard) {
     if (!languageId) return;
@@ -396,8 +539,9 @@ function CardsFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; o
     }
     const variant = defaultVariant(list);
     if (!variant) return;
+    // Bolso vazio: uma carta só — escolher outra substitui a seleção.
     setLines((prev) =>
-      addLine(prev, {
+      addLine(target?.singleCard ? [] : prev, {
         cardId: card.id,
         cardName: card.name,
         setCode: card.cardSet.code,
@@ -421,7 +565,9 @@ function CardsFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; o
     return (
       <DoneView
         result={flow.commit.result}
+        follow={flow.commit.follow}
         moreLabel="Adicionar mais cartas"
+        target={target}
         onClose={onClose}
         onMore={() => {
           setLines([]);
@@ -443,6 +589,8 @@ function CardsFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; o
         }}
         onConfirm={() => void flow.confirm()}
         onRetryReview={() => void flow.startReview()}
+        note={reviewNote(target)}
+        where={<StorageReview storage={storage} />}
         summary={(preview) => (
           <>
             <span className={styles.reviewCount}>{formatCount(preview.totalQuantity)}</span>
@@ -475,14 +623,18 @@ function CardsFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; o
   return (
     <>
       <div className={styles.body}>
-        <CardSearch onPick={pick} variants={variants} />
+        <CardSearch onPick={pick} variants={variants} cardSet={target?.cardSet ?? null} />
+        <StorageField storage={storage} />
 
         <section className={styles.selection} aria-labelledby="acervo-add-selecao">
           <h3 id="acervo-add-selecao" className={styles.sectionTitle}>
             Sua seleção
           </h3>
           {lines.length === 0 ? (
-            <p className={styles.hint}>Busque uma carta e toque nela para incluí-la. Repita para montar a lista toda de uma vez.</p>
+            <p className={styles.hint}>
+              Busque uma carta e toque nela para incluí-la. Repita para montar a lista toda de uma vez.
+              {target ? " Elas entram no seu acervo e já nesta coleção." : ""}
+            </p>
           ) : (
             <ul className={styles.lines}>
               {lines.map((line, index) => (
@@ -515,7 +667,16 @@ function CardsFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; o
   );
 }
 
-function CardSearch({ onPick, variants }: { onPick: (card: SearchCard) => void; variants: Record<string, VariantState> }) {
+function CardSearch({
+  onPick,
+  variants,
+  cardSet = null,
+}: {
+  onPick: (card: SearchCard) => void;
+  variants: Record<string, VariantState>;
+  /** Coleção de Set: busca presa ao Set de referência (o banco recusaria as demais). */
+  cardSet?: { code: string; name: string } | null;
+}) {
   const inputId = useId();
   const [query, setQuery] = useState("");
   const [state, setState] = useState<{ status: "idle" | "loading" | "error" } | { status: "ready"; cards: SearchCard[]; total: number }>({
@@ -532,7 +693,8 @@ function CardSearch({ onPick, variants }: { onPick: (card: SearchCard) => void; 
     const timer = setTimeout(async () => {
       setState({ status: "loading" });
       try {
-        const response = await fetch(`/api/cards/search?q=${encodeURIComponent(term)}&limit=${SEARCH_LIMIT}`, {
+        const scope = cardSet ? `&set=${encodeURIComponent(cardSet.code)}` : "";
+        const response = await fetch(`/api/cards/search?q=${encodeURIComponent(term)}&limit=${SEARCH_LIMIT}${scope}`, {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(String(response.status));
@@ -546,12 +708,12 @@ function CardSearch({ onPick, variants }: { onPick: (card: SearchCard) => void; 
       controller.abort();
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, cardSet]);
 
   return (
     <section aria-labelledby={`${inputId}-label`}>
       <label id={`${inputId}-label`} htmlFor={inputId} className={styles.sectionTitle}>
-        Buscar no catálogo
+        {cardSet ? `Buscar em ${cardSet.name}` : "Buscar no catálogo"}
       </label>
       <div className={styles.searchWrap}>
         <Search className={styles.searchIcon} aria-hidden="true" />
@@ -560,7 +722,7 @@ function CardSearch({ onPick, variants }: { onPick: (card: SearchCard) => void; 
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Nome, número (58/102) ou Set"
+          placeholder={cardSet ? "Nome ou número (58/102)" : "Nome, número (58/102) ou Set"}
           autoComplete="off"
           autoFocus
           className={styles.searchInput}
@@ -736,18 +898,37 @@ function SelectionLine({
 
 type SetOption = { code: string; name: string };
 
-function SetFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onBusy: (busy: boolean) => void; onClose: () => void }) {
+function SetFlow({
+  languages,
+  onBusy,
+  onClose,
+  target,
+  storage,
+}: {
+  languages: AddLanguage[];
+  onBusy: (busy: boolean) => void;
+  onClose: () => void;
+  target?: AddTarget;
+  storage: StorageState;
+}) {
   const filterId = useId();
+  const storageId = storage.value;
   const languageFieldId = useId();
-  const [sets, setSets] = useState<{ status: "loading" | "error" } | { status: "ready"; options: SetOption[] }>({ status: "loading" });
+  // Coleção de Set: o Set já é o da coleção — sem lista para escolher.
+  const fixedSet = target?.cardSet ?? null;
+  const collectionId = target?.collectionId ?? null;
+  const [sets, setSets] = useState<{ status: "loading" | "error" } | { status: "ready"; options: SetOption[] }>(
+    fixedSet ? { status: "ready", options: [fixedSet] } : { status: "loading" },
+  );
   const [filter, setFilter] = useState("");
-  const [setCode, setSetCode] = useState<string | null>(null);
+  const [setCode, setSetCode] = useState<string | null>(fixedSet?.code ?? null);
   const [languageId, setLanguageId] = useState<string | null>(defaultLanguageId(languages));
   const [reviewing, setReviewing] = useState(false);
   const resolved = useRef<{ code: string; id: string } | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
+    if (fixedSet) return;
     const controller = new AbortController();
     setSets({ status: "loading" });
     fetch("/api/cards/filter-options", { signal: controller.signal })
@@ -757,7 +938,7 @@ function SetFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onB
         if (error.name !== "AbortError") setSets({ status: "error" });
       });
     return () => controller.abort();
-  }, [loadAttempt]);
+  }, [loadAttempt, fixedSet]);
 
   const chosen = sets.status === "ready" ? sets.options.find((option) => option.code === setCode) ?? null : null;
   const language = languages.find((option) => option.id === languageId) ?? null;
@@ -771,19 +952,19 @@ function SetFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onB
       cardSetId = response.cardSetId;
       resolved.current = { code: setCode, id: cardSetId };
     }
-    return previewAddSet({ cardSetId, languageId });
-  }, [setCode, languageId]);
+    return previewAddSet({ cardSetId, languageId, collectionId, storageId });
+  }, [setCode, languageId, collectionId, storageId]);
 
   const runCommit = useCallback(
     async (key: string, fingerprint: string) => {
       const cardSetId = resolved.current?.code === setCode ? resolved.current.id : null;
       if (!cardSetId || !languageId) return { ok: false as const, reason: "invalid" as const };
-      return confirmAddSet({ idempotencyKey: key, fingerprint, cardSetId, languageId });
+      return confirmAddSet({ idempotencyKey: key, fingerprint, cardSetId, languageId, collectionId, storageId });
     },
-    [setCode, languageId],
+    [setCode, languageId, collectionId, storageId],
   );
 
-  const flow = useConfirmFlow({ runPreview, runCommit, onBusy });
+  const flow = useConfirmFlow({ runPreview, runCommit, onBusy, afterCommit: target?.afterRegister });
 
   const visible = useMemo(() => {
     if (sets.status !== "ready") return [];
@@ -798,10 +979,12 @@ function SetFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onB
     return (
       <DoneView
         result={flow.commit.result}
-        moreLabel="Adicionar outro Set"
+        follow={flow.commit.follow}
+        moreLabel={fixedSet ? "Adicionar mais cartas" : "Adicionar outro Set"}
+        target={target}
         onClose={onClose}
         onMore={() => {
-          setSetCode(null);
+          setSetCode(fixedSet?.code ?? null);
           setReviewing(false);
           flow.cancelReview();
         }}
@@ -820,6 +1003,8 @@ function SetFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onB
         }}
         onConfirm={() => void flow.confirm()}
         onRetryReview={() => void flow.startReview()}
+        note={reviewNote(target)}
+        where={<StorageReview storage={storage} />}
         summary={(preview) => (
           <>
             <span className={styles.reviewCount}>{formatCount(preview.totalQuantity)}</span>
@@ -837,7 +1022,9 @@ function SetFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onB
     <>
       <div className={styles.body}>
         <p className={styles.hint}>
-          Uma carta de cada do Set, na versão padrão de cada uma. Repetidas e outras versões você adiciona depois, carta a carta.
+          {fixedSet
+            ? `Tem ${fixedSet.name} completo? Registre uma carta de cada, na versão padrão, de uma vez — já nesta coleção. Repetidas e outras versões você adiciona depois, em “Escolher cartas”.`
+            : "Uma carta de cada do Set, na versão padrão de cada uma. Repetidas e outras versões você adiciona depois, carta a carta."}
         </p>
 
         <div className={styles.field}>
@@ -853,53 +1040,65 @@ function SetFlow({ languages, onBusy, onClose }: { languages: AddLanguage[]; onB
           </Select>
         </div>
 
-        <section className={styles.selection} aria-labelledby={`${filterId}-label`}>
-          <label id={`${filterId}-label`} htmlFor={filterId} className={styles.sectionTitle}>
-            Set
-          </label>
-          <div className={styles.searchWrap}>
-            <Search className={styles.searchIcon} aria-hidden="true" />
-            <Input
-              id={filterId}
-              type="search"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="Filtrar por nome ou código"
-              autoComplete="off"
-              autoFocus
-              className={styles.searchInput}
-            />
+        <StorageField storage={storage} />
+
+        {fixedSet ? (
+          <div className={styles.fixedSet}>
+            <span className={styles.sectionTitle}>Set</span>
+            <p className={styles.fixedSetName}>
+              {fixedSet.name}
+              <span className={styles.setCode}>{fixedSet.code.toUpperCase()}</span>
+            </p>
           </div>
-          <div aria-live="polite" className={styles.searchStatus}>
-            {sets.status === "loading" ? "Carregando Sets…" : null}
-            {sets.status === "ready" && visible.length === 0 ? "Nenhum Set encontrado." : null}
-          </div>
-          {sets.status === "error" ? (
-            <Notice tone="error" title="Não conseguimos carregar os Sets">
-              <Button variant="outline" size="sm" onClick={() => setLoadAttempt((n) => n + 1)} className="mt-2">
-                Tentar de novo
-              </Button>
-            </Notice>
-          ) : null}
-          {visible.length > 0 ? (
-            <div className={styles.setList} role="radiogroup" aria-label="Sets do catálogo">
-              {visible.map((option) => (
-                <label key={option.code} className={styles.setOption} data-checked={option.code === setCode || undefined}>
-                  <input
-                    type="radio"
-                    name="acervo-add-set"
-                    value={option.code}
-                    checked={option.code === setCode}
-                    onChange={() => setSetCode(option.code)}
-                    className={styles.setRadio}
-                  />
-                  <span className={styles.setName}>{option.name}</span>
-                  <span className={styles.setCode}>{option.code.toUpperCase()}</span>
-                </label>
-              ))}
+        ) : (
+          <section className={styles.selection} aria-labelledby={`${filterId}-label`}>
+            <label id={`${filterId}-label`} htmlFor={filterId} className={styles.sectionTitle}>
+              Set
+            </label>
+            <div className={styles.searchWrap}>
+              <Search className={styles.searchIcon} aria-hidden="true" />
+              <Input
+                id={filterId}
+                type="search"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder="Filtrar por nome ou código"
+                autoComplete="off"
+                autoFocus
+                className={styles.searchInput}
+              />
             </div>
-          ) : null}
-        </section>
+            <div aria-live="polite" className={styles.searchStatus}>
+              {sets.status === "loading" ? "Carregando Sets…" : null}
+              {sets.status === "ready" && visible.length === 0 ? "Nenhum Set encontrado." : null}
+            </div>
+            {sets.status === "error" ? (
+              <Notice tone="error" title="Não conseguimos carregar os Sets">
+                <Button variant="outline" size="sm" onClick={() => setLoadAttempt((n) => n + 1)} className="mt-2">
+                  Tentar de novo
+                </Button>
+              </Notice>
+            ) : null}
+            {visible.length > 0 ? (
+              <div className={styles.setList} role="radiogroup" aria-label="Sets do catálogo">
+                {visible.map((option) => (
+                  <label key={option.code} className={styles.setOption} data-checked={option.code === setCode || undefined}>
+                    <input
+                      type="radio"
+                      name="acervo-add-set"
+                      value={option.code}
+                      checked={option.code === setCode}
+                      onChange={() => setSetCode(option.code)}
+                      className={styles.setRadio}
+                    />
+                    <span className={styles.setName}>{option.name}</span>
+                    <span className={styles.setCode}>{option.code.toUpperCase()}</span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        )}
       </div>
       <Footer lead={chosen ? chosen.name : null}>
         <Button
@@ -940,5 +1139,109 @@ function Notice({ tone, title, children }: { tone: "error"; title: string; child
         <div className={styles.noticeText}>{children}</div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Textos com destino coleção (V1-06)
+// ---------------------------------------------------------------------------
+
+function reviewNote(target: AddTarget | undefined): string {
+  if (!target) return "Cada carta entra como um exemplar próprio, sem coleção e sem localização definida.";
+  return "Cada carta entra como um exemplar próprio no seu acervo e já nesta coleção — e no local abaixo, se houver. Se algo impedir, nada é gravado.";
+}
+
+function targetDoneText(target: AddTarget, created: number): string {
+  const they = created === 1 ? "Ela também está" : "Elas também estão";
+  if (target.storage?.kind === "fixed") {
+    return `${they} no seu acervo, guardada${created === 1 ? "" : "s"} em “${target.storage.name}”, prontas para os bolsos em Cartas disponíveis.`;
+  }
+  if (target.kind === "free") return `${they} no seu acervo.`;
+  if (target.kind === "pokedex") {
+    return `${they} no seu acervo. Quando o Pokémon da carta é reconhecido, ela já ocupa o lugar dele na Pokédex; as demais ficam na coleção para você posicionar.`;
+  }
+  return `${they} no seu acervo, e o progresso da coleção já foi atualizado.`;
+}
+
+// ---------------------------------------------------------------------------
+// Onde guardar (V1-06 COMPLETE-01 — NS-13)
+// ---------------------------------------------------------------------------
+
+type StorageState = { value: string | null; onChange: (id: string | null) => void; config: AddStorage | null };
+
+const FOLLOW_UNKNOWN = "As cartas foram cadastradas, mas não conseguimos confirmar o passo seguinte. Confira no fichário.";
+
+function storageName(storage: StorageState): string | null {
+  const config = storage.config;
+  if (!config || storage.value === null) return null;
+  if (config.kind === "fixed") return config.name;
+  return config.locations.find((location) => location.id === storage.value)?.name ?? null;
+}
+
+/**
+ * Escolha comum à operação. `fixed`: o fichário físico, sem controle (é o
+ * local que o próprio fichário representa). `choose`: nada pré-selecionado —
+ * "Sem localização definida" até o colecionador escolher; o local da coleção
+ * aparece como atalho explícito, nunca aplicado sozinho.
+ */
+function StorageField({ storage }: { storage: StorageState }) {
+  const id = useId();
+  const config = storage.config;
+  if (!config) return null;
+  if (config.kind === "fixed") {
+    return (
+      <div className={styles.field}>
+        <span className={styles.sectionTitle}>Onde guardar</span>
+        <p className={styles.storageFixed}>
+          <span className={styles.storageName}>{config.name}</span>
+          <span className={styles.hint}>O fichário físico deste fichário digital. As cartas ficam prontas para ir aos bolsos.</span>
+        </p>
+      </div>
+    );
+  }
+  const suggested = config.suggestedId ? config.locations.find((location) => location.id === config.suggestedId) ?? null : null;
+  return (
+    <div className={styles.field}>
+      <label htmlFor={id} className={styles.sectionTitle}>
+        Onde guardar
+      </label>
+      <Select id={id} value={storage.value ?? ""} onChange={(event) => storage.onChange(event.target.value || null)}>
+        <option value="">Sem localização definida</option>
+        {config.locations.map((location) => (
+          <option key={location.id} value={location.id}>
+            {location.name}
+            {location.id === config.suggestedId ? " — local da coleção" : ""}
+          </option>
+        ))}
+      </Select>
+      {suggested && storage.value !== suggested.id ? (
+        <button type="button" className={styles.storageSuggest} onClick={() => storage.onChange(suggested.id)}>
+          Usar o local da coleção: {suggested.name}
+        </button>
+      ) : null}
+      <p className={styles.hint}>
+        {storage.value
+          ? "Escolha só se as cartas estão fisicamente lá. Você confirma na revisão."
+          : "Você pode definir depois, em Meu acervo."}
+      </p>
+    </div>
+  );
+}
+
+function StorageReview({ storage }: { storage: StorageState }) {
+  if (!storage.config) return null;
+  const name = storageName(storage);
+  return (
+    <p className={styles.storageReview}>
+      <span className={styles.storageReviewLabel}>Onde guardar</span>
+      {name ? (
+        <>
+          <strong>{name}</strong>
+          <span>Ao confirmar, você declara que estas cartas estão fisicamente em “{name}”.</span>
+        </>
+      ) : (
+        <strong>Sem localização definida</strong>
+      )}
+    </p>
   );
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { BinderCover } from "@/components/colecoes/colecoes/binder-cover";
-import { type BinderHeader, type BinderPage, createBlocker, createBlockerMessage } from "@/lib/colecoes/binder";
+import { type BinderHeader, type BinderPage, binderRegisterContext, createBlocker, createBlockerMessage } from "@/lib/colecoes/binder";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import type { JoinCandidate } from "@/lib/colecoes/binder-share";
 import { type SpeciesReferenceState, mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
@@ -66,6 +66,7 @@ export function BinderView({
         ownUnplacedCount={header.ownUnplacedCount}
         availableCount={header.availableCount}
         editable={header.editable}
+        register={binderRegisterContext(header, collection.setCode ? { code: collection.setCode, name: collection.setName ?? collection.setCode.toUpperCase() } : null)}
         initialAnchor={initialAnchor}
         initialPages={initialPages}
         speciesReferences={mayHaveSpeciesReferences(header)}

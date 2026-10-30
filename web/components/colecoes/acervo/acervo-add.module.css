@@ -635,3 +635,164 @@
     animation-duration: 2400ms;
   }
 }
+
+/* ---- destino coleção (V1-06) ---- */
+.panelContext {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Abas compactas "Escolher cartas | Set inteiro" (coleção de Set). Ativa: linha dourada, como as abas da galeria. */
+.modeTabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 1.375rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.modeTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.modeTab:hover:not(:disabled) {
+  color: hsl(var(--foreground));
+}
+
+.modeTab[aria-selected="true"] {
+  color: hsl(var(--foreground));
+  border-bottom-color: hsl(var(--primary));
+}
+
+.modeTab:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+  border-radius: 0.375rem;
+}
+
+.fixedSet {
+  display: flex;
+  flex-direction: column;
+}
+
+.fixedSetName {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted) / 0.4);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modeTab {
+    transition: none;
+  }
+}
+
+/* ---- V1-06 COMPLETE-01: onde guardar + painel dentro do fichário ---- */
+
+/* Montado dentro do fichário (sobreposição/tela cheia): acima das camadas dele (véus em 90). */
+.layerOverlay {
+  z-index: 95;
+}
+
+.layerDrawer {
+  z-index: 96;
+}
+
+.storageFixed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted) / 0.4);
+}
+
+.storageName {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.storageSuggest {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--primary-ink));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.storageSuggest:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.storageReview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted) / 0.4);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.storageReview strong {
+  font-size: 0.9375rem;
+  color: hsl(var(--foreground));
+}
+
+.storageReviewLabel {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.followNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  max-width: 28rem;
+  text-align: left;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--success));
+}
+
+.followNote[data-tone="warning"] {
+  color: hsl(var(--foreground));
+}
+
+.followNote[data-tone="warning"] svg {
+  color: hsl(var(--destructive));
+}

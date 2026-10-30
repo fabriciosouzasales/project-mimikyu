@@ -210,6 +210,20 @@
   color: hsl(0 0% 100% / 0.5);
 }
 
+/* V1-06: "Cadastrar nova carta" no seletor do bolso vazio — ação secundária,
+ * depois da lista (a carta já cadastrada continua sendo o caminho principal). */
+.registerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding-top: 12px;
+  border-top: 1px solid hsl(0 0% 100% / 0.08);
+  font-size: 12.5px;
+  color: hsl(0 0% 100% / 0.7);
+}
+
 /* ---- ações ---- */
 
 .actions {

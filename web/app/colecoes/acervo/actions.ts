@@ -5,6 +5,7 @@ import { ACERVO_PATH } from "@/lib/colecoes/acervo";
 import {
   ADD_MAX_QUANTITY,
   type AddFailure,
+  type AddLanguage,
   type AddVariant,
   type PreviewResult,
   type RegisterItem,
@@ -31,6 +32,7 @@ import {
   resolveMoveSet,
 } from "@/lib/colecoes/acervo-move-queries";
 import { LOCAIS_PATH } from "@/lib/colecoes/storage-locations";
+import { getAddLanguages } from "@/lib/colecoes/acervo-queries";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -89,31 +91,65 @@ export async function resolveCardSetForAdd(setCode: string): Promise<{ ok: true;
   return { ok: true, cardSetId };
 }
 
-export async function previewAddCards(items: RegisterItem[]): Promise<{ ok: true; preview: PreviewResult } | Fail> {
-  if (!validRegisterItems(items)) return { ok: false, reason: "invalid" };
-  return preview(previewCardsRequest(items));
+/** Idiomas de cadastro (`get_registrable_languages`), lidos sob demanda pela coleção (V1-06). */
+export async function readAddLanguages(): Promise<{ ok: true; languages: AddLanguage[] } | Fail> {
+  const supabase = await createClient();
+  const languages = await getAddLanguages(supabase);
+  return languages.length > 0 ? { ok: true, languages } : { ok: false, reason: "unavailable" };
+}
+
+/** `collectionId` opcional (V1-06): `undefined`/`null` = só acervo; UUID = acervo + coleção, numa transação. */
+function targetCollection(value: unknown): string | null | false {
+  if (value === undefined || value === null) return null;
+  return isUuid(value) ? value : false;
+}
+
+export async function previewAddCards(
+  items: RegisterItem[],
+  collectionId?: string | null,
+  storageId?: string | null,
+): Promise<{ ok: true; preview: PreviewResult } | Fail> {
+  const target = targetCollection(collectionId);
+  const storage = targetCollection(storageId);
+  if (!validRegisterItems(items) || target === false || storage === false) return { ok: false, reason: "invalid" };
+  return preview(previewCardsRequest(items, target, storage));
 }
 
 export async function confirmAddCards(input: {
   idempotencyKey: string;
   fingerprint: string;
   items: RegisterItem[];
+  collectionId?: string | null;
+  storageId?: string | null;
 }): Promise<{ ok: true; result: RegisterResult } | Fail> {
-  if (!isUuid(input?.idempotencyKey) || !validFingerprint(input.fingerprint) || !validRegisterItems(input.items)) {
+  const target = targetCollection(input?.collectionId);
+  const storage = targetCollection(input?.storageId);
+  if (
+    !isUuid(input?.idempotencyKey) ||
+    !validFingerprint(input.fingerprint) ||
+    !validRegisterItems(input.items) ||
+    target === false ||
+    storage === false
+  ) {
     return { ok: false, reason: "invalid" };
   }
   return register(
     "register_physical_cards_bulk",
-    confirmCardsRequest(input.idempotencyKey, input.fingerprint, input.items),
+    confirmCardsRequest(input.idempotencyKey, input.fingerprint, input.items, target, storage),
+    target,
   );
 }
 
 export async function previewAddSet(input: {
   cardSetId: string;
   languageId: string;
+  collectionId?: string | null;
+  storageId?: string | null;
 }): Promise<{ ok: true; preview: PreviewResult } | Fail> {
-  if (!isUuid(input?.cardSetId) || !isUuid(input.languageId)) return { ok: false, reason: "invalid" };
-  return preview(previewSetRequest(input.cardSetId, input.languageId));
+  const target = targetCollection(input?.collectionId);
+  const storage = targetCollection(input?.storageId);
+  if (!isUuid(input?.cardSetId) || !isUuid(input.languageId) || target === false || storage === false) return { ok: false, reason: "invalid" };
+  return preview(previewSetRequest(input.cardSetId, input.languageId, target, storage));
 }
 
 export async function confirmAddSet(input: {
@@ -121,18 +157,25 @@ export async function confirmAddSet(input: {
   fingerprint: string;
   cardSetId: string;
   languageId: string;
+  collectionId?: string | null;
+  storageId?: string | null;
 }): Promise<{ ok: true; result: RegisterResult } | Fail> {
+  const target = targetCollection(input?.collectionId);
+  const storage = targetCollection(input?.storageId);
   if (
     !isUuid(input?.idempotencyKey) ||
     !validFingerprint(input.fingerprint) ||
     !isUuid(input.cardSetId) ||
-    !isUuid(input.languageId)
+    !isUuid(input.languageId) ||
+    target === false ||
+    storage === false
   ) {
     return { ok: false, reason: "invalid" };
   }
   return register(
     "register_card_set_bulk",
-    confirmSetRequest(input.idempotencyKey, input.fingerprint, input.cardSetId, input.languageId),
+    confirmSetRequest(input.idempotencyKey, input.fingerprint, input.cardSetId, input.languageId, target, storage),
+    target,
   );
 }
 
@@ -241,6 +284,7 @@ async function preview(request: object): Promise<{ ok: true; preview: PreviewRes
 async function register(
   fn: "register_physical_cards_bulk" | "register_card_set_bulk",
   request: object,
+  collectionId: string | null = null,
 ): Promise<{ ok: true; result: RegisterResult } | Fail> {
   const startedAt = Date.now();
   const supabase = await createClient();
@@ -249,9 +293,20 @@ async function register(
   const parsed = parseRegister(data);
   if (!parsed) return fail(fn, startedAt, { code: "BAD_SHAPE" });
   console.info(
-    JSON.stringify({ scope: "acervo.add", fn, ms: Date.now() - startedAt, outcome: parsed.replay ? "REPLAY" : "CREATED", created: parsed.createdCount }),
+    JSON.stringify({
+      scope: "acervo.add",
+      fn,
+      ms: Date.now() - startedAt,
+      outcome: parsed.replay ? "REPLAY" : "CREATED",
+      created: parsed.createdCount,
+      withCollection: collectionId !== null,
+    }),
   );
   revalidatePath(ACERVO_PATH);
+  // Com coleção: página dela (progresso, galeria) e a Biblioteca (contagens).
+  if (collectionId) revalidatePath(COLECOES_PATH, "layout");
+  // Local definido: "Meus locais" mostra as novas cartas.
+  if ((request as { storage_container_id?: unknown }).storage_container_id) revalidatePath(LOCAIS_PATH);
   return { ok: true, result: parsed };
 }
 

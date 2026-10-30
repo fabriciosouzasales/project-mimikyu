@@ -43,6 +43,7 @@ import {
   speciesInSelection,
 } from "@/lib/colecoes/pokedex";
 import { GenerationChecklist } from "./pokedex-generations";
+import { type RegisterMode, registerHref } from "@/lib/colecoes/collection-add";
 import { ADD_PARAM, COVER_CODE_MAX, FREE_COVER_CODE_ENABLED, normalizeCoverCode, sanitizeCoverCodeInput } from "@/lib/colecoes/free-collection";
 import addStyles from "../acervo/acervo-add.module.css";
 import acervoStyles from "../acervo/acervo.module.css";
@@ -410,6 +411,7 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
               master={submit.master}
               onRetryMaster={() => void retryMaster()}
               onOpen={() => router.push(submit.kind === "free" ? `${submit.href}?${ADD_PARAM}=1` : submit.href)}
+              onRegister={(mode) => router.push(registerHref(submit.href, mode))}
               onClose={onClose}
             />
           ) : step === "type" ? (
@@ -817,6 +819,7 @@ function DoneView({
   master,
   onRetryMaster,
   onOpen,
+  onRegister,
   onClose,
 }: {
   name: string;
@@ -826,6 +829,8 @@ function DoneView({
   master: MasterOutcome | null;
   onRetryMaster: () => void;
   onOpen: () => void;
+  /** V1-06 (Fluxo 1.6): seguir direto para cadastrar cartas novas — Set inteiro na coleção de Set. */
+  onRegister: (mode: RegisterMode) => void;
   onClose: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -868,6 +873,22 @@ function DoneView({
                 </div>
               </Notice>
             </div>
+          ) : null}
+          {kind === "card_set" ? (
+            <p className={addStyles.doneText}>
+              Ainda não cadastrou as cartas?{" "}
+              <button type="button" className={styles.inlineLink} onClick={() => onRegister("set")}>
+                Tenho o Set completo
+              </button>{" "}
+              registra uma de cada de uma vez, já nesta coleção.
+            </p>
+          ) : kind === "free" ? (
+            <p className={addStyles.doneText}>
+              Cartas que ainda não estão no acervo?{" "}
+              <button type="button" className={styles.inlineLink} onClick={() => onRegister("cards")}>
+                Cadastrar cartas novas
+              </button>
+            </p>
           ) : null}
           {storageCreated ? (
             <p className={addStyles.doneText}>

@@ -27,6 +27,8 @@ import { LinkCardsLauncher } from "./link-cards";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
 import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
 import { ReactivateCollectionButton, ReactivatedStatus } from "./collection-lifecycle";
+import { CollectionAddLauncher } from "./collection-add";
+import type { RegisterMode } from "@/lib/colecoes/collection-add";
 import manageStyles from "./collection-manage.module.css";
 import { type MasterSetPosition, type MasterSetPositionsPage, heroCardsFromMasterSet } from "@/lib/colecoes/master-set";
 import { MasterSetGallery } from "./master-set-gallery";
@@ -72,6 +74,7 @@ export function CollectionView({
   heroPositions,
   master = null,
   binder = null,
+  registerMode = null,
 }: {
   collection: CollectionSummary;
   /** Cartas do Set inteiro (R2 sem filtro) para os destaques do hero. */
@@ -86,6 +89,8 @@ export function CollectionView({
   master?: MasterSetView | null;
   /** Cabeçalho do Fichário Digital (5223); `null` = sem leitura. */
   binder?: BinderHeader | null;
+  /** V1-06: `?cadastrar=` — abre o cadastro de cartas novas ao chegar (Fluxo 1.6). */
+  registerMode?: RegisterMode | null;
 }) {
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
@@ -207,7 +212,7 @@ export function CollectionView({
               </div>
             </section>
 
-            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.cardSetCode} finish={collection.finish} binder={binder} />
+            <BinderEntry collectionId={collection.id} collectionName={collection.name} coverCode={collection.cardSetCode} cardSetName={collection.cardSetName} finish={collection.finish} binder={binder} />
           </div>
 
           <CollectionHeroFan selection={hero} />
@@ -254,6 +259,17 @@ export function CollectionView({
             ) : null}
             {isMaster && master.linkable !== null ? (
               <MasterSetLinkLauncher collectionId={collection.id} linkable={active ? master.linkable : 0} />
+            ) : null}
+            {canManage && setCode ? (
+              <CollectionAddLauncher
+                autoOpen={registerMode}
+                target={{
+                  collectionId: collection.id,
+                  collectionName: collection.name,
+                  kind: "set",
+                  cardSet: { code: setCode, name: collection.cardSetName ?? setCode.toUpperCase() },
+                }}
+              />
             ) : null}
           </div>
         </div>

@@ -108,6 +108,8 @@ export type BinderHeader = {
   availableCount: number;
   /** 5252: nome do fichário físico que este fichário digital representa. */
   binderStorageName: string | null;
+  /** 5252: id do fichário físico (5247) — o local onde o cadastro pelo fichário guarda as cartas. */
+  binderStorageId: string | null;
   /**
    * P3-A (5245, leitura à parte): nome próprio e logomarca do fichário. Ausente
    * ou `null` = função ainda não aplicada / sem fichário → nome da coleção
@@ -167,6 +169,7 @@ export function parseBinderHeader(row: unknown): BinderHeader | null {
     joinCandidateCount: hasBinder ? 0 : (int(r.join_candidate_count) ?? 0),
     availableCount: int(r.available_count) ?? int(r.own_unplaced_count) ?? 0,
     binderStorageName: str(r.binder_storage_name),
+    binderStorageId: str(r.binder_storage_container_id),
   };
 }
 
@@ -1128,4 +1131,43 @@ export function addPagesResultMessage(added: number, requested: number, slotsPer
   const pages = added === 1 ? "1 página nova" : `${added} páginas novas`;
   const base = `${pages} no fim do fichário — ${added * slotsPerPage} bolsos vazios.`;
   return added < requested ? `Entraram ${added} de ${requested} páginas. ${base}` : base;
+}
+
+/**
+ * Cadastro pelo fichário (V1-06 COMPLETE-01): tipo da coleção aberta para o
+ * painel de cadastro. `null` = tipo desconhecido (a ação não aparece).
+ */
+export function registerKind(kind: CollectionKind): "set" | "free" | "pokedex" | null {
+  if (kind === "SET" || kind === "MASTER_SET") return "set";
+  if (kind === "FREE") return "free";
+  if (kind === "POKEDEX") return "pokedex";
+  return null;
+}
+
+/**
+ * Contexto do cadastro pelo fichário. `storage` = fichário físico
+ * (`collection_layout.storage_container_id`, 5247, lido pela 5252): as cartas
+ * novas nascem guardadas nele e ficam elegíveis para os bolsos (5250). Um
+ * fichário digital NÃO é tratado como local por si só — sem esse vínculo
+ * legível, `storage` fica `null` e o painel pede a escolha explícita (NS-13).
+ */
+export type BinderRegisterContext = {
+  kind: "set" | "free" | "pokedex";
+  cardSet: { code: string; name: string } | null;
+  storage: { id: string; name: string } | null;
+};
+
+export function binderRegisterContext(
+  header: Pick<BinderHeader, "kind" | "binderStorageId" | "binderStorageName">,
+  cardSet: { code: string; name: string } | null,
+): BinderRegisterContext | null {
+  const kind = registerKind(header.kind);
+  if (!kind) return null;
+  // Coleção de Set sem Set legível: o cadastro não teria referência — ação ausente.
+  if (kind === "set" && !cardSet) return null;
+  return {
+    kind,
+    cardSet: kind === "set" ? cardSet : null,
+    storage: header.binderStorageId ? { id: header.binderStorageId, name: header.binderStorageName ?? "Fichário" } : null,
+  };
 }

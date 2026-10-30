@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { BinderHeader } from "@/lib/colecoes/binder";
+import { type BinderHeader, binderRegisterContext } from "@/lib/colecoes/binder";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
 import { mayHaveCatalogNovelties } from "@/lib/colecoes/binder-catalog";
@@ -30,6 +30,7 @@ export function BinderOverlay({
   collectionName,
   header,
   finish,
+  cardSet = null,
   onClose,
 }: {
   collectionId: string;
@@ -37,6 +38,8 @@ export function BinderOverlay({
   header: BinderHeader;
   /** Acabamento da capa fechada desta coleção (moldura do fichário aberto). */
   finish?: BinderFinish;
+  /** Set da coleção (coleções de Set): referência do cadastro pelo fichário (V1-06). */
+  cardSet?: { code: string; name: string } | null;
   onClose: () => void;
 }) {
   const reducedMotion = usePrefersReducedMotion();
@@ -128,6 +131,7 @@ export function BinderOverlay({
           ownUnplacedCount={header.ownUnplacedCount}
           availableCount={header.availableCount}
           editable={header.editable}
+          register={binderRegisterContext(header, cardSet)}
           initialAnchor={1}
           initialPages={[]}
           backHref={collectionHref(collectionId)}

@@ -39,6 +39,8 @@ function BinderEntryCard({
   collectionId,
   collectionName,
   finish,
+  coverCode = null,
+  cardSetName = null,
   binder,
 }: {
   collectionId: string;
@@ -50,6 +52,8 @@ function BinderEntryCard({
    * (R11); mantido no contrato das três páginas de coleção, sem uso aqui.
    */
   coverCode?: string | null;
+  /** Nome do Set (coleções de Set): com `coverCode`, referência do cadastro pelo fichário (V1-06). */
+  cardSetName?: string | null;
   binder: BinderHeader | null;
 }) {
   const href = binderHref(collectionId);
@@ -124,6 +128,7 @@ function BinderEntryCard({
             collectionName={collectionName}
             header={binder}
             finish={finish}
+            cardSet={coverCode ? { code: coverCode, name: cardSetName ?? coverCode.toUpperCase() } : null}
             onClose={() => setOpen(false)}
           />
         ) : null}

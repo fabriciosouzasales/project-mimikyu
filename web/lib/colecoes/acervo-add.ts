@@ -138,38 +138,59 @@ export function validRegisterItems(items: unknown): items is RegisterItem[] {
 
 // ---- envelopes (chaves fechadas, exatamente as dos contratos) ----
 
-export function previewCardsRequest(items: RegisterItem[]) {
-  return { operation_type: "REGISTER_PHYSICAL_CARDS", items, collection_id: null, storage_container_id: null };
+// `collectionId` (V1-06, Fluxos 2 e 5 a partir da coleção): os envelopes 5150/
+// 5157 já aceitam a coleção de destino — o banco cria os exemplares E a
+// alocação na mesma transação (tudo ou nada), conferindo dono, coleção ativa,
+// Game e o Set de referência. Revisão e confirmação levam a MESMA coleção (o
+// fingerprint a inclui). `storageId` (V1-06 COMPLETE-01): local escolhido
+// EXPLICITAMENTE na interface (NS-13 — nunca presumido), gravado no mesmo
+// INSERT do exemplar (5153); nulo = "Sem localização definida".
+
+export function previewCardsRequest(items: RegisterItem[], collectionId: string | null = null, storageId: string | null = null) {
+  return { operation_type: "REGISTER_PHYSICAL_CARDS", items, collection_id: collectionId, storage_container_id: storageId };
 }
 
-export function confirmCardsRequest(idempotencyKey: string, previewFingerprint: string, items: RegisterItem[]) {
+export function confirmCardsRequest(
+  idempotencyKey: string,
+  previewFingerprint: string,
+  items: RegisterItem[],
+  collectionId: string | null = null,
+  storageId: string | null = null,
+) {
   return {
     idempotency_key: idempotencyKey,
     preview_fingerprint: previewFingerprint,
     items,
-    collection_id: null,
-    storage_container_id: null,
+    collection_id: collectionId,
+    storage_container_id: storageId,
   };
 }
 
-export function previewSetRequest(cardSetId: string, languageId: string) {
+export function previewSetRequest(cardSetId: string, languageId: string, collectionId: string | null = null, storageId: string | null = null) {
   return {
     operation_type: "REGISTER_CARD_SET",
     card_set_id: cardSetId,
     language_id: languageId,
-    collection_id: null,
-    storage_container_id: null,
+    collection_id: collectionId,
+    storage_container_id: storageId,
   };
 }
 
-export function confirmSetRequest(idempotencyKey: string, previewFingerprint: string, cardSetId: string, languageId: string) {
+export function confirmSetRequest(
+  idempotencyKey: string,
+  previewFingerprint: string,
+  cardSetId: string,
+  languageId: string,
+  collectionId: string | null = null,
+  storageId: string | null = null,
+) {
   return {
     idempotency_key: idempotencyKey,
     preview_fingerprint: previewFingerprint,
     card_set_id: cardSetId,
     language_id: languageId,
-    collection_id: null,
-    storage_container_id: null,
+    collection_id: collectionId,
+    storage_container_id: storageId,
   };
 }
 
@@ -220,7 +241,7 @@ export function parsePreview(raw: unknown): PreviewResult | null {
   };
 }
 
-export type RegisterResult = { replay: boolean; createdCount: number; distinctItems: number };
+export type RegisterResult = { replay: boolean; createdCount: number; distinctItems: number; physicalCardIds: string[] };
 
 /** Lê o retorno das confirmações B1/B2 (`outcome` CREATED ou REPLAY — os dois são sucesso). */
 export function parseRegister(raw: unknown): RegisterResult | null {
@@ -232,6 +253,10 @@ export function parseRegister(raw: unknown): RegisterResult | null {
     replay: data.outcome === "REPLAY",
     createdCount: asCount(summary.created_count),
     distinctItems: asCount(summary.distinct_items),
+    // Exemplares criados (5155/5157 `physical_card_ids`; o REPLAY devolve o mesmo resumo).
+    physicalCardIds: Array.isArray(summary.physical_card_ids)
+      ? summary.physical_card_ids.filter((id): id is string => typeof id === "string" && isUuid(id))
+      : [],
   };
 }
 
@@ -322,11 +347,14 @@ export function issueMessage(issue: PreviewIssue): string {
       return n === 1
         ? "Uma carta deste Set ainda não tem a versão padrão definida no catálogo, então o Set não pode ser adicionado inteiro agora. Adicione as cartas uma a uma."
         : `${n} cartas deste Set ainda não têm a versão padrão definida no catálogo, então o Set não pode ser adicionado inteiro agora. Adicione as cartas uma a uma.`;
-    case "COLLECTION_NOT_ACCESSIBLE":
     case "COLLECTION_ARCHIVED":
-    case "STORAGE_NOT_ACCESSIBLE":
-    case "GAME_MISMATCH":
+      return "A coleção está arquivada. Reative-a para adicionar cartas.";
     case "NOT_ELIGIBLE_FOR_REFERENCE":
+      return n === 1 ? "Uma das cartas não é do Set desta coleção." : `${n} cartas não são do Set desta coleção.`;
+    case "GAME_MISMATCH":
+      return "Algumas cartas são de outro jogo e não podem entrar nesta coleção.";
+    case "COLLECTION_NOT_ACCESSIBLE":
+    case "STORAGE_NOT_ACCESSIBLE":
       return "O destino escolhido não aceita estas cartas.";
     default:
       return "Há um impedimento para adicionar estas cartas.";
