@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BrandLogo } from "@/components/brand-logo";
+import { PublicBinderShare } from "@/components/colecoes/sharing/public-binder-share";
 import { PublicBinderShowcase } from "@/components/colecoes/sharing/public-binder-showcase";
 import shareStyles from "@/components/colecoes/sharing/share.module.css";
 import { resolveFinish } from "@/lib/colecoes/binder-finish";
@@ -56,15 +58,19 @@ export default async function FicharioPublicoPage({
   return (
     <div className={`binder-nav-01-scope ${shareStyles.publicBinderFrame}`}>
       <header className={shareStyles.publicBinderTop}>
-        <Link href="/" className={shareStyles.brand}>
-          MMKYU
+        {/* Identidade oficial (logo completa, troca por tema) — leva à entrada do produto. */}
+        <Link href={signedIn ? "/" : "/login"} className={shareStyles.brand} aria-label="MMKYU Collector — página inicial">
+          <BrandLogo className="h-7 w-auto sm:h-8" />
         </Link>
-        <Link
-          href={signedIn ? COLECOES_PATH : "/login"}
-          className="text-sm font-semibold text-primary-ink underline-offset-4 hover:underline"
-        >
-          {signedIn ? "Minhas coleções" : "Entrar"}
-        </Link>
+        <div className={shareStyles.publicBinderActions}>
+          <PublicBinderShare collectionId={collectionId} title={binder.binderName ?? binder.name} />
+          <Link
+            href={signedIn ? COLECOES_PATH : "/login"}
+            className="text-sm font-semibold text-primary-ink underline-offset-4 hover:underline"
+          >
+            {signedIn ? "Minhas coleções" : "Entrar"}
+          </Link>
+        </div>
       </header>
       <main>
         <PublicBinderShowcase
@@ -74,6 +80,7 @@ export default async function FicharioPublicoPage({
           coverCode={cover.code}
           initialPage={page}
           initialPages={initialPages}
+          createHref={signedIn ? COLECOES_PATH : "/cadastro"}
         />
       </main>
     </div>

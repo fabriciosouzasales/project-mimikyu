@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen } from "lucide-react";
+import { ArrowRight, BookOpen } from "lucide-react";
 import { BinderCover } from "@/components/colecoes/colecoes/binder-cover";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
@@ -27,6 +27,16 @@ import styles from "./public-binder.module.css";
  * Sem galeria, progresso, acervo, contagens de cartas ou qualquer controle
  * de edição. Sem fichário montado: estado vazio honesto, sem substituir pela
  * galeria. `?pagina=N` abre direto na página (link compartilhável).
+ *
+ * Aquisição (V1.0 PUBLIC SHOWCASE & ACQUISITION-01): abaixo do CTA do
+ * fichário, um convite discreto e subordinado — "Seu fichário também pode
+ * ser assim." + uma linha + "Criar minha coleção" (contorno, menor que o CTA
+ * dourado). Leva ao cadastro existente (ou a Minhas coleções, com sessão).
+ * Nada muda no fichário publicado nem no modelo de acesso.
+ *
+ * Assinatura de movimento (COMPOSITION & SIGNATURE MOTION-01): só o título
+ * da coleção emerge da névoa, palavra por palavra (`RevealTitle`), uma única
+ * vez por visita — voltar do fichário aberto para a capa não repete.
  */
 export function PublicBinderShowcase({
   binder,
@@ -35,6 +45,7 @@ export function PublicBinderShowcase({
   coverCode = null,
   initialPage,
   initialPages,
+  createHref = "/cadastro",
 }: {
   binder: PublicBinder;
   finish: BinderFinish;
@@ -44,12 +55,21 @@ export function PublicBinderShowcase({
   /** 0 = abrir pela capa. */
   initialPage: number;
   initialPages: SharedBinderPage[] | null;
+  /** Destino de "Criar minha coleção": cadastro (visitante) ou Minhas coleções (com sessão). */
+  createHref?: string;
 }) {
   const grid = binder.binder;
   const canOpen = grid !== null && grid.pageCount > 0;
   const [open, setOpen] = useState(canOpen && initialPage > 0);
   const openButton = useRef<HTMLButtonElement>(null);
   const title = binder.binderName ?? binder.name;
+  // O título se revela uma vez por visita: depois que o fichário é aberto,
+  // a capa (que remonta ao voltar) mostra o título já nítido.
+  const [introDone, setIntroDone] = useState(false);
+  const openBinder = useCallback(() => {
+    setIntroDone(true);
+    setOpen(true);
+  }, []);
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -102,7 +122,7 @@ export function PublicBinderShowcase({
 
       <div className={styles.coverText}>
         <p className={styles.eyebrow}>Fichário publicado</p>
-        <h1 className={styles.title}>{title}</h1>
+        <RevealTitle text={title} animate={!introDone} />
         <p className={styles.owner}>
           por <strong>{binder.ownerDisplayName}</strong>
         </p>
@@ -112,7 +132,7 @@ export function PublicBinderShowcase({
             <p className={styles.facts}>
               {formatCount(grid.pageCount)} {grid.pageCount === 1 ? "página" : "páginas"} · {modelLabel(grid.columns, grid.rows)}
             </p>
-            <Button ref={openButton} size="lg" className={styles.cta} onClick={() => setOpen(true)}>
+            <Button ref={openButton} size="lg" className={styles.cta} onClick={openBinder}>
               <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
               Abrir o fichário
             </Button>
@@ -125,10 +145,71 @@ export function PublicBinderShowcase({
           </div>
         )}
 
-        <p className={styles.cta2}>
-          Monte e publique o seu na <Link href="/">MMKYU Collector</Link>.
-        </p>
+        <ProductInvite createHref={createHref} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Título com revelação "da névoa" (blur → nítido), palavra por palavra.
+ *
+ * Só CSS (`filter`, `opacity`, `transform` — sem layout): cada palavra é um
+ * `inline-block` que ocupa desde o primeiro quadro exatamente o espaço final,
+ * então a altura/largura do título não muda e não há layout shift. O texto
+ * real fica no `h1` para leitores de tela (`sr-only`); a camada animada é
+ * `aria-hidden`. Onda contínua de nitidez (SIGNATURE MOTION TIMING-02):
+ * 2,4 s do início da primeira palavra à nitidez da última, qualquer que seja
+ * o número de palavras — os inícios se espalham por 1 s e cada palavra leva
+ * o restante (1,4 s), então as transições se sobrepõem. Uma palavra só: 2,4 s.
+ * `prefers-reduced-motion`: nítido de imediato (CSS). Não bloqueia nada: o
+ * CTA é clicável durante o efeito.
+ */
+/** Duração total da revelação (início da 1ª palavra → nitidez da última). */
+const REVEAL_TOTAL_MS = 2400;
+/** Janela em que os inícios das palavras se distribuem (onda). */
+const REVEAL_SPREAD_MS = 1000;
+
+function RevealTitle({ text, animate }: { text: string; animate: boolean }) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const spread = words.length > 1 ? REVEAL_SPREAD_MS : 0;
+  const duration = REVEAL_TOTAL_MS - spread;
+  return (
+    <h1 className={styles.title}>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden="true" data-reveal={animate || undefined} className={styles.reveal}>
+        {words.map((word, index) => (
+          <span key={`${index}-${word}`}>
+            <span className={styles.revealWord} style={{
+                animationDelay: `${words.length > 1 ? Math.round((index * spread) / (words.length - 1)) : 0}ms`,
+                animationDuration: `${duration}ms`,
+              }}>
+              {word}
+            </span>
+            {index < words.length - 1 ? " " : null}
+          </span>
+        ))}
+      </span>
+    </h1>
+  );
+}
+
+/** Convite secundário — sempre abaixo do CTA do fichário, nunca competindo com ele. */
+function ProductInvite({ createHref }: { createHref: string }) {
+  return (
+    <section className={styles.invite} aria-labelledby="convite-mmkyu">
+      <h2 id="convite-mmkyu" className={styles.inviteTitle}>
+        Seu fichário também pode ser assim.
+      </h2>
+      <p className={styles.inviteText}>
+        Organize suas cartas, acompanhe seu progresso e personalize seu fichário no MMKYU Collector.
+      </p>
+      <Button asChild variant="outline" size="sm" className={styles.inviteCta}>
+        <Link href={createHref}>
+          Criar minha coleção
+          <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
+        </Link>
+      </Button>
+    </section>
   );
 }

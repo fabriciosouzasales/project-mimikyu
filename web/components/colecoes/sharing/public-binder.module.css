@@ -64,10 +64,42 @@
 }
 
 .title {
+  max-width: 22ch;
   font: 700 clamp(1.75rem, 3.6vw, 2.5rem) / 1.1 var(--font-heading);
   letter-spacing: -0.02em;
   color: hsl(var(--foreground));
   overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+/*
+ * Assinatura de movimento: palavras emergem da névoa (blur → nítido, leve
+ * subida). Só filter/opacity/transform em inline-blocks que já ocupam o
+ * espaço final — sem layout shift. Sem `data-reveal`, o título é estático.
+ */
+.revealWord {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.reveal[data-reveal] .revealWord {
+  animation: wordReveal 1400ms cubic-bezier(0.33, 0, 0.2, 1) both;
+}
+
+@keyframes wordReveal {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(0.18em);
+  }
+  45% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
 }
 
 .owner {
@@ -117,20 +149,66 @@
   color: hsl(var(--muted-foreground));
 }
 
-.cta2 {
-  margin-top: 1.5rem;
-  font-size: 0.75rem;
+/*
+ * Convite do produto (V1.0 PUBLIC SHOWCASE & ACQUISITION-01): subordinado ao
+ * fichário — separado por um fio, tipografia menor, sem superfície própria,
+ * ícones em tinta suave; o único dourado da página continua sendo o CTA
+ * "Abrir o fichário".
+ */
+.invite {
+  margin-top: 2.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid hsl(var(--border) / 0.6);
+  width: 100%;
+  max-width: 22rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+
+.inviteTitle {
+  font: 600 0.9375rem / 1.35 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.inviteText {
+  font-size: 0.8125rem;
+  line-height: 1.5;
   color: hsl(var(--muted-foreground));
 }
 
-.cta2 a {
-  font-weight: 600;
-  color: hsl(var(--primary-ink, var(--primary)));
-  text-underline-offset: 3px;
+.inviteCta {
+  margin-top: 0.625rem;
+  min-height: 2.5rem;
 }
 
-.cta2 a:hover {
-  text-decoration: underline;
+/* Compartilhar (cabeçalho): ação discreta, texto + ícone; só ícone no celular estreito. */
+.shareWrap {
+  display: inline-flex;
+}
+
+.shareButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding-inline: 0.625rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.shareButton:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.6);
+}
+
+.shareButton:focus-visible {
+  outline: 2px solid hsl(var(--ring, var(--primary)));
+  outline-offset: 2px;
 }
 
 /* Fichário aberto: ocupa a janela abaixo da faixa da marca. */
@@ -154,11 +232,38 @@
   .coverText {
     align-items: center;
   }
+
+  .title {
+    margin-inline: auto;
+  }
+
+  .invite {
+    align-items: center;
+    text-align: center;
+    margin-inline: auto;
+    margin-top: 1.75rem;
+    padding-top: 1rem;
+  }
+}
+
+@media (max-width: 479px) {
+  .shareLabel {
+    display: none;
+  }
+
+  .shareButton {
+    padding-inline: 0.5rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .coverObject,
-  .coverText {
+  .coverText,
+  .reveal[data-reveal] .revealWord {
     animation: none;
+  }
+
+  .shareButton {
+    transition: none;
   }
 }
