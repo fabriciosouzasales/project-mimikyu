@@ -34,6 +34,7 @@ import { MASTER_SET_OBJECTIVE_ENABLED } from "@/lib/colecoes/master-set";
 import { CardArt } from "../acervo/card-art";
 import { SharedBinderSettingsSection } from "../fichario/binder-share-settings";
 import { IdentityCoverImage, IdentityNameForm } from "./collection-identity-settings";
+import { ArchiveCollectionSection } from "./collection-lifecycle";
 import { CoverFinishPicker } from "./cover-finish-picker";
 import { CollectionObjectiveSection } from "./collection-objective";
 import { OrganizeStorageFlow } from "./collection-organize";
@@ -469,6 +470,8 @@ function SettingsPanel({
   const [destinationNotice, setDestinationNotice] = useState<string | null>(null);
   // P2-SHARED-BINDER-FRONTEND-01: sair do fichário compartilhado (só convidadas).
   const [shareBusy, setShareBusy] = useState(false);
+  // V1-04: arquivar a coleção (última seção; o painel some quando a página volta arquivada).
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [, startRefresh] = useTransition();
 
   const load = useCallback(() => setAttempt((n) => n + 1), []);
@@ -523,7 +526,7 @@ function SettingsPanel({
   const isFree = kind === "free";
   const isPokedex = kind === "pokedex";
   // Fechar o painel no meio de uma gravação deixaria o resultado sem feedback.
-  const locked = saving || objectiveBusy || nameBusy || imageBusy || finishBusy || organizeBusy || shareBusy;
+  const locked = saving || objectiveBusy || nameBusy || imageBusy || finishBusy || organizeBusy || shareBusy || lifecycleBusy;
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && !locked && onClose()}>
@@ -694,6 +697,8 @@ function SettingsPanel({
                   : "Para tirar uma carta, use o botão de exemplares no canto de cada carta que você tem."}
               </p>
             )}
+
+            <ArchiveCollectionSection collectionId={collectionId} collectionName={collectionName} onBusyChange={setLifecycleBusy} />
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

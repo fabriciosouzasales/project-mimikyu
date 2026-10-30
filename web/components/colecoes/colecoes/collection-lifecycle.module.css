@@ -1,0 +1,225 @@
+/*
+ * Ciclo de vida da coleção (V1-04, incremento 01): seção "Arquivar" nos
+ * Ajustes e o aviso de coleção arquivada na página. Só tokens do Design
+ * System; o dourado fica para a ação principal (reativar), nunca para a faixa.
+ */
+
+/* ---- seção "Arquivar" nos Ajustes ----
+ * Bloco de manutenção, separado da personalização por respiro + divisória.
+ * Borda dourada (token --primary) e botão no CTA dourado padrão (decisão do
+ * proprietário, FINAL-GOLD-STYLING-01); nada de vermelho — arquivar é reversível. */
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-top: 0.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.zoneCard {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0.25rem 0.875rem;
+  align-items: start;
+  padding: 1rem;
+  border: 1px solid hsl(var(--primary));
+  border-radius: 0.875rem;
+  background: hsl(var(--surface-muted) / 0.35);
+}
+
+.zoneIcon {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+}
+
+.zoneTitle {
+  font: 700 0.9375rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.zoneText {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.zoneBody {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.zoneActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.effects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.effects li {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground));
+}
+
+.effects svg {
+  margin-top: 0.15rem;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 420px) {
+  .zoneCard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zoneIcon {
+    display: none;
+  }
+
+  .zoneBody {
+    grid-column: 1;
+  }
+
+  .zoneActions > * {
+    flex: 1;
+  }
+}
+
+/* ---- estado arquivado no cabeçalho da coleção ----
+ * Selo discreto ao lado do título e ação secundária na barra do cabeçalho.
+ * Sem faixa, sem card: o título e o progresso continuam protagonistas. */
+.archivedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  flex-shrink: 0;
+  height: 1.625rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface) / 0.8);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.headerAction {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem 0.625rem;
+  min-width: 0;
+}
+
+.headerError {
+  max-width: 22rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  text-align: right;
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .headerError {
+  color: hsl(var(--destructive-foreground));
+}
+
+.headerStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--success));
+}
+
+.headerStatus:empty {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .headerError {
+    text-align: left;
+  }
+}
+
+/* ---- Biblioteca: entrada "Arquivadas" ----
+ * Ação secundária na barra da biblioteca, ao lado do seletor de modo (mesma
+ * altura e raio); "Nova coleção" continua sendo a única ação de destaque. */
+.archivedLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem 0 0.8125rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.archivedLink:hover {
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+  background: hsl(var(--surface));
+}
+
+.archivedLink:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.archivedCount {
+  min-width: 1.375rem;
+  height: 1.375rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: hsl(var(--surface-muted));
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+/* Estado vazio da estante: a mesma entrada, centralizada sob a criação. */
+.archivedEmpty {
+  margin-top: 0.25rem;
+}
+
+.archivedTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}

@@ -25,6 +25,7 @@ import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "./binder-cover";
 import heroStyles from "./collection-hero.module.css";
 import { CollectionSettingsButton } from "./collection-manage";
+import { ReactivateCollectionButton, ReactivatedStatus } from "./collection-lifecycle";
 import manageStyles from "./collection-manage.module.css";
 import { CollectionTitle } from "./collection-title";
 import { PokedexBulkLauncher } from "./pokedex-bulk-link";
@@ -129,19 +130,24 @@ export function PokedexCollectionView({
             Minhas coleções
           </Link>
           {canManage ? (
-            <CollectionSettingsButton
-              collectionId={collection.id}
-              collectionName={collection.name}
-              kind="pokedex"
-              identity={{
-                name: collection.name,
-                finish: collection.finish,
-                finishEditable: collection.finishEditable,
-                coverCode: codeEditable ? collection.coverCode : undefined,
-                hasCoverImage: coverUpload ? collection.coverLogoPath !== null : undefined,
-                userId: coverUpload ? userId : null,
-              }}
-            />
+            <div className={manageStyles.heroBarActions}>
+              <ReactivatedStatus collectionId={collection.id} />
+              <CollectionSettingsButton
+                collectionId={collection.id}
+                collectionName={collection.name}
+                kind="pokedex"
+                identity={{
+                  name: collection.name,
+                  finish: collection.finish,
+                  finishEditable: collection.finishEditable,
+                  coverCode: codeEditable ? collection.coverCode : undefined,
+                  hasCoverImage: coverUpload ? collection.coverLogoPath !== null : undefined,
+                  userId: coverUpload ? userId : null,
+                }}
+              />
+            </div>
+          ) : !active ? (
+            <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
           ) : null}
         </div>
         <div className={`${heroStyles.stage} ${pkxStyles.heroStage}`}>
@@ -153,7 +159,7 @@ export function PokedexCollectionView({
           </div>
           <div className={pkxStyles.heroIdentity}>
             <div className={pkxStyles.heroTitle}>
-              <CollectionTitle name={collection.name} />
+              <CollectionTitle name={collection.name} archived={!active} />
             </div>
             <p className={pkxStyles.heroScope}>
               Pokédex Nacional
@@ -163,7 +169,6 @@ export function PokedexCollectionView({
                   <strong>{scopeText}</strong>
                 </>
               ) : null}
-              {!active ? " · Arquivada" : null}
             </p>
           </div>
         </div>
@@ -207,6 +212,7 @@ export function PokedexCollectionView({
           <PokedexHeroStage lineup={heroLineup} label={heroLabel} />
         </div>
       </header>
+
 
       <section className={`${heroStyles.gallery} ${pkxStyles.gallery}`} aria-labelledby="pokedex-especies">
         <div className={`${heroStyles.galleryHead} ${pkxStyles.galleryHead}`}>

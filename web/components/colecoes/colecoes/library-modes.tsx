@@ -59,6 +59,9 @@ export function LibraryModes({
   cardNodes,
   children,
   meta = null,
+  title = "Minha biblioteca",
+  reorderable = true,
+  headerAside = null,
 }: {
   initialMode: LibraryMode;
   items: readonly CollectionSummary[];
@@ -69,7 +72,14 @@ export function LibraryModes({
   children?: ReactNode;
   /** Linha discreta sob o título da seção (ex.: faixa exibida quando há paginação). */
   meta?: string | null;
+  /** Título da seção (Biblioteca ativa ou Arquivadas). */
+  title?: string;
+  /** Arquivadas não se reordenam: a ordem manual é da estante ativa. */
+  reorderable?: boolean;
+  /** Ação secundária na barra da seção, antes do seletor de modo (ex.: "Arquivadas"). */
+  headerAside?: ReactNode;
 }) {
+  const canReorder = LIBRARY_REORDER_ENABLED && reorderable;
   const router = useRouter();
   const [mode, setMode] = useState<LibraryMode>(initialMode);
   const serverOrder = useMemo(() => items.map((item) => item.id), [items]);
@@ -149,32 +159,35 @@ export function LibraryModes({
       <div className={styles.head}>
         <div className={styles.headText}>
           <h2 id={headingId} className={styles.headTitle}>
-            Minha biblioteca
+            {title}
           </h2>
           {meta ? <p className={styles.headMeta}>{meta}</p> : null}
         </div>
-        <fieldset className={styles.switcher}>
-          <legend className="sr-only">Modo de visualização</legend>
-          {MODES.map(({ id, label, icon: Icon }) => (
-            <label key={id} className={styles.option} data-checked={mode === id || undefined}>
-              <input
-                type="radio"
-                name={groupName}
-                value={id}
-                checked={mode === id}
-                onChange={() => choose(id)}
-                className={styles.optionInput}
-              />
-              <Icon className={styles.optionIcon} aria-hidden="true" />
-              <span className={styles.optionLabel}>{label}</span>
-            </label>
-          ))}
-        </fieldset>
+        <div className={styles.headActions}>
+          {headerAside}
+          <fieldset className={styles.switcher}>
+            <legend className="sr-only">Modo de visualização</legend>
+            {MODES.map(({ id, label, icon: Icon }) => (
+              <label key={id} className={styles.option} data-checked={mode === id || undefined}>
+                <input
+                  type="radio"
+                  name={groupName}
+                  value={id}
+                  checked={mode === id}
+                  onChange={() => choose(id)}
+                  className={styles.optionInput}
+                />
+                <Icon className={styles.optionIcon} aria-hidden="true" />
+                <span className={styles.optionLabel}>{label}</span>
+              </label>
+            ))}
+          </fieldset>
+        </div>
       </div>
 
       <div id={panelId} className={styles.panel} data-mode={mode}>
         {mode === "cards" ? (
-          LIBRARY_REORDER_ENABLED && order.length > 1 ? (
+          canReorder && order.length > 1 ? (
             <LibrarySortable
               ids={order}
               labels={labels}
@@ -194,7 +207,7 @@ export function LibraryModes({
           )
         ) : null}
         {mode === "lista" ? (
-          LIBRARY_REORDER_ENABLED && order.length > 1 ? (
+          canReorder && order.length > 1 ? (
             <LibrarySortable
               ids={order}
               labels={labels}
@@ -222,7 +235,7 @@ export function LibraryModes({
         ) : null}
       </div>
 
-      {LIBRARY_REORDER_ENABLED ? (
+      {canReorder ? (
         <p
           className={styles.orderStatus}
           data-tone={orderStatus?.tone}

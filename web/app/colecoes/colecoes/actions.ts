@@ -49,6 +49,7 @@ import {
   normalizeCopyIds,
 } from "@/lib/colecoes/free-collection";
 import { LIBRARY_REORDER_ENABLED } from "@/lib/colecoes/library-order";
+import { type LifecycleFailure, type LifecycleStatus, classifyLifecycleFailure, isLifecycleStatus } from "@/lib/colecoes/collection-lifecycle";
 import {
   type CompletionObjective,
   MASTER_SET_ADD_FROM_ACERVO_ENABLED,
@@ -1930,4 +1931,41 @@ export async function linkPokedexBulk(input: {
   if (error || !Array.isArray(data)) return linkFail("allocate_physical_cards_to_collection", startedAt, error ?? { code: "BAD_SHAPE" });
   linkWritten("bulk", startedAt, { requested: ids.length, linked: data.length });
   return { ok: true, linked: data.length };
+}
+
+// ---------------------------------------------------------------------------
+// Ciclo de vida — arquivar e reativar (V1-04, incremento 01; 5037/5038 no LIVE)
+// ---------------------------------------------------------------------------
+
+type LifecycleResult = { ok: true; status: LifecycleStatus } | { ok: false; reason: LifecycleFailure };
+
+/**
+ * Arquiva ou reativa a coleção do usuário da sessão. A autorização é do banco
+ * (`owner_user_id = auth.uid()` dentro das 5037/5038): coleção alheia recebe a
+ * mesma recusa de uma inexistente. As duas funções são idempotentes — repetir o
+ * envio devolve o estado atual sem nova gravação. Exemplares, vínculos,
+ * fichário e locais não são tocados.
+ */
+async function changeLifecycle(fn: "archive_collection" | "reactivate_collection", collectionId: unknown): Promise<LifecycleResult> {
+  if (!isCollectionId(collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc(fn, { p_collection_id: collectionId });
+  const row = Array.isArray(data) ? (data[0] as { lifecycle_status?: unknown } | undefined) : undefined;
+  if (error || !row || !isLifecycleStatus(row.lifecycle_status)) {
+    const reason = error ? classifyLifecycleFailure(error.code, error.message) : "unavailable";
+    console.error(JSON.stringify({ scope: "colecoes.lifecycle", fn, ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE", reason }));
+    return { ok: false, reason };
+  }
+  console.info(JSON.stringify({ scope: "colecoes.lifecycle", fn, ms: Date.now() - startedAt, status: row.lifecycle_status }));
+  revalidatePath(COLECOES_PATH, "layout");
+  return { ok: true, status: row.lifecycle_status };
+}
+
+export async function archiveCollection(input: { collectionId: string }): Promise<LifecycleResult> {
+  return changeLifecycle("archive_collection", input?.collectionId);
+}
+
+export async function reactivateCollection(input: { collectionId: string }): Promise<LifecycleResult> {
+  return changeLifecycle("reactivate_collection", input?.collectionId);
 }

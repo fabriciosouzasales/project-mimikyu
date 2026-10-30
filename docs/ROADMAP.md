@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.56 |
+| **Versão** | 2.57 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -36,7 +36,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > | V1-01 | Acervo: registrar cartas e Set inteiro, cópias, remover, busca e filtros, locais | C-03, C-47/48, NS Fluxos 2/5 | Entregue |
 > | V1-02 | Coleções de Set, livre e Pokédex; Master Set; Biblioteca; renomear e capa; vincular exemplares | C-01–C-37, C-187–C-190, NS-16/17 | Entregue |
 > | V1-03 | Fichário Digital atual (montagem, bolsos, imagens, identidade, compartilhado entre coleções do mesmo dono, referências, novidades, histórico) | C-38–C-46, C-191–C-209 | Entregue; publicação da S7 (P3-B) a confirmar |
-> | V1-04 | Arquivar, reativar e excluir coleção | C-06, C-13, C-30, C-37; N26 | Backend no LIVE (`5037`–`5039`); falta interface |
+> | V1-04 | Arquivar, reativar e excluir coleção | C-06, C-13, C-30, C-37; N26 | Backend no LIVE (`5037`–`5039`). **Arquivar e reativar: interface implementada localmente (2026-10-29, incremento 01), aguardando homologação e commit.** Excluir: próximo incremento |
 > | V1-05 | Desmontar e excluir fichário; transferir a âncora (E19/E19b/E20) | C-194, C-197 | Backend no LIVE (`5226`; `5254`/`5292`); falta interface |
 > | V1-06 | Adicionar cartas e Set inteiro **a partir da coleção** e continuidade após a criação (Fluxos 1.6, 2 e 5) | NS §2 (normativo) | Envelopes `5150`/`5157` aceitam alocação; falta interface |
 > | V1-07 | Reserva de bolso vazio para uma carta específica | C-42 | Hoje só "fixar" a carta presente |
@@ -48,6 +48,8 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > | V1-13 | Compartilhamento B: membros EDITOR (curadoria de layout, reservas, páginas e metadados; nunca alocação) | C-146–C-150 | Depende de V1-12 |
 > | V1-14 | Relatórios de Collection: inventário, valor estimado do acervo e por coleção, progresso e faltantes, checklist por coleção | ROADMAP 2.53 | Não iniciado |
 > | V1-15 | Encerramento de qualidade da V1.0 (NS-19) | NS §4, NS-19 | — |
+>
+> **Atividade transversal obrigatória antes do lançamento — `V1-UX-01 — Button System Consistency` (2026-10-29, decisão do proprietário).** Alturas, raios, espaçamentos e proporções de botões variam entre telas; a consolidação é pendência obrigatória de qualidade visual da V1.0. Não é iniciada agora. **Regra imediata:** os próximos incrementos reutilizam os botões e padrões canônicos do Design System, sem novas variações arbitrárias. **Na execução:** inventariar as variantes efetivamente usadas e consolidar tamanhos, raios, espaçamentos, ícones e estados interativos, preservando a identidade MMKYU (dourado institucional, proporções elegantes, hierarquia clara, arredondamento moderado) e priorizando uma altura padrão compacta sem prejuízo de acessibilidade e uso mobile. Medidas numéricas só depois de examinar o Design System existente.
 >
 > **Dependências funcionais reais:** V1-04 (excluir coleção) depende de V1-05, porque excluir coleção com fichário é recusado (C-194); V1-13 depende de V1-12; V1-14 (valor) depende de V1-09; V1-12 exige variantes de leitura para membros e público em todas as leituras hoje restritas ao dono (`get_my_*`), sem expor acervo, locais ou proveniência; V1-10, V1-11 e V1-12 exigem modelo físico novo (proposta SQL executada pelo proprietário); o Nível 1 da Conexão Inteligente depende de V1-11. As demais entregas reaproveitam contratos já no LIVE.
 >
@@ -853,3 +855,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.54 | **BULK-05/BULK-06 retirados do backlog (2026-10-29, decisão do proprietário).** Registro explícito no bloco da sequência macro; removidos das pendências técnicas vigentes e do item 8 da "Sequência vigente"; menções antigas marcadas como superadas. BULK-01 a BULK-04 permanecem concluídos; nenhum substituto criado. |
 | 2.55 | **Escopo de lançamento da Collection V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário após `COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01`).** Bloco novo no topo de "Now": meta de 30 dias; distinção entre sequência estratégica e escopo obrigatório da V1.0; matriz V1-01 a V1-15 (inclui compartilhamento EDITOR/VIEWER e PUBLIC com titularidade única, arquivar/reativar/excluir coleção, Fluxos 2/5 na coleção, relatórios); precificação NM; diretrizes de relatórios; backlog V2.0 (condição, graduação, custódia); reconciliação PKX × P7; encerramento por NS-19. Itens da Etapa 1 anotados com remissão ao bloco. Sequência macro inalterada. |
 | 2.56 | **Correção final da consolidação V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário).** `BINDER-GRID-RECONFIGURATION` passa de HOLD para **Backlog V2.0** (não bloqueia a V1.0). Marketplace, pagamentos e intermediação comercial retirados do bloco V2.0: oportunidades futuras sem versão comprometida, fora do escopo inicial da Conexão Inteligente. Matriz V1-01 a V1-15 e sequência estratégica inalteradas. |
+| 2.57 | **`V1-UX-01 — Button System Consistency` registrado (2026-10-29, decisão do proprietário).** Atividade transversal obrigatória antes do lançamento V1.0, no bloco "COLLECTION V1.0"; não iniciada; próximos incrementos reutilizam os botões canônicos. Matriz V1-01 a V1-15 inalterada. |

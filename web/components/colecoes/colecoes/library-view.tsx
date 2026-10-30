@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Layers, ShieldCheck, TrendingUp } from "lucide-react";
+import { AlertTriangle, Archive, ArrowLeft, Layers, ShieldCheck, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
@@ -27,6 +27,8 @@ import { CreateCollectionLauncher, type OwnedSet } from "./create-collection";
 import { LibraryModes } from "./library-modes";
 import { CollectionKindLine } from "./collection-kind-badge";
 import styles from "./colecoes.module.css";
+import lifecycleStyles from "./collection-lifecycle.module.css";
+import { archivedLibraryHref } from "@/lib/colecoes/collection-lifecycle";
 
 /**
  * Minhas coleções — Biblioteca (Server Component). Três modos (NS-17), com os
@@ -46,8 +48,14 @@ export function LibraryView({
   ownedSets,
   logoUrls,
   mode = "cards",
+  view = "active",
+  archivedCount = null,
 }: {
   page: CollectionsPage | null;
+  /** Estante ativa (padrão) ou coleções arquivadas (V1-04). */
+  view?: "active" | "archived";
+  /** Quantas arquivadas existem (só na estante ativa); `null`/0 = entrada some. */
+  archivedCount?: number | null;
   /** Modo inicial (URL › cookie › Cards), resolvido no servidor para não piscar. */
   mode?: LibraryMode;
   /** Logos de Set assinados para esta página (vazio quando a sessão não pode lê-los). */
@@ -59,6 +67,82 @@ export function LibraryView({
   const isEmpty = page !== null && page.total === 0;
   const pages = page ? libraryTotalPages(page.total) : 1;
   const logoUrlRecord = Object.fromEntries(logoUrls);
+  const archivedView = view === "archived";
+  const pageHref = archivedView ? archivedLibraryHref : libraryHref;
+
+  if (archivedView) {
+    return (
+      <div className={acervoStyles.root}>
+        <header className={`${acervoStyles.hero} ${styles.libraryHero}`}>
+          <div className={acervoStyles.stageGlow} aria-hidden="true" />
+          {page && page.total > 0 ? (
+            <span className={acervoStyles.numeral} aria-hidden="true">
+              {formatCount(page.total)}
+            </span>
+          ) : null}
+          <div className={acervoStyles.heroContent}>
+            <Link href={libraryHref(1)} className={styles.backLink}>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Minhas coleções
+            </Link>
+            <h1 className={acervoStyles.title}>Coleções arquivadas</h1>
+            <p className={acervoStyles.lede}>
+              Fora da estante, <strong>nada perdido</strong>: cartas, vínculos e fichários continuam guardados. Abra uma
+              coleção para consultar ou reativá-la.
+            </p>
+          </div>
+        </header>
+
+        {page === null ? (
+          <ReadError retryHref={archivedLibraryHref(pageNumber)} />
+        ) : isEmpty ? (
+          <section className={acervoStyles.state} aria-labelledby="arquivadas-vazio">
+            <div className={acervoStyles.stateIcon} aria-hidden="true">
+              <Archive className="h-6 w-6" />
+            </div>
+            <h2 id="arquivadas-vazio" className={acervoStyles.stateTitle}>
+              Nenhuma coleção arquivada
+            </h2>
+            <p className={acervoStyles.stateText}>
+              Para arquivar uma coleção que você não está mais acompanhando, abra a coleção e use Ajustes → Arquivar coleção.
+            </p>
+            <Button asChild variant="outline" className={acervoStyles.stateAction}>
+              <Link href={libraryHref(1)}>Voltar para Minhas coleções</Link>
+            </Button>
+          </section>
+        ) : (
+          <LibraryModes
+            key={`arquivadas-${pageNumber}`}
+            initialMode={mode}
+            items={page.items}
+            logoUrls={logoUrlRecord}
+            title="Arquivadas"
+            reorderable={false}
+            meta={
+              pages > 1
+                ? `${formatCount((pageNumber - 1) * LIBRARY_PAGE_SIZE + 1)}–${formatCount(
+                    Math.min(pageNumber * LIBRARY_PAGE_SIZE, page.total),
+                  )} de ${formatCount(page.total)} arquivadas`
+                : null
+            }
+            cardNodes={Object.fromEntries(
+              page.items.map((collection, index) => [
+                collection.id,
+                <Shelf
+                  key={collection.id}
+                  collection={collection}
+                  logoUrl={plateLogoKey(collection) ? logoUrls.get(plateLogoKey(collection) ?? "") ?? null : null}
+                  priority={pageNumber === 1 && index < 4}
+                />,
+              ]),
+            )}
+          >
+            <Pagination pageNumber={pageNumber} pages={pages} href={pageHref} label="Páginas das coleções arquivadas" />
+          </LibraryModes>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={acervoStyles.root}>
@@ -97,13 +181,14 @@ export function LibraryView({
       {page === null ? (
         <ReadError retryHref={libraryHref(pageNumber)} />
       ) : isEmpty ? (
-        <EmptyLibrary locations={locations} ownedSets={ownedSets} />
+        <EmptyLibrary locations={locations} ownedSets={ownedSets} archivedCount={archivedCount} />
       ) : (
         <LibraryModes
           key={pageNumber}
           initialMode={mode}
           items={page.items}
           logoUrls={logoUrlRecord}
+          headerAside={archivedCount ? <ArchivedLink count={archivedCount} /> : null}
           meta={
             pages > 1
               ? `${formatCount((pageNumber - 1) * LIBRARY_PAGE_SIZE + 1)}–${formatCount(
@@ -123,23 +208,7 @@ export function LibraryView({
             ]),
           )}
         >
-          {pages > 1 ? (
-            <nav className={acervoStyles.pagination} aria-label="Páginas das coleções">
-              {pageNumber > 1 ? (
-                <Button asChild variant="outline" className="h-11 min-w-11">
-                  <Link href={libraryHref(pageNumber - 1)}>Anterior</Link>
-                </Button>
-              ) : null}
-              <span aria-current="page">
-                Página {formatCount(Math.min(pageNumber, pages))} de {formatCount(pages)}
-              </span>
-              {pageNumber < pages ? (
-                <Button asChild variant="outline" className="h-11 min-w-11">
-                  <Link href={libraryHref(pageNumber + 1)}>Próxima</Link>
-                </Button>
-              ) : null}
-            </nav>
-          ) : null}
+          <Pagination pageNumber={pageNumber} pages={pages} href={pageHref} label="Páginas das coleções" />
         </LibraryModes>
       )}
     </div>
@@ -269,7 +338,7 @@ function Shelf({
     <Link
       href={collectionHref(collection.id)}
       className={`${styles.shelfItem} ${coverStyles.trigger}`}
-      aria-label={`${collection.name}, ${subtitle}, ${label}${collection.isComplete ? ", completa" : ""}`}
+      aria-label={`${collection.name}, ${subtitle}, ${label}${collection.isComplete ? ", completa" : ""}${collection.lifecycleStatus === "ARCHIVED" ? ", arquivada" : ""}`}
     >
       <BinderCover
         finish={collection.finish}
@@ -286,6 +355,12 @@ function Shelf({
         <span className={styles.shelfKind}>
           <CollectionKindLine collection={collection} />
         </span>
+        {collection.lifecycleStatus === "ARCHIVED" ? (
+          <span className={lifecycleStyles.archivedTag}>
+            <Archive className="h-3 w-3" aria-hidden="true" />
+            Arquivada
+          </span>
+        ) : null}
         {view.kind === "free" ? (
           // Coleção livre: sem meta, sem barra — só o que ela reúne (C-20).
           <div className={styles.shelfProgress}>
@@ -312,7 +387,15 @@ function Shelf({
   );
 }
 
-function EmptyLibrary({ locations, ownedSets }: { locations: StorageOption[] | null; ownedSets: OwnedSet[] }) {
+function EmptyLibrary({
+  locations,
+  ownedSets,
+  archivedCount,
+}: {
+  locations: StorageOption[] | null;
+  ownedSets: OwnedSet[];
+  archivedCount: number | null;
+}) {
   const promises = [
     {
       icon: TrendingUp,
@@ -348,6 +431,11 @@ function EmptyLibrary({ locations, ownedSets }: { locations: StorageOption[] | n
           {FREE_COLLECTION_ENABLED ? " Ou monte uma coleção livre com as cartas que quiser, de qualquer Set." : null}
         </p>
         <CreateCollectionLauncher locations={locations} ownedSets={ownedSets} layout="empty" />
+        {archivedCount ? (
+          <div className={lifecycleStyles.archivedEmpty}>
+            <ArchivedLink count={archivedCount} />
+          </div>
+        ) : null}
         {locations === null ? (
           <p className={acervoStyles.emptyText}>Não foi possível preparar a criação agora. Recarregue a página em instantes.</p>
         ) : null}
@@ -385,5 +473,50 @@ function ReadError({ retryHref }: { retryHref: string }) {
         </Link>
       </Button>
     </section>
+  );
+}
+
+function Pagination({
+  pageNumber,
+  pages,
+  href,
+  label,
+}: {
+  pageNumber: number;
+  pages: number;
+  href: (page: number) => string;
+  label: string;
+}) {
+  if (pages <= 1) return null;
+  return (
+    <nav className={acervoStyles.pagination} aria-label={label}>
+      {pageNumber > 1 ? (
+        <Button asChild variant="outline" className="h-11 min-w-11">
+          <Link href={href(pageNumber - 1)}>Anterior</Link>
+        </Button>
+      ) : null}
+      <span aria-current="page">
+        Página {formatCount(Math.min(pageNumber, pages))} de {formatCount(pages)}
+      </span>
+      {pageNumber < pages ? (
+        <Button asChild variant="outline" className="h-11 min-w-11">
+          <Link href={href(pageNumber + 1)}>Próxima</Link>
+        </Button>
+      ) : null}
+    </nav>
+  );
+}
+
+/** Entrada discreta para as arquivadas (só aparece quando existe alguma). */
+function ArchivedLink({ count }: { count: number | null }) {
+  if (!count) return null;
+  return (
+    <Link href={archivedLibraryHref(1)} className={lifecycleStyles.archivedLink}>
+      <Archive className="h-4 w-4" aria-hidden="true" />
+      Arquivadas
+      <span className={lifecycleStyles.archivedCount} aria-label={`${formatCount(count)} ${count === 1 ? "coleção" : "coleções"}`}>
+        {formatCount(count)}
+      </span>
+    </Link>
   );
 }

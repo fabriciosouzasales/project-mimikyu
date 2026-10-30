@@ -26,6 +26,7 @@ import { CollectionTitle } from "./collection-title";
 import { LinkCardsLauncher } from "./link-cards";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
 import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
+import { ReactivateCollectionButton, ReactivatedStatus } from "./collection-lifecycle";
 import manageStyles from "./collection-manage.module.css";
 import { type MasterSetPosition, type MasterSetPositionsPage, heroCardsFromMasterSet } from "@/lib/colecoes/master-set";
 import { MasterSetGallery } from "./master-set-gallery";
@@ -117,17 +118,22 @@ export function CollectionView({
             Minhas coleções
           </Link>
           {canManage ? (
-            <CollectionSettingsButton
-              collectionId={collection.id}
-              collectionName={collection.name}
-              kind="card_set"
-              identity={{
-                name: collection.name,
-                finish: collection.finish,
-                finishEditable: collection.finishEditable,
-                setName: collection.cardSetName,
-              }}
-            />
+            <div className={manageStyles.heroBarActions}>
+              <ReactivatedStatus collectionId={collection.id} />
+              <CollectionSettingsButton
+                collectionId={collection.id}
+                collectionName={collection.name}
+                kind="card_set"
+                identity={{
+                  name: collection.name,
+                  finish: collection.finish,
+                  finishEditable: collection.finishEditable,
+                  setName: collection.cardSetName,
+                }}
+              />
+            </div>
+          ) : !active ? (
+            <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
           ) : null}
         </div>
         <div className={heroStyles.stage}>
@@ -149,7 +155,7 @@ export function CollectionView({
               </div>
               <div className={heroStyles.identityText}>
                 <div className={heroStyles.title}>
-                  <CollectionTitle name={collection.name} />
+                  <CollectionTitle name={collection.name} archived={!active} />
                 </div>
                 <p className={heroStyles.setLine}>
                   {setCode ? <span className={heroStyles.setCode}>{setCode.toUpperCase()}</span> : null}
@@ -159,7 +165,6 @@ export function CollectionView({
                   ) : null}
                   <span>
                     {collectionKindLabel(collection.completionPolicy)}
-                    {!active ? " · Arquivada" : null}
                   </span>
                 </p>
               </div>
@@ -208,6 +213,7 @@ export function CollectionView({
           <CollectionHeroFan selection={hero} />
         </div>
       </header>
+
 
       <section className={heroStyles.gallery} aria-labelledby="colecao-cartas">
         <div className={heroStyles.galleryHead}>

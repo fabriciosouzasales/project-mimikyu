@@ -63,6 +63,15 @@
   min-width: 0;
 }
 
+/* Ações da barra: entrada secundária (Arquivadas) + seletor de modo, alinhados. */
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .headTitle {
   margin: 0;
   font: 700 clamp(1.25rem, 1.5vw, 1.5rem) / 1.2 var(--font-heading);

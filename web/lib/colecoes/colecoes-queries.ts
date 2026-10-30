@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type BinderFinish, resolveFinish } from "./binder-finish.ts";
+import { archivedCount, archivedOffset } from "./collection-lifecycle.ts";
 import { COVER_BUCKET, FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, isCoverCode, isCoverPath, isFreeCollection } from "./free-collection.ts";
 import { LIBRARY_PAGE_SIZE, POSITIONS_PAGE_SIZE, type PositionFilter, type StorageOption, toPositionsRpcFilter } from "./colecoes.ts";
 import { MASTER_SET_PAGE_SIZE, type MasterSetPositionsPage, masterSetHeroOffset, parseMasterSetPositions } from "./master-set.ts";
@@ -108,6 +109,58 @@ export async function getMyCollections(supabase: SupabaseClient, page: number): 
   }
   const rows = data as CollectionRow[];
   return { items: rows.map(toSummary), total: rows[0] ? Number(rows[0].total_count) : 0 };
+}
+
+/**
+ * Quantas coleções arquivadas o usuário tem (V1-04): todas − ativas, com duas
+ * leituras de uma linha (o `total_count` vem antes do limite). `null` = falha —
+ * a entrada "Arquivadas" simplesmente não aparece.
+ */
+export async function getMyArchivedCount(supabase: SupabaseClient, activeTotal?: number): Promise<number | null> {
+  const startedAt = Date.now();
+  const read = async (includeArchived: boolean) => {
+    const { data, error } = await supabase.rpc("get_my_collections", { p_include_archived: includeArchived, p_limit: 1, p_offset: 0 });
+    if (error || !Array.isArray(data)) {
+      logReadFailure("get_my_collections", startedAt, error);
+      return null;
+    }
+    const first = (data as CollectionRow[])[0];
+    return first ? Number(first.total_count) : 0;
+  };
+  const [all, active] = await Promise.all([read(true), activeTotal === undefined ? read(false) : Promise.resolve(activeTotal)]);
+  if (all === null || active === null) return null;
+  return archivedCount(all, active);
+}
+
+/**
+ * Uma página das coleções arquivadas (V1-04). A 5182 ordena ativas primeiro,
+ * então a página começa logo depois de todas as ativas — paginação no banco.
+ * Linhas ativas que escaparem (corrida com outra aba) são descartadas.
+ */
+export async function getMyArchivedCollections(supabase: SupabaseClient, page: number): Promise<CollectionsPage | null> {
+  const startedAt = Date.now();
+  const activeRead = await supabase.rpc("get_my_collections", { p_include_archived: false, p_limit: 1, p_offset: 0 });
+  if (activeRead.error || !Array.isArray(activeRead.data)) {
+    logReadFailure("get_my_collections", startedAt, activeRead.error);
+    return null;
+  }
+  const activeFirst = (activeRead.data as CollectionRow[])[0];
+  const activeTotal = activeFirst ? Number(activeFirst.total_count) : 0;
+  const { data, error } = await supabase.rpc("get_my_collections", {
+    p_include_archived: true,
+    p_limit: LIBRARY_PAGE_SIZE,
+    p_offset: archivedOffset(activeTotal, page, LIBRARY_PAGE_SIZE),
+  });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_collections", startedAt, error);
+    return null;
+  }
+  const rows = data as CollectionRow[];
+  const allTotal = rows[0] ? Number(rows[0].total_count) : activeTotal;
+  return {
+    items: rows.filter((row) => row.lifecycle_status === "ARCHIVED").map(toSummary),
+    total: archivedCount(allTotal, activeTotal),
+  };
 }
 
 /**

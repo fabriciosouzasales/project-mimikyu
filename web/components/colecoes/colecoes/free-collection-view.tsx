@@ -28,6 +28,7 @@ import freeStyles from "./free-collection.module.css";
 import { FreePickerBarButton, FreePickerButton, FreePickerProvider } from "./free-link-picker";
 import { COLLECTION_MANAGE_ENABLED } from "@/lib/colecoes/collection-manage";
 import { CollectionManageProvider, CollectionSettingsButton, ManageCopiesButton } from "./collection-manage";
+import { ReactivateCollectionButton, ReactivatedStatus } from "./collection-lifecycle";
 import manageStyles from "./collection-manage.module.css";
 import styles from "./colecoes.module.css";
 
@@ -115,19 +116,24 @@ export function FreeCollectionView({
             Minhas coleções
           </Link>
           {canManage ? (
-            <CollectionSettingsButton
-              collectionId={collection.id}
-              collectionName={collection.name}
-              kind="free"
-              identity={{
-                name: collection.name,
-                finish: collection.finish,
-                finishEditable: collection.finishEditable,
-                coverCode: FREE_COVER_CODE_ENABLED ? collection.coverCode : undefined,
-                hasCoverImage: FREE_COVER_UPLOAD_ENABLED ? collection.coverLogoPath !== null : undefined,
-                userId: FREE_COVER_UPLOAD_ENABLED ? userId : null,
-              }}
-            />
+            <div className={manageStyles.heroBarActions}>
+              <ReactivatedStatus collectionId={collection.id} />
+              <CollectionSettingsButton
+                collectionId={collection.id}
+                collectionName={collection.name}
+                kind="free"
+                identity={{
+                  name: collection.name,
+                  finish: collection.finish,
+                  finishEditable: collection.finishEditable,
+                  coverCode: FREE_COVER_CODE_ENABLED ? collection.coverCode : undefined,
+                  hasCoverImage: FREE_COVER_UPLOAD_ENABLED ? collection.coverLogoPath !== null : undefined,
+                  userId: FREE_COVER_UPLOAD_ENABLED ? userId : null,
+                }}
+              />
+            </div>
+          ) : !active ? (
+            <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
           ) : null}
         </div>
         <div className={heroStyles.stage}>
@@ -138,7 +144,7 @@ export function FreeCollectionView({
               </div>
               <div className={heroStyles.identityText}>
                 <div className={heroStyles.title}>
-                  <CollectionTitle name={collection.name} />
+                  <CollectionTitle name={collection.name} archived={!active} />
                 </div>
                 <p className={heroStyles.setLine}>
                   <span className={freeStyles.kindLine}>
@@ -147,7 +153,6 @@ export function FreeCollectionView({
                   </span>
                   <span>
                     Organizada do seu jeito
-                    {!active ? " · Arquivada" : null}
                   </span>
                 </p>
               </div>
@@ -180,6 +185,7 @@ export function FreeCollectionView({
           <CollectionHeroFan selection={selection} label="Cartas mais recentes da coleção" />
         </div>
       </header>
+
 
       <section className={heroStyles.gallery} aria-labelledby="colecao-cartas">
         <div className={heroStyles.galleryHead}>
