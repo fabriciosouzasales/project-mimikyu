@@ -21,6 +21,7 @@ import {
   fitWithin,
   imageFailureMessage,
   isDefiniteRefusal,
+  isSlotImagePath,
   sourceCheckMessage,
   uploadFailureMessage,
 } from "@/lib/colecoes/binder-images";
@@ -144,6 +145,20 @@ async function removeFiles(paths: string[]): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Arquivos devolvidos pela desmontagem do fichário (5294, V1-05): já sem
+ * vínculo no banco, apagados em lotes. Melhor esforço — o que sobrar é
+ * recolhido por `cleanupUnlinkedSlotImagesOnce` numa próxima sessão.
+ */
+export async function removeDismantledImageFiles(paths: readonly string[]): Promise<boolean> {
+  const own = paths.filter(isSlotImagePath);
+  let ok = true;
+  for (let i = 0; i < own.length; i += 100) {
+    ok = (await removeFiles(own.slice(i, i + 100))) && ok;
+  }
+  return ok;
 }
 
 export type LinkOutcome =

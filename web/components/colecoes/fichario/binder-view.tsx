@@ -9,6 +9,7 @@ import { mayHaveCatalogNovelties } from "@/lib/colecoes/binder-catalog";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import { BinderAssembly } from "./binder-assembly";
 import { BinderJoinOrCreate } from "./binder-join";
+import { BinderLifecycleSection } from "./binder-lifecycle";
 import { BinderWorkspace } from "./binder-workspace";
 import styles from "./binder.module.css";
 
@@ -99,7 +100,24 @@ export function BinderView({
             title="Este fichário está sem páginas"
             body="As páginas foram removidas. O fichário continua existindo e pode ser organizado de novo."
             backHref={backHref}
-          />
+          >
+            {header.layoutId ? (
+              <div className={styles.blockedManage}>
+                <h3 className={styles.blockedManageTitle}>Gerenciar fichário</h3>
+                <BinderLifecycleSection
+                  collectionId={collection.id}
+                  collectionName={collection.name}
+                  layoutId={header.layoutId}
+                  role={header.role}
+                  editable={header.editable}
+                  pageCount={0}
+                  participantCount={header.participantCount}
+                  ownerCollectionName={header.ownerCollectionName}
+                  exit={{ kind: "link", href: backHref }}
+                />
+              </div>
+            ) : null}
+          </Blocked>
         ) : (
           <div className="mx-auto max-w-md py-16 text-center" role="alert">
             <p className="font-heading text-xl font-extrabold">Não conseguimos abrir as páginas</p>
@@ -147,6 +165,7 @@ function Blocked({
   title,
   body,
   backHref,
+  children,
 }: {
   finish: BinderFinish;
   setName: string | null;
@@ -154,6 +173,8 @@ function Blocked({
   title: string;
   body: string;
   backHref: string;
+  /** Conteúdo extra abaixo das ações (V1-05: gerenciar o fichário vazio). */
+  children?: React.ReactNode;
 }) {
   return (
     <section className={styles.blocked} aria-labelledby="fichario-indisponivel">
@@ -168,6 +189,7 @@ function Blocked({
             Voltar à coleção
           </Link>
         </div>
+        {children}
       </div>
     </section>
   );

@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 2.57 |
+| **Versão** | 2.58 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -37,7 +37,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > | V1-02 | Coleções de Set, livre e Pokédex; Master Set; Biblioteca; renomear e capa; vincular exemplares | C-01–C-37, C-187–C-190, NS-16/17 | Entregue |
 > | V1-03 | Fichário Digital atual (montagem, bolsos, imagens, identidade, compartilhado entre coleções do mesmo dono, referências, novidades, histórico) | C-38–C-46, C-191–C-209 | Entregue; publicação da S7 (P3-B) a confirmar |
 > | V1-04 | Arquivar, reativar e excluir coleção | C-06, C-13, C-30, C-37; N26 | Backend no LIVE (`5037`–`5039`). **Arquivar e reativar: interface implementada localmente (2026-10-29, incremento 01), aguardando homologação e commit.** Excluir: próximo incremento |
-> | V1-05 | Desmontar e excluir fichário; transferir a âncora (E19/E19b/E20) | C-194, C-197 | Backend no LIVE (`5226`; `5254`/`5292`); falta interface |
+> | V1-05 | Desmontar e excluir fichário; transferir a âncora (E19/E19b/E20) | C-194, C-197 | Backend no LIVE (`5242`/`5294`, `5293`, `5254`/`5292`); interface implementada localmente em "Gerenciar fichário" (Centro de Controle e fichário sem páginas), aguardando homologação visual |
 > | V1-06 | Adicionar cartas e Set inteiro **a partir da coleção** e continuidade após a criação (Fluxos 1.6, 2 e 5) | NS §2 (normativo) | Envelopes `5150`/`5157` aceitam alocação; falta interface |
 > | V1-07 | Reserva de bolso vazio para uma carta específica | C-42 | Hoje só "fixar" a carta presente |
 > | V1-08 | Lupa e detalhe da carta no fichário | Etapa 1 | Não iniciado |
@@ -856,3 +856,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 2.55 | **Escopo de lançamento da Collection V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário após `COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01`).** Bloco novo no topo de "Now": meta de 30 dias; distinção entre sequência estratégica e escopo obrigatório da V1.0; matriz V1-01 a V1-15 (inclui compartilhamento EDITOR/VIEWER e PUBLIC com titularidade única, arquivar/reativar/excluir coleção, Fluxos 2/5 na coleção, relatórios); precificação NM; diretrizes de relatórios; backlog V2.0 (condição, graduação, custódia); reconciliação PKX × P7; encerramento por NS-19. Itens da Etapa 1 anotados com remissão ao bloco. Sequência macro inalterada. |
 | 2.56 | **Correção final da consolidação V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário).** `BINDER-GRID-RECONFIGURATION` passa de HOLD para **Backlog V2.0** (não bloqueia a V1.0). Marketplace, pagamentos e intermediação comercial retirados do bloco V2.0: oportunidades futuras sem versão comprometida, fora do escopo inicial da Conexão Inteligente. Matriz V1-01 a V1-15 e sequência estratégica inalteradas. |
 | 2.57 | **`V1-UX-01 — Button System Consistency` registrado (2026-10-29, decisão do proprietário).** Atividade transversal obrigatória antes do lançamento V1.0, no bloco "COLLECTION V1.0"; não iniciada; próximos incrementos reutilizam os botões canônicos. Matriz V1-01 a V1-15 inalterada. |
+| 2.58 | **V1-05 — interface do ciclo de vida do fichário (2026-10-29, local).** Seção "Gerenciar fichário" no Centro de Controle (transferir, desmontar) e no fichário sem páginas (transferir, excluir vazio), sobre 5242/5294, 5293 e 5254 do LIVE, sem mudança de banco; aguardando homologação visual. |

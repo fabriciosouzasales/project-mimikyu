@@ -1,0 +1,311 @@
+/*
+ * Gerenciar fichário (V1-05). Mesma composição do bloco "Arquivar coleção"
+ * (collection-lifecycle.module.css): ícone + título + texto + corpo, em
+ * escala compacta para o Centro de Controle (painel estreito, Dark nos dois
+ * temas) e para a página do fichário vazio (tema do app). Só tokens.
+ *
+ * Reversível (transferir) = borda e botões dourados (CTA padrão);
+ * definitivo (desmontar/excluir) = borda e botões vermelhos (destructive).
+ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.live:empty {
+  display: none;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 1.875rem minmax(0, 1fr);
+  gap: 0.125rem 0.625rem;
+  align-items: start;
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--foreground) / 0.03);
+  transition: border-color 160ms ease;
+}
+
+.card[data-open] {
+  border-color: hsl(var(--foreground) / 0.28);
+}
+
+/* Bordas por natureza da ação (decisão do proprietário, V1-05): dourado =
+ * reversível (transferir), vermelho = definitivo (desmontar/excluir). */
+.reversible,
+.reversible[data-open] {
+  border-color: hsl(var(--primary));
+}
+
+.danger,
+.danger[data-open] {
+  border-color: hsl(var(--destructive));
+}
+
+.icon {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+  color: hsl(var(--muted-foreground));
+}
+
+.icon svg {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.danger .icon {
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .danger .icon {
+  color: hsl(var(--destructive-foreground));
+}
+
+.title {
+  font: 600 0.8125rem / 1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.text {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.body {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 0.5rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.blocked,
+.note {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.blocked {
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--foreground) / 0.05);
+}
+
+.note strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+/* ---- escolha da nova coleção principal ---- */
+
+.choices {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 13.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.legend {
+  margin-bottom: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: hsl(var(--foreground) / 0.04);
+  font-size: 0.8125rem;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.choice:hover {
+  background: hsl(var(--foreground) / 0.08);
+}
+
+.choice[data-selected] {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+
+.choice input {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  accent-color: hsl(var(--primary));
+}
+
+.choice input:focus-visible,
+.ack input:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.choiceName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choiceTag {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- efeitos ---- */
+
+.groupLabel {
+  margin-bottom: -0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.effects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.effects li {
+  display: grid;
+  grid-template-columns: 0.875rem minmax(0, 1fr);
+  gap: 0.4375rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground));
+}
+
+.effects svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  margin-top: 0.125rem;
+  color: hsl(var(--success));
+}
+
+.removals svg {
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .removals svg {
+  color: hsl(var(--destructive-foreground));
+}
+
+.ack {
+  display: grid;
+  grid-template-columns: 0.875rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--destructive) / 0.07);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+}
+
+.ack input {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: 0.1875rem;
+  accent-color: hsl(var(--destructive));
+}
+
+/* ---- resultado ---- */
+
+.success,
+.endedStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: hsl(var(--success));
+}
+
+.success svg,
+.endedStatus svg {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: 0.125rem;
+}
+
+.endedStatus {
+  margin-top: 0.5rem;
+}
+
+.endedStatus:empty {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .icon {
+    display: none;
+  }
+
+  .body {
+    grid-column: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .choice {
+    transition: none;
+  }
+}

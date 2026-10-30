@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
-import { ArrowRight, ChevronDown, History, Info, LayoutGrid, LibraryBig, PawPrint, PenLine, X } from "lucide-react";
+import { ArrowRight, ChevronDown, History, Info, LayoutGrid, LibraryBig, PawPrint, PenLine, Settings2, X } from "lucide-react";
 import { readBinderCollections, readBinderOccupancy, saveBinderIdentity } from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import type { SpeciesReferenceState } from "@/lib/colecoes/binder-species";
 import { cn } from "@/lib/utils";
 import { InsideCoverFace, insideCoverSurface } from "./binder-chrome";
 import { BinderHistory } from "./binder-history";
+import { BinderLifecycleSection } from "./binder-lifecycle";
 import styles from "./binder-control.module.css";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -69,6 +70,9 @@ export function BinderControlPanel({
   collapsed,
   onToggleSection,
   species = null,
+  editable = false,
+  participantCount = 1,
+  ownerCollectionName = null,
 }: {
   mode: "docked" | "sheet";
   collectionId: string;
@@ -96,6 +100,11 @@ export function BinderControlPanel({
   onToggleSection: (section: ControlSection) => void;
   /** Fichário de coleção Pokédex: mostrar/ocultar os Pokémon dos bolsos vazios. `null` nos demais. */
   species?: SpeciesControl | null;
+  /** V1-05: coleção ativa (desmontar/excluir); arquivada só transfere. */
+  editable?: boolean;
+  /** Coleções que usam o fichário (dona + convidadas). */
+  participantCount?: number;
+  ownerCollectionName?: string | null;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -204,7 +213,7 @@ export function BinderControlPanel({
                 </Link>
               )}
             </div>
-            <p className={cn(styles.hint, "mt-2")}>Compartilhar o fichário com outras coleções e desmontá-lo ficam em Ajustes da coleção.</p>
+            <p className={cn(styles.hint, "mt-2")}>Compartilhar o fichário com outras coleções fica em Ajustes da coleção. Transferir e desmontar ficam em Gerenciar fichário, no fim deste painel.</p>
           </Section>
 
           <Section id="info" title="Informações" icon={Info} collapsed={collapsed} onToggle={onToggleSection}>
@@ -216,6 +225,22 @@ export function BinderControlPanel({
           {layoutId ? (
             <Section id="history" title="Histórico" icon={History} collapsed={collapsed} onToggle={onToggleSection}>
               {historyOpen ? <BinderHistory layoutId={layoutId} refreshKey={`${totalPages}:${contentVersion}:${activityVersion}`} /> : null}
+            </Section>
+          ) : null}
+
+          {layoutId ? (
+            <Section id="manage" title="Gerenciar fichário" icon={Settings2} collapsed={collapsed} onToggle={onToggleSection}>
+              <BinderLifecycleSection
+                collectionId={collectionId}
+                collectionName={collectionName}
+                layoutId={layoutId}
+                role={role}
+                editable={editable}
+                pageCount={totalPages}
+                participantCount={participantCount}
+                ownerCollectionName={ownerCollectionName}
+                exit={backAction}
+              />
             </Section>
           ) : null}
         </div>

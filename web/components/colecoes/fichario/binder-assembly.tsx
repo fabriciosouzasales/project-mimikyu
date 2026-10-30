@@ -22,6 +22,8 @@ import {
   recoveryForBinder,
 } from "@/lib/colecoes/binder";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
+import { BINDER_OPEN_ON_ARRIVAL_KEY } from "@/lib/colecoes/binder-lifecycle";
+import { collectionHref } from "@/lib/colecoes/colecoes";
 import { BinderPageGrid, pocketsFromSample } from "./binder-page";
 import styles from "./binder.module.css";
 
@@ -85,6 +87,17 @@ export function BinderAssembly({
   const extras = preview ? extrasBreakdown(preview) : [];
   const extrasTotal = preview?.extrasTotal ?? 0;
 
+  // Montado (ou já existente): volta à coleção e o fichário abre na sobreposição,
+  // como quando a pessoa clica em "Abrir o fichário" — nunca como página.
+  function openOnCollection() {
+    try {
+      window.sessionStorage.setItem(BINDER_OPEN_ON_ARRIVAL_KEY, collectionId);
+    } catch {
+      // Sem armazenamento: a coleção mostra a entrada "Abrir o fichário".
+    }
+    router.replace(collectionHref(collectionId));
+  }
+
   function confirm() {
     if (!ready || !preview?.planToken) return;
     const token = preview.planToken;
@@ -93,13 +106,13 @@ export function BinderAssembly({
       const result = await createBinder({ collectionId, model, extraPolicy: policy, planToken: token });
       if (result.ok) {
         setNotice({ tone: "info", text: result.outcome === "CREATED" ? "Fichário montado. Abrindo…" : binderFailureMessage("already_exists") });
-        router.refresh();
+        openOnCollection();
         return;
       }
       const recovery = recoveryForBinder(result.reason);
       setNotice({ tone: result.reason === "plan_changed" ? "warning" : "error", text: binderFailureMessage(result.reason) });
       if (recovery === "open_binder") {
-        router.refresh();
+        openOnCollection();
       } else if (recovery === "refresh_preview") {
         setPreview(null);
         await runPreview(model, policy);

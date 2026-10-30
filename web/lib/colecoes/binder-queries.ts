@@ -260,3 +260,53 @@ export async function getMyBinderIdentity(supabase: SupabaseClient, collectionId
   }
   return identity;
 }
+
+/**
+ * Destinos possíveis da transferência da coleção principal (V1-05, E20) —
+ * só leitura, sempre da própria sessão:
+ *  - coleções ATIVAS via R1 (`get_my_collections`, paginado no banco);
+ *  - quem é dona de fichário e quem é convidada de qual, por SELECT com RLS
+ *    `*_select_own` (5105/5229: só linhas de coleções do próprio usuário).
+ * Volume: uma linha por coleção em cada tabela; limite de segurança de 1.000
+ * coleções ativas. `null` = falha (a interface não oferece destinos).
+ * A 5254 revalida tudo no momento da escrita.
+ */
+export async function getMyBinderTransferContext(supabase: SupabaseClient): Promise<{
+  active: { id: string; name: string }[];
+  binderOwners: Set<string>;
+  guestOf: Map<string, string>;
+} | null> {
+  const startedAt = Date.now();
+  const active: { id: string; name: string }[] = [];
+  const pageSize = 100;
+  for (let offset = 0; offset < 1_000; offset += pageSize) {
+    const { data, error } = await supabase.rpc("get_my_collections", { p_include_archived: false, p_limit: pageSize, p_offset: offset });
+    if (error || !Array.isArray(data)) {
+      logReadFailure("get_my_collections", startedAt, error);
+      return null;
+    }
+    for (const row of data as { collection_id?: unknown; name?: unknown; lifecycle_status?: unknown }[]) {
+      if (typeof row.collection_id === "string" && typeof row.name === "string" && row.lifecycle_status === "ACTIVE") {
+        active.push({ id: row.collection_id, name: row.name });
+      }
+    }
+    if (data.length < pageSize) break;
+  }
+  const [layouts, guests] = await Promise.all([
+    supabase.from("collection_layout").select("collection_id").limit(2_000),
+    supabase.from("collection_layout_guest").select("collection_id, layout_id").limit(2_000),
+  ]);
+  if (layouts.error || guests.error || !Array.isArray(layouts.data) || !Array.isArray(guests.data)) {
+    logReadFailure("binder_transfer_context", startedAt, layouts.error ?? guests.error ?? { code: "BAD_SHAPE" });
+    return null;
+  }
+  const binderOwners = new Set<string>();
+  for (const r of layouts.data as { collection_id?: unknown }[]) {
+    if (typeof r.collection_id === "string") binderOwners.add(r.collection_id.toLowerCase());
+  }
+  const guestOf = new Map<string, string>();
+  for (const r of guests.data as { collection_id?: unknown; layout_id?: unknown }[]) {
+    if (typeof r.collection_id === "string" && typeof r.layout_id === "string") guestOf.set(r.collection_id.toLowerCase(), r.layout_id);
+  }
+  return { active, binderOwners, guestOf };
+}

@@ -7,6 +7,8 @@ import { formatCount } from "@/lib/colecoes/acervo";
 import { type BinderHeader, binderEntryVisible, binderHref, canJoinExistingBinder, createBlocker, isSharedBinder, modelLabel } from "@/lib/colecoes/binder";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { BinderJoinDialog } from "./binder-join";
+import { BinderEndedStatus } from "./binder-lifecycle";
+import { BINDER_OPEN_ON_ARRIVAL_KEY } from "@/lib/colecoes/binder-lifecycle";
 import { BinderOverlay } from "./binder-overlay";
 import styles from "./binder-entry.module.css";
 
@@ -23,7 +25,17 @@ const OPEN_EVENT = "mmkyu:open-binder";
  * outro tipo ou nenhum) não exibe a entrada. O cabeçalho vem da 5223, lido em
  * paralelo pela página da coleção.
  */
-export function BinderEntry({
+export function BinderEntry(props: Parameters<typeof BinderEntryCard>[0]) {
+  // V1-05: depois de desmontar/excluir, a coleção confirma o resultado logo abaixo da entrada.
+  return (
+    <>
+      <BinderEntryCard {...props} />
+      <BinderEndedStatus collectionId={props.collectionId} />
+    </>
+  );
+}
+
+function BinderEntryCard({
   collectionId,
   collectionName,
   finish,
@@ -53,6 +65,18 @@ export function BinderEntry({
     };
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, [collectionId, ready]);
+
+  // Fichário recém-montado: abre a sobreposição uma vez ao chegar (V1-05).
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      if (window.sessionStorage.getItem(BINDER_OPEN_ON_ARRIVAL_KEY) !== collectionId) return;
+      window.sessionStorage.removeItem(BINDER_OPEN_ON_ARRIVAL_KEY);
+    } catch {
+      return;
+    }
+    setOpen(true);
   }, [collectionId, ready]);
 
   if (!binderEntryVisible(binder)) return null;

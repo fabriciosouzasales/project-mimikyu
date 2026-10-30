@@ -1789,6 +1789,9 @@ export function BinderWorkspace({
             backAction={onClose ? { kind: "close", onClose } : { kind: "link", href: backHref }}
             collapsed={collapsedSections}
             onToggleSection={toggleSection}
+            editable={editable}
+            participantCount={participantCount}
+            ownerCollectionName={ownerCollectionName}
             species={
               speciesReferences && speciesState !== null && speciesState.isPokedexOwner
                 ? {

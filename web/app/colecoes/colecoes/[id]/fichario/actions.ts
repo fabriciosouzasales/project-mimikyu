@@ -19,7 +19,18 @@ import {
   parseBinderPreview,
   readBatchStart,
 } from "@/lib/colecoes/binder";
-import { getMyBinderJoinCandidates, getMyCollectionBinderPages } from "@/lib/colecoes/binder-queries";
+import { getMyBinderJoinCandidates, getMyBinderTransferContext, getMyCollectionBinderPages } from "@/lib/colecoes/binder-queries";
+import {
+  DISMANTLE_TOKEN,
+  type BinderLifecycleFailure,
+  type BinderLifecyclePreview,
+  type DismantleResult,
+  type TransferCandidate,
+  classifyBinderLifecycleFailure,
+  parseDismantlePreview,
+  parseDismantleResult,
+  transferCandidates,
+} from "@/lib/colecoes/binder-lifecycle";
 import {
   AVAILABLE_PAGE_SIZE,
   DETACH_TOKEN,
@@ -603,7 +614,7 @@ export async function placeAvailableCard(input: {
  * Passa a âncora do fichário da coleção proprietária para outra coleção ativa
  * do mesmo usuário (5254). Nada no fichário muda (bolsos, posições, imagens,
  * travas, nome, local); a antiga proprietária vira convidada. Caminho seguro
- * antes de excluir a proprietária — a interface ainda não expõe exclusão.
+ * antes de excluir a proprietária. Exposto em "Gerenciar fichário" (V1-05).
  */
 export async function transferBinderOwnership(input: {
   fromCollectionId: string;
@@ -630,6 +641,92 @@ export async function transferBinderOwnership(input: {
     revalidatePath(collectionHref(id));
   }
   return { ok: true, result };
+}
+
+// ---------------------------------------------------------------------------
+// Ciclo de vida do fichário (V1-05): desmontar (E19, 5294), excluir vazio
+// (E19b, 5293) e destinos da transferência (E20, 5254). Só contratos LIVE,
+// com a sessão do colecionador; a autorização é do banco.
+// ---------------------------------------------------------------------------
+
+type LifecycleFail = { ok: false; reason: BinderLifecycleFailure };
+
+function lifecycleFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): LifecycleFail {
+  const reason = classifyBinderLifecycleFailure(error?.code, error?.message);
+  // Sem dados do usuário no log: função, duração, código e classe.
+  console.error(JSON.stringify({ scope: "colecoes.binder_lifecycle", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
+  return { ok: false, reason };
+}
+
+/**
+ * Estado para o bloco "Gerenciar fichário": prévia da desmontagem (5242, não
+ * grava) e, para a coleção principal, os destinos válidos da transferência.
+ * `candidates: null` = leitura dos destinos falhou (a prévia continua valendo).
+ */
+export async function readBinderLifecycle(input: {
+  collectionId: string;
+  layoutId: string;
+}): Promise<{ ok: true; preview: BinderLifecyclePreview; candidates: TransferCandidate[] | null } | LifecycleFail> {
+  if (!isCollectionId(input?.collectionId) || !isCollectionId(input?.layoutId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const [previewRead, context] = await Promise.all([
+    supabase.rpc("preview_my_collection_binder_dismantle", { p_collection_id: input.collectionId }),
+    getMyBinderTransferContext(supabase),
+  ]);
+  if (previewRead.error) return lifecycleFail("preview_my_collection_binder_dismantle", startedAt, previewRead.error);
+  const preview = parseDismantlePreview(previewRead.data);
+  if (!preview) return lifecycleFail("preview_my_collection_binder_dismantle", startedAt, { code: "BAD_SHAPE" });
+  // Só a coleção principal deste fichário transfere; o layout informado precisa ser o da prévia.
+  const isOwner = preview.hasBinder && preview.layoutId?.toLowerCase() === input.layoutId.toLowerCase();
+  const candidates =
+    isOwner && context
+      ? transferCandidates({ currentCollectionId: input.collectionId, layoutId: input.layoutId, active: context.active, binderOwners: context.binderOwners, guestOf: context.guestOf })
+      : isOwner
+        ? null
+        : [];
+  return { ok: true, preview, candidates };
+}
+
+/**
+ * Desmonta o fichário (5294) com o token da prévia que a pessoa revisou.
+ * Apaga páginas, bolsos, posições, reservas, mesclagens, imagens e o fichário;
+ * cartas físicas, acervo, alocações e progresso não mudam. Devolve os
+ * caminhos das imagens removidas — o cliente apaga os arquivos depois.
+ */
+export async function dismantleBinder(input: { collectionId: string; token: string }): Promise<{ ok: true; result: DismantleResult } | LifecycleFail> {
+  if (!isCollectionId(input?.collectionId) || typeof input.token !== "string" || !DISMANTLE_TOKEN.test(input.token)) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("dismantle_my_collection_binder", {
+    p_collection_id: input.collectionId,
+    p_dismantle_token: input.token,
+  });
+  if (error) return lifecycleFail("dismantle_my_collection_binder", startedAt, error);
+  const result = parseDismantleResult(data);
+  if (!result) return lifecycleFail("dismantle_my_collection_binder", startedAt, { code: "BAD_SHAPE" });
+  console.info(JSON.stringify({ scope: "colecoes.binder_lifecycle", fn: "dismantle_my_collection_binder", ms: Date.now() - startedAt, outcome: result.outcome, images: result.images }));
+  revalidatePath(binderHref(input.collectionId));
+  revalidatePath(collectionHref(input.collectionId));
+  return { ok: true, result };
+}
+
+/**
+ * Exclui o fichário vazio (5293): só sem páginas, de coleção ativa da própria
+ * sessão; com convidadas o banco recusa. Nada além do fichário vazio muda.
+ */
+export async function deleteEmptyBinder(input: { collectionId: string; layoutId: string }): Promise<{ ok: true } | LifecycleFail> {
+  if (!isCollectionId(input?.collectionId) || !isCollectionId(input?.layoutId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_collection_layout", { p_layout_id: input.layoutId });
+  if (error) return lifecycleFail("delete_collection_layout", startedAt, error);
+  console.info(JSON.stringify({ scope: "colecoes.binder_lifecycle", fn: "delete_collection_layout", ms: Date.now() - startedAt }));
+  revalidatePath(binderHref(input.collectionId));
+  revalidatePath(collectionHref(input.collectionId));
+  return { ok: true };
 }
 
 /** Prévia de sair do fichário compartilhado (5229, não grava). `preview: null` = a coleção não é convidada. */

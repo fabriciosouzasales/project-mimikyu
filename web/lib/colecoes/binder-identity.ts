@@ -336,7 +336,7 @@ export function buildBinderProgress(
 
 /** Preferências individuais do painel (navegador): aberto/fechado e seções recolhidas. */
 export const CONTROL_PANEL_STORAGE_KEY = "mmkyu:binder-control:v1";
-export const CONTROL_SECTIONS = ["identity", "organize", "info", "history"] as const;
+export const CONTROL_SECTIONS = ["identity", "organize", "info", "history", "manage"] as const;
 export type ControlSection = (typeof CONTROL_SECTIONS)[number];
 export type ControlPanelPrefs = { open: boolean; collapsed: ControlSection[] };
 
